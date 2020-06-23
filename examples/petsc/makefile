@@ -90,6 +90,9 @@ EX10_ARGS        := -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex10p
 EX10_MF_ARGS     := -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex10p_mf -tf 6 -s 3 -rs 0 -dt 3
 EX10_MFOP_ARGS   := -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex10p_mfop -tf 6 -s 3 -rs 0 -dt 3
 EX10_JFNK_ARGS   := -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex10p_jfnk --jfnk -tf 6 -s 3 -rs 0 -dt 3
+EX11_ARGS_SINV   := -m ../../data/star.mesh --useslepc
+EX11_ARGS_LOBPCG := -m ../../data/star.mesh --useslepc --slepcopts rc_ex11p_lobpcg
+EX11_ARGS_GD     := -m ../../data/star.mesh --useslepc --slepcopts rc_ex11p_gd
 
 ex1p-test-par: ex1p
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX1_ARGS_W))
@@ -117,6 +120,12 @@ ex10p-test-par: ex10p
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX10_MF_ARGS))
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX10_MFOP_ARGS))
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX10_JFNK_ARGS))
+ifeq ($(MFEM_USE_SLEPC),YES)
+ex11p-test-par: ex11p
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX11_ARGS_SINV))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX11_ARGS_LOBPCG))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX11_ARGS_GD))
+endif
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
