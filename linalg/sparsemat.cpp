@@ -210,7 +210,6 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
    At = NULL;
    isSorted = mat.isSorted;
 
-
    InitCuSparse();
 }
 
@@ -610,7 +609,6 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
    }
 
 #ifndef MFEM_USE_LEGACY_OPENMP
-
    const int height = this->height;
    const int nnz = J.Capacity();
    auto d_I = Read(I, height+1);
@@ -619,7 +617,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
    auto d_x = x.Read();
    auto d_y = y.ReadWrite();
 
-   //Skip if matrix is all zero
+   //Skip if matrix has no non-zeros
    if (nnz == 0) {return;}
    if (Device::Allows(Backend::CUDA_MASK))
    {
@@ -1087,10 +1085,6 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
 
    delete [] Rows;
    Rows = NULL;
-
-#ifdef MFEM_USE_CUDA
-
-#endif
 }
 
 void SparseMatrix::GetBlocks(Array2D<SparseMatrix *> &blocks) const
