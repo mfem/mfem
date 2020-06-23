@@ -747,7 +747,7 @@ public:
    /// Destroy all GeometricFactors stored by the Mesh.
    /** This method can be used to force recomputation of the GeometricFactors,
        for example, after the mesh nodes are modified externally. */
-   void DeleteGeometricFactors(bool recompute=false);
+   void DeleteGeometricFactors(bool recompute = false);
 
    /// Equals 1 + num_holes - num_loops
    inline int EulerNumber() const
@@ -1447,7 +1447,7 @@ public:
 
    void Recompute();
 
-   void SetForRecompute(bool recompute=false) {recompute_factors = recompute; };
+   void SetForRecompute(bool recompute = false) {recompute_factors = recompute; };
 
    bool RecomputeStatus() {return recompute_factors; };
 
