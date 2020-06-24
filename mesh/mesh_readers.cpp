@@ -1618,10 +1618,8 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
       }
    } // we reach the end of the file
 
-   Finalize();
    this->RemoveUnusedVertices();
    this->RemoveInternalBoundaries();
-   FinalizeTopology();
 
    // If a high order coordinate field was created project it onto the mesh
    if (order > 1)
