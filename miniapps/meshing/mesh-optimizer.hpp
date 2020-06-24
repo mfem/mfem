@@ -171,12 +171,11 @@ public:
       Vector pos(3);
       T.Transform(ip, pos);
       K = 0.;
-      if (metric != 14 && metric != 87)
+      if (metric != 14 && metric != 85)
       {
          const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
          const double r = sqrt(xc*xc + yc*yc);
          double r1 = 0.15; double r2 = 0.35; double sf=30.0;
-         const double eps = 0.5;
 
          const double tan1 = std::tanh(sf*(r-r1)),
                       tan2 = std::tanh(sf*(r-r2));

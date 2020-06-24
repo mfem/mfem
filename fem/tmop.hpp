@@ -708,6 +708,9 @@ public:
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip) = 0;
 
+   /** @brief Evaluate the derivative of the matrix coefficient with respect
+       to @a comp in the element described by @a T at the point @a ip,
+       storing the result in @a K. */
    virtual void EvalP(DenseMatrix &K, ElementTransformation &T,
                       const IntegrationPoint &ip, int comp) = 0;
 
@@ -765,10 +768,10 @@ protected:
    // eta1(x+h,y), eta2(x+h,y) ... etan(x+h,y), eta1(x,y+h), eta2(x,y+h) ...
    // same for tspec_pert2h and tspec_pertmix.
 
-   mutable DenseTensor
-   *Jtrcomp; //components of Target Jacobian at each quadrature point
+   // Components of Target Jacobian at each quadrature point
    // of an element. This is required for computation of
-   // the derivative.
+   // the derivative using chain rule.
+   mutable DenseTensor Jtrcomp;
 
    // Note: do not use the Nodes of this space as they may not be on the
    // positions corresponding to the values of tspec.
