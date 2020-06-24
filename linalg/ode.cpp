@@ -9,7 +9,6 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../general/dbg.hpp"
 #include "operator.hpp"
 #include "ode.hpp"
 
@@ -105,7 +104,6 @@ void RK4Solver::Init(TimeDependentOperator &_f)
    y.SetSize(n, mem_type);
    k.SetSize(n, mem_type);
    z.SetSize(n, mem_type);
-   dbg("\033[7m SetSize:%d, mem_type: %d", n, mem_type);
 }
 
 void RK4Solver::Step(Vector &x, double &t, double &dt)

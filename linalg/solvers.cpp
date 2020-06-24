@@ -10,7 +10,6 @@
 // CONTRIBUTING.md for details.
 
 #include "linalg.hpp"
-#include "../general/dbg.hpp"
 #include "../general/forall.hpp"
 #include "../general/globals.hpp"
 #include "../fem/bilinearform.hpp"
@@ -149,7 +148,6 @@ OperatorJacobiSmoother::OperatorJacobiSmoother(const Vector &d,
 
 void OperatorJacobiSmoother::Setup(const Vector &diag)
 {
-   dbg("N:%d",N);
    residual.UseDevice(true);
    const double delta = damping;
    auto D = diag.Read();
@@ -161,7 +159,6 @@ void OperatorJacobiSmoother::Setup(const Vector &diag)
 
 void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
 {
-   dbg("x.Size():%d, y.Size():%d, N:%d",x.Size(),y.Size(),N);
    MFEM_ASSERT(x.Size() == N, "invalid input vector");
    MFEM_ASSERT(y.Size() == N, "invalid output vector");
 
@@ -542,7 +539,6 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
 
    if (iterative_mode)
    {
-      dbg("iterative_mode, x:%d, r:%d", x.Size(), r.Size());
       oper->Mult(x, r);
       subtract(b, r, r); // r = b - A x
    }
@@ -554,7 +550,6 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
 
    if (prec)
    {
-      dbg("prec, r:%d, z:%d", r.Size(), z.Size());
       prec->Mult(r, z); // z = B r
       d = z;
    }

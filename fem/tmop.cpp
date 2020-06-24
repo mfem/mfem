@@ -13,7 +13,6 @@
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
-#include "../general/dbg.hpp"
 
 namespace mfem
 {
@@ -1047,7 +1046,6 @@ void DiscreteAdaptTC::SetParDiscreteTargetSpec(const ParGridFunction &tspec_)
 
 void DiscreteAdaptTC::SetDiscreteTargetBase(const GridFunction &tspec_)
 {
-   dbg("");
    const int vdim     = tspec_.FESpace()->GetVDim(),
              dof_cnt  = tspec_.Size()/vdim;
 
