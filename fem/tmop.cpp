@@ -1249,7 +1249,7 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
    MFEM_VERIFY(tspec_fesv, "No target specifications have been set.");
    const int dim = fe.GetDim(),
              nqp = ir.GetNPoints();
-   Jtrcomp = new DenseTensor(dim, dim, 4*nqp);
+   Jtrcomp.SetSize(dim, dim, 4*nqp);
 
    switch (target_type)
    {
@@ -1270,15 +1270,15 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
          tspec_fesv->GetElementVDofs(e_id, dofs);
          tspec.GetSubVector(dofs, tspec_vals);
 
-         for (int i = 0; i < ir.GetNPoints(); i++)
+         for (int q = 0; q < nqp; q++)
          {
-            const IntegrationPoint &ip = ir.IntPoint(i);
+            const IntegrationPoint &ip = ir.IntPoint(q);
             tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
-            Jtr(i) = Wideal; //Initialize to identity
+            Jtr(q) = Wideal; //Initialize to identity
             for (int d = 0; d < 4; d++)
             {
-               DenseMatrix Jtrcompi(Jtrcomp->GetData(d + 4*i), dim, dim);
-               Jtrcompi = Wideal; // Initialize to identity
+               DenseMatrix Jtrcomp_q(Jtrcomp.GetData(d + 4*q), dim, dim);
+               Jtrcomp_q = Wideal; // Initialize to identity
             }
 
             if (sizeidx != -1) //Set size
@@ -1288,9 +1288,9 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                MFEM_VERIFY(min_size > 0.0,
                            "Non-positive size propagated in the target definition.");
                const double size = std::max(shape * par_vals, min_size);
-               Jtr(i).Set(std::pow(size, 1.0/dim), Jtr(i));
-               DenseMatrix Jtrcompi(Jtrcomp->GetData(0 + 4*i), dim, dim);
-               Jtrcompi = Jtr(i);
+               Jtr(q).Set(std::pow(size, 1.0/dim), Jtr(q));
+               DenseMatrix Jtrcomp_q(Jtrcomp.GetData(0 + 4*q), dim, dim);
+               Jtrcomp_q = Jtr(q);
             } //Done size
 
             if (target_type == IDEAL_SHAPE_GIVEN_SIZE) { continue; }
@@ -1323,10 +1323,10 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                   D_rho(1,1) = pow(rho2,2./3.);
                   D_rho(2,2) = pow(rho3,2./3.);
                }
-               DenseMatrix Jtrcompi(Jtrcomp->GetData(1 + 4*i), dim, dim);
-               Jtrcompi = D_rho;
-               DenseMatrix Temp = Jtr(i);
-               Mult(D_rho, Temp, Jtr(i));
+               DenseMatrix Jtrcomp_q(Jtrcomp.GetData(1 + 4*q), dim, dim);
+               Jtrcomp_q = D_rho;
+               DenseMatrix Temp = Jtr(q);
+               Mult(D_rho, Temp, Jtr(q));
             } //Done aspect ratio
 
             if (skewidx != -1) //Set skew
@@ -1365,10 +1365,10 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
 
                   Q_phi(2,2) = sin(phi13)*sin(chi);
                }
-               DenseMatrix Jtrcompi(Jtrcomp->GetData(2 + 4*i), dim, dim);
-               Jtrcompi = Q_phi;
-               DenseMatrix Temp = Jtr(i);
-               Mult(Q_phi, Temp, Jtr(i));
+               DenseMatrix Jtrcomp_q(Jtrcomp.GetData(2 + 4*q), dim, dim);
+               Jtrcomp_q = Q_phi;
+               DenseMatrix Temp = Jtr(q);
+               Mult(Q_phi, Temp, Jtr(q));
             } // done skew
 
             if (orientationidx != -1) //Set orientation
@@ -1413,10 +1413,10 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                   R_theta(1,0) = ct*sb - st*cp*cb;
                   R_theta(2,0) = sp*cb;
                }
-               DenseMatrix Jtrcompi(Jtrcomp->GetData(3 + 4*i), dim, dim);
-               Jtrcompi = R_theta;
-               DenseMatrix Temp = Jtr(i);
-               Mult(R_theta, Temp, Jtr(i));
+               DenseMatrix Jtrcomp_q(Jtrcomp.GetData(3 + 4*q), dim, dim);
+               Jtrcomp_q = R_theta;
+               DenseMatrix Temp = Jtr(q);
+               Mult(R_theta, Temp, Jtr(q));
             } // done orientation
          }
          break;
@@ -1460,9 +1460,6 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(int e_id,
          tspec_fesv->GetElementVDofs(e_id, dofs);
          tspec.GetSubVector(dofs, tspec_vals);
 
-         DenseMatrix grad_e(ndofs, dim);
-         Vector grad_ptr(grad_e.GetData(), ndofs*dim);
-
          DenseMatrix grad_e_c1(ndofs, dim),
                      grad_e_c2(ndofs, dim),
                      grad_e_c3(ndofs, dim);
@@ -1476,26 +1473,26 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(int e_id,
          for (int i = 0; i < ir.GetNPoints(); i++)
          {
             const IntegrationPoint &ip = ir.IntPoint(i);
-            DenseMatrix Jtrcomp_s(Jtrcomp->GetData(0 + 4*i), dim, dim); //size
-            DenseMatrix Jtrcomp_d(Jtrcomp->GetData(1 + 4*i), dim, dim); //aspect-ratio
-            DenseMatrix Jtrcomp_q(Jtrcomp->GetData(2 + 4*i), dim, dim); //skew
-            DenseMatrix Jtrcomp_r(Jtrcomp->GetData(3 + 4*i), dim, dim); //orientation
+            DenseMatrix Jtrcomp_s(Jtrcomp.GetData(0 + 4*i), dim, dim); //size
+            DenseMatrix Jtrcomp_d(Jtrcomp.GetData(1 + 4*i), dim, dim); //aspect-ratio
+            DenseMatrix Jtrcomp_q(Jtrcomp.GetData(2 + 4*i), dim, dim); //skew
+            DenseMatrix Jtrcomp_r(Jtrcomp.GetData(3 + 4*i), dim, dim); //orientation
             DenseMatrix work1(dim), work2(dim), work3(dim);
 
             if (sizeidx != -1) //Set size
             {
                par_vals.SetDataAndSize(tspec_vals.GetData()+sizeidx*ndofs, ndofs);
 
-               grad_phys.Mult(par_vals, grad_ptr);
+               grad_phys.Mult(par_vals, grad_ptr_c1);
                Vector grad_q(dim);
                tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
-               grad_e.MultTranspose(shape, grad_q);
+               grad_e_c1.MultTranspose(shape, grad_q);
 
                const double min_size = par_vals.Min();
                MFEM_VERIFY(min_size > 0.0,
                            "Non-positive size propagated in the target definition.");
                const double size = std::max(shape * par_vals, min_size);
-               double sizeval = (1./dim)*pow(size, 1./dim - 1.);
+               double dz_dsize = (1./dim)*pow(size, 1./dim - 1.);
 
                Mult(Jtrcomp_q, Jtrcomp_d, work1); //Q*D
                Mult(Jtrcomp_r, work1, work2);     //R*Q*D
@@ -1504,7 +1501,7 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(int e_id,
                {
                   DenseMatrix &dJtr_i = dJtr(i + d*ir.GetNPoints());
                   work1 = Wideal;
-                  work1.Set(sizeval, work1);     //dz/dsize
+                  work1.Set(dz_dsize, work1);     //dz/dsize
                   work1 *= grad_q(d);            //dz/dsize*dsize/dx
                   AddMult(work1, work2, dJtr_i); //dz/dx*R*Q*D
                }
@@ -1519,10 +1516,10 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(int e_id,
                   par_vals.SetDataAndSize(tspec_vals.GetData()+
                                           aspectratioidx*ndofs, ndofs);
 
-                  grad_phys.Mult(par_vals, grad_ptr);
+                  grad_phys.Mult(par_vals, grad_ptr_c1);
                   Vector grad_q(dim);
                   tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
-                  grad_e.MultTranspose(shape, grad_q);
+                  grad_e_c1.MultTranspose(shape, grad_q);
 
                   const double aspectratio = shape * par_vals;
                   dD_rho = 0.;
@@ -1589,10 +1586,10 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(int e_id,
                   par_vals.SetDataAndSize(tspec_vals.GetData()+
                                           skewidx*ndofs, ndofs);
 
-                  grad_phys.Mult(par_vals, grad_ptr);
+                  grad_phys.Mult(par_vals, grad_ptr_c1);
                   Vector grad_q(dim);
                   tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
-                  grad_e.MultTranspose(shape, grad_q);
+                  grad_e_c1.MultTranspose(shape, grad_q);
 
                   const double skew = shape * par_vals;
 
@@ -1669,10 +1666,10 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(int e_id,
                   par_vals.SetDataAndSize(tspec_vals.GetData()+
                                           orientationidx*ndofs, ndofs);
 
-                  grad_phys.Mult(par_vals, grad_ptr);
+                  grad_phys.Mult(par_vals, grad_ptr_c1);
                   Vector grad_q(dim);
                   tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
-                  grad_e.MultTranspose(shape, grad_q);
+                  grad_e_c1.MultTranspose(shape, grad_q);
 
                   const double theta = shape * par_vals;
                   dR_theta(0,0) = -sin(theta);
@@ -1773,7 +1770,7 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(int e_id,
       default:
          MFEM_ABORT("Incompatible target type for discrete adaptation!");
    }
-   delete Jtrcomp;
+   Jtrcomp.Clear();
 }
 
 void DiscreteAdaptTC::UpdateGradientTargetSpecification(const Vector &x,
@@ -2498,7 +2495,7 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
    if (zeta)
    {
       const IntegrationRule *ir = ActionIntegrationRule(el);
-      const int nqp = nqp;
+      const int nqp = ir->GetNPoints();
       DenseTensor Jtr(dim, dim, nqp);
       targetC->ComputeElementTargets(T.ElementNo, el, *ir, elfun, Jtr);
 
@@ -2594,7 +2591,7 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
    if (zeta)
    {
       const IntegrationRule *ir = GradientIntegrationRule(el);
-      const int nqp = nqp;
+      const int nqp = ir->GetNPoints();
       DenseTensor Jtr(dim, dim, nqp);
       targetC->ComputeElementTargets(T.ElementNo, el, *ir, elfun, Jtr);
 
