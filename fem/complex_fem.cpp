@@ -419,9 +419,9 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       if (A_i.Type() != Operator::MFEM_SPARSEMAT)
       {
          int n = ess_tdof_list.Size();
-         for (int k=0; k<n; k++)
+         for (int k = 0; k < n; k++)
          {
-            int j=ess_tdof_list[k];
+            int j = ess_tdof_list[k];
             B_r(j) = X_r(j);
             B_i(j) = X_i(j);
          }
@@ -709,7 +709,7 @@ ParComplexLinearForm::ParComplexLinearForm(ParFiniteElementSpace *pfes,
    int n = (HYPRE_AssumedPartitionCheck()) ? 2 : pfes->GetNRanks();
    tdof_offsets = new HYPRE_Int[n+1];
 
-   for (int i=0; i<=n; i++)
+   for (int i = 0; i <= n; i++)
    {
       tdof_offsets[i] = 2 * tdof_offsets_fes[i];
    }
@@ -734,7 +734,7 @@ ParComplexLinearForm::ParComplexLinearForm(ParFiniteElementSpace *pfes,
    int n = (HYPRE_AssumedPartitionCheck()) ? 2 : pfes->GetNRanks();
    tdof_offsets = new HYPRE_Int[n+1];
 
-   for (int i=0; i<=n; i++)
+   for (int i = 0; i <= n; i++)
    {
       tdof_offsets[i] = 2 * tdof_offsets_fes[i];
    }
@@ -1044,7 +1044,7 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    {
       int n = ess_tdof_list.Size();
       // Modify RHS to conform with standard essential BC treatment
-      for (int k=0; k<n; k++)
+      for (int k = 0; k < n; k++)
       {
          int j=ess_tdof_list[k];
          B_r(j) = X_r(j);
@@ -1057,9 +1057,9 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
          HypreParMatrix * Ah;  A_i.Get(Ah);
          hypre_ParCSRMatrix * Aih =
             (hypre_ParCSRMatrix *)const_cast<HypreParMatrix&>(*Ah);
-         for (int k=0; k<n; k++)
+         for (int k = 0; k < n; k++)
          {
-            int j=ess_tdof_list[k];
+            int j = ess_tdof_list[k];
             Aih->diag->data[Aih->diag->i[j]] = 0.0;
          }
       }
@@ -1131,9 +1131,9 @@ ParSesquilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
          HypreParMatrix * Ah;  A_i.Get(Ah);
          hypre_ParCSRMatrix * Aih =
             (hypre_ParCSRMatrix *)const_cast<HypreParMatrix&>(*Ah);
-         for (int k=0; k<n; k++)
+         for (int k = 0; k < n; k++)
          {
-            int j=ess_tdof_list[k];
+            int j = ess_tdof_list[k];
             Aih->diag->data[Aih->diag->i[j]] = 0.0;
          }
       }
