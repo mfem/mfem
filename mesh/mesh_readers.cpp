@@ -1084,6 +1084,11 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          int quad16[] = {0,4,5,1,11,12,13,6,  // 3rd order quadrilateral
                          10,15,14,7,3,9,8,2
                         };
+         // int tet10[] {0,7,3,4,9,1,6,8,5,2};   // 2nd order tetrahedron
+         int tet10[] {0,4,1,6,5,2,7,9,8,3};   // 2nd order tetrahedron
+         int tet20[] = {};
+         int hex27[] {};
+         int hex64[] {};
 
          vector<Element*> elements_0D, elements_1D, elements_2D, elements_3D;
          elements_0D.reserve(num_of_all_elements);
@@ -1493,8 +1498,14 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                      ho_verts = ho_verts_2D[el];
                      break;
                   case Element::TETRAHEDRON:
+                     nv = (order == 2) ? 10 : 20;
+                     vm = (order == 2) ? tet10 : tet20;
+                     ho_verts = ho_verts_3D[el];
                      break;
                   case Element::HEXAHEDRON:
+                     nv = (order == 2) ? 27 : 64;
+                     vm = (order == 2) ? hex27 : hex64;
+                     ho_verts = ho_verts_3D[el];
                      break;
                   default: // Any other element type
                      MFEM_WARNING("Unsupported Gmsh element type.");
