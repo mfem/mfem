@@ -12,7 +12,6 @@
 #include "tmop_tools.hpp"
 #include "nonlinearform.hpp"
 #include "pnonlinearform.hpp"
-#include "../general/dbg.hpp"
 #include "../general/osockstream.hpp"
 
 namespace mfem
@@ -49,7 +48,6 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
 void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
                                             Vector &new_field)
 {
-   dbg("");
    Mesh *m = mesh;
 #ifdef MFEM_USE_MPI
    if (pmesh) { m = pmesh; }
@@ -86,7 +84,6 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
 #endif
    MFEM_VERIFY(oper != NULL,
                "No FE space has been given to the AdaptivityEvaluator.");
-   dbg("ode_solver.Init");
    ode_solver.Init(*oper);
 
    // Compute some time step [mesh_size / speed].

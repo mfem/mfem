@@ -13,7 +13,6 @@
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
-#include "../general/dbg.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 
@@ -43,7 +42,6 @@ static void SetupJtr(const int dim, const int NE, const int NQ,
       const FiniteElement *fe = fes->GetFE(e);
       if (target_type == TargetConstructor::GIVEN_FULL)
       {
-         dbg("x");
          fes->GetElementVDofs(e, vdofs);
          x.GetSubVector(vdofs, elfun);
       }
@@ -56,7 +54,6 @@ static void SetupJtr(const int dim, const int NE, const int NQ,
 
 void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   dbg("");
    const IntegrationRule *ir = EnergyIntegrationRule(*fes.GetFE(0));
    MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES,
                "PA Only supports Ordering::byNODES!");
@@ -113,10 +110,8 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    PA.Jtr.SetSize(dim, dim, NE*NQ);
    PA.Jtr.HostWrite();
    const bool datc = dynamic_cast<const DiscreteAdaptTC*>(targetC) != nullptr;
-   dbg("datc: %s", datc?"yes":"no");
    if (!datc && target_type < TargetConstructor::GIVEN_FULL)
    {
-      dbg("Setup => SetupJtr");
       PA.setup_Jtr = true;
       Vector x;
       SetupJtr(dim, NE, NQ, PA.fes, ir, target_type, targetC, x, PA.Jtr);
@@ -167,7 +162,6 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 
 void TMOP_Integrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   dbg("");
    if (!PA.setup_Jtr)
    {
       MFEM_ABORT("Should be inited!");
@@ -175,7 +169,6 @@ void TMOP_Integrator::AddMultPA(const Vector &x, Vector &y) const
       X.UseDevice(true);
       PA.R->MultTranspose(x,X);
       ScaleByWeight(PA.W, X);
-      dbg("SetupJtr %.15e", X*X);
       const TargetConstructor::TargetType &target_type = targetC->Type();
       MFEM_VERIFY(target_type == TargetConstructor::GIVEN_FULL, "");
       const int dim = PA.dim;
@@ -206,14 +199,12 @@ void TMOP_Integrator::AddMultPA(const Vector &x, Vector &y) const
 void TMOP_Integrator::AddMultGradPA(const Vector &x,
                                     const Vector &r, Vector &c) const
 {
-   dbg("");
    if (!PA.setup_Jtr)
    {
       Vector X(PA.R->Width(), Device::GetMemoryType());
       X.UseDevice(true);
       PA.R->MultTranspose(x,X);
       ScaleByWeight(PA.W, X);
-      dbg("SetupJtr %.15e", X*X);
       const TargetConstructor::TargetType &target_type = targetC->Type();
       //MFEM_VERIFY(target_type == TargetConstructor::GIVEN_FULL, "");
       const int dim = PA.dim;
@@ -268,7 +259,6 @@ double TMOP_Integrator::GetGridFunctionEnergyPA(const Vector &x) const
       X.UseDevice(true);
       PA.R->MultTranspose(x, X);
       ScaleByWeight(PA.W, X);
-      dbg("SetupJtr %.15e", X*X);
       const TargetConstructor::TargetType &target_type = targetC->Type();
       //MFEM_VERIFY(target_type == TargetConstructor::GIVEN_FULL, "");
       const int dim = PA.dim;
