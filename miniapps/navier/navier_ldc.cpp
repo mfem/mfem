@@ -29,7 +29,6 @@
 using namespace mfem;
 using namespace navier;
 
-double lid = {1.0}; 
 
 struct s_NavierContext
 {
@@ -42,7 +41,7 @@ struct s_NavierContext
    bool ni = false;
    bool visualization = false;
    bool checkres = false;
-   //double lid = 1.0;
+   double lid = 1.0;
 } ctx;
 
 void vel(const Vector &x, double t, Vector &u)
@@ -52,7 +51,7 @@ void vel(const Vector &x, double t, Vector &u)
 
    if (yi==1.0)
    {
-      u(0) = lid;
+      u(0) = ctx.lid;
    }
    else
    {
@@ -111,7 +110,7 @@ int main(int argc, char *argv[])
                   "Order (degree) of the finite elements.");
    args.AddOption(&ctx.kinvis, "-k", "--kinematic-viscosity", 
                   "Kinematic viscosity of the simulated fluid.");
-   args.AddOption(&lid, "-lid", "--lidspeed", 
+   args.AddOption(&ctx.lid, "-lid", "--lidspeed", 
                   "Lid speed of the cavity.");
    args.AddOption(&ctx.dt, "-dt", "--time-step", "Time step.");
    args.AddOption(&ctx.t_final, "-tf", "--final-time", "Final time.");
