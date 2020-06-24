@@ -1,19 +1,26 @@
 SetFactory("OpenCASCADE");
 
+// Select periodic mesh by setting this to either 0 - standard, 1 - periodic
+periodic = 0;
+
 // Set the geometry order (1, 2, or 3)
-order = 1;
+order = 2;
 
 R = 1.5;
 r = 0.5;
 
-Torus(1) = {0,0,0, R, r, Pi/3};
+Phi = Pi/3.0;
+
+Torus(1) = {0,0,0, R, r, Phi};
 
 pts() = PointsOf{ Volume{1}; };
 
-Characteristic Length{ pts() } = 0.25;
+Characteristic Length{ pts() } = 0.5;
 
 // Set a rotation periodicity constraint:
-Periodic Surface{3} = {2} Rotate{{0,0,1}, {0,0,0}, Pi/3};
+If (periodic)
+   Periodic Surface{3} = {2} Rotate{{0,0,1}, {0,0,0}, Phi};
+EndIf
 
 // Tag surfaces and volumes with positive integers
 Physical Surface(1) = {1};
@@ -26,4 +33,8 @@ Mesh 3;
 SetOrder order;
 Mesh.MshFileVersion = 2.2;
 
-Save Sprintf("periodic-torus-sector-o%01g.msh", order);
+If (periodic)
+   Save Sprintf("periodic-torus-sector-o%01g.msh", order);
+Else
+   Save Sprintf("torus-sector-o%01g.msh", order);
+EndIf
