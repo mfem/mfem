@@ -1045,9 +1045,10 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             -1,-1,-1,-1,-1, /* unsupported quadrilateral types */
             -1,-1,-1,-1,-1, /* unsupported trianglular types */
             -1,-1,-1,-1,-1, /* unsupported quadrilateral types */
-            -1,-1,-1,-1,-1,-1 /* unsupported linear types */
-            -1,-1,-1 /* unsupported types */
+            -1,-1,-1,-1,-1,-1, /* unsupported linear types */
+            -1,-1,-1, /* unsupported types */
             -1,-1,-1,-1,-1, /* unsupported tetrahedral types */
+            -1,-1,-1,       /* undefined types */
             -1,-1,-1,-1,-1, /* unsupported tetrahedral types */
             -1,-1,-1,-1,-1,-1,-1,-1, /* unsupported types */
             64 /* 64-node third order hexahedron (8 nodes associated with the
@@ -1090,7 +1091,15 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                       10,21,12,22,26,23,15,24,14,
                       4,16,5,17,25,18,7,19,6
                      };
-         int hex64[] {};
+         int hex64[] {0,8,9,1,10,32,35,14,    // 3rd order hexahedron
+                      11,33,34,15,3,19,18,2,
+                      12,36,37,16,40,56,57,44,
+                      43,59,58,45,22,49,48,20,
+                      13,39,38,17,41,60,61,47,
+                      42,63,62,46,23,50,51,21,
+                      4,24,25,5,26,52,53,28,
+                      27,55,54,29,7,31,30,6
+                     };
 
          vector<Element*> elements_0D, elements_1D, elements_2D, elements_3D;
          elements_0D.reserve(num_of_all_elements);
