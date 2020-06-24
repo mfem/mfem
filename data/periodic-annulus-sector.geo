@@ -1,5 +1,8 @@
 SetFactory("OpenCASCADE");
 
+// Set the geometry order (1, 2, or 3)
+order = 1;
+
 R1 = 1.0;
 R2 = 2.0;
 
@@ -32,6 +35,7 @@ Physical Surface(1) = {1};
 
 // Generate 2D mesh
 Mesh 2;
+SetOrder order;
 Mesh.MshFileVersion = 2.2;
 
-Save "periodic-annulus-sector.msh";
+Save Sprintf("periodic-annulus-sector-o%01g.msh",order);
