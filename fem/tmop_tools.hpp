@@ -28,15 +28,12 @@ private:
    Vector nodes0;
    Vector field0;
    const double dt_scale;
-   const AssemblyLevel al = AssemblyLevel::FULL;
+   const AssemblyLevel al;
 
    void ComputeAtNewPositionScalar(const Vector &new_nodes, Vector &new_field);
 public:
-   AdvectorCG(double timestep_scale = 0.5)
-      : AdaptivityEvaluator(),
-        ode_solver(), nodes0(), field0(), dt_scale(timestep_scale) { }
-
-   AdvectorCG(AssemblyLevel al, double timestep_scale = 0.5)
+   AdvectorCG(AssemblyLevel al = AssemblyLevel::FULL,
+              double timestep_scale = 0.5)
       : AdaptivityEvaluator(),
         ode_solver(), nodes0(), field0(), dt_scale(timestep_scale), al(al) { }
 
@@ -83,7 +80,7 @@ protected:
    GridFunction &u;
    VectorGridFunctionCoefficient u_coeff;
    mutable BilinearForm M, K;
-   const AssemblyLevel al = AssemblyLevel::FULL;
+   const AssemblyLevel al;
 
 public:
    /** Here @a fes is the FESpace of the function that will be moved. Note
@@ -105,12 +102,14 @@ protected:
    GridFunction &u;
    VectorGridFunctionCoefficient u_coeff;
    mutable ParBilinearForm M, K;
+   const AssemblyLevel al;
 
 public:
    /** Here @a pfes is the ParFESpace of the function that will be moved. Note
        that Mult() moves the nodes of the mesh corresponding to @a pfes. */
    ParAdvectorCGOper(const Vector &x_start, GridFunction &vel,
-                     ParFiniteElementSpace &pfes);
+                     ParFiniteElementSpace &pfes,
+                     AssemblyLevel al = AssemblyLevel::FULL);
 
    virtual void Mult(const Vector &ind, Vector &di_dt) const;
 };
