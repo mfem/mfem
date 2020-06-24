@@ -483,10 +483,11 @@ void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
          });
          break;
       case DIAG_KEEP:
-         // TODO: implement DIAG_KEEP for constrained operator mult
+         // Needs action of the operator diagonal on vector
+         mfem_error("ConstrainedOperator::Mult #1");
          break;
       default:
-         mfem_error("ConstrainedOperator::Mult #1");
+         mfem_error("ConstrainedOperator::Mult #2");
          break;
    }
 }
