@@ -1086,7 +1086,9 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                          10,15,14,7,3,9,8,2
                         };
          int tet10[] {0,4,1,6,5,2,7,9,8,3};   // 2nd order tetrahedron
-         int tet20[] = {};
+         int tet20[] = {0,4,5,1,9,16,6,8,7,2, // 3rd order tetrahedron
+                        11,17,15,18,19,13,10,14,12,3
+                       };
          int hex27[] {0,8,1,9,20,11,3,13,2,   // 2nd order hexahedron
                       10,21,12,22,26,23,15,24,14,
                       4,16,5,17,25,18,7,19,6
