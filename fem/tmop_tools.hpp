@@ -28,12 +28,17 @@ private:
    Vector nodes0;
    Vector field0;
    const double dt_scale;
+   const AssemblyLevel al = AssemblyLevel::FULL;
 
    void ComputeAtNewPositionScalar(const Vector &new_nodes, Vector &new_field);
 public:
    AdvectorCG(double timestep_scale = 0.5)
       : AdaptivityEvaluator(),
         ode_solver(), nodes0(), field0(), dt_scale(timestep_scale) { }
+
+   AdvectorCG(AssemblyLevel al, double timestep_scale = 0.5)
+      : AdaptivityEvaluator(),
+        ode_solver(), nodes0(), field0(), dt_scale(timestep_scale), al(al) { }
 
    virtual void SetInitialField(const Vector &init_nodes,
                                 const Vector &init_field);
@@ -78,12 +83,14 @@ protected:
    GridFunction &u;
    VectorGridFunctionCoefficient u_coeff;
    mutable BilinearForm M, K;
+   const AssemblyLevel al = AssemblyLevel::FULL;
 
 public:
    /** Here @a fes is the FESpace of the function that will be moved. Note
        that Mult() moves the nodes of the mesh corresponding to @a fes. */
    SerialAdvectorCGOper(const Vector &x_start, GridFunction &vel,
-                        FiniteElementSpace &fes);
+                        FiniteElementSpace &fes,
+                        AssemblyLevel al = AssemblyLevel::FULL);
 
    virtual void Mult(const Vector &ind, Vector &di_dt) const;
 };

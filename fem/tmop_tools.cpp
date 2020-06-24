@@ -12,6 +12,7 @@
 #include "tmop_tools.hpp"
 #include "nonlinearform.hpp"
 #include "pnonlinearform.hpp"
+#include "../general/dbg.hpp"
 #include "../general/osockstream.hpp"
 
 namespace mfem
@@ -73,7 +74,7 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
    if (fes)
    {
       fess = new FiniteElementSpace(fes->GetMesh(), fes->FEColl(), 1);
-      oper = new SerialAdvectorCGOper(nodes0, u, *fess);
+      oper = new SerialAdvectorCGOper(nodes0, u, *fess, al);
    }
 #ifdef MFEM_USE_MPI
    else if (pfes)
@@ -167,18 +168,21 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
 
 SerialAdvectorCGOper::SerialAdvectorCGOper(const Vector &x_start,
                                            GridFunction &vel,
-                                           FiniteElementSpace &fes)
+                                           FiniteElementSpace &fes,
+                                           AssemblyLevel al)
    : TimeDependentOperator(fes.GetVSize()),
      x0(x_start), x_now(*fes.GetMesh()->GetNodes()),
-     u(vel), u_coeff(&u), M(&fes), K(&fes)
+     u(vel), u_coeff(&u), M(&fes), K(&fes), al(al)
 {
    ConvectionIntegrator *Kinteg = new ConvectionIntegrator(u_coeff);
    K.AddDomainIntegrator(Kinteg);
+   K.SetAssemblyLevel(al);
    K.Assemble(0);
    K.Finalize(0);
 
    MassIntegrator *Minteg = new MassIntegrator;
    M.AddDomainIntegrator(Minteg);
+   M.SetAssemblyLevel(al);
    M.Assemble();
    M.Finalize();
 }
@@ -199,9 +203,19 @@ void SerialAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
 
    di_dt = 0.0;
    CGSolver lin_solver;
-   DSmoother prec;
-   lin_solver.SetPreconditioner(prec);
-   lin_solver.SetOperator(M.SpMat());
+   Solver *prec = nullptr;
+   Array<int> ess_tdof_list;
+   if (al == AssemblyLevel::PARTIAL)
+   {
+      prec = new OperatorJacobiSmoother(M, ess_tdof_list);
+      lin_solver.SetOperator(M);
+   }
+   else
+   {
+      prec = new DSmoother(M.SpMat());
+      lin_solver.SetOperator(M.SpMat());
+   }
+   lin_solver.SetPreconditioner(*prec);
    lin_solver.SetRelTol(1e-12); lin_solver.SetAbsTol(0.0);
    lin_solver.SetMaxIter(100);
    lin_solver.SetPrintLevel(0);

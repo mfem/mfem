@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "../general/dbg.hpp"
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
@@ -822,9 +823,10 @@ static void PAConvectionApply(const int dim,
                               const Vector &x,
                               Vector &y)
 {
+   const int id = (D1D << 4 ) | Q1D;
    if (dim == 2)
    {
-      switch ((D1D << 4 ) | Q1D)
+      switch (id)
       {
          case 0x22: return SmemPAConvectionApply2D<2,2,8>(NE,B,G,Bt,Gt,op,x,y);
          case 0x33: return SmemPAConvectionApply2D<3,3,3>(NE,B,G,Bt,Gt,op,x,y);
@@ -834,21 +836,31 @@ static void PAConvectionApply(const int dim,
          case 0x77: return SmemPAConvectionApply2D<7,7,1>(NE,B,G,Bt,Gt,op,x,y);
          case 0x88: return SmemPAConvectionApply2D<8,8,1>(NE,B,G,Bt,Gt,op,x,y);
          case 0x99: return SmemPAConvectionApply2D<9,9,1>(NE,B,G,Bt,Gt,op,x,y);
-         default:   return PAConvectionApply2D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
+         default:
+         {
+            dbg("\033[7m0x%x",id);
+            return PAConvectionApply2D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
+         }
       }
    }
    else if (dim == 3)
    {
-      switch ((D1D << 4 ) | Q1D)
+      switch (id)
       {
          case 0x23: return SmemPAConvectionApply3D<2,3>(NE,B,G,Bt,Gt,op,x,y);
          case 0x34: return SmemPAConvectionApply3D<3,4>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x35: return SmemPAConvectionApply3D<3,5>(NE,B,G,Bt,Gt,op,x,y);
          case 0x45: return SmemPAConvectionApply3D<4,5>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x48: return SmemPAConvectionApply3D<4,8>(NE,B,G,Bt,Gt,op,x,y);
          case 0x56: return SmemPAConvectionApply3D<5,6>(NE,B,G,Bt,Gt,op,x,y);
          case 0x67: return SmemPAConvectionApply3D<6,7>(NE,B,G,Bt,Gt,op,x,y);
          case 0x78: return SmemPAConvectionApply3D<7,8>(NE,B,G,Bt,Gt,op,x,y);
          case 0x89: return SmemPAConvectionApply3D<8,9>(NE,B,G,Bt,Gt,op,x,y);
-         default:   return PAConvectionApply3D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
+         default:
+         {
+            dbg("\033[7m0x%x",id);
+            return PAConvectionApply3D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
+         }
       }
    }
    MFEM_ABORT("Unknown kernel.");

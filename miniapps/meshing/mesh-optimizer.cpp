@@ -486,7 +486,10 @@ int main(int argc, char *argv[])
          DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
          if (adapt_eval == 0)
          {
-            tc->SetAdaptivityEvaluator(new AdvectorCG);
+            const AssemblyLevel al =
+               pa ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
+            const bool pa = getenv("APA");
+            tc->SetAdaptivityEvaluator(new AdvectorCG(pa?al:AssemblyLevel::FULL));
          }
          else
          {
