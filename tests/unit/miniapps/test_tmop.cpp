@@ -9,6 +9,11 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#ifdef _WIN32
+#define _USE_MATH_DEFINES
+#include <cmath>
+#endif
+
 #include <fstream>
 #include <iostream>
 
@@ -19,6 +24,7 @@
 #if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
 extern mfem::MPI_Session *GlobalMPISession;
 #define PFesGetParMeshGetComm(pfes) pfes.GetParMesh()->GetComm()
+#define SetDiscreteTargetSize SetParDiscreteTargetSize
 #else
 typedef int MPI_Session;
 #define ParMesh Mesh
@@ -28,6 +34,7 @@ typedef int MPI_Session;
 #define GetParGridFunctionEnergy GetGridFunctionEnergy
 #define PFesGetParMeshGetComm(...)
 #define MPI_Allreduce(src,dst,...) *dst = *src
+#define SetDiscreteTargetSize SetSerialDiscreteTargetSize
 #endif
 
 using namespace std;
@@ -42,6 +49,109 @@ struct Req
    double tauval;
    double dot;
    double final_energy;
+};
+
+static double discrete_size_2d(const Vector &x)
+{
+   int opt = 2;
+   const double small = 0.001, big = 0.01;
+   double val = 0.;
+
+   if (opt == 1) // sine wave.
+   {
+      const double X = x(0), Y = x(1);
+      val = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
+            std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
+   }
+   else if (opt == 2) // semi-circle
+   {
+      const double xc = x(0) - 0.0, yc = x(1) - 0.5;
+      const double r = sqrt(xc*xc + yc*yc);
+      double r1 = 0.45; double r2 = 0.55; double sf=30.0;
+      val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
+   }
+
+   val = std::max(0.,val);
+   val = std::min(1.,val);
+
+   return val * small + (1.0 - val) * big;
+}
+
+class HessianCoefficient : public MatrixCoefficient
+{
+private:
+   int metric;
+
+public:
+   HessianCoefficient(int dim, int metric_id)
+      : MatrixCoefficient(dim), metric(metric_id) { }
+
+   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      Vector pos(3);
+      T.Transform(ip, pos);
+      if (metric != 14 && metric != 87)
+      {
+         const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
+         const double r = sqrt(xc*xc + yc*yc);
+         double r1 = 0.15; double r2 = 0.35; double sf=30.0;
+         const double eps = 0.5;
+
+         const double tan1 = std::tanh(sf*(r-r1)),
+                      tan2 = std::tanh(sf*(r-r2));
+
+         K(0, 0) = eps + 1.0 * (tan1 - tan2);
+         K(0, 1) = 0.0;
+         K(1, 0) = 0.0;
+         K(1, 1) = 1.0;
+      }
+      else if (metric == 14) // Size + Alignment
+      {
+         const double xc = pos(0), yc = pos(1);
+         double theta = M_PI * yc * (1.0 - yc) * cos(2 * M_PI * xc);
+         double alpha_bar = 0.1;
+
+         K(0, 0) =  cos(theta);
+         K(1, 0) =  sin(theta);
+         K(0, 1) = -sin(theta);
+         K(1, 1) =  cos(theta);
+
+         K *= alpha_bar;
+      }
+      else if (metric == 87) // Shape + Alignment
+      {
+         Vector x = pos;
+         double xc = x(0)-0.5, yc = x(1)-0.5;
+         double th = 22.5*M_PI/180.;
+         double xn =  cos(th)*xc + sin(th)*yc;
+         double yn = -sin(th)*xc + cos(th)*yc;
+         xc = xn; yc=yn;
+
+         double tfac = 20;
+         double s1 = 3;
+         double s2 = 2;
+         double wgt = std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) + 1)
+                      - std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) - 1);
+         if (wgt > 1) { wgt = 1; }
+         if (wgt < 0) { wgt = 0; }
+
+         xc = pos(0), yc = pos(1);
+         double theta = M_PI * (yc) * (1.0 - yc) * cos(2 * M_PI * xc);
+
+         K(0, 0) =  cos(theta);
+         K(1, 0) =  sin(theta);
+         K(0, 1) = -sin(theta);
+         K(1, 1) =  cos(theta);
+
+         double asp_ratio_tar = 0.1 + 1*(1-wgt)*(1-wgt);
+
+         K(0, 0) *=  1/pow(asp_ratio_tar,0.5);
+         K(1, 0) *=  1/pow(asp_ratio_tar,0.5);
+         K(0, 1) *=  pow(asp_ratio_tar,0.5);
+         K(1, 1) *=  pow(asp_ratio_tar,0.5);
+      }
+   }
 };
 
 int tmop(int myid, Req &res, int argc, char *argv[])
@@ -62,15 +172,11 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    int normalization     = 0;
    double jitter         = 0.0;
 
-   constexpr double adapt_lim_const = 0.0;
    constexpr bool move_bnd = false;
    constexpr int combomet  = 0;
    constexpr int verbosity_level = 0;
    constexpr bool fdscheme = false;
 
-   REQUIRE_FALSE(normalization);
-   REQUIRE(lim_const==0.0);
-   REQUIRE(adapt_lim_const == 0.0);
    REQUIRE_FALSE(fdscheme);
    REQUIRE(combomet == 0);
    REQUIRE_FALSE(move_bnd);
@@ -175,13 +281,37 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    }
 
    TargetConstructor::TargetType target_t;
+   TargetConstructor *target_c = nullptr;
+   HessianCoefficient *adapt_coeff = nullptr;
+   constexpr int mesh_poly_deg = 1;
+   H1_FECollection ind_fec(mesh_poly_deg, dim);
+   ParFiniteElementSpace ind_fes(pmesh, &ind_fec);
+   ParGridFunction size(&ind_fes);
    switch (target_id)
    {
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
       case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE; break;
       case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE; break;
-      //case 4: // Analytic
-      //case 5: // Discrete size 2D
+      case 4: // Analytic
+      {
+         target_t = TargetConstructor::GIVEN_FULL;
+         AnalyticAdaptTC *tc = new AnalyticAdaptTC(target_t);
+         adapt_coeff = new HessianCoefficient(dim, metric_id);
+         tc->SetAnalyticTargetSpec(NULL, NULL, adapt_coeff);
+         target_c = tc;
+         break;
+      }
+      case 5: // Discrete size 2D
+      {
+         target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
+         DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
+         tc->SetAdaptivityEvaluator(new AdvectorCG);
+         FunctionCoefficient ind_coeff(discrete_size_2d);
+         size.ProjectCoefficient(ind_coeff);
+         tc->SetDiscreteTargetSize(size);
+         target_c = tc;
+         break;
+      }
       //case 6: // Discrete size + aspect ratio - 2D
       //case 7: // Discrete aspect ratio 3D
       //case 8: // shape/size + orientation 2D
@@ -192,11 +322,17 @@ int tmop(int myid, Req &res, int argc, char *argv[])
       }
    }
 #if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
-   TargetConstructor target_c(target_t, MPI_COMM_WORLD);
+   if (target_c == NULL)
+   {
+      target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
+   }
 #else
-   TargetConstructor target_c(target_t);
+   if (target_c == NULL)
+   {
+      target_c = new TargetConstructor(target_t);
+   }
 #endif
-   target_c.SetNodes(x0);
+   target_c->SetNodes(x0);
 
    // Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = nullptr;
@@ -215,7 +351,7 @@ int tmop(int myid, Req &res, int argc, char *argv[])
       }
    }
 
-   TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, &target_c);
+   TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, target_c);
    he_nlf_integ->SetIntegrationRule(*ir);
 
    if (normalization == 1) { he_nlf_integ->EnableNormalization(x0); }
@@ -377,6 +513,82 @@ static void tmop_tests(int myid)
 {
    static bool all = getenv("MFEM_TESTS_UNIT_TMOP_ALL");
 
+   // 2D BLADE + Discrete size 2D + normalization
+   {
+      DEFAULT_ARGS;
+      args[MSH] = "blade.mesh";
+      args[MID] = "2";
+      args[NI] = "100";
+      args[LI] = "100";
+      args[NOR] = "1";
+      for (int p : {1})
+      {
+         char por[2] {};
+         args[POR] = itoa(p, por);
+         for (int q : {2})
+         {
+            if (q <= p) { continue; }
+            char qor[2] {};
+            args[QOR] = itoa(q, qor);
+            for (int t : {5})
+            {
+               char tid[2] {};
+               args[TID] = itoa(t, tid);
+               for (int ls : {2})
+               {
+                  char lsb[2] {};
+                  args[LS] = itoa(ls, lsb);
+                  tmop_require(myid, args);
+                  if (!all) { break; }
+               }
+               if (!all) { break; }
+            }
+            if (!all) { break; }
+         }
+         if (!all) { break; }
+      }
+   } // 2D BLADE + Discrete size 2D + normalization
+
+   // SQUARE01 + Adapted analytic Hessian
+   {
+      DEFAULT_ARGS;
+      args[NI] = "100";
+      args[MSH] = "square01.mesh";
+      args[RFS] = "1";
+      for (int p : {1, 2})
+      {
+         char por[2] {};
+         args[POR] = itoa(p, por);
+         for (int t : {4})
+         {
+            char tid[2] {};
+            args[TID] = itoa(t, tid);
+            for (int m : {2})
+            {
+               char mid[2] {};
+               args[MID] = itoa(m, mid);
+               for (int q : {2, 4})
+               {
+                  if (q <= p) { continue; }
+                  char qor[2] {};
+                  args[QOR] = itoa(q, qor);
+                  for (int ls : {2})
+                  {
+                     char lsb[2] {};
+                     args[LS] = itoa(ls, lsb);
+                     tmop_require(myid, args);
+                     if (!all) { break; }
+                  }
+                  if (!all) { break; }
+               }
+               if (!all) { break; }
+            }
+            if (!all) { break; }
+         }
+         if (!all) { break; }
+      }
+   } // SQUARE01
+
    // STAR
    {
       DEFAULT_ARGS;
@@ -447,7 +659,6 @@ static void tmop_tests(int myid)
          }
          if (!all) { break; }
       }
-
    } // BLADE
 
    // 2D BLADE + normalization
