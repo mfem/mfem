@@ -114,6 +114,9 @@ New and updated examples and miniapps
 - Ported example 11p to SLEPc, to demonstrate solving the Laplace eigenvalue
   equation with the shift-and-invert spectral transformation method.
 
+- Added a new miniapp, navier, that solves the time-dependent Navier-Stokes
+  equations of incompressible fluid dynamics.
+
 - Added a simple meshing miniapp, Twist, which demonstrates MFEM's strategy of
   stitching together opposite surfaces of a mesh to create a topologically
   periodic mesh.
