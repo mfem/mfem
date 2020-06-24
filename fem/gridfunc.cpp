@@ -1031,13 +1031,13 @@ int GridFunction::GetFaceVectorValues(
    }
    if (di == 0)
    {
-      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 4);
+      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 5);
       Transf->Loc1.Transform(ir, eir);
       GetVectorValues(*Transf->Elem1, eir, vals, &tr);
    }
    else
    {
-      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 8);
+      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 10);
       Transf->Loc2.Transform(ir, eir);
       GetVectorValues(*Transf->Elem2, eir, vals, &tr);
    }

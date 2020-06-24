@@ -131,11 +131,16 @@ protected:
    //   face. Elem2No is < 0 and -1-Elem2No is the index of the ghost
    //   face-neighbor element that generated this slave ghost face. In this
    //   case, Elem2Inf >= 0.
+   // Relevant methods: GenerateFaces(), GenerateNCFaceInfo(),
+   //                   ParNCMesh::GetFaceNeighbors(),
+   //                   ParMesh::ExchangeFaceNbrData()
 
    struct NCFaceInfo
    {
       bool Slave; // true if this is a slave face, false if master face
       int MasterFace; // if Slave, this is the index of the master face
+      // If not Slave, 'MasterFace' is the local face index of this master face
+      // as a face in the unique adjacent element.
       const DenseMatrix* PointMatrix; // if Slave, position within master face
       // (NOTE: PointMatrix points to a matrix owned by NCMesh.)
 
@@ -235,7 +240,7 @@ protected:
                     bool &finalize_topo);
    void ReadNURBSMesh(std::istream &input, int &curved, int &read_gf);
    void ReadInlineMesh(std::istream &input, bool generate_edges = false);
-   void ReadGmshMesh(std::istream &input);
+   void ReadGmshMesh(std::istream &input, int &curved, int &read_gf);
    /* Note NetCDF (optional library) is used for reading cubit files */
 #ifdef MFEM_USE_NETCDF
    void ReadCubit(const char *filename, int &curved, int &read_gf);
@@ -363,8 +368,9 @@ protected:
 
    /** Used in GetFaceElementTransformations to account for the fact that a
        slave face occupies only a portion of its master face. */
-   void ApplyLocalSlaveTransformation(IsoparametricTransformation &transf,
-                                      const FaceInfo &fi);
+   void ApplyLocalSlaveTransformation(FaceElementTransformations &FT,
+                                      const FaceInfo &fi, bool is_ghost);
+
    bool IsSlaveFace(const FaceInfo &fi) const;
 
    /// Returns the orientation of "test" relative to "base"
