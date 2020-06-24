@@ -405,7 +405,8 @@ TripleProductOperator::~TripleProductOperator()
 ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
                                          bool _own_A,
                                          DiagonalPolicy _diag_policy)
-   : Operator(A->Height(), A->Width()), A(A), own_A(_own_A)
+   : Operator(A->Height(), A->Width()), A(A), own_A(_own_A),
+     diag_policy(_diag_policy)
 {
    // 'mem_class' should work with A->Mult() and MFEM_FORALL():
    mem_class = A->GetMemoryClass()*Device::GetDeviceMemoryClass();
@@ -415,7 +416,6 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
    // typically z and w are large vectors, so store them on the device
    z.SetSize(height, mem_type); z.UseDevice(true);
    w.SetSize(height, mem_type); w.UseDevice(true);
-   diag_policy = _diag_policy;
 }
 
 void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
