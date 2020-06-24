@@ -1,5 +1,8 @@
 SetFactory("OpenCASCADE");
 
+// Set the geometry order (1, 2, or 3)
+order = 1;
+
 R = 1.5;
 r = 0.5;
 
@@ -20,6 +23,7 @@ Physical Volume(1) = {1};
 
 // Generate 3D mesh
 Mesh 3;
-
+SetOrder order;
 Mesh.MshFileVersion = 2.2;
-Save "periodic-torus-sector.msh";
+
+Save Sprintf("periodic-torus-sector-o%01g.msh", order);
