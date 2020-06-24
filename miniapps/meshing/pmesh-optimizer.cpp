@@ -585,21 +585,39 @@ int main (int argc, char *argv[])
    TMOP_Integrator *he_nlf_integ= new TMOP_Integrator(metric, target_c);
    if (fdscheme) { he_nlf_integ->EnableFiniteDifferences(x); }
 
-   // 13. Setup the quadrature rule for the non-linear form integrator.
+   // Setup the quadrature rules for the TMOP integrator.
    const IntegrationRule *ir = NULL;
+   IntegrationRules *irules = NULL;
    const int geom_type = pfespace->GetFE(0)->GetGeomType();
    switch (quad_type)
    {
-      case 1: ir = &IntRulesLo.Get(geom_type, quad_order); break;
-      case 2: ir = &IntRules.Get(geom_type, quad_order); break;
-      case 3: ir = &IntRulesCU.Get(geom_type, quad_order); break;
+      case 1: irules = &IntRulesLo;
+              ir = &IntRulesLo.Get(geom_type, quad_order); break;
+      case 2: irules = &IntRules;
+              ir = &IntRules.Get(geom_type, quad_order); break;
+      case 3: irules = &IntRulesCU;
+              ir = &IntRulesCU.Get(geom_type, quad_order); break;
       default:
          if (myid == 0) { cout << "Unknown quad_type: " << quad_type << endl; }
          return 3;
    }
-   if (myid == 0)
-   { cout << "Quadrature points per cell: " << ir->GetNPoints() << endl; }
-   he_nlf_integ->SetIntegrationRule(*ir);
+   he_nlf_integ->SetIntegrationRules(*irules, quad_order);
+   if (myid == 0 && dim == 2)
+   {
+      cout << "Triangle quadrature points: "
+           << irules->Get(Geometry::TRIANGLE, quad_order).GetNPoints()
+           << "\nQuadrilateral quadrature points: "
+           << irules->Get(Geometry::SQUARE, quad_order).GetNPoints() << endl;
+   }
+   if (myid == 0 && dim == 3)
+   {
+      cout << "Tetrahedron quadrature points: "
+           << irules->Get(Geometry::TETRAHEDRON, quad_order).GetNPoints()
+           << "\nHexahedron quadrature points: "
+           << irules->Get(Geometry::CUBE, quad_order).GetNPoints()
+           << "\nPrism quadrature points: "
+           << irules->Get(Geometry::PRISM, quad_order).GetNPoints() << endl;
+   }
 
    if (normalization) { he_nlf_integ->ParEnableNormalization(x0); }
 
@@ -672,7 +690,7 @@ int main (int argc, char *argv[])
          he_nlf_integ2->SetCoefficient(coeff2);
       }
       else { he_nlf_integ2 = new TMOP_Integrator(metric2, target_c); }
-      he_nlf_integ2->SetIntegrationRule(*ir);
+      he_nlf_integ2->SetIntegrationRules(*irules, quad_order);
       if (fdscheme) { he_nlf_integ2->EnableFiniteDifferences(x); }
 
       TMOPComboIntegrator *combo = new TMOPComboIntegrator;
@@ -776,11 +794,12 @@ int main (int argc, char *argv[])
       S = minres;
    }
 
-   // 19. Compute the minimum det(J) of the starting mesh.
+   // Compute the minimum det(J) of the starting mesh.
    tauval = infinity();
    const int NE = pmesh->GetNE();
    for (int i = 0; i < NE; i++)
    {
+      ir = irules->Get(pfespace->GetFE(i)->GetGeomType(), quad_order);
       ElementTransformation *transf = pmesh->GetElementTransformation(i);
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
@@ -798,7 +817,7 @@ int main (int argc, char *argv[])
    tauval -= 0.01 * h0min_all; // Slightly below minJ0 to avoid div by 0.
 
    // Perform the nonlinear optimization.
-   TMOPNewtonSolver solver(pfespace->GetComm(), *ir, solver_type);
+   TMOPNewtonSolver solver(pfespace->GetComm(), *irules, solver_type);
    if (solver_type == 0)
    {
       // Specify linear solver when we use a Newton-based solver.
