@@ -454,8 +454,8 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       ComplexOperator * A_op =
          new ComplexOperator(A_r.As<Operator>(),
                              A_i.As<Operator>(),
-                             A_r.As<Operator>(),
-                             A_i.As<Operator>(),
+                             A_r.OwnsOperator(),
+                             A_i.OwnsOperator(),
                              conv);
       A.Reset<ComplexOperator>(A_op, true);
    }
