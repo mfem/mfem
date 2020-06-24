@@ -1,10 +1,13 @@
 SetFactory("OpenCASCADE");
 
+// Select periodic mesh by setting this to either 0 - standard, 1 - periodic
+periodic = 0;
+
 // Set the geometry order (1, 2, or 3)
 order = 3;
 
 // Set the element type (3 - triangles, 4 - quadrilaterals)
-type = 4;
+type = 3;
 
 // Number of radial elements
 nrad = 2;
@@ -48,7 +51,9 @@ EndIf
 
 
 // Set a rotation periodicity constraint:
-Periodic Line{1} = {2} Rotate{{0,0,1}, {0,0,0}, -Pi/3};
+If (periodic)
+   Periodic Line{1} = {2} Rotate{{0,0,1}, {0,0,0}, -Pi/3};
+EndIf
 
 // Tag surfaces and volumes with positive integers
 Physical Curve(1) = {3};
@@ -62,4 +67,9 @@ Mesh 2;
 SetOrder order;
 Mesh.MshFileVersion = 2.2;
 
-Save Sprintf("periodic-annulus-sector-t%01g-o%01g.msh",type,order);
+If (periodic)
+   Save Sprintf("periodic-annulus-sector-t%01g-o%01g.msh",type,order);
+Else
+   Save Sprintf("annulus-sector-t%01g-o%01g.msh",type,order);
+EndIf
+   
