@@ -49,6 +49,7 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
 void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
                                             Vector &new_field)
 {
+   dbg("");
    Mesh *m = mesh;
 #ifdef MFEM_USE_MPI
    if (pmesh) { m = pmesh; }
@@ -80,11 +81,12 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
    else if (pfes)
    {
       pfess = new ParFiniteElementSpace(pfes->GetParMesh(), pfes->FEColl(), 1);
-      oper  = new ParAdvectorCGOper(nodes0, u, *pfess);
+      oper  = new ParAdvectorCGOper(nodes0, u, *pfess, al);
    }
 #endif
    MFEM_VERIFY(oper != NULL,
                "No FE space has been given to the AdaptivityEvaluator.");
+   dbg("ode_solver.Init");
    ode_solver.Init(*oper);
 
    // Compute some time step [mesh_size / speed].
@@ -220,23 +222,27 @@ void SerialAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
    lin_solver.SetMaxIter(100);
    lin_solver.SetPrintLevel(0);
    lin_solver.Mult(rhs, di_dt);
+   delete prec;
 }
 
 #ifdef MFEM_USE_MPI
 ParAdvectorCGOper::ParAdvectorCGOper(const Vector &x_start,
                                      GridFunction &vel,
-                                     ParFiniteElementSpace &pfes)
+                                     ParFiniteElementSpace &pfes,
+                                     AssemblyLevel al)
    : TimeDependentOperator(pfes.GetVSize()),
      x0(x_start), x_now(*pfes.GetMesh()->GetNodes()),
-     u(vel), u_coeff(&u), M(&pfes), K(&pfes)
+     u(vel), u_coeff(&u), M(&pfes), K(&pfes), al(al)
 {
    ConvectionIntegrator *Kinteg = new ConvectionIntegrator(u_coeff);
    K.AddDomainIntegrator(Kinteg);
+   K.SetAssemblyLevel(al);
    K.Assemble(0);
    K.Finalize(0);
 
    MassIntegrator *Minteg = new MassIntegrator;
    M.AddDomainIntegrator(Minteg);
+   M.SetAssemblyLevel(al);
    M.Assemble();
    M.Finalize();
 }
@@ -254,26 +260,61 @@ void ParAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
    K.Mult(ind, rhs);
    M.BilinearForm::operator=(0.0);
    M.Assemble();
+   dbg("M: %dx%d", M.Width(), M.Height());
 
    HypreParVector *RHS = rhs.ParallelAssemble();
    HypreParVector X(K.ParFESpace());
    X = 0.0;
-   HypreParMatrix *Mh  = M.ParallelAssemble();
+   HypreParMatrix *Mh = M.ParallelAssemble();
 
    CGSolver lin_solver(M.ParFESpace()->GetParMesh()->GetComm());
-   HypreSmoother prec;
-   prec.SetType(HypreSmoother::Jacobi, 1);
-   lin_solver.SetPreconditioner(prec);
-   lin_solver.SetOperator(*Mh);
-   lin_solver.SetRelTol(1e-8);
-   lin_solver.SetAbsTol(0.0);
-   lin_solver.SetMaxIter(100);
-   lin_solver.SetPrintLevel(0);
-   lin_solver.Mult(*RHS, X);
-   K.ParFESpace()->GetProlongationMatrix()->Mult(X, di_dt);
+   Solver *prec = nullptr;
+   Array<int> ess_tdof_list;
+   if (al == AssemblyLevel::PARTIAL)
+   {
+      //prec = new OperatorJacobiSmoother(M, ess_tdof_list);
+      lin_solver.iterative_mode = true;
+      //lin_solver.SetPreconditioner(*prec);
+      lin_solver.SetOperator(M);
+      lin_solver.SetRelTol(1e-8);
+      lin_solver.SetAbsTol(0.0);
+      lin_solver.SetMaxIter(100);
+      lin_solver.SetPrintLevel(0);
+      //HypreParVector *U = rhs;//rhs.GetTrueDofs();
+      ParGridFunction U(K.ParFESpace());
+      U = rhs;
+      //U.SetTrueVector();
+      //U.SetFromTrueVector();
+      ParGridFunction X_gf(K.ParFESpace());
+      X_gf = 0.0;
+      dbg("U->Size():%d, X_gf.Size():%d", U.Size(), X_gf.Size());
+      /*dbg("U->TVSize():%d, X_gf.TVSize():%d",
+          U.GetTrueVector().Size(), X_gf.GetTrueVector().Size());*/
+      //MFEM_VERIFY(U->Size() == X_gf.Size(), "");
+      //MFEM_VERIFY(U.GetTrueVector().Size() == X_gf.GetTrueVector().Size(), "");
+      //lin_solver.Mult(U.GetTrueVector(), X_gf.GetTrueVector());
+      lin_solver.Mult(U, X_gf);
+      X_gf.SetTrueVector();
+      X_gf.SetFromTrueVector();
+      K.ParFESpace()->GetProlongationMatrix()->Mult(X_gf.GetTrueVector(), di_dt);
+   }
+   else
+   {
+      prec = new HypreSmoother;
+      dynamic_cast<HypreSmoother*>(prec)->SetType(HypreSmoother::Jacobi, 1);
+      lin_solver.SetPreconditioner(*prec);
+      lin_solver.SetOperator(*Mh);
+      lin_solver.SetRelTol(1e-8);
+      lin_solver.SetAbsTol(0.0);
+      lin_solver.SetMaxIter(100);
+      lin_solver.SetPrintLevel(0);
+      lin_solver.Mult(*RHS, X);
+      K.ParFESpace()->GetProlongationMatrix()->Mult(X, di_dt);
+   }
 
    delete Mh;
    delete RHS;
+   delete prec;
 }
 #endif
 
