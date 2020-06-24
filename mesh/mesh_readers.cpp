@@ -1084,10 +1084,12 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          int quad16[] = {0,4,5,1,11,12,13,6,  // 3rd order quadrilateral
                          10,15,14,7,3,9,8,2
                         };
-         // int tet10[] {0,7,3,4,9,1,6,8,5,2};   // 2nd order tetrahedron
          int tet10[] {0,4,1,6,5,2,7,9,8,3};   // 2nd order tetrahedron
          int tet20[] = {};
-         int hex27[] {};
+         int hex27[] {0,8,1,9,20,11,3,13,2,   // 2nd order hexahedron
+                      10,21,12,22,26,23,15,24,14,
+                      4,16,5,17,25,18,7,19,6
+                     };
          int hex64[] {};
 
          vector<Element*> elements_0D, elements_1D, elements_2D, elements_3D;
