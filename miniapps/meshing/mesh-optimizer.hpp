@@ -170,6 +170,7 @@ public:
    {
       Vector pos(3);
       T.Transform(ip, pos);
+      K = 0.;
       if (metric != 14 && metric != 87)
       {
          const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
