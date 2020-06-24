@@ -1,8 +1,24 @@
 SetFactory("OpenCASCADE");
 
 // Set the geometry order (1, 2, or 3)
-order = 1;
+order = 3;
 
+// Set the element type (3 - triangles, 4 - quadrilaterals)
+type = 4;
+
+// Number of radial elements
+nrad = 2;
+
+// Number of azimuthal elements on inner arc
+nazm1 = 3;
+
+// Number of azimuthal elements on outer arc
+nazm2 = 5;
+
+// Note: Using type = 4 with nazm1 != nazm2 can lead to mixed meshes
+//       containing both triangles and quadrilaterals.
+
+// Inner and outer radii
 R1 = 1.0;
 R2 = 2.0;
 
@@ -18,10 +34,18 @@ Circle(4) = {3, 1, 5};
 Curve Loop(5) = {1, 4, -2, -3};
 Plane Surface(1) = {5};
 
-Transfinite Curve{1} = 7;
-Transfinite Curve{2} = 7;
-Transfinite Curve{3} = 4;
-Transfinite Curve{4} = 10;
+Transfinite Curve{1} = nrad+1;
+Transfinite Curve{2} = nrad+1;
+Transfinite Curve{3} = nazm1+1;
+Transfinite Curve{4} = nazm2+1;
+
+If (nazm1 == nazm2)
+   Transfinite Surface{1};
+EndIf
+If (type == 4)
+   Recombine Surface {1};
+EndIf
+
 
 // Set a rotation periodicity constraint:
 Periodic Line{1} = {2} Rotate{{0,0,1}, {0,0,0}, -Pi/3};
@@ -38,4 +62,4 @@ Mesh 2;
 SetOrder order;
 Mesh.MshFileVersion = 2.2;
 
-Save Sprintf("periodic-annulus-sector-o%01g.msh",order);
+Save Sprintf("periodic-annulus-sector-t%01g-o%01g.msh",type,order);
