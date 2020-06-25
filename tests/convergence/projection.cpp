@@ -262,8 +262,12 @@ int main(int argc, char *argv[])
             break;
          case 1:
          case 2:
+         {
             rates.AddSolution(&u_gf,U);
+            FunctionCoefficient * div_ex = new FunctionCoefficient(divU_exact);
+            cout << "div_error = " << u_gf.ComputeDivError(div_ex) << endl;
             break;
+         }
          default:
             break;
       }
@@ -278,9 +282,6 @@ int main(int argc, char *argv[])
    }
 
    rates.Print();
-
-
-
 
    // 11. Send the solution by socket to a GLVis server.
    if (visualization)
