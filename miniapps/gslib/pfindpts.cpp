@@ -236,7 +236,8 @@ int main (int argc, char *argv[])
    Vector interp_vals(pts_cnt*ncfinal);
    // FindPoints using GSLIB and interpolate
    FindPointsGSLIB finder(MPI_COMM_WORLD);
-   finder.Interpolate(pmesh, vxyz, field_vals, interp_vals);
+   finder.Setup(pmesh);
+   finder.Interpolate(vxyz, field_vals, interp_vals);
    Array<unsigned int> code_out    = finder.GetCode();
    Array<unsigned int> task_id_out = finder.GetProc();
    Vector dist_p_out = finder.GetDist();

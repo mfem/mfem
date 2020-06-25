@@ -114,6 +114,10 @@ int main (int argc, char *argv[])
       }
    }
 
+   const Geometry::Type gt = mesh_2.GetNodalFESpace()->GetFE(0)->GetGeomType();
+   MFEM_VERIFY(gt != Geometry::PRISM, " Wedge elements are not currently "
+               "supported.");
+
    H1_FECollection fech(order, dim);
    L2_FECollection fecl(order, dim);
    RT_FECollection fechdiv(order, dim);
