@@ -54,16 +54,16 @@ private:
    mutable Array<int> ldof_ltdof;
 
    /// Offsets for the dofs in each processor in global numbering.
-   mutable Array<HYPRE_Int> dof_offsets;
+   mutable Array<HYPRE_BigInt> dof_offsets;
 
    /// Offsets for the true dofs in each processor in global numbering.
-   mutable Array<HYPRE_Int> tdof_offsets;
+   mutable Array<HYPRE_BigInt> tdof_offsets;
 
    /// Offsets for the true dofs in neighbor processor in global numbering.
-   mutable Array<HYPRE_Int> tdof_nb_offsets;
+   mutable Array<HYPRE_BigInt> tdof_nb_offsets;
 
    /// Previous 'dof_offsets' (before Update()), column partition of T.
-   Array<HYPRE_Int> old_dof_offsets;
+   Array<HYPRE_BigInt> old_dof_offsets;
 
    /// The sign of the basis functions at the scalar local dofs.
    Array<int> ldof_sign;
@@ -143,8 +143,8 @@ private:
    HypreParMatrix*
    MakeVDimHypreMatrix(const std::vector<struct PMatrixRow> &rows,
                        int local_rows, int local_cols,
-                       Array<HYPRE_Int> &row_starts,
-                       Array<HYPRE_Int> &col_starts) const;
+                       Array<HYPRE_BigInt> &row_starts,
+                       Array<HYPRE_BigInt> &col_starts) const;
 
    /// Build the P and R matrices.
    void Build_Dof_TrueDof_Matrix() const;
@@ -154,8 +154,8 @@ private:
        and the DOF -> true DOF map ('dof_tdof'). Returns the number of
        vector true DOFs. All pointer arguments are optional and can be NULL. */
    int BuildParallelConformingInterpolation(HypreParMatrix **P, SparseMatrix **R,
-                                            Array<HYPRE_Int> &dof_offs,
-                                            Array<HYPRE_Int> &tdof_offs,
+                                            Array<HYPRE_BigInt> &dof_offs,
+                                            Array<HYPRE_BigInt> &tdof_offs,
                                             Array<int> *dof_tdof,
                                             bool partial = false) const;
 
@@ -244,11 +244,11 @@ public:
 
    int GetDofSign(int i)
    { return NURBSext || Nonconforming() ? 1 : ldof_sign[VDofToDof(i)]; }
-   HYPRE_Int *GetDofOffsets()     const { return dof_offsets; }
-   HYPRE_Int *GetTrueDofOffsets() const { return tdof_offsets; }
-   HYPRE_Int GlobalVSize() const
+   HYPRE_BigInt *GetDofOffsets()     const { return dof_offsets; }
+   HYPRE_BigInt *GetTrueDofOffsets() const { return tdof_offsets; }
+   HYPRE_BigInt GlobalVSize() const
    { return Dof_TrueDof_Matrix()->GetGlobalNumRows(); }
-   HYPRE_Int GlobalTrueVSize() const
+   HYPRE_BigInt GlobalTrueVSize() const
    { return Dof_TrueDof_Matrix()->GetGlobalNumCols(); }
 
    /// Return the number of local vector true dofs.

@@ -57,8 +57,8 @@ Operator::Type OperatorHandle::CheckType(Operator::Type tid)
 }
 
 #ifdef MFEM_USE_MPI
-void OperatorHandle::MakeSquareBlockDiag(MPI_Comm comm, HYPRE_Int glob_size,
-                                         HYPRE_Int *row_starts,
+void OperatorHandle::MakeSquareBlockDiag(MPI_Comm comm, HYPRE_BigInt glob_size,
+                                         HYPRE_BigInt *row_starts,
                                          SparseMatrix *diag)
 {
    if (own_oper) { delete oper; }
@@ -88,9 +88,9 @@ void OperatorHandle::MakeSquareBlockDiag(MPI_Comm comm, HYPRE_Int glob_size,
 }
 
 void OperatorHandle::
-MakeRectangularBlockDiag(MPI_Comm comm, HYPRE_Int glob_num_rows,
-                         HYPRE_Int glob_num_cols, HYPRE_Int *row_starts,
-                         HYPRE_Int *col_starts, SparseMatrix *diag)
+MakeRectangularBlockDiag(MPI_Comm comm, HYPRE_BigInt glob_num_rows,
+                         HYPRE_BigInt glob_num_cols, HYPRE_BigInt *row_starts,
+                         HYPRE_BigInt *col_starts, SparseMatrix *diag)
 {
    if (own_oper) { delete oper; }
 
