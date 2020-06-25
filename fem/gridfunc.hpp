@@ -439,7 +439,8 @@ public:
                                   const IntegrationRule *irs[] = NULL) const;
    virtual double ComputeCurlError(VectorCoefficient *excurl, 
                                    const IntegrationRule *irs[] = NULL) const;
-                                                                
+   virtual double ComputeCurlError(Coefficient *excurl, 
+                                   const IntegrationRule *irs[] = NULL) const;                                                               
 
    virtual double ComputeMaxError(Coefficient &exsol,
                                   const IntegrationRule *irs[] = NULL) const

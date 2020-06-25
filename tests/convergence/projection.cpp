@@ -261,6 +261,23 @@ int main(int argc, char *argv[])
             rates.AddSolution(&u_gf,u);
             break;
          case 1:
+         {
+            rates.AddSolution(&u_gf,U);
+            if (dim == 2)
+            {
+               FunctionCoefficient * curl_ex = new FunctionCoefficient(curlU2D_exact);
+               cout << "curl2D_error = " << u_gf.ComputeCurlError(curl_ex) << endl;
+            }
+            else
+            {
+               VectorFunctionCoefficient * curl_ex = 
+                  new VectorFunctionCoefficient(dim,curlU_exact);
+               cout << "curl3D_error = " << u_gf.ComputeCurlError(curl_ex) << endl;
+            }
+            
+            // cout << "div_error = " << u_gf.ComputeDivError(div_ex) << endl;
+         }
+         break;
          case 2:
          {
             rates.AddSolution(&u_gf,U);

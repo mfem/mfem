@@ -2411,6 +2411,7 @@ double GridFunction::ComputeL2Error(
       }
       T = fes->GetElementTransformation(i);
       GetVectorValues(*T, *ir, vals);
+      
       exsol.Eval(exact_vals, *T, *ir);
       vals -= exact_vals;
       loc_errs.SetSize(vals.Width());
@@ -2585,16 +2586,13 @@ double GridFunction::ComputeDivError(
    double error = 0.0, a;
    const FiniteElement *fe;
    ElementTransformation *Tr;
-   Vector divshape;
    Array<int> dofs;
-   int dof, intorder;
+   int intorder;
 
    for (int i = 0; i < fes->GetNE(); i++)
    {
       fe = fes->GetFE(i);
-      dof = fe->GetDof();
       Tr = fes->GetElementTransformation(i);
-      divshape.SetSize(dof);
       intorder = 2*fe->GetOrder() + 3; 
       const IntegrationRule *ir;
       if (irs)
@@ -2610,20 +2608,7 @@ double GridFunction::ComputeDivError(
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
          Tr->SetIntPoint (&ip);
-         fe->CalcPhysDivShape(*Tr,divshape);
-         a = 0;
-         for (int k = 0; k < dof; k++)
-         {
-            if (dofs[k] >= 0)
-            {
-               a += (*this)(dofs[k]) * divshape(k);
-            }
-            else
-            {
-               a -= (*this)(-1-dofs[k]) * divshape(k);
-            }
-         }
-         a -= exdiv->Eval(*Tr, ip);
+         a = GetDivergence(*Tr) - exdiv->Eval(*Tr, ip);
          error += ip.weight * Tr->Weight() * a * a;
       }
    }
@@ -2640,17 +2625,17 @@ double GridFunction::ComputeCurlError(VectorCoefficient *excurl,
    double error = 0.0, a;
    const FiniteElement *fe;
    ElementTransformation *Tr;
-   DenseMatrix curlshape;
    Array<int> dofs;
-   int dim = fes->GetMesh()->Dimension();
-   int dof, intorder;
+   Vector curl;
+   int intorder;
+   int dim = fes->GetMesh()->SpaceDimension();
+   MFEM_VERIFY(dim == 3, "This method is intented for 3D problems only");
+   Vector vec(dim);
 
    for (int i = 0; i < fes->GetNE(); i++)
    {
       fe = fes->GetFE(i);
-      dof = fe->GetDof();
       Tr = fes->GetElementTransformation(i);
-      curlshape.SetSize(dof,dim);
       intorder = 2*fe->GetOrder() + 3; 
       const IntegrationRule *ir;
       if (irs)
@@ -2665,22 +2650,11 @@ double GridFunction::ComputeCurlError(VectorCoefficient *excurl,
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
-         Tr->SetIntPoint (&ip);
-         fe->CalcPhysCurlShape(*Tr,curlshape);
-   //       a = 0;
-   //       for (int k = 0; k < dof; k++)
-   //       {
-   //          if (dofs[k] >= 0)
-   //          {
-   //             a += (*this)(dofs[k]) * divshape(k);
-   //          }
-   //          else
-   //          {
-   //             a -= (*this)(-1-dofs[k]) * divshape(k);
-   //          }
-   //       }
-   //       a -= exdiv->Eval(*Tr, ip);
-   //       error += ip.weight * Tr->Weight() * a * a;
+         Tr->SetIntPoint(&ip);
+         GetCurl(*Tr,curl);
+         excurl->Eval(vec,*Tr,ip);
+         vec-=curl;
+         error += ip.weight * Tr->Weight() * InnerProduct(vec,vec);
       }
    }
    if (error < 0.0)
@@ -2690,6 +2664,48 @@ double GridFunction::ComputeCurlError(VectorCoefficient *excurl,
    return sqrt(error);
 }
 
+double GridFunction::ComputeCurlError(Coefficient *excurl, 
+               const IntegrationRule *irs[]) const
+{
+   double error = 0.0, a;
+   const FiniteElement *fe;
+   ElementTransformation *Tr;
+   Array<int> dofs;
+   Vector curl;
+   int intorder;
+   int dim = fes->GetMesh()->SpaceDimension();
+   MFEM_VERIFY(dim == 2, "This method is intented for 2D problems only");
+
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      fe = fes->GetFE(i);
+      Tr = fes->GetElementTransformation(i);
+      intorder = 2*fe->GetOrder() + 3; 
+      const IntegrationRule *ir;
+      if (irs)
+      {
+         ir = irs[fe->GetGeomType()];
+      }
+      else
+      {
+         ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+      }
+      fes->GetElementDofs(i, dofs);
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         Tr->SetIntPoint(&ip);
+         GetCurl(*Tr,curl);
+         a = curl[0]-excurl->Eval(*Tr,ip);
+         error += ip.weight * Tr->Weight() * a * a;
+      }
+   }
+   if (error < 0.0)
+   {
+      return -sqrt(-error);
+   }
+   return sqrt(error);
+}
 
 double GridFunction::ComputeMaxError(
    Coefficient *exsol[], const IntegrationRule *irs[]) const
