@@ -20,6 +20,51 @@
 using namespace std;
 using namespace mfem;
 
+const char vishost[] = "localhost";
+const int  visport   = 19916;
+const char* keys = "Rjlmc*****]]]]]";
+
+
+void VisualizeField(socketstream &sock, GridFunction &gf, const char *title,
+                    const char * keys = NULL, int w = 400, int h = 400,
+                    int x = 0, int y = 0, bool vec = false)
+{
+   Mesh &mesh = *gf.FESpace()->GetMesh();
+
+   bool newly_opened = false;
+   int connection_failed;
+
+   do
+   {
+      if (!sock.is_open() || !sock)
+      {
+         sock.open(vishost, visport);
+         sock.precision(8);
+         newly_opened = true;
+      }
+      sock << "solution\n";
+
+      mesh.Print(sock);
+      gf.Save(sock);
+
+      if (newly_opened)
+      {
+         sock << "window_title '" << title << "'\n"
+              << "window_geometry "
+              << x << " " << y << " " << w << " " << h << "\n";
+
+         if (keys) { sock << "keys " << keys << "\n"; }
+         else { sock << "keys mAc\n"; }
+
+         if (vec) { sock << "vvv"; }
+         sock << endl;
+      }
+
+      connection_failed = !sock && !newly_opened;
+   }
+   while (connection_failed);
+}
+
 
 struct HPError
 {
@@ -87,9 +132,7 @@ void EstimateHPErrors(FiniteElementSpace* fes,
     if (1)
     {
         GridFunction *vis_sol = ProlongToMaxOrder(&sol);
-        ex_sock.precision(8);
-        ex_sock << "solution\n" << *mesh << *vis_sol << flush;
-        //ex_sock << "pause\n" << flush;
+        VisualizeField(ex_sock, *vis_sol, "Projected exsol", keys, 600, 500, 610, 70);
         delete vis_sol;
     }
 
@@ -121,7 +164,6 @@ void EstimateHPErrors(FiniteElementSpace* fes,
         // h-refinement
         elem_hp_error[j].err_h = 0;
         elem_hp_error[j].dof_h = 0;
-
     }
 
     // For h-refinement sum up errors and dofs for each coarse element
@@ -156,6 +198,7 @@ int main(int argc, char *argv[])
    int max_order = 6;
    int int_order = 10;
    bool relaxed_hp = false;
+   bool pause = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -164,8 +207,12 @@ int main(int argc, char *argv[])
                   "Initial mesh finite element order (polynomial degree).");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&hp, "-hp", "--hp", "-no-hp", "--no-hp",
+                  "Enable hp refinement.");
    args.AddOption(&relaxed_hp, "-x", "--relaxed-hp", "-no-x",
                   "--no-relaxed-hp", "Set relaxed hp conformity.");
+   args.AddOption(&pause, "-p", "--pause", "-no-p", "--no-pause",
+                  "Wait for user input after each iteration.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -231,19 +278,7 @@ int main(int argc, char *argv[])
    ess_bdr = 1;
 
    // Connect to GLVis.
-   char vishost[] = "localhost";
-   int  visport   = 19916;
-   socketstream sol_sock;
-   socketstream ex_sock;
-   socketstream ord_sock;
-
-   if (visualization)
-   {
-      sol_sock.open(vishost, visport);
-      ex_sock.open(vishost, visport);
-      ord_sock.open(vishost, visport);
-   }
-
+   socketstream sol_sock, ex_sock, ord_sock;
 
    std::ofstream conv("hp.err");
 
@@ -305,12 +340,10 @@ int main(int argc, char *argv[])
       bf.RecoverFEMSolution(X, lf, x);
 
       // 19. Send solution by socket to the GLVis server.
-      if (visualization && sol_sock.good())
+      if (visualization)
       {
          GridFunction *vis_x = ProlongToMaxOrder(&x);
-         sol_sock.precision(8);
-         sol_sock << "solution\n" << mesh << *vis_x << flush;
-         sol_sock << "pause\n" << flush;
+         VisualizeField(sol_sock, *vis_x, "Solution", keys, 600, 500, 0, 70);
          delete vis_x;
 
          L2_FECollection l2fec(0, dim);
@@ -320,12 +353,7 @@ int main(int argc, char *argv[])
          {
             orders(i) = fespace.GetElementOrder(i);
          }
-
-         ord_sock.precision(8);
-         ord_sock << "solution\n" << mesh << orders
-                 // << "keys Rjlmc\n"
-                  << flush;
-         //ord_sock << "pause\n" << flush;
+         VisualizeField(ord_sock, orders, "Orders", keys, 600, 500, 0, 620);
       }
 
       if (cdofs > max_dofs)
@@ -354,31 +382,39 @@ int main(int argc, char *argv[])
          Array<HPError> elem_hp_error;
          EstimateHPErrors(&fespace, exsol, exgrad, elem_hp_error, ex_sock);
 
+         double err_max = sqrt(elem_error.Max());
          for (int i = 0; i < mesh.GetNE(); i++)
          {
-             double err_max = sqrt(elem_error.Max());
-             if (sqrt(elem_error[i]) > ref_threshold * err_max)
-             {
-                 cout << " Element:  " << i << endl;
-                 cout << " Error: " << sqrt(elem_error[i]) << endl;
-                 cout << " dofs : " << elem_hp_error[i].dof << " error: " << elem_hp_error[i].err << endl;
-                 cout << " dofs h: " << elem_hp_error[i].dof_h << " error h: " << elem_hp_error[i].err_h << endl;
-                 cout << " dofs p: " << elem_hp_error[i].dof_p << " error p: " << elem_hp_error[i].err_p << endl;
+            if (sqrt(elem_error[i]) > ref_threshold * err_max)
+            {
+               HPError &err = elem_hp_error[i];
 
-                 double division_h = (sqrt(elem_hp_error[i].err) - sqrt(elem_hp_error[i].err_h))/(elem_hp_error[i].dof_h - elem_hp_error[i].dof);
-                 double division_p = (sqrt(elem_hp_error[i].err) - sqrt(elem_hp_error[i].err_p))/(elem_hp_error[i].dof_p - elem_hp_error[i].dof);
+               cout << " Element:  " << i << endl;
+               cout << " Error: " << sqrt(elem_error[i]) << endl;
+               cout << " dofs : " << err.dof << " error: " << err.err << endl;
+               cout << " dofs h: " << err.dof_h << " error h: " << err.err_h << endl;
+               cout << " dofs p: " << err.dof_p << " error p: " << err.err_p << endl;
 
-                 cout << " h: " << division_h << " p: " << division_p << endl;
-                 if (division_h < 0 || division_h > division_p || elem_hp_error[i].dof_p > max_order*max_order)
-                 {
-                     hp_ref[i] = 0;
-                 }
-                 else
-                 {
-                     hp_ref[i] = 1;
-                 }
-             }
+               double slope_h = (sqrt(err.err) - sqrt(err.err_h)) / (err.dof_h - err.dof);
+               double slope_p = (sqrt(err.err) - sqrt(err.err_p)) / (err.dof_p - err.dof);
+
+               cout << " h: " << slope_h << " p: " << slope_p << endl;
+               if (slope_h < 0 || slope_h > slope_p || err.dof_p > max_order*max_order)
+               {
+                  hp_ref[i] = 0;
+               }
+               else
+               {
+                  hp_ref[i] = 1;
+               }
+            }
          }
+      }
+
+      if (pause)
+      {
+         cout << "Press ENTER to continue...";
+         cin.get();
       }
 
       int h_refined = 0;
