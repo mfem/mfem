@@ -35,7 +35,7 @@ protected:
    IntegrationRule *ir_simplex;
    struct findpts_data_2 *fdata2D;
    struct findpts_data_3 *fdata3D;
-   int dim;
+   int dim, points_cnt;
    Array<unsigned int> gsl_code, gsl_proc, gsl_elem;
    Vector gsl_mesh, gsl_ref, gsl_dist;
    bool setupflag;
@@ -51,6 +51,44 @@ protected:
    /// Convert simplices to quad/hexes and then get nodal coordinates for each
    /// split element into format expected by GSLIB
    void GetSimplexNodalCoordinates();
+
+   /** Searches positions given in physical space by @a point_pos. All output
+       Arrays and Vectors are expected to have the correct size.
+
+       @param[in]  point_pos  Positions to be found. Must by ordered by nodes
+                              (XXX...,YYY...,ZZZ).
+       @param[out] codes      Return codes for each point: inside element (0),
+                              element boundary (1), not found (2).
+       @param[out] proc_ids   MPI proc ids where the points were found.
+       @param[out] elem_ids   Element ids where the points were found.
+       @param[out] ref_pos    Reference coordinates of the found point. Ordered
+                              by vdim (XYZ,XYZ,XYZ...).
+                              Note: the gslib reference frame is [-1,1].
+       @param[out] dist       Distance between the sought and the found point
+                              in physical space. */
+   void FindPoints(const Vector &point_pos, Array<unsigned int> &codes,
+                   Array<unsigned int> &proc_ids, Array<unsigned int> &elem_ids,
+                   Vector &ref_pos, Vector &dist);
+
+   /** Interpolation of field values at prescribed reference space positions.
+
+       @param[in] codes       Return codes for each point: inside element (0),
+                              element boundary (1), not found (2).
+       @param[in] proc_ids    MPI proc ids where the points were found.
+       @param[in] elem_ids    Element ids where the points were found.
+       @param[in] ref_pos     Reference coordinates of the found point. Ordered
+                              by vdim (XYZ,XYZ,XYZ...).
+                              Note: the gslib reference frame is [-1,1].
+       @param[in] field_in    Function values that will be interpolated on the
+                              reference positions. Note: it is assumed that
+                              @a field_in is in H1 and in the same space as the
+                              mesh that was given to Setup().
+       @param[out] field_out  Interpolated values. */
+   void Interpolate(const Array<unsigned int> &codes,
+                    const Array<unsigned int> &proc_ids,
+                    const Array<unsigned int> &elem_ids, const Vector &ref_pos,
+                    const GridFunction &field_in, Vector &field_out);
+
    /// Use GSLIB for communication and interpolation
    void InterpolateH1(const Array<unsigned int> &codes,
                       const Array<unsigned int> &proc_ids,
@@ -94,46 +132,13 @@ public:
    void Setup(Mesh &m, const double bb_t = 0.1, const double newt_tol = 1.0e-12,
               const int npt_max = 256);
 
-   /** Searches positions given in physical space by @a point_pos. All output
-       Arrays and Vectors are expected to have the correct size.
-
-       @param[in]  point_pos  Positions to be found. Must by ordered by nodes
-                              (XXX...,YYY...,ZZZ).
-       @param[out] codes      Return codes for each point: inside element (0),
-                              element boundary (1), not found (2).
-       @param[out] proc_ids   MPI proc ids where the points were found.
-       @param[out] elem_ids   Element ids where the points were found.
-       @param[out] ref_pos    Reference coordinates of the found point. Ordered
-                              by vdim (XYZ,XYZ,XYZ...).
-                              Note: the gslib reference frame is [-1,1].
-       @param[out] dist       Distance between the sought and the found point
-                              in physical space. */
-   void FindPoints(const Vector &point_pos, Array<unsigned int> &codes,
-                   Array<unsigned int> &proc_ids, Array<unsigned int> &elem_ids,
-                   Vector &ref_pos, Vector &dist);
+   /** Searches positions given in physical space by @a point_pos. */
    void FindPoints(const Vector &point_pos);
    /// Setup FindPoints and search positions
    void FindPoints(Mesh &m, const Vector &point_pos, const double bb_t = 0.1,
                    const double newt_tol = 1.0e-12,  const int npt_max = 256);
 
-   /** Interpolation of field values at prescribed reference space positions.
-
-       @param[in] codes       Return codes for each point: inside element (0),
-                              element boundary (1), not found (2).
-       @param[in] proc_ids    MPI proc ids where the points were found.
-       @param[in] elem_ids    Element ids where the points were found.
-       @param[in] ref_pos     Reference coordinates of the found point. Ordered
-                              by vdim (XYZ,XYZ,XYZ...).
-                              Note: the gslib reference frame is [-1,1].
-       @param[in] field_in    Function values that will be interpolated on the
-                              reference positions. Note: it is assumed that
-                              @a field_in is in H1 and in the same space as the
-                              mesh that was given to Setup().
-       @param[out] field_out  Interpolated values. */
-   void Interpolate(const Array<unsigned int> &codes,
-                    const Array<unsigned int> &proc_ids,
-                    const Array<unsigned int> &elem_ids, const Vector &ref_pos,
-                    const GridFunction &field_in, Vector &field_out);
+   /** Interpolation of field values at prescribed reference space positions. */
    void Interpolate(const GridFunction &field_in, Vector &field_out);
    /** Search positions and interpolate */
    void Interpolate(const Vector &point_pos, const GridFunction &field_in,

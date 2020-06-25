@@ -30,8 +30,8 @@ namespace mfem
 
 FindPointsGSLIB::FindPointsGSLIB()
    : mesh(NULL), ir_simplex(NULL), fdata2D(NULL), fdata3D(NULL),
-     dim(-1), gsl_mesh(), gsl_ref(), gsl_dist(), setupflag(false),
-     cr(NULL), gsl_comm(NULL), meshsplit(NULL),
+     dim(-1), points_cnt(0), gsl_mesh(), gsl_ref(), gsl_dist(),
+     setupflag(false), cr(NULL), gsl_comm(NULL), meshsplit(NULL),
      avgtype(mfem::GridFunction::ARITHMETIC)
 {
    gsl_comm = new comm;
@@ -58,8 +58,8 @@ FindPointsGSLIB::~FindPointsGSLIB()
 #ifdef MFEM_USE_MPI
 FindPointsGSLIB::FindPointsGSLIB(MPI_Comm _comm)
    : mesh(NULL), ir_simplex(NULL), fdata2D(NULL), fdata3D(NULL),
-     dim(-1), gsl_mesh(), gsl_ref(), gsl_dist(), setupflag(false),
-     cr(NULL), gsl_comm(NULL), meshsplit(NULL),
+     dim(-1), points_cnt(0), gsl_mesh(), gsl_ref(), gsl_dist(),
+     setupflag(false), cr(NULL), gsl_comm(NULL), meshsplit(NULL),
      avgtype(mfem::GridFunction::ARITHMETIC)
 {
    gsl_comm = new comm;
@@ -130,7 +130,13 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
                                  Vector &ref_pos, Vector &dist)
 {
    MFEM_VERIFY(setupflag, "Use FindPointsGSLIB::Setup before finding points.");
-   const int points_cnt = point_pos.Size() / dim;
+   points_cnt = point_pos.Size() / dim;
+   gsl_code.SetSize(points_cnt);
+   gsl_proc.SetSize(points_cnt);
+   gsl_elem.SetSize(points_cnt);
+   gsl_ref.SetSize(points_cnt * dim);
+   gsl_dist.SetSize(points_cnt);
+
    if (dim == 2)
    {
       const double *xv_base[2];
@@ -167,13 +173,6 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
 
 void FindPointsGSLIB::FindPoints(const Vector &point_pos)
 {
-   const int points_cnt = point_pos.Size() / dim;
-   gsl_code.SetSize(points_cnt);
-   gsl_proc.SetSize(points_cnt);
-   gsl_elem.SetSize(points_cnt);
-   gsl_ref.SetSize(points_cnt * dim);
-   gsl_dist.SetSize(points_cnt);
-
    FindPoints(point_pos, gsl_code, gsl_proc, gsl_elem, gsl_ref, gsl_dist);
 }
 
@@ -594,6 +593,8 @@ void FindPointsGSLIB::InterpolateH1(const Array<unsigned int> &codes,
              points_fld = field_in.Size() / ncomp,
              points_cnt = codes.Size();
 
+   field_out.SetSize(points_cnt*ncomp);
+
    for (int i = 0; i < ncomp; i++)
    {
       const int dataptrin  = i*points_fld,
@@ -716,6 +717,7 @@ void FindPointsGSLIB::InterpolateGeneral(const Array<unsigned int> &codes,
    {
       ncomp = field_in.VectorDim();
    }
+   field_out.SetSize(points_cnt*ncomp);
 
    if (gsl_comm->np == 1) //serial
    {
