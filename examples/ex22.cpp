@@ -13,10 +13,10 @@
 //               ex22 -m ../data/inline-hex.mesh -o 2 -p 2
 //               ex22 -m ../data/star.mesh -r 1 -o 2 -sigma 10.0
 //
-// With partial assembly:
-//               ex22 -m ../data/inline-quad.mesh -o 3 -p 1 -pa
-//               ex22 -m ../data/inline-hex.mesh -o 2 -p 2 -pa
-//               ex22 -m ../data/star.mesh -r 1 -o 2 -sigma 10.0 -pa
+// Device sample runs:
+//               ex22 -m ../data/inline-quad.mesh -o 3 -p 1 -pa -d cuda
+//               ex22 -m ../data/inline-hex.mesh -o 2 -p 2 -pa -d cuda
+//               ex22 -m ../data/star.mesh -r 1 -o 2 -sigma 10.0 -pa -d cuda
 //
 // Description:  This example code demonstrates the use of MFEM to define and
 //               solve simple complex-valued linear systems. It implements three
@@ -82,6 +82,7 @@ int main(int argc, char *argv[])
    bool herm_conv = true;
    bool exact_sol = true;
    bool pa = false;
+   const char *device_config = "cpu";
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -114,6 +115,8 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.Parse();
    if (!args.Good())
    {
@@ -143,13 +146,18 @@ int main(int argc, char *argv[])
    ComplexOperator::Convention conv =
       herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
 
-   // 2. Read the mesh from the given mesh file. We can handle triangular,
+   // 2. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   Device device(device_config);
+   device.Print();
+
+   // 3. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes
    //    with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
-   // 3. Refine the mesh to increase resolution. In this example we do
+   // 4. Refine the mesh to increase resolution. In this example we do
    //    'ref_levels' of uniform refinement where the user specifies
    //    the number of levels with the '-r' option.
    for (int l = 0; l < ref_levels; l++)
@@ -157,7 +165,7 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
    }
 
-   // 4. Define a finite element space on the mesh. Here we use continuous
+   // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange, Nedelec, or Raviart-Thomas finite elements of the specified
    //    order.
    if (dim == 1 && prob != 0 )
@@ -179,7 +187,7 @@ int main(int argc, char *argv[])
    cout << "Number of finite element unknowns: " << fespace->GetTrueVSize()
         << endl;
 
-   // 5. Determine the list of true (i.e. conforming) essential boundary dofs.
+   // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined based on the type
    //    of mesh and the problem type.
    Array<int> ess_tdof_list;
@@ -191,12 +199,12 @@ int main(int argc, char *argv[])
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-   // 6. Set up the linear form b(.) which corresponds to the right-hand side of
+   // 7. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system.
    ComplexLinearForm b(fespace, conv);
    b.Vector::operator=(0.0);
 
-   // 7. Define the solution vector u as a complex finite element grid function
+   // 8. Define the solution vector u as a complex finite element grid function
    //    corresponding to fespace. Initialize u with initial guess of 1+0i or
    //    the exact solution if it is known.
    ComplexGridFunction u(fespace);
@@ -218,7 +226,6 @@ int main(int argc, char *argv[])
    VectorConstantCoefficient zeroVecCoef(zeroVec);
    VectorConstantCoefficient oneVecCoef(oneVec);
 
-   u = 0.0;
    switch (prob)
    {
       case 0:
@@ -271,7 +278,7 @@ int main(int argc, char *argv[])
                  << "window_title 'Exact: Imaginary Part'" << flush;
    }
 
-   // 8. Set up the sesquilinear form a(.,.) on the finite element space
+   // 9. Set up the sesquilinear form a(.,.) on the finite element space
    //    corresponding to the damped harmonic oscillator operator of the
    //    appropriate type:
    //
@@ -318,7 +325,7 @@ int main(int argc, char *argv[])
       default: break; // This should be unreachable
    }
 
-   // 8a. Set up the bilinear form for the preconditioner corresponding to the
+   // 9a. Set up the bilinear form for the preconditioner corresponding to the
    //     appropriate operator
    //
    //      0) A scalar H1 field
@@ -355,9 +362,9 @@ int main(int argc, char *argv[])
       default: break; // This should be unreachable
    }
 
-   // 9. Assemble the form and the corresponding linear system, applying any
-   //    necessary transformations such as: assembly, eliminating boundary
-   //    conditions, conforming constraints for non-conforming AMR, etc.
+   // 10. Assemble the form and the corresponding linear system, applying any
+   //     necessary transformations such as: assembly, eliminating boundary
+   //     conditions, conforming constraints for non-conforming AMR, etc.
    a->Assemble();
    pcOp->Assemble();
 
@@ -365,7 +372,6 @@ int main(int argc, char *argv[])
    Vector B, U;
 
    a->FormLinearSystem(ess_tdof_list, u, b, A, U, B);
-   u = 0.0;
    U = 0.0;
 
    OperatorHandle PCOp;
@@ -380,7 +386,7 @@ int main(int argc, char *argv[])
            << 2 * Asp->real().Width() << endl << endl;
    }
 
-   // 10. Define and apply a GMRES solver for AU=B with a block diagonal
+   // 11. Define and apply a GMRES solver for AU=B with a block diagonal
    //     preconditioner based on the appropriate sparse smoother.
    {
       Array<int> blockOffsets;
@@ -426,7 +432,8 @@ int main(int argc, char *argv[])
       BDP.owns_blocks = 1;
 
       GMRESSolver gmres;
-      gmres.SetPreconditioner(BDP);
+      // TODO: Implement device support for block-diagonal preconditioner
+      if (device.IsDisabled()) { gmres.SetPreconditioner(BDP); }
       gmres.SetOperator(*A.Ptr());
       gmres.SetRelTol(1e-12);
       gmres.SetMaxIter(1000);
@@ -434,9 +441,11 @@ int main(int argc, char *argv[])
       gmres.Mult(B, U);
    }
 
-   // 11. Recover the solution as a finite element grid function and compute the
+   // 12. Recover the solution as a finite element grid function and compute the
    //     errors if the exact solution is known.
    a->RecoverFEMSolution(U, b, u);
+   u.real().SyncMemory(u);
+   u.imag().SyncMemory(u);
 
    if (exact_sol)
    {
@@ -466,7 +475,7 @@ int main(int argc, char *argv[])
       cout << endl;
    }
 
-   // 12. Save the refined mesh and the solution. This output can be viewed
+   // 13. Save the refined mesh and the solution. This output can be viewed
    //     later using GLVis: "glvis -m mesh -g sol".
    {
       ofstream mesh_ofs("refined.mesh");
@@ -481,7 +490,7 @@ int main(int argc, char *argv[])
       u.imag().Save(sol_i_ofs);
    }
 
-   // 13. Send the solution by socket to a GLVis server.
+   // 14. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -540,7 +549,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 14. Free the used memory.
+   // 15. Free the used memory.
    delete a;
    delete u_exact;
    delete pcOp;
