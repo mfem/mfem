@@ -383,8 +383,7 @@ int main (int argc, char *argv[])
    ParFiniteElementSpace ind_fesv(pmesh, &ind_fec, dim);
    ParGridFunction size(&ind_fes), aspr(&ind_fes), disc(&ind_fes), ori(&ind_fes);
    ParGridFunction aspr3d(&ind_fesv), size3d(&ind_fesv);
-   const bool apa = pa && getenv("APA");
-   const AssemblyLevel al = apa ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
+   const AssemblyLevel al = pa ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
    switch (target_id)
    {
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
@@ -621,13 +620,13 @@ int main (int argc, char *argv[])
    // The small_phys_size is relevant only with proper normalization.
    if (normalization) { dist = small_phys_size; }
    ConstantCoefficient lim_coeff(lim_const);
-   MFEM_VERIFY(!pa || lim_const == 0.0, "");
    if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, dist, lim_coeff); }
 
    // Adaptive limiting.
    ParGridFunction zeta_0(&ind_fes);
    ConstantCoefficient coef_zeta(adapt_lim_const);
    AdaptivityEvaluator *adapt_evaluator = NULL;
+   MFEM_VERIFY(!pa || adapt_lim_const == 0.0, "");
    if (adapt_lim_const > 0.0)
    {
       FunctionCoefficient alim_coeff(adapt_lim_fun);
