@@ -83,8 +83,8 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
 {
    if (ext)
    {
-      MFEM_VERIFY(fnfi.Size() == 0, "Not Yet implemented!");
-      MFEM_VERIFY(bfnfi.Size() == 0, "Not Yet implemented!");
+      MFEM_VERIFY(!fnfi.Size(), "Interior faces terms not yet implemented!");
+      MFEM_VERIFY(!bfnfi.Size(), "Boundary face terms not yet implemented!");
       return ext->GetGridFunctionEnergy(x);
    }
 
@@ -145,7 +145,6 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
 
    if (ext)
    {
-      py = 0.0;
       ext->Mult(px, py);
       if (Serial())
       {
