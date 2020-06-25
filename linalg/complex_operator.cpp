@@ -117,14 +117,18 @@ void ComplexOperator::Mult(const Vector &x_r, const Vector &x_i,
 
 void ComplexOperator::MultTranspose(const Vector &x, Vector &y) const
 {
-   double * x_data = x.GetData();
-   y_r_.SetData(x_data);
-   y_i_.SetData(&x_data[height / 2]);
+   y.UseDevice(true); y = 0.0;
 
-   x_r_.SetData(&y[0]);
-   x_i_.SetData(&y[width / 2]);
+   y_r_.MakeRef(const_cast<Vector&>(x), 0);
+   y_i_.MakeRef(const_cast<Vector&>(x), height/2);
+
+   x_r_.MakeRef(y, 0);
+   x_i_.MakeRef(y, width/2);
 
    this->MultTranspose(y_r_, y_i_, x_r_, x_i_);
+
+   x_r_.SyncAliasMemory(y);
+   x_i_.SyncAliasMemory(y);
 }
 
 void ComplexOperator::MultTranspose(const Vector &x_r, const Vector &x_i,
@@ -145,13 +149,17 @@ void ComplexOperator::MultTranspose(const Vector &x_r, const Vector &x_i,
       y_r = 0.0;
       y_i = 0.0;
    }
+
    if (Op_Imag_)
    {
-      if (!u_) { u_ = new Vector(Op_Imag_->Width()); }
+      if (!u_) { u_ = new Vector(); }
+      u_->UseDevice(true);
+      u_->SetSize(Op_Imag_->Width());
+
       Op_Imag_->MultTranspose(x_i, *u_);
-      y_r_.Add(convention_ == BLOCK_SYMMETRIC ? -1.0 : 1.0, *u_);
+      y_r.Add(convention_ == BLOCK_SYMMETRIC ? -1.0 : 1.0, *u_);
       Op_Imag_->MultTranspose(x_r, *u_);
-      y_i_ -= *u_;
+      y_i.Add(-1.0, *u_);
    }
 }
 
