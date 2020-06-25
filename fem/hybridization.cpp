@@ -174,8 +174,9 @@ void Hybridization::ConstructC()
          {
             // Convert Ct to parallel and then transpose it:
             Ct->Finalize(skip_zeros);
-            HYPRE_Int Ct_num_rows = Ct->Height();
-            Array<HYPRE_Int> Ct_rows, *offsets[1] = { &Ct_rows };
+            HYPRE_BigInt Ct_num_rows = Ct->Height();
+            Array<HYPRE_BigInt> Ct_rows;
+            Array<HYPRE_BigInt> *offsets[1] = { &Ct_rows };
             pmesh->GenerateOffsets(1, &Ct_num_rows, offsets);
             Array<HYPRE_Int> Ct_J(Ct->NumNonZeroElems());
             HYPRE_Int c_ldof_offset = c_pfes->GetMyDofOffset();

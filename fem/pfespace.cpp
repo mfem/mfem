@@ -603,8 +603,8 @@ void ParFiniteElementSpace::GenerateGlobalOffsets() const
 {
    MFEM_ASSERT(Conforming(), "wrong code path");
 
-   HYPRE_Int ldof[2];
-   Array<HYPRE_Int> *offsets[2] = { &dof_offsets, &tdof_offsets };
+   HYPRE_BigInt ldof[2];
+   Array<HYPRE_BigInt> *offsets[2] = { &dof_offsets, &tdof_offsets };
 
    ldof[0] = GetVSize();
    ldof[1] = TrueVSize();
@@ -659,10 +659,10 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
    HYPRE_Int *j_offd = Memory<HYPRE_Int>(ldof-ltdof);
    int offd_counter;
 
-   HYPRE_Int *cmap   = Memory<HYPRE_Int>(ldof-ltdof);
+   HYPRE_BigInt *cmap   = Memory<HYPRE_BigInt>(ldof-ltdof);
 
-   HYPRE_Int *col_starts = GetTrueDofOffsets();
-   HYPRE_Int *row_starts = GetDofOffsets();
+   HYPRE_BigInt *col_starts = GetTrueDofOffsets();
+   HYPRE_BigInt *row_starts = GetDofOffsets();
 
    Array<Pair<HYPRE_Int, int> > cmap_j_offd(ldof-ltdof);
 
@@ -704,7 +704,7 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
 HypreParMatrix *ParFiniteElementSpace::GetPartialConformingInterpolation()
 {
    HypreParMatrix *P_pc;
-   Array<HYPRE_Int> P_pc_row_starts, P_pc_col_starts;
+   Array<HYPRE_BigInt> P_pc_row_starts, P_pc_col_starts;
    BuildParallelConformingInterpolation(&P_pc, NULL, P_pc_row_starts,
                                         P_pc_col_starts, NULL, true);
    P_pc->CopyRowStarts();
@@ -1974,8 +1974,8 @@ void ParFiniteElementSpace
 
 int ParFiniteElementSpace
 ::BuildParallelConformingInterpolation(HypreParMatrix **P, SparseMatrix **R,
-                                       Array<HYPRE_Int> &dof_offs,
-                                       Array<HYPRE_Int> &tdof_offs,
+                                       Array<HYPRE_BigInt> &dof_offs,
+                                       Array<HYPRE_BigInt> &tdof_offs,
                                        Array<int> *dof_tdof,
                                        bool partial) const
 {
@@ -2111,8 +2111,8 @@ int ParFiniteElementSpace
    }
 
    // calculate global offsets
-   HYPRE_Int loc_sizes[2] = { ndofs*vdim, num_true_dofs*vdim };
-   Array<HYPRE_Int>* offsets[2] = { &dof_offs, &tdof_offs };
+   HYPRE_BigInt loc_sizes[2] = { ndofs*vdim, num_true_dofs*vdim };
+   Array<HYPRE_BigInt>* offsets[2] = { &dof_offs, &tdof_offs };
    pmesh->GenerateOffsets(2, loc_sizes, offsets); // calls MPI_Scan, MPI_Bcast
 
    HYPRE_Int my_tdof_offset =
@@ -2334,8 +2334,8 @@ int ParFiniteElementSpace
 HypreParMatrix* ParFiniteElementSpace
 ::MakeVDimHypreMatrix(const std::vector<PMatrixRow> &rows,
                       int local_rows, int local_cols,
-                      Array<HYPRE_Int> &row_starts,
-                      Array<HYPRE_Int> &col_starts) const
+                      Array<HYPRE_BigInt> &row_starts,
+                      Array<HYPRE_BigInt> &col_starts) const
 {
    bool assumed = HYPRE_AssumedPartitionCheck();
    bool bynodes = (ordering == Ordering::byNODES);
@@ -2369,7 +2369,7 @@ HypreParMatrix* ParFiniteElementSpace
    }
 
    // create offd column mapping
-   HYPRE_Int *cmap = Memory<HYPRE_Int>(col_map.size());
+   HYPRE_BigInt *cmap = Memory<HYPRE_BigInt>(col_map.size());
    int offd_col = 0;
    for (std::map<HYPRE_Int, int>::iterator
         it = col_map.begin(); it != col_map.end(); ++it)
@@ -2548,7 +2548,7 @@ ParFiniteElementSpace::RebalanceMatrix(int old_ndofs,
    }
    SortPairs<HYPRE_Int, int>(cmap_offd, offd_cols);
 
-   HYPRE_Int* cmap = Memory<HYPRE_Int>(offd_cols);
+   HYPRE_BigInt* cmap = Memory<HYPRE_BigInt>(offd_cols);
    for (int i = 0; i < offd_cols; i++)
    {
       cmap[i] = cmap_offd[i].one;
@@ -2768,7 +2768,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    offd->SetWidth(col_map.size());
 
    // create offd column mapping for use by hypre
-   HYPRE_Int *cmap = Memory<HYPRE_Int>(offd->Width());
+   HYPRE_BigInt *cmap = Memory<HYPRE_BigInt>(offd->Width());
    for (std::map<HYPRE_Int, int>::iterator
         it = col_map.begin(); it != col_map.end(); ++it)
    {
