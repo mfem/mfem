@@ -27,24 +27,15 @@ template<int DIM>
 MFEM_HOST_DEVICE inline void Diag(const double c, double *data)
 {
    const int N = DIM*DIM;
-   for (int i = 0; i < N; i++)
-   {
-      data[i] = 0.0;
-   }
-   for (int i = 0; i < DIM; i++)
-   {
-      data[i*(DIM+1)] = c;
-   }
+   for (int i = 0; i < N; i++) { data[i] = 0.0; }
+   for (int i = 0; i < DIM; i++) { data[i*(DIM+1)] = c; }
 }
 
 template<int DIM>
 MFEM_HOST_DEVICE inline double DistanceSquared(const double *x, const double *y)
 {
    double d = 0.0;
-   for (int i = 0; i < DIM; i++)
-   {
-      d += (x[i]-y[i])*(x[i]-y[i]);
-   }
+   for (int i = 0; i < DIM; i++) { d += (x[i]-y[i])*(x[i]-y[i]); }
    return d;
 }
 
@@ -54,10 +45,7 @@ MFEM_HOST_DEVICE inline void Subtract(const double a,
                                       const double *x, const double *y,
                                       double *z)
 {
-   for (int i = 0; i < DIM; i++)
-   {
-      z[i] = a * (x[i] - y[i]);
-   }
+   for (int i = 0; i < DIM; i++) { z[i] = a * (x[i] - y[i]); }
 }
 
 template<int DIM>
@@ -67,13 +55,9 @@ MFEM_HOST_DEVICE inline void AddMultVWt(const double *v, const double *w,
    for (int i = 0; i < DIM; i++)
    {
       const double vi = v[i];
-      for (int j = 0; j < DIM; j++)
-      {
-         VWt[i*DIM+j] += vi * w[j];
-      }
+      for (int j = 0; j < DIM; j++) { VWt[i*DIM+j] += vi * w[j]; }
    }
 }
-
 
 /// Load B1d & G1d matrices into shared memory
 template<int MD1, int MQ1>
@@ -1279,7 +1263,7 @@ struct instances
    }
 };
 
-/// cat instances
+/// Cat instances
 template<class K, typename Offset, typename Lhs, typename Rhs> struct cat;
 template<class K, typename T, T Offset, T... Lhs, T... Rhs>
 struct cat<K, std::integral_constant<T, Offset>,
@@ -1287,7 +1271,7 @@ struct cat<K, std::integral_constant<T, Offset>,
           instances<K, T, Rhs...> >
 { using type = instances<K, T, Lhs..., (Offset + Rhs)...>; };
 
-/// sequence, empty and one element terminal cases
+/// Sequence, empty and one element terminal cases
 template<class K, typename T, typename N>
 struct sequence
 {
@@ -1305,7 +1289,7 @@ template<class K, typename T>
 struct sequence<K, T, std::integral_constant<T,1> >
 { using type = instances<K,T,0>; };
 
-/// make_sequence
+/// Make_sequence
 template<class Instance, typename T = typename Instance::Key_t>
 using make_sequence =
    typename sequence<Instance, T, std::integral_constant<T,Instance::N> >::type;

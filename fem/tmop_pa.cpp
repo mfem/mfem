@@ -206,7 +206,6 @@ void TMOP_Integrator::AddMultGradPA(const Vector &x,
       PA.R->MultTranspose(x,X);
       ScaleByWeight(PA.W, X);
       const TargetConstructor::TargetType &target_type = targetC->Type();
-      //MFEM_VERIFY(target_type == TargetConstructor::GIVEN_FULL, "");
       const int dim = PA.dim;
       const int NE = PA.ne;
       const int NQ = PA.nq;
@@ -267,7 +266,6 @@ double TMOP_Integrator::GetGridFunctionEnergyPA(const Vector &x) const
       PA.Jtr.HostWrite();
       const IntegrationRule *ir = EnergyIntegrationRule(*PA.fes->GetFE(0));
       SetupJtr(dim, NE, NQ, PA.fes, ir, target_type, targetC, X, PA.Jtr);
-      //PA.setup_Jtr = true;
    }
 
    double energy = 0.0;
@@ -285,7 +283,6 @@ double TMOP_Integrator::GetGridFunctionEnergyPA(const Vector &x) const
    }
 
    PA.setup_Jtr = true;
-
    return energy;
 }
 
