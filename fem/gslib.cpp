@@ -187,6 +187,7 @@ void FindPointsGSLIB::FindPoints(Mesh &m, const Vector &point_pos,
    FindPoints(point_pos);
 }
 
+
 void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
                                   Vector &field_out)
 {
