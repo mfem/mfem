@@ -21,7 +21,7 @@
 namespace mfem
 {
 
-// Templated coefficient classes, cf. coefficient.?pp
+/// Templated coefficient classes, cf. coefficient.?pp
 
 class TCoefficient
 {
@@ -56,12 +56,13 @@ public:
 };
 
 
-// Function coefficient. The template class 'Func' has to implement at least one
-// of the following methods, depending on the dimension that will be used:
-// complex_t Eval1D(real_t);
-// complex_t Eval2D(real_t,real_t);
-// complex_t Eval3D(real_t,real_t,real_t);
-// Use MFEM_FLOPS_ADD() to count flops inside Eval*D.
+/** @brief Function coefficient.
+    @tparam Func has to implement at least one of the following methods,
+    depending on the dimension that will be used:
+    complex_t Eval1D(real_t);
+    complex_t Eval2D(real_t,real_t);
+    complex_t Eval3D(real_t,real_t,real_t);
+    Use MFEM_FLOPS_ADD() to count flops inside Eval*D. */
 template <typename Func, typename complex_t = double>
 class TFunctionCoefficient : public TCoefficient
 {
@@ -139,9 +140,9 @@ protected:
    };
 
 public:
-   // Constructor for the case when Func has no data members.
+   /// Constructor for the case when Func has no data members.
    TFunctionCoefficient() : F() { }
-   // Constructor for the case when Func has data members.
+   /// Constructor for the case when Func has data members.
    TFunctionCoefficient(Func &F_) : F(F_) { }
    // Default copy constructor, Func has to have copy constructor.
 
@@ -197,7 +198,7 @@ public:
    }
 };
 
-
+/// GridFunction coefficient class.
 template <typename FieldEval>
 class TGridFunctionCoefficient : public TCoefficient
 {
