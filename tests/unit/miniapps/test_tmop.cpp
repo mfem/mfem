@@ -287,6 +287,8 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    H1_FECollection ind_fec(mesh_poly_deg, dim);
    ParFiniteElementSpace ind_fes(pmesh, &ind_fec);
    ParGridFunction size(&ind_fes);
+   const bool apa = pa && getenv("APA");
+   const AssemblyLevel al = apa ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
    switch (target_id)
    {
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
@@ -305,7 +307,7 @@ int tmop(int myid, Req &res, int argc, char *argv[])
       {
          target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
          DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
-         tc->SetAdaptivityEvaluator(new AdvectorCG);
+         tc->SetAdaptivityEvaluator(new AdvectorCG(al));
          FunctionCoefficient ind_coeff(discrete_size_2d);
          size.ProjectCoefficient(ind_coeff);
          tc->SetDiscreteTargetSize(size);
