@@ -28,7 +28,7 @@ class Matrix : public Operator
 {
    friend class MatrixInverse;
 public:
-   //// Defines matrix diagonal policy upon elimination of rows and/or columns.
+   /// Defines matrix diagonal policy upon elimination of rows and/or columns.
    enum DiagonalPolicy
    {
       DIAG_ZERO, ///< Set the diagonal value to zero

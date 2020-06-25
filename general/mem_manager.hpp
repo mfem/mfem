@@ -471,7 +471,9 @@ private:
 };
 
 
-/// The memory manager class
+/** The MFEM memory manager class. Host-side pointers are inserted into this
+    manager which keeps track of the associated device pointer, and where the
+    data currently resides. */
 class MemoryManager
 {
 private:
@@ -578,7 +580,8 @@ private: // Static methods used by the Memory<T> class
 
 private:
 
-   /// Insert a host address in the memory map
+   /// Insert a host address @a h_ptr and size *a bytes in the memory map to be
+   /// managed.
    void Insert(void *h_ptr, size_t bytes, MemoryType h_mt,  MemoryType d_mt);
 
    /// Insert a device and the host addresses in the memory map
