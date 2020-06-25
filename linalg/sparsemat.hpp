@@ -86,15 +86,17 @@ protected:
    void Destroy();   // Delete all owned data
    void SetEmpty();  // Init all entries with empty values
 
+   bool useCuSparse{true}; //Use CuSparse if available
+
 #ifdef MFEM_USE_CUDA
    cusparseStatus_t status;
    static cusparseHandle_t handle;
    cusparseMatDescr_t descr=0;
    mutable size_t bufferSize{0};
-   mutable void *dBuffer = NULL;
+   mutable void *dBuffer = nullptr;
    mutable bool initCuSparse{false};
-   static int SparseMatrixCount;
 
+   static int SparseMatrixCount;
    mutable cusparseSpMatDescr_t matA_descr;
    mutable cusparseDnVecDescr_t vecX_descr;
    mutable cusparseDnVecDescr_t vecY_descr;
@@ -145,6 +147,10 @@ public:
 
    // Initialize CuSparse
    void InitCuSparse();
+
+   // Runtime option to use CuSparse
+   // Only valid when using a CUDA backend
+   void UseCuSparse(bool _useCuSparse = true) { useCuSparse = _useCuSparse;}
 
    /// Assignment operator: deep copy
    SparseMatrix& operator=(const SparseMatrix &rhs);
