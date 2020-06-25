@@ -63,7 +63,5 @@ public:
    Operator &GetGradient(const Vector &x) const;
    double GetGridFunctionEnergy(const Vector &x) const;
 };
-
 }
-
 #endif // NONLINEARFORM_EXT_HPP

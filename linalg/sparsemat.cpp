@@ -2161,7 +2161,7 @@ void SparseMatrix::DiagScale(const Vector &b, Vector &x, double sc) const
                      << ", I[i+1] = " << end );
          if (J[j] == i)
          {
-            //MFEM_VERIFY(std::abs(A[j]) > 0.0, "Diagonal " << j << " must be nonzero");
+            MFEM_VERIFY(std::abs(A[j]) > 0.0, "Diagonal " << j << " must be nonzero");
             if (scale)
             {
                x(i) = sc * b(i) / A[j];
