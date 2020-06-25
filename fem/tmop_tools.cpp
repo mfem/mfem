@@ -192,6 +192,11 @@ void SerialAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
    const double t = GetTime();
    add(x0, t, u, x_now);
 
+   if (al == AssemblyLevel::PARTIAL)
+   {
+      K.FESpace()->GetMesh()->DeleteGeometricFactors();
+   }
+
    // Assemble on the new mesh.
    K.BilinearForm::operator=(0.0);
    K.Assemble();
@@ -219,6 +224,7 @@ void SerialAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
    lin_solver.SetMaxIter(100);
    lin_solver.SetPrintLevel(0);
    lin_solver.Mult(rhs, di_dt);
+
    delete prec;
 }
 
@@ -249,6 +255,11 @@ void ParAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
    // Move the mesh.
    const double t = GetTime();
    add(x0, t, u, x_now);
+
+   if (al == AssemblyLevel::PARTIAL)
+   {
+      K.ParFESpace()->GetParMesh()->DeleteGeometricFactors();
+   }
 
    // Assemble on the new mesh.
    K.BilinearForm::operator=(0.0);

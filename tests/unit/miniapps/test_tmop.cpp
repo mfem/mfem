@@ -25,6 +25,7 @@
 extern mfem::MPI_Session *GlobalMPISession;
 #define PFesGetParMeshGetComm(pfes) pfes.GetParMesh()->GetComm()
 #define SetDiscreteTargetSize SetParDiscreteTargetSize
+#define SetDiscreteTargetAspectRatio SetParDiscreteTargetAspectRatio
 #else
 typedef int MPI_Session;
 #define ParMesh Mesh
@@ -35,6 +36,7 @@ typedef int MPI_Session;
 #define PFesGetParMeshGetComm(...)
 #define MPI_Allreduce(src,dst,...) *dst = *src
 #define SetDiscreteTargetSize SetSerialDiscreteTargetSize
+#define SetDiscreteTargetAspectRatio SetSerialDiscreteTargetAspectRatio
 #endif
 
 using namespace std;
@@ -75,6 +77,19 @@ static double discrete_size_2d(const Vector &x)
    val = std::min(1.,val);
 
    return val * small + (1.0 - val) * big;
+}
+
+static void discrete_aspr_3d(const Vector &x, Vector &v)
+{
+   int dim = x.Size();
+   v.SetSize(dim);
+   double l1, l2, l3;
+   l1 = 1.;
+   l2 = 1. + 5*x(1);
+   l3 = 1. + 10*x(2);
+   v[0] = l1/pow(l2*l3,0.5);
+   v[1] = l2/pow(l1*l3,0.5);
+   v[2] = l3/pow(l2*l1,0.5);
 }
 
 class HessianCoefficient : public MatrixCoefficient
@@ -287,8 +302,10 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    H1_FECollection ind_fec(mesh_poly_deg, dim);
    ParFiniteElementSpace ind_fes(pmesh, &ind_fec);
    ParGridFunction size(&ind_fes);
-   const bool apa = pa && getenv("APA");
-   const AssemblyLevel al = apa ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
+   ParFiniteElementSpace ind_fesv(pmesh, &ind_fec, dim);
+   ParGridFunction aspr3d(&ind_fesv);
+   const AssemblyLevel al = pa ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
+
    switch (target_id)
    {
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
@@ -314,9 +331,17 @@ int tmop(int myid, Req &res, int argc, char *argv[])
          target_c = tc;
          break;
       }
-      //case 6: // Discrete size + aspect ratio - 2D
-      //case 7: // Discrete aspect ratio 3D
-      //case 8: // shape/size + orientation 2D
+      case 7: // aspect-ratio 3D
+      {
+         target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE;
+         DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
+         tc->SetAdaptivityEvaluator(new AdvectorCG(al));
+         VectorFunctionCoefficient fd_aspr3d(dim, discrete_aspr_3d);
+         aspr3d.ProjectCoefficient(fd_aspr3d);
+         tc->SetDiscreteTargetAspectRatio(aspr3d);
+         target_c = tc;
+         break;
+      }
       default:
       {
          if (myid == 0) { cout << "Unknown target_id: " << target_id << endl; }
@@ -514,6 +539,47 @@ static inline const char *itoa(int i, char *buf)
 static void tmop_tests(int myid)
 {
    static bool all = getenv("MFEM_TESTS_UNIT_TMOP_ALL");
+
+   // 3D CUBE + Discrete size & aspect-ratio 3D + normalization + limiting
+   {
+      DEFAULT_ARGS;
+      args[MSH] = "cube.mesh";
+      args[RFS] = "0";
+      args[NOR] = "1";
+      args[LC] = "3.14";
+      for (int p : {1,2})
+      {
+         char por[2] {};
+         args[POR] = itoa(p, por);
+         for (int q : {1,2})
+         {
+            if (q < p) { continue; }
+            char qor[2] {};
+            args[QOR] = itoa(q, qor);
+            for (int m : {302})
+            {
+               char mid[4] {};
+               args[MID] = itoa(m, mid);
+               for (int t : {7})
+               {
+                  char tid[2] {};
+                  args[TID] = itoa(t, tid);
+                  for (int ls : {2})
+                  {
+                     char lsb[2] {};
+                     args[LS] = itoa(ls, lsb);
+                     tmop_require(myid, args);
+                     if (!all) { break; }
+                  }
+                  if (!all) { break; }
+               }
+               if (!all) { break; }
+            }
+            if (!all) { break; }
+         }
+         if (!all) { break; }
+      }
+   } // 3D CUBE + Discrete size & aspect-ratio 3D + normalization + limiting
 
    // 2D BLADE + Discrete size 2D + normalization
    {

@@ -260,7 +260,6 @@ double TMOP_Integrator::GetGridFunctionEnergyPA(const Vector &x) const
       PA.R->MultTranspose(x, X);
       ScaleByWeight(PA.W, X);
       const TargetConstructor::TargetType &target_type = targetC->Type();
-      //MFEM_VERIFY(target_type == TargetConstructor::GIVEN_FULL, "");
       const int dim = PA.dim;
       const int NE = PA.ne;
       const int NQ = PA.nq;
