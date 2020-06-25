@@ -435,6 +435,12 @@ public:
                                  Coefficient *ell_coef, double Nu,
                                  int norm_type) const;
 
+   virtual double ComputeDivError(Coefficient *exdiv, 
+                                  const IntegrationRule *irs[] = NULL) const;
+   virtual double ComputeCurlError(VectorCoefficient *excurl, 
+                                   const IntegrationRule *irs[] = NULL) const;
+                                                                
+
    virtual double ComputeMaxError(Coefficient &exsol,
                                   const IntegrationRule *irs[] = NULL) const
    {
