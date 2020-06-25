@@ -1389,7 +1389,7 @@ public:
 
    void Recompute();
 
-   void SetForRecompute(bool recompute = false) {recompute_factors = recompute; };
+   void SetForRecompute(bool recompute = true) {recompute_factors = recompute; };
 
    bool RecomputeStatus() {return recompute_factors; };
 
@@ -1447,7 +1447,7 @@ public:
 
    void Recompute();
 
-   void SetForRecompute(bool recompute = false) {recompute_factors = recompute; };
+   void SetForRecompute(bool recompute = true) {recompute_factors = recompute; };
 
    bool RecomputeStatus() {return recompute_factors; };
 

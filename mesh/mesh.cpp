@@ -801,11 +801,11 @@ const FaceGeometricFactors* Mesh::GetFaceGeometricFactors(
    return gf;
 }
 
-void Mesh::DeleteGeometricFactors(bool recompute)
+void Mesh::DeleteGeometricFactors(bool set_for_recompute)
 {
    for (int i = 0; i < geom_factors.Size(); i++)
    {
-      if (recompute)
+      if (set_for_recompute)
       {
          geom_factors[i]->SetForRecompute();
       }
@@ -814,20 +814,20 @@ void Mesh::DeleteGeometricFactors(bool recompute)
          delete geom_factors[i];
       }
    }
-   if (!recompute) {geom_factors.SetSize(0);}
+   if (!set_for_recompute) {geom_factors.SetSize(0);}
 
    for (int i = 0; i < face_geom_factors.Size(); i++)
    {
-      if (recompute)
+      if (set_for_recompute)
       {
-         face_geom_factors[i]->Recompute();
+         face_geom_factors[i]->SetForRecompute();
       }
       else
       {
          delete face_geom_factors[i];
       }
    }
-   if (!recompute) {face_geom_factors.SetSize(0);}
+   if (!set_for_recompute) {face_geom_factors.SetSize(0);}
 }
 
 void Mesh::GetLocalFaceTransformation(
