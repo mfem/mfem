@@ -24,6 +24,11 @@
 #error "SuperLUDist has been built with 64bit integers. This is not supported"
 #endif
 
+// For now, it is assumed that HYPRE_Int is int.
+#ifdef HYPRE_BIGINT
+#error "SuperLUDist support requires HYPRE_Int == int, for now."
+#endif
+
 using namespace std;
 
 namespace mfem
@@ -135,8 +140,10 @@ SuperLURowLocMatrix::SuperLURowLocMatrix( const HypreParMatrix & hypParMat )
    hypre_CSRMatrix * csr_op = hypre_MergeDiagAndOffd(parcsr_op);
    hypre_CSRMatrixSetDataOwner(csr_op,0);
 #if MFEM_HYPRE_VERSION >= 21600
-   MFEM_VERIFY(csr_blocks(i, j)->big_j != NULL || csr_op->num_cols < INT_MAX,
-               "SuperLU: number of columns is too large to store as an integer.");
+   // For now, this method assumes that HYPRE_Int is int. Also, csr_op->num_cols
+   // is of type HYPRE_Int, so if we want to check for big indices in
+   // csr_op->big_j, we'll have to check all entries and that check will only be
+   // necessary in HYPRE_MIXEDINT mode which is not supported at the moment.
    hypre_CSRMatrixBigJtoJ(csr_op);
 #endif
 
