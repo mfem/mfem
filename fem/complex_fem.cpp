@@ -33,10 +33,7 @@ ComplexGridFunction::ComplexGridFunction(FiniteElementSpace *fes)
 void
 ComplexGridFunction::Update()
 {
-   // TODO: Not device compatible yet
-   std::cout << "ComplexGridFunction::Update not device compatible" << std::endl;
-
-   FiniteElementSpace * fes = gfr->FESpace();
+   FiniteElementSpace *fes = gfr->FESpace();
 
    int vsize = fes->GetVSize();
 
@@ -53,27 +50,29 @@ ComplexGridFunction::Update()
       this->SetSize(2 * vsize);
 
       // Create temporary vectors which point to the new data array
-      Vector gf_r(data, vsize);
-      Vector gf_i((data) ? &data[vsize] : data, vsize);
+      Vector gf_r; gf_r.MakeRef(*this, 0, vsize);
+      Vector gf_i; gf_i.MakeRef(*this, vsize, vsize);
 
       // Copy the updated GridFunctions into the new data array
       gf_r = *gfr;
       gf_i = *gfi;
+      gf_r.SyncAliasMemory(*this);
+      gf_i.SyncAliasMemory(*this);
 
       // Replace the individual data arrays with pointers into the new data
       // array
-      gfr->NewDataAndSize(data, vsize);
-      gfi->NewDataAndSize((data) ? &data[vsize] : data, vsize);
+      gfr->MakeRef(*this, 0, vsize);
+      gfi->MakeRef(*this, vsize, vsize);
    }
    else
    {
       // The existing data will not be transferred to the new GridFunctions so
-      // delete it a allocate a new array
+      // delete it and allocate a new array
       this->SetSize(2 * vsize);
 
       // Point the individual GridFunctions to the new data array
-      gfr->NewDataAndSize(data, vsize);
-      gfi->NewDataAndSize((data) ? &data[vsize] : data, vsize);
+      gfr->MakeRef(*this, 0, vsize);
+      gfi->MakeRef(*this, vsize, vsize);
 
       // These updates will only set the proper 'sequence' value within the
       // individual GridFunction objects because their sizes are already correct
