@@ -103,7 +103,7 @@ public:
    {
       Vector pos(3);
       T.Transform(ip, pos);
-      if (metric != 14 && metric != 87)
+      if (metric != 14 && metric != 85)
       {
          const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
          const double r = sqrt(xc*xc + yc*yc);
@@ -131,7 +131,7 @@ public:
 
          K *= alpha_bar;
       }
-      else if (metric == 87) // Shape + Alignment
+      else if (metric == 85) // Shape + Alignment
       {
          Vector x = pos;
          double xc = x(0)-0.5, yc = x(1)-0.5;
@@ -178,6 +178,19 @@ double weight_fun(const Vector &x)
    double l2 = 0.2 + 0.5*std::tanh((r-0.16)/den) - 0.5*std::tanh((r-0.17)/den)
                + 0.5*std::tanh((r-0.23)/den) - 0.5*std::tanh((r-0.24)/den);
    return l2;
+}
+
+// Used for the adaptive limiting examples.
+double adapt_lim_fun(const Vector &x)
+{
+   const double xc = x(0) - 0.1, yc = x(1) - 0.2;
+   const double r = sqrt(xc*xc + yc*yc);
+   double r1 = 0.45; double r2 = 0.55; double sf=30.0;
+   double val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
+
+   val = std::max(0.,val);
+   val = std::min(1.,val);
+   return val;
 }
 
 void DiffuseField(GridFunction &field, int smooth_steps)

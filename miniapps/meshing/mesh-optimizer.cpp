@@ -32,29 +32,36 @@
 // Compile with: make mesh-optimizer
 //
 // Sample runs:
-//   Adapted analytic Hessian:
+//   Adapted analytic shape:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
-//   Adapted analytic Hessian with size+orientation:
-//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd 1
-//   Adapted analytic Hessian with shape+size+orientation
-//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 87 -tid 4 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd 1
+//   Adapted analytic size+orientation:
+//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd
+//   Adapted analytic shape+orientation:
+//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 4 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd
+//
 //   Adapted discrete size:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -cmb 2 -nor
-
-//   Adapted size+aspect ratio to discrete material indicator
+//   Adapted discrete size+aspect_ratio:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100  -ls 2 -li 100 -bnd -qt 1 -qo 8
-//   Adapted discrete size+orientation (requires GSLIB)
-//   * mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 8 -ni 100  -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd 1 -ae 1
-//   Adapted discrete aspect-ratio+orientation (requires GSLIB)
-//   * mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 87 -tid 8 -ni 10  -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd 1 -ae 1
-//   Adapted discrete aspect ratio (3D)
+//   Adapted discrete size+orientation (requires GSLIB):
+//   * mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 8 -ni 100  -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd -ae 1
+//   Adapted discrete aspect-ratio+orientation (requires GSLIB):
+//   * mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 8 -ni 10  -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd -ae 1
+//   Adapted discrete aspect ratio (3D):
 //     mesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 7 -ni 20  -ls 2 -li 100 -bnd -qt 1 -qo 8
-
+//
+//   Adaptive limiting:
+//     mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5
+//   Adaptive limiting through the L-BFGS solver:
+//     mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 400 -qo 5 -nor -vl 1 -alc 0.5 -st 1
+//   Adaptive limiting through FD (requires GSLIB):
+//   * mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -fd -ae 1
+//
 //   Blade shape:
 //     mesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //   Blade shape with FD-based solver:
-//     mesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd 1
+//     mesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd
 //   Blade limited shape:
 //     mesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -lc 5000
 //   ICF shape and equal size:
@@ -74,13 +81,13 @@
 
 
 #include "mfem.hpp"
+#include "../common/mfem-common.hpp"
 #include <fstream>
 #include <iostream>
+#include "mesh-optimizer.hpp"
 
 using namespace mfem;
 using namespace std;
-
-#include "mesh-optimizer.hpp"
 
 int main(int argc, char *argv[])
 {
@@ -92,10 +99,12 @@ int main(int argc, char *argv[])
    int metric_id         = 1;
    int target_id         = 1;
    double lim_const      = 0.0;
+   double adapt_lim_const = 0.0;
    int quad_type         = 1;
    int quad_order        = 8;
-   int newton_iter       = 10;
-   double newton_rtol    = 1e-10;
+   int solver_type       = 0;
+   int solver_iter       = 10;
+   double solver_rtol    = 1e-10;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    bool move_bnd         = true;
@@ -103,7 +112,7 @@ int main(int argc, char *argv[])
    bool normalization    = false;
    bool visualization    = true;
    int verbosity_level   = 0;
-   int fdscheme          = 0;
+   bool fdscheme         = false;
    int adapt_eval        = 0;
 
    // 1. Parse command-line options.
@@ -146,6 +155,8 @@ int main(int argc, char *argv[])
                   "4: Given full analytic Jacobian (in physical space)\n\t"
                   "5: Ideal shape, given size (in physical space)");
    args.AddOption(&lim_const, "-lc", "--limit-const", "Limiting constant.");
+   args.AddOption(&adapt_lim_const, "-alc", "--adapt-limit-const",
+                  "Adaptive limiting coefficient constant.");
    args.AddOption(&quad_type, "-qt", "--quad-type",
                   "Quadrature rule type:\n\t"
                   "1: Gauss-Lobatto\n\t"
@@ -153,9 +164,11 @@ int main(int argc, char *argv[])
                   "3: Closed uniform points");
    args.AddOption(&quad_order, "-qo", "--quad_order",
                   "Order of the quadrature rule.");
-   args.AddOption(&newton_iter, "-ni", "--newton-iters",
+   args.AddOption(&solver_type, "-st", "--solver-type",
+                  " Type of solver: (default) 0: Newton, 1: LBFGS");
+   args.AddOption(&solver_iter, "-ni", "--newton-iters",
                   "Maximum number of Newton iterations.");
-   args.AddOption(&newton_rtol, "-rtol", "--newton-rel-tolerance",
+   args.AddOption(&solver_rtol, "-rtol", "--newton-rel-tolerance",
                   "Relative tolerance for the Newton solver.");
    args.AddOption(&lin_solver, "-ls", "--lin-solver",
                   "Linear solver: 0 - l1-Jacobi, 1 - CG, 2 - MINRES.");
@@ -173,13 +186,14 @@ int main(int argc, char *argv[])
                   "--no-normalization",
                   "Make all terms in the optimization functional unitless.");
    args.AddOption(&fdscheme, "-fd", "--fd_approximation",
+                  "-no-fd", "--no-fd-approx",
                   "Enable finite difference based derivative computations.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&verbosity_level, "-vl", "--verbosity-level",
                   "Set the verbosity level - 0, 1, or 2.");
-   args.AddOption(&adapt_eval, "-ae", "--adaptivity evaluatior",
+   args.AddOption(&adapt_eval, "-ae", "--adaptivity-evaluator",
                   "0 - Advection based (DEFAULT), 1 - GSLIB.");
    args.Parse();
    if (!args.Good())
@@ -304,7 +318,7 @@ int main(int argc, char *argv[])
       case 56: metric = new TMOP_Metric_056; break;
       case 58: metric = new TMOP_Metric_058; break;
       case 77: metric = new TMOP_Metric_077; break;
-      case 87: metric = new TMOP_Metric_SS2D; break;
+      case 85: metric = new TMOP_Metric_085; break;
       case 211: metric = new TMOP_Metric_211; break;
       case 252: metric = new TMOP_Metric_252(tauval); break;
       case 301: metric = new TMOP_Metric_301; break;
@@ -502,7 +516,7 @@ int main(int argc, char *argv[])
             tc->SetSerialDiscreteTargetSize(size);
          }
 
-         if (metric_id == 87)
+         if (metric_id == 85)
          {
             FunctionCoefficient aspr_coeff(discrete_aspr_2d);
             aspr.ProjectCoefficient(aspr_coeff);
@@ -550,6 +564,35 @@ int main(int argc, char *argv[])
    if (normalization) { dist = small_phys_size; }
    ConstantCoefficient lim_coeff(lim_const);
    if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, dist, lim_coeff); }
+
+   // Adaptive limiting.
+   GridFunction zeta_0(&ind_fes);
+   ConstantCoefficient coef_zeta(adapt_lim_const);
+   AdaptivityEvaluator *adapt_evaluator = NULL;
+   if (adapt_lim_const > 0.0)
+   {
+      FunctionCoefficient alim_coeff(adapt_lim_fun);
+      zeta_0.ProjectCoefficient(alim_coeff);
+
+      if (adapt_eval == 0) { adapt_evaluator = new AdvectorCG; }
+      else if (adapt_eval == 1)
+      {
+#ifdef MFEM_USE_GSLIB
+         adapt_evaluator = new InterpolatorFP;
+#else
+         MFEM_ABORT("MFEM is not built with GSLIB support!");
+#endif
+      }
+      else { MFEM_ABORT("Bad interpolation option."); }
+
+      he_nlf_integ->EnableAdaptiveLimiting(zeta_0, coef_zeta, *adapt_evaluator);
+      if (visualization)
+      {
+         socketstream vis1;
+         common::VisualizeField(vis1, "localhost", 19916, zeta_0, "Zeta 0",
+                                300, 600, 300, 300);
+      }
+   }
 
    // 14. Setup the final NonlinearForm (which defines the integral of interest,
    //     its first and second derivatives). Here we can use a combination of
@@ -699,43 +742,26 @@ int main(int argc, char *argv[])
       }
    }
    cout << "Minimum det(J) of the original mesh is " << tauval << endl;
+   tauval -= 0.01 * h0.Min(); // Slightly below minJ0 to avoid div by 0.
 
-   // 19. Finally, perform the nonlinear optimization.
-   NewtonSolver *newton = NULL;
-   if (tauval > 0.0)
+   // Perform the nonlinear optimization.
+   TMOPNewtonSolver solver(*ir, solver_type);
+   if (solver_type == 0)
    {
-      tauval = 0.0;
-      TMOPNewtonSolver *tns = new TMOPNewtonSolver(*ir);
-      newton = tns;
-      cout << "TMOPNewtonSolver is used (as all det(J) > 0).\n";
+      // Specify linear solver when we use a Newton-based solver.
+      solver.SetPreconditioner(*S);
    }
-   else
-   {
-      if ( (dim == 2 && metric_id != 22 && metric_id != 252) ||
-           (dim == 3 && metric_id != 352) )
-      {
-         cout << "The mesh is inverted. Use an untangling metric." << endl;
-         return 3;
-      }
-      tauval -= 0.01 * h0.Min(); // Slightly below minJ0 to avoid div by 0.
-      newton = new TMOPDescentNewtonSolver(*ir);
-      cout << "The TMOPDescentNewtonSolver is used (as some det(J) < 0).\n";
-   }
-   newton->SetPreconditioner(*S);
-   newton->SetMaxIter(newton_iter);
-   newton->SetRelTol(newton_rtol);
-   newton->SetAbsTol(0.0);
-   newton->SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
-   newton->SetOperator(a);
-   newton->Mult(b, x.GetTrueVector());
+   solver.SetMaxIter(solver_iter);
+   solver.SetRelTol(solver_rtol);
+   solver.SetAbsTol(0.0);
+   solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
+   solver.SetOperator(a);
+   solver.Mult(b, x.GetTrueVector());
    x.SetFromTrueVector();
-
-   if (newton->GetConverged() == false)
+   if (solver.GetConverged() == false)
    {
-      cout << "NewtonIteration: rtol = " << newton_rtol << " not achieved."
-           << endl;
+      cout << "Nonlinear solver: rtol = " << solver_rtol << " not achieved.\n";
    }
-   delete newton;
 
    // 20. Save the optimized mesh to a file. This output can be viewed later
    //     using GLVis: "glvis -m optimized.mesh".
@@ -748,11 +774,13 @@ int main(int argc, char *argv[])
    // 21. Compute the amount of energy decrease.
    const double fin_energy = a.GetGridFunctionEnergy(x);
    double metric_part = fin_energy;
-   if (lim_const != 0.0)
+   if (lim_const > 0.0 || adapt_lim_const > 0.0)
    {
       lim_coeff.constant = 0.0;
+      coef_zeta.constant = 0.0;
       metric_part = a.GetGridFunctionEnergy(x);
       lim_coeff.constant = lim_const;
+      coef_zeta.constant = adapt_lim_const;
    }
    cout << "Initial strain energy: " << init_energy
         << " = metrics: " << init_energy
@@ -768,6 +796,13 @@ int main(int argc, char *argv[])
    {
       char title[] = "Final metric values";
       vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, *mesh, title, 600);
+   }
+
+   if (adapt_lim_const > 0.0 && visualization)
+   {
+      socketstream vis0;
+      common::VisualizeField(vis0, "localhost", 19916, zeta_0, "Xi 0",
+                             600, 600, 300, 300);
    }
 
    // 23. Visualize the mesh displacement.
@@ -790,6 +825,7 @@ int main(int argc, char *argv[])
    delete target_c2;
    delete metric2;
    delete coeff1;
+   delete adapt_evaluator;
    delete target_c;
    delete adapt_coeff;
    delete metric;
