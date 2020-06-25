@@ -68,19 +68,24 @@ const Operator & ComplexOperator::imag() const
 
 void ComplexOperator::Mult(const Vector &x, Vector &y) const
 {
-   double * x_data = x.GetData();
-   x_r_.SetData(x_data);
-   x_i_.SetData(&x_data[width / 2]);
+   y.UseDevice(true); y = 0.0;
 
-   y_r_.SetData(&y[0]);
-   y_i_.SetData(&y[height / 2]);
+   x_r_.MakeRef(const_cast<Vector&>(x), 0);
+   x_i_.MakeRef(const_cast<Vector&>(x), width/2);
+
+   y_r_.MakeRef(y, 0);
+   y_i_.MakeRef(y, height/2);
 
    this->Mult(x_r_, x_i_, y_r_, y_i_);
+
+   y_r_.SyncAliasMemory(y);
+   y_i_.SyncAliasMemory(y);
 }
 
 void ComplexOperator::Mult(const Vector &x_r, const Vector &x_i,
                            Vector &y_r, Vector &y_i) const
 {
+
    if (Op_Real_)
    {
       Op_Real_->Mult(x_r, y_r);
@@ -91,18 +96,22 @@ void ComplexOperator::Mult(const Vector &x_r, const Vector &x_i,
       y_r = 0.0;
       y_i = 0.0;
    }
+
    if (Op_Imag_)
    {
-      if (!v_) { v_ = new Vector(Op_Imag_->Height()); }
+      if (!v_) { v_ = new Vector(); }
+      v_->UseDevice(true);
+      v_->SetSize(Op_Imag_->Height());
+
       Op_Imag_->Mult(x_i, *v_);
-      y_r_ -= *v_;
+      y_r.Add(-1.0, *v_);
       Op_Imag_->Mult(x_r, *v_);
-      y_i_ += *v_;
+      y_i.Add(1.0, *v_);
    }
 
    if (convention_ == BLOCK_SYMMETRIC)
    {
-      y_i_ *= -1.0;
+      y_i *= -1.0;
    }
 }
 
