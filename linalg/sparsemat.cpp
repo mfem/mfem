@@ -619,7 +619,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 
    //Skip if matrix has no non-zeros
    if (nnz == 0) {return;}
-   if (useCuSparse)
+   if (Device::Allows(Backend::CUDA_MASK) && useCuSparse)
    {
 #ifdef MFEM_USE_CUDA
       const double alpha = a;
