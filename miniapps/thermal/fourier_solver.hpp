@@ -26,6 +26,12 @@ namespace mfem
 namespace thermal
 {
 
+struct DGParams
+{
+   double sigma;
+   double kappa;
+};
+
 class AdvectionTDO : public TimeDependentOperator
 {
 public:
