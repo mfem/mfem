@@ -155,8 +155,9 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
       PA.X0.UseDevice(true);
       PA.R->Mult(*nodes0, PA.X0);
 
-      // lim_dist
+      // lim_dist & lim_func checks
       MFEM_VERIFY(lim_dist, "No lim_dist!")
+      MFEM_VERIFY(lim_func, "No lim_func!")
    }
 }
 
