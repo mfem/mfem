@@ -54,6 +54,48 @@ static void PAHcurlSetup2D(const int Q1D,
    });
 }
 
+/// this orientation business is gonna be harder than I thought...
+/// (you really do need to go through the tk, dof2tk chain and get actual
+/// orientations, one day just buckle down and do it)
+/// [but that's not what I do?]
+/// (can't just use the Jacobian)
+// PA H(curl) Gradient Assemble 2D kernel
+static void PAHcurlSetup2DGrad(const int Q1D,
+                               const int NE,
+                               const Vector &tk_v,
+                               const Array<int> & dof2tk_v,
+                               Vector &orientations_)
+{
+   const int NQ = Q1D*Q1D;
+
+   // auto tk = //// ????
+   // auto J = Reshape(j.Read(), NQ, 2, 2, NE);
+   // auto coeff = Reshape(_coeff.Read(), NQ, NE);
+   const int ned_dofs_per_elem = 1;
+   auto orientations = Reshape(orientations_.Write(), NE, ned_dofs_per_elem);
+
+   // auto orient = Reshape(op.Write(), NQ, 3, NE); // ???
+
+   MFEM_FORALL(e, NE,
+   {
+      for (int q = 0; q < NQ; ++q)
+      {
+         /*
+         const double J11 = J(q,0,0,e);
+         const double J21 = J(q,1,0,e);
+         const double J12 = J(q,0,1,e);
+         const double J22 = J(q,1,1,e);
+         const double c_detJ = W[q] * coeff(q, e) / ((J11*J22)-(J21*J12));
+         y(q,0,e) =  c_detJ * (J12*J12 + J22*J22); // 1,1 // ???
+         y(q,1,e) = -c_detJ * (J12*J11 + J22*J21); // 1,2
+         y(q,2,e) =  c_detJ * (J11*J11 + J21*J21); // 2,2
+         */
+         orientations(e, q) = 0.0;
+      }
+   });
+}
+
+
 // PA H(curl) Mass Assemble 3D kernel
 static void PAHcurlSetup3D(const int Q1D,
                            const int NE,
@@ -104,6 +146,16 @@ static void PAHcurlSetup3D(const int Q1D,
          y(q,5,e) = c_detJ * (A31*A31 + A32*A32 + A33*A33); // 3,3
       }
    });
+}
+
+// PA H(curl) Mass Assemble 3D kernel
+static void PAHcurlSetup3DGrad(const int Q1D,
+                               const int NE,
+                               const Array<double> &w,
+                               const Vector &j,
+                               Vector &orientations)
+{
+   mfem_error("Not implemented!");
 }
 
 void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
@@ -1953,6 +2005,7 @@ static void PAHcurlApplyGradient2D(const int c_dofs1D,
                                    const int NE,
                                    const Array<double> &_B,
                                    const Array<double> &_G,
+                                   const Vector &_orientations,
                                    const Vector &_x,
                                    Vector &_y)
 {
@@ -1961,6 +2014,11 @@ static void PAHcurlApplyGradient2D(const int c_dofs1D,
    // okay, here we are with maybe some appropriate data
    auto B = Reshape(_B.Read(), c_dofs1D, c_dofs1D);
    auto G = Reshape(_G.Read(), o_dofs1D, c_dofs1D);
+   // const int ned_dofs_per_elem = (dim == 2) ? (2 * o_dofs1d * c_dofs1D) :
+   //   (3 * o_dofs1d * c_dofs1d * c_dofs1d);
+   const int ned_dofs_per_elem = (2 * o_dofs1D * c_dofs1D);
+
+   auto orientations = Reshape(_orientations.Read(), ned_dofs_per_elem, NE);
    auto x = Reshape(_x.Read(), c_dofs1D, c_dofs1D, NE);
    auto y = Reshape(_y.ReadWrite(), 2 * c_dofs1D * o_dofs1D, NE);
 
@@ -2024,53 +2082,6 @@ static void PAHcurlApplyGradient2D(const int c_dofs1D,
       }  
    });
 
-/*
-   constexpr static int VDIM = 2;
-
-   // Dylan uses D1D - 1 for what I call Q1Dopen?
-   // Dylan's numbering is better, nothing here is
-   // really about quadrature points
-
-   const int D1Dopen = D1Dclosed - 1;
-
-   // these are the shapes they are in Dylan's code, but not in mine
-   auto Bc = Reshape(_Bc.Read(), Q1D, D1Dclosed);
-   auto Gc = Reshape(_Gc.Read(), Q1D, D1Dclosed);
-   auto x = Reshape(_x.Read(), D1Dclosed, D1Dclosed, NE);
-   auto y = Reshape(_y.ReadWrite(), 2 * D1Dopen * D1Dclosed, NE);
-
-   MFEM_FORALL(e, NE,
-   {
-      // horizontal part
-
-      // first dimension H1, second H(curl)
-      double out[D1Dclosed][Q1D];
-
-      for (int dy = 0; dy < D1Dclosed; ++dy) // H1
-      {
-         for (int qy = 0; qy < Q1D; ++qy) // H1
-         {
-            out[dy][qy] = 0.0;
-            for (int dx = 0; dx < D1D; ++dx) // H1
-            {
-               out[dy][qy] += Bc(qy,dx) * x(dx,dy,e);
-            }
-         }
-      }
-
-      for (int qy = 0; qy < Q1Dclosed; ++qy)
-      {
-         for (int qx = 0; qx < Q1Dopen; ++qx)
-         {
-            for (int dx = 0; dx < D1D; ++dx)
-            {
-               // orientation?
-               y(qx,qy,e) += Gc(qx,dx) * out[dy][qy];
-            }
-         }
-      }
-   });
-*/
 }
 
 
@@ -2210,8 +2221,138 @@ void MixedVectorGradientIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
 }
 
+/// copied from TensorNedelec.cpp (wait, do we not ever use the tk[] thing?)
+void BuildDofMapNedelec2D(int p, Array<int>& dof_map)
+{
+   int Dof2d = 2 * (p * (p+1));
+   int dof2 = Dof2d / 2;
+   dof_map.SetSize(Dof2d);
+
+   // exterior
+   int o = 0;
+   for (int i = 0; i < p; i++)  // (0,1)
+   {
+      dof_map[0*dof2 + i + 0*p] = o++;
+   }
+   for (int j = 0; j < p; j++)  // (1,2)
+   {
+      dof_map[1*dof2 + p + j*(p + 1)] = o++;
+   }
+   for (int i = 0; i < p; i++)  // (2,3)
+   {
+      dof_map[0*dof2 + (p - 1 - i) + p*p] = -1 - (o++);
+   }
+   for (int j = 0; j < p; j++)  // (3,0)
+   {
+      dof_map[1*dof2 + 0 + (p - 1 - j)*(p + 1)] = -1 - (o++);
+   }
+
+   // interior
+   // x-components
+   for (int j = 1; j < p; j++)
+   {
+      for (int i = 0; i < p; i++)
+      {
+         dof_map[0*dof2 + i + j*p] = o++;
+      }
+   }
+   // y-components
+   for (int j = 0; j < p; j++)
+   {
+      for (int i = 1; i < p; i++)
+      {
+         dof_map[1*dof2 + i + j*(p + 1)] = o++;
+      }
+   }
+}
+
+/// Copied from TensorNedelec.cpp
+void BuildDof2Orientation2D(int order, Array<int>& dof2orientation)
+{
+   int Dof2d = 2 * (order * (order+1));
+   dof2orientation.SetSize(Dof2d);
+
+   Array<int> dof_map;
+   BuildDofMapNedelec2D(order, dof_map);
+
+   int o = 0;
+   int p = order;
+   // x-components
+   for (int j = 0; j <= p; j++)
+   {
+      for (int i = 0; i < p; i++)
+      {
+         if (dof_map[o] < 0)
+         {
+            dof2orientation[o++] = -1;
+         }
+         else
+         {
+            dof2orientation[o++] = 1;
+         }
+      }
+   }
+   // y-components
+   for (int j = 0; j < p; j++)
+   {
+      for (int i = 0; i <= p; i++)
+      {
+         if (dof_map[o] < 0)
+         {
+            dof2orientation[o++] = -1;
+         }
+         else
+         {
+            dof2orientation[o++] = 1;
+         }
+      }
+   }
+}
+
+/// ugly hack, copied from TensorNedelec.cpp
+/// (double* or int* for orientations?)
+void BuildOrientations2D(int ndof, ElementTransformation& trans, double* orientations)
+{
+   const int nipclosed = ndof;
+   const int nipopen = ndof - 1;
+   const int order = ndof - 1;
+
+   Vector jactk(2);
+   Array<int> dof2tk;
+
+   // first, the horizontal dofs
+   // the ordering below is tensor horizontal, tensor vertical
+
+   Array<int> dof2orientation;
+   BuildDof2Orientation2D(order, dof2orientation);
+   int o = 0;
+   for (int i = 0; i < nipclosed; ++i)
+   {
+      for (int j = 0; j < nipopen; ++j)
+      {
+         orientations[o] = dof2orientation[o];
+         o++;
+      }
+   }
+
+   // now vertical dofs
+   for (int i = 0; i < nipopen; ++i)
+   {
+      for (int j = 0; j < nipclosed; ++j)
+      {
+         orientations[o] = dof2orientation[o];
+         o++;
+      }
+   }
+   MFEM_ASSERT(o == 2 * (order * (order+1)), "Programmer numbering error!");
+}
+
+
 /**
    This implementation originally from MixedVectorGradientIntegrator::AssemblePA
+
+   trial_fes should be H1 Lagrange
+   test_fes should be Nedelec
 
    (but now modified, so there's probably code that could be shared, but
    not the whole method)
@@ -2240,8 +2381,8 @@ void GradientInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
    const int dims = trial_el->GetDim();
    MFEM_VERIFY(dims == 2 || dims == 3, "");
 
-   const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
-   const int nq = old_ir->GetNPoints();
+   // const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
+   // const int nq = old_ir->GetNPoints();
    dim = mesh->Dimension();
    MFEM_VERIFY(dim == 2 || dim == 3, "");
 
@@ -2268,32 +2409,45 @@ void GradientInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
    MFEM_VERIFY(maps_O_C->ndof == c_dofs1D, "Bad programming!");
    MFEM_VERIFY(maps_C_C->ndof == c_dofs1D, "Bad programming!");
 
-   pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
+   // pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
 
+   /*
    Vector coeff(ne * nq);
    coeff = 1.0;
    // no coefficient in this topological gradient, so if (Q) block removed
    // (except I do need orientations of the Nedelec dofs, where do they come from?)
+   */
 
-   // Use the same setup functions as VectorFEMassIntegrator.
-   // (but we aren't doing integration so it's probably wrong)
-   // (might not have to do this at all?)
+   const int ned_dofs_per_elem = (dim == 2) ? (2 * o_dofs1D * c_dofs1D) :
+      (3 * o_dofs1D * c_dofs1D * c_dofs1D);
+   orientations.SetSize(ne * ned_dofs_per_elem);
+
+   for (int e = 0; e < ne; ++e)
+   {
+      MFEM_ASSERT(dim == 2, "3D not implemented at this point!");
+      BuildOrientations2D(order + 1, *trial_fes.GetElementTransformation(e),
+                          orientations.GetData() + (e * ned_dofs_per_elem));
+   }
+
+   // not sure what I'm trying to accomplish here;
+   // think the original idea was these routines would *fill*
+   // the orientations array
+   /*
    if (test_el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3)
    {
       int quad1D = o_dofs1D;
-      PAHcurlSetup3D(quad1D, ne, old_ir->GetWeights(), geom->J,
-                     coeff, pa_data);
+      PAHcurlSetup3DGrad(quad1D, ne, geom->J, orientations);
    }
    else if (test_el->GetDerivType() == mfem::FiniteElement::CURL && dim == 2)
    {
       int quad1D = o_dofs1D;
-      PAHcurlSetup2D(quad1D, ne, old_ir->GetWeights(), geom->J,
-                     coeff, pa_data);
+      PAHcurlSetup2DGrad(quad1D, ne, geom->J, orientations);
    }
    else
    {
       MFEM_ABORT("Unknown kernel.");
    }
+   */
 }
 
 void GradientInterpolator::AddMultPA(const Vector &x, Vector &y) const
@@ -2316,7 +2470,7 @@ void GradientInterpolator::AddMultPA(const Vector &x, Vector &y) const
                        mapsO->Bt, mapsC->Bt, pa_data, x, y);
       */
       PAHcurlApplyGradient2D(c_dofs1D, o_dofs1D, ne, maps_C_C->B, maps_O_C->G,
-                             x, y);
+                             orientations, x, y);
    }
    else
    {

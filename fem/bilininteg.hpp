@@ -2749,7 +2749,9 @@ public:
 
 private:
    // PA extension
-   Vector pa_data;
+   // Vector pa_data;
+   Vector orientations;
+
    // const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
    // const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
    FiniteElement * fake_fe;
