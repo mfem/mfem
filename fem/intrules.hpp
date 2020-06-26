@@ -295,7 +295,7 @@ public:
       OpenUniform     = 2,  ///< aka open Newton-Cotes
       ClosedUniform   = 3,  ///< aka closed Newton-Cotes
       OpenHalfUniform = 4,  ///< aka "open half" Newton-Cotes
-      ClosedGL        = 5   // Closed Gauss Legendre
+      ClosedGL        = 5   ///< aka closed Gauss Legendre
    };
    /** @brief If the Quadrature1D type is not closed return Invalid; otherwise
        return type. */
