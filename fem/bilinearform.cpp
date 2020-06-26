@@ -1715,7 +1715,6 @@ void DiscreteLinearOperator::SetAssemblyLevel(AssemblyLevel assembly_level)
 
 void DiscreteLinearOperator::Assemble(int skip_zeros)
 {
-   std::cout << "DiscreteLinearOperator::Assemble" << std::endl;
    if (ext)
    {
       ext->Assemble();

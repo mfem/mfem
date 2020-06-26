@@ -225,8 +225,6 @@ void ElementRestriction::MultTransposeUnsigned(const Vector& x, Vector& y) const
 
 void ElementRestriction::MultTransposeOverwrite(const Vector& x, Vector& y) const
 {
-   std::cout << "        [MultTransposeOverwrite]" << std::endl;
-
    // Assumes all elements have the same number of dofs
    const int nd = dof;
    const int vd = vdim;
