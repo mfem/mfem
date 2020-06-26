@@ -383,8 +383,8 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
                                    Vector &X, Vector &B,
                                    int ci)
 {
-   FiniteElementSpace * fes = blfr->FESpace();
-   int vsize  = fes->GetVSize();
+   FiniteElementSpace *fes = blfr->FESpace();
+   const int vsize = fes->GetVSize();
 
    // Allocate temporary vector
    Vector b_0;
@@ -394,16 +394,18 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
 
    // Extract the real and imaginary parts of the input vectors
    MFEM_ASSERT(x.Size() == 2 * vsize, "Input GridFunction of incorrect size!");
+   x.Read();
    Vector x_r; x_r.MakeRef(x, 0, vsize);
    Vector x_i; x_i.MakeRef(x, vsize, vsize);
 
    MFEM_ASSERT(b.Size() == 2 * vsize, "Input LinearForm of incorrect size!");
+   b.Read();
    Vector b_r; b_r.MakeRef(b, 0, vsize);
    Vector b_i; b_i.MakeRef(b, vsize, vsize);
 
    if (conv == ComplexOperator::BLOCK_SYMMETRIC) { b_i *= -1.0; }
 
-   int tvsize = fes->GetTrueVSize();
+   const int tvsize = fes->GetTrueVSize();
    OperatorHandle A_r, A_i;
 
    X.UseDevice(true);
@@ -470,8 +472,8 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       if (A_i.Type() != Operator::MFEM_SPARSEMAT)
       {
          const int n = ess_tdof_list.Size();
-         auto d_B_r = B_r.ReadWrite();
-         auto d_B_i = B_i.ReadWrite();
+         auto d_B_r = B_r.Write();
+         auto d_B_i = B_i.Write();
          auto d_X_r = X_r.Read();
          auto d_X_i = X_i.Read();
          auto d_idx = ess_tdof_list.Read();
@@ -606,9 +608,11 @@ SesquilinearForm::RecoverFEMSolution(const Vector &X, const Vector &b,
    const int vsize  = fes->GetVSize();
    const int tvsize = X.Size() / 2;
 
+   X.Read();
    Vector X_r; X_r.MakeRef(const_cast<Vector&>(X), 0, tvsize);
    Vector X_i; X_i.MakeRef(const_cast<Vector&>(X), tvsize, tvsize);
 
+   x.Write();
    Vector x_r; x_r.MakeRef(x, 0, vsize);
    Vector x_i; x_i.MakeRef(x, vsize, vsize);
 
@@ -1071,7 +1075,6 @@ ParSesquilinearForm::ParallelAssemble()
    return new ComplexHypreParMatrix(pblfr->ParallelAssemble(),
                                     pblfi->ParallelAssemble(),
                                     true, true, conv);
-
 }
 
 void
@@ -1081,35 +1084,45 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
                                       Vector &X, Vector &B,
                                       int ci)
 {
-   ParFiniteElementSpace * pfes = pblfr->ParFESpace();
-   int vsize = pfes->GetVSize();
+   ParFiniteElementSpace *pfes = pblfr->ParFESpace();
+   const int vsize = pfes->GetVSize();
 
-   // Allocate temporary vectors
-   Vector b_0(vsize); b_0 = 0.0;
+   // Allocate temporary vector
+   Vector b_0;
+   b_0.UseDevice(true);
+   b_0.SetSize(vsize);
+   b_0 = 0.0;
 
    // Extract the real and imaginary parts of the input vectors
    MFEM_ASSERT(x.Size() == 2 * vsize, "Input GridFunction of incorrect size!");
-   Vector x_r(x.GetData(), vsize);
-   Vector x_i(&(x.GetData())[vsize], vsize);
+   x.Read();
+   Vector x_r; x_r.MakeRef(x, 0, vsize);
+   Vector x_i; x_i.MakeRef(x, vsize, vsize);
 
    MFEM_ASSERT(b.Size() == 2 * vsize, "Input LinearForm of incorrect size!");
-   Vector b_r(b.GetData(), vsize);
-   Vector b_i(&(b.GetData())[vsize], vsize);
+   b.Read();
+   Vector b_r; b_r.MakeRef(b, 0, vsize);
+   Vector b_i; b_i.MakeRef(b, vsize, vsize);
 
    if (conv == ComplexOperator::BLOCK_SYMMETRIC) { b_i *= -1.0; }
 
-   int tvsize = pfes->GetTrueVSize();
-
+   const int tvsize = pfes->GetTrueVSize();
    OperatorHandle A_r, A_i;
 
+   X.UseDevice(true);
    X.SetSize(2 * tvsize);
-   B.SetSize(2 * tvsize);
+   X = 0.0;
 
-   Vector X_0(tvsize), B_0(tvsize);
-   Vector X_r(X.GetData(),tvsize);
-   Vector X_i(&(X.GetData())[tvsize], tvsize);
-   Vector B_r(B.GetData(), tvsize);
-   Vector B_i(&(B.GetData())[tvsize], tvsize);
+   B.UseDevice(true);
+   B.SetSize(2 * tvsize);
+   B = 0.0;
+
+   Vector X_r; X_r.MakeRef(X, 0, tvsize);
+   Vector X_i; X_i.MakeRef(X, tvsize, tvsize);
+   Vector B_r; B_r.MakeRef(B, 0, tvsize);
+   Vector B_i; B_i.MakeRef(B, tvsize, tvsize);
+
+   Vector X_0, B_0;
 
    if (RealInteg())
    {
@@ -1149,24 +1162,29 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
 
    if (RealInteg() && ImagInteg())
    {
-      int n = ess_tdof_list.Size();
       // Modify RHS to conform with standard essential BC treatment
-      for (int k = 0; k < n; k++)
+      const int n = ess_tdof_list.Size();
+      auto d_B_r = B_r.Write();
+      auto d_B_i = B_i.Write();
+      auto d_X_r = X_r.Read();
+      auto d_X_i = X_i.Read();
+      auto d_idx = ess_tdof_list.Read();
+      MFEM_FORALL(i, n,
       {
-         int j=ess_tdof_list[k];
-         B_r(j) = X_r(j);
-         B_i(j) = X_i(j);
-      }
+         const int j = d_idx[i];
+         d_B_r[j] = d_X_r[j];
+         d_B_i[j] = d_X_i[j];
+      });
       // Modify offdiagonal blocks (imaginary parts of the matrix) to conform
       // with standard essential BC treatment
-      if ( A_i.Type() == Operator::Hypre_ParCSR )
+      if (A_i.Type() == Operator::Hypre_ParCSR)
       {
-         HypreParMatrix * Ah;  A_i.Get(Ah);
+         HypreParMatrix * Ah; A_i.Get(Ah);
          hypre_ParCSRMatrix * Aih =
             (hypre_ParCSRMatrix *)const_cast<HypreParMatrix&>(*Ah);
          for (int k = 0; k < n; k++)
          {
-            int j = ess_tdof_list[k];
+            const int j = ess_tdof_list[k];
             Aih->diag->data[Aih->diag->i[j]] = 0.0;
          }
       }
@@ -1182,6 +1200,16 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       B_i *= -1.0;
       b_i *= -1.0;
    }
+
+   x_r.SyncAliasMemory(x);
+   x_i.SyncAliasMemory(x);
+   b_r.SyncAliasMemory(b);
+   b_i.SyncAliasMemory(b);
+
+   X_r.SyncAliasMemory(X);
+   X_i.SyncAliasMemory(X);
+   B_r.SyncAliasMemory(B);
+   B_i.SyncAliasMemory(B);
 
    // A = A_r + i A_i
    A.Clear();
@@ -1282,22 +1310,27 @@ void
 ParSesquilinearForm::RecoverFEMSolution(const Vector &X, const Vector &b,
                                         Vector &x)
 {
-   ParFiniteElementSpace * pfes = pblfr->ParFESpace();
+   ParFiniteElementSpace *pfes = pblfr->ParFESpace();
 
    const Operator &P = *pfes->GetProlongationMatrix();
 
-   int vsize  = pfes->GetVSize();
-   int tvsize = X.Size() / 2;
+   const int vsize  = pfes->GetVSize();
+   const int tvsize = X.Size() / 2;
 
-   Vector X_r(X.GetData(), tvsize);
-   Vector X_i(&(X.GetData())[tvsize], tvsize);
+   X.Read();
+   Vector X_r; X_r.MakeRef(const_cast<Vector&>(X), 0, tvsize);
+   Vector X_i; X_i.MakeRef(const_cast<Vector&>(X), tvsize, tvsize);
 
-   Vector x_r(x.GetData(), vsize);
-   Vector x_i(&(x.GetData())[vsize], vsize);
+   x.Write();
+   Vector x_r; x_r.MakeRef(x, 0, vsize);
+   Vector x_i; x_i.MakeRef(x, vsize, vsize);
 
    // Apply conforming prolongation
    P.Mult(X_r, x_r);
    P.Mult(X_i, x_i);
+
+   x_r.SyncAliasMemory(x);
+   x_i.SyncAliasMemory(x);
 }
 
 void
