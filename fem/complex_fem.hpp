@@ -99,8 +99,8 @@ public:
                      ComplexOperator::Convention
                      convention = ComplexOperator::HERMITIAN);
 
-   /** @brief Create a ComplexLinearForm on the FiniteElementSpace @a f, using
-       the same integrators as the LinearForms @a lfr (real) and @a lfi (imag) .
+   /** @brief Create a ComplexLinearForm on the FiniteElementSpace @a fes, using
+       the same integrators as the LinearForms @a lf_r (real) and @a lf_i (imag).
 
        The pointer @a fes is not owned by the newly constructed object.
 
@@ -204,7 +204,7 @@ public:
    SesquilinearForm(FiniteElementSpace *fes,
                     ComplexOperator::Convention
                     convention = ComplexOperator::HERMITIAN);
-   /** @brief Create a SesquilinearForm on the FiniteElementSpace @a f, using
+   /** @brief Create a SesquilinearForm on the FiniteElementSpace @a fes, using
        the same integrators as the BilinearForms @a bfr and @a bfi .
 
        The pointer @a fes is not owned by the newly constructed object.
@@ -309,7 +309,7 @@ protected:
 public:
 
    /* @brief Construct a ParComplexGridFunction associated with the
-      ParFiniteElementSpace @a *f. */
+      ParFiniteElementSpace @a *pf. */
    ParComplexGridFunction(ParFiniteElementSpace *pf);
 
    void Update();
@@ -401,8 +401,8 @@ public:
                         convention = ComplexOperator::HERMITIAN);
 
    /** @brief Create a ParComplexLinearForm on the ParFiniteElementSpace @a pf,
-       using the same integrators as the LinearForms @a plfr (real) and @a plfi
-       (imag) .
+       using the same integrators as the LinearForms @a plf_r (real) and 
+       @a plf_i (imag).
 
       The pointer @a fes is not owned by the newly constructed object.
 
