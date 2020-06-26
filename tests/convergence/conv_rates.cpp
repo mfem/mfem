@@ -25,13 +25,13 @@ ConvergenceRates::ConvergenceRates(MPI_Comm _comm) : comm(_comm)
 void ConvergenceRates::Clear()
 {
    counter=0;
-   rates.SetSize(0);
+   L2Rates.SetSize(0);
 }
 
 void ConvergenceRates::AddSolution(GridFunction * gf, Coefficient * u)
 {
-   double L2err = gf->ComputeL2Error(*u);
-   error.Append(L2err);
+   double L2Err = gf->ComputeL2Error(*u);
+   L2Errors.Append(L2Err);
    int tdofs = gf->FESpace()->GetTrueVSize();
 #ifdef MFEM_USE_MPI   
    if (comm_flag)
@@ -41,15 +41,15 @@ void ConvergenceRates::AddSolution(GridFunction * gf, Coefficient * u)
 #endif   
    ndofs.Append(tdofs);
 
-   double val = (counter) ? log(error[counter-1]/L2err)/log(2.0) : 0.0;
-   rates.Append(val);
+   double val = (counter) ? log(L2Errors[counter-1]/L2Err)/log(2.0) : 0.0;
+   L2Rates.Append(val);
    
    counter++;
 }
 void ConvergenceRates::AddSolution(GridFunction * gf, VectorCoefficient * U)
 {
-   double L2err = gf->ComputeL2Error(*U);
-   error.Append(L2err);
+   double L2Err = gf->ComputeL2Error(*U);
+   L2Errors.Append(L2Err);
    int tdofs = gf->FESpace()->GetTrueVSize();
 #ifdef MFEM_USE_MPI   
    if (comm_flag)
@@ -59,25 +59,25 @@ void ConvergenceRates::AddSolution(GridFunction * gf, VectorCoefficient * U)
 #endif   
    ndofs.Append(tdofs);
 
-   double val = (counter) ? log(error[counter-1]/L2err)/log(2.0) : 0.0;
-   rates.Append(val);
+   double val = (counter) ? log(L2Errors[counter-1]/L2Err)/log(2.0) : 0.0;
+   L2Rates.Append(val);
    
    counter++;
 }
 double ConvergenceRates::GetL2Error(int n)
 {
    MFEM_VERIFY(n<= counter,"Step out of bounds")
-   return error[n];
+   return L2Errors[n];
 }
 
 Array<double> * ConvergenceRates::GetRates()
 {
-   return &rates;
+   return &L2Rates;
 }
 
 Array<double> * ConvergenceRates::GetL2Errors()
 {
-   return &error;
+   return &L2Errors;
 }
 
 void ConvergenceRates::Print()
@@ -93,8 +93,8 @@ void ConvergenceRates::Print()
       cout << setprecision(4);
       for (int i =0; i<counter; i++)
       {
-         cout << right << setw(10)<< ndofs[i] << setw(16) << scientific << error[i] 
-              << setw(13)  << fixed << rates[i] << endl;
+         cout << right << setw(10)<< ndofs[i] << setw(16) << scientific << L2Errors[i] 
+              << setw(13)  << fixed << L2Rates[i] << endl;
       }
    }
 }

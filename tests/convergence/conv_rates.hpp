@@ -16,8 +16,10 @@ private:
 #endif
    int counter=0;
    int print_flag=0;
-   Array<double> error;
-   Array<double> rates;
+   Array<double> L2Errors;
+   Array<double> EnergyErrors;
+   Array<double> L2Rates;
+   Array<double> EnergyRates;
    Array<int> ndofs;
 public:
    ConvergenceRates();
