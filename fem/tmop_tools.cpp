@@ -417,17 +417,25 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 #endif
 
    double min_detJ = infinity();
-   for (int i = 0; i < NE; i++)
+   if (dim == 1)
    {
-      fes->GetElementVDofs(i, xdofs);
-      x_out_loc.GetSubVector(xdofs, posV);
-
-      for (int j = 0; j < nsp; j++)
+      for (int i = 0; i < NE; i++)
       {
-         fes->GetFE(i)->CalcDShape(ir.IntPoint(j), dshape);
-         MultAtB(pos, dshape, Jpr);
-         min_detJ = std::min(min_detJ, Jpr.Det());
+         fes->GetElementVDofs(i, xdofs);
+         x_out_loc.GetSubVector(xdofs, posV);
+
+         for (int j = 0; j < nsp; j++)
+         {
+            fes->GetFE(i)->CalcDShape(ir.IntPoint(j), dshape);
+            MultAtB(pos, dshape, Jpr);
+            min_detJ = std::min(min_detJ, Jpr.Det());
+         }
       }
+   }
+   else
+   {
+      min_detJ = dim == 2 ? MinDetJpr_2D(fes, x_out_loc) :
+                 dim == 3 ? MinDetJpr_3D(fes, x_out_loc) : 0.0;
    }
    double min_detJ_all = min_detJ;
 #ifdef MFEM_USE_MPI
@@ -470,7 +478,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       if (!untangling)
       {
          int jac_ok = 1;
-         if (dim==1)
+         if (dim == 1)
          {
             for (int i = 0; i < NE; i++)
             {
@@ -483,11 +491,13 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
                   if (Jpr.Det() <= 0.0) { jac_ok = 0; goto break2; }
                }
             }
+         break2:;
          }
-      break2:
-         jac_ok = dim == 2 ? CheckDetJpr_2D(fes, ir, x_out_loc):
-                  dim == 3 ? CheckDetJpr_3D(fes, ir, x_out_loc):
-                  jac_ok;
+         else
+         {
+            jac_ok = dim == 2 ? CheckDetJpr_2D(fes, x_out_loc) :
+                     dim == 3 ? CheckDetJpr_3D(fes, x_out_loc) : 0;
+         }
          int jac_ok_all = jac_ok;
 #ifdef MFEM_USE_MPI
          if (parallel)
