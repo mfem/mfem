@@ -26,7 +26,7 @@ TEST_CASE("Save and load from collections", "[DataCollection]")
 {
    SECTION("VisIt data files")
    {
-       std::cout<<"Testing VisIt data files"<<std::endl;
+      std::cout<<"Testing VisIt data files"<<std::endl;
       //Set up a small mesh and a couple of grid function on that mesh
       Mesh *mesh = new Mesh(2, 3, Element::QUADRILATERAL, 0, 2.0, 3.0);
       FiniteElementCollection *fec = new LinearFECollection;
