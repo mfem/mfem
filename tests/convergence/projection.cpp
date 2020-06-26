@@ -132,7 +132,7 @@ int main(int argc, char *argv[])
    // 8. Define the solution vector u_gf as a parallel finite element grid function
    //     corresponding to fespace.
    ParGridFunction u_gf(fespace);
-
+   
    // 9. Set up the parallel linear form b(.) and the parallel bilinear form
    //    a(.,.).
    FunctionCoefficient *u=nullptr;
@@ -258,31 +258,63 @@ int main(int argc, char *argv[])
       switch (prob)
       {
          case 0:
+         {
             rates.AddSolution(&u_gf,u);
+
+            double grad_error = u_gf.ComputeH1Error(u,gradu);
+            double Energy_error = u_gf.ComputeEnergyError(u,gradu);
+
+            // cout << "grad_error = " << grad_error << endl;
+
+            // double error = GlobalLpNorm(2.0, grad_error, MPI_COMM_WORLD);
+
+            if (myid == 0)
+            {
+               cout << "grad error = " << grad_error << endl;
+               cout << "energy error = " << Energy_error << endl;
+            }
             break;
+         }
          case 1:
          {
             rates.AddSolution(&u_gf,U);
             if (dim == 2)
             {
-               FunctionCoefficient * curl_ex = new FunctionCoefficient(curlU2D_exact);
-               cout << "curl2D_error = " << u_gf.ComputeCurlError(curl_ex) << endl;
+               double Hcurl_error = u_gf.ComputeHCurlError(U,curlU2D);
+               double Energy_error = u_gf.ComputeEnergyError(U,curlU2D);
+
+               if (myid == 0)
+               {
+                  cout << "curl error = " << Hcurl_error << endl;
+                  cout << "Energy error = " << Energy_error << endl;
+               }
             }
             else
             {
-               VectorFunctionCoefficient * curl_ex = 
-                  new VectorFunctionCoefficient(dim,curlU_exact);
-               cout << "curl3D_error = " << u_gf.ComputeCurlError(curl_ex) << endl;
+               double Hcurl_error = u_gf.ComputeHCurlError(U,curlU);
+               double Energy_error = u_gf.ComputeEnergyError(U,curlU);
+               if (myid == 0)
+               {
+                  cout << "Hcurl error = " << Hcurl_error << endl;
+                  cout << "Energy error = " << Energy_error << endl;
+               }
             }
-            
-            // cout << "div_error = " << u_gf.ComputeDivError(div_ex) << endl;
+            break;
          }
-         break;
+         
          case 2:
          {
             rates.AddSolution(&u_gf,U);
-            FunctionCoefficient * div_ex = new FunctionCoefficient(divU_exact);
-            cout << "div_error = " << u_gf.ComputeDivError(div_ex) << endl;
+
+            double Hdiv_error = u_gf.ComputeHDivError(U,divU);
+            double Energy_error = u_gf.ComputeEnergyError(U,divU);
+
+            if (myid == 0)
+            {
+               cout << "Hdiv error = " << Hdiv_error << endl;
+               cout << "Energy error = " << Energy_error << endl;
+            }
+
             break;
          }
          default:
