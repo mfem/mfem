@@ -129,6 +129,7 @@ public:
    ~OperatorJacobiSmoother() {}
 
    void Mult(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
    void SetOperator(const Operator &op) { oper = &op; }
    void Setup(const Vector &diag);
 
@@ -180,6 +181,8 @@ public:
    ~OperatorChebyshevSmoother() {}
 
    void Mult(const Vector&x, Vector &y) const;
+
+   void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
 
    void SetOperator(const Operator &op_)
    {
