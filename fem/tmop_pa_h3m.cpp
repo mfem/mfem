@@ -47,18 +47,18 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_3D,
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
-      MFEM_SHARED double s_BG[2][MQ1*MD1];
-      MFEM_SHARED double s_DDD[3][MD1*MD1*MD1];
-      MFEM_SHARED double s_DDQ[9][MD1*MD1*MQ1];
-      MFEM_SHARED double s_DQQ[9][MD1*MQ1*MQ1];
-      MFEM_SHARED double s_QQQ[9][MQ1*MQ1*MQ1];
+      MFEM_SHARED double BG[2][MQ1*MD1];
+      MFEM_SHARED double DDD[3][MD1*MD1*MD1];
+      MFEM_SHARED double DDQ[9][MD1*MD1*MQ1];
+      MFEM_SHARED double DQQ[9][MD1*MQ1*MQ1];
+      MFEM_SHARED double QQQ[9][MQ1*MQ1*MQ1];
 
-      kernels::LoadX<MD1>(e,D1D,X,s_DDD);
-      kernels::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,s_BG);
+      kernels::LoadX<MD1>(e,D1D,X,DDD);
+      kernels::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
 
-      kernels::GradX<MD1,MQ1>(D1D,Q1D,s_BG,s_DDD,s_DDQ);
-      kernels::GradY<MD1,MQ1>(D1D,Q1D,s_BG,s_DDQ,s_DQQ);
-      kernels::GradZ<MD1,MQ1>(D1D,Q1D,s_BG,s_DQQ,s_QQQ);
+      kernels::GradX<MD1,MQ1>(D1D,Q1D,BG,DDD,DDQ);
+      kernels::GradY<MD1,MQ1>(D1D,Q1D,BG,DDQ,DQQ);
+      kernels::GradZ<MD1,MQ1>(D1D,Q1D,BG,DQQ,QQQ);
 
       MFEM_FOREACH_THREAD(qz,z,Q1D)
       {
@@ -74,24 +74,26 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_3D,
 
                // Jpr = X^T.DSh
                double Jpr[9];
-               kernels::PullGradXYZ<MQ1>(qx,qy,qz, s_QQQ, Jpr);
+               kernels::PullGradXYZ<MQ1>(qx,qy,qz, QQQ, Jpr);
 
                // Jpt = X^T.DS = (X^T.DSh).Jrt = Jpr.Jrt
                double Jpt[9];
                kernels::Mult(3,3,3, Jpr, Jrt, Jpt);
 
-               // M = Jpt : dP
-               double M[9];
-               for (int r = 0; r < DIM; r++)
+               // B = Jpt : H
+               double B[9];
+               DeviceMatrix M(B,3,3);
+               ConstDeviceMatrix J(Jpt,3,3);
+               for (int i = 0; i < DIM; i++)
                {
-                  for (int c = 0; c < DIM; c++)
+                  for (int j = 0; j < DIM; j++)
                   {
-                     M[r+DIM*c] = 0.0;
-                     for (int i = 0; i < DIM; i++)
+                     M(i,j) = 0.0;
+                     for (int r = 0; r < DIM; r++)
                      {
-                        for (int j = 0; j < DIM; j++)
+                        for (int c = 0; c < DIM; c++)
                         {
-                           M[r+DIM*c] += H(i,j,r,c,qx,qy,qz,e) * Jpt[i+DIM*j];
+                           M(i,j) += H(r,c,i,j,qx,qy,qz,e) * J(r,c);
                         }
                      }
                   }
@@ -99,16 +101,16 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_3D,
 
                // Y +=  DS . M^t += DSh . (Jrt . M^t)
                double A[9];
-               kernels::MultABt(3,3,3, Jrt, M, A);
-               kernels::PushGradXYZ<MQ1>(qx,qy,qz, A, s_QQQ);
+               kernels::MultABt(3,3,3, Jrt, B, A);
+               kernels::PushGradXYZ<MQ1>(qx,qy,qz, A, QQQ);
             }
          }
       }
       MFEM_SYNC_THREAD;
-      kernels::LoadBGt<MD1,MQ1>(D1D, Q1D, b, g, s_BG);
-      kernels::GradZt<MD1,MQ1>(D1D,Q1D,s_BG,s_QQQ,s_DQQ);
-      kernels::GradYt<MD1,MQ1>(D1D,Q1D,s_BG,s_DQQ,s_DDQ);
-      kernels::GradXt<MD1,MQ1>(D1D,Q1D,s_BG,s_DDQ,Y,e);
+      kernels::LoadBGt<MD1,MQ1>(D1D,Q1D,b,g,BG);
+      kernels::GradZt<MD1,MQ1>(D1D,Q1D,BG,QQQ,DQQ);
+      kernels::GradYt<MD1,MQ1>(D1D,Q1D,BG,DQQ,DDQ);
+      kernels::GradXt<MD1,MQ1>(D1D,Q1D,BG,DDQ,Y,e);
    });
 }
 

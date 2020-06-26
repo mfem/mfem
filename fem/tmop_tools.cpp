@@ -469,9 +469,25 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       // Check det(Jpr) > 0.
       if (!untangling)
       {
-         int jac_ok = dim == 2 ? CheckDetJpr_2D(fes, ir, x_out_loc):
-                      dim == 3 ? CheckDetJpr_3D(fes, ir, x_out_loc):
-                      0;
+         int jac_ok = 1;
+         if (dim==1)
+         {
+            for (int i = 0; i < NE; i++)
+            {
+               fes->GetElementVDofs(i, xdofs);
+               x_out_loc.GetSubVector(xdofs, posV);
+               for (int j = 0; j < nsp; j++)
+               {
+                  fes->GetFE(i)->CalcDShape(ir.IntPoint(j), dshape);
+                  MultAtB(pos, dshape, Jpr);
+                  if (Jpr.Det() <= 0.0) { jac_ok = 0; goto break2; }
+               }
+            }
+         }
+      break2:
+         jac_ok = dim == 2 ? CheckDetJpr_2D(fes, ir, x_out_loc):
+                  dim == 3 ? CheckDetJpr_3D(fes, ir, x_out_loc):
+                  jac_ok;
          int jac_ok_all = jac_ok;
 #ifdef MFEM_USE_MPI
          if (parallel)
@@ -480,7 +496,6 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
                           p_nlf->ParFESpace()->GetComm());
          }
 #endif
-
          if (jac_ok_all == 0)
          {
             if (print_level >= 0)

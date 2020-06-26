@@ -73,6 +73,92 @@ MFEM_HOST_DEVICE inline void LoadBGt(const int D1D, const int Q1D,
    MFEM_SYNC_THREAD;
 }
 
+/// Load 2D input scalar into shared memory
+template<int MD1, int NBZ>
+MFEM_HOST_DEVICE inline void LoadS(const int e,
+                                   const int D1D,
+                                   const DeviceTensor<3, const double> x,
+                                   double sX[NBZ][MD1*MD1])
+{
+   const int tidz = MFEM_THREAD_ID(z);
+   double (*X)[MD1] = (double (*)[MD1])(sX + tidz);
+
+   MFEM_FOREACH_THREAD(dy,y,D1D)
+   {
+      MFEM_FOREACH_THREAD(dx,x,D1D)
+      {
+         X[dy][dx] = x(dx,dy,e);
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// 2D Scalar Evaluation, 1/2
+template<int MD1, int MQ1, int NBZ>
+MFEM_HOST_DEVICE inline void EvalXS(const int D1D, const int Q1D,
+                                    const double sBG[2][MQ1*MD1],
+                                    const double sX[NBZ][MD1*MD1],
+                                    double sDQ[NBZ][MD1*MQ1])
+{
+   const int tidz = MFEM_THREAD_ID(z);
+   double (*B)[MD1] = (double (*)[MD1])(sBG+0);
+   double (*X)[MD1]  = (double (*)[MD1])(sX + tidz);
+   double (*DQ)[MQ1] = (double (*)[MQ1])(sDQ + tidz);
+
+   MFEM_FOREACH_THREAD(dy,y,D1D)
+   {
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         double u = 0.0;
+         for (int dx = 0; dx < D1D; ++dx)
+         {
+            u += B[qx][dx] * X[dy][dx];
+         }
+         DQ[dy][qx] = u;
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// 2D Scalar Evaluation, 2/2
+template<int MD1, int MQ1, int NBZ>
+MFEM_HOST_DEVICE inline void EvalYS(const int D1D, const int Q1D,
+                                    const double sBG[2][MQ1*MD1],
+                                    const double sDQ[NBZ][MD1*MQ1],
+                                    double sQQ[NBZ][MQ1*MQ1])
+{
+   const int tidz = MFEM_THREAD_ID(z);
+   double (*B)[MD1] = (double (*)[MD1])(sBG+0);
+   double (*DQ)[MQ1] = (double (*)[MQ1])(sDQ + tidz);
+   double (*QQ)[MQ1] = (double (*)[MQ1])(sQQ + tidz);
+
+   MFEM_FOREACH_THREAD(qy,y,Q1D)
+   {
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         double u = 0.0;
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            u += DQ[dy][qx] * B[qy][dy];
+         }
+         QQ[qy][qx] = u;
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// Pull 2D Scalar Evaluation
+template<int MQ1, int NBZ>
+MFEM_HOST_DEVICE inline void PullEvalS(const int qx, const int qy,
+                                       const double sQQ[NBZ][MQ1*MQ1],
+                                       double *P)
+{
+   const int tidz = MFEM_THREAD_ID(z);
+   double (*QQ)[MQ1] = (double (*)[MQ1])(sQQ + tidz);
+
+   P[0] = QQ[qy][qx];
+}
+
 /// Load 2D input vector into shared memory
 template<int MD1, int NBZ>
 MFEM_HOST_DEVICE inline void LoadX(const int e,
@@ -159,6 +245,34 @@ MFEM_HOST_DEVICE inline void EvalY(const int D1D, const int Q1D,
    MFEM_SYNC_THREAD;
 }
 
+/// Pull 2D Evaluation
+template<int MQ1, int NBZ>
+MFEM_HOST_DEVICE inline void PullEvalXY(const int qx, const int qy,
+                                        const double sQQ[2][NBZ][MQ1*MQ1],
+                                        double *P)
+{
+   const int tidz = MFEM_THREAD_ID(z);
+   double (*QQ0)[MQ1] = (double (*)[MQ1])(sQQ[0] + tidz);
+   double (*QQ1)[MQ1] = (double (*)[MQ1])(sQQ[1] + tidz);
+
+   P[0] = QQ0[qy][qx];
+   P[1] = QQ1[qy][qx];
+}
+
+/// Push 2D Evaluation
+template<int MQ1, int NBZ>
+MFEM_HOST_DEVICE inline void PushEvalXY(const int qx, const int qy,
+                                        const double *P,
+                                        double sQQ[2][NBZ][MQ1*MQ1])
+{
+   const int tidz = MFEM_THREAD_ID(z);
+   double (*QQ0)[MQ1] = (double (*)[MQ1])(sQQ[0] + tidz);
+   double (*QQ1)[MQ1] = (double (*)[MQ1])(sQQ[1] + tidz);
+
+   QQ0[qy][qx] = P[0];
+   QQ1[qy][qx] = P[1];
+}
+
 /// 2D Transposed evaluation, 1/2
 template<int MD1, int MQ1, int NBZ>
 MFEM_HOST_DEVICE inline void EvalXt(const int D1D, const int Q1D,
@@ -217,34 +331,6 @@ MFEM_HOST_DEVICE inline void EvalYt(const int D1D, const int Q1D,
       }
    }
    MFEM_SYNC_THREAD;
-}
-
-/// Pull 2D Evaluation
-template<int MQ1, int NBZ>
-MFEM_HOST_DEVICE inline void PullEvalXY(const int qx, const int qy,
-                                        const double sQQ[2][NBZ][MQ1*MQ1],
-                                        double *P)
-{
-   const int tidz = MFEM_THREAD_ID(z);
-   double (*QQ0)[MQ1] = (double (*)[MQ1])(sQQ[0] + tidz);
-   double (*QQ1)[MQ1] = (double (*)[MQ1])(sQQ[1] + tidz);
-
-   P[0] = QQ0[qy][qx];
-   P[1] = QQ1[qy][qx];
-}
-
-/// Push 2D Evaluation
-template<int MQ1, int NBZ>
-MFEM_HOST_DEVICE inline void PushEvalXY(const int qx, const int qy,
-                                        const double *P,
-                                        double sQQ[2][NBZ][MQ1*MQ1])
-{
-   const int tidz = MFEM_THREAD_ID(z);
-   double (*QQ0)[MQ1] = (double (*)[MQ1])(sQQ[0] + tidz);
-   double (*QQ1)[MQ1] = (double (*)[MQ1])(sQQ[1] + tidz);
-
-   QQ0[qy][qx] = P[0];
-   QQ1[qy][qx] = P[1];
 }
 
 /// 2D Gradient, 1/2
@@ -625,6 +711,123 @@ MFEM_HOST_DEVICE inline void PushEvalXYZ(const int x, const int y, const int z,
    XzBBB[z][y][x] = A[2];
 }
 
+/// 3D Transposed Evaluation, 1/3
+template<int MD1, int MQ1>
+MFEM_HOST_DEVICE inline void EvalXt(const int D1D, const int Q1D,
+                                    const double sBG[2][MQ1*MD1],
+                                    const double sQQQ[3][MQ1*MQ1*MQ1],
+                                    double sDQQ[3][MD1*MQ1*MQ1])
+{
+
+   double (*Bt)[MQ1] = (double (*)[MQ1])(sBG[0]);
+
+   double (*XxBBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(sQQQ+0);
+   double (*XyBBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(sQQQ+1);
+   double (*XzBBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(sQQQ+2);
+
+   double (*XxBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(sDQQ[0]);
+   double (*XyBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(sDQQ[1]);
+   double (*XzBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(sDQQ[2]);
+
+   MFEM_FOREACH_THREAD(qz,z,Q1D)
+   {
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            double u[3] = {0.0, 0.0, 0.0};
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               const double Btx = Bt[dx][qx];
+               u[0] += XxBBB[qz][qy][qx] * Btx;
+               u[1] += XyBBB[qz][qy][qx] * Btx;
+               u[2] += XzBBB[qz][qy][qx] * Btx;
+            }
+            XxBB[dx][qy][qz] = u[0];
+            XyBB[dx][qy][qz] = u[1];
+            XzBB[dx][qy][qz] = u[2];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// 3D Transposed Evaluation, 2/3
+template<int MD1, int MQ1>
+MFEM_HOST_DEVICE inline void EvalYt(const int D1D, const int Q1D,
+                                    const double sBG[2][MQ1*MD1],
+                                    const double sDQQ[3][MD1*MQ1*MQ1],
+                                    double sDDQ[3][MD1*MD1*MQ1])
+{
+   double (*Bt)[MQ1] = (double (*)[MQ1])(sBG[0]);
+
+   double (*XxBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(sDQQ+0);
+   double (*XyBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(sDQQ+1);
+   double (*XzBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(sDQQ+2);
+
+   double (*XxB)[MD1][MQ1] = (double (*)[MD1][MQ1])(sDDQ+0);
+   double (*XyB)[MD1][MQ1] = (double (*)[MD1][MQ1])(sDDQ+1);
+   double (*XzB)[MD1][MQ1] = (double (*)[MD1][MQ1])(sDDQ+2);
+
+   MFEM_FOREACH_THREAD(qz,z,Q1D)
+   {
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            double u[3] = {0.0, 0.0, 0.0};
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               const double Bty = Bt[dy][qy];
+               u[0] += XxBB[dx][qy][qz] * Bty;
+               u[1] += XyBB[dx][qy][qz] * Bty;
+               u[2] += XzBB[dx][qy][qz] * Bty;
+
+            }
+            XxB[dx][dy][qz] = u[0];
+            XyB[dx][dy][qz] = u[1];
+            XzB[dx][dy][qz] = u[2];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// 3D Transposed Evaluation, 3/3
+template<int MD1, int MQ1>
+MFEM_HOST_DEVICE inline void EvalZt(const int D1D, const int Q1D,
+                                    const double sBG[2][MQ1*MD1],
+                                    const double sDDQ[3][MD1*MD1*MQ1],
+                                    DeviceTensor<5, double> Y, const int e)
+{
+   double (*Bt)[MQ1] = (double (*)[MQ1])(sBG[0]);
+
+   double (*XxB)[MD1][MQ1] = (double (*)[MD1][MQ1])(sDDQ+0);
+   double (*XyB)[MD1][MQ1] = (double (*)[MD1][MQ1])(sDDQ+1);
+   double (*XzB)[MD1][MQ1] = (double (*)[MD1][MQ1])(sDDQ+2);
+
+   MFEM_FOREACH_THREAD(dz,z,D1D)
+   {
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            double u[3] = {0.0, 0.0, 0.0};
+            for (int qz = 0; qz < Q1D; ++qz)
+            {
+               const double Btz = Bt[dz][qz];
+               u[0] += XxB[dx][dy][qz] * Btz;
+               u[1] += XyB[dx][dy][qz] * Btz;
+               u[2] += XzB[dx][dy][qz] * Btz;
+            }
+            Y(dx,dy,dz,0,e) += u[0];
+            Y(dx,dy,dz,1,e) += u[1];
+            Y(dx,dy,dz,2,e) += u[2];
+         }
+      }
+   }
+}
+
 /// 3D Gradient, 1/3
 template<int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void GradX(const int D1D, const int Q1D,
@@ -879,123 +1082,6 @@ MFEM_HOST_DEVICE inline void PushGradXYZ(const int x, const int y, const int z,
    XzBBG[z][y][x] = A[6];
    XzBGB[z][y][x] = A[7];
    XzGBB[z][y][x] = A[8];
-}
-
-/// 3D Transposed Evaluation, 1/3
-template<int MD1, int MQ1>
-MFEM_HOST_DEVICE inline void EvalXt(const int D1D, const int Q1D,
-                                    const double sBG[2][MQ1*MD1],
-                                    const double sQQQ[3][MQ1*MQ1*MQ1],
-                                    double sDQQ[3][MD1*MQ1*MQ1])
-{
-
-   double (*Bt)[MQ1] = (double (*)[MQ1])(sBG[0]);
-
-   double (*XxBBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(sQQQ+0);
-   double (*XyBBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(sQQQ+1);
-   double (*XzBBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(sQQQ+2);
-
-   double (*XxBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(sDQQ[0]);
-   double (*XyBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(sDQQ[1]);
-   double (*XzBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(sDQQ[2]);
-
-   MFEM_FOREACH_THREAD(qz,z,Q1D)
-   {
-      MFEM_FOREACH_THREAD(qy,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
-         {
-            double u[3] = {0.0, 0.0, 0.0};
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-               const double Btx = Bt[dx][qx];
-               u[0] += XxBBB[qz][qy][qx] * Btx;
-               u[1] += XyBBB[qz][qy][qx] * Btx;
-               u[2] += XzBBB[qz][qy][qx] * Btx;
-            }
-            XxBB[dx][qy][qz] = u[0];
-            XyBB[dx][qy][qz] = u[1];
-            XzBB[dx][qy][qz] = u[2];
-         }
-      }
-   }
-   MFEM_SYNC_THREAD;
-}
-
-/// 3D Transposed Evaluation, 2/3
-template<int MD1, int MQ1>
-MFEM_HOST_DEVICE inline void EvalYt(const int D1D, const int Q1D,
-                                    const double sBG[2][MQ1*MD1],
-                                    const double sDQQ[3][MD1*MQ1*MQ1],
-                                    double sDDQ[3][MD1*MD1*MQ1])
-{
-   double (*Bt)[MQ1] = (double (*)[MQ1])(sBG[0]);
-
-   double (*XxBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(sDQQ+0);
-   double (*XyBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(sDQQ+1);
-   double (*XzBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(sDQQ+2);
-
-   double (*XxB)[MD1][MQ1] = (double (*)[MD1][MQ1])(sDDQ+0);
-   double (*XyB)[MD1][MQ1] = (double (*)[MD1][MQ1])(sDDQ+1);
-   double (*XzB)[MD1][MQ1] = (double (*)[MD1][MQ1])(sDDQ+2);
-
-   MFEM_FOREACH_THREAD(qz,z,Q1D)
-   {
-      MFEM_FOREACH_THREAD(dy,y,D1D)
-      {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
-         {
-            double u[3] = {0.0, 0.0, 0.0};
-            for (int qy = 0; qy < Q1D; ++qy)
-            {
-               const double Bty = Bt[dy][qy];
-               u[0] += XxBB[dx][qy][qz] * Bty;
-               u[1] += XyBB[dx][qy][qz] * Bty;
-               u[2] += XzBB[dx][qy][qz] * Bty;
-
-            }
-            XxB[dx][dy][qz] = u[0];
-            XyB[dx][dy][qz] = u[1];
-            XzB[dx][dy][qz] = u[2];
-         }
-      }
-   }
-   MFEM_SYNC_THREAD;
-}
-
-/// 3D Transposed Evaluation, 3/3
-template<int MD1, int MQ1>
-MFEM_HOST_DEVICE inline void EvalZt(const int D1D, const int Q1D,
-                                    const double sBG[2][MQ1*MD1],
-                                    const double sDDQ[3][MD1*MD1*MQ1],
-                                    DeviceTensor<5, double> Y, const int e)
-{
-   double (*Bt)[MQ1] = (double (*)[MQ1])(sBG[0]);
-
-   double (*XxB)[MD1][MQ1] = (double (*)[MD1][MQ1])(sDDQ+0);
-   double (*XyB)[MD1][MQ1] = (double (*)[MD1][MQ1])(sDDQ+1);
-   double (*XzB)[MD1][MQ1] = (double (*)[MD1][MQ1])(sDDQ+2);
-
-   MFEM_FOREACH_THREAD(dz,z,D1D)
-   {
-      MFEM_FOREACH_THREAD(dy,y,D1D)
-      {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
-         {
-            double u[3] = {0.0, 0.0, 0.0};
-            for (int qz = 0; qz < Q1D; ++qz)
-            {
-               const double Btz = Bt[dz][qz];
-               u[0] += XxB[dx][dy][qz] * Btz;
-               u[1] += XyB[dx][dy][qz] * Btz;
-               u[2] += XzB[dx][dy][qz] * Btz;
-            }
-            Y(dx,dy,dz,0,e) += u[0];
-            Y(dx,dy,dz,1,e) += u[1];
-            Y(dx,dy,dz,2,e) += u[2];
-         }
-      }
-   }
 }
 
 /// 3D Transposed Gradient, 1/3
