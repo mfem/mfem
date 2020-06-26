@@ -88,6 +88,8 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_2D,
                            const int d1d,
                            const int q1d)
 {
+   MFEM_VERIFY(mid == 1 || mid == 2, "Metric not yet implemented!");
+
    constexpr int DIM = 2;
    constexpr int NBZ = 1;
    const int D1D = T_D1D ? T_D1D : d1d;

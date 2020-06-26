@@ -924,7 +924,7 @@ protected:
       int dim, ne, nq;
       mutable DenseTensor Jtr;
       mutable bool setup_Grad, setup_Jtr;
-      mutable Vector E, O, W, X0, H, C0, H0;
+      mutable Vector E, O, W, X0, H, C0, LD, H0;
       const DofToQuad *maps;
       const GeometricFactors *geom;
       const FiniteElementSpace *fes;
@@ -1100,6 +1100,7 @@ public:
    void AssembleGradPA_2D(const Vector&) const;
    void AssembleGradPA_3D(const Vector&) const;
    void AssembleGradPA_C0_2D(const Vector&) const;
+   void AssembleGradPA_C0_3D(const Vector&) const;
 
    DiscreteAdaptTC *GetDiscreteAdaptTC() const { return discr_tc; }
 

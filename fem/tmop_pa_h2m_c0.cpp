@@ -19,36 +19,26 @@ namespace mfem
 {
 
 MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_C0_2D,
-                           const double lim_normal,
-                           const double dist,
-                           const Vector &c0_,
                            const int NE,
-                           const DenseTensor &j_,
-                           const Array<double> &w_,
                            const Array<double> &b_,
                            const Array<double> &g_,
-                           const Vector &x0_,
-                           const Vector &x_,
+                           const Vector &h0_,
                            const Vector &r_,
                            Vector &c_,
                            const int d1d,
                            const int q1d)
 {
-   const bool const_c0 = c0_.Size() == 1;
    constexpr int DIM = 2;
    constexpr int NBZ = 1;
 
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   const auto C0 = const_c0 ?
-                   Reshape(c0_.Read(), 1, 1, 1) :
-                   Reshape(c0_.Read(), Q1D, Q1D, NE);
-   const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, NE);
-   const auto W = Reshape(w_.Read(), Q1D, Q1D);
+   const auto H0 = Reshape(h0_.Read(), DIM, DIM, Q1D, Q1D, NE);
    const auto b = Reshape(b_.Read(), Q1D, D1D);
    const auto g = Reshape(g_.Read(), Q1D, D1D);
    const auto R = Reshape(r_.Read(), D1D, D1D, DIM, NE);
+
    auto Y = Reshape(c_.ReadWrite(), D1D, D1D, DIM, NE);
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
@@ -76,29 +66,17 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_C0_2D,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            const double *Jtr = &J(0,0,qx,qy,e);
-            const double detJtr = kernels::Det<2>(Jtr);
-            const double weight = W(qx,qy) * detJtr;
-            const double coeff0 = const_c0 ? C0(0,0,0) : C0(qx,qy,e);
-            const double weight_m = weight * lim_normal * coeff0;
-
             // Xh = X^T . Sh
             double Xh[2];
             kernels::PullEvalXY<MQ1,NBZ>(qx,qy,QQ,Xh);
 
-            //lim_func->Eval_d2(p1, p0, d_vals(q), grad_grad);
-            // d2.Diag(1.0 / (dist * dist), x.Size());
             double B[4];
-            const double c = 1.0 / (dist * dist);
-            double grad_grad[4];
-            kernels::Diag<2>(c, grad_grad);
-            ConstDeviceMatrix gg(grad_grad,2,2);
-            DeviceMatrix bb(B,2,2);
+            DeviceMatrix H(B,2,2);
             for (int i = 0; i < DIM; i++)
             {
                for (int j = 0; j < DIM; j++)
                {
-                  bb(i,j) = weight_m * gg(i,j);
+                  H(i,j) = H0(i,j,qx,qy,e);
                }
             }
 
@@ -122,18 +100,11 @@ void TMOP_Integrator::AddMultGradPA_C0_2D(const Vector &X, const Vector &R,
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
-   const double ln = lim_normal;
-   const double ld = lim_dist->HostRead()[0];
-   const DenseTensor &J = PA.Jtr;
-   const IntegrationRule *ir = IntRule;
-   const Array<double> &W = ir->GetWeights();
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
-   const Vector &X0 = PA.X0;
-   const Vector &C0 = PA.C0;
+   const Vector &H0 = PA.H0;
 
-   MFEM_LAUNCH_TMOP_KERNEL(AddMultGradPA_Kernel_C0_2D,id,
-                           ln,ld,C0,N,J,W,B,G,X0,X,R,C);
+   MFEM_LAUNCH_TMOP_KERNEL(AddMultGradPA_Kernel_C0_2D,id,N,B,G,H0,R,C);
 }
 
 } // namespace mfem

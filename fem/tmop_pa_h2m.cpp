@@ -70,25 +70,28 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_2D,
             double Jrt[4];
             kernels::CalcInverse<2>(Jtr, Jrt);
 
+            // Jpr = X^T.DSh
             double Jpr[4];
             kernels::PullGradXY<MQ1,NBZ>(qx,qy,QQ,Jpr);
 
-            // A = X^T . Jrt
+            // Jpt = Jpr . Jrt
             double Jpt[4];
             kernels::Mult(2,2,2, Jpr, Jrt, Jpt);
 
             // B = Jpt : H
             double B[4];
+            DeviceMatrix M(B,2,2);
+            ConstDeviceMatrix J(Jpt,2,2);
             for (int i = 0; i < DIM; i++)
             {
                for (int j = 0; j < DIM; j++)
                {
-                  B[i+2*j] = 0.0;
+                  M(i,j) = 0.0;
                   for (int r = 0; r < DIM; r++)
                   {
                      for (int c = 0; c < DIM; c++)
                      {
-                        B[i+2*j] += H(r,c,i,j,qx,qy,e) * Jpt[r+2*c];
+                        M(i,j) += H(r,c,i,j,qx,qy,e) * J(r,c);
                      }
                   }
                }
@@ -97,7 +100,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_2D,
             // C = Jrt . B
             double C[4];
             kernels::MultABt(2,2,2, Jrt, B, C);
-            kernels::PushGradXY<MQ1,NBZ>(qx,qy,C,QQ);
+            kernels::PushGradXY<MQ1,NBZ>(qx,qy, C, QQ);
          }
       }
       MFEM_SYNC_THREAD;

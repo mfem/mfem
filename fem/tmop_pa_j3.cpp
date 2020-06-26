@@ -23,7 +23,6 @@ MFEM_REGISTER_TMOP_KERNELS(int, CheckDetJpr_Kernel_3D,
                            const Array<double> &b_,
                            const Array<double> &g_,
                            const Vector &x_,
-                           const Vector &ones,
                            Vector &DetJOk,
                            const int d1d,
                            const int q1d)
@@ -72,8 +71,8 @@ MFEM_REGISTER_TMOP_KERNELS(int, CheckDetJpr_Kernel_3D,
          }
       }
    });
-   const double N = ones * ones;
-   const double D = DetJOk * ones;
+   const double N = DetJOk.Size();
+   const double D = DetJOk * DetJOk;
    return D < N ? 0 : 1;
 }
 
@@ -96,12 +95,10 @@ int TMOPNewtonSolver::CheckDetJpr_3D(const FiniteElementSpace *fes,
    const Array<double> &B = maps.B;
    const Array<double> &G = maps.G;
 
-   Vector O(NE*NQ), E(NE*NQ);
+   Vector E(NE*NQ);
    E.UseDevice(true);
-   O.UseDevice(true);
-   O = 1.0;
 
-   MFEM_LAUNCH_TMOP_KERNEL(CheckDetJpr_Kernel_3D,id,NE,B,G,XE,O,E);
+   MFEM_LAUNCH_TMOP_KERNEL(CheckDetJpr_Kernel_3D,id,NE,B,G,XE,E);
 }
 
 } // namespace mfem

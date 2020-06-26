@@ -79,7 +79,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    PA.H.SetSize(dim*dim * dim*dim * nq*ne, Device::GetDeviceMemoryType());
    // H0 for coeff0
    PA.H0.UseDevice(true);
-   PA.H0.SetSize(dim*dim * dim*dim * nq*ne, Device::GetDeviceMemoryType());
+   PA.H0.SetSize(dim * dim * nq*ne, Device::GetDeviceMemoryType());
 
    // Restriction setup
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
@@ -157,7 +157,14 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 
       // lim_dist & lim_func checks
       MFEM_VERIFY(lim_dist, "No lim_dist!")
+      PA.LD.SetSize(PA.R->Height(), Device::GetMemoryType());
+      PA.LD.UseDevice(true);
+      PA.R->Mult(*lim_dist, PA.LD);
+
+      // Only TMOP_QuadraticLimiter is supported
       MFEM_VERIFY(lim_func, "No lim_func!")
+      MFEM_VERIFY(dynamic_cast<TMOP_QuadraticLimiter*>(lim_func),
+                  "Only TMOP_QuadraticLimiter is supported");
    }
 }
 
@@ -223,12 +230,12 @@ void TMOP_Integrator::AddMultGradPA(const Vector &x,
       if (PA.dim == 2)
       {
          AssembleGradPA_2D(x);
-         //if (coeff0) { AssembleGradPA_C0_2D(x); }
+         if (coeff0) { AssembleGradPA_C0_2D(x); }
       }
       if (PA.dim == 3)
       {
          AssembleGradPA_3D(x);
-         //if (coeff0) { AssembleGradPA_C0_3D(x); }
+         if (coeff0) { AssembleGradPA_C0_3D(x); }
       }
    }
 
