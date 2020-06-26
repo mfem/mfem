@@ -347,7 +347,7 @@ DiffusionTDO::initA(double dt)
    {
       if (dtkCoef_ == NULL)
       {
-         dtkCoef_ = new ScaledCoefficient(dt, *kCoef_);
+         dtkCoef_ = new ProductCoefficient(dt, *kCoef_);
       }
       dtkCoef_->SetAConst(dt);
    }
@@ -355,7 +355,7 @@ DiffusionTDO::initA(double dt)
    {
       if (dtKCoef_ == NULL)
       {
-         dtKCoef_ = new ScaledMatrixCoefficient(dt, *KCoef_);
+         dtKCoef_ = new ScalarMatrixProductCoefficient(dt, *KCoef_);
       }
       dtKCoef_->SetAConst(dt);
    }
@@ -678,7 +678,7 @@ AdvectionDiffusionTDO::initA(double dt)
    {
       if (dtkCoef_ == NULL)
       {
-         dtkCoef_ = new ScaledCoefficient(dt, *kCoef_);
+         dtkCoef_ = new ProductCoefficient(dt, *kCoef_);
       }
       dtkCoef_->SetAConst(dt);
    }
@@ -686,7 +686,7 @@ AdvectionDiffusionTDO::initA(double dt)
    {
       if (dtKCoef_ == NULL)
       {
-         dtKCoef_ = new ScaledMatrixCoefficient(dt, *KCoef_);
+         dtKCoef_ = new ScalarMatrixProductCoefficient(dt, *KCoef_);
       }
       dtKCoef_->SetAConst(dt);
    }
@@ -694,7 +694,7 @@ AdvectionDiffusionTDO::initA(double dt)
    {
      if (dtnuVCoef_ == NULL)
      {
-       dtnuVCoef_ = new ScaledVectorCoefficient(dt * nu_, *VCoef_);
+       dtnuVCoef_ = new ScalarVectorProductCoefficient(dt * nu_, *VCoef_);
      }
      dtnuVCoef_->SetAConst(dt * nu_);
    }
@@ -807,28 +807,6 @@ AdvectionDiffusionTDO::ImplicitSolve(const double dt,
 }
 
 } // namespace thermal
-
-void
-MatrixInverseCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
-                               const IntegrationPoint &ip)
-{
-   M_->Eval(K, T, ip); K.Invert();
-}
-
-void
-ScaledVectorCoefficient::Eval(Vector &V, ElementTransformation &T,
-                              const IntegrationPoint &ip)
-{
-   V_->Eval(V, T, ip); V *= a_;
-}
-
-void
-ScaledMatrixCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
-                              const IntegrationPoint &ip)
-{
-   M_->Eval(K, T, ip); K *= a_;
-}
-
 
 } // namespace mfem
 

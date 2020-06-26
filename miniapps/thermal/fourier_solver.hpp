@@ -23,10 +23,6 @@
 namespace mfem
 {
 
-class ScaledCoefficient;
-class ScaledVectorCoefficient;
-class ScaledMatrixCoefficient;
-  
 namespace thermal
 {
 
@@ -206,8 +202,8 @@ private:
    // Coefficient       * CInvCoef_;
    // Coefficient       * kInvCoef_;
    // MatrixCoefficient * KInvCoef_;
-   ScaledCoefficient       * dtkCoef_;
-   ScaledMatrixCoefficient * dtKCoef_;
+   ProductCoefficient       * dtkCoef_;
+   ScalarMatrixProductCoefficient * dtKCoef_;
 };
 
 class AdvectionDiffusionTDO : public TimeDependentOperator
@@ -333,96 +329,12 @@ private:
    // Coefficient       * CInvCoef_;
    // Coefficient       * kInvCoef_;
    // MatrixCoefficient * KInvCoef_;
-   ScaledCoefficient       * dtkCoef_;
-   ScaledMatrixCoefficient * dtKCoef_;
-   ScaledVectorCoefficient * dtnuVCoef_;
+   ProductCoefficient       * dtkCoef_;
+   ScalarMatrixProductCoefficient * dtKCoef_;
+   ScalarVectorProductCoefficient * dtnuVCoef_;
 };
 
 } // namespace thermal
-
-class InverseCoefficient : public Coefficient
-{
-public:
-   InverseCoefficient(Coefficient & c) : c_(&c) {}
-
-   void SetTime(double t) { time = t; c_->SetTime(t); }
-
-   double Eval(ElementTransformation &T,
-               const IntegrationPoint &ip)
-   { return 1.0 / c_->Eval(T, ip); }
-
-private:
-   Coefficient * c_;
-};
-
-class MatrixInverseCoefficient :public MatrixCoefficient
-{
-public:
-   MatrixInverseCoefficient(MatrixCoefficient & M)
-      : MatrixCoefficient(M.GetWidth()), M_(&M) {}
-
-   void SetTime(double t) { time = t; M_->SetTime(t); }
-
-   void Eval(DenseMatrix &K, ElementTransformation &T,
-             const IntegrationPoint &ip);
-
-private:
-   MatrixCoefficient * M_;
-};
-
-class ScaledCoefficient : public Coefficient
-{
-public:
-   ScaledCoefficient(double a, Coefficient & c) : a_(a), c_(&c) {}
-
-   void SetAConst(double a) { a_ = a; }
-
-   void SetTime(double t) { time = t; c_->SetTime(t); }
-
-   double Eval(ElementTransformation &T,
-               const IntegrationPoint &ip)
-   { return a_ * c_->Eval(T, ip); }
-
-private:
-   double a_;
-   Coefficient * c_;
-};
-
-class ScaledVectorCoefficient :public VectorCoefficient
-{
-public:
-   ScaledVectorCoefficient(double a, VectorCoefficient & V)
-      : VectorCoefficient(V.GetVDim()), a_(a), V_(&V) {}
-
-   void SetAConst(double a) { a_ = a; }
-  
-   void SetTime(double t) { time = t; V_->SetTime(t); }
-
-   void Eval(Vector &V, ElementTransformation &T,
-             const IntegrationPoint &ip);
-
-private:
-   double a_;
-   VectorCoefficient * V_;
-};
-
-class ScaledMatrixCoefficient :public MatrixCoefficient
-{
-public:
-   ScaledMatrixCoefficient(double a, MatrixCoefficient & M)
-      : MatrixCoefficient(M.GetWidth()), a_(a), M_(&M) {}
-
-   void SetAConst(double a) { a_ = a; }
-  
-   void SetTime(double t) { time = t; M_->SetTime(t); }
-
-   void Eval(DenseMatrix &K, ElementTransformation &T,
-             const IntegrationPoint &ip);
-
-private:
-   double a_;
-   MatrixCoefficient * M_;
-};
 
 } // namespace mfem
 
