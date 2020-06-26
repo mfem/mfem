@@ -469,7 +469,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       // Check det(Jpr) > 0.
       if (!untangling)
       {
-         int jac_ok = 1;
+         /*int jac_ok = 1;
          for (int i = 0; i < NE; i++)
          {
             fes->GetElementVDofs(i, xdofs);
@@ -481,8 +481,12 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
                if (Jpr.Det() <= 0.0) { jac_ok = 0; goto break2; }
             }
          }
+         break2:*/
+         int jac_ok/*_bis*/ = dim == 2 ? CheckDetJpr_2D(fes, ir, x_out_loc):
+                              dim == 3 ? CheckDetJpr_3D(fes, ir, x_out_loc):
+                              -1;
+         //MFEM_VERIFY(jac_ok_bis == jac_ok, "");
 
-      break2:
          int jac_ok_all = jac_ok;
 #ifdef MFEM_USE_MPI
          if (parallel)
