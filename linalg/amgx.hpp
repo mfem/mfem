@@ -50,6 +50,24 @@ private:
 
    MPI_Comm amgx_comm; //amgx communicator
 
+
+   //Begin Adam
+   std::string nodeName;
+   int gpuProc = MPI_UNDEFINED;
+   int globalSize;
+   int localSize;
+   int gpuWorldSize;
+   int devWorldSize;
+   int myGlobalRank;
+   int myLocalRank;
+   int myGpuWorldRank;
+   int myDevWorldRank;
+   MPI_Comm localCpuWorld; //adam
+   MPI_Comm gpuWorld;
+   MPI_Comm devWorld;
+   //End Adam
+
+
    //Amgx matrices and vectors
    int ring;
    AMGX_matrix_handle      A{nullptr};
@@ -92,6 +110,22 @@ public:
    void Solve(Vector &x, Vector &b);
 
    void Mult(Vector &b, Vector &x);
+
+   //new test functions for mpi > gpus
+
+   void initialize_new(const MPI_Comm &comm,
+           const std::string &modeStr, const std::string &cfgFile);
+
+   void initMPIcomms_new(const MPI_Comm &comm);
+
+   void setDeviceCount_new();
+
+   void setDeviceIDs_new();
+
+   void initAmgX_new(const std::string &cfgFile);
+
+   void finalize_new();
+
 
    //Destructor
    ~NvidiaAMGX();

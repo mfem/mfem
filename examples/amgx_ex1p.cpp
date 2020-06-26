@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
    //const char *mesh_file = "../data/star.mesh";
    const char *mesh_file = "../data/beam-hex.mesh";
 
-   int order = 3;
+   int order = 1;
    bool static_cond = false;
    bool pa = false;
    bool amgx = true;
@@ -126,7 +126,7 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
-      int ref_levels = 3;
+      int ref_levels = 1;
       //(int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
@@ -140,7 +140,7 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
-      int par_ref_levels = 2;
+      int par_ref_levels = 1;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();
@@ -246,12 +246,13 @@ int main(int argc, char *argv[])
       std::string amgx_str;
       amgx_str = amgx_cfg;
       NvidiaAMGX amgx;
-      amgx.Init(MPI_COMM_WORLD, "dDDI", amgx_str);
+      //amgx.Init(MPI_COMM_WORLD, "dDDI", amgx_str);
+      amgx.initialize_new(MPI_COMM_WORLD, "dDDI", amgx_str);
 
       amgx.SetA(A);
 
       X = 0.0; //set to zero
-      amgx.Solve(X, B);
+      //amgx.Solve(X, B);
 #endif
    }
    else
