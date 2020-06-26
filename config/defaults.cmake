@@ -54,7 +54,6 @@ option(MFEM_USE_ADIOS2 "Enable ADIOS2" OFF)
 option(MFEM_USE_ADEPT "Enable AD using ADEPT"   OFF)
 option(MFEM_USE_CODIPACK "Enable AD using CoDiPack" OFF)
 
-
 set(MFEM_MPI_NP 4 CACHE STRING "Number of processes used for MPI tests")
 
 # Allow a user to disable testing, examples, and/or miniapps at CONFIGURE TIME

@@ -23,11 +23,14 @@
 #include "../linalg/taddensemat.hpp"
 #include "../linalg/fdual.hpp"
 
-#ifdef MFEM_USE_ADEPT
+#if defined MFEM_USE_ADEPT
 #include <adept.h>
-#elif  MFEM_USE_CODIPACK
+#elif defined  MFEM_USE_CODIPACK
 #include <codi.hpp>
 #endif
+
+//define Forward AD mode
+//#define MFEM_USE_ADFORWARD
 
 namespace mfem
 {
@@ -43,14 +46,20 @@ class ADQIntegratorJ
 #endif
 
   public:
-#ifdef MFEM_USE_ADEPT
+#if defined MFEM_USE_ADEPT
     typedef adept::adouble 			   ADFType;
     typedef TADVector<ADFType>         ADFVector;
     typedef TADDenseMatrix<ADFType>    ADFDenseMatrix;
-#elif  MFEM_USE_CODIPACK
+#elif defined MFEM_USE_CODIPACK
+#if defined MFEM_USE_ADFORWARD
     typedef codi::RealForward 		   ADFType;
     typedef TADVector<ADFType>         ADFVector;
     typedef TADDenseMatrix<ADFType>    ADFDenseMatrix;
+#else
+    typedef codi::RealReverse 		   ADFType;
+    typedef TADVector<ADFType>         ADFVector;
+    typedef TADDenseMatrix<ADFType>    ADFDenseMatrix;
+#endif
 #else
     typedef mfem::ad::FDual<double>    ADFType;
     typedef TADVector<ADFType>         ADFVector;
@@ -80,6 +89,27 @@ class ADQIntegratorJ
 class ADQIntegratorH
 {
   public:
+#if defined MFEM_USE_CODIPACK
+#if defined MFEM_USE_ADFORWARD
+    //use forward mode for both the first and the second derivatives
+    typedef codi::RealForwardGen<double> ADFType;
+    typedef TADVector<ADFType>        	 ADFVector;
+    typedef TADDenseMatrix<ADFType>    	 ADFDenseMatrix;
+
+    typedef codi::RealForwardGen<ADFType> 	ADSType;
+    typedef TADVector<ADSType>         		ADSVector;
+    typedef TADDenseMatrix<ADSType>    		ADSDenseMatrix;
+#else
+    //use mixed forward and reverse mode
+    typedef codi::RealForwardGen<double> ADFType;
+    typedef TADVector<ADFType>        	 ADFVector;
+    typedef TADDenseMatrix<ADFType>    	 ADFDenseMatrix;
+
+    typedef codi::RealReverseGen<ADFType>   ADSType;
+    typedef TADVector<ADSType>         		ADSVector;
+    typedef TADDenseMatrix<ADSType>    		ADSDenseMatrix;
+#endif
+#else
     typedef mfem::ad::FDual<double>    ADFType;
     typedef TADVector<ADFType>         ADFVector;
     typedef TADDenseMatrix<ADFType>    ADFDenseMatrix;
@@ -87,6 +117,7 @@ class ADQIntegratorH
     typedef mfem::ad::FDual<ADFType>   ADSType;
     typedef TADVector<ADSType>         ADSVector;
     typedef TADDenseMatrix<ADSType>    ADSDenseMatrix;
+#endif
 
     ADQIntegratorH(){}
 

@@ -65,6 +65,8 @@ if (MFEM_USE_MPI)
     ex25p.cpp
     ex26p.cpp
     ex27p.cpp
+    ex71p.cpp
+    ex72p.cpp
     )
 endif()
 
