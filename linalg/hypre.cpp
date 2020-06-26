@@ -1905,22 +1905,12 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
 #else
                   const HYPRE_Int bcol = csr_blocks(i, j)->j[osk + l];
 #endif
-                  int bcolproc = 0;
 
-                  // TODO: use binary search to find bcolproc, e.g. using
-                  //       std::upper_bound.
-                  for (int p = 1; p < nprocs; ++p)
-                  {
-                     if (blockColProcOffsets[j][p] > bcol)
-                     {
-                        bcolproc = p - 1;
-                        break;
-                     }
-                  }
-                  if (blockColProcOffsets[j][nprocs - 1] <= bcol)
-                  {
-                     bcolproc = nprocs - 1;
-                  }
+                  // find the processor 'bcolproc' that holds column 'bcol':
+                  const auto &offs = blockColProcOffsets[j];
+                  const int bcolproc =
+                     std::upper_bound(offs.begin() + 1, offs.end(), bcol)
+                     - offs.begin() - 1;
 
                   opJ[opI[rowg] + cnt[rowg]] = procColOffsets[bcolproc] +
                                                procBlockColOffsets[bcolproc][j]
