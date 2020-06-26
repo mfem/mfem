@@ -78,13 +78,15 @@ double compare_pa_assembly(int dim, int num_elements, int order)
 
 TEST_CASE("PAGradient", "PAGradient")
 {
-   for (int num_elements = 1; num_elements < 5; ++num_elements)
+   for (int dim = 2; dim < 4; ++dim)
    {
-      for (int order = 2; order < 5; ++order)
+      for (int num_elements = 1; num_elements < 5; ++num_elements)
       {
-         const int dim = 2;
-         double error = compare_pa_assembly(dim, num_elements, order);
-         REQUIRE(error < 1.e-12);
+         for (int order = 2; order < 5; ++order)
+         {
+            double error = compare_pa_assembly(dim, num_elements, order);
+            REQUIRE(error < 1.e-14);
+         }
       }
    }
 }

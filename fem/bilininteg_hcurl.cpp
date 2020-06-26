@@ -1989,36 +1989,20 @@ static void PAHcurlH1Apply3D(const int D1D,
 
 // Apply to x corresponding to DOF's in H^1 (trial) the (topological) gradient
 // to get a dof in H(curl) (test, kinda, but there's no integration)
-// see high-order/element-tensor/TensorNedelec.cpp : TensorGradMult
-// see also PAHcurlH1Apply2D below
-
-// nothing in this kernel is actually correct, so future me should feel
-// free to go through wholesale, renumber and reindex everything, etc.
-
-// in particular, I'm not sure the Bc and Gc I am getting here are the ones
-// I want (better now?)
-
-// so _Bc comes from
-
 static void PAHcurlApplyGradient2D(const int c_dofs1D,
                                    const int o_dofs1D,
                                    const int NE,
                                    const Array<double> &_B,
                                    const Array<double> &_G,
-                                   const Vector &_orientations,
                                    const Vector &_x,
                                    Vector &_y)
 {
    std::cout << "PAHcurlApplyGradient2D [kernel]" << std::endl;
 
-   // okay, here we are with maybe some appropriate data
    auto B = Reshape(_B.Read(), c_dofs1D, c_dofs1D);
    auto G = Reshape(_G.Read(), o_dofs1D, c_dofs1D);
-   // const int ned_dofs_per_elem = (dim == 2) ? (2 * o_dofs1d * c_dofs1D) :
-   //   (3 * o_dofs1d * c_dofs1d * c_dofs1d);
-   const int ned_dofs_per_elem = (2 * o_dofs1D * c_dofs1D);
+   // const int ned_dofs_per_elem = (2 * o_dofs1D * c_dofs1D);
 
-   auto orientations = Reshape(_orientations.Read(), ned_dofs_per_elem, NE);
    auto x = Reshape(_x.Read(), c_dofs1D, c_dofs1D, NE);
    auto y = Reshape(_y.ReadWrite(), 2 * c_dofs1D * o_dofs1D, NE);
 
@@ -2082,6 +2066,35 @@ static void PAHcurlApplyGradient2D(const int c_dofs1D,
       }  
    });
 
+}
+
+static void PAHcurlApplyGradient3D(const int c_dofs1D,
+                                   const int o_dofs1D,
+                                   const int NE,
+                                   const Array<double> &_B,
+                                   const Array<double> &_G,
+                                   const Vector &_x,
+                                   Vector &_y)
+{
+   std::cout << "PAHcurlApplyGradient3D [kernel]" << std::endl;
+
+   auto B = Reshape(_B.Read(), c_dofs1D, c_dofs1D);
+   auto G = Reshape(_G.Read(), o_dofs1D, c_dofs1D);
+   const int ned_dofs_per_elem = (3 * o_dofs1D * c_dofs1D * c_dofs1D);
+
+   auto x = Reshape(_x.Read(), c_dofs1D, c_dofs1D, NE);
+   auto y = Reshape(_y.ReadWrite(), 2 * c_dofs1D * o_dofs1D, NE);
+
+   Vector hwork(c_dofs1D * c_dofs1D);
+   auto hw = Reshape(hwork.ReadWrite(), c_dofs1D, c_dofs1D);
+
+   Vector vwork(c_dofs1D * o_dofs1D);
+   auto vw = Reshape(vwork.ReadWrite(), c_dofs1D, o_dofs1D);
+
+   MFEM_FORALL(e, NE,
+   {
+   });
+   mfem_error("3D not implemented yet!");
 }
 
 
@@ -2411,12 +2424,6 @@ void GradientInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
    // pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
 
    /*
-   Vector coeff(ne * nq);
-   coeff = 1.0;
-   // no coefficient in this topological gradient, so if (Q) block removed
-   // (except I do need orientations of the Nedelec dofs, where do they come from?)
-   */
-
    const int ned_dofs_per_elem = (dim == 2) ? (2 * o_dofs1D * c_dofs1D) :
       (3 * o_dofs1D * c_dofs1D * c_dofs1D);
    orientations.SetSize(ne * ned_dofs_per_elem);
@@ -2427,6 +2434,7 @@ void GradientInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
       BuildOrientations2D(order + 1, *trial_fes.GetElementTransformation(e),
                           orientations.GetData() + (e * ned_dofs_per_elem));
    }
+   */
 
    // not sure what I'm trying to accomplish here;
    // think the original idea was these routines would *fill*
@@ -2464,16 +2472,13 @@ void GradientInterpolator::AddMultPA(const Vector &x, Vector &y) const
    else if (dim == 2)
    {
       // mapsC, mapsO are open/closed points
-      /*
-      PAHcurlH1Apply2D(dofs1D, quad1D, ne, mapsC->B, mapsC->G,
-                       mapsO->Bt, mapsC->Bt, pa_data, x, y);
-      */
       PAHcurlApplyGradient2D(c_dofs1D, o_dofs1D, ne, maps_C_C->B, maps_O_C->G,
-                             orientations, x, y);
+                             x, y);
    }
    else
-   {
-      MFEM_ABORT("Unsupported dimension!");
+   { 
+      PAHcurlApplyGradient3D(c_dofs1D, o_dofs1D, ne, maps_C_C->B, maps_O_C->G,
+                             x, y);
    }
 }
 
