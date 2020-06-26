@@ -40,6 +40,45 @@ namespace mfem
 namespace kernels
 {
 
+/// Compute the square of the Euclidean distance to another vector
+template<int DIM>
+MFEM_HOST_DEVICE inline double DistanceSquared(const double *x, const double *y)
+{
+   double d = 0.0;
+   for (int i = 0; i < DIM; i++) { d += (x[i]-y[i])*(x[i]-y[i]); }
+   return d;
+}
+
+/// Creates n x n diagonal matrix with diagonal elements c
+template<int DIM>
+MFEM_HOST_DEVICE inline void Diag(const double c, double *data)
+{
+   const int N = DIM*DIM;
+   for (int i = 0; i < N; i++) { data[i] = 0.0; }
+   for (int i = 0; i < DIM; i++) { data[i*(DIM+1)] = c; }
+}
+
+/// Vector subtraction operation: z = a * (x - y)
+template<int DIM>
+MFEM_HOST_DEVICE inline void Subtract(const double a,
+                                      const double *x, const double *y,
+                                      double *z)
+{
+   for (int i = 0; i < DIM; i++) { z[i] = a * (x[i] - y[i]); }
+}
+
+/// Dense matrix operation: VWt += v w^t
+template<int DIM>
+MFEM_HOST_DEVICE inline void AddMultVWt(const double *v, const double *w,
+                                        double *VWt)
+{
+   for (int i = 0; i < DIM; i++)
+   {
+      const double vi = v[i];
+      for (int j = 0; j < DIM; j++) { VWt[i*DIM+j] += vi * w[j]; }
+   }
+}
+
 template<int H, int W, typename T>
 MFEM_HOST_DEVICE inline
 void FNorm(double &scale_factor, double &scaled_fnorm2, const T *data)

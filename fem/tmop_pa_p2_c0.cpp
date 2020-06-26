@@ -12,11 +12,8 @@
 #include "tmop.hpp"
 #include "tmop_pa.hpp"
 #include "linearform.hpp"
-#include "pgridfunc.hpp"
-#include "tmop_tools.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
-#include "../linalg/dinvariants.hpp"
 
 namespace mfem
 {

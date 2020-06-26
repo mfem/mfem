@@ -11,11 +11,9 @@
 
 #include "tmop.hpp"
 #include "tmop_pa.hpp"
-#include "linearform.hpp"
 #include "tmop_tools.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
-#include "../linalg/dtensor.hpp"
 
 namespace mfem
 {
