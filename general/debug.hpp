@@ -73,6 +73,7 @@ public:
          {
             fmt++;
             const char c = *fmt;
+            if (c == 'p') { operator<<(arg); }
             if (c == 's' || c == 'd' || c == 'f') { operator<<(arg); }
             if (c == '.')
             {
