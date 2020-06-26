@@ -175,6 +175,15 @@ public:
        @note This method does not perform assembly. */
    void Update(FiniteElementSpace *f, Vector &v, int v_offset);
 
+   /** @brief Make the LinearForm reference external data on a new
+       FiniteElementSpace. */
+   /** This method changes the FiniteElementSpace associated with the
+       LinearForm and sets the data of the Vector @a v (plus the @a v_offset)
+       as external data in the LinearForm.
+       @note This version of the method will also perform bounds checks when
+       the build option MFEM_DEBUG is enabled. */
+   virtual void MakeRef(FiniteElementSpace *f, Vector &v, int v_offset);
+
    /// Return the action of the LinearForm as a linear mapping.
    /** Linear forms are linear functionals which map GridFunctions to
        the real numbers.  This method performs this mapping which in

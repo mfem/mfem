@@ -47,7 +47,9 @@ ComplexGridFunction::Update()
 
       // Our data array now contains old data as well as being the wrong size so
       // reallocate it.
+      UseDevice(true);
       this->SetSize(2 * vsize);
+      this->Vector::operator=(0.0);
 
       // Create temporary vectors which point to the new data array
       Vector gf_r; gf_r.MakeRef(*this, 0, vsize);
@@ -68,7 +70,9 @@ ComplexGridFunction::Update()
    {
       // The existing data will not be transferred to the new GridFunctions so
       // delete it and allocate a new array
+      UseDevice(true);
       this->SetSize(2 * vsize);
+      this->Vector::operator=(0.0);
 
       // Point the individual GridFunctions to the new data array
       gfr->MakeRef(*this, 0, vsize);
@@ -147,24 +151,19 @@ ComplexGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient
 }
 
 
-ComplexLinearForm::ComplexLinearForm(FiniteElementSpace *f,
+ComplexLinearForm::ComplexLinearForm(FiniteElementSpace *fes,
                                      ComplexOperator::Convention convention)
-   : Vector(2*(f->GetVSize())),
+   : Vector(2*(fes->GetVSize())),
      conv(convention)
 {
-   // TODO: not device compatible yet
    UseDevice(true);
+   this->Vector::operator=(0.0);
 
-   //lfr = new LinearForm();
-   //lfr->SetFiniteElementSpace(f);
-   //lfr->MakeRef(*this, 0, f->GetVSize());
+   lfr = new LinearForm();
+   lfr->MakeRef(fes, *this, 0);
 
-   //lfi = new LinearForm();
-   //lfi->SetFiniteElementSpace(f);
-   //lfi->MakeRef(*this, f->GetVSize(), f->GetVSize());
-
-   lfr = new LinearForm(f, data);
-   lfi = new LinearForm(f, &data[f->GetVSize()]);
+   lfi = new LinearForm();
+   lfi->MakeRef(fes, *this, fes->GetVSize());
 }
 
 ComplexLinearForm::ComplexLinearForm(FiniteElementSpace *fes,
@@ -173,8 +172,14 @@ ComplexLinearForm::ComplexLinearForm(FiniteElementSpace *fes,
    : Vector(2*(fes->GetVSize())),
      conv(convention)
 {
-   lfr = new LinearForm(fes, lf_r);  lfr->SetData(data);
-   lfi = new LinearForm(fes, lf_i);  lfi->SetData(&data[fes->GetVSize()]);
+   UseDevice(true);
+   this->Vector::operator=(0.0);
+
+   lfr = new LinearForm(fes, lf_r);
+   lfi = new LinearForm(fes, lf_i);
+
+   lfr->MakeRef(fes, *this, 0);
+   lfi->MakeRef(fes, *this, fes->GetVSize());
 }
 
 ComplexLinearForm::~ComplexLinearForm()
@@ -229,35 +234,30 @@ void
 ComplexLinearForm::Update()
 {
    FiniteElementSpace *fes = lfr->FESpace();
-
    this->Update(fes);
 }
 
 void
 ComplexLinearForm::Update(FiniteElementSpace *fes)
 {
-   // TODO: Not device compatible yet
-   std::cout << "ComplexLinearForm::Update not device compatible" << std::endl;
+   UseDevice(true);
+   SetSize(2 * fes->GetVSize());
+   this->Vector::operator=(0.0);
 
-   int vsize = fes->GetVSize();
-   SetSize(2 * vsize);
-
-   Vector vlfr(data, vsize);
-   Vector vlfi((data) ? &data[vsize] : data, vsize);
-
-   lfr->Update(fes, vlfr, 0);
-   lfi->Update(fes, vlfi, 0);
+   lfr->MakeRef(fes, *this, 0);
+   lfi->MakeRef(fes, *this, fes->GetVSize());
 }
 
 void
 ComplexLinearForm::Assemble()
 {
+   lfr->SyncMemory(*this);
+   lfi->SyncMemory(*this);
    lfr->Assemble();
    lfi->Assemble();
-   if (conv == ComplexOperator::BLOCK_SYMMETRIC)
-   {
-      *lfi *= -1.0;
-   }
+   if (conv == ComplexOperator::BLOCK_SYMMETRIC) { *lfi *= -1.0; }
+   lfr->SyncAliasMemory(*this);
+   lfi->SyncAliasMemory(*this);
 }
 
 complex<double>
