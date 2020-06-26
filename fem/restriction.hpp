@@ -49,6 +49,10 @@ public:
 
    /// Compute MultTranspose without applying signs based on DOF orientations.
    void MultTransposeUnsigned(const Vector &x, Vector &y) const;
+
+   /// Compute MultTranspose by setting (rather than adding) element
+   /// contributions
+   void MultTransposeOverwrite(const Vector &x, Vector &y) const;
 };
 
 /// Operator that converts L2 FiniteElementSpace L-vectors to E-vectors.

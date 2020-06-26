@@ -543,11 +543,17 @@ void PADiscreteLinearOperatorExtension::AddMult(
    /// may be tricky
 
    // * G^T operation
-   if (elem_restrict_test)
+   const ElementRestriction* elem_restrict =
+      dynamic_cast<const ElementRestriction*>(elem_restrict_test);
+   if (elem_restrict)
    {
       tempY.SetSize(y.Size());
-      elem_restrict_test->MultTranspose(localTest, tempY);
+      elem_restrict->MultTransposeOverwrite(localTest, tempY);
       y += tempY;
+   }
+   else
+   {
+      mfem_error("In this setting you need a real ElementRestriction!");
    }
 }
 
