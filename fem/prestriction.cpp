@@ -343,7 +343,7 @@ void ParL2FaceRestriction::FillI(SparseMatrix &mat,
    auto d_indices2 = scatter_indices2.Read();
    auto I = mat.ReadWriteI();
    auto I_face = face_mat.ReadWriteI();
-   MFEM_FORALL(i, Ndofs,
+   MFEM_FORALL(i, ne*elemDofs*vdim+1,
    {
       I_face[i] = 0;
    });

@@ -617,8 +617,8 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 // Data and methods for fully-assembled bilinear forms
 FABilinearFormExtension::FABilinearFormExtension(BilinearForm *form)
    : EABilinearFormExtension(form),
-     mat(form->FESpace()->GetVSize()),
-     face_mat(form->FESpace()->GetVSize()),
+     mat(form->FESpace()->GetVSize(),form->FESpace()->GetVSize(),0),
+     face_mat(form->FESpace()->GetVSize(),0,0),
      use_face_mat(false)
 {
 #ifdef MFEM_USE_MPI
@@ -645,13 +645,7 @@ void FABilinearFormExtension::Assemble()
          static_cast<const L2ElementRestriction*>(elem_restrict);
       const L2FaceRestriction *restF =
          static_cast<const L2FaceRestriction*>(int_face_restrict_lex);
-      //1. Fill I
-      mat.GetMemoryI().New(mat.Height()+1, mat.GetMemoryI().GetMemoryType());
-      if (use_face_mat)
-      {
-         face_mat.GetMemoryI().New(face_mat.Height()+1,
-                                   face_mat.GetMemoryI().GetMemoryType());
-      }
+      // 1. Fill I
       //  1.1 Increment with restE
       restE->FillI(mat);
       //  1.2 Increment with restF
