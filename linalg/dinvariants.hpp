@@ -25,6 +25,33 @@ namespace kernels
 
 class InvariantsEvaluator2D
 {
+public:
+   class Buffers
+   {
+      friend class InvariantsEvaluator2D;
+   private:
+      const double * J_ = nullptr;
+      double * dI1_ = nullptr;
+      double * dI1b_ = nullptr;
+      double * ddI1_ = nullptr;
+      double * ddI1b_ = nullptr;
+      double * dI2_ = nullptr;
+      double * dI2b_ = nullptr;
+      double * ddI2_ = nullptr;
+      double * ddI2b_ = nullptr;
+   public:
+      MFEM_HOST_DEVICE Buffers() {}
+      MFEM_HOST_DEVICE Buffers &J(const double *b) { J_     = b; return *this; }
+      MFEM_HOST_DEVICE Buffers &dI1(double *b)     { dI1_   = b; return *this; }
+      MFEM_HOST_DEVICE Buffers &dI1b(double *b)    { dI1b_  = b; return *this; }
+      MFEM_HOST_DEVICE Buffers &ddI1(double *b)    { ddI1_  = b; return *this; }
+      MFEM_HOST_DEVICE Buffers &ddI1b(double *b)   { ddI1b_ = b; return *this; }
+      MFEM_HOST_DEVICE Buffers &dI2(double *b)     { dI2_   = b; return *this; }
+      MFEM_HOST_DEVICE Buffers &dI2b(double *b)    { dI2b_  = b; return *this; }
+      MFEM_HOST_DEVICE Buffers &ddI2(double *b)    { ddI2_  = b; return *this; }
+      MFEM_HOST_DEVICE Buffers &ddI2b(double *b)   { ddI2b_ = b; return *this; }
+   };
+
 private:
    double const * const J;
    double * const dI1, * const dI1b, * const ddI1, * const ddI1b;
@@ -32,18 +59,10 @@ private:
 
 public:
    MFEM_HOST_DEVICE
-   InvariantsEvaluator2D(const double *J,
-                         double *dI1, double *dI1b, double *ddI1, double *ddI1b,
-                         double *dI2, double *dI2b, double *ddI2, double *ddI2b):
-      J(J),
-      dI1(dI1), dI1b(dI1b), ddI1(ddI1), ddI1b(ddI1b),
-      dI2(dI2), dI2b(dI2b), ddI2(ddI2), ddI2b(ddI2b) { }
-
-   MFEM_HOST_DEVICE
-   InvariantsEvaluator2D(const double *J):
-      J(J),
-      dI1(nullptr), dI1b(nullptr), ddI1(nullptr), ddI1b(nullptr),
-      dI2(nullptr), dI2b(nullptr), ddI2(nullptr), ddI2b(nullptr) { }
+   InvariantsEvaluator2D(Buffers b):
+      J(b.J_),
+      dI1(b.dI1_), dI1b(b.dI1b_), ddI1(b.ddI1_), ddI1b(b.ddI1b_),
+      dI2(b.dI2_), dI2b(b.dI2b_), ddI2(b.ddI2_), ddI2b(b.ddI2b_) { }
 
    MFEM_HOST_DEVICE inline double Get_I2b(double &sign_detJ) // det(J) + sign
    {
@@ -235,6 +254,39 @@ public:
 
 class InvariantsEvaluator3D
 {
+public:
+   class Buffers
+   {
+      friend class InvariantsEvaluator3D;
+   private:
+      const double * J_ = nullptr;
+      double * B_ = nullptr;
+      double * dI1_ = nullptr;
+      double * dI1b_ = nullptr;
+      double * ddI1_ = nullptr;
+      double * ddI1b_ = nullptr;
+      double * dI2_ = nullptr;
+      double * dI2b_ = nullptr;
+      double * ddI2_ = nullptr;
+      double * ddI2b_ = nullptr;
+      double * dI3b_ = nullptr;
+      double * ddI3b_ = nullptr;
+   public:
+      MFEM_HOST_DEVICE Buffers() {}
+      MFEM_HOST_DEVICE Buffers &J(const double *b) { J_     = b; return *this; }
+      MFEM_HOST_DEVICE Buffers &B(double *b)       { B_     = b; return *this; }
+      MFEM_HOST_DEVICE Buffers &dI1(double *b)     { dI1_   = b; return *this; }
+      MFEM_HOST_DEVICE Buffers &dI1b(double *b)    { dI1b_  = b; return *this; }
+      MFEM_HOST_DEVICE Buffers &ddI1(double *b)    { ddI1_  = b; return *this; }
+      MFEM_HOST_DEVICE Buffers &ddI1b(double *b)   { ddI1b_ = b; return *this; }
+      MFEM_HOST_DEVICE Buffers &dI2(double *b)     { dI2_   = b; return *this; }
+      MFEM_HOST_DEVICE Buffers &dI2b(double *b)    { dI2b_  = b; return *this; }
+      MFEM_HOST_DEVICE Buffers &ddI2(double *b)    { ddI2_  = b; return *this; }
+      MFEM_HOST_DEVICE Buffers &ddI2b(double *b)   { ddI2b_ = b; return *this; }
+      MFEM_HOST_DEVICE Buffers &dI3b(double *b)    { dI3b_  = b; return *this; }
+      MFEM_HOST_DEVICE Buffers &ddI3b(double *b)   { ddI3b_ = b; return *this; }
+   };
+
 private:
    double const * const J;
    double * const B;
@@ -244,21 +296,11 @@ private:
 
 public:
    MFEM_HOST_DEVICE
-   InvariantsEvaluator3D(const double *J, double *B,
-                         double *dI1, double *dI1b, double *ddI1, double *ddI1b,
-                         double *dI2, double *dI2b, double *ddI2, double *ddI2b,
-                         double *dI3b, double *ddI3b):
-      J(J), B(B),
-      dI1(dI1), dI1b(dI1b), ddI1(ddI1), ddI1b(ddI1b),
-      dI2(dI2), dI2b(dI2b), ddI2(ddI2), ddI2b(ddI2b),
-      dI3b(dI3b), ddI3b(ddI3b) { }
-
-   MFEM_HOST_DEVICE
-   InvariantsEvaluator3D(const double *J, double *B):
-      J(J), B(B),
-      dI1(nullptr), dI1b(nullptr), ddI1(nullptr), ddI1b(nullptr),
-      dI2(nullptr), dI2b(nullptr), ddI2(nullptr), ddI2b(nullptr),
-      dI3b(nullptr), ddI3b(nullptr) { }
+   InvariantsEvaluator3D(Buffers b):
+      J(b.J_), B(b.B_),
+      dI1(b.dI1_), dI1b(b.dI1b_), ddI1(b.ddI1_), ddI1b(b.ddI1b_),
+      dI2(b.dI2_), dI2b(b.dI2b_), ddI2(b.ddI2_), ddI2b(b.ddI2b_),
+      dI3b(b.dI3b_), ddI3b(b.ddI3b_) { }
 
    MFEM_HOST_DEVICE inline double Get_I3b(double &sign_detJ) // det(J) + sign
    {

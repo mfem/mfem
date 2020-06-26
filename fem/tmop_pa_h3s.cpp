@@ -18,6 +18,8 @@
 namespace mfem
 {
 
+using Args = kernels::InvariantsEvaluator3D::Buffers;
+
 // dP_302 = (dI2b*dI1b + dI1b*dI2b)/9 + (I1b/9)*ddI2b + (I2b/9)*ddI1b
 static MFEM_HOST_DEVICE inline
 void EvalH_302(const int e, const int qx, const int qy, const int qz,
@@ -28,10 +30,11 @@ void EvalH_302(const int e, const int qx, const int qy, const int qz,
    double dI2[9], dI2b[9], ddI2[9], ddI2b[9];
    double dI3b[9];
    constexpr int DIM = 3;
-   kernels::InvariantsEvaluator3D ie(J, B,
-                                     nullptr, dI1b, nullptr, ddI1b,
-                                     dI2, dI2b,    ddI2, ddI2b,
-                                     dI3b, nullptr);
+   kernels::InvariantsEvaluator3D ie(Args()
+                                     .J(J).B(B)
+                                     .dI1b(dI1b).ddI1b(ddI1b)
+                                     .dI2(dI2).dI2b(dI2b).ddI2(ddI2).ddI2b(ddI2b)
+                                     .dI3b(dI3b));
    const double c1 = weight/9.;
    const double I1b = ie.Get_I1b();
    const double I2b = ie.Get_I2b();
@@ -68,10 +71,11 @@ void EvalH_303(const int e, const int qx, const int qy, const int qz,
    double dI2[9], dI2b[9], ddI2[9], ddI2b[9];
    double dI3b[9], ddI3b[9];
    constexpr int DIM = 3;
-   kernels::InvariantsEvaluator3D ie(J, B,
-                                     nullptr, dI1b, ddI1, ddI1b,
-                                     dI2, dI2b, ddI2, ddI2b,
-                                     dI3b, ddI3b);
+   kernels::InvariantsEvaluator3D ie(Args()
+                                     .J(J).B(B)
+                                     .dI1b(dI1b).ddI1(ddI1).ddI1b(ddI1b)
+                                     .dI2(dI2).dI2b(dI2b).ddI2(ddI2).ddI2b(ddI2b)
+                                     .dI3b(dI3b).ddI3b(ddI3b));
    const double c1 = weight/3.;
    for (int i = 0; i < DIM; i++)
    {
@@ -103,10 +107,11 @@ void EvalH_321(const int e, const int qx, const int qy, const int qz,
    double dI2[9], dI2b[9], ddI2[9], ddI2b[9];
    double dI3b[9], ddI3b[9];
    constexpr int DIM = 3;
-   kernels::InvariantsEvaluator3D ie(J, B,
-                                     nullptr, dI1b, ddI1, ddI1b,
-                                     dI2, dI2b, ddI2, ddI2b,
-                                     dI3b, ddI3b);
+   kernels::InvariantsEvaluator3D ie(Args()
+                                     .J(J).B(B)
+                                     .dI1b(dI1b).ddI1(ddI1).ddI1b(ddI1b)
+                                     .dI2(dI2).dI2b(dI2b).ddI2(ddI2).ddI2b(ddI2b)
+                                     .dI3b(dI3b).ddI3b(ddI3b));
    double sign_detJ;
    const double I2 = ie.Get_I2();
    const double I3b = ie.Get_I3b(sign_detJ);

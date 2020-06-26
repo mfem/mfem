@@ -19,12 +19,14 @@
 namespace mfem
 {
 
+using Args = kernels::InvariantsEvaluator3D::Buffers;
+
 // mu_302 = I1b * I2b / 9 - 1
 static MFEM_HOST_DEVICE inline
 double EvalW_302(const double *J)
 {
    double B[9];
-   kernels::InvariantsEvaluator3D ie(J,B);
+   kernels::InvariantsEvaluator3D ie(Args().J(J).B(B));
    return ie.Get_I1b()*ie.Get_I2b()/9. - 1.;
 }
 
@@ -33,7 +35,7 @@ static MFEM_HOST_DEVICE inline
 double EvalW_303(const double *J)
 {
    double B[9];
-   kernels::InvariantsEvaluator3D ie(J,B);
+   kernels::InvariantsEvaluator3D ie(Args().J(J).B(B));
    return ie.Get_I1b()/3. - 1.;
 }
 
@@ -42,7 +44,7 @@ static MFEM_HOST_DEVICE inline
 double EvalW_321(const double *J)
 {
    double B[9];
-   kernels::InvariantsEvaluator3D ie(J,B);
+   kernels::InvariantsEvaluator3D ie(Args().J(J).B(B));
    return ie.Get_I1() + ie.Get_I2()/ie.Get_I3() - 6.0;
 }
 

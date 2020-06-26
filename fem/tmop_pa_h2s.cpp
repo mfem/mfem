@@ -18,6 +18,8 @@
 namespace mfem
 {
 
+using Args = kernels::InvariantsEvaluator2D::Buffers;
+
 // weight * ddI1
 static MFEM_HOST_DEVICE inline
 void EvalH_001(const int e, const int qx, const int qy,
@@ -26,9 +28,7 @@ void EvalH_001(const int e, const int qx, const int qy,
 {
    constexpr int DIM = 2;
    double ddI1[4];
-   kernels::InvariantsEvaluator2D ie(Jpt,
-                                     nullptr, nullptr, ddI1, nullptr,
-                                     nullptr, nullptr, nullptr, nullptr);
+   kernels::InvariantsEvaluator2D ie(Args().J(Jpt).ddI1(ddI1));
    for (int i = 0; i < DIM; i++)
    {
       for (int j = 0; j < DIM; j++)
@@ -54,9 +54,11 @@ void EvalH_002(const int e, const int qx, const int qy,
 {
    constexpr int DIM = 2;
    double ddI1[4], ddI1b[4], dI2b[4];
-   kernels::InvariantsEvaluator2D ie(Jpt,
-                                     nullptr, nullptr, ddI1, ddI1b,
-                                     nullptr, dI2b, nullptr, nullptr);
+   kernels::InvariantsEvaluator2D ie(Args()
+                                     .J(Jpt)
+                                     .ddI1(ddI1)
+                                     .ddI1b(ddI1b)
+                                     .dI2b(dI2b));
    const double w = 0.5 * weight;
    for (int i = 0; i < DIM; i++)
    {
