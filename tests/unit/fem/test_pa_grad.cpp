@@ -55,6 +55,15 @@ double compare_pa_assembly(int dim, int num_elements, int order)
    assembled_grad_mat.Mult(xv, assembled_y);
    pa_grad.Mult(xv, pa_y);
 
+   if (false)
+   {
+      std::cout << "true   \tpa\n";
+      for (int i = 0; i < assembled_y.Size(); ++i)
+      {
+         std::cout << i << " : " << assembled_y(i) << "\t" << pa_y(i) << std::endl;
+      }
+   }
+
    pa_y -= assembled_y;
    double error = pa_y.Norml2() / assembled_y.Norml2();
    std::cout << "dim " << dim << " ne " << num_elements << " order "

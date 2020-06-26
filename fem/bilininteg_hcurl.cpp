@@ -2028,7 +2028,7 @@ static void PAHcurlApplyGradient2D(const int c_dofs1D,
    Vector vwork(c_dofs1D * o_dofs1D);
    auto vw = Reshape(vwork.ReadWrite(), c_dofs1D, o_dofs1D);
    MFEM_FORALL(e, NE,
-   {      
+   {
       // horizontal part
       for (int dx = 0; dx < c_dofs1D; ++dx)
       {
@@ -2048,9 +2048,9 @@ static void PAHcurlApplyGradient2D(const int c_dofs1D,
          {
             for (int dx = 0; dx < c_dofs1D; ++dx)
             {
-               // orientations!  (probably the issue with multiple elements)
                const int local_index = ey*o_dofs1D + ex;
-               y(local_index, e) += G(ex, dx) * hw(dx, ey);
+               // y(local_index, e) += orientations(local_index, e) * G(ex, dx) * hw(dx, ey);
+               y(local_index, e) += 1.0 * G(ex, dx) * hw(dx, ey);
             }
          }
       }
@@ -2074,9 +2074,9 @@ static void PAHcurlApplyGradient2D(const int c_dofs1D,
          {
             for (int dx = 0; dx < c_dofs1D; ++dx)
             {
-               // orientations!
                const int local_index = c_dofs1D * o_dofs1D + ey*c_dofs1D + ex;
-               y(local_index, e) += B(ex, dx) * vw(dx, ey);
+               // y(local_index, e) += orientations(local_index, e) * B(ex, dx) * vw(dx, ey);
+               y(local_index, e) += 1.0 * B(ex, dx) * vw(dx, ey);
             }
          }
       }  
@@ -2322,7 +2322,6 @@ void BuildOrientations2D(int ndof, ElementTransformation& trans, double* orienta
 
    // first, the horizontal dofs
    // the ordering below is tensor horizontal, tensor vertical
-
    Array<int> dof2orientation;
    BuildDof2Orientation2D(order, dof2orientation);
    int o = 0;
