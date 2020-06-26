@@ -446,7 +446,9 @@ public:
    /// Add a grid function to the collection and update the root file
    virtual void RegisterField(const std::string& field_name, GridFunction *gf);
 
-   /// Add a quadrature function to the collection and update the root file
+   /// Add a quadrature function to the collection and update the root file.
+   /** Visualisation of quadrature function is not supported in VisIt(3.12).
+       A patch has been sent to VisIt developers in June 2020. */
    virtual void RegisterQField(const std::string& q_field_name,
                                QuadratureFunction *qf);
 
