@@ -34,8 +34,7 @@ void
 ComplexGridFunction::Update()
 {
    FiniteElementSpace *fes = gfr->FESpace();
-
-   int vsize = fes->GetVSize();
+   const int vsize = fes->GetVSize();
 
    const Operator *T = fes->GetUpdateOperator();
    if (T)
@@ -634,16 +633,21 @@ SesquilinearForm::Update(FiniteElementSpace *nfes)
 ParComplexGridFunction::ParComplexGridFunction(ParFiniteElementSpace *pfes)
    : Vector(2*(pfes->GetVSize()))
 {
-   pgfr = new ParGridFunction(pfes, data);
-   pgfi = new ParGridFunction(pfes, (data) ? &data[pfes->GetVSize()]:data);
+   UseDevice(true);
+   this->Vector::operator=(0.0);
+
+   pgfr = new ParGridFunction();
+   pgfr->MakeRef(pfes, *this, 0);
+
+   pgfi = new ParGridFunction();
+   pgfi->MakeRef(pfes, *this, pfes->GetVSize());
 }
 
 void
 ParComplexGridFunction::Update()
 {
-   ParFiniteElementSpace * pfes = pgfr->ParFESpace();
-
-   int vsize = pfes->GetVSize();
+   ParFiniteElementSpace *pfes = pgfr->ParFESpace();
+   const int vsize = pfes->GetVSize();
 
    const Operator *T = pfes->GetUpdateOperator();
    if (T)
@@ -655,30 +659,34 @@ ParComplexGridFunction::Update()
 
       // Our data array now contains old data as well as being the wrong size so
       // reallocate it.
+      UseDevice(true);
       this->SetSize(2 * vsize);
+      this->Vector::operator=(0.0);
 
       // Create temporary vectors which point to the new data array
-      Vector gf_r(data, vsize);
-      Vector gf_i((data) ? &data[vsize] : data, vsize);
+      Vector gf_r; gf_r.MakeRef(*this, 0, vsize);
+      Vector gf_i; gf_i.MakeRef(*this, vsize, vsize);
 
       // Copy the updated GridFunctions into the new data array
-      gf_r = *pgfr;
-      gf_i = *pgfi;
+      gf_r = *pgfr; gf_r.SyncAliasMemory(*this);
+      gf_i = *pgfi; gf_i.SyncAliasMemory(*this);
 
       // Replace the individual data arrays with pointers into the new data
       // array
-      pgfr->NewDataAndSize(data, vsize);
-      pgfi->NewDataAndSize((data) ? &data[vsize] : data, vsize);
+      pgfr->MakeRef(*this, 0, vsize);
+      pgfi->MakeRef(*this, vsize, vsize);
    }
    else
    {
       // The existing data will not be transferred to the new GridFunctions so
-      // delete it a allocate a new array
+      // delete it and allocate a new array
+      UseDevice(true);
       this->SetSize(2 * vsize);
+      this->Vector::operator=(0.0);
 
       // Point the individual GridFunctions to the new data array
-      pgfr->NewDataAndSize(data, vsize);
-      pgfi->NewDataAndSize((data) ? &data[vsize] : data, vsize);
+      pgfr->MakeRef(*this, 0, vsize);
+      pgfi->MakeRef(*this, vsize, vsize);
 
       // These updates will only set the proper 'sequence' value within the
       // individual GridFunction objects because their sizes are already correct
@@ -691,16 +699,24 @@ void
 ParComplexGridFunction::ProjectCoefficient(Coefficient &real_coeff,
                                            Coefficient &imag_coeff)
 {
+   pgfr->SyncMemory(*this);
+   pgfi->SyncMemory(*this);
    pgfr->ProjectCoefficient(real_coeff);
    pgfi->ProjectCoefficient(imag_coeff);
+   pgfr->SyncAliasMemory(*this);
+   pgfi->SyncAliasMemory(*this);
 }
 
 void
 ParComplexGridFunction::ProjectCoefficient(VectorCoefficient &real_vcoeff,
                                            VectorCoefficient &imag_vcoeff)
 {
+   pgfr->SyncMemory(*this);
+   pgfi->SyncMemory(*this);
    pgfr->ProjectCoefficient(real_vcoeff);
    pgfi->ProjectCoefficient(imag_vcoeff);
+   pgfr->SyncAliasMemory(*this);
+   pgfi->SyncAliasMemory(*this);
 }
 
 void
@@ -708,8 +724,12 @@ ParComplexGridFunction::ProjectBdrCoefficient(Coefficient &real_coeff,
                                               Coefficient &imag_coeff,
                                               Array<int> &attr)
 {
+   pgfr->SyncMemory(*this);
+   pgfi->SyncMemory(*this);
    pgfr->ProjectBdrCoefficient(real_coeff, attr);
    pgfi->ProjectBdrCoefficient(imag_coeff, attr);
+   pgfr->SyncAliasMemory(*this);
+   pgfi->SyncAliasMemory(*this);
 }
 
 void
@@ -719,8 +739,12 @@ ParComplexGridFunction::ProjectBdrCoefficientNormal(VectorCoefficient
                                                     &imag_vcoeff,
                                                     Array<int> &attr)
 {
+   pgfr->SyncMemory(*this);
+   pgfi->SyncMemory(*this);
    pgfr->ProjectBdrCoefficientNormal(real_vcoeff, attr);
    pgfi->ProjectBdrCoefficientNormal(imag_vcoeff, attr);
+   pgfr->SyncAliasMemory(*this);
+   pgfi->SyncAliasMemory(*this);
 }
 
 void
@@ -730,36 +754,51 @@ ParComplexGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient
                                                      &imag_vcoeff,
                                                      Array<int> &attr)
 {
+   pgfr->SyncMemory(*this);
+   pgfi->SyncMemory(*this);
    pgfr->ProjectBdrCoefficientTangent(real_vcoeff, attr);
    pgfi->ProjectBdrCoefficientTangent(imag_vcoeff, attr);
+   pgfr->SyncAliasMemory(*this);
+   pgfi->SyncAliasMemory(*this);
 }
 
 void
 ParComplexGridFunction::Distribute(const Vector *tv)
 {
-   ParFiniteElementSpace * pfes = pgfr->ParFESpace();
-   HYPRE_Int size = pfes->GetTrueVSize();
+   ParFiniteElementSpace *pfes = pgfr->ParFESpace();
+   const int tvsize = pfes->GetTrueVSize();
 
-   double * tvd = tv->GetData();
-   Vector tvr(tvd, size);
-   Vector tvi((tvd) ? &tvd[size] : tvd, size);
+   tv->Read();
+   Vector tvr; tvr.MakeRef(const_cast<Vector&>(*tv), 0, tvsize);
+   Vector tvi; tvi.MakeRef(const_cast<Vector&>(*tv), tvsize, tvsize);
 
+   pgfr->SyncMemory(*this);
+   pgfi->SyncMemory(*this);
    pgfr->Distribute(tvr);
    pgfi->Distribute(tvi);
+   pgfr->SyncAliasMemory(*this);
+   pgfi->SyncAliasMemory(*this);
 }
 
 void
 ParComplexGridFunction::ParallelProject(Vector &tv) const
 {
-   ParFiniteElementSpace * pfes = pgfr->ParFESpace();
-   HYPRE_Int size = pfes->GetTrueVSize();
+   ParFiniteElementSpace *pfes = pgfr->ParFESpace();
+   const int tvsize = pfes->GetTrueVSize();
 
-   double * tvd = tv.GetData();
-   Vector tvr(tvd, size);
-   Vector tvi((tvd) ? &tvd[size] : tvd, size);
+   tv.Write();
+   Vector tvr; tvr.MakeRef(tv, 0, tvsize);
+   Vector tvi; tvi.MakeRef(tv, tvsize, tvsize);
 
+   pgfr->SyncMemory(*this);
+   pgfi->SyncMemory(*this);
    pgfr->ParallelProject(tvr);
    pgfi->ParallelProject(tvi);
+   pgfr->SyncAliasMemory(*this);
+   pgfi->SyncAliasMemory(*this);
+
+   tvr.SyncAliasMemory(tv);
+   tvi.SyncAliasMemory(tv);
 }
 
 
