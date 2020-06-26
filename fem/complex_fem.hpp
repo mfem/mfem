@@ -401,7 +401,7 @@ public:
                         convention = ComplexOperator::HERMITIAN);
 
    /** @brief Create a ParComplexLinearForm on the ParFiniteElementSpace @a pf,
-       using the same integrators as the LinearForms @a plf_r (real) and 
+       using the same integrators as the LinearForms @a plf_r (real) and
        @a plf_i (imag).
 
       The pointer @a fes is not owned by the newly constructed object.
