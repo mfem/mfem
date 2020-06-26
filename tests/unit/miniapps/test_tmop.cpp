@@ -187,9 +187,10 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    int normalization     = 0;
    double jitter         = 0.0;
 
-   constexpr bool move_bnd = false;
    constexpr int combomet  = 0;
    constexpr int verbosity_level = 0;
+   constexpr int seed = 0x100001b3;
+   constexpr bool move_bnd = false;
    constexpr bool fdscheme = false;
 
    REQUIRE_FALSE(fdscheme);
@@ -257,7 +258,7 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    const double small_phys_size = pow(volume, 1.0 / dim) / 100.0;
 
    ParGridFunction rdm(&fes);
-   rdm.Randomize(0x100001b3);
+   rdm.Randomize(seed);
    rdm -= 0.25; // Shift to random values in [-0.5,0.5].
    rdm *= jitter;
    rdm.HostReadWrite();
@@ -384,7 +385,8 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    if (normalization == 1) { he_nlf_integ->EnableNormalization(x0); }
 
    ParGridFunction dist(&fes);
-   dist = 1.0;
+   dist.Randomize(seed);
+   dist += sqrt(2.0)/2.0;
    if (normalization == 1) { dist = small_phys_size; }
    ConstantCoefficient lim_coeff(lim_const);
    if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, dist, lim_coeff); }
@@ -539,6 +541,45 @@ static inline const char *itoa(int i, char *buf)
 static void tmop_tests(int myid)
 {
    static bool all = getenv("MFEM_TESTS_UNIT_TMOP_ALL");
+
+   // TOROID-HEX + limiting, no normalization
+   {
+      DEFAULT_ARGS;
+      args[MSH] = "toroid-hex.mesh";
+      args[RFS] = "0";
+      args[LC] = "3.14";
+      for (int p : {1, 2})
+      {
+         char por[2] {};
+         args[POR] = itoa(p, por);
+         for (int q : {2, 4})
+         {
+            char qor[2] {};
+            args[QOR] = itoa(q, qor);
+            for (int m : {321})
+            {
+               char mid[4] {};
+               args[MID] = itoa(m, mid);
+               for (int t : {1, 2})
+               {
+                  char tid[2] {};
+                  args[TID] = itoa(t, tid);
+                  for (int ls : {1, 2})
+                  {
+                     char lsb[2] {};
+                     args[LS] = itoa(ls, lsb);
+                     tmop_require(myid, args);
+                     if (!all) { break; }
+                  }
+                  if (!all) { break; }
+               }
+               if (!all) { break; }
+            }
+            if (!all) { break; }
+         }
+         if (!all) { break; }
+      }
+   } // TOROID-HEX + limiting
 
    // 3D CUBE + Discrete size & aspect-ratio 3D + normalization + limiting
    {
@@ -839,45 +880,6 @@ static void tmop_tests(int myid)
          if (!all) { break; }
       }
    } // TOROID-HEX
-
-   // TOROID-HEX + limiting
-   {
-      DEFAULT_ARGS;
-      args[MSH] = "toroid-hex.mesh";
-      args[RFS] = "0";
-      args[LC] = "3.14";
-      for (int p : {1, 2})
-      {
-         char por[2] {};
-         args[POR] = itoa(p, por);
-         for (int q : {2, 4})
-         {
-            char qor[2] {};
-            args[QOR] = itoa(q, qor);
-            for (int m : {321})
-            {
-               char mid[4] {};
-               args[MID] = itoa(m, mid);
-               for (int t : {1, 2})
-               {
-                  char tid[2] {};
-                  args[TID] = itoa(t, tid);
-                  for (int ls : {1, 2})
-                  {
-                     char lsb[2] {};
-                     args[LS] = itoa(ls, lsb);
-                     tmop_require(myid, args);
-                     if (!all) { break; }
-                  }
-                  if (!all) { break; }
-               }
-               if (!all) { break; }
-            }
-            if (!all) { break; }
-         }
-         if (!all) { break; }
-      }
-   } // TOROID-HEX + limiting
 
    // TOROID-HEX + limiting + normalization
    {

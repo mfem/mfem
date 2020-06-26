@@ -154,6 +154,15 @@ Vector &Vector::operator/=(double c)
    return *this;
 }
 
+Vector &Vector::operator+=(double c)
+{
+   const bool use_dev = UseDevice();
+   const int N = size;
+   auto y = ReadWrite(use_dev);
+   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] += c;);
+   return *this;
+}
+
 Vector &Vector::operator-=(double c)
 {
    const bool use_dev = UseDevice();
@@ -162,6 +171,7 @@ Vector &Vector::operator-=(double c)
    MFEM_FORALL_SWITCH(use_dev, i, N, y[i] -= c;);
    return *this;
 }
+
 
 Vector &Vector::operator-=(const Vector &v)
 {
