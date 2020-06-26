@@ -68,6 +68,7 @@ const Operator & ComplexOperator::imag() const
 
 void ComplexOperator::Mult(const Vector &x, Vector &y) const
 {
+   x.Read();
    y.UseDevice(true); y = 0.0;
 
    x_r_.MakeRef(const_cast<Vector&>(x), 0);
@@ -117,6 +118,7 @@ void ComplexOperator::Mult(const Vector &x_r, const Vector &x_i,
 
 void ComplexOperator::MultTranspose(const Vector &x, Vector &y) const
 {
+   x.Read();
    y.UseDevice(true); y = 0.0;
 
    y_r_.MakeRef(const_cast<Vector&>(x), 0);
