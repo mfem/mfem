@@ -242,7 +242,6 @@ miniapps/navier/tgv_out*.txt
 miniapps/navier/*_output
 
 # Unit test binary and outputs
-tests/unit/test_visit
 tests/unit/output_meshes
 tests/unit/unit_tests
 tests/unit/punit_tests
