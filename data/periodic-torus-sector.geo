@@ -1,7 +1,7 @@
 SetFactory("OpenCASCADE");
 
 // Select periodic mesh by setting this to either 0 - standard, 1 - periodic
-periodic = 0;
+periodic = 1;
 
 // Set the geometry order (1, 2, or 3)
 order = 2;
@@ -15,7 +15,7 @@ Torus(1) = {0,0,0, R, r, Phi};
 
 pts() = PointsOf{ Volume{1}; };
 
-Characteristic Length{ pts() } = 0.5;
+Characteristic Length{ pts() } = 0.25;
 
 // Set a rotation periodicity constraint:
 If (periodic)
