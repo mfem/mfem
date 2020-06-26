@@ -18,13 +18,13 @@
 namespace mfem
 {
 
+using Args = kernels::InvariantsEvaluator2D::Buffers;
+
 static MFEM_HOST_DEVICE inline
 void EvalP_001(const double *Jpt, double *P)
 {
    double dI1[4];
-   kernels::InvariantsEvaluator2D ie(Jpt,
-                                     dI1, nullptr, nullptr, nullptr,
-                                     nullptr, nullptr, nullptr, nullptr);
+   kernels::InvariantsEvaluator2D ie(Args().J(Jpt).dI1(dI1));
    kernels::Set(2,2, 1.0, ie.Get_dI1(), P);
 }
 
@@ -32,9 +32,7 @@ static MFEM_HOST_DEVICE inline
 void EvalP_002(const double *Jpt, double *P)
 {
    double dI1b[4], dI2b[4];
-   kernels::InvariantsEvaluator2D ie(Jpt,
-                                     nullptr, dI1b, nullptr, nullptr,
-                                     nullptr, dI2b, nullptr, nullptr);
+   kernels::InvariantsEvaluator2D ie(Args().J(Jpt).dI1b(dI1b).dI2b(dI2b));
    kernels::Set(2,2, 1./2., ie.Get_dI1b(), P);
 }
 

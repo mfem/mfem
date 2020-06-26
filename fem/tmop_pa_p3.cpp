@@ -19,16 +19,19 @@
 namespace mfem
 {
 
+using Args = kernels::InvariantsEvaluator3D::Buffers;
+
 // P_302 = (I1b/9)*dI2b + (I2b/9)*dI1b
 static MFEM_HOST_DEVICE inline
 void EvalP_302(const double *J, double *P)
 {
    double B[9];
    double dI1b[9], dI2[9], dI2b[9], dI3b[9];
-   kernels::InvariantsEvaluator3D ie(J,B,
-                                     nullptr, dI1b, nullptr, nullptr,
-                                     dI2, dI2b, nullptr, nullptr,
-                                     dI3b, nullptr);
+   kernels::InvariantsEvaluator3D ie(Args()
+                                     .J(J).B(B)
+                                     .dI1b(dI1b)
+                                     .dI2(dI2).dI2b(dI2b)
+                                     .dI3b(dI3b));
    const double alpha = ie.Get_I1b()/9.;
    const double beta = ie.Get_I2b()/9.;
    kernels::Add(3,3, alpha, ie.Get_dI2b(), beta, ie.Get_dI1b(), P);
@@ -40,10 +43,7 @@ void EvalP_303(const double *J, double *P)
 {
    double B[9];
    double dI1b[9], dI3b[9];
-   kernels::InvariantsEvaluator3D ie(J,B,
-                                     nullptr, dI1b, nullptr, nullptr,
-                                     nullptr, nullptr, nullptr, nullptr,
-                                     dI3b, nullptr);
+   kernels::InvariantsEvaluator3D ie(Args().J(J).B(B).dI1b(dI1b).dI3b(dI3b));
    kernels::Set(3,3, 1./3., ie.Get_dI1b(), P);
 }
 
@@ -53,10 +53,8 @@ void EvalP_321(const double *J, double *P)
 {
    double B[9];
    double dI1[9], dI2[9], dI3b[9];
-   kernels::InvariantsEvaluator3D ie(J,B,
-                                     dI1,  nullptr, nullptr, nullptr,
-                                     dI2,  nullptr, nullptr, nullptr,
-                                     dI3b, nullptr);
+   kernels::InvariantsEvaluator3D ie(Args().J(J).B(B)
+                                     .dI1(dI1).dI2(dI2).dI3b(dI3b));
    double sign_detJ;
    const double I3 = ie.Get_I3();
    const double alpha = 1.0/I3;
