@@ -11,16 +11,16 @@
 
 // Compile with: make projection
 //
-// Sample runs:  mpirun -np 4 projection -m ../../data/inline-segment.mesh -sr 1 -pr 4 -prob 0 -o 1
-//               mpirun -np 4 projection -m ../../data/inline-quad.mesh -sr 1 -pr 3 -prob 0 -o 2
-//               mpirun -np 4 projection -m ../../data/inline-quad.mesh -sr 1 -pr 3 -prob 1 -o 2
-//               mpirun -np 4 projection -m ../../data/inline-quad.mesh -sr 1 -pr 3 -prob 2 -o 2
-//               mpirun -np 4 projection -m ../../data/inline-tri.mesh -sr 1 -pr 3 -prob 2 -o 3
-//               mpirun -np 4 projection -m ../../data/star.mesh -sr 1 -pr 2 -prob 1 -o 4
-//               mpirun -np 4 projection -m ../../data/fichera.mesh -sr 1 -pr 2 -prob 2 -o 2
-//               mpirun -np 4 projection -m ../../data/inline-wedge.mesh -sr 0 -pr 2 -prob 0 -o 2
-//               mpirun -np 4 projection -m ../../data/inline-hex.mesh -sr 0 -pr 1 -prob 1 -o 3
-//               mpirun -np 4 projection -m ../../data/square-disc.mesh -sr 1 -pr 2 -prob 1 -o 2
+// Sample runs:  projection -m ../../data/inline-segment.mesh -sr 4 -prob 0 -o 1
+//               projection -m ../../data/inline-quad.mesh -sr 3 -prob 0 -o 2
+//               projection -m ../../data/inline-quad.mesh -sr 3 -prob 1 -o 2
+//               projection -m ../../data/inline-quad.mesh -sr 3 -prob 2 -o 2
+//               projection -m ../../data/inline-tri.mesh -sr 2 -prob 2 -o 3
+//               projection -m ../../data/star.mesh -sr 2 -prob 1 -o 4
+//               projection -m ../../data/fichera.mesh -sr 3 -prob 2 -o 1
+//               projection -m ../../data/inline-wedge.mesh -sr 1 -prob 0 -o 2
+//               projection -m ../../data/inline-hex.mesh -sr 1 -prob 1 -o 2
+//               projection -m ../../data/square-disc.mesh -sr 2 -prob 1 -o 1
 //
 // Description:  This example code is used for testing the LF-integrators
 //               (Q,grad v), (Q,curl V), (Q, div v)
@@ -40,12 +40,10 @@ using namespace mfem;
 // H1
 double u_exact(const Vector &x);
 void gradu_exact(const Vector &x, Vector &gradu);
-
 // Vector FE
 void U_exact(const Vector &x, Vector & U);
 // H(curl)
 void curlU_exact(const Vector &x, Vector &curlU);
-double curlU2D_exact(const Vector &x);
 // H(div)
 double divU_exact(const Vector &x);
 
@@ -55,18 +53,11 @@ Vector alpha;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
-
-   // 2. Parse command-line options.
+   // 1. Parse command-line options.
    const char *mesh_file = "../../data/inline-quad.mesh";
    int order = 1;
    bool visualization = 1;
    int sr = 1;
-   int pr = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -77,48 +68,33 @@ int main(int argc, char *argv[])
                   "Problem kind: 0: H1, 1: H(curl), 2: H(div)");
    args.AddOption(&sr, "-sr", "--serial_ref",
                   "Number of serial refinements.");
-   args.AddOption(&pr, "-pr", "--parallel_ref",
-                  "Number of parallel refinements.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.Parse();
    if (!args.Good())
    {
-      if (myid == 0)
-      {
-         args.PrintUsage(cout);
-      }
-      MPI_Finalize();
+      args.PrintUsage(cout);
       return 1;
    }
-   if (myid == 0)
-   {
-      args.PrintOptions(cout);
-   }
+   args.PrintOptions(cout);
 
-   // 3. Read the (serial) mesh from the given mesh file on all processors.  We
-   //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
+   // 2. Read the (serial) mesh from the given mesh file. We can 
+   //    handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    dim = mesh->Dimension();  if (dim == 1 ) prob = 0;
 
-   // 4. Set up parameters for exact solution
+   if (prob >2 || prob <0) prob = 0; //default problem = H1
+
+   // 3. Set up parameters for exact solution
    alpha.SetSize(dim); // x,y,z coefficients of the solution
    for (int i=0; i<dim; i++) { alpha(i) = M_PI*(double)(i+1);}
 
-   // 5. Refine the serial mesh on all processors to increase the resolution.
-   for (int i = 0; i < sr; i++ )
-   {
-      mesh->UniformRefinement();
-   }
+   // 4. Refine the serial mesh on all processors to increase the resolution.
+   mesh->UniformRefinement();
 
-   // 6. Define a parallel mesh by a partitioning of the serial mesh. Once the
-   //    parallel mesh is defined, the serial mesh can be deleted.
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-   delete mesh;
-
-   // 7. Define a parallel finite element space on the parallel mesh.
+   // 7. Define a finite element space on the parallel mesh.
    FiniteElementCollection *fec=nullptr;
    switch (prob)
    {
@@ -127,24 +103,22 @@ int main(int argc, char *argv[])
       case 2: fec = new RT_FECollection(order-1,dim); break;
       default: break;
    }
-   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
+   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
 
    // 8. Define the solution vector u_gf as a parallel finite element grid function
    //     corresponding to fespace.
-   ParGridFunction u_gf(fespace);
+   GridFunction u_gf(fespace);
    
-   // 9. Set up the parallel linear form b(.) and the parallel bilinear form
-   //    a(.,.).
+   // 9. Set up the linear form b(.) and the bilinear form a(.,.).
    FunctionCoefficient *u=nullptr;
    FunctionCoefficient *divU=nullptr;
-   FunctionCoefficient *curlU2D=nullptr;
    VectorFunctionCoefficient *U=nullptr;
    VectorFunctionCoefficient *gradu=nullptr;
    VectorFunctionCoefficient *curlU=nullptr;
 
    ConstantCoefficient one(1.0);
-   ParLinearForm b(fespace);
-   ParBilinearForm a(fespace);
+   LinearForm b(fespace);
+   BilinearForm a(fespace);
 
    switch (prob)
    {
@@ -163,16 +137,8 @@ int main(int argc, char *argv[])
       case 1:
          //(curl u_ex, curl v) + (u_ex,v)
          U = new VectorFunctionCoefficient(dim,U_exact);
-         if (dim == 3)
-         {
-            curlU = new VectorFunctionCoefficient(dim,curlU_exact);
-            b.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(*curlU));
-         }
-         else if (dim == 2)
-         {
-            curlU2D = new FunctionCoefficient(curlU2D_exact);
-            b.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(*curlU2D));
-         }
+         curlU = new VectorFunctionCoefficient((dim ==3)?dim:1,curlU_exact);
+         b.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(*curlU));
          b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(*U));
 
          // (curl u, curl v) + (u,v)
@@ -195,21 +161,19 @@ int main(int argc, char *argv[])
       default:
          break;
    }
-   StopWatch chrono;
-
    // 10. Perform successive parallel refinements, compute the L2 error and the
    //     corresponding rate of convergence
-   ConvergenceRates rates(MPI_COMM_WORLD);
+   ConvergenceRates rates;
    // ConvergenceRates rates;
    rates.Clear();
-   for (int l = 0; l <= pr; l++)
+   for (int l = 0; l <= sr; l++)
    {
       b.Assemble();
       a.Assemble();
       Array<int> ess_tdof_list;
-      if (pmesh->bdr_attributes.Size())
+      if (mesh->bdr_attributes.Size())
       {
-         Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+         Array<int> ess_bdr(mesh->bdr_attributes.Max());
          ess_bdr = 0;
          fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
       }
@@ -217,35 +181,9 @@ int main(int argc, char *argv[])
       Vector X, B;
       a.FormLinearSystem(ess_tdof_list, u_gf, b, A, X,B);
 
-      Solver *prec = NULL;
-      switch (prob)
-      {
-         case 0:
-            prec = new HypreBoomerAMG(*A.As<HypreParMatrix>());
-            dynamic_cast<HypreBoomerAMG *>(prec)->SetPrintLevel(0);
-            break;
-         case 1:
-            prec = new HypreAMS(*A.As<HypreParMatrix>(), fespace);
-            dynamic_cast<HypreAMS *>(prec)->SetPrintLevel(0);
-            break;
-         case 2:
-            if (dim == 2)
-            {
-               prec = new HypreAMS(*A.As<HypreParMatrix>(), fespace);
-               dynamic_cast<HypreAMS *>(prec)->SetPrintLevel(0);
-            }
-            else
-            {
-               prec = new HypreADS(*A.As<HypreParMatrix>(), fespace);
-               dynamic_cast<HypreADS *>(prec)->SetPrintLevel(0);
-            }
-            break;
-         default:
-            break;
-      }
-
-      CGSolver cg(MPI_COMM_WORLD);
-      cg.SetRelTol(1e-12);
+      GSSmoother *prec = new GSSmoother(*A.As<SparseMatrix>());
+      CGSolver cg;
+      cg.SetRelTol(1e-10);
       cg.SetMaxIter(2000);
       cg.SetPrintLevel(0);
       if (prec) { cg.SetPreconditioner(*prec); }
@@ -259,71 +197,42 @@ int main(int argc, char *argv[])
       {
          case 0:
          {
-            rates.AddSolution(&u_gf,u);
+            rates.RegisterSolution(&u_gf,u);
 
-            double grad_error = u_gf.ComputeH1Error(u,gradu);
-            double Energy_error = u_gf.ComputeEnergyError(u,gradu);
+            double grad_error = u_gf.ComputeEnergyError(u,gradu);
+            // double Energy_error = u_gf.ComputeEnergyError(u,gradu);
 
-            // cout << "grad_error = " << grad_error << endl;
-
-            // double error = GlobalLpNorm(2.0, grad_error, MPI_COMM_WORLD);
-
-            if (myid == 0)
-            {
-               cout << "grad error = " << grad_error << endl;
-               cout << "energy error = " << Energy_error << endl;
-            }
+            cout << "grad error = " << grad_error << endl;
+            // cout << "energy error = " << Energy_error << endl;
             break;
          }
          case 1:
          {
-            rates.AddSolution(&u_gf,U);
-            if (dim == 2)
-            {
-               double Hcurl_error = u_gf.ComputeHCurlError(U,curlU2D);
-               double Energy_error = u_gf.ComputeEnergyError(U,curlU2D);
-
-               if (myid == 0)
-               {
-                  cout << "curl error = " << Hcurl_error << endl;
-                  cout << "Energy error = " << Energy_error << endl;
-               }
-            }
-            else
-            {
-               double Hcurl_error = u_gf.ComputeHCurlError(U,curlU);
-               double Energy_error = u_gf.ComputeEnergyError(U,curlU);
-               if (myid == 0)
-               {
-                  cout << "Hcurl error = " << Hcurl_error << endl;
-                  cout << "Energy error = " << Energy_error << endl;
-               }
-            }
+            rates.RegisterSolution(&u_gf,U);
+            double Hcurl_error = u_gf.ComputeEnergyError(U,curlU);
+               // double Energy_error = u_gf.ComputeEnergyError(U,curlU);
+            cout << "Hcurl error = " << Hcurl_error << endl;
+               // cout << "Energy error = " << Energy_error << endl;
             break;
          }
          
          case 2:
          {
-            rates.AddSolution(&u_gf,U);
+            rates.RegisterSolution(&u_gf,U);
+            double Hdiv_error = u_gf.ComputeEnergyError(U,divU);
+            // double Energy_error = u_gf.ComputeEnergyError(U,divU);
 
-            double Hdiv_error = u_gf.ComputeHDivError(U,divU);
-            double Energy_error = u_gf.ComputeEnergyError(U,divU);
-
-            if (myid == 0)
-            {
-               cout << "Hdiv error = " << Hdiv_error << endl;
-               cout << "Energy error = " << Energy_error << endl;
-            }
-
+            cout << "Hdiv error = " << Hdiv_error << endl;
+            // cout << "Energy error = " << Energy_error << endl;
             break;
          }
          default:
             break;
       }
 
-      if (l==pr) break;
+      if (l==sr) break;
 
-      pmesh->UniformRefinement();
+      mesh->UniformRefinement();
       fespace->Update();
       a.Update();
       b.Update();
@@ -347,9 +256,8 @@ int main(int argc, char *argv[])
          keys = "keys mc\n";
       }
       socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
-      sol_sock << "solution\n" << *pmesh << u_gf <<
+      sol_sock << "solution\n" << *mesh << u_gf <<
                "window_title 'Numerical Pressure (real part)' "
                << keys << flush;
    }
@@ -357,16 +265,12 @@ int main(int argc, char *argv[])
    // 12. Free the used memory.
    delete u;
    delete divU;
-   delete curlU2D;
    delete U;
    delete gradu;
    delete curlU;
    delete fespace;
    delete fec;
-   delete pmesh;
-
-   MPI_Finalize();
-
+   delete mesh;
    return 0;
 }
 
@@ -406,19 +310,20 @@ void U_exact(const Vector &x, Vector & U)
 // H(curl)
 void curlU_exact(const Vector &x, Vector &curlU)
 {
-   MFEM_VERIFY(dim == 3, "This should be called only for 3D cases");
-
-   double s = x.Sum();
-   curlU[0] = -alpha(2)*sin(alpha(2) * s) + alpha(1)*sin(alpha(1) * s);
-   curlU[1] = -alpha(0)*sin(alpha(0) * s) + alpha(2)*sin(alpha(2) * s);
-   curlU[2] = -alpha(1)*sin(alpha(1) * s) + alpha(0)*sin(alpha(0) * s);
-}
-
-double curlU2D_exact(const Vector &x)
-{
-   MFEM_VERIFY(dim == 2, "This should be called only for 2D cases");
-   double s = x(0) + x(1);
-   return -alpha(1)*sin(alpha(1) * s) + alpha(0)*sin(alpha(0) * s);
+   if (dim==3)
+   {
+      double s = x.Sum();
+      curlU[0] = -alpha(2)*sin(alpha(2) * s) + alpha(1)*sin(alpha(1) * s);
+      curlU[1] = -alpha(0)*sin(alpha(0) * s) + alpha(2)*sin(alpha(2) * s);
+      curlU[2] = -alpha(1)*sin(alpha(1) * s) + alpha(0)*sin(alpha(0) * s);
+   }
+   else
+   {
+      double s = x(0) + x(1);
+      curlU[0] = -alpha(1)*sin(alpha(1) * s) + alpha(0)*sin(alpha(0) * s);
+   }
+   
+   
 }
 
 // H(div)
