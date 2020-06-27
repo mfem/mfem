@@ -414,7 +414,7 @@ TEST_CASE("1D GetValue in Parallel",
                FaceElementTransformations *FET =
                   pmesh.GetSharedFaceTransformations(sf);
                ElementTransformation *T = &FET->GetElement2Transformation();
-               int e = FET->Elem2No;
+               int e = FET->Elem2No - pmesh.GetNE();
                const FiniteElement   *fe = dgv_fespace.GetFaceNbrFE(e);
                const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
                                                         2*order + 2);
@@ -802,7 +802,7 @@ TEST_CASE("2D GetValue in Parallel",
                FaceElementTransformations *FET =
                   pmesh.GetSharedFaceTransformations(sf);
                ElementTransformation *T = &FET->GetElement2Transformation();
-               int e = FET->Elem2No;
+               int e = FET->Elem2No - pmesh.GetNE();
                const FiniteElement   *fe = dgv_fespace.GetFaceNbrFE(e);
                const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
                                                         2*order + 2);
@@ -1232,7 +1232,7 @@ TEST_CASE("3D GetValue in Parallel",
                FaceElementTransformations *FET =
                   pmesh.GetSharedFaceTransformations(sf);
                ElementTransformation *T = &FET->GetElement2Transformation();
-               int e = FET->Elem2No;
+               int e = FET->Elem2No - pmesh.GetNE();
                const FiniteElement   *fe = dgv_fespace.GetFaceNbrFE(e);
                const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
                                                         2*order + 2);
@@ -1823,7 +1823,7 @@ TEST_CASE("2D GetVectorValue in Parallel",
                FaceElementTransformations *FET =
                   pmesh.GetSharedFaceTransformations(sf);
                ElementTransformation *T = &FET->GetElement2Transformation();
-               int e = FET->Elem2No;
+               int e = FET->Elem2No - pmesh.GetNE();
                const FiniteElement   *fe = dgv_fespace.GetFaceNbrFE(e);
                const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
                                                         2*order + 2);
@@ -2532,7 +2532,7 @@ TEST_CASE("3D GetVectorValue in Parallel",
                FaceElementTransformations *FET =
                   pmesh.GetSharedFaceTransformations(sf);
                ElementTransformation *T = &FET->GetElement2Transformation();
-               int e = FET->Elem2No;
+               int e = FET->Elem2No - pmesh.GetNE();
                const FiniteElement   *fe = dgv_fespace.GetFaceNbrFE(e);
                const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
                                                         2*order + 2);
