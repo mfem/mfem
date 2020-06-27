@@ -17,9 +17,13 @@ private:
    int counter=0;
    int print_flag=0;
    Array<double> L2Errors;
+   Array<double> L2RelErrors;
    Array<double> EnergyErrors;
+   Array<double> EnergyRelErrors;
    Array<double> L2Rates;
+   Array<double> L2RelRates;
    Array<double> EnergyRates;
+   Array<double> EnergyRelRates;
    Array<int> ndofs;
 public:
    ConvergenceRates();
@@ -30,10 +34,10 @@ public:
    void Clear();
 
    // Add Scalar Solution 
-   void AddSolution(GridFunction * gf, Coefficient * u_ex);
+   void RegisterSolution(GridFunction * gf, Coefficient * u_ex);
 
    // Add Vector Solution 
-   void AddSolution(GridFunction * gf, VectorCoefficient * U_ex);
+   void RegisterSolution(GridFunction * gf, VectorCoefficient * U_ex);
 
    // Get L2 error for step n
    double GetL2Error(int n);
