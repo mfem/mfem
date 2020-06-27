@@ -694,10 +694,8 @@ protected:
    double time;
 
 public:
-   /// Construct a dim x dim matrix coefficient.
    explicit MatrixCoefficient(int dim) { height = width = dim; time = 0.; }
 
-   /// Construct a h x w matrix coefficient.
    MatrixCoefficient(int h, int w) : height(h), width(w), time(0.) { }
 
    /// Set the time for time dependent coefficients
@@ -787,7 +785,6 @@ public:
       mat.SetSize(0);
    }
 
-   /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
