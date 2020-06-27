@@ -28,28 +28,31 @@ void ConvergenceRates::Clear()
    L2Rates.SetSize(0);
 }
 
-void ConvergenceRates::AddSolution(GridFunction * gf, Coefficient * u)
+void ConvergenceRates::RegisterSolution(GridFunction * gf, Coefficient * u)
 {
+   int tdofs = gf->FESpace()->GetTrueVSize();
+#ifdef MFEM_USE_MPI   
+   if (comm_flag)
+   {
+      MPI_Allreduce(&tdofs,&tdofs,1,MPI_INT,MPI_SUM,comm);
+   }
+#endif   
+   ndofs.Append(tdofs);
+
    double L2Err = gf->ComputeL2Error(*u);
    L2Errors.Append(L2Err);
-   int tdofs = gf->FESpace()->GetTrueVSize();
-#ifdef MFEM_USE_MPI   
-   if (comm_flag)
-   {
-      MPI_Allreduce(&tdofs,&tdofs,1,MPI_INT,MPI_SUM,comm);
-   }
-#endif   
-   ndofs.Append(tdofs);
-
    double val = (counter) ? log(L2Errors[counter-1]/L2Err)/log(2.0) : 0.0;
    L2Rates.Append(val);
-   
+
+   ConstantCoefficient zero(0.0);
+   double L2norm = gf->ComputeL2Error(zero);
+   L2RelErrors.Append(L2Err/L2norm);
+   double rval = (counter) ? log(L2RelErrors[counter-1]/(L2Err/L2norm))/log(2.0) : 0.0;
+   L2RelRates.Append(rval);
    counter++;
 }
-void ConvergenceRates::AddSolution(GridFunction * gf, VectorCoefficient * U)
+void ConvergenceRates::RegisterSolution(GridFunction * gf, VectorCoefficient * U)
 {
-   double L2Err = gf->ComputeL2Error(*U);
-   L2Errors.Append(L2Err);
    int tdofs = gf->FESpace()->GetTrueVSize();
 #ifdef MFEM_USE_MPI   
    if (comm_flag)
@@ -59,9 +62,17 @@ void ConvergenceRates::AddSolution(GridFunction * gf, VectorCoefficient * U)
 #endif   
    ndofs.Append(tdofs);
 
+   double L2Err = gf->ComputeL2Error(*U);
+   L2Errors.Append(L2Err);
    double val = (counter) ? log(L2Errors[counter-1]/L2Err)/log(2.0) : 0.0;
    L2Rates.Append(val);
    
+   Vector vec(U->GetVDim()); vec = 0.0;
+   VectorConstantCoefficient zero(vec);
+   double L2norm = gf->ComputeL2Error(zero);
+   L2RelErrors.Append(L2Err);
+   double rval = (counter) ? log(L2RelErrors[counter-1]/(L2Err/L2norm))/log(2.0) : 0.0;
+   L2RelRates.Append(rval);
    counter++;
 }
 double ConvergenceRates::GetL2Error(int n)
@@ -84,17 +95,18 @@ void ConvergenceRates::Print()
 {
    if (print_flag)
    {
-      cout << " -----------------------------------------"
+      cout << " ------------------------------------------------------------------------"
            << endl;
       cout  << right<< setw(11)<< "DOFs "<< setw(15) << "L^2 error "<< setw(15);
-      cout << "L^2 rate " << endl;
-      cout << " -----------------------------------------"
+      cout << "L^2 rate " << setw(15) << "L^2 Rel error "<< setw(15) << "L^2 Rel rate " << endl;
+      cout << " ------------------------------------------------------------------------"
            << endl;
       cout << setprecision(4);
       for (int i =0; i<counter; i++)
       {
-         cout << right << setw(10)<< ndofs[i] << setw(16) << scientific << L2Errors[i] 
-              << setw(13)  << fixed << L2Rates[i] << endl;
+         cout << right << setw(10)<< ndofs[i] << setw(16) 
+              << scientific << L2Errors[i] << setw(13)  << fixed << L2Rates[i] << setw(15) 
+              << scientific << L2RelErrors[i] << setw(13)  << fixed << L2RelRates[i] << endl;
       }
    }
 }
