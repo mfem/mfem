@@ -686,7 +686,6 @@ double GlobalLpNorm(const double p, double loc_norm, MPI_Comm comm)
    return glob_norm;
 }
 
-
 void ParGridFunction::ComputeFlux(
    BilinearFormIntegrator &blfi,
    GridFunction &flux, bool wcoef, int subdomain)

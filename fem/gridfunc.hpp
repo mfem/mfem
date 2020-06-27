@@ -385,16 +385,6 @@ protected:
    // AccumulateAndCountZones().
    void ComputeMeans(AvgType type, Array<int> &zones_per_vdof);
 
-
-   double ComputeDivError(Coefficient *exdiv, 
-                                  const IntegrationRule *irs[] = NULL) const;
-
-   double ComputeCurlError(VectorCoefficient *excurl, 
-                                   const IntegrationRule *irs[] = NULL) const;
-
-   double ComputeCurlError(Coefficient *excurl, 
-                            const IntegrationRule *irs[] = NULL) const;
-
 public:
    /** @brief Project a Coefficient on the GridFunction, modifying only DOFs on
        the boundary associated with the boundary attributes marked in the
@@ -445,30 +435,37 @@ public:
                                  Coefficient *ell_coef, double Nu,
                                  int norm_type) const;
 
-   virtual double ComputeHDivError(VectorCoefficient *exsol, Coefficient *exdiv, 
-                                  const IntegrationRule *irs[] = NULL) const
-   { 
-    //   double L2error = ComputeL2Error(*exsol,irs);
-      double L2error = 0.0;
-      double DivError = ComputeDivError(exdiv,irs);
-      return sqrt(L2error*L2error + DivError*DivError);
-   }
+// temporary comment ---- newly added methods
+   virtual double ComputeGradError(VectorCoefficient *exgrad,
+                           const IntegrationRule *irs[] = NULL) const;
 
-   virtual double ComputeHCurlError(VectorCoefficient *exsol, VectorCoefficient *excurl,   
-                                    const IntegrationRule *irs[] = NULL) const
-    {
-        double L2error = ComputeL2Error(*exsol,irs);
-        double CurlError = ComputeCurlError(excurl,irs);
-        return sqrt(L2error*L2error + CurlError*CurlError);
-    }
+   virtual double ComputeCurlError(VectorCoefficient *excurl,
+                           const IntegrationRule *irs[] = NULL) const;
 
-   virtual double ComputeHCurlError(VectorCoefficient *exsol, Coefficient *excurl, 
-                                    const IntegrationRule *irs[] = NULL) const 
-    {
-        double L2error = ComputeL2Error(*exsol,irs);
-        double CurlError = ComputeCurlError(excurl,irs);
-        return sqrt(L2error*L2error + CurlError*CurlError);
-    }         
+   virtual double ComputeDivError(Coefficient *exdiv,
+                          const IntegrationRule *irs[] = NULL) const;
+
+   virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
+                                 const IntegrationRule *irs[] = NULL) const;
+
+   virtual double ComputeHDivError(VectorCoefficient *exsol, Coefficient *exdiv,
+                                   const IntegrationRule *irs[] = NULL) const;
+
+   virtual double ComputeHCurlError(VectorCoefficient *exsol,
+                                    VectorCoefficient *excurl,
+                                    const IntegrationRule *irs[] = NULL) const;
+
+   virtual double ComputeEnergyError(Coefficient *exsol, VectorCoefficient *dexsol,
+                                     const IntegrationRule *irs[] = NULL) const;
+
+   virtual double ComputeEnergyError(VectorCoefficient *exsol, Coefficient *dexsol,
+                                     const IntegrationRule *irs[] = NULL) const;
+
+   virtual double ComputeEnergyError(VectorCoefficient *exsol,
+                                     VectorCoefficient *dexsol,
+                                     const IntegrationRule *irs[] = NULL) const;
+
+// ------------------------------------------------------------------------------
 
    virtual double ComputeMaxError(Coefficient &exsol,
                                   const IntegrationRule *irs[] = NULL) const

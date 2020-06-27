@@ -2411,7 +2411,7 @@ double GridFunction::ComputeL2Error(
       }
       T = fes->GetElementTransformation(i);
       GetVectorValues(*T, *ir, vals);
-      
+
       exsol.Eval(exact_vals, *T, *ir);
       vals -= exact_vals;
       loc_errs.SetSize(vals.Width());
@@ -2579,6 +2579,94 @@ double GridFunction::ComputeH1Error(
    return sqrt(error);
 }
 
+double GridFunction::ComputeGradError(VectorCoefficient *exgrad,
+                                      const IntegrationRule *irs[]) const
+{
+   double error = 0.0;
+   const FiniteElement *fe;
+   ElementTransformation *Tr;
+   Array<int> dofs;
+   Vector grad;
+   int intorder;
+   int dim = fes->GetMesh()->SpaceDimension();
+   Vector vec(dim);
+
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      fe = fes->GetFE(i);
+      Tr = fes->GetElementTransformation(i);
+      intorder = 2*fe->GetOrder() + 3;
+      const IntegrationRule *ir;
+      if (irs)
+      {
+         ir = irs[fe->GetGeomType()];
+      }
+      else
+      {
+         ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+      }
+      fes->GetElementDofs(i, dofs);
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         Tr->SetIntPoint(&ip);
+         GetGradient(*Tr,grad);
+         exgrad->Eval(vec,*Tr,ip);
+         vec-=grad;
+         error += ip.weight * Tr->Weight() * (vec * vec);
+      }
+   }
+   if (error < 0.0)
+   {
+      return -sqrt(-error);
+   }
+   return sqrt(error);
+}
+
+double GridFunction::ComputeCurlError(VectorCoefficient *excurl,
+                                      const IntegrationRule *irs[]) const
+{
+   double error = 0.0;
+   const FiniteElement *fe;
+   ElementTransformation *Tr;
+   Array<int> dofs;
+   Vector curl;
+   int intorder;
+   int dim = fes->GetMesh()->SpaceDimension();
+   int n = (dim == 3) ? dim : 1; 
+   Vector vec(n);
+
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      fe = fes->GetFE(i);
+      Tr = fes->GetElementTransformation(i);
+      intorder = 2*fe->GetOrder() + 3;
+      const IntegrationRule *ir;
+      if (irs)
+      {
+         ir = irs[fe->GetGeomType()];
+      }
+      else
+      {
+         ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+      }
+      fes->GetElementDofs(i, dofs);
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         Tr->SetIntPoint(&ip);
+         GetCurl(*Tr,curl);
+         excurl->Eval(vec,*Tr,ip);
+         vec-=curl;
+         error += ip.weight * Tr->Weight() * ( vec * vec );
+      }
+   }
+   if (error < 0.0)
+   {
+      return -sqrt(-error);
+   }
+   return sqrt(error);
+}
 
 double GridFunction::ComputeDivError(
    Coefficient *exdiv, const IntegrationRule *irs[]) const
@@ -2593,7 +2681,7 @@ double GridFunction::ComputeDivError(
    {
       fe = fes->GetFE(i);
       Tr = fes->GetElementTransformation(i);
-      intorder = 2*fe->GetOrder() + 3; 
+      intorder = 2*fe->GetOrder() + 3;
       const IntegrationRule *ir;
       if (irs)
       {
@@ -2619,92 +2707,61 @@ double GridFunction::ComputeDivError(
    return sqrt(error);
 }
 
-double GridFunction::ComputeCurlError(VectorCoefficient *excurl, 
-               const IntegrationRule *irs[]) const
+double GridFunction::ComputeH1Error(Coefficient *exsol,
+                                    VectorCoefficient *exgrad,
+                                    const IntegrationRule *irs[]) const
 {
-   double error = 0.0, a;
-   const FiniteElement *fe;
-   ElementTransformation *Tr;
-   Array<int> dofs;
-   Vector curl;
-   int intorder;
-   int dim = fes->GetMesh()->SpaceDimension();
-   MFEM_VERIFY(dim == 3, "This method is intented for 3D problems only");
-   Vector vec(dim);
-
-   for (int i = 0; i < fes->GetNE(); i++)
-   {
-      fe = fes->GetFE(i);
-      Tr = fes->GetElementTransformation(i);
-      intorder = 2*fe->GetOrder() + 3; 
-      const IntegrationRule *ir;
-      if (irs)
-      {
-         ir = irs[fe->GetGeomType()];
-      }
-      else
-      {
-         ir = &(IntRules.Get(fe->GetGeomType(), intorder));
-      }
-      fes->GetElementDofs(i, dofs);
-      for (int j = 0; j < ir->GetNPoints(); j++)
-      {
-         const IntegrationPoint &ip = ir->IntPoint(j);
-         Tr->SetIntPoint(&ip);
-         GetCurl(*Tr,curl);
-         excurl->Eval(vec,*Tr,ip);
-         vec-=curl;
-         error += ip.weight * Tr->Weight() * InnerProduct(vec,vec);
-      }
-   }
-   if (error < 0.0)
-   {
-      return -sqrt(-error);
-   }
-   return sqrt(error);
+   double L2error = GridFunction::ComputeLpError(2.0,*exsol,NULL,irs);
+   double GradError = ComputeGradError(exgrad,irs);
+   return sqrt(L2error*L2error + GradError*GradError);
 }
 
-double GridFunction::ComputeCurlError(Coefficient *excurl, 
-               const IntegrationRule *irs[]) const
+double GridFunction::ComputeHDivError(VectorCoefficient *exsol,
+                                      Coefficient *exdiv,
+                                      const IntegrationRule *irs[]) const
 {
-   double error = 0.0, a;
-   const FiniteElement *fe;
-   ElementTransformation *Tr;
-   Array<int> dofs;
-   Vector curl;
-   int intorder;
-   int dim = fes->GetMesh()->SpaceDimension();
-   MFEM_VERIFY(dim == 2, "This method is intented for 2D problems only");
+   double L2error = GridFunction::ComputeLpError(2.0,*exsol,NULL,NULL,irs);
+   double DivError = ComputeDivError(exdiv,irs);
+   return sqrt(L2error*L2error + DivError*DivError);
+}
 
-   for (int i = 0; i < fes->GetNE(); i++)
-   {
-      fe = fes->GetFE(i);
-      Tr = fes->GetElementTransformation(i);
-      intorder = 2*fe->GetOrder() + 3; 
-      const IntegrationRule *ir;
-      if (irs)
-      {
-         ir = irs[fe->GetGeomType()];
-      }
-      else
-      {
-         ir = &(IntRules.Get(fe->GetGeomType(), intorder));
-      }
-      fes->GetElementDofs(i, dofs);
-      for (int j = 0; j < ir->GetNPoints(); j++)
-      {
-         const IntegrationPoint &ip = ir->IntPoint(j);
-         Tr->SetIntPoint(&ip);
-         GetCurl(*Tr,curl);
-         a = curl[0]-excurl->Eval(*Tr,ip);
-         error += ip.weight * Tr->Weight() * a * a;
-      }
-   }
-   if (error < 0.0)
-   {
-      return -sqrt(-error);
-   }
-   return sqrt(error);
+double GridFunction::ComputeHCurlError(VectorCoefficient *exsol,
+                                       VectorCoefficient *excurl,
+                                       const IntegrationRule *irs[]) const
+{
+   double L2error = GridFunction::ComputeLpError(2.0,*exsol,NULL,NULL,irs);
+   double CurlError = ComputeCurlError(excurl,irs);
+   return sqrt(L2error*L2error + CurlError*CurlError);
+}
+
+double GridFunction::ComputeEnergyError(Coefficient *exsol,
+                                        VectorCoefficient *dexsol,
+                                        const IntegrationRule *irs[]) const
+{
+   int map_type = fes->GetFE(0)->GetMapType();
+   int cont_type = fes->FEColl()->GetContType();
+   MFEM_VERIFY(map_type == 0 && cont_type == 0,
+               "This method is intented only for H1 elements");
+   return ComputeH1Error(exsol, dexsol, irs);
+}
+
+double GridFunction::ComputeEnergyError(VectorCoefficient *exsol,
+                                        Coefficient *dexsol,
+                                        const IntegrationRule *irs[]) const
+{
+   int cont_type = fes->FEColl()->GetContType();
+   MFEM_VERIFY(cont_type == 2,
+               "This method is intented only for H(div) elements");
+   return ComputeHDivError(exsol, dexsol, irs);
+}
+
+double GridFunction::ComputeEnergyError(VectorCoefficient *exsol,
+                                        VectorCoefficient *dexsol,
+                                        const IntegrationRule *irs[]) const
+{
+   int cont_type = fes->FEColl()->GetContType();
+   MFEM_VERIFY(cont_type == 1, "This method is intented only for H(curl) elements");
+   return ComputeHCurlError(exsol, dexsol, irs);
 }
 
 double GridFunction::ComputeMaxError(
@@ -2760,7 +2817,6 @@ double GridFunction::ComputeMaxError(
          }
       }
    }
-
    return error;
 }
 
