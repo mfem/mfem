@@ -989,9 +989,8 @@ public:
    /// The mask specifies which fields in the structure to return:
    ///    mask & 1 - Elem1, mask & 2 - Elem2
    ///    mask & 4 - Loc1, mask & 8 - Loc2, mask & 16 - Face.
-   /// These mask values are defined in the
-   /// FaceElementTransformations::ConfigMasks enumeration.
-   ///
+   /// These mask values are defined in the ConfigMasks enum type as part of the
+   /// FaceElementTransformations class in fem/eltrans.hpp.
    FaceElementTransformations *GetFaceElementTransformations(int FaceNo,
                                                              int mask = 31);
 
