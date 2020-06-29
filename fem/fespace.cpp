@@ -60,7 +60,7 @@ FiniteElementSpace::FiniteElementSpace()
    : mesh(NULL), fec(NULL), vdim(0), ordering(Ordering::byNODES),
      ndofs(0), nvdofs(0), nedofs(0), nfdofs(0), nbdofs(0),
      fdofs(NULL), bdofs(NULL),
-     elem_dof(NULL), bdrElem_dof(NULL),
+     elem_dof(NULL), bdrElem_dof(NULL), face_dof(NULL),
      NURBSext(NULL), own_ext(false),
      cP(NULL), cR(NULL), cP_is_set(false),
      Th(Operator::ANY_TYPE),
@@ -231,6 +231,54 @@ void FiniteElementSpace::BuildElementToDofTable() const
    }
    el_dof -> ShiftUpI();
    elem_dof = el_dof;
+}
+
+void FiniteElementSpace::BuildBdrElementToDofTable() const
+{
+   if (bdrElem_dof) { return; }
+
+   Table *bel_dof = new Table;
+   Array<int> dofs;
+   bel_dof->MakeI(mesh->GetNBE());
+   for (int i = 0; i < mesh->GetNBE(); i++)
+   {
+      GetBdrElementDofs(i, dofs);
+      bel_dof->AddColumnsInRow(i, dofs.Size());
+   }
+   bel_dof->MakeJ();
+   for (int i = 0; i < mesh->GetNBE(); i++)
+   {
+      GetBdrElementDofs(i, dofs);
+      bel_dof->AddConnections(i, (int *)dofs, dofs.Size());
+   }
+   bel_dof->ShiftUpI();
+   bdrElem_dof = bel_dof;
+}
+
+void FiniteElementSpace::BuildFaceToDofTable() const
+{
+   // Here, "face" == (dim-1)-dimensional mesh entity.
+
+   if (face_dof) { return; }
+
+   if (NURBSext) { BuildNURBSFaceToDofTable(); return; }
+
+   Table *fc_dof = new Table;
+   Array<int> dofs;
+   fc_dof->MakeI(mesh->GetNumFaces());
+   for (int i = 0; i < fc_dof->Size(); i++)
+   {
+      GetFaceDofs(i, dofs);
+      fc_dof->AddColumnsInRow(i, dofs.Size());
+   }
+   fc_dof->MakeJ();
+   for (int i = 0; i < fc_dof->Size(); i++)
+   {
+      GetFaceDofs(i, dofs);
+      fc_dof->AddConnections(i, (int *)dofs, dofs.Size());
+   }
+   fc_dof->ShiftUpI();
+   face_dof = fc_dof;
 }
 
 void FiniteElementSpace::RebuildElementToDofTable()
@@ -1456,6 +1504,7 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
    this->ordering = (Ordering::Type) ordering;
 
    elem_dof = NULL;
+   face_dof = NULL;
    sequence = mesh->GetSequence();
    Th.SetType(Operator::ANY_TYPE);
 
@@ -1505,6 +1554,8 @@ NURBSExtension *FiniteElementSpace::StealNURBSext()
 
 void FiniteElementSpace::UpdateNURBS()
 {
+   MFEM_VERIFY(NURBSext, "NURBSExt not defined.");
+
    nvdofs = 0;
    nedofs = 0;
    nfdofs = 0;
@@ -1512,11 +1563,64 @@ void FiniteElementSpace::UpdateNURBS()
    fdofs = NULL;
    bdofs = NULL;
 
+   delete face_dof;
+   face_dof = NULL;
+   face_to_be.DeleteAll();
+
    dynamic_cast<const NURBSFECollection *>(fec)->Reset();
 
    ndofs = NURBSext->GetNDof();
    elem_dof = NURBSext->GetElementDofTable();
    bdrElem_dof = NURBSext->GetBdrElementDofTable();
+}
+
+void FiniteElementSpace::BuildNURBSFaceToDofTable() const
+{
+   if (face_dof) { return; }
+
+   const int dim = mesh->Dimension();
+
+   // Find bdr to face mapping
+   face_to_be.SetSize(GetNF());
+   face_to_be = -1;
+   for (int b = 0; b < GetNBE(); b++)
+   {
+      int f = mesh->GetBdrElementEdgeIndex(b);
+      face_to_be[f] = b;
+   }
+
+   // Loop over faces in correct order, to prevent a sort
+   // Sort will destroy orientation info in ordering of dofs
+   Array<Connection> face_dof_list;
+   Array<int> row;
+   for (int f = 0; f < GetNF(); f++)
+   {
+      int b = face_to_be[f];
+      if (b == -1) { continue; }
+      // FIXME: this assumes the boundary element and the face element have the
+      //        same orientation.
+      if (dim > 1)
+      {
+         const Element *fe = mesh->GetFace(f);
+         const Element *be = mesh->GetBdrElement(b);
+         const int nv = be->GetNVertices();
+         const int *fv = fe->GetVertices();
+         const int *bv = be->GetVertices();
+         for (int i = 0; i < nv; i++)
+         {
+            MFEM_VERIFY(fv[i] == bv[i],
+                        "non-matching face and boundary elements detected!");
+         }
+      }
+      GetBdrElementDofs(b, row);
+      Connection conn(f,0);
+      for (int i = 0; i < row.Size(); i++)
+      {
+         conn.to = row[i];
+         face_dof_list.Append(conn);
+      }
+   }
+   face_dof = new Table(GetNF(), face_dof_list);
 }
 
 void FiniteElementSpace::Construct()
@@ -1526,6 +1630,7 @@ void FiniteElementSpace::Construct()
 
    elem_dof = NULL;
    bdrElem_dof = NULL;
+   face_dof = NULL;
 
    ndofs = 0;
    nedofs = nfdofs = nbdofs = 0;
@@ -1788,59 +1893,68 @@ void FiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
 
 void FiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
 {
-   int j, k, nv, ne, nf, nd, dim = mesh->Dimension();
-   Array<int> V, E, Eo;
-   const int *ind;
+   // If face_dof is already built, use it.
+   // If it is not and we have a NURBS space, build the face_dof and use it.
+   if (face_dof || (NURBSext && (BuildNURBSFaceToDofTable(), true)))
+   {
+      face_dof->GetRow(i, dofs);
+   }
+   else
+   {
+      int j, k, nv, ne, nf, nd, dim = mesh->Dimension();
+      Array<int> V, E, Eo;
+      const int *ind;
 
-   // for 1D, 2D and 3D faces
-   nv = fec->DofForGeometry(Geometry::POINT);
-   ne = (dim > 1) ? fec->DofForGeometry(Geometry::SEGMENT) : 0;
-   if (nv > 0)
-   {
-      mesh->GetFaceVertices(i, V);
-   }
-   if (ne > 0)
-   {
-      mesh->GetFaceEdges(i, E, Eo);
-   }
-   nf = (fdofs) ? (fdofs[i+1]-fdofs[i]) : (0);
-   nd = V.Size() * nv + E.Size() * ne + nf;
-   dofs.SetSize(nd);
-   if (nv > 0)
-   {
-      for (k = 0; k < V.Size(); k++)
+      // for 1D, 2D and 3D faces
+      nv = fec->DofForGeometry(Geometry::POINT);
+      ne = (dim > 1) ? fec->DofForGeometry(Geometry::SEGMENT) : 0;
+      if (nv > 0)
       {
-         for (j = 0; j < nv; j++)
-         {
-            dofs[k*nv+j] = V[k]*nv+j;
-         }
+         mesh->GetFaceVertices(i, V);
       }
-   }
-   nv *= V.Size();
-   if (ne > 0)
-   {
-      for (k = 0; k < E.Size(); k++)
+      if (ne > 0)
       {
-         ind = fec->DofOrderForOrientation(Geometry::SEGMENT, Eo[k]);
-         for (j = 0; j < ne; j++)
+         mesh->GetFaceEdges(i, E, Eo);
+      }
+      nf = (fdofs) ? (fdofs[i+1]-fdofs[i]) : (0);
+      nd = V.Size() * nv + E.Size() * ne + nf;
+      dofs.SetSize(nd);
+      if (nv > 0)
+      {
+         for (k = 0; k < V.Size(); k++)
          {
-            if (ind[j] < 0)
+            for (j = 0; j < nv; j++)
             {
-               dofs[nv+k*ne+j] = -1 - ( nvdofs+E[k]*ne+(-1-ind[j]) );
-            }
-            else
-            {
-               dofs[nv+k*ne+j] = nvdofs+E[k]*ne+ind[j];
+               dofs[k*nv+j] = V[k]*nv+j;
             }
          }
       }
-   }
-   ne = nv + ne * E.Size();
-   if (nf > 0)
-   {
-      for (j = nvdofs+nedofs+fdofs[i], k = 0; k < nf; j++, k++)
+      nv *= V.Size();
+      if (ne > 0)
       {
-         dofs[ne+k] = j;
+         for (k = 0; k < E.Size(); k++)
+         {
+            ind = fec->DofOrderForOrientation(Geometry::SEGMENT, Eo[k]);
+            for (j = 0; j < ne; j++)
+            {
+               if (ind[j] < 0)
+               {
+                  dofs[nv+k*ne+j] = -1 - ( nvdofs+E[k]*ne+(-1-ind[j]) );
+               }
+               else
+               {
+                  dofs[nv+k*ne+j] = nvdofs+E[k]*ne+ind[j];
+               }
+            }
+         }
+      }
+      ne = nv + ne * E.Size();
+      if (nf > 0)
+      {
+         for (j = nvdofs+nedofs+fdofs[i], k = 0; k < nf; j++, k++)
+         {
+            dofs[ne+k] = j;
+         }
       }
    }
 }
@@ -1969,14 +2083,21 @@ const FiniteElement *FiniteElementSpace::GetFaceElement(int i) const
          fe = fec->FiniteElementForGeometry(mesh->GetFaceBaseGeometry(i));
    }
 
-   // if (NURBSext)
-   //    NURBSext->LoadFaceElement(i, fe);
+   if (NURBSext)
+   {
+      // Ensure 'face_to_be' is built:
+      if (!face_dof) { BuildNURBSFaceToDofTable(); }
+      MFEM_ASSERT(face_to_be[i] >= 0,
+                  "NURBS mesh: only boundary faces are supported!");
+      NURBSext->LoadBE(face_to_be[i], fe);
+   }
 
    return fe;
 }
 
 const FiniteElement *FiniteElementSpace::GetEdgeElement(int i) const
 {
+   MFEM_ASSERT(mesh->Dimension() > 1, "No edges with a mesh dimension < 2");
    return fec->FiniteElementForGeometry(Geometry::SEGMENT);
 }
 
@@ -2024,11 +2145,14 @@ void FiniteElementSpace::Destroy()
    if (NURBSext)
    {
       if (own_ext) { delete NURBSext; }
+      delete face_dof;
+      face_to_be.DeleteAll();
    }
    else
    {
       delete elem_dof;
       delete bdrElem_dof;
+      delete face_dof;
 
       delete [] bdofs;
       delete [] fdofs;
@@ -2615,7 +2739,9 @@ const Operator &InterpolationGridTransfer::BackwardOperator()
 
 L2ProjectionGridTransfer::L2Projection::L2Projection(
    const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_)
-   : fes_ho(fes_ho_), fes_lor(fes_lor_)
+   : Operator(fes_lor_.GetVSize(), fes_ho_.GetVSize()),
+     fes_ho(fes_ho_),
+     fes_lor(fes_lor_)
 {
    Mesh *mesh_ho = fes_ho.GetMesh();
    MFEM_VERIFY(mesh_ho->GetNumGeometries(mesh_ho->Dimension()) <= 1,
