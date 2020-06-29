@@ -322,22 +322,453 @@ private:
    bool tdV_;
 
    double nu_;
-   /*
-   bool ownsQ_;
-   bool ownsC_;
-   bool ownsK_;
-   */
+
    Coefficient       * QCoef_;
    Coefficient       * CCoef_;
    Coefficient       * kCoef_;
    MatrixCoefficient * KCoef_;
    VectorCoefficient * VCoef_;
-   // Coefficient       * CInvCoef_;
-   // Coefficient       * kInvCoef_;
-   // MatrixCoefficient * KInvCoef_;
+
    ProductCoefficient       * dtkCoef_;
    ScalarMatrixProductCoefficient * dtKCoef_;
    ScalarVectorProductCoefficient * dtnuVCoef_;
+};
+
+struct CoefficientByAttr
+{
+   Array<int> attr;
+   Coefficient * coef;
+};
+
+struct CoefficientsByAttr
+{
+   Array<int> attr;
+   Array<Coefficient*> coefs;
+};
+
+class AdvectionDiffusionBC
+{
+private:
+   std::vector<CoefficientByAttr>  dbc; // Dirichlet BC data
+   std::vector<CoefficientByAttr>  nbc; // Neumann BC data
+   std::vector<CoefficientsByAttr> rbc; // Robin BC data
+   mutable Array<int>  hbc; // Homogeneous Neumann BC boundry attributes
+
+   std::set<int> bc_attr;
+   const Array<int> & bdr_attr;
+
+public:
+   AdvectionDiffusionBC(const Array<int> & bdr)
+      : bdr_attr(bdr) {}
+
+   // Enforce u = val on boundaries with attributes in bdr
+   void AddDirichletBC(const Array<int> & bdr, Coefficient &val);
+
+   // Enforce du/dn = val on boundaries with attributes in bdr
+   void AddNeumannBC(const Array<int> & bdr, Coefficient &val);
+
+   // Enforce du/dn + a u = b on boundaries with attributes in bdr
+   void AddRobinBC(const Array<int> & bdr, Coefficient &a, Coefficient &b);
+
+   const std::vector<CoefficientByAttr> & GetDirichletBCs() const { return dbc; }
+   const std::vector<CoefficientByAttr> & GetNeumannBCs() const { return nbc; }
+   const std::vector<CoefficientsByAttr> & GetRobinBCs() const { return rbc; }
+   const Array<int> & GetHomogeneousNeumannBCs() const;
+};
+
+enum FieldType {INVALID = -1,
+                DENSITY     = 0,
+                TEMPERATURE = 1
+               };
+
+std::string FieldSymbol(FieldType t);
+
+class StateVariableFunc
+{
+public:
+
+   virtual bool NonTrivialValue(FieldType deriv) const = 0;
+
+   void SetDerivType(FieldType deriv) { derivType_ = deriv; }
+   FieldType GetDerivType() const { return derivType_; }
+
+protected:
+   StateVariableFunc(FieldType deriv = INVALID) : derivType_(deriv) {}
+
+   FieldType derivType_;
+};
+
+
+class StateVariableCoef : public StateVariableFunc, public Coefficient
+{
+public:
+
+   virtual StateVariableCoef * Clone() const = 0;
+
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   {
+      switch (derivType_)
+      {
+         case INVALID:
+            return Eval_Func(T, ip);
+         case DENSITY:
+            return Eval_dRho(T, ip);
+         case TEMPERATURE:
+            return Eval_dT(T, ip);
+         default:
+            return 0.0;
+      }
+   }
+
+   virtual double Eval_Func(ElementTransformation &T,
+                            const IntegrationPoint &ip) { return 0.0; }
+
+   virtual double Eval_dRho(ElementTransformation &T,
+			    const IntegrationPoint &ip) { return 0.0; }
+
+   virtual double Eval_dT(ElementTransformation &T,
+			  const IntegrationPoint &ip) { return 0.0; }
+
+protected:
+   StateVariableCoef(FieldType deriv = INVALID) : StateVariableFunc(deriv) {}
+};
+
+class StateVariableVecCoef : public StateVariableFunc,
+   public VectorCoefficient
+{
+public:
+   virtual void Eval(Vector &V,
+                     ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      V.SetSize(vdim);
+
+      switch (derivType_)
+      {
+         case INVALID:
+            return Eval_Func(V, T, ip);
+         case DENSITY:
+            return Eval_dRho(V, T, ip);
+         case TEMPERATURE:
+            return Eval_dT(V, T, ip);
+         default:
+            V = 0.0;
+            return;
+      }
+   }
+
+   virtual void Eval_Func(Vector &V,
+                          ElementTransformation &T,
+                          const IntegrationPoint &ip) { V = 0.0; }
+
+   virtual void Eval_dRho(Vector &V,
+			  ElementTransformation &T,
+			  const IntegrationPoint &ip) { V = 0.0; }
+
+   virtual void Eval_dT(Vector &V,
+			ElementTransformation &T,
+			const IntegrationPoint &ip) { V = 0.0; }
+
+protected:
+   StateVariableVecCoef(int dim, FieldType deriv = INVALID)
+      : StateVariableFunc(deriv), VectorCoefficient(dim) {}
+};
+
+class StateVariableMatCoef : public StateVariableFunc,
+   public MatrixCoefficient
+{
+public:
+   virtual void Eval(DenseMatrix &M,
+                     ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      M.SetSize(height, width);
+
+      switch (derivType_)
+      {
+         case INVALID:
+            return Eval_Func(M, T, ip);
+         case DENSITY:
+            return Eval_dRho(M, T, ip);
+         case TEMPERATURE:
+            return Eval_dT(M, T, ip);
+         default:
+            M = 0.0;
+            return;
+      }
+   }
+
+   virtual void Eval_Func(DenseMatrix &M,
+                          ElementTransformation &T,
+                          const IntegrationPoint &ip) { M = 0.0; }
+
+   virtual void Eval_dRho(DenseMatrix &M,
+			  ElementTransformation &T,
+			  const IntegrationPoint &ip) { M = 0.0; }
+
+   virtual void Eval_dT(DenseMatrix &M,
+			ElementTransformation &T,
+			const IntegrationPoint &ip) { M = 0.0; }
+
+protected:
+   StateVariableMatCoef(int dim, FieldType deriv = INVALID)
+      : StateVariableFunc(deriv), MatrixCoefficient(dim) {}
+
+   StateVariableMatCoef(int h, int w, FieldType deriv = INVALID)
+      : StateVariableFunc(deriv), MatrixCoefficient(h, w) {}
+};
+
+class DGAdvectionDiffusionTDO : public TimeDependentOperator
+{
+private:
+   const MPI_Session & mpi_;
+   int logging_;
+
+   ParFiniteElementSpace &fes_;
+   ParGridFunction       &yGF_;
+   ParGridFunction       &kGF_;
+
+  class ADPrec : public Solver
+  {
+  private:
+    Operator *prec_;
+
+  public:
+    ADPrec() : prec_(NULL) {}
+
+    ~ADPrec() { delete prec_; }
+    
+    virtual void SetOperator(const Operator &op);
+    virtual void Mult (const Vector & x, Vector & y) const
+    { prec_->Mult(x, y); }
+  };
+   
+   ADPrec        newton_op_prec_;
+   // Array<HypreSmoother*> newton_op_prec_blocks_;
+  // Operator    * newton_op_prec_;
+   GMRESSolver   newton_op_solver_;
+   NewtonSolver  newton_solver_;
+
+   // Data collection used to write data files
+   DataCollection * dc_;
+
+   // Sockets used to communicate with GLVis
+   std::map<std::string, socketstream*> socks_;
+  
+   class NLOperator : public Operator
+   {
+   protected:
+      const MPI_Session &mpi_;
+      const DGParams &dg_;
+
+      int logging_;
+      std::string log_prefix_;
+
+      int index_;
+      std::string field_name_;
+      double dt_;
+      ParFiniteElementSpace &fes_;
+      ParMesh               &pmesh_;
+      ParGridFunction       &yGF_;
+      ParGridFunction       &kGF_;
+
+      GridFunctionCoefficient yCoef_;
+      GridFunctionCoefficient kCoef_;
+
+      // mutable Vector shape_;
+      // mutable DenseMatrix dshape_;
+      // mutable DenseMatrix dshapedxt_;
+      mutable Array<int> vdofs_;
+      mutable Array<int> vdofs2_;
+      mutable DenseMatrix elmat_;
+      mutable DenseMatrix elmat_k_;
+      mutable Vector elvec_;
+      mutable Vector locvec_;
+      mutable Vector locdvec_;
+      // mutable Vector vec_;
+
+      // Domain integrators for time derivatives of field variables
+      BilinearFormIntegrator* dbfi_m_;  // Domain Integrators
+      // Array<Array<StateVariableCoef*> >      dbfi_mc_; // Domain Integrators
+
+      // Domain integrators for field variables at next time step
+      Array<BilinearFormIntegrator*> dbfi_;  // Domain Integrators
+      Array<BilinearFormIntegrator*> fbfi_;  // Interior Face Integrators
+      Array<BilinearFormIntegrator*> bfbfi_; // Boundary Face Integrators
+      Array<Array<int>*>             bfbfi_marker_; ///< Entries are owned.
+
+      // Domain integrators for source terms
+      Array<LinearFormIntegrator*> dlfi_;  // Domain Integrators
+      Array<LinearFormIntegrator*> bflfi_; // Boundary Face Integrators
+      Array<Array<int>*>           bflfi_marker_; ///< Entries are owned.
+
+      ParBilinearForm* blf_; // Bilinear Form Object for the Gradient
+      mutable Operator* blf_op_; // The gradient operator
+     
+      int term_flag_;
+      int vis_flag_;
+
+      // Data collection used to write data files
+      DataCollection * dc_;
+
+      // Sockets used to communicate with GLVis
+      std::map<std::string, socketstream*> socks_;
+
+      NLOperator(const MPI_Session & mpi, const DGParams & dg,
+                 ParGridFunction & yGF,
+                 ParGridFunction & kGF,
+                 int term_flag, int vis_flag, int logging = 0,
+                 const std::string & log_prefix = "");
+
+
+   public:
+
+      virtual ~NLOperator();
+
+      void SetLogging(int logging, const std::string & prefix = "");
+
+      virtual void SetTimeStep(double dt) { dt_ = dt; }
+
+      virtual void Mult(const Vector &k, Vector &y) const;
+
+      virtual void Update();
+      virtual Operator &GetGradient(const Vector &x) const;
+
+      inline bool CheckTermFlag(int flag) { return (term_flag_>> flag) & 1; }
+
+      inline bool CheckVisFlag(int flag) { return (vis_flag_>> flag) & 1; }
+
+      virtual int GetDefaultVisFlag() { return 1; }
+
+      virtual void RegisterDataFields(DataCollection & dc);
+
+      virtual void PrepareDataFields();
+
+      virtual void InitializeGLVis() = 0;
+
+      virtual void DisplayToGLVis() = 0;
+   };
+
+   class AdvectionDiffusionOp : public NLOperator
+   {
+   private:
+      Array<Coefficient*> coefs_;
+      Array<ProductCoefficient*>             dtSCoefs_;
+      Array<ProductCoefficient*>             negdtSCoefs_;
+      Array<ScalarVectorProductCoefficient*> dtVCoefs_;
+      Array<ScalarMatrixProductCoefficient*> dtMCoefs_;
+      std::vector<socketstream*> sout_;
+      ParGridFunction coefGF_;
+
+      GridFunctionCoefficient &y0Coef_;
+
+      const AdvectionDiffusionBC & bcs_;
+
+   public:
+
+      AdvectionDiffusionOp(const MPI_Session & mpi, const DGParams & dg,
+			   ParGridFunction & yGF,
+			   ParGridFunction & kGF,
+			   const AdvectionDiffusionBC & bcs,
+			   int term_flag, int vis_flag,
+			   int logging = 0,
+			   const std::string & log_prefix = "");
+
+      ~AdvectionDiffusionOp();
+
+      virtual void SetTimeStep(double dt);
+
+      /** Sets the time derivative on the left hand side of the equation to be:
+             d MCoef / dt
+      */
+      void SetTimeDerivativeTerm(StateVariableCoef &MCoef);
+
+      /** Sets the diffusion term on the right hand side of the equation
+          to be:
+             Div(DCoef Grad y[index])
+          where index is the index of the equation.
+       */
+      void SetDiffusionTerm(StateVariableCoef &DCoef);
+      void SetDiffusionTerm(StateVariableMatCoef &DCoef);
+
+      /** Sets the advection term on the right hand side of the
+      equation to be:
+             Div(VCoef y[index])
+          where index is the index of the equation.
+       */
+      void SetAdvectionTerm(StateVariableVecCoef &VCoef, bool bc = false);
+
+      void SetSourceTerm(StateVariableCoef &SCoef);
+
+      virtual void InitializeGLVis();
+
+      virtual void DisplayToGLVis();
+   };
+
+   AdvectionDiffusionOp op_;
+  
+   mutable Vector x_;
+   mutable Vector y_;
+   Vector u_;
+   Vector dudt_;
+
+public:
+   DGAdvectionDiffusionTDO(const MPI_Session & mpi,
+			   const DGParams & dg,
+			   ParFiniteElementSpace &fes,
+			   ParGridFunction &yGF,
+			   ParGridFunction &kGF,
+			   const AdvectionDiffusionBC & bcs,
+			   int term_flag,
+			   int vis_flag,
+			   bool imex = true,
+			   int logging = 0);
+
+   ~DGAdvectionDiffusionTDO();
+
+   void SetTime(const double _t);
+   void SetLogging(int logging);
+
+  /** Sets the time derivative on the left hand side of the equation to be:
+             d MCoef / dt
+      */
+  void SetHeatCapacityCoef(StateVariableCoef &MCoef)
+  { op_.SetTimeDerivativeTerm(MCoef); }
+
+      /** Sets the diffusion term on the right hand side of the equation
+          to be:
+             Div(DCoef Grad y[index])
+          where index is the index of the equation.
+       */
+      void SetConductivityCoef(StateVariableCoef &DCoef)
+  { op_.SetDiffusionTerm(DCoef); }
+  void SetDiffusionTerm(StateVariableMatCoef &DCoef)
+  { op_.SetDiffusionTerm(DCoef); }
+  
+      /** Sets the advection term on the right hand side of the
+      equation to be:
+             Div(VCoef y[index])
+          where index is the index of the equation.
+       */
+      void SetVelocityCoef(StateVariableVecCoef &VCoef)
+  { op_.SetAdvectionTerm(VCoef); }
+
+      void SetHeatSourceCoef(StateVariableCoef &SCoef)
+  { op_.SetSourceTerm(SCoef); }
+
+  void RegisterDataFields(DataCollection & dc);
+
+   void PrepareDataFields();
+
+   void InitializeGLVis();
+
+   void DisplayToGLVis();
+
+   // virtual void ExplicitMult(const Vector &x, Vector &y) const;
+   virtual void ImplicitSolve(const double dt, const Vector &y, Vector &k);
+
+   void Update();
 };
 
 } // namespace thermal

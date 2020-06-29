@@ -258,7 +258,26 @@ void dTFunc(const Vector &x, double t, Vector &dT)
    dT *= -2.0 * (TMax_ - TInf_) * e / (sPara * sPerp);
 }
 */
-class DiffusionCoef : public Coefficient
+class ConstantStateVariableCoef : public StateVariableCoef
+{
+private:
+  double val_;
+  
+public:
+  ConstantStateVariableCoef(double val) : val_(val) {}
+
+    virtual ConstantStateVariableCoef * Clone() const
+  {
+    return new ConstantStateVariableCoef(val_);
+  }
+ 
+  virtual bool NonTrivialValue(FieldType deriv) const { return false; }
+
+  double Eval_Func(ElementTransformation &T, const IntegrationPoint &ip)
+  { return val_; }
+};
+
+class DiffusionCoef : public StateVariableCoef
 {
 private:
   ParGridFunction * T_gf_;
@@ -275,7 +294,17 @@ public:
     MFEM_VERIFY(p_ >= 0, "Nonlinear power must be non-negative");
   }
 
-  double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+    virtual DiffusionCoef * Clone() const
+  {
+    return new DiffusionCoef(*T_gf_, Tau_, kappa_, p_);
+  }
+ 
+  virtual bool NonTrivialValue(FieldType deriv) const
+  {
+    return deriv == FieldType::TEMPERATURE;
+  }
+
+  double Eval_Func(ElementTransformation &T, const IntegrationPoint &ip)
   {
     if (p_ == 0)
     {
@@ -286,6 +315,20 @@ public:
       double temp = T_gf_->GetValue(T);
       MFEM_VERIFY(temp > 0.0, "Temperature must be positive");
       return kappa_ * pow(sqrt(temp/Tau_), p_);
+    }
+  }
+
+  double Eval_dT(ElementTransformation &T, const IntegrationPoint &ip)
+  {
+    if (p_ == 0)
+    {
+      return 0.0;
+    }
+    else
+    {
+      double temp = T_gf_->GetValue(T);
+      MFEM_VERIFY(temp > 0.0, "Temperature must be positive");
+      return 0.5 * kappa_ * p_ * (1.0 / Tau_) * pow(sqrt(temp/Tau_), p_ - 1);
     }
   }
 };
@@ -446,6 +489,7 @@ int main(int argc, char *argv[])
    if (mpi.Root()) { display_banner(cout); }
 
    // 2. Parse command-line options.
+   int logging = 0;
    int order = 1;
    int irOrder = -1;
    int ser_ref_levels = 0;
@@ -505,11 +549,16 @@ int main(int argc, char *argv[])
    double lim_hi  = 1.2;
    double lim_max = 2.0;
 
-   bool epus = true;
+   bool ode_epus = true;
 
+   int term_flag = 31;
+   int vis_flag = 31;
+   
    bool gnuplot = true;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&logging, "-l", "--logging",
+                  "Set the logging level.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
@@ -556,9 +605,7 @@ int main(int argc, char *argv[])
    args.AddOption(&tol, "-tol", "--tolerance",
                   "Tolerance used to determine convergence to steady state.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1 - Heun-Euler, 2 - RKF12, "
-                  "3 - BogackiShampine, 4 - RKF45, 5 - Cash-Karp, "
-                  "6 - Dormand-Prince.");
+                  "ODE solver: 1 - SDIRK 212, 2 - SDIRK 534.");
    args.AddOption(&ode_msr_type, "-err", "--error-measure",
                   "Error measure:\n"
                   "\t   1 - Absolute/Relative Error with Infinity-Norm\n"
@@ -613,7 +660,7 @@ int main(int argc, char *argv[])
                   "Rejection tolerance.");
    args.AddOption(&diff_eta, "-eta", "--error-scaling",
                   "Error is |r/(|y|+eta)|.");
-   args.AddOption(&epus, "-epus", "--error-per-unit-step",
+   args.AddOption(&ode_epus, "-epus", "--error-per-unit-step",
                   "-eps", "--error-per-step",
                   "Select Error per step or error per unit step.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
@@ -750,12 +797,8 @@ int main(int argc, char *argv[])
 
    switch (ode_solver_type)
    {
-      case 0: ode_solver = new HeunEulerSolver; break;
-      case 1: ode_solver = new FehlbergRK12Solver; break;
-      case 2: ode_solver = new BogackiShampineSolver; break;
-      case 3: ode_solver = new FehlbergRK45Solver; break;
-      case 4: ode_solver = new CashKarpSolver; break;
-      case 5: ode_solver = new DormandPrinceSolver; break;
+      case 1: ode_solver = new SDIRK212Solver; break;
+      case 2: ode_solver = new SDIRK534Solver; break;
    }
    switch (ode_msr_type)
    {
@@ -850,22 +893,32 @@ int main(int argc, char *argv[])
    // ND_FECollection HCurlFEC(order, dim);
 
    // H1 contains continuous "node-centered" Lagrange finite elements.
-   H1_FECollection HGradFEC(order, dim);
-
+   H1_FECollection HGrad_FEC(order, dim);
+   DG_FECollection DG_FEC(order, dim);
+   
    ParFiniteElementSpace   L2FESpace0(pmesh, &L2FEC0);
    ParFiniteElementSpace    L2FESpace(pmesh, &L2FEC);
    // ParFiniteElementSpace  HDivFESpace(pmesh, &HDivFEC);
    // ParFiniteElementSpace HCurlFESpace(pmesh, &HCurlFEC);
-   ParFiniteElementSpace HGradFESpace(pmesh, &HGradFEC);
-
+   // ParFiniteElementSpace HGradFESpace(pmesh, &HGradFEC);
+   ParFiniteElementSpace * fespace = NULL;
+   if (h1)
+     {
+       fespace = new ParFiniteElementSpace(pmesh, &HGrad_FEC);
+     }
+   else
+     {
+       fespace = new ParFiniteElementSpace(pmesh, &DG_FEC);
+     }
+   
    // The terminology is TrueVSize is the unique (non-redundant) number of dofs
    // HYPRE_Int glob_size_l2 = L2FESpace.GlobalTrueVSize();
    // HYPRE_Int glob_size_rt = HDivFESpace.GlobalTrueVSize();
-   HYPRE_Int glob_size_h1 = HGradFESpace.GlobalTrueVSize();
+   HYPRE_Int glob_size = fespace->GlobalTrueVSize();
 
    if (mpi.Root())
    {
-      cout << "Number of Temperature unknowns:       " << glob_size_h1 << endl;
+      cout << "Number of Temperature unknowns:       " << glob_size << endl;
    }
 
    // int Vsize_l2 = L2FESpace.GetVSize();
@@ -879,10 +932,10 @@ int main(int argc, char *argv[])
    ParGridFunction qPerp(&HCurlFESpace);
    */
    ParGridFunction Q(&L2FESpace);
-   ParGridFunction T1(&HGradFESpace);
-   ParGridFunction T0(&HGradFESpace);
-   ParGridFunction dT(&HGradFESpace);
-   ParGridFunction ExactT(&HGradFESpace);
+   ParGridFunction T1(fespace);
+   ParGridFunction T0(fespace);
+   ParGridFunction dT(fespace);
+   ParGridFunction ExactT(fespace);
    /*
    ParGridFunction errorq(&L2FESpace0);
    ParGridFunction errorqPara(&L2FESpace0);
@@ -917,9 +970,9 @@ int main(int argc, char *argv[])
    // MatVecCoefficient qParaCoef(bbTCoef, qCoef);
    // MatVecCoefficient qPerpCoef(ImbbTCoef, qCoef);
 
-   ConstantCoefficient HeatCapacityCoef(c_rho);
-   DiffusionCoef       ThermalConductivityCoef(T1, Tau, kappa, p);
-   ConstantCoefficient HeatSourceCoef(0.0);
+   ConstantStateVariableCoef HeatCapacityCoef(c_rho);
+   DiffusionCoef             ThermalConductivityCoef(T1, Tau, kappa, p);
+   ConstantStateVariableCoef HeatSourceCoef(0.0);
 
    Q.ProjectCoefficient(HeatSourceCoef);
 
@@ -932,6 +985,16 @@ int main(int argc, char *argv[])
    T1.GridFunction::ComputeElementL2Errors(TCoef, errorT);
    ExactT.ProjectCoefficient(TCoef);
 
+   Array<int> dbc_attr;
+   dbc_attr.Append(1);
+
+   Array<int> nbc_attr;
+   nbc_attr.Append(2);
+   
+   AdvectionDiffusionBC bcs(pmesh->bdr_attributes);
+   bcs.AddDirichletBC(dbc_attr, TCoef);
+   bcs.AddNeumannBC(nbc_attr, zeroCoef);
+   
    // q.GridFunction::ComputeElementL2Errors(qCoef, errorq);
    // qPara.GridFunction::ComputeElementL2Errors(qParaCoef, errorqPara);
    // qPerp.GridFunction::ComputeElementL2Errors(qPerpCoef, errorqPerp);
@@ -966,12 +1029,20 @@ int main(int argc, char *argv[])
    */
    // 14. Initialize the Diffusion operator, the GLVis visualization and print
    //     the initial energies.
+   /*
    DiffusionTDO oper(HGradFESpace,
                      zeroCoef, ess_bdr,
                      HeatCapacityCoef, false,
                      ThermalConductivityCoef, false,
                      HeatSourceCoef, false);
+   */
+   DGAdvectionDiffusionTDO oper(mpi, dg_params, *fespace, T0, dT, bcs,
+				term_flag, vis_flag, false, logging);
 
+   oper.SetHeatCapacityCoef(HeatCapacityCoef);
+   oper.SetConductivityCoef(ThermalConductivityCoef);
+   oper.SetHeatSourceCoef(HeatSourceCoef);
+   
    // This function initializes all the fields to zero or some provided IC
    // oper.Init(F);
    /*
@@ -1121,7 +1192,8 @@ int main(int argc, char *argv[])
    ode_controller.SetTimeStep(dt);
    ode_controller.SetTolerance(tol);
    ode_controller.SetRejectionLimit(rho);
-
+   if (ode_epus) { ode_controller.SetErrorPerUnitStep(); }
+   
    ofstream ofs_gp;
 
    if (gnuplot)
