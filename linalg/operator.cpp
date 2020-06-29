@@ -543,6 +543,35 @@ void RectangularConstrainedOperator::Mult(const Vector &x, Vector &y) const
    }
 }
 
+void RectangularConstrainedOperator::MultTranspose(const Vector &x,
+                                                   Vector &y) const
+{
+   const int trial_csz = trial_constraints.Size();
+   const int test_csz = test_constraints.Size();
+   if (test_csz == 0)
+   {
+      A->MultTranspose(x, y);
+   }
+   else
+   {
+      z = x;
+
+      auto idx = test_constraints.Read();
+      // Use read+write access - we are modifying sub-vector of z
+      auto d_z = z.ReadWrite();
+      MFEM_FORALL(i, test_csz, d_z[idx[i]] = 0.0;);
+
+      A->MultTranspose(z, y);
+   }
+
+   if (trial_csz != 0)
+   {
+      auto idx = trial_constraints.Read();
+      auto d_y = y.ReadWrite();
+      MFEM_FORALL(i, trial_csz, d_y[idx[i]] = 0.0;);
+   }
+}
+
 double PowerMethod::EstimateLargestEigenvalue(Operator& opr, Vector& v0,
                                               int numSteps, double tolerance, int seed)
 {
