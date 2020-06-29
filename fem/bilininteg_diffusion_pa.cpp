@@ -1926,7 +1926,6 @@ static void PADiffusionApply(const int dim,
          default:   return PADiffusionApply3D(NE,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
       }
    }
-
    MFEM_ABORT("Unknown kernel.");
 }
 
