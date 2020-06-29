@@ -19,13 +19,11 @@
 #define MFEM_CUDA_BLOCKS 256
 
 #ifdef MFEM_USE_CUDA
-
 #define MFEM_DEVICE __device__
 #define MFEM_LAMBDA __host__
 #define MFEM_HOST_DEVICE __host__ __device__
 #define MFEM_DEVICE_SYNC MFEM_GPU_CHECK(cudaDeviceSynchronize())
 #define MFEM_STREAM_SYNC MFEM_GPU_CHECK(cudaStreamSynchronize(0))
-
 // Define a CUDA error check macro, MFEM_GPU_CHECK(x), where x returns/is of
 // type 'cudaError_t'. This macro evaluates 'x' and raises an error if the
 // result is not cudaSuccess.
