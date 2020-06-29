@@ -47,6 +47,7 @@ Performance improvements
 Improved GPU capabilities
 -------------------------
 - Added support for Chebyshev accelerated polynomial smoother on GPU.
+- Optimized AMD/HIP kernel support.
 
 Discretization improvements
 ---------------------------
