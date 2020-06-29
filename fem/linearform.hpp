@@ -177,8 +177,8 @@ public:
 
    /** @brief Make the LinearForm reference external data on a new
        FiniteElementSpace. */
-   /** This method changes the FiniteElementSpace associated with the
-       LinearForm and sets the data of the Vector @a v (plus the @a v_offset)
+   /** This method changes the FiniteElementSpace associated with the LinearForm
+       @a *f and sets the data of the Vector @a v (plus the @a v_offset)
        as external data in the LinearForm.
        @note This version of the method will also perform bounds checks when
        the build option MFEM_DEBUG is enabled. */
