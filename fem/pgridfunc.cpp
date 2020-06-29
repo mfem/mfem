@@ -539,8 +539,9 @@ void ParGridFunction::SaveAsOne(std::ostream &out)
    int *nfdofs = new int[NRanks];
    int *nrdofs = new int[NRanks];
 
-   data.ReadWrite(MemoryClass::HOST,data.Capacity());
-   values[0] = data;
+   double * h_data = const_cast<double *>(this->HostRead());
+
+   values[0] = h_data;
    nv[0]     = pfes -> GetVSize();
    nvdofs[0] = pfes -> GetNVDofs();
    nedofs[0] = pfes -> GetNEDofs();
@@ -641,7 +642,7 @@ void ParGridFunction::SaveAsOne(std::ostream &out)
       MPI_Send(&nvdofs[0], 1, MPI_INT, 0, 456, MyComm);
       MPI_Send(&nedofs[0], 1, MPI_INT, 0, 457, MyComm);
       MPI_Send(&nfdofs[0], 1, MPI_INT, 0, 458, MyComm);
-      MPI_Send(data, nv[0], MPI_DOUBLE, 0, 460, MyComm);
+      MPI_Send(h_data, nv[0], MPI_DOUBLE, 0, 460, MyComm);
    }
 
    delete [] values;
