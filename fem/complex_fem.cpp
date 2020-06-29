@@ -262,10 +262,13 @@ ComplexLinearForm::Assemble()
 complex<double>
 ComplexLinearForm::operator()(const ComplexGridFunction &gf) const
 {
-   double s = (conv == ComplexOperator::HERMITIAN)?1.0:-1.0;
+   double s = (conv == ComplexOperator::HERMITIAN) ? 1.0 : -1.0;
+   lfr->SyncMemory(*this);
+   lfi->SyncMemory(*this);
    return complex<double>((*lfr)(gf.real()) - s * (*lfi)(gf.imag()),
                           (*lfr)(gf.imag()) + s * (*lfi)(gf.real()));
 }
+
 
 bool SesquilinearForm::RealInteg()
 {
@@ -812,10 +815,16 @@ ParComplexLinearForm::ParComplexLinearForm(ParFiniteElementSpace *pfes,
    : Vector(2*(pfes->GetVSize())),
      conv(convention)
 {
-   plfr = new ParLinearForm(pfes, data);
-   plfi = new ParLinearForm(pfes, (data) ? &data[pfes->GetVSize()]:data);
+   UseDevice(true);
+   this->Vector::operator=(0.0);
 
-   HYPRE_Int * tdof_offsets_fes = pfes->GetTrueDofOffsets();
+   plfr = new ParLinearForm();
+   plfr->MakeRef(pfes, *this, 0);
+
+   plfi = new ParLinearForm();
+   plfi->MakeRef(pfes, *this, pfes->GetVSize());
+
+   HYPRE_Int *tdof_offsets_fes = pfes->GetTrueDofOffsets();
 
    int n = (HYPRE_AssumedPartitionCheck()) ? 2 : pfes->GetNRanks();
    tdof_offsets = new HYPRE_Int[n+1];
@@ -835,12 +844,16 @@ ParComplexLinearForm::ParComplexLinearForm(ParFiniteElementSpace *pfes,
    : Vector(2*(pfes->GetVSize())),
      conv(convention)
 {
-   plfr = new ParLinearForm(pfes, plf_r);
-   plfr->SetData(data);
-   plfi = new ParLinearForm(pfes, plf_i);
-   plfi->SetData((data) ? &data[pfes->GetVSize()]:data);
+   UseDevice(true);
+   this->Vector::operator=(0.0);
 
-   HYPRE_Int * tdof_offsets_fes = pfes->GetTrueDofOffsets();
+   plfr = new ParLinearForm(pfes, plf_r);
+   plfi = new ParLinearForm(pfes, plf_i);
+
+   plfr->MakeRef(pfes, *this, 0);
+   plfi->MakeRef(pfes, *this, pfes->GetVSize());
+
+   HYPRE_Int *tdof_offsets_fes = pfes->GetTrueDofOffsets();
 
    int n = (HYPRE_AssumedPartitionCheck()) ? 2 : pfes->GetNRanks();
    tdof_offsets = new HYPRE_Int[n+1];
@@ -903,58 +916,71 @@ ParComplexLinearForm::AddBdrFaceIntegrator(LinearFormIntegrator *lfi_real,
 void
 ParComplexLinearForm::Update(ParFiniteElementSpace *pf)
 {
-   ParFiniteElementSpace *pfes = (pf!=NULL)?pf:plfr->ParFESpace();
-   int vsize = pfes->GetVSize();
-   SetSize(2 * vsize);
+   ParFiniteElementSpace *pfes = (pf != NULL) ? pf : plfr->ParFESpace();
 
-   Vector vplfr(data, vsize);
-   Vector vplfi((data) ? &data[vsize] : data, vsize);
+   UseDevice(true);
+   SetSize(2 * pfes->GetVSize());
+   this->Vector::operator=(0.0);
 
-   plfr->Update(pfes, vplfr, 0);
-   plfi->Update(pfes, vplfi, 0);
+   plfr->MakeRef(pfes, *this, 0);
+   plfi->MakeRef(pfes, *this, pfes->GetVSize());
 }
 
 void
 ParComplexLinearForm::Assemble()
 {
+   plfr->SyncMemory(*this);
+   plfi->SyncMemory(*this);
    plfr->Assemble();
    plfi->Assemble();
-   if (conv == ComplexOperator::BLOCK_SYMMETRIC)
-   {
-      *plfi *= -1.0;
-   }
+   if (conv == ComplexOperator::BLOCK_SYMMETRIC) { *plfi *= -1.0; }
+   plfr->SyncAliasMemory(*this);
+   plfi->SyncAliasMemory(*this);
 }
 
 void
 ParComplexLinearForm::ParallelAssemble(Vector &tv)
 {
-   HYPRE_Int size = plfr->ParFESpace()->GetTrueVSize();
+   const int tvsize = plfr->ParFESpace()->GetTrueVSize();
 
-   double * tvd = tv.GetData();
-   Vector tvr(tvd, size);
-   Vector tvi((tvd) ? &tvd[size] : tvd, size);
+   tv.Write();
+   Vector tvr; tvr.MakeRef(tv, 0, tvsize);
+   Vector tvi; tvi.MakeRef(tv, tvsize, tvsize);
 
+   plfr->SyncMemory(*this);
+   plfi->SyncMemory(*this);
    plfr->ParallelAssemble(tvr);
    plfi->ParallelAssemble(tvi);
+   plfr->SyncAliasMemory(*this);
+   plfi->SyncAliasMemory(*this);
+
+   tvr.SyncAliasMemory(tv);
+   tvi.SyncAliasMemory(tv);
 }
 
 HypreParVector *
 ParComplexLinearForm::ParallelAssemble()
 {
-   const ParFiniteElementSpace * pfes = plfr->ParFESpace();
+   const ParFiniteElementSpace *pfes = plfr->ParFESpace();
+   const int tvsize = pfes->GetTrueVSize();
 
-   HypreParVector * tv = new HypreParVector(pfes->GetComm(),
-                                            2*(pfes->GlobalTrueVSize()),
-                                            tdof_offsets);
+   HypreParVector *tv = new HypreParVector(pfes->GetComm(),
+                                           2*(pfes->GlobalTrueVSize()),
+                                           tdof_offsets);
 
-   HYPRE_Int size = pfes->GetTrueVSize();
+   tv->Write();
+   Vector tvr; tvr.MakeRef(*tv, 0, tvsize);
+   Vector tvi; tvi.MakeRef(*tv, tvsize, tvsize);
 
-   double * tvd = tv->GetData();
-   Vector tvr(tvd, size);
-   Vector tvi((tvd) ? &tvd[size] : tvd, size);
-
+   plfr->SyncMemory(*this);
+   plfi->SyncMemory(*this);
    plfr->ParallelAssemble(tvr);
    plfi->ParallelAssemble(tvi);
+   plfr->SyncAliasMemory(*this);
+   plfi->SyncAliasMemory(*this);
+
+   tvr.SyncAliasMemory(*tv);
+   tvi.SyncAliasMemory(*tv);
 
    return tv;
 }
@@ -962,11 +988,12 @@ ParComplexLinearForm::ParallelAssemble()
 complex<double>
 ParComplexLinearForm::operator()(const ParComplexGridFunction &gf) const
 {
-   double s = (conv == ComplexOperator::HERMITIAN)?1.0:-1.0;
+   plfr->SyncMemory(*this);
+   plfi->SyncMemory(*this);
+   double s = (conv == ComplexOperator::HERMITIAN) ? 1.0 : -1.0;
    return complex<double>((*plfr)(gf.real()) - s * (*plfi)(gf.imag()),
                           (*plfr)(gf.imag()) + s * (*plfi)(gf.real()));
 }
-
 
 
 bool ParSesquilinearForm::RealInteg()
