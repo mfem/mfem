@@ -92,6 +92,25 @@ public:
        @note This method does not perform assembly. */
    void Update(ParFiniteElementSpace *pf, Vector &v, int v_offset);
 
+
+   /** @brief Make the ParLinearForm reference external data on a new
+       FiniteElementSpace. */
+   /** This method changes the FiniteElementSpace associated with the ParLinearForm
+       to @a *f and sets the data of the Vector @a v (plus the @a v_offset) as external
+       data in the ParLinearForm.
+       @note This version of the method will also perform bounds checks when
+       the build option MFEM_DEBUG is enabled. */
+   virtual void MakeRef(FiniteElementSpace *f, Vector &v, int v_offset);
+
+   /** @brief Make the ParLinearForm reference external data on a new
+       ParFiniteElementSpace. */
+   /** This method changes the ParFiniteElementSpace associated with the ParLinearForm
+       to @a *pf and sets the data of the Vector @a v (plus the @a v_offset) as external
+       data in the ParLinearForm.
+       @note This version of the method will also perform bounds checks when
+       the build option MFEM_DEBUG is enabled. */
+   void MakeRef(ParFiniteElementSpace *pf, Vector &v, int v_offset);
+
    /// Assemble the vector on the true dofs, i.e. P^t v.
    void ParallelAssemble(Vector &tv);
 
