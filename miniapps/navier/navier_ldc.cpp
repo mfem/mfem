@@ -34,14 +34,15 @@ struct s_NavierContext
 {
    int ser_ref_levels = 1;
    int order = 5;
-   double kinvis = 1.0;
+   double kinvis = .00010;
    double t_final = .5;
    double dt = 0.25e-3;
    bool pa = true;
    bool ni = false;
    bool visualization = false;
    bool checkres = false;
-   double lid = 1.0;
+   double lid = .10;
+   double top = 0.0;
 } ctx;
 
 void vel(const Vector &x, double t, Vector &u)
@@ -49,7 +50,7 @@ void vel(const Vector &x, double t, Vector &u)
    double xi = x(0);
    double yi = x(1);
 
-   if (yi==1.0)
+   if (yi==ctx.top)
    {
       u(0) = ctx.lid;
    }
@@ -156,6 +157,13 @@ int main(int argc, char *argv[])
    }
 
    Mesh *mesh = new Mesh(mesh_file);
+   for (int m = 0; m < mesh->GetNV(); m++){
+      double& vert = *(mesh->GetVertex(m)+1);
+      if (vert > ctx.top) {
+         ctx.top = vert;
+      }
+   }
+
    // mesh->EnsureNodes();
    // GridFunction *nodes = mesh->GetNodes();
    // *nodes *= 2.0;
