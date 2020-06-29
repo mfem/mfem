@@ -162,7 +162,7 @@ public:
                            int vdim = 1) const;
 
    /** Return a vector value from within the given element. */
-   void GetVectorValue(int i, const IntegrationPoint &ip, Vector &val) const;
+   virtual void GetVectorValue(int i, const IntegrationPoint &ip, Vector &val) const;
    ///@}
 
    /** @name Element Index Get Values Methods
