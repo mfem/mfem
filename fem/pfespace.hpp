@@ -240,7 +240,7 @@ public:
    int GetNRanks() const { return NRanks; }
    int GetMyRank() const { return MyRank; }
 
-   inline ParMesh *GetParMesh() { return pmesh; }
+   inline ParMesh *GetParMesh() const { return pmesh; }
 
    int GetDofSign(int i)
    { return NURBSext || Nonconforming() ? 1 : ldof_sign[VDofToDof(i)]; }
@@ -376,7 +376,7 @@ public:
 
    void PrintPartitionStats();
 
-   // Obsolete, kept for backward compatibility
+   /// Obsolete, kept for backward compatibility
    int TrueVSize() const { return ltdof_size; }
 };
 

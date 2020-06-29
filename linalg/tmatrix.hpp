@@ -22,6 +22,16 @@ namespace mfem
 
 // Matrix-matrix products
 
+namespace internal
+{
+
+template <typename T> struct entry_type { typedef typename T::data_type type; };
+
+template <typename T> struct entry_type<T*> { typedef T type; };
+
+} // namespace mfem::internal
+
+
 // C  {=|+=}  A.B -- simple version (no blocks)
 template <bool Add,
           typename A_layout_t, typename A_data_t,
@@ -46,23 +56,26 @@ void sMult_AB(const A_layout_t &A_layout, const A_data_t &A_data,
    MFEM_FLOPS_ADD(Add ? 2*A1*A2*B2 : 2*A1*A2*B2-A1*B2);
    for (int b2 = 0; b2 < B2; b2++)
    {
-      for (int s = 0; s < A2; s++)
+      for (int a1 = 0; a1 < A1; a1++)
       {
-         for (int a1 = 0; a1 < A1; a1++)
+         typename internal::entry_type<C_data_t>::type c_a1_b2;
+         if (Add)
          {
-            if (!Add && s == 0)
-            {
-               // C(a1,b2) = A(a1,s) * B(s,b2);
-               C_data[C_layout.ind(a1,b2)] =
-                  A_data[A_layout.ind(a1,s)] * B_data[B_layout.ind(s,b2)];
-            }
-            else
-            {
-               // C(a1,b2) += A(a1,s) * B(s,b2);
-               C_data[C_layout.ind(a1,b2)] +=
-                  A_data[A_layout.ind(a1,s)] * B_data[B_layout.ind(s,b2)];
-            }
+            // C(a1,b2) += A(a1,0) * B(0,b2);
+            c_a1_b2 = C_data[C_layout.ind(a1,b2)];
+            c_a1_b2.fma(A_data[A_layout.ind(a1,0)], B_data[B_layout.ind(0,b2)]);
          }
+         else
+         {
+            // C(a1,b2) = A(a1,0) * B(0,b2);
+            c_a1_b2.mul(A_data[A_layout.ind(a1,0)], B_data[B_layout.ind(0,b2)]);
+         }
+         for (int s = 1; s < A2; s++)
+         {
+            // C(a1,b2) += A(a1,s) * B(s,b2);
+            c_a1_b2.fma(A_data[A_layout.ind(a1,s)], B_data[B_layout.ind(s,b2)]);
+         }
+         C_data[C_layout.ind(a1,b2)] = c_a1_b2;
       }
    }
 }
@@ -268,7 +281,6 @@ struct MatrixOps<1,1>
    template <typename scalar_t,
              typename A_layout_t, typename A_data_t,
              typename B_layout_t, typename B_data_t>
-   MFEM_HOST_DEVICE
    static inline scalar_t AdjDet(const A_layout_t &a, const A_data_t &A,
                                  const B_layout_t &b, B_data_t &B)
    {
@@ -282,8 +294,17 @@ struct MatrixOps<2,2>
 {
    // Compute det(A).
    template <typename scalar_t, typename layout_t, typename data_t>
-   MFEM_HOST_DEVICE
    static inline scalar_t Det(const layout_t &a, const data_t &A)
+   {
+      MFEM_FLOPS_ADD(3);
+      return (A[a.ind(0,0)]*A[a.ind(1,1)] -
+              A[a.ind(1,0)]*A[a.ind(0,1)]);
+   }
+
+   // Compute det(A), host+device version.
+   template <typename scalar_t, typename layout_t, typename data_t>
+   MFEM_HOST_DEVICE
+   static inline scalar_t DetHD(const layout_t &a, const data_t &A)
    {
       MFEM_FLOPS_ADD(3);
       return (A[a.ind(0,0)]*A[a.ind(1,1)] -
@@ -308,9 +329,22 @@ struct MatrixOps<2,2>
    template <typename scalar_t,
              typename A_layout_t, typename A_data_t,
              typename B_layout_t, typename B_data_t>
-   MFEM_HOST_DEVICE
    static inline void Adjugate(const A_layout_t &a, const A_data_t &A,
                                const B_layout_t &b, B_data_t &B)
+   {
+      B[b.ind(0,0)] =  A[a.ind(1,1)];
+      B[b.ind(0,1)] = -A[a.ind(0,1)];
+      B[b.ind(1,0)] = -A[a.ind(1,0)];
+      B[b.ind(1,1)] =  A[a.ind(0,0)];
+   }
+
+   // Compute B = adj(A), host+device version.
+   template <typename scalar_t,
+             typename A_layout_t, typename A_data_t,
+             typename B_layout_t, typename B_data_t>
+   MFEM_HOST_DEVICE
+   static inline void AdjugateHD(const A_layout_t &a, const A_data_t &A,
+                                 const B_layout_t &b, B_data_t &B)
    {
       B[b.ind(0,0)] =  A[a.ind(1,1)];
       B[b.ind(0,1)] = -A[a.ind(0,1)];
@@ -322,12 +356,23 @@ struct MatrixOps<2,2>
    template <typename scalar_t,
              typename A_layout_t, typename A_data_t,
              typename B_layout_t, typename B_data_t>
-   MFEM_HOST_DEVICE
    static inline scalar_t AdjDet(const A_layout_t &a, const A_data_t &A,
                                  const B_layout_t &b, B_data_t &B)
    {
       Adjugate<scalar_t>(a, A, b, B);
       return Det<scalar_t>(a, A);
+   }
+
+   // Compute adj(A) and det(A), host+device version.
+   template <typename scalar_t,
+             typename A_layout_t, typename A_data_t,
+             typename B_layout_t, typename B_data_t>
+   MFEM_HOST_DEVICE
+   static inline scalar_t AdjDetHD(const A_layout_t &a, const A_data_t &A,
+                                   const B_layout_t &b, B_data_t &B)
+   {
+      AdjugateHD<scalar_t>(a, A, b, B);
+      return DetHD<scalar_t>(a, A);
    }
 
    template <bool symm> struct Symm;
@@ -367,8 +412,21 @@ struct MatrixOps<3,3>
 {
    // Compute det(A).
    template <typename scalar_t, typename layout_t, typename data_t>
-   MFEM_HOST_DEVICE
    static inline scalar_t Det(const layout_t &a, const data_t &A)
+   {
+      MFEM_FLOPS_ADD(14);
+      return (A[a.ind(0,0)]*(A[a.ind(1,1)]*A[a.ind(2,2)] -
+                             A[a.ind(2,1)]*A[a.ind(1,2)]) -
+              A[a.ind(1,0)]*(A[a.ind(0,1)]*A[a.ind(2,2)] -
+                             A[a.ind(2,1)]*A[a.ind(0,2)]) +
+              A[a.ind(2,0)]*(A[a.ind(0,1)]*A[a.ind(1,2)] -
+                             A[a.ind(1,1)]*A[a.ind(0,2)]));
+   }
+
+   // Compute det(A), host+device version.
+   template <typename scalar_t, typename layout_t, typename data_t>
+   MFEM_HOST_DEVICE
+   static inline scalar_t DetHD(const layout_t &a, const data_t &A)
    {
       MFEM_FLOPS_ADD(14);
       return (A[a.ind(0,0)]*(A[a.ind(1,1)]*A[a.ind(2,2)] -
@@ -403,9 +461,28 @@ struct MatrixOps<3,3>
    template <typename scalar_t,
              typename A_layout_t, typename A_data_t,
              typename B_layout_t, typename B_data_t>
-   MFEM_HOST_DEVICE
    static inline void Adjugate(const A_layout_t &a, const A_data_t &A,
                                const B_layout_t &b, B_data_t &B)
+   {
+      MFEM_FLOPS_ADD(27);
+      B[b.ind(0,0)] = A[a.ind(1,1)]*A[a.ind(2,2)] - A[a.ind(1,2)]*A[a.ind(2,1)];
+      B[b.ind(0,1)] = A[a.ind(0,2)]*A[a.ind(2,1)] - A[a.ind(0,1)]*A[a.ind(2,2)];
+      B[b.ind(0,2)] = A[a.ind(0,1)]*A[a.ind(1,2)] - A[a.ind(0,2)]*A[a.ind(1,1)];
+      B[b.ind(1,0)] = A[a.ind(1,2)]*A[a.ind(2,0)] - A[a.ind(1,0)]*A[a.ind(2,2)];
+      B[b.ind(1,1)] = A[a.ind(0,0)]*A[a.ind(2,2)] - A[a.ind(0,2)]*A[a.ind(2,0)];
+      B[b.ind(1,2)] = A[a.ind(0,2)]*A[a.ind(1,0)] - A[a.ind(0,0)]*A[a.ind(1,2)];
+      B[b.ind(2,0)] = A[a.ind(1,0)]*A[a.ind(2,1)] - A[a.ind(1,1)]*A[a.ind(2,0)];
+      B[b.ind(2,1)] = A[a.ind(0,1)]*A[a.ind(2,0)] - A[a.ind(0,0)]*A[a.ind(2,1)];
+      B[b.ind(2,2)] = A[a.ind(0,0)]*A[a.ind(1,1)] - A[a.ind(0,1)]*A[a.ind(1,0)];
+   }
+
+   // Compute B = adj(A), host+device version.
+   template <typename scalar_t,
+             typename A_layout_t, typename A_data_t,
+             typename B_layout_t, typename B_data_t>
+   MFEM_HOST_DEVICE
+   static inline void AdjugateHD(const A_layout_t &a, const A_data_t &A,
+                                 const B_layout_t &b, B_data_t &B)
    {
       MFEM_FLOPS_ADD(27);
       B[b.ind(0,0)] = A[a.ind(1,1)]*A[a.ind(2,2)] - A[a.ind(1,2)]*A[a.ind(2,1)];
@@ -423,12 +500,26 @@ struct MatrixOps<3,3>
    template <typename scalar_t,
              typename A_layout_t, typename A_data_t,
              typename B_layout_t, typename B_data_t>
-   MFEM_HOST_DEVICE
    static inline scalar_t AdjDet(const A_layout_t &a, const A_data_t &A,
                                  const B_layout_t &b, B_data_t &B)
    {
       MFEM_FLOPS_ADD(5);
       Adjugate<scalar_t>(a, A, b, B);
+      return (A[a.ind(0,0)]*B[b.ind(0,0)] +
+              A[a.ind(1,0)]*B[b.ind(0,1)] +
+              A[a.ind(2,0)]*B[b.ind(0,2)]);
+   }
+
+   // Compute adj(A) and det(A), host+device version.
+   template <typename scalar_t,
+             typename A_layout_t, typename A_data_t,
+             typename B_layout_t, typename B_data_t>
+   MFEM_HOST_DEVICE
+   static inline scalar_t AdjDetHD(const A_layout_t &a, const A_data_t &A,
+                                   const B_layout_t &b, B_data_t &B)
+   {
+      MFEM_FLOPS_ADD(5);
+      AdjugateHD<scalar_t>(a, A, b, B);
       return (A[a.ind(0,0)]*B[b.ind(0,0)] +
               A[a.ind(1,0)]*B[b.ind(0,1)] +
               A[a.ind(2,0)]*B[b.ind(0,2)]);
@@ -480,7 +571,6 @@ struct MatrixOps<3,3>::Symm<false>
 
 // Compute the determinant of a (small) matrix: det(A).
 template <typename scalar_t, typename layout_t, typename data_t>
-MFEM_HOST_DEVICE
 inline scalar_t TDet(const layout_t &a, const data_t &A)
 {
    MFEM_STATIC_ASSERT(layout_t::rank == 2, "invalid rank");
@@ -493,11 +583,25 @@ inline scalar_t TDet(const layout_t &a, const data_t &A)
 #endif
 }
 
+// Compute the determinant of a (small) matrix: det(A). Host+device version.
+template <typename scalar_t, typename layout_t, typename data_t>
+MFEM_HOST_DEVICE
+inline scalar_t TDetHD(const layout_t &a, const data_t &A)
+{
+   MFEM_STATIC_ASSERT(layout_t::rank == 2, "invalid rank");
+#if !defined(__xlC__) || (__xlC__ >= 0x0d00)
+   return internal::MatrixOps<layout_t::dim_1,layout_t::dim_2>::
+          template DetHD<scalar_t>(a, A);
+#else
+   return internal::MatrixOps<layout_t::dim_1,layout_t::dim_2>::
+          DetHD<scalar_t>(a, A);
+#endif
+}
+
 // Compute the determinants of a set of (small) matrices: D[i] = det(A[i,*,*]).
 // The layout of A is (M x N1 x N2) and the size of D is M.
 template <AssignOp::Type Op, typename A_layout_t, typename A_data_t,
           typename D_data_t>
-MFEM_HOST_DEVICE
 inline void TDet(const A_layout_t &a, const A_data_t &A, D_data_t &D)
 {
    MFEM_STATIC_ASSERT(A_layout_t::rank == 3, "invalid rank");
@@ -528,7 +632,6 @@ inline void TAdjugate(const A_layout_t &a, const A_data_t &A,
 template <typename scalar_t,
           typename A_layout_t, typename A_data_t,
           typename B_layout_t, typename B_data_t>
-MFEM_HOST_DEVICE
 inline scalar_t TAdjDet(const A_layout_t &a, const A_data_t &A,
                         const B_layout_t &b, B_data_t &B)
 {
@@ -536,6 +639,21 @@ inline scalar_t TAdjDet(const A_layout_t &a, const A_data_t &A,
                       "invalid ranks");
    return internal::MatrixOps<A_layout_t::dim_1,A_layout_t::dim_2>::
           template AdjDet<scalar_t>(a, A, b, B);
+}
+
+// Compute the adjugate and the determinant of a (small) matrix: B = adj(A),
+// return det(A). Host+device version.
+template <typename scalar_t,
+          typename A_layout_t, typename A_data_t,
+          typename B_layout_t, typename B_data_t>
+MFEM_HOST_DEVICE
+inline scalar_t TAdjDetHD(const A_layout_t &a, const A_data_t &A,
+                          const B_layout_t &b, B_data_t &B)
+{
+   MFEM_STATIC_ASSERT(A_layout_t::rank == 2 && B_layout_t::rank == 2,
+                      "invalid ranks");
+   return internal::MatrixOps<A_layout_t::dim_1,A_layout_t::dim_2>::
+          template AdjDetHD<scalar_t>(a, A, b, B);
 }
 
 } // namespace mfem
