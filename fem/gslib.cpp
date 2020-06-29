@@ -29,12 +29,14 @@ namespace mfem
 {
 
 FindPointsGSLIB::FindPointsGSLIB()
-   : mesh(NULL), ir_simplex(NULL), gsl_mesh(), fdata2D(NULL), fdata3D(NULL),
-     dim(-1)
+   : mesh(NULL), ir_simplex(NULL), fdata2D(NULL), fdata3D(NULL),
+     dim(-1), gsl_mesh(), gsl_ref(), gsl_dist(), setupflag(false)
 {
    gsl_comm = new comm;
 #ifdef MFEM_USE_MPI
-   MPI_Init(NULL, NULL);
+   int initialized;
+   MPI_Initialized(&initialized);
+   if (!initialized) { MPI_Init(NULL, NULL); }
    MPI_Comm comm = MPI_COMM_WORLD;;
    comm_init(gsl_comm, comm);
 #else
@@ -50,28 +52,29 @@ FindPointsGSLIB::~FindPointsGSLIB()
 
 #ifdef MFEM_USE_MPI
 FindPointsGSLIB::FindPointsGSLIB(MPI_Comm _comm)
-   : mesh(NULL), ir_simplex(NULL), gsl_mesh(), fdata2D(NULL), fdata3D(NULL),
-     dim(-1)
+   : mesh(NULL), ir_simplex(NULL), fdata2D(NULL), fdata3D(NULL),
+     dim(-1), gsl_mesh(), gsl_ref(), gsl_dist(), setupflag(false)
 {
    gsl_comm = new comm;
    comm_init(gsl_comm, _comm);
 }
 #endif
 
-void FindPointsGSLIB::Setup(Mesh &m, double bb_t, double newt_tol, int npt_max)
+void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
+                            const int npt_max)
 {
    MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
    MFEM_VERIFY(m.GetNumGeometries(m.Dimension()) == 1,
                "Mixed meshes are not currently supported in FindPointsGSLIB.");
 
+   // call FreeData if FindPointsGSLIB::Setup has been called already
+   if (setupflag) { FreeData(); }
+
    mesh = &m;
    dim  = mesh->Dimension();
    const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(0);
    unsigned dof1D = fe->GetOrder() + 1;
-   int NE      = mesh->GetNE(),
-       dof_cnt = fe->GetDof(),
-       pts_cnt = NE * dof_cnt,
-       gt      = fe->GetGeomType();
+   const int gt   = fe->GetGeomType();
 
    if (gt == Geometry::TRIANGLE || gt == Geometry::TETRAHEDRON ||
        gt == Geometry::PRISM)
@@ -87,8 +90,8 @@ void FindPointsGSLIB::Setup(Mesh &m, double bb_t, double newt_tol, int npt_max)
       MFEM_ABORT("Element type not currently supported in FindPointsGSLIB.");
    }
 
-   pts_cnt = gsl_mesh.Size()/dim;
-   int NEtot = pts_cnt/(int)pow(dof1D, dim);
+   const int pts_cnt = gsl_mesh.Size()/dim,
+             NEtot = pts_cnt/(int)pow(dof1D, dim);
 
    if (dim == 2)
    {
@@ -107,6 +110,7 @@ void FindPointsGSLIB::Setup(Mesh &m, double bb_t, double newt_tol, int npt_max)
       fdata3D = findpts_setup_3(gsl_comm, elx, nr, NEtot, mr, bb_t,
                                 pts_cnt, pts_cnt, npt_max, newt_tol);
    }
+   setupflag = true;
 }
 
 void FindPointsGSLIB::FindPoints(const Vector &point_pos,
@@ -115,6 +119,7 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
                                  Array<unsigned int> &elem_ids,
                                  Vector &ref_pos, Vector &dist)
 {
+   MFEM_VERIFY(setupflag, "Use FindPointsGSLIB::Setup before finding points.");
    const int points_cnt = point_pos.Size() / dim;
    if (dim == 2)
    {
@@ -150,34 +155,91 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
    }
 }
 
+void FindPointsGSLIB::FindPoints(const Vector &point_pos)
+{
+   const int points_cnt = point_pos.Size() / dim;
+   gsl_code.SetSize(points_cnt);
+   gsl_proc.SetSize(points_cnt);
+   gsl_elem.SetSize(points_cnt);
+   gsl_ref.SetSize(points_cnt * dim);
+   gsl_dist.SetSize(points_cnt);
+
+   FindPoints(point_pos, gsl_code, gsl_proc, gsl_elem, gsl_ref, gsl_dist);
+}
+
+void FindPointsGSLIB::FindPoints(Mesh &m, const Vector &point_pos,
+                                 const double bb_t, const double newt_tol,
+                                 const int npt_max)
+{
+   if (!setupflag || (mesh != &m) )
+   {
+      Setup(m, bb_t, newt_tol, npt_max);
+   }
+   FindPoints(point_pos);
+}
+
 void FindPointsGSLIB::Interpolate(Array<unsigned int> &codes,
                                   Array<unsigned int> &proc_ids,
                                   Array<unsigned int> &elem_ids,
                                   Vector &ref_pos, const GridFunction &field_in,
                                   Vector &field_out)
 {
-   Vector node_vals;
-   GetNodeValues(field_in, node_vals);
 
-   const int points_cnt = ref_pos.Size() / dim;
-   if (dim==2)
+   FiniteElementSpace ind_fes(mesh, field_in.FESpace()->FEColl());
+   GridFunction field_in_scalar(&ind_fes);
+   Vector node_vals;
+
+   const int ncomp      = field_in.FESpace()->GetVDim(),
+             points_fld = field_in.Size() / ncomp,
+             points_cnt = codes.Size();
+   field_out.SetSize(points_cnt*ncomp);
+
+   for (int i = 0; i < ncomp; i++)
    {
-      findpts_eval_2(field_out.GetData(), sizeof(double),
-                     codes.GetData(), sizeof(unsigned int),
-                     proc_ids.GetData(), sizeof(unsigned int),
-                     elem_ids.GetData(), sizeof(unsigned int),
-                     ref_pos.GetData(), sizeof(double) * dim,
-                     points_cnt, node_vals.GetData(), fdata2D);
+      const int dataptrin  = i*points_fld,
+                dataptrout = i*points_cnt;
+      field_in_scalar.NewDataAndSize(field_in.GetData()+dataptrin, points_fld);
+      GetNodeValues(field_in_scalar, node_vals);
+
+      if (dim==2)
+      {
+         findpts_eval_2(field_out.GetData()+dataptrout, sizeof(double),
+                        codes.GetData(),       sizeof(unsigned int),
+                        proc_ids.GetData(),    sizeof(unsigned int),
+                        elem_ids.GetData(),    sizeof(unsigned int),
+                        ref_pos.GetData(),     sizeof(double) * dim,
+                        points_cnt, node_vals.GetData(), fdata2D);
+      }
+      else
+      {
+         findpts_eval_3(field_out.GetData()+dataptrout, sizeof(double),
+                        codes.GetData(),       sizeof(unsigned int),
+                        proc_ids.GetData(),    sizeof(unsigned int),
+                        elem_ids.GetData(),    sizeof(unsigned int),
+                        ref_pos.GetData(),     sizeof(double) * dim,
+                        points_cnt, node_vals.GetData(), fdata3D);
+      }
    }
-   else
-   {
-      findpts_eval_3(field_out.GetData(), sizeof(double),
-                     codes.GetData(), sizeof(unsigned int),
-                     proc_ids.GetData(), sizeof(unsigned int),
-                     elem_ids.GetData(), sizeof(unsigned int),
-                     ref_pos.GetData(), sizeof(double) * dim,
-                     points_cnt, node_vals.GetData(), fdata3D);
-   }
+}
+
+void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
+                                  Vector &field_out)
+{
+   Interpolate(gsl_code, gsl_proc, gsl_elem, gsl_ref, field_in, field_out);
+}
+
+void FindPointsGSLIB::Interpolate(const Vector &point_pos,
+                                  const GridFunction &field_in, Vector &field_out)
+{
+   FindPoints(point_pos);
+   Interpolate(gsl_code, gsl_proc, gsl_elem, gsl_ref, field_in, field_out);
+}
+
+void FindPointsGSLIB::Interpolate(Mesh &m, const Vector &point_pos,
+                                  const GridFunction &field_in, Vector &field_out)
+{
+   FindPoints(m, point_pos);
+   Interpolate(gsl_code, gsl_proc, gsl_elem, gsl_ref, field_in, field_out);
 }
 
 void FindPointsGSLIB::FreeData()
@@ -190,7 +252,13 @@ void FindPointsGSLIB::FreeData()
    {
       findpts_free_3(fdata3D);
    }
+   setupflag = false;
+   gsl_code.DeleteAll();
+   gsl_proc.DeleteAll();
+   gsl_elem.DeleteAll();
    gsl_mesh.Destroy();
+   gsl_ref.Destroy();
+   gsl_dist.Destroy();
 }
 
 void FindPointsGSLIB::GetNodeValues(const GridFunction &gf_in,
@@ -292,7 +360,7 @@ void FindPointsGSLIB::GetSimplexNodalCoordinates()
    const GridFunction *nodes = mesh->GetNodes();
    Mesh *meshsplit           = NULL;
    const int NE              = mesh->GetNE();
-   int NEsplit;
+   int NEsplit = -1;
 
    // Split the reference element into a reference submesh of quads or hexes.
    if (gt == Geometry::TRIANGLE)
@@ -386,6 +454,7 @@ void FindPointsGSLIB::GetSimplexNodalCoordinates()
       }
       meshsplit->FinalizeHexMesh(1, 1, true);
    }
+   else { MFEM_ABORT("Unsupported geometry type."); }
 
    // Curve the reference submesh.
    H1_FECollection fec(fe->GetOrder(), dim);
