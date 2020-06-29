@@ -126,8 +126,7 @@ void BilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
          // Use the original BilinearForm implementation for now
          break;
       case AssemblyLevel::ELEMENT:
-         mfem_error("Element assembly not supported yet... stay tuned!");
-         // ext = new EABilinearFormExtension(this);
+         ext = new EABilinearFormExtension(this);
          break;
       case AssemblyLevel::PARTIAL:
          ext = new PABilinearFormExtension(this);
@@ -467,8 +466,17 @@ void BilinearForm::Assemble(int skip_zeros)
          const FiniteElement &be = *fes->GetBE(i);
          fes -> GetBdrElementVDofs (i, vdofs);
          eltrans = fes -> GetBdrElementTransformation (i);
-         bbfi[0]->AssembleElementMatrix(be, *eltrans, elmat);
-         for (int k = 1; k < bbfi.Size(); k++)
+         int k = 0;
+         for (; k < bbfi.Size(); k++)
+         {
+            if (bbfi_marker[k] &&
+                (*bbfi_marker[k])[bdr_attr-1] == 0) { continue; }
+
+            bbfi[k]->AssembleElementMatrix(be, *eltrans, elmat);
+            k++;
+            break;
+         }
+         for (; k < bbfi.Size(); k++)
          {
             if (bbfi_marker[k] &&
                 (*bbfi_marker[k])[bdr_attr-1] == 0) { continue; }
@@ -1420,6 +1428,54 @@ void MixedBilinearForm::Assemble (int skip_zeros)
             }
          }
       }
+   }
+}
+
+void MixedBilinearForm::AssembleDiagonal_ADAt(const Vector &D,
+                                              Vector &diag) const
+{
+   if (ext)
+   {
+      MFEM_ASSERT(diag.Size() == test_fes->GetTrueVSize(),
+                  "Vector for holding diagonal has wrong size!");
+      MFEM_ASSERT(D.Size() == trial_fes->GetTrueVSize(),
+                  "Vector for holding diagonal has wrong size!");
+      const Operator *P_trial = trial_fes->GetProlongationMatrix();
+      const Operator *P_test = test_fes->GetProlongationMatrix();
+      if (!IsIdentityProlongation(P_trial))
+      {
+         Vector local_D(P_trial->Height());
+         P_trial->Mult(D, local_D);
+
+         if (!IsIdentityProlongation(P_test))
+         {
+            Vector local_diag(P_test->Height());
+            ext->AssembleDiagonal_ADAt(local_D, local_diag);
+            P_test->MultTranspose(local_diag, diag);
+         }
+         else
+         {
+            ext->AssembleDiagonal_ADAt(local_D, diag);
+         }
+      }
+      else
+      {
+         if (!IsIdentityProlongation(P_test))
+         {
+            Vector local_diag(P_test->Height());
+            ext->AssembleDiagonal_ADAt(D, local_diag);
+            P_test->MultTranspose(local_diag, diag);
+         }
+         else
+         {
+            ext->AssembleDiagonal_ADAt(D, diag);
+         }
+      }
+   }
+   else
+   {
+      MFEM_ABORT("Not implemented. Maybe assemble your bilinear form into a "
+                 "matrix and use SparseMatrix functions?");
    }
 }
 
