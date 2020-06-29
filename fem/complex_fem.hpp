@@ -195,8 +195,8 @@ private:
    BilinearForm *blfr;
    BilinearForm *blfi;
 
-   /* These methods check if the real/imag parts of the sesqulinear form are not
-      empty */
+   /* These methods check if the real/imag parts of the sesquilinear form are
+      not empty */
    bool RealInteg();
    bool ImagInteg();
 
@@ -478,8 +478,8 @@ public:
 /** Class for a parallel sesquilinear form
 
     A sesquilinear form is a generalization of a bilinear form to complex-valued
-    fields. Sesquilinear forms are linear in the second argument but but the
-    first argument involves a complex conjugate in the sense that:
+    fields. Sesquilinear forms are linear in the second argument but the first
+    argument involves a complex conjugate in the sense that:
 
                 a(alpha u, beta v) = conj(alpha) beta a(u, v)
 
