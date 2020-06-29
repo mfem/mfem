@@ -256,7 +256,6 @@ int main(int argc, char *argv[])
    VectorConstantCoefficient zeroVecCoef(zeroVec);
    VectorConstantCoefficient oneVecCoef(oneVec);
 
-   u.Vector::operator=(0.0);
    switch (prob)
    {
       case 0:
@@ -472,6 +471,7 @@ int main(int argc, char *argv[])
       BDP.owns_blocks = 1;
 
       FGMRESSolver fgmres(MPI_COMM_WORLD);
+      // TODO: Implement device support for block-diagonal preconditioner
       if (device.IsDisabled()) { fgmres.SetPreconditioner(BDP); }
       fgmres.SetOperator(*A.Ptr());
       fgmres.SetRelTol(1e-12);
@@ -482,6 +482,8 @@ int main(int argc, char *argv[])
    // 14. Recover the parallel grid function corresponding to U. This is the
    //     local finite element solution on each processor.
    a->RecoverFEMSolution(U, b, u);
+   u.real().SyncMemory(u);
+   u.imag().SyncMemory(u);
 
    if (exact_sol)
    {
