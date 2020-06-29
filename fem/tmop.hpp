@@ -1073,6 +1073,8 @@ public:
                                     ElementTransformation &T,
                                     const Vector &elfun, DenseMatrix &elmat);
    /// PA extension
+   void ComputeElementTargetsPA(const Vector &x = Vector()) const;
+
    using NonlinearFormIntegrator::GetGridFunctionEnergyPA;
    double GetGridFunctionEnergyPA_2D(const Vector&) const;
    double GetGridFunctionEnergyPA_C0_2D(const Vector&) const;
