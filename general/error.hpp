@@ -144,4 +144,10 @@ void mfem_warning(const char *msg = NULL);
    "invalid index " #i << " = " << (i) << \
    ", valid range is [" << (imin) << ',' << (imax) << ')')
 
+#if defined(__CUDA_ARCH__)
+#define MFEM_ABORT_KERNEL(msg) asm("trap;");
+#else
+#define MFEM_ABORT_KERNEL(msg) MFEM_ABORT(msg)
+#endif
+
 #endif
