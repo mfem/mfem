@@ -299,6 +299,57 @@ const
    return (DofVal * LocVec);
 }
 
+void ParGridFunction::GetVectorValue(int i, const IntegrationPoint &ip,
+                                     Vector &val) const
+{
+   int nbr_el_no = i - pfes->GetParMesh()->GetNE();
+   if (nbr_el_no >= 0)
+   {
+      Array<int> dofs;
+      pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs);
+      Vector loc_data;
+      face_nbr_data.GetSubVector(dofs, loc_data);
+      const FiniteElement *FElem = pfes->GetFaceNbrFE(nbr_el_no);
+      int dof = FElem->GetDof();
+      if (FElem->GetRangeType() == FiniteElement::SCALAR)
+      {
+         Vector shape(dof);
+         if (FElem->GetMapType() == FiniteElement::VALUE)
+         {
+            FElem->CalcShape(ip, shape);
+         }
+         else
+         {
+            ElementTransformation *Tr =
+               pfes->GetParMesh()->GetFaceNbrElementTransformation(nbr_el_no);
+            Tr->SetIntPoint(&ip);
+            FElem->CalcPhysShape(*Tr, shape);
+         }
+         int vdim = fes->GetVDim();
+         val.SetSize(vdim);
+         for (int k = 0; k < vdim; k++)
+         {
+            val(k) = shape * ((const double *)loc_data + dof * k);
+         }
+      }
+      else
+      {
+         int spaceDim = fes->GetMesh()->SpaceDimension();
+         DenseMatrix vshape(dof, spaceDim);
+         ElementTransformation *Tr =
+            pfes->GetParMesh()->GetFaceNbrElementTransformation(nbr_el_no);
+         Tr->SetIntPoint(&ip);
+         FElem->CalcVShape(*Tr, vshape);
+         val.SetSize(spaceDim);
+         vshape.MultTranspose(loc_data, val);
+      }
+   }
+   else
+   {
+      GridFunction::GetVectorValue(i, ip, val);
+   }
+}
+
 double ParGridFunction::GetValue(ElementTransformation &T,
                                  const IntegrationPoint &ip,
                                  int comp, Vector *tr) const
