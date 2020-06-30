@@ -271,6 +271,7 @@ const
    {
       int fes_vdim = pfes->GetVDim();
       pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs);
+      const FiniteElement *fe = pfes->GetFaceNbrFE(nbr_el_no);
       if (fes_vdim > 1)
       {
          int s = dofs.Size()/fes_vdim;
@@ -283,7 +284,17 @@ const
          face_nbr_data.GetSubVector(dofs, LocVec);
          DofVal.SetSize(dofs.Size());
       }
-      pfes->GetFaceNbrFE(nbr_el_no)->CalcShape(ip, DofVal);
+      if (fe->GetMapType() == FiniteElement::VALUE)
+      {
+         fe->CalcShape(ip, DofVal);
+      }
+      else
+      {
+         ElementTransformation *Tr =
+            pfes->GetFaceNbrElementTransformation(nbr_el_no);
+         Tr->SetIntPoint(&ip);
+         fe->CalcPhysShape(*Tr, DofVal);
+      }
    }
    else
    {
@@ -291,8 +302,16 @@ const
       fes->DofsToVDofs(vdim-1, dofs);
       DofVal.SetSize(dofs.Size());
       const FiniteElement *fe = fes->GetFE(i);
-      MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE, "invalid FE map type");
-      fe->CalcShape(ip, DofVal);
+      if (fe->GetMapType() == FiniteElement::VALUE)
+      {
+         fe->CalcShape(ip, DofVal);
+      }
+      else
+      {
+         ElementTransformation *Tr = fes->GetElementTransformation(i);
+         Tr->SetIntPoint(&ip);
+         fe->CalcPhysShape(*Tr, DofVal);
+      }
       GetSubVector(dofs, LocVec);
    }
 
