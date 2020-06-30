@@ -105,10 +105,11 @@ void BlockOperator::MultTranspose (const Vector & x, Vector & y) const
    MFEM_ASSERT(x.Size() == height, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == width, "incorrect output Vector size");
 
-   y = 0.0;
+   x.Read();
+   y.Write(); y = 0.0;
 
-   xblock.Update(x.GetData(),row_offsets);
-   yblock.Update(y.GetData(),col_offsets);
+   xblock.Update(const_cast<Vector&>(x),row_offsets);
+   yblock.Update(y,col_offsets);
 
    for (int iRow=0; iRow < nColBlocks; ++iRow)
    {
@@ -123,6 +124,10 @@ void BlockOperator::MultTranspose (const Vector & x, Vector & y) const
       }
    }
 
+   for (int iRow=0; iRow < nColBlocks; ++iRow)
+   {
+      yblock.GetBlock(iRow).SyncAliasMemory(y);
+   }
 }
 
 BlockOperator::~BlockOperator()
@@ -202,8 +207,11 @@ void BlockDiagonalPreconditioner::MultTranspose (const Vector & x,
    MFEM_ASSERT(x.Size() == height, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == width, "incorrect output Vector size");
 
-   yblock.Update(y.GetData(), offsets);
-   xblock.Update(x.GetData(), offsets);
+   x.Read();
+   y.Write(); y = 0.0;
+
+   xblock.Update(const_cast<Vector&>(x),offsets);
+   yblock.Update(y,offsets);
 
    for (int i=0; i<nBlocks; ++i)
    {
@@ -215,6 +223,11 @@ void BlockDiagonalPreconditioner::MultTranspose (const Vector & x,
       {
          yblock.GetBlock(i) = xblock.GetBlock(i);
       }
+   }
+
+   for (int i=0; i<nBlocks; ++i)
+   {
+      yblock.GetBlock(i).SyncAliasMemory(y);
    }
 }
 
