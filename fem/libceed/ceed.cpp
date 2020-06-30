@@ -98,11 +98,7 @@ static void InitCeedNonTensorBasisAndRestriction(const FiniteElementSpace &fes,
    Vector shape_i(P);
    DenseMatrix grad_i(P, dim);
 
-   CeedInt compstride = fes.GetNDofs();
-   if (fes.GetOrdering()==Ordering::byVDIM)
-   {
-      compstride = 1;
-   }
+   CeedInt compstride = fes.GetOrdering()==Ordering::byVDIM ? 1 : fes.GetNDofs();
    const Table &el_dof = fes.GetElementToDofTable();
    Array<int> tp_el_dof(el_dof.Size_of_connections());
    const TensorBasisElement * tfe =
