@@ -26,22 +26,11 @@ BlockOperator::BlockOperator(const Array<int> & offsets)
      row_offsets(0),
      col_offsets(0),
      op(nRowBlocks, nRowBlocks),
-     coef(nRowBlocks, nColBlocks),
-     vr(nRowBlocks),
-     vc(nColBlocks)
+     coef(nRowBlocks, nColBlocks)
 {
    op = static_cast<Operator *>(NULL);
    row_offsets.MakeRef(offsets);
    col_offsets.MakeRef(offsets);
-
-   for (int i=0; i<nRowBlocks; ++i)
-   {
-      vr[i].SetSize(row_offsets[i+1] - row_offsets[i]);
-   }
-   for (int i=0; i<nColBlocks; ++i)
-   {
-      vc[i].SetSize(col_offsets[i+1] - col_offsets[i]);
-   }
 }
 
 BlockOperator::BlockOperator(const Array<int> & row_offsets_,
@@ -53,22 +42,11 @@ BlockOperator::BlockOperator(const Array<int> & row_offsets_,
      row_offsets(0),
      col_offsets(0),
      op(nRowBlocks, nColBlocks),
-     coef(nRowBlocks, nColBlocks),
-     vr(nRowBlocks),
-     vc(nColBlocks)
+     coef(nRowBlocks, nColBlocks)
 {
    op = static_cast<Operator *>(NULL);
    row_offsets.MakeRef(row_offsets_);
    col_offsets.MakeRef(col_offsets_);
-
-   for (int i=0; i<nRowBlocks; ++i)
-   {
-      vr[i].SetSize(row_offsets[i+1] - row_offsets[i]);
-   }
-   for (int i=0; i<nColBlocks; ++i)
-   {
-      vc[i].SetSize(col_offsets[i+1] - col_offsets[i]);
-   }
 }
 
 void BlockOperator::SetDiagonalBlock(int iblock, Operator *op, double c)
@@ -96,49 +74,12 @@ void BlockOperator::Mult (const Vector & x, Vector & y) const
    MFEM_ASSERT(x.Size() == width, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == height, "incorrect output Vector size");
 
-   /*
-   // Dylan version
-   y = 0.0;
+   x.Read();
+   y.Write(); y = 0.0;
 
-   for (int iRow=0; iRow < nRowBlocks; ++iRow)
-   {
-      vr[iRow] = 0.0;
-      for (int jCol=0; jCol < nColBlocks; ++jCol)
-      {
-         if (op(iRow,jCol))
-         {
-            vc[jCol].SetOffset(1.0, x, col_offsets[jCol]);
-            op(iRow,jCol)->Mult(vc[jCol], vr[iRow]);
-            y.AddOffset(coef(iRow,jCol), vr[iRow], row_offsets[iRow]);
-         }
-      }
-   }
-   */
-   /*
-   // Master version
-   yblock.Update(y.GetData(),row_offsets);
-   xblock.Update(x.GetData(),col_offsets);
-
-   y = 0.0;
-   for (int iRow=0; iRow < nRowBlocks; ++iRow)
-   {
-      tmp.SetSize(row_offsets[iRow+1] - row_offsets[iRow]);
-      for (int jCol=0; jCol < nColBlocks; ++jCol)
-      {
-         if (op(iRow,jCol))
-         {
-            op(iRow,jCol)->Mult(xblock.GetBlock(jCol), tmp);
-            yblock.GetBlock(iRow).Add(coef(iRow,jCol), tmp);
-         }
-      }
-   }
-   */
-
-   // Veselin version
-   yblock.Update(y,row_offsets);
    xblock.Update(const_cast<Vector&>(x),col_offsets);
+   yblock.Update(y,row_offsets);
 
-   y = 0.0;
    for (int iRow=0; iRow < nRowBlocks; ++iRow)
    {
       tmp.SetSize(row_offsets[iRow+1] - row_offsets[iRow]);
@@ -150,6 +91,11 @@ void BlockOperator::Mult (const Vector & x, Vector & y) const
             yblock.GetBlock(iRow).Add(coef(iRow,jCol), tmp);
          }
       }
+   }
+
+   for (int iRow=0; iRow < nRowBlocks; ++iRow)
+   {
+      yblock.GetBlock(iRow).SyncAliasMemory(y);
    }
 }
 
@@ -200,18 +146,10 @@ BlockDiagonalPreconditioner::BlockDiagonalPreconditioner(
    owns_blocks(0),
    nBlocks(offsets_.Size() - 1),
    offsets(0),
-   op(nBlocks),
-   vr(nBlocks),
-   vc(nBlocks)
+   op(nBlocks)
 {
    op = static_cast<Operator *>(NULL);
    offsets.MakeRef(offsets_);
-
-   for (int i=0; i<nBlocks; ++i)
-   {
-      vr[i].SetSize(offsets[i+1] - offsets[i]);
-      vc[i].SetSize(offsets[i+1] - offsets[i]);
-   }
 }
 
 void BlockDiagonalPreconditioner::SetDiagonalBlock(int iblock, Operator *opt)
@@ -233,20 +171,27 @@ void BlockDiagonalPreconditioner::Mult (const Vector & x, Vector & y) const
    MFEM_ASSERT(x.Size() == width, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == height, "incorrect output Vector size");
 
-   y = 0.0;
+   x.Read();
+   y.Write(); y = 0.0;
+
+   xblock.Update(const_cast<Vector&>(x),offsets);
+   yblock.Update(y,offsets);
 
    for (int i=0; i<nBlocks; ++i)
    {
       if (op[i])
       {
-         vc[i].SetOffset(1.0, x, offsets[i]);
-         op[i]->Mult(vc[i], vr[i]);
-         y.AddOffset(1.0, vr[i], offsets[i]);
+         op[i]->Mult(xblock.GetBlock(i), yblock.GetBlock(i));
       }
       else
       {
          yblock.GetBlock(i) = xblock.GetBlock(i);
       }
+   }
+
+   for (int i=0; i<nBlocks; ++i)
+   {
+      yblock.GetBlock(i).SyncAliasMemory(y);
    }
 }
 
