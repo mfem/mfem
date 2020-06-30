@@ -52,7 +52,7 @@ void SortPairs (Pair<A, B> *pairs, int size)
    std::sort(pairs, pairs + size);
 }
 
-
+/// A triple of objects
 template <class A, class B, class C>
 class Triple
 {
