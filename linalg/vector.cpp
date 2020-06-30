@@ -138,31 +138,31 @@ Vector &Vector::operator=(double value)
 template <typename Op>
 Vector &Vector::scalar_op(double c, Op op)
 {
-  const bool use_dev = UseDevice();
-  const int N = size;
-  auto y = ReadWrite(use_dev);
-  MFEM_FORALL_SWITCH(use_dev, i, N, y[i] = op(y[i],c); );
-  return *this;
+   const bool use_dev = UseDevice();
+   const int N = size;
+   auto y = ReadWrite(use_dev);
+   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] = op(y[i],c); );
+   return *this;
 }
 
 Vector &Vector::operator+=(double c)
 {
-  scalar_op<std::plus<double>>(c);
+   scalar_op<std::plus<double>>(c);
 }
 
 Vector &Vector::operator-=(double c)
 {
-  scalar_op<std::minus<double>>(c);
+   scalar_op<std::minus<double>>(c);
 }
 
 Vector &Vector::operator*=(double c)
 {
-  scalar_op<std::multiplies<double>>(c);
+   scalar_op<std::multiplies<double>>(c);
 }
 
 Vector &Vector::operator/=(double c)
 {
-  scalar_op<std::divides<double>>(c);
+   scalar_op<std::divides<double>>(c);
 }
 
 template <typename Op>
@@ -180,12 +180,12 @@ Vector &Vector::vector_op(const Vector &v, Op op)
 
 Vector &Vector::operator+=(const Vector &v)
 {
-  vector_op<std::plus<double>>(v);
+   vector_op<std::plus<double>>(v);
 }
 
 Vector &Vector::operator-=(const Vector &v)
 {
-  vector_op<std::minus<double>>(v);
+   vector_op<std::minus<double>>(v);
 }
 
 Vector &Vector::Add(const double a, const Vector &Va)
