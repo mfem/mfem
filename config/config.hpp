@@ -36,7 +36,7 @@
 #endif
 
 // Check dependencies:
-#define MFEM_USE_MPI
+
 // Options that require MPI
 #ifndef MFEM_USE_MPI
 #ifdef MFEM_USE_SUPERLU
