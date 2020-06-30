@@ -90,11 +90,72 @@ void MakeConforming(GridFunction &sol)
 
 int HalfOrder(int p)
 {
-   return p/2 + 1;
-   //return (p + 1) / 2;
+   //return p/2 + 1;
+   return (p + 1) / 2;
+}
+
+
+void Solve(FiniteElementSpace *fespace, GridFunction *sln, int int_order)
+{
+   const bool pa = false;
+
+   FunctionCoefficient exsol(layer2_exsol);
+   FunctionCoefficient rhs(layer2_laplace);
+
+   Geometry::Type geom = fespace->GetMesh()->GetElementGeometry(0);
+
+   // Assemble the linear form. The right hand side is manufactured
+   // so that the solution is the analytic solution.
+   LinearForm lf(fespace);
+   DomainLFIntegrator *dlfi = new DomainLFIntegrator(rhs);
+   dlfi->SetIntRule(&IntRules.Get(geom, int_order));
+   lf.AddDomainIntegrator(dlfi);
+   lf.Assemble();
+
+   // Assemble bilinear form.
+   BilinearForm bf(fespace);
+   if (pa) { bf.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   bf.AddDomainIntegrator(new DiffusionIntegrator());
+   bf.Assemble();
+
+   // Set Dirichlet boundary values in the GridFunction x.
+   // Determine the list of Dirichlet true DOFs in the linear system.
+   Array<int> ess_bdr(fespace->GetMesh()->bdr_attributes.Max());
+   ess_bdr = 1;
+   *sln = 0; // FIXME
+   sln->ProjectBdrCoefficient(exsol, ess_bdr);
+   Array<int> ess_tdof_list;
+   fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+
+   // 16. Create the linear system: eliminate boundary conditions, constrain
+   //     hanging nodes and possibly apply other transformations. The system
+   //     will be solved for true (unconstrained) DOFs only.
+   OperatorPtr A;
+   Vector B, X;
+
+   const int copy_interior = 1;
+   bf.FormLinearSystem(ess_tdof_list, *sln, lf, A, X, B, copy_interior);
+
+   // 17. Solve the linear system A X = B.
+   if (!pa)
+   {
+      // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
+      GSSmoother M((SparseMatrix&)(*A));
+      PCG(*A, M, B, X, 3, 500, 1e-13, 0.0);
+   }
+   else // No preconditioning for now in partial assembly mode.
+   {
+      CG(*A, B, X, 3, 2000, 1e-12, 0.0);
+   }
+
+   // 18. After solving the linear system, reconstruct the solution as a
+   //     finite element GridFunction. Constrained nodes are interpolated
+   //     from true DOFs (it may therefore happen that x.Size() >= X.Size()).
+   bf.RecoverFEMSolution(X, lf, *sln);
 }
 
 #define CONTINUOUS 0
+#define SOLVE 1
 
 void EstimateHPErrors(FiniteElementSpace* fes,
                       Coefficient &exsol,
@@ -105,7 +166,7 @@ void EstimateHPErrors(FiniteElementSpace* fes,
 
     // h-refined mesh and space with halved order
     Mesh* mesh_h = new Mesh(*mesh);
-#if CONTINUOUS
+#if CONTINUOUS || SOLVE
     FiniteElementSpace* fes_h = new FiniteElementSpace(*fes, mesh_h); // FIXME: copy variable orders
 #else
     L2_FECollection fec(1, mesh->Dimension());
@@ -123,7 +184,7 @@ void EstimateHPErrors(FiniteElementSpace* fes,
 
 
     // space with orders increased by 1
-#if CONTINUOUS
+#if CONTINUOUS || SOLVE
     FiniteElementSpace* fes_p = new FiniteElementSpace(*fes, mesh);
 #else
     FiniteElementSpace* fes_p = new FiniteElementSpace(mesh, &fec);
@@ -136,21 +197,33 @@ void EstimateHPErrors(FiniteElementSpace* fes,
     fes_p->Update(false);
 
     GridFunction sol(fes);
+#if SOLVE
+    Solve(fes, &sol, int_order);
+#else
     sol.ProjectCoefficient(exsol);
 #if CONTINUOUS
     MakeConforming(sol);
 #endif
+#endif
 
     GridFunction sol_h(fes_h);
+#if SOLVE
+    Solve(fes_h, &sol_h, int_order);
+#else
     sol_h.ProjectCoefficient(exsol);
 #if CONTINUOUS
     MakeConforming(sol_h);
 #endif
+#endif
 
     GridFunction sol_p(fes_p);
+#if SOLVE
+    Solve(fes_p, &sol_p, int_order);
+#else
     sol_p.ProjectCoefficient(exsol);
 #if CONTINUOUS
     MakeConforming(sol_p);
+#endif
 #endif
 
     if (0)
@@ -239,7 +312,7 @@ int main(int argc, char *argv[])
    double ref_threshold = 0.7;
    bool aniso = false;
    bool hp = true;
-   int max_order = 6;
+   int max_order = 10;
    int int_order = 30;
    bool relaxed_hp = false;
    bool pause = false;
@@ -333,7 +406,7 @@ int main(int argc, char *argv[])
 
    // The main AMR loop. In each iteration we solve the problem on the
    // current mesh, visualize the solution, and refine the mesh.
-   const int max_dofs = 30000;
+   const int max_dofs = 100000;
    //const int max_dofs = 200;
    for (int it = 0; ; it++)
    {
@@ -341,6 +414,7 @@ int main(int argc, char *argv[])
       cout << "\nAMR iteration " << it << endl;
       cout << "Number of unknowns: " << cdofs << endl;
 
+#if 0
       // Assemble the linear form. The right hand side is manufactured
       // so that the solution is the analytic solution.
       LinearForm lf(&fespace);
@@ -387,6 +461,10 @@ int main(int argc, char *argv[])
       //     finite element GridFunction. Constrained nodes are interpolated
       //     from true DOFs (it may therefore happen that x.Size() >= X.Size()).
       bf.RecoverFEMSolution(X, lf, x);
+#else
+
+      Solve(&fespace, &x, int_order);
+#endif
 
       // 19. Send solution by socket to the GLVis server.
       if (visualization)
@@ -403,7 +481,7 @@ int main(int argc, char *argv[])
             orders(i) = fespace.GetElementOrder(i);
          }
          VisualizeField(ord_sock, orders, "Orders", keys, 600, 500, 0, 620);
-         ord_sock << "valuerange 1 5\n" << flush;
+         //ord_sock << "valuerange 1 5\n" << flush;
       }
 
       if (cdofs > max_dofs)
@@ -540,8 +618,8 @@ int main(int argc, char *argv[])
       x.Update();
 
       // Inform also the bilinear and linear forms that the space has changed.
-      bf.Update();
-      lf.Update();
+      /*bf.Update();
+      lf.Update();*/
    }
 
    return 0;
