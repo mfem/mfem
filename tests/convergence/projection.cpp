@@ -163,7 +163,7 @@ int main(int argc, char *argv[])
    }
    // 10. Perform successive parallel refinements, compute the L2 error and the
    //     corresponding rate of convergence
-   ConvergenceRates rates;
+   Convergence rates;
    // ConvergenceRates rates;
    rates.Clear();
    for (int l = 0; l <= sr; l++)
@@ -197,33 +197,19 @@ int main(int argc, char *argv[])
       {
          case 0:
          {
-            rates.RegisterSolution(&u_gf,u);
+            rates.AddGridFunction(&u_gf,u,gradu);
 
-            double grad_error = u_gf.ComputeEnergyError(u,gradu);
-            // double Energy_error = u_gf.ComputeEnergyError(u,gradu);
-
-            cout << "grad error = " << grad_error << endl;
-            // cout << "energy error = " << Energy_error << endl;
             break;
          }
          case 1:
          {
-            rates.RegisterSolution(&u_gf,U);
-            double Hcurl_error = u_gf.ComputeEnergyError(U,curlU);
-               // double Energy_error = u_gf.ComputeEnergyError(U,curlU);
-            cout << "Hcurl error = " << Hcurl_error << endl;
-               // cout << "Energy error = " << Energy_error << endl;
+            rates.AddGridFunction(&u_gf,U,curlU);
             break;
          }
          
          case 2:
          {
-            rates.RegisterSolution(&u_gf,U);
-            double Hdiv_error = u_gf.ComputeEnergyError(U,divU);
-            // double Energy_error = u_gf.ComputeEnergyError(U,divU);
-
-            cout << "Hdiv error = " << Hdiv_error << endl;
-            // cout << "Energy error = " << Energy_error << endl;
+            rates.AddGridFunction(&u_gf,U,divU);
             break;
          }
          default:

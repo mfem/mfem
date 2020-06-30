@@ -17,6 +17,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include "conv_rates.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -27,6 +28,7 @@ void u_grad_exact(const Vector &, Vector &);
 double u_exact_2(const Vector &);
 void u_grad_exact_2(const Vector &, Vector &);
 
+Convergence rates;
 void convergenceStudy(const char *mesh_file, int num_ref, int &order,
                       double &l2_err_prev, double &h1_err_prev, bool &visualization,
                       int &exact, int &dof2view, int &solvePDE, bool static_cond, bool &use_serendip)
@@ -238,11 +240,14 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    {
       l2_err = x.ComputeL2Error(*u1);
       h1_err = x.ComputeH1Error(u1, u1_grad, &one, 1.0, 1);
+      rates.AddGridFunction(&x,u1,u1_grad);
+
    }
    else
    {
       l2_err = x.ComputeL2Error(*u2);
       h1_err = x.ComputeH1Error(u2, u2_grad, &one, 1.0, 1);
+      rates.AddGridFunction(&x,u2,u2_grad);
    }
 
    double l2_rate, h1_rate;
@@ -434,7 +439,7 @@ int main(int argc, char *argv[])
 
    double l2_err_prev = 0.0;
    double h1_err_prev = 0.0;
-
+   rates.Clear();
    // 3. Read the mesh from the given mesh file.
    // Run last round with vis, if desired.
 
@@ -453,6 +458,8 @@ int main(int argc, char *argv[])
    }
    convergenceStudy(mesh_file, total_refinements, order, l2_err_prev, h1_err_prev, visualization,
             exact, dof2view, solvePDE, static_cond, use_serendip);
+
+   rates.Print();
 
    return 0;
 }

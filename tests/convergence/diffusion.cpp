@@ -37,6 +37,7 @@
 #include <mfem.hpp>
 #include <fstream>
 #include <iostream>
+#include "conv_rates.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -174,6 +175,8 @@ int main(int argc, char *argv[])
 
    double last_error_l2 = -1.0, last_error_h1 = -1.0;
 
+   Convergence rates(MPI_COMM_WORLD);
+   rates.Clear();
    // 12. Refinement loop: discretize and solve the problem; then compute and
    //     print the discretization errors.
    for (int level = 0; true; level++)
@@ -235,6 +238,7 @@ int main(int argc, char *argv[])
          pcg.SetPrintLevel((verbosity == 0) ? 0 : (verbosity == 1) ? 3 : 1);
          pcg.SetPreconditioner(amg);
          pcg.SetOperator(A);
+         pcg.SetPrintLevel(0);
          if (myid == 0 && verbosity > 0)
          {
             cout << " solving the linear system:" << endl;
@@ -246,9 +250,9 @@ int main(int argc, char *argv[])
 
       const double error_l2 = x.ComputeL2Error(sol_coeff);
       const int h1_norm_type = 1;
-      const double loc_h1_norm = x.ComputeH1Error(&sol_coeff, &sol_grad_coeff,
+      const double error_h1 = x.ComputeH1Error(&sol_coeff, &sol_grad_coeff,
                                                   &one, 1.0, h1_norm_type);
-      const double error_h1 = GlobalLpNorm(2.0, loc_h1_norm, MPI_COMM_WORLD);
+      rates.AddGridFunction(&x,&sol_coeff, &sol_grad_coeff);
       if (myid == 0)
       {
          streamsize prec1 = 8, prec2 = 6;
@@ -304,6 +308,7 @@ int main(int argc, char *argv[])
       // guess in PCG.
       x.Update();
    }
+   rates.Print();
 
    // 15. Send the last solution by socket to a GLVis server.
    if (visualization)
