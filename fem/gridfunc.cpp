@@ -423,10 +423,17 @@ void GridFunction::GetVectorValue(int i, const IntegrationPoint &ip,
    GetSubVector(vdofs, loc_data);
    if (FElem->GetRangeType() == FiniteElement::SCALAR)
    {
-      MFEM_ASSERT(FElem->GetMapType() == FiniteElement::VALUE,
-                  "invalid FE map type");
       Vector shape(dof);
-      FElem->CalcShape(ip, shape);
+      if (FElem->GetMapType() == FiniteElement::VALUE)
+      {
+         FElem->CalcShape(ip, shape);
+      }
+      else
+      {
+         ElementTransformation *Tr = fes->GetElementTransformation(i);
+         Tr->SetIntPoint(&ip);
+         FElem->CalcPhysShape(*Tr, shape);
+      }
       int vdim = fes->GetVDim();
       val.SetSize(vdim);
       for (int k = 0; k < vdim; k++)
