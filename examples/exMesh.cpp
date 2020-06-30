@@ -25,8 +25,8 @@ int main(int argc, char *argv[])
    // Parse command-line options
    OptionsParser args(argc, argv);
    int degree = 2.0;
-   int nx = 8;
-   int ny = 8;
+   int nx = 20;
+   int ny = 20;
    unique_ptr<Mesh> smesh = buildQuarterAnnulusMesh(degree, nx, ny);
    std::cout <<"Number of elements " << smesh->GetNE() <<'\n';
    std::cout <<"Number of vertices " << smesh->GetNV() <<'\n';
@@ -35,7 +35,7 @@ int main(int argc, char *argv[])
    cout << node_coord.Size() << endl;
    ofstream sol_ofs("steady_vortex_mesh.vtk");
    sol_ofs.precision(14);
-   smesh->PrintVTK(sol_ofs,0);
+   smesh->PrintVTK(sol_ofs);
 
 #ifdef MFEM_USE_MPI
    MPI_Finalize();
@@ -44,8 +44,8 @@ int main(int argc, char *argv[])
 unique_ptr<Mesh> buildQuarterAnnulusMesh(int degree, int num_rad, int num_ang)
 {
    auto mesh_ptr = unique_ptr<Mesh>(new Mesh(num_rad, num_ang,
-                                             Element::TRIANGLE, true /* gen. edges */,
-                                             2.0, M_PI*0.5, true));
+                                             Element::QUADRILATERAL, true /* gen. edges */,
+                                             0.2, 2*M_PI, true));
    // strategy:
    // 1) generate a fes for Lagrange elements of desired degree
    // 2) create a Grid Function using a VectorFunctionCoefficient
@@ -60,8 +60,8 @@ unique_ptr<Mesh> buildQuarterAnnulusMesh(int degree, int num_rad, int num_ang)
    // This lambda function transforms from (r,\theta) space to (x,y) space
    auto xy_fun = [](const Vector& rt, Vector &xy)
    {
-      xy(0) = (rt(0) + 1.0)*cos(rt(1)); // need + 1.0 to shift r away from origin
-      xy(1) = (rt(0) + 1.0)*sin(rt(1));
+      xy(0) = ((rt(0)+0)*cos(rt(1))) + 0.5; // need + 1.0 to shift r away from origin
+      xy(1) = (rt(0)+0)*sin(rt(1)) + 0.5 ;
    };
    VectorFunctionCoefficient xy_coeff(2, xy_fun);
    GridFunction *xy = new GridFunction(fes);

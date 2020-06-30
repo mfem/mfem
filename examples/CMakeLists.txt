@@ -36,6 +36,7 @@ list(APPEND ALL_EXE_SRCS
   exArea.cpp
   exMesh.cpp
   exLaplace.cpp
+  exAdvection.cpp
   )
 
 if (MFEM_USE_MPI)
