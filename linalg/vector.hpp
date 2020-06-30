@@ -50,6 +50,12 @@ inline double infinity()
 /// Vector data type.
 class Vector
 {
+   template<typename Op>
+   Vector &scalar_op(double c, Op op = Op());
+
+   template<typename Op>
+   Vector &vector_op(const Vector& v, Op op = Op());
+
 protected:
 
    Memory<double> data;
@@ -234,15 +240,18 @@ public:
    /// Redefine '=' for vector = constant.
    Vector &operator=(double value);
 
+   Vector &operator+=(double c);
+
+   Vector &operator-=(double c);
+
    Vector &operator*=(double c);
 
    Vector &operator/=(double c);
 
-   Vector &operator-=(double c);
+   Vector &operator+=(const Vector &v);
 
    Vector &operator-=(const Vector &v);
 
-   Vector &operator+=(const Vector &v);
 
    /// (*this) += a * Va
    Vector &Add(const double a, const Vector &Va);

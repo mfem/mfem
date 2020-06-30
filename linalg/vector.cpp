@@ -135,35 +135,38 @@ Vector &Vector::operator=(double value)
    return *this;
 }
 
-Vector &Vector::operator*=(double c)
+template <typename Op>
+Vector &Vector::scalar_op(double c, Op op)
 {
-   const bool use_dev = UseDevice();
-   const int N = size;
-   auto y = ReadWrite(use_dev);
-   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] *= c;);
-   return *this;
+  const bool use_dev = UseDevice();
+  const int N = size;
+  auto y = ReadWrite(use_dev);
+  MFEM_FORALL_SWITCH(use_dev, i, N, y[i] = op(y[i],c); );
+  return *this;
 }
 
-Vector &Vector::operator/=(double c)
+Vector &Vector::operator+=(double c)
 {
-   const bool use_dev = UseDevice();
-   const int N = size;
-   const double m = 1.0/c;
-   auto y = ReadWrite(use_dev);
-   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] *= m;);
-   return *this;
+  scalar_op<std::plus<double>>(c);
 }
 
 Vector &Vector::operator-=(double c)
 {
-   const bool use_dev = UseDevice();
-   const int N = size;
-   auto y = ReadWrite(use_dev);
-   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] -= c;);
-   return *this;
+  scalar_op<std::minus<double>>(c);
 }
 
-Vector &Vector::operator-=(const Vector &v)
+Vector &Vector::operator*=(double c)
+{
+  scalar_op<std::multiplies<double>>(c);
+}
+
+Vector &Vector::operator/=(double c)
+{
+  scalar_op<std::divides<double>>(c);
+}
+
+template <typename Op>
+Vector &Vector::vector_op(const Vector &v, Op op)
 {
    MFEM_ASSERT(size == v.size, "incompatible Vectors!");
 
@@ -171,20 +174,18 @@ Vector &Vector::operator-=(const Vector &v)
    const int N = size;
    auto y = ReadWrite(use_dev);
    auto x = v.Read(use_dev);
-   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] -= x[i];);
+   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] = op(y[i],x[i]););
    return *this;
 }
 
 Vector &Vector::operator+=(const Vector &v)
 {
-   MFEM_ASSERT(size == v.size, "incompatible Vectors!");
+  vector_op<std::plus<double>>(v);
+}
 
-   const bool use_dev = UseDevice() || v.UseDevice();
-   const int N = size;
-   auto y = ReadWrite(use_dev);
-   auto x = v.Read(use_dev);
-   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] += x[i];);
-   return *this;
+Vector &Vector::operator-=(const Vector &v)
+{
+  vector_op<std::minus<double>>(v);
 }
 
 Vector &Vector::Add(const double a, const Vector &Va)
