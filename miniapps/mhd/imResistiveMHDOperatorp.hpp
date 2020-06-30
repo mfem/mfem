@@ -8,7 +8,7 @@ using namespace std;
 using namespace mfem;
 
 //------------this is for explicit solver only------------
-int isupg=2;    //1: test supg with v term only (it assumes viscosity==resistivity now)
+int ex_supg=2;    //1: test supg with v term only (it assumes viscosity==resistivity now)
                 //2: test hyperdiffusion along B only 
                 //3: test a general hyperdiffusion 
                 
@@ -788,7 +788,7 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
       DRe.TrueAddMult(w, z);
    }
    //add stabilization term
-   if (isupg>3 && StabNv!=NULL)
+   if (ex_supg>3 && StabNv!=NULL)
    {
        //FIXME this supg form has a bug:
        //the explicit supg needs to modify the mass matrix when computing dw_dt
@@ -812,7 +812,7 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
        J.Neg();
        StabNb->TrueAddMult(J, dw_dt);
    }
-   else if (isupg==1)
+   else if (ex_supg==1)
    {
        //only add the velocity diffusion term
        StabNv->TrueAddMult(w, z);
@@ -832,7 +832,7 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    if (E0Vec!=NULL)
      z += *E0Vec;
    //add stabilization terms
-   if (isupg>3 && StabNv!=NULL)
+   if (ex_supg>3 && StabNv!=NULL)
    {
        //FIXME this supg form has the same issue
        //stabilized term for psi
@@ -843,12 +843,12 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
        StabE0->ParallelAssemble(z);
        dpsi_dt+=z;
    }
-   else if (isupg==1)
+   else if (ex_supg==1)
    {
        //only add the velocity diffusion term
        StabNv->TrueAddMult(psi, z);
    }
-   else if (isupg==2 && false)
+   else if (ex_supg==2 && false)
    {
        //first compute an auxilary variable of z3=-∆w (z3=M^-1 KB * w)
        KBMat->Mult(w, z2);
@@ -859,11 +859,11 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
        StabNv->TrueAddMult(w, z);
    }
    z.Neg(); // z = -z
-   if (isupg==2)
+   if (ex_supg==2)
    {
        StabNb->TrueAddMult(J, z);
    }
-   else if (isupg==3)
+   else if (ex_supg==3)
    {
        StabNb->TrueAddMult(J, z);
    }
@@ -944,7 +944,7 @@ void ResistiveMHDOperator::assembleVoper(double dt, ParGridFunction *phi, ParGri
    Nv->Assemble(); 
 
    //assemble supg type operators
-   if (isupg > 3 || isupg ==1)
+   if (ex_supg > 3 || ex_supg ==1)
    {
       delete StabNv;
       StabNv = new ParBilinearForm(&fespace);
@@ -953,7 +953,7 @@ void ResistiveMHDOperator::assembleVoper(double dt, ParGridFunction *phi, ParGri
    }
 
    //assemble the hyperdiffusion operator
-   if (isupg==3 && StabNb==NULL)
+   if (ex_supg==3 && StabNb==NULL)
    {
       StabNb = new ParBilinearForm(&fespace);
       double eleLength=2./64.;  //hard coded h here
@@ -968,7 +968,7 @@ void ResistiveMHDOperator::assembleVoper(double dt, ParGridFunction *phi, ParGri
       StabNb->Assemble();
    }
 
-   if (isupg > 3){
+   if (ex_supg > 3){
       delete StabMass;
       StabMass = new ParBilinearForm(&fespace);
       StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, viscosity, velocity));
@@ -991,13 +991,13 @@ void ResistiveMHDOperator::assembleBoper(double dt, ParGridFunction *phi, ParGri
    Nb->Assemble();
 
    //assemble supg type operators
-   if (isupg > 3){
+   if (ex_supg > 3){
      delete StabNb;
      StabNb = new ParBilinearForm(&fespace);
      StabNb->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, Bfield, velocity));
      StabNb->Assemble(); 
    }
-   else if (isupg == 2)
+   else if (ex_supg == 2)
    {
      delete StabNv;
      StabNv = new ParBilinearForm(&fespace);
@@ -1312,25 +1312,16 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
                 HypreParMatrix *MatStabNv=StabNv->ParallelAssemble();
 
                 HypreParMatrix *MatStabSum=Add(1./dt, *MatStabMass, 1., *MatStabNv);
-                HypreParMatrix *tmp=ParAdd(ASltmp, MatStabSum);
-                //HypreParMatrix *tmp=ParAdd(ASltmp, MatStabNv);
+                //HypreParMatrix *tmp=ParAdd(ASltmp, MatStabSum);
+                HypreParMatrix *tmp=ParAdd(ASltmp, MatStabNv);
 
                 delete ASltmp;
                 ASltmp=tmp;
 
-                if (false)
+                if (true && im_supg==1)
                 {
                     if (resistivity!=viscosity)
                     {
-                        delete StabMass;
-                        StabMass = new ParBilinearForm(&fespace);
-                        StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, viscosity, velocity));
-                        StabMass->Assemble(); 
-                        StabMass->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
-                        StabMass->Finalize();
-                        delete MatStabMass;
-                        MatStabMass=StabMass->ParallelAssemble();
-
                         delete StabNv;
                         StabNv = new ParBilinearForm(&fespace);
                         StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, velocity));
@@ -1339,12 +1330,9 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
                         StabNv->Finalize();
                         delete MatStabNv;
                         MatStabNv=StabNv->ParallelAssemble();
-
-                        delete MatStabSum;
-                        MatStabSum=Add(1./dt, *MatStabMass, 1., *MatStabNv);
                     }
 
-                    tmp=ParAdd(AReFull, MatStabSum);
+                    tmp=ParAdd(AReFull, MatStabNv);
                     delete AReFull;
                     AReFull=tmp;
                 }
@@ -1360,6 +1348,15 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
            NbtDinv=DinvNb->Transpose();
            S = ParMult(NbtDinv, NbFull);
            ScFull = ParAdd(ASltmp, S);
+
+           if (false && im_supg==1 && usesupg)
+           {
+            if (myid==0 && false) cout <<"======WARNING: use preconditioner with terms on ARe======"<<endl;
+                HypreParMatrix *MatStabNv=StabNv->ParallelAssemble();
+                tmp=ParAdd(AReFull, MatStabNv);
+                delete AReFull;
+                AReFull=tmp;
+           }
        }
        else if (iSc==1)
        {
@@ -1683,7 +1680,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
      StabNb = new ParBilinearForm(&fespace);
      StabNb->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, Bfield, velocity));
      StabNb->Assemble(); 
-     StabNb->TrueAddMult(J, y3, -1.);
+     //StabNb->TrueAddMult(J, y3, -1.);
    
      KBMat.Mult(psiNew, z2);
      M_solver2->Mult(z2, z3);

@@ -112,6 +112,8 @@ int main(int argc, char *argv[])
                   "Icase: 1 - wave propagation; 2 - Tearing mode.");
    args.AddOption(&ijacobi, "-ijacobi", "--ijacobi",
                   "Number of jacobi iteration in preconditioner");
+   args.AddOption(&im_supg, "-im_supg", "--im_supg",
+                  "supg options in formulation");
    args.AddOption(&visc, "-visc", "--viscosity",
                   "Viscosity coefficient.");
    args.AddOption(&resi, "-resi", "--resistivity",
@@ -556,8 +558,8 @@ int main(int argc, char *argv[])
    //++++Perform time-integration (looping over the time iterations, ti, with a
    //    time-step dt).
    bool last_step = false;
-   bool useStab = false; //use a stabilized formulation
-   if(!useStab) isupg=0;
+   bool useStab = false; //use a stabilized formulation (explicit case only)
+   if(!useStab) ex_supg=0;
    for (int ti = 1; !last_step; ti++)
    {
       if (t_change>0. && t>=t_change)
