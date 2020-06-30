@@ -259,7 +259,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
                      // VectorCoefficient & EImCoef,
                      void (*j_r_src)(const Vector&, Vector&),
                      void (*j_i_src)(const Vector&, Vector&),
-                     bool vis_u)
+                     bool vis_u, bool pa)
    : myid_(0),
      num_procs_(1),
      order_(order),
@@ -270,6 +270,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      conv_(conv),
      ownsEtaInv_(etaInvCoef == NULL),
      vis_u_(vis_u),
+     pa_(pa),
      omega_(omega),
      // solNorm_(-1.0),
      pmesh_(&pmesh),
@@ -581,11 +582,17 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    */
    // Bilinear Forms
    a1_ = new ParSesquilinearForm(HCurlFESpace_, conv_);
+   if (pa_)
+   {
+      a1_->real().SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      a1_->imag().SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   }
    a1_->AddDomainIntegrator(new CurlCurlIntegrator(*muInvCoef_), NULL);
    a1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massReCoef_),
                             new VectorFEMassIntegrator(*massImCoef_));
-   if ( kCoef_)
+   if ( kCoef_ )
    {
+      if (pa_) { cout << "kCoef_ domain integrator" << endl; }
       a1_->AddDomainIntegrator(new VectorFEMassIntegrator(*negMuInvkxkxCoef_),
                                NULL);
       a1_->AddDomainIntegrator(NULL,
@@ -595,17 +602,23 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    }
    if ( abcCoef_ )
    {
+      if (pa_) { cout << "abcCoef_ boundary integrator" << endl; }
       a1_->AddBoundaryIntegrator(NULL, new VectorFEMassIntegrator(*abcCoef_),
                                  abc_marker_);
    }
    if ( sbcReCoef_ && sbcImCoef_ )
    {
+      if (pa_) { cout << "sbcCoef_ boundary integrator" << endl; }
       a1_->AddBoundaryIntegrator(new VectorFEMassIntegrator(*sbcReCoef_),
                                  new VectorFEMassIntegrator(*sbcImCoef_),
                                  sbc_marker_);
    }
 
    b1_ = new ParBilinearForm(HCurlFESpace_);
+   if (pa_)
+   {
+      b1_->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   }
    b1_->AddDomainIntegrator(new CurlCurlIntegrator(*muInvCoef_));
    // b1_->AddDomainIntegrator(new VectorFEMassIntegrator(*epsAbsCoef_));
    b1_->AddDomainIntegrator(new VectorFEMassIntegrator(*posMassCoef_));
@@ -613,6 +626,11 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
 
    m2_ = new ParBilinearForm(HDivFESpace_);
    m2_->AddDomainIntegrator(new VectorFEMassIntegrator);
+   if (pa_)
+   {
+      // TODO: PA for m2_
+      //m2_->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   }
 
    m12EpsRe_ = new ParMixedBilinearForm(HCurlFESpace_, HDivFESpace_);
    m12EpsIm_ = new ParMixedBilinearForm(HCurlFESpace_, HDivFESpace_);
@@ -954,7 +972,45 @@ CPDSolver::Solve()
    Operator * pci = NULL;
    BlockDiagonalPreconditioner * BDP = NULL;
 
-   if (sol_ == GMRES || sol_ == FGMRES || sol_ == MINRES)
+   if (pa_)
+   {
+      switch (prec_)
+      {
+         case INVALID_PC:
+            if ( myid_ == 0 && logging_ > 0 )
+            {
+               cout << "No Preconditioner Requested (PA)" << endl;
+            }
+            break;
+         case DIAG_SCALE:
+            if ( myid_ == 0 && logging_ > 0 )
+            {
+               cout << "Diagonal Scaling Preconditioner Requested (PA)" << endl;
+            }
+            pcr = new OperatorJacobiSmoother(*b1_, ess_bdr_tdofs_);
+            break;
+         default:
+            MFEM_ABORT("Requested preconditioner is not available with PA.");
+            break;
+      }
+      if (pcr && conv_ != ComplexOperator::HERMITIAN)
+      {
+         pci = new ScaledOperator(pcr, -1.0);
+      }
+      else
+      {
+         pci = pcr;
+      }
+
+      if (pcr)
+      {
+         BDP = new BlockDiagonalPreconditioner(blockTrueOffsets_);
+         BDP->SetDiagonalBlock(0, pcr);
+         BDP->SetDiagonalBlock(1, pci);
+         BDP->owns_blocks = 0;
+      }
+   }
+   else if (sol_ == GMRES || sol_ == FGMRES || sol_ == MINRES)
    {
       switch (prec_)
       {
