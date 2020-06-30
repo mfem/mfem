@@ -278,8 +278,9 @@ int main(int argc, char *argv[])
    solver.SetPrintLevel(1);
    x = 0.0;
    solver.Mult(rhs, x);
-   //x.HostRead();
+   if (device.IsEnabled()) { x.HostRead(); }
    chrono.Stop();
+
 
    if (solver.GetConverged())
       std::cout << "MINRES converged in " << solver.GetNumIterations()
