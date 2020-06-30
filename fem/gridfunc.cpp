@@ -2462,7 +2462,7 @@ double GridFunction::ComputeH1Error(
          el_dofs.SetSize(fdof);
          dshape.SetSize(fdof, dim);
          dshapet.SetSize(fdof, dim);
-         intorder = 2 * fe->GetOrder(); // <----------
+         intorder = 2 * fe->GetOrder() + 3; // <----------
          const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(), intorder);
          fes->GetElementVDofs(i, vdofs);
          for (k = 0; k < fdof; k++)
@@ -2595,7 +2595,7 @@ double GridFunction::ComputeGradError(VectorCoefficient *exgrad,
    {
       fe = fes->GetFE(i);
       Tr = fes->GetElementTransformation(i);
-      intorder = 2*fe->GetOrder() + 3;
+      intorder = 2*fe->GetOrder();
       const IntegrationRule *ir;
       if (irs)
       {
@@ -2732,36 +2732,6 @@ double GridFunction::ComputeHCurlError(VectorCoefficient *exsol,
    double L2error = GridFunction::ComputeLpError(2.0,*exsol,NULL,NULL,irs);
    double CurlError = ComputeCurlError(excurl,irs);
    return sqrt(L2error*L2error + CurlError*CurlError);
-}
-
-double GridFunction::ComputeEnergyError(Coefficient *exsol,
-                                        VectorCoefficient *dexsol,
-                                        const IntegrationRule *irs[]) const
-{
-   int map_type = fes->GetFE(0)->GetMapType();
-   int cont_type = fes->FEColl()->GetContType();
-   MFEM_VERIFY(map_type == 0 && cont_type == 0,
-               "This method is intented only for H1 elements");
-   return ComputeH1Error(exsol, dexsol, irs);
-}
-
-double GridFunction::ComputeEnergyError(VectorCoefficient *exsol,
-                                        Coefficient *dexsol,
-                                        const IntegrationRule *irs[]) const
-{
-   int cont_type = fes->FEColl()->GetContType();
-   MFEM_VERIFY(cont_type == 2,
-               "This method is intented only for H(div) elements");
-   return ComputeHDivError(exsol, dexsol, irs);
-}
-
-double GridFunction::ComputeEnergyError(VectorCoefficient *exsol,
-                                        VectorCoefficient *dexsol,
-                                        const IntegrationRule *irs[]) const
-{
-   int cont_type = fes->FEColl()->GetContType();
-   MFEM_VERIFY(cont_type == 1, "This method is intented only for H(curl) elements");
-   return ComputeHCurlError(exsol, dexsol, irs);
 }
 
 double GridFunction::ComputeMaxError(

@@ -6,7 +6,7 @@
 using namespace std;
 using namespace mfem;
 
-class ConvergenceRates
+class Convergence
 {
 private:
 
@@ -15,30 +15,44 @@ private:
    int comm_flag; // 0 - local, 1 - global over 'comm'
 #endif
    int counter=0;
+   int dcounter=0;
+   int cont_type;
    int print_flag=0;
    Array<double> L2Errors;
-   Array<double> L2RelErrors;
-   Array<double> EnergyErrors;
-   Array<double> EnergyRelErrors;
+   Array<double> DErrors;
+   Array<double> EnErrors;
    Array<double> L2Rates;
-   Array<double> L2RelRates;
-   Array<double> EnergyRates;
-   Array<double> EnergyRelRates;
+   Array<double> DRates;
+   Array<double> EnRates;
    Array<int> ndofs;
+   void AddL2Error(GridFunction * gf, Coefficient * u, VectorCoefficient * U);
+   void AddGf(GridFunction * gf, Coefficient * u, VectorCoefficient * grad);
+   void AddGf(GridFunction * gf, VectorCoefficient * u, 
+                        VectorCoefficient * curl, Coefficient * div);
 public:
-   ConvergenceRates();
+   Convergence();
 #ifdef MFEM_USE_MPI
-   ConvergenceRates(MPI_Comm _comm);
+   Convergence(MPI_Comm _comm);
 #endif
    // Clear any internal data
    void Clear();
 
-   // Add Scalar Solution 
-   void RegisterSolution(GridFunction * gf, Coefficient * u_ex);
-
-   // Add Vector Solution 
-   void RegisterSolution(GridFunction * gf, VectorCoefficient * U_ex);
-
+   void AddGridFunction(GridFunction * gf, Coefficient * u, VectorCoefficient * grad = NULL)
+   {
+      AddGf(gf, u, grad);
+   }
+   void AddGridFunction(GridFunction * gf, VectorCoefficient * u)
+   {
+      AddGf(gf,u, nullptr, nullptr);
+   }
+   void AddGridFunction(GridFunction * gf, VectorCoefficient * u, VectorCoefficient * curl)
+   {
+      AddGf(gf,u, curl, nullptr);
+   }
+   void AddGridFunction(GridFunction * gf, VectorCoefficient * u, Coefficient * div) 
+   {
+      AddGf(gf,u, nullptr, div);
+   }
    // Get L2 error for step n
    double GetL2Error(int n);
 
@@ -49,7 +63,7 @@ public:
    Array<double> * GetRates();
 
    // Print rates and errors
-   void Print();
+   void Print(bool relative = false);
 
-   ~ConvergenceRates(){};
+   ~Convergence(){};
 };

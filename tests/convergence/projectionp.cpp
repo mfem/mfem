@@ -190,7 +190,7 @@ int main(int argc, char *argv[])
 
    // 10. Perform successive parallel refinements, compute the L2 error and the
    //     corresponding rate of convergence
-   ConvergenceRates rates(MPI_COMM_WORLD);
+   Convergence rates(MPI_COMM_WORLD);
    // ConvergenceRates rates;
    rates.Clear();
    for (int l = 0; l <= pr; l++)
@@ -250,40 +250,17 @@ int main(int argc, char *argv[])
       {
          case 0:
          {
-            rates.RegisterSolution(&u_gf,u);
-
-            double Energy_error = u_gf.ComputeEnergyError(u,gradu);
-
-            // cout << "Grad error 1 = " << u_gf.ComputeGradError(gradu) << endl;
-
-            if (myid == 0)
-            {
-               // cout << "energy error = " << Energy_error << endl;
-            }
+            rates.AddGridFunction(&u_gf,u, gradu);
             break;
          }
          case 1:
          {
-            rates.RegisterSolution(&u_gf,U);
-            double Energy_error = u_gf.ComputeEnergyError(U,curlU);
-            if (myid == 0)
-            {
-               // cout << "Energy error = " << Energy_error << endl;
-            }
+            rates.AddGridFunction(&u_gf,U, curlU);
             break;
          }
-         
          case 2:
          {
-            rates.RegisterSolution(&u_gf,U);
-
-            double Energy_error = u_gf.ComputeEnergyError(U,divU);
-
-            if (myid == 0)
-            {
-               // cout << "Energy error = " << Energy_error << endl;
-            }
-
+            rates.AddGridFunction(&u_gf,U, divU);
             break;
          }
          default:

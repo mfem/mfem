@@ -455,16 +455,6 @@ public:
                                     VectorCoefficient *excurl,
                                     const IntegrationRule *irs[] = NULL) const;
 
-   virtual double ComputeEnergyError(Coefficient *exsol, VectorCoefficient *dexsol,
-                                     const IntegrationRule *irs[] = NULL) const;
-
-   virtual double ComputeEnergyError(VectorCoefficient *exsol, Coefficient *dexsol,
-                                     const IntegrationRule *irs[] = NULL) const;
-
-   virtual double ComputeEnergyError(VectorCoefficient *exsol,
-                                     VectorCoefficient *dexsol,
-                                     const IntegrationRule *irs[] = NULL) const;
-
 // ------------------------------------------------------------------------------
 
    virtual double ComputeMaxError(Coefficient &exsol,
