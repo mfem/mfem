@@ -304,13 +304,13 @@ TEST_CASE("Hcurl/Hdiv pa_coeff")
             {
                if (spaceType == 0)
                   std::cout << "Testing " << dimension
-                            << "D ND partial assembly with " << "coeffType "
-                            << coeffType << " and " << "integrator "
+                            << "D ND partial assembly with coeffType "
+                            << coeffType << " and integrator "
                             << integrator << std::endl;
                else
                   std::cout << "Testing " << dimension
-                            << "D RT partial assembly with " << "coeffType "
-                            << coeffType << " and " << "integrator "
+                            << "D RT partial assembly with coeffType "
+                            << coeffType << " and integrator "
                             << integrator << std::endl;
 
                for (int order = 1; order < 4; ++order)
