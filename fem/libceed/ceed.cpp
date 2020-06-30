@@ -232,11 +232,7 @@ static void InitCeedTensorBasisAndRestriction(const FiniteElementSpace &fes,
                            grad1d.GetData(), qref1d.GetData(),
                            qweight1d.GetData(), basis);
 
-   CeedInt compstride = fes.GetNDofs();
-   if (fes.GetOrdering()==Ordering::byVDIM)
-   {
-      compstride = 1;
-   }
+   CeedInt compstride = fes.GetOrdering()==Ordering::byVDIM ? 1 : fes.GetNDofs();
    const Table &el_dof = fes.GetElementToDofTable();
    Array<int> tp_el_dof(el_dof.Size_of_connections());
    for (int i = 0; i < mesh->GetNE(); i++)
