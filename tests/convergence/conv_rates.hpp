@@ -25,10 +25,14 @@ private:
    Array<double> DRates;
    Array<double> EnRates;
    Array<int> ndofs;
+   double CoeffNorm;
+   double CoeffDNorm;
    void AddL2Error(GridFunction * gf, Coefficient * u, VectorCoefficient * U);
    void AddGf(GridFunction * gf, Coefficient * u, VectorCoefficient * grad);
    void AddGf(GridFunction * gf, VectorCoefficient * u, 
                         VectorCoefficient * curl, Coefficient * div);
+
+   double GetNorm(GridFunction * gf, Coefficient * u, VectorCoefficient * U);
 public:
    Convergence();
 #ifdef MFEM_USE_MPI
