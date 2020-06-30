@@ -192,7 +192,6 @@ int main(int argc, char *argv[])
       delete prec;
 
       a.RecoverFEMSolution(X,B,u_gf);
-
       switch (prob)
       {
          case 0:
@@ -225,7 +224,7 @@ int main(int argc, char *argv[])
       u_gf.Update();
    }
 
-   rates.Print();
+   rates.Print(true);
 
    // 11. Send the solution by socket to a GLVis server.
    if (visualization)

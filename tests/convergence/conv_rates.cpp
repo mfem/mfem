@@ -34,6 +34,45 @@ void Convergence::Clear()
    EnRates.SetSize(0);
 }
 
+
+double Convergence::GetNorm(GridFunction * gf, Coefficient * u, VectorCoefficient * U)
+{
+   double norm;
+   int intorder = 2*gf->FESpace()->GetFE(0)->GetOrder();
+   int order = gf->FESpace()->GetOrder(0);
+   int order_quad = max(2, 2*order+1);
+   const IntegrationRule *irs[Geometry::NumGeom];
+   for (int i=0; i < Geometry::NumGeom; ++i)
+   {
+      irs[i] = &(IntRules.Get(i, order_quad));
+   }
+#ifdef MFEM_USE_MPI   
+   if (comm_flag)
+   {
+      ParMesh * pmesh = (dynamic_cast<ParGridFunction *>(gf))->ParFESpace()->GetParMesh();
+      if (u)
+      {
+         norm = ComputeGlobalLpNorm(2.0,*u,*pmesh,irs);
+      }
+      else if (U)
+      {
+         norm = ComputeGlobalLpNorm(2.0,*U,*pmesh,irs);
+      }
+   }
+#else
+   Mesh * mesh = gf->FESpace()->GetMesh();
+   if (u)
+   {
+      norm = ComputeGlobalLpNorm(2.0,*u,*pmesh,irs);
+   }
+   else if (U)
+   {
+      norm = ComputeGlobalLpNorm(2.0,*U,*pmesh,irs);
+   }
+#endif   
+   return norm;
+}
+
 void Convergence::AddL2Error(GridFunction * gf, 
                              Coefficient * u, VectorCoefficient * U)
 {
@@ -46,13 +85,16 @@ void Convergence::AddL2Error(GridFunction * gf,
 #endif   
    ndofs.Append(tdofs);
    double L2Err;
+   double L2Norm;
    if (u)
    {
       L2Err = gf->ComputeL2Error(*u);
+      CoeffNorm = GetNorm(gf,u,nullptr);
    }
    else if (U) 
    {
       L2Err = gf->ComputeL2Error(*U);
+      CoeffNorm = GetNorm(gf,nullptr,U);
    }
    else
    {
@@ -84,6 +126,8 @@ void Convergence::AddGf(GridFunction * gf, Coefficient * u,
       double eval = (dcounter) ? log(EnErrors[dcounter-1]/err)/log(2.0) : 0.0;
       DRates.Append(val);
       EnRates.Append(eval);
+      CoeffDNorm = GetNorm(gf,nullptr,grad);
+
       dcounter++;
       MFEM_VERIFY(counter == dcounter, "Number of Added solutions and derivatives do not match")
 
@@ -101,11 +145,13 @@ void Convergence::AddGf(GridFunction * gf, VectorCoefficient * U,
    if (curl)
    {
       DErr = gf->ComputeCurlError(curl);
+      CoeffDNorm = GetNorm(gf,nullptr,curl);
       derivative = 1;
    }
    else if (div)
    {
       DErr = gf->ComputeDivError(div);
+      CoeffDNorm = GetNorm(gf,div,nullptr); // update coefficient norm
       derivative = 1;
    }
    if (derivative)
@@ -143,9 +189,10 @@ void Convergence::Print(bool relative)
 {
    if (print_flag)
    {
+      string title = (relative) ? "Relative " : "Absolute ";
       cout << endl;
       cout << " -------------------------------------------" << endl;
-      cout << "             Absolute L2 Error              " << endl;
+      cout << "            " << title << " L2 Error              " << endl;
       cout << " -------------------------------------------"
            << endl;
       cout << right<< setw(11)<< "DOFs "<< setw(13) << "Error ";
@@ -153,10 +200,11 @@ void Convergence::Print(bool relative)
       cout << " -------------------------------------------"
            << endl;
       cout << setprecision(4);
+      double d = (relative) ? CoeffNorm : 1.0;
       for (int i =0; i<counter; i++)
       {
          cout << right << setw(10)<< ndofs[i] << setw(16) 
-              << scientific << L2Errors[i] << setw(13)  
+              << scientific << L2Errors[i]/d << setw(13)  
               << fixed << L2Rates[i] << endl;
       }
       cout << endl;
@@ -171,17 +219,18 @@ void Convergence::Print(bool relative)
             default: break;
          }
          cout << " -------------------------------------------" << endl;
-         cout << "             Absolute " << dname << " Error        " << endl;
+         cout << "              " << title << dname << " Error        " << endl;
          cout << " -------------------------------------------" << endl;
          cout << right<< setw(11)<< "DOFs "<< setw(13) << "Error ";
          cout <<  setw(15) << "Rate " << endl;
          cout << " -------------------------------------------"
            << endl;
          cout << setprecision(4);
+         d = (relative) ? CoeffDNorm : 1.0;
          for (int i =0; i<dcounter; i++)
          {
             cout << right << setw(10)<< ndofs[i] << setw(16) 
-                 << scientific << DErrors[i] << setw(13)  
+                 << scientific << DErrors[i]/d << setw(13)  
                  << fixed << DRates[i] << endl;
          }
          cout << endl;
@@ -192,8 +241,11 @@ void Convergence::Print(bool relative)
             case 2: dname = "H(Div)";  break;
             default: break;
          }
+
+         d = (relative) ? sqrt(CoeffNorm*CoeffNorm + CoeffDNorm*CoeffDNorm) : 1.0;
+
          cout << " -------------------------------------------" << endl;
-         cout << "             Absolute " << dname << " Error        " << endl;
+         cout << "              " << title << dname << " Error        " << endl;
          cout << " -------------------------------------------" << endl;
          cout << right<< setw(11)<< "DOFs "<< setw(13) << "Error ";
          cout <<  setw(15) << "Rate " << endl;
@@ -203,7 +255,7 @@ void Convergence::Print(bool relative)
          for (int i =0; i<dcounter; i++)
          {
             cout << right << setw(10)<< ndofs[i] << setw(16) 
-                 << scientific << EnErrors[i] << setw(13)  
+                 << scientific << EnErrors[i]/d << setw(13)  
                  << fixed << EnRates[i] << endl;
          }
 
