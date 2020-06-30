@@ -72,6 +72,9 @@ public:
     */
    BlockVector(double *data, const Array<int> & bOffsets);
 
+   //! Return the number of blocks
+   int NumBlocks() const { return numBlocks; }
+
    //! Assignment operator. this and original must have the same block structure.
    BlockVector & operator=(const BlockVector & original);
    //! Set each entry of this equal to val

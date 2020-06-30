@@ -68,7 +68,7 @@ public:
    virtual ~Hexahedron() { }
 };
 
-extern TriLinear3DFiniteElement HexahedronFE;
+extern class TriLinear3DFiniteElement HexahedronFE;
 
 }
 
