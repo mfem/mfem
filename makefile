@@ -251,9 +251,6 @@ endif
 
 # JIT configuration
 MFEM_JIT = mjit
-ifeq ($(MFEM_USE_CIDA)$(MFEM_USE_JIT),YESYES)
-	LDFLAGS += -ldl
-endif
 
 DEP_CXX ?= $(MFEM_CXX)
 

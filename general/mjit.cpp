@@ -226,54 +226,20 @@ static int ProcessFork(int argc, char *argv[])
 
 #endif // MFEM_USE_MPI
 
-bool NvccCompile(const char *cc, const char *co,
-                 const char *cxx, const char *cxxflags,
-                 const char *msrc, const char *mins)
-{
-   dbg();
-   constexpr const char *lib_ar = MFEM_JIT_CACHE_LIBRARY ".a";
-   constexpr const char *lib_so = MFEM_JIT_CACHE_LIBRARY ".so";
-   constexpr int PM = PATH_MAX;
-   char Imsrc[PM], Imbin[PM], Lmfem[PM];
-   if (snprintf(Imsrc, PM, "-I%s ", msrc) < 0) { return false; }
-   if (snprintf(Imbin, PM, "-I%s/include ", mins) < 0) { return false; }
-   if (snprintf(Lmfem, PM,
-                "-L%s/lib -Xlinker=-rpath,%s/lib -lmfem", mins, mins) < 0)
-   { return false; }
-   constexpr const char *opt = MFEM_JIT_SHELL_COMMAND;
-
-   // fPIC should already be in MFEM's CPPFLAGS
-
-   const char *argv_co[] =
-   { opt, cxx, cxxflags, "-c", "-dc", Imsrc, Imbin, "-o", co, cc, nullptr };
-   if (mfem::jit::System(const_cast<char**>(argv_co)) != 0) { return false; }
-
-   const char *argv_ar[] = { opt, "ar", "-r", lib_ar, co, nullptr };
-   if (mfem::jit::System(const_cast<char**>(argv_ar)) != 0) { return false; }
-
-   constexpr const char *beg_load = "-Xlinker=--whole-archive";
-   constexpr const char *end_load = "-Xlinker=--no-whole-archive";
-
-   const char *argv_so[] =
-   {
-      opt, cxx, "-shared", "-o", lib_so, beg_load, lib_ar, end_load, Lmfem, nullptr
-   };
-   if (mfem::jit::System(const_cast<char**>(argv_so)) != 0) { return false; }
-
-   if (!getenv("TMP")) { unlink(cc); }
-   if (!getenv("TMP")) { unlink(co); }
-   return true;
-}
-
 /// Compile the source file with PIC flags, updating the cache library.
 bool Compile(const char *cc, const char *co,
              const char *cxx, const char *cxxflags,
              const char *msrc, const char *mins)
 {
-#ifdef MFEM_USE_CUDA
-   return NvccCompile(cc, co, cxx, cxxflags, msrc, mins);
+#ifndef MFEM_USE_CUDA
+#define DC
+#define XC ""
+#define XL "-Wl,"
+#else
+#define DC "-dc",
+#define XL "-Xlinker="
+#define XC "-Xcompiler="
 #endif
-   dbg();
    constexpr const char *lib_ar = MFEM_JIT_CACHE_LIBRARY ".a";
    constexpr const char *lib_so = MFEM_JIT_CACHE_LIBRARY ".so";
    constexpr int PM = PATH_MAX;
@@ -281,15 +247,15 @@ bool Compile(const char *cc, const char *co,
    if (snprintf(Imsrc, PM, "-I%s ", msrc) < 0) { return false; }
    if (snprintf(Imbin, PM, "-I%s/include ", mins) < 0) { return false; }
    constexpr const char *opt = MFEM_JIT_SHELL_COMMAND;
-   constexpr const char *fpic = "-fPIC";
+   constexpr const char *fpic = XC "-fPIC";
    const char *argv_co[] =
-   { opt, cxx, cxxflags, fpic, "-c", Imsrc, Imbin, "-o", co, cc, nullptr };
+   { opt, cxx, cxxflags, fpic, "-c", DC Imsrc, Imbin, "-o", co, cc, nullptr };
    if (mfem::jit::System(const_cast<char**>(argv_co)) != 0) { return false; }
    const char *argv_ar[] = { opt, "ar", "-r", lib_ar, co, nullptr };
    if (mfem::jit::System(const_cast<char**>(argv_ar)) != 0) { return false; }
 #ifndef __APPLE__
-   constexpr const char *beg_load = "-Wl,--whole-archive";
-   constexpr const char *end_load = "-Wl,--no-whole-archive";
+   constexpr const char *beg_load = XL "--whole-archive";
+   constexpr const char *end_load = XL "--no-whole-archive";
 #else
    constexpr const char *beg_load = "-all_load";
    constexpr const char *end_load = "";
@@ -361,7 +327,7 @@ struct kernel_t
    struct forall_t forall;    // source of the lambda forall
 };
 
-///
+// *****************************************************************************
 struct context_t
 {
    kernel_t ker;
@@ -906,9 +872,8 @@ void jitPrefix(context_t &pp)
    pp.out << "\n#include <limits>";
    pp.out << "\n#include <cstring>";
    pp.out << "\n#include <stdbool.h>";
-   pp.out << "\n//#include \"mfem.hpp\"";
-   pp.out << "\n//#include \"mfem/general/forall.hpp\"";
-   pp.out << "\n#include \"general/forall.hpp\"";
+   pp.out << "\n#define MJIT_FORALL";
+   pp.out << "\n#include \"general/mjit.hpp\"";
    if (not pp.ker.embed.empty())
    {
       // push to suppress 'declared but never referenced' warnings
@@ -937,14 +902,6 @@ void jitPostfix(context_t &pp)
    pp.out << "}\nextern \"C\"\nvoid "
           << MFEM_JIT_SYMBOL_PREFIX << "%016lx("
           << "const bool use_dev, " << pp.ker.params << "){";
-   //#warning Here
-   //pp.out << "if (Device::Allows(Backend::CUDA_MASK)){mfem::Device(\"cuda\");}";
-   //pp.out << "mfem::Device device(\"cuda\");";pp.out << "device.Print();";
-   pp.out << "if (use_dev)";
-   pp.out << "{ printf(\"\033[32mCUDA\033[m\"); }";
-   pp.out << "else";
-   pp.out << "{ printf(\"\033[31mCPU\033[m\"); }";
-   pp.out << "fflush(0);";
    pp.out << "ker_" << pp.ker.name << "<" << pp.ker.Tformat << ">"
           << "(" << "use_dev, " << pp.ker.args_wo_amp << ");";
    pp.out << "\n})_\";";
@@ -1549,25 +1506,18 @@ void forall2DPostfix(context_t &pp)
    get(pp);
    pp.parenthesis--;
    pp.ker.__forall = false;
-   //DBG("%s",pp.ker.forall.body.c_str());
    pp.out << "if (use_dev){";
-   pp.out << "\n\tCuWrap2D(" << pp.ker.forall.N.c_str() << ",";
-   pp.out << "\n[=] MFEM_DEVICE (int " << pp.ker.forall.e <<")";
+   pp.out << "\n\tCuWrap2D(" << pp.ker.forall.N.c_str() << ", ";
+   pp.out << "[=] MFEM_DEVICE (int " << pp.ker.forall.e <<")";
    pp.out << pp.ker.forall.body.c_str() << ",";
-   pp.out << "\n" ;
    pp.out << pp.ker.forall.X.c_str() << ",";
    pp.out << pp.ker.forall.Y.c_str() << ",";
    pp.out << pp.ker.forall.Z.c_str() << ");";
    pp.out << "\n} else {";
-   pp.out << "\nForallWrap<2>(false, " << pp.ker.forall.N.c_str() << ",";
-   pp.out << "\n[=] MFEM_DEVICE (int " << pp.ker.forall.e <<")";
-   pp.out << pp.ker.forall.body.c_str() << ",";
+   pp.out << "\nfor (int k=0; k<" << pp.ker.forall.N.c_str() << ";k++) {";
    pp.out << "\n[&] (int " << pp.ker.forall.e <<")";
-   pp.out << pp.ker.forall.body.c_str() << ",";
-   pp.out << "\n" ;
-   pp.out << pp.ker.forall.X.c_str() << ",";
-   pp.out << pp.ker.forall.Y.c_str() << ",";
-   pp.out << pp.ker.forall.Z.c_str() << ");";
+   pp.out << pp.ker.forall.body.c_str() << "(k);";
+   pp.out << "\n}";
    pp.out << "}";
 }
 
