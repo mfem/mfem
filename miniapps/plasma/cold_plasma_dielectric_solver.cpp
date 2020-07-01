@@ -25,22 +25,20 @@ namespace plasma
 // Used for combining scalar coefficients
 double prodFunc(double a, double b) { return a * b; }
 
-ElectricEnergyDensityCoef::ElectricEnergyDensityCoef(double omega,
-                                                     VectorCoefficient &Er,
+ElectricEnergyDensityCoef::ElectricEnergyDensityCoef(VectorCoefficient &Er,
                                                      VectorCoefficient &Ei,
                                                      MatrixCoefficient &epsr,
                                                      MatrixCoefficient &epsi)
-   : omega_(omega),
-     ErCoef_(Er),
-     EiCoef_(Ei),
-     epsrCoef_(epsr),
-     epsiCoef_(epsi),
-     Er_(3),
-     Ei_(3),
-     Dr_(3),
-     Di_(3),
-     eps_r_(3),
-     eps_i_(3)
+   :  ErCoef_(Er),
+      EiCoef_(Ei),
+      epsrCoef_(epsr),
+      epsiCoef_(epsi),
+      Er_(3),
+      Ei_(3),
+      Dr_(3),
+      Di_(3),
+      eps_r_(3),
+      eps_i_(3)
 {}
 
 double ElectricEnergyDensityCoef::Eval(ElementTransformation &T,
@@ -245,14 +243,11 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
                      MatrixCoefficient & epsAbsCoef,
                      Coefficient & muInvCoef,
                      Coefficient * etaInvCoef,
-                     Coefficient * etaInvReCoef,
-                     Coefficient * etaInvImCoef,
                      VectorCoefficient * kCoef,
                      Array<int> & abcs,
-                     Array<int> & sbcs,
-                     // Array<int> & dbcs,
                      Array<ComplexVectorCoefficientByAttr> & dbcs,
                      Array<ComplexVectorCoefficientByAttr> & nbcs,
+                     Array<ComplexCoefficientByAttr> & sbcs,
                      // void   (*e_r_bc )(const Vector&, Vector&),
                      // void   (*e_i_bc )(const Vector&, Vector&),
                      // VectorCoefficient & EReCoef,
@@ -275,6 +270,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      pmesh_(&pmesh),
      L2FESpace_(NULL),
      L2VFESpace_(NULL),
+     H1FESpace_(NULL),
      HCurlFESpace_(NULL),
      HDivFESpace_(NULL),
      HDivFESpace2p_(NULL),
@@ -283,6 +279,9 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      m2_(NULL),
      m12EpsRe_(NULL),
      m12EpsIm_(NULL),
+     m0_(NULL),
+     n20ZRe_(NULL),
+     n20ZIm_(NULL),
      e_(NULL),
      d_(NULL),
      j_(NULL),
@@ -291,6 +290,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      e_b_(NULL),
      e_v_(NULL),
      d_v_(NULL),
+     phi_v_(NULL),
      j_v_(NULL),
      u_(NULL),
      uE_(NULL),
@@ -302,16 +302,12 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      epsAbsCoef_(&epsAbsCoef),
      muInvCoef_(&muInvCoef),
      etaInvCoef_(etaInvCoef),
-     etaInvReCoef_(etaInvReCoef),
-     etaInvImCoef_(etaInvImCoef),
      kCoef_(kCoef),
      omegaCoef_(new ConstantCoefficient(omega_)),
      negOmegaCoef_(new ConstantCoefficient(-omega_)),
      omega2Coef_(new ConstantCoefficient(pow(omega_, 2))),
      negOmega2Coef_(new ConstantCoefficient(-pow(omega_, 2))),
      abcCoef_(NULL),
-     sbcReCoef_(NULL),
-     sbcImCoef_(NULL),
      sinkx_(NULL),
      coskx_(NULL),
      negsinkx_(NULL),
@@ -331,7 +327,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      deiCoef_(NULL),
      uCoef_(omega_, erCoef_, eiCoef_, derCoef_, deiCoef_,
             *epsReCoef_, *epsImCoef_, *muInvCoef_),
-     uECoef_(omega_, erCoef_, eiCoef_, *epsReCoef_, *epsImCoef_),
+     uECoef_(erCoef_, eiCoef_, *epsReCoef_, *epsImCoef_),
      uBCoef_(omega_, derCoef_, deiCoef_, *muInvCoef_),
      SrCoef_(omega_, erCoef_, eiCoef_, derCoef_, deiCoef_, *muInvCoef_),
      SiCoef_(omega_, erCoef_, eiCoef_, derCoef_, deiCoef_, *muInvCoef_),
@@ -342,6 +338,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      dbcs_(&dbcs),
      nbcs_(&nbcs),
      nkbcs_(NULL),
+     sbcs_(&sbcs),
      visit_dc_(NULL)
 {
    // Initialize MPI variables
@@ -359,7 +356,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    // Define compatible parallel finite element spaces on the parallel
    // mesh. Here we use arbitrary order H1, Nedelec, and Raviart-Thomas finite
    // elements.
-   // H1FESpace_    = new H1_ParFESpace(pmesh_,order,pmesh_->Dimension());
+   H1FESpace_    = new H1_ParFESpace(pmesh_,order,pmesh_->Dimension());
    HCurlFESpace_ = new ND_ParFESpace(pmesh_,order,pmesh_->Dimension());
    HDivFESpace_  = new RT_ParFESpace(pmesh_,order,pmesh_->Dimension());
 
@@ -373,11 +370,16 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    }
    if (kCoef_)
    {
+      if (L2FESpace_ == NULL)
+      {
+         L2FESpace_ = new L2_ParFESpace(pmesh_,order-1,pmesh_->Dimension());
+      }
       L2VFESpace_ = new L2_ParFESpace(pmesh_,order,pmesh_->Dimension(),
                                       pmesh_->SpaceDimension());
       e_t_ = new ParGridFunction(L2VFESpace_);
       e_v_ = new ParComplexGridFunction(L2VFESpace_);
       d_v_ = new ParComplexGridFunction(L2VFESpace_);
+      phi_v_ = new ParComplexGridFunction(L2FESpace_);
       j_v_ = new ParComplexGridFunction(L2VFESpace_);
 
       sinkx_ = new PhaseCoefficient(*kCoef_, &sin);
@@ -505,29 +507,6 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
                                             prodFunc);
    }
 
-   // Complex Impedance
-   if ( sbcs.Size() > 0 && etaInvReCoef_ != NULL && etaInvReCoef_ != NULL )
-   {
-      if ( myid_ == 0 && logging_ > 0 )
-      {
-         cout << "Creating Complex Admittance Coefficient" << endl;
-      }
-
-      sbc_marker_.SetSize(pmesh.bdr_attributes.Max());
-
-      // Mark select boundaries as absorbing
-      sbc_marker_ = 0;
-      for (int i=0; i<sbcs.Size(); i++)
-      {
-         sbc_marker_[sbcs[i]-1] = 1;
-      }
-
-      sbcReCoef_ = new TransformedCoefficient(omegaCoef_, etaInvImCoef_,
-                                              prodFunc);
-      sbcImCoef_ = new TransformedCoefficient(negOmegaCoef_, etaInvReCoef_,
-                                              prodFunc);
-   }
-
    // Volume Current Density
    if ( j_r_src_ != NULL )
    {
@@ -598,13 +577,14 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
       a1_->AddBoundaryIntegrator(NULL, new VectorFEMassIntegrator(*abcCoef_),
                                  abc_marker_);
    }
+   /*
    if ( sbcReCoef_ && sbcImCoef_ )
    {
       a1_->AddBoundaryIntegrator(new VectorFEMassIntegrator(*sbcReCoef_),
                                  new VectorFEMassIntegrator(*sbcImCoef_),
                                  sbc_marker_);
    }
-
+   */
    b1_ = new ParBilinearForm(HCurlFESpace_);
    b1_->AddDomainIntegrator(new CurlCurlIntegrator(*muInvCoef_));
    // b1_->AddDomainIntegrator(new VectorFEMassIntegrator(*epsAbsCoef_));
@@ -619,12 +599,36 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    m12EpsRe_->AddDomainIntegrator(new VectorFEMassIntegrator(*epsReCoef_));
    m12EpsIm_->AddDomainIntegrator(new VectorFEMassIntegrator(*epsImCoef_));
 
+   if (sbcs_->Size() > 0)
+   {
+      m0_ = new ParBilinearForm(H1FESpace_);
+      m0_->AddBoundaryIntegrator(new MassIntegrator);
+
+      n20ZRe_ = new ParMixedBilinearForm(HDivFESpace_, H1FESpace_);
+      n20ZIm_ = new ParMixedBilinearForm(HDivFESpace_, H1FESpace_);
+
+      for (int i=0; i<sbcs_->Size(); i++)
+      {
+         ComplexCoefficientByAttr & sbc = (*sbcs_)[i];
+         n20ZRe_->AddBoundaryIntegrator(new MassIntegrator(*sbc.real),
+                                        sbc.attr_marker);
+         n20ZIm_->AddBoundaryIntegrator(new MassIntegrator(*sbc.imag),
+                                        sbc.attr_marker);
+      }
+   }
+
    // Build grid functions
    e_  = new ParComplexGridFunction(HCurlFESpace_);
    *e_ = 0.0;
 
    d_  = new ParComplexGridFunction(HDivFESpace_);
    *d_ = 0.0;
+
+   if (sbcs_->Size() > 0)
+   {
+      phi_  = new ParComplexGridFunction(H1FESpace_);
+      *phi_ = 0.0;
+   }
    // solNorm_ = e_->ComputeL2Error(const_cast<VectorCoefficient&>(erCoef_),
    //                               const_cast<VectorCoefficient&>(eiCoef_));
 
@@ -695,8 +699,6 @@ CPDSolver::~CPDSolver()
    delete massImCoef_;
    delete posMassCoef_;
    delete abcCoef_;
-   delete sbcReCoef_;
-   delete sbcImCoef_;
    if ( ownsEtaInv_ ) { delete etaInvCoef_; }
    delete omegaCoef_;
    delete negOmegaCoef_;
@@ -714,6 +716,7 @@ CPDSolver::~CPDSolver()
    // delete e_i_;
    delete e_;
    delete d_;
+   delete phi_;
    // delete b_;
    // delete h_;
    delete j_;
@@ -738,6 +741,9 @@ CPDSolver::~CPDSolver()
    delete m2_;
    delete m12EpsRe_;
    delete m12EpsIm_;
+   delete m0_;
+   delete n20ZRe_;
+   delete n20ZIm_;
    // delete curlMuInvCurl_;
    // delete hCurlMass_;
    // delete hDivHCurlMuInv_;
@@ -745,7 +751,7 @@ CPDSolver::~CPDSolver()
 
    delete L2FESpace_;
    delete L2VFESpace_;
-   // delete H1FESpace_;
+   delete H1FESpace_;
    delete HCurlFESpace_;
    delete HDivFESpace_;
    delete HDivFESpace2p_;
@@ -780,8 +786,10 @@ CPDSolver::PrintSizes()
 void
 CPDSolver::Assemble()
 {
-   if ( myid_ == 0 && logging_ > 0 ) { cout << "Assembling ..." << flush; }
+   if ( myid_ == 0 && logging_ > 0 ) { cout << "Assembling ..." << endl; }
 
+   if ( myid_ == 0 && logging_ > 0 )
+   { cout << "  Curl(1/mu Curl) - omega^2 epsilon ..." << flush; }
    tic_toc.Clear();
    tic_toc.Start();
 
@@ -791,17 +799,89 @@ CPDSolver::Assemble()
    a1_->Assemble();
    a1_->Finalize();
 
+   tic_toc.Stop();
+   if ( myid_ == 0 && logging_ > 0 )
+   {
+      cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
+   }
+   if ( myid_ == 0 && logging_ > 0 )
+   { cout << "  Curl(1/mu Curl) + omega^2 |epsilon| ..." << flush; }
+   tic_toc.Clear();
+   tic_toc.Start();
+
    b1_->Assemble();
    b1_->Finalize();
 
+   tic_toc.Stop();
+   if ( myid_ == 0 && logging_ > 0 )
+   {
+      cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
+   }
+   if ( myid_ == 0 && logging_ > 0 )
+   { cout << "  H(Div) mass matrix ..." << flush; }
+   tic_toc.Clear();
+   tic_toc.Start();
+
    m2_->Assemble();
    m2_->Finalize();
+
+   tic_toc.Stop();
+   if ( myid_ == 0 && logging_ > 0 )
+   {
+      cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
+   }
+   if ( myid_ == 0 && logging_ > 0 )
+   { cout << "  (epsilon u, v), u in H(Curl), v in H(Div)..." << flush; }
+   tic_toc.Clear();
+   tic_toc.Start();
 
    m12EpsRe_->Assemble();
    m12EpsRe_->Finalize();
 
    m12EpsIm_->Assemble();
    m12EpsIm_->Finalize();
+
+   if (m0_)
+   {
+      tic_toc.Stop();
+      if ( myid_ == 0 && logging_ > 0 )
+      {
+         cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
+      }
+      if ( myid_ == 0 && logging_ > 0 )
+      { cout << "  H1 mass matrix ..." << flush; }
+      tic_toc.Clear();
+      tic_toc.Start();
+
+      m0_->Assemble();
+      m0_->Finalize();
+
+      tic_toc.Stop();
+      if ( myid_ == 0 && logging_ > 0 )
+      {
+         cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
+      }
+      if ( myid_ == 0 && logging_ > 0 )
+      { cout << "  (z n.u, v), u in H(Div), v in H1..." << flush; }
+      tic_toc.Clear();
+      tic_toc.Start();
+
+      n20ZRe_->Assemble();
+      n20ZRe_->Finalize();
+
+      n20ZIm_->Assemble();
+      n20ZIm_->Finalize();
+   }
+
+   tic_toc.Stop();
+   if ( myid_ == 0 && logging_ > 0 )
+   {
+      cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
+   }
+   if ( myid_ == 0 && logging_ > 0 )
+   { cout << "  Source term..." << flush; }
+   tic_toc.Clear();
+   tic_toc.Start();
 
    rhs_->Assemble();
    /*
@@ -846,6 +926,7 @@ CPDSolver::Update()
    // H1FESpace_->Update(false);
    if (L2FESpace_) { L2FESpace_->Update(); }
    if (L2VFESpace_) { L2VFESpace_->Update(); }
+   H1FESpace_->Update();
    HCurlFESpace_->Update();
    HDivFESpace_->Update();
    if (HDivFESpace2p_) { HDivFESpace2p_->Update(false); }
@@ -863,6 +944,7 @@ CPDSolver::Update()
    // Inform the grid functions that the space has changed.
    e_->Update();
    d_->Update();
+   phi_->Update();
    if (u_) { u_->Update(); }
    if (uE_) { uE_->Update(); }
    if (uB_) { uB_->Update(); }
@@ -893,6 +975,12 @@ CPDSolver::Update()
    m2_->Update();
    m12EpsRe_->Update();
    m12EpsIm_->Update();
+   if (m0_)
+   {
+      m0_->Update();
+      n20ZRe_->Update();
+      n20ZIm_->Update();
+   }
    // curlMuInvCurl_->Update();
    // hCurlMass_->Update();
    // hDivHCurlMuInv_->Update();
@@ -1128,6 +1216,7 @@ CPDSolver::Solve()
 
    e_->Distribute(E);
 
+   // Update D = epsilon E
    {
       HypreParMatrix M2;
       Vector D, RHS2;
@@ -1173,6 +1262,81 @@ CPDSolver::Solve()
       pcg.Mult(RHS2, D);
 
       d_->imag().Distribute(D);
+   }
+
+   // Update phi = z n.D on the boundary
+   if (sbcs_->Size() > 0)
+   {
+      HypreParMatrix M0;
+      Vector Phi, RHS0;
+
+      ParComplexLinearForm rhs(H1FESpace_);
+      ParComplexLinearForm tmp(H1FESpace_);
+
+      n20ZRe_->Mult(d_->real(), rhs.real());
+      n20ZIm_->Mult(d_->imag(), tmp.real());
+
+      n20ZRe_->Mult(d_->imag(), rhs.imag());
+      n20ZIm_->Mult(d_->real(), tmp.imag());
+
+      rhs.real() -= tmp.real();
+      rhs.imag() += tmp.imag();
+
+      if (conv_ == ComplexOperator::Convention::BLOCK_SYMMETRIC)
+      {
+         rhs.imag() *= -1.0;
+      }
+
+      Array<int> sbc_marker(pmesh_->bdr_attributes.Max());
+      sbc_marker = 0;
+      for (int i=0; i<sbcs_->Size(); i++)
+      {
+         ComplexCoefficientByAttr & sbc = (*sbcs_)[i];
+         for (int j=0; j<sbc.attr_marker.Size(); j++)
+         {
+            sbc_marker[j] |= sbc.attr_marker[j];
+         }
+      }
+
+      Array<int> sbc_tdof;
+      H1FESpace_->GetEssentialTrueDofs(sbc_marker, sbc_tdof);
+
+      Array<int> sbc_tdof_marker;
+      H1FESpace_->ListToMarker(sbc_tdof, H1FESpace_->GetTrueVSize(),
+                               sbc_tdof_marker);
+
+      // Invert marker
+      for (int i=0; i<sbc_tdof_marker.Size(); i++)
+      {
+         sbc_tdof_marker[i] = 1 - sbc_tdof_marker[i];
+      }
+
+      Array<int> ess_tdof;
+      H1FESpace_->MarkerToList(sbc_tdof_marker, ess_tdof);
+
+      m0_->FormSystemMatrix(ess_tdof, M0);
+
+      Phi.SetSize(H1FESpace_->TrueVSize());
+      RHS0.SetSize(H1FESpace_->TrueVSize());
+
+      HypreDiagScale diag(M0);
+
+      HyprePCG pcg(M0);
+      pcg.SetPreconditioner(diag);
+      pcg.SetTol(1e-12);
+      pcg.SetMaxIter(1000);
+
+      rhs.real().ParallelAssemble(RHS0);
+
+      pcg.Mult(RHS0, Phi);
+
+      phi_->real().Distribute(Phi);
+
+      rhs.imag().ParallelAssemble(RHS0);
+
+      pcg.Mult(RHS0, Phi);
+
+      phi_->imag().Distribute(Phi);
    }
 
    delete BDP;
@@ -1234,6 +1398,12 @@ CPDSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
 
    visit_dc.RegisterField("Re_D", &d_->real());
    visit_dc.RegisterField("Im_D", &d_->imag());
+
+   if (sbcs_->Size() > 0)
+   {
+      visit_dc.RegisterField("Re_Phi", &phi_->real());
+      visit_dc.RegisterField("Im_Phi", &phi_->imag());
+   }
    // visit_dc.RegisterField("Er", e_r_);
    // visit_dc.RegisterField("Ei", e_i_);
    // visit_dc.RegisterField("B", b_);
@@ -1303,6 +1473,15 @@ CPDSolver::InitializeGLVis()
 
    socks_["Di"] = new socketstream;
    socks_["Di"]->precision(8);
+
+   if (sbcs_->Size() > 0)
+   {
+      socks_["Phir"] = new socketstream;
+      socks_["Phir"]->precision(8);
+
+      socks_["Phii"] = new socketstream;
+      socks_["Phii"]->precision(8);
+   }
 
    if (BCoef_)
    {
@@ -1389,11 +1568,26 @@ CPDSolver::DisplayToGLVis()
       VectorSumCoefficient diCoef(d_i, d_r, *coskx_, *negsinkx_);
 
       d_v_->ProjectCoefficient(drCoef, diCoef);
+
+      if (sbcs_->Size() > 0)
+      {
+         GridFunctionCoefficient phi_r(&phi_->real());
+         GridFunctionCoefficient phi_i(&phi_->imag());
+         ProductCoefficient cosphi_r(phi_r, *coskx_);
+         ProductCoefficient cosphi_i(phi_i, *coskx_);
+         ProductCoefficient sinphi_i(phi_i, *sinkx_);
+         ProductCoefficient negsinphi_r(phi_r, *negsinkx_);
+         SumCoefficient phirCoef(cosphi_r, sinphi_i);
+         SumCoefficient phiiCoef(cosphi_i, negsinphi_r);
+
+         phi_v_->ProjectCoefficient(phirCoef, phiiCoef);
+      }
    }
    else
    {
       e_v_ = e_;
       d_v_ = d_;
+      phi_v_ = phi_;
    }
 
    VisualizeField(*socks_["Er"], vishost, visport,
@@ -1410,6 +1604,18 @@ CPDSolver::DisplayToGLVis()
 
    VisualizeField(*socks_["Di"], vishost, visport,
                   d_v_->imag(), "Electric Flux, Im(D)", Wx, Wy, Ww, Wh);
+
+   if (sbcs_->Size() > 0)
+   {
+      Wx += offx;
+      VisualizeField(*socks_["Phir"], vishost, visport,
+                     phi_v_->real(), "Sheath Potential, Re(Phi)", Wx, Wy, Ww, Wh);
+      Wx += offx;
+
+      VisualizeField(*socks_["Phii"], vishost, visport,
+                     phi_v_->imag(), "Sheath Potential, Im(Phi)", Wx, Wy, Ww, Wh);
+   }
+
    if (BCoef_)
    {
       VectorGridFunctionCoefficient e_r(&e_v_->real());
