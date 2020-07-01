@@ -356,7 +356,6 @@ int main(int argc, char *argv[])
    // 14. Extract the parallel grid function corresponding to the finite element
    //     approximation X. This is the local solution on each processor. Compute
    //     L2 error norms.
-
    ParGridFunction *u(new ParGridFunction);
    ParGridFunction *p(new ParGridFunction);
    u->MakeRef(R_space, x.GetBlock(0), 0);
