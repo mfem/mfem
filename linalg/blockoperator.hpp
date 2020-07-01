@@ -122,7 +122,7 @@ private:
    Array2D<double> coef;
 
    //! Temporary Vectors used to efficiently apply the Mult and MultTranspose methods.
-   mutable BlockVector xblock; // TODO: remove these?
+   mutable BlockVector xblock;
    mutable BlockVector yblock;
    mutable Vector tmp;
 };
@@ -192,7 +192,7 @@ private:
    Array<Operator *> op;
    //! Temporary Vectors used to efficiently apply the Mult and MultTranspose
    //! methods.
-   mutable BlockVector xblock;  // TODO: are these still used?
+   mutable BlockVector xblock;
    mutable BlockVector yblock;
 };
 
