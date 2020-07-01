@@ -1924,7 +1924,7 @@ public:
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe);
 
-   void SetupPA(const FiniteElementSpace &fes, const bool force = false);
+   void SetupPA(const FiniteElementSpace &fes);
 };
 
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */
@@ -2000,7 +2000,7 @@ public:
                                          const FiniteElement &test_fe,
                                          ElementTransformation &Trans);
 
-   void SetupPA(const FiniteElementSpace &fes, const bool force = false);
+   void SetupPA(const FiniteElementSpace &fes);
 };
 
 /** Mass integrator (u, v) restricted to the boundary of a domain */
