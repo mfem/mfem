@@ -2078,16 +2078,9 @@ static void PAHcurlApplyGradient3D(const int c_dofs1D,
 
    auto B = Reshape(_B.Read(), c_dofs1D, c_dofs1D);
    auto G = Reshape(_G.Read(), o_dofs1D, c_dofs1D);
-   // const int ned_dofs_per_elem = (3 * o_dofs1D * c_dofs1D * c_dofs1D);
 
    auto x = Reshape(_x.Read(), c_dofs1D, c_dofs1D, c_dofs1D, NE);
    auto y = Reshape(_y.ReadWrite(), (3 * c_dofs1D * c_dofs1D * o_dofs1D), NE);
-
-   // Vector hwork(c_dofs1D * c_dofs1D);
-   // auto hw = Reshape(hwork.ReadWrite(), c_dofs1D, c_dofs1D);
-
-   // Vector vwork(c_dofs1D * o_dofs1D);
-   // auto vw = Reshape(vwork.ReadWrite(), c_dofs1D, o_dofs1D);
 
    Vector pxwork1(c_dofs1D * c_dofs1D * c_dofs1D);
    auto pxw1 = Reshape(pxwork1.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D);
@@ -2451,6 +2444,7 @@ void BuildDofMapNedelec2D(int p, Array<int>& dof_map)
 }
 
 /// Copied from TensorNedelec.cpp
+/// TODO: not needed for Grad, might need for Pi
 void BuildDof2Orientation2D(int order, Array<int>& dof2orientation)
 {
    int Dof2d = 2 * (order * (order+1));
@@ -2495,6 +2489,7 @@ void BuildDof2Orientation2D(int order, Array<int>& dof2orientation)
 
 /// ugly hack, copied from TensorNedelec.cpp
 /// (double* or int* for orientations?)
+/// TODO: not needed for Grad, might need for Pi
 void BuildOrientations2D(int ndof, ElementTransformation& trans, double* orientations)
 {
    const int nipclosed = ndof;
@@ -2627,8 +2622,6 @@ void GradientInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
 
 void GradientInterpolator::AddMultPA(const Vector &x, Vector &y) const
 {
-   // these may just be the wrong kernels (ie, only swapping them out may be sufficient)
-
    std::cout << "  GradientInterpolator::AddMultPA" << std::endl;
    if (dim == 3)
    {
@@ -2637,7 +2630,6 @@ void GradientInterpolator::AddMultPA(const Vector &x, Vector &y) const
    }
    else if (dim == 2)
    {
-      // mapsC, mapsO are open/closed points
       PAHcurlApplyGradient2D(c_dofs1D, o_dofs1D, ne, maps_C_C->B, maps_O_C->G,
                              x, y);
    }
@@ -2645,6 +2637,13 @@ void GradientInterpolator::AddMultPA(const Vector &x, Vector &y) const
    { 
       mfem_error("Bad dimension!");
    }
+}
+
+void GradientInterpolator::AddMultTransposePA(const Vector &x, Vector &y) const
+{
+   std::cout << "  GradientInterpolator::AddMultTransposePA" << std::endl;
+
+   mfem_error("Not yet implemented!");
 }
 
 
