@@ -1643,7 +1643,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
 
 void AndersonAcceleration::QRdelete(std::deque<Vector *> &Q, DenseMatrix &R) const
 {
-   Vector temp;
+   Vector temp(Q[0]->Size());
    for (int i=0; i<(maxVecs-1); i++) {
       double d = sqrt( R(i,i+1)*R(i,i+1) + R(i+1,i+1)*R(i+1,i+1) );
       double c = R(i,i+1) / d;
@@ -1659,7 +1659,6 @@ void AndersonAcceleration::QRdelete(std::deque<Vector *> &Q, DenseMatrix &R) con
          }
       }
       // temp = c*Q[i] + s*Q[i+1];
-      temp.SetSize(Q[i]->Size());
       add(c, *(Q[i]), s, *(Q[i+1]), temp);
       // Q[i+1] = -s*Q[i] + c*Q[i+1];
       *(Q[i+1]) *= c;
@@ -1690,31 +1689,45 @@ void AndersonAcceleration::SetOperator(const Operator &op)
 void AndersonAcceleration::FixedPointMult(const Vector &b,
    const Vector &x, Vector &y, Vector &r) const
 {
-   // Do not add x to y if the oper is already a fixed-point operator
+   // Assume Operator represents a fixed-point operator *with
+   // right-hand side*, so we iterate x_{k+1} = M^{-1}G(x_k)
    if (isFixedPointOp) {
       oper->Mult(x, y);
-      y -= b;
-      r = y;
-      r -= x;
+      if (prec) {
+         prec->Mult(y,r);
+         y = r;
+         r -= x;
+      }
+      else {
+         r = y;
+         r -= x;
+      }
    }
    // Otherwise add x to y and not to residual r = y - x
    else {
       oper->Mult(x, r);
-      r -= b;
-      y = r;
-      y += x;
+      r *= -1;
+      r += b;
+      if (prec) {
+         prec->Mult(r,y);
+         r = y;
+         y += x;
+      }
+      else {
+         y = r;
+         y += x;         
+      }
    }
 }
 
 void AndersonAcceleration::Mult(const Vector &b, Vector &x) const
 {
    MFEM_ASSERT(oper != NULL, "the Operator is not set (use SetOperator).");
-   // MFEM_ASSERT(prec != NULL, "the Solver is not set (use SetSolver).");
   
    int n = width;
    int numVecs = 0;
    double resid, norm_df;
-   double min_diag = 1e-12;
+   double min_diag = 1e-13;
    final_norm = -1;
 
    // Check vector is initialized, set to zero for
@@ -1777,10 +1790,12 @@ void AndersonAcceleration::Mult(const Vector &b, Vector &x) const
 
       // Start Anderson Acceleration after AAstart FP iterations
       if (k > AAstart) {
+         // df = f_current - f_old; 
          df = new Vector(n);
-         *df = f_current-f_old; 
+         add(1.0, f_current, -1.0, f_old, *df);
+         // dg = g_current - g_old;
          dg = new Vector(n);
-         *dg = g_current-g_old;
+         add(1.0, g_current, -1.0, g_old, *dg);
       
          if (numVecs < maxVecs) {
             G.push_back(dg);
@@ -1808,7 +1823,7 @@ void AndersonAcceleration::Mult(const Vector &b, Vector &x) const
          norm_df = Norm(*df);
          MFEM_ASSERT(IsFinite(norm_df), "norm_df = " << norm_df);
          (*df) /= norm_df;
-         Q[0] = df;
+         Q.push_back(df);
          R(0,0) = norm_df;
          df = NULL;
       }
@@ -1827,12 +1842,14 @@ void AndersonAcceleration::Mult(const Vector &b, Vector &x) const
          norm_df = Norm(*df);
          MFEM_ASSERT(IsFinite(norm_df), "norm_df = " << norm_df);
          (*df) /= norm_df;
-         Q[numVecs-1] = df;
+         Q.push_back(df);
          R(numVecs-1, numVecs-1) = norm_df;
          df = NULL;
       }
 
       // Back solve for new weights, R\gamma = Q^T * f_current
+      rhs = 0.0;
+      gamma = 0.0;
       for (int i=0; i<numVecs; i++) {
          rhs(i) = Dot(*(Q[i]), f_current);   // Form right hand side
       }
@@ -1843,9 +1860,22 @@ void AndersonAcceleration::Mult(const Vector &b, Vector &x) const
          }
          if (std::abs(R(i,i)) < min_diag) {
             gamma(i) = 0.0;
+            std::cout << "Diagonal of R -- " << R(i,i) << " ~ 0.\n";
          }
          else {
             gamma(i) = temp / R(i,i);            
+         }
+      }
+
+      /// DEBUG --> test backsolve
+      Vector test(numVecs);
+      for (int i=0; i<numVecs; i++) {
+         test(i) = 0;
+         for (int j=i; j<numVecs; j++) {
+            test(i) += R(i,j) * gamma(j);
+         }
+         if (std::abs(rhs(i) - test(i)) > 1e-10) {
+            std::cout << "Bad solve! Err = " << rhs(i) - test(i) << "\n";
          }
       }
 
@@ -1886,26 +1916,24 @@ void AndersonAcceleration::Mult(const Vector &b, Vector &x) const
          R = 0.0;
          R(0,0) = norm_df;
          numVecs = 1;
+         if (print_level == 1)
+         {
+            mfem::out << "Restarting..." << '\n';
+         }
       }
    }
 
    // Compute final residual, save counts for solve
-   oper->Mult(x, g_current); 
-   f_current = g_current - x;
+   this->FixedPointMult(b, x, g_current, f_current); 
    resid = Norm(f_current);
    MFEM_ASSERT(IsFinite(resid), "||G(u) - u|| = " << resid);
-   if (print_level == 1)
-   {
-      mfem::out << "  Iteration : " << setw(3) << k
-              << "  ||G(u) - u|| = " << resid << endl;
-   }
    final_norm = resid;
    final_iter = max_iter;
    if (resid <= final_norm) converged = 1;
    else converged = 0;
 
 finish:
-   if (print_level == 1 || print_level == 3)
+   if (print_level == 3)
    {
       mfem::out << "  Iteration : " << setw(3) << k
               << "  ||G(u) - u|| = " << resid << endl;
