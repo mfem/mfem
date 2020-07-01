@@ -194,21 +194,26 @@ int main(int argc, char *argv[])
 
    // 10. Define the parallel grid function and parallel linear forms, solution
    //     vector and rhs.
-   BlockVector x(block_offsets), rhs(block_offsets);
-   BlockVector trueX(block_trueOffsets), trueRhs(block_trueOffsets);
+   MemoryType mt = device.GetMemoryType();
+   BlockVector x(block_offsets, mt), rhs(block_offsets, mt);
+   BlockVector trueX(block_trueOffsets, mt), trueRhs(block_trueOffsets, mt);
 
    ParLinearForm *fform(new ParLinearForm);
    fform->Update(R_space, rhs.GetBlock(0), 0);
    fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
    fform->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(fnatcoeff));
    fform->Assemble();
+   fform->SyncAliasMemory(rhs);
    fform->ParallelAssemble(trueRhs.GetBlock(0));
+   trueRhs.GetBlock(0).SyncAliasMemory(trueRhs);
 
    ParLinearForm *gform(new ParLinearForm);
    gform->Update(W_space, rhs.GetBlock(1), 0);
    gform->AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
    gform->Assemble();
+   gform->SyncAliasMemory(rhs);
    gform->ParallelAssemble(trueRhs.GetBlock(1));
+   trueRhs.GetBlock(1).SyncAliasMemory(trueRhs);
 
    // 11. Assemble the finite element matrices for the Darcy operator
    //
@@ -334,6 +339,7 @@ int main(int argc, char *argv[])
    solver.SetPrintLevel(verbose);
    trueX = 0.0;
    solver.Mult(trueRhs, trueX);
+   if (device.IsEnabled()) { trueX.HostRead(); }
    chrono.Stop();
 
    if (verbose)
@@ -350,6 +356,7 @@ int main(int argc, char *argv[])
    // 14. Extract the parallel grid function corresponding to the finite element
    //     approximation X. This is the local solution on each processor. Compute
    //     L2 error norms.
+
    ParGridFunction *u(new ParGridFunction);
    ParGridFunction *p(new ParGridFunction);
    u->MakeRef(R_space, x.GetBlock(0), 0);
