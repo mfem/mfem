@@ -37,13 +37,16 @@
 
 namespace mfem {
 
-class pLapIntegrator: public ADQIntegratorH
+class pLapIntegrator: public ADQFunctionH
 {
 private:
 
-
+    //MVType - vector type taking one of the following
+    // mfem::Vector - scalar double
+    // ADFVector    - scalar ADFType
+    // ADSVector    - scalar ADSType
     template<typename DType, typename MVType>
-    DType MyQIntegrator(const mfem::Vector& vparam, MVType& uu)
+    DType MyQFunction(const mfem::Vector& vparam, MVType& uu)
     {
         double pp=vparam[0];
         double ee=vparam[1];
@@ -62,21 +65,21 @@ public:
 
     virtual ~pLapIntegrator(){}
 
-    virtual double QIntegrator(const mfem::Vector &vparam,const mfem::Vector &uu) override
+    virtual double QFunction(const mfem::Vector &vparam,const mfem::Vector &uu) override
     {
-        double rez=MyQIntegrator<double,const mfem::Vector>(vparam,uu);
+        double rez=MyQFunction<double,const mfem::Vector>(vparam,uu);
         return rez;
     }
 
-    virtual ADFType QIntegrator(const mfem::Vector &vparam, ADFVector& uu) override
+    virtual ADFType QFunction(const mfem::Vector &vparam, ADFVector& uu) override
     {
-        ADFType rez=MyQIntegrator<ADFType,ADFVector>(vparam,uu);
+        ADFType rez=MyQFunction<ADFType,ADFVector>(vparam,uu);
         return rez;
     }
 
-    virtual ADSType QIntegrator(const mfem::Vector &vparam, ADSVector& uu) override
+    virtual ADSType QFunction(const mfem::Vector &vparam, ADSVector& uu) override
     {
-        ADSType rez=MyQIntegrator<ADSType,ADSVector>(vparam,uu);
+        ADSType rez=MyQFunction<ADSType,ADSVector>(vparam,uu);
         return rez;
     }
 
@@ -179,7 +182,7 @@ public:
             }
             uu[3]=shapef*elfun;
 
-            energy = energy + w * (qint.QIntegrator(vparam,uu));
+            energy = energy + w * (qint.QFunction(vparam,uu));
 
         }
         return energy;
@@ -259,7 +262,7 @@ public:
                 //calculate uu
                 B.MultTranspose(elfun,uu);
                 //calculate derivative of the energy with respect to uu
-                qint.QIntegratorDU(vparam,uu,du);
+                qint.QFunctionDU(vparam,uu,du);
 
                 B.Mult(du,lvec);
                 elvect.Add( w, lvec);
@@ -339,7 +342,7 @@ public:
             //calculate uu
             B.MultTranspose(elfun,uu);
             //calculate derivative of the energy with respect to uu
-            qint.QIntegratorDD(vparam,uu,duu);
+            qint.QFunctionDD(vparam,uu,duu);
 
             mfem::Mult(B,duu,A);
             mfem::AddMult_a_ABt(w,A,B,elmat);

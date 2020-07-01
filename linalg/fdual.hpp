@@ -245,7 +245,7 @@ template <typename tbase>
 inline
 bool operator>(tbase a, const FDual<tbase>& f)
 {
-   return a > f.real();
+   return (a > f.real());
 }
 
 template <typename tbase>
@@ -255,57 +255,101 @@ FDual<tbase> operator-(const FDual<tbase>& f)
    return FDual<tbase>(-f.real(), -f.dual());
 }
 
-template <typename tbase, typename tbase1>
+template <typename tbase>
 inline
-FDual<tbase> operator-(const FDual<tbase>& f, tbase1 a)
+FDual<tbase> operator-(const FDual<tbase>& f, tbase a)
 {
    return FDual<tbase>(f.real() - a, f.dual());
 }
 
-
-template <typename tbase, typename tbase1>
+template <typename tbase>
 inline
-FDual<tbase> operator+(const FDual<tbase>& f, tbase1 a)
+FDual<FDual<tbase>> operator-(const FDual<FDual<tbase>>& f, tbase a)
+{
+   return FDual<FDual<tbase>>(f.real() - a, f.dual());
+}
+
+
+template <typename tbase>
+inline
+FDual<tbase> operator+(const FDual<tbase>& f, tbase a)
 {
    return FDual<tbase>(f.real() + a, f.dual());
 }
 
-
-template <typename tbase, typename tbase1>
+template <typename tbase>
 inline
-FDual<tbase> operator*(const FDual<tbase>& f, tbase1 a)
+FDual<FDual<tbase>> operator+(const FDual<FDual<tbase>>& f, tbase a)
+{
+   return FDual<FDual<tbase>>(f.real() + a, f.dual());
+}
+
+
+template <typename tbase>
+inline
+FDual<tbase> operator*(const FDual<tbase>& f, tbase a)
 {
    return FDual<tbase>(f.real() * a, f.dual() * a);
 }
 
 
-template <typename tbase, typename tbase1>
+template <typename tbase>
 inline
-FDual<tbase> operator/(const FDual<tbase>& f, tbase1 a)
+FDual<tbase> operator/(const FDual<tbase>& f, tbase a)
 {
    return FDual<tbase>(f.real() / a, f.dual() / a);
 }
 
-template <typename tbase, typename tbase1>
+template <typename tbase>
 inline
-FDual<tbase> operator+(tbase1 a, const FDual<tbase>& f)
+FDual<FDual<tbase>> operator/(const FDual<FDual<tbase>>& f, tbase a)
+{
+   return FDual<FDual<tbase>>(f.real() / a, f.dual() / a);
+}
+
+template <typename tbase>
+inline
+FDual<tbase> operator+(tbase a, const FDual<tbase>& f)
 {
    return FDual<tbase>(a + f.real(), f.dual());
 }
 
-template <typename tbase, typename tbase1>
+template <typename tbase>
 inline
-FDual<tbase> operator-(tbase1 a, const FDual<tbase>& f)
+FDual<FDual<tbase>> operator+(tbase a, const FDual<FDual<tbase>>& f)
+{
+   return FDual<FDual<tbase>>(a + f.real(), f.dual());
+}
+
+
+template <typename tbase>
+inline
+FDual<tbase> operator-(tbase a, const FDual<tbase>& f)
 {
    return FDual<tbase>(a - f.real(), -f.dual());
 }
 
-template <typename tbase, typename tbase1>
+template <typename tbase>
 inline
-FDual<tbase> operator*(tbase1 a, const FDual<tbase>& f)
+FDual<FDual<tbase>> operator-(tbase a, const FDual<FDual<tbase>>& f)
+{
+   return FDual<FDual<tbase>>(a - f.real(), -f.dual());
+}
+
+template <typename tbase>
+inline
+FDual<tbase> operator*(tbase a, const FDual<tbase>& f)
 {
    return FDual<tbase>(f.real() * a, f.dual() *a);
 }
+
+template <typename tbase>
+inline
+FDual<FDual<tbase>> operator*(tbase a, const FDual<FDual<tbase>>& f)
+{
+   return FDual<FDual<tbase>>(f.real() * a, f.dual() *a);
+}
+
 
 template <typename tbase>
 inline
@@ -313,14 +357,6 @@ FDual<tbase> operator/(tbase a, const FDual<tbase>& f)
 {
    a = a / f.real();
    return FDual<tbase>(a, -a * f.dual() / f.real());
-}
-
-template <typename tbase>
-inline
-FDual<tbase> operator/(double a, const FDual<tbase>& f)
-{
-   tbase a1 = a / f.real();
-   return FDual<tbase>(a1, -a1 * f.dual() / f.real());
 }
 
 template <typename tbase>
@@ -481,18 +517,19 @@ FDual<tbase> pow(const FDual<tbase>& a, const FDual<tbase>& b)
    return exp(log(a) * b);
 }
 
-template <typename tbase>
+template <typename tbase, typename tbase1>
 inline
-FDual<tbase> pow(const FDual<tbase>& a, const tbase& b)
+FDual<tbase> pow(const FDual<tbase>& a, const tbase1& b)
 {
-   return exp(log(a) * b);
+   return exp(log(a) * tbase(b));
 }
 
-template <typename tbase>
+
+template <typename tbase, typename tbase1>
 inline
-FDual<tbase> pow(const tbase& a, const FDual<tbase>& b)
+FDual<tbase> pow(const tbase1& a, const FDual<tbase>& b)
 {
-   return exp(log(a) * b);
+   return exp(log(tbase(a)) * b);
 }
 
 template <>

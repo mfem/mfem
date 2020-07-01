@@ -17,7 +17,7 @@ namespace mfem
 {
 
 
-void ADQIntegratorJ::QIntegratorDD(const Vector &vparam, const Vector &uu, DenseMatrix &jac)
+void ADQFunctionJ::QFunctionDD(const Vector &vparam, const Vector &uu, DenseMatrix &jac)
 {
 #if defined MFEM_USE_ADEPT
     //use ADEPT package
@@ -32,7 +32,7 @@ void ADQIntegratorJ::QIntegratorDD(const Vector &vparam, const Vector &uu, Dense
         ADFVector aduu(uu);
         ADFVector rr(m); //residual vector
         m_stack.new_recording();
-        this->QIntegratorDU(vparam,aduu,rr);
+        this->QFunctionDU(vparam,aduu,rr);
         m_stack.independent(aduu.GetData(), n);//independent variables
         m_stack.dependent(rr.GetData(), m);//dependent variables
         m_stack.jacobian(jac.Data());
@@ -55,7 +55,7 @@ void ADQIntegratorJ::QIntegratorDD(const Vector &vparam, const Vector &uu, Dense
 
         for(int ii=0;ii<n;ii++){
             aduu[ii].setGradient(1.0);
-            this->QIntegratorDU(vparam,aduu,rr);
+            this->QFunctionDU(vparam,aduu,rr);
             for(int jj=0;jj<m;jj++)
             {
                 jac(jj,ii)=rr[jj].getGradient();
@@ -82,7 +82,7 @@ void ADQIntegratorJ::QIntegratorDD(const Vector &vparam, const Vector &uu, Dense
 
         tape.setActive();
         for(int ii=0;ii<n;ii++){ tape.registerInput(aduu[ii]); }
-        this->QIntegratorDU(vparam,aduu,rr);
+        this->QFunctionDU(vparam,aduu,rr);
         for(int ii=0;ii<m;ii++){ tape.registerOutput(rr[ii]); }
         tape.setPassive();
 
@@ -108,7 +108,7 @@ void ADQIntegratorJ::QIntegratorDD(const Vector &vparam, const Vector &uu, Dense
 
        for(int ii=0;ii<n;ii++){
            aduu[ii].dual(1.0);
-           this->QIntegratorDU(vparam,aduu,rr);
+           this->QFunctionDU(vparam,aduu,rr);
            for(int jj=0;jj<m;jj++)
            {
                jac(jj,ii)=rr[jj].dual();
@@ -119,7 +119,7 @@ void ADQIntegratorJ::QIntegratorDD(const Vector &vparam, const Vector &uu, Dense
 #endif
 }
 
-void ADQIntegratorH::QIntegratorDU(const Vector &vparam, Vector &uu, Vector &rr)
+void ADQFunctionH::QFunctionDU(const Vector &vparam, Vector &uu, Vector &rr)
 {
 
 #if defined MFEM_USE_CODIPACK
@@ -135,7 +135,7 @@ void ADQIntegratorH::QIntegratorDU(const Vector &vparam, Vector &uu, Vector &rr)
     for(int ii=0;ii<n;ii++)
     {
         aduu[ii].setGradient(1.0);
-        rez=this->QIntegrator(vparam,aduu);
+        rez=this->QFunction(vparam,aduu);
         rr[ii]=rez.getGradient();
         aduu[ii].setGradient(0.0);
     }
@@ -147,14 +147,14 @@ void ADQIntegratorH::QIntegratorDU(const Vector &vparam, Vector &uu, Vector &rr)
     for(int ii=0;ii<n;ii++)
     {
         aduu[ii].dual(1.0);
-        rez=this->QIntegrator(vparam,aduu);
+        rez=this->QFunction(vparam,aduu);
         rr[ii]=rez.dual();
         aduu[ii].dual(0.0);
     }
 #endif
 }
 
-void ADQIntegratorH::QIntegratorDD(const Vector &vparam, const Vector &uu, DenseMatrix &jac)
+void ADQFunctionH::QFunctionDD(const Vector &vparam, const Vector &uu, DenseMatrix &jac)
 {
 
 #if defined MFEM_USE_CODIPACK
@@ -178,7 +178,7 @@ void ADQIntegratorH::QIntegratorDD(const Vector &vparam, const Vector &uu, Dense
             for(int jj=0; jj<(ii+1); jj++)
             {
                 aduu[ii].gradient().value()=1.0;
-                ADSType rez= this->QIntegrator(vparam,aduu);
+                ADSType rez= this->QFunction(vparam,aduu);
                 jac(ii,jj)=rez.gradient().gradient();
                 jac(jj,ii)=jac(ii,jj);
                 aduu[jj].gradient().value()=0.0;
@@ -212,7 +212,7 @@ void ADQIntegratorH::QIntegratorDD(const Vector &vparam, const Vector &uu, Dense
                 tape.registerInput(aduu[jj]);
             }
 
-            rez=this->QIntegrator(vparam,aduu);
+            rez=this->QFunction(vparam,aduu);
             tape.registerOutput(rez);
             tape.setPassive();
 
@@ -246,7 +246,7 @@ void ADQIntegratorH::QIntegratorDD(const Vector &vparam, const Vector &uu, Dense
             for(int jj=0; jj<(ii+1); jj++)
             {
                 aduu[jj].dual(ADFType(1.0,0.0));
-                ADSType rez= this->QIntegrator(vparam,aduu);
+                ADSType rez= this->QFunction(vparam,aduu);
                 jac(ii,jj)=rez.dual().dual();
                 jac(jj,ii)=rez.dual().dual();
                 aduu[jj].dual(ADFType(0.0,0.0));

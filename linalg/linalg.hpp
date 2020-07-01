@@ -28,7 +28,7 @@
 #include "solvers.hpp"
 #include "handle.hpp"
 #include "invariants.hpp"
-#include "fdual.hpp"
+// #include "fdual.hpp"
 
 #ifdef MFEM_USE_SUNDIALS
 #include "sundials.hpp"

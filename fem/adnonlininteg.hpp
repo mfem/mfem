@@ -35,7 +35,7 @@
 namespace mfem
 {
 
-class ADQIntegratorJ
+class ADQFunctionJ
 {
   private:
     int m;  //dimension of the residual vector
@@ -67,26 +67,26 @@ class ADQIntegratorJ
 #endif
 
 #ifdef MFEM_USE_ADEPT
-    ADQIntegratorJ(int m_=1):m_stack(false)
+    ADQFunctionJ(int m_=1):m_stack(false)
     {
         m=m_;
     }
 #else
-    ADQIntegratorJ(int m_=1){ m=m_;}
+    ADQFunctionJ(int m_=1){ m=m_;}
 #endif
 
-    virtual ~ADQIntegratorJ(){}
+    virtual ~ADQFunctionJ(){}
 
-    virtual double QIntegrator(const mfem::Vector& vparam, const mfem::Vector& uu)=0;
-    virtual void QIntegratorDU(const mfem::Vector& vparam, ADFVector& uu, ADFVector& rr)=0;
-    virtual void QIntegratorDU(const mfem::Vector& vparam, mfem::Vector& uu, mfem::Vector& rr)=0;
+    virtual double QFunction(const mfem::Vector& vparam, const mfem::Vector& uu)=0;
+    virtual void QFunctionDU(const mfem::Vector& vparam, ADFVector& uu, ADFVector& rr)=0;
+    virtual void QFunctionDU(const mfem::Vector& vparam, mfem::Vector& uu, mfem::Vector& rr)=0;
 
-    void QIntegratorDD(const mfem::Vector& vparam, const mfem::Vector& uu, mfem::DenseMatrix& jj);
+    void QFunctionDD(const mfem::Vector& vparam, const mfem::Vector& uu, mfem::DenseMatrix& jj);
 
 };
 
 
-class ADQIntegratorH
+class ADQFunctionH
 {
   public:
 #if defined MFEM_USE_CODIPACK
@@ -119,16 +119,16 @@ class ADQIntegratorH
     typedef TADDenseMatrix<ADSType>    ADSDenseMatrix;
 #endif
 
-    ADQIntegratorH(){}
+    ADQFunctionH(){}
 
-    virtual ~ADQIntegratorH(){}
+    virtual ~ADQFunctionH(){}
 
-    virtual double QIntegrator(const mfem::Vector& vparam, const mfem::Vector& uu)=0;
-    virtual ADFType QIntegrator(const mfem::Vector& vparam, ADFVector& uu)=0;
-    virtual ADSType QIntegrator(const mfem::Vector &vparam, ADSVector& uu)=0;
+    virtual double QFunction(const mfem::Vector& vparam, const mfem::Vector& uu)=0;
+    virtual ADFType QFunction(const mfem::Vector& vparam, ADFVector& uu)=0;
+    virtual ADSType QFunction(const mfem::Vector &vparam, ADSVector& uu)=0;
 
-    virtual void QIntegratorDU(const mfem::Vector& vparam, mfem::Vector& uu, mfem::Vector& rr);
-    void QIntegratorDD(const mfem::Vector& vparam, const mfem::Vector& uu, mfem::DenseMatrix& jj);
+    virtual void QFunctionDU(const mfem::Vector& vparam, mfem::Vector& uu, mfem::Vector& rr);
+    void QFunctionDD(const mfem::Vector& vparam, const mfem::Vector& uu, mfem::DenseMatrix& jj);
 };
 
 
