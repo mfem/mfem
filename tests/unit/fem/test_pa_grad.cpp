@@ -14,7 +14,7 @@
 
 using namespace mfem;
 
-double compare_pa_assembly(int dim, int num_elements, int order)
+double compare_pa_assembly(int dim, int num_elements, int order, bool transpose)
 {
    Mesh * mesh;
    if (dim == 2)
@@ -44,16 +44,32 @@ double compare_pa_assembly(int dim, int num_elements, int order)
    pa_grad.Assemble();
    pa_grad.Finalize();
 
-   // if (transpose)
-   int insize = h1_fespace.GetVSize();
-   int outsize = nd_fespace.GetVSize();
+   int insize, outsize;
+   if (transpose)
+   {
+      insize = nd_fespace.GetVSize();
+      outsize = h1_fespace.GetVSize();
+   }
+   else
+   {
+      insize = h1_fespace.GetVSize();
+      outsize = nd_fespace.GetVSize();
+   }
    Vector xv(insize);
    Vector assembled_y(outsize);
    Vector pa_y(outsize);
 
    xv.Randomize();
-   assembled_grad_mat.Mult(xv, assembled_y);
-   pa_grad.Mult(xv, pa_y);
+   if (transpose)
+   {
+      assembled_grad_mat.MultTranspose(xv, assembled_y);
+      pa_grad.MultTranspose(xv, pa_y);
+   }
+   else
+   {
+      assembled_grad_mat.Mult(xv, assembled_y);
+      pa_grad.Mult(xv, pa_y);
+   }
 
    if (false)
    {
@@ -78,14 +94,17 @@ double compare_pa_assembly(int dim, int num_elements, int order)
 
 TEST_CASE("PAGradient", "PAGradient")
 {
-   for (int dim = 2; dim < 4; ++dim)
+   for (bool transpose : {false, true})
    {
-      for (int num_elements = 1; num_elements < 5; ++num_elements)
+      for (int dim = 2; dim < 4; ++dim)
       {
-         for (int order = 2; order < 5; ++order)
+         for (int num_elements = 1; num_elements < 5; ++num_elements)
          {
-            double error = compare_pa_assembly(dim, num_elements, order);
-            REQUIRE(error < 1.e-14);
+            for (int order = 2; order < 5; ++order)
+            {
+               double error = compare_pa_assembly(dim, num_elements, order, transpose);
+               REQUIRE(error < 1.e-14);
+            }
          }
       }
    }

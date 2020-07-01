@@ -2735,31 +2735,24 @@ public:
                                        DenseMatrix &elmat)
    { nd_fe.ProjectGrad(h1_fe, Trans, elmat); }
    
-   /*
-   void AssemblePA2(const FiniteElementSpace &trial_fes,
-                    const FiniteElementSpace &test_fes);
-   */
-
    using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
-   // { std::cout << "Blerg!" << std::endl; }
 
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
 private:
    // PA extension
    // Vector pa_data;
    Vector orientations;
 
-   // const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
-   // const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
    FiniteElement * fake_fe;
+   // TODO: document ownership of maps below (almost certainly not owned)
    const DofToQuad *maps_C_C; // one-d map with Lobatto rows, Lobatto columns
    const DofToQuad *maps_O_C; // one-d map with Legendre rows, Lobatto columns
    const GeometricFactors *geom;   ///< Not owned
-   // int dim, ne, dofs1D, quad1D;
-   int dim, ne, o_dofs1D, c_dofs1D;  // no actual quadrature here, should name like this TODO
+   int dim, ne, o_dofs1D, c_dofs1D;
 };
 
 
