@@ -123,7 +123,7 @@ inline void *Lookup(const size_t hash, Args... args)
 {
    char symbol[18];
    uint64str(hash, symbol);
-   constexpr int mode = RTLD_LAZY;
+   constexpr int mode = RTLD_GLOBAL|RTLD_NOW; // LAZYR, NOW, LOCAL | GLOBAL
    constexpr const char *lib_so = MFEM_JIT_CACHE_LIBRARY ".so";
    void *handle = dlopen(lib_so, mode);
    if (!handle)

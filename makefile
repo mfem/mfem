@@ -249,9 +249,9 @@ endif
 
 # JIT configuration
 MFEM_JIT = mjit
-#ifeq ($(MFEM_USE_JIT),YES)
-#	LDFLAGS += -ldl
-#endif
+ifeq ($(MFEM_USE_JIT),YES)
+	LDFLAGS += -ldl
+endif
 
 DEP_CXX ?= $(MFEM_CXX)
 
@@ -435,11 +435,17 @@ else
 MFEM_JIT_DEFS  = -DMFEM_JIT_MAIN
 MFEM_JIT_DEFS += -DMFEM_CXX="$(MFEM_CXX)"
 MFEM_JIT_DEFS += -DMFEM_BUILD_FLAGS="$(strip $(MFEM_BUILD_FLAGS))"
+MFEM_JIT_FLAGS = -Wall -pedantic
 $(BLD)$(MFEM_JIT): $(SRC)general/$(MFEM_JIT).cpp \
 						 $(SRC)general/$(MFEM_JIT).hpp $(THIS_MK)
-	$(MFEM_CXX) -O3 -Wall -std=c++11 -pedantic -o $(@) $(<) $(MFEM_JIT_DEFS)
+	$(MFEM_CXX) -O3 -std=c++11 -o $(@) $(<) $(MFEM_JIT_DEFS)
 MFEM_JIT_FLAGS  = $(strip $(MFEM_BUILD_FLAGS))
-MFEM_JIT_FLAGS += -x c++ -I. -I$(patsubst %/,%,$(<D))
+ifeq ($(MFEM_USE_CUDA),NO)
+	MFEM_JIT_LANG = -x c++
+else
+# Avoid redefinition of argument 'x'
+endif
+MFEM_JIT_FLAGS += $(MFEM_JIT_LANG) -I. -I$(patsubst %/,%,$(<D))
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) #$(BLD)$(MFEM_JIT)
 	$(BLD)./$(MFEM_JIT) $(<) | $(MFEM_CXX) $(MFEM_JIT_FLAGS) -c -o $(@) -
 endif

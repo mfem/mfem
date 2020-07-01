@@ -40,6 +40,7 @@
 #include <fstream>
 #include <climits>
 #include <algorithm>
+#include <iostream>
 
 using std::list;
 using std::string;
@@ -47,8 +48,11 @@ using std::istream;
 using std::ostream;
 
 #define MFEM_DEBUG_COLOR 198
-#include "error.hpp"
 #include "debug.hpp"
+
+#include "../config/config.hpp"
+
+#include "error.hpp"
 #include "mjit.hpp"
 #include "globals.hpp"
 
@@ -81,7 +85,6 @@ inline int argn(char *argv[], int argc = 0)
 #if !defined(MFEM_USE_MPI) || 0
 static int System(char *argv[])
 {
-   dbg();
    const int argc = argn(argv);
    if (argc < 2) { return EXIT_FAILURE; }
    string command(argv[1]);
@@ -115,7 +118,6 @@ bool Root()
 
 int System(char *argv[])
 {
-   dbg();
    const int argc = argn(argv);
    if (argc < 2) { return EXIT_FAILURE; }
    // Point to the 'mjit' binary
@@ -158,7 +160,6 @@ inline int nsleep(const long us)
 
 static int THREAD_Worker(char *argv[], int *status)
 {
-   dbg();
    string command(argv[2]);
    for (int k = 3; argv[k]; k++)
    {
@@ -225,11 +226,54 @@ static int ProcessFork(int argc, char *argv[])
 
 #endif // MFEM_USE_MPI
 
+bool NvccCompile(const char *cc, const char *co,
+                 const char *cxx, const char *cxxflags,
+                 const char *msrc, const char *mins)
+{
+   dbg();
+   constexpr const char *lib_ar = MFEM_JIT_CACHE_LIBRARY ".a";
+   constexpr const char *lib_so = MFEM_JIT_CACHE_LIBRARY ".so";
+   constexpr int PM = PATH_MAX;
+   char Imsrc[PM], Imbin[PM], Lmfem[PM];
+   if (snprintf(Imsrc, PM, "-I%s ", msrc) < 0) { return false; }
+   if (snprintf(Imbin, PM, "-I%s/include ", mins) < 0) { return false; }
+   if (snprintf(Lmfem, PM,
+                "-L%s/lib -Xlinker=-rpath,%s/lib -lmfem", mins, mins) < 0)
+   { return false; }
+   constexpr const char *opt = MFEM_JIT_SHELL_COMMAND;
+
+   // fPIC should already be in MFEM's CPPFLAGS
+
+   const char *argv_co[] =
+   { opt, cxx, cxxflags, "-c", "-dc", Imsrc, Imbin, "-o", co, cc, nullptr };
+   if (mfem::jit::System(const_cast<char**>(argv_co)) != 0) { return false; }
+
+   const char *argv_ar[] = { opt, "ar", "-r", lib_ar, co, nullptr };
+   if (mfem::jit::System(const_cast<char**>(argv_ar)) != 0) { return false; }
+
+   constexpr const char *beg_load = "-Xlinker=--whole-archive";
+   constexpr const char *end_load = "-Xlinker=--no-whole-archive";
+
+   const char *argv_so[] =
+   {
+      opt, cxx, "-shared", "-o", lib_so, beg_load, lib_ar, end_load, Lmfem, nullptr
+   };
+   if (mfem::jit::System(const_cast<char**>(argv_so)) != 0) { return false; }
+
+   if (!getenv("TMP")) { unlink(cc); }
+   if (!getenv("TMP")) { unlink(co); }
+   return true;
+}
+
 /// Compile the source file with PIC flags, updating the cache library.
-bool Compile(const char *cc,const char *co,
+bool Compile(const char *cc, const char *co,
              const char *cxx, const char *cxxflags,
              const char *msrc, const char *mins)
 {
+#ifdef MFEM_USE_CUDA
+   return NvccCompile(cc, co, cxx, cxxflags, msrc, mins);
+#endif
+   dbg();
    constexpr const char *lib_ar = MFEM_JIT_CACHE_LIBRARY ".a";
    constexpr const char *lib_so = MFEM_JIT_CACHE_LIBRARY ".so";
    constexpr int PM = PATH_MAX;
@@ -237,17 +281,24 @@ bool Compile(const char *cc,const char *co,
    if (snprintf(Imsrc, PM, "-I%s ", msrc) < 0) { return false; }
    if (snprintf(Imbin, PM, "-I%s/include ", mins) < 0) { return false; }
    constexpr const char *opt = MFEM_JIT_SHELL_COMMAND;
+   constexpr const char *fpic = "-fPIC";
    const char *argv_co[] =
-   { opt, cxx, cxxflags, "-fPIC", "-c", Imsrc, Imbin, "-o", co, cc, nullptr };
+   { opt, cxx, cxxflags, fpic, "-c", Imsrc, Imbin, "-o", co, cc, nullptr };
    if (mfem::jit::System(const_cast<char**>(argv_co)) != 0) { return false; }
    const char *argv_ar[] = { opt, "ar", "-r", lib_ar, co, nullptr };
    if (mfem::jit::System(const_cast<char**>(argv_ar)) != 0) { return false; }
-   constexpr const char *load = "-all_load";
+#ifndef __APPLE__
+   constexpr const char *beg_load = "-Wl,--whole-archive";
+   constexpr const char *end_load = "-Wl,--no-whole-archive";
+#else
+   constexpr const char *beg_load = "-all_load";
+   constexpr const char *end_load = "";
+#endif
    const char *argv_so[] =
-   { opt, cxx, "-shared", "-o", lib_so, lib_ar, load, nullptr };
+   { opt, cxx, "-shared", "-o", lib_so, beg_load, lib_ar, end_load, nullptr };
    if (mfem::jit::System(const_cast<char**>(argv_so)) != 0) { return false; }
-   if (!getenv("DBG")) { unlink(cc); }
-   unlink(co);
+   if (!getenv("TMP")) { unlink(cc); }
+   if (!getenv("TMP")) { unlink(co); }
    return true;
 }
 
@@ -884,6 +935,15 @@ void jitPostfix(context_t &pp)
    if (pp.block != -1) { return; }
    pp.out << "}\nextern \"C\"\nvoid "
           << MFEM_JIT_SYMBOL_PREFIX << "%016lx(" << pp.ker.params << "){";
+   //#warning Here
+   //pp.out << "if (Device::Allows(Backend::CUDA_MASK)){mfem::Device(\"cuda\");}";
+   pp.out << "mfem::Device device(\"cuda\");";
+   pp.out << "device.Print();";
+   pp.out << "if (mfem::Device::Allows(Backend::CUDA_MASK))";
+   pp.out << "{ printf(\"\033[32mCUDA\033[m\"); }";
+   pp.out << "else";
+   pp.out << "{ printf(\"\033[31mCPU\033[m\"); }";
+   pp.out << "fflush(0);";
    pp.out << "ker_" << pp.ker.name
           << "<" << pp.ker.Tformat << ">"
           << "(" << pp.ker.args_wo_amp << ");";
