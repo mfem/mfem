@@ -61,7 +61,8 @@ private:
    void ComputeOverlapDofMaps();
    void Getijk(int ip, int & i, int & j, int & k ) const;
    int GetPatchId(const Array<int> & ijk) const;
-   SparseMatrix * GetPmlSystemMatrix(int ip);
+   SparseMatrix * GetHelmholtzPmlSystemMatrix(int ip);
+   SparseMatrix * GetMaxwellPmlSystemMatrix(int ip);
   
    void GetCutOffSolution(const Vector & sol, Vector & cfsol,
                           int ip, Array2D<int> direct, int nlayers, bool local=false) const;                          

@@ -168,3 +168,118 @@ void pml_detJ_JT_J_inv_Im(const Vector & x, CartesianPML * pml , DenseMatrix & M
    }
 }
 
+
+void detJ_JT_J_inv_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M)
+{
+   int dim = pml->dim;
+   double omega = pml->omega;
+   vector<complex<double>> dxs(dim);
+   complex<double> det(1.0, 0.0);
+   pml->StretchFunction(x, dxs, omega);
+
+   for (int i = 0; i < dim; ++i)
+   {
+      det *= dxs[i];
+   }
+
+   M = 0.0;
+   for (int i = 0; i < dim; ++i)
+   {
+      M(i, i) = (det / pow(dxs[i], 2)).real();
+   }
+}
+
+void detJ_JT_J_inv_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M)
+{
+   int dim = pml->dim;
+   double omega = pml->omega;
+   vector<complex<double>> dxs(dim);
+   complex<double> det = 1.0;
+   pml->StretchFunction(x, dxs, omega);
+
+   for (int i = 0; i < dim; ++i)
+   {
+      det *= dxs[i];
+   }
+
+   M = 0.0;
+   for (int i = 0; i < dim; ++i)
+   {
+      M(i, i) = (det / pow(dxs[i], 2)).imag();
+   }
+}
+
+void detJ_JT_J_inv_abs(const Vector &x, CartesianPML * pml, DenseMatrix &M)
+{
+   int dim = pml->dim;
+   double omega = pml->omega;
+   vector<complex<double>> dxs(dim);
+   complex<double> det = 1.0;
+   pml->StretchFunction(x, dxs, omega);
+
+   for (int i = 0; i < dim; ++i)
+   {
+      det *= dxs[i];
+   }
+
+   M = 0.0;
+   for (int i = 0; i < dim; ++i)
+   {
+      M(i, i) = abs(det / pow(dxs[i], 2));
+   }
+}
+
+void detJ_inv_JT_J_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M)
+{
+   int dim = pml->dim;
+   double omega = pml->omega;
+   vector<complex<double>> dxs(dim);
+   complex<double> det(1.0, 0.0);
+   pml->StretchFunction(x, dxs, omega);
+
+   for (int i = 0; i < dim; ++i)
+   {
+      det *= dxs[i];
+   }
+
+   // in the 2D case the coefficient is scalar 1/det(J)
+   if (dim == 2)
+   {
+      M = (1.0 / det).real();
+   }
+   else
+   {
+      M = 0.0;
+      for (int i = 0; i < dim; ++i)
+      {
+         M(i, i) = (pow(dxs[i], 2) / det).real();
+      }
+   }
+}
+
+void detJ_inv_JT_J_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M)
+{
+   int dim = pml->dim;
+   double omega = pml->omega;
+   vector<complex<double>> dxs(dim);
+   complex<double> det = 1.0;
+   pml->StretchFunction(x, dxs, omega);
+
+   for (int i = 0; i < dim; ++i)
+   {
+      det *= dxs[i];
+   }
+
+   if (dim == 2)
+   {
+      M = (1.0 / det).imag();
+   }
+   else
+   {
+      M = 0.0;
+      for (int i = 0; i < dim; ++i)
+      {
+         M(i, i) = (pow(dxs[i], 2) / det).imag();
+      }
+   }
+}

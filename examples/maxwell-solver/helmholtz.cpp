@@ -80,7 +80,7 @@ int main(int argc, char *argv[])
    args.AddOption(&pml_length, "-pml_length", "--pml_length",
                   "Length of the PML region in each direction");
    args.AddOption(&length, "-length", "--length",
-                  "length of the domainin in each direction.");
+                  "length of the domain in each direction.");
    args.AddOption(&ref, "-ref", "--ref",
                   "Number of Refinements.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
@@ -396,7 +396,7 @@ double f_exact_Re(const Vector &x)
    beta = pow(x0-x(0),2) + pow(x1-x(1),2);
    if (dim == 3) { beta += pow(x2-x(2),2); }
    alpha = -pow(n,2) * beta;
-   f_re += coeff*exp(alpha);
+   // f_re += coeff*exp(alpha);
 
    bool in_pml = false;
    for (int i = 0; i<dim; i++)
