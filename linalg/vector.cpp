@@ -26,6 +26,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <limits>
+#include <functional>
 
 namespace mfem
 {
