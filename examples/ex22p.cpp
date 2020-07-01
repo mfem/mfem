@@ -471,8 +471,7 @@ int main(int argc, char *argv[])
       BDP.owns_blocks = 1;
 
       FGMRESSolver fgmres(MPI_COMM_WORLD);
-      // TODO: Implement device support for block-diagonal preconditioner
-      if (device.IsDisabled()) { fgmres.SetPreconditioner(BDP); }
+      fgmres.SetPreconditioner(BDP);
       fgmres.SetOperator(*A.Ptr());
       fgmres.SetRelTol(1e-12);
       fgmres.SetMaxIter(1000);
