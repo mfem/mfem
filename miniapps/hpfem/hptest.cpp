@@ -257,6 +257,7 @@ void EstimateHPErrors(FiniteElementSpace* fes,
 int main(int argc, char *argv[])
 {
    // Parse command-line options.
+   int dim = 2;
    int problem = 1;
    int order = 1;
    double ref_threshold = 0.7;
@@ -274,6 +275,7 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&problem, "-p", "--problem",
                   "Problem type: 0 = L-shaped, 1 = inner layer.");
+   args.AddOption(&dim, "-dim", "--dimension", "Dimension (2 or 3).");
    args.AddOption(&order, "-o", "--order",
                   "Initial mesh finite element order (polynomial degree).");
    args.AddOption(&hp, "-hp", "--hp", "-no-hp", "--no-hp",
@@ -288,7 +290,7 @@ int main(int argc, char *argv[])
                   "Wait for user input after each iteration.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&device_config, "-d", "--device",
+   args.AddOption(&device_config, "-dev", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -301,15 +303,20 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
+   MFEM_VERIFY(dim >= 2 && dim <= 3, "Invalid dimension.");
+   MFEM_VERIFY(problem >= 0 && problem <= 1, "Invalid problem type.");
+
    // Enable hardware devices such as GPUs, and programming models such as
    // CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
    device.Print();
 
    // Load and adjust the Mesh
-   const char *mesh_file = problem ? "layer-quad.mesh" : "lshape-quad.mesh";
+   const char *mesh_file =
+      problem ? ((dim == 3) ? "layer-hex.mesh" : "layer-quad.mesh")
+              : ((dim == 3) ? "fichera-hex.mesh" : "lshape-quad.mesh");
+
    Mesh mesh(mesh_file, 1, 1);
-   int dim = mesh.Dimension();
 
    if (mesh.NURBSext)
    {
