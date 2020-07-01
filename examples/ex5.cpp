@@ -281,7 +281,6 @@ int main(int argc, char *argv[])
    if (device.IsEnabled()) { x.HostRead(); }
    chrono.Stop();
 
-
    if (solver.GetConverged())
       std::cout << "MINRES converged in " << solver.GetNumIterations()
                 << " iterations with a residual norm of " << solver.GetFinalNorm() << ".\n";
