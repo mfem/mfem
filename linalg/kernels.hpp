@@ -41,41 +41,41 @@ namespace kernels
 {
 
 /// Compute the square of the Euclidean distance to another vector
-template<int DIM>
+template<int dim>
 MFEM_HOST_DEVICE inline double DistanceSquared(const double *x, const double *y)
 {
    double d = 0.0;
-   for (int i = 0; i < DIM; i++) { d += (x[i]-y[i])*(x[i]-y[i]); }
+   for (int i = 0; i < dim; i++) { d += (x[i]-y[i])*(x[i]-y[i]); }
    return d;
 }
 
 /// Creates n x n diagonal matrix with diagonal elements c
-template<int DIM>
+template<int dim>
 MFEM_HOST_DEVICE inline void Diag(const double c, double *data)
 {
-   const int N = DIM*DIM;
+   const int N = dim*dim;
    for (int i = 0; i < N; i++) { data[i] = 0.0; }
-   for (int i = 0; i < DIM; i++) { data[i*(DIM+1)] = c; }
+   for (int i = 0; i < dim; i++) { data[i*(dim+1)] = c; }
 }
 
 /// Vector subtraction operation: z = a * (x - y)
-template<int DIM>
+template<int dim>
 MFEM_HOST_DEVICE inline void Subtract(const double a,
                                       const double *x, const double *y,
                                       double *z)
 {
-   for (int i = 0; i < DIM; i++) { z[i] = a * (x[i] - y[i]); }
+   for (int i = 0; i < dim; i++) { z[i] = a * (x[i] - y[i]); }
 }
 
 /// Dense matrix operation: VWt += v w^t
-template<int DIM>
+template<int dim>
 MFEM_HOST_DEVICE inline void AddMultVWt(const double *v, const double *w,
                                         double *VWt)
 {
-   for (int i = 0; i < DIM; i++)
+   for (int i = 0; i < dim; i++)
    {
       const double vi = v[i];
-      for (int j = 0; j < DIM; j++) { VWt[i*DIM+j] += vi * w[j]; }
+      for (int j = 0; j < dim; j++) { VWt[i*dim+j] += vi * w[j]; }
    }
 }
 
