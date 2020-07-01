@@ -34,6 +34,7 @@ void PAHcurlSetup3D(const int Q1D,
 void PAHcurlMassAssembleDiagonal2D(const int D1D,
                                    const int Q1D,
                                    const int NE,
+                                   const bool symmetric,
                                    const Array<double> &_Bo,
                                    const Array<double> &_Bc,
                                    const Vector &_op,
@@ -42,6 +43,7 @@ void PAHcurlMassAssembleDiagonal2D(const int D1D,
 void PAHcurlMassAssembleDiagonal3D(const int D1D,
                                    const int Q1D,
                                    const int NE,
+                                   const bool symmetric,
                                    const Array<double> &_Bo,
                                    const Array<double> &_Bc,
                                    const Vector &_op,
@@ -281,7 +283,7 @@ void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
    {
       if (fetype == mfem::FiniteElement::CURL)
       {
-         PAHcurlMassAssembleDiagonal3D(dofs1D, quad1D, ne,
+         PAHcurlMassAssembleDiagonal3D(dofs1D, quad1D, ne, symmetric,
                                        mapsO->B, mapsC->B, pa_data, diag);
       }
       else if (fetype == mfem::FiniteElement::DIV)
@@ -298,7 +300,7 @@ void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
    {
       if (fetype == mfem::FiniteElement::CURL)
       {
-         PAHcurlMassAssembleDiagonal2D(dofs1D, quad1D, ne,
+         PAHcurlMassAssembleDiagonal2D(dofs1D, quad1D, ne, symmetric,
                                        mapsO->B, mapsC->B, pa_data, diag);
       }
       else if (fetype == mfem::FiniteElement::DIV)

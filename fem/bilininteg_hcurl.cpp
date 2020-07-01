@@ -324,6 +324,7 @@ void PAHcurlMassApply2D(const int D1D,
 void PAHcurlMassAssembleDiagonal2D(const int D1D,
                                    const int Q1D,
                                    const int NE,
+                                   const bool symmetric,
                                    const Array<double> &_Bo,
                                    const Array<double> &_Bc,
                                    const Vector &_op,
@@ -334,7 +335,7 @@ void PAHcurlMassAssembleDiagonal2D(const int D1D,
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, 3, NE);
+   auto op = Reshape(_op.Read(), Q1D, Q1D, symmetric ? 3 : 4, NE);
    auto diag = Reshape(_diag.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
@@ -357,7 +358,7 @@ void PAHcurlMassAssembleDiagonal2D(const int D1D,
                {
                   const double wy = (c == 1) ? Bo(qy,dy) : Bc(qy,dy);
 
-                  mass[qx] += wy * wy * ((c == 0) ? op(qx,qy,0,e) : op(qx,qy,2,e));
+                  mass[qx] += wy * wy * ((c == 0) ? op(qx,qy,0,e) : op(qx,qy,symmetric ? 2 : 3,e));
                }
             }
 
@@ -379,6 +380,7 @@ void PAHcurlMassAssembleDiagonal2D(const int D1D,
 void PAHcurlMassAssembleDiagonal3D(const int D1D,
                                    const int Q1D,
                                    const int NE,
+                                   const bool symmetric,
                                    const Array<double> &_Bo,
                                    const Array<double> &_Bc,
                                    const Vector &_op,
@@ -393,7 +395,7 @@ void PAHcurlMassAssembleDiagonal3D(const int D1D,
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 6, NE);
+   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
    auto diag = Reshape(_diag.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
    MFEM_FORALL(e, NE,
@@ -406,7 +408,8 @@ void PAHcurlMassAssembleDiagonal3D(const int D1D,
          const int D1Dy = (c == 1) ? D1D - 1 : D1D;
          const int D1Dx = (c == 0) ? D1D - 1 : D1D;
 
-         const int opc = (c == 0) ? 0 : ((c == 1) ? 3 : 5);
+         const int opc = (c == 0) ? 0 : ((c == 1) ? (symmetric ? 3 : 4) :
+         (symmetric ? 5 : 8));
 
          double mass[MAX_Q1D];
 
