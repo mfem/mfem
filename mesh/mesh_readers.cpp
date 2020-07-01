@@ -1056,16 +1056,16 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                  */
             36,  /* 36-node seventh order complete triangle (3 nodes associated
              with the vertices, 18 with the edges, 15 with the face)
-       */
+                 */
             45,  /* 45-node eighth order complete triangle (3 nodes associated
                        with the vertices, 21 with the edges, 21 with the face)
-       */
+                 */
             55,  /* 55-node ninth order complete triangle (3 nodes associated
                        with the vertices, 24 with the edges, 28 with the face)
-       */
+                 */
             66,  /* 66-node tenth order complete triangle (3 nodes associated
                        with the vertices, 27 with the edges, 36 with the face)
-       */
+                 */
             49,  /* 49-node sixth order quadrilateral (4 nodes associated with
                        the vertices, 20 with the edges, 25 wth the face) */
             64,  /* 64-node seventh order quadrilateral (4 nodes associated with
@@ -1291,16 +1291,17 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                   }
 
                   // initialize the mesh element
+                  order = 11;
                   switch (type_of_element)
                   {
-                     case  1: //  2-node line
-                     case  8: //  3-node line (2nd order)
-                     case 26: //  4-node line (3rd order)
-                     case 27: //  5-node line (4th order)
-                     case 28: //  6-node line (5th order)
-                     case 62: //  7-node line (6th order)
-                     case 63: //  8-node line (7th order)
-                     case 64: //  9-node line (8th order)
+                     case  1: //   2-node line
+                     case  8: //   3-node line (2nd order)
+                     case 26: //   4-node line (3rd order)
+                     case 27: //   5-node line (4th order)
+                     case 28: //   6-node line (5th order)
+                     case 62: //   7-node line (6th order)
+                     case 63: //   8-node line (7th order)
+                     case 64: //   9-node line (8th order)
                      case 65: //  10-node line (9th order)
                      case 66: //  11-node line (10th order)
                      {
@@ -1315,72 +1316,140 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                         }
                         break;
                      }
-                     case  2: //  3-node triangle
-                     case  9: //  6-node triangle (2nd order)
-                     case 21: // 10-node triangle (3rd order)
-                     {
-                        elements_2D.push_back(
-                           new Triangle(&vert_indices[0], phys_domain));
-                        if (type_of_element != 2)
+                     case  2: order--; //  3-node triangle
+                     case  9: order--; //  6-node triangle (2nd order)
+                     case 21: order--; // 10-node triangle (3rd order)
+                     case 23: order--; // 15-node triangle (4th order)
+                     case 25: order--; // 21-node triangle (5th order)
+                     case 42: order--; // 28-node triangle (6th order)
+                     case 43: order--; // 36-node triangle (7th order)
+                     case 44: order--; // 45-node triangle (8th order)
+                     case 45: order--; // 55-node triangle (9th order)
+                     case 46: order--; // 66-node triangle (10th order)
                         {
-                           Array<int> * hov = new Array<int>;
-                           hov->Append(&vert_indices[0], n_elem_nodes);
-                           ho_verts_2D.push_back(hov);
-                           order = max(order, (type_of_element == 9) ? 2 : 3);
+                           elements_2D.push_back(
+                              new Triangle(&vert_indices[0], phys_domain));
+                           if (order > 1)
+                           {
+                              Array<int> * hov = new Array<int>;
+                              hov->Append(&vert_indices[0], n_elem_nodes);
+                              ho_verts_2D.push_back(hov);
+                           }
+                           break;
                         }
-                        break;
-                     }
-                     case  3: //  4-node quadrangle
-                     case 10: //  9-node quadrangle (2nd order)
-                     case 36: // 16-node quadrangle (3rd order)
-                     {
-                        elements_2D.push_back(
-                           new Quadrilateral(&vert_indices[0], phys_domain));
-                        if (type_of_element != 3)
+                     case  3: order--; //   4-node quadrangle
+                     case 10: order--; //   9-node quadrangle (2nd order)
+                     case 36: order--; //  16-node quadrangle (3rd order)
+                     case 37: order--; //  25-node quadrangle (4th order)
+                     case 38: order--; //  36-node quadrangle (5th order)
+                     case 47: order--; //  49-node quadrangle (6th order)
+                     case 48: order--; //  64-node quadrangle (7th order)
+                     case 49: order--; //  81-node quadrangle (8th order)
+                     case 50: order--; // 100-node quadrangle (9th order)
+                     case 51: order--; // 121-node quadrangle (10th order)
                         {
-                           Array<int> * hov = new Array<int>;
-                           hov->Append(&vert_indices[0], n_elem_nodes);
-                           ho_verts_2D.push_back(hov);
-                           order = max(order, (type_of_element == 10) ? 2 : 3);
+                           elements_2D.push_back(
+                              new Quadrilateral(&vert_indices[0], phys_domain));
+                           if (order > 1)
+                           {
+                              Array<int> * hov = new Array<int>;
+                              hov->Append(&vert_indices[0], n_elem_nodes);
+                              ho_verts_2D.push_back(hov);
+                           }
+                           break;
                         }
-                        break;
-                     }
-                     case  4: //  4-node tetrahedron
-                     case 11: // 10-node tetrahedron (2nd order)
-                     case 29: // 20-node tetrahedron (3rd order)
-                     {
+                     case  4: order--; //   4-node tetrahedron
+                     case 11: order--; //  10-node tetrahedron (2nd order)
+                     case 29: order--; //  20-node tetrahedron (3rd order)
+                     case 30: order--; //  35-node tetrahedron (4th order)
+                     case 31: order--; //  56-node tetrahedron (5th order)
+                     case 71: order--; //  84-node tetrahedron (6th order)
+                     case 72: order--; // 120-node tetrahedron (7th order)
+                     case 73: order--; // 165-node tetrahedron (8th order)
+                     case 74: order--; // 220-node tetrahedron (9th order)
+                     case 75: order--; // 286-node tetrahedron (10th order)
+                        {
 #ifdef MFEM_USE_MEMALLOC
-                        elements_3D.push_back(TetMemory.Alloc());
-                        elements_3D.back()->SetVertices(&vert_indices[0]);
-                        elements_3D.back()->SetAttribute(phys_domain);
+                           elements_3D.push_back(TetMemory.Alloc());
+                           elements_3D.back()->SetVertices(&vert_indices[0]);
+                           elements_3D.back()->SetAttribute(phys_domain);
 #else
-                        elements_3D.push_back(
-                           new Tetrahedron(&vert_indices[0], phys_domain));
+                           elements_3D.push_back(
+                              new Tetrahedron(&vert_indices[0], phys_domain));
 #endif
-                        if (type_of_element != 4)
-                        {
-                           Array<int> * hov = new Array<int>;
-                           hov->Append(&vert_indices[0], n_elem_nodes);
-                           ho_verts_3D.push_back(hov);
-                           order = max(order, (type_of_element == 11) ? 2 : 3);
+                           if (order > 1)
+                           {
+                              Array<int> * hov = new Array<int>;
+                              hov->Append(&vert_indices[0], n_elem_nodes);
+                              ho_verts_3D.push_back(hov);
+                           }
+                           break;
                         }
-                        break;
-                     }
-                     case  5: //  8-node hexahedron
-                     case 12: // 27-node hexahedron (2nd order)
-                     case 92: // 64-node hexahedron (3rd order)
-                     {
-                        elements_3D.push_back(
-                           new Hexahedron(&vert_indices[0], phys_domain));
-                        if (type_of_element != 5)
+                     case  5: order--; //    8-node hexahedron
+                     case 12: order--; //   27-node hexahedron (2nd order)
+                     case 92: order--; //   64-node hexahedron (3rd order)
+                     case 93: order--; //  125-node hexahedron (4th order)
+                     case 94: order--; //  216-node hexahedron (5th order)
+                     case 95: order--; //  343-node hexahedron (6th order)
+                     case 96: order--; //  512-node hexahedron (7th order)
+                     case 97: order--; //  729-node hexahedron (8th order)
+                     case 98: order--; // 1000-node hexahedron (9th order)
                         {
-                           Array<int> * hov = new Array<int>;
-                           hov->Append(&vert_indices[0], n_elem_nodes);
-                           ho_verts_3D.push_back(hov);
-                           order = max(order, (type_of_element == 12) ? 2 : 3);
+                           order--;
+                           elements_3D.push_back(
+                              new Hexahedron(&vert_indices[0], phys_domain));
+                           if (order > 1)
+                           {
+                              Array<int> * hov = new Array<int>;
+                              hov->Append(&vert_indices[0], n_elem_nodes);
+                              ho_verts_3D.push_back(hov);
+                           }
+                           break;
                         }
-                        break;
-                     }
+                     case   6: order--; //   6-node wedge
+                     case  13: order--; //  18-node wedge (2nd order)
+                     case  90: order--; //  40-node wedge (3rd order)
+                     case  91: order--; //  75-node wedge (4th order)
+                     case 106: order--; // 126-node wedge (5th order)
+                     case 107: order--; // 196-node wedge (6th order)
+                     case 108: order--; // 288-node wedge (7th order)
+                     case 109: order--; // 405-node wedge (8th order)
+                     case 110: order--; // 550-node wedge (9th order)
+                        {
+                           order--;
+                           elements_3D.push_back(
+                              new Wedge(&vert_indices[0], phys_domain));
+                           if (order > 1)
+                           {
+                              Array<int> * hov = new Array<int>;
+                              hov->Append(&vert_indices[0], n_elem_nodes);
+                              ho_verts_3D.push_back(hov);
+                           }
+                           break;
+                        }
+                     /*
+                     case   7: order--; //   5-node pyramid
+                     case  14: order--; //  14-node pyramid (2nd order)
+                     case 118: order--; //  30-node pyramid (3rd order)
+                     case 119: order--; //  55-node pyramid (4th order)
+                     case 120: order--; //  91-node pyramid (5th order)
+                     case 121: order--; // 140-node pyramid (6th order)
+                     case 122: order--; // 204-node pyramid (7th order)
+                     case 123: order--; // 285-node pyramid (8th order)
+                     case 124: order--; // 385-node pyramid (9th order)
+                        {
+                           order--;
+                           elements_3D.push_back(
+                               new Pyramid(&vert_indices[0], phys_domain));
+                           if (order > 1)
+                           {
+                              Array<int> * hov = new Array<int>;
+                              hov->Append(&vert_indices[0], n_elem_nodes);
+                              ho_verts_3D.push_back(hov);
+                           }
+                           break;
+                        }
+                     */
                      case 15: // 1-node point
                      {
                         elements_0D.push_back(
@@ -1434,6 +1503,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                }
 
                // initialize the mesh element
+               order = 11;
                switch (type_of_element)
                {
                   case  1: //  2-node line
@@ -1444,8 +1514,8 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                   case 62: //  7-node line (6th order)
                   case 63: //  8-node line (7th order)
                   case 64: //  9-node line (8th order)
-                  case 65: //  10-node line (9th order)
-                  case 66: //  11-node line (10th order)
+                  case 65: // 10-node line (9th order)
+                  case 66: // 11-node line (10th order)
                   {
                      elements_1D.push_back(
                         new Segment(&vert_indices[0], phys_domain));
@@ -1458,72 +1528,140 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                      }
                      break;
                   }
-                  case  2: //  3-node triangle
-                  case  9: //  6-node triangle (2nd order)
-                  case 21: // 10-node triangle (3rd order)
-                  {
-                     elements_2D.push_back(
-                        new Triangle(&vert_indices[0], phys_domain));
-                     if (type_of_element != 2)
+                  case  2: order--; //  3-node triangle
+                  case  9: order--; //  6-node triangle (2nd order)
+                  case 21: order--; // 10-node triangle (3rd order)
+                  case 23: order--; // 15-node triangle (4th order)
+                  case 25: order--; // 21-node triangle (5th order)
+                  case 42: order--; // 28-node triangle (6th order)
+                  case 43: order--; // 36-node triangle (7th order)
+                  case 44: order--; // 45-node triangle (8th order)
+                  case 45: order--; // 55-node triangle (9th order)
+                  case 46: order--; // 66-node triangle (10th order)
                      {
-                        Array<int> * hov = new Array<int>;
-                        hov->Append(&vert_indices[0], n_elem_nodes);
-                        ho_verts_2D.push_back(hov);
-                        order = max(order, (type_of_element == 9) ? 2 : 3);
+                        elements_2D.push_back(
+                           new Triangle(&vert_indices[0], phys_domain));
+                        if (order > 1)
+                        {
+                           Array<int> * hov = new Array<int>;
+                           hov->Append(&vert_indices[0], n_elem_nodes);
+                           ho_verts_2D.push_back(hov);
+                        }
+                        break;
                      }
-                     break;
-                  }
-                  case  3: //  4-node quadrangle
-                  case 10: //  9-node quadrangle (2nd order)
-                  case 36: // 16-node quadrangle (3rd order)
-                  {
-                     elements_2D.push_back(
-                        new Quadrilateral(&vert_indices[0], phys_domain));
-                     if (type_of_element != 3)
+                  case  3: order--; //   4-node quadrangle
+                  case 10: order--; //   9-node quadrangle (2nd order)
+                  case 36: order--; //  16-node quadrangle (3rd order)
+                  case 37: order--; //  25-node quadrangle (4th order)
+                  case 38: order--; //  36-node quadrangle (5th order)
+                  case 47: order--; //  49-node quadrangle (6th order)
+                  case 48: order--; //  64-node quadrangle (7th order)
+                  case 49: order--; //  81-node quadrangle (8th order)
+                  case 50: order--; // 100-node quadrangle (9th order)
+                  case 51: order--; // 121-node quadrangle (10th order)
                      {
-                        Array<int> * hov = new Array<int>;
-                        hov->Append(&vert_indices[0], n_elem_nodes);
-                        ho_verts_2D.push_back(hov);
-                        order = max(order, (type_of_element == 10) ? 2 : 3);
+                        elements_2D.push_back(
+                           new Quadrilateral(&vert_indices[0], phys_domain));
+                        if (order > 1)
+                        {
+                           Array<int> * hov = new Array<int>;
+                           hov->Append(&vert_indices[0], n_elem_nodes);
+                           ho_verts_2D.push_back(hov);
+                        }
+                        break;
                      }
-                     break;
-                  }
-                  case  4: //  4-node tetrahedron
-                  case 11: // 10-node tetrahedron (2nd order)
-                  case 29: // 20-node tetrahedron (3rd order)
-                  {
+                  case  4: order--; //   4-node tetrahedron
+                  case 11: order--; //  10-node tetrahedron (2nd order)
+                  case 29: order--; //  20-node tetrahedron (3rd order)
+                  case 30: order--; //  35-node tetrahedron (4th order)
+                  case 31: order--; //  56-node tetrahedron (5th order)
+                  case 71: order--; //  84-node tetrahedron (6th order)
+                  case 72: order--; // 120-node tetrahedron (7th order)
+                  case 73: order--; // 165-node tetrahedron (8th order)
+                  case 74: order--; // 220-node tetrahedron (9th order)
+                  case 75: order--; // 286-node tetrahedron (10th order)
+                     {
 #ifdef MFEM_USE_MEMALLOC
-                     elements_3D.push_back(TetMemory.Alloc());
-                     elements_3D.back()->SetVertices(&vert_indices[0]);
-                     elements_3D.back()->SetAttribute(phys_domain);
+                        elements_3D.push_back(TetMemory.Alloc());
+                        elements_3D.back()->SetVertices(&vert_indices[0]);
+                        elements_3D.back()->SetAttribute(phys_domain);
 #else
-                     elements_3D.push_back(
-                        new Tetrahedron(&vert_indices[0], phys_domain));
+                        elements_3D.push_back(
+                           new Tetrahedron(&vert_indices[0], phys_domain));
 #endif
-                     if (type_of_element != 4)
-                     {
-                        Array<int> * hov = new Array<int>;
-                        hov->Append(&vert_indices[0], n_elem_nodes);
-                        ho_verts_3D.push_back(hov);
-                        order = max(order, (type_of_element == 11) ? 2 : 3);
+                        if (order > 1)
+                        {
+                           Array<int> * hov = new Array<int>;
+                           hov->Append(&vert_indices[0], n_elem_nodes);
+                           ho_verts_3D.push_back(hov);
+                        }
+                        break;
                      }
-                     break;
-                  }
-                  case  5: //  8-node hexahedron
-                  case 12: // 27-node hexahedron (2nd order)
-                  case 92: // 64-node hexahedron (3rd order)
-                  {
-                     elements_3D.push_back(
-                        new Hexahedron(&vert_indices[0], phys_domain));
-                     if (type_of_element != 5)
+                  case  5: order--; //    8-node hexahedron
+                  case 12: order--; //   27-node hexahedron (2nd order)
+                  case 92: order--; //   64-node hexahedron (3rd order)
+                  case 93: order--; //  125-node hexahedron (4th order)
+                  case 94: order--; //  216-node hexahedron (5th order)
+                  case 95: order--; //  343-node hexahedron (6th order)
+                  case 96: order--; //  512-node hexahedron (7th order)
+                  case 97: order--; //  729-node hexahedron (8th order)
+                  case 98: order--; // 1000-node hexahedron (9th order)
                      {
-                        Array<int> * hov = new Array<int>;
-                        hov->Append(&vert_indices[0], n_elem_nodes);
-                        ho_verts_3D.push_back(hov);
-                        order = max(order, (type_of_element == 12) ? 2 : 3);
+                        order--;
+                        elements_3D.push_back(
+                           new Hexahedron(&vert_indices[0], phys_domain));
+                        if (order > 1)
+                        {
+                           Array<int> * hov = new Array<int>;
+                           hov->Append(&vert_indices[0], n_elem_nodes);
+                           ho_verts_3D.push_back(hov);
+                        }
+                        break;
                      }
-                     break;
-                  }
+                  case   6: order--; //   6-node wedge
+                  case  13: order--; //  18-node wedge (2nd order)
+                  case  90: order--; //  40-node wedge (3rd order)
+                  case  91: order--; //  75-node wedge (4th order)
+                  case 106: order--; // 126-node wedge (5th order)
+                  case 107: order--; // 196-node wedge (6th order)
+                  case 108: order--; // 288-node wedge (7th order)
+                  case 109: order--; // 405-node wedge (8th order)
+                  case 110: order--; // 550-node wedge (9th order)
+                     {
+                        order--;
+                        elements_3D.push_back(
+                           new Wedge(&vert_indices[0], phys_domain));
+                        if (order > 1)
+                        {
+                           Array<int> * hov = new Array<int>;
+                           hov->Append(&vert_indices[0], n_elem_nodes);
+                           ho_verts_3D.push_back(hov);
+                        }
+                        break;
+                     }
+                  /*
+                  case   7: order--; //   5-node pyramid
+                  case  14: order--; //  14-node pyramid (2nd order)
+                  case 118: order--; //  30-node pyramid (3rd order)
+                  case 119: order--; //  55-node pyramid (4th order)
+                  case 120: order--; //  91-node pyramid (5th order)
+                  case 121: order--; // 140-node pyramid (6th order)
+                  case 122: order--; // 204-node pyramid (7th order)
+                  case 123: order--; // 285-node pyramid (8th order)
+                  case 124: order--; // 385-node pyramid (9th order)
+                     {
+                        order--;
+                        elements_3D.push_back(
+                            new Pyramid(&vert_indices[0], phys_domain));
+                        if (order > 1)
+                        {
+                           Array<int> * hov = new Array<int>;
+                           hov->Append(&vert_indices[0], n_elem_nodes);
+                           ho_verts_3D.push_back(hov);
+                        }
+                        break;
+                     }
+                  */
                   case 15: // 1-node point
                   {
                      elements_0D.push_back(
@@ -1623,33 +1761,27 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             int o = 0;
             for (int el = 0; el < NumOfElements; el++)
             {
-               int nv = 0;
                const int * vm = NULL;
                Array<int> * ho_verts = NULL;
                switch (GetElementType(el))
                {
                   case Element::SEGMENT:
-                     nv = (order == 2) ? 3 : 4;
                      vm = (order == 2) ? lin3 : lin4;
                      ho_verts = ho_verts_1D[el];
                      break;
                   case Element::TRIANGLE:
-                     nv = (order == 2) ? 6 : 10;
                      vm = (order == 2) ? tri6 : tri10;
                      ho_verts = ho_verts_2D[el];
                      break;
                   case Element::QUADRILATERAL:
-                     nv = (order == 2) ? 9 : 16;
                      vm = (order == 2) ? quad9 : quad16;
                      ho_verts = ho_verts_2D[el];
                      break;
                   case Element::TETRAHEDRON:
-                     nv = (order == 2) ? 10 : 20;
                      vm = (order == 2) ? tet10 : tet20;
                      ho_verts = ho_verts_3D[el];
                      break;
                   case Element::HEXAHEDRON:
-                     nv = (order == 2) ? 27 : 64;
                      vm = (order == 2) ? hex27 : hex64;
                      ho_verts = ho_verts_3D[el];
                      break;
@@ -1657,6 +1789,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                      MFEM_WARNING("Unsupported Gmsh element type.");
                      break;
                }
+               int nv = (ho_verts) ? ho_verts->Size() : 0;
 
                for (int v = 0; v<nv; v++)
                {
