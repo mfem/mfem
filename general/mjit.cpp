@@ -920,6 +920,7 @@ void jitPrefix(context_t &pp)
    pp.out << "\nusing namespace mfem;\n";
    pp.out << "\ntemplate<" << pp.ker.Tparams << ">";
    pp.out << "\nvoid ker_" << pp.ker.name << "(";
+   pp.out << "const bool use_dev,";
    pp.out << pp.ker.params << "){";
    if (not pp.ker.d2u.empty()) { pp.out << "\n\t" << pp.ker.d2u; }
    // Starts counting the block depth
@@ -934,22 +935,23 @@ void jitPostfix(context_t &pp)
    if (pp.block >= 0 && pp.in.peek() == '}') { pp.block--; }
    if (pp.block != -1) { return; }
    pp.out << "}\nextern \"C\"\nvoid "
-          << MFEM_JIT_SYMBOL_PREFIX << "%016lx(" << pp.ker.params << "){";
+          << MFEM_JIT_SYMBOL_PREFIX << "%016lx("
+          << "const bool use_dev, " << pp.ker.params << "){";
    //#warning Here
    //pp.out << "if (Device::Allows(Backend::CUDA_MASK)){mfem::Device(\"cuda\");}";
-   pp.out << "mfem::Device device(\"cuda\");";
-   pp.out << "device.Print();";
-   pp.out << "if (mfem::Device::Allows(Backend::CUDA_MASK))";
+   //pp.out << "mfem::Device device(\"cuda\");";pp.out << "device.Print();";
+   pp.out << "if (use_dev)";
    pp.out << "{ printf(\"\033[32mCUDA\033[m\"); }";
    pp.out << "else";
    pp.out << "{ printf(\"\033[31mCPU\033[m\"); }";
    pp.out << "fflush(0);";
-   pp.out << "ker_" << pp.ker.name
-          << "<" << pp.ker.Tformat << ">"
-          << "(" << pp.ker.args_wo_amp << ");";
+   pp.out << "ker_" << pp.ker.name << "<" << pp.ker.Tformat << ">"
+          << "(" << "use_dev, " << pp.ker.args_wo_amp << ");";
    pp.out << "\n})_\";";
    // typedef, hash map and launch
-   pp.out << "\n\ttypedef void (*kernel_t)("<<pp.ker.params<<");";
+   pp.out << "\n\ttypedef void (*kernel_t)("
+          << "const bool use_dev, "
+          << pp.ker.params << ");";
    pp.out << "\n\tstatic std::unordered_map<size_t,jit::kernel<kernel_t>*> ks;";
    if (not pp.ker.u2d.empty()) { pp.out << "\n\t" << pp.ker.u2d; }
    pp.out << "\n\tconst char *cxx = \"" << pp.ker.mfem_cxx << "\";";
@@ -967,7 +969,9 @@ void jitPostfix(context_t &pp)
           << "(cxx, src, mfem_build_flags, mfem_source_dir, mfem_install_dir, "
           << pp.ker.Targs << ");";
    pp.out << "\n\t}";
-   pp.out << "\n\tks[args_hash]->operator_void(" << pp.ker.args << ");\n";
+   pp.out << "\n\tks[args_hash]->operator_void("
+          << "Device::Allows(Backend::CUDA_MASK), "
+          << pp.ker.args << ");\n";
    // Stop counting the blocks and flush the kernel status
    pp.block--;
    pp.ker.__jit = false;
@@ -1475,6 +1479,11 @@ void __unroll(context_t &pp)
 // *****************************************************************************
 void __forall2D(context_t &pp)
 {
+   if (not pp.ker.__jit)
+   {
+      pp.out << "MFEM_FORALL_2D";
+      return;
+   }
    //DBG("__forall2D")
    pp.ker.__forall = true;
    pp.ker.forall.body.clear();
@@ -1528,9 +1537,9 @@ void forall2DPostfix(context_t &pp)
 {
    if (not pp.ker.__forall) { return; }
    //DBG("forall2DPostfix 1")
-   if (pp.parenthesis>=0 && pp.in.peek() == '(') { pp.parenthesis++; }
-   if (pp.parenthesis>=0 && pp.in.peek() == ')') { pp.parenthesis--; }
-   if (pp.parenthesis!=-1) { return; }
+   if (pp.parenthesis >= 0 && pp.in.peek() == '(') { pp.parenthesis++; }
+   if (pp.parenthesis >= 0 && pp.in.peek() == ')') { pp.parenthesis--; }
+   if (pp.parenthesis != -1) { return; }
    //DBG("forall2DPostfix 2")
    drop(pp);
    check(pp,is_right_parenthesis(pp),"no last right parenthesis found");
@@ -1541,7 +1550,16 @@ void forall2DPostfix(context_t &pp)
    pp.parenthesis--;
    pp.ker.__forall = false;
    //DBG("%s",pp.ker.forall.body.c_str());
-   pp.out << "\nForallWrap<2>(true, " << pp.ker.forall.N.c_str() << ",";
+   pp.out << "if (use_dev){";
+   pp.out << "\n\tCuWrap2D(" << pp.ker.forall.N.c_str() << ",";
+   pp.out << "\n[=] MFEM_DEVICE (int " << pp.ker.forall.e <<")";
+   pp.out << pp.ker.forall.body.c_str() << ",";
+   pp.out << "\n" ;
+   pp.out << pp.ker.forall.X.c_str() << ",";
+   pp.out << pp.ker.forall.Y.c_str() << ",";
+   pp.out << pp.ker.forall.Z.c_str() << ");";
+   pp.out << "\n} else {";
+   pp.out << "\nForallWrap<2>(false, " << pp.ker.forall.N.c_str() << ",";
    pp.out << "\n[=] MFEM_DEVICE (int " << pp.ker.forall.e <<")";
    pp.out << pp.ker.forall.body.c_str() << ",";
    pp.out << "\n[&] (int " << pp.ker.forall.e <<")";
@@ -1550,6 +1568,7 @@ void forall2DPostfix(context_t &pp)
    pp.out << pp.ker.forall.X.c_str() << ",";
    pp.out << pp.ker.forall.Y.c_str() << ",";
    pp.out << pp.ker.forall.Z.c_str() << ");";
+   pp.out << "}";
 }
 
 // *****************************************************************************
@@ -1571,7 +1590,8 @@ static void tokens(context_t &pp)
    if (token(id, "TEMPLATE")) { return __template(pp); }
    if (token(id, "FORALL_2D")) { return __forall2D(pp); }
    if (pp.ker.__embed ) { pp.ker.embed += id; }
-   if (pp.ker.__forall) { pp.ker.forall.body += id; return;}
+   // During the __forall body, add MFEM_* id tokens
+   if (pp.ker.__forall) { pp.ker.forall.body += id; return; }
    pp.out << id;
 }
 

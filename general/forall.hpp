@@ -315,6 +315,8 @@ inline void ForallWrap(const bool use_dev, const int N,
                        DBODY &&d_body, HBODY &&h_body,
                        const int X=0, const int Y=0, const int Z=0)
 {
+   printf("\n\033[37muse_dev:%s\033[m",use_dev?"true":"false");
+   fflush(0);
    MFEM_CONTRACT_VAR(X);
    MFEM_CONTRACT_VAR(Y);
    MFEM_CONTRACT_VAR(Z);
