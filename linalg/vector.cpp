@@ -147,22 +147,22 @@ Vector &Vector::scalar_op(double c, Op op)
 
 Vector &Vector::operator+=(double c)
 {
-   scalar_op<std::plus<double>>(c);
+   return scalar_op<std::plus<double>>(c);
 }
 
 Vector &Vector::operator-=(double c)
 {
-   scalar_op<std::minus<double>>(c);
+   return scalar_op<std::minus<double>>(c);
 }
 
 Vector &Vector::operator*=(double c)
 {
-   scalar_op<std::multiplies<double>>(c);
+   return scalar_op<std::multiplies<double>>(c);
 }
 
 Vector &Vector::operator/=(double c)
 {
-   scalar_op<std::divides<double>>(c);
+   return scalar_op<std::divides<double>>(c);
 }
 
 template <typename Op>
@@ -180,12 +180,12 @@ Vector &Vector::vector_op(const Vector &v, Op op)
 
 Vector &Vector::operator+=(const Vector &v)
 {
-   vector_op<std::plus<double>>(v);
+   return vector_op<std::plus<double>>(v);
 }
 
 Vector &Vector::operator-=(const Vector &v)
 {
-   vector_op<std::minus<double>>(v);
+   return vector_op<std::minus<double>>(v);
 }
 
 Vector &Vector::Add(const double a, const Vector &Va)
