@@ -56,6 +56,7 @@ set(SRCS
   tmop.cpp
   tmop_tools.cpp
   gslib.cpp
+  adnonlininteg.cpp
   transfer.cpp
   )
 
@@ -98,6 +99,7 @@ set(HDRS
   tmop.hpp
   tmop_tools.hpp
   gslib.hpp
+  adnonlininteg.hpp
   transfer.hpp
   )
 

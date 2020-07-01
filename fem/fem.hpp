@@ -34,6 +34,7 @@
 #include "tmop.hpp"
 #include "tmop_tools.hpp"
 #include "gslib.hpp"
+#include "adnonlininteg.hpp"
 #include "restriction.hpp"
 #include "quadinterpolator.hpp"
 #include "quadinterpolator_face.hpp"

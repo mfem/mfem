@@ -28,6 +28,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_matrix_rectangular.cpp
   linalg/test_matrix_square.cpp
   linalg/test_ode.cpp
+  linalg/test_fdual.cpp
   linalg/test_ode2.cpp
   linalg/test_operator.cpp
   linalg/test_cg_indefinite.cpp
