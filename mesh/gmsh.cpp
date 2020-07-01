@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "gmsh.hpp"
+#include "vtk.hpp"
 
 namespace mfem
 {
@@ -25,7 +26,20 @@ void GmshHOSegmentMapping(int order, int *map)
 }
 
 void GmshHOTriangleMapping(int order, int *map)
-{}
+{
+   int b[3];
+   int o = 0;
+   for (b[1]=0; b[1]<=order; ++b[1])
+   {
+      for (b[0]=0; b[0]<=order-b[1]; ++b[0])
+      {
+         b[2] = order - b[0] - b[1];
+         int o_gmsh =  BarycentricToVTKTriangle(b, order);
+         map[o] = o_gmsh;
+         o++;
+      }
+   }
+}
 
 void GmshHOQuadrilateralMapping(int order, int *map)
 {}
