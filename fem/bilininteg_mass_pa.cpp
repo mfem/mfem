@@ -23,7 +23,7 @@ namespace mfem
 
 // PA Mass Assemble kernel
 
-void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
+void MassIntegrator::SetupPA(const FiniteElementSpace &fes)
 {
    // Assuming the same element type
    fespace = &fes;
@@ -33,7 +33,7 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
    ElementTransformation *T = mesh->GetElementTransformation(0);
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T);
 #ifdef MFEM_USE_CEED
-   if (DeviceCanUseCeed() && !force)
+   if (DeviceCanUseCeed())
    {
       if (ceedDataPtr) { delete ceedDataPtr; }
       CeedData* ptr = new CeedData();
@@ -440,8 +440,34 @@ static void PAMassAssembleDiagonal(const int dim, const int D1D,
 
 void MassIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   if (pa_data.Size()==0) { SetupPA(*fespace, true); }
-   PAMassAssembleDiagonal(dim, dofs1D, quad1D, ne, maps->B, pa_data, diag);
+   if (pa_data.Size()==0) { SetupPA(*fespace); }
+#ifdef MFEM_USE_CEED
+   if (DeviceCanUseCeed())
+   {
+      CeedScalar *d_ptr;
+      CeedMemType mem;
+      CeedGetPreferredMemType(internal::ceed, &mem);
+      if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
+      {
+         d_ptr = diag.ReadWrite();
+      }
+      else
+      {
+         d_ptr = diag.HostReadWrite();
+         mem = CEED_MEM_HOST;
+      }
+      CeedVectorSetArray(ceedDataPtr->v, mem, CEED_USE_POINTER, d_ptr);
+
+      CeedOperatorLinearAssembleAddDiagonal(ceedDataPtr->oper, ceedDataPtr->v,
+                                            CEED_REQUEST_IMMEDIATE);
+
+      CeedVectorTakeArray(ceedDataPtr->v, mem, &d_ptr);
+   }
+   else
+#endif
+   {
+      PAMassAssembleDiagonal(dim, dofs1D, quad1D, ne, maps->B, pa_data, diag);
+   }
 }
 
 

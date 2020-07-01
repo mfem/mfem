@@ -253,8 +253,7 @@ static void PADiffusionSetup(const int dim,
    }
 }
 
-void DiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
-                                  const bool force)
+void DiffusionIntegrator::SetupPA(const FiniteElementSpace &fes)
 {
    // Assuming the same element type
    fespace = &fes;
@@ -263,7 +262,7 @@ void DiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
    const FiniteElement &el = *fes.GetFE(0);
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
 #ifdef MFEM_USE_CEED
-   if (DeviceCanUseCeed() && !force)
+   if (DeviceCanUseCeed())
    {
       if (ceedDataPtr) { delete ceedDataPtr; }
       CeedData* ptr = new CeedData();
@@ -271,8 +270,6 @@ void DiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
       InitCeedCoeff(Q, ptr);
       return CeedPADiffusionAssemble(fes, *ir, *ptr);
    }
-#else
-   MFEM_CONTRACT_VAR(force);
 #endif
    const int dims = el.GetDim();
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
@@ -736,9 +733,35 @@ static void PADiffusionAssembleDiagonal(const int dim,
 
 void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   if (pa_data.Size()==0) { SetupPA(*fespace, true); }
-   PADiffusionAssembleDiagonal(dim, dofs1D, quad1D, ne,
-                               maps->B, maps->G, pa_data, diag);
+   if (pa_data.Size()==0) { SetupPA(*fespace); }
+#ifdef MFEM_USE_CEED
+   if (DeviceCanUseCeed())
+   {
+      CeedScalar *d_ptr;
+      CeedMemType mem;
+      CeedGetPreferredMemType(internal::ceed, &mem);
+      if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
+      {
+         d_ptr = diag.ReadWrite();
+      }
+      else
+      {
+         d_ptr = diag.HostReadWrite();
+         mem = CEED_MEM_HOST;
+      }
+      CeedVectorSetArray(ceedDataPtr->v, mem, CEED_USE_POINTER, d_ptr);
+
+      CeedOperatorLinearAssembleAddDiagonal(ceedDataPtr->oper, ceedDataPtr->v,
+                                            CEED_REQUEST_IMMEDIATE);
+
+      CeedVectorTakeArray(ceedDataPtr->v, mem, &d_ptr);
+   }
+   else
+#endif
+   {
+      PADiffusionAssembleDiagonal(dim, dofs1D, quad1D, ne,
+                                  maps->B, maps->G, pa_data, diag);
+   }
 }
 
 
