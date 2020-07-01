@@ -223,7 +223,7 @@ void ElementRestriction::MultTransposeUnsigned(const Vector& x, Vector& y) const
    });
 }
 
-void ElementRestriction::MultTransposeOverwrite(const Vector& x, Vector& y) const
+void ElementRestriction::MultLeftInverse(const Vector& x, Vector& y) const
 {
    // Assumes all elements have the same number of dofs
    const int nd = dof;

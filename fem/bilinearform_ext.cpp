@@ -548,7 +548,7 @@ void PADiscreteLinearOperatorExtension::AddMult(
    if (elem_restrict)
    {
       tempY.SetSize(y.Size());
-      elem_restrict->MultTransposeOverwrite(localTest, tempY);
+      elem_restrict->MultLeftInverse(localTest, tempY);
       y += tempY;
    }
    else
