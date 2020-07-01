@@ -1165,7 +1165,7 @@ static void PAMassApply(const int dim,
          case 0x77: return SmemPAMassApply2D<7,7,4>(NE,B,D,X,Y);
          case 0x88: return SmemPAMassApply2D<8,8,2>(NE,B,D,X,Y);
          case 0x99: return SmemPAMassApply2D<9,9,2>(NE,B,D,X,Y);
-         default:   return PAMassApply2D(NE,aB,aBt,vD,vX,vY,D1D,Q1D);
+         default:   return PAMassApply2D(NE,b,bt,d,x,y,D1D,Q1D);
       }
    }
    else if (dim == 3)
@@ -1179,7 +1179,7 @@ static void PAMassApply(const int dim,
          case 0x67: return SmemPAMassApply3D<6,7>(NE,B,D,X,Y);
          case 0x78: return SmemPAMassApply3D<7,8>(NE,B,D,X,Y);
          case 0x89: return SmemPAMassApply3D<8,9>(NE,B,D,X,Y);
-         default:   return PAMassApply3D(NE,aB,aBt,vD,vX,vY,D1D,Q1D);
+         default:   return PAMassApply3D(NE,b,bt,d,x,y,D1D,Q1D);
       }
    }
 #else // MFEM_USE_JIT
