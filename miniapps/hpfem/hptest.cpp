@@ -107,8 +107,6 @@ void Solve(FiniteElementSpace *fespace, GridFunction *sln,
    bf.RecoverFEMSolution(X, lf, *sln);
 }
 
-#define CONTINUOUS 0
-#define SOLVE 1
 
 void EstimateHPErrors(FiniteElementSpace* fes,
                       Coefficient &exsol, Coefficient &rhs,
@@ -119,12 +117,7 @@ void EstimateHPErrors(FiniteElementSpace* fes,
 
     // h-refined mesh and space with halved order
     Mesh* mesh_h = new Mesh(*mesh);
-#if CONTINUOUS || SOLVE
     FiniteElementSpace* fes_h = new FiniteElementSpace(*fes, mesh_h); // FIXME: copy variable orders
-#else
-    L2_FECollection fec(1, mesh->Dimension());
-    FiniteElementSpace* fes_h = new FiniteElementSpace(mesh_h, &fec);
-#endif
 
     for (int i = 0; i < mesh->GetNE(); i++)
     {
@@ -137,11 +130,7 @@ void EstimateHPErrors(FiniteElementSpace* fes,
 
 
     // space with orders increased by 1
-#if CONTINUOUS || SOLVE
     FiniteElementSpace* fes_p = new FiniteElementSpace(*fes, mesh);
-#else
-    FiniteElementSpace* fes_p = new FiniteElementSpace(mesh, &fec);
-#endif
     for (int i = 0; i < mesh->GetNE(); i++)
     {
         int p = fes->GetElementOrder(i);
@@ -150,34 +139,13 @@ void EstimateHPErrors(FiniteElementSpace* fes,
     fes_p->Update(false);
 
     GridFunction sol(fes);
-#if SOLVE
-    Solve(fes, &sol, &exsol, &rhs, false, int_order);
-#else
-    sol.ProjectCoefficient(exsol);
-#if CONTINUOUS
-    MakeConforming(sol);
-#endif
-#endif
+    Solve(fes, &sol, &exsol, &rhs, false, int_order); // TODO: don't solve again
 
     GridFunction sol_h(fes_h);
-#if SOLVE
     Solve(fes_h, &sol_h, &exsol, &rhs, false, int_order);
-#else
-    sol_h.ProjectCoefficient(exsol);
-#if CONTINUOUS
-    MakeConforming(sol_h);
-#endif
-#endif
 
     GridFunction sol_p(fes_p);
-#if SOLVE
     Solve(fes_p, &sol_p, &exsol, &rhs, false, int_order);
-#else
-    sol_p.ProjectCoefficient(exsol);
-#if CONTINUOUS
-    MakeConforming(sol_p);
-#endif
-#endif
 
     if (0)
     {
@@ -238,15 +206,6 @@ void EstimateHPErrors(FiniteElementSpace* fes,
         elem_hp_error[j].err_h += elemError_h[i];
         elem_hp_error[j].dof_h += hdof;
     }
-
-    // take a square root of all the partial errors
-    /*for (int i = 0; i < mesh->GetNE(); i++)
-    {
-       HPError err = elem_hp_error[i];
-       err.err = sqrt(err.err);
-       err.err_h = sqrt(err.err_h);
-       err.err_p = sqrt(err.err_p);
-    }*/
 
     delete mesh_h;
     delete fes_h;
@@ -416,65 +375,38 @@ int main(int argc, char *argv[])
          Array<HPError> elem_hp_error;
          EstimateHPErrors(&fespace, exsol, rhs, exgrad, int_order, elem_hp_error, dbg_sock);
 
-         /*Array<int> elem_ref(mesh.GetNE());
-         Array<double> elem_rate(mesh.GetNE());
-
-         // calculate error decrease rate and select h- or p- option for each element
-         double rate_max = 0;
-         for (int i = 0; i < mesh.GetNE(); i++)
-         {
-            HPError &err = elem_hp_error[i];
-
-            double rate_h = (err.err - err.err_h) / (err.dof_h - err.dof);
-            double rate_p = (err.err - err.err_p) / (err.dof_p - err.dof);
-
-            cout << "Element " << i
-                 << ", order " << fespace.GetElementOrder(i) << "\n";
-            cout << "  real error: " << sqrt(elem_error[i]) << endl;
-            cout << "  dofs: " << err.dof << ", err: " << err.err << endl;
-            cout << "  dofs_h: " << err.dof_h << ", err_h: " << err.err_h
-                 << " -> rate_h: " << rate_h << endl;
-            cout << "  dofs_p: " << err.dof_p << ", err_p: " << err.err_p
-                 << " -> rate_p: " << rate_p << endl;
-
-            if (rate_h > rate_p || err.dof_p > max_order*max_order || rate_h < 0.0)
-            {
-               elem_ref[i] = 0;
-               elem_rate[i] = rate_h;
-               cout << "  -- selected h ref\n" << endl;
-            }
-            else
-            {
-               elem_ref[i] = 1;
-               elem_rate[i] = rate_p;
-               cout << "  -- selected p ref\n" << endl;
-            }
-
-            rate_max = std::max(elem_rate[i], rate_max);
-         }*/
-
-         //const double rate_threshold = 0.9;
-
          // p-refine elements
          int h_refined = 0, p_refined = 0;
          double err_max = sqrt(elem_error.Max());
          Array<Refinement> refinements;
          for (int i = 0; i < mesh.GetNE(); i++)
          {
-            /*if (elem_rate[i] >= rate_threshold * rate_max ||
-                elem_rate[i] < 0.0)*/
             if (sqrt(elem_error[i]) > ref_threshold * err_max)
             {
                const HPError &err = elem_hp_error[i];
-               cout << "Element " << i << ": err_h = "
-                    << err.err_h << ", err_p = " << err.err_p << endl;
+
+               double s_err = sqrt(err.err);
+               double s_err_h = sqrt(err.err_h);
+               double s_err_p = sqrt(err.err_p);
+
+               double rate_h = (s_err - s_err_h) / (err.dof_h+1 - err.dof);
+               double rate_p = (s_err - s_err_p) / (err.dof_p - err.dof);
 
                int p = fespace.GetElementOrder(i);
-               if (err.err_p < err.err_h && p < max_order)
-               //if (elem_ref[i] == 1) // p ref
+
+               cout << "Element " << i << " (order " << p << "):\n  "
+                    << "err = " << s_err << ", dof = " << err.dof << "\n  "
+                    << "err_h = " << s_err_h << ", dof_h = " << err.dof_h
+                    << " -> rate_h = " << rate_h << "\n  "
+                    << "err_p = " << s_err_p << ", dof_p = " << err.dof_p
+                    << " -> rate_p = " << rate_p << "\n  ";
+
+               //if (err.err_p < err.err_h && p < max_order)
+               if (rate_p > rate_h && p < max_order)
                {
                   fespace.SetElementOrder(i, p+1);
                   p_refined++;
+                  cout << "=> p-refined" << endl;
                }
                else
                {
@@ -482,6 +414,7 @@ int main(int argc, char *argv[])
                   fespace.SetElementOrder(i, HalfOrder(p));
                   refinements.Append(Refinement(i));
                   h_refined++;
+                  cout << "=> h-refined" << endl;
                }
             }
          }
@@ -499,7 +432,7 @@ int main(int argc, char *argv[])
          // h-refine elements
          mesh.GeneralRefinement(refinements, -1, nc_limit);
 
-         cout << " h-refined = " << h_refined
+         cout << "\nh-refined = " << h_refined
               << ", p-refined = " << p_refined << endl;
       }
       else // !hp
@@ -526,10 +459,6 @@ int main(int argc, char *argv[])
       // Update the space, interpolate the solution.
       fespace.Update(false);
       sol.Update();
-
-      // Inform also the bilinear and linear forms that the space has changed.
-      /*bf.Update();
-      lf.Update();*/
    }
 
    return 0;
