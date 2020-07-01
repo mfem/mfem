@@ -379,8 +379,11 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
       e_t_ = new ParGridFunction(L2VFESpace_);
       e_v_ = new ParComplexGridFunction(L2VFESpace_);
       d_v_ = new ParComplexGridFunction(L2VFESpace_);
-      phi_v_ = new ParComplexGridFunction(L2FESpace_);
       j_v_ = new ParComplexGridFunction(L2VFESpace_);
+      if (sbcs_->Size() > 0)
+      {
+         phi_v_ = new ParComplexGridFunction(L2FESpace_);
+      }
 
       sinkx_ = new PhaseCoefficient(*kCoef_, &sin);
       coskx_ = new PhaseCoefficient(*kCoef_, &cos);
@@ -944,7 +947,6 @@ CPDSolver::Update()
    // Inform the grid functions that the space has changed.
    e_->Update();
    d_->Update();
-   phi_->Update();
    if (u_) { u_->Update(); }
    if (uE_) { uE_->Update(); }
    if (uB_) { uB_->Update(); }
@@ -954,6 +956,8 @@ CPDSolver::Update()
    if (e_v_) { e_v_->Update(); }
    if (d_v_) { d_v_->Update(); }
    if (j_v_) { j_v_->Update(); }
+   if (phi_) {phi_->Update(); }
+   if (phi_v_) {phi_v_->Update(); }
    // e_r_->Update();
    // e_i_->Update();
    // h_->Update();
