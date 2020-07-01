@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "densemat.hpp"
+#include <deque>
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
@@ -421,49 +422,56 @@ public:
 class AndersonAcceleration : public IterativeSolver
 {
 protected:
-    int maxVecs; // see SetKDim()
-    int AAstart;
-    bool restart;
-    double omega;
-    FixedPointOperator *FPop;
+   int maxVecs; // see SetKDim()
+   int AAstart;
+   bool restart;
+   bool isFixedPointOp;
+   double omega;
+
+   /// Apply fixed-point Mult and compute residual.
+   //  For !isFixedPointOp:
+   //    y <-- G(x) = x + A(x) - b and r <-- G(x) - x = A(x) - b
+   //  For isFixedPointOp:
+   //    y <-- G(x) = A(x) - b and r <-- G(x) - x = A(x) - b - x
+   void FixedPointMult(const Vector &b, const Vector &x, Vector &y, Vector &r) const;
+
+   // Helper function for Anderson Acceleration
+   void QRdelete(std::deque<Vector *> &Q, DenseMatrix &R) const;
 
 public:
-    AndersonAcceleration() : maxVecs(25), AAstart(0), omega(1),
-        restart(false) { }
+   AndersonAcceleration() : maxVecs(25), AAstart(0), omega(1),
+      restart(false), isFixedPointOp(false) { }
 
 #ifdef MFEM_USE_MPI
-    AndersonAcceleration(MPI_Comm _comm) : IterativeSolver(_comm),
-        maxVecs(25), AAstart(0), omega(1), restart(false) { }
+   AndersonAcceleration(MPI_Comm _comm) : IterativeSolver(_comm),
+      maxVecs(25), AAstart(0), omega(1), restart(false),
+      isFixedPointOp(false) { }
 #endif
 
-    /// Maximum number of vectors to store in Krylov-like space
-    void SetKDim(int dim) { maxVecs = dim; }
-    /// Number of fixed-point iterations to do before starting AA
-    void SetAAStart(int start_) { AAstart = start_; }
-    /// Boolean to restart, that is, erase entier space after maxVecs
-    //  are stored (AAstart=true) or use a sliding space (AAstart=false)
-    //  where one vector is deleted to make room for a new one.
-    void SetRestart(bool restart_) { restart = restart_; }
+   /// Boolean describing whether the action of the operator is such
+   //  that we want to solve G(x) = x (true) or G(x) = 0 (false) for
+   //  zero right-hand side vector b passed into Mult(). Default is
+   //  false in construction of class.
+   void IsFixedPointOperator(bool isFixedPointOp_)
+   { isFixedPointOp = isFixedPointOp_; }
 
-    /// Set relaxation weight
-    void SetWeight(double omega_) { omega = omega_; }
+   /// Maximum number of vectors to store in Krylov-like space
+   void SetKDim(int dim) { maxVecs = dim; }
 
-    void SetOperator(const Operator &op)
-    {
-        // Check that Operator is a FixedPointOperator
-        FPop = dynamic_cast<FixedPointOperator*>(op);
-        if (FPop == nullptr) {
-            MFEM_ERROR("Anderson Acceleration requires FixedPointOperator.");
-        }
-        height = op.Height();
-        width = op.Width();
-        if (prec)
-        {
-            prec->SetOperator(*FPop);
-        }
-    }
+   /// Number of fixed-point iterations to do before starting AA
+   void SetAAStart(int start_) { AAstart = start_; }
 
-    virtual void Mult(const Vector &b, Vector &x) const;
+   /// Boolean to restart, that is, erase entire space after maxVecs
+   //  are stored (AAstart=true) or use a sliding space (AAstart=false)
+   //  where one vector is deleted to make room for a new one.
+   void SetRestart(bool restart_) { restart = restart_; }
+
+   /// Set relaxation weight
+   void SetWeight(double omega_) { omega = omega_; }
+
+   virtual void SetOperator(const Operator &op);
+
+   virtual void Mult(const Vector &b, Vector &x) const;
 };
 
 

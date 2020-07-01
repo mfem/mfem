@@ -17,7 +17,6 @@
 #include <iomanip>
 #include <algorithm>
 #include <cmath>
-#include <deque>
 #include <set>
 
 namespace mfem
@@ -1642,255 +1641,293 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    final_norm = norm;
 }
 
-// Helper function for Anderson Acceleration
-void QRdelete(std::deque<Vector *> &Q, DenseMatrix &R)
+void AndersonAcceleration::QRdelete(std::deque<Vector *> &Q, DenseMatrix &R) const
 {
-    Vector temp;
-    for (i=0; i<(maxVecs-1); i++) {
-        double d = sqrt( R(i,i+1)*R(i,i+1) + R(i+1,i+1)*R(i+1,i+1) );
-        double c = R(i,i+1) / d;
-        double s = R(i+1,i+1) / d;
-        R(i,i+1) = d;
-        R(i+1,i+1) = 0;
+   Vector temp;
+   for (int i=0; i<(maxVecs-1); i++) {
+      double d = sqrt( R(i,i+1)*R(i,i+1) + R(i+1,i+1)*R(i+1,i+1) );
+      double c = R(i,i+1) / d;
+      double s = R(i+1,i+1) / d;
+      R(i,i+1) = d;
+      R(i+1,i+1) = 0;
 
-        if (i < (maxVecs-2)) {
-            for (j=(i+2); j<maxVecs; j++) {
-                d = c*R(i,j) + s*R(i+1,j);
-                R(i+1,j) = −s*R(i,j) + c*R(i+1,j);
-                R(i,j) = d;
-            }
-        }
-        temp = c*(*(Q[i])) + s*(*(Q[i+1]));
-        *(Q[i+1]) = −s*(*(Q[i])) + c*(*(Q[i+1]));
-        *(Q[i]) = temp;
-    }
-    
-    // Shift Q <- Q[:,0:(m-2)], i.e., delete last column of Q
-    delete Q.back();
-    Q.pop_back();
+      if (i < (maxVecs-2)) {
+         for (int j=(i+2); j<maxVecs; j++) {
+            d = c*R(i,j) + s*R(i+1,j);
+            R(i+1,j) = -s*R(i,j) + c*R(i+1,j);
+            R(i,j) = d;
+         }
+      }
+      // temp = c*Q[i] + s*Q[i+1];
+      temp.SetSize(Q[i]->Size());
+      add(c, *(Q[i]), s, *(Q[i+1]), temp);
+      // Q[i+1] = -s*Q[i] + c*Q[i+1];
+      *(Q[i+1]) *= c;
+      Q[i+1] -> Add(-s, *(Q[i]));
+      *(Q[i]) = temp;
+   }
+   
+   // Shift Q <- Q[:,0:(m-2)], i.e., delete last column of Q
+   delete Q.back();
+   Q.pop_back();
 
-    // Shift columns of R to the left by one, R = R[0:(m−2), 1:(m-1)]
-    for (j=1; j<maxVecs; j++) {
-        for (i=0; i<maxVecs; i++) {
-            R(i,j-1) = R(i,j);
-        }
-    }
+   // Shift columns of R to the left by one, R = R[0:(m−2), 1:(m-1)]
+   for (int j=1; j<maxVecs; j++) {
+      for (int i=0; i<maxVecs; i++) {
+         R(i,j-1) = R(i,j);
+      }
+   }
+}
+
+void AndersonAcceleration::SetOperator(const Operator &op)
+{
+   oper = &op;
+   height = op.Height();
+   width = op.Width();
+   MFEM_ASSERT(height == width, "square Operator is required.");
+}
+
+void AndersonAcceleration::FixedPointMult(const Vector &b,
+   const Vector &x, Vector &y, Vector &r) const
+{
+   // Do not add x to y if the oper is already a fixed-point operator
+   if (isFixedPointOp) {
+      oper->Mult(x, y);
+      y -= b;
+      r = y;
+      r -= x;
+   }
+   // Otherwise add x to y and not to residual r = y - x
+   else {
+      oper->Mult(x, r);
+      r -= b;
+      y = r;
+      y += x;
+   }
 }
 
 void AndersonAcceleration::Mult(const Vector &b, Vector &x) const
 {
-    int n = width;
-    int numVecs = 0;
-    double resid, norm_df;
-    double min_diag = 1e-12;
-    final_norm = -1;
+   MFEM_ASSERT(oper != NULL, "the Operator is not set (use SetOperator).");
+   // MFEM_ASSERT(prec != NULL, "the Solver is not set (use SetSolver).");
+  
+   int n = width;
+   int numVecs = 0;
+   double resid, norm_df;
+   double min_diag = 1e-12;
+   final_norm = -1;
 
-    // Check vector is initialized, set to zero for
-    // iterative_mode = false
-    if (x.Size() != n) {
-        x.SetSize(n);
-        x = 0.0;
-    }
-    else if (!iterative_mode) {
-        x = 0.0;
-    }
+   // Check vector is initialized, set to zero for
+   // iterative_mode = false
+   if (x.Size() != n) {
+      x.SetSize(n);
+      x = 0.0;
+   }
+   else if (!iterative_mode) {
+      x = 0.0;
+   }
 
-    // Storage containers for acceleration
-    std::deque<Vector *> G;
-    std::deque<Vector *> Q;
-    DenseMatrix R(maxVecs);
-    R = 0.0;
-    Vector g_old(n);
-    Vector g_current(n);
-    Vector f_old(n);
-    Vector f_current(n);
-    Vector gamma(maxVecs);
-    Vector rhs(maxVecs);
-    Vector correction;
-    if (omega > 0 && std::abs(omega -  1) > 1e-14) {
-        correction.SetSize(n);
-    }
-    Vector *dg;
-    Vector *df;
+   // Storage containers for acceleration
+   std::deque<Vector *> G;
+   std::deque<Vector *> Q;
+   DenseMatrix R(maxVecs);
+   R = 0.0;
+   Vector g_old(n);
+   Vector g_current(n);
+   Vector f_old(n);
+   Vector f_current(n);
+   Vector gamma(maxVecs);
+   Vector rhs(maxVecs);
+   Vector correction;
+   if (omega > 0 && std::abs(omega -  1) > 1e-14) {
+      correction.SetSize(n);
+   }
+   Vector *dg;
+   Vector *df;
 
-    // Loop over AA iterations
-    for (int k=0; k<max_iter; k++) {
+   // Loop over AA iterations
+   int k;
+   for (k=0; k<max_iter; k++) {
 
-        // Compute g_current = G(x), f_current = G(x) - x
-        FPop->Mult(x, g_current, f_current); 
+      // Compute g_current = G(x), f_current = G(x) - x
+      this->FixedPointMult(b, x, g_current, f_current); 
 
-        // Check norm of current approximation to fixed point G(u) = u
-        resid = Norm(f_current);
-        MFEM_ASSERT(IsFinite(resid), "||G(u) - u|| = " << resid);
-        if (print_level == 1)
-        {
-            mfem::out << "  Iteration : " << setw(3) << k
-                      << "  ||G(u) - u|| = " << resid << endl;
-        }
-        
-        // Set stopping tolerance on first iteration.
-        if (final_norm < 0) {
-            final_norm = std::max(rel_tol*resid, abs_tol);
-        }
+      // Check norm of current approximation to fixed point G(u) = u
+      resid = Norm(f_current);
+      MFEM_ASSERT(IsFinite(resid), "||G(u) - u|| = " << resid);
+      if (print_level == 1)
+      {
+         mfem::out << "  Iteration : " << setw(3) << k
+                 << "  ||G(u) - u|| = " << resid << endl;
+      }
+      
+      // Set stopping tolerance on first iteration.
+      if (final_norm < 0) {
+         final_norm = std::max(rel_tol*resid, abs_tol);
+      }
 
-        // Check for convergence
-        if (resid <= final_norm)
-        {
-            final_norm = resid;
-            final_iter = k;
-            converged = 1;
-            goto finish;
-        }
+      // Check for convergence
+      if (resid <= final_norm)
+      {
+         final_norm = resid;
+         final_iter = k;
+         converged = 1;
+         goto finish;
+      }
 
-        // Start Anderson Acceleration after AAstart FP iterations
-        if (k > AAstart) {
-            df = new Vector(n);
-            *df = f_current − f_old; 
-            dg = new Vector(n);
-            *dg = g_current − g_old;
-        
-            if (numVecs < maxVecs) {
-                G.push_back(dg);
+      // Start Anderson Acceleration after AAstart FP iterations
+      if (k > AAstart) {
+         df = new Vector(n);
+         *df = f_current-f_old; 
+         dg = new Vector(n);
+         *dg = g_current-g_old;
+      
+         if (numVecs < maxVecs) {
+            G.push_back(dg);
+         }
+         else {
+            delete G[0];
+            G.pop_front();
+            G.push_back(dg);
+         }
+         numVecs++;
+         dg = NULL;
+      }
+      
+      f_old = f_current;
+      g_old = g_current;
+      
+      // First iteration or initial fixed-point iterations
+      if (numVecs == 0) {
+         x = g_current;
+         continue;
+      }
+
+      // All later iterations: orthogonalize and find best approximation
+      if (numVecs == 1) {
+         norm_df = Norm(*df);
+         MFEM_ASSERT(IsFinite(norm_df), "norm_df = " << norm_df);
+         (*df) /= norm_df;
+         Q[0] = df;
+         R(0,0) = norm_df;
+         df = NULL;
+      }
+      else {
+         // Remove first column in basis F and R, reorthogonalize
+         if (numVecs > maxVecs) {
+            this->QRdelete(Q, R);
+            numVecs--;
+         }
+         // Compute last column of R
+         for (int i=0; i<(numVecs-1); i++) {
+            R(i,numVecs-1) = Dot(*(Q[i]), *df);
+            // df -= R(i,numVecs-1) * Q[i]
+            df -> Add(-R(i,numVecs-1), *(Q[i]));
+         }
+         norm_df = Norm(*df);
+         MFEM_ASSERT(IsFinite(norm_df), "norm_df = " << norm_df);
+         (*df) /= norm_df;
+         Q[numVecs-1] = df;
+         R(numVecs-1, numVecs-1) = norm_df;
+         df = NULL;
+      }
+
+      // Back solve for new weights, R\gamma = Q^T * f_current
+      for (int i=0; i<numVecs; i++) {
+         rhs(i) = Dot(*(Q[i]), f_current);   // Form right hand side
+      }
+      for (int i=(numVecs-1); i>=0; i--) {
+         double temp = rhs(i);
+         for (int j=(i+1); j<numVecs; j++) {
+            temp -= R(i,j)*gamma(j);
+         }
+         if (std::abs(R(i,i)) < min_diag) {
+            gamma(i) = 0.0;
+         }
+         else {
+            gamma(i) = temp / R(i,i);            
+         }
+      }
+
+      // Compute updated solution x = g_current − G*\gamma 
+      x = g_current;
+      for (int i=0; i<numVecs; i++) {
+         // x -= gamma(i)*G[i]
+         x.Add(-gamma(i), *(G[i]));
+      }
+
+      // Apply damped iteration for \omega \in (0,1),
+      //   x -= (1−omega) * (f_current − Q*R*gamma);
+      if (omega > 0 && std::abs(omega -  1) > 1e-14) {
+         // Redefine rhs = R*gamma
+         for(int i=0; i<numVecs; i++) {
+            rhs(i) = 0;
+            for (int j=i; j<numVecs; j++) {
+               rhs(i) += R(i,j)*gamma(j);
             }
-            else {
-                delete G[0];
-                G.pop_front();
-                G.push_back(dg);
-            }
-            numVecs++;
-            dg = NULL;
-        }
-        
-        f_old = f_current;
-        g_old = g_current;
-        
-        // First iteration or initial fixed-point iterations
-        if (numVecs == 0) {
-            x = g_current;
-            continue;
-        }
+         }
+         correction = f_current;
+         for (int i=0; i<numVecs; i++) {
+            // correction -= rhs(i)*Q[i]
+            correction.Add(-rhs(i), *(Q[i]));
+         }
+         // x -= (1 - omega) * correction;
+         x.Add( -(1 - omega), correction);
+      }
 
-        // All later iterations: orthogonalize and find best approximation
-        if (numVecs == 1) {
-            norm_df = Norm(*df);
-            MFEM_ASSERT(IsFinite(norm_df), "norm_df = " << norm_df);
-            (*df) /= norm_df;
-            Q[0] = df;
-            R(0,0) = norm_df;
-            df = NULL;
-        }
-        else {
-            // Remove first column in basis F and R, reorthogonalize
-            if (numVecs > maxVecs) {
-                QRdelete(Q, R);
-                numVecs--;
-            }
-            // Compute last column of R
-            for (int i=0; i<(numVecs-1); i++) {
-                R(i,numVecs-1) = Dot(*(Q[i]), *df);
-                df -= R(i,numVecs-1) * (*(Q[i]));
-            }
-            norm_df = Norm(df);
-            MFEM_ASSERT(IsFinite(norm_df), "norm_df = " << norm_df);
-            (*df) /= norm_df;
-            Q[numVecs-1] = df;
-            R(numVecs-1, numVecs-1) = norm_df;
-            df = NULL;
-        }
+      // Restart AA minimization by eliminating all vectors but the most recent
+      if (restart && (numVecs == maxVecs)) {
+         for (int i=0; i<(maxVecs-1); i++) {
+            delete G[0];
+            G.pop_front();          
+            delete Q[0];
+            Q.pop_front();
+         }
+         R = 0.0;
+         R(0,0) = norm_df;
+         numVecs = 1;
+      }
+   }
 
-        // Back solve for new weights, R\gamma = Q^T * f_current
-        for (int i=0; i<numVecs; i++) {
-            rhs(i) = Dot(*(Q[i]), f_current);   // Form right hand side
-        }
-        for (int i=(numVecs-1); i>=0; i--) {
-            double temp = rhs(i);
-            for (int j=(i+1); j<numVecs; j++) {
-                temp -= R(i,j)*gamma(j);
-            }
-            if (std::abs(R(i,i)) < min_diag) {
-                gamma(i) = 0.0;
-            }
-            else {
-                gamma(i) = temp / R(i,i);            
-            }
-        }
-
-        // Compute updated solution x = g_current − G*\gamma 
-        x = g_current;
-        for (int i=0; i<numVecs; i++) {
-            x -= gamma(i)*(*(G[i]));
-        }
-
-        // Apply damped iteration for \omega \in (0,1),
-        //   x -= (1−omega) * (f_current − Q*R*gamma);
-        if (omega > 0 && std::abs(omega -  1) > 1e-14) {
-            // Redefine rhs = R*gamma
-            for(int i=0; i<numVecs; i++) {
-                rhs(i) = 0;
-                for (int j=i; j<numVecs; j++) {
-                    rhs(i) += R(i,j)*gamma(j);
-                }
-            }
-            correction = f_current;
-            for (int i=0; i<numVecs; i++) {
-                correction -= rhs(i)*(*(Q[i]));
-            }
-            x -= (1−omega) * correction;
-        }
-
-        // Restart AA minimization by eliminating all vectors but the most recent
-        if (restart && (numVecs == maxVecs)) {
-            for (int i=0; i<(maxVecs-1); i++) {
-                delete G[0];
-                G.pop_front();          
-                delete Q[0];
-                Q.pop_front();
-            }
-            R = 0.0;
-            R(0,0) = norm_df;
-            numVecs = 1;
-        }
-    }
-
-    // Compute final residual, save counts for solve
-    oper->Mult(x, g_current); 
-    f_current = g_current − x;
-    resid = Norm(f_current);
-    MFEM_ASSERT(IsFinite(resid), "||G(u) - u|| = " << resid);
-    if (print_level == 1)
-    {
-        mfem::out << "  Iteration : " << setw(3) << k
-                  << "  ||G(u) - u|| = " << resid << endl;
-    }
-    final_norm = resid;
-    final_iter = max_iter;
-    if (resid <= final_norm) converged = 1;
-    else converged = 0;
+   // Compute final residual, save counts for solve
+   oper->Mult(x, g_current); 
+   f_current = g_current - x;
+   resid = Norm(f_current);
+   MFEM_ASSERT(IsFinite(resid), "||G(u) - u|| = " << resid);
+   if (print_level == 1)
+   {
+      mfem::out << "  Iteration : " << setw(3) << k
+              << "  ||G(u) - u|| = " << resid << endl;
+   }
+   final_norm = resid;
+   final_iter = max_iter;
+   if (resid <= final_norm) converged = 1;
+   else converged = 0;
 
 finish:
-    if (print_level == 1 || print_level == 3)
-    {
-        mfem::out << "  Iteration : " << setw(3) << k
-                  << "  ||G(u) - u|| = " << resid << endl;
-    }
-    else if (print_level == 2)
-    {
-        mfem::out << "Anderson Acceleration: Number of iterations: " << final_iter << '\n';
-    }
-    if (print_level >= 0 && !converged)
-    {
-        mfem::out << "Anderson Acceleration: No convergence!\n";
-    }
+   if (print_level == 1 || print_level == 3)
+   {
+      mfem::out << "  Iteration : " << setw(3) << k
+              << "  ||G(u) - u|| = " << resid << endl;
+   }
+   else if (print_level == 2)
+   {
+      mfem::out << "Anderson Acceleration: Number of iterations: " << final_iter << '\n';
+   }
+   if (print_level >= 0 && !converged)
+   {
+      mfem::out << "Anderson Acceleration: No convergence!\n";
+   }
 
-    // Cleanup pointers
-    for (int i=0; i<numVecs; i++) {
-        delete G[0];
-        G.pop_front();          
-        delete Q[0];
-        Q.pop_front();
-    }
-    delete dg;
-    delete df;
+   // Cleanup pointers
+   for (int i=0; i<numVecs; i++) {
+      delete G[0];
+      G.pop_front();          
+      delete Q[0];
+      Q.pop_front();
+   }
+   delete dg;
+   delete df;
 }
 
 void LBFGSSolver::Mult(const Vector &b, Vector &x) const
