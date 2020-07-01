@@ -519,6 +519,59 @@ public:
 };
 
 
+/// Operator class where mult applies the action of G(x), where
+//  we want to solve G(x) = x. Mult is implemented to map a system
+//  of the form Ax = b ---> G(x) = x + Ax - b, where A -> oper and
+//  b -> rhs. Mult can also be overidden to manually provide the
+//  appropriate action of some G(x) which does not correspond to
+//  a system of the form Ax = b.
+class FixedPointOperator : public Operator
+{
+protected:
+    Vector *rhs;
+    Operator *oper;
+
+public:
+    FixedPointOperator() : rhs(NULL), oper(NULL) { }
+    FixedPointOperator(Operator* op) : rhs(NULL), oper(op) { }
+    FixedPointOperator(Operator* op, Vector *rhs_) : rhs(rhs_), oper(op) { }
+
+    /// Set the operator portion of the fixed-point operator
+    SetSpatialOperator(Operator *op) { oper = op; }
+
+    /// Set an optional fixed vector portion of the fixed-point operator.
+    //  Assumed to be negative, that is, b in G(x) = x + Ax - b
+    SetVector(Vector *rhs_) { rhs = rhs_; }
+
+    /// Apply y <-- G(x) = x + Ax - b and r <-- G(x) - x = Ax - b
+    virtual void Mult (const Vector &x, Vector &y, Vector &r) const
+    {
+        if (!oper) {
+            MFEM_ERROR("Operator not set.");
+        }
+        oper->Mult(x, r);
+        if (rhs) {
+            r -= rhs;
+        }
+        y = r;
+        y += x;
+    }
+
+    /// Apply y <-- G(x) = x + Ax - b
+    virtual void Mult (const Vector &x, Vector &y) const
+    {
+        if (!oper) {
+            MFEM_ERROR("Operator not set.");
+        }
+        oper->Mult(x, y);
+        if (rhs) {
+            y -= rhs;
+        }
+        y += x;
+    }
+};
+
+
 /// Identity Operator I: x -> x.
 class IdentityOperator : public Operator
 {

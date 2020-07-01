@@ -416,6 +416,57 @@ public:
    virtual void ProcessNewState(const Vector &x) const { }
 };
 
+
+/// Nonlinear Anderson Acceleration
+class AndersonAcceleration : public IterativeSolver
+{
+protected:
+    int maxVecs; // see SetKDim()
+    int AAstart;
+    bool restart;
+    double omega;
+    FixedPointOperator *FPop;
+
+public:
+    AndersonAcceleration() : maxVecs(25), AAstart(0), omega(1),
+        restart(false) { }
+
+#ifdef MFEM_USE_MPI
+    AndersonAcceleration(MPI_Comm _comm) : IterativeSolver(_comm),
+        maxVecs(25), AAstart(0), omega(1), restart(false) { }
+#endif
+
+    /// Maximum number of vectors to store in Krylov-like space
+    void SetKDim(int dim) { maxVecs = dim; }
+    /// Number of fixed-point iterations to do before starting AA
+    void SetAAStart(int start_) { AAstart = start_; }
+    /// Boolean to restart, that is, erase entier space after maxVecs
+    //  are stored (AAstart=true) or use a sliding space (AAstart=false)
+    //  where one vector is deleted to make room for a new one.
+    void SetRestart(bool restart_) { restart = restart_; }
+
+    /// Set relaxation weight
+    void SetWeight(double omega_) { omega = omega_; }
+
+    void SetOperator(const Operator &op)
+    {
+        // Check that Operator is a FixedPointOperator
+        FPop = dynamic_cast<FixedPointOperator*>(op);
+        if (FPop == nullptr) {
+            MFEM_ERROR("Anderson Acceleration requires FixedPointOperator.");
+        }
+        height = op.Height();
+        width = op.Width();
+        if (prec)
+        {
+            prec->SetOperator(*FPop);
+        }
+    }
+
+    virtual void Mult(const Vector &b, Vector &x) const;
+};
+
+
 /** L-BFGS method for solving F(x)=b for a given operator F, by minimizing
     the norm of F(x) - b. Requires only the action of the operator F. */
 class LBFGSSolver : public NewtonSolver
