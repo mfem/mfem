@@ -621,7 +621,7 @@ int main (int argc, char *argv[])
 
    if (normalization) { he_nlf_integ->ParEnableNormalization(x0); }
 
-   // 14. Limit the node movement.
+   // Limit the node movement.
    // The limiting distances can be given by a general function of space.
    ParGridFunction dist(pfespace);
    dist = 1.0;
@@ -671,6 +671,7 @@ int main (int argc, char *argv[])
    TargetConstructor *target_c2 = NULL;
    FunctionCoefficient coeff2(weight_fun);
 
+   // Explicit combination of metrics.
    if (combomet > 0)
    {
       // First metric.
@@ -725,10 +726,10 @@ int main (int argc, char *argv[])
    }
    else
    {
-      const int nd  = pfespace->GetBE(0)->GetDof();
       int n = 0;
       for (int i = 0; i < pmesh->GetNBE(); i++)
       {
+         const int nd = pfespace->GetBE(i)->GetDof();
          const int attr = pmesh->GetBdrElement(i)->GetAttribute();
          MFEM_VERIFY(!(dim == 2 && attr == 3),
                      "Boundary attribute 3 must be used only for 3D meshes. "
@@ -741,6 +742,7 @@ int main (int argc, char *argv[])
       n = 0;
       for (int i = 0; i < pmesh->GetNBE(); i++)
       {
+         const int nd = pfespace->GetBE(i)->GetDof();
          const int attr = pmesh->GetBdrElement(i)->GetAttribute();
          pfespace->GetBdrElementVDofs(i, vdofs);
          if (attr == 1) // Fix x components.
@@ -799,7 +801,7 @@ int main (int argc, char *argv[])
    const int NE = pmesh->GetNE();
    for (int i = 0; i < NE; i++)
    {
-      ir = irules->Get(pfespace->GetFE(i)->GetGeomType(), quad_order);
+      ir = &irules->Get(pfespace->GetFE(i)->GetGeomType(), quad_order);
       ElementTransformation *transf = pmesh->GetElementTransformation(i);
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
@@ -817,7 +819,9 @@ int main (int argc, char *argv[])
    tauval -= 0.01 * h0min_all; // Slightly below minJ0 to avoid div by 0.
 
    // Perform the nonlinear optimization.
-   TMOPNewtonSolver solver(pfespace->GetComm(), *irules, solver_type);
+   TMOPNewtonSolver solver(pfespace->GetComm(), *ir, solver_type);
+   // Give all integration rules in case of a mixed mesh.
+   solver.SetIntegrationRules(*irules, quad_order);
    if (solver_type == 0)
    {
       // Specify linear solver when we use a Newton-based solver.

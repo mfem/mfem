@@ -353,11 +353,9 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       energy_in = nlf->GetEnergy(x);
    }
 
-   const int NE = fes->GetMesh()->GetNE(), dim = fes->GetMesh()->Dimension(),
-             dof = fes->GetFE(0)->GetDof(), nsp = ir.GetNPoints();
+   const int NE = fes->GetMesh()->GetNE(), dim = fes->GetMesh()->Dimension();
    Array<int> xdofs;
-   DenseMatrix Jpr(dim), dshape(dof, dim), pos(dof, dim);
-   Vector posV(pos.Data(), dof * dim);
+   DenseMatrix Jpr(dim);
 
    // Get the local prolongation of the solution vector.
    Vector x_out_loc(fes->GetVSize());
@@ -379,12 +377,18 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    double min_detJ = infinity();
    for (int i = 0; i < NE; i++)
    {
+      const int dof = fes->GetFE(i)->GetDof();
+      DenseMatrix dshape(dof, dim), pos(dof, dim);
+      Vector posV(pos.Data(), dof * dim);
+
       fes->GetElementVDofs(i, xdofs);
       x_out_loc.GetSubVector(xdofs, posV);
 
+      const IntegrationRule &irule = GetIntegrationRule(*fes->GetFE(i));
+      const int nsp = irule.GetNPoints();
       for (int j = 0; j < nsp; j++)
       {
-         fes->GetFE(i)->CalcDShape(ir.IntPoint(j), dshape);
+         fes->GetFE(i)->CalcDShape(irule.IntPoint(j), dshape);
          MultAtB(pos, dshape, Jpr);
          min_detJ = std::min(min_detJ, Jpr.Det());
       }
@@ -432,11 +436,18 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          int jac_ok = 1;
          for (int i = 0; i < NE; i++)
          {
+            const int dof = fes->GetFE(i)->GetDof();
+            DenseMatrix dshape(dof, dim), pos(dof, dim);
+            Vector posV(pos.Data(), dof * dim);
+
             fes->GetElementVDofs(i, xdofs);
             x_out_loc.GetSubVector(xdofs, posV);
+
+            const IntegrationRule &irule = GetIntegrationRule(*fes->GetFE(i));
+            const int nsp = irule.GetNPoints();
             for (int j = 0; j < nsp; j++)
             {
-               fes->GetFE(i)->CalcDShape(ir.IntPoint(j), dshape);
+               fes->GetFE(i)->CalcDShape(irule.IntPoint(j), dshape);
                MultAtB(pos, dshape, Jpr);
                if (Jpr.Det() <= 0.0) { jac_ok = 0; goto break2; }
             }
