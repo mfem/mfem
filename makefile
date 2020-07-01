@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrece Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -233,6 +233,8 @@ ifeq ($(MFEM_USE_CUDA),YES)
    ifeq ($(MFEM_USE_HIP),YES)
       $(error Incompatible config: MFEM_USE_CUDA can not be combined with MFEM_USE_HIP)
    endif
+else
+   JIT_LANG = -x c++
 endif
 
 # HIP configuration
@@ -249,7 +251,7 @@ endif
 
 # JIT configuration
 MFEM_JIT = mjit
-ifeq ($(MFEM_USE_JIT),YES)
+ifeq ($(MFEM_USE_CIDA)$(MFEM_USE_JIT),YESYES)
 	LDFLAGS += -ldl
 endif
 
@@ -432,22 +434,31 @@ ifneq ($(MFEM_USE_JIT),YES)
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 else
-MFEM_JIT_DEFS  = -DMFEM_JIT_MAIN
-MFEM_JIT_DEFS += -DMFEM_CXX="$(MFEM_CXX)"
-MFEM_JIT_DEFS += -DMFEM_BUILD_FLAGS="$(strip $(MFEM_BUILD_FLAGS))"
-MFEM_JIT_FLAGS = -Wall -pedantic
+# JIT compilation rules
+# Files that will be preprocessed
+JIT_SOURCE_FILES = $(SRC)fem/bilininteg_diffusion_pa.cpp \
+                   $(SRC)fem/bilininteg_mass_pa.cpp
+
+# Definitions to compile the preprocessor and grab the MFEM compiler
+JIT_DEFINES  = -DMFEM_JIT_MAIN
+JIT_DEFINES += -DMFEM_CXX="$(MFEM_CXX)"
+JIT_DEFINES += -DMFEM_BUILD_FLAGS="$(strip $(MFEM_BUILD_FLAGS))"
+JIT_CXXFLAGS = -O3 -std=c++11 $(XCOMPILER)-Wall $(XCOMPILER)-pedantic
 $(BLD)$(MFEM_JIT): $(SRC)general/$(MFEM_JIT).cpp \
-						 $(SRC)general/$(MFEM_JIT).hpp $(THIS_MK)
-	$(MFEM_CXX) -O3 -std=c++11 -o $(@) $(<) $(MFEM_JIT_DEFS)
-MFEM_JIT_FLAGS  = $(strip $(MFEM_BUILD_FLAGS))
-ifeq ($(MFEM_USE_CUDA),NO)
-	MFEM_JIT_LANG = -x c++
-else
-# Avoid redefinition of argument 'x'
-endif
-MFEM_JIT_FLAGS += $(MFEM_JIT_LANG) -I. -I$(patsubst %/,%,$(<D))
-$(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) #$(BLD)$(MFEM_JIT)
-	$(BLD)./$(MFEM_JIT) $(<) | $(MFEM_CXX) $(MFEM_JIT_FLAGS) -c -o $(@) -
+                   $(SRC)general/$(MFEM_JIT).hpp $(THIS_MK)
+	$(MFEM_CXX) $(JIT_CXXFLAGS) -o $(@) $(<) $(JIT_DEFINES)
+
+# Filtering out the objects that will be compiled through the preprocessor
+JIT_OBJECTS_FILES = $(JIT_SOURCE_FILES:$(SRC)%.cpp=$(BLD)%.o)
+STD_OBJECTS_FILES = $(filter-out $(JIT_OBJECTS_FILES),$(OBJECT_FILES))
+
+$(STD_OBJECTS_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
+
+JIT_BUILD_FLAGS  = $(strip $(MFEM_BUILD_FLAGS))
+JIT_BUILD_FLAGS += $(JIT_LANG) -I. -I$(patsubst %/,%,$(<D))
+$(JIT_OBJECTS_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) $(BLD)$(MFEM_JIT)
+	$(BLD)./$(MFEM_JIT) $(<) | $(MFEM_CXX) $(JIT_BUILD_FLAGS) -c -o $(@) -
 endif
 
 all: examples miniapps $(TEST_DIRS)
