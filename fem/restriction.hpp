@@ -51,8 +51,8 @@ public:
    void MultTransposeUnsigned(const Vector &x, Vector &y) const;
 
    /// Compute MultTranspose by setting (rather than adding) element
-   /// contributions
-   void MultTransposeOverwrite(const Vector &x, Vector &y) const;
+   /// contributions; this is a left inverse of the Mult() operation
+   void MultLeftInverse(const Vector &x, Vector &y) const;
 };
 
 /// Operator that converts L2 FiniteElementSpace L-vectors to E-vectors.
