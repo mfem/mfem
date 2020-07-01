@@ -20,51 +20,7 @@
 using namespace std;
 using namespace mfem;
 
-const char vishost[] = "localhost";
-const int  visport   = 19916;
-
 const char* keys = "Rjlmc*******";
-
-
-void VisualizeField(socketstream &sock, GridFunction &gf, const char *title,
-                    const char * keys = NULL, int w = 400, int h = 400,
-                    int x = 0, int y = 0, bool vec = false)
-{
-   Mesh &mesh = *gf.FESpace()->GetMesh();
-
-   bool newly_opened = false;
-   int connection_failed;
-
-   do
-   {
-      if (!sock.is_open() || !sock)
-      {
-         sock.open(vishost, visport);
-         sock.precision(8);
-         newly_opened = true;
-      }
-      sock << "solution\n";
-
-      mesh.Print(sock);
-      gf.Save(sock);
-
-      if (newly_opened)
-      {
-         sock << "window_title '" << title << "'\n"
-              << "window_geometry "
-              << x << " " << y << " " << w << " " << h << "\n";
-
-         if (keys) { sock << "keys " << keys << "\n"; }
-         else { sock << "keys mAc\n"; }
-
-         if (vec) { sock << "vvv"; }
-         sock << endl;
-      }
-
-      connection_failed = !sock && !newly_opened;
-   }
-   while (connection_failed);
-}
 
 
 struct HPError
@@ -95,24 +51,21 @@ int HalfOrder(int p)
 }
 
 
-void Solve(FiniteElementSpace *fespace, GridFunction *sln, int int_order)
+void Solve(FiniteElementSpace *fespace, GridFunction *sln,
+           Coefficient *exsol, Coefficient *rhs,
+           bool pa, int int_order)
 {
-   const bool pa = false;
-
-   FunctionCoefficient exsol(layer2_exsol);
-   FunctionCoefficient rhs(layer2_laplace);
-
+   DomainLFIntegrator *dlfi = new DomainLFIntegrator(*rhs);
    Geometry::Type geom = fespace->GetMesh()->GetElementGeometry(0);
+   dlfi->SetIntRule(&IntRules.Get(geom, int_order));
 
    // Assemble the linear form. The right hand side is manufactured
    // so that the solution is the analytic solution.
    LinearForm lf(fespace);
-   DomainLFIntegrator *dlfi = new DomainLFIntegrator(rhs);
-   dlfi->SetIntRule(&IntRules.Get(geom, int_order));
    lf.AddDomainIntegrator(dlfi);
    lf.Assemble();
 
-   // Assemble bilinear form.
+   // Assemble the bilinear form.
    BilinearForm bf(fespace);
    if (pa) { bf.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    bf.AddDomainIntegrator(new DiffusionIntegrator());
@@ -123,7 +76,7 @@ void Solve(FiniteElementSpace *fespace, GridFunction *sln, int int_order)
    Array<int> ess_bdr(fespace->GetMesh()->bdr_attributes.Max());
    ess_bdr = 1;
    *sln = 0; // FIXME
-   sln->ProjectBdrCoefficient(exsol, ess_bdr);
+   sln->ProjectBdrCoefficient(*exsol, ess_bdr);
    Array<int> ess_tdof_list;
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
@@ -158,7 +111,7 @@ void Solve(FiniteElementSpace *fespace, GridFunction *sln, int int_order)
 #define SOLVE 1
 
 void EstimateHPErrors(FiniteElementSpace* fes,
-                      Coefficient &exsol,
+                      Coefficient &exsol, Coefficient &rhs,
                       VectorCoefficient &exgrad, int int_order,
                       Array<HPError> &elem_hp_error, socketstream dbg_sock[])
 {
@@ -198,7 +151,7 @@ void EstimateHPErrors(FiniteElementSpace* fes,
 
     GridFunction sol(fes);
 #if SOLVE
-    Solve(fes, &sol, int_order);
+    Solve(fes, &sol, &exsol, &rhs, false, int_order);
 #else
     sol.ProjectCoefficient(exsol);
 #if CONTINUOUS
@@ -208,7 +161,7 @@ void EstimateHPErrors(FiniteElementSpace* fes,
 
     GridFunction sol_h(fes_h);
 #if SOLVE
-    Solve(fes_h, &sol_h, int_order);
+    Solve(fes_h, &sol_h, &exsol, &rhs, false, int_order);
 #else
     sol_h.ProjectCoefficient(exsol);
 #if CONTINUOUS
@@ -218,7 +171,7 @@ void EstimateHPErrors(FiniteElementSpace* fes,
 
     GridFunction sol_p(fes_p);
 #if SOLVE
-    Solve(fes_p, &sol_p, int_order);
+    Solve(fes_p, &sol_p, &exsol, &rhs, false, int_order);
 #else
     sol_p.ProjectCoefficient(exsol);
 #if CONTINUOUS
@@ -304,27 +257,25 @@ void EstimateHPErrors(FiniteElementSpace* fes,
 int main(int argc, char *argv[])
 {
    // Parse command-line options.
-   const char *mesh_file = "layer-quad.mesh";
+   int problem = 1;
    int order = 1;
-   bool pa = false;
-   const char *device_config = "cpu";
-   bool visualization = true;
    double ref_threshold = 0.7;
    bool aniso = false;
    bool hp = true;
    int max_order = 10;
    int int_order = 30;
    bool relaxed_hp = false;
-   bool pause = false;
+   bool wait = false;
    int nc_limit = 2;
+   bool pa = false;
+   const char *device_config = "cpu";
+   bool visualization = true;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file, "-m", "--mesh",
-                  "Mesh file to use.");
+   args.AddOption(&problem, "-p", "--problem",
+                  "Problem type: 0 = L-shaped, 1 = inner layer.");
    args.AddOption(&order, "-o", "--order",
                   "Initial mesh finite element order (polynomial degree).");
-   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
-                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&hp, "-hp", "--hp", "-no-hp", "--no-hp",
                   "Enable hp refinement.");
    args.AddOption(&relaxed_hp, "-x", "--relaxed-hp", "-no-x", "--no-relaxed-hp",
@@ -333,8 +284,10 @@ int main(int argc, char *argv[])
                   "Refine elements with error larger than threshold * max_error.");
    args.AddOption(&nc_limit, "-nc", "--nc-limit",
                   "Set maximum difference of refinement levels of adjacent elements.");
-   args.AddOption(&pause, "-p", "--pause", "-no-p", "--no-pause",
+   args.AddOption(&wait, "-w", "--wait", "-no-w", "--no-wait",
                   "Wait for user input after each iteration.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -354,6 +307,7 @@ int main(int argc, char *argv[])
    device.Print();
 
    // Load and adjust the Mesh
+   const char *mesh_file = problem ? "layer-quad.mesh" : "lshape-quad.mesh";
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
@@ -372,17 +326,17 @@ int main(int argc, char *argv[])
    Geometry::Type geom = mesh.GetElementGeometry(0);
 
    // Prepare exact solution Coefficients
-   FunctionCoefficient exsol(layer2_exsol);
-      /*prob_type ? ((dim == 3) ? layer3_exsol  : layer2_exsol)
-                : ((dim == 3) ? fichera_exsol : lshape_exsol) );*/
+   FunctionCoefficient exsol(
+      problem ? ((dim == 3) ? layer3_exsol  : layer2_exsol)
+              : ((dim == 3) ? fichera_exsol : lshape_exsol) );
 
-   VectorFunctionCoefficient exgrad(dim, layer2_exgrad);
-      /*prob_type ? ((dim == 3) ? layer3_exgrad  : layer2_exgrad)
-                : ((dim == 3) ? fichera_exgrad : lshape_exgrad) );*/
+   VectorFunctionCoefficient exgrad(dim,
+      problem ? ((dim == 3) ? layer3_exgrad  : layer2_exgrad)
+              : ((dim == 3) ? fichera_exgrad : lshape_exgrad) );
 
-   FunctionCoefficient rhs(layer2_laplace);
-      /*prob_type ? ((dim == 3) ? layer3_laplace  : layer2_laplace)
-                : ((dim == 3) ? fichera_laplace : lshape_laplace) );*/
+   FunctionCoefficient rhs(
+      problem ? ((dim == 3) ? layer3_laplace  : layer2_laplace)
+              : ((dim == 3) ? fichera_laplace : lshape_laplace) );
 
    // Define a finite element space on the mesh. Initially the polynomial
    // order is constant everywhere.
@@ -390,14 +344,9 @@ int main(int argc, char *argv[])
    FiniteElementSpace fespace(&mesh, &fec);
    fespace.SetRelaxedHpConformity(relaxed_hp);
 
-   GridFunction x(&fespace);
-   x = 0.0;
-
    // All boundary attributes will be used for essential (Dirichlet) BC.
    MFEM_VERIFY(mesh.bdr_attributes.Size() > 0,
                "Boundary attributes required in the mesh.");
-   Array<int> ess_bdr(mesh.bdr_attributes.Max());
-   ess_bdr = 1;
 
    // Connect to GLVis.
    socketstream sol_sock, ord_sock, dbg_sock[3];
@@ -407,69 +356,23 @@ int main(int argc, char *argv[])
    // The main AMR loop. In each iteration we solve the problem on the
    // current mesh, visualize the solution, and refine the mesh.
    const int max_dofs = 100000;
-   //const int max_dofs = 200;
    for (int it = 0; ; it++)
    {
       int cdofs = fespace.GetTrueVSize();
       cout << "\nAMR iteration " << it << endl;
       cout << "Number of unknowns: " << cdofs << endl;
 
-#if 0
-      // Assemble the linear form. The right hand side is manufactured
-      // so that the solution is the analytic solution.
-      LinearForm lf(&fespace);
-      DomainLFIntegrator *dlfi = new DomainLFIntegrator(rhs);
-      dlfi->SetIntRule(&IntRules.Get(geom, int_order));
-      lf.AddDomainIntegrator(dlfi);
-      lf.Assemble();
+      // Solve for the current mesh: (h, p)
+      GridFunction sol(&fespace);
+      Solve(&fespace, &sol, &exsol, &rhs, pa, int_order);
 
-      // Assemble bilinear form.
-      BilinearForm bf(&fespace);
-      if (pa) { bf.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-      bf.AddDomainIntegrator(new DiffusionIntegrator());
-      bf.Assemble();
-
-       // Set Dirichlet boundary values in the GridFunction x.
-      // Determine the list of Dirichlet true DOFs in the linear system.
-      Array<int> ess_tdof_list;
-      x = 0; // FIXME
-      x.ProjectBdrCoefficient(exsol, ess_bdr);
-      fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-
-      // 16. Create the linear system: eliminate boundary conditions, constrain
-      //     hanging nodes and possibly apply other transformations. The system
-      //     will be solved for true (unconstrained) DOFs only.
-      OperatorPtr A;
-      Vector B, X;
-
-      const int copy_interior = 1;
-      bf.FormLinearSystem(ess_tdof_list, x, lf, A, X, B, copy_interior);
-
-      // 17. Solve the linear system A X = B.
-      if (!pa)
-      {
-         // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-         GSSmoother M((SparseMatrix&)(*A));
-         PCG(*A, M, B, X, 3, 500, 1e-13, 0.0);
-      }
-      else // No preconditioning for now in partial assembly mode.
-      {
-         CG(*A, B, X, 3, 2000, 1e-12, 0.0);
-      }
-
-      // 18. After solving the linear system, reconstruct the solution as a
-      //     finite element GridFunction. Constrained nodes are interpolated
-      //     from true DOFs (it may therefore happen that x.Size() >= X.Size()).
-      bf.RecoverFEMSolution(X, lf, x);
-#else
-
-      Solve(&fespace, &x, int_order);
-#endif
+      // Solve for a space with increased p: (h, p+1)
+      // TODO: move here from EstimateHpErrors
 
       // 19. Send solution by socket to the GLVis server.
       if (visualization)
       {
-         GridFunction *vis_x = ProlongToMaxOrder(&x);
+         GridFunction *vis_x = ProlongToMaxOrder(&sol);
          VisualizeField(sol_sock, *vis_x, "Solution", keys, 600, 500, 0, 70);
          delete vis_x;
 
@@ -493,7 +396,7 @@ int main(int argc, char *argv[])
       // Calculate the H^1_0 errors of elements as well as the total error.
       Array<double> elem_error;
       Array<int> ref_type;
-      double error = sqrt(CalculateH10Error2(&x, &exgrad, &elem_error,
+      double error = sqrt(CalculateH10Error2(&sol, &exgrad, &elem_error,
                                              &ref_type, int_order));
 
       // Save dofs and error for convergence plot
@@ -504,7 +407,7 @@ int main(int argc, char *argv[])
       if (hp)
       {
          Array<HPError> elem_hp_error;
-         EstimateHPErrors(&fespace, exsol, exgrad, int_order, elem_hp_error, dbg_sock);
+         EstimateHPErrors(&fespace, exsol, rhs, exgrad, int_order, elem_hp_error, dbg_sock);
 
          /*Array<int> elem_ref(mesh.GetNE());
          Array<double> elem_rate(mesh.GetNE());
@@ -576,7 +479,7 @@ int main(int argc, char *argv[])
             }
          }
 
-         if (pause)
+         if (wait)
          {
             cout << "Press ENTER to continue...";
             cin.get();
@@ -594,7 +497,7 @@ int main(int argc, char *argv[])
       }
       else // !hp
       {
-         if (pause)
+         if (wait)
          {
             cout << "Press ENTER to continue...";
             cin.get();
@@ -615,7 +518,7 @@ int main(int argc, char *argv[])
 
       // Update the space, interpolate the solution.
       fespace.Update(false);
-      x.Update();
+      sol.Update();
 
       // Inform also the bilinear and linear forms that the space has changed.
       /*bf.Update();

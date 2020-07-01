@@ -10,6 +10,11 @@ namespace mfem
 GridFunction* ProlongToMaxOrder(const GridFunction *x);
 
 
+void VisualizeField(socketstream &sock, GridFunction &gf, const char *title,
+                    const char * keys = NULL, int w = 400, int h = 400,
+                    int x = 0, int y = 0, bool vec = false);
+
+
 } // namespace mfem
 
 #endif // HPTEST_UTIL_HPP

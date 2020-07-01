@@ -54,4 +54,47 @@ GridFunction* ProlongToMaxOrder(const GridFunction *x)
 }
 
 
+const char vishost[] = "localhost";
+const int  visport   = 19916;
+
+void VisualizeField(socketstream &sock, GridFunction &gf, const char *title,
+                    const char *keys, int w, int h, int x, int y, bool vec)
+{
+   Mesh &mesh = *gf.FESpace()->GetMesh();
+
+   bool newly_opened = false;
+   int connection_failed;
+
+   do
+   {
+      if (!sock.is_open() || !sock)
+      {
+         sock.open(vishost, visport);
+         sock.precision(8);
+         newly_opened = true;
+      }
+      sock << "solution\n";
+
+      mesh.Print(sock);
+      gf.Save(sock);
+
+      if (newly_opened)
+      {
+         sock << "window_title '" << title << "'\n"
+              << "window_geometry "
+              << x << " " << y << " " << w << " " << h << "\n";
+
+         if (keys) { sock << "keys " << keys << "\n"; }
+         else { sock << "keys mAc\n"; }
+
+         if (vec) { sock << "vvv"; }
+         sock << std::endl;
+      }
+
+      connection_failed = !sock && !newly_opened;
+   }
+   while (connection_failed);
+}
+
+
 } // namespace mfem
