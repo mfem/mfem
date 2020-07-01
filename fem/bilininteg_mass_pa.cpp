@@ -1127,16 +1127,16 @@ static void PAMassApply(const int dim,
                         const int D1D,
                         const int Q1D,
                         const int NE,
-                        const Array<double> &aB,
-                        const Array<double> &aBt,
-                        const Vector &vD,
-                        const Vector &vX,
-                        Vector &vY)
+                        const Array<double> &b,
+                        const Array<double> &bt,
+                        const Vector &d,
+                        const Vector &x,
+                        Vector &y)
 {
-   const double *B = aB.Read();
-   const double *D = vD.Read();
-   const double *X = vX.Read();
-   double *Y = vY.ReadWrite();
+   const double *B = b.Read();
+   const double *D = d.Read();
+   const double *X = x.Read();
+   double *Y = y.ReadWrite();
 #ifdef MFEM_USE_OCCA
    if (DeviceCanUseOcca())
    {
@@ -1185,10 +1185,10 @@ static void PAMassApply(const int dim,
 #else // MFEM_USE_JIT
    if (dim == 2)
    {
-      const int NBZ = (D1D==2||D1D==3) ? 16:
-                      (D1D==4||D1D==5) ? 8 :
-                      (D1D==6||D1D==7) ? 4 :
-                      (D1D==8||D1D==9) ? 2 : 1;
+      const int NBZ = (D1D==2 || D1D==3) ? 16:
+                      (D1D==4 || D1D==5) ? 8 :
+                      (D1D==6 || D1D==7) ? 4 :
+                      (D1D==8 || D1D==9) ? 2 : 1;
       return SmemPAMassApply2D(NE,B,D,X,Y,D1D,Q1D,NBZ);
    }
    if (dim == 3)

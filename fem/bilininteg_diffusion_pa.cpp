@@ -1559,21 +1559,21 @@ static void PADiffusionApply(const int dim,
                              const int D1D,
                              const int Q1D,
                              const int NE,
-                             const Array<double> &aB,
-                             const Array<double> &aG,
-                             const Array<double> &aBt,
-                             const Array<double> &aGt,
-                             const Vector &vD,
-                             const Vector &vX,
-                             Vector &vY)
+                             const Array<double> &b,
+                             const Array<double> &g,
+                             const Array<double> &bt,
+                             const Array<double> &gt,
+                             const Vector &d,
+                             const Vector &x,
+                             Vector &y)
 {
-   const auto B = aB.Read();
-   const auto G = aG.Read();
-   const auto Bt = aBt.Read();
-   const auto Gt = aGt.Read();
-   const auto D = vD.Read();
-   const auto X = vX.Read();
-   auto Y = vY.ReadWrite();
+   const auto B = b.Read();
+   const auto G = g.Read();
+   const auto Bt = bt.Read();
+   const auto Gt = gt.Read();
+   const auto D = d.Read();
+   const auto X = x.Read();
+   auto Y = y.ReadWrite();
 #ifdef MFEM_USE_OCCA
    if (DeviceCanUseOcca())
    {
@@ -1629,10 +1629,10 @@ static void PADiffusionApply(const int dim,
 #else // MFEM_USE_JIT
    if (dim == 2)
    {
-      const int NBZ = (D1D==2||D1D==3) ? 16:
-                      (D1D==4||D1D==5) ? 8 :
-                      (D1D==6||D1D==7) ? 4 :
-                      (D1D==8||D1D==9) ? 2 : 1;
+      const int NBZ = (D1D==2 || D1D==3) ? 16:
+                      (D1D==4 || D1D==5) ? 8 :
+                      (D1D==6 || D1D==7) ? 4 :
+                      (D1D==8 || D1D==9) ? 2 : 1;
       return SmemPADiffusionApply2D(NE,B,G,D,X,Y,D1D,Q1D,NBZ);
    }
    if (dim == 3)
