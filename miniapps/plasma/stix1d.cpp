@@ -52,10 +52,10 @@
 // Compile with: make stix1d
 //
 // Sample runs:
-//   ./stix1d -md 0.24  -ne  50 -dbcs '3 5' -s 5 -f 80e6 -B '5.4 0 0' -w R -num '2e20 2e20'
-//   ./stix1d -md 0.24  -ne  50 -dbcs '3 5' -s 5 -f 80e6 -B '5.4 0 0' -w L -num '2e20 2e20'
-//   ./stix1d -md 0.007 -ne  50 -dbcs '3 5' -s 5 -f 80e6 -B '0 5.4 0' -w O -num '2e20 2e20'
-//   ./stix1d -md 0.24  -ne 480 -dbcs '3 5' -s 5 -f 80e6 -B '0 0 5.4' -w J -num '2e20 2e20' -slab '0 1 0 0.16 0.02' -maxit 1
+//   ./stix1d -md 0.24  -ne  50 -dbcs '3 5' -s 1 -f 80e6 -B '5.4 0 0' -w R -num '2e20 2e20'
+//   ./stix1d -md 0.24  -ne  50 -dbcs '3 5' -s 1 -f 80e6 -B '5.4 0 0' -w L -num '2e20 2e20'
+//   ./stix1d -md 0.007 -ne  50 -dbcs '3 5' -s 1 -f 80e6 -B '0 5.4 0' -w O -num '2e20 2e20'
+//   ./stix1d -md 0.24  -ne 480 -dbcs '3 5' -s 1 -f 80e6 -B '0 0 5.4' -w J -num '2e20 2e20' -slab '0 1 0 0.16 0.02' -maxit 1
 //
 // Sample runs with partial assembly:
 //   ./stix1d -md 0.24  -ne  50 -dbcs '3 5' -s 1 -f 80e6 -B '5.4 0 0' -w R -num '2e20 2e20' -pa
@@ -68,9 +68,9 @@
 //   ./stix1d -md 0.007 -ne  50 -dbcs '3 5' -s 1 -f 80e6 -B '0 5.4 0' -w O -num '2e20 2e20' -pa -d cuda
 //
 // Parallel sample runs:
-//   mpirun -np 4 ./stix1d -md 0.24  -ne  50 -dbcs '3 5' -s 5 -f 80e6 -B '5.4 0 0' -w R -num '2e20 2e20'
-//   mpirun -np 4 ./stix1d -md 0.24  -ne  50 -dbcs '3 5' -s 5 -f 80e6 -B '5.4 0 0' -w L -num '2e20 2e20'
-//   mpirun -np 4 ./stix1d -md 0.007 -ne  50 -dbcs '3 5' -s 5 -f 80e6 -B '0 5.4 0' -w O -num '2e20 2e20'
+//   mpirun -np 4 ./stix1d -md 0.24  -ne  50 -dbcs '3 5' -s 1 -f 80e6 -B '5.4 0 0' -w R -num '2e20 2e20'
+//   mpirun -np 4 ./stix1d -md 0.24  -ne  50 -dbcs '3 5' -s 1 -f 80e6 -B '5.4 0 0' -w L -num '2e20 2e20'
+//   mpirun -np 4 ./stix1d -md 0.007 -ne  50 -dbcs '3 5' -s 1 -f 80e6 -B '0 5.4 0' -w O -num '2e20 2e20'
 //
 
 #include "cold_plasma_dielectric_coefs.hpp"
