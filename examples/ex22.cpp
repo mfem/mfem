@@ -432,8 +432,7 @@ int main(int argc, char *argv[])
       BDP.owns_blocks = 1;
 
       GMRESSolver gmres;
-      // TODO: Implement device support for block-diagonal preconditioner
-      if (device.IsDisabled()) { gmres.SetPreconditioner(BDP); }
+      gmres.SetPreconditioner(BDP);
       gmres.SetOperator(*A.Ptr());
       gmres.SetRelTol(1e-12);
       gmres.SetMaxIter(1000);
