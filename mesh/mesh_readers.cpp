@@ -12,6 +12,7 @@
 #include "mesh_headers.hpp"
 #include "../fem/fem.hpp"
 #include "../general/text.hpp"
+#include "gmsh.hpp"
 
 #include <iostream>
 #include <cstdio>
@@ -922,7 +923,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
    spaceDim = 3;
 
    // Mesh order
-   int order = 1;
+   int mesh_order = 1;
 
    // Mesh type
    bool periodic = false;
@@ -1234,6 +1235,21 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          ho_verts_2D.reserve(num_of_all_elements);
          ho_verts_3D.reserve(num_of_all_elements);
 
+         // Temporary storage for order of elements
+         vector<int> ho_el_order_1D, ho_el_order_2D, ho_el_order_3D;
+         ho_el_order_1D.reserve(num_of_all_elements);
+         ho_el_order_2D.reserve(num_of_all_elements);
+         ho_el_order_3D.reserve(num_of_all_elements);
+
+         // Vertex order mappings
+         Array<int*> ho_lin(10); ho_lin = NULL;
+         Array<int*> ho_tri(10); ho_tri = NULL;
+         Array<int*> ho_sqr(10); ho_sqr = NULL;
+         Array<int*> ho_tet(10); ho_tet = NULL;
+         Array<int*> ho_hex( 9); ho_hex = NULL;
+         Array<int*> ho_wdg( 9); ho_wdg = NULL;
+         Array<int*> ho_pyr( 9); ho_pyr = NULL;
+
          if (binary)
          {
             int n_elem_part = 0; // partial sum of elements that are read
@@ -1291,7 +1307,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                   }
 
                   // initialize the mesh element
-                  order = 11;
+                  int el_order = 11;
                   switch (type_of_element)
                   {
                      case  1: //   2-node line
@@ -1309,65 +1325,68 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                            new Segment(&vert_indices[0], phys_domain));
                         if (type_of_element != 1)
                         {
+                           el_order = n_elem_nodes - 1;
                            Array<int> * hov = new Array<int>;
                            hov->Append(&vert_indices[0], n_elem_nodes);
                            ho_verts_1D.push_back(hov);
-                           order = n_elem_nodes - 1;
+                           ho_el_order_1D.push_back(el_order);
                         }
                         break;
                      }
-                     case  2: order--; //  3-node triangle
-                     case  9: order--; //  6-node triangle (2nd order)
-                     case 21: order--; // 10-node triangle (3rd order)
-                     case 23: order--; // 15-node triangle (4th order)
-                     case 25: order--; // 21-node triangle (5th order)
-                     case 42: order--; // 28-node triangle (6th order)
-                     case 43: order--; // 36-node triangle (7th order)
-                     case 44: order--; // 45-node triangle (8th order)
-                     case 45: order--; // 55-node triangle (9th order)
-                     case 46: order--; // 66-node triangle (10th order)
+                     case  2: el_order--; //  3-node triangle
+                     case  9: el_order--; //  6-node triangle (2nd order)
+                     case 21: el_order--; // 10-node triangle (3rd order)
+                     case 23: el_order--; // 15-node triangle (4th order)
+                     case 25: el_order--; // 21-node triangle (5th order)
+                     case 42: el_order--; // 28-node triangle (6th order)
+                     case 43: el_order--; // 36-node triangle (7th order)
+                     case 44: el_order--; // 45-node triangle (8th order)
+                     case 45: el_order--; // 55-node triangle (9th order)
+                     case 46: el_order--; // 66-node triangle (10th order)
                         {
                            elements_2D.push_back(
                               new Triangle(&vert_indices[0], phys_domain));
-                           if (order > 1)
+                           if (el_order > 1)
                            {
                               Array<int> * hov = new Array<int>;
                               hov->Append(&vert_indices[0], n_elem_nodes);
                               ho_verts_2D.push_back(hov);
+                              ho_el_order_2D.push_back(el_order);
                            }
                            break;
                         }
-                     case  3: order--; //   4-node quadrangle
-                     case 10: order--; //   9-node quadrangle (2nd order)
-                     case 36: order--; //  16-node quadrangle (3rd order)
-                     case 37: order--; //  25-node quadrangle (4th order)
-                     case 38: order--; //  36-node quadrangle (5th order)
-                     case 47: order--; //  49-node quadrangle (6th order)
-                     case 48: order--; //  64-node quadrangle (7th order)
-                     case 49: order--; //  81-node quadrangle (8th order)
-                     case 50: order--; // 100-node quadrangle (9th order)
-                     case 51: order--; // 121-node quadrangle (10th order)
+                     case  3: el_order--; //   4-node quadrangle
+                     case 10: el_order--; //   9-node quadrangle (2nd order)
+                     case 36: el_order--; //  16-node quadrangle (3rd order)
+                     case 37: el_order--; //  25-node quadrangle (4th order)
+                     case 38: el_order--; //  36-node quadrangle (5th order)
+                     case 47: el_order--; //  49-node quadrangle (6th order)
+                     case 48: el_order--; //  64-node quadrangle (7th order)
+                     case 49: el_order--; //  81-node quadrangle (8th order)
+                     case 50: el_order--; // 100-node quadrangle (9th order)
+                     case 51: el_order--; // 121-node quadrangle (10th order)
                         {
                            elements_2D.push_back(
                               new Quadrilateral(&vert_indices[0], phys_domain));
-                           if (order > 1)
+                           if (el_order > 1)
                            {
                               Array<int> * hov = new Array<int>;
                               hov->Append(&vert_indices[0], n_elem_nodes);
                               ho_verts_2D.push_back(hov);
+                              ho_el_order_2D.push_back(el_order);
                            }
                            break;
                         }
-                     case  4: order--; //   4-node tetrahedron
-                     case 11: order--; //  10-node tetrahedron (2nd order)
-                     case 29: order--; //  20-node tetrahedron (3rd order)
-                     case 30: order--; //  35-node tetrahedron (4th order)
-                     case 31: order--; //  56-node tetrahedron (5th order)
-                     case 71: order--; //  84-node tetrahedron (6th order)
-                     case 72: order--; // 120-node tetrahedron (7th order)
-                     case 73: order--; // 165-node tetrahedron (8th order)
-                     case 74: order--; // 220-node tetrahedron (9th order)
-                     case 75: order--; // 286-node tetrahedron (10th order)
+                     case  4: el_order--; //   4-node tetrahedron
+                     case 11: el_order--; //  10-node tetrahedron (2nd order)
+                     case 29: el_order--; //  20-node tetrahedron (3rd order)
+                     case 30: el_order--; //  35-node tetrahedron (4th order)
+                     case 31: el_order--; //  56-node tetrahedron (5th order)
+                     case 71: el_order--; //  84-node tetrahedron (6th order)
+                     case 72: el_order--; // 120-node tetrahedron (7th order)
+                     case 73: el_order--; // 165-node tetrahedron (8th order)
+                     case 74: el_order--; // 220-node tetrahedron (9th order)
+                     case 75: el_order--; // 286-node tetrahedron (10th order)
                         {
 #ifdef MFEM_USE_MEMALLOC
                            elements_3D.push_back(TetMemory.Alloc());
@@ -1377,75 +1396,79 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                            elements_3D.push_back(
                               new Tetrahedron(&vert_indices[0], phys_domain));
 #endif
-                           if (order > 1)
+                           if (el_order > 1)
                            {
                               Array<int> * hov = new Array<int>;
                               hov->Append(&vert_indices[0], n_elem_nodes);
                               ho_verts_3D.push_back(hov);
+                              ho_el_order_3D.push_back(el_order);
                            }
                            break;
                         }
-                     case  5: order--; //    8-node hexahedron
-                     case 12: order--; //   27-node hexahedron (2nd order)
-                     case 92: order--; //   64-node hexahedron (3rd order)
-                     case 93: order--; //  125-node hexahedron (4th order)
-                     case 94: order--; //  216-node hexahedron (5th order)
-                     case 95: order--; //  343-node hexahedron (6th order)
-                     case 96: order--; //  512-node hexahedron (7th order)
-                     case 97: order--; //  729-node hexahedron (8th order)
-                     case 98: order--; // 1000-node hexahedron (9th order)
+                     case  5: el_order--; //    8-node hexahedron
+                     case 12: el_order--; //   27-node hexahedron (2nd order)
+                     case 92: el_order--; //   64-node hexahedron (3rd order)
+                     case 93: el_order--; //  125-node hexahedron (4th order)
+                     case 94: el_order--; //  216-node hexahedron (5th order)
+                     case 95: el_order--; //  343-node hexahedron (6th order)
+                     case 96: el_order--; //  512-node hexahedron (7th order)
+                     case 97: el_order--; //  729-node hexahedron (8th order)
+                     case 98: el_order--; // 1000-node hexahedron (9th order)
                         {
-                           order--;
+                           el_order--;
                            elements_3D.push_back(
                               new Hexahedron(&vert_indices[0], phys_domain));
-                           if (order > 1)
+                           if (el_order > 1)
                            {
                               Array<int> * hov = new Array<int>;
                               hov->Append(&vert_indices[0], n_elem_nodes);
                               ho_verts_3D.push_back(hov);
+                              ho_el_order_3D.push_back(el_order);
                            }
                            break;
                         }
-                     case   6: order--; //   6-node wedge
-                     case  13: order--; //  18-node wedge (2nd order)
-                     case  90: order--; //  40-node wedge (3rd order)
-                     case  91: order--; //  75-node wedge (4th order)
-                     case 106: order--; // 126-node wedge (5th order)
-                     case 107: order--; // 196-node wedge (6th order)
-                     case 108: order--; // 288-node wedge (7th order)
-                     case 109: order--; // 405-node wedge (8th order)
-                     case 110: order--; // 550-node wedge (9th order)
+                     case   6: el_order--; //   6-node wedge
+                     case  13: el_order--; //  18-node wedge (2nd order)
+                     case  90: el_order--; //  40-node wedge (3rd order)
+                     case  91: el_order--; //  75-node wedge (4th order)
+                     case 106: el_order--; // 126-node wedge (5th order)
+                     case 107: el_order--; // 196-node wedge (6th order)
+                     case 108: el_order--; // 288-node wedge (7th order)
+                     case 109: el_order--; // 405-node wedge (8th order)
+                     case 110: el_order--; // 550-node wedge (9th order)
                         {
-                           order--;
+                           el_order--;
                            elements_3D.push_back(
                               new Wedge(&vert_indices[0], phys_domain));
-                           if (order > 1)
+                           if (el_order > 1)
                            {
                               Array<int> * hov = new Array<int>;
                               hov->Append(&vert_indices[0], n_elem_nodes);
                               ho_verts_3D.push_back(hov);
+                              ho_el_order_3D.push_back(el_order);
                            }
                            break;
                         }
                      /*
-                     case   7: order--; //   5-node pyramid
-                     case  14: order--; //  14-node pyramid (2nd order)
-                     case 118: order--; //  30-node pyramid (3rd order)
-                     case 119: order--; //  55-node pyramid (4th order)
-                     case 120: order--; //  91-node pyramid (5th order)
-                     case 121: order--; // 140-node pyramid (6th order)
-                     case 122: order--; // 204-node pyramid (7th order)
-                     case 123: order--; // 285-node pyramid (8th order)
-                     case 124: order--; // 385-node pyramid (9th order)
+                     case   7: el_order--; //   5-node pyramid
+                     case  14: el_order--; //  14-node pyramid (2nd order)
+                     case 118: el_order--; //  30-node pyramid (3rd order)
+                     case 119: el_order--; //  55-node pyramid (4th order)
+                     case 120: el_order--; //  91-node pyramid (5th order)
+                     case 121: el_order--; // 140-node pyramid (6th order)
+                     case 122: el_order--; // 204-node pyramid (7th order)
+                     case 123: el_order--; // 285-node pyramid (8th order)
+                     case 124: el_order--; // 385-node pyramid (9th order)
                         {
-                           order--;
+                           el_order--;
                            elements_3D.push_back(
                                new Pyramid(&vert_indices[0], phys_domain));
-                           if (order > 1)
+                           if (el_order > 1)
                            {
                               Array<int> * hov = new Array<int>;
                               hov->Append(&vert_indices[0], n_elem_nodes);
                               ho_verts_3D.push_back(hov);
+                     ho_el_order_3D.push_back(el_order);
                            }
                            break;
                         }
@@ -1503,7 +1526,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                }
 
                // initialize the mesh element
-               order = 11;
+               int el_order = 11;
                switch (type_of_element)
                {
                   case  1: //  2-node line
@@ -1524,62 +1547,65 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                         Array<int> * hov = new Array<int>;
                         hov->Append(&vert_indices[0], n_elem_nodes);
                         ho_verts_1D.push_back(hov);
-                        order = n_elem_nodes - 1;
+                        el_order = n_elem_nodes - 1;
+                        ho_el_order_1D.push_back(el_order);
                      }
                      break;
                   }
-                  case  2: order--; //  3-node triangle
-                  case  9: order--; //  6-node triangle (2nd order)
-                  case 21: order--; // 10-node triangle (3rd order)
-                  case 23: order--; // 15-node triangle (4th order)
-                  case 25: order--; // 21-node triangle (5th order)
-                  case 42: order--; // 28-node triangle (6th order)
-                  case 43: order--; // 36-node triangle (7th order)
-                  case 44: order--; // 45-node triangle (8th order)
-                  case 45: order--; // 55-node triangle (9th order)
-                  case 46: order--; // 66-node triangle (10th order)
+                  case  2: el_order--; //  3-node triangle
+                  case  9: el_order--; //  6-node triangle (2nd order)
+                  case 21: el_order--; // 10-node triangle (3rd order)
+                  case 23: el_order--; // 15-node triangle (4th order)
+                  case 25: el_order--; // 21-node triangle (5th order)
+                  case 42: el_order--; // 28-node triangle (6th order)
+                  case 43: el_order--; // 36-node triangle (7th order)
+                  case 44: el_order--; // 45-node triangle (8th order)
+                  case 45: el_order--; // 55-node triangle (9th order)
+                  case 46: el_order--; // 66-node triangle (10th order)
                      {
                         elements_2D.push_back(
                            new Triangle(&vert_indices[0], phys_domain));
-                        if (order > 1)
+                        if (el_order > 1)
                         {
                            Array<int> * hov = new Array<int>;
                            hov->Append(&vert_indices[0], n_elem_nodes);
                            ho_verts_2D.push_back(hov);
+                           ho_el_order_2D.push_back(el_order);
                         }
                         break;
                      }
-                  case  3: order--; //   4-node quadrangle
-                  case 10: order--; //   9-node quadrangle (2nd order)
-                  case 36: order--; //  16-node quadrangle (3rd order)
-                  case 37: order--; //  25-node quadrangle (4th order)
-                  case 38: order--; //  36-node quadrangle (5th order)
-                  case 47: order--; //  49-node quadrangle (6th order)
-                  case 48: order--; //  64-node quadrangle (7th order)
-                  case 49: order--; //  81-node quadrangle (8th order)
-                  case 50: order--; // 100-node quadrangle (9th order)
-                  case 51: order--; // 121-node quadrangle (10th order)
+                  case  3: el_order--; //   4-node quadrangle
+                  case 10: el_order--; //   9-node quadrangle (2nd order)
+                  case 36: el_order--; //  16-node quadrangle (3rd order)
+                  case 37: el_order--; //  25-node quadrangle (4th order)
+                  case 38: el_order--; //  36-node quadrangle (5th order)
+                  case 47: el_order--; //  49-node quadrangle (6th order)
+                  case 48: el_order--; //  64-node quadrangle (7th order)
+                  case 49: el_order--; //  81-node quadrangle (8th order)
+                  case 50: el_order--; // 100-node quadrangle (9th order)
+                  case 51: el_order--; // 121-node quadrangle (10th order)
                      {
                         elements_2D.push_back(
                            new Quadrilateral(&vert_indices[0], phys_domain));
-                        if (order > 1)
+                        if (el_order > 1)
                         {
                            Array<int> * hov = new Array<int>;
                            hov->Append(&vert_indices[0], n_elem_nodes);
                            ho_verts_2D.push_back(hov);
+                           ho_el_order_2D.push_back(el_order);
                         }
                         break;
                      }
-                  case  4: order--; //   4-node tetrahedron
-                  case 11: order--; //  10-node tetrahedron (2nd order)
-                  case 29: order--; //  20-node tetrahedron (3rd order)
-                  case 30: order--; //  35-node tetrahedron (4th order)
-                  case 31: order--; //  56-node tetrahedron (5th order)
-                  case 71: order--; //  84-node tetrahedron (6th order)
-                  case 72: order--; // 120-node tetrahedron (7th order)
-                  case 73: order--; // 165-node tetrahedron (8th order)
-                  case 74: order--; // 220-node tetrahedron (9th order)
-                  case 75: order--; // 286-node tetrahedron (10th order)
+                  case  4: el_order--; //   4-node tetrahedron
+                  case 11: el_order--; //  10-node tetrahedron (2nd order)
+                  case 29: el_order--; //  20-node tetrahedron (3rd order)
+                  case 30: el_order--; //  35-node tetrahedron (4th order)
+                  case 31: el_order--; //  56-node tetrahedron (5th order)
+                  case 71: el_order--; //  84-node tetrahedron (6th order)
+                  case 72: el_order--; // 120-node tetrahedron (7th order)
+                  case 73: el_order--; // 165-node tetrahedron (8th order)
+                  case 74: el_order--; // 220-node tetrahedron (9th order)
+                  case 75: el_order--; // 286-node tetrahedron (10th order)
                      {
 #ifdef MFEM_USE_MEMALLOC
                         elements_3D.push_back(TetMemory.Alloc());
@@ -1589,75 +1615,79 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                         elements_3D.push_back(
                            new Tetrahedron(&vert_indices[0], phys_domain));
 #endif
-                        if (order > 1)
+                        if (el_order > 1)
                         {
                            Array<int> * hov = new Array<int>;
                            hov->Append(&vert_indices[0], n_elem_nodes);
                            ho_verts_3D.push_back(hov);
+                           ho_el_order_3D.push_back(el_order);
                         }
                         break;
                      }
-                  case  5: order--; //    8-node hexahedron
-                  case 12: order--; //   27-node hexahedron (2nd order)
-                  case 92: order--; //   64-node hexahedron (3rd order)
-                  case 93: order--; //  125-node hexahedron (4th order)
-                  case 94: order--; //  216-node hexahedron (5th order)
-                  case 95: order--; //  343-node hexahedron (6th order)
-                  case 96: order--; //  512-node hexahedron (7th order)
-                  case 97: order--; //  729-node hexahedron (8th order)
-                  case 98: order--; // 1000-node hexahedron (9th order)
+                  case  5: el_order--; //    8-node hexahedron
+                  case 12: el_order--; //   27-node hexahedron (2nd order)
+                  case 92: el_order--; //   64-node hexahedron (3rd order)
+                  case 93: el_order--; //  125-node hexahedron (4th order)
+                  case 94: el_order--; //  216-node hexahedron (5th order)
+                  case 95: el_order--; //  343-node hexahedron (6th order)
+                  case 96: el_order--; //  512-node hexahedron (7th order)
+                  case 97: el_order--; //  729-node hexahedron (8th order)
+                  case 98: el_order--; // 1000-node hexahedron (9th order)
                      {
-                        order--;
+                        el_order--;
                         elements_3D.push_back(
                            new Hexahedron(&vert_indices[0], phys_domain));
-                        if (order > 1)
+                        if (el_order > 1)
                         {
                            Array<int> * hov = new Array<int>;
                            hov->Append(&vert_indices[0], n_elem_nodes);
                            ho_verts_3D.push_back(hov);
+                           ho_el_order_3D.push_back(el_order);
                         }
                         break;
                      }
-                  case   6: order--; //   6-node wedge
-                  case  13: order--; //  18-node wedge (2nd order)
-                  case  90: order--; //  40-node wedge (3rd order)
-                  case  91: order--; //  75-node wedge (4th order)
-                  case 106: order--; // 126-node wedge (5th order)
-                  case 107: order--; // 196-node wedge (6th order)
-                  case 108: order--; // 288-node wedge (7th order)
-                  case 109: order--; // 405-node wedge (8th order)
-                  case 110: order--; // 550-node wedge (9th order)
+                  case   6: el_order--; //   6-node wedge
+                  case  13: el_order--; //  18-node wedge (2nd order)
+                  case  90: el_order--; //  40-node wedge (3rd order)
+                  case  91: el_order--; //  75-node wedge (4th order)
+                  case 106: el_order--; // 126-node wedge (5th order)
+                  case 107: el_order--; // 196-node wedge (6th order)
+                  case 108: el_order--; // 288-node wedge (7th order)
+                  case 109: el_order--; // 405-node wedge (8th order)
+                  case 110: el_order--; // 550-node wedge (9th order)
                      {
-                        order--;
+                        el_order--;
                         elements_3D.push_back(
                            new Wedge(&vert_indices[0], phys_domain));
-                        if (order > 1)
+                        if (el_order > 1)
                         {
                            Array<int> * hov = new Array<int>;
                            hov->Append(&vert_indices[0], n_elem_nodes);
                            ho_verts_3D.push_back(hov);
+                           ho_el_order_3D.push_back(el_order);
                         }
                         break;
                      }
                   /*
-                  case   7: order--; //   5-node pyramid
-                  case  14: order--; //  14-node pyramid (2nd order)
-                  case 118: order--; //  30-node pyramid (3rd order)
-                  case 119: order--; //  55-node pyramid (4th order)
-                  case 120: order--; //  91-node pyramid (5th order)
-                  case 121: order--; // 140-node pyramid (6th order)
-                  case 122: order--; // 204-node pyramid (7th order)
-                  case 123: order--; // 285-node pyramid (8th order)
-                  case 124: order--; // 385-node pyramid (9th order)
+                  case   7: el_order--; //   5-node pyramid
+                  case  14: el_order--; //  14-node pyramid (2nd order)
+                  case 118: el_order--; //  30-node pyramid (3rd order)
+                  case 119: el_order--; //  55-node pyramid (4th order)
+                  case 120: el_order--; //  91-node pyramid (5th order)
+                  case 121: el_order--; // 140-node pyramid (6th order)
+                  case 122: el_order--; // 204-node pyramid (7th order)
+                  case 123: el_order--; // 285-node pyramid (8th order)
+                  case 124: el_order--; // 385-node pyramid (9th order)
                      {
-                        order--;
+                        el_order--;
                         elements_3D.push_back(
                             new Pyramid(&vert_indices[0], phys_domain));
-                        if (order > 1)
+                        if (el_order > 1)
                         {
                            Array<int> * hov = new Array<int>;
                            hov->Append(&vert_indices[0], n_elem_nodes);
                            ho_verts_3D.push_back(hov);
+                           ho_el_order_3D.push_back(el_order);
                         }
                         break;
                      }
@@ -1691,6 +1721,10 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             {
                boundary[el] = elements_2D[el];
             }
+            for (int el = 0; el < ho_el_order_3D.size(); el++)
+            {
+               mesh_order = max(mesh_order, ho_el_order_3D[el]);
+            }
             // discard other elements
             for (size_t el = 0; el < elements_1D.size(); ++el)
             {
@@ -1716,6 +1750,10 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             {
                boundary[el] = elements_1D[el];
             }
+            for (int el = 0; el < ho_el_order_2D.size(); el++)
+            {
+               mesh_order = max(mesh_order, ho_el_order_2D[el]);
+            }
             // discard other elements
             for (size_t el = 0; el < elements_0D.size(); ++el)
             {
@@ -1737,6 +1775,10 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             {
                boundary[el] = elements_0D[el];
             }
+            for (int el = 0; el < ho_el_order_1D.size(); el++)
+            {
+               mesh_order = max(mesh_order, ho_el_order_1D[el]);
+            }
          }
          else
          {
@@ -1744,7 +1786,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             return;
          }
 
-         if (order > 1)
+         if (mesh_order > 1)
          {
             curved = 1;
             read_gf = 0;
@@ -1752,13 +1794,15 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             // Construct GridFunction for uniformly spaced high order coords
             FiniteElementCollection* nfec;
             FiniteElementSpace* nfes;
-            nfec = new L2_FECollection(order, Dim, BasisType::ClosedUniform);
+            nfec = new L2_FECollection(mesh_order, Dim,
+                                       BasisType::ClosedUniform);
             nfes = new FiniteElementSpace(this, nfec, spaceDim,
                                           Ordering::byVDIM);
             Nodes_gf.SetSpace(nfes);
             Nodes_gf.MakeOwner(nfec);
 
             int o = 0;
+            int el_order = 1;
             for (int el = 0; el < NumOfElements; el++)
             {
                const int * vm = NULL;
@@ -1766,25 +1810,75 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                switch (GetElementType(el))
                {
                   case Element::SEGMENT:
-                     vm = (order == 2) ? lin3 : lin4;
                      ho_verts = ho_verts_1D[el];
+                     el_order = ho_el_order_1D[el];
+                     if (ho_lin[el_order-1])
+                     {
+                        ho_lin[el_order-1] = new int[ho_verts->Size()];
+                        GmshHOSegmentMapping(el_order, ho_lin[el_order-1]);
+                     }
+                     vm = ho_lin[el_order-1];
                      break;
                   case Element::TRIANGLE:
-                     vm = (order == 2) ? tri6 : tri10;
                      ho_verts = ho_verts_2D[el];
+                     el_order = ho_el_order_2D[el];
+                     if (ho_tri[el_order-1])
+                     {
+                        ho_tri[el_order-1] = new int[ho_verts->Size()];
+                        GmshHOTriangleMapping(el_order, ho_tri[el_order-1]);
+                     }
+                     vm = ho_tri[el_order-1];
                      break;
                   case Element::QUADRILATERAL:
-                     vm = (order == 2) ? quad9 : quad16;
                      ho_verts = ho_verts_2D[el];
+                     el_order = ho_el_order_2D[el];
+                     if (ho_sqr[el_order-1])
+                     {
+                        ho_sqr[el_order-1] = new int[ho_verts->Size()];
+                        GmshHOQuadrilateralMapping(el_order, ho_sqr[el_order-1]);
+                     }
+                     vm = ho_sqr[el_order-1];
                      break;
                   case Element::TETRAHEDRON:
-                     vm = (order == 2) ? tet10 : tet20;
                      ho_verts = ho_verts_3D[el];
+                     el_order = ho_el_order_3D[el];
+                     if (ho_tet[el_order-1])
+                     {
+                        ho_tet[el_order-1] = new int[ho_verts->Size()];
+                        GmshHOTetrahedronMapping(el_order, ho_tet[el_order-1]);
+                     }
+                     vm = ho_tet[el_order-1];
                      break;
                   case Element::HEXAHEDRON:
-                     vm = (order == 2) ? hex27 : hex64;
                      ho_verts = ho_verts_3D[el];
+                     el_order = ho_el_order_3D[el];
+                     if (ho_hex[el_order-1])
+                     {
+                        ho_hex[el_order-1] = new int[ho_verts->Size()];
+                        GmshHOHexahedronMapping(el_order, ho_hex[el_order-1]);
+                     }
+                     vm = ho_hex[el_order-1];
                      break;
+                  case Element::WEDGE:
+                     ho_verts = ho_verts_3D[el];
+                     el_order = ho_el_order_3D[el];
+                     if (ho_wdg[el_order-1])
+                     {
+                        ho_wdg[el_order-1] = new int[ho_verts->Size()];
+                        GmshHOWedgeMapping(el_order, ho_wdg[el_order-1]);
+                     }
+                     vm = ho_wdg[el_order-1];
+                     break;
+                  // case Element::PYRAMID:
+                  //    ho_verts = ho_verts_3D[el];
+                  //    el_order = ho_el_order_3D[el];
+                  //    if (ho_pyr[el_order-1])
+                  //    {
+                  //      ho_pyr[el_order-1] = new int[ho_verts->Size()];
+                  //      GmshHOPyramidMapping(el_order, ho_pyr[el_order-1]);
+                  //    }
+                  //    vm = ho_pyr[el_order-1];
+                  //    break;
                   default: // Any other element type
                      MFEM_WARNING("Unsupported Gmsh element type.");
                      break;
@@ -1815,6 +1909,36 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          for (size_t el=0; el<ho_verts_3D.size(); el++)
          {
             delete ho_verts_3D[el];
+         }
+
+         // Delete any high vertex order mappings
+         for (int ord=0; ord<ho_lin.Size(); ord++)
+         {
+            if (ho_lin[ord] != NULL) { delete [] ho_lin[ord]; }
+         }
+         for (int ord=0; ord<ho_tri.Size(); ord++)
+         {
+            if (ho_tri[ord] != NULL) { delete [] ho_tri[ord]; }
+         }
+         for (int ord=0; ord<ho_sqr.Size(); ord++)
+         {
+            if (ho_sqr[ord] != NULL) { delete [] ho_sqr[ord]; }
+         }
+         for (int ord=0; ord<ho_tet.Size(); ord++)
+         {
+            if (ho_tet[ord] != NULL) { delete [] ho_tet[ord]; }
+         }
+         for (int ord=0; ord<ho_hex.Size(); ord++)
+         {
+            if (ho_hex[ord] != NULL) { delete [] ho_hex[ord]; }
+         }
+         for (int ord=0; ord<ho_wdg.Size(); ord++)
+         {
+            if (ho_wdg[ord] != NULL) { delete [] ho_wdg[ord]; }
+         }
+         for (int ord=0; ord<ho_pyr.Size(); ord++)
+         {
+            if (ho_pyr[ord] != NULL) { delete [] ho_pyr[ord]; }
          }
 
          MFEM_CONTRACT_VAR(n_partitions);
@@ -1852,7 +1976,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          }
 
          // Convert nodes to discontinuous GridFunction (if they aren't already)
-         if (order == 1)
+         if (mesh_order == 1)
          {
             this->SetCurvature(1, true, spaceDim, Ordering::byVDIM);
          }
@@ -1892,9 +2016,9 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
    this->FinalizeTopology();
 
    // If a high order coordinate field was created project it onto the mesh
-   if (order > 1)
+   if (mesh_order > 1)
    {
-      SetCurvature(order, periodic, spaceDim, Ordering::byVDIM);
+      SetCurvature(mesh_order, periodic, spaceDim, Ordering::byVDIM);
 
       VectorGridFunctionCoefficient NodesCoef(&Nodes_gf);
       Nodes->ProjectCoefficient(NodesCoef);
