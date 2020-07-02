@@ -40,7 +40,6 @@
 //               optional connection to the GLVis tool for visualization.
 
 #include "mfem.hpp"
-#include "custom_logger.hpp"
 
 #include <fstream>
 #include <iostream>
@@ -96,8 +95,6 @@ int cg_solve(const Operator &A, const Vector &b, Vector &x,
         double RTOLERANCE, double ATOLERANCE, double &it_time)
 {
 
-   int total_its = 0;
- 
    CGSolver cg;
    cg.SetPrintLevel(print_iter);
    cg.SetMaxIter(max_num_iter);
@@ -121,8 +118,6 @@ int pcg_solve(const Operator &A, Solver &B, const Vector &b, Vector &x,
         double RTOLERANCE, double ATOLERANCE, double &it_time)
 {
 
-   int total_its = 0;
- 
    CGSolver pcg;
    pcg.SetPrintLevel(print_iter);
    pcg.SetMaxIter(max_num_iter);
@@ -315,6 +310,10 @@ int main(int argc, char *argv[])
       fespace_lor = new FiniteElementSpace(mesh_lor, fec_lor);
 
       if (permute == 1) {
+
+           tic_toc.Clear();
+           tic_toc.Start();
+
            const Table &pre_reorder_dofs = fespace_lor->GetElementToDofTable();
            const Table pre_reorder_dofs_copy(pre_reorder_dofs);
            fespace_lor->ReorderElementToDofTable();
@@ -333,6 +332,10 @@ int main(int argc, char *argv[])
                  (*inv_reordering)[old_dof] = new_dof;
               }
            }
+
+          tic_toc.Stop();
+          cout << "Real time spent reordering: " << 
+                       tic_toc.RealTime() << "\n";
       }
    }
 
@@ -427,8 +430,15 @@ int main(int argc, char *argv[])
       a_pc->Assemble();
       a_pc->FormSystemMatrix(ess_pc_tdof_list, A_pc);
 
+      tic_toc.Stop();
+      cout << "Real time creating A_pc SparseMatrix: " <<
+                 tic_toc.RealTime() << "\n";
+
       if (permute == 2)
       {
+         tic_toc.Clear();
+         tic_toc.Start();
+
          Array<int> perm(fespace_lor->GetTrueVSize());
          SparseMatrix A_pc_tmp(A_pc);
          MinimumDiscardedFillOrdering(A_pc_tmp, perm);
@@ -438,11 +448,12 @@ int main(int argc, char *argv[])
             (*inv_reordering)[perm[i]] = i;
          }
          PermuteSparseMatrix(A_pc, *inv_reordering);
+
+         tic_toc.Stop();
+         cout << "Real time spent reordering: " << 
+                    tic_toc.RealTime() << "\n";
       }
 
-      tic_toc.Stop();
-      std::cout << "Real time creating A_pc SparseMatrix: " <<
-                 tic_toc.RealTime() << std::endl;
 
       if (pc_choice == GKO_BLOCK_JACOBI)
       {
@@ -454,26 +465,26 @@ int main(int argc, char *argv[])
             GinkgoWrappers::GinkgoJacobiPreconditioner M(executor, A_pc, *inv_reordering, pc_storage_opt,
                                                       pc_acc, pc_max_bs);
             tic_toc.Stop();
-            std::cout << "Real time creating Ginkgo BlockJacobi preconditioner: " <<
-                   tic_toc.RealTime() << std::endl;
+            cout << "Real time creating Ginkgo BlockJacobi preconditioner: " <<
+                   tic_toc.RealTime() << "\n";
 
             // Use preconditioned CG
              total_its = pcg_solve(*A, M, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
 
-            std::cout << "Real time in PCG: " << it_time << std::endl;
+            cout << "Real time in PCG: " << it_time << "\n";
          } else {
             tic_toc.Clear();
             tic_toc.Start();
             GinkgoWrappers::GinkgoJacobiPreconditioner M(executor, A_pc, pc_storage_opt,
                                                       pc_acc, pc_max_bs);
             tic_toc.Stop();
-            std::cout << "Real time creating Ginkgo BlockJacobi preconditioner: " <<
-                   tic_toc.RealTime() << std::endl;
+            cout << "Real time creating Ginkgo BlockJacobi preconditioner: " <<
+                   tic_toc.RealTime() << "\n";
 
             // Use preconditioned CG
              total_its = pcg_solve(*A, M, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
 
-            std::cout << "Real time in PCG: " << it_time << std::endl;
+            cout << "Real time in PCG: " << it_time << "\n";
          }
        
       }
@@ -491,13 +502,13 @@ int main(int argc, char *argv[])
                                                      trisolve_type, isai_sparsity_power, skip_sort);
 
            tic_toc.Stop();
-           std::cout << "Real time creating Ginkgo Ilu preconditioner: " <<
-                     tic_toc.RealTime() << std::endl;
+           cout << "Real time creating Ginkgo Ilu preconditioner: " <<
+                     tic_toc.RealTime() << "\n";
 
            // Use preconditioned CG
            total_its = pcg_solve(*A, M, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
 
-           std::cout << "Real time in PCG: " << it_time << std::endl;
+           cout << "Real time in PCG: " << it_time << "\n";
 
          } else {
 
@@ -508,13 +519,13 @@ int main(int argc, char *argv[])
                                                       isai_sparsity_power, skip_sort);
 
            tic_toc.Stop();
-           std::cout << "Real time creating Ginkgo Ilu preconditioner: " <<
-                     tic_toc.RealTime() << std::endl;
+           cout << "Real time creating Ginkgo Ilu preconditioner: " <<
+                     tic_toc.RealTime() << "\n";
 
            // Use preconditioned CG
            total_its = pcg_solve(*A, M, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
 
-           std::cout << "Real time in PCG: " << it_time << std::endl;
+           cout << "Real time in PCG: " << it_time << "\n";
 
         }
       }
@@ -528,13 +539,13 @@ int main(int argc, char *argv[])
          GSSmoother M(A_pc);
 
          tic_toc.Stop();
-         std::cout << "Real time creating MFEM GS preconditioner: " <<
-                   tic_toc.RealTime() << std::endl;
+         cout << "Real time creating MFEM GS preconditioner: " <<
+                   tic_toc.RealTime() << "\n";
 
          // Use preconditioned CG
          total_its = pcg_solve(*A, M, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
 
-         std::cout << "Real time in PCG: " << it_time << std::endl;
+         cout << "Real time in PCG: " << it_time << "\n";
 
       }
       else if (pc_choice == MFEM_UMFPACK)
@@ -549,13 +560,13 @@ int main(int argc, char *argv[])
          M.SetOperator(A_pc);
 
          tic_toc.Stop();
-         std::cout << "Real time creating MFEM UMFPACK preconditioner: " <<
-                   tic_toc.RealTime() << std::endl;
+         cout << "Real time creating MFEM UMFPACK preconditioner: " <<
+                   tic_toc.RealTime() << "\n";
 
          // Use preconditioned CG
          total_its = pcg_solve(*A, M, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
 
-         std::cout << "Real time in PCG: " << it_time << std::endl;
+         cout << "Real time in PCG: " << it_time << "\n";
 
       }
    }
@@ -564,11 +575,11 @@ int main(int argc, char *argv[])
 
       total_its = cg_solve(*A, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
 
-      std::cout << "Real time in CG: " << it_time << std::endl;
+      cout << "Real time in CG: " << it_time << "\n";
    }
 
-   std::cout << "Total iterations: " << total_its << std::endl;
-   std::cout << "Avg time per iteration: " << it_time/double(total_its) << std::endl;
+   cout << "Total iterations: " << total_its << "\n";
+   cout << "Avg time per iteration: " << it_time/double(total_its) << "\n";
 
    // 12. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
