@@ -8,6 +8,7 @@
 #include <fstream>
 #include <iostream>
 #include "DST/DST.hpp"
+#include "DST/UMFPackC.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -79,11 +80,11 @@ int main(int argc, char *argv[])
 
    if (nd == 2)
    {
-      mesh = new Mesh(4, 4, Element::QUADRILATERAL, true, length, length, false);
+      mesh = new Mesh(1, 1, Element::QUADRILATERAL, true, length, length, false);
    }
    else
    {
-      mesh = new Mesh(2, 2, 2, Element::HEXAHEDRON, true, length, length, length,false);
+      mesh = new Mesh(1, 1, 1, Element::HEXAHEDRON, true, length, length, length,false);
    }
 
    dim = mesh->Dimension();
@@ -167,7 +168,7 @@ int main(int argc, char *argv[])
    ScalarMatrixProductCoefficient c2_Im(ws,c2_Im0);
 
    SesquilinearForm a(fespace, conv);
-
+   ConstantCoefficient zero(0.0);
    a.AddDomainIntegrator(new CurlCurlIntegrator(pml_c1_Re),
                          new CurlCurlIntegrator(pml_c1_Im));
    a.AddDomainIntegrator(new VectorFEMassIntegrator(c2_Re),
@@ -179,29 +180,58 @@ int main(int argc, char *argv[])
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, Ah, X, B);
 
+   ComplexSparseMatrix * Ac = Ah.As<ComplexSparseMatrix>();
+
+   StopWatch chrono;
+   chrono.Clear();
+   chrono.Start();
+   {
+      UMFPackComplexSolver csolver(*Ac);
+      csolver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+      csolver.Mult(B,X);
+   }
+   chrono.Stop();
+   cout << "Time 1 = " << chrono.RealTime() << endl;
+
    // 13. Transform to monolithic SparseMatrix
-   SparseMatrix *A = Ah.As<ComplexSparseMatrix>()->GetSystemMatrix();
+   SparseMatrix *A = Ac->GetSystemMatrix();
 
-   cout << "Size of linear system: " << A->Height() << endl;
+   // cout << "Size of linear system: " << A->Height() << endl;
 
 
 
-   DST S(&a,lengths, omega, &ws, nrlayers, nx, ny, nz);
+   // DST S(&a,lengths, omega, &ws, nrlayers, nx, ny, nz);
 
-   X = 0.0;
-	GMRESSolver gmres;
-	// gmres.iterative_mode = true;
-   gmres.SetPreconditioner(S);
-	gmres.SetOperator(*A);
-	gmres.SetRelTol(1e-6);
-	gmres.SetMaxIter(20);
-	gmres.SetPrintLevel(1);
-	gmres.Mult(B, X);
+   // X = 0.0;
+	// GMRESSolver gmres;
+	// // gmres.iterative_mode = true;
+   // gmres.SetPreconditioner(S);
+	// gmres.SetOperator(*A);
+	// gmres.SetRelTol(1e-6);
+	// gmres.SetMaxIter(20);
+	// gmres.SetPrintLevel(1);
+	// gmres.Mult(B, X);
 
    // 14. Solve using a direct or an iterative solver
-   // UMFPackSolver  solver(*A);
-   // solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-   // solver.Mult(B, X);
+   Vector Y(X);
+
+   chrono.Clear();
+   chrono.Start();
+   {
+      UMFPackSolver  solver(*A);
+      solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+      solver.Control[UMFPACK_ALLOC_INIT] = 1.0;
+      solver.Mult(B, Y);
+   }
+   chrono.Stop();
+   cout << "Time 2 = " << chrono.RealTime() << endl;
+   cout << endl;
+   cout << "X norm = " << X.Norml2() << endl;
+   cout << "Y norm = " << Y.Norml2() << endl;
+   Y-=X;
+   cout << "diff norm = " << Y.Norml2() << endl;
+
+
 
    a.RecoverFEMSolution(X, b, x);
 
@@ -288,7 +318,7 @@ void source_re(const Vector &x, Vector &f)
    beta = pow(x0-x(0),2) + pow(x1-x(1),2);
    if (dim == 3) { beta += pow(x2-x(2),2); }
    alpha = -pow(n,2) * beta;
-   f[0] += coeff*exp(alpha);
+   // f[0] += coeff*exp(alpha);
 
 
    bool in_pml = false;

@@ -109,6 +109,8 @@ public:
 
    virtual Type GetType() const { return Complex_Operator; }
 
+   virtual Convention GetConvention() const { return convention_; }
+
 protected:
    // Let this be hidden from the public interface since the implementation
    // depends on internal members
