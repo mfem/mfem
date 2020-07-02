@@ -1170,6 +1170,13 @@ public:
 #ifdef MFEM_USE_MPI
    void ParEnableNormalization(const ParGridFunction &x);
 #endif
+
+   using NonlinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace&);
+   using NonlinearFormIntegrator::AddMultPA;
+   virtual void AddMultPA(const Vector&, Vector&) const;
+   using NonlinearFormIntegrator::AddMultGradPA;
+   virtual void AddMultGradPA(const Vector&, const Vector&, Vector&) const;
 };
 
 /// Interpolates the @a metric's values at the nodes of @a metric_gf.

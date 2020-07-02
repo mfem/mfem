@@ -350,7 +350,7 @@ int main(int argc, char *argv[])
    FiniteElementSpace ind_fes(mesh, &ind_fec);
    FiniteElementSpace ind_fesv(mesh, &ind_fec, dim);
    GridFunction size(&ind_fes), aspr(&ind_fes), disc(&ind_fes), ori(&ind_fes);
-   GridFunction aspr3d(&ind_fesv), size3d(&ind_fesv);
+   GridFunction aspr3d(&ind_fesv);
    const AssemblyLevel al = pa ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
    switch (target_id)
    {
@@ -552,7 +552,14 @@ int main(int argc, char *argv[])
    }
    target_c->SetNodes(x0);
    TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, target_c);
-   if (fdscheme) { he_nlf_integ->EnableFiniteDifferences(x); }
+
+   // Finite differences for computations of derivatives.
+   if (fdscheme)
+   {
+      MFEM_VERIFY(pa == false, "PA for finite differences is not imlemented.");
+
+      he_nlf_integ->EnableFiniteDifferences(x);
+   }
 
    // 12. Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = NULL;
@@ -583,9 +590,10 @@ int main(int argc, char *argv[])
    GridFunction zeta_0(&ind_fes);
    ConstantCoefficient coef_zeta(adapt_lim_const);
    AdaptivityEvaluator *adapt_evaluator = NULL;
-   MFEM_VERIFY(!pa || adapt_lim_const == 0.0, "");
    if (adapt_lim_const > 0.0)
    {
+      MFEM_VERIFY(pa == false, "PA is not implemented for adaptive limiting");
+
       FunctionCoefficient alim_coeff(adapt_lim_fun);
       zeta_0.ProjectCoefficient(alim_coeff);
 
@@ -616,13 +624,12 @@ int main(int argc, char *argv[])
    //     command-line options for the weights and the type of the second
    //     metric; one should update those in the code.
    NonlinearForm a(fespace);
-   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   a.SetAssemblyLevel(al);
    ConstantCoefficient *coeff1 = NULL;
    TMOP_QualityMetric *metric2 = NULL;
    TargetConstructor *target_c2 = NULL;
    FunctionCoefficient coeff2(weight_fun);
 
-   MFEM_VERIFY(!pa || combomet == 0,"");
    if (combomet > 0)
    {
       // First metric.
