@@ -109,9 +109,11 @@ public:
 };
 #endif
 
-class TMOPNewtonSolver : public NewtonSolver
+class TMOPNewtonSolver : public LBFGSSolver
 {
 protected:
+   // 0 - Newton, 1 - LBFGS.
+   int solver_type;
    bool parallel;
 
    // Quadrature points that are checked for negative Jacobians etc.
@@ -121,29 +123,42 @@ protected:
 
 public:
 #ifdef MFEM_USE_MPI
-   TMOPNewtonSolver(MPI_Comm comm, const IntegrationRule &irule)
-      : NewtonSolver(comm), parallel(true), ir(irule) { }
+   TMOPNewtonSolver(MPI_Comm comm, const IntegrationRule &irule, int type = 0)
+      : LBFGSSolver(comm), solver_type(type), parallel(true), ir(irule) { }
 #endif
-   TMOPNewtonSolver(const IntegrationRule &irule)
-      : NewtonSolver(), parallel(false), ir(irule) { }
+   TMOPNewtonSolver(const IntegrationRule &irule, int type = 0)
+      : LBFGSSolver(), solver_type(type), parallel(false), ir(irule) { }
 
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
 
    virtual void ProcessNewState(const Vector &x) const;
-};
 
-/// Allows negative Jacobians. Used for untangling.
-class TMOPDescentNewtonSolver : public TMOPNewtonSolver
-{
-public:
-#ifdef MFEM_USE_MPI
-   TMOPDescentNewtonSolver(MPI_Comm comm, const IntegrationRule &irule)
-      : TMOPNewtonSolver(comm, irule) { }
-#endif
-   TMOPDescentNewtonSolver(const IntegrationRule &irule)
-      : TMOPNewtonSolver(irule) { }
+   virtual void Mult(const Vector &b, Vector &x) const
+   {
+      if (solver_type == 0)
+      {
+         NewtonSolver::Mult(b, x);
+      }
+      else if (solver_type == 1)
+      {
+         LBFGSSolver::Mult(b, x);
+      }
+      else { MFEM_ABORT("Invalid type"); }
+   }
 
-   virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
+   virtual void SetSolver(Solver &solver)
+   {
+      if (solver_type == 0)
+      {
+         NewtonSolver::SetSolver(solver);
+      }
+      else if (solver_type == 1)
+      {
+         LBFGSSolver::SetSolver(solver);
+      }
+      else { MFEM_ABORT("Invalid type"); }
+   }
+   virtual void SetPreconditioner(Solver &pr) { SetSolver(pr); }
 };
 
 void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,

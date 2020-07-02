@@ -45,6 +45,7 @@ public:
    /// Force recomputation of the estimates on the next call to GetLocalErrors.
    virtual void Reset() = 0;
 
+   /// Destruct the error estimator
    virtual ~ErrorEstimator() { }
 };
 
@@ -65,6 +66,14 @@ public:
 
 /** @brief The ZienkiewiczZhuEstimator class implements the Zienkiewicz-Zhu
     error estimation procedure.
+
+    Zienkiewicz, O.C. and Zhu, J.Z., The superconvergent patch recovery
+    and a posteriori error estimates. Part 1: The recovery technique.
+    Int. J. Num. Meth. Engng. 33, 1331-1364 (1992).
+
+    Zienkiewicz, O.C. and Zhu, J.Z., The superconvergent patch recovery
+    and a posteriori error estimates. Part 2: Error estimates and adaptivity.
+    Int. J. Num. Meth. Engng. 33, 1365-1382 (1992).
 
     The required BilinearFormIntegrator must implement the methods
     ComputeElementFlux() and ComputeFluxEnergy().
@@ -217,6 +226,7 @@ protected:
       class when needed.*/
    bool own_flux_fes; ///< Ownership flag for flux_space and smooth_flux_space.
 
+   /// Initialize with the integrator, solution, and flux finite element spaces.
    void Init(BilinearFormIntegrator &integ,
              ParGridFunction &sol,
              ParFiniteElementSpace *flux_fes,
