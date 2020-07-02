@@ -644,7 +644,8 @@ class GinkgoPreconditionerBase : public Solver
 {
 protected:
    GinkgoPreconditionerBase(std::shared_ptr<const gko::Executor> exec,
-                            SparseMatrix &a, bool iter_mode=false)
+                            SparseMatrix &a,
+                            bool iter_mode=false)
       : Solver(a.Height(), a.Width(), iter_mode)
    {
       exec_ = std::move(exec);
@@ -785,6 +786,7 @@ public:
                            gko::Array<int>::view(exec, a.Height() + 1,
                                                  a.ReadWriteI(on_device)));
 
+
       if (storage_opt == "auto")
       {
          gko_precond_factory_ = gko::preconditioner::Jacobi<double, int>::build()
@@ -815,6 +817,7 @@ public:
    GinkgoIluPreconditioner(std::shared_ptr<const gko::Executor> exec,
                            SparseMatrix &a, const char *trisolve_type = "exact",
                            int sparsity_power=1,
+                           bool skip_sort=false,
                            bool iter_mode=false)
       : GinkgoPreconditionerBase(exec, a, iter_mode)
    {
@@ -837,6 +840,7 @@ public:
                            gko::Array<int>::view(exec, a.Height() + 1,
                                                  a.ReadWriteI(on_device)));
 
+
       if (trisolve_type == "isai") {
 
         using l_solver_type = gko::preconditioner::LowerIsai<>;
@@ -844,9 +848,11 @@ public:
 
         std::shared_ptr<l_solver_type::Factory> l_solver_factory = std::move(l_solver_type::build()
                                  .with_sparsity_power(sparsity_power)
+                                 .with_skip_sorting(skip_sort)
                                  .on(exec));
         std::shared_ptr<u_solver_type::Factory> u_solver_factory = std::move(u_solver_type::build()
                                 .with_sparsity_power(sparsity_power)
+                                .with_skip_sorting(skip_sort)
                                 .on(exec));
         
         gko_precond_factory_ = gko::preconditioner::Ilu<l_solver_type, 
@@ -869,6 +875,7 @@ public:
                            SparseMatrix &a, Array<int> &inv_permutation_indices,
                            const char *trisolve_type = "exact",
                            int sparsity_power=1,
+                           bool skip_sort=false,
                            bool iter_mode=false)
       : GinkgoPreconditionerBase(exec, a, inv_permutation_indices, iter_mode)
    {
@@ -891,6 +898,7 @@ public:
                            gko::Array<int>::view(exec, a.Height() + 1,
                                                  a.ReadWriteI(on_device)));
 
+
       if (trisolve_type == "isai") {
 
         using l_solver_type = gko::preconditioner::LowerIsai<>;
@@ -898,9 +906,11 @@ public:
 
         std::shared_ptr<l_solver_type::Factory> l_solver_factory = std::move(l_solver_type::build()
                                  .with_sparsity_power(sparsity_power)
+                                 .with_skip_sorting(skip_sort)
                                  .on(exec));
         std::shared_ptr<u_solver_type::Factory> u_solver_factory = std::move(u_solver_type::build()
                                 .with_sparsity_power(sparsity_power)
+                                .with_skip_sorting(skip_sort)
                                 .on(exec));
 
         gko_precond_factory_ = gko::preconditioner::Ilu<l_solver_type, 
