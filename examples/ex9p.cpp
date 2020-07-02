@@ -577,30 +577,21 @@ FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
      M_solver(_M.ParFESpace()->GetComm()),
      z(_M.Height())
 {
-   bool pa = _M.GetAssemblyLevel()==AssemblyLevel::PARTIAL;
-   bool ea = _M.GetAssemblyLevel()==AssemblyLevel::ELEMENT;
-   bool fa = _M.GetAssemblyLevel()==AssemblyLevel::FULL;
-
-   if (pa || ea || fa)
-   {
-      M.Reset(&_M, false);
-      K.Reset(&_K, false);
-   }
-   else
+   if (_M.GetAssemblyLevel()==AssemblyLevel::LEGACYFULL)
    {
       M.Reset(_M.ParallelAssemble(), true);
       K.Reset(_K.ParallelAssemble(), true);
+   }
+   else
+   {
+      M.Reset(&_M, false);
+      K.Reset(&_K, false);
    }
 
    M_solver.SetOperator(*M);
 
    Array<int> ess_tdof_list;
-   if (pa || ea || fa)
-   {
-      M_prec = new OperatorJacobiSmoother(_M, ess_tdof_list);
-      dg_solver = NULL;
-   }
-   else
+   if (_M.GetAssemblyLevel()==AssemblyLevel::LEGACYFULL)
    {
       HypreParMatrix &M_mat = *M.As<HypreParMatrix>();
       HypreParMatrix &K_mat = *K.As<HypreParMatrix>();
@@ -608,6 +599,11 @@ FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
       M_prec = hypre_prec;
 
       dg_solver = new DG_Solver(M_mat, K_mat, *_M.FESpace());
+   }
+   else
+   {
+      M_prec = new OperatorJacobiSmoother(_M, ess_tdof_list);
+      dg_solver = NULL;
    }
 
    M_solver.SetPreconditioner(*M_prec);
