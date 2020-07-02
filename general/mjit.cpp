@@ -242,6 +242,7 @@ bool Compile(const char *cc, const char *co,
 #endif
    constexpr const char *lib_ar = MFEM_JIT_CACHE_LIBRARY ".a";
    constexpr const char *lib_so = MFEM_JIT_CACHE_LIBRARY ".so";
+   constexpr const char *lib_so_tild = MFEM_JIT_CACHE_LIBRARY ".so~";
    constexpr int PM = PATH_MAX;
    char Imsrc[PM], Imbin[PM];
    if (snprintf(Imsrc, PM, "-I%s ", msrc) < 0) { return false; }
@@ -251,18 +252,43 @@ bool Compile(const char *cc, const char *co,
    const char *argv_co[] =
    { opt, cxx, cxxflags, fpic, "-c", DC Imsrc, Imbin, "-o", co, cc, nullptr };
    if (mfem::jit::System(const_cast<char**>(argv_co)) != 0) { return false; }
-   const char *argv_ar[] = { opt, "ar", "-r", lib_ar, co, nullptr };
+
+   const char *argv_ar[] = { opt, "ar", "-rv", lib_ar, co,nullptr };
    if (mfem::jit::System(const_cast<char**>(argv_ar)) != 0) { return false; }
+
 #ifndef __APPLE__
+   constexpr const char *wall = XC "-Wall";
    constexpr const char *beg_load = XL "--whole-archive";
    constexpr const char *end_load = XL "--no-whole-archive";
 #else
+   constexpr const char *wall = "-Wall";
    constexpr const char *beg_load = "-all_load";
    constexpr const char *end_load = "";
 #endif
+
+   const char *mv_inode[] =
+   {
+      opt, "[ -f", lib_so, " ]", "&&", "mv", lib_so, lib_so_tild, "&&",
+      "echo Moving", lib_so, "&&", "sync", nullptr
+   };
+   mfem::jit::System(const_cast<char**>(mv_inode));
+
    const char *argv_so[] =
-   { opt, cxx, "-shared", "-o", lib_so, beg_load, lib_ar, end_load, nullptr };
+   {
+      opt, cxx, "-shared", wall, "-o", lib_so, beg_load, lib_ar, end_load,
+      "&&", "sync", nullptr
+   };
    if (mfem::jit::System(const_cast<char**>(argv_so)) != 0) { return false; }
+
+   char *so = strdup(co);
+   so[18] = 's';
+   const char *argv_cc_so[] =
+   {
+      opt, cxx, cxxflags, "-shared", "-Xcompiler=-fPIC", wall, Imsrc, Imbin, "-o", so, cc, "&&", "sync",
+      nullptr
+   };
+   if (mfem::jit::System(const_cast<char**>(argv_cc_so)) != 0) { return false; }
+
    if (!getenv("TMP")) { unlink(cc); }
    if (!getenv("TMP")) { unlink(co); }
    return true;
@@ -294,7 +320,7 @@ struct template_t
 };
 
 // *****************************************************************************
-struct forall_t { string e, N, X, Y, Z, body; };
+struct forall_t { int d; string e, N, X, Y, Z, body; };
 
 // *****************************************************************************
 struct kernel_t
@@ -1432,72 +1458,75 @@ void __unroll(context_t &pp)
 }
 
 // *****************************************************************************
-// * MFEM_FORALL_2D
+// * MFEM_FORALL_[2|3]D
 // *****************************************************************************
-void __forall2D(context_t &pp)
+void __forall(const string &id, context_t &pp)
 {
+   const int d = pp.ker.forall.d = id.c_str()[12] - 0x30;
    if (not pp.ker.__jit)
    {
-      pp.out << "MFEM_FORALL_2D";
+      //DBG("id:%s, d:%d",id.c_str(),d)
+      if (d == 2 ) { pp.out << "MFEM_FORALL_2D"; }
+      if (d == 3 ) { pp.out << "MFEM_FORALL_3D"; }
       return;
    }
-   //DBG("__forall2D")
+   //DBG("__forall")
    pp.ker.__forall = true;
    pp.ker.forall.body.clear();
 
-   check(pp,is_left_parenthesis(pp),"no 1st '(' in forall 2D");
+   check(pp,is_left_parenthesis(pp),"no 1st '(' in MFEM_FORALL");
    get(pp); // drop '('
    pp.ker.forall.e = get_id(pp);
    //DBG("iterator:'%s'", pp.ker.forall.e.c_str());
 
-   check(pp,is_coma(pp),"no 1st coma in forall 2D");
+   check(pp,is_coma(pp),"no 1st coma in MFEM_FORALL");
    get(pp); // drop ','
 
    drop(pp);
-   check(pp,is_id(pp),"no 1st id(N) in forall 2D");
+   check(pp,is_id(pp),"no 1st id(N) in MFEM_FORALL");
    pp.ker.forall.N = get_id(pp);
    //DBG("N:'%s'", pp.ker.forall.N.c_str());
    drop(pp);
-   check(pp,is_coma(pp),"no 2nd coma in forall 2D");
+   check(pp,is_coma(pp),"no 2nd coma in MFEM_FORALL");
    get(pp); // drop ','
 
    drop(pp);
-   check(pp,is_id(pp),"no 2st id (X) in forall 2D");
+   check(pp,is_id(pp),"no 2st id (X) in MFEM_FORALL");
    pp.ker.forall.X = get_id(pp);
    //DBG("X:'%s'", pp.ker.forall.X.c_str());
    drop(pp);
    //DBG(">%c<", put(pp));
-   check(pp,is_coma(pp),"no 3rd coma in forall 2D");
+   check(pp,is_coma(pp),"no 3rd coma in MFEM_FORALL");
    get(pp); // drop ','
 
    drop(pp);
-   check(pp,is_id(pp),"no 3rd id (Y) in forall 2D");
+   check(pp,is_id(pp),"no 3rd id (Y) in MFEM_FORALL");
    pp.ker.forall.Y = get_id(pp);
    //DBG("Y:'%s'", pp.ker.forall.Y.c_str());
    drop(pp);
-   check(pp,is_coma(pp),"no 4th coma in forall 2D");
+   check(pp,is_coma(pp),"no 4th coma in MFEM_FORALL");
    get(pp); // drop ','
 
    drop(pp);
-   check(pp,is_id(pp),"no 4th id (Y) in forall 2D");
+   check(pp,is_id(pp),"no 4th id (Y) in MFEM_FORALL");
    pp.ker.forall.Z = get_id(pp);
    //DBG("Z:'%s'", pp.ker.forall.Z.c_str());
    drop(pp);
-   check(pp,is_coma(pp),"no last coma in forall 2D");
+   check(pp,is_coma(pp),"no last coma in MFEM_FORALL");
    get(pp); // drop ','
 
    // Starts counting the parentheses
    pp.parenthesis = 0;
 }
 // *****************************************************************************
-void forall2DPostfix(context_t &pp)
+void forallPostfix(context_t &pp)
 {
    if (not pp.ker.__forall) { return; }
-   //DBG("forall2DPostfix 1")
+   //DBG("forallPostfix 1")
    if (pp.parenthesis >= 0 && pp.in.peek() == '(') { pp.parenthesis++; }
    if (pp.parenthesis >= 0 && pp.in.peek() == ')') { pp.parenthesis--; }
    if (pp.parenthesis != -1) { return; }
-   //DBG("forall2DPostfix 2")
+   //DBG("forall2ostfix 2")
    drop(pp);
    check(pp,is_right_parenthesis(pp),"no last right parenthesis found");
    get(pp);
@@ -1507,7 +1536,8 @@ void forall2DPostfix(context_t &pp)
    pp.parenthesis--;
    pp.ker.__forall = false;
    pp.out << "if (use_dev){";
-   pp.out << "\n\tCuWrap2D(" << pp.ker.forall.N.c_str() << ", ";
+   const char *ND = pp.ker.forall.d == 2 ? "2D" : "3D";
+   pp.out << "\n\tCuWrap" << ND << "(" << pp.ker.forall.N.c_str() << ", ";
    pp.out << "[=] MFEM_DEVICE (int " << pp.ker.forall.e <<")";
    pp.out << pp.ker.forall.body.c_str() << ",";
    pp.out << pp.ker.forall.X.c_str() << ",";
@@ -1538,7 +1568,8 @@ static void tokens(context_t &pp)
    if (token(id, "EMBED")) { return __embed(pp); }
    if (token(id, "UNROLL")) { return __unroll(pp); }
    if (token(id, "TEMPLATE")) { return __template(pp); }
-   if (token(id, "FORALL_2D")) { return __forall2D(pp); }
+   if (token(id, "FORALL_2D")) { return __forall(id,pp); }
+   if (token(id, "FORALL_3D")) { return __forall(id,pp); }
    if (pp.ker.__embed ) { pp.ker.embed += id; }
    // During the __forall body, add MFEM_* id tokens
    if (pp.ker.__forall) { pp.ker.forall.body += id; return; }
@@ -1569,7 +1600,7 @@ int preprocess(context_t &pp)
       comments(pp);
       jitPostfix(pp);
       embedPostfix(pp);
-      forall2DPostfix(pp);
+      forallPostfix(pp);
       templatePostfix(pp);
    }
    while (not eof(pp));

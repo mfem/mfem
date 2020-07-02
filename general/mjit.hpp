@@ -12,12 +12,17 @@
 #define MFEM_JIT_HPP
 
 #include <cstring>
+#include <cassert>
 #include <functional>
 
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <unistd.h>
 
+#define DBG(...) { printf("\033[33m");  \
+                   printf(__VA_ARGS__); \
+                   printf(" \n\033[m"); \
+                   fflush(0); }
 namespace mfem
 {
 
@@ -123,8 +128,14 @@ inline void *Lookup(const size_t hash, Args... args)
 {
    char symbol[18];
    uint64str(hash, symbol);
-   constexpr int mode = RTLD_GLOBAL|RTLD_NOW; // LAZYR, NOW, LOCAL | GLOBAL
+   constexpr int mode = RTLD_NOW; // LAZY, NOW, LOCAL | GLOBAL
+#if 0
    constexpr const char *lib_so = MFEM_JIT_CACHE_LIBRARY ".so";
+#else
+   char so[21];
+   uint64str(hash, so, ".so");
+   const char *lib_so = so;
+#endif
    void *handle = dlopen(lib_so, mode);
    if (!handle)
    {
@@ -153,9 +164,10 @@ inline kernel_t Symbol(const size_t hash, void *handle)
 
 template<typename kernel_t> class kernel
 {
-   size_t seed, hash;
+   const size_t seed, hash;
    void *handle;
    kernel_t code;
+   const char *cxx, *src, *flags, *msrc, *mins;
 
 public:
    template<typename... Args>
@@ -164,11 +176,38 @@ public:
       seed(jit::hash<const char*>()(src)),
       hash(hash_args(seed, cxx, flags, msrc, mins, args...)),
       handle(Lookup(hash, src, cxx, flags, msrc, mins, args...)),
-      code(Symbol<kernel_t>(hash, handle)) { }
+      code(Symbol<kernel_t>(hash, handle)),
+      cxx(cxx), src(src), flags(flags), msrc(msrc), mins(mins)
+   {
+      assert(handle);
+   }
 
    /// Kernel launch w/o return type
    template<typename... Args>
-   void operator_void(Args... args) { code(args...); }
+   void operator_void(Args... args)
+   {
+      /*
+        constexpr int mode = RTLD_NOW;
+        constexpr const char *lib_so = MFEM_JIT_CACHE_LIBRARY ".so";
+
+        dlclose(handle);
+        handle = dlopen(lib_so, mode);
+
+        if (!handle)
+        {
+           handle = dlopen(lib_so, mode);
+           DBG("!handle (%s)",lib_so);
+           assert(handle);
+
+           char symbol[18];
+           uint64str(hash, symbol);
+           DBG("symbol: %s", symbol);
+           assert(dlsym(handle, symbol));
+           code = Symbol<kernel_t>(hash, handle);
+        }*/
+      assert(handle);
+      code(args...);
+   }
 
    /// Kernel launch w/ return type
    template<typename T, typename... Args>
@@ -320,6 +359,10 @@ void CuWrap3D(const int N, DBODY &&d_body,
 template <typename DBODY>
 void CuWrap2D(const int N, DBODY &&d_body,
               const int X, const int Y, const int BZ) { }
+
+template <typename DBODY>
+void CuWrap3D(const int N, DBODY &&d_body,
+              const int X, const int Y, const int Z) { }
 
 #endif // MFEM_USE_CUDA
 
