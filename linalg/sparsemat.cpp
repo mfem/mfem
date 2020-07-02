@@ -2164,16 +2164,13 @@ void SparseMatrix::DiagScale(const Vector &b, Vector &x, double sc) const
       {
          if (j == end)
          {
-            printf("Couldn't find diagonal in row. i = %d, j = %d, I[i+1] = %d\n",
-            i, j, end);
-            MFEM_ABORT_KERNEL("Error in SparseMatrix::DiagScale")
+            MFEM_ABORT_KERNEL("Diagonal not found in SparseMatrix::DiagScale");
          }
          if (Jp[j] == i)
          {
             if (!(std::abs(Ap[j]) > 0.0))
             {
-               printf("Diagonal %d must be nonzero\n", j);
-               MFEM_ABORT_KERNEL("Error in SparseMatrix::DiagScale")
+               MFEM_ABORT_KERNEL("Zero diagonal in SparseMatrix::DiagScale");
             }
 
             if (scale)
