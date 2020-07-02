@@ -433,37 +433,37 @@ void ConductionOperator::ImplicitSolve(const double dt,
    // Here we use Picard iterations to solve a nonlinear equation
    // for the Runge-Kutta stage vector k,
    //
-   //    M*k = N(u+dt*k)
+   //    M*k = N(u+dt*k)                     (1)
    //
    // for nonlinear operator N. We assume N can be written as
    //
    //    N(u+dt*k) := L[u+dt*k](u+dt*k) + f(t)
    //
    // where L is a matrix-valued operator evaluated at u+dt*k and f(t)
-   // a (potentially zero) time-dependent forcing vector. This can be
+   // a (potentially zero) time-dependent forcing vector. (1) can be
    // rewritten as a fixed-point equation
    //
-   //    x = (M - dt*L[x])^{-1} (Mu + f)
+   //    x = (M - dt*L[x])^{-1} (Mu + f)     (2)
    //
-   // where x := u + dt*k, and solved using a Picard iteration, where
-   // a function G(x) = x is solved via x_{k+1} = G(x_k).
+   // where x := u + dt*k, which can be solved using a Picard iteration,
+   // where a function G(x) = x is solved via iteraitons x_{k+1} = G(x_k).
 
    double tol = 1e-6;
    int maxiter = 100;
 
    // Right-hand side for nonlinear iteration
-   Mmat.Mult(u, z);  // Add forcing function to this if exists
-   du_dt = u;        // Set u as initial guess for x
+   Mmat.Mult(u, z);  // Add forcing function if one exists
+   du_dt = u;        // Set u as initial guess for x (2)
    Vector temp(u);   // Vector to measure error
    temp = u;
    double error = 1;
    int iter = 0;
    while (error > tol) {
       iter ++;
-      this->SetParameters(du_dt);   // Update nonlinear operator
-      T = Add(1.0, Mmat, dt, Kmat); // Form matrix L
+      this->SetParameters(du_dt);   // Update nonlinear operator L[x]
+      T = Add(1.0, Mmat, dt, Kmat); // Form matrix (M - dt*L[x])
       T_solver.SetOperator(*T);
-      T_solver.Mult(z, du_dt);      // Apply L^{-1}
+      T_solver.Mult(z, du_dt);      // Apply (M - dt*L[x])^{-1}
       temp -= du_dt;                // Measure error
       error = std::sqrt(InnerProduct(MPI_COMM_WORLD, temp, temp));
       temp = du_dt;
