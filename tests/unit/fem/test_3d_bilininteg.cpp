@@ -528,7 +528,7 @@ TEST_CASE("3D Bilinear Mass Integrators",
 
          SECTION("Mapping H1 to L2")
          {
-            L2_FECollection    fec_l2(order - 1, dim);
+            L2_FECollection    fec_l2(order, dim);
             FiniteElementSpace fespace_l2(&mesh, &fec_l2);
 
             BilinearForm m_l2(&fespace_l2);
@@ -3007,7 +3007,7 @@ TEST_CASE("3D Bilinear Vector Dot Product Integrators",
          }
          SECTION("Mapping ND to L2")
          {
-            L2_FECollection    fec_l2(order - 1, dim);
+            L2_FECollection    fec_l2(order, dim);
             FiniteElementSpace fespace_l2(&mesh, &fec_l2);
 
             BilinearForm m_l2(&fespace_l2);
@@ -3071,7 +3071,7 @@ TEST_CASE("3D Bilinear Vector Dot Product Integrators",
          }
          SECTION("Mapping RT to L2")
          {
-            L2_FECollection    fec_l2(order - 1, dim);
+            L2_FECollection    fec_l2(order, dim);
             FiniteElementSpace fespace_l2(&mesh, &fec_l2);
 
             BilinearForm m_l2(&fespace_l2);
