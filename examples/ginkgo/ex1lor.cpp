@@ -40,6 +40,7 @@
 //               optional connection to the GLVis tool for visualization.
 
 #include "mfem.hpp"
+#include "custom_logger.hpp"
 
 #include <fstream>
 #include <iostream>
@@ -114,7 +115,8 @@ int main(int argc, char *argv[])
    double pc_acc = 1.e-1;
    int pc_max_bs = 32;
    bool permute = false;
-   bool output_mesh = false;
+   bool skip_sort = false;
+   bool output_mesh = true;
    int isai_sparsity_power = 1;
 
    OptionsParser args(argc, argv);
@@ -142,6 +144,8 @@ int main(int argc, char *argv[])
                   "Maximum block size for Ginkgo BlockJacobi.");
    args.AddOption(&permute, "-per", "--permutation", "-no-per",
                   "--no-permutation", "Enable preconditioner permutation.");
+   args.AddOption(&skip_sort, "-skip-sort", "--skip-sort", "-sort",
+                  "--do-sort", "Skip matrix sorting for ISAI creation.");
    args.AddOption(&isai_sparsity_power, "-isai-sp", "--isai-sparsity-power",
                   "Power to use for sparsity pattern of ISAI in Ginkgo ILU-ISAI.");
    args.Parse();
@@ -433,19 +437,34 @@ int main(int argc, char *argv[])
            // Create Ginkgo ILU preconditioner
   
          if (permute) {
+
+           //* Add logger for ILU creation
+      /*     auto ilu_logger =
+                std::make_shared<MFEMOutOperationLogger>(executor, false);
+           executor->add_logger(ilu_logger); */
+           //
+
            tic_toc.Clear();
            tic_toc.Start();
 
            GinkgoWrappers::GinkgoIluPreconditioner M(executor, A_pc, *inv_reordering,
-                                                     trisolve_type, isai_sparsity_power);
+                                                     trisolve_type, isai_sparsity_power, skip_sort);
 
            tic_toc.Stop();
            std::cout << "Real time creating Ginkgo Ilu preconditioner: " <<
                      tic_toc.RealTime() << std::endl;
 
+           //* Remove creation logger
+     /*      executor->remove_logger(gko::lend(ilu_logger));
+           // Create solve logger
+           auto solve_logger = 
+                std::make_shared<MFEMOutOperationLogger>(executor, false);
+           executor->add_logger(solve_logger); */
+           //
+
             
            //TMP: output ISAI matrices to compare:
-           if (trisolve_type == "isai") {
+     /*      if (trisolve_type == "isai") {
              std::cout << "Writing ISAI matrices..." << std::endl;
 
              ofstream l_ofs("isai-l-mat.dat");
@@ -463,27 +482,50 @@ int main(int argc, char *argv[])
              gko::write(l_ofs, isai_l_mat, gko::layout_type::coordinate);
              gko::write(u_ofs, isai_u_mat, gko::layout_type::coordinate);
 
-           }
+           } */
            // END TMP
 
            // Use preconditioned CG
            total_its = pcg_solve(*A, M, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
 
            std::cout << "Real time in PCG: " << it_time << std::endl;
+
+           //* Remove logger and write output
+       /*    executor->remove_logger(gko::lend(solve_logger));
+           std::cout << "\nILU Creation Logger: " << std::endl;
+           ilu_logger->write_data();
+           std::cout << "\nSolve Logger: " << std::endl;
+           solve_logger->write_data(); */
+           //*
+           
          } else {
+
+           //* Add logger for ILU creation
+      /*     auto ilu_logger =
+                std::make_shared<MFEMOutOperationLogger>(executor, false);
+           executor->add_logger(ilu_logger);  */
+           //
 
            tic_toc.Clear();
            tic_toc.Start();
 
            GinkgoWrappers::GinkgoIluPreconditioner M(executor, A_pc, trisolve_type,
-                                                      isai_sparsity_power);
+                                                      isai_sparsity_power, skip_sort);
 
            tic_toc.Stop();
            std::cout << "Real time creating Ginkgo Ilu preconditioner: " <<
                      tic_toc.RealTime() << std::endl;
 
+           //* Remove creation logger
+    /*       executor->remove_logger(gko::lend(ilu_logger));
+           // Create solve logger
+           auto solve_logger = 
+                std::make_shared<MFEMOutOperationLogger>(executor, false);
+           executor->add_logger(solve_logger); */
+           //
+
            //TMP: output ISAI matrices to compare:
-           if (trisolve_type == "isai") {
+/*           if (trisolve_type == "isai") {
              std::cout << "Writing ISAI matrices..." << std::endl;
 
              ofstream l_ofs("isai-l-mat.dat");
@@ -501,7 +543,7 @@ int main(int argc, char *argv[])
              gko::write(l_ofs, isai_l_mat, gko::layout_type::coordinate);
              gko::write(u_ofs, isai_u_mat, gko::layout_type::coordinate);
 
-           }
+           }*/
            // END TMP
 
            // Use preconditioned CG
@@ -509,6 +551,13 @@ int main(int argc, char *argv[])
 
            std::cout << "Real time in PCG: " << it_time << std::endl;
 
+           //* Remove logger and write output
+    /*       executor->remove_logger(gko::lend(solve_logger));
+           std::cout << "\nILU Creation Logger: " << std::endl;
+           ilu_logger->write_data();
+           std::cout << "\nSolve Logger: " << std::endl;
+           solve_logger->write_data(); */
+           //*
         }
       }
       else if (pc_choice == MFEM_GS)
