@@ -213,6 +213,101 @@ int CartesianToGmshHex(int idx_in[], int ref)
    }
 }
 
+int WedgeToGmshPri(int idx_in[], int ref)
+{
+   int i = idx_in[0];
+   int j = idx_in[1];
+   int k = idx_in[2];
+   int l = ref - i -j;
+   bool ibdr = (i == 0);
+   bool jbdr = (j == 0);
+   bool kbdr = (k == 0 || k == ref);
+   bool lbdr = (l == 0);
+   if (ibdr && jbdr && kbdr)
+   {
+      return k ? 3 : 0;
+   }
+   else if (jbdr && lbdr && kbdr)
+   {
+      return k ? 4 : 1;
+   }
+   else if (ibdr && lbdr && kbdr)
+   {
+      return k ? 5 : 2;
+   }
+   int offset = 6;
+   if (jbdr && kbdr)
+   {
+      return offset + (k ? 6 * (ref - 1) + i - 1: i - 1);
+   }
+   else if (ibdr && kbdr)
+   {
+      return offset + (k ? 7 * (ref -1) + j-1 : ref - 1 + j - 1);
+   }
+   else if (ibdr && jbdr)
+   {
+      return offset + 2 * (ref - 1) + k - 1;
+   }
+   else if (lbdr && kbdr)
+   {
+      return offset + (k ? 8 * (ref -1) + j - 1 : 3 * (ref - 1) + j - 1);
+   }
+   else if (jbdr && lbdr)
+   {
+      return offset + 4 * (ref - 1) + k - 1;
+   }
+   else if (ibdr && lbdr)
+   {
+      return offset + 5 * (ref - 1) + k - 1;
+   }
+   offset += 9 * (ref-1);
+   if (kbdr) // Triangular faces at k=0 and k=ref
+   {
+      int b_out[3];
+      b_out[0] = k ? i-1 : j-1;
+      b_out[1] = k ? j-1 : i-1;
+      b_out[2] = ref - i - j - 1;
+      offset += k ? (ref-1)*(ref-2) / 2: 0;
+      return offset + BarycentricToVTKTriangle(b_out, ref-3);
+   }
+   offset += (ref-1)*(ref-2);
+   if (jbdr) // Quadrilateral face at j=0
+   {
+      int idx_out[2];
+      idx_out[0] = i-1;
+      idx_out[1] = k-1;
+      return offset + CartesianToGmshQuad(idx_out, ref-2);
+   }
+   else if (ibdr) // Quadrilateral face at i=0
+   {
+      int idx_out[2];
+      idx_out[0] = k-1;
+      idx_out[1] = j-1;
+      offset += (ref-1)*(ref-1);
+      return offset + CartesianToGmshQuad(idx_out, ref-2);
+   }
+   else if (lbdr) // Quadrilateral face at l=ref-i-j=0
+   {
+      int idx_out[2];
+      idx_out[0] = j-1;
+      idx_out[1] = k-1;
+      offset += 2*(ref-1)*(ref-1);
+      return offset + CartesianToGmshQuad(idx_out, ref-2);
+   }
+   offset += 3*(ref-1)*(ref-1);
+   // Gmsh Prism interiors are a tensor product of segments of order ref-2
+   // and triangles of order ref-3
+   {
+      int b_out[3];
+      b_out[0] = i-1;
+      b_out[1] = j-1;
+      b_out[2] = ref - i - j - 1;
+      int ot = BarycentricToVTKTriangle(b_out, ref-3);
+      int os = (k==1) ? 0 : (k == ref-1 ? 1 : k);
+      return offset + (ref-1) * ot + os;
+   }
+}
+
 void GmshHOSegmentMapping(int order, int *map)
 {
    map[0] = 0;
@@ -232,8 +327,7 @@ void GmshHOTriangleMapping(int order, int *map)
       for (b[0]=0; b[0]<=order-b[1]; ++b[0])
       {
          b[2] = order - b[0] - b[1];
-         int o_gmsh =  BarycentricToVTKTriangle(b, order);
-         map[o] = o_gmsh;
+         map[o] = BarycentricToVTKTriangle(b, order);
          o++;
       }
    }
@@ -247,8 +341,7 @@ void GmshHOQuadrilateralMapping(int order, int *map)
    {
       for (b[0]=0; b[0]<=order; b[0]++)
       {
-         int o_gmsh = CartesianToGmshQuad(b, order);
-         map[o] = o_gmsh;
+         map[o] = CartesianToGmshQuad(b, order);
          o++;
       }
    }
@@ -266,8 +359,7 @@ void GmshHOTetrahedronMapping(int order, int *map)
          for (b[0]=0; b[0]<=order-b[1]-b[2]; ++b[0])
          {
             b[3] = order - b[0] - b[1] - b[2];
-            int o_gmsh =  BarycentricToGmshTet(b, order);
-            map[o] = o_gmsh;
+            map[o] = BarycentricToGmshTet(b, order);
             o++;
          }
       }
@@ -284,8 +376,7 @@ void GmshHOHexahedronMapping(int order, int *map)
       {
          for (b[0]=0; b[0]<=order; b[0]++)
          {
-            int o_gmsh = CartesianToGmshHex(b, order);
-            map[o] = o_gmsh;
+            map[o] = CartesianToGmshHex(b, order);
             o++;
          }
       }
@@ -293,7 +384,21 @@ void GmshHOHexahedronMapping(int order, int *map)
 }
 
 void GmshHOWedgeMapping(int order, int *map)
-{}
+{
+   int b[3];
+   int o = 0;
+   for (b[2]=0; b[2]<=order; b[2]++)
+   {
+      for (b[1]=0; b[1]<=order; b[1]++)
+      {
+         for (b[0]=0; b[0]<=order - b[1]; b[0]++)
+         {
+            map[o] = WedgeToGmshPri(b, order);
+            o++;
+         }
+      }
+   }
+}
 
 void GmshHOPyramidMapping(int order, int *map)
 {}
