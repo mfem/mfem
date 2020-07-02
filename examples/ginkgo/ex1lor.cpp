@@ -47,6 +47,48 @@
 using namespace std;
 using namespace mfem;
 
+void PermuteSparseMatrix(SparseMatrix &A, Array<int> &pinv, double shift=0.0)
+{
+   int n = pinv.Size();
+
+   SparseMatrix PA(A);
+
+   Array<int> p(n);
+   for (int i=0; i<n; ++i)
+   {
+      p[pinv[i]] = i;
+   }
+
+   // Set LU = A(P,P) using the permutation generated above
+   const int *IA = A.GetI();
+   const int *JA = A.GetJ();
+   const double *VA = A.GetData();
+
+   int *I = PA.GetI();
+   int *J = PA.GetJ();
+   double *V = PA.GetData();
+
+   I[0] = 0;
+   for (int i=0; i<n; ++i)
+   {
+      int pi = p[i];
+      int nnz_pi = IA[pi+1] - IA[pi];
+      I[i+1] = I[i] + nnz_pi;
+      for (int jj=0; jj<nnz_pi; ++jj)
+      {
+         int pj = JA[IA[pi] + jj];
+         int j = pinv[pj];
+
+         J[I[i] + jj] = j;
+         V[I[i] + jj] = VA[IA[pi] + jj];
+         if (i == j) { V[I[i] + jj] += shift; }
+      }
+   }
+
+   PA.SortColumnIndices();
+   PA.Swap(A);
+}
+
 // helper functions for cg/pcg solve with timer and iter count return
 int cg_solve(const Operator &A, const Vector &b, Vector &x,
         int print_iter, int max_num_iter,
@@ -113,7 +155,7 @@ int main(int argc, char *argv[])
    const char *pc_storage_opt = "auto";
    double pc_acc = 1.e-1;
    int pc_max_bs = 32;
-   bool permute = false;
+   int permute = 0;
    bool output_mesh = false;
    int isai_sparsity_power = 1;
 
@@ -140,8 +182,7 @@ int main(int argc, char *argv[])
                   "Accuracy parameter for Ginkgo BlockJacobi.");
    args.AddOption(&pc_max_bs, "-pc-mbs", "--preconditioner-max-block-size",
                   "Maximum block size for Ginkgo BlockJacobi.");
-   args.AddOption(&permute, "-per", "--permutation", "-no-per",
-                  "--no-permutation", "Enable preconditioner permutation.");
+   args.AddOption(&permute, "-per", "--permutation", "Specify preconditioner permutation.");
    args.AddOption(&isai_sparsity_power, "-isai-sp", "--isai-sparsity-power",
                   "Power to use for sparsity pattern of ISAI in Ginkgo ILU-ISAI.");
    args.Parse();
@@ -232,6 +273,8 @@ int main(int argc, char *argv[])
       }
    }
 
+   cout << "Number of mesh elements: " << mesh->GetNE() << endl;
+
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
@@ -258,10 +301,7 @@ int main(int argc, char *argv[])
    Mesh *mesh_lor = NULL;
    FiniteElementCollection *fec_lor = NULL;
    FiniteElementSpace *fespace_lor = NULL;
-//   Array<int> *reordering = NULL;
-   //*** 
    Array<int> *inv_reordering = NULL;
-   //***
    if (pc)
    {
       int basis_lor = basis;
@@ -270,34 +310,26 @@ int main(int argc, char *argv[])
       fec_lor = new H1_FECollection(1, dim);
       fespace_lor = new FiniteElementSpace(mesh_lor, fec_lor);
 
-      if (permute) {
-
+      if (permute == 1) {
            const Table &pre_reorder_dofs = fespace_lor->GetElementToDofTable();
            const Table pre_reorder_dofs_copy(pre_reorder_dofs);
            fespace_lor->ReorderElementToDofTable();
            const Table &post_reorder_dofs = fespace_lor->GetElementToDofTable();
 
-  //         reordering = new Array<int>(fespace_lor->GetTrueVSize());
-           //***
            inv_reordering = new Array<int>(fespace_lor->GetTrueVSize());
-           //***
            for (int i = 0; i < pre_reorder_dofs.Size(); i++) {
 
                Array<int> old_row;
                Array<int> new_row;
                pre_reorder_dofs_copy.GetRow(i, old_row);
                post_reorder_dofs.GetRow(i, new_row);
-//               old_row.Print();
-//               new_row.Print();
                for (int j = 0; j < pre_reorder_dofs_copy.RowSize(i); j++) {
-                 int new_dof = new_row.operator[](j);
-                 int old_dof = old_row.operator[](j);
-    //             reordering->operator[](new_dof) = old_dof;
-                 inv_reordering->operator[](old_dof) = new_dof;
+                 int new_dof = new_row[j];
+                 int old_dof = old_row[j];
+                 (*inv_reordering)[old_dof] = new_dof;
               }
            }
       }
-
    }
 
    // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
@@ -313,8 +345,9 @@ int main(int argc, char *argv[])
    }
 
    Array<int> ess_pc_tdof_list(ess_tdof_list.Size());
-   if (permute) {
-     for (int i = 0; i < ess_tdof_list.Size(); i++) 
+
+   if (permute == 1) {
+     for (int i = 0; i < ess_tdof_list.Size(); i++)
       {
          ess_pc_tdof_list.operator[](i) = inv_reordering->operator[](
                 ess_tdof_list.operator[](i));
@@ -326,6 +359,10 @@ int main(int argc, char *argv[])
       ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_pc_tdof_list);
    }
+
+   // Array<int> ess_bdr(mesh->bdr_attributes.Max());
+   // ess_bdr = 1;
+   // fespace->GetEssentialTrueDofs(ess_bdr, ess_pc_tdof_list);
 
    // 7. Set up the linear form b(.) which corresponds to the right-hand side
    // of
@@ -384,9 +421,20 @@ int main(int argc, char *argv[])
       a_pc->AddDomainIntegrator(new DiffusionIntegrator(one));
       a_pc->UsePrecomputedSparsity();
       a_pc->Assemble();
-//      a_pc->FormSystemMatrix(ess_tdof_list, A_pc);
-//***
       a_pc->FormSystemMatrix(ess_pc_tdof_list, A_pc);
+
+      if (permute == 2)
+      {
+         Array<int> perm(fespace_lor->GetTrueVSize());
+         SparseMatrix A_pc_tmp(A_pc);
+         MinimumDiscardedFillOrdering(A_pc_tmp, perm);
+         inv_reordering = new Array<int>(fespace_lor->GetTrueVSize());
+         for (int i=0; i<perm.Size(); ++i)
+         {
+            (*inv_reordering)[perm[i]] = i;
+         }
+         PermuteSparseMatrix(A_pc, *inv_reordering);
+      }
 
       tic_toc.Stop();
       std::cout << "Real time creating A_pc SparseMatrix: " <<
@@ -396,8 +444,6 @@ int main(int argc, char *argv[])
       {
 
          // Create Ginkgo Jacobi preconditioner
-
-
          if (permute) {
             tic_toc.Clear();
             tic_toc.Start();
