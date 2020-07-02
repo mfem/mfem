@@ -1223,6 +1223,15 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                       27,55,54,29,7,31,30,6
                      };
 
+         int wdg18[] = {0,6,1,7,9,2,8,15,10,    // 2nd order wedge/prism
+                        16,17,11,3,12,4,13,14,5
+                       };
+         int wdg40[] = {0,6,7,1,8,24,12,9,13,2, // 3rd order wedge/prism
+                        10,26,27,14,30,38,34,33,35,16,
+                        11,29,28,15,31,39,37,32,36,17,
+                        3,18,19,4,20,25,22,21,23,5
+                       };
+
          vector<Element*> elements_0D, elements_1D, elements_2D, elements_3D;
          elements_0D.reserve(num_of_all_elements);
          elements_1D.reserve(num_of_all_elements);
@@ -1242,13 +1251,21 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          ho_el_order_3D.reserve(num_of_all_elements);
 
          // Vertex order mappings
-         Array<int*> ho_lin(10); ho_lin = NULL;
-         Array<int*> ho_tri(10); ho_tri = NULL;
-         Array<int*> ho_sqr(10); ho_sqr = NULL;
-         Array<int*> ho_tet(10); ho_tet = NULL;
-         Array<int*> ho_hex( 9); ho_hex = NULL;
-         Array<int*> ho_wdg( 9); ho_wdg = NULL;
-         Array<int*> ho_pyr( 9); ho_pyr = NULL;
+         Array<int*> ho_lin(11); ho_lin = NULL;
+         Array<int*> ho_tri(11); ho_tri = NULL;
+         Array<int*> ho_sqr(11); ho_sqr = NULL;
+         Array<int*> ho_tet(11); ho_tet = NULL;
+         Array<int*> ho_hex(10); ho_hex = NULL;
+         Array<int*> ho_wdg(10); ho_wdg = NULL;
+         Array<int*> ho_pyr(10); ho_pyr = NULL;
+
+         // Use predefined arrays at lowest orders (for efficiency)
+         ho_lin[2] = lin3;  ho_lin[3] = lin4;
+         ho_tri[2] = tri6;  ho_tri[3] = tri10;
+         ho_sqr[2] = quad9; ho_sqr[3] = quad16;
+         ho_tet[2] = tet10; ho_tet[3] = tet20;
+         ho_hex[2] = hex27; ho_hex[3] = hex64;
+         ho_wdg[2] = wdg18; ho_wdg[3] = wdg40;
 
          if (binary)
          {
@@ -1415,7 +1432,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                      case 97: el_order--; //  729-node hexahedron (8th order)
                      case 98: el_order--; // 1000-node hexahedron (9th order)
                         {
-                           el_order--;
+                           el_order--; // Gmsh does not define an order 10 hex
                            elements_3D.push_back(
                               new Hexahedron(&vert_indices[0], phys_domain));
                            if (el_order > 1)
@@ -1437,7 +1454,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                      case 109: el_order--; // 405-node wedge (8th order)
                      case 110: el_order--; // 550-node wedge (9th order)
                         {
-                           el_order--;
+                           el_order--; // Gmsh does not define an order 10 wedge
                            elements_3D.push_back(
                               new Wedge(&vert_indices[0], phys_domain));
                            if (el_order > 1)
@@ -1460,7 +1477,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                      case 123: el_order--; // 285-node pyramid (8th order)
                      case 124: el_order--; // 385-node pyramid (9th order)
                         {
-                           el_order--;
+                           el_order--; // Gmsh does not define an order 10 pyr
                            elements_3D.push_back(
                                new Pyramid(&vert_indices[0], phys_domain));
                            if (el_order > 1)
@@ -1468,7 +1485,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                               Array<int> * hov = new Array<int>;
                               hov->Append(&vert_indices[0], n_elem_nodes);
                               ho_verts_3D.push_back(hov);
-                     ho_el_order_3D.push_back(el_order);
+                              ho_el_order_3D.push_back(el_order);
                            }
                            break;
                         }
@@ -1812,72 +1829,72 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                   case Element::SEGMENT:
                      ho_verts = ho_verts_1D[el];
                      el_order = ho_el_order_1D[el];
-                     if (ho_lin[el_order-1])
+                     if (!ho_lin[el_order])
                      {
-                        ho_lin[el_order-1] = new int[ho_verts->Size()];
-                        GmshHOSegmentMapping(el_order, ho_lin[el_order-1]);
+                        ho_lin[el_order] = new int[ho_verts->Size()];
+                        GmshHOSegmentMapping(el_order, ho_lin[el_order]);
                      }
-                     vm = ho_lin[el_order-1];
+                     vm = ho_lin[el_order];
                      break;
                   case Element::TRIANGLE:
                      ho_verts = ho_verts_2D[el];
                      el_order = ho_el_order_2D[el];
-                     if (ho_tri[el_order-1])
+                     if (!ho_tri[el_order])
                      {
-                        ho_tri[el_order-1] = new int[ho_verts->Size()];
-                        GmshHOTriangleMapping(el_order, ho_tri[el_order-1]);
+                        ho_tri[el_order] = new int[ho_verts->Size()];
+                        GmshHOTriangleMapping(el_order, ho_tri[el_order]);
                      }
-                     vm = ho_tri[el_order-1];
+                     vm = ho_tri[el_order];
                      break;
                   case Element::QUADRILATERAL:
                      ho_verts = ho_verts_2D[el];
                      el_order = ho_el_order_2D[el];
-                     if (ho_sqr[el_order-1])
+                     if (!ho_sqr[el_order])
                      {
-                        ho_sqr[el_order-1] = new int[ho_verts->Size()];
-                        GmshHOQuadrilateralMapping(el_order, ho_sqr[el_order-1]);
+                        ho_sqr[el_order] = new int[ho_verts->Size()];
+                        GmshHOQuadrilateralMapping(el_order, ho_sqr[el_order]);
                      }
-                     vm = ho_sqr[el_order-1];
+                     vm = ho_sqr[el_order];
                      break;
                   case Element::TETRAHEDRON:
                      ho_verts = ho_verts_3D[el];
                      el_order = ho_el_order_3D[el];
-                     if (ho_tet[el_order-1])
+                     if (!ho_tet[el_order])
                      {
-                        ho_tet[el_order-1] = new int[ho_verts->Size()];
-                        GmshHOTetrahedronMapping(el_order, ho_tet[el_order-1]);
+                        ho_tet[el_order] = new int[ho_verts->Size()];
+                        GmshHOTetrahedronMapping(el_order, ho_tet[el_order]);
                      }
-                     vm = ho_tet[el_order-1];
+                     vm = ho_tet[el_order];
                      break;
                   case Element::HEXAHEDRON:
                      ho_verts = ho_verts_3D[el];
                      el_order = ho_el_order_3D[el];
-                     if (ho_hex[el_order-1])
+                     if (!ho_hex[el_order])
                      {
-                        ho_hex[el_order-1] = new int[ho_verts->Size()];
-                        GmshHOHexahedronMapping(el_order, ho_hex[el_order-1]);
+                        ho_hex[el_order] = new int[ho_verts->Size()];
+                        GmshHOHexahedronMapping(el_order, ho_hex[el_order]);
                      }
-                     vm = ho_hex[el_order-1];
+                     vm = ho_hex[el_order];
                      break;
                   case Element::WEDGE:
                      ho_verts = ho_verts_3D[el];
                      el_order = ho_el_order_3D[el];
-                     if (ho_wdg[el_order-1])
+                     if (!ho_wdg[el_order])
                      {
-                        ho_wdg[el_order-1] = new int[ho_verts->Size()];
-                        GmshHOWedgeMapping(el_order, ho_wdg[el_order-1]);
+                        ho_wdg[el_order] = new int[ho_verts->Size()];
+                        GmshHOWedgeMapping(el_order, ho_wdg[el_order]);
                      }
-                     vm = ho_wdg[el_order-1];
+                     vm = ho_wdg[el_order];
                      break;
                   // case Element::PYRAMID:
                   //    ho_verts = ho_verts_3D[el];
                   //    el_order = ho_el_order_3D[el];
-                  //    if (ho_pyr[el_order-1])
+                  //    if (ho_pyr[el_order])
                   //    {
-                  //      ho_pyr[el_order-1] = new int[ho_verts->Size()];
-                  //      GmshHOPyramidMapping(el_order, ho_pyr[el_order-1]);
+                  //      ho_pyr[el_order] = new int[ho_verts->Size()];
+                  //      GmshHOPyramidMapping(el_order, ho_pyr[el_order]);
                   //    }
-                  //    vm = ho_pyr[el_order-1];
+                  //    vm = ho_pyr[el_order];
                   //    break;
                   default: // Any other element type
                      MFEM_WARNING("Unsupported Gmsh element type.");
@@ -1911,32 +1928,32 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             delete ho_verts_3D[el];
          }
 
-         // Delete any high vertex order mappings
-         for (int ord=0; ord<ho_lin.Size(); ord++)
+         // Delete dynamically allocated high vertex order mappings
+         for (int ord=4; ord<ho_lin.Size(); ord++)
          {
             if (ho_lin[ord] != NULL) { delete [] ho_lin[ord]; }
          }
-         for (int ord=0; ord<ho_tri.Size(); ord++)
+         for (int ord=4; ord<ho_tri.Size(); ord++)
          {
             if (ho_tri[ord] != NULL) { delete [] ho_tri[ord]; }
          }
-         for (int ord=0; ord<ho_sqr.Size(); ord++)
+         for (int ord=4; ord<ho_sqr.Size(); ord++)
          {
             if (ho_sqr[ord] != NULL) { delete [] ho_sqr[ord]; }
          }
-         for (int ord=0; ord<ho_tet.Size(); ord++)
+         for (int ord=4; ord<ho_tet.Size(); ord++)
          {
             if (ho_tet[ord] != NULL) { delete [] ho_tet[ord]; }
          }
-         for (int ord=0; ord<ho_hex.Size(); ord++)
+         for (int ord=4; ord<ho_hex.Size(); ord++)
          {
             if (ho_hex[ord] != NULL) { delete [] ho_hex[ord]; }
          }
-         for (int ord=0; ord<ho_wdg.Size(); ord++)
+         for (int ord=4; ord<ho_wdg.Size(); ord++)
          {
             if (ho_wdg[ord] != NULL) { delete [] ho_wdg[ord]; }
          }
-         for (int ord=0; ord<ho_pyr.Size(); ord++)
+         for (int ord=4; ord<ho_pyr.Size(); ord++)
          {
             if (ho_pyr[ord] != NULL) { delete [] ho_pyr[ord]; }
          }
