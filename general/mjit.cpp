@@ -109,11 +109,25 @@ enum Command
    TIMEOUT = 4000
 };
 
+inline bool MPI_Inited()
+{
+   int ini = false;
+   MPI_Initialized(&ini);
+   return ini ? true : false;
+}
+
 bool Root()
 {
-   int world_rank;
-   MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+   int world_rank = 0;
+   if (MPI_Inited()) { MPI_Comm_rank(MPI_COMM_WORLD, &world_rank); }
    return world_rank == 0;
+}
+
+int MPI_Size()
+{
+   int size = 1;
+   if (MPI_Inited()) { MPI_Comm_size(MPI_COMM_WORLD, &size); }
+   return size;
 }
 
 int System(char *argv[])
@@ -125,11 +139,31 @@ int System(char *argv[])
    if (snprintf(mjit, PATH_MAX, "%s/bin/mjit", MFEM_INSTALL_DIR) < 0)
    { return EXIT_FAILURE; }
    dbg(mjit);
+   // If we have not been launch with mpirun, just fold back to serial case,
+   // which has a shift in the arguments
+   if (!MPI_Inited() || MPI_Size()==1)
+   {
+      string command(argv[1]);
+      for (int k = 2; k < argc && argv[k]; k++)
+      {
+         command.append(" ");
+         command.append(argv[k]);
+      }
+      const char *command_c_str = command.c_str();
+      dbg(command_c_str);
+      return system(command_c_str);
+   }
+
    // Debug our command
    string command(argv[0]);
    for (int k = 1; k < argc && argv[k]; k++)
-   { command.append(" "); command.append(argv[k]); }
-   dbg(command.c_str());
+   {
+      command.append(" ");
+      command.append(argv[k]);
+   }
+   const char *command_c_str = command.c_str();
+   dbg(command_c_str);
+
    // Spawn the sub MPI group
    constexpr int root = 0;
    int errcode = EXIT_FAILURE;
@@ -205,6 +239,7 @@ static int MPI_Spawned(int argc, char *argv[], int *status)
 
 static int ProcessFork(int argc, char *argv[])
 {
+   DBG("[ProcessFork]");
    dbg();
    constexpr void *addr = 0;
    constexpr int len = sizeof(int);
@@ -239,7 +274,8 @@ int GetVersion(bool inc)
 /// Compile the source file with PIC flags, updating the cache library.
 bool Compile(const char *cc, const char *co,
              const char *cxx, const char *cxxflags,
-             const char *msrc, const char *mins)
+             const char *msrc, const char *mins,
+             const bool check_for_lib_ar)
 {
 #ifndef MFEM_USE_CUDA
 #define DC
@@ -266,7 +302,7 @@ bool Compile(const char *cc, const char *co,
    constexpr const char *lib_so = MFEM_JIT_CACHE_LIBRARY ".so";
 
    // If there is already a JIT library, use it and create the lib_so
-   if (GetVersion() == 0 && std::fstream(lib_ar))
+   if (check_for_lib_ar && GetVersion() == 0 && std::fstream(lib_ar))
    {
       const char *argv_so[] =
       {

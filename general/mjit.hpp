@@ -111,10 +111,12 @@ inline bool Create(const char *cc, const size_t hash,
 
 bool Compile(const char *input, const char *output,
              const char *cxx, const char *cxxflags,
-             const char *mfem_source_dir, const char *mfem_install_dir);
+             const char *mfem_source_dir, const char *mfem_install_dir,
+             const bool check_for_lib_ar);
 
 template<typename... Args>
-inline bool Compile(const size_t hash,const char *src,
+inline bool Compile(const size_t hash, const bool check_for_lib_ar,
+                    const char *src,
                     const char *cxx, const char *cxxflags,
                     const char *msrc, const char *mins,
                     Args... args)
@@ -123,7 +125,7 @@ inline bool Compile(const size_t hash,const char *src,
    uint64str(hash, co, ".co");
    uint64str(hash, cc, ".cc");
    if (!Create(cc, hash, src, args...) !=0 ) { return false; }
-   return Compile(cc, co, cxx, cxxflags, msrc, mins);
+   return Compile(cc, co, cxx, cxxflags, msrc, mins, check_for_lib_ar);
 }
 
 template<typename... Args>
@@ -141,17 +143,19 @@ inline void *Lookup(const size_t hash, Args... args)
    { return nullptr; }
 
    void *handle = nullptr;
-   handle = dlopen(version==0?soname:soname_ver, mode);
+   const bool first = version == 0;
+   // We first try to open the lib_so
+   handle = dlopen(first ? soname : soname_ver, mode);
    if (!handle)
    {
-      if (!Compile(hash, args...)) { return nullptr; }
-      handle = dlopen(version==0?soname:soname_ver, mode);
+      if (!Compile(hash, true, args...)) { return nullptr; }
+      handle = dlopen(first ? soname : soname_ver, mode);
    }
    if (!handle) { return nullptr; }
    if (!dlsym(handle, symbol))
    {
       dlclose(handle);
-      if (!Compile(hash, args...)) { return nullptr; }
+      if (!Compile(hash, false, args...)) { return nullptr; }
       handle = dlopen(soname_ver, mode);
    }
    if (!handle) { return nullptr; }
