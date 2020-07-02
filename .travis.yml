@@ -11,8 +11,6 @@
 
 language: cpp
 
-sudo: false
-
 stages:
   - checks
   - tests
@@ -370,8 +368,10 @@ script:
    # Compiler
    - if [ $MPI == "YES" ]; then
         export MYCXX=mpic++;
+        export MAKE_CXX_FLAG=MPICXX=$MYCXX;
      else
         export MYCXX="$CXX";
+        export MAKE_CXX_FLAG=CXX=$MYCXX;
      fi
 
    # Print the compiler version
@@ -384,12 +384,9 @@ script:
      if [ "$CODECOV" == "YES" ]; then
         CPPFLAGS="--coverage -g";
      fi;
-     if [ "$CXX" == "clang++" ]; then
-        export MFEM_PERF_SW=clang;
-     fi
 
    # Configure the library
-   - make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX="$MYCXX"
+   - make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG $MAKE_CXX_FLAG
         MFEM_MPI_NP=$NPROCS CPPFLAGS="$CPPFLAGS"
    # Show the configuration
    - make info
