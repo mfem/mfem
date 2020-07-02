@@ -2439,6 +2439,30 @@ void TMOPComboIntegrator::ParEnableNormalization(const ParGridFunction &x)
 }
 #endif
 
+void TMOPComboIntegrator::AssemblePA(const FiniteElementSpace &fes)
+{
+   for (int i = 0; i < tmopi.Size(); i++)
+   {
+      tmopi[i]->AssemblePA(fes);
+   }
+}
+
+void TMOPComboIntegrator::AddMultPA(const Vector &x, Vector &y) const
+{
+   for (int i = 0; i < tmopi.Size(); i++)
+   {
+      tmopi[i]->AddMultPA(x, y);
+   }
+}
+
+void TMOPComboIntegrator::AddMultGradPA(const Vector &x, const Vector &r,
+                                        Vector &c) const
+{
+   for (int i = 0; i < tmopi.Size(); i++)
+   {
+      tmopi[i]->AddMultGradPA(x, r, c);
+   }
+}
 
 void InterpolateTMOP_QualityMetric(TMOP_QualityMetric &metric,
                                    const TargetConstructor &tc,
