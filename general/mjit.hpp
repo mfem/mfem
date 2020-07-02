@@ -131,29 +131,31 @@ inline void *Lookup(const size_t hash, Args... args)
    char symbol[18];
    uint64str(hash, symbol);
    constexpr int mode = RTLD_NOW | RTLD_LOCAL;
+   constexpr const char *soname = MFEM_JIT_CACHE_LIBRARY ".so";
 
-   //constexpr const char *soname = MFEM_JIT_CACHE_LIBRARY ".so";
-
-   char soname[PATH_MAX];
+   char soname_ver[PATH_MAX];
    const int version = GetVersion();
-   if (snprintf(soname, PATH_MAX, "%s.so.%d",
-                MFEM_JIT_CACHE_LIBRARY, version) < 0) { return nullptr; }
+   if (snprintf(soname_ver, PATH_MAX, "%s.so.%d",
+                MFEM_JIT_CACHE_LIBRARY, version) < 0)
+   { return nullptr; }
 
-   void *handle = dlopen(soname, mode);
+   void *handle = nullptr;
+   handle = dlopen(version==0?soname:soname_ver, mode);
    if (!handle)
    {
       if (!Compile(hash, args...)) { return nullptr; }
-      handle = dlopen(soname, mode);
+      handle = dlopen(version==0?soname:soname_ver, mode);
    }
    if (!handle) { return nullptr; }
    if (!dlsym(handle, symbol))
    {
       dlclose(handle);
       if (!Compile(hash, args...)) { return nullptr; }
-      handle = dlopen(soname, mode);
+      handle = dlopen(soname_ver, mode);
    }
    if (!handle) { return nullptr; }
    if (!dlsym(handle, symbol)) { return nullptr; }
+   if (!getenv("TMP")) { unlink(soname_ver); }
    return handle;
 }
 
@@ -181,9 +183,7 @@ public:
           const char *msrc, const char* mins, Tparams... args):
       seed(jit::hash<const char*>()(src)),
       hash(hash_args(seed, cxx, flags, msrc, mins, args...)),
-      name((uint64str(hash, symbol),
-            printf("\033[1;33mNew %s (%s)\033[m\n", name, symbol),
-            name)),
+      name((uint64str(hash, symbol),name)),
       handle(Lookup(hash, src, cxx, flags, msrc, mins, args...)),
       code(Symbol<kernel_t>(hash, handle)),
       cxx(cxx), src(src), flags(flags), msrc(msrc), mins(mins)

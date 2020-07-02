@@ -229,7 +229,7 @@ static int ProcessFork(int argc, char *argv[])
 // *****************************************************************************
 int GetVersion(bool inc)
 {
-   static int version = 1;
+   static int version = 0;
    const int actual = version;
    if (inc) { version += 1; }
    return actual;
@@ -252,11 +252,9 @@ bool Compile(const char *cc, const char *co,
 #endif
 
 #ifndef __APPLE__
-   constexpr const char *wall = XC "-Wall";
    constexpr const char *beg_load = XL "--whole-archive";
    constexpr const char *end_load = XL "--no-whole-archive";
 #else
-   constexpr const char *wall = "-Wall";
    constexpr const char *beg_load = "-all_load";
    constexpr const char *end_load = "";
 #endif
@@ -265,44 +263,28 @@ bool Compile(const char *cc, const char *co,
    constexpr const char *fpic = XC "-fPIC";
    constexpr const char *shell = MFEM_JIT_SHELL_COMMAND;
    constexpr const char *lib_ar = MFEM_JIT_CACHE_LIBRARY ".a";
+   constexpr const char *lib_so = MFEM_JIT_CACHE_LIBRARY ".so";
 
-   char Imsrc[PM], Imbin[PM];
+   // If there is already a JIT library, use it and create the lib_so
+   if (GetVersion() == 0 && std::fstream(lib_ar))
+   {
+      const char *argv_so[] =
+      {
+         shell, cxx, "-shared", "-o", lib_so, beg_load, lib_ar, end_load,
+         XL"-rpath,.", nullptr
+      };
+      if (mfem::jit::System(const_cast<char**>(argv_so)) != 0) { return false; }
+      if (!getenv("TMP")) { unlink(cc); }
+      return true;
+   }
 
-   // MFEM source path
-   if (snprintf(Imsrc, PM, "-I%s ", msrc) < 0) { return false; }
-
-   // MFEM include path
-   if (snprintf(Imbin, PM, "-I%s/include ", mins) < 0) { return false; }
-
-   // Every shared library has a special name called the ``soname''.
-   // The soname has the prefix 'lib', the name of the library, the `.so',
-   // followed by a period and a version number that is incremented
-   // whenever the interface changes.
-   //constexpr const char *soname = MFEM_JIT_CACHE_LIBRARY ".so";
-   //constexpr const char *Wlsoname = XL "" MFEM_JIT_CACHE_LIBRARY ".so";
-   char soname[PM], Wlsoname[PM];
+   // MFEM source path, include path & lib_so_v
    const int version = GetVersion(true);
-   if (snprintf(soname, PM, "%s.so.%d",
-                MFEM_JIT_CACHE_LIBRARY
-                , version) < 0) { return false; }
-   if (snprintf(Wlsoname, PM,"%s-soname,%s.so.%d",
-                XL, MFEM_JIT_CACHE_LIBRARY
-                , version) < 0) { return false; }
-
-   // Every shared library also has a `realname', which is the filename
-   // containing the actual library code. The real name adds to the soname
-   // a period, a minor number, another period, and the release number.
-   // The last period and release number are optional.
-   char realname[PM];
-   const int minor = 0;
-   const int release = 1;
-   if (snprintf(realname, PM, "%s.so.%d.%d.%d", MFEM_JIT_CACHE_LIBRARY,
-                version, minor, release) < 0) { return false; }
-   DBG("realname: %s", realname);
-
-   // There is also the name that the compiler uses when requesting a library,
-   // (the `linkname'), which is simply the soname without any version number.
-   constexpr const char *linkname = MFEM_JIT_CACHE_LIBRARY ".so";
+   char lib_so_v[PM], Imsrc[PM], Imbin[PM];
+   if (snprintf(Imsrc, PM, "-I%s ", msrc) < 0) { return false; }
+   if (snprintf(Imbin, PM, "-I%s/include ", mins) < 0) { return false; }
+   if (snprintf(lib_so_v, PM, "%s.so.%d", MFEM_JIT_CACHE_LIBRARY, version) < 0)
+   { return false; }
 
    // Compilation
    const char *argv_co[] =
@@ -310,28 +292,18 @@ bool Compile(const char *cc, const char *co,
    if (mfem::jit::System(const_cast<char**>(argv_co)) != 0) { return false; }
 
    // Update archive
-   const char *argv_ar[] = { shell, "ar", "-rv", lib_ar, co,nullptr };
+   const char *argv_ar[] = { shell, "ar", "-rv", lib_ar, co, nullptr };
    if (mfem::jit::System(const_cast<char**>(argv_ar)) != 0) { return false; }
 
    // Create shared library
    const char *argv_so[] =
-   {
-      shell, cxx, "-shared", wall, "-o", realname, beg_load, lib_ar, end_load,
-      XL"-rpath,.", Wlsoname, nullptr
-   };
+   {shell, cxx, "-shared", "-o", lib_so_v, beg_load, lib_ar, end_load, nullptr};
    if (mfem::jit::System(const_cast<char**>(argv_so)) != 0) { return false; }
 
-   // ldconfig -n .
-   const char *ldconfig_n[] = { shell, "/usr/sbin/ldconfig", "-n", ".", nullptr };
-   if (mfem::jit::System(const_cast<char**>(ldconfig_n)) != 0) { return false; }
-
-   // ln -sf soname linkname
-   const char *ln_s[] = { shell, "ln", "-sf", soname, linkname, nullptr };
-   if (mfem::jit::System(const_cast<char**>(ln_s)) != 0) { return false; }
-
    // Install shared library
-   //const char *install[] = { shell, "/usr/bin/install", "--backup=t", realname, linkname, nullptr };
-   //if (mfem::jit::System(const_cast<char**>(install)) != 0) { return false; }
+   const char *install[] =
+   { shell, "install", "--backup=none", lib_so_v, lib_so, nullptr };
+   if (mfem::jit::System(const_cast<char**>(install)) != 0) { return false; }
 
    if (!getenv("TMP")) { unlink(cc); }
    if (!getenv("TMP")) { unlink(co); }
