@@ -65,7 +65,7 @@ protected:
    HypreSmoother M_prec; // Preconditioner for the mass matrix M
 
    CGSolver T_solver;    // Implicit solver for T = M + dt K
-   HypreSmoother T_prec; // Preconditioner for the implicit solver
+   HypreBoomerAMG T_prec; // Preconditioner for the implicit solver
 
    double alpha, kappa;
 
@@ -413,6 +413,7 @@ ConductionOperator::ConductionOperator(ParFiniteElementSpace &f, double al,
    T_solver.SetPrintLevel(0);
    T_solver.SetPreconditioner(T_prec);
 
+   T_prec.SetPrintLevel(0);
    SetParameters(u);
 }
 
@@ -429,33 +430,53 @@ void ConductionOperator::Mult(const Vector &u, Vector &du_dt) const
 void ConductionOperator::ImplicitSolve(const double dt,
                                        const Vector &u, Vector &du_dt)
 {
-   // Solve the equation:
-   //    du_dt = M^{-1}*[-K(u + dt*du_dt)]
-   // for du_dt
+   // Here we use Picard iterations to solve a nonlinear equation
+   // for the Runge-Kutta stage vector k,
+   //
+   //    M*k = N(u+dt*k)
+   //
+   // for nonlinear operator N. We assume N can be written as
+   //
+   //    N(u+dt*k) := L[u+dt*k](u+dt*k) + f(t)
+   //
+   // where L is a matrix-valued operator evaluated at u+dt*k and f(t)
+   // a (potentially zero) time-dependent forcing vector. This can be
+   // rewritten as a fixed-point equation
+   //
+   //    x = (M - dt*L[x])^{-1} (Mu + f)
+   //
+   // where x := u + dt*k, and solved using a Picard iteration, where
+   // a function G(x) = x is solved via x_{k+1} = G(x_k).
+
+   double tol = 1e-6;
+   int maxiter = 100;
 
    // Right-hand side for nonlinear iteration
-   double tol = 1e-6;
    Mmat.Mult(u, z);  // Add forcing function to this if exists
-   du_dt = u;
-   Vector temp(u);
+   du_dt = u;        // Set u as initial guess for x
+   Vector temp(u);   // Vector to measure error
    temp = u;
-   err = 1;
+   double error = 1;
    int iter = 0;
-   while (err > tol) {
+   while (error > tol) {
       iter ++;
-      this->SetParameters(du_dt);
-      T = Add(1.0, Mmat, dt, Kmat);
-      T_solver.SetOperator(*T); 
-      T_solver.Mult(z, du_dt);
-      temp -= du_dt;
-      err = std::sqrt(InnerProduct(MPI_COMM_WORLD, temp, temp));
-      std::cout << "\tIter " << iter << ", Err = " << err << "\n";
+      this->SetParameters(du_dt);   // Update nonlinear operator
+      T = Add(1.0, Mmat, dt, Kmat); // Form matrix L
+      T_solver.SetOperator(*T);
+      T_solver.Mult(z, du_dt);      // Apply L^{-1}
+      temp -= du_dt;                // Measure error
+      error = std::sqrt(InnerProduct(MPI_COMM_WORLD, temp, temp));
       temp = du_dt;
+      if (iter >= maxiter) {
+         mfem_warning("Nonlinear iteration did not converge!");
+         break;
+      }
    }
 
-   // Above we solved for dudt = u + dt*k, where k is the desired update
-   dudt -= u;
-   dudt /= dt;
+   // Above we solved for x = u + dt*k, where k is the desired update
+   // Map du_dt -> k.
+   du_dt -= u;
+   du_dt /= dt;
 }
 
 void ConductionOperator::SetParameters(const Vector &u)

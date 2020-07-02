@@ -225,10 +225,17 @@ int main(int argc, char *argv[])
    else
    {
       prec = new HypreBoomerAMG;
+      prec->SetOperator(*A);
    }
-   CGSolver cg(MPI_COMM_WORLD);
+   // CGSolver cg(MPI_COMM_WORLD);
+   AndersonAcceleration cg(MPI_COMM_WORLD);
+   cg.SetKDim(10);
+   cg.SetRestart(true);      // WORKS
+   cg.SetAAStart(0);          // WORKS
+   cg.SetWeight(1.0);         // Not robust but seems to work
+
    cg.SetRelTol(1e-12);
-   cg.SetMaxIter(2000);
+   cg.SetMaxIter(50);
    cg.SetPrintLevel(1);
    if (prec) { cg.SetPreconditioner(*prec); }
    cg.SetOperator(*A);
