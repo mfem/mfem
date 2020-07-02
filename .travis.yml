@@ -65,7 +65,7 @@ jobs:
       env: MPI=YES
       script:
         - cd ${TRAVIS_BUILD_DIR}
-        - make config MFEM_USE_MPI=YES MFEM_MPI_NP=2
+        - make config MFEM_USE_MPI=YES MFEM_MPI_NP=2 CPPFLAGS="-pedantic -Wall -Werror"
         - make all -j3
         - make test-noclean
         - cd tests/scripts
@@ -384,6 +384,7 @@ script:
      if [ "$CODECOV" == "YES" ]; then
         CPPFLAGS="--coverage -g";
      fi;
+     export CPPFLAGS="${CPPFLAGS} -pedantic -Wall -Werror"
 
    # Configure the library
    - make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG $MAKE_CXX_FLAG
