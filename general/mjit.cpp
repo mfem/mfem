@@ -82,7 +82,7 @@ inline int argn(char *argv[], int argc = 0)
 // command.
 // The parallel implementation will spawn the =mjit= binary on one mpi rank to
 // be able to run on one core and use MPI to broadcast the compilation output.
-#if !defined(MFEM_USE_MPI) || 0
+#if !defined(MFEM_USE_MPI)
 static int System(char *argv[])
 {
    const int argc = argn(argv);
@@ -149,7 +149,7 @@ int System(char *argv[])
    return status;
 }
 
-#if defined(MFEM_JIT_MAIN) || 0
+#if defined(MFEM_JIT_MAIN)
 
 inline int nsleep(const long us)
 {
