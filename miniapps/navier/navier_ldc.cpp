@@ -25,6 +25,7 @@
 #include "navier_solver.hpp"
 #include <fstream>
 #include <iostream>
+#include <string>
 
 using namespace mfem;
 using namespace navier;
@@ -156,6 +157,8 @@ int main(int argc, char *argv[])
       args.PrintOptions(mfem::out);
    }
 
+   std::string meshName(mesh_file);
+
    Mesh *mesh = new Mesh(mesh_file);
    for (int m = 0; m < mesh->GetNV(); m++){
       double& vert = *(mesh->GetVertex(m)+1);
@@ -218,7 +221,7 @@ int main(int argc, char *argv[])
    u_gf = naviersolver.GetCurrentVelocity();
    p_gf = naviersolver.GetCurrentPressure();
 
-   ParaViewDataCollection pvdc("ldc_output", pmesh);
+   ParaViewDataCollection pvdc("ldc_mfem_output_"+meshName, pmesh);
    //pvdc.SetDataFormat(VTKFormat::BINARY32);
    pvdc.SetDataFormat(VTKFormat::ASCII);
    pvdc.SetHighOrderOutput(true);
@@ -239,8 +242,8 @@ int main(int argc, char *argv[])
 
       naviersolver.Step(t, dt, step);
 
-      if (step % 10 == 0)
-
+      //if (step % 50 == 0)
+      if (last_step)
       {
          pvdc.SetCycle(step);
          pvdc.SetTime(t);
