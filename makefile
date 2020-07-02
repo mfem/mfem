@@ -251,6 +251,9 @@ endif
 
 # JIT configuration
 MFEM_JIT = mjit
+ifeq ($(MFEM_USE_JIT),YES)
+	LDFLAGS += -ldl
+endif
 
 DEP_CXX ?= $(MFEM_CXX)
 
@@ -440,10 +443,9 @@ JIT_SOURCE_FILES = $(SRC)fem/bilininteg_diffusion_pa.cpp \
 JIT_DEFINES  = -DMFEM_JIT_MAIN
 JIT_DEFINES += -DMFEM_CXX="$(MFEM_CXX)"
 JIT_DEFINES += -DMFEM_BUILD_FLAGS="$(strip $(MFEM_BUILD_FLAGS))"
-JIT_CXXFLAGS = -O3 -std=c++11 $(XCOMPILER)-Wall $(XCOMPILER)-pedantic
 $(BLD)$(MFEM_JIT): $(SRC)general/$(MFEM_JIT).cpp \
                    $(SRC)general/$(MFEM_JIT).hpp $(THIS_MK)
-	$(MFEM_CXX) $(JIT_CXXFLAGS) -o $(@) $(<) $(JIT_DEFINES)
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -o $(@) $(<) $(JIT_DEFINES)
 
 # Filtering out the objects that will be compiled through the preprocessor
 JIT_OBJECTS_FILES = $(JIT_SOURCE_FILES:$(SRC)%.cpp=$(BLD)%.o)

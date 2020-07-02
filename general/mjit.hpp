@@ -13,6 +13,7 @@
 
 #include <cstring>
 #include <cassert>
+#include <climits>
 #include <functional>
 
 #include <dlfcn.h>
