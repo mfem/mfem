@@ -15,6 +15,108 @@
 namespace mfem
 {
 
+int BarycentricToGmshTet(int *b, int ref)
+{
+   int i = b[0];
+   int j = b[1];
+   int k = b[2];
+   int l = b[3];
+   bool ibdr = (i == 0);
+   bool jbdr = (j == 0);
+   bool kbdr = (k == 0);
+   bool lbdr = (l == 0);
+   if (ibdr && jbdr && kbdr)
+   {
+      return 0;
+   }
+   else if (jbdr && kbdr && lbdr)
+   {
+      return 1;
+   }
+   else if (ibdr && kbdr && lbdr)
+   {
+      return 2;
+   }
+   else if (ibdr && jbdr && lbdr)
+   {
+      return 3;
+   }
+   int offset = 4;
+   if (jbdr && kbdr) // Edge DOF on j == 0 and k == 0
+   {
+      return offset + i - 1;
+   }
+   else if (kbdr && lbdr) // Edge DOF on k == 0 and l == 0
+   {
+      return offset + ref - 1 + j - 1;
+   }
+   else if (ibdr && kbdr) // Edge DOF on i == 0 and k == 0
+   {
+      return offset + 2 * (ref - 1) + ref - j - 1;
+   }
+   else if (ibdr && jbdr) // Edge DOF on i == 0 and j == 0
+   {
+      return offset + 3 * (ref - 1) + ref - k - 1;
+   }
+   else if (ibdr && lbdr) // Edge DOF on i == 0 and l == 0
+   {
+      return offset + 4 * (ref - 1) + ref - k - 1;
+   }
+   else if (jbdr && lbdr) // Edge DOF on j == 0 and l == 0
+   {
+      return offset + 5 * (ref - 1) + ref - k - 1;
+   }
+
+   // Recursive numbering for the faces
+   offset += 6 * (ref - 1);
+   if (kbdr)
+   {
+      int b_out[3];
+      b_out[0] = j-1;
+      b_out[1] = i-1;
+      b_out[2] = ref - i - j - 1;
+      return offset + BarycentricToVTKTriangle(b_out, ref-3);
+   }
+   else if (jbdr)
+   {
+      int b_out[3];
+      b_out[0] = i-1;
+      b_out[1] = k-1;
+      b_out[2] = ref - i - k - 1;
+      offset += (ref - 1) * (ref - 2) / 2;
+      return offset + BarycentricToVTKTriangle(b_out, ref-3);
+   }
+   else if (ibdr)
+   {
+      int b_out[3];
+      b_out[0] = k-1;
+      b_out[1] = j-1;
+      b_out[2] = ref - j - k - 1;
+      offset += (ref - 1) * (ref - 2);
+      return offset + BarycentricToVTKTriangle(b_out, ref-3);
+   }
+   else if (lbdr)
+   {
+      int b_out[3];
+      b_out[0] = ref-j-k-1;
+      b_out[1] = j-1;
+      b_out[2] = k-1;
+      offset += 3 * (ref - 1) * (ref - 2) / 2;
+      return offset + BarycentricToVTKTriangle(b_out, ref-3);
+   }
+
+   // Recursive numbering for interior
+   {
+      int b_out[4];
+      b_out[0] = i-1;
+      b_out[1] = j-1;
+      b_out[2] = k-1;
+      b_out[3] = ref - i - j - k - 1;
+      offset += 2 * (ref - 1) * (ref - 2);
+      return offset + BarycentricToGmshTet(b_out, ref-4);
+   }
+}
+
 int CartesianToGmshQuad(int idx_in[], int ref)
 {
    int i = idx_in[0];
@@ -153,7 +255,24 @@ void GmshHOQuadrilateralMapping(int order, int *map)
 }
 
 void GmshHOTetrahedronMapping(int order, int *map)
-{}
+{
+   int b[4];
+   int o = 0;
+   for (b[2]=0; b[2]<=order; ++b[2])
+   {
+
+      for (b[1]=0; b[1]<=order-b[2]; ++b[1])
+      {
+         for (b[0]=0; b[0]<=order-b[1]-b[2]; ++b[0])
+         {
+            b[3] = order - b[0] - b[1] - b[2];
+            int o_gmsh =  BarycentricToGmshTet(b, order);
+            map[o] = o_gmsh;
+            o++;
+         }
+      }
+   }
+}
 
 void GmshHOHexahedronMapping(int order, int *map)
 {
