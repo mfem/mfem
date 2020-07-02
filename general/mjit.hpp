@@ -94,6 +94,8 @@ inline void uint64str(uint64_t hash, char *str, const char *ext = "")
 
 bool Root();
 
+int GetVersion(bool inc = false);
+
 template<typename... Args>
 inline bool Create(const char *cc, const size_t hash,
                    const char *src, Args... args)
@@ -101,7 +103,7 @@ inline bool Create(const char *cc, const size_t hash,
    if (!Root()) { return true; }
    const int fd = open(cc, O_CREAT|O_RDWR, S_IRUSR|S_IWUSR);
    if (fd < 0) { return false; }
-   if (dprintf(fd, src, hash, args...) < 0) { return false; }
+   if (dprintf(fd, src, hash, hash, hash, args...) < 0) { return false; }
    if (close(fd) < 0) { return false; }
    return true;
 }
@@ -128,26 +130,27 @@ inline void *Lookup(const size_t hash, Args... args)
 {
    char symbol[18];
    uint64str(hash, symbol);
-   constexpr int mode = RTLD_NOW; // LAZY, NOW, LOCAL | GLOBAL
-#if 0
-   constexpr const char *lib_so = MFEM_JIT_CACHE_LIBRARY ".so";
-#else
-   char so[21];
-   uint64str(hash, so, ".so");
-   const char *lib_so = so;
-#endif
-   void *handle = dlopen(lib_so, mode);
+   constexpr int mode = RTLD_NOW | RTLD_LOCAL;
+
+   //constexpr const char *soname = MFEM_JIT_CACHE_LIBRARY ".so";
+
+   char soname[PATH_MAX];
+   const int version = GetVersion();
+   if (snprintf(soname, PATH_MAX, "%s.so.%d",
+                MFEM_JIT_CACHE_LIBRARY, version) < 0) { return nullptr; }
+
+   void *handle = dlopen(soname, mode);
    if (!handle)
    {
       if (!Compile(hash, args...)) { return nullptr; }
-      handle = dlopen(lib_so, mode);
+      handle = dlopen(soname, mode);
    }
    if (!handle) { return nullptr; }
    if (!dlsym(handle, symbol))
    {
       dlclose(handle);
       if (!Compile(hash, args...)) { return nullptr; }
-      handle = dlopen(lib_so, mode);
+      handle = dlopen(soname, mode);
    }
    if (!handle) { return nullptr; }
    if (!dlsym(handle, symbol)) { return nullptr; }
@@ -165,49 +168,30 @@ inline kernel_t Symbol(const size_t hash, void *handle)
 template<typename kernel_t> class kernel
 {
    const size_t seed, hash;
+   const char *name;
    void *handle;
    kernel_t code;
+   char symbol[18];
    const char *cxx, *src, *flags, *msrc, *mins;
 
 public:
-   template<typename... Args>
-   kernel(const char *cxx, const char *src, const char *flags,
-          const char *msrc, const char* mins, Args... args):
+   template<typename... Tparams>
+   kernel(const char *name,
+          const char *cxx, const char *src, const char *flags,
+          const char *msrc, const char* mins, Tparams... args):
       seed(jit::hash<const char*>()(src)),
       hash(hash_args(seed, cxx, flags, msrc, mins, args...)),
+      name((uint64str(hash, symbol),
+            printf("\033[1;33mNew %s (%s)\033[m\n", name, symbol),
+            name)),
       handle(Lookup(hash, src, cxx, flags, msrc, mins, args...)),
       code(Symbol<kernel_t>(hash, handle)),
       cxx(cxx), src(src), flags(flags), msrc(msrc), mins(mins)
-   {
-      assert(handle);
-   }
+   { assert(handle); }
 
    /// Kernel launch w/o return type
    template<typename... Args>
-   void operator_void(Args... args)
-   {
-      /*
-        constexpr int mode = RTLD_NOW;
-        constexpr const char *lib_so = MFEM_JIT_CACHE_LIBRARY ".so";
-
-        dlclose(handle);
-        handle = dlopen(lib_so, mode);
-
-        if (!handle)
-        {
-           handle = dlopen(lib_so, mode);
-           DBG("!handle (%s)",lib_so);
-           assert(handle);
-
-           char symbol[18];
-           uint64str(hash, symbol);
-           DBG("symbol: %s", symbol);
-           assert(dlsym(handle, symbol));
-           code = Symbol<kernel_t>(hash, handle);
-        }*/
-      assert(handle);
-      code(args...);
-   }
+   void operator_void(Args... args) { code(args...); }
 
    /// Kernel launch w/ return type
    template<typename T, typename... Args>
@@ -236,8 +220,8 @@ public:
 
 #include "../config/config.hpp"
 
-constexpr int MAX_D1D = 1;
-constexpr int MAX_Q1D = 1;
+#define MAX_D1D 1
+#define MAX_Q1D 1
 
 #ifdef MFEM_USE_CUDA
 

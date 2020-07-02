@@ -226,6 +226,16 @@ static int ProcessFork(int argc, char *argv[])
 
 #endif // MFEM_USE_MPI
 
+// *****************************************************************************
+int GetVersion(bool inc)
+{
+   static int version = 1;
+   const int actual = version;
+   if (inc) { version += 1; }
+   return actual;
+}
+
+// *****************************************************************************
 /// Compile the source file with PIC flags, updating the cache library.
 bool Compile(const char *cc, const char *co,
              const char *cxx, const char *cxxflags,
@@ -240,21 +250,6 @@ bool Compile(const char *cc, const char *co,
 #define XL "-Xlinker="
 #define XC "-Xcompiler="
 #endif
-   constexpr const char *lib_ar = MFEM_JIT_CACHE_LIBRARY ".a";
-   constexpr const char *lib_so = MFEM_JIT_CACHE_LIBRARY ".so";
-   constexpr const char *lib_so_tild = MFEM_JIT_CACHE_LIBRARY ".so~";
-   constexpr int PM = PATH_MAX;
-   char Imsrc[PM], Imbin[PM];
-   if (snprintf(Imsrc, PM, "-I%s ", msrc) < 0) { return false; }
-   if (snprintf(Imbin, PM, "-I%s/include ", mins) < 0) { return false; }
-   constexpr const char *opt = MFEM_JIT_SHELL_COMMAND;
-   constexpr const char *fpic = XC "-fPIC";
-   const char *argv_co[] =
-   { opt, cxx, cxxflags, fpic, "-c", DC Imsrc, Imbin, "-o", co, cc, nullptr };
-   if (mfem::jit::System(const_cast<char**>(argv_co)) != 0) { return false; }
-
-   const char *argv_ar[] = { opt, "ar", "-rv", lib_ar, co,nullptr };
-   if (mfem::jit::System(const_cast<char**>(argv_ar)) != 0) { return false; }
 
 #ifndef __APPLE__
    constexpr const char *wall = XC "-Wall";
@@ -266,28 +261,77 @@ bool Compile(const char *cc, const char *co,
    constexpr const char *end_load = "";
 #endif
 
-   const char *mv_inode[] =
-   {
-      opt, "[ -f", lib_so, " ]", "&&", "mv", lib_so, lib_so_tild, "&&",
-      "echo Moving", lib_so, "&&", "sync", nullptr
-   };
-   mfem::jit::System(const_cast<char**>(mv_inode));
+   constexpr int PM = PATH_MAX;
+   constexpr const char *fpic = XC "-fPIC";
+   constexpr const char *shell = MFEM_JIT_SHELL_COMMAND;
+   constexpr const char *lib_ar = MFEM_JIT_CACHE_LIBRARY ".a";
 
+   char Imsrc[PM], Imbin[PM];
+
+   // MFEM source path
+   if (snprintf(Imsrc, PM, "-I%s ", msrc) < 0) { return false; }
+
+   // MFEM include path
+   if (snprintf(Imbin, PM, "-I%s/include ", mins) < 0) { return false; }
+
+   // Every shared library has a special name called the ``soname''.
+   // The soname has the prefix 'lib', the name of the library, the `.so',
+   // followed by a period and a version number that is incremented
+   // whenever the interface changes.
+   //constexpr const char *soname = MFEM_JIT_CACHE_LIBRARY ".so";
+   //constexpr const char *Wlsoname = XL "" MFEM_JIT_CACHE_LIBRARY ".so";
+   char soname[PM], Wlsoname[PM];
+   const int version = GetVersion(true);
+   if (snprintf(soname, PM, "%s.so.%d",
+                MFEM_JIT_CACHE_LIBRARY
+                , version) < 0) { return false; }
+   if (snprintf(Wlsoname, PM,"%s-soname,%s.so.%d",
+                XL, MFEM_JIT_CACHE_LIBRARY
+                , version) < 0) { return false; }
+
+   // Every shared library also has a `realname', which is the filename
+   // containing the actual library code. The real name adds to the soname
+   // a period, a minor number, another period, and the release number.
+   // The last period and release number are optional.
+   char realname[PM];
+   const int minor = 0;
+   const int release = 1;
+   if (snprintf(realname, PM, "%s.so.%d.%d.%d", MFEM_JIT_CACHE_LIBRARY,
+                version, minor, release) < 0) { return false; }
+   DBG("realname: %s", realname);
+
+   // There is also the name that the compiler uses when requesting a library,
+   // (the `linkname'), which is simply the soname without any version number.
+   constexpr const char *linkname = MFEM_JIT_CACHE_LIBRARY ".so";
+
+   // Compilation
+   const char *argv_co[] =
+   { shell, cxx, cxxflags, fpic, "-c", DC Imsrc, Imbin, "-o", co, cc, nullptr };
+   if (mfem::jit::System(const_cast<char**>(argv_co)) != 0) { return false; }
+
+   // Update archive
+   const char *argv_ar[] = { shell, "ar", "-rv", lib_ar, co,nullptr };
+   if (mfem::jit::System(const_cast<char**>(argv_ar)) != 0) { return false; }
+
+   // Create shared library
    const char *argv_so[] =
    {
-      opt, cxx, "-shared", wall, "-o", lib_so, beg_load, lib_ar, end_load,
-      "&&", "sync", nullptr
+      shell, cxx, "-shared", wall, "-o", realname, beg_load, lib_ar, end_load,
+      XL"-rpath,.", Wlsoname, nullptr
    };
    if (mfem::jit::System(const_cast<char**>(argv_so)) != 0) { return false; }
 
-   char *so = strdup(co);
-   so[18] = 's';
-   const char *argv_cc_so[] =
-   {
-      opt, cxx, cxxflags, "-shared", "-Xcompiler=-fPIC", wall, Imsrc, Imbin, "-o", so, cc, "&&", "sync",
-      nullptr
-   };
-   if (mfem::jit::System(const_cast<char**>(argv_cc_so)) != 0) { return false; }
+   // ldconfig -n .
+   const char *ldconfig_n[] = { shell, "/usr/sbin/ldconfig", "-n", ".", nullptr };
+   if (mfem::jit::System(const_cast<char**>(ldconfig_n)) != 0) { return false; }
+
+   // ln -sf soname linkname
+   const char *ln_s[] = { shell, "ln", "-sf", soname, linkname, nullptr };
+   if (mfem::jit::System(const_cast<char**>(ln_s)) != 0) { return false; }
+
+   // Install shared library
+   //const char *install[] = { shell, "/usr/bin/install", "--backup=t", realname, linkname, nullptr };
+   //if (mfem::jit::System(const_cast<char**>(install)) != 0) { return false; }
 
    if (!getenv("TMP")) { unlink(cc); }
    if (!getenv("TMP")) { unlink(co); }
@@ -910,7 +954,7 @@ void jitPrefix(context_t &pp)
    }
    pp.out << "\nusing namespace mfem;\n";
    pp.out << "\ntemplate<" << pp.ker.Tparams << ">";
-   pp.out << "\nvoid ker_" << pp.ker.name << "(";
+   pp.out << "\nvoid " << pp.ker.name << "_%016lx(";
    pp.out << "const bool use_dev,";
    pp.out << pp.ker.params << "){";
    if (not pp.ker.d2u.empty()) { pp.out << "\n\t" << pp.ker.d2u; }
@@ -925,15 +969,14 @@ void jitPostfix(context_t &pp)
    if (pp.block >= 0 && pp.in.peek() == '{') { pp.block++; }
    if (pp.block >= 0 && pp.in.peek() == '}') { pp.block--; }
    if (pp.block != -1) { return; }
-   pp.out << "}\nextern \"C\"\nvoid "
+   pp.out << "}\nextern \"C\" void "
           << MFEM_JIT_SYMBOL_PREFIX << "%016lx("
           << "const bool use_dev, " << pp.ker.params << "){";
-   pp.out << "ker_" << pp.ker.name << "<" << pp.ker.Tformat << ">"
+   pp.out << pp.ker.name << "_%016lx<" << pp.ker.Tformat << ">"
           << "(" << "use_dev, " << pp.ker.args_wo_amp << ");";
-   pp.out << "\n})_\";";
+   pp.out << "})_\";";
    // typedef, hash map and launch
-   pp.out << "\n\ttypedef void (*kernel_t)("
-          << "const bool use_dev, "
+   pp.out << "\n\ttypedef void (*kernel_t)(const bool use_dev, "
           << pp.ker.params << ");";
    pp.out << "\n\tstatic std::unordered_map<size_t,jit::kernel<kernel_t>*> ks;";
    if (not pp.ker.u2d.empty()) { pp.out << "\n\t" << pp.ker.u2d; }
@@ -949,7 +992,8 @@ void jitPostfix(context_t &pp)
           << pp.ker.Targs << ");";
    pp.out << "\n\tif (!ks[args_hash]){";
    pp.out << "\n\t\tks[args_hash] = new jit::kernel<kernel_t>"
-          << "(cxx, src, mfem_build_flags, mfem_source_dir, mfem_install_dir, "
+          << "(\"" << pp.ker.name << "\", "
+          << "cxx, src, mfem_build_flags, mfem_source_dir, mfem_install_dir, "
           << pp.ker.Targs << ");";
    pp.out << "\n\t}";
    pp.out << "\n\tks[args_hash]->operator_void("
