@@ -214,7 +214,7 @@ void ParGridFunction::ExchangeFaceNbrData()
    ParMesh *pmesh = pfes->GetParMesh();
 
    face_nbr_data.SetSize(pfes->GetFaceNbrVSize());
-   Vector send_data(pfes->send_face_nbr_ldof.Size_of_connections());
+   send_data.SetSize(pfes->send_face_nbr_ldof.Size_of_connections());
 
    int *send_offset = pfes->send_face_nbr_ldof.GetI();
    const int *d_send_ldof = mfem::Read(pfes->send_face_nbr_ldof.GetJMemory(),
@@ -297,6 +297,108 @@ const
    }
 
    return (DofVal * LocVec);
+}
+
+double ParGridFunction::GetValue(ElementTransformation &T,
+                                 const IntegrationPoint &ip,
+                                 int comp, Vector *tr) const
+{
+   // We can assume faces and edges are local
+   if (T.ElementType != ElementTransformation::ELEMENT)
+   {
+      return GridFunction::GetValue(T, ip, comp, tr);
+   }
+
+   // Check for evaluation in a local element
+   int nbr_el_no = T.ElementNo - pfes->GetParMesh()->GetNE();
+   if (nbr_el_no < 0)
+   {
+      return GridFunction::GetValue(T, ip, comp, tr);
+   }
+
+   // Evaluate using DoFs from a neighboring element
+   if (tr)
+   {
+      T.SetIntPoint(&ip);
+      T.Transform(ip, *tr);
+   }
+
+   Array<int> dofs;
+   const FiniteElement * fe = pfes->GetFaceNbrFE(nbr_el_no);
+   pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs);
+
+   pfes->DofsToVDofs(comp-1, dofs);
+   Vector DofVal(dofs.Size()), LocVec;
+   if (fe->GetMapType() == FiniteElement::VALUE)
+   {
+      fe->CalcShape(ip, DofVal);
+   }
+   else
+   {
+      fe->CalcPhysShape(T, DofVal);
+   }
+   face_nbr_data.GetSubVector(dofs, LocVec);
+
+   return (DofVal * LocVec);
+}
+
+void ParGridFunction::GetVectorValue(ElementTransformation &T,
+                                     const IntegrationPoint &ip,
+                                     Vector &val, Vector *tr) const
+{
+   // We can assume faces and edges are local
+   if (T.ElementType != ElementTransformation::ELEMENT)
+   {
+      return GridFunction::GetVectorValue(T, ip, val, tr);
+   }
+
+   // Check for evaluation in a local element
+   int nbr_el_no = T.ElementNo - pfes->GetParMesh()->GetNE();
+   if (nbr_el_no < 0)
+   {
+      return GridFunction::GetVectorValue(T, ip, val, tr);
+   }
+
+   // Evaluate using DoFs from a neighboring element
+   if (tr)
+   {
+      T.SetIntPoint(&ip);
+      T.Transform(ip, *tr);
+   }
+
+   Array<int> vdofs;
+   pfes->GetFaceNbrElementVDofs(nbr_el_no, vdofs);
+   const FiniteElement *fe = pfes->GetFaceNbrFE(nbr_el_no);
+
+   int dof = fe->GetDof();
+   Vector loc_data;
+   face_nbr_data.GetSubVector(vdofs, loc_data);
+   if (fe->GetRangeType() == FiniteElement::SCALAR)
+   {
+      Vector shape(dof);
+      if (fe->GetMapType() == FiniteElement::VALUE)
+      {
+         fe->CalcShape(ip, shape);
+      }
+      else
+      {
+         fe->CalcPhysShape(T, shape);
+      }
+      int vdim = pfes->GetVDim();
+      val.SetSize(vdim);
+      for (int k = 0; k < vdim; k++)
+      {
+         val(k) = shape * ((const double *)loc_data + dof * k);
+      }
+   }
+   else
+   {
+      int spaceDim = pfes->GetMesh()->SpaceDimension();
+      DenseMatrix vshape(dof, spaceDim);
+      fe->CalcVShape(T, vshape);
+      val.SetSize(spaceDim);
+      vshape.MultTranspose(loc_data, val);
+   }
 }
 
 void ParGridFunction::ProjectCoefficient(Coefficient &coeff)
