@@ -502,7 +502,8 @@ void GinkgoPreconditionerBase::Mult(const Vector &x, Vector &y) const
                             gko::Array<double>::view(exec_,
                                                      y.Size(), y.ReadWrite(on_device)), 1);
 
-   if (permute_) {
+   if (permute_)
+   {
 
       auto gko_x_perm = vec::create(exec_, gko::dim<2> {x.Size(), 1});
       auto gko_y_perm = vec::create(exec_, gko::dim<2> {y.Size(), 1});
@@ -515,13 +516,15 @@ void GinkgoPreconditionerBase::Mult(const Vector &x, Vector &y) const
       vec_inv_permute_->apply(gko::lend(gko_y_perm), gko::lend(gko_y));
 
       // Reset MFEM Vector to use Ginkgo output ?
-   //   y = gko_y->get_values();
-   
-   } else {
+      //   y = gko_y->get_values();
+
+   }
+   else
+   {
 
       gko_precond_.get()->apply(gko::lend(gko_x), gko::lend(gko_y));
 
-  }
+   }
 }
 
 void GinkgoPreconditionerBase::SetOperator(const Operator &op)

@@ -653,7 +653,7 @@ protected:
    }
 
    GinkgoPreconditionerBase(std::shared_ptr<const gko::Executor> exec,
-                            SparseMatrix &a, Array<int> &inv_permutation_indices, 
+                            SparseMatrix &a, Array<int> &inv_permutation_indices,
                             bool iter_mode=false)
       : Solver(a.Height(), a.Width(), iter_mode)
    {
@@ -666,20 +666,20 @@ protected:
       }
       permute_ = true;
       auto gko_inv_perm_ind = gko::Array<int>::view(
-                                              exec_,
-                                              inv_permutation_indices.Size(),
-                                              inv_permutation_indices.ReadWrite(
-                                                                on_device));
+                                 exec_,
+                                 inv_permutation_indices.Size(),
+                                 inv_permutation_indices.ReadWrite(
+                                    on_device));
       // Note the "forward" permutation uses the inverse flag because
       //  the indices are for the inverse permutation as defined by Ginkgo
       vec_permute_ = gko::matrix::Permutation<int>::create(
-                      exec_, gko::dim<2>{inv_permutation_indices.Size()},
-                      gko_inv_perm_ind,
-                      gko::matrix::row_permute | gko::matrix::inverse_permute);
+                        exec_, gko::dim<2> {inv_permutation_indices.Size()},
+                        gko_inv_perm_ind,
+                        gko::matrix::row_permute | gko::matrix::inverse_permute);
       vec_inv_permute_ = gko::matrix::Permutation<int>::create(
-                      exec_, gko::dim<2>{inv_permutation_indices.Size()},
-                      gko_inv_perm_ind,
-                      gko::matrix::row_permute);
+                            exec_, gko::dim<2> {inv_permutation_indices.Size()},
+                            gko_inv_perm_ind,
+                            gko::matrix::row_permute);
    }
 
 public:
@@ -698,10 +698,10 @@ protected:
    std::unique_ptr<const gko::LinOpFactory> gko_precond_factory_;
    std::unique_ptr<gko::LinOp> gko_precond_;
    bool permute_;
-//   gko::Array<int> inv_permutation_indices_;
+   //   gko::Array<int> inv_permutation_indices_;
    std::unique_ptr<gko::matrix::Permutation<int>> vec_permute_;
    std::unique_ptr<gko::matrix::Permutation<int>> vec_inv_permute_;
- 
+
 };
 
 
@@ -841,32 +841,36 @@ public:
                                                  a.ReadWriteI(on_device)));
 
 
-      if (trisolve_type == "isai") {
+      if (trisolve_type == "isai")
+      {
 
-        using l_solver_type = gko::preconditioner::LowerIsai<>;
-        using u_solver_type = gko::preconditioner::UpperIsai<>;
+         using l_solver_type = gko::preconditioner::LowerIsai<>;
+         using u_solver_type = gko::preconditioner::UpperIsai<>;
 
-        std::shared_ptr<l_solver_type::Factory> l_solver_factory = std::move(l_solver_type::build()
-                                 .with_sparsity_power(sparsity_power)
-                                 .with_skip_sorting(skip_sort)
-                                 .on(exec));
-        std::shared_ptr<u_solver_type::Factory> u_solver_factory = std::move(u_solver_type::build()
-                                .with_sparsity_power(sparsity_power)
-                                .with_skip_sorting(skip_sort)
-                                .on(exec));
-        
-        gko_precond_factory_ = gko::preconditioner::Ilu<l_solver_type, 
-                                                        u_solver_type>::build()
-                                .with_l_solver_factory(l_solver_factory)
-                                .with_u_solver_factory(u_solver_factory)
+         std::shared_ptr<l_solver_type::Factory> l_solver_factory = std::move(
+                                                                       l_solver_type::build()
+                                                                       .with_sparsity_power(sparsity_power)
+                                                                       .with_skip_sorting(skip_sort)
+                                                                       .on(exec));
+         std::shared_ptr<u_solver_type::Factory> u_solver_factory = std::move(
+                                                                       u_solver_type::build()
+                                                                       .with_sparsity_power(sparsity_power)
+                                                                       .with_skip_sorting(skip_sort)
+                                                                       .on(exec));
+
+         gko_precond_factory_ = gko::preconditioner::Ilu<l_solver_type,
+         u_solver_type>::build()
+         .with_l_solver_factory(l_solver_factory)
+         .with_u_solver_factory(u_solver_factory)
+         .on(exec);
+      }
+      else
+      {
+
+         gko_precond_factory_ = gko::preconditioner::Ilu<>::build()
                                 .on(exec);
       }
-      else {
-   
-        gko_precond_factory_ = gko::preconditioner::Ilu<>::build()
-                               .on(exec);
-      }
-      
+
       gko_precond_ = gko_precond_factory_.get()->generate(
                         gko::give(gko_sparse));
    }
@@ -899,30 +903,34 @@ public:
                                                  a.ReadWriteI(on_device)));
 
 
-      if (trisolve_type == "isai") {
+      if (trisolve_type == "isai")
+      {
 
-        using l_solver_type = gko::preconditioner::LowerIsai<>;
-        using u_solver_type = gko::preconditioner::UpperIsai<>;
+         using l_solver_type = gko::preconditioner::LowerIsai<>;
+         using u_solver_type = gko::preconditioner::UpperIsai<>;
 
-        std::shared_ptr<l_solver_type::Factory> l_solver_factory = std::move(l_solver_type::build()
-                                 .with_sparsity_power(sparsity_power)
-                                 .with_skip_sorting(skip_sort)
-                                 .on(exec));
-        std::shared_ptr<u_solver_type::Factory> u_solver_factory = std::move(u_solver_type::build()
-                                .with_sparsity_power(sparsity_power)
-                                .with_skip_sorting(skip_sort)
-                                .on(exec));
+         std::shared_ptr<l_solver_type::Factory> l_solver_factory = std::move(
+                                                                       l_solver_type::build()
+                                                                       .with_sparsity_power(sparsity_power)
+                                                                       .with_skip_sorting(skip_sort)
+                                                                       .on(exec));
+         std::shared_ptr<u_solver_type::Factory> u_solver_factory = std::move(
+                                                                       u_solver_type::build()
+                                                                       .with_sparsity_power(sparsity_power)
+                                                                       .with_skip_sorting(skip_sort)
+                                                                       .on(exec));
 
-        gko_precond_factory_ = gko::preconditioner::Ilu<l_solver_type, 
-                                                        u_solver_type>::build()
-                                .with_l_solver_factory(l_solver_factory)
-                                .with_u_solver_factory(u_solver_factory)
-                                .on(exec);
+         gko_precond_factory_ = gko::preconditioner::Ilu<l_solver_type,
+         u_solver_type>::build()
+         .with_l_solver_factory(l_solver_factory)
+         .with_u_solver_factory(u_solver_factory)
+         .on(exec);
       }
-      else {
-   
-        gko_precond_factory_ = gko::preconditioner::Ilu<>::build()
-                               .on(exec);
+      else
+      {
+
+         gko_precond_factory_ = gko::preconditioner::Ilu<>::build()
+                                .on(exec);
       }
 
       gko_precond_ = gko_precond_factory_.get()->generate(
