@@ -353,7 +353,6 @@ int main(int argc, char *argv[])
          }
 #endif
       }
-      oper.SetParameters(u);
    }
 
 #ifdef MFEM_USE_ADIOS2
@@ -433,16 +432,30 @@ void ConductionOperator::ImplicitSolve(const double dt,
    // Solve the equation:
    //    du_dt = M^{-1}*[-K(u + dt*du_dt)]
    // for du_dt
-   if (!T)
-   {
+
+   // Right-hand side for nonlinear iteration
+   double tol = 1e-6;
+   Mmat.Mult(u, z);  // Add forcing function to this if exists
+   du_dt = u;
+   Vector temp(u);
+   temp = u;
+   err = 1;
+   int iter = 0;
+   while (err > tol) {
+      iter ++;
+      this->SetParameters(du_dt);
       T = Add(1.0, Mmat, dt, Kmat);
-      current_dt = dt;
-      T_solver.SetOperator(*T);
+      T_solver.SetOperator(*T); 
+      T_solver.Mult(z, du_dt);
+      temp -= du_dt;
+      err = std::sqrt(InnerProduct(MPI_COMM_WORLD, temp, temp));
+      std::cout << "\tIter " << iter << ", Err = " << err << "\n";
+      temp = du_dt;
    }
-   MFEM_VERIFY(dt == current_dt, ""); // SDIRK methods use the same dt
-   Kmat.Mult(u, z);
-   z.Neg();
-   T_solver.Mult(z, du_dt);
+
+   // Above we solved for dudt = u + dt*k, where k is the desired update
+   dudt -= u;
+   dudt /= dt;
 }
 
 void ConductionOperator::SetParameters(const Vector &u)
