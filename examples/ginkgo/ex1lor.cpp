@@ -141,6 +141,7 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/beam-hex.mesh";
+   int ref_levels = 3;
    int order = 2;
    const char *basis_type = "G"; // Gauss-Lobatto
    bool static_cond = false;
@@ -158,6 +159,8 @@ int main(int argc, char *argv[])
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
+   args.AddOption(&ref_levels, "-l", "--refinement-levels",
+                  "Number of uniform refinement levels for mesh.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
@@ -261,19 +264,14 @@ int main(int argc, char *argv[])
    int dim = mesh->Dimension();
 
    // 4. Refine the mesh to increase the resolution. In this example we do
-   //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
-   //    largest number that gives a final mesh with no more than 20,000
-   //    elements.
+   //    'ref_levels' of uniform refinement.
    {
-      int ref_levels =
-         (int)floor(log(20000. / mesh->GetNE()) / log(2.) / dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
    }
-
-   cout << "Number of mesh elements: " << mesh->GetNE() << endl;
+   cout << "Total elements in refined mesh: " <<  mesh->GetNE() << std::endl;
 
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
