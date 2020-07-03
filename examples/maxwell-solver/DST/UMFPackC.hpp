@@ -1,9 +1,10 @@
 
+#pragma once
 #include "mfem.hpp"
 using namespace std;
 using namespace mfem;
 
-class UMFPackComplexSolver : public Solver
+class ComplexUMFPackSolver : public Solver
 {
 protected:
    bool use_long_ints;
@@ -19,12 +20,12 @@ public:
 
    /** @brief For larger matrices, if the solver fails, set the parameter @a
        _use_long_ints = true. */
-   UMFPackComplexSolver(bool _use_long_ints = false)
+   ComplexUMFPackSolver(bool _use_long_ints = false)
       : use_long_ints(_use_long_ints) { Init(); }
    /** @brief Factorize the given SparseMatrix using the defaults. For larger
        matrices, if the solver fails, set the parameter @a _use_long_ints =
        true. */
-   UMFPackComplexSolver(ComplexSparseMatrix &A, bool _use_long_ints = false)
+   ComplexUMFPackSolver(ComplexSparseMatrix &A, bool _use_long_ints = false)
       : use_long_ints(_use_long_ints) { Init(); SetOperator(A); }
 
    /** @brief Factorize the given Operator @a op which must be a SparseMatrix.
@@ -38,7 +39,6 @@ public:
    void SetPrintLevel(int print_lvl) { Control[UMFPACK_PRL] = print_lvl; }
 
    virtual void Mult(const Vector &b, Vector &x) const;
-   virtual void MultTranspose(const Vector &b, Vector &x) const;
 
-   virtual ~UMFPackComplexSolver();
+   virtual ~ComplexUMFPackSolver();
 };

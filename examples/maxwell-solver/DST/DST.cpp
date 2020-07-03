@@ -47,9 +47,9 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
    // Indentify problem ... Helmholtz or Maxwell
    int prob_kind = bf->FESpace()->FEColl()->GetContType();
 
-   StopWatch chrono;
-   chrono.Clear();
-   chrono.Start();
+   // StopWatch chrono;
+   // chrono.Clear();
+   // chrono.Start();
 
    Mesh * mesh = bf->FESpace()->GetMesh();
    dim = mesh->Dimension();
@@ -60,8 +60,8 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
    nx = part->nxyz[0]; ny = part->nxyz[1];  nz = part->nxyz[2];
    nrpatch = part->nrpatch;
 
-   chrono.Stop();
-   double t0 = chrono.RealTime();
+   // chrono.Stop();
+   // double t0 = chrono.RealTime();
 
    // partition_kind = 1;
    // MeshPartition * part1 = new MeshPartition(mesh, partition_kind,nx,ny,nz);
@@ -71,8 +71,8 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
 
    // Sweeps info
 
-   chrono.Clear();
-   chrono.Start();
+   // chrono.Clear();
+   // chrono.Start();
 
    swp = new Sweep(dim);
 
@@ -83,36 +83,43 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
 
 
    // Set up the local patch problems
+
+
+   sqf.SetSize(nrpatch);
+   Optr.SetSize(nrpatch);
    PmlMat.SetSize(nrpatch);
    PmlMatInv.SetSize(nrpatch);
    f_orig.SetSize(nrpatch);
    f_transf.SetSize(nrpatch);
    cout << "nrpatch = " << nrpatch << endl;
 
-   chrono.Stop();
-   double t1 = chrono.RealTime();
+   // chrono.Stop();
+   // double t1 = chrono.RealTime();
 
-   chrono.Clear();
-   chrono.Start();
+   // chrono.Clear();
+   // chrono.Start();
 
 
    for (int ip=0; ip<nrpatch; ip++)
    {
-      cout << "factorizing patch ip = " << ip << endl;
+      // cout << "Setting up patch ip = " << ip << endl;
       if (prob_kind == 0)
       {
-         PmlMat[ip] = GetHelmholtzPmlSystemMatrix(ip);
+         SetHelmholtzPmlSystemMatrix(ip);
       }
       else if (prob_kind == 1)
       {
-         PmlMat[ip] = GetMaxwellPmlSystemMatrix(ip);
+         SetMaxwellPmlSystemMatrix(ip);
       }
-      cout << "size = " << PmlMat[ip]->Height() << endl;
-      PmlMatInv[ip] = new UMFPackSolver;
+      PmlMat[ip] = Optr[ip]->As<ComplexSparseMatrix>();
+
+      // cout << "Factorizing patch ip = " << ip << endl;
+
+      PmlMatInv[ip] = new ComplexUMFPackSolver;
       PmlMatInv[ip]->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
       PmlMatInv[ip]->SetOperator(*PmlMat[ip]);
 
-      int ndofs = PmlMat[ip]->Height();
+      int ndofs = dmap->Dof2GlobalDof[ip].Size();
       f_orig[ip] = new Vector(ndofs); 
       f_transf[ip].SetSize(swp->nsweeps);
       for (int i=0;i<swp->nsweeps; i++)
@@ -123,9 +130,9 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
 
 
 
-   chrono.Stop();
-   double t2 = chrono.RealTime();
-   // Allocate space for auziliary vector used for transfers
+   // chrono.Stop();
+   // double t2 = chrono.RealTime();
+   // Allocate space for auxiliary vector used for transfers
    zaux.SetSize(2*bf->FESpace()->GetTrueVSize());
 
    // cout << "DST: partition time:   " << t0 << endl;
@@ -136,9 +143,9 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
 
 void DST::Mult(const Vector &r, Vector &z) const
 {
-   StopWatch chrono;
-   chrono.Clear();
-   chrono.Start();
+   // StopWatch chrono;
+   // chrono.Clear();
+   // chrono.Start();
    // char vishost[] = "localhost";
    // int  visport   = 19916;
    // Init
@@ -177,8 +184,8 @@ void DST::Mult(const Vector &r, Vector &z) const
       GetChiRes(*f_orig[ip],ip,direct);
    }
 
-   chrono.Stop();
-   double t0 = chrono.RealTime();
+   // chrono.Stop();
+   // double t0 = chrono.RealTime();
 
    // cout << "Mult: Init:   " << t0 << endl;
 
@@ -197,8 +204,8 @@ void DST::Mult(const Vector &r, Vector &z) const
 
 
 
-   chrono.Clear();
-   chrono.Start();
+   // chrono.Clear();
+   // chrono.Start();
 
    // for (int l=0; l<1; l++)
    // StopWatch chrono1;
@@ -263,8 +270,8 @@ void DST::Mult(const Vector &r, Vector &z) const
       // cout << "Mult: sweep time:   " << chrono1.RealTime() << endl; // cin.get();
 
    }
-   chrono.Stop();
-   double t1 = chrono.RealTime();
+   // chrono.Stop();
+   // double t1 = chrono.RealTime();
 
    // cout << "Mult: Apply:   " << t1 << endl; 
 }
@@ -337,7 +344,7 @@ void DST::TransferSources(int s, int ip0, Vector & sol0) const
    }
 }
 
-SparseMatrix * DST::GetHelmholtzPmlSystemMatrix(int ip)
+void DST::SetHelmholtzPmlSystemMatrix(int ip)
 {
    Mesh * mesh = part->patch_mesh[ip];
    // double h = GetUniformMeshElementSize(mesh);
@@ -382,24 +389,23 @@ SparseMatrix * DST::GetHelmholtzPmlSystemMatrix(int ip)
    ProductCoefficient c2_im0(sigma, detJ_im);
    ProductCoefficient c2_re(c2_re0, *ws);
    ProductCoefficient c2_im(c2_im0, *ws);
-   SesquilinearForm a(dmap->fespaces[ip],ComplexOperator::HERMITIAN);
+   sqf[ip] = new SesquilinearForm (dmap->fespaces[ip],ComplexOperator::HERMITIAN);
 
-   a.AddDomainIntegrator(new DiffusionIntegrator(c1_re),
+   sqf[ip]->AddDomainIntegrator(new DiffusionIntegrator(c1_re),
                          new DiffusionIntegrator(c1_im));
-   a.AddDomainIntegrator(new MassIntegrator(c2_re),
+   sqf[ip]->AddDomainIntegrator(new MassIntegrator(c2_re),
                          new MassIntegrator(c2_im));
-   a.Assemble();
+   sqf[ip]->Assemble();
 
-   OperatorPtr Alocal;
-   a.FormSystemMatrix(ess_tdof_list,Alocal);
-   ComplexSparseMatrix * AZ_ext = Alocal.As<ComplexSparseMatrix>();
-   SparseMatrix * Mat = AZ_ext->GetSystemMatrix();
-   Mat->SortColumnIndices();
-   Mat->Threshold(1e-9);
-   return Mat;
+   Optr[ip] = new OperatorPtr;
+   sqf[ip]->FormSystemMatrix(ess_tdof_list,*Optr[ip]);
+   // SparseMatrix * Mat = AZ_ext->GetSystemMatrix();
+   // Mat->SortColumnIndices();
+   // Mat->Threshold(1e-9);
+   // return Mat;
 }
 
-SparseMatrix * DST::GetMaxwellPmlSystemMatrix(int ip)
+void DST::SetMaxwellPmlSystemMatrix(int ip)
 {
    Mesh * mesh = part->patch_mesh[ip];
    // double h = GetUniformMeshElementSize(mesh);
@@ -446,21 +452,21 @@ SparseMatrix * DST::GetMaxwellPmlSystemMatrix(int ip)
    ScalarMatrixProductCoefficient c2_Re(*ws,c2_Re0);
    ScalarMatrixProductCoefficient c2_Im(*ws,c2_Im0);
 
-   SesquilinearForm a(dmap->fespaces[ip],ComplexOperator::HERMITIAN);
+   sqf[ip] = new SesquilinearForm(dmap->fespaces[ip],ComplexOperator::HERMITIAN);
 
-   a.AddDomainIntegrator(new CurlCurlIntegrator(pml_c1_Re),
+   sqf[ip]->AddDomainIntegrator(new CurlCurlIntegrator(pml_c1_Re),
                          new CurlCurlIntegrator(pml_c1_Im));
-   a.AddDomainIntegrator(new VectorFEMassIntegrator(c2_Re),
+   sqf[ip]->AddDomainIntegrator(new VectorFEMassIntegrator(c2_Re),
                          new VectorFEMassIntegrator(c2_Im));
-   a.Assemble();
+   sqf[ip]->Assemble();
 
-   OperatorPtr Alocal;
-   a.FormSystemMatrix(ess_tdof_list,Alocal);
-   ComplexSparseMatrix * AZ_ext = Alocal.As<ComplexSparseMatrix>();
-   SparseMatrix * Mat = AZ_ext->GetSystemMatrix();
-   Mat->SortColumnIndices();
-   Mat->Threshold(1e-9);
-   return Mat;
+   Optr[ip] = new OperatorPtr;
+   sqf[ip]->FormSystemMatrix(ess_tdof_list,*Optr[ip]);
+   // SparseMatrix * Mat = AZ_ext->GetSystemMatrix();
+   // Mat->SortColumnIndices();
+   // Mat->Threshold(1e-9);
+   // return Mat;
+
 }
 
 void DST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, Vector & Psi1) const
@@ -767,7 +773,9 @@ DST::~DST()
       }
       delete f_orig[ip];
       delete PmlMatInv[ip];
-      delete PmlMat[ip];
+      delete Optr[ip];
+      delete sqf[ip];
+      // delete PmlMat[ip];
    }
    delete dmap;
    delete part; 

@@ -186,12 +186,15 @@ int main(int argc, char *argv[])
    chrono.Clear();
    chrono.Start();
    {
-      UMFPackComplexSolver csolver(*Ac);
+      ComplexUMFPackSolver csolver;
       csolver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+      csolver.SetOperator(*Ac);
+      // csolver.SetPrintLevel(2);
       csolver.Mult(B,X);
    }
    chrono.Stop();
    cout << "Time 1 = " << chrono.RealTime() << endl;
+
 
    // 13. Transform to monolithic SparseMatrix
    SparseMatrix *A = Ac->GetSystemMatrix();
@@ -199,33 +202,42 @@ int main(int argc, char *argv[])
    // cout << "Size of linear system: " << A->Height() << endl;
 
 
-
-   // DST S(&a,lengths, omega, &ws, nrlayers, nx, ny, nz);
-
-   // X = 0.0;
-	// GMRESSolver gmres;
-	// // gmres.iterative_mode = true;
-   // gmres.SetPreconditioner(S);
-	// gmres.SetOperator(*A);
-	// gmres.SetRelTol(1e-6);
-	// gmres.SetMaxIter(20);
-	// gmres.SetPrintLevel(1);
-	// gmres.Mult(B, X);
-
+   chrono.Clear();
+   chrono.Start();
+   DST S(&a,lengths, omega, &ws, nrlayers, nx, ny, nz);
+   chrono.Stop();
+   cout << "Time 2 = " << chrono.RealTime() << endl;
+   chrono.Clear();
+   chrono.Start();
+   X = 0.0;
+	GMRESSolver gmres;
+	// gmres.iterative_mode = true;
+   gmres.SetPreconditioner(S);
+	gmres.SetOperator(*Ac);
+	gmres.SetRelTol(1e-6);
+	gmres.SetMaxIter(20);
+	gmres.SetPrintLevel(1);
+	gmres.Mult(B, X);
+   chrono.Stop();
+   cout << "Time 3 = " << chrono.RealTime() << endl;
    // 14. Solve using a direct or an iterative solver
    Vector Y(X);
 
    chrono.Clear();
    chrono.Start();
    {
-      UMFPackSolver  solver(*A);
+      UMFPackSolver  solver;
       solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-      solver.Control[UMFPACK_ALLOC_INIT] = 1.0;
+      solver.SetOperator(*A);
+      // solver.Control[UMFPACK_ALLOC_INIT] = 0.1;
+      // solver.SetPrintLevel(2);
       solver.Mult(B, Y);
    }
    chrono.Stop();
-   cout << "Time 2 = " << chrono.RealTime() << endl;
+   cout << "Time 3 = " << chrono.RealTime() << endl;
+
    cout << endl;
+
    cout << "X norm = " << X.Norml2() << endl;
    cout << "Y norm = " << Y.Norml2() << endl;
    Y-=X;

@@ -1,7 +1,7 @@
 
 #include "UMFPackC.hpp"
 
-void UMFPackComplexSolver::Init()
+void ComplexUMFPackSolver::Init()
 {
    mat = NULL;
    Numeric = NULL;
@@ -16,7 +16,7 @@ void UMFPackComplexSolver::Init()
    }
 }
 
-void UMFPackComplexSolver::SetOperator(const Operator &op)
+void ComplexUMFPackSolver::SetOperator(const Operator &op)
 {
    int *Ap, *Ai;
    void *Symbolic;
@@ -40,10 +40,6 @@ void UMFPackComplexSolver::SetOperator(const Operator &op)
 
    MFEM_VERIFY(mat->real().NumNonZeroElems() == mat->imag().NumNonZeroElems(),
       "Real and imag Sparsity patter missmatch: Set Assemble(skip_zeros = 0)");
-
-   ComplexOperator::Convention conv = mat->GetConvention();
-   MFEM_VERIFY(conv == ComplexOperator::Convention::HERMITIAN,
-      "Only Hermitian Convention Supported");
 
    // UMFPack requires that the column-indices in mat corresponding to each
    // row be sorted.
@@ -69,7 +65,7 @@ void UMFPackComplexSolver::SetOperator(const Operator &op)
       {
          umfpack_zi_report_info(Control, Info);
          umfpack_zi_report_status(Control, status);
-         mfem_error("UMFPackComplexSolver::SetOperator :"
+         mfem_error("ComplexUMFPackSolver::SetOperator :"
                     " umfpack_zi_symbolic() failed!");
       }
 
@@ -79,7 +75,7 @@ void UMFPackComplexSolver::SetOperator(const Operator &op)
       {
          umfpack_zi_report_info(Control, Info);
          umfpack_zi_report_status(Control, status);
-         mfem_error("UMFPackComplexSolver::SetOperator :"
+         mfem_error("ComplexUMFPackSolver::SetOperator :"
                     " umfpack_zi_numeric() failed!");
       }
       umfpack_zi_free_symbolic(&Symbolic);
@@ -107,7 +103,7 @@ void UMFPackComplexSolver::SetOperator(const Operator &op)
       {
          umfpack_zl_report_info(Control, Info);
          umfpack_zl_report_status(Control, status);
-         mfem_error("UMFPackComplexSolver::SetOperator :"
+         mfem_error("ComplexUMFPackSolver::SetOperator :"
                     " umfpack_zl_symbolic() failed!");
       }
 
@@ -117,23 +113,33 @@ void UMFPackComplexSolver::SetOperator(const Operator &op)
       {
          umfpack_zl_report_info(Control, Info);
          umfpack_zl_report_status(Control, status);
-         mfem_error("UMFPackComplexSolver::SetOperator :"
+         mfem_error("ComplexUMFPackSolver::SetOperator :"
                     " umfpack_zl_numeric() failed!");
       }
       umfpack_zl_free_symbolic(&Symbolic);
    }
 }
 
-void UMFPackComplexSolver::Mult(const Vector &b, Vector &x) const
+void ComplexUMFPackSolver::Mult(const Vector &b, Vector &x) const
 {
    if (mat == NULL)
-      mfem_error("UMFPackComplexSolver::Mult : matrix is not set!"
+      mfem_error("ComplexUMFPackSolver::Mult : matrix is not set!"
                  " Call SetOperator first!");
    int n = b.Size()/2;
    double * datax = x.GetData();
    double * datab = b.GetData();
-   // data of the imaginary part have to be scaled by -1 since UFMPACK_At
-   // takes the complex conjugate
+
+   // For the Block Symmetric case data of the imaginary part 
+   // have to be scaled by -1 
+   ComplexOperator::Convention conv = mat->GetConvention();
+
+   Vector bimag;
+   if (conv == ComplexOperator::Convention::BLOCK_SYMMETRIC)
+   {
+      bimag.SetDataAndSize(&datab[n],n);
+      bimag *=-1.0;
+   }
+
    if (!use_long_ints)
    {
       int status =
@@ -144,7 +150,7 @@ void UMFPackComplexSolver::Mult(const Vector &b, Vector &x) const
       if (status < 0)
       {
          umfpack_zi_report_status(Control, status);
-         mfem_error("UMFPackComplexSolver::Mult : umfpack_zi_solve() failed!");
+         mfem_error("ComplexUMFPackSolver::Mult : umfpack_zi_solve() failed!");
       }
    }
    else
@@ -158,49 +164,18 @@ void UMFPackComplexSolver::Mult(const Vector &b, Vector &x) const
       if (status < 0)
       {
          umfpack_zl_report_status(Control, status);
-         mfem_error("UMFPackComplexSolver::Mult : umfpack_zl_solve() failed!");
+         mfem_error("ComplexUMFPackSolver::Mult : umfpack_zl_solve() failed!");
       }
    }
+
+   if (conv == ComplexOperator::Convention::BLOCK_SYMMETRIC)
+   {
+      bimag *=-1.0;
+   }
+
 }
 
-void UMFPackComplexSolver::MultTranspose(const Vector &b, Vector &x) const
-{
-   if (mat == NULL)
-      mfem_error("UMFPackComplexSolver::MultTranspose : matrix is not set!"
-                 " Call SetOperator first!");
-   int n = b.Size()/2;
-   double * datax = x.GetData();
-   double * datab = b.GetData();
-   if (!use_long_ints)
-   {
-      int status =
-        umfpack_zi_solve(UMFPACK_A, mat->real().GetI(), mat->real().GetJ(),
-                          mat->real().GetData(), mat->imag().GetData(), 
-                          datax, &datax[n], datab, &datab[n], Numeric, Control, Info);                  
-      umfpack_zi_report_info(Control, Info);
-      if (status < 0)
-      {
-         umfpack_zi_report_status(Control, status);
-         mfem_error("UMFPackComplexSolver::MultTranspose :"
-                    " umfpack_zi_solve() failed!");
-      }
-   }
-   else
-   {
-      SuiteSparse_long status =
-      umfpack_zl_solve(UMFPACK_A,AI,AJ,mat->real().GetData(),mat->imag().GetData(),
-      datax,&datax[n],datab,&datab[n],Numeric,Control,Info);                       
-      umfpack_zl_report_info(Control, Info);
-      if (status < 0)
-      {
-         umfpack_zl_report_status(Control, status);
-         mfem_error("UMFPackComplexSolver::MultTranspose :"
-                    " umfpack_zl_solve() failed!");
-      }
-   }
-}
-
-UMFPackComplexSolver::~UMFPackComplexSolver()
+ComplexUMFPackSolver::~ComplexUMFPackSolver()
 {
    delete [] AJ;
    delete [] AI;

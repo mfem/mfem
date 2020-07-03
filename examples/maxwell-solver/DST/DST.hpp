@@ -1,6 +1,7 @@
 #pragma once
 #include "../common/Utilities.hpp"
 #include "../common/PML.hpp"
+#include "UMFPackC.hpp"
 using namespace std;
 using namespace mfem;
 
@@ -47,8 +48,13 @@ private:
    std::vector<std::vector<Array<int>>> NovlpDofs1;
    std::vector<std::vector<Array<int>>> OvlpDofMap;
    // Pml local problems
-   Array<SparseMatrix *> PmlMat;
-   Array<UMFPackSolver *> PmlMatInv;
+   // Array<SparseMatrix *> PmlMat;
+   // Array<UMFPackSolver *> PmlMatInv;
+   Array< SesquilinearForm * > sqf;
+   Array< OperatorPtr * > Optr;
+   Array<ComplexSparseMatrix *> PmlMat;
+   Array<ComplexUMFPackSolver *> PmlMatInv;
+
    Sweep * swp=nullptr;
    mutable Array<Vector *> f_orig;
    mutable Array<Array<Vector * >> f_transf;
@@ -61,9 +67,12 @@ private:
    void ComputeOverlapDofMaps();
    void Getijk(int ip, int & i, int & j, int & k ) const;
    int GetPatchId(const Array<int> & ijk) const;
-   SparseMatrix * GetHelmholtzPmlSystemMatrix(int ip);
-   SparseMatrix * GetMaxwellPmlSystemMatrix(int ip);
+   // SparseMatrix * GetHelmholtzPmlSystemMatrix(int ip);
+   // SparseMatrix * GetMaxwellPmlSystemMatrix(int ip);
   
+   void SetHelmholtzPmlSystemMatrix(int ip);
+   void SetMaxwellPmlSystemMatrix(int ip);
+
    void GetCutOffSolution(const Vector & sol, Vector & cfsol,
                           int ip, Array2D<int> direct, int nlayers, bool local=false) const;                          
    void GetChiRes(const Vector & res, Vector & cfres,
