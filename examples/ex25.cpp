@@ -389,7 +389,7 @@ int main(int argc, char *argv[])
    //     applying any necessary transformations such as: assembly, eliminating
    //     boundary conditions, applying conforming constraints for
    //     non-conforming AMR, etc.
-   a.Assemble();
+   a.Assemble(0);
 
    OperatorHandle Ah;
    Vector B, X;
@@ -403,9 +403,9 @@ int main(int argc, char *argv[])
    // 14. Solve using a direct or an iterative solver
 #ifdef MFEM_USE_SUITESPARSE
    {
-      UMFPackSolver  solver(*A);
-      solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-      solver.Mult(B, X);
+      ComplexUMFPackSolver  csolver(*Ah.As<ComplexSparseMatrix>());
+      csolver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+      csolver.Mult(B, X);
    }
 #else
 
@@ -474,10 +474,8 @@ int main(int argc, char *argv[])
    // If exact is known compute the error
    if (exact_known)
    {
-      ComplexGridFunction x_gf(fespace);
       VectorFunctionCoefficient E_ex_Re(dim, E_exact_Re);
       VectorFunctionCoefficient E_ex_Im(dim, E_exact_Im);
-      x_gf.ProjectCoefficient(E_ex_Re, E_ex_Im);
       int order_quad = max(2, 2 * order + 1);
       const IntegrationRule *irs[Geometry::NumGeom];
       for (int i = 0; i < Geometry::NumGeom; ++i)
