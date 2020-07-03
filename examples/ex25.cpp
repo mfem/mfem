@@ -389,7 +389,7 @@ int main(int argc, char *argv[])
    //     applying any necessary transformations such as: assembly, eliminating
    //     boundary conditions, applying conforming constraints for
    //     non-conforming AMR, etc.
-   a.Assemble(0);
+   a.Assemble(0); 
 
    OperatorHandle Ah;
    Vector B, X;
@@ -403,7 +403,7 @@ int main(int argc, char *argv[])
       csolver.Mult(B, X);
    }
 #else
-   // 14a. Set up the Bilinear form a(.,.) for the preconditioner
+   // 13a. Set up the Bilinear form a(.,.) for the preconditioner
    //
    //    In Comp
    //    Domain:   1/mu (Curl E, Curl F) + omega^2 * epsilon (E,F)
@@ -434,7 +434,7 @@ int main(int argc, char *argv[])
       OperatorHandle PCOpAh;
       prec.FormSystemMatrix(ess_tdof_list, PCOpAh);
 
-      // 14b. Define and apply a GMRES solver for AU=B with a block diagonal
+      // 13b. Define and apply a GMRES solver for AU=B with a block diagonal
       //      preconditioner based on the Gauss-Seidel sparse smoother.
       Array<int> offsets(3);
       offsets[0] = 0;
@@ -461,7 +461,7 @@ int main(int argc, char *argv[])
    }
 #endif
 
-   // 15. Recover the solution as a finite element grid function and compute the
+   // 14. Recover the solution as a finite element grid function and compute the
    //     errors if the exact solution is known.
    a.RecoverFEMSolution(X, b, x);
 
@@ -498,7 +498,7 @@ int main(int argc, char *argv[])
            << sqrt(L2Error_Re*L2Error_Re + L2Error_Im*L2Error_Im) << "\n\n";
    }
 
-   // 16. Save the refined mesh and the solution. This output can be viewed
+   // 15. Save the refined mesh and the solution. This output can be viewed
    //     later using GLVis: "glvis -m mesh -g sol".
    {
       ofstream mesh_ofs("ex25.mesh");
@@ -513,7 +513,7 @@ int main(int argc, char *argv[])
       x.imag().Save(sol_i_ofs);
    }
 
-   // 17. Send the solution by socket to a GLVis server.
+   // 16. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       // Define visualization keys for GLVis (see GLVis documentation)
@@ -564,7 +564,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 18. Free the used memory.
+   // 17. Free the used memory.
    delete pml;
    delete fespace;
    delete fec;
