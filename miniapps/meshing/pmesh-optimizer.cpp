@@ -666,7 +666,7 @@ int main (int argc, char *argv[])
    //     no command-line options for the weights and the type of the second
    //     metric; one should update those in the code.
    ParNonlinearForm a(pfespace);
-   a.SetAssemblyLevel(al);
+   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    ConstantCoefficient *coeff1 = NULL;
    TMOP_QualityMetric *metric2 = NULL;
    TargetConstructor *target_c2 = NULL;
