@@ -1232,6 +1232,14 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                         3,18,19,4,20,25,22,21,23,5
                        };
 
+         int pyr14[] = {0,5,1,6,13,8,3,          // 2nd order pyramid
+                        10,2,7,9,12,11,4
+                       };
+         int pyr30[] = {0,5,6,1,7,25,28,11,8,26, // 3rd order pyramid
+                        27,12,3,16,15,2,9,21,13,22,
+                        29,23,19,24,17,10,14,20,18,4
+                       };
+
          vector<Element*> elements_0D, elements_1D, elements_2D, elements_3D;
          elements_0D.reserve(num_of_all_elements);
          elements_1D.reserve(num_of_all_elements);
@@ -1266,6 +1274,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          ho_tet[2] = tet10; ho_tet[3] = tet20;
          ho_hex[2] = hex27; ho_hex[3] = hex64;
          ho_wdg[2] = wdg18; ho_wdg[3] = wdg40;
+         ho_pyr[2] = pyr14; ho_pyr[3] = pyr30;
 
          if (binary)
          {
