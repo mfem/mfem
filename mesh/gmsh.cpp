@@ -308,6 +308,73 @@ int WedgeToGmshPri(int idx_in[], int ref)
    }
 }
 
+int CartesianToGmshPyramid(int idx_in[], int ref)
+{
+   int i = idx_in[0];
+   int j = idx_in[1];
+   int k = idx_in[2];
+   // Do we lie on any of the edges
+   bool ibdr = (i == 0 || i == ref-k);
+   bool jbdr = (j == 0 || j == ref-k);
+   bool kbdr = (k == 0);
+   if (ibdr && jbdr && kbdr)
+   {
+      return i ? (j ? 2 : 1): (j ? 3 : 0);
+   }
+   else if (k == ref)
+   {
+      return 4;
+   }
+   int offset = 5;
+   if (jbdr && kbdr)
+   {
+      return offset + (j ? (6 * ref - 6 - i) : (i - 1));
+   }
+   else if (ibdr && kbdr)
+   {
+      return offset + (i ? (3 * ref - 4 + j) : (ref - 2 + j));
+   }
+   else if (ibdr && jbdr)
+   {
+      return offset + (i ? (j ? 6 : 4) : (j ? 7 : 2 )) * (ref-1) + k - 1;
+   }
+   offset += 8*(ref-1);
+   if (jbdr)
+   {
+      int b_out[3];
+      b_out[0] = j ? ref - i - k - 1 : i - 1;
+      b_out[1] = k - 1;
+      b_out[2] = (j ? i - 1 : ref - i - k - 1);
+      offset += (j ? 3 : 0) * (ref - 1) * (ref - 2) / 2;
+      return offset + BarycentricToVTKTriangle(b_out, ref-3);
+   }
+   else if (ibdr)
+   {
+      int b_out[3];
+      b_out[0] = i ? j - 1: ref - j - k - 1;
+      b_out[1] = k - 1;
+      b_out[2] = (i ? ref - j - k - 1: j - 1);
+      offset += (i ? 2 : 1) * (ref - 1) * (ref - 2) / 2;
+      return offset + BarycentricToVTKTriangle(b_out, ref-3);
+   }
+   else if (kbdr)
+   {
+      int idx_out[2];
+      idx_out[0] = k ? i-1 : j-1;
+      idx_out[1] = k ? j-1 : i-1;
+      offset += 2 * (ref - 1) * (ref - 2);
+      return offset + CartesianToGmshQuad(idx_out, ref-2);
+   }
+   offset += (2 * (ref - 2) + (ref - 1)) * (ref - 1) ;
+   {
+      int idx_out[3];
+      idx_out[0] = i-1;
+      idx_out[1] = j-1;
+      idx_out[2] = k-1;
+      return offset + CartesianToGmshPyramid(idx_out, ref-3);
+   }
+}
+
 void GmshHOSegmentMapping(int order, int *map)
 {
    map[0] = 0;
@@ -401,6 +468,20 @@ void GmshHOWedgeMapping(int order, int *map)
 }
 
 void GmshHOPyramidMapping(int order, int *map)
-{}
+{
+   int b[3];
+   int o = 0;
+   for (b[2]=0; b[2]<=order; b[2]++)
+   {
+      for (b[1]=0; b[1]<=order - b[2]; b[1]++)
+      {
+         for (b[0]=0; b[0]<=order - b[2]; b[0]++)
+         {
+            map[o] = CartesianToGmshPyramid(b, order);
+            o++;
+         }
+      }
+   }
+}
 
 } // namespace mfem
