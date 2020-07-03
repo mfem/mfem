@@ -395,12 +395,7 @@ int main(int argc, char *argv[])
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, Ah, X, B);
 
-   // 13. Transform to monolithic SparseMatrix
-   SparseMatrix *A = Ah.As<ComplexSparseMatrix>()->GetSystemMatrix();
-
-   cout << "Size of linear system: " << A->Height() << endl;
-
-   // 14. Solve using a direct or an iterative solver
+   // 13. Solve using a direct or an iterative solver
 #ifdef MFEM_USE_SUITESPARSE
    {
       ComplexUMFPackSolver  csolver(*Ah.As<ComplexSparseMatrix>());
@@ -408,7 +403,6 @@ int main(int argc, char *argv[])
       csolver.Mult(B, X);
    }
 #else
-
    // 14a. Set up the Bilinear form a(.,.) for the preconditioner
    //
    //    In Comp
@@ -461,7 +455,7 @@ int main(int argc, char *argv[])
       gmres.SetMaxIter(2000);
       gmres.SetRelTol(1e-5);
       gmres.SetAbsTol(0.0);
-      gmres.SetOperator(*A);
+      gmres.SetOperator(*Ah.As<ComplexSparseMatrix>());
       gmres.SetPreconditioner(BlockGS);
       gmres.Mult(B, X);
    }
@@ -571,7 +565,6 @@ int main(int argc, char *argv[])
    }
 
    // 18. Free the used memory.
-   delete A;
    delete pml;
    delete fespace;
    delete fec;
