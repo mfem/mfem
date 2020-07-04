@@ -2458,10 +2458,6 @@ TEST_CASE("3D GetVectorValue in Parallel",
    {
       Mesh *mesh = new Mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
       ParMesh pmesh(MPI_COMM_WORLD, *mesh);
-      if (type == Element::TETRAHEDRON)
-      {
-         pmesh.ReorientTetMesh();
-      }
       delete mesh;
 
       VectorFunctionCoefficient funcCoef(dim, Func_3D_lin);
