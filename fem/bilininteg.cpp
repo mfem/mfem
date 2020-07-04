@@ -915,7 +915,6 @@ namespace mfem
    {
       int nd = el.GetDof();
       int dim = el.GetDim();
-
 #ifdef MFEM_THREAD_SAFE
       DenseMatrix dshape, adjJ, Q_ir;
       Vector shape, vec2, BdFidxT;
@@ -926,30 +925,24 @@ namespace mfem
       shape.SetSize(nd);
       vec2.SetSize(dim);
       BdFidxT.SetSize(nd);
-
       Vector vec1;
-
       const IntegrationRule *ir = IntRule;
       if (ir == NULL)
       {
          int order = Trans.OrderGrad(&el) + Trans.Order() + el.GetOrder();
          ir = &IntRules.Get(el.GetGeomType(), order);
       }
-
       Q->Eval(Q_ir, Trans, *ir);
-
       elmat = 0.0;
       for (int i = 0; i < ir->GetNPoints(); i++)
       {
          const IntegrationPoint &ip = ir->IntPoint(i);
          el.CalcDShape(ip, dshape);
          el.CalcShape(ip, shape);
-
          Trans.SetIntPoint(&ip);
          CalcAdjugate(Trans.Jacobian(), adjJ);
          Q_ir.GetColumnReference(i, vec1);
          vec1 *= alpha * ip.weight;
-
          adjJ.Mult(vec1, vec2);
          dshape.Mult(vec2, BdFidxT);
 

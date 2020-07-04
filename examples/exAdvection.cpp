@@ -12,8 +12,9 @@ int main(int argc, char *argv[])
    // 1. mesh to be used
    const char *mesh_file = "../data/periodic-segment.mesh";
    int ref_levels = -1;
-   int order = 1;
+   int order = 2;
    bool visualization = 1;
+   double scale;
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
    //    NURBS meshes are projected to second order meshes.
@@ -31,25 +32,27 @@ int main(int argc, char *argv[])
    cout << "Number of unknowns: " << fespace->GetVSize() << endl;
    // 5. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system.
+   int nels = mesh->GetNE();
+   scale = 1.0 / nels;
+   scale = scale / 1.0;
    LinearForm *b = new LinearForm(fespace);
-   ConstantCoefficient one(1.0);
+   ConstantCoefficient one(-1.0);
    ConstantCoefficient zero(0.0);
    FunctionCoefficient f(f_exact);
    FunctionCoefficient u(u_exact);
    VectorFunctionCoefficient velocity(dim, velocity_function);
-   b->AddDomainIntegrator(new DomainLFIntegrator(f, 1.0));
-   b->AddBdrFaceIntegrator(new BoundaryAdvectIntegrator(zero, velocity, -1.0, -0.5));
+   b->AddDomainIntegrator(new CutDomainLFIntegrator(f, scale, nels));
+   b->AddBdrFaceIntegrator(new BoundaryAdvectIntegrator(one, velocity, -1.0, -0.5, nels));
    b->Assemble();
    GridFunction x(fespace);
    x = 0.0;
    BilinearForm *a = new BilinearForm(fespace);
-   a->AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
-   a->AddInteriorFaceIntegrator(new DGFaceIntegrator(velocity, 1.0, -0.5));
-   a->AddBdrFaceIntegrator(new DGFaceIntegrator(velocity, 1.0, -0.5));
+   a->AddDomainIntegrator(new AdvectionIntegrator(velocity, scale, nels, -1.0));
+   a->AddInteriorFaceIntegrator(new DGFaceIntegrator(velocity, 1.0, -0.5, scale, nels));
+   a->AddBdrFaceIntegrator(new DGFaceIntegrator(velocity, 1.0, -0.5, scale, nels));
    a->Assemble();
    a->Finalize();
    const SparseMatrix &A = a->SpMat();
-   A.Print();
    ofstream write("stiffmat.txt");
    A.PrintMatlab(write);
    write.close();
@@ -61,7 +64,7 @@ int main(int argc, char *argv[])
    //PCG(A, M, *b, x, 1, 1000, 1e-12, 0.0);
    // else
    // {
-   GMRES(A, M, *b, x, 1, 1000, 10, 1e-12, 0.0);
+   GMRES(A, M, *b, x, 1, 1000, 200, 1e-60, 1e-60);
    // }
 #else
    // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
@@ -88,13 +91,13 @@ int main(int argc, char *argv[])
 
 double u_exact(const Vector &x)
 {
-   //return exp(x(0));
-   return 2 * x(0);
+  return exp(x(0));
+  //return x(0)*x(0);
 }
 double f_exact(const Vector &x)
 {
-   //return -exp(x(0));
-   return -2.0;
+  return -exp(x(0));
+  //return -2.0*x(0);
 }
 // Velocity coefficient
 void velocity_function(const Vector &x, Vector &v)
@@ -116,12 +119,143 @@ void velocity_function(const Vector &x, Vector &v)
       break;
    }
 }
+
+void CutDomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
+                                                   ElementTransformation &Tr,
+                                                   Vector &elvect)
+{
+   int dof = el.GetDof();
+   double sf;
+   shape.SetSize(dof); // vector of size dof
+   elvect.SetSize(dof);
+   elvect = 0.0;
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      // ir = &IntRules.Get(el.GetGeomType(),
+      //                    oa * el.GetOrder() + ob + Tr.OrderW());
+      ir = &IntRules.Get(el.GetGeomType(), oa * el.GetOrder() + ob);
+      // int order = Tr.OrderGrad(&el) + Tr.Order() + el.GetOrder();
+      // ir = &IntRules.Get(el.GetGeomType(), order);
+   }
+   IntegrationRule *cutir;
+   cutir = new IntegrationRule(ir->Size());
+   if (Tr.ElementNo == nels - 1)
+   {
+      for (int k = 0; k < cutir->GetNPoints(); k++)
+      {
+         IntegrationPoint &cutip = cutir->IntPoint(k);
+         const IntegrationPoint &ip = ir->IntPoint(k);
+         cutip.x = (scale * ip.x) / Tr.Weight();
+         cutip.weight = ip.weight;
+      }
+   }
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      IntegrationPoint &cutip = cutir->IntPoint(i);
+      Tr.SetIntPoint(&ip);
+      double val = Tr.Weight() * Q.Eval(Tr, ip);
+      el.CalcShape(ip, shape);
+      if (Tr.ElementNo == nels - 1)
+      {
+         Tr.SetIntPoint(&cutip);
+         val = scale * Q.Eval(Tr, cutip);
+         el.CalcShape(cutip, shape);
+      }
+      add(elvect, ip.weight * val, shape, elvect);
+   }
+}
+
+void CutDomainLFIntegrator::AssembleDeltaElementVect(
+    const FiniteElement &fe, ElementTransformation &Trans, Vector &elvect)
+{
+   MFEM_ASSERT(delta != NULL, "coefficient must be DeltaCoefficient");
+   elvect.SetSize(fe.GetDof());
+   fe.CalcPhysShape(Trans, elvect);
+   elvect *= delta->EvalDelta(Trans, Trans.GetIntPoint());
+}
+
+void AdvectionIntegrator::AssembleElementMatrix(
+    const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
+{
+   int nd = el.GetDof();
+   int dim = el.GetDim();
+   double w;
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix dshape, adjJ, Q_ir;
+   Vector shape, vec2, BdFidxT;
+#endif
+   elmat.SetSize(nd);
+   dshape.SetSize(nd, dim);
+   adjJ.SetSize(dim);
+   shape.SetSize(nd);
+   vec2.SetSize(dim);
+   BdFidxT.SetSize(nd);
+   Vector vec1;
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int order = Trans.OrderGrad(&el) + Trans.Order() + el.GetOrder();
+      ir = &IntRules.Get(el.GetGeomType(), order);
+   }
+   if (Trans.ElementNo == nels - 1)
+   {
+      IntegrationRule *cutir;
+      cutir = new IntegrationRule(ir->Size());
+      for (int k = 0; k < cutir->GetNPoints(); k++)
+      {
+         IntegrationPoint &cutip = cutir->IntPoint(k);
+         const IntegrationPoint &ip = ir->IntPoint(k);
+         cutip.x = (scale * ip.x) / Trans.Weight();
+         cutip.weight = ip.weight;
+      }
+      Q->Eval(Q_ir, Trans, *cutir);
+      elmat = 0.0;
+      for (int i = 0; i < cutir->GetNPoints(); i++)
+      {
+         IntegrationPoint &ip = cutir->IntPoint(i);
+         el.CalcDShape(ip, dshape);
+         el.CalcShape(ip, shape);
+         Trans.SetIntPoint(&ip);
+         CalcAdjugate(Trans.Jacobian(), adjJ);
+         adjJ *= scale / Trans.Weight();
+         Q_ir.GetColumnReference(i, vec1);
+         vec1 *= alpha * ip.weight;
+         adjJ.Mult(vec1, vec2);
+         dshape.Mult(vec2, BdFidxT);
+         AddMultVWt(shape, BdFidxT, elmat);
+      }
+   }
+   else
+   {
+      Q->Eval(Q_ir, Trans, *ir);
+      elmat = 0.0;
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+         el.CalcDShape(ip, dshape);
+         el.CalcShape(ip, shape);
+         Trans.SetIntPoint(&ip);
+         CalcAdjugate(Trans.Jacobian(), adjJ);
+         adjJ *= 1;
+         Q_ir.GetColumnReference(i, vec1);
+         vec1 *= alpha * ip.weight;
+         adjJ.Mult(vec1, vec2);
+         dshape.Mult(vec2, BdFidxT);
+         AddMultVWt(shape, BdFidxT, elmat);
+      }
+   }
+}
+
 // assemble the elmat for interior and boundary faces
 void DGFaceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
                                           const FiniteElement &el2,
                                           FaceElementTransformations &Trans,
                                           DenseMatrix &elmat)
 {
+   cout << "face is " << Trans.Face->ElementNo << endl;
+   cout << "integ point is: " << endl;
    int dim, ndof1, ndof2;
    double un, a, b, w;
    dim = el1.GetDim();
@@ -130,13 +264,13 @@ void DGFaceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
    if (Trans.Elem2No >= 0)
    {
       ndof2 = el2.GetDof();
+      shape2.SetSize(ndof2);
    }
    else
    {
       ndof2 = 0;
    }
    shape1.SetSize(ndof1);
-   shape2.SetSize(ndof2);
    elmat.SetSize(ndof1 + ndof2);
    elmat = 0.0;
    const IntegrationRule *ir = IntRule;
@@ -157,12 +291,33 @@ void DGFaceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
       }
       ir = &IntRules.Get(Trans.FaceGeom, order);
    }
-   // cout << "face is " << Trans.Face->ElementNo << " elements are " <<  Trans.Elem1No << " , " << Trans.Elem2No << endl;
+   // IntegrationRule *cutir;
+   // if (Trans.Elem1No == nels - 1)
+   // {
+   //    cutir = new IntegrationRule(ir->Size());
+   //    for (int k = 0; k < cutir->GetNPoints(); k++)
+   //    {
+   //       IntegrationPoint &cutip = cutir->IntPoint(k);
+   //       const IntegrationPoint &ip = ir->IntPoint(k);
+   //       cout << "without scaling " << ip.x << endl;
+   //       cutip.x = (scale * ip.x) / Trans.Elem1->Weight();
+   //       cutip.weight = ip.weight;
+   //       cout << "rule " << cutip.x << endl;
+   //    }
+   // }
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
       const IntegrationPoint &ip = ir->IntPoint(p);
+      // if (Trans.Elem1No == nels - 1)
+      // {
+      //    const IntegrationPoint &ip = cutir->IntPoint(p);
+      // }
       IntegrationPoint eip1, eip2;
       Trans.Loc1.Transform(ip, eip1);
+      if (Trans.Elem1No == nels - 1)
+      {
+         eip1.x = (scale * eip1.x) / Trans.Elem1->Weight();
+      }
       if (ndof2)
       {
          Trans.Loc2.Transform(ip, eip2);
@@ -172,10 +327,18 @@ void DGFaceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
       Trans.Elem1->SetIntPoint(&eip1);
       u->Eval(vu, *Trans.Elem1, eip1);
       nor(0) = 2 * eip1.x - 1.0;
+      if (Trans.Elem1No == nels - 1)
+      {
+         nor(0) = 1.0;
+      }
       un = vu * nor;
       a = 0.5 * alpha * un;
       b = beta * fabs(un);
       w = ip.weight * (a + b);
+      if (ndof2)
+      {
+         w /= 2;
+      }
       if (w != 0.0)
       {
          for (int i = 0; i < ndof1; i++)
@@ -187,15 +350,13 @@ void DGFaceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
       if (ndof2)
       {
          el2.CalcShape(eip2, shape2);
-
          if (w != 0.0)
             for (int i = 0; i < ndof2; i++)
                for (int j = 0; j < ndof1; j++)
                {
                   elmat(j, ndof1 + i) -= w * shape2(i) * shape1(j);
                }
-
-         w = ip.weight * (b - a);
+         w = (ip.weight * (b - a));
          if (w != 0.0)
          {
             for (int i = 0; i < ndof2; i++)
@@ -222,14 +383,13 @@ void BoundaryAdvectIntegrator::AssembleRHSElementVect(
    dim = el.GetDim();
    ndof = el.GetDof();
    elvect.SetSize(ndof);
-   if (Tr.Face->ElementNo == 5)
+   if (Tr.Face->ElementNo == nels - 1)
    {
       elvect = 0.0;
    }
    else
    {
       Vector vu(vu_data, dim), nor(nor_data, dim);
-      cout << "face is " << Tr.Face->ElementNo << endl;
 
       shape.SetSize(ndof);
       elvect = 0.0;
