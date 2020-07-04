@@ -1738,7 +1738,7 @@ void FiniteElementSpace::ConstructDoFTrans()
    {
       DoFTrans[i] = NULL;
    }
-   if (mesh->Dimension() < 3) return;
+   if (mesh->Dimension() < 3) { return; }
    if (dynamic_cast<const ND_FECollection*>(fec))
    {
       const FiniteElement * nd_tri =
