@@ -175,9 +175,13 @@ TEST_CASE("1D GetValue",
                const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
                                                         2*order + 2);
 
-               double h1_err = 0.0;
-               double dgv_err = 0.0;
-               double dgi_err = 0.0;
+               double h1_gfc_err = 0.0;
+               double dgv_gfc_err = 0.0;
+               double dgi_gfc_err = 0.0;
+
+               double h1_gv_err = 0.0;
+               double dgv_gv_err = 0.0;
+               double dgi_gv_err = 0.0;
 
                for (int j=0; j<ir.GetNPoints(); j++)
                {
@@ -186,40 +190,80 @@ TEST_CASE("1D GetValue",
                   T->SetIntPoint(&ip);
 
                   double f_val = funcCoef.Eval(*T, ip);
-                  double h1_gf_val = h1_xCoef.Eval(*T, ip);
-                  double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
-                  double dgi_gf_val = dgi_xCoef.Eval(*T, ip);
 
-                  h1_err += fabs(f_val - h1_gf_val);
-                  dgv_err += fabs(f_val - dgv_gf_val);
-                  dgi_err += fabs(f_val - dgi_gf_val);
+                  double  h1_gfc_val =  h1_xCoef.Eval(*T, ip);
+                  double dgv_gfc_val = dgv_xCoef.Eval(*T, ip);
+                  double dgi_gfc_val = dgi_xCoef.Eval(*T, ip);
 
-                  if (log > 0 && fabs(f_val - h1_gf_val) > tol)
+                  double  h1_gv_val =  h1_x.GetValue(e, ip);
+                  double dgv_gv_val = dgv_x.GetValue(e, ip);
+                  double dgi_gv_val = dgi_x.GetValue(e, ip);
+
+                  h1_gfc_err += fabs(f_val - h1_gfc_val);
+                  dgv_gfc_err += fabs(f_val - dgv_gfc_val);
+                  dgi_gfc_err += fabs(f_val - dgi_gfc_val);
+
+                  h1_gv_err += fabs(f_val - h1_gv_val);
+                  dgv_gv_err += fabs(f_val - dgv_gv_val);
+                  dgi_gv_err += fabs(f_val - dgi_gv_val);
+
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " h1  " << f_val << " "
-                               << h1_gf_val << " " << fabs(f_val - h1_gf_val)
+                     std::cout << e << ":" << j << " h1  gfc " << f_val << " "
+                               << h1_gfc_val << " " << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgv " << f_val << " "
-                               << dgv_gf_val << " " << fabs(f_val - dgv_gf_val)
+                     std::cout << e << ":" << j << " dgv gfc " << f_val << " "
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgi_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgi " << f_val << " "
-                               << dgi_gf_val << " " << fabs(f_val - dgi_gf_val)
+                     std::cout << e << ":" << j << " dgi gfc " << f_val << " "
+                               << dgi_gfc_val << " "
+                               << fabs(f_val - dgi_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - h1_gv_val) > tol)
+                  {
+                     std::cout << e << ":" << j << " h1  gv " << f_val << " "
+                               << h1_gv_val << " " << fabs(f_val - h1_gv_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gv_val) > tol)
+                  {
+                     std::cout << e << ":" << j << " dgv gv " << f_val << " "
+                               << dgv_gv_val << " "
+                               << fabs(f_val - dgv_gv_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgi_gv_val) > tol)
+                  {
+                     std::cout << e << ":" << j << " dgi gv " << f_val << " "
+                               << dgi_gv_val << " "
+                               << fabs(f_val - dgi_gv_val)
                                << std::endl;
                   }
                }
-               h1_err /= ir.GetNPoints();
-               dgv_err /= ir.GetNPoints();
-               dgi_err /= ir.GetNPoints();
 
-               REQUIRE(h1_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
-               REQUIRE(dgi_err == Approx(0.0));
+               h1_gfc_err /= ir.GetNPoints();
+               dgv_gfc_err /= ir.GetNPoints();
+               dgi_gfc_err /= ir.GetNPoints();
+
+               h1_gv_err /= ir.GetNPoints();
+               dgv_gv_err /= ir.GetNPoints();
+               dgi_gv_err /= ir.GetNPoints();
+
+               REQUIRE(h1_gfc_err == Approx(0.0));
+               REQUIRE(dgv_gfc_err == Approx(0.0));
+               REQUIRE(dgi_gfc_err == Approx(0.0));
+
+               REQUIRE(h1_gv_err == Approx(0.0));
+               REQUIRE(dgv_gv_err == Approx(0.0));
+               REQUIRE(dgi_gv_err == Approx(0.0));
             }
          }
 
@@ -244,30 +288,33 @@ TEST_CASE("1D GetValue",
                   T->SetIntPoint(&ip);
 
                   double f_val = funcCoef.Eval(*T, ip);
-                  double h1_gf_val = h1_xCoef.Eval(*T, ip);
-                  double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
-                  double dgi_gf_val = dgi_xCoef.Eval(*T, ip);
+                  double h1_gfc_val = h1_xCoef.Eval(*T, ip);
+                  double dgv_gfc_val = dgv_xCoef.Eval(*T, ip);
+                  double dgi_gfc_val = dgi_xCoef.Eval(*T, ip);
 
-                  h1_err += fabs(f_val - h1_gf_val);
-                  dgv_err += fabs(f_val - dgv_gf_val);
-                  dgi_err += fabs(f_val - dgi_gf_val);
+                  h1_err += fabs(f_val - h1_gfc_val);
+                  dgv_err += fabs(f_val - dgv_gfc_val);
+                  dgi_err += fabs(f_val - dgi_gfc_val);
 
-                  if (log > 0 && fabs(f_val - h1_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
                   {
                      std::cout << be << ":" << j << " h1  " << f_val << " "
-                               << h1_gf_val << " " << fabs(f_val - h1_gf_val)
+                               << h1_gfc_val << " "
+                               << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
                   {
                      std::cout << be << ":" << j << " dgv " << f_val << " "
-                               << dgv_gf_val << " " << fabs(f_val - dgv_gf_val)
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgi_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
                   {
                      std::cout << be << ":" << j << " dgi " << f_val << " "
-                               << dgi_gf_val << " " << fabs(f_val - dgi_gf_val)
+                               << dgi_gfc_val << " "
+                               << fabs(f_val - dgi_gfc_val)
                                << std::endl;
                   }
                }
@@ -303,30 +350,33 @@ TEST_CASE("1D GetValue",
                   T->SetIntPoint(&ip);
 
                   double f_val = funcCoef.Eval(*T, ip);
-                  double h1_gf_val = h1_xCoef.Eval(*T, ip);
-                  double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
-                  double dgi_gf_val = dgi_xCoef.Eval(*T, ip);
+                  double h1_gfc_val = h1_xCoef.Eval(*T, ip);
+                  double dgv_gfc_val = dgv_xCoef.Eval(*T, ip);
+                  double dgi_gfc_val = dgi_xCoef.Eval(*T, ip);
 
-                  h1_err += fabs(f_val - h1_gf_val);
-                  dgv_err += fabs(f_val - dgv_gf_val);
-                  dgi_err += fabs(f_val - dgi_gf_val);
+                  h1_err += fabs(f_val - h1_gfc_val);
+                  dgv_err += fabs(f_val - dgv_gfc_val);
+                  dgi_err += fabs(f_val - dgi_gfc_val);
 
-                  if (log > 0 && fabs(f_val - h1_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
                   {
                      std::cout << be << ":" << j << " h1  " << f_val << " "
-                               << h1_gf_val << " " << fabs(f_val - h1_gf_val)
+                               << h1_gfc_val << " "
+                               << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
                   {
                      std::cout << be << ":" << j << " dgv " << f_val << " "
-                               << dgv_gf_val << " " << fabs(f_val - dgv_gf_val)
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgi_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
                   {
                      std::cout << be << ":" << j << " dgi " << f_val << " "
-                               << dgi_gf_val << " " << fabs(f_val - dgi_gf_val)
+                               << dgi_gfc_val << " "
+                               << fabs(f_val - dgi_gfc_val)
                                << std::endl;
                   }
                }
@@ -414,14 +464,19 @@ TEST_CASE("1D GetValue in Parallel",
                FaceElementTransformations *FET =
                   pmesh.GetSharedFaceTransformations(sf);
                ElementTransformation *T = &FET->GetElement2Transformation();
-               int e = FET->Elem2No - pmesh.GetNE();
-               const FiniteElement   *fe = dgv_fespace.GetFaceNbrFE(e);
+               int e = FET->Elem2No;
+               int e_nbr = e - pmesh.GetNE();
+               const FiniteElement   *fe = dgv_fespace.GetFaceNbrFE(e_nbr);
                const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
                                                         2*order + 2);
 
-               double  h1_err = 0.0;
-               double dgv_err = 0.0;
-               double dgi_err = 0.0;
+               double  h1_gfc_err = 0.0;
+               double dgv_gfc_err = 0.0;
+               double dgi_gfc_err = 0.0;
+
+               double  h1_gv_err = 0.0;
+               double dgv_gv_err = 0.0;
+               double dgi_gv_err = 0.0;
 
                for (int j=0; j<ir.GetNPoints(); j++)
                {
@@ -430,40 +485,80 @@ TEST_CASE("1D GetValue in Parallel",
                   T->SetIntPoint(&ip);
 
                   double      f_val =   funcCoef.Eval(*T, ip);
-                  double  h1_gf_val =  h1_xCoef.Eval(*T, ip);
-                  double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
-                  double dgi_gf_val = dgi_xCoef.Eval(*T, ip);
 
-                  h1_err  += fabs(f_val -  h1_gf_val);
-                  dgv_err += fabs(f_val - dgv_gf_val);
-                  dgi_err += fabs(f_val - dgi_gf_val);
+                  double  h1_gfc_val =  h1_xCoef.Eval(*T, ip);
+                  double dgv_gfc_val = dgv_xCoef.Eval(*T, ip);
+                  double dgi_gfc_val = dgi_xCoef.Eval(*T, ip);
 
-                  if (log > 0 && fabs(f_val - h1_gf_val) > tol)
+                  double h1_gv_val = h1_x.GetValue(e, ip);
+                  double dgv_gv_val = dgv_x.GetValue(e, ip);
+                  double dgi_gv_val = dgi_x.GetValue(e, ip);
+
+                  h1_gfc_err  += fabs(f_val -  h1_gfc_val);
+                  dgv_gfc_err += fabs(f_val - dgv_gfc_val);
+                  dgi_gfc_err += fabs(f_val - dgi_gfc_val);
+
+                  h1_gv_err += fabs(f_val - h1_gv_val);
+                  dgv_gv_err += fabs(f_val - dgv_gv_val);
+                  dgi_gv_err += fabs(f_val - dgi_gv_val);
+
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " h1  " << f_val << " "
-                               << h1_gf_val << " " << fabs(f_val - h1_gf_val)
+                     std::cout << e << ":" << j << " h1  gfc " << f_val << " "
+                               << h1_gfc_val << " " << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgv " << f_val << " "
-                               << dgv_gf_val << " " << fabs(f_val - dgv_gf_val)
+                     std::cout << e << ":" << j << " dgv gfc " << f_val << " "
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgi_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgi " << f_val << " "
-                               << dgi_gf_val << " " << fabs(f_val - dgi_gf_val)
+                     std::cout << e << ":" << j << " dgi gfc " << f_val << " "
+                               << dgi_gfc_val << " "
+                               << fabs(f_val - dgi_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - h1_gv_val) > tol)
+                  {
+                     std::cout << e << ":" << j << " h1  gv " << f_val << " "
+                               << h1_gv_val << " " << fabs(f_val - h1_gv_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gv_val) > tol)
+                  {
+                     std::cout << e << ":" << j << " dgv gv " << f_val << " "
+                               << dgv_gv_val << " "
+                               << fabs(f_val - dgv_gv_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgi_gv_val) > tol)
+                  {
+                     std::cout << e << ":" << j << " dgi gv " << f_val << " "
+                               << dgi_gv_val << " "
+                               << fabs(f_val - dgi_gv_val)
                                << std::endl;
                   }
                }
-               h1_err /= ir.GetNPoints();
-               dgv_err /= ir.GetNPoints();
-               dgi_err /= ir.GetNPoints();
 
-               REQUIRE(h1_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
-               REQUIRE(dgi_err == Approx(0.0));
+               h1_gfc_err /= ir.GetNPoints();
+               dgv_gfc_err /= ir.GetNPoints();
+               dgi_gfc_err /= ir.GetNPoints();
+
+               h1_gv_err /= ir.GetNPoints();
+               dgv_gv_err /= ir.GetNPoints();
+               dgi_gv_err /= ir.GetNPoints();
+
+               REQUIRE(h1_gfc_err == Approx(0.0));
+               REQUIRE(dgv_gfc_err == Approx(0.0));
+               REQUIRE(dgi_gfc_err == Approx(0.0));
+
+               REQUIRE(h1_gv_err == Approx(0.0));
+               REQUIRE(dgv_gv_err == Approx(0.0));
+               REQUIRE(dgi_gv_err == Approx(0.0));
             }
          }
       }
@@ -527,9 +622,13 @@ TEST_CASE("2D GetValue",
                const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
                                                         2*order + 2);
 
-               double h1_err = 0.0;
-               double dgv_err = 0.0;
-               double dgi_err = 0.0;
+               double h1_gfc_err = 0.0;
+               double dgv_gfc_err = 0.0;
+               double dgi_gfc_err = 0.0;
+
+               double h1_gv_err = 0.0;
+               double dgv_gv_err = 0.0;
+               double dgi_gv_err = 0.0;
 
                for (int j=0; j<ir.GetNPoints(); j++)
                {
@@ -538,40 +637,80 @@ TEST_CASE("2D GetValue",
                   T->SetIntPoint(&ip);
 
                   double f_val = funcCoef.Eval(*T, ip);
-                  double h1_gf_val = h1_xCoef.Eval(*T, ip);
-                  double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
-                  double dgi_gf_val = dgi_xCoef.Eval(*T, ip);
 
-                  h1_err += fabs(f_val - h1_gf_val);
-                  dgv_err += fabs(f_val - dgv_gf_val);
-                  dgi_err += fabs(f_val - dgi_gf_val);
+                  double h1_gfc_val = h1_xCoef.Eval(*T, ip);
+                  double dgv_gfc_val = dgv_xCoef.Eval(*T, ip);
+                  double dgi_gfc_val = dgi_xCoef.Eval(*T, ip);
 
-                  if (log > 0 && fabs(f_val - h1_gf_val) > tol)
+                  double h1_gv_val = h1_x.GetValue(e, ip);
+                  double dgv_gv_val = dgv_x.GetValue(e, ip);
+                  double dgi_gv_val = dgi_x.GetValue(e, ip);
+
+                  h1_gfc_err += fabs(f_val - h1_gfc_val);
+                  dgv_gfc_err += fabs(f_val - dgv_gfc_val);
+                  dgi_gfc_err += fabs(f_val - dgi_gfc_val);
+
+                  h1_gv_err += fabs(f_val - h1_gv_val);
+                  dgv_gv_err += fabs(f_val - dgv_gv_val);
+                  dgi_gv_err += fabs(f_val - dgi_gv_val);
+
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " h1  " << f_val << " "
-                               << h1_gf_val << " " << fabs(f_val - h1_gf_val)
+                     std::cout << e << ":" << j << " h1  gfc " << f_val << " "
+                               << h1_gfc_val << " " << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgv " << f_val << " "
-                               << dgv_gf_val << " " << fabs(f_val - dgv_gf_val)
+                     std::cout << e << ":" << j << " dgv gfc " << f_val << " "
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgi_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgi " << f_val << " "
-                               << dgi_gf_val << " " << fabs(f_val - dgi_gf_val)
+                     std::cout << e << ":" << j << " dgi gfc " << f_val << " "
+                               << dgi_gfc_val << " "
+                               << fabs(f_val - dgi_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - h1_gv_val) > tol)
+                  {
+                     std::cout << e << ":" << j << " h1  gv " << f_val << " "
+                               << h1_gv_val << " " << fabs(f_val - h1_gv_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gv_val) > tol)
+                  {
+                     std::cout << e << ":" << j << " dgv gv " << f_val << " "
+                               << dgv_gv_val << " "
+                               << fabs(f_val - dgv_gv_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgi_gv_val) > tol)
+                  {
+                     std::cout << e << ":" << j << " dgi gv " << f_val << " "
+                               << dgi_gv_val << " "
+                               << fabs(f_val - dgi_gv_val)
                                << std::endl;
                   }
                }
-               h1_err /= ir.GetNPoints();
-               dgv_err /= ir.GetNPoints();
-               dgi_err /= ir.GetNPoints();
 
-               REQUIRE(h1_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
-               REQUIRE(dgi_err == Approx(0.0));
+               h1_gfc_err /= ir.GetNPoints();
+               dgv_gfc_err /= ir.GetNPoints();
+               dgi_gfc_err /= ir.GetNPoints();
+
+               h1_gv_err /= ir.GetNPoints();
+               dgv_gv_err /= ir.GetNPoints();
+               dgi_gv_err /= ir.GetNPoints();
+
+               REQUIRE(h1_gfc_err == Approx(0.0));
+               REQUIRE(dgv_gfc_err == Approx(0.0));
+               REQUIRE(dgi_gfc_err == Approx(0.0));
+
+               REQUIRE(h1_gv_err == Approx(0.0));
+               REQUIRE(dgv_gv_err == Approx(0.0));
+               REQUIRE(dgi_gv_err == Approx(0.0));
             }
          }
 
@@ -596,30 +735,33 @@ TEST_CASE("2D GetValue",
                   T->SetIntPoint(&ip);
 
                   double f_val = funcCoef.Eval(*T, ip);
-                  double h1_gf_val = h1_xCoef.Eval(*T, ip);
-                  double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
-                  double dgi_gf_val = dgi_xCoef.Eval(*T, ip);
+                  double h1_gfc_val = h1_xCoef.Eval(*T, ip);
+                  double dgv_gfc_val = dgv_xCoef.Eval(*T, ip);
+                  double dgi_gfc_val = dgi_xCoef.Eval(*T, ip);
 
-                  h1_err += fabs(f_val - h1_gf_val);
-                  dgv_err += fabs(f_val - dgv_gf_val);
-                  dgi_err += fabs(f_val - dgi_gf_val);
+                  h1_err += fabs(f_val - h1_gfc_val);
+                  dgv_err += fabs(f_val - dgv_gfc_val);
+                  dgi_err += fabs(f_val - dgi_gfc_val);
 
-                  if (log > 0 && fabs(f_val - h1_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
                   {
                      std::cout << be << ":" << j << " h1  " << f_val << " "
-                               << h1_gf_val << " " << fabs(f_val - h1_gf_val)
+                               << h1_gfc_val << " "
+                               << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
                   {
                      std::cout << be << ":" << j << " dgv " << f_val << " "
-                               << dgv_gf_val << " " << fabs(f_val - dgv_gf_val)
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgi_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
                   {
                      std::cout << be << ":" << j << " dgi " << f_val << " "
-                               << dgi_gf_val << " " << fabs(f_val - dgi_gf_val)
+                               << dgi_gfc_val << " "
+                               << fabs(f_val - dgi_gfc_val)
                                << std::endl;
                   }
                }
@@ -655,30 +797,33 @@ TEST_CASE("2D GetValue",
                   T->SetIntPoint(&ip);
 
                   double f_val = funcCoef.Eval(*T, ip);
-                  double h1_gf_val = h1_xCoef.Eval(*T, ip);
-                  double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
-                  double dgi_gf_val = dgi_xCoef.Eval(*T, ip);
+                  double h1_gfc_val = h1_xCoef.Eval(*T, ip);
+                  double dgv_gfc_val = dgv_xCoef.Eval(*T, ip);
+                  double dgi_gfc_val = dgi_xCoef.Eval(*T, ip);
 
-                  h1_err += fabs(f_val - h1_gf_val);
-                  dgv_err += fabs(f_val - dgv_gf_val);
-                  dgi_err += fabs(f_val - dgi_gf_val);
+                  h1_err += fabs(f_val - h1_gfc_val);
+                  dgv_err += fabs(f_val - dgv_gfc_val);
+                  dgi_err += fabs(f_val - dgi_gfc_val);
 
-                  if (log > 0 && fabs(f_val - h1_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
                   {
                      std::cout << be << ":" << j << " h1  " << f_val << " "
-                               << h1_gf_val << " " << fabs(f_val - h1_gf_val)
+                               << h1_gfc_val << " "
+                               << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
                   {
                      std::cout << be << ":" << j << " dgv " << f_val << " "
-                               << dgv_gf_val << " " << fabs(f_val - dgv_gf_val)
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgi_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
                   {
                      std::cout << be << ":" << j << " dgi " << f_val << " "
-                               << dgi_gf_val << " " << fabs(f_val - dgi_gf_val)
+                               << dgi_gfc_val << " "
+                               << fabs(f_val - dgi_gfc_val)
                                << std::endl;
                   }
                }
@@ -711,14 +856,14 @@ TEST_CASE("2D GetValue",
                   T->SetIntPoint(&ip);
 
                   double f_val = funcCoef.Eval(*T, ip);
-                  double h1_gf_val = h1_xCoef.Eval(*T, ip);
+                  double h1_gfc_val = h1_xCoef.Eval(*T, ip);
 
-                  h1_err += fabs(f_val - h1_gf_val);
+                  h1_err += fabs(f_val - h1_gfc_val);
 
-                  if (log > 0 && fabs(f_val - h1_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
                   {
                      std::cout << e << ":" << j << " h1  " << f_val << " "
-                               << h1_gf_val << " " << fabs(f_val - h1_gf_val)
+                               << h1_gfc_val << " " << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
                }
@@ -802,14 +947,19 @@ TEST_CASE("2D GetValue in Parallel",
                FaceElementTransformations *FET =
                   pmesh.GetSharedFaceTransformations(sf);
                ElementTransformation *T = &FET->GetElement2Transformation();
-               int e = FET->Elem2No - pmesh.GetNE();
-               const FiniteElement   *fe = dgv_fespace.GetFaceNbrFE(e);
+               int e = FET->Elem2No;
+               int e_nbr = e - pmesh.GetNE();
+               const FiniteElement   *fe = dgv_fespace.GetFaceNbrFE(e_nbr);
                const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
                                                         2*order + 2);
 
-               double  h1_err = 0.0;
-               double dgv_err = 0.0;
-               double dgi_err = 0.0;
+               double  h1_gfc_err = 0.0;
+               double dgv_gfc_err = 0.0;
+               double dgi_gfc_err = 0.0;
+
+               double  h1_gv_err = 0.0;
+               double dgv_gv_err = 0.0;
+               double dgi_gv_err = 0.0;
 
                for (int j=0; j<ir.GetNPoints(); j++)
                {
@@ -818,40 +968,79 @@ TEST_CASE("2D GetValue in Parallel",
                   T->SetIntPoint(&ip);
 
                   double      f_val =   funcCoef.Eval(*T, ip);
-                  double  h1_gf_val =  h1_xCoef.Eval(*T, ip);
-                  double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
-                  double dgi_gf_val = dgi_xCoef.Eval(*T, ip);
+                  double  h1_gfc_val =  h1_xCoef.Eval(*T, ip);
+                  double dgv_gfc_val = dgv_xCoef.Eval(*T, ip);
+                  double dgi_gfc_val = dgi_xCoef.Eval(*T, ip);
 
-                  h1_err  += fabs(f_val -  h1_gf_val);
-                  dgv_err += fabs(f_val - dgv_gf_val);
-                  dgi_err += fabs(f_val - dgi_gf_val);
+                  double h1_gv_val = h1_x.GetValue(e, ip);
+                  double dgv_gv_val = dgv_x.GetValue(e, ip);
+                  double dgi_gv_val = dgi_x.GetValue(e, ip);
 
-                  if (log > 0 && fabs(f_val - h1_gf_val) > tol)
+                  h1_gfc_err  += fabs(f_val -  h1_gfc_val);
+                  dgv_gfc_err += fabs(f_val - dgv_gfc_val);
+                  dgi_gfc_err += fabs(f_val - dgi_gfc_val);
+
+                  h1_gv_err += fabs(f_val - h1_gv_val);
+                  dgv_gv_err += fabs(f_val - dgv_gv_val);
+                  dgi_gv_err += fabs(f_val - dgi_gv_val);
+
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " h1  " << f_val << " "
-                               << h1_gf_val << " " << fabs(f_val - h1_gf_val)
+                     std::cout << e << ":" << j << " h1  gfc " << f_val << " "
+                               << h1_gfc_val << " " << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgv " << f_val << " "
-                               << dgv_gf_val << " " << fabs(f_val - dgv_gf_val)
+                     std::cout << e << ":" << j << " dgv gfc " << f_val << " "
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgi_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgi " << f_val << " "
-                               << dgi_gf_val << " " << fabs(f_val - dgi_gf_val)
+                     std::cout << e << ":" << j << " dgi gfc " << f_val << " "
+                               << dgi_gfc_val << " "
+                               << fabs(f_val - dgi_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - h1_gv_val) > tol)
+                  {
+                     std::cout << e << ":" << j << " h1  gv " << f_val << " "
+                               << h1_gv_val << " " << fabs(f_val - h1_gv_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gv_val) > tol)
+                  {
+                     std::cout << e << ":" << j << " dgv gv " << f_val << " "
+                               << dgv_gv_val << " "
+                               << fabs(f_val - dgv_gv_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgi_gv_val) > tol)
+                  {
+                     std::cout << e << ":" << j << " dgi gv " << f_val << " "
+                               << dgi_gv_val << " "
+                               << fabs(f_val - dgi_gv_val)
                                << std::endl;
                   }
                }
-               h1_err /= ir.GetNPoints();
-               dgv_err /= ir.GetNPoints();
-               dgi_err /= ir.GetNPoints();
 
-               REQUIRE(h1_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
-               REQUIRE(dgi_err == Approx(0.0));
+               h1_gfc_err /= ir.GetNPoints();
+               dgv_gfc_err /= ir.GetNPoints();
+               dgi_gfc_err /= ir.GetNPoints();
+
+               h1_gv_err /= ir.GetNPoints();
+               dgv_gv_err /= ir.GetNPoints();
+               dgi_gv_err /= ir.GetNPoints();
+
+               REQUIRE(h1_gfc_err == Approx(0.0));
+               REQUIRE(dgv_gfc_err == Approx(0.0));
+               REQUIRE(dgi_gfc_err == Approx(0.0));
+
+               REQUIRE(h1_gv_err == Approx(0.0));
+               REQUIRE(dgv_gv_err == Approx(0.0));
+               REQUIRE(dgi_gv_err == Approx(0.0));
             }
          }
       }
@@ -915,9 +1104,13 @@ TEST_CASE("3D GetValue",
                const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
                                                         2*order + 2);
 
-               double h1_err = 0.0;
-               double dgv_err = 0.0;
-               double dgi_err = 0.0;
+               double h1_gfc_err = 0.0;
+               double dgv_gfc_err = 0.0;
+               double dgi_gfc_err = 0.0;
+
+               double h1_gv_err = 0.0;
+               double dgv_gv_err = 0.0;
+               double dgi_gv_err = 0.0;
 
                for (int j=0; j<ir.GetNPoints(); j++)
                {
@@ -926,40 +1119,80 @@ TEST_CASE("3D GetValue",
                   T->SetIntPoint(&ip);
 
                   double f_val = funcCoef.Eval(*T, ip);
-                  double h1_gf_val = h1_xCoef.Eval(*T, ip);
-                  double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
-                  double dgi_gf_val = dgi_xCoef.Eval(*T, ip);
 
-                  h1_err += fabs(f_val - h1_gf_val);
-                  dgv_err += fabs(f_val - dgv_gf_val);
-                  dgi_err += fabs(f_val - dgi_gf_val);
+                  double h1_gfc_val = h1_xCoef.Eval(*T, ip);
+                  double dgv_gfc_val = dgv_xCoef.Eval(*T, ip);
+                  double dgi_gfc_val = dgi_xCoef.Eval(*T, ip);
 
-                  if (log > 0 && fabs(f_val - h1_gf_val) > tol)
+                  double h1_gv_val = h1_x.GetValue(e, ip);
+                  double dgv_gv_val = dgv_x.GetValue(e, ip);
+                  double dgi_gv_val = dgi_x.GetValue(e, ip);
+
+                  h1_gfc_err += fabs(f_val - h1_gfc_val);
+                  dgv_gfc_err += fabs(f_val - dgv_gfc_val);
+                  dgi_gfc_err += fabs(f_val - dgi_gfc_val);
+
+                  h1_gv_err += fabs(f_val - h1_gv_val);
+                  dgv_gv_err += fabs(f_val - dgv_gv_val);
+                  dgi_gv_err += fabs(f_val - dgi_gv_val);
+
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " h1  " << f_val << " "
-                               << h1_gf_val << " " << fabs(f_val - h1_gf_val)
+                     std::cout << e << ":" << j << " h1  gfc " << f_val << " "
+                               << h1_gfc_val << " " << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgv " << f_val << " "
-                               << dgv_gf_val << " " << fabs(f_val - dgv_gf_val)
+                     std::cout << e << ":" << j << " dgv gfc " << f_val << " "
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgi_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgi " << f_val << " "
-                               << dgi_gf_val << " " << fabs(f_val - dgi_gf_val)
+                     std::cout << e << ":" << j << " dgi gfc " << f_val << " "
+                               << dgi_gfc_val << " "
+                               << fabs(f_val - dgi_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - h1_gv_val) > tol)
+                  {
+                     std::cout << e << ":" << j << " h1  gv " << f_val << " "
+                               << h1_gv_val << " " << fabs(f_val - h1_gv_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gv_val) > tol)
+                  {
+                     std::cout << e << ":" << j << " dgv gv " << f_val << " "
+                               << dgv_gv_val << " "
+                               << fabs(f_val - dgv_gv_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgi_gv_val) > tol)
+                  {
+                     std::cout << e << ":" << j << " dgi gv " << f_val << " "
+                               << dgi_gv_val << " "
+                               << fabs(f_val - dgi_gv_val)
                                << std::endl;
                   }
                }
-               h1_err /= ir.GetNPoints();
-               dgv_err /= ir.GetNPoints();
-               dgi_err /= ir.GetNPoints();
 
-               REQUIRE(h1_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
-               REQUIRE(dgi_err == Approx(0.0));
+               h1_gfc_err /= ir.GetNPoints();
+               dgv_gfc_err /= ir.GetNPoints();
+               dgi_gfc_err /= ir.GetNPoints();
+
+               h1_gv_err /= ir.GetNPoints();
+               dgv_gv_err /= ir.GetNPoints();
+               dgi_gv_err /= ir.GetNPoints();
+
+               REQUIRE(h1_gfc_err == Approx(0.0));
+               REQUIRE(dgv_gfc_err == Approx(0.0));
+               REQUIRE(dgi_gfc_err == Approx(0.0));
+
+               REQUIRE(h1_gv_err == Approx(0.0));
+               REQUIRE(dgv_gv_err == Approx(0.0));
+               REQUIRE(dgi_gv_err == Approx(0.0));
             }
          }
 
@@ -984,30 +1217,33 @@ TEST_CASE("3D GetValue",
                   T->SetIntPoint(&ip);
 
                   double f_val = funcCoef.Eval(*T, ip);
-                  double h1_gf_val = h1_xCoef.Eval(*T, ip);
-                  double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
-                  double dgi_gf_val = dgi_xCoef.Eval(*T, ip);
+                  double h1_gfc_val = h1_xCoef.Eval(*T, ip);
+                  double dgv_gfc_val = dgv_xCoef.Eval(*T, ip);
+                  double dgi_gfc_val = dgi_xCoef.Eval(*T, ip);
 
-                  h1_err += fabs(f_val - h1_gf_val);
-                  dgv_err += fabs(f_val - dgv_gf_val);
-                  dgi_err += fabs(f_val - dgi_gf_val);
+                  h1_err += fabs(f_val - h1_gfc_val);
+                  dgv_err += fabs(f_val - dgv_gfc_val);
+                  dgi_err += fabs(f_val - dgi_gfc_val);
 
-                  if (log > 0 && fabs(f_val - h1_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
                   {
                      std::cout << be << ":" << j << " h1  " << f_val << " "
-                               << h1_gf_val << " " << fabs(f_val - h1_gf_val)
+                               << h1_gfc_val << " "
+                               << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
                   {
                      std::cout << be << ":" << j << " dgv " << f_val << " "
-                               << dgv_gf_val << " " << fabs(f_val - dgv_gf_val)
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgi_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
                   {
                      std::cout << be << ":" << j << " dgi " << f_val << " "
-                               << dgi_gf_val << " " << fabs(f_val - dgi_gf_val)
+                               << dgi_gfc_val << " "
+                               << fabs(f_val - dgi_gfc_val)
                                << std::endl;
                   }
                }
@@ -1043,30 +1279,33 @@ TEST_CASE("3D GetValue",
                   T->SetIntPoint(&ip);
 
                   double f_val = funcCoef.Eval(*T, ip);
-                  double h1_gf_val = h1_xCoef.Eval(*T, ip);
-                  double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
-                  double dgi_gf_val = dgi_xCoef.Eval(*T, ip);
+                  double h1_gfc_val = h1_xCoef.Eval(*T, ip);
+                  double dgv_gfc_val = dgv_xCoef.Eval(*T, ip);
+                  double dgi_gfc_val = dgi_xCoef.Eval(*T, ip);
 
-                  h1_err += fabs(f_val - h1_gf_val);
-                  dgv_err += fabs(f_val - dgv_gf_val);
-                  dgi_err += fabs(f_val - dgi_gf_val);
+                  h1_err += fabs(f_val - h1_gfc_val);
+                  dgv_err += fabs(f_val - dgv_gfc_val);
+                  dgi_err += fabs(f_val - dgi_gfc_val);
 
-                  if (log > 0 && fabs(f_val - h1_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
                   {
                      std::cout << be << ":" << j << " h1  " << f_val << " "
-                               << h1_gf_val << " " << fabs(f_val - h1_gf_val)
+                               << h1_gfc_val << " "
+                               << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
                   {
                      std::cout << be << ":" << j << " dgv " << f_val << " "
-                               << dgv_gf_val << " " << fabs(f_val - dgv_gf_val)
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgi_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
                   {
                      std::cout << be << ":" << j << " dgi " << f_val << " "
-                               << dgi_gf_val << " " << fabs(f_val - dgi_gf_val)
+                               << dgi_gfc_val << " "
+                               << fabs(f_val - dgi_gfc_val)
                                << std::endl;
                   }
                }
@@ -1099,14 +1338,14 @@ TEST_CASE("3D GetValue",
                   T->SetIntPoint(&ip);
 
                   double f_val = funcCoef.Eval(*T, ip);
-                  double h1_gf_val = h1_xCoef.Eval(*T, ip);
+                  double h1_gfc_val = h1_xCoef.Eval(*T, ip);
 
-                  h1_err += fabs(f_val - h1_gf_val);
+                  h1_err += fabs(f_val - h1_gfc_val);
 
-                  if (log > 0 && fabs(f_val - h1_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
                   {
                      std::cout << e << ":" << j << " h1  " << f_val << " "
-                               << h1_gf_val << " " << fabs(f_val - h1_gf_val)
+                               << h1_gfc_val << " " << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
                }
@@ -1135,14 +1374,14 @@ TEST_CASE("3D GetValue",
                   T->SetIntPoint(&ip);
 
                   double f_val = funcCoef.Eval(*T, ip);
-                  double h1_gf_val = h1_xCoef.Eval(*T, ip);
+                  double h1_gfc_val = h1_xCoef.Eval(*T, ip);
 
-                  h1_err += fabs(f_val - h1_gf_val);
+                  h1_err += fabs(f_val - h1_gfc_val);
 
-                  if (log > 0 && fabs(f_val - h1_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
                   {
                      std::cout << f << ":" << j << " h1  " << f_val << " "
-                               << h1_gf_val << " " << fabs(f_val - h1_gf_val)
+                               << h1_gfc_val << " " << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
                }
@@ -1232,15 +1471,19 @@ TEST_CASE("3D GetValue in Parallel",
                FaceElementTransformations *FET =
                   pmesh.GetSharedFaceTransformations(sf);
                ElementTransformation *T = &FET->GetElement2Transformation();
-               int e = FET->Elem2No - pmesh.GetNE();
-               const FiniteElement   *fe = dgv_fespace.GetFaceNbrFE(e);
+               int e = FET->Elem2No;
+               int e_nbr = e - pmesh.GetNE();
+               const FiniteElement   *fe = dgv_fespace.GetFaceNbrFE(e_nbr);
                const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
                                                         2*order + 2);
 
-               double  h1_err = 0.0;
-               double  l2_err = 0.0;
-               double dgv_err = 0.0;
-               double dgi_err = 0.0;
+               double  h1_gfc_err = 0.0;
+               double dgv_gfc_err = 0.0;
+               double dgi_gfc_err = 0.0;
+
+               double  h1_gv_err = 0.0;
+               double dgv_gv_err = 0.0;
+               double dgi_gv_err = 0.0;
 
                for (int j=0; j<ir.GetNPoints(); j++)
                {
@@ -1249,50 +1492,80 @@ TEST_CASE("3D GetValue in Parallel",
                   T->SetIntPoint(&ip);
 
                   double      f_val =   funcCoef.Eval(*T, ip);
-                  double  h1_gf_val =  h1_xCoef.Eval(*T, ip);
-                  double  l2_gf_val =  l2_xCoef.Eval(*T, ip);
-                  double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
-                  double dgi_gf_val = dgi_xCoef.Eval(*T, ip);
 
-                  h1_err  += fabs(f_val -  h1_gf_val);
-                  l2_err  += fabs(f_val -  l2_gf_val);
-                  dgv_err += fabs(f_val - dgv_gf_val);
-                  dgi_err += fabs(f_val - dgi_gf_val);
+                  double  h1_gfc_val =  h1_xCoef.Eval(*T, ip);
+                  double dgv_gfc_val = dgv_xCoef.Eval(*T, ip);
+                  double dgi_gfc_val = dgi_xCoef.Eval(*T, ip);
 
-                  if (log > 0 && fabs(f_val - h1_gf_val) > tol)
+                  double h1_gv_val = h1_x.GetValue(e, ip);
+                  double dgv_gv_val = dgv_x.GetValue(e, ip);
+                  double dgi_gv_val = dgi_x.GetValue(e, ip);
+
+                  h1_gfc_err  += fabs(f_val -  h1_gfc_val);
+                  dgv_gfc_err += fabs(f_val - dgv_gfc_val);
+                  dgi_gfc_err += fabs(f_val - dgi_gfc_val);
+
+                  h1_gv_err += fabs(f_val - h1_gv_val);
+                  dgv_gv_err += fabs(f_val - dgv_gv_val);
+                  dgi_gv_err += fabs(f_val - dgi_gv_val);
+
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " h1  " << f_val << " "
-                               << h1_gf_val << " " << fabs(f_val - h1_gf_val)
+                     std::cout << e << ":" << j << " h1  gfc " << f_val << " "
+                               << h1_gfc_val << " " << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - l2_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " l2  " << f_val << " "
-                               << l2_gf_val << " " << fabs(f_val - l2_gf_val)
+                     std::cout << e << ":" << j << " dgv gfc " << f_val << " "
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgv " << f_val << " "
-                               << dgv_gf_val << " " << fabs(f_val - dgv_gf_val)
+                     std::cout << e << ":" << j << " dgi gfc " << f_val << " "
+                               << dgi_gfc_val << " "
+                               << fabs(f_val - dgi_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgi_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - h1_gv_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgi " << f_val << " "
-                               << dgi_gf_val << " " << fabs(f_val - dgi_gf_val)
+                     std::cout << e << ":" << j << " h1  gv " << f_val << " "
+                               << h1_gv_val << " " << fabs(f_val - h1_gv_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gv_val) > tol)
+                  {
+                     std::cout << e << ":" << j << " dgv gv " << f_val << " "
+                               << dgv_gv_val << " "
+                               << fabs(f_val - dgv_gv_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgi_gv_val) > tol)
+                  {
+                     std::cout << e << ":" << j << " dgi gv " << f_val << " "
+                               << dgi_gv_val << " "
+                               << fabs(f_val - dgi_gv_val)
                                << std::endl;
                   }
                }
-               h1_err  /= ir.GetNPoints();
-               l2_err  /= ir.GetNPoints();
-               dgv_err /= ir.GetNPoints();
-               dgi_err /= ir.GetNPoints();
 
-               REQUIRE( h1_err == Approx(0.0));
-               REQUIRE( l2_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
-               REQUIRE(dgi_err == Approx(0.0));
+               h1_gfc_err /= ir.GetNPoints();
+               dgv_gfc_err /= ir.GetNPoints();
+               dgi_gfc_err /= ir.GetNPoints();
+
+               h1_gv_err /= ir.GetNPoints();
+               dgv_gv_err /= ir.GetNPoints();
+               dgi_gv_err /= ir.GetNPoints();
+
+               REQUIRE(h1_gfc_err == Approx(0.0));
+               REQUIRE(dgv_gfc_err == Approx(0.0));
+               REQUIRE(dgi_gfc_err == Approx(0.0));
+
+               REQUIRE(h1_gv_err == Approx(0.0));
+               REQUIRE(dgv_gv_err == Approx(0.0));
+               REQUIRE(dgi_gv_err == Approx(0.0));
             }
          }
       }
@@ -1362,13 +1635,21 @@ TEST_CASE("2D GetVectorValue",
          dgv_x.ProjectCoefficient(funcCoef);
          dgi_x.ProjectCoefficient(funcCoef);
 
-         Vector      f_val(dim);      f_val = 0.0;
-         Vector  h1_gf_val(dim);  h1_gf_val = 0.0;
-         Vector  nd_gf_val(dim);  nd_gf_val = 0.0;
-         Vector  rt_gf_val(dim);  rt_gf_val = 0.0;
-         Vector  l2_gf_val(dim);  l2_gf_val = 0.0;
-         Vector dgv_gf_val(dim); dgv_gf_val = 0.0;
-         Vector dgi_gf_val(dim); dgi_gf_val = 0.0;
+         Vector       f_val(dim);       f_val = 0.0;
+
+         Vector  h1_gfc_val(dim);  h1_gfc_val = 0.0;
+         Vector  nd_gfc_val(dim);  nd_gfc_val = 0.0;
+         Vector  rt_gfc_val(dim);  rt_gfc_val = 0.0;
+         Vector  l2_gfc_val(dim);  l2_gfc_val = 0.0;
+         Vector dgv_gfc_val(dim); dgv_gfc_val = 0.0;
+         Vector dgi_gfc_val(dim); dgi_gfc_val = 0.0;
+
+         Vector  h1_gvv_val(dim);  h1_gvv_val = 0.0;
+         Vector  nd_gvv_val(dim);  nd_gvv_val = 0.0;
+         Vector  rt_gvv_val(dim);  rt_gvv_val = 0.0;
+         Vector  l2_gvv_val(dim);  l2_gvv_val = 0.0;
+         Vector dgv_gvv_val(dim); dgv_gvv_val = 0.0;
+         Vector dgi_gvv_val(dim); dgi_gvv_val = 0.0;
 
          SECTION("Domain Evaluation 2D")
          {
@@ -1380,12 +1661,19 @@ TEST_CASE("2D GetVectorValue",
                const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
                                                         2*order + 2);
 
-               double  h1_err = 0.0;
-               double  nd_err = 0.0;
-               double  rt_err = 0.0;
-               double  l2_err = 0.0;
-               double dgv_err = 0.0;
-               double dgi_err = 0.0;
+               double  h1_gfc_err = 0.0;
+               double  nd_gfc_err = 0.0;
+               double  rt_gfc_err = 0.0;
+               double  l2_gfc_err = 0.0;
+               double dgv_gfc_err = 0.0;
+               double dgi_gfc_err = 0.0;
+
+               double  h1_gvv_err = 0.0;
+               double  nd_gvv_err = 0.0;
+               double  rt_gvv_err = 0.0;
+               double  l2_gvv_err = 0.0;
+               double dgv_gvv_err = 0.0;
+               double dgi_gvv_err = 0.0;
 
                for (int j=0; j<ir.GetNPoints(); j++)
                {
@@ -1394,83 +1682,166 @@ TEST_CASE("2D GetVectorValue",
                   T->SetIntPoint(&ip);
 
                   funcCoef.Eval(f_val, *T, ip);
-                  h1_xCoef.Eval(h1_gf_val, *T, ip);
-                  nd_xCoef.Eval(nd_gf_val, *T, ip);
-                  rt_xCoef.Eval(rt_gf_val, *T, ip);
-                  l2_xCoef.Eval(l2_gf_val, *T, ip);
-                  dgv_xCoef.Eval(dgv_gf_val, *T, ip);
-                  dgi_xCoef.Eval(dgi_gf_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, dim);
-                  double  nd_dist = Distance(f_val,  nd_gf_val, dim);
-                  double  rt_dist = Distance(f_val,  rt_gf_val, dim);
-                  double  l2_dist = Distance(f_val,  l2_gf_val, dim);
-                  double dgv_dist = Distance(f_val, dgv_gf_val, dim);
-                  double dgi_dist = Distance(f_val, dgi_gf_val, dim);
+                  h1_xCoef.Eval(h1_gfc_val, *T, ip);
+                  nd_xCoef.Eval(nd_gfc_val, *T, ip);
+                  rt_xCoef.Eval(rt_gfc_val, *T, ip);
+                  l2_xCoef.Eval(l2_gfc_val, *T, ip);
+                  dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
+                  dgi_xCoef.Eval(dgi_gfc_val, *T, ip);
 
-                  h1_err  +=  h1_dist;
-                  nd_err  +=  nd_dist;
-                  rt_err  +=  rt_dist;
-                  l2_err  +=  l2_dist;
-                  dgv_err += dgv_dist;
-                  dgi_err += dgi_dist;
+                  h1_x.GetVectorValue(e, ip, h1_gvv_val);
+                  nd_x.GetVectorValue(e, ip, nd_gvv_val);
+                  rt_x.GetVectorValue(e, ip, rt_gvv_val);
+                  l2_x.GetVectorValue(e, ip, l2_gvv_val);
+                  dgv_x.GetVectorValue(e, ip, dgv_gvv_val);
+                  dgi_x.GetVectorValue(e, ip, dgi_gvv_val);
 
-                  if (log > 0 && h1_dist > tol)
+                  double  h1_gfc_dist = Distance(f_val,  h1_gfc_val, dim);
+                  double  nd_gfc_dist = Distance(f_val,  nd_gfc_val, dim);
+                  double  rt_gfc_dist = Distance(f_val,  rt_gfc_val, dim);
+                  double  l2_gfc_dist = Distance(f_val,  l2_gfc_val, dim);
+                  double dgv_gfc_dist = Distance(f_val, dgv_gfc_val, dim);
+                  double dgi_gfc_dist = Distance(f_val, dgi_gfc_val, dim);
+
+                  double  h1_gvv_dist = Distance(f_val,  h1_gvv_val, dim);
+                  double  nd_gvv_dist = Distance(f_val,  nd_gvv_val, dim);
+                  double  rt_gvv_dist = Distance(f_val,  rt_gvv_val, dim);
+                  double  l2_gvv_dist = Distance(f_val,  l2_gvv_val, dim);
+                  double dgv_gvv_dist = Distance(f_val, dgv_gvv_val, dim);
+                  double dgi_gvv_dist = Distance(f_val, dgi_gvv_val, dim);
+
+                  h1_gfc_err  +=  h1_gfc_dist;
+                  nd_gfc_err  +=  nd_gfc_dist;
+                  rt_gfc_err  +=  rt_gfc_dist;
+                  l2_gfc_err  +=  l2_gfc_dist;
+                  dgv_gfc_err += dgv_gfc_dist;
+                  dgi_gfc_err += dgi_gfc_dist;
+
+                  h1_gvv_err  +=  h1_gvv_dist;
+                  nd_gvv_err  +=  nd_gvv_dist;
+                  rt_gvv_err  +=  rt_gvv_dist;
+                  l2_gvv_err  +=  l2_gvv_dist;
+                  dgv_gvv_err += dgv_gvv_dist;
+                  dgi_gvv_err += dgi_gvv_dist;
+
+                  if (log > 0 && h1_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " h1  ("
+                     std::cout << e << ":" << j << " h1  gfc ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
-                               << h1_gf_val[0] << "," << h1_gf_val[1] << ") "
-                               << h1_dist << std::endl;
+                               << h1_gfc_val[0] << "," << h1_gfc_val[1] << ") "
+                               << h1_gfc_dist << std::endl;
                   }
-                  if (log > 0 && nd_dist > tol)
+                  if (log > 0 && nd_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " nd  ("
+                     std::cout << e << ":" << j << " nd  gfc ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
-                               << nd_gf_val[0] << "," << nd_gf_val[1] << ") "
-                               << nd_dist << std::endl;
+                               << nd_gfc_val[0] << "," << nd_gfc_val[1] << ") "
+                               << nd_gfc_dist << std::endl;
                   }
-                  if (log > 0 && rt_dist > tol)
+                  if (log > 0 && rt_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " rt  ("
+                     std::cout << e << ":" << j << " rt  gfc ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
-                               << rt_gf_val[0] << "," << rt_gf_val[1] << ") "
-                               << rt_dist << std::endl;
+                               << rt_gfc_val[0] << "," << rt_gfc_val[1] << ") "
+                               << rt_gfc_dist << std::endl;
                   }
-                  if (log > 0 && l2_dist > tol)
+                  if (log > 0 && l2_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " l2  ("
+                     std::cout << e << ":" << j << " l2  gfc ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
-                               << l2_gf_val[0] << "," << l2_gf_val[1] << ") "
-                               << l2_dist << std::endl;
+                               << l2_gfc_val[0] << "," << l2_gfc_val[1] << ") "
+                               << l2_gfc_dist << std::endl;
                   }
-                  if (log > 0 && dgv_dist > tol)
+                  if (log > 0 && dgv_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " dgv ("
+                     std::cout << e << ":" << j << " dgv gfc ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
-                               << dgv_gf_val[0] << "," << dgv_gf_val[1] << ") "
-                               << dgv_dist << std::endl;
+                               << dgv_gfc_val[0] << ","
+                               << dgv_gfc_val[1] << ") "
+                               << dgv_gfc_dist << std::endl;
                   }
-                  if (log > 0 && dgi_dist > tol)
+                  if (log > 0 && dgi_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " dgi ("
+                     std::cout << e << ":" << j << " dgi gfc ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
-                               << dgi_gf_val[0] << "," << dgi_gf_val[1] << ") "
-                               << dgi_dist << std::endl;
+                               << dgi_gfc_val[0] << ","
+                               << dgi_gfc_val[1] << ") "
+                               << dgi_gfc_dist << std::endl;
+                  }
+                  if (log > 0 && h1_gvv_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " h1  gvv ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << h1_gvv_val[0] << "," << h1_gvv_val[1] << ") "
+                               << h1_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && nd_gvv_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " nd  gvv ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << nd_gvv_val[0] << "," << nd_gvv_val[1] << ") "
+                               << nd_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && rt_gvv_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " rt  gvv ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << rt_gvv_val[0] << "," << rt_gvv_val[1] << ") "
+                               << rt_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && l2_gvv_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " l2  gvv ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << l2_gvv_val[0] << "," << l2_gvv_val[1] << ") "
+                               << l2_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && dgv_gvv_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " dgv gvv ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << dgv_gvv_val[0] << ","
+                               << dgv_gvv_val[1] << ") "
+                               << dgv_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && dgi_gvv_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " dgi gvv ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << dgi_gvv_val[0] << ","
+                               << dgi_gvv_val[1] << ") "
+                               << dgi_gvv_dist << std::endl;
                   }
                }
-               h1_err  /= ir.GetNPoints();
-               nd_err  /= ir.GetNPoints();
-               rt_err  /= ir.GetNPoints();
-               l2_err  /= ir.GetNPoints();
-               dgv_err /= ir.GetNPoints();
-               dgi_err /= ir.GetNPoints();
 
-               REQUIRE( h1_err == Approx(0.0));
-               REQUIRE( nd_err == Approx(0.0));
-               REQUIRE( rt_err == Approx(0.0));
-               REQUIRE( l2_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
-               REQUIRE(dgi_err == Approx(0.0));
+               h1_gfc_err  /= ir.GetNPoints();
+               nd_gfc_err  /= ir.GetNPoints();
+               rt_gfc_err  /= ir.GetNPoints();
+               l2_gfc_err  /= ir.GetNPoints();
+               dgv_gfc_err /= ir.GetNPoints();
+               dgi_gfc_err /= ir.GetNPoints();
+
+               h1_gvv_err  /= ir.GetNPoints();
+               nd_gvv_err  /= ir.GetNPoints();
+               rt_gvv_err  /= ir.GetNPoints();
+               l2_gvv_err  /= ir.GetNPoints();
+               dgv_gvv_err /= ir.GetNPoints();
+               dgi_gvv_err /= ir.GetNPoints();
+
+               REQUIRE( h1_gfc_err == Approx(0.0));
+               REQUIRE( nd_gfc_err == Approx(0.0));
+               REQUIRE( rt_gfc_err == Approx(0.0));
+               REQUIRE( l2_gfc_err == Approx(0.0));
+               REQUIRE(dgv_gfc_err == Approx(0.0));
+               REQUIRE(dgi_gfc_err == Approx(0.0));
+
+               REQUIRE( h1_gvv_err == Approx(0.0));
+               REQUIRE( nd_gvv_err == Approx(0.0));
+               REQUIRE( rt_gvv_err == Approx(0.0));
+               REQUIRE( l2_gvv_err == Approx(0.0));
+               REQUIRE(dgv_gvv_err == Approx(0.0));
+               REQUIRE(dgi_gvv_err == Approx(0.0));
             }
          }
 
@@ -1498,19 +1869,19 @@ TEST_CASE("2D GetVectorValue",
                   T->SetIntPoint(&ip);
 
                   funcCoef.Eval(f_val, *T, ip);
-                  h1_xCoef.Eval(h1_gf_val, *T, ip);
-                  nd_xCoef.Eval(nd_gf_val, *T, ip);
-                  rt_xCoef.Eval(rt_gf_val, *T, ip);
-                  l2_xCoef.Eval(l2_gf_val, *T, ip);
-                  dgv_xCoef.Eval(dgv_gf_val, *T, ip);
-                  dgi_xCoef.Eval(dgi_gf_val, *T, ip);
+                  h1_xCoef.Eval(h1_gfc_val, *T, ip);
+                  nd_xCoef.Eval(nd_gfc_val, *T, ip);
+                  rt_xCoef.Eval(rt_gfc_val, *T, ip);
+                  l2_xCoef.Eval(l2_gfc_val, *T, ip);
+                  dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
+                  dgi_xCoef.Eval(dgi_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, dim);
-                  double  nd_dist = Distance(f_val,  nd_gf_val, dim);
-                  double  rt_dist = Distance(f_val,  rt_gf_val, dim);
-                  double  l2_dist = Distance(f_val,  l2_gf_val, dim);
-                  double dgv_dist = Distance(f_val, dgv_gf_val, dim);
-                  double dgi_dist = Distance(f_val, dgi_gf_val, dim);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val, dim);
+                  double  nd_dist = Distance(f_val,  nd_gfc_val, dim);
+                  double  rt_dist = Distance(f_val,  rt_gfc_val, dim);
+                  double  l2_dist = Distance(f_val,  l2_gfc_val, dim);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val, dim);
+                  double dgi_dist = Distance(f_val, dgi_gfc_val, dim);
 
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
@@ -1523,42 +1894,44 @@ TEST_CASE("2D GetVectorValue",
                   {
                      std::cout << be << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
-                               << h1_gf_val[0] << "," << h1_gf_val[1] << ") "
+                               << h1_gfc_val[0] << "," << h1_gfc_val[1] << ") "
                                << h1_dist << std::endl;
                   }
                   if (log > 0 && nd_dist > tol)
                   {
                      std::cout << be << ":" << j << " nd  ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
-                               << nd_gf_val[0] << "," << nd_gf_val[1] << ") "
+                               << nd_gfc_val[0] << "," << nd_gfc_val[1] << ") "
                                << nd_dist << std::endl;
                   }
                   if (log > 0 && rt_dist > tol)
                   {
                      std::cout << be << ":" << j << " rt  ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
-                               << rt_gf_val[0] << "," << rt_gf_val[1] << ") "
+                               << rt_gfc_val[0] << "," << rt_gfc_val[1] << ") "
                                << rt_dist << std::endl;
                   }
                   if (log > 0 && l2_dist > tol)
                   {
                      std::cout << be << ":" << j << " l2  ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
-                               << l2_gf_val[0] << "," << l2_gf_val[1] << ") "
+                               << l2_gfc_val[0] << "," << l2_gfc_val[1] << ") "
                                << l2_dist << std::endl;
                   }
                   if (log > 0 && dgv_dist > tol)
                   {
                      std::cout << be << ":" << j << " dgv ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
-                               << dgv_gf_val[0] << "," << dgv_gf_val[1] << ") "
+                               << dgv_gfc_val[0] << ","
+                               << dgv_gfc_val[1] << ") "
                                << dgv_dist << std::endl;
                   }
                   if (log > 0 && dgi_dist > tol)
                   {
                      std::cout << be << ":" << j << " dgi ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
-                               << dgi_gf_val[0] << "," << dgi_gf_val[1] << ") "
+                               << dgi_gfc_val[0] << ","
+                               << dgi_gfc_val[1] << ") "
                                << dgi_dist << std::endl;
                   }
                }
@@ -1603,19 +1976,19 @@ TEST_CASE("2D GetVectorValue",
                   T->SetIntPoint(&ip);
 
                   funcCoef.Eval(f_val, *T, ip);
-                  h1_xCoef.Eval(h1_gf_val, *T, ip);
-                  nd_xCoef.Eval(nd_gf_val, *T, ip);
-                  rt_xCoef.Eval(rt_gf_val, *T, ip);
-                  l2_xCoef.Eval(l2_gf_val, *T, ip);
-                  dgv_xCoef.Eval(dgv_gf_val, *T, ip);
-                  dgi_xCoef.Eval(dgi_gf_val, *T, ip);
+                  h1_xCoef.Eval(h1_gfc_val, *T, ip);
+                  nd_xCoef.Eval(nd_gfc_val, *T, ip);
+                  rt_xCoef.Eval(rt_gfc_val, *T, ip);
+                  l2_xCoef.Eval(l2_gfc_val, *T, ip);
+                  dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
+                  dgi_xCoef.Eval(dgi_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, dim);
-                  double  nd_dist = Distance(f_val,  nd_gf_val, dim);
-                  double  rt_dist = Distance(f_val,  rt_gf_val, dim);
-                  double  l2_dist = Distance(f_val,  l2_gf_val, dim);
-                  double dgv_dist = Distance(f_val, dgv_gf_val, dim);
-                  double dgi_dist = Distance(f_val, dgi_gf_val, dim);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val, dim);
+                  double  nd_dist = Distance(f_val,  nd_gfc_val, dim);
+                  double  rt_dist = Distance(f_val,  rt_gfc_val, dim);
+                  double  l2_dist = Distance(f_val,  l2_gfc_val, dim);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val, dim);
+                  double dgi_dist = Distance(f_val, dgi_gfc_val, dim);
 
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
@@ -1628,42 +2001,48 @@ TEST_CASE("2D GetVectorValue",
                   {
                      std::cout << be << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
-                               << h1_gf_val[0] << "," << h1_gf_val[1] << ") "
+                               << h1_gfc_val[0] << ","
+                               << h1_gfc_val[1] << ") "
                                << h1_dist << std::endl;
                   }
                   if (log > 0 && nd_dist > tol)
                   {
                      std::cout << be << ":" << j << " nd  ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
-                               << nd_gf_val[0] << "," << nd_gf_val[1] << ") "
+                               << nd_gfc_val[0] << ","
+                               << nd_gfc_val[1] << ") "
                                << nd_dist << std::endl;
                   }
                   if (log > 0 && rt_dist > tol)
                   {
                      std::cout << be << ":" << j << " rt  ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
-                               << rt_gf_val[0] << "," << rt_gf_val[1] << ") "
+                               << rt_gfc_val[0] << ","
+                               << rt_gfc_val[1] << ") "
                                << rt_dist << std::endl;
                   }
                   if (log > 0 && l2_dist > tol)
                   {
                      std::cout << be << ":" << j << " l2  ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
-                               << l2_gf_val[0] << "," << l2_gf_val[1] << ") "
+                               << l2_gfc_val[0] << ","
+                               << l2_gfc_val[1] << ") "
                                << l2_dist << std::endl;
                   }
                   if (log > 0 && dgv_dist > tol)
                   {
                      std::cout << be << ":" << j << " dgv ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
-                               << dgv_gf_val[0] << "," << dgv_gf_val[1] << ") "
+                               << dgv_gfc_val[0] << ","
+                               << dgv_gfc_val[1] << ") "
                                << dgv_dist << std::endl;
                   }
                   if (log > 0 && dgi_dist > tol)
                   {
                      std::cout << be << ":" << j << " dgi ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
-                               << dgi_gf_val[0] << "," << dgi_gf_val[1] << ") "
+                               << dgi_gfc_val[0] << ","
+                               << dgi_gfc_val[1] << ") "
                                << dgi_dist << std::endl;
                   }
                }
@@ -1702,9 +2081,9 @@ TEST_CASE("2D GetVectorValue",
                   T->SetIntPoint(&ip);
 
                   funcCoef.Eval(f_val, *T, ip);
-                  h1_xCoef.Eval(h1_gf_val, *T, ip);
+                  h1_xCoef.Eval(h1_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, 2);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val, 2);
 
                   h1_err  +=  h1_dist;
 
@@ -1712,7 +2091,7 @@ TEST_CASE("2D GetVectorValue",
                   {
                      std::cout << e << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
-                               << h1_gf_val[0] << "," << h1_gf_val[1] << ") "
+                               << h1_gfc_val[0] << "," << h1_gfc_val[1] << ") "
                                << h1_dist << std::endl;
                   }
                }
@@ -1805,12 +2184,20 @@ TEST_CASE("2D GetVectorValue in Parallel",
          dgi_x.ExchangeFaceNbrData();
 
          Vector      f_val(dim);      f_val = 0.0;
-         Vector  h1_gf_val(dim);  h1_gf_val = 0.0;
-         Vector  nd_gf_val(dim);  nd_gf_val = 0.0;
-         Vector  rt_gf_val(dim);  rt_gf_val = 0.0;
-         Vector  l2_gf_val(dim);  l2_gf_val = 0.0;
-         Vector dgv_gf_val(dim); dgv_gf_val = 0.0;
-         Vector dgi_gf_val(dim); dgi_gf_val = 0.0;
+
+         Vector  h1_gfc_val(dim);  h1_gfc_val = 0.0;
+         Vector  nd_gfc_val(dim);  nd_gfc_val = 0.0;
+         Vector  rt_gfc_val(dim);  rt_gfc_val = 0.0;
+         Vector  l2_gfc_val(dim);  l2_gfc_val = 0.0;
+         Vector dgv_gfc_val(dim); dgv_gfc_val = 0.0;
+         Vector dgi_gfc_val(dim); dgi_gfc_val = 0.0;
+
+         Vector  h1_gvv_val(dim);  h1_gvv_val = 0.0;
+         Vector  nd_gvv_val(dim);  nd_gvv_val = 0.0;
+         Vector  rt_gvv_val(dim);  rt_gvv_val = 0.0;
+         Vector  l2_gvv_val(dim);  l2_gvv_val = 0.0;
+         Vector dgv_gvv_val(dim); dgv_gvv_val = 0.0;
+         Vector dgi_gvv_val(dim); dgi_gvv_val = 0.0;
 
          SECTION("Shared Face Evaluation 2D")
          {
@@ -1823,17 +2210,25 @@ TEST_CASE("2D GetVectorValue in Parallel",
                FaceElementTransformations *FET =
                   pmesh.GetSharedFaceTransformations(sf);
                ElementTransformation *T = &FET->GetElement2Transformation();
-               int e = FET->Elem2No - pmesh.GetNE();
-               const FiniteElement   *fe = dgv_fespace.GetFaceNbrFE(e);
+               int e = FET->Elem2No;
+               int e_nbr = e - pmesh.GetNE();
+               const FiniteElement   *fe = dgv_fespace.GetFaceNbrFE(e_nbr);
                const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
                                                         2*order + 2);
 
-               double  h1_err = 0.0;
-               double  nd_err = 0.0;
-               double  rt_err = 0.0;
-               double  l2_err = 0.0;
-               double dgv_err = 0.0;
-               double dgi_err = 0.0;
+               double  h1_gfc_err = 0.0;
+               double  nd_gfc_err = 0.0;
+               double  rt_gfc_err = 0.0;
+               double  l2_gfc_err = 0.0;
+               double dgv_gfc_err = 0.0;
+               double dgi_gfc_err = 0.0;
+
+               double  h1_gvv_err = 0.0;
+               double  nd_gvv_err = 0.0;
+               double  rt_gvv_err = 0.0;
+               double  l2_gvv_err = 0.0;
+               double dgv_gvv_err = 0.0;
+               double dgi_gvv_err = 0.0;
 
                for (int j=0; j<ir.GetNPoints(); j++)
                {
@@ -1842,83 +2237,176 @@ TEST_CASE("2D GetVectorValue in Parallel",
                   T->SetIntPoint(&ip);
 
                   funcCoef.Eval(f_val, *T, ip);
-                  h1_xCoef.Eval(h1_gf_val, *T, ip);
-                  nd_xCoef.Eval(nd_gf_val, *T, ip);
-                  rt_xCoef.Eval(rt_gf_val, *T, ip);
-                  l2_xCoef.Eval(l2_gf_val, *T, ip);
-                  dgv_xCoef.Eval(dgv_gf_val, *T, ip);
-                  dgi_xCoef.Eval(dgi_gf_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, dim);
-                  double  nd_dist = Distance(f_val,  nd_gf_val, dim);
-                  double  rt_dist = Distance(f_val,  rt_gf_val, dim);
-                  double  l2_dist = Distance(f_val,  l2_gf_val, dim);
-                  double dgv_dist = Distance(f_val, dgv_gf_val, dim);
-                  double dgi_dist = Distance(f_val, dgi_gf_val, dim);
+                  h1_xCoef.Eval(h1_gfc_val, *T, ip);
+                  nd_xCoef.Eval(nd_gfc_val, *T, ip);
+                  rt_xCoef.Eval(rt_gfc_val, *T, ip);
+                  l2_xCoef.Eval(l2_gfc_val, *T, ip);
+                  dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
+                  dgi_xCoef.Eval(dgi_gfc_val, *T, ip);
 
-                  h1_err  +=  h1_dist;
-                  nd_err  +=  nd_dist;
-                  rt_err  +=  rt_dist;
-                  l2_err  +=  l2_dist;
-                  dgv_err += dgv_dist;
-                  dgi_err += dgi_dist;
+                  h1_x.GetVectorValue(e, ip, h1_gvv_val);
+                  nd_x.GetVectorValue(e, ip, nd_gvv_val);
+                  rt_x.GetVectorValue(e, ip, rt_gvv_val);
+                  l2_x.GetVectorValue(e, ip, l2_gvv_val);
+                  dgv_x.GetVectorValue(e, ip, dgv_gvv_val);
+                  dgi_x.GetVectorValue(e, ip, dgi_gvv_val);
 
-                  if (log > 0 && h1_dist > tol)
+                  double  h1_gfc_dist = Distance(f_val,  h1_gfc_val, dim);
+                  double  nd_gfc_dist = Distance(f_val,  nd_gfc_val, dim);
+                  double  rt_gfc_dist = Distance(f_val,  rt_gfc_val, dim);
+                  double  l2_gfc_dist = Distance(f_val,  l2_gfc_val, dim);
+                  double dgv_gfc_dist = Distance(f_val, dgv_gfc_val, dim);
+                  double dgi_gfc_dist = Distance(f_val, dgi_gfc_val, dim);
+
+                  double  h1_gvv_dist = Distance(f_val,  h1_gvv_val, dim);
+                  double  nd_gvv_dist = Distance(f_val,  nd_gvv_val, dim);
+                  double  rt_gvv_dist = Distance(f_val,  rt_gvv_val, dim);
+                  double  l2_gvv_dist = Distance(f_val,  l2_gvv_val, dim);
+                  double dgv_gvv_dist = Distance(f_val, dgv_gvv_val, dim);
+                  double dgi_gvv_dist = Distance(f_val, dgi_gvv_val, dim);
+
+                  h1_gfc_err  +=  h1_gfc_dist;
+                  nd_gfc_err  +=  nd_gfc_dist;
+                  rt_gfc_err  +=  rt_gfc_dist;
+                  l2_gfc_err  +=  l2_gfc_dist;
+                  dgv_gfc_err += dgv_gfc_dist;
+                  dgi_gfc_err += dgi_gfc_dist;
+
+                  h1_gvv_err  +=  h1_gvv_dist;
+                  nd_gvv_err  +=  nd_gvv_dist;
+                  rt_gvv_err  +=  rt_gvv_dist;
+                  l2_gvv_err  +=  l2_gvv_dist;
+                  dgv_gvv_err += dgv_gvv_dist;
+                  dgi_gvv_err += dgi_gvv_dist;
+
+                  if (log > 0 && h1_gfc_dist > tol)
                   {
                      std::cout << e << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
-                               << h1_gf_val[0] << "," << h1_gf_val[1] << ") "
-                               << h1_dist << std::endl;
+                               << h1_gfc_val[0] << ","
+                               << h1_gfc_val[1] << ") "
+                               << h1_gfc_dist << std::endl;
                   }
-                  if (log > 0 && nd_dist > tol)
+                  if (log > 0 && nd_gfc_dist > tol)
                   {
                      std::cout << e << ":" << j << " nd  ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
-                               << nd_gf_val[0] << "," << nd_gf_val[1] << ") "
-                               << nd_dist << std::endl;
+                               << nd_gfc_val[0] << ","
+                               << nd_gfc_val[1] << ") "
+                               << nd_gfc_dist << std::endl;
                   }
-                  if (log > 0 && rt_dist > tol)
+                  if (log > 0 && rt_gfc_dist > tol)
                   {
                      std::cout << e << ":" << j << " rt  ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
-                               << rt_gf_val[0] << "," << rt_gf_val[1] << ") "
-                               << rt_dist << std::endl;
+                               << rt_gfc_val[0] << ","
+                               << rt_gfc_val[1] << ") "
+                               << rt_gfc_dist << std::endl;
                   }
-                  if (log > 0 && l2_dist > tol)
+                  if (log > 0 && l2_gfc_dist > tol)
                   {
                      std::cout << e << ":" << j << " l2  ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
-                               << l2_gf_val[0] << "," << l2_gf_val[1] << ") "
-                               << l2_dist << std::endl;
+                               << l2_gfc_val[0] << ","
+                               << l2_gfc_val[1] << ") "
+                               << l2_gfc_dist << std::endl;
                   }
-                  if (log > 0 && dgv_dist > tol)
+                  if (log > 0 && dgv_gfc_dist > tol)
                   {
                      std::cout << e << ":" << j << " dgv ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
-                               << dgv_gf_val[0] << "," << dgv_gf_val[1] << ") "
-                               << dgv_dist << std::endl;
+                               << dgv_gfc_val[0] << ","
+                               << dgv_gfc_val[1] << ") "
+                               << dgv_gfc_dist << std::endl;
                   }
-                  if (log > 0 && dgi_dist > tol)
+                  if (log > 0 && dgi_gfc_dist > tol)
                   {
                      std::cout << e << ":" << j << " dgi ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
-                               << dgi_gf_val[0] << "," << dgi_gf_val[1] << ") "
-                               << dgi_dist << std::endl;
+                               << dgi_gfc_val[0] << ","
+                               << dgi_gfc_val[1] << ") "
+                               << dgi_gfc_dist << std::endl;
+                  }
+                  if (log > 0 && h1_gvv_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " h1  gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << h1_gvv_val[0] << "," << h1_gvv_val[1] << ") "
+                               << h1_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && nd_gvv_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " nd  gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << nd_gvv_val[0] << "," << nd_gvv_val[1] << ") "
+                               << nd_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && rt_gvv_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " rt  gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << rt_gvv_val[0] << "," << rt_gvv_val[1] << ") "
+                               << rt_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && l2_gvv_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " l2  gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << l2_gvv_val[0] << "," << l2_gvv_val[1] << ") "
+                               << l2_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && dgv_gvv_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " dgv gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << dgv_gvv_val[0] << ","
+                               << dgv_gvv_val[1] << ") "
+                               << dgv_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && dgi_gvv_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " dgi gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << dgi_gvv_val[0] << ","
+                               << dgi_gvv_val[1] << ") "
+                               << dgi_gvv_dist << std::endl;
                   }
                }
-               h1_err  /= ir.GetNPoints();
-               nd_err  /= ir.GetNPoints();
-               rt_err  /= ir.GetNPoints();
-               l2_err  /= ir.GetNPoints();
-               dgv_err /= ir.GetNPoints();
-               dgi_err /= ir.GetNPoints();
 
-               REQUIRE( h1_err == Approx(0.0));
-               REQUIRE( nd_err == Approx(0.0));
-               REQUIRE( rt_err == Approx(0.0));
-               REQUIRE( l2_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
-               REQUIRE(dgi_err == Approx(0.0));
+               h1_gfc_err  /= ir.GetNPoints();
+               nd_gfc_err  /= ir.GetNPoints();
+               rt_gfc_err  /= ir.GetNPoints();
+               l2_gfc_err  /= ir.GetNPoints();
+               dgv_gfc_err /= ir.GetNPoints();
+               dgi_gfc_err /= ir.GetNPoints();
+
+               h1_gvv_err  /= ir.GetNPoints();
+               nd_gvv_err  /= ir.GetNPoints();
+               rt_gvv_err  /= ir.GetNPoints();
+               l2_gvv_err  /= ir.GetNPoints();
+               dgv_gvv_err /= ir.GetNPoints();
+               dgi_gvv_err /= ir.GetNPoints();
+
+               REQUIRE( h1_gfc_err == Approx(0.0));
+               REQUIRE( nd_gfc_err == Approx(0.0));
+               REQUIRE( rt_gfc_err == Approx(0.0));
+               REQUIRE( l2_gfc_err == Approx(0.0));
+               REQUIRE(dgv_gfc_err == Approx(0.0));
+               REQUIRE(dgi_gfc_err == Approx(0.0));
+
+               REQUIRE( h1_gvv_err == Approx(0.0));
+               REQUIRE( nd_gvv_err == Approx(0.0));
+               REQUIRE( rt_gvv_err == Approx(0.0));
+               REQUIRE( l2_gvv_err == Approx(0.0));
+               REQUIRE(dgv_gvv_err == Approx(0.0));
+               REQUIRE(dgi_gvv_err == Approx(0.0));
             }
          }
       }
@@ -1989,12 +2477,20 @@ TEST_CASE("3D GetVectorValue",
          dgi_x.ProjectCoefficient(funcCoef);
 
          Vector      f_val(dim);      f_val = 0.0;
-         Vector  h1_gf_val(dim);  h1_gf_val = 0.0;
-         Vector  nd_gf_val(dim);  nd_gf_val = 0.0;
-         Vector  rt_gf_val(dim);  rt_gf_val = 0.0;
-         Vector  l2_gf_val(dim);  l2_gf_val = 0.0;
-         Vector dgv_gf_val(dim); dgv_gf_val = 0.0;
-         Vector dgi_gf_val(dim); dgi_gf_val = 0.0;
+
+         Vector  h1_gfc_val(dim);  h1_gfc_val = 0.0;
+         Vector  nd_gfc_val(dim);  nd_gfc_val = 0.0;
+         Vector  rt_gfc_val(dim);  rt_gfc_val = 0.0;
+         Vector  l2_gfc_val(dim);  l2_gfc_val = 0.0;
+         Vector dgv_gfc_val(dim); dgv_gfc_val = 0.0;
+         Vector dgi_gfc_val(dim); dgi_gfc_val = 0.0;
+
+         Vector  h1_gvv_val(dim);  h1_gvv_val = 0.0;
+         Vector  nd_gvv_val(dim);  nd_gvv_val = 0.0;
+         Vector  rt_gvv_val(dim);  rt_gvv_val = 0.0;
+         Vector  l2_gvv_val(dim);  l2_gvv_val = 0.0;
+         Vector dgv_gvv_val(dim); dgv_gvv_val = 0.0;
+         Vector dgi_gvv_val(dim); dgi_gvv_val = 0.0;
 
          SECTION("Domain Evaluation 3D")
          {
@@ -2006,12 +2502,19 @@ TEST_CASE("3D GetVectorValue",
                const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
                                                         2*order + 2);
 
-               double  h1_err = 0.0;
-               double  nd_err = 0.0;
-               double  rt_err = 0.0;
-               double  l2_err = 0.0;
-               double dgv_err = 0.0;
-               double dgi_err = 0.0;
+               double  h1_gfc_err = 0.0;
+               double  nd_gfc_err = 0.0;
+               double  rt_gfc_err = 0.0;
+               double  l2_gfc_err = 0.0;
+               double dgv_gfc_err = 0.0;
+               double dgi_gfc_err = 0.0;
+
+               double  h1_gvv_err = 0.0;
+               double  nd_gvv_err = 0.0;
+               double  rt_gvv_err = 0.0;
+               double  l2_gvv_err = 0.0;
+               double dgv_gvv_err = 0.0;
+               double dgi_gvv_err = 0.0;
 
                for (int j=0; j<ir.GetNPoints(); j++)
                {
@@ -2020,95 +2523,190 @@ TEST_CASE("3D GetVectorValue",
                   T->SetIntPoint(&ip);
 
                   funcCoef.Eval(f_val, *T, ip);
-                  h1_xCoef.Eval(h1_gf_val, *T, ip);
-                  nd_xCoef.Eval(nd_gf_val, *T, ip);
-                  rt_xCoef.Eval(rt_gf_val, *T, ip);
-                  l2_xCoef.Eval(l2_gf_val, *T, ip);
-                  dgv_xCoef.Eval(dgv_gf_val, *T, ip);
-                  dgi_xCoef.Eval(dgi_gf_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, dim);
-                  double  nd_dist = Distance(f_val,  nd_gf_val, dim);
-                  double  rt_dist = Distance(f_val,  rt_gf_val, dim);
-                  double  l2_dist = Distance(f_val,  l2_gf_val, dim);
-                  double dgv_dist = Distance(f_val, dgv_gf_val, dim);
-                  double dgi_dist = Distance(f_val, dgi_gf_val, dim);
+                  h1_xCoef.Eval(h1_gfc_val, *T, ip);
+                  nd_xCoef.Eval(nd_gfc_val, *T, ip);
+                  rt_xCoef.Eval(rt_gfc_val, *T, ip);
+                  l2_xCoef.Eval(l2_gfc_val, *T, ip);
+                  dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
+                  dgi_xCoef.Eval(dgi_gfc_val, *T, ip);
 
-                  h1_err  +=  h1_dist;
-                  nd_err  +=  nd_dist;
-                  rt_err  +=  rt_dist;
-                  l2_err  +=  l2_dist;
-                  dgv_err += dgv_dist;
-                  dgi_err += dgi_dist;
+                  h1_x.GetVectorValue(e, ip, h1_gvv_val);
+                  nd_x.GetVectorValue(e, ip, nd_gvv_val);
+                  rt_x.GetVectorValue(e, ip, rt_gvv_val);
+                  l2_x.GetVectorValue(e, ip, l2_gvv_val);
+                  dgv_x.GetVectorValue(e, ip, dgv_gvv_val);
+                  dgi_x.GetVectorValue(e, ip, dgi_gvv_val);
 
-                  if (log > 0 && h1_dist > tol)
+                  double  h1_gfc_dist = Distance(f_val,  h1_gfc_val, dim);
+                  double  nd_gfc_dist = Distance(f_val,  nd_gfc_val, dim);
+                  double  rt_gfc_dist = Distance(f_val,  rt_gfc_val, dim);
+                  double  l2_gfc_dist = Distance(f_val,  l2_gfc_val, dim);
+                  double dgv_gfc_dist = Distance(f_val, dgv_gfc_val, dim);
+                  double dgi_gfc_dist = Distance(f_val, dgi_gfc_val, dim);
+
+                  double  h1_gvv_dist = Distance(f_val,  h1_gvv_val, dim);
+                  double  nd_gvv_dist = Distance(f_val,  nd_gvv_val, dim);
+                  double  rt_gvv_dist = Distance(f_val,  rt_gvv_val, dim);
+                  double  l2_gvv_dist = Distance(f_val,  l2_gvv_val, dim);
+                  double dgv_gvv_dist = Distance(f_val, dgv_gvv_val, dim);
+                  double dgi_gvv_dist = Distance(f_val, dgi_gvv_val, dim);
+
+                  h1_gfc_err  +=  h1_gfc_dist;
+                  nd_gfc_err  +=  nd_gfc_dist;
+                  rt_gfc_err  +=  rt_gfc_dist;
+                  l2_gfc_err  +=  l2_gfc_dist;
+                  dgv_gfc_err += dgv_gfc_dist;
+                  dgi_gfc_err += dgi_gfc_dist;
+
+                  h1_gvv_err  +=  h1_gvv_dist;
+                  nd_gvv_err  +=  nd_gvv_dist;
+                  rt_gvv_err  +=  rt_gvv_dist;
+                  l2_gvv_err  +=  l2_gvv_dist;
+                  dgv_gvv_err += dgv_gvv_dist;
+                  dgi_gvv_err += dgi_gvv_dist;
+
+                  if (log > 0 && h1_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " h1  ("
+                     std::cout << e << ":" << j << " h1  gfc ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << h1_gf_val[0] << "," << h1_gf_val[1] << ","
-                               << h1_gf_val[2] << ") " << h1_dist
-                               << std::endl;
+                               << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
+                               << h1_gfc_val[2] << ") "
+                               << h1_gfc_dist << std::endl;
                   }
-                  if (log > 0 && nd_dist > tol)
+                  if (log > 0 && nd_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " nd  ("
+                     std::cout << e << ":" << j << " nd  gfc ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << nd_gf_val[0] << "," << nd_gf_val[1] << ","
-                               << nd_gf_val[2] << ") " << nd_dist
-                               << std::endl;
+                               << nd_gfc_val[0] << "," << nd_gfc_val[1] << ","
+                               << nd_gfc_val[2] << ") "
+                               << nd_gfc_dist << std::endl;
                   }
-                  if (log > 0 && rt_dist > tol)
+                  if (log > 0 && rt_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " rt  ("
+                     std::cout << e << ":" << j << " rt  gfc ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << rt_gf_val[0] << "," << rt_gf_val[1] << ","
-                               << rt_gf_val[2] << ") " << rt_dist
-                               << std::endl;
+                               << rt_gfc_val[0] << "," << rt_gfc_val[1] << ","
+                               << rt_gfc_val[2] << ") "
+                               << rt_gfc_dist << std::endl;
                   }
-                  if (log > 0 && l2_dist > tol)
+                  if (log > 0 && l2_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " l2  ("
+                     std::cout << e << ":" << j << " l2  gfc ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << l2_gf_val[0] << "," << l2_gf_val[1] << ","
-                               << l2_gf_val[2] << ") " << l2_dist
-                               << std::endl;
+                               << l2_gfc_val[0] << "," << l2_gfc_val[1] << ","
+                               << l2_gfc_val[2] << ") "
+                               << l2_gfc_dist << std::endl;
                   }
-                  if (log > 0 && dgv_dist > tol)
+                  if (log > 0 && dgv_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " dgv ("
+                     std::cout << e << ":" << j << " dgv gfc ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << dgv_gf_val[0] << "," << dgv_gf_val[1] << ","
-                               << dgv_gf_val[2] << ") " << dgv_dist
-                               << std::endl;
+                               << dgv_gfc_val[0] << ","
+                               << dgv_gfc_val[1] << ","
+                               << dgv_gfc_val[2] << ") "
+                               << dgv_gfc_dist << std::endl;
                   }
-                  if (log > 0 && dgi_dist > tol)
+                  if (log > 0 && dgi_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " dgi ("
+                     std::cout << e << ":" << j << " dgi gfc ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << dgi_gf_val[0] << "," << dgi_gf_val[1] << ","
-                               << dgi_gf_val[2] << ") " << dgi_dist
-                               << std::endl;
+                               << dgi_gfc_val[0] << ","
+                               << dgi_gfc_val[1] << ","
+                               << dgi_gfc_val[2] << ") "
+                               << dgi_gfc_dist << std::endl;
+                  }
+                  if (log > 0 && h1_gvv_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " h1  gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << h1_gvv_val[0] << "," << h1_gvv_val[1] << ","
+                               << h1_gvv_val[2] << ") "
+                               << h1_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && nd_gvv_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " nd  gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << nd_gvv_val[0] << "," << nd_gvv_val[1] << ","
+                               << nd_gvv_val[2] << ") "
+                               << nd_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && rt_gvv_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " rt  gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << rt_gvv_val[0] << "," << rt_gvv_val[1] << ","
+                               << rt_gvv_val[2] << ") "
+                               << rt_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && l2_gvv_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " l2  gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << l2_gvv_val[0] << "," << l2_gvv_val[1] << ","
+                               << l2_gvv_val[2] << ") "
+                               << l2_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && dgv_gvv_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " dgv gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << dgv_gvv_val[0] << ","
+                               << dgv_gvv_val[1] << ","
+                               << dgv_gvv_val[2] << ") "
+                               << dgv_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && dgi_gvv_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " dgi gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << dgi_gvv_val[0] << ","
+                               << dgi_gvv_val[1] << ","
+                               << dgi_gvv_val[2] << ") "
+                               << dgi_gvv_dist << std::endl;
                   }
                }
-               h1_err  /= ir.GetNPoints();
-               nd_err  /= ir.GetNPoints();
-               rt_err  /= ir.GetNPoints();
-               l2_err  /= ir.GetNPoints();
-               dgv_err /= ir.GetNPoints();
-               dgi_err /= ir.GetNPoints();
 
-               REQUIRE( h1_err == Approx(0.0));
-               REQUIRE( nd_err == Approx(0.0));
-               REQUIRE( rt_err == Approx(0.0));
-               REQUIRE( l2_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
-               REQUIRE(dgi_err == Approx(0.0));
+               h1_gfc_err  /= ir.GetNPoints();
+               nd_gfc_err  /= ir.GetNPoints();
+               rt_gfc_err  /= ir.GetNPoints();
+               l2_gfc_err  /= ir.GetNPoints();
+               dgv_gfc_err /= ir.GetNPoints();
+               dgi_gfc_err /= ir.GetNPoints();
+
+               h1_gvv_err  /= ir.GetNPoints();
+               nd_gvv_err  /= ir.GetNPoints();
+               rt_gvv_err  /= ir.GetNPoints();
+               l2_gvv_err  /= ir.GetNPoints();
+               dgv_gvv_err /= ir.GetNPoints();
+               dgi_gvv_err /= ir.GetNPoints();
+
+               REQUIRE( h1_gfc_err == Approx(0.0));
+               REQUIRE( nd_gfc_err == Approx(0.0));
+               REQUIRE( rt_gfc_err == Approx(0.0));
+               REQUIRE( l2_gfc_err == Approx(0.0));
+               REQUIRE(dgv_gfc_err == Approx(0.0));
+               REQUIRE(dgi_gfc_err == Approx(0.0));
+
+               REQUIRE( h1_gvv_err == Approx(0.0));
+               REQUIRE( nd_gvv_err == Approx(0.0));
+               REQUIRE( rt_gvv_err == Approx(0.0));
+               REQUIRE( l2_gvv_err == Approx(0.0));
+               REQUIRE(dgv_gvv_err == Approx(0.0));
+               REQUIRE(dgi_gvv_err == Approx(0.0));
             }
          }
 
@@ -2136,19 +2734,19 @@ TEST_CASE("3D GetVectorValue",
                   T->SetIntPoint(&ip);
 
                   funcCoef.Eval(f_val, *T, ip);
-                  h1_xCoef.Eval(h1_gf_val, *T, ip);
-                  nd_xCoef.Eval(nd_gf_val, *T, ip);
-                  rt_xCoef.Eval(rt_gf_val, *T, ip);
-                  l2_xCoef.Eval(l2_gf_val, *T, ip);
-                  dgv_xCoef.Eval(dgv_gf_val, *T, ip);
-                  dgi_xCoef.Eval(dgi_gf_val, *T, ip);
+                  h1_xCoef.Eval(h1_gfc_val, *T, ip);
+                  nd_xCoef.Eval(nd_gfc_val, *T, ip);
+                  rt_xCoef.Eval(rt_gfc_val, *T, ip);
+                  l2_xCoef.Eval(l2_gfc_val, *T, ip);
+                  dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
+                  dgi_xCoef.Eval(dgi_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, dim);
-                  double  nd_dist = Distance(f_val,  nd_gf_val, dim);
-                  double  rt_dist = Distance(f_val,  rt_gf_val, dim);
-                  double  l2_dist = Distance(f_val,  l2_gf_val, dim);
-                  double dgv_dist = Distance(f_val, dgv_gf_val, dim);
-                  double dgi_dist = Distance(f_val, dgi_gf_val, dim);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val, dim);
+                  double  nd_dist = Distance(f_val,  nd_gfc_val, dim);
+                  double  rt_dist = Distance(f_val,  rt_gfc_val, dim);
+                  double  l2_dist = Distance(f_val,  l2_gfc_val, dim);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val, dim);
+                  double dgi_dist = Distance(f_val, dgi_gfc_val, dim);
 
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
@@ -2162,8 +2760,8 @@ TEST_CASE("3D GetVectorValue",
                      std::cout << be << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << h1_gf_val[0] << "," << h1_gf_val[1] << ","
-                               << h1_gf_val[2] << ") " << h1_dist
+                               << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
+                               << h1_gfc_val[2] << ") " << h1_dist
                                << std::endl;
                   }
                   if (log > 0 && nd_dist > tol)
@@ -2171,8 +2769,8 @@ TEST_CASE("3D GetVectorValue",
                      std::cout << be << ":" << j << " nd  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << nd_gf_val[0] << "," << nd_gf_val[1] << ","
-                               << nd_gf_val[2] << ") " << nd_dist
+                               << nd_gfc_val[0] << "," << nd_gfc_val[1] << ","
+                               << nd_gfc_val[2] << ") " << nd_dist
                                << std::endl;
                   }
                   if (log > 0 && rt_dist > tol)
@@ -2180,8 +2778,8 @@ TEST_CASE("3D GetVectorValue",
                      std::cout << be << ":" << j << " rt  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << rt_gf_val[0] << "," << rt_gf_val[1] << ","
-                               << rt_gf_val[2] << ") " << rt_dist
+                               << rt_gfc_val[0] << "," << rt_gfc_val[1] << ","
+                               << rt_gfc_val[2] << ") " << rt_dist
                                << std::endl;
                   }
                   if (log > 0 && l2_dist > tol)
@@ -2189,8 +2787,8 @@ TEST_CASE("3D GetVectorValue",
                      std::cout << be << ":" << j << " l2  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << l2_gf_val[0] << "," << l2_gf_val[1] << ","
-                               << l2_gf_val[2] << ") " << l2_dist
+                               << l2_gfc_val[0] << "," << l2_gfc_val[1] << ","
+                               << l2_gfc_val[2] << ") " << l2_dist
                                << std::endl;
                   }
                   if (log > 0 && dgv_dist > tol)
@@ -2198,8 +2796,8 @@ TEST_CASE("3D GetVectorValue",
                      std::cout << be << ":" << j << " dgv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << dgv_gf_val[0] << "," << dgv_gf_val[1] << ","
-                               << dgv_gf_val[2] << ") " << dgv_dist
+                               << dgv_gfc_val[0] << "," << dgv_gfc_val[1] << ","
+                               << dgv_gfc_val[2] << ") " << dgv_dist
                                << std::endl;
                   }
                   if (log > 0 && dgi_dist > tol)
@@ -2207,8 +2805,8 @@ TEST_CASE("3D GetVectorValue",
                      std::cout << be << ":" << j << " dgi ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << dgi_gf_val[0] << "," << dgi_gf_val[1] << ","
-                               << dgi_gf_val[2] << ") " << dgi_dist
+                               << dgi_gfc_val[0] << "," << dgi_gfc_val[1] << ","
+                               << dgi_gfc_val[2] << ") " << dgi_dist
                                << std::endl;
                   }
                }
@@ -2253,19 +2851,19 @@ TEST_CASE("3D GetVectorValue",
                   T->SetIntPoint(&ip);
 
                   funcCoef.Eval(f_val, *T, ip);
-                  h1_xCoef.Eval(h1_gf_val, *T, ip);
-                  nd_xCoef.Eval(nd_gf_val, *T, ip);
-                  rt_xCoef.Eval(rt_gf_val, *T, ip);
-                  l2_xCoef.Eval(l2_gf_val, *T, ip);
-                  dgv_xCoef.Eval(dgv_gf_val, *T, ip);
-                  dgi_xCoef.Eval(dgi_gf_val, *T, ip);
+                  h1_xCoef.Eval(h1_gfc_val, *T, ip);
+                  nd_xCoef.Eval(nd_gfc_val, *T, ip);
+                  rt_xCoef.Eval(rt_gfc_val, *T, ip);
+                  l2_xCoef.Eval(l2_gfc_val, *T, ip);
+                  dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
+                  dgi_xCoef.Eval(dgi_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, dim);
-                  double  nd_dist = Distance(f_val,  nd_gf_val, dim);
-                  double  rt_dist = Distance(f_val,  rt_gf_val, dim);
-                  double  l2_dist = Distance(f_val,  l2_gf_val, dim);
-                  double dgv_dist = Distance(f_val, dgv_gf_val, dim);
-                  double dgi_dist = Distance(f_val, dgi_gf_val, dim);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val, dim);
+                  double  nd_dist = Distance(f_val,  nd_gfc_val, dim);
+                  double  rt_dist = Distance(f_val,  rt_gfc_val, dim);
+                  double  l2_dist = Distance(f_val,  l2_gfc_val, dim);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val, dim);
+                  double dgi_dist = Distance(f_val, dgi_gfc_val, dim);
 
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
@@ -2279,8 +2877,8 @@ TEST_CASE("3D GetVectorValue",
                      std::cout << be << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << h1_gf_val[0] << "," << h1_gf_val[1] << ","
-                               << h1_gf_val[2] << ") " << h1_dist
+                               << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
+                               << h1_gfc_val[2] << ") " << h1_dist
                                << std::endl;
                   }
                   if (log > 0 && nd_dist > tol)
@@ -2288,8 +2886,8 @@ TEST_CASE("3D GetVectorValue",
                      std::cout << be << ":" << j << " nd  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << nd_gf_val[0] << "," << nd_gf_val[1] << ","
-                               << nd_gf_val[2] << ") " << nd_dist
+                               << nd_gfc_val[0] << "," << nd_gfc_val[1] << ","
+                               << nd_gfc_val[2] << ") " << nd_dist
                                << std::endl;
                   }
                   if (log > 0 && rt_dist > tol)
@@ -2297,8 +2895,8 @@ TEST_CASE("3D GetVectorValue",
                      std::cout << be << ":" << j << " rt  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << rt_gf_val[0] << "," << rt_gf_val[1] << ","
-                               << rt_gf_val[2] << ") " << rt_dist
+                               << rt_gfc_val[0] << "," << rt_gfc_val[1] << ","
+                               << rt_gfc_val[2] << ") " << rt_dist
                                << std::endl;
                   }
                   if (log > 0 && l2_dist > tol)
@@ -2306,8 +2904,8 @@ TEST_CASE("3D GetVectorValue",
                      std::cout << be << ":" << j << " l2  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << l2_gf_val[0] << "," << l2_gf_val[1] << ","
-                               << l2_gf_val[2] << ") " << l2_dist
+                               << l2_gfc_val[0] << "," << l2_gfc_val[1] << ","
+                               << l2_gfc_val[2] << ") " << l2_dist
                                << std::endl;
                   }
                   if (log > 0 && dgv_dist > tol)
@@ -2315,8 +2913,8 @@ TEST_CASE("3D GetVectorValue",
                      std::cout << be << ":" << j << " dgv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << dgv_gf_val[0] << "," << dgv_gf_val[1] << ","
-                               << dgv_gf_val[2] << ") " << dgv_dist
+                               << dgv_gfc_val[0] << "," << dgv_gfc_val[1] << ","
+                               << dgv_gfc_val[2] << ") " << dgv_dist
                                << std::endl;
                   }
                   if (log > 0 && dgi_dist > tol)
@@ -2324,8 +2922,8 @@ TEST_CASE("3D GetVectorValue",
                      std::cout << be << ":" << j << " dgi ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << dgi_gf_val[0] << "," << dgi_gf_val[1] << ","
-                               << dgi_gf_val[2] << ") " << dgi_dist
+                               << dgi_gfc_val[0] << "," << dgi_gfc_val[1] << ","
+                               << dgi_gfc_val[2] << ") " << dgi_dist
                                << std::endl;
                   }
                }
@@ -2364,9 +2962,9 @@ TEST_CASE("3D GetVectorValue",
                   T->SetIntPoint(&ip);
 
                   funcCoef.Eval(f_val, *T, ip);
-                  h1_xCoef.Eval(h1_gf_val, *T, ip);
+                  h1_xCoef.Eval(h1_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, dim);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val, dim);
 
                   h1_err  +=  h1_dist;
 
@@ -2375,8 +2973,8 @@ TEST_CASE("3D GetVectorValue",
                      std::cout << e << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << h1_gf_val[0] << "," << h1_gf_val[1] << ","
-                               << h1_gf_val[2] << ") " << h1_dist
+                               << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
+                               << h1_gfc_val[2] << ") " << h1_dist
                                << std::endl;
                   }
                }
@@ -2405,9 +3003,9 @@ TEST_CASE("3D GetVectorValue",
                   T->SetIntPoint(&ip);
 
                   funcCoef.Eval(f_val, *T, ip);
-                  h1_xCoef.Eval(h1_gf_val, *T, ip);
+                  h1_xCoef.Eval(h1_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, dim);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val, dim);
 
                   h1_err  +=  h1_dist;
 
@@ -2416,8 +3014,8 @@ TEST_CASE("3D GetVectorValue",
                      std::cout << f << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << h1_gf_val[0] << "," << h1_gf_val[1] << ","
-                               << h1_gf_val[2] << ") " << h1_dist
+                               << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
+                               << h1_gfc_val[2] << ") " << h1_dist
                                << std::endl;
                   }
                }
@@ -2513,13 +3111,21 @@ TEST_CASE("3D GetVectorValue in Parallel",
          dgv_x.ExchangeFaceNbrData();
          dgi_x.ExchangeFaceNbrData();
 
-         Vector      f_val(dim);      f_val = 0.0;
-         Vector  h1_gf_val(dim);  h1_gf_val = 0.0;
-         Vector  nd_gf_val(dim);  nd_gf_val = 0.0;
-         Vector  rt_gf_val(dim);  rt_gf_val = 0.0;
-         Vector  l2_gf_val(dim);  l2_gf_val = 0.0;
-         Vector dgv_gf_val(dim); dgv_gf_val = 0.0;
-         Vector dgi_gf_val(dim); dgi_gf_val = 0.0;
+         Vector       f_val(dim);       f_val = 0.0;
+
+         Vector  h1_gfc_val(dim);  h1_gfc_val = 0.0;
+         Vector  nd_gfc_val(dim);  nd_gfc_val = 0.0;
+         Vector  rt_gfc_val(dim);  rt_gfc_val = 0.0;
+         Vector  l2_gfc_val(dim);  l2_gfc_val = 0.0;
+         Vector dgv_gfc_val(dim); dgv_gfc_val = 0.0;
+         Vector dgi_gfc_val(dim); dgi_gfc_val = 0.0;
+
+         Vector  h1_gvv_val(dim);  h1_gvv_val = 0.0;
+         Vector  nd_gvv_val(dim);  nd_gvv_val = 0.0;
+         Vector  rt_gvv_val(dim);  rt_gvv_val = 0.0;
+         Vector  l2_gvv_val(dim);  l2_gvv_val = 0.0;
+         Vector dgv_gvv_val(dim); dgv_gvv_val = 0.0;
+         Vector dgi_gvv_val(dim); dgi_gvv_val = 0.0;
 
          SECTION("Shared Face Evaluation 3D")
          {
@@ -2532,17 +3138,25 @@ TEST_CASE("3D GetVectorValue in Parallel",
                FaceElementTransformations *FET =
                   pmesh.GetSharedFaceTransformations(sf);
                ElementTransformation *T = &FET->GetElement2Transformation();
-               int e = FET->Elem2No - pmesh.GetNE();
-               const FiniteElement   *fe = dgv_fespace.GetFaceNbrFE(e);
+               int e = FET->Elem2No;
+               int e_nbr = e - pmesh.GetNE();
+               const FiniteElement   *fe = dgv_fespace.GetFaceNbrFE(e_nbr);
                const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
                                                         2*order + 2);
 
-               double  h1_err = 0.0;
-               double  nd_err = 0.0;
-               double  rt_err = 0.0;
-               double  l2_err = 0.0;
-               double dgv_err = 0.0;
-               double dgi_err = 0.0;
+               double  h1_gfc_err = 0.0;
+               double  nd_gfc_err = 0.0;
+               double  rt_gfc_err = 0.0;
+               double  l2_gfc_err = 0.0;
+               double dgv_gfc_err = 0.0;
+               double dgi_gfc_err = 0.0;
+
+               double  h1_gvv_err = 0.0;
+               double  nd_gvv_err = 0.0;
+               double  rt_gvv_err = 0.0;
+               double  l2_gvv_err = 0.0;
+               double dgv_gvv_err = 0.0;
+               double dgi_gvv_err = 0.0;
 
                for (int j=0; j<ir.GetNPoints(); j++)
                {
@@ -2551,95 +3165,190 @@ TEST_CASE("3D GetVectorValue in Parallel",
                   T->SetIntPoint(&ip);
 
                   funcCoef.Eval(f_val, *T, ip);
-                  h1_xCoef.Eval(h1_gf_val, *T, ip);
-                  nd_xCoef.Eval(nd_gf_val, *T, ip);
-                  rt_xCoef.Eval(rt_gf_val, *T, ip);
-                  l2_xCoef.Eval(l2_gf_val, *T, ip);
-                  dgv_xCoef.Eval(dgv_gf_val, *T, ip);
-                  dgi_xCoef.Eval(dgi_gf_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, dim);
-                  double  nd_dist = Distance(f_val,  nd_gf_val, dim);
-                  double  rt_dist = Distance(f_val,  rt_gf_val, dim);
-                  double  l2_dist = Distance(f_val,  l2_gf_val, dim);
-                  double dgv_dist = Distance(f_val, dgv_gf_val, dim);
-                  double dgi_dist = Distance(f_val, dgi_gf_val, dim);
+                  h1_xCoef.Eval(h1_gfc_val, *T, ip);
+                  nd_xCoef.Eval(nd_gfc_val, *T, ip);
+                  rt_xCoef.Eval(rt_gfc_val, *T, ip);
+                  l2_xCoef.Eval(l2_gfc_val, *T, ip);
+                  dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
+                  dgi_xCoef.Eval(dgi_gfc_val, *T, ip);
 
-                  h1_err  +=  h1_dist;
-                  nd_err  +=  nd_dist;
-                  rt_err  +=  rt_dist;
-                  l2_err  +=  l2_dist;
-                  dgv_err += dgv_dist;
-                  dgi_err += dgi_dist;
+                  h1_x.GetVectorValue(e, ip, h1_gvv_val);
+                  nd_x.GetVectorValue(e, ip, nd_gvv_val);
+                  rt_x.GetVectorValue(e, ip, rt_gvv_val);
+                  l2_x.GetVectorValue(e, ip, l2_gvv_val);
+                  dgv_x.GetVectorValue(e, ip, dgv_gvv_val);
+                  dgi_x.GetVectorValue(e, ip, dgi_gvv_val);
 
-                  if (log > 0 && h1_dist > tol)
+                  double  h1_gfc_dist = Distance(f_val,  h1_gfc_val, dim);
+                  double  nd_gfc_dist = Distance(f_val,  nd_gfc_val, dim);
+                  double  rt_gfc_dist = Distance(f_val,  rt_gfc_val, dim);
+                  double  l2_gfc_dist = Distance(f_val,  l2_gfc_val, dim);
+                  double dgv_gfc_dist = Distance(f_val, dgv_gfc_val, dim);
+                  double dgi_gfc_dist = Distance(f_val, dgi_gfc_val, dim);
+
+                  double  h1_gvv_dist = Distance(f_val,  h1_gvv_val, dim);
+                  double  nd_gvv_dist = Distance(f_val,  nd_gvv_val, dim);
+                  double  rt_gvv_dist = Distance(f_val,  rt_gvv_val, dim);
+                  double  l2_gvv_dist = Distance(f_val,  l2_gvv_val, dim);
+                  double dgv_gvv_dist = Distance(f_val, dgv_gvv_val, dim);
+                  double dgi_gvv_dist = Distance(f_val, dgi_gvv_val, dim);
+
+                  h1_gfc_err  +=  h1_gfc_dist;
+                  nd_gfc_err  +=  nd_gfc_dist;
+                  rt_gfc_err  +=  rt_gfc_dist;
+                  l2_gfc_err  +=  l2_gfc_dist;
+                  dgv_gfc_err += dgv_gfc_dist;
+                  dgi_gfc_err += dgi_gfc_dist;
+
+                  h1_gvv_err  +=  h1_gvv_dist;
+                  nd_gvv_err  +=  nd_gvv_dist;
+                  rt_gvv_err  +=  rt_gvv_dist;
+                  l2_gvv_err  +=  l2_gvv_dist;
+                  dgv_gvv_err += dgv_gvv_dist;
+                  dgi_gvv_err += dgi_gvv_dist;
+
+                  if (log > 0 && h1_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " h1  ("
+                     std::cout << e << ":" << j << " h1  gfc ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << h1_gf_val[0] << "," << h1_gf_val[1] << ","
-                               << h1_gf_val[2] << ") " << h1_dist
-                               << std::endl;
+                               << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
+                               << h1_gfc_val[2] << ") "
+                               << h1_gfc_dist << std::endl;
                   }
-                  if (log > 0 && nd_dist > tol)
+                  if (log > 0 && nd_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " nd  ("
+                     std::cout << e << ":" << j << " nd  gfc ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << nd_gf_val[0] << "," << nd_gf_val[1] << ","
-                               << nd_gf_val[2] << ") " << nd_dist
-                               << std::endl;
+                               << nd_gfc_val[0] << "," << nd_gfc_val[1] << ","
+                               << nd_gfc_val[2] << ") "
+                               << nd_gfc_dist << std::endl;
                   }
-                  if (log > 0 && rt_dist > tol)
+                  if (log > 0 && rt_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " rt  ("
+                     std::cout << e << ":" << j << " rt  gfc ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << rt_gf_val[0] << "," << rt_gf_val[1] << ","
-                               << rt_gf_val[2] << ") " << rt_dist
-                               << std::endl;
+                               << rt_gfc_val[0] << "," << rt_gfc_val[1] << ","
+                               << rt_gfc_val[2] << ") "
+                               << rt_gfc_dist << std::endl;
                   }
-                  if (log > 0 && l2_dist > tol)
+                  if (log > 0 && l2_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " l2  ("
+                     std::cout << e << ":" << j << " l2  gfc ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << l2_gf_val[0] << "," << l2_gf_val[1] << ","
-                               << l2_gf_val[2] << ") " << l2_dist
-                               << std::endl;
+                               << l2_gfc_val[0] << "," << l2_gfc_val[1] << ","
+                               << l2_gfc_val[2] << ") "
+                               << l2_gfc_dist << std::endl;
                   }
-                  if (log > 0 && dgv_dist > tol)
+                  if (log > 0 && dgv_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " dgv ("
+                     std::cout << e << ":" << j << " dgv gfc ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << dgv_gf_val[0] << "," << dgv_gf_val[1] << ","
-                               << dgv_gf_val[2] << ") " << dgv_dist
-                               << std::endl;
+                               << dgv_gfc_val[0] << ","
+                               << dgv_gfc_val[1] << ","
+                               << dgv_gfc_val[2] << ") "
+                               << dgv_gfc_dist << std::endl;
                   }
-                  if (log > 0 && dgi_dist > tol)
+                  if (log > 0 && dgi_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " dgi ("
+                     std::cout << e << ":" << j << " dgi gfc ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << dgi_gf_val[0] << "," << dgi_gf_val[1] << ","
-                               << dgi_gf_val[2] << ") " << dgi_dist
-                               << std::endl;
+                               << dgi_gfc_val[0] << ","
+                               << dgi_gfc_val[1] << ","
+                               << dgi_gfc_val[2] << ") "
+                               << dgi_gfc_dist << std::endl;
+                  }
+                  if (log > 0 && h1_gvv_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " h1  gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << h1_gvv_val[0] << "," << h1_gvv_val[1] << ","
+                               << h1_gvv_val[2] << ") "
+                               << h1_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && nd_gvv_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " nd  gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << nd_gvv_val[0] << "," << nd_gvv_val[1] << ","
+                               << nd_gvv_val[2] << ") "
+                               << nd_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && rt_gvv_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " rt  gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << rt_gvv_val[0] << "," << rt_gvv_val[1] << ","
+                               << rt_gvv_val[2] << ") "
+                               << rt_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && l2_gvv_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " l2  gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << l2_gvv_val[0] << "," << l2_gvv_val[1] << ","
+                               << l2_gvv_val[2] << ") "
+                               << l2_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && dgv_gvv_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " dgv gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << dgv_gvv_val[0] << ","
+                               << dgv_gvv_val[1] << ","
+                               << dgv_gvv_val[2] << ") "
+                               << dgv_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && dgi_gvv_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " dgi gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << dgi_gvv_val[0] << ","
+                               << dgi_gvv_val[1] << ","
+                               << dgi_gvv_val[2] << ") "
+                               << dgi_gvv_dist << std::endl;
                   }
                }
-               h1_err  /= ir.GetNPoints();
-               nd_err  /= ir.GetNPoints();
-               rt_err  /= ir.GetNPoints();
-               l2_err  /= ir.GetNPoints();
-               dgv_err /= ir.GetNPoints();
-               dgi_err /= ir.GetNPoints();
 
-               REQUIRE( h1_err == Approx(0.0));
-               REQUIRE( nd_err == Approx(0.0));
-               REQUIRE( rt_err == Approx(0.0));
-               REQUIRE( l2_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
-               REQUIRE(dgi_err == Approx(0.0));
+               h1_gfc_err  /= ir.GetNPoints();
+               nd_gfc_err  /= ir.GetNPoints();
+               rt_gfc_err  /= ir.GetNPoints();
+               l2_gfc_err  /= ir.GetNPoints();
+               dgv_gfc_err /= ir.GetNPoints();
+               dgi_gfc_err /= ir.GetNPoints();
+
+               h1_gvv_err  /= ir.GetNPoints();
+               nd_gvv_err  /= ir.GetNPoints();
+               rt_gvv_err  /= ir.GetNPoints();
+               l2_gvv_err  /= ir.GetNPoints();
+               dgv_gvv_err /= ir.GetNPoints();
+               dgi_gvv_err /= ir.GetNPoints();
+
+               REQUIRE( h1_gfc_err == Approx(0.0));
+               REQUIRE( nd_gfc_err == Approx(0.0));
+               REQUIRE( rt_gfc_err == Approx(0.0));
+               REQUIRE( l2_gfc_err == Approx(0.0));
+               REQUIRE(dgv_gfc_err == Approx(0.0));
+               REQUIRE(dgi_gfc_err == Approx(0.0));
+
+               REQUIRE( h1_gvv_err == Approx(0.0));
+               REQUIRE( nd_gvv_err == Approx(0.0));
+               REQUIRE( rt_gvv_err == Approx(0.0));
+               REQUIRE( l2_gvv_err == Approx(0.0));
+               REQUIRE(dgv_gvv_err == Approx(0.0));
+               REQUIRE(dgi_gvv_err == Approx(0.0));
             }
          }
       }
@@ -2689,8 +3398,8 @@ TEST_CASE("1D GetGradient",
          dgv_x.ProjectCoefficient(funcCoef);
 
          Vector      f_val(dim);      f_val = 0.0;
-         Vector  h1_gf_val(dim);  h1_gf_val = 0.0;
-         Vector dgv_gf_val(dim); dgv_gf_val = 0.0;
+         Vector  h1_gfc_val(dim);  h1_gfc_val = 0.0;
+         Vector dgv_gfc_val(dim); dgv_gfc_val = 0.0;
 
          SECTION("Domain Evaluation 1D")
          {
@@ -2712,11 +3421,11 @@ TEST_CASE("1D GetGradient",
                   T->SetIntPoint(&ip);
 
                   dFuncCoef.Eval(f_val, *T, ip);
-                  h1_xCoef.Eval(h1_gf_val, *T, ip);
-                  dgv_xCoef.Eval(dgv_gf_val, *T, ip);
+                  h1_xCoef.Eval(h1_gfc_val, *T, ip);
+                  dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, dim);
-                  double dgv_dist = Distance(f_val, dgv_gf_val, dim);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val, dim);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val, dim);
 
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
@@ -2725,14 +3434,14 @@ TEST_CASE("1D GetGradient",
                   {
                      std::cout << e << ":" << j << " h1  ("
                                << f_val[0] << ") vs. ("
-                               << h1_gf_val[0] << ") "
+                               << h1_gfc_val[0] << ") "
                                << h1_dist << std::endl;
                   }
                   if (log > 0 && dgv_dist > tol)
                   {
                      std::cout << e << ":" << j << " dgv ("
                                << f_val[0] << ") vs. ("
-                               << dgv_gf_val[0] << ") "
+                               << dgv_gfc_val[0] << ") "
                                << dgv_dist << std::endl;
                   }
                }
@@ -2764,11 +3473,11 @@ TEST_CASE("1D GetGradient",
                   T->SetIntPoint(&ip);
 
                   dFuncCoef.Eval(f_val, *T, ip);
-                  h1_xCoef.Eval(h1_gf_val, *T, ip);
-                  dgv_xCoef.Eval(dgv_gf_val, *T, ip);
+                  h1_xCoef.Eval(h1_gfc_val, *T, ip);
+                  dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, dim);
-                  double dgv_dist = Distance(f_val, dgv_gf_val, dim);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val, dim);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val, dim);
 
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
@@ -2777,14 +3486,14 @@ TEST_CASE("1D GetGradient",
                   {
                      std::cout << be << ":" << j << " h1  ("
                                << f_val[0] << ") vs. ("
-                               << h1_gf_val[0] << ") "
+                               << h1_gfc_val[0] << ") "
                                << h1_dist << std::endl;
                   }
                   if (log > 0 && dgv_dist > tol)
                   {
                      std::cout << be << ":" << j << " dgv ("
                                << f_val[0] << ") vs. ("
-                               << dgv_gf_val[0] << ") "
+                               << dgv_gfc_val[0] << ") "
                                << dgv_dist << std::endl;
                   }
                }
@@ -2817,11 +3526,11 @@ TEST_CASE("1D GetGradient",
                   T->SetIntPoint(&ip);
 
                   dFuncCoef.Eval(f_val, *T, ip);
-                  h1_xCoef.Eval(h1_gf_val, *T, ip);
-                  dgv_xCoef.Eval(dgv_gf_val, *T, ip);
+                  h1_xCoef.Eval(h1_gfc_val, *T, ip);
+                  dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, dim);
-                  double dgv_dist = Distance(f_val, dgv_gf_val, dim);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val, dim);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val, dim);
 
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
@@ -2830,14 +3539,14 @@ TEST_CASE("1D GetGradient",
                   {
                      std::cout << be << ":" << j << " h1  ("
                                << f_val[0] << ") vs. ("
-                               << h1_gf_val[0] << ") "
+                               << h1_gfc_val[0] << ") "
                                << h1_dist << std::endl;
                   }
                   if (log > 0 && dgv_dist > tol)
                   {
                      std::cout << be << ":" << j << " dgv ("
                                << f_val[0] << ") vs. ("
-                               << dgv_gf_val[0] << ") "
+                               << dgv_gfc_val[0] << ") "
                                << dgv_dist << std::endl;
                   }
                }
@@ -2893,8 +3602,8 @@ TEST_CASE("2D GetGradient",
          dgv_x.ProjectCoefficient(funcCoef);
 
          Vector      f_val(dim);      f_val = 0.0;
-         Vector  h1_gf_val(dim);  h1_gf_val = 0.0;
-         Vector dgv_gf_val(dim); dgv_gf_val = 0.0;
+         Vector  h1_gfc_val(dim);  h1_gfc_val = 0.0;
+         Vector dgv_gfc_val(dim); dgv_gfc_val = 0.0;
 
          SECTION("Domain Evaluation 2D")
          {
@@ -2916,11 +3625,11 @@ TEST_CASE("2D GetGradient",
                   T->SetIntPoint(&ip);
 
                   dFuncCoef.Eval(f_val, *T, ip);
-                  h1_xCoef.Eval(h1_gf_val, *T, ip);
-                  dgv_xCoef.Eval(dgv_gf_val, *T, ip);
+                  h1_xCoef.Eval(h1_gfc_val, *T, ip);
+                  dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, dim);
-                  double dgv_dist = Distance(f_val, dgv_gf_val, dim);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val, dim);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val, dim);
 
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
@@ -2929,14 +3638,16 @@ TEST_CASE("2D GetGradient",
                   {
                      std::cout << e << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
-                               << h1_gf_val[0] << "," << h1_gf_val[1] << ") "
+                               << h1_gfc_val[0] << ","
+                               << h1_gfc_val[1] << ") "
                                << h1_dist << std::endl;
                   }
                   if (log > 0 && dgv_dist > tol)
                   {
                      std::cout << e << ":" << j << " dgv ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
-                               << dgv_gf_val[0] << "," << dgv_gf_val[1] << ") "
+                               << dgv_gfc_val[0] << ","
+                               << dgv_gfc_val[1] << ") "
                                << dgv_dist << std::endl;
                   }
                }
@@ -2968,11 +3679,11 @@ TEST_CASE("2D GetGradient",
                   T->SetIntPoint(&ip);
 
                   dFuncCoef.Eval(f_val, *T, ip);
-                  h1_xCoef.Eval(h1_gf_val, *T, ip);
-                  dgv_xCoef.Eval(dgv_gf_val, *T, ip);
+                  h1_xCoef.Eval(h1_gfc_val, *T, ip);
+                  dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, dim);
-                  double dgv_dist = Distance(f_val, dgv_gf_val, dim);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val, dim);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val, dim);
 
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
@@ -2981,14 +3692,16 @@ TEST_CASE("2D GetGradient",
                   {
                      std::cout << be << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
-                               << h1_gf_val[0] << "," << h1_gf_val[1] << ") "
+                               << h1_gfc_val[0] << ","
+                               << h1_gfc_val[1] << ") "
                                << h1_dist << std::endl;
                   }
                   if (log > 0 && dgv_dist > tol)
                   {
                      std::cout << be << ":" << j << " dgv ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
-                               << dgv_gf_val[0] << "," << dgv_gf_val[1] << ") "
+                               << dgv_gfc_val[0] << ","
+                               << dgv_gfc_val[1] << ") "
                                << dgv_dist << std::endl;
                   }
                }
@@ -3021,11 +3734,11 @@ TEST_CASE("2D GetGradient",
                   T->SetIntPoint(&ip);
 
                   dFuncCoef.Eval(f_val, *T, ip);
-                  h1_xCoef.Eval(h1_gf_val, *T, ip);
-                  dgv_xCoef.Eval(dgv_gf_val, *T, ip);
+                  h1_xCoef.Eval(h1_gfc_val, *T, ip);
+                  dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, dim);
-                  double dgv_dist = Distance(f_val, dgv_gf_val, dim);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val, dim);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val, dim);
 
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
@@ -3034,14 +3747,16 @@ TEST_CASE("2D GetGradient",
                   {
                      std::cout << be << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
-                               << h1_gf_val[0] << "," << h1_gf_val[1] << ") "
+                               << h1_gfc_val[0] << ","
+                               << h1_gfc_val[1] << ") "
                                << h1_dist << std::endl;
                   }
                   if (log > 0 && dgv_dist > tol)
                   {
                      std::cout << be << ":" << j << " dgv ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
-                               << dgv_gf_val[0] << "," << dgv_gf_val[1] << ") "
+                               << dgv_gfc_val[0] << ","
+                               << dgv_gfc_val[1] << ") "
                                << dgv_dist << std::endl;
                   }
                }
@@ -3097,8 +3812,8 @@ TEST_CASE("3D GetGradient",
          dgv_x.ProjectCoefficient(funcCoef);
 
          Vector      f_val(dim);      f_val = 0.0;
-         Vector  h1_gf_val(dim);  h1_gf_val = 0.0;
-         Vector dgv_gf_val(dim); dgv_gf_val = 0.0;
+         Vector  h1_gfc_val(dim);  h1_gfc_val = 0.0;
+         Vector dgv_gfc_val(dim); dgv_gfc_val = 0.0;
 
          SECTION("Domain Evaluation 3D")
          {
@@ -3120,11 +3835,11 @@ TEST_CASE("3D GetGradient",
                   T->SetIntPoint(&ip);
 
                   dFuncCoef.Eval(f_val, *T, ip);
-                  h1_xCoef.Eval(h1_gf_val, *T, ip);
-                  dgv_xCoef.Eval(dgv_gf_val, *T, ip);
+                  h1_xCoef.Eval(h1_gfc_val, *T, ip);
+                  dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, dim);
-                  double dgv_dist = Distance(f_val, dgv_gf_val, dim);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val, dim);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val, dim);
 
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
@@ -3134,8 +3849,8 @@ TEST_CASE("3D GetGradient",
                      std::cout << e << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << h1_gf_val[0] << "," << h1_gf_val[1] << ","
-                               << h1_gf_val[2] << ") "
+                               << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
+                               << h1_gfc_val[2] << ") "
                                << h1_dist << std::endl;
                   }
                   if (log > 0 && dgv_dist > tol)
@@ -3143,8 +3858,8 @@ TEST_CASE("3D GetGradient",
                      std::cout << e << ":" << j << " dgv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << dgv_gf_val[0] << "," << dgv_gf_val[1] << ","
-                               << dgv_gf_val[2] << ") " << dgv_dist
+                               << dgv_gfc_val[0] << "," << dgv_gfc_val[1] << ","
+                               << dgv_gfc_val[2] << ") " << dgv_dist
                                << std::endl;
                   }
                }
@@ -3176,11 +3891,11 @@ TEST_CASE("3D GetGradient",
                   T->SetIntPoint(&ip);
 
                   dFuncCoef.Eval(f_val, *T, ip);
-                  h1_xCoef.Eval(h1_gf_val, *T, ip);
-                  dgv_xCoef.Eval(dgv_gf_val, *T, ip);
+                  h1_xCoef.Eval(h1_gfc_val, *T, ip);
+                  dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, dim);
-                  double dgv_dist = Distance(f_val, dgv_gf_val, dim);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val, dim);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val, dim);
 
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
@@ -3190,8 +3905,8 @@ TEST_CASE("3D GetGradient",
                      std::cout << be << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << h1_gf_val[0] << "," << h1_gf_val[1] << ","
-                               << h1_gf_val[2] << ") "
+                               << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
+                               << h1_gfc_val[2] << ") "
                                << h1_dist << std::endl;
                   }
                   if (log > 0 && dgv_dist > tol)
@@ -3199,8 +3914,8 @@ TEST_CASE("3D GetGradient",
                      std::cout << be << ":" << j << " dgv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << dgv_gf_val[0] << "," << dgv_gf_val[1] << ","
-                               << dgv_gf_val[2] << ") " << dgv_dist
+                               << dgv_gfc_val[0] << "," << dgv_gfc_val[1] << ","
+                               << dgv_gfc_val[2] << ") " << dgv_dist
                                << std::endl;
                   }
                }
@@ -3233,11 +3948,11 @@ TEST_CASE("3D GetGradient",
                   T->SetIntPoint(&ip);
 
                   dFuncCoef.Eval(f_val, *T, ip);
-                  h1_xCoef.Eval(h1_gf_val, *T, ip);
-                  dgv_xCoef.Eval(dgv_gf_val, *T, ip);
+                  h1_xCoef.Eval(h1_gfc_val, *T, ip);
+                  dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, dim);
-                  double dgv_dist = Distance(f_val, dgv_gf_val, dim);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val, dim);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val, dim);
 
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
@@ -3247,8 +3962,8 @@ TEST_CASE("3D GetGradient",
                      std::cout << be << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << h1_gf_val[0] << "," << h1_gf_val[1] << ","
-                               << h1_gf_val[2] << ") "
+                               << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
+                               << h1_gfc_val[2] << ") "
                                << h1_dist << std::endl;
                   }
                   if (log > 0 && dgv_dist > tol)
@@ -3256,8 +3971,8 @@ TEST_CASE("3D GetGradient",
                      std::cout << be << ":" << j << " dgv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << dgv_gf_val[0] << "," << dgv_gf_val[1] << ","
-                               << dgv_gf_val[2] << ") " << dgv_dist
+                               << dgv_gfc_val[0] << "," << dgv_gfc_val[1] << ","
+                               << dgv_gfc_val[2] << ") " << dgv_dist
                                << std::endl;
                   }
                }
@@ -3319,9 +4034,9 @@ TEST_CASE("2D GetCurl",
          dgv_x.ProjectCoefficient(funcCoef);
 
          Vector      f_val(2*dim-3);      f_val = 0.0;
-         Vector  h1_gf_val(2*dim-3);  h1_gf_val = 0.0;
-         Vector  nd_gf_val(2*dim-3);  nd_gf_val = 0.0;
-         Vector dgv_gf_val(2*dim-3); dgv_gf_val = 0.0;
+         Vector  h1_gfc_val(2*dim-3);  h1_gfc_val = 0.0;
+         Vector  nd_gfc_val(2*dim-3);  nd_gfc_val = 0.0;
+         Vector dgv_gfc_val(2*dim-3); dgv_gfc_val = 0.0;
 
          SECTION("Domain Evaluation 2D")
          {
@@ -3344,13 +4059,13 @@ TEST_CASE("2D GetCurl",
                   T->SetIntPoint(&ip);
 
                   dFuncCoef.Eval(f_val, *T, ip);
-                  h1_xCoef.Eval(h1_gf_val, *T, ip);
-                  nd_xCoef.Eval(nd_gf_val, *T, ip);
-                  dgv_xCoef.Eval(dgv_gf_val, *T, ip);
+                  h1_xCoef.Eval(h1_gfc_val, *T, ip);
+                  nd_xCoef.Eval(nd_gfc_val, *T, ip);
+                  dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, 2*dim-3);
-                  double  nd_dist = Distance(f_val,  nd_gf_val, 2*dim-3);
-                  double dgv_dist = Distance(f_val, dgv_gf_val, 2*dim-3);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val, 2*dim-3);
+                  double  nd_dist = Distance(f_val,  nd_gfc_val, 2*dim-3);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val, 2*dim-3);
 
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
@@ -3360,21 +4075,21 @@ TEST_CASE("2D GetCurl",
                   {
                      std::cout << e << ":" << j << " h1  ("
                                << f_val[0] << ") vs. ("
-                               << h1_gf_val[0] << ") " << h1_dist
+                               << h1_gfc_val[0] << ") " << h1_dist
                                << std::endl;
                   }
                   if (log > 0 && nd_dist > tol)
                   {
                      std::cout << e << ":" << j << " nd  ("
                                << f_val[0] << ") vs. ("
-                               << nd_gf_val[0] << ") " << nd_dist
+                               << nd_gfc_val[0] << ") " << nd_dist
                                << std::endl;
                   }
                   if (log > 0 && dgv_dist > tol)
                   {
                      std::cout << e << ":" << j << " dgv ("
                                << f_val[0] << ") vs. ("
-                               << dgv_gf_val[0] << ") " << dgv_dist
+                               << dgv_gfc_val[0] << ") " << dgv_dist
                                << std::endl;
                   }
                }
@@ -3409,13 +4124,13 @@ TEST_CASE("2D GetCurl",
                   T->SetIntPoint(&ip);
 
                   dFuncCoef.Eval(f_val, *T, ip);
-                  h1_xCoef.Eval(h1_gf_val, *T, ip);
-                  nd_xCoef.Eval(nd_gf_val, *T, ip);
-                  dgv_xCoef.Eval(dgv_gf_val, *T, ip);
+                  h1_xCoef.Eval(h1_gfc_val, *T, ip);
+                  nd_xCoef.Eval(nd_gfc_val, *T, ip);
+                  dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, 2*dim-3);
-                  double  nd_dist = Distance(f_val,  nd_gf_val, 2*dim-3);
-                  double dgv_dist = Distance(f_val, dgv_gf_val, 2*dim-3);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val, 2*dim-3);
+                  double  nd_dist = Distance(f_val,  nd_gfc_val, 2*dim-3);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val, 2*dim-3);
 
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
@@ -3425,21 +4140,21 @@ TEST_CASE("2D GetCurl",
                   {
                      std::cout << be << ":" << j << " h1  ("
                                << f_val[0] << ") vs. ("
-                               << h1_gf_val[0] << ") " << h1_dist
+                               << h1_gfc_val[0] << ") " << h1_dist
                                << std::endl;
                   }
                   if (log > 0 && nd_dist > tol)
                   {
                      std::cout << be << ":" << j << " nd  ("
                                << f_val[0] << ") vs. ("
-                               << nd_gf_val[0] << ") " << nd_dist
+                               << nd_gfc_val[0] << ") " << nd_dist
                                << std::endl;
                   }
                   if (log > 0 && dgv_dist > tol)
                   {
                      std::cout << be << ":" << j << " dgv ("
                                << f_val[0] << ") vs. ("
-                               << dgv_gf_val[0] << ") " << dgv_dist
+                               << dgv_gfc_val[0] << ") " << dgv_dist
                                << std::endl;
                   }
                }
@@ -3475,13 +4190,13 @@ TEST_CASE("2D GetCurl",
                   T->SetIntPoint(&ip);
 
                   dFuncCoef.Eval(f_val, *T, ip);
-                  h1_xCoef.Eval(h1_gf_val, *T, ip);
-                  nd_xCoef.Eval(nd_gf_val, *T, ip);
-                  dgv_xCoef.Eval(dgv_gf_val, *T, ip);
+                  h1_xCoef.Eval(h1_gfc_val, *T, ip);
+                  nd_xCoef.Eval(nd_gfc_val, *T, ip);
+                  dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, 2*dim-3);
-                  double  nd_dist = Distance(f_val,  nd_gf_val, 2*dim-3);
-                  double dgv_dist = Distance(f_val, dgv_gf_val, 2*dim-3);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val, 2*dim-3);
+                  double  nd_dist = Distance(f_val,  nd_gfc_val, 2*dim-3);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val, 2*dim-3);
 
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
@@ -3491,21 +4206,21 @@ TEST_CASE("2D GetCurl",
                   {
                      std::cout << be << ":" << j << " h1  ("
                                << f_val[0] << ") vs. ("
-                               << h1_gf_val[0] << ") " << h1_dist
+                               << h1_gfc_val[0] << ") " << h1_dist
                                << std::endl;
                   }
                   if (log > 0 && nd_dist > tol)
                   {
                      std::cout << be << ":" << j << " nd  ("
                                << f_val[0] << ") vs. ("
-                               << nd_gf_val[0] << ") " << nd_dist
+                               << nd_gfc_val[0] << ") " << nd_dist
                                << std::endl;
                   }
                   if (log > 0 && dgv_dist > tol)
                   {
                      std::cout << be << ":" << j << " dgv ("
                                << f_val[0] << ") vs. ("
-                               << dgv_gf_val[0] << ") " << dgv_dist
+                               << dgv_gfc_val[0] << ") " << dgv_dist
                                << std::endl;
                   }
                }
@@ -3569,9 +4284,9 @@ TEST_CASE("3D GetCurl",
          dgv_x.ProjectCoefficient(funcCoef);
 
          Vector      f_val(2*dim-3);      f_val = 0.0;
-         Vector  h1_gf_val(2*dim-3);  h1_gf_val = 0.0;
-         Vector  nd_gf_val(2*dim-3);  nd_gf_val = 0.0;
-         Vector dgv_gf_val(2*dim-3); dgv_gf_val = 0.0;
+         Vector  h1_gfc_val(2*dim-3);  h1_gfc_val = 0.0;
+         Vector  nd_gfc_val(2*dim-3);  nd_gfc_val = 0.0;
+         Vector dgv_gfc_val(2*dim-3); dgv_gfc_val = 0.0;
 
          SECTION("Domain Evaluation 3D")
          {
@@ -3594,13 +4309,13 @@ TEST_CASE("3D GetCurl",
                   T->SetIntPoint(&ip);
 
                   dFuncCoef.Eval(f_val, *T, ip);
-                  h1_xCoef.Eval(h1_gf_val, *T, ip);
-                  nd_xCoef.Eval(nd_gf_val, *T, ip);
-                  dgv_xCoef.Eval(dgv_gf_val, *T, ip);
+                  h1_xCoef.Eval(h1_gfc_val, *T, ip);
+                  nd_xCoef.Eval(nd_gfc_val, *T, ip);
+                  dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, 2*dim-3);
-                  double  nd_dist = Distance(f_val,  nd_gf_val, 2*dim-3);
-                  double dgv_dist = Distance(f_val, dgv_gf_val, 2*dim-3);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val, 2*dim-3);
+                  double  nd_dist = Distance(f_val,  nd_gfc_val, 2*dim-3);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val, 2*dim-3);
 
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
@@ -3611,8 +4326,8 @@ TEST_CASE("3D GetCurl",
                      std::cout << e << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << h1_gf_val[0] << "," << h1_gf_val[1] << ","
-                               << h1_gf_val[2] << ") " << h1_dist
+                               << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
+                               << h1_gfc_val[2] << ") " << h1_dist
                                << std::endl;
                   }
                   if (log > 0 && nd_dist > tol)
@@ -3620,8 +4335,8 @@ TEST_CASE("3D GetCurl",
                      std::cout << e << ":" << j << " nd  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << nd_gf_val[0] << "," << nd_gf_val[1] << ","
-                               << nd_gf_val[2] << ") " << nd_dist
+                               << nd_gfc_val[0] << "," << nd_gfc_val[1] << ","
+                               << nd_gfc_val[2] << ") " << nd_dist
                                << std::endl;
                   }
                   if (log > 0 && dgv_dist > tol)
@@ -3629,8 +4344,8 @@ TEST_CASE("3D GetCurl",
                      std::cout << e << ":" << j << " dgv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << dgv_gf_val[0] << "," << dgv_gf_val[1] << ","
-                               << dgv_gf_val[2] << ") " << dgv_dist
+                               << dgv_gfc_val[0] << "," << dgv_gfc_val[1] << ","
+                               << dgv_gfc_val[2] << ") " << dgv_dist
                                << std::endl;
                   }
                }
@@ -3665,13 +4380,13 @@ TEST_CASE("3D GetCurl",
                   T->SetIntPoint(&ip);
 
                   dFuncCoef.Eval(f_val, *T, ip);
-                  h1_xCoef.Eval(h1_gf_val, *T, ip);
-                  nd_xCoef.Eval(nd_gf_val, *T, ip);
-                  dgv_xCoef.Eval(dgv_gf_val, *T, ip);
+                  h1_xCoef.Eval(h1_gfc_val, *T, ip);
+                  nd_xCoef.Eval(nd_gfc_val, *T, ip);
+                  dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, 2*dim-3);
-                  double  nd_dist = Distance(f_val,  nd_gf_val, 2*dim-3);
-                  double dgv_dist = Distance(f_val, dgv_gf_val, 2*dim-3);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val, 2*dim-3);
+                  double  nd_dist = Distance(f_val,  nd_gfc_val, 2*dim-3);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val, 2*dim-3);
 
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
@@ -3682,8 +4397,8 @@ TEST_CASE("3D GetCurl",
                      std::cout << be << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << h1_gf_val[0] << "," << h1_gf_val[1] << ","
-                               << h1_gf_val[2] << ") " << h1_dist
+                               << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
+                               << h1_gfc_val[2] << ") " << h1_dist
                                << std::endl;
                   }
                   if (log > 0 && nd_dist > tol)
@@ -3691,8 +4406,8 @@ TEST_CASE("3D GetCurl",
                      std::cout << be << ":" << j << " nd  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << nd_gf_val[0] << "," << nd_gf_val[1] << ","
-                               << nd_gf_val[2] << ") " << nd_dist
+                               << nd_gfc_val[0] << "," << nd_gfc_val[1] << ","
+                               << nd_gfc_val[2] << ") " << nd_dist
                                << std::endl;
                   }
                   if (log > 0 && dgv_dist > tol)
@@ -3700,8 +4415,8 @@ TEST_CASE("3D GetCurl",
                      std::cout << be << ":" << j << " dgv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << dgv_gf_val[0] << "," << dgv_gf_val[1] << ","
-                               << dgv_gf_val[2] << ") " << dgv_dist
+                               << dgv_gfc_val[0] << "," << dgv_gfc_val[1] << ","
+                               << dgv_gfc_val[2] << ") " << dgv_dist
                                << std::endl;
                   }
                }
@@ -3737,13 +4452,13 @@ TEST_CASE("3D GetCurl",
                   T->SetIntPoint(&ip);
 
                   dFuncCoef.Eval(f_val, *T, ip);
-                  h1_xCoef.Eval(h1_gf_val, *T, ip);
-                  nd_xCoef.Eval(nd_gf_val, *T, ip);
-                  dgv_xCoef.Eval(dgv_gf_val, *T, ip);
+                  h1_xCoef.Eval(h1_gfc_val, *T, ip);
+                  nd_xCoef.Eval(nd_gfc_val, *T, ip);
+                  dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, 2*dim-3);
-                  double  nd_dist = Distance(f_val,  nd_gf_val, 2*dim-3);
-                  double dgv_dist = Distance(f_val, dgv_gf_val, 2*dim-3);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val, 2*dim-3);
+                  double  nd_dist = Distance(f_val,  nd_gfc_val, 2*dim-3);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val, 2*dim-3);
 
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
@@ -3754,8 +4469,8 @@ TEST_CASE("3D GetCurl",
                      std::cout << be << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << h1_gf_val[0] << "," << h1_gf_val[1] << ","
-                               << h1_gf_val[2] << ") " << h1_dist
+                               << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
+                               << h1_gfc_val[2] << ") " << h1_dist
                                << std::endl;
                   }
                   if (log > 0 && nd_dist > tol)
@@ -3763,8 +4478,8 @@ TEST_CASE("3D GetCurl",
                      std::cout << be << ":" << j << " nd  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << nd_gf_val[0] << "," << nd_gf_val[1] << ","
-                               << nd_gf_val[2] << ") " << nd_dist
+                               << nd_gfc_val[0] << "," << nd_gfc_val[1] << ","
+                               << nd_gfc_val[2] << ") " << nd_dist
                                << std::endl;
                   }
                   if (log > 0 && dgv_dist > tol)
@@ -3772,8 +4487,8 @@ TEST_CASE("3D GetCurl",
                      std::cout << be << ":" << j << " dgv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
-                               << dgv_gf_val[0] << "," << dgv_gf_val[1] << ","
-                               << dgv_gf_val[2] << ") " << dgv_dist
+                               << dgv_gfc_val[0] << "," << dgv_gfc_val[1] << ","
+                               << dgv_gfc_val[2] << ") " << dgv_dist
                                << std::endl;
                   }
                }
@@ -3856,30 +4571,33 @@ TEST_CASE("2D GetDivergence",
                   T->SetIntPoint(&ip);
 
                   double      f_val = dFuncCoef.Eval(*T, ip);
-                  double  h1_gf_val =  h1_xCoef.Eval(*T, ip);
-                  double  rt_gf_val =  rt_xCoef.Eval(*T, ip);
-                  double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
+                  double  h1_gfc_val =  h1_xCoef.Eval(*T, ip);
+                  double  rt_gfc_val =  rt_xCoef.Eval(*T, ip);
+                  double dgv_gfc_val = dgv_xCoef.Eval(*T, ip);
 
-                  h1_err += fabs(f_val - h1_gf_val);
-                  rt_err += fabs(f_val - rt_gf_val);
-                  dgv_err += fabs(f_val - dgv_gf_val);
+                  h1_err += fabs(f_val - h1_gfc_val);
+                  rt_err += fabs(f_val - rt_gfc_val);
+                  dgv_err += fabs(f_val - dgv_gfc_val);
 
-                  if (log > 0 && fabs(f_val - h1_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
                   {
                      std::cout << e << ":" << j << " h1  " << f_val << " "
-                               << h1_gf_val << " " << fabs(f_val - h1_gf_val)
+                               << h1_gfc_val << " "
+                               << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - rt_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - rt_gfc_val) > tol)
                   {
                      std::cout << e << ":" << j << " rt  " << f_val << " "
-                               << rt_gf_val << " " << fabs(f_val - rt_gf_val)
+                               << rt_gfc_val << " "
+                               << fabs(f_val - rt_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
                   {
                      std::cout << e << ":" << j << " dgv " << f_val << " "
-                               << dgv_gf_val << " " << fabs(f_val - dgv_gf_val)
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
                                << std::endl;
                   }
                }
@@ -3914,30 +4632,33 @@ TEST_CASE("2D GetDivergence",
                   T->SetIntPoint(&ip);
 
                   double      f_val = dFuncCoef.Eval(*T, ip);
-                  double  h1_gf_val =  h1_xCoef.Eval(*T, ip);
-                  double  rt_gf_val =  rt_xCoef.Eval(*T, ip);
-                  double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
+                  double  h1_gfc_val =  h1_xCoef.Eval(*T, ip);
+                  double  rt_gfc_val =  rt_xCoef.Eval(*T, ip);
+                  double dgv_gfc_val = dgv_xCoef.Eval(*T, ip);
 
-                  h1_err += fabs(f_val - h1_gf_val);
-                  rt_err += fabs(f_val - rt_gf_val);
-                  dgv_err += fabs(f_val - dgv_gf_val);
+                  h1_err += fabs(f_val - h1_gfc_val);
+                  rt_err += fabs(f_val - rt_gfc_val);
+                  dgv_err += fabs(f_val - dgv_gfc_val);
 
-                  if (log > 0 && fabs(f_val - h1_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
                   {
                      std::cout << be << ":" << j << " h1  " << f_val << " "
-                               << h1_gf_val << " " << fabs(f_val - h1_gf_val)
+                               << h1_gfc_val << " "
+                               << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - rt_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - rt_gfc_val) > tol)
                   {
                      std::cout << be << ":" << j << " rt  " << f_val << " "
-                               << rt_gf_val << " " << fabs(f_val - rt_gf_val)
+                               << rt_gfc_val << " "
+                               << fabs(f_val - rt_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
                   {
                      std::cout << be << ":" << j << " dgv " << f_val << " "
-                               << dgv_gf_val << " " << fabs(f_val - dgv_gf_val)
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
                                << std::endl;
                   }
                }
@@ -3973,30 +4694,33 @@ TEST_CASE("2D GetDivergence",
                   T->SetIntPoint(&ip);
 
                   double      f_val = dFuncCoef.Eval(*T, ip);
-                  double  h1_gf_val =  h1_xCoef.Eval(*T, ip);
-                  double  rt_gf_val =  rt_xCoef.Eval(*T, ip);
-                  double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
+                  double  h1_gfc_val =  h1_xCoef.Eval(*T, ip);
+                  double  rt_gfc_val =  rt_xCoef.Eval(*T, ip);
+                  double dgv_gfc_val = dgv_xCoef.Eval(*T, ip);
 
-                  h1_err += fabs(f_val - h1_gf_val);
-                  rt_err += fabs(f_val - rt_gf_val);
-                  dgv_err += fabs(f_val - dgv_gf_val);
+                  h1_err += fabs(f_val - h1_gfc_val);
+                  rt_err += fabs(f_val - rt_gfc_val);
+                  dgv_err += fabs(f_val - dgv_gfc_val);
 
-                  if (log > 0 && fabs(f_val - h1_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
                   {
                      std::cout << be << ":" << j << " h1  " << f_val << " "
-                               << h1_gf_val << " " << fabs(f_val - h1_gf_val)
+                               << h1_gfc_val << " "
+                               << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - rt_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - rt_gfc_val) > tol)
                   {
                      std::cout << be << ":" << j << " rt  " << f_val << " "
-                               << rt_gf_val << " " << fabs(f_val - rt_gf_val)
+                               << rt_gfc_val << " "
+                               << fabs(f_val - rt_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
                   {
                      std::cout << be << ":" << j << " dgv " << f_val << " "
-                               << dgv_gf_val << " " << fabs(f_val - dgv_gf_val)
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
                                << std::endl;
                   }
                }
@@ -4079,30 +4803,33 @@ TEST_CASE("3D GetDivergence",
                   T->SetIntPoint(&ip);
 
                   double      f_val = dFuncCoef.Eval(*T, ip);
-                  double  h1_gf_val =  h1_xCoef.Eval(*T, ip);
-                  double  rt_gf_val =  rt_xCoef.Eval(*T, ip);
-                  double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
+                  double  h1_gfc_val =  h1_xCoef.Eval(*T, ip);
+                  double  rt_gfc_val =  rt_xCoef.Eval(*T, ip);
+                  double dgv_gfc_val = dgv_xCoef.Eval(*T, ip);
 
-                  h1_err += fabs(f_val - h1_gf_val);
-                  rt_err += fabs(f_val - rt_gf_val);
-                  dgv_err += fabs(f_val - dgv_gf_val);
+                  h1_err += fabs(f_val - h1_gfc_val);
+                  rt_err += fabs(f_val - rt_gfc_val);
+                  dgv_err += fabs(f_val - dgv_gfc_val);
 
-                  if (log > 0 && fabs(f_val - h1_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
                   {
                      std::cout << e << ":" << j << " h1  " << f_val << " "
-                               << h1_gf_val << " " << fabs(f_val - h1_gf_val)
+                               << h1_gfc_val << " "
+                               << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - rt_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - rt_gfc_val) > tol)
                   {
                      std::cout << e << ":" << j << " rt  " << f_val << " "
-                               << rt_gf_val << " " << fabs(f_val - rt_gf_val)
+                               << rt_gfc_val << " "
+                               << fabs(f_val - rt_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
                   {
                      std::cout << e << ":" << j << " dgv " << f_val << " "
-                               << dgv_gf_val << " " << fabs(f_val - dgv_gf_val)
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
                                << std::endl;
                   }
                }
@@ -4137,30 +4864,33 @@ TEST_CASE("3D GetDivergence",
                   T->SetIntPoint(&ip);
 
                   double      f_val = dFuncCoef.Eval(*T, ip);
-                  double  h1_gf_val =  h1_xCoef.Eval(*T, ip);
-                  double  rt_gf_val =  rt_xCoef.Eval(*T, ip);
-                  double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
+                  double  h1_gfc_val =  h1_xCoef.Eval(*T, ip);
+                  double  rt_gfc_val =  rt_xCoef.Eval(*T, ip);
+                  double dgv_gfc_val = dgv_xCoef.Eval(*T, ip);
 
-                  h1_err += fabs(f_val - h1_gf_val);
-                  rt_err += fabs(f_val - rt_gf_val);
-                  dgv_err += fabs(f_val - dgv_gf_val);
+                  h1_err += fabs(f_val - h1_gfc_val);
+                  rt_err += fabs(f_val - rt_gfc_val);
+                  dgv_err += fabs(f_val - dgv_gfc_val);
 
-                  if (log > 0 && fabs(f_val - h1_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
                   {
                      std::cout << be << ":" << j << " h1  " << f_val << " "
-                               << h1_gf_val << " " << fabs(f_val - h1_gf_val)
+                               << h1_gfc_val << " "
+                               << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - rt_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - rt_gfc_val) > tol)
                   {
                      std::cout << be << ":" << j << " rt  " << f_val << " "
-                               << rt_gf_val << " " << fabs(f_val - rt_gf_val)
+                               << rt_gfc_val << " "
+                               << fabs(f_val - rt_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
                   {
                      std::cout << be << ":" << j << " dgv " << f_val << " "
-                               << dgv_gf_val << " " << fabs(f_val - dgv_gf_val)
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
                                << std::endl;
                   }
                }
@@ -4196,30 +4926,33 @@ TEST_CASE("3D GetDivergence",
                   T->SetIntPoint(&ip);
 
                   double      f_val = dFuncCoef.Eval(*T, ip);
-                  double  h1_gf_val =  h1_xCoef.Eval(*T, ip);
-                  double  rt_gf_val =  rt_xCoef.Eval(*T, ip);
-                  double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
+                  double  h1_gfc_val =  h1_xCoef.Eval(*T, ip);
+                  double  rt_gfc_val =  rt_xCoef.Eval(*T, ip);
+                  double dgv_gfc_val = dgv_xCoef.Eval(*T, ip);
 
-                  h1_err += fabs(f_val - h1_gf_val);
-                  rt_err += fabs(f_val - rt_gf_val);
-                  dgv_err += fabs(f_val - dgv_gf_val);
+                  h1_err += fabs(f_val - h1_gfc_val);
+                  rt_err += fabs(f_val - rt_gfc_val);
+                  dgv_err += fabs(f_val - dgv_gfc_val);
 
-                  if (log > 0 && fabs(f_val - h1_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
                   {
                      std::cout << be << ":" << j << " h1  " << f_val << " "
-                               << h1_gf_val << " " << fabs(f_val - h1_gf_val)
+                               << h1_gfc_val << " "
+                               << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - rt_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - rt_gfc_val) > tol)
                   {
                      std::cout << be << ":" << j << " rt  " << f_val << " "
-                               << rt_gf_val << " " << fabs(f_val - rt_gf_val)
+                               << rt_gfc_val << " "
+                               << fabs(f_val - rt_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gf_val) > tol)
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
                   {
                      std::cout << be << ":" << j << " dgv " << f_val << " "
-                               << dgv_gf_val << " " << fabs(f_val - dgv_gf_val)
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
                                << std::endl;
                   }
                }
