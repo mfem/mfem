@@ -626,6 +626,8 @@ protected:
    double *l1_norms;
    /// If set, take absolute values of the computed l1_norms
    bool pos_l1_norms;
+   /// Number of CG iterations to determine eigenvalue estimates
+   int eig_est_cg_iter;
    /// Maximal eigenvalue estimate for polynomial smoothing
    double max_eig_est;
    /// Minimal eigenvalue estimate for polynomial smoothing
@@ -656,14 +658,17 @@ public:
    HypreSmoother(HypreParMatrix &_A, int type = l1GS,
                  int relax_times = 1, double relax_weight = 1.0,
                  double omega = 1.0, int poly_order = 2,
-                 double poly_fraction = .3);
+                 double poly_fraction = .3, int eig_est_cg_iter = 10);
 
    /// Set the relaxation type and number of sweeps
    void SetType(HypreSmoother::Type type, int relax_times = 1);
    /// Set SOR-related parameters
    void SetSOROptions(double relax_weight, double omega);
    /// Set parameters for polynomial smoothing
-   void SetPolyOptions(int poly_order, double poly_fraction);
+   /** By default, 10 iterations of CG are used to estimate the eigenvalues.
+       Setting eig_est_cg_iter = 0 uses hypre's hypre_ParCSRMaxEigEstimate() instead. */
+   void SetPolyOptions(int poly_order, double poly_fraction,
+                       int eig_est_cg_iter = 10);
    /// Set parameters for Taubin's lambda-mu method
    void SetTaubinOptions(double lambda, double mu, int iter);
 
