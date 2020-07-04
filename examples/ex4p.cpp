@@ -16,6 +16,7 @@
 //               mpirun -np 4 ex4p -m ../data/periodic-square.mesh -no-bc
 //               mpirun -np 4 ex4p -m ../data/periodic-cube.mesh -no-bc
 //               mpirun -np 4 ex4p -m ../data/amr-quad.mesh
+//               mpirun -np 3 ex4p -m ../data/amr-quad.mesh -o 2 -hb
 //               mpirun -np 4 ex4p -m ../data/amr-hex.mesh -o 2 -sc
 //               mpirun -np 4 ex4p -m ../data/amr-hex.mesh -o 2 -hb
 //               mpirun -np 4 ex4p -m ../data/star-surf.mesh -o 3 -hb
