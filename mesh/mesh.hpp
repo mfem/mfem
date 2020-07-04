@@ -1383,7 +1383,8 @@ public:
    GeometricFactors(const GridFunction *nodes, const IntegrationRule &ir,
                     const int flags);
 
-   // Overrides calcuating geometric factors with mesh nodes and uses user defined nodes
+   /** Overrides calculating geometric factors with mesh nodes and uses user
+       defined nodes. */
    void AssembleWithNodes(const GridFunction *nodes, const IntegrationRule &ir,
                           const int flags);
 

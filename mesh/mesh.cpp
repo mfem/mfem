@@ -10483,7 +10483,6 @@ void GeometricFactors::AssembleWithNodes(const GridFunction *nodes,
 
 void GeometricFactors::Recompute()
 {
-
    const FiniteElementSpace *fespace = nodes->FESpace();
    const FiniteElement *fe = fespace->GetFE(0);
    const int dim  = fe->GetDim();
