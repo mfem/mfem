@@ -115,7 +115,7 @@ New and updated examples and miniapps
   equations of incompressible fluid dynamics. See the miniapps/navier directory
   for more details.
 
-- Ported example 11p to SLEPc, to demonstrate solving the Laplace eigenvalue
+- Ported Example 11p to SLEPc, to demonstrate solving the Laplace eigenvalue
   equation with the shift-and-invert spectral transformation method.
 
 - Added a simple meshing miniapp, Twist, which demonstrates MFEM's strategy of

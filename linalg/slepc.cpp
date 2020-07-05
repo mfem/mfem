@@ -25,6 +25,7 @@ static PetscErrorCode ierr;
 
 namespace mfem
 {
+
 void MFEMInitializeSlepc()
 {
    MFEMInitializeSlepc(NULL,NULL,NULL,NULL);
@@ -181,7 +182,6 @@ int SlepcEigenSolver::GetNumConverged()
    ierr = EPSGetConverged(eps,&num_conv); PCHKERRQ(eps,ierr);
    return num_conv;
 }
-
 
 void SlepcEigenSolver::SetWhichEigenpairs(SlepcEigenSolver::Which which)
 {
