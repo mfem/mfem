@@ -694,6 +694,7 @@ b = -std::numeric_limits<double>::infinity();
 
             for (int n = 1; n < hyp->NumEq; n++)
             {
+               // double NodalState = uEval(qr = uNbrEval(n) / uNbrEval(0);
                double QuotientAverage = ufi(j,n) / ufi(j,0);
                a(n) = min(a(n), QuotientAverage);
                b(n) = max(b(n), QuotientAverage);
