@@ -111,9 +111,9 @@ public:
        have zero entries at the essential true dofs. */
    void SetEssentialBC(const Array<int> &bdr_attr_is_ess, Vector *rhs = NULL);
 
-   /// (DEPRECATED) Specify essential boundary conditions.
-   /** @deprecated Use either SetEssentialBC() or SetEssentialTrueDofs(). */
-   MFEM_DEPRECATED void SetEssentialVDofs(const Array<int> &ess_vdofs_list);
+   /// Specify essential boundary conditions.
+   /** Use either SetEssentialBC() or SetEssentialTrueDofs() if possible. */
+   void SetEssentialVDofs(const Array<int> &ess_vdofs_list);
 
    /// Specify essential boundary conditions.
    void SetEssentialTrueDofs(const Array<int> &ess_tdof_list)

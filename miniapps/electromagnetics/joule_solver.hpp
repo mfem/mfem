@@ -38,7 +38,7 @@ void edot_bc(const Vector &x, Vector &E);
 void e_exact(const Vector &x, double t, Vector &E);
 void b_exact(const Vector &x, double t, Vector &B);
 double p_bc(const Vector &x, double t);
-double t_exact(Vector &x);
+double t_exact(const Vector &x);
 
 // A Coefficient is an object with a function Eval that returns a double.  A
 // MeshDependentCoefficient returns a different value depending upon the given
