@@ -389,7 +389,7 @@ int main(int argc, char *argv[])
    //     applying any necessary transformations such as: assembly, eliminating
    //     boundary conditions, applying conforming constraints for
    //     non-conforming AMR, etc.
-   a.Assemble(0); 
+   a.Assemble(0);
 
    OperatorHandle Ah;
    Vector B, X;

@@ -272,11 +272,12 @@ void ComplexUMFPackSolver::SetOperator(const Operator &op)
       }
    }
 
-   mat = const_cast<ComplexSparseMatrix *>(dynamic_cast<const ComplexSparseMatrix *>(&op));
+   mat = const_cast<ComplexSparseMatrix *>
+         (dynamic_cast<const ComplexSparseMatrix *>(&op));
    MFEM_VERIFY(mat, "not a ComplexSparseMatrix");
 
    MFEM_VERIFY(mat->real().NumNonZeroElems() == mat->imag().NumNonZeroElems(),
-      "Real and imag Sparsity patter missmatch: Try setting Assemble (skip_zeros = 0)");
+               "Real and imag Sparsity patter missmatch: Try setting Assemble (skip_zeros = 0)");
 
    // UMFPack requires that the column-indices in mat corresponding to each
    // row be sorted.
@@ -297,7 +298,7 @@ void ComplexUMFPackSolver::SetOperator(const Operator &op)
    if (!use_long_ints)
    {
       int status = umfpack_zi_symbolic(width,width,Ap,Ai,Ax,Az,&Symbolic,
-                                       Control,Info);     
+                                       Control,Info);
       if (status < 0)
       {
          umfpack_zi_report_info(Control, Info);
@@ -307,7 +308,7 @@ void ComplexUMFPackSolver::SetOperator(const Operator &op)
       }
 
       status = umfpack_zi_numeric(Ap, Ai, Ax, Az, Symbolic, &Numeric,
-                                  Control, Info);     
+                                  Control, Info);
       if (status < 0)
       {
          umfpack_zi_report_info(Control, Info);
@@ -335,7 +336,7 @@ void ComplexUMFPackSolver::SetOperator(const Operator &op)
       }
 
       status = umfpack_zl_symbolic(width, width, AI, AJ, Ax, Az, &Symbolic,
-                                   Control, Info);                           
+                                   Control, Info);
       if (status < 0)
       {
          umfpack_zl_report_info(Control, Info);
@@ -366,8 +367,8 @@ void ComplexUMFPackSolver::Mult(const Vector &b, Vector &x) const
    double * datax = x.GetData();
    double * datab = b.GetData();
 
-   // For the Block Symmetric case data the imaginary part 
-   // have to be scaled by -1 
+   // For the Block Symmetric case data the imaginary part
+   // have to be scaled by -1
    ComplexOperator::Convention conv = mat->GetConvention();
    Vector bimag;
    if (conv == ComplexOperator::Convention::BLOCK_SYMMETRIC)
@@ -382,7 +383,7 @@ void ComplexUMFPackSolver::Mult(const Vector &b, Vector &x) const
       //
       int status =
          umfpack_zi_solve(UMFPACK_Aat, mat->real().GetI(), mat->real().GetJ(),
-                          mat->real().GetData(), mat->imag().GetData(), 
+                          mat->real().GetData(), mat->imag().GetData(),
                           datax, &datax[n], datab, &datab[n], Numeric, Control, Info);
       umfpack_zi_report_info(Control, Info);
       if (status < 0)
@@ -395,8 +396,8 @@ void ComplexUMFPackSolver::Mult(const Vector &b, Vector &x) const
    {
       SuiteSparse_long status =
          umfpack_zl_solve(UMFPACK_Aat,AI,AJ,mat->real().GetData(),
-         mat->imag().GetData(),
-         datax,&datax[n],datab,&datab[n],Numeric,Control,Info);    
+                          mat->imag().GetData(),
+                          datax,&datax[n],datab,&datab[n],Numeric,Control,Info);
 
       umfpack_zl_report_info(Control, Info);
       if (status < 0)
@@ -423,20 +424,20 @@ void ComplexUMFPackSolver::MultTranspose(const Vector &b, Vector &x) const
    ComplexOperator::Convention conv = mat->GetConvention();
    Vector bimag;
    bimag.SetDataAndSize(&datab[n],n);
-   //To solve the Adjoint A^H x = b by solving 
+   //To solve the Adjoint A^H x = b by solving
    // the conjugate problem A^T \bar{x} = \bar{b}
    if ((!transpose && conv == ComplexOperator::HERMITIAN) ||
        ( transpose && conv == ComplexOperator::BLOCK_SYMMETRIC))
    {
       bimag *=-1.0;
    }
-   
+
    if (!use_long_ints)
    {
       //
       int status =
          umfpack_zi_solve(UMFPACK_A, mat->real().GetI(), mat->real().GetJ(),
-                          mat->real().GetData(), mat->imag().GetData(), 
+                          mat->real().GetData(), mat->imag().GetData(),
                           datax, &datax[n], datab, &datab[n], Numeric, Control, Info);
       umfpack_zi_report_info(Control, Info);
       if (status < 0)
@@ -449,8 +450,8 @@ void ComplexUMFPackSolver::MultTranspose(const Vector &b, Vector &x) const
    {
       SuiteSparse_long status =
          umfpack_zl_solve(UMFPACK_A,AI,AJ,mat->real().GetData(),
-         mat->imag().GetData(),
-         datax,&datax[n],datab,&datab[n],Numeric,Control,Info);    
+                          mat->imag().GetData(),
+                          datax,&datax[n],datab,&datab[n],Numeric,Control,Info);
 
       umfpack_zl_report_info(Control, Info);
       if (status < 0)
