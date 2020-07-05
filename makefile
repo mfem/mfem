@@ -117,10 +117,10 @@ EXAMPLE_SUBDIRS = sundials petsc pumi hiop ginkgo
 EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
-MINIAPP_SUBDIRS = common electromagnetics meshing performance tools toys nurbs gslib
+MINIAPP_SUBDIRS = common electromagnetics meshing navier performance tools toys nurbs gslib
 MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
 MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
-MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics tools toys)
+MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics meshing tools toys)
 
 EM_DIRS = $(EXAMPLE_DIRS) $(MINIAPP_DIRS)
 
@@ -203,28 +203,28 @@ CXXFLAGS ?= $(OPTIM_FLAGS)
 
 # MPI configuration
 ifneq ($(MFEM_USE_MPI),YES)
-   CXX_OR_MPICXX = $(CXX)
-   PKGS_NEED_MPI = SUPERLU STRUMPACK PETSC PUMI
+   MFEM_HOST_CXX = $(CXX)
+   PKGS_NEED_MPI = SUPERLU STRUMPACK PETSC PUMI SLEPC
    $(foreach mpidep,$(PKGS_NEED_MPI),$(if $(MFEM_USE_$(mpidep):NO=),\
      $(warning *** [MPI is OFF] setting MFEM_USE_$(mpidep) = NO)\
      $(eval override MFEM_USE_$(mpidep)=NO),))
 else
-   CXX_OR_MPICXX = $(MPICXX)
+   MFEM_HOST_CXX = $(MPICXX)
    INCFLAGS += $(HYPRE_OPT)
    ALL_LIBS += $(HYPRE_LIB)
 endif
-ALL_LIBS += $(GSLIB_FPT_LIB)
 
 # Default configuration
 ifeq ($(MFEM_USE_CUDA)$(MFEM_USE_HIP),NONO)
-   MFEM_CXX ?= $(CXX_OR_MPICXX)
+   MFEM_CXX ?= $(MFEM_HOST_CXX)
+   MFEM_HOST_CXX := $(MFEM_CXX)
    XCOMPILER = $(CXX_XCOMPILER)
    XLINKER   = $(CXX_XLINKER)
 endif
 
 ifeq ($(MFEM_USE_CUDA),YES)
    MFEM_CXX ?= $(CUDA_CXX)
-   CXXFLAGS += $(CUDA_FLAGS) -ccbin $(CXX_OR_MPICXX)
+   CXXFLAGS += $(CUDA_FLAGS) -ccbin $(MFEM_HOST_CXX)
    XCOMPILER = $(CUDA_XCOMPILER)
    XLINKER   = $(CUDA_XLINKER)
    # CUDA_OPT and CUDA_LIB are added below
@@ -238,6 +238,7 @@ endif
 ifeq ($(MFEM_USE_HIP),YES)
    MFEM_CXX ?= $(HIP_CXX)
    ALL_LIBS += $(HIP_FLAGS)
+   # TODO: set XCOMPILER and XLINKER
    # HIP_OPT and HIP_LIB are added below
    # Compatibility test against MFEM_USE_CUDA
    ifeq ($(MFEM_USE_CUDA),YES)
@@ -259,9 +260,10 @@ endif
 
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
 MFEM_REQ_LIB_DEPS = SUPERLU METIS CONDUIT SIDRE LAPACK SUNDIALS MESQUITE\
- SUITESPARSE STRUMPACK GINKGO GNUTLS NETCDF PETSC MPFR PUMI HIOP GSLIB\
+ SUITESPARSE STRUMPACK GINKGO GNUTLS NETCDF PETSC SLEPC MPFR PUMI HIOP GSLIB\
  OCCA CEED RAJA UMPIRE
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
+SLEPC_ERROR_MSG = $(if $(SLEPC_FOUND),,. SLEPC config not found: $(SLEPC_VARS))
 
 define mfem_check_dependency
 ifeq ($$(MFEM_USE_$(1)),YES)
@@ -320,16 +322,17 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_OPENMP MFEM_USE_LEGACY_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE\
  MFEM_USE_SUNDIALS MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GINKGO\
  MFEM_USE_SUPERLU MFEM_USE_STRUMPACK MFEM_USE_GNUTLS\
- MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT\
+ MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_SLEPC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT\
  MFEM_USE_PUMI MFEM_USE_HIOP MFEM_USE_GSLIB MFEM_USE_CUDA MFEM_USE_HIP\
- MFEM_USE_OCCA MFEM_USE_CEED MFEM_USE_RAJA MFEM_USE_UMPIRE MFEM_SOURCE_DIR\
- MFEM_INSTALL_DIR
+ MFEM_USE_OCCA MFEM_USE_CEED MFEM_USE_RAJA MFEM_USE_UMPIRE MFEM_USE_SIMD\
+ MFEM_USE_ADIOS2 MFEM_SOURCE_DIR MFEM_INSTALL_DIR
 
 # List of makefile variables that will be written to config.mk:
-MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
- MFEM_TPLFLAGS MFEM_INCFLAGS MFEM_PICFLAG MFEM_FLAGS MFEM_LIB_DIR MFEM_EXT_LIBS\
- MFEM_LIBS MFEM_LIB_FILE MFEM_STATIC MFEM_SHARED MFEM_BUILD_TAG MFEM_PREFIX\
- MFEM_CONFIG_EXTRA MFEM_MPIEXEC MFEM_MPIEXEC_NP MFEM_MPI_NP MFEM_TEST_MK
+MFEM_CONFIG_VARS = MFEM_CXX MFEM_HOST_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS\
+ MFEM_INC_DIR MFEM_TPLFLAGS MFEM_INCFLAGS MFEM_PICFLAG MFEM_FLAGS MFEM_LIB_DIR\
+ MFEM_EXT_LIBS MFEM_LIBS MFEM_LIB_FILE MFEM_STATIC MFEM_SHARED MFEM_BUILD_TAG\
+ MFEM_PREFIX MFEM_CONFIG_EXTRA MFEM_MPIEXEC MFEM_MPIEXEC_NP MFEM_MPI_NP\
+ MFEM_TEST_MK
 
 # Config vars: values of the form @VAL@ are replaced by $(VAL) in config.mk
 MFEM_CPPFLAGS  ?= $(CPPFLAGS)
@@ -390,11 +393,8 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
 endif
 
 # Source dirs in logical order
-DIRS = general linalg mesh fem fem/libceed
+DIRS = general linalg linalg/simd mesh fem fem/libceed
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
-ADIOS2_FILES = $(SRC)general/adios2stream.h $(SRC)general/adios2stream.cpp \
- $(SRC)fem/adios2datacollection.hpp $(SRC)fem/adios2datacollection.cpp
-SOURCE_FILES := $(filter-out $(ADIOS2_FILES),$(SOURCE_FILES))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 OKL_DIRS = fem
@@ -632,6 +632,7 @@ status info:
 	$(info MFEM_USE_GNUTLS        = $(MFEM_USE_GNUTLS))
 	$(info MFEM_USE_NETCDF        = $(MFEM_USE_NETCDF))
 	$(info MFEM_USE_PETSC         = $(MFEM_USE_PETSC))
+	$(info MFEM_USE_SLEPC         = $(MFEM_USE_SLEPC))
 	$(info MFEM_USE_MPFR          = $(MFEM_USE_MPFR))
 	$(info MFEM_USE_SIDRE         = $(MFEM_USE_SIDRE))
 	$(info MFEM_USE_CONDUIT       = $(MFEM_USE_CONDUIT))
@@ -644,7 +645,10 @@ status info:
 	$(info MFEM_USE_OCCA          = $(MFEM_USE_OCCA))
 	$(info MFEM_USE_CEED          = $(MFEM_USE_CEED))
 	$(info MFEM_USE_UMPIRE        = $(MFEM_USE_UMPIRE))
+	$(info MFEM_USE_SIMD          = $(MFEM_USE_SIMD))
+	$(info MFEM_USE_ADIOS2        = $(MFEM_USE_ADIOS2))
 	$(info MFEM_CXX               = $(value MFEM_CXX))
+	$(info MFEM_HOST_CXX          = $(value MFEM_HOST_CXX))
 	$(info MFEM_CPPFLAGS          = $(value MFEM_CPPFLAGS))
 	$(info MFEM_CXXFLAGS          = $(value MFEM_CXXFLAGS))
 	$(info MFEM_TPLFLAGS          = $(value MFEM_TPLFLAGS))

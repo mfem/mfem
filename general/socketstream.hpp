@@ -53,18 +53,25 @@ public:
       open(hostname, port);
    }
 
-   /** Attach a new socket descriptor to the socketbuf.
-       Returns the old socket descriptor which is NOT closed. */
+   /** @brief Attach a new socket descriptor to the socketbuf. Returns the old
+       socket descriptor which is NOT closed. */
    virtual int attach(int sd);
 
+   /// Detach the current socket descriptor from the socketbuf.
    int detach() { return attach(-1); }
 
+   /** @brief Open a socket on the 'port' at 'hostname' and store the socket
+       descriptor. Returns 0 if there is no error, otherwise returns -1. */
    virtual int open(const char hostname[], int port);
 
+   /// Close the current socket descriptor.
    virtual int close();
 
+   /// Returns the attached socket descriptor.
    int getsocketdescriptor() { return socket_descriptor; }
 
+   /** @brief Returns true if the socket is open and has a valid socket
+       descriptor. Otherwise returns false. */
    bool is_open() { return (socket_descriptor >= 0); }
 
    virtual ~socketbuf() { close(); }
@@ -177,8 +184,8 @@ public:
 
    bool gnutls_good() const { return status.good(); }
 
-   /** Attach a new socket descriptor to the socketbuf.
-       Returns the old socket descriptor which is NOT closed. */
+   /** Attach a new socket descriptor to the socketbuf. Returns the old socket
+       descriptor which is NOT closed. */
    virtual int attach(int sd);
 
    virtual int open(const char hostname[], int port);
@@ -255,10 +262,13 @@ public:
 
    socketbuf *rdbuf() { return buf__; }
 
+   /// Open the socket stream on 'port' at 'hostname'.
    int open(const char hostname[], int port);
 
+   /// Close the socketstream.
    int close() { return buf__->close(); }
 
+   /// True if the socketstream is open, false otherwise.
    bool is_open() { return buf__->is_open(); }
 
    virtual ~socketstream();

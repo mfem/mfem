@@ -570,6 +570,17 @@ HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P);
 HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
                      const HypreParMatrix *P);
 
+/// Returns a merged hypre matrix constructed from hypre matrix blocks.
+/** It is assumed that all block matrices use the same communicator, and the
+    block sizes are consistent in rows and columns. Rows and columns are
+    renumbered but not redistributed in parallel, e.g. the block rows owned by
+    each process remain on that process in the resulting matrix. Some blocks can
+    be NULL. Each block and the entire system can be rectangular. Scalability to
+    extremely large processor counts is limited by global MPI communication, see
+    GatherBlockOffsetData() in hypre.cpp. */
+HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
+                                          Array2D<double> *blockCoeff=NULL);
+
 /** Eliminate essential BC specified by 'ess_dof_list' from the solution X to
     the r.h.s. B. Here A is a matrix with eliminated BC, while Ae is such that
     (A+Ae) is the original (Neumann) matrix before elimination. */
@@ -615,6 +626,8 @@ protected:
    double *l1_norms;
    /// If set, take absolute values of the computed l1_norms
    bool pos_l1_norms;
+   /// Number of CG iterations to determine eigenvalue estimates
+   int eig_est_cg_iter;
    /// Maximal eigenvalue estimate for polynomial smoothing
    double max_eig_est;
    /// Minimal eigenvalue estimate for polynomial smoothing
@@ -645,14 +658,17 @@ public:
    HypreSmoother(HypreParMatrix &_A, int type = l1GS,
                  int relax_times = 1, double relax_weight = 1.0,
                  double omega = 1.0, int poly_order = 2,
-                 double poly_fraction = .3);
+                 double poly_fraction = .3, int eig_est_cg_iter = 10);
 
    /// Set the relaxation type and number of sweeps
    void SetType(HypreSmoother::Type type, int relax_times = 1);
    /// Set SOR-related parameters
    void SetSOROptions(double relax_weight, double omega);
    /// Set parameters for polynomial smoothing
-   void SetPolyOptions(int poly_order, double poly_fraction);
+   /** By default, 10 iterations of CG are used to estimate the eigenvalues.
+       Setting eig_est_cg_iter = 0 uses hypre's hypre_ParCSRMaxEigEstimate() instead. */
+   void SetPolyOptions(int poly_order, double poly_fraction,
+                       int eig_est_cg_iter = 10);
    /// Set parameters for Taubin's lambda-mu method
    void SetTaubinOptions(double lambda, double mu, int iter);
 
