@@ -85,9 +85,10 @@ int main(int argc, char *argv[])
    {
       case 0:
       case 1:
-      case 2: NumEq = 1; break;
-      case 3: NumEq = 1 + dim; break;
-      case 4: NumEq = 2 + dim; break;
+      case 2:
+      case 3: NumEq = 1; break;
+      case 4: NumEq = 1 + dim; break;
+      case 5: NumEq = 2 + dim; break;
       default:
          cout << "Unknown hyperbolic system: " << config.ProblemNum << endl;
          delete odeSolver;
@@ -121,8 +122,9 @@ int main(int argc, char *argv[])
       case 0: { hyp = new Advection(&vfes, u_block, config, NodalQuadRule); break; }
       case 1: { hyp = new Burgers(&vfes, u_block, config); break; }
       case 2: { hyp = new KPP(&vfes, u_block, config); break; }
-      case 3: { hyp = new ShallowWater(&vfes, u_block, config); break; }
-      case 4: { hyp = new Euler(&vfes, u_block, config); break; }
+      case 3: { hyp = new BuckleyLeverett(&vfes, u_block, config); break; }
+      case 4: { hyp = new ShallowWater(&vfes, u_block, config); break; }
+      case 5: { hyp = new Euler(&vfes, u_block, config); break; }
       default:
          return -1;
    }
@@ -239,6 +241,15 @@ int main(int argc, char *argv[])
 
    if (hyp->FileOutput)
    {
+      // int ne = mesh.GetNE();
+      // int nd = fes.GetFE(0)->GetDof();
+      // for (int e = 0; e < ne; e++)
+      // {
+      //    for (int i = 0; i < nd; i++)
+      //    {
+      //       p(e*nd+i) = 0.4 * (u(2*ne*nd + e*nd + i) - 0.5 * (u(ne*nd + e*nd + i)*u(ne*nd + e*nd + i)) / u(e*nd + i));
+      //    }
+      // }
       ofstream osol("ultimate.gf");
       osol.precision(config.precision);
       uk.Save(osol);

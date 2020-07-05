@@ -26,6 +26,7 @@ TEMPLATE::TEMPLATE(FiniteElementSpace *fes_, BlockVector &u_block,
          TimeDepBC = ;
          ProjType = 0;
          L2_Projection(ic, u0);
+         break;
       }
       case 1:
       {
@@ -36,6 +37,7 @@ TEMPLATE::TEMPLATE(FiniteElementSpace *fes_, BlockVector &u_block,
          TimeDepBC = ;
          ProjType = 1;
          u0.ProjectCoefficient(ic);
+         break;
       }
       default:
          MFEM_ABORT("No such test case implemented.");
@@ -81,8 +83,8 @@ void AnalyticalSolutionTEMPLATE(const Vector &x, double t, Vector &u)
    Vector X(dim);
    for (int i = 0; i < dim; i++)
    {
-      double center = (ConfigKPP.bbMin(i) + ConfigKPP.bbMax(i)) * 0.5;
-      X(i) = 2. * (x(i) - center) / (ConfigKPP.bbMax(i) - ConfigKPP.bbMin(i));
+      double center = (ConfigTEMPLATE.bbMin(i) + ConfigTEMPLATE.bbMax(i)) * 0.5;
+      X(i) = 2. * (x(i) - center) / (ConfigTEMPLATE.bbMax(i) - ConfigTEMPLATE.bbMin(i));
    }
 
    // TODO

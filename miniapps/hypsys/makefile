@@ -28,7 +28,7 @@ DIRS = $(LIB_DIR) $(EVL_DIR) $(APP_DIR)
 
 OBJ_FILES = $(BLD_DIR)/massmat.o $(BLD_DIR)/dofs.o $(BLD_DIR)/tools.o $(BLD_DIR)/bounds.o
 EVL_FILES = $(BLD_DIR)/fe_evol.evl $(BLD_DIR)/galerkin.evl $(BLD_DIR)/monolithic_convex_limiting.evl
-APP_FILES = $(BLD_DIR)/advection.app $(BLD_DIR)/burgers.app $(BLD_DIR)/kpp.app $(BLD_DIR)/shallowwater.app $(BLD_DIR)/euler.app
+APP_FILES = $(BLD_DIR)/advection.app $(BLD_DIR)/burgers.app $(BLD_DIR)/kpp.app $(BLD_DIR)/shallowwater.app $(BLD_DIR)/euler.app $(BLD_DIR)/buckley_leverett.app
 
 MAIN_FILES = hypsys
 

@@ -1,28 +1,33 @@
 function createTable()
 
-filename = 'p0e0o';
-geom = 'tri';
+filename = 'p1e1o';
+geom = 'seg';
 
 q = 1; % q=1: L1, q=2: L2, q=3 LInf errors
-data = zeros(7,4);
 
-for j = 1:4
+numElPerDim = [48 64 96 128 192 256 384]';
+numLvls = length(numElPerDim);
+maxOrd = 4;
+data = zeros(numLvls, maxOrd);
+eoc = zeros(numLvls-1, 3);
+
+for j = 1:maxOrd
   file = fopen([filename num2str(j) '-' geom '.txt'], 'r');
-  for i = 1:8-j
+  for i = 1:numLvls+1-j
     aux = str2num(fgets(file));
     data(i,j) = aux(q);
   end
   fclose(file);
 end
 
-numElPerDim = [48 64 96 128 192 256 384]';
-numLvls = length(numElPerDim);
-eoc = zeros(numLvls-1, 3);
-for i=1:4
+tab = [];
+for i=1:maxOrd
   eoc(:,i) = log(data(2:end,i) ./ data(1:end-1,i)) ./ log(numElPerDim(1:end-1) ./ numElPerDim(2:end));
+  tab = [tab data(2:end,i), eoc(:,i)];
 end
 
-tab = [data(2:end,1), eoc(:,1), data(2:end,2), eoc(:,2), data(2:end,3), eoc(:,3), data(2:end,4), eoc(:,4)];
+% tab
+% return
 
 file = fopen('table.txt','wt');
 fprintf(file, '\\begin{table}[h!]\n\\footnotesize{\n\\begin{tabular}{||c||c|c||c|c||c|c||c|c||}\n\\hline\n$1/h$ & $p=1$ & EOC & $p=2$ & EOC & $p=3$ & EOC & $p=4$ & EOC\\\\\n\\hline\n');
@@ -61,6 +66,6 @@ e = num2str(q);
 if q==3
   e = '\\infty';
 end
-fprintf(file, ['\\hline\n\\end{tabular}\n}\n\\caption{$\\|\\cdot\\|_{L^' e '(\\Omega)}$~errors and corresponding EOC for $p \\in \\{1,\\hdots,4\\}$.}\\label{tab:}\n\\end{table}']);
+fprintf(file, ['\\hline\n\\end{tabular}\n}\n\\caption{The $\\|\\cdot\\|_{L^' e '(\\Omega)}$~errors and corresponding EOC of ...$\\mathbb Q_p$, $p \\in \\{1,\\hdots,4\\}$ solutions to the 1D advection equation with initial condition ...}\\label{tab:}\n\\end{table}']);
 fclose(file);
 end
