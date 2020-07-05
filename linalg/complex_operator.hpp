@@ -199,17 +199,17 @@ public:
        _use_long_ints = true. */
    ComplexUMFPackSolver(bool _use_long_ints = false)
       : use_long_ints(_use_long_ints) { Init(); }
-   /** @brief Factorize the given ComplexSparseMatrix using the defaults. 
-       For larger  matrices, if the solver fails, set the parameter 
+   /** @brief Factorize the given ComplexSparseMatrix using the defaults.
+       For larger  matrices, if the solver fails, set the parameter
        @a _use_long_ints = true. */
    ComplexUMFPackSolver(ComplexSparseMatrix &A, bool _use_long_ints = false)
       : use_long_ints(_use_long_ints) { Init(); SetOperator(A); }
 
-   /** @brief Factorize the given Operator @a op which must be 
+   /** @brief Factorize the given Operator @a op which must be
        a ComplexSparseMatrix.
 
        The factorization uses the parameters set in the #Control data member.
-       @note This method calls SparseMatrix::SortColumnIndices() 
+       @note This method calls SparseMatrix::SortColumnIndices()
        for real imag parts of the ComplexSparseMatrix,
        modifying the matrices if the column indices are not already sorted. */
    virtual void SetOperator(const Operator &op);
@@ -221,14 +221,14 @@ public:
 
    /** @brief This is solving the system A x = b */
    virtual void Mult(const Vector &b, Vector &x) const;
-   
-   /** @brief 
+
+   /** @brief
    // This is solving the system:
-   // A^H x = b (where transpose = false) 
-   // This is equivalent to solving the transpose block system for the 
+   // A^H x = b (where transpose = false)
+   // This is equivalent to solving the transpose block system for the
    // case of Convension = HERMITIAN
    // A^T x = b (when transpose = true )
-   // This is equivalent to solving the transpose block system for the 
+   // This is equivalent to solving the transpose block system for the
    // case of Convension = BLOCK_SYMMETRIC */
    virtual void MultTranspose(const Vector &b, Vector &x) const;
 
