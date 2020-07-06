@@ -604,8 +604,8 @@ The specific libraries and their options are:
 - SLEPc (optional), used when MFEM_USE_SLEPC = YES. SLEPc depends on PETSc and
   uses some of the PETSc options when compiled.
   URL: https://slepc.upv.es/
-  Options: SLEPC_OPT, SLEPC_LIB
-  Versions: SLEPc >= 3.8.0
+  Options: SLEPC_OPT, SLEPC_LIB.
+  Versions: SLEPc >= 3.8.0.
 
 - Sidre (optional), part of LLNL's axom project, used when MFEM_USE_SIDRE = YES.
   Starting with MFEM v4.1, Axom version 0.3.1 or later is required.

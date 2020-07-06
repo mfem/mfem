@@ -77,7 +77,8 @@ public:
    void GetEigenvector(unsigned int i, Vector & vr) const;
    void GetEigenvector(unsigned int i, Vector & vr, Vector & vc) const;
 
-   /// Target spectrum for the eigensolver. Target imaginary is not supported without complex support in SLEPc, and intervals are not implemented.
+   /// Target spectrum for the eigensolver. Target imaginary is not supported
+   /// without complex support in SLEPc, and intervals are not implemented.
    enum Which
    {
       LARGEST_MAGNITUDE,
@@ -108,6 +109,7 @@ public:
 };
 
 }
+
 #endif // MFEM_USE_MPI
 #endif // MFEM_USE_SLEPC
 

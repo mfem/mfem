@@ -407,7 +407,6 @@ public:
        \param[in] global_length An optional parameter that designates the global
         length. If nv is a parallel vector and global_length == 0 then this
         method will perform a global reduction and calculate the global length
-
    */
    virtual void ToNVector(N_Vector &nv, long global_length = 0);
 #endif
