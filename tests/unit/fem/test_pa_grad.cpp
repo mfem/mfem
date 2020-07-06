@@ -83,7 +83,12 @@ double compare_pa_assembly(int dim, int num_elements, int order, bool transpose)
    pa_y -= assembled_y;
    double error = pa_y.Norml2() / assembled_y.Norml2();
    std::cout << "dim " << dim << " ne " << num_elements << " order "
-             << order << ": error in PA gradient: " << error << std::endl;
+             << order;
+   if (transpose)
+   {
+      std::cout << " T";
+   }
+   std::cout << ": error in PA gradient: " << error << std::endl;
 
    delete h1_fec;
    delete nd_fec;
