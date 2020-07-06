@@ -4,7 +4,7 @@
 //
 // Description:  This example checks variable order space with a random
 //               mesh refinement and a random polynomial order distribution
-//               Exact solution is known. L2 error is checked,
+//               Exact solution is known. L2 error is checked.
 //               Returns failure if L2 error > eps
 //
 // Run: seed=1; while ./ex1_hp_check -o 2 -r 8 -s $seed -no-vis; do (( seed++ )); done
@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    bool pa = false;
    const char *device_config = "cpu";
-   bool visualization = true;
+   bool visualization = false;
    bool relaxed_hp = false;
 
    OptionsParser args(argc, argv);
@@ -71,7 +71,7 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
-   //args.PrintOptions(cout);
+   args.PrintOptions(cout);
 
    // Enable hardware devices such as GPUs, and programming models such as
    // CUDA, OCCA, RAJA and OpenMP based on command line options.
@@ -87,6 +87,7 @@ int main(int argc, char *argv[])
    // 'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    // largest number that gives a final mesh with no more than 50,000
    // elements.
+#if 0
    srand(seed);
    {
       for (int l = 0; l < ref_levels; l++)
@@ -94,7 +95,16 @@ int main(int argc, char *argv[])
          mesh->RandomRefinement(0.5, true);
       }
    }
-   srand(seed);
+#else
+   Array<Refinement> refs;
+   refs.Append(Refinement(0, 1));
+   mesh->GeneralRefinement(refs);
+   refs[0].index = 1;
+   refs[0].ref_type = 2;
+   mesh->GeneralRefinement(refs);
+   refs[0].ref_type = 1;
+   mesh->GeneralRefinement(refs);
+#endif
 
    FunctionCoefficient exsol(exact_solution);
    FunctionCoefficient rhs(exact_laplace);
@@ -109,10 +119,18 @@ int main(int argc, char *argv[])
    // At this point all elements have the default order (specified when
    // construction the FECollection). Now we can p-refine some of them to
    // obtain a variable-order space...
+#if 0
+   srand(seed);
    for (int i = 0; i < mesh->GetNE(); i++)
    {
       fespace->SetElementOrder(i, (rand()%5)+order);
    }
+#else
+   fespace->SetElementOrder(0, 2);
+   fespace->SetElementOrder(1, 2);
+   fespace->SetElementOrder(2, 2);
+   fespace->SetElementOrder(3, 4);
+#endif
    fespace->Update(false);
 
    cout << "Space size (all DOFs): " << fespace->GetNDofs() << endl;
@@ -155,7 +173,7 @@ int main(int argc, char *argv[])
    {
       // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
       GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 0, 1000, 1e-15, 0.0);
+      PCG(*A, M, B, X, 1, 1000, 1e-30, 0.0);
    }
    else // No preconditioning for now in partial assembly mode.
    {
@@ -167,12 +185,28 @@ int main(int argc, char *argv[])
    // from true DOFs (it may therefore happen that x.Size() >= X.Size()).
    bf.RecoverFEMSolution(X, lf, x);
 
-   double eps = 1e-5;
    // Compute L2 error from the exact solution and check if < eps
    double error = x.ComputeL2Error(exsol);
-   cout << "L2 error: " << error << endl;
-   MFEM_VERIFY(error < eps,
-              "Failure: L2 error bigger than given threshold.");
+   cout << "\nSolution L2 error: " << error << endl;
+
+   // Do nodal interpolation of the exact solution
+   GridFunction y(fespace);
+   y.ProjectCoefficient(exsol);
+   double error2 = y.ComputeL2Error(exsol);
+   cout << "Projection L2 error: " << error2 << endl;
+
+   // z = Ry
+   const SparseMatrix *R = fespace->GetRestrictionMatrix();
+   Vector Z(R->Height());
+   R->Mult(y, Z);
+
+   // compute Az - B
+   SparseMatrix *spA = A.As<SparseMatrix>();
+   Vector check(spA->Height());
+   spA->Mult(Z, check);
+   check -= B;
+   cout << "|Az - B|: " << check.Norml2() << endl;
+
 
    // Send the solution by socket to a GLVis server.
    if (visualization)
@@ -187,7 +221,19 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << *mesh << *vis_x
-               //<< "keys Rjlm\n"
+               << "keys Rjlm\n"
+               << flush;
+#endif
+
+#if 1
+      Vector tmp = *vis_x;
+      vis_x->ProjectCoefficient(exsol);
+      *vis_x -= tmp;
+
+      socketstream err_sock(vishost, visport);
+      err_sock.precision(8);
+      err_sock << "solution\n" << *mesh << *vis_x
+               << "keys Rjlmc\n"
                << flush;
 #endif
       delete vis_x;
@@ -205,11 +251,36 @@ int main(int argc, char *argv[])
       socketstream ord_sock(vishost, visport);
       ord_sock.precision(8);
       ord_sock << "solution\n" << *mesh << orders
-               //<< "keys Rjlmc\n"
+               << "keys Rjlmc\n"
                << flush;
 #endif
 
+      // visualize the basis functions
+      if (1)
+      {
+         socketstream b_sock(vishost, visport);
+         b_sock.precision(8);
+
+         int first = 0;
+         for (int i = first; i < X.Size(); i++)
+         {
+            X = 0.0;
+            X(i) = 1.0;
+            bf.RecoverFEMSolution(X, lf, x);
+            vis_x = ProlongToMaxOrder(&x);
+
+            b_sock << "solution\n" << *mesh << *vis_x << flush;
+            if (i == first) { b_sock << "keys Rjlm\n"; }
+            b_sock << "pause\n" << flush;
+            delete vis_x;
+         }
+      }
    }
+
+   double eps = 1e-10;
+   MFEM_VERIFY(error < eps,
+              "Failure: L2 error bigger than given threshold.");
+
 
    // Free the used memory.
    delete fespace;
