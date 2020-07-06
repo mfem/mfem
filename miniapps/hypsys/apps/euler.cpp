@@ -349,6 +349,24 @@ void Euler::SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal,
    }
 }
 
+void Euler::ComputeDerivedQuantities(const Vector &u) const
+{
+   const int dim = fes->GetMesh()->Dimension();
+   Vector p(ne*nd);
+   for (int e = 0; e < ne; e++)
+   {
+      for (int i = 0; i < nd; i++)
+      {
+         double aux = 0.;
+         for (int l = 0; l < dim; l++)
+         {
+            aux += u((l+1)*ne*nd + e*nd + i) * u((l+1)*ne*nd + e*nd + i);
+         }
+         p(e*nd+i) = (SpHeatRatio - 1.) * (u((dim+1)*ne*nd + e*nd + i) - 0.5 * aux / u(e*nd + i));
+      }
+   }
+}
+
 void Euler::ComputeErrors(Array<double> & errors, const GridFunction &u,
                           double DomainSize, double t) const
 {

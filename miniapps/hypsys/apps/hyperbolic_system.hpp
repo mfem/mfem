@@ -10,9 +10,9 @@ struct Configuration
    int order;
    double tFinal;
    double dt;
-   int odeSolverType;
+   int odeSolverType; // TODO necessary?
    int VisSteps;
-   int precision;
+   int precision; // TODO necessary? - check all!
    Vector bbMin, bbMax;
 };
 
@@ -48,6 +48,7 @@ public:
                                int i = -1) const = 0;
    virtual void SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal,
                            int attr) const = 0;
+   virtual void ComputeDerivedQuantities(const Vector &u) const = 0; // TODO: use this properly!
    virtual void ComputeErrors(Array<double> &errors, const GridFunction &u,
                               double DomainSize, double t) const = 0;
    virtual void WriteErrors(const Array<double> &errors) const

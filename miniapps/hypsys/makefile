@@ -28,7 +28,8 @@ DIRS = $(LIB_DIR) $(EVL_DIR) $(APP_DIR)
 
 OBJ_FILES = $(BLD_DIR)/massmat.o $(BLD_DIR)/dofs.o $(BLD_DIR)/tools.o $(BLD_DIR)/bounds.o
 EVL_FILES = $(BLD_DIR)/fe_evol.evl $(BLD_DIR)/galerkin.evl $(BLD_DIR)/monolithic_convex_limiting.evl
-APP_FILES = $(BLD_DIR)/advection.app $(BLD_DIR)/burgers.app $(BLD_DIR)/kpp.app $(BLD_DIR)/shallowwater.app $(BLD_DIR)/euler.app $(BLD_DIR)/buckley_leverett.app
+APP_FILES = $(BLD_DIR)/advection.app $(BLD_DIR)/burgers.app $(BLD_DIR)/kpp.app $(BLD_DIR)/buckley_leverett.app # scalar problems
+APP_FILES+= $(BLD_DIR)/shallowwater.app $(BLD_DIR)/euler.app # hyperbolic systems
 
 MAIN_FILES = hypsys
 
@@ -42,8 +43,8 @@ ifeq ($(MFEM_USE_MPI), YES)
 endif
 
 # valgrind-test setup
-PROBLEM = 4
-VALGRIND-CONFIG = -tf 0.01 -dt 0.001 -p $(PROBLEM) -e 0
+PROBLEM = 0
+VALGRIND-CONFIG = -tf 0.001 -dt 0.001 -p $(PROBLEM) -e 0
 
 # grid-convergence-test setup
 MESH0 = data/inline-3$(GEOM).mesh
@@ -99,12 +100,12 @@ phypsys: library
 	$(MFEM_CXX) $(MFEM_FLAGS) phypsys.cpp -o $@ $(OBJ_FILES) $(POBJ_FILES) $(EVL_FILES) $(PEVL_FILES) $(APP_FILES) $(MFEM_LIBS)
 
 clean:
-	@rm -f hypsys phypsys errors.txt *.gf grid.mesh $(BLD_DIR)/*
+	@rm -f hypsys phypsys errors.txt *gf* grid* $(BLD_DIR)/*
 
 valgrind-test:
-	valgrind ./hypsys $(VALGRIND-CONFIG) -c 1 -m data/inline-segment.mesh -r 4 -o 1
-	valgrind ./hypsys $(VALGRIND-CONFIG) -c 0 -m data/periodic-square.mesh -r 2 -o 2
-	valgrind ./hypsys $(VALGRIND-CONFIG) -c 0 -m data/star.mesh -r 1 -o 3
+	valgrind ./hypsys $(VALGRIND-CONFIG) -c 1 -m data/inline-4segment.mesh -r 4 -o 1
+	valgrind ./hypsys $(VALGRIND-CONFIG) -c 0 -m data/periodic-square.mesh -r 2 -o 2 -s 1
+	valgrind ./hypsys $(VALGRIND-CONFIG) -c 0 -m data/beam-quad.mesh -r 1 -o 3
 	valgrind ./hypsys $(VALGRIND-CONFIG) -c 1 -m data/wall-bdr-4hex.mesh -r 0 -o 2
 
 # TODO

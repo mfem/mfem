@@ -1,13 +1,11 @@
 ATTENTION
-   -serial/parallel disparity
-   -WIP on right bounds - serial first
-   -sequential correction factors set to zero
+
 
 DEBUG
-   -Test LooseBounds: bug - check low order version, and unlimited sequential stuff
-   -Sequntial correction factors alpha_vol = 1, alpha_bdr = 0, does not converge!
+
 
 PAPER
+
 
 next steps
    -Pressure fix
@@ -19,9 +17,7 @@ minor tasks:
    -Maybe move stuff thats not needed within main routines (e.g. dofs) into fe_evol.cpp
    -If difficult, move bound computation to MCL Evolution.
    -Remove all MFEM_ABORTS in repeated switches
-   -Use either tensor product formula for PrecGrad or Dmitris result for triangles
    -Use mfem::Mult for matrix multiplication
-   -Using  extremely high order is not feasable, probably due to inexact mass matrix inversion.
    -Since MCL works only for elements with constant Jacobians, maybe use Vector of size ne
    -Restructure galerkin, fe_evol and mcl (constructors)
    -Euler: Implement subsonic in- and outflow.
@@ -30,4 +26,3 @@ minor tasks:
 
 
 future tasks
-   -Once different evolution schemes are considered, check combinations of schemes: e.g. DG0 only for standard evolution.

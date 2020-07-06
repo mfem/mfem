@@ -180,6 +180,24 @@ void ShallowWater::SetBdrCond(const Vector &y1, Vector &y2,
    }
 }
 
+void ShallowWater::ComputeDerivedQuantities(const Vector &u) const
+{
+   const int dim = fes->GetMesh()->Dimension();
+   Vector VelocityMagnitude(ne*nd);
+   for (int e = 0; e < ne; e++)
+   {
+      for (int i = 0; i < nd; i++)
+      {
+         double aux = 0.;
+         for (int l = 0; l < dim; l++)
+         {
+            aux += u((l+1)*ne*nd + e*nd + i) * u((l+1)*ne*nd + e*nd + i);
+         }
+         VelocityMagnitude(e*nd+i) = sqrt(aux);
+      }
+   }
+}
+
 void ShallowWater::ComputeErrors(Array<double> &errors, const GridFunction &u,
                                  double DomainSize, double t) const
 {

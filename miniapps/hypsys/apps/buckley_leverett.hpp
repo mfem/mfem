@@ -16,6 +16,7 @@ public:
                                int i) const;
    virtual void SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal,
                            int attr) const;
+   virtual void ComputeDerivedQuantities(const Vector &u) const { };
    virtual void ComputeErrors(Array<double> &errors, const GridFunction &u,
                               double DomainSize, double t) const;
 };

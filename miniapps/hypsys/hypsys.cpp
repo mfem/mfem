@@ -15,6 +15,7 @@ int main(int argc, char *argv[])
    config.order = 3;
    int refinements = 1;
    EvolutionScheme scheme = MonolithicConvexLimiting;
+   const char *OutputDir = "."; // Directory has to exist to produce output.
 
    config.precision = 8;
    cout.precision(config.precision);
@@ -29,7 +30,7 @@ int main(int argc, char *argv[])
    args.AddOption(&config.tFinal, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&config.odeSolverType, "-s", "--ode-solver",
-                  "ODE solver: 1 - Forward Euler,\n\t"
+                  "ODE solver: 0 - RK6 solver, 1 - Forward Euler,\n\t"
                   "            2 - RK2 SSP, 3 - RK3 SSP.");
    args.AddOption(&config.dt, "-dt", "--time-step", "Time step.");
    args.AddOption(&MeshFile, "-m", "--mesh", "Mesh file to use.");
@@ -40,6 +41,7 @@ int main(int argc, char *argv[])
    args.AddOption((int*)(&scheme), "-e", "--EvolutionScheme",
                   "Scheme: 0 - Galerkin Finite Element Approximation,\n\t"
                   "        1 - Monolithic Convex Limiting.");
+   args.AddOption(&OutputDir, "-out", "--output", "Output directory.");
 
    args.Parse();
    if (!args.Good())
@@ -141,10 +143,13 @@ int main(int argc, char *argv[])
    GridFunction uk(&fes, u_block.GetBlock(0));
    if (hyp->FileOutput)
    {
-      ofstream omesh("grid.mesh");
+      ostringstream MeshName, SolName;
+      MeshName << OutputDir << "/grid.mesh";
+      SolName << OutputDir << "/initial.gf";
+      ofstream omesh(MeshName.str().c_str());
       omesh.precision(config.precision);
       mesh.Print(omesh);
-      ofstream osol("initial.gf");
+      ofstream osol(SolName.str().c_str());
       osol.precision(config.precision);
       uk.Save(osol);
    }
@@ -241,16 +246,9 @@ int main(int argc, char *argv[])
 
    if (hyp->FileOutput)
    {
-      // int ne = mesh.GetNE();
-      // int nd = fes.GetFE(0)->GetDof();
-      // for (int e = 0; e < ne; e++)
-      // {
-      //    for (int i = 0; i < nd; i++)
-      //    {
-      //       p(e*nd+i) = 0.4 * (u(2*ne*nd + e*nd + i) - 0.5 * (u(ne*nd + e*nd + i)*u(ne*nd + e*nd + i)) / u(e*nd + i));
-      //    }
-      // }
-      ofstream osol("ultimate.gf");
+      ostringstream SolName;
+      SolName << OutputDir << "/ultimate.gf";
+      ofstream osol(SolName.str().c_str());
       osol.precision(config.precision);
       uk.Save(osol);
    }
