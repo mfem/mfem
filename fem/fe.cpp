@@ -7034,9 +7034,12 @@ void Poly_1D::Basis::Eval(const double y, Vector &u, Vector &d) const
    }
 }
 
-void Poly_1D::Basis::Eval(const double y, Vector &u, Vector &d, Vector &d2) const
+void Poly_1D::Basis::Eval(const double y, Vector &u, Vector &d,
+                          Vector &d2) const
 {
-   MFEM_VERIFY(etype == Barycentric, "Basis::Eval with second order derivatives not implemented for etype = " << etype);
+   MFEM_VERIFY(etype == Barycentric,
+               "Basis::Eval with second order derivatives not implemented for etype = " <<
+               etype);
    switch (etype)
    {
       case ChangeOfBasis:
@@ -7724,7 +7727,7 @@ void H1_SegmentElement::CalcDShape(const IntegrationPoint &ip,
 }
 
 void H1_SegmentElement::CalcHessian(const IntegrationPoint &ip,
-                                   DenseMatrix &Hessian) const
+                                    DenseMatrix &Hessian) const
 {
    const int p = Order;
 
@@ -7843,7 +7846,8 @@ void H1_QuadrilateralElement::CalcHessian(const IntegrationPoint &ip,
    const int p = Order;
 
 #ifdef MFEM_THREAD_SAFE
-   Vector shape_x(p+1), shape_y(p+1), dshape_x(p+1), dshape_y(p+1), d2shape_x(p+1), d2shape_y(p+1);
+   Vector shape_x(p+1), shape_y(p+1), dshape_x(p+1), dshape_y(p+1), d2shape_x(p+1),
+          d2shape_y(p+1);
 #endif
 
    basis1d.Eval(ip.x, shape_x, dshape_x, d2shape_x);
