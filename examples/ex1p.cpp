@@ -131,6 +131,7 @@ int main(int argc, char *argv[])
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   mesh.Clear();
    {
       int par_ref_levels = 2;
       for (int l = 0; l < par_ref_levels; l++)
@@ -142,14 +143,17 @@ int main(int argc, char *argv[])
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
    //    order < 1, we instead use an isoparametric/isogeometric space.
-   FiniteElementCollection* fec;
+   FiniteElementCollection *fec;
+   bool delete_fec;
    if (order > 0)
    {
       fec = new H1_FECollection(order, dim);
+      delete_fec = true;
    }
    else if (pmesh.GetNodes())
    {
       fec = pmesh.GetNodes()->OwnFEC();
+      delete_fec = false;
       if (myid == 0)
       {
          cout << "Using isoparametric FEs: " << fec->Name() << endl;
@@ -158,6 +162,7 @@ int main(int argc, char *argv[])
    else
    {
       fec = new H1_FECollection(order = 1, dim);
+      delete_fec = true;
    }
    ParFiniteElementSpace fespace(&pmesh, fec);
    HYPRE_Int size = fespace.GlobalTrueVSize();
@@ -266,7 +271,9 @@ int main(int argc, char *argv[])
    }
 
    // 17. Free the used memory.
+   if (delete_fec)
+     delete fec;
    MPI_Finalize();
-
+   
    return 0;
 }
