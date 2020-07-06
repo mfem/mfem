@@ -628,14 +628,19 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    m2_->AddDomainIntegrator(new VectorFEMassIntegrator);
    if (pa_)
    {
-      // TODO: PA for m2_
-      //m2_->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      m2_->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    }
 
    m12EpsRe_ = new ParMixedBilinearForm(HCurlFESpace_, HDivFESpace_);
    m12EpsIm_ = new ParMixedBilinearForm(HCurlFESpace_, HDivFESpace_);
    m12EpsRe_->AddDomainIntegrator(new VectorFEMassIntegrator(*epsReCoef_));
    m12EpsIm_->AddDomainIntegrator(new VectorFEMassIntegrator(*epsImCoef_));
+   if (pa_)
+   {
+      // TODO: PA
+      //m12EpsRe_->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      //m12EpsIm_->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   }
 
    // Build grid functions
    e_  = new ParComplexGridFunction(HCurlFESpace_);
@@ -807,19 +812,23 @@ CPDSolver::Assemble()
    // a0_->Finalize();
 
    a1_->Assemble();
-   a1_->Finalize();
+   if (!pa_) a1_->Finalize();
 
    b1_->Assemble();
-   b1_->Finalize();
+   if (!pa_) b1_->Finalize();
 
    m2_->Assemble();
-   m2_->Finalize();
+   if (!pa_) m2_->Finalize();
 
+   // TODO: PA
    m12EpsRe_->Assemble();
    m12EpsRe_->Finalize();
+   //if (!pa_) m12EpsRe_->Finalize();
 
+   // TODO: PA
    m12EpsIm_->Assemble();
    m12EpsIm_->Finalize();
+   //if (!pa_) m12EpsIm_->Finalize();
 
    rhs_->Assemble();
    /*
@@ -1185,7 +1194,7 @@ CPDSolver::Solve()
    e_->Distribute(E);
 
    {
-      HypreParMatrix M2;
+      OperatorPtr M2;
       Vector D, RHS2;
 
       ParComplexLinearForm rhs(HDivFESpace_);
@@ -1204,6 +1213,10 @@ CPDSolver::Solve()
       {
          rhs.imag() *= -1.0;
       }
+      rhs.real().SyncAliasMemory(rhs);
+      rhs.imag().SyncAliasMemory(rhs);
+      tmp.real().SyncAliasMemory(tmp);
+      tmp.imag().SyncAliasMemory(tmp);
 
       Array<int> ess_tdof;
       m2_->FormSystemMatrix(ess_tdof, M2);
@@ -1211,24 +1224,36 @@ CPDSolver::Solve()
       D.SetSize(HDivFESpace_->TrueVSize());
       RHS2.SetSize(HDivFESpace_->TrueVSize());
 
-      HypreDiagScale diag(M2);
-
-      HyprePCG pcg(M2);
-      pcg.SetPreconditioner(diag);
-      pcg.SetTol(1e-12);
-      pcg.SetMaxIter(1000);
-
+      Operator *diag = NULL;
+      Operator *pcg = NULL;
+      if (pa_)
+      {
+         diag = new OperatorJacobiSmoother(*m2_, ess_tdof);
+         CGSolver *cg = new CGSolver(MPI_COMM_WORLD);
+         cg->SetOperator(*M2);
+         cg->SetPreconditioner(static_cast<OperatorJacobiSmoother&>(*diag));
+         cg->SetRelTol(1e-12);
+         cg->SetMaxIter(1000);
+         pcg = cg;
+      }
+      else
+      {
+         diag = new HypreDiagScale(*M2.As<HypreParMatrix>());
+         HyprePCG *cg = new HyprePCG(*M2.As<HypreParMatrix>());
+         cg->SetPreconditioner(static_cast<HypreDiagScale&>(*diag));
+         cg->SetTol(1e-12);
+         cg->SetMaxIter(1000);
+         pcg = cg;
+      }
       rhs.real().ParallelAssemble(RHS2);
-
-      pcg.Mult(RHS2, D);
-
+      pcg->Mult(RHS2, D);
       d_->real().Distribute(D);
-
       rhs.imag().ParallelAssemble(RHS2);
-
-      pcg.Mult(RHS2, D);
-
+      pcg->Mult(RHS2, D);
       d_->imag().Distribute(D);
+
+      delete diag;
+      delete pcg;
    }
 
    delete BDP;
