@@ -125,7 +125,7 @@ examples/sundials/ex16-final.*
 examples/sundials/Example16*
 
 examples/petsc/ex[1-69]p
-examples/petsc/ex10p
+examples/petsc/ex1[0-1]p
 
 examples/petsc/mesh.*
 examples/petsc/sol.*
@@ -140,6 +140,7 @@ examples/petsc/Example9*
 examples/petsc/deformed.*
 examples/petsc/velocity.*
 examples/petsc/elastic_energy.*
+examples/petsc/mode_*
 
 examples/pumi/ex1
 examples/pumi/ex[126]p
