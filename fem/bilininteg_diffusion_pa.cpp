@@ -733,7 +733,6 @@ static void PADiffusionAssembleDiagonal(const int dim,
 
 void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   if (pa_data.Size()==0) { SetupPA(*fespace); }
 #ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {

@@ -440,7 +440,6 @@ static void PAMassAssembleDiagonal(const int dim, const int D1D,
 
 void MassIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   if (pa_data.Size()==0) { SetupPA(*fespace); }
 #ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
