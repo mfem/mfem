@@ -26,8 +26,10 @@
 #include <signal.h>
 #include <sys/mman.h>
 #define mfem_memalign(p,a,s) posix_memalign(p,a,s)
+#define mfem_aligned_free free
 #else
 #define mfem_memalign(p,a,s) (((*(p))=_aligned_malloc((s),(a))),*(p)?0:errno)
+#define mfem_aligned_free _aligned_free
 #endif
 
 #ifdef MFEM_USE_UMPIRE
@@ -212,7 +214,7 @@ public:
    Aligned32HostMemorySpace(): HostMemorySpace() { }
    void Alloc(void **ptr, size_t bytes)
    { if (mfem_memalign(ptr, 32, bytes) != 0) { throw ::std::bad_alloc(); } }
-   void Dealloc(void *ptr) { std::free(ptr); }
+   void Dealloc(void *ptr) { mfem_aligned_free(ptr); }
 };
 
 /// The aligned 64 host memory space
@@ -222,6 +224,7 @@ public:
    Aligned64HostMemorySpace(): HostMemorySpace() { }
    void Alloc(void **ptr, size_t bytes)
    { if (mfem_memalign(ptr, 64, bytes) != 0) { throw ::std::bad_alloc(); } }
+   void Dealloc(void *ptr) { mfem_aligned_free(ptr); }
 };
 
 #ifndef _WIN32
