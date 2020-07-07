@@ -17,6 +17,8 @@
 #include "vector.hpp"
 #include "matrix.hpp"
 #include "densemat.hpp"
+#include "kernels.hpp"
+#include "../general/forall.hpp"
 #include "../general/table.hpp"
 #include "../general/globals.hpp"
 
@@ -3272,6 +3274,15 @@ void DenseMatrixInverse::SetOperator(const Operator &op)
    Factor(*p);
 }
 
+void DenseMatrixInverse::Mult(const double *x, double *y) const
+{
+   for (int row = 0; row < height; row++)
+   {
+      y[row] = x[row];
+   }
+   lu.Solve(width, 1, y);
+}
+
 void DenseMatrixInverse::Mult(const Vector &x, Vector &y) const
 {
    y = x;
@@ -3500,4 +3511,88 @@ DenseTensor &DenseTensor::operator=(double c)
    return *this;
 }
 
+void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const double TOL)
+{
+   const int m = Mlu.SizeI();
+   const int NE = Mlu.SizeK();
+   P.SetSize(m*NE);
+
+   auto data_all = mfem::Reshape(Mlu.ReadWrite(), m, m, NE);
+   auto ipiv_all = mfem::Reshape(P.Write(), m, NE);
+   Array<bool> pivot_flag(1);
+   pivot_flag[0] = true;
+   bool *d_pivot_flag = pivot_flag.ReadWrite();
+
+   MFEM_FORALL(e, NE,
+   {
+      for (int i = 0; i < m; i++)
+      {
+         // pivoting
+         {
+            int piv = i;
+            double a = fabs(data_all(piv,i,e));
+            for (int j = i+1; j < m; j++)
+            {
+               const double b = fabs(data_all(j,i,e));
+               if (b > a)
+               {
+                  a = b;
+                  piv = j;
+               }
+            }
+            ipiv_all(i,e) = piv;
+            if (piv != i)
+            {
+               // swap rows i and piv in both L and U parts
+               for (int j = 0; j < m; j++)
+               {
+                  mfem::kernels::internal::Swap<double>(data_all(i,j,e), data_all(piv,j,e));
+               }
+            }
+         } // pivot end
+
+         if (abs(data_all(i,i,e)) <= TOL)
+         {
+            d_pivot_flag[0] = false;
+         }
+
+         const double a_ii_inv = 1.0 / data_all(i,i,e);
+         for (int j = i+1; j < m; j++)
+         {
+            data_all(j,i,e) *= a_ii_inv;
+         }
+
+         for (int k = i+1; k < m; k++)
+         {
+            const double a_ik = data_all(i,k,e);
+            for (int j = i+1; j < m; j++)
+            {
+               data_all(j,k,e) -= a_ik * data_all(j,i,e);
+            }
+         }
+
+      } // m loop
+
+   });
+
+   MFEM_ASSERT(pivot_flag.HostRead()[0], "Batch LU factorization failed \n");
 }
+
+void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X)
+{
+
+   const int m = Mlu.SizeI();
+   const int NE = Mlu.SizeK();
+
+   auto data_all = mfem::Reshape(Mlu.Read(), m, m, NE);
+   auto piv_all = mfem::Reshape(P.Read(), m, NE);
+   auto x_all = mfem::Reshape(X.ReadWrite(), m, NE);
+
+   MFEM_FORALL(e, NE,
+   {
+      kernels::LUSolve(&data_all(0, 0,e), m, &piv_all(0, e), &x_all(0,e));
+   });
+
+}
+
+} // namespace mfem

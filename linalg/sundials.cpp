@@ -74,13 +74,13 @@ static int LSFree(SUNLinearSolver LS)
 // ---------------------------------------------------------------------------
 // SundialsSolver Helper functions
 // ---------------------------------------------------------------------------
+
 void SundialsSolver::AllocateEmptyNVector(N_Vector &y)
 {
    // Allocate an empty serial N_Vector
    y = N_VNewEmpty_Serial(0);
    MFEM_VERIFY(y, "error in N_VNewEmpty_Serial()");
 }
-
 
 #ifdef MFEM_USE_MPI
 void SundialsSolver::AllocateEmptyNVector(N_Vector &y, MPI_Comm comm)
@@ -137,7 +137,6 @@ void CVODESolver::SetRootFinder(int components, RootFunction func)
    flag = CVodeRootInit(sundials_mem, components, root);
    MFEM_VERIFY(flag == CV_SUCCESS, "error in SetRootFinder()");
 }
-
 
 int CVODESolver::LinSysSetup(realtype t, N_Vector y, N_Vector fy, SUNMatrix A,
                              booleantype jok, booleantype *jcur,
@@ -252,7 +251,6 @@ void CVODESolver::Init(TimeDependentOperator &f_)
 
       // Attach MFEM linear solver by default
       UseMFEMLinearSolver();
-
    }
 
    // Set the reinit flag to call CVodeReInit() in the next Step() call.
@@ -478,7 +476,6 @@ CVODESSolver::CVODESSolver(MPI_Comm comm, int lmm) :
 }
 #endif
 
-
 void CVODESSolver::EvalQuadIntegration(double t, Vector & Q)
 {
    MFEM_VERIFY(t <= f->GetTime(), "t > current forward solver time");
@@ -538,7 +535,7 @@ void CVODESSolver::InitB(TimeDependentAdjointOperator &f_)
    flag = CVodeCreateB(sundials_mem, CV_BDF, &indexB);
    MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeCreateB()");
 
-   // Initialize CVODEB
+   // Initialize
    flag = CVodeInitB(sundials_mem, indexB, RHSB, tB, yB);
    MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeInit()");
 
@@ -556,16 +553,13 @@ void CVODESSolver::InitB(TimeDependentAdjointOperator &f_)
 
    // Set the reinit flag to call CVodeReInit() in the next Step() call.
    reinit = true;
-
 }
-
 
 void CVODESSolver::InitAdjointSolve(int steps, int interpolation)
 {
    flag = CVodeAdjInit(sundials_mem, steps, interpolation);
    MFEM_VERIFY(flag == CV_SUCCESS, "Error in CVodeAdjInit");
 }
-
 
 void CVODESSolver::InitQuadIntegration(mfem::Vector &q0, double reltolQ,
                                        double abstolQ)
@@ -580,7 +574,6 @@ void CVODESSolver::InitQuadIntegration(mfem::Vector &q0, double reltolQ,
 
    flag = CVodeQuadSStolerances(sundials_mem, reltolQ, abstolQ);
    MFEM_VERIFY(flag == CV_SUCCESS, "Error in CVodeQuadSStolerances");
-
 }
 
 void CVODESSolver::InitQuadIntegrationB(mfem::Vector &qB0, double reltolQB,
@@ -596,9 +589,7 @@ void CVODESSolver::InitQuadIntegrationB(mfem::Vector &qB0, double reltolQB,
 
    flag = CVodeQuadSStolerancesB(sundials_mem, indexB, reltolQB, abstolQB);
    MFEM_VERIFY(flag == CV_SUCCESS, "Error in CVodeQuadSStolerancesB");
-
 }
-
 
 void CVODESSolver::UseMFEMLinearSolverB()
 {
@@ -667,7 +658,6 @@ int CVODESSolver::LinSysSetupB(realtype t, N_Vector y, N_Vector yB,
                                 gammaB));
 }
 
-
 int CVODESSolver::LinSysSolveB(SUNLinearSolver LS, SUNMatrix AB, N_Vector yB,
                                N_Vector Rb, realtype tol)
 {
@@ -701,17 +691,13 @@ void CVODESSolver::SetSVtolerancesB(double reltol, Vector abstol)
    N_VDestroy(nv_abstol);
 }
 
-
 void CVODESSolver::SetWFTolerances(EWTFunction func)
 {
    ewt_func = func;
    CVodeWFtolerances(sundials_mem, ewt);
 }
 
-
-/*
- CVODESSolver static functions
- */
+// CVODESSolver static functions
 
 int CVODESSolver::RHSQ(realtype t, const N_Vector y, N_Vector qdot,
                        void *user_data)
@@ -832,12 +818,10 @@ void CVODESSolver::StepB(Vector &xB, double &tB, double &dtB)
    flag = CVodeB(sundials_mem, tout, step_mode);
    MFEM_VERIFY(flag >= 0, "error in CVodeB()");
 
-   /* Call CVodeGetB to get yB of the backward ODE problem. */
+   // Call CVodeGetB to get yB of the backward ODE problem.
    flag = CVodeGetB(sundials_mem, indexB, &tB, yB);
    MFEM_VERIFY(flag >= 0, "error in CVodeGetB()");
 }
-
-
 
 CVODESSolver::~CVODESSolver()
 {

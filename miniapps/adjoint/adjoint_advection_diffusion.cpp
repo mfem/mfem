@@ -9,55 +9,61 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-//            ----------------------------------------------------------
-//            advection_diffusion Miniapp:  Parallel MFEM CVODES example
-//            ----------------------------------------------------------
+//          ----------------------------------------------------------
+//          Advection-Diffusion Miniapp:  Parallel MFEM CVODES Example
+//          ----------------------------------------------------------
 //
 // Compile with: make advection_diffusion
 //
-// Sample runs:
-//    advection_diffusion -dt 0.01 -tf 2.5
-//    advection_diffusion -dt 0.005
+// Sample runs:  advection_diffusion -dt 0.01 -tf 2.5
+//               advection_diffusion -dt 0.005
 //
 // Description:  This example is a port of cvodes/parallel/cvsAdvDiff_ASAp_non_p
 //               example that is part of SUNDIALS. The goal is to demonstrate
 //               how to use the adjoint SUNDIALS CVODES interface with MFEM.
-//               The following is an excerpt description from the aforementioned
-//               file.
+//               Below is an excerpt description from the aforementioned file.
+//
 // Example problem:
-
-// The following is a simple example problem, with the program for
-// its solution by CVODE. The problem is the semi-discrete form of
-// the advection-diffusion equation in 1-D:
+//
+// The following is a simple example problem, with the program for its solution
+// by CVODE. The problem is the semi-discrete form of the advection-diffusion
+// equation in 1-D:
+//
 //   du/dt = p1 * d^2u / dx^2 + p2 * du / dx
-// on the interval 0 <= x <= 2, and the time interval 0 <= t <= 5.
-// Homogeneous Dirichlet boundary conditions are posed, and the
-// initial condition is:
+//
+// on the interval 0 <= x <= 2, and the time interval 0 <= t <= 5. Homogeneous
+// Dirichlet boundary conditions are posed, and the initial condition is:
+//
 //   u(x,t=0) = x(2-x)exp(2x).
-// The nominal values of the two parameters are: p1=1.0, p2=0.5
-// The PDE is discretized on a uniform grid of size MX+2 with
-// central differencing, and with boundary values eliminated,
-// leaving an ODE system of size NEQ = MX.
-// This program solves the problem with the option for nonstiff
-// systems: ADAMS method and functional iteration.
-// It uses scalar relative and absolute tolerances.
-
-// In addition to the solution, sensitivities with respect to p1
-// and p2 as well as with respect to initial conditions are
-// computed for the quantity:
+//
+// The nominal values of the two parameters are: p1=1.0, p2=0.5. The PDE is
+// discretized on a uniform grid of size MX+2 with central differencing, and
+// with boundary values eliminated, leaving an ODE system of size NEQ = MX.
+//
+// The program solves the problem with the option for nonstiff systems: ADAMS
+// method and functional iteration. It uses scalar relative and absolute
+// tolerances. In addition to the solution, sensitivities with respect to p1 and
+// p2 as well as with respect to initial conditions are computed for the
+// quantity:
+//
 //    g(t, u, p) = int_x u(x,t) at t = 5
+//
 // These sensitivities are obtained by solving the adjoint system:
+//
 //    dv/dt = -p1 * d^2 v / dx^2 + p2 * dv / dx
-// with homogeneous Ditrichlet boundary conditions and the final
-// condition:
+//
+// with homogeneous Dirichlet boundary conditions and the final condition:
+//
 //    v(x,t=5) = 1.0
-// Then, v(x, t=0) represents the sensitivity of g(5) with respect
-// to u(x, t=0) and the gradient of g(5) with respect to p1, p2 is
+//
+// Then, v(x, t=0) represents the sensitivity of g(5) with respect to u(x, t=0)
+// and the gradient of g(5) with respect to p1, p2 is
+//
 //    (dg/dp)^T = [  int_t int_x (v * d^2u / dx^2) dx dt ]
 //                [  int_t int_x (v * du / dx) dx dt     ]
-
+//
 // This version uses MPI for user routines.
-// Execute with Number of Processors = N,  with 1 <= N <= MX.
+// Execute with number of processors = N, with 1 <= N <= MX.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -80,7 +86,7 @@ public:
       TimeDependentAdjointOperator(ydot_dim, ybdot_dim),
       p_(p),
       M(NULL), K(NULL), K_adj(NULL),
-      Mf(NULL), 
+      Mf(NULL),
       m(NULL), k(NULL),
       pfes(fes),
       M_solver(fes->GetComm()),
@@ -102,9 +108,9 @@ public:
       mp0 = new ConstantCoefficient(-p_[0]);
       p0 = new ConstantCoefficient(p_[0]);
       Vector p2vec(fes->GetParMesh()->SpaceDimension());
-      p2vec = p_[1];     
+      p2vec = p_[1];
       p2 = new VectorConstantCoefficient(p2vec);
-      
+
       k = new ParBilinearForm(pfes);
       k->AddDomainIntegrator(new DiffusionIntegrator(*mp0));
       k->AddDomainIntegrator(new ConvectionIntegrator(*p2));
@@ -139,35 +145,35 @@ public:
       M_solver.SetPrintLevel(0);
 
    }
-  
+
    virtual void Mult(const Vector &x, Vector &y) const;
-  
+
    virtual void AdjointRateMult(const Vector &y, Vector &yB,
-				Vector &yBdot) const;
+                                Vector &yBdot) const;
 
    virtual int SUNImplicitSetup(const Vector &y,
                                 const Vector &fy, int jok, int *jcur,
-				double gamma);
-  
+                                double gamma);
+
    virtual int SUNImplicitSolve(const Vector &b, Vector &x, double tol);
 
-  virtual void QuadratureSensitivityMult(const Vector &y, const Vector &yB,
-                                         Vector &qbdot) const;
+   virtual void QuadratureSensitivityMult(const Vector &y, const Vector &yB,
+                                          Vector &qbdot) const;
 
-  ~AdvDiffSUNDIALS()
-  {
-    delete m;
-    delete k;
-    delete k1;
-    delete M;
-    delete K;
-    delete K_adj;
-    delete Mf;
-    delete p0;
-    delete mp0;
-    delete p2;
-  }
-  
+   ~AdvDiffSUNDIALS()
+   {
+      delete m;
+      delete k;
+      delete k1;
+      delete M;
+      delete K;
+      delete K_adj;
+      delete Mf;
+      delete p0;
+      delete mp0;
+      delete p2;
+   }
+
 protected:
    Vector p_;
    Array<int> ess_tdof_list;
@@ -186,9 +192,9 @@ protected:
 
    CGSolver M_solver;
    HypreSmoother M_prec;
-  ConstantCoefficient *p0;
-  ConstantCoefficient *mp0;
-  VectorConstantCoefficient *p2;
+   ConstantCoefficient *p0;
+   ConstantCoefficient *mp0;
+   VectorConstantCoefficient *p2;
 };
 
 // Initial conditions for the problem
@@ -222,7 +228,7 @@ int main(int argc, char *argv[])
    args.AddOption(&ser_ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&step_mode, "-a", "--adams", "-no-a","--no-adams",
-		  "A switch to toggle between CV_ADAMS, and CV_BDF stepping modes");
+                  "A switch to toggle between CV_ADAMS, and CV_BDF stepping modes");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -237,7 +243,7 @@ int main(int argc, char *argv[])
    args.PrintOptions(cout);
 
    // Create a small 1D mesh with a length of 2. This mesh corresponds with the
-   // cvsAdvDiff_ASA_p_non_p example.    
+   // cvsAdvDiff_ASA_p_non_p example.
    Mesh *mesh = new Mesh(mx+1, 2.);
 
    // Refine the mesh to increase the resolution. In this example we do
@@ -291,7 +297,7 @@ int main(int argc, char *argv[])
    essential_attr[1] = 1;
    fes->GetEssentialTrueDofs(essential_attr, ess_tdof_list);
 
-   // Setup the TimeDependentAdjointOperator and the CVODESSolver  
+   // Setup the TimeDependentAdjointOperator and the CVODESSolver
    AdvDiffSUNDIALS adv(U->Size(), U->Size(), p, fes, ess_tdof_list);
 
    // Set the initial time to the TimeDependentAdjointOperator
@@ -300,7 +306,7 @@ int main(int argc, char *argv[])
 
    // Create the CVODES solver corresponding to the selected step method
    CVODESSolver *cvodes = new CVODESSolver(fes->GetComm(),
-					   step_mode ? CV_ADAMS : CV_BDF);
+                                           step_mode ? CV_ADAMS : CV_BDF);
    cvodes->Init(adv);
    cvodes->UseSundialsLinearSolver();
 
@@ -325,13 +331,15 @@ int main(int argc, char *argv[])
 
       if (done && myid == 0)
       {
-         cvodes->PrintInfo(); 
+         cvodes->PrintInfo();
       }
    }
 
    u = *U;
    if (myid == 0)
-     cout << "Final Solution: " << t << endl;
+   {
+      cout << "Final Solution: " << t << endl;
+   }
 
    cout << "u (" << myid << "):" << endl;
    u.Print();
@@ -357,9 +365,9 @@ int main(int argc, char *argv[])
    v.SetSubVector(ess_tdof_list, 0.0);
    HypreParVector *V = v.GetTrueDofs();
 
-   // Initialize quadrature sesntiviity values to zero
+   // Initialize quadrature sensitivity values to zero
    Vector qBdot(p.Size());
-   qBdot = 0.;   
+   qBdot = 0.;
 
    t = t_final;
    cvodes->InitB(adv);
@@ -371,20 +379,23 @@ int main(int argc, char *argv[])
    double dt_real = max(dt, t);
    cvodes->StepB(*V, t, dt_real);
    if (myid == 0)
-     cout << "t: " << t << endl;
-   
+   {
+      cout << "t: " << t << endl;
+   }
+
    cout << "v (" << myid << "):" << endl;
    V->Vector::Print();
    cout << flush;
    MPI_Barrier(MPI_COMM_WORLD);
-   
-   // Evaluate the Sensitivity
+
+   // Evaluate the sensitivity
    cvodes->EvalQuadIntegrationB(t, qBdot);
 
    MPI_Barrier(MPI_COMM_WORLD);
-   if (myid == 0) {
-     cout << "sensitivity:" << endl;
-     qBdot.Print();
+   if (myid == 0)
+   {
+      cout << "sensitivity:" << endl;
+      qBdot.Print();
    }
 
    // Free the used memory.
@@ -420,7 +431,7 @@ int AdvDiffSUNDIALS::SUNImplicitSetup(const Vector &y,
 {
    // Mf = M(I - gamma J) = M - gamma * M * J
    // J = df/dy => K
-  *jcur = 1; // We've updated the jacobian
+   *jcur = 1; // We've updated the jacobian
 
    delete Mf;
    Mf = Add(1., *M, -gamma, *K);
@@ -453,7 +464,7 @@ void AdvDiffSUNDIALS::AdjointRateMult(const Vector &y, Vector & yB,
                                       Vector &yBdot) const
 {
    Vector z(yB.Size());
-   
+
    // Set boundary conditions to zero
    yB.SetSubVector(ess_tdof_list, 0.0);
    K_adj->Mult(yB, z);
@@ -462,9 +473,9 @@ void AdvDiffSUNDIALS::AdjointRateMult(const Vector &y, Vector & yB,
 
 // AdvDiff quadrature sensitivity rate equation
 void AdvDiffSUNDIALS::QuadratureSensitivityMult(const Vector &y,
-						const Vector &yB,
-						Vector &qBdot) const
-   {
+                                                const Vector &yB,
+                                                Vector &qBdot) const
+{
    // Now we have both the adjoint, yB, and y, at the same point in time
    // We calculate
    /*

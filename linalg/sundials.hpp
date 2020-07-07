@@ -67,9 +67,9 @@ protected:
 #endif
 
    /// Default scalar relative tolerance.
-   static constexpr double default_rel_tol = 1.e-4;
+   static constexpr double default_rel_tol = 1e-4;
    /// Default scalar absolute tolerance.
-   static constexpr double default_abs_tol = 1.e-9;
+   static constexpr double default_abs_tol = 1e-9;
 
    /** @brief Protected constructor: objects of this type should be constructed
        only as part of a derived class. */
@@ -122,9 +122,10 @@ protected:
    /// Prototype to define root finding for CVODE
    static int root(realtype t, N_Vector y, realtype *gout, void *user_data);
 
-   /// Typdef for root finding functions
+   /// Typedef for root finding functions
    typedef std::function<int(realtype t, Vector y, Vector gout, CVODESolver *)>
    RootFunction;
+
    /// A class member to facilitate pointing to a user-specified root function
    RootFunction root_func;
 
@@ -194,19 +195,19 @@ public:
    /// Set the scalar relative and scalar absolute tolerances.
    void SetSStolerances(double reltol, double abstol);
 
-   /** Set the scalar relative and vector of absolute tolerances. */
+   /// Set the scalar relative and vector of absolute tolerances.
    void SetSVtolerances(double reltol, Vector abstol);
 
-   /** Initialize Root Finder */
+   /// Initialize Root Finder.
    void SetRootFinder(int components, RootFunction func);
 
    /// Set the maximum time step.
    void SetMaxStep(double dt_max);
 
-   /// Set the maxinum number of time steps
+   /// Set the maximum number of time steps.
    void SetMaxNSteps(int steps);
 
-   /// Get the number of internal steps taken so far
+   /// Get the number of internal steps taken so far.
    long GetNumSteps();
 
    /** @brief Set the maximum method order.
@@ -234,6 +235,7 @@ class CVODESSolver : public CVODESolver
 {
 private:
    using CVODESolver::Init;
+
 protected:
    int ncheck; ///< number of checkpoints used so far
    int indexB; ///< backward problem index
@@ -283,7 +285,7 @@ public:
 #endif
 
    /** Initialize CVODE: Calls CVodeInit() and sets some defaults. We define this
-       to force the TDO to be a TimeDependenAdjointOperator.
+       to force the time dependent operator to be a TimeDependenAdjointOperator.
        @param[in] f_ the TimeDependentAdjointOperator that defines the ODE system
 
        @note All other methods must be called after Init(). */
@@ -294,13 +296,12 @@ public:
 
    /** Integrate the ODE with CVODE using the specified step mode.
 
-       @param[out]    x  Solution vector at the requested output timem x=x(t).
+       @param[out]    x  Solution vector at the requested output time x=x(t).
        @param[in,out] t  On output, the output time reached.
        @param[in,out] dt On output, the last time step taken.
 
        @note On input, the values of t and dt are used to compute desired
-       output time for the integration, tout = t + dt.
-   */
+       output time for the integration, tout = t + dt. */
    virtual void Step(Vector &x, double &t, double &dt);
 
    /// Solve one adjoint time step
@@ -311,20 +312,20 @@ public:
 
    // Initialize Quadrature Integration
    void InitQuadIntegration(mfem::Vector &q0,
-                            double reltolQ = 1.e-3,
-                            double abstolQ = 1.e-8);
+                            double reltolQ = 1e-3,
+                            double abstolQ = 1e-8);
 
    /// Initialize Quadrature Integration (Adjoint)
-   void InitQuadIntegrationB(mfem::Vector &qB0, double reltolQB = 1.e-3,
+   void InitQuadIntegrationB(mfem::Vector &qB0, double reltolQB = 1e-3,
                              double abstolQB = 1e-8);
 
    /// Initialize Adjoint
    void InitAdjointSolve(int steps, int interpolation);
 
-   // Get Number of Steps for ForwardSolve
+   /// Get Number of Steps for ForwardSolve
    long GetNumSteps();
 
-   /// Evalute Quadrature
+   /// Evaluate Quadrature
    void EvalQuadIntegration(double t, Vector &q);
 
    /// Evaluate Quadrature solution
@@ -374,7 +375,6 @@ public:
 
    /// Destroy the associated CVODES memory and SUNDIALS objects.
    virtual ~CVODESSolver();
-
 };
 
 
