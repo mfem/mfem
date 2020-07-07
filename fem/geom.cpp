@@ -1402,7 +1402,9 @@ const IntegrationRule *GeometryRefiner::RefineInterior(Geometry::Type Geom,
          mfem_error("GeometryRefiner::RefineInterior(...)");
    }
 
-   if (ir) { IntPts[Geom].Append(ir); }
+   MFEM_ASSERT(ir != NULL, "Failed to construct the refined IntegrationRule.");
+   IntPts[Geom].Append(ir);
+
    return ir;
 }
 
