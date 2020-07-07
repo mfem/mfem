@@ -272,8 +272,10 @@ int main(int argc, char *argv[])
 
    // 17. Free the used memory.
    if (delete_fec)
-     delete fec;
+   {
+      delete fec;
+   }
    MPI_Finalize();
-   
+
    return 0;
 }

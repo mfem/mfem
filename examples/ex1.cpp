@@ -241,7 +241,9 @@ int main(int argc, char *argv[])
 
    // 15. Free the used memory.
    if (delete_fec)
-     delete fec;
+   {
+      delete fec;
+   }
 
    return 0;
 }
