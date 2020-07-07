@@ -88,8 +88,6 @@ private:
    Vector funval2;
    Vector nor;
    Vector fluxN;
-   IntegrationPoint eip1;
-   IntegrationPoint eip2;
 
 public:
    FaceIntegrator(RiemannSolver &rsolver_, const int dim);
@@ -418,27 +416,24 @@ void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
    {
       intorder++;
    }
-   const IntegrationRule *ir = &IntRules.Get(Tr.FaceGeom, intorder);
+   const IntegrationRule *ir = &IntRules.Get(Tr.GetGeometryType(), intorder);
 
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
 
-      Tr.Loc1.Transform(ip, eip1);
-      Tr.Loc2.Transform(ip, eip2);
+      Tr.SetAllIntPoints(&ip); // set face and element int. points
 
       // Calculate basis functions on both elements at the face
-      el1.CalcShape(eip1, shape1);
-      el2.CalcShape(eip2, shape2);
+      el1.CalcShape(Tr.GetElement1IntPoint(), shape1);
+      el2.CalcShape(Tr.GetElement2IntPoint(), shape2);
 
       // Interpolate elfun at the point
       elfun1_mat.MultTranspose(shape1, funval1);
       elfun2_mat.MultTranspose(shape2, funval2);
 
-      Tr.Face->SetIntPoint(&ip);
-
       // Get the normal vector and the flux on the face
-      CalcOrtho(Tr.Face->Jacobian(), nor);
+      CalcOrtho(Tr.Jacobian(), nor);
       const double mcs = rsolver.Eval(funval1, funval2, nor, fluxN);
 
       // Update max char speed
