@@ -183,15 +183,9 @@ HypreParVector::~HypreParVector()
 
 #ifdef MFEM_USE_SUNDIALS
 
-void HypreParVector::ToNVector(N_Vector &nv)
+N_Vector HypreParVector::ToNVector()
 {
-   MFEM_ASSERT(nv && N_VGetVectorID(nv) == SUNDIALS_NVEC_PARALLEL,
-               "invalid N_Vector");
-
-   MFEM_ASSERT(NV_OWN_DATA_P(nv) == SUNFALSE, "invalid parallel N_Vector");
-   NV_DATA_P(nv) = hypre_VectorData(hypre_ParVectorLocalVector(x));
-   NV_LOCLENGTH_P(nv) = x->local_vector->size;
-   NV_GLOBLENGTH_P(nv) = x->global_size;
+   return N_VMake_Parallel(GetComm(), Size(), GlobalSize(), GetData());
 }
 
 #endif // MFEM_USE_SUNDIALS

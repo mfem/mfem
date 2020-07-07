@@ -160,9 +160,9 @@ public:
    ~HypreParVector();
 
 #ifdef MFEM_USE_SUNDIALS
-   /** @brief Update an existing wrapper SUNDIALS N_Vector of type
-       SUNDIALS_NVEC_PARHYP to point to this Vector. */
-   virtual void ToNVector(N_Vector &nv);
+   /// Return a new wrapper SUNDIALS N_Vector of type SUNDIALS_NVEC_PARALLEL.
+   /** The returned N_Vector must be destroyed by the caller. */
+   virtual N_Vector ToNVector();
 #endif
 };
 

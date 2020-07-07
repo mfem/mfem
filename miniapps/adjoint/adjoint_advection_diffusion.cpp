@@ -13,10 +13,10 @@
 //          Advection-Diffusion Miniapp:  Parallel MFEM CVODES Example
 //          ----------------------------------------------------------
 //
-// Compile with: make advection_diffusion
+// Compile with: make adjoint_advection_diffusion
 //
-// Sample runs:  advection_diffusion -dt 0.01 -tf 2.5
-//               advection_diffusion -dt 0.005
+// Sample runs:  adjoint_advection_diffusion -dt 0.01 -tf 2.5
+//               adjoint_advection_diffusion -dt 0.005
 //
 // Description:  This example is a port of cvodes/parallel/cvsAdvDiff_ASAp_non_p
 //               example that is part of SUNDIALS. The goal is to demonstrate
@@ -85,16 +85,12 @@ public:
                    ParFiniteElementSpace *fes, Array<int> & ess_tdof) :
       TimeDependentAdjointOperator(ydot_dim, ybdot_dim),
       p_(p),
-      M(NULL), K(NULL), K_adj(NULL),
-      Mf(NULL),
-      m(NULL), k(NULL),
-      pfes(fes),
-      M_solver(fes->GetComm()),
       ess_tdof_list(ess_tdof),
-      p0(NULL), mp0(NULL), p2(NULL)
+      pfes(fes),
+      Mf(NULL),
+      M_solver(fes->GetComm())
    {
       int skip_zeros = 0;
-      ParMesh * pmesh = pfes->GetParMesh();
 
       cout << "Essential tdofs: " << endl;
       ess_tdof_list.Print();
