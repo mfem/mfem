@@ -443,7 +443,7 @@ public:
    /** Each row of the result DenseMatrix @a Hessian contains upper triangular
        part of the Hessian of one shape function.
        The order in 2D is {u_xx, u_xy, u_yy}.
-       The size (#dof x (#dim (#dim-1)/2) of @a Hessian must be set in advance.*/
+       The size (#dof x (#dim (#dim+1)/2) of @a Hessian must be set in advance.*/
    virtual void CalcHessian (const IntegrationPoint &ip,
                              DenseMatrix &Hessian) const;
 
