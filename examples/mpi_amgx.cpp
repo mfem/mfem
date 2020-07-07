@@ -154,10 +154,10 @@ void GatherArray(Array<double> &inArr, Array<double> &outArr,
 }
 
 void GatherArray(Vector &inArr, Vector &outArr,
-                 int MPI_SZ, MPI_Comm &cpuWorld)
+                 int MPI_SZ, MPI_Comm &cpuWorld,Array<int> &Apart, Array<int> &Adisp)
 {
   //Calculate number of elements to be collected from each process
-  mfem::Array<int> Apart(MPI_SZ);
+  //mfem::Array<int> Apart(MPI_SZ);
   int locAsz = inArr.Size();
   MPI_Allgather(&locAsz, 1, MPI_INT,
 		Apart.GetData(),1, MPI_INT,cpuWorld);
@@ -165,7 +165,7 @@ void GatherArray(Vector &inArr, Vector &outArr,
   MPI_Barrier(cpuWorld);
 
   //Determine stride for process
-  mfem::Array<int> Adisp(MPI_SZ);
+  //mfem::Array<int> Adisp(MPI_SZ);
   Adisp[0] = 0;
   for(int i=1; i<MPI_SZ; ++i){
     Adisp[i] = Adisp[i-1] + Apart[i-1];
@@ -174,6 +174,15 @@ void GatherArray(Vector &inArr, Vector &outArr,
   MPI_Gatherv(inArr.HostReadWrite(), inArr.Size(), MPI_DOUBLE,
 	      outArr.HostWrite(), Apart.HostRead(), Adisp.HostRead(),
 	      MPI_DOUBLE, 0, cpuWorld);
+}
+
+void ScatterArray(Vector &inArr, Vector &outArr,
+                 int MPI_SZ, MPI_Comm &cpuWorld, Array<int> &Apart, Array<int> &Adisp)
+{
+
+  MPI_Scatterv(inArr.HostReadWrite(),Apart.HostRead(),Adisp.HostRead(),
+              MPI_DOUBLE,outArr.HostWrite(),inArr.Size(),
+	            MPI_DOUBLE, 0, cpuWorld);
 }
 
 void GatherArray(Array<int> &inArr, Array<int> &outArr,
@@ -639,11 +648,16 @@ int main(int argc, char *argv[])
     //Gather vectors
     Vector all_X(nGlobalRows);
     Vector all_B(nGlobalRows);
+    Array<int> Apart_X(MPI_SZ);
+    Array<int> Adisp_X(MPI_SZ);
+    Array<int> Apart_B(MPI_SZ);
+    Array<int> Adisp_B(MPI_SZ);
 
-    GatherArray(X, all_X, MPI_SZ, cpuWorld);
-    GatherArray(B, all_B, MPI_SZ, cpuWorld);
+    GatherArray(X, all_X, MPI_SZ, cpuWorld, Apart_X, Adisp_X);
+    GatherArray(B, all_B, MPI_SZ, cpuWorld, Apart_B, Adisp_B);
     MPI_Barrier(cpuWorld);
-
+    Apart_X.Print();
+    Adisp_B.Print();
     if(amgx_comm != MPI_COMM_NULL) {
 
       AMGX_vector_upload(x_amgx, all_X.Size(), 1, all_X.HostReadWrite());
@@ -660,9 +674,10 @@ int main(int argc, char *argv[])
 	  printf("Amgx failed to solve system, error code %d. \n", status);
 	}
 
+
       AMGX_vector_download(x_amgx, all_X.HostWrite());
 
-      //all_X.Print();
+
 
     }
 
@@ -683,13 +698,18 @@ int main(int argc, char *argv[])
 	AMGX_SAFE_CALL(AMGX_finalize());
 	MPI_Comm_free(&amgx_comm);
       }
+      ScatterArray(all_X, X, MPI_SZ, cpuWorld,Apart_X,Adisp_X);
 
 
   }//Mini example end
 
+
    // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
   a->RecoverFEMSolution(X, *b, x);
+
+
+
 
   // 15. Save the refined mesh and the solution in parallel. This output can
   //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
@@ -700,7 +720,7 @@ int main(int argc, char *argv[])
 
     ofstream mesh_ofs(mesh_name.str().c_str());
     mesh_ofs.precision(8);
-    //pmesh->Print(mesh_ofs);
+    pmesh->Print(mesh_ofs);
 
     ofstream sol_ofs(sol_name.str().c_str());
     sol_ofs.precision(8);
