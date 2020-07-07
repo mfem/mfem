@@ -135,8 +135,8 @@ int main(int argc, char *argv[])
    double t_final = 4e7;
    double dt = 0.01;
 
-   // Relative and absolute tolerances for CVODE and ARKODE.
-   const double reltol = 1e-4, abstol = 1e-6;
+   // Relative tolerance for CVODES.
+   const double reltol = 1e-4;
 
    int precision = 8;
    cout.precision(precision);
