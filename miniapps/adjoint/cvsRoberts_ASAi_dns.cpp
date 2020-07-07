@@ -9,62 +9,65 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-//            -----------------------------------------------------
-//            cvsRoberts_ASAi_dns Miniapp:  Serial MFEM CVODES example
-//            -----------------------------------------------------
+//            --------------------------------------------------------
+//            cvsRoberts-ASAi-DNS Miniapp:  Serial MFEM CVODES Example
+//            --------------------------------------------------------
 //
 // Compile with: make cvsRoberts_ASAi_dns
 //
-// Sample runs:
-//    cvsRoberts_ASAi_dns -dt 0.01
-//    cvsRoberts_ASAi_dns -dt 0.005
+// Sample runs:  cvsRoberts_ASAi_dns -dt 0.01
+//               cvsRoberts_ASAi_dns -dt 0.005
 //
 // Description:  This example is a port of cvodes/serial/cvsRoberts_ASAi_dns
-//               example that is part of SUNDIALS. The goal is to demonstrate how
-//               to use the adjoint SUNDIALS CVODES interface from MFEM.
-//               The following is an excerpt description from the aforementioned
-//               file.
+//               example that is part of SUNDIALS. The goal is to demonstrate
+//               how to use the adjoint SUNDIALS CVODES interface from MFEM.
+//               Below is an excerpt description from the aforementioned file.
 //
+// Adjoint sensitivity example problem:
 //
-// * Adjoint sensitivity example problem.
-// * The following is a simple example problem, with the coding
-// * needed for its solution by CVODES. The problem is from chemical
-// * kinetics, and consists of the following three rate equations.
-// *    dy1/dt = -p1*y1 + p2*y2*y3
-// *    dy2/dt =  p1*y1 - p2*y2*y3 - p3*(y2)^2
-// *    dy3/dt =  p3*(y2)^2
-// * on the interval from t = 0.0 to t = 4.e10, with initial
-// * conditions: y1 = 1.0, y2 = y3 = 0. The reaction rates are:
-// * p1=0.04, p2=1e4, and p3=3e7. The problem is stiff.
-// * This program solves the problem with the BDF method, Newton
-// * iteration with the DENSE linear solver, and a user-supplied
-// * Jacobian routine.
-// * It uses a scalar relative tolerance and a vector absolute
-// * tolerance.
-// * Output is printed in decades from t = .4 to t = 4.e10.
-// * Run statistics (optional outputs) are printed at the end.
-// * 
-// * Optionally, CVODES can compute sensitivities with respect to
-// * the problem parameters p1, p2, and p3 of the following quantity:
-// *   G = int_t0^t1 g(t,p,y) dt
-// * where
-// *   g(t,p,y) = y3
-// *        
-// * The gradient dG/dp is obtained as:
-// *   dG/dp = int_t0^t1 (g_p - lambda^T f_p ) dt - lambda^T(t0)*y0_p
-// *         = - xi^T(t0) - lambda^T(t0)*y0_p
-// * where lambda and xi are solutions of:
-// *   d(lambda)/dt = - (f_y)^T * lambda - (g_y)^T
-// *   lambda(t1) = 0
-// * and
-// *   d(xi)/dt = - (f_p)^T * lambda + (g_p)^T
-// *   xi(t1) = 0
-// * 
-// * During the backward integration, CVODES also evaluates G as
-// *   G = - phi(t0)
-// * where
-// *   d(phi)/dt = g(t,y,p)
-// *   phi(t1) = 0
+// The following is a simple example problem, with the coding needed for its
+// solution by CVODES. The problem is from chemical kinetics, and consists of
+// the following three rate equations
+//
+//     dy1/dt = -p1*y1 + p2*y2*y3
+//     dy2/dt =  p1*y1 - p2*y2*y3 - p3*(y2)^2
+//     dy3/dt =  p3*(y2)^2
+//
+// on the interval from t = 0.0 to t = 4e10, with initial conditions: y1 = 1.0,
+// y2 = y3 = 0. The reaction rates are: p1=0.04, p2=1e4, and p3=3e7. The problem
+// is stiff. This program solves the problem with the BDF method, Newton
+// iteration with the DENSE linear solver, and a user-supplied Jacobian routine.
+// It uses a scalar relative tolerance and a vector absolute tolerance. Output
+// is printed in decades from t = 0.4 to t = 4e10. Run statistics (optional
+// outputs) are printed at the end.
+//
+//  Optionally, CVODES can compute sensitivities with respect to the problem
+//  parameters p1, p2, and p3 of the following quantity:
+//
+//    G = int_t0^t1 g(t,p,y) dt
+//
+//  where g(t,p,y) = y3.
+//
+//  The gradient dG/dp is obtained as:
+//
+//    dG/dp = int_t0^t1 (g_p - lambda^T f_p ) dt - lambda^T(t0)*y0_p
+//          = - xi^T(t0) - lambda^T(t0)*y0_p
+//
+//  where lambda and xi are solutions of:
+//
+//    d(lambda)/dt = - (f_y)^T * lambda - (g_y)^T
+//    lambda(t1) = 0
+//
+//  and
+//
+//    d(xi)/dt = - (f_p)^T * lambda + (g_p)^T
+//    xi(t1) = 0
+//
+//  During the backward integration, CVODES also evaluates G as
+//
+//    G = - phi(t0)
+//
+//  where d(phi)/dt = g(t,y,p), phi(t1) = 0.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -79,8 +82,8 @@ using namespace std;
 using namespace mfem;
 
 
-/// We create a TimeDependentAdjointOperator implementation of the rate
-//  equations to recreate the cvsRoberts_ASAi_dns problem
+// We create a TimeDependentAdjointOperator implementation of the rate equations
+// to recreate the cvsRoberts_ASAi_dns problem
 class RobertsTDAOperator : public TimeDependentAdjointOperator
 {
 public:
@@ -90,27 +93,27 @@ public:
       adjointMatrix(NULL)
    {}
 
-   /// Rate equation for forward problem
+   // Rate equation for forward problem
    virtual void Mult(const Vector &x, Vector &y) const;
 
-   /// Quadrature integration for G
+   // Quadrature integration for G
    virtual void QuadratureIntegration(const Vector &x, Vector &y) const;
 
-   /// Adjoint rate equation corresponding to d(lambda)/dt
+   // Adjoint rate equation corresponding to d(lambda)/dt
    virtual void AdjointRateMult(const Vector &y, Vector &yB,
-				Vector &yBdot) const;
+                                Vector &yBdot) const;
 
-   /// Quadrature sensitivity equations corresponding to dG/dp
+   // Quadrature sensitivity equations corresponding to dG/dp
    virtual void QuadratureSensitivityMult(const Vector &y, const Vector &yB,
-                                         Vector &qbdot) const;
+                                          Vector &qbdot) const;
 
-   /// Setup custom MFEM solvers using GMRES since the Jacobian matrix is not
-   //  symmetric
+   // Setup custom MFEM solvers using GMRES since the Jacobian matrix is not
+   // symmetric
    virtual int SUNImplicitSetupB(const double t, const Vector &y,
-				 const Vector &yB, const Vector &fyB, int jokB,
-				 int *jcurB, double gammaB);
+                                 const Vector &yB, const Vector &fyB, int jokB,
+                                 int *jcurB, double gammaB);
 
-   /// Setup custom MFEM solve
+   // Setup custom MFEM solve
    virtual int SUNImplicitSolveB(Vector &x, const Vector &b, double tol);
 
    ~RobertsTDAOperator()
@@ -139,8 +142,7 @@ int main(int argc, char *argv[])
    cout.precision(precision);
 
    OptionsParser args(argc, argv);
-   args.AddOption(&dt, "-dt", "--time-step",
-                  "Time step.");
+   args.AddOption(&dt, "-dt", "--time-step", "Time step.");
 
    args.Parse();
    if (!args.Good())
@@ -148,34 +150,33 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
-   
    args.PrintOptions(cout);
 
-   // The original cvsRoberts_ASAi_dns problem is a fixed sized problem
-   // of size 3. Define the solution vector.
+   // The original cvsRoberts_ASAi_dns problem is a fixed sized problem of size
+   // 3. Define the solution vector.
    Vector u(3);
    u = 0.;
    u[0] = 1.;
 
-   // Define the TimeDependentAdjointOperator which implements the various
-   // rate equations: rate, quadrature rate, adjoint rate, and quadrature
-   // sensitivity rate equation
+   // Define the TimeDependentAdjointOperator which implements the various rate
+   // equations: rate, quadrature rate, adjoint rate, and quadrature sensitivity
+   // rate equation
 
    // Define material parameters p
    Vector p(3);
    p[0] = 0.04;
    p[1] = 1.0e4;
    p[2] = 3.0e7;
-   
+
    // 3 is the size of the adjoint solution vector
    RobertsTDAOperator adv(3, p);
 
-   // Set the inital time
+   // Set the initial time
    double t = 0.0;
    adv.SetTime(t);
 
-   // Create the CVODES solver and set the various tolerances
-   // Set absolute tolerances for the solution
+   // Create the CVODES solver and set the various tolerances. Set absolute
+   // tolerances for the solution
    Vector abstol_v(3);
    abstol_v[0] = 1.0e-8;
    abstol_v[1] = 1.0e-14;
@@ -193,17 +194,17 @@ int main(int argc, char *argv[])
 
    // Set error control function
    cvodes->SetWFTolerances([reltol, abstol_v]
-			   (Vector y, Vector w, CVODESolver * self)
-			   {
-			     for (int i = 0; i < y.Size(); i++)
-			       {
-				 double ww = reltol * abs(y[i]) + abstol_v[i];
-				 if (ww <= 0.) { return -1; }
-				 w[i] = 1./ww;
-			       }
-			     return 0;
-			   }
-			   );
+                           (Vector y, Vector w, CVODESolver * self)
+   {
+      for (int i = 0; i < y.Size(); i++)
+      {
+         double ww = reltol * abs(y[i]) + abstol_v[i];
+         if (ww <= 0.) { return -1; }
+         w[i] = 1./ww;
+      }
+      return 0;
+   }
+                          );
 
    // Set weighted tolerances
    cvodes->SetSVtolerances(reltol, abstol_v);
@@ -217,8 +218,8 @@ int main(int argc, char *argv[])
    // Initialize the adjoint solve
    cvodes->InitAdjointSolve(150, CV_HERMITE);
 
-   // Perform time-integration (looping over the time iterations, ti,
-   // with a time-step dt).
+   // Perform time-integration (looping over the time iterations, ti, with a
+   // time-step dt).
    bool done = false;
    for (int ti = 0; !done; )
    {
@@ -230,7 +231,7 @@ int main(int argc, char *argv[])
 
       if (done)
       {
-	cvodes->PrintInfo();
+         cvodes->PrintInfo();
       }
    }
 
@@ -242,8 +243,8 @@ int main(int argc, char *argv[])
    cvodes->EvalQuadIntegration(t, q);
    q.Print();
 
-   // Solve the adjoint problem at different points in time.
-   // Create the adjoint solution vector
+   // Solve the adjoint problem at different points in time. Create the adjoint
+   // solution vector
    Vector w(3);
    w=0.;
    double TBout1 = 40.;
@@ -301,14 +302,14 @@ void RobertsTDAOperator::Mult(const Vector &x, Vector &y) const
 
 // cvsRoberts_ASAi_dns quadrature rate equation
 void RobertsTDAOperator::QuadratureIntegration(const Vector &y,
-					       Vector &qdot) const
+                                               Vector &qdot) const
 {
    qdot[0] = y[2];
 }
 
 // cvsRoberts_ASAi_dns adjoint rate equation
 void RobertsTDAOperator::AdjointRateMult(const Vector &y, Vector & yB,
-                                      Vector &yBdot) const
+                                         Vector &yBdot) const
 {
    double l21 = (yB[1]-yB[0]);
    double l32 = (yB[2]-yB[1]);
@@ -322,8 +323,8 @@ void RobertsTDAOperator::AdjointRateMult(const Vector &y, Vector & yB,
 
 // cvsRoberts_ASAi_dns quadrature sensitivity rate equation
 void RobertsTDAOperator::QuadratureSensitivityMult(const Vector &y,
-						   const Vector &yB,
-						   Vector &qBdot) const
+                                                   const Vector &yB,
+                                                   Vector &qBdot) const
 {
    double l21 = (yB[1]-yB[0]);
    double l32 = (yB[2]-yB[1]);
@@ -336,11 +337,10 @@ void RobertsTDAOperator::QuadratureSensitivityMult(const Vector &y,
 
 // cvsRoberts_ASAi_dns implicit solve setup for adjoint
 int RobertsTDAOperator::SUNImplicitSetupB(const double t, const Vector &y,
-					  const Vector &yB,
-					  const Vector &fyB, int jokB,
-					  int *jcurB, double gammaB)
+                                          const Vector &yB,
+                                          const Vector &fyB, int jokB,
+                                          int *jcurB, double gammaB)
 {
-
    // M = I- gamma J
    // J = dfB/dyB
    delete adjointMatrix;
@@ -366,11 +366,11 @@ int RobertsTDAOperator::SUNImplicitSetupB(const double t, const Vector &y,
    return 0;
 }
 
-// cvsRoberts_ASAi_dns implicit solve for adjoint 
+// cvsRoberts_ASAi_dns implicit solve for adjoint
 int RobertsTDAOperator::SUNImplicitSolveB(Vector &x, const Vector &b,
-					  double tol)
+                                          double tol)
 {
-  // The argument "tol" is ignored in this implementation for simplicity.
+   // The argument "tol" is ignored in this implementation for simplicity.
    adjointSolver.SetRelTol(1e-14);
    adjointSolver.Mult(b, x);
    return (0);
