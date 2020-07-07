@@ -7729,7 +7729,7 @@ void H1_SegmentElement::CalcDShape(const IntegrationPoint &ip,
 void H1_SegmentElement::CalcHessian(const IntegrationPoint &ip,
                                     DenseMatrix &Hessian) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p+1), dshape_x(p+1), d2shape_x(p+1);
@@ -7843,7 +7843,7 @@ void H1_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
 void H1_QuadrilateralElement::CalcHessian(const IntegrationPoint &ip,
                                           DenseMatrix &Hessian) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p+1), shape_y(p+1), dshape_x(p+1), dshape_y(p+1), d2shape_x(p+1),
@@ -7989,7 +7989,7 @@ void H1_HexahedronElement::CalcDShape(const IntegrationPoint &ip,
 void H1_HexahedronElement::CalcHessian(const IntegrationPoint &ip,
                                        DenseMatrix &Hessian) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p+1),  shape_y(p+1),  shape_z(p+1);
