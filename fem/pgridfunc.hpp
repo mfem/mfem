@@ -213,6 +213,9 @@ public:
    virtual double GetValue(ElementTransformation &T, const IntegrationPoint &ip,
                            int comp = 0, Vector *tr = NULL) const;
 
+   virtual void GetVectorValue(int i, const IntegrationPoint &ip,
+                               Vector &val) const;
+
    // Redefine to handle the case when T describes a face-neighbor element
    virtual void GetVectorValue(ElementTransformation &T,
                                const IntegrationPoint &ip,
