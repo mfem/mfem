@@ -50,7 +50,7 @@ static vector<Vector> aVec_;
 
 double TFunc(const Vector &x)
 {
-  return 0.5 * (TMax_ + TMin_) + 0.5 * (TMax_ - TMin_) * cos(x.Norml2());
+   return 0.5 * (TMax_ + TMin_) + 0.5 * (TMax_ - TMin_) * cos(x.Norml2());
 }
 /*
 class NormedDifferenceMeasure : public ODEDifferenceMeasure
@@ -131,106 +131,106 @@ double QFunc(const Vector &x, double t)
 }
 */
 //static double chi_ratio_ = 1.0;
- /*
+/*
 double T0Func(const Vector &x, double t)
 {
-   int dim = x.Size();
+  int dim = x.Size();
 
-   double ca = (dim > 1) ? cos(alpha_) : 1.0;
-   double sa = (dim > 1) ? sin(alpha_) : 0.0;
+  double ca = (dim > 1) ? cos(alpha_) : 1.0;
+  double sa = (dim > 1) ? sin(alpha_) : 0.0;
 
-   double cb = (dim > 2) ? cos(beta_) : 0.0;
-   double sb = (dim > 2) ? sin(beta_) : 1.0;
+  double cb = (dim > 2) ? cos(beta_) : 0.0;
+  double sb = (dim > 2) ? sin(beta_) : 1.0;
 
-   double r2Para = 0.0;
-   double r2Perp = 0.0;
+  double r2Para = 0.0;
+  double r2Perp = 0.0;
 
-   switch (dim)
-   {
-      case 1:
-         r2Para = x[0] * x[0];
-         r2Perp = 0.0;
-         break;
-      case 2:
-         r2Para = pow(ca * x[0] + sa * x[1], 2);
-         r2Perp = pow(ca * x[1] - sa * x[0], 2);
-         break;
-      case 3:
-         r2Para = pow(sb * (ca * x[0] + sa * x[1]) + cb * x[2], 2);
-         r2Perp = (x * x) - r2Para;
-         break;
-   }
+  switch (dim)
+  {
+     case 1:
+        r2Para = x[0] * x[0];
+        r2Perp = 0.0;
+        break;
+     case 2:
+        r2Para = pow(ca * x[0] + sa * x[1], 2);
+        r2Perp = pow(ca * x[1] - sa * x[0], 2);
+        break;
+     case 3:
+        r2Para = pow(sb * (ca * x[0] + sa * x[1]) + cb * x[2], 2);
+        r2Perp = (x * x) - r2Para;
+        break;
+  }
 
-   double dPara = 4.0 * chiPara_ * t + pow(TWPara_, 2) / M_LN2;
-   double dPerp = 4.0 * chiPerp_ * t + pow(TWPerp_, 2) / M_LN2;
+  double dPara = 4.0 * chiPara_ * t + pow(TWPara_, 2) / M_LN2;
+  double dPerp = 4.0 * chiPerp_ * t + pow(TWPerp_, 2) / M_LN2;
 
-   double e = exp(-r2Para / dPara - r2Perp / dPerp);
+  double e = exp(-r2Para / dPara - r2Perp / dPerp);
 
-   double sPara = sqrt(1.0 + 4.0 * M_LN2 * chiPara_ * t / pow(TWPara_, 2));
-   double sPerp = sqrt(1.0 + 4.0 * M_LN2 * chiPerp_ * t / pow(TWPerp_, 2));
+  double sPara = sqrt(1.0 + 4.0 * M_LN2 * chiPara_ * t / pow(TWPara_, 2));
+  double sPerp = sqrt(1.0 + 4.0 * M_LN2 * chiPerp_ * t / pow(TWPerp_, 2));
 
-   return (TMax_ - TInf_) * e / (sPara * pow(sPerp, dim - 1));
+  return (TMax_ - TInf_) * e / (sPara * pow(sPerp, dim - 1));
 }
 
 double TFunc(const Vector &x, double t)
 {
-   int dim = x.Size();
-   double tol = 1e-12;
+  int dim = x.Size();
+  double tol = 1e-12;
 
-   double dPara = 4.0 * chiPara_ * t + pow(TWPara_, 2) / M_LN2;
-   double dPerp = 4.0 * chiPerp_ * t + pow(TWPerp_, 2) / M_LN2;
-   double spread = std::max(sqrt(fabs(dPara * log(tol))),
-                            sqrt(fabs(dPerp * log(tol))));
+  double dPara = 4.0 * chiPara_ * t + pow(TWPara_, 2) / M_LN2;
+  double dPerp = 4.0 * chiPerp_ * t + pow(TWPerp_, 2) / M_LN2;
+  double spread = std::max(sqrt(fabs(dPara * log(tol))),
+                           sqrt(fabs(dPerp * log(tol))));
 
-   double xt[3];
-   Vector xtVec(xt, dim);
+  double xt[3];
+  Vector xtVec(xt, dim);
 
-   double T = TInf_;
+  double T = TInf_;
 
-   int si = (int)ceil(0.5 * spread);
-   switch (dim)
-   {
-      case 1:
-         for (int i=-si; i<=si; i++)
-         {
-            xtVec = x;
-            xtVec.Add(i, aVec_[0]);
-            T += T0Func(xtVec, t);
-         }
-         break;
-      case 2:
-         for (int i=-si; i<=si; i++)
-         {
-            for (int j=-si; j<=si; j++)
-            {
-               xtVec = x;
-               xtVec.Add(i, aVec_[0]);
-               xtVec.Add(j, aVec_[1]);
-               T += T0Func(xtVec, t);
-            }
-         }
-         break;
-      case 3:
-         for (int i=-si; i<=si; i++)
-         {
-            for (int j=-si; j<=si; j++)
-            {
-               for (int k=-si; k<=si; k++)
-               {
-                  xtVec = x;
-                  xtVec.Add(i, aVec_[0]);
-                  xtVec.Add(j, aVec_[1]);
-                  xtVec.Add(k, aVec_[2]);
-                  T += T0Func(xtVec, t);
-               }
-            }
-         }
-         break;
-   }
+  int si = (int)ceil(0.5 * spread);
+  switch (dim)
+  {
+     case 1:
+        for (int i=-si; i<=si; i++)
+        {
+           xtVec = x;
+           xtVec.Add(i, aVec_[0]);
+           T += T0Func(xtVec, t);
+        }
+        break;
+     case 2:
+        for (int i=-si; i<=si; i++)
+        {
+           for (int j=-si; j<=si; j++)
+           {
+              xtVec = x;
+              xtVec.Add(i, aVec_[0]);
+              xtVec.Add(j, aVec_[1]);
+              T += T0Func(xtVec, t);
+           }
+        }
+        break;
+     case 3:
+        for (int i=-si; i<=si; i++)
+        {
+           for (int j=-si; j<=si; j++)
+           {
+              for (int k=-si; k<=si; k++)
+              {
+                 xtVec = x;
+                 xtVec.Add(i, aVec_[0]);
+                 xtVec.Add(j, aVec_[1]);
+                 xtVec.Add(k, aVec_[2]);
+                 T += T0Func(xtVec, t);
+              }
+           }
+        }
+        break;
+  }
 
-   return T;
+  return T;
 }
- */
+*/
 /*
 void dTFunc(const Vector &x, double t, Vector &dT)
 {
@@ -261,76 +261,76 @@ void dTFunc(const Vector &x, double t, Vector &dT)
 class ConstantStateVariableCoef : public StateVariableCoef
 {
 private:
-  double val_;
-  
+   double val_;
+
 public:
-  ConstantStateVariableCoef(double val) : val_(val) {}
+   ConstantStateVariableCoef(double val) : val_(val) {}
 
-    virtual ConstantStateVariableCoef * Clone() const
-  {
-    return new ConstantStateVariableCoef(val_);
-  }
- 
-  virtual bool NonTrivialValue(FieldType deriv) const { return false; }
+   virtual ConstantStateVariableCoef * Clone() const
+   {
+      return new ConstantStateVariableCoef(val_);
+   }
 
-  double Eval_Func(ElementTransformation &T, const IntegrationPoint &ip)
-  { return val_; }
+   virtual bool NonTrivialValue(FieldType deriv) const { return false; }
+
+   double Eval_Func(ElementTransformation &T, const IntegrationPoint &ip)
+   { return val_; }
 };
 
 class DiffusionCoef : public StateVariableCoef
 {
 private:
-  ParGridFunction * T_gf_;
-  double Tau_;
-  double kappa_;
-  int p_;
-  
+   ParGridFunction * T_gf_;
+   double Tau_;
+   double kappa_;
+   int p_;
+
 public:
-  DiffusionCoef(ParGridFunction &T, double Tau, double kappa, int p)
-    : T_gf_(&T), Tau_(Tau), kappa_(kappa), p_(p)
-  {
-    MFEM_VERIFY(kappa_ > 0.0, "Diffusion coefficient must be positive");
-    MFEM_VERIFY(Tau_ > 0.0, "Temperature scale must be positive");
-    MFEM_VERIFY(p_ >= 0, "Nonlinear power must be non-negative");
-  }
+   DiffusionCoef(ParGridFunction &T, double Tau, double kappa, int p)
+      : T_gf_(&T), Tau_(Tau), kappa_(kappa), p_(p)
+   {
+      MFEM_VERIFY(kappa_ > 0.0, "Diffusion coefficient must be positive");
+      MFEM_VERIFY(Tau_ > 0.0, "Temperature scale must be positive");
+      MFEM_VERIFY(p_ >= 0, "Nonlinear power must be non-negative");
+   }
 
-    virtual DiffusionCoef * Clone() const
-  {
-    return new DiffusionCoef(*T_gf_, Tau_, kappa_, p_);
-  }
- 
-  virtual bool NonTrivialValue(FieldType deriv) const
-  {
-    return deriv == FieldType::TEMPERATURE;
-  }
+   virtual DiffusionCoef * Clone() const
+   {
+      return new DiffusionCoef(*T_gf_, Tau_, kappa_, p_);
+   }
 
-  double Eval_Func(ElementTransformation &T, const IntegrationPoint &ip)
-  {
-    if (p_ == 0)
-    {
-      return kappa_;
-    }
-    else
-    {
-      double temp = T_gf_->GetValue(T);
-      MFEM_VERIFY(temp > 0.0, "Temperature must be positive");
-      return kappa_ * pow(sqrt(temp/Tau_), p_);
-    }
-  }
+   virtual bool NonTrivialValue(FieldType deriv) const
+   {
+      return deriv == FieldType::TEMPERATURE;
+   }
 
-  double Eval_dT(ElementTransformation &T, const IntegrationPoint &ip)
-  {
-    if (p_ == 0)
-    {
-      return 0.0;
-    }
-    else
-    {
-      double temp = T_gf_->GetValue(T);
-      MFEM_VERIFY(temp > 0.0, "Temperature must be positive");
-      return 0.5 * kappa_ * p_ * (1.0 / Tau_) * pow(sqrt(temp/Tau_), p_ - 1);
-    }
-  }
+   double Eval_Func(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      if (p_ == 0)
+      {
+         return kappa_;
+      }
+      else
+      {
+         double temp = T_gf_->GetValue(T);
+         MFEM_VERIFY(temp > 0.0, "Temperature must be positive");
+         return kappa_ * pow(sqrt(temp/Tau_), p_);
+      }
+   }
+
+   double Eval_dT(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      if (p_ == 0)
+      {
+         return 0.0;
+      }
+      else
+      {
+         double temp = T_gf_->GetValue(T);
+         MFEM_VERIFY(temp > 0.0, "Temperature must be positive");
+         return 0.5 * kappa_ * p_ * (1.0 / Tau_) * pow(sqrt(temp/Tau_), p_ - 1);
+      }
+   }
 };
 /*
 void ChiFunc(const Vector &x, DenseMatrix &M)
@@ -497,7 +497,7 @@ int main(int argc, char *argv[])
 
    bool h1 = true;
    DGParams dg_params;
-   
+
    // Diffusion cofficient is kappa_ * pow(T/Tau_, 0.5 * p_)
    int    p     = 0;
    double kappa = 1.0;
@@ -505,7 +505,7 @@ int main(int argc, char *argv[])
 
    // Heat capacity per unit volume c_p * rho
    double c_rho = 1.0;
-   
+
    int ode_solver_type = 1;
    int ode_msr_type = 1;
    int ode_acc_type = 3;
@@ -532,19 +532,19 @@ int main(int argc, char *argv[])
    Vector etaVec;
 
    double diff_eta = 1.0;
-   
+
    double gamma_acc = 0.9;
    double kI_acc = 1.0 / 15.0;
    double kP_acc = 0.13;
    double kD_acc = 0.2;
    double c_acc = 1.05;
-   
+
    double gamma_rej = 0.9;
    double kI_rej = 0.2;
    double kP_rej = 0.0;
    double kD_rej = 0.2;
    double c_rej = 0.95;
-   
+
    double lim_lo  = 1.0;
    double lim_hi  = 1.2;
    double lim_max = 2.0;
@@ -553,7 +553,7 @@ int main(int argc, char *argv[])
 
    int term_flag = 31;
    int vis_flag = 31;
-   
+
    bool gnuplot = true;
 
    OptionsParser args(argc, argv);
@@ -819,7 +819,7 @@ int main(int argc, char *argv[])
    switch (ode_acc_type)
    {
       case 0:
-	ode_step_acc = new ConstantAcceptFactor(c_acc);
+         ode_step_acc = new ConstantAcceptFactor(c_acc);
          break;
       case 1:
          ode_step_acc = new StdAdjFactor(gamma_acc, kI_acc);
@@ -840,7 +840,7 @@ int main(int argc, char *argv[])
    switch (ode_rej_type)
    {
       case 0:
- 	 ode_step_rej = new ConstantRejectFactor(c_rej);
+         ode_step_rej = new ConstantRejectFactor(c_rej);
          break;
       case 1:
          ode_step_rej = new StdAdjFactor(gamma_rej, kI_rej);
@@ -895,7 +895,7 @@ int main(int argc, char *argv[])
    // H1 contains continuous "node-centered" Lagrange finite elements.
    H1_FECollection HGrad_FEC(order, dim);
    DG_FECollection DG_FEC(order, dim);
-   
+
    ParFiniteElementSpace   L2FESpace0(pmesh, &L2FEC0);
    ParFiniteElementSpace    L2FESpace(pmesh, &L2FEC);
    // ParFiniteElementSpace  HDivFESpace(pmesh, &HDivFEC);
@@ -903,14 +903,14 @@ int main(int argc, char *argv[])
    // ParFiniteElementSpace HGradFESpace(pmesh, &HGradFEC);
    ParFiniteElementSpace * fespace = NULL;
    if (h1)
-     {
-       fespace = new ParFiniteElementSpace(pmesh, &HGrad_FEC);
-     }
+   {
+      fespace = new ParFiniteElementSpace(pmesh, &HGrad_FEC);
+   }
    else
-     {
-       fespace = new ParFiniteElementSpace(pmesh, &DG_FEC);
-     }
-   
+   {
+      fespace = new ParFiniteElementSpace(pmesh, &DG_FEC);
+   }
+
    // The terminology is TrueVSize is the unique (non-redundant) number of dofs
    // HYPRE_Int glob_size_l2 = L2FESpace.GlobalTrueVSize();
    // HYPRE_Int glob_size_rt = HDivFESpace.GlobalTrueVSize();
@@ -990,11 +990,11 @@ int main(int argc, char *argv[])
 
    Array<int> nbc_attr;
    nbc_attr.Append(2);
-   
+
    AdvectionDiffusionBC bcs(pmesh->bdr_attributes);
    bcs.AddDirichletBC(dbc_attr, TCoef);
    bcs.AddNeumannBC(nbc_attr, zeroCoef);
-   
+
    // q.GridFunction::ComputeElementL2Errors(qCoef, errorq);
    // qPara.GridFunction::ComputeElementL2Errors(qParaCoef, errorqPara);
    // qPerp.GridFunction::ComputeElementL2Errors(qPerpCoef, errorqPerp);
@@ -1037,12 +1037,12 @@ int main(int argc, char *argv[])
                      HeatSourceCoef, false);
    */
    DGAdvectionDiffusionTDO oper(mpi, dg_params, *fespace, T0, dT, bcs,
-				term_flag, vis_flag, false, logging);
+                                term_flag, vis_flag, false, logging);
 
    oper.SetHeatCapacityCoef(HeatCapacityCoef);
    oper.SetConductivityCoef(ThermalConductivityCoef);
    oper.SetHeatSourceCoef(HeatSourceCoef);
-   
+
    // This function initializes all the fields to zero or some provided IC
    // oper.Init(F);
    /*
@@ -1077,16 +1077,16 @@ int main(int argc, char *argv[])
       vis_errqPerp.precision(8);
       */
       VisualizeField(vis_T, vishost, visport,
-		     T1, "Temperature", Wx, Wy, Ww, Wh, h1_keys);
+                     T1, "Temperature", Wx, Wy, Ww, Wh, h1_keys);
 
       Wx += offx;
       VisualizeField(vis_ExactT, vishost, visport,
-		     ExactT, "Exact Temperature",
-		     Wx, Wy, Ww, Wh, h1_keys);
+                     ExactT, "Exact Temperature",
+                     Wx, Wy, Ww, Wh, h1_keys);
 
       Wx += offx;
       VisualizeField(vis_errT, vishost, visport,
-		     errorT, "Error in T", Wx, Wy, Ww, Wh, l2_keys);
+                     errorT, "Error in T", Wx, Wy, Ww, Wh, l2_keys);
       /*
       Wx += offx;
       Wy -= offy;
@@ -1193,7 +1193,7 @@ int main(int argc, char *argv[])
    ode_controller.SetTolerance(tol);
    ode_controller.SetRejectionLimit(rho);
    if (ode_epus) { ode_controller.SetErrorPerUnitStep(); }
-   
+
    ofstream ofs_gp;
 
    if (gnuplot)
@@ -1320,19 +1320,19 @@ int main(int argc, char *argv[])
       if (visualization)
       {
          T1.GridFunction::ComputeElementL2Errors(TCoef, errorT);
-	 ExactT.ProjectCoefficient(TCoef);
+         ExactT.ProjectCoefficient(TCoef);
 
-	 VisualizeField(vis_T, vishost, visport,
-			T1, "Temperature",
-			Wx, Wy, Ww, Wh, h1_keys);
+         VisualizeField(vis_T, vishost, visport,
+                        T1, "Temperature",
+                        Wx, Wy, Ww, Wh, h1_keys);
 
-	 VisualizeField(vis_ExactT, vishost, visport,
-			ExactT, "Exact Temperature",
-			Wx, Wy, Ww, Wh, h1_keys);
+         VisualizeField(vis_ExactT, vishost, visport,
+                        ExactT, "Exact Temperature",
+                        Wx, Wy, Ww, Wh, h1_keys);
 
          VisualizeField(vis_errT, vishost, visport,
-			errorT, "Error in T",
-			Wx, Wy, Ww, Wh, l2_keys);
+                        errorT, "Error in T",
+                        Wx, Wy, Ww, Wh, l2_keys);
       }
    }
 

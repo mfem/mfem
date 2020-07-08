@@ -180,14 +180,14 @@ double TFunc(const Vector &x, double t)
    ctVec = 0.0;
    if (dim == 1)
    {
-     ctVec[0] = -vMag_ * t;
+      ctVec[0] = -vMag_ * t;
    }
    else
    {
-     ctVec[0] = -vMag_ * cos(nu_) * t;
-     ctVec[1] = -vMag_ * sin(nu_) * t;
+      ctVec[0] = -vMag_ * cos(nu_) * t;
+      ctVec[1] = -vMag_ * sin(nu_) * t;
    }
-   
+
    double xt[3];
    Vector xtVec(xt, dim);
 
@@ -200,7 +200,7 @@ double TFunc(const Vector &x, double t)
          for (int i=-si; i<=si; i++)
          {
             xtVec = x;
-	    xtVec.Add(1.0, ctVec);
+            xtVec.Add(1.0, ctVec);
             xtVec.Add(i, aVec_[0]);
             T += T0Func(xtVec, t);
          }
@@ -211,8 +211,8 @@ double TFunc(const Vector &x, double t)
             for (int j=-si; j<=si; j++)
             {
                xtVec = x;
-	       xtVec.Add(1.0, ctVec);
-	       xtVec.Add(i, aVec_[0]);
+               xtVec.Add(1.0, ctVec);
+               xtVec.Add(i, aVec_[0]);
                xtVec.Add(j, aVec_[1]);
                T += T0Func(xtVec, t);
             }
@@ -226,8 +226,8 @@ double TFunc(const Vector &x, double t)
                for (int k=-si; k<=si; k++)
                {
                   xtVec = x;
-		  xtVec.Add(1.0, ctVec);
-		  xtVec.Add(i, aVec_[0]);
+                  xtVec.Add(1.0, ctVec);
+                  xtVec.Add(i, aVec_[0]);
                   xtVec.Add(j, aVec_[1]);
                   xtVec.Add(k, aVec_[2]);
                   T += T0Func(xtVec, t);
@@ -442,7 +442,7 @@ int main(int argc, char *argv[])
    double t_final = 5.0;
 
    double imp_vel = 1.0;
-   
+
    const char *basename = "Fourier_Adv_PID";
    const char *mesh_file = "../../data/periodic-square.mesh";
    bool zero_start = false;
@@ -751,7 +751,7 @@ int main(int argc, char *argv[])
          break;
       default:
          cout << "Unknown adjustment factor type for explicit solver: "
-	      << ode_exp_acc_type << '\n';
+         << ode_exp_acc_type << '\n';
          return 3;
    }
    switch (ode_exp_rej_type)
@@ -770,7 +770,7 @@ int main(int argc, char *argv[])
          break;
       default:
          cout << "Unknown adjustment factor type for explicit solver: "
-	      << ode_exp_rej_type << '\n';
+         << ode_exp_rej_type << '\n';
          return 3;
    }
    switch (ode_exp_lim_type)
@@ -783,7 +783,7 @@ int main(int argc, char *argv[])
          break;
       default:
          cout << "Unknown adjustment limiter type for explicit solver: "
-	      << ode_exp_lim_type << '\n';
+         << ode_exp_lim_type << '\n';
          return 3;
    }
    */
@@ -848,7 +848,7 @@ int main(int argc, char *argv[])
          break;
       default:
          cout << "Unknown adjustment factor type for implicit solver: "
-	      << ode_acc_type << '\n';
+              << ode_acc_type << '\n';
          return 3;
    }
    switch (ode_rej_type)
@@ -867,7 +867,7 @@ int main(int argc, char *argv[])
          break;
       default:
          cout << "Unknown adjustment factor type for implicit solver: "
-	      << ode_rej_type << '\n';
+              << ode_rej_type << '\n';
          return 3;
    }
    switch (ode_lim_type)
@@ -880,7 +880,7 @@ int main(int argc, char *argv[])
          break;
       default:
          cout << "Unknown adjustment limiter type for implicit solver: "
-	      << ode_lim_type << '\n';
+              << ode_lim_type << '\n';
          return 3;
    }
 
@@ -1027,17 +1027,17 @@ int main(int argc, char *argv[])
    AdvectionTDO exp_oper(HGradFESpace, velCoef);
 
    DiffusionTDO imp_oper(HGradFESpace,
-			 zeroCoef, ess_bdr,
-			 SpecificHeatCoef, false,
-			 AnisotropicConductionCoef, false,
-			 HeatSourceCoef, false);
+          zeroCoef, ess_bdr,
+          SpecificHeatCoef, false,
+          AnisotropicConductionCoef, false,
+          HeatSourceCoef, false);
    */
    AdvectionDiffusionTDO imp_oper(HGradFESpace,
-				  zeroCoef, ess_bdr,
-				  SpecificHeatCoef, false,
-				  AnisotropicConductionCoef, false,
-				  velCoef, false, imp_vel,
-				  HeatSourceCoef, false);
+                                  zeroCoef, ess_bdr,
+                                  SpecificHeatCoef, false,
+                                  AnisotropicConductionCoef, false,
+                                  velCoef, false, imp_vel,
+                                  HeatSourceCoef, false);
 
    // ode_diff_msr.SetOperator(imp_oper.GetMassMatrix());
 
@@ -1075,16 +1075,16 @@ int main(int argc, char *argv[])
       vis_errqPerp.precision(8);
       */
       VisualizeField(vis_T, vishost, visport,
-		     T1, "Temperature", Wx, Wy, Ww, Wh, h1_keys);
+                     T1, "Temperature", Wx, Wy, Ww, Wh, h1_keys);
 
       Wx += offx;
       VisualizeField(vis_ExactT, vishost, visport,
-		     ExactT, "Exact Temperature",
-		     Wx, Wy, Ww, Wh, h1_keys);
+                     ExactT, "Exact Temperature",
+                     Wx, Wy, Ww, Wh, h1_keys);
 
       Wx += offx;
       VisualizeField(vis_errT, vishost, visport,
-		     errorT, "Error in T", Wx, Wy, Ww, Wh, l2_keys);
+                     errorT, "Error in T", Wx, Wy, Ww, Wh, l2_keys);
       /*
       Wx += offx;
       Wy -= offy;
@@ -1155,13 +1155,13 @@ int main(int argc, char *argv[])
       */
       if (imp_dt < 0.0)
       {
-	imp_dt = std::min(imp_dt_cfl, exp_dt_cfl);
+         imp_dt = std::min(imp_dt_cfl, exp_dt_cfl);
       }
 
       // cout << "explicit dt = " << exp_dt << ", cfl = " << exp_dt_cfl << endl;
       cout << "dt = "
-	   << imp_dt << ", diffusion cfl = " << imp_dt_cfl
-	   << ", advection cfl = " << exp_dt_cfl << endl;
+           << imp_dt << ", diffusion cfl = " << imp_dt_cfl
+           << ", advection cfl = " << exp_dt_cfl << endl;
    }
 
    // 15. Perform time-integration (looping over the time iterations, ti, with a
@@ -1195,8 +1195,8 @@ int main(int argc, char *argv[])
    ode_exp_solver->Init(exp_oper);
 
    ode_exp_controller.Init(*ode_exp_solver, ode_diff_msr,
-			   *ode_exp_step_acc, *ode_exp_step_rej,
-			   *ode_exp_step_lim);
+            *ode_exp_step_acc, *ode_exp_step_rej,
+            *ode_exp_step_lim);
 
    ode_exp_controller.SetOutputFrequency(-1);
    ode_exp_controller.SetTimeStep(exp_dt);
@@ -1204,8 +1204,8 @@ int main(int argc, char *argv[])
    ode_exp_controller.SetRejectionLimit(rho);
    */
    ode_controller.Init(*ode_solver, *ode_err_msr,
-		       *ode_step_acc, *ode_step_rej,
-		       *ode_step_lim);
+                       *ode_step_acc, *ode_step_rej,
+                       *ode_step_lim);
 
    ode_controller.SetOutputFrequency(vis_steps);
    ode_controller.SetTimeStep(imp_dt);
@@ -1217,7 +1217,7 @@ int main(int argc, char *argv[])
 
    if (gnuplot)
    {
-     // ofs_exp_gp.open("fourier_adv_pid_exp.dat");
+      // ofs_exp_gp.open("fourier_adv_pid_exp.dat");
       ofs_imp_gp.open("fourier_adv_pid_imp.dat");
       // ode_exp_controller.SetOutput(ofs_exp_gp);
       ode_controller.SetOutput(ofs_imp_gp);
@@ -1329,28 +1329,28 @@ int main(int argc, char *argv[])
       /*
       if (imp_dt > exp_dt)
       {
- 	 double imp_t = t;
+      double imp_t = t;
          ode_imp_controller.Run(T1, imp_t, t + imp_dt);
-	 //ode_exp_controller.Run(T1, t, t + imp_dt);
-	 int n_exp = (int)ceil((t+imp_dt) / exp_dt);
-	 double curr_exp_dt = (t + imp_dt) / n_exp;
-	 ode_exp_solver->Run(T1, t, curr_exp_dt, t + imp_dt);
-	 
-	 imp_dt = ode_imp_controller.GetTimeStep();
-	 //exp_dt = ode_exp_controller.GetTimeStep();
-	 cout << "Updated time steps: " << imp_dt << '\t' << exp_dt << endl;
+      //ode_exp_controller.Run(T1, t, t + imp_dt);
+      int n_exp = (int)ceil((t+imp_dt) / exp_dt);
+      double curr_exp_dt = (t + imp_dt) / n_exp;
+      ode_exp_solver->Run(T1, t, curr_exp_dt, t + imp_dt);
+
+      imp_dt = ode_imp_controller.GetTimeStep();
+      //exp_dt = ode_exp_controller.GetTimeStep();
+      cout << "Updated time steps: " << imp_dt << '\t' << exp_dt << endl;
       }
       else
       {
- 	 double exp_t = t;
-	 double curr_exp_dt = exp_dt;
-	 // ode_exp_controller.Run(T1, exp_t, t + exp_dt);
-	 ode_exp_solver->Run(T1, exp_t, curr_exp_dt, t + exp_dt);
-	 ode_imp_controller.Run(T1, t, t + exp_dt);
+      double exp_t = t;
+      double curr_exp_dt = exp_dt;
+      // ode_exp_controller.Run(T1, exp_t, t + exp_dt);
+      ode_exp_solver->Run(T1, exp_t, curr_exp_dt, t + exp_dt);
+      ode_imp_controller.Run(T1, t, t + exp_dt);
 
-	 // exp_dt = ode_exp_controller.GetTimeStep();
-	 imp_dt = ode_imp_controller.GetTimeStep();
-	 cout << "Updated time steps: " << imp_dt << '\t' << exp_dt << endl;
+      // exp_dt = ode_exp_controller.GetTimeStep();
+      imp_dt = ode_imp_controller.GetTimeStep();
+      cout << "Updated time steps: " << imp_dt << '\t' << exp_dt << endl;
       }
       */
       TCoef.SetTime(t);
@@ -1367,19 +1367,19 @@ int main(int argc, char *argv[])
       if (visualization)
       {
          T1.GridFunction::ComputeElementL2Errors(TCoef, errorT);
-	 ExactT.ProjectCoefficient(TCoef);
+         ExactT.ProjectCoefficient(TCoef);
 
-	 VisualizeField(vis_T, vishost, visport,
-			T1, "Temperature",
-			Wx, Wy, Ww, Wh, h1_keys);
+         VisualizeField(vis_T, vishost, visport,
+                        T1, "Temperature",
+                        Wx, Wy, Ww, Wh, h1_keys);
 
-	 VisualizeField(vis_ExactT, vishost, visport,
-			ExactT, "Exact Temperature",
-			Wx, Wy, Ww, Wh, h1_keys);
+         VisualizeField(vis_ExactT, vishost, visport,
+                        ExactT, "Exact Temperature",
+                        Wx, Wy, Ww, Wh, h1_keys);
 
          VisualizeField(vis_errT, vishost, visport,
-			errorT, "Error in T",
-			Wx, Wy, Ww, Wh, l2_keys);
+                        errorT, "Error in T",
+                        Wx, Wy, Ww, Wh, l2_keys);
       }
    }
 
@@ -1417,7 +1417,7 @@ int main(int argc, char *argv[])
    delete ode_exp_step_acc;
    delete ode_exp_step_rej;
    delete ode_exp_step_lim;
-   */ 
+   */
    delete ode_solver;
    delete ode_step_acc;
    delete ode_step_rej;

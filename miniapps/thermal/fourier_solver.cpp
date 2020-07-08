@@ -120,26 +120,26 @@ const Array<int> & AdvectionDiffusionBC::GetHomogeneousNeumannBCs() const
 }
 
 AdvectionTDO::AdvectionTDO(ParFiniteElementSpace &H1_FES,
-			   VectorCoefficient &velCoef)
-  : TimeDependentOperator(H1_FES.GetVSize(), 0.0),
-    H1_FESpace_(H1_FES),
-    velCoef_(velCoef),
-    ess_bdr_tdofs_(0),
-    m1_(&H1_FES),
-    adv1_(&H1_FES),
-    M1Inv_(NULL),
-    M1Diag_(NULL),
-    SOL_(H1_FES.GetTrueVSize()),
-    RHS_(H1_FES.GetTrueVSize()),
-    rhs_(H1_FES.GetVSize())
+                           VectorCoefficient &velCoef)
+   : TimeDependentOperator(H1_FES.GetVSize(), 0.0),
+     H1_FESpace_(H1_FES),
+     velCoef_(velCoef),
+     ess_bdr_tdofs_(0),
+     m1_(&H1_FES),
+     adv1_(&H1_FES),
+     M1Inv_(NULL),
+     M1Diag_(NULL),
+     SOL_(H1_FES.GetTrueVSize()),
+     RHS_(H1_FES.GetTrueVSize()),
+     rhs_(H1_FES.GetVSize())
 {
-  m1_.AddDomainIntegrator(new MassIntegrator);
-  m1_.Assemble();
-  
-  adv1_.AddDomainIntegrator(new MixedScalarWeakDivergenceIntegrator(velCoef_));
-  adv1_.Assemble();
+   m1_.AddDomainIntegrator(new MassIntegrator);
+   m1_.Assemble();
+
+   adv1_.AddDomainIntegrator(new MixedScalarWeakDivergenceIntegrator(velCoef_));
+   adv1_.Assemble();
 }
-  
+
 AdvectionTDO::~AdvectionTDO()
 {
    delete M1Inv_;
@@ -176,12 +176,12 @@ AdvectionTDO::initMult() const
 
 void AdvectionTDO::Mult(const Vector &y, Vector &dydt) const
 {
-  dydt_gf_.MakeRef(&H1_FESpace_, dydt);
-  adv1_.Mult(y, rhs_);
-  rhs_ *= -1.0;
+   dydt_gf_.MakeRef(&H1_FESpace_, dydt);
+   adv1_.Mult(y, rhs_);
+   rhs_ *= -1.0;
 
-  dydt_gf_ = 0.0;
-  m1_.FormLinearSystem(ess_bdr_tdofs_, dydt_gf_, rhs_, M1_, SOL_, RHS_);
+   dydt_gf_ = 0.0;
+   m1_.FormLinearSystem(ess_bdr_tdofs_, dydt_gf_, rhs_, M1_, SOL_, RHS_);
 
    this->initMult();
 
@@ -485,32 +485,32 @@ DiffusionTDO::initImplicitSolve()
    APrecond_ = new HypreBoomerAMG(A_);
    APrecond_->SetPrintLevel(0);
    AInv_->SetPreconditioner(*APrecond_);
-/*
-   if ( tdC_ || tdK_ || AInv_ == NULL || APrecond_ == NULL )
-   {
-      if ( AInv_ == NULL )
+   /*
+      if ( tdC_ || tdK_ || AInv_ == NULL || APrecond_ == NULL )
       {
-         AInv_ = new HyprePCG(A_);
-         AInv_->SetTol(1e-12);
-         AInv_->SetMaxIter(200);
-         AInv_->SetPrintLevel(0);
+         if ( AInv_ == NULL )
+         {
+            AInv_ = new HyprePCG(A_);
+            AInv_->SetTol(1e-12);
+            AInv_->SetMaxIter(200);
+            AInv_->SetPrintLevel(0);
+         }
+         else
+         {
+            AInv_->SetOperator(A_);
+         }
+         if ( APrecond_ == NULL )
+         {
+            APrecond_ = new HypreBoomerAMG(A_);
+            APrecond_->SetPrintLevel(0);
+            AInv_->SetPreconditioner(*APrecond_);
+         }
+         else
+         {
+            APrecond_->SetOperator(A_);
+         }
       }
-      else
-      {
-         AInv_->SetOperator(A_);
-      }
-      if ( APrecond_ == NULL )
-      {
-         APrecond_ = new HypreBoomerAMG(A_);
-         APrecond_->SetPrintLevel(0);
-         AInv_->SetPreconditioner(*APrecond_);
-      }
-      else
-      {
-         APrecond_->SetOperator(A_);
-      }
-   }
-  */
+     */
 }
 
 void
@@ -557,13 +557,13 @@ DiffusionTDO::ImplicitSolve(const double dt,
 }
 
 AdvectionDiffusionTDO::AdvectionDiffusionTDO(ParFiniteElementSpace &H1_FES,
-					     Coefficient & dTdtBdr,
-					     Array<int> & bdr_attr,
-					     Coefficient & c, bool td_c,
-					     Coefficient & k, bool td_k,
-					     VectorCoefficient & V,
-					     bool td_v, double nu,
-					     Coefficient & Q, bool td_Q)
+                                             Coefficient & dTdtBdr,
+                                             Array<int> & bdr_attr,
+                                             Coefficient & c, bool td_c,
+                                             Coefficient & k, bool td_k,
+                                             VectorCoefficient & V,
+                                             bool td_v, double nu,
+                                             Coefficient & Q, bool td_Q)
    : TimeDependentOperator(H1_FES.GetVSize(), 0.0),
      myid_(H1_FES.GetMyRank()),
      init_(false), //initA_(false), initAInv_(false),
@@ -583,13 +583,13 @@ AdvectionDiffusionTDO::AdvectionDiffusionTDO(ParFiniteElementSpace &H1_FES,
 }
 
 AdvectionDiffusionTDO::AdvectionDiffusionTDO(ParFiniteElementSpace &H1_FES,
-					     Coefficient & dTdtBdr,
-					     Array<int> & bdr_attr,
-					     Coefficient & c, bool td_c,
-					     MatrixCoefficient & K, bool td_k,
-					     VectorCoefficient & V,
-					     bool td_v, double nu,
-					     Coefficient & Q, bool td_Q)
+                                             Coefficient & dTdtBdr,
+                                             Array<int> & bdr_attr,
+                                             Coefficient & c, bool td_c,
+                                             MatrixCoefficient & K, bool td_k,
+                                             VectorCoefficient & V,
+                                             bool td_v, double nu,
+                                             Coefficient & Q, bool td_Q)
    : TimeDependentOperator(H1_FES.GetVSize(), 0.0),
      init_(false),
      multCount_(0), solveCount_(0),
@@ -652,7 +652,7 @@ AdvectionDiffusionTDO::init()
    {
       aV_ = new ParBilinearForm(H1_FESpace_);
       aV_->AddDomainIntegrator(
-	  new MixedScalarWeakDivergenceIntegrator(*VCoef_));
+         new MixedScalarWeakDivergenceIntegrator(*VCoef_));
       aV_->Assemble();
    }
    if ( dTdt_gf_ == NULL )
@@ -788,13 +788,13 @@ AdvectionDiffusionTDO::initA(double dt)
    }
    if (nu_ != 0.0)
    {
-     if (dtnuVCoef_ == NULL)
-     {
-       dtnuVCoef_ = new ScalarVectorProductCoefficient(dt * nu_, *VCoef_);
-     }
-     dtnuVCoef_->SetAConst(dt * nu_);
+      if (dtnuVCoef_ == NULL)
+      {
+         dtnuVCoef_ = new ScalarVectorProductCoefficient(dt * nu_, *VCoef_);
+      }
+      dtnuVCoef_->SetAConst(dt * nu_);
    }
-   
+
    if ( a_ == NULL)
    {
       a_ = new ParBilinearForm(H1_FESpace_);
@@ -809,8 +809,8 @@ AdvectionDiffusionTDO::initA(double dt)
       }
       if (nu_ != 0.0)
       {
-	a_->AddDomainIntegrator(
-	    new MixedScalarWeakDivergenceIntegrator(*dtnuVCoef_));
+         a_->AddDomainIntegrator(
+            new MixedScalarWeakDivergenceIntegrator(*dtnuVCoef_));
       }
    }
    a_->Update();
@@ -830,37 +830,37 @@ AdvectionDiffusionTDO::initImplicitSolve()
    APrecond_ = new HypreBoomerAMG(A_);
    APrecond_->SetPrintLevel(0);
    AInv_->SetPreconditioner(*APrecond_);
-/*
-   if ( tdC_ || tdK_ || AInv_ == NULL || APrecond_ == NULL )
-   {
-      if ( AInv_ == NULL )
+   /*
+      if ( tdC_ || tdK_ || AInv_ == NULL || APrecond_ == NULL )
       {
-         AInv_ = new HyprePCG(A_);
-         AInv_->SetTol(1e-12);
-         AInv_->SetMaxIter(200);
-         AInv_->SetPrintLevel(0);
+         if ( AInv_ == NULL )
+         {
+            AInv_ = new HyprePCG(A_);
+            AInv_->SetTol(1e-12);
+            AInv_->SetMaxIter(200);
+            AInv_->SetPrintLevel(0);
+         }
+         else
+         {
+            AInv_->SetOperator(A_);
+         }
+         if ( APrecond_ == NULL )
+         {
+            APrecond_ = new HypreBoomerAMG(A_);
+            APrecond_->SetPrintLevel(0);
+            AInv_->SetPreconditioner(*APrecond_);
+         }
+         else
+         {
+            APrecond_->SetOperator(A_);
+         }
       }
-      else
-      {
-         AInv_->SetOperator(A_);
-      }
-      if ( APrecond_ == NULL )
-      {
-         APrecond_ = new HypreBoomerAMG(A_);
-         APrecond_->SetPrintLevel(0);
-         AInv_->SetPreconditioner(*APrecond_);
-      }
-      else
-      {
-         APrecond_->SetOperator(A_);
-      }
-   }
-  */
+     */
 }
 
 void
 AdvectionDiffusionTDO::ImplicitSolve(const double dt,
-                            const Vector &T, Vector &dT_dt)
+                                     const Vector &T, Vector &dT_dt)
 {
    dT_dt = 0.0;
    // cout << "sK size: " << sK_->Width() << ", T size: " << T.Size() << ", rhs_ size: " << rhs_->Size() << endl;
@@ -903,15 +903,15 @@ AdvectionDiffusionTDO::ImplicitSolve(const double dt,
 }
 
 DGAdvectionDiffusionTDO::DGAdvectionDiffusionTDO(const MPI_Session &mpi,
-						 const DGParams &dg,
-						 ParFiniteElementSpace &fes,
-						 ParGridFunction &yGF,
-						 ParGridFunction &kGF,
-						 const AdvectionDiffusionBC & bcs,
-						 int term_flag,
-						 int vis_flag,
-						 bool imex,
-						 int logging)
+                                                 const DGParams &dg,
+                                                 ParFiniteElementSpace &fes,
+                                                 ParGridFunction &yGF,
+                                                 ParGridFunction &kGF,
+                                                 const AdvectionDiffusionBC & bcs,
+                                                 int term_flag,
+                                                 int vis_flag,
+                                                 bool imex,
+                                                 int logging)
    : TimeDependentOperator(fes.GetVSize()),
      mpi_(mpi),
      logging_(logging),
@@ -1012,7 +1012,7 @@ DGAdvectionDiffusionTDO::DisplayToGLVis()
 }
 
 void DGAdvectionDiffusionTDO::ImplicitSolve(const double dt, const Vector &y,
-					    Vector &k)
+                                            Vector &k)
 {
    if (mpi_.Root() && logging_ > 1)
    {
@@ -1036,7 +1036,7 @@ void DGAdvectionDiffusionTDO::ImplicitSolve(const double dt, const Vector &y,
    if (mpi_.Root() && logging_ > 0)
    {
       cout << "Setting time step: " << dt << " in DGAdvectionDiffusionTDO"
-	   << endl;
+           << endl;
    }
    op_.SetTimeStep(dt);
 
@@ -1086,22 +1086,22 @@ DGAdvectionDiffusionTDO::ADPrec::SetOperator(const Operator &op)
    delete prec_;
 
    const HypreParMatrix & M =
-     dynamic_cast<const HypreParMatrix&>(op);
+      dynamic_cast<const HypreParMatrix&>(op);
 
    HypreBoomerAMG * amg =
-     new HypreBoomerAMG(const_cast<HypreParMatrix&>(M));
+      new HypreBoomerAMG(const_cast<HypreParMatrix&>(M));
    amg->SetPrintLevel(0);
    prec_ = amg;
 
 }
 
 DGAdvectionDiffusionTDO::NLOperator::NLOperator(const MPI_Session & mpi,
-                                       const DGParams & dg,
-                                       ParGridFunction & yGF,
-                                       ParGridFunction & kGF,
-                                       int term_flag, int vis_flag,
-                                       int logging,
-                                       const string & log_prefix)
+                                                const DGParams & dg,
+                                                ParGridFunction & yGF,
+                                                ParGridFunction & kGF,
+                                                int term_flag, int vis_flag,
+                                                int logging,
+                                                const string & log_prefix)
    : Operator(yGF.ParFESpace()->GetVSize(),
               yGF.ParFESpace()->GetVSize()),
      mpi_(mpi), dg_(dg),
@@ -1169,7 +1169,8 @@ DGAdvectionDiffusionTDO::NLOperator::~NLOperator()
    }
 }
 
-void DGAdvectionDiffusionTDO::NLOperator::SetLogging(int logging, const string & prefix)
+void DGAdvectionDiffusionTDO::NLOperator::SetLogging(int logging,
+                                                     const string & prefix)
 {
    logging_ = logging;
    log_prefix_ = prefix;
@@ -1202,11 +1203,11 @@ void DGAdvectionDiffusionTDO::NLOperator::Mult(const Vector &k, Vector &y) const
 
       if (dbfi_m_ != NULL)
       {
-	kGF_.GetSubVector(vdofs_, locdvec_);
+         kGF_.GetSubVector(vdofs_, locdvec_);
 
-	dbfi_m_->AssembleElementMatrix(fe, *eltrans, elmat_);
+         dbfi_m_->AssembleElementMatrix(fe, *eltrans, elmat_);
 
-	elmat_.AddMult(locdvec_, elvec_);
+         elmat_.AddMult(locdvec_, elvec_);
       }
       y.AddElementVector(vdofs_, elvec_);
    }
@@ -1512,9 +1513,9 @@ void DGAdvectionDiffusionTDO::NLOperator::Update()
    width  = fes_.GetVSize();
 
    if (blf_ != NULL)
-     {
-       blf_->Update();
-     }
+   {
+      blf_->Update();
+   }
 
    if (mpi_.Root() && logging_ > 1)
    {
@@ -1528,7 +1529,7 @@ DGAdvectionDiffusionTDO::NLOperator::GetGradient(const Vector &x) const
    if (mpi_.Root() && logging_ > 1)
    {
       cout << "Entering DGAdvectionDiffusionTDO::NLOperator::GetGradient()"
-	   << endl;
+           << endl;
    }
 
    MFEM_VERIFY(blf_ != NULL, "The Bilinear Form object is NULL!");
@@ -1564,11 +1565,11 @@ DGAdvectionDiffusionTDO::AdvectionDiffusionOp::AdvectionDiffusionOp(
    int term_flag, int vis_flag,
    int logging,
    const std::string & log_prefix)
-  : NLOperator(mpi, dg, yGF, kGF, term_flag, vis_flag,
-	       logging, log_prefix),
-    coefGF_(yGF.ParFESpace()),
-    y0Coef_(yCoef_),
-    bcs_(bcs)
+   : NLOperator(mpi, dg, yGF, kGF, term_flag, vis_flag,
+                logging, log_prefix),
+     coefGF_(yGF.ParFESpace()),
+     y0Coef_(yCoef_),
+     bcs_(bcs)
 {
 
 }
@@ -1654,28 +1655,29 @@ void DGAdvectionDiffusionTDO::AdvectionDiffusionOp::SetTimeStep(double dt)
 void DGAdvectionDiffusionTDO::AdvectionDiffusionOp::SetTimeDerivativeTerm(
    StateVariableCoef &MCoef)
 {
-  if ( mpi_.Root() && logging_ > 0)
-    {
+   if ( mpi_.Root() && logging_ > 0)
+   {
       cout << field_name_
-	   << ": Adding time derivative term proportional to d "
-	   << FieldSymbol(FieldType::TEMPERATURE) << " / dt" << endl;
-    }
+           << ": Adding time derivative term proportional to d "
+           << FieldSymbol(FieldType::TEMPERATURE) << " / dt" << endl;
+   }
 
-  StateVariableCoef * coef = MCoef.Clone();
-  // coef->SetDerivType(FieldType::TEMPERATURE);
-  coefs_.Append(coef);
+   StateVariableCoef * coef = MCoef.Clone();
+   // coef->SetDerivType(FieldType::TEMPERATURE);
+   coefs_.Append(coef);
 
-  delete dbfi_m_;
-  dbfi_m_ = new MassIntegrator(*coef);
+   delete dbfi_m_;
+   dbfi_m_ = new MassIntegrator(*coef);
 
-  if (blf_ == NULL)
-    {
+   if (blf_ == NULL)
+   {
       blf_ = new ParBilinearForm(&fes_);
-    }
-  blf_->AddDomainIntegrator(new MassIntegrator(*coef));
+   }
+   blf_->AddDomainIntegrator(new MassIntegrator(*coef));
 }
 
-void DGAdvectionDiffusionTDO::AdvectionDiffusionOp::SetDiffusionTerm(StateVariableCoef &DCoef)
+void DGAdvectionDiffusionTDO::AdvectionDiffusionOp::SetDiffusionTerm(
+   StateVariableCoef &DCoef)
 {
    if ( mpi_.Root() && logging_ > 0)
    {
@@ -1719,9 +1721,9 @@ void DGAdvectionDiffusionTDO::AdvectionDiffusionOp::SetDiffusionTerm(StateVariab
                                                 dg_.kappa));
 
       blf_->AddBdrFaceIntegrator(new DGDiffusionIntegrator(*dtDCoef,
-							   dg_.sigma,
-							   dg_.kappa),
-				 *bfbfi_marker_.Last());
+                                                           dg_.sigma,
+                                                           dg_.kappa),
+                                 *bfbfi_marker_.Last());
    }
 
    const vector<CoefficientByAttr> & nbc = bcs_.GetNeumannBCs();
@@ -1751,11 +1753,12 @@ void DGAdvectionDiffusionTDO::AdvectionDiffusionOp::SetDiffusionTerm(StateVariab
       dtSCoefs_.Append(dtaCoef);
 
       blf_->AddBdrFaceIntegrator(new BoundaryMassIntegrator(*dtaCoef),
-				 *bfbfi_marker_.Last());
+                                 *bfbfi_marker_.Last());
    }
 }
 
-void DGAdvectionDiffusionTDO::AdvectionDiffusionOp::SetDiffusionTerm(StateVariableMatCoef &DCoef)
+void DGAdvectionDiffusionTDO::AdvectionDiffusionOp::SetDiffusionTerm(
+   StateVariableMatCoef &DCoef)
 {
    if ( mpi_.Root() && logging_ > 0)
    {
@@ -1800,9 +1803,9 @@ void DGAdvectionDiffusionTDO::AdvectionDiffusionOp::SetDiffusionTerm(StateVariab
                                                 dg_.kappa));
 
       blf_->AddBdrFaceIntegrator(new DGDiffusionIntegrator(*dtDCoef,
-							   dg_.sigma,
-							   dg_.kappa),
-				 *bfbfi_marker_.Last());
+                                                           dg_.sigma,
+                                                           dg_.kappa),
+                                 *bfbfi_marker_.Last());
    }
 
    const vector<CoefficientByAttr> & nbc = bcs_.GetNeumannBCs();
@@ -1832,12 +1835,13 @@ void DGAdvectionDiffusionTDO::AdvectionDiffusionOp::SetDiffusionTerm(StateVariab
       dtSCoefs_.Append(dtaCoef);
 
       blf_->AddBdrFaceIntegrator(new BoundaryMassIntegrator(*dtaCoef),
-				 *bfbfi_marker_.Last());
+                                 *bfbfi_marker_.Last());
    }
 }
 
-void DGAdvectionDiffusionTDO::AdvectionDiffusionOp::SetAdvectionTerm(StateVariableVecCoef &VCoef,
-                                                   bool bc)
+void DGAdvectionDiffusionTDO::AdvectionDiffusionOp::SetAdvectionTerm(
+   StateVariableVecCoef &VCoef,
+   bool bc)
 {
    if ( mpi_.Root() && logging_ > 0)
    {
@@ -1865,16 +1869,17 @@ void DGAdvectionDiffusionTDO::AdvectionDiffusionOp::SetAdvectionTerm(StateVariab
    blf_->AddDomainIntegrator(
       new MixedScalarWeakDivergenceIntegrator(*dtVCoef));
    blf_->AddInteriorFaceIntegrator(new DGTraceIntegrator(*dtVCoef,
-							 1.0, -0.5));
+                                                         1.0, -0.5));
 
    if (bc)
    {
       blf_->AddBdrFaceIntegrator(new DGTraceIntegrator(*dtVCoef,
-						       1.0, -0.5));
+                                                       1.0, -0.5));
    }
 }
 
-void DGAdvectionDiffusionTDO::AdvectionDiffusionOp::SetSourceTerm(StateVariableCoef &SCoef)
+void DGAdvectionDiffusionTDO::AdvectionDiffusionOp::SetSourceTerm(
+   StateVariableCoef &SCoef)
 {
    if ( mpi_.Root() && logging_ > 0)
    {
@@ -1885,16 +1890,16 @@ void DGAdvectionDiffusionTDO::AdvectionDiffusionOp::SetSourceTerm(StateVariableC
 
    if (SCoef.NonTrivialValue(FieldType::TEMPERATURE))
    {
-     StateVariableCoef * coef = SCoef.Clone();
-     coef->SetDerivType(FieldType::TEMPERATURE);
-     ProductCoefficient * dtdSCoef = new ProductCoefficient(-dt_, *coef);
-     negdtSCoefs_.Append(dtdSCoef);
+      StateVariableCoef * coef = SCoef.Clone();
+      coef->SetDerivType(FieldType::TEMPERATURE);
+      ProductCoefficient * dtdSCoef = new ProductCoefficient(-dt_, *coef);
+      negdtSCoefs_.Append(dtdSCoef);
 
-     if (blf_ == NULL)
-       {
-	 blf_ = new ParBilinearForm(&fes_);
-       }
-     blf_->AddDomainIntegrator(new MassIntegrator(*dtdSCoef));
+      if (blf_ == NULL)
+      {
+         blf_ = new ParBilinearForm(&fes_);
+      }
+      blf_->AddDomainIntegrator(new MassIntegrator(*dtdSCoef));
 
    }
 }

@@ -434,19 +434,19 @@ int main(int argc, char *argv[])
    Vector etaVec;
 
    double diff_eta = 1.0;
-   
+
    double gamma_acc = 0.9;
    double kI_acc = 1.0 / 15.0;
    double kP_acc = 0.13;
    double kD_acc = 0.2;
    double c_acc = 1.05;
-   
+
    double gamma_rej = 0.9;
    double kI_rej = 0.2;
    double kP_rej = 0.0;
    double kD_rej = 0.2;
    double c_rej = 0.95;
-   
+
    double lim_lo  = 1.0;
    double lim_hi  = 1.2;
    double lim_max = 2.0;
@@ -712,7 +712,7 @@ int main(int argc, char *argv[])
    switch (ode_acc_type)
    {
       case 0:
-	ode_step_acc = new ConstantAcceptFactor(c_acc);
+         ode_step_acc = new ConstantAcceptFactor(c_acc);
          break;
       case 1:
          ode_step_acc = new StdAdjFactor(gamma_acc, kI_acc);
@@ -733,7 +733,7 @@ int main(int argc, char *argv[])
    switch (ode_rej_type)
    {
       case 0:
- 	 ode_step_rej = new ConstantRejectFactor(c_rej);
+         ode_step_rej = new ConstantRejectFactor(c_rej);
          break;
       case 1:
          ode_step_rej = new StdAdjFactor(gamma_rej, kI_rej);
@@ -943,16 +943,16 @@ int main(int argc, char *argv[])
       vis_errqPerp.precision(8);
       */
       VisualizeField(vis_T, vishost, visport,
-		     T1, "Temperature", Wx, Wy, Ww, Wh, h1_keys);
+                     T1, "Temperature", Wx, Wy, Ww, Wh, h1_keys);
 
       Wx += offx;
       VisualizeField(vis_ExactT, vishost, visport,
-		     ExactT, "Exact Temperature",
-		     Wx, Wy, Ww, Wh, h1_keys);
+                     ExactT, "Exact Temperature",
+                     Wx, Wy, Ww, Wh, h1_keys);
 
       Wx += offx;
       VisualizeField(vis_errT, vishost, visport,
-		     errorT, "Error in T", Wx, Wy, Ww, Wh, l2_keys);
+                     errorT, "Error in T", Wx, Wy, Ww, Wh, l2_keys);
       /*
       Wx += offx;
       Wy -= offy;
@@ -1185,19 +1185,19 @@ int main(int argc, char *argv[])
       if (visualization)
       {
          T1.GridFunction::ComputeElementL2Errors(TCoef, errorT);
-	 ExactT.ProjectCoefficient(TCoef);
+         ExactT.ProjectCoefficient(TCoef);
 
-	 VisualizeField(vis_T, vishost, visport,
-			T1, "Temperature",
-			Wx, Wy, Ww, Wh, h1_keys);
+         VisualizeField(vis_T, vishost, visport,
+                        T1, "Temperature",
+                        Wx, Wy, Ww, Wh, h1_keys);
 
-	 VisualizeField(vis_ExactT, vishost, visport,
-			ExactT, "Exact Temperature",
-			Wx, Wy, Ww, Wh, h1_keys);
+         VisualizeField(vis_ExactT, vishost, visport,
+                        ExactT, "Exact Temperature",
+                        Wx, Wy, Ww, Wh, h1_keys);
 
          VisualizeField(vis_errT, vishost, visport,
-			errorT, "Error in T",
-			Wx, Wy, Ww, Wh, l2_keys);
+                        errorT, "Error in T",
+                        Wx, Wy, Ww, Wh, l2_keys);
       }
    }
 

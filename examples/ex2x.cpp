@@ -91,7 +91,7 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&prob, "-p", "--problem-type",
                   "Problem Type From Gustafsson 1988:  1 - 8 "
-		  "(options 7 and 8 refer to problems 7a and 7b)");
+                  "(options 7 and 8 refer to problems 7a and 7b)");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Heun-Euler, 2 - RKF12, "
                   "3 - BogackiShampine, 4 - RKF45, 5 - Cash-Karp, "
