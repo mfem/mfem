@@ -1690,6 +1690,7 @@ void ParMesh::GetFaceNbrElementTransformation(
 
    ElTr->Attribute = elem->GetAttribute();
    ElTr->ElementNo = NumOfElements + i;
+   ElTr->ElementType = ElementTransformation::ELEMENT;
 
    if (Nodes == NULL)
    {
@@ -2363,16 +2364,16 @@ Table *ParMesh::GetFaceToAllElementTable() const
    return face_elem;
 }
 
-ElementTransformation* ParMesh::GetGhostFaceTransformation(
+void ParMesh::GetGhostFaceTransformation(
    FaceElementTransformations* FETr, Element::Type face_type,
    Geometry::Type face_geom)
 {
    // calculate composition of FETr->Loc1 and FETr->Elem1
-   DenseMatrix &face_pm = FaceTransformation.GetPointMat();
+   DenseMatrix &face_pm = FETr->GetPointMat();
    if (Nodes == NULL)
    {
       FETr->Elem1->Transform(FETr->Loc1.Transf.GetPointMat(), face_pm);
-      FaceTransformation.SetFE(GetTransformationFEforElementType(face_type));
+      FETr->SetFE(GetTransformationFEforElementType(face_type));
    }
    else
    {
@@ -2388,9 +2389,8 @@ ElementTransformation* ParMesh::GetGhostFaceTransformation(
       FETr->Loc1.Transform(face_el->GetNodes(), eir);
       Nodes->GetVectorValues(*FETr->Elem1, eir, face_pm);
 #endif
-      FaceTransformation.SetFE(face_el);
+      FETr->SetFE(face_el);
    }
-   return &FaceTransformation;
 }
 
 FaceElementTransformations *ParMesh::
@@ -2403,6 +2403,11 @@ GetSharedFaceTransformations(int sf, bool fill2)
    bool is_slave = Nonconforming() && IsSlaveFace(face_info);
    bool is_ghost = Nonconforming() && FaceNo >= GetNumFaces();
 
+   int mask = 0;
+   FaceElemTr.SetConfigurationMask(0);
+   FaceElemTr.Elem1 = NULL;
+   FaceElemTr.Elem2 = NULL;
+
    NCFaceInfo* nc_info = NULL;
    if (is_slave) { nc_info = &nc_faces_info[face_info.NCFace]; }
 
@@ -2414,13 +2419,21 @@ GetSharedFaceTransformations(int sf, bool fill2)
    FaceElemTr.Elem1No = face_info.Elem1No;
    GetElementTransformation(FaceElemTr.Elem1No, &Transformation);
    FaceElemTr.Elem1 = &Transformation;
+   mask |= FaceElementTransformations::HAVE_ELEM1;
 
    // setup the transformation for the second (neighbor) element
+   int Elem2NbrNo;
    if (fill2)
    {
-      FaceElemTr.Elem2No = -1 - face_info.Elem2No;
-      GetFaceNbrElementTransformation(FaceElemTr.Elem2No, &Transformation2);
+      Elem2NbrNo = -1 - face_info.Elem2No;
+      // Store the "shifted index" for element 2 in FaceElemTr.Elem2No.
+      // `Elem2NbrNo` is the index of the face neighbor (starting from 0),
+      // and `FaceElemTr.Elem2No` will be offset by the number of (local)
+      // elements in the mesh.
+      FaceElemTr.Elem2No = NumOfElements + Elem2NbrNo;
+      GetFaceNbrElementTransformation(Elem2NbrNo, &Transformation2);
       FaceElemTr.Elem2 = &Transformation2;
+      mask |= FaceElementTransformations::HAVE_ELEM2;
    }
    else
    {
@@ -2432,6 +2445,7 @@ GetSharedFaceTransformations(int sf, bool fill2)
    {
       GetFaceTransformation(FaceNo, &FaceElemTr);
       // NOTE: The above call overwrites FaceElemTr.Loc1
+      mask |= FaceElementTransformations::HAVE_FACE;
    }
    else
    {
@@ -2442,33 +2456,23 @@ GetSharedFaceTransformations(int sf, bool fill2)
    int elem_type = GetElementType(face_info.Elem1No);
    GetLocalFaceTransformation(face_type, elem_type, FaceElemTr.Loc1.Transf,
                               face_info.Elem1Inf);
+   mask |= FaceElementTransformations::HAVE_LOC1;
 
    if (fill2)
    {
-      elem_type = face_nbr_elements[FaceElemTr.Elem2No]->GetType();
+      elem_type = face_nbr_elements[Elem2NbrNo]->GetType();
       GetLocalFaceTransformation(face_type, elem_type, FaceElemTr.Loc2.Transf,
                                  face_info.Elem2Inf);
+      mask |= FaceElementTransformations::HAVE_LOC2;
    }
 
    // adjust Loc1 or Loc2 of the master face if this is a slave face
    if (is_slave)
    {
-      // is a ghost slave? -> master not a ghost -> choose Elem1 local transf
-      // not a ghost slave? -> master is a ghost -> choose Elem2 local transf
-      IsoparametricTransformation &loctr =
-         is_ghost ? FaceElemTr.Loc1.Transf : FaceElemTr.Loc2.Transf;
-
       if (is_ghost || fill2)
       {
-         ApplyLocalSlaveTransformation(loctr, face_info);
-      }
-
-      if (face_type == Element::SEGMENT && fill2)
-      {
-         // fix slave orientation in 2D: flip Loc2 to match Loc1 and Face
-         DenseMatrix &pm = FaceElemTr.Loc2.Transf.GetPointMat();
-         std::swap(pm(0,0), pm(0,1));
-         std::swap(pm(1,0), pm(1,1));
+         // is_ghost -> modify side 1, otherwise -> modify side 2:
+         ApplyLocalSlaveTransformation(FaceElemTr, face_info, is_ghost);
       }
    }
 
@@ -2476,7 +2480,25 @@ GetSharedFaceTransformations(int sf, bool fill2)
    if (is_ghost)
    {
       GetGhostFaceTransformation(&FaceElemTr, face_type, face_geom);
+      mask |= FaceElementTransformations::HAVE_FACE;
    }
+
+   FaceElemTr.SetConfigurationMask(mask);
+
+   // This check can be useful for internal debugging, however it will fail on
+   // periodic boundary faces, so we keep it disabled in general.
+#if 0
+#ifdef MFEM_DEBUG
+   double dist = FaceElemTr.CheckConsistency();
+   if (dist >= 1e-12)
+   {
+      mfem::out << "\nInternal error: face id = " << FaceNo
+                << ", dist = " << dist << ", rank = " << MyRank << '\n';
+      FaceElemTr.CheckConsistency(1); // print coordinates
+      MFEM_ABORT("internal error");
+   }
+#endif
+#endif
 
    return &FaceElemTr;
 }

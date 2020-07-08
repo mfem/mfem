@@ -26,7 +26,7 @@ extern mfem::MPI_Session *GlobalMPISession;
 #define PFesGetParMeshGetComm(pfes) pfes.GetParMesh()->GetComm()
 #define PFesGetParMeshGetComm0(pfes) pfes.GetParMesh()->GetComm()
 #else
-typedef int HYPRE_Int;
+#define HYPRE_Int int
 typedef int MPI_Session;
 #define ParMesh Mesh
 #define GetParMesh GetMesh
