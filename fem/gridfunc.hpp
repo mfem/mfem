@@ -447,6 +447,9 @@ public:
    virtual double ComputeDivError(Coefficient *exdiv,
                                   const IntegrationRule *irs[] = NULL) const;
 
+   virtual double ComputeDGFaceJumpError(Coefficient *exsol,
+                                         Coefficient *ell_coeff, double Nu) const;
+
    virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
                                  const IntegrationRule *irs[] = NULL) const;
 

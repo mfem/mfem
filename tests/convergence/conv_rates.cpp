@@ -108,11 +108,14 @@ void Convergence::AddL2Error(GridFunction * gf,
 
 
 void Convergence::AddGf(GridFunction * gf, Coefficient * u, 
-                  VectorCoefficient * grad)
+                  VectorCoefficient * grad, 
+                  Coefficient * ell_coeff, double Nu)
 {
    cont_type = gf->FESpace()->FEColl()->GetContType();
-   MFEM_VERIFY(cont_type == mfem::FiniteElementCollection::CONTINUOUS, 
-               "This Constructor is intented for H1 Elements")
+   
+   MFEM_VERIFY((cont_type == mfem::FiniteElementCollection::CONTINUOUS) ||
+               (cont_type == mfem::FiniteElementCollection::DISCONTINUOUS),
+               "This Constructor is intented for H1 or L2 Elements")
    
    AddL2Error(gf,u, nullptr);
 
@@ -127,10 +130,21 @@ void Convergence::AddGf(GridFunction * gf, Coefficient * u,
       DRates.Append(val);
       EnRates.Append(eval);
       CoeffDNorm = GetNorm(gf,nullptr,grad);
-
       dcounter++;
       MFEM_VERIFY(counter == dcounter, "Number of Added solutions and derivatives do not match")
+   }
 
+   if (cont_type == mfem::FiniteElementCollection::DISCONTINUOUS)
+   {
+      if (ell_coeff)
+      {
+         double DGErr = gf->ComputeDGFaceJumpError(u,ell_coeff,Nu);
+         DGFaceErrors.Append(DGErr);
+         double val = (fcounter) ? log(DGFaceErrors[fcounter-1]/DGErr)/log(2.0) : 0.0;
+         DGFaceRates.Append(val);
+         fcounter++;
+         MFEM_VERIFY(fcounter == dcounter, "Number of Added solutions missmatch");
+      }
    }
 
 }
@@ -216,6 +230,7 @@ void Convergence::Print(bool relative)
             case 0: dname = "Grad"; break;
             case 1: dname = "Curl"; break;
             case 2: dname = "Div ";  break;
+            case 3: dname = "DG Grad ";  break;
             default: break;
          }
          cout << " -------------------------------------------" << endl;
@@ -239,6 +254,7 @@ void Convergence::Print(bool relative)
             case 0: dname = "H1"; break;
             case 1: dname = "H(Curl)"; break;
             case 2: dname = "H(Div)";  break;
+            case 3: dname = "DG H1";  break;
             default: break;
          }
 
@@ -258,9 +274,27 @@ void Convergence::Print(bool relative)
                  << scientific << EnErrors[i]/d << setw(13)  
                  << fixed << EnRates[i] << endl;
          }
+         cout << endl;
 
-
+         if (cont_type == 3)
+         {
+            cout << " -------------------------------------------" << endl;
+            cout << "            DG Face Jump Error          " << endl;
+            cout << " -------------------------------------------"
+                 << endl;
+            cout << right<< setw(11)<< "DOFs "<< setw(13) << "Error ";
+            cout <<  setw(15) << "Rate " << endl;
+            cout << " -------------------------------------------"
+                 << endl;
+            cout << setprecision(4);
+            for (int i =0; i<counter; i++)
+            {
+               cout << right << setw(10)<< ndofs[i] << setw(16) 
+                    << scientific << DGFaceErrors[i] << setw(13)  
+                    << fixed << DGFaceRates[i] << endl;
+            }
+            cout << endl;
+         }
       }
-      
    }
 }

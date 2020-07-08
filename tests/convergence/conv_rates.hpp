@@ -16,11 +16,14 @@ private:
 #endif
    int counter=0;
    int dcounter=0;
+   int fcounter=0;
    int cont_type;
    int print_flag=0;
    Array<double> L2Errors;
+   Array<double> DGFaceErrors;
    Array<double> DErrors;
    Array<double> EnErrors;
+   Array<double> DGFaceRates;
    Array<double> L2Rates;
    Array<double> DRates;
    Array<double> EnRates;
@@ -28,9 +31,10 @@ private:
    double CoeffNorm;
    double CoeffDNorm;
    void AddL2Error(GridFunction * gf, Coefficient * u, VectorCoefficient * U);
-   void AddGf(GridFunction * gf, Coefficient * u, VectorCoefficient * grad);
+   void AddGf(GridFunction * gf, Coefficient * u, VectorCoefficient * grad,
+              Coefficient * ell_coeff, double Nu);
    void AddGf(GridFunction * gf, VectorCoefficient * u, 
-                        VectorCoefficient * curl, Coefficient * div);
+              VectorCoefficient * curl, Coefficient * div);
 
    double GetNorm(GridFunction * gf, Coefficient * u, VectorCoefficient * U);
 public:
@@ -41,9 +45,10 @@ public:
    // Clear any internal data
    void Clear();
 
-   void AddGridFunction(GridFunction * gf, Coefficient * u, VectorCoefficient * grad = NULL)
+   void AddGridFunction(GridFunction * gf, Coefficient * u, VectorCoefficient * grad,
+                        Coefficient * ell_coeff=NULL, double Nu=1.0)
    {
-      AddGf(gf, u, grad);
+      AddGf(gf, u, grad, ell_coeff,Nu);
    }
    void AddGridFunction(GridFunction * gf, VectorCoefficient * u)
    {
