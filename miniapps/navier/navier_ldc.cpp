@@ -221,7 +221,7 @@ int main(int argc, char *argv[])
    u_gf = naviersolver.GetCurrentVelocity();
    p_gf = naviersolver.GetCurrentPressure();
 
-   ParaViewDataCollection pvdc("ldc_mfem_output_"+meshName, pmesh);
+   ParaViewDataCollection pvdc("ldc_output", pmesh);
    //pvdc.SetDataFormat(VTKFormat::BINARY32);
    pvdc.SetDataFormat(VTKFormat::ASCII);
    pvdc.SetHighOrderOutput(true);
@@ -233,6 +233,9 @@ int main(int argc, char *argv[])
    //pvdc.RegisterField("vorticity", &w_gf);
    pvdc.Save();
 
+   ParGridFunction prev_u;
+   ParGridFunction prev_p;
+
    for (int step = 0; !last_step; ++step)
    {
       if (t + dt >= t_final - dt / 2)
@@ -241,6 +244,19 @@ int main(int argc, char *argv[])
       }
 
       naviersolver.Step(t, dt, step);
+
+      if (step > 0)
+      {
+         double err_u = u_gf->DistanceTo(prev_u);
+         double err_p = p_gf->DistanceTo(prev_p);
+         if (err_u < 1e-8 && err_p < 1e-6) //Relative tolerances between steps
+         {
+            last_step = true;
+         }
+      }
+
+      prev_u = *u_gf;
+      prev_p = *p_gf;
 
       //if (step % 50 == 0)
       if (last_step)
