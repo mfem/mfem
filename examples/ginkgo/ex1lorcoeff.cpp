@@ -103,6 +103,7 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
    int ref_levels = 3;
+   const char *coeff_name = "var";
    int order = 2;
    const char *basis_type = "G"; // Gauss-Lobatto
    bool static_cond = false;
@@ -117,6 +118,7 @@ int main(int argc, char *argv[])
    bool skip_sort = false;
    bool output_mesh = false;
    int isai_sparsity_power = 1;
+   double sigma_val = 1.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -125,6 +127,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&coeff_name, "-c", "--coeff", "Type of coefficient for Laplace operator.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -152,6 +155,8 @@ int main(int argc, char *argv[])
                   "Output sparse matrix and mesh files for inspection.");
    args.AddOption(&isai_sparsity_power, "-isai-sp", "--isai-sparsity-power",
                   "Power to use for sparsity pattern of ISAI in Ginkgo ILU-ISAI.");
+   args.AddOption(&sigma_val, "-sv", "--sigma-value",
+                  "Non-unity value for piecewise discontinuous coefficient.");
    args.Parse();
    if (!args.Good())
    {
@@ -159,6 +164,16 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+
+   enum CoeffType { CONSTANT, VARIABLE, PW_CONSTANT };
+   CoeffType coeff_type;
+   if (!strcmp(coeff_name, "const")) { coeff_type = CONSTANT; }
+   else if (!strcmp(coeff_name, "var")) { coeff_type = VARIABLE; }
+   else if (!strcmp(coeff_name, "pw")) { coeff_type = PW_CONSTANT; }
+   else 
+   {
+      mfem_error("Invalid coefficient type specified");
+   }
 
    enum PCType { NONE, GKO_BLOCK_JACOBI, GKO_ILU, GKO_ILU_ISAI, MFEM_GS, MFEM_UMFPACK };
    PCType pc_choice;
@@ -355,8 +370,33 @@ int main(int argc, char *argv[])
       a->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    }
 
-   FunctionCoefficient coeff(&coeff_func);
-   a->AddDomainIntegrator(new DiffusionIntegrator(coeff));
+   Coefficient *coeff = NULL;
+
+   if (coeff_type == CONSTANT)
+   {
+     coeff = new ConstantCoefficient(1.0);
+   }
+   else if (coeff_type == VARIABLE)
+   {
+     coeff = new FunctionCoefficient(&coeff_func);
+   }
+   else if (coeff_type == PW_CONSTANT) 
+   {
+     int num_subregions = mesh->attributes.Max();
+     cout << "Number of subregions in mesh: " << num_subregions << "\n";
+     Vector sigma(num_subregions);
+     sigma = 1;
+     if (num_subregions < 2)
+     {
+       cout << "Warning: PW Constant Coefficient not used, mesh only has one element attribute!\n";
+     }
+     else 
+     {
+       sigma(num_subregions-1) = sigma_val;
+     }
+     coeff = new PWConstCoefficient(sigma);
+   }
+   a->AddDomainIntegrator(new DiffusionIntegrator(*coeff));
 
    // 10. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary
@@ -384,7 +424,7 @@ int main(int argc, char *argv[])
       tic_toc.Clear();
       tic_toc.Start();
 
-      a_pc->AddDomainIntegrator(new DiffusionIntegrator(coeff));
+      a_pc->AddDomainIntegrator(new DiffusionIntegrator(*coeff));
       a_pc->UsePrecomputedSparsity();
       a_pc->Assemble();
       a_pc->FormSystemMatrix(ess_pc_tdof_list, A_pc);
@@ -575,6 +615,7 @@ int main(int argc, char *argv[])
    delete fespace_lor;
    delete fec_lor;
    delete mesh_lor;
+   delete coeff;
    if (order > 0)
    {
       delete fec;
