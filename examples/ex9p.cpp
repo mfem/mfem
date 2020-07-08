@@ -16,9 +16,11 @@
 //    mpirun -np 4 ex9p -m ../data/disc-nurbs.mesh -p 2 -rp 1 -dt 0.005 -tf 9
 //    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 3 -rp 2 -dt 0.0025 -tf 9 -vs 20
 //    mpirun -np 4 ex9p -m ../data/periodic-cube.mesh -p 0 -o 2 -rp 1 -dt 0.01 -tf 8
+//    mpirun -np 3 ex9p -m ../data/amr-hex.mesh -p 1 -rs 1 -rp 0 -dt 0.005 -tf 0.5
 //
 // Device sample runs:
 //    mpirun -np 4 ex9p -pa
+//    mpirun -np 4 ex9p -ea
 //    mpirun -np 4 ex9p -pa -m ../data/periodic-cube.mesh
 //    mpirun -np 4 ex9p -pa -m ../data/periodic-cube.mesh -d cuda
 //
@@ -161,6 +163,7 @@ int main(int argc, char *argv[])
    int par_ref_levels = 0;
    int order = 3;
    bool pa = false;
+   bool ea = false;
    const char *device_config = "cpu";
    int ode_solver_type = 4;
    double t_final = 10.0;
@@ -188,6 +191,8 @@ int main(int argc, char *argv[])
                   "Order (degree) of the finite elements.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&ea, "-ea", "--element-assembly", "-no-ea",
+                  "--no-element-assembly", "Enable Element Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
@@ -318,6 +323,11 @@ int main(int argc, char *argv[])
    {
       m->SetAssemblyLevel(AssemblyLevel::PARTIAL);
       k->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   }
+   else if (ea)
+   {
+      m->SetAssemblyLevel(AssemblyLevel::ELEMENT);
+      k->SetAssemblyLevel(AssemblyLevel::ELEMENT);
    }
    m->AddDomainIntegrator(new MassIntegrator);
    k->AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
@@ -556,8 +566,9 @@ FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
      z(_M.Height())
 {
    bool pa = _M.GetAssemblyLevel()==AssemblyLevel::PARTIAL;
+   bool ea = _M.GetAssemblyLevel()==AssemblyLevel::ELEMENT;
 
-   if (pa)
+   if (pa || ea)
    {
       M.Reset(&_M, false);
       K.Reset(&_K, false);
@@ -571,7 +582,7 @@ FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
    M_solver.SetOperator(*M);
 
    Array<int> ess_tdof_list;
-   if (pa)
+   if (pa || ea)
    {
       M_prec = new OperatorJacobiSmoother(_M, ess_tdof_list);
       dg_solver = NULL;

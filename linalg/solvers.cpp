@@ -105,6 +105,15 @@ void IterativeSolver::SetOperator(const Operator &op)
    }
 }
 
+void IterativeSolver::Monitor(int it, double norm, const Vector& r,
+                              const Vector& x, bool final) const
+{
+   if (monitor != nullptr)
+   {
+      monitor->MonitorResidual(it, norm, r, final);
+      monitor->MonitorSolution(it, norm, x, final);
+   }
+}
 
 OperatorJacobiSmoother::OperatorJacobiSmoother(const BilinearForm &a,
                                                const Array<int> &ess_tdofs,
@@ -555,6 +564,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
                 << nom << (print_level == 3 ? " ...\n" : "\n");
    }
+   Monitor(0, nom, r, x);
 
    if (nom < 0.0)
    {
@@ -633,6 +643,8 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
                    << betanom << '\n';
       }
 
+      Monitor(i, betanom, r, x);
+
       if (betanom < r0)
       {
          if (print_level == 2)
@@ -701,6 +713,8 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
                 << pow (betanom/nom0, 0.5/final_iter) << '\n';
    }
    final_norm = sqrt(betanom);
+
+   Monitor(final_iter, final_norm, r, x, true);
 }
 
 void CG(const Operator &A, const Vector &b, Vector &x,
@@ -848,6 +862,8 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
                 << "  ||B r|| = " << beta << (print_level == 3 ? " ...\n" : "\n");
    }
 
+   Monitor(0, beta, r, x);
+
    v.SetSize(m+1, NULL);
 
    for (j = 1; j <= max_iter; )
@@ -906,6 +922,8 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
                       << "   Iteration : " << setw(3) << j
                       << "  ||B r|| = " << resid << '\n';
          }
+
+         Monitor(j, resid, r, x);
       }
 
       if (print_level == 1 && j <= max_iter)
@@ -955,6 +973,9 @@ finish:
    {
       mfem::out << "GMRES: No convergence!\n";
    }
+
+   Monitor(final_iter, final_norm, r, x, true);
+
    for (i = 0; i < v.Size(); i++)
    {
       delete v[i];
@@ -999,6 +1020,8 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
                 << "   Iteration : " << setw(3) << 0
                 << "  || r || = " << beta << endl;
    }
+
+   Monitor(0, beta, r, x);
 
    Array<Vector*> v(m+1);
    Array<Vector*> z(m+1);
@@ -1060,6 +1083,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
                       << "   Iteration : " << setw(3) << j
                       << "  || r || = " << resid << endl;
          }
+         Monitor(j, resid, r, x, resid <= final_norm);
 
          if (resid <= final_norm)
          {
@@ -1192,6 +1216,8 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       mfem::out << "   Iteration : " << setw(3) << 0
                 << "   ||r|| = " << resid << '\n';
 
+   Monitor(0, resid, r, x);
+
    tol_goal = std::max(resid*rel_tol, abs_tol);
 
    if (resid <= tol_goal)
@@ -1210,6 +1236,9 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          if (print_level >= 0)
             mfem::out << "   Iteration : " << setw(3) << i
                       << "   ||r|| = " << resid << '\n';
+
+         Monitor(i, resid, r, x);
+
          final_norm = resid;
          final_iter = i;
          converged = 0;
@@ -1252,6 +1281,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       if (print_level >= 0)
          mfem::out << "   Iteration : " << setw(3) << i
                    << "   ||s|| = " << resid;
+      Monitor(i, resid, r, x);
       if (prec)
       {
          prec->Mult(s, shat);  //  shat = M^{-1} * s
@@ -1273,6 +1303,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       {
          mfem::out << "   ||r|| = " << resid << '\n';
       }
+      Monitor(i, resid, r, x);
       if (resid < tol_goal)
       {
          final_norm = resid;
@@ -1378,6 +1409,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
       mfem::out << "MINRES: iteration " << setw(3) << 0 << ": ||r||_B = "
                 << eta << (print_level == 3 ? " ...\n" : "\n");
    }
+   Monitor(0, eta, *z, x);
 
    for (it = 1; it <= max_iter; it++)
    {
@@ -1445,6 +1477,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
          mfem::out << "MINRES: iteration " << setw(3) << it << ": ||r||_B = "
                    << fabs(eta) << '\n';
       }
+      Monitor(it, fabs(eta), *z, x);
 
       if (prec)
       {
@@ -1469,6 +1502,7 @@ loop_end:
    {
       mfem::out << "MINRES: number of iterations: " << final_iter << '\n';
    }
+   Monitor(final_iter, final_norm, *z, x, true);
 #if 0
    if (print_level >= 1)
    {
@@ -1567,6 +1601,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
          }
          mfem::out << '\n';
       }
+      Monitor(it, norm, r, x);
 
       if (norm <= norm_goal)
       {
@@ -1606,6 +1641,138 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    final_norm = norm;
 }
 
+void LBFGSSolver::Mult(const Vector &b, Vector &x) const
+{
+   MFEM_VERIFY(oper != NULL, "the Operator is not set (use SetOperator).");
+
+   // Quadrature points that are checked for negative Jacobians etc.
+   Vector sk, rk, yk, rho, alpha;
+   DenseMatrix skM(width, m), ykM(width, m);
+
+   //r - r_{k+1}, c - descent direction
+   sk.SetSize(width);    //x_{k+1}-x_k
+   rk.SetSize(width);    //nabla(f(x_{k}))
+   yk.SetSize(width);    //r_{k+1}-r_{k}
+   rho.SetSize(m);       //1/(dot(yk,sk)
+   alpha.SetSize(m);    //rhok*sk'*c
+   int last_saved_id = -1;
+
+   int it;
+   double norm0, norm, norm_goal;
+   const bool have_b = (b.Size() == Height());
+
+   if (!iterative_mode)
+   {
+      x = 0.0;
+   }
+
+   // r = F(x)-b
+   oper->Mult(x, r);
+   if (have_b) { r -= b; }
+
+   c = r;           // initial descent direction
+
+   norm0 = norm = Norm(r);
+   norm_goal = std::max(rel_tol*norm, abs_tol);
+   for (it = 0; true; it++)
+   {
+      MFEM_ASSERT(IsFinite(norm), "norm = " << norm);
+      if (print_level >= 0)
+      {
+         mfem::out << "LBFGS iteration " <<  it
+                   << " : ||r|| = " << norm;
+         if (it > 0)
+         {
+            mfem::out << ", ||r||/||r_0|| = " << norm/norm0;
+         }
+         mfem::out << '\n';
+      }
+
+      if (norm <= norm_goal)
+      {
+         converged = 1;
+         break;
+      }
+
+      if (it >= max_iter)
+      {
+         converged = 0;
+         break;
+      }
+
+      rk = r;
+      const double c_scale = ComputeScalingFactor(x, b);
+      if (c_scale == 0.0)
+      {
+         converged = 0;
+         break;
+      }
+      add(x, -c_scale, c, x); //x_{k+1} = x_k - c_scale*c
+
+      ProcessNewState(x);
+
+      oper->Mult(x, r);
+      if (have_b)
+      {
+         r -= b;
+      }
+
+      //    LBFGS - construct descent direction
+      subtract(r, rk, yk);   // yk = r_{k+1} - r_{k}
+      sk = c; sk *= -c_scale; //sk = x_{k+1} - x_{k} = -c_scale*c
+      const double gamma = Dot(sk, yk)/Dot(yk, yk);
+
+      //  Save last m vectors
+      last_saved_id = (last_saved_id == m-1) ? 0 : last_saved_id+1;
+      skM.SetCol(last_saved_id, sk);
+      ykM.SetCol(last_saved_id, yk);
+
+      c = r;
+      for (int i = last_saved_id; i > -1; i--)
+      {
+         skM.GetColumn(i, sk);
+         ykM.GetColumn(i, yk);
+         rho(i) = 1./Dot(sk, yk);
+         alpha(i) = rho(i)*Dot(sk,c);
+         add(c, -alpha(i), yk, c);
+      }
+      if (it > m-1)
+      {
+         for (int i = m-1; i > last_saved_id; i--)
+         {
+            skM.GetColumn(i, sk);
+            ykM.GetColumn(i, yk);
+            rho(i) = 1./Dot(sk, yk);
+            alpha(i) = rho(i)*Dot(sk,c);
+            add(c, -alpha(i), yk, c);
+         }
+      }
+
+      c *= gamma;   // scale search direction
+      if (it > m-1)
+      {
+         for (int i = last_saved_id+1; i < m ; i++)
+         {
+            skM.GetColumn(i,sk);
+            ykM.GetColumn(i,yk);
+            double betai = rho(i)*Dot(yk, c);
+            add(c, alpha(i)-betai, sk, c);
+         }
+      }
+      for (int i = 0; i < last_saved_id+1 ; i++)
+      {
+         skM.GetColumn(i,sk);
+         ykM.GetColumn(i,yk);
+         double betai = rho(i)*Dot(yk, c);
+         add(c, alpha(i)-betai, sk, c);
+      }
+
+      norm = Norm(r);
+   }
+
+   final_iter = it;
+   final_norm = norm;
+}
 
 int aGMRES(const Operator &A, Vector &x, const Vector &b,
            const Operator &M, int &max_iter,
@@ -2110,17 +2277,37 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
    }
 
    std::vector<double> w(n, 0.0);
-   // Compute the discarded-fill weights
    for (int k=0; k<n; ++k)
    {
+      // Find all neighbors i of k
       for (int ii=I[k]; ii<I[k+1]; ++ii)
       {
-         double C_ki = V[ii];
+         int i = J[ii];
+         // Find value of (i,k)
+         double C_ik;
+         for (int kk=I[i]; kk<I[i+1]; ++kk)
+         {
+            if (J[kk] == k)
+            {
+               C_ik = V[kk];
+               break;
+            }
+         }
          for (int jj=I[k]; jj<I[k+1]; ++jj)
          {
-            if (jj == ii) { continue; }
-            double C_jk = V[jj];
-            w[k] += pow(C_jk*C_ki, 2);
+            int j = J[jj];
+            if (j == k) { continue; }
+            double C_kj = V[jj];
+            bool ij_exists = false;
+            for (int jj2=I[i]; jj2<I[i+1]; ++jj2)
+            {
+               if (J[jj2] == j)
+               {
+                  ij_exists = true;
+                  break;
+               }
+            }
+            if (!ij_exists) { w[k] += pow(C_ik*C_kj,2); }
          }
       }
       w[k] = sqrt(w[k]);
@@ -2130,10 +2317,10 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
 
    // Compute ordering
    p.SetSize(n);
-   for (int i=0; i<n; ++i)
+   for (int ii=0; ii<n; ++ii)
    {
       int pi = w_heap.pop();
-      p[n-1-i] = pi;
+      p[ii] = pi;
       w[pi] = -1;
       for (int kk=I[pi]; kk<I[pi+1]; ++kk)
       {
@@ -2141,15 +2328,36 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
          if (w_heap.picked(k)) { continue; }
          // Recompute weight
          w[k] = 0.0;
-         for (int ii=I[k]; ii<I[k+1]; ++ii)
+         // Find all neighbors i of k
+         for (int ii2=I[k]; ii2<I[k+1]; ++ii2)
          {
-            if (w_heap.picked(J[ii])) { continue; }
-            double C_ki = V[ii];
+            int i = J[ii2];
+            if (w_heap.picked(i)) { continue; }
+            // Find value of (i,k)
+            double C_ik;
+            for (int kk2=I[i]; kk2<I[i+1]; ++kk2)
+            {
+               if (J[kk2] == k)
+               {
+                  C_ik = V[kk2];
+                  break;
+               }
+            }
             for (int jj=I[k]; jj<I[k+1]; ++jj)
             {
-               if (jj == ii || w_heap.picked(J[jj])) { continue; }
-               double C_jk = V[jj];
-               w[k] += pow(C_jk*C_ki, 2);
+               int j = J[jj];
+               if (j == k || w_heap.picked(j)) { continue; }
+               double C_kj = V[jj];
+               bool ij_exists = false;
+               for (int jj2=I[i]; jj2<I[i+1]; ++jj2)
+               {
+                  if (J[jj2] == j)
+                  {
+                     ij_exists = true;
+                     break;
+                  }
+               }
+               if (!ij_exists) { w[k] += pow(C_ik*C_kj,2); }
             }
          }
          w[k] = sqrt(w[k]);

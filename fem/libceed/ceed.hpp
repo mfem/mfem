@@ -40,7 +40,7 @@ struct CeedConstCoeff
 
 struct CeedGridCoeff
 {
-   GridFunction* coeff;
+   const GridFunction* coeff;
    CeedBasis basis;
    CeedElemRestriction restr;
    CeedVector coeffVector;

@@ -383,6 +383,10 @@ MFEM_USE_PETSC = YES/NO
    and other features based on the PETSc package. When enabled, this option uses
    the PETSC_* library options, see below.
 
+MFEM_USE_SLEPC = YES/NO
+   Enable MFEM eigensolvers based on the SLEPc package. When enabled, this
+   option uses the SLEPC_* library options, see below.
+
 MFEM_USE_MPFR = YES/NO
    MPFR is a library for multiple-precision floating-point computations. This
    option enables the use of MPFR in MFEM, e.g. for precise computation of 1D
@@ -395,6 +399,12 @@ MFEM_USE_SIDRE = YES/NO
    capability following the Conduit (https://github.com/LLNL/conduit) mesh
    blueprint specification. When enabled, this option requires installation of
    HDF5 (see also MFEM_USE_NETCDF), Conduit and LLNL's axom project.
+
+MFEM_USE_SIMD = YES/NO
+   Enables the high performance templated classes to use architecture dependent
+   SIMD intrinsics instead of the generic implementation of class AutoSIMD in
+   linalg/simd/auto.hpp. This option should be combined with suitable
+   compiler options, such as -march=native, to enable optimal vectorization.
 
 MFEM_USE_CONDUIT = YES/NO
    Enables support for converting MFEM Mesh and Grid Function objects to and
@@ -426,6 +436,8 @@ MFEM_USE_PUMI = YES/NO
    data management system that is capable of handling general non-manifold
    models and effectively supports automated adaptive analysis. PUMI enables
    support for parallel unstructured mesh modifications in MFEM.
+   The develop branch of PUMI repository (https://github.com/SCOREC/core)
+   should be used for most updated features.
 
 MFEM_USE_UMPIRE = YES/NO
    Enables support for Umpire, a resource management library that allows the
@@ -589,6 +601,12 @@ The specific libraries and their options are:
   Options: PETSC_OPT, PETSC_LIB.
   Versions: PETSc >= 3.8.0.
 
+- SLEPc (optional), used when MFEM_USE_SLEPC = YES. SLEPc depends on PETSc and
+  uses some of the PETSc options when compiled.
+  URL: https://slepc.upv.es/
+  Options: SLEPC_OPT, SLEPC_LIB.
+  Versions: SLEPc >= 3.8.0.
+
 - Sidre (optional), part of LLNL's axom project, used when MFEM_USE_SIDRE = YES.
   Starting with MFEM v4.1, Axom version 0.3.1 or later is required.
   URL: https://github.com/LLNL/axom
@@ -609,8 +627,9 @@ The specific libraries and their options are:
 
 - PUMI (optional), used when MFEM_USE_PUMI = YES.
   URL: https://scorec.rpi.edu/pumi
+       https://github.com/SCOREC/core
   Options: PUMI_OPT, PUMI_LIB.
-  Versions: PUMI >= 2.2.0.
+  Versions: PUMI >= 2.2.3.
 
 - HiOp (optional), used when MFEM_USE_HIOP = YES.
   URL: https://github.com/LLNL/hiop
@@ -640,12 +659,11 @@ The specific libraries and their options are:
   Options: OCCA_DIR, OCCA_OPT, OCCA_LIB.
   Versions: OCCA >= 1.0.9.
 
-- libCEED (optional), used when MFEM_USE_CEED = YES. Requires libCEED v0.6
-  or later version, specifically, git-hash 3d05795 or later.
+- libCEED (optional), used when MFEM_USE_CEED = YES.
   URL: https://github.com/CEED/libCEED
        https://ceed.exascaleproject.org/libceed
   Options: CEED_DIR, CEED_OPT, CEED_LIB.
-  Versions: libCEED >= 0.6.
+  Versions: libCEED >= 0.6, git-hash a970f63.
 
 - RAJA (optional), used when MFEM_USE_RAJA = YES.
   Beginning with MFEM v4.1, only RAJA v0.10.0+ is supported.
