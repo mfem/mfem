@@ -956,21 +956,21 @@ protected:
       nodes0 = NULL; coeff0 = NULL; lim_dist = NULL; lim_func = NULL;
    }
 
-   const IntegrationRule *EnergyIntegrationRule(const FiniteElement &el) const
+   const IntegrationRule &EnergyIntegrationRule(const FiniteElement &el) const
    {
       if (IntegRules)
       {
-         return &(IntegRules->Get(el.GetGeomType(), integ_order));
+         return IntegRules->Get(el.GetGeomType(), integ_order);
       }
-      return (IntRule) ? IntRule
-             /*     */ : &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3));
+      return (IntRule) ? *IntRule
+             /*     */ : IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3);
    }
-   const IntegrationRule *ActionIntegrationRule(const FiniteElement &el) const
+   const IntegrationRule &ActionIntegrationRule(const FiniteElement &el) const
    {
       // TODO the energy most likely needs less integration points.
       return EnergyIntegrationRule(el);
    }
-   const IntegrationRule *GradientIntegrationRule(const FiniteElement &el) const
+   const IntegrationRule &GradientIntegrationRule(const FiniteElement &el) const
    {
       // TODO the action and energy most likely need less integration points.
       return EnergyIntegrationRule(el);
