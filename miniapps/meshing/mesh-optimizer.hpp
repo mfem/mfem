@@ -103,7 +103,7 @@ public:
    {
       Vector pos(3);
       T.Transform(ip, pos);
-      if (metric != 14 && metric != 87)
+      if (metric != 14 && metric != 85)
       {
          const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
          const double r = sqrt(xc*xc + yc*yc);
@@ -131,7 +131,7 @@ public:
 
          K *= alpha_bar;
       }
-      else if (metric == 87) // Shape + Alignment
+      else if (metric == 85) // Shape + Alignment
       {
          Vector x = pos;
          double xc = x(0)-0.5, yc = x(1)-0.5;
