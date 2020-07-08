@@ -2204,23 +2204,23 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
    Array<int> vdofs;
    Vector x_vals;
    const FiniteElementSpace* const fes = x.FESpace();
-   const FiniteElement *fe = fes->GetFE(0);
 
-   const int dof = fes->GetFE(0)->GetDof(), dim = fes->GetFE(0)->GetDim();
-
-   DSh.SetSize(dof, dim);
+   const int dim = fes->GetMesh()->Dimension();
    Jrt.SetSize(dim);
    Jpr.SetSize(dim);
    Jpt.SetSize(dim);
-
-   const IntegrationRule *ir = EnergyIntegrationRule(*fe);
-   DenseTensor Jtr(dim, dim, ir->GetNPoints());
 
    metric_energy = 0.0;
    lim_energy = 0.0;
    for (int i = 0; i < fes->GetNE(); i++)
    {
-      fe = fes->GetFE(i);
+      const FiniteElement *fe = fes->GetFE(i);
+      const int dof = fe->GetDof();
+      DSh.SetSize(dof, dim);
+
+      const IntegrationRule *ir = EnergyIntegrationRule(*fe);
+      DenseTensor Jtr(dim, dim, ir->GetNPoints());
+
       fes->GetElementVDofs(i, vdofs);
       x.GetSubVector(vdofs, x_vals);
       PMatI.UseExternalData(x_vals.GetData(), dof, dim);
