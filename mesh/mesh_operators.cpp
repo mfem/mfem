@@ -151,7 +151,8 @@ int ThresholdDerefiner::ApplyImpl(Mesh &mesh)
    if (mesh.Conforming()) { return NONE; }
 
    const Vector &local_err = estimator.GetLocalErrors();
-   bool derefs = mesh.DerefineByError(local_err, threshold, nc_limit, op);
+   bool derefs = mesh.DerefineByError(local_err, threshold, nc_limit, op,
+                                      same_attr_only);
 
    return derefs ? CONTINUE + DEREFINED : NONE;
 }
