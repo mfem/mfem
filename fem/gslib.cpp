@@ -50,8 +50,9 @@ FindPointsGSLIB::FindPointsGSLIB()
 
 FindPointsGSLIB::~FindPointsGSLIB()
 {
-   delete cr;
+   delete meshsplit;
    delete gsl_comm;
+   delete cr;
    delete ir_simplex;
 }
 
@@ -211,6 +212,7 @@ void FindPointsGSLIB::Interpolate(Mesh &m, const Vector &point_pos,
 void FindPointsGSLIB::FreeData()
 {
    crystal_free(cr);
+   if (!setupflag) { return; }
    if (dim == 2)
    {
       findpts_free_2(fdata2D);
@@ -633,7 +635,6 @@ void FindPointsGSLIB::Interpolate(const Array<unsigned int> &codes,
    const char *gf_name   = field_in.FESpace()->FEColl()->Name();
    const int  gf_order   = field_in.FESpace()->GetFE(0)->GetOrder(),
               mesh_order = mesh->GetNodalFESpace()->GetFE(0)->GetOrder();
-
 
    if ( strncmp(gf_name, "H1", 2) == 0 && gf_order == mesh_order )
    {

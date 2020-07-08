@@ -116,7 +116,6 @@ public:
 
    ~FindPointsGSLIB();
 
-   //enum avgtype {ARITHEMATIC, HARMONIC} avgt;
    enum mfem::GridFunction::AvgType avgtype;
 
    /** Initializes the internal mesh in gslib, by sending the positions of the
