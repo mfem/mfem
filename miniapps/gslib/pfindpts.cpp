@@ -27,7 +27,7 @@
 // Compile with: make pfindpts
 //
 // Sample runs:
-//    mpirun -np 2 pfindpts -m ../../data/rt-2d-q3.mesh -o 3
+//    mpirun -np 2 pfindpts -m ../../data/rt-2d-q3.mesh -o 3 -mo 4 -ft 2
 //    mpirun -np 2 pfindpts -m ../../data/rt-2d-p4-tri.mesh -o 4
 //    mpirun -np 2 pfindpts -m ../../data/inline-tri.mesh -o 3
 //    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -o 3
@@ -67,6 +67,7 @@ int main (int argc, char *argv[])
 
    // Set the method's default parameters.
    const char *mesh_file = "../../data/rt-2d-q3.mesh";
+   int order             = 3;
    int mesh_poly_deg     = 3;
    int rs_levels         = 0;
    int rp_levels         = 0;
@@ -78,14 +79,16 @@ int main (int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
-   args.AddOption(&mesh_poly_deg, "-o", "--mesh-order",
+   args.AddOption(&order, "-o", "--order",
+                  "Finite element order (polynomial degree).");
+   args.AddOption(&mesh_poly_deg, "-mo", "--mesh-order",
                   "Polynomial degree of mesh finite element space.");
    args.AddOption(&rs_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&rp_levels, "-rp", "--refine-parallel",
                   "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&fieldtype, "-ft", "--field-type",
-                  "Field type: 0 - H1, 1 - L2, 2 - H(div).");
+                  "Field type: 0 - H1, 1 - L2, 2 - H(div), 3 - H(curl).");
    args.AddOption(&ncomp, "-nc", "--ncomp",
                   "VDim for GridFunction");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -143,10 +146,10 @@ int main (int argc, char *argv[])
    MFEM_ASSERT(ncomp > 0, " Invalid input for ncomp.");
    int ncfinal = ncomp;
    GridFunction field_vals;
-   H1_FECollection fech(mesh_poly_deg, dim);
-   L2_FECollection fecl(mesh_poly_deg, dim);
-   ND_FECollection fechdiv(mesh_poly_deg, dim);
-   RT_FECollection feccurl(mesh_poly_deg, dim);
+   H1_FECollection fech(order, dim);
+   L2_FECollection fecl(order, dim);
+   ND_FECollection fechdiv(order, dim);
+   RT_FECollection feccurl(order, dim);
    ParFiniteElementSpace *sc_fes = NULL;
    if (fieldtype == 0)
    {
@@ -161,18 +164,18 @@ int main (int argc, char *argv[])
    else if (fieldtype == 2)
    {
       sc_fes = new ParFiniteElementSpace(&pmesh, &fechdiv);
-      ncfinal = 2;
+      ncfinal = dim;
       if (myid == 0) { std::cout << "H(div)-GridFunction\n"; }
    }
    else if (fieldtype == 3)
    {
       sc_fes = new ParFiniteElementSpace(&pmesh, &feccurl);
-      ncfinal = 2;
+      ncfinal = dim;
       if (myid == 0) { std::cout << "H(curl)-GridFunction\n"; }
    }
    field_vals.SetSpace(sc_fes);
 
-   // Define a scalar function on the mesh.
+   // Project the GridFunction using VectorFunctionCoefficient.
    VectorFunctionCoefficient F(ncfinal, F_exact);
    field_vals.ProjectCoefficient(F);
 
@@ -234,7 +237,6 @@ int main (int argc, char *argv[])
 
    // Find and Interpolate FE function values on the desired points.
    Vector interp_vals(pts_cnt*ncfinal);
-   // FindPoints using GSLIB and interpolate
    FindPointsGSLIB finder(MPI_COMM_WORLD);
    finder.Setup(pmesh);
    finder.Interpolate(vxyz, field_vals, interp_vals);
