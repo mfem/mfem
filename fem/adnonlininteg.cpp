@@ -97,6 +97,48 @@ void ADQFunctionJ::QFunctionDD(const Vector &vparam, const Vector &uu, DenseMatr
         tape.reset(pos);
     }
 #endif
+#elif defined MFEM_USE_FADBADPP
+    //use FADBAD++
+    #ifdef MFEM_USE_ADFORWARD
+        int n=uu.Size();
+        jac.SetSize(m,n);
+        jac=0.0;
+        {
+            ADFVector aduu(uu);
+            ADFVector rr(m);
+
+            for(int ii=0;ii<n;ii++){
+                aduu[ii].diff(ii,n);
+            }
+            this->QFunctionDU(vparam,aduu,rr);
+            for(int ii=0;ii<n;ii++){
+                for(int jj=0;jj<m;jj++)
+                {
+                    jac(jj,ii)=rr[jj].d(ii);
+                }
+            }
+        }
+    #else
+        int n=uu.Size();
+        jac.SetSize(m,n);
+        jac=0.0;
+        {
+            ADFVector aduu(uu);
+            ADFVector rr(m);
+            this->QFunctionDU(vparam,aduu,rr);
+            for(int ii=0;ii<m;ii++)
+            {
+                rr[ii].diff(ii,m);
+            }
+            for(int ii=0;ii<n;ii++){
+                for(int jj=0;jj<m;jj++)
+                {
+                    jac(jj,ii)=aduu[ii].d(jj);
+                }
+            }
+
+        }
+    #endif
 #else
     //use native AD package
    int n=uu.Size();
@@ -104,7 +146,7 @@ void ADQFunctionJ::QFunctionDD(const Vector &vparam, const Vector &uu, DenseMatr
    jac=0.0;
    {
        ADFVector aduu(uu); //all dual numbers are initialized to zero
-       ADFVector rr;
+       ADFVector rr(m);
 
        for(int ii=0;ii<n;ii++){
            aduu[ii].dual(1.0);
@@ -138,6 +180,17 @@ void ADQFunctionH::QFunctionDU(const Vector &vparam, Vector &uu, Vector &rr)
         rez=this->QFunction(vparam,aduu);
         rr[ii]=rez.getGradient();
         aduu[ii].setGradient(0.0);
+    }
+#elif defined MFEM_USE_FADBADPP
+    int n=uu.Size();
+    rr.SetSize(n);
+    ADFVector aduu(uu);
+    ADFType   rez;
+    rez=this->QFunction(vparam,aduu);
+    rez.diff(0,1);
+    for(int ii=0;ii<n;ii++)
+    {
+        rr[ii]=aduu[ii].d(0);
     }
 #else
     int n=uu.Size();
@@ -228,6 +281,29 @@ void ADQFunctionH::QFunctionDD(const Vector &vparam, const Vector &uu, DenseMatr
         }
     }
 #endif
+#elif defined MFEM_USE_FADBADPP
+    int n=uu.Size();
+    jac.SetSize(n);
+    jac=0.0;
+    {
+        ADSVector aduu(n);
+        for(int ii = 0;  ii < n ; ii++)
+        {
+            aduu[ii]=uu[ii];
+            aduu[ii].x().diff(ii,n);
+        }
+        ADSType rez= this->QFunction(vparam,aduu);
+        rez.diff(0,1);
+        for(int ii = 0; ii < n ; ii++)
+        {
+            for(int jj=0; jj<ii; jj++)
+            {
+                jac(ii,jj)=aduu[ii].d(0).d(jj);
+                jac(jj,ii)=aduu[jj].d(0).d(ii);
+            }
+            jac(ii,ii)=aduu[ii].d(0).d(ii);
+        }
+    }
 #else
     int n=uu.Size();
     jac.SetSize(n);

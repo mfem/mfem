@@ -27,6 +27,9 @@
 #include <adept.h>
 #elif defined  MFEM_USE_CODIPACK
 #include <codi.hpp>
+#elif defined  MFEM_USE_FADBADPP
+#include <fadiff.h>
+#include <badiff.h>
 #endif
 
 //define Forward AD mode
@@ -51,15 +54,25 @@ class ADQFunctionJ
     typedef TADVector<ADFType>         ADFVector;
     typedef TADDenseMatrix<ADFType>    ADFDenseMatrix;
 #elif defined MFEM_USE_CODIPACK
-#if defined MFEM_USE_ADFORWARD
-    typedef codi::RealForward 		   ADFType;
-    typedef TADVector<ADFType>         ADFVector;
-    typedef TADDenseMatrix<ADFType>    ADFDenseMatrix;
-#else
-    typedef codi::RealReverse 		   ADFType;
-    typedef TADVector<ADFType>         ADFVector;
-    typedef TADDenseMatrix<ADFType>    ADFDenseMatrix;
-#endif
+    #if defined MFEM_USE_ADFORWARD
+        typedef codi::RealForward 		   ADFType;
+        typedef TADVector<ADFType>         ADFVector;
+        typedef TADDenseMatrix<ADFType>    ADFDenseMatrix;
+    #else
+        typedef codi::RealRevers 		   ADFType;
+        typedef TADVector<ADFType>         ADFVector;
+        typedef TADDenseMatrix<ADFType>    ADFDenseMatrix;
+    #endif
+#elif defined MFEM_USE_FADBADPP
+    #ifdef MFEM_USE_ADFORWARD
+        typedef fadbad::F<double>		   ADFType;
+        typedef TADVector<ADFType>         ADFVector;
+        typedef TADDenseMatrix<ADFType>    ADFDenseMatrix;
+    #else
+        typedef fadbad::B<double>		   ADFType;
+        typedef TADVector<ADFType>         ADFVector;
+        typedef TADDenseMatrix<ADFType>    ADFDenseMatrix;
+    #endif
 #else
     typedef mfem::ad::FDual<double>    ADFType;
     typedef TADVector<ADFType>         ADFVector;
@@ -109,6 +122,14 @@ class ADQFunctionH
     typedef TADVector<ADSType>         		ADSVector;
     typedef TADDenseMatrix<ADSType>    		ADSDenseMatrix;
 #endif
+#elif defined MFEM_USE_FADBADPP
+        typedef fadbad::B<double> 			 ADFType;
+        typedef TADVector<ADFType>        	 ADFVector;
+        typedef TADDenseMatrix<ADFType>    	 ADFDenseMatrix;
+
+        typedef fadbad::B<fadbad::F<double>>    ADSType;
+        typedef TADVector<ADSType>         		ADSVector;
+        typedef TADDenseMatrix<ADSType>    		ADSDenseMatrix;
 #else
     typedef mfem::ad::FDual<double>    ADFType;
     typedef TADVector<ADFType>         ADFVector;

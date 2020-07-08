@@ -157,5 +157,7 @@
 
 #cmakedefine MFEM_USE_CODIPACK
 
+#cmakedefine MFEM_USE_FADBADPP
+
 
 #endif // MFEM_CONFIG_HEADER
