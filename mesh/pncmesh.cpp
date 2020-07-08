@@ -1263,6 +1263,8 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
             const DenseMatrix* pm = &sf.point_matrix;
             if (!sloc && Dim == 3)
             {
+               // TODO: does this handle triangle faces correctly?
+
                // ghost slave in 3D needs flipping orientation
                DenseMatrix* pm2 = new DenseMatrix(*pm);
                std::swap((*pm2)(0,1), (*pm2)(0,3));
@@ -1281,6 +1283,14 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
                // 1, which is the element containing the slave face on one
                // processor, but on the other it is the element containing the
                // master face. In the latter case we need to flip the pm.
+            }
+            else if (!sloc && Dim == 2)
+            {
+               fi.Elem2Inf ^= 1; // set orientation to 1
+               // The point matrix (used to define "side 1" which is the same as
+               // "parent side" in this case) does not require a flip since it
+               // is aligned with the parent side, so NO flip is performed in
+               // Mesh::ApplyLocalSlaveTransformation.
             }
 
             MFEM_ASSERT(fi.NCFace < 0, "");

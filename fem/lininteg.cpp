@@ -159,10 +159,13 @@ void BoundaryLFIntegrator::AssembleRHSElementVect(
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
-      IntegrationPoint eip;
-      Tr.Loc1.Transform(ip, eip);
 
-      Tr.Face->SetIntPoint (&ip);
+      // Set the integration point in the face and the neighboring element
+      Tr.SetAllIntPoints(&ip);
+
+      // Access the neighboring element's integration point
+      const IntegrationPoint &eip = Tr.GetElement1IntPoint();
+
       double val = Tr.Face->Weight() * ip.weight * Q.Eval(*Tr.Face, ip);
 
       el.CalcShape(eip, shape);
@@ -359,10 +362,12 @@ void VectorBoundaryLFIntegrator::AssembleRHSElementVect(
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
-      IntegrationPoint eip;
-      Tr.Loc1.Transform(ip, eip);
 
-      Tr.SetIntPoint(&ip);
+      // Set the integration point in the face and the neighboring element
+      Tr.SetAllIntPoints(&ip);
+
+      // Access the neighboring element's integration point
+      const IntegrationPoint &eip = Tr.GetElement1IntPoint();
 
       // Use Tr transformation in case Q depends on boundary attribute
       Q.Eval(vec, Tr, ip);
@@ -650,11 +655,13 @@ void BoundaryFlowIntegrator::AssembleRHSElementVect(
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
       const IntegrationPoint &ip = ir->IntPoint(p);
-      IntegrationPoint eip;
-      Tr.Loc1.Transform(ip, eip);
-      el.CalcShape(eip, shape);
 
-      Tr.SetIntPoint(&ip);
+      // Set the integration point in the face and the neighboring element
+      Tr.SetAllIntPoints(&ip);
+
+      // Access the neighboring element's integration point
+      const IntegrationPoint &eip = Tr.GetElement1IntPoint();
+      el.CalcShape(eip, shape);
 
       // Use Tr.Elem1 transformation for u so that it matches the coefficient
       // used with the ConvectionIntegrator and/or the DGTraceIntegrator.
@@ -719,10 +726,13 @@ void DGDirichletLFIntegrator::AssembleRHSElementVect(
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
       const IntegrationPoint &ip = ir->IntPoint(p);
-      IntegrationPoint eip;
 
-      Tr.Loc1.Transform(ip, eip);
-      Tr.SetIntPoint(&ip);
+      // Set the integration point in the face and the neighboring element
+      Tr.SetAllIntPoints(&ip);
+
+      // Access the neighboring element's integration point
+      const IntegrationPoint &eip = Tr.GetElement1IntPoint();
+
       if (dim == 1)
       {
          nor(0) = 2*eip.x - 1.0;
@@ -741,14 +751,14 @@ void DGDirichletLFIntegrator::AssembleRHSElementVect(
       {
          if (Q)
          {
-            w *= Q->Eval(Tr, ip);
+            w *= Q->Eval(*Tr.Elem1, eip);
          }
          ni.Set(w, nor);
       }
       else
       {
          nh.Set(w, nor);
-         MQ->Eval(mq, Tr, ip);
+         MQ->Eval(mq, *Tr.Elem1, eip);
          mq.MultTranspose(nh, ni);
       }
       CalcAdjugate(Tr.Elem1->Jacobian(), adjJ);
@@ -812,9 +822,12 @@ void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
    for (int pi = 0; pi < ir->GetNPoints(); ++pi)
    {
       const IntegrationPoint &ip = ir->IntPoint(pi);
-      IntegrationPoint eip;
-      Tr.Loc1.Transform(ip, eip);
-      Tr.SetIntPoint(&ip);
+
+      // Set the integration point in the face and the neighboring element
+      Tr.SetAllIntPoints(&ip);
+
+      // Access the neighboring element's integration point
+      const IntegrationPoint &eip = Tr.GetElement1IntPoint();
 
       // Evaluate the Dirichlet b.c. using the face transformation.
       uD.Eval(u_dir, Tr, ip);
