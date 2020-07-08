@@ -34,7 +34,8 @@
 //               ex1 -pa -d raja-omp
 //               ex1 -pa -d occa-omp
 //               ex1 -pa -d ceed-cpu
-//               ex1 -pa -d ceed-cuda
+//             * ex1 -pa -d ceed-cuda
+//               ex1 -pa -d ceed-cuda:/gpu/cuda/shared
 //               ex1 -m ../data/beam-hex.mesh -pa -d cuda
 //               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cpu
 //               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cuda:/gpu/cuda/ref
