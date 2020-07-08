@@ -1004,7 +1004,7 @@ public:
         zeta_0(NULL), zeta(NULL), coeff_zeta(NULL), adapt_eval(NULL),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
         fdflag(false), dxscale(1.0e3), fd_call_flag(false)
-   { }
+   { PA.fes = nullptr; }
 
    ~TMOP_Integrator();
 

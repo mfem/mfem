@@ -57,6 +57,7 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &x) const
    const bool use_input_vector = target_type == TargetConstructor::GIVEN_FULL;
 
    if (use_input_vector && !useable_input_vector) { return; }
+   if (GetDiscreteAdaptTC() && !coeff0) { return; }
 
    if (use_input_vector)
    {
@@ -166,27 +167,6 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
             C0(q,e) = coeff0->Eval(T, ir->IntPoint(q));
          }
       }
-   }
-
-   // Coeff0 PA.X0
-   if (coeff0)
-   {
-      // Nodes0
-      MFEM_VERIFY(nodes0, "No nodes0!")
-      PA.X0.SetSize(PA.R->Height(), Device::GetMemoryType());
-      PA.X0.UseDevice(true);
-      PA.R->Mult(*nodes0, PA.X0);
-
-      // lim_dist & lim_func checks
-      MFEM_VERIFY(lim_dist, "No lim_dist!")
-      PA.LD.SetSize(PA.R->Height(), Device::GetMemoryType());
-      PA.LD.UseDevice(true);
-      PA.R->Mult(*lim_dist, PA.LD);
-
-      // Only TMOP_QuadraticLimiter is supported
-      MFEM_VERIFY(lim_func, "No lim_func!")
-      MFEM_VERIFY(dynamic_cast<TMOP_QuadraticLimiter*>(lim_func),
-                  "Only TMOP_QuadraticLimiter is supported");
    }
 }
 

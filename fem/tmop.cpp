@@ -1501,6 +1501,25 @@ void TMOP_Integrator::EnableLimiting(const GridFunction &n0,
 {
    EnableLimiting(n0, w0, lfunc);
    lim_dist = &dist;
+   if (PA.fes)
+   {
+      // Nodes0
+      MFEM_VERIFY(nodes0, "No nodes0!")
+      PA.X0.SetSize(PA.R->Height(), Device::GetMemoryType());
+      PA.X0.UseDevice(true);
+      PA.R->Mult(*nodes0, PA.X0);
+
+      // lim_dist & lim_func checks
+      MFEM_VERIFY(lim_dist, "No lim_dist!")
+      PA.LD.SetSize(PA.R->Height(), Device::GetMemoryType());
+      PA.LD.UseDevice(true);
+      PA.R->Mult(*lim_dist, PA.LD);
+
+      // Only TMOP_QuadraticLimiter is supported
+      MFEM_VERIFY(lim_func, "No lim_func!")
+      MFEM_VERIFY(dynamic_cast<TMOP_QuadraticLimiter*>(lim_func),
+                  "Only TMOP_QuadraticLimiter is supported");
+   }
 }
 void TMOP_Integrator::EnableLimiting(const GridFunction &n0, Coefficient &w0,
                                      TMOP_LimiterFunction *lfunc)
@@ -2284,6 +2303,7 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
 
 void TMOP_Integrator::UpdateAfterMeshChange(const Vector &new_x)
 {
+   PA.setup_Jtr = false;
    // Update zeta if adaptive limiting is enabled.
    if (zeta) { adapt_eval->ComputeAtNewPosition(new_x, *zeta); }
 }
