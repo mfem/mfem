@@ -439,15 +439,57 @@ public:
    void Transform (const IntegrationRule  &, IntegrationRule  &);
 };
 
+/** @brief A specialized ElementTransformation class representing a face and
+    its two neighboring elements.
 
+    This class can be used as a container for the element transformation data
+    needed for integrating discontinuous fields on element interfaces in a
+    Discontinuous Galerkin (DG) context.
+
+    The secondary purpose of this class is to enable the
+    GridFunction::GetValue function, and various related functions, to properly
+    evaluate fields with limited continuity on boundary elements.
+*/
 class FaceElementTransformations : public IsoparametricTransformation
 {
 private:
+
+   // Bitwise OR of ConfigMasks
    int mask;
 
    IntegrationPoint eip1, eip2;
 
+protected: // interface for Mesh to be able to configure this object.
+
+   friend class Mesh;
+#ifdef MFEM_USE_MPI
+   friend class ParMesh;
+#endif
+
+   /// Set the mask indicating which portions of the object have been setup
+   /** The argument @a m is a bitmask used in
+       Mesh::GetFaceElementTransformations to indicate which portions of the
+       FaceElementTransformations object have been configured.
+
+       mask &  1: Elem1 is configured
+       mask &  2: Elem2 is configured
+       mask &  4: Loc1 is configured
+       mask &  8: Loc2 is configured
+       mask & 16: The Face transformation itself is configured
+   */
+   void SetConfigurationMask(int m) { mask = m; }
+
 public:
+
+   enum ConfigMasks
+   {
+      HAVE_ELEM1 =  1, ///< Element on side 1 is configured
+      HAVE_ELEM2 =  2, ///< Element on side 2 is configured
+      HAVE_LOC1  =  4, ///< Point transformation for side 1 is configured
+      HAVE_LOC2  =  8, ///< Point transformation for side 2 is configured
+      HAVE_FACE  = 16  ///< Face transformation is configured
+   };
+
    int Elem1No, Elem2No;
    Geometry::Type &FaceGeom; ///< @deprecated Use GetGeometryType instead
    ElementTransformation *Elem1, *Elem2;
@@ -466,10 +508,10 @@ public:
    */
    void SetGeometryType(Geometry::Type g) { geom = g; }
 
-   /// Set the mask indicating which portions of the object have been setup
-   /** The argument @a m is a bitmask used in
-       Mesh::GetFaceElementTransformations to indicate which portions of the
-       FaceElement Transformations object have been configured.
+   /** @brief Return the mask defining the configuration state.
+
+       The mask value indicates which portions of FaceElementTransformations
+       object have been configured.
 
        mask &  1: Elem1 is configured
        mask &  2: Elem2 is configured
@@ -477,12 +519,45 @@ public:
        mask &  8: Loc2 is configured
        mask & 16: The Face transformation itself is configured
    */
-   void SetConfigurationMask(int m) { mask = m; }
-   int  GetConfigurationMask() const { return mask; }
+   int GetConfigurationMask() const { return mask; }
 
    /** @brief Set the integration point in the Face and the two neighboring
-       elements, if present. */
-   void SetIntPoint(const IntegrationPoint *ip);
+       elements, if present.
+
+       The point @a face_ip must be in the reference coordinate system of the
+       face.
+   */
+   void SetIntPoint(const IntegrationPoint *face_ip);
+
+   /** @brief Set the integration point in the Face and the two neighboring
+       elements, if present.
+
+       This is a more expressive member function name than SetIntPoint, which
+       in this special case, does the same thing. This function can be used for
+       greater code clarity.
+   */
+   inline void SetAllIntPoints(const IntegrationPoint *face_ip)
+   { FaceElementTransformations::SetIntPoint(face_ip); }
+
+   /** @brief Get a const reference to the integration point in neighboring
+       element 1 corresponding to the currently set integration point on the
+       face.
+
+       This IntegrationPoint object will only contain up-to-date data if
+       SetIntPoint or SetAllIntPoints has been called with the latest
+       integration point for the face and the appropriate point transformation
+       has been configured. */
+   const IntegrationPoint &GetElement1IntPoint() { return eip1; }
+
+   /** @brief Get a const reference to the integration point in neighboring
+       element 2 corresponding to the currently set integration point on the
+       face.
+
+       This IntegrationPoint object will only contain up-to-date data if
+       SetIntPoint or SetAllIntPoints has been called with the latest
+       integration point for the face and the appropriate point transformation
+       has been configured. */
+   const IntegrationPoint &GetElement2IntPoint() { return eip2; }
 
    virtual void Transform(const IntegrationPoint &, Vector &);
    virtual void Transform(const IntegrationRule &, DenseMatrix &);
@@ -492,6 +567,26 @@ public:
    ElementTransformation & GetElement2Transformation();
    IntegrationPointTransformation & GetIntPoint1Transformation();
    IntegrationPointTransformation & GetIntPoint2Transformation();
+
+   /** @brief Check for self-consistency: compares the result of mapping the
+       reference face vertices to physical coordinates using the three
+       transformations: face, element 1, and element 2.
+
+       @param[in] print_level  If set to a positive number, print the physical
+                               coordinates of the face vertices computed through
+                               all available transformations: face, element 1,
+                               and/or element 2.
+       @param[in,out] out      The output stream to use for printing.
+
+       @returns A maximal distance between physical coordinates of face vertices
+                that should coincide. A successful check should return a small
+                number relative to the mesh extents. If less than 2 of the three
+                transformations are set, returns 0.
+
+       @warning This check will generally fail on periodic boundary faces.
+   */
+   double CheckConsistency(int print_level = 0,
+                           std::ostream &out = mfem::out);
 };
 
 /**                Elem1(Loc1(x)) = Face(x) = Elem2(Loc2(x))

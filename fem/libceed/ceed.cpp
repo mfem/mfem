@@ -97,6 +97,8 @@ static void InitCeedNonTensorBasisAndRestriction(const FiniteElementSpace &fes,
    Vector qweight(Q);
    Vector shape_i(P);
    DenseMatrix grad_i(P, dim);
+
+   CeedInt compstride = fes.GetOrdering()==Ordering::byVDIM ? 1 : fes.GetNDofs();
    const Table &el_dof = fes.GetElementToDofTable();
    Array<int> tp_el_dof(el_dof.Size_of_connections());
    const TensorBasisElement * tfe =
@@ -128,7 +130,15 @@ static void InitCeedNonTensorBasisAndRestriction(const FiniteElementSpace &fes,
          const int el_offset = fe->GetDof() * i;
          for (int j = 0; j < fe->GetDof(); j++)
          {
-            tp_el_dof[j + el_offset] = el_dof.GetJ()[dof_map[j] + el_offset];
+            if (compstride == 1)
+            {
+               tp_el_dof[j + el_offset] = fes.GetVDim()*
+                                          el_dof.GetJ()[dof_map[j] + el_offset];
+            }
+            else
+            {
+               tp_el_dof[j + el_offset] = el_dof.GetJ()[dof_map[j] + el_offset];
+            }
          }
       }
    }
@@ -157,20 +167,23 @@ static void InitCeedNonTensorBasisAndRestriction(const FiniteElementSpace &fes,
       {
          for (int i = 0; i < P; i++)
          {
-            tp_el_dof[i + e*P] = el_dof.GetJ()[i + e*P];
+            if (compstride == 1)
+            {
+               tp_el_dof[i + e*P] = fes.GetVDim()*el_dof.GetJ()[i + e*P];
+            }
+            else
+            {
+               tp_el_dof[i + e*P] = el_dof.GetJ()[i + e*P];
+            }
          }
       }
    }
    CeedBasisCreateH1(ceed, GetCeedTopology(fe->GetGeomType()), fes.GetVDim(),
                      fe->GetDof(), ir.GetNPoints(), shape.GetData(),
                      grad.GetData(), qref.GetData(), qweight.GetData(), basis);
-   CeedInterlaceMode imode = CEED_NONINTERLACED;
-   if (fes.GetOrdering()==Ordering::byVDIM)
-   {
-      imode = CEED_INTERLACED;
-   }
-   CeedElemRestrictionCreate(ceed, imode, mesh->GetNE(), fe->GetDof(),
-                             fes.GetNDofs(), fes.GetVDim(), CEED_MEM_HOST, CEED_COPY_VALUES,
+   CeedElemRestrictionCreate(ceed, mesh->GetNE(), fe->GetDof(), fes.GetVDim(),
+                             compstride, (fes.GetVDim())*(fes.GetNDofs()),
+                             CEED_MEM_HOST, CEED_COPY_VALUES,
                              tp_el_dof.GetData(), restr);
 }
 
@@ -215,6 +228,7 @@ static void InitCeedTensorBasisAndRestriction(const FiniteElementSpace &fes,
                            grad1d.GetData(), qref1d.GetData(),
                            qweight1d.GetData(), basis);
 
+   CeedInt compstride = fes.GetOrdering()==Ordering::byVDIM ? 1 : fes.GetNDofs();
    const Table &el_dof = fes.GetElementToDofTable();
    Array<int> tp_el_dof(el_dof.Size_of_connections());
    for (int i = 0; i < mesh->GetNE(); i++)
@@ -222,16 +236,20 @@ static void InitCeedTensorBasisAndRestriction(const FiniteElementSpace &fes,
       const int el_offset = fe->GetDof() * i;
       for (int j = 0; j < fe->GetDof(); j++)
       {
-         tp_el_dof[j + el_offset] = el_dof.GetJ()[dof_map[j] + el_offset];
+         if (compstride == 1)
+         {
+            tp_el_dof[j + el_offset] = fes.GetVDim()*
+                                       el_dof.GetJ()[dof_map[j] + el_offset];
+         }
+         else
+         {
+            tp_el_dof[j + el_offset] = el_dof.GetJ()[dof_map[j] + el_offset];
+         }
       }
    }
-   CeedInterlaceMode imode = CEED_NONINTERLACED;
-   if (fes.GetOrdering()==Ordering::byVDIM)
-   {
-      imode = CEED_INTERLACED;
-   }
-   CeedElemRestrictionCreate(ceed, imode, mesh->GetNE(), fe->GetDof(),
-                             fes.GetNDofs(), fes.GetVDim(), CEED_MEM_HOST, CEED_COPY_VALUES,
+   CeedElemRestrictionCreate(ceed, mesh->GetNE(), fe->GetDof(), fes.GetVDim(),
+                             compstride, (fes.GetVDim())*(fes.GetNDofs()),
+                             CEED_MEM_HOST, CEED_COPY_VALUES,
                              tp_el_dof.GetData(), restr);
 }
 
@@ -298,8 +316,9 @@ void CeedPAAssemble(const CeedPAOperator& op,
    CeedBasisGetNumQuadraturePoints(ceedData.basis, &nqpts);
 
    const int qdatasize = op.qdatasize;
-   CeedElemRestrictionCreateStrided(ceed, nelem, nqpts, nelem*nqpts, qdatasize,
-                                    CEED_STRIDES_BACKEND, &ceedData.restr_i);
+   CeedElemRestrictionCreateStrided(ceed, nelem, nqpts, qdatasize,
+                                    nelem*nqpts*qdatasize, CEED_STRIDES_BACKEND,
+                                    &ceedData.restr_i);
 
    CeedVectorCreate(ceed, mesh->GetNodes()->Size(), &ceedData.node_coords);
    CeedVectorSetArray(ceedData.node_coords, CEED_MEM_HOST, CEED_USE_POINTER,
