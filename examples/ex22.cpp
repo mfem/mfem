@@ -297,11 +297,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient negMassCoef(omega_ * omega_ * epsilon_);
 
    SesquilinearForm *a = new SesquilinearForm(fespace, conv);
-   if (pa)
-   {
-      a->real().SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      a->imag().SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   }
+   if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    switch (prob)
    {
       case 0:
@@ -338,10 +334,8 @@ int main(int argc, char *argv[])
    //         -Grad(a Div) - omega^2 b + omega c
    //
    BilinearForm *pcOp = new BilinearForm(fespace);
-   if (pa)
-   {
-      pcOp->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   }
+   if (pa) { pcOp->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+
    switch (prob)
    {
       case 0:
@@ -374,17 +368,7 @@ int main(int argc, char *argv[])
    a->FormLinearSystem(ess_tdof_list, u, b, A, U, B);
    U = 0.0;
 
-   OperatorHandle PCOp;
-   pcOp->FormSystemMatrix(ess_tdof_list, PCOp);
-
-   if (!pa)
-   {
-      ComplexSparseMatrix * Asp =
-         dynamic_cast<ComplexSparseMatrix*>(A.Ptr());
-
-      cout << "Size of linear system: "
-           << 2 * Asp->real().Width() << endl << endl;
-   }
+   cout << "Size of linear system: " << A.Ptr()->Width() << endl << endl;
 
    // 11. Define and apply a GMRES solver for AU=B with a block diagonal
    //     preconditioner based on the appropriate sparse smoother.
@@ -392,8 +376,8 @@ int main(int argc, char *argv[])
       Array<int> blockOffsets;
       blockOffsets.SetSize(3);
       blockOffsets[0] = 0;
-      blockOffsets[1] = PCOp.Ptr()->Height();
-      blockOffsets[2] = PCOp.Ptr()->Height();
+      blockOffsets[1] = A.Ptr()->Height() / 2;
+      blockOffsets[2] = A.Ptr()->Height() / 2;
       blockOffsets.PartialSum();
 
       BlockDiagonalPreconditioner BDP(blockOffsets);
@@ -407,6 +391,9 @@ int main(int argc, char *argv[])
       }
       else
       {
+         OperatorHandle PCOp;
+         pcOp->SetDiagonalPolicy(mfem::Operator::DIAG_ONE);
+         pcOp->FormSystemMatrix(ess_tdof_list, PCOp);
          switch (prob)
          {
             case 0:
@@ -418,8 +405,8 @@ int main(int argc, char *argv[])
             case 2:
                pc_r = new DSmoother(*PCOp.As<SparseMatrix>());
                break;
-
-            default: break; // This should be unreachable
+            default:
+               break; // This should be unreachable
          }
       }
       double s = (prob != 1) ? 1.0 : -1.0;
@@ -432,8 +419,7 @@ int main(int argc, char *argv[])
       BDP.owns_blocks = 1;
 
       GMRESSolver gmres;
-      // TODO: Implement device support for block-diagonal preconditioner
-      if (device.IsDisabled()) { gmres.SetPreconditioner(BDP); }
+      gmres.SetPreconditioner(BDP);
       gmres.SetOperator(*A.Ptr());
       gmres.SetRelTol(1e-12);
       gmres.SetMaxIter(1000);
