@@ -26,18 +26,20 @@ struct crystal;
 namespace mfem
 {
 
+/// FindPointsGSLIB provides two key functionalities:
+/// (1) For a given list of points, it determines the element, processor, and
+/// the reference position inside that element where each point is located.
+/// (2) It interpolates any scalar or vector GridFunction.
 class FindPointsGSLIB
 {
 protected:
-
-
    Mesh *mesh;
    IntegrationRule *ir_simplex;
    struct findpts_data_2 *fdata2D;
    struct findpts_data_3 *fdata3D;
    int dim, points_cnt;
-   Array<unsigned int> gsl_code, gsl_proc, gsl_elem;
-   Vector gsl_mesh, gsl_ref, gsl_dist;
+   Array<unsigned int> gsl_code, gsl_proc, gsl_elem, gsl_mfem_elem;
+   Vector gsl_mesh, gsl_ref, gsl_dist, gsl_mfem_ref;
    bool setupflag;
    struct crystal *cr;
    struct comm *gsl_comm;
@@ -52,59 +54,15 @@ protected:
    /// split element into format expected by GSLIB
    void GetSimplexNodalCoordinates();
 
-   /** Searches positions given in physical space by @a point_pos. All output
-       Arrays and Vectors are expected to have the correct size.
-
-       @param[in]  point_pos  Positions to be found. Must by ordered by nodes
-                              (XXX...,YYY...,ZZZ).
-       @param[out] codes      Return codes for each point: inside element (0),
-                              element boundary (1), not found (2).
-       @param[out] proc_ids   MPI proc ids where the points were found.
-       @param[out] elem_ids   Element ids where the points were found.
-       @param[out] ref_pos    Reference coordinates of the found point. Ordered
-                              by vdim (XYZ,XYZ,XYZ...).
-                              Note: the gslib reference frame is [-1,1].
-       @param[out] dist       Distance between the sought and the found point
-                              in physical space. */
-   void FindPoints(const Vector &point_pos, Array<unsigned int> &codes,
-                   Array<unsigned int> &proc_ids, Array<unsigned int> &elem_ids,
-                   Vector &ref_pos, Vector &dist);
-
-   /** Interpolation of field values at prescribed reference space positions.
-
-       @param[in] codes       Return codes for each point: inside element (0),
-                              element boundary (1), not found (2).
-       @param[in] proc_ids    MPI proc ids where the points were found.
-       @param[in] elem_ids    Element ids where the points were found.
-       @param[in] ref_pos     Reference coordinates of the found point. Ordered
-                              by vdim (XYZ,XYZ,XYZ...).
-                              Note: the gslib reference frame is [-1,1].
-       @param[in] field_in    Function values that will be interpolated on the
-                              reference positions. Note: it is assumed that
-                              @a field_in is in H1 and in the same space as the
-                              mesh that was given to Setup().
-       @param[out] field_out  Interpolated values. */
-   void Interpolate(const Array<unsigned int> &codes,
-                    const Array<unsigned int> &proc_ids,
-                    const Array<unsigned int> &elem_ids, const Vector &ref_pos,
-                    const GridFunction &field_in, Vector &field_out);
-
    /// Use GSLIB for communication and interpolation
-   void InterpolateH1(const Array<unsigned int> &codes,
-                      const Array<unsigned int> &proc_ids,
-                      const Array<unsigned int> &elem_ids, const Vector &ref_pos,
-                      const GridFunction &field_in, Vector &field_out);
+   void InterpolateH1(const GridFunction &field_in, Vector &field_out);
    /// Uses GSLIB Crystal Router for communication followed by GetValue for
    /// interpolation
-   void InterpolateGeneral(const Array<unsigned int> &codes,
-                           const Array<unsigned int> &proc_ids,
-                           const Array<unsigned int> &elem_ids,
-                           const Vector &ref_pos, const GridFunction &field_in,
-                           Vector &field_out);
+   void InterpolateGeneral(const GridFunction &field_in, Vector &field_out);
    /// Map {r,s,t} coordinates from [-1,1] to [0,1] for MFEM. For simplices mesh
    /// find the original element number (that was split into micro quads/hexes
    /// by GetSimplexNodalCoordinates())
-   void MapRefPosAndElemIndices(Array<unsigned int> &elem_ids, Vector &ref_pos);
+   void MapRefPosAndElemIndices();
 
 
 public:
@@ -131,13 +89,35 @@ public:
    void Setup(Mesh &m, const double bb_t = 0.1, const double newt_tol = 1.0e-12,
               const int npt_max = 256);
 
+   /** Searches positions given in physical space by @a point_pos. All output
+       Arrays and Vectors are expected to have the correct size.
+       @param[in]  point_pos       Positions to be found. Must by ordered by nodes
+                                   (XXX...,YYY...,ZZZ).
+       @param[out] gsl_codes       Return codes for each point: inside element (0),
+                                   element boundary (1), not found (2).
+       @param[out] gsl_proc        MPI proc ids where the points were found.
+       @param[out] gsl_elem        Element ids where the points were found.
+       @param[out] gsl_mfem_elem   Element ids corresponding to MFEM-mesh
+                                   where the points were found.
+                                   @a gsl_mfem_elem != @a gsl_elem for simplices
+       @param[out] gsl_ref         Reference coordinates of the found point.
+                                   Ordered by vdim (XYZ,XYZ,XYZ...).
+                                   Note: the gslib reference frame is [-1,1].
+       @param[out] gsl_mfem_ref    Reference coordinates @a gsl_ref mapped to [0,1].
+       @param[out] gsl_dist        Distance between the sought and the found point
+                                   in physical space. */
    /** Searches positions given in physical space by @a point_pos. */
    void FindPoints(const Vector &point_pos);
    /// Setup FindPoints and search positions
    void FindPoints(Mesh &m, const Vector &point_pos, const double bb_t = 0.1,
                    const double newt_tol = 1.0e-12,  const int npt_max = 256);
 
-   /** Interpolation of field values at prescribed reference space positions. */
+   /** Interpolation of field values at prescribed reference space positions.
+       @param[in] field_in    Function values that will be interpolated on the
+                              reference positions. Note: it is assumed that
+                              @a field_in is in H1 and in the same space as the
+                              mesh that was given to Setup().
+       @param[out] field_out  Interpolated values. */
    void Interpolate(const GridFunction &field_in, Vector &field_out);
    /** Search positions and interpolate */
    void Interpolate(const Vector &point_pos, const GridFunction &field_in,
@@ -165,6 +145,14 @@ public:
    /// Return distance Distance between the sought and the found point
    /// in physical space, for each point found by FindPoints.
    const Vector &GetDist()              const { return gsl_dist; }
+
+   /// Return element number for each point found by FindPoints corresponding to
+   /// MFEM mesh. gsl_mfem_elem != gsl_elem for mesh with simplices.
+   const Array<unsigned int> &GetMFEMElem() const { return gsl_mfem_elem; }
+   /// Return reference coordinates in [0,1] for each point found by FindPoints.
+   const Vector &GetMFEMReferencePosition() const { return gsl_mfem_ref; }
+
+
 };
 
 } // namespace mfem
