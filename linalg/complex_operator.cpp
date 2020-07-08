@@ -380,7 +380,6 @@ void ComplexUMFPackSolver::Mult(const Vector &b, Vector &x) const
    // Solve the transpose, since UMFPack expects CCS instead of CRS format
    if (!use_long_ints)
    {
-      //
       int status =
          umfpack_zi_solve(UMFPACK_Aat, mat->real().GetI(), mat->real().GetJ(),
                           mat->real().GetData(), mat->imag().GetData(),
