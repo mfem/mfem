@@ -13,11 +13,38 @@
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
+#define MFEM_DEBUG_COLOR 45
+#include "../general/debug.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 
 namespace mfem
 {
+
+// We might come here w/o knowing that PA will be used.
+// It is the case when EnableLimiting is called before the Setup => AssemblePA.
+void TMOP_Integrator::EnableLimitingPA(const GridFunction &n0)
+{
+   dbg();
+   const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   PA.R = n0.FESpace()->GetElementRestriction(ordering);
+
+   // Nodes0
+   PA.X0.SetSize(PA.R->Height(), Device::GetMemoryType());
+   PA.X0.UseDevice(true);
+   PA.R->Mult(n0, PA.X0);
+
+   // lim_dist & lim_func checks
+   MFEM_VERIFY(lim_dist, "No lim_dist!")
+   PA.LD.SetSize(PA.R->Height(), Device::GetMemoryType());
+   PA.LD.UseDevice(true);
+   PA.R->Mult(*lim_dist, PA.LD);
+
+   // Only TMOP_QuadraticLimiter is supported
+   MFEM_VERIFY(lim_func, "No lim_func!")
+   MFEM_VERIFY(dynamic_cast<TMOP_QuadraticLimiter*>(lim_func),
+               "Only TMOP_QuadraticLimiter is supported");
+}
 
 // Code paths leading to ComputeElementTargets:
 // - GetElementEnergy(elfun) which is done through GetGridFunctionEnergyPA(x)
@@ -41,6 +68,7 @@ namespace mfem
 //                                    Jtr(i) *= R_theta        (orientation)
 void TMOP_Integrator::ComputeElementTargetsPA(const Vector &x) const
 {
+   dbg();
    PA.Jtr.HostWrite();
 
    const int NE = PA.ne;
@@ -56,8 +84,17 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &x) const
    const bool useable_input_vector = x.Size() > 0;
    const bool use_input_vector = target_type == TargetConstructor::GIVEN_FULL;
 
-   if (use_input_vector && !useable_input_vector) { return; }
-   if (GetDiscreteAdaptTC() && !coeff0) { return; }
+   if (use_input_vector && !useable_input_vector)
+   {
+      dbg("return: unusable!");
+      return;
+   }
+   if (GetDiscreteAdaptTC()) { dbg("\033[7mDiscreteAdaptTC"); }
+   /*if (GetDiscreteAdaptTC() && !coeff0)
+   {
+      dbg("return: GetDiscreteAdaptTC && !coeff0");
+      return;
+   }*/
 
    if (use_input_vector)
    {
@@ -91,6 +128,7 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &x) const
 
 void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 {
+   dbg();
    const IntegrationRule *ir = EnergyIntegrationRule(*fes.GetFE(0));
    MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES,
                "PA Only supports Ordering::byNODES!");
@@ -167,6 +205,13 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
             C0(q,e) = coeff0->Eval(T, ir->IntPoint(q));
          }
       }
+   }
+
+   if (coeff0)
+   {
+      dbg("coeff0 => EnableLimitingPA(nodes0)");
+      MFEM_VERIFY(nodes0, "nodes0 has not been set!");
+      EnableLimitingPA(*nodes0);
    }
 }
 
