@@ -377,7 +377,7 @@ void ComplexUMFPackSolver::Mult(const Vector &b, Vector &x) const
       bimag *=-1.0;
    }
 
-   //Solve the transpose, since UMFPack expects CCS instead of CRS format
+   // Solve the transpose, since UMFPack expects CCS instead of CRS format
    if (!use_long_ints)
    {
       //
@@ -424,17 +424,16 @@ void ComplexUMFPackSolver::MultTranspose(const Vector &b, Vector &x) const
    ComplexOperator::Convention conv = mat->GetConvention();
    Vector bimag;
    bimag.SetDataAndSize(&datab[n],n);
-   //To solve the Adjoint A^H x = b by solving
+   // Solve the Adjoint A^H x = b by solving
    // the conjugate problem A^T \bar{x} = \bar{b}
-   if ((!transpose && conv == ComplexOperator::HERMITIAN) ||
-       ( transpose && conv == ComplexOperator::BLOCK_SYMMETRIC))
+   if ((!transa && conv == ComplexOperator::HERMITIAN) ||
+       ( transa && conv == ComplexOperator::BLOCK_SYMMETRIC))
    {
       bimag *=-1.0;
    }
 
    if (!use_long_ints)
    {
-      //
       int status =
          umfpack_zi_solve(UMFPACK_A, mat->real().GetI(), mat->real().GetJ(),
                           mat->real().GetData(), mat->imag().GetData(),
@@ -460,14 +459,14 @@ void ComplexUMFPackSolver::MultTranspose(const Vector &b, Vector &x) const
          mfem_error("ComplexUMFPackSolver::Mult : umfpack_zl_solve() failed!");
       }
    }
-   if (!transpose)
+   if (!transa)
    {
       Vector ximag;
       ximag.SetDataAndSize(&datax[n],n);
       ximag *=-1.0;
    }
-   if ((!transpose && conv == ComplexOperator::HERMITIAN) ||
-       ( transpose && conv == ComplexOperator::BLOCK_SYMMETRIC))
+   if ((!transa && conv == ComplexOperator::HERMITIAN) ||
+       ( transa && conv == ComplexOperator::BLOCK_SYMMETRIC))
    {
       bimag *=-1.0;
    }
