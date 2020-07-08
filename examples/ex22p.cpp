@@ -329,11 +329,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient negMassCoef(omega_ * omega_ * epsilon_);
 
    ParSesquilinearForm *a = new ParSesquilinearForm(fespace, conv);
-   if (pa)
-   {
-      a->real().SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      a->imag().SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   }
+   if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    switch (prob)
    {
       case 0:
@@ -370,10 +366,7 @@ int main(int argc, char *argv[])
    //         -Grad(a Div) - omega^2 b + omega c
    //
    ParBilinearForm *pcOp = new ParBilinearForm(fespace);
-   if (pa)
-   {
-      pcOp->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   }
+   if (pa) { pcOp->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    switch (prob)
    {
       case 0:
@@ -407,16 +400,10 @@ int main(int argc, char *argv[])
    a->FormLinearSystem(ess_tdof_list, u, b, A, U, B);
    U = 0.0;
 
-   OperatorHandle PCOp;
-   pcOp->FormSystemMatrix(ess_tdof_list, PCOp);
-
-   if (myid == 0 && !pa)
+   if (myid == 0)
    {
-      ComplexHypreParMatrix * Ahyp =
-         dynamic_cast<ComplexHypreParMatrix*>(A.Ptr());
-
       cout << "Size of linear system: "
-           << 2 * Ahyp->real().GetGlobalNumRows() << endl << endl;
+           << 2 * fespace->GlobalTrueVSize() << endl << endl;
    }
 
    // 13. Define and apply a parallel FGMRES solver for AU=B with a block
@@ -426,8 +413,8 @@ int main(int argc, char *argv[])
       Array<int> blockTrueOffsets;
       blockTrueOffsets.SetSize(3);
       blockTrueOffsets[0] = 0;
-      blockTrueOffsets[1] = PCOp.Ptr()->Height();
-      blockTrueOffsets[2] = PCOp.Ptr()->Height();
+      blockTrueOffsets[1] = A.Ptr()->Height() / 2;
+      blockTrueOffsets[2] = A.Ptr()->Height() / 2;
       blockTrueOffsets.PartialSum();
 
       BlockDiagonalPreconditioner BDP(blockTrueOffsets);
@@ -441,6 +428,8 @@ int main(int argc, char *argv[])
       }
       else
       {
+         OperatorHandle PCOp;
+         pcOp->FormSystemMatrix(ess_tdof_list, PCOp);
          switch (prob)
          {
             case 0:
