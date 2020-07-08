@@ -13,8 +13,6 @@
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
-#define MFEM_DEBUG_COLOR 45
-#include "../general/debug.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 
@@ -25,7 +23,6 @@ namespace mfem
 // It is the case when EnableLimiting is called before the Setup => AssemblePA.
 void TMOP_Integrator::EnableLimitingPA(const GridFunction &n0)
 {
-   dbg();
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
    PA.R = n0.FESpace()->GetElementRestriction(ordering);
 
@@ -68,7 +65,6 @@ void TMOP_Integrator::EnableLimitingPA(const GridFunction &n0)
 //                                    Jtr(i) *= R_theta        (orientation)
 void TMOP_Integrator::ComputeElementTargetsPA(const Vector &x) const
 {
-   dbg();
    PA.Jtr.HostWrite();
 
    const int NE = PA.ne;
@@ -84,19 +80,10 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &x) const
    const bool useable_input_vector = x.Size() > 0;
    const bool use_input_vector = target_type == TargetConstructor::GIVEN_FULL;
 
-   if (use_input_vector && !useable_input_vector)
-   {
-      dbg("return: unusable!");
-      return;
-   }
+   if (use_input_vector && !useable_input_vector) { return; }
 
    DiscreteAdaptTC *discr_tc = GetDiscreteAdaptTC();
-   if (discr_tc) { dbg("\033[7mDiscreteAdaptTC"); }
-   if (discr_tc && !discr_tc->GetTspecFesv())
-   {
-      dbg("return: GetDiscreteAdaptTC && !tspec_fesv");
-      return;
-   }
+   if (discr_tc && !discr_tc->GetTspecFesv()) { return; }
 
    if (use_input_vector)
    {
@@ -130,7 +117,6 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &x) const
 
 void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   dbg();
    const IntegrationRule *ir = EnergyIntegrationRule(*fes.GetFE(0));
    MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES,
                "PA Only supports Ordering::byNODES!");
@@ -211,7 +197,6 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 
    if (coeff0)
    {
-      dbg("coeff0 => EnableLimitingPA(nodes0)");
       MFEM_VERIFY(nodes0, "nodes0 has not been set!");
       EnableLimitingPA(*nodes0);
    }
