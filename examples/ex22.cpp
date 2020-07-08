@@ -290,11 +290,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient negMassCoef(omega_ * omega_ * epsilon_);
 
    SesquilinearForm *a = new SesquilinearForm(fespace, conv);
-   if (pa)
-   {
-      a->real().SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      a->imag().SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   }
+   if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    switch (prob)
    {
       case 0:
@@ -331,10 +327,8 @@ int main(int argc, char *argv[])
    //         -Grad(a Div) - omega^2 b + omega c
    //
    BilinearForm *pcOp = new BilinearForm(fespace);
-   if (pa)
-   {
-      pcOp->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   }
+   if (pa) { pcOp->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+
    switch (prob)
    {
       case 0:
