@@ -149,9 +149,13 @@ if (MFEM_USE_MPI)
       message(FATAL_ERROR "PETSc version >= 3.8.0 is required")
     endif()
     set(PETSC_INCLUDE_DIRS ${PETSC_INCLUDES})
+    if (MFEM_USE_SLEPC)
+      find_package(SLEPc REQUIRED config)
+      message(STATUS "Found SLEPc version ${SLEPC_VERSION}")
+    endif()
   endif()
 else()
-  set(PKGS_NEED_MPI SUPERLU PETSC STRUMPACK PUMI)
+  set(PKGS_NEED_MPI SUPERLU PETSC SLEPC STRUMPACK PUMI)
   foreach(PKG IN LISTS PKGS_NEED_MPI)
     if (MFEM_USE_${PKG})
       message(STATUS "Disabling package ${PKG} - requires MPI")
@@ -352,7 +356,7 @@ endif()
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
 set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
-    MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT Ginkgo GNUTLS GSLIB NETCDF
+    SLEPC MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT Ginkgo GNUTLS GSLIB NETCDF
     MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE ADIOS2)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
