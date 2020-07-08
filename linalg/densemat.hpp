@@ -644,6 +644,9 @@ public:
    virtual void SetOperator(const Operator &op);
 
    /// Matrix vector multiplication with the inverse of dense matrix.
+   void Mult(const double *x, double *y) const;
+
+   /// Matrix vector multiplication with the inverse of dense matrix.
    virtual void Mult(const Vector &x, Vector &y) const;
 
    /// Multiply the inverse matrix by another matrix: X = A^{-1} B.
