@@ -391,14 +391,15 @@ int main(int argc, char *argv[])
    //     non-conforming AMR, etc.
    a.Assemble(0);
 
-   OperatorHandle Ah;
+   OperatorPtr A;
    Vector B, X;
-   a.FormLinearSystem(ess_tdof_list, x, b, Ah, X, B);
+   a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
    // 13. Solve using a direct or an iterative solver
 #ifdef MFEM_USE_SUITESPARSE
    {
-      ComplexUMFPackSolver  csolver(*Ah.As<ComplexSparseMatrix>());
+      cout << "\n Solve the linear System using UMFPACK " << endl;
+      ComplexUMFPackSolver  csolver(*A.As<ComplexSparseMatrix>());
       csolver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
       csolver.Mult(B, X);
    }
@@ -449,13 +450,14 @@ int main(int argc, char *argv[])
       BlockGS.SetDiagonalBlock(0,&gs00);
       BlockGS.SetDiagonalBlock(1,&gs11);
 
+      cout << "\n Solve the linear system using GMRES " << endl;
       GMRESSolver gmres;
       gmres.SetPrintLevel(1);
       gmres.SetKDim(200);
       gmres.SetMaxIter(2000);
       gmres.SetRelTol(1e-5);
       gmres.SetAbsTol(0.0);
-      gmres.SetOperator(*Ah.As<ComplexSparseMatrix>());
+      gmres.SetOperator(*A);
       gmres.SetPreconditioner(BlockGS);
       gmres.Mult(B, X);
    }

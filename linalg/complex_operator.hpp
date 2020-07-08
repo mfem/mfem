@@ -175,7 +175,7 @@ public:
 };
 
 #ifdef MFEM_USE_SUITESPARSE
-/** @brief inteface with UMFPack solver specialized for CompleSparseMatrix
+/** @brief Interface with UMFPack solver specialized for ComplexSparseMatrix
     This approach avoids forming a monolithic SparseMatrix which leads
     to increased memory and flops
  */
@@ -183,7 +183,7 @@ class ComplexUMFPackSolver : public Solver
 {
 protected:
    bool use_long_ints;
-   bool transpose = false;
+   bool transa = false;
    ComplexSparseMatrix *mat;
 
    void *Numeric;
@@ -214,22 +214,22 @@ public:
        modifying the matrices if the column indices are not already sorted. */
    virtual void SetOperator(const Operator &op);
 
-   /// Set the print level field in the #Control data member.
+   // Set the print level field in the #Control data member.
    void SetPrintLevel(int print_lvl) { Control[UMFPACK_PRL] = print_lvl; }
 
-   void SetTransposeSolve(bool transpose_) { transpose = transpose_ ;}
+   void SetTransposeSolve(bool transa_) { transa = transa_ ;}
 
    /** @brief This is solving the system A x = b */
    virtual void Mult(const Vector &b, Vector &x) const;
 
    /** @brief
-   // This is solving the system:
-   // A^H x = b (where transpose = false)
-   // This is equivalent to solving the transpose block system for the
-   // case of Convension = HERMITIAN
-   // A^T x = b (when transpose = true )
-   // This is equivalent to solving the transpose block system for the
-   // case of Convension = BLOCK_SYMMETRIC */
+      This is solving the system:
+      A^H x = b (when transa = false)
+      This is equivalent to solving the transpose block system for the
+      case of Convention = HERMITIAN
+      A^T x = b (when transa = true)
+      This is equivalent to solving the transpose block system for the
+      case of Convention = BLOCK_SYMMETRIC */
    virtual void MultTranspose(const Vector &b, Vector &x) const;
 
    virtual ~ComplexUMFPackSolver();

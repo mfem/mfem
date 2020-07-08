@@ -419,7 +419,7 @@ int main(int argc, char *argv[])
    //     constraints for non-conforming AMR, etc.
    a.Assemble();
 
-   OperatorHandle Ah;
+   OperatorPtr Ah;
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, Ah, X, B);
 
@@ -434,6 +434,10 @@ int main(int argc, char *argv[])
    // 16. Solve using a direct or an iterative solver
 #ifdef MFEM_USE_SUPERLU
    {
+      if (myid == 0)
+      {
+         cout << "\n Solve the linear System using SuperLU " << endl;
+      }
       SuperLURowLocMatrix SA(*A);
       SuperLUSolver superlu(MPI_COMM_WORLD);
       superlu.SetPrintStatistics(false);
@@ -490,6 +494,10 @@ int main(int argc, char *argv[])
       BlockAMS.SetDiagonalBlock(0,&ams00);
       BlockAMS.SetDiagonalBlock(1,&ams11);
 
+      if (myid == 0)
+      {
+         cout << "\n Solve the linear system using GMRES " << endl;
+      }
       GMRESSolver gmres(MPI_COMM_WORLD);
       gmres.SetPrintLevel(1);
       gmres.SetKDim(200);
