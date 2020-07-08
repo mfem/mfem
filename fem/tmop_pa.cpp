@@ -89,12 +89,14 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &x) const
       dbg("return: unusable!");
       return;
    }
-   if (GetDiscreteAdaptTC()) { dbg("\033[7mDiscreteAdaptTC"); }
-   /*if (GetDiscreteAdaptTC() && !coeff0)
+
+   DiscreteAdaptTC *discr_tc = GetDiscreteAdaptTC();
+   if (discr_tc) { dbg("\033[7mDiscreteAdaptTC"); }
+   if (discr_tc && !discr_tc->GetTspecFesv())
    {
-      dbg("return: GetDiscreteAdaptTC && !coeff0");
+      dbg("return: GetDiscreteAdaptTC && !tspec_fesv");
       return;
-   }*/
+   }
 
    if (use_input_vector)
    {
