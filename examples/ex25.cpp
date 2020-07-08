@@ -398,9 +398,9 @@ int main(int argc, char *argv[])
    // 13. Solve using a direct or an iterative solver
 #ifdef MFEM_USE_SUITESPARSE
    {
-      cout << "\n Solve the linear System using UMFPACK " << endl;
-      ComplexUMFPackSolver  csolver(*A.As<ComplexSparseMatrix>());
+      ComplexUMFPackSolver csolver(*A.As<ComplexSparseMatrix>());
       csolver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+      csolver.SetPrintLevel(1);
       csolver.Mult(B, X);
    }
 #else
@@ -432,7 +432,7 @@ int main(int argc, char *argv[])
 
       prec.Assemble();
 
-      OperatorHandle PCOpAh;
+      OperatorPtr PCOpAh;
       prec.FormSystemMatrix(ess_tdof_list, PCOpAh);
 
       // 13b. Define and apply a GMRES solver for AU=B with a block diagonal
@@ -450,7 +450,6 @@ int main(int argc, char *argv[])
       BlockGS.SetDiagonalBlock(0,&gs00);
       BlockGS.SetDiagonalBlock(1,&gs11);
 
-      cout << "\n Solve the linear system using GMRES " << endl;
       GMRESSolver gmres;
       gmres.SetPrintLevel(1);
       gmres.SetKDim(200);

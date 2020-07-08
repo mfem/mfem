@@ -423,21 +423,11 @@ int main(int argc, char *argv[])
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, Ah, X, B);
 
-   // 15. Transform to monolithic HypreParMatrix
-   HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
-
-   if (myid == 0)
+   // 15. Solve using a direct or an iterative solver
+#ifndef MFEM_USE_SUPERLU
    {
-      cout << "Size of linear system: " << A->GetGlobalNumRows() << endl;
-   }
-
-   // 16. Solve using a direct or an iterative solver
-#ifdef MFEM_USE_SUPERLU
-   {
-      if (myid == 0)
-      {
-         cout << "\n Solve the linear System using SuperLU " << endl;
-      }
+      // 15. Transform to monolithic HypreParMatrix
+      HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
       SuperLURowLocMatrix SA(*A);
       SuperLUSolver superlu(MPI_COMM_WORLD);
       superlu.SetPrintStatistics(false);
@@ -445,9 +435,9 @@ int main(int argc, char *argv[])
       superlu.SetColumnPermutation(superlu::PARMETIS);
       superlu.SetOperator(SA);
       superlu.Mult(B, X);
+      delete A;
    }
 #else
-
    // 16a. Set up the parallel Bilinear form a(.,.) for the preconditioner
    //
    //    In Comp
@@ -476,7 +466,7 @@ int main(int argc, char *argv[])
 
       prec.Assemble();
 
-      OperatorHandle PCOpAh;
+      OperatorPtr PCOpAh;
       prec.FormSystemMatrix(ess_tdof_list, PCOpAh);
 
       // 16b. Define and apply a parallel GMRES solver for AU=B with a block
@@ -494,17 +484,13 @@ int main(int argc, char *argv[])
       BlockAMS.SetDiagonalBlock(0,&ams00);
       BlockAMS.SetDiagonalBlock(1,&ams11);
 
-      if (myid == 0)
-      {
-         cout << "\n Solve the linear system using GMRES " << endl;
-      }
       GMRESSolver gmres(MPI_COMM_WORLD);
       gmres.SetPrintLevel(1);
       gmres.SetKDim(200);
       gmres.SetMaxIter(2000);
       gmres.SetRelTol(1e-5);
       gmres.SetAbsTol(0.0);
-      gmres.SetOperator(*A);
+      gmres.SetOperator(*Ah);
       gmres.SetPreconditioner(BlockAMS);
       gmres.Mult(B, X);
    }
@@ -635,7 +621,6 @@ int main(int argc, char *argv[])
    }
 
    // 20. Free the used memory.
-   delete A;
    delete pml;
    delete fespace;
    delete fec;
