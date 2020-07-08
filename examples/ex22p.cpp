@@ -323,11 +323,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient negMassCoef(omega_ * omega_ * epsilon_);
 
    ParSesquilinearForm *a = new ParSesquilinearForm(fespace, conv);
-   if (pa)
-   {
-      a->real().SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      a->imag().SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   }
+   if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    switch (prob)
    {
       case 0:
@@ -364,10 +360,7 @@ int main(int argc, char *argv[])
    //         -Grad(a Div) - omega^2 b + omega c
    //
    ParBilinearForm *pcOp = new ParBilinearForm(fespace);
-   if (pa)
-   {
-      pcOp->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   }
+   if (pa) { pcOp->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    switch (prob)
    {
       case 0:
