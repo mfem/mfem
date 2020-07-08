@@ -812,13 +812,13 @@ CPDSolver::Assemble()
    // a0_->Finalize();
 
    a1_->Assemble();
-   if (!pa_) a1_->Finalize();
+   if (!pa_) { a1_->Finalize(); }
 
    b1_->Assemble();
-   if (!pa_) b1_->Finalize();
+   if (!pa_) { b1_->Finalize(); }
 
    m2_->Assemble();
-   if (!pa_) m2_->Finalize();
+   if (!pa_) { m2_->Finalize(); }
 
    // TODO: PA
    m12EpsRe_->Assemble();
