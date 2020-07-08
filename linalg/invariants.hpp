@@ -593,7 +593,8 @@ protected:
       if (dont(HAVE_I3b_p))
       {
          eval_state |= HAVE_I3b_p;
-         I3b_p = sign_detJ*scalar_ops::pow(Get_I3b(), -2, 3);
+         const scalar_t i3b = Get_I3b();
+         I3b_p = sign_detJ*scalar_ops::pow(i3b, -2, 3);
       }
       return I3b_p;
    }

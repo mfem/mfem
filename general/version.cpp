@@ -148,6 +148,9 @@ const char *GetConfigStr()
 #ifdef MFEM_USE_OCCA
       "MFEM_USE_OCCA\n"
 #endif
+#ifdef MFEM_USE_SIMD
+      "MFEM_USE_SIMD\n"
+#endif
 #ifdef MFEM_USE_ADIOS2
       "MFEM_USE_ADIOS2\n"
 #endif

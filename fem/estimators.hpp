@@ -45,6 +45,7 @@ public:
    /// Force recomputation of the estimates on the next call to GetLocalErrors.
    virtual void Reset() = 0;
 
+   /// Destruct the error estimator
    virtual ~ErrorEstimator() { }
 };
 
@@ -65,6 +66,14 @@ public:
 
 /** @brief The ZienkiewiczZhuEstimator class implements the Zienkiewicz-Zhu
     error estimation procedure.
+
+    Zienkiewicz, O.C. and Zhu, J.Z., The superconvergent patch recovery
+    and a posteriori error estimates. Part 1: The recovery technique.
+    Int. J. Num. Meth. Engng. 33, 1331-1364 (1992).
+
+    Zienkiewicz, O.C. and Zhu, J.Z., The superconvergent patch recovery
+    and a posteriori error estimates. Part 2: Error estimates and adaptivity.
+    Int. J. Num. Meth. Engng. 33, 1365-1382 (1992).
 
     The required BilinearFormIntegrator must implement the methods
     ComputeElementFlux() and ComputeFluxEnergy().
@@ -217,6 +226,7 @@ protected:
       class when needed.*/
    bool own_flux_fes; ///< Ownership flag for flux_space and smooth_flux_space.
 
+   /// Initialize with the integrator, solution, and flux finite element spaces.
    void Init(BilinearFormIntegrator &integ,
              ParGridFunction &sol,
              ParFiniteElementSpace *flux_fes,
@@ -303,6 +313,88 @@ public:
 };
 
 #endif // MFEM_USE_MPI
+
+/** @brief The LpErrorEstimator class compares the solution to a known
+    coefficient.
+
+    This class can be used, for example, to adapt a mesh to a non-trivial
+    initial condition in a time-dependent simulation. It can also be used to
+    force refinement in the neighborhood of small features before switching to a
+    more traditional error estimator.
+
+    The LpErrorEstimator supports either scalar or vector coefficients and works
+    both in serial and in parallel.
+*/
+class LpErrorEstimator : public ErrorEstimator
+{
+protected:
+   long current_sequence;
+   int local_norm_p;
+   Vector error_estimates;
+
+   Coefficient * coef;
+   VectorCoefficient * vcoef;
+   GridFunction * sol;
+
+   /// Check if the mesh of the solution was modified.
+   bool MeshIsModified()
+   {
+      long mesh_sequence = sol->FESpace()->GetMesh()->GetSequence();
+      MFEM_ASSERT(mesh_sequence >= current_sequence, "");
+      return (mesh_sequence > current_sequence);
+   }
+
+   /// Compute the element error estimates.
+   void ComputeEstimates();
+
+public:
+   /** @brief Construct a new LpErrorEstimator object for a scalar field.
+       @param p    Integer which selects which Lp norm to use.
+       @param sol  The GridFunction representation of the scalar field.
+       Note: the coefficient must be set before use with the SetCoef method.
+   */
+   LpErrorEstimator(int p, GridFunction &sol)
+      : current_sequence(-1), local_norm_p(p),
+        error_estimates(0), coef(NULL), vcoef(NULL), sol(&sol) { }
+
+   /** @brief Construct a new LpErrorEstimator object for a scalar field.
+       @param p    Integer which selects which Lp norm to use.
+       @param coef The scalar Coefficient to compare to the solution.
+       @param sol  The GridFunction representation of the scalar field.
+   */
+   LpErrorEstimator(int p, Coefficient &coef, GridFunction &sol)
+      : current_sequence(-1), local_norm_p(p),
+        error_estimates(0), coef(&coef), vcoef(NULL), sol(&sol) { }
+
+   /** @brief Construct a new LpErrorEstimator object for a vector field.
+       @param p    Integer which selects which Lp norm to use.
+       @param coef The vector VectorCoefficient to compare to the solution.
+       @param sol  The GridFunction representation of the vector field.
+   */
+   LpErrorEstimator(int p, VectorCoefficient &coef, GridFunction &sol)
+      : current_sequence(-1), local_norm_p(p),
+        error_estimates(0), coef(NULL), vcoef(&coef), sol(&sol) { }
+
+   /** @brief Set the exponent, p, of the Lp norm used for computing the local
+       element errors. */
+   void SetLocalErrorNormP(int p) { local_norm_p = p; }
+
+   void SetCoef(Coefficient &A) { coef = &A; }
+   void SetCoef(VectorCoefficient &A) { vcoef = &A; }
+
+   /// Reset the error estimator.
+   virtual void Reset() { current_sequence = -1; }
+
+   /// Get a Vector with all element errors.
+   virtual const Vector &GetLocalErrors()
+   {
+      if (MeshIsModified()) { ComputeEstimates(); }
+      return error_estimates;
+   }
+
+   /// Destructor
+   virtual ~LpErrorEstimator() {}
+};
 
 } // namespace mfem
 

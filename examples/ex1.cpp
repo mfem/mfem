@@ -9,6 +9,8 @@
 //               ex1 -m ../data/fichera.mesh
 //               ex1 -m ../data/fichera-mixed.mesh
 //               ex1 -m ../data/toroid-wedge.mesh
+//               ex1 -m ../data/periodic-annulus-sector.msh
+//               ex1 -m ../data/periodic-torus-sector.msh
 //               ex1 -m ../data/square-disc-p2.vtk -o 2
 //               ex1 -m ../data/square-disc-p3.mesh -o 3
 //               ex1 -m ../data/square-disc-nurbs.mesh -o -1
@@ -32,7 +34,8 @@
 //               ex1 -pa -d raja-omp
 //               ex1 -pa -d occa-omp
 //               ex1 -pa -d ceed-cpu
-//               ex1 -pa -d ceed-cuda
+//             * ex1 -pa -d ceed-cuda
+//               ex1 -pa -d ceed-cuda:/gpu/cuda/shared
 //               ex1 -m ../data/beam-hex.mesh -pa -d cuda
 //               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cpu
 //               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cuda:/gpu/cuda/ref
