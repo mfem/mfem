@@ -64,7 +64,6 @@ DGDiffusionBR2Integrator::DGDiffusionBR2Integrator(FiniteElementSpace *fes,
    {
       const FiniteElement *fe = NULL;
       ElementTransformation *tr = NULL;
-      IsoparametricTransformation iso_tr;
       if (i < fes->GetNE())
       {
          fe = fes->GetFE(i);
@@ -75,8 +74,7 @@ DGDiffusionBR2Integrator::DGDiffusionBR2Integrator(FiniteElementSpace *fes,
 #ifdef MFEM_USE_MPI
          int inbr = i - fes->GetNE();
          fe = pfes->GetFaceNbrFE(inbr);
-         pfes->GetParMesh()->GetFaceNbrElementTransformation(inbr, &iso_tr);
-         tr = &iso_tr;
+         tr = pfes->GetParMesh()->GetFaceNbrElementTransformation(inbr);
 #endif
       }
       int dof = fe->GetDof();
@@ -112,8 +110,8 @@ void DGDiffusionBR2Integrator::AssembleFaceMatrix(
       R12.SetSize(ndof1, ndof2);
       R21.SetSize(ndof2, ndof1);
       R22.SetSize(ndof2, ndof2);
-      M2inv.data = &Minv[Minv_offsets[Trans.Elem2->ElementNo]];
-      M2inv.ipiv = &ipiv[ipiv_offsets[Trans.Elem2->ElementNo]];
+      M2inv.data = &Minv[Minv_offsets[Trans.Elem2No]];
+      M2inv.ipiv = &ipiv[ipiv_offsets[Trans.Elem2No]];
 
       R12 = 0.0;
       R21 = 0.0;
