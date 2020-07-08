@@ -234,7 +234,6 @@ int main(int argc, char *argv[])
          default:
             break;
       }
-
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-12);
       cg.SetMaxIter(2000);
