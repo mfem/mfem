@@ -277,7 +277,7 @@ void ComplexUMFPackSolver::SetOperator(const Operator &op)
    MFEM_VERIFY(mat, "not a ComplexSparseMatrix");
 
    MFEM_VERIFY(mat->real().NumNonZeroElems() == mat->imag().NumNonZeroElems(),
-               "Real and imag Sparsity patter missmatch: Try setting Assemble (skip_zeros = 0)");
+               "Real and imag Sparsity pattern mismatch: Try setting Assemble (skip_zeros = 0)");
 
    // UMFPack requires that the column-indices in mat corresponding to each
    // row be sorted.
@@ -368,7 +368,7 @@ void ComplexUMFPackSolver::Mult(const Vector &b, Vector &x) const
    double * datab = b.GetData();
 
    // For the Block Symmetric case data the imaginary part
-   // have to be scaled by -1
+   // has to be scaled by -1
    ComplexOperator::Convention conv = mat->GetConvention();
    Vector bimag;
    if (conv == ComplexOperator::Convention::BLOCK_SYMMETRIC)

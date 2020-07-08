@@ -183,7 +183,7 @@ class ComplexUMFPackSolver : public Solver
 {
 protected:
    bool use_long_ints;
-   bool transa = false;
+   bool transa;
    ComplexSparseMatrix *mat;
 
    void *Numeric;
@@ -197,27 +197,29 @@ public:
 
    /** @brief For larger matrices, if the solver fails, set the parameter @a
        _use_long_ints = true. */
-   ComplexUMFPackSolver(bool _use_long_ints = false)
-      : use_long_ints(_use_long_ints) { Init(); }
+   ComplexUMFPackSolver(bool _use_long_ints = false, bool transa_ = false)
+      : use_long_ints(_use_long_ints), transa(transa_) { Init(); }
    /** @brief Factorize the given ComplexSparseMatrix using the defaults.
-       For larger  matrices, if the solver fails, set the parameter
+       For larger matrices, if the solver fails, set the parameter
        @a _use_long_ints = true. */
-   ComplexUMFPackSolver(ComplexSparseMatrix &A, bool _use_long_ints = false)
-      : use_long_ints(_use_long_ints) { Init(); SetOperator(A); }
+   ComplexUMFPackSolver(ComplexSparseMatrix &A, bool _use_long_ints = false,
+                        bool transa_ = false)
+      : use_long_ints(_use_long_ints), transa(transa_) { Init(); SetOperator(A); }
 
    /** @brief Factorize the given Operator @a op which must be
        a ComplexSparseMatrix.
 
        The factorization uses the parameters set in the #Control data member.
        @note This method calls SparseMatrix::SortColumnIndices()
-       for real imag parts of the ComplexSparseMatrix,
+       for real and imag parts of the ComplexSparseMatrix,
        modifying the matrices if the column indices are not already sorted. */
    virtual void SetOperator(const Operator &op);
 
    // Set the print level field in the #Control data member.
    void SetPrintLevel(int print_lvl) { Control[UMFPACK_PRL] = print_lvl; }
 
-   void SetTransposeSolve(bool transa_) { transa = transa_ ;}
+   // This determines the action of MultTranspose (see below for details)
+   void SetTransposeSolve(bool transa_) { transa = transa_ ; }
 
    /** @brief This is solving the system A x = b */
    virtual void Mult(const Vector &b, Vector &x) const;
