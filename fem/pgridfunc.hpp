@@ -284,50 +284,56 @@ public:
    }
 
    virtual double ComputeGradError(VectorCoefficient *exgrad,
-                           const IntegrationRule *irs[] = NULL) const
+                                   const IntegrationRule *irs[] = NULL) const
    {
-      return GlobalLpNorm(2.0, GridFunction::ComputeGradError(exgrad,irs),pfes->GetComm());
+      return GlobalLpNorm(2.0, GridFunction::ComputeGradError(exgrad,irs),
+                          pfes->GetComm());
    }
 
    virtual double ComputeCurlError(VectorCoefficient *excurl,
-                           const IntegrationRule *irs[] = NULL) const
+                                   const IntegrationRule *irs[] = NULL) const
    {
-      return GlobalLpNorm(2.0, GridFunction::ComputeCurlError(excurl,irs),pfes->GetComm());
-   }                           
+      return GlobalLpNorm(2.0, GridFunction::ComputeCurlError(excurl,irs),
+                          pfes->GetComm());
+   }
 
    virtual double ComputeDivError(Coefficient *exdiv,
-                          const IntegrationRule *irs[] = NULL) const
+                                  const IntegrationRule *irs[] = NULL) const
    {
-      return GlobalLpNorm(2.0, GridFunction::ComputeDivError(exdiv,irs),pfes->GetComm());
-   }                          
+      return GlobalLpNorm(2.0, GridFunction::ComputeDivError(exdiv,irs),
+                          pfes->GetComm());
+   }
 
    virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
                                  Coefficient *ell_coef, double Nu,
                                  int norm_type) const
-   {   
-      return GlobalLpNorm(2.0, 
-            GridFunction::ComputeH1Error(exsol,exgrad,ell_coef,
-            Nu, norm_type),pfes->GetComm());
+   {
+      return GlobalLpNorm(2.0,
+                          GridFunction::ComputeH1Error(exsol,exgrad,ell_coef,
+                                                       Nu, norm_type),pfes->GetComm());
    }
 
 
    virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
                                  const IntegrationRule *irs[] = NULL) const
    {
-      return GlobalLpNorm(2.0, GridFunction::ComputeH1Error(exsol,exgrad,irs),pfes->GetComm());
+      return GlobalLpNorm(2.0, GridFunction::ComputeH1Error(exsol,exgrad,irs),
+                          pfes->GetComm());
    }
 
    virtual double ComputeHDivError(VectorCoefficient *exsol, Coefficient *exdiv,
                                    const IntegrationRule *irs[] = NULL) const
    {
-      return GlobalLpNorm(2.0, GridFunction::ComputeHDivError(exsol,exdiv,irs),pfes->GetComm());
-   }                                   
+      return GlobalLpNorm(2.0, GridFunction::ComputeHDivError(exsol,exdiv,irs),
+                          pfes->GetComm());
+   }
 
    virtual double ComputeHCurlError(VectorCoefficient *exsol,
                                     VectorCoefficient *excurl,
                                     const IntegrationRule *irs[] = NULL) const
    {
-      return GlobalLpNorm(2.0, GridFunction::ComputeHCurlError(exsol,excurl,irs),pfes->GetComm());
+      return GlobalLpNorm(2.0, GridFunction::ComputeHCurlError(exsol,excurl,irs),
+                          pfes->GetComm());
    }
 
    virtual double ComputeMaxError(Coefficient *exsol[],

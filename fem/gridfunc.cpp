@@ -2857,7 +2857,7 @@ double GridFunction::ComputeCurlError(VectorCoefficient *excurl,
    Vector curl;
    int intorder;
    int dim = fes->GetMesh()->SpaceDimension();
-   int n = (dim == 3) ? dim : 1; 
+   int n = (dim == 3) ? dim : 1;
    Vector vec(n);
 
    for (int i = 0; i < fes->GetNE(); i++)

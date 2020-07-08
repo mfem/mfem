@@ -437,15 +437,15 @@ public:
                                  Coefficient *ell_coef, double Nu,
                                  int norm_type) const;
 
-// temporary comment ---- newly added methods
+   // temporary comment ---- newly added methods
    virtual double ComputeGradError(VectorCoefficient *exgrad,
-                           const IntegrationRule *irs[] = NULL) const;
+                                   const IntegrationRule *irs[] = NULL) const;
 
    virtual double ComputeCurlError(VectorCoefficient *excurl,
-                           const IntegrationRule *irs[] = NULL) const;
+                                   const IntegrationRule *irs[] = NULL) const;
 
    virtual double ComputeDivError(Coefficient *exdiv,
-                          const IntegrationRule *irs[] = NULL) const;
+                                  const IntegrationRule *irs[] = NULL) const;
 
    virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
                                  const IntegrationRule *irs[] = NULL) const;
@@ -457,7 +457,7 @@ public:
                                     VectorCoefficient *excurl,
                                     const IntegrationRule *irs[] = NULL) const;
 
-// ------------------------------------------------------------------------------
+   // ------------------------------------------------------------------------------
 
    virtual double ComputeMaxError(Coefficient &exsol,
                                   const IntegrationRule *irs[] = NULL) const

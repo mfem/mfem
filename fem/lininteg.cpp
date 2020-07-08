@@ -469,7 +469,7 @@ void VectorFEDomainLFCurlIntegrator::AssembleDeltaElementVect(
 {
    int spaceDim = Trans.GetSpaceDim();
    MFEM_ASSERT(vec_delta != NULL,
-                  "coefficient must be VectorDeltaCoefficient");
+               "coefficient must be VectorDeltaCoefficient");
    int dof = fe.GetDof();
    int n=(spaceDim == 3)? spaceDim : 1;
    vec.SetSize(n);
