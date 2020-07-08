@@ -840,6 +840,7 @@ public:
    const Vector &GetTspecPert1H()   { return tspec_pert1h; }
    const Vector &GetTspecPert2H()   { return tspec_pert2h; }
    const Vector &GetTspecPertMixH() { return tspec_pertmix; }
+   const FiniteElementSpace *GetTspecFesv() const { return tspec_fesv; }
 
    /** @brief Given an element and quadrature rule, computes ref->target
        transformation Jacobians for each quadrature point in the element.
