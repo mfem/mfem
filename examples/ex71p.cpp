@@ -1,34 +1,41 @@
-//                       MFEM Example 19 - Parallel Version
+//                       MFEM Example 71 - Parallel Version
 //
-// Compile with: make ex19p
+// Compile with: make ex71p
 //
 // Sample runs:
-//    mpirun -np 2 ex19p -m ../data/beam-quad.mesh
-//    mpirun -np 2 ex19p -m ../data/beam-tri.mesh
-//    mpirun -np 2 ex19p -m ../data/beam-hex.mesh
-//    mpirun -np 2 ex19p -m ../data/beam-tet.mesh
-//    mpirun -np 2 ex19p -m ../data/beam-wedge.mesh
+//   mpirun -np 2 ex71p -m ../data/beam-quad.mesh
+//   mpirun -np 2 ex71p -m ../data/beam-tri.mesh
+//   mpirun -np 2 ex71p -m ../data/beam-hex.mesh
+//   mpirun -np 2 ex71p -m ../data/beam-tet.mesh
+//   mpirun -np 2 ex71p -m ../data/beam-wedge.mesh
 //
-// Description:  This examples solves a quasi-static incompressible nonlinear
-//               elasticity problem of the form 0 = H(x), where H is an
-//               incompressible hyperelastic model and x is a block state vector
-//               containing displacement and pressure variables. The geometry of
-//               the domain is assumed to be as follows:
+// Description:  This examples solves a quasi-static nonlinear
+//               pLaplacian problem with zero Dirichlet boundary
+//				 conditions applied on all defined boundaries
 //
-//                                 +---------------------+
-//                    boundary --->|                     |<--- boundary
-//                    attribute 1  |                     |     attribute 2
-//                    (fixed)      +---------------------+     (fixed, nonzero)
+//               The example demonstrates the use of nonlinear operators
+//				 combined with automatic differentiation (AD). The definitions
+//				 of the integrators are written in the ex71.hpp.
+//				 Selecting integrator=0 will use handcoded integrator.
+//				 Selecting integrator=1 will utilize AD integrator.
+//				 The AD integrator can be modifief to use ADQFunctionJ
+//				 or ADQFunctionH by overwritting the class type of qint,
+//				 i.e., pLapIntegrandJ or pLapIntegrandH.
 //
-//               The example demonstrates the use of block nonlinear operators
-//               (the class RubberOperator defining H(x)) as well as a nonlinear
-//               Newton solver for the quasi-static problem. Each Newton step
-//               requires the inversion of a Jacobian matrix, which is done
-//               through a (preconditioned) inner solver. The specialized block
-//               preconditioner is implemented as a user-defined solver.
+//				 qint (the integrand) is a function which is evaluated
+//				 at every integration point. For implementations utilizing
+//				 ADQFunctionJ, the user has to implement the function and the
+//				 residual evaluation - all virtual methods. The Jacobian of
+//				 the residual is evaluated using AD
 //
-//               We recommend viewing examples 2, 5, and 10 before viewing this
+//				 For implementations utilizing ADQFunctionH, the user has
+//				 to implement only the function evaluation (preferebaly as
+//				 a template) and the first derivative (the residual) and the
+//				 second derivatives (the Hessian) are evaluated using AD.
+//
+//               We recommend viewing examples 1 and 19, before viewing this
 //               example.
+
 
 #include "ex71.hpp"
 
