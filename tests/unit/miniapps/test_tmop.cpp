@@ -286,6 +286,7 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    {
       case   1: metric = new TMOP_Metric_001; break;
       case   2: metric = new TMOP_Metric_002; break;
+      case   7: metric = new TMOP_Metric_007; break;
       case 302: metric = new TMOP_Metric_302; break;
       case 303: metric = new TMOP_Metric_303; break;
       case 321: metric = new TMOP_Metric_321; break;
@@ -542,6 +543,47 @@ static void tmop_tests(int myid)
 {
    static bool all = getenv("MFEM_TESTS_UNIT_TMOP_ALL");
 
+   // 2D BLADE + Discrete size 2D + normalization, mid: #002 & #007
+   {
+      DEFAULT_ARGS;
+      args[MSH] = "blade.mesh";
+      args[NI] = "100";
+      args[LI] = "200";
+      args[NOR] = "1";
+      for (int p : {1})
+      {
+         char por[2] {};
+         args[POR] = itoa(p, por);
+         for (int q : {2})
+         {
+            if (q <= p) { continue; }
+            char qor[2] {};
+            args[QOR] = itoa(q, qor);
+            for (int m : {2, 7})
+            {
+               char mid[2] {};
+               args[MID] = itoa(m, mid);
+               for (int t : {5})
+               {
+                  char tid[2] {};
+                  args[TID] = itoa(t, tid);
+                  for (int ls : {2})
+                  {
+                     char lsb[2] {};
+                     args[LS] = itoa(ls, lsb);
+                     tmop_require(myid, args);
+                     if (!all) { break; }
+                  }
+                  if (!all) { break; }
+               }
+               if (!all) { break; }
+            }
+            if (!all) { break; }
+         }
+         if (!all) { break; }
+      }
+   } // 2D BLADE + Discrete size 2D + normalization
+
    // TOROID-HEX + limiting, no normalization
    {
       DEFAULT_ARGS;
@@ -621,42 +663,6 @@ static void tmop_tests(int myid)
          if (!all) { break; }
       }
    } // 3D CUBE + Discrete size & aspect-ratio 3D + normalization + limiting
-
-   // 2D BLADE + Discrete size 2D + normalization
-   {
-      DEFAULT_ARGS;
-      args[MSH] = "blade.mesh";
-      args[MID] = "2";
-      args[NI] = "100";
-      args[LI] = "100";
-      args[NOR] = "1";
-      for (int p : {1})
-      {
-         char por[2] {};
-         args[POR] = itoa(p, por);
-         for (int q : {2})
-         {
-            if (q <= p) { continue; }
-            char qor[2] {};
-            args[QOR] = itoa(q, qor);
-            for (int t : {5})
-            {
-               char tid[2] {};
-               args[TID] = itoa(t, tid);
-               for (int ls : {2})
-               {
-                  char lsb[2] {};
-                  args[LS] = itoa(ls, lsb);
-                  tmop_require(myid, args);
-                  if (!all) { break; }
-               }
-               if (!all) { break; }
-            }
-            if (!all) { break; }
-         }
-         if (!all) { break; }
-      }
-   } // 2D BLADE + Discrete size 2D + normalization
 
    // SQUARE01 + Adapted analytic Hessian
    {

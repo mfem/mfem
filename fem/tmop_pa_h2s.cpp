@@ -108,7 +108,7 @@ void EvalH_007(const int e, const int qx, const int qy,
             for (int c = 0; c < DIM; c++)
             {
                H(r,c,i,j,qx,qy,e) =
-                  (1.0 + c1) * ddi1(r,c)
+                  weight * (1.0 + c1) * ddi1(r,c)
                   - c3 * ddi2(r,c)
                   - c2 * ( di1(i,j) * di2(r,c) + di2(i,j) * di1(r,c) )
                   + 2.0 * c1 * c3 * di2(r,c) * di2(i,j);
