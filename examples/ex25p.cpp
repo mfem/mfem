@@ -424,9 +424,9 @@ int main(int argc, char *argv[])
    a.FormLinearSystem(ess_tdof_list, x, b, Ah, X, B);
 
    // 15. Solve using a direct or an iterative solver
-#ifndef MFEM_USE_SUPERLU
+#ifdef MFEM_USE_SUPERLU
    {
-      // 15. Transform to monolithic HypreParMatrix
+      // Transform to monolithic HypreParMatrix
       HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
       SuperLURowLocMatrix SA(*A);
       SuperLUSolver superlu(MPI_COMM_WORLD);
