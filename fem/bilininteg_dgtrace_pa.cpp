@@ -170,12 +170,15 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
    else if (QuadratureFunctionCoefficient* c_rho =
                dynamic_cast<QuadratureFunctionCoefficient*>(rho))
    {
-      //Assumed to be in lexicographical ordering
       const QuadratureFunction &qFun = c_rho->GetQuadFunction();
       MFEM_VERIFY(qFun.Size() == nq * nf,
                   "Incompatible QuadratureFunction dimension \n");
+
+      MFEM_VERIFY(*ir == qFun.GetSpace()->GetElementIntRule(0),
+                  "IntegrationRule used within integrator and in QuadratureFunction \
+                  appear to be different");
       qFun.Read();
-      r.MakeRef(dynamic_cast<Vector &>(const_cast<QuadratureFunction &>(qFun)),0);
+      r.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
    }
    else
    {
@@ -217,8 +220,12 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       const QuadratureFunction &qFun = c_u->GetQuadFunction();
       MFEM_VERIFY(qFun.Size() == dim * nq * nf,
                   "Incompatible QuadratureFunction dimension \n");
+
+      MFEM_VERIFY(*ir == qFun.GetSpace()->GetElementIntRule(0),
+                  "IntegrationRule used within integrator and in QuadratureFunction \
+                  appear to be different");
       qFun.Read();
-      vel.MakeRef(dynamic_cast<Vector &>(const_cast<QuadratureFunction &>(qFun)),0);
+      vel.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
    }
    else
    {
