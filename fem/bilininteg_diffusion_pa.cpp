@@ -302,8 +302,12 @@ void DiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
       const QuadratureFunction &qFun = cQ->GetQuadFunction();
       MFEM_VERIFY(qFun.Size() == ne*nq,
                   "Incompatible QuadratureFunction dimension \n");
+
+      MFEM_VERIFY(*ir == qFun.GetSpace()->GetElementIntRule(0),
+                  "IntegrationRule used within integrator and in QuadratureFunction \
+                  appear to be different");
       qFun.Read();
-      coeff.MakeRef(dynamic_cast<Vector &>(const_cast<QuadratureFunction &>(qFun)),0);
+      coeff.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
    }
    else
    {
