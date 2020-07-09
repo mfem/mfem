@@ -19,6 +19,30 @@
 namespace mfem
 {
 
+// We might come here w/o knowing that PA will be used.
+// It is the case when EnableLimiting is called before the Setup => AssemblePA.
+void TMOP_Integrator::EnableLimitingPA(const GridFunction &n0)
+{
+   const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   PA.R = n0.FESpace()->GetElementRestriction(ordering);
+
+   // Nodes0
+   PA.X0.SetSize(PA.R->Height(), Device::GetMemoryType());
+   PA.X0.UseDevice(true);
+   PA.R->Mult(n0, PA.X0);
+
+   // lim_dist & lim_func checks
+   MFEM_VERIFY(lim_dist, "No lim_dist!")
+   PA.LD.SetSize(PA.R->Height(), Device::GetMemoryType());
+   PA.LD.UseDevice(true);
+   PA.R->Mult(*lim_dist, PA.LD);
+
+   // Only TMOP_QuadraticLimiter is supported
+   MFEM_VERIFY(lim_func, "No lim_func!")
+   MFEM_VERIFY(dynamic_cast<TMOP_QuadraticLimiter*>(lim_func),
+               "Only TMOP_QuadraticLimiter is supported");
+}
+
 // Code paths leading to ComputeElementTargets:
 // - GetElementEnergy(elfun) which is done through GetGridFunctionEnergyPA(x)
 // - AssembleElementVectorExact(elfun)
@@ -57,6 +81,9 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &x) const
    const bool use_input_vector = target_type == TargetConstructor::GIVEN_FULL;
 
    if (use_input_vector && !useable_input_vector) { return; }
+
+   DiscreteAdaptTC *discr_tc = GetDiscreteAdaptTC();
+   if (discr_tc && !discr_tc->GetTspecFesv()) { return; }
 
    if (use_input_vector)
    {
@@ -168,25 +195,10 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
       }
    }
 
-   // Coeff0 PA.X0
    if (coeff0)
    {
-      // Nodes0
-      MFEM_VERIFY(nodes0, "No nodes0!")
-      PA.X0.SetSize(PA.R->Height(), Device::GetMemoryType());
-      PA.X0.UseDevice(true);
-      PA.R->Mult(*nodes0, PA.X0);
-
-      // lim_dist & lim_func checks
-      MFEM_VERIFY(lim_dist, "No lim_dist!")
-      PA.LD.SetSize(PA.R->Height(), Device::GetMemoryType());
-      PA.LD.UseDevice(true);
-      PA.R->Mult(*lim_dist, PA.LD);
-
-      // Only TMOP_QuadraticLimiter is supported
-      MFEM_VERIFY(lim_func, "No lim_func!")
-      MFEM_VERIFY(dynamic_cast<TMOP_QuadraticLimiter*>(lim_func),
-                  "Only TMOP_QuadraticLimiter is supported");
+      MFEM_VERIFY(nodes0, "nodes0 has not been set!");
+      EnableLimitingPA(*nodes0);
    }
 }
 
