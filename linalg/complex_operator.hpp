@@ -219,7 +219,7 @@ public:
    void SetPrintLevel(int print_lvl) { Control[UMFPACK_PRL] = print_lvl; }
 
    // This determines the action of MultTranspose (see below for details)
-   void SetTransposeSolve(bool transa_) { transa = transa_ ; }
+   void SetTransposeSolve(bool transa_) { transa = transa_; }
 
    /** @brief This is solving the system A x = b */
    virtual void Mult(const Vector &b, Vector &x) const;
