@@ -450,16 +450,16 @@ private:
 
    template <std::size_t align_bytes, bool dummy = true> struct Alloc
    {
+#if __cplusplus < 201703L
       static inline T *New(std::size_t)
       {
-#if __cplusplus < 201703L
          // Generate an error in debug mode
          MFEM_ASSERT(false, "overaligned type cannot use MemoryType::HOST");
          return nullptr;
-#else
-         return new T[size];
-#endif
       }
+#else
+      static inline T *New(std::size_t size) { return new T[size]; }
+#endif
    };
 
 #if __cplusplus < 201703L
@@ -471,7 +471,9 @@ private:
 };
 
 
-/// The memory manager class
+/** The MFEM memory manager class. Host-side pointers are inserted into this
+    manager which keeps track of the associated device pointer, and where the
+    data currently resides. */
 class MemoryManager
 {
 private:
@@ -578,7 +580,8 @@ private: // Static methods used by the Memory<T> class
 
 private:
 
-   /// Insert a host address in the memory map
+   /// Insert a host address @a h_ptr and size *a bytes in the memory map to be
+   /// managed.
    void Insert(void *h_ptr, size_t bytes, MemoryType h_mt,  MemoryType d_mt);
 
    /// Insert a device and the host addresses in the memory map
