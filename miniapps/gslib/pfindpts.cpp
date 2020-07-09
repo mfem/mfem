@@ -252,7 +252,7 @@ int main (int argc, char *argv[])
    {
       for (int i = 0; i < pts_cnt; i++)
       {
-         if (j == 1)
+         if (j == 0)
          {
             (task_id_out[i] == (unsigned)myid) ? found_loc++ : found_away++;
          }
@@ -264,9 +264,9 @@ int main (int argc, char *argv[])
             F_exact(pos, exact_val);
             max_err  = std::max(max_err, fabs(exact_val(j) - interp_vals[npt]));
             max_dist = std::max(max_dist, dist_p_out(i));
-            if (code_out[i] == 1 && j == 1) { face_pts++; }
+            if (code_out[i] == 1 && j == 0) { face_pts++; }
          }
-         else { if (j == 1) { not_found++; } }
+         else { if (j == 0) { not_found++; } }
          npt++;
       }
    }

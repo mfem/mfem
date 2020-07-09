@@ -315,7 +315,6 @@ void FindPointsGSLIB::GetSimplexNodalCoordinates()
    const FiniteElement *fe   = mesh->GetNodalFESpace()->GetFE(0);
    const Geometry::Type gt   = fe->GetGeomType();
    const GridFunction *nodes = mesh->GetNodes();
-   //Mesh *meshsplit           = NULL;
    const int NE              = mesh->GetNE();
    int NEsplit = 0;
 
@@ -599,10 +598,10 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
       }
       Vector field_outl2 = field_out;
 
-      GridFunctionCoefficient dg_field_in(const_cast<GridFunction *>(&field_in));
+      VectorGridFunctionCoefficient dg_field_in(const_cast<GridFunction *>
+                                                (&field_in));
       H1_FECollection fecl2(gf_order, dim);
-      const int ncomp      = field_in.FESpace()->GetVDim(),
-                points_fld = field_in.Size() / ncomp;
+      const int ncomp = field_in.FESpace()->GetVDim();
       FiniteElementSpace fesl2(mesh, &fecl2, ncomp);
       GridFunction h1_gf(&fesl2);
 
@@ -628,12 +627,13 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
          InterpolateGeneral(h1_gf, field_outl2);
       }
 
+      // Copy interpolated values for the points on element border
       for (int j = 0; j < ncomp; j++)
       {
          for (int i = 0; i < indl2.Size(); i++)
          {
-            field_out(indl2[i] + j*points_fld) =
-               field_outl2(indl2[i] + j*points_cnt);
+            int idx = indl2[i] + j*points_cnt;
+            field_out(idx) = field_outl2(idx);
          }
       }
    }

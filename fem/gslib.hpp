@@ -26,10 +26,22 @@ struct crystal;
 namespace mfem
 {
 
-/// FindPointsGSLIB provides two key functionalities:
-/// (1) For a given list of points, it determines the element, processor, and
-/// the reference position inside that element where each point is located.
-/// (2) It interpolates any scalar or vector GridFunction.
+/** \brief FindPointsGSLIB can robustly evaluate a GridFunction on an arbitrary
+ *  collection of points. There are three key functions in FindPointsGSLIB:
+ *
+ *  1. Setup - constructs the internal data structures of gslib.
+ *
+ *  2. FindPoints - for any given arbitrary set of points in physical space,
+ *     gslib finds the element number, MPI rank, and the reference space
+ *     coordinates inside the element that each point is located in. gslib also
+ *     returns a code that indicates  wether the point was found inside an
+ *     element, on element border, or not found in the domain.
+ *
+ *  3. Interpolate - Interpolates any gridfunction at the points found using 2.
+ *
+ *  FindPointsGSLIB provides interface to use these functions individually or using
+ *  a single call.
+ */
 class FindPointsGSLIB
 {
 protected:
@@ -106,7 +118,6 @@ public:
        @param[out] gsl_mfem_ref    Reference coordinates @a gsl_ref mapped to [0,1].
        @param[out] gsl_dist        Distance between the sought and the found point
                                    in physical space. */
-   /** Searches positions given in physical space by @a point_pos. */
    void FindPoints(const Vector &point_pos);
    /// Setup FindPoints and search positions
    void FindPoints(Mesh &m, const Vector &point_pos, const double bb_t = 0.1,
