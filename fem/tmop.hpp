@@ -90,7 +90,7 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
 
-   virtual int Id() const { return 1; };
+   virtual int Id() const { return 1; }
 };
 
 /// Skew metric, 2D.
@@ -183,7 +183,7 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
 
-   virtual int Id() const { return 2; };
+   virtual int Id() const { return 2; }
 };
 
 /// Shape & area, ideal barrier metric, 2D
@@ -200,6 +200,8 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 7; }
 };
 
 /// Shape & area metric, 2D
