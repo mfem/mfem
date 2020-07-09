@@ -38,65 +38,6 @@ void ADQFunctionJ::QFunctionDD(const Vector &vparam, const Vector &uu, DenseMatr
         m_stack.jacobian(jac.Data());
     }
     m_stack.deactivate();
-#elif defined MFEM_USE_CODIPACK
-#if defined MFEM_USE_ADFORWARD
-    //use CoDipack
-    int n=uu.Size();
-    jac.SetSize(m,n);
-    jac=0.0;
-    {
-        ADFVector aduu(n);
-        ADFVector rr(m);
-        for(int i=0;i<n;i++)
-        {
-            aduu[i]=uu[i];
-            aduu[i].setGradient(0.0);
-        }
-
-        for(int ii=0;ii<n;ii++){
-            aduu[ii].setGradient(1.0);
-            this->QFunctionDU(vparam,aduu,rr);
-            for(int jj=0;jj<m;jj++)
-            {
-                jac(jj,ii)=rr[jj].getGradient();
-            }
-            aduu[ii].setGradient(0.0);
-        }
-
-    }
-#else
-    //use CoDiPack in reverse mode
-    int n=uu.Size();
-    jac.SetSize(m,n);
-    jac=0.0;
-    {
-        ADFVector aduu(n);
-        ADFVector rr(m);
-        for(int i=0;i<n;i++)
-        {
-            aduu[i]=uu[i];
-        }
-
-        ADFType::TapeType& tape= ADFType::getGlobalTape();
-        typename ADFType::TapeType::Position pos=tape.getPosition();
-
-        tape.setActive();
-        for(int ii=0;ii<n;ii++){ tape.registerInput(aduu[ii]); }
-        this->QFunctionDU(vparam,aduu,rr);
-        for(int ii=0;ii<m;ii++){ tape.registerOutput(rr[ii]); }
-        tape.setPassive();
-
-        for(int jj=0;jj<m;jj++){
-            rr[jj].setGradient(1.0);
-            tape.evaluate();
-            for(int ii=0;ii<n;ii++){
-                jac(jj,ii)=aduu[ii].getGradient();
-            }
-            rr[jj].setGradient(0.0);
-        }
-        tape.reset(pos);
-    }
-#endif
 #elif defined MFEM_USE_FADBADPP
     //use FADBAD++
     #ifdef MFEM_USE_ADFORWARD
@@ -164,24 +105,7 @@ void ADQFunctionJ::QFunctionDD(const Vector &vparam, const Vector &uu, DenseMatr
 void ADQFunctionH::QFunctionDU(const Vector &vparam, Vector &uu, Vector &rr)
 {
 
-#if defined MFEM_USE_CODIPACK
-    int n=uu.Size();
-    rr.SetSize(n);
-    ADFVector aduu(n);
-    ADFType   rez;
-    for(int ii=0;ii<n;ii++)
-    {
-        aduu[ii].setValue(uu[ii]);
-        aduu[ii].setGradient(0.0);
-    }
-    for(int ii=0;ii<n;ii++)
-    {
-        aduu[ii].setGradient(1.0);
-        rez=this->QFunction(vparam,aduu);
-        rr[ii]=rez.getGradient();
-        aduu[ii].setGradient(0.0);
-    }
-#elif defined MFEM_USE_FADBADPP
+#if defined MFEM_USE_FADBADPP
     int n=uu.Size();
     rr.SetSize(n);
     ADFVector aduu(uu);
@@ -210,78 +134,7 @@ void ADQFunctionH::QFunctionDU(const Vector &vparam, Vector &uu, Vector &rr)
 void ADQFunctionH::QFunctionDD(const Vector &vparam, const Vector &uu, DenseMatrix &jac)
 {
 
-#if defined MFEM_USE_CODIPACK
-#if defined MFEM_USE_ADFORWARD
-    int n=uu.Size();
-    jac.SetSize(n);
-    jac=0.0;
-    {
-        ADSVector aduu(n);
-        for(int ii = 0;  ii < n ; ii++)
-        {
-            aduu[ii].value().value()=uu[ii];
-            aduu[ii].value().gradient()=0.0;
-            aduu[ii].gradient().value()=0.0;
-            aduu[ii].gradient().gradient()=0.0;
-        }
-
-        for(int ii = 0; ii < n ; ii++)
-        {
-            aduu[ii].value().gradient()=1.0;
-            for(int jj=0; jj<(ii+1); jj++)
-            {
-                aduu[ii].gradient().value()=1.0;
-                ADSType rez= this->QFunction(vparam,aduu);
-                jac(ii,jj)=rez.gradient().gradient();
-                jac(jj,ii)=jac(ii,jj);
-                aduu[jj].gradient().value()=0.0;
-            }
-            aduu[ii].value().gradient()=0.0;
-        }
-    }
-#else
-    int n=uu.Size();
-    jac.SetSize(n);
-    jac=0.0;
-    {
-        ADSVector aduu(n);
-        for(int ii=0;ii < n ; ii++)
-        {
-            aduu[ii].value().value()=uu[ii];
-        }
-
-        ADSType rez;
-        ADSType::TapeType& tape = ADSType::getGlobalTape();
-        typename ADSType::TapeType::Position pos;
-
-        for(int ii = 0; ii < n ; ii++)
-        {
-            pos=tape.getPosition();
-            tape.setActive();
-
-            for(int jj=0;jj < n; jj++) {
-                if(jj==ii) {aduu[jj].value().gradient()=1.0;}
-                else {aduu[jj].value().gradient()=0.0;}
-                tape.registerInput(aduu[jj]);
-            }
-
-            rez=this->QFunction(vparam,aduu);
-            tape.registerOutput(rez);
-            tape.setPassive();
-
-            rez.gradient().value()=1.0;
-            tape.evaluate();
-
-            for(int jj=0; jj<(ii+1); jj++)
-            {
-                jac(ii,jj)=aduu[jj].gradient().gradient();
-                jac(jj,ii)=jac(ii,jj);
-            }
-            tape.reset(pos);
-        }
-    }
-#endif
-#elif defined MFEM_USE_FADBADPP
+#if defined MFEM_USE_FADBADPP
     int n=uu.Size();
     jac.SetSize(n);
     jac=0.0;

@@ -155,8 +155,6 @@
 
 #cmakedefine MFEM_USE_ADEPT
 
-#cmakedefine MFEM_USE_CODIPACK
-
 #cmakedefine MFEM_USE_FADBADPP
 
 

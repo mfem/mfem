@@ -52,7 +52,6 @@ option(MFEM_USE_UMPIRE "Enable Umpire" OFF)
 option(MFEM_USE_SIMD "Enable use of SIMD intrinsics" ON)
 option(MFEM_USE_ADIOS2 "Enable ADIOS2" OFF)
 option(MFEM_USE_ADEPT "Enable AD using ADEPT"   OFF)
-option(MFEM_USE_CODIPACK "Enable AD using CoDiPack" OFF)
 option(MFEM_USE_FADBADPP "Enable AD using FADBAD++" ON)
 
 
@@ -191,9 +190,6 @@ set(LAPACK_LIBRARIES "-L/home/blaz/develop/common/lib -llapack" CACHE STRING "Th
 
 set(ADEPT_INCLUDE_DIRS "/home/blaz/develop/common/dbg/adept-1.1/include" CACHE STRING "Path to ADEPT headers.")
 set(ADEPT_LIBRARIES    "/home/blaz/develop/common/dbg/adept-1.1/lib/libadept.so" CACHE STRING "The ADEPT library.")
-
-set(CODIPACK_INCLUDE_DIRS "/home/blaz/develop/common/CoDiPack/include" CACHE STRING "Path to CoDiPack headers.")
-set(CODIPACK_LIBRARIES    "")
 
 set(FADBADPP_INCLUDE_DIRS "/home/blaz/develop/common/FADBAD++" CACHE STRING "Path to FADBAD++ headers.")
 set(FADBADPP_LIBRARIES    "")

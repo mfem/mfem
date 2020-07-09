@@ -25,8 +25,6 @@
 
 #if defined MFEM_USE_ADEPT
 #include <adept.h>
-#elif defined  MFEM_USE_CODIPACK
-#include <codi.hpp>
 #elif defined  MFEM_USE_FADBADPP
 #include <fadiff.h>
 #include <badiff.h>
@@ -53,16 +51,6 @@ class ADQFunctionJ
     typedef adept::adouble 			   ADFType;
     typedef TADVector<ADFType>         ADFVector;
     typedef TADDenseMatrix<ADFType>    ADFDenseMatrix;
-#elif defined MFEM_USE_CODIPACK
-    #if defined MFEM_USE_ADFORWARD
-        typedef codi::RealForward 		   ADFType;
-        typedef TADVector<ADFType>         ADFVector;
-        typedef TADDenseMatrix<ADFType>    ADFDenseMatrix;
-    #else
-        typedef codi::RealRevers 		   ADFType;
-        typedef TADVector<ADFType>         ADFVector;
-        typedef TADDenseMatrix<ADFType>    ADFDenseMatrix;
-    #endif
 #elif defined MFEM_USE_FADBADPP
     #ifdef MFEM_USE_ADFORWARD
         typedef fadbad::F<double>		   ADFType;
@@ -102,27 +90,7 @@ class ADQFunctionJ
 class ADQFunctionH
 {
   public:
-#if defined MFEM_USE_CODIPACK
-#if defined MFEM_USE_ADFORWARD
-    //use forward mode for both the first and the second derivatives
-    typedef codi::RealForwardGen<double> ADFType;
-    typedef TADVector<ADFType>        	 ADFVector;
-    typedef TADDenseMatrix<ADFType>    	 ADFDenseMatrix;
-
-    typedef codi::RealForwardGen<ADFType> 	ADSType;
-    typedef TADVector<ADSType>         		ADSVector;
-    typedef TADDenseMatrix<ADSType>    		ADSDenseMatrix;
-#else
-    //use mixed forward and reverse mode
-    typedef codi::RealForwardGen<double> ADFType;
-    typedef TADVector<ADFType>        	 ADFVector;
-    typedef TADDenseMatrix<ADFType>    	 ADFDenseMatrix;
-
-    typedef codi::RealReverseGen<ADFType>   ADSType;
-    typedef TADVector<ADSType>         		ADSVector;
-    typedef TADDenseMatrix<ADSType>    		ADSDenseMatrix;
-#endif
-#elif defined MFEM_USE_FADBADPP
+#if defined MFEM_USE_FADBADPP
         typedef fadbad::B<double> 			 ADFType;
         typedef TADVector<ADFType>        	 ADFVector;
         typedef TADDenseMatrix<ADFType>    	 ADFDenseMatrix;
