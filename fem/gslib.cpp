@@ -29,9 +29,8 @@ namespace mfem
 {
 
 FindPointsGSLIB::FindPointsGSLIB()
-   : mesh(NULL), ir_simplex(NULL), fdata2D(NULL), fdata3D(NULL),
-     dim(-1), points_cnt(0), gsl_mesh(), gsl_ref(), gsl_dist(),
-     setupflag(false), cr(NULL), gsl_comm(NULL), meshsplit(NULL),
+   : mesh(NULL), meshsplit(NULL), ir_simplex(NULL), fdata2D(NULL), fdata3D(NULL),
+     dim(-1), points_cnt(0), setupflag(false), cr(NULL), gsl_comm(NULL),
      avgtype(mfem::GridFunction::ARITHMETIC)
 {
    gsl_comm = new comm;
@@ -50,18 +49,17 @@ FindPointsGSLIB::FindPointsGSLIB()
 
 FindPointsGSLIB::~FindPointsGSLIB()
 {
-   delete meshsplit;
    delete gsl_comm;
    delete cr;
    delete ir_simplex;
+   delete meshsplit;
 }
 
 #ifdef MFEM_USE_MPI
 FindPointsGSLIB::FindPointsGSLIB(MPI_Comm _comm)
-   : mesh(NULL), ir_simplex(NULL), fdata2D(NULL), fdata3D(NULL),
-     dim(-1), points_cnt(0), gsl_mesh(), gsl_ref(), gsl_dist(),
-     setupflag(false), cr(NULL), gsl_comm(NULL), meshsplit(NULL),
-     avgtype(mfem::GridFunction::ARITHMETIC)
+    : mesh(NULL), meshsplit(NULL), ir_simplex(NULL), fdata2D(NULL), fdata3D(NULL),
+      dim(-1), points_cnt(0), setupflag(false), cr(NULL), gsl_comm(NULL),
+      avgtype(mfem::GridFunction::ARITHMETIC)
 {
    gsl_comm = new comm;
    cr      = new crystal;
@@ -145,7 +143,7 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos)
       findpts_2(gsl_code.GetData(), sizeof(unsigned int),
                 gsl_proc.GetData(), sizeof(unsigned int),
                 gsl_elem.GetData(), sizeof(unsigned int),
-                gsl_ref.GetData(), sizeof(double) * dim,
+                gsl_ref.GetData(),  sizeof(double) * dim,
                 gsl_dist.GetData(), sizeof(double),
                 xv_base, xv_stride, points_cnt, fdata2D);
    }
@@ -162,13 +160,13 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos)
       findpts_3(gsl_code.GetData(), sizeof(unsigned int),
                 gsl_proc.GetData(), sizeof(unsigned int),
                 gsl_elem.GetData(), sizeof(unsigned int),
-                gsl_ref.GetData(), sizeof(double) * dim,
+                gsl_ref.GetData(),  sizeof(double) * dim,
                 gsl_dist.GetData(), sizeof(double),
                 xv_base, xv_stride, points_cnt, fdata3D);
    }
 
    //maps element number for simplices, and ref_pos from [-1,1] to [0,1] for both
-   // simplices and quads.
+   //simplices and quads.
    MapRefPosAndElemIndices();
 }
 
@@ -472,8 +470,6 @@ void FindPointsGSLIB::GetSimplexNodalCoordinates()
          pt_id++;
       }
    }
-
-   //delete meshsplit;
 }
 
 void FindPointsGSLIB::MapRefPosAndElemIndices()
@@ -482,11 +478,10 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
    gsl_mfem_elem = gsl_elem;
    const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(0);
    const Geometry::Type gt = fe->GetGeomType();
-   const int npt     = gsl_mfem_elem.Size();
    int NEsplit = 0;
 
    gsl_mfem_ref -= -1.;  // map  [-1, 1] to
-   gsl_mfem_ref *= 0.5;  //      [0, 1]
+   gsl_mfem_ref *= 0.5;  //      [0,  1]
    if (gt == Geometry::SQUARE || gt == Geometry::CUBE) { return; }
 
    H1_FECollection feclin(1, dim);
@@ -551,22 +546,17 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
       MFEM_ABORT("Element type not currently supported.");
    }
 
-   Array<unsigned int> elem_ids_temp = gsl_mfem_elem;
-
    // Simplices are split into quads/hexes for GSLIB. For MFEM, we need to
    // find the original element number and map the rst from micro to macro element.
-   for (int i = 0; i < npt; i++)
+   for (int i = 0; i < points_cnt; i++)
    {
-      int gslib_elem = gsl_mfem_elem[i],
-          local_elem = gslib_elem%NEsplit,
-          mfem_elem  = (gslib_elem - local_elem)/NEsplit;
+      int local_elem   = gsl_elem[i]%NEsplit;
+      gsl_mfem_elem[i] = (gsl_elem[i] - local_elem)/NEsplit; // macro element number
 
       IntegrationPoint ip;
       Vector mfem_ref(gsl_mfem_ref.GetData()+i*dim, dim);
       ip.Set3(mfem_ref.GetData());
       gf_lin.GetVectorValue(local_elem, ip, mfem_ref); //map to rst of macro element
-
-      gsl_mfem_elem[i] = mfem_elem; // macro element number
    }
 }
 
@@ -722,8 +712,8 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
       {
          for (int d = 0; d < dim; ++d) { pt->r[d]= gsl_mfem_ref(index*dim + d); }
          pt->index = index;
-         pt->proc = gsl_proc[index];
-         pt->el   = gsl_mfem_elem[index];
+         pt->proc  = gsl_proc[index];
+         pt->el    = gsl_mfem_elem[index];
          ++pt;
       }
 
@@ -777,7 +767,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
          array_init(struct sav_pt, savpt, npt);
          savpt->n=npt;
          spt = (struct sav_pt *)savpt->ptr;
-         pt = (struct out_pt *)outpt->ptr;
+         pt  = (struct out_pt *)outpt->ptr;
          for (int index = 0; index < npt; index++)
          {
             spt->index = pt->index;

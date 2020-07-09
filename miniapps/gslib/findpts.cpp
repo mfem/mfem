@@ -226,15 +226,15 @@ int main (int argc, char *argv[])
       {
          if (code_out[i] < 2)
          {
-            if (j == 1) { found++; }
+            if (j == 0) { found++; }
             for (int d = 0; d < dim; d++) { pos(d) = vxyz(d * pts_cnt + i); }
             Vector exact_val(ncfinal);
             F_exact(pos, exact_val);
             max_err  = std::max(max_err, fabs(exact_val(j) - interp_vals[npt]));
             max_dist = std::max(max_dist, dist_p_out(i));
-            if (code_out[i] == 1 && j == 1) { face_pts++; }
+            if (code_out[i] == 1 && j == 0) { face_pts++; }
          }
-         else { if (j == 1) { not_found++; } }
+         else { if (j == 0) { not_found++; } }
          npt++;
       }
    }
@@ -246,7 +246,6 @@ int main (int argc, char *argv[])
         << "\nMax dist (of found): " << max_dist
         << "\nPoints not found:    " << not_found
         << "\nPoints on faces:     " << face_pts << endl;
-
 
    // Free the internal gslib data.
    finder.FreeData();

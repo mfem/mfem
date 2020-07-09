@@ -510,6 +510,9 @@ public:
    virtual void Project (VectorCoefficient &vc,
                          ElementTransformation &Trans, Vector &dofs) const;
 
+   /** @brief Given a vector of values at the finite element nodes and a transformation,
+       compute its projection (approximation) in the local finite dimensional space
+       in terms of the degrees of freedom. (VectorFiniteElements) */
    virtual void ProjectFromElementNodes (Vector &vc,
                                          ElementTransformation &Trans, Vector &dofs) const;
 

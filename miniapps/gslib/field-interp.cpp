@@ -41,7 +41,6 @@ int main (int argc, char *argv[])
    const char *mesh_file_2 = "../../data/inline-tri.mesh";
    const char *sltn_file_1 = "source2d_hdiv.gf";
    int order = 3;
-   int meshorder = 0;
    int ref_levels = 0;
    bool visualization = true;
 
@@ -106,7 +105,7 @@ int main (int argc, char *argv[])
       {
          sout1.precision(8);
          sout1 << "solution\n" << mesh_1 << func_source
-               << "window_title 'Solution 1'"
+               << "window_title 'Source mesh and solution'"
                << "window_geometry 0 0 600 600";
          if (dim == 2) { sout1 << "keys RmjAc"; }
          if (dim == 3) { sout1 << "keys mA\n"; }
@@ -124,7 +123,7 @@ int main (int argc, char *argv[])
    ND_FECollection feccurl(order, dim);
    FiniteElementSpace *sc_fes = NULL;
 
-   int fieldtype;
+   int fieldtype = 0;
    const char *gf_name  = func_source.FESpace()->FEColl()->Name();
    int ncomp = func_source.FESpace()->GetVDim();
    if ( strncmp(gf_name, "H1", 2) == 0)
@@ -163,8 +162,9 @@ int main (int argc, char *argv[])
 
    const int NE = mesh_2.GetNE(),
              nsp = sc_fes->GetFE(0)->GetNodes().GetNPoints();
+
+   // Generate list of points where the Gridfunction will be evaluated.
    Vector vxyz;
-   DenseMatrix pos;
    if (fieldtype == 0 && order == mesh_poly_deg)
    {
       vxyz = *mesh_2.GetNodes();
@@ -178,6 +178,7 @@ int main (int argc, char *argv[])
          const IntegrationRule ir = fe->GetNodes();
          ElementTransformation *et = sc_fes->GetElementTransformation(i);
 
+         DenseMatrix pos;
          et->Transform(ir, pos);
          Vector rowx(vxyz.GetData() + i*nsp, nsp),
                 rowy(vxyz.GetData() + i*nsp + NE*nsp, nsp),
@@ -193,8 +194,8 @@ int main (int argc, char *argv[])
    }
    const int nodes_cnt = vxyz.Size() / dim;
 
-   // Get the values at the nodes of mesh 1.
-   Vector  interp_vals(nodes_cnt*ncomp);
+   //Evaluate source gridfunction.
+   Vector interp_vals(nodes_cnt*ncomp);
    FindPointsGSLIB finder;
    finder.Setup(mesh_1);
    finder.Interpolate(vxyz, func_source, interp_vals);
@@ -246,7 +247,7 @@ int main (int argc, char *argv[])
       {
          sout1.precision(8);
          sout1 << "solution\n" << mesh_2 << func_target
-               << "window_title 'Solution 1'"
+               << "window_title 'Target mesh and solution'"
                << "window_geometry 600 0 600 600";
          if (dim == 2) { sout1 << "keys RmjAc"; }
          if (dim == 3) { sout1 << "keys mA\n"; }
@@ -256,7 +257,6 @@ int main (int argc, char *argv[])
 
    ostringstream rho_name;
    rho_name  << "interpolated.gf";
-
    ofstream rho_ofs(rho_name.str().c_str());
    rho_ofs.precision(8);
    func_target.Save(rho_ofs);

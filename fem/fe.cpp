@@ -142,7 +142,8 @@ void FiniteElement::Project (
 void FiniteElement::ProjectFromElementNodes (Vector &vc,
                                              ElementTransformation &Trans, Vector &dofs) const
 {
-   mfem_error ("FiniteElement::ProjectV (...) (vector) is not overloaded !");
+   mfem_error ("FiniteElement::ProjectFromElementNodes (...) (vector) is "
+               "not overloaded !");
 }
 
 void FiniteElement::ProjectMatrixCoefficient(
