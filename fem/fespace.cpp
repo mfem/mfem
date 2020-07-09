@@ -1071,7 +1071,7 @@ const SparseMatrix* FiniteElementSpace::GetConformingRestriction() const
 const SparseMatrix* FiniteElementSpace::GetConformingRestrictionInterpolation() const
 {
    if (Conforming()) { return NULL; }
-   if (!IsVariableOrder()) { return NULL; }
+   if (!IsVariableOrder()) { return cR; }
    if (!cP_is_set) { BuildConformingInterpolation(); }
    return cQ;
 }
