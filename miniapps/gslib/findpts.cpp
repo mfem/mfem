@@ -27,7 +27,7 @@
 // Compile with: make findpts
 //
 // Sample runs:
-//    findpts -m ../../data/rt-2d-q3.mesh -o 3
+//    findpts -m ../../data/rt-2d-q3.mesh -o 3 -mo 3 -ft 2
 //    findpts -m ../../data/rt-2d-p4-tri.mesh -o 4
 //    findpts -m ../../data/inline-tri.mesh -o 3
 //    findpts -m ../../data/inline-quad.mesh -o 3
@@ -36,7 +36,7 @@
 //    findpts -m ../../data/inline-wedge.mesh -o 3
 //    findpts -m ../../data/amr-quad.mesh -o 2
 
-#include "../../mfem.hpp"
+#include "mfem.hpp"
 
 using namespace mfem;
 using namespace std;
