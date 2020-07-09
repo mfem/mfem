@@ -187,13 +187,18 @@ int main(int argc, char *argv[])
 
    // Compute L2 error from the exact solution and check if < eps
    double error = x.ComputeL2Error(exsol);
-   cout << "\nSolution L2 error: " << error << endl;
+   cout << "\nFE solution L2 error: " << error << endl;
 
    // Do nodal interpolation of the exact solution
    GridFunction y(fespace);
    y.ProjectCoefficient(exsol);
+   {
+      Vector tmp(fespace->GetTrueVSize());
+      fespace->GetRestrictionInterpolationMatrix()->Mult(y, tmp);
+      fespace->GetProlongationMatrix()->Mult(tmp, y);
+   }
    double error2 = y.ComputeL2Error(exsol);
-   cout << "Projection L2 error: " << error2 << endl;
+   cout << "Nodal projection L2 error: " << error2 << endl;
 
    // z = Ry
    const SparseMatrix *R = fespace->GetRestrictionMatrix();
@@ -201,7 +206,7 @@ int main(int argc, char *argv[])
    R->Mult(y, Z);
 
    // compute Az - B
-   SparseMatrix *spA = A.As<SparseMatrix>();
+   SparseMatrix *spA = A.Is<SparseMatrix>();
    Vector check(spA->Height());
    spA->Mult(Z, check);
    check -= B;
