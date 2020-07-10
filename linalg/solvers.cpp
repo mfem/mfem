@@ -179,6 +179,20 @@ void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
    MFEM_FORALL(i, N, Y[i] += DI[i] * R[i]; );
 }
 
+void LumpedJacobiSmoother::Mult(const Vector &x, Vector &y) const
+{
+   Vector residual(N);
+   oper->Mult(y, residual);
+   subtract(x, residual, residual);
+
+   y.UseDevice(true);
+   auto L = lump.Read();
+   auto X = residual.Read();
+   auto Y = y.ReadWrite();
+
+   MFEM_FORALL(i, N, Y[i] = (L[i] > 0) ? Y[i] + X[i] / L[i] : Y[i]; );
+}
+
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(Operator* oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,

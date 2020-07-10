@@ -142,6 +142,26 @@ private:
    const Operator *oper;
 };
 
+class LumpedJacobiSmoother : public Solver
+{
+private:
+   const int N;
+   Vector ones, lump;
+   const Operator *oper;
+
+public:
+   LumpedJacobiSmoother(int size)
+      : Solver(size), N(size), ones(N), lump(N), oper(NULL)
+   { ones = 1.0; }
+
+   void SetOperator(const Operator &op)
+   {
+      oper = &op;
+      oper->Mult(ones, lump);
+   }
+   void Mult(const Vector &x, Vector &y) const;
+};
+
 /// Chebyshev accelerated smoothing with given vector, no matrix necessary
 /** Potentially useful with tensorized operators, for example. This is just a
     very basic Chebyshev iteration, if you want tolerances, iteration control,
