@@ -997,12 +997,7 @@ void AnalyticAdaptTC::ComputeElementTargetsGradient(int e_id,
       case GIVEN_FULL:
       {
          MFEM_VERIFY(matrix_tspec != NULL,
-                     "Target type GIVEN_FULL requires a MatrixCoefficient.");
-
-         IsoparametricTransformation Tpr;
-         Tpr.SetFE(&fe);
-         Tpr.ElementNo = e_id;
-         Tpr.GetPointMat().Transpose(point_mat);
+                     "Target type GIVEN_FULL requires a TMOPMatrixCoefficient.");
 
          for (int d = 0; d < fe.GetDim(); d++)
          {
@@ -1011,7 +1006,7 @@ void AnalyticAdaptTC::ComputeElementTargetsGradient(int e_id,
                const IntegrationPoint &ip = ir.IntPoint(i);
                Tpr.SetIntPoint(&ip);
                DenseMatrix &dJtr_i = dJtr(i + d*ir.GetNPoints());
-               matrix_tspec->EvalP(dJtr_i, Tpr, ip, d);
+               matrix_tspec->EvalGrad(dJtr_i, Tpr, ip, d);
             }
          }
          break;
