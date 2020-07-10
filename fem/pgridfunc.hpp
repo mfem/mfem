@@ -304,6 +304,10 @@ public:
                           pfes->GetComm());
    }
 
+   virtual double ComputeDGFaceJumpError(Coefficient *exsol,
+                                         Coefficient *ell_coeff,
+                                         double Nu) const;
+
    virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
                                  Coefficient *ell_coef, double Nu,
                                  int norm_type) const
