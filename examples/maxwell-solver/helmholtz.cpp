@@ -237,7 +237,7 @@ int main(int argc, char *argv[])
 	GMRESSolver gmres;
 	// gmres.iterative_mode = true;
    gmres.SetPreconditioner(S);
-	gmres.SetOperator(*A);
+	gmres.SetOperator(*AZ);
 	gmres.SetRelTol(1e-6);
 	gmres.SetMaxIter(20);
 	gmres.SetPrintLevel(1);
@@ -312,9 +312,11 @@ int main(int argc, char *argv[])
 
    a.RecoverFEMSolution(X,B,p_gf);
 
-   KLUSolver klu(*A);
+   ComplexUMFPackSolver csolver;
+   csolver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+   csolver.SetOperator(*AZ);
    Vector X1(X.Size());
-   klu.Mult(B,X1);
+   csolver.Mult(B,X1);
    X1-= X;
 
    ComplexGridFunction error_gf(fespace);
@@ -346,7 +348,7 @@ int main(int argc, char *argv[])
       socketstream err_sock_re(vishost, visport);
       err_sock_re.precision(8);
       err_sock_re << "solution\n" << *mesh_ext << error_gf.real() <<
-                  "window_title 'Numerical Pressure (real part from KLU)' "
+                  "window_title 'Difference (real part from UMFPACK)' "
                   << keys << flush;
    }
    delete fespace;

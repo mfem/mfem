@@ -8,7 +8,9 @@ class ComplexUMFPackSolver : public Solver
 {
 protected:
    bool use_long_ints;
+   bool transpose = false;
    ComplexSparseMatrix *mat;
+
    void *Numeric;
    SuiteSparse_long *AI, *AJ;
 
@@ -38,7 +40,19 @@ public:
    /// Set the print level field in the #Control data member.
    void SetPrintLevel(int print_lvl) { Control[UMFPACK_PRL] = print_lvl; }
 
+   void SetTransposeSolve(bool transpose_) { transpose = transpose_ ;}
+
+   // This is solving the system A x = b 
    virtual void Mult(const Vector &b, Vector &x) const;
+   //
+   // This is solving the system:
+   // A^H x = b (transpose = false) 
+   // This is equivalent to solving the transpose block system for the 
+   // case of Convension = HERMITIAN
+   // A^T x = b (transpose = true )
+   // This is equivalent to solving transpose block system for the 
+   // case of Convension = BLOCK_SYMMETRIC
+   virtual void MultTranspose(const Vector &b, Vector &x) const;
 
    virtual ~ComplexUMFPackSolver();
 };

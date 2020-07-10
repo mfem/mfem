@@ -10,9 +10,9 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 # Use the MFEM build directory
-MFEM_DIR ?= ../..
-MFEM_BUILD_DIR ?= ../..
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/examples/maxwell-solver,)
+MFEM_DIR ?= ../../..
+MFEM_BUILD_DIR ?= ../../..
+SRC = $(if $(MFEM_DIR:../../..=),$(MFEM_DIR)/examples/maxwell-solver,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 
 MFEM_LIB_FILE = mfem_is_not_built
