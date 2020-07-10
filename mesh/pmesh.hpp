@@ -78,6 +78,8 @@ protected:
    // sface ids: all triangles first, then all quads
    Array<int> sface_lface;
 
+   IsoparametricTransformation FaceNbrTransformation;
+
    // glob_elem_offset + local element number defines a global element numbering
    mutable long glob_elem_offset, glob_offset_sequence;
    void ComputeGlobalElementOffset() const;
@@ -107,7 +109,7 @@ protected:
    void GetFaceNbrElementTransformation(
       int i, IsoparametricTransformation *ElTr);
 
-   ElementTransformation* GetGhostFaceTransformation(
+   void GetGhostFaceTransformation(
       FaceElementTransformations* FETr, Element::Type face_type,
       Geometry::Type face_geom);
 
@@ -294,6 +296,14 @@ public:
        elements, respectively. */
    FaceElementTransformations *
    GetSharedFaceTransformations(int sf, bool fill2 = true);
+
+   ElementTransformation *
+   GetFaceNbrElementTransformation(int i)
+   {
+      GetFaceNbrElementTransformation(i, &FaceNbrTransformation);
+
+      return &FaceNbrTransformation;
+   }
 
    /// Return the number of shared faces (3D), edges (2D), vertices (1D)
    int GetNSharedFaces() const;
