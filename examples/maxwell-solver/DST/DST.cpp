@@ -81,10 +81,7 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
    MarkOverlapDofs();
    // ComputeOverlapDofMaps();
 
-
    // Set up the local patch problems
-
-
    sqf.SetSize(nrpatch);
    Optr.SetSize(nrpatch);
    PmlMat.SetSize(nrpatch);
@@ -389,7 +386,7 @@ void DST::SetHelmholtzPmlSystemMatrix(int ip)
    ProductCoefficient c2_im0(sigma, detJ_im);
    ProductCoefficient c2_re(c2_re0, *ws);
    ProductCoefficient c2_im(c2_im0, *ws);
-   sqf[ip] = new SesquilinearForm (dmap->fespaces[ip],ComplexOperator::HERMITIAN);
+   sqf[ip] = new SesquilinearForm (dmap->fespaces[ip],bf->GetConvention());
 
    sqf[ip]->AddDomainIntegrator(new DiffusionIntegrator(c1_re),
                          new DiffusionIntegrator(c1_im));
@@ -452,7 +449,7 @@ void DST::SetMaxwellPmlSystemMatrix(int ip)
    ScalarMatrixProductCoefficient c2_Re(*ws,c2_Re0);
    ScalarMatrixProductCoefficient c2_Im(*ws,c2_Im0);
 
-   sqf[ip] = new SesquilinearForm(dmap->fespaces[ip],ComplexOperator::HERMITIAN);
+   sqf[ip] = new SesquilinearForm(dmap->fespaces[ip],bf->GetConvention());
 
    sqf[ip]->AddDomainIntegrator(new CurlCurlIntegrator(pml_c1_Re),
                          new CurlCurlIntegrator(pml_c1_Im));

@@ -1,7 +1,6 @@
 #pragma once
 #include "../common/Utilities.hpp"
 #include "../common/PML.hpp"
-#include "UMFPackC.hpp"
 using namespace std;
 using namespace mfem;
 
@@ -33,7 +32,6 @@ private:
    double omega = 0.5;
    Coefficient * ws;
    int nrlayers;
-
    // 
    int nrpatch;
    int dim;

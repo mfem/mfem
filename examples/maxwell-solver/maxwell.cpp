@@ -8,7 +8,6 @@
 #include <fstream>
 #include <iostream>
 #include "DST/DST.hpp"
-#include "DST/UMFPackC.hpp"
 
 using namespace std;
 using namespace mfem;

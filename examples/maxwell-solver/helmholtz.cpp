@@ -28,10 +28,8 @@ double wavespeed(const Vector &x);
 int dim;
 double omega;
 int sol = 1;
-bool pml = false;
 double length = 1.0;
 double pml_length = 0.25;
-bool scatter = false;
 Array2D<double>comp_bdr;
 
 #ifndef MFEM_USE_SUPERLU
@@ -59,6 +57,7 @@ int main(int argc, char *argv[])
    int nx=2;
    int ny=2;
    int nz=2;
+   bool herm_conv = true;
 
    // optional command line inputs
    OptionsParser args(argc, argv);
@@ -75,18 +74,14 @@ int main(int argc, char *argv[])
                   "Exact solution flag - 0:polynomial, 1: plane wave, -1: unknown exact");
    args.AddOption(&k, "-k", "--wavelengths",
                   "Number of wavelengths.");
-   args.AddOption(&pml, "-pml", "--pml", "-no-pml",
-                  "--no-pml", "Enable PML.");
    args.AddOption(&pml_length, "-pml_length", "--pml_length",
                   "Length of the PML region in each direction");
    args.AddOption(&length, "-length", "--length",
                   "length of the domain in each direction.");
    args.AddOption(&ref, "-ref", "--ref",
                   "Number of Refinements.");
-   args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
-                  "--no-static-condensation", "Enable static condensation.");
-   args.AddOption(&scatter, "-scat", "--scattering-prob", "-no-scat",
-                  "--no-scattering", "Solve a scattering problem");
+   args.AddOption(&herm_conv, "-herm", "--hermitian", "-no-herm",
+                  "--no-hermitian", "Use convention for Hermitian operators.");                  
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -171,8 +166,13 @@ int main(int argc, char *argv[])
    FunctionCoefficient f_Re(f_exact_Re);
    FunctionCoefficient f_Im(f_exact_Im);
 
+
+   // 8. Setup Complex Operator convention
+   ComplexOperator::Convention conv =
+      herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
+
    // ParLinearForm *b_Re(new ParLinearForm);
-   ComplexLinearForm b(fespace, ComplexOperator::HERMITIAN);
+   ComplexLinearForm b(fespace, conv);
    b.AddDomainIntegrator(new DomainLFIntegrator(f_Re),
                          new DomainLFIntegrator(f_Im));
    b.real().Vector::operator=(0.0);
@@ -198,7 +198,7 @@ int main(int argc, char *argv[])
    ProductCoefficient c2_im(c2_im0, ws);
 
 
-   SesquilinearForm a(fespace,ComplexOperator::HERMITIAN);
+   SesquilinearForm a(fespace,conv);
 
    a.AddDomainIntegrator(new DiffusionIntegrator(c1_re),
                          new DiffusionIntegrator(c1_im));
