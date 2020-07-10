@@ -97,6 +97,8 @@ private:
    // Set Vector::data and Vector::size from *x
    inline void _SetDataAndSize_();
 
+   Vector mngd_base;
+
 public:
    /** @brief Creates vector with given global size and parallel partitioning of
        the rows/columns given by @a col. */
@@ -172,10 +174,27 @@ public:
    {
       // TODO: we may need to copy the data if the MemoryTypes of base are not
       // suitable for GetHypreMemoryClass()
-      MakeRef(const_cast<Vector&>(base), offset);
-      UseDevice(true);
-      hypre_VectorData(hypre_ParVectorLocalVector(x)) =
-         const_cast<double*>(data.Read(GetHypreMemoryClass(), size));
+      if (GetHypreMemoryClass() == MemoryClass::MANAGED &&
+          base.GetMemory().GetMemoryType() == MemoryType::HOST)
+      {
+         if (mngd_base.Size() == 0)
+         {
+            mngd_base.SetSize(base.Size(), MemoryType::MANAGED);
+         }
+         else
+         {
+            MFEM_VERIFY(mngd_base.Size() == base.Size(), "");
+         }
+         mngd_base.GetMemory().CopyFromHost(base.HostRead(), base.Size(), offset);
+         hypre_VectorData(hypre_ParVectorLocalVector(x)) = mngd_base.GetMemory();
+      }
+      else
+      {
+         MakeRef(const_cast<Vector&>(base), offset);
+         UseDevice(true);
+         hypre_VectorData(hypre_ParVectorLocalVector(x)) =
+            const_cast<double*>(data.Read(GetHypreMemoryClass(), size));
+      }
       return *this;
    }
 
@@ -185,11 +204,36 @@ public:
       // TODO: we may need to allocate memory if the MemoryTypes of base are not
       // suitable for GetHypreMemoryClass(). Then the data will need to be
       // copied back to base with a separate call to a new method.
-      MakeRef(base, offset);
-      UseDevice(true);
-      hypre_VectorData(hypre_ParVectorLocalVector(x)) =
-         data.Write(GetHypreMemoryClass(), size);
+      if (GetHypreMemoryClass() == MemoryClass::MANAGED)
+      {
+         if (mngd_base.Size() == 0)
+         {
+            mngd_base.SetSize(base.Size(), MemoryType::MANAGED);
+         }
+         else
+         {
+            MFEM_VERIFY(mngd_base.Size() == base.Size(), "");
+         }
+         MakeRef(const_cast<Vector&>(mngd_base), offset);
+         hypre_VectorData(hypre_ParVectorLocalVector(x)) = data;
+      }
+      else
+      {
+         MakeRef(base, offset);
+         UseDevice(true);
+         hypre_VectorData(hypre_ParVectorLocalVector(x)) =
+            data.Write(GetHypreMemoryClass(), size);
+      }
       return *this;
+   }
+
+   inline void WriteCopy(Vector &base, int offset = 0)
+   {
+      if (GetHypreMemoryClass() == MemoryClass::MANAGED)
+      {
+         MFEM_VERIFY(mngd_base.Size() == base.Size(), "");
+         base.GetMemory().CopyFrom(mngd_base.GetMemory(), base.Size(), offset);
+      }
    }
 
    /// Set random values
@@ -260,6 +304,7 @@ private:
    // Copy (shallow/deep, based on HYPRE_BIGINT) the I and J arrays from csr to
    // hypre_csr. Shallow copy the data. Return the appropriate ownership flag.
    static char CopyCSR(SparseMatrix *csr, hypre_CSRMatrix *hypre_csr);
+   static char CopyCSR_Managed(SparseMatrix *csr, hypre_CSRMatrix *hypre_csr);
    // Copy (shallow or deep, based on HYPRE_BIGINT) the I and J arrays from
    // bool_csr to hypre_csr. Allocate the data array and set it to all ones.
    // Return the appropriate ownership flag.
@@ -268,6 +313,9 @@ private:
    // Copy the j array of a hypre_CSRMatrix to the given J array, converting
    // the indices from HYPRE_Int to int.
    static void CopyCSR_J(hypre_CSRMatrix *hypre_csr, int *J);
+
+   Memory<HYPRE_Int> mngd_row, mngd_col, mngd_cmap;
+   mutable Memory<double> mngd_x, mngd_y;
 
 public:
    /// An empty matrix to be used as a reference to an existing matrix

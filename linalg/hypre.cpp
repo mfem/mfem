@@ -39,6 +39,15 @@ static TargetT *DuplicateAs(const SourceT *array, int size,
    return target_array;
 }
 
+template<typename TargetT, typename SourceT>
+static TargetT *DuplicateAsManaged(const SourceT *array, int size)
+{
+   Memory<TargetT> mm(size, MemoryType::MANAGED);
+   mm.CopyFromHost(array, size);
+   TargetT *target_array = mm;
+   return target_array;
+}
+
 inline void HypreParVector::_SetDataAndSize_()
 {
    SetDataAndSize(hypre_VectorData(hypre_ParVectorLocalVector(x)),
@@ -270,6 +279,31 @@ char HypreParMatrix::CopyCSR(SparseMatrix *csr, hypre_CSRMatrix *hypre_csr)
 #endif
 }
 
+char HypreParMatrix::CopyCSR_Managed(SparseMatrix *csr,
+                                     hypre_CSRMatrix *hypre_csr)
+{
+   const int nnz = csr->GetI()[csr->NumRows()];
+   Memory<double> mngd_data(nnz, MemoryType::MANAGED);
+   mngd_data.CopyFromHost(csr->GetData(), nnz);
+
+   hypre_CSRMatrixData(hypre_csr) = mngd_data;
+#ifndef HYPRE_BIGINT
+   hypre_CSRMatrixI(hypre_csr) = DuplicateAsManaged<int>(csr->GetI(),
+                                                         csr->Height()+1);
+   hypre_CSRMatrixJ(hypre_csr) = DuplicateAsManaged<int>(csr->GetJ(),
+                                                         csr->NumNonZeroElems());
+   // Prevent hypre from destroying hypre_csr->{i,j,data}
+   return 0;
+#else
+   hypre_CSRMatrixI(hypre_csr) =
+      DuplicateAsManaged<HYPRE_Int>(csr->GetI(), csr->Height()+1);
+   hypre_CSRMatrixJ(hypre_csr) =
+      DuplicateAsManaged<HYPRE_Int>(csr->GetJ(), csr->NumNonZeroElems());
+   // Prevent hypre from destroying hypre_csr->{i,j,data}, own {i,j}
+   return 1;
+#endif
+}
+
 char HypreParMatrix::CopyBoolCSR(Table *bool_csr, hypre_CSRMatrix *hypre_csr)
 {
    int nnz = bool_csr->Size_of_connections();
@@ -309,18 +343,46 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_Int glob_size,
    : Operator(diag->Height(), diag->Width())
 {
    Init();
-   A = hypre_ParCSRMatrixCreate(comm, glob_size, glob_size, row_starts,
-                                row_starts, 0, diag->NumNonZeroElems(), 0);
+
+   if (GetHypreMemoryClass() == MemoryClass::MANAGED)
+   {
+      mngd_row.New(3, MemoryType::MANAGED);
+      mngd_row.CopyFromHost(row_starts, 3);
+      A = hypre_ParCSRMatrixCreate(comm, glob_size, glob_size, mngd_row,
+                                   mngd_row, 0, diag->NumNonZeroElems(), 0);
+   }
+   else
+   {
+      A = hypre_ParCSRMatrixCreate(comm, glob_size, glob_size, row_starts,
+                                   row_starts, 0, diag->NumNonZeroElems(), 0);
+   }
+
    hypre_ParCSRMatrixSetDataOwner(A,1);
    hypre_ParCSRMatrixSetRowStartsOwner(A,0);
    hypre_ParCSRMatrixSetColStartsOwner(A,0);
 
    hypre_CSRMatrixSetDataOwner(A->diag,0);
-   diagOwner = CopyCSR(diag, A->diag);
+   if (GetHypreMemoryClass() == MemoryClass::MANAGED)
+   {
+      diagOwner = CopyCSR_Managed(diag, A->diag);
+   }
+   else
+   {
+      diagOwner = CopyCSR(diag, A->diag);
+   }
+
    hypre_CSRMatrixSetRownnz(A->diag);
 
    hypre_CSRMatrixSetDataOwner(A->offd,1);
-   hypre_CSRMatrixI(A->offd) = mfem_hypre_CTAlloc(HYPRE_Int, diag->Height()+1);
+   if (GetHypreMemoryClass() == MemoryClass::MANAGED)
+   {
+      hypre_CSRMatrixI(A->offd) = Memory<HYPRE_Int>(diag->Height()+1,
+                                                    MemoryType::MANAGED);
+   }
+   else
+   {
+      hypre_CSRMatrixI(A->offd) = mfem_hypre_CTAlloc(HYPRE_Int, diag->Height()+1);
+   }
 
    /* Don't need to call these, since they allocate memory only
       if it was not already allocated */
@@ -568,11 +630,30 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
       diag_nnz = i_diag[row[1]-row[0]];
       offd_nnz = i_offd[row[1]-row[0]];
 
-      A = hypre_ParCSRMatrixCreate(comm, row[2], col[2], row, col,
-                                   cmap_size, diag_nnz, offd_nnz);
+      if (GetHypreMemoryClass() == MemoryClass::MANAGED)
+      {
+         // Assumption: all input pointers to host memory have valid data already on host, so we can just use CopyFromHost.
+         // Copy row, col to new MANAGED arrays.
+
+         mngd_row.New(3, MemoryType::MANAGED);
+         mngd_col.New(3, MemoryType::MANAGED);
+
+         mngd_row.CopyFromHost(row, 3);
+         mngd_col.CopyFromHost(col, 3);
+
+         A = hypre_ParCSRMatrixCreate(comm, row[2], col[2], mngd_row, mngd_col,
+                                      cmap_size, diag_nnz, offd_nnz);
+      }
+      else
+      {
+         A = hypre_ParCSRMatrixCreate(comm, row[2], col[2], row, col,
+                                      cmap_size, diag_nnz, offd_nnz);
+      }
    }
    else
    {
+      MFEM_VERIFY(GetHypreMemoryClass() != MemoryClass::MANAGED, "TODO");
+
       diag_nnz = i_diag[row[id+1]-row[id]];
       offd_nnz = i_offd[row[id+1]-row[id]];
 
@@ -586,35 +667,95 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
 
    HYPRE_Int i;
 
-   double *a_diag = Memory<double>(diag_nnz);
+   double *a_diag = (GetHypreMemoryClass() == MemoryClass::MANAGED) ?
+                    Memory<double>(diag_nnz, MemoryType::MANAGED) : Memory<double>(diag_nnz);
    for (i = 0; i < diag_nnz; i++)
    {
       a_diag[i] = 1.0;
    }
 
-   double *a_offd = Memory<double>(offd_nnz);
+   double *a_offd = (GetHypreMemoryClass() == MemoryClass::MANAGED) ?
+                    Memory<double>(offd_nnz, MemoryType::MANAGED) : Memory<double>(offd_nnz);
    for (i = 0; i < offd_nnz; i++)
    {
       a_offd[i] = 1.0;
    }
 
    hypre_CSRMatrixSetDataOwner(A->diag,0);
-   hypre_CSRMatrixI(A->diag)    = i_diag;
-   hypre_CSRMatrixJ(A->diag)    = j_diag;
+   if (GetHypreMemoryClass() == MemoryClass::MANAGED)
+   {
+      Memory<HYPRE_Int> mngd_i_diag, mngd_j_diag;
+
+      if (HYPRE_AssumedPartitionCheck())
+      {
+         const int rowSize = row[1]-row[0];
+         mngd_i_diag.New(rowSize+1, MemoryType::MANAGED);
+         mngd_j_diag.New(diag_nnz, MemoryType::MANAGED);
+
+         mngd_i_diag.CopyFromHost(i_diag, rowSize+1);
+         mngd_j_diag.CopyFromHost(j_diag, diag_nnz);
+      }
+      else
+      {
+         MFEM_VERIFY(false, "TODO");
+      }
+
+      hypre_CSRMatrixI(A->diag)    = mngd_i_diag;
+      hypre_CSRMatrixJ(A->diag)    = mngd_j_diag;
+   }
+   else
+   {
+      hypre_CSRMatrixI(A->diag)    = i_diag;
+      hypre_CSRMatrixJ(A->diag)    = j_diag;
+   }
    hypre_CSRMatrixData(A->diag) = a_diag;
    hypre_CSRMatrixSetRownnz(A->diag);
    // Prevent hypre from destroying A->diag->{i,j,data}, own A->diag->{i,j,data}
    diagOwner = 3;
 
    hypre_CSRMatrixSetDataOwner(A->offd,0);
-   hypre_CSRMatrixI(A->offd)    = i_offd;
-   hypre_CSRMatrixJ(A->offd)    = j_offd;
+   if (GetHypreMemoryClass() == MemoryClass::MANAGED)
+   {
+      Memory<HYPRE_Int> mngd_i_offd, mngd_j_offd;
+
+      if (HYPRE_AssumedPartitionCheck())
+      {
+         const int rowSize = row[1]-row[0];
+         mngd_i_offd.New(rowSize+1, MemoryType::MANAGED);
+         mngd_j_offd.New(offd_nnz, MemoryType::MANAGED);
+
+         mngd_i_offd.CopyFromHost(i_offd, rowSize+1);
+         mngd_j_offd.CopyFromHost(j_offd, offd_nnz);
+      }
+      else
+      {
+         MFEM_VERIFY(false, "TODO");
+      }
+
+      hypre_CSRMatrixI(A->offd)    = mngd_i_offd;
+      hypre_CSRMatrixJ(A->offd)    = mngd_j_offd;
+   }
+   else
+   {
+      hypre_CSRMatrixI(A->offd)    = i_offd;
+      hypre_CSRMatrixJ(A->offd)    = j_offd;
+   }
    hypre_CSRMatrixData(A->offd) = a_offd;
    hypre_CSRMatrixSetRownnz(A->offd);
    // Prevent hypre from destroying A->offd->{i,j,data}, own A->offd->{i,j,data}
    offdOwner = 3;
 
-   hypre_ParCSRMatrixColMapOffd(A) = cmap;
+   if (GetHypreMemoryClass() == MemoryClass::MANAGED)
+   {
+      mngd_cmap.New(cmap_size, MemoryType::MANAGED);
+      mngd_cmap.CopyFromHost(cmap, cmap_size);
+      hypre_ParCSRMatrixColMapOffd(A) = mngd_cmap;
+   }
+   else
+   {
+      hypre_ParCSRMatrixColMapOffd(A) = cmap;
+   }
+
    // Prevent hypre from destroying A->col_map_offd, own A->col_map_offd
    colMapOwner = 1;
 
@@ -988,22 +1129,54 @@ void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
    auto y_data = (b == 0.0) ? y.HostWrite() : y.HostReadWrite();
    if (X == NULL)
    {
-      X = new HypreParVector(A->comm,
-                             GetGlobalNumCols(),
-                             const_cast<double*>(x_data),
-                             GetColStarts());
-      Y = new HypreParVector(A->comm,
-                             GetGlobalNumRows(),
-                             y_data,
-                             GetRowStarts());
+      if (GetHypreMemoryClass() == MemoryClass::MANAGED)
+      {
+         mngd_x.New(x.Size(), MemoryType::MANAGED);
+         mngd_y.New(y.Size(), MemoryType::MANAGED);
+
+         X = new HypreParVector(A->comm,
+                                GetGlobalNumCols(),
+                                mngd_x,
+                                GetColStarts());
+         Y = new HypreParVector(A->comm,
+                                GetGlobalNumRows(),
+                                mngd_y,
+                                GetRowStarts());
+      }
+      else
+      {
+         X = new HypreParVector(A->comm,
+                                GetGlobalNumCols(),
+                                const_cast<double*>(x_data),
+                                GetColStarts());
+         Y = new HypreParVector(A->comm,
+                                GetGlobalNumRows(),
+                                y_data,
+                                GetRowStarts());
+      }
    }
    else
    {
-      X->SetData(const_cast<double*>(x_data));
-      Y->SetData(y_data);
+      if (GetHypreMemoryClass() == MemoryClass::MANAGED)
+      {
+         mngd_x.CopyFromHost(x_data, x.Size());
+         if (b != 0.0)
+         {
+            mngd_y.CopyFromHost(y_data, y.Size());
+         }
+      }
+      else
+      {
+         X->SetData(const_cast<double*>(x_data));
+         Y->SetData(y_data);
+      }
    }
 
    hypre_ParCSRMatrixMatvec(a, A, *X, b, *Y);
+   if (GetHypreMemoryClass() == MemoryClass::MANAGED)
+   {
+      mngd_y.CopyToHost(y_data, y.Size());
+   }
 }
 
 void HypreParMatrix::MultTranspose(double a, const Vector &x,
@@ -1465,28 +1638,58 @@ void HypreParMatrix::PrintCommPkg(std::ostream &out) const
 inline void delete_hypre_CSRMatrixData(hypre_CSRMatrix *M)
 {
    HYPRE_Complex *data = hypre_CSRMatrixData(M);
-   Memory<HYPRE_Complex>(data, M->num_nonzeros, true).Delete();
+   if (GetHypreMemoryClass() == MemoryClass::MANAGED)
+   {
+      Memory<HYPRE_Complex>(data, M->num_nonzeros, MemoryType::MANAGED,
+                            true).Delete();
+   }
+   else
+   {
+      Memory<HYPRE_Complex>(data, M->num_nonzeros, true).Delete();
+   }
 }
 
 inline void delete_hypre_ParCSRMatrixColMapOffd(hypre_ParCSRMatrix *A)
 {
    HYPRE_Int  *A_col_map_offd = hypre_ParCSRMatrixColMapOffd(A);
    int size = hypre_CSRMatrixNumCols(hypre_ParCSRMatrixOffd(A));
-   Memory<HYPRE_Int>(A_col_map_offd, size, true).Delete();
+   if (GetHypreMemoryClass() == MemoryClass::MANAGED)
+   {
+      Memory<HYPRE_Int>(A_col_map_offd, size, MemoryType::MANAGED, true).Delete();
+   }
+   else
+   {
+      Memory<HYPRE_Int>(A_col_map_offd, size, true).Delete();
+   }
 }
 
 inline void delete_hypre_CSRMatrixI(hypre_CSRMatrix *M)
 {
    HYPRE_Int *I = hypre_CSRMatrixI(M);
    int size = hypre_CSRMatrixNumRows(M) + 1;
-   Memory<HYPRE_Int>(I, size, true).Delete();
+
+   if (GetHypreMemoryClass() == MemoryClass::MANAGED)
+   {
+      Memory<HYPRE_Int>(I, size, MemoryType::MANAGED, true).Delete();
+   }
+   else
+   {
+      Memory<HYPRE_Int>(I, size, true).Delete();
+   }
 }
 
 inline void delete_hypre_CSRMatrixJ(hypre_CSRMatrix *M)
 {
    HYPRE_Int *J = hypre_CSRMatrixJ(M);
    int size = hypre_CSRMatrixNumNonzeros(M);
-   Memory<HYPRE_Int>(J, size, true).Delete();
+   if (GetHypreMemoryClass() == MemoryClass::MANAGED)
+   {
+      Memory<HYPRE_Int>(J, size, MemoryType::MANAGED, true).Delete();
+   }
+   else
+   {
+      Memory<HYPRE_Int>(J, size, true).Delete();
+   }
 }
 
 void HypreParMatrix::Destroy()
@@ -2531,6 +2734,7 @@ void HypreSolver::Mult(const Vector &b, Vector &x) const
    X->Write(x);
 
    Mult(*B, *X);
+   X->WriteCopy(x);
 }
 
 HypreSolver::~HypreSolver()
