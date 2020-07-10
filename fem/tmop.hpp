@@ -690,29 +690,11 @@ class TMOPMatrixCoefficient  : public MatrixCoefficient
 public:
    explicit TMOPMatrixCoefficient(int dim) : MatrixCoefficient(dim, dim) { }
 
-   TMOPMatrixCoefficient(int h, int w) : MatrixCoefficient(h, w)  { }
-
-   void SetTime(double t) { time = t; }
-   double GetTime() { return time; }
-
-   int GetHeight() const { return height; }
-   int GetWidth() const { return width; }
-   // For backward compatibility
-   int GetVDim() const { return width; }
-
-   /** @brief Evaluate the matrix coefficient in the element described by @a T
-       at the point @a ip, storing the result in @a K. */
-   /** @note When this method is called, the caller must make sure that the
-       IntegrationPoint associated with @a T is the same as @a ip. This can be
-       achieved by calling T.SetIntPoint(&ip). */
-   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip) = 0;
-
    /** @brief Evaluate the derivative of the matrix coefficient with respect
        to @a comp in the element described by @a T at the point @a ip,
        storing the result in @a K. */
-   virtual void EvalP(DenseMatrix &K, ElementTransformation &T,
-                      const IntegrationPoint &ip, int comp) = 0;
+   virtual void EvalGrad(DenseMatrix &K, ElementTransformation &T,
+                         const IntegrationPoint &ip, int comp) = 0;
 
    virtual ~TMOPMatrixCoefficient() { }
 };

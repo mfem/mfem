@@ -165,8 +165,8 @@ public:
       }
    }
 
-   virtual void EvalP(DenseMatrix &K, ElementTransformation &T,
-                      const IntegrationPoint &ip, int comp)
+   virtual void EvalGrad(DenseMatrix &K, ElementTransformation &T,
+                         const IntegrationPoint &ip, int comp)
    {
       Vector pos(3);
       T.Transform(ip, pos);
