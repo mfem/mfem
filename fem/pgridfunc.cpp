@@ -1129,8 +1129,8 @@ double ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
          const IntegrationPoint &ip = ir.IntPoint(j);
          transf->SetIntPoint(&ip);
          error += shared_face_factor*(ip.weight * Nu * ell_coeff_val(j) *
-                   pow(transf->Weight(), 1.0-1.0/(dim-1)) *
-                   err_val(j) * err_val(j));
+                                      pow(transf->Weight(), 1.0-1.0/(dim-1)) *
+                                      err_val(j) * err_val(j));
       }
    }
 
