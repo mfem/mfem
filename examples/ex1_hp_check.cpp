@@ -17,25 +17,32 @@
 using namespace std;
 using namespace mfem;
 
-// Exact solution
+// Exact solution: x^2 + y^2 + z^2
 double exact_solution(const Vector &p)
 {
-   double x = p(0), y = p(1);
-   return x*x + y*y;
+   if (p.Size() == 3)
+   {
+      return p(0)*p(0) + p(1)*p(1) + p(2)*p(2);
+   }
+   else
+   {
+      return p(0)*p(0) + p(1)*p(1);
+   }
 }
 
 double exact_laplace(const Vector &p)
 {
-   //double x = p(0), y = p(1);
-   return -4.0;
+   return (p.Size() == 3) ? -6.0 : -4.0;
 }
 
+
 GridFunction* ProlongToMaxOrder(const GridFunction *x);
+
 
 int main(int argc, char *argv[])
 {
    // Parse command-line options.
-   const char *mesh_file = "quad.mesh";
+   const char *mesh_file = "../data/inline-quad.meshq";
    int order = 2;
    int ref_levels = 1;
    int seed = 1;
@@ -87,7 +94,7 @@ int main(int argc, char *argv[])
    // 'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    // largest number that gives a final mesh with no more than 50,000
    // elements.
-#if 0
+#if 1
    srand(seed);
    {
       for (int l = 0; l < ref_levels; l++)
@@ -119,7 +126,7 @@ int main(int argc, char *argv[])
    // At this point all elements have the default order (specified when
    // construction the FECollection). Now we can p-refine some of them to
    // obtain a variable-order space...
-#if 0
+#if 1
    srand(seed);
    for (int i = 0; i < mesh->GetNE(); i++)
    {
@@ -192,6 +199,7 @@ int main(int argc, char *argv[])
    // Do nodal interpolation of the exact solution
    GridFunction y(fespace);
    y.ProjectCoefficient(exsol);
+   if (fespace->GetProlongationMatrix())
    {
       Vector tmp(fespace->GetTrueVSize());
       fespace->GetRestrictionInterpolationMatrix()->Mult(y, tmp);
@@ -201,7 +209,7 @@ int main(int argc, char *argv[])
    cout << "Nodal projection L2 error: " << error2 << endl;
 
    // z = Ry
-   const SparseMatrix *R = fespace->GetRestrictionMatrix();
+/*   const SparseMatrix *R = fespace->GetRestrictionMatrix();
    Vector Z(R->Height());
    R->Mult(y, Z);
 
@@ -210,7 +218,7 @@ int main(int argc, char *argv[])
    Vector check(spA->Height());
    spA->Mult(Z, check);
    check -= B;
-   cout << "|Az - B|: " << check.Norml2() << endl;
+   cout << "|Az - B|: " << check.Norml2() << endl;*/
 
 
    // Send the solution by socket to a GLVis server.
@@ -219,6 +227,10 @@ int main(int argc, char *argv[])
       char vishost[] = "localhost";
       int  visport   = 19916;
 
+      ////// DEBUG DEBUG
+      x = 0;
+      x.ProjectBdrCoefficient(exsol, ess_bdr);
+
       // Prolong the solution vector onto L2 space of max order (for GLVis)
       GridFunction *vis_x = ProlongToMaxOrder(&x);
 
@@ -226,7 +238,7 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << *mesh << *vis_x
-               << "keys Rjlm\n"
+               //<< "keys Rjlm\n"
                << flush;
 #endif
 
@@ -238,7 +250,7 @@ int main(int argc, char *argv[])
       socketstream err_sock(vishost, visport);
       err_sock.precision(8);
       err_sock << "solution\n" << *mesh << *vis_x
-               << "keys Rjlmc\n"
+               //<< "keys Rjlmc\n"
                << flush;
 #endif
       delete vis_x;
@@ -256,12 +268,12 @@ int main(int argc, char *argv[])
       socketstream ord_sock(vishost, visport);
       ord_sock.precision(8);
       ord_sock << "solution\n" << *mesh << orders
-               << "keys Rjlmc\n"
+               //<< "keys Rjlmc\n"
                << flush;
 #endif
 
       // visualize the basis functions
-      if (1)
+      if (0)
       {
          socketstream b_sock(vishost, visport);
          b_sock.precision(8);
@@ -275,7 +287,7 @@ int main(int argc, char *argv[])
             vis_x = ProlongToMaxOrder(&x);
 
             b_sock << "solution\n" << *mesh << *vis_x << flush;
-            if (i == first) { b_sock << "keys Rjlm\n"; }
+            //if (i == first) { b_sock << "keys Rjlm\n"; }
             b_sock << "pause\n" << flush;
             delete vis_x;
          }
@@ -294,6 +306,7 @@ int main(int argc, char *argv[])
 
    return 0;
 }
+
 
 GridFunction* ProlongToMaxOrder(const GridFunction *x)
 {
