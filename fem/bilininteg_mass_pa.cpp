@@ -1152,9 +1152,11 @@ static void PAMassApply(const int dim,
    }
 #endif // MFEM_USE_OCCA
 #ifndef MFEM_USE_JIT
+   static const bool STD = getenv("STD");
    const int id = (D1D << 4) | Q1D;
    if (dim == 2)
    {
+      if (STD) { return PAMassApply2D(NE,b,bt,d,x,y,D1D,Q1D); }
       switch (id)
       {
          case 0x22: return SmemPAMassApply2D<2,2,16>(NE,B,D,X,Y);
@@ -1170,6 +1172,7 @@ static void PAMassApply(const int dim,
    }
    else if (dim == 3)
    {
+      if (STD) { return PAMassApply3D(NE,b,bt,d,x,y,D1D,Q1D); }
       switch (id)
       {
          case 0x23: return SmemPAMassApply3D<2,3>(NE,B,D,X,Y);

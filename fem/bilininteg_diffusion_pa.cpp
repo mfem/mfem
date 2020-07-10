@@ -1679,8 +1679,10 @@ static void PADiffusionApply(const int dim,
 #endif // MFEM_USE_OCCA
 
 #ifndef MFEM_USE_JIT
+   static const bool STD = getenv("STD");
    if (dim == 2)
    {
+      if (STD) { return PADiffusionApply2D(NE,b,g,bt,gt,d,x,y,D1D,Q1D); }
       switch ((D1D << 4 ) | Q1D)
       {
          case 0x22: return SmemPADiffusionApply2D<2,2,16>(NE,B,G,D,X,Y);
@@ -1696,6 +1698,7 @@ static void PADiffusionApply(const int dim,
    }
    else if (dim == 3)
    {
+      if (STD) { return PADiffusionApply3D(NE,b,g,bt,gt,d,x,y,D1D,Q1D); }
       switch ((D1D << 4 ) | Q1D)
       {
          case 0x23: return SmemPADiffusionApply3D<2,3>(NE,B,G,D,X,Y);
