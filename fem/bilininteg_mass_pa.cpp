@@ -917,7 +917,7 @@ static void SmemPAMassApply3D(const int NE,
    auto d = Reshape(d_, Q1D, Q1D, Q1D, NE);
    auto x = Reshape(x_, D1D, D1D, D1D, NE);
    auto y = Reshape(y_, D1D, D1D, D1D, NE);
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, 1,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
