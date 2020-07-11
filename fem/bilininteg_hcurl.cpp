@@ -547,6 +547,193 @@ void PAHcurlMassApply3D(const int D1D,
    }); // end of element loop
 }
 
+void SmemPAHcurlMassApply3D(const int D1D,
+                            const int Q1D,
+                            const int NE,
+                            const Array<double> &_Bo,
+                            const Array<double> &_Bc,
+                            const Array<double> &_Bot,
+                            const Array<double> &_Bct,
+                            const Vector &_op,
+                            const Vector &_x,
+                            Vector &_y)
+{
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
+
+   MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
+   constexpr static int VDIM = 3;
+
+   auto bo = Reshape(_Bo.Read(), Q1D, D1D-1);
+   auto bc = Reshape(_Bc.Read(), Q1D, D1D);
+   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 6, NE);
+   auto x = Reshape(_x.Read(), 3*(D1D-1)*D1D*D1D, NE);
+   auto y = Reshape(_y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
+
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   {
+      MFEM_SHARED double BG[2][MAX_Q1D*MAX_D1D];
+      double (*Bo)[MAX_Q1D] = (double (*)[MAX_Q1D]) (BG+0);
+      double (*Bc)[MAX_Q1D] = (double (*)[MAX_Q1D]) (BG+1);
+
+      double op6[6];
+      MFEM_SHARED double sop[6*MAX_Q1D*MAX_Q1D];
+      MFEM_SHARED double mass[MAX_Q1D][MAX_Q1D][3];
+
+      MFEM_SHARED double X[MAX_D1D][MAX_D1D][MAX_D1D];
+
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qz,z,Q1D)
+            {
+               for (int i=0; i<6; ++i)
+               {
+                  op6[i] = op(qx,qy,qz,i,e);
+               }
+            }
+         }
+      }
+
+      const int tidx = MFEM_THREAD_ID(x);
+      const int tidy = MFEM_THREAD_ID(y);
+      const int tidz = MFEM_THREAD_ID(z);
+
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(d,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q1D)
+            {
+               Bc[q][d] = bc(q,d);
+               if (d < D1D-1)
+               {
+                  Bo[q][d] = bo(q,d);
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      for (int qz=0; qz < Q1D; ++qz)
+      {
+         int osc = 0;
+         for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
+         {
+            const int D1Dz = (c == 2) ? D1D - 1 : D1D;
+            const int D1Dy = (c == 1) ? D1D - 1 : D1D;
+            const int D1Dx = (c == 0) ? D1D - 1 : D1D;
+
+            MFEM_FOREACH_THREAD(dz,z,D1Dz)
+            {
+               MFEM_FOREACH_THREAD(dy,y,D1Dy)
+               {
+                  MFEM_FOREACH_THREAD(dx,x,D1Dx)
+                  {
+                     X[dz][dy][dx] = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  }
+               }
+            }
+            MFEM_SYNC_THREAD;
+
+            if (tidz == qz)
+            {
+               for (int i=0; i<6; ++i)
+               {
+                  sop[i + (6*tidx) + (6*Q1D*tidy)] = op6[i];
+               }
+
+               MFEM_FOREACH_THREAD(qy,y,Q1D)
+               {
+                  MFEM_FOREACH_THREAD(qx,x,Q1D)
+                  {
+                     double u = 0.0;
+
+                     for (int dz = 0; dz < D1Dz; ++dz)
+                     {
+                        const double wz = (c == 2) ? Bo[qz][dz] : Bc[qz][dz];
+                        for (int dy = 0; dy < D1Dy; ++dy)
+                        {
+                           const double wy = (c == 1) ? Bo[qy][dy] : Bc[qy][dy];
+                           for (int dx = 0; dx < D1Dx; ++dx)
+                           {
+                              const double t = X[dz][dy][dx];
+                              const double wx = (c == 0) ? Bo[qx][dx] : Bc[qx][dx];
+                              u += t * wx * wy * wz;
+                           }
+                        }
+                     }
+
+                     mass[qy][qx][c] = u;
+                  } // qx
+               } // qy
+            } // tidz == qz
+
+            osc += D1Dx * D1Dy * D1Dz;
+            MFEM_SYNC_THREAD;
+         } // c
+
+         MFEM_SYNC_THREAD;  // Sync mass[qy][qx][d] and sop
+
+         osc = 0;
+         for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
+         {
+            const int D1Dz = (c == 2) ? D1D - 1 : D1D;
+            const int D1Dy = (c == 1) ? D1D - 1 : D1D;
+            const int D1Dx = (c == 0) ? D1D - 1 : D1D;
+
+            double dxyz = 0.0;
+
+            MFEM_FOREACH_THREAD(dz,z,D1Dz)
+            {
+               const double wz = (c == 2) ? Bo[qz][dz] : Bc[qz][dz];
+
+               MFEM_FOREACH_THREAD(dy,y,D1Dy)
+               {
+                  MFEM_FOREACH_THREAD(dx,x,D1Dx)
+                  {
+                     for (int qy = 0; qy < Q1D; ++qy)
+                     {
+                        const double wy = (c == 1) ? Bo[qy][dy] : Bc[qy][dy];
+                        for (int qx = 0; qx < Q1D; ++qx)
+                        {
+                           const int os = (6*qx) + (6*Q1D*qy);
+                           const int id1 = os + ((c == 0) ? 0 : ((c == 1) ? 1 : 2)); // O11, O12, O13
+                           const int id2 = os + ((c == 0) ? 1 : ((c == 1) ? 3 : 4)); // O12, O22, O23
+                           const int id3 = os + ((c == 0) ? 2 : ((c == 1) ? 4 : 5)); // O13, O23, O33
+
+                           const double m_c = (sop[id1] * mass[qy][qx][0]) + (sop[id2] * mass[qy][qx][1]) +
+                                              (sop[id3] * mass[qy][qx][2]);
+
+                           const double wx = (c == 0) ? Bo[qx][dx] : Bc[qx][dx];
+                           dxyz += m_c * wx * wy * wz;
+                        }
+                     }
+                  }
+               }
+            }
+
+            MFEM_SYNC_THREAD;
+
+            MFEM_FOREACH_THREAD(dz,z,D1Dz)
+            {
+               MFEM_FOREACH_THREAD(dy,y,D1Dy)
+               {
+                  MFEM_FOREACH_THREAD(dx,x,D1Dx)
+                  {
+                     y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += dxyz;
+                  }
+               }
+            }
+
+            osc += D1Dx * D1Dy * D1Dz;
+         } // c loop
+      } // qz
+   }); // end of element loop
+}
+
 // PA H(curl) curl-curl assemble 2D kernel
 static void PACurlCurlSetup2D(const int Q1D,
                               const int NE,
