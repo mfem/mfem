@@ -120,6 +120,7 @@ int main (int argc, char *argv[])
    int verbosity_level   = 0;
    bool fdscheme         = false;
    int adapt_eval        = 0;
+   bool exactaction      = false;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -195,6 +196,9 @@ int main (int argc, char *argv[])
    args.AddOption(&fdscheme, "-fd", "--fd_approximation",
                   "-no-fd", "--no-fd-approx",
                   "Enable finite difference based derivative computations.");
+   args.AddOption(&exactaction, "-ex", "--exact_action",
+                  "-no-ex", "--no-exact-action",
+                  "Enable exact action of TMOP_Integrator.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -579,6 +583,7 @@ int main (int argc, char *argv[])
    target_c->SetNodes(x0);
    TMOP_Integrator *he_nlf_integ= new TMOP_Integrator(metric, target_c);
    if (fdscheme) { he_nlf_integ->EnableFiniteDifferences(x); }
+   he_nlf_integ->SetExactActionFlag(exactaction);
 
    // 13. Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = NULL;
@@ -669,6 +674,7 @@ int main (int argc, char *argv[])
       else { he_nlf_integ2 = new TMOP_Integrator(metric2, target_c); }
       he_nlf_integ2->SetIntegrationRule(*ir);
       if (fdscheme) { he_nlf_integ2->EnableFiniteDifferences(x); }
+      he_nlf_integ2->SetExactActionFlag(exactaction);
 
       TMOPComboIntegrator *combo = new TMOPComboIntegrator;
       combo->AddTMOPIntegrator(he_nlf_integ);

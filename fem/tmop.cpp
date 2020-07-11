@@ -936,6 +936,7 @@ void TargetConstructor::ComputeElementTargetsGradient(int e_id,
 {
    MFEM_ASSERT(target_type == IDEAL_SHAPE_UNIT_SIZE || nodes != NULL, "");
 
+   //TODO: Compute derivative for targets with GIVEN_SHAPE or/and GIVEN_SIZE
    for (int i = 0; i < fe.GetDim()*ir.GetNPoints(); i++) { dJtr(i) = 0.; }
 }
 
@@ -2141,12 +2142,19 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
 
    // Define ref->physical transformation, when a Coefficient is specified.
    IsoparametricTransformation *Tpr = NULL;
-   Tpr = new IsoparametricTransformation;
-   Tpr->SetFE(&el);
-   Tpr->ElementNo = T.ElementNo;
-   Tpr->Attribute = T.Attribute;
-   Tpr->GetPointMat().Transpose(PMatI); // PointMat = PMatI^T
-   targetC->ComputeElementTargetsGradient(T.ElementNo, el, *ir, elfun, *Tpr, dJtr);
+   if (coeff1 || coeff0 || zeta || exact_action)
+   {
+      Tpr = new IsoparametricTransformation;
+      Tpr->SetFE(&el);
+      Tpr->ElementNo = T.ElementNo;
+      Tpr->Attribute = T.Attribute;
+      Tpr->GetPointMat().Transpose(PMatI); // PointMat = PMatI^T
+      if (exact_action)
+      {
+         targetC->ComputeElementTargetsGradient(T.ElementNo, el, *ir, elfun, *Tpr, dJtr);
+      }
+   }
+
 
    Vector d_detW_dx(dim);
    Vector d_Winv_dx(dim);
@@ -2171,38 +2179,42 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
       P *= weight_m;
       AddMultABt(DS, P, PMatO); // w_q det(W) dmu/dx : dA/dx Winv
 
-      el.CalcShape(ip, shape);
-      // Derivatives of adaptivity-based targets.
-      // First term: w_q d*(Det W)/dx * mu(T)
-      // d(Det W)/dx = det(W)*Tr[Winv*dW/dx]
-      DenseMatrix dwdx(dim);
-      for (int d = 0; d < dim; d++)
+      if (exact_action)
       {
-         const DenseMatrix &dJtr_q = dJtr(q + d*ir->GetNPoints());
-         Mult(Jrt, dJtr_q, dwdx );
-         d_detW_dx(d) = dwdx.Trace();
-      }
-      d_detW_dx *= weight_m*metric->EvalW(Jpt); // *[w_q*det(W)]*mu(T)
+         el.CalcShape(ip, shape);
+         // Derivatives of adaptivity-based targets.
+         // First term: w_q d*(Det W)/dx * mu(T)
+         // d(Det W)/dx = det(W)*Tr[Winv*dW/dx]
+         DenseMatrix dwdx(dim);
+         for (int d = 0; d < dim; d++)
+         {
+            const DenseMatrix &dJtr_q = dJtr(q + d*ir->GetNPoints());
+            Mult(Jrt, dJtr_q, dwdx );
+            d_detW_dx(d) = dwdx.Trace();
+         }
+         d_detW_dx *= weight_m*metric->EvalW(Jpt); // *[w_q*det(W)]*mu(T)
 
-      // Second term: w_q det(W) dmu/dx : AdWinv/dx
-      // dWinv/dx = -Winv*dW/dx*Winv
-      MultAtB(PMatI, DSh, Amat);
-      for (int d = 0; d < dim; d++)
-      {
-         const DenseMatrix &dJtr_q = dJtr(q + d*nqp);
-         Mult(Jrt, dJtr_q, work1); //Winv*dw/dx
-         Mult(work1, Jrt, work2);  //Winv*dw/dx*Winv
-         Mult(Amat, work2, work1); //A*Winv*dw/dx*Winv
-         MultAtB(P, work1, work2); //dmu/dT^T*A*Winv*dw/dx*Winv
-         d_Winv_dx(d) = work2.Trace(); //Tr[dmu/dT : AWinv*dw/dx*Winv]
-      }
-      d_Winv_dx *= -weight_m; //Include (-) factor as well
+         // Second term: w_q det(W) dmu/dx : AdWinv/dx
+         // dWinv/dx = -Winv*dW/dx*Winv
+         MultAtB(PMatI, DSh, Amat);
+         for (int d = 0; d < dim; d++)
+         {
+            const DenseMatrix &dJtr_q = dJtr(q + d*nqp);
+            Mult(Jrt, dJtr_q, work1); //Winv*dw/dx
+            Mult(work1, Jrt, work2);  //Winv*dw/dx*Winv
+            Mult(Amat, work2, work1); //A*Winv*dw/dx*Winv
+            MultAtB(P, work1, work2); //dmu/dT^T*A*Winv*dw/dx*Winv
+            d_Winv_dx(d) = work2.Trace(); //Tr[dmu/dT : AWinv*dw/dx*Winv]
+         }
+         d_Winv_dx *= -weight_m; //Include (-) factor as well
 
-      d_detW_dx += d_Winv_dx;
-      AddMultVWt(shape, d_detW_dx, PMatO);
+         d_detW_dx += d_Winv_dx;
+         AddMultVWt(shape, d_detW_dx, PMatO);
+      }
 
       if (coeff0)
       {
+         if (!exact_action) { el.CalcShape(ip, shape); }
          PMatI.MultTranspose(shape, p);
          pos0.MultTranspose(shape, p0);
          lim_func->Eval_d1(p, p0, d_vals(q), grad);
