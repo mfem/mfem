@@ -11,27 +11,27 @@
 //
 // Description:  This examples solves a quasi-static nonlinear
 //               pLaplacian problem with zero Dirichlet boundary
-//				 conditions applied on all defined boundaries
+//           conditions applied on all defined boundaries
 //
 //               The example demonstrates the use of nonlinear operators
-//				 combined with automatic differentiation (AD). The definitions
-//				 of the integrators are written in the ex71.hpp.
-//				 Selecting integrator=0 will use handcoded integrator.
-//				 Selecting integrator=1 will utilize AD integrator.
-//				 The AD integrator can be modifief to use ADQFunctionJ
-//				 or ADQFunctionH by overwritting the class type of qint,
-//				 i.e., pLapIntegrandJ or pLapIntegrandH.
+//           combined with automatic differentiation (AD). The definitions
+//           of the integrators are written in the ex71.hpp.
+//           Selecting integrator=0 will use handcoded integrator.
+//           Selecting integrator=1 will utilize AD integrator.
+//           The AD integrator can be modifief to use ADQFunctionJ
+//           or ADQFunctionH by overwritting the class type of qint,
+//           i.e., pLapIntegrandJ or pLapIntegrandH.
 //
-//				 qint (the integrand) is a function which is evaluated
-//				 at every integration point. For implementations utilizing
-//				 ADQFunctionJ, the user has to implement the function and the
-//				 residual evaluation - all virtual methods. The Jacobian of
-//				 the residual is evaluated using AD
+//           qint (the integrand) is a function which is evaluated
+//           at every integration point. For implementations utilizing
+//           ADQFunctionJ, the user has to implement the function and the
+//           residual evaluation - all virtual methods. The Jacobian of
+//           the residual is evaluated using AD
 //
-//				 For implementations utilizing ADQFunctionH, the user has
-//				 to implement only the function evaluation (preferebaly as
-//				 a template) and the first derivative (the residual) and the
-//				 second derivatives (the Hessian) are evaluated using AD.
+//           For implementations utilizing ADQFunctionH, the user has
+//           to implement only the function evaluation (preferebaly as
+//           a template) and the first derivative (the residual) and the
+//           second derivatives (the Hessian) are evaluated using AD.
 //
 //               We recommend viewing examples 1 and 19, before viewing this
 //               example.
@@ -137,7 +137,7 @@ int main(int argc, char *argv[])
    HYPRE_Int glob_size=fespace.GlobalTrueVSize();
    if (myrank == 0)
    {
-        std::cout << "Number of finite element unknowns: " << glob_size << std::endl;
+      std::cout << "Number of finite element unknowns: " << glob_size << std::endl;
    }
 
    // 8. Define the Dirichlet conditions
@@ -156,208 +156,233 @@ int main(int argc, char *argv[])
    mfem::HypreParVector* sv=x.GetTrueDofs();
 
    // 11. Define ParaView DataCollection
-   mfem::ParaViewDataCollection *dacol=new mfem::ParaViewDataCollection("pLap",pmesh);
+   mfem::ParaViewDataCollection *dacol=new mfem::ParaViewDataCollection("pLap",
+                                                                        pmesh);
    dacol->SetLevelsOfDetail(order);
    dacol->RegisterField("sol",&x);
 
 
    // 11. Set domain integrators - start with linear diffusion
    {
-       // the default power coefficient is 2.0
-       mfem::ConstantCoefficient lpp(2.0);
-       if(integrator==0)
-       {
-            nf->AddDomainIntegrator(new mfem::pLaplace(lpp,c_ee,load));
-       }else
-       if(integrator==1)
-       {
-           nf->AddDomainIntegrator(new mfem::pLaplaceAD(lpp,c_ee,load));
-       }
-       nf->SetEssentialBC(ess_bdr);
-       // compute the energy
-       double energy=nf->GetEnergy(*tv);
-       if(myrank==0){
-           std::cout<<"[2] The total energy of the system is E="<<energy<<std::endl;}
-       // time the assembly
-       timer->Clear();
-       timer->Start();
-       mfem::Operator &op=nf->GetGradient(*sv);
-       timer->Stop();
-       if(myrank==0){
-           std::cout<<"[2] The assembly time is: "<<timer->RealTime()<<std::endl;}
-       mfem::Solver *prec=new mfem::HypreBoomerAMG();
-       mfem::GMRESSolver *j_gmres = new mfem::GMRESSolver(MPI_COMM_WORLD);
-       j_gmres->SetRelTol(1e-7);
-       j_gmres->SetAbsTol(1e-15);
-       j_gmres->SetMaxIter(300);
-       j_gmres->SetPrintLevel(print_level);
-       j_gmres->SetPreconditioner(*prec);
+      // the default power coefficient is 2.0
+      mfem::ConstantCoefficient lpp(2.0);
+      if (integrator==0)
+      {
+         nf->AddDomainIntegrator(new mfem::pLaplace(lpp,c_ee,load));
+      }
+      else if (integrator==1)
+      {
+         nf->AddDomainIntegrator(new mfem::pLaplaceAD(lpp,c_ee,load));
+      }
+      nf->SetEssentialBC(ess_bdr);
+      // compute the energy
+      double energy=nf->GetEnergy(*tv);
+      if (myrank==0)
+      {
+         std::cout<<"[2] The total energy of the system is E="<<energy<<std::endl;
+      }
+      // time the assembly
+      timer->Clear();
+      timer->Start();
+      mfem::Operator &op=nf->GetGradient(*sv);
+      timer->Stop();
+      if (myrank==0)
+      {
+         std::cout<<"[2] The assembly time is: "<<timer->RealTime()<<std::endl;
+      }
+      mfem::Solver *prec=new mfem::HypreBoomerAMG();
+      mfem::GMRESSolver *j_gmres = new mfem::GMRESSolver(MPI_COMM_WORLD);
+      j_gmres->SetRelTol(1e-7);
+      j_gmres->SetAbsTol(1e-15);
+      j_gmres->SetMaxIter(300);
+      j_gmres->SetPrintLevel(print_level);
+      j_gmres->SetPreconditioner(*prec);
 
-       mfem::NewtonSolver* ns;
-       ns=new mfem::NewtonSolver(MPI_COMM_WORLD);
-       ns->iterative_mode = true;
-       ns->SetSolver(*j_gmres);
-       ns->SetOperator(*nf);
-       ns->SetPrintLevel(print_level);
-       ns->SetRelTol(1e-6);
-       ns->SetAbsTol(1e-12);
-       ns->SetMaxIter(3);
-       //solve the problem
-       timer->Clear();
-       timer->Start();
-       ns->Mult(*tv, *sv);
-       timer->Stop();
-       if(myrank==0){
-           std::cout<<"Time for the NewtonSolver: "<<timer->RealTime()<<std::endl;}
+      mfem::NewtonSolver* ns;
+      ns=new mfem::NewtonSolver(MPI_COMM_WORLD);
+      ns->iterative_mode = true;
+      ns->SetSolver(*j_gmres);
+      ns->SetOperator(*nf);
+      ns->SetPrintLevel(print_level);
+      ns->SetRelTol(1e-6);
+      ns->SetAbsTol(1e-12);
+      ns->SetMaxIter(3);
+      //solve the problem
+      timer->Clear();
+      timer->Start();
+      ns->Mult(*tv, *sv);
+      timer->Stop();
+      if (myrank==0)
+      {
+         std::cout<<"Time for the NewtonSolver: "<<timer->RealTime()<<std::endl;
+      }
 
-       energy=nf->GetEnergy(*sv);
-       if(myrank==0){
-                 std::cout<<"[pp=2] The total energy of the system is E="<<energy<<std::endl;}
+      energy=nf->GetEnergy(*sv);
+      if (myrank==0)
+      {
+         std::cout<<"[pp=2] The total energy of the system is E="<<energy<<std::endl;
+      }
 
-       delete ns;
-       delete j_gmres;
-       delete prec;
+      delete ns;
+      delete j_gmres;
+      delete prec;
 
-       x.SetFromTrueDofs(*sv);
-       dacol->SetTime(2.0);
-       dacol->SetCycle(2);
-       dacol->Save();
+      x.SetFromTrueDofs(*sv);
+      dacol->SetTime(2.0);
+      dacol->SetCycle(2);
+      dacol->Save();
    }
 
    // 12. Continue with powers higher than 2
-   for(int i=3;i<pp;i++)
+   for (int i=3; i<pp; i++)
    {
-       delete nf;
-       nf=new mfem::ParNonlinearForm(&fespace);
-       mfem::ConstantCoefficient lpp((double)i);
-       if(integrator==0)
-       {
-            nf->AddDomainIntegrator(new mfem::pLaplace(lpp,c_ee,load));
-       }else
-       if(integrator==1)
-       {
-           nf->AddDomainIntegrator(new mfem::pLaplaceAD(lpp,c_ee,load));
-       }
-       nf->SetEssentialBC(ess_bdr);
-       // compute the energy
-       double energy=nf->GetEnergy(*sv);
-       if(myrank==0){
-           std::cout<<"[pp="<<i<<"] The total energy of the system is E="<<energy<<std::endl;}
-       // time the assembly
-       timer->Clear();
-       timer->Start();
-       mfem::Operator &op=nf->GetGradient(*sv);
-       timer->Stop();
-       if(myrank==0){
-           std::cout<<"[pp="<<i<<"] The assembly time is: "<<timer->RealTime()<<std::endl;}
-       mfem::Solver *prec=new mfem::HypreBoomerAMG();
-       mfem::GMRESSolver *j_gmres = new mfem::GMRESSolver(MPI_COMM_WORLD);
-       j_gmres->SetRelTol(1e-7);
-       j_gmres->SetAbsTol(1e-15);
-       j_gmres->SetMaxIter(300);
-       j_gmres->SetPrintLevel(print_level);
-       j_gmres->SetPreconditioner(*prec);
+      delete nf;
+      nf=new mfem::ParNonlinearForm(&fespace);
+      mfem::ConstantCoefficient lpp((double)i);
+      if (integrator==0)
+      {
+         nf->AddDomainIntegrator(new mfem::pLaplace(lpp,c_ee,load));
+      }
+      else if (integrator==1)
+      {
+         nf->AddDomainIntegrator(new mfem::pLaplaceAD(lpp,c_ee,load));
+      }
+      nf->SetEssentialBC(ess_bdr);
+      // compute the energy
+      double energy=nf->GetEnergy(*sv);
+      if (myrank==0)
+      {
+         std::cout<<"[pp="<<i<<"] The total energy of the system is E="<<energy<<std::endl;
+      }
+      // time the assembly
+      timer->Clear();
+      timer->Start();
+      mfem::Operator &op=nf->GetGradient(*sv);
+      timer->Stop();
+      if (myrank==0)
+      {
+         std::cout<<"[pp="<<i<<"] The assembly time is: "<<timer->RealTime()<<std::endl;
+      }
+      mfem::Solver *prec=new mfem::HypreBoomerAMG();
+      mfem::GMRESSolver *j_gmres = new mfem::GMRESSolver(MPI_COMM_WORLD);
+      j_gmres->SetRelTol(1e-7);
+      j_gmres->SetAbsTol(1e-15);
+      j_gmres->SetMaxIter(300);
+      j_gmres->SetPrintLevel(print_level);
+      j_gmres->SetPreconditioner(*prec);
 
-       mfem::NewtonSolver* ns;
-       ns=new mfem::NewtonSolver(MPI_COMM_WORLD);
-       ns->iterative_mode = true;
-       ns->SetSolver(*j_gmres);
-       ns->SetOperator(*nf);
-       ns->SetPrintLevel(print_level);
-       ns->SetRelTol(1e-6);
-       ns->SetAbsTol(1e-12);
-       ns->SetMaxIter(3);
-       //solve the problem
-       timer->Clear();
-       timer->Start();
-       ns->Mult(*tv, *sv);
-       timer->Stop();
-       if(myrank==0){
-           std::cout<<"Time for the NewtonSolver: "<<timer->RealTime()<<std::endl;}
+      mfem::NewtonSolver* ns;
+      ns=new mfem::NewtonSolver(MPI_COMM_WORLD);
+      ns->iterative_mode = true;
+      ns->SetSolver(*j_gmres);
+      ns->SetOperator(*nf);
+      ns->SetPrintLevel(print_level);
+      ns->SetRelTol(1e-6);
+      ns->SetAbsTol(1e-12);
+      ns->SetMaxIter(3);
+      //solve the problem
+      timer->Clear();
+      timer->Start();
+      ns->Mult(*tv, *sv);
+      timer->Stop();
+      if (myrank==0)
+      {
+         std::cout<<"Time for the NewtonSolver: "<<timer->RealTime()<<std::endl;
+      }
 
-       energy=nf->GetEnergy(*sv);
-       if(myrank==0){
-                 std::cout<<"[pp="<<i<<"] The total energy of the system is E="<<energy<<std::endl;}
+      energy=nf->GetEnergy(*sv);
+      if (myrank==0)
+      {
+         std::cout<<"[pp="<<i<<"] The total energy of the system is E="<<energy<<std::endl;
+      }
 
-       delete ns;
-       delete j_gmres;
-       delete prec;
+      delete ns;
+      delete j_gmres;
+      delete prec;
 
-       x.SetFromTrueDofs(*sv);
-       dacol->SetTime(i);
-       dacol->SetCycle(i);
-       dacol->Save();
+      x.SetFromTrueDofs(*sv);
+      dacol->SetTime(i);
+      dacol->SetCycle(i);
+      dacol->Save();
    }
 
    // 13. Continue with the final power
-   if( std::abs(pp-2.0) > std::numeric_limits<double>::epsilon())
+   if ( std::abs(pp-2.0) > std::numeric_limits<double>::epsilon())
    {
-       delete nf;
-       nf=new mfem::ParNonlinearForm(&fespace);
-       if(integrator==0)
-       {
-            nf->AddDomainIntegrator(new mfem::pLaplace(c_pp,c_ee,load));
-       }else
-       if(integrator==1)
-       {
-           nf->AddDomainIntegrator(new mfem::pLaplaceAD(c_pp,c_ee,load));
-       }
-       nf->SetEssentialBC(ess_bdr);
-       // compute the energy
-       double energy=nf->GetEnergy(*sv);
-       if(myrank==0){
-           std::cout<<"[pp="<<pp<<"] The total energy of the system is E="<<energy<<std::endl;}
-       // time the assembly
-       timer->Clear();
-       timer->Start();
-       mfem::Operator &op=nf->GetGradient(*sv);
-       timer->Stop();
-       if(myrank==0){
-           std::cout<<"[pp="<<pp<<"] The assembly time is: "<<timer->RealTime()<<std::endl;}
-       mfem::Solver *prec=new mfem::HypreBoomerAMG();
-       mfem::GMRESSolver *j_gmres = new mfem::GMRESSolver(MPI_COMM_WORLD);
-       j_gmres->SetRelTol(1e-8);
-       j_gmres->SetAbsTol(1e-15);
-       j_gmres->SetMaxIter(300);
-       j_gmres->SetPrintLevel(print_level);
-       j_gmres->SetPreconditioner(*prec);
+      delete nf;
+      nf=new mfem::ParNonlinearForm(&fespace);
+      if (integrator==0)
+      {
+         nf->AddDomainIntegrator(new mfem::pLaplace(c_pp,c_ee,load));
+      }
+      else if (integrator==1)
+      {
+         nf->AddDomainIntegrator(new mfem::pLaplaceAD(c_pp,c_ee,load));
+      }
+      nf->SetEssentialBC(ess_bdr);
+      // compute the energy
+      double energy=nf->GetEnergy(*sv);
+      if (myrank==0)
+      {
+         std::cout<<"[pp="<<pp<<"] The total energy of the system is E="<<energy<<std::endl;
+      }
+      // time the assembly
+      timer->Clear();
+      timer->Start();
+      mfem::Operator &op=nf->GetGradient(*sv);
+      timer->Stop();
+      if (myrank==0)
+      {
+         std::cout<<"[pp="<<pp<<"] The assembly time is: "<<timer->RealTime()<<std::endl;
+      }
+      mfem::Solver *prec=new mfem::HypreBoomerAMG();
+      mfem::GMRESSolver *j_gmres = new mfem::GMRESSolver(MPI_COMM_WORLD);
+      j_gmres->SetRelTol(1e-8);
+      j_gmres->SetAbsTol(1e-15);
+      j_gmres->SetMaxIter(300);
+      j_gmres->SetPrintLevel(print_level);
+      j_gmres->SetPreconditioner(*prec);
 
-       mfem::NewtonSolver* ns;
-       ns=new mfem::NewtonSolver(MPI_COMM_WORLD);
-       ns->iterative_mode = true;
-       ns->SetSolver(*j_gmres);
-       ns->SetOperator(*nf);
-       ns->SetPrintLevel(print_level);
-       ns->SetRelTol(1e-6);
-       ns->SetAbsTol(1e-12);
-       ns->SetMaxIter(3);
-       //solve the problem
-       timer->Clear();
-       timer->Start();
-       ns->Mult(*tv, *sv);
-       timer->Stop();
-       if(myrank==0){
-           std::cout<<"Time for the NewtonSolver: "<<timer->RealTime()<<std::endl;}
+      mfem::NewtonSolver* ns;
+      ns=new mfem::NewtonSolver(MPI_COMM_WORLD);
+      ns->iterative_mode = true;
+      ns->SetSolver(*j_gmres);
+      ns->SetOperator(*nf);
+      ns->SetPrintLevel(print_level);
+      ns->SetRelTol(1e-6);
+      ns->SetAbsTol(1e-12);
+      ns->SetMaxIter(3);
+      //solve the problem
+      timer->Clear();
+      timer->Start();
+      ns->Mult(*tv, *sv);
+      timer->Stop();
+      if (myrank==0)
+      {
+         std::cout<<"Time for the NewtonSolver: "<<timer->RealTime()<<std::endl;
+      }
 
-       energy=nf->GetEnergy(*sv);
-       if(myrank==0){
-                 std::cout<<"[pp="<<pp<<"] The total energy of the system is E="<<energy<<std::endl;}
+      energy=nf->GetEnergy(*sv);
+      if (myrank==0)
+      {
+         std::cout<<"[pp="<<pp<<"] The total energy of the system is E="<<energy<<std::endl;
+      }
 
-       delete ns;
-       delete j_gmres;
-       delete prec;
+      delete ns;
+      delete j_gmres;
+      delete prec;
 
-       x.SetFromTrueDofs(*sv);
-       dacol->SetTime(pp);
-       if(pp<2.0)
-       {
-           dacol->SetCycle(std::floor(pp));
-       }
-       else
-       {
-           dacol->SetCycle(std::ceil(pp));
-       }
-       dacol->Save();
+      x.SetFromTrueDofs(*sv);
+      dacol->SetTime(pp);
+      if (pp<2.0)
+      {
+         dacol->SetCycle(std::floor(pp));
+      }
+      else
+      {
+         dacol->SetCycle(std::ceil(pp));
+      }
+      dacol->Save();
    }
 
 

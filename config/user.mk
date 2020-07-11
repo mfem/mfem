@@ -103,9 +103,9 @@ MFEM_MPI_NP = 4
 # config.hpp. The values below are the defaults for generating the actual values
 # in config.mk and config.hpp.
 
-MFEM_USE_MPI           = NO
+MFEM_USE_MPI           = YES
 MFEM_USE_METIS         = $(MFEM_USE_MPI)
-MFEM_USE_METIS_5       = NO
+MFEM_USE_METIS_5       = YES
 MFEM_DEBUG             = NO
 MFEM_USE_EXCEPTIONS    = NO
 MFEM_USE_ZLIB          = NO
@@ -118,13 +118,13 @@ MFEM_USE_MEMALLOC      = YES
 MFEM_TIMER_TYPE        = $(if $(NOTMAC),2,4)
 MFEM_USE_SUNDIALS      = NO
 MFEM_USE_MESQUITE      = NO
-MFEM_USE_SUITESPARSE   = NO
+MFEM_USE_SUITESPARSE   = YES
 MFEM_USE_SUPERLU       = NO
 MFEM_USE_STRUMPACK     = NO
 MFEM_USE_GINKGO        = NO
 MFEM_USE_GNUTLS        = NO
 MFEM_USE_NETCDF        = NO
-MFEM_USE_PETSC         = NO
+MFEM_USE_PETSC         = YES
 MFEM_USE_MPFR          = NO
 MFEM_USE_SIDRE         = NO
 MFEM_USE_CONDUIT       = NO
@@ -139,7 +139,7 @@ MFEM_USE_CEED          = NO
 MFEM_USE_UMPIRE        = NO
 MFEM_USE_SIMD          = YES
 MFEM_USE_ADIOS2        = NO
-MFEM_USE_ADEPT	       = NO
+MFEM_USE_ADEPT	       = YES
 MFEM_USE_FADBADPP      = NO
 MFEM_USE_ADFORWARD     = NO
 
@@ -153,7 +153,7 @@ LIBUNWIND_OPT = -g
 LIBUNWIND_LIB = $(if $(NOTMAC),-lunwind -ldl,)
 
 # HYPRE library configuration (needed to build the parallel version)
-HYPRE_DIR = @MFEM_DIR@/../hypre/src/hypre
+HYPRE_DIR = /home/blaz/develop/common/dbg/petsc_3.12.5
 HYPRE_OPT = -I$(HYPRE_DIR)/include
 HYPRE_LIB = -L$(HYPRE_DIR)/lib -lHYPRE
 
@@ -164,7 +164,7 @@ ifeq ($(MFEM_USE_SUPERLU)$(MFEM_USE_STRUMPACK),NONO)
      METIS_OPT =
      METIS_LIB = -L$(METIS_DIR) -lmetis
    else
-     METIS_DIR = @MFEM_DIR@/../metis-5.0
+     METIS_DIR = /home/blaz/develop/common/dbg/petsc_3.12.5
      METIS_OPT = -I$(METIS_DIR)/include
      METIS_LIB = -L$(METIS_DIR)/lib -lmetis
    endif
@@ -173,7 +173,7 @@ else
    # (included with ParMETIS) is installed in the same location.
    # Starting with STRUMPACK v2.2.0, ParMETIS is an optional dependency while
    # METIS is still required.
-   METIS_DIR = @MFEM_DIR@/../parmetis-4.0.3
+   METIS_DIR = /home/blaz/develop/common/dbg/petsc_3.12.5/
    METIS_OPT = -I$(METIS_DIR)/include
    METIS_LIB = -L$(METIS_DIR)/lib -lparmetis -lmetis
    MFEM_USE_METIS_5 = YES
@@ -209,7 +209,7 @@ MESQUITE_LIB = -L$(MESQUITE_DIR)/lib -lmesquite
 
 # SuiteSparse library configuration
 LIB_RT = $(if $(NOTMAC),-lrt,)
-SUITESPARSE_DIR = @MFEM_DIR@/../SuiteSparse
+SUITESPARSE_DIR = /home/blaz/develop/common/dbg/petsc_3.12.5
 SUITESPARSE_OPT = -I$(SUITESPARSE_DIR)/include
 SUITESPARSE_LIB = -Wl,-rpath,$(SUITESPARSE_DIR)/lib -L$(SUITESPARSE_DIR)/lib\
  -lklu -lbtf -lumfpack -lcholmod -lcolamd -lamd -lcamd -lccolamd\
@@ -266,8 +266,8 @@ NETCDF_LIB = -Wl,-rpath,$(NETCDF_DIR)/lib -L$(NETCDF_DIR)/lib\
  -lnetcdf -lhdf5_hl -lhdf5 $(ZLIB_LIB)
 
 # PETSc library configuration (version greater or equal to 3.8 or the dev branch)
-PETSC_ARCH := arch-linux2-c-debug
-PETSC_DIR  := $(MFEM_DIR)/../petsc/$(PETSC_ARCH)
+PETSC_ARCH := 
+PETSC_DIR  := /home/blaz/develop/common/dbg/petsc_3.12.5/
 PETSC_VARS := $(PETSC_DIR)/lib/petsc/conf/petscvariables
 PETSC_FOUND := $(if $(wildcard $(PETSC_VARS)),YES,)
 PETSC_INC_VAR = PETSC_CC_INCLUDES
@@ -323,14 +323,14 @@ HIOP_OPT = -I$(HIOP_DIR)/include
 HIOP_LIB = -L$(HIOP_DIR)/lib -lhiop $(LAPACK_LIB)
 
 # ADEPT
-ADEPT_DIR = @MFEM_DIR@/../adept-1.1
+ADEPT_DIR = /home/blaz/develop/common/dbg/adept-1.1
 ADEPT_OPT = -I$(ADEPT_DIR)/include
-ADEPT_LIB = -L$(ADEPT_DIR)/lib -ladept 
+ADEPT_LIB = /home/blaz/develop/common/dbg/adept-1.1/lib/libadept.a
 
 # FADBAD++
-FADBADPP_DIR = @MFEM_DIR@/../FADBAD++
+FADBADPP_DIR = /home/blaz/develop/common/FADBAD++
 FADBADPP_OPT = -I$(FADBADPP_DIR)
-FADBADPP_LIB = -L.
+FADBADPP_LIB = 
 
 # GSLIB library
 GSLIB_DIR = @MFEM_DIR@/../gslib/build

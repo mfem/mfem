@@ -33,24 +33,24 @@ public:
 
    FDual():pr(0),du(0)
    {
-       
+
    }
 
-   
-   template <class fltyp, class = typename 
-   std::enable_if<std::is_arithmetic<fltyp>::value>::type>
-   FDual(fltyp& f):pr(f),du(0) 
+
+   template <class fltyp, class = typename
+             std::enable_if<std::is_arithmetic<fltyp>::value>::type>
+   FDual(fltyp& f):pr(f),du(0)
    {
 
    }
-    
-   template <class fltyp, class = typename 
-   std::enable_if<std::is_arithmetic<fltyp>::value>::type>
-   FDual(const fltyp& f):pr(f),du(0) 
+
+   template <class fltyp, class = typename
+             std::enable_if<std::is_arithmetic<fltyp>::value>::type>
+   FDual(const fltyp& f):pr(f),du(0)
    {
 
    }
-   
+
    FDual(tbase& pr_,tbase& du_):pr(pr_),du(du_)
    {
 
@@ -58,24 +58,24 @@ public:
 
    FDual(const tbase& pr_,const tbase& du_):pr(pr_),du(du_)
    {
-       
+
    }
-   
+
    FDual(FDual<tbase>& nm):pr(nm.pr),du(nm.du)
    {
-       
+
    }
-   
+
    FDual(const FDual<tbase>& nm):pr(nm.pr),du(nm.du)
    {
-       
+
    }
-   
+
    tbase prim() const
    {
-       return pr;
+      return pr;
    }
-   
+
    tbase real() const
    {
       return pr;
@@ -88,25 +88,25 @@ public:
 
    void set(const tbase& pr_,const tbase& du_)
    {
-       pr=pr_;
-       du=du_;
+      pr=pr_;
+      du=du_;
    }
-   
+
    void prim(const tbase& pr_)
    {
-       pr=pr_;
+      pr=pr_;
    }
 
    void real(const tbase& pr_)
    {
-       pr=pr_;
+      pr=pr_;
    }
-   
+
    void dual(const tbase& du_)
    {
-       du=du_;
+      du=du_;
    }
-   
+
    FDual<tbase> & operator=(tbase sc_)
    {
       pr=sc_;
@@ -156,7 +156,7 @@ public:
       return *this;
    }
 
-   
+
    FDual<tbase>& operator-=(const FDual<tbase>& f)
    {
       pr -= f.real();

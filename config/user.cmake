@@ -51,9 +51,9 @@ option(MFEM_USE_CEED "Enable CEED" OFF)
 option(MFEM_USE_UMPIRE "Enable Umpire" OFF)
 option(MFEM_USE_SIMD "Enable use of SIMD intrinsics" ON)
 option(MFEM_USE_ADIOS2 "Enable ADIOS2" OFF)
-option(MFEM_USE_ADEPT "Enable AD using ADEPT"   OFF)
-option(MFEM_USE_FADBADPP "Enable AD using FADBAD++" ON)
-
+option(MFEM_USE_ADEPT "Enable AD using ADEPT"   ON)
+option(MFEM_USE_FADBADPP "Enable AD using FADBAD++" OFF)
+option(MFEM_USE_ADFORWARD "Enable forward mode for AD" OFF)
 
 
 set(MFEM_MPI_NP 4 CACHE STRING "Number of processes used for MPI tests")
