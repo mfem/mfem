@@ -30,7 +30,7 @@
 //               prob 1: (curl u, curl v) + (u,v) = (curl u_exact, curl v) + (u_exact, v)
 //               prob 2: (div  u, div  v) + (u,v) = (div  u_exact, div  v) + (u_exact, v)
 
-// #include "mfem.hpp"
+#include "mfem.hpp"
 #include "conv_rates.hpp"
 #include <fstream>
 #include <iostream>
@@ -190,9 +190,7 @@ int main(int argc, char *argv[])
 
    // 10. Perform successive parallel refinements, compute the L2 error and the
    //     corresponding rate of convergence
-   Convergence rates(MPI_COMM_WORLD);
-   // ConvergenceRates rates;
-   rates.Clear();
+   Convergence rates;
    for (int l = 0; l <= pr; l++)
    {
       b.Assemble();

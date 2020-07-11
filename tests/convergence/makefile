@@ -18,8 +18,8 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_TESTS = projection convergence complex 
-PAR_TESTS = projectionp pcomplex diffusion
+SEQ_TESTS = projection convergence complex DG
+PAR_TESTS = projectionp pcomplex diffusion DGp
 ifeq ($(MFEM_USE_MPI),NO)
    TESTS = $(SEQ_TESTS)
 else
@@ -56,5 +56,6 @@ $(MFEM_LIB_FILE):
 clean:
 	rm -f *.o *~ $(SEQ_TESTS) $(PAR_TESTS)
 	rm -rf *.dSYM *.TVD.*breakpoints
+	rm -rf refined.mesh sol.gf
 
 

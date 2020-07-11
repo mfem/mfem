@@ -3,24 +3,8 @@
 
 Convergence::Convergence()
 {
-#ifdef MFEM_USE_MPI
-   comm_flag = 0;
-#endif
-   print_flag = 1;
+   Clear();
 }
-
-#ifdef MFEM_USE_MPI
-Convergence::Convergence(MPI_Comm _comm) : comm(_comm)
-{
-   comm_flag = 1;
-   int rank;
-   MPI_Comm_rank(comm, &rank);
-   if (rank==0) 
-   {
-      print_flag = 1;
-   }
-}
-#endif
 
 void Convergence::Clear()
 {
@@ -37,8 +21,7 @@ void Convergence::Clear()
 
 double Convergence::GetNorm(GridFunction * gf, Coefficient * u, VectorCoefficient * U)
 {
-   double norm;
-   int intorder = 2*gf->FESpace()->GetFE(0)->GetOrder();
+   double norm=0.0;
    int order = gf->FESpace()->GetOrder(0);
    int order_quad = max(2, 2*order+1);
    const IntegrationRule *irs[Geometry::NumGeom];
@@ -47,9 +30,10 @@ double Convergence::GetNorm(GridFunction * gf, Coefficient * u, VectorCoefficien
       irs[i] = &(IntRules.Get(i, order_quad));
    }
 #ifdef MFEM_USE_MPI   
-   if (comm_flag)
+   ParGridFunction * pgf = dynamic_cast<ParGridFunction *>(gf);
+   if (pgf)
    {
-      ParMesh * pmesh = (dynamic_cast<ParGridFunction *>(gf))->ParFESpace()->GetParMesh();
+      ParMesh * pmesh = pgf->ParFESpace()->GetParMesh();
       if (u)
       {
          norm = ComputeGlobalLpNorm(2.0,*u,*pmesh,irs);
@@ -59,15 +43,27 @@ double Convergence::GetNorm(GridFunction * gf, Coefficient * u, VectorCoefficien
          norm = ComputeGlobalLpNorm(2.0,*U,*pmesh,irs);
       }
    }
+   else
+   {
+      Mesh * mesh = gf->FESpace()->GetMesh();
+      if (u)
+      {
+         norm = ComputeLpNorm(2.0,*u,*mesh,irs);
+      }
+      else if (U)
+      {
+         norm = ComputeLpNorm(2.0,*U,*mesh,irs);
+      }
+   }
 #else
    Mesh * mesh = gf->FESpace()->GetMesh();
    if (u)
    {
-      norm = ComputeGlobalLpNorm(2.0,*u,*pmesh,irs);
+      norm = ComputeLpNorm(2.0,*u,*mesh,irs);
    }
    else if (U)
    {
-      norm = ComputeGlobalLpNorm(2.0,*U,*pmesh,irs);
+      norm = ComputeLpNorm(2.0,*U,*mesh,irs);
    }
 #endif   
    return norm;
@@ -76,16 +72,30 @@ double Convergence::GetNorm(GridFunction * gf, Coefficient * u, VectorCoefficien
 void Convergence::AddL2Error(GridFunction * gf, 
                              Coefficient * u, VectorCoefficient * U)
 {
-   int tdofs = gf->FESpace()->GetTrueVSize();
+   int tdofs;
 #ifdef MFEM_USE_MPI   
-   if (comm_flag)
+   ParGridFunction * pgf = dynamic_cast<ParGridFunction *>(gf);
+   if (pgf) 
    {
-      MPI_Allreduce(&tdofs,&tdofs,1,MPI_INT,MPI_SUM,comm);
+      comm = pgf->ParFESpace()->GetComm();
+      int rank;
+      MPI_Comm_rank(comm, &rank);
+      print_flag = 0;
+      if (rank==0) 
+      {
+         print_flag = 1;
+      }
+      tdofs = pgf->ParFESpace()->GlobalTrueVSize();
    }
-#endif   
+   else
+   {
+      tdofs = gf->FESpace()->GetTrueVSize();
+   }
+#else 
+   tdofs = gf->FESpace()->GetTrueVSize();
+#endif
    ndofs.Append(tdofs);
    double L2Err;
-   double L2Norm;
    if (u)
    {
       L2Err = gf->ComputeL2Error(*u);
@@ -155,18 +165,18 @@ void Convergence::AddGf(GridFunction * gf, VectorCoefficient * U,
 
    AddL2Error(gf,nullptr,U);
    double DErr = 0.0;
-   int derivative = 0;
+   bool derivative = false;
    if (curl)
    {
       DErr = gf->ComputeCurlError(curl);
       CoeffDNorm = GetNorm(gf,nullptr,curl);
-      derivative = 1;
+      derivative = true;
    }
    else if (div)
    {
       DErr = gf->ComputeDivError(div);
       CoeffDNorm = GetNorm(gf,div,nullptr); // update coefficient norm
-      derivative = 1;
+      derivative = true;
    }
    if (derivative)
    {

@@ -433,9 +433,18 @@ public:
                                  const IntegrationRule *irs[] = NULL,
                                  Array<int> *elems = NULL) const;
 
+   // keep this for backward compatibility 
    virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
                                  Coefficient *ell_coef, double Nu,
-                                 int norm_type) const;
+                                 int norm_type) const
+    {
+        double error1 = 0.0;
+        double error2 = 0.0;
+        if (norm_type & 1) error1 = GridFunction::ComputeGradError(exgrad);
+        if (norm_type & 2) error2 = GridFunction::ComputeDGFaceJumpError(exsol,ell_coef,Nu);
+
+        return sqrt(error1 * error1 + error2 * error2);
+    }
 
    // temporary comment ---- newly added methods
    virtual double ComputeGradError(VectorCoefficient *exgrad,

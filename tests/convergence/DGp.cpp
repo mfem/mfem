@@ -142,9 +142,7 @@ int main(int argc, char *argv[])
    a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
    a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
 
-   cout << myid << ": " << fespace->GetTrueVSize() << endl;
-
-   Convergence rates(MPI_COMM_WORLD);
+   Convergence rates;
    rates.Clear();
    VectorFunctionCoefficient u_grad(dim,gradu_exact);
 
@@ -188,7 +186,6 @@ int main(int argc, char *argv[])
       x = *X;
 
       rates.AddGridFunction(&x,&u_ex,&u_grad,&one);
-      // cout << myid << ": " << x.ComputeDGFaceJumpError(&u_ex, &one, 1.0) << endl;
 
       if (l==pr) break;
 
@@ -199,9 +196,6 @@ int main(int argc, char *argv[])
       x.Update();
    }
    rates.Print();
-
-   cout << "nr sharedfaces = " << pmesh->GetNSharedFaces() << endl;
-   cout << "nr faces = " << pmesh->GetNumFaces() << endl;
 
    // 10. Send the solution by socket to a GLVis server.
    if (visualization)
