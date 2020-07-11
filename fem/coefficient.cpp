@@ -92,8 +92,8 @@ void VectorCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
 {
    Vector Mi;
    M.SetSize(vdim, ir.GetNPoints());
-   std::cout << "element is " << T.ElementNo << std::endl;
-   std::cout << "integration points in physical space " <<  std::endl;
+   // std::cout << "element is " << T.ElementNo << std::endl;
+   // std::cout << "integration points in physical space " <<  std::endl;
    for (int i = 0; i < ir.GetNPoints(); i++)
    {
       M.GetColumnReference(i, Mi);
@@ -114,10 +114,10 @@ void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
    V.SetSize(vdim);
    if (Function)
    {
-      for(int k=0; k<transip.Size(); ++k)
-      {
-         std::cout << transip(k) << std::endl;
-      }
+      // for(int k=0; k<transip.Size(); ++k)
+      // {
+      //    std::cout << transip(k) << std::endl;
+      // }
       (*Function)(transip, V);
    }
    else

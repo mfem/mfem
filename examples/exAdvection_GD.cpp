@@ -1,5 +1,7 @@
 #include "mfem.hpp"
 #include "exAdvection.hpp"
+#include "exGD.hpp"
+#include "centgridfunc.hpp"
 #include <fstream>
 #include <iostream>
 using namespace std;
@@ -30,13 +32,21 @@ int main(int argc, char *argv[])
    // 4. Define a finite element space on the mesh. Here we use discontinuous
    //    finite elements of the specified order >= 0.
    FiniteElementCollection *fec = new DG_FECollection(order, dim);
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
+   //FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
+   //std::unique_ptr<FiniteElementSpace> fes;
+   // mesh->ElementToElementTable();
+   // fes.reset(new GalerkinDifference(mesh, dim, mesh->GetNE(), fec, 1, Ordering::byVDIM, 2));
+   FiniteElementSpace *fespace = new GalerkinDifference(mesh, dim, mesh->GetNE(), fec, 1, Ordering::byVDIM, order);
    cout << "Number of unknowns: " << fespace->GetTrueVSize() << endl;
+   // GalerkinDifference prolongate(mesh, dim, mesh->GetNE(), fec, 1, Ordering::byVDIM, 2);
+   // prolongate.BuildGDProlongation();
+   // FiniteElementSpace *fespace = new GalerkinDifference(mesh, fec, 1, 1);
+   cout << "#dofs " << fespace->GetNDofs() << endl;
    // 5. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system.
    int nels = mesh->GetNE();
    scale = 1.0 / nels;
-   scale = scale / 1.0/*e+03*/;
+   scale = scale / 1.0;
    LinearForm *b = new LinearForm(fespace);
    ConstantCoefficient one(-1.0);
    ConstantCoefficient zero(0.0);
@@ -46,19 +56,32 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new CutDomainLFIntegrator(f, scale, nels));
    b->AddBdrFaceIntegrator(new BoundaryAdvectIntegrator(one, velocity, -1.0, -0.5, nels));
    b->Assemble();
+   cout << "before assembly " << endl;
+
    BilinearForm *a = new BilinearForm(fespace);
    a->AddDomainIntegrator(new AdvectionIntegrator(velocity, scale, nels, -1.0));
    a->AddInteriorFaceIntegrator(new DGFaceIntegrator(velocity, 1.0, -0.5, scale, nels));
    a->AddBdrFaceIntegrator(new DGFaceIntegrator(velocity, 1.0, -0.5, scale, nels));
    a->Assemble();
+   cout << "assembly bilinear form done " << endl;
    a->Finalize();
-   SparseMatrix &A= a->SpMat();
-   ofstream write("stiffmat.txt");
+   SparseMatrix &Aold = a->SpMat();
+   SparseMatrix *cp = dynamic_cast<GalerkinDifference *>(fespace)->GetCP();
+   SparseMatrix *p = RAP(*cp, Aold, *cp);
+   SparseMatrix &A = *p;
+   Vector bnew(A.Width());
+   fespace->GetProlongationMatrix()->MultTranspose(*b, bnew);
+   ofstream write("stiffmat_GD.txt");
    A.PrintMatlab(write);
    write.close();
    cout << "stiffness matrix size " << A.Size() << endl;
+   CentGridFunction y(fespace);
+   cout << "center grid function created " << endl;
+   y = 0.0;
+   cout << "y size " << y.Size() << endl;
    GridFunction x(fespace);
    x = 0.0;
+   cout << "x size " << x.Size() << endl;
 #ifndef MFEM_USE_SUITESPARSE
    // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
@@ -67,19 +90,20 @@ int main(int argc, char *argv[])
    //PCG(A, M, *b, x, 1, 1000, 1e-12, 0.0);
    // else
    // {
-   GMRES(A, M, *b, x, 1, 1000, 200, 1e-60, 1e-60);
+   GMRES(A, M, bnew, y, 1, 1000, 200, 1e-60, 1e-60);
    // }
 #else
    // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
    UMFPackSolver umf_solver;
    umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
    umf_solver.SetOperator(A);
-   umf_solver.Mult(*b, x);
+   umf_solver.Mult(bnew, y);
 #endif
-   ofstream adj_ofs("dgAdvection.vtk");
+   fespace->GetProlongationMatrix()->Mult(y, x);
+   ofstream adj_ofs("dgAdvection_GD.vtk");
    adj_ofs.precision(14);
    mesh->PrintVTK(adj_ofs, 1);
-   x.SaveVTK(adj_ofs, "dgAdvSolution", 1);
+   x.SaveVTK(adj_ofs, "dgAdvSolution_GD", 1);
    adj_ofs.close();
    cout << "mesh size, h = " << 1.0/mesh->GetNE() << endl;
    cout << "solution norm: " << endl;
@@ -432,4 +456,330 @@ void BoundaryAdvectIntegrator::AssembleRHSElementVect(
               "  is not implemented as boundary integrator!\n"
               "  Use LinearForm::AddBdrFaceIntegrator instead of\n"
               "  LinearForm::AddBoundaryIntegrator.");
+}
+
+/// functions for `GalerkinDifference` class
+
+void GalerkinDifference::BuildNeighbourMat(const mfem::Array<int> &elmt_id,
+                                           mfem::DenseMatrix &mat_cent,
+                                           mfem::DenseMatrix &mat_quad) const
+{
+   // resize the DenseMatrices and clean the data
+   int num_el = elmt_id.Size();
+   mat_cent.Clear();
+   mat_cent.SetSize(dim, num_el);
+
+   const FiniteElement *fe = fec->FiniteElementForGeometry(Geometry::SEGMENT);
+   const int num_dofs = fe->GetDof();
+   // vectors that hold coordinates of quadrature points
+   // used for duplication tests
+   vector<double> quad_data;
+   Vector quad_coord(dim); // used to store quadrature coordinate temperally
+   ElementTransformation *eltransf;
+   for (int j = 0; j < num_el; j++)
+   {
+      // Get and store the element center
+      mfem::Vector cent_coord(dim);
+      GetElementCenter(elmt_id[j], cent_coord);
+      for (int i = 0; i < dim; i++)
+      {
+         mat_cent(i, j) = cent_coord(i);
+      }
+
+      // deal with quadrature points
+      eltransf = mesh->GetElementTransformation(elmt_id[j]);
+      cout << " element " << elmt_id[j] << " quadrature points are " << endl;
+      for (int k = 0; k < num_dofs; k++)
+      {
+         const IntegrationPoint &eip = fe->GetNodes().IntPoint(k);
+         //eip.x= (scale * eip.x) / eltransf->Weight();
+         eltransf->Transform(eip, quad_coord);
+         cout << quad_coord(0) << endl;
+         for (int di = 0; di < dim; di++)
+         {
+            quad_data.push_back(quad_coord(di));
+         }
+      }
+   }
+   // reset the quadrature point matrix
+   mat_quad.Clear();
+   int num_col = quad_data.size() / dim;
+   mat_quad.SetSize(dim, num_col);
+   for (int i = 0; i < num_col; i++)
+   {
+      for (int j = 0; j < dim; j++)
+      {
+         mat_quad(j, i) = quad_data[i * dim + j];
+      }
+   }
+}
+
+void GalerkinDifference::GetNeighbourSet(int id, int req_n,
+                                         mfem::Array<int> &nels) const
+{
+   // using mfem mesh object to construct the element patch
+   // initialize the patch list
+   nels.LoseData();
+   nels.Append(id);
+   // Creat the adjacent array and fill it with the first layer of adj
+   // adjcant element list, candidates neighbors, candidates neighbors' adj
+   Array<int> adj, cand, cand_adj, cand_next;
+   mesh->ElementToElementTable().GetRow(id, adj);
+   cand.Append(adj);
+   while (nels.Size() < req_n)
+   {
+      for (int i = 0; i < adj.Size(); i++)
+      {
+         if (-1 == nels.Find(adj[i]))
+         {
+            nels.Append(adj[i]);
+         }
+      }
+      //cout << "List now is: ";
+      //nels.Print(cout, nels.Size());
+      adj.LoseData();
+      for (int i = 0; i < cand.Size(); i++)
+      {
+         //cout << "deal with cand " << cand[i];
+         mesh->ElementToElementTable().GetRow(cand[i], cand_adj);
+         //cout << "'s adj are ";
+         //cand_adj.Print(cout, cand_adj.Size());
+         for (int j = 0; j < cand_adj.Size(); j++)
+         {
+            if (-1 == nels.Find(cand_adj[j]))
+            {
+               //cout << cand_adj[j] << " is not found in nels. add to adj and cand_next.\n";
+               adj.Append(cand_adj[j]);
+               cand_next.Append(cand_adj[j]);
+            }
+         }
+         cand_adj.LoseData();
+      }
+      cand.LoseData();
+      cand = cand_next;
+      //cout << "cand copy from next: ";
+      //cand.Print(cout, cand.Size());
+      cand_next.LoseData();
+   }
+   cout << "element is " << id << endl;
+   cout << "neighbours are " << endl;
+   for (int k = 0; k < nels.Size(); ++k)
+   {
+      cout << nels[k] << endl;
+   }
+}
+
+void GalerkinDifference::GetElementCenter(int id, mfem::Vector &cent) const
+{
+   cent.SetSize(mesh->Dimension());
+   int geom = mesh->GetElement(id)->GetGeometryType();
+   ElementTransformation *eltransf = mesh->GetElementTransformation(id);
+   eltransf->Transform(Geometries.GetCenter(geom), cent);
+}
+
+void GalerkinDifference::BuildGDProlongation() const
+{
+   const FiniteElement *fe = fec->FiniteElementForGeometry(Geometry::SEGMENT);
+   const int num_dofs = fe->GetDof();
+   // allocate the space for the prolongation matrix
+   // this step should be done in the constructor (probably)
+   // should it be GetTrueVSize() ? or GetVSize()?
+   // need a new method that directly construct a CSR format sparsematrix ？
+   cP = new mfem::SparseMatrix(GetVSize(), vdim * nEle);
+   // determine the minimum # of element in each patch
+   int nelmt;
+   if (degree % 2 !=0)
+   {
+      nelmt = degree + 2;
+   }
+   else
+   {
+      nelmt = degree + 1;
+   }
+   cout << "Number of required element: " << nelmt << '\n';
+   // loop over all the element:
+   // 1. build the patch for each element,
+   // 2. construct the local reconstruction operator
+   // 3. assemble local reconstruction operator
+
+   // vector that contains element id (resize to zero )
+   mfem::Array<int> elmt_id;
+   mfem::DenseMatrix cent_mat, quad_mat, local_mat;
+   cout << "The size of the prolongation matrix is " << cP->Height() << " x " << cP->Width() << '\n';
+   //int degree_actual;
+   for (int i = 0; i < nEle; i++)
+   {
+      GetNeighbourSet(i, nelmt, elmt_id);
+      // cout << "neighbours are set " << endl;
+      // 2. build the quadrature and barycenter coordinate matrices
+      BuildNeighbourMat(elmt_id, cent_mat, quad_mat);
+      //cout << "Neighbour mat is built " << endl;
+      // 3. buil the loacl reconstruction matrix
+      buildLSInterpolation(dim, degree, cent_mat, quad_mat, local_mat);
+      // cout << "Local reconstruction matrix built " << endl;
+      // cout << "Local reconstruction matrix R:\n";
+      // local_mat.Print(cout, local_mat.Width());
+
+      // 4. assemble them back to prolongation matrix
+      AssembleProlongationMatrix(elmt_id, local_mat);
+      //cout << "assembly done " << endl;
+   }
+   cP->Finalize();
+   cP_is_set = true;
+   cout << "Check cP size: " << cP->Height() << " x " << cP->Width() << '\n';
+}
+
+void GalerkinDifference::AssembleProlongationMatrix(const mfem::Array<int> &id,
+                                                    const DenseMatrix &local_mat) const
+{
+   // element id coresponds to the column indices
+   // dofs id coresponds to the row indices
+   // the local reconstruction matrix needs to be assembled `vdim` times
+   const FiniteElement *fe = fec->FiniteElementForGeometry(Geometry::SEGMENT);
+   const int num_dofs = fe->GetDof();
+
+   int nel = id.Size();
+
+   Array<int> el_dofs;
+   Array<int> col_index;
+   Array<int> row_index(num_dofs);
+   Array<Array<int>> dofs_mat(vdim);
+
+   // Get the id of the element want to assemble in
+   int el_id = id[0];
+
+   GetElementVDofs(el_id, el_dofs);
+   col_index.SetSize(nel);
+
+   for (int e = 0; e < nel; e++)
+   {
+      col_index[e] = vdim * id[e];
+   }
+   for (int v = 0; v < vdim; v++)
+   {
+      el_dofs.GetSubArray(v * num_dofs, num_dofs, row_index);
+      // cout << "local mat will be assembled into: ";
+      // row_index.Print(cout, num_dofs);
+      // cout << endl;
+      cP->SetSubMatrix(row_index, col_index, local_mat, 1);
+      row_index.LoseData();
+      // elements id also need to be shift accordingly
+      col_index.SetSize(nel);
+      for (int e = 0; e < nel; e++)
+      {
+         col_index[e]++;
+      }
+   }
+}
+
+void buildLSInterpolation(int dim, int degree, const DenseMatrix &x_center,
+                          const DenseMatrix &x_quad, DenseMatrix &interp)
+{
+   // get the number of quadrature points and elements.
+   int num_quad = x_quad.Width();
+   int num_elem = x_center.Width();
+
+   // number of total polynomial basis functions
+   int num_basis = -1;
+   num_basis = degree + 1;
+   // Construct the generalized Vandermonde matrix
+   mfem::DenseMatrix V(num_elem, num_basis);
+   for (int i = 0; i < num_elem; ++i)
+   {
+      double dx = x_center(0, i) - x_center(0, 0);
+      for (int p = 0; p <= degree; ++p)
+      {
+         V(i, p) = pow(dx, p);
+      }
+   }
+   // Set the RHS for the LS problem (it's the identity matrix)
+   // This will store the solution, that is, the basis coefficients, hence
+   // the name `coeff`
+   mfem::DenseMatrix coeff(num_elem, num_elem);
+   coeff = 0.0;
+   for (int i = 0; i < num_elem; ++i)
+   {
+      coeff(i, i) = 1.0;
+   }
+   // Set-up and solve the least-squares problem using LAPACK's dgels
+   char TRANS = 'N';
+   int info;
+   int lwork = 2 * num_elem * num_basis;
+   double work[lwork];
+   dgels_(&TRANS, &num_elem, &num_basis, &num_elem, V.GetData(), &num_elem,
+          coeff.GetData(), &num_elem, work, &lwork, &info);
+   MFEM_ASSERT(info == 0, "Fail to solve the underdetermined system.\n");
+   // Perform matrix-matrix multiplication between basis functions evalauted at
+   // quadrature nodes and basis function coefficients.
+   interp.SetSize(num_quad, num_elem);
+   interp = 0.0;
+   // loop over quadrature points
+   for (int j = 0; j < num_quad; ++j)
+   {
+      double dx = x_quad(0, j) - x_center(0, 0);
+      // loop over the element centers
+      for (int i = 0; i < num_elem; ++i)
+      {
+         for (int p = 0; p <= degree; ++p)
+         {
+            interp(j, i) += pow(dx, p) * coeff(p, i);
+         }
+      }
+   }
+}
+
+///functions related to CentGridFunction class
+CentGridFunction::CentGridFunction(FiniteElementSpace *f)
+{
+   SetSize(f->GetVDim() * f->GetNE());
+   fes = f;
+   fec = NULL;
+   sequence = f->GetSequence();
+   UseDevice(true);
+}
+
+void CentGridFunction::ProjectCoefficient(VectorCoefficient &coeff)
+{
+   int vdim = fes->GetVDim();
+   Array<int> vdofs(vdim);
+   Vector vals;
+
+   int geom = fes->GetMesh()->GetElement(0)->GetGeometryType();
+   const IntegrationPoint &cent = Geometries.GetCenter(geom);
+   const FiniteElement *fe;
+   ElementTransformation *eltransf;
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      fe = fes->GetFE(i);
+      // Get the indices of dofs
+      for (int j = 0; j < vdim; j++)
+      {
+         vdofs[j] = i * vdim + j;
+      }
+
+      eltransf = fes->GetElementTransformation(i);
+      eltransf->SetIntPoint(&cent);
+      vals.SetSize(vdofs.Size());
+      coeff.Eval(vals, *eltransf, cent);
+
+      if (fe->GetMapType() == 1)
+      {
+         vals(i) *= eltransf->Weight();
+      }
+      SetSubVector(vdofs, vals);
+   }
+}
+
+CentGridFunction &CentGridFunction::operator=(const Vector &v)
+{
+   std::cout << "cent = is called.\n";
+   MFEM_ASSERT(fes && v.Size() == fes->GetTrueVSize(), "");
+   Vector::operator=(v);
+   return *this;
+}
+
+CentGridFunction &CentGridFunction::operator=(double value)
+{
+   Vector::operator=(value);
+   return *this;
 }

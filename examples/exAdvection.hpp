@@ -5,8 +5,6 @@
 
 using namespace mfem;
 using namespace std;
-void GetCutElementIntRule(Mesh* mesh, std::map<int, IntegrationRule *> &cutElementIntRules, 
-                              std::map<int, IntegrationRule *> &cutFaceIntRules);
 /// Class for domain integration L(v) := (f, v)
 class CutDomainLFIntegrator : public DeltaLFIntegrator
 {
@@ -112,4 +110,3 @@ public:
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
 };
-
