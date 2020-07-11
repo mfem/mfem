@@ -926,6 +926,9 @@ protected:
    // Specifies that ComputeElementTargets is being called by a FD function.
    // It's used to skip terms that have exact derivative calculations.
    bool fd_call_flag;
+   // Compute the exact action of the Integrator (includes derivative of the
+   // target with respect to spatial position)
+   bool exact_action;
 
    Array <Vector *> ElemDer;        //f'(x)
    Array <Vector *> ElemPertEnergy; //f(x+h)
@@ -1015,7 +1018,7 @@ public:
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
         zeta_0(NULL), zeta(NULL), coeff_zeta(NULL), adapt_eval(NULL),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
-        fdflag(false), dxscale(1.0e3), fd_call_flag(false)
+        fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
    { }
 
    ~TMOP_Integrator();
@@ -1103,6 +1106,9 @@ public:
    void   SetFDhScale(double _dxscale) { dxscale = _dxscale; }
    bool   GetFDFlag() const { return fdflag; }
    double GetFDh()    const { return dx; }
+
+   /** @brief Flag to control if exact action of Integration is effected. */
+   void SetExactActionFlag(bool flag_) { exact_action = flag_; }
 };
 
 class TMOPComboIntegrator : public NonlinearFormIntegrator
