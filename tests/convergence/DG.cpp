@@ -47,7 +47,6 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
-   int ref_levels = -1;
    int order = 1;
    double sigma = -1.0;
    double kappa = -1.0;
@@ -125,17 +124,20 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient u_grad(dim,gradu_exact);
    for (int l = 0; l <= sr; l++)
    {
-      cout << "Number of unknowns: " << fespace->GetVSize() << endl;
       b->Assemble();
       a->Assemble();
       a->Finalize();
       const SparseMatrix &A = a->SpMat();
 
-      // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-      UMFPackSolver umf_solver;
-      umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-      umf_solver.SetOperator(A);
-      umf_solver.Mult(*b, x);
+      GSSmoother M(A);
+      if (sigma == -1.0)
+      {
+         PCG(A, M, *b, x, 0, 500, 1e-12, 0.0);
+      }
+      else
+      {
+         GMRES(A, M, *b, x, 0, 500, 10, 1e-12, 0.0);
+      }
 
       rates.AddGridFunction(&x,&u_ex,&u_grad,&one);
 

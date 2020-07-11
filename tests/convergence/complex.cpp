@@ -122,8 +122,8 @@ int main(int argc, char *argv[])
          break;
    }
 
-   ConvergenceRates rates_re;
-   ConvergenceRates rates_im;
+   Convergence rates_re;
+   Convergence rates_im;
    for (int l=0; l<=ref_levels; l++)
    {
       a->Assemble();
@@ -193,8 +193,8 @@ int main(int argc, char *argv[])
       a->RecoverFEMSolution(X, *b, x);
 
       // Compute relative error
-      rates_re.AddSolution(&x.real(),&u_ex_re);
-      rates_im.AddSolution(&x.imag(),&u_ex_im);
+      rates_re.AddGridFunction(&x.real(),&u_ex_re);
+      rates_im.AddGridFunction(&x.imag(),&u_ex_im);
 
       if (l==ref_levels) break;
 

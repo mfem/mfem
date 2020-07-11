@@ -12,13 +12,12 @@ private:
 
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
-   int comm_flag; // 0 - local, 1 - global over 'comm'
 #endif
    int counter=0;
    int dcounter=0;
    int fcounter=0;
    int cont_type;
-   int print_flag=0;
+   int print_flag=1;
    Array<double> L2Errors;
    Array<double> DGFaceErrors;
    Array<double> DErrors;
@@ -45,9 +44,9 @@ public:
    // Clear any internal data
    void Clear();
 
-   void AddGridFunction(GridFunction * gf, Coefficient * u, VectorCoefficient * grad,
+   void AddGridFunction(GridFunction * gf, Coefficient * u, VectorCoefficient * grad=NULL,
                         Coefficient * ell_coeff=NULL, double Nu=1.0)
-   {
+   {      
       AddGf(gf, u, grad, ell_coeff,Nu);
    }
    void AddGridFunction(GridFunction * gf, VectorCoefficient * u)

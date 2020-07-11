@@ -175,8 +175,7 @@ int main(int argc, char *argv[])
 
    double last_error_l2 = -1.0, last_error_h1 = -1.0;
 
-   Convergence rates(MPI_COMM_WORLD);
-   rates.Clear();
+   Convergence rates;
    // 12. Refinement loop: discretize and solve the problem; then compute and
    //     print the discretization errors.
    for (int level = 0; true; level++)

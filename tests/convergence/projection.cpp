@@ -181,15 +181,8 @@ int main(int argc, char *argv[])
       Vector X, B;
       a.FormLinearSystem(ess_tdof_list, u_gf, b, A, X,B);
 
-      GSSmoother *prec = new GSSmoother(*A.As<SparseMatrix>());
-      CGSolver cg;
-      cg.SetRelTol(1e-10);
-      cg.SetMaxIter(2000);
-      cg.SetPrintLevel(0);
-      if (prec) { cg.SetPreconditioner(*prec); }
-      cg.SetOperator(*A);
-      cg.Mult(B, X);
-      delete prec;
+      GSSmoother M(*A.As<SparseMatrix>());
+      PCG(*A, M, B, X, 0, 500, 1e-12, 0.0);
 
       a.RecoverFEMSolution(X,B,u_gf);
       switch (prob)
@@ -197,7 +190,6 @@ int main(int argc, char *argv[])
          case 0:
          {
             rates.AddGridFunction(&u_gf,u,gradu);
-
             break;
          }
          case 1:
@@ -205,7 +197,6 @@ int main(int argc, char *argv[])
             rates.AddGridFunction(&u_gf,U,curlU);
             break;
          }
-         
          case 2:
          {
             rates.AddGridFunction(&u_gf,U,divU);
