@@ -66,6 +66,17 @@ void PAHcurlMassApply3D(const int D1D,
                         const Vector &_x,
                         Vector &_y);
 
+void SmemPAHcurlMassApply3D(const int D1D,
+                            const int Q1D,
+                            const int NE,
+                            const Array<double> &_Bo,
+                            const Array<double> &_Bc,
+                            const Array<double> &_Bot,
+                            const Array<double> &_Bct,
+                            const Vector &_op,
+                            const Vector &_x,
+                            Vector &_y);
+
 void PAHdivSetup2D(const int Q1D,
                    const int NE,
                    const Array<double> &w,
@@ -258,8 +269,8 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    {
       if (fetype == mfem::FiniteElement::CURL)
       {
-         PAHcurlMassApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
-                            mapsC->Bt, pa_data, x, y);
+         SmemPAHcurlMassApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
+                                mapsC->Bt, pa_data, x, y);
       }
       else if (fetype == mfem::FiniteElement::DIV)
       {
