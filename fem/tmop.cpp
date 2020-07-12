@@ -927,9 +927,7 @@ void TargetConstructor::ComputeElementTargets(int e_id, const FiniteElement &fe,
    }
 }
 
-void TargetConstructor::ComputeElementTargetsGradient(int e_id,
-                                                      const FiniteElement &fe,
-                                                      const IntegrationRule &ir,
+void TargetConstructor::ComputeElementTargetsGradient(const IntegrationRule &ir,
                                                       const Vector &elfun,
                                                       IsoparametricTransformation &Tpr,
                                                       DenseTensor &dJtr) const
@@ -937,7 +935,7 @@ void TargetConstructor::ComputeElementTargetsGradient(int e_id,
    MFEM_ASSERT(target_type == IDEAL_SHAPE_UNIT_SIZE || nodes != NULL, "");
 
    //TODO: Compute derivative for targets with GIVEN_SHAPE or/and GIVEN_SIZE
-   for (int i = 0; i < fe.GetDim()*ir.GetNPoints(); i++) { dJtr(i) = 0.; }
+   for (int i = 0; i < Tpr.GetFE()->GetDim()*ir.GetNPoints(); i++) { dJtr(i) = 0.; }
 }
 
 void AnalyticAdaptTC::SetAnalyticTargetSpec(Coefficient *sspec,
@@ -983,15 +981,15 @@ void AnalyticAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
    }
 }
 
-void AnalyticAdaptTC::ComputeElementTargetsGradient(int e_id,
-                                                    const FiniteElement &fe,
-                                                    const IntegrationRule &ir,
+void AnalyticAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
                                                     const Vector &elfun,
                                                     IsoparametricTransformation &Tpr,
                                                     DenseTensor &dJtr) const
 {
+   const int e_id = Tpr.ElementNo;
+   const FiniteElement *fe = Tpr.GetFE();
    DenseMatrix point_mat;
-   point_mat.UseExternalData(elfun.GetData(), fe.GetDof(), fe.GetDim());
+   point_mat.UseExternalData(elfun.GetData(), fe->GetDof(), fe->GetDim());
 
    switch (target_type)
    {
@@ -1000,7 +998,7 @@ void AnalyticAdaptTC::ComputeElementTargetsGradient(int e_id,
          MFEM_VERIFY(matrix_tspec != NULL,
                      "Target type GIVEN_FULL requires a TMOPMatrixCoefficient.");
 
-         for (int d = 0; d < fe.GetDim(); d++)
+         for (int d = 0; d < fe->GetDim(); d++)
          {
             for (int i = 0; i < ir.GetNPoints(); i++)
             {
@@ -1255,7 +1253,7 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
          const DenseMatrix &Wideal =
             Geometries.GetGeomToPerfGeomJac(fe.GetGeomType());
          const int dim = Wideal.Height(),
-                   ndofs = tspec_fes->GetFE(0)->GetDof(),
+                   ndofs = tspec_fes->GetFE(e_id)->GetDof(),
                    ntspec_dofs = ndofs*ncomp;
 
          Vector shape(ndofs), tspec_vals(ntspec_dofs), par_vals,
@@ -1422,9 +1420,7 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
    }
 }
 
-void DiscreteAdaptTC::ComputeElementTargetsGradient(int e_id,
-                                                    const FiniteElement &fe,
-                                                    const IntegrationRule &ir,
+void DiscreteAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
                                                     const Vector &elfun,
                                                     IsoparametricTransformation &Tpr,
                                                     DenseTensor &dJtr) const
@@ -1434,6 +1430,8 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(int e_id,
    MFEM_VERIFY(tspec_fesv, "No target specifications have been set.");
 
    dJtr = 0.;
+   const int e_id = Tpr.ElementNo;
+   const FiniteElement *fe = Tpr.GetFE();
 
    switch (target_type)
    {
@@ -1441,9 +1439,9 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(int e_id,
       case GIVEN_SHAPE_AND_SIZE:
       {
          const DenseMatrix &Wideal =
-            Geometries.GetGeomToPerfGeomJac(fe.GetGeomType());
+            Geometries.GetGeomToPerfGeomJac(fe->GetGeomType());
          const int dim = Wideal.Height(),
-                   ndofs = tspec_fes->GetFE(0)->GetDof(),
+                   ndofs = fe->GetDof(),
                    ntspec_dofs = ndofs*ncomp;
 
          Vector shape(ndofs), tspec_vals(ntspec_dofs), par_vals,
@@ -1464,7 +1462,7 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(int e_id,
                 grad_ptr_c3(grad_e_c3.GetData(), ndofs*dim);
 
          DenseMatrix grad_phys; // This will be (dof x dim, dof).
-         fe.ProjectGrad(fe, Tpr, grad_phys);
+         fe->ProjectGrad(*fe, Tpr, grad_phys);
 
          for (int i = 0; i < ir.GetNPoints(); i++)
          {
@@ -2151,7 +2149,7 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
       Tpr->GetPointMat().Transpose(PMatI); // PointMat = PMatI^T
       if (exact_action)
       {
-         targetC->ComputeElementTargetsGradient(T.ElementNo, el, *ir, elfun, *Tpr, dJtr);
+         targetC->ComputeElementTargetsGradient(*ir, elfun, *Tpr, dJtr);
       }
    }
 
