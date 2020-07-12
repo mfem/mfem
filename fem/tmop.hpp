@@ -678,8 +678,7 @@ public:
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
 
-   virtual void ComputeElementTargetsGradient(int e_id, const FiniteElement &fe,
-                                              const IntegrationRule &ir,
+   virtual void ComputeElementTargetsGradient(const IntegrationRule &ir,
                                               const Vector &elfun,
                                               IsoparametricTransformation &Tpr,
                                               DenseTensor &dJtr) const;
@@ -724,8 +723,7 @@ public:
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
 
-   virtual void ComputeElementTargetsGradient(int e_id, const FiniteElement &fe,
-                                              const IntegrationRule &ir,
+   virtual void ComputeElementTargetsGradient(const IntegrationRule &ir,
                                               const Vector &elfun,
                                               IsoparametricTransformation &Tpr,
                                               DenseTensor &dJtr) const;
@@ -869,8 +867,7 @@ public:
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
 
-   virtual void ComputeElementTargetsGradient(int e_id, const FiniteElement &fe,
-                                              const IntegrationRule &ir,
+   virtual void ComputeElementTargetsGradient(const IntegrationRule &ir,
                                               const Vector &elfun,
                                               IsoparametricTransformation &Tpr,
                                               DenseTensor &dJtr) const;
