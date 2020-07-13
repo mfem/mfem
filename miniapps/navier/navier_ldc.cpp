@@ -249,7 +249,7 @@ int main(int argc, char *argv[])
       {
          double err_u = u_gf->DistanceTo(prev_u);
          double err_p = p_gf->DistanceTo(prev_p);
-         if (err_u < 1e-4 && err_p < 1e-4) //Relative tolerances between steps
+         if (err_u < 1e-6 && err_p < 1e-6) //Relative tolerances between steps
          {
             last_step = true;
          }
