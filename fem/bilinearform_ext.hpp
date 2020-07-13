@@ -253,7 +253,13 @@ public:
    /// Partial assembly of all internal integrators
    void Assemble();
 
+   /// not really AddMult() TODO (?)
    void AddMult(const Vector &x, Vector &y, const double c) const;
+
+   void AddMultTranspose(const Vector &x, Vector &y, const double c) const;
+
+private:
+   Vector test_multiplicity;
 };
 
 }

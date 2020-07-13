@@ -490,12 +490,8 @@ void PAMixedBilinearFormExtension::AddMultTranspose(const Vector &x, Vector &y,
 PADiscreteLinearOperatorExtension::PADiscreteLinearOperatorExtension(DiscreteLinearOperator *linop) :
    PAMixedBilinearFormExtension(linop)
 {
-   // so far I just want to duplicate what PAMixedBilinearFormExtension does, so maybe I don't need this class?
 }
 
-/// this *copied* from PAMixedBilinearFormExtension,
-/// @todo
-/// @fixme
 void PADiscreteLinearOperatorExtension::Assemble()
 {
    std::cout << "  PADiscreteLinearOperatorExtension::Assemble" << std::endl;
@@ -503,21 +499,20 @@ void PADiscreteLinearOperatorExtension::Assemble()
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
    {
-      // do not know what this means or why it was here
-      /*
-      if (ginterp)
-      {
-         ginterp->AssemblePA(*trialFes, *testFes);
-      }
-      else
-      */
-      {
-         integrators[i]->AssemblePA(*trialFes, *testFes);
-      }
+      integrators[i]->AssemblePA(*trialFes, *testFes);
+   }
+
+   test_multiplicity.SetSize(elem_restrict_test->Width()); // l-vector
+   Vector ones(elem_restrict_test->Height()); // e-vector
+   ones = 1.0;
+   elem_restrict_test->MultTranspose(ones, test_multiplicity);
+   for (int i = 0; i < test_multiplicity.Size(); ++i)
+   {
+      test_multiplicity(i) = 1.0 / test_multiplicity(i);
    }
 }
 
-/// so this one I think needs to be different for LinearOperator
+/// is this really AddMult? I think it's more like Mult...
 void PADiscreteLinearOperatorExtension::AddMult(
    const Vector &x, Vector &y, const double c) const
 {
@@ -542,7 +537,7 @@ void PADiscreteLinearOperatorExtension::AddMult(
    /// which, given that elem_restrict_test is just an mfem::Operator,
    /// may be tricky
 
-   // * G^T operation
+   // * G^T operation (kind of...)
    const ElementRestriction* elem_restrict =
       dynamic_cast<const ElementRestriction*>(elem_restrict_test);
    if (elem_restrict)
@@ -557,5 +552,40 @@ void PADiscreteLinearOperatorExtension::AddMult(
    }
 }
 
+/**
+   very WIP
+*/
+void PADiscreteLinearOperatorExtension::AddMultTranspose(
+   const Vector &x, Vector &y, const double c) const
+{
+   std::cout << "PADiscreteLinearOperatorExtension::AddMultTranspose" << std::endl;
+
+   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+   const int iSz = integrators.Size();
+
+   // * G operation (kinda)
+   /// TODO: should this scaling live in a elem_restrict method?
+   Vector xscaled(x);
+   for (int i = 0; i < x.Size(); ++i)
+   {
+      xscaled(i) *= test_multiplicity(i);
+   }
+   SetupMultInputs(elem_restrict_test, xscaled, localTest,
+                   elem_restrict_trial, y, localTrial, c);
+
+   // * B^TD^TB operation
+   for (int i = 0; i < iSz; ++i)
+   {
+      integrators[i]->AddMultTransposePA(localTest, localTrial);
+   }
+
+   // * G^T operation
+   if (elem_restrict_trial)
+   {
+      tempY.SetSize(y.Size());
+      elem_restrict_trial->MultTranspose(localTrial, tempY);
+      y += tempY;
+   }
+}
 
 } // namespace mfem
