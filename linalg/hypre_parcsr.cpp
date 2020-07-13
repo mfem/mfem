@@ -978,6 +978,26 @@ void hypre_ParCSRMatrixSplit(hypre_ParCSRMatrix *A,
 }
 
 /* Based on hypre_CSRMatrixMatvec in hypre's csr_matvec.c */
+void hypre_CSRMatrixAbsMatvec(hypre_CSRMatrix *A,
+                              HYPRE_Real alpha,
+                              HYPRE_Real *x,
+                              HYPRE_Real beta,
+                              HYPRE_Real *y)
+{
+   // TODO: implement
+}
+
+/* Based on hypre_CSRMatrixMatvecT in hypre's csr_matvec.c */
+void hypre_CSRMatrixAbsMatvecT(hypre_CSRMatrix *A,
+                               HYPRE_Real alpha,
+                               HYPRE_Real *x,
+                               HYPRE_Real beta,
+                               HYPRE_Real *y)
+{
+   // TODO: implement
+}
+
+/* Based on hypre_CSRMatrixMatvec in hypre's csr_matvec.c */
 void hypre_CSRMatrixBooleanMatvec(hypre_CSRMatrix *A,
                                   HYPRE_Bool alpha,
                                   HYPRE_Bool *x,
@@ -1234,6 +1254,26 @@ hypre_ParCSRCommHandleCreate_bool(HYPRE_Int            job,
    hypre_ParCSRCommHandleRequests(comm_handle)    = requests;
 
    return comm_handle;
+}
+
+/* Based on hypre_ParCSRMatrixMatvec in par_csr_matvec.c */
+void hypre_ParCSRMatrixAbsMatvec(hypre_ParCSRMatrix *A,
+                                 HYPRE_Real alpha,
+                                 HYPRE_Real *x,
+                                 HYPRE_Real beta,
+                                 HYPRE_Real *y)
+{
+   // TODO: implement
+}
+
+/* Based on hypre_ParCSRMatrixMatvecT in par_csr_matvec.c */
+void hypre_ParCSRMatrixAbsMatvecT(hypre_ParCSRMatrix *A,
+                                  HYPRE_Real alpha,
+                                  HYPRE_Real *x,
+                                  HYPRE_Real beta,
+                                  HYPRE_Real *y)
+{
+   // TODO: implement
 }
 
 /* Based on hypre_ParCSRMatrixMatvec in par_csr_matvec.c */
