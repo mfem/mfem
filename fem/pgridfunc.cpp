@@ -1000,12 +1000,11 @@ double L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
 
 double ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
                                                Coefficient *ell_coeff,
-                                               double Nu) const
+                                               double Nu,
+                                               const IntegrationRule *irs[]) const
 {
-   // TODO: This is ugly
    const_cast<ParGridFunction *>(this)->ExchangeFaceNbrData();
 
-   // assuming vdim is 1
    int fdof, dim, intorder, k;
    ElementTransformation *transf;
    Vector shape, el_dofs, err_val, ell_coeff_val;
@@ -1067,10 +1066,17 @@ double ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
       }
 
       intorder = 2 * intorder;  // <-------------
-      const IntegrationRule &ir =
-         IntRules.Get(face_elem_transf->GetGeometryType(), intorder);
-      err_val.SetSize(ir.GetNPoints());
-      ell_coeff_val.SetSize(ir.GetNPoints());
+      const IntegrationRule *ir;
+      if (irs)
+      {
+         ir = irs[face_elem_transf->GetGeometryType()];
+      }
+      else
+      {
+         ir = &(IntRules.Get(face_elem_transf->GetGeometryType(), intorder));
+      }
+      err_val.SetSize(ir->GetNPoints());
+      ell_coeff_val.SetSize(ir->GetNPoints());
       // side 1
       transf = face_elem_transf->Elem1;
       fe1 = fes->GetFE(iel1);
@@ -1079,12 +1085,17 @@ double ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
       shape.SetSize(fdof);
       el_dofs.SetSize(fdof);
       for (k = 0; k < fdof; k++)
+         if (vdofs[k] >= 0)
+         {
+            el_dofs(k) =   (*this)(vdofs[k]);
+         }
+         else
+         {
+            el_dofs(k) = - (*this)(-1-vdofs[k]);
+         }
+      for (int j = 0; j < ir->GetNPoints(); j++)
       {
-         el_dofs(k) =   (*this)(vdofs[k]);
-      }
-      for (int j = 0; j < ir.GetNPoints(); j++)
-      {
-         face_elem_transf->Loc1.Transform(ir.IntPoint(j), eip);
+         face_elem_transf->Loc1.Transform(ir->IntPoint(j), eip);
          fe1->CalcShape(eip, shape);
          transf->SetIntPoint(&eip);
          ell_coeff_val(j) = ell_coeff->Eval(*transf, eip);
@@ -1101,21 +1112,31 @@ double ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
          {
             pfes->GetFaceNbrElementVDofs(iel2, vdofs);
             for (k = 0; k < fdof; k++)
-            {
-               el_dofs(k) = face_nbr_data[vdofs[k]];
-            }
+               if (vdofs[k] >= 0)
+               {
+                  el_dofs(k) = face_nbr_data[vdofs[k]];
+               }
+               else
+               {
+                  el_dofs(k) = - face_nbr_data[-1-vdofs[k]];
+               }
          }
          else
          {
             pfes->GetElementVDofs(iel2, vdofs);
             for (k = 0; k < fdof; k++)
-            {
-               el_dofs(k) = (*this)(vdofs[k]);
-            }
+               if (vdofs[k] >= 0)
+               {
+                  el_dofs(k) = (*this)(vdofs[k]);
+               }
+               else
+               {
+                  el_dofs(k) = - (*this)(-1 - vdofs[k]);
+               }
          }
-         for (int j = 0; j < ir.GetNPoints(); j++)
+         for (int j = 0; j < ir->GetNPoints(); j++)
          {
-            face_elem_transf->Loc2.Transform(ir.IntPoint(j), eip);
+            face_elem_transf->Loc2.Transform(ir->IntPoint(j), eip);
             fe2->CalcShape(eip, shape);
             transf->SetIntPoint(&eip);
             ell_coeff_val(j) += ell_coeff->Eval(*transf, eip);
@@ -1124,9 +1145,9 @@ double ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
          }
       }
       transf = face_elem_transf;
-      for (int j = 0; j < ir.GetNPoints(); j++)
+      for (int j = 0; j < ir->GetNPoints(); j++)
       {
-         const IntegrationPoint &ip = ir.IntPoint(j);
+         const IntegrationPoint &ip = ir->IntPoint(j);
          transf->SetIntPoint(&ip);
          error += shared_face_factor*(ip.weight * Nu * ell_coeff_val(j) *
                                       pow(transf->Weight(), 1.0-1.0/(dim-1)) *

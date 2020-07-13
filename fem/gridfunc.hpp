@@ -422,6 +422,7 @@ public:
    virtual void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
                                              Array<int> &bdr_attr);
 
+
    virtual double ComputeL2Error(Coefficient &exsol,
                                  const IntegrationRule *irs[] = NULL) const
    { return ComputeLpError(2.0, exsol, NULL, irs); }
@@ -457,7 +458,8 @@ public:
                                   const IntegrationRule *irs[] = NULL) const;
 
    virtual double ComputeDGFaceJumpError(Coefficient *exsol,
-                                         Coefficient *ell_coeff, double Nu) const;
+                                         Coefficient *ell_coeff, double Nu,
+                                         const IntegrationRule *irs[] = NULL) const;
 
    virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
                                  const IntegrationRule *irs[] = NULL) const;

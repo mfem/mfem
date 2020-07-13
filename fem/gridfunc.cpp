@@ -2602,11 +2602,7 @@ double GridFunction::ComputeL2Error(
       }
    }
 
-   if (error < 0.0)
-   {
-      return -sqrt(-error);
-   }
-   return sqrt(error);
+   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
 }
 
 double GridFunction::ComputeL2Error(
@@ -2648,11 +2644,7 @@ double GridFunction::ComputeL2Error(
       }
    }
 
-   if (error < 0.0)
-   {
-      return -sqrt(-error);
-   }
-   return sqrt(error);
+   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
 }
 
 double GridFunction::ComputeGradError(VectorCoefficient *exgrad,
@@ -2692,11 +2684,8 @@ double GridFunction::ComputeGradError(VectorCoefficient *exgrad,
          error += ip.weight * Tr->Weight() * (vec * vec);
       }
    }
-   if (error < 0.0)
-   {
-      return -sqrt(-error);
-   }
-   return sqrt(error);
+
+   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
 }
 
 double GridFunction::ComputeCurlError(VectorCoefficient *excurl,
@@ -2737,11 +2726,8 @@ double GridFunction::ComputeCurlError(VectorCoefficient *excurl,
          error += ip.weight * Tr->Weight() * ( vec * vec );
       }
    }
-   if (error < 0.0)
-   {
-      return -sqrt(-error);
-   }
-   return sqrt(error);
+
+   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
 }
 
 double GridFunction::ComputeDivError(
@@ -2776,16 +2762,14 @@ double GridFunction::ComputeDivError(
          error += ip.weight * Tr->Weight() * a * a;
       }
    }
-   if (error < 0.0)
-   {
-      return -sqrt(-error);
-   }
-   return sqrt(error);
+
+   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
 }
 
 
 double GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
-                                            Coefficient *ell_coeff, double Nu)  const
+                                            Coefficient *ell_coeff, double Nu,
+                                            const IntegrationRule *irs[])  const
 {
    // assuming vdim is 1
    int fdof, dim, intorder, k;
@@ -2813,10 +2797,17 @@ double GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
             intorder = k;
          }
       intorder = 2 * intorder;  // <-------------
-      const IntegrationRule &ir =
-         IntRules.Get(face_elem_transf->GetGeometryType(), intorder);
-      err_val.SetSize(ir.GetNPoints());
-      ell_coeff_val.SetSize(ir.GetNPoints());
+      const IntegrationRule *ir;
+      if (irs)
+      {
+         ir = irs[face_elem_transf->GetGeometryType()];
+      }
+      else
+      {
+         ir = &(IntRules.Get(face_elem_transf->GetGeometryType(), intorder));
+      }
+      err_val.SetSize(ir->GetNPoints());
+      ell_coeff_val.SetSize(ir->GetNPoints());
       // side 1
       transf = face_elem_transf->Elem1;
       fe = fes->GetFE(i1);
@@ -2833,9 +2824,9 @@ double GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
          {
             el_dofs(k) = - (*this)(-1-vdofs[k]);
          }
-      for (int j = 0; j < ir.GetNPoints(); j++)
+      for (int j = 0; j < ir->GetNPoints(); j++)
       {
-         face_elem_transf->Loc1.Transform(ir.IntPoint(j), eip);
+         face_elem_transf->Loc1.Transform(ir->IntPoint(j), eip);
          fe->CalcShape(eip, shape);
          transf->SetIntPoint(&eip);
          ell_coeff_val(j) = ell_coeff->Eval(*transf, eip);
@@ -2860,9 +2851,9 @@ double GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
             {
                el_dofs(k) = - (*this)(-1-vdofs[k]);
             }
-         for (int j = 0; j < ir.GetNPoints(); j++)
+         for (int j = 0; j < ir->GetNPoints(); j++)
          {
-            face_elem_transf->Loc2.Transform(ir.IntPoint(j), eip);
+            face_elem_transf->Loc2.Transform(ir->IntPoint(j), eip);
             fe->CalcShape(eip, shape);
             transf->SetIntPoint(&eip);
             ell_coeff_val(j) += ell_coeff->Eval(*transf, eip);
@@ -2872,9 +2863,9 @@ double GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
       }
       face_elem_transf = mesh->GetFaceElementTransformations(i, 16);
       transf = face_elem_transf;
-      for (int j = 0; j < ir.GetNPoints(); j++)
+      for (int j = 0; j < ir->GetNPoints(); j++)
       {
-         const IntegrationPoint &ip = ir.IntPoint(j);
+         const IntegrationPoint &ip = ir->IntPoint(j);
          transf->SetIntPoint(&ip);
          error += (ip.weight * Nu * ell_coeff_val(j) *
                    pow(transf->Weight(), 1.0-1.0/(dim-1)) *
@@ -2882,11 +2873,7 @@ double GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
       }
    }
 
-   if (error < 0.0)
-   {
-      return -sqrt(-error);
-   }
-   return sqrt(error);
+   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
 }
 
 

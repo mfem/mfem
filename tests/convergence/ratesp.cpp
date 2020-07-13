@@ -9,27 +9,32 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-// Compile with: make projection
+// Compile with: make rates
 //
-// Sample runs:  mpirun -np 4 projection -m ../../data/inline-segment.mesh -sr 1 -pr 4 -prob 0 -o 1
-//               mpirun -np 4 projection -m ../../data/inline-quad.mesh -sr 1 -pr 3 -prob 0 -o 2
-//               mpirun -np 4 projection -m ../../data/inline-quad.mesh -sr 1 -pr 3 -prob 1 -o 2
-//               mpirun -np 4 projection -m ../../data/inline-quad.mesh -sr 1 -pr 3 -prob 2 -o 2
-//               mpirun -np 4 projection -m ../../data/inline-tri.mesh -sr 1 -pr 3 -prob 2 -o 3
-//               mpirun -np 4 projection -m ../../data/star.mesh -sr 1 -pr 2 -prob 1 -o 4
-//               mpirun -np 4 projection -m ../../data/fichera.mesh -sr 1 -pr 2 -prob 2 -o 2
-//               mpirun -np 4 projection -m ../../data/inline-wedge.mesh -sr 0 -pr 2 -prob 0 -o 2
-//               mpirun -np 4 projection -m ../../data/inline-hex.mesh -sr 0 -pr 1 -prob 1 -o 3
-//               mpirun -np 4 projection -m ../../data/square-disc.mesh -sr 1 -pr 2 -prob 1 -o 2
+// Sample runs:  mpirun -np 4 rates -m ../../data/inline-segment.mesh -sr 1 -pr 4 -prob 0 -o 1
+//               mpirun -np 4 rates -m ../../data/inline-quad.mesh -sr 1 -pr 3 -prob 0 -o 2
+//               mpirun -np 4 rates -m ../../data/inline-quad.mesh -sr 1 -pr 3 -prob 1 -o 2
+//               mpirun -np 4 rates -m ../../data/inline-quad.mesh -sr 1 -pr 3 -prob 2 -o 2
+//               mpirun -np 4 rates -m ../../data/inline-tri.mesh -sr 1 -pr 3 -prob 2 -o 3
+//               mpirun -np 4 rates -m ../../data/star.mesh -sr 1 -pr 2 -prob 1 -o 4
+//               mpirun -np 4 rates -m ../../data/fichera.mesh -sr 1 -pr 2 -prob 2 -o 2
+//               mpirun -np 4 rates -m ../../data/inline-wedge.mesh -sr 0 -pr 2 -prob 0 -o 2
+//               mpirun -np 4 rates -m ../../data/inline-hex.mesh -sr 0 -pr 1 -prob 1 -o 3
+//               mpirun -np 4 rates -m ../../data/square-disc.mesh -sr 1 -pr 2 -prob 1 -o 2
+//               mpirun -np 4 rates -m ../../data/square-disc.mesh -sr 1 -pr 2 -prob 3 -o 2
 //
-// Description:  This example code is used for testing the LF-integrators
-//               (Q,grad v), (Q,curl V), (Q, div v)
-//               by solving the appropriate energy projection problems
+// Description:  This example code demonstrates the use of MFEM to define
+//               and solve finite element problem for various discretizations
+//               and provide convergence rates
 //
-//               prob 0: (grad u, grad v) + (u,v) = (grad u_exact, grad v) + (u_exact, v)
-//               prob 1: (curl u, curl v) + (u,v) = (curl u_exact, curl v) + (u_exact, v)
-//               prob 2: (div  u, div  v) + (u,v) = (div  u_exact, div  v) + (u_exact, v)
-
+//               prob 0: H1 projection:
+//                       (grad u, grad v) + (u,v) = (grad u_exact, grad v) + (u_exact, v)
+//               prob 1: H(curl) projection
+//                       (curl u, curl v) + (u,v) = (curl u_exact, curl v) + (u_exact, v)
+//               prob 2: H(div) projection
+//                       (div  u, div  v) + (u,v) = (div  u_exact, div  v) + (u_exact, v)
+//               prob 3: DG discretization for the Poisson problem 
+//                       -Delta u = f
 #include "mfem.hpp"
 #include "conv_rates.hpp"
 #include <fstream>
@@ -37,8 +42,13 @@
 using namespace std;
 using namespace mfem;
 
+// Exact solution parameters: 
+double sol_s[3] = { -0.32, 0.15, 0.24 };
+double sol_k[3] = { 1.21, 1.45, 1.37 };
+
 // H1
 double u_exact(const Vector &x);
+double rhs_func(const Vector &x);
 void gradu_exact(const Vector &x, Vector &gradu);
 
 // Vector FE
@@ -50,7 +60,6 @@ double divU_exact(const Vector &x);
 
 int dim;
 int prob=0;
-Vector alpha;
 
 int main(int argc, char *argv[])
 {
@@ -66,14 +75,21 @@ int main(int argc, char *argv[])
    bool visualization = 1;
    int sr = 1;
    int pr = 1;
-
+   double sigma = -1.0;
+   double kappa = -1.0;
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree)");
    args.AddOption(&prob, "-prob", "--problem",
-                  "Problem kind: 0: H1, 1: H(curl), 2: H(div)");
+                  "Problem kind: 0: H1, 1: H(curl), 2: H(div), 3: DG ");
+   args.AddOption(&sigma, "-s", "--sigma",
+                  "One of the two DG penalty parameters, typically +1/-1."
+                  " See the documentation of class DGDiffusionIntegrator.");
+   args.AddOption(&kappa, "-k", "--kappa",
+                  "One of the two DG penalty parameters, should be positive."
+                  " Negative values are replaced with (order+1)^2.");                     
    args.AddOption(&sr, "-sr", "--serial_ref",
                   "Number of serial refinements.");
    args.AddOption(&pr, "-pr", "--parallel_ref",
@@ -91,6 +107,14 @@ int main(int argc, char *argv[])
       MPI_Finalize();
       return 1;
    }
+   if (prob >3 || prob <0) prob = 0; //default problem = H1
+   if (prob == 3)
+   {
+      if (kappa < 0)
+      {
+         kappa = (order+1)*(order+1);
+      }
+   }
    if (myid == 0)
    {
       args.PrintOptions(cout);
@@ -100,15 +124,7 @@ int main(int argc, char *argv[])
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   dim = mesh->Dimension();  if (dim == 1 ) prob = 0;
-
-   if (prob >2 || prob <0) prob = 0; //default problem = H1
-   
-
-   // 4. Set up parameters for exact solution
-   alpha.SetSize(dim); // x,y,z coefficients of the solution
-   for (int i=0; i<dim; i++) { alpha(i) = M_PI*(double)(i+1);}
-
+   dim = mesh->Dimension();
    // 5. Refine the serial mesh on all processors to increase the resolution.
    for (int i = 0; i < sr; i++ )
    {
@@ -127,15 +143,18 @@ int main(int argc, char *argv[])
       case 0: fec = new H1_FECollection(order,dim);   break;
       case 1: fec = new ND_FECollection(order,dim);   break;
       case 2: fec = new RT_FECollection(order-1,dim); break;
+      case 3: fec = new DG_FECollection(order,dim); break;
       default: break;
    }
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
 
-   // 8. Define the solution vector u_gf as a parallel finite element grid function
+   // 8. Define the solution vector x as a parallel finite element grid function
    //     corresponding to fespace.
-   ParGridFunction u_gf(fespace);
+   ParGridFunction x(fespace);
+   x = 0.0;
    // 9. Set up the parallel linear form b(.) and the parallel bilinear form
    //    a(.,.).
+   FunctionCoefficient *f=nullptr;
    FunctionCoefficient *u=nullptr;
    FunctionCoefficient *divU=nullptr;
    VectorFunctionCoefficient *U=nullptr;
@@ -184,6 +203,18 @@ int main(int argc, char *argv[])
          a.AddDomainIntegrator(new VectorFEMassIntegrator(one));
          break;
 
+      case 3:
+         u = new FunctionCoefficient(u_exact);
+         f = new FunctionCoefficient(rhs_func);
+         gradu = new VectorFunctionCoefficient(dim,gradu_exact);
+         b.AddDomainIntegrator(new DomainLFIntegrator(*f));
+         b.AddBdrFaceIntegrator(
+      new DGDirichletLFIntegrator(*u, one, sigma, kappa));
+         a.AddDomainIntegrator(new DiffusionIntegrator(one));
+         a.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
+         a.AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
+         break;   
+
       default:
          break;
    }
@@ -195,73 +226,64 @@ int main(int argc, char *argv[])
    {
       b.Assemble();
       a.Assemble();
-      Array<int> ess_tdof_list;
-      if (pmesh->bdr_attributes.Size())
-      {
-         Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-         ess_bdr = 0;
-         fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-      }
-      OperatorPtr A;
-      Vector X, B;
-      a.FormLinearSystem(ess_tdof_list, u_gf, b, A, X,B);
+      a.Finalize();
+
+      HypreParMatrix *A = a.ParallelAssemble();
+      HypreParVector *B = b.ParallelAssemble();
+      HypreParVector *X = x.ParallelProject();
 
       Solver *prec = NULL;
+      IterativeSolver *solver = NULL;
       switch (prob)
       {
          case 0:
-            prec = new HypreBoomerAMG(*A.As<HypreParMatrix>());
+         case 3:
+            prec = new HypreBoomerAMG(*A);
             dynamic_cast<HypreBoomerAMG *>(prec)->SetPrintLevel(0);
             break;
          case 1:
-            prec = new HypreAMS(*A.As<HypreParMatrix>(), fespace);
+            prec = new HypreAMS(*A, fespace);
             dynamic_cast<HypreAMS *>(prec)->SetPrintLevel(0);
             break;
          case 2:
             if (dim == 2)
             {
-               prec = new HypreAMS(*A.As<HypreParMatrix>(), fespace);
+               prec = new HypreAMS(*A, fespace);
                dynamic_cast<HypreAMS *>(prec)->SetPrintLevel(0);
             }
             else
             {
-               prec = new HypreADS(*A.As<HypreParMatrix>(), fespace);
+               prec = new HypreADS(*A, fespace);
                dynamic_cast<HypreADS *>(prec)->SetPrintLevel(0);
             }
             break;
          default:
             break;
       }
-      CGSolver cg(MPI_COMM_WORLD);
-      cg.SetRelTol(1e-12);
-      cg.SetMaxIter(2000);
-      cg.SetPrintLevel(0);
-      if (prec) { cg.SetPreconditioner(*prec); }
-      cg.SetOperator(*A);
-      cg.Mult(B, X);
+      if (prob==3 && sigma !=-1.0)
+      {
+         solver = new GMRESSolver(MPI_COMM_WORLD);
+      }
+      else
+      {
+         solver = new CGSolver(MPI_COMM_WORLD);
+      }
+      solver->SetRelTol(1e-12);
+      solver->SetMaxIter(2000);
+      solver->SetPrintLevel(0);
+      solver->SetPreconditioner(*prec); 
+      solver->SetOperator(*A);
+      solver->Mult(*B, *X);
       delete prec;
+      delete solver;
 
-      a.RecoverFEMSolution(X,B,u_gf);
-
+      x = *X;
       switch (prob)
       {
-         case 0:
-         {
-            rates.AddGridFunction(&u_gf,u, gradu);
-            break;
-         }
-         case 1:
-         {
-            rates.AddGridFunction(&u_gf,U, curlU);
-            break;
-         }
-         case 2:
-         {
-            rates.AddGridFunction(&u_gf,U, divU);
-            break;
-         }
-         default:
-            break;
+         case 0: rates.AddGridFunction(&x,u,gradu); break;
+         case 1: rates.AddGridFunction(&x,U,curlU); break;
+         case 2: rates.AddGridFunction(&x,U,divU);  break;
+         case 3: rates.AddGridFunction(&x,u,gradu,&one); break;
       }
 
       if (l==pr) break;
@@ -270,7 +292,7 @@ int main(int argc, char *argv[])
       fespace->Update();
       a.Update();
       b.Update();
-      u_gf.Update();
+      x.Update();
    }
 
    rates.Print(true);
@@ -292,7 +314,7 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
-      sol_sock << "solution\n" << *pmesh << u_gf <<
+      sol_sock << "solution\n" << *pmesh << x <<
                "window_title 'Numerical Pressure (real part)' "
                << keys << flush;
    }
@@ -312,57 +334,71 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-double u_exact(const Vector &x)
+double rhs_func(const Vector &x)
 {
-   double u;
-   double y=0;
-   for (int i=0; i<dim; i++)
+   double val = 1.0, lap = 0.0;
+   for (int d = 0; d < x.Size(); d++)
    {
-      y+= alpha(i) * x(i);
+      const double f = sin(M_PI*(sol_s[d]+sol_k[d]*x(d)));
+      val *= f;
+      lap = lap*f + val*M_PI*M_PI*sol_k[d]*sol_k[d];
    }
-   u = cos(y);
-   return u;
+   return lap;
 }
 
-void gradu_exact(const Vector &x, Vector &du)
+double u_exact(const Vector &x)
 {
-   double s=0.0;
-   for (int i=0; i<dim; i++)
+   double val = 1.0;
+   for (int d = 0; d < x.Size(); d++)
    {
-      s+= alpha(i) * x(i);
+      val *= sin(M_PI*(sol_s[d]+sol_k[d]*x(d)));
    }
-   for (int i=0; i<dim; i++)
+   return val;
+}
+
+void gradu_exact(const Vector &x, Vector &grad)
+{
+   grad.SetSize(x.Size());
+   double *g = grad.GetData();
+   double val = 1.0;
+   for (int d = 0; d < x.Size(); d++)
    {
-      du[i] = -alpha(i) * sin(s);
+      const double y = M_PI*(sol_s[d]+sol_k[d]*x(d));
+      const double f = sin(y);
+      for (int j = 0; j < d; j++) { g[j] *= f; }
+      g[d] = val*M_PI*sol_k[d]*cos(y);
+      val *= f;
    }
 }
 
 void U_exact(const Vector &x, Vector & U)
 {
    double s = x.Sum();
-   for (int i=0; i<dim; i++)
+   for (int d=0; d<dim; d++)
    {
-      U[i] = cos(alpha(i) * s);
+      U[d] = cos(M_PI*sol_s[d] * s);
    }
 }
 // H(curl)
 void curlU_exact(const Vector &x, Vector &curlU)
 {
-   
-   if (dim == 3)
+   if (dim==3)
    {
       double s = x.Sum();
-      curlU[0] = -alpha(2)*sin(alpha(2) * s) + alpha(1)*sin(alpha(1) * s);
-      curlU[1] = -alpha(0)*sin(alpha(0) * s) + alpha(2)*sin(alpha(2) * s);
-      curlU[2] = -alpha(1)*sin(alpha(1) * s) + alpha(0)*sin(alpha(0) * s);
+      curlU[0] = - M_PI*sol_s[2]*sin(M_PI*sol_s[2] * s) 
+                 + M_PI*sol_s[1]*sin(M_PI*sol_s[1] * s);
+      curlU[1] = - M_PI*sol_s[0]*sin(M_PI*sol_s[0] * s) 
+                 + M_PI*sol_s[2]*sin(M_PI*sol_s[2] * s);
+      curlU[2] = - M_PI*sol_s[1]*sin(M_PI*sol_s[1] * s)  
+                 + M_PI*sol_s[0]*sin(M_PI*sol_s[0] * s);
    }
    else
    {
       double s = x(0) + x(1);
-      curlU[0] = -alpha(1)*sin(alpha(1) * s) + alpha(0)*sin(alpha(0) * s);
+      curlU[0] = - M_PI*sol_s[1]*sin(M_PI*sol_s[1] * s) 
+                 + M_PI*sol_s[0]*sin(M_PI*sol_s[0] * s);
    }
 }
-
 
 // H(div)
 double divU_exact(const Vector &x)
@@ -370,9 +406,9 @@ double divU_exact(const Vector &x)
    double divu = 0.0;
    double s = x.Sum();
 
-   for (int i = 0; i<dim; i++)
+   for (int d = 0; d<dim; d++)
    {
-      divu += -alpha(i) * sin(alpha(i) * s);
+      divu += -M_PI*sol_s[d] * sin(M_PI*sol_s[d] * s);
    }
    return divu;
 }
