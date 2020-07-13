@@ -153,7 +153,7 @@ void Convergence::AddGf(GridFunction * gf, Coefficient * u,
          double val = (fcounter) ? log(DGFaceErrors[fcounter-1]/DGErr)/log(2.0) : 0.0;
          DGFaceRates.Append(val);
          fcounter++;
-         MFEM_VERIFY(fcounter == dcounter, "Number of Added solutions missmatch");
+         MFEM_VERIFY(fcounter == counter, "Number of Added solutions missmatch");
       }
    }
 
@@ -268,25 +268,27 @@ void Convergence::Print(bool relative)
             default: break;
          }
 
-         d = (relative) ? sqrt(CoeffNorm*CoeffNorm + CoeffDNorm*CoeffDNorm) : 1.0;
-
-         cout << " -------------------------------------------" << endl;
-         cout << "              " << title << dname << " Error        " << endl;
-         cout << " -------------------------------------------" << endl;
-         cout << right<< setw(11)<< "DOFs "<< setw(13) << "Error ";
-         cout <<  setw(15) << "Rate " << endl;
-         cout << " -------------------------------------------"
-           << endl;
-         cout << setprecision(4);
-         for (int i =0; i<dcounter; i++)
+         if (dcounter)
          {
-            cout << right << setw(10)<< ndofs[i] << setw(16) 
-                 << scientific << EnErrors[i]/d << setw(13)  
-                 << fixed << EnRates[i] << endl;
-         }
-         cout << endl;
+            d = (relative) ? sqrt(CoeffNorm*CoeffNorm + CoeffDNorm*CoeffDNorm) : 1.0;
 
-         if (cont_type == 3)
+            cout << " -------------------------------------------" << endl;
+            cout << "              " << title << dname << " Error        " << endl;
+            cout << " -------------------------------------------" << endl;
+            cout << right<< setw(11)<< "DOFs "<< setw(13) << "Error ";
+            cout <<  setw(15) << "Rate " << endl;
+            cout << " -------------------------------------------"
+            << endl;
+            cout << setprecision(4);
+            for (int i =0; i<dcounter; i++)
+            {
+               cout << right << setw(10)<< ndofs[i] << setw(16) 
+                  << scientific << EnErrors[i]/d << setw(13)  
+                  << fixed << EnRates[i] << endl;
+            }
+            cout << endl;
+         }
+         if (cont_type == 3 && fcounter)
          {
             cout << " -------------------------------------------" << endl;
             cout << "            DG Face Jump Error          " << endl;
@@ -297,7 +299,7 @@ void Convergence::Print(bool relative)
             cout << " -------------------------------------------"
                  << endl;
             cout << setprecision(4);
-            for (int i =0; i<counter; i++)
+            for (int i =0; i<fcounter; i++)
             {
                cout << right << setw(10)<< ndofs[i] << setw(16) 
                     << scientific << DGFaceErrors[i] << setw(13)  

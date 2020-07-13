@@ -306,7 +306,8 @@ public:
 
    virtual double ComputeDGFaceJumpError(Coefficient *exsol,
                                          Coefficient *ell_coeff,
-                                         double Nu) const;
+                                         double Nu,
+                                         const IntegrationRule *irs[] = NULL) const;
 
    virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
                                  Coefficient *ell_coef, double Nu,
