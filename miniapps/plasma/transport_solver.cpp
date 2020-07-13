@@ -1790,7 +1790,7 @@ void DGTransportTDO::TransportOp::SetTimeDerivativeTerm(
    {
       if (MCoef.NonTrivialValue((FieldType)i))
       {
-         if ( mpi_.Root() && logging_ > 1)
+         if ( mpi_.Root() && logging_ > 0)
          {
             cout << field_name_
                  << ": Adding time derivative term proportional to d "
@@ -1813,7 +1813,7 @@ void DGTransportTDO::TransportOp::SetTimeDerivativeTerm(
 
 void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableCoef &DCoef)
 {
-   if ( mpi_.Root() && logging_ > 1)
+   if ( mpi_.Root() && logging_ > 0)
    {
       cout << field_name_ << ": Adding isotropic diffusion term" << endl;
    }
@@ -1843,14 +1843,14 @@ void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableCoef &DCoef)
       bfbfi_marker_.Append(new Array<int>);
       AttrToMarker(pmesh_.bdr_attributes.Max(), dbc[i].attr,
                    *bfbfi_marker_.Last());
-      bfbfi_.Append(new DGDiffusionIntegrator(*dtDCoef,
+      bfbfi_.Append(new DGDiffusionIntegrator(DCoef,
                                               dg_.sigma,
                                               dg_.kappa));
 
       bflfi_marker_.Append(new Array<int>);
       AttrToMarker(pmesh_.bdr_attributes.Max(), dbc[i].attr,
                    *bflfi_marker_.Last());
-      bflfi_.Append(new DGDirichletLFIntegrator(*dbc[i].coef, *dtDCoef,
+      bflfi_.Append(new DGDirichletLFIntegrator(*dbc[i].coef, DCoef,
                                                 dg_.sigma,
                                                 dg_.kappa));
 
@@ -1893,7 +1893,7 @@ void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableCoef &DCoef)
 
 void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableMatCoef &DCoef)
 {
-   if ( mpi_.Root() && logging_ > 1)
+   if ( mpi_.Root() && logging_ > 0)
    {
       cout << field_name_ << ": Adding anisotropic diffusion term" << endl;
    }
@@ -1975,7 +1975,7 @@ void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableMatCoef &DCoef)
 void DGTransportTDO::TransportOp::SetAdvectionTerm(StateVariableVecCoef &VCoef,
                                                    bool bc)
 {
-   if ( mpi_.Root() && logging_ > 1)
+   if ( mpi_.Root() && logging_ > 0)
    {
       cout << field_name_ << ": Adding advection term" << endl;
    }
@@ -2012,7 +2012,7 @@ void DGTransportTDO::TransportOp::SetAdvectionTerm(StateVariableVecCoef &VCoef,
 
 void DGTransportTDO::TransportOp::SetSourceTerm(StateVariableCoef &SCoef)
 {
-   if ( mpi_.Root() && logging_ > 1)
+   if ( mpi_.Root() && logging_ > 0)
    {
       cout << field_name_ << ": Adding source term" << endl;
    }

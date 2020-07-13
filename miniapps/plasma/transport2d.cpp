@@ -3,7 +3,7 @@
 //
 
 // Annular benchmark test
-// mpirun -np 10 ./transport2d -v 1 -vs 1 -epus -tf 1 -op 16 -l 1 -m annulus-quad-o3.mesh -p 1 -ni-min 3e19 -ni-max 3e19 -Te-min 11 -Te-max 440 -ode-w '1e-8 1 0 0 1e-4' -dt 1e-1 -visit
+// mpirun -np 10 ./transport2d -v 1 -vs 1 -epus -tf 1 -op 16 -l 1 -m annulus-quad-o3.mesh -p 1 -ni-min 3e19 -ni-max 3e19 -Te-min 11 -Te-max 440 -ode-w '1e-8 1 0 0 1e-4' -dt 1e-2 -visit
 
 #include "mfem.hpp"
 #include <fstream>
@@ -942,15 +942,7 @@ int main(int argc, char *argv[])
    args.AddOption(&tol_ode, "-tol", "--ode-tolerance",
                   "Difference tolerance for ODE integration.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE Implicit solver: "
-                  "            IMEX methods\n\t"
-                  "            1 - IMEX BE/FE, 2 - IMEX RK2,\n\t"
-                  "            L-stable methods\n\t"
-                  "            11 - Backward Euler,\n\t"
-                  "            12 - SDIRK23, 13 - SDIRK33,\n\t"
-                  "            A-stable methods (not L-stable)\n\t"
-                  "            22 - ImplicitMidPointSolver,\n\t"
-                  "            23 - SDIRK23, 34 - SDIRK34.");
+                  "ODE solver: 1 - SDIRK 212, 2 - SDIRK 534.");
    args.AddOption(&ode_epus, "-epus", "--err-per-unit-step", "-eps",
                   "--err-per-step",
                   "Select error value used by ODE controller.");
