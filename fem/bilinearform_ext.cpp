@@ -505,7 +505,17 @@ void PADiscreteLinearOperatorExtension::Assemble()
    test_multiplicity.SetSize(elem_restrict_test->Width()); // l-vector
    Vector ones(elem_restrict_test->Height()); // e-vector
    ones = 1.0;
-   elem_restrict_test->MultTranspose(ones, test_multiplicity);
+
+   const ElementRestriction* elem_restrict =
+      dynamic_cast<const ElementRestriction*>(elem_restrict_test);
+   if (elem_restrict)
+   {
+      elem_restrict->MultTransposeUnsigned(ones, test_multiplicity);
+   }
+   else
+   {
+      mfem_error("A real ElementRestriction is required in this setting!");
+   }
    for (int i = 0; i < test_multiplicity.Size(); ++i)
    {
       test_multiplicity(i) = 1.0 / test_multiplicity(i);
@@ -533,10 +543,6 @@ void PADiscreteLinearOperatorExtension::AddMult(
 
    /// need to do a kind of "set" rather than "add" in the below
    /// operation as compared to the BilinearForm case
-
-   /// which, given that elem_restrict_test is just an mfem::Operator,
-   /// may be tricky
-
    // * G^T operation (kind of...)
    const ElementRestriction* elem_restrict =
       dynamic_cast<const ElementRestriction*>(elem_restrict_test);
@@ -553,7 +559,7 @@ void PADiscreteLinearOperatorExtension::AddMult(
 }
 
 /**
-   very WIP
+   WIP
 */
 void PADiscreteLinearOperatorExtension::AddMultTranspose(
    const Vector &x, Vector &y, const double c) const
