@@ -44,6 +44,7 @@ struct s_NavierContext
    bool checkres = false;
    double lid = .10;
    double top = 0.0;
+   double rel_tol = 1e-6;
 } ctx;
 
 void vel(const Vector &x, double t, Vector &u)
@@ -116,6 +117,7 @@ int main(int argc, char *argv[])
                   "Lid speed of the cavity.");
    args.AddOption(&ctx.dt, "-dt", "--time-step", "Time step.");
    args.AddOption(&ctx.t_final, "-tf", "--final-time", "Final time.");
+   args.AddOption(&ctx.rel_tol, "-rt", "--relative-tolerance", "Relative tolerance for stopping criterion.");
    args.AddOption(&ctx.pa,
                   "-pa",
                   "--enable-pa",
@@ -249,7 +251,7 @@ int main(int argc, char *argv[])
       {
          double err_u = u_gf->DistanceTo(prev_u);
          double err_p = p_gf->DistanceTo(prev_p);
-         if (err_u < 1e-6 && err_p < 1e-6) //Relative tolerances between steps
+         if (err_u < ctx.rel_tol && err_p < ctx.rel_tol) //Relative tolerances between steps
          {
             last_step = true;
          }
