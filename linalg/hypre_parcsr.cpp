@@ -984,7 +984,126 @@ void hypre_CSRMatrixAbsMatvec(hypre_CSRMatrix *A,
                               HYPRE_Real beta,
                               HYPRE_Real *y)
 {
-   // TODO: implement
+   HYPRE_Int        *A_i      = hypre_CSRMatrixI(A);
+   HYPRE_Int        *A_j      = hypre_CSRMatrixJ(A);
+   HYPRE_Int         num_rows = hypre_CSRMatrixNumRows(A);
+
+   HYPRE_Int        *A_rownnz = hypre_CSRMatrixRownnz(A);
+   HYPRE_Int         num_rownnz = hypre_CSRMatrixNumRownnz(A);
+
+   HYPRE_Real       *A_data  = hypre_CSRMatrixData(A);
+   HYPRE_Real       *x_data = x;
+   HYPRE_Real       *y_data = y;
+
+   HYPRE_Real        temp, tempx;
+
+   HYPRE_Int         i, jj;
+
+   HYPRE_Int         m;
+
+   HYPRE_Real        xpar=0.7;
+
+   /*-----------------------------------------------------------------------
+    * Do (alpha == 0.0) computation - RDF: USE MACHINE EPS
+    *-----------------------------------------------------------------------*/
+
+   if (alpha == 0.0)
+   {
+#ifdef HYPRE_USING_OPENMP
+      #pragma omp parallel for private(i) HYPRE_SMP_SCHEDULE
+#endif
+      for (i = 0; i < num_rows; i++)
+      {
+         y_data[i] = beta*y_data[i];
+      }
+      return;
+   }
+
+   /*-----------------------------------------------------------------------
+    * y = (beta/alpha)*y
+    *-----------------------------------------------------------------------*/
+
+   temp = beta / alpha;
+
+   if (temp != 1.0)
+   {
+      if (temp == 0.0)
+      {
+#ifdef HYPRE_USING_OPENMP
+         #pragma omp parallel for private(i) HYPRE_SMP_SCHEDULE
+#endif
+         for (i = 0; i < num_rows; i++)
+         {
+            y_data[i] = 0.0;
+         }
+      }
+      else
+      {
+#ifdef HYPRE_USING_OPENMP
+         #pragma omp parallel for private(i) HYPRE_SMP_SCHEDULE
+#endif
+         for (i = 0; i < num_rows; i++)
+         {
+            y_data[i] *= temp;
+         }
+      }
+   }
+
+   /*-----------------------------------------------------------------
+    * y += A*x
+    *-----------------------------------------------------------------*/
+
+   /* use rownnz pointer to do the A*x multiplication
+      when num_rownnz is smaller than num_rows */
+
+   if (num_rownnz < xpar*(num_rows))
+   {
+#ifdef HYPRE_USING_OPENMP
+      #pragma omp parallel for private(i,jj,m,tempx) HYPRE_SMP_SCHEDULE
+#endif
+      for (i = 0; i < num_rownnz; i++)
+      {
+         m = A_rownnz[i];
+
+         tempx = 0;
+         for (jj = A_i[m]; jj < A_i[m+1]; jj++)
+         {
+            tempx += fabs(A_data[jj])*x_data[A_j[jj]];
+         }
+         y_data[m] += tempx;
+      }
+   }
+   else
+   {
+#ifdef HYPRE_USING_OPENMP
+      #pragma omp parallel for private(i,jj,temp) HYPRE_SMP_SCHEDULE
+#endif
+      for (i = 0; i < num_rows; i++)
+      {
+         tempx = 0;
+         for (jj = A_i[i]; jj < A_i[i+1]; jj++)
+         {
+            tempx += fabs(A_data[jj])*x_data[A_j[jj]];
+         }
+         y_data[i] += tempx;
+      }
+   }
+
+   /*-----------------------------------------------------------------
+    * y = alpha*y
+    *-----------------------------------------------------------------*/
+
+   if (alpha != 1.0)
+   {
+#ifdef HYPRE_USING_OPENMP
+      #pragma omp parallel for private(i) HYPRE_SMP_SCHEDULE
+#endif
+      for (i = 0; i < num_rows; i++)
+      {
+         y_data[i] *= alpha;
+      }
+   }
+
 }
 
 /* Based on hypre_CSRMatrixMatvecT in hypre's csr_matvec.c */
