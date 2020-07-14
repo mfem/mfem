@@ -434,44 +434,46 @@ public:
                                  const IntegrationRule *irs[] = NULL,
                                  Array<int> *elems = NULL) const;
 
-   // keep this for backward compatibility
-   virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
-                                 Coefficient *ell_coef, double Nu,
-                                 int norm_type) const
-   {
-      double error1 = 0.0;
-      double error2 = 0.0;
-      if (norm_type & 1) { error1 = GridFunction::ComputeGradError(exgrad); }
-      if (norm_type & 2) { error2 = GridFunction::ComputeDGFaceJumpError(exsol,ell_coef,Nu); }
-
-      return sqrt(error1 * error1 + error2 * error2);
-   }
-
-   // temporary comment ---- newly added methods
+   // Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
    virtual double ComputeGradError(VectorCoefficient *exgrad,
                                    const IntegrationRule *irs[] = NULL) const;
 
+   // Returns ||curl u_ex - curl u_h||_L2 for ND elements
    virtual double ComputeCurlError(VectorCoefficient *excurl,
                                    const IntegrationRule *irs[] = NULL) const;
 
+   // Returns ||div u_ex - div u_h||_L2 for RT elements
    virtual double ComputeDivError(Coefficient *exdiv,
                                   const IntegrationRule *irs[] = NULL) const;
 
+   // Returns the Face Jumps error for L2 elements
    virtual double ComputeDGFaceJumpError(Coefficient *exsol,
-                                         Coefficient *ell_coeff, double Nu,
-                                         const IntegrationRule *irs[] = NULL) const;
+                                         Coefficient *ell_coeff,
+                                         double Nu,
+                                         const IntegrationRule *irs[] = NULL)
+   const;
 
+   // This methis is kept for backward compatibility
+   // Returns either the H1-seminorm or the DG Face Jumps error
+   // or both depending on norm_type = 1, 2, 3
+   virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
+                                 Coefficient *ell_coef, double Nu,
+                                 int norm_type) const;
+
+   // Returns the error measured in H1-norm for H1 elements or
+   // in "broken" H1-norm for L2 elements
    virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
                                  const IntegrationRule *irs[] = NULL) const;
 
-   virtual double ComputeHDivError(VectorCoefficient *exsol, Coefficient *exdiv,
+   // Returns the error measured H(div)-norm for RT elements
+   virtual double ComputeHDivError(VectorCoefficient *exsol,
+                                   Coefficient *exdiv,
                                    const IntegrationRule *irs[] = NULL) const;
 
+   // Returns the error measured H(curl)-norm for ND elements
    virtual double ComputeHCurlError(VectorCoefficient *exsol,
                                     VectorCoefficient *excurl,
                                     const IntegrationRule *irs[] = NULL) const;
-
-   // ------------------------------------------------------------------------------
 
    virtual double ComputeMaxError(Coefficient &exsol,
                                   const IntegrationRule *irs[] = NULL) const
