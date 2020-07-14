@@ -294,7 +294,7 @@ int main(int argc, char *argv[])
       x.Update();
    }
 
-   rates.Print(true);
+   rates.Print();
 
    // 11. Send the solution by socket to a GLVis server.
    if (visualization)
