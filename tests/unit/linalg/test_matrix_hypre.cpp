@@ -73,6 +73,69 @@ TEST_CASE("HypreParMatrixAbsMult",  "[Parallel], [HypreParMatrixAbsMult]")
                 << rank << ": " << error << std::endl;
 
       REQUIRE(error == Approx(EPS));
+
+      delete A;
+      delete Aabs;
+      delete fec;
+      delete pmesh;
+   }
+}
+
+TEST_CASE("HypreParMatrixAbsMultT",  "[Parallel], [HypreParMatrixAbsMultT]")
+{
+   int rank;
+   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+   int dim = 2;
+   int ne = 4;
+   for (int order = 1; order <= 3; ++order)
+   {
+      Mesh * mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+      ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+      delete mesh;
+      ConstantCoefficient one(1.0);
+      FiniteElementCollection *fec = new H1_FECollection(order, dim);
+      ParFiniteElementSpace fes(pmesh, fec);
+      int n = fes.GetTrueVSize();
+      ParBilinearForm a(&fes);
+      a.AddDomainIntegrator(new DiffusionIntegrator(one));
+      a.AddDomainIntegrator(new MassIntegrator(one));
+      a.Assemble();
+      a.Finalize();
+
+      HypreParMatrix *A = a.ParallelAssemble();
+
+      HypreParMatrix *Aabs = new HypreParMatrix(*A);
+
+      hypre_ParCSRMatrix * AparCSR =
+         (hypre_ParCSRMatrix *)const_cast<HypreParMatrix&>(*Aabs);
+
+      int nnzd = AparCSR->diag->num_nonzeros;
+      for (int j = 0; j < nnzd; j++)
+      {
+         AparCSR->diag->data[j] = fabs(AparCSR->diag->data[j]);
+      }
+
+      int nnzoffd = AparCSR->offd->num_nonzeros;
+      for (int j = 0; j < nnzoffd; j++)
+      {
+         AparCSR->offd->data[j] = fabs(AparCSR->offd->data[j]);
+      }
+
+      Vector X(n); X.Randomize(1);
+      Vector Y(n); Y.Randomize(1);
+      Vector B(n); B.Randomize();
+      A->AbsMultTranspose(3.4,B,-2.3,X);
+      Aabs->MultTranspose(3.4,B,-2.3,Y);
+
+      Y -=X;
+      double error = Y.Norml2();
+
+      std::cout << "  order: " << order
+                << ", error norm on rank "
+                << rank << ": " << error << std::endl;
+
+      REQUIRE(error == Approx(EPS));
+
       delete A;
       delete Aabs;
       delete fec;
