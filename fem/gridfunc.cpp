@@ -2631,7 +2631,6 @@ double GridFunction::ComputeL2Error(
       }
       T = fes->GetElementTransformation(i);
       GetVectorValues(*T, *ir, vals);
-
       exsol.Eval(exact_vals, *T, *ir);
       vals -= exact_vals;
       loc_errs.SetSize(vals.Width());
@@ -2684,7 +2683,6 @@ double GridFunction::ComputeGradError(VectorCoefficient *exgrad,
          error += ip.weight * Tr->Weight() * (vec * vec);
       }
    }
-
    return (error < 0.0) ? -sqrt(-error) : sqrt(error);
 }
 
@@ -2766,12 +2764,10 @@ double GridFunction::ComputeDivError(
    return (error < 0.0) ? -sqrt(-error) : sqrt(error);
 }
 
-
 double GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
                                             Coefficient *ell_coeff, double Nu,
                                             const IntegrationRule *irs[])  const
 {
-   // assuming vdim is 1
    int fdof, dim, intorder, k;
    Mesh *mesh;
    const FiniteElement *fe;
@@ -2876,7 +2872,18 @@ double GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
    return (error < 0.0) ? -sqrt(-error) : sqrt(error);
 }
 
+double GridFunction::ComputeH1Error(Coefficient *exsol,
+                                    VectorCoefficient *exgrad,
+                                    Coefficient *ell_coef, double Nu,
+                                    int norm_type) const
+{
+   double error1 = 0.0;
+   double error2 = 0.0;
+   if (norm_type & 1) { error1 = GridFunction::ComputeGradError(exgrad); }
+   if (norm_type & 2) { error2 = GridFunction::ComputeDGFaceJumpError(exsol,ell_coef,Nu); }
 
+   return sqrt(error1 * error1 + error2 * error2);
+}
 
 double GridFunction::ComputeH1Error(Coefficient *exsol,
                                     VectorCoefficient *exgrad,
