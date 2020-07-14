@@ -75,7 +75,7 @@ Discretization improvements
   and, in the continuous field case, arbitrary mesh edges and faces.
 
 - Added new coefficient and vector coefficient classes for QuadratureFunctions.
-  Additionaly, new LinearForm integrators were also added which make use of
+  Additionally, new LinearForm integrators were also added which make use of
   these new QuadratureFunction coefficient classes.
 
 - Added support face integrals on the boundaries of NURBS meshes.
@@ -133,7 +133,7 @@ New and updated examples and miniapps
   preconditioning.
 
 - Added a new test problem in example 24/24p, demonstrating a mixed bilinear
-  form for H(div) and L_2, with partial assembly support.
+  form for H1, H(curl), H(div) and L_2, with partial assembly support.
 
 - Added weak Dirichlet boundary conditions (Nitsche) to the NURBS miniapp.
 
