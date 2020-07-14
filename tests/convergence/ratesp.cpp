@@ -21,7 +21,7 @@
 //               mpirun -np 4 rates -m ../../data/inline-wedge.mesh -sr 0 -pr 2 -prob 0 -o 2
 //               mpirun -np 4 rates -m ../../data/inline-hex.mesh -sr 0 -pr 1 -prob 1 -o 3
 //               mpirun -np 4 rates -m ../../data/square-disc.mesh -sr 1 -pr 2 -prob 1 -o 2
-//               mpirun -np 4 rates -m ../../data/square-disc.mesh -sr 1 -pr 2 -prob 3 -o 2
+//               mpirun -np 4 rates -m ../../data/star.mesh -sr 1 -pr 2 -prob 3 -o 2
 //
 // Description:  This example code demonstrates the use of MFEM to define
 //               and solve finite element problem for various discretizations
@@ -36,7 +36,6 @@
 //               prob 3: DG discretization for the Poisson problem 
 //                       -Delta u = f
 #include "mfem.hpp"
-#include "conv_rates.hpp"
 #include <fstream>
 #include <iostream>
 using namespace std;
@@ -373,42 +372,35 @@ void gradu_exact(const Vector &x, Vector &grad)
 
 void U_exact(const Vector &x, Vector & U)
 {
-   double s = x.Sum();
-   for (int d=0; d<dim; d++)
-   {
-      U[d] = cos(M_PI*sol_s[d] * s);
-   }
+   U.SetSize(x.Size());
+   U=0.0;
+   U[0] = u_exact(x);
 }
+
 // H(curl)
 void curlU_exact(const Vector &x, Vector &curlU)
 {
-   if (dim==3)
+   Vector grad;
+   gradu_exact(x,grad);
+   int n = (x.Size()==3)?3:1;
+   curlU.SetSize(n);
+   if (x.Size()==3)
    {
-      double s = x.Sum();
-      curlU[0] = - M_PI*sol_s[2]*sin(M_PI*sol_s[2] * s) 
-                 + M_PI*sol_s[1]*sin(M_PI*sol_s[1] * s);
-      curlU[1] = - M_PI*sol_s[0]*sin(M_PI*sol_s[0] * s) 
-                 + M_PI*sol_s[2]*sin(M_PI*sol_s[2] * s);
-      curlU[2] = - M_PI*sol_s[1]*sin(M_PI*sol_s[1] * s)  
-                 + M_PI*sol_s[0]*sin(M_PI*sol_s[0] * s);
+      curlU[0] = 0.0; 
+      curlU[1] = grad[2];
+      curlU[2] = -grad[1];
    }
-   else
+   else if (x.Size()==2)
    {
-      double s = x(0) + x(1);
-      curlU[0] = - M_PI*sol_s[1]*sin(M_PI*sol_s[1] * s) 
-                 + M_PI*sol_s[0]*sin(M_PI*sol_s[0] * s);
-   }
+      curlU[0] = -grad[1];
+   }   
 }
 
 // H(div)
 double divU_exact(const Vector &x)
 {
-   double divu = 0.0;
-   double s = x.Sum();
+   Vector grad;
+   gradu_exact(x,grad);
 
-   for (int d = 0; d<dim; d++)
-   {
-      divu += -M_PI*sol_s[d] * sin(M_PI*sol_s[d] * s);
-   }
-   return divu;
+   return grad[0];
 }
