@@ -285,6 +285,10 @@ int main(int argc, char *argv[])
          case 3: rates.AddGridFunction(&x,u,gradu,&one); break;
       }
 
+      delete X;
+      delete B;
+      delete A;
+
       if (l==pr) break;
 
       pmesh->UniformRefinement();
