@@ -83,6 +83,90 @@ std::complex<double> D_cold_plasma(double omega, double Bmag,
                                    const Vector & mass,
                                    const Vector & temp);
 
+double mu(double mass_e, double mass_i);
+
+std::complex<double> ff(std::complex<double> x);
+
+double gg(double w);
+
+std::complex<double> phi0avg(double w, std::complex<double> xi);
+
+std::complex<double> he(std::complex<double> x);
+
+double phips(double bx, double wci,
+             double mass_e,
+             double mass_i);
+
+std::complex<double> niw(double wci, double bx,
+                         std::complex<double> phi, double mass_e,
+                         double mass_i);
+
+std::complex<double> ye(double bx, std::complex<double> xi);
+
+std::complex<double> niww(double w, double wci,
+                          double bx, std::complex<double> xi,
+                          double mass_e,
+                          double mass_i);
+
+std::complex<double> yd(double w, double wci,
+                        double bx, std::complex<double> xi,
+                        double mass_e,
+                        double mass_i);
+
+std::complex<double> yi(double w, double wci,
+                        double bx, std::complex<double> xi,
+                        double mass_e,
+                        double mass_i);
+
+std::complex<double> ytot(double w, double wci,
+                          double bx, std::complex<double> xi,
+                          double mass_e,
+                          double mass_i);
+
+double debye(double Te, double n0_cm);
+
+class SheathImpedance: public Coefficient
+{
+public:
+   SheathImpedance(const ParGridFunction & B,
+                   const BlockVector & density,
+                   const BlockVector & temp,
+                   const BlockVector & potential,
+                   const ParFiniteElementSpace & L2FESpace,
+                   const ParFiniteElementSpace & H1FESpace,
+                   double omega,
+                   const Vector & charges,
+                   const Vector & masses,
+                   bool realPart = true);
+
+   void SetRealPart() { realPart_ = true; }
+   void SetImaginaryPart() { realPart_ = false; }
+
+   double Eval(ElementTransformation &T,
+               const IntegrationPoint &ip);
+
+private:
+   const ParGridFunction & B_;
+   const BlockVector & density_;
+   const BlockVector & temp_;
+   const BlockVector & potential_;
+   const ParFiniteElementSpace & L2FESpace_;
+   const ParFiniteElementSpace & H1FESpace_;
+
+   double omega_;
+   bool realPart_;
+
+   ParGridFunction density_gf_;
+   ParGridFunction temperature_gf_;
+   ParGridFunction potential_gf_;
+
+   Vector density_vals_;
+   Vector temp_vals_;
+   Vector potential_vals_;
+   const Vector & charges_;
+   const Vector & masses_;
+};
+
 class DielectricTensor: public MatrixCoefficient
 {
 public:

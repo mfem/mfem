@@ -294,6 +294,241 @@ void real_epsilon_sigma(double omega, const Vector &B,
 
 }
 
+double mu(double mass_e, double mass_i)
+{
+   return pow((mass_i * pow(1.66053906, -27.0)) /
+              (2.0 * M_PI * mass_e * pow(1.66053906, -27.0)), 0.5);
+}
+
+complex<double> ff(complex<double> x)
+{
+   complex<double> a0(3.18553, 0.0);
+   double a1 = 3.70285;
+   double a2 = 3.81991;
+   double b1 = 1.13352;
+   double b2 = 1.24171;
+   double a3 = (2.0 * b2) / M_PI;
+   complex<double> num = a0 + a1*x + a2*pow(x, 2) + a3*pow(x, 3);
+   complex<double> val(1.0, 0);
+   complex<double> den = val + b1*x + b2*pow(x, 2);
+
+   return (num / den);
+}
+
+double gg(double w)
+{
+   double c0 = 0.966463;
+   double c1 = 0.141639;
+
+   return (c0+c1*tanh(w));
+}
+
+complex<double> phi0avg(double w, complex<double> xi)
+{
+   return (ff(gg(w)*xi));
+}
+
+complex<double> he(complex<double> x)
+{
+   double h1 = 0.607405;
+   double h2 = 0.325497;
+   double g1 = 0.624392;
+   double g2 = 0.500595;
+   double g3 = (M_PI * h2) / 4.0;
+   complex<double> val(1.0, 0.0);
+   complex<double> num = val + h1*x + h2*pow(x, 2);
+   complex<double> den = val + g1*x + g2*pow(x, 2) + g3*pow(x, 3);
+
+   return (num/den);
+}
+
+double phips(double bx, double wci, double mass_e, double mass_i)
+{
+   double mu_val = mu(mass_e, mass_i);
+   double d3 = 0.995721;
+   double arg = sqrt((pow(mu_val, 2.0) * pow(bx, 2.0) + 1.0)/(pow(mu_val,
+                                                                  2.0) + 1.0));
+   double num = -log(arg);
+   double den = 1.0 + d3 * pow(wci, 2.0);
+
+   return (num/den);
+}
+
+complex<double> niw(double wci, double bx, complex<double> phi, double mass_e,
+                    double mass_i)
+{
+   double d0 = 0.794443;
+   double d1 = 0.803531;
+   double d2 = 0.182378;
+   double d4 = 0.0000901468;
+   double nu1 = 1.455592;
+   double abx = abs(bx);
+   complex<double> phips1(phips(abx,wci, mass_e, mass_i), 0.0);
+   complex<double> phid = phi - phips1;
+   complex<double> pre = d0 /(d2 + sqrt(phid));
+   complex<double> wcip = wci * pow(phid, 0.25);
+   complex<double> num = pow(abx, 2.0) + d4 + pow(d1, 2.0) * pow(wcip, (2.0*nu1));
+   complex<double> den = 1.0 + d4 + pow(d1, 2.0) *pow(wcip, (2.0 * nu1));
+
+   return (pre*sqrt(num/den));
+}
+
+complex<double> ye(double bx, complex<double> xi)
+{
+   double h0 = 1.161585;
+   double abx = abs(bx);
+
+   return (h0*abx*he(xi));
+}
+
+complex<double> niww(double w, double wci, double bx, complex<double> xi,
+                     double mass_e, double mass_i)
+{
+   complex<double> k0(3.7616, 0.0);
+   double k1 = 0.22202;
+   complex<double> phis = k0 + k1*(xi-k0);
+   complex<double> phipr = phis + (phi0avg(w,xi)-phis)*tanh(w);
+
+   return (niw(wci,bx,phipr,mass_e,mass_i));
+}
+
+complex<double> yd(double w, double wci, double bx, complex<double> xi,
+                   double mass_e, double mass_i)
+{
+   complex<double>  s0(0.0, 1.12415);
+   complex<double> delta = sqrt(phi0avg(w,xi)/niww(w,wci,bx,xi,mass_e,mass_i));
+
+   return (-s0*(w/delta));
+}
+
+complex<double> yi(double w, double wci, double bx, complex<double> xi,
+                   double mass_e, double mass_i)
+{
+   complex<double> val(0.0, 1.0);
+   double p0 = 1.05554;
+   complex<double> p1(0.797659, 0.0);
+   double p2 = 1.47405;
+   double p3 = 0.809615;
+   double eps = 0.0001;
+   double gfactornum = pow(w, 2.0) - pow(bx, 2.0) * pow(wci, 2.0) + eps;
+   double gfactorden = pow(w, 2.0) - pow(wci, 2.0) + eps;
+   complex<double> gfactor(gfactornum/gfactorden, 0.0);
+   complex<double> niwwa = niww(w,wci,bx,xi,mass_e,mass_i);
+   complex<double> phi0avga = phi0avg(w,xi);
+   complex<double> abx(abs(bx), 0.0);
+   complex<double> gamcup = abx/(niwwa*sqrt(phi0avga));
+   complex<double> wcup = p3*w/sqrt(niwwa);
+   complex<double> yicupden1 = pow(wcup, 2.0)/gfactor - p1;
+   complex<double> yicupden2 = p2*gamcup*wcup*val;
+   complex<double> yicupden = yicupden1 + yicupden2;
+   complex<double> yicup = val*p0*wcup/yicupden;
+
+   return ((niwwa * yicup) / sqrt(phi0avga));
+}
+
+complex<double> ytot(double w, double wci, double bx, complex<double> xi,
+                     double mass_e, double mass_i)
+{
+   complex<double> ytot = ye(bx,xi) + yd(w,wci,bx,xi,mass_e,mass_i) + yi(w,wci,bx,
+                                                                         xi,mass_e,mass_i);
+   return (ytot);
+}
+
+double debye(double Te, double n0_cm)
+{
+   return (7.43e2*pow((Te/n0_cm),0.5));
+}
+
+
+SheathImpedance::SheathImpedance(const ParGridFunction & B,
+                                 const BlockVector & density,
+                                 const BlockVector & temp,
+                                 const BlockVector & potential,
+                                 const ParFiniteElementSpace & L2FESpace,
+                                 const ParFiniteElementSpace & H1FESpace,
+                                 double omega,
+                                 const Vector & charges,
+                                 const Vector & masses,
+                                 bool realPart)
+   : B_(B),
+     density_(density),
+     temp_(temp),
+     potential_(potential),
+     L2FESpace_(L2FESpace),
+     H1FESpace_(H1FESpace),
+     omega_(omega),
+     charges_(charges),
+     masses_(masses),
+     realPart_(realPart)
+{
+   density_vals_.SetSize(charges_.Size());
+   temp_vals_.SetSize(charges_.Size());
+   potential_vals_.SetSize(2);
+}
+
+double SheathImpedance::Eval(ElementTransformation &T,
+                             const IntegrationPoint &ip)
+{
+   // Collect density, temperature, magnetic field, and potential field values
+   Vector B(3);
+   B_.GetVectorValue(T, ip, B);
+   double Bmag = B.Norml2();
+
+   for (int i=0; i<density_vals_.Size(); i++)
+   {
+      density_gf_.MakeRef(const_cast<ParFiniteElementSpace*>(&L2FESpace_),
+                          const_cast<Vector&>(density_.GetBlock(i)));
+      density_vals_[i] = density_gf_.GetValue(T, ip);
+   }
+
+   for (int i=0; i<temp_vals_.Size(); i++)
+   {
+      temperature_gf_.MakeRef(const_cast<ParFiniteElementSpace*>(&H1FESpace_),
+                              const_cast<Vector&>(temp_.GetBlock(i)));
+      temp_vals_[i] = temperature_gf_.GetValue(T, ip);
+   }
+
+   for (int i=0; i<potential_vals_.Size(); i++)
+   {
+      potential_gf_.MakeRef(const_cast<ParFiniteElementSpace*>(&H1FESpace_),
+                            const_cast<Vector&>(potential_.GetBlock(i)));
+      potential_vals_[i] = potential_gf_.GetValue(T, ip);
+   }
+
+
+   double Te = temp_vals_[0] * q_; // Electron temperature, Units: J
+   double wci = (charges_[1] * q_ * Bmag) / (masses_[1] * amu_);
+   double wpi = fabs(charges_[1] * q_) * 1.0 * sqrt(density_vals_[1] /
+                                                    (epsilon0_ * masses_[1] * amu_));
+   double vnorm = Te / (charges_[1] * q_);
+
+   double w_norm = omega_ / wpi;
+   double wci_norm = wci / wpi;
+   complex<double> volt_norm(potential_vals_[0]/vnorm, potential_vals_[1]/vnorm);
+
+   double debye_length = debye(temp_vals_[0],
+                               density_vals_[1]*1e-6); // Input temp needs to be in eV, Units: cm
+
+   Vector nor(T.GetSpaceDim());
+   CalcOrtho(T.Jacobian(), nor);
+   double normag = nor.Norml2();
+   double bn = (B * nor)/(normag*Bmag);
+
+   complex<double> zsheath_norm = 1.0 / ytot(w_norm, wci_norm, bn, volt_norm,
+                                             masses_[0], masses_[1]);
+
+   if (realPart_)
+   {
+      return (zsheath_norm.real()*9.0*1e11*1e-4*
+              (4.0*M_PI*debye_length))/wpi; // Units: Ohm m^2
+   }
+   else
+   {
+      return (zsheath_norm.imag()*9.0*1e11*1e-4*
+              (4.0*M_PI*debye_length))/wpi; // Units: Ohm m^2
+   }
+}
+
 DielectricTensor::DielectricTensor(const ParGridFunction & B,
                                    const BlockVector & density,
                                    const BlockVector & temp,
