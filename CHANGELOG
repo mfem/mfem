@@ -52,6 +52,8 @@ Improved GPU capabilities
   builds up on Element Assembly to enable Sparse Matrix assembly. All integrators
   supported by the Element Assembly are supported by the Full Assembly.
 
+- Optimized AMD/HIP kernel support.
+
 Discretization improvements
 ---------------------------
 - Added support for matrix-free interpolation and restriction operators between
