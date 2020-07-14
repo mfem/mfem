@@ -125,11 +125,6 @@ using namespace mfem::plasma;
 Coefficient * SetupRealAdmittanceCoefficient(const Mesh & mesh,
                                              const Array<int> & abcs);
 
-// Admittance for Complex-Valued Sheath Boundary Condition
-void SetupComplexAdmittanceCoefs(const Mesh & mesh, const Array<int> & sbcs,
-                                 Coefficient *& etaInvReCoef,
-                                 Coefficient *& etaInvImCoef);
-
 // Storage for user-supplied, real-valued impedance
 static Vector pw_eta_(0);      // Piecewise impedance values
 static Vector pw_eta_inv_(0);  // Piecewise inverse impedance values
@@ -361,7 +356,7 @@ int main(int argc, char *argv[])
    Vector tpp;
 
    Array<int> abcs; // Absorbing BC attributes
-   Array<int> sbcs; // Sheath BC attributes
+   Array<int> sbca; // Sheath BC attributes
    Array<int> peca; // Perfect Electric Conductor BC attributes
    Array<int> dbca1; // Dirichlet BC attributes
    Array<int> dbca2; // Dirichlet BC attributes
@@ -465,6 +460,8 @@ int main(int argc, char *argv[])
                   "3D Vector Amplitude, 2D Position, Radius");
    args.AddOption(&abcs, "-abcs", "--absorbing-bc-surf",
                   "Absorbing Boundary Condition Surfaces");
+   args.AddOption(&sbca, "-sbcs", "--sheath-bc-surf",
+                  "Sheath Boundary Condition Surfaces");
    args.AddOption(&peca, "-pecs", "--pec-bc-surf",
                   "Perfect Electrical Conductor Boundary Condition Surfaces");
    args.AddOption(&dbca1, "-dbcs1", "--dirichlet-bc-1-surf",
@@ -806,6 +803,7 @@ int main(int argc, char *argv[])
    ParGridFunction BField(&HDivFESpace);
    ParGridFunction temperature_gf;
    ParGridFunction density_gf;
+   ParGridFunction potential_gf;
 
    BField.ProjectCoefficient(BCoef);
 
@@ -813,32 +811,46 @@ int main(int argc, char *argv[])
    int size_l2 = L2FESpace.GetVSize();
 
    Array<int> density_offsets(numbers.Size() + 1);
+   Array<int> potential_offsets(3);
    Array<int> temperature_offsets(numbers.Size() + 2);
 
    density_offsets[0] = 0;
+   potential_offsets[0] = 0;
    temperature_offsets[0] = 0;
    temperature_offsets[1] = size_h1;
+
    for (int i=1; i<=numbers.Size(); i++)
    {
       density_offsets[i]     = density_offsets[i - 1] + size_l2;
       temperature_offsets[i + 1] = temperature_offsets[i] + size_h1;
    }
+   potential_offsets[1] = potential_offsets[0] + size_h1;
+   potential_offsets[2] = potential_offsets[1] + size_h1;
 
    BlockVector density(density_offsets);
+   BlockVector potential(potential_offsets);
    BlockVector temperature(temperature_offsets);
 
    if (mpi.Root())
    {
       cout << "Creating plasma profile." << endl;
    }
+
    PlasmaProfile tempCoef(tpt, tpp);
    PlasmaProfile rhoCoef(dpt, dpp);
+   ConstantCoefficient PotentReCoef(0.0);
+   ConstantCoefficient PotentImCoef(0.0);
 
    for (int i=0; i<=numbers.Size(); i++)
    {
       temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i));
       temperature_gf.ProjectCoefficient(tempCoef);
    }
+
+   potential_gf.MakeRef(&H1FESpace, potential.GetBlock(0));
+   potential_gf.ProjectCoefficient(PotentReCoef);
+   potential_gf.MakeRef(&H1FESpace, potential.GetBlock(1));
+   potential_gf.ProjectCoefficient(PotentImCoef);
 
    for (int i=0; i<charges.Size(); i++)
    {
@@ -874,10 +886,6 @@ int main(int argc, char *argv[])
    // Create a coefficient describing the surface admittance
    Coefficient * etaInvCoef = SetupRealAdmittanceCoefficient(pmesh, abcs);
 
-   Coefficient * etaInvReCoef = NULL;
-   Coefficient * etaInvImCoef = NULL;
-   SetupComplexAdmittanceCoefs(pmesh, sbcs, etaInvReCoef, etaInvImCoef);
-
    // Create tensor coefficients describing the dielectric permittivity
    DielectricTensor epsilon_real(BField, density, temperature,
                                  L2FESpace, H1FESpace,
@@ -888,6 +896,12 @@ int main(int argc, char *argv[])
    SPDDielectricTensor epsilon_abs(BField, density, temperature,
                                    L2FESpace, H1FESpace,
                                    omega, charges, masses);
+   SheathImpedance z_r(BField, density, temperature,
+                       potential, L2FESpace, H1FESpace,
+                       omega, charges, masses, true);
+   SheathImpedance z_i(BField, density, temperature,
+                       potential, L2FESpace, H1FESpace,
+                       omega, charges, masses, false);
 
    /*
    ColdPlasmaPlaneWave EReCoef(wave_type[0], omega, BVec,
@@ -920,6 +934,14 @@ int main(int argc, char *argv[])
       // ParComplexGridFunction EField(&HCurlFESpace);
       // EField.ProjectCoefficient(EReCoef, EImCoef);
 
+      /*
+      ParComplexGridFunction ZCoef(&H1FESpace);
+      // Array<int> ess_bdr(mesh->bdr_attributes.Size());
+      // ess_bdr = 1;
+      // ZCoef.ProjectBdrCoefficient(z_r, z_i, ess_bdr);
+      ZCoef.ProjectCoefficient(z_r, z_i);
+       */
+
       char vishost[] = "localhost";
       int  visport   = 19916;
 
@@ -927,10 +949,12 @@ int main(int argc, char *argv[])
       int Ww = 350, Wh = 350; // window size
       int offx = Ww+10;//, offy = Wh+45; // window offsets
 
-      socketstream /*sock_Er, sock_Ei,*/ sock_B;
+      socketstream /*sock_Er, sock_Ei, sock_zr, sock_zi, */ sock_B;
       // sock_Er.precision(8);
       // sock_Ei.precision(8);
       sock_B.precision(8);
+      // sock_zr.precision(8);
+      // sock_zi.precision(8);
 
       Wx += 2 * offx;
       /*
@@ -949,6 +973,16 @@ int main(int argc, char *argv[])
                      BField, "Background Magnetic Field",
                      Wx, Wy, Ww, Wh);
 
+      /*
+      VisualizeField(sock_zr, vishost, visport,
+                     ZCoef.real(), "Real Sheath Impedance",
+                     Wx, Wy, Ww, Wh);
+
+      VisualizeField(sock_zi, vishost, visport,
+                     ZCoef.imag(), "Imaginary Sheath Impedance",
+                     Wx, Wy, Ww, Wh);
+       */
+      /*
       for (int i=0; i<charges.Size(); i++)
       {
          Wx += offx;
@@ -963,6 +997,7 @@ int main(int argc, char *argv[])
                         density_gf, oss.str().c_str(),
                         Wx, Wy, Ww, Wh);
       }
+       */
    }
 
    if (mpi.Root())
@@ -1055,6 +1090,16 @@ int main(int argc, char *argv[])
 
    Array<ComplexVectorCoefficientByAttr> nbcs(0);
 
+   Array<ComplexCoefficientByAttr> sbcs((sbca.Size() > 0)? 1 : 0);
+   if (sbca.Size() > 0)
+   {
+      sbcs[0].real = &PotentReCoef;
+      sbcs[0].imag = &PotentImCoef;
+      sbcs[0].attr = sbca;
+      AttrToMarker(pmesh.bdr_attributes.Max(), sbcs[0].attr,
+                   sbcs[0].attr_marker);
+   }
+
    if (mpi.Root())
    {
       cout << "Creating Cold Plasma Dielectric solver." << endl;
@@ -1065,9 +1110,9 @@ int main(int argc, char *argv[])
                  (CPDSolver::SolverType)sol, solOpts,
                  (CPDSolver::PrecondType)prec,
                  conv, BCoef, epsilon_real, epsilon_imag, epsilon_abs,
-                 muInvCoef, etaInvCoef, etaInvReCoef, etaInvImCoef,
+                 muInvCoef, etaInvCoef,
                  (phase_shift) ? &kCoef : NULL,
-                 abcs, sbcs, dbcs, nbcs,
+                 abcs, dbcs, nbcs, sbcs,
                  // e_bc_r, e_bc_i,
                  // EReCoef, EImCoef,
                  (rod_params_.Size() > 0) ? j_src : NULL, NULL, vis_u);
@@ -1336,49 +1381,6 @@ SetupRealAdmittanceCoefficient(const Mesh & mesh, const Array<int> & abcs)
    }
 
    return coef;
-}
-
-// Complex Admittance is an optional pair of coefficients, defined on boundary
-// surfaces, which can be used to approximate a sheath boundary condition.
-void
-SetupComplexAdmittanceCoefs(const Mesh & mesh, const Array<int> & sbcs,
-                            Coefficient *& etaInvReCoef,
-                            Coefficient *& etaInvImCoef )
-{
-   if (pw_eta_re_.Size() > 0)
-   {
-      MFEM_VERIFY(pw_eta_re_.Size() == sbcs.Size() &&
-                  pw_eta_im_.Size() == sbcs.Size(),
-                  "Each impedance value must be associated with exactly one "
-                  "sheath boundary surface.");
-
-      pw_eta_inv_re_.SetSize(mesh.bdr_attributes.Size());
-      pw_eta_inv_im_.SetSize(mesh.bdr_attributes.Size());
-
-      if ( sbcs[0] == -1 )
-      {
-         double zmag2 = pow(pw_eta_re_[0], 2) + pow(pw_eta_im_[0], 2);
-         pw_eta_inv_re_ =  pw_eta_re_[0] / zmag2;
-         pw_eta_inv_im_ = -pw_eta_im_[0] / zmag2;
-      }
-      else
-      {
-         pw_eta_inv_re_ = 0.0;
-         pw_eta_inv_im_ = 0.0;
-
-         for (int i=0; i<pw_eta_re_.Size(); i++)
-         {
-            double zmag2 = pow(pw_eta_re_[i], 2) + pow(pw_eta_im_[i], 2);
-            if ( zmag2 > 0.0 )
-            {
-               pw_eta_inv_re_[sbcs[i]-1] =  pw_eta_re_[i] / zmag2;
-               pw_eta_inv_im_[sbcs[i]-1] = -pw_eta_im_[i] / zmag2;
-            }
-         }
-      }
-      etaInvReCoef = new PWConstCoefficient(pw_eta_inv_re_);
-      etaInvImCoef = new PWConstCoefficient(pw_eta_inv_im_);
-   }
 }
 
 void rod_current_source(const Vector &x, Vector &j)
