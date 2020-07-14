@@ -1280,8 +1280,8 @@ CPDSolver::Solve()
 
    tic_toc.Stop();
 
-   e_->Distribute(E);
-
+   a1_->RecoverFEMSolution(E, *rhs_, *e_);
+   
    // Update D = epsilon E
    {
       HypreParMatrix M2;
