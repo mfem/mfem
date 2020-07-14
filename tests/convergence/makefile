@@ -31,8 +31,6 @@ endif
 .PHONY: all clean
 .PRECIOUS: %.o
 
-COMMON_O= conv_rates.o
-
 # Remove built-in rules
 %: %.cpp
 %.o: %.cpp
@@ -41,11 +39,11 @@ all: $(TESTS)
 
 # Rules for building the TESTS
 
-%: $(SRC)%.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_O) $(MFEM_LIBS)
+%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
 # Rules for compiling miniapp dependencies
-$(COMMON_O) $($(TESTS)): \
+$($(TESTS)): \
 %.o: $(SRC)%.cpp $(SRC)%.hpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
 
@@ -56,6 +54,5 @@ $(MFEM_LIB_FILE):
 clean:
 	rm -f *.o *~ $(SEQ_TESTS) $(PAR_TESTS)
 	rm -rf *.dSYM *.TVD.*breakpoints
-	rm -rf refined.mesh sol.gf
 
 
