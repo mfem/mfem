@@ -25,7 +25,7 @@
 //               ex24 -m ../data/beam-hex.mesh -pa -d cuda
 //
 // Description:  This example code illustrates usage of mixed finite element
-//               spaces, with two variants:
+//               spaces, with three variants:
 //
 //               1) (grad p, u) for p in H^1 tested against u in H(curl)
 //               2) (curl v, u) for v in H(curl) tested against u in H(div), 3D
@@ -128,12 +128,12 @@ int main(int argc, char *argv[])
    else if (prob == 1)
    {
       trial_fec = new ND_FECollection(order, dim);
-      test_fec = new RT_FECollection(order - 1, dim);
+      test_fec = new RT_FECollection(order-1, dim);
    }
    else
    {
-      trial_fec = new RT_FECollection(order - 1, dim);
-      test_fec = new L2_FECollection(order - 1, dim);
+      trial_fec = new RT_FECollection(order-1, dim);
+      test_fec = new L2_FECollection(order-1, dim);
    }
 
    FiniteElementSpace trial_fes(mesh, trial_fec);
