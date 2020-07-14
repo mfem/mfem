@@ -26,10 +26,10 @@ ComplexOperator::ComplexOperator(Operator * Op_Real, Operator * Op_Imag,
    , ownReal_(ownReal)
    , ownImag_(ownImag)
    , convention_(convention)
-   , x_r_(NULL, width / 2)
-   , x_i_(NULL, width / 2)
-   , y_r_(NULL, height / 2)
-   , y_i_(NULL, height / 2)
+   , x_r_(NULL)
+   , x_i_(NULL)
+   , y_r_(NULL)
+   , y_i_(NULL)
    , u_(NULL)
    , v_(NULL)
 {}
@@ -71,22 +71,28 @@ void ComplexOperator::Mult(const Vector &x, Vector &y) const
    x.Read();
    y.UseDevice(true); y = 0.0;
 
-   x_r_.MakeRef(const_cast<Vector&>(x), 0);
-   x_i_.MakeRef(const_cast<Vector&>(x), width/2);
+   x_r_.MakeRef(const_cast<Vector&>(x), 0, width/2);
+   x_i_.MakeRef(const_cast<Vector&>(x), width/2, width/2);
 
-   y_r_.MakeRef(y, 0);
-   y_i_.MakeRef(y, height/2);
+   y_r_.MakeRef(y, 0, height/2);
+   y_i_.MakeRef(y, height/2, height/2);
 
    this->Mult(x_r_, x_i_, y_r_, y_i_);
 
    y_r_.SyncAliasMemory(y);
    y_i_.SyncAliasMemory(y);
+
+   // Remark: Temporary fix to eliminate issue of dangling aliases
+   //         when the base vectors are deleted
+   x_r_.Destroy();
+   x_i_.Destroy();
+   y_r_.Destroy();
+   y_i_.Destroy();
 }
 
 void ComplexOperator::Mult(const Vector &x_r, const Vector &x_i,
                            Vector &y_r, Vector &y_i) const
 {
-
    if (Op_Real_)
    {
       Op_Real_->Mult(x_r, y_r);
@@ -121,16 +127,23 @@ void ComplexOperator::MultTranspose(const Vector &x, Vector &y) const
    x.Read();
    y.UseDevice(true); y = 0.0;
 
-   y_r_.MakeRef(const_cast<Vector&>(x), 0);
-   y_i_.MakeRef(const_cast<Vector&>(x), height/2);
+   x_r_.MakeRef(const_cast<Vector&>(x), 0, height/2);
+   x_i_.MakeRef(const_cast<Vector&>(x), height/2, height/2);
 
-   x_r_.MakeRef(y, 0);
-   x_i_.MakeRef(y, width/2);
+   y_r_.MakeRef(y, 0, width/2);
+   y_i_.MakeRef(y, width/2, width/2);
 
-   this->MultTranspose(y_r_, y_i_, x_r_, x_i_);
+   this->MultTranspose(x_r_, x_i_, y_r_, y_i_);
 
-   x_r_.SyncAliasMemory(y);
-   x_i_.SyncAliasMemory(y);
+   y_r_.SyncAliasMemory(y);
+   y_i_.SyncAliasMemory(y);
+
+   // Remark: Temporary fix to eliminate issue of dangling aliases
+   //         when the base vectors are deleted
+   x_r_.Destroy();
+   x_i_.Destroy();
+   y_r_.Destroy();
+   y_i_.Destroy();
 }
 
 void ComplexOperator::MultTranspose(const Vector &x_r, const Vector &x_i,
