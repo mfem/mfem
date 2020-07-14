@@ -984,6 +984,7 @@ void hypre_CSRMatrixAbsMatvec(hypre_CSRMatrix *A,
                               HYPRE_Real beta,
                               HYPRE_Real *y)
 {
+   HYPRE_Real       *A_data  = hypre_CSRMatrixData(A);
    HYPRE_Int        *A_i      = hypre_CSRMatrixI(A);
    HYPRE_Int        *A_j      = hypre_CSRMatrixJ(A);
    HYPRE_Int         num_rows = hypre_CSRMatrixNumRows(A);
@@ -991,7 +992,6 @@ void hypre_CSRMatrixAbsMatvec(hypre_CSRMatrix *A,
    HYPRE_Int        *A_rownnz = hypre_CSRMatrixRownnz(A);
    HYPRE_Int         num_rownnz = hypre_CSRMatrixNumRownnz(A);
 
-   HYPRE_Real       *A_data  = hypre_CSRMatrixData(A);
    HYPRE_Real       *x_data = x;
    HYPRE_Real       *y_data = y;
 
@@ -1014,7 +1014,7 @@ void hypre_CSRMatrixAbsMatvec(hypre_CSRMatrix *A,
 #endif
       for (i = 0; i < num_rows; i++)
       {
-         y_data[i] = beta*y_data[i];
+         y_data[i] *= beta;
       }
       return;
    }
