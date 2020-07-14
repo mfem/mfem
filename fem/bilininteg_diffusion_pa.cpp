@@ -1546,9 +1546,8 @@ static void SmemPADiffusionApply3D(const int NE,
    });
 }
 
-// For SmemPADiffusionApply3D, half of B and G are stored
-// in shared to get B, Bt, G and Gt.
-// Indices computation for SmemPADiffusionApply3D
+// For SmemPADiffusionApply3D, half of B and G are stored in shared to get B,
+// Bt, G and Gt. Indices computation for SmemPADiffusionApply3D.
 static MFEM_HOST_DEVICE inline int qi(const int q, const int d, const int Q)
 {
    return (q<=d) ? q : Q-1-q;
