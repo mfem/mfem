@@ -416,7 +416,7 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    {
       // Modify RHS and offdiagonal blocks (imaginary parts of the matrix) to
       // conform with standard essential BC treatment
-      if (A_i.Type() != Operator::MFEM_SPARSEMAT)
+      if (A_i.Is<ConstrainedOperator>())
       {
          int n = ess_tdof_list.Size();
          for (int k = 0; k < n; k++)
@@ -490,7 +490,7 @@ SesquilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
    {
       // Modify offdiagonal blocks (imaginary parts of the matrix) to conform
       // with standard essential BC treatment
-      if ( A_i.Type() != Operator::MFEM_SPARSEMAT )
+      if (A_i.Is<ConstrainedOperator>())
       {
          A_i.As<ConstrainedOperator>()->SetDiagonalPolicy
          (mfem::Operator::DiagonalPolicy::DIAG_ZERO);
