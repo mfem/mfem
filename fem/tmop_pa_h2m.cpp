@@ -166,7 +166,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
 
                   const double *Jtr = &J(0,0,qx,qy,e);
                   const double detJtr = kernels::Det<2>(Jtr);
-                  if (detJtr != 1.0) { printf("\033[31m[ERROR]\033[m"); }
+                  //if (detJtr != 1.0) { printf("\033[31m[ERROR]\033[m"); }
 
                   // J = Jrt = Jtr^{-1}
                   double Jrt[4];
@@ -175,42 +175,42 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
                   const double bg[4] = {BB, GB, BG, GG};
                   ConstDeviceMatrix K(bg,2,2);
 
-                  double B[4];
-                  DeviceMatrix M(B,2,2);
+                  double B_[4];
+                  DeviceMatrix M(B_,2,2);
                   ConstDeviceMatrix J(Jrt,2,2);
                   for (int i = 0; i < DIM; i++)
                   {
                      for (int j = 0; j < DIM; j++)
                      {
                         M(i,j) = 0.0;
-                        for (int r = 0; r < DIM; r++)
+                        //for (int r = 0; r < DIM; r++)
                         {
-                           for (int c = 0; c < DIM; c++)
+                           //for (int c = 0; c < DIM; c++)
                            {
-                              M(i,j) += K(i,j) * H(r,c,i,j,qx,qy,e) * J(r,j);
+                              M(i,j) /*+*/= K(i,j) * H(r,i,r,j,qx,qy,e) ;//* J(r,i);
                            }
                         }
                      }
                   }
+                  /*QD_00[qx][dy] += M(0,0);
+                  QD_01[qx][dy] += M(0,1);
+                  QD_10[qx][dy] += M(1,0);
+                  QD_11[qx][dy] += M(1,1);*/
+
                   // C = Jrt . B
                   double C[4];
-                  kernels::MultABt(2,2,2, Jrt, B, C);
-                  ConstDeviceMatrix D(C,2,2);
-                  QD_00[qx][dy] += D(0,0);
-                  QD_01[qx][dy] += D(0,1);
-                  QD_10[qx][dy] += D(1,0);
-                  QD_11[qx][dy] += D(1,1);
+                  kernels::MultABt(2,2,2, Jrt, B_, C);
+                  ConstDeviceMatrix G(C,2,2);
+                  QD_00[qx][dy] += G(0,0);
+                  QD_01[qx][dy] += G(0,1);
+                  QD_10[qx][dy] += G(1,0);
+                  QD_11[qx][dy] += G(1,1);
 #else
-                  QD_00[qx][dy] += BB * H(r,0,r,0,qx,qy,e);
-                  QD_01[qx][dy] += GB * H(r,0,r,1,qx,qy,e);
-                  QD_10[qx][dy] += BG * H(r,1,r,0,qx,qy,e);
-                  QD_11[qx][dy] += GG * H(r,1,r,1,qx,qy,e);
-                  /*
-                  QD_00[qx][dy] += GG * H(r,0,r,0,qx,qy,e) ;//* J(r,0);
-                  QD_01[qx][dy] += GB * H(r,0,r,1,qx,qy,e) ;//* J(r,0);
-                  QD_10[qx][dy] += BG * H(r,1,r,0,qx,qy,e) ;//* J(r,1);
-                  QD_11[qx][dy] += BB * H(r,1,r,1,qx,qy,e) ;//* J(r,1);
-                  */
+                  ConstDeviceMatrix J(Jrt,2,2);
+                  QD_00[qx][dy] += BB * H(r,0,r,0,qx,qy,e) * J(r,0)*J(0,r);
+                  QD_01[qx][dy] += GB * H(r,0,r,1,qx,qy,e) ;//* J(r,1)*J(0,r);
+                  QD_10[qx][dy] += BG * H(r,1,r,0,qx,qy,e) ;//* J(r,0)*J(1,r);
+                  QD_11[qx][dy] += GG * H(r,1,r,1,qx,qy,e) ;//* J(r,1)*J(1,r);
 #endif
                }
             }
