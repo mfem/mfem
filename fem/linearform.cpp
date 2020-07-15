@@ -209,8 +209,7 @@ void LinearForm::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
    MFEM_ASSERT(v.Size() >= v_offset + f->GetVSize(), "");
    fes = f;
    v.UseDevice(true);
-   NewMemoryAndSize(Memory<double>(v.GetMemory(), v_offset, fes->GetVSize()),
-                    fes->GetVSize(), true);
+   this->Vector::MakeRef(v, v_offset, fes->GetVSize());
 }
 
 void LinearForm::AssembleDelta()
