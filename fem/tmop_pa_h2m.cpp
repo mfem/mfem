@@ -100,6 +100,8 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_2D,
             // C = Jrt . B
             double C[4];
             kernels::MultABt(2,2,2, Jrt, B, C);
+
+            // Overwrite QQ = Jrt . (Jpt : H)^t
             kernels::PushGradXY<MQ1,NBZ>(qx,qy, C, QQ);
          }
       }
@@ -108,6 +110,118 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_2D,
       kernels::GradYt<MD1,MQ1,NBZ>(D1D,Q1D,BG,QQ,DQ);
       kernels::GradXt<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,Y,e);
    });
+}
+
+MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
+                           const int NE,
+                           const Array<double> &b,
+                           const Array<double> &g,
+                           const DenseTensor &j,
+                           const Vector &h,
+                           Vector &diagonal,
+                           const int d1d,
+                           const int q1d)
+{
+   constexpr int DIM = 2;
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   const auto B = Reshape(b.Read(), Q1D, D1D);
+   const auto G = Reshape(g.Read(), Q1D, D1D);
+   const auto J = Reshape(j.Read(), DIM, DIM, Q1D, Q1D, NE);
+   const auto H = Reshape(h.Read(), DIM, DIM, DIM, DIM, Q1D, Q1D, NE);
+   auto diag = Reshape(diagonal.ReadWrite(), D1D, D1D, 2, NE);
+
+   MFEM_FORALL(e, NE,
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+
+      for (int r = 0; r < DIM; r++)
+      {
+         double diag_00[MQ1][MD1];
+         double diag_01[MQ1][MD1];
+         double diag_10[MQ1][MD1];
+         double diag_11[MQ1][MD1];
+         for (int qy = 0; qy < Q1D; qy++)
+         {
+            for (int dx = 0; dx < D1D; dx++)
+            {
+               diag_00[qy][dx] = 0.0;
+               diag_01[qy][dx] = 0.0;
+               diag_10[qy][dx] = 0.0;
+               diag_11[qy][dx] = 0.0;
+               for (int qx = 0; qx < Q1D; qx++)
+               {
+                  const double *Jtr = &J(0,0,qx,qy,e);
+                  // Jrt = Jtr^{-1}
+                  double Jrt[4];
+                  kernels::CalcInverse<2>(Jtr, Jrt);
+                  ConstDeviceMatrix J(Jrt,2,2);
+
+                  /*
+                  for (int cc = 0; cc < dim; cc++)
+                  {
+                     A(e, i + r*dof, i + r*dof) +=
+                           weight * DS(i, c) * DS(i, cc) * h(r, c, r, cc);
+                  }
+                  */
+
+                  diag_00[qy][dx] += G(dx, qx) * G(dx, qx) * H(r, 0, r, 0, qx, qy, e) * J(r, 0) * J(r, 1);
+                  diag_01[qy][dx] += G(dx, qx) * B(dx, qx) * H(r, 0, r, 1, qx, qy, e) * J(r, 0) * J(r, 1);
+                  diag_10[qy][dx] += B(dx, qx) * G(dx, qx) * H(r, 1, r, 0, qx, qy, e) * J(r, 1) * J(r, 0);
+                  diag_11[qy][dx] += B(dx, qx) * B(dx, qx) * H(r, 1, r, 1, qx, qy, e) * J(r, 1) * J(r, 0);
+               }
+            }
+         }
+
+         for (int dx = 0; dx < D1D; dx++)
+         {
+            for (int dy = 0; dy < D1D; dy++)
+            {
+               for (int qy = 0; qy < Q1D; qy++)
+               {
+                  diag(dx, dy, r, e) += B(dy, qy) * B(dy, qy) * diag_00[qy][dx];
+                  diag(dx, dy, r, e) += B(dy, qy) * G(dy, qy) * diag_01[qy][dx];
+                  diag(dx, dy, r, e) += G(dy, qy) * B(dy, qy) * diag_10[qy][dx];
+                  diag(dx, dy, r, e) += G(dy, qy) * G(dy, qy) * diag_11[qy][dx];
+               }
+            }
+         }
+      }
+   });
+
+   /* // Original i-j assembly (old invariants code).
+   for (int e = 0; e < NE; e++)
+   {
+      for (int q = 0; q < nqp; q++)
+      {
+         el.CalcDShape(ip, DSh);
+         Mult(DSh, Jrt, DS);
+         for (int i = 0; i < dof; i++)
+         {
+            for (int j = 0; j < dof; j++)
+            {
+               for (int r = 0; r < dim; r++)
+               {
+                  for (int c = 0; c < dim; c++)
+                  {
+                     for (int rr = 0; rr < dim; rr++)
+                     {
+                        for (int cc = 0; cc < dim; cc++)
+                        {
+                           A(e, i + r*dof, j + rr*dof) +=
+                                 weight_q * DS(i, c) * DS(j, cc) * h(r, c, rr, cc);
+                        }
+                     }
+                  }
+               }
+            }
+         }
+      }
+   } */
 }
 
 void TMOP_Integrator::AddMultGradPA_2D(const Vector &R, Vector &C) const
@@ -122,6 +236,20 @@ void TMOP_Integrator::AddMultGradPA_2D(const Vector &R, Vector &C) const
    const Vector &H = PA.H;
 
    MFEM_LAUNCH_TMOP_KERNEL(AddMultGradPA_Kernel_2D,id,N,B,G,J,H,R,C);
+}
+
+void TMOP_Integrator::AssembleDiagonalPA_2D(Vector &diag)
+{
+   const int N = PA.ne;
+   const int D1D = PA.maps->ndof;
+   const int Q1D = PA.maps->nqpt;
+   const int id = (D1D << 4 ) | Q1D;
+   const DenseTensor &J = PA.Jtr;
+   const Array<double> &B = PA.maps->B;
+   const Array<double> &G = PA.maps->G;
+   const Vector &H = PA.H;
+
+   MFEM_LAUNCH_TMOP_KERNEL(AssembleDiagonalPA_Kernel_2D,id,N,B,G,J,H,diag);
 }
 
 } // namespace mfem

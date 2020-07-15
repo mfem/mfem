@@ -31,6 +31,9 @@
 //
 // Compile with: make pmesh-optimizer
 //
+// Diagonal test:
+//     mpirun -np 1 pmesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -pa -d cpu
+//
 // Sample runs:
 //   Adapted analytic shape:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
@@ -662,7 +665,7 @@ int main (int argc, char *argv[])
    //     scaled by used-defined space-dependent weights.  Note that there are
    //     no command-line options for the weights and the type of the second
    //     metric; one should update those in the code.
-   ParNonlinearForm a(pfespace);
+   ParNonlinearForm a(pfespace), a_fa(pfespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    ConstantCoefficient *coeff1 = NULL;
    TMOP_QualityMetric *metric2 = NULL;
@@ -699,9 +702,24 @@ int main (int argc, char *argv[])
 
       a.AddDomainIntegrator(combo);
    }
-   else { a.AddDomainIntegrator(he_nlf_integ); }
+   else
+   {
+      a.AddDomainIntegrator(he_nlf_integ);
+      a_fa.AddDomainIntegrator(he_nlf_integ);
+   }
 
    if (pa) { a.Setup(); }
+
+   Vector diag;
+   he_nlf_integ->AssembleDiagonalPA(diag);
+   std::cout << "PA:     " << diag.Size() << " " << diag.Norml1() << std::endl;
+
+   const SparseMatrix &s = a_fa.GetLocalGradient(x);
+   Vector dsp;
+   s.GetDiag(dsp);
+   std::cout << "LEGACY: " << dsp.Size() << " " << dsp.Norml1() << std::endl;
+
+   MFEM_ABORT("test");
 
    const double init_energy = a.GetParGridFunctionEnergy(x);
 
