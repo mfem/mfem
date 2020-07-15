@@ -483,7 +483,7 @@ SesquilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
    }
    if (!RealInteg() && !ImagInteg())
    {
-      MFEM_ABORT("Both Real and Imag part of the Sesquilinear form are empty");
+      MFEM_ABORT("Both Real and Imaginary part of the Sesquilinear form are empty");
    }
 
    if (RealInteg() && ImagInteg())
@@ -1118,7 +1118,7 @@ ParSesquilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
    }
    if (!RealInteg() && !ImagInteg())
    {
-      MFEM_ABORT("Both Real and Imag part of the Sesquilinear form are empty");
+      MFEM_ABORT("Both Real and Imaginary part of the Sesquilinear form are empty");
    }
 
    if (RealInteg() && ImagInteg())
