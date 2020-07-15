@@ -592,7 +592,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
                             new VectorFEMassIntegrator(*massImCoef_));
    if ( kCoef_ )
    {
-      if (pa_) { cout << "kCoef_ domain integrator" << endl; }
+      if (pa_) { cout << "WARNING: kCoef_ domain integrator (PA)" << endl; }
       a1_->AddDomainIntegrator(new VectorFEMassIntegrator(*negMuInvkxkxCoef_),
                                NULL);
       a1_->AddDomainIntegrator(NULL,
@@ -602,13 +602,13 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    }
    if ( abcCoef_ )
    {
-      if (pa_) { cout << "abcCoef_ boundary integrator" << endl; }
+      if (pa_) { cout << "WARNING: abcCoef_ boundary integrator (PA)" << endl; }
       a1_->AddBoundaryIntegrator(NULL, new VectorFEMassIntegrator(*abcCoef_),
                                  abc_marker_);
    }
    if ( sbcReCoef_ && sbcImCoef_ )
    {
-      if (pa_) { cout << "sbcCoef_ boundary integrator" << endl; }
+      if (pa_) { cout << "WARNING: sbcCoef_ boundary integrator (PA)" << endl; }
       a1_->AddBoundaryIntegrator(new VectorFEMassIntegrator(*sbcReCoef_),
                                  new VectorFEMassIntegrator(*sbcImCoef_),
                                  sbc_marker_);
@@ -971,9 +971,6 @@ CPDSolver::Solve()
    // cout << "Norm of jd (post-fls): " << jd_->Norml2() << endl;
    // cout << "Norm of RHS: " << RHS.Norml2() << endl;
 
-   OperatorHandle PCOp;
-   b1_->FormSystemMatrix(ess_bdr_tdofs_, PCOp);
-
    tic_toc.Clear();
    tic_toc.Start();
 
@@ -1002,25 +999,11 @@ CPDSolver::Solve()
             MFEM_ABORT("Requested preconditioner is not available with PA.");
             break;
       }
-      if (pcr && conv_ != ComplexOperator::HERMITIAN)
-      {
-         pci = new ScaledOperator(pcr, -1.0);
-      }
-      else
-      {
-         pci = pcr;
-      }
-
-      if (pcr)
-      {
-         BDP = new BlockDiagonalPreconditioner(blockTrueOffsets_);
-         BDP->SetDiagonalBlock(0, pcr);
-         BDP->SetDiagonalBlock(1, pci);
-         BDP->owns_blocks = 0;
-      }
    }
    else if (sol_ == GMRES || sol_ == FGMRES || sol_ == MINRES)
    {
+      OperatorHandle PCOp;
+      b1_->FormSystemMatrix(ess_bdr_tdofs_, PCOp);
       switch (prec_)
       {
          case INVALID_PC:
@@ -1068,24 +1051,23 @@ CPDSolver::Solve()
             MFEM_ABORT("Requested preconditioner is not available.");
             break;
       }
-      if (pcr && conv_ != ComplexOperator::HERMITIAN)
-      {
-         pci = new ScaledOperator(pcr, -1.0);
-      }
-      else
-      {
-         pci = pcr;
-      }
-
-      if (pcr)
-      {
-         BDP = new BlockDiagonalPreconditioner(blockTrueOffsets_);
-         BDP->SetDiagonalBlock(0, pcr);
-         BDP->SetDiagonalBlock(1, pci);
-         BDP->owns_blocks = 0;
-      }
    }
 
+   if (pcr && conv_ != ComplexOperator::HERMITIAN)
+   {
+      pci = new ScaledOperator(pcr, -1.0);
+   }
+   else
+   {
+      pci = pcr;
+   }
+   if (pcr)
+   {
+      BDP = new BlockDiagonalPreconditioner(blockTrueOffsets_);
+      BDP->SetDiagonalBlock(0, pcr);
+      BDP->SetDiagonalBlock(1, pci);
+      BDP->owns_blocks = 0;
+   }
 
    switch (sol_)
    {
@@ -1121,8 +1103,6 @@ CPDSolver::Solve()
          fgmres.SetPrintLevel(solOpts_.printLvl);
 
          fgmres.Mult(RHS, E);
-
-         // delete B1;
       }
       break;
       case MINRES:
