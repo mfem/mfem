@@ -160,6 +160,10 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
                QD_11[qx][dy] = 0.0;
                for (int qy = 0; qy < Q1D; ++qy)
                {
+                  const double GG = G(qy,dy) * G(qy,dy);
+                  const double GB = G(qy,dy) * B(qy,dy), BG = GB;
+                  const double BB = B(qy,dy) * B(qy,dy);
+
                   const double *Jtr = &J(0,0,qx,qy,e);
                   const double detJtr = kernels::Det<2>(Jtr);
                   if (detJtr != 1.0) { printf("\033[31m[ERROR]\033[m"); }
@@ -167,16 +171,47 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
                   // J = Jrt = Jtr^{-1}
                   double Jrt[4];
                   kernels::CalcInverse<2>(Jtr, Jrt);
-                  ConstDeviceMatrix M(Jrt,2,2);
+#if 0
+                  const double bg[4] = {BB, GB, BG, GG};
+                  ConstDeviceMatrix K(bg,2,2);
 
-                  const double GG = G(qy,dy) * G(qy,dy);
-                  const double GB = G(qy,dy) * B(qy,dy), BG = GB;
-                  const double BB = B(qy,dy) * B(qy,dy);
-
-                  QD_00[qx][dy] += GG * H(r,0,r,0,qx,qy,e);
+                  double B[4];
+                  DeviceMatrix M(B,2,2);
+                  ConstDeviceMatrix J(Jrt,2,2);
+                  for (int i = 0; i < DIM; i++)
+                  {
+                     for (int j = 0; j < DIM; j++)
+                     {
+                        M(i,j) = 0.0;
+                        for (int r = 0; r < DIM; r++)
+                        {
+                           for (int c = 0; c < DIM; c++)
+                           {
+                              M(i,j) += K(i,j) * H(r,c,i,j,qx,qy,e) * J(r,j);
+                           }
+                        }
+                     }
+                  }
+                  // C = Jrt . B
+                  double C[4];
+                  kernels::MultABt(2,2,2, Jrt, B, C);
+                  ConstDeviceMatrix D(C,2,2);
+                  QD_00[qx][dy] += D(0,0);
+                  QD_01[qx][dy] += D(0,1);
+                  QD_10[qx][dy] += D(1,0);
+                  QD_11[qx][dy] += D(1,1);
+#else
+                  QD_00[qx][dy] += BB * H(r,0,r,0,qx,qy,e);
                   QD_01[qx][dy] += GB * H(r,0,r,1,qx,qy,e);
                   QD_10[qx][dy] += BG * H(r,1,r,0,qx,qy,e);
-                  QD_11[qx][dy] += BB * H(r,1,r,1,qx,qy,e);
+                  QD_11[qx][dy] += GG * H(r,1,r,1,qx,qy,e);
+                  /*
+                  QD_00[qx][dy] += GG * H(r,0,r,0,qx,qy,e) ;//* J(r,0);
+                  QD_01[qx][dy] += GB * H(r,0,r,1,qx,qy,e) ;//* J(r,0);
+                  QD_10[qx][dy] += BG * H(r,1,r,0,qx,qy,e) ;//* J(r,1);
+                  QD_11[qx][dy] += BB * H(r,1,r,1,qx,qy,e) ;//* J(r,1);
+                  */
+#endif
                }
             }
          }
@@ -191,10 +226,10 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
                   const double GG = G(qx,dx) * G(qx,dx);
                   const double GB = G(qx,dx) * B(qx,dx), BG = GB;
                   const double BB = B(qx,dx) * B(qx,dx);
-                  d += BB * QD_00[qx][dy];
-                  d += BG * QD_01[qx][dy];
-                  d += GB * QD_10[qx][dy];
-                  d += GG * QD_11[qx][dy];
+                  d += GG * QD_00[qx][dy];
+                  d += GB * QD_01[qx][dy];
+                  d += BG * QD_10[qx][dy];
+                  d += BB * QD_11[qx][dy];
                }
                D(dx,dy,r,e) += d;
             }
@@ -225,12 +260,12 @@ void TMOP_Integrator::AssembleDiagonalPA_2D(Vector &diag)
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
    const double mn = metric_normal;
-   dbg("metric_normal:%.15e",metric_normal);
+   //dbg("metric_normal:%.15e",metric_normal);
    const DenseTensor &J = PA.Jtr;
-   dbg("J:"); J(0).Print();
+   //dbg("J:"); J(0).Print();
    const IntegrationRule *ir = IntRule;
    const Array<double> &W = ir->GetWeights();
-   dbg("W:"); W.Print();
+   //dbg("W:"); W.Print();
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
    const Vector &H = PA.H;
