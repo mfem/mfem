@@ -986,7 +986,6 @@ void AnalyticAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
                                                     IsoparametricTransformation &Tpr,
                                                     DenseTensor &dJtr) const
 {
-   const int e_id = Tpr.ElementNo;
    const FiniteElement *fe = Tpr.GetFE();
    DenseMatrix point_mat;
    point_mat.UseExternalData(elfun.GetData(), fe->GetDof(), fe->GetDim());
