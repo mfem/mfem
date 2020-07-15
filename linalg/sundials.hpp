@@ -357,7 +357,6 @@ public:
 
       \param[in] reltol the scalar relative error tolerance
       \param[in] abstol the vector of absolute error tolerances
-
    */
    void SetSVtolerancesB(double reltol, Vector abstol);
 
