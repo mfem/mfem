@@ -714,7 +714,7 @@ public:
        the same size.
 
        @note Defining this method overwrites the implicitly defined copy
-       assignemnt operator. */
+       assignment operator. */
    QuadratureFunction &operator=(const QuadratureFunction &v);
 
    /// Get the IntegrationRule associated with mesh element @a idx.
