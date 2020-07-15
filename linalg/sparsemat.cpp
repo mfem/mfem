@@ -494,24 +494,29 @@ void SparseMatrix::GetDiag(Vector & d) const
 
    d.SetSize(height);
 
-   int j, end;
-   for (int i = 0; i < height; i++)
-   {
+   auto I = this->ReadI();
+   auto J = this->ReadJ();
+   auto A = this->ReadData();
+   auto dd = d.Write();
 
-      end = I[i+1];
-      for (j = I[i]; j < end; j++)
+   MFEM_FORALL(i, height,
+   {
+      const int begin = I[i];
+      const int end = I[i+1];
+      int j;
+      for (j = begin; j < end; j++)
       {
          if (J[j] == i)
          {
-            d[i] = A[j];
+            dd[i] = A[j];
             break;
          }
       }
       if (j == end)
       {
-         d[i] = 0.;
+         dd[i] = 0.;
       }
-   }
+   });
 }
 
 /// Produces a DenseMatrix from a SparseMatrix
@@ -2164,16 +2169,13 @@ void SparseMatrix::DiagScale(const Vector &b, Vector &x, double sc) const
       {
          if (j == end)
          {
-            printf("Couldn't find diagonal in row. i = %d, j = %d, I[i+1] = %d\n",
-            i, j, end);
-            MFEM_ABORT_KERNEL
+            MFEM_ABORT_KERNEL("Diagonal not found in SparseMatrix::DiagScale");
          }
          if (Jp[j] == i)
          {
             if (!(std::abs(Ap[j]) > 0.0))
             {
-               printf("Diagonal %d must be nonzero\n", j);
-               MFEM_ABORT_KERNEL
+               MFEM_ABORT_KERNEL("Zero diagonal in SparseMatrix::DiagScale");
             }
 
             if (scale)
@@ -2767,6 +2769,10 @@ void SparseMatrix::Print(std::ostream & out, int _width) const
       return;
    }
 
+   // HostRead forces synchronization
+   HostReadI();
+   HostReadJ();
+   HostReadData();
    for (i = 0; i < height; i++)
    {
       out << "[row " << i << "]\n";
