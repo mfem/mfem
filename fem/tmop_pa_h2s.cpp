@@ -11,6 +11,7 @@
 
 #include "tmop.hpp"
 #include "tmop_pa.hpp"
+#include "../general/debug.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 #include "../linalg/dinvariants.hpp"
@@ -195,6 +196,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_2D,
 
 void TMOP_Integrator::AssembleGradPA_2D(const Vector &X) const
 {
+   dbg();
    const int N = PA.ne;
    const int M = metric->Id();
    const int D1D = PA.maps->ndof;

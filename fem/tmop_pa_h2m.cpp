@@ -115,6 +115,8 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_2D,
 
 MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
                            const int NE,
+                           const double metric_normal,
+                           const Array<double> &w_,
                            const Array<double> &b,
                            const Array<double> &g,
                            const DenseTensor &j,
@@ -127,11 +129,13 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
+   const auto W = Reshape(w_.Read(), Q1D, Q1D);
    const auto B = Reshape(b.Read(), Q1D, D1D);
    const auto G = Reshape(g.Read(), Q1D, D1D);
    const auto J = Reshape(j.Read(), DIM, DIM, Q1D, Q1D, NE);
    const auto H = Reshape(h.Read(), DIM, DIM, DIM, DIM, Q1D, Q1D, NE);
-   auto diag = Reshape(diagonal.ReadWrite(), D1D, D1D, 2, NE);
+
+   auto D = Reshape(diagonal.ReadWrite(), D1D, D1D, DIM, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -140,41 +144,44 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
 
+      double QD_00[MQ1][MD1];
+      double QD_01[MQ1][MD1];
+      double QD_10[MQ1][MD1];
+      double QD_11[MQ1][MD1];
       for (int r = 0; r < DIM; r++)
       {
-         double diag_00[MQ1][MD1];
-         double diag_01[MQ1][MD1];
-         double diag_10[MQ1][MD1];
-         double diag_11[MQ1][MD1];
          for (int qy = 0; qy < Q1D; qy++)
          {
             for (int dx = 0; dx < D1D; dx++)
             {
-               diag_00[qy][dx] = 0.0;
-               diag_01[qy][dx] = 0.0;
-               diag_10[qy][dx] = 0.0;
-               diag_11[qy][dx] = 0.0;
+               QD_00[qy][dx] = 0.0;
+               QD_01[qy][dx] = 0.0;
+               QD_10[qy][dx] = 0.0;
+               QD_11[qy][dx] = 0.0;
                for (int qx = 0; qx < Q1D; qx++)
                {
                   const double *Jtr = &J(0,0,qx,qy,e);
-                  // Jrt = Jtr^{-1}
+                  const double detJtr = kernels::Det<2>(Jtr);
+                  if (detJtr != 1.0) { printf("\033[31m[ERROR]\033[m"); }
+                  //const double w = 1.0;//metric_normal * W(qx,qy) * detJtr;
+
+                  {
+                     //printf("\n\033[31m[DiagPA_2D] w=%.15e\033[m", w);
+                  }
+
+                  // J = Jrt = Jtr^{-1}
                   double Jrt[4];
                   kernels::CalcInverse<2>(Jtr, Jrt);
-                  ConstDeviceMatrix J(Jrt,2,2);
-                  /*
-                  for (int cc = 0; cc < dim; cc++)
-                  {
-                     A(e, i + r*dof, i + r*dof) +=
-                           weight * DS(i, c) * DS(i, cc) * h(r, c, r, cc);
-                  }
-                  */
+                  ConstDeviceMatrix M(Jrt,2,2);
+
                   const double GG = G(dx,qx) * G(dx,qx);
-                  const double GB = G(dx,qx) * B(dx,qx);
+                  const double GB = G(dx,qx) * B(dx,qx), BG = GB;
                   const double BB = B(dx,qx) * B(dx,qx);
-                  diag_00[qy][dx] += GG * H(r,0,r,0,qx,qy,e) * J(r,0)*J(r,1);
-                  diag_01[qy][dx] += GB * H(r,0,r,1,qx,qy,e) * J(r,0)*J(r,1);
-                  diag_10[qy][dx] += GB * H(r,1,r,0,qx,qy,e) * J(r,1)*J(r,0);
-                  diag_11[qy][dx] += BB * H(r,1,r,1,qx,qy,e) * J(r,1)*J(r,0);
+
+                  QD_00[qy][dx] += GG * H(r,0,r,0,qx,qy,e);
+                  QD_01[qy][dx] += GB * H(r,0,r,1,qx,qy,e);
+                  QD_10[qy][dx] += BG * H(r,1,r,0,qx,qy,e);
+                  QD_11[qy][dx] += BB * H(r,1,r,1,qx,qy,e);
                }
             }
          }
@@ -183,17 +190,30 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
          {
             for (int dy = 0; dy < D1D; dy++)
             {
+               double d = 0.0;
                for (int qy = 0; qy < Q1D; qy++)
                {
-                  diag(dx, dy, r, e) += B(dy, qy) * B(dy, qy) * diag_00[qy][dx];
-                  diag(dx, dy, r, e) += B(dy, qy) * G(dy, qy) * diag_01[qy][dx];
-                  diag(dx, dy, r, e) += G(dy, qy) * B(dy, qy) * diag_10[qy][dx];
-                  diag(dx, dy, r, e) += G(dy, qy) * G(dy, qy) * diag_11[qy][dx];
+                  const double GG = G(dy,qy) * G(dy,qy);
+                  const double GB = G(dy,qy) * B(dy,qy), BG = GB;
+                  const double BB = B(dy,qy) * B(dy,qy);
+                  d += BB * QD_00[qy][dx];
+                  d += BG * QD_01[qy][dx];
+                  d += GB * QD_10[qy][dx];
+                  d += GG * QD_11[qy][dx];
                }
+               D(dx,dy,r,e) += d;
             }
          }
       }
    });
+
+   /*
+   for (int cc = 0; cc < dim; cc++)
+   {
+      A(e, i + r*dof, i + r*dof) +=
+            weight * DS(i, c) * DS(i, cc) * h(r, c, r, cc);
+   }
+   */
 
    /* // Original i-j assembly (old invariants code).
    for (int e = 0; e < NE; e++)
@@ -247,12 +267,18 @@ void TMOP_Integrator::AssembleDiagonalPA_2D(Vector &diag)
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
+   const double mn = metric_normal;
+   dbg("metric_normal:%.15e",metric_normal);
    const DenseTensor &J = PA.Jtr;
+   dbg("J:"); J(0).Print();
+   const IntegrationRule *ir = IntRule;
+   const Array<double> &W = ir->GetWeights();
+   dbg("W:"); W.Print();
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
    const Vector &H = PA.H;
 
-   MFEM_LAUNCH_TMOP_KERNEL(AssembleDiagonalPA_Kernel_2D,id,N,B,G,J,H,diag);
+   MFEM_LAUNCH_TMOP_KERNEL(AssembleDiagonalPA_Kernel_2D,id,N,mn,W,B,G,J,H,diag);
 }
 
 } // namespace mfem
