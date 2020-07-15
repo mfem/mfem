@@ -202,6 +202,31 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    }
 }
 
+void TMOP_Integrator::AssembleDiagonalPA(Vector &diag)
+{
+   if (!PA.setup_Jtr) { ComputeElementTargetsPA(); }
+
+   if (PA.dim == 2)
+   {
+      const int N = PA.ne;
+      const int D1D = PA.maps->ndof;
+      const int Q1D = PA.maps->nqpt;
+      Vector diag_ldofs(N * D1D * D1D * 2);
+
+      AssembleDiagonalPA_2D(diag_ldofs);
+
+      diag.SetSize(PA.R->Width(), Device::GetMemoryType());
+      diag.UseDevice(true);
+      PA.R->MultTranspose(diag_ldofs, diag);
+
+      if (coeff0) { MFEM_ABORT("2D limiting part of the diagonal is WIP."); }
+   }
+   else
+   {
+      MFEM_ABORT("3D diagonal computation is WIP.");
+   }
+}
+
 void TMOP_Integrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (!PA.setup_Jtr) { ComputeElementTargetsPA(); }
