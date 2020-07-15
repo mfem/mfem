@@ -131,7 +131,7 @@ void Convergence::AddGf(GridFunction * gf, Coefficient * u,
       CoeffDNorm = GetNorm(gf,nullptr,grad);
       dcounter++;
       MFEM_VERIFY(counter == dcounter,
-                  "Number of Added solutions and derivatives do not match")
+                  "Number of added solutions and derivatives do not match")
    }
 
    if (cont_type == mfem::FiniteElementCollection::DISCONTINUOUS && ell_coeff)
@@ -141,7 +141,7 @@ void Convergence::AddGf(GridFunction * gf, Coefficient * u,
       double val=(fcounter) ? log(DGFaceErrors[fcounter-1]/DGErr)/log(2.0):0.;
       DGFaceRates.Append(val);
       fcounter++;
-      MFEM_VERIFY(fcounter == counter, "Number of Added solutions missmatch");
+      MFEM_VERIFY(fcounter == counter, "Number of added solutions missmatch");
    }
 }
 
@@ -162,7 +162,8 @@ void Convergence::AddGf(GridFunction * gf, VectorCoefficient * U,
    else if (div)
    {
       DErr = gf->ComputeDivError(div);
-      CoeffDNorm = GetNorm(gf,div,nullptr); // update coefficient norm
+      // update coefficient norm
+      CoeffDNorm = GetNorm(gf,div,nullptr);
       derivative = true;
    }
    if (derivative)
