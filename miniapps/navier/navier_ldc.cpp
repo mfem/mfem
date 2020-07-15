@@ -264,7 +264,9 @@ int main(int argc, char *argv[])
          last_step = true;
          std::ofstream myFile;
          myFile.open("NoConverge.txt");
-         myFile << "This did not converge in:" << ctx.t_final;
+         myFile <<  ctx.t_final << "  #This is final time allowed. \n";
+         myFile << ctx.rel_tol << "  #This is the relative tolerance between steps. \n";
+         myFile << ctx.kinvis << "  #This is the kinematic viscosity. \n";
          myFile.close();
       }
 
