@@ -25,7 +25,7 @@ void TransposeIntegrator::AssembleEA(const FiniteElementSpace &fes,
    if (ne == 0) { return; }
    const int dofs = fes.GetFE(0)->GetDof();
    auto A = Reshape(ea_data_tmp.Write(), dofs, dofs, ne);
-   auto AT = Reshape(ea_data.Write(), dofs, dofs, ne);
+   auto AT = Reshape(ea_data.ReadWrite(), dofs, dofs, ne);
    MFEM_FORALL(e, ne,
    {
       for (int i = 0; i < dofs; i++)
