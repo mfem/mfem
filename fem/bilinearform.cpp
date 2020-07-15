@@ -632,15 +632,19 @@ void BilinearForm::AssembleDiagonal(Vector &diag) const
          Vector local_diag(P->Height());
          ext->AssembleDiagonal(local_diag);
          const SparseMatrix *SP = dynamic_cast<const SparseMatrix*>(P);
+#ifdef MFEM_USE_MPI
          const HypreParMatrix *HP = dynamic_cast<const HypreParMatrix*>(P);
+#endif
          if (SP)
          {
             SP->AbsMultTranspose(local_diag, diag);
          }
+#ifdef MFEM_USE_MPI
          else if (HP)
          {
             HP->AbsMultTranspose(1.0, local_diag, 0.0, diag);
          }
+#endif
          else
          {
             MFEM_ABORT("Prolongation matrix has unexpected type.");
