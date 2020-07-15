@@ -18,21 +18,44 @@ using namespace std;
 using namespace mfem;
 
 // Exact solution: x^2 + y^2 + z^2
-double exact_solution(const Vector &p)
+double exact_sln_1(const Vector &p)
 {
+   double x = p(0), y = p(1);
    if (p.Size() == 3)
    {
-      return p(0)*p(0) + p(1)*p(1) + p(2)*p(2);
+      double z = p(2);
+      return x*x + y*y + z*z;
    }
    else
    {
-      return p(0)*p(0) + p(1)*p(1);
+      return x*x + y*y;
    }
 }
 
-double exact_laplace(const Vector &p)
+double exact_sln_2(const Vector &p)
+{
+   MFEM_ASSERT(p.Size() == 2, "");
+   double x = p(0), y = p(1);
+   return x*(1.0 - x)*y*(1.0 - y);
+}
+
+double exact_rhs_1(const Vector &p)
 {
    return (p.Size() == 3) ? -6.0 : -4.0;
+}
+
+double exact_rhs_2(const Vector &p)
+{
+   MFEM_ASSERT(p.Size() == 2, "");
+   double x = p(0), y = p(1);
+   return -(2*x*(x - 1.0) + 2*y*(y - 1.0));
+}
+
+double exact_rhs_3(const Vector &p)
+{
+   MFEM_ASSERT(p.Size() == 2, "");
+   double x = p(0), y = p(1);
+   return -4.0 + x*x + y*y;
 }
 
 
@@ -42,8 +65,9 @@ GridFunction* ProlongToMaxOrder(const GridFunction *x);
 int main(int argc, char *argv[])
 {
    // Parse command-line options.
-   const char *mesh_file = "../data/inline-quad.meshq";
+   const char *mesh_file = "../data/inline-quad.mesh";
    int order = 2;
+   int problem = 1;
    int ref_levels = 1;
    int seed = 1;
    bool static_cond = false;
@@ -55,6 +79,8 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&problem, "-p", "--problem",
+                  "Problem 1 or 2.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
@@ -94,7 +120,7 @@ int main(int argc, char *argv[])
    // 'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    // largest number that gives a final mesh with no more than 50,000
    // elements.
-#if 1
+#if 0
    srand(seed);
    {
       for (int l = 0; l < ref_levels; l++)
@@ -113,8 +139,8 @@ int main(int argc, char *argv[])
    mesh->GeneralRefinement(refs);
 #endif
 
-   FunctionCoefficient exsol(exact_solution);
-   FunctionCoefficient rhs(exact_laplace);
+   FunctionCoefficient exsol((problem == 2) ? exact_sln_2 : exact_sln_1);
+   FunctionCoefficient rhs((problem == 1) ? exact_rhs_1 : (problem == 2) ? exact_rhs_2 : exact_rhs_3);
 
    // Define a finite element space on the mesh. Here we use continuous
    // Lagrange finite elements of the specified order.
@@ -126,7 +152,7 @@ int main(int argc, char *argv[])
    // At this point all elements have the default order (specified when
    // construction the FECollection). Now we can p-refine some of them to
    // obtain a variable-order space...
-#if 1
+#if 0
    srand(seed);
    for (int i = 0; i < mesh->GetNE(); i++)
    {
@@ -140,6 +166,11 @@ int main(int argc, char *argv[])
 #endif
    fespace->Update(false);
 
+   /*mesh->UniformRefinement();
+   fespace->Update(false);
+   mesh->UniformRefinement();
+   fespace->Update(false);*/
+
    cout << "Space size (all DOFs): " << fespace->GetNDofs() << endl;
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
@@ -149,13 +180,13 @@ int main(int argc, char *argv[])
    Array<int> ess_tdof_list;
    MFEM_VERIFY(mesh->bdr_attributes.Size() > 0,
               "Boundary attributes required in the mesh.");
-   Array<int> ess_bdr(mesh->bdr_attributes.Max());
-   ess_bdr = 1;
+   Array<int> ess_attr(mesh->bdr_attributes.Max());
+   ess_attr = (problem < 3) ? 1 : 0;
 
    GridFunction x(fespace);
    x = 0.0;
-   x.ProjectBdrCoefficient(exsol, ess_bdr);
-   fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   x.ProjectBdrCoefficient(exsol, ess_attr);
+   fespace->GetEssentialTrueDofs(ess_attr, ess_tdof_list);
 
    // Assemble the linear form. The right hand side is manufactured
    // so that the solution is the analytic solution.
@@ -168,6 +199,8 @@ int main(int argc, char *argv[])
    BilinearForm bf(fespace);
    if (pa) { bf.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    bf.AddDomainIntegrator(new DiffusionIntegrator());
+   ConstantCoefficient one(1.0);
+   if (problem == 3) { bf.AddDomainIntegrator(new MassIntegrator(one)); }
    bf.Assemble();
 
    OperatorPtr A;
@@ -209,7 +242,7 @@ int main(int argc, char *argv[])
    cout << "Nodal projection L2 error: " << error2 << endl;
 
    // z = Ry
-/*   const SparseMatrix *R = fespace->GetRestrictionMatrix();
+   const SparseMatrix *R = fespace->GetRestrictionMatrix();
    Vector Z(R->Height());
    R->Mult(y, Z);
 
@@ -218,7 +251,17 @@ int main(int argc, char *argv[])
    Vector check(spA->Height());
    spA->Mult(Z, check);
    check -= B;
-   cout << "|Az - B|: " << check.Norml2() << endl;*/
+   cout << "|Az - B|: " << check.Norml2() << endl;
+
+   // w = Rx
+   Vector W(R->Height());
+   R->Mult(x, W);
+
+   // compute 1/2 z'Az - B'z
+   Vector Aw(spA->Height());
+   spA->Mult(W, Aw);
+   double energy = W*Aw/2 - B*W;
+   cout << "(1/2 w'Aw - B'w): " << energy << endl;
 
 
    // Send the solution by socket to a GLVis server.
@@ -227,9 +270,11 @@ int main(int argc, char *argv[])
       char vishost[] = "localhost";
       int  visport   = 19916;
 
-      ////// DEBUG DEBUG
+      const char* keys = (dim == 2) ? "Rjlmciiiiii" : "Amooooo";
+
+      /*////// DEBUG DEBUG
       x = 0;
-      x.ProjectBdrCoefficient(exsol, ess_bdr);
+      x.ProjectBdrCoefficient(exsol, ess_attr);*/
 
       // Prolong the solution vector onto L2 space of max order (for GLVis)
       GridFunction *vis_x = ProlongToMaxOrder(&x);
@@ -238,8 +283,8 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << *mesh << *vis_x
-               //<< "keys Rjlm\n"
-               << flush;
+               << "window_title 'FE solution'\n"
+                  "keys " << keys << "\n" << flush;
 #endif
 
 #if 1
@@ -250,8 +295,8 @@ int main(int argc, char *argv[])
       socketstream err_sock(vishost, visport);
       err_sock.precision(8);
       err_sock << "solution\n" << *mesh << *vis_x
-               //<< "keys Rjlmc\n"
-               << flush;
+               << "window_title 'Residual'\n"
+                  "keys " << keys << "\n" << flush;
 #endif
       delete vis_x;
 
@@ -268,12 +313,12 @@ int main(int argc, char *argv[])
       socketstream ord_sock(vishost, visport);
       ord_sock.precision(8);
       ord_sock << "solution\n" << *mesh << orders
-               //<< "keys Rjlmc\n"
-               << flush;
+               << "window_title 'Polynomial orders'\n"
+               "keys " << keys << "\n" << flush;
 #endif
 
       // visualize the basis functions
-      if (0)
+      if (1)
       {
          socketstream b_sock(vishost, visport);
          b_sock.precision(8);
@@ -287,7 +332,11 @@ int main(int argc, char *argv[])
             vis_x = ProlongToMaxOrder(&x);
 
             b_sock << "solution\n" << *mesh << *vis_x << flush;
-            //if (i == first) { b_sock << "keys Rjlm\n"; }
+            if (i == first)
+            {
+               b_sock << "window_title 'Basis functions'\n"
+                         "keys " << keys << "\n";
+            }
             b_sock << "pause\n" << flush;
             delete vis_x;
          }
