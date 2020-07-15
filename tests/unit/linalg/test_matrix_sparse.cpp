@@ -65,7 +65,6 @@ TEST_CASE("SparseMatrixAbsMult", "[SparseMatrixAbsMult]")
 
       REQUIRE(error == Approx(EPS));
 
-
       Y0.Randomize();
       X0.Randomize(1);
       X1.Randomize(1);
