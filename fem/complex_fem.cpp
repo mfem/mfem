@@ -452,8 +452,8 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    else
    {
       ComplexOperator * A_op =
-         new ComplexOperator(A_r.As<Operator>(),
-                             A_i.As<Operator>(),
+         new ComplexOperator(A_r.Ptr(),
+                             A_i.Ptr(),
                              A_r.OwnsOperator(),
                              A_i.OwnsOperator(),
                              conv);
@@ -513,8 +513,8 @@ SesquilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
    else
    {
       ComplexOperator * A_op =
-         new ComplexOperator(A_r.As<Operator>(),
-                             A_i.As<Operator>(),
+         new ComplexOperator(A_r.Ptr(),
+                             A_i.Ptr(),
                              A_r.OwnsOperator(),
                              A_i.OwnsOperator(),
                              conv);
