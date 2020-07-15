@@ -315,7 +315,7 @@ int main(int argc, char *argv[])
    cvodes->InitAdjointSolve(checkpoint_steps, CV_HERMITE);
 
    // Perform time-integration for the problem (looping over the time
-   // iterations, ti,  with a time-step dt).
+   // iterations, ti, with a time-step dt).
    bool done = false;
    for (int ti = 0; !done; )
    {

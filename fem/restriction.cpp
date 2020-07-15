@@ -246,7 +246,7 @@ template <int MaxNbNbr>
 static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int nbElts,
                                       const int *nbr_elts, const int nbrNbElts)
 {
-   //building the intersection
+   // Building the intersection
    int inter[MaxNbNbr];
    int cpt = 0;
    for (int i = 0; i < nbElts; i++)
@@ -261,7 +261,7 @@ static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int nbElts,
          }
       }
    }
-   //Finding the minimum
+   // Finding the minimum
    int min = inter[0];
    for (int i = 1; i < cpt; i++)
    {
@@ -331,7 +331,7 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
                   j_elts[e_j] = elt;
                }
                int min_e = GetMinElt<Max>(i_elts, i_nbElts, j_elts, j_nbElts);
-               if (e == min_e) //Rational to add the nnz only once
+               if (e == min_e) // add the nnz only once
                {
                   GetAndIncrementNnzIndex(i_L, I);
                }
@@ -410,7 +410,7 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
                   j_B[e_j]    = j_E%elt_dofs;
                }
                int min_e = GetMinElt<Max>(i_elts, i_nbElts, j_elts, j_nbElts);
-               if (e == min_e) //Rational to add the nnz only once
+               if (e == min_e) // add the nnz only once
                {
                   double val = 0.0;
                   for (int i = 0; i < i_nbElts; i++)
@@ -435,7 +435,8 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
          }
       }
    });
-   // We need to shift again the entries of I, we do it on CPU as it is very sequential.
+   // We need to shift again the entries of I, we do it on CPU as it is very
+   // sequential.
    auto h_I = mat.HostReadWriteI();
    const int size = vd*all_dofs;
    for (int i = 0; i < size; i++)
@@ -533,7 +534,7 @@ void L2ElementRestriction::FillJAndData(const Vector &ea_data,
    });
 }
 
-/// Return the face degrees of freedom returned in Lexicographic order.
+// Return the face degrees of freedom returned in Lexicographic order.
 void GetFaceDofs(const int dim, const int face_id,
                  const int dof1d, Array<int> &faceMap)
 {
@@ -952,7 +953,7 @@ static int PermuteFace3D(const int face_id1, const int face_id2,
    return ToLexOrdering3D(face_id2, size1d, new_i, new_j);
 }
 
-/// Permute dofs or quads on a face for e2 to match with the ordering of e1
+// Permute dofs or quads on a face for e2 to match with the ordering of e1
 int PermuteFaceL2(const int dim, const int face_id1,
                   const int face_id2, const int orientation,
                   const int size1d, const int index)

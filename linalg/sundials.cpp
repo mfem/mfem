@@ -259,7 +259,6 @@ void CVODESolver::Init(TimeDependentOperator &f_)
 
 void CVODESolver::Step(Vector &x, double &t, double &dt)
 {
-
    if (!Parallel())
    {
       NV_DATA_S(y) = x.GetData();
@@ -513,7 +512,6 @@ void CVODESSolver::Init(TimeDependentAdjointOperator &f_)
 
 void CVODESSolver::InitB(TimeDependentAdjointOperator &f_)
 {
-
    long local_size = f_.GetAdjointHeight();
 
    // Get current time
@@ -637,7 +635,6 @@ void CVODESSolver::UseSundialsLinearSolverB()
    flag = CVodeSetLinearSolverB(sundials_mem, indexB, LSB, NULL);
    MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetLinearSolverB()");
 }
-
 
 int CVODESSolver::LinSysSetupB(realtype t, N_Vector y, N_Vector yB,
                                N_Vector fyB, SUNMatrix AB,
