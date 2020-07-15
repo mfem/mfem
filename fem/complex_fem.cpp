@@ -1054,9 +1054,9 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       // with standard essential BC treatment
       if ( A_i.Type() == Operator::Hypre_ParCSR )
       {
-         HypreParMatrix * Ah;  A_i.Get(Ah);
-         hypre_ParCSRMatrix * Aih =
-            (hypre_ParCSRMatrix *)const_cast<HypreParMatrix&>(*Ah);
+         HypreParMatrix * Ah;
+         A_i.Get(Ah);
+         hypre_ParCSRMatrix *Aih = *Ah;
          for (int k = 0; k < n; k++)
          {
             int j = ess_tdof_list[k];
@@ -1128,9 +1128,9 @@ ParSesquilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
       if ( A_i.Type() == Operator::Hypre_ParCSR )
       {
          int n = ess_tdof_list.Size();
-         HypreParMatrix * Ah;  A_i.Get(Ah);
-         hypre_ParCSRMatrix * Aih =
-            (hypre_ParCSRMatrix *)const_cast<HypreParMatrix&>(*Ah);
+         HypreParMatrix * Ah;
+         A_i.Get(Ah);
+         hypre_ParCSRMatrix * Aih = *Ah;
          for (int k = 0; k < n; k++)
          {
             int j = ess_tdof_list[k];
