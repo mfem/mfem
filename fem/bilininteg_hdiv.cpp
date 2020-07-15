@@ -114,6 +114,8 @@ void PAHdivMassApply2D(const int D1D,
                        Vector &_y)
 {
    constexpr static int VDIM = 2;
+   constexpr static int MAX_D1D = HDIV_MAX_D1D;
+   constexpr static int MAX_Q1D = HDIV_MAX_Q1D;
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
@@ -238,6 +240,7 @@ void PAHdivMassAssembleDiagonal2D(const int D1D,
                                   Vector &_diag)
 {
    constexpr static int VDIM = 2;
+   constexpr static int MAX_Q1D = HDIV_MAX_Q1D;
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
@@ -614,6 +617,8 @@ static void PADivDivApply2D(const int D1D,
                             Vector &_y)
 {
    constexpr static int VDIM = 2;
+   constexpr static int MAX_D1D = HDIV_MAX_D1D;
+   constexpr static int MAX_Q1D = HDIV_MAX_Q1D;
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
@@ -977,6 +982,7 @@ static void PADivDivAssembleDiagonal2D(const int D1D,
                                        Vector &_diag)
 {
    constexpr static int VDIM = 2;
+   constexpr static int MAX_Q1D = HDIV_MAX_Q1D;
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
@@ -1400,6 +1406,8 @@ static void PAHdivL2Apply2D(const int D1D,
                             Vector &_y)
 {
    constexpr static int VDIM = 2;
+   constexpr static int MAX_D1D = HDIV_MAX_D1D;
+   constexpr static int MAX_Q1D = HDIV_MAX_Q1D;
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
@@ -1666,6 +1674,8 @@ static void PAHdivL2ApplyTranspose2D(const int D1D,
                                      Vector &_y)
 {
    constexpr static int VDIM = 2;
+   constexpr static int MAX_D1D = HDIV_MAX_D1D;
+   constexpr static int MAX_Q1D = HDIV_MAX_Q1D;
 
    auto L2Bo = Reshape(_L2Bo.Read(), Q1D, L2D1D);
    auto Gct = Reshape(_Gct.Read(), D1D, Q1D);
@@ -1724,7 +1734,7 @@ static void PAHdivL2ApplyTranspose2D(const int D1D,
 
       for (int qy = 0; qy < Q1D; ++qy)
       {
-         double aX[HDIV_MAX_D1D];
+         double aX[MAX_D1D];
 
          int osc = 0;
          for (int c = 0; c < VDIM; ++c)  // loop over x, y components
