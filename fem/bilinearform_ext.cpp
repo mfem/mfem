@@ -683,11 +683,11 @@ void FABilinearFormExtension::Assemble()
                                       face_mat.GetMemoryData().GetMemoryType());
       }
       // 2. Fill J and Data
-      //  2.1 Fill J and Data with Elem ea_data
+      // 2.1 Fill J and Data with Elem ea_data
       restE->FillJAndData(ea_data, mat);
-      //  2.2 Fill J and Data with Face ea_data_ext
+      // 2.2 Fill J and Data with Face ea_data_ext
       if (restF) { restF->FillJAndData(ea_data_ext, mat, face_mat); }
-      //  2.3 Shift indirections in I back to original
+      // 2.3 Shift indirections in I back to original
       auto I = mat.HostReadWriteI();
       for (int i = ndofs; i > 0; i--)
       {
@@ -704,7 +704,7 @@ void FABilinearFormExtension::Assemble()
          I_face[0] = 0;
       }
    }
-   else // CG case
+   else // continuous Galerkin case
    {
       const ElementRestriction &rest =
          static_cast<const ElementRestriction&>(*elem_restrict);

@@ -69,10 +69,10 @@ public:
    void FillSparseMatrix(const Vector &mat_ea, SparseMatrix &mat) const;
 
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
-       given by this ElementRestriction */
+       given by this ElementRestriction. */
    int FillI(SparseMatrix &mat) const;
    /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
-       pattern given by this ElementRestriction, and the values given by ea_data */
+       pattern given by this ElementRestriction, and the values of ea_data. */
    void FillJAndData(const Vector &ea_data, SparseMatrix &mat) const;
 };
 
@@ -93,10 +93,10 @@ public:
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
-       given by this ElementRestriction */
+       given by this ElementRestriction. */
    void FillI(SparseMatrix &mat) const;
    /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
-       pattern given by this L2FaceRestriction, and the values given by ea_data */
+       pattern given by this L2FaceRestriction, and the values of ea_data. */
    void FillJAndData(const Vector &ea_data, SparseMatrix &mat) const;
 };
 
@@ -156,10 +156,10 @@ public:
    virtual void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
-       given by this L2FaceRestriction */
+       given by this L2FaceRestriction. */
    virtual void FillI(SparseMatrix &mat, SparseMatrix &face_mat) const;
    /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
-       pattern given by this L2FaceRestriction, and the values given by ea_data */
+       pattern given by this L2FaceRestriction, and the values of ea_data. */
    virtual void FillJAndData(const Vector &ea_data,
                              SparseMatrix &mat,
                              SparseMatrix &face_mat) const;
