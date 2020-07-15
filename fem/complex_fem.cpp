@@ -472,7 +472,7 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    {
       // Modify RHS and offdiagonal blocks (imaginary parts of the matrix) to
       // conform with standard essential BC treatment
-      if (A_i.Type() != Operator::MFEM_SPARSEMAT)
+      if (A_i.Is<ConstrainedOperator>())
       {
          const int n = ess_tdof_list.Size();
          auto d_B_r = B_r.Write();
@@ -523,8 +523,8 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    else
    {
       ComplexOperator * A_op =
-         new ComplexOperator(A_r.As<Operator>(),
-                             A_i.As<Operator>(),
+         new ComplexOperator(A_r.Ptr(),
+                             A_i.Ptr(),
                              A_r.OwnsOperator(),
                              A_i.OwnsOperator(),
                              conv);
@@ -554,14 +554,14 @@ SesquilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
    }
    if (!RealInteg() && !ImagInteg())
    {
-      MFEM_ABORT("Both Real and Imag part of the Sesquilinear form are empty");
+      MFEM_ABORT("Both Real and Imaginary part of the Sesquilinear form are empty");
    }
 
    if (RealInteg() && ImagInteg())
    {
       // Modify offdiagonal blocks (imaginary parts of the matrix) to conform
       // with standard essential BC treatment
-      if ( A_i.Type() != Operator::MFEM_SPARSEMAT )
+      if (A_i.Is<ConstrainedOperator>())
       {
          A_i.As<ConstrainedOperator>()->SetDiagonalPolicy
          (mfem::Operator::DiagonalPolicy::DIAG_ZERO);
@@ -584,8 +584,8 @@ SesquilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
    else
    {
       ComplexOperator * A_op =
-         new ComplexOperator(A_r.As<Operator>(),
-                             A_i.As<Operator>(),
+         new ComplexOperator(A_r.Ptr(),
+                             A_i.Ptr(),
                              A_r.OwnsOperator(),
                              A_i.OwnsOperator(),
                              conv);
@@ -1206,9 +1206,9 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       // with standard essential BC treatment
       if (A_i.Type() == Operator::Hypre_ParCSR)
       {
-         HypreParMatrix * Ah; A_i.Get(Ah);
-         hypre_ParCSRMatrix * Aih =
-            (hypre_ParCSRMatrix *)const_cast<HypreParMatrix&>(*Ah);
+         HypreParMatrix * Ah;
+         A_i.Get(Ah);
+         hypre_ParCSRMatrix *Aih = *Ah;
          for (int k = 0; k < n; k++)
          {
             const int j = ess_tdof_list[k];
@@ -1280,7 +1280,7 @@ ParSesquilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
    }
    if (!RealInteg() && !ImagInteg())
    {
-      MFEM_ABORT("Both Real and Imag part of the Sesquilinear form are empty");
+      MFEM_ABORT("Both Real and Imaginary part of the Sesquilinear form are empty");
    }
 
    if (RealInteg() && ImagInteg())
@@ -1290,9 +1290,9 @@ ParSesquilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
       if ( A_i.Type() == Operator::Hypre_ParCSR )
       {
          int n = ess_tdof_list.Size();
-         HypreParMatrix * Ah;  A_i.Get(Ah);
-         hypre_ParCSRMatrix * Aih =
-            (hypre_ParCSRMatrix *)const_cast<HypreParMatrix&>(*Ah);
+         HypreParMatrix * Ah;
+         A_i.Get(Ah);
+         hypre_ParCSRMatrix * Aih = *Ah;
          for (int k = 0; k < n; k++)
          {
             int j = ess_tdof_list[k];
