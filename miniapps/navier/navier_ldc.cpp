@@ -22,10 +22,27 @@
 // of the equation. Then the numerical solution is computed and compared to the
 // exact manufactured solution to determine the error.
 
+#ifdef WINDOWS
+#include <direct.h>
+#define GetCurrentDir _getcwd
+#else
+#include <unistd.h>
+#define GetCurrentDir getcwd
+#endif
+
 #include "navier_solver.hpp"
 #include <fstream>
 #include <iostream>
 #include <string>
+
+std::string get_current_dir() {
+   char buff[FILENAME_MAX]; //create string buffer to hold path
+   GetCurrentDir( buff, FILENAME_MAX );
+   std::string current_working_dir(buff);
+   return current_working_dir;
+}
+
+
 
 using namespace mfem;
 using namespace navier;
@@ -223,6 +240,8 @@ int main(int argc, char *argv[])
    u_gf = naviersolver.GetCurrentVelocity();
    p_gf = naviersolver.GetCurrentPressure();
 
+   std::string outputPath = get_current_dir();
+
    ParaViewDataCollection pvdc("ldc_output", pmesh);
    //pvdc.SetDataFormat(VTKFormat::BINARY32);
    pvdc.SetDataFormat(VTKFormat::ASCII);
@@ -243,6 +262,10 @@ int main(int argc, char *argv[])
       if (t + dt >= t_final - dt / 2)
       {
          last_step = true;
+         std::ofstream myFile;
+         myFile.open("NoConverge.txt");
+         myFile << "This did not converge in:" << ctx.t_final;
+         myFile.close();
       }
 
       naviersolver.Step(t, dt, step);
