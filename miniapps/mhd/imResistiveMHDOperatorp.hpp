@@ -1295,6 +1295,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
 
            if (usesupg && true)           
            {
+               /*
                 delete StabMass;
                 StabMass = new ParBilinearForm(&fespace);
                 StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, resistivity, velocity));
@@ -1302,6 +1303,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
                 StabMass->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
                 StabMass->Finalize();
                 HypreParMatrix *MatStabMass=StabMass->ParallelAssemble();
+                */
 
                 delete StabNv;
                 StabNv = new ParBilinearForm(&fespace);
@@ -1311,14 +1313,14 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
                 StabNv->Finalize();
                 HypreParMatrix *MatStabNv=StabNv->ParallelAssemble();
 
-                HypreParMatrix *MatStabSum=Add(1./dt, *MatStabMass, 1., *MatStabNv);
+                //HypreParMatrix *MatStabSum=Add(1./dt, *MatStabMass, 1., *MatStabNv);
                 //HypreParMatrix *tmp=ParAdd(ASltmp, MatStabSum);
                 HypreParMatrix *tmp=ParAdd(ASltmp, MatStabNv);
 
                 delete ASltmp;
                 ASltmp=tmp;
 
-                if (true && im_supg==1)
+                if ( true && (im_supg==1 || im_supg==3) )
                 {
                     if (resistivity!=viscosity)
                     {
@@ -1337,9 +1339,9 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
                     AReFull=tmp;
                 }
 
-                delete MatStabMass;
+                //delete MatStabMass;
                 delete MatStabNv;
-                delete MatStabSum;
+                //delete MatStabSum;
            }
 
            //VERSION0: same as Luis's preconditioner
@@ -1676,11 +1678,13 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
      StabNv->Assemble(); 
      StabNv->TrueAddMult(wNew, y3);
 
+     /*
      delete StabNb;
      StabNb = new ParBilinearForm(&fespace);
      StabNb->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, Bfield, velocity));
      StabNb->Assemble(); 
-     //StabNb->TrueAddMult(J, y3, -1.);
+     StabNb->TrueAddMult(J, y3, -1.);
+     */
    
      KBMat.Mult(psiNew, z2);
      M_solver2->Mult(z2, z3);
@@ -1739,9 +1743,18 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
      StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, velocity));
      StabNv->Assemble(); 
      StabNv->TrueAddMult(wNew, y3);
+
+     if(viscosity!=resistivity)
+     {
+        delete StabNv;
+        StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, resistivity, velocity));
+        StabNv->Assemble(); 
+     }
+     StabNv->TrueAddMult(psiNew, y2);
    }
    else if(usesupg && im_supg==4)
    {        
+     //---add supg only to y2 ---
      KBMat.Mult(psiNew, z2);
      M_solver2->Mult(z2, z3);
      add(z, resistivity, z3, z2);

@@ -110,6 +110,8 @@ int main(int argc, char *argv[])
                   "Time step.");
    args.AddOption(&icase, "-i", "--icase",
                   "Icase: 1 - wave propagation; 2 - Tearing mode.");
+   args.AddOption(&itau, "-itau", "--itau",
+                  "Itau options.");
    args.AddOption(&ijacobi, "-ijacobi", "--ijacobi",
                   "Number of jacobi iteration in preconditioner");
    args.AddOption(&im_supg, "-im_supg", "--im_supg",
@@ -143,6 +145,8 @@ int main(int argc, char *argv[])
    args.AddOption(&usesupg, "-supg", "--implicit-supg", "-no-supg",
                   "--no-implicit-supg",
                   "Use supg in the implicit solvers.");
+   args.AddOption(&maxtau, "-max-tau", "--max-tau", "-no-max-tau", "--no-max-tau",
+                  "Use max-tau in supg.");
    args.AddOption(&usefd, "-fd", "--use-fd", "-no-fd",
                   "--no-fd",
                   "Use fd-fem in the implicit solvers.");

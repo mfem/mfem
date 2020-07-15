@@ -241,6 +241,11 @@ void StabConvectionIntegrator::AssembleElementMatrix(const FiniteElement &el,
                    invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
                else if (itau==2)
                    invtau = sqrt( pow(2./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+               else if (itau==3)
+               {
+                   invtau = sqrt( pow(2./.1,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+                   //cout <<"invtau="<<invtau<<" ";
+               }
                else
                    invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
                tau = 1.0/invtau;
@@ -372,6 +377,8 @@ void StabMassIntegrator::AssembleElementMatrix(const FiniteElement &el,
                    invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
                else if (itau==2)
                    invtau = sqrt( pow(2./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+               else if (itau==3)
+                   invtau = sqrt( pow(2./.1,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
                else
                    invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
                tau = 1.0/invtau;
@@ -406,10 +413,13 @@ void StabMassIntegrator::AssembleElementMatrix(const FiniteElement &el,
                 invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
             else if (itau==2)
                 invtau = sqrt( pow(2./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+            else if (itau==3)
+                invtau = sqrt( pow(2./0.1,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
             else
                 invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
             tau = 1.0/invtau;
             norm *= tau;
+            //cout <<"tau="<<tau<<" Unorm="<<Unorm<<" "<<" h="<<eleLength<<" ";
         }
  
         gshape.Mult(vec1, advGrad);
@@ -480,6 +490,8 @@ void StabDomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
                 invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
             else if (itau==2)
                 invtau = sqrt( pow(2./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+            else if (itau==3)
+                invtau = sqrt( pow(2./.1,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
             else
                 invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
             tau = 1.0/invtau;
@@ -512,6 +524,8 @@ void StabDomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
                 invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
             else if (itau==2)
                 invtau = sqrt( pow(2./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+            else if (itau==3)
+                invtau = sqrt( pow(2./.1,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
             else
                 invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
             tau = 1.0/invtau;
