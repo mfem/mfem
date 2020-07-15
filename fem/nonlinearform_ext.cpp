@@ -13,6 +13,8 @@
 // PABilinearFormExtension and MFBilinearFormExtension.
 
 #include "nonlinearform.hpp"
+#define MFEM_DEBUG_COLOR 87
+#include "../general/debug.hpp"
 #include "../general/forall.hpp"
 
 namespace mfem
@@ -60,6 +62,7 @@ void PANonlinearForm::Mult(const Vector &x, Vector &y) const
 
 Operator &PANonlinearForm::GetGradient(const Vector &x) const
 {
+   dbg();
    Grad.Reset(new PANonlinearForm::Gradient(x, *this));
    return *Grad.Ptr();
 }
@@ -67,6 +70,7 @@ Operator &PANonlinearForm::GetGradient(const Vector &x) const
 PANonlinearForm::Gradient::Gradient(const Vector &x, const PANonlinearForm &e):
    Operator(e.fes.GetVSize()), R(e.R), dnfi(e.dnfi)
 {
+   dbg();
    ge.UseDevice(true);
    ge.SetSize(R->Height(), Device::GetMemoryType());
    R->Mult(x, ge);
@@ -80,11 +84,18 @@ PANonlinearForm::Gradient::Gradient(const Vector &x, const PANonlinearForm &e):
    ze.UseDevice(true);
    ze.SetSize(R->Height(), Device::GetMemoryType());
 
-   for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AssemblePA(e.fes); }
+   for (int i = 0; i < dnfi.Size(); ++i)
+   {
+      // Do we still need to do this?
+      dnfi[i]->AssemblePA(e.fes);
+      // Fake AddMultGradPA to force the setup_Grad
+      dnfi[i]->AddMultGradPA(ge, xe, ye);
+   }
 }
 
 void PANonlinearForm::Gradient::Mult(const Vector &x, Vector &y) const
 {
+   dbg();
    ze = x;
    ye = 0.0;
    R->Mult(ze, xe);

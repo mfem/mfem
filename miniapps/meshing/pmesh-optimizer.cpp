@@ -713,16 +713,15 @@ int main (int argc, char *argv[])
 
    Vector diag;
    a.GetGradient(x);
-   a.GetParGridFunctionEnergy(x);
    he_nlf_integ->AssembleDiagonalPA(diag);
-   dbg("diag: %.15e",diag*diag);
-   std::cout << "PA:     " << diag.Size() << " " << diag.Norml1() << std::endl;
+   dbg("diag: %.15e", diag*diag);
+   //std::cout << "PA:     " << diag.Size() << " " << diag.Norml1() << std::endl;
 
    const SparseMatrix &s = a_fa.GetLocalGradient(x);
    Vector dsp;
    s.GetDiag(dsp);
-   dbg("dsp:  %.15e",dsp*dsp);
-   std::cout << "LEGACY: " << dsp.Size() << " " << dsp.Norml1() << std::endl;
+   dbg("dsp:  %.15e", dsp*dsp);
+   //std::cout << "LEGACY: " << dsp.Size() << " " << dsp.Norml1() << std::endl;
 
    MFEM_ABORT("test");
 
