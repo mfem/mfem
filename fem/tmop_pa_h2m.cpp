@@ -150,100 +150,57 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
       double QD_11[MQ1][MD1];
       for (int r = 0; r < DIM; r++)
       {
-         for (int qy = 0; qy < Q1D; qy++)
+         for (int qx = 0; qx < Q1D; ++qx)
          {
-            for (int dx = 0; dx < D1D; dx++)
+            for (int dy = 0; dy < D1D; ++dy)
             {
-               QD_00[qy][dx] = 0.0;
-               QD_01[qy][dx] = 0.0;
-               QD_10[qy][dx] = 0.0;
-               QD_11[qy][dx] = 0.0;
-               for (int qx = 0; qx < Q1D; qx++)
+               QD_00[qx][dy] = 0.0;
+               QD_01[qx][dy] = 0.0;
+               QD_10[qx][dy] = 0.0;
+               QD_11[qx][dy] = 0.0;
+               for (int qy = 0; qy < Q1D; ++qy)
                {
                   const double *Jtr = &J(0,0,qx,qy,e);
                   const double detJtr = kernels::Det<2>(Jtr);
                   if (detJtr != 1.0) { printf("\033[31m[ERROR]\033[m"); }
-                  //const double w = 1.0;//metric_normal * W(qx,qy) * detJtr;
-
-                  {
-                     //printf("\n\033[31m[DiagPA_2D] w=%.15e\033[m", w);
-                  }
 
                   // J = Jrt = Jtr^{-1}
                   double Jrt[4];
                   kernels::CalcInverse<2>(Jtr, Jrt);
                   ConstDeviceMatrix M(Jrt,2,2);
 
-                  const double GG = G(dx,qx) * G(dx,qx);
-                  const double GB = G(dx,qx) * B(dx,qx), BG = GB;
-                  const double BB = B(dx,qx) * B(dx,qx);
+                  const double GG = G(qy,dy) * G(qy,dy);
+                  const double GB = G(qy,dy) * B(qy,dy), BG = GB;
+                  const double BB = B(qy,dy) * B(qy,dy);
 
-                  QD_00[qy][dx] += GG * H(r,0,r,0,qx,qy,e);
-                  QD_01[qy][dx] += GB * H(r,0,r,1,qx,qy,e);
-                  QD_10[qy][dx] += BG * H(r,1,r,0,qx,qy,e);
-                  QD_11[qy][dx] += BB * H(r,1,r,1,qx,qy,e);
+                  QD_00[qx][dy] += GG * H(r,0,r,0,qx,qy,e);
+                  QD_01[qx][dy] += GB * H(r,0,r,1,qx,qy,e);
+                  QD_10[qx][dy] += BG * H(r,1,r,0,qx,qy,e);
+                  QD_11[qx][dy] += BB * H(r,1,r,1,qx,qy,e);
                }
             }
          }
 
-         for (int dx = 0; dx < D1D; dx++)
+         for (int dy = 0; dy < D1D; ++dy)
          {
-            for (int dy = 0; dy < D1D; dy++)
+            for (int dx = 0; dx < D1D; ++dx)
             {
                double d = 0.0;
-               for (int qy = 0; qy < Q1D; qy++)
+               for (int qx = 0; qx < Q1D; ++qx)
                {
-                  const double GG = G(dy,qy) * G(dy,qy);
-                  const double GB = G(dy,qy) * B(dy,qy), BG = GB;
-                  const double BB = B(dy,qy) * B(dy,qy);
-                  d += BB * QD_00[qy][dx];
-                  d += BG * QD_01[qy][dx];
-                  d += GB * QD_10[qy][dx];
-                  d += GG * QD_11[qy][dx];
+                  const double GG = G(qx,dx) * G(qx,dx);
+                  const double GB = G(qx,dx) * B(qx,dx), BG = GB;
+                  const double BB = B(qx,dx) * B(qx,dx);
+                  d += BB * QD_00[qx][dy];
+                  d += BG * QD_01[qx][dy];
+                  d += GB * QD_10[qx][dy];
+                  d += GG * QD_11[qx][dy];
                }
                D(dx,dy,r,e) += d;
             }
          }
       }
    });
-
-   /*
-   for (int cc = 0; cc < dim; cc++)
-   {
-      A(e, i + r*dof, i + r*dof) +=
-            weight * DS(i, c) * DS(i, cc) * h(r, c, r, cc);
-   }
-   */
-
-   /* // Original i-j assembly (old invariants code).
-   for (int e = 0; e < NE; e++)
-   {
-      for (int q = 0; q < nqp; q++)
-      {
-         el.CalcDShape(ip, DSh);
-         Mult(DSh, Jrt, DS);
-         for (int i = 0; i < dof; i++)
-         {
-            for (int j = 0; j < dof; j++)
-            {
-               for (int r = 0; r < dim; r++)
-               {
-                  for (int c = 0; c < dim; c++)
-                  {
-                     for (int rr = 0; rr < dim; rr++)
-                     {
-                        for (int cc = 0; cc < dim; cc++)
-                        {
-                           A(e, i + r*dof, j + rr*dof) +=
-                                 weight_q * DS(i, c) * DS(j, cc) * h(r, c, rr, cc);
-                        }
-                     }
-                  }
-               }
-            }
-         }
-      }
-   } */
 }
 
 void TMOP_Integrator::AddMultGradPA_2D(const Vector &R, Vector &C) const
