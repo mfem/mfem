@@ -41,7 +41,9 @@
 #define MFEM_DEVICE
 #define MFEM_LAMBDA
 #define MFEM_HOST_DEVICE
+// MFEM_DEVICE_SYNC is not used, but made available for debugging purposes
 #define MFEM_DEVICE_SYNC
+// MFEM_STREAM_SYNC is used for UVM and MPI GPU-Aware kernels
 #define MFEM_STREAM_SYNC
 #endif
 
@@ -53,5 +55,18 @@
 #define MFEM_THREAD_SIZE(k) 1
 #define MFEM_FOREACH_THREAD(i,k,N) for(int i=0; i<N; i++)
 #endif
+
+template <typename T>
+MFEM_HOST_DEVICE T AtomicAdd(T &add, const T val)
+{
+#if ((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) || \
+     (defined(MFEM_USE_HIP)  && defined(__HIP_DEVICE_COMPILE__)))
+   return atomicAdd(&add,val);
+#else
+   T old = add;
+   add += val;
+   return old;
+#endif
+}
 
 #endif // MFEM_BACKENDS_HPP
