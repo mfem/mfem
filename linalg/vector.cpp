@@ -748,6 +748,7 @@ double Vector::Norml2() const
 
 double Vector::Normlinf() const
 {
+   HostRead();
    double max = 0.0;
    for (int i = 0; i < size; i++)
    {
@@ -758,6 +759,7 @@ double Vector::Normlinf() const
 
 double Vector::Norml1() const
 {
+   HostRead();
    double sum = 0.0;
    for (int i = 0; i < size; i++)
    {

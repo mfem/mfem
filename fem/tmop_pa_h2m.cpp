@@ -11,6 +11,7 @@
 
 #include "tmop.hpp"
 #include "tmop_pa.hpp"
+#include "../general/debug.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 
@@ -160,7 +161,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
                   double Jrt[4];
                   kernels::CalcInverse<2>(Jtr, Jrt);
                   ConstDeviceMatrix J(Jrt,2,2);
-
                   /*
                   for (int cc = 0; cc < dim; cc++)
                   {
@@ -168,11 +168,13 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
                            weight * DS(i, c) * DS(i, cc) * h(r, c, r, cc);
                   }
                   */
-
-                  diag_00[qy][dx] += G(dx, qx) * G(dx, qx) * H(r, 0, r, 0, qx, qy, e) * J(r, 0) * J(r, 1);
-                  diag_01[qy][dx] += G(dx, qx) * B(dx, qx) * H(r, 0, r, 1, qx, qy, e) * J(r, 0) * J(r, 1);
-                  diag_10[qy][dx] += B(dx, qx) * G(dx, qx) * H(r, 1, r, 0, qx, qy, e) * J(r, 1) * J(r, 0);
-                  diag_11[qy][dx] += B(dx, qx) * B(dx, qx) * H(r, 1, r, 1, qx, qy, e) * J(r, 1) * J(r, 0);
+                  const double GG = G(dx,qx) * G(dx,qx);
+                  const double GB = G(dx,qx) * B(dx,qx);
+                  const double BB = B(dx,qx) * B(dx,qx);
+                  diag_00[qy][dx] += GG * H(r,0,r,0,qx,qy,e) * J(r,0)*J(r,1);
+                  diag_01[qy][dx] += GB * H(r,0,r,1,qx,qy,e) * J(r,0)*J(r,1);
+                  diag_10[qy][dx] += GB * H(r,1,r,0,qx,qy,e) * J(r,1)*J(r,0);
+                  diag_11[qy][dx] += BB * H(r,1,r,1,qx,qy,e) * J(r,1)*J(r,0);
                }
             }
          }
@@ -240,6 +242,7 @@ void TMOP_Integrator::AddMultGradPA_2D(const Vector &R, Vector &C) const
 
 void TMOP_Integrator::AssembleDiagonalPA_2D(Vector &diag)
 {
+   dbg();
    const int N = PA.ne;
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;

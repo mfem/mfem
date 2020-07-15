@@ -494,9 +494,9 @@ void SparseMatrix::GetDiag(Vector & d) const
 
    d.SetSize(height);
 
-   auto I = this->ReadI();
-   auto J = this->ReadJ();
-   auto A = this->ReadData();
+   const auto I = this->ReadI();
+   const auto J = this->ReadJ();
+   const auto A = this->ReadData();
    auto dd = d.Write();
 
    MFEM_FORALL(i, height,
