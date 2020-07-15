@@ -447,6 +447,9 @@ public:
 
    /// Returns the order of the i'th finite element (deprecated).
    int GetOrder(int i) const { return GetElementOrder(i); }
+   /** Returns the order of the specified edge. In a variable order space, order
+       of the given variant is returned, or -1 if there are no more variants. */
+   int GetEdgeOrder(int edge, int variant = 0) const;
    /// Returns the order of the i'th face finite element
    int GetFaceOrder(int i) const;
 
@@ -618,7 +621,7 @@ public:
 
    const FiniteElement *GetFaceElement(int i) const;
 
-   const FiniteElement *GetEdgeElement(int i) const;
+   const FiniteElement *GetEdgeElement(int i, int variant = 0) const;
 
    /// Return the trace element from element 'i' to the given 'geom_type'
    const FiniteElement *GetTraceElement(int i, Geometry::Type geom_type) const;

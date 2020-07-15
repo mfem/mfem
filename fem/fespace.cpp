@@ -126,6 +126,21 @@ int FiniteElementSpace::GetElementOrder(int i) const
    return elem_order.Size() ? elem_order[i] : fec->DefaultOrder();
 }
 
+int FiniteElementSpace::GetEdgeOrder(int edge, int variant) const
+{
+   if (!IsVariableOrder()) { return fec->DefaultOrder(); }
+
+   const int* beg = edge_dofs.GetRow(edge);
+   const int* end = edge_dofs.GetRow(edge + 1);
+   if (variant >= end - beg) { return -1; } // past last variant
+
+   int ndof = beg[variant+1] - beg[variant];
+   int order = ndof + 1; // FIXME proper mapping
+   MFEM_ASSERT(fec->GetNumDof(Geometry::SEGMENT, order) == ndof, "");
+
+   return order;
+}
+
 int FiniteElementSpace::GetFaceOrder(int i) const
 {
    Geometry::Type GeomType = mesh->GetFaceBaseGeometry(i);
@@ -2604,9 +2619,10 @@ const FiniteElement *FiniteElementSpace::GetFaceElement(int i) const
    return fe;
 }
 
-const FiniteElement *FiniteElementSpace::GetEdgeElement(int i) const
+const FiniteElement *FiniteElementSpace::GetEdgeElement(int i, int variant) const
 {
-   return fec->FiniteElementForGeometry(Geometry::SEGMENT);
+   int eo = IsVariableOrder() ? GetEdgeOrder(i, variant) : fec->DefaultOrder();
+   return fec->GetFE(Geometry::SEGMENT, eo);
 }
 
 const FiniteElement *FiniteElementSpace::GetTraceElement(

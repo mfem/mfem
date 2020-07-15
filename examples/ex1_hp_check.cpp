@@ -51,13 +51,6 @@ double exact_rhs_2(const Vector &p)
    return -(2*x*(x - 1.0) + 2*y*(y - 1.0));
 }
 
-double exact_rhs_3(const Vector &p)
-{
-   MFEM_ASSERT(p.Size() == 2, "");
-   double x = p(0), y = p(1);
-   return -4.0 + x*x + y*y;
-}
-
 
 GridFunction* ProlongToMaxOrder(const GridFunction *x);
 
@@ -120,7 +113,7 @@ int main(int argc, char *argv[])
    // 'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    // largest number that gives a final mesh with no more than 50,000
    // elements.
-#if 0
+#if 1
    srand(seed);
    {
       for (int l = 0; l < ref_levels; l++)
@@ -139,8 +132,8 @@ int main(int argc, char *argv[])
    mesh->GeneralRefinement(refs);
 #endif
 
-   FunctionCoefficient exsol((problem == 2) ? exact_sln_2 : exact_sln_1);
-   FunctionCoefficient rhs((problem == 1) ? exact_rhs_1 : (problem == 2) ? exact_rhs_2 : exact_rhs_3);
+   FunctionCoefficient exsol((problem == 1) ? exact_sln_1 : exact_sln_2);
+   FunctionCoefficient rhs((problem == 1) ? exact_rhs_1 : exact_rhs_2);
 
    // Define a finite element space on the mesh. Here we use continuous
    // Lagrange finite elements of the specified order.
@@ -152,7 +145,7 @@ int main(int argc, char *argv[])
    // At this point all elements have the default order (specified when
    // construction the FECollection). Now we can p-refine some of them to
    // obtain a variable-order space...
-#if 0
+#if 1
    srand(seed);
    for (int i = 0; i < mesh->GetNE(); i++)
    {
@@ -181,7 +174,7 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(mesh->bdr_attributes.Size() > 0,
               "Boundary attributes required in the mesh.");
    Array<int> ess_attr(mesh->bdr_attributes.Max());
-   ess_attr = (problem < 3) ? 1 : 0;
+   ess_attr = 1;
 
    GridFunction x(fespace);
    x = 0.0;
@@ -199,8 +192,6 @@ int main(int argc, char *argv[])
    BilinearForm bf(fespace);
    if (pa) { bf.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    bf.AddDomainIntegrator(new DiffusionIntegrator());
-   ConstantCoefficient one(1.0);
-   if (problem == 3) { bf.AddDomainIntegrator(new MassIntegrator(one)); }
    bf.Assemble();
 
    OperatorPtr A;
@@ -241,28 +232,30 @@ int main(int argc, char *argv[])
    double error2 = y.ComputeL2Error(exsol);
    cout << "Nodal projection L2 error: " << error2 << endl;
 
-   // z = Ry
    const SparseMatrix *R = fespace->GetRestrictionMatrix();
-   Vector Z(R->Height());
-   R->Mult(y, Z);
+   if (R)
+   {
+      // z = Ry
+      Vector Z(R->Height());
+      R->Mult(y, Z);
 
-   // compute Az - B
-   SparseMatrix *spA = A.Is<SparseMatrix>();
-   Vector check(spA->Height());
-   spA->Mult(Z, check);
-   check -= B;
-   cout << "|Az - B|: " << check.Norml2() << endl;
+      // compute Az - B
+      SparseMatrix *spA = A.Is<SparseMatrix>();
+      Vector check(spA->Height());
+      spA->Mult(Z, check);
+      check -= B;
+      cout << "|Az - B|: " << check.Norml2() << endl;
 
-   // w = Rx
-   Vector W(R->Height());
-   R->Mult(x, W);
+      // w = Rx
+      Vector W(R->Height());
+      R->Mult(x, W);
 
-   // compute 1/2 z'Az - B'z
-   Vector Aw(spA->Height());
-   spA->Mult(W, Aw);
-   double energy = W*Aw/2 - B*W;
-   cout << "(1/2 w'Aw - B'w): " << energy << endl;
-
+      // compute 1/2 z'Az - B'z
+      Vector Aw(spA->Height());
+      spA->Mult(W, Aw);
+      double energy = W*Aw/2 - B*W;
+      cout << "(1/2 w'Aw - B'w): " << energy << endl;
+   }
 
    // Send the solution by socket to a GLVis server.
    if (visualization)
@@ -270,11 +263,7 @@ int main(int argc, char *argv[])
       char vishost[] = "localhost";
       int  visport   = 19916;
 
-      const char* keys = (dim == 2) ? "Rjlmciiiiii" : "Amooooo";
-
-      /*////// DEBUG DEBUG
-      x = 0;
-      x.ProjectBdrCoefficient(exsol, ess_attr);*/
+      const char* keys = (dim == 2) ? "Rjlmciiiiii" : "Amcooooo";
 
       // Prolong the solution vector onto L2 space of max order (for GLVis)
       GridFunction *vis_x = ProlongToMaxOrder(&x);
@@ -318,7 +307,7 @@ int main(int argc, char *argv[])
 #endif
 
       // visualize the basis functions
-      if (1)
+      if (0)
       {
          socketstream b_sock(vishost, visport);
          b_sock.precision(8);
