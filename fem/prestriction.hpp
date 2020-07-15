@@ -26,28 +26,21 @@ class ParFiniteElementSpace;
 /// Operator that extracts Face degrees of freedom in parallel.
 /** Objects of this type are typically created and owned by FiniteElementSpace
     objects, see FiniteElementSpace::GetFaceRestriction(). */
-class ParL2FaceRestriction : public Operator
+class ParL2FaceRestriction : public L2FaceRestriction
 {
-protected:
-   const ParFiniteElementSpace &fes;
-   const int nf;
-   const int vdim;
-   const bool byvdim;
-   const int ndofs;
-   const int dof;
-   const L2FaceValues m;
-   const int nfdofs;
-   Array<int> scatter_indices1;
-   Array<int> scatter_indices2;
-   Array<int> offsets;
-   Array<int> gather_indices;
-
 public:
    ParL2FaceRestriction(const ParFiniteElementSpace&, ElementDofOrdering,
                         FaceType type,
                         L2FaceValues m = L2FaceValues::DoubleValued);
    void Mult(const Vector &x, Vector &y) const;
-   void MultTranspose(const Vector &x, Vector &y) const;
+   /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
+       given by this ParL2FaceRestriction. */
+   void FillI(SparseMatrix &mat, SparseMatrix &face_mat) const;
+   /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
+       pattern given by this ParL2FaceRestriction, and the values of ea_data. */
+   void FillJAndData(const Vector &ea_data,
+                     SparseMatrix &mat,
+                     SparseMatrix &face_mat) const;
 };
 
 }

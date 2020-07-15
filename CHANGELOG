@@ -48,6 +48,11 @@ Improved GPU capabilities
 -------------------------
 - Added support for Chebyshev accelerated polynomial smoother on GPU.
 
+- Added a Full Assembly mode compatible with Device kernel execution. This
+  assembly level builds on top of the current Element Assembly kernels to
+  compute a global sparse matrix. All integrators supported by element assembly
+  are also supported by full assembly. See the '-fa' option in Example 9.
+
 Discretization improvements
 ---------------------------
 - Added support for matrix-free interpolation and restriction operators between
@@ -125,10 +130,12 @@ New and updated examples and miniapps
 - Added a new meshing miniapp, Minimal Surface, which solves Plateau's problem:
   the Dirichlet problem for the minimal surface equation.
 
-- Added partial assembly support to examples 4/4p and 5/5p, with diagonal
+- Added partial assembly support to Example 4/4p and Example 5/5p, with diagonal
   preconditioning.
 
-- Added a new test problem in example 24/24p, demonstrating a mixed bilinear
+- Added full assembly support in Example 9/9p.
+
+- Added a new test problem in Example 24/24p, demonstrating a mixed bilinear
   form for H1, H(curl), H(div) and L_2, with partial assembly support.
 
 - Added weak Dirichlet boundary conditions (Nitsche) to the NURBS miniapp.
