@@ -1068,18 +1068,19 @@ CPDSolver::Solve()
          {
             attr_marker[(*dbcs_)[i].attr[j] - 1] = 1;
          }
+         // Determine marker array in vDoF space
          HCurlFESpace_->GetEssentialVDofs(attr_marker, ess_bdr_vdofs);
 
          temp_->ProjectCoefficient(*(*dbcs_)[i].real);
          for (int j=0; j<ess_bdr_vdofs.Size(); j++)
          {
-            e_->real()[ess_bdr_vdofs[j]] = (*temp_)[ess_bdr_vdofs[j]];
+            if (ess_bdr_vdofs[j]) { e_->real()[j] = (*temp_)[j]; }
          }
 
          temp_->ProjectCoefficient(*(*dbcs_)[i].imag);
          for (int j=0; j<ess_bdr_vdofs.Size(); j++)
          {
-            e_->imag()[ess_bdr_vdofs[j]] = (*temp_)[ess_bdr_vdofs[j]];
+            if (ess_bdr_vdofs[j]) { e_->imag()[j] = (*temp_)[j]; }
          }
 
          /*
@@ -1281,7 +1282,7 @@ CPDSolver::Solve()
    tic_toc.Stop();
 
    a1_->RecoverFEMSolution(E, *rhs_, *e_);
-   
+
    // Update D = epsilon E
    {
       HypreParMatrix M2;
