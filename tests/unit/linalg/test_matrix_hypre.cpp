@@ -30,18 +30,19 @@ TEST_CASE("HypreParMatrixAbsMult",  "[Parallel], [HypreParMatrixAbsMult]")
       Mesh * mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
       ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
       delete mesh;
-      ConstantCoefficient one(1.0);
-      FiniteElementCollection *fec = new H1_FECollection(order, dim);
-      ParFiniteElementSpace fes(pmesh, fec);
-      int n = fes.GetTrueVSize();
-      ParBilinearForm a(&fes);
-      a.AddDomainIntegrator(new DiffusionIntegrator(one));
-      a.AddDomainIntegrator(new MassIntegrator(one));
+      FiniteElementCollection *hdiv_coll(new RT_FECollection(order, dim));
+      FiniteElementCollection *l2_coll(new L2_FECollection(order, dim));
+      ParFiniteElementSpace R_space(pmesh, hdiv_coll);
+      ParFiniteElementSpace W_space(pmesh, l2_coll);
+
+      int n = R_space.GetTrueVSize();
+      int m = W_space.GetTrueVSize();
+      ParMixedBilinearForm a(&R_space, &W_space);
+      a.AddDomainIntegrator(new VectorFEDivergenceIntegrator);
       a.Assemble();
       a.Finalize();
 
       HypreParMatrix *A = a.ParallelAssemble();
-
       HypreParMatrix *Aabs = new HypreParMatrix(*A);
 
       hypre_ParCSRMatrix * AparCSR =
@@ -59,16 +60,35 @@ TEST_CASE("HypreParMatrixAbsMult",  "[Parallel], [HypreParMatrixAbsMult]")
          AparCSR->offd->data[j] = fabs(AparCSR->offd->data[j]);
       }
 
-      Vector X(n); X.Randomize(1);
-      Vector Y(n); Y.Randomize(1);
-      Vector B(n); B.Randomize();
-      A->AbsMult(3.4,B,-2.3,X);
-      Aabs->Mult(3.4,B,-2.3,Y);
+      Vector X0(n), X1(n);
+      Vector Y0(m), Y1(m);
 
-      Y -=X;
-      double error = Y.Norml2();
+      X0.Randomize();
+      Y0.Randomize(1);
+      Y1.Randomize(1);
+      A->AbsMult(3.4,X0,-2.3,Y0);
+      Aabs->Mult(3.4,X0,-2.3,Y1);
 
-      std::cout << "  order: " << order
+      Y1 -=Y0;
+      double error = Y1.Norml2();
+
+      std::cout << "Testing AbsMult:   order: " << order
+                << ", error norm on rank "
+                << rank << ": " << error << std::endl;
+
+      REQUIRE(error == Approx(EPS));
+
+      MPI_Barrier(MPI_COMM_WORLD);
+
+      Y0.Randomize();
+      X0.Randomize(1);
+      X1.Randomize(1);
+      A->AbsMultTranspose(3.4,Y0,-2.3,X0);
+      Aabs->MultTranspose(3.4,Y0,-2.3,X1);
+      X1 -=X0;
+
+      error = X1.Norml1();
+      std::cout << "Testing AbsMultT:  order: " << order
                 << ", error norm on rank "
                 << rank << ": " << error << std::endl;
 
@@ -76,69 +96,8 @@ TEST_CASE("HypreParMatrixAbsMult",  "[Parallel], [HypreParMatrixAbsMult]")
 
       delete A;
       delete Aabs;
-      delete fec;
-      delete pmesh;
-   }
-}
-
-TEST_CASE("HypreParMatrixAbsMultT",  "[Parallel], [HypreParMatrixAbsMultT]")
-{
-   int rank;
-   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-   int dim = 2;
-   int ne = 4;
-   for (int order = 1; order <= 3; ++order)
-   {
-      Mesh * mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
-      ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-      delete mesh;
-      ConstantCoefficient one(1.0);
-      FiniteElementCollection *fec = new H1_FECollection(order, dim);
-      ParFiniteElementSpace fes(pmesh, fec);
-      int n = fes.GetTrueVSize();
-      ParBilinearForm a(&fes);
-      a.AddDomainIntegrator(new DiffusionIntegrator(one));
-      a.AddDomainIntegrator(new MassIntegrator(one));
-      a.Assemble();
-      a.Finalize();
-
-      HypreParMatrix *A = a.ParallelAssemble();
-
-      HypreParMatrix *Aabs = new HypreParMatrix(*A);
-
-      hypre_ParCSRMatrix * AparCSR =
-         (hypre_ParCSRMatrix *)const_cast<HypreParMatrix&>(*Aabs);
-
-      int nnzd = AparCSR->diag->num_nonzeros;
-      for (int j = 0; j < nnzd; j++)
-      {
-         AparCSR->diag->data[j] = fabs(AparCSR->diag->data[j]);
-      }
-
-      int nnzoffd = AparCSR->offd->num_nonzeros;
-      for (int j = 0; j < nnzoffd; j++)
-      {
-         AparCSR->offd->data[j] = fabs(AparCSR->offd->data[j]);
-      }
-
-      Vector X(n); X.Randomize(1);
-      Vector Y(n); Y.Randomize(1);
-      Vector B(n); B.Randomize();
-      A->AbsMultTranspose(3.4,B,-2.3,X);
-      Aabs->MultTranspose(3.4,B,-2.3,Y);
-
-      Y -=X;
-      double error = Y.Norml2();
-
-      std::cout << "  order: " << order
-                << ", error norm on rank "
-                << rank << ": " << error << std::endl;
-
-      REQUIRE(error == Approx(EPS));
-
-      delete A;
-      delete Aabs;
-      delete fec;
+      delete hdiv_coll;
+      delete l2_coll;
       delete pmesh;
    }
 }
