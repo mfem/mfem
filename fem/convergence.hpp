@@ -21,6 +21,8 @@
 namespace mfem
 {
 
+/** @brief Class to compute error and convergence rates.
+    It supports H1, H(curl) (ND elements), H(div) (RT elements) and L2 (DG). */
 class Convergence
 {
 private:
