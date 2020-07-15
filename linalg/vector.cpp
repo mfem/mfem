@@ -185,15 +185,6 @@ Vector &Vector::operator-=(const Vector &v)
    return *this;
 }
 
-Vector &Vector::operator+=(double c)
-{
-   const bool use_dev = UseDevice();
-   const int N = size;
-   auto y = ReadWrite(use_dev);
-   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] += c;);
-   return *this;
-}
-
 Vector &Vector::operator+=(const Vector &v)
 {
    MFEM_ASSERT(size == v.size, "incompatible Vectors!");
@@ -829,6 +820,7 @@ double Vector::Max() const
 {
    if (size == 0) { return -infinity(); }
 
+   HostRead();
    double max = data[0];
 
    for (int i = 1; i < size; i++)
