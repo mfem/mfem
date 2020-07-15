@@ -209,18 +209,24 @@ void GradientGridFunctionCoefficient::Eval(
    GridFunc->GetGradients(T, ir, M);
 }
 
-CurlGridFunctionCoefficient::CurlGridFunctionCoefficient (
+CurlGridFunctionCoefficient::CurlGridFunctionCoefficient(
    const GridFunction *gf)
-   : VectorCoefficient ((gf) ?
-                        gf -> FESpace() -> GetMesh() -> SpaceDimension() : 0)
+   : VectorCoefficient(0)
 {
-   GridFunc = gf;
+   SetGridFunction(gf);
 }
 
 void CurlGridFunctionCoefficient::SetGridFunction(const GridFunction *gf)
 {
-   GridFunc = gf; vdim = (gf) ?
-                         gf -> FESpace() -> GetMesh() -> SpaceDimension() : 0;
+   if (gf)
+   {
+      int sdim = gf -> FESpace() -> GetMesh() -> SpaceDimension();
+      MFEM_VERIFY(sdim == 2 || sdim == 3,
+                  "CurlGridFunctionCoefficient "
+                  "only defind for spaces of dimension 2 or 3.");
+   }
+   GridFunc = gf;
+   vdim = (gf) ? (2 * gf -> FESpace() -> GetMesh() -> SpaceDimension() - 3) : 0;
 }
 
 void CurlGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
