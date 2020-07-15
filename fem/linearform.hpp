@@ -26,7 +26,7 @@ protected:
    /// FE space on which the LinearForm lives. Not owned.
    FiniteElementSpace *fes;
 
-   /** @brief Indicates the LinerFormIntegrator%s stored in #dlfi, #dlfi_delta,
+   /** @brief Indicates the LinearFormIntegrator%s stored in #dlfi, #dlfi_delta,
        #blfi, and #flfi are owned by another LinearForm. */
    int extern_lfs;
 
