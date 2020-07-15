@@ -368,7 +368,7 @@ int main(int argc, char *argv[])
    a->FormLinearSystem(ess_tdof_list, u, b, A, U, B);
    U = 0.0;
 
-   cout << "Size of linear system: " << A.Ptr()->Width() << endl << endl;
+   cout << "Size of linear system: " << A->Width() << endl << endl;
 
    // 11. Define and apply a GMRES solver for AU=B with a block diagonal
    //     preconditioner based on the appropriate sparse smoother.
@@ -376,8 +376,8 @@ int main(int argc, char *argv[])
       Array<int> blockOffsets;
       blockOffsets.SetSize(3);
       blockOffsets[0] = 0;
-      blockOffsets[1] = A.Ptr()->Height() / 2;
-      blockOffsets[2] = A.Ptr()->Height() / 2;
+      blockOffsets[1] = A->Height() / 2;
+      blockOffsets[2] = A->Height() / 2;
       blockOffsets.PartialSum();
 
       BlockDiagonalPreconditioner BDP(blockOffsets);

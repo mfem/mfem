@@ -413,8 +413,8 @@ int main(int argc, char *argv[])
       Array<int> blockTrueOffsets;
       blockTrueOffsets.SetSize(3);
       blockTrueOffsets[0] = 0;
-      blockTrueOffsets[1] = A.Ptr()->Height() / 2;
-      blockTrueOffsets[2] = A.Ptr()->Height() / 2;
+      blockTrueOffsets[1] = A->Height() / 2;
+      blockTrueOffsets[2] = A->Height() / 2;
       blockTrueOffsets.PartialSum();
 
       BlockDiagonalPreconditioner BDP(blockTrueOffsets);
