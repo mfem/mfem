@@ -494,24 +494,29 @@ void SparseMatrix::GetDiag(Vector & d) const
 
    d.SetSize(height);
 
-   int j, end;
-   for (int i = 0; i < height; i++)
-   {
+   auto I = this->ReadI();
+   auto J = this->ReadJ();
+   auto A = this->ReadData();
+   auto dd = d.Write();
 
-      end = I[i+1];
-      for (j = I[i]; j < end; j++)
+   MFEM_FORALL(i, height,
+   {
+      const int begin = I[i];
+      const int end = I[i+1];
+      int j;
+      for (j = begin; j < end; j++)
       {
          if (J[j] == i)
          {
-            d[i] = A[j];
+            dd[i] = A[j];
             break;
          }
       }
       if (j == end)
       {
-         d[i] = 0.;
+         dd[i] = 0.;
       }
-   }
+   });
 }
 
 /// Produces a DenseMatrix from a SparseMatrix
@@ -2145,31 +2150,46 @@ void SparseMatrix::DiagScale(const Vector &b, Vector &x, double sc) const
 {
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
+   const int nnz = J.Capacity();
+
+   const bool use_dev = b.UseDevice() || x.UseDevice();
+
+   auto bp = b.Read(use_dev);
+   auto xp = x.Write(use_dev);
+
+   auto Ap = Read(A, nnz);
+   auto Ip = Read(I, height+1);
+   auto Jp = Read(J, nnz);
+
    bool scale = (sc != 1.0);
-   for (int i = 0, j = 0; i < height; i++)
+   MFEM_FORALL(i, height,
    {
-      int end = I[i+1];
-      for ( ; true; j++)
+      int end = Ip[i+1];
+      for (int j = Ip[i]; true; j++)
       {
-         MFEM_VERIFY(j != end, "Couldn't find diagonal in row. i = " << i
-                     << ", j = " << j
-                     << ", I[i+1] = " << end );
-         if (J[j] == i)
+         if (j == end)
          {
-            MFEM_VERIFY(std::abs(A[j]) > 0.0, "Diagonal " << j << " must be nonzero");
+            MFEM_ABORT_KERNEL("Diagonal not found in SparseMatrix::DiagScale");
+         }
+         if (Jp[j] == i)
+         {
+            if (!(std::abs(Ap[j]) > 0.0))
+            {
+               MFEM_ABORT_KERNEL("Zero diagonal in SparseMatrix::DiagScale");
+            }
+
             if (scale)
             {
-               x(i) = sc * b(i) / A[j];
+               xp[i] = sc * bp[i] / Ap[j];
             }
             else
             {
-               x(i) = b(i) / A[j];
+               xp[i] = bp[i] / Ap[j];
             }
             break;
          }
       }
-      j = end;
-   }
+   });
    return;
 }
 
@@ -2749,6 +2769,10 @@ void SparseMatrix::Print(std::ostream & out, int _width) const
       return;
    }
 
+   // HostRead forces synchronization
+   HostReadI();
+   HostReadJ();
+   HostReadData();
    for (i = 0; i < height; i++)
    {
       out << "[row " << i << "]\n";
