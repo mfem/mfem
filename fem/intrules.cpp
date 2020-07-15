@@ -618,6 +618,26 @@ void QuadratureFunctions1D::OpenHalfUniform(const int np, IntegrationRule* ir)
    CalculateUniformWeights(ir, Quadrature1D::OpenHalfUniform);
 }
 
+void QuadratureFunctions1D::ClosedGL(const int np, IntegrationRule* ir)
+{
+   ir->SetSize(np);
+   ir->IntPoint(0).x = 0.0;
+   ir->IntPoint(np-1).x = 1.0;
+
+   if ( np > 2 )
+   {
+      IntegrationRule gl_ir;
+      GaussLegendre(np-1, &gl_ir);
+
+      for (int i = 1; i < np-1; ++i)
+      {
+         ir->IntPoint(i).x = (gl_ir.IntPoint(i-1).x + gl_ir.IntPoint(i).x)/2;
+      }
+   }
+
+   CalculateUniformWeights(ir, Quadrature1D::ClosedGL);
+}
+
 void QuadratureFunctions1D::GivePolyPoints(const int np, double *pts,
                                            const int type)
 {
@@ -648,6 +668,11 @@ void QuadratureFunctions1D::GivePolyPoints(const int np, double *pts,
       case Quadrature1D::OpenHalfUniform:
       {
          OpenHalfUniform(np, &ir);
+         break;
+      }
+      case Quadrature1D::ClosedGL:
+      {
+         ClosedGL(np, &ir);
          break;
       }
       default:
