@@ -199,6 +199,8 @@ public:
    virtual ~BilinearFormIntegrator() { }
 };
 
+/** Wraps a given @a BilinearFormIntegrator and transposes the resulting element
+    matrices. See for example ex9, ex9p. */
 class TransposeIntegrator : public BilinearFormIntegrator
 {
 private:
@@ -1563,7 +1565,7 @@ public:
 };
 
 /** Class for integrating the bilinear form a(u,v) := (-V u, Grad v) in 2D or 3D
-    and where V is a vector coefficient, u is in H1 and v is in H1. */
+    and where V is a vector coefficient, u is in H1 or L2 and v is in H1. */
 class MixedScalarWeakDivergenceIntegrator : public MixedScalarVectorIntegrator
 {
 public:
@@ -1683,6 +1685,22 @@ protected:
    {
       trial_fe.CalcPhysCurlShape(Trans, shape);
    }
+
+   using BilinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
+
+   virtual void AddMultPA(const Vector&, Vector&) const;
+
+private:
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
+   const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
+   const DofToQuad *mapsOtest;     ///< Not owned. DOF-to-quad map, open.
+   const DofToQuad *mapsCtest;     ///< Not owned. DOF-to-quad map, closed.
+   const GeometricFactors *geom;   ///< Not owned
+   int dim, ne, dofs1D, dofs1Dtest,quad1D, testType, trialType, coeffDim;
 };
 
 /** Class for integrating the bilinear form a(u,v) := (Q u, curl v) in 3D and
@@ -1722,6 +1740,20 @@ protected:
    {
       test_fe.CalcPhysCurlShape(Trans, shape);
    }
+
+   using BilinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
+
+   virtual void AddMultPA(const Vector&, Vector&) const;
+
+private:
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
+   const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
+   const GeometricFactors *geom;   ///< Not owned
+   int dim, ne, dofs1D, quad1D, testType, trialType, coeffDim;
 };
 
 /** Class for integrating the bilinear form a(u,v) := - (Q u, grad v) in either
@@ -2001,6 +2033,7 @@ public:
    void SetupPA(const FiniteElementSpace &fes, const bool force = false);
 };
 
+/** Mass integrator (u, v) restricted to the boundary of a domain */
 class BoundaryMassIntegrator : public MassIntegrator
 {
 public:
