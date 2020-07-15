@@ -13,6 +13,8 @@
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
+#define MFEM_DEBUG_COLOR 118
+#include "../general/debug.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 
@@ -65,6 +67,7 @@ void TMOP_Integrator::EnableLimitingPA(const GridFunction &n0)
 //                                    Jtr(i) *= R_theta        (orientation)
 void TMOP_Integrator::ComputeElementTargetsPA(const Vector &x) const
 {
+   dbg();
    PA.Jtr.HostWrite();
 
    const int NE = PA.ne;
@@ -117,6 +120,7 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &x) const
 
 void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 {
+   dbg();
    const IntegrationRule *ir = EnergyIntegrationRule(*fes.GetFE(0));
    MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES,
                "PA Only supports Ordering::byNODES!");
@@ -204,21 +208,22 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 
 void TMOP_Integrator::AssembleDiagonalPA(Vector &diag)
 {
+   dbg();
+   Vector diag_ldofs(PA.R->Height());
+   diag_ldofs = 0.0;
+
+   diag.SetSize(PA.R->Width(), Device::GetMemoryType());
+   diag.UseDevice(true);
+
    if (!PA.setup_Jtr) { ComputeElementTargetsPA(); }
+
+   MFEM_VERIFY(PA.setup_Grad,"");
 
    if (PA.dim == 2)
    {
-      const int N = PA.ne;
-      const int D1D = PA.maps->ndof;
-      const int Q1D = PA.maps->nqpt;
-      Vector diag_ldofs(N * D1D * D1D * 2);
-
+      dbg();
       AssembleDiagonalPA_2D(diag_ldofs);
-
-      diag.SetSize(PA.R->Width(), Device::GetMemoryType());
-      diag.UseDevice(true);
       PA.R->MultTranspose(diag_ldofs, diag);
-
       if (coeff0) { MFEM_ABORT("2D limiting part of the diagonal is WIP."); }
    }
    else
