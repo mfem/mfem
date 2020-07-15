@@ -24,13 +24,17 @@ TEST_CASE("SparseMatrixAbsMult", "[SparseMatrixAbsMult]")
    for (int order = 1; order <= 3; ++order)
    {
       Mesh * mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
-      ConstantCoefficient one(1.0);
-      FiniteElementCollection *fec = new H1_FECollection(order, dim);
-      FiniteElementSpace fes(mesh, fec);
-      int n = fes.GetTrueVSize();
-      BilinearForm a(&fes);
-      a.AddDomainIntegrator(new DiffusionIntegrator(one));
-      a.AddDomainIntegrator(new MassIntegrator(one));
+      FiniteElementCollection *hdiv_coll(new RT_FECollection(order, dim));
+      FiniteElementCollection *l2_coll(new L2_FECollection(order, dim));
+      FiniteElementSpace R_space(mesh, hdiv_coll);
+      FiniteElementSpace W_space(mesh, l2_coll);
+
+      int n = R_space.GetTrueVSize();
+      int m = W_space.GetTrueVSize();
+      MixedBilinearForm a(&R_space, &W_space);
+      a.AddDomainIntegrator(new VectorFEDivergenceIntegrator);
+      a.Assemble();
+      a.Finalize();
       a.Assemble();
       a.Finalize();
 
@@ -43,60 +47,46 @@ TEST_CASE("SparseMatrixAbsMult", "[SparseMatrixAbsMult]")
          Aabs->GetData()[j] = fabs(Aabs->GetData()[j]);
       }
 
-      Vector X(n); X.Randomize(1);
-      Vector Y(n); Y.Randomize(1);
-      Vector B(n); B.Randomize();
-      A.AbsMult(B,X);
-      Aabs->Mult(B,Y);
+      Vector X0(n), X1(n);
+      Vector Y0(m), Y1(m);
 
-      Y -=X;
-      double error = Y.Norml2();
-      std::cout << "    order: " << order << ", error norm: " << error << std::endl;
+      X0.Randomize();
+      Y0.Randomize(1);
+      Y1.Randomize(1);
+      A.AbsMult(X0,Y0);
+      Aabs->Mult(X0,Y1);
+
+      Y1 -=Y0;
+      double error = Y1.Norml2();
+
+      std::cout << "Testing AbsMult:   order: " << order
+                << ", error norm: "
+                << error << std::endl;
+
       REQUIRE(error == Approx(EPS));
+
+
+      Y0.Randomize();
+      X0.Randomize(1);
+      X1.Randomize(1);
+      A.AbsMultTranspose(Y0,X0);
+      Aabs->MultTranspose(Y0,X1);
+      X1 -=X0;
+
+      error = X1.Norml2();
+
+      std::cout << "Testing AbsMultT:  order: " << order
+                << ", error norm: "
+                << error << std::endl;
+
+      REQUIRE(error == Approx(EPS));
+
       delete Aabs;
-      delete fec;
+      delete hdiv_coll;
+      delete l2_coll;
+      delete mesh;
    }
 }
 
-TEST_CASE("SparseMatrixAbsMultT", "[SparseMatrixAbsMultT]")
-{
-   int dim = 2;
-   int ne = 4;
-   for (int order = 1; order <= 3; ++order)
-   {
-      Mesh * mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
-      ConstantCoefficient one(1.0);
-      FiniteElementCollection *fec = new H1_FECollection(order, dim);
-      FiniteElementSpace fes(mesh, fec);
-      int n = fes.GetTrueVSize();
-      BilinearForm a(&fes);
-      a.AddDomainIntegrator(new DiffusionIntegrator(one));
-      a.AddDomainIntegrator(new MassIntegrator(one));
-      a.Assemble();
-      a.Finalize();
-
-      SparseMatrix &A = a.SpMat();
-      SparseMatrix *Aabs = new SparseMatrix(A);
-
-      int nnz = Aabs->NumNonZeroElems();
-      for (int j = 0; j < nnz; j++)
-      {
-         Aabs->GetData()[j] = fabs(Aabs->GetData()[j]);
-      }
-
-      Vector X(n); X.Randomize(1);
-      Vector Y(n); Y.Randomize(1);
-      Vector B(n); B.Randomize();
-      A.AbsMultTranspose(B,X);
-      Aabs->MultTranspose(B,Y);
-
-      Y -=X;
-      double error = Y.Norml2();
-      std::cout << "    order: " << order << ", error norm: " << error << std::endl;
-      REQUIRE(error == Approx(EPS));
-      delete Aabs;
-      delete fec;
-   }
-}
 
 } // namespace mfem
