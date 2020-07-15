@@ -103,20 +103,19 @@ void PADiffusionSetup2D<2>(const int Q1D,
    auto C = const_c ? Reshape(c.Read(), 1, 1) : Reshape(c.Read(), NQ, NE);
    auto D = Reshape(d.Write(), NQ, 3, NE);
 
-   MFEM_FORALL(e, NE,
+   MFEM_FORALL(eq, NE*NQ,
    {
-      for (int q = 0; q < NQ; ++q)
-      {
-         const double J11 = J(q,0,0,e);
-         const double J21 = J(q,1,0,e);
-         const double J12 = J(q,0,1,e);
-         const double J22 = J(q,1,1,e);
-         const double coeff = const_c ? C(0,0) : C(q,e);
-         const double c_detJ = W[q] * coeff / ((J11*J22)-(J21*J12));
-         D(q,0,e) =  c_detJ * (J12*J12 + J22*J22); // 1,1
-         D(q,1,e) = -c_detJ * (J12*J11 + J22*J21); // 1,2
-         D(q,2,e) =  c_detJ * (J11*J11 + J21*J21); // 2,2
-      }
+      const int e = eq / NQ;
+      const int q = eq % NQ;
+      const double J11 = J(q,0,0,e);
+      const double J21 = J(q,1,0,e);
+      const double J12 = J(q,0,1,e);
+      const double J22 = J(q,1,1,e);
+      const double coeff = const_c ? C(0,0) : C(q,e);
+      const double c_detJ = W[q] * coeff / ((J11*J22)-(J21*J12));
+      D(q,0,e) =  c_detJ * (J12*J12 + J22*J22); // 1,1
+      D(q,1,e) = -c_detJ * (J12*J11 + J22*J21); // 1,2
+      D(q,2,e) =  c_detJ * (J11*J11 + J21*J21); // 2,2
    });
 }
 
@@ -138,27 +137,26 @@ void PADiffusionSetup2D<3>(const int Q1D,
    auto J = Reshape(j.Read(), NQ, SDIM, DIM, NE);
    auto C = const_c ? Reshape(c.Read(), 1, 1) : Reshape(c.Read(), NQ, NE);
    auto D = Reshape(d.Write(), NQ, 3, NE);
-   MFEM_FORALL(e, NE,
+   MFEM_FORALL(eq, NE*NQ,
    {
-      for (int q = 0; q < NQ; ++q)
-      {
-         const double wq = W[q];
-         const double J11 = J(q,0,0,e);
-         const double J21 = J(q,1,0,e);
-         const double J31 = J(q,2,0,e);
-         const double J12 = J(q,0,1,e);
-         const double J22 = J(q,1,1,e);
-         const double J32 = J(q,2,1,e);
-         const double E = J11*J11 + J21*J21 + J31*J31;
-         const double G = J12*J12 + J22*J22 + J32*J32;
-         const double F = J11*J12 + J21*J22 + J31*J32;
-         const double iw = 1.0 / sqrt(E*G - F*F);
-         const double coeff = const_c ? C(0,0) : C(q,e);
-         const double alpha = wq * coeff * iw;
-         D(q,0,e) =  alpha * G; // 1,1
-         D(q,1,e) = -alpha * F; // 1,2
-         D(q,2,e) =  alpha * E; // 2,2
-      }
+      const int e = eq / NQ;
+      const int q = eq % NQ;
+      const double wq = W[q];
+      const double J11 = J(q,0,0,e);
+      const double J21 = J(q,1,0,e);
+      const double J31 = J(q,2,0,e);
+      const double J12 = J(q,0,1,e);
+      const double J22 = J(q,1,1,e);
+      const double J32 = J(q,2,1,e);
+      const double E = J11*J11 + J21*J21 + J31*J31;
+      const double G = J12*J12 + J22*J22 + J32*J32;
+      const double F = J11*J12 + J21*J22 + J31*J32;
+      const double iw = 1.0 / sqrt(E*G - F*F);
+      const double coeff = const_c ? C(0,0) : C(q,e);
+      const double alpha = wq * coeff * iw;
+      D(q,0,e) =  alpha * G; // 1,1
+      D(q,1,e) = -alpha * F; // 1,2
+      D(q,2,e) =  alpha * E; // 2,2
    });
 }
 
@@ -176,42 +174,41 @@ static void PADiffusionSetup3D(const int Q1D,
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
    auto C = const_c ? Reshape(c.Read(), 1, 1) : Reshape(c.Read(), NQ, NE);
    auto D = Reshape(d.Write(), NQ, 6, NE);
-   MFEM_FORALL(e, NE,
+   MFEM_FORALL(eq, NE*NQ,
    {
-      for (int q = 0; q < NQ; ++q)
-      {
-         const double J11 = J(q,0,0,e);
-         const double J21 = J(q,1,0,e);
-         const double J31 = J(q,2,0,e);
-         const double J12 = J(q,0,1,e);
-         const double J22 = J(q,1,1,e);
-         const double J32 = J(q,2,1,e);
-         const double J13 = J(q,0,2,e);
-         const double J23 = J(q,1,2,e);
-         const double J33 = J(q,2,2,e);
-         const double detJ = J11 * (J22 * J33 - J32 * J23) -
-         /* */               J21 * (J12 * J33 - J32 * J13) +
-         /* */               J31 * (J12 * J23 - J22 * J13);
-         const double coeff = const_c ? C(0,0) : C(q,e);
-         const double c_detJ = W[q] * coeff / detJ;
-         // adj(J)
-         const double A11 = (J22 * J33) - (J23 * J32);
-         const double A12 = (J32 * J13) - (J12 * J33);
-         const double A13 = (J12 * J23) - (J22 * J13);
-         const double A21 = (J31 * J23) - (J21 * J33);
-         const double A22 = (J11 * J33) - (J13 * J31);
-         const double A23 = (J21 * J13) - (J11 * J23);
-         const double A31 = (J21 * J32) - (J31 * J22);
-         const double A32 = (J31 * J12) - (J11 * J32);
-         const double A33 = (J11 * J22) - (J12 * J21);
-         // detJ J^{-1} J^{-T} = (1/detJ) adj(J) adj(J)^T
-         D(q,0,e) = c_detJ * (A11*A11 + A12*A12 + A13*A13); // 1,1
-         D(q,1,e) = c_detJ * (A11*A21 + A12*A22 + A13*A23); // 2,1
-         D(q,2,e) = c_detJ * (A11*A31 + A12*A32 + A13*A33); // 3,1
-         D(q,3,e) = c_detJ * (A21*A21 + A22*A22 + A23*A23); // 2,2
-         D(q,4,e) = c_detJ * (A21*A31 + A22*A32 + A23*A33); // 3,2
-         D(q,5,e) = c_detJ * (A31*A31 + A32*A32 + A33*A33); // 3,3
-      }
+      const int e = eq / NQ;
+      const int q = eq % NQ;
+      const double J11 = J(q,0,0,e);
+      const double J21 = J(q,1,0,e);
+      const double J31 = J(q,2,0,e);
+      const double J12 = J(q,0,1,e);
+      const double J22 = J(q,1,1,e);
+      const double J32 = J(q,2,1,e);
+      const double J13 = J(q,0,2,e);
+      const double J23 = J(q,1,2,e);
+      const double J33 = J(q,2,2,e);
+      const double detJ = J11 * (J22 * J33 - J32 * J23) -
+      /* */               J21 * (J12 * J33 - J32 * J13) +
+      /* */               J31 * (J12 * J23 - J22 * J13);
+      const double coeff = const_c ? C(0,0) : C(q,e);
+      const double c_detJ = W[q] * coeff / detJ;
+      // adj(J)
+      const double A11 = (J22 * J33) - (J23 * J32);
+      const double A12 = (J32 * J13) - (J12 * J33);
+      const double A13 = (J12 * J23) - (J22 * J13);
+      const double A21 = (J31 * J23) - (J21 * J33);
+      const double A22 = (J11 * J33) - (J13 * J31);
+      const double A23 = (J21 * J13) - (J11 * J23);
+      const double A31 = (J21 * J32) - (J31 * J22);
+      const double A32 = (J31 * J12) - (J11 * J32);
+      const double A33 = (J11 * J22) - (J12 * J21);
+      // detJ J^{-1} J^{-T} = (1/detJ) adj(J) adj(J)^T
+      D(q,0,e) = c_detJ * (A11*A11 + A12*A12 + A13*A13); // 1,1
+      D(q,1,e) = c_detJ * (A11*A21 + A12*A22 + A13*A23); // 2,1
+      D(q,2,e) = c_detJ * (A11*A31 + A12*A32 + A13*A33); // 3,1
+      D(q,3,e) = c_detJ * (A21*A21 + A22*A22 + A23*A23); // 2,2
+      D(q,4,e) = c_detJ * (A21*A31 + A22*A32 + A23*A33); // 3,2
+      D(q,5,e) = c_detJ * (A31*A31 + A32*A32 + A33*A33); // 3,3
    });
 }
 
