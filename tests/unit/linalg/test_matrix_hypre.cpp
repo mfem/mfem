@@ -45,8 +45,7 @@ TEST_CASE("HypreParMatrixAbsMult",  "[Parallel], [HypreParMatrixAbsMult]")
       HypreParMatrix *A = a.ParallelAssemble();
       HypreParMatrix *Aabs = new HypreParMatrix(*A);
 
-      hypre_ParCSRMatrix * AparCSR =
-         (hypre_ParCSRMatrix *)const_cast<HypreParMatrix&>(*Aabs);
+      hypre_ParCSRMatrix * AparCSR = *Aabs;
 
       int nnzd = AparCSR->diag->num_nonzeros;
       for (int j = 0; j < nnzd; j++)
