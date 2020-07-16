@@ -31,6 +31,7 @@ jobs:
 
     - stage: checks
       os: linux
+      dist: xenial
       name: "code-style"
       addons:
         apt:
@@ -49,9 +50,9 @@ jobs:
           packages:
             - doxygen
             - graphviz
-            - mpich
-            - libmpich-dev
-      env: MPI=YES
+            # - mpich
+            # - libmpich-dev
+      # env: MPI=YES
       script:
         - cd ${TRAVIS_BUILD_DIR}
         - cd tests/scripts
@@ -90,6 +91,7 @@ jobs:
 
     - stage: optional
       name: "branch-history"
+      if: branch != next
       # need full git history for the binary/big files check
       git:
         depth: false
