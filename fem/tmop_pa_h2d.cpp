@@ -19,6 +19,36 @@
 namespace mfem
 {
 
+/* // Original i-j assembly (old invariants code).
+   for (int e = 0; e < NE; e++)
+   {
+      for (int q = 0; q < nqp; q++)
+      {
+         el.CalcDShape(ip, DSh);
+         Mult(DSh, Jrt, DS);
+         for (int i = 0; i < dof; i++)
+         {
+            for (int j = 0; j < dof; j++)
+            {
+               for (int r = 0; r < dim; r++)
+               {
+                  for (int c = 0; c < dim; c++)
+                  {
+                     for (int rr = 0; rr < dim; rr++)
+                     {
+                        for (int cc = 0; cc < dim; cc++)
+                        {
+                           A(e, i + r*dof, j + rr*dof) +=
+                                 weight_q * DS(i, c) * DS(j, cc) * h(r, c, rr, cc);
+                        }
+                     }
+                  }
+               }
+            }
+         }
+      }
+   }*/
+
 MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
                            const int NE,
                            const Array<double> &b,
