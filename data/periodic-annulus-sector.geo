@@ -3,7 +3,7 @@ SetFactory("OpenCASCADE");
 // Select periodic mesh by setting this to either 0 - standard, 1 - periodic
 periodic = 0;
 
-// Set the geometry order (1, 2, or 3)
+// Set the geometry order (1, 2, ..., 9)
 order = 3;
 
 // Set the element type (3 - triangles, 4 - quadrilaterals)
@@ -25,11 +25,14 @@ nazm2 = 5;
 R1 = 1.0;
 R2 = 2.0;
 
+// Angular size of the sector
+Phi = Pi/3.0;
+
 Point(1) = {0.0, 0, 0, 1.0};
 Point(2) = {R1, 0, 0, 1.0};
 Point(3) = {R2, 0, 0, 1.0};
-Point(4) = {R1*Cos(Pi/3), R1*Sin(Pi/3), 0, 1.0};
-Point(5) = {R2*Cos(Pi/3), R2*Sin(Pi/3), 0, 1.0};
+Point(4) = {R1*Cos(Phi), R1*Sin(Phi), 0, 1.0};
+Point(5) = {R2*Cos(Phi), R2*Sin(Phi), 0, 1.0};
 Line(1) = {2, 3};
 Line(2) = {4, 5};
 Circle(3) = {2, 1, 4};
@@ -52,7 +55,7 @@ EndIf
 
 // Set a rotation periodicity constraint:
 If (periodic)
-   Periodic Line{1} = {2} Rotate{{0,0,1}, {0,0,0}, -Pi/3};
+   Periodic Line{1} = {2} Rotate{{0,0,1}, {0,0,0}, -Phi};
 EndIf
 
 // Tag surfaces and volumes with positive integers
@@ -68,8 +71,8 @@ SetOrder order;
 Mesh.MshFileVersion = 2.2;
 
 If (periodic)
-   Save Sprintf("periodic-annulus-sector-t%01g-o%01g.msh",type,order);
+   Save Sprintf("periodic-annulus-sector-t%01g-o%01g.msh", type, order);
 Else
-   Save Sprintf("annulus-sector-t%01g-o%01g.msh",type,order);
+   Save Sprintf("annulus-sector-t%01g-o%01g.msh", type, order);
 EndIf
    
