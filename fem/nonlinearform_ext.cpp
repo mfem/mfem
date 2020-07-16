@@ -13,8 +13,6 @@
 // PABilinearFormExtension and MFBilinearFormExtension.
 
 #include "nonlinearform.hpp"
-#define MFEM_DEBUG_COLOR 87
-#include "../general/debug.hpp"
 #include "../general/forall.hpp"
 
 namespace mfem
@@ -62,7 +60,6 @@ void PANonlinearForm::Mult(const Vector &x, Vector &y) const
 
 Operator &PANonlinearForm::GetGradient(const Vector &x) const
 {
-   dbg();
    Grad.Reset(new PANonlinearForm::Gradient(x, *this));
    return *Grad.Ptr();
 }

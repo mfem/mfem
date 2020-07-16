@@ -11,8 +11,6 @@
 
 #include "tmop.hpp"
 #include "tmop_pa.hpp"
-#define MFEM_DEBUG_COLOR 200
-#include "../general/debug.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 
