@@ -814,7 +814,7 @@ void ParGridFunction::SaveAsOne(std::ostream &out)
       MPI_Send(&nvdofs[0], 1, MPI_INT, 0, 456, MyComm);
       MPI_Send(&nedofs[0], 1, MPI_INT, 0, 457, MyComm);
       MPI_Send(&nfdofs[0], 1, MPI_INT, 0, 458, MyComm);
-      MPI_Send(h_data, nv[0], MPI_DOUBLE, 0, 460, MyComm);
+      MPI_Send(data, nv[0], MPI_DOUBLE, 0, 460, MyComm);
    }
 
    delete [] values;
