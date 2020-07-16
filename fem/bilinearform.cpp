@@ -12,7 +12,6 @@
 // Implementation of class BilinearForm
 
 #include "fem.hpp"
-#include "../general/debug.hpp"
 #include "../general/device.hpp"
 #include <cmath>
 
@@ -115,7 +114,6 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
 
 void BilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
 {
-   dbg();
    if (ext)
    {
       MFEM_ABORT("the assembly level has already been set!");

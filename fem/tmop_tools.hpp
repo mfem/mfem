@@ -32,7 +32,7 @@ private:
 
    void ComputeAtNewPositionScalar(const Vector &new_nodes, Vector &new_field);
 public:
-   AdvectorCG(AssemblyLevel al = AssemblyLevel::FULL,
+   AdvectorCG(AssemblyLevel al = AssemblyLevel::LEGACYFULL,
               double timestep_scale = 0.5)
       : AdaptivityEvaluator(),
         ode_solver(), nodes0(), field0(), dt_scale(timestep_scale), al(al) { }
@@ -87,7 +87,7 @@ public:
        that Mult() moves the nodes of the mesh corresponding to @a fes. */
    SerialAdvectorCGOper(const Vector &x_start, GridFunction &vel,
                         FiniteElementSpace &fes,
-                        AssemblyLevel al = AssemblyLevel::FULL);
+                        AssemblyLevel al = AssemblyLevel::LEGACYFULL);
 
    virtual void Mult(const Vector &ind, Vector &di_dt) const;
 };
@@ -109,7 +109,7 @@ public:
        that Mult() moves the nodes of the mesh corresponding to @a pfes. */
    ParAdvectorCGOper(const Vector &x_start, GridFunction &vel,
                      ParFiniteElementSpace &pfes,
-                     AssemblyLevel al = AssemblyLevel::FULL);
+                     AssemblyLevel al = AssemblyLevel::LEGACYFULL);
 
    virtual void Mult(const Vector &ind, Vector &di_dt) const;
 };
