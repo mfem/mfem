@@ -666,7 +666,8 @@ int main (int argc, char *argv[])
    //     scaled by used-defined space-dependent weights.  Note that there are
    //     no command-line options for the weights and the type of the second
    //     metric; one should update those in the code.
-   ParNonlinearForm a(pfespace), a_fa(pfespace);
+   ParNonlinearForm a(pfespace);
+   ParNonlinearForm *a_fa = new ParNonlinearForm(pfespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    ConstantCoefficient *coeff1 = NULL;
    TMOP_QualityMetric *metric2 = NULL;
@@ -706,7 +707,7 @@ int main (int argc, char *argv[])
    else
    {
       a.AddDomainIntegrator(he_nlf_integ);
-      a_fa.AddDomainIntegrator(he_nlf_integ);
+      a_fa->AddDomainIntegrator(he_nlf_integ);
    }
 
    if (pa) { a.Setup(); }
@@ -716,7 +717,7 @@ int main (int argc, char *argv[])
    he_nlf_integ->AssembleDiagonalPA(diag);
    dbg("diag: %.15e", diag*diag);
 
-   const SparseMatrix &s = a_fa.GetLocalGradient(x);
+   const SparseMatrix &s = a_fa->GetLocalGradient(x);
    Vector dsp;
    s.GetDiag(dsp);
 
@@ -791,9 +792,9 @@ int main (int argc, char *argv[])
    // 18. As we use the Newton method to solve the resulting nonlinear system,
    //     here we setup the linear solver for the system's Jacobian.
    Solver *S = NULL;
-   LumpedJacobiSmoother S_prec(x.GetTrueVector().Size());
-   HypreSmoother prec;
-   prec.SetType(HypreSmoother::lumpedJacobi, 1);
+   //LumpedJacobiSmoother S_prec(x.GetTrueVector().Size());
+   //HypreSmoother prec;
+   //prec.SetType(HypreSmoother::lumpedJacobi, 1);
 
    const double linsol_rtol = 1e-12;
    if (lin_solver == 0)
@@ -817,7 +818,7 @@ int main (int argc, char *argv[])
       minres->SetAbsTol(0.0);
       minres->SetPrintLevel(verbosity_level >= 2 ? 3 : -1);
       //minres->SetPreconditioner(S_prec);
-      minres->SetPreconditioner(prec);
+      //minres->SetPreconditioner(prec);
       S = minres;
    }
 
