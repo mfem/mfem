@@ -11,6 +11,9 @@
 
 language: cpp
 
+os: linux
+dist: bionic
+
 stages:
   - checks
   - tests
@@ -70,6 +73,15 @@ jobs:
         - make test-noclean
         - cd tests/scripts
         - ./runtest gitignore
+      cache:
+        directories:
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../metis-4.0
+      before_cache:
+        - cd $TRAVIS_BUILD_DIR/../metis-4.0;
+          mv libmetis.a Lib ..; rm -rf * ; mv ../libmetis.a ../Lib .;
+          rm -f Lib/*.{c,o}
 
     # ========================
     #  Optional Checks/Tests
