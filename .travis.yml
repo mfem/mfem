@@ -74,6 +74,7 @@ jobs:
         - cd tests/scripts
         - ./runtest gitignore
       cache:
+        ccache: true
         directories:
           - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
           - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
