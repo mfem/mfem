@@ -292,8 +292,12 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    {
       if (fetype == mfem::FiniteElement::CURL)
       {
-         SmemPAHcurlMassApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
-                                mapsC->Bt, pa_data, x, y);
+         if (x.GetMemory().GetMemoryType() >= MemoryType::DEVICE && quad1D <= 5)
+            SmemPAHcurlMassApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
+                                   mapsC->Bt, pa_data, x, y);
+         else
+            PAHcurlMassApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
+                               mapsC->Bt, pa_data, x, y);
       }
       else if (fetype == mfem::FiniteElement::DIV)
       {

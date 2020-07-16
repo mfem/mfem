@@ -1785,7 +1785,6 @@ static void SmemPACurlCurlApply3D(const int D1D,
                         // \hat{\nabla}\times\hat{u} is [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
                         // (u_2)_{x_1} * (op * curl)_0 - (u_2)_{x_0} * (op * curl)_1
                         dxyz3 += (wcDy * wz * c1 * wcx) - (wcy * wz * c2 * wDx);
-
                      } // qx
                   } // qy
                } // dx
@@ -1823,8 +1822,12 @@ void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (dim == 3)
    {
-      SmemPACurlCurlApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
-                            mapsC->Bt, mapsC->G, mapsC->Gt, pa_data, x, y);
+      if (x.GetMemory().GetMemoryType() >= MemoryType::DEVICE && quad1D <= 5)
+         SmemPACurlCurlApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
+                               mapsC->Bt, mapsC->G, mapsC->Gt, pa_data, x, y);
+      else
+         PACurlCurlApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
+                           mapsC->Bt, mapsC->G, mapsC->Gt, pa_data, x, y);
    }
    else if (dim == 2)
    {
@@ -2273,7 +2276,7 @@ void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
       constexpr int MAX_D1D = 4;
       constexpr int MAX_Q1D = 5;
 
-      if (quad1D <= 5)
+      if (diag.GetMemory().GetMemoryType() >= MemoryType::DEVICE && quad1D <= 5)
          SmemPACurlCurlAssembleDiagonal3D<MAX_D1D,MAX_Q1D>(dofs1D, quad1D, ne,
                                                            mapsO->B, mapsC->B,
                                                            mapsO->G, mapsC->G,
