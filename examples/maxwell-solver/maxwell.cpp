@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
    }
 
    // Setup PML length
-   int nrlayers = 2;
+   int nrlayers = 1;
    double hl = GetUniformMeshElementSize(mesh);
    Array2D<double> lengths(dim, 2); 
    lengths = hl*nrlayers;
@@ -184,21 +184,15 @@ int main(int argc, char *argv[])
    StopWatch chrono;
    chrono.Clear();
    chrono.Start();
-   {
-      ComplexUMFPackSolver csolver;
-      csolver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-      csolver.SetOperator(*Ac);
-      // csolver.SetPrintLevel(2);
-      csolver.Mult(B,X);
-   }
-   chrono.Stop();
-   cout << "Time 1 = " << chrono.RealTime() << endl;
-
-
-   // 13. Transform to monolithic SparseMatrix
-   SparseMatrix *A = Ac->GetSystemMatrix();
-
-   // cout << "Size of linear system: " << A->Height() << endl;
+   // {
+   //    ComplexUMFPackSolver csolver;
+   //    csolver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+   //    csolver.SetOperator(*Ac);
+   //    // csolver.SetPrintLevel(2);
+   //    csolver.Mult(B,X);
+   // }
+   // chrono.Stop();
+   // cout << "Time 1 = " << chrono.RealTime() << endl;
 
 
    chrono.Clear();
@@ -213,34 +207,24 @@ int main(int argc, char *argv[])
 	// gmres.iterative_mode = true;
    gmres.SetPreconditioner(S);
 	gmres.SetOperator(*Ac);
-	gmres.SetRelTol(1e-6);
-	gmres.SetMaxIter(20);
+	gmres.SetRelTol(1e-8);
+	gmres.SetMaxIter(50);
 	gmres.SetPrintLevel(1);
 	gmres.Mult(B, X);
    chrono.Stop();
    cout << "Time 3 = " << chrono.RealTime() << endl;
    // 14. Solve using a direct or an iterative solver
-   Vector Y(X);
+   // Vector Y(X);
 
-   chrono.Clear();
-   chrono.Start();
-   {
-      UMFPackSolver  solver;
-      solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-      solver.SetOperator(*A);
-      // solver.Control[UMFPACK_ALLOC_INIT] = 0.1;
-      // solver.SetPrintLevel(2);
-      solver.Mult(B, Y);
-   }
-   chrono.Stop();
-   cout << "Time 3 = " << chrono.RealTime() << endl;
+   // chrono.Stop();
+   // cout << "Time 3 = " << chrono.RealTime() << endl;
 
-   cout << endl;
+   // cout << endl;
 
-   cout << "X norm = " << X.Norml2() << endl;
-   cout << "Y norm = " << Y.Norml2() << endl;
-   Y-=X;
-   cout << "diff norm = " << Y.Norml2() << endl;
+   // cout << "X norm = " << X.Norml2() << endl;
+   // cout << "Y norm = " << Y.Norml2() << endl;
+   // Y-=X;
+   // cout << "diff norm = " << Y.Norml2() << endl;
 
 
 
@@ -251,7 +235,7 @@ int main(int argc, char *argv[])
    {
       // Define visualization keys for GLVis (see GLVis documentation)
       string keys;
-      keys = (dim == 3) ? "keys macF\n" : keys = "keys amrRljcUUuu\n";
+      keys = (dim == 3) ? "keys acF\n" : keys = "keys amrRljcUUuu\n";
 
       char vishost[] = "localhost";
       int visport = 19916;
@@ -296,7 +280,6 @@ int main(int argc, char *argv[])
    }
 
    // 18. Free the used memory.
-   delete A;
    delete pml;
    delete fespace;
    delete fec;
