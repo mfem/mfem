@@ -28,6 +28,8 @@
 namespace mfem
 {
 
+void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p);
+
 class BilinearForm;
 
 /// Abstract base class for an iterative solver monitor

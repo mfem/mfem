@@ -40,7 +40,6 @@
 //               optional connection to the GLVis tool for visualization.
 
 #include "mfem.hpp"
-#include "custom_logger.hpp"
 
 #include <fstream>
 #include <iostream>

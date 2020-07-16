@@ -292,10 +292,10 @@ CGSolver::CGSolver(
                                ATOLERANCE)
 {
    using cg         = gko::solver::Cg<double>;
-   this->solver_gen = cg::build()
-                      .with_criteria(this->combined_factory)
-                      .with_preconditioner(preconditioner)
-                      .on(this->executor);
+//   this->solver_gen = cg::build()
+//                      .with_criteria(this->combined_factory)
+//                      .with_preconditioner(preconditioner)
+//                      .on(this->executor);
 }
 
 
@@ -328,10 +328,10 @@ BICGSTABSolver::BICGSTABSolver(
                                ATOLERANCE)
 {
    using bicgstab   = gko::solver::Bicgstab<double>;
-   this->solver_gen = bicgstab::build()
-                      .with_criteria(this->combined_factory)
-                      .with_preconditioner(preconditioner)
-                      .on(this->executor);
+//   this->solver_gen = bicgstab::build()
+//                      .with_criteria(this->combined_factory)
+//                      .with_preconditioner(preconditioner)
+//                      .on(this->executor);
 }
 
 
@@ -363,10 +363,10 @@ CGSSolver::CGSSolver(
                                ATOLERANCE)
 {
    using cgs        = gko::solver::Cgs<double>;
-   this->solver_gen = cgs::build()
-                      .with_criteria(this->combined_factory)
-                      .with_preconditioner(preconditioner)
-                      .on(this->executor);
+//   this->solver_gen = cgs::build()
+//                      .with_criteria(this->combined_factory)
+//                      .with_preconditioner(preconditioner)
+//                      .on(this->executor);
 }
 
 
@@ -398,10 +398,10 @@ FCGSolver::FCGSolver(
                                ATOLERANCE)
 {
    using fcg        = gko::solver::Fcg<double>;
-   this->solver_gen = fcg::build()
-                      .with_criteria(this->combined_factory)
-                      .with_preconditioner(preconditioner)
-                      .on(this->executor);
+//   this->solver_gen = fcg::build()
+//                      .with_criteria(this->combined_factory)
+//                      .with_preconditioner(preconditioner)
+//                      .on(this->executor);
 }
 
 
@@ -435,11 +435,11 @@ GMRESSolver::GMRESSolver(
                                ATOLERANCE)
 {
    using gmres      = gko::solver::Gmres<double>;
-   this->solver_gen = gmres::build()
-                      .with_krylov_dim(m)
-                      .with_criteria(this->combined_factory)
-                      .with_preconditioner(preconditioner)
-                      .on(this->executor);
+//   this->solver_gen = gmres::build()
+//                      .with_krylov_dim(m)
+//                      .with_criteria(this->combined_factory)
+//                      .with_preconditioner(preconditioner)
+//                      .on(this->executor);
 }
 
 
@@ -471,10 +471,10 @@ IRSolver::IRSolver(
                                ATOLERANCE)
 {
    using ir         = gko::solver::Ir<double>;
-   this->solver_gen = ir::build()
-                      .with_criteria(this->combined_factory)
-                      .with_solver(inner_solver)
-                      .on(this->executor);
+//   this->solver_gen = ir::build()
+//                      .with_criteria(this->combined_factory)
+//                      .with_solver(inner_solver)
+//                      .on(this->executor);
 }
 
 
