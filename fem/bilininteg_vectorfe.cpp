@@ -262,7 +262,7 @@ void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
    {
       if (fetype == mfem::FiniteElement::CURL)
       {
-         if (diag.GetMemory().GetMemoryType() >= MemoryType::DEVICE && quad1D <= 5)
+         if (diag.GetMemory().GetMemoryType() >= MemoryType::DEVICE && quad1D <= 6)
             SmemPAHcurlMassAssembleDiagonal3D(dofs1D, quad1D, ne,
                                               mapsO->B, mapsC->B, pa_data, diag);
          else
@@ -304,7 +304,7 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    {
       if (fetype == mfem::FiniteElement::CURL)
       {
-         if (x.GetMemory().GetMemoryType() >= MemoryType::DEVICE && quad1D <= 5)
+         if (x.GetMemory().GetMemoryType() >= MemoryType::DEVICE && quad1D <= 6)
             SmemPAHcurlMassApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
                                    mapsC->Bt, pa_data, x, y);
          else
