@@ -67,11 +67,12 @@ jobs:
             - mpich
             - libmpich-dev
       env: MPI=YES
-      script:
+      before_script:
         - cd ${TRAVIS_BUILD_DIR}
         - make config MFEM_USE_MPI=YES MFEM_MPI_NP=2 CPPFLAGS="-pedantic -Wall -Werror"
         - make all -j3
         - make test-noclean
+      script:
         - cd tests/scripts
         - ./runtest gitignore
       cache:
