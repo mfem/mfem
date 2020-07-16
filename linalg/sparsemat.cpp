@@ -12,8 +12,6 @@
 // Implementation of sparse matrix
 
 #include "linalg.hpp"
-#define MFEM_DEBUG_COLOR 203
-#include "../general/debug.hpp"
 #include "../general/forall.hpp"
 #include "../general/table.hpp"
 #include "../general/sort_pairs.hpp"

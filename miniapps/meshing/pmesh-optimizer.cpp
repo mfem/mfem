@@ -87,7 +87,6 @@
 #include <iostream>
 #include <fstream>
 #include "mesh-optimizer.hpp"
-#include "general/debug.hpp"
 
 using namespace mfem;
 using namespace std;

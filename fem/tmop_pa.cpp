@@ -13,8 +13,6 @@
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
-#define MFEM_DEBUG_COLOR 118
-#include "../general/debug.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 
@@ -24,7 +22,6 @@ namespace mfem
 
 void TMOP_Integrator::SetupGradPA(const Vector &xe) const
 {
-   dbg();
    MFEM_VERIFY(PA.R, "PA extension setup has not been done!");
    PA.setup_Grad = true;
 
@@ -87,7 +84,6 @@ void TMOP_Integrator::EnableLimitingPA(const GridFunction &n0)
 //                                    Jtr(i) *= R_theta        (orientation)
 void TMOP_Integrator::ComputeElementTargetsPA(const Vector &xe) const
 {
-   dbg();
    PA.Jtr.HostWrite();
 
    const int NE = PA.ne;
@@ -140,7 +136,6 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &xe) const
 
 void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   dbg();
    const IntegrationRule *ir = EnergyIntegrationRule(*fes.GetFE(0));
    MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES,
                "PA Only supports Ordering::byNODES!");
