@@ -472,19 +472,23 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    const double final_energy = nlf.GetParGridFunctionEnergy(x);
    res.final_energy = final_energy;
 
-   Vector diag;
-   if (pa)
+   // Diagonal test
    {
-      nlf.GetGradient(x_t);
-      he_nlf_integ->AssembleDiagonalPA(diag);
-      res.diag = diag*diag;
-   }
-   else
-   {
-      const Operator &mGradOp = nlf.GetGradient(x_t);
-      const SparseMatrix *mGrad = reinterpret_cast<const SparseMatrix*>(&mGradOp);
-      MFEM_VERIFY(mGrad, "mGrad");
-      mGrad->GetDiag(diag);
+      Vector diag;
+      if (pa)
+      {
+         nlf.GetGradient(x_t);
+         he_nlf_integ->AssembleDiagonalPA(diag);
+      }
+      else
+      {
+         const Operator &mGradOp = nlf.GetGradient(x_t);
+         const SparseMatrix *mGrad =
+            reinterpret_cast<const SparseMatrix*>(&mGradOp);
+         MFEM_VERIFY(mGrad, "mGrad");
+         mGrad->GetDiag(diag);
+      }
+      res.diag = diag.Norml2();
    }
 
    delete S;

@@ -208,7 +208,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 
 void TMOP_Integrator::AssembleDiagonalPA(Vector &diag)
 {
-   dbg();
+   MFEM_VERIFY(PA.R, "PA extension setup has not been done!");
    Vector diag_ldofs(PA.R->Height());
    diag_ldofs = 0.0;
 
@@ -222,9 +222,7 @@ void TMOP_Integrator::AssembleDiagonalPA(Vector &diag)
 
    if (PA.dim == 2)
    {
-      dbg();
       AssembleDiagonalPA_2D(diag_ldofs);
-      dbg("diag_ldofs: %.15e", diag_ldofs*diag_ldofs);
       PA.R->MultTranspose(diag_ldofs, diag);
       if (coeff0) { MFEM_ABORT("2D limiting part of the diagonal is WIP."); }
    }

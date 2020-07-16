@@ -667,7 +667,6 @@ int main (int argc, char *argv[])
    //     no command-line options for the weights and the type of the second
    //     metric; one should update those in the code.
    ParNonlinearForm a(pfespace);
-   ParNonlinearForm *a_fa = new ParNonlinearForm(pfespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    ConstantCoefficient *coeff1 = NULL;
    TMOP_QualityMetric *metric2 = NULL;
@@ -704,26 +703,9 @@ int main (int argc, char *argv[])
 
       a.AddDomainIntegrator(combo);
    }
-   else
-   {
-      a.AddDomainIntegrator(he_nlf_integ);
-      a_fa->AddDomainIntegrator(he_nlf_integ);
-   }
+   else { a.AddDomainIntegrator(he_nlf_integ); }
 
    if (pa) { a.Setup(); }
-
-   Vector diag;
-   a.GetGradient(x);
-   he_nlf_integ->AssembleDiagonalPA(diag);
-   dbg("diag: %.15e", diag*diag);
-
-   const SparseMatrix &s = a_fa->GetLocalGradient(x);
-   Vector dsp;
-   s.GetDiag(dsp);
-
-   dbg("dsp:  %.15e", dsp*dsp);
-   dbg("fabs: %.15e", fabs(diag*diag-dsp*dsp));
-   MFEM_VERIFY(fabs(diag*diag - dsp*dsp)<1.e-9,"");
 
    const double init_energy = a.GetParGridFunctionEnergy(x);
 
