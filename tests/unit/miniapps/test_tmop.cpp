@@ -51,6 +51,7 @@ struct Req
    double tauval;
    double dot;
    double final_energy;
+   double diag;
 };
 
 static double discrete_size_2d(const Vector &x)
@@ -471,6 +472,21 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    const double final_energy = nlf.GetParGridFunctionEnergy(x);
    res.final_energy = final_energy;
 
+   Vector diag;
+   if (pa)
+   {
+      nlf.GetGradient(x_t);
+      he_nlf_integ->AssembleDiagonalPA(diag);
+      res.diag = diag*diag;
+   }
+   else
+   {
+      const Operator &mGradOp = nlf.GetGradient(x_t);
+      const SparseMatrix *mGrad = reinterpret_cast<const SparseMatrix*>(&mGradOp);
+      MFEM_VERIFY(mGrad, "mGrad");
+      mGrad->GetDiag(diag);
+   }
+
    delete S;
    delete pmesh;
    delete metric;
@@ -531,6 +547,7 @@ static void tmop_require(int myid, const char *args[])
    REQUIRE(res[0].tauval == Approx(res[1].tauval));
    REQUIRE(res[0].init_energy == Approx(res[1].init_energy));
    REQUIRE(res[0].final_energy == Approx(res[1].final_energy));
+   REQUIRE(res[0].diag == Approx(res[1].diag));
 }
 
 static inline const char *itoa(int i, char *buf)
