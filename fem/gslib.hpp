@@ -147,20 +147,21 @@ public:
    /// element boundary (1), or not found (2).
    const Array<unsigned int> &GetCode() const { return gsl_code; }
    /// Return element number for each point found by FindPoints.
-   const Array<unsigned int> &GetElem() const { return gsl_elem; }
+   const Array<unsigned int> &GetElem() const { return gsl_mfem_elem; }
    /// Return MPI rank on which each point was found by FindPoints.
    const Array<unsigned int> &GetProc() const { return gsl_proc; }
    /// Return reference coordinates for each point found by FindPoints.
-   const Vector &GetReferencePosition() const { return gsl_ref;  }
+   const Vector &GetReferencePosition() const { return gsl_mfem_ref;  }
    /// Return distance Distance between the sought and the found point
    /// in physical space, for each point found by FindPoints.
    const Vector &GetDist()              const { return gsl_dist; }
 
    /// Return element number for each point found by FindPoints corresponding to
-   /// MFEM mesh. gsl_mfem_elem != gsl_elem for mesh with simplices.
-   const Array<unsigned int> &GetMFEMElem() const { return gsl_mfem_elem; }
-   /// Return reference coordinates in [0,1] for each point found by FindPoints.
-   const Vector &GetMFEMReferencePosition() const { return gsl_mfem_ref; }
+   /// GSLIB mesh. gsl_mfem_elem != gsl_elem for mesh with simplices.
+   const Array<unsigned int> &GetGSLIBElem() const { return gsl_elem; }
+   /// Return reference coordinates in [-1,1] (internal range in GSLIB) for each
+   /// point found by FindPoints.
+   const Vector &GetGSLIBReferencePosition() const { return gsl_ref; }
 
 
 };
