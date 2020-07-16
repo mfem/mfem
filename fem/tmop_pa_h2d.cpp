@@ -11,6 +11,8 @@
 
 #include "tmop.hpp"
 #include "tmop_pa.hpp"
+#define MFEM_DEBUG_COLOR 200
+#include "../general/debug.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 
@@ -48,7 +50,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
       double qd[DIM*DIM*MQ1*MD1];
       DeviceTensor<4,double> QD(qd, DIM, DIM, MQ1, MD1);
 
-      for (int r = 0; r < DIM; r++)
+      for (int v = 0; v < DIM; v++)
       {
          for (int qx = 0; qx < Q1D; ++qx)
          {
@@ -78,8 +80,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
                   {
                      for (int j = 0; j < DIM; j++)
                      {
-                        const double JJt = Jrt(i,j) * Jrt(j,i);
-                        QD(i,j,qx,dy) += JJt * BG(i,j) * H(r,i,r,j,qx,qy,e);
+                        const double Jij = Jrt(i,i) * Jrt(j,j);
+                        const double alpha = Jij * BG(i,j);
+                        QD(i,j,qx,dy) += alpha * H(v,i,v,j,qx,qy,e);
                      }
                   }
                }
@@ -100,7 +103,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
                   d += gb * QD(1,0,qx,dy);
                   d += bb * QD(1,1,qx,dy);
                }
-               D(dx,dy,r,e) += d;
+               D(dx,dy,v,e) += d;
             }
          }
       }

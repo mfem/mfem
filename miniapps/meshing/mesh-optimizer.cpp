@@ -82,9 +82,12 @@
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
+#include <cfloat>
 #include <fstream>
 #include <iostream>
 #include "mesh-optimizer.hpp"
+#define MFEM_DEBUG_COLOR 183
+#include "general/debug.hpp"
 
 using namespace mfem;
 using namespace std;

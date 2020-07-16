@@ -25,6 +25,10 @@
 
 #define DBG(...) { printf("\033[33m");  \
                    printf(__VA_ARGS__); \
+                   printf(" \n\033[m"); }
+
+#define DBG0(...) { printf("\033[33m");  \
+                   printf(__VA_ARGS__); \
                    printf(" \n\033[m"); \
                    fflush(0); }
 
