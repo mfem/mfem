@@ -280,6 +280,8 @@ protected:
    ParFiniteElementSpace *domain_fes;
    /// Points to the same object as #test_fes
    ParFiniteElementSpace *range_fes;
+   /// Auxiliary objects used in TrueAddMult().
+   mutable ParGridFunction X, Y;
 
 private:
    /// Copy construction is not supported; body is undefined.
@@ -301,9 +303,20 @@ public:
    /// Returns the matrix "assembled" on the true dofs
    HypreParMatrix *ParallelAssemble() const;
 
+   /** @brief Returns the matrix assembled on the true dofs, i.e.
+       @a A = P_test^t A_local P_trial, in the format (type id) specified by
+       @a A. */
+   void ParallelAssemble(OperatorHandle &A);
+
    /** Extract the parallel blocks corresponding to the vector dimensions of the
        domain and range parallel finite element spaces */
    void GetParBlocks(Array2D<HypreParMatrix *> &blocks) const;
+
+   /** @brief Return in @a A a parallel (on truedofs) version of this operator. */
+   virtual void FormRectangularSystemMatrix(OperatorHandle &A);
+
+   /// Compute y += a (P^t A P) x, where x and y are vectors on the true dofs
+   void TrueAddMult(const Vector &x, Vector &y, const double a = 1.0) const;
 
    virtual ~ParDiscreteLinearOperator() { }
 };

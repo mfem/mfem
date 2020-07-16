@@ -557,6 +557,88 @@ HypreParMatrix* ParDiscreteLinearOperator::ParallelAssemble() const
    return RAP;
 }
 
+/// @todo copied from ParMixedBilinearForm, should be some inheritance?
+/// (even if A is ANY_TYPE, it becomes SPARSE_MATRIX here!)
+void ParDiscreteLinearOperator::ParallelAssemble(OperatorHandle &A)
+{
+   std::cout << "A.Type() = " << A.Type() << std::endl;
+
+   // construct the rectangular block-diagonal matrix dA
+   OperatorHandle dA(A.Type());
+   std::cout << "dA.Type() = " << dA.Type() << std::endl;
+   dA.MakeRectangularBlockDiag(domain_fes->GetComm(),
+                               range_fes->GlobalVSize(),
+                               domain_fes->GlobalVSize(),
+                               range_fes->GetDofOffsets(),
+                               domain_fes->GetDofOffsets(),
+                               mat);
+   std::cout << "dA.Type() = " << dA.Type() << std::endl;
+
+   OperatorHandle P_test(A.Type()), P_trial(A.Type());
+
+   std::cout << "Operator::ANY_TYPE = " << Operator::ANY_TYPE << std::endl;
+   std::cout << "A.Type() = " << A.Type() << std::endl;
+   std::cout << "P_test.Type() = " << P_test.Type() << std::endl;
+
+   // TODO - construct the Dof_TrueDof_Matrix directly in the required format.
+   P_test.ConvertFrom(range_fes->Dof_TrueDof_Matrix());
+   P_trial.ConvertFrom(domain_fes->Dof_TrueDof_Matrix());
+
+   std::cout << "P_test.Type() = " << P_test.Type() << std::endl;
+   std::cout << "P_trial.Type() = " << P_test.Type() << std::endl;
+   std::cout << "dA.Type() = " << dA.Type() << std::endl;
+   A.MakeRAP(P_test, dA, P_trial);
+}
+
+//// @todo copied from ParMixedBilinearForm, should be some inheritance?
+void ParDiscreteLinearOperator::FormRectangularSystemMatrix(OperatorHandle &A)
+{
+   if (ext)
+   {
+      /// TODO: need to worry about parallel multiplicity!!
+
+      Array<int> empty;
+      ext->FormRectangularSystemOperator(empty, empty, A);
+      return;
+   }
+
+/*
+   if (mat)
+   {
+      Finalize();
+      ParallelAssemble(p_mat);
+      delete mat;
+      mat = NULL;
+      delete mat_e;
+      mat_e = NULL;
+      HypreParMatrix *temp =
+         p_mat.As<HypreParMatrix>()->EliminateCols(trial_tdof_list);
+      p_mat.As<HypreParMatrix>()->EliminateRows(test_tdof_list);
+      p_mat_e.Reset(temp, true);
+   }
+
+
+   A = p_mat;
+*/
+   mfem_error("not implemented!");
+}
+
+/// @todo copied from ParMixedBilinearForm, should be some inheritance?
+/// Compute y += a (P^t A P) x, where x and y are vectors on the true dofs
+void ParDiscreteLinearOperator::TrueAddMult(const Vector &x, Vector &y,
+                                            const double a) const
+{
+   if (X.ParFESpace() != domain_fes)
+   {
+      X.SetSpace(domain_fes);
+      Y.SetSpace(range_fes);
+   }
+
+   X.Distribute(&x);
+   mat->Mult(X, Y);
+   range_fes->Dof_TrueDof_Matrix()->MultTranspose(a, Y, 1.0, y);
+}
+
 void ParDiscreteLinearOperator::GetParBlocks(Array2D<HypreParMatrix *> &blocks)
 const
 {
