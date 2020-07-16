@@ -47,6 +47,14 @@ void PAHcurlMassAssembleDiagonal3D(const int D1D,
                                    const Vector &_op,
                                    Vector &_diag);
 
+void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
+                                       const int Q1D,
+                                       const int NE,
+                                       const Array<double> &_Bo,
+                                       const Array<double> &_Bc,
+                                       const Vector &_op,
+                                       Vector &_diag);
+
 void PAHcurlMassApply2D(const int D1D,
                         const int Q1D,
                         const int NE,
@@ -254,8 +262,12 @@ void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
    {
       if (fetype == mfem::FiniteElement::CURL)
       {
-         PAHcurlMassAssembleDiagonal3D(dofs1D, quad1D, ne,
-                                       mapsO->B, mapsC->B, pa_data, diag);
+         if (diag.GetMemory().GetMemoryType() >= MemoryType::DEVICE && quad1D <= 5)
+            SmemPAHcurlMassAssembleDiagonal3D(dofs1D, quad1D, ne,
+                                              mapsO->B, mapsC->B, pa_data, diag);
+         else
+            PAHcurlMassAssembleDiagonal3D(dofs1D, quad1D, ne,
+                                          mapsO->B, mapsC->B, pa_data, diag);
       }
       else if (fetype == mfem::FiniteElement::DIV)
       {

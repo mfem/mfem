@@ -366,6 +366,130 @@ void PAHcurlMassAssembleDiagonal3D(const int D1D,
    }); // end of element loop
 }
 
+void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
+                                       const int Q1D,
+                                       const int NE,
+                                       const Array<double> &_Bo,
+                                       const Array<double> &_Bc,
+                                       const Vector &_op,
+                                       Vector &_diag)
+{
+   constexpr static int VDIM = 3;
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
+
+   MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
+
+   auto bo = Reshape(_Bo.Read(), Q1D, D1D-1);
+   auto bc = Reshape(_Bc.Read(), Q1D, D1D);
+   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 6, NE);
+   auto diag = Reshape(_diag.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
+
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   {
+      MFEM_SHARED double BG[2][MAX_Q1D*MAX_D1D];
+      double (*Bo)[MAX_Q1D] = (double (*)[MAX_Q1D]) (BG+0);
+      double (*Bc)[MAX_Q1D] = (double (*)[MAX_Q1D]) (BG+1);
+
+      double op3[3];
+      MFEM_SHARED double sop[3*MAX_Q1D*MAX_Q1D];
+
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qz,z,Q1D)
+            {
+               op3[0] = op(qx,qy,qz,0,e);
+               op3[1] = op(qx,qy,qz,3,e);
+               op3[2] = op(qx,qy,qz,5,e);
+            }
+         }
+      }
+
+      const int tidx = MFEM_THREAD_ID(x);
+      const int tidy = MFEM_THREAD_ID(y);
+      const int tidz = MFEM_THREAD_ID(z);
+
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(d,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q1D)
+            {
+               Bc[q][d] = bc(q,d);
+               if (d < D1D-1)
+               {
+                  Bo[q][d] = bo(q,d);
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      int osc = 0;
+      for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
+      {
+         const int D1Dz = (c == 2) ? D1D - 1 : D1D;
+         const int D1Dy = (c == 1) ? D1D - 1 : D1D;
+         const int D1Dx = (c == 0) ? D1D - 1 : D1D;
+
+         double dxyz = 0.0;
+
+         for (int qz=0; qz < Q1D; ++qz)
+         {
+            if (tidz == qz)
+            {
+               for (int i=0; i<3; ++i)
+               {
+                  sop[i + (3*tidx) + (3*Q1D*tidy)] = op3[i];
+               }
+            }
+
+            MFEM_SYNC_THREAD;
+
+            MFEM_FOREACH_THREAD(dz,z,D1Dz)
+            {
+               const double wz = ((c == 2) ? Bo[qz][dz] : Bc[qz][dz]);
+
+               MFEM_FOREACH_THREAD(dy,y,D1Dy)
+               {
+                  MFEM_FOREACH_THREAD(dx,x,D1Dx)
+                  {
+                     for (int qy = 0; qy < Q1D; ++qy)
+                     {
+                        const double wy = ((c == 1) ? Bo[qy][dy] : Bc[qy][dy]);
+
+                        for (int qx = 0; qx < Q1D; ++qx)
+                        {
+                           const double wx = ((c == 0) ? Bo[qx][dx] : Bc[qx][dx]);
+                           dxyz += sop[c + (3*qx) + (3*Q1D*qy)] * wx * wx * wy * wy * wz * wz;
+                        }
+                     }
+                  }
+               }
+            }
+
+            MFEM_SYNC_THREAD;
+         }  // qz loop
+
+         MFEM_FOREACH_THREAD(dz,z,D1Dz)
+         {
+            MFEM_FOREACH_THREAD(dy,y,D1Dy)
+            {
+               MFEM_FOREACH_THREAD(dx,x,D1Dx)
+               {
+                  diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += dxyz;
+               }
+            }
+         }
+
+         osc += D1Dx * D1Dy * D1Dz;
+      }  // c loop
+   }); // end of element loop
+}
+
 void PAHcurlMassApply3D(const int D1D,
                         const int Q1D,
                         const int NE,
@@ -2273,8 +2397,8 @@ void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
    if (dim == 3)
    {
       // Reduce HCURL_MAX_D1D/Q1D to avoid using too much memory
-      constexpr int MAX_D1D = 4;
-      constexpr int MAX_Q1D = 5;
+      constexpr int MAX_D1D = HCURL_MAX_D1D;
+      constexpr int MAX_Q1D = HCURL_MAX_Q1D;
 
       if (diag.GetMemory().GetMemoryType() >= MemoryType::DEVICE && quad1D <= 5)
          SmemPACurlCurlAssembleDiagonal3D<MAX_D1D,MAX_Q1D>(dofs1D, quad1D, ne,
