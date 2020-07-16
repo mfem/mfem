@@ -1953,7 +1953,7 @@ void FiniteElementSpace::Construct()
 
    int order = fec->DefaultOrder();
 
-   // for full conforming hp spaces, calculate orders of edges and faces
+   // for fully conforming hp spaces, calculate orders of edges and faces
    Array<int> edge_min_order, face_min_order;
    if (IsVariableOrder() && !relaxed_hp)
    {
@@ -1985,7 +1985,7 @@ void FiniteElementSpace::Construct()
    {
       if (IsVariableOrder() || mesh->GetNumGeometries(2) > 1)
       {
-         // note that we use Table face_dofs for mixed faces as well
+         // NOTE: we use Table face_dofs for mixed faces as well
          nfdofs = AssignVarOrderDofs(2, face_min_order, face_dofs);
       }
       else

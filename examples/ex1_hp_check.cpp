@@ -69,6 +69,9 @@ int main(int argc, char *argv[])
    bool visualization = false;
    bool relaxed_hp = false;
 
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
@@ -149,7 +152,7 @@ int main(int argc, char *argv[])
    srand(seed);
    for (int i = 0; i < mesh->GetNE(); i++)
    {
-      fespace->SetElementOrder(i, (rand()%5)+order);
+      fespace->SetElementOrder(i, (rand()%3)+order);
    }
 #else
    fespace->SetElementOrder(0, 2);
@@ -163,6 +166,32 @@ int main(int argc, char *argv[])
    fespace->Update(false);
    mesh->UniformRefinement();
    fespace->Update(false);*/
+
+   if (1)
+   {
+      std::ofstream f("mesh.dump");
+      mesh->ncmesh->DebugDump(f);
+   }
+
+   const char* keys = (dim == 2) ? "Rjlmciiiiii" : "Amcooooo";
+
+   if (visualization)
+   {
+      L2_FECollection l2fec(0, dim);
+      FiniteElementSpace l2fes(mesh, &l2fec);
+      GridFunction orders(&l2fes);
+
+      for (int i = 0; i < orders.Size(); i++)
+      {
+         orders(i) = fespace->GetElementOrder(i);
+      }
+
+      socketstream ord_sock(vishost, visport);
+      ord_sock.precision(8);
+      ord_sock << "solution\n" << *mesh << orders
+               << "window_title 'Polynomial orders'\n"
+               "keys " << keys << "\n" << flush;
+   }
 
    cout << "Space size (all DOFs): " << fespace->GetNDofs() << endl;
    cout << "Number of finite element unknowns: "
@@ -192,6 +221,9 @@ int main(int argc, char *argv[])
    BilinearForm bf(fespace);
    if (pa) { bf.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    bf.AddDomainIntegrator(new DiffusionIntegrator());
+   if (relaxed_hp) {
+      //bf.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(-1, -1));
+   }
    bf.Assemble();
 
    OperatorPtr A;
@@ -260,11 +292,6 @@ int main(int argc, char *argv[])
    // Send the solution by socket to a GLVis server.
    if (visualization)
    {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-
-      const char* keys = (dim == 2) ? "Rjlmciiiiii" : "Amcooooo";
-
       // Prolong the solution vector onto L2 space of max order (for GLVis)
       GridFunction *vis_x = ProlongToMaxOrder(&x);
 
@@ -288,23 +315,6 @@ int main(int argc, char *argv[])
                   "keys " << keys << "\n" << flush;
 #endif
       delete vis_x;
-
-#if 1
-      L2_FECollection l2fec(0, dim);
-      FiniteElementSpace l2fes(mesh, &l2fec);
-      GridFunction orders(&l2fes);
-
-      for (int i = 0; i < orders.Size(); i++)
-      {
-         orders(i) = fespace->GetElementOrder(i);
-      }
-
-      socketstream ord_sock(vishost, visport);
-      ord_sock.precision(8);
-      ord_sock << "solution\n" << *mesh << orders
-               << "window_title 'Polynomial orders'\n"
-               "keys " << keys << "\n" << flush;
-#endif
 
       // visualize the basis functions
       if (0)
