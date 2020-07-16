@@ -1077,7 +1077,7 @@ public:
                                     const Vector &elfun, DenseMatrix &elmat);
    /// PA extension
    void EnableLimitingPA(const GridFunction &n0);
-   void ComputeElementTargetsPA(const Vector &x = Vector()) const;
+   void ComputeElementTargetsPA(const Vector &xe = Vector()) const;
 
    using NonlinearFormIntegrator::GetGridFunctionEnergyPA;
    double GetGridFunctionEnergyPA_2D(const Vector&) const;

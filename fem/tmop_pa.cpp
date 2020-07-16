@@ -202,27 +202,27 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    }
 }
 
-void TMOP_Integrator::AddMultPA(const Vector &x, Vector &y) const
+void TMOP_Integrator::AddMultPA(const Vector &xe, Vector &ye) const
 {
    if (!PA.setup_Jtr) { ComputeElementTargetsPA(); }
 
    if (PA.dim == 2)
    {
-      AddMultPA_2D(x,y);
-      if (coeff0) { AddMultPA_C0_2D(x,y); }
+      AddMultPA_2D(xe,ye);
+      if (coeff0) { AddMultPA_C0_2D(xe,ye); }
    }
 
    if (PA.dim == 3)
    {
-      AddMultPA_3D(x,y);
-      if (coeff0) { AddMultPA_C0_3D(x,y); }
+      AddMultPA_3D(xe,ye);
+      if (coeff0) { AddMultPA_C0_3D(xe,ye); }
    }
 }
 
-void TMOP_Integrator::AddMultGradPA(const Vector &x,
-                                    const Vector &r, Vector &c) const
+void TMOP_Integrator::AddMultGradPA(const Vector &xe,
+                                    const Vector &re, Vector &ce) const
 {
-   if (!PA.setup_Jtr) { ComputeElementTargetsPA(x); }
+   if (!PA.setup_Jtr) { ComputeElementTargetsPA(xe); }
 
    if (!PA.setup_Grad)
    {
@@ -230,27 +230,27 @@ void TMOP_Integrator::AddMultGradPA(const Vector &x,
 
       if (PA.dim == 2)
       {
-         AssembleGradPA_2D(x);
-         if (coeff0) { AssembleGradPA_C0_2D(x); }
+         AssembleGradPA_2D(xe);
+         if (coeff0) { AssembleGradPA_C0_2D(xe); }
       }
 
       if (PA.dim == 3)
       {
-         AssembleGradPA_3D(x);
-         if (coeff0) { AssembleGradPA_C0_3D(x); }
+         AssembleGradPA_3D(xe);
+         if (coeff0) { AssembleGradPA_C0_3D(xe); }
       }
    }
 
    if (PA.dim == 2)
    {
-      AddMultGradPA_2D(r,c);
-      if (coeff0) { AddMultGradPA_C0_2D(x,r,c); }
+      AddMultGradPA_2D(re,ce);
+      if (coeff0) { AddMultGradPA_C0_2D(xe,re,ce); }
    }
 
    if (PA.dim == 3)
    {
-      AddMultGradPA_3D(x,r,c);
-      if (coeff0) { AddMultGradPA_C0_3D(x,r,c); }
+      AddMultGradPA_3D(xe,re,ce);
+      if (coeff0) { AddMultGradPA_C0_3D(xe,re,ce); }
    }
 }
 
