@@ -2449,20 +2449,20 @@ void TMOPComboIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
 }
 
-void TMOPComboIntegrator::AddMultPA(const Vector &x, Vector &y) const
+void TMOPComboIntegrator::AddMultPA(const Vector &xe, Vector &ye) const
 {
    for (int i = 0; i < tmopi.Size(); i++)
    {
-      tmopi[i]->AddMultPA(x, y);
+      tmopi[i]->AddMultPA(xe, ye);
    }
 }
 
-void TMOPComboIntegrator::AddMultGradPA(const Vector &x, const Vector &r,
-                                        Vector &c) const
+void TMOPComboIntegrator::AddMultGradPA(const Vector &xe, const Vector &re,
+                                        Vector &ce) const
 {
    for (int i = 0; i < tmopi.Size(); i++)
    {
-      tmopi[i]->AddMultGradPA(x, r, c);
+      tmopi[i]->AddMultGradPA(xe, re, ce);
    }
 }
 
