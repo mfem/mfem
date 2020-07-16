@@ -50,9 +50,6 @@ jobs:
           packages:
             - doxygen
             - graphviz
-            # - mpich
-            # - libmpich-dev
-      # env: MPI=YES
       script:
         - cd ${TRAVIS_BUILD_DIR}
         - cd tests/scripts
@@ -69,8 +66,8 @@ jobs:
       env: MPI=YES
       before_script:
         - cd ${TRAVIS_BUILD_DIR}
-        # - make config MFEM_USE_MPI=YES MFEM_MPI_NP=2 CPPFLAGS="-pedantic -Wall -Werror"
-        - make config MFEM_USE_MPI=YES MFEM_MPI_NP=2 CPPFLAGS="-pedantic -Wall"
+        - mpicxx -v
+        - make config MFEM_USE_MPI=YES MFEM_MPI_NP=2
         - make all -j3
         - make test-noclean
       script:
@@ -400,7 +397,9 @@ script:
      if [ "$CODECOV" == "YES" ]; then
         CPPFLAGS="--coverage -g";
      fi;
-     export CPPFLAGS="${CPPFLAGS} -pedantic -Wall -Werror"
+     if [ "$TRAVIS_OS_NAME" != "linux" ] || [ "$DEBUG" == "YES" ]; then
+        CPPFLAGS+=" -pedantic -Wall -Werror";
+     fi
 
    # Configure the library
    - make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG $MAKE_CXX_FLAG
