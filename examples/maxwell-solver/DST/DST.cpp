@@ -240,7 +240,7 @@ void DST::Mult(const Vector &r, Vector &z) const
             Vector res_local(ndofs); res_local = 0.0;
             if (l==0) res_local += *f_orig[ip];
             res_local += *f_transf[ip][l];
-            // if (res_local.Norml2() < 1e-8) continue;
+            if (res_local.Norml2() < 1e-8) continue;
             StopWatch chrono3;
             // chrono3.Clear();
             // chrono3.Start();
