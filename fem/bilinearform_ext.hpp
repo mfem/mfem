@@ -258,6 +258,10 @@ public:
 
    void AddMultTranspose(const Vector &x, Vector &y, const double c) const;
 
+   /// Note that this implementation does not use the essential arrays, they
+   /// are just unnecessary
+   void FormRectangularSystemOperator(Array<int>&, Array<int>&, OperatorHandle& A);
+
 private:
    Vector test_multiplicity;
 };

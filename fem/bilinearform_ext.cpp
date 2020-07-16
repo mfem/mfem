@@ -594,4 +594,16 @@ void PADiscreteLinearOperatorExtension::AddMultTranspose(
    }
 }
 
+// We actually don't use the ess arrays, but we're matching a given
+// signature (not sure that's the best design)
+void PADiscreteLinearOperatorExtension::FormRectangularSystemOperator(
+   Array<int>& ess1, Array<int>& ess2, OperatorHandle &A)
+{
+   Operator * oper;
+   Array<int> empty;
+   Operator::FormRectangularSystemOperator(empty, empty, oper);
+   A.Reset(oper); // A will own oper
+}
+
+
 } // namespace mfem
