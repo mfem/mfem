@@ -289,7 +289,7 @@ int main(int argc, char *argv[])
    Vector tpp;
 
    Array<int> abcs; // Absorbing BC attributes
-   Array<int> sbcs; // Sheath BC attributes
+   Array<int> sbca; // Sheath BC attributes
    Array<int> dbca; // Dirichlet BC attributes
    int num_elements = 10;
 
@@ -382,7 +382,7 @@ int main(int argc, char *argv[])
                   "Amplitude");
    args.AddOption(&abcs, "-abcs", "--absorbing-bc-surf",
                   "Absorbing Boundary Condition Surfaces");
-   args.AddOption(&sbcs, "-sbcs", "--sheath-bc-surf",
+   args.AddOption(&sbca, "-sbcs", "--sheath-bc-surf",
                   "Sheath Boundary Condition Surfaces");
    args.AddOption(&dbca, "-dbcs", "--dirichlet-bc-surf",
                   "Dirichlet Boundary Condition Surfaces");
@@ -754,7 +754,8 @@ int main(int argc, char *argv[])
    // ParGridFunction LField(&L2FESpace);
    ParGridFunction temperature_gf;
    ParGridFunction density_gf;
-
+   ParGridFunction potential_gf;
+   
    BField.ProjectCoefficient(*BCoef);
    // LField.ProjectCoefficient(LCoef);
 
@@ -766,9 +767,11 @@ int main(int argc, char *argv[])
    int size_l2 = L2FESpace.GetVSize();
 
    Array<int> density_offsets(numbers.Size() + 1);
+   Array<int> potential_offsets(3);
    Array<int> temperature_offsets(numbers.Size() + 2);
 
    density_offsets[0] = 0;
+   potential_offsets[0] = 0;
    temperature_offsets[0] = 0;
    temperature_offsets[1] = size_h1;
    for (int i=1; i<=numbers.Size(); i++)
@@ -776,12 +779,28 @@ int main(int argc, char *argv[])
       density_offsets[i]     = density_offsets[i - 1] + size_l2;
       temperature_offsets[i + 1] = temperature_offsets[i] + size_h1;
    }
+   potential_offsets[1] = potential_offsets[0] + size_h1;
+   potential_offsets[2] = potential_offsets[1] + size_h1;
 
    BlockVector density(density_offsets);
+   BlockVector potential(potential_offsets);
    BlockVector temperature(temperature_offsets);
 
-   PlasmaProfile rhoCoef(dpt, dpp);
    PlasmaProfile tempCoef(tpt, tpp);
+   PlasmaProfile rhoCoef(dpt, dpp);
+   ConstantCoefficient PotentReCoef(0.0);
+   ConstantCoefficient PotentImCoef(0.0);
+
+   for (int i=0; i<=numbers.Size(); i++)
+   {
+      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i));
+      temperature_gf.ProjectCoefficient(tempCoef);
+   }
+
+   potential_gf.MakeRef(&H1FESpace, potential.GetBlock(0));
+   potential_gf.ProjectCoefficient(PotentReCoef);
+   potential_gf.MakeRef(&H1FESpace, potential.GetBlock(1));
+   potential_gf.ProjectCoefficient(PotentImCoef);
 
    for (int i=0; i<numbers.Size(); i++)
    {
@@ -789,11 +808,6 @@ int main(int argc, char *argv[])
       density_gf.ProjectCoefficient(rhoCoef);
    }
 
-   for (int i=0; i<=numbers.Size(); i++)
-   {
-      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i));
-      temperature_gf.ProjectCoefficient(tempCoef);
-   }
    /*
    for (int i=0; i<=nspecies; i++)
    {
@@ -823,10 +837,6 @@ int main(int argc, char *argv[])
    // Create a coefficient describing the surface admittance
    Coefficient * etaInvCoef = SetupRealAdmittanceCoefficient(pmesh, abcs);
 
-   Coefficient * etaInvReCoef = NULL;
-   Coefficient * etaInvImCoef = NULL;
-   SetupComplexAdmittanceCoefs(pmesh, sbcs, etaInvReCoef, etaInvImCoef);
-
    // Create tensor coefficients describing the dielectric permittivity
    DielectricTensor epsilon_real(BField, density, temperature,
                                  L2FESpace, H1FESpace,
@@ -837,6 +847,13 @@ int main(int argc, char *argv[])
    SPDDielectricTensor epsilon_abs(BField, density, temperature,
                                    L2FESpace, H1FESpace,
                                    omega, charges, masses);
+
+   SheathImpedance z_r(BField, density, temperature,
+                       potential, L2FESpace, H1FESpace,
+                       omega, charges, masses, true);
+   SheathImpedance z_i(BField, density, temperature,
+                       potential, L2FESpace, H1FESpace,
+                       omega, charges, masses, false);
 
    ColdPlasmaPlaneWave EReCoef(wave_type[0], omega, BVec,
                                numbers, charges, masses, temps, true);
@@ -912,6 +929,16 @@ int main(int argc, char *argv[])
 
    Array<ComplexVectorCoefficientByAttr> nbcs(0);
 
+   Array<ComplexCoefficientByAttr> sbcs((sbca.Size() > 0)? 1 : 0);
+   if (sbca.Size() > 0)
+   {
+      sbcs[0].real = &PotentReCoef;
+      sbcs[0].imag = &PotentImCoef;
+      sbcs[0].attr = sbca;
+      AttrToMarker(pmesh.bdr_attributes.Max(), sbcs[0].attr,
+                   sbcs[0].attr_marker);
+   }
+
    // Create the Magnetostatic solver
    if (mpi.Root() && logging > 0)
    {
@@ -921,9 +948,9 @@ int main(int argc, char *argv[])
                  (CPDSolver::SolverType)sol, solOpts,
                  (CPDSolver::PrecondType)prec,
                  conv, *BCoef, epsilon_real, epsilon_imag, epsilon_abs,
-                 muInvCoef, etaInvCoef, etaInvReCoef, etaInvImCoef,
+                 muInvCoef, etaInvCoef,
                  (phase_shift) ? &kCoef : NULL,
-                 abcs, sbcs, dbcs, nbcs,
+                 abcs, dbcs, nbcs, sbcs,
                  // e_bc_r, e_bc_i,
                  // EReCoef, EImCoef,
                  (slab_params_.Size() > 0) ? j_src : NULL, NULL, vis_u);
