@@ -63,7 +63,7 @@ void TMOP_Integrator::EnableLimitingPA(const GridFunction &n0)
 //          - GIVEN_SHAPE_AND_SIZE:   Jtr(i) *= D_rho          (ratio)
 //                                    Jtr(i) *= Q_phi          (skew)
 //                                    Jtr(i) *= R_theta        (orientation)
-void TMOP_Integrator::ComputeElementTargetsPA(const Vector &x) const
+void TMOP_Integrator::ComputeElementTargetsPA(const Vector &xe) const
 {
    PA.Jtr.HostWrite();
 
@@ -76,8 +76,8 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &x) const
    const TargetConstructor::TargetType &target_type = targetC->Type();
    const IntegrationRule &ir = *EnergyIntegrationRule(*PA.fes->GetFE(0));
 
-   Vector xe;
-   const bool useable_input_vector = x.Size() > 0;
+   Vector x;
+   const bool useable_input_vector = xe.Size() > 0;
    const bool use_input_vector = target_type == TargetConstructor::GIVEN_FULL;
 
    if (use_input_vector && !useable_input_vector) { return; }
@@ -87,13 +87,13 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &x) const
 
    if (use_input_vector)
    {
-      xe.SetSize(PA.R->Width(), Device::GetMemoryType());
-      xe.UseDevice(true);
-      PA.R->MultTranspose(x, xe);
+      x.SetSize(PA.R->Width(), Device::GetMemoryType());
+      x.UseDevice(true);
+      PA.R->MultTranspose(xe, x);
       // Scale by weights
       const int N = PA.W.Size();
       const auto W = Reshape(PA.W.Read(), N);
-      auto X = Reshape(xe.ReadWrite(), N);
+      auto X = Reshape(x.ReadWrite(), N);
       MFEM_FORALL(i, N, X(i) /= W(i););
    }
 
@@ -107,7 +107,7 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &x) const
       if (use_input_vector)
       {
          fes->GetElementVDofs(e, vdofs);
-         xe.GetSubVector(vdofs, elfun);
+         x.GetSubVector(vdofs, elfun);
       }
       J.UseExternalData(Jtr(e*NQ).Data(), dim, dim, NQ);
       targetC->ComputeElementTargets(e, fe, ir, elfun, J);
@@ -254,22 +254,22 @@ void TMOP_Integrator::AddMultGradPA(const Vector &x,
    }
 }
 
-double TMOP_Integrator::GetGridFunctionEnergyPA(const Vector &x) const
+double TMOP_Integrator::GetGridFunctionEnergyPA(const Vector &xe) const
 {
    double energy = 0.0;
 
-   ComputeElementTargetsPA(x);
+   ComputeElementTargetsPA(xe);
 
    if (PA.dim == 2)
    {
-      energy = GetGridFunctionEnergyPA_2D(x);
-      if (coeff0) { energy += GetGridFunctionEnergyPA_C0_2D(x); }
+      energy = GetGridFunctionEnergyPA_2D(xe);
+      if (coeff0) { energy += GetGridFunctionEnergyPA_C0_2D(xe); }
    }
 
    if (PA.dim == 3)
    {
-      energy = GetGridFunctionEnergyPA_3D(x);
-      if (coeff0) { energy += GetGridFunctionEnergyPA_C0_3D(x); }
+      energy = GetGridFunctionEnergyPA_3D(xe);
+      if (coeff0) { energy += GetGridFunctionEnergyPA_C0_3D(xe); }
    }
 
    return energy;
