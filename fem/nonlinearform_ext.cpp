@@ -89,7 +89,7 @@ PANonlinearForm::Gradient::Gradient(const Vector &x, const PANonlinearForm &e):
       // Do we still need to do this?
       dnfi[i]->AssemblePA(e.fes);
       // Fake AddMultGradPA to force the setup_Grad
-      dnfi[i]->AddMultGradPA(ge, xe, ye);
+      //dnfi[i]->AddMultGradPA(ge, xe, ye);
    }
 }
 
