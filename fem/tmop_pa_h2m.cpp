@@ -96,7 +96,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_2D,
                   }
                }
             }
-
             // C = Jrt . B
             double C[4];
             kernels::MultABt(2,2,2, Jrt, B, C);
