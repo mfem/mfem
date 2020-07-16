@@ -263,7 +263,6 @@ void TMOP_Integrator::AddMultPA(const Vector &x, Vector &y) const
 void TMOP_Integrator::AddMultGradPA(const Vector &x,
                                     const Vector &r, Vector &c) const
 {
-   dbg();
    if (!PA.setup_Jtr) { ComputeElementTargetsPA(x); }
 
    if (!PA.setup_Grad)

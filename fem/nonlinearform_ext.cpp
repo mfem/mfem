@@ -70,7 +70,6 @@ Operator &PANonlinearForm::GetGradient(const Vector &x) const
 PANonlinearForm::Gradient::Gradient(const Vector &x, const PANonlinearForm &e):
    Operator(e.fes.GetVSize()), R(e.R), dnfi(e.dnfi)
 {
-   dbg();
    ge.UseDevice(true);
    ge.SetSize(R->Height(), Device::GetMemoryType());
    R->Mult(x, ge);
@@ -89,13 +88,12 @@ PANonlinearForm::Gradient::Gradient(const Vector &x, const PANonlinearForm &e):
       // Do we still need to do this?
       dnfi[i]->AssemblePA(e.fes);
       // Fake AddMultGradPA to force the setup_Grad
-      //dnfi[i]->AddMultGradPA(ge, xe, ye);
+      dnfi[i]->AddMultGradPA(ge, xe, ye);
    }
 }
 
 void PANonlinearForm::Gradient::Mult(const Vector &x, Vector &y) const
 {
-   dbg();
    ze = x;
    ye = 0.0;
    R->Mult(ze, xe);
