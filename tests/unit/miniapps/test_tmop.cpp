@@ -480,12 +480,12 @@ int tmop(int myid, Req &res, int argc, char *argv[])
       Vector diag;
       if (pa)
       {
-         nlf.GetGradient(x_t);
-         he_nlf_integ->AssembleDiagonalPA(diag);
+         nlf.GetGradient(x);
+         he_nlf_integ->AssembleDiagonalPA(x, diag);
       }
       else
       {
-         const Operator &mGradOp = nlf.GetGradient(x_t);
+         const Operator &mGradOp = nlf.GetGradient(x);
          const SparseMatrix *mGrad =
             reinterpret_cast<const SparseMatrix*>(&mGradOp);
          MFEM_VERIFY(mGrad, "mGrad");

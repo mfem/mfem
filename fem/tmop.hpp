@@ -1076,6 +1076,7 @@ public:
                                     ElementTransformation &T,
                                     const Vector &elfun, DenseMatrix &elmat);
    /// PA extension
+   void SetupGradPA(const Vector &xe) const;
    void EnableLimitingPA(const GridFunction &n0);
    void ComputeElementTargetsPA(const Vector &xe = Vector()) const;
 
@@ -1089,7 +1090,7 @@ public:
    using NonlinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace&);
 
-   virtual void AssembleDiagonalPA(Vector &diag);
+   virtual void AssembleDiagonalPA(const Vector &x, Vector &diag);
    void AssembleDiagonalPA_2D(Vector &diag);
 
    using NonlinearFormIntegrator::AddMultPA;

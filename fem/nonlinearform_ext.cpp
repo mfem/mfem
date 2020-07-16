@@ -83,13 +83,8 @@ PANonlinearForm::Gradient::Gradient(const Vector &x, const PANonlinearForm &e):
    ze.UseDevice(true);
    ze.SetSize(R->Height(), Device::GetMemoryType());
 
-   for (int i = 0; i < dnfi.Size(); ++i)
-   {
-      // Do we still need to do this?
-      dnfi[i]->AssemblePA(e.fes);
-      // Fake AddMultGradPA to force the setup_Grad
-      //dnfi[i]->AddMultGradPA(ge, xe, ye);
-   }
+   // Do we still need to do this?
+   for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AssemblePA(e.fes); }
 }
 
 void PANonlinearForm::Gradient::Mult(const Vector &x, Vector &y) const
