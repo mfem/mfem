@@ -21,6 +21,26 @@
 namespace mfem
 {
 
+
+void TMOP_Integrator::SetupGradPA(const Vector &xe) const
+{
+   dbg();
+   MFEM_VERIFY(PA.R, "PA extension setup has not been done!");
+   PA.setup_Grad = true;
+
+   if (PA.dim == 2)
+   {
+      AssembleGradPA_2D(xe);
+      if (coeff0) { AssembleGradPA_C0_2D(xe); }
+   }
+
+   if (PA.dim == 3)
+   {
+      AssembleGradPA_3D(xe);
+      if (coeff0) { AssembleGradPA_C0_3D(xe); }
+   }
+}
+
 // We might come here w/o knowing that PA will be used.
 // It is the case when EnableLimiting is called before the Setup => AssemblePA.
 void TMOP_Integrator::EnableLimitingPA(const GridFunction &n0)
@@ -206,7 +226,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    }
 }
 
-void TMOP_Integrator::AssembleDiagonalPA(Vector &diag)
+void TMOP_Integrator::AssembleDiagonalPA(const Vector &x, Vector &diag)
 {
    MFEM_VERIFY(PA.R, "PA extension setup has not been done!");
    Vector diag_ldofs(PA.R->Height());
@@ -219,6 +239,13 @@ void TMOP_Integrator::AssembleDiagonalPA(Vector &diag)
    if (!PA.setup_Jtr) { ComputeElementTargetsPA(); }
 
    MFEM_VERIFY(PA.setup_Grad,"");
+   {
+      Vector xe(PA.R->Height(), Device::GetMemoryType());
+      xe.UseDevice(true);
+      xe = 0.0;
+      PA.R->Mult(x, xe);
+      SetupGradPA(xe);
+   }
 
    if (PA.dim == 2)
    {
@@ -254,22 +281,7 @@ void TMOP_Integrator::AddMultGradPA(const Vector &xe,
 {
    if (!PA.setup_Jtr) { ComputeElementTargetsPA(xe); }
 
-   if (!PA.setup_Grad)
-   {
-      PA.setup_Grad = true;
-
-      if (PA.dim == 2)
-      {
-         AssembleGradPA_2D(xe);
-         if (coeff0) { AssembleGradPA_C0_2D(xe); }
-      }
-
-      if (PA.dim == 3)
-      {
-         AssembleGradPA_3D(xe);
-         if (coeff0) { AssembleGradPA_C0_3D(xe); }
-      }
-   }
+   if (!PA.setup_Grad) { SetupGradPA(xe); }
 
    if (PA.dim == 2)
    {
@@ -289,6 +301,8 @@ double TMOP_Integrator::GetGridFunctionEnergyPA(const Vector &xe) const
    double energy = 0.0;
 
    ComputeElementTargetsPA(xe);
+
+   //SetupGradPA(xe);
 
    if (PA.dim == 2)
    {
