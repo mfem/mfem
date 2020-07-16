@@ -114,6 +114,11 @@ ex11p-test-strumpack: ex11p
 	@$(call mfem-test,$<, $(RUN_MPI), STRUMPACK example,--strumpack)
 test-par-YES: ex11p-test-strumpack
 endif
+ifeq ($(MFEM_USE_SUPERLU),YES)
+ex11p-test-superlu: ex11p
+	@$(call mfem-test,$<, $(RUN_MPI), SuperLU_DIST example,--superlu)
+test-par-YES: ex11p-test-superlu
+endif
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
