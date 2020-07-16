@@ -171,7 +171,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
                   // J = Jrt = Jtr^{-1}
                   double Jrt[4];
                   kernels::CalcInverse<2>(Jtr, Jrt);
-#if 0
+#if 1
                   const double bg[4] = {BB, GB, BG, GG};
                   ConstDeviceMatrix K(bg,2,2);
 
@@ -182,32 +182,28 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
                   {
                      for (int j = 0; j < DIM; j++)
                      {
-                        M(i,j) = 0.0;
+                        //M(i,j) = 0.0;
+                        //const double k = K(i,j);
                         //for (int r = 0; r < DIM; r++)
                         {
                            //for (int c = 0; c < DIM; c++)
                            {
-                              M(i,j) /*+*/= K(i,j) * H(r,i,r,j,qx,qy,e) ;//* J(r,i);
+                              //if (i!=comp) { continue; }
+                              //if (r!=comp) { continue; }
+                              //if (c!=i) { continue; }
+                              M(i,j) /*+*/= K(i,j) * H(r,i,r,j,qx,qy,e)
+                                            * J(i,j) * J(j,i);
                            }
                         }
                      }
                   }
-                  /*QD_00[qx][dy] += M(0,0);
+                  QD_00[qx][dy] += M(0,0);
                   QD_01[qx][dy] += M(0,1);
                   QD_10[qx][dy] += M(1,0);
-                  QD_11[qx][dy] += M(1,1);*/
-
-                  // C = Jrt . B
-                  double C[4];
-                  kernels::MultABt(2,2,2, Jrt, B_, C);
-                  ConstDeviceMatrix G(C,2,2);
-                  QD_00[qx][dy] += G(0,0);
-                  QD_01[qx][dy] += G(0,1);
-                  QD_10[qx][dy] += G(1,0);
-                  QD_11[qx][dy] += G(1,1);
+                  QD_11[qx][dy] += M(1,1);
 #else
                   ConstDeviceMatrix J(Jrt,2,2);
-                  QD_00[qx][dy] += BB * H(r,0,r,0,qx,qy,e) * J(r,0)*J(0,r);
+                  QD_00[qx][dy] += BB * H(r,0,r,0,qx,qy,e) ;//* J(r,0)*J(0,r);
                   QD_01[qx][dy] += GB * H(r,0,r,1,qx,qy,e) ;//* J(r,1)*J(0,r);
                   QD_10[qx][dy] += BG * H(r,1,r,0,qx,qy,e) ;//* J(r,0)*J(1,r);
                   QD_11[qx][dy] += GG * H(r,1,r,1,qx,qy,e) ;//* J(r,1)*J(1,r);
