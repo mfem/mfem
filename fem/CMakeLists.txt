@@ -55,6 +55,7 @@ set(SRCS
   staticcond.cpp
   tmop.cpp
   tmop_pa.cpp
+  tmop_pa_h2d.cpp
   tmop_pa_h2m.cpp
   tmop_pa_h2m_c0.cpp
   tmop_pa_h2s.cpp

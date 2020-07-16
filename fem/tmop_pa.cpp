@@ -226,15 +226,6 @@ void TMOP_Integrator::AssembleDiagonalPA(Vector &diag)
       AssembleDiagonalPA_2D(diag_ldofs);
       dbg("diag_ldofs: %.15e", diag_ldofs*diag_ldofs);
       PA.R->MultTranspose(diag_ldofs, diag);
-      if (getenv("W"))
-      {
-         // Scale by weights
-         const int N = PA.W.Size();
-         const auto W = Reshape(PA.W.Read(), N);
-         dbg("W:"); PA.W.Print();
-         auto D = Reshape(diag.ReadWrite(), N);
-         MFEM_FORALL(i, N, D(i) /= W(i););
-      }
       if (coeff0) { MFEM_ABORT("2D limiting part of the diagonal is WIP."); }
    }
    else
