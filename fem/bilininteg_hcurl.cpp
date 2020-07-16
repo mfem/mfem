@@ -1946,7 +1946,7 @@ void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (dim == 3)
    {
-      if (x.GetMemory().GetMemoryType() >= MemoryType::DEVICE && quad1D <= 5)
+      if (x.GetMemory().GetMemoryType() >= MemoryType::DEVICE && quad1D <= 6)
          SmemPACurlCurlApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
                                mapsC->Bt, mapsC->G, mapsC->Gt, pa_data, x, y);
       else
@@ -2400,7 +2400,7 @@ void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
       constexpr int MAX_D1D = HCURL_MAX_D1D;
       constexpr int MAX_Q1D = HCURL_MAX_Q1D;
 
-      if (diag.GetMemory().GetMemoryType() >= MemoryType::DEVICE && quad1D <= 5)
+      if (diag.GetMemory().GetMemoryType() >= MemoryType::DEVICE && quad1D <= 6)
          SmemPACurlCurlAssembleDiagonal3D<MAX_D1D,MAX_Q1D>(dofs1D, quad1D, ne,
                                                            mapsO->B, mapsC->B,
                                                            mapsO->G, mapsC->G,
