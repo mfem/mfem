@@ -176,8 +176,8 @@ SerialAdvectorCGOper::SerialAdvectorCGOper(const Vector &x_start,
 
    MassIntegrator *Minteg = new MassIntegrator;
    M.AddDomainIntegrator(Minteg);
-   M.Assemble();
-   M.Finalize();
+   M.Assemble(0);
+   M.Finalize(0);
 }
 
 void SerialAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
@@ -220,8 +220,8 @@ ParAdvectorCGOper::ParAdvectorCGOper(const Vector &x_start,
 
    MassIntegrator *Minteg = new MassIntegrator;
    M.AddDomainIntegrator(Minteg);
-   M.Assemble();
-   M.Finalize();
+   M.Assemble(0);
+   M.Finalize(0);
 }
 
 void ParAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const

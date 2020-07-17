@@ -593,11 +593,11 @@ int main (int argc, char *argv[])
    switch (quad_type)
    {
       case 1: irules = &IntRulesLo;
-              ir = &IntRulesLo.Get(geom_type, quad_order); break;
+         ir = &IntRulesLo.Get(geom_type, quad_order); break;
       case 2: irules = &IntRules;
-              ir = &IntRules.Get(geom_type, quad_order); break;
+         ir = &IntRules.Get(geom_type, quad_order); break;
       case 3: irules = &IntRulesCU;
-              ir = &IntRulesCU.Get(geom_type, quad_order); break;
+         ir = &IntRulesCU.Get(geom_type, quad_order); break;
       default:
          if (myid == 0) { cout << "Unknown quad_type: " << quad_type << endl; }
          return 3;
