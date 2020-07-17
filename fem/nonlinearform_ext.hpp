@@ -44,7 +44,7 @@ class PANonlinearForm;
 /// Data and methods for partially-assembled nonlinear forms
 class PANonlinearForm : public NonlinearFormExtension
 {
-public:
+private:
    class Gradient : public Operator
    {
    protected:
@@ -53,7 +53,7 @@ public:
       const Array<NonlinearFormIntegrator*> &dnfi;
    public:
       Gradient(const Vector &x, const PANonlinearForm &ext);
-      virtual void Mult(const Vector &x, Vector &y) const override;
+      virtual void Mult(const Vector &x, Vector &y) const;
    };
 
 protected:
