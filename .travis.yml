@@ -120,6 +120,8 @@ jobs:
            MPI=NO
            CODECOV=NO
            MFEM_TEST_TARGET=check
+      cache:
+        ccache: true
 
     - os: linux
       compiler: gcc
@@ -128,6 +130,8 @@ jobs:
            MPI=NO
            CODECOV=NO
            MFEM_TEST_TARGET=test
+      cache:
+        ccache: true
 
     - os: linux
       compiler: gcc
@@ -151,6 +155,7 @@ jobs:
            MFEM_TEST_TARGET=check
            NPROCS=2
       cache:
+        ccache: true
         directories:
           - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
           - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
@@ -182,6 +187,7 @@ jobs:
            MFEM_TEST_TARGET=test
            NPROCS=2
       cache:
+        ccache: true
         directories:
           - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
           - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
@@ -214,6 +220,7 @@ jobs:
         - make -j3
         - ctest --output-on-failure
       cache:
+        ccache: true
         directories:
           - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
           - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
