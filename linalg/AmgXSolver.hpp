@@ -55,13 +55,13 @@ public:
   AmgXSolver() = default;
 
   AmgXSolver(const MPI_Comm &comm,
-             const std::string &modeStr, const std::string &cfgFile);
+             const std::string &modeStr, const std::string &cfgFile, int &nDevs);
 
   ~AmgXSolver();
 
 
   void initialize(const MPI_Comm &comm,
-                  const std::string &modeStr, const std::string &cfgFile);
+                  const std::string &modeStr, const std::string &cfgFile, int &nDevs);
 
 
   void finalize();
@@ -193,12 +193,12 @@ private:
 
   /** \brief Set the ID of the corresponding GPU used by this process.
    */
-  void setDeviceIDs();
+  void setDeviceIDs(int &nDevs);
 
 
   /** \brief Initialize all MPI communicators.
    */
-  void initMPIcomms(const MPI_Comm &comm);
+  void initMPIcomms(const MPI_Comm &comm, int &nDevs);
 
   void initAmgX(const std::string &cfgFile);
 
