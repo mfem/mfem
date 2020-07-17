@@ -39,13 +39,8 @@ private:
    DofMap * dmap = nullptr;
    // Auxiliary global vector for transfers
    std::vector<std::vector<Array<int>>> NovlpElems;
-   std::vector<Array2D<int>> ovlpelems;
    std::vector<std::vector<Array<int>>> NovlpDofs;
-   std::vector<std::vector<Array<int>>> NovlpDofs1;
-   std::vector<std::vector<Array<int>>> OvlpDofMap;
-   // Pml local problems
-   // Array<SparseMatrix *> PmlMat;
-   // Array<UMFPackSolver *> PmlMatInv;
+
    Array< SesquilinearForm * > sqf;
    Array< OperatorPtr * > Optr;
    Array<ComplexSparseMatrix *> PmlMat;
@@ -69,14 +64,14 @@ private:
    void SetHelmholtzPmlSystemMatrix(int ip);
    void SetMaxwellPmlSystemMatrix(int ip);
 
-   void GetCutOffSolution(const Vector & sol, Vector & cfsol,
-                          int ip, Array2D<int> direct, int nlayers, bool local=false) const;                          
-   void GetChiRes(const Vector & res, Vector & cfres,
-                  int ip, Array2D<int> direct, int nlayers) const;  
+   // void GetCutOffSolution(const Vector & sol, Vector & cfsol,
+   //                        int ip, Array2D<int> direct, int nlayers, bool local=false) const;                          
+   // void GetChiRes(const Vector & res, Vector & cfres,
+   //                int ip, Array2D<int> direct, int nlayers) const;  
    void GetChiRes(Vector & res, int ip, Array2D<int> direct) const;                    
    void GetStepSubdomains(const int sweep, const int step, Array2D<int> & subdomains) const;
    void TransferSources(int sweep, int ip, Vector & sol_ext) const;
-   void SourceTransfer(const Vector & Psi0, Array<int> direction, int ip, Vector & Psi1) const;
+   int SourceTransfer(const Vector & Psi0, Array<int> direction, int ip, Vector & Psi1) const;
    int GetSweepToTransfer(const int s, Array<int> directions) const;
    void PlotSolution(Vector & sol, socketstream & sol_sock, int ip,bool localdomain) const;
   

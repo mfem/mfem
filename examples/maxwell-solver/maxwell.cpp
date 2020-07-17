@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
    }
 
    // Setup PML length
-   int nrlayers = 1;
+   int nrlayers = 2;
    double hl = GetUniformMeshElementSize(mesh);
    Array2D<double> lengths(dim, 2); 
    lengths = hl*nrlayers;
@@ -167,23 +167,21 @@ int main(int argc, char *argv[])
    ScalarMatrixProductCoefficient c2_Im(ws,c2_Im0);
 
    SesquilinearForm a(fespace, conv);
-   ConstantCoefficient zero(0.0);
    a.AddDomainIntegrator(new CurlCurlIntegrator(pml_c1_Re),
                          new CurlCurlIntegrator(pml_c1_Im));
    a.AddDomainIntegrator(new VectorFEMassIntegrator(c2_Re),
                          new VectorFEMassIntegrator(c2_Im));
 
-   a.Assemble();
+   a.Assemble(0);
 
    OperatorHandle Ah;
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, Ah, X, B);
 
    ComplexSparseMatrix * Ac = Ah.As<ComplexSparseMatrix>();
-
    StopWatch chrono;
-   chrono.Clear();
-   chrono.Start();
+   // chrono.Clear();
+   // chrono.Start();
    // {
    //    ComplexUMFPackSolver csolver;
    //    csolver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;

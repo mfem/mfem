@@ -106,7 +106,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      mesh = new Mesh(2, 2, 2, Element::HEXAHEDRON, true, length, length, length,false);
+      mesh = new Mesh(1, 1, 1, Element::HEXAHEDRON, true, length, length, length,false);
    }
 
    // 3. Executing uniform h-refinement
@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
    // double domain_length = pmax[0] - pmin[0];
    // double pml_thickness = 0.125/domain_length;
    // int nrlayers = pml_thickness/hl;
-   int nrlayers = 2;
+   int nrlayers = 1;
    Array<int> directions;
    
    for (int i = 0; i<nrlayers; i++)
@@ -227,9 +227,14 @@ int main(int argc, char *argv[])
          << A->Height() << " x " << A->Width() << endl;
 
 
-   DST S(&a,lengths, omega, &ws, nrlayers, nx, ny, nz);
 
    StopWatch chrono;
+   chrono.Clear();
+   chrono.Start();
+   DST S(&a,lengths, omega, &ws, nrlayers, nx, ny, nz);
+   chrono.Stop();
+   cout << "Construction time: " << chrono.RealTime() << endl; 
+
 
    chrono.Clear();
    chrono.Start();
@@ -312,19 +317,19 @@ int main(int argc, char *argv[])
 
    a.RecoverFEMSolution(X,B,p_gf);
 
-   ComplexUMFPackSolver csolver;
-   csolver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-   csolver.SetOperator(*AZ);
-   Vector X1(X.Size());
-   csolver.Mult(B,X1);
-   X1-= X;
+   // ComplexUMFPackSolver csolver;
+   // csolver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+   // csolver.SetOperator(*AZ);
+   // Vector X1(X.Size());
+   // csolver.Mult(B,X1);
+   // X1-= X;
 
-   ComplexGridFunction error_gf(fespace);
+   // ComplexGridFunction error_gf(fespace);
 
-   a.RecoverFEMSolution(X1,B,error_gf);
+   // a.RecoverFEMSolution(X1,B,error_gf);
 
 
-   cout << "error l2 norm = " << error_gf.Norml2() << endl;
+   // cout << "error l2 norm = " << error_gf.Norml2() << endl;
 
    if (visualization)
    {
@@ -345,11 +350,11 @@ int main(int argc, char *argv[])
                   "window_title 'Numerical Pressure (real part from DST)' "
                   // << keys << flush;
                   << keys << "valuerange -0.08 0.08 \n" << flush;
-      socketstream err_sock_re(vishost, visport);
-      err_sock_re.precision(8);
-      err_sock_re << "solution\n" << *mesh_ext << error_gf.real() <<
-                  "window_title 'Difference (real part from UMFPACK)' "
-                  << keys << flush;
+      // socketstream err_sock_re(vishost, visport);
+      // err_sock_re.precision(8);
+      // err_sock_re << "solution\n" << *mesh_ext << error_gf.real() <<
+      //             "window_title 'Difference (real part from UMFPACK)' "
+      //             << keys << flush;
    }
    delete fespace;
    delete fec;

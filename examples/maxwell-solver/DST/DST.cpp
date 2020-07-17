@@ -47,10 +47,6 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
    // Indentify problem ... Helmholtz or Maxwell
    int prob_kind = bf->FESpace()->FEColl()->GetContType();
 
-   // StopWatch chrono;
-   // chrono.Clear();
-   // chrono.Start();
-
    Mesh * mesh = bf->FESpace()->GetMesh();
    dim = mesh->Dimension();
    int partition_kind = 2;
@@ -60,19 +56,11 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
    nx = part->nxyz[0]; ny = part->nxyz[1];  nz = part->nxyz[2];
    nrpatch = part->nrpatch;
 
-   // chrono.Stop();
-   // double t0 = chrono.RealTime();
-
    // partition_kind = 1;
    // MeshPartition * part1 = new MeshPartition(mesh, partition_kind,nx,ny,nz);
    // SaveMeshPartition(part1->patch_mesh, "output/mesh3x3.", "output/sol3x3.");
    // SaveMeshPartition(part->patch_mesh, "output/mesh3x3.", "output/sol3x3.");
 
-
-   // Sweeps info
-
-   // chrono.Clear();
-   // chrono.Start();
 
    swp = new Sweep(dim);
 
@@ -89,13 +77,6 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
    f_orig.SetSize(nrpatch);
    f_transf.SetSize(nrpatch);
    cout << "nrpatch = " << nrpatch << endl;
-
-   // chrono.Stop();
-   // double t1 = chrono.RealTime();
-
-   // chrono.Clear();
-   // chrono.Start();
-
 
    for (int ip=0; ip<nrpatch; ip++)
    {
@@ -125,30 +106,11 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
       }
    }
 
-
-
-   // chrono.Stop();
-   // double t2 = chrono.RealTime();
-   // Allocate space for auxiliary vector used for transfers
    zaux.SetSize(2*bf->FESpace()->GetTrueVSize());
-
-   // cout << "DST: partition time:   " << t0 << endl;
-   // cout << "DST: dof map time:     " << t1 << endl;
-   // cout << "DST: Assembly & factor " << t2 << endl;
-   // cout << "DST: Constructor time: " << t0+t1+t2 << endl;
 }
 
 void DST::Mult(const Vector &r, Vector &z) const
 {
-   // StopWatch chrono;
-   // chrono.Clear();
-   // chrono.Start();
-   // char vishost[] = "localhost";
-   // int  visport   = 19916;
-   // Init
-   // cout << "DST: in mult " << endl;
-
-
 
    for (int ip=0; ip<nrpatch; ip++)
    {
@@ -175,21 +137,10 @@ void DST::Mult(const Vector &r, Vector &z) const
          if (ijk[d] > 0) direct[d][0] = 1; 
          if (ijk[d] < part->nxyz[d]-1) direct[d][1] = 1; 
       }
-      // Vector faux(*f_orig[ip]);
-      // *f_orig[ip] = 0.0;
-      // GetChiRes(faux,*f_orig[ip],ip,direct,ovlpnrlayers);
       GetChiRes(*f_orig[ip],ip,direct);
    }
 
-   // chrono.Stop();
-   // double t0 = chrono.RealTime();
-
-   // cout << "Mult: Init:   " << t0 << endl;
-
-
    z = 0.0; 
-
-
    int nsteps;
    switch(dim)
    {
@@ -199,33 +150,15 @@ void DST::Mult(const Vector &r, Vector &z) const
    }
    int nsweeps = swp->nsweeps;
 
-
-
-   // chrono.Clear();
-   // chrono.Start();
-
-   // for (int l=0; l<1; l++)
-   // StopWatch chrono1;
-   // StopWatch chrono2;
-
    for (int l=0; l<nsweeps; l++)
    {  
-      // chrono1.Clear();
-      // chrono1.Start();
-      // cout << " l = " << l << endl;
       for (int s = 0; s<nsteps; s++)
-      // for (int s = 0; s<1; s++)
       {
-         // chrono2.Clear();
-         // chrono2.Start();
-         // cout << " s = " << s << endl;
          Array2D<int> subdomains;
          GetStepSubdomains(l,s,subdomains);
 
          int nsubdomains = subdomains.NumRows();
-         // cout << "nsubdomains = " << nsubdomains << endl;
          for (int sb=0; sb< nsubdomains; sb++)
-         // for (int sb=0; sb< 1; sb++)
          {
             Array<int> ijk(dim);
             for (int d=0; d<dim; d++) ijk[d] = subdomains[sb][d]; 
@@ -234,43 +167,17 @@ void DST::Mult(const Vector &r, Vector &z) const
             Array<int> * Dof2GlobalDof = &dmap->Dof2GlobalDof[ip];
             int ndofs = Dof2GlobalDof->Size();
 
-            // cout << "ndofs = " << ndofs << endl;
-
             Vector sol_local(ndofs); 
             Vector res_local(ndofs); res_local = 0.0;
             if (l==0) res_local += *f_orig[ip];
             res_local += *f_transf[ip][l];
             if (res_local.Norml2() < 1e-8) continue;
-            StopWatch chrono3;
-            // chrono3.Clear();
-            // chrono3.Start();
             PmlMatInv[ip]->Mult(res_local, sol_local);
-            // chrono3.Stop();
-            // cout << "solve time " << chrono.RealTime() << endl;
             TransferSources(l,ip, sol_local);
-            // Array2D<int> direct(dim,2); direct = 0;
-            // for (int d=0;d<dim; d++)
-            // {
-            //    if (ijk[d] > 0) direct[d][0] = 1; 
-            //    if (ijk[d] < part->nxyz[d]-1) direct[d][1] = 1; 
-            // }
-
-            // Vector cfsol_local;
-            // GetCutOffSolution(sol_local,cfsol_local,ip,direct,ovlpnrlayers,true);
             z.AddElementVector(*Dof2GlobalDof, sol_local);
          }
-         // chrono2.Stop();
-         // cout << "Mult: step time:   " << chrono2.RealTime() << endl; // cin.get();
-
       }
-      // chrono1.Stop();
-      // cout << "Mult: sweep time:   " << chrono1.RealTime() << endl; // cin.get();
-
    }
-   // chrono.Stop();
-   // double t1 = chrono.RealTime();
-
-   // cout << "Mult: Apply:   " << t1 << endl; 
 }
 
 
@@ -315,26 +222,11 @@ void DST::TransferSources(int s, int ip0, Vector & sol0) const
 
             if (i==0 && j==0 && k==0) continue;
 
-            Array<int> ijk1(dim); 
-            ijk1[0] = i1; ijk1[1]=j1; 
-            if (dim ==3 ) ijk1[2]=k1;
-            int ip1 = GetPatchId(ijk1);
-
-
             int l = GetSweepToTransfer(s,directions);
-
             if (l == -1) continue;
-   //          // Array2D<int> direct(dim,2); direct = 0;
-   //          // for (int d=0; d<dim; d++)
-   //          // {
-   //          //    if (directions[d] == -1) direct[d][0] = 1;
-   //          //    if (directions[d] ==  1) direct[d][1] = 1;
-   //          // }
-   //          // Vector cfsol0;
-   //          // GetCutOffSolution(sol0,cfsol0,ip0,direct,ovlpnrlayers,true);
+
             Vector raux;
-            SourceTransfer(sol0,directions,ip0,raux);
-   //          // SourceTransfer(cfsol0,directions,ip0,raux);
+            int ip1 = SourceTransfer(sol0,directions,ip0,raux);
             *f_transf[ip1][l]-=raux;
          }
       }  
@@ -344,9 +236,7 @@ void DST::TransferSources(int s, int ip0, Vector & sol0) const
 void DST::SetHelmholtzPmlSystemMatrix(int ip)
 {
    Mesh * mesh = part->patch_mesh[ip];
-   // double h = GetUniformMeshElementSize(mesh);
    double h = part->MeshSize;
-   // cout << "h = " << h << endl;
    Array2D<double> length(dim,2);
    length = h*(nrlayers);
 
@@ -396,18 +286,12 @@ void DST::SetHelmholtzPmlSystemMatrix(int ip)
 
    Optr[ip] = new OperatorPtr;
    sqf[ip]->FormSystemMatrix(ess_tdof_list,*Optr[ip]);
-   // SparseMatrix * Mat = AZ_ext->GetSystemMatrix();
-   // Mat->SortColumnIndices();
-   // Mat->Threshold(1e-9);
-   // return Mat;
 }
 
 void DST::SetMaxwellPmlSystemMatrix(int ip)
 {
    Mesh * mesh = part->patch_mesh[ip];
-   // double h = GetUniformMeshElementSize(mesh);
    double h = part->MeshSize;
-   // cout << "h = " << h << endl;
    Array2D<double> length(dim,2);
    length = h*(nrlayers);
 
@@ -459,14 +343,9 @@ void DST::SetMaxwellPmlSystemMatrix(int ip)
 
    Optr[ip] = new OperatorPtr;
    sqf[ip]->FormSystemMatrix(ess_tdof_list,*Optr[ip]);
-   // SparseMatrix * Mat = AZ_ext->GetSystemMatrix();
-   // Mat->SortColumnIndices();
-   // Mat->Threshold(1e-9);
-   // return Mat;
-
 }
 
-void DST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, Vector & Psi1) const
+int DST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, Vector & Psi1) const
 {
    int i0,j0,k0;
    Getijk(ip0,i0,j0,k0);
@@ -478,13 +357,6 @@ void DST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, Vec
    Array<int> ijk(dim); ijk[0]=i1; ijk[1]=j1; 
    if (dim == 3 ) ijk[2]=k1;
    int ip1 = GetPatchId(ijk);
-   
-   // MFEM_VERIFY(i1 < nx && i1>=0, "SourceTransfer: i1 out of bounds");
-   // MFEM_VERIFY(j1 < ny && j1>=0, "SourceTransfer: j1 out of bounds");
-   // if (dim==3)
-   // {
-   //    MFEM_VERIFY(k1 < nz && k1>=0, "SourceTransfer: k1 out of bounds");
-   // }
 
    Array<int> * Dof2GlobalDof0 = &dmap->Dof2GlobalDof[ip0];
    Array<int> * Dof2GlobalDof1 = &dmap->Dof2GlobalDof[ip1];
@@ -493,7 +365,6 @@ void DST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, Vec
    Psi1.SetSize(Dof2GlobalDof1->Size());
    Vector zloc(Psi1.Size()); 
    zaux.GetSubVector(*Dof2GlobalDof1,zloc);
-   // Vector Psi(Dof2GlobalDof1->Size()); 
    PmlMat[ip1]->Mult(zloc,Psi1);
 
    Array2D<int> direct(dim,2); direct = 0;
@@ -503,114 +374,8 @@ void DST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, Vec
       if (direction[d]==-1) direct[d][1] = 1;
    }
 
-   // GetChiRes(Psi, Psi1,ip1,direct, ovlpnrlayers);
    GetChiRes(Psi1,ip1,direct);
-}
-
-
-void DST::GetCutOffSolution(const Vector & sol, Vector & cfsol, 
-                  int ip, Array2D<int> direct, int nlayers, bool local) const
-{
-
-   Mesh * mesh = dmap->fespaces[ip]->GetMesh();
-   
-   Vector pmin, pmax;
-   mesh->GetBoundingBox(pmin, pmax);
-   // double h = GetUniformMeshElementSize(mesh);
-   double h = part->MeshSize;
-
-
-   int i, j, k;
-   Getijk(ip,i,j,k);
-
-   Array2D<double> pmlh(dim,2); pmlh = 0.0;
-   for (int i=0; i<dim; i++)
-   {
-      if (direct[i][0]==1) pmin[i] += h*nrlayers; 
-      if (direct[i][1]==1) pmax[i] -= h*nrlayers; 
-      for (int j=0; j<2; j++)
-      {
-         if (direct[i][j]==1)
-         {
-            pmlh[i][j] = h*(nlayers-nrlayers-1);
-         }
-      }  
-   }
-
-   CutOffFnCoefficient cf(CutOffFncn, pmin, pmax, pmlh);
-   double * data = sol.GetData();
-   FiniteElementSpace * fes;
-   if (!local)
-   {
-      fes = bf->FESpace();
-   }
-   else
-   {
-      fes = dmap->fespaces[ip];
-   }
-   int n = fes->GetTrueVSize();
-   GridFunction solgf_re(fes, data);
-   GridFunction solgf_im(fes, &data[n]);
-
-   GridFunctionCoefficient coeff1_re(&solgf_re);
-   GridFunctionCoefficient coeff1_im(&solgf_im);
-
-   ProductCoefficient prod_re(coeff1_re, cf);
-   ProductCoefficient prod_im(coeff1_im, cf);
-
-   ComplexGridFunction gf(fes);
-   gf.ProjectCoefficient(prod_re,prod_im);
-
-   cfsol.SetSize(sol.Size());
-   cfsol = gf;
-}
-
-
-void DST::GetChiRes(const Vector & res, Vector & cfres, 
-                    int ip, Array2D<int> direct, int nlayers) const
-{
-   FiniteElementSpace * fes = dmap->fespaces[ip];
-   Mesh * mesh = fes->GetMesh();
-   Vector pmin, pmax;
-   mesh->GetBoundingBox(pmin, pmax);
-   double h = part->MeshSize;
-   
-   Array2D<double> pmlh(dim,2); pmlh = 0.0;
-
-   for (int i=0; i<dim; i++)
-   {
-      if (direct[i][0]==1) pmin[i] += h*(nlayers-1); 
-      if (direct[i][1]==1) pmax[i] -= h*(nlayers-1); 
-      for (int j=0; j<2; j++)
-      {
-         if (direct[i][j]==1)
-         {
-            pmlh[i][j] = h;
-         }
-      }  
-   }
-
-   CutOffFnCoefficient cf(ChiFncn, pmin, pmax, pmlh);
-
-   double * data = res.GetData();
-   
-   int n = fes->GetTrueVSize();
-
-   GridFunction solgf_re(fes, data);
-   GridFunction solgf_im(fes, &data[n]);
-
-   GridFunctionCoefficient coeff1_re(&solgf_re);
-   GridFunctionCoefficient coeff1_im(&solgf_im);
-
-   ProductCoefficient prod_re(coeff1_re, cf);
-   ProductCoefficient prod_im(coeff1_im, cf);
-
-   ComplexGridFunction gf(fes);
-   gf.ProjectCoefficient(prod_re,prod_im);
-
-   cfres.SetSize(res.Size());
-   cfres = gf;
-   
+   return ip1;
 }
 
 void DST::GetChiRes(Vector & res, int ip, Array2D<int> direct) const
@@ -618,9 +383,9 @@ void DST::GetChiRes(Vector & res, int ip, Array2D<int> direct) const
    for (int d=0; d<dim; d++)
    {
       // negative direction
-      if (direct[d][0]==1) res.SetSubVector(NovlpDofs1[ip][d],0.0);
+      if (direct[d][0]==1) res.SetSubVector(NovlpDofs[ip][d],0.0);
       // possitive direction
-      if (direct[d][1]==1) res.SetSubVector(NovlpDofs1[ip][d+dim],0.0);
+      if (direct[d][1]==1) res.SetSubVector(NovlpDofs[ip][d+dim],0.0);
    }
 }
 
@@ -807,11 +572,8 @@ void DST::PlotSolution(Vector & sol, socketstream & sol_sock, int ip,
    {
       cout<< "Compute Overlap Elements (in each possible direction) " << endl;
       
-      
       // Lists of elements
       // x,y,z = +/- 1 ovlp 
-
-      ovlpelems.resize(nrpatch);
       NovlpElems.resize(nrpatch);
 
       for (int ip = 0; ip<nrpatch; ip++)
@@ -824,13 +586,10 @@ void DST::PlotSolution(Vector & sol, socketstream & sol_sock, int ip,
 
          FiniteElementSpace * fes = dmap->fespaces[ip];
          Mesh * mesh = fes->GetMesh();
-         int nrelems = mesh->GetNE();
-         ovlpelems[ip].SetSize(2*dim,nrelems); ovlpelems[ip] = 1;
          NovlpElems[ip].resize(2*dim);
 
          Vector pmin, pmax;
          mesh->GetBoundingBox(pmin,pmax);
-         // double h = GetUniformMeshElementSize(mesh);
          double h = part->MeshSize;
          // Loop through elements
          for (int iel=0; iel<mesh->GetNE(); iel++)
@@ -846,11 +605,7 @@ void DST::PlotSolution(Vector & sol, socketstream & sol_sock, int ip,
             {
                if (ijk[d]>0)
                {
-                  if (center[d] < pmin[d]+h*ovlpnrlayers) 
-                  {
-                     ovlpelems[ip][d][iel] = 0;
-                  }
-                  else
+                  if (center[d] >= pmin[d]+h*ovlpnrlayers) 
                   {
                      NovlpElems[ip][d].Append(iel);
                   }
@@ -862,11 +617,7 @@ void DST::PlotSolution(Vector & sol, socketstream & sol_sock, int ip,
                
                if (ijk[d]<nxyz[d]-1)
                {
-                  if (center[d] > pmax[d]-h*ovlpnrlayers) 
-                  {
-                     ovlpelems[ip][dim+d][iel] = 0;
-                  } 
-                  else
+                  if (center[d] <= pmax[d]-h*ovlpnrlayers) 
                   {
                      NovlpElems[ip][dim+d].Append(iel);
                   }
@@ -875,54 +626,8 @@ void DST::PlotSolution(Vector & sol, socketstream & sol_sock, int ip,
                {
                   NovlpElems[ip][dim+d].Append(iel);
                }
-               
             }
          }
-         /*
-         cout << "Subdomain (" << i << "," <<j<<")" << endl;
-         for (int d=0;d<dim; d++)
-         {
-            cout << "d = " << d << endl;
-
-            if (d==0) cout << "-x: " ;
-            if (d==1) cout << "-y: " ;
-            if (d==2) cout << "-z: " ;
-            cout << "1:int elems = " ;
-            for (int l=0; l<nrelems; l++)
-            {
-               if (ovlpelems[ip][d][l] == 1)
-               {
-                  // cout << part->element_map[ip][l] << " ";
-                  cout << l << " ";
-               }
-            }
-            cout << endl;
-            cout << "    2:int elems = " ;
-            NovlpElems[ip][d].Print(cout, NovlpElems[ip][d].Size());
-            // NovlpElems[ip][d].Print();
-
-            if (d==0) cout << "+x: " ;
-            if (d==1) cout << "+y: " ;
-            if (d==2) cout << "+z: " ;
-            cout << "1:int elems = " ;
-            for (int l=0; l<nrelems; l++)
-            {
-               if (ovlpelems[ip][d+dim][l] == 1)
-               {
-                  // cout << part->element_map[ip][l] << " ";
-                  cout << l << " ";
-               }
-            }
-            cout<< endl;
-            cout << "    2:int elems = " ;
-            NovlpElems[ip][d+dim].Print(cout, NovlpElems[ip][d+dim].Size());
-
-            cout << endl;
-            // cout << "    all elems = " ;
-            // part->element_map[ip].Print(cout, nrelems);
-            cin.get();
-         }
-         */
       }   
    }
 
@@ -932,20 +637,19 @@ void DST::MarkOverlapDofs()
 {
    cout<< "Compute Overlap dofs (in each possible direction) " << endl;
    NovlpDofs.resize(nrpatch);
-   NovlpDofs1.resize(nrpatch);
    for (int ip = 0; ip<nrpatch; ip++)
    {
       FiniteElementSpace * fes = dmap->fespaces[ip];
       // Loop through the marked elements
       NovlpDofs[ip].resize(2*dim);
-      NovlpDofs1[ip].resize(2*dim);
-
+      
+      int n = fes->GetTrueVSize();
+      Array<int> marker(n);
       for (int d=0;d<2*dim; d++)
       {
-         NovlpDofs[ip][d].SetSize(2*fes->GetTrueVSize());
-         NovlpDofs[ip][d]=0;
+         marker = 0;
+         int m = 0;
          int melems = NovlpElems[ip][d].Size(); 
-         Array<int> temp;
          for (int iel=0; iel<melems; iel++)
          {
             Array<int> ElemDofs;
@@ -956,15 +660,22 @@ void DST::MarkOverlapDofs()
             {
                int eldof = ElemDofs[i];
                int tdof = (eldof >= 0) ? eldof : abs(eldof) - 1; 
-               NovlpDofs[ip][d][tdof] = 1;
-               NovlpDofs[ip][d][tdof+fes->GetTrueVSize()] = 1;
-               // NovlpDofs1[ip][d].Append(tdof);
-               // NovlpDofs1[ip][d].Append(tdof+fes->GetTrueVSize());
+               if (marker[tdof] == 1) continue;
+               marker[tdof] = 1;
+               m++;
             }
          }
-         for (int i = 0; i<2*fes->GetTrueVSize(); i++)
+         int k = n-m;
+         NovlpDofs[ip][d].SetSize(2*k);
+         int l = 0;
+         for (int i = 0; i<n; i++)
          {
-            if (NovlpDofs[ip][d][i]==0) NovlpDofs1[ip][d].Append(i);
+            if (marker[i]==0) 
+            {
+               NovlpDofs[ip][d][l] = i;  // real dofs
+               NovlpDofs[ip][d][l+k] = i+n;  // imag dofs
+               l++;
+            }
          }
       }
    }
@@ -973,6 +684,10 @@ void DST::MarkOverlapDofs()
 
 void DST::ComputeOverlapDofMaps()
 {
+   // TODO
+   // local to local subdomain maps
+   // i.e maps dofs of each subdomain to all its neighbors
+   
    // cout<< "Compute Overlap dofs Maps" << endl;
    // OvlpDofMap.resize(nrpatch);
    // for (int ip = 0; ip<nrpatch; ip++)
