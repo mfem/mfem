@@ -8,9 +8,13 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
+//Reference:
+//Pi-Yueh Chuang, & Lorena A. Barba (2017).
+//AmgXWrapper: An interface between PETSc and the NVIDIA AmgX library. J. Open Source Software, 2(16):280, doi:10.21105/joss.00280
 
 #include "../config/config.hpp"
 #include "AmgXSolver.hpp"
+#include <chrono>
 #ifdef MFEM_USE_MPI
 #ifdef MFEM_USE_AMGX
 
@@ -62,22 +66,33 @@ namespace mfem
     char    name[MPI_MAX_PROCESSOR_NAME];
     MPI_Get_processor_name(name, &len);
     nodeName = name;
+    int globalcommrank;
 
+    MPI_Comm_rank(comm, &globalcommrank);
+
+    auto start1 = std::chrono::steady_clock::now();
     // get the mode of AmgX solver
     setMode(modeStr);
+    auto end1 = std::chrono::steady_clock::now();
+    std::chrono::duration<double> elapsed_seconds1 = end1-start1;
+    if(globalcommrank == 0) std::cout << "setMode "<< elapsed_seconds1.count() << "\n";
 
+    start1 = std::chrono::steady_clock::now();
     // initialize communicators and corresponding information
     initMPIcomms(comm);
+    end1 = std::chrono::steady_clock::now();
+    elapsed_seconds1 = end1-start1;
+    if(globalcommrank == 0) std::cout << "initMPIcomms "<< elapsed_seconds1.count() << "\n";
 
-    //std::cout<<"Greetings from Node "<<nodeName<<" my local rank is "<<myLocalRank
-    //<<" no of devices "<< nDevs <<std::endl;
-
-
+    start1 = std::chrono::steady_clock::now();
     // only processes in gpuWorld are required to initialize AmgX
     if (gpuProc == 0)
       {
         initAmgX(cfgFile);
       }
+    end1 = std::chrono::steady_clock::now();
+    elapsed_seconds1 = end1-start1;
+    if(globalcommrank == 0) std::cout << "initAmgX "<< elapsed_seconds1.count() << "\n";
 
     // a bool indicating if this instance is initialized
     isInitialized = true;
@@ -95,7 +110,6 @@ namespace mfem
     MPI_Comm_size(globalCpuWorld, &globalSize);
     MPI_Comm_rank(globalCpuWorld, &myGlobalRank);
 
-
     // Get the communicator for processors on the same node (local world)
     MPI_Comm_split_type(globalCpuWorld,
                         MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, &localCpuWorld);
@@ -105,15 +119,14 @@ namespace mfem
     MPI_Comm_size(localCpuWorld, &localSize);
     MPI_Comm_rank(localCpuWorld, &myLocalRank);
 
-
     // set up the variable nDevs
-    setDeviceCount();
+    cudaGetDeviceCount(&nDevs);
 
 
     // set up corresponding ID of the device used by each local process
     setDeviceIDs();
-    MPI_Barrier(globalCpuWorld);
 
+    MPI_Barrier(globalCpuWorld);
 
     // split the global world into a world involved in AmgX and a null world
     MPI_Comm_split(globalCpuWorld, gpuProc, 0, &gpuWorld);
@@ -131,7 +144,6 @@ namespace mfem
         myGpuWorldRank = MPI_UNDEFINED;
       }
 
-
     // split local world into worlds corresponding to each CUDA device
     MPI_Comm_split(localCpuWorld, devID, 0, &devWorld);
     MPI_Comm_set_name(devWorld, "devWorld");
@@ -142,7 +154,6 @@ namespace mfem
 
     MPI_Barrier(globalCpuWorld);
   }
-
 
   /* \implements AmgXSolver::setDeviceCount */
   void AmgXSolver::setDeviceCount()
@@ -221,8 +232,10 @@ namespace mfem
     // only the first instance (AmgX solver) is in charge of initializing AmgX
     if (count == 1)
       {
+
         // initialize AmgX
         AMGX_SAFE_CALL(AMGX_initialize());
+
 
         // intialize AmgX plugings
         AMGX_SAFE_CALL(AMGX_initialize_plugins());
@@ -231,25 +244,31 @@ namespace mfem
         AMGX_SAFE_CALL(AMGX_install_signal_handler());
       }
 
+
+
     // create an AmgX configure object
     AMGX_SAFE_CALL(AMGX_config_create_from_file(&cfg, cfgFile.c_str()));
+
 
     // let AmgX handle returned error codes internally
     AMGX_SAFE_CALL(AMGX_config_add_parameters(&cfg, "exception_handling=1"));
 
+
+    //AMGX_config_create(&cfg, "communicator=MPI, min_rows_latency_hiding=50000");
+
     // create an AmgX resource object, only the first instance is in charge
     if (count == 1) AMGX_resources_create(&rsrc, cfg, &gpuWorld, 1, &devID);
+
+
 
     // create AmgX vector object for unknowns and RHS
     AMGX_vector_create(&AmgXP, rsrc, mode);
     AMGX_vector_create(&AmgXRHS, rsrc, mode);
-
     // create AmgX matrix object for unknowns and RHS
     AMGX_matrix_create(&AmgXA, rsrc, mode);
 
     // create an AmgX solver object
     AMGX_solver_create(&solver, rsrc, mode, cfg);
-
     // obtain the default number of rings based on current configuration
     AMGX_config_get_default_number_of_rings(cfg, &ring);
   }
@@ -426,13 +445,15 @@ namespace mfem
   {
     //Want to work in devWorld, rank 0 is team leader
     //and will talk to the gpu
-    printf("devWorld rank %d device id %d gpu %d \n",
-           myDevWorldRank, devID, gpuProc);
-
+    //printf("devWorld rank %d device id %d gpuProc %d \n",
+           //myDevWorldRank, devID, gpuProc);
     //Local processor data
     Array<int> loc_I;
     Array<int64_t> loc_J;
     Array<double> loc_A;
+
+
+    // create an AmgX solver object
     GetLocalA(A, loc_I, loc_J, loc_A);
 
     //
@@ -450,9 +471,12 @@ namespace mfem
     const int loc_Jz_sz = loc_J.Size();
     const int loc_A_sz = loc_A.Size();
 
+    //printf("loc_jz_sz %d\n",loc_Jz_sz);
+    //printf("loc_A_sz %d\n",loc_A_sz);
     MPI_Allreduce(&loc_row_len, &nDevRows, 1, MPI_INT, MPI_SUM, devWorld);
     MPI_Allreduce(&loc_Jz_sz, &J_allsz, 1, MPI_INT, MPI_SUM, devWorld);
     MPI_Allreduce(&loc_A_sz, &all_NNZ, 1, MPI_INT, MPI_SUM, devWorld);
+
     MPI_Barrier(devWorld);
 
     if(myDevWorldRank == 0)
@@ -463,17 +487,20 @@ namespace mfem
       }
 
     mfem::Array<int> I_rowInfo;
+
+
     GatherArray(I_rowInfo, loc_I, all_I, devWorldSize, devWorld);
     GatherArray(loc_J, all_J, devWorldSize, devWorld);
     GatherArray(loc_A, all_A, devWorldSize, devWorld);
+
     MPI_Barrier(devWorld);
 
     int local_nnz(0);
     int64_t local_rows(0);
+
     if(myDevWorldRank == 0){
 
       Array<int> z_ind(devWorldSize+1);
-
       int iter = 1;
       while(iter < devWorldSize-1){
 
@@ -519,13 +546,8 @@ namespace mfem
       for(int idx=z_ind[1]+1; idx < all_I.Size()-1; idx++){
         all_I[idx] = all_I[idx-1] + (all_I[idx+1] - all_I[idx]);
       }
-
-      //=====================
-
       local_nnz = all_I[all_I.Size()-devWorldSize];
       local_rows = nDevRows;
-
-      printf("myRank %d nDevRows %d nGlobalRows %d \n",myDevWorldRank, local_rows,A.M());
 
     }
 
@@ -542,20 +564,12 @@ namespace mfem
                     gpuWorld);
       MPI_Barrier(gpuWorld);
       //rowPart[gpuWorldSize] = A.M();
-
       //Fixup step
       for(int i=1; i<rowPart.Size(); ++i){
         rowPart[i] += rowPart[i-1];
       }
 
-      printf("row partition \n");
-      for(int i=0; i<rowPart.Size(); ++i){
-        std::cout<<rowPart[i]<<" ";
-      }
-      std::cout<<""<<std::endl;
-
-
-      //Solve the problem
+      //upload A matrix to AmgX
       MPI_Barrier(gpuWorld);
       AMGX_distribution_handle dist;
       AMGX_distribution_create(&dist, cfg);
@@ -573,7 +587,9 @@ namespace mfem
 
       AMGX_distribution_destroy(dist);
       MPI_Barrier(gpuWorld);
+
       AMGX_solver_setup(solver, AmgXA);
+
 
       //Bind vectors to A
       AMGX_vector_bind(AmgXP, AmgXA);
@@ -586,7 +602,6 @@ namespace mfem
                                int MPI_SZ, MPI_Comm &mpi_comm, Array<int> &Apart, Array<int> &Adisp)
   {
     //Calculate number of elements to be collected from each process
-    //mfem::Array<int> Apart(MPI_SZ);
     int locAsz = inArr.Size();
     MPI_Allgather(&locAsz, 1, MPI_INT,
                   Apart.GetData(),1, MPI_INT,mpi_comm);
@@ -594,7 +609,6 @@ namespace mfem
     MPI_Barrier(mpi_comm);
 
     //Determine stride for process
-    //mfem::Array<int> Adisp(MPI_SZ);
     Adisp[0] = 0;
     for(int i=1; i<MPI_SZ; ++i){
       Adisp[i] = Adisp[i-1] + Apart[i-1];
@@ -610,7 +624,7 @@ namespace mfem
   {
 
     MPI_Scatterv(inArr.HostReadWrite(),Apart.HostRead(),Adisp.HostRead(),
-                 MPI_DOUBLE,outArr.HostWrite(),inArr.Size(),
+                 MPI_DOUBLE,outArr.HostWrite(),outArr.Size(),
                  MPI_DOUBLE, 0, mpi_comm);
   }
 
@@ -653,8 +667,6 @@ namespace mfem
 
   }
 
-
-
   /* \implements AmgXSolver::finalize */
   void AmgXSolver::finalize()
   {
@@ -693,7 +705,7 @@ namespace mfem
           }
 
         // destroy gpuWorld
-        MPI_Comm_free(&gpuWorld);
+        //MPI_Comm_free(&gpuWorld);
       }
 
     // re-set necessary variables in case users want to reuse
