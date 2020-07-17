@@ -237,6 +237,8 @@ public:
    /// An empty matrix to be used as a reference to an existing matrix
    HypreParMatrix();
 
+   /// Converts hypre's format to HypreParMatrix
+   /** If @a owner is false, ownership of @a a is not transferred */
    void WrapHypreParCSRMatrix(hypre_ParCSRMatrix *a, bool owner = true)
    {
       A = a;
@@ -342,7 +344,6 @@ public:
 
    /// MPI communicator
    MPI_Comm GetComm() const { return A->comm; }
-   void BuildComm() const { hypre_MatvecCommPkgCreate(A); }
 
    /// Typecasting to hypre's hypre_ParCSRMatrix*
    operator hypre_ParCSRMatrix*() const { return A; }
@@ -765,7 +766,8 @@ public:
 
 
 #if MFEM_HYPRE_VERSION >= 21800
-/// Abstract class for hypre's solvers and preconditioners
+/** Preconditioner for HypreParMatrices that are triangular in some ordering.
+	Find correct ordering and performs forward substitution on processor. */
 class HypreTriSolve : public HypreSolver
 {
 public:
@@ -1035,37 +1037,39 @@ public:
    void SetElasticityOptions(ParFiniteElementSpace *fespace);
 
 #if MFEM_HYPRE_VERSION >= 21800
-   /* distance parameter takes on values {1,2,15} for lAIR, meaning R is built using
-   distance 1 neighbors, distance two neighbors, or distance two on processor and
-   distance 1 off processor (i.e., distance 1.5 --> 15).        */
-   void SetLAIROptions(int distance=15,  std::string prerelax="",
-                       std::string postrelax="FFC", double strength_tol=0.1,
-                       double strength_tolR=0.01, double filter_tolR=0.0,
-                       int interp_type=100, int relax_type=3, double filterA_tol=0.0,
-                       int splitting=6, int blksize=0, int Sabs=0);
+   /** Hypre parameters to use AIR AMG solve for advection-dominated problems.
+   	   See "Nonsymmetric Algebraic Multigrid Based on Local Approximate Ideal
+   	   Restriction (AIR)," Manteuffel, Ruge, Southworth, SISC (2018),
+   	   DOI:/10.1137/17M1144350. Options: "distanceR" -> distance of neighbor
+   	   DOFs to buld restriction operator; options include 1, 2, and 15 (1.5).
+   	   Strings "prerelax" and "postrelax" indicate points to relax on:
+   	   F = F-points, C = C-points, A = all points. E.g., FFC -> relax on
+   	   F-points, relax again on F-points, then relax on C-points. */
+   void SetAdvectiveOptions(int distance=15,  std::string prerelax="",
+	                       std::string postrelax="FFC");
 
-   void SetNAIROptions(int neumann_degree=2,  std::string prerelax="A",
-                       std::string postrelax="F", double strength_tol=0.1,
-                       double strength_tolR=0.01, double filter_tolR=0.0,
-                       int interp_type=100, int relax_type=10, double filterA_tol=0.0,
-                       int splitting=6, int blksize=0, int Sabs=0);
-
-   void SetStrengthThreshR(double strengthR)
+   /// Expert option - consult hypre documentation/team
+   void SetStrongThresholdR(double strengthR)
    { HYPRE_BoomerAMGSetStrongThresholdR(amg_precond, strengthR); }
 
-   void SetFilterThreshR(double filterR)
+   /// Expert option - consult hypre documentation/team
+   void SetFilterThresholdR(double filterR)
    { HYPRE_BoomerAMGSetFilterThresholdR(amg_precond, filterR); }
 
+   /// Expert option - consult hypre documentation/team
    void SetRestriction(int restrict_type)
    { HYPRE_BoomerAMGSetRestriction(amg_precond, restrict_type); }
 
-   void SetTriangular()
+   /// Expert option - consult hypre documentation/team
+   void SetIsTriangular()
    { HYPRE_BoomerAMGSetIsTriangular(amg_precond, 1); }
 
+   /// Expert option - consult hypre documentation/team
    void SetGMRESSwitchR(int gmres_switch)
    { HYPRE_BoomerAMGSetGMRESSwitchR(amg_precond, gmres_switch); }
 
-   void SetRelaxCycle(int prerelax, int postrelax)
+   /// Expert option - consult hypre documentation/team
+   void SetCycleNumSweeps(int prerelax, int postrelax)
    {
       HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, prerelax,  1);
       HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, postrelax, 2);
@@ -1078,36 +1082,45 @@ public:
    void SetMaxIter(int max_iter)
    { HYPRE_BoomerAMGSetMaxIter(amg_precond, max_iter); }
 
+   /// Expert option - consult hypre documentation/team
    void SetMaxLevels(int max_levels)
    { HYPRE_BoomerAMGSetMaxLevels(amg_precond, max_levels); }
 
+   /// Expert option - consult hypre documentation/team
    void SetTol(double tol)
    { HYPRE_BoomerAMGSetTol(amg_precond, tol); }
 
+   /// Expert option - consult hypre documentation/team
    void SetStrengthThresh(double strength)
    { HYPRE_BoomerAMGSetStrongThreshold(amg_precond, strength); }
 
+   /// Expert option - consult hypre documentation/team
    void SetInterpolation(int interp_type)
    { HYPRE_BoomerAMGSetInterpType(amg_precond, interp_type); }
 
+   /// Expert option - consult hypre documentation/team
    void SetCoarsening(int coarsen_type)
    { HYPRE_BoomerAMGSetCoarsenType(amg_precond, coarsen_type); }
 
+   /// Expert option - consult hypre documentation/team
    void SetRelaxType(int relax_type)
    { HYPRE_BoomerAMGSetRelaxType(amg_precond, relax_type); }
 
+   /// Expert option - consult hypre documentation/team
    void SetCycleType(int cycle_type)
    { HYPRE_BoomerAMGSetCycleType(amg_precond, cycle_type); }
 
    void GetNumIterations(int &num_it)
    { HYPRE_BoomerAMGGetNumIterations(amg_precond, &num_it); }
 
+   /// Expert option - consult hypre documentation/team
    void SetNodal(int blocksize)
    {
       HYPRE_BoomerAMGSetNumFunctions(amg_precond, blocksize);
       HYPRE_BoomerAMGSetNodal(amg_precond, 1);
    }
 
+   /// Expert option - consult hypre documentation/team
    void SetAggressiveCoarsening(int num_levels)
    { HYPRE_BoomerAMGSetAggNumLevels(amg_precond, num_levels); }
 
