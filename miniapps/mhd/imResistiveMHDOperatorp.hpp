@@ -15,6 +15,7 @@ int ex_supg=2;    //1: test supg with v term only (it assumes viscosity==resisti
 //------------this is for implicit solver only------------
 bool usesupg=true;  //add supg in both psi and omega
 int im_supg=4;
+int i_supgpre=0;
 bool usefd=true;    //add field-line diffusion for psi in implicit solvers
 
 int iUpdateJ=1; //control how J is computed (whether or not Dirichelt boundary condition
@@ -1203,7 +1204,7 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
     Mlp->Assemble();
     Mlp->FormSystemMatrix(ess_tdof_list, Mmatlp);
 
-    if (usefd)
+    if (usefd || usesupg)
     {
        MinvKB = new HypreParMatrix(KBMat_);
        HypreParVector *MmatlpD = new HypreParVector(Mmatlp.GetComm(), Mmatlp.GetGlobalNumRows(),
@@ -1211,6 +1212,8 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
        Mmatlp.GetDiag(*MmatlpD);
        MinvKB->InvScaleRows(*MmatlpD);
        delete MmatlpD;
+       if (usesupg)
+          *MinvKB *= viscosity;
     }
 
     int sc = height/3;
@@ -1293,18 +1296,8 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
        {
            if (myid==0 && false) cout <<"======WARNING: use preconditioner without stabilization terms======"<<endl;
 
-           if (usesupg && true)           
+           if (usesupg && i_supgpre==0)           
            {
-               /*
-                delete StabMass;
-                StabMass = new ParBilinearForm(&fespace);
-                StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, resistivity, velocity));
-                StabMass->Assemble(); 
-                StabMass->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
-                StabMass->Finalize();
-                HypreParMatrix *MatStabMass=StabMass->ParallelAssemble();
-                */
-
                 delete StabNv;
                 StabNv = new ParBilinearForm(&fespace);
                 StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, resistivity, velocity));
@@ -1313,14 +1306,11 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
                 StabNv->Finalize();
                 HypreParMatrix *MatStabNv=StabNv->ParallelAssemble();
 
-                //HypreParMatrix *MatStabSum=Add(1./dt, *MatStabMass, 1., *MatStabNv);
-                //HypreParMatrix *tmp=ParAdd(ASltmp, MatStabSum);
                 HypreParMatrix *tmp=ParAdd(ASltmp, MatStabNv);
-
                 delete ASltmp;
                 ASltmp=tmp;
 
-                if ( true && (im_supg==1 || im_supg==3) )
+                if ( im_supg==1 || im_supg==3 )
                 {
                     if (resistivity!=viscosity)
                     {
@@ -1338,10 +1328,49 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
                     delete AReFull;
                     AReFull=tmp;
                 }
-
-                //delete MatStabMass;
                 delete MatStabNv;
-                //delete MatStabSum;
+           }
+           else
+           {
+                delete StabMass;
+                StabMass = new ParBilinearForm(&fespace);
+                StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, resistivity, velocity));
+                StabMass->Assemble(); 
+                StabMass->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
+                StabMass->Finalize();
+                HypreParMatrix *MatStabMass=StabMass->ParallelAssemble();
+
+                delete StabNv;
+                StabNv = new ParBilinearForm(&fespace);
+                StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, resistivity, velocity));
+                StabNv->Assemble(); 
+                StabNv->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
+                StabNv->Finalize();
+                HypreParMatrix *MatStabNv=StabNv->ParallelAssemble();
+
+                S = ParMult(MatStabMass, MinvKB);
+                HypreParMatrix *tmp=Add(1./dt, *MatStabMass, 1., *MatStabNv);
+                HypreParMatrix *MatStabSum=ParAdd(tmp, S);
+
+                delete tmp;
+                tmp=ParAdd(ASltmp, MatStabSum);
+                delete ASltmp;
+                ASltmp=tmp;
+
+                if (i_supgpre>1 && ( im_supg==1 || im_supg==3 ) )
+                {
+                    if (resistivity!=viscosity)
+                    {
+                        MFEM_ABORT("Error in preconditioner. Need to assemble another MinvKB"); 
+                    }
+                    tmp=ParAdd(AReFull, MatStabSum);
+                    delete AReFull;
+                    AReFull=tmp;
+                }
+
+                delete MatStabMass;
+                delete MatStabNv;
+                delete MatStabSum;
            }
 
            //VERSION0: same as Luis's preconditioner

@@ -57,6 +57,11 @@ bool xyregion(const Vector &x, const double x0, const double y0)
          (std::max(-x(0)-x0, x(0) - x0)<1e-8 || (1.-x0-x(0))<1e-8 || (-1+x0-x(0))>1e-8) ;
 }
 
+bool center_region(const Vector &x, const double x0, const double y0)
+{
+   return std::max(-x(1)-y0, x(1) - y0)<1e-8 && std::max(-x(0)-x0, x(0) - x0)<1e-8;
+}
+
 int main(int argc, char *argv[])
 {
    int num_procs, myid;
@@ -79,6 +84,7 @@ int main(int argc, char *argv[])
    bool use_petsc = false;
    bool use_factory = false;
    bool local_refine = false;
+   bool useStab = false; //use a stabilized formulation (explicit case only)
    int local_refine_levels = 2;
    const char *petscrc_file = "";
    int part_method=1;   //part_method 0 or 1 gives good results for a static adaptive mesh
@@ -116,6 +122,10 @@ int main(int argc, char *argv[])
                   "Number of jacobi iteration in preconditioner");
    args.AddOption(&im_supg, "-im_supg", "--im_supg",
                   "supg options in formulation");
+   args.AddOption(&i_supgpre, "-i_supgpre", "--i_supgpre",
+                  "supg preconditioner options in formulation");
+   args.AddOption(&ex_supg, "-ex_supg", "--ex_supg",
+                  "supg options in explicit formulation");
    args.AddOption(&visc, "-visc", "--viscosity",
                   "Viscosity coefficient.");
    args.AddOption(&resi, "-resi", "--resistivity",
@@ -145,6 +155,8 @@ int main(int argc, char *argv[])
    args.AddOption(&usesupg, "-supg", "--implicit-supg", "-no-supg",
                   "--no-implicit-supg",
                   "Use supg in the implicit solvers.");
+   args.AddOption(&useStab, "-stab", "--explicit-stab", "-no-stab","--no-explitcit-stab",
+                  "Use supg in the explicit solvers.");
    args.AddOption(&maxtau, "-max-tau", "--max-tau", "-no-max-tau", "--no-max-tau",
                   "Use max-tau in supg.");
    args.AddOption(&usefd, "-fd", "--use-fd", "-no-fd",
@@ -258,8 +270,8 @@ int main(int argc, char *argv[])
                     case 0: y0=0.5; break;
                     case 1: y0=0.3; break;
                     case 2: y0=0.2; break;
-                    case 3: y0=0.12; x0=.08; break;
-                    case 4: y0=0.08; x0=.06; break;
+                    case 3: y0=0.18; x0=.08; break;
+                    case 4: y0=0.15; x0=.04; break;
                     default:
                         if (myid == 0) cout << "Unknown level: " << lev << '\n';
                         delete mesh;
@@ -274,7 +286,7 @@ int main(int argc, char *argv[])
                     }
                 }
                 else{
-                    if (xyregion(pt,x0,y0))
+                    if (center_region(pt,x0,y0))
                     {
                        marked_elements.Append(i);
                        break;
@@ -562,7 +574,6 @@ int main(int argc, char *argv[])
    //++++Perform time-integration (looping over the time iterations, ti, with a
    //    time-step dt).
    bool last_step = false;
-   bool useStab = false; //use a stabilized formulation (explicit case only)
    if(!useStab) ex_supg=0;
    for (int ti = 1; !last_step; ti++)
    {
