@@ -1090,8 +1090,8 @@ public:
    using NonlinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace&);
 
-   virtual void AssembleDiagonalPA(const Vector &x, Vector &diag);
-   void AssembleDiagonalPA_2D(Vector &diag);
+   virtual void AssembleGradientDiagonalPA(const Vector &x, Vector &diag) const;
+   void AssembleDiagonalPA_2D(Vector &diag) const;
 
    using NonlinearFormIntegrator::AddMultPA;
    void AddMultPA_2D(const Vector&, Vector&) const;

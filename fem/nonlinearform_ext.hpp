@@ -32,7 +32,14 @@ public:
    virtual void Setup() = 0;
    virtual Operator &GetGradient(const Vector&) const = 0;
    virtual double GetGridFunctionEnergy(const Vector &x) const = 0;
+   virtual void AssembleGradientDiagonal(Vector &diag) const
+   {
+      MFEM_ABORT("Not implemented for this assembly level!");
+   }
 };
+
+class PANonlinearForm;
+
 
 /// Data and methods for partially-assembled nonlinear forms
 class PANonlinearForm : public NonlinearFormExtension
@@ -46,11 +53,12 @@ private:
       const Array<NonlinearFormIntegrator*> &dnfi;
    public:
       Gradient(const Vector &x, const PANonlinearForm &ext);
-      void Mult(const Vector &x, Vector &y) const;
+      virtual void Mult(const Vector &x, Vector &y) const;
    };
 
 protected:
    mutable Vector xe, ye;
+   mutable const Vector *x_grad;
    mutable OperatorHandle Grad;
    const FiniteElementSpace &fes;
    const Array<NonlinearFormIntegrator*> &dnfi;
@@ -62,6 +70,7 @@ public:
    void Mult(const Vector &x, Vector &y) const;
    Operator &GetGradient(const Vector &x) const;
    double GetGridFunctionEnergy(const Vector &x) const;
+   void AssembleGradientDiagonal(Vector &diag) const;
 };
 }
 #endif // NONLINEARFORM_EXT_HPP

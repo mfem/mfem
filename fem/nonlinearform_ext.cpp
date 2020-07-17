@@ -23,6 +23,7 @@ NonlinearFormExtension::NonlinearFormExtension(const NonlinearForm *nlf)
 
 PANonlinearForm::PANonlinearForm(NonlinearForm *nlf):
    NonlinearFormExtension(nlf),
+   x_grad(NULL),
    fes(*nlf->FESpace()),
    dnfi(*nlf->GetDNFI()),
    R(fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC))
@@ -58,8 +59,24 @@ void PANonlinearForm::Mult(const Vector &x, Vector &y) const
    R->MultTranspose(ye, y);
 }
 
+void PANonlinearForm::AssembleGradientDiagonal(Vector &diag) const
+{
+   MFEM_VERIFY(x_grad, "GetGradient() has not been called");
+   R->Mult(*x_grad, xe);
+
+   ye = 0.0;
+   for (int i = 0; i < dnfi.Size(); ++i)
+   {
+      dnfi[i]->AssembleGradientDiagonalPA(xe, ye);
+   }
+   R->MultTranspose(ye, diag);
+}
+
 Operator &PANonlinearForm::GetGradient(const Vector &x) const
 {
+   // Store the last x that was used to compute the gradient.
+   x_grad = &x;
+
    Grad.Reset(new PANonlinearForm::Gradient(x, *this));
    return *Grad.Ptr();
 }
