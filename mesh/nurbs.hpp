@@ -56,16 +56,25 @@ public:
 
    bool isElement(int i) const { return (knot(Order+i) != knot(Order+i+1)); }
 
-   double getKnotLocation(double xi, int ni) const
+   double GetKnotLocation(double xi, int ni) const
    { return (xi*knot(ni+1) + (1. - xi)*knot(ni)); }
 
-   int findKnotSpan(double u) const;
+   int FindKnotSpan(double u) const;
+
+   void CalcShape_  (Vector &shape, int i, double u) const;
+   void CalcDShape_ (Vector &grad,  int i, double u) const;
+   void CalcDnShape_(Vector &gradn, int n, int i, double u) const;
+   void CalcD2Shape_(Vector &grad2, int i, double u) const
+   { CalcDnShape_(grad2, 2, i, u); }
 
    void CalcShape  (Vector &shape, int i, double xi) const;
    void CalcDShape (Vector &grad,  int i, double xi) const;
    void CalcDnShape(Vector &gradn, int n, int i, double xi) const;
    void CalcD2Shape(Vector &grad2, int i, double xi) const
    { CalcDnShape(grad2, 2, i, xi); }
+
+   void FindMaxima(Array<int> &ks,Vector &xi,Vector &u);
+   void FindInterpolant(Array<Vector*> &x);
 
    void Difference(const KnotVector &kv, Vector &diff) const;
    void UniformRefinement(Vector &newknots) const;

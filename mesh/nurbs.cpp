@@ -129,41 +129,79 @@ void KnotVector::Print(std::ostream &out) const
    knot.Print(out, knot.Size());
 }
 
-
 void KnotVector::PrintFunctions(std::ostream &out, int samples) const
 {
-   Vector shape(Order+1);
+   Vector lshape(Order+1);
+   Vector gshape(GetNCP());
 
-   double x, dx = 1.0/double (samples - 1);
+   double xi, dxi = 1.0/double (samples - 1);
 
-   for (int i = 0; i <GetNE() ; i++)
+   for (int i = 0; i <GetNKS(); i++)
    {
-      for (int j = 0; j <samples; j++)
+      if (isElement(i))
       {
-         x =j*dx;
-         out<< x + i;
+         for (int j = 0; j <samples; j++)
+         {
+            xi =j*dxi;
+            out<< GetKnotLocation(xi,i+Order);
 
-         CalcShape ( shape, i, x);
-         for (int d = 0; d < Order+1; d++) { out<<"\t"<<shape[d]; }
+            gshape = 0.0;
+            CalcShape ( lshape, i, xi);
+            for (int d = 0; d < Order+1; d++) { gshape[i+d] = lshape[d]; }
+            for (int d = 0; d < GetNCP(); d++) { out<<"\t"<<gshape[d]; }
 
-         CalcDShape ( shape, i, x);
-         for (int d = 0; d < Order+1; d++) { out<<"\t"<<shape[d]; }
+            gshape = 0.0;
+            CalcDShape ( lshape, i, xi);
+            for (int d = 0; d < Order+1; d++) { gshape[i+d] = lshape[d]; }
+            for (int d = 0; d < GetNCP(); d++) { out<<"\t"<<gshape[d]; }
 
-         CalcD2Shape ( shape, i, x);
-         for (int d = 0; d < Order+1; d++) { out<<"\t"<<shape[d]; }
-         out<<endl;
+            gshape = 0.0;
+            CalcD2Shape ( lshape, i, xi);
+            for (int d = 0; d < Order+1; d++) { gshape[i+d] = lshape[d]; }
+            for (int d = 0; d < GetNCP(); d++) { out<<"\t"<<gshape[d]; }
+
+            out<<endl;
+         }
       }
    }
 }
 
+int KnotVector::FindKnotSpan(double u) const
+{
+   int low, mid, high;
+
+   if (u == knot(NumOfControlPoints+Order))
+   {
+      mid = NumOfControlPoints;
+   }
+   else
+   {
+      low = Order;
+      high = NumOfControlPoints + 1;
+      mid = (low + high)/2;
+      while ( (u < knot(mid-1)) || (u > knot(mid)) )
+      {
+         if (u < knot(mid-1))
+         {
+            high = mid;
+         }
+         else
+         {
+            low = mid;
+         }
+         mid = (low + high)/2;
+      }
+   }
+   return mid;
+}
+
 // Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
-void KnotVector::CalcShape(Vector &shape, int i, double xi) const
+void KnotVector::CalcShape_(Vector &shape, int ip, double u) const
 {
    MFEM_ASSERT(Order <= MaxOrder, "Order > MaxOrder!");
 
    int    p = Order;
-   int    ip = (i >= 0) ? (i + p) : (-1 - i + p);
-   double u = getKnotLocation((i >= 0) ? xi : 1. - xi, ip), saved, tmp;
+   double saved, tmp;
    double left[MaxOrder+1], right[MaxOrder+1];
 
    shape(0) = 1.;
@@ -183,11 +221,10 @@ void KnotVector::CalcShape(Vector &shape, int i, double xi) const
 }
 
 // Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
-void KnotVector::CalcDShape(Vector &grad, int i, double xi) const
+void KnotVector::CalcDShape_(Vector &grad, int ip, double u) const
 {
    int    p = Order, rk, pk;
-   int    ip = (i >= 0) ? (i + p) : (-1 - i + p);
-   double u = getKnotLocation((i >= 0) ? xi : 1. - xi, ip), temp, saved, d;
+   double temp, saved, d;
    double ndu[MaxOrder+1][MaxOrder+1], left[MaxOrder+1], right[MaxOrder+1];
 
 #ifdef MFEM_DEBUG
@@ -228,23 +265,13 @@ void KnotVector::CalcDShape(Vector &grad, int i, double xi) const
       }
       grad(r) = d;
    }
-
-   if (i >= 0)
-   {
-      grad *= p*(knot(ip+1) - knot(ip));
-   }
-   else
-   {
-      grad *= p*(knot(ip) - knot(ip+1));
-   }
+   grad *= p;
 }
 
 // Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
-void KnotVector::CalcDnShape(Vector &gradn, int n, int i, double xi) const
+void KnotVector::CalcDnShape_(Vector &gradn, int n, int ip, double u) const
 {
    int    p = Order, rk, pk, j1, j2,r,j,k;
-   int    ip = (i >= 0) ? (i + p) : (-1 - i + p);
-   double u = getKnotLocation((i >= 0) ? xi : 1. - xi, ip);
    double temp, saved, d;
    double a[2][MaxOrder+1],ndu[MaxOrder+1][MaxOrder+1], left[MaxOrder+1],
           right[MaxOrder+1];
@@ -324,6 +351,48 @@ void KnotVector::CalcDnShape(Vector &gradn, int n, int i, double xi) const
          s2 = j;
       }
    }
+   for (j = 0; j <= p; j++) { gradn[j] *= p; }
+
+}
+
+// Routine
+void KnotVector::CalcShape(Vector &shape, int i, double xi) const
+{
+   MFEM_ASSERT(Order <= MaxOrder, "Order > MaxOrder!");
+
+   int    p = Order;
+   int    ip = (i >= 0) ? (i + p) : (-1 - i + p);
+   double u = GetKnotLocation((i >= 0) ? xi : 1. - xi, ip);
+   CalcShape_(shape, ip, u);
+}
+
+// Routine
+void KnotVector::CalcDShape(Vector &grad, int i, double xi) const
+{
+   int    p = Order;
+   int    ip = (i >= 0) ? (i + p) : (-1 - i + p);
+   double u = GetKnotLocation((i >= 0) ? xi : 1. - xi, ip);
+
+   CalcDShape_(grad, ip, u);
+
+   if (i >= 0)
+   {
+      grad *= (knot(ip+1) - knot(ip));
+   }
+   else
+   {
+      grad *= (knot(ip) - knot(ip+1));
+   }
+}
+
+// Routine
+void KnotVector::CalcDnShape(Vector &gradn, int n, int i, double xi) const
+{
+   int    p = Order;
+   int    ip = (i >= 0) ? (i + p) : (-1 - i + p);
+   double u = GetKnotLocation((i >= 0) ? xi : 1. - xi, ip);
+
+   CalcDnShape_(gradn, n, ip, u);
 
    if (i >= 0)
    {
@@ -333,42 +402,107 @@ void KnotVector::CalcDnShape(Vector &gradn, int n, int i, double xi) const
    {
       u = (knot(ip) - knot(ip+1));
    }
+   double temp = 1.0;
+   for (int k = 1; k <= n-1; k++) { temp *= (p-k)*u; }
 
-   temp = p*u;
-   for (k = 1; k <= n-1; k++) { temp *= (p-k)*u; }
-
-   for (j = 0; j <= p; j++) { gradn[j] *= temp; }
+   for (int j = 0; j <= p; j++) { gradn[j] *= temp; }
 
 }
 
-
-int KnotVector::findKnotSpan(double u) const
+//
+void KnotVector::FindMaxima(Array<int> &ks,
+                            Vector &xi,
+                            Vector &u)
 {
-   int low, mid, high;
+   int Order = GetOrder();
+   Vector shape(Order+1);
+   Vector maxima(GetNCP());
+   double arg1,arg2,arg,max1,max2,max;
 
-   if (u == knot(NumOfControlPoints+Order))
+   xi.SetSize(GetNCP());
+   u.SetSize(GetNCP());
+   ks.SetSize(GetNCP());
+   for (int j = 0; j <GetNCP(); j++)
    {
-      mid = NumOfControlPoints;
-   }
-   else
-   {
-      low = Order;
-      high = NumOfControlPoints + 1;
-      mid = (low + high)/2;
-      while ( (u < knot(mid-1)) || (u > knot(mid)) )
+      maxima[j] = 0;
+      for (int d = 0; d < Order+1; d++)
       {
-         if (u < knot(mid-1))
+         int i = j - d;
+         if (isElement(i))
          {
-            high = mid;
+            arg1 = 0;
+            CalcShape ( shape, i, arg1);
+            max1 = shape[d];
+
+            arg2 = 1;
+            CalcShape ( shape, i, arg2);
+            max2 = shape[d];
+
+            arg = (arg1 + arg2)/2;
+            CalcShape ( shape, i, arg);
+            max = shape[d];
+
+            while ( ( max > max1 ) || (max > max2) )
+            {
+               if (max1 < max2)
+               {
+                  max1 = max;
+                  arg1 = arg;
+               }
+               else
+               {
+                  max2 = max;
+                  arg2 = arg;
+               }
+
+               arg = (arg1 + arg2)/2;
+               CalcShape ( shape, i, arg);
+               max = shape[d];
+            }
+
+            if (max > maxima[j])
+            {
+               maxima[j] = max;
+               ks[j] = i;
+               xi[j] = arg;
+               u[j]  = GetKnotLocation(arg, i+Order);
+            }
          }
-         else
-         {
-            low = mid;
-         }
-         mid = (low + high)/2;
       }
    }
-   return mid;
+}
+
+void KnotVector::FindInterpolant(Array<Vector*> &x)
+{
+   int order = GetOrder();
+   int ncp = GetNCP();
+
+   // Find interpolation points
+   Vector xi_args, u_args;
+   Array<int> i_args;
+   FindMaxima(i_args,xi_args, u_args);
+
+   // Assemble collocation matrix
+   Vector shape(order+1);
+   DenseMatrix A(ncp,ncp);
+   A = 0.0;
+   for (int i = 0; i < ncp; i++)
+   {
+      CalcShape ( shape, i_args[i], xi_args[i]);
+      for (int p = 0; p < order+1; p++)
+      {
+         A(i,i_args[i] + p) =  shape[p];
+      }
+   }
+
+   // Solve problems
+   A.Invert();
+   Vector tmp;
+   for (int i= 0; i < x.Size(); i++)
+   {
+      tmp = *x[i];
+      A.Mult(tmp,*x[i]);
+   }
 }
 
 void KnotVector::Difference(const KnotVector &kv, Vector &diff) const
@@ -745,8 +879,8 @@ void NURBSPatch::KnotInsert(int dir, const Vector &knot)
    }
 
    int rr = knot.Size() - 1;
-   int a  = oldkv.findKnotSpan(knot(0))  - 1;
-   int b  = oldkv.findKnotSpan(knot(rr)) - 1;
+   int a  = oldkv.FindKnotSpan(knot(0))  - 1;
+   int b  = oldkv.FindKnotSpan(knot(rr)) - 1;
    int pl = oldkv.GetOrder();
    int ml = oldkv.GetNCP();
 
@@ -2170,16 +2304,16 @@ void NURBSExtension::CheckPatches()
          mfem_error();
       }
 
-      if ((Dimension() == 2 &&
-           (edges[0] < 0 || edges[1] < 0)) ||
+      /*    if ((Dimension() == 2 &&
+               (edges[0] < 0 || edges[1] < 0)) ||
 
-          (Dimension() == 3 &&
-           (edges[0] < 0 || edges[3] < 0 || edges[8] < 0)))
-      {
-         mfem::err << "NURBSExtension::CheckPatch (patch = " << p
-                   << ") : Bad orientation!\n";
-         mfem_error();
-      }
+              (Dimension() == 3 &&
+               (edges[0] < 0 || edges[3] < 0 || edges[8] < 0)))
+          {
+             mfem::err << "NURBSExtension::CheckPatch (patch = " << p
+                       << ") : Bad orientation!\n";
+             mfem_error();
+          }*/
    }
 }
 
