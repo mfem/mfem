@@ -774,7 +774,6 @@ int main (int argc, char *argv[])
    // 18. As we use the Newton method to solve the resulting nonlinear system,
    //     here we setup the linear solver for the system's Jacobian.
    Solver *S = NULL;
-   //LumpedJacobiSmoother S_prec(x.GetTrueVector().Size());
    //HypreSmoother prec;
    //prec.SetType(HypreSmoother::lumpedJacobi, 1);
 
@@ -799,7 +798,6 @@ int main (int argc, char *argv[])
       minres->SetRelTol(linsol_rtol);
       minres->SetAbsTol(0.0);
       minres->SetPrintLevel(verbosity_level >= 2 ? 3 : -1);
-      //minres->SetPreconditioner(S_prec);
       //minres->SetPreconditioner(prec);
       S = minres;
    }

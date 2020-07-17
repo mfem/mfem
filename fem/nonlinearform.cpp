@@ -454,6 +454,30 @@ void NonlinearForm::Setup()
    if (ext) { return ext->Setup(); }
 }
 
+void NonlinearForm::AssembleGradientDiagonal(Vector &diag) const
+{
+   if (ext)
+   {
+      MFEM_ASSERT(diag.Size() == fes->GetTrueVSize(),
+                  "Vector for holding diagonal has wrong size!");
+      const Operator *P = fes->GetProlongationMatrix();
+      if (!IsIdentityProlongation(P))
+      {
+         Vector local_diag(P->Height());
+         ext->AssembleGradientDiagonal(local_diag);
+         P->MultTranspose(local_diag, diag);
+      }
+      else
+      {
+         ext->AssembleGradientDiagonal(diag);
+      }
+   }
+   else
+   {
+      MFEM_ABORT("Not implemented. Can be obtained through GetGradient().");
+   }
+}
+
 NonlinearForm::~NonlinearForm()
 {
    delete cGrad;
