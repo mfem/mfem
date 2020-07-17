@@ -743,7 +743,7 @@ static void tmop_tests(int myid)
       args[LI] = "100";
       args[LC] = "3.14";
       args[NOR] = "1";
-      // WIP args[DIAG] = "-diag";
+      args[DIAG] = "-diag";
       for (int p : {1, 2})
       {
          char por[2] {};
