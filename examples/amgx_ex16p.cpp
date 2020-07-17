@@ -62,7 +62,7 @@ protected:
    HypreParMatrix *T; // T = M + dt K
    double current_dt;
 
-   AmgXSolver m_AmgXSolver;
+   mutable AmgXSolver m_AmgXSolver;
 
    CGSolver M_solver;    // Krylov solver for inverting the mass matrix M
    HypreSmoother M_prec; // Preconditioner for the mass matrix M
@@ -79,7 +79,7 @@ public:
    ConductionOperator(ParFiniteElementSpace &f, double alpha, double kappa,
                                          const Vector &u, const std::string &amgx_cfg);
 
-   virtual void Mult(Vector &u, Vector &du_dt);
+   virtual void Mult( const Vector &u, Vector &du_dt) const;
    /** Solve the Backward-Euler equation: k = f(u + dt*k, t), for the unknown k.
        This is the only requirement for high-order SDIRK implicit integration.*/
    virtual void ImplicitSolve(const double dt, const Vector &u, Vector &k);
@@ -102,11 +102,11 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
-   int ser_ref_levels = 2;
-   int par_ref_levels = 2;
+   int ser_ref_levels = 5;
+   int par_ref_levels = 0;
    int order = 2;
-   int ode_solver_type = 3;
-   double t_final = 1;
+   int ode_solver_type = 11;
+   double t_final = 1.0;
    double dt = 1.0e-2;
    double alpha = 1.0e-2;
    double kappa = 0.5;
@@ -246,8 +246,8 @@ int main(int argc, char *argv[])
    u_gf.SetFromTrueDofs(u);
    {
       ostringstream mesh_name, sol_name;
-      mesh_name << "ex16-mesh." << setfill('0') << setw(6) << myid;
-      sol_name << "ex16-init." << setfill('0') << setw(6) << myid;
+      mesh_name << "amgx_ex16-mesh." << setfill('0') << setw(6) << myid;
+      sol_name << "amgx_ex16-init." << setfill('0') << setw(6) << myid;
       ofstream omesh(mesh_name.str().c_str());
       omesh.precision(precision);
       pmesh->Print(omesh);
@@ -387,7 +387,7 @@ int main(int argc, char *argv[])
    //     using GLVis: "glvis -np <np> -m ex16-mesh -g ex16-final".
    {
       ostringstream sol_name;
-      sol_name << "ex16-final." << setfill('0') << setw(6) << myid;
+      sol_name << "amgx_ex16-final." << setfill('0') << setw(6) << myid;
       ofstream osol(sol_name.str().c_str());
       osol.precision(precision);
       u_gf.Save(osol);
@@ -397,7 +397,7 @@ int main(int argc, char *argv[])
    delete ode_solver;
    delete pmesh;
 
-   MPI_Finalize();
+   //MPI_Finalize();
 
    return 0;
 }
@@ -408,24 +408,12 @@ ConductionOperator::ConductionOperator(ParFiniteElementSpace &f, double al,
      T(NULL), current_dt(0.0),
      M_solver(f.GetComm()), T_solver(f.GetComm()), z(height)
 {
-   const double rel_tol = 1e-6;
+   const double rel_tol = 1e-8;
 
    M = new ParBilinearForm(&fespace);
    M->AddDomainIntegrator(new MassIntegrator());
    M->Assemble(0); // keep sparsity pattern of M and K the same
    M->FormSystemMatrix(ess_tdof_list, Mmat);
-
-
-
-   M_solver.iterative_mode = false;
-   M_solver.SetRelTol(rel_tol);
-   M_solver.SetAbsTol(0.0);
-   M_solver.SetMaxIter(100);
-   M_solver.SetPrintLevel(0);
-   M_prec.SetType(HypreSmoother::Jacobi);
-   M_solver.SetPreconditioner(M_prec);
-   M_solver.SetOperator(Mmat);
-
    m_AmgXSolver.initialize(MPI_COMM_WORLD, "dDDI", amgx_str);
    m_AmgXSolver.setA(Mmat);
 
@@ -442,14 +430,19 @@ ConductionOperator::ConductionOperator(ParFiniteElementSpace &f, double al,
    SetParameters(u);
 }
 
-void ConductionOperator::Mult(Vector &u, Vector &du_dt)
+void ConductionOperator::Mult(const Vector &u, Vector &du_dt) const
 {
    // Compute:
    //    du_dt = M^{-1}*-K(u)
    // for du_dt
+
    Kmat.Mult(u, z);
    z.Neg(); // z = -z
+   auto start2 = std::chrono::steady_clock::now();
    m_AmgXSolver.solve(z, du_dt);
+   auto end2 = std::chrono::steady_clock::now();
+   std::chrono::duration<double> elapsed_seconds2 = end2-start2;
+   std::cout << "Solve "<< elapsed_seconds2.count() << "\n";
 }
 
 void ConductionOperator::ImplicitSolve(const double dt,
