@@ -187,6 +187,7 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    double lim_const      = 0.0;
    int normalization     = 0;
    double jitter         = 0.0;
+   bool diag             = false;
 
    constexpr int combomet  = 0;
    constexpr int verbosity_level = 0;
@@ -214,6 +215,7 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    args.AddOption(&normalization, "-nor", "--normalization", "");
    args.AddOption(&pa, "-pa", "--pa", "-no-pa", "--no-pa", "");
    args.AddOption(&jitter, "-ji", "--jitter", "");
+   args.AddOption(&diag, "-diag", "--diag", "-no-diag", "--no-diag", "");
    args.Parse();
    if (!args.Good())
    {
@@ -388,8 +390,7 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    if (normalization == 1) { he_nlf_integ->EnableNormalization(x0); }
 
    ParGridFunction dist(&fes);
-   dist.Randomize(seed);
-   dist += sqrt(2.0)/2.0;
+   dist = 1.0;
    if (normalization == 1) { dist = small_phys_size; }
    ConstantCoefficient lim_coeff(lim_const);
    if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, dist, lim_coeff); }
@@ -400,11 +401,14 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    nlf.Setup();
 
    const double init_energy = nlf.GetParGridFunctionEnergy(x);
+   res.init_energy = init_energy;
 
+   // Fix all boundary nodes (-fix-bnd)
    Array<int> ess_bdr(pmesh->bdr_attributes.Max());
    ess_bdr = 1;
    nlf.SetEssentialBC(ess_bdr);
 
+   // Linear solver for the system's Jacobian
    Solver *S = nullptr;
    constexpr double linsol_rtol = 1e-12;
    if (lin_solver == 0)
@@ -430,8 +434,10 @@ int tmop(int myid, Req &res, int argc, char *argv[])
       S = minres;
    }
 
+   // Compute the minimum det(J) of the starting mesh
    double tauval = infinity();
-   for (int i = 0; i < pmesh->GetNE(); i++)
+   const int NE = pmesh->GetNE();
+   for (int i = 0; i < NE; i++)
    {
       ElementTransformation *transf = pmesh->GetElementTransformation(i);
       for (int j = 0; j < ir->GetNPoints(); j++)
@@ -445,8 +451,12 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    tauval = minJ0;
    //if (myid == 0) { cout << "Min det(J) of the mesh is " << tauval << endl; }
    REQUIRE(tauval > 0.0);
+   double h0min = h0.Min(), h0min_all;
+   MPI_Allreduce(&h0min, &h0min_all, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+   tauval -= 0.01 * h0min_all; // Slightly below minJ0 to avoid div by 0.
    res.tauval = tauval;
 
+   // Perform the nonlinear optimization
    Vector b(0), &x_t(x.GetTrueVector());
    b.UseDevice(true);
 #if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
@@ -462,8 +472,6 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    newton->SetOperator(nlf);
    newton->Mult(b, x_t);
 
-   res.init_energy = init_energy;
-
    REQUIRE(newton->GetConverged());
    double x_t_dot = x_t*x_t, dot;
    MPI_Allreduce(&x_t_dot, &dot, 1, MPI_DOUBLE, MPI_SUM, pmesh->GetComm());
@@ -474,24 +482,14 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    res.final_energy = final_energy;
 
    // Diagonal test
-   static const bool test_diag = getenv("DIAG");
-   if (test_diag)
+   res.diag = 0.0;
+   if (diag)
    {
-      Vector diag;
-      if (pa)
-      {
-         nlf.GetGradient(x);
-         he_nlf_integ->AssembleDiagonalPA(x, diag);
-      }
-      else
-      {
-         const Operator &mGradOp = nlf.GetGradient(x);
-         const SparseMatrix *mGrad =
-            reinterpret_cast<const SparseMatrix*>(&mGradOp);
-         MFEM_VERIFY(mGrad, "mGrad");
-         mGrad->GetDiag(diag);
-      }
-      res.diag = diag.Norml2();
+      Vector d;
+      const Operator &mGradOp = nlf.GetGradient(x);
+      if (pa) { he_nlf_integ->AssembleDiagonalPA(x, d); }
+      else { dynamic_cast<const SparseMatrix*>(&mGradOp)->GetDiag(d); }
+      res.diag = d.Norml2();
    }
 
    delete S;
@@ -517,7 +515,7 @@ static void req_tmop(int myid, const char *args[], Req &res)
     "tmop_tests", "-pa", "-m", "mesh", "-o", "0", "-rs", "0", \
     "-mid", "0", "-tid", "0", "-qt", "1", "-qo", "0", \
     "-ni", "10", "-rtol", "1e-8", "-ls", "2", "-li", "100", \
-    "-lc", "0", "-nor", "0", "-ji", "0", nullptr }
+    "-lc", "0", "-nor", "0", "-ji", "0", "-no-diag" , nullptr }
 constexpr int ALV = 1;
 constexpr int MSH = 3;
 constexpr int POR = 5;
@@ -530,17 +528,20 @@ constexpr int NI  = 17;
 constexpr int LS  = 21;
 constexpr int LI  = 23;
 constexpr int LC  = 25;
-constexpr int NOR  = 27;
+constexpr int NOR = 27;
 constexpr int JI  = 29;
+constexpr int DIAG = 30;
 
 static void dump_args(const char *args[])
 {
-   printf("tmop -m %s -o %s -qo %s -mid %s -tid %s -ls %s%s%s%s %s\n",
+   printf("tmop -m %s -o %s -qo %s -mid %s -tid %s -fix-bnd -ls %s%s%s%s%s%s %s\n",
           args[MSH], args[POR], args[QOR],
           args[MID], args[TID], args[LS],
-          args[LC][0] == '0' ? "" : " -lc",
+          args[LC][0] == '0' ? "" : " -lc ",
+          args[LC][0] == '0' ? "" : args[LC],
           args[NOR][0] == '0' ? "" : " -nor",
           args[JI][0] == '0' ? "" : " -jitter",
+          args[DIAG][1] == 'n' ? "" : " -diag",
           args[ALV]);
    fflush(0);
 }
@@ -554,13 +555,7 @@ static void tmop_require(int myid, const char *args[])
    REQUIRE(res[0].tauval == Approx(res[1].tauval));
    REQUIRE(res[0].init_energy == Approx(res[1].init_energy));
    REQUIRE(res[0].final_energy == Approx(res[1].final_energy));
-   static const bool test_diag = getenv("DIAG");
-   if (test_diag)
-   {
-      const bool same_diag = res[0].diag == Approx(res[1].diag);
-      if (!same_diag) { printf("\033[33m%.8e %.8e\033[m\n", res[0].diag, res[1].diag); }
-      REQUIRE(same_diag);
-   }
+   REQUIRE(res[0].diag == Approx(res[1].diag));
 }
 
 static inline const char *itoa(int i, char *buf)
@@ -572,6 +567,192 @@ static inline const char *itoa(int i, char *buf)
 static void tmop_tests(int myid)
 {
    static bool all = getenv("MFEM_TESTS_UNIT_TMOP_ALL");
+
+   // STAR
+   {
+      DEFAULT_ARGS;
+      args[MSH] = "star.mesh";
+      //args[DIAG] = "-diag";
+      for (int p : {1, 2, 3, 4})
+      {
+         char por[2] {};
+         args[POR] = itoa(p, por);
+         for (int t : {1, 2, 3})
+         {
+            char tid[2] {};
+            args[TID] = itoa(t, tid);
+            for (int m : {1, 2})
+            {
+               char mid[2] {};
+               args[MID] = itoa(m, mid);
+               for (int q : {2, 4, 8})
+               {
+                  if (q <= p) { continue; }
+                  char qor[2] {};
+                  args[QOR] = itoa(q, qor);
+                  for (int ls : {2, 3})
+                  {
+                     char lsb[2] {};
+                     args[LS] = itoa(ls, lsb);
+                     tmop_require(myid, args);
+                     if (!all) { break; }
+                  }
+                  if (!all) { break; }
+               }
+               if (!all) { break; }
+            }
+            if (!all) { break; }
+         }
+         if (!all) { break; }
+      }
+   }
+
+   // SQUARE01 + Adapted analytic Hessian
+   {
+      DEFAULT_ARGS;
+      args[NI] = "100";
+      args[MSH] = "square01.mesh";
+      args[RFS] = "1";
+      for (int p : {1, 2})
+      {
+         char por[2] {};
+         args[POR] = itoa(p, por);
+         for (int t : {4})
+         {
+            char tid[2] {};
+            args[TID] = itoa(t, tid);
+            for (int m : {2})
+            {
+               char mid[2] {};
+               args[MID] = itoa(m, mid);
+               for (int q : {2, 4})
+               {
+                  if (q <= p) { continue; }
+                  char qor[2] {};
+                  args[QOR] = itoa(q, qor);
+                  for (int ls : {2})
+                  {
+                     char lsb[2] {};
+                     args[LS] = itoa(ls, lsb);
+                     tmop_require(myid, args);
+                     if (!all) { break; }
+                  }
+                  if (!all) { break; }
+               }
+               if (!all) { break; }
+            }
+            if (!all) { break; }
+         }
+         if (!all) { break; }
+      }
+   }
+
+   // BLADE
+   {
+      DEFAULT_ARGS;
+      args[MSH] = "blade.mesh";
+      args[MID] = "2";
+      args[NI] = "100";
+      args[LI] = "100";
+      for (int p : {1, 2})
+      {
+         char por[2] {};
+         args[POR] = itoa(p, por);
+         for (int q : {2, 4})
+         {
+            char qor[2] {};
+            args[QOR] = itoa(q, qor);
+            for (int t : {1, 2, 3})
+            {
+               char tid[2] {};
+               args[TID] = itoa(t, tid);
+               for (int ls : {2, 3})
+               {
+                  char lsb[2] {};
+                  args[LS] = itoa(ls, lsb);
+                  tmop_require(myid, args);
+                  if (!all) { break; }
+               }
+               if (!all) { break; }
+            }
+            if (!all) { break; }
+         }
+         if (!all) { break; }
+      }
+   }
+
+   // 2D BLADE + normalization
+   {
+      DEFAULT_ARGS;
+      args[MSH] = "blade.mesh";
+      args[MID] = "2";
+      args[NI] = "100";
+      args[LI] = "100";
+      args[NOR] = "1";
+      for (int p : {1, 2})
+      {
+         char por[2] {};
+         args[POR] = itoa(p, por);
+         for (int q : {2, 4})
+         {
+            if (q <= p) { continue; }
+            char qor[2] {};
+            args[QOR] = itoa(q, qor);
+            for (int t : {1, 2, 3})
+            {
+               char tid[2] {};
+               args[TID] = itoa(t, tid);
+               for (int ls : {2, 3})
+               {
+                  char lsb[2] {};
+                  args[LS] = itoa(ls, lsb);
+                  tmop_require(myid, args);
+                  if (!all) { break; }
+               }
+               if (!all) { break; }
+            }
+            if (!all) { break; }
+         }
+         if (!all) { break; }
+      }
+   }
+
+   // 2D BLADE + limiting + normalization
+   {
+      DEFAULT_ARGS;
+      args[MSH] = "blade.mesh";
+      args[MID] = "2";
+      args[NI] = "100";
+      args[LI] = "100";
+      args[LC] = "3.14";
+      args[NOR] = "1";
+      for (int p : {1, 2})
+      {
+         char por[2] {};
+         args[POR] = itoa(p, por);
+         for (int q : {2, 4})
+         {
+            if (q <= p) { continue; }
+            char qor[2] {};
+            args[QOR] = itoa(q, qor);
+            for (int t : {1, 2, 3})
+            {
+               char tid[2] {};
+               args[TID] = itoa(t, tid);
+               for (int ls : {2, 3})
+               {
+                  char lsb[2] {};
+                  args[LS] = itoa(ls, lsb);
+                  tmop_require(myid, args);
+                  if (!all) { break; }
+               }
+               if (!all) { break; }
+            }
+            if (!all) { break; }
+         }
+         if (!all) { break; }
+      }
+   }
 
    // 2D BLADE + Discrete size 2D + normalization, mid: #002 & #007
    {
@@ -614,45 +795,6 @@ static void tmop_tests(int myid)
       }
    } // 2D BLADE + Discrete size 2D + normalization
 
-   // TOROID-HEX + limiting, no normalization
-   {
-      DEFAULT_ARGS;
-      args[MSH] = "toroid-hex.mesh";
-      args[RFS] = "0";
-      args[LC] = "3.14";
-      for (int p : {1, 2})
-      {
-         char por[2] {};
-         args[POR] = itoa(p, por);
-         for (int q : {2, 4})
-         {
-            char qor[2] {};
-            args[QOR] = itoa(q, qor);
-            for (int m : {321})
-            {
-               char mid[4] {};
-               args[MID] = itoa(m, mid);
-               for (int t : {1, 2})
-               {
-                  char tid[2] {};
-                  args[TID] = itoa(t, tid);
-                  for (int ls : {1, 2})
-                  {
-                     char lsb[2] {};
-                     args[LS] = itoa(ls, lsb);
-                     tmop_require(myid, args);
-                     if (!all) { break; }
-                  }
-                  if (!all) { break; }
-               }
-               if (!all) { break; }
-            }
-            if (!all) { break; }
-         }
-         if (!all) { break; }
-      }
-   } // TOROID-HEX + limiting
-
    // 3D CUBE + Discrete size & aspect-ratio 3D + normalization + limiting
    {
       DEFAULT_ARGS;
@@ -694,191 +836,6 @@ static void tmop_tests(int myid)
       }
    } // 3D CUBE + Discrete size & aspect-ratio 3D + normalization + limiting
 
-   // SQUARE01 + Adapted analytic Hessian
-   {
-      DEFAULT_ARGS;
-      args[NI] = "100";
-      args[MSH] = "square01.mesh";
-      args[RFS] = "1";
-      for (int p : {1, 2})
-      {
-         char por[2] {};
-         args[POR] = itoa(p, por);
-         for (int t : {4})
-         {
-            char tid[2] {};
-            args[TID] = itoa(t, tid);
-            for (int m : {2})
-            {
-               char mid[2] {};
-               args[MID] = itoa(m, mid);
-               for (int q : {2, 4})
-               {
-                  if (q <= p) { continue; }
-                  char qor[2] {};
-                  args[QOR] = itoa(q, qor);
-                  for (int ls : {2})
-                  {
-                     char lsb[2] {};
-                     args[LS] = itoa(ls, lsb);
-                     tmop_require(myid, args);
-                     if (!all) { break; }
-                  }
-                  if (!all) { break; }
-               }
-               if (!all) { break; }
-            }
-            if (!all) { break; }
-         }
-         if (!all) { break; }
-      }
-   } // SQUARE01
-
-   // STAR
-   {
-      DEFAULT_ARGS;
-      args[MSH] = "star.mesh";
-      for (int p : {1, 2, 3, 4})
-      {
-         char por[2] {};
-         args[POR] = itoa(p, por);
-         for (int t : {1, 2, 3})
-         {
-            char tid[2] {};
-            args[TID] = itoa(t, tid);
-            for (int m : {1, 2})
-            {
-               char mid[2] {};
-               args[MID] = itoa(m, mid);
-               for (int q : {2, 4, 8})
-               {
-                  if (q <= p) { continue; }
-                  char qor[2] {};
-                  args[QOR] = itoa(q, qor);
-                  for (int ls : {2, 3})
-                  {
-                     char lsb[2] {};
-                     args[LS] = itoa(ls, lsb);
-                     tmop_require(myid, args);
-                     if (!all) { break; }
-                  }
-                  if (!all) { break; }
-               }
-               if (!all) { break; }
-            }
-            if (!all) { break; }
-         }
-         if (!all) { break; }
-      }
-   } // STAR
-
-   // BLADE
-   {
-      DEFAULT_ARGS;
-      args[MSH] = "blade.mesh";
-      args[MID] = "2";
-      args[NI] = "100";
-      args[LI] = "100";
-      for (int p : {1, 2})
-      {
-         char por[2] {};
-         args[POR] = itoa(p, por);
-         for (int q : {2, 4})
-         {
-            char qor[2] {};
-            args[QOR] = itoa(q, qor);
-            for (int t : {1, 2, 3})
-            {
-               char tid[2] {};
-               args[TID] = itoa(t, tid);
-               for (int ls : {2, 3})
-               {
-                  char lsb[2] {};
-                  args[LS] = itoa(ls, lsb);
-                  tmop_require(myid, args);
-                  if (!all) { break; }
-               }
-               if (!all) { break; }
-            }
-            if (!all) { break; }
-         }
-         if (!all) { break; }
-      }
-   } // BLADE
-
-   // 2D BLADE + normalization
-   {
-      DEFAULT_ARGS;
-      args[MSH] = "blade.mesh";
-      args[MID] = "2";
-      args[NI] = "100";
-      args[LI] = "100";
-      args[NOR] = "1";
-      for (int p : {1, 2})
-      {
-         char por[2] {};
-         args[POR] = itoa(p, por);
-         for (int q : {2, 4})
-         {
-            if (q <= p) { continue; }
-            char qor[2] {};
-            args[QOR] = itoa(q, qor);
-            for (int t : {1, 2, 3})
-            {
-               char tid[2] {};
-               args[TID] = itoa(t, tid);
-               for (int ls : {2, 3})
-               {
-                  char lsb[2] {};
-                  args[LS] = itoa(ls, lsb);
-                  tmop_require(myid, args);
-                  if (!all) { break; }
-               }
-               if (!all) { break; }
-            }
-            if (!all) { break; }
-         }
-         if (!all) { break; }
-      }
-   } // 2D BLADE + normalization
-
-   // 2D BLADE + limiting + normalization
-   {
-      DEFAULT_ARGS;
-      args[MSH] = "blade.mesh";
-      args[MID] = "2";
-      args[NI] = "100";
-      args[LI] = "100";
-      args[LC] = "3.14";
-      args[NOR] = "1";
-      for (int p : {1, 2})
-      {
-         char por[2] {};
-         args[POR] = itoa(p, por);
-         for (int q : {2, 4})
-         {
-            if (q <= p) { continue; }
-            char qor[2] {};
-            args[QOR] = itoa(q, qor);
-            for (int t : {1, 2, 3})
-            {
-               char tid[2] {};
-               args[TID] = itoa(t, tid);
-               for (int ls : {2, 3})
-               {
-                  char lsb[2] {};
-                  args[LS] = itoa(ls, lsb);
-                  tmop_require(myid, args);
-                  if (!all) { break; }
-               }
-               if (!all) { break; }
-            }
-            if (!all) { break; }
-         }
-         if (!all) { break; }
-      }
-   } // 2D BLADE + limiting + normalization
-
    // TOROID-HEX
    {
       DEFAULT_ARGS;
@@ -916,6 +873,45 @@ static void tmop_tests(int myid)
          if (!all) { break; }
       }
    } // TOROID-HEX
+
+   // TOROID-HEX + limiting, no normalization
+   {
+      DEFAULT_ARGS;
+      args[MSH] = "toroid-hex.mesh";
+      args[RFS] = "0";
+      args[LC] = "3.14";
+      for (int p : {1, 2})
+      {
+         char por[2] {};
+         args[POR] = itoa(p, por);
+         for (int q : {2, 4})
+         {
+            char qor[2] {};
+            args[QOR] = itoa(q, qor);
+            for (int m : {321})
+            {
+               char mid[4] {};
+               args[MID] = itoa(m, mid);
+               for (int t : {1, 2})
+               {
+                  char tid[2] {};
+                  args[TID] = itoa(t, tid);
+                  for (int ls : {1, 2})
+                  {
+                     char lsb[2] {};
+                     args[LS] = itoa(ls, lsb);
+                     tmop_require(myid, args);
+                     if (!all) { break; }
+                  }
+                  if (!all) { break; }
+               }
+               if (!all) { break; }
+            }
+            if (!all) { break; }
+         }
+         if (!all) { break; }
+      }
+   } // TOROID-HEX + limiting
 
    // TOROID-HEX + limiting + normalization
    {

@@ -550,7 +550,6 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
 {
    int i;
    double r0, den, nom, nom0, betanom, alpha, beta;
-
    if (iterative_mode)
    {
       oper->Mult(x, r);
