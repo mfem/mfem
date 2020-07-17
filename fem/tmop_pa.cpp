@@ -233,7 +233,7 @@ void TMOP_Integrator::AssembleGradientDiagonalPA(const Vector &xe,
    if (PA.dim == 2)
    {
       AssembleDiagonalPA_2D(de);
-      if (coeff0) { MFEM_ABORT("2D limiting part of the diagonal is WIP."); }
+      if (coeff0) { AssembleDiagonalPA_C0_2D(de); }
    }
    else
    {
