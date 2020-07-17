@@ -31,6 +31,9 @@
 //
 // Compile with: make pmesh-optimizer
 //
+// Diagonal test:
+//     mpirun -np 1 pmesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -pa -d cpu
+//
 // Sample runs:
 //   Adapted analytic shape:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
@@ -379,7 +382,8 @@ int main (int argc, char *argv[])
    ParFiniteElementSpace ind_fesv(pmesh, &ind_fec, dim);
    ParGridFunction size(&ind_fes), aspr(&ind_fes), disc(&ind_fes), ori(&ind_fes);
    ParGridFunction aspr3d(&ind_fesv);
-   const AssemblyLevel al = pa ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
+   const AssemblyLevel al =
+      pa ? AssemblyLevel::PARTIAL : AssemblyLevel::LEGACYFULL;
    switch (target_id)
    {
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
@@ -770,9 +774,8 @@ int main (int argc, char *argv[])
    // 18. As we use the Newton method to solve the resulting nonlinear system,
    //     here we setup the linear solver for the system's Jacobian.
    Solver *S = NULL;
-   LumpedJacobiSmoother S_prec(x.GetTrueVector().Size());
-   HypreSmoother prec;
-   prec.SetType(HypreSmoother::lumpedJacobi, 1);
+   //HypreSmoother prec;
+   //prec.SetType(HypreSmoother::lumpedJacobi, 1);
 
    const double linsol_rtol = 1e-12;
    if (lin_solver == 0)
@@ -795,8 +798,7 @@ int main (int argc, char *argv[])
       minres->SetRelTol(linsol_rtol);
       minres->SetAbsTol(0.0);
       minres->SetPrintLevel(verbosity_level >= 2 ? 3 : -1);
-      //minres->SetPreconditioner(S_prec);
-      minres->SetPreconditioner(prec);
+      //minres->SetPreconditioner(prec);
       S = minres;
    }
 

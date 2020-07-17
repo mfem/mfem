@@ -96,10 +96,11 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_2D,
                   }
                }
             }
-
             // C = Jrt . B
             double C[4];
             kernels::MultABt(2,2,2, Jrt, B, C);
+
+            // Overwrite QQ = Jrt . (Jpt : H)^t
             kernels::PushGradXY<MQ1,NBZ>(qx,qy, C, QQ);
          }
       }

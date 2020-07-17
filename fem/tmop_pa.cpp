@@ -19,6 +19,25 @@
 namespace mfem
 {
 
+
+void TMOP_Integrator::SetupGradPA(const Vector &xe) const
+{
+   MFEM_VERIFY(PA.R, "PA extension setup has not been done!");
+   PA.setup_Grad = true;
+
+   if (PA.dim == 2)
+   {
+      AssembleGradPA_2D(xe);
+      if (coeff0) { AssembleGradPA_C0_2D(xe); }
+   }
+
+   if (PA.dim == 3)
+   {
+      AssembleGradPA_3D(xe);
+      if (coeff0) { AssembleGradPA_C0_3D(xe); }
+   }
+}
+
 // We might come here w/o knowing that PA will be used.
 // It is the case when EnableLimiting is called before the Setup => AssemblePA.
 void TMOP_Integrator::EnableLimitingPA(const GridFunction &n0)
@@ -202,6 +221,26 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    }
 }
 
+void TMOP_Integrator::AssembleGradientDiagonalPA(const Vector &xe,
+                                                 Vector &de) const
+{
+   MFEM_VERIFY(PA.R, "PA extension setup has not been done!");
+
+   if (!PA.setup_Jtr) { ComputeElementTargetsPA(xe); }
+
+   if (!PA.setup_Grad) { SetupGradPA(xe); }
+
+   if (PA.dim == 2)
+   {
+      AssembleDiagonalPA_2D(de);
+      if (coeff0) { AssembleDiagonalPA_C0_2D(de); }
+   }
+   else
+   {
+      MFEM_ABORT("3D diagonal computation is WIP.");
+   }
+}
+
 void TMOP_Integrator::AddMultPA(const Vector &xe, Vector &ye) const
 {
    if (!PA.setup_Jtr) { ComputeElementTargetsPA(); }
@@ -224,22 +263,7 @@ void TMOP_Integrator::AddMultGradPA(const Vector &xe,
 {
    if (!PA.setup_Jtr) { ComputeElementTargetsPA(xe); }
 
-   if (!PA.setup_Grad)
-   {
-      PA.setup_Grad = true;
-
-      if (PA.dim == 2)
-      {
-         AssembleGradPA_2D(xe);
-         if (coeff0) { AssembleGradPA_C0_2D(xe); }
-      }
-
-      if (PA.dim == 3)
-      {
-         AssembleGradPA_3D(xe);
-         if (coeff0) { AssembleGradPA_C0_3D(xe); }
-      }
-   }
+   if (!PA.setup_Grad) { SetupGradPA(xe); }
 
    if (PA.dim == 2)
    {
