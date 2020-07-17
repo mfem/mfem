@@ -288,7 +288,8 @@ void VectorDomainLFIntegrator::AssembleRHSElementVect(
    }
 }
 
-void VectorDomainLFGradIntegrator::AssembleRHSElementVect(const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+void VectorDomainLFGradIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
    int dof = el.GetDof();
    int spaceDim = Tr.GetSpaceDim();
@@ -319,7 +320,8 @@ void VectorDomainLFGradIntegrator::AssembleRHSElementVect(const FiniteElement &e
    }
 }
 
-void VectorDomainLFGradIntegrator::AssembleDeltaElementVect(const FiniteElement &fe, ElementTransformation &Trans, Vector &elvect)
+void VectorDomainLFGradIntegrator::AssembleDeltaElementVect(
+   const FiniteElement &fe, ElementTransformation &Trans, Vector &elvect)
 {
    MFEM_ASSERT(vec_delta != NULL, "coefficient must be VectorDeltaCoefficient");
    int dof = fe.GetDof();
