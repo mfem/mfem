@@ -25,7 +25,9 @@ set(UNIT_TESTS_SRCS
   linalg/test_ilu.cpp
   linalg/test_matrix_block.cpp
   linalg/test_matrix_dense.cpp
+  linalg/test_matrix_hypre.cpp
   linalg/test_matrix_rectangular.cpp
+  linalg/test_matrix_sparse.cpp
   linalg/test_matrix_square.cpp
   linalg/test_ode.cpp
   linalg/test_ode2.cpp
