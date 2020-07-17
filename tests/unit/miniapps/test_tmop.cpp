@@ -409,14 +409,23 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    nlf.SetEssentialBC(ess_bdr);
 
    // Diagonal test
+   // ## WARNING ## Parallel tests are tied to 0.0!
    res.diag = 0.0;
    if (diag)
    {
-      Vector d(x.Size());
+      x.SetTrueVector();
+      x.SetFromTrueVector();
+      Vector d(fes.GetTrueVSize());
       if (pa)
       {
-         nlf.GetGradient(x);
+#if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
+         nlf.GetLocalGradient(x.GetTrueVector());
          nlf.AssembleGradientDiagonal(d);
+         d = 0.0;
+#else
+         nlf.GetGradient(x.GetTrueVector());
+         nlf.AssembleGradientDiagonal(d);
+#endif
       }
       else
       {
@@ -426,8 +435,14 @@ int tmop(int myid, Req &res, int argc, char *argv[])
          if (normalization == 1) { nlfi_fa->EnableNormalization(x0); }
          if (lim_const != 0.0) { nlfi_fa->EnableLimiting(x0, dist, lim_coeff); }
          nlf_fa.AddDomainIntegrator(nlfi_fa);
+#if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
+         nlf_fa.GetLocalGradient(x.GetTrueVector()).GetDiag(d);
+         d = 0.0;
+#else
+         // We don't set the EssentialBC in order to get the same diagonal
          //nlf_fa.SetEssentialBC(ess_bdr);
          dynamic_cast<SparseMatrix &>(nlf_fa.GetGradient(x)).GetDiag(d);
+#endif
       }
       res.diag = d.Norml2();
    }
@@ -548,14 +563,14 @@ constexpr int DIAG = 30;
 
 static void dump_args(const char *args[])
 {
-   printf("tmop -m %s -o %s -qo %s -mid %s -tid %s -fix-bnd -ls %s%s%s%s%s%s %s\n",
+   printf("tmop -m %s --fix-bnd -o %s -qo %s -mid %s -tid %s -ls %s%s%s%s%s%s %s\n",
           args[MSH], args[POR], args[QOR],
           args[MID], args[TID], args[LS],
           args[LC][0] == '0' ? "" : " -lc ",
           args[LC][0] == '0' ? "" : args[LC],
           args[NOR][0] == '0' ? "" : " -nor",
           args[JI][0] == '0' ? "" : " -jitter",
-          args[DIAG][1] == 'n' ? "" : " -diag",
+          args[DIAG][1] == 'n' ? " -no-diag" : " -diag",
           args[ALV]);
    fflush(0);
 }
