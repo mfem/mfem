@@ -95,6 +95,8 @@ public:
    virtual void AddMultGradPA(const Vector &g,
                               const Vector &x, Vector &y) const;
 
+   virtual void AssembleGradientDiagonalPA(const Vector &x, Vector &diag) const;
+
    virtual ~NonlinearFormIntegrator() { }
 };
 
