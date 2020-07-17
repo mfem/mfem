@@ -32,6 +32,12 @@ DATA_DIR = data
 SEQ_MAIN_OBJ = unit_test_main.o
 PAR_MAIN_OBJ = punit_test_main.o
 
+# PA files to be tested with CUDA
+PA_CUDA_FILES = $(SRC)fem/test_pa_coeff.cpp
+PA_CUDA_OBJ_FILES = $(SRC)fem/test_pa_coeff.cuda.o
+PA_CUDA_TESTS = $(if $(USE_CUDA),pa_tests_cuda)
+#PA_CUDA_TESTS += $(if $(USE_CUDA),pa_tests_cuda_uvm)
+
 # Sedov numerical seq/par files and tests
 SEDOV_FILES = $(SRC)miniapps/test_sedov.cpp
 
@@ -51,7 +57,7 @@ PAR_SEDOV_DEBUG_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.pdebug.o)
 PAR_SEDOV_CUDA_OBJ_FILES = $(if $(USE_CUDA),$(SEDOV_FILES:$(SRC)%.cpp=%.pcuda.o))
 PAR_SEDOV_CUDA_UVM_OBJ_FILES = $(if $(USE_CUDA),$(SEDOV_FILES:$(SRC)%.cpp=%.pcuda_uvm.o))
 
-SEQ_UNIT_TESTS = unit_tests $(SEQ_SEDOV_TESTS)
+SEQ_UNIT_TESTS = unit_tests $(SEQ_SEDOV_TESTS) $(PA_CUDA_TESTS)
 PAR_UNIT_TESTS = punit_tests $(PAR_SEDOV_TESTS)
 
 ifeq ($(MFEM_USE_MPI),NO)
@@ -115,6 +121,20 @@ $(eval $(call psedov_tests,cpu,CPU,cpu))
 $(eval $(call psedov_tests,debug,DEBUG,debug))
 $(eval $(call psedov_tests,cuda,CUDA,cuda))
 $(eval $(call psedov_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
+
+define pa_tests
+pa_tests_$(1): PA_TESTS_FLAGS=
+pa_tests_$(1): unit_test_main.o $$(PA_$(2)_OBJ_FILES) \
+ $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
+	$$(CCC) $$(<) $$(PA_$(2)_OBJ_FILES) \
+	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
+$$(PA_$(2)_OBJ_FILES): %.$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
+	@mkdir -p $$(@D)
+	$$(CCC) -c $$(abspath $$(<)) $$(MFEM_FLAGS) $$(INCLUDES) \
+	   $$(PA_TESTS_FLAGS) -o $$(@)
+endef
+$(eval $(call pa_tests,cuda,CUDA,cuda))
+#$(eval $(call pa_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
 
 $(DATA_DIR):
 	ln -s $(SRC)$(DATA_DIR) .
