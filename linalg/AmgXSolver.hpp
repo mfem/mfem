@@ -8,21 +8,6 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-
-#ifndef MFEM_AMGX_SOLVER
-#define MFEM_AMGX_SOLVER
-
-#include "../config/config.hpp"
-
-#ifdef MFEM_USE_AMGX
-#ifdef MFEM_USE_MPI
-
-#include <amgx_c.h>
-#include <mpi.h>
-#include "hypre.hpp"
-
-//using Int_64 = long long int; //needed for Amgx
-
 //Reference:
 //Pi-Yueh Chuang, & Lorena A. Barba (2017).
 //AmgXWrapper: An interface between PETSc and the NVIDIA AmgX library. J. Open Source Software, 2(16):280, doi:10.21105/joss.00280
@@ -31,6 +16,22 @@
  *
  * \param call [in] Function call to CUDA API.
  */
+
+ #ifndef MFEM_AMGX_SOLVER
+ #define MFEM_AMGX_SOLVER
+
+ #include "../config/config.hpp"
+
+ #ifdef MFEM_USE_AMGX
+ #ifdef MFEM_USE_MPI
+
+ #include <amgx_c.h>
+ #include <mpi.h>
+ #include "hypre.hpp"
+
+
+
+
 # define CHECK(call)                                                        \
   {                                                                           \
   const cudaError_t       error = call;                                   \
@@ -56,8 +57,6 @@ public:
   AmgXSolver(const MPI_Comm &comm,
              const std::string &modeStr, const std::string &cfgFile);
 
-
-  /** \brief Destructor. */
   ~AmgXSolver();
 
 
@@ -111,10 +110,6 @@ private:
   /** \brief The name of the node that this MPI process belongs to. */
   std::string             nodeName;
 
-  //Class members adapted from 
-  //Pi-Yueh Chuang, & Lorena A. Barba (2017).
-  
-
   /** \brief Number of local GPU devices used by AmgX.*/
   int                     nDevs;
 
@@ -161,9 +156,6 @@ private:
   /** \brief Rank in \ref AmgXSolver::devWorld "devWorld". */
   int                     myDevWorldRank;
 
-
-
-
   /** \brief A parameter used by AmgX. */
   int                     ring;
 
@@ -188,7 +180,6 @@ private:
   /** \brief AmgX resource object.
    */
   static AMGX_resources_handle   rsrc;
-
 
   /** \brief Set AmgX solver mode based on the user-provided string.
    */
@@ -216,8 +207,6 @@ private:
 
 
   int64_t m_local_rows;  //mlocal rows for ranks that talk to the gpu
-
-
 
 };
 
