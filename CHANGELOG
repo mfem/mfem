@@ -144,6 +144,8 @@ New and updated examples and miniapps
   mesh based on element attributes. Any newly exposed boundary elements are
   assigned attribute numbers related to the trimmed element attributes.
 
+- Added diagonal preconditioner in Example 6/6p for partial assembly.
+
 Improved testing
 ----------------
 - Added a GitLab pipeline that automates PR testing on supercomputing systems
