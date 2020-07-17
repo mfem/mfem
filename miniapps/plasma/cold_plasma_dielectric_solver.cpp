@@ -974,7 +974,7 @@ CPDSolver::Update()
    HDivFESpace_->Update();
    if (HDivFESpace2p_) { HDivFESpace2p_->Update(false); }
 
-   if ( ess_bdr_.Size() > 0 )
+   if ( sbcs_->Size() > 0 || dbcs_->Size() > 0)
    {
       HCurlFESpace_->GetEssentialTrueDofs(ess_bdr_, ess_bdr_tdofs_);
    }
