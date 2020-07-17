@@ -72,12 +72,14 @@ protected:
 
    double alpha, kappa;
 
+   int nDevs;
+
    mutable Vector z; // auxiliary vector
 
 public:
 
    ConductionOperator(ParFiniteElementSpace &f, double alpha, double kappa,
-                                         const Vector &u, const std::string &amgx_cfg);
+                                         const Vector &u, const std::string &amgx_cfg, int &nDevs);
 
    virtual void Mult( const Vector &u, Vector &du_dt) const;
    /** Solve the Backward-Euler equation: k = f(u + dt*k, t), for the unknown k.
@@ -101,12 +103,12 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // 2. Parse command-line options.
-   const char *mesh_file = "../data/star.mesh";
-   int ser_ref_levels = 5;
+   const char *mesh_file = "../data/beam-hex.mesh";
+   int ser_ref_levels = 4;
    int par_ref_levels = 0;
    int order = 2;
    int ode_solver_type = 11;
-   double t_final = 1.0;
+   double t_final = 1.0e-2;
    double dt = 1.0e-2;
    double alpha = 1.0e-2;
    double kappa = 0.5;
@@ -116,6 +118,7 @@ int main(int argc, char *argv[])
    bool adios2 = false;
    bool amgx = true;
    const char *amgx_cfg = 0;
+   int nDevs = 4;
 
    int precision = 8;
    cout.precision(precision);
@@ -154,6 +157,7 @@ int main(int argc, char *argv[])
   args.AddOption(&amgx_cfg, "-c","--c","AMGX solver file");
   args.AddOption(&amgx, "-amgx","--amgx","-no-amgx",
                                  "--no-amgx","Use AMGX");
+  args.AddOption(&nDevs, "-nd","--nd","Number of GPU devices on a node.");
    args.Parse();
    if (!args.Good())
    {
@@ -241,7 +245,7 @@ int main(int argc, char *argv[])
    amgx_str = amgx_cfg;
 
    // 9. Initialize the conduction operator and the VisIt visualization.
-   ConductionOperator oper(fespace, alpha, kappa, u, amgx_str);
+   ConductionOperator oper(fespace, alpha, kappa, u, amgx_str, nDevs);
 
    u_gf.SetFromTrueDofs(u);
    {
@@ -403,7 +407,7 @@ int main(int argc, char *argv[])
 }
 
 ConductionOperator::ConductionOperator(ParFiniteElementSpace &f, double al,
-                                       double kap, const Vector &u,const std::string &amgx_str)
+                                       double kap, const Vector &u,const std::string &amgx_str, int &nDevs)
    : TimeDependentOperator(f.GetTrueVSize(), 0.0), fespace(f), M(NULL), K(NULL),
      T(NULL), current_dt(0.0),
      M_solver(f.GetComm()), T_solver(f.GetComm()), z(height)
@@ -414,7 +418,7 @@ ConductionOperator::ConductionOperator(ParFiniteElementSpace &f, double al,
    M->AddDomainIntegrator(new MassIntegrator());
    M->Assemble(0); // keep sparsity pattern of M and K the same
    M->FormSystemMatrix(ess_tdof_list, Mmat);
-   m_AmgXSolver.initialize(MPI_COMM_WORLD, "dDDI", amgx_str);
+   m_AmgXSolver.initialize(MPI_COMM_WORLD, "dDDI", amgx_str, nDevs);
    m_AmgXSolver.setA(Mmat);
 
    alpha = al;
@@ -439,7 +443,8 @@ void ConductionOperator::Mult(const Vector &u, Vector &du_dt) const
    Kmat.Mult(u, z);
    z.Neg(); // z = -z
    auto start2 = std::chrono::steady_clock::now();
-   m_AmgXSolver.solve(z, du_dt);
+   du_dt = 0.0;
+   m_AmgXSolver.solve(du_dt,z);
    auto end2 = std::chrono::steady_clock::now();
    std::chrono::duration<double> elapsed_seconds2 = end2-start2;
    std::cout << "Solve "<< elapsed_seconds2.count() << "\n";

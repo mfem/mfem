@@ -29,9 +29,9 @@ namespace mfem
 
   /* \implements AmgXSolver::AmgXSolver */
   AmgXSolver::AmgXSolver(const MPI_Comm &comm,
-                         const std::string &modeStr, const std::string &cfgFile)
+                         const std::string &modeStr, const std::string &cfgFile, int &nDevs)
   {
-    initialize(comm, modeStr, cfgFile);
+    initialize(comm, modeStr, cfgFile, nDevs);
   }
 
   /* \implements AmgXSolver::~AmgXSolver */
@@ -50,7 +50,7 @@ namespace mfem
 
   /* \implements AmgXSolver::initialize */
   void AmgXSolver::initialize(const MPI_Comm &comm,
-                              const std::string &modeStr, const std::string &cfgFile)
+                              const std::string &modeStr, const std::string &cfgFile, int &nDevs)
   {
 
     // if this instance has already been initialized, skip
@@ -79,7 +79,7 @@ namespace mfem
 
     start1 = std::chrono::steady_clock::now();
     // initialize communicators and corresponding information
-    initMPIcomms(comm);
+    initMPIcomms(comm, nDevs);
     end1 = std::chrono::steady_clock::now();
     elapsed_seconds1 = end1-start1;
     if(globalcommrank == 0) std::cout << "initMPIcomms "<< elapsed_seconds1.count() << "\n";
@@ -100,7 +100,7 @@ namespace mfem
 
 
   /* \implements AmgXSolver::initMPIcomms */
-  void AmgXSolver::initMPIcomms(const MPI_Comm &comm)
+  void AmgXSolver::initMPIcomms(const MPI_Comm &comm, int &nDevs)
   {
     // duplicate the global communicator
     MPI_Comm_dup(comm, &globalCpuWorld);
@@ -119,12 +119,8 @@ namespace mfem
     MPI_Comm_size(localCpuWorld, &localSize);
     MPI_Comm_rank(localCpuWorld, &myLocalRank);
 
-    // set up the variable nDevs
-    cudaGetDeviceCount(&nDevs);
-
-
     // set up corresponding ID of the device used by each local process
-    setDeviceIDs();
+    setDeviceIDs(nDevs);
 
     MPI_Barrier(globalCpuWorld);
 
@@ -187,7 +183,7 @@ namespace mfem
 
 
   /* \implements AmgXSolver::setDeviceIDs */
-  void AmgXSolver::setDeviceIDs()
+  void AmgXSolver::setDeviceIDs(int &nDevs)
   {
 
     // set the ID of device that each local process will use
