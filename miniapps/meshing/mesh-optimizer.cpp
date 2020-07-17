@@ -31,6 +31,9 @@
 //
 // Compile with: make mesh-optimizer
 //
+//  Preconditioner run:
+// ./mesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -vl 2 -pa -d cpu
+//
 // Sample runs:
 //   Adapted analytic shape:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
@@ -622,7 +625,7 @@ int main(int argc, char *argv[])
    //     scaled by used-defined space-dependent weights. Note that there are no
    //     command-line options for the weights and the type of the second
    //     metric; one should update those in the code.
-   NonlinearForm a(fespace);
+   NonlinearForm a(fespace), a_fa(fespace), a_fa_bc(fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    ConstantCoefficient *coeff1 = NULL;
    TMOP_QualityMetric *metric2 = NULL;
@@ -659,7 +662,12 @@ int main(int argc, char *argv[])
 
       a.AddDomainIntegrator(combo);
    }
-   else { a.AddDomainIntegrator(he_nlf_integ); }
+   else
+   {
+      a.AddDomainIntegrator(he_nlf_integ);
+      a_fa.AddDomainIntegrator(he_nlf_integ);
+      a_fa_bc.AddDomainIntegrator(he_nlf_integ);
+   }
 
    if (pa) { a.Setup(); }
 
@@ -725,11 +733,33 @@ int main(int argc, char *argv[])
          }
       }
       a.SetEssentialVDofs(ess_vdofs);
+      a_fa_bc.SetEssentialVDofs(ess_vdofs);
    }
 
    // 17. As we use the Newton method to solve the resulting nonlinear system,
    //     here we setup the linear solver for the system's Jacobian.
    Solver *S = NULL;
+   DSmoother S_prec(0, 1.0, 1);
+   OperatorJacobiSmoother jacobiPA(a, a.GetEssentialTrueDofs());
+
+   SparseMatrix &s = dynamic_cast<SparseMatrix &>(a_fa.GetGradient(x));
+   Vector d;
+   s.GetDiag(d);
+   std::cout << "- BC LEGACY: " << d.Norml1() << std::endl;
+
+   SparseMatrix &ss = dynamic_cast<SparseMatrix &>(a_fa_bc.GetGradient(x));
+   Vector dd;
+   ss.GetDiag(dd);
+   std::cout << "+ BC LEGACY: " << dd.Norml1() << std::endl;
+
+   if (pa)
+   {
+      Vector diag(x.Size());
+      a.GetGradient(x);
+      a.AssembleGradientDiagonal(diag);
+      std::cout << "- BC PA:     " << diag.Norml1() << std::endl;
+   }
+
    const double linsol_rtol = 1e-12;
    if (lin_solver == 0)
    {
@@ -751,6 +781,8 @@ int main(int argc, char *argv[])
       minres->SetRelTol(linsol_rtol);
       minres->SetAbsTol(0.0);
       minres->SetPrintLevel(verbosity_level >= 2 ? 3 : -1);
+      if (pa) { minres->SetPreconditioner(jacobiPA); }
+      else    { minres->SetPreconditioner(S_prec); }
       S = minres;
    }
 

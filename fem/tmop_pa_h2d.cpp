@@ -138,7 +138,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
    });
 }
 
-void TMOP_Integrator::AssembleDiagonalPA_2D(Vector &D)
+void TMOP_Integrator::AssembleDiagonalPA_2D(Vector &D) const
 {
    const int N = PA.ne;
    const int D1D = PA.maps->ndof;
