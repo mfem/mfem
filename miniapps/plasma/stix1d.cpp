@@ -755,7 +755,7 @@ int main(int argc, char *argv[])
    ParGridFunction temperature_gf;
    ParGridFunction density_gf;
    ParGridFunction potential_gf;
-   
+
    BField.ProjectCoefficient(*BCoef);
    // LField.ProjectCoefficient(LCoef);
 

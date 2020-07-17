@@ -603,7 +603,7 @@ int main(int argc, char *argv[])
    ParGridFunction temperature_gf;
    ParGridFunction density_gf;
    ParGridFunction potential_gf;
-   
+
    BField.ProjectCoefficient(BCoef);
 
    int size_h1 = H1FESpace.GetVSize();
@@ -674,7 +674,7 @@ int main(int argc, char *argv[])
       density_gf.ProjectCoefficient(rhoCoef);
    }
    */
-   
+
    // Create a coefficient describing the magnetic permeability
    ConstantCoefficient muInvCoef(1.0 / mu0_);
 
