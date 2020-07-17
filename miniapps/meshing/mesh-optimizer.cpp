@@ -625,7 +625,9 @@ int main(int argc, char *argv[])
    //     scaled by used-defined space-dependent weights. Note that there are no
    //     command-line options for the weights and the type of the second
    //     metric; one should update those in the code.
-   NonlinearForm a(fespace), a_fa(fespace), a_fa_bc(fespace);
+   NonlinearForm a(fespace);
+   NonlinearForm *a_fa = new NonlinearForm(fespace);
+   NonlinearForm *a_fa_bc = new NonlinearForm(fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    ConstantCoefficient *coeff1 = NULL;
    TMOP_QualityMetric *metric2 = NULL;
@@ -665,8 +667,8 @@ int main(int argc, char *argv[])
    else
    {
       a.AddDomainIntegrator(he_nlf_integ);
-      a_fa.AddDomainIntegrator(he_nlf_integ);
-      a_fa_bc.AddDomainIntegrator(he_nlf_integ);
+      a_fa->AddDomainIntegrator(he_nlf_integ);
+      a_fa_bc->AddDomainIntegrator(he_nlf_integ);
    }
 
    if (pa) { a.Setup(); }
@@ -733,7 +735,7 @@ int main(int argc, char *argv[])
          }
       }
       a.SetEssentialVDofs(ess_vdofs);
-      a_fa_bc.SetEssentialVDofs(ess_vdofs);
+      a_fa_bc->SetEssentialVDofs(ess_vdofs);
    }
 
    // 17. As we use the Newton method to solve the resulting nonlinear system,
@@ -742,12 +744,12 @@ int main(int argc, char *argv[])
    DSmoother S_prec(0, 1.0, 1);
    OperatorJacobiSmoother jacobiPA(a, a.GetEssentialTrueDofs());
 
-   SparseMatrix &s = dynamic_cast<SparseMatrix &>(a_fa.GetGradient(x));
+   SparseMatrix &s = dynamic_cast<SparseMatrix &>(a_fa->GetGradient(x));
    Vector d;
    s.GetDiag(d);
    std::cout << "- BC LEGACY: " << d.Norml1() << std::endl;
 
-   SparseMatrix &ss = dynamic_cast<SparseMatrix &>(a_fa_bc.GetGradient(x));
+   SparseMatrix &ss = dynamic_cast<SparseMatrix &>(a_fa_bc->GetGradient(x));
    Vector dd;
    ss.GetDiag(dd);
    std::cout << "+ BC LEGACY: " << dd.Norml1() << std::endl;

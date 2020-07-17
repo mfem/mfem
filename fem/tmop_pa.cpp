@@ -221,29 +221,18 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    }
 }
 
-void TMOP_Integrator::AssembleGradientDiagonalPA(const Vector &x,
-                                                 Vector &diag) const
+void TMOP_Integrator::AssembleGradientDiagonalPA(const Vector &xe,
+                                                 Vector &de) const
 {
    MFEM_VERIFY(PA.R, "PA extension setup has not been done!");
 
-   if (!PA.setup_Jtr) { ComputeElementTargetsPA(); }
+   if (!PA.setup_Jtr) { ComputeElementTargetsPA(xe); }
 
-/*
-   if (!PA.setup_Grad)
-   {
-      Vector xe(PA.R->Height(), Device::GetMemoryType());
-      xe.UseDevice(true);
-      xe = 0.0;
-      PA.R->Mult(x, xe);
-      SetupGradPA(xe);
-      PA.setup_Grad = false;
-   }
-*/
-   if (!PA.setup_Grad) { SetupGradPA(x); }
+   if (!PA.setup_Grad) { SetupGradPA(xe); }
 
    if (PA.dim == 2)
    {
-      AssembleDiagonalPA_2D(diag);
+      AssembleDiagonalPA_2D(de);
       if (coeff0) { MFEM_ABORT("2D limiting part of the diagonal is WIP."); }
    }
    else

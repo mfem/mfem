@@ -408,6 +408,30 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    ess_bdr = 1;
    nlf.SetEssentialBC(ess_bdr);
 
+   // Diagonal test
+   res.diag = 0.0;
+   if (diag)
+   {
+      Vector d(x.Size());
+      if (pa)
+      {
+         nlf.GetGradient(x);
+         nlf.AssembleGradientDiagonal(d);
+      }
+      else
+      {
+         ParNonlinearForm nlf_fa(&fes);
+         TMOP_Integrator *nlfi_fa = new TMOP_Integrator(metric, target_c);
+         nlfi_fa->SetIntegrationRule(*ir);
+         if (normalization == 1) { nlfi_fa->EnableNormalization(x0); }
+         if (lim_const != 0.0) { nlfi_fa->EnableLimiting(x0, dist, lim_coeff); }
+         nlf_fa.AddDomainIntegrator(nlfi_fa);
+         //nlf_fa.SetEssentialBC(ess_bdr);
+         dynamic_cast<SparseMatrix &>(nlf_fa.GetGradient(x)).GetDiag(d);
+      }
+      res.diag = d.Norml2();
+   }
+
    // Linear solver for the system's Jacobian
    Solver *S = nullptr;
    constexpr double linsol_rtol = 1e-12;
@@ -481,21 +505,11 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    const double final_energy = nlf.GetParGridFunctionEnergy(x);
    res.final_energy = final_energy;
 
-   // Diagonal test
-   res.diag = 0.0;
-   if (diag)
-   {
-      Vector d;
-      const Operator &mGradOp = nlf.GetGradient(x);
-      if (pa) { he_nlf_integ->AssembleDiagonalPA(x, d); }
-      else { dynamic_cast<const SparseMatrix*>(&mGradOp)->GetDiag(d); }
-      res.diag = d.Norml2();
-   }
-
    delete S;
    delete pmesh;
    delete metric;
    delete newton;
+   delete target_c;
 
    return 0;
 }
@@ -572,7 +586,7 @@ static void tmop_tests(int myid)
    {
       DEFAULT_ARGS;
       args[MSH] = "star.mesh";
-      //args[DIAG] = "-diag";
+      args[DIAG] = "-diag";
       for (int p : {1, 2, 3, 4})
       {
          char por[2] {};
@@ -613,6 +627,7 @@ static void tmop_tests(int myid)
       args[NI] = "100";
       args[MSH] = "square01.mesh";
       args[RFS] = "1";
+      args[DIAG] = "-diag";
       for (int p : {1, 2})
       {
          char por[2] {};
@@ -654,6 +669,7 @@ static void tmop_tests(int myid)
       args[MID] = "2";
       args[NI] = "100";
       args[LI] = "100";
+      args[DIAG] = "-diag";
       for (int p : {1, 2})
       {
          char por[2] {};
@@ -681,7 +697,7 @@ static void tmop_tests(int myid)
       }
    }
 
-   // 2D BLADE + normalization
+   // BLADE + normalization
    {
       DEFAULT_ARGS;
       args[MSH] = "blade.mesh";
@@ -689,6 +705,7 @@ static void tmop_tests(int myid)
       args[NI] = "100";
       args[LI] = "100";
       args[NOR] = "1";
+      args[DIAG] = "-diag";
       for (int p : {1, 2})
       {
          char por[2] {};
@@ -717,7 +734,7 @@ static void tmop_tests(int myid)
       }
    }
 
-   // 2D BLADE + limiting + normalization
+   // BLADE + limiting + normalization
    {
       DEFAULT_ARGS;
       args[MSH] = "blade.mesh";
@@ -726,6 +743,7 @@ static void tmop_tests(int myid)
       args[LI] = "100";
       args[LC] = "3.14";
       args[NOR] = "1";
+      // WIP args[DIAG] = "-diag";
       for (int p : {1, 2})
       {
          char por[2] {};
@@ -754,13 +772,14 @@ static void tmop_tests(int myid)
       }
    }
 
-   // 2D BLADE + Discrete size 2D + normalization, mid: #002 & #007
+   // BLADE + Discrete size + normalization, mid: #002 & #007
    {
       DEFAULT_ARGS;
       args[MSH] = "blade.mesh";
       args[NI] = "100";
       args[LI] = "200";
       args[NOR] = "1";
+      args[DIAG] = "-diag";
       for (int p : {1})
       {
          char por[2] {};
@@ -793,9 +812,9 @@ static void tmop_tests(int myid)
          }
          if (!all) { break; }
       }
-   } // 2D BLADE + Discrete size 2D + normalization
+   }
 
-   // 3D CUBE + Discrete size & aspect-ratio 3D + normalization + limiting
+   // CUBE + Discrete size & aspect-ratio + normalization + limiting
    {
       DEFAULT_ARGS;
       args[MSH] = "cube.mesh";
@@ -834,7 +853,7 @@ static void tmop_tests(int myid)
          }
          if (!all) { break; }
       }
-   } // 3D CUBE + Discrete size & aspect-ratio 3D + normalization + limiting
+   }
 
    // TOROID-HEX
    {
@@ -872,7 +891,7 @@ static void tmop_tests(int myid)
          }
          if (!all) { break; }
       }
-   } // TOROID-HEX
+   }
 
    // TOROID-HEX + limiting, no normalization
    {
@@ -911,7 +930,7 @@ static void tmop_tests(int myid)
          }
          if (!all) { break; }
       }
-   } // TOROID-HEX + limiting
+   }
 
    // TOROID-HEX + limiting + normalization
    {
@@ -951,7 +970,7 @@ static void tmop_tests(int myid)
          }
          if (!all) { break; }
       }
-   } // TOROID-HEX + limiting + normalization
+   }
 }
 
 #if defined(MFEM_TMOP_MPI)
