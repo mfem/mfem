@@ -1640,30 +1640,26 @@ void HypreParMatrix::Destroy()
    }
 }
 
-/* job =  0, extract block diagonal of A and scale A into C
- * job =  1, job 0 + scale b into d
- * job =  2, use A to scale b only
- */
 #if MFEM_HYPRE_VERSION >= 21800
 int BlockInverseScale(const HypreParMatrix *A, HypreParMatrix *C,
-                      const Vector *b, HypreParVector *d, int block, int job)
+                      const Vector *b, HypreParVector *d,
+                      int blocksize, int job)
 {
    if (0 == job || 1 == job)
    {
       hypre_ParCSRMatrix *C_hypre;
-      hypre_ParcsrBdiagInvScal(*A, block, &C_hypre);
+      hypre_ParcsrBdiagInvScal(*A, blocksize, &C_hypre);
       hypre_ParCSRMatrixDropSmallEntries(C_hypre, 1e-15, 1);
-      (*C).WrapHypreParCSRMatrix(C_hypre);
+      C->WrapHypreParCSRMatrix(C_hypre);
    }
 
    if (1 == job || 2 == job)
    {
-      HypreParVector *b_Hypre = new HypreParVector(A->GetComm(),
-                                                   A->GetGlobalNumRows(),
-                                                   b->GetData(), A->GetRowStarts());
+      HypreParVector b_Hypre(A->GetComm(),
+                             A->GetGlobalNumRows(),
+                             b->GetData(), A->GetRowStarts());
       hypre_ParVector *d_hypre;
-      hypre_ParvecBdiagInvScal(*b_Hypre, block, &d_hypre, *A);
-      delete b_Hypre;
+      hypre_ParvecBdiagInvScal(*b_Hypre, blocksize, &d_hypre, *A);
 
       d->WrapHypreParVector(d_hypre);
       d->SetOwnership(true);

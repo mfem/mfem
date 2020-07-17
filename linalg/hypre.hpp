@@ -569,8 +569,13 @@ public:
 };
 
 #if MFEM_HYPRE_VERSION >= 21800
+/** Constructs and applies block diagonal inverse of HypreParMatrix. 
+	job =  0: extract block diagonal of A and scale A into C
+ 	job =  1: job 0 + scale b into d
+ 	job =  2: use A to scale b only. */
 int BlockInverseScale(const HypreParMatrix *A, HypreParMatrix *C,
-                      const Vector *b, HypreParVector *d, int block, int job);
+                      const Vector *b, HypreParVector *d,
+                      int blocksize, int job);
 #endif
 
 /** @brief Return a new matrix `C = alpha*A + beta*B`, assuming that both `A`
@@ -767,7 +772,8 @@ public:
 
 #if MFEM_HYPRE_VERSION >= 21800
 /** Preconditioner for HypreParMatrices that are triangular in some ordering.
-	Find correct ordering and performs forward substitution on processor. */
+	Finds correct ordering and performs forward substitution on processor
+	as approximate inverse. Exact on one processor. */
 class HypreTriSolve : public HypreSolver
 {
 public:
