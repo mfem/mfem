@@ -233,13 +233,14 @@ void TMOP_Integrator::AssembleDiagonalPA(const Vector &x, Vector &diag)
 
    if (!PA.setup_Jtr) { ComputeElementTargetsPA(); }
 
-   MFEM_VERIFY(PA.setup_Grad,"");
+   if (!PA.setup_Grad)
    {
       Vector xe(PA.R->Height(), Device::GetMemoryType());
       xe.UseDevice(true);
       xe = 0.0;
       PA.R->Mult(x, xe);
       SetupGradPA(xe);
+      PA.setup_Grad = false;
    }
 
    if (PA.dim == 2)
@@ -296,8 +297,6 @@ double TMOP_Integrator::GetGridFunctionEnergyPA(const Vector &xe) const
    double energy = 0.0;
 
    ComputeElementTargetsPA(xe);
-
-   //SetupGradPA(xe);
 
    if (PA.dim == 2)
    {
