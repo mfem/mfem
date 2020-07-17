@@ -96,7 +96,7 @@ void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
 
 const SparseMatrix &ParNonlinearForm::GetLocalGradient(const Vector &x) const
 {
-   if (NonlinearForm::ext) { MFEM_ABORT("Not yet implemented!"); }
+   //if (NonlinearForm::ext) { MFEM_ABORT("Not yet implemented!"); }
 
    NonlinearForm::GetGradient(x); // (re)assemble Grad, no b.c.
 
