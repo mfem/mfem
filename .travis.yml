@@ -326,13 +326,10 @@ before_install:
    #      brew install open-mpi;
    #   fi
 
-   # Enable ccache on mac os:
-   - if [ $TRAVIS_OS_NAME == "osx" ]; then
-        export PATH="/usr/local/opt/ccache/libexec:$PATH";
-     fi
-
-   - printf "which \$CC  = "; which $CC;
-     printf "which \$CXX = "; which $CXX
+   # Disable the use ccache while building dependencies that are cached:
+   - echo "before \$PATH = $PATH";
+     export PATH=${PATH//\/usr\/lib\/ccache:/};
+     echo "after  \$PATH = $PATH"
 
    # On Mac OS X, build and cache OpenMPI 2.1.6:
    - if [ $TRAVIS_OS_NAME == "osx" ] && [ $MPI == "YES" ]; then
@@ -416,6 +413,16 @@ install:
            echo "Reusing cached metis-4.0/";
         fi;
      fi
+
+   # Re-enable ccache on linux; enable ccache on mac os:
+   - if [ $TRAVIS_OS_NAME == "linux" ]; then
+        export PATH="/usr/lib/ccache:$PATH";
+     else if [ $TRAVIS_OS_NAME == "osx" ]; then
+        export PATH="/usr/local/opt/ccache/libexec:$PATH";
+     fi
+
+   - printf "which \$CC  = "; which $CC;
+     printf "which \$CXX = "; which $CXX
 
 script:
    # Compiler
