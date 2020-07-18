@@ -137,7 +137,16 @@ New and updated examples and miniapps
   mesh based on element attributes. Any newly exposed boundary elements are
   assigned attribute numbers related to the trimmed element attributes.
 
-- Added two adjoint miniapps (miniapps/adjoint) to demonstrate how to solve adjoint problems in MFEM using the new CVODESSolver feature. The cvsRoberts_ASAi_dns miniapp re-implements the SUNDIALS CVODES example (cvodes/serial/cvsRoberts_ASAi_dns) and demonstrates how to solve the backward adjoint problem as well as evaluate both forward and adjoint quadratures in serial. The adjoint_advection_diffusion re-implements cvodes/parallel/cvsAdvDiff_ASAp_non_p and demonstrates how to solve a backward adjoint problem corresponding to an advection diffusion p.d.e and evaluate adjoint quadratures in parallel. To build these miniapps, enable the MFEM_USE_SUNDIALS configuration option.
+- Added two adjoint miniapps (miniapps/adjoint) to demonstrate how to solve
+  adjoint problems in MFEM using the new CVODESSolver feature. The
+  cvsRoberts_ASAi_dns miniapp re-implements the SUNDIALS CVODES example
+  (cvodes/serial/cvsRoberts_ASAi_dns) and demonstrates how to solve the backward
+  adjoint problem as well as evaluate both forward and adjoint quadratures in
+  serial. The adjoint_advection_diffusion re-implements
+  cvodes/parallel/cvsAdvDiff_ASAp_non_p and demonstrates how to solve a backward
+  adjoint problem corresponding to an advection diffusion p.d.e and evaluate
+  adjoint quadratures in parallel. To build these miniapps, enable the
+  MFEM_USE_SUNDIALS configuration option.
 
 Improved testing
 ----------------
