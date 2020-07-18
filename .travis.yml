@@ -242,6 +242,14 @@ jobs:
       # osx_image: xcode7.3
       compiler: clang
       name: "Mac: Serial + Debug"
+      addons:
+        homebrew:
+          packages:
+            - ccache
+      cache:
+        ccache: true
+        directories:
+          - $HOME/Library/Caches/Homebrew
       env: DEBUG=YES
            MPI=NO
            CODECOV=NO
@@ -303,6 +311,14 @@ before_install:
    # - if [ $TRAVIS_OS_NAME == "osx" ] && [ $MPI == "YES" ]; then
    #      brew install open-mpi;
    #   fi
+
+   # Enable ccache on mac os:
+   - if [ $TRAVIS_OS_NAME == "osx" ]; then
+        export PATH="/usr/local/opt/ccache/libexec:$PATH";
+     fi
+
+   - printf "which \$CC  = "; which $CC;
+     printf "which \$CXX = "; which $CXX
 
    # On Mac OS X, build and cache OpenMPI 2.1.1:
    - if [ $TRAVIS_OS_NAME == "osx" ] && [ $MPI == "YES" ]; then
