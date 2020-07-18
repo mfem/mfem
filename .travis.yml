@@ -246,31 +246,36 @@ jobs:
         homebrew:
           packages:
             - ccache
-      cache:
-        ccache: true
-        directories:
-          - $HOME/Library/Caches/Homebrew
-      before_cache:
-        - du -sh $HOME/Library/Caches/Homebrew
-        - du -sh $HOME/.ccache
       env: DEBUG=YES
            MPI=NO
            CODECOV=NO
            MFEM_TEST_TARGET=check
+      cache:
+        ccache: true
 
     - os: osx
-      # osx_image: xcode7.3
+      osx_image: xcode11.2
       compiler: clang
       name: "Mac: Serial"
+      addons:
+        homebrew:
+          packages:
+            - ccache
       env: DEBUG=NO
            MPI=NO
            CODECOV=NO
            MFEM_TEST_TARGET=test
+      cache:
+        ccache: true
 
     - os: osx
-      # osx_image: xcode7.3
+      osx_image: xcode11.2
       compiler: clang
       name: "Mac: Parallel + Debug"
+      addons:
+        homebrew:
+          packages:
+            - ccache
       env: DEBUG=YES
            MPI=YES
            CODECOV=NO
@@ -278,6 +283,7 @@ jobs:
            NPROCS=4
            TMPDIR=/tmp
       cache:
+        ccache: true
         directories:
           - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
           - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
@@ -289,9 +295,13 @@ jobs:
           rm -f Lib/*.{c,o}
 
     - os: osx
-      # osx_image: xcode7.3
+      osx_image: xcode11.2
       compiler: clang
       name: "Mac: Parallel"
+      addons:
+        homebrew:
+          packages:
+            - ccache
       env: DEBUG=NO
            MPI=YES
            CODECOV=YES
@@ -299,6 +309,7 @@ jobs:
            NPROCS=4
            TMPDIR=/tmp
       cache:
+        ccache: true
         directories:
           - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
           - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
