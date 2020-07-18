@@ -250,6 +250,9 @@ jobs:
         ccache: true
         directories:
           - $HOME/Library/Caches/Homebrew
+      before_cache:
+        - du -sh $HOME/Library/Caches/Homebrew
+        - du -sh $HOME/.ccache
       env: DEBUG=YES
            MPI=NO
            CODECOV=NO
