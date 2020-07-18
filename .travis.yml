@@ -417,8 +417,10 @@ install:
    # Re-enable ccache on linux; enable ccache on mac os:
    - if [ $TRAVIS_OS_NAME == "linux" ]; then
         export PATH="/usr/lib/ccache:$PATH";
-     else if [ $TRAVIS_OS_NAME == "osx" ]; then
-        export PATH="/usr/local/opt/ccache/libexec:$PATH";
+     else
+        if [ $TRAVIS_OS_NAME == "osx" ]; then
+           export PATH="/usr/local/opt/ccache/libexec:$PATH";
+        fi;
      fi
 
    - printf "which \$CC  = "; which $CC;
