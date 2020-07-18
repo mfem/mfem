@@ -160,6 +160,8 @@ namespace mfem {
  * - <a class="el" href="classmfem_1_1navier_1_1NavierSolver.html">Navier</a>: solve the transient incompressible Navier-Stokes equations
  * - <a class="el" href="miniapps_2performance_2ex1_8cpp_source.html">HPC Example 1</a>: high-performance nodal H1 FEM for the Laplace problem
  * - <a class="el" href="miniapps_2performance_2ex1p_8cpp_source.html">HPC Example 1p</a>: high-performance parallel nodal H1 FEM for the Laplace problem
+ * - <a class="el" href="cvsRoberts__ASAi__dns_8cpp_source.html">Serial Sundials Adjoint Problem</a> Serial adjoint SUNDIALS CVODES example problem implemented in MFEM.
+ * - <a class="el" href="adjoint__advection__diffusion_8cpp_source.html">Parallel Adjoint Advection Diffusion</a>Advection diffusion problem in parallel with adjoint evaluation.
  *
  * See also the <a class="el" href="../../../examples/README.html">README</a> in the <code>examples/</code> directory
  */
