@@ -60,8 +60,10 @@ endif()
 
 # All serial non-device unit tests are built into a single executable 'unit_tests'.
 add_executable(unit_tests unit_test_main.cpp ${UNIT_TESTS_SRCS})
+add_executable(cunit_tests cunit_test_main.cpp ${UNIT_TESTS_SRCS})
 # Unit tests need the ../../data directory.
 add_dependencies(unit_tests copy_data)
+add_dependencies(cunit_tests copy_data)
 target_link_libraries(unit_tests mfem)
 
 # All device unit tests are built into another executable, in order to be able
@@ -114,6 +116,7 @@ endif()
 #   make unit_tests
 #   ctest -R unit_tests [-V]
 add_test(NAME unit_tests COMMAND unit_tests)
+add_test(NAME cunit_tests COMMAND cunit_tests)
 add_test(NAME sedov_tests_cpu COMMAND sedov_tests_cpu)
 add_test(NAME sedov_tests_debug COMMAND sedov_tests_debug)
 
