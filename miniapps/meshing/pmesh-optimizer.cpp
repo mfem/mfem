@@ -31,8 +31,8 @@
 //
 // Compile with: make pmesh-optimizer
 //
-// Diagonal test:
-//     mpirun -np 1 pmesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -pa -d cpu
+// Diagonal PA test:
+//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -bnd -qt 1 -qo 8 -ls 3 -nor -lc 0.1 -vl 2 -pa -d cpu
 //
 // Sample runs:
 //   Adapted analytic shape:
@@ -183,7 +183,12 @@ int main (int argc, char *argv[])
    args.AddOption(&solver_rtol, "-rtol", "--newton-rel-tolerance",
                   "Relative tolerance for the Newton solver.");
    args.AddOption(&lin_solver, "-ls", "--lin-solver",
-                  "Linear solver: 0 - l1-Jacobi, 1 - CG, 2 - MINRES.");
+                  "Linear solver:\n\t"
+                  "0: l1-Jacobi\n\t"
+                  "1: CG\n\t"
+                  "2: MINRES\n\t"
+                  "3: MINRES + Jacobi preconditioner"
+                  "4: MINRES + l1-Jacobi preconditioner");
    args.AddOption(&max_lin_iter, "-li", "--lin-iter",
                   "Maximum number of iterations in the linear solve.");
    args.AddOption(&move_bnd, "-bnd", "--move-boundary", "-fix-bnd",
@@ -771,12 +776,9 @@ int main (int argc, char *argv[])
       a.SetEssentialVDofs(ess_vdofs);
    }
 
-   // 18. As we use the Newton method to solve the resulting nonlinear system,
-   //     here we setup the linear solver for the system's Jacobian.
-   Solver *S = NULL;
-   //HypreSmoother prec;
-   //prec.SetType(HypreSmoother::lumpedJacobi, 1);
-
+   // As we use the Newton method to solve the resulting nonlinear system, here
+   // we setup the linear solver for the system's Jacobian.
+   Solver *S = NULL, *S_prec = NULL;
    const double linsol_rtol = 1e-12;
    if (lin_solver == 0)
    {
@@ -798,7 +800,22 @@ int main (int argc, char *argv[])
       minres->SetRelTol(linsol_rtol);
       minres->SetAbsTol(0.0);
       minres->SetPrintLevel(verbosity_level >= 2 ? 3 : -1);
-      //minres->SetPreconditioner(prec);
+      if (lin_solver == 3 || lin_solver == 4)
+      {
+         if (pa)
+         {
+            MFEM_VERIFY(lin_solver != 4, "PA l1-Jacobi is not implemented");
+            S_prec = new OperatorJacobiSmoother(a, a.GetEssentialTrueDofs());
+         }
+         else
+         {
+            HypreSmoother *hs = new HypreSmoother;
+            hs->SetType((lin_solver == 3) ? HypreSmoother::Jacobi
+                                          : HypreSmoother::l1Jacobi, 1);
+            S_prec = hs;
+         }
+         minres->SetPreconditioner(*S_prec);
+      }
       S = minres;
    }
 
@@ -911,6 +928,7 @@ int main (int argc, char *argv[])
    }
 
    // 24. Free the used memory.
+   delete S_prec;
    delete S;
    delete target_c2;
    delete metric2;
