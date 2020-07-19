@@ -14,14 +14,30 @@ int main(int argc, char *argv[])
    // 1. mesh to be used
    //const char *mesh_file = "../data/periodic-segment.mesh";
    int ref_levels = -1;
-   int order = 1;
+   int order = 4;
+   int cutsize = 1;
+   int N = 20;
    bool visualization = 1;
    double scale;
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
    //    NURBS meshes are projected to second order meshes.
    //Mesh *mesh = new Mesh(mesh_file, 1, 2);
-   Mesh *mesh = new Mesh(20, 1);
+   OptionsParser args(argc, argv);
+   args.AddOption(&order, "-o", "--order",
+                  "Order (degree) of the finite elements.");
+   args.AddOption(&cutsize, "-s", "--cutsize",
+                  "scale of the cut finite elements.");
+   args.AddOption(&N, "-n", "--#elements",
+                  "number of mesh elements.");
+   args.Parse();
+   if (!args.Good())
+   {
+      args.PrintUsage(cout);
+      return 1;
+   }
+   args.PrintOptions(cout);
+   Mesh *mesh = new Mesh(N, 1);
    int dim = mesh->Dimension();
    cout << "number of elements " << mesh->GetNE() << endl;
    ofstream sol_ofv("square_disc_mesh.vtk");
@@ -36,7 +52,7 @@ int main(int argc, char *argv[])
    //    the FEM linear system.
    int nels = mesh->GetNE();
    scale = 1.0 / nels;
-   scale = scale / 1.0/*e+03*/;
+   scale = scale /cutsize;
    LinearForm *b = new LinearForm(fespace);
    ConstantCoefficient one(-1.0);
    ConstantCoefficient zero(0.0);
@@ -81,9 +97,12 @@ int main(int argc, char *argv[])
    mesh->PrintVTK(adj_ofs, 1);
    x.SaveVTK(adj_ofs, "dgAdvSolution", 1);
    adj_ofs.close();
-   cout << "mesh size, h = " << 1.0/mesh->GetNE() << endl;
-   cout << "solution norm: " << endl;
-   cout << x.ComputeL2Error(u) << endl;
+   //cout << x.ComputeL2Error(u) << endl;
+   double norm = CutComputeL2Error(x, fespace, u, scale);
+   cout << "mesh size, h = " << 1.0 / mesh->GetNE() << endl;
+   cout << "solution norm: " << norm << endl;
+   cout << "solution at nodes is: " << endl;
+   x.Print();
    // 11. Free the used memory.
    delete a;
    delete b;
@@ -97,10 +116,12 @@ double u_exact(const Vector &x)
 {
    return exp(x(0));
    //return x(0)*x(0);
+   //return x(0);
 }
 double f_exact(const Vector &x)
 {
-   return -exp(x(0));
+  return -exp(x(0));
+  //return -1.0;
    //return -2.0*x(0);
 }
 // Velocity coefficient
@@ -122,6 +143,89 @@ void velocity_function(const Vector &x, Vector &v)
       v(2) = sqrt(1. / 6.);
       break;
    }
+}
+
+/// function to compute l2 error for cut domain
+double CutComputeL2Error(GridFunction &x, FiniteElementSpace *fes,
+                         Coefficient &exsol, double scale)
+{
+   double error = 0.0;
+   const FiniteElement *fe;
+   ElementTransformation *T;
+   Vector vals;
+   int p = 2;
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      fe = fes->GetFE(i);
+      const IntegrationRule *ir;
+      int intorder = 2 * fe->GetOrder() + 1; // <----------
+      ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+      // }
+      T = fes->GetElementTransformation(i);
+      if (T->ElementNo == fes->GetNE() - 1)
+      {
+         IntegrationRule *cutir;
+         cutir = new IntegrationRule(ir->Size());
+         for (int k = 0; k < cutir->GetNPoints(); k++)
+         {
+            IntegrationPoint &cutip = cutir->IntPoint(k);
+            const IntegrationPoint &ip = ir->IntPoint(k);
+            cutip.x = (scale * ip.x) / T->Weight();
+            cutip.weight = ip.weight;
+         }
+         x.GetValues(i, *cutir, vals);
+         for (int j = 0; j < cutir->GetNPoints(); j++)
+         {
+            IntegrationPoint &ip = cutir->IntPoint(j);
+            T->SetIntPoint(&ip);
+            cout << " x is " << fabs(vals(j)) << endl;
+            cout << " u_exact is " << exsol.Eval(*T, ip) << endl;
+            double err = fabs(vals(j) - exsol.Eval(*T, ip));
+            if (p < infinity())
+            {
+               err = pow(err, p);
+               error += ip.weight * scale * err;
+            }
+            else
+            {
+               error = std::max(error, err);
+            }
+         }
+      }
+      else
+      {
+         x.GetValues(i, *ir, vals);
+         for (int j = 0; j < ir->GetNPoints(); j++)
+         {
+            const IntegrationPoint &ip = ir->IntPoint(j);
+            T->SetIntPoint(&ip);
+            double err = fabs(vals(j) - exsol.Eval(*T, ip));
+            if (p < infinity())
+            {
+               err = pow(err, p);
+               error += ip.weight * T->Weight() * err;
+            }
+            else
+            {
+               error = std::max(error, err);
+            }
+         }
+      }
+   }
+   if (p < infinity())
+   {
+      // negative quadrature weights may cause the error to be negative
+      if (error < 0.)
+      {
+         error = -pow(-error, 1. / p);
+      }
+      else
+      {
+         error = pow(error, 1. / p);
+      }
+   }
+
+   return error;
 }
 
 void CutDomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
@@ -258,8 +362,6 @@ void DGFaceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
                                           FaceElementTransformations &Trans,
                                           DenseMatrix &elmat)
 {
-   // cout << "face is " << Trans.Face->ElementNo << endl;
-   // cout << "integ point is: " << endl;
    int dim, ndof1, ndof2;
    double un, a, b, w;
    dim = el1.GetDim();
@@ -325,7 +427,12 @@ void DGFaceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
       if (ndof2)
       {
          Trans.Loc2.Transform(ip, eip2);
+         if (Trans.Elem2No == nels - 1)
+         {
+            eip2.x = (scale * eip2.x) / Trans.Elem2->Weight();
+         }
       }
+
       el1.CalcShape(eip1, shape1);
       Trans.Face->SetIntPoint(&ip);
       Trans.Elem1->SetIntPoint(&eip1);

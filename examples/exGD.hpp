@@ -20,14 +20,17 @@ protected:
    int degree;
    /// number of unknowns per dof
    int vdim;
+   /// finite element collection
    const mfem::FiniteElementCollection *fec; // not owned
    Mesh *mesh;
+   /// cut cell size
+   double scale;
 public:
    /// Class constructor. 
-   GalerkinDifference(mfem::Mesh *pm, int di, int ne, const mfem::FiniteElementCollection *f,
+   GalerkinDifference(mfem::Mesh *pm, int di, int ne, const mfem::FiniteElementCollection *f, double scaling,
                       int vdi= 1, int ordering = mfem::Ordering::byVDIM,
                       int de = 0)
-   : FiniteElementSpace(pm, f, vdi, ordering), mesh(pm), dim(di), nEle(ne), fec(f), degree(de), vdim(vdi) {BuildGDProlongation();}
+   : FiniteElementSpace(pm, f, vdi, ordering), mesh(pm), dim(di), nEle(ne), fec(f), scale(scaling), degree(de), vdim(vdi) {BuildGDProlongation();}
 //    GalerkinDifference::GalerkinDifference(Mesh *pm, const FiniteElementCollection *f,
 //    int vdim, int ordering, int de)
 //    : SpaceType(pm, f, vdim, ordering)

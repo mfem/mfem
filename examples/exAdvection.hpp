@@ -6,6 +6,8 @@
 using namespace mfem;
 using namespace std;
 /// Class for domain integration L(v) := (f, v)
+double CutComputeL2Error( GridFunction &x, FiniteElementSpace *fes,
+    Coefficient &exsol, double scale);
 class CutDomainLFIntegrator : public DeltaLFIntegrator
 {
    Vector shape;

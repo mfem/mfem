@@ -10,44 +10,60 @@ double u_exact(const Vector &);
 double f_exact(const Vector &);
 // Velocity coefficient
 void velocity_function(const Vector &x, Vector &v);
+void exact_function(const Vector &x, Vector &v);
 
 int main(int argc, char *argv[])
 {
-   // 1. mesh to be used
-   //const char *mesh_file = "../data/periodic-segment.mesh";
    int ref_levels = -1;
-   int order = 1;
+   int order = 4;
    bool visualization = 1;
    double scale;
-   // 2. Read the mesh from the given mesh file. We can handle triangular,
-   //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
-   //    NURBS meshes are projected to second order meshes.
-   //Mesh *mesh = new Mesh(mesh_file, 1, 2);
-   Mesh *mesh = new Mesh(20, 1);
+   int cutsize = 1;
+   int N = 20;
+   /// parse the options
+   OptionsParser args(argc, argv);
+   args.AddOption(&order, "-o", "--order",
+                  "Order (degree) of the finite elements.");
+   args.AddOption(&cutsize, "-s", "--cutsize",
+                  "scale of the cut finite elements.");
+   args.AddOption(&N, "-n", "--#elements",
+                  "number of mesh elements.");
+   args.Parse();
+   if (!args.Good())
+   {
+      args.PrintUsage(cout);
+      return 1;
+   }
+   args.PrintOptions(cout);
+   /// mesh to be used
+   Mesh *mesh = new Mesh(N, 1);
    int dim = mesh->Dimension();
    cout << "number of elements " << mesh->GetNE() << endl;
    ofstream sol_ofv("square_disc_mesh.vtk");
    sol_ofv.precision(14);
    mesh->PrintVTK(sol_ofv, 1);
+   int nels = mesh->GetNE();
+   scale = 1.0 / nels;
+   scale = scale/cutsize;
    // 4. Define a finite element space on the mesh. Here we use discontinuous
    //    finite elements of the specified order >= 0.
    FiniteElementCollection *fec = new DG_FECollection(order, dim);
-   //FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
-   //std::unique_ptr<FiniteElementSpace> fes;
-   // mesh->ElementToElementTable();
-   // fes.reset(new GalerkinDifference(mesh, dim, mesh->GetNE(), fec, 1, Ordering::byVDIM, 2));
-   FiniteElementSpace *fespace = new GalerkinDifference(mesh, dim, mesh->GetNE(), fec, 1, Ordering::byVDIM, order);
+   FiniteElementSpace *fes = new FiniteElementSpace(mesh, fec);
+   /// GD finite element space
+   FiniteElementSpace *fespace = new GalerkinDifference(mesh, dim, mesh->GetNE(), fec, scale, 1, Ordering::byVDIM, order);
    cout << "Number of unknowns: " << fespace->GetTrueVSize() << endl;
-   // GalerkinDifference prolongate(mesh, dim, mesh->GetNE(), fec, 1, Ordering::byVDIM, 2);
-   // prolongate.BuildGDProlongation();
-   // FiniteElementSpace *fespace = new GalerkinDifference(mesh, fec, 1, 1);
    cout << "#dofs " << fespace->GetNDofs() << endl;
    // 5. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system.
-   int nels = mesh->GetNE();
-   scale = 1.0 / nels;
-   scale = scale / 1.0;
-   LinearForm *b = new LinearForm(fespace);
+   CentGridFunction y(fespace);
+   y = 0.0;
+   cout << "center grid function created " << endl;
+   VectorFunctionCoefficient exact(dim, exact_function);
+   y.ProjectCoefficient(exact);
+   cout << "solution at center is " << endl;
+   y.Print();
+   GridFunction x(fes);
+   LinearForm *b = new LinearForm(fes);
    ConstantCoefficient one(-1.0);
    ConstantCoefficient zero(0.0);
    FunctionCoefficient f(f_exact);
@@ -56,32 +72,29 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new CutDomainLFIntegrator(f, scale, nels));
    b->AddBdrFaceIntegrator(new BoundaryAdvectIntegrator(one, velocity, -1.0, -0.5, nels));
    b->Assemble();
-   cout << "before assembly " << endl;
-
-   BilinearForm *a = new BilinearForm(fespace);
+   BilinearForm *a = new BilinearForm(fes);
    a->AddDomainIntegrator(new AdvectionIntegrator(velocity, scale, nels, -1.0));
    a->AddInteriorFaceIntegrator(new DGFaceIntegrator(velocity, 1.0, -0.5, scale, nels));
    a->AddBdrFaceIntegrator(new DGFaceIntegrator(velocity, 1.0, -0.5, scale, nels));
    a->Assemble();
-   cout << "assembly bilinear form done " << endl;
    a->Finalize();
    SparseMatrix &Aold = a->SpMat();
    SparseMatrix *cp = dynamic_cast<GalerkinDifference *>(fespace)->GetCP();
    SparseMatrix *p = RAP(*cp, Aold, *cp);
    SparseMatrix &A = *p;
+
+   // fespace->GetProlongationMatrix()->Mult(y, x);
+   // GridFunction Px(fes);
+   // cp->Mult(y,Px);
+   // cout << "Px is " << endl;
+   // Px.Print();
+   // cout << "x is " << endl;
+   // x.Print();
    Vector bnew(A.Width());
    fespace->GetProlongationMatrix()->MultTranspose(*b, bnew);
    ofstream write("stiffmat_GD.txt");
    A.PrintMatlab(write);
-   write.close();
-   cout << "stiffness matrix size " << A.Size() << endl;
-   CentGridFunction y(fespace);
-   cout << "center grid function created " << endl;
-   y = 0.0;
-   cout << "y size " << y.Size() << endl;
-   GridFunction x(fespace);
-   x = 0.0;
-   cout << "x size " << x.Size() << endl;
+   write.close(); 
 #ifndef MFEM_USE_SUITESPARSE
    // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
@@ -90,7 +103,7 @@ int main(int argc, char *argv[])
    //PCG(A, M, *b, x, 1, 1000, 1e-12, 0.0);
    // else
    // {
-   GMRES(A, M, bnew, y, 1, 1000, 200, 1e-60, 1e-60);
+   GMRES(A, M, *b, x, 1, 1000, 200, 1e-60, 1e-60);
    // }
 #else
    // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
@@ -99,32 +112,59 @@ int main(int argc, char *argv[])
    umf_solver.SetOperator(A);
    umf_solver.Mult(bnew, y);
 #endif
+   cout << "----------------------------- "<< endl;
+   cout << "solution at center obtained: "<< endl;
+   y.Print();
+   cout << "----------------------------- "<< endl;
    fespace->GetProlongationMatrix()->Mult(y, x);
+   // Vector residual(Aold.Width());
+   // Aold.Mult(x, residual);
+   // residual -= *b;
+   // residual.Print();
+   // Vector cpres(A.Width());
+   // cp->MultTranspose(residual, cpres);
+   // cout << "cpres " << endl;
+   // cpres.Print(); 
    ofstream adj_ofs("dgAdvection_GD.vtk");
    adj_ofs.precision(14);
    mesh->PrintVTK(adj_ofs, 1);
    x.SaveVTK(adj_ofs, "dgAdvSolution_GD", 1);
    adj_ofs.close();
-   cout << "mesh size, h = " << 1.0/mesh->GetNE() << endl;
-   cout << "solution norm: " << endl;
-   cout << x.ComputeL2Error(u) << endl;
+   double norm = CutComputeL2Error(x, fes, u, scale);
+   cout << "mesh size, h = " << 1.0 / mesh->GetNE() << endl;
+   cout << "solution norm: " << norm << endl;
+   //cout << x.ComputeL2Error(u) << endl;
+   cout << "solution at nodes is: " << endl;
+   x.Print();
    // 11. Free the used memory.
    delete a;
    delete b;
    delete fespace;
+   delete fes;
    delete fec;
    delete mesh;
    return 0;
 }
 
+void exact_function(const Vector &x, Vector &v)
+{
+   int dim = x.Size();
+  // v(0) = x(0)*x(0);
+   v(0) = exp(x(0));
+   //v(0) = x(0);
+}
+
+// Velocity coefficient
 double u_exact(const Vector &x)
 {
    return exp(x(0));
+   //return x(0) ;
    //return x(0)*x(0);
 }
 double f_exact(const Vector &x)
 {
    return -exp(x(0));
+   //return -1.0;
    //return -2.0*x(0);
 }
 // Velocity coefficient
@@ -146,6 +186,108 @@ void velocity_function(const Vector &x, Vector &v)
       v(2) = sqrt(1. / 6.);
       break;
    }
+}
+
+/// function to compute l2 error for cut domain
+double CutComputeL2Error(GridFunction &x, FiniteElementSpace *fes,
+                         Coefficient &exsol, double scale)
+{
+   double error = 0.0;
+   const FiniteElement *fe;
+   ElementTransformation *T;
+   Vector vals;
+   Vector quad_coord(1);
+   int p = 2;
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      fe = fes->GetFE(i);
+      const IntegrationRule *ir;
+      int intorder = 2 * fe->GetOrder() + 1; // <----------
+      ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+      T = fes->GetElementTransformation(i);
+      if (T->ElementNo == fes->GetNE() - 1)
+      {   cout << "***************************************** " << endl;
+          cout << "Element " << i << endl;
+          int vdim=1;
+          //cout << "element is " << i << endl;
+         IntegrationRule *cutir;
+         cutir = new IntegrationRule(ir->Size());
+         for (int k = 0; k < cutir->GetNPoints(); k++)
+         {
+            IntegrationPoint &cutip = cutir->IntPoint(k);
+            const IntegrationPoint &ip = ir->IntPoint(k);
+            cutip.x = (scale * ip.x) / T->Weight();
+            cutip.weight = ip.weight;
+         }
+         Array<int> dofs;
+         int n = ir->GetNPoints();
+         vals.SetSize(n);
+         fes->GetElementDofs(i, dofs);
+         fes->DofsToVDofs(vdim - 1, dofs);
+         const FiniteElement *FElem = fes->GetFE(i);
+         MFEM_ASSERT(FElem->GetMapType() == FiniteElement::VALUE,
+                     "invalid FE map type");
+         int dof = FElem->GetDof();
+         Vector DofVal(dof), loc_data(dof);
+         x.GetSubVector(dofs, loc_data);
+         // not used for error calculation
+         x.GetValues(i, *cutir, vals);
+         for (int j = 0; j < cutir->GetNPoints(); j++)
+         {
+            IntegrationPoint &ip = cutir->IntPoint(j);
+            T->SetIntPoint(&ip);
+            cout << "int point is " << ip.x << endl;
+            cout << "u is " << exsol.Eval(*T, ip) << endl;
+            cout << "x is " << fabs(vals(j)) << endl;
+            cout << "xq is " << loc_data(j) << endl;
+            double err = (fabs(vals(j)) - exsol.Eval(*T, ip));
+            //double err = (loc_data(j) - exsol.Eval(*T, ip));
+            if (p < infinity())
+            {
+               err = pow(err, p);
+               error += ip.weight * scale * err;
+            }
+            else
+            {
+               error = std::max(error, err);
+            }
+         }
+          cout << "***************************************** " << endl;
+      }
+      else
+      {
+         x.GetValues(i, *ir, vals);
+         for (int j = 0; j < ir->GetNPoints(); j++)
+         {
+            const IntegrationPoint &ip = ir->IntPoint(j);
+            T->SetIntPoint(&ip);
+            double err = fabs(vals(j) - exsol.Eval(*T, ip));
+            if (p < infinity())
+            {
+               err = pow(err, p);
+               error += ip.weight * T->Weight() * err;
+            }
+            else
+            {
+               error = std::max(error, err);
+            }
+         }
+      }
+   }
+   if (p < infinity())
+   {
+      // negative quadrature weights may cause the error to be negative
+      if (error < 0.)
+      {
+         error = -pow(-error, 1. / p);
+      }
+      else
+      {
+         error = pow(error, 1. / p);
+      }
+   }
+
+   return error;
 }
 
 void CutDomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
@@ -182,14 +324,18 @@ void CutDomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
       IntegrationPoint &cutip = cutir->IntPoint(i);
-      Tr.SetIntPoint(&ip);
-      double val = Tr.Weight() * Q.Eval(Tr, ip);
-      el.CalcShape(ip, shape);
+      double val;
       if (Tr.ElementNo == nels - 1)
       {
          Tr.SetIntPoint(&cutip);
          val = scale * Q.Eval(Tr, cutip);
          el.CalcShape(cutip, shape);
+      }
+      else
+      {
+         Tr.SetIntPoint(&ip);
+         val = Tr.Weight() * Q.Eval(Tr, ip);
+         el.CalcShape(ip, shape);
       }
       add(elvect, ip.weight * val, shape, elvect);
    }
@@ -282,8 +428,6 @@ void DGFaceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
                                           FaceElementTransformations &Trans,
                                           DenseMatrix &elmat)
 {
-   // cout << "face is " << Trans.Face->ElementNo << endl;
-   // cout << "integ point is: " << endl;
    int dim, ndof1, ndof2;
    double un, a, b, w;
    dim = el1.GetDim();
@@ -349,7 +493,12 @@ void DGFaceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
       if (ndof2)
       {
          Trans.Loc2.Transform(ip, eip2);
+         if (Trans.Elem2No == nels - 1)
+         {
+            eip2.x = (scale * eip2.x) / Trans.Elem2->Weight();
+         }
       }
+
       el1.CalcShape(eip1, shape1);
       Trans.Face->SetIntPoint(&ip);
       Trans.Elem1->SetIntPoint(&eip1);
@@ -485,7 +634,6 @@ void GalerkinDifference::BuildNeighbourMat(const mfem::Array<int> &elmt_id,
       {
          mat_cent(i, j) = cent_coord(i);
       }
-
       // deal with quadrature points
       eltransf = mesh->GetElementTransformation(elmt_id[j]);
       cout << " element " << elmt_id[j] << " quadrature points are " << endl;
@@ -494,7 +642,12 @@ void GalerkinDifference::BuildNeighbourMat(const mfem::Array<int> &elmt_id,
          const IntegrationPoint &eip = fe->GetNodes().IntPoint(k);
          //eip.x= (scale * eip.x) / eltransf->Weight();
          eltransf->Transform(eip, quad_coord);
-         cout << quad_coord(0) << endl;
+         // if (eltransf->ElementNo == nEle - 1)
+         // {
+         //    quad_coord(0) = (eip.x * scale) + 
+         //               (eltransf->ElementNo * eltransf->Weight());
+         // }
+         // cout << quad_coord(0) << endl;
          for (int di = 0; di < dim; di++)
          {
             quad_data.push_back(quad_coord(di));
@@ -588,7 +741,7 @@ void GalerkinDifference::BuildGDProlongation() const
    cP = new mfem::SparseMatrix(GetVSize(), vdim * nEle);
    // determine the minimum # of element in each patch
    int nelmt;
-   if (degree % 2 !=0)
+   if (degree % 2 != 0)
    {
       nelmt = degree + 2;
    }
