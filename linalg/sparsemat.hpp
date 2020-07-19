@@ -88,6 +88,9 @@ protected:
 
    bool useCuSparse{true}; //Use CuSparse if available
 
+   // Initialize CuSparse
+   void InitCuSparse();
+
 #ifdef MFEM_USE_CUDA
    cusparseStatus_t status;
    static cusparseHandle_t handle;
@@ -144,9 +147,6 @@ public:
 
    /// Create a SparseMatrix with diagonal @a v, i.e. A = Diag(v)
    SparseMatrix(const Vector & v);
-
-   // Initialize CuSparse
-   void InitCuSparse();
 
    // Runtime option to use CuSparse
    // Only valid when using a CUDA backend
