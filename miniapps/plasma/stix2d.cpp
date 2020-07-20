@@ -297,11 +297,10 @@ void Update(ParFiniteElementSpace & H1FESpace,
             ParFiniteElementSpace & L2FESpace,
             ParGridFunction & BField,
             VectorCoefficient & BCoef,
-            Coefficient & TCoef,
             Coefficient & rhoCoef,
+            Coefficient & TCoef,
             int & size_h1,
             int & size_l2,
-            const Vector & numbers,
             Array<int> & density_offsets,
             Array<int> & temperature_offsets,
             BlockVector & density,
@@ -1200,7 +1199,7 @@ int main(int argc, char *argv[])
 
       // Update the magnetostatic solver to reflect the new state of the mesh.
       Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace, BField, BCoef,
-             tempCoef, rhoCoef, size_h1, size_l2, numbers, density_offsets,
+             rhoCoef, tempCoef, size_h1, size_l2, density_offsets,
              temperature_offsets, density, temperature, density_gf,
              temperature_gf);
       CPD.Update();
@@ -1212,7 +1211,7 @@ int main(int argc, char *argv[])
 
          // Update again after rebalancing
          Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace, BField, BCoef,
-                tempCoef, rhoCoef, size_h1, size_l2, numbers, density_offsets,
+                rhoCoef, tempCoef, size_h1, size_l2, density_offsets,
                 temperature_offsets, density, temperature, density_gf,
                 temperature_gf);
          CPD.Update();
@@ -1238,11 +1237,10 @@ void Update(ParFiniteElementSpace & H1FESpace,
             ParFiniteElementSpace & L2FESpace,
             ParGridFunction & BField,
             VectorCoefficient & BCoef,
-            Coefficient & TCoef,
             Coefficient & rhoCoef,
+            Coefficient & TCoef,
             int & size_h1,
             int & size_l2,
-            const Vector & numbers,
             Array<int> & density_offsets,
             Array<int> & temperature_offsets,
             BlockVector & density,
@@ -1259,24 +1257,24 @@ void Update(ParFiniteElementSpace & H1FESpace,
    BField.ProjectCoefficient(BCoef);
 
    size_l2 = L2FESpace.GetVSize();
-   for (int i=1; i<=numbers.Size(); i++)
+   for (int i=1; i<density_offsets.Size(); i++)
    {
-      density_offsets[i]     = density_offsets[i - 1] + size_l2;
+      density_offsets[i] = density_offsets[i - 1] + size_l2;
    }
    density.Update(density_offsets);
-   for (int i=0; i<numbers.Size(); i++)
+   for (int i=0; i<density_offsets.Size()-1; i++)
    {
       density_gf.MakeRef(&L2FESpace, density.GetBlock(i));
       density_gf.ProjectCoefficient(rhoCoef);
    }
 
    size_h1 = H1FESpace.GetVSize();
-   for (int i=1; i<=numbers.Size(); i++)
+   for (int i=1; i<temperature_offsets.Size(); i++)
    {
       temperature_offsets[i] = temperature_offsets[i - 1] + size_h1;
    }
    temperature.Update(temperature_offsets);
-   for (int i=0; i<numbers.Size(); i++)
+   for (int i=0; i<temperature_offsets.Size()-1; i++)
    {
       temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i));
       temperature_gf.ProjectCoefficient(TCoef);
