@@ -274,6 +274,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      // solNorm_(-1.0),
      pmesh_(&pmesh),
      L2FESpace_(NULL),
+     L2FESpace2p_(NULL),
      L2VFESpace_(NULL),
      HCurlFESpace_(NULL),
      HDivFESpace_(NULL),
@@ -651,16 +652,16 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
 
    if (vis_u_)
    {
-      if (L2FESpace_ == NULL)
+      if (L2FESpace2p_ == NULL)
       {
-         L2FESpace_ = new L2_ParFESpace(pmesh_,2*order-1,pmesh_->Dimension());
+         L2FESpace2p_ = new L2_ParFESpace(pmesh_,2*order-1,pmesh_->Dimension());
       }
-      u_ = new ParGridFunction(L2FESpace_);
-      uE_ = new ParGridFunction(L2FESpace_);
-      uB_ = new ParGridFunction(L2FESpace_);
+      u_ = new ParGridFunction(L2FESpace2p_);
+      uE_ = new ParGridFunction(L2FESpace2p_);
+      uB_ = new ParGridFunction(L2FESpace2p_);
 
       HDivFESpace2p_ = new RT_ParFESpace(pmesh_,2*order,pmesh_->Dimension());
-      S_ = new ParComplexGridFunction(HDivFESpace_);
+      S_ = new ParComplexGridFunction(HDivFESpace2p_);
 
       erCoef_.SetGridFunction(&e_->real());
       eiCoef_.SetGridFunction(&e_->imag());
@@ -744,6 +745,7 @@ CPDSolver::~CPDSolver()
    // delete weakCurlMuInv_;
 
    delete L2FESpace_;
+   delete L2FESpace2p_;
    delete L2VFESpace_;
    // delete H1FESpace_;
    delete HCurlFESpace_;
@@ -845,6 +847,7 @@ CPDSolver::Update()
    // so we pass 'false' to skip creation of any transformation matrices.
    // H1FESpace_->Update(false);
    if (L2FESpace_) { L2FESpace_->Update(); }
+   if (L2FESpace2p_) { L2FESpace2p_->Update(); }
    if (L2VFESpace_) { L2VFESpace_->Update(); }
    HCurlFESpace_->Update();
    HDivFESpace_->Update();
