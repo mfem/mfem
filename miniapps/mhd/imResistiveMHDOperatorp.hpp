@@ -36,6 +36,7 @@ private:
    //own by this:
    HypreParMatrix *Mdtpr, *ARe, *ASl, *MinvKB;
    mutable HypreParMatrix *ScFull, *AReFull, *NbFull, *PwMat, Mmatlp, *NbMat;
+   mutable HyperParMatrix *tmp1, *tmp2, *tmp3;
    bool initialMdt;
    int useFull;
    HypreParVector *E0Vec;
@@ -1195,8 +1196,8 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
     DRematpr = DRemat_;
     DSlmatpr = DSlmat_;
 
-    AReFull=NULL; ScFull=NULL; NbFull=NULL; PwMat=NULL; NbMat=NULL;
-    MinvKB=NULL;
+    AReFull=NULL; ScFull=NULL; NbFull=NULL; PwMat=NULL; NbMat=NULL; MinvKB=NULL;
+    tmp1=NULL; tmp2=NULL; tmp3=NULL;
 
     MassIntegrator *mass = new MassIntegrator;
     Mlp = new ParBilinearForm(&fespace);
@@ -1241,10 +1242,14 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
        delete ScFull; 
        delete NbFull;
        delete PwMat;
+       delete tmp1;
+       delete tmp2;
+       delete tmp3;
 
        Vector &k_ = const_cast<Vector &>(k);
 
        int sc = height/3;
+
        //form Nv matrix
        delete Nv;
        phiGf.MakeTRef(&fespace, k_, 0);
@@ -1294,8 +1299,6 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
 
        if (iSc==0 && (!usefd) )
        {
-           if (myid==0 && false) cout <<"======WARNING: use preconditioner without stabilization terms======"<<endl;
-
            if (usesupg && i_supgpre==0)           
            {
                 delete StabNv;
@@ -1357,7 +1360,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
                 delete ASltmp;
                 ASltmp=tmp;
 
-                if (i_supgpre>1 && ( im_supg==1 || im_supg==3 ) )
+                if (i_supgpre>2 && ( im_supg==1 || im_supg==3 ) )
                 {
                     if (resistivity!=viscosity)
                     {
@@ -1367,7 +1370,16 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
                     delete AReFull;
                     AReFull=tmp;
                 }
-
+                else if (i_supgpre==2 && ( im_supg==1 || im_supg==3 ) )
+                {
+                    if (resistivity!=viscosity)
+                    {
+                        MFEM_ABORT("Error in preconditioner. Need to assemble another MinvKB"); 
+                    }
+                    tmp=ParAdd(AReFull, MatStabNv);
+                    delete AReFull;
+                    AReFull=tmp;
+                }
                 delete MatStabMass;
                 delete MatStabNv;
                 delete MatStabSum;
@@ -1388,29 +1400,6 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
                 delete AReFull;
                 AReFull=tmp;
            }
-       }
-       else if (iSc==1)
-       {
-           //VERSION1: schur complement without transpose
-           //here Sc=ASl-B D^-1 B 
-           AReFull->GetDiag(*ARed);
-           DinvNb->InvScaleRows(*ARed);
-           S = ParMult(NbFull, DinvNb);
-           *S *= -1;
-           ScFull = ParAdd(ASltmp, S);
-       }
-       else if (iSc==2) {
-           //VERSION2: use (lumped) mass matrix
-           if (myid==0) 
-           {
-              cout <<"======WARNING: use scaled mass matrix in Schur complement======"<<endl;
-              cout <<"======WARNING: this changes preconditioner in pcshell !!!======"<<endl;
-           }
-           tmp->GetDiag(*ARed);
-           DinvNb->InvScaleRows(*ARed);
-           NbtDinv=DinvNb->Transpose();
-           S = ParMult(NbtDinv, NbFull);
-           ScFull = ParAdd(ASltmp, S);
        }
        else if (iSc==0 && usefd)
        {
@@ -1435,6 +1424,78 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
            delete ScFull1;
            delete MatStabNb;
        }
+       else if (iSc==3)
+       {
+           //more complicated version to handle stabilization terms
+           delete StabMass;
+           StabMass = new ParBilinearForm(&fespace);
+           StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, resistivity, velocity));
+           StabMass->Assemble(); 
+           StabMass->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
+           StabMass->Finalize();
+           HypreParMatrix *MatStabMass=StabMass->ParallelAssemble();
+
+           delete StabNv;
+           StabNv = new ParBilinearForm(&fespace);
+           StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, resistivity, velocity));
+           StabNv->Assemble(); 
+           StabNv->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
+           StabNv->Finalize();
+           HypreParMatrix *MatStabNv=StabNv->ParallelAssemble();
+
+           S = ParMult(MatStabMass, MinvKB);
+           tmp1=Add(1./dt, *MatStabMass, 1., *MatStabNv);
+           HypreParMatrix *MatStabSum=ParAdd(tmp1, S);
+
+           delete tmp1;
+           tmp1=ParAdd(ASltmp, MatStabSum);
+           delete ASltmp;
+           ASltmp=tmp1;
+
+           if (resistivity!=viscosity)
+           {
+               MFEM_ABORT("Error in preconditioner. Need to assemble another MinvKB"); 
+           }
+
+           tmp2=AReFull;    //hold ARe without stabilization
+           tmp3=MatStabSum; //hold Stabilizatino term
+           AReFull=ParAdd(tmp2, MatStabSum);
+
+           delete MatStabMass;
+           delete MatStabNv;
+
+
+           //VERSION0: same as Luis's preconditioner
+           tmp2->GetDiag(*ARed);
+           DinvNb->InvScaleRows(*ARed);
+           NbtDinv=DinvNb->Transpose();
+           S = ParMult(NbtDinv, NbFull);
+           ScFull = ParAdd(ASltmp, S);
+
+       }
+       else if (iSc==1)
+       {
+           //VERSION1: schur complement without transpose
+           //here Sc=ASl-B D^-1 B 
+           AReFull->GetDiag(*ARed);
+           DinvNb->InvScaleRows(*ARed);
+           S = ParMult(NbFull, DinvNb);
+           *S *= -1;
+           ScFull = ParAdd(ASltmp, S);
+       }
+       else if (iSc==2) {
+           //VERSION2: use (lumped) mass matrix
+           if (myid==0) 
+           {
+              cout <<"======WARNING: use scaled mass matrix in Schur complement======"<<endl;
+              cout <<"======WARNING: this changes preconditioner in pcshell !!!======"<<endl;
+           }
+           tmp->GetDiag(*ARed);
+           DinvNb->InvScaleRows(*ARed);
+           NbtDinv=DinvNb->Transpose();
+           S = ParMult(NbtDinv, NbFull);
+           ScFull = ParAdd(ASltmp, S);
+       } 
        else 
            MFEM_ABORT("Error in preconditioner."); 
 
@@ -1477,6 +1538,12 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
        Jacobian->SetBlock(2,2,&Mmat);
 
        if (iSc==2) Jacobian->SetBlock(0,2,tmp);
+
+       if (iSc==3) 
+       {
+           Jacobian->SetBlock(0,2,tmp1);
+           Jacobian->SetBlock(1,2,tmp2);
+       }
    }
    else
    {
@@ -1504,6 +1571,9 @@ ReducedSystemOperator::~ReducedSystemOperator()
    delete NbFull;
    delete PwMat;
    delete NbMat;
+   delete tmp1;
+   delete tmp2;
+   delete tmp3;
    delete Jacobian;
    delete Nv;
    delete Nb;
