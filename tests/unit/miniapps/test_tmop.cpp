@@ -478,7 +478,17 @@ int tmop(int myid, Req &res, int argc, char *argv[])
             MFEM_VERIFY(lin_solver != 4, "PA l1-Jacobi is not implemented");
             S_prec = new OperatorJacobiSmoother(nlf, nlf.GetEssentialTrueDofs());
          }
+#if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
+         else
+         {
+            HypreSmoother *hs = new HypreSmoother;
+            hs->SetType((lin_solver == 3) ? HypreSmoother::Jacobi
+                        : HypreSmoother::l1Jacobi, 1);
+            S_prec = hs;
+         }
+#else
          else { S_prec = new DSmoother((lin_solver == 3) ? 0 : 1, 1.0, 1); }
+#endif
          minres->SetPreconditioner(*S_prec);
       }
       S = minres;
