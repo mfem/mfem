@@ -597,47 +597,6 @@ static void tmop_tests(int myid)
 {
    static bool all = getenv("MFEM_TESTS_UNIT_TMOP_ALL");
 
-   {
-      // First Duplicate
-      DEFAULT_ARGS;
-      args[MSH] = "cube.mesh";
-      args[RFS] = "0";
-      args[LC] = "3.14";
-      args[DIAG] = "-diag";
-      for (int p : {1,2})
-      {
-         char por[2] {};
-         args[POR] = itoa(p, por);
-         for (int q : {1,2})
-         {
-            if (q < p) { continue; }
-            char qor[2] {};
-            args[QOR] = itoa(q, qor);
-            for (int m : {302})
-            {
-               char mid[4] {};
-               args[MID] = itoa(m, mid);
-               for (int t : {2})
-               {
-                  char tid[2] {};
-                  args[TID] = itoa(t, tid);
-                  for (int ls : {2})
-                  {
-                     char lsb[2] {};
-                     args[LS] = itoa(ls, lsb);
-                     tmop_require(myid, args);
-                     if (!all) { break; }
-                  }
-                  if (!all) { break; }
-               }
-               if (!all) { break; }
-            }
-            if (!all) { break; }
-         }
-         if (!all) { break; }
-      }
-   }
-
    // STAR
    {
       DEFAULT_ARGS;
@@ -872,6 +831,46 @@ static void tmop_tests(int myid)
 
    {
       // CUBE, diagonal
+      DEFAULT_ARGS;
+      args[MSH] = "cube.mesh";
+      args[RFS] = "0";
+      args[DIAG] = "-diag";
+      for (int p : {1,2})
+      {
+         char por[2] {};
+         args[POR] = itoa(p, por);
+         for (int q : {1,2})
+         {
+            if (q < p) { continue; }
+            char qor[2] {};
+            args[QOR] = itoa(q, qor);
+            for (int m : {302})
+            {
+               char mid[4] {};
+               args[MID] = itoa(m, mid);
+               for (int t : {1})
+               {
+                  char tid[2] {};
+                  args[TID] = itoa(t, tid);
+                  for (int ls : {2})
+                  {
+                     char lsb[2] {};
+                     args[LS] = itoa(ls, lsb);
+                     tmop_require(myid, args);
+                     if (!all) { break; }
+                  }
+                  if (!all) { break; }
+               }
+               if (!all) { break; }
+            }
+            if (!all) { break; }
+         }
+         if (!all) { break; }
+      }
+   }
+
+   {
+      // CUBE, diagonal + coeff0
       DEFAULT_ARGS;
       args[MSH] = "cube.mesh";
       args[RFS] = "0";
