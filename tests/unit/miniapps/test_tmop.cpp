@@ -583,13 +583,13 @@ constexpr int JI  = 29;
 
 static void dump_args(const char *args[])
 {
-   printf("tmop -m %s --fix-bnd -o %s -qo %s -mid %s -tid %s -ls %s%s%s%s%s %s\n",
+   printf("tmop -m %s -o %s -qo %s -mid %s -tid %s -ls %s%s%s%s%s %s\n",
           args[MSH], args[POR], args[QOR],
           args[MID], args[TID], args[LS],
           args[LC][0] == '0' ? "" : " -lc ",
           args[LC][0] == '0' ? "" : args[LC],
           args[NOR][0] == '0' ? "" : " -nor",
-          args[JI][0] == '0' ? "" : " -jitter",
+          strlen(args[JI])==1 && args[JI][0] == '0' ? "" : " -jitter",
           args[ALV]);
    fflush(0);
 }
@@ -846,12 +846,14 @@ static void tmop_tests(int myid)
       // CUBE
       DEFAULT_ARGS;
       args[MSH] = "cube.mesh";
+      args[NI] = "100";
       args[RFS] = "0";
+      args[JI] = "0.1";
       for (int p : {1, 2})
       {
          char por[2] {};
          args[POR] = itoa(p, por);
-         for (int q : {1, 2})
+         for (int q : {2, 4})
          {
             if (q < p) { continue; }
             char qor[2] {};
@@ -888,6 +890,7 @@ static void tmop_tests(int myid)
       args[RFS] = "0";
       args[NOR] = "1";
       args[LC] = "3.14";
+      args[JI] = "0.1";
       for (int p : {1, 2})
       {
          char por[2] {};
