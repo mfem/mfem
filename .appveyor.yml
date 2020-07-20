@@ -27,7 +27,7 @@ install:
 
 # Install hypre
 - ps: Start-FileDownload 'https://github.com/hypre-space/hypre/archive/V2-10-0b.tar.gz'
-- 7z x hypre-2-10-0b.tgz -so | 7z x -si -ttar > nul
+- 7z x hypre-2-10-0b.tar.gz -so | 7z x -si -ttar > nul
 - cd hypre-2-10-0b
 - cmake -H. -Bbuild -DHYPRE_USING_FEI=OFF -DMPI_C_INCLUDE_PATH="C:\Program Files (x86)\Microsoft SDKs\MPI\Include" -DMPI_C_LIBRARIES="C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x86\msmpi.lib" -DMPI_CXX_LIBRARIES="C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x86\msmpi.lib" -DMPI_CXX_INCLUDE_PATH="C:\Program Files (x86)\Microsoft SDKs\MPI\Include"
 - cmake --build build
