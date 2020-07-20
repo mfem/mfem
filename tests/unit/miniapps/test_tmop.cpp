@@ -409,7 +409,6 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    nlf.SetEssentialBC(ess_bdr);
 
    // Diagonal test
-   // ## WARNING ## Parallel tests are tied to 0.0!
    res.diag = 0.0;
    if (diag)
    {
@@ -435,6 +434,7 @@ int tmop(int myid, Req &res, int argc, char *argv[])
          if (normalization == 1) { nlfi_fa->EnableNormalization(x0); }
          if (lim_const != 0.0) { nlfi_fa->EnableLimiting(x0, dist, lim_coeff); }
          nlf_fa.AddDomainIntegrator(nlfi_fa);
+         // ## WARNING ## Parallel tests are tied to 0.0!
 #if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
          nlf_fa.GetLocalGradient(x.GetTrueVector()).GetDiag(d);
          d = 0.0;
@@ -596,6 +596,46 @@ static inline const char *itoa(int i, char *buf)
 static void tmop_tests(int myid)
 {
    static bool all = getenv("MFEM_TESTS_UNIT_TMOP_ALL");
+
+   {
+      // First Duplicate
+      DEFAULT_ARGS;
+      args[MSH] = "cube.mesh";
+      args[RFS] = "0";
+      args[DIAG] = "-diag";
+      for (int p : {1,2})
+      {
+         char por[2] {};
+         args[POR] = itoa(p, por);
+         for (int q : {1,2})
+         {
+            if (q < p) { continue; }
+            char qor[2] {};
+            args[QOR] = itoa(q, qor);
+            for (int m : {302})
+            {
+               char mid[4] {};
+               args[MID] = itoa(m, mid);
+               for (int t : {1})
+               {
+                  char tid[2] {};
+                  args[TID] = itoa(t, tid);
+                  for (int ls : {2})
+                  {
+                     char lsb[2] {};
+                     args[LS] = itoa(ls, lsb);
+                     tmop_require(myid, args);
+                     if (!all) { break; }
+                  }
+                  if (!all) { break; }
+               }
+               if (!all) { break; }
+            }
+            if (!all) { break; }
+         }
+         if (!all) { break; }
+      }
+   }
 
    // STAR
    {
@@ -809,6 +849,46 @@ static void tmop_tests(int myid)
                char mid[2] {};
                args[MID] = itoa(m, mid);
                for (int t : {5})
+               {
+                  char tid[2] {};
+                  args[TID] = itoa(t, tid);
+                  for (int ls : {2})
+                  {
+                     char lsb[2] {};
+                     args[LS] = itoa(ls, lsb);
+                     tmop_require(myid, args);
+                     if (!all) { break; }
+                  }
+                  if (!all) { break; }
+               }
+               if (!all) { break; }
+            }
+            if (!all) { break; }
+         }
+         if (!all) { break; }
+      }
+   }
+
+   {
+      // CUBE, diagonal
+      DEFAULT_ARGS;
+      args[MSH] = "cube.mesh";
+      args[RFS] = "0";
+      args[DIAG] = "-diag";
+      for (int p : {1,2})
+      {
+         char por[2] {};
+         args[POR] = itoa(p, por);
+         for (int q : {1,2})
+         {
+            if (q < p) { continue; }
+            char qor[2] {};
+            args[QOR] = itoa(q, qor);
+            for (int m : {302})
+            {
+               char mid[4] {};
+               args[MID] = itoa(m, mid);
+               for (int t : {1})
                {
                   char tid[2] {};
                   args[TID] = itoa(t, tid);
