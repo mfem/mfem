@@ -1690,6 +1690,7 @@ void ParMesh::GetFaceNbrElementTransformation(
 
    ElTr->Attribute = elem->GetAttribute();
    ElTr->ElementNo = NumOfElements + i;
+   ElTr->ElementType = ElementTransformation::ELEMENT;
 
    if (Nodes == NULL)
    {
@@ -2411,6 +2412,11 @@ GetSharedFaceTransformations(int sf, bool fill2, bool direct)
    bool is_slave = Nonconforming() && IsSlaveFace(face_info);
    bool is_ghost = Nonconforming() && FaceNo >= GetNumFaces();
 
+   int mask = 0;
+   FaceElemTr.SetConfigurationMask(0);
+   FaceElemTr.Elem1 = NULL;
+   FaceElemTr.Elem2 = NULL;
+
    NCFaceInfo* nc_info = NULL;
    if (is_slave) { nc_info = &nc_faces_info[face_info.NCFace]; }
 
@@ -2422,13 +2428,21 @@ GetSharedFaceTransformations(int sf, bool fill2, bool direct)
    FaceElemTr.Elem1No = face_info.Elem1No;
    GetElementTransformation(FaceElemTr.Elem1No, &Transformation);
    FaceElemTr.Elem1 = &Transformation;
+   mask |= FaceElementTransformations::HAVE_ELEM1;
 
    // setup the transformation for the second (neighbor) element
+   int Elem2NbrNo;
    if (fill2)
    {
-      FaceElemTr.Elem2No = -1 - face_info.Elem2No;
-      GetFaceNbrElementTransformation(FaceElemTr.Elem2No, &Transformation2);
+      Elem2NbrNo = -1 - face_info.Elem2No;
+      // Store the "shifted index" for element 2 in FaceElemTr.Elem2No.
+      // `Elem2NbrNo` is the index of the face neighbor (starting from 0),
+      // and `FaceElemTr.Elem2No` will be offset by the number of (local)
+      // elements in the mesh.
+      FaceElemTr.Elem2No = NumOfElements + Elem2NbrNo;
+      GetFaceNbrElementTransformation(Elem2NbrNo, &Transformation2);
       FaceElemTr.Elem2 = &Transformation2;
+      mask |= FaceElementTransformations::HAVE_ELEM2;
    }
    else
    {
@@ -2440,6 +2454,7 @@ GetSharedFaceTransformations(int sf, bool fill2, bool direct)
    {
       GetFaceTransformation(FaceNo, &FaceElemTr);
       // NOTE: The above call overwrites FaceElemTr.Loc1
+      mask |= FaceElementTransformations::HAVE_FACE;
    }
    else
    {
@@ -2450,12 +2465,14 @@ GetSharedFaceTransformations(int sf, bool fill2, bool direct)
    int elem_type = GetElementType(face_info.Elem1No);
    GetLocalFaceTransformation(face_type, elem_type, FaceElemTr.Loc1.Transf,
                               face_info.Elem1Inf);
+   mask |= FaceElementTransformations::HAVE_LOC1;
 
    if (fill2)
    {
-      elem_type = face_nbr_elements[FaceElemTr.Elem2No]->GetType();
+      elem_type = face_nbr_elements[Elem2NbrNo]->GetType();
       GetLocalFaceTransformation(face_type, elem_type, FaceElemTr.Loc2.Transf,
                                  face_info.Elem2Inf);
+      mask |= FaceElementTransformations::HAVE_LOC2;
    }
 
    // adjust Loc1 or Loc2 of the master face if this is a slave face
@@ -2472,9 +2489,10 @@ GetSharedFaceTransformations(int sf, bool fill2, bool direct)
    if (is_ghost)
    {
       GetGhostFaceTransformation(&FaceElemTr, face_type, face_geom);
+      mask |= FaceElementTransformations::HAVE_FACE;
    }
 
-   FaceElemTr.SetConfigurationMask(fill2 ? 31 : 21);
+   FaceElemTr.SetConfigurationMask(mask);
 
    // This check can be useful for internal debugging, however it will fail on
    // periodic boundary faces, so we keep it disabled in general.
