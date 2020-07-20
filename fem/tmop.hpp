@@ -1094,6 +1094,7 @@ public:
    void AssembleDiagonalPA_2D(Vector&) const;
    void AssembleDiagonalPA_3D(Vector&) const;
    void AssembleDiagonalPA_C0_2D(Vector&) const;
+   void AssembleDiagonalPA_C0_3D(Vector&) const;
 
    using NonlinearFormIntegrator::AddMultPA;
    void AddMultPA_2D(const Vector&, Vector&) const;

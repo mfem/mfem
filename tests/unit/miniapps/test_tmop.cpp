@@ -602,6 +602,7 @@ static void tmop_tests(int myid)
       DEFAULT_ARGS;
       args[MSH] = "cube.mesh";
       args[RFS] = "0";
+      args[LC] = "3.14";
       args[DIAG] = "-diag";
       for (int p : {1,2})
       {
@@ -616,7 +617,7 @@ static void tmop_tests(int myid)
             {
                char mid[4] {};
                args[MID] = itoa(m, mid);
-               for (int t : {1})
+               for (int t : {2})
                {
                   char tid[2] {};
                   args[TID] = itoa(t, tid);
