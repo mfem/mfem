@@ -10533,17 +10533,17 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    unsigned eval_flags = 0;
    if (flags & GeometricFactors::COORDINATES)
    {
-      X.SetSize(vdim*NQ*NE);
+      X.SetSize(vdim*NQ*NE, Device::GetDeviceTempMemoryType());
       eval_flags |= QuadratureInterpolator::VALUES;
    }
    if (flags & GeometricFactors::JACOBIANS)
    {
-      J.SetSize(dim*vdim*NQ*NE);
+      J.SetSize(dim*vdim*NQ*NE, Device::GetDeviceTempMemoryType());
       eval_flags |= QuadratureInterpolator::DERIVATIVES;
    }
    if (flags & GeometricFactors::DETERMINANTS)
    {
-      detJ.SetSize(NQ*NE);
+      detJ.SetSize(NQ*NE, Device::GetDeviceTempMemoryType());
       eval_flags |= QuadratureInterpolator::DETERMINANTS;
    }
 
@@ -10553,7 +10553,7 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    qi->SetOutputLayout(QVectorLayout::byNODES);
    if (elem_restr)
    {
-      Vector Enodes(vdim*ND*NE);
+      Vector Enodes(vdim*ND*NE, Device::GetDeviceTempMemoryType());
       elem_restr->Mult(*nodes, Enodes);
       qi->Mult(Enodes, eval_flags, X, J, detJ);
    }
