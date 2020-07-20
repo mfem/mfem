@@ -27,18 +27,19 @@ namespace mfem
 /// Memory types supported by MFEM.
 enum class MemoryType
 {
-   HOST,           ///< Host memory; using new[] and delete[]
-   HOST_32,        ///< Host memory; aligned at 32 bytes
-   HOST_64,        ///< Host memory; aligned at 64 bytes
-   HOST_DEBUG,     ///< Host memory; allocated from a "host-debug" pool
-   HOST_UMPIRE,    ///< Host memory; using Umpire
-   MANAGED,        /**< Managed memory; using CUDA or HIP *MallocManaged
-                        and *Free */
-   DEVICE,         ///< Device memory; using CUDA or HIP *Malloc and *Free
-   DEVICE_DEBUG,   /**< Pseudo-device memory; allocated on host from a
-                        "device-debug" pool */
-   DEVICE_UMPIRE,  ///< Device memory; using Umpire
-   SIZE            ///< Number of host and device memory types
+   HOST,                ///< Host memory; using new[] and delete[]
+   HOST_32,             ///< Host memory; aligned at 32 bytes
+   HOST_64,             ///< Host memory; aligned at 64 bytes
+   HOST_DEBUG,          ///< Host memory; allocated from a "host-debug" pool
+   HOST_UMPIRE,         ///< Host memory; using Umpire
+   MANAGED,             /**< Managed memory; using CUDA or HIP *MallocManaged
+                             and *Free */
+   DEVICE,              ///< Device memory; using CUDA or HIP *Malloc and *Free
+   DEVICE_DEBUG,        /**< Pseudo-device memory; allocated on host from a
+                             "device-debug" pool */
+   DEVICE_UMPIRE,       ///< Device memory; using Umpire
+   DEVICE_TEMP_UMPIRE,  ///< Temporary Device memory; using Umpire
+   SIZE                 ///< Number of host and device memory types
 };
 
 /// Static casts to 'int' and sizes of some useful memory types.
@@ -61,7 +62,7 @@ enum class MemoryClass
                                  HOST_UMPIRE, MANAGED } */
    HOST_32, ///< Memory types: { HOST_32, HOST_64, HOST_DEBUG }
    HOST_64, ///< Memory types: { HOST_64, HOST_DEBUG }
-   DEVICE,  ///< Memory types: { DEVICE, DEVICE_DEBUG, DEVICE_UMPIRE, MANAGED }
+   DEVICE,  ///< Memory types: { DEVICE, DEVICE_DEBUG, DEVICE_UMPIRE, DEVICE_TEMP_UMPIRE, MANAGED }
    MANAGED  ///< Memory types: { MANAGED }
 };
 
@@ -489,6 +490,9 @@ private:
    /// Device memory type set during the Setup.
    static MemoryType device_mem_type;
 
+   /// Device temporary memory type set during the Setup.
+   static MemoryType device_temp_mem_type;
+
    /// Allow to detect if a global memory manager instance exists.
    static bool exists;
 
@@ -497,8 +501,9 @@ private:
 
    /// Host and device allocator names for Umpire.
 #ifdef MFEM_USE_UMPIRE
-   static const char *h_umpire_name;
-   static const char *d_umpire_name;
+   static int h_umpire_id;
+   static int d_umpire_id;
+   static int d_umpire_temp_id;
 #endif
 
 private: // Static methods used by the Memory<T> class
@@ -621,15 +626,21 @@ public:
    /// Initialize the memory manager.
    void Init();
 
-   /// Configure the Memory manager with given default host and device types
+   /// Configure the Memory manager with given default host, device, and device temporary types
    /// This method will be called when configuring a device.
-   void Configure(const MemoryType h_mt, const MemoryType d_mt);
+   void Configure(const MemoryType h_mt, const MemoryType d_mt,
+                  const MemoryType d_tmt);
 
 #ifdef MFEM_USE_UMPIRE
-   /// Set the host and device UMpire allocator names
-   void SetUmpireAllocatorNames(const char *h_name, const char *d_name);
-   const char *GetUmpireAllocatorHostName() { return h_umpire_name; }
-   const char *GetUmpireAllocatorDeviceName() { return d_umpire_name; }
+   /// Set the host and device Umpire allocator ids
+   static void SetUmpireHostAllocatorId(int h_id) { h_umpire_id = h_id; }
+   static void SetUmpireDeviceAllocatorId(int d_id) { d_umpire_id = d_id; }
+   static void SetUmpireDeviceTempAllocatorId(int d_id) { d_umpire_temp_id = d_id; }
+
+   /// Get the host and device Umpire allocator ids
+   static int GetUmpireHostAllocatorId() { return h_umpire_id; }
+   static int GetUmpireDeviceAllocatorId() { return d_umpire_id; }
+   static int GetUmpireDeviceTempAllocatorId() { return d_umpire_id; }
 #endif
 
    /// Free all the device memories
@@ -654,6 +665,7 @@ public:
 
    static MemoryType GetHostMemoryType() { return host_mem_type; }
    static MemoryType GetDeviceMemoryType() { return device_mem_type; }
+   static MemoryType GetDeviceTempMemoryType() { return device_temp_mem_type; }
 };
 
 
