@@ -238,11 +238,11 @@ public:
 
    Vector &operator/=(double c);
 
-   Vector &operator+=(double c);
-
    Vector &operator-=(double c);
 
    Vector &operator-=(const Vector &v);
+
+   Vector &operator+=(double c);
 
    Vector &operator+=(const Vector &v);
 
