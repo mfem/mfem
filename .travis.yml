@@ -354,7 +354,7 @@ install:
    # METIS
    - if [ $MPI == "YES" ]; then
         if [ ! -e metis-4.0/libmetis.a ]; then
-           wget https://github.com/mfem/tpls/raw/gh-pages/metis-4.0.3.tar.gz;
+           wget https://mfem.github.io/tpls/metis-4.0.3.tar.gz;
            tar xvzf metis-4.0.3.tar.gz;
            make -j3 -C metis-4.0.3/Lib CC="$CC" OPTFLAGS="-O2";
            rm -rf metis-4.0;
