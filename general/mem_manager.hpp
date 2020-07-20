@@ -640,7 +640,7 @@ public:
    /// Get the host and device Umpire allocator ids
    static int GetUmpireHostAllocatorId() { return h_umpire_id; }
    static int GetUmpireDeviceAllocatorId() { return d_umpire_id; }
-   static int GetUmpireDeviceTempAllocatorId() { return d_umpire_id; }
+   static int GetUmpireDeviceTempAllocatorId() { return d_umpire_temp_id; }
 #endif
 
    /// Free all the device memories
