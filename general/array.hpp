@@ -108,6 +108,8 @@ public:
    /// Return the device flag of the Memory object used by the Array
    bool UseDevice() const { return data.UseDevice(); }
 
+  inline MemoryType GetMemoryType() const { return data.GetMemoryType(); }
+
    /// Return true if the data will be deleted by the array
    inline bool OwnsData() const { return data.OwnsHostPtr(); }
 

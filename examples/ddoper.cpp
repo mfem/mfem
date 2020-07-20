@@ -7104,7 +7104,11 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 		  if (fespace[m] != NULL)
 		    {
 		      ParGridFunction diag_pa(fespace[m]);
+#ifdef SD_ITERATIVE_GMG_PA_GALERKIN_FA
+		      diag_pa = 1.0;
+#else
 		      bfpa_sdND[m]->AssembleDiagonal(diag_pa);
+#endif
 		      diagSDND.SetSize(fespace[m]->GetTrueVSize());
 		      diag_pa.GetTrueDofs(diagSDND);
 		    }
@@ -8780,10 +8784,12 @@ void DDMInterfaceOperator::CreateInterfaceMatrices(const int interfaceIndex, con
 #ifndef SDFOSLS_INTERFACE_FA
   if (!fullAssembly)
     {
+#ifndef SD_ITERATIVE_GMG_PA_GALERKIN_FA
       bf_ifNDmass[interfaceIndex]->SetAssemblyLevel(AssemblyLevel::PARTIAL);
       bf_ifNDcurlcurl[interfaceIndex]->SetAssemblyLevel(AssemblyLevel::PARTIAL);
       bf_ifH1mass[interfaceIndex]->SetAssemblyLevel(AssemblyLevel::PARTIAL);
       bf_ifNDH1grad[interfaceIndex]->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+#endif
     }
 #endif
 #else
@@ -10398,6 +10404,8 @@ Operator* DDMInterfaceOperator::CreateInterfaceOperator(const int sd0, const int
 #endif
 }
 
+
+
 void DDMInterfaceOperator::CreateSubdomainMatrices(const int subdomain, const bool fullAssembly)
 {
   ConstantCoefficient one(1.0);
@@ -10407,7 +10415,9 @@ void DDMInterfaceOperator::CreateSubdomainMatrices(const int subdomain, const bo
 
 #ifdef SD_ITERATIVE_GMG_PA
   bfpa_sdND[subdomain] = new ParBilinearForm(fespace[subdomain]);
+#ifndef SD_ITERATIVE_GMG_PA_GALERKIN_FA
   bfpa_sdND[subdomain]->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+#endif
   bfpa_sdND[subdomain]->AddDomainIntegrator(new CurlCurlIntegrator(one));
   if (fullAssembly)
 #endif
@@ -10629,7 +10639,11 @@ void DDMInterfaceOperator::CreateSubdomainMatrices(const int subdomain, const bo
 	    cout << m_rank << ": sdND RHS size init " << srcSD[subdomain]->Size() << ", tvsize " << fespace[subdomain]->GetTrueVSize() << endl;
 	    sd_ess_tdof_list[subdomain] = ess_tdof_list;  // deep copy
 	    //sd_ess_tdof_list[subdomain] = dbg_tdof_list;  // deep copy
+#ifdef SD_ITERATIVE_GMG_PA_GALERKIN_FA
+	    *(srcSD[subdomain]) = 0.0;
+#else
 	    bfpa_sdND[subdomain]->FormLinearSystem(sd_ess_tdof_list[subdomain], xsd, *b, oppa_sdND[subdomain], sdX, *(srcSD[subdomain]));
+#endif
 	    
 	    cout << m_rank << ": sdND RHS size computed " << srcSD[subdomain]->Size() << ", norm " << srcSD[subdomain]->Norml2() << ", sd " << subdomain << endl;
 	  }

@@ -78,8 +78,19 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n,
      At(NULL),
      isSorted(issorted)
 {
-   I.Wrap(i, height+1, ownij);
-   J.Wrap(j, I[height], ownij);
+  //I.Wrap(i, height+1, ownij);
+  //J.Wrap(j, I[height], ownij);
+
+  I.New(height+1);
+  for (int q=0; q<height+1; ++q)
+    {
+      I[q] = i[q];
+    }
+  J.New(I[height]);
+  for (int q=0; q<I[height]; ++q)
+    {
+      J[q] = j[q];
+    }
 
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
@@ -87,7 +98,12 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n,
 
    if (data)
    {
-      A.Wrap(data, I[height], owna);
+     //A.Wrap(data, I[height], owna);
+     A.New(I[height]);
+     for (int q=0; q<I[height]; ++q)
+       {
+	 A[q] = data[q];
+       }
    }
    else
    {

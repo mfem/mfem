@@ -64,6 +64,7 @@ using namespace std;
 //#define SDFOSLS
 //#define SDFOSLS_PA
 //#define SDFOSLS_INTERFACE_FA
+//#define SD_ITERATIVE_GMG_PA_GALERKIN_FA
 
 //#define IMPEDANCE_OTHER_SIGN
 
@@ -2023,9 +2024,11 @@ public:
     if (pa)
       {
 	a_EE->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+#ifndef SD_ITERATIVE_GMG_PA_GALERKIN_FA
 	a_HH->SetAssemblyLevel(AssemblyLevel::PARTIAL);
 	a_mix1->SetAssemblyLevel(AssemblyLevel::PARTIAL);
 	a_mix2->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+#endif
 
 	diag_PA_EE.SetSize(fespace->GetTrueVSize());
 	diag_PA_HH.SetSize(fespace->GetTrueVSize());
@@ -2179,6 +2182,29 @@ public:
 #ifdef SDFOSLS_PA
     if (pa)
       {
+#ifdef SD_ITERATIVE_GMG_PA_GALERKIN_FA
+	ParGridFunction diag_gf(fespace);
+	diag_gf = 0.0;
+	a_EE->AssembleDiagonal(diag_gf);
+	diag_gf.GetTrueDofs(diag_PA_EE);
+
+	/*
+	{
+	  HypreParMatrix *A_EE_hmat = A_EE.As<HypreParMatrix>();
+	  MFEM_VERIFY(A_EE_hmat != NULL, "");
+	  SparseMatrix smat;
+	  A_EE_hmat->GetDiag(smat);
+	  smat.GetDiag(diag_PA_EE);
+	}
+	*/
+	{
+	  HypreParMatrix *A_HH_hmat = A_HH.As<HypreParMatrix>();
+	  MFEM_VERIFY(A_HH_hmat != NULL, "");
+	  SparseMatrix smat;
+	  A_HH_hmat->GetDiag(smat);
+	  smat.GetDiag(diag_PA_HH);
+	}
+#else
 	ParGridFunction diag_gf(fespace);
 	diag_gf = 0.0;
 	a_EE->AssembleDiagonal(diag_gf);
@@ -2187,6 +2213,7 @@ public:
 	diag_gf = 0.0;
 	a_HH->AssembleDiagonal(diag_gf);
 	diag_gf.GetTrueDofs(diag_PA_HH);
+#endif
       }
 #endif
 
@@ -2504,6 +2531,8 @@ public:
     precLS = precMG;
 #endif
 #endif
+
+    pmesh->DeleteGeometricFactors();
   }
   
   void SetOperator(const Operator &op) { }

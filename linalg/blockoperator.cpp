@@ -36,13 +36,17 @@ BlockOperator::BlockOperator(const Array<int> & offsets)
 
    for (int i=0; i<nRowBlocks; ++i)
    {
-      vr[i].SetSize(row_offsets[i+1] - row_offsets[i]);
-      vr[i].UseDevice(true);
+     //vr[i].SetData(NULL);
+     //vr[i].SetSize(row_offsets[i+1] - row_offsets[i], offsets.GetMemoryType());
+     vr[i] = new Vector(row_offsets[i+1] - row_offsets[i], offsets.GetMemoryType());
+     //vr[i].UseDevice(true);
    }
    for (int i=0; i<nColBlocks; ++i)
    {
-      vc[i].SetSize(col_offsets[i+1] - col_offsets[i]);
-      vc[i].UseDevice(true);
+     //vc[i].SetData(NULL);
+     //vc[i].SetSize(col_offsets[i+1] - col_offsets[i], offsets.GetMemoryType());
+     vc[i] = new Vector(col_offsets[i+1] - col_offsets[i], offsets.GetMemoryType());
+     //vc[i].UseDevice(true);
    }
 }
 
@@ -65,11 +69,17 @@ BlockOperator::BlockOperator(const Array<int> & row_offsets_,
 
    for (int i=0; i<nRowBlocks; ++i)
    {
-      vr[i].SetSize(row_offsets[i+1] - row_offsets[i]);
+     //vr[i].SetData(NULL);
+     //vr[i].SetSize(row_offsets[i+1] - row_offsets[i], row_offsets_.GetMemoryType());
+     vr[i] = new Vector(row_offsets[i+1] - row_offsets[i], row_offsets_.GetMemoryType());
+     //vr[i].UseDevice(true);
    }
    for (int i=0; i<nColBlocks; ++i)
    {
-      vc[i].SetSize(col_offsets[i+1] - col_offsets[i]);
+     //vc[i].SetData(NULL);
+     //vc[i].SetSize(col_offsets[i+1] - col_offsets[i], row_offsets_.GetMemoryType());
+     vc[i] = new Vector(col_offsets[i+1] - col_offsets[i], row_offsets_.GetMemoryType());
+     //vc[i].UseDevice(true);
    }
 }
 
@@ -102,9 +112,9 @@ void BlockOperator::Mult (const Vector & x, Vector & y) const
       {
          if (op(iRow,jCol))
          {
-            vc[jCol].SetOffset(1.0, x, col_offsets[jCol]);
-            op(iRow,jCol)->Mult(vc[jCol], vr[iRow]);
-            y.AddOffset(coef(iRow,jCol), vr[iRow], row_offsets[iRow]);
+            vc[jCol]->SetOffset(1.0, x, col_offsets[jCol]);
+            op(iRow,jCol)->Mult(*vc[jCol], *vr[iRow]);
+            y.AddOffset(coef(iRow,jCol), *vr[iRow], row_offsets[iRow]);
          }
       }
    }
@@ -124,9 +134,9 @@ void BlockOperator::MultTranspose (const Vector & x, Vector & y) const
       {
 	if (op(jCol,iRow))
          {
-            vr[jCol].SetOffset(1.0, x, row_offsets[jCol]);
-            op(jCol,iRow)->MultTranspose(vr[jCol], vc[iRow]);
-            y.AddOffset(coef(jCol,iRow), vc[iRow], col_offsets[iRow]);
+            vr[jCol]->SetOffset(1.0, x, row_offsets[jCol]);
+            op(jCol,iRow)->MultTranspose(*vr[jCol], *vc[iRow]);
+            y.AddOffset(coef(jCol,iRow), *vc[iRow], col_offsets[iRow]);
          }
       }
    }

@@ -471,6 +471,7 @@ public:
     delete Ac;
 #else
     Ac->GetDiag(AcSp);  // AcSp does not own the data
+    delete Ac;
 #ifdef ITERATIVE_COARSE_SOLVE
     //CGSolver *cg_solver = new CGSolver(comm);
     CGSolver *cg_solver = new CGSolver();
@@ -497,6 +498,10 @@ public:
     for (int i = 0; i <= numGrids ; i++)
       {
 	int n = (i==0) ? invAc->Height(): BlkA[i]->Width();
+
+	rv[i].SetData(NULL);
+	zv[i].SetData(NULL);
+
 	rv[i].SetSize(n);
 	zv[i].SetSize(n);
 	rv[i].UseDevice(true);
