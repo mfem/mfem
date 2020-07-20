@@ -18,9 +18,9 @@ stages:
 
 env:
   global:
-    - HYPRE_ARCHIVE=v2.18.2.tar.gz
+    - HYPRE_ARCHIVE=v2.19.0.tar.gz
       HYPRE_URL=https://github.com/hypre-space/hypre/archive/$HYPRE_ARCHIVE
-      HYPRE_TOP_DIR=hypre-2.18.2
+      HYPRE_TOP_DIR=hypre-2.19.0
 
 jobs:
   include:
