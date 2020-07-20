@@ -118,6 +118,26 @@ public:
 
 };
 
+template<typename DType, typename MVType>
+class MyQFunctor{
+public:
+    DType operator()(const mfem::Vector& vparam, MVType& uu)
+    {
+        double pp=vparam[0];
+        double ee=vparam[1];
+        double ff=vparam[2];
+
+        DType  u=uu[3];
+        DType  norm2=uu[0]*uu[0]+uu[1]*uu[1]+uu[2]*uu[2];
+
+        DType rez= pow(ee*ee+norm2,pp/2.0)/pp-ff*u;
+        return rez;
+    }
+};
+
+typedef ADQFunctionTH<MyQFunctor> pLapIntegrandTH;
+
+
 
 class pLaplaceAD: public mfem::NonlinearFormIntegrator
 {
@@ -126,7 +146,9 @@ protected:
    mfem::Coefficient* coeff;
    mfem::Coefficient* load;
 
-   pLapIntegrandJ qint;
+   //pLapIntegrandH qint;
+   //pLapIntegrandJ qint;
+   pLapIntegrandTH qint;
 public:
    pLaplaceAD()
    {
