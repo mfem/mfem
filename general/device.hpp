@@ -119,20 +119,26 @@ private:
 
    static bool device_env, mem_host_env, mem_device_env;
    static Device device_singleton;
+#ifdef MFEM_USE_UMPIRE
+   static bool use_umpire;
+#endif
 
-   MODES mode;
+   MODES mode{Device::SEQUENTIAL};
    int dev = 0; ///< Device ID of the configured device.
    int ngpu = -1; ///< Number of detected devices; -1: not initialized.
-   unsigned long backends; ///< Bitwise-OR of all configured backends.
+   unsigned long backends{Backend::CPU}; ///< Bitwise-OR of all configured backends.
    /// Set to true during configuration, except in 'device_singleton'.
-   bool destroy_mm;
-   bool mpi_gpu_aware;
+   bool destroy_mm{false};
+   bool mpi_gpu_aware{false};
 
-   MemoryType host_mem_type;      ///< Current Host MemoryType
-   MemoryClass host_mem_class;    ///< Current Host MemoryClass
+   MemoryType host_mem_type{MemoryType::HOST};      ///< Current Host MemoryType
+   MemoryClass host_mem_class{MemoryClass::HOST};    ///< Current Host MemoryClass
 
-   MemoryType device_mem_type;    ///< Current Device MemoryType
-   MemoryClass device_mem_class;  ///< Current Device MemoryClass
+   MemoryType device_mem_type{MemoryType::HOST};    ///< Current Device MemoryType
+   MemoryClass device_mem_class{MemoryClass::HOST};  ///< Current Device MemoryClass
+
+   MemoryType device_temp_mem_type{MemoryType::HOST};    ///< Current Device MemoryType
+   MemoryClass device_temp_mem_class{MemoryClass::HOST};  ///< Current Device MemoryClass
 
    char *device_option = NULL;
    Device(Device const&);
@@ -173,14 +179,6 @@ public:
        @note This object should be destroyed after all other MFEM objects that
        use the Device are destroyed. */
    Device(const std::string &device, const int dev = 0)
-      : mode(Device::SEQUENTIAL),
-        backends(Backend::CPU),
-        destroy_mm(false),
-        mpi_gpu_aware(false),
-        host_mem_type(MemoryType::HOST),
-        host_mem_class(MemoryClass::HOST),
-        device_mem_type(MemoryType::HOST),
-        device_mem_class(MemoryClass::HOST)
    { Configure(device, dev); }
 
    /// Destructor.
@@ -260,10 +258,24 @@ public:
    /** @deprecated Use GetDeviceMemoryClass() instead. */
    static inline MemoryClass GetMemoryClass() { return Get().device_mem_class; }
 
+   /** @brief Get the current Device Temporary MemoryType. This is the MemoryType used by
+       MFEM classes when allocating temporary memory to be used with device kernels.
+   */
+   static inline MemoryType GetDeviceTempMemoryType() { return Get().device_temp_mem_type; }
+
+   /** @brief Get the current Device Temporary MemoryClass. This is the MemoryClass used
+       by MFEM device kernels when they need to access temporary Memory objects. */
+   static inline MemoryClass GetDeviceTempMemoryClass() { return Get().device_temp_mem_class; }
+
    static void SetGPUAwareMPI(const bool force = true)
    { Get().mpi_gpu_aware = force; }
 
    static bool GetGPUAwareMPI() { return Get().mpi_gpu_aware; }
+
+#ifdef MFEM_USE_UMPIRE
+   static bool UseUmpire() { return Get().use_umpire; }
+   static void UseUmpire(bool use) { Get().use_umpire = use; }
+#endif
 };
 
 
