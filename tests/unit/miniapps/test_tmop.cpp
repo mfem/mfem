@@ -187,7 +187,7 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    double lim_const      = 0.0;
    int normalization     = 0;
    double jitter         = 0.0;
-   bool diag             = false;
+   bool diag             = true;
 
    constexpr int combomet  = 0;
    constexpr int verbosity_level = 0;
@@ -417,6 +417,7 @@ int tmop(int myid, Req &res, int argc, char *argv[])
       Vector d(fes.GetTrueVSize());
       if (pa)
       {
+         // ## WARNING ## Parallel tests are tied to 0.0!
 #if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
          nlf.GetLocalGradient(x.GetTrueVector());
          nlf.AssembleGradientDiagonal(d);
@@ -448,7 +449,7 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    }
 
    // Linear solver for the system's Jacobian
-   Solver *S = nullptr;
+   Solver *S = nullptr, *S_prec = nullptr;
    constexpr double linsol_rtol = 1e-12;
    if (lin_solver == 0)
    {
@@ -470,6 +471,16 @@ int tmop(int myid, Req &res, int argc, char *argv[])
       minres->SetRelTol(linsol_rtol);
       minres->SetAbsTol(0.0);
       minres->SetPrintLevel(verbosity_level >= 2 ? 3 : -1);
+      if (lin_solver == 3 || lin_solver == 4)
+      {
+         if (pa)
+         {
+            MFEM_VERIFY(lin_solver != 4, "PA l1-Jacobi is not implemented");
+            S_prec = new OperatorJacobiSmoother(nlf, nlf.GetEssentialTrueDofs());
+         }
+         else { S_prec = new DSmoother((lin_solver == 3) ? 0 : 1, 1.0, 1); }
+         minres->SetPreconditioner(*S_prec);
+      }
       S = minres;
    }
 
@@ -544,7 +555,7 @@ static void req_tmop(int myid, const char *args[], Req &res)
     "tmop_tests", "-pa", "-m", "mesh", "-o", "0", "-rs", "0", \
     "-mid", "0", "-tid", "0", "-qt", "1", "-qo", "0", \
     "-ni", "10", "-rtol", "1e-8", "-ls", "2", "-li", "100", \
-    "-lc", "0", "-nor", "0", "-ji", "0", "-no-diag" , nullptr }
+    "-lc", "0", "-nor", "0", "-ji", "0", nullptr }
 constexpr int ALV = 1;
 constexpr int MSH = 3;
 constexpr int POR = 5;
@@ -559,18 +570,16 @@ constexpr int LI  = 23;
 constexpr int LC  = 25;
 constexpr int NOR = 27;
 constexpr int JI  = 29;
-constexpr int DIAG = 30;
 
 static void dump_args(const char *args[])
 {
-   printf("tmop -m %s --fix-bnd -o %s -qo %s -mid %s -tid %s -ls %s%s%s%s%s%s %s\n",
+   printf("tmop -m %s --fix-bnd -o %s -qo %s -mid %s -tid %s -ls %s%s%s%s%s %s\n",
           args[MSH], args[POR], args[QOR],
           args[MID], args[TID], args[LS],
           args[LC][0] == '0' ? "" : " -lc ",
           args[LC][0] == '0' ? "" : args[LC],
           args[NOR][0] == '0' ? "" : " -nor",
           args[JI][0] == '0' ? "" : " -jitter",
-          args[DIAG][1] == 'n' ? " -no-diag" : " -diag",
           args[ALV]);
    fflush(0);
 }
@@ -601,7 +610,6 @@ static void tmop_tests(int myid)
    {
       DEFAULT_ARGS;
       args[MSH] = "star.mesh";
-      args[DIAG] = "-diag";
       for (int p : {1, 2, 3, 4})
       {
          char por[2] {};
@@ -619,7 +627,7 @@ static void tmop_tests(int myid)
                   if (q <= p) { continue; }
                   char qor[2] {};
                   args[QOR] = itoa(q, qor);
-                  for (int ls : {2, 3})
+                  for (int ls : {1, 2, 3})
                   {
                      char lsb[2] {};
                      args[LS] = itoa(ls, lsb);
@@ -642,7 +650,6 @@ static void tmop_tests(int myid)
       args[NI] = "100";
       args[MSH] = "square01.mesh";
       args[RFS] = "1";
-      args[DIAG] = "-diag";
       for (int p : {1, 2})
       {
          char por[2] {};
@@ -660,7 +667,7 @@ static void tmop_tests(int myid)
                   if (q <= p) { continue; }
                   char qor[2] {};
                   args[QOR] = itoa(q, qor);
-                  for (int ls : {2})
+                  for (int ls : {2, 3})
                   {
                      char lsb[2] {};
                      args[LS] = itoa(ls, lsb);
@@ -684,7 +691,6 @@ static void tmop_tests(int myid)
       args[MID] = "2";
       args[NI] = "100";
       args[LI] = "100";
-      args[DIAG] = "-diag";
       for (int p : {1, 2})
       {
          char por[2] {};
@@ -697,7 +703,7 @@ static void tmop_tests(int myid)
             {
                char tid[2] {};
                args[TID] = itoa(t, tid);
-               for (int ls : {2, 3})
+               for (int ls : {1, 2, 3})
                {
                   char lsb[2] {};
                   args[LS] = itoa(ls, lsb);
@@ -720,7 +726,6 @@ static void tmop_tests(int myid)
       args[NI] = "100";
       args[LI] = "100";
       args[NOR] = "1";
-      args[DIAG] = "-diag";
       for (int p : {1, 2})
       {
          char por[2] {};
@@ -734,7 +739,7 @@ static void tmop_tests(int myid)
             {
                char tid[2] {};
                args[TID] = itoa(t, tid);
-               for (int ls : {2, 3})
+               for (int ls : {1, 2, 3})
                {
                   char lsb[2] {};
                   args[LS] = itoa(ls, lsb);
@@ -758,7 +763,6 @@ static void tmop_tests(int myid)
       args[LI] = "100";
       args[LC] = "3.14";
       args[NOR] = "1";
-      args[DIAG] = "-diag";
       for (int p : {1, 2})
       {
          char por[2] {};
@@ -772,7 +776,7 @@ static void tmop_tests(int myid)
             {
                char tid[2] {};
                args[TID] = itoa(t, tid);
-               for (int ls : {2, 3})
+               for (int ls : {1, 2, 3})
                {
                   char lsb[2] {};
                   args[LS] = itoa(ls, lsb);
@@ -794,7 +798,6 @@ static void tmop_tests(int myid)
       args[NI] = "100";
       args[LI] = "200";
       args[NOR] = "1";
-      args[DIAG] = "-diag";
       for (int p : {1})
       {
          char por[2] {};
@@ -830,69 +833,28 @@ static void tmop_tests(int myid)
    }
 
    {
-      // CUBE, diagonal
+      // CUBE
       DEFAULT_ARGS;
       args[MSH] = "cube.mesh";
       args[RFS] = "0";
-      args[DIAG] = "-diag";
-      for (int p : {1,2})
+      for (int p : {1, 2})
       {
          char por[2] {};
          args[POR] = itoa(p, por);
-         for (int q : {1,2})
+         for (int q : {1, 2})
          {
             if (q < p) { continue; }
             char qor[2] {};
             args[QOR] = itoa(q, qor);
-            for (int m : {302})
+            for (int m : {302, 303})
             {
                char mid[4] {};
                args[MID] = itoa(m, mid);
-               for (int t : {1})
+               for (int t : {1, 2, 3})
                {
                   char tid[2] {};
                   args[TID] = itoa(t, tid);
-                  for (int ls : {2})
-                  {
-                     char lsb[2] {};
-                     args[LS] = itoa(ls, lsb);
-                     tmop_require(myid, args);
-                     if (!all) { break; }
-                  }
-                  if (!all) { break; }
-               }
-               if (!all) { break; }
-            }
-            if (!all) { break; }
-         }
-         if (!all) { break; }
-      }
-   }
-
-   {
-      // CUBE, diagonal + coeff0
-      DEFAULT_ARGS;
-      args[MSH] = "cube.mesh";
-      args[RFS] = "0";
-      args[DIAG] = "-diag";
-      for (int p : {1,2})
-      {
-         char por[2] {};
-         args[POR] = itoa(p, por);
-         for (int q : {1,2})
-         {
-            if (q < p) { continue; }
-            char qor[2] {};
-            args[QOR] = itoa(q, qor);
-            for (int m : {302})
-            {
-               char mid[4] {};
-               args[MID] = itoa(m, mid);
-               for (int t : {1})
-               {
-                  char tid[2] {};
-                  args[TID] = itoa(t, tid);
-                  for (int ls : {2})
+                  for (int ls : {1, 2, 3})
                   {
                      char lsb[2] {};
                      args[LS] = itoa(ls, lsb);
@@ -916,16 +878,16 @@ static void tmop_tests(int myid)
       args[RFS] = "0";
       args[NOR] = "1";
       args[LC] = "3.14";
-      for (int p : {1,2})
+      for (int p : {1, 2})
       {
          char por[2] {};
          args[POR] = itoa(p, por);
-         for (int q : {1,2})
+         for (int q : {1, 2})
          {
             if (q < p) { continue; }
             char qor[2] {};
             args[QOR] = itoa(q, qor);
-            for (int m : {302})
+            for (int m : {302, 321})
             {
                char mid[4] {};
                args[MID] = itoa(m, mid);
@@ -933,7 +895,7 @@ static void tmop_tests(int myid)
                {
                   char tid[2] {};
                   args[TID] = itoa(t, tid);
-                  for (int ls : {2})
+                  for (int ls : {3, 2, 1})
                   {
                      char lsb[2] {};
                      args[LS] = itoa(ls, lsb);
@@ -1010,7 +972,7 @@ static void tmop_tests(int myid)
                {
                   char tid[2] {};
                   args[TID] = itoa(t, tid);
-                  for (int ls : {1, 2})
+                  for (int ls : {3, 2, 1})
                   {
                      char lsb[2] {};
                      args[LS] = itoa(ls, lsb);
@@ -1050,7 +1012,7 @@ static void tmop_tests(int myid)
                {
                   char tid[2] {};
                   args[TID] = itoa(t, tid);
-                  for (int ls : {1, 2})
+                  for (int ls : {1, 2, 3})
                   {
                      char lsb[2] {};
                      args[LS] = itoa(ls, lsb);
