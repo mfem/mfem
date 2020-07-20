@@ -284,6 +284,7 @@ private:
    ParMesh * pmesh_;
 
    L2_ParFESpace * L2FESpace_;
+   L2_ParFESpace * L2FESpace2p_;
    L2_ParFESpace * L2VFESpace_;
    // H1_ParFESpace * H1FESpace_;
    ND_ParFESpace * HCurlFESpace_;
