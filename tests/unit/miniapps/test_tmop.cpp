@@ -26,6 +26,7 @@ extern mfem::MPI_Session *GlobalMPISession;
 #define PFesGetParMeshGetComm(pfes) pfes.GetParMesh()->GetComm()
 #define SetDiscreteTargetSize SetParDiscreteTargetSize
 #define SetDiscreteTargetAspectRatio SetParDiscreteTargetAspectRatio
+#define GradientClass HypreParMatrix
 #else
 typedef int MPI_Session;
 #define ParMesh Mesh
@@ -37,6 +38,7 @@ typedef int MPI_Session;
 #define MPI_Allreduce(src,dst,...) *dst = *src
 #define SetDiscreteTargetSize SetSerialDiscreteTargetSize
 #define SetDiscreteTargetAspectRatio SetSerialDiscreteTargetAspectRatio
+#define GradientClass SparseMatrix
 #endif
 
 using namespace std;
@@ -412,20 +414,13 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    res.diag = 0.0;
    if (diag)
    {
-      x.SetTrueVector();
-      x.SetFromTrueVector();
       Vector d(fes.GetTrueVSize());
+      Vector &xt(x.GetTrueVector());
+      d.UseDevice(true);
       if (pa)
       {
-         // ## WARNING ## Parallel tests are tied to 0.0!
-#if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
-         nlf.GetLocalGradient(x.GetTrueVector());
+         nlf.GetGradient(xt);
          nlf.AssembleGradientDiagonal(d);
-         d = 0.0;
-#else
-         nlf.GetGradient(x.GetTrueVector());
-         nlf.AssembleGradientDiagonal(d);
-#endif
       }
       else
       {
@@ -435,17 +430,11 @@ int tmop(int myid, Req &res, int argc, char *argv[])
          if (normalization == 1) { nlfi_fa->EnableNormalization(x0); }
          if (lim_const != 0.0) { nlfi_fa->EnableLimiting(x0, dist, lim_coeff); }
          nlf_fa.AddDomainIntegrator(nlfi_fa);
-         // ## WARNING ## Parallel tests are tied to 0.0!
-#if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
-         nlf_fa.GetLocalGradient(x.GetTrueVector()).GetDiag(d);
-         d = 0.0;
-#else
          // We don't set the EssentialBC in order to get the same diagonal
-         //nlf_fa.SetEssentialBC(ess_bdr);
-         dynamic_cast<SparseMatrix &>(nlf_fa.GetGradient(x)).GetDiag(d);
-#endif
+         // nlf_fa.SetEssentialBC(ess_bdr);
+         dynamic_cast<GradientClass&>(nlf_fa.GetGradient(xt)).GetDiag(d);
       }
-      res.diag = d.Norml2();
+      res.diag = d*d;
    }
 
    // Linear solver for the system's Jacobian
@@ -890,7 +879,7 @@ static void tmop_tests(int myid)
       args[RFS] = "0";
       args[NOR] = "1";
       args[LC] = "3.14";
-      args[JI] = "0.1";
+      //args[JI] = "0.1";
       for (int p : {1, 2})
       {
          char por[2] {};
