@@ -501,10 +501,8 @@ public:
    }
    void Alloc(void **ptr, size_t bytes) { *ptr = h_allocator.allocate(bytes); }
    void Dealloc(void *ptr) { h_allocator.deallocate(ptr); }
-
    void Insert(void *ptr, size_t bytes)
-   //{ rm.registerAllocation(ptr, {ptr, bytes, strat}); }
-   { mfem_error("UmpireHostMemorySpace::Insert is unsupported"); exit(1); }
+   { mfem_error("UmpireHostMemorySpace::Insert is unsupported"); }
 };
 
 /// The Umpire device memory space
