@@ -238,7 +238,7 @@ void TMOP_Integrator::AssembleGradientDiagonalPA(const Vector &xe,
    else if (PA.dim == 3)
    {
       AssembleDiagonalPA_3D(de);
-      if (coeff0) {  MFEM_ABORT("3D coeff0 diagonal computation is WIP.");}
+      if (coeff0) { AssembleDiagonalPA_C0_3D(de); }
    }
    else
    {
