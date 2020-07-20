@@ -337,16 +337,16 @@ install:
    - if [ $MPI == "YES" ]; then
         if [ ! -e hypre-2.10.0b/src/hypre/lib/libHYPRE.a ]; then
            wget https://github.com/hypre-space/hypre/archive/V2-10-0b.tar.gz --no-check-certificate;
-           rm -rf hypre-2.10.0b;
-           tar xvzf hypre-2.10.0b.tar.gz;
-           cd hypre-2.10.0b/src;
+           rm -rf hypre-2-10-0b;
+           tar xvzf hypre-2-10-0b.tar.gz;
+           cd hypre-2-10-0b/src;
            ./configure --disable-fortran --without-fei CC=mpicc CXX=mpic++;
            make -j3;
            cd ../..;
         else
-            echo "Reusing cached hypre-2.10.0b/";
+            echo "Reusing cached hypre-2-10-0b/";
         fi;
-        ln -s hypre-2.10.0b hypre;
+        ln -s hypre-2-10-0b hypre;
      else
         echo "Serial build, not using hypre";
      fi
