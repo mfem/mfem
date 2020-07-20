@@ -844,14 +844,14 @@ static void tmop_tests(int myid)
          args[POR] = itoa(p, por);
          for (int q : {2, 4})
          {
-            if (q < p) { continue; }
+            if (q <= p) { continue; }
             char qor[2] {};
             args[QOR] = itoa(q, qor);
             for (int m : {302, 303})
             {
                char mid[4] {};
                args[MID] = itoa(m, mid);
-               for (int t : {1, 2, 3})
+               for (int t : {2, 3})
                {
                   char tid[2] {};
                   args[TID] = itoa(t, tid);
@@ -884,9 +884,9 @@ static void tmop_tests(int myid)
       {
          char por[2] {};
          args[POR] = itoa(p, por);
-         for (int q : {1, 2})
+         for (int q : {2, 4})
          {
-            if (q < p) { continue; }
+            if (q <= p) { continue; }
             char qor[2] {};
             args[QOR] = itoa(q, qor);
             for (int m : {302, 321})
