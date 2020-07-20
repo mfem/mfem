@@ -3964,6 +3964,7 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
       int knot = 0;
 
       Array<int> edge0, edge1;
+      int flip = 1;
       if (Dimension() == 2 )
       {
          edge0.SetSize(2);
@@ -3971,6 +3972,7 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
 
          edge0[0] = 0; edge1[0] = 2;
          edge0[1] = 1; edge1[1] = 3;
+         flip = 1;
       }
       else if (Dimension() == 3 )
       {
@@ -3988,6 +3990,7 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
          edge0[6] = 8; edge1[6] = 9;
          edge0[7] = 8; edge1[7] = 10;
          edge0[8] = 8; edge1[8] = 11;
+         flip = -1;
       }
 
       // Initial assignment of knots to edges
@@ -3996,17 +3999,28 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
       for (p = 0; p < GetNE(); p++)
       {
          GetElementEdges(p, edges, oedge);
+
+         const int *v = elements[p]->GetVertices();
+         for (int j = 0; j < edges.Size(); j++)
+         {
+            int *vv = edge_vertex->GetRow(edges[j]);
+            const int *e = elements[p]->GetEdgeVertices(j);
+            vv[0] = v[e[0]];
+            vv[1] = v[e[1]];
+         }
+
          for (j = 0; j < edge1.Size(); j++)
          {
             e0 = edges[edge0[j]];
             e1 = edges[edge1[j]];
             v0 = edge_to_knot[e0];
             v1 = edge_to_knot[e1];
-            df = oedge[edge0[j]]*oedge[edge1[j]];
+            df = flip*oedge[edge0[j]]*oedge[edge1[j]];
+
             if ((v0 == notset) && (v1 == notset))
             {
-               edge_to_knot[e0] = (oedge[edge0[j]] >= 0 ? knot : -knot-1);
-               edge_to_knot[e1] = (oedge[edge1[j]] >= 0 ? -knot-1 : knot);
+               edge_to_knot[e0] = (     oedge[edge0[j]] >= 0 ? knot : -knot-1);
+               edge_to_knot[e1] = (flip*oedge[edge1[j]] >= 0 ? -knot-1 : knot);
                knot++;
             }
             else if ((v0 != notset) && (v1 == notset))
@@ -4051,8 +4065,8 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
                   }
                }
             }
-            if (corrections == 0) { break; }
          }
+         if (corrections == 0) { break; }
       }
 
       // Check validity of corrections applied
@@ -4087,8 +4101,12 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
       }
 
       // Print knot to edge mapping
-      mfem::out<<"edge_to_knot = ";
-      edge_to_knot.Print(mfem::out, 16);
+      for (int j = 0; j < NumOfEdges; j++)
+      {
+         int *v = edge_vertex->GetRow(j);
+         int k = edge_to_knot[j];
+         mfem::out<<(k >= 0 ? k:-k-1)<<" "<< v[0] <<" "<<v[1]<<endl;
+      }
    }
 }
 
