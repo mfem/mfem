@@ -499,10 +499,7 @@ public:
        @brief _Init_ constructor: begin the construction of a Mesh object. */
    Mesh(int _Dim, int NVert, int NElem, int NBdrElem = 0, int _spaceDim = -1)
    {
-      if (_spaceDim == -1)
-      {
-         _spaceDim = _Dim;
-      }
+      if (_spaceDim == -1) { _spaceDim = _Dim; }
       InitMesh(_Dim, _spaceDim, NVert, NElem, NBdrElem);
    }
 
@@ -514,19 +511,36 @@ public:
 
    Element *NewElement(int geom);
 
-   void AddVertex(const double *);
-   void AddSegment(const int *vi, int attr = 1);
-   void AddTri(const int *vi, int attr = 1);
-   void AddTriangle(const int *vi, int attr = 1);
-   void AddQuad(const int *vi, int attr = 1);
+   int AddVertex(double x, double y = 0.0, double z = 0.0);
+   int AddVertex(const double *);
+   /// Mark vertex @a i as non-conforming, with parent vertices @a p1 and @a p2.
+   void AddVertexParents(int i, int p1, int p2);
+
+   int AddSegment(int v1, int v2, int attr = 1);
+   int AddSegment(const int *vi, int attr = 1);
+
+   int AddTriangle(int v1, int v2, int v3, int attr = 1);
+   int AddTriangle(const int *vi, int attr = 1);
+   int AddTri(const int *vi, int attr = 1) { return AddTriangle(vi, attr); }
+
+   int AddQuad(int v1, int v2, int v3, int v4, int attr = 1);
+   int AddQuad(const int *vi, int attr = 1);
+
+   // TODO
    void AddTet(const int *vi, int attr = 1);
+
+   // TODO
    void AddWedge(const int *vi, int attr = 1);
+
+   // TODO
    void AddHex(const int *vi, int attr = 1);
    void AddHexAsTets(const int *vi, int attr = 1);
    void AddHexAsWedges(const int *vi, int attr = 1);
+
    /// The parameter @a elem should be allocated using the NewElement() method
    void AddElement(Element *elem)     { elements[NumOfElements++] = elem; }
    void AddBdrElement(Element *elem)  { boundary[NumOfBdrElements++] = elem; }
+
    void AddBdrSegment(const int *vi, int attr = 1);
    void AddBdrTriangle(const int *vi, int attr = 1);
    void AddBdrQuad(const int *vi, int attr = 1);
