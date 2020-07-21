@@ -362,7 +362,11 @@ private:
    virtual const DenseMatrix &EvalHessian();
 public:
    /// Set the element that will be used to compute the transformations
-   void SetFE(const FiniteElement *FE) { FElem = FE; geom = FE->GetGeomType(); }
+   void SetFE(const FiniteElement *FE)
+   {
+      EvalState = (FE != FElem) ? 0 : EvalState;
+      FElem = FE; geom = FE->GetGeomType();
+   }
 
    /// Get the current element used to compute the transformations
    const FiniteElement* GetFE() const { return FElem; }
@@ -377,7 +381,7 @@ public:
        the column-vector of all basis functions evaluated at \f$ \hat x \f$ .
        The columns of @a P represent the control points in physical space
        defining the transformation. */
-   void SetPointMat(const DenseMatrix &pm) { PointMat = pm; }
+   void SetPointMat(const DenseMatrix &pm) { PointMat = pm; EvalState = 0; }
 
    /// Return the stored point matrix.
    const DenseMatrix &GetPointMat() const { return PointMat; }
