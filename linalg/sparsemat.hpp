@@ -19,12 +19,12 @@
 #include "../general/device.hpp"
 #include "../general/table.hpp"
 #include "../general/globals.hpp"
-#include "../general/cuda.hpp"
 #include "densemat.hpp"
 
 #ifdef MFEM_USE_CUDA
 #include <cusparse.h>
 #include <library_types.h>
+#include "../general/cuda.hpp"
 #endif
 
 namespace mfem
