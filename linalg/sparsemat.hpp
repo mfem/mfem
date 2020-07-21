@@ -610,7 +610,7 @@ public:
    {
       Destroy();
 #ifdef MFEM_USE_CUDA
-      if (handle && SparseMatrixCount==1)
+      if (handle && SparseMatrixCount==1 && Device::Allows(Backend::CUDA_MASK))
       {
          cusparseDestroy(handle);
          CuMemFree(dBuffer);
