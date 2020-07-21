@@ -36,8 +36,9 @@ namespace mfem
                      {
                         for (int cc = 0; cc < dim; cc++)
                         {
+                           const double H = h(r, c, rr, cc);
                            A(e, i + r*dof, j + rr*dof) +=
-                                 weight_q * DS(i, c) * DS(j, cc) * h(r, c, rr, cc);
+                                 weight_q * DS(i, c) * DS(j, cc) * H;
                         }
                      }
                   }
@@ -68,7 +69,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
 
    auto D = Reshape(diagonal.ReadWrite(), D1D, D1D, DIM, NE);
 
-   MFEM_FORALL(e, NE,
+   MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
    {
       constexpr int DIM = 2;
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -76,14 +77,14 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
 
-      double qd[DIM*DIM*MQ1*MD1];
+      MFEM_SHARED double qd[DIM*DIM*MQ1*MD1];
       DeviceTensor<4,double> QD(qd, DIM, DIM, MQ1, MD1);
 
       for (int v = 0; v < DIM; v++)
       {
-         for (int qx = 0; qx < Q1D; ++qx)
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            for (int dy = 0; dy < D1D; ++dy)
+            MFEM_FOREACH_THREAD(dy,y,D1D)
             {
                QD(0,0,qx,dy) = 0.0;
                QD(0,1,qx,dy) = 0.0;
@@ -117,9 +118,10 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
                }
             }
          }
-         for (int dy = 0; dy < D1D; ++dy)
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(dy,y,D1D)
          {
-            for (int dx = 0; dx < D1D; ++dx)
+            MFEM_FOREACH_THREAD(dx,x,D1D)
             {
                double d = 0.0;
                for (int qx = 0; qx < Q1D; ++qx)
@@ -135,6 +137,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
                D(dx,dy,v,e) += d;
             }
          }
+         MFEM_SYNC_THREAD;
       }
    });
 }
