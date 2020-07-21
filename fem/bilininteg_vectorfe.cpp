@@ -193,8 +193,19 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    if (Q || VQ || MQ)
    {
       Vector D(VQ ? coeffDim : 0);
-      DenseMatrix M(MQ ? dim : 0);
-      Vector Msymm(MQsymmDim);
+      DenseMatrix M;
+      Vector Msymm;
+      if (MQ)
+      {
+         if (symmetric)
+         {
+            Msymm.SetSize(MQsymmDim)
+         }
+         else
+         {
+            M.SetSize(dim)
+         }
+      }
 
       if (VQ)
       {
