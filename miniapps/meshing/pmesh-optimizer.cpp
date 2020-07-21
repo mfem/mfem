@@ -585,17 +585,13 @@ int main (int argc, char *argv[])
    if (fdscheme) { he_nlf_integ->EnableFiniteDifferences(x); }
 
    // Setup the quadrature rules for the TMOP integrator.
-   const IntegrationRule *ir = NULL;
    IntegrationRules *irules = NULL;
    const int geom_type = pfespace->GetFE(0)->GetGeomType();
    switch (quad_type)
    {
       case 1: irules = &IntRulesLo;
-         ir = &IntRulesLo.Get(geom_type, quad_order); break;
       case 2: irules = &IntRules;
-         ir = &IntRules.Get(geom_type, quad_order); break;
       case 3: irules = &IntRulesCU;
-         ir = &IntRulesCU.Get(geom_type, quad_order); break;
       default:
          if (myid == 0) { cout << "Unknown quad_type: " << quad_type << endl; }
          return 3;
@@ -801,11 +797,12 @@ int main (int argc, char *argv[])
    const int NE = pmesh->GetNE();
    for (int i = 0; i < NE; i++)
    {
-      ir = &irules->Get(pfespace->GetFE(i)->GetGeomType(), quad_order);
+      const IntegrationRule &ir =
+            irules->Get(pfespace->GetFE(i)->GetGeomType(), quad_order);
       ElementTransformation *transf = pmesh->GetElementTransformation(i);
-      for (int j = 0; j < ir->GetNPoints(); j++)
+      for (int j = 0; j < ir.GetNPoints(); j++)
       {
-         transf->SetIntPoint(&ir->IntPoint(j));
+         transf->SetIntPoint(&ir.IntPoint(j));
          tauval = min(tauval, transf->Jacobian().Det());
       }
    }
@@ -819,8 +816,10 @@ int main (int argc, char *argv[])
    tauval -= 0.01 * h0min_all; // Slightly below minJ0 to avoid div by 0.
 
    // Perform the nonlinear optimization.
-   TMOPNewtonSolver solver(pfespace->GetComm(), *ir, solver_type);
-   // Give all integration rules in case of a mixed mesh.
+   const IntegrationRule &ir =
+         irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
+   TMOPNewtonSolver solver(pfespace->GetComm(), ir, solver_type);
+   // Provide all integration rules in case of a mixed mesh.
    solver.SetIntegrationRules(*irules, quad_order);
    if (solver_type == 0)
    {
