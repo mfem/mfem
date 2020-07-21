@@ -1863,7 +1863,6 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
 
       // TODO: derivatives of adaptivity-based targets.
 
-      // TODO optimize by symmetry.
       if (coeff0)
       {
          el.CalcShape(ip, shape);
@@ -1871,19 +1870,17 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
          pos0.MultTranspose(shape, p0);
          weight_m = weights(q) * lim_normal * coeff0->Eval(*Tpr, ip);
          lim_func->Eval_d2(p, p0, d_vals(q), grad_grad);
-         for (int i = 0; i < dof; i++)
+
+         for (int i = 0; i < dof * dim; i++)
          {
-            const double w_shape_i = weight_m * shape(i);
-            for (int j = 0; j < dof; j++)
+            const int idof = i % dof, idim = i / dof;
+            for (int j = 0; j <= i; j++)
             {
-               const double w = w_shape_i * shape(j);
-               for (int d1 = 0; d1 < dim; d1++)
-               {
-                  for (int d2 = 0; d2 < dim; d2++)
-                  {
-                     elmat(d1*dof + i, d2*dof + j) += w * grad_grad(d1, d2);
-                  }
-               }
+               const int jdof = j % dof, jdim = j / dof;
+               const double entry = weight_m * shape(idof) * shape(jdof) *
+                                    grad_grad(idim, jdim);
+               elmat(i, j) += entry;
+               if (i != j) { elmat(j, i) += entry; }
             }
          }
       }
