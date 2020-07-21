@@ -4007,13 +4007,13 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
             const int *e = elements[p]->GetEdgeVertices(j);
             if (oedge[j] == 1)
             {
-                vv[0] = v[e[0]];
-                vv[1] = v[e[1]];
+               vv[0] = v[e[0]];
+               vv[1] = v[e[1]];
             }
             else
             {
-                vv[0] = v[e[1]];
-                vv[1] = v[e[0]];
+               vv[0] = v[e[1]];
+               vv[1] = v[e[0]];
             }
          }
 
