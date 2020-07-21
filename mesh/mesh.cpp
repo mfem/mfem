@@ -1211,35 +1211,68 @@ void Mesh::InitMesh(int _Dim, int _spaceDim, int NVert, int NElem, int NBdrElem)
    boundary.SetSize(NBdrElem);  // just allocate space for Element *
 }
 
-void Mesh::AddVertex(const double *x)
+int Mesh::AddVertex(const double *x)
 {
-   double *y = vertices[NumOfVertices]();
-
-   for (int i = 0; i < spaceDim; i++)
-   {
-      y[i] = x[i];
-   }
-   NumOfVertices++;
+   if (vertices.Size() <= NumOfVertices) { vertices.SetSize(NumOfVertices+1); }
+   vertices[NumOfVertices].SetCoords(spaceDim, x);
+   return NumOfVertices++;
 }
 
-void Mesh::AddSegment(const int *vi, int attr)
+int Mesh::AddVertex(double x, double y, double z)
 {
-   elements[NumOfElements++] = new Segment(vi, attr);
+   if (vertices.Size() <= NumOfVertices) { vertices.SetSize(NumOfVertices+1); }
+   double *v = vertices[NumOfVertices]();
+   v[0] = x;
+   v[1] = y;
+   v[2] = z;
+   return NumOfVertices++;
 }
 
-void Mesh::AddTri(const int *vi, int attr)
+void Mesh::AddVertexParents(int i, int p1, int p2)
 {
-   elements[NumOfElements++] = new Triangle(vi, attr);
+   // TODO
 }
 
-void Mesh::AddTriangle(const int *vi, int attr)
+int Mesh::AddSegment(int v1, int v2, int attr)
 {
-   elements[NumOfElements++] = new Triangle(vi, attr);
+   if (elements.Size() <= NumOfElements) { elements.SetSize(NumOfElements+1); }
+   elements[NumOfElements] = new Segment(v1, v2, attr);
+   return NumOfElements++;
 }
 
-void Mesh::AddQuad(const int *vi, int attr)
+int Mesh::AddSegment(const int *vi, int attr)
 {
-   elements[NumOfElements++] = new Quadrilateral(vi, attr);
+   if (elements.Size() <= NumOfElements) { elements.SetSize(NumOfElements+1); }
+   elements[NumOfElements] = new Segment(vi, attr);
+   return NumOfElements++;
+}
+
+int Mesh::AddTriangle(int v1, int v2, int v3, int attr)
+{
+   if (elements.Size() <= NumOfElements) { elements.SetSize(NumOfElements+1); }
+   elements[NumOfElements] = new Triangle(v1, v2, v3, attr);
+   return NumOfElements++;
+}
+
+int Mesh::AddTriangle(const int *vi, int attr)
+{
+   if (elements.Size() <= NumOfElements) { elements.SetSize(NumOfElements+1); }
+   elements[NumOfElements] = new Triangle(vi, attr);
+   return NumOfElements++;
+}
+
+int Mesh::AddQuad(int v1, int v2, int v3, int v4, int attr)
+{
+   if (elements.Size() <= NumOfElements) { elements.SetSize(NumOfElements+1); }
+   elements[NumOfElements] = new Quadrilateral(v1, v2, v3, v4, attr);
+   return NumOfElements++;
+}
+
+int Mesh::AddQuad(const int *vi, int attr)
+{
+   if (elements.Size() <= NumOfElements) { elements.SetSize(NumOfElements+1); }
+   elements[NumOfElements] = new Quadrilateral(vi, attr);
+   return NumOfElements++;
 }
 
 void Mesh::AddTet(const int *vi, int attr)
