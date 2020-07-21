@@ -26,8 +26,10 @@
 #include <signal.h>
 #include <sys/mman.h>
 #define mfem_memalign(p,a,s) posix_memalign(p,a,s)
+#define mfem_aligned_free free
 #else
 #define mfem_memalign(p,a,s) (((*(p))=_aligned_malloc((s),(a))),*(p)?0:errno)
+#define mfem_aligned_free _aligned_free
 #endif
 
 #ifdef MFEM_USE_UMPIRE
@@ -212,7 +214,7 @@ public:
    Aligned32HostMemorySpace(): HostMemorySpace() { }
    void Alloc(void **ptr, size_t bytes)
    { if (mfem_memalign(ptr, 32, bytes) != 0) { throw ::std::bad_alloc(); } }
-   void Dealloc(void *ptr) { std::free(ptr); }
+   void Dealloc(void *ptr) { mfem_aligned_free(ptr); }
 };
 
 /// The aligned 64 host memory space
@@ -222,6 +224,7 @@ public:
    Aligned64HostMemorySpace(): HostMemorySpace() { }
    void Alloc(void **ptr, size_t bytes)
    { if (mfem_memalign(ptr, 64, bytes) != 0) { throw ::std::bad_alloc(); } }
+   void Dealloc(void *ptr) { mfem_aligned_free(ptr); }
 };
 
 #ifndef _WIN32
@@ -666,12 +669,11 @@ void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
 {
    MFEM_CONTRACT_VAR(alias);
    MFEM_ASSERT(exists, "Internal error!");
-   MFEM_ASSERT(IsHostMemory(mt), "Internal error!");
    MFEM_ASSERT(!alias, "Cannot register an alias!");
    const bool is_host_mem = IsHostMemory(mt);
    const MemType dual_mt = GetDualMemoryType_(mt);
-   const MemType h_mt = mt;
-   const MemType d_mt = dual_mt;
+   const MemType h_mt = is_host_mem ? mt : dual_mt;
+   const MemType d_mt = is_host_mem ? dual_mt : mt;
    MFEM_VERIFY_TYPES(h_mt, d_mt);
 
    if (ptr == nullptr && h_tmp == nullptr)
@@ -693,10 +695,11 @@ void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
    else // DEVICE TYPES
    {
       h_ptr = h_tmp;
-      if (h_tmp == nullptr) { ctrl->Host(h_mt)->Alloc(&h_ptr, bytes); }
+      if (own && h_tmp == nullptr) { ctrl->Host(h_mt)->Alloc(&h_ptr, bytes); }
       mm.InsertDevice(ptr, h_ptr, bytes, h_mt, d_mt);
-      flags = (own ? flags | Mem::OWNS_DEVICE : flags & ~Mem::OWNS_DEVICE) |
-              Mem::OWNS_HOST | Mem::VALID_DEVICE;
+      flags = own ? flags | Mem::OWNS_DEVICE : flags & ~Mem::OWNS_DEVICE;
+      flags = own ? flags | Mem::OWNS_HOST   : flags & ~Mem::OWNS_HOST;
+      flags |= Mem::VALID_DEVICE;
    }
    CheckHostMemoryType_(h_mt, h_ptr);
    return h_ptr;

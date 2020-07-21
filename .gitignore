@@ -29,6 +29,8 @@ config/sample-runs-build.log
 doc/CodeDocumentation.conf
 doc/CodeDocumentation.html
 doc/CodeDocumentation
+doc/undoc.log
+doc/warnings.log
 
 # Temporary files created by the tests.
 *.stderr
@@ -72,6 +74,10 @@ examples/deformed.*
 examples/velocity.*
 examples/elastic_energy.*
 examples/mode_*
+examples/ex5-p-*.bp
+examples/ex9-p-*.bp
+examples/ex12-p-*.bp
+examples/ex16-p-*.bp
 examples/ex16.mesh
 examples/ex16-mesh.*
 examples/ex16-init.*
@@ -116,7 +122,7 @@ examples/sundials/ex16-final.*
 examples/sundials/Example16*
 
 examples/petsc/ex[1-69]p
-examples/petsc/ex10p
+examples/petsc/ex1[0-1]p
 
 examples/petsc/mesh.*
 examples/petsc/sol.*
@@ -131,6 +137,7 @@ examples/petsc/Example9*
 examples/petsc/deformed.*
 examples/petsc/velocity.*
 examples/petsc/elastic_energy.*
+examples/petsc/mode_*
 
 examples/pumi/ex1
 examples/pumi/ex[126]p
@@ -163,8 +170,11 @@ miniapps/meshing/twist
 miniapps/meshing/mesh-explorer
 miniapps/meshing/shaper
 miniapps/meshing/extruder
+miniapps/meshing/trimmer
 miniapps/meshing/mesh-optimizer
 miniapps/meshing/pmesh-optimizer
+miniapps/meshing/minimal-surface
+miniapps/meshing/pminimal-surface
 
 miniapps/meshing/mobius-strip.mesh
 miniapps/meshing/klein-bottle.mesh
@@ -174,6 +184,7 @@ miniapps/meshing/mesh-explorer.mesh
 miniapps/meshing/partitioning.txt
 miniapps/meshing/shaper.mesh
 miniapps/meshing/extruder.mesh
+miniapps/meshing/trimmer.mesh
 miniapps/meshing/optimized*
 miniapps/meshing/perturbed*
 
@@ -224,6 +235,14 @@ miniapps/nurbs/Example1*
 miniapps/gslib/field-diff
 miniapps/gslib/findpts
 miniapps/gslib/pfindpts
+
+miniapps/navier/navier_mms
+miniapps/navier/navier_kovasznay
+miniapps/navier/navier_tgv
+miniapps/navier/navier_shear
+miniapps/navier/navier_3dfoc
+miniapps/navier/tgv_out*.txt
+miniapps/navier/*_output
 
 # Unit test binary and outputs
 tests/unit/output_meshes

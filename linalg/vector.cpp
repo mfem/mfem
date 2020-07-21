@@ -175,6 +175,15 @@ Vector &Vector::operator-=(const Vector &v)
    return *this;
 }
 
+Vector &Vector::operator+=(double c)
+{
+   const bool use_dev = UseDevice();
+   const int N = size;
+   auto y = ReadWrite(use_dev);
+   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] += c;);
+   return *this;
+}
+
 Vector &Vector::operator+=(const Vector &v)
 {
    MFEM_ASSERT(size == v.size, "incompatible Vectors!");
@@ -697,6 +706,16 @@ void Vector::Print(std::ostream &out, int width) const
    }
    out << '\n';
 }
+
+#ifdef MFEM_USE_ADIOS2
+void Vector::Print(adios2stream &out,
+                   const std::string& variable_name) const
+{
+   if (!size) { return; }
+   data.Read(MemoryClass::HOST, size);
+   out.engine.Put(variable_name, &data[0] );
+}
+#endif
 
 void Vector::Print_HYPRE(std::ostream &out) const
 {
