@@ -32,11 +32,6 @@
 // Compile with: make pmesh-optimizer
 //
 //
-//   Mixed triangle / square.
-//     mpirun -np 4 pmesh-optimizer -m ../../data/star-mixed-p2.mesh -o 4 -rs 0 -mid 2 -tid 1 -fix-bnd -qo 6 -vl 1 -nor -lc 0.25
-//   Mixed tet / cube / hex:
-//     mpirun -np 4 pmesh-optimizer -m ../../data/fichera-mixed-p2.mesh -o 4 -rs 1 -mid 303 -tid 1 -fix-bnd -qo 6 -vl 1 -nor -lc 0.25
-//
 // Sample runs:
 //   Adapted analytic shape:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
@@ -47,7 +42,8 @@
 //
 //   Adapted discrete size:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -cmb 2 -nor
+//   Adapted discrete size; explicit combo of metrics; mixed tri/quad mesh:
+//     mpirun -np 4 pmesh-optimizer -m ../../data/square-mixed.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -bnd -qo 6 -cmb 2 -nor
 //   Adapted discrete size+aspect_ratio:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100  -ls 2 -li 100 -bnd -qt 1 -qo 8
 //   Adapted discrete size+orientation (requires GSLIB):
@@ -80,6 +76,8 @@
 //     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -lc 10
 //   ICF combo shape + size (rings, slow convergence):
 //     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 1000 -ls 2 -li 100 -bnd -qt 1 -qo 8 -cmb 1
+//   Mixed tet / cube / hex mesh with limiting:
+//     mpirun -np 4 pmesh-optimizer -m ../../data/fichera-mixed-p2.mesh -o 4 -rs 1 -mid 301 -tid 1 -fix-bnd -qo 6 -vl 1 -nor -lc 0.25
 //   3D pinched sphere shape (the mesh is in the mfem/data GitHub repository):
 //   * mpirun -np 4 pmesh-optimizer -m ../../../mfem_data/ball-pert.mesh -o 4 -rs 0 -mid 303 -tid 1 -ni 20 -ls 2 -li 500 -fix-bnd
 //   2D non-conforming shape and equal size:
@@ -707,7 +705,8 @@ int main (int argc, char *argv[])
 
    const double init_energy = a.GetParGridFunctionEnergy(x);
 
-   // 16. Visualize the starting mesh and metric values.
+   // Visualize the starting mesh and metric values.
+   // Note that for combinations of metrics, this only shows the first metric.
    if (visualization)
    {
       char title[] = "Initial metric values";
