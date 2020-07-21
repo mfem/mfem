@@ -386,7 +386,10 @@ public:
    /// Return the stored point matrix.
    const DenseMatrix &GetPointMat() const { return PointMat; }
 
-   /// Write access to the stored point matrix. Use with caution.
+   /// @brief Write access to the stored point matrix. Use with caution.
+   /** If the point matrix is altered using this member function the Reset
+       function should also be called to force the reevaluation of the
+       Jacobian, etc.. */
    DenseMatrix &GetPointMat() { return PointMat; }
 
    /// Set the FiniteElement Geometry for the reference elements being used.
