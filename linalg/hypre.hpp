@@ -577,7 +577,7 @@ HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
     each process remain on that process in the resulting matrix. Some blocks can
     be NULL. Each block and the entire system can be rectangular. Scalability to
     extremely large processor counts is limited by global MPI communication, see
-    GatherBlockOffsetData in hypre.cpp. */
+    GatherBlockOffsetData() in hypre.cpp. */
 HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
                                           Array2D<double> *blockCoeff=NULL);
 
