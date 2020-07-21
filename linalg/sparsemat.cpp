@@ -281,6 +281,16 @@ void SparseMatrix::SetEmpty()
    NodesMem = NULL;
 #endif
    isSorted = false;
+
+#ifdef MFEM_USE_CUDA
+   if (initBuffers)
+   {
+      cusparseDestroySpMat(matA_descr);
+      cusparseDestroyDnVec(vecX_descr);
+      cusparseDestroyDnVec(vecY_descr);
+      initBuffers = false;
+   }
+#endif
 }
 
 int SparseMatrix::RowSize(const int i) const
@@ -650,16 +660,16 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
       }
 
       /*Allocate space for kernel. Buffer is shared between different sparsemats */
-      size_t new_bufferSize = 0;
+      size_t newBufferSize = 0;
       cusparseSpMV_bufferSize(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha,
                               matA_descr,
                               vecX_descr, &beta, vecY_descr, CUDA_R_64F,
-                              CUSPARSE_CSRMV_ALG1, &new_bufferSize);
+                              CUSPARSE_CSRMV_ALG1, &newBufferSize);
 
       //Check if need to resize
-      if (new_bufferSize > bufferSize)
+      if (newBufferSize > bufferSize)
       {
-         bufferSize = new_bufferSize;
+         bufferSize = newBufferSize;
          if (dBuffer != NULL) { CuMemFree(dBuffer); }
          CuMemAlloc(&dBuffer, bufferSize);
       }
@@ -3049,6 +3059,16 @@ void SparseMatrix::Destroy()
    delete NodesMem;
 #endif
    delete At;
+
+#ifdef MFEM_USE_CUDA
+   if (initBuffers)
+   {
+      cusparseDestroySpMat(matA_descr);
+      cusparseDestroyDnVec(vecX_descr);
+      cusparseDestroyDnVec(vecY_descr);
+      initBuffers = false;
+   }
+#endif
 }
 
 int SparseMatrix::ActualWidth() const
