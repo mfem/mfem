@@ -131,14 +131,14 @@ public:
    /** Setup a Jacobi smoother with the diagonal of @a a obtained by calling
        a.AssembleDiagonal(). It is assumed that the underlying operator acts as
        the identity on entries in ess_tdof_list, corresponding to (assembled)
-       DIAG_ONE policy or ConstratinedOperator in the matrix-free setting. */
+       DIAG_ONE policy or ConstrainedOperator in the matrix-free setting. */
    OperatorJacobiSmoother(const BilinearForm &a,
                           const Array<int> &ess_tdof_list,
                           const double damping=1.0);
 
    /** Application is by the *inverse* of the given vector. It is assumed that
        the underlying operator acts as the identity on entries in ess_tdof_list,
-       corresponding to (assembled) DIAG_ONE policy or ConstratinedOperator in
+       corresponding to (assembled) DIAG_ONE policy or ConstrainedOperator in
        the matrix-free setting. */
    OperatorJacobiSmoother(const Vector &d,
                           const Array<int> &ess_tdof_list,
