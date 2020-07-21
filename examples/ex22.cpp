@@ -366,7 +366,6 @@ int main(int argc, char *argv[])
    Vector B, U;
 
    a->FormLinearSystem(ess_tdof_list, u, b, A, U, B);
-   U = 0.0;
 
    cout << "Size of linear system: " << A->Width() << endl << endl;
 

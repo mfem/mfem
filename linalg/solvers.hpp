@@ -121,7 +121,7 @@ public:
 
    /** Application is by the *inverse* of the given vector. It is assumed that
        the underlying operator acts as the identity on entries in ess_tdof_list,
-       corresponding to (assembled) DIAG_ONE policy or ConstratinedOperator in
+       corresponding to (assembled) DIAG_ONE policy or ConstrainedOperator in
        the matrix-free setting. */
    OperatorJacobiSmoother(const Vector &d,
                           const Array<int> &ess_tdof_list,
