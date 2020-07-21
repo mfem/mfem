@@ -12,6 +12,14 @@
 #ifndef MFEM_SIMD_QPX_HPP
 #define MFEM_SIMD_QPX_HPP
 
+#include "../../config/tconfig.hpp"
+
+#ifndef MFEM_USE_CUDA
+
+#include <builtins.h>
+
 #include "qpx256.hpp"
+
+#endif // MFEM_USE_CUDA
 
 #endif // MFEM_SIMD_QPX_HPP

@@ -14,12 +14,15 @@
 
 #include "../../config/tconfig.hpp"
 
-#ifndef __CUDACC__
+#ifndef MFEM_USE_CUDA
 
 #include <altivec.h>
+#ifdef __GNUC__
+#undef bool
+#endif
 
 #include "vsx128.hpp"
 
-#endif // __CUDACC__
+#endif // MFEM_USE_CUDA
 
 #endif // MFEM_SIMD_VSX_HPP
