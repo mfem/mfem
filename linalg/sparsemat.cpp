@@ -650,17 +650,18 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
       }
 
       /*Allocate space for kernel. Buffer is shared between different sparsemats */
-      size_t temp_bufferSize = 0;
+      size_t new_bufferSize = 0;
       cusparseSpMV_bufferSize(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha,
                               matA_descr,
                               vecX_descr, &beta, vecY_descr, CUDA_R_64F,
-                              CUSPARSE_CSRMV_ALG1, &temp_bufferSize);
+                              CUSPARSE_CSRMV_ALG1, &new_bufferSize);
 
       //Check if need to resize
-      if (temp_bufferSize > bufferSize)
+      if (new_bufferSize > bufferSize)
       {
+         bufferSize = new_bufferSize;
          if (dBuffer != NULL) { CuMemFree(dBuffer); }
-         CuMemAlloc(&dBuffer, temp_bufferSize);
+         CuMemAlloc(&dBuffer, bufferSize);
       }
 
       //Update input/output vectors
