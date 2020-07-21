@@ -155,7 +155,7 @@ stages:
     - cp -r ${CI_PROJECT_DIR} ${BUILD_PATH}/${CI_PROJECT_NAME}_${MFEM_USE_MPI}_${MFEM_DEBUG}
     - cd ${BUILD_PATH}/${CI_PROJECT_NAME}_${MFEM_USE_MPI}_${MFEM_DEBUG}
     - *if_srun_alloc_for_make
-    - make config CXX=${CXX} MPICXX=mpicxx MFEM_USE_MPI=${MFEM_USE_MPI} MFEM_DEBUG=${MFEM_DEBUG} MFEM_MPIEXEC="${EXEC_PREFIX}" MFEM_MPIEXEC_NP=${MPIEXEC_NP} CPPFLAGS="-pedantic -Wall -Werror"
+    - make config CXX=${CXX} MPICXX=mpicxx MFEM_USE_MPI=${MFEM_USE_MPI} MFEM_DEBUG=${MFEM_DEBUG} MFEM_MPIEXEC="${EXEC_PREFIX}" MFEM_MPIEXEC_NP=${MPIEXEC_NP}
     - ${EXEC_PREFIX} make -j ${MAKE_PAR} all
 
 # TODO: Could this phase use a parallel run?
