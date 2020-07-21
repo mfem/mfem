@@ -38,13 +38,14 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect)
    int n = 2;
    while (phi * rstep / n * aspect > rstep) { n++; }
 
-   // create triangles around the origin
    double r = rstep;
    int first = mesh->AddVertex(r, 0.0);
+
+   // create triangles around the origin
    for (int i = 0; i < n; i++)
    {
-      double a = phi * (i+1) / n;
-      mesh->AddVertex(r*cos(a), r*sin(a));
+      double alpha = phi * (i+1) / n;
+      mesh->AddVertex(r*cos(alpha), r*sin(alpha));
       mesh->AddTriangle(origin, first+i, first+i+1);
    }
 
@@ -54,14 +55,53 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect)
       int m = n;
       int prev_first = first;
 
-      // create a row of quads
+      double prev_r = r;
       r += rstep;
-      first = mesh->AddVertex(r, 0.0);
-      for (int i = 0; i < n; i++)
+
+
+      if (phi * r / n * aspect <= rstep)
       {
-         double a = phi * (i+1) / n;
-         mesh->AddVertex(r*cos(a), r*sin(a));
-         mesh->AddQuad(prev_first+i, first+i, first+i+1, prev_first+i+1);
+         // create a row of quads, same number as in previous row
+         first = mesh->AddVertex(r, 0.0);
+         for (int i = 0; i < n; i++)
+         {
+            double alpha = phi * (i+1) / n;
+            mesh->AddVertex(r*cos(alpha), r*sin(alpha));
+            mesh->AddQuad(prev_first+i, first+i, first+i+1, prev_first+i+1);
+         }
+      }
+      else // we need to double the number of elements per row
+      {
+         n *= 2;
+
+         // first create hanging vertices
+         int hang;
+         for (int i = 0; i < m; i++)
+         {
+            double alpha = phi * (2*i+1) / n;
+            int index = mesh->AddVertex(prev_r*cos(alpha), prev_r*sin(alpha));
+            mesh->AddVertexParents(index, prev_first+i, prev_first+i+1);
+            if (!i) { hang = index; }
+         }
+
+         // create a row of quad pairs
+         first = mesh->AddVertex(r, 0.0);
+         int a = prev_first, b = first;
+         for (int i = 0; i < m; i++)
+         {
+            int c = hang+i, e = a+1;
+
+            double alpha = phi * (2*i+1) / n;
+            int d = mesh->AddVertex(r*cos(alpha), r*sin(alpha));
+
+            alpha = phi * (2*i+2) / n;
+            int f = mesh->AddVertex(r*cos(alpha), r*sin(alpha));
+
+            mesh->AddQuad(a, b, d, c);
+            mesh->AddQuad(c, d, f, e);
+
+            a = e, b = f;
+         }
       }
    }
 
@@ -75,8 +115,8 @@ int main(int argc, char *argv[])
    int dim = 2;
    double radius = 1.0;
    double angle = 90;
-   double aspect = 4;
-   double rstep = 0.1;
+   double aspect = 1.5;
+   double rstep = 0.05;
 
    // Parse command line
    OptionsParser args(argc, argv);
