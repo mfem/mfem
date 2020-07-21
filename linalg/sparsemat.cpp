@@ -31,6 +31,8 @@ using namespace std;
 #ifdef MFEM_USE_CUDA
 int SparseMatrix::SparseMatrixCount = 0;
 cusparseHandle_t SparseMatrix::handle;
+size_t SparseMatrix::bufferSize = 0;
+void * SparseMatrix::dBuffer = nullptr;
 #endif
 
 void SparseMatrix::InitCuSparse()
@@ -630,10 +632,10 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
       const double alpha = a;
       const double beta  = 1.0;
 
-      //Initialize once
-      if (!initCuSparse)
+      //Setup descriptors
+      if (!initBuffers)
       {
-         /* create and setup matrix descriptor */
+         /* Setup matrix descriptor */
          cusparseCreateCsr(&matA_descr,Height(), Width(), J.Capacity(),
                            const_cast<int *>(d_I),
                            const_cast<int *>(d_J), const_cast<double *>(d_A), CUSPARSE_INDEX_32I,
@@ -644,16 +646,21 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
                              CUDA_R_64F);
          cusparseCreateDnVec(&vecY_descr, y.Size(), d_y, CUDA_R_64F);
 
-         /*Create allocate space for kernel */
-         cusparseSpMV_bufferSize(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha,
-                                 matA_descr,
-                                 vecX_descr, &beta, vecY_descr, CUDA_R_64F,
-                                 CUSPARSE_CSRMV_ALG1, &bufferSize);
-         if (bufferSize > 0)
-         {
-            cudaMalloc(&dBuffer, bufferSize);
-         }
-         initCuSparse = true;
+         initBuffers = true;
+      }
+
+      /*Allocate space for kernel. Buffer is shared between different sparsemats */
+      size_t temp_bufferSize = 0;
+      cusparseSpMV_bufferSize(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha,
+                              matA_descr,
+                              vecX_descr, &beta, vecY_descr, CUDA_R_64F,
+                              CUSPARSE_CSRMV_ALG1, &temp_bufferSize);
+
+      //Check if need to resize
+      if (temp_bufferSize > bufferSize)
+      {
+         if (dBuffer != NULL) { CuMemFree(dBuffer); }
+         CuMemAlloc(&dBuffer, temp_bufferSize);
       }
 
       //Update input/output vectors
@@ -662,7 +669,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 
       // Y = alpha A * X + beta * Y
       cusparseSpMV(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matA_descr,
-                   vecX_descr, &beta, vecY_descr, CUDA_R_64F, CUSPARSE_CSRMV_ALG2, dBuffer);
+                   vecX_descr, &beta, vecY_descr, CUDA_R_64F, CUSPARSE_CSRMV_ALG1, dBuffer);
 #endif
    }
    else
