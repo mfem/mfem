@@ -33,6 +33,9 @@ Meshing improvements
   for example the periodic-annulus-sector and periodic-torus-sector files in
   the data directory.
 
+- Added complete action of the TMOP Integrator to account for the spatial 
+  derivatives of discrete and analytic targets.
+
 Performance improvements
 ------------------------
 - Added support for explicit vectorization in the high-performance templated
