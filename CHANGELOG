@@ -48,6 +48,8 @@ Improved GPU capabilities
 -------------------------
 - Added support for Chebyshev accelerated polynomial smoother on GPU.
 
+- Optimized AMD/HIP kernel support.
+
 - Added a Full Assembly mode compatible with Device kernel execution. This
   assembly level builds on top of the current Element Assembly kernels to
   compute a global sparse matrix. All integrators supported by element assembly
