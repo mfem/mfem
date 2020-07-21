@@ -796,8 +796,8 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                   "Incompatible QuadratureFunction dimension \n");
 
       MFEM_VERIFY(*ir == qFun.GetSpace()->GetElementIntRule(0),
-                  "IntegrationRule used within integrator and in QuadratureFunction \
-                  appear to be different");
+                  "IntegrationRule used within integrator and in"
+                  " QuadratureFunction appear to be different");
 
       qFun.Read();
       vel.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
