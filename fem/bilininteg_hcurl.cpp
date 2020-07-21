@@ -134,12 +134,12 @@ void PAHcurlSetup3D(const int Q1D,
             const double M11 = coeff(0, q, e);
             const double M12 = coeff(1, q, e);
             const double M13 = coeff(2, q, e);
-            const double M21 = (coeffDim == 9) ? coeff(3, q, e) : M12;
-            const double M22 = (coeffDim == 9) ? coeff(4, q, e) : coeff(3, q, e);
-            const double M23 = (coeffDim == 9) ? coeff(5, q, e) : coeff(4, q, e);
-            const double M31 = (coeffDim == 9) ? coeff(6, q, e) : M13;
-            const double M32 = (coeffDim == 9) ? coeff(7, q, e) : M23;
-            const double M33 = (coeffDim == 9) ? coeff(8, q, e) : coeff(5, q, e);
+            const double M21 = (!symmetric) ? coeff(3, q, e) : M12;
+            const double M22 = (!symmetric) ? coeff(4, q, e) : coeff(3, q, e);
+            const double M23 = (!symmetric) ? coeff(5, q, e) : coeff(4, q, e);
+            const double M31 = (!symmetric) ? coeff(6, q, e) : M13;
+            const double M32 = (!symmetric) ? coeff(7, q, e) : M23;
+            const double M33 = (!symmetric) ? coeff(8, q, e) : coeff(5, q, e);
 
             const double R11 = M11*A11 + M12*A12 + M13*A13;
             const double R12 = M11*A21 + M12*A22 + M13*A23;
