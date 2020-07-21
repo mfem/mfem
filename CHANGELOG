@@ -98,6 +98,10 @@ Linear and nonlinear solvers
   and solution during the solving process of an IterativeSolver after every
   iteration.
 
+- Added support for the CVODES package in SUNDIALS which provides ODE
+  solvers with sensitivity analysis capabilities. See the CVODESSolver
+  class and the new adjoint miniapps below.
+
 - Block arrays of parallel matrices can now be merged into a single parallel
   matrix with the function HypreParMatrixFromBlocks. This could be useful for
   solving block systems with parallel direct solvers such as STRUMPACK.
