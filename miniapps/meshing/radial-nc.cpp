@@ -48,6 +48,8 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect)
       mesh->AddVertex(r*cos(alpha), r*sin(alpha));
       mesh->AddTriangle(origin, first+i, first+i+1);
    }
+   mesh->AddBdrSegment(origin, first);
+   mesh->AddBdrSegment(first+n, origin);
 
    for (int k = 1; k < nsteps; k++)
    {
@@ -61,14 +63,18 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect)
 
       if (phi * r / n * aspect <= rstep)
       {
-         // create a row of quads, same number as in previous row
          first = mesh->AddVertex(r, 0.0);
+         mesh->AddBdrSegment(prev_first, first, 2);
+
+         // create a row of quads, same number as in previous row
          for (int i = 0; i < n; i++)
          {
             double alpha = phi * (i+1) / n;
             mesh->AddVertex(r*cos(alpha), r*sin(alpha));
             mesh->AddQuad(prev_first+i, first+i, first+i+1, prev_first+i+1);
          }
+
+         mesh->AddBdrSegment(first+n, prev_first+n, 2);
       }
       else // we need to double the number of elements per row
       {
@@ -84,9 +90,11 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect)
             if (!i) { hang = index; }
          }
 
-         // create a row of quad pairs
          first = mesh->AddVertex(r, 0.0);
          int a = prev_first, b = first;
+         mesh->AddBdrSegment(a, b, 1);
+
+         // create a row of quad pairs
          for (int i = 0; i < m; i++)
          {
             int c = hang+i, e = a+1;
@@ -102,10 +110,17 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect)
 
             a = e, b = f;
          }
+
+         mesh->AddBdrSegment(b, a, 2);
       }
    }
 
-   mesh->Finalize();
+   for (int i = 0; i < n; i++)
+   {
+      mesh->AddBdrSegment(first+i, first+i+1, 3);
+   }
+
+   mesh->FinalizeMesh();
    return mesh;
 }
 
@@ -115,7 +130,7 @@ int main(int argc, char *argv[])
    int dim = 2;
    double radius = 1.0;
    double angle = 90;
-   double aspect = 1.5;
+   double aspect = 1.0;
    double rstep = 0.05;
 
    // Parse command line

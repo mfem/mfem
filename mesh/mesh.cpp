@@ -1230,7 +1230,18 @@ int Mesh::AddVertex(double x, double y, double z)
 
 void Mesh::AddVertexParents(int i, int p1, int p2)
 {
-   // TODO
+   tmp_vertex_parents.Append(Triple<int, int, int>(i, p1, p2));
+
+   // if vertex coordinates are defined, make sure the hanging vertex has the
+   // correct position
+   if (i < vertices.Size())
+   {
+      double *vi = vertices[i](), *vp1 = vertices[p1](), *vp2 = vertices[p2]();
+      for (int j = 0; j < 3; j++)
+      {
+         vi[j] = (vp1[j] + vp2[j]) * 0.5;
+      }
+   }
 }
 
 int Mesh::AddSegment(int v1, int v2, int attr)
@@ -1335,9 +1346,24 @@ void Mesh::AddHexAsWedges(const int *vi, int attr)
    }
 }
 
-void Mesh::AddBdrSegment(const int *vi, int attr)
+int Mesh::AddBdrSegment(int v1, int v2, int attr)
 {
-   boundary[NumOfBdrElements++] = new Segment(vi, attr);
+   if (boundary.Size() <= NumOfBdrElements)
+   {
+      boundary.SetSize(NumOfBdrElements+1);
+   }
+   boundary[NumOfBdrElements] = new Segment(v1, v2, attr);
+   return NumOfBdrElements++;
+}
+
+int Mesh::AddBdrSegment(const int *vi, int attr)
+{
+   if (boundary.Size() <= NumOfBdrElements)
+   {
+      boundary.SetSize(NumOfBdrElements+1);
+   }
+   boundary[NumOfBdrElements] = new Segment(vi, attr);
+   return NumOfBdrElements++;
 }
 
 void Mesh::AddBdrTriangle(const int *vi, int attr)
@@ -2440,6 +2466,15 @@ void Mesh::FinalizeTopology(bool generate_bdr)
 
    // generate the arrays 'attributes' and 'bdr_attributes'
    SetAttributes();
+
+   // if the user defined any hanging nodes (see AddVertexParent),
+   // initialize the NC mesh now
+   if (tmp_vertex_parents.Size())
+   {
+      MFEM_VERIFY(ncmesh == NULL, "");
+      EnsureNCMesh(true);
+      tmp_vertex_parents.DeleteAll();
+   }
 }
 
 void Mesh::Finalize(bool refine, bool fix_orientation)
