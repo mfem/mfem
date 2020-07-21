@@ -174,23 +174,6 @@ void IntegrationRule::GrundmannMollerSimplexRule(int s, int n)
    }
 }
 
-bool IntegrationPoint::operator==(const IntegrationPoint &ip) const
-{
-   if (x != ip.x) { return false; }
-   if (y != ip.y) { return false; }
-   if (z != ip.z) { return false; }
-
-   return true;
-}
-
-bool IntegrationPoint::operator!=(const IntegrationPoint &ip) const
-{
-   if (x == ip.x) { return false; }
-   if (y == ip.y) { return false; }
-   if (z == ip.z) { return false; }
-
-   return true;
-}
 
 #ifdef MFEM_USE_MPFR
 
