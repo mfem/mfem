@@ -41,7 +41,7 @@ protected:
    Operator *SetupRAP(const Operator *Pi, const Operator *Po);
 
 public:
-   /// Defines matrix diagonal policy upon elimination of rows and/or columns.
+   /// Defines operator diagonal policy upon elimination of rows and/or columns.
    enum DiagonalPolicy
    {
       DIAG_ZERO, ///< Set the diagonal value to zero
@@ -686,10 +686,10 @@ public:
        indices/dofs.
 
        Specify the unconstrained operator @a *A and a @a list of indices to
-       constrain, i.e. each entry @a list[i] represents an essential-dof. If the
+       constrain, i.e. each entry @a list[i] represents an essential dof. If the
        ownership flag @a own_A is true, the operator @a *A will be destroyed
        when this object is destroyed. The @a diag_policy determines how the
-       operator sets entries corresponding to essential-dof. */
+       operator sets entries corresponding to essential dofs. */
    ConstrainedOperator(Operator *A, const Array<int> &list, bool own_A = false,
                        DiagonalPolicy diag_policy = DIAG_ONE);
 

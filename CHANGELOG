@@ -48,10 +48,15 @@ Improved GPU capabilities
 -------------------------
 - Added support for Chebyshev accelerated polynomial smoother on GPU.
 
+- Optimized AMD/HIP kernel support.
+
 - Added a Full Assembly mode compatible with Device kernel execution. This
   assembly level builds on top of the current Element Assembly kernels to
   compute a global sparse matrix. All integrators supported by element assembly
   are also supported by full assembly. See the '-fa' option in Example 9.
+
+- Added partial assembly and GPU support for ComplexOperator,
+  [Par]ComplexGridFunction, [Par]ComplexLinearForm, and [Par]SesquilinearForm.
 
 Discretization improvements
 ---------------------------
@@ -143,6 +148,9 @@ New and updated examples and miniapps
 - Added a simple mesh editing miniapp, Trimmer, which trims away portions of a
   mesh based on element attributes. Any newly exposed boundary elements are
   assigned attribute numbers related to the trimmed element attributes.
+
+- Added partial assembly and device support to Example 22/22p, with diagonal
+  preconditioning.
 
 Improved testing
 ----------------
