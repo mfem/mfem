@@ -27,7 +27,7 @@ template <> struct AutoSIMD<double,2,16>
 
    union
    {
-      vector double vd;
+      __vector double vd;
       double vec[size];
    };
 
