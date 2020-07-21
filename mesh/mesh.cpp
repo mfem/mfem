@@ -4005,8 +4005,16 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
          {
             int *vv = edge_vertex->GetRow(edges[j]);
             const int *e = elements[p]->GetEdgeVertices(j);
-            vv[0] = v[e[0]];
-            vv[1] = v[e[1]];
+            if (oedge[j] == 1)
+            {
+                vv[0] = v[e[0]];
+                vv[1] = v[e[1]];
+            }
+            else
+            {
+                vv[0] = v[e[1]];
+                vv[1] = v[e[0]];
+            }
          }
 
          for (j = 0; j < edge1.Size(); j++)
@@ -4038,6 +4046,7 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
       // -- corresponding edges within patch point to same knot vector
       // -- assign the lowest number
       int corrections;
+
       for (int pp = 0; pp < 3*GetNE(); pp++)
       {
          corrections = 0;
@@ -4101,13 +4110,24 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
       }
 
       // Print knot to edge mapping
+      mfem::out<<"Generated edge to knot mapping:"<<endl;
       for (int j = 0; j < NumOfEdges; j++)
       {
          int *v = edge_vertex->GetRow(j);
          int k = edge_to_knot[j];
+
+         int v0 = v[0];
+         int v1 = v[1];
+         if (k < 0)
+         {
+            v[0] = v1;
+            v[1] = v0;
+         }
          mfem::out<<(k >= 0 ? k:-k-1)<<" "<< v[0] <<" "<<v[1]<<endl;
       }
    }
+
+
 }
 
 void XYZ_VectorFunction(const Vector &p, Vector &v)
