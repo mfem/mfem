@@ -194,17 +194,17 @@ int main (int argc, char *argv[])
    }
    const int nodes_cnt = vxyz.Size() / dim;
 
-   //Evaluate source gridfunction.
+   // Evaluate source gridfunction.
    Vector interp_vals(nodes_cnt*ncomp);
    FindPointsGSLIB finder;
    finder.Setup(mesh_1);
    finder.Interpolate(vxyz, func_source, interp_vals);
 
-   if (fieldtype <= 1) //H1 or L2
+   if (fieldtype <= 1) // H1 or L2
    {
       func_target = interp_vals;
    }
-   else //H(div) or H(curl)
+   else // H(div) or H(curl)
    {
       int i;
       Array<int> vdofs;
@@ -221,7 +221,7 @@ int main (int argc, char *argv[])
          {
             for (int d = 0; d < ncomp; d++)
             {
-               //arrange values by dofs
+               // Arrange values by dofs
                elem_dof_vals(j*ncomp+d) = interp_vals(d*nsp*NE + i*nsp + j);
             }
          }

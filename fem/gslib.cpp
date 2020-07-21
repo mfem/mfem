@@ -165,8 +165,8 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos)
                 xv_base, xv_stride, points_cnt, fdata3D);
    }
 
-   //maps element number for simplices, and ref_pos from [-1,1] to [0,1] for both
-   //simplices and quads.
+   // Map element number for simplices, and ref_pos from [-1,1] to [0,1] for both
+   // simplices and quads.
    MapRefPosAndElemIndices();
 }
 
@@ -556,7 +556,7 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
       IntegrationPoint ip;
       Vector mfem_ref(gsl_mfem_ref.GetData()+i*dim, dim);
       ip.Set3(mfem_ref.GetData());
-      gf_lin.GetVectorValue(local_elem, ip, mfem_ref); //map to rst of macro element
+      gf_lin.GetVectorValue(local_elem, ip, mfem_ref); // map to rst of macro element
    }
 }
 
@@ -579,7 +579,8 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
    }
 
    if (strncmp(gf_name, "L2", 2) == 0)
-      // For points on element borders, project the L2 GridFunction to H1 and re-interpolate.
+      // For points on element borders, project the L2 GridFunction to H1 and
+      // re-interpolate.
    {
       Array<int> indl2;
       for (int i = 0; i < points_cnt; i++)
@@ -684,7 +685,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
    }
    field_out.SetSize(points_cnt*ncomp);
 
-   if (gsl_comm->np == 1) //serial
+   if (gsl_comm->np == 1) // serial
    {
       for (int index = 0; index < npt; index++)
       {
@@ -733,7 +734,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
             ++pt;
          }
 
-         //Transfer data back to source MPI rank
+         // Transfer data back to source MPI rank
          sarray_transfer(struct out_pt, outpt, proc, 1, cr);
          npt = outpt->n;
          pt = (struct out_pt *)outpt->ptr;
@@ -745,7 +746,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
          array_free(outpt);
          delete outpt;
       }
-      else //ncomp > 1
+      else // ncomp > 1
       {
          // Interpolate data and store in a Vector
          npt = outpt->n;
@@ -778,7 +779,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
          array_free(outpt);
          delete outpt;
 
-         // copy data from save struct to send struct and send component wise
+         // Copy data from save struct to send struct and send component wise
          struct array *sendpt = new array;
          struct send_pt { double ival; uint index, proc; };
          struct send_pt *sdpt;
