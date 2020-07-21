@@ -1671,12 +1671,12 @@ HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
 // Helper function for HypreParMatrixFromBlocks. Note that scalability to
 // extremely large processor counts is limited by the use of MPI_Allgather.
 void GatherBlockOffsetData(MPI_Comm comm, const int rank, const int nprocs,
-                           const int num_loc, Array<int> &offsets,
+                           const int num_loc, const Array<int> &offsets,
                            std::vector<int> &all_num_loc, const int numBlocks,
-                           std::vector<std::vector<int>> &blockProcOffsets,
-                           std::vector<int> &procOffsets,
+                           std::vector<std::vector<HYPRE_Int>> &blockProcOffsets,
+                           std::vector<HYPRE_Int> &procOffsets,
                            std::vector<std::vector<int>> &procBlockOffsets,
-                           int &firstLocal, int &globalNum)
+                           HYPRE_Int &firstLocal, HYPRE_Int &globalNum)
 {
    std::vector<std::vector<int>> all_block_num_loc(numBlocks);
 
@@ -1704,6 +1704,10 @@ void GatherBlockOffsetData(MPI_Comm comm, const int rank, const int nprocs,
    for (int i = 0; i < nprocs; ++i)
    {
       globalNum += all_num_loc[i];
+      if (rank == 0)
+      {
+         MFEM_VERIFY(globalNum >= 0, "overflow in global size");
+      }
       if (i < rank)
       {
          firstLocal += all_num_loc[i];
@@ -1812,14 +1816,14 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
 
    std::vector<int> all_num_loc_rows(nprocs);
    std::vector<int> all_num_loc_cols(nprocs);
-   std::vector<int> procRowOffsets(nprocs);
-   std::vector<int> procColOffsets(nprocs);
-   std::vector<std::vector<int>> blockRowProcOffsets(numBlockRows);
-   std::vector<std::vector<int>> blockColProcOffsets(numBlockCols);
+   std::vector<HYPRE_Int> procRowOffsets(nprocs);
+   std::vector<HYPRE_Int> procColOffsets(nprocs);
+   std::vector<std::vector<HYPRE_Int>> blockRowProcOffsets(numBlockRows);
+   std::vector<std::vector<HYPRE_Int>> blockColProcOffsets(numBlockCols);
    std::vector<std::vector<int>> procBlockRowOffsets(nprocs);
    std::vector<std::vector<int>> procBlockColOffsets(nprocs);
 
-   int first_loc_row, glob_nrows, first_loc_col, glob_ncols;
+   HYPRE_Int first_loc_row, glob_nrows, first_loc_col, glob_ncols;
    GatherBlockOffsetData(comm, rank, nprocs, num_loc_rows, rowOffsets,
                          all_num_loc_rows, numBlockRows, blockRowProcOffsets,
                          procRowOffsets, procBlockRowOffsets, first_loc_row,
@@ -1854,13 +1858,7 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
          }
          else
          {
-            {
-               hypre_ParCSRMatrix *parcsr_op = (hypre_ParCSRMatrix*)
-                                               const_cast<HypreParMatrix&>
-                                               (*(blocks(i, j)));
-               MFEM_ASSERT(parcsr_op != NULL, "const_cast failed");
-               csr_blocks(i, j) = hypre_MergeDiagAndOffd(parcsr_op);
-            }
+            csr_blocks(i, j) = hypre_MergeDiagAndOffd(*blocks(i, j));
 
             for (int k = 0; k < csr_blocks(i, j)->num_rows; ++k)
             {
@@ -1891,6 +1889,9 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
          {
             const int nrows = csr_blocks(i, j)->num_rows;
             const double cij = blockCoeff ? (*blockCoeff)(i, j) : 1.0;
+#if MFEM_HYPRE_VERSION >= 21600
+            const bool usingBigJ = (csr_blocks(i, j)->big_j != NULL);
+#endif
 
             for (int k = 0; k < nrows; ++k)
             {
@@ -1901,21 +1902,19 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
                for (int l = 0; l < nnz_k; ++l)
                {
                   // Find the column process offset for the block.
-                  const int bcol = csr_blocks(i, j)->j[osk + l];
-                  int bcolproc = 0;
+#if MFEM_HYPRE_VERSION >= 21600
+                  const HYPRE_Int bcol = usingBigJ ?
+                                         csr_blocks(i, j)->big_j[osk + l] :
+                                         csr_blocks(i, j)->j[osk + l];
+#else
+                  const HYPRE_Int bcol = csr_blocks(i, j)->j[osk + l];
+#endif
 
-                  for (int p = 1; p < nprocs; ++p)
-                  {
-                     if (blockColProcOffsets[j][p] > bcol)
-                     {
-                        bcolproc = p - 1;
-                        break;
-                     }
-                  }
-                  if (blockColProcOffsets[j][nprocs - 1] <= bcol)
-                  {
-                     bcolproc = nprocs - 1;
-                  }
+                  // find the processor 'bcolproc' that holds column 'bcol':
+                  const auto &offs = blockColProcOffsets[j];
+                  const int bcolproc =
+                     std::upper_bound(offs.begin() + 1, offs.end(), bcol)
+                     - offs.begin() - 1;
 
                   opJ[opI[rowg] + cnt[rowg]] = procColOffsets[bcolproc] +
                                                procBlockColOffsets[bcolproc][j]
@@ -1947,6 +1946,9 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
    std::vector<HYPRE_BigInt> colStarts2(2);
    colStarts2[0] = first_loc_col;
    colStarts2[1] = first_loc_col + all_num_loc_cols[rank];
+
+   MFEM_VERIFY(HYPRE_AssumedPartitionCheck(),
+               "only 'assumed partition' mode is supported");
 
    return new HypreParMatrix(comm, num_loc_rows, glob_nrows, glob_ncols,
                              (int *)opI.data(), (HYPRE_Int *)opJ.data(),
