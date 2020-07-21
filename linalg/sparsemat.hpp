@@ -611,12 +611,8 @@ public:
       Destroy();
 #ifdef MFEM_USE_CUDA
       if (handle && SparseMatrixCount==1)
-      { cusparseDestroy(handle);}
-      if (initBuffers)
       {
-         cusparseDestroySpMat(matA_descr);
-         cusparseDestroyDnVec(vecX_descr);
-         cusparseDestroyDnVec(vecY_descr);
+         cusparseDestroy(handle);
          CuMemFree(dBuffer);
       }
       SparseMatrixCount--;
