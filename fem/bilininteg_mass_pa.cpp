@@ -1182,6 +1182,7 @@ static void PAMassApply(const int dim,
          case 0x67: return SmemPAMassApply3D<6,7>(NE,B,D,X,Y);
          case 0x78: return SmemPAMassApply3D<7,8>(NE,B,D,X,Y);
          case 0x89: return SmemPAMassApply3D<8,9>(NE,B,D,X,Y);
+         case 0x9A: return SmemPAMassApply3D<9,10>(NE,B,D,X,Y);
          default:   return PAMassApply3D(NE,b,bt,d,x,y,D1D,Q1D);
       }
    }
