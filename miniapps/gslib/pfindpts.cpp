@@ -295,8 +295,7 @@ int main (int argc, char *argv[])
    MPI_Allreduce(&max_dist, &max_dist_glob, 1, MPI_DOUBLE, MPI_MAX,
                  MPI_COMM_WORLD);
 
-   // We print only the task 0 result (other tasks should be identical except
-   // the number of points found locally).
+   // Print the cumulative results for all the tasks
    if (myid == 0)
    {
       cout << setprecision(16)

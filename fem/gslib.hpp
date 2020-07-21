@@ -47,8 +47,8 @@ class FindPointsGSLIB
 protected:
    Mesh *mesh, *meshsplit;
    IntegrationRule *ir_simplex; // IntegrationRule to split quads/hex -> simplex
-   struct findpts_data_2 *fdata2D; //pointer to
-   struct findpts_data_3 *fdata3D; //gslib's internal data
+   struct findpts_data_2 *fdata2D; // pointer to gslib's
+   struct findpts_data_3 *fdata3D; // internal data
    int dim, points_cnt;
    Array<unsigned int> gsl_code, gsl_proc, gsl_elem, gsl_mfem_elem;
    Vector gsl_mesh, gsl_ref, gsl_dist, gsl_mfem_ref;
