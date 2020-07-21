@@ -67,16 +67,19 @@ MemoryType MemoryManager::GetDualMemoryType_(MemoryType mt)
 {
    switch (mt)
    {
-      case MemoryType::HOST:           return MemoryType::DEVICE;
+      // TODO TMS: temporary
+      case MemoryType::HOST:           return MemoryType::DEVICE_UMPIRE;
       case MemoryType::HOST_32:        return MemoryType::DEVICE;
       case MemoryType::HOST_64:        return MemoryType::DEVICE;
       case MemoryType::HOST_DEBUG:     return MemoryType::DEVICE_DEBUG;
-      case MemoryType::HOST_UMPIRE:    return MemoryType::DEVICE_UMPIRE;
+      //case MemoryType::HOST_UMPIRE:    return MemoryType::DEVICE_UMPIRE;
       case MemoryType::MANAGED:        return MemoryType::MANAGED;
       case MemoryType::DEVICE:         return MemoryType::HOST;
       case MemoryType::DEVICE_DEBUG:   return MemoryType::HOST_DEBUG;
-      case MemoryType::DEVICE_UMPIRE:  return MemoryType::HOST_UMPIRE;
-      case MemoryType::DEVICE_TEMP_UMPIRE:  return MemoryType::HOST_UMPIRE;
+      //case MemoryType::DEVICE_UMPIRE:  return MemoryType::HOST_UMPIRE;
+      case MemoryType::DEVICE_UMPIRE:  return MemoryType::HOST;
+      //case MemoryType::DEVICE_TEMP_UMPIRE:  return MemoryType::HOST_UMPIRE;
+      case MemoryType::DEVICE_TEMP_UMPIRE:  return MemoryType::HOST;
       default: mfem_error("Unknown memory type!");
    }
    MFEM_VERIFY(false,"");
@@ -90,6 +93,8 @@ static void MFEM_VERIFY_TYPES(const MemoryType h_mt, const MemoryType d_mt)
    const bool sync =
       (h_mt == MemoryType::HOST_UMPIRE && d_mt == MemoryType::DEVICE_UMPIRE) ||
       (h_mt == MemoryType::HOST_UMPIRE && d_mt == MemoryType::DEVICE_TEMP_UMPIRE) ||
+      (h_mt == MemoryType::HOST && d_mt == MemoryType::DEVICE_UMPIRE) ||
+      (h_mt == MemoryType::HOST && d_mt == MemoryType::DEVICE_TEMP_UMPIRE) ||
       (h_mt == MemoryType::HOST_DEBUG && d_mt == MemoryType::DEVICE_DEBUG) ||
       (h_mt == MemoryType::MANAGED && d_mt == MemoryType::MANAGED) ||
       (h_mt == MemoryType::HOST_64 && d_mt == MemoryType::DEVICE) ||

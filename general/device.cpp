@@ -339,6 +339,9 @@ void Device::UpdateMemoryTypeAndClass()
    }
    device_temp_mem_class = device_mem_class;
 
+   // TODO TMS: temporary
+   if (host_mem_type == MemoryType::HOST_UMPIRE) { host_mem_type = MemoryType::HOST; }
+
    // Update the memory manager with the new settings
    mm.Configure(host_mem_type, device_mem_type, device_temp_mem_type);
 }
