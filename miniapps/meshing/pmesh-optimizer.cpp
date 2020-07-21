@@ -31,7 +31,6 @@
 //
 // Compile with: make pmesh-optimizer
 //
-//
 // Sample runs:
 //   Adapted analytic shape:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
@@ -77,7 +76,7 @@
 //   ICF combo shape + size (rings, slow convergence):
 //     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 1000 -ls 2 -li 100 -bnd -qt 1 -qo 8 -cmb 1
 //   Mixed tet / cube / hex mesh with limiting:
-//     mpirun -np 4 pmesh-optimizer -m ../../data/fichera-mixed-p2.mesh -o 4 -rs 1 -mid 301 -tid 1 -fix-bnd -qo 6 -vl 1 -nor -lc 0.25
+//     mpirun -np 4 pmesh-optimizer -m ../../data/fichera-mixed-p2.mesh -o 4 -rs 1 -mid 301 -tid 1 -fix-bnd -qo 6 -nor -lc 0.25
 //   3D pinched sphere shape (the mesh is in the mfem/data GitHub repository):
 //   * mpirun -np 4 pmesh-optimizer -m ../../../mfem_data/ball-pert.mesh -o 4 -rs 0 -mid 303 -tid 1 -ni 20 -ls 2 -li 500 -fix-bnd
 //   2D non-conforming shape and equal size:
@@ -586,12 +585,11 @@ int main (int argc, char *argv[])
 
    // Setup the quadrature rules for the TMOP integrator.
    IntegrationRules *irules = NULL;
-   const int geom_type = pfespace->GetFE(0)->GetGeomType();
    switch (quad_type)
    {
-      case 1: irules = &IntRulesLo;
-      case 2: irules = &IntRules;
-      case 3: irules = &IntRulesCU;
+      case 1: irules = &IntRulesLo; break;
+      case 2: irules = &IntRules; break;
+      case 3: irules = &IntRulesCU; break;
       default:
          if (myid == 0) { cout << "Unknown quad_type: " << quad_type << endl; }
          return 3;
