@@ -36,7 +36,7 @@ private:
    //own by this:
    HypreParMatrix *Mdtpr, *ARe, *ASl, *MinvKB;
    mutable HypreParMatrix *ScFull, *AReFull, *NbFull, *PwMat, Mmatlp, *NbMat;
-   mutable HyperParMatrix *tmp1, *tmp2, *tmp3;
+   mutable HypreParMatrix *tmp1, *tmp2, *tmp3;
    bool initialMdt;
    int useFull;
    HypreParVector *E0Vec;

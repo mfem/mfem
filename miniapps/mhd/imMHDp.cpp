@@ -552,7 +552,7 @@ int main(int argc, char *argv[])
       else
       {
         dc = new VisItDataCollection("case3", pmesh);
-        dc->RegisterField("psiPer", &psiPer);
+        dc->RegisterField("current", &j);
         dc->RegisterField("psi", &psi);
         dc->RegisterField("phi", &phi);
         dc->RegisterField("omega", &w);
@@ -624,7 +624,9 @@ int main(int argc, char *argv[])
          psi.SetFromTrueVector();
          phi.SetFromTrueVector();
          w.SetFromTrueVector();
-         subtract(psi,psiBack,psiPer);
+
+         if (icase!=3)
+            subtract(psi,psiBack,psiPer);
 
          if (visualization)
          {
@@ -667,11 +669,9 @@ int main(int argc, char *argv[])
 
          if (visit)
          {
-            if (icase!=1)
-            {
-              phi.SetFromTrueVector();
-              w.SetFromTrueVector();
-            }
+            if(!visualization)
+              oper.UpdateJ(vx, &j);
+            
             dc->SetCycle(ti);
             dc->SetTime(t);
             dc->Save();
