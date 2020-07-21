@@ -219,6 +219,21 @@ public:
    void SetConvention(const ComplexOperator::Convention &
                       convention) { conv = convention; }
 
+   /// Set the desired assembly level.
+   /** Valid choices are:
+
+       - AssemblyLevel::FULL  (default)
+       - AssemblyLevel::PARTIAL
+       - AssemblyLevel::ELEMENT
+       - AssemblyLevel::NONE
+
+       This method must be called before assembly. */
+   void SetAssemblyLevel(AssemblyLevel assembly_level)
+   {
+      blfr->SetAssemblyLevel(assembly_level);
+      blfi->SetAssemblyLevel(assembly_level);
+   }
+
    BilinearForm & real() { return *blfr; }
    BilinearForm & imag() { return *blfi; }
    const BilinearForm & real() const { return *blfr; }
@@ -478,7 +493,7 @@ public:
 /** Class for a parallel sesquilinear form
 
     A sesquilinear form is a generalization of a bilinear form to complex-valued
-    fields. Sesquilinear forms are linear in the second argument but but the
+    fields. Sesquilinear forms are linear in the second argument but the
     first argument involves a complex conjugate in the sense that:
 
                 a(alpha u, beta v) = conj(alpha) beta a(u, v)
@@ -523,6 +538,21 @@ public:
    ComplexOperator::Convention GetConvention() const { return conv; }
    void SetConvention(const ComplexOperator::Convention &
                       convention) { conv = convention; }
+
+   /// Set the desired assembly level.
+   /** Valid choices are:
+
+       - AssemblyLevel::FULL  (default)
+       - AssemblyLevel::PARTIAL
+       - AssemblyLevel::ELEMENT
+       - AssemblyLevel::NONE
+
+       This method must be called before assembly. */
+   void SetAssemblyLevel(AssemblyLevel assembly_level)
+   {
+      pblfr->SetAssemblyLevel(assembly_level);
+      pblfi->SetAssemblyLevel(assembly_level);
+   }
 
    ParBilinearForm & real() { return *pblfr; }
    ParBilinearForm & imag() { return *pblfi; }
