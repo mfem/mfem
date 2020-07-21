@@ -14,14 +14,6 @@
 
 #ifdef __AVX512F__
 
-#include "../../config/tconfig.hpp"
-#if defined(__x86_64__)
-#include <x86intrin.h>
-#else // assuming MSVC with _M_X64 or _M_IX86
-#include <intrin.h>
-#endif
-
-
 namespace mfem
 {
 

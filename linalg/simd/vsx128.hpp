@@ -14,9 +14,6 @@
 
 #ifdef __VSX__
 
-#include "../../config/tconfig.hpp"
-#include <altivec.h>
-
 namespace mfem
 {
 

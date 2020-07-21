@@ -12,6 +12,14 @@
 #ifndef MFEM_SIMD_VSX_HPP
 #define MFEM_SIMD_VSX_HPP
 
+#include "../../config/tconfig.hpp"
+
+#ifndef __CUDACC__
+
+#include <altivec.h>
+
 #include "vsx128.hpp"
+
+#endif // __CUDACC__
 
 #endif // MFEM_SIMD_VSX_HPP
