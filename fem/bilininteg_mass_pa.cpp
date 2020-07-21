@@ -69,7 +69,7 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
       MFEM_VERIFY(qFun.Size() == nq * ne,
                   "Incompatible QuadratureFunction dimension \n");
 
-      MFEM_VERIFY(*ir == qFun.GetSpace()->GetElementIntRule(0),
+      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
                   "IntegrationRule used within integrator and in"
                   " QuadratureFunction appear to be different");
       qFun.Read();
