@@ -82,8 +82,7 @@ jobs:
       cache:
         ccache: true
         directories:
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../$HYPRE_TOP_DIR/src/hypre
           - $TRAVIS_BUILD_DIR/../metis-4.0
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
