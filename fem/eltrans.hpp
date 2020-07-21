@@ -77,6 +77,9 @@ public:
 
    ElementTransformation();
 
+   /** @brief Force the reevaluation of the Jacobian in the next call. */
+   void Reset() { EvalState = 0; }
+
    /** @brief Set the integration point @a ip that weights and Jacobians will
        be evaluated at. */
    void SetIntPoint(const IntegrationPoint *ip)
