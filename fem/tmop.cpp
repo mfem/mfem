@@ -934,7 +934,7 @@ void TargetConstructor::ComputeElementTargetsGradient(const IntegrationRule &ir,
 {
    MFEM_ASSERT(target_type == IDEAL_SHAPE_UNIT_SIZE || nodes != NULL, "");
 
-   //TODO: Compute derivative for targets with GIVEN_SHAPE or/and GIVEN_SIZE
+   // TODO: Compute derivative for targets with GIVEN_SHAPE or/and GIVEN_SIZE
    for (int i = 0; i < Tpr.GetFE()->GetDim()*ir.GetNPoints(); i++) { dJtr(i) = 0.; }
 }
 
@@ -1212,7 +1212,7 @@ void DiscreteAdaptTC::UpdateTargetSpecificationAtNode(const FiniteElement &el,
 
    Array<int> dofs;
    tspec_fes->GetElementDofs(T.ElementNo, dofs);
-   const int cnt = tspec.Size()/ncomp; //dofs per scalar-field
+   const int cnt = tspec.Size()/ncomp; // dofs per scalar-field
 
    for (int i = 0; i < ncomp; i++)
    {
@@ -1267,14 +1267,14 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
          {
             const IntegrationPoint &ip = ir.IntPoint(q);
             tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
-            Jtr(q) = Wideal; //Initialize to identity
+            Jtr(q) = Wideal; // Initialize to identity
             for (int d = 0; d < 4; d++)
             {
                DenseMatrix Jtrcomp_q(Jtrcomp.GetData(d + 4*q), dim, dim);
                Jtrcomp_q = Wideal; // Initialize to identity
             }
 
-            if (sizeidx != -1) //Set size
+            if (sizeidx != -1) // Set size
             {
                par_vals.SetDataAndSize(tspec_vals.GetData()+sizeidx*ndofs, ndofs);
                const double min_size = par_vals.Min();
@@ -1284,11 +1284,11 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                Jtr(q).Set(std::pow(size, 1.0/dim), Jtr(q));
                DenseMatrix Jtrcomp_q(Jtrcomp.GetData(0 + 4*q), dim, dim);
                Jtrcomp_q = Jtr(q);
-            } //Done size
+            } // Done size
 
             if (target_type == IDEAL_SHAPE_GIVEN_SIZE) { continue; }
 
-            if (aspectratioidx != -1) //Set aspect ratio
+            if (aspectratioidx != -1) // Set aspect ratio
             {
                if (dim == 2)
                {
@@ -1320,9 +1320,9 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                Jtrcomp_q = D_rho;
                DenseMatrix Temp = Jtr(q);
                Mult(D_rho, Temp, Jtr(q));
-            } //Done aspect ratio
+            } // Done aspect ratio
 
-            if (skewidx != -1) //Set skew
+            if (skewidx != -1) // Set skew
             {
                if (dim == 2)
                {
@@ -1362,9 +1362,9 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                Jtrcomp_q = Q_phi;
                DenseMatrix Temp = Jtr(q);
                Mult(Q_phi, Temp, Jtr(q));
-            } // done skew
+            } // Done skew
 
-            if (orientationidx != -1) //Set orientation
+            if (orientationidx != -1) // Set orientation
             {
                if (dim == 2)
                {
@@ -1410,7 +1410,7 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                Jtrcomp_q = R_theta;
                DenseMatrix Temp = Jtr(q);
                Mult(R_theta, Temp, Jtr(q));
-            } // done orientation
+            } // Done orientation
          }
          break;
       }
@@ -1448,7 +1448,7 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
 
          Array<int> dofs;
          DenseMatrix dD_rho(dim), dQ_phi(dim), dR_theta(dim);
-         DenseMatrix dQ_phi13(dim), dQ_phichi(dim); //dQ_phi is used for dQ/dphi12 in 3D
+         DenseMatrix dQ_phi13(dim), dQ_phichi(dim); // dQ_phi is used for dQ/dphi12 in 3D
          DenseMatrix dR_psi(dim), dR_beta(dim);
          tspec_fesv->GetElementVDofs(e_id, dofs);
          tspec.GetSubVector(dofs, tspec_vals);
@@ -1466,13 +1466,13 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
          for (int i = 0; i < ir.GetNPoints(); i++)
          {
             const IntegrationPoint &ip = ir.IntPoint(i);
-            DenseMatrix Jtrcomp_s(Jtrcomp.GetData(0 + 4*i), dim, dim); //size
-            DenseMatrix Jtrcomp_d(Jtrcomp.GetData(1 + 4*i), dim, dim); //aspect-ratio
-            DenseMatrix Jtrcomp_q(Jtrcomp.GetData(2 + 4*i), dim, dim); //skew
-            DenseMatrix Jtrcomp_r(Jtrcomp.GetData(3 + 4*i), dim, dim); //orientation
+            DenseMatrix Jtrcomp_s(Jtrcomp.GetData(0 + 4*i), dim, dim); // size
+            DenseMatrix Jtrcomp_d(Jtrcomp.GetData(1 + 4*i), dim, dim); // aspect-ratio
+            DenseMatrix Jtrcomp_q(Jtrcomp.GetData(2 + 4*i), dim, dim); // skew
+            DenseMatrix Jtrcomp_r(Jtrcomp.GetData(3 + 4*i), dim, dim); // orientation
             DenseMatrix work1(dim), work2(dim), work3(dim);
 
-            if (sizeidx != -1) //Set size
+            if (sizeidx != -1) // Set size
             {
                par_vals.SetDataAndSize(tspec_vals.GetData()+sizeidx*ndofs, ndofs);
 
@@ -1487,22 +1487,22 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
                const double size = std::max(shape * par_vals, min_size);
                double dz_dsize = (1./dim)*pow(size, 1./dim - 1.);
 
-               Mult(Jtrcomp_q, Jtrcomp_d, work1); //Q*D
-               Mult(Jtrcomp_r, work1, work2);     //R*Q*D
+               Mult(Jtrcomp_q, Jtrcomp_d, work1); // Q*D
+               Mult(Jtrcomp_r, work1, work2);     // R*Q*D
 
                for (int d = 0; d < dim; d++)
                {
                   DenseMatrix &dJtr_i = dJtr(i + d*ir.GetNPoints());
                   work1 = Wideal;
-                  work1.Set(dz_dsize, work1);     //dz/dsize
-                  work1 *= grad_q(d);            //dz/dsize*dsize/dx
-                  AddMult(work1, work2, dJtr_i); //dz/dx*R*Q*D
+                  work1.Set(dz_dsize, work1);    // dz/dsize
+                  work1 *= grad_q(d);            // dz/dsize*dsize/dx
+                  AddMult(work1, work2, dJtr_i); // dz/dx*R*Q*D
                }
-            } //Done size
+            } // Done size
 
             if (target_type == IDEAL_SHAPE_GIVEN_SIZE) { continue; }
 
-            if (aspectratioidx != -1) //Set aspect ratio
+            if (aspectratioidx != -1) // Set aspect ratio
             {
                if (dim == 2)
                {
@@ -1519,15 +1519,15 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
                   dD_rho(0,0) = -0.5*pow(aspectratio,-1.5);
                   dD_rho(1,1) = 0.5*pow(aspectratio,-0.5);
 
-                  Mult(Jtrcomp_s, Jtrcomp_r, work1); //z*R
-                  Mult(work1, Jtrcomp_q, work2);     //z*R*Q
+                  Mult(Jtrcomp_s, Jtrcomp_r, work1); // z*R
+                  Mult(work1, Jtrcomp_q, work2);     // z*R*Q
 
                   for (int d = 0; d < dim; d++)
                   {
                      DenseMatrix &dJtr_i = dJtr(i + d*ir.GetNPoints());
                      work1 = dD_rho;
-                     work1 *= grad_q(d); //work1 = dD/drho*drho/dx
-                     AddMult(work2, work1, dJtr_i); //z*R*Q*dD/dx
+                     work1 *= grad_q(d); // work1 = dD/drho*drho/dx
+                     AddMult(work2, work1, dJtr_i); // z*R*Q*dD/dx
                   }
                }
                else // 3D
@@ -1555,8 +1555,8 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
                   dD_rho(1,1) = (2./3.)*pow(rho2,-1./3.);
                   dD_rho(2,2) = (2./3.)*pow(rho3,-1./3.);
 
-                  Mult(Jtrcomp_s, Jtrcomp_r, work1); //z*R
-                  Mult(work1, Jtrcomp_q, work2);     //z*R*Q
+                  Mult(Jtrcomp_s, Jtrcomp_r, work1); // z*R
+                  Mult(work1, Jtrcomp_q, work2);     // z*R*Q
 
 
                   for (int d = 0; d < dim; d++)
@@ -1566,13 +1566,13 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
                      work1(0,0) *= grad_q1(d);
                      work1(1,2) *= grad_q2(d);
                      work1(2,2) *= grad_q3(d);
-                     //work1 = dD/dx = dD/drho1*drho1/dx + dD/drho2*drho2/dx
-                     AddMult(work2, work1, dJtr_i); //z*R*Q*dD/dx
+                     // work1 = dD/dx = dD/drho1*drho1/dx + dD/drho2*drho2/dx
+                     AddMult(work2, work1, dJtr_i); // z*R*Q*dD/dx
                   }
                }
-            } //Done aspect ratio
+            } // Done aspect ratio
 
-            if (skewidx != -1) //Set skew
+            if (skewidx != -1) // Set skew
             {
                if (dim == 2)
                {
@@ -1591,15 +1591,15 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
                   dQ_phi(0,1) = -sin(skew);
                   dQ_phi(1,1) = cos(skew);
 
-                  Mult(Jtrcomp_s, Jtrcomp_r, work2); //z*R
+                  Mult(Jtrcomp_s, Jtrcomp_r, work2); // z*R
 
                   for (int d = 0; d < dim; d++)
                   {
                      DenseMatrix &dJtr_i = dJtr(i + d*ir.GetNPoints());
                      work1 = dQ_phi;
-                     work1 *= grad_q(d); //work1 = dQ/dphi*dphi/dx
-                     Mult(work1, Jtrcomp_d, work3); //dQ/dx*D
-                     AddMult(work2, work3, dJtr_i); //z*R*dQ/dx*D
+                     work1 *= grad_q(d); // work1 = dQ/dphi*dphi/dx
+                     Mult(work1, Jtrcomp_d, work3); // dQ/dx*D
+                     AddMult(work2, work3, dJtr_i); // z*R*dQ/dx*D
                   }
                }
                else
@@ -1637,22 +1637,22 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
                   dQ_phichi(1,2) = -sin(phi13)*sin(chi);
                   dQ_phichi(2,2) =  sin(phi13)*cos(chi);
 
-                  Mult(Jtrcomp_s, Jtrcomp_r, work2); //z*R
+                  Mult(Jtrcomp_s, Jtrcomp_r, work2); // z*R
 
                   for (int d = 0; d < dim; d++)
                   {
                      DenseMatrix &dJtr_i = dJtr(i + d*ir.GetNPoints());
                      work1 = dQ_phi;
-                     work1 *= grad_q1(d); //work1 = dQ/dphi12*dphi12/dx
-                     work1.Add(grad_q2(d), dQ_phi13); // + dQ/dphi13*dphi13/dx
-                     work1.Add(grad_q3(d), dQ_phichi);// + dQ/dchi*dchi/dx
-                     Mult(work1, Jtrcomp_d, work3); //dQ/dx*D
-                     AddMult(work2, work3, dJtr_i); //z*R*dQ/dx*D
+                     work1 *= grad_q1(d); // work1 = dQ/dphi12*dphi12/dx
+                     work1.Add(grad_q2(d), dQ_phi13);  // + dQ/dphi13*dphi13/dx
+                     work1.Add(grad_q3(d), dQ_phichi); // + dQ/dchi*dchi/dx
+                     Mult(work1, Jtrcomp_d, work3); // dQ/dx*D
+                     AddMult(work2, work3, dJtr_i); // z*R*dQ/dx*D
                   }
                }
-            } // done skew
+            } // Done skew
 
-            if (orientationidx != -1) //Set orientation
+            if (orientationidx != -1) // Set orientation
             {
                if (dim == 2)
                {
@@ -1670,14 +1670,14 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
                   dR_theta(1,0) =  cos(theta);
                   dR_theta(1,1) = -sin(theta);
 
-                  Mult(Jtrcomp_q, Jtrcomp_d, work1); //Q*D
-                  Mult(Jtrcomp_s, work1, work2);     //z*Q*D
+                  Mult(Jtrcomp_q, Jtrcomp_d, work1); // Q*D
+                  Mult(Jtrcomp_s, work1, work2);     // z*Q*D
                   for (int d = 0; d < dim; d++)
                   {
                      DenseMatrix &dJtr_i = dJtr(i + d*ir.GetNPoints());
                      work1 = dR_theta;
-                     work1 *= grad_q(d); //work1 = dR/dtheta*dtheta/dx
-                     AddMult(work1, work2, dJtr_i);  //z*dR/dx*Q*D
+                     work1 *= grad_q(d); // work1 = dR/dtheta*dtheta/dx
+                     AddMult(work1, work2, dJtr_i);  // z*dR/dx*Q*D
                   }
                }
                else
@@ -1744,19 +1744,19 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
                   dR_psi(1,0) = 0. + st*sp*cb;
                   dR_psi(2,0) = cp*cb;
 
-                  Mult(Jtrcomp_q, Jtrcomp_d, work1); //Q*D
-                  Mult(Jtrcomp_s, work1, work2);     //z*Q*D
+                  Mult(Jtrcomp_q, Jtrcomp_d, work1); // Q*D
+                  Mult(Jtrcomp_s, work1, work2);     // z*Q*D
                   for (int d = 0; d < dim; d++)
                   {
                      DenseMatrix &dJtr_i = dJtr(i + d*ir.GetNPoints());
                      work1 = dR_theta;
-                     work1 *= grad_q1(d); //work1 = dR/dtheta*dtheta/dx
-                     work1.Add(grad_q2(d), dR_psi); //+dR/dpsi*dpsi/dx
-                     work1.Add(grad_q3(d), dR_beta);//+dR/dbeta*dbeta/dx
-                     AddMult(work1, work2, dJtr_i);  //z*dR/dx*Q*D
+                     work1 *= grad_q1(d); // work1 = dR/dtheta*dtheta/dx
+                     work1.Add(grad_q2(d), dR_psi);  // +dR/dpsi*dpsi/dx
+                     work1.Add(grad_q3(d), dR_beta); // +dR/dbeta*dbeta/dx
+                     AddMult(work1, work2, dJtr_i);  // z*dR/dx*Q*D
                   }
                }
-            } // done orientation
+            } // Done orientation
          }
          break;
       }
@@ -2197,13 +2197,13 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
          for (int d = 0; d < dim; d++)
          {
             const DenseMatrix &dJtr_q = dJtr(q + d*nqp);
-            Mult(Jrt, dJtr_q, work1); //Winv*dw/dx
-            Mult(work1, Jrt, work2);  //Winv*dw/dx*Winv
-            Mult(Amat, work2, work1); //A*Winv*dw/dx*Winv
-            MultAtB(P, work1, work2); //dmu/dT^T*A*Winv*dw/dx*Winv
-            d_Winv_dx(d) = work2.Trace(); //Tr[dmu/dT : AWinv*dw/dx*Winv]
+            Mult(Jrt, dJtr_q, work1); // Winv*dw/dx
+            Mult(work1, Jrt, work2);  // Winv*dw/dx*Winv
+            Mult(Amat, work2, work1); // A*Winv*dw/dx*Winv
+            MultAtB(P, work1, work2); // dmu/dT^T*A*Winv*dw/dx*Winv
+            d_Winv_dx(d) = work2.Trace(); // Tr[dmu/dT : AWinv*dw/dx*Winv]
          }
-         d_Winv_dx *= -weight_m; //Include (-) factor as well
+         d_Winv_dx *= -weight_m; // Include (-) factor as well
 
          d_detW_dx += d_Winv_dx;
          AddMultVWt(shape, d_detW_dx, PMatO);
