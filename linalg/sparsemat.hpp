@@ -95,9 +95,9 @@ protected:
    cusparseStatus_t status;
    static cusparseHandle_t handle;
    cusparseMatDescr_t descr=0;
-   mutable size_t bufferSize{0};
-   mutable void *dBuffer = nullptr;
-   mutable bool initCuSparse{false};
+   static size_t bufferSize;
+   static void *dBuffer;
+   mutable bool initBuffers{false};
 
    static int SparseMatrixCount;
    mutable cusparseSpMatDescr_t matA_descr;
@@ -612,7 +612,7 @@ public:
 #ifdef MFEM_USE_CUDA
       if (handle && SparseMatrixCount==1)
       { cusparseDestroy(handle);}
-      if (initCuSparse)
+      if (initBuffers)
       {
          cusparseDestroySpMat(matA_descr);
          cusparseDestroyDnVec(vecX_descr);
