@@ -107,7 +107,7 @@ template <> struct AutoSIMD<double,2,16>
 #ifndef __GNUC__
       r.vd = vec_neg(vd);
 #else
-      r.vd = 0.0 - vd;
+      r.vd = vec_splats(0.0) - vd;
 #endif
       return r;
    }
