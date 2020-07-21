@@ -104,7 +104,11 @@ template <> struct AutoSIMD<double,2,16>
    inline MFEM_ALWAYS_INLINE AutoSIMD operator-() const
    {
       AutoSIMD r;
+#ifndef __GNUC__
       r.vd = vec_neg(vd);
+#else
+      r.vd = 0.0 - vd;
+#endif
       return r;
    }
 
