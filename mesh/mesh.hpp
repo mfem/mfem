@@ -206,6 +206,9 @@ public:
    Array<FaceGeometricFactors*>
    face_geom_factors; ///< Optional face geometric factors.
 
+   /// Used during initialization only.
+   Array<Triple<int, int, int> > tmp_vertex_parents;
+
    // Global parameter that can be used to control the removal of unused
    // vertices performed when reading a mesh in MFEM format. The default value
    // (true) is set in mesh_readers.cpp.
@@ -541,7 +544,9 @@ public:
    void AddElement(Element *elem)     { elements[NumOfElements++] = elem; }
    void AddBdrElement(Element *elem)  { boundary[NumOfBdrElements++] = elem; }
 
-   void AddBdrSegment(const int *vi, int attr = 1);
+   int AddBdrSegment(int v1, int v2, int attr = 1);
+   int AddBdrSegment(const int *vi, int attr = 1);
+
    void AddBdrTriangle(const int *vi, int attr = 1);
    void AddBdrQuad(const int *vi, int attr = 1);
    void AddBdrQuadAsTriangles(const int *vi, int attr = 1);
