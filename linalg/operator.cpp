@@ -403,8 +403,10 @@ TripleProductOperator::~TripleProductOperator()
 
 
 ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
-                                         bool _own_A)
-   : Operator(A->Height(), A->Width()), A(A), own_A(_own_A)
+                                         bool _own_A,
+                                         DiagonalPolicy _diag_policy)
+   : Operator(A->Height(), A->Width()), A(A), own_A(_own_A),
+     diag_policy(_diag_policy)
 {
    // 'mem_class' should work with A->Mult() and MFEM_FORALL():
    mem_class = A->GetMemoryClass()*Device::GetDeviceMemoryClass();
@@ -464,11 +466,30 @@ void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
    auto d_x = x.Read();
    // Use read+write access - we are modifying sub-vector of y
    auto d_y = y.ReadWrite();
-   MFEM_FORALL(i, csz,
+   switch (diag_policy)
    {
-      const int id = idx[i];
-      d_y[id] = d_x[id];
-   });
+      case DIAG_ONE:
+         MFEM_FORALL(i, csz,
+         {
+            const int id = idx[i];
+            d_y[id] = d_x[id];
+         });
+         break;
+      case DIAG_ZERO:
+         MFEM_FORALL(i, csz,
+         {
+            const int id = idx[i];
+            d_y[id] = 0.0;
+         });
+         break;
+      case DIAG_KEEP:
+         // Needs action of the operator diagonal on vector
+         mfem_error("ConstrainedOperator::Mult #1");
+         break;
+      default:
+         mfem_error("ConstrainedOperator::Mult #2");
+         break;
+   }
 }
 
 RectangularConstrainedOperator::RectangularConstrainedOperator(
