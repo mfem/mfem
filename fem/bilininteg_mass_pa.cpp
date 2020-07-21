@@ -41,6 +41,8 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
       InitCeedCoeff(Q, ptr);
       return CeedPAMassAssemble(fes, *ir, *ptr);
    }
+#else
+   MFEM_CONTRACT_VAR(force);
 #endif
    dim = mesh->Dimension();
    ne = fes.GetMesh()->GetNE();

@@ -1314,42 +1314,35 @@ static void PADiffusionApply3D(const int NE,
 }
 #endif
 
-// For SmemPADiffusionApply3D, half of B and G are stored
-// in shared to get B, Bt, G and Gt.
-// Indices computation for SmemPADiffusionApply3D
-MFEM_EMBED
-static MFEM_HOST_DEVICE inline int qi(const int q, const int d, const int Q)
+// Half of B and G are stored in shared to get B, Bt, G and Gt.
+// Indices computation for SmemPADiffusionApply3D.
+MFEM_EMBED static MFEM_HOST_DEVICE inline int qi(const int q, const int d, const int Q)
 {
    return (q<=d) ? q : Q-1-q;
 }
 
-MFEM_EMBED
-static MFEM_HOST_DEVICE inline int dj(const int q, const int d, const int D)
+MFEM_EMBED static MFEM_HOST_DEVICE inline int dj(const int q, const int d, const int D)
 {
    return (q<=d) ? d : D-1-d;
 }
 
-MFEM_EMBED
-static MFEM_HOST_DEVICE inline int qk(const int q, const int d, const int Q)
+MFEM_EMBED static MFEM_HOST_DEVICE inline int qk(const int q, const int d, const int Q)
 {
    return (q<=d) ? Q-1-q : q;
 }
 
-MFEM_EMBED
-static MFEM_HOST_DEVICE inline int dl(const int q, const int d, const int D)
+MFEM_EMBED static MFEM_HOST_DEVICE inline int dl(const int q, const int d, const int D)
 {
    return (q<=d) ? D-1-d : d;
 }
 
-MFEM_EMBED
-static MFEM_HOST_DEVICE inline double sign(const int q, const int d)
+MFEM_EMBED static MFEM_HOST_DEVICE inline double sign(const int q, const int d)
 {
    return (q<=d) ? -1.0 : 1.0;
 }
 
 // Shared memory PA Diffusion Apply 3D kernel
-MFEM_JIT
-template<int T_D1D = 0, int T_Q1D = 0>
+MFEM_JIT template<int T_D1D = 0, int T_Q1D = 0>
 static void SmemPADiffusionApply3D(const int NE,
                                    const double *b_,
                                    const double *g_,
@@ -1370,6 +1363,7 @@ static void SmemPADiffusionApply3D(const int NE,
    auto d = Reshape(d_, Q1D, Q1D, Q1D, 6, NE);
    auto x = Reshape(x_, D1D, D1D, D1D, NE);
    auto y = Reshape(y_, D1D, D1D, D1D, NE);
+
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, 1,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -1696,7 +1690,8 @@ static void PADiffusionApply(const int dim,
          default:   return PADiffusionApply2D(NE,b,g,bt,gt,d,x,y,D1D,Q1D);
       }
    }
-   else if (dim == 3)
+
+   if (dim == 3)
    {
       if (STD) { return PADiffusionApply3D(NE,b,g,bt,gt,d,x,y,D1D,Q1D); }
       switch ((D1D << 4 ) | Q1D)
