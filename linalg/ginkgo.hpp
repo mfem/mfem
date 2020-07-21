@@ -727,10 +727,10 @@ public:
       auto gko_sparse = mtx::create(
                            exec, gko::dim<2>(a.Height(), a.Width()),
                            gko::Array<double>::view(exec,
-                                                    a.NumNonZeroElems(),
+                                                    a.ReadWriteI(on_device)[a.Height()],
                                                     a.ReadWriteData(on_device)),
                            gko::Array<int>::view(exec,
-                                                 a.NumNonZeroElems(),
+                                                 a.ReadWriteI(on_device)[a.Height()],
                                                  a.ReadWriteJ(on_device)),
                            gko::Array<int>::view(exec, a.Height() + 1,
                                                  a.ReadWriteI(on_device)));
@@ -778,10 +778,10 @@ public:
       auto gko_sparse = mtx::create(
                            exec, gko::dim<2>(a.Height(), a.Width()),
                            gko::Array<double>::view(exec,
-                                                    a.NumNonZeroElems(),
+                                                    a.ReadWriteI(on_device)[a.Height()],
                                                     a.ReadWriteData(on_device)),
                            gko::Array<int>::view(exec,
-                                                 a.NumNonZeroElems(),
+                                                 a.ReadWriteI(on_device)[a.Height()],
                                                  a.ReadWriteJ(on_device)),
                            gko::Array<int>::view(exec, a.Height() + 1,
                                                  a.ReadWriteI(on_device)));
@@ -832,10 +832,10 @@ public:
       auto gko_sparse = mtx::create(
                            exec, gko::dim<2>(a.Height(), a.Width()),
                            gko::Array<double>::view(exec,
-                                                    a.NumNonZeroElems(),
+                                                    a.ReadWriteI(on_device)[a.Height()],
                                                     a.ReadWriteData(on_device)),
                            gko::Array<int>::view(exec,
-                                                 a.NumNonZeroElems(),
+                                                 a.ReadWriteI(on_device)[a.Height()],
                                                  a.ReadWriteJ(on_device)),
                            gko::Array<int>::view(exec, a.Height() + 1,
                                                  a.ReadWriteI(on_device)));
@@ -894,10 +894,10 @@ public:
       auto gko_sparse = mtx::create(
                            exec, gko::dim<2>(a.Height(), a.Width()),
                            gko::Array<double>::view(exec,
-                                                    a.NumNonZeroElems(),
+                                                    a.ReadWriteI(on_device)[a.Height()],
                                                     a.ReadWriteData(on_device)),
                            gko::Array<int>::view(exec,
-                                                 a.NumNonZeroElems(),
+                                                 a.ReadWriteI(on_device)[a.Height()],
                                                  a.ReadWriteJ(on_device)),
                            gko::Array<int>::view(exec, a.Height() + 1,
                                                  a.ReadWriteI(on_device)));
