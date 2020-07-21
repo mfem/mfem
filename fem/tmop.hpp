@@ -689,9 +689,9 @@ class TMOPMatrixCoefficient  : public MatrixCoefficient
 public:
    explicit TMOPMatrixCoefficient(int dim) : MatrixCoefficient(dim, dim) { }
 
-   /** @brief Evaluate the derivative of the matrix coefficient with respect
-       to @a comp in the element described by @a T at the point @a ip,
-       storing the result in @a K. */
+   /** @brief Evaluate the derivative of the matrix coefficient with respect to
+       @a comp in the element described by @a T at the point @a ip, storing the
+       result in @a K. */
    virtual void EvalGrad(DenseMatrix &K, ElementTransformation &T,
                          const IntegrationPoint &ip, int comp) = 0;
 
@@ -748,9 +748,8 @@ protected:
    // eta1(x+h,y), eta2(x+h,y) ... etan(x+h,y), eta1(x,y+h), eta2(x,y+h) ...
    // same for tspec_pert2h and tspec_pertmix.
 
-   // Components of Target Jacobian at each quadrature point
-   // of an element. This is required for computation of
-   // the derivative using chain rule.
+   // Components of Target Jacobian at each quadrature point of an element. This
+   // is required for computation of the derivative using chain rule.
    mutable DenseTensor Jtrcomp;
 
    // Note: do not use the Nodes of this space as they may not be on the
@@ -758,8 +757,8 @@ protected:
    const FiniteElementSpace *tspec_fes;
    const FiniteElementSpace *tspec_fesv;
 
-   // These flags can be used by outside functions to avoid recomputing
-   // the tspec and tspec_perth fields again on the same mesh.
+   // These flags can be used by outside functions to avoid recomputing the
+   // tspec and tspec_perth fields again on the same mesh.
    bool good_tspec, good_tspec_grad, good_tspec_hess;
 
    // Evaluation of the discrete target specification on different meshes.
