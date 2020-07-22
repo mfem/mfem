@@ -16,6 +16,12 @@ stages:
   - tests
   - optional
 
+env:
+  global:
+    - HYPRE_ARCHIVE=v2.19.0.tar.gz
+      HYPRE_URL=https://github.com/hypre-space/hypre/archive/$HYPRE_ARCHIVE
+      HYPRE_TOP_DIR=hypre-2.19.0
+
 jobs:
   include:
 
@@ -138,8 +144,7 @@ jobs:
            NPROCS=2
       cache:
         directories:
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../$HYPRE_TOP_DIR/src/hypre
           - $TRAVIS_BUILD_DIR/../metis-4.0
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
@@ -169,8 +174,7 @@ jobs:
            NPROCS=2
       cache:
         directories:
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../$HYPRE_TOP_DIR/src/hypre
           - $TRAVIS_BUILD_DIR/../metis-4.0
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
@@ -193,7 +197,7 @@ jobs:
         - cd ${TRAVIS_BUILD_DIR}/build
         - cmake ..
              -DMFEM_USE_MPI=ON
-             -DHYPRE_DIR=${TRAVIS_BUILD_DIR}/../hypre-2.10.0b/src/hypre
+             -DHYPRE_DIR=${TRAVIS_BUILD_DIR}/../$HYPRE_TOP_DIR/src/hypre
              -DMFEM_MPI_NP=$NPROCS
         - make -j3 mfem examples
         - cd ${TRAVIS_BUILD_DIR}/build/tests/unit
@@ -201,8 +205,7 @@ jobs:
         - ctest --output-on-failure
       cache:
         directories:
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../$HYPRE_TOP_DIR/src/hypre
           - $TRAVIS_BUILD_DIR/../metis-4.0
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
@@ -247,8 +250,7 @@ jobs:
            TMPDIR=/tmp
       cache:
         directories:
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../$HYPRE_TOP_DIR/src/hypre
           - $TRAVIS_BUILD_DIR/../metis-4.0
           - $HOME/local-cached
       before_cache:
@@ -268,8 +270,7 @@ jobs:
            TMPDIR=/tmp
       cache:
         directories:
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../$HYPRE_TOP_DIR/src/hypre
           - $TRAVIS_BUILD_DIR/../metis-4.0
           - $HOME/local-cached
       before_cache:
@@ -335,18 +336,18 @@ install:
 
    # hypre
    - if [ $MPI == "YES" ]; then
-        if [ ! -e hypre-2.10.0b/src/hypre/lib/libHYPRE.a ]; then
-           wget https://computation.llnl.gov/project/linear_solvers/download/hypre-2.10.0b.tar.gz --no-check-certificate;
-           rm -rf hypre-2.10.0b;
-           tar xvzf hypre-2.10.0b.tar.gz;
-           cd hypre-2.10.0b/src;
-           ./configure --disable-fortran --without-fei CC=mpicc CXX=mpic++;
+        if [ ! -e $HYPRE_TOP_DIR/src/hypre/lib/libHYPRE.a ]; then
+           wget $HYPRE_URL;
+           rm -rf $HYPRE_TOP_DIR;
+           tar xvzf $HYPRE_ARCHIVE;
+           cd $HYPRE_TOP_DIR/src;
+           ./configure --disable-fortran CC=mpicc CXX=mpic++;
            make -j3;
            cd ../..;
         else
-            echo "Reusing cached hypre-2.10.0b/";
+            echo "Reusing cached $HYPRE_TOP_DIR/";
         fi;
-        ln -s hypre-2.10.0b hypre;
+        ln -s $HYPRE_TOP_DIR hypre;
      else
         echo "Serial build, not using hypre";
      fi
@@ -354,7 +355,7 @@ install:
    # METIS
    - if [ $MPI == "YES" ]; then
         if [ ! -e metis-4.0/libmetis.a ]; then
-           wget http://glaros.dtc.umn.edu/gkhome/fetch/sw/metis/OLD/metis-4.0.3.tar.gz;
+           wget https://mfem.github.io/tpls/metis-4.0.3.tar.gz;
            tar xvzf metis-4.0.3.tar.gz;
            make -j3 -C metis-4.0.3/Lib CC="$CC" OPTFLAGS="-O2";
            rm -rf metis-4.0;
