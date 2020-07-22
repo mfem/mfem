@@ -13,6 +13,7 @@
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
+#define MFEM_DEBUG_COLOR 206
 #include "../general/debug.hpp"
 
 namespace mfem
@@ -975,6 +976,7 @@ void AnalyticAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
 void DiscreteAdaptTC::FinalizeParDiscreteTargetSpec(const ParGridFunction
                                                     &tspec_)
 {
+   dbg();
    MFEM_VERIFY(adapt_eval, "SetAdaptivityEvaluator() has not been called!")
    MFEM_VERIFY(ncomp > 0, "No target specifications have been set!");
 
@@ -1006,9 +1008,10 @@ void DiscreteAdaptTC::SetTspecAtIndex(int idx, const ParGridFunction &tspec_)
 
 void DiscreteAdaptTC::SetParDiscreteTargetSize(const ParGridFunction &tspec_)
 {
-   dbg();
+   dbg("sizeidx:%d, ncomp:%d",sizeidx, ncomp);
    if (sizeidx > -1) { SetTspecAtIndex(sizeidx, tspec_); return; }
    sizeidx = ncomp;
+   dbg("sizeidx:%d",sizeidx);
    SetDiscreteTargetBase(tspec_);
    FinalizeParDiscreteTargetSpec(tspec_);
 }
