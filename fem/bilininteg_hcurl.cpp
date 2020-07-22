@@ -19,10 +19,6 @@ using namespace std;
 namespace mfem
 {
 
-// Local maximum size of dofs and quads in 1D
-constexpr int HCURL_MAX_D1D = 5;
-constexpr int HCURL_MAX_Q1D = 6;
-
 // PA H(curl) Mass Assemble 2D kernel
 void PAHcurlSetup2D(const int Q1D,
                     const int coeffDim,
@@ -2015,12 +2011,12 @@ void PAHcurlH1Apply2D(const int D1D,
 }
 
 // PA H(curl) Mass Assemble 3D kernel
-static void PAHcurlL2Setup3D(const int Q1D,
-                             const int coeffDim,
-                             const int NE,
-                             const Array<double> &w,
-                             Vector &_coeff,
-                             Vector &op)
+void PAHcurlL2Setup3D(const int Q1D,
+                      const int coeffDim,
+                      const int NE,
+                      const Array<double> &w,
+                      Vector &_coeff,
+                      Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
@@ -2513,7 +2509,7 @@ static void PAHcurlHdivApply3D(const int D1D,
    auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
    auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 6, NE);
    auto x = Reshape(_x.Read(), 3*(D1D-1)*D1D*D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), 3*(D1Dtest-1)*(D1Dtest-1)*D1D, NE);
+   auto y = Reshape(_y.ReadWrite(), 3*(D1Dtest-1)*(D1Dtest-1)*D1Dtest, NE);
 
    MFEM_FORALL(e, NE,
    {
