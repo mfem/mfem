@@ -742,6 +742,7 @@ protected:
    // The new order for these vectors is
    // eta1(x+h),eta2(x+h)...etan(x+h),eta1(y+h),eta2(y+h)...etan(y+h).
    // same for tspec_pert2h and tspec_pertmix.
+   Array<GridFunction *> gfarr;
 
    // Note: do not use the Nodes of this space as they may not be on the
    // positions corresponding to the values of tspec.
@@ -787,9 +788,10 @@ public:
    virtual void FinalizeParDiscreteTargetSpec();
 #endif
 
-   virtual void GetSerialDiscreteTargetSize(GridFunction &tspec_);
-   virtual void GetSerialDiscreteTargetAspectRatio(GridFunction &tspec_);
+   virtual void GetSerialDiscreteTargetSpec(GridFunction &tspec_, int idx);
    virtual void ResetDiscreteFields();
+   void AddGF(GridFunction *gf_) { gfarr.Append(gf_); }
+   void Update();
 
    /** Used to update the target specification after the mesh has changed. The
        new mesh positions are given by new_x. */
@@ -930,7 +932,7 @@ public:
        @param[in] tc Target-matrix construction algorithm to use (not owned). */
    TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc,
                    TMOP_QualityMetric *amrm)
-      : metric(m), targetC(tc), amrmetric(amrm),
+      : amrmetric(amrm), metric(m), targetC(tc),
         coeff1(NULL), metric_normal(1.0),
         nodes0(NULL), coeff0(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
@@ -983,6 +985,10 @@ public:
        @param[in] T      Mesh element transformation.
        @param[in] elfun  Physical coordinates of the zone. */
    virtual double GetElementEnergy(const FiniteElement &el,
+                                   ElementTransformation &T,
+                                   const Vector &elfun);
+
+   virtual double GetAMRElementEnergy(const FiniteElement &el,
                                    ElementTransformation &T,
                                    const Vector &elfun);
 

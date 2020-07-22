@@ -70,6 +70,9 @@ struct CoarseFineTransformations
                            Table &ref_type_to_matrix,
                            Array<Geometry::Type> &ref_type_to_geom) const;
 
+   void GetCoarseToFineMapFast(const Mesh &fine_mesh,
+                               Table &coarse_to_fine) const;
+
    void Clear();
    bool IsInitialized() const;
    long MemoryUsage() const;

@@ -7,61 +7,6 @@ using namespace std;
 
 #include "mesh-optimizer.hpp"
 
-void TMOPupdate(NonlinearForm &a, Mesh &mesh, FiniteElementSpace &fespace,
-                bool move_bnd)
-{
-   int dim = fespace.GetFE(0)->GetDim();
-   if (move_bnd == false)
-   {
-      Array<int> ess_bdr(mesh.bdr_attributes.Max());
-      ess_bdr = 1;
-      a.SetEssentialBC(ess_bdr);
-   }
-   else
-   {
-      const int nd  = fespace.GetBE(0)->GetDof();
-      int n = 0;
-      for (int i = 0; i < mesh.GetNBE(); i++)
-      {
-         const int attr = mesh.GetBdrElement(i)->GetAttribute();
-         MFEM_VERIFY(!(dim == 2 && attr == 3),
-                     "Boundary attribute 3 must be used only for 3D meshes. "
-                     "Adjust the attributes (1/2/3/4 for fixed x/y/z/all "
-                     "components, rest for free nodes), or use -fix-bnd.");
-         if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
-         if (attr == 4) { n += nd * dim; }
-      }
-      Array<int> ess_vdofs(n), vdofs;
-      n = 0;
-      for (int i = 0; i < mesh.GetNBE(); i++)
-      {
-         const int attr = mesh.GetBdrElement(i)->GetAttribute();
-         fespace.GetBdrElementVDofs(i, vdofs);
-         if (attr == 1) // Fix x components.
-         {
-            for (int j = 0; j < nd; j++)
-            { ess_vdofs[n++] = vdofs[j]; }
-         }
-         else if (attr == 2) // Fix y components.
-         {
-            for (int j = 0; j < nd; j++)
-            { ess_vdofs[n++] = vdofs[j+nd]; }
-         }
-         else if (attr == 3) // Fix z components.
-         {
-            for (int j = 0; j < nd; j++)
-            { ess_vdofs[n++] = vdofs[j+2*nd]; }
-         }
-         else if (attr == 4) // Fix all components.
-         {
-            for (int j = 0; j < vdofs.Size(); j++)
-            { ess_vdofs[n++] = vdofs[j]; }
-         }
-      }
-      a.SetEssentialVDofs(ess_vdofs);
-   }
-};
-
 // Additional IntegrationRules that can be used with the --quad-type option.
 IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
 IntegrationRules IntRulesCU(0, Quadrature1D::ClosedUniform);
@@ -73,6 +18,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "icf.mesh";
    int mesh_poly_deg     = 1;
    int rs_levels         = 0;
+   int ars_levels        = 0;
    double jitter         = 0.0;
    int metric_id         = 1;
    int target_id         = 1;
@@ -86,7 +32,7 @@ int main(int argc, char *argv[])
    bool move_bnd         = true;
    bool combomet         = 0;
    int amr_flag          = 1;
-   int amrmetric_id         = -1;
+   int amrmetric_id      = -1;
    bool normalization    = false;
    bool visualization    = true;
    int verbosity_level   = 0;
@@ -102,6 +48,8 @@ int main(int argc, char *argv[])
                   "Polynomial degree of mesh finite element space.");
    args.AddOption(&rs_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
+   args.AddOption(&ars_levels, "-ars", "--amr-refine-serial",
+                  "Number of times to refine the mesh uniformly in serial using AMR.");
    args.AddOption(&jitter, "-ji", "--jitter",
                   "Random perturbation scaling factor.");
    args.AddOption(&metric_id, "-mid", "--metric-id",
@@ -189,6 +137,14 @@ int main(int argc, char *argv[])
    if (mesh->GetNodes()) { cout << mesh->GetNodes()->OwnFEC()->Name(); }
    else { cout << "(NONE)"; }
    cout << endl;
+
+   for (int lev = 0; lev < ars_levels; lev++) {
+       Array<Refinement> marked_elements;
+       for (int e = 0; e < mesh->GetNE(); e++) {
+           marked_elements.Append(e);
+       }
+       mesh->GeneralRefinement(marked_elements, 1, 0);
+   }
 
    // 3. Define a finite element space on the mesh-> Here we use vector finite
    //    elements which are tensor products of quadratic finite elements. The
@@ -563,7 +519,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient *coeff1 = NULL;
    a.AddDomainIntegrator(he_nlf_integ);
 
-   const double init_energy = a.GetGridFunctionEnergy(x);
+   const double init_energy = a.GetGridFunctionEnergy(x)/mesh->GetNE();
 
    // 15. Visualize the starting mesh and metric values.
    if (visualization)
@@ -697,19 +653,13 @@ int main(int argc, char *argv[])
 
    // 20. AMR based size refinemenet if a size metric is used
    TMOPEstimator       tmope(fespace, *he_nlf_integ, x, amrmetric_id);
-   TMOPRefiner         tmopr(tmope, dim);
-   //TMOPDeRefiner       tmopdr(tmope, dim);
    TMOPTypeRefiner     tmoptr(tmope, dim);
    TMOPTypeDeRefiner   tmoptdr(tmope, dim);
-   TMOPAMRUpdate tmopamrupdate;
-   tmopamrupdate.AddFESpace(&ind_fes);
+   TMOPAMR tmopamrupdate;
    tmopamrupdate.AddFESpace(&fespace);
-   tmopamrupdate.AddFESpace(&ind_fesv);
-   tmopamrupdate.AddGF(&size);
-   tmopamrupdate.AddGF(&aspr);
-   tmopamrupdate.AddGF(&aspr3d);
    tmopamrupdate.AddMeshNodeAr(&x);
    tmopamrupdate.AddMeshNodeAr(&x0);
+   tmopamrupdate.SetDiscreteTC(tcd);
 
    int metrictype = he_nlf_integ->GetAMRQualityMetric().GetMetricType();
    int num_ref_types = 3 + 4*(dim-2);
@@ -744,26 +694,24 @@ int main(int argc, char *argv[])
        }
    }
 
-
-   Array<Vector *> amrevecararay;
-
    int newtonstop = 0;
+   std::cout << mesh->GetNE() << " Number of elements at beginning\n";
 
    if (amr_flag==1)
    {
-      int ni_limit = 3; //Newton + AMR
+      int ni_limit = 5; //Newton + AMR
       int nic_limit = std::max(ni_limit, 4); //Number of iterations with AMR
       int amrstop = 0;
+      int amrdstop = 0;
       int nc_limit = 1; //AMR per iteration - FIXED FOR NOW
 
-      tmopr.PreferNonconformingRefinement();
-      tmopr.SetNCLimit(nc_limit);
+      tmoptr.PreferNonconformingRefinement();
+      tmoptr.SetNCLimit(nc_limit);
 
       for (int it = 0; it<ni_limit; it++)
       {
 
          std::cout << it << " Begin NEWTON+AMR Iteration\n";
-
          newton->SetOperator(a);
          newton->Mult(b, x.GetTrueVector());
          x.SetFromTrueVector();
@@ -776,7 +724,7 @@ int main(int argc, char *argv[])
          {
             cout << " NewtonSolver converged" << endl;
          }
-         if (amrstop==1)
+         if (amrstop==1 && amrdstop == 1)
          {
             newtonstop = 1;
             cout << it << " Newton and AMR have converged" << endl;
@@ -787,98 +735,122 @@ int main(int argc, char *argv[])
 
          for (int amrit=0; amrit<nc_limit; amrit++)
          {
-            // need to remap discrete functions from old mesh to new mesh here
-            if (target_id == 5) { tcd->GetSerialDiscreteTargetSize(size); }
-            else if (target_id ==7) { tcd->GetSerialDiscreteTargetAspectRatio(aspr3d); }
+            int NEorig = fespace.GetNE();
+            Vector amr_base_energy(NEorig);
+            tmope.GetAMRTypeEnergy(amr_base_energy);
+            std::cout << 0 << " " <<  mesh->GetNE() << " " << a.GetGridFunctionEnergy(x)
+                      << " k10basenergy\n";
 
-            {
-               // do all different refinements and measure energy
+            int ne1 = mesh->GetNE();
+            NCMesh *ncmesh = mesh->ncmesh;
+            if (ncmesh && (amrdstop == 0 || amrstop == 0)) { //derefinement
+                tmoptdr.Reset();
+                tmoptdr.SetRefType(0);
+                // Make a copy of the mesh for derefinement
+                tmoptdr.SetMetaInfo(*mesh, x);
 
-                int NEorig = fespace.GetNE();
-                amrevecararay.DeleteAll();
-                for (int i = 0; i < num_ref_types; i++)
-                {
-                   amrevecararay.Append(new Vector(NEorig));
-                }
-                Vector baseenergyvec(NEorig);
-                tmope.GetAMRTypeEnergy(baseenergyvec);
+                // Derefine all the child
+                tmoptdr.Apply(*mesh);
+                tmopamrupdate.Update(a, *mesh, fespace, move_bnd);
+                //std::cout << mesh->GetNE() << " k102\n";
 
-               std::cout << 0 << " " <<  mesh->GetNE() << " " << a.GetGridFunctionEnergy(x)
-                         << " k10basenergy\n";
-               for (int i = 1;i < num_ref_types+1 && amrstop==0; i++)
-               {
-                   if (amr_ref_check(i-1)==1) {
-                       tmoptr.Reset();
-                       tmoptr.SetRefType(i);
-                       if (nc_limit!=0 && amrstop==0) {tmoptr.Apply(*mesh);}
-                       tmopamrupdate.hrupdateFEandGF();
-                       if (target_id >= 5)
-                       {
-                          tmopamrupdate.hrupdatediscfunction(*tcd, size, aspr, aspr3d, target_id);
-                          target_c = tcd;
-                          he_nlf_integ->UpdateTargetConstructor(target_c);
-                       }
-                       tmopamrupdate.hrupdate(a, *mesh, fespace, move_bnd);
+                // For the new coarse elements, determine the original children
+                // elements and get their energy. Get the original parent.
+                // Also get the refinemenqt type for those original elements.
+                Vector amrevecin(fespace.GetNE());
+                tmope.GetAMRTypeEnergy(amrevecin);
+                Array<int> new_parent_ref_type(fespace.GetNE());
+                tmoptdr.DetermineAMRTypeEnergy(*mesh, amrevecin,
+                                               amr_base_energy, new_parent_ref_type);
 
-                       Vector amrevecin(fespace.GetNE());
-                       tmope.GetAMRTypeEnergy(amrevecin);
+                // Do refinement on elements that have positive energy
+                tmoptr.SetRefType(0);
+                tmoptr.SetParentEnergy(amrevecin);
+                tmoptr.SetParentEnergyRefType(new_parent_ref_type);
+                tmoptr.Apply(*mesh);
+                tmopamrupdate.Update(a, *mesh, fespace, move_bnd);
+                //std::cout << mesh->GetNE() << " " << xsav.FESpace()->GetNE() << " k103\n";
 
-                       tmoptdr.Reset();
-                       tmoptdr.SetRefType(i);
-                       tmoptdr.DetermineAMRTypeEnergy(*mesh, amrevecin, *amrevecararay[i-1]);
-                       *amrevecararay[i-1] -= baseenergyvec;
-                       *amrevecararay[i-1] *= -1.;
+                // Restore the nodal data from original mesh to restore transformation
+                tmoptdr.RestoreNodalPositions(*mesh, x);
 
-                       if (nc_limit!=0 && amrstop==0) { tmoptdr.Apply(*mesh); }
-                       tmopamrupdate.hrupdateFEandGF();
-                       if (target_id >= 5)
-                       {
-                          tmopamrupdate.hrupdatediscfunction(*tcd, size, aspr, aspr3d, target_id);
-                          target_c = tcd;
-                          he_nlf_integ->UpdateTargetConstructor(target_c);
-                       }
-                       tmopamrupdate.hrupdate(a, *mesh, fespace, move_bnd);
-                       std::cout << i << " " <<  mesh->GetNE() << " " << NEorig
-                                 << " k10derefinement\n";
-                   }
-                   else {
-                       *amrevecararay[i-1] = -1.*std::numeric_limits<float>::max();
-                   }
-
-               }
+                std::cout << mesh->GetNE() << " Number of Elements after DeRefine\n";
+            }
+            int ne2 = mesh->GetNE();
+            if (ne1 == ne2) {
+                amrdstop = 1;
+                std::cout << " No elements derefined\n";
+            } else {
+                amrdstop = 0;
+                std::cout << " Derefine useful\n";
             }
 
-            tmope.Setevecptr(amrevecararay);
+            NEorig = fespace.GetNE();
+            amr_base_energy.SetSize(NEorig);
+            tmope.GetAMRTypeEnergy(amr_base_energy);
 
-            {
+            if (amrdstop == 0 || amrstop == 0) {
+                // Do all different refinements and measure energy
+                Vector amr_parent_energy(NEorig);
+                amr_parent_energy = 1.*std::numeric_limits<float>::max();
+                Array<int> amr_parent_ref(NEorig);
+                amr_parent_ref = -1;
+                Vector amr_temp_energy(NEorig);
+
+               for (int i = 1;i < num_ref_types+1; i++)
+               {
+                   if ( amr_ref_check(i-1) != 1 ) { continue; }
+                   tmoptr.Reset();
+                   tmoptr.SetRefType(i);
+                   tmoptr.Apply(*mesh);
+                   tmopamrupdate.Update(a, *mesh, fespace, move_bnd);
+
+                   Vector amr_child_energy(fespace.GetNE());
+                   tmope.GetAMRTypeEnergy(amr_child_energy);
+
+                   tmoptr.DetermineAMRTypeEnergy(*mesh, amr_child_energy, amr_temp_energy);
+
+                   for (int e = 0; e < NEorig; e++) {
+                       if ( amr_temp_energy(e) < amr_parent_energy(e) ) {
+                           amr_parent_energy(e) = amr_temp_energy(e);
+                           amr_parent_ref[e] = i;
+                       }
+                   }
+
+                   tmoptdr.Reset();
+                   tmoptdr.SetRefType(i);
+                   tmoptdr.Apply(*mesh);
+                   tmopamrupdate.Update(a, *mesh, fespace, move_bnd);
+               }
+
+               amr_parent_energy -= amr_base_energy;
+               amr_parent_energy *= -1;
+               tmoptr.SetParentEnergy(amr_parent_energy);
+               tmoptr.SetParentEnergyRefType(amr_parent_ref);
+
                // Refiner
-               tmopr.Reset();
-               if (nc_limit!=0 && amrstop==0) {tmopr.Apply(*mesh);}
-               //Update stuff
-               tmopamrupdate.hrupdateFEandGF();
-               if (target_id >= 5)
-               {
-                  tmopamrupdate.hrupdatediscfunction(*tcd, size, aspr, aspr3d, target_id);
-                  target_c = tcd;
-                  he_nlf_integ->UpdateTargetConstructor(target_c);
-               }
-               tmopamrupdate.hrupdate(a, *mesh, fespace, move_bnd);
-            }
+               tmoptr.SetRefType(0);
+               tmoptr.Reset();
+               if (amrstop==0) { tmoptr.Apply(*mesh); }
+               tmopamrupdate.Update(a, *mesh, fespace, move_bnd);
+           }
 
             if (amrstop==0)
             {
-               if (tmopr.Stop())
-               {
-                  newtonstop = 1;
-                  amrstop = 1;
-                  cout << it << " " << amrit <<
-                       " AMR stopping criterion satisfied. Stop." << endl;
+               if (tmoptr.Stop()) { amrstop = 1; }
+               if (amrstop == 1 && amrdstop == 1) {
+                   newtonstop = 1;
+                   cout << it << " " << amrit <<
+                        " AMR stopping criterion satisfied. Stop." << endl;
                }
                else
-               {std::cout << mesh->GetNE() << " Number of elements after AMR\n";}
+               {
+                   amrstop = 0;
+                   std::cout << mesh->GetNE() << " Number of elements after AMR\n";
+               }
             }
-         }
-         if (it==nic_limit-1) { amrstop=1; }
+         } //amrit limit
+         if (it==nic_limit-1) { amrstop=1; amrdstop = 1; }
 
          sprintf(title1, "%s %d","AMR", it);
       } //ni_limit
@@ -889,6 +861,7 @@ int main(int argc, char *argv[])
       newton->Mult(b, x.GetTrueVector());
       x.SetFromTrueVector();
    }
+
    // 21. Save the optimized mesh to a file. This output can be viewed later
    //     using GLVis: "glvis -m optimized.mesh".
    {
@@ -905,12 +878,12 @@ int main(int argc, char *argv[])
    }
 
    // 22. Compute the amount of energy decrease.
-   const double fin_energy = a.GetGridFunctionEnergy(x);
+   const double fin_energy = a.GetGridFunctionEnergy(x)/mesh->GetNE();
    double metric_part = fin_energy;
    if (lim_const != 0.0)
    {
       lim_coeff.constant = 0.0;
-      metric_part = a.GetGridFunctionEnergy(x);
+      metric_part = a.GetGridFunctionEnergy(x)/mesh->GetNE();
       lim_coeff.constant = lim_const;
    }
    cout << "Initial strain energy: " << init_energy

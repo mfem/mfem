@@ -8,7 +8,6 @@ using namespace std;
 class HessianCoefficient : public MatrixCoefficient
 {
 private:
-   int type;
    int typemod = 5;
 
 public:
@@ -46,7 +45,6 @@ public:
          const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
          const double r = sqrt(xc*xc + yc*yc);
          double r1 = 0.15; double r2 = 0.35; double sf=30.0;
-         const double eps = 0.5;
 
          const double tan1 = std::tanh(sf*(r-r1)),
                       tan2 = std::tanh(sf*(r-r2));
@@ -85,9 +83,9 @@ public:
          double r = 0;
          if (rv>0.) {r = sqrt(rv);}
 
-         double r1 = 0.25; double r2 = 0.30; double sf=30.0;
+         double r1 = 0.2; double r2 = 0.3; double sf=30.0;
          const double szfac = 1;
-         const double asfac = 40;
+         const double asfac = 4;
          const double eps2 = szfac/asfac;
          const double eps1 = szfac;
 
@@ -124,9 +122,8 @@ public:
       }
       else if (typemod == 4) //sharp sine wave
       {
-         const double small = 0.001, big = 0.01;
+         //const double small = 0.001, big = 0.01;
          const double xc = pos(0), yc = pos(1);
-         const double r = sqrt(xc*xc + yc*yc);
 
          double tfac = 40;
          double yl1 = 0.45;
@@ -135,9 +132,8 @@ public:
                       std::tanh((tfac*(yc-yl2) + 2*std::sin(4.0*M_PI*xc)) - 1);
          if (wgt > 1) { wgt = 1; }
          if (wgt < 0) { wgt = 0; }
-         double szval = wgt * small + (1.0 - wgt) * big;
 
-         const double eps2 = 40;
+         const double eps2 = 10;
          const double eps1 = 1;
          K(1,1) = eps1/eps2 + eps1*(1-wgt)*(1-wgt);
          K(0,0) = eps1;
@@ -167,7 +163,7 @@ public:
          if (wgt > 1) { wgt = 1; }
          if (wgt < 0) { wgt = 0; }
 
-         const double eps2 = 20;
+         const double eps2 = 25;
          const double eps1 = 1;
          K(1,1) = eps1/eps2 + eps1*(1-wgt)*(1-wgt);
          K(0,0) = eps1;
@@ -182,7 +178,6 @@ public:
          const double eps2 = szfac/asfac;
          double yscale = 1.5;
          yscale = 2 - 2/asfac;
-         double yval = 0.25;
          K(0, 0) = eps;
          K(1, 1) = eps2 + szfac*yscale*pos(1);
          K(0, 1) = 0.0;
@@ -246,8 +241,7 @@ double discrete_aspr_2d(const Vector &x)
    double th = 22.5*M_PI/180.;
    double xn =  cos(th)*xc + sin(th)*yc;
    double yn = -sin(th)*xc + cos(th)*yc;
-   double th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
-   double stretch = 1/cos(th2);
+   //double th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
    xc = xn; yc = yn;
 
    double tfac = 20;
@@ -340,8 +334,8 @@ public:
                  GridFunction &x_,
                  int amrmetric_)
       : current_sequence(-1), total_error(0.),
-        fespace(&fes_), tmopi(&tmopi_), dofgf(&x_),
-        dim(fes_.GetFE(0)->GetDim()), amrmetric(amrmetric_)
+        dim(fes_.GetFE(0)->GetDim()), amrmetric(amrmetric_),
+        fespace(&fes_), tmopi(&tmopi_), dofgf(&x_)
    {
       //amr_refenergy.SetSize(7);
    }
@@ -356,16 +350,11 @@ public:
       return *amr_refenergy[type];
    }
 
-   void Setevecptr(Array<Vector *> vecin_) {
+   void SetEnergyVecPtr(Array<Vector *> vecin_) {
        amr_refenergy.DeleteAll();
        for (int i= 0; i < vecin_.Size(); i++) {
            amr_refenergy.Append(vecin_[i]);
        }
-   }
-
-   void Setevecptr(int type, Vector &vec)
-   {
-      *amr_refenergy[type] = vec;
    }
 
    void GetAMRTypeEnergy(Vector &energyvec_);
@@ -412,120 +401,10 @@ void TMOPEstimator::GetAMRTypeEnergy(Vector &energyvec_)
        fespace->GetElementVDofs(j, vdofs);
        T = fespace->GetElementTransformation(j);
        x_loc.GetSubVector(vdofs, el_x);
-       amrreftypeenergy(j) = tmopi->GetElementEnergy(*fe, *T, el_x);
+       amrreftypeenergy(j) = tmopi->GetAMRElementEnergy(*fe, *T, el_x);
    }
 
    energyvec_ = amrreftypeenergy;
-}
-
-class TMOPRefiner : public MeshOperator
-{
-protected:
-   TMOPEstimator &estimator;
-
-   long   max_elements;
-   long num_marked_elements;
-
-   Array<Refinement> marked_elements;
-   long current_sequence;
-
-   int non_conforming;
-   int nc_limit;
-   int amrmetric; //0-Size, 1-AspectRatio, 2-Size+AspectRatio
-   int dim;
-
-   double GetNorm(const Vector &local_err, Mesh &mesh) const;
-
-   /** @brief Apply the operator to theG mesh->
-       @return STOP if a stopping criterion is satisfied or no elements were
-       marked for refinement; REFINED + CONTINUE otherwise. */
-   virtual int ApplyImpl(Mesh &mesh);
-
-public:
-   /// Construct a ThresholdRefiner using the given ErrorEstimator.
-   TMOPRefiner(TMOPEstimator &est, int dim_);
-
-   /// Use nonconforming refinement, if possible (triangles, quads, hexes).
-   void PreferNonconformingRefinement() { non_conforming = 1; }
-
-   /** @brief Use conforming refinement, if possible (triangles, tetrahedra)
-       -- this is the default. */
-   void PreferConformingRefinement() { non_conforming = -1; }
-
-   /** @brief Set the maximum ratio of refinement levels of adjacent elements
-       (0 = unlimited). */
-   void SetNCLimit(int nc_limit)
-   {
-      MFEM_ASSERT(nc_limit >= 0, "Invalid NC limit");
-      this->nc_limit = nc_limit;
-   }
-
-   /// Get the number of marked elements in the last Apply() call.
-   long GetNumMarkedElements() const { return num_marked_elements; }
-
-   /// Reset the associated estimator.
-   virtual void Reset();
-};
-
-TMOPRefiner::TMOPRefiner(TMOPEstimator &est, int dim_)
-   : estimator(est), dim(dim_)
-{
-   max_elements = std::numeric_limits<long>::max();
-
-   num_marked_elements = 0L;
-   current_sequence = -1;
-
-   non_conforming = -1;
-   nc_limit = 0;
-}
-
-int TMOPRefiner::ApplyImpl(Mesh &mesh)
-{
-   num_marked_elements = 0;
-   marked_elements.SetSize(0);
-   current_sequence = mesh.GetSequence();
-
-   const long num_elements = mesh.GetGlobalNE();
-   if (num_elements >= max_elements) { return STOP; }
-
-   const int NE = mesh.GetNE();
-   Vector Imp_Ref1 = estimator.GetAMREnergy(0);
-   Vector Imp_Ref2 = estimator.GetAMREnergy(1);
-   Vector Imp_Ref3 = estimator.GetAMREnergy(2);
-   int num_ref_types = 3+4*(dim-2);
-
-   int inum=0;
-   for (int el = 0; el < NE; el++)
-   {
-      double maxval = 0.; //improvement should be atleast 0
-      int reftype = 0;
-      for (int rt = 0; rt < num_ref_types; rt++)
-      {
-         Vector Imp_Ref = estimator.GetAMREnergy(rt);
-         double imp_ref_el = Imp_Ref(el);
-         if (imp_ref_el > maxval) { reftype = rt+1; maxval = imp_ref_el; }
-      }
-      if ( reftype > 0)
-      {
-         marked_elements.Append(Refinement(el));
-         marked_elements[inum].ref_type = reftype;
-         inum += 1;
-      }
-   }
-
-   std::cout << inum << " elements refined\n";
-
-   num_marked_elements = mesh.ReduceInt(marked_elements.Size());
-   if (num_marked_elements == 0) { return STOP; }
-   mesh.GeneralRefinement(marked_elements, non_conforming, nc_limit);
-   return CONTINUE + REFINED;
-}
-
-void TMOPRefiner::Reset()
-{
-   estimator.Reset();
-   current_sequence = -1;
-   num_marked_elements = 0;
 }
 
 class TMOPTypeRefiner : public MeshOperator
@@ -533,7 +412,7 @@ class TMOPTypeRefiner : public MeshOperator
 protected:
    TMOPEstimator &estimator;
 
-   long   max_elements;
+   long max_elements;
    long num_marked_elements;
 
    Array<Refinement> marked_elements;
@@ -543,6 +422,9 @@ protected:
    int nc_limit;
    int dim;
    int reftype;
+
+   Vector parentenergy;
+   Array<int> parentreftype;
 
    double GetNorm(const Vector &local_err, Mesh &mesh) const;
 
@@ -554,10 +436,15 @@ protected:
 public:
    /// Construct a ThresholdRefiner using the given ErrorEstimator.
    TMOPTypeRefiner(TMOPEstimator &est, int dim_);
-
    // default destructor (virtual)
 
    void SetRefType(int type_) { reftype = type_; }
+   void SetParentEnergy(Vector &parentenergy_) { parentenergy = parentenergy_; }
+   void SetParentEnergyRefType(Array<int> &parentenergyreftype_) {
+                                   parentreftype = parentenergyreftype_; }
+
+   void DetermineAMRTypeEnergy(Mesh &mesh, Vector &energyvecin_,
+                               Vector &energyvecout_);
 
    /// Use nonconforming refinement, if possible (triangles, quads, hexes).
    void PreferNonconformingRefinement() { non_conforming = 1; }
@@ -589,7 +476,7 @@ TMOPTypeRefiner::TMOPTypeRefiner(TMOPEstimator &est, int dim_)
    num_marked_elements = 0L;
    current_sequence = -1;
 
-   non_conforming = -1;
+   non_conforming = 1;
    nc_limit = 0;
 }
 
@@ -604,10 +491,19 @@ int TMOPTypeRefiner::ApplyImpl(Mesh &mesh)
 
    const int NE = mesh.GetNE();
 
-   for (int el = 0; el < NE; el++)
-   {
-      marked_elements.Append(Refinement(el));
-      marked_elements[el].ref_type = reftype;
+   if (reftype == 0) {
+       for (int el = 0; el < NE; el++)
+       {
+          if (parentenergy(el) > 0 && parentreftype[el] > 0) {
+              marked_elements.Append(Refinement(el, parentreftype[el]));
+          }
+       }
+   }
+   else {
+       for (int el = 0; el < NE; el++)
+       {
+          marked_elements.Append(Refinement(el, reftype));
+       }
    }
 
    num_marked_elements = mesh.ReduceInt(marked_elements.Size());
@@ -616,109 +512,7 @@ int TMOPTypeRefiner::ApplyImpl(Mesh &mesh)
    return CONTINUE + REFINED;
 }
 
-void TMOPTypeRefiner::Reset()
-{
-   estimator.Reset();
-   current_sequence = -1;
-   num_marked_elements = 0;
-}
-
-class TMOPTypeDeRefiner : public MeshOperator
-{
-protected:
-   TMOPEstimator &estimator;
-
-   long   max_elements;
-   long num_marked_elements;
-
-   Array<Refinement> marked_elements;
-   long current_sequence;
-
-   int non_conforming;
-   int nc_limit;
-   int dim;
-   int reftype;
-
-   /** @brief Apply the operator to theG mesh->
-       @return STOP if a stopping criterion is satisfied or no elements were
-       marked for refinement; REFINED + CONTINUE otherwise. */
-   virtual int ApplyImpl(Mesh &mesh);
-
-public:
-   /// Construct a ThresholdRefiner using the given ErrorEstimator.
-   TMOPTypeDeRefiner(TMOPEstimator &est, int dim_);
-
-   // default destructor (virtual)
-
-   void SetRefType(int type_) { reftype = type_; }
-
-   void DetermineAMRTypeEnergy(Mesh &mesh, Vector &energyvecin_,
-                               Vector &energyvecout_);
-
-   /// Use nonconforming refinement, if possible (triangles, quads, hexes).
-   void PreferNonconformingRefinement() { non_conforming = 1; }
-
-   /** @brief Use conforming refinement, if possible (triangles, tetrahedra)
-       -- this is the default. */
-   void PreferConformingRefinement() { non_conforming = -1; }
-
-   /** @brief Set the maximum ratio of refinement levels of adjacent elements
-       (0 = unlimited). */
-   void SetNCLimit(int nc_limit)
-   {
-      MFEM_ASSERT(nc_limit >= 0, "Invalid NC limit");
-      this->nc_limit = nc_limit;
-   }
-
-   /// Get the number of marked elements in the last Apply() call.
-   long GetNumMarkedElements() const { return num_marked_elements; }
-
-   /// Reset the associated estimator.
-   virtual void Reset();
-};
-
-TMOPTypeDeRefiner::TMOPTypeDeRefiner(TMOPEstimator &est, int dim_)
-   : estimator(est), dim(dim_)
-{
-   max_elements = std::numeric_limits<long>::max();
-
-   num_marked_elements = 0L;
-   current_sequence = -1;
-
-   non_conforming = -1;
-   nc_limit = 0;
-
-   reftype = 0;
-}
-
-int TMOPTypeDeRefiner::ApplyImpl(Mesh &mesh)
-{
-   NCMesh *ncmesh = mesh.ncmesh;
-   if (!ncmesh) { return NONE; }
-
-   const Table &dreftable = ncmesh->GetDerefinementTable();
-   Array<int> derefs;
-
-   const long num_elements = mesh.GetGlobalNE();
-   if (num_elements >= max_elements) { return STOP; }
-
-   int NEredfac = 1;
-   if (reftype & 1) { NEredfac *= 2; }
-   if (reftype & 2) { NEredfac *= 2; }
-   if (reftype & 4) { NEredfac *= 2; }
-
-   const int NE = mesh.GetNE();
-   MFEM_VERIFY(dreftable.Size()==NE/NEredfac, " Not all elements can be derefined\n;")
-
-   Vector local_err(NE);
-   local_err = 0.;
-   double threshold = std::numeric_limits<float>::max();
-   mesh.DerefineByError(local_err, threshold, 1000, 1);
-
-   return CONTINUE + DEREFINED;
-}
-
-void TMOPTypeDeRefiner::DetermineAMRTypeEnergy(Mesh &mesh,
+void TMOPTypeRefiner::DetermineAMRTypeEnergy(Mesh &mesh,
                                                Vector &energyvecin_,
                                                Vector &energyvecout_)
 {
@@ -758,15 +552,10 @@ void TMOPTypeDeRefiner::DetermineAMRTypeEnergy(Mesh &mesh,
     {
         center = 0.;
         dreftable.GetRow(i, tabrow);
-        //tabrow.Print();
         for (int j = 0; j < tabrow.Size(); j++) {
             int parent = fine_to_coarse(tabrow[j]); //i
-            mesh.GetElementCenter(tabrow[j], centerdum);
-            center += centerdum;
             energyvecout_(parent) += energyvecin_(tabrow[j]);
-            //std::cout << i << " " << fine_to_coarse(tabrow[j]) << " k10parentcomp\n";
         }
-        center /= NEredfac;
     }
     energyvecout_ *= 1./NEredfac;
 
@@ -779,6 +568,242 @@ void TMOPTypeDeRefiner::DetermineAMRTypeEnergy(Mesh &mesh,
 //            energyvecout_(i) = std::max(energyvecin_(tabrow[j]), energyvecout_(i));
 //        }
 //    }
+}
+
+void TMOPTypeRefiner::Reset()
+{
+   estimator.Reset();
+   current_sequence = -1;
+   num_marked_elements = 0;
+}
+
+class TMOPTypeDeRefiner : public MeshOperator
+{
+protected:
+   TMOPEstimator &estimator;
+   Mesh *mtemp;
+   FiniteElementSpace *ftemp;
+   GridFunction *xsav;
+   Table dtable;
+   Array<int> dtable_par_ref_type;
+   Table coarse_to_fine;
+
+   long   max_elements;
+   long num_marked_elements;
+
+   Array<Refinement> marked_elements;
+   long current_sequence;
+
+   int non_conforming;
+   int nc_limit;
+   int dim;
+   int reftype;
+
+   /** @brief Apply the operator to theG mesh->
+       @return STOP if a stopping criterion is satisfied or no elements were
+       marked for refinement; REFINED + CONTINUE otherwise. */
+   virtual int ApplyImpl(Mesh &mesh);
+
+public:
+   /// Construct a ThresholdRefiner using the given ErrorEstimator.
+   TMOPTypeDeRefiner(TMOPEstimator &est, int dim_);
+
+   // default destructor (virtual)
+   ~TMOPTypeDeRefiner()
+   {
+       delete mtemp;
+       delete ftemp;
+       delete xsav;
+   }
+
+   void SetRefType(int type_) { reftype = type_; }
+
+   void DetermineAMRTypeEnergy(Mesh &mesh,
+                               Vector &amrevecin,
+                               const Vector &baseenergychild,
+                               Array<int> &new_parent_ref_type);
+
+   void SetMetaInfo(Mesh &mesh, GridFunction &gf);
+
+   void RestoreNodalPositions(Mesh &mesh, GridFunction &x);
+
+   /// Use nonconforming refinement, if possible (triangles, quads, hexes).
+   void PreferNonconformingRefinement() { non_conforming = 1; }
+
+   /** @brief Use conforming refinement, if possible (triangles, tetrahedra)
+       -- this is the default. */
+   void PreferConformingRefinement() { non_conforming = -1; }
+
+   /** @brief Set the maximum ratio of refinement levels of adjacent elements
+       (0 = unlimited). */
+   void SetNCLimit(int nc_limit)
+   {
+      MFEM_ASSERT(nc_limit >= 0, "Invalid NC limit");
+      this->nc_limit = nc_limit;
+   }
+
+   /// Get the number of marked elements in the last Apply() call.
+   long GetNumMarkedElements() const { return num_marked_elements; }
+
+   /// Reset the associated estimator.
+   virtual void Reset();
+};
+
+TMOPTypeDeRefiner::TMOPTypeDeRefiner(TMOPEstimator &est, int dim_)
+   : estimator(est), mtemp(NULL), ftemp(NULL), xsav(NULL), dim(dim_)
+{
+   max_elements = std::numeric_limits<long>::max();
+
+   num_marked_elements = 0L;
+   current_sequence = -1;
+
+   non_conforming = -1;
+   nc_limit = 0;
+
+   reftype = 0;
+}
+
+
+void TMOPTypeDeRefiner::SetMetaInfo(Mesh &mesh, GridFunction &gf)
+{
+    if (mtemp) {
+        delete mtemp;
+        delete ftemp;
+        delete xsav;
+    }
+    mtemp = new Mesh(mesh);
+    ftemp = new FiniteElementSpace(mtemp, gf.FESpace()->FEColl(), dim);
+    xsav = new GridFunction(ftemp);
+    *xsav = gf;
+    NCMesh *ncmesh = mesh.ncmesh;
+
+    dtable = ncmesh->GetDerefinementTable();
+    dtable_par_ref_type.SetSize(0);
+    Array<int> tabrow;
+    for (int i = 0; i < dtable.Size(); i++) {
+        const int *child = dtable.GetRow(i);
+        dtable_par_ref_type.Append(ncmesh->GetElementParentRefType(*child));
+    }
+}
+
+void TMOPTypeDeRefiner::DetermineAMRTypeEnergy(Mesh &mesh,
+                                               Vector &amrevecin,
+                                               const Vector &baseenergychild,
+                                               Array<int> &new_parent_ref_type)
+{
+    NCMesh *ncmesh = mesh.ncmesh;
+    const CoarseFineTransformations &rtrans = ncmesh->GetDerefinementTransforms();
+    rtrans.GetCoarseToFineMapFast(mesh, coarse_to_fine);
+
+    new_parent_ref_type.SetSize(mesh.GetNE());
+    new_parent_ref_type = 0;
+
+    Array<int> tabrow;
+
+    for (int i = 0; i < coarse_to_fine.Size(); i++) {
+        coarse_to_fine.GetRow(i, tabrow);
+        for (int j = 0; j < tabrow.Size(); j++) {
+            int child = tabrow[j];
+            int orig_parent_ref_type = -1;
+            Array<int> tabroworig;
+            for (int ii = 0; ii < dtable.Size() && orig_parent_ref_type == -1; ii++) {
+                dtable.GetRow(ii, tabroworig);
+                for (int jj = 0; jj < tabroworig.Size() && orig_parent_ref_type == -1; jj++) {
+                    int childorig = tabroworig[jj];
+                    if (childorig == child) {
+                        orig_parent_ref_type = dtable_par_ref_type[ii];
+                    }
+                }
+            }
+            if (orig_parent_ref_type != -1) {
+                new_parent_ref_type[i] = orig_parent_ref_type;
+                double child_energy = baseenergychild(child);
+                if (new_parent_ref_type[i] & 1) { child_energy /= 2.; }
+                if (new_parent_ref_type[i] & 2) { child_energy /= 2.; }
+                if (new_parent_ref_type[i] & 4) { child_energy /= 2.; }
+                amrevecin(i) -= child_energy;
+            }
+        }
+    }
+}
+
+void TMOPTypeDeRefiner::RestoreNodalPositions(Mesh &mesh, GridFunction &x)
+{
+    NCMesh *ncmesh = mesh.ncmesh;
+    Table coarse_to_fine2, ref_type_to_matrix2;
+    Array<int> coarse_to_ref_typ2;
+    Array<mfem::Geometry::Type> ref_type_to_geom2;
+    const CoarseFineTransformations &rtrans2 = ncmesh->GetRefinementTransforms();
+    rtrans2.GetCoarseToFineMapFast(mesh, coarse_to_fine2);
+    Array<int> vdofs, verdofs;
+    for (int e = 0; e < mesh.GetNE(); e++) {
+        x.FESpace()->GetElementVDofs(e, vdofs);
+        x.FESpace()->GetElementVertices(e, verdofs);
+        Vector loc_data;
+        x.GetSubVector(verdofs, loc_data);
+
+        // determine parent
+        int parent = 0;
+        for (int z = 0; z < coarse_to_fine2.Size(); z++) {
+            Array<int> tabrow;
+            coarse_to_fine2.GetRow(z, tabrow);
+            for (int j = 0; j < tabrow.Size() && parent == 0; j++) {
+                parent = tabrow[j] == e ? z : 0;
+            }
+        }
+
+        // determine children of parents in original mesh and copy data if match
+        Array<int> tabroworig;
+        coarse_to_fine.GetRow(parent, tabroworig);
+        int match = 0;
+        for (int z = 0; z < tabroworig.Size() && match == 0; z++) {
+            int child_potential = tabroworig[z];
+            Array<int> verdofsm, vdofsm;
+            xsav->FESpace()->GetElementVertices(child_potential, verdofsm);
+            Vector loc_data_m;
+            xsav->GetSubVector(verdofsm, loc_data_m);
+            Vector dloc_data = loc_data_m;
+            dloc_data -= loc_data;
+            if (dloc_data.Norml2() == 0) {
+                match = 1;
+                xsav->FESpace()->GetElementVDofs(child_potential, vdofsm);
+                xsav->GetSubVector(vdofsm, loc_data_m);
+                x.SetSubVector(vdofs, loc_data_m);
+            }
+        }
+    }
+
+    x.SetTrueVector();
+    x.SetFromTrueVector();
+}
+
+int TMOPTypeDeRefiner::ApplyImpl(Mesh &mesh)
+{
+   NCMesh *ncmesh = mesh.ncmesh;
+   if (!ncmesh) { return NONE; }
+
+   const Table &dreftable = ncmesh->GetDerefinementTable();
+
+   const long num_elements = mesh.GetGlobalNE();
+   if (num_elements >= max_elements) { return STOP; }
+
+   int NEredfac = 1;
+   if (reftype & 1) { NEredfac *= 2; }
+   if (reftype & 2) { NEredfac *= 2; }
+   if (reftype & 4) { NEredfac *= 2; }
+
+   const int NE = mesh.GetNE();
+   if (dreftable.Size()!=NE/NEredfac && reftype != 0) {
+       MFEM_ABORT(" Not all elements can be derefined\n;")
+   }
+
+   Vector local_err(NE);
+   local_err = 0.;
+   double threshold = std::numeric_limits<float>::max();
+   mesh.DerefineByError(local_err, threshold, 0, 1);
+
+
+   return CONTINUE + DEREFINED;
 }
 
 void TMOPTypeDeRefiner::Reset()
@@ -795,10 +820,12 @@ protected:
     Array<GridFunction *> gfarr;
     Array<GridFunction *> meshnodarr;
     Array<NonlinearForm *> nlfarr;
+    DiscreteAdaptTC *tcd;
 
 public:
-    TMOPAMRUpdate() { }
+    TMOPAMRUpdate() : tcd(NULL) { }
 
+    void SetDiscreteTC(DiscreteAdaptTC *tcd_) {tcd = tcd_;}
     void AddFESpace(FiniteElementSpace *fespace_) { fespacearr.Append(fespace_); }
     void AddGF(GridFunction *gf_) { gfarr.Append(gf_); }
     void AddMeshNodeAr(GridFunction *gf_) { meshnodarr.Append(gf_); }
@@ -809,6 +836,7 @@ public:
     void hrupdatediscfunction(DiscreteAdaptTC &tcd, GridFunction &gf1,
                               GridFunction &gf2, GridFunction &gf3,
                               int target_id); // specific for testing
+    void Update(NonlinearForm &a, Mesh &mesh, FiniteElementSpace &fespace, bool move_bnd);
 };
 
 void TMOPAMRUpdate::hrupdatediscfunction(DiscreteAdaptTC &tcd, GridFunction &gf1,
@@ -816,27 +844,26 @@ void TMOPAMRUpdate::hrupdatediscfunction(DiscreteAdaptTC &tcd, GridFunction &gf1
 {
     if (target_id == 5) {
         tcd.ResetDiscreteFields();
-        tcd.SetAdaptivityEvaluator(new InterpolatorFP);
+        tcd.SetAdaptivityEvaluator(new AdvectorCG);
         tcd.SetSerialDiscreteTargetSize(gf1);
         tcd.FinalizeSerialDiscreteTargetSpec();
     }
     else if (target_id == 6) {
         tcd.ResetDiscreteFields();
-        tcd.SetAdaptivityEvaluator(new InterpolatorFP);
+        tcd.SetAdaptivityEvaluator(new AdvectorCG);
         tcd.SetSerialDiscreteTargetSize(gf1);
         tcd.SetSerialDiscreteTargetAspectRatio(gf2);
         tcd.FinalizeSerialDiscreteTargetSpec();
     }
     else if (target_id == 7) {
         tcd.ResetDiscreteFields();
-        tcd.SetAdaptivityEvaluator(new InterpolatorFP);
+        tcd.SetAdaptivityEvaluator(new AdvectorCG);
         tcd.SetSerialDiscreteTargetAspectRatio(gf3);
         tcd.FinalizeSerialDiscreteTargetSpec();
     }
     else {
         return;
     }
-
 }
 
 void TMOPAMRUpdate::hrupdateFEandGF()
@@ -852,6 +879,113 @@ void TMOPAMRUpdate::hrupdateFEandGF()
 void TMOPAMRUpdate::hrupdate(NonlinearForm &a, Mesh &mesh, FiniteElementSpace &fespace,
                                bool move_bnd)
 {
+   a.Update();
+   int dim = fespace.GetFE(0)->GetDim();
+   if (move_bnd == false)
+   {
+      Array<int> ess_bdr(mesh.bdr_attributes.Max());
+      ess_bdr = 1;
+      a.SetEssentialBC(ess_bdr);
+   }
+   else
+   {
+      const int nd  = fespace.GetBE(0)->GetDof();
+      int n = 0;
+      for (int i = 0; i < mesh.GetNBE(); i++)
+      {
+         const int attr = mesh.GetBdrElement(i)->GetAttribute();
+         MFEM_VERIFY(!(dim == 2 && attr == 3),
+                     "Boundary attribute 3 must be used only for 3D meshes. "
+                     "Adjust the attributes (1/2/3/4 for fixed x/y/z/all "
+                     "components, rest for free nodes), or use -fix-bnd.");
+         if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
+         if (attr == 4) { n += nd * dim; }
+      }
+      Array<int> ess_vdofs(n), vdofs;
+      n = 0;
+      for (int i = 0; i < mesh.GetNBE(); i++)
+      {
+         const int attr = mesh.GetBdrElement(i)->GetAttribute();
+         fespace.GetBdrElementVDofs(i, vdofs);
+         if (attr == 1) // Fix x components.
+         {
+            for (int j = 0; j < nd; j++)
+            { ess_vdofs[n++] = vdofs[j]; }
+         }
+         else if (attr == 2) // Fix y components.
+         {
+            for (int j = 0; j < nd; j++)
+            { ess_vdofs[n++] = vdofs[j+nd]; }
+         }
+         else if (attr == 3) // Fix z components.
+         {
+            for (int j = 0; j < nd; j++)
+            { ess_vdofs[n++] = vdofs[j+2*nd]; }
+         }
+         else if (attr == 4) // Fix all components.
+         {
+            for (int j = 0; j < vdofs.Size(); j++)
+            { ess_vdofs[n++] = vdofs[j]; }
+         }
+      }
+      a.SetEssentialVDofs(ess_vdofs);
+   }
+};
+
+void TMOPAMRUpdate::Update(NonlinearForm &a, Mesh &mesh, FiniteElementSpace &fespace,
+                               bool move_bnd)
+{
+   // Update FE and GF
+   hrupdateFEandGF();
+
+   // Update Discrete Indicator
+   if (tcd) { tcd->Update(); }
+
+   // Update Nonlinear form and Set Essential BC
+   hrupdate(a, mesh, fespace, move_bnd);
+};
+
+
+
+class TMOPAMR
+{
+protected:
+    Array<FiniteElementSpace *> fespacearr;
+    Array<GridFunction *> gfarr;
+    Array<GridFunction *> meshnodarr;
+    Array<NonlinearForm *> nlfarr;
+    DiscreteAdaptTC *tcd;
+
+public:
+    TMOPAMR() : tcd(NULL) { }
+    TMOPAMR(DiscreteAdaptTC &tcd_) : tcd(&tcd_) { }
+
+    void SetDiscreteTC(DiscreteAdaptTC *tcd_) {tcd = tcd_;}
+    void AddFESpace(FiniteElementSpace *fespace_) { fespacearr.Append(fespace_); }
+    void AddGF(GridFunction *gf_) { gfarr.Append(gf_); }
+    void AddMeshNodeAr(GridFunction *gf_) { meshnodarr.Append(gf_); }
+    void AddNonLinearFormAr(NonlinearForm *nlf_) { nlfarr.Append(nlf_); }
+
+    void Update(NonlinearForm &a, Mesh &mesh, FiniteElementSpace &fespace, bool move_bnd);
+};
+
+void TMOPAMR::Update(NonlinearForm &a, Mesh &mesh, FiniteElementSpace &fespace,
+                               bool move_bnd)
+{
+   fespace.Update();
+   // Update FE and GF
+   for (int i = 0; i < fespacearr.Size(); i++) { fespacearr[i]->Update(); }
+   for (int i = 0; i < gfarr.Size(); i++) { gfarr[i]->Update(); }
+   for (int i = 0; i < meshnodarr.Size(); i++) {
+       meshnodarr[i]->Update();
+       meshnodarr[i]->SetTrueVector();
+       meshnodarr[i]->SetFromTrueVector();
+   }
+
+   // Update Discrete Indicator
+   if (tcd) { tcd->Update(); }
+
+   // Update Nonlinear form and Set Essential BC
    a.Update();
    int dim = fespace.GetFE(0)->GetDim();
    if (move_bnd == false)

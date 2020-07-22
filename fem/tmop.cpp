@@ -1121,24 +1121,48 @@ void DiscreteAdaptTC::FinalizeSerialDiscreteTargetSpec()
                                        ncomp);
 }
 
-void DiscreteAdaptTC::GetSerialDiscreteTargetSize(GridFunction &tspec_)
+void DiscreteAdaptTC::GetSerialDiscreteTargetSpec(GridFunction &tspec_, int idx)
 {
+   if (idx < 0) { return; }
    const int cnt = tspec_fes->GetNDofs(),
              vdim = tspec_.FESpace()->GetVDim();
    for (int i = 0; i < cnt*vdim; i++)
    {
-      tspec_(i) = tspec(i + sizeidx*cnt);
+      tspec_(i) = tspec(i + idx*cnt);
    }
 }
 
-void DiscreteAdaptTC::GetSerialDiscreteTargetAspectRatio(GridFunction &tspec_)
+void DiscreteAdaptTC::Update()
 {
-   const int cnt = tspec_fes->GetNDofs(),
-             vdim = tspec_.FESpace()->GetVDim();
-   for (int i = 0; i < cnt*vdim; i++)
-   {
-      tspec_(i) = tspec(i + aspectratioidx*cnt);
+    GetSerialDiscreteTargetSpec(*gfarr[sizeidx], sizeidx);
+    GetSerialDiscreteTargetSpec(*gfarr[aspectratioidx], aspectratioidx);
+    GetSerialDiscreteTargetSpec(*gfarr[orientationidx], orientationidx);
+    GetSerialDiscreteTargetSpec(*gfarr[skewidx], skewidx);
+
+   for (int i = 0; i < gfarr.Size(); i++) {
+       gfarr[i]->FESpace()->Update();
+       gfarr[i]->Update();
    }
+   const int sz_idx = sizeidx,
+             sk_idx = skewidx,
+             ar_idx = aspectratioidx,
+             or_idx = orientationidx;
+
+   ResetDiscreteFields();
+
+   if (sz_idx > -1) {
+       SetSerialDiscreteTargetSize(*gfarr[sz_idx]);
+   }
+   if (sk_idx > -1) {
+       SetSerialDiscreteTargetSkew(*gfarr[sk_idx]);
+   }
+   if (ar_idx > -1) {
+       SetSerialDiscreteTargetAspectRatio(*gfarr[ar_idx]);
+   }
+   if (or_idx > -1) {
+       SetSerialDiscreteTargetOrientation(*gfarr[or_idx]);
+   }
+   FinalizeSerialDiscreteTargetSpec();
 }
 
 void DiscreteAdaptTC::ResetDiscreteFields()
@@ -1229,7 +1253,7 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
             if (sizeidx != -1) //Set size
             {
                par_vals.SetDataAndSize(tspec_vals.GetData()+sizeidx*ndofs, ndofs);
-               const double min_size = par_vals.Min();
+               const double min_size = 0.001; //par_vals.Min();
                MFEM_VERIFY(min_size > 0.0,
                            "Non-positive size propagated in the target definition.");
                const double size = std::max(shape * par_vals, min_size);
@@ -1244,8 +1268,14 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                {
                   par_vals.SetDataAndSize(tspec_vals.GetData()+
                                           aspectratioidx*ndofs, ndofs);
+                  const double min_size = 0.1;//par_vals.Min();
+                  const double max_size = 1./0.1;//par_vals.Min();
+                  MFEM_VERIFY(min_size > 0.0,
+                              "Non-positive aspect-ratio propagated in the target definition.");
 
-                  const double aspectratio = shape * par_vals;
+                  double val= std::max(shape * par_vals, min_size);
+                  const double aspectratio = std::min(val, max_size);
+                  //const double aspectratio = shape * par_vals;
                   D_rho = 0.;
                   D_rho(0,0) = 1./pow(aspectratio,0.5);
                   D_rho(1,1) = pow(aspectratio,0.5);
@@ -1602,6 +1632,101 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
 
    return energy;
 }
+
+double TMOP_Integrator::GetAMRElementEnergy(const FiniteElement &el,
+                                         ElementTransformation &T,
+                                         const Vector &elfun)
+{
+   int dof = el.GetDof(), dim = el.GetDim();
+   double energy;
+
+   DSh.SetSize(dof, dim);
+   Jrt.SetSize(dim);
+   Jpr.SetSize(dim);
+   Jpt.SetSize(dim);
+   PMatI.UseExternalData(elfun.GetData(), dof, dim);
+
+   const IntegrationRule *ir = IntRule;
+   if (!ir)
+   {
+      ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
+   }
+
+   energy = 0.0;
+   DenseTensor Jtr(dim, dim, ir->GetNPoints());
+   targetC->ComputeElementTargets(T.ElementNo, el, *ir, elfun, Jtr);
+
+   // Limited case.
+   Vector shape, p, p0, d_vals;
+   DenseMatrix pos0;
+   if (coeff0)
+   {
+      shape.SetSize(dof);
+      p.SetSize(dim);
+      p0.SetSize(dim);
+      pos0.SetSize(dof, dim);
+      Vector pos0V(pos0.Data(), dof * dim);
+      Array<int> pos_dofs;
+      nodes0->FESpace()->GetElementVDofs(T.ElementNo, pos_dofs);
+      nodes0->GetSubVector(pos_dofs, pos0V);
+      if (lim_dist)
+      {
+         lim_dist->GetValues(T.ElementNo, *ir, d_vals);
+      }
+      else
+      {
+         d_vals.SetSize(ir->GetNPoints()); d_vals = 1.0;
+      }
+   }
+
+   // Define ref->physical transformation, wn a Coefficient is specified.
+   IsoparametricTransformation *Tpr = NULL;
+   if (coeff1 || coeff0)
+   {
+      Tpr = new IsoparametricTransformation;
+      Tpr->SetFE(&el);
+      Tpr->ElementNo = T.ElementNo;
+      Tpr->Attribute = T.Attribute;
+      Tpr->GetPointMat().Transpose(PMatI); // PointMat = PMatI^T
+   }
+   // TODO: computing the coefficients 'coeff1' and 'coeff0' in physical
+   //       coordinates means that, generally, the gradient and Hessian of the
+   //       TMOP_Integrator will depend on the derivatives of the coefficients.
+   //
+   //       In some cases the coefficients are independent of any movement of
+   //       the physical coordinates (i.e. changes in 'elfun'), e.g. when the
+   //       coefficient is a ConstantCoefficient or a GridFunctionCoefficient.
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      const DenseMatrix &Jtr_i = Jtr(i);
+      amrmetric->SetTargetJacobian(Jtr_i);
+      CalcInverse(Jtr_i, Jrt);
+      const double weight = ip.weight * Jtr_i.Det();
+
+      el.CalcDShape(ip, DSh);
+      MultAtB(PMatI, DSh, Jpr);
+      Mult(Jpr, Jrt, Jpt);
+
+      double val = amrmetric->EvalW(Jpt);
+      if (coeff1) { val *= coeff1->Eval(*Tpr, ip); }
+
+      if (coeff0)
+      {
+         el.CalcShape(ip, shape);
+         PMatI.MultTranspose(shape, p);
+         pos0.MultTranspose(shape, p0);
+         val += lim_normal *
+                lim_func->Eval(p, p0, d_vals(i)) * coeff0->Eval(*Tpr, ip);
+      }
+      energy += weight * val;
+   }
+   delete Tpr;
+
+   return energy;
+}
+
 
 double TMOP_Integrator::GetAMRElementEnergy(const FiniteElement &el,
                                             ElementTransformation &T,
