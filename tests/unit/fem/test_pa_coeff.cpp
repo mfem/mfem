@@ -292,30 +292,40 @@ TEST_CASE("Hcurl/Hdiv pa_coeff")
             coeff2 = new FunctionCoefficient(&linearFunction);
          }
 
-         for (int spaceType = 0; spaceType < 2; ++spaceType)
+         enum MixedSpaces {Hcurl, Hdiv, HcurlHdiv, NumSpaceTypes};
+
+         for (int spaceType = 0; spaceType < NumSpaceTypes; ++spaceType)
          {
-            if (spaceType == 1 && coeffType >= 2)
+            if ((spaceType == Hdiv && coeffType >= 2) || (spaceType == HcurlHdiv &&
+                                                          dimension == 2))
             {
                continue;   // Case not implemented yet
             }
 
-            const int numIntegrators = (coeffType == 2) ? 2 : 3;
+            const int numIntegrators =
+               (spaceType == HcurlHdiv) ? 1 : ((coeffType == 2) ? 2 : 3);
+
             for (int integrator = 0; integrator < numIntegrators; ++integrator)
             {
-               if (spaceType == 0)
+               if (spaceType == Hcurl)
                   std::cout << "Testing " << dimension
                             << "D ND partial assembly with coeffType "
                             << coeffType << " and integrator "
                             << integrator << std::endl;
-               else
+               else if (spaceType == Hdiv)
                   std::cout << "Testing " << dimension
                             << "D RT partial assembly with coeffType "
+                            << coeffType << " and integrator "
+                            << integrator << std::endl;
+               else  // HcurlHdiv
+                  std::cout << "Testing " << dimension
+                            << "D ND x RT partial assembly with coeffType "
                             << coeffType << " and integrator "
                             << integrator << std::endl;
 
                for (int order = 1; order < 4; ++order)
                {
-                  FiniteElementCollection* fec = (spaceType == 0) ?
+                  FiniteElementCollection* fec = (spaceType == Hcurl || spaceType == HcurlHdiv) ?
                                                  (FiniteElementCollection*) new ND_FECollection(order, dimension) :
                                                  (FiniteElementCollection*) new RT_FECollection(order, dimension);
 
@@ -356,64 +366,119 @@ TEST_CASE("Hcurl/Hdiv pa_coeff")
                      }
                   }
 
-                  BilinearForm paform(&fespace);
-                  paform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-                  BilinearForm assemblyform(&fespace);
-                  if (integrator < 2)
+                  Vector xin(fespace.GetTrueVSize());
+                  xin.Randomize();
+
+                  Vector y_mat, y_assembly, y_pa;
+
+                  if (spaceType == HcurlHdiv)
                   {
+                     FiniteElementCollection* fecHdiv = (FiniteElementCollection*) new
+                                                        RT_FECollection(order - 1, dimension);
+                     FiniteElementSpace fespaceHdiv(mesh, fecHdiv);
+
+                     MixedBilinearForm paform(&fespace, &fespaceHdiv);
+                     paform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+                     MixedBilinearForm assemblyform(&fespace, &fespaceHdiv);
+
+                     const int testSize = fespaceHdiv.GetTrueVSize();
+                     y_mat.SetSize(testSize);
+                     y_mat = 0.0;
+                     y_assembly.SetSize(testSize);
+                     y_assembly = 0.0;
+                     y_pa.SetSize(testSize);
+                     y_pa = 0.0;
+
                      if (coeffType >= 3)
                      {
                         paform.AddDomainIntegrator(new VectorFEMassIntegrator(*smcoeff));
-                        assemblyform.AddDomainIntegrator(
-                           new VectorFEMassIntegrator(*mcoeff));
+                        assemblyform.AddDomainIntegrator(new VectorFEMassIntegrator(*mcoeff));
                      }
                      else if (coeffType == 2)
                      {
                         paform.AddDomainIntegrator(new VectorFEMassIntegrator(*vcoeff));
-                        assemblyform.AddDomainIntegrator(
-                           new VectorFEMassIntegrator(*vcoeff));
+                        assemblyform.AddDomainIntegrator(new VectorFEMassIntegrator(*vcoeff));
                      }
                      else
                      {
                         paform.AddDomainIntegrator(new VectorFEMassIntegrator(*coeff));
-                        assemblyform.AddDomainIntegrator(
-                           new VectorFEMassIntegrator(*coeff));
+                        assemblyform.AddDomainIntegrator(new VectorFEMassIntegrator(*coeff));
                      }
+
+                     Array<int> empty_ess; // empty
+
+                     paform.Assemble();
+                     OperatorHandle paopr;
+                     paform.FormRectangularSystemMatrix(ess_tdof_list, empty_ess, paopr);
+
+                     assemblyform.Assemble();
+                     SparseMatrix A_explicit;
+                     assemblyform.FormRectangularSystemMatrix(ess_tdof_list, empty_ess, A_explicit);
+
+                     paopr->Mult(xin, y_pa);
+                     assemblyform.Mult(xin, y_assembly);
+                     A_explicit.Mult(xin, y_mat);
+
+                     delete fecHdiv;
                   }
-                  if (integrator > 0)
+                  else
                   {
-                     if (spaceType == 0)
+                     BilinearForm paform(&fespace);
+                     paform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+                     BilinearForm assemblyform(&fespace);
+
+                     y_mat.SetSize(xin.Size());
+                     y_mat = 0.0;
+                     y_assembly.SetSize(xin.Size());
+                     y_assembly = 0.0;
+                     y_pa.SetSize(xin.Size());
+                     y_pa = 0.0;
+
+                     if (integrator < 2)
                      {
-                        paform.AddDomainIntegrator(new CurlCurlIntegrator(*coeff2));
-                        assemblyform.AddDomainIntegrator(new CurlCurlIntegrator(*coeff2));
+                        if (coeffType >= 3)
+                        {
+                           paform.AddDomainIntegrator(new VectorFEMassIntegrator(*smcoeff));
+                           assemblyform.AddDomainIntegrator(new VectorFEMassIntegrator(*mcoeff));
+                        }
+                        else if (coeffType == 2)
+                        {
+                           paform.AddDomainIntegrator(new VectorFEMassIntegrator(*vcoeff));
+                           assemblyform.AddDomainIntegrator(new VectorFEMassIntegrator(*vcoeff));
+
+                        }
+                        else
+                        {
+                           paform.AddDomainIntegrator(new VectorFEMassIntegrator(*coeff));
+                           assemblyform.AddDomainIntegrator(new VectorFEMassIntegrator(*coeff));
+                        }
                      }
-                     else
+                     if (integrator > 0)
                      {
-                        paform.AddDomainIntegrator(new DivDivIntegrator(*coeff2));
-                        assemblyform.AddDomainIntegrator(new DivDivIntegrator(*coeff2));
+                        if (spaceType == Hcurl)
+                        {
+                           paform.AddDomainIntegrator(new CurlCurlIntegrator(*coeff2));
+                           assemblyform.AddDomainIntegrator(new CurlCurlIntegrator(*coeff2));
+                        }
+                        else
+                        {
+                           paform.AddDomainIntegrator(new DivDivIntegrator(*coeff2));
+                           assemblyform.AddDomainIntegrator(new DivDivIntegrator(*coeff2));
+                        }
                      }
+                     paform.Assemble();
+                     OperatorHandle paopr;
+                     paform.FormSystemMatrix(ess_tdof_list, paopr);
+
+                     assemblyform.SetDiagonalPolicy(Matrix::DIAG_ONE);
+                     assemblyform.Assemble();
+                     SparseMatrix A_explicit;
+                     assemblyform.FormSystemMatrix(ess_tdof_list, A_explicit);
+
+                     paopr->Mult(xin, y_pa);
+                     assemblyform.Mult(xin, y_assembly);
+                     A_explicit.Mult(xin, y_mat);
                   }
-                  paform.Assemble();
-                  OperatorHandle paopr;
-                  paform.FormSystemMatrix(ess_tdof_list, paopr);
-
-                  assemblyform.SetDiagonalPolicy(Matrix::DIAG_ONE);
-                  assemblyform.Assemble();
-                  SparseMatrix A_explicit;
-                  assemblyform.FormSystemMatrix(ess_tdof_list, A_explicit);
-
-                  Vector xin(fespace.GetTrueVSize());
-                  xin.Randomize();
-                  Vector y_mat(xin);
-                  y_mat = 0.0;
-                  Vector y_assembly(xin);
-                  y_assembly = 0.0;
-                  Vector y_pa(xin);
-                  y_pa = 0.0;
-
-                  paopr->Mult(xin, y_pa);
-                  assemblyform.Mult(xin, y_assembly);
-                  A_explicit.Mult(xin, y_mat);
 
                   y_pa -= y_mat;
                   double pa_error = y_pa.Norml2();
@@ -476,9 +541,9 @@ TEST_CASE("Hcurl/Hdiv mixed pa_coeff")
             vcoeff = new VectorFunctionCoefficient(dimension, &vectorCoeffFunction);
          }
 
-         enum MixedSpaces {HcurlH1, HcurlL2, HdivL2};
+         enum MixedSpaces {HcurlH1, HcurlL2, HdivL2, NumSpaceTypes};
 
-         for (int spaceType = 0; spaceType < 3; ++spaceType)
+         for (int spaceType = 0; spaceType < NumSpaceTypes; ++spaceType)
          {
             if (spaceType == HdivL2 && coeffType == 1)
             {
