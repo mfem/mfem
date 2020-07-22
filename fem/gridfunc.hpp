@@ -334,6 +334,11 @@ public:
    void ImposeBounds(int i, const Vector &weights,
                      double _min = 0.0, double _max = infinity());
 
+   /** On a non-conforming mesh, make sure the function lies in the conforming
+       space by multiplying with R and then with P, the conforming restriction
+       and prolongation matrices of the space, respectively. */
+   void RestrictConforming();
+
    /** @brief Project the @a src GridFunction to @a this GridFunction, both of
        which must be on the same mesh. */
    /** The current implementation assumes that all elements use the same

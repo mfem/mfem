@@ -1211,16 +1211,22 @@ void Mesh::InitMesh(int _Dim, int _spaceDim, int NVert, int NElem, int NBdrElem)
    boundary.SetSize(NBdrElem);  // just allocate space for Element *
 }
 
+template<typename T>
+static void CheckEnlarge(Array<T> &array, int size)
+{
+   if (size >= array.Size()) { array.SetSize(size + 1); }
+}
+
 int Mesh::AddVertex(const double *x)
 {
-   if (vertices.Size() <= NumOfVertices) { vertices.SetSize(NumOfVertices+1); }
+   CheckEnlarge(vertices, NumOfVertices);
    vertices[NumOfVertices].SetCoords(spaceDim, x);
    return NumOfVertices++;
 }
 
 int Mesh::AddVertex(double x, double y, double z)
 {
-   if (vertices.Size() <= NumOfVertices) { vertices.SetSize(NumOfVertices+1); }
+   CheckEnlarge(vertices, NumOfVertices);
    double *v = vertices[NumOfVertices]();
    v[0] = x;
    v[1] = y;
@@ -1246,42 +1252,42 @@ void Mesh::AddVertexParents(int i, int p1, int p2)
 
 int Mesh::AddSegment(int v1, int v2, int attr)
 {
-   if (elements.Size() <= NumOfElements) { elements.SetSize(NumOfElements+1); }
+   CheckEnlarge(elements, NumOfElements);
    elements[NumOfElements] = new Segment(v1, v2, attr);
    return NumOfElements++;
 }
 
 int Mesh::AddSegment(const int *vi, int attr)
 {
-   if (elements.Size() <= NumOfElements) { elements.SetSize(NumOfElements+1); }
+   CheckEnlarge(elements, NumOfElements);
    elements[NumOfElements] = new Segment(vi, attr);
    return NumOfElements++;
 }
 
 int Mesh::AddTriangle(int v1, int v2, int v3, int attr)
 {
-   if (elements.Size() <= NumOfElements) { elements.SetSize(NumOfElements+1); }
+   CheckEnlarge(elements, NumOfElements);
    elements[NumOfElements] = new Triangle(v1, v2, v3, attr);
    return NumOfElements++;
 }
 
 int Mesh::AddTriangle(const int *vi, int attr)
 {
-   if (elements.Size() <= NumOfElements) { elements.SetSize(NumOfElements+1); }
+   CheckEnlarge(elements, NumOfElements);
    elements[NumOfElements] = new Triangle(vi, attr);
    return NumOfElements++;
 }
 
 int Mesh::AddQuad(int v1, int v2, int v3, int v4, int attr)
 {
-   if (elements.Size() <= NumOfElements) { elements.SetSize(NumOfElements+1); }
+   CheckEnlarge(elements, NumOfElements);
    elements[NumOfElements] = new Quadrilateral(v1, v2, v3, v4, attr);
    return NumOfElements++;
 }
 
 int Mesh::AddQuad(const int *vi, int attr)
 {
-   if (elements.Size() <= NumOfElements) { elements.SetSize(NumOfElements+1); }
+   CheckEnlarge(elements, NumOfElements);
    elements[NumOfElements] = new Quadrilateral(vi, attr);
    return NumOfElements++;
 }
@@ -1348,20 +1354,14 @@ void Mesh::AddHexAsWedges(const int *vi, int attr)
 
 int Mesh::AddBdrSegment(int v1, int v2, int attr)
 {
-   if (boundary.Size() <= NumOfBdrElements)
-   {
-      boundary.SetSize(NumOfBdrElements+1);
-   }
+   CheckEnlarge(boundary, NumOfBdrElements);
    boundary[NumOfBdrElements] = new Segment(v1, v2, attr);
    return NumOfBdrElements++;
 }
 
 int Mesh::AddBdrSegment(const int *vi, int attr)
 {
-   if (boundary.Size() <= NumOfBdrElements)
-   {
-      boundary.SetSize(NumOfBdrElements+1);
-   }
+   CheckEnlarge(boundary, NumOfBdrElements);
    boundary[NumOfBdrElements] = new Segment(vi, attr);
    return NumOfBdrElements++;
 }
