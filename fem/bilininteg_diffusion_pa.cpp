@@ -736,24 +736,7 @@ void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 #ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
-      CeedScalar *d_ptr;
-      CeedMemType mem;
-      CeedGetPreferredMemType(internal::ceed, &mem);
-      if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
-      {
-         d_ptr = diag.ReadWrite();
-      }
-      else
-      {
-         d_ptr = diag.HostReadWrite();
-         mem = CEED_MEM_HOST;
-      }
-      CeedVectorSetArray(ceedDataPtr->v, mem, CEED_USE_POINTER, d_ptr);
-
-      CeedOperatorLinearAssembleAddDiagonal(ceedDataPtr->oper, ceedDataPtr->v,
-                                            CEED_REQUEST_IMMEDIATE);
-
-      CeedVectorTakeArray(ceedDataPtr->v, mem, &d_ptr);
+      CeedAssembleDiagonalPA(ceedDataPtr, diag);
    }
    else
 #endif
@@ -1636,29 +1619,7 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 #ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
-      const CeedScalar *x_ptr;
-      CeedScalar *y_ptr;
-      CeedMemType mem;
-      CeedGetPreferredMemType(internal::ceed, &mem);
-      if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
-      {
-         x_ptr = x.Read();
-         y_ptr = y.ReadWrite();
-      }
-      else
-      {
-         x_ptr = x.HostRead();
-         y_ptr = y.HostReadWrite();
-         mem = CEED_MEM_HOST;
-      }
-      CeedVectorSetArray(ceedDataPtr->u, mem, CEED_USE_POINTER,
-                         const_cast<CeedScalar*>(x_ptr));
-      CeedVectorSetArray(ceedDataPtr->v, mem, CEED_USE_POINTER, y_ptr);
-
-      CeedOperatorApplyAdd(ceedDataPtr->oper, ceedDataPtr->u, ceedDataPtr->v,
-                           CEED_REQUEST_IMMEDIATE);
-
-      CeedVectorSyncArray(ceedDataPtr->v, mem);
+      CeedAddMultPA(ceedDataPtr, x, y);
    }
    else
 #endif
