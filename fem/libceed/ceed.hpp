@@ -144,6 +144,13 @@ const std::string &GetCeedPath();
 void CeedPAAssemble(const CeedPAOperator& op,
                     CeedData& ceedData);
 
+/** @brief Function that applies a libCEED PA operator. */
+void CeedAddMultPA(const CeedData ceedDataPtr, Vector &diag);
+
+/** @brief Function that assembleds a libCEED PA operator diagonal. */
+void CeedAssembleDiagonalPA(const CeedData ceedDataPtr, const Vector &x,
+                            Vector &y);
+
 /** @brief Function that determines if a CEED kernel should be used, based on
     the current mfem::Device configuration. */
 inline bool DeviceCanUseCeed()
