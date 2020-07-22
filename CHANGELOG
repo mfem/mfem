@@ -33,6 +33,9 @@ Meshing improvements
   for example the periodic-annulus-sector and periodic-torus-sector files in
   the data directory.
 
+- Added complete action of the TMOP Integrator to account for the spatial
+  derivatives of discrete and analytic targets.
+
 Performance improvements
 ------------------------
 - Added support for explicit vectorization in the high-performance templated
@@ -47,6 +50,8 @@ Performance improvements
 Improved GPU capabilities
 -------------------------
 - Added support for Chebyshev accelerated polynomial smoother on GPU.
+
+- Optimized AMD/HIP kernel support.
 
 - Added a Full Assembly mode compatible with Device kernel execution. This
   assembly level builds on top of the current Element Assembly kernels to
@@ -93,6 +98,10 @@ Linear and nonlinear solvers
   and solution during the solving process of an IterativeSolver after every
   iteration.
 
+- Added support for the CVODES package in SUNDIALS which provides ODE
+  solvers with sensitivity analysis capabilities. See the CVODESSolver
+  class and the new adjoint miniapps below.
+
 - Block arrays of parallel matrices can now be merged into a single parallel
   matrix with the function HypreParMatrixFromBlocks. This could be useful for
   solving block systems with parallel direct solvers such as STRUMPACK.
@@ -119,6 +128,14 @@ New and updated examples and miniapps
 - Added a new miniapp, Navier, that solves the time-dependent Navier-Stokes
   equations of incompressible fluid dynamics. See the miniapps/navier directory
   for more details.
+
+- Added a new miniapps/adjoint directory with two miniapps demonstrating how to
+  solve adjoint problems in MFEM using the CVODES package in SUNDIALS. Both of
+  these miniapps require the MFEM_USE_SUNDIALS configuration option.
+  * The cvsRoberts_ASAi_dns miniapp solves a backward adjoint problem for a
+    system of ODEs, evaluating both forward and adjoint quadratures in serial.
+  * The adjoint_advection_diffusion miniapp solves a backward adjoint problem
+    for an advection diffusion PDE, evaluating adjoint quadratures in parallel.
 
 - Ported Example 11p to SLEPc, to demonstrate solving the Laplace eigenvalue
   equation with the shift-and-invert spectral transformation method.
