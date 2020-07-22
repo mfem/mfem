@@ -432,7 +432,7 @@ void CeedAssembleDiagonalPA(const CeedData ceedDataPtr, Vector &diag)
       y_ptr = y.HostReadWrite();
       mem = CEED_MEM_HOST;
    }
-  CeedVectorSetArray(ceedDataPtr->u, mem, CEED_USE_POINTER,
+   CeedVectorSetArray(ceedDataPtr->u, mem, CEED_USE_POINTER,
                       const_cast<CeedScalar*>(x_ptr));
    CeedVectorSetArray(ceedDataPtr->v, mem, CEED_USE_POINTER, y_ptr);
 
@@ -444,7 +444,7 @@ void CeedAssembleDiagonalPA(const CeedData ceedDataPtr, Vector &diag)
 }
 
 void CeedAddMultPA(const CeedData ceedDataPtr, const Vector &x,
-                            Vector &y)
+                   Vector &y)
 {
    CeedScalar *d_ptr;
    CeedMemType mem;
