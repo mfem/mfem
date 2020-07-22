@@ -686,13 +686,7 @@ int main (int argc, char *argv[])
             MFEM_VERIFY(lin_solver != 4, "PA l1-Jacobi is not implemented");
             S_prec = new OperatorJacobiSmoother(a, a.GetEssentialTrueDofs());
          }
-         else
-         {
-            HypreSmoother *hs = new HypreSmoother;
-            hs->SetType((lin_solver == 3) ? HypreSmoother::Jacobi
-                        : HypreSmoother::l1Jacobi, 1);
-            S_prec = hs;
-         }
+         else { S_prec = new DSmoother((lin_solver == 3) ? 0 : 1, 1.0, 1); }
          minres->SetPreconditioner(*S_prec);
       }
       S = minres;
