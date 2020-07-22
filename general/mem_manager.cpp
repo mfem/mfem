@@ -67,15 +67,19 @@ MemoryType MemoryManager::GetDualMemoryType_(MemoryType mt)
 {
    switch (mt)
    {
-      case MemoryType::HOST:           return MemoryType::DEVICE;
+      // TODO TMS: temporary
+      case MemoryType::HOST:           return MemoryType::DEVICE_UMPIRE;
       case MemoryType::HOST_32:        return MemoryType::DEVICE;
       case MemoryType::HOST_64:        return MemoryType::DEVICE;
       case MemoryType::HOST_DEBUG:     return MemoryType::DEVICE_DEBUG;
-      case MemoryType::HOST_UMPIRE:    return MemoryType::DEVICE_UMPIRE;
+      //case MemoryType::HOST_UMPIRE:    return MemoryType::DEVICE_UMPIRE;
       case MemoryType::MANAGED:        return MemoryType::MANAGED;
       case MemoryType::DEVICE:         return MemoryType::HOST;
       case MemoryType::DEVICE_DEBUG:   return MemoryType::HOST_DEBUG;
-      case MemoryType::DEVICE_UMPIRE:  return MemoryType::HOST_UMPIRE;
+      //case MemoryType::DEVICE_UMPIRE:  return MemoryType::HOST_UMPIRE;
+      case MemoryType::DEVICE_UMPIRE:  return MemoryType::HOST;
+      //case MemoryType::DEVICE_TEMP_UMPIRE:  return MemoryType::HOST_UMPIRE;
+      case MemoryType::DEVICE_TEMP_UMPIRE:  return MemoryType::HOST;
       default: mfem_error("Unknown memory type!");
    }
    MFEM_VERIFY(false,"");
@@ -88,6 +92,9 @@ static void MFEM_VERIFY_TYPES(const MemoryType h_mt, const MemoryType d_mt)
    MFEM_ASSERT(IsDeviceMemory(d_mt),"");
    const bool sync =
       (h_mt == MemoryType::HOST_UMPIRE && d_mt == MemoryType::DEVICE_UMPIRE) ||
+      (h_mt == MemoryType::HOST_UMPIRE && d_mt == MemoryType::DEVICE_TEMP_UMPIRE) ||
+      (h_mt == MemoryType::HOST && d_mt == MemoryType::DEVICE_UMPIRE) ||
+      (h_mt == MemoryType::HOST && d_mt == MemoryType::DEVICE_TEMP_UMPIRE) ||
       (h_mt == MemoryType::HOST_DEBUG && d_mt == MemoryType::DEVICE_DEBUG) ||
       (h_mt == MemoryType::MANAGED && d_mt == MemoryType::MANAGED) ||
       (h_mt == MemoryType::HOST_64 && d_mt == MemoryType::DEVICE) ||
@@ -461,48 +468,96 @@ public:
 #ifndef MFEM_USE_UMPIRE
 class UmpireHostMemorySpace : public NoHostMemorySpace { };
 class UmpireDeviceMemorySpace : public NoDeviceMemorySpace { };
+class UmpireDeviceTempMemorySpace : public NoDeviceMemorySpace { };
 #else
+
+// TODO TMS: replace with um.hasAllocatorId(int) when it exists
+bool UmpireHasId(const umpire::ResourceManager & rm, int id)
+{
+   const auto & ids = rm.getAllocatorIds();
+   return std::find(ids.begin(), ids.end(), id) != ids.end();
+}
+
 /// The Umpire host memory space
 class UmpireHostMemorySpace : public HostMemorySpace
 {
 private:
-   const char *name;
    umpire::ResourceManager &rm;
    umpire::Allocator h_allocator;
-   umpire::strategy::AllocationStrategy *strat;
+   bool owns_allocator{false};
 public:
-   ~UmpireHostMemorySpace() { h_allocator.release(); }
-   UmpireHostMemorySpace():
-      HostMemorySpace(),
-      name(mm.GetUmpireAllocatorHostName()),
-      rm(umpire::ResourceManager::getInstance()),
-      h_allocator(rm.isAllocator(name)? rm.getAllocator(name):
-                  rm.makeAllocator<umpire::strategy::DynamicPool>
-                  (name, rm.getAllocator("HOST"))),
-      strat(h_allocator.getAllocationStrategy()) { }
+   // TODO: this only releases unused memory
+   ~UmpireHostMemorySpace() { if (owns_allocator) { h_allocator.release(); } }
+   UmpireHostMemorySpace(): HostMemorySpace(),
+      rm(umpire::ResourceManager::getInstance())
+   {
+      const int id = MemoryManager::GetUmpireHostAllocatorId();
+      if (!UmpireHasId(rm, id))
+      {
+         h_allocator = rm.makeAllocator<umpire::strategy::DynamicPool>("MFEM_HOST",
+                                                                       rm.getAllocator("HOST"));
+         owns_allocator = true;
+      }
+      else
+      {
+         h_allocator = rm.getAllocator(id);
+      }
+      MemoryManager::SetUmpireHostAllocatorId(id);
+   }
    void Alloc(void **ptr, size_t bytes) { *ptr = h_allocator.allocate(bytes); }
    void Dealloc(void *ptr) { h_allocator.deallocate(ptr); }
    void Insert(void *ptr, size_t bytes)
-   { rm.registerAllocation(ptr, {ptr, bytes, strat}); }
+   { mfem_error("UmpireHostMemorySpace::Insert is unsupported"); }
 };
 
 /// The Umpire device memory space
 #ifdef MFEM_USE_CUDA
-class UmpireDeviceMemorySpace : public DeviceMemorySpace
+class UmpireDeviceMemorySpaceImpl : public DeviceMemorySpace
 {
+public:
+   enum class AllocatorType { TEMPORARY, PERMANENT };
 private:
-   const char *name;
    umpire::ResourceManager &rm;
    umpire::Allocator d_allocator;
+   bool owns_allocator{false};
+
+   int SetupAllocator(int possible_id, const char * allocator_name)
+   {
+      if (!UmpireHasId(rm, possible_id))
+      {
+         d_allocator = rm.makeAllocator<umpire::strategy::DynamicPool>(allocator_name,
+                                                                       rm.getAllocator("DEVICE"));
+         owns_allocator = true;
+      }
+      else
+      {
+         d_allocator = rm.getAllocator(possible_id);
+      }
+
+      return d_allocator.getId();
+   }
 public:
-   ~UmpireDeviceMemorySpace() { d_allocator.release(); }
-   UmpireDeviceMemorySpace():
-      DeviceMemorySpace(),
-      name(mm.GetUmpireAllocatorDeviceName()),
-      rm(umpire::ResourceManager::getInstance()),
-      d_allocator(rm.isAllocator(name)? rm.getAllocator(name):
-                  rm.makeAllocator<umpire::strategy::DynamicPool>
-                  (name, rm.getAllocator("DEVICE"))) { }
+   // TODO: this only releases unused memory
+   ~UmpireDeviceMemorySpaceImpl() { if (owns_allocator) { d_allocator.release(); } }
+   UmpireDeviceMemorySpaceImpl(AllocatorType t): DeviceMemorySpace(),
+      rm(umpire::ResourceManager::getInstance())
+   {
+      switch (t)
+      {
+         case AllocatorType::PERMANENT:
+            MemoryManager::SetUmpireDeviceAllocatorId(SetupAllocator(
+                                                         MemoryManager::GetUmpireDeviceAllocatorId(),
+                                                         "MFEM_DEVICE"));
+            break;
+         case AllocatorType::TEMPORARY:
+            MemoryManager::SetUmpireDeviceTempAllocatorId(SetupAllocator(
+                                                             MemoryManager::GetUmpireDeviceTempAllocatorId(),
+                                                             "MFEM_DEVICE_TEMPORARY"));
+            break;
+         default:
+            mfem_error("Unknown Umpire AllocatorType");
+      }
+   }
    void Alloc(Memory &base) { base.d_ptr = d_allocator.allocate(base.bytes); }
    void Dealloc(Memory &base) { d_allocator.deallocate(base.d_ptr); }
    void *HtoD(void *dst, const void *src, size_t bytes)
@@ -536,8 +591,23 @@ public:
       //rm.copy(dst, const_cast<void*>(src), bytes); return dst;
    }
 };
+
+class UmpireDeviceMemorySpace : public UmpireDeviceMemorySpaceImpl
+{
+public:
+   UmpireDeviceMemorySpace() : UmpireDeviceMemorySpaceImpl(
+         AllocatorType::PERMANENT) {}
+};
+
+class UmpireDeviceTempMemorySpace : public UmpireDeviceMemorySpaceImpl
+{
+public:
+   UmpireDeviceTempMemorySpace() : UmpireDeviceMemorySpaceImpl(
+         AllocatorType::TEMPORARY) {}
+};
 #else
 class UmpireDeviceMemorySpace : public NoDeviceMemorySpace { };
+class UmpireDeviceTempMemorySpace : public NoDeviceMemorySpace { };
 #endif // MFEM_USE_CUDA
 #endif // MFEM_USE_UMPIRE
 
@@ -568,7 +638,7 @@ public:
       host[static_cast<int>(MT::HOST_64)] = new Aligned64HostMemorySpace();
       // HOST_DEBUG is delayed, as it reroutes signals
       host[static_cast<int>(MT::HOST_DEBUG)] = nullptr;
-      host[static_cast<int>(MT::HOST_UMPIRE)] = new UmpireHostMemorySpace();
+      host[static_cast<int>(MT::HOST_UMPIRE)] = nullptr;
       host[static_cast<int>(MT::MANAGED)] = new UvmHostMemorySpace();
 
       // Filling the device memory backends, shifting with the device size
@@ -610,8 +680,12 @@ public:
 private:
    HostMemorySpace* NewHostCtrl(const MemoryType mt)
    {
-      if (mt == MT::HOST_DEBUG) { return new MmuHostMemorySpace(); }
-      MFEM_ABORT("Unknown host memory controller!");
+      switch (mt)
+      {
+         case MT::HOST_DEBUG: return new MmuHostMemorySpace();
+         case MT::HOST_UMPIRE: return new UmpireHostMemorySpace();
+         default: MFEM_ABORT("Unknown host memory controller!");
+      }
       return nullptr;
    }
 
@@ -620,6 +694,7 @@ private:
       switch (mt)
       {
          case MT::DEVICE_UMPIRE: return new UmpireDeviceMemorySpace();
+         case MT::DEVICE_TEMP_UMPIRE: return new UmpireDeviceTempMemorySpace();
          case MT::DEVICE_DEBUG: return new MmuDeviceMemorySpace();
          case MT::DEVICE:
          {
@@ -760,7 +835,7 @@ bool MemoryManager::MemoryClassCheck_(MemoryClass mc, void *h_ptr,
    const bool known = mm.IsKnown(h_ptr);
    const bool alias = mm.IsAlias(h_ptr);
    const bool check = known || ((flags & Mem::ALIAS) && alias);
-   MFEM_VERIFY(check,"");
+   MFEM_VERIFY(check,"Unknown host pointer: " << h_ptr);
    const internal::Memory &mem =
       (flags & Mem::ALIAS) ?
       *maps->aliases.at(h_ptr).mem : maps->memories.at(h_ptr);
@@ -783,6 +858,7 @@ bool MemoryManager::MemoryClassCheck_(MemoryClass mc, void *h_ptr,
          MFEM_VERIFY(d_mt == MemoryType::DEVICE ||
                      d_mt == MemoryType::DEVICE_DEBUG ||
                      d_mt == MemoryType::DEVICE_UMPIRE ||
+                     d_mt == MemoryType::DEVICE_TEMP_UMPIRE ||
                      d_mt == MemoryType::MANAGED,"");
          return true;
       }
@@ -1262,21 +1338,14 @@ MemoryManager::MemoryManager() { Init(); }
 MemoryManager::~MemoryManager() { if (exists) { Destroy(); } }
 
 void MemoryManager::Configure(const MemoryType host_mt,
-                              const MemoryType device_mt)
+                              const MemoryType device_mt,
+                              const MemoryType device_tmt)
 {
    Init();
    host_mem_type = host_mt;
    device_mem_type = device_mt;
+   device_temp_mem_type = device_tmt;
 }
-
-#ifdef MFEM_USE_UMPIRE
-void MemoryManager::SetUmpireAllocatorNames(const char *h_name,
-                                            const char *d_name)
-{
-   h_umpire_name = h_name;
-   d_umpire_name = d_name;
-}
-#endif
 
 void MemoryManager::Destroy()
 {
@@ -1381,12 +1450,14 @@ MemoryManager mm;
 bool MemoryManager::exists = false;
 
 #ifdef MFEM_USE_UMPIRE
-const char* MemoryManager::h_umpire_name = "HOST";
-const char* MemoryManager::d_umpire_name = "DEVICE";
+int MemoryManager::h_umpire_id = -1;
+int MemoryManager::d_umpire_id = -1;
+int MemoryManager::d_umpire_temp_id = -1;
 #endif
 
 MemoryType MemoryManager::host_mem_type = MemoryType::HOST;
 MemoryType MemoryManager::device_mem_type = MemoryType::HOST;
+MemoryType MemoryManager::device_temp_mem_type = MemoryType::HOST;
 
 const char *MemoryTypeName[MemoryTypeSize] =
 {
@@ -1403,11 +1474,14 @@ const char *MemoryTypeName[MemoryTypeSize] =
 #endif
    "device-debug",
 #if defined(MFEM_USE_CUDA)
-   "cuda-umpire"
+   "cuda-umpire",
+   "cuda-umpire-temp"
 #elif defined(MFEM_USE_HIP)
-   "hip-umpire"
+   "hip-umpire",
+   "hip-umpire-temp"
 #else
-   "device-umpire"
+   "device-umpire",
+   "device-umpire-temp"
 #endif
 };
 

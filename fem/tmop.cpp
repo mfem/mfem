@@ -1058,6 +1058,7 @@ void DiscreteAdaptTC::SetDiscreteTargetBase(const GridFunction &tspec_)
    // make a copy of tspec->tspec_temp, increase its size, and
    // copy data from tspec_temp -> tspec, then add new entries
    Vector tspec_temp = tspec;
+   tspec.UseDevice(true);
    tspec.SetSize(ncomp*dof_cnt);
 
    for (int i = 0; i < tspec_temp.Size(); i++)
@@ -1214,6 +1215,7 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
          Array<int> dofs;
          DenseMatrix D_rho(dim), Q_phi(dim), R_theta(dim);
          tspec_fesv->GetElementVDofs(e_id, dofs);
+         tspec.UseDevice(true);
          tspec.GetSubVector(dofs, tspec_vals);
 
          for (int i = 0; i < ir.GetNPoints(); i++)

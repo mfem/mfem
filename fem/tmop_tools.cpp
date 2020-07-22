@@ -33,10 +33,11 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    const int pnt_cnt = new_field.Size()/ncomp;
 
    new_field = field0;
-
+   new_field.HostReadWrite();
+   Vector new_field_temp;
    for (int i = 0; i < ncomp; i++)
    {
-      Vector new_field_temp(new_field.GetData()+i*pnt_cnt, pnt_cnt);
+      new_field_temp.MakeRef(new_field, i*pnt_cnt, pnt_cnt);
       ComputeAtNewPositionScalar(new_nodes, new_field_temp);
    }
 
@@ -94,6 +95,7 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
    double v_max = 0.0;
    const int s = new_field.Size();
 
+   u.HostReadWrite();
    for (int i = 0; i < s; i++)
    {
       double vel = 0.;
