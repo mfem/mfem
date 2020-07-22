@@ -35,10 +35,10 @@ int main(int argc, char *argv[])
    if (mpi.Root()) { device.Print(); }
 
    //-----------------------------------------------------------
-   int width = 1000000;
-   Vector v_r(width/2), v_i(width/2); // this initialization causes failure below
+   int width = 1000;
+   Vector v_r, v_i; // this initialization causes failure below
    {
-      // Vector v_r(width/2), v_i(width/2); // this initialization is fine
+      // Vector v_r, v_i; // this initialization is fine
       Vector v(width);
       v.UseDevice(true);
       v = 0.0;
@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
    w.UseDevice(true);
    w = 0.0;
    cout << mpi.WorldRank() << ": w.HostRead() = " << w.HostRead() << endl;
-   Vector w_r(width/2), w_i(width/2);
+   Vector w_r, w_i;
 
    MPI_Barrier(MPI_COMM_WORLD);
    cout << mpi.WorldRank() << ": == # START # ==" << endl;
