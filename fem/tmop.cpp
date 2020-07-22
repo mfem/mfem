@@ -2310,7 +2310,10 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
 
 void TMOP_Integrator::UpdateAfterMeshChange(const Vector &new_x)
 {
+   dbg("\033[7mA.setup_Jtr = false");
    PA.setup_Jtr = false;
+   //dbg("\033[7mA.setup_Grad = false");
+   //PA.setup_Grad = false;
    // Update zeta if adaptive limiting is enabled.
    if (zeta) { adapt_eval->ComputeAtNewPosition(new_x, *zeta); }
 }

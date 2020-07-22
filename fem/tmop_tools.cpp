@@ -13,6 +13,8 @@
 #include "nonlinearform.hpp"
 #include "pnonlinearform.hpp"
 #include "../general/osockstream.hpp"
+#define MFEM_DEBUG_COLOR 87
+#include "../general/debug.hpp"
 
 namespace mfem
 {
@@ -43,11 +45,14 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
 
    field0 = new_field;
    nodes0 = new_nodes;
+   dbg("field0: %.8e", field0*field0);
+   dbg("nodes0: %.8e", nodes0*nodes0);
 }
 
 void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
                                             Vector &new_field)
 {
+   dbg();
    Mesh *m = mesh;
 #ifdef MFEM_USE_MPI
    if (pmesh) { m = pmesh; }
@@ -376,6 +381,7 @@ void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
 double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
                                               const Vector &b) const
 {
+   dbg();
    const FiniteElementSpace *fes = NULL;
    double energy_in = 0.0;
 #ifdef MFEM_USE_MPI
