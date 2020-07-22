@@ -292,18 +292,18 @@ TEST_CASE("Hcurl/Hdiv pa_coeff")
             coeff2 = new FunctionCoefficient(&linearFunction);
          }
 
-         enum MixedSpaces {Hcurl, Hdiv, HcurlHdiv, NumSpaceTypes};
+         enum MixedSpaces {Hcurl, Hdiv, HcurlHdiv, HdivHcurl, NumSpaceTypes};
 
          for (int spaceType = 0; spaceType < NumSpaceTypes; ++spaceType)
          {
-            if ((spaceType == Hdiv && coeffType >= 2) || (spaceType == HcurlHdiv &&
+            if ((spaceType == Hdiv && coeffType >= 2) || (spaceType >= HcurlHdiv &&
                                                           dimension == 2))
             {
                continue;   // Case not implemented yet
             }
 
             const int numIntegrators =
-               (spaceType == HcurlHdiv) ? 1 : ((coeffType == 2) ? 2 : 3);
+               (spaceType >= HcurlHdiv) ? 1 : ((coeffType == 2) ? 2 : 3);
 
             for (int integrator = 0; integrator < numIntegrators; ++integrator)
             {
@@ -317,17 +317,32 @@ TEST_CASE("Hcurl/Hdiv pa_coeff")
                             << "D RT partial assembly with coeffType "
                             << coeffType << " and integrator "
                             << integrator << std::endl;
-               else  // HcurlHdiv
+               else if (spaceType == HcurlHdiv)
                   std::cout << "Testing " << dimension
                             << "D ND x RT partial assembly with coeffType "
+                            << coeffType << " and integrator "
+                            << integrator << std::endl;
+               else  // HdivHcurl
+                  std::cout << "Testing " << dimension
+                            << "D RT x ND partial assembly with coeffType "
                             << coeffType << " and integrator "
                             << integrator << std::endl;
 
                for (int order = 1; order < 4; ++order)
                {
-                  FiniteElementCollection* fec = (spaceType == Hcurl || spaceType == HcurlHdiv) ?
-                                                 (FiniteElementCollection*) new ND_FECollection(order, dimension) :
-                                                 (FiniteElementCollection*) new RT_FECollection(order, dimension);
+                  FiniteElementCollection* fec = nullptr;
+                  if (spaceType == Hcurl || spaceType == HcurlHdiv)
+                  {
+                     fec = (FiniteElementCollection*) new ND_FECollection(order, dimension);
+                  }
+                  else if (spaceType == HdivHcurl)
+                  {
+                     fec = (FiniteElementCollection*) new RT_FECollection(order - 1, dimension);
+                  }
+                  else
+                  {
+                     fec = (FiniteElementCollection*) new RT_FECollection(order, dimension);
+                  }
 
                   FiniteElementSpace fespace(mesh, fec);
 
@@ -371,17 +386,25 @@ TEST_CASE("Hcurl/Hdiv pa_coeff")
 
                   Vector y_mat, y_assembly, y_pa;
 
-                  if (spaceType == HcurlHdiv)
+                  if (spaceType >= HcurlHdiv)
                   {
-                     FiniteElementCollection* fecHdiv = (FiniteElementCollection*) new
-                                                        RT_FECollection(order - 1, dimension);
-                     FiniteElementSpace fespaceHdiv(mesh, fecHdiv);
+                     FiniteElementCollection* fecTest = nullptr;
+                     if (spaceType == HcurlHdiv)
+                     {
+                        fecTest = (FiniteElementCollection*) new RT_FECollection(order - 1, dimension);
+                     }
+                     else
+                     {
+                        fecTest = (FiniteElementCollection*) new ND_FECollection(order, dimension);
+                     }
 
-                     MixedBilinearForm paform(&fespace, &fespaceHdiv);
+                     FiniteElementSpace fespaceTest(mesh, fecTest);
+
+                     MixedBilinearForm paform(&fespace, &fespaceTest);
                      paform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-                     MixedBilinearForm assemblyform(&fespace, &fespaceHdiv);
+                     MixedBilinearForm assemblyform(&fespace, &fespaceTest);
 
-                     const int testSize = fespaceHdiv.GetTrueVSize();
+                     const int testSize = fespaceTest.GetTrueVSize();
                      y_mat.SetSize(testSize);
                      y_mat = 0.0;
                      y_assembly.SetSize(testSize);
@@ -419,7 +442,7 @@ TEST_CASE("Hcurl/Hdiv pa_coeff")
                      assemblyform.Mult(xin, y_assembly);
                      A_explicit.Mult(xin, y_mat);
 
-                     delete fecHdiv;
+                     delete fecTest;
                   }
                   else
                   {
