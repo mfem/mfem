@@ -519,6 +519,7 @@ int main(int argc, char *argv[])
 
    const char *basename = "Fourier";
    const char *mesh_file = "../../data/periodic-annulus-sector.msh";
+   const char *bc_file = "";
    bool zero_start = false;
    bool static_cond = false;
    bool gfprint = true;
@@ -550,7 +551,12 @@ int main(int argc, char *argv[])
    double lim_max = 2.0;
 
    bool ode_epus = true;
-
+   /*
+   Array<int> dbca; // Dirichlet BC attributes
+   Array<int> nbca; // Neumann BC attributes
+   Vector     dbcv; // Dirichlet BC values
+   Vector     nbcv; // Nuemann BC values
+   */
    int term_flag = 31;
    int vis_flag = 31;
 
@@ -561,6 +567,8 @@ int main(int argc, char *argv[])
                   "Set the logging level.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&bc_file, "-bc", "--bc-file",
+                  "Boundary condition input file.");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly before parallel"
                   " partitioning, -1 for auto.");
@@ -663,6 +671,16 @@ int main(int argc, char *argv[])
    args.AddOption(&ode_epus, "-epus", "--error-per-unit-step",
                   "-eps", "--error-per-step",
                   "Select Error per step or error per unit step.");
+   /*
+   args.AddOption(&dbca, "-dbcs", "--dirichlet-bc-surf",
+                  "Dirichlet Boundary Condition Surfaces");
+   args.AddOption(&dbcv, "-dbcv", "--dirichlet-bc-values",
+                  "Dirichlet Boundary Condition Values");
+   args.AddOption(&nbca, "-nbcs", "--neumann-bc-surf",
+                  "Neumann Boundary Condition Surfaces");
+   args.AddOption(&nbcv, "-nbcv", "--neumann-bc-values",
+                  "Neumann Boundary Condition Values");
+   */
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&gfprint, "-print", "--print","-no-print","--no-print",
@@ -985,16 +1003,46 @@ int main(int argc, char *argv[])
    T1.GridFunction::ComputeElementL2Errors(TCoef, errorT);
    ExactT.ProjectCoefficient(TCoef);
 
-   Array<int> dbc_attr;
-   dbc_attr.Append(1);
-
-   Array<int> nbc_attr;
-   nbc_attr.Append(2);
-
+   CoefFactory coefFact;
    AdvectionDiffusionBC bcs(pmesh->bdr_attributes);
-   bcs.AddDirichletBC(dbc_attr, TCoef);
-   bcs.AddNeumannBC(nbc_attr, zeroCoef);
+   if (strncmp(bc_file,"",1) != 0)
+   {
+     ifstream bcfs(bc_file);
+     bcs.LoadBCs(coefFact, bcfs);
+   }
+   /*
+   Array<int> dbc_attr(1);
+   Array<Coefficient*> dbc_coef;
+   if (dbca.Size() == dbcv.Size())
+   {
+      if (dbca.Size() > 0 && mpi.Root())
+      {
+         cout << "Setting Dirichlet BCs from command line arguments" << endl;
+      }
+      for (int i=0; i<dbca.Size(); i++)
+      {
+         dbc_attr[0] = dbca[i];
+         dbc_coef.Append(new ConstantCoefficient(dbcv[i]));
+         bcs.AddDirichletBC(dbc_attr, *dbc_coef.Last());
+      }
+   }
 
+   Array<int> nbc_attr(1);
+   Array<Coefficient*> nbc_coef;
+   if (nbca.Size() == nbcv.Size())
+   {
+      if (nbca.Size() > 0 && mpi.Root())
+      {
+         cout << "Setting Neumann BCs from command line arguments" << endl;
+      }
+      for (int i=0; i<nbca.Size(); i++)
+      {
+         nbc_attr[0] = nbca[i];
+         nbc_coef.Append(new ConstantCoefficient(nbcv[i]));
+         bcs.AddNeumannBC(nbc_attr, *nbc_coef.Last());
+      }
+   }
+   */
    // q.GridFunction::ComputeElementL2Errors(qCoef, errorq);
    // qPara.GridFunction::ComputeElementL2Errors(qParaCoef, errorqPara);
    // qPerp.GridFunction::ComputeElementL2Errors(qPerpCoef, errorqPerp);
@@ -1364,6 +1412,16 @@ int main(int argc, char *argv[])
    }
 
    // 16. Free the used memory.
+   /*
+   for (int i=0; i<dbc_coef.Size(); i++)
+   {
+      delete dbc_coef[i];
+   }
+   for (int i=0; i<nbc_coef.Size(); i++)
+   {
+      delete nbc_coef[i];
+   }
+   */
    delete ode_solver;
    delete pmesh;
 

@@ -11,6 +11,7 @@
 
 #include "fourier_solver.hpp"
 #include "../common/mesh_extras.hpp"
+#include "../../general/text.hpp"
 
 #ifdef MFEM_USE_MPI
 
@@ -37,6 +38,196 @@ std::string FieldSymbol(FieldType t)
    }
 }
 
+CoefFactory::~CoefFactory()
+{
+   for (int i=0; i<coefs.Size(); i++)
+   {
+      delete coefs[i];
+   }
+}
+
+Coefficient * CoefFactory::operator()(std::istream &input)
+{
+   string buff;
+
+   skip_comment_lines(input, '#');
+   input >> buff;
+   return (*this)(buff, input);
+}
+
+Coefficient * CoefFactory::operator()(std::string &name, std::istream &input)
+{
+   if (name == "ConstantCoefficient")
+   {
+      double val;
+      input >> val;
+      int c = coefs.Append(new ConstantCoefficient(val));
+      return coefs[--c];
+   }
+   else if (name == "PWConstCoefficient")
+   {
+      int nvals;
+      input >> nvals;
+      Vector vals(nvals);
+      for (int i=0; i<nvals; i++)
+      {
+         input >> vals[i];
+      }
+      int c = coefs.Append(new PWConstCoefficient(vals));
+      return coefs[--c];
+   }
+   else if (name == "FunctionCoefficient")
+   {
+      int index;
+      input >> index;
+      MFEM_VERIFY(index >=0 && index < ext_fn.Size(),
+                  "Invalid Function index read by CoefFactory");
+      int c = coefs.Append(new FunctionCoefficient(ext_fn[index]));
+      return coefs[--c];
+   }
+   else if (name == "GridFunctionCoefficient")
+   {
+      int index;
+      input >> index;
+      MFEM_VERIFY(index >=0 && index < ext_gf.Size(),
+                  "Invalid GridFunction index read by CoefFactory");
+      int c = coefs.Append(new GridFunctionCoefficient(ext_gf[index]));
+      return coefs[--c];
+   }
+   else if (name == "RestrictedCoefficient")
+   {
+      Coefficient * rc = (*this)(input);
+      int nattr;
+      input >> nattr;
+      Array<int> attr(nattr);
+      for (int i=0; i<nattr; i++)
+      {
+         input >> attr[i];
+      }
+      int c = coefs.Append(new RestrictedCoefficient(*rc, attr));
+      return coefs[--c];
+   }
+   else
+   {
+      // Unrecognized coefficient type.  Try external factories.
+      for (int i=0; i<ext_fac.Size(); i++)
+      {
+         Coefficient * c = (*ext_fac[i])(name, input);
+         if (c != NULL) { return c; }
+      }
+      return NULL;
+   }
+}
+
+AdvectionDiffusionBC::~AdvectionDiffusionBC()
+{
+   for (int i=0; i<dbc.Size(); i++)
+   {
+      if (dbc[i]->ownCoef)
+      {
+         delete dbc[i]->coef;
+      }
+      delete dbc[i];
+   }
+   for (int i=0; i<nbc.Size(); i++)
+   {
+      if (nbc[i]->ownCoef)
+      {
+         delete nbc[i]->coef;
+      }
+      delete nbc[i];
+   }
+   for (int i=0; i<rbc.Size(); i++)
+   {
+      for (int j=0; j<rbc[i]->coefs.Size(); j++)
+      {
+         if (rbc[i]->ownCoefs[j])
+         {
+            delete rbc[i]->coefs[j];
+         }
+      }
+      delete rbc[i];
+   }
+}
+
+void AdvectionDiffusionBC::ReadAttr(std::istream &input,
+                                    const std::string &bctype,
+                                    Array<int> &attr)
+{
+   int nbdr = 0;
+   skip_comment_lines(input, '#');
+   input >> nbdr;
+   for (int i=0; i<nbdr; i++)
+   {
+      int b = 0;
+      input >> b;
+      if (bc_attr.count(b) == 0)
+      {
+         bc_attr.insert(b);
+      }
+      else
+      {
+         MFEM_ABORT("Attempting to add a " << bctype << " BC on boundary " << b
+                    << " which already has a boundary condition defined.");
+      }
+      attr.Append(b);
+   }
+}
+
+void AdvectionDiffusionBC::ReadCoefByAttr(std::istream &input,
+                                          const std::string &bctype,
+                                          CoefficientByAttr &cba)
+{
+   ReadAttr(input, bctype, cba.attr);
+   cba.coef = (*coefFact)(input);
+   cba.ownCoef = false;
+}
+
+void AdvectionDiffusionBC::ReadCoefsByAttr(std::istream &input,
+                                           const std::string &bctype,
+                                           CoefficientsByAttr &cba)
+{
+   ReadAttr(input, bctype, cba.attr);
+   cba.coefs.SetSize(2);
+   cba.coefs[0] = (*coefFact)(input);
+   cba.coefs[1] = (*coefFact)(input);
+   cba.ownCoefs.SetSize(2);
+   cba.ownCoefs[0] = false;
+   cba.ownCoefs[1] = false;
+}
+
+void AdvectionDiffusionBC::ReadBCs(std::istream &input)
+{
+   string buff;
+
+   skip_comment_lines(input, '#');
+   input >> buff;
+   MFEM_VERIFY(buff == "scalar_bcs", "invalid BC file");
+
+   while (input >> buff)
+   {
+      skip_comment_lines(input, '#');
+      if (buff == "dirichlet")
+      {
+         CoefficientByAttr * c = new CoefficientByAttr;
+         ReadCoefByAttr(input, "Dirichlet", *c);
+         dbc.Append(c);
+      }
+      else if (buff == "neumann")
+      {
+         CoefficientByAttr * c = new CoefficientByAttr;
+         ReadCoefByAttr(input, "Neumann", *c);
+         nbc.Append(c);
+      }
+      else if (buff == "robin")
+      {
+         CoefficientsByAttr * c = new CoefficientsByAttr;
+         ReadCoefsByAttr(input, "Robin", *c);
+         rbc.Append(c);
+      }
+   }
+}
+
 void AdvectionDiffusionBC::AddDirichletBC(const Array<int> & bdr,
                                           Coefficient &val)
 {
@@ -55,7 +246,8 @@ void AdvectionDiffusionBC::AddDirichletBC(const Array<int> & bdr,
    CoefficientByAttr * c = new CoefficientByAttr;
    c->attr = bdr;
    c->coef = &val;
-   dbc.push_back(*c);
+   c->ownCoef = false;
+   dbc.Append(c);
 }
 
 void AdvectionDiffusionBC::AddNeumannBC(const Array<int> & bdr,
@@ -76,7 +268,8 @@ void AdvectionDiffusionBC::AddNeumannBC(const Array<int> & bdr,
    CoefficientByAttr * c = new CoefficientByAttr;
    c->attr = bdr;
    c->coef = &val;
-   nbc.push_back(*c);
+   c->ownCoef = false;
+   nbc.Append(c);
 }
 
 void AdvectionDiffusionBC::AddRobinBC(const Array<int> & bdr, Coefficient &a,
@@ -99,7 +292,9 @@ void AdvectionDiffusionBC::AddRobinBC(const Array<int> & bdr, Coefficient &a,
    c->coefs.SetSize(2);
    c->coefs[0] = &a;
    c->coefs[1] = &b;
-   rbc.push_back(*c);
+   c->ownCoefs.SetSize(2);
+   c->ownCoefs = false;
+   rbc.Append(c);
 }
 
 const Array<int> & AdvectionDiffusionBC::GetHomogeneousNeumannBCs() const

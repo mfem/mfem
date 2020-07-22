@@ -338,29 +338,83 @@ struct CoefficientByAttr
 {
    Array<int> attr;
    Coefficient * coef;
+   bool ownCoef;
 };
 
 struct CoefficientsByAttr
 {
    Array<int> attr;
    Array<Coefficient*> coefs;
+   Array<bool> ownCoefs;
+};
+
+//typedef Coefficient*(*CoefFactory)(std::istream&);
+class CoefFactory
+{
+private:
+   Array<Coefficient*> coefs;                ///< Owned
+   Array<CoefFactory*> ext_fac;              ///< Not owned
+   Array<GridFunction*> ext_gf;              ///< Not owned
+   Array<double (*)(const Vector &)> ext_fn; ///< Not owned
+
+public:
+   CoefFactory() {}
+
+   ~CoefFactory();
+
+   void StealData(Array<Coefficient*> &c) { c = coefs; coefs.LoseData(); }
+  
+   int AddExternalFactory(CoefFactory &cf) { return ext_fac.Append(&cf); }
+
+   int AddExternalGridFunction(GridFunction &gf) { return ext_gf.Append(&gf); }
+
+   int AddExternalFunction(double (*fn)(const Vector &))
+   { return ext_fn.Append(fn); }
+
+   Coefficient *operator()(std::istream &input);
+   Coefficient *operator()(std::string &coef_name, std::istream &input);
 };
 
 class AdvectionDiffusionBC
 {
 private:
-   std::vector<CoefficientByAttr>  dbc; // Dirichlet BC data
-   std::vector<CoefficientByAttr>  nbc; // Neumann BC data
-   std::vector<CoefficientsByAttr> rbc; // Robin BC data
+   Array<CoefficientByAttr*>  dbc; // Dirichlet BC data
+   Array<CoefficientByAttr*>  nbc; // Neumann BC data
+   Array<CoefficientsByAttr*> rbc; // Robin BC data
    mutable Array<int>  hbc; // Homogeneous Neumann BC boundry attributes
 
    std::set<int> bc_attr;
    const Array<int> & bdr_attr;
 
+   CoefFactory * coefFact;
+
+   void ReadBCs(std::istream &input);
+
+   void ReadAttr(std::istream &input,
+                 const std::string &bctype,
+                 Array<int> &attr);
+
+   void ReadCoefByAttr(std::istream &input,
+                       const std::string &bctype,
+                       CoefficientByAttr &cba);
+
+   void ReadCoefsByAttr(std::istream &input,
+                        const std::string &bctype,
+                        CoefficientsByAttr &cba);
+
 public:
    AdvectionDiffusionBC(const Array<int> & bdr)
-      : bdr_attr(bdr) {}
+      : bdr_attr(bdr), coefFact(NULL) {}
 
+   AdvectionDiffusionBC(const Array<int> & bdr,
+                        CoefFactory &cf, std::istream &input)
+      : bdr_attr(bdr), coefFact(&cf) { ReadBCs(input); }
+
+   ~AdvectionDiffusionBC();
+
+   void LoadBCs(CoefFactory &cf, std::istream &input)
+   { coefFact = &cf; ReadBCs(input); }
+  
    // Enforce u = val on boundaries with attributes in bdr
    void AddDirichletBC(const Array<int> & bdr, Coefficient &val);
 
@@ -370,9 +424,9 @@ public:
    // Enforce du/dn + a u = b on boundaries with attributes in bdr
    void AddRobinBC(const Array<int> & bdr, Coefficient &a, Coefficient &b);
 
-   const std::vector<CoefficientByAttr> & GetDirichletBCs() const { return dbc; }
-   const std::vector<CoefficientByAttr> & GetNeumannBCs() const { return nbc; }
-   const std::vector<CoefficientsByAttr> & GetRobinBCs() const { return rbc; }
+   const Array<CoefficientByAttr*> & GetDirichletBCs() const { return dbc; }
+   const Array<CoefficientByAttr*> & GetNeumannBCs() const { return nbc; }
+   const Array<CoefficientsByAttr*> & GetRobinBCs() const { return rbc; }
    const Array<int> & GetHomogeneousNeumannBCs() const;
 };
 
