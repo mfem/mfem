@@ -136,7 +136,6 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient *curlU=nullptr;
 
    ConstantCoefficient one(1.0);
-   ConstantCoefficient (1.0);
    LinearForm b(fespace);
    BilinearForm a(fespace);
 
