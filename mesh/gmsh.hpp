@@ -15,13 +15,13 @@
 namespace mfem
 {
 
-// Helpers for reading high order elements from the Gmsh format
+// Helpers for reading high order elements in Gmsh format
 
 /** @name Gmsh High-Order Vertex Mappings
 
     These functions generate the mappings needed to translate the order of
-    Gmsh's high-order vertices into MFEM's L2 degree of freedom ordering.  The
-    mapping is defined so that MFEM_DoF[i] = Gmsh_Vert[map[i]].  The @a map
+    Gmsh's high-order vertices into MFEM's L2 degree of freedom ordering. The
+    mapping is defined so that MFEM_DoF[i] = Gmsh_Vert[map[i]]. The @a map
     array must already be allocated with the proper number of entries for the
     element type at the given element @a order.
 */
