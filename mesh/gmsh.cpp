@@ -295,7 +295,7 @@ int WedgeToGmshPri(int idx_in[], int ref)
       return offset + CartesianToGmshQuad(idx_out, ref-2);
    }
    offset += 3*(ref-1)*(ref-1);
-   // Gmsh Prism interiors are a tensor product of segments of order ref-2
+   // The Gmsh Prism interiors are a tensor product of segments of order ref-2
    // and triangles of order ref-3
    {
       int b_out[3];

@@ -992,195 +992,190 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             6,   // 6-node prism.
             5,   // 5-node pyramid.
             3,   /* 3-node second order line (2 nodes associated with the
-                       vertices and 1 with the edge). */
+                    vertices and 1 with the edge). */
             6,   /* 6-node second order triangle (3 nodes associated with the
-                       vertices and 3 with the edges). */
+                    vertices and 3 with the edges). */
             9,   /* 9-node second order quadrangle (4 nodes associated with the
-                       vertices, 4 with the edges and 1 with the face). */
+                    vertices, 4 with the edges and 1 with the face). */
             10,  /* 10-node second order tetrahedron (4 nodes associated with
-                       the vertices and 6 with the edges). */
+                    the vertices and 6 with the edges). */
             27,  /* 27-node second order hexahedron (8 nodes associated with the
-                       vertices, 12 with the edges, 6 with the faces and 1 with
-                       the volume). */
+                    vertices, 12 with the edges, 6 with the faces and 1 with the
+                    volume). */
             18,  /* 18-node second order prism (6 nodes associated with the
-                       vertices, 9 with the edges and 3 with the quadrangular
-                       faces). */
+                    vertices, 9 with the edges and 3 with the quadrangular
+                    faces). */
             14,  /* 14-node second order pyramid (5 nodes associated with the
-                       vertices, 8 with the edges and 1 with the quadrangular
-                       face). */
+                    vertices, 8 with the edges and 1 with the quadrangular
+                    face). */
             1,   // 1-node point.
             8,   /* 8-node second order quadrangle (4 nodes associated with the
-                       vertices and 4 with the edges). */
+                    vertices and 4 with the edges). */
             20,  /* 20-node second order hexahedron (8 nodes associated with the
-                       vertices and 12 with the edges). */
+                    vertices and 12 with the edges). */
             15,  /* 15-node second order prism (6 nodes associated with the
-                       vertices and 9 with the edges). */
+                    vertices and 9 with the edges). */
             13,  /* 13-node second order pyramid (5 nodes associated with the
-                       vertices and 8 with the edges). */
+                    vertices and 8 with the edges). */
             9,   /* 9-node third order incomplete triangle (3 nodes associated
-                       with the vertices, 6 with the edges) */
+                    with the vertices, 6 with the edges) */
             10,  /* 10-node third order triangle (3 nodes associated with the
-                       vertices, 6 with the edges, 1 with the face) */
+                    vertices, 6 with the edges, 1 with the face) */
             12,  /* 12-node fourth order incomplete triangle (3 nodes associated
-                       with the vertices, 9 with the edges) */
+                    with the vertices, 9 with the edges) */
             15,  /* 15-node fourth order triangle (3 nodes associated with the
-                       vertices, 9 with the edges, 3 with the face) */
+                    vertices, 9 with the edges, 3 with the face) */
             15,  /* 15-node fifth order incomplete triangle (3 nodes associated
-                       with the vertices, 12 with the edges) */
+                    with the vertices, 12 with the edges) */
             21,  /* 21-node fifth order complete triangle (3 nodes associated
-                       with the vertices, 12 with the edges, 6 with the face) */
+                    with the vertices, 12 with the edges, 6 with the face) */
             4,   /* 4-node third order edge (2 nodes associated with the
-                       vertices, 2 internal to the edge) */
+                    vertices, 2 internal to the edge) */
             5,   /* 5-node fourth order edge (2 nodes associated with the
-                       vertices, 3 internal to the edge) */
+                    vertices, 3 internal to the edge) */
             6,   /* 6-node fifth order edge (2 nodes associated with the
-                       vertices, 4 internal to the edge) */
+                    vertices, 4 internal to the edge) */
             20,  /* 20-node third order tetrahedron (4 nodes associated with the
-                       vertices, 12 with the edges, 4 with the faces) */
+                    vertices, 12 with the edges, 4 with the faces) */
             35,  /* 35-node fourth order tetrahedron (4 nodes associated with
-                       the vertices, 18 with the edges, 12 with the faces, and 1
-                       with the volume) */
+                    the vertices, 18 with the edges, 12 with the faces, and 1
+                    with the volume) */
             56,  /* 56-node fifth order tetrahedron (4 nodes associated with the
-                       vertices, 24 with the edges, 24 with the faces, and 4
-                       with the volume) */
+                    vertices, 24 with the edges, 24 with the faces, and 4 with
+                    the volume) */
             -1,-1, /* unsupported tetrahedral types */
             -1,-1, /* unsupported polygonal and polyhedral types */
             16,  /* 16-node third order quadrilateral (4 nodes associated with
-                       the vertices, 8 with the edges, 4 wth the face) */
+                    the vertices, 8 with the edges, 4 wth the face) */
             25,  /* 25-node fourth order quadrilateral (4 nodes associated with
-                       the vertices, 12 with the edges, 9 wth the face) */
+                    the vertices, 12 with the edges, 9 wth the face) */
             36,  /* 36-node fifth order quadrilateral (4 nodes associated with
-                       the vertices, 16 with the edges, 16 wth the face) */
+                    the vertices, 16 with the edges, 16 wth the face) */
             -1,-1,-1, /* unsupported quadrilateral types */
             28,  /* 28-node sixth order complete triangle (3 nodes associated
-                       with the vertices, 15 with the edges, 10 with the face)
-                 */
+                    with the vertices, 15 with the edges, 10 with the face) */
             36,  /* 36-node seventh order complete triangle (3 nodes associated
-             with the vertices, 18 with the edges, 15 with the face)
-                 */
+                    with the vertices, 18 with the edges, 15 with the face) */
             45,  /* 45-node eighth order complete triangle (3 nodes associated
-                       with the vertices, 21 with the edges, 21 with the face)
-                 */
+                    with the vertices, 21 with the edges, 21 with the face) */
             55,  /* 55-node ninth order complete triangle (3 nodes associated
-                       with the vertices, 24 with the edges, 28 with the face)
-                 */
+                    with the vertices, 24 with the edges, 28 with the face) */
             66,  /* 66-node tenth order complete triangle (3 nodes associated
-                       with the vertices, 27 with the edges, 36 with the face)
-                 */
+                    with the vertices, 27 with the edges, 36 with the face) */
             49,  /* 49-node sixth order quadrilateral (4 nodes associated with
-                       the vertices, 20 with the edges, 25 wth the face) */
+                    the vertices, 20 with the edges, 25 wth the face) */
             64,  /* 64-node seventh order quadrilateral (4 nodes associated with
-                       the vertices, 24 with the edges, 36 wth the face) */
+                    the vertices, 24 with the edges, 36 wth the face) */
             81,  /* 81-node eighth order quadrilateral (4 nodes associated with
-                       the vertices, 28 with the edges, 49 wth the face) */
+                    the vertices, 28 with the edges, 49 wth the face) */
             100, /* 100-node ninth order quadrilateral (4 nodes associated with
-                       the vertices, 32 with the edges, 64 wth the face) */
+                    the vertices, 32 with the edges, 64 wth the face) */
             121, /* 121-node tenth order quadrilateral (4 nodes associated with
-                       the vertices, 36 with the edges, 81 wth the face) */
-            -1,-1,-1,-1,-1, /* unsupported trianglular types */
+                    the vertices, 36 with the edges, 81 wth the face) */
+            -1,-1,-1,-1,-1, /* unsupported triangular types */
             -1,-1,-1,-1,-1, /* unsupported quadrilateral types */
             7,   /* 7-node sixth order edge (2 nodes associated with the
-                       vertices, 5 internal to the edge) */
+                    vertices, 5 internal to the edge) */
             8,   /* 8-node seventh order edge (2 nodes associated with the
-             vertices, 6 internal to the edge) */
+                    vertices, 6 internal to the edge) */
             9,   /* 9-node eighth order edge (2 nodes associated with the
-                       vertices, 7 internal to the edge) */
+                    vertices, 7 internal to the edge) */
             10,  /* 10-node ninth order edge (2 nodes associated with the
-             vertices, 8 internal to the edge) */
+                    vertices, 8 internal to the edge) */
             11,  /* 11-node tenth order edge (2 nodes associated with the
-             vertices, 9 internal to the edge) */
+                    vertices, 9 internal to the edge) */
             -1,  /* unsupported linear types */
             -1,-1,-1, /* unsupported types */
             84,  /* 84-node sixth order tetrahedron (4 nodes associated with the
-                       vertices, 30 with the edges, 40 with the faces, and 10
-                       with the volume) */
+                    vertices, 30 with the edges, 40 with the faces, and 10 with
+                    the volume) */
             120, /* 120-node seventh order tetrahedron (4 nodes associated with
-                       the vertices, 36 with the edges, 60 with the faces, and
-                       20 with the volume) */
+                    the vertices, 36 with the edges, 60 with the faces, and 20
+                    with the volume) */
             165, /* 165-node eighth order tetrahedron (4 nodes associated with
-                       the vertices, 42 with the edges, 84 with the faces, and
-                       35 with the volume) */
+                    the vertices, 42 with the edges, 84 with the faces, and 35
+                    with the volume) */
             220, /* 220-node ninth order tetrahedron (4 nodes associated with
-                       the vertices, 48 with the edges, 112 with the faces, and
-                       56 with the volume) */
+                    the vertices, 48 with the edges, 112 with the faces, and 56
+                    with the volume) */
             286, /* 286-node tenth order tetrahedron (4 nodes associated with
-                       the vertices, 54 with the edges, 144 with the faces, and
-                       84 with the volume) */
+                    the vertices, 54 with the edges, 144 with the faces, and 84
+                    with the volume) */
             -1,-1,-1,       /* undefined types */
             -1,-1,-1,-1,-1, /* unsupported tetrahedral types */
             -1,-1,-1,-1,-1,-1, /* unsupported types */
             40,  /* 40-node third order prism (6 nodes associated with the
-                       vertices, 18 with the edges, 14 with the faces, and 2
-                       with the volume) */
+                    vertices, 18 with the edges, 14 with the faces, and 2 with
+                    the volume) */
             75,  /* 75-node fourth order prism (6 nodes associated with the
-                       vertices, 27 with the edges, 33 with the faces, and 9
-                       with the volume) */
+                    vertices, 27 with the edges, 33 with the faces, and 9 with
+                    the volume) */
             64,  /* 64-node third order hexahedron (8 nodes associated with the
-                       vertices, 24 with the edges, 24 with the faces and 8 with
-                       the volume).*/
+                    vertices, 24 with the edges, 24 with the faces and 8 with
+                    the volume).*/
             125, /* 125-node fourth order hexahedron (8 nodes associated with
-                       the vertices, 36 with the edges, 54 with the faces and
-                       27 with the volume).*/
+                    the vertices, 36 with the edges, 54 with the faces and 27
+                    with the volume).*/
             216, /* 216-node fifth order hexahedron (8 nodes associated with the
-                       vertices, 48 with the edges, 96 with the faces and 64
-                       with the volume).*/
+                    vertices, 48 with the edges, 96 with the faces and 64 with
+                    the volume).*/
             343, /* 343-node sixth order hexahedron (8 nodes associated with the
-                       vertices, 60 with the edges, 150 with the faces and 125
-                       with the volume).*/
+                    vertices, 60 with the edges, 150 with the faces and 125 with
+                    the volume).*/
             512, /* 512-node seventh order hexahedron (8 nodes associated with
-                       the vertices, 72 with the edges, 216 with the faces and
-                       216 with the volume).*/
+                    the vertices, 72 with the edges, 216 with the faces and 216
+                    with the volume).*/
             729, /* 729-node eighth order hexahedron (8 nodes associated with
-                       the vertices, 84 with the edges, 294 with the faces and
-                       343 with the volume).*/
+                    the vertices, 84 with the edges, 294 with the faces and 343
+                    with the volume).*/
             1000,/* 1000-node ninth order hexahedron (8 nodes associated with
-                       the vertices, 96 with the edges, 384 with the faces and
-                       512 with the volume).*/
+                    the vertices, 96 with the edges, 384 with the faces and 512
+                    with the volume).*/
             -1,-1,-1,-1,-1,-1,-1, /* unsupported hexahedron types */
             126, /* 126-node fifth order prism (6 nodes associated with the
-             vertices, 36 with the edges, 60 with the faces, and 24
-             with the volume) */
+                    vertices, 36 with the edges, 60 with the faces, and 24 with
+                    the volume) */
             196, /* 196-node sixth order prism (6 nodes associated with the
-             vertices, 45 with the edges, 95 with the faces, and 50
-             with the volume) */
+                    vertices, 45 with the edges, 95 with the faces, and 50 with
+                    the volume) */
             288, /* 288-node seventh order prism (6 nodes associated with the
-             vertices, 54 with the edges, 138 with the faces, and 90
-             with the volume) */
+                    vertices, 54 with the edges, 138 with the faces, and 90 with
+                    the volume) */
             405, /* 405-node eighth order prism (6 nodes associated with the
-             vertices, 63 with the edges, 189 with the faces, and 147
-             with the volume) */
+                    vertices, 63 with the edges, 189 with the faces, and 147
+                    with the volume) */
             550, /* 550-node ninth order prism (6 nodes associated with the
-             vertices, 72 with the edges, 248 with the faces, and 224
-             with the volume) */
+                    vertices, 72 with the edges, 248 with the faces, and 224
+                    with the volume) */
             -1,-1,-1,-1,-1,-1,-1, /* unsupported prism types */
             30,  /* 30-node third order pyramid (5 nodes associated with the
-                       vertices, 16 with the edges and 8 with the faces, and
-                       1 with the volume). */
+                    vertices, 16 with the edges and 8 with the faces, and 1 with
+                    the volume). */
             55,  /* 55-node fourth order pyramid (5 nodes associated with the
-                       vertices, 24 with the edges and 21 with the faces, and
-                       5 with the volume). */
+                    vertices, 24 with the edges and 21 with the faces, and 5
+                    with the volume). */
             91,  /* 91-node fifth order pyramid (5 nodes associated with the
-                       vertices, 32 with the edges and 40 with the faces, and
-                       14 with the volume). */
+                    vertices, 32 with the edges and 40 with the faces, and 14
+                    with the volume). */
             140, /* 140-node sixth order pyramid (5 nodes associated with the
-                       vertices, 40 with the edges and 65 with the faces, and
-                       30 with the volume). */
+                    vertices, 40 with the edges and 65 with the faces, and 30
+                    with the volume). */
             204, /* 204-node seventh order pyramid (5 nodes associated with the
-                       vertices, 48 with the edges and 96 with the faces, and
-                       55 with the volume). */
+                    vertices, 48 with the edges and 96 with the faces, and 55
+                    with the volume). */
             285, /* 285-node eighth order pyramid (5 nodes associated with the
-                       vertices, 56 with the edges and 133 with the faces, and
-                       91 with the volume). */
+                    vertices, 56 with the edges and 133 with the faces, and 91
+                    with the volume). */
             385  /* 385-node ninth order pyramid (5 nodes associated with the
-                       vertices, 64 with the edges and 176 with the faces, and
-                       140 with the volume). */
+                    vertices, 64 with the edges and 176 with the faces, and 140
+                    with the volume). */
          };
 
          /** The following mappings convert the Gmsh node orderings for high
-             order elements to MFEM's L2 degree of freedom ordering. To
-             support more options examine Gmsh's ordering and read off the
-             indices in MFEM's order.  For example 2nd order Gmsh
-             quadrilaterals use the following ordering:
+             order elements to MFEM's L2 degree of freedom ordering. To support
+             more options examine Gmsh's ordering and read off the indices in
+             MFEM's order. For example 2nd order Gmsh quadrilaterals use the
+             following ordering:
 
                 3--6--2
                 |  |  |
