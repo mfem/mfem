@@ -231,8 +231,8 @@ int main(int argc, char *argv[])
       HypreParVector *B = b.ParallelAssemble();
       HypreParVector *X = x.ParallelProject();
 
-      Solver *prec = NULL;
-      IterativeSolver *solver = NULL;
+      Solver *prec = nullptr;
+      IterativeSolver *solver = nullptr;
       switch (prob)
       {
          case 0:
