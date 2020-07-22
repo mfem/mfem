@@ -4124,6 +4124,47 @@ void CoarseFineTransformations::GetCoarseToFineMap(
    ref_type_to_matrix.ShiftUpI();
 }
 
+void CoarseFineTransformations::GetCoarseToFineMapFast(
+   const mfem::Mesh &fine_mesh, Table &coarse_to_fine) const
+{
+   const int fine_ne = embeddings.Size();
+   int coarse_ne = -1;
+   for (int i = 0; i < fine_ne; i++)
+   {
+      coarse_ne = std::max(coarse_ne, embeddings[i].parent);
+   }
+   coarse_ne++;
+
+   coarse_to_fine.SetDims(coarse_ne, fine_ne);
+
+   Array<int> cf_i(coarse_to_fine.GetI(), coarse_ne+1);
+   Array<Pair<int,int> > cf_j(fine_ne);
+   cf_i = 0;
+   for (int i = 0; i < fine_ne; i++)
+   {
+      cf_i[embeddings[i].parent+1]++;
+   }
+   cf_i.PartialSum();
+   MFEM_ASSERT(cf_i.Last() == cf_j.Size(), "internal error");
+   for (int i = 0; i < fine_ne; i++)
+   {
+      const Embedding &e = embeddings[i];
+      cf_j[cf_i[e.parent]].one = e.matrix; // used as sort key below
+      cf_j[cf_i[e.parent]].two = i;
+      cf_i[e.parent]++;
+   }
+   std::copy_backward(cf_i.begin(), cf_i.end()-1, cf_i.end());
+   cf_i[0] = 0;
+   for (int i = 0; i < coarse_ne; i++)
+   {
+      std::sort(&cf_j[cf_i[i]], cf_j.GetData() + cf_i[i+1]);
+   }
+   for (int i = 0; i < fine_ne; i++)
+   {
+      coarse_to_fine.GetJ()[i] = cf_j[i].two;
+   }
+}
+
 void NCMesh::ClearTransforms()
 {
    coarse_elements.DeleteAll();
