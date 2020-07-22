@@ -13,6 +13,11 @@
 //               mpirun -np 4 ex22p -m ../data/inline-hex.mesh -o 2 -p 2
 //               mpirun -np 4 ex22p -m ../data/star.mesh -o 2 -sigma 10.0
 //
+// With partial assembly:
+//               mpirun -np 4 ex22p -m ../data/inline-quad.mesh -o 1 -p 1 -pa
+//               mpirun -np 4 ex22p -m ../data/inline-hex.mesh -o 1 -p 2 -pa
+//               mpirun -np 4 ex22p -m ../data/star.mesh -o 2 -sigma 10.0 -pa
+//
 // Description:  This example code demonstrates the use of MFEM to define and
 //               solve simple complex-valued linear systems. It implements three
 //               variants of a damped harmonic oscillator:
@@ -84,6 +89,7 @@ int main(int argc, char *argv[])
    bool visualization = 1;
    bool herm_conv = true;
    bool exact_sol = true;
+   bool pa = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -116,6 +122,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.Parse();
    if (!args.Good())
    {
@@ -315,6 +323,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient negMassCoef(omega_ * omega_ * epsilon_);
 
    ParSesquilinearForm *a = new ParSesquilinearForm(fespace, conv);
+   if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    switch (prob)
    {
       case 0:
@@ -351,6 +360,7 @@ int main(int argc, char *argv[])
    //         -Grad(a Div) - omega^2 b + omega c
    //
    ParBilinearForm *pcOp = new ParBilinearForm(fespace);
+   if (pa) { pcOp->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    switch (prob)
    {
       case 0:
@@ -382,19 +392,11 @@ int main(int argc, char *argv[])
    Vector B, U;
 
    a->FormLinearSystem(ess_tdof_list, u, b, A, U, B);
-   u = 0.0;
-   U = 0.0;
-
-   OperatorHandle PCOp;
-   pcOp->FormSystemMatrix(ess_tdof_list, PCOp);
 
    if (myid == 0)
    {
-      ComplexHypreParMatrix * Ahyp =
-         dynamic_cast<ComplexHypreParMatrix*>(A.Ptr());
-
       cout << "Size of linear system: "
-           << 2 * Ahyp->real().GetGlobalNumRows() << endl << endl;
+           << 2 * fespace->GlobalTrueVSize() << endl << endl;
    }
 
    // 12. Define and apply a parallel FGMRES solver for AU=B with a block
@@ -404,8 +406,8 @@ int main(int argc, char *argv[])
       Array<int> blockTrueOffsets;
       blockTrueOffsets.SetSize(3);
       blockTrueOffsets[0] = 0;
-      blockTrueOffsets[1] = PCOp.Ptr()->Height();
-      blockTrueOffsets[2] = PCOp.Ptr()->Height();
+      blockTrueOffsets[1] = A->Height() / 2;
+      blockTrueOffsets[2] = A->Height() / 2;
       blockTrueOffsets.PartialSum();
 
       BlockDiagonalPreconditioner BDP(blockTrueOffsets);
@@ -413,25 +415,34 @@ int main(int argc, char *argv[])
       Operator * pc_r = NULL;
       Operator * pc_i = NULL;
 
-      switch (prob)
+      if (pa)
       {
-         case 0:
-            pc_r = new HypreBoomerAMG(*PCOp.As<HypreParMatrix>());
-            break;
-         case 1:
-            pc_r = new HypreAMS(*PCOp.As<HypreParMatrix>(), fespace);
-            break;
-         case 2:
-            if (dim == 2 )
-            {
+         pc_r = new OperatorJacobiSmoother(*pcOp, ess_tdof_list);
+      }
+      else
+      {
+         OperatorHandle PCOp;
+         pcOp->FormSystemMatrix(ess_tdof_list, PCOp);
+         switch (prob)
+         {
+            case 0:
+               pc_r = new HypreBoomerAMG(*PCOp.As<HypreParMatrix>());
+               break;
+            case 1:
                pc_r = new HypreAMS(*PCOp.As<HypreParMatrix>(), fespace);
-            }
-            else
-            {
-               pc_r = new HypreADS(*PCOp.As<HypreParMatrix>(), fespace);
-            }
-            break;
-         default: break; // This should be unreachable
+               break;
+            case 2:
+               if (dim == 2 )
+               {
+                  pc_r = new HypreAMS(*PCOp.As<HypreParMatrix>(), fespace);
+               }
+               else
+               {
+                  pc_r = new HypreADS(*PCOp.As<HypreParMatrix>(), fespace);
+               }
+               break;
+            default: break; // This should be unreachable
+         }
       }
       pc_i = new ScaledOperator(pc_r,
                                 (conv == ComplexOperator::HERMITIAN) ?
