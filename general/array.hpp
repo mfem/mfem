@@ -36,9 +36,9 @@ void Swap(Array<T> &, Array<T> &);
    Abstract data type Array.
 
    Array<T> is an automatically increasing array containing elements of the
-   generic type T. The allocated size may be larger then the logical size
-   of the array.
-   The elements can be accessed by the [] operator, the range is 0 to size-1.
+   generic type T, which must be a POD (plain old data) type. The allocated size
+   may be larger then the logical size of the array. The elements can be
+   accessed by the [] operator, the range is 0 to size-1.
 */
 template <class T>
 class Array
