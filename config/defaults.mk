@@ -341,9 +341,9 @@ GSLIB_DIR = @MFEM_DIR@/../gslib/build
 GSLIB_OPT = -I$(GSLIB_DIR)/include
 GSLIB_LIB = -L$(GSLIB_DIR)/lib -lgs
 
-# CUDA library configuration (currently not needed)
+# CUDA library configuration
 CUDA_OPT =
-CUDA_LIB =
+CUDA_LIB = -lcusparse
 
 # HIP library configuration (currently not needed)
 HIP_OPT =
