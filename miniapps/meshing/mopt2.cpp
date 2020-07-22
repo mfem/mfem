@@ -465,18 +465,17 @@ int main (int argc, char *argv[])
    TMOPNewtonSolver solver(*ir, solver_type);
    MFEM_VERIFY(solver_type==0,"");
    // Specify linear solver when we use a Newton-based solver.
-   //solver.SetPreconditioner(*S);
+   solver.SetPreconditioner(*S);
    solver.SetMaxIter(solver_iter);
    solver.SetRelTol(solver_rtol);
    solver.SetAbsTol(0.0);
    solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
    solver.SetOperator(a);
-   solver.SetPreconditioner(*S);
 
    Vector x_init(x);
    GridFunction dist(fespace);
    dist = 1.0;
-   for (int i = 0; i < 3; i++)
+   for (int i = 0; i < 1; i++)
    {
       std::cout << "\n\n ------ Optimize \n\n";
 
@@ -486,7 +485,7 @@ int main (int argc, char *argv[])
       DiscreteAdaptTC *datc = dynamic_cast<DiscreteAdaptTC *>(target_c);
       datc->SetSerialDiscreteTargetSpec(size);
 
-      if (normalization) { he_nlf_integ->EnableNormalization(x); }
+      //if (normalization) { he_nlf_integ->EnableNormalization(x); }
 
       dist *= 0.8;
       // The small_phys_size is relevant only with proper normalization.
@@ -494,6 +493,8 @@ int main (int argc, char *argv[])
       ConstantCoefficient lim_coeff(lim_const);
       MFEM_VERIFY(lim_const != 0.0,"");
       he_nlf_integ->EnableLimiting(x0, dist, lim_coeff);
+
+      if (normalization) { he_nlf_integ->EnableNormalization(x); }
 
       solver.Mult(b, x.GetTrueVector());
       x.SetFromTrueVector();

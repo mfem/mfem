@@ -13,6 +13,7 @@
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
+#include "../general/debug.hpp"
 
 namespace mfem
 {
@@ -992,6 +993,7 @@ void DiscreteAdaptTC::FinalizeParDiscreteTargetSpec(const ParGridFunction
 
 void DiscreteAdaptTC::SetTspecAtIndex(int idx, const ParGridFunction &tspec_)
 {
+   dbg();
    const int vdim     = tspec_.FESpace()->GetVDim(),
              dof_cnt  = tspec_.Size()/vdim;
    for (int i = 0; i < dof_cnt*vdim; i++)
@@ -1004,6 +1006,7 @@ void DiscreteAdaptTC::SetTspecAtIndex(int idx, const ParGridFunction &tspec_)
 
 void DiscreteAdaptTC::SetParDiscreteTargetSize(const ParGridFunction &tspec_)
 {
+   dbg();
    if (sizeidx > -1) { SetTspecAtIndex(sizeidx, tspec_); return; }
    sizeidx = ncomp;
    SetDiscreteTargetBase(tspec_);
@@ -1012,6 +1015,7 @@ void DiscreteAdaptTC::SetParDiscreteTargetSize(const ParGridFunction &tspec_)
 
 void DiscreteAdaptTC::SetParDiscreteTargetSkew(const ParGridFunction &tspec_)
 {
+   dbg();
    if (skewidx > -1) { SetTspecAtIndex(skewidx, tspec_); return; }
    skewidx = ncomp;
    SetDiscreteTargetBase(tspec_);
@@ -1038,6 +1042,7 @@ void DiscreteAdaptTC::SetParDiscreteTargetOrientation(const ParGridFunction
 
 void DiscreteAdaptTC::SetParDiscreteTargetSpec(const ParGridFunction &tspec_)
 {
+   dbg();
    SetParDiscreteTargetSize(tspec_);
    FinalizeParDiscreteTargetSpec(tspec_);
 }
@@ -1045,9 +1050,11 @@ void DiscreteAdaptTC::SetParDiscreteTargetSpec(const ParGridFunction &tspec_)
 
 void DiscreteAdaptTC::SetDiscreteTargetBase(const GridFunction &tspec_)
 {
+   dbg();
    const int vdim     = tspec_.FESpace()->GetVDim(),
              dof_cnt  = tspec_.Size()/vdim;
 
+   dbg("\033[7mncomp += vdim;");
    ncomp += vdim;
 
    delete tspec_fes;
@@ -1059,6 +1066,7 @@ void DiscreteAdaptTC::SetDiscreteTargetBase(const GridFunction &tspec_)
    // copy data from tspec_temp -> tspec, then add new entries
    Vector tspec_temp = tspec;
    tspec.UseDevice(true);
+   tspec_sav.UseDevice(true);
    tspec.SetSize(ncomp*dof_cnt);
 
    for (int i = 0; i < tspec_temp.Size(); i++)
@@ -1074,6 +1082,7 @@ void DiscreteAdaptTC::SetDiscreteTargetBase(const GridFunction &tspec_)
 
 void DiscreteAdaptTC::SetTspecAtIndex(int idx, const GridFunction &tspec_)
 {
+   dbg();
    const int vdim     = tspec_.FESpace()->GetVDim(),
              dof_cnt  = tspec_.Size()/vdim;
    for (int i = 0; i < dof_cnt*vdim; i++)
@@ -1086,14 +1095,17 @@ void DiscreteAdaptTC::SetTspecAtIndex(int idx, const GridFunction &tspec_)
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetSize(const GridFunction &tspec_)
 {
+   dbg("sizeidx:%d, ncomp:%d",sizeidx, ncomp);
    if (sizeidx > -1) { SetTspecAtIndex(sizeidx, tspec_); return; }
    sizeidx = ncomp;
+   dbg("sizeidx:%d",sizeidx);
    SetDiscreteTargetBase(tspec_);
    FinalizeSerialDiscreteTargetSpec();
 }
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetSkew(const GridFunction &tspec_)
 {
+   dbg();
    if (skewidx > -1) { SetTspecAtIndex(skewidx, tspec_); return; }
    skewidx = ncomp;
    SetDiscreteTargetBase(tspec_);
@@ -1103,6 +1115,7 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetSkew(const GridFunction &tspec_)
 void DiscreteAdaptTC::SetSerialDiscreteTargetAspectRatio(
    const GridFunction &tspec_)
 {
+   dbg();
    if (aspectratioidx > -1) { SetTspecAtIndex(aspectratioidx, tspec_); return; }
    aspectratioidx = ncomp;
    SetDiscreteTargetBase(tspec_);
@@ -1112,6 +1125,7 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetAspectRatio(
 void DiscreteAdaptTC::SetSerialDiscreteTargetOrientation(
    const GridFunction &tspec_)
 {
+   dbg();
    if (orientationidx > -1) { SetTspecAtIndex(orientationidx, tspec_); return; }
    orientationidx = ncomp;
    SetDiscreteTargetBase(tspec_);
@@ -1120,6 +1134,7 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetOrientation(
 
 void DiscreteAdaptTC::FinalizeSerialDiscreteTargetSpec()
 {
+   dbg();
    MFEM_VERIFY(adapt_eval, "SetAdaptivityEvaluator() has not been called!")
    MFEM_VERIFY(ncomp > 0, "No target specifications have been set!");
 
@@ -1136,6 +1151,7 @@ void DiscreteAdaptTC::FinalizeSerialDiscreteTargetSpec()
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(const GridFunction &tspec_)
 {
+   dbg();
    SetSerialDiscreteTargetSize(tspec_);
    FinalizeSerialDiscreteTargetSpec();
 }
@@ -1144,8 +1160,9 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(const GridFunction &tspec_)
 void DiscreteAdaptTC::UpdateTargetSpecification(const Vector &new_x,
                                                 bool use_flag)
 {
-   if (use_flag && good_tspec) { return; }
+   if (use_flag && good_tspec) { dbg("return"); return; }
 
+   dbg("ComputeAtNewPosition");
    MFEM_VERIFY(tspec.Size() > 0, "Target specification is not set!");
    adapt_eval->ComputeAtNewPosition(new_x, tspec);
    tspec_sav = tspec;
@@ -1156,6 +1173,7 @@ void DiscreteAdaptTC::UpdateTargetSpecification(const Vector &new_x,
 void DiscreteAdaptTC::UpdateTargetSpecification(Vector &new_x,
                                                 Vector &IntData)
 {
+   dbg();
    adapt_eval->ComputeAtNewPosition(new_x, IntData);
 }
 
@@ -1164,6 +1182,7 @@ void DiscreteAdaptTC::UpdateTargetSpecificationAtNode(const FiniteElement &el,
                                                       int dofidx, int dir,
                                                       const Vector &IntData)
 {
+   dbg();
    MFEM_VERIFY(tspec.Size() > 0, "Target specification is not set!");
 
    Array<int> dofs;
@@ -1179,6 +1198,7 @@ void DiscreteAdaptTC::UpdateTargetSpecificationAtNode(const FiniteElement &el,
 void DiscreteAdaptTC::RestoreTargetSpecificationAtNode(ElementTransformation &T,
                                                        int dofidx)
 {
+   dbg();
    MFEM_VERIFY(tspec.Size() > 0, "Target specification is not set!");
 
    Array<int> dofs;
@@ -1195,6 +1215,7 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                                             const Vector &elfun,
                                             DenseTensor &Jtr) const
 {
+   //dbg();
    MFEM_VERIFY(tspec_fesv, "No target specifications have been set.");
 
    switch (target_type)
@@ -1221,7 +1242,6 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
             const IntegrationPoint &ip = ir.IntPoint(i);
             tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
             Jtr(i) = Wideal; //Initialize to identity
-
             if (sizeidx != -1) //Set size
             {
                par_vals.SetDataAndSize(tspec_vals.GetData()+sizeidx*ndofs, ndofs);
@@ -1372,6 +1392,7 @@ void DiscreteAdaptTC::UpdateGradientTargetSpecification(const Vector &x,
                                                         const double dx,
                                                         bool use_flag)
 {
+   dbg();
    if (use_flag && good_tspec_grad) { return; }
 
    const int dim = tspec_fes->GetFE(0)->GetDim(),
@@ -1398,6 +1419,7 @@ void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
                                                        double dx, bool use_flag)
 {
 
+   dbg();
    if (use_flag && good_tspec_hess) { return; }
 
    const int dim    = tspec_fes->GetFE(0)->GetDim(),
