@@ -28,28 +28,45 @@ using namespace mfem;
 using namespace std;
 
 
-Mesh* Make2D(int nsteps, double rstep, double phi, double aspect)
+struct Params
+{
+   double r, dr;
+   double a, da;
+
+   Params() = default;
+   Params(double r0, double r1, double a0, double a1)
+      : r(r0), dr(r1 - r0), a(a0), da(a1 - a0) {}
+};
+
+
+Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order)
 {
    Mesh *mesh = new Mesh(2, 0, 0);
 
    int origin = mesh->AddVertex(0.0, 0.0);
 
    // n is the number of steps in the polar direction
-   int n = 2;
+   int n = 1;
    while (phi * rstep / n * aspect > rstep) { n++; }
 
    double r = rstep;
    int first = mesh->AddVertex(r, 0.0);
 
+   Array<Params> params;
+
    // create triangles around the origin
+   double prev_alpha = 0.0;
    for (int i = 0; i < n; i++)
    {
       double alpha = phi * (i+1) / n;
       mesh->AddVertex(r*cos(alpha), r*sin(alpha));
       mesh->AddTriangle(origin, first+i, first+i+1);
+
+      params.Append(Params(0, r, prev_alpha, alpha));
+      prev_alpha = alpha;
    }
-   mesh->AddBdrSegment(origin, first);
-   mesh->AddBdrSegment(first+n, origin);
+   mesh->AddBdrSegment(origin, first, 1);
+   mesh->AddBdrSegment(first+n, origin, 2);
 
    for (int k = 1; k < nsteps; k++)
    {
@@ -60,18 +77,21 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect)
       double prev_r = r;
       r += rstep;
 
-
-      if (phi * r / n * aspect <= rstep)
+      if (phi * (r + prev_r)/2 / n * aspect <= rstep)
       {
          first = mesh->AddVertex(r, 0.0);
-         mesh->AddBdrSegment(prev_first, first, 2);
+         mesh->AddBdrSegment(prev_first, first, 1);
 
          // create a row of quads, same number as in previous row
+         prev_alpha = 0.0;
          for (int i = 0; i < n; i++)
          {
             double alpha = phi * (i+1) / n;
             mesh->AddVertex(r*cos(alpha), r*sin(alpha));
             mesh->AddQuad(prev_first+i, first+i, first+i+1, prev_first+i+1);
+
+            params.Append(Params(prev_r, r, prev_alpha, alpha));
+            prev_alpha = alpha;
          }
 
          mesh->AddBdrSegment(first+n, prev_first+n, 2);
@@ -92,23 +112,29 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect)
 
          first = mesh->AddVertex(r, 0.0);
          int a = prev_first, b = first;
+
          mesh->AddBdrSegment(a, b, 1);
 
          // create a row of quad pairs
+         prev_alpha = 0.0;
          for (int i = 0; i < m; i++)
          {
             int c = hang+i, e = a+1;
 
-            double alpha = phi * (2*i+1) / n;
-            int d = mesh->AddVertex(r*cos(alpha), r*sin(alpha));
+            double alpha_half = phi * (2*i+1) / n;
+            int d = mesh->AddVertex(r*cos(alpha_half), r*sin(alpha_half));
 
-            alpha = phi * (2*i+2) / n;
+            double alpha = phi * (2*i+2) / n;
             int f = mesh->AddVertex(r*cos(alpha), r*sin(alpha));
 
             mesh->AddQuad(a, b, d, c);
             mesh->AddQuad(c, d, f, e);
 
             a = e, b = f;
+
+            params.Append(Params(prev_r, r, prev_alpha, alpha_half));
+            params.Append(Params(prev_r, r, alpha_half, alpha));
+            prev_alpha = alpha;
          }
 
          mesh->AddBdrSegment(b, a, 2);
@@ -121,6 +147,48 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect)
    }
 
    mesh->FinalizeMesh();
+
+   // create high-order curvature
+   if (order > 1)
+   {
+      mesh->SetCurvature(order);
+
+      GridFunction *nodes = mesh->GetNodes();
+      const FiniteElementSpace *fes = mesh->GetNodalFESpace();
+
+      Array<int> dofs;
+      MFEM_ASSERT(params.Size() == mesh->GetNE(), "");
+
+      for (int i = 0; i < mesh->GetNE(); i++)
+      {
+         const Params &par = params[i];
+         const IntegrationRule &ir = fes->GetFE(i)->GetNodes();
+         Geometry::Type geom = mesh->GetElementBaseGeometry(i);
+         fes->GetElementDofs(i, dofs);
+
+         for (int j = 0; j < dofs.Size(); j++)
+         {
+            double r, a;
+            if (geom == Geometry::SQUARE)
+            {
+               r = par.r + ir[j].x * par.dr;
+               a = par.a + ir[j].y * par.da;
+            }
+            else
+            {
+               double rr = ir[j].x + ir[j].y;
+               if (std::abs(rr) < 1e-12) { continue; }
+               r = par.r + rr * par.dr;
+               a = par.a + ir[j].y/rr * par.da;
+            }
+            (*nodes)(fes->DofToVDof(dofs[j], 0)) = r*cos(a);
+            (*nodes)(fes->DofToVDof(dofs[j], 1)) = r*sin(a);
+         }
+      }
+
+      nodes->RestrictConforming();
+   }
+
    return mesh;
 }
 
@@ -129,18 +197,22 @@ int main(int argc, char *argv[])
 {
    int dim = 2;
    double radius = 1.0;
+   int nsteps = 10;
    double angle = 90;
    double aspect = 1.0;
-   double rstep = 0.05;
+   int order = 2;
 
    // Parse command line
    OptionsParser args(argc, argv);
-   args.AddOption(&aspect, "-d", "--dim",
-                  "Mesh dimension (2 or 3).");
+   args.AddOption(&dim, "-d", "--dim", "Mesh dimension (2 or 3).");
+   args.AddOption(&radius, "-r", "--radius", "Radius of the domain.");
+   args.AddOption(&nsteps, "-n", "--nsteps",
+                  "Number of elements along the radial direction");
    args.AddOption(&aspect, "-a", "--aspect",
-                  "Maximum aspect ratio of the elements.");
-   args.AddOption(&angle, "-phi", "--phi",
-                  "Angular range.");
+                  "Target aspect ratio of the elements.");
+   args.AddOption(&angle, "-phi", "--phi", "Angular range.");
+   args.AddOption(&order, "-o", "--order",
+                  "Polynomial degree of mesh curvature.");
    args.Parse();
    if (!args.Good())
    {
@@ -149,14 +221,15 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   int nsteps = radius / rstep;
+   MFEM_VERIFY(angle < 360, "");
+
    double phi = angle * M_PI / 180;
 
    // Generate
    Mesh *mesh;
    if (dim == 2)
    {
-      mesh = Make2D(nsteps, rstep, phi, aspect);
+      mesh = Make2D(nsteps, radius/nsteps, phi, aspect, order);
    }
    else
    {
