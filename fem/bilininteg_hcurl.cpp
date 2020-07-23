@@ -291,7 +291,7 @@ void PAHcurlMassApply2D(const int D1D,
             double massX[MAX_D1D];
             for (int dx = 0; dx < D1Dx; ++dx)
             {
-               massX[dx] = 0;
+               massX[dx] = 0.0;
             }
             for (int qx = 0; qx < Q1D; ++qx)
             {
@@ -596,7 +596,7 @@ void PAHcurlMassApply3D(const int D1D,
             {
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  massXY[dy][dx] = 0;
+                  massXY[dy][dx] = 0.0;
                }
             }
             for (int qy = 0; qy < Q1D; ++qy)
@@ -811,7 +811,7 @@ static void PACurlCurlApply2D(const int D1D,
       {
          for (int qx = 0; qx < Q1D; ++qx)
          {
-            curl[qy][qx] = 0;
+            curl[qy][qx] = 0.0;
          }
       }
 
@@ -873,7 +873,7 @@ static void PACurlCurlApply2D(const int D1D,
             double gradX[MAX_D1D];
             for (int dx = 0; dx < D1Dx; ++dx)
             {
-               gradX[dx] = 0;
+               gradX[dx] = 0.0;
             }
             for (int qx = 0; qx < Q1D; ++qx)
             {
@@ -1841,7 +1841,7 @@ void PAHcurlH1Apply3D(const int D1D,
             {
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  massXY[dy][dx] = 0;
+                  massXY[dy][dx] = 0.0;
                }
             }
             for (int qy = 0; qy < Q1D; ++qy)
@@ -1984,7 +1984,7 @@ void PAHcurlH1Apply2D(const int D1D,
             double massX[MAX_D1D];
             for (int dx = 0; dx < D1Dx; ++dx)
             {
-               massX[dx] = 0;
+               massX[dx] = 0.0;
             }
             for (int qx = 0; qx < Q1D; ++qx)
             {
@@ -2010,15 +2010,14 @@ void PAHcurlH1Apply2D(const int D1D,
    }); // end of element loop
 }
 
-// PA H(curl) Mass Assemble 3D kernel
-void PAHcurlL2Setup3D(const int Q1D,
-                      const int coeffDim,
-                      const int NE,
-                      const Array<double> &w,
-                      Vector &_coeff,
-                      Vector &op)
+// PA H(curl) assemble kernel
+void PAHcurlL2Setup(const int NQ,
+                    const int coeffDim,
+                    const int NE,
+                    const Array<double> &w,
+                    Vector &_coeff,
+                    Vector &op)
 {
-   const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
    auto coeff = Reshape(_coeff.Read(), coeffDim, NQ, NE);
    auto y = Reshape(op.Write(), coeffDim, NQ, NE);
@@ -2119,7 +2118,7 @@ void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    if (testType == mfem::FiniteElement::CURL &&
        trialType == mfem::FiniteElement::CURL && dim == 3)
    {
-      PAHcurlL2Setup3D(quad1D, coeffDim, ne, ir->GetWeights(), coeff, pa_data);
+      PAHcurlL2Setup(nq, coeffDim, ne, ir->GetWeights(), coeff, pa_data);
    }
    else if (testType == mfem::FiniteElement::DIV &&
             trialType == mfem::FiniteElement::CURL && dim == 3 &&
@@ -2430,7 +2429,7 @@ static void PAHcurlL2Apply3D(const int D1D,
             {
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  massXY[dy][dx] = 0;
+                  massXY[dy][dx] = 0.0;
                }
             }
             for (int qy = 0; qy < Q1D; ++qy)
@@ -2438,7 +2437,7 @@ static void PAHcurlL2Apply3D(const int D1D,
                double massX[MAX_D1D];
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  massX[dx] = 0;
+                  massX[dx] = 0.0;
                }
                for (int qx = 0; qx < Q1D; ++qx)
                {
@@ -2784,7 +2783,7 @@ static void PAHcurlHdivApply3D(const int D1D,
             {
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  massXY[dy][dx] = 0;
+                  massXY[dy][dx] = 0.0;
                }
             }
             for (int qy = 0; qy < Q1D; ++qy)
@@ -2792,7 +2791,7 @@ static void PAHcurlHdivApply3D(const int D1D,
                double massX[HCURL_MAX_D1D];
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  massX[dx] = 0;
+                  massX[dx] = 0.0;
                }
                for (int qx = 0; qx < Q1D; ++qx)
                {
@@ -2928,7 +2927,7 @@ void MixedVectorWeakCurlIntegrator::AssemblePA(const FiniteElementSpace
 
    if (trialType == mfem::FiniteElement::CURL && dim == 3)
    {
-      PAHcurlL2Setup3D(quad1D, coeffDim, ne, ir->GetWeights(), coeff, pa_data);
+      PAHcurlL2Setup(nq, coeffDim, ne, ir->GetWeights(), coeff, pa_data);
    }
    else
    {

@@ -147,12 +147,12 @@ void PAHdivMassApply3D(const int D1D,
                        const Vector &_x,
                        Vector &_y);
 
-void PAHcurlL2Setup3D(const int Q1D,
-                      const int coeffDim,
-                      const int NE,
-                      const Array<double> &w,
-                      Vector &_coeff,
-                      Vector &op);
+void PAHcurlL2Setup(const int NQ,
+                    const int coeffDim,
+                    const int NE,
+                    const Array<double> &w,
+                    Vector &_coeff,
+                    Vector &op);
 
 // PA H(curl) x H(div) mass assemble 3D kernel, with factor
 // dF^{-1} C dF for a vector or matrix coefficient C.
@@ -265,6 +265,76 @@ void PAHcurlHdivSetup3D(const int Q1D,
    });
 }
 
+// PA H(curl) x H(div) mass assemble 2D kernel, with factor
+// dF^{-1} C dF for a vector or matrix coefficient C.
+// If transpose, use dF^T C dF^{-T} for H(div) x H(curl).
+void PAHcurlHdivSetup2D(const int Q1D,
+                        const int coeffDim,
+                        const int NE,
+                        const bool transpose,
+                        const Array<double> &_w,
+                        const Vector &j,
+                        Vector &_coeff,
+                        Vector &op)
+{
+   const int NQ = Q1D*Q1D;
+   const bool symmetric = (coeffDim != 4);
+   auto W = _w.Read();
+   auto J = Reshape(j.Read(), NQ, 2, 2, NE);
+   auto coeff = Reshape(_coeff.Read(), coeffDim, NQ, NE);
+   auto y = Reshape(op.Write(), 4, NQ, NE);
+
+   const int i11 = 0;
+   const int i12 = transpose ? 2 : 1;
+   const int i21 = transpose ? 1 : 2;
+   const int i22 = 3;
+
+   MFEM_FORALL(e, NE,
+   {
+      for (int q = 0; q < NQ; ++q)
+      {
+         const double J11 = J(q,0,0,e);
+         const double J21 = J(q,1,0,e);
+         const double J12 = J(q,0,1,e);
+         const double J22 = J(q,1,1,e);
+         const double w_detJ = W[q] / (J11*J22) - (J21*J12);
+
+         if (coeffDim == 3 || coeffDim == 4) // Matrix coefficient version
+         {
+            // First compute entries of R = MJ
+            const double M11 = coeff(i11, q, e);
+            const double M12 = (!symmetric) ? coeff(i12, q, e) : coeff(1, q, e);
+            const double M21 = (!symmetric) ? coeff(i21, q, e) : M12;
+            const double M22 = (!symmetric) ? coeff(i22, q, e) : coeff(2, q, e);
+
+            const double R11 = M11*J11 + M12*J21;
+            const double R12 = M11*J12 + M12*J22;
+            const double R21 = M21*J11 + M22*J21;
+            const double R22 = M21*J12 + M22*J22;
+
+            // Now set y to J^{-1} R
+            y(i11,q,e) = w_detJ * ( J22*R11 - J12*R21); // 1,1
+            y(i12,q,e) = w_detJ * ( J22*R12 - J12*R22); // 1,2
+            y(i21,q,e) = w_detJ * (-J21*R11 + J11*R21); // 2,1
+            y(i22,q,e) = w_detJ * (-J21*R12 + J11*R22); // 2,2
+         }
+         else if (coeffDim == 2) // Vector coefficient version
+         {
+            const double D1 = coeff(0, q, e);
+            const double D2 = coeff(1, q, e);
+            const double R11 = D1*J11;
+            const double R12 = D1*J12;
+            const double R21 = D2*J21;
+            const double R22 = D2*J22;
+            y(i11,q,e) = w_detJ * ( J22*R11 - J12*R21); // 1,1
+            y(i12,q,e) = w_detJ * ( J22*R12 - J12*R22); // 1,2
+            y(i21,q,e) = w_detJ * (-J21*R11 + J11*R21); // 2,1
+            y(i22,q,e) = w_detJ * (-J21*R12 + J11*R22); // 2,2
+         }
+      }
+   });
+}
+
 // Mass operator for H(curl) and H(div) functions, using Piola transformations
 // u = dF^{-T} \hat{u} in H(curl), v = (1 / det dF) dF \hat{v} in H(div).
 void PAHcurlHdivMassApply3D(const int D1D,
@@ -316,8 +386,7 @@ void PAHcurlHdivMassApply3D(const int D1D,
       }
 
       int osc = 0;
-
-      for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components in H(curl)
+      for (int c = 0; c < VDIM; ++c)  // loop over x, y, z trial components
       {
          const int D1Dz = trialHcurl ? ((c == 2) ? D1D - 1 : D1D) :
                           ((c == 2) ? D1D : D1D - 1);
@@ -415,8 +484,7 @@ void PAHcurlHdivMassApply3D(const int D1D,
          double massXY[HDIV_MAX_D1D][HDIV_MAX_D1D];
 
          osc = 0;
-
-         for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components in H(div)
+         for (int c = 0; c < VDIM; ++c)  // loop over x, y, z test components
          {
             const int D1Dz = trialHcurl ? ((c == 2) ? D1Dtest : D1Dtest - 1) :
                              ((c == 2) ? D1Dtest - 1 : D1Dtest);
@@ -429,7 +497,7 @@ void PAHcurlHdivMassApply3D(const int D1D,
             {
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  massXY[dy][dx] = 0;
+                  massXY[dy][dx] = 0.0;
                }
             }
             for (int qy = 0; qy < Q1D; ++qy)
@@ -437,7 +505,7 @@ void PAHcurlHdivMassApply3D(const int D1D,
                double massX[HDIV_MAX_D1D];
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  massX[dx] = 0;
+                  massX[dx] = 0.0;
                }
                for (int qx = 0; qx < Q1D; ++qx)
                {
@@ -476,6 +544,148 @@ void PAHcurlHdivMassApply3D(const int D1D,
             osc += D1Dx * D1Dy * D1Dz;
          }  // loop c
       }  // loop qz
+   }); // end of element loop
+}
+
+// Mass operator for H(curl) and H(div) functions, using Piola transformations
+// u = dF^{-T} \hat{u} in H(curl), v = (1 / det dF) dF \hat{v} in H(div).
+void PAHcurlHdivMassApply2D(const int D1D,
+                            const int D1Dtest,
+                            const int Q1D,
+                            const int NE,
+                            const bool scalarCoeff,
+                            const bool trialHcurl,
+                            const Array<double> &_Bo,
+                            const Array<double> &_Bc,
+                            const Array<double> &_Bot,
+                            const Array<double> &_Bct,
+                            const Vector &_op,
+                            const Vector &_x,
+                            Vector &_y)
+{
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
+
+   MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
+   constexpr static int VDIM = 2;
+
+   auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
+   auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
+   auto Bot = Reshape(_Bot.Read(), D1Dtest-1, Q1D);
+   auto Bct = Reshape(_Bct.Read(), D1Dtest, Q1D);
+   auto op = Reshape(_op.Read(), scalarCoeff ? 1 : 4, Q1D, Q1D, NE);
+   auto x = Reshape(_x.Read(), 2*(D1D-1)*D1D, NE);
+   auto y = Reshape(_y.ReadWrite(), 2*(D1Dtest-1)*D1Dtest, NE);
+
+   MFEM_FORALL(e, NE,
+   {
+      double mass[MAX_Q1D][MAX_Q1D][VDIM];
+
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            for (int c = 0; c < VDIM; ++c)
+            {
+               mass[qy][qx][c] = 0.0;
+            }
+         }
+      }
+
+      int osc = 0;
+      for (int c = 0; c < VDIM; ++c)  // loop over x, y trial components
+      {
+         const int D1Dy = trialHcurl ? ((c == 1) ? D1D - 1 : D1D) :
+                          ((c == 1) ? D1D : D1D - 1);
+         const int D1Dx = trialHcurl ? ((c == 0) ? D1D - 1 : D1D) :
+                          ((c == 0) ? D1D : D1D - 1);
+
+         for (int dy = 0; dy < D1Dy; ++dy)
+         {
+            double massX[MAX_Q1D];
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               massX[qx] = 0.0;
+            }
+
+            for (int dx = 0; dx < D1Dx; ++dx)
+            {
+               const double t = x(dx + (dy * D1Dx) + osc, e);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  massX[qx] += t * (trialHcurl ? ((c == 0) ? Bo(qx,dx) : Bc(qx,dx)) :
+                                    ((c == 0) ? Bc(qx,dx) : Bo(qx,dx)));
+               }
+            }
+
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               const double wy = trialHcurl ? ((c == 1) ? Bo(qy,dy) : Bc(qy,dy)) :
+                                 ((c == 1) ? Bc(qy,dy) : Bo(qy,dy));
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  mass[qy][qx][c] += massX[qx] * wy;
+               }
+            }
+         }
+
+         osc += D1Dx * D1Dy;
+      }  // loop (c) over components
+
+      // Apply D operator.
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            const double O11 = op(0,qx,qy,e);
+            const double O12 = scalarCoeff ? 0.0 : op(1,qx,qy,e);
+            const double O21 = scalarCoeff ? 0.0 : op(2,qx,qy,e);
+            const double O22 = scalarCoeff ? O11 : op(3,qx,qy,e);
+            const double massX = mass[qy][qx][0];
+            const double massY = mass[qy][qx][1];
+            mass[qy][qx][0] = (O11*massX)+(O12*massY);
+            mass[qy][qx][1] = (O21*massX)+(O22*massY);
+         }
+      }
+
+      osc = 0;
+      for (int c = 0; c < VDIM; ++c)  // loop over x, y test components
+      {
+         const int D1Dy = trialHcurl ? ((c == 1) ? D1Dtest : D1Dtest - 1) :
+                          ((c == 1) ? D1Dtest - 1 : D1Dtest);
+         const int D1Dx = trialHcurl ? ((c == 0) ? D1Dtest : D1Dtest - 1) :
+                          ((c == 0) ? D1Dtest - 1 : D1Dtest);
+
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            double massX[HDIV_MAX_D1D];
+            for (int dx = 0; dx < D1Dx; ++dx)
+            {
+               massX[dx] = 0.0;
+            }
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               for (int dx = 0; dx < D1Dx; ++dx)
+               {
+                  massX[dx] += mass[qy][qx][c] * (trialHcurl ?
+                                                  ((c == 0) ? Bct(dx,qx) : Bot(dx,qx)) :
+                                                  ((c == 0) ? Bot(dx,qx) : Bct(dx,qx)));
+               }
+            }
+            for (int dy = 0; dy < D1Dy; ++dy)
+            {
+               const double wy = trialHcurl ? ((c == 1) ? Bct(dy,qy) : Bot(dy,qy)) :
+                                 ((c == 1) ? Bot(dy,qy) : Bct(dy,qy));
+               for (int dx = 0; dx < D1Dx; ++dx)
+               {
+                  y(dx + (dy * D1Dx) + osc, e) += massX[dx] * wy;
+               }
+            }
+         }
+
+         osc += D1Dx * D1Dy;
+      }  // loop c
    }); // end of element loop
 }
 
@@ -536,10 +746,10 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
 
    symmetric = MQ ? MQ->IsSymmetric() : true;
 
-   if (dim == 3 && ((trial_fetype == mfem::FiniteElement::CURL &&
-                     test_fetype == mfem::FiniteElement::DIV) ||
-                    (trial_fetype == mfem::FiniteElement::DIV &&
-                     test_fetype == mfem::FiniteElement::CURL)))
+   if ((trial_fetype == mfem::FiniteElement::CURL &&
+        test_fetype == mfem::FiniteElement::DIV) ||
+       (trial_fetype == mfem::FiniteElement::DIV &&
+        test_fetype == mfem::FiniteElement::CURL))
       pa_data.SetSize((coeffDim == 1 ? 1 : dim*dim) * nq * ne,
                       Device::GetMemoryType());
    else
@@ -646,18 +856,23 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    else if (((trial_fetype == mfem::FiniteElement::CURL &&
               test_fetype == mfem::FiniteElement::DIV) ||
              (trial_fetype == mfem::FiniteElement::DIV &&
-              test_fetype == mfem::FiniteElement::CURL)) && dim == 3 &&
+              test_fetype == mfem::FiniteElement::CURL)) &&
             test_fel->GetOrder() == trial_fel->GetOrder())
    {
       if (coeffDim == 1)
-         PAHcurlL2Setup3D(quad1D, coeffDim, ne, ir->GetWeights(),
-                          coeff, pa_data);
+      {
+         PAHcurlL2Setup(nq, coeffDim, ne, ir->GetWeights(), coeff, pa_data);
+      }
       else
       {
          const bool tr = (trial_fetype == mfem::FiniteElement::DIV &&
                           test_fetype == mfem::FiniteElement::CURL);
-         PAHcurlHdivSetup3D(quad1D, coeffDim, ne, tr, ir->GetWeights(),
-                            geom->J, coeff, pa_data);
+         if (dim == 3)
+            PAHcurlHdivSetup3D(quad1D, coeffDim, ne, tr, ir->GetWeights(),
+                               geom->J, coeff, pa_data);
+         else
+            PAHcurlHdivSetup2D(quad1D, coeffDim, ne, tr, ir->GetWeights(),
+                               geom->J, coeff, pa_data);
       }
    }
    else
@@ -754,6 +969,17 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
       {
          PAHdivMassApply2D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
                            mapsC->Bt, pa_data, x, y);
+      }
+      else if ((trial_fetype == mfem::FiniteElement::CURL &&
+                test_fetype == mfem::FiniteElement::DIV) ||
+               (trial_fetype == mfem::FiniteElement::DIV &&
+                test_fetype == mfem::FiniteElement::CURL))
+      {
+         const bool scalarCoeff = !(VQ || MQ);
+         const bool trialHcurl = (trial_fetype == mfem::FiniteElement::CURL);
+         PAHcurlHdivMassApply2D(dofs1D, dofs1Dtest, quad1D, ne, scalarCoeff,
+                                trialHcurl, mapsO->B, mapsC->B, mapsOtest->Bt,
+                                mapsCtest->Bt, pa_data, x, y);
       }
       else
       {
