@@ -20,10 +20,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#define DBG(...) { printf("\033[33m");  \
-                   printf(__VA_ARGS__); \
-                   printf(" \n\033[m"); \
-                   fflush(0); }
 namespace mfem
 {
 
@@ -355,8 +351,9 @@ void CuWrap3D(const int N, DBODY &&d_body,
 
 #endif // MFEM_USE_CUDA
 
+// Include dtensor, but skip the backends headers we just short-circuited
 #define MFEM_CUDA_HPP
-
+#define MFEM_HIP_HPP
 #include "../linalg/dtensor.hpp"
 
 #endif // MJIT_FORALL

@@ -1316,22 +1316,26 @@ static void PADiffusionApply3D(const int NE,
 
 // Half of B and G are stored in shared to get B, Bt, G and Gt.
 // Indices computation for SmemPADiffusionApply3D.
-MFEM_EMBED static MFEM_HOST_DEVICE inline int qi(const int q, const int d, const int Q)
+MFEM_EMBED static MFEM_HOST_DEVICE inline int qi(const int q, const int d,
+                                                 const int Q)
 {
    return (q<=d) ? q : Q-1-q;
 }
 
-MFEM_EMBED static MFEM_HOST_DEVICE inline int dj(const int q, const int d, const int D)
+MFEM_EMBED static MFEM_HOST_DEVICE inline int dj(const int q, const int d,
+                                                 const int D)
 {
    return (q<=d) ? d : D-1-d;
 }
 
-MFEM_EMBED static MFEM_HOST_DEVICE inline int qk(const int q, const int d, const int Q)
+MFEM_EMBED static MFEM_HOST_DEVICE inline int qk(const int q, const int d,
+                                                 const int Q)
 {
    return (q<=d) ? Q-1-q : q;
 }
 
-MFEM_EMBED static MFEM_HOST_DEVICE inline int dl(const int q, const int d, const int D)
+MFEM_EMBED static MFEM_HOST_DEVICE inline int dl(const int q, const int d,
+                                                 const int D)
 {
    return (q<=d) ? D-1-d : d;
 }

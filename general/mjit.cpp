@@ -138,7 +138,7 @@ int System(char *argv[])
    char mjit[PATH_MAX];
    if (snprintf(mjit, PATH_MAX, "%s/bin/mjit", MFEM_INSTALL_DIR) < 0)
    { return EXIT_FAILURE; }
-   dbg(mjit);
+   //dbg(mjit);
    // If we have not been launch with mpirun, just fold back to serial case,
    // which has a shift in the arguments
    if (!MPI_Inited() || MPI_Size()==1)
