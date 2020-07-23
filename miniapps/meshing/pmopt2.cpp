@@ -752,7 +752,7 @@ int main (int argc, char *argv[])
    MPI_Allreduce(&h0min, &h0min_all, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
    tauval -= 0.01 * h0min_all; // Slightly below minJ0 to avoid div by 0.
 
-   // Perform the nonlinear optimization.   
+   // Perform the nonlinear optimization.
    TMOPNewtonSolver solver(pfespace->GetComm(), *ir, solver_type);
    if (solver_type == 0)
    {
