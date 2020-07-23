@@ -17,16 +17,11 @@
 #include <iomanip>
 #include <iostream>
 
-//#include "../config/config.hpp"
+#include "mfem.hpp"
 
 #ifdef MFEM_USE_MPI
-//#include <mpi.h>
+#include <mpi.h>
 #endif
-
-#define DBG(...) { printf("\033[33m");  \
-                   printf(__VA_ARGS__); \
-                   printf(" \n\033[m"); \
-                   fflush(0); }
 
 namespace mfem
 {
@@ -45,22 +40,22 @@ public:
       const char *base = Strrnchr(FILE,'/', 2);
       const char *file = base ? base + 1 : FILE;
       const uint8_t color = COLOR ? COLOR : 20 + Checksum8(FILE) % 210;
-      std::cout << "\033[38;5;" << std::to_string(color) << "m";
-      std::cout << mpi_rank << std::setw(30) << file << ":";
-      std::cout << "\033[2m" << std::setw(4) << LINE << "\033[22m: ";
-      if (FUNC) { std::cout << "[" << FUNC << "] "; }
-      std::cout << "\033[1m";
+      mfem::out << "\033[38;5;" << std::to_string(color) << "m";
+      mfem::out << mpi_rank << std::setw(30) << file << ":";
+      mfem::out << "\033[2m" << std::setw(4) << LINE << "\033[22m: ";
+      if (FUNC) { mfem::out << "[" << FUNC << "] "; }
+      mfem::out << "\033[1m";
    }
 
    ~Debug()
    {
       if (!debug) { return; }
-      std::cout << "\033[m";
-      std::cout << std::endl;
+      mfem::out << "\033[m";
+      mfem::out << std::endl;
    }
 
    template <typename T>
-   inline void operator<<(const T &arg) const noexcept { std::cout << arg; }
+   inline void operator<<(const T &arg) const noexcept { mfem::out << arg; }
 
    template<typename T, typename... Args>
    inline void operator()(const char *fmt, const T &arg,
@@ -86,11 +81,11 @@ public:
                   num[k] = *fmt;
                }
                const int fx = std::atoi(num);
-               if (*fmt=='e') { std::cout << std::scientific; }
-               if (*fmt=='f') { std::cout << std::fixed; }
-               std::cout << std::setprecision(fx);
+               if (*fmt=='e') { mfem::out << std::scientific; }
+               if (*fmt=='f') { mfem::out << std::fixed; }
+               mfem::out << std::setprecision(fx);
                operator<<(arg);
-               std::cout << std::setprecision(6);
+               mfem::out << std::setprecision(6);
             }
             return operator()(fmt + 1, args...);
          }
@@ -116,8 +111,8 @@ public:
       static bool ini_dbg = false;
       if (!ini_dbg)
       {
-         const char *DBG = getenv("DBG");
-         const char *MPI = getenv("MPI");
+         const char *DBG = getenv("MFEM_DEBUG");
+         const char *MPI = getenv("MFEM_DEBUG_MPI");
          env_dbg = DBG != nullptr;
          env_mpi = MPI != nullptr;
 #ifdef MFEM_USE_MPI
@@ -166,5 +161,10 @@ private:
     operator()(__VA_ARGS__)
 
 } // mfem namespace
+
+#define DBG(...) { printf("\033[33m");  \
+                   printf(__VA_ARGS__); \
+                   printf(" \n\033[m"); \
+                   fflush(0); }
 
 #endif // MFEM_DEBUG_HPP
