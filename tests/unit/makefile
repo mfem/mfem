@@ -52,9 +52,8 @@ PAR_SEDOV_DEBUG_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.pdebug.o)
 PAR_SEDOV_CUDA_OBJ_FILES = $(if $(USE_CUDA),$(SEDOV_FILES:$(SRC)%.cpp=%.pcuda.o))
 PAR_SEDOV_CUDA_UVM_OBJ_FILES = $(if $(USE_CUDA),$(SEDOV_FILES:$(SRC)%.cpp=%.pcuda_uvm.o))
 
-SEQ_CUDA_TESTS = $(if $(USE_CUDA),cunit_tests)
-
-SEQ_UNIT_TESTS = unit_tests $(SEQ_SEDOV_TESTS) SEQ_CUDA_TESTS
+SEQ_UNIT_TESTS = unit_tests $(SEQ_SEDOV_TESTS)
+SEQ_UNIT_TESTS += $(if $(USE_CUDA),cunit_tests)
 PAR_UNIT_TESTS = punit_tests $(PAR_SEDOV_TESTS)
 
 ifeq ($(MFEM_USE_MPI),NO)
