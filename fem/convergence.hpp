@@ -23,7 +23,7 @@ namespace mfem
 
 /** @brief Class to compute error and convergence rates.
     It supports H1, H(curl) (ND elements), H(div) (RT elements) and L2 (DG). */
-class Convergence
+class ConvergenceStudy
 {
 private:
    // counters for solutions/derivatives
@@ -46,51 +46,54 @@ private:
    Array<double> L2Rates, DGFaceRates, DRates, EnRates;
    Array<int> ndofs;
 
-   void AddL2Error(GridFunction * gf, Coefficient * u, VectorCoefficient * U);
-   void AddGf(GridFunction * gf, Coefficient * u, VectorCoefficient * grad,
-              Coefficient * ell_coeff, double Nu);
-   void AddGf(GridFunction * gf, VectorCoefficient * u,
+   void AddL2Error(GridFunction * gf, Coefficient * scalar_u,
+                   VectorCoefficient * vector_u);
+   void AddGf(GridFunction * gf, Coefficient * scalar_u,
+              VectorCoefficient * grad=nullptr,
+              Coefficient * ell_coeff=nullptr, double Nu=1.0);
+   void AddGf(GridFunction * gf, VectorCoefficient * vector_u,
               VectorCoefficient * curl, Coefficient * div);
-
    // returns the exact solution/grad/div/curl norm
-   double GetNorm(GridFunction * gf, Coefficient * u, VectorCoefficient * U);
+   double GetNorm(GridFunction * gf, Coefficient * scalar_u,
+                  VectorCoefficient * vector_u);
 
 public:
 
    // Clear any internal data
    void Reset();
 
-   // Add H1/L2 GridFunction,
+   // Add L2 GridFunction,
    // the exact solution and possibly
    // its gradient and/or DG face jumps parameters
-   void AddGridFunction(GridFunction * gf, Coefficient * u,
-                        VectorCoefficient * grad=NULL,
-                        Coefficient * ell_coeff=NULL, double Nu=1.0)
+   void AddL2GridFunction(GridFunction * gf, Coefficient * scalar_u,
+                          VectorCoefficient * grad=nullptr,
+                          Coefficient * ell_coeff=nullptr, double Nu=1.0)
    {
-      AddGf(gf, u, grad, ell_coeff,Nu);
+      AddGf(gf, scalar_u, grad, ell_coeff,Nu);
    }
 
-   // Add H(curl)/H(div) GridFunction,
-   // and the exact solution
-   void AddGridFunction(GridFunction * gf, VectorCoefficient * u)
+   // Add H1 GridFunction,
+   // the exact solution and possibly its gradient
+   void AddH1GridFunction(GridFunction * gf, Coefficient * scalar_u,
+                          VectorCoefficient * grad=nullptr)
    {
-      AddGf(gf,u, nullptr, nullptr);
+      AddGf(gf, scalar_u, grad);
    }
 
    // Add H(curl) GridFunction,
-   // the exact solution and its curl
-   void AddGridFunction(GridFunction * gf, VectorCoefficient * u,
-                        VectorCoefficient * curl)
+   // the exact solution and possibly its curl
+   void AddHcurlGridFunction(GridFunction * gf, VectorCoefficient * vector_u,
+                             VectorCoefficient * curl=nullptr)
    {
-      AddGf(gf,u, curl, nullptr);
+      AddGf(gf,vector_u, curl, nullptr);
    }
 
    // Add H(div) GridFunction,
-   // the exact solution and its div
-   void AddGridFunction(GridFunction * gf, VectorCoefficient * u,
-                        Coefficient * div)
+   // the exact solution and possibly its div
+   void AddHdivGridFunction(GridFunction * gf, VectorCoefficient * vector_u,
+                            Coefficient * div=nullptr)
    {
-      AddGf(gf,u, nullptr, div);
+      AddGf(gf,vector_u, nullptr, div);
    }
 
    // Get L2 error at step n
@@ -134,7 +137,6 @@ public:
 
    // Print rates and errors
    void Print(bool relative = false, std::ostream &out = mfem::out);
-
 };
 
 } // namespace mfem
