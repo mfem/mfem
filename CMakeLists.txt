@@ -211,10 +211,10 @@ endif()
 # SUNDIALS
 if (MFEM_USE_SUNDIALS)
   if (NOT MFEM_USE_MPI)
-    find_package(SUNDIALS REQUIRED NVector_Serial CVODE ARKODE KINSOL)
+    find_package(SUNDIALS REQUIRED NVector_Serial CVODES ARKODE KINSOL)
   else()
     find_package(SUNDIALS REQUIRED
-      NVector_Serial NVector_Parallel NVector_ParHyp CVODE ARKODE KINSOL)
+      NVector_Serial NVector_Parallel NVector_ParHyp CVODES ARKODE KINSOL)
   endif()
 endif()
 
