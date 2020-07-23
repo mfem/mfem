@@ -10,14 +10,12 @@
 #include <iostream>
 #include <fstream>
 #include "mesh-optimizer.hpp"
-#include "../../general/debug.hpp"
 
 using namespace mfem;
 using namespace std;
 
 int main (int argc, char *argv[])
 {
-   dbg();
    // 1. Set the method's default parameters.
    const char *mesh_file = "icf.mesh";
    int mesh_poly_deg     = 1;
@@ -288,7 +286,6 @@ int main (int argc, char *argv[])
    const AssemblyLevel al =
       pa ? AssemblyLevel::PARTIAL : AssemblyLevel::LEGACYFULL;
 
-   dbg("target_id: %d", target_id);
    MFEM_VERIFY(target_id == 5,"");
    {
       target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
@@ -432,13 +429,11 @@ int main (int argc, char *argv[])
       {
          if (pa)
          {
-            dbg("OperatorJacobiSmoother");
             MFEM_VERIFY(lin_solver != 4, "PA l1-Jacobi is not implemented");
             S_prec = new OperatorJacobiSmoother(a, a.GetEssentialTrueDofs());
          }
          else
          {
-            dbg("DSmoother");
             S_prec = new DSmoother((lin_solver == 3) ? 0 : 1, 1.0, 1);
          }
          minres->SetPreconditioner(*S_prec);
