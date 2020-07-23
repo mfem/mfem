@@ -39,7 +39,8 @@ struct Params
 };
 
 
-Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order)
+Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
+             bool sfc)
 {
    Mesh *mesh = new Mesh(2, 0, 0);
 
@@ -53,6 +54,7 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order)
    int first = mesh->AddVertex(r, 0.0);
 
    Array<Params> params;
+   Array<Pair<int, int>> blocks;
 
    // create triangles around the origin
    double prev_alpha = 0.0;
@@ -65,6 +67,7 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order)
       params.Append(Params(0, r, prev_alpha, alpha));
       prev_alpha = alpha;
    }
+
    mesh->AddBdrSegment(origin, first, 1);
    mesh->AddBdrSegment(first+n, origin, 2);
 
@@ -79,6 +82,8 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order)
 
       if (phi * (r + prev_r)/2 / n * aspect <= rstep)
       {
+         if (k == 1) { blocks.Append(Pair<int, int>(mesh->GetNE(), n)); }
+
          first = mesh->AddVertex(r, 0.0);
          mesh->AddBdrSegment(prev_first, first, 1);
 
@@ -99,6 +104,8 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order)
       else // we need to double the number of elements per row
       {
          n *= 2;
+
+         blocks.Append(Pair<int, int>(mesh->GetNE(), n));
 
          // first create hanging vertices
          int hang;
@@ -144,6 +151,43 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order)
    for (int i = 0; i < n; i++)
    {
       mesh->AddBdrSegment(first+i, first+i+1, 3);
+   }
+
+   // reorder blocks of elements with Grid SFC ordering
+   if (sfc)
+   {
+      blocks.Append(Pair<int, int>(mesh->GetNE(), 0));
+
+      Array<Params> new_params(params.Size());
+
+      Array<int> ordering(mesh->GetNE());
+      for (int i = 0; i < blocks[0].one; i++)
+      {
+         ordering[i] = i;
+         new_params[i] = params[i];
+      }
+
+      Array<int> coords;
+      for (int i = 0; i < blocks.Size()-1; i++)
+      {
+         int beg = blocks[i].one;
+         int width = blocks[i].two;
+         int height = (blocks[i+1].one - blocks[i].one) / width;
+
+         NCMesh::GridSfcOrdering2D(width, height, coords);
+
+         for (int j = 0, k = 0; j < coords.Size(); k++, j += 2)
+         {
+            int sfc = ((i & 1) ? coords[j] : width-1 - coords[j]) + coords[j+1]*width;
+            int old_index = beg + sfc;
+            ordering[old_index] = beg + k;
+            new_params[beg + k] = params[old_index];
+         }
+      }
+
+      mesh->ReorderElements(ordering, false);
+
+      mfem::Swap(params, new_params);
    }
 
    mesh->FinalizeMesh();
@@ -201,6 +245,7 @@ int main(int argc, char *argv[])
    double angle = 90;
    double aspect = 1.0;
    int order = 2;
+   bool sfc = true;
 
    // Parse command line
    OptionsParser args(argc, argv);
@@ -213,6 +258,8 @@ int main(int argc, char *argv[])
    args.AddOption(&angle, "-phi", "--phi", "Angular range.");
    args.AddOption(&order, "-o", "--order",
                   "Polynomial degree of mesh curvature.");
+   args.AddOption(&sfc, "-sfc", "--sfc", "-no-sfc", "--no-sfc",
+                  "Try to order elements along a space-filling curve.");
    args.Parse();
    if (!args.Good())
    {
@@ -221,7 +268,10 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   MFEM_VERIFY(angle < 360, "");
+   // validate options
+   MFEM_VERIFY(dim >= 2 && dim <= 3, "");
+   MFEM_VERIFY(angle > 0 && angle < 360, "");
+   MFEM_VERIFY(nsteps > 0, "");
 
    double phi = angle * M_PI / 180;
 
@@ -229,7 +279,7 @@ int main(int argc, char *argv[])
    Mesh *mesh;
    if (dim == 2)
    {
-      mesh = Make2D(nsteps, radius/nsteps, phi, aspect, order);
+      mesh = Make2D(nsteps, radius/nsteps, phi, aspect, order, sfc);
    }
    else
    {
