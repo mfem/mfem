@@ -110,7 +110,8 @@ public:
    }
 
    /// Conversion to `Scalar *`.
-   inline operator Scalar *() const { return data; }
+   explicit inline operator const Scalar *() const { return data; }
+   explicit inline operator Scalar *() { return data; }
 
    /// Const accessor for the data
    template <typename... Args> MFEM_HOST_DEVICE inline
