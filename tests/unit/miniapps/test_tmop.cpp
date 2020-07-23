@@ -20,6 +20,7 @@
 #include "catch.hpp"
 
 #include "mfem.hpp"
+#include "miniapps/meshing/mesh-optimizer.hpp"
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
 extern mfem::MPI_Session *GlobalMPISession;
@@ -54,122 +55,6 @@ struct Req
    double dot;
    double final_energy;
    double diag;
-};
-
-static double discrete_size_2d(const Vector &x)
-{
-   int opt = 2;
-   const double small = 0.001, big = 0.01;
-   double val = 0.;
-
-   if (opt == 1) // sine wave.
-   {
-      const double X = x(0), Y = x(1);
-      val = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
-            std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
-   }
-   else if (opt == 2) // semi-circle
-   {
-      const double xc = x(0) - 0.0, yc = x(1) - 0.5;
-      const double r = sqrt(xc*xc + yc*yc);
-      double r1 = 0.45; double r2 = 0.55; double sf=30.0;
-      val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
-   }
-
-   val = std::max(0.,val);
-   val = std::min(1.,val);
-
-   return val * small + (1.0 - val) * big;
-}
-
-static void discrete_aspr_3d(const Vector &x, Vector &v)
-{
-   int dim = x.Size();
-   v.SetSize(dim);
-   double l1, l2, l3;
-   l1 = 1.;
-   l2 = 1. + 5*x(1);
-   l3 = 1. + 10*x(2);
-   v[0] = l1/pow(l2*l3,0.5);
-   v[1] = l2/pow(l1*l3,0.5);
-   v[2] = l3/pow(l2*l1,0.5);
-}
-
-class HessianCoefficient : public MatrixCoefficient
-{
-private:
-   int metric;
-
-public:
-   HessianCoefficient(int dim, int metric_id)
-      : MatrixCoefficient(dim), metric(metric_id) { }
-
-   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip)
-   {
-      Vector pos(3);
-      T.Transform(ip, pos);
-      if (metric != 14 && metric != 87)
-      {
-         const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
-         const double r = sqrt(xc*xc + yc*yc);
-         double r1 = 0.15; double r2 = 0.35; double sf=30.0;
-         const double eps = 0.5;
-
-         const double tan1 = std::tanh(sf*(r-r1)),
-                      tan2 = std::tanh(sf*(r-r2));
-
-         K(0, 0) = eps + 1.0 * (tan1 - tan2);
-         K(0, 1) = 0.0;
-         K(1, 0) = 0.0;
-         K(1, 1) = 1.0;
-      }
-      else if (metric == 14) // Size + Alignment
-      {
-         const double xc = pos(0), yc = pos(1);
-         double theta = M_PI * yc * (1.0 - yc) * cos(2 * M_PI * xc);
-         double alpha_bar = 0.1;
-
-         K(0, 0) =  cos(theta);
-         K(1, 0) =  sin(theta);
-         K(0, 1) = -sin(theta);
-         K(1, 1) =  cos(theta);
-
-         K *= alpha_bar;
-      }
-      else if (metric == 87) // Shape + Alignment
-      {
-         Vector x = pos;
-         double xc = x(0)-0.5, yc = x(1)-0.5;
-         double th = 22.5*M_PI/180.;
-         double xn =  cos(th)*xc + sin(th)*yc;
-         double yn = -sin(th)*xc + cos(th)*yc;
-         xc = xn; yc=yn;
-
-         double tfac = 20;
-         double s1 = 3;
-         double s2 = 2;
-         double wgt = std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) + 1)
-                      - std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) - 1);
-         if (wgt > 1) { wgt = 1; }
-         if (wgt < 0) { wgt = 0; }
-
-         xc = pos(0), yc = pos(1);
-         double theta = M_PI * (yc) * (1.0 - yc) * cos(2 * M_PI * xc);
-
-         K(0, 0) =  cos(theta);
-         K(1, 0) =  sin(theta);
-         K(0, 1) = -sin(theta);
-         K(1, 1) =  cos(theta);
-
-         double asp_ratio_tar = 0.1 + 1*(1-wgt)*(1-wgt);
-
-         K(0, 0) *=  1/pow(asp_ratio_tar,0.5);
-         K(1, 0) *=  1/pow(asp_ratio_tar,0.5);
-         K(0, 1) *=  pow(asp_ratio_tar,0.5);
-         K(1, 1) *=  pow(asp_ratio_tar,0.5);
-      }
-   }
 };
 
 int tmop(int myid, Req &res, int argc, char *argv[])

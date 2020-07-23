@@ -91,11 +91,15 @@
 #include <iostream>
 #include "mesh-optimizer.hpp"
 
+#define MFEM_DEBUG_COLOR 155
+#include "general/debug.hpp"
+
 using namespace mfem;
 using namespace std;
 
 int main(int argc, char *argv[])
 {
+   dbg();
    // 0. Set the method's default parameters.
    const char *mesh_file = "icf.mesh";
    int mesh_poly_deg     = 1;
