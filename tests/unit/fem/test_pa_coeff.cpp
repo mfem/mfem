@@ -296,8 +296,7 @@ TEST_CASE("Hcurl/Hdiv pa_coeff")
 
          for (int spaceType = 0; spaceType < NumSpaceTypes; ++spaceType)
          {
-            if ((spaceType == Hdiv && coeffType >= 2) || (spaceType >= HcurlHdiv &&
-                                                          dimension == 2))
+            if (spaceType == Hdiv && coeffType >= 2)
             {
                continue;   // Case not implemented yet
             }
