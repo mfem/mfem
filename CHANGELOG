@@ -57,6 +57,7 @@ Improved GPU capabilities
 
 - Added partial assembly and GPU support for ComplexOperator,
   [Par]ComplexGridFunction, [Par]ComplexLinearForm, and [Par]SesquilinearForm.
+  See the updated Example 22.
 
 Discretization improvements
 ---------------------------
