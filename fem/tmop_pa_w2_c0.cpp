@@ -20,7 +20,7 @@ namespace mfem
 
 MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
                            const double lim_normal,
-                           const double dist,
+                           const Vector &lim_dist,
                            const Vector &c0_,
                            const int NE,
                            const DenseTensor &j_,
@@ -34,7 +34,6 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
                            const int d1d,
                            const int q1d)
 {
-   const double id2 = 0.5 / (dist*dist);
    const bool const_c0 = c0_.Size() == 1;
 
    constexpr int DIM = 2;
@@ -46,6 +45,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
    const auto C0 = const_c0 ?
                    Reshape(c0_.Read(), 1, 1, 1) :
                    Reshape(c0_.Read(), Q1D, Q1D, NE);
+   const auto LD = Reshape(lim_dist.Read(), D1D, D1D, DIM, NE);
    const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, NE);
    const auto b = Reshape(b_.Read(), Q1D, D1D);
    const auto g = Reshape(g_.Read(), Q1D, D1D);
@@ -65,6 +65,10 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
 
       MFEM_SHARED double BG[2][MQ1*MD1];
 
+      MFEM_SHARED double XY[2][NBZ][MD1*MD1];
+      MFEM_SHARED double DQ[2][NBZ][MD1*MQ1];
+      MFEM_SHARED double QQ[2][NBZ][MQ1*MQ1];
+
       MFEM_SHARED double XY0[2][NBZ][MD1*MD1];
       MFEM_SHARED double DQ0[2][NBZ][MD1*MQ1];
       MFEM_SHARED double QQ0[2][NBZ][MQ1*MQ1];
@@ -73,10 +77,14 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
       MFEM_SHARED double DQ1[2][NBZ][MD1*MQ1];
       MFEM_SHARED double QQ1[2][NBZ][MQ1*MQ1];
 
+      kernels::LoadX<MD1,NBZ>(e,D1D,LD,XY);
       kernels::LoadX<MD1,NBZ>(e,D1D,X0,XY0);
       kernels::LoadX<MD1,NBZ>(e,D1D,X1,XY1);
 
       kernels::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
+
+      kernels::EvalX<MD1,MQ1,NBZ>(D1D,Q1D,BG,XY,DQ);
+      kernels::EvalY<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,QQ);
 
       kernels::EvalX<MD1,MQ1,NBZ>(D1D,Q1D,BG,XY0,DQ0);
       kernels::EvalY<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ0,QQ0);
@@ -88,13 +96,16 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double p0[2], p1[2];
+            double ld[2], p0[2], p1[2];
             const double *Jtr = &J(0,0,qx,qy,e);
             const double detJtr = kernels::Det<2>(Jtr);
             const double weight = W(qx,qy) * detJtr;
             const double coeff0 = const_c0 ? C0(0,0,0) : C0(qx,qy,e);
+            kernels::PullEvalXY<MQ1,NBZ>(qx,qy,QQ,ld);
             kernels::PullEvalXY<MQ1,NBZ>(qx,qy,QQ0,p0);
             kernels::PullEvalXY<MQ1,NBZ>(qx,qy,QQ1,p1);
+            const double dist = ld[0]; // GetValues, default comp set to 0
+            const double id2 = 0.5 / (dist*dist);
             const double dsq = kernels::DistanceSquared<2>(p1,p0) * id2;
             E(qx,qy,e) = weight * lim_normal * dsq * coeff0;
          }
@@ -110,7 +121,7 @@ double TMOP_Integrator::GetGridFunctionEnergyPA_C0_2D(const Vector &X) const
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
    const double ln = lim_normal;
-   const double ld = lim_dist->HostRead()[0];
+   const Vector &LD = PA.LD;
    const DenseTensor &J = PA.Jtr;
    const IntegrationRule *ir = IntRule;
    const Array<double> &W = ir->GetWeights();
@@ -121,7 +132,7 @@ double TMOP_Integrator::GetGridFunctionEnergyPA_C0_2D(const Vector &X) const
    const Vector &O = PA.O;
    Vector &E = PA.E;
 
-   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_C0_2D,id,ln,ld,C0,N,J,W,B,G,X0,X,O,E);
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_C0_2D,id,ln,LD,C0,N,J,W,B,G,X0,X,O,E);
 }
 
 } // namespace mfem

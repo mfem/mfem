@@ -475,7 +475,7 @@ int main (int argc, char *argv[])
    Vector x_init(x);
    GridFunction dist(fespace);
    dist = 1.0;
-   for (int i = 0; i < 1; i++)
+   for (int i = 0; i < 3; i++)
    {
       std::cout << "\n\n ------ Optimize \n\n";
 
@@ -487,11 +487,12 @@ int main (int argc, char *argv[])
 
       //if (normalization) { he_nlf_integ->EnableNormalization(x); }
 
-      dist *= 0.8;
+      dist *= 8.0;
       // The small_phys_size is relevant only with proper normalization.
       //if (normalization) { dist = small_phys_size; }
       ConstantCoefficient lim_coeff(lim_const);
       MFEM_VERIFY(lim_const != 0.0,"");
+      x0 *= 0.513;
       he_nlf_integ->EnableLimiting(x0, dist, lim_coeff);
 
       if (normalization) { he_nlf_integ->EnableNormalization(x); }
