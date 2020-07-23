@@ -464,6 +464,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    bool x_out_ok = false;
    double scale = 1.0, energy_out = 0.0;
    double norm0 = Norm(r);
+   dbg("norm0: %.8e", norm0);
 
    const double detJ_factor = (solver_type == 1) ? 0.25 : 0.5;
 
@@ -483,6 +484,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          fes->GetProlongationMatrix()->Mult(x_out, x_out_loc);
       }
 #endif
+      dbg("x_out_loc: %.8e", x_out_loc*x_out_loc);
 
       // Check det(Jpr) > 0.
       if (!untangling)
@@ -527,8 +529,8 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
       dbg("x_out: %.8e", x_out*x_out);
       ProcessNewState(x_out);
-
       dbg("x_out_loc: %.8e", x_out_loc*x_out_loc);
+
       if (serial)
       {
          energy_out = nlf->GetGridFunctionEnergy(x_out_loc);
@@ -558,9 +560,12 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
             scale *= 0.5; continue;
          }
 
+         dbg("x_out: %.8e",x_out*x_out);
          oper->Mult(x_out, r);
+         dbg("r: %.8e",r*r);
          if (have_b) { r -= b; }
          double norm = Norm(r);
+         dbg("norm: %.8e",norm);
 
          if (norm > 1.2*norm0)
          {

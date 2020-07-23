@@ -294,10 +294,9 @@ double TMOP_Integrator::GetGridFunctionEnergyPA(const Vector &xe) const
       energy = GetGridFunctionEnergyPA_2D(xe);
       if (coeff0)
       {
-         //EnableLimitingPA(*nodes0);
-         PA.X0.SetSize(PA.R->Height(), Device::GetMemoryType());
-         PA.X0.UseDevice(true);
+         MFEM_VERIFY(PA.X0.Size() == xe.Size(),"");
          PA.R->Mult(*nodes0, PA.X0);
+         PA.R->Mult(*lim_dist, PA.LD);
          energy += GetGridFunctionEnergyPA_C0_2D(xe);
       }
    }
