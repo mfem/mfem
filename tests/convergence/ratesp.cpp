@@ -9,19 +9,20 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-// Compile with: make rates
+// Compile with: make ratesp
 //
-// Sample runs:  mpirun -np 4 rates -m ../../data/inline-segment.mesh -sr 1 -pr 4 -prob 0 -o 1
-//               mpirun -np 4 rates -m ../../data/inline-quad.mesh -sr 1 -pr 3 -prob 0 -o 2
-//               mpirun -np 4 rates -m ../../data/inline-quad.mesh -sr 1 -pr 3 -prob 1 -o 2
-//               mpirun -np 4 rates -m ../../data/inline-quad.mesh -sr 1 -pr 3 -prob 2 -o 2
-//               mpirun -np 4 rates -m ../../data/inline-tri.mesh -sr 1 -pr 3 -prob 2 -o 3
-//               mpirun -np 4 rates -m ../../data/star.mesh -sr 1 -pr 2 -prob 1 -o 4
-//               mpirun -np 4 rates -m ../../data/fichera.mesh -sr 1 -pr 2 -prob 2 -o 2
-//               mpirun -np 4 rates -m ../../data/inline-wedge.mesh -sr 0 -pr 2 -prob 0 -o 2
-//               mpirun -np 4 rates -m ../../data/inline-hex.mesh -sr 0 -pr 1 -prob 1 -o 3
-//               mpirun -np 4 rates -m ../../data/square-disc.mesh -sr 1 -pr 2 -prob 1 -o 2
-//               mpirun -np 4 rates -m ../../data/star.mesh -sr 1 -pr 2 -prob 3 -o 2
+// Sample runs:  mpirun -np 4 ratesp -m ../../data/inline-segment.mesh -sr 1 -pr 4 -prob 0 -o 1
+//               mpirun -np 4 ratesp -m ../../data/inline-quad.mesh -sr 1 -pr 3 -prob 0 -o 2
+//               mpirun -np 4 ratesp -m ../../data/inline-quad.mesh -sr 1 -pr 3 -prob 1 -o 2
+//               mpirun -np 4 ratesp -m ../../data/inline-quad.mesh -sr 1 -pr 3 -prob 2 -o 2
+//               mpirun -np 4 ratesp -m ../../data/inline-tri.mesh -sr 1 -pr 3 -prob 2 -o 3
+//               mpirun -np 4 ratesp -m ../../data/star.mesh -sr 1 -pr 2 -prob 1 -o 4
+//               mpirun -np 4 ratesp -m ../../data/fichera.mesh -sr 1 -pr 2 -prob 2 -o 2
+//               mpirun -np 4 ratesp -m ../../data/inline-wedge.mesh -sr 0 -pr 2 -prob 0 -o 2
+//               mpirun -np 4 ratesp -m ../../data/inline-hex.mesh -sr 0 -pr 1 -prob 1 -o 3
+//               mpirun -np 4 ratesp -m ../../data/square-disc.mesh -sr 1 -pr 2 -prob 1 -o 2
+//               mpirun -np 4 ratesp -m ../../data/star.mesh -sr 1 -pr 2 -prob 3 -o 2
+//               mpirun -np 4 ratesp -m ../../data/inline-hex.mesh -sr 1 -pr 1 -prob 3 -o 2
 //
 // Description:  This example code demonstrates the use of MFEM to define
 //               and solve finite element problem for various discretizations
@@ -46,16 +47,16 @@ double sol_s[3] = { -0.32, 0.15, 0.24 };
 double sol_k[3] = { 1.21, 1.45, 1.37 };
 
 // H1
-double u_exact(const Vector &x);
+double scalar_u_exact(const Vector &x);
 double rhs_func(const Vector &x);
 void gradu_exact(const Vector &x, Vector &gradu);
 
 // Vector FE
-void U_exact(const Vector &x, Vector & U);
+void vector_u_exact(const Vector &x, Vector & vector_u);
 // H(curl)
-void curlU_exact(const Vector &x, Vector &curlU);
+void curlu_exact(const Vector &x, Vector &curlu);
 // H(div)
-double divU_exact(const Vector &x);
+double divu_exact(const Vector &x);
 
 int dim;
 int prob=0;
@@ -154,11 +155,11 @@ int main(int argc, char *argv[])
    // 9. Set up the parallel linear form b(.) and the parallel bilinear form
    //    a(.,.).
    FunctionCoefficient *f=nullptr;
-   FunctionCoefficient *u=nullptr;
-   FunctionCoefficient *divU=nullptr;
-   VectorFunctionCoefficient *U=nullptr;
+   FunctionCoefficient *scalar_u=nullptr;
+   FunctionCoefficient *divu=nullptr;
+   VectorFunctionCoefficient *vector_u=nullptr;
    VectorFunctionCoefficient *gradu=nullptr;
-   VectorFunctionCoefficient *curlU=nullptr;
+   VectorFunctionCoefficient *curlu=nullptr;
 
    ConstantCoefficient one(1.0);
    ParLinearForm b(fespace);
@@ -168,10 +169,10 @@ int main(int argc, char *argv[])
    {
       case 0:
          //(grad u_ex, grad v) + (u_ex,v)
-         u = new FunctionCoefficient(u_exact);
+         scalar_u = new FunctionCoefficient(scalar_u_exact);
          gradu = new VectorFunctionCoefficient(dim,gradu_exact);
          b.AddDomainIntegrator(new DomainLFGradIntegrator(*gradu));
-         b.AddDomainIntegrator(new DomainLFIntegrator(*u));
+         b.AddDomainIntegrator(new DomainLFIntegrator(*scalar_u));
 
          // (grad u, grad v) + (u,v)
          a.AddDomainIntegrator(new DiffusionIntegrator(one));
@@ -180,10 +181,10 @@ int main(int argc, char *argv[])
          break;
       case 1:
          //(curl u_ex, curl v) + (u_ex,v)
-         U = new VectorFunctionCoefficient(dim,U_exact);
-         curlU = new VectorFunctionCoefficient((dim==3)?dim:1,curlU_exact);
-         b.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(*curlU));
-         b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(*U));
+         vector_u = new VectorFunctionCoefficient(dim,vector_u_exact);
+         curlu = new VectorFunctionCoefficient((dim==3)?dim:1,curlu_exact);
+         b.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(*curlu));
+         b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(*vector_u));
 
          // (curl u, curl v) + (u,v)
          a.AddDomainIntegrator(new CurlCurlIntegrator(one));
@@ -192,10 +193,10 @@ int main(int argc, char *argv[])
 
       case 2:
          //(div u_ex, div v) + (u_ex,v)
-         U = new VectorFunctionCoefficient(dim,U_exact);
-         divU = new FunctionCoefficient(divU_exact);
-         b.AddDomainIntegrator(new VectorFEDomainLFDivIntegrator(*divU));
-         b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(*U));
+         vector_u = new VectorFunctionCoefficient(dim,vector_u_exact);
+         divu = new FunctionCoefficient(divu_exact);
+         b.AddDomainIntegrator(new VectorFEDomainLFDivIntegrator(*divu));
+         b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(*vector_u));
 
          // (div u, div v) + (u,v)
          a.AddDomainIntegrator(new DivDivIntegrator(one));
@@ -203,12 +204,12 @@ int main(int argc, char *argv[])
          break;
 
       case 3:
-         u = new FunctionCoefficient(u_exact);
+         scalar_u = new FunctionCoefficient(scalar_u_exact);
          f = new FunctionCoefficient(rhs_func);
          gradu = new VectorFunctionCoefficient(dim,gradu_exact);
          b.AddDomainIntegrator(new DomainLFIntegrator(*f));
          b.AddBdrFaceIntegrator(
-      new DGDirichletLFIntegrator(*u, one, sigma, kappa));
+      new DGDirichletLFIntegrator(*scalar_u, one, sigma, kappa));
          a.AddDomainIntegrator(new DiffusionIntegrator(one));
          a.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
          a.AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
@@ -220,7 +221,7 @@ int main(int argc, char *argv[])
 
    // 10. Perform successive parallel refinements, compute the L2 error and the
    //     corresponding rate of convergence
-   Convergence rates;
+   ConvergenceStudy rates;
    for (int l = 0; l <= pr; l++)
    {
       b.Assemble();
@@ -279,10 +280,10 @@ int main(int argc, char *argv[])
       x = *X;
       switch (prob)
       {
-         case 0: rates.AddGridFunction(&x,u,gradu); break;
-         case 1: rates.AddGridFunction(&x,U,curlU); break;
-         case 2: rates.AddGridFunction(&x,U,divU);  break;
-         case 3: rates.AddGridFunction(&x,u,gradu,&one); break;
+         case 0: rates.AddH1GridFunction(&x,scalar_u,gradu); break;
+         case 1: rates.AddHcurlGridFunction(&x,vector_u,curlu); break;
+         case 2: rates.AddHdivGridFunction(&x,vector_u,divu);  break;
+         case 3: rates.AddL2GridFunction(&x,scalar_u,gradu,&one); break;
       }
 
       delete X;
@@ -305,29 +306,20 @@ int main(int argc, char *argv[])
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
-      string keys;
-      if (dim ==2 )
-      {
-         keys = "keys UUmrRljc\n";
-      }
-      else
-      {
-         keys = "keys mc\n";
-      }
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
       sol_sock << "solution\n" << *pmesh << x <<
                "window_title 'Numerical Pressure (real part)' "
-               << keys << flush;
+               << flush;
    }
 
    // 12. Free the used memory.
-   delete u;
-   delete divU;
-   delete U;
+   delete scalar_u;
+   delete divu;
+   delete vector_u;
    delete gradu;
-   delete curlU;
+   delete curlu;
    delete fespace;
    delete fec;
    delete pmesh;
@@ -349,7 +341,7 @@ double rhs_func(const Vector &x)
    return lap;
 }
 
-double u_exact(const Vector &x)
+double scalar_u_exact(const Vector &x)
 {
    double val = 1.0;
    for (int d = 0; d < x.Size(); d++)
@@ -374,34 +366,34 @@ void gradu_exact(const Vector &x, Vector &grad)
    }
 }
 
-void U_exact(const Vector &x, Vector & U)
+void vector_u_exact(const Vector &x, Vector & vector_u)
 {
-   U.SetSize(x.Size());
-   U=0.0;
-   U[0] = u_exact(x);
+   vector_u.SetSize(x.Size());
+   vector_u=0.0;
+   vector_u[0] = scalar_u_exact(x);
 }
 
 // H(curl)
-void curlU_exact(const Vector &x, Vector &curlU)
+void curlu_exact(const Vector &x, Vector &curlu)
 {
    Vector grad;
    gradu_exact(x,grad);
    int n = (x.Size()==3)?3:1;
-   curlU.SetSize(n);
+   curlu.SetSize(n);
    if (x.Size()==3)
    {
-      curlU[0] = 0.0; 
-      curlU[1] = grad[2];
-      curlU[2] = -grad[1];
+      curlu[0] = 0.0; 
+      curlu[1] = grad[2];
+      curlu[2] = -grad[1];
    }
    else if (x.Size()==2)
    {
-      curlU[0] = -grad[1];
+      curlu[0] = -grad[1];
    }   
 }
 
 // H(div)
-double divU_exact(const Vector &x)
+double divu_exact(const Vector &x)
 {
    Vector grad;
    gradu_exact(x,grad);

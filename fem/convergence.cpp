@@ -6,7 +6,7 @@ using namespace std;
 namespace mfem
 {
 
-void Convergence::Reset()
+void ConvergenceStudy::Reset()
 {
    counter=0;
    dcounter=0;
@@ -24,8 +24,8 @@ void Convergence::Reset()
    ndofs.SetSize(0);
 }
 
-double Convergence::GetNorm(GridFunction * gf, Coefficient * u,
-                            VectorCoefficient * U)
+double ConvergenceStudy::GetNorm(GridFunction * gf, Coefficient * scalar_u,
+                                 VectorCoefficient * vector_u)
 {
    bool norm_set = false;
    double norm=0.0;
@@ -41,13 +41,13 @@ double Convergence::GetNorm(GridFunction * gf, Coefficient * u,
    if (pgf)
    {
       ParMesh * pmesh = pgf->ParFESpace()->GetParMesh();
-      if (u)
+      if (scalar_u)
       {
-         norm = ComputeGlobalLpNorm(2.0,*u,*pmesh,irs);
+         norm = ComputeGlobalLpNorm(2.0,*scalar_u,*pmesh,irs);
       }
-      else if (U)
+      else if (vector_u)
       {
-         norm = ComputeGlobalLpNorm(2.0,*U,*pmesh,irs);
+         norm = ComputeGlobalLpNorm(2.0,*vector_u,*pmesh,irs);
       }
       norm_set = true;
    }
@@ -55,20 +55,20 @@ double Convergence::GetNorm(GridFunction * gf, Coefficient * u,
    if (!norm_set)
    {
       Mesh * mesh = gf->FESpace()->GetMesh();
-      if (u)
+      if (scalar_u)
       {
-         norm = ComputeLpNorm(2.0,*u,*mesh,irs);
+         norm = ComputeLpNorm(2.0,*scalar_u,*mesh,irs);
       }
-      else if (U)
+      else if (vector_u)
       {
-         norm = ComputeLpNorm(2.0,*U,*mesh,irs);
+         norm = ComputeLpNorm(2.0,*vector_u,*mesh,irs);
       }
    }
    return norm;
 }
 
-void Convergence::AddL2Error(GridFunction * gf,
-                             Coefficient * u, VectorCoefficient * U)
+void ConvergenceStudy::AddL2Error(GridFunction * gf,
+                                  Coefficient * scalar_u, VectorCoefficient * vector_u)
 {
    int tdofs=0;
 #ifdef MFEM_USE_MPI
@@ -86,15 +86,15 @@ void Convergence::AddL2Error(GridFunction * gf,
    if (!tdofs) { tdofs = gf->FESpace()->GetTrueVSize(); }
    ndofs.Append(tdofs);
    double L2Err;
-   if (u)
+   if (scalar_u)
    {
-      L2Err = gf->ComputeL2Error(*u);
-      CoeffNorm = GetNorm(gf,u,nullptr);
+      L2Err = gf->ComputeL2Error(*scalar_u);
+      CoeffNorm = GetNorm(gf,scalar_u,nullptr);
    }
-   else if (U)
+   else if (vector_u)
    {
-      L2Err = gf->ComputeL2Error(*U);
-      CoeffNorm = GetNorm(gf,nullptr,U);
+      L2Err = gf->ComputeL2Error(*vector_u);
+      CoeffNorm = GetNorm(gf,nullptr,vector_u);
    }
    else
    {
@@ -106,9 +106,9 @@ void Convergence::AddL2Error(GridFunction * gf,
    counter++;
 }
 
-void Convergence::AddGf(GridFunction * gf, Coefficient * u,
-                        VectorCoefficient * grad,
-                        Coefficient * ell_coeff, double Nu)
+void ConvergenceStudy::AddGf(GridFunction * gf, Coefficient * scalar_u,
+                             VectorCoefficient * grad,
+                             Coefficient * ell_coeff, double Nu)
 {
    cont_type = gf->FESpace()->FEColl()->GetContType();
 
@@ -116,7 +116,7 @@ void Convergence::AddGf(GridFunction * gf, Coefficient * u,
                (cont_type == mfem::FiniteElementCollection::DISCONTINUOUS),
                "This constructor is intented for H1 or L2 Elements")
 
-   AddL2Error(gf,u, nullptr);
+   AddL2Error(gf,scalar_u, nullptr);
 
    if (grad)
    {
@@ -136,7 +136,7 @@ void Convergence::AddGf(GridFunction * gf, Coefficient * u,
 
    if (cont_type == mfem::FiniteElementCollection::DISCONTINUOUS && ell_coeff)
    {
-      double DGErr = gf->ComputeDGFaceJumpError(u,ell_coeff,Nu);
+      double DGErr = gf->ComputeDGFaceJumpError(scalar_u,ell_coeff,Nu);
       DGFaceErrors.Append(DGErr);
       double val=(fcounter) ? log(DGFaceErrors[fcounter-1]/DGErr)/log(2.0):0.;
       DGFaceRates.Append(val);
@@ -145,12 +145,12 @@ void Convergence::AddGf(GridFunction * gf, Coefficient * u,
    }
 }
 
-void Convergence::AddGf(GridFunction * gf, VectorCoefficient * U,
-                        VectorCoefficient * curl, Coefficient * div)
+void ConvergenceStudy::AddGf(GridFunction * gf, VectorCoefficient * vector_u,
+                             VectorCoefficient * curl, Coefficient * div)
 {
    cont_type = gf->FESpace()->FEColl()->GetContType();
 
-   AddL2Error(gf,nullptr,U);
+   AddL2Error(gf,nullptr,vector_u);
    double DErr = 0.0;
    bool derivative = false;
    if (curl)
@@ -181,7 +181,7 @@ void Convergence::AddGf(GridFunction * gf, VectorCoefficient * U,
    }
 }
 
-void Convergence::Print(bool relative, std::ostream &out)
+void ConvergenceStudy::Print(bool relative, std::ostream &out)
 {
    if (print_flag)
    {
