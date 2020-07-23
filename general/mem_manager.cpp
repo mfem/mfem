@@ -1373,8 +1373,8 @@ void MemoryManager::CheckHostMemoryType_(MemoryType h_mt, void *h_ptr,
    if (!mm.exists) {return;}
    // const bool known = mm.IsKnown(h_ptr);
    // const bool alias = mm.IsAlias(h_ptr);
-   MFEM_VERIFY(!alias || h_mt == maps->memories.at(h_ptr).h_mt,"");
-   MFEM_VERIFY(alias || h_mt == maps->aliases.at(h_ptr).mem->h_mt,"");
+   MFEM_VERIFY(alias || h_mt == maps->memories.at(h_ptr).h_mt,"");
+   MFEM_VERIFY(!alias || h_mt == maps->aliases.at(h_ptr).mem->h_mt,"");
 }
 
 MemoryManager mm;
