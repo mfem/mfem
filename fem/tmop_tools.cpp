@@ -381,7 +381,8 @@ void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
 double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
                                               const Vector &b) const
 {
-   dbg();
+   dbg("x:%.8e", x*x);
+   dbg("b:%.8e", b*b);
    const FiniteElementSpace *fes = NULL;
    double energy_in = 0.0;
 #ifdef MFEM_USE_MPI
@@ -401,6 +402,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       fes = nlf->FESpace();
       energy_in = nlf->GetEnergy(x);
    }
+   dbg("energy_in:%.8e", energy_in);
 
    const int NE = fes->GetMesh()->GetNE(), dim = fes->GetFE(0)->GetDim(),
              dof = fes->GetFE(0)->GetDof(), nsp = ir.GetNPoints();
@@ -421,6 +423,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       fes->GetProlongationMatrix()->Mult(x, x_out_loc);
    }
 #endif
+   dbg("x_out_loc: %.8e", x_out_loc*x_out_loc);
 
    double min_detJ = infinity();
    if (dim == 1)
@@ -452,6 +455,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    }
 #endif
    bool untangling = false;
+   dbg("min_detJ_all: %.8e", min_detJ_all);
    if (min_detJ_all <= 0) { untangling = true; }
 
    const bool have_b = (b.Size() == Height());
@@ -512,6 +516,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
                           p_nlf->ParFESpace()->GetComm());
          }
 #endif
+         dbg("scale: %.8e",scale);
          if (jac_ok_all == 0)
          {
             if (print_level >= 0)
@@ -520,7 +525,10 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          }
       } // endif(!untangling)
 
+      dbg("x_out: %.8e", x_out*x_out);
       ProcessNewState(x_out);
+
+      dbg("x_out_loc: %.8e", x_out_loc*x_out_loc);
       if (serial)
       {
          energy_out = nlf->GetGridFunctionEnergy(x_out_loc);
@@ -531,6 +539,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          energy_out = p_nlf->GetParGridFunctionEnergy(x_out_loc);
       }
 #endif
+      dbg("energy_out: %.8e", energy_out);
 
       if (untangling)
       {
@@ -571,6 +580,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    }
 
    if (x_out_ok == false) { scale = 0.0; }
+   dbg("scale: %.8e", scale);
    return scale;
 }
 

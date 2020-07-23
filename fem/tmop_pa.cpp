@@ -292,7 +292,14 @@ double TMOP_Integrator::GetGridFunctionEnergyPA(const Vector &xe) const
    if (PA.dim == 2)
    {
       energy = GetGridFunctionEnergyPA_2D(xe);
-      if (coeff0) { energy += GetGridFunctionEnergyPA_C0_2D(xe); }
+      if (coeff0)
+      {
+         //EnableLimitingPA(*nodes0);
+         PA.X0.SetSize(PA.R->Height(), Device::GetMemoryType());
+         PA.X0.UseDevice(true);
+         PA.R->Mult(*nodes0, PA.X0);
+         energy += GetGridFunctionEnergyPA_C0_2D(xe);
+      }
    }
 
    if (PA.dim == 3)
