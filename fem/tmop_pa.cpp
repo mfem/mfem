@@ -292,13 +292,7 @@ double TMOP_Integrator::GetGridFunctionEnergyPA(const Vector &xe) const
    if (PA.dim == 2)
    {
       energy = GetGridFunctionEnergyPA_2D(xe);
-      if (coeff0)
-      {
-         MFEM_VERIFY(PA.X0.Size() == xe.Size(),"");
-         PA.R->Mult(*nodes0, PA.X0);
-         PA.R->Mult(*lim_dist, PA.LD);
-         energy += GetGridFunctionEnergyPA_C0_2D(xe);
-      }
+      if (coeff0) { energy += GetGridFunctionEnergyPA_C0_2D(xe); }
    }
 
    if (PA.dim == 3)
