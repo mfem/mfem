@@ -98,8 +98,8 @@ void BlockOperator::Mult (const Vector & x, Vector & y) const
       yblock.GetBlock(iRow).SyncAliasMemory(y);
    }
 
-   // Remark: Temporary fix to eliminate issue of dangling aliases
-   //         when the base vectors are deleted
+   // Destroy alias vectors to prevent dangling aliases when the base vectors
+   // are deleted
    for (int i=0; i < xblock.NumBlocks(); ++i) { xblock.GetBlock(i).Destroy(); }
    for (int i=0; i < yblock.NumBlocks(); ++i) { yblock.GetBlock(i).Destroy(); }
 }
@@ -134,8 +134,8 @@ void BlockOperator::MultTranspose (const Vector & x, Vector & y) const
       yblock.GetBlock(iRow).SyncAliasMemory(y);
    }
 
-   // Remark: Temporary fix to eliminate issue of dangling aliases
-   //         when the base vectors are deleted
+   // Destroy alias vectors to prevent dangling aliases when the base vectors
+   // are deleted
    for (int i=0; i < xblock.NumBlocks(); ++i) { xblock.GetBlock(i).Destroy(); }
    for (int i=0; i < yblock.NumBlocks(); ++i) { yblock.GetBlock(i).Destroy(); }
 }
@@ -209,8 +209,8 @@ void BlockDiagonalPreconditioner::Mult (const Vector & x, Vector & y) const
       yblock.GetBlock(i).SyncAliasMemory(y);
    }
 
-   // Remark: Temporary fix to eliminate issue of dangling aliases
-   //         when the base vectors are deleted
+   // Destroy alias vectors to prevent dangling aliases when the base vectors
+   // are deleted
    for (int i=0; i < xblock.NumBlocks(); ++i) { xblock.GetBlock(i).Destroy(); }
    for (int i=0; i < yblock.NumBlocks(); ++i) { yblock.GetBlock(i).Destroy(); }
 }
@@ -245,8 +245,8 @@ void BlockDiagonalPreconditioner::MultTranspose (const Vector & x,
       yblock.GetBlock(i).SyncAliasMemory(y);
    }
 
-   // Remark: Temporary fix to eliminate issue of dangling aliases
-   //         when the base vectors are deleted
+   // Destroy alias vectors to prevent dangling aliases when the base vectors
+   // are deleted
    for (int i=0; i < xblock.NumBlocks(); ++i) { xblock.GetBlock(i).Destroy(); }
    for (int i=0; i < yblock.NumBlocks(); ++i) { yblock.GetBlock(i).Destroy(); }
 }
