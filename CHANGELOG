@@ -36,6 +36,11 @@ Meshing improvements
 - Added complete action of the TMOP Integrator to account for the spatial
   derivatives of discrete and analytic targets.
 
+- Added support for reading Gmsh meshes (version 2.2) with high-order
+  elements.  Segments, triangles, quadrilaterals, and tetrahedra are supported
+  up to and including order 10 while wedges and hexahedra are supported up to
+  and including order 9.
+
 Performance improvements
 ------------------------
 - Added support for explicit vectorization in the high-performance templated
