@@ -46,7 +46,8 @@
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -cmb 2 -nor
 //   Adapted discrete size+aspect_ratio:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100  -ls 2 -li 100 -bnd -qt 1 -qo 8
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100 -qo 6 -ex -st 1 -nor
 //   Adapted discrete size+orientation (requires GSLIB):
 //   * mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 8 -ni 100  -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd -ae 1
 //   Adapted discrete aspect_ratio+orientation (requires GSLIB):
@@ -123,6 +124,7 @@ int main (int argc, char *argv[])
    int verbosity_level   = 0;
    bool fdscheme         = false;
    int adapt_eval        = 0;
+   bool exactaction      = false;
    const char *devopt    = "cpu";
    bool pa               = false;
 
@@ -205,6 +207,9 @@ int main (int argc, char *argv[])
    args.AddOption(&fdscheme, "-fd", "--fd_approximation",
                   "-no-fd", "--no-fd-approx",
                   "Enable finite difference based derivative computations.");
+   args.AddOption(&exactaction, "-ex", "--exact_action",
+                  "-no-ex", "--no-exact-action",
+                  "Enable exact action of TMOP_Integrator.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -606,6 +611,7 @@ int main (int argc, char *argv[])
 
       he_nlf_integ->EnableFiniteDifferences(x);
    }
+   he_nlf_integ->SetExactActionFlag(exactaction);
 
    // 13. Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = NULL;
@@ -699,6 +705,7 @@ int main (int argc, char *argv[])
       else { he_nlf_integ2 = new TMOP_Integrator(metric2, target_c); }
       he_nlf_integ2->SetIntegrationRule(*ir);
       if (fdscheme) { he_nlf_integ2->EnableFiniteDifferences(x); }
+      he_nlf_integ2->SetExactActionFlag(exactaction);
 
       TMOPComboIntegrator *combo = new TMOPComboIntegrator;
       combo->AddTMOPIntegrator(he_nlf_integ);
