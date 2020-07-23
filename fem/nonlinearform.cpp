@@ -581,6 +581,13 @@ double BlockNonlinearForm::GetEnergyBlocked(const BlockVector &bx) const
          }
       }
 
+   //free the allocated memory
+   for (int i=0; i<fes.Size(); ++i)
+   {
+	   delete el_x[i];
+	   delete vdofs[i];
+   }
+
    if (fnfi.Size())
    {
       MFEM_ABORT("TODO: add energy contribution from interior face terms");
@@ -590,6 +597,8 @@ double BlockNonlinearForm::GetEnergyBlocked(const BlockVector &bx) const
    {
       MFEM_ABORT("TODO: add energy contribution from boundary face terms");
    }
+
+
 
    return energy;
 }
