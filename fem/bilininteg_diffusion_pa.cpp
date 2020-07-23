@@ -99,8 +99,8 @@ void PADiffusionSetup2D<2>(const int Q1D,
    const int NQ = Q1D*Q1D;
    const bool const_c = c.Size() == 1;
    auto W = w.Read();
-   auto J = Reshape(j.Read(), NQ, 2, 2, NE);
-   auto C = const_c ? Reshape(c.Read(), 1, 1) : Reshape(c.Read(), NQ, NE);
+   auto J = Reshape(j, NQ, 2, 2, NE);
+   auto C = const_c ? Reshape(c, 1, 1) : Reshape(c, NQ, NE);
    auto D = Reshape(d.Write(), NQ, 3, NE);
 
    MFEM_FORALL(e, NE,
@@ -135,8 +135,8 @@ void PADiffusionSetup2D<3>(const int Q1D,
    const bool const_c = c.Size() == 1;
 
    auto W = w.Read();
-   auto J = Reshape(j.Read(), NQ, SDIM, DIM, NE);
-   auto C = const_c ? Reshape(c.Read(), 1, 1) : Reshape(c.Read(), NQ, NE);
+   auto J = Reshape(j, NQ, SDIM, DIM, NE);
+   auto C = const_c ? Reshape(c, 1, 1) : Reshape(c, NQ, NE);
    auto D = Reshape(d.Write(), NQ, 3, NE);
    MFEM_FORALL(e, NE,
    {
@@ -173,8 +173,8 @@ static void PADiffusionSetup3D(const int Q1D,
    const int NQ = Q1D*Q1D*Q1D;
    const bool const_c = c.Size() == 1;
    auto W = w.Read();
-   auto J = Reshape(j.Read(), NQ, 3, 3, NE);
-   auto C = const_c ? Reshape(c.Read(), 1, 1) : Reshape(c.Read(), NQ, NE);
+   auto J = Reshape(j, NQ, 3, 3, NE);
+   auto C = const_c ? Reshape(c, 1, 1) : Reshape(c, NQ, NE);
    auto D = Reshape(d.Write(), NQ, 6, NE);
    MFEM_FORALL(e, NE,
    {
@@ -332,12 +332,12 @@ static void PADiffusionDiagonal2D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b.Read(), Q1D, D1D);
-   auto G = Reshape(g.Read(), Q1D, D1D);
+   auto B = Reshape(b, Q1D, D1D);
+   auto G = Reshape(g, Q1D, D1D);
    // note the different shape for D, this is a (symmetric) matrix so we only
    // store necessary entries
-   auto D = Reshape(d.Read(), Q1D*Q1D, 3, NE);
-   auto Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
+   auto D = Reshape(d, Q1D*Q1D, 3, NE);
+   auto Y = Reshape(y, D1D, D1D, NE);
    MFEM_FORALL(e, NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -400,10 +400,10 @@ static void SmemPADiffusionDiagonal2D(const int NE,
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto g = Reshape(g_.Read(), Q1D, D1D);
-   auto D = Reshape(d_.Read(), Q1D*Q1D, 3, NE);
-   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
+   auto b = Reshape(b_, Q1D, D1D);
+   auto g = Reshape(g_, Q1D, D1D);
+   auto D = Reshape(d_, Q1D*Q1D, 3, NE);
+   auto Y = Reshape(y_, D1D, D1D, NE);
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int tidz = MFEM_THREAD_ID(z);
@@ -493,10 +493,10 @@ static void PADiffusionDiagonal3D(const int NE,
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
-   auto B = Reshape(b.Read(), Q1D, D1D);
-   auto G = Reshape(g.Read(), Q1D, D1D);
-   auto Q = Reshape(d.Read(), Q1D*Q1D*Q1D, 6, NE);
-   auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
+   auto B = Reshape(b, Q1D, D1D);
+   auto G = Reshape(g, Q1D, D1D);
+   auto Q = Reshape(d, Q1D*Q1D*Q1D, 6, NE);
+   auto Y = Reshape(y, D1D, D1D, D1D, NE);
    MFEM_FORALL(e, NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -592,10 +592,10 @@ static void SmemPADiffusionDiagonal3D(const int NE,
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto g = Reshape(g_.Read(), Q1D, D1D);
-   auto D = Reshape(d_.Read(), Q1D*Q1D*Q1D, 6, NE);
-   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
+   auto b = Reshape(b_, Q1D, D1D);
+   auto g = Reshape(g_, Q1D, D1D);
+   auto D = Reshape(d_, Q1D*Q1D*Q1D, 6, NE);
+   auto Y = Reshape(y_, D1D, D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
       const int tidz = MFEM_THREAD_ID(z);
@@ -859,13 +859,13 @@ static void PADiffusionApply2D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b_.Read(), Q1D, D1D);
-   auto G = Reshape(g_.Read(), Q1D, D1D);
-   auto Bt = Reshape(bt_.Read(), D1D, Q1D);
-   auto Gt = Reshape(gt_.Read(), D1D, Q1D);
-   auto D = Reshape(d_.Read(), Q1D*Q1D, 3, NE);
-   auto X = Reshape(x_.Read(), D1D, D1D, NE);
-   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
+   auto B = Reshape(b_, Q1D, D1D);
+   auto G = Reshape(g_, Q1D, D1D);
+   auto Bt = Reshape(bt_, D1D, Q1D);
+   auto Gt = Reshape(gt_, D1D, Q1D);
+   auto D = Reshape(d_, Q1D*Q1D, 3, NE);
+   auto X = Reshape(x_, D1D, D1D, NE);
+   auto Y = Reshape(y_, D1D, D1D, NE);
    MFEM_FORALL(e, NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -980,11 +980,11 @@ static void SmemPADiffusionApply2D(const int NE,
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto g = Reshape(g_.Read(), Q1D, D1D);
-   auto D = Reshape(d_.Read(), Q1D*Q1D, 3, NE);
-   auto x = Reshape(x_.Read(), D1D, D1D, NE);
-   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
+   auto b = Reshape(b_, Q1D, D1D);
+   auto g = Reshape(g_, Q1D, D1D);
+   auto D = Reshape(d_, Q1D*Q1D, 3, NE);
+   auto x = Reshape(x_, D1D, D1D, NE);
+   auto Y = Reshape(y_, D1D, D1D, NE);
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int tidz = MFEM_THREAD_ID(z);
@@ -1134,13 +1134,13 @@ static void PADiffusionApply3D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b.Read(), Q1D, D1D);
-   auto G = Reshape(g.Read(), Q1D, D1D);
-   auto Bt = Reshape(bt.Read(), D1D, Q1D);
-   auto Gt = Reshape(gt.Read(), D1D, Q1D);
-   auto D = Reshape(d_.Read(), Q1D*Q1D*Q1D, 6, NE);
-   auto X = Reshape(x_.Read(), D1D, D1D, D1D, NE);
-   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
+   auto B = Reshape(b, Q1D, D1D);
+   auto G = Reshape(g, Q1D, D1D);
+   auto Bt = Reshape(bt, D1D, Q1D);
+   auto Gt = Reshape(gt, D1D, Q1D);
+   auto D = Reshape(d_, Q1D*Q1D*Q1D, 6, NE);
+   auto X = Reshape(x_, D1D, D1D, D1D, NE);
+   auto Y = Reshape(y_, D1D, D1D, D1D, NE);
    MFEM_FORALL(e, NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -1324,11 +1324,11 @@ static void SmemPADiffusionApply3D(const int NE,
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto g = Reshape(g_.Read(), Q1D, D1D);
-   auto d = Reshape(d_.Read(), Q1D*Q1D*Q1D, 6, NE);
-   auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
-   auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
+   auto b = Reshape(b_, Q1D, D1D);
+   auto g = Reshape(g_, Q1D, D1D);
+   auto d = Reshape(d_, Q1D*Q1D*Q1D, 6, NE);
+   auto x = Reshape(x_, D1D, D1D, D1D, NE);
+   auto y = Reshape(y_, D1D, D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
       const int tidz = MFEM_THREAD_ID(z);

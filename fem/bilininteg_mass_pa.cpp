@@ -145,9 +145,9 @@ static void PAMassAssembleDiagonal2D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b.Read(), Q1D, D1D);
-   auto D = Reshape(d.Read(), Q1D, Q1D, NE);
-   auto Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
+   auto B = Reshape(b, Q1D, D1D);
+   auto D = Reshape(d, Q1D, Q1D, NE);
+   auto Y = Reshape(y, D1D, D1D, NE);
    MFEM_FORALL(e, NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -194,9 +194,9 @@ static void SmemPAMassAssembleDiagonal2D(const int NE,
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto D = Reshape(d_.Read(), Q1D, Q1D, NE);
-   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
+   auto b = Reshape(b_, Q1D, D1D);
+   auto D = Reshape(d_, Q1D, Q1D, NE);
+   auto Y = Reshape(y_, D1D, D1D, NE);
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int tidz = MFEM_THREAD_ID(z);
@@ -257,9 +257,9 @@ static void PAMassAssembleDiagonal3D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b.Read(), Q1D, D1D);
-   auto D = Reshape(d.Read(), Q1D, Q1D, Q1D, NE);
-   auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
+   auto B = Reshape(b, Q1D, D1D);
+   auto D = Reshape(d, Q1D, Q1D, Q1D, NE);
+   auto Y = Reshape(y, D1D, D1D, D1D, NE);
    MFEM_FORALL(e, NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -328,9 +328,9 @@ static void SmemPAMassAssembleDiagonal3D(const int NE,
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto D = Reshape(d_.Read(), Q1D, Q1D, Q1D, NE);
-   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
+   auto b = Reshape(b_, Q1D, D1D);
+   auto D = Reshape(d_, Q1D, Q1D, Q1D, NE);
+   auto Y = Reshape(y_, D1D, D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
       const int tidz = MFEM_THREAD_ID(z);
@@ -551,11 +551,11 @@ static void PAMassApply2D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b_.Read(), Q1D, D1D);
-   auto Bt = Reshape(bt_.Read(), D1D, Q1D);
-   auto D = Reshape(d_.Read(), Q1D, Q1D, NE);
-   auto X = Reshape(x_.Read(), D1D, D1D, NE);
-   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
+   auto B = Reshape(b_, Q1D, D1D);
+   auto Bt = Reshape(bt_, D1D, Q1D);
+   auto D = Reshape(d_, Q1D, Q1D, NE);
+   auto X = Reshape(x_, D1D, D1D, NE);
+   auto Y = Reshape(y_, D1D, D1D, NE);
    MFEM_FORALL(e, NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
@@ -646,10 +646,10 @@ static void SmemPAMassApply2D(const int NE,
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto D = Reshape(d_.Read(), Q1D, Q1D, NE);
-   auto x = Reshape(x_.Read(), D1D, D1D, NE);
-   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
+   auto b = Reshape(b_, Q1D, D1D);
+   auto D = Reshape(d_, Q1D, Q1D, NE);
+   auto x = Reshape(x_, D1D, D1D, NE);
+   auto Y = Reshape(y_, D1D, D1D, NE);
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int tidz = MFEM_THREAD_ID(z);
@@ -765,11 +765,11 @@ static void PAMassApply3D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b_.Read(), Q1D, D1D);
-   auto Bt = Reshape(bt_.Read(), D1D, Q1D);
-   auto D = Reshape(d_.Read(), Q1D, Q1D, Q1D, NE);
-   auto X = Reshape(x_.Read(), D1D, D1D, D1D, NE);
-   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
+   auto B = Reshape(b_, Q1D, D1D);
+   auto Bt = Reshape(bt_, D1D, Q1D);
+   auto D = Reshape(d_, Q1D, Q1D, Q1D, NE);
+   auto X = Reshape(x_, D1D, D1D, D1D, NE);
+   auto Y = Reshape(y_, D1D, D1D, D1D, NE);
    MFEM_FORALL(e, NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -908,10 +908,10 @@ static void SmemPAMassApply3D(const int NE,
    constexpr int M1D = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= M1D, "");
    MFEM_VERIFY(Q1D <= M1Q, "");
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto d = Reshape(d_.Read(), Q1D, Q1D, Q1D, NE);
-   auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
-   auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
+   auto b = Reshape(b_, Q1D, D1D);
+   auto d = Reshape(d_, Q1D, Q1D, Q1D, NE);
+   auto x = Reshape(x_, D1D, D1D, D1D, NE);
+   auto y = Reshape(y_, D1D, D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, 1,
    {
       const int D1D = T_D1D ? T_D1D : d1d;

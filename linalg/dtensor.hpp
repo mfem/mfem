@@ -13,6 +13,8 @@
 #define MFEM_DTENSOR
 
 #include "../general/cuda.hpp"
+#include "vector.hpp"
+#include "../general/array.hpp"
 
 namespace mfem
 {
@@ -154,6 +156,32 @@ template <typename T, typename... Dims>
 inline const DeviceTensor<sizeof...(Dims),T> Reshape(const T *ptr, Dims... dims)
 {
    return DeviceTensor<sizeof...(Dims),T>(const_cast<T*>(ptr), dims...);
+}
+
+/** Vector interface */
+template <typename... Dims>
+inline DeviceTensor<sizeof...(Dims),double> Reshape(Vector &v, Dims... dims)
+{
+   return DeviceTensor<sizeof...(Dims),double>(v.ReadWrite(), dims...);
+}
+
+template <typename... Dims>
+inline const DeviceTensor<sizeof...(Dims),double> Reshape(const Vector &v, Dims... dims)
+{
+   return DeviceTensor<sizeof...(Dims),double>(const_cast<double*>(v.Read()), dims...);
+}
+
+/** Array interface */
+template <typename T, typename... Dims>
+inline DeviceTensor<sizeof...(Dims),T> Reshape(Array<T> &v, Dims... dims)
+{
+   return DeviceTensor<sizeof...(Dims),T>(v.ReadWrite(), dims...);
+}
+
+template <typename T, typename... Dims>
+inline const DeviceTensor<sizeof...(Dims),T> Reshape(const Array<T> &v, Dims... dims)
+{
+   return DeviceTensor<sizeof...(Dims),T>(const_cast<T*>(v.Read()), dims...);
 }
 
 typedef DeviceTensor<1,int> DeviceArray;

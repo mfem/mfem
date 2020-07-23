@@ -33,10 +33,10 @@ static void PAConvectionSetup2D(const int Q1D,
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
 
-   auto J = Reshape(j.Read(), NQ, 2, 2, NE);
+   auto J = Reshape(j, NQ, 2, 2, NE);
    const bool const_v = vel.Size() == 2;
    auto V =
-      const_v ? Reshape(vel.Read(), 2,1,1) : Reshape(vel.Read(), 2,NQ,NE);
+      const_v ? Reshape(vel, 2,1,1) : Reshape(vel, 2,NQ,NE);
    auto y = Reshape(op.Write(), NQ, 2, NE);
 
    MFEM_FORALL(e, NE,
@@ -69,11 +69,11 @@ static void PAConvectionSetup3D(const int Q1D,
                                 Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
-   auto W = w.Read();
-   auto J = Reshape(j.Read(), NQ, 3, 3, NE);
+   auto W = w;
+   auto J = Reshape(j, NQ, 3, 3, NE);
    const bool const_v = vel.Size() == 3;
    auto V =
-      const_v ? Reshape(vel.Read(), 3,1,1) : Reshape(vel.Read(), 3,NQ,NE);
+      const_v ? Reshape(vel, 3,1,1) : Reshape(vel, 3,NQ,NE);
    auto y = Reshape(op.Write(), NQ, 3, NE);
    MFEM_FORALL(e, NE,
    {
@@ -152,12 +152,12 @@ void PAConvectionApply2D(const int ne,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b.Read(), Q1D, D1D);
-   auto G = Reshape(g.Read(), Q1D, D1D);
-   auto Bt = Reshape(bt.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, 2, NE);
-   auto x = Reshape(_x.Read(), D1D, D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), D1D, D1D, NE);
+   auto B = Reshape(b, Q1D, D1D);
+   auto G = Reshape(g, Q1D, D1D);
+   auto Bt = Reshape(bt, D1D, Q1D);
+   auto op = Reshape(_op, Q1D, Q1D, 2, NE);
+   auto x = Reshape(_x, D1D, D1D, NE);
+   auto y = Reshape(_y, D1D, D1D, NE);
    MFEM_FORALL(e, NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -272,12 +272,12 @@ void SmemPAConvectionApply2D(const int ne,
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b.Read(), Q1D, D1D);
-   auto G = Reshape(g.Read(), Q1D, D1D);
-   auto Bt = Reshape(bt.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, 2, NE);
-   auto x = Reshape(_x.Read(), D1D, D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), D1D, D1D, NE);
+   auto B = Reshape(b, Q1D, D1D);
+   auto G = Reshape(g, Q1D, D1D);
+   auto Bt = Reshape(bt, D1D, Q1D);
+   auto op = Reshape(_op, Q1D, Q1D, 2, NE);
+   auto x = Reshape(_x, D1D, D1D, NE);
+   auto y = Reshape(_y, D1D, D1D, NE);
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int tidz = MFEM_THREAD_ID(z);
@@ -399,12 +399,12 @@ void PAConvectionApply3D(const int ne,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b.Read(), Q1D, D1D);
-   auto G = Reshape(g.Read(), Q1D, D1D);
-   auto Bt = Reshape(bt.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 3, NE);
-   auto x = Reshape(_x.Read(), D1D, D1D, D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), D1D, D1D, D1D, NE);
+   auto B = Reshape(b, Q1D, D1D);
+   auto G = Reshape(g, Q1D, D1D);
+   auto Bt = Reshape(bt, D1D, Q1D);
+   auto op = Reshape(_op, Q1D, Q1D, Q1D, 3, NE);
+   auto x = Reshape(_x, D1D, D1D, D1D, NE);
+   auto y = Reshape(_y, D1D, D1D, D1D, NE);
    MFEM_FORALL(e, NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -580,12 +580,12 @@ void SmemPAConvectionApply3D(const int ne,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b.Read(), Q1D, D1D);
-   auto G = Reshape(g.Read(), Q1D, D1D);
-   auto Bt = Reshape(bt.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 3, NE);
-   auto x = Reshape(_x.Read(), D1D, D1D, D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), D1D, D1D, D1D, NE);
+   auto B = Reshape(b, Q1D, D1D);
+   auto G = Reshape(g, Q1D, D1D);
+   auto Bt = Reshape(bt, D1D, Q1D);
+   auto op = Reshape(_op, Q1D, Q1D, Q1D, 3, NE);
+   auto x = Reshape(_x, D1D, D1D, D1D, NE);
+   auto y = Reshape(_y, D1D, D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
