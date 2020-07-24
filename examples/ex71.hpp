@@ -14,60 +14,6 @@
 namespace mfem
 {
 
-class pLapIntegrandJ: public ADQFunctionJ
-{
-private:
-
-   template<typename DType, typename MVType>
-   void MyQFunctionDU(const mfem::Vector& vparam, MVType& uu, MVType& rr)
-   {
-      double pp=vparam[0];
-      double ee=vparam[1];
-      double ff=vparam[2];
-
-      DType norm2=uu[0]*uu[0]+uu[1]*uu[1]+uu[2]*uu[2];
-      DType tvar=pow(ee*ee+norm2,(pp-2.0)/2.0);
-
-      rr[0]=tvar*uu[0];
-      rr[1]=tvar*uu[1];
-      rr[2]=tvar*uu[2];
-      rr[3]=-ff;
-
-   }
-
-public:
-   //the residual vector rr has size of 4 elements
-   pLapIntegrandJ() : ADQFunctionJ(4) {}
-
-   ~pLapIntegrandJ() {}
-
-   virtual double QFunction(const mfem::Vector &vparam,
-                            const mfem::Vector &uu) override
-   {
-      double pp=vparam[0];
-      double ee=vparam[1];
-      double ff=vparam[2];
-
-      double  u=uu[3];
-      double  norm2=uu[0]*uu[0]+uu[1]*uu[1]+uu[2]*uu[2];
-
-      double rez= pow(ee*ee+norm2,pp/2.0)/pp-ff*u;
-      return rez;
-   }
-
-
-   virtual void QFunctionDU(const mfem::Vector& vparam, mfem::Vector& uu,
-                            mfem::Vector& rr) override
-   {
-      MyQFunctionDU<double,mfem::Vector>(vparam,uu,rr);
-   }
-
-   virtual void QFunctionDU(const mfem::Vector &vparam, ADFVector &uu,
-                            ADFVector &rr) override
-   {
-      MyQFunctionDU<ADFType,ADFVector>(vparam,uu,rr);
-   }
-};
 
 template<typename DType, typename MVType>
 class MyQFunctorJ{
@@ -106,55 +52,6 @@ public:
 typedef ADQFunctionTJ<MyQFunctorJ,4> pLapIntegrandTJ;
 
 
-
-class pLapIntegrandH: public ADQFunctionH
-{
-private:
-
-   // MVType - vector type taking one of the following
-   // mfem::Vector - scalar double
-   // ADFVector    - scalar ADFType
-   // ADSVector    - scalar ADSType
-   template<typename DType, typename MVType>
-   DType MyQFunction(const mfem::Vector& vparam, MVType& uu)
-   {
-      double pp=vparam[0];
-      double ee=vparam[1];
-      double ff=vparam[2];
-
-      DType  u=uu[3];
-      DType  norm2=uu[0]*uu[0]+uu[1]*uu[1]+uu[2]*uu[2];
-
-      DType rez= pow(ee*ee+norm2,pp/2.0)/pp-ff*u;
-      return rez;
-   }
-
-public:
-   pLapIntegrandH() {}
-
-   virtual ~pLapIntegrandH() {}
-
-   virtual double QFunction(const mfem::Vector &vparam,
-                            const mfem::Vector &uu) override
-   {
-      double rez=MyQFunction<double,const mfem::Vector>(vparam,uu);
-      return rez;
-   }
-
-   virtual ADFType QFunction(const mfem::Vector &vparam, ADFVector& uu) override
-   {
-      ADFType rez=MyQFunction<ADFType,ADFVector>(vparam,uu);
-      return rez;
-   }
-
-   virtual ADSType QFunction(const mfem::Vector &vparam, ADSVector& uu) override
-   {
-      ADSType rez=MyQFunction<ADSType,ADSVector>(vparam,uu);
-      return rez;
-   }
-
-};
-
 template<typename DType, typename MVType>
 class MyQFunctorH{
 public:
@@ -183,8 +80,6 @@ protected:
    mfem::Coefficient* coeff;
    mfem::Coefficient* load;
 
-   //pLapIntegrandH qint;
-   //pLapIntegrandJ qint;
    //pLapIntegrandTH qint;
    pLapIntegrandTJ qint;
 public:

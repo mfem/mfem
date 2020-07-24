@@ -36,61 +36,6 @@
 namespace mfem
 {
 
-class ADQFunctionJ
-{
-private:
-   int m;  //dimension of the residual vector
-   //the Jacobian will have dimensions [m,length(uu)]
-protected:
-#ifdef MFEM_USE_ADEPT
-   adept::Stack  m_stack;
-#endif
-
-public:
-#if defined MFEM_USE_ADEPT
-   typedef adept::adouble             ADFType;
-   typedef TADVector<ADFType>         ADFVector;
-   typedef TADDenseMatrix<ADFType>    ADFDenseMatrix;
-#elif defined MFEM_USE_FADBADPP
-#ifdef MFEM_USE_ADFORWARD
-   typedef fadbad::F<double>         ADFType;
-   typedef TADVector<ADFType>         ADFVector;
-   typedef TADDenseMatrix<ADFType>    ADFDenseMatrix;
-#else
-   typedef fadbad::B<double>         ADFType;
-   typedef TADVector<ADFType>         ADFVector;
-   typedef TADDenseMatrix<ADFType>    ADFDenseMatrix;
-#endif
-#else
-   typedef mfem::ad::FDual<double>    ADFType;
-   typedef TADVector<ADFType>         ADFVector;
-   typedef TADDenseMatrix<ADFType>    ADFDenseMatrix;
-#endif
-
-#ifdef MFEM_USE_ADEPT
-   ADQFunctionJ(int m_=1):m_stack(false)
-   {
-      m=m_;
-   }
-#else
-   ADQFunctionJ(int m_=1) { m=m_;}
-#endif
-
-   virtual ~ADQFunctionJ() {}
-
-   virtual double QFunction(const mfem::Vector& vparam, const mfem::Vector& uu)=0;
-   virtual void QFunctionDU(const mfem::Vector& vparam, ADFVector& uu,
-                            ADFVector& rr)=0;
-   virtual void QFunctionDU(const mfem::Vector& vparam, mfem::Vector& uu,
-                            mfem::Vector& rr)=0;
-
-   void QFunctionDD(const mfem::Vector& vparam, const mfem::Vector& uu,
-                    mfem::DenseMatrix& jj);
-
-};
-
-
-
 // m - dimension of the residual vector
 // the Jacobian will have dimensions [m,length(uu)]
 template<template <typename, typename> class CTD, int m>
@@ -313,42 +258,8 @@ public:
 };
 
 
-class ADQFunctionH
-{
-public:
-#if defined MFEM_USE_FADBADPP
-   typedef fadbad::B<double>          ADFType;
-   typedef TADVector<ADFType>            ADFVector;
-   typedef TADDenseMatrix<ADFType>       ADFDenseMatrix;
 
-   typedef fadbad::B<fadbad::F<double>>    ADSType;
-   typedef TADVector<ADSType>              ADSVector;
-   typedef TADDenseMatrix<ADSType>         ADSDenseMatrix;
-#else
-   typedef mfem::ad::FDual<double>    ADFType;
-   typedef TADVector<ADFType>         ADFVector;
-   typedef TADDenseMatrix<ADFType>    ADFDenseMatrix;
-
-   typedef mfem::ad::FDual<ADFType>   ADSType;
-   typedef TADVector<ADSType>         ADSVector;
-   typedef TADDenseMatrix<ADSType>    ADSDenseMatrix;
-#endif
-
-   ADQFunctionH() {}
-
-   virtual ~ADQFunctionH() {}
-
-   virtual double QFunction(const mfem::Vector& vparam, const mfem::Vector& uu)=0;
-   virtual ADFType QFunction(const mfem::Vector& vparam, ADFVector& uu)=0;
-   virtual ADSType QFunction(const mfem::Vector &vparam, ADSVector& uu)=0;
-
-   virtual void QFunctionDU(const mfem::Vector& vparam, mfem::Vector& uu,
-                            mfem::Vector& rr);
-   void QFunctionDD(const mfem::Vector& vparam, const mfem::Vector& uu,
-                    mfem::DenseMatrix& jj);
-};
-
-//same functionality as ADQFunctionH, however, the function
+//template class for differentiation; the function
 //for differentiation is supplied as a functor
 //the operator()(scalar,vector) defines the actual function
 template<template <typename, typename> class CTD>
@@ -476,51 +387,6 @@ public:
 
 };// end template ADFunctionTH
 
-
-
-
-class ADNonlinearFormIntegratorH: public NonlinearFormIntegrator
-{
-public:
-
-   typedef mfem::ad::FDual<double>    ADFType;
-   typedef TADVector<ADFType>         ADFVector;
-   typedef TADDenseMatrix<ADFType>    ADFDenseMatrix;
-
-   typedef mfem::ad::FDual<ADFType>   ADSType;
-   typedef TADVector<ADSType>         ADSVector;
-   typedef TADDenseMatrix<ADSType>    ADSDenseMatrix;
-
-   ADNonlinearFormIntegratorH() {}
-
-   virtual ~ADNonlinearFormIntegratorH() {}
-
-   virtual ADSType ElementEnergy(const mfem::FiniteElement & el,
-                                 mfem::ElementTransformation & Tr,
-                                 const ADSVector & elfun)=0;
-
-   virtual ADFType ElementEnergy(const mfem::FiniteElement & el,
-                                 mfem::ElementTransformation & Tr,
-                                 const ADFVector & elfun)=0;
-
-   virtual double ElementEnergy(const mfem::FiniteElement & el,
-                                mfem::ElementTransformation & Tr,
-                                const mfem::Vector & elfun)=0;
-
-
-   virtual double GetElementEnergy(const mfem::FiniteElement & el,
-                                   mfem::ElementTransformation & Tr,
-                                   const mfem::Vector & elfun) override;
-
-   virtual void AssembleElementVector(const mfem::FiniteElement & el,
-                                      mfem::ElementTransformation & Tr,
-                                      const mfem::Vector & elfun, mfem::Vector & elvect) override;
-
-   virtual void AssembleElementGrad(const mfem::FiniteElement & el,
-                                    mfem::ElementTransformation & Tr,
-                                    const mfem::Vector & elfun,
-                                    mfem::DenseMatrix & elmat) override;
-};
 
 
 }
