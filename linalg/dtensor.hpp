@@ -161,7 +161,7 @@ inline DeviceTensor<sizeof...(Dims),double> Reshape(Vector &v, Dims... dims)
 
 template <typename... Dims>
 inline const DeviceTensor<sizeof...(Dims),const double> Reshape(const Vector &v,
-                                                          Dims... dims)
+                                                                Dims... dims)
 {
    return Reshape(v.Read(), dims...);
 }
@@ -175,7 +175,7 @@ inline DeviceTensor<sizeof...(Dims),T> Reshape(Array<T> &v, Dims... dims)
 
 template <typename T, typename... Dims>
 inline const DeviceTensor<sizeof...(Dims),const T> Reshape(const Array<T> &v,
-                                                     Dims... dims)
+                                                           Dims... dims)
 {
    return Reshape(v.Read(), dims...);
 }
