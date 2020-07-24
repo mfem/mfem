@@ -1173,6 +1173,8 @@ void DiscreteAdaptTC::FinalizeSerialDiscreteTargetSpec()
    adapt_eval->SetInitialField(*tspec_fes->GetMesh()->GetNodes(), tspec);
 
    tspec_sav = tspec;
+   MFEM_VERIFY(tspec.UseDevice(),"");
+   MFEM_VERIFY(tspec_sav.UseDevice(),"");
 
    delete tspec_fesv;
    tspec_fesv = new FiniteElementSpace(tspec_fes->GetMesh(),

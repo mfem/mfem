@@ -14,6 +14,9 @@
 #include "pnonlinearform.hpp"
 #include "../general/osockstream.hpp"
 
+#define MFEM_DEBUG_COLOR 87
+#include "../general/debug.hpp"
+
 namespace mfem
 {
 
@@ -24,6 +27,8 @@ void AdvectorCG::SetInitialField(const Vector &init_nodes,
 {
    nodes0 = init_nodes;
    field0 = init_field;
+   MFEM_VERIFY(nodes0.UseDevice(),"");
+   MFEM_VERIFY(field0.UseDevice(),"");
 }
 
 void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
@@ -33,6 +38,7 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    const int pnt_cnt = new_field.Size()/ncomp;
 
    new_field = field0;
+   //#warning new_field.HostReadWrite
    new_field.HostReadWrite();
    Vector new_field_temp;
    for (int i = 0; i < ncomp; i++)
