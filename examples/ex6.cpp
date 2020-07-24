@@ -111,7 +111,7 @@ int main(int argc, char *argv[])
    if (pa)
    {
       a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      a.SetDiagonalPolicy(mfem::Matrix::DIAG_ONE);
+      a.SetDiagonalPolicy(mfem::Operator::DIAG_ONE);
    }
    LinearForm b(&fespace);
 
