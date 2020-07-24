@@ -32,6 +32,7 @@ struct HPRefinement : public Refinement
       : Refinement(index, type)
    {
       orders[0] = orders[1] = orders[2] = orders[3] = 0;
+
    }
 };
 
@@ -59,9 +60,9 @@ void MakeConforming(GridFunction &sol)
 
 int HalfOrder(int p)
 {
-   //return p/2 + 1;
-   return (p + 1) / 2;
-   //return max(1, p/2);
+   return p/2 + 1;
+//   return (p + 1) / 2;
+//   return max(1, p/2);
 
 }
 
@@ -141,9 +142,9 @@ void Solve(FiniteElementSpace *fespace, GridFunction *sln,
 
 
 void FindHPRef(int elem, FiniteElementSpace *fes, FiniteElementSpace *fes_p,
-               FiniteElementSpace *fes_h, FiniteElementSpace *fes_h2,
+               FiniteElementSpace *fes_h, FiniteElementSpace *fes_h2, FiniteElementSpace *fes_h3, FiniteElementSpace *fes_h4,
                Array<double> elemError, Array<double> elemError_p,
-               Array<double> elemError_h, Array<double> elemError_h2,
+               Array<double> elemError_h, Array<double> elemError_h2, Array<double> elemError_h3, Array<double> elemError_h4,
                int max_order, std::map<int, HPRefinement> *hp_refs)
 {
    Mesh* mesh_h = fes_h->GetMesh();
@@ -170,7 +171,7 @@ void FindHPRef(int elem, FiniteElementSpace *fes, FiniteElementSpace *fes_p,
 
 
    // initialize candidates
-   int n_cand = 17;
+   int n_cand = 257;
    HPCandidate candidate[n_cand];
    for (int id = 0; id < n_cand; id++)
    {
@@ -186,13 +187,13 @@ void FindHPRef(int elem, FiniteElementSpace *fes, FiniteElementSpace *fes_p,
    // hp-candidates
    int cand_id = 1;
    int k[4];
-   for (k[0] = 0; k[0] < 2; k[0]++)
+   for (k[0] = 0; k[0] < 4; k[0]++)
    {
-      for (k[1] = 0; k[1] < 2; k[1]++)
+      for (k[1] = 0; k[1] < 4; k[1]++)
       {
-         for (k[2] = 0; k[2] < 2; k[2]++)
+         for (k[2] = 0; k[2] < 4; k[2]++)
          {
-            for (k[3] = 0; k[3] < 2; k[3]++)
+            for (k[3] = 0; k[3] < 4; k[3]++)
             {
                for (int son = 0; son < 4; son++)
                {
@@ -203,12 +204,26 @@ void FindHPRef(int elem, FiniteElementSpace *fes, FiniteElementSpace *fes_p,
                      candidate[cand_id].dof += oh*oh;
                      candidate[cand_id].orders[son] = oh;
                   }
-                  else
+                  else if (k[son] == 1)
                   {
                      int oh2 = fes_h2->GetElementOrder(sons[son]);
                      candidate[cand_id].err += elemError_h2[sons[son]];
                      candidate[cand_id].dof += oh2*oh2;
                      candidate[cand_id].orders[son] = oh2;
+                  }
+                  else if (k[son] == 2)
+                  {
+                     int oh3 = fes_h3->GetElementOrder(sons[son]);
+                     candidate[cand_id].err += elemError_h3[sons[son]];
+                     candidate[cand_id].dof += oh3*oh3;
+                     candidate[cand_id].orders[son] = oh3;
+                  }
+                  else
+                  {
+                     int oh4 = fes_h4->GetElementOrder(sons[son]);
+                     candidate[cand_id].err += elemError_h4[sons[son]];
+                     candidate[cand_id].dof += oh4*oh4;
+                     candidate[cand_id].orders[son] = oh4;
                   }
                }
                cand_id++;
@@ -219,29 +234,53 @@ void FindHPRef(int elem, FiniteElementSpace *fes, FiniteElementSpace *fes_p,
 
 
    double max_rate = -1000.0;
-   int best_id;
+   int best_id = 1;
 
    for (int id = 0; id < n_cand; id++)
    {
-      if (id == 0)
-      {
-         cout << "Candidate: " << id << ", err = " << sqrt(candidate[id].err) << ", dof = " << candidate[id].dof
-              <<  ", orders = " << candidate[id].orders[0] << "\n  ";
-      }
-      else
-      {
-         cout << "Candidate: " << id << ", err = " << sqrt(candidate[id].err) << ", dof = " << candidate[id].dof
-              <<  ", orders = " << candidate[id].orders[0] << " " << candidate[id].orders[1]
-              << " " << candidate[id].orders[2] << " " << candidate[id].orders[3] << "\n  ";
-      }
 
-      double rate = (s_err - sqrt(candidate[id].err)) / (candidate[id].dof - o*o + 1);
+      // define rate between error decrease and DOFs increase
+//      double rate = (s_err - sqrt(candidate[id].err)) / (candidate[id].dof - o*o + 1);
+      double rate = (s_err - sqrt(candidate[id].err)) / (candidate[id].dof - o*o);
+//      double rate = (elemError[elem] - (candidate[id].err)) / (candidate[id].dof - o*o);
+
+      // print all candidates
+//      if (id == 0)
+//      {
+//         cout << "Candidate: " << id << ", err = " << sqrt(candidate[id].err) << ", rate = " << rate << ", dof = " << candidate[id].dof
+//              <<  ", orders = " << candidate[id].orders[0] << "\n  ";
+//      }
+//      else
+//      {
+//         cout << "Candidate: " << id << ", err = " << sqrt(candidate[id].err) << ", rate = " << rate << ", dof = " << candidate[id].dof
+//              <<  ", orders = " << candidate[id].orders[0] << " " << candidate[id].orders[1]
+//              << " " << candidate[id].orders[2] << " " << candidate[id].orders[3] << "\n  ";
+//      }
+
+      // throw away candidates with no error decrease or no DOF increase
+      if ((elemError[elem] < (candidate[id].err)) || (candidate[id].dof <= o*o))
+         continue;
+
+      // find candidate with highest rate
       if (rate > max_rate && candidate[id].orders[0] <= max_order)
       {
          max_rate = rate;
          best_id = id;
       }
    }
+
+   // different strategy:
+   // find candidate with at least 1/3 of maximam rate but with highest error decrease
+//   double min_err = s_err;
+//   for (int id = 0; id < n_cand; id++)
+//   {
+//      double rate = (s_err - sqrt(candidate[id].err)) / (candidate[id].dof - o*o);
+//      if ((rate > 1.0/3.0 * max_rate) && (sqrt(candidate[id].err) < min_err))
+//      {
+//         best_id = id;
+//         min_err = sqrt(candidate[id].err);
+//      }
+//   }
 
    if (best_id == 0)
    {
@@ -276,8 +315,8 @@ int main(int argc, char *argv[])
    double ref_threshold = 0.7;
    bool aniso = false;
    bool hp = true;
-   int max_order = 10;
-   int int_order = 30;
+   int max_order = 8;
+   int int_order = 10;
    bool relaxed_hp = false;
    const char *conv_file = "conv.err";
    bool wait = false;
@@ -343,7 +382,14 @@ int main(int argc, char *argv[])
       mesh.SetCurvature(2);
    }
    mesh.EnsureNCMesh(true);
+
+   mesh.UniformRefinement();
    //mesh.UniformRefinement();
+//   Vertex vert(0.0, 0.0);
+//   for (int i = 0; i < 5; i++)
+//   {
+//      mesh.RefineAtVertex(vert);
+//   }
 
    // We don't support mixed meshes at the moment
    MFEM_VERIFY(mesh.GetNumGeometries(dim) == 1, "Mixed meshes not supported.");
@@ -439,51 +485,103 @@ int main(int argc, char *argv[])
       // mesh and determine whether to refine elements in 'h' or in 'p'.
       if (hp)
       {         
-//         // Prepare refined mesh and enriched spaces
-//         Mesh mesh_h(mesh);
-//         FiniteElementSpace fes_h(fespace, &mesh_h); // FIXME: copy variable orders
-//         FiniteElementSpace fes_h2(fespace, &mesh_h); // FIXME: copy variable orders
-//         FiniteElementSpace fes_p(fespace, &mesh);
+         // Prepare refined mesh and enriched spaces
+         Mesh mesh_h(mesh);
+         FiniteElementSpace fes_h(fespace, &mesh_h); // FIXME: copy variable orders
+         FiniteElementSpace fes_h2(fespace, &mesh_h); // FIXME: copy variable orders
+         FiniteElementSpace fes_h3(fespace, &mesh_h);
+         FiniteElementSpace fes_h4(fespace, &mesh_h);
+         FiniteElementSpace fes_p(fespace, &mesh);
 
-//         for (int i = 0; i < mesh.GetNE(); i++)
-//         {
-//             int p = fespace.GetElementOrder(i);
-//             fes_h.SetElementOrder(i, HalfOrder(p));
-//             fes_h2.SetElementOrder(i, HalfOrder(p)+1);
-//             fes_p.SetElementOrder(i, p+1);
-//         }
-//         fes_h.Update(false);
-//         fes_h2.Update(false);
-//         fes_p.Update(false);
+         Array<Refinement> mesh_h_refinements;
+         double err_max = sqrt(elemError.Max());
+         for (int i = 0; i < mesh.GetNE(); i++)
+         {
+//            if (sqrt(elemError[i]) > ref_threshold * err_max)  // compute enhanced solution with refinements and orders increased only on elements to be refined
+//            {
+                int p = fespace.GetElementOrder(i);
+                fes_h.SetElementOrder(i, min(p, HalfOrder(p)));
+                fes_h2.SetElementOrder(i, min(p, HalfOrder(p)+1));
+                fes_h3.SetElementOrder(i, min(p,HalfOrder(p)+2));
+                fes_h4.SetElementOrder(i, min(p,HalfOrder(p)+3));
+                fes_p.SetElementOrder(i, p+1);
+                mesh_h_refinements.Append(Refinement(i));
 
-//         mesh_h.UniformRefinement();
-//         fes_h.Update(false);
-//         fes_h2.Update(false);
+//            }
+//            else
+//            {
+//               int p = fespace.GetElementOrder(i);
+//               fes_h.SetElementOrder(i, p);
+//               fes_h2.SetElementOrder(i, p);
+//               fes_h3.SetElementOrder(i, p);
+//               fes_p.SetElementOrder(i, p);
+//            }
+         }
+         fes_h.Update(false);
+         fes_h2.Update(false);
+         fes_h3.Update(false);
+         fes_h4.Update(false);
+         fes_p.Update(false);
 
-//         // Solve for h-refined mesh (h/2, HalfOrder)
-//         GridFunction sol_h(&fes_h);
-//         Solve(&fes_h, &sol_h, &exsol, &rhs, pa, int_order);
+         //mesh_h.UniformRefinement();
+         mesh_h.GeneralRefinement(mesh_h_refinements, -1, nc_limit);
+         fes_h.Update(false);
+         fes_h2.Update(false);
+         fes_h3.Update(false);
+         fes_h4.Update(false);
 
-//         // Solve for h-refined mesh (h/2, HalfOrder+1)
-//         GridFunction sol_h2(&fes_h2);
-//         Solve(&fes_h2, &sol_h2, &exsol, &rhs, pa, int_order);
+         // Solve for h-refined mesh (h/2, HalfOrder)
+         GridFunction sol_h(&fes_h);
+         Solve(&fes_h, &sol_h, &exsol, &rhs, pa, int_order);
 
-//         // Solve for p-refined mesh (h, p+1)
-//         GridFunction sol_p(&fes_p);
-//         Solve(&fes_p, &sol_p, &exsol, &rhs, pa, int_order);
+         // Solve for h-refined mesh (h/2, HalfOrder+1)
+         GridFunction sol_h2(&fes_h2);
+         Solve(&fes_h2, &sol_h2, &exsol, &rhs, pa, int_order);
+
+         // Solve for h-refined mesh (h/2, HalfOrder+2)
+         GridFunction sol_h3(&fes_h3);
+         Solve(&fes_h3, &sol_h3, &exsol, &rhs, pa, int_order);
+
+         // Solve for h-refined mesh (h/2, HalfOrder+3)
+         GridFunction sol_h4(&fes_h4);
+         Solve(&fes_h4, &sol_h4, &exsol, &rhs, pa, int_order);
+
+         // Solve for p-refined mesh (h, p+1)
+         GridFunction sol_p(&fes_p);
+         Solve(&fes_p, &sol_p, &exsol, &rhs, pa, int_order);
+
+
+//         GridFunction *vis_x = ProlongToMaxOrder(&sol_p);
+//         VisualizeField(sol_sock, *vis_x, "Solution", keys, 600, 500, 0, 70);
+
+
+//         GridFunction projsol(&fes_p);
+//         Vector tmp = sol_p;
+//         projsol.ProjectCoefficient(exsol);
+//         MakeConforming(projsol);
+//         projsol -= tmp;
+//         vis_x = ProlongToMaxOrder(&projsol);
+//         VisualizeField(err_sock, *vis_x, "Projected Solution", keys, 600, 500, 0, 70);
+
+//         delete vis_x;
 
 
 
-//         Array<double> elemError_h;
-//         Array<double> elemError_h2;
-//         Array<double> elemError_p;
 
-//         CalculateH10Error2(&sol_h, &exgrad, &elemError_h, &ref_type, int_order);
-//         CalculateH10Error2(&sol_h2, &exgrad, &elemError_h2, &ref_type, int_order);
-//         CalculateH10Error2(&sol_p, &exgrad, &elemError_p, &ref_type, int_order);
+         Array<double> elemError_h;
+         Array<double> elemError_h2;
+         Array<double> elemError_h3;
+         Array<double> elemError_h4;
+         Array<double> elemError_p;
+
+         CalculateH10Error2(&sol_h, &exgrad, &elemError_h, &ref_type, int_order);
+         CalculateH10Error2(&sol_h2, &exgrad, &elemError_h2, &ref_type, int_order);
+         CalculateH10Error2(&sol_h3, &exgrad, &elemError_h3, &ref_type, int_order);
+         CalculateH10Error2(&sol_h4, &exgrad, &elemError_h4, &ref_type, int_order);
+         CalculateH10Error2(&sol_p, &exgrad, &elemError_p, &ref_type, int_order);
 
          int h_refined = 0, p_refined = 0;
-         double err_max = sqrt(elemError.Max());
+
 
          Array<Refinement> refinements;
          std::map<int, HPRefinement> hp_refs;
@@ -493,26 +591,28 @@ int main(int argc, char *argv[])
             if (sqrt(elemError[i]) > ref_threshold * err_max)
             {
 
-//               FindHPRef(i, &fespace, &fes_p, &fes_h, &fes_h2, elemError, elemError_p, elemError_h, elemError_h2, max_order, &hp_refs);
+               FindHPRef(i, &fespace, &fes_p, &fes_h, &fes_h2, &fes_h3, &fes_h4, elemError, elemError_p, elemError_h, elemError_h2, elemError_h3, elemError_h4, max_order, &hp_refs);
 
-               // hp-strategy based on known singularity
-               int p = fespace.GetElementOrder(i);
-               Vertex center(0.0, 0.0);
-               if (ContainsVertex(&mesh, i, center))
-               {
-                  hp_refs[i].ref_type = 7;
-                  hp_refs[i].orders[0] = hp_refs[i].orders[1] = hp_refs[i].orders[2] = hp_refs[i].orders[3] = p;
-               }
-               else if (p == max_order)
-               {
-                  hp_refs[i].ref_type = 7;
-                  hp_refs[i].orders[0] = hp_refs[i].orders[1] = hp_refs[i].orders[2] = hp_refs[i].orders[3] = HalfOrder(p);
-               }
-               else
-               {
-                  hp_refs[i].ref_type = 0;
-                  hp_refs[i].orders[0] = p+1;
-               }
+//               // hp-strategy based on an a priori knowledge
+//               int p = fespace.GetElementOrder(i);
+//               Vertex center(0.0, 0.0);
+//               if (ContainsVertex(&mesh, i, center))
+//               {
+//                  hp_refs[i].ref_type = 7;
+//                  hp_refs[i].orders[0] = hp_refs[i].orders[1] = hp_refs[i].orders[2] = hp_refs[i].orders[3] = p;
+
+//               }
+//               else if (p == max_order)
+//               {
+//                  hp_refs[i].ref_type = 7;
+//                  hp_refs[i].orders[0] = hp_refs[i].orders[1] = hp_refs[i].orders[2] = hp_refs[i].orders[3] = HalfOrder(p);
+
+//               }
+//               else
+//               {
+//                  hp_refs[i].ref_type = 0;
+//                  hp_refs[i].orders[0] = p+1;
+//               }
 
 
                if (hp_refs[i].ref_type > 0)
@@ -595,6 +695,7 @@ int main(int argc, char *argv[])
 
       // Update the space, interpolate the solution.
       fespace.Update(false);
+
       sol.Update();
 
       if (wait)
