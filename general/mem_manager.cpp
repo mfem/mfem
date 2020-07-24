@@ -143,10 +143,10 @@ struct Memory
 /// Alias class that holds the base memory region and the offset
 struct Alias
 {
-   Memory *const mem;
-   const size_t offset, bytes;
+   Memory *mem;
+   size_t offset, bytes;
    size_t counter;
-   const MemoryType h_mt;
+   MemoryType h_mt;
 };
 
 /// Maps for the Memory and the Alias classes
@@ -1130,14 +1130,13 @@ void MemoryManager::InsertAlias(const void *base_ptr, void *alias_ptr,
                             internal::Alias{&mem, offset, bytes, 1, mem.h_mt});
    if (res.second == false) // alias_ptr was already in the map
    {
-      if (res.first->second.mem != &mem || res.first->second.offset != offset)
-      {
-         mfem_error("alias already exists with different base/offset!");
-      }
-      else
-      {
-         res.first->second.counter++;
-      }
+      internal::Alias &alias = res.first->second;
+      // Update the alias data in case the existing alias is dangling
+      alias.mem = &mem;
+      alias.offset = offset;
+      alias.bytes = bytes; // aliases with different sizes should be fine
+      alias.h_mt = mem.h_mt;
+      alias.counter++;
    }
 }
 
