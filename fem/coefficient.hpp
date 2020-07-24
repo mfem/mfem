@@ -846,6 +846,8 @@ public:
        can be overridden with the @a own parameter. */
    void Set(int i, int j, Coefficient * c, bool own=true);
 
+   using MatrixCoefficient::Eval;
+
    /// Evaluate coefficient located at (i,j) in the matrix using integration
    /// point @a ip.
    double Eval(int i, int j, ElementTransformation &T, const IntegrationPoint &ip)
