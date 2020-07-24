@@ -32,7 +32,6 @@ static void PAConvectionSetup2D(const int Q1D,
    const int NE = ne;
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
-
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
    const bool const_v = vel.Size() == 2;
    auto V =
@@ -783,31 +782,17 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
-   Vector vel;
-   if (VectorConstantCoefficient *cQ = dynamic_cast<VectorConstantCoefficient*>(Q))
+   Vector vcoeff;
+   if (Q)
    {
-      vel = cQ->GetVec();
+      Q->Eval(fes,*ir,vcoeff);
    }
    else
    {
-      vel.SetSize(dim * nq * ne);
-      auto C = Reshape(vel.HostWrite(), dim, nq, ne);
-      Vector Vq(dim);
-      for (int e = 0; e < ne; ++e)
-      {
-         ElementTransformation& T = *fes.GetElementTransformation(e);
-         for (int q = 0; q < nq; ++q)
-         {
-            Q->Eval(Vq, T, ir->IntPoint(q));
-            for (int i = 0; i < dim; ++i)
-            {
-               C(i,q,e) = Vq(i);
-            }
-         }
-      }
+      mfem_error("No vector coefficient provided.");
    }
    PAConvectionSetup(dim, dofs1D, quad1D, ne, ir->GetWeights(), geom->J,
-                     vel, alpha, pa_data);
+                     vcoeff, alpha, pa_data);
 }
 
 static void PAConvectionApply(const int dim,
