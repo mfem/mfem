@@ -2300,12 +2300,14 @@ class CurlCurlIntegrator: public BilinearFormIntegrator
 private:
    Vector vec, pointflux;
 #ifndef MFEM_THREAD_SAFE
+   Vector D;
    DenseMatrix curlshape, curlshape_dFt, M;
    DenseMatrix vshape, projcurl;
 #endif
 
 protected:
    Coefficient *Q;
+   VectorCoefficient *DQ;
    MatrixCoefficient *MQ;
 
    // PA extension
@@ -2316,10 +2318,11 @@ protected:
    int dim, ne, nq, dofs1D, quad1D;
 
 public:
-   CurlCurlIntegrator() { Q = NULL; MQ = NULL; }
+   CurlCurlIntegrator() { Q = NULL; DQ = NULL; MQ = NULL; }
    /// Construct a bilinear form integrator for Nedelec elements
-   CurlCurlIntegrator(Coefficient &q) : Q(&q) { MQ = NULL; }
-   CurlCurlIntegrator(MatrixCoefficient &m) : MQ(&m) { Q = NULL; }
+   CurlCurlIntegrator(Coefficient &q) : Q(&q) { DQ = NULL; MQ = NULL; }
+   CurlCurlIntegrator(VectorCoefficient &dq) : DQ(&dq) { Q = NULL; MQ = NULL; }
+   CurlCurlIntegrator(MatrixCoefficient &mq) : MQ(&mq) { Q = NULL; DQ = NULL; }
 
    /* Given a particular Finite Element, compute the
       element curl-curl matrix elmat */
