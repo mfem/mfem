@@ -754,7 +754,7 @@ int main(int argc, char *argv[])
    for (int i = 0; i < NE; i++)
    {
       const IntegrationRule &ir =
-            irules->Get(fespace->GetFE(i)->GetGeomType(), quad_order);
+         irules->Get(fespace->GetFE(i)->GetGeomType(), quad_order);
       ElementTransformation *transf = mesh->GetElementTransformation(i);
       for (int j = 0; j < ir.GetNPoints(); j++)
       {
@@ -767,7 +767,7 @@ int main(int argc, char *argv[])
 
    // Perform the nonlinear optimization.
    const IntegrationRule &ir =
-         irules->Get(fespace->GetFE(0)->GetGeomType(), quad_order);
+      irules->Get(fespace->GetFE(0)->GetGeomType(), quad_order);
    TMOPNewtonSolver solver(ir, solver_type);
    // Provide all integration rules in case of a mixed mesh.
    solver.SetIntegrationRules(*irules, quad_order);
