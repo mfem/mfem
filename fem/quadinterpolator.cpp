@@ -68,7 +68,15 @@ void QuadratureInterpolator::Mult<QVectorLayout::UNSET>(
    if (q_layout == QVectorLayout::byNODES)
    {
       if (use_tensor_products)
-      { MultByNodesTensor(e_vec, eval_flags, q_val, q_der, q_det); }
+      {
+         if (eval_flags & VALUES) { EvalByNodesTensor(e_vec, q_val); }
+         if (eval_flags & DERIVATIVES) { GradByNodesTensor(e_vec, q_der); }
+         if (eval_flags & DETERMINANTS)
+         {
+            MFEM_ABORT("tensor evaluation of determinants with 'byNODES'"
+                       " output layout is not implemented yet!");
+         }
+      }
       else
       { Mult<QVectorLayout::byNODES>(e_vec, eval_flags, q_val, q_der, q_det); }
    }

@@ -149,14 +149,11 @@ public:
                       Vector &q_der,
                       Vector &q_det,
                       const int eval_flags);
+   ///
+   void EvalByNodesTensor(const Vector &e_vec, Vector &q_val) const;
 
-   /// Interpolate the E-vector @a e_vec to quadrature points with:
-   ///    - use_tensor_products
-   ///    - QVectorLayout::byNODES
-   void MultByNodesTensor(const Vector &e_vec,
-                          unsigned eval_flags,
-                          Vector &q_val, Vector &q_der,
-                          Vector &q_det) const;
+   ///
+   void GradByNodesTensor(const Vector &e_vec, Vector &q_der) const;
 
    /// Interpolate kernels with QVectorLayout::byVDIM.
    static void D2QValues(const FiniteElementSpace &fes,
