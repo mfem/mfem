@@ -152,12 +152,6 @@ inline DeviceTensor<sizeof...(Dims),T> Reshape(T *ptr, Dims... dims)
    return DeviceTensor<sizeof...(Dims),T>(ptr, dims...);
 }
 
-template <typename T, typename... Dims>
-inline const DeviceTensor<sizeof...(Dims),T> Reshape(const T *ptr, Dims... dims)
-{
-   return DeviceTensor<sizeof...(Dims),T>(const_cast<T*>(ptr), dims...);
-}
-
 /** Vector interface */
 template <typename... Dims>
 inline DeviceTensor<sizeof...(Dims),double> Reshape(Vector &v, Dims... dims)
@@ -166,10 +160,10 @@ inline DeviceTensor<sizeof...(Dims),double> Reshape(Vector &v, Dims... dims)
 }
 
 template <typename... Dims>
-inline const DeviceTensor<sizeof...(Dims),double> Reshape(const Vector &v,
+inline const DeviceTensor<sizeof...(Dims),const double> Reshape(const Vector &v,
                                                           Dims... dims)
 {
-   return Reshape(const_cast<double*>(v.Read()), dims...);
+   return Reshape(v.Read(), dims...);
 }
 
 /** Array interface */
@@ -180,10 +174,10 @@ inline DeviceTensor<sizeof...(Dims),T> Reshape(Array<T> &v, Dims... dims)
 }
 
 template <typename T, typename... Dims>
-inline const DeviceTensor<sizeof...(Dims),T> Reshape(const Array<T> &v,
+inline const DeviceTensor<sizeof...(Dims),const T> Reshape(const Array<T> &v,
                                                      Dims... dims)
 {
-   return Reshape(const_cast<T*>(v.Read()), dims...);
+   return Reshape(v.Read(), dims...);
 }
 
 typedef DeviceTensor<1,int> DeviceArray;
