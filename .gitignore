@@ -148,9 +148,11 @@ examples/hiop/ex9-init.*
 examples/hiop/ex9-final.*
 
 examples/ex71
+examples/pLap/
 examples/ex71p
 examples/pLap/*
 examples/pLap
+examples/pLap/
 
 examples/pumi/refined.mesh
 examples/pumi/sol.gf
