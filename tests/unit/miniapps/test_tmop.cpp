@@ -14,6 +14,7 @@
 #include <cmath>
 #endif
 
+#include <list>
 #include <fstream>
 #include <iostream>
 
@@ -75,6 +76,7 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    int normalization     = 0;
    double jitter         = 0.0;
    bool diag             = true;
+   int newton_loop       = 1;
 
    constexpr int combomet  = 0;
    constexpr int verbosity_level = 0;
@@ -95,6 +97,7 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    args.AddOption(&quad_type, "-qt", "--quad-type", "");
    args.AddOption(&quad_order, "-qo", "--quad_order", "");
    args.AddOption(&newton_iter, "-ni", "--newton-iters","");
+   args.AddOption(&newton_loop, "-nl", "--newton-loops","");
    args.AddOption(&newton_rtol, "-rtol", "--newton-rel-tolerance", "");
    args.AddOption(&lin_solver, "-ls", "--lin-solver", "");
    args.AddOption(&max_lin_iter, "-li", "--lin-iter", "");
@@ -149,7 +152,7 @@ int tmop(int myid, Req &res, int argc, char *argv[])
 
    ParGridFunction rdm(&fes);
    rdm.Randomize(seed);
-   rdm -= 0.25; // Shift to random values in [-0.5,0.5].
+   rdm -= 0.5;
    rdm *= jitter;
    rdm.HostReadWrite();
    // Scale the random values to be of order of the local mesh size.
@@ -404,14 +407,32 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    newton->SetAbsTol(0.0);
    newton->SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
    newton->SetOperator(nlf);
-   newton->Mult(b, x_t);
 
-   REQUIRE(newton->GetConverged());
+   Vector x_init(x);
+   for (int i = 0; i < newton_loop; i++)
+   {
+      x = x_init;
+      x.SetTrueVector();
+
+      if (normalization == 1) { he_nlf_integ->EnableNormalization(x); }
+      ConstantCoefficient lim_coeff(lim_const);
+      if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, dist, lim_coeff); }
+
+      //dist *= M_PI;
+      //if (normalization == 1) { dist = small_phys_size; }
+      DiscreteAdaptTC *datc = dynamic_cast<DiscreteAdaptTC*>(target_c);
+      if (datc && target_id == 5) { datc->SetDiscreteTargetSize(size); }
+      if (datc && target_id == 7) { datc->SetDiscreteTargetAspectRatio(aspr3d); }
+
+      newton->Mult(b, x.GetTrueVector());
+      x.SetFromTrueVector();
+      REQUIRE(newton->GetConverged());
+   }
+
    double x_t_dot = x_t*x_t, dot;
    MPI_Allreduce(&x_t_dot, &dot, 1, MPI_DOUBLE, MPI_SUM, pmesh->GetComm());
    res.dot = dot;
 
-   x.SetFromTrueVector();
    const double final_energy = nlf.GetParGridFunctionEnergy(x);
    res.final_energy = final_energy;
 
@@ -439,14 +460,14 @@ static void req_tmop(int myid, const char *args[], Req &res)
     "tmop_tests", "-pa", "-m", "mesh", "-o", "0", "-rs", "0", \
     "-mid", "0", "-tid", "0", "-qt", "1", "-qo", "0", \
     "-ni", "10", "-rtol", "1e-8", "-ls", "2", "-li", "100", \
-    "-lc", "0", "-nor", "0", "-ji", "0", nullptr }
+    "-lc", "0", "-nor", "0", "-ji", "0", "-nl", "1", nullptr }
 constexpr int ALV = 1;
 constexpr int MSH = 3;
 constexpr int POR = 5;
-constexpr int RFS = 7;
+constexpr int RS = 7;
 constexpr int MID = 9;
 constexpr int TID = 11;
-//constexpr int QTY = 13;
+constexpr int QTY = 13;
 constexpr int QOR = 15;
 constexpr int NI  = 17;
 constexpr int LS  = 21;
@@ -454,16 +475,30 @@ constexpr int LI  = 23;
 constexpr int LC  = 25;
 constexpr int NOR = 27;
 constexpr int JI  = 29;
+constexpr int NL  = 31;
 
 static void dump_args(const char *args[])
 {
-   printf("tmop -m %s -o %s -qo %s -mid %s -tid %s -ls %s%s%s%s%s %s\n",
-          args[MSH], args[POR], args[QOR],
-          args[MID], args[TID], args[LS],
+   const char *format =
+      "tmop -m %s -o %s -qo %s -mid %s -tid %s -ls %s"
+      "%s%s%s%s"     // Optional args: RS, QTY
+      "%s%s%s%s%s%s" // Optional args:  LC, NOR, JI & NL
+      " %s\n";       // Assembly level
+   printf(format,
+          args[MSH], args[POR], args[QOR], args[MID], args[TID], args[LS],
+          // Optional args: RS, QTY
+          args[RS][0] == '0' ? "" : " -rs ",
+          args[RS][0] == '0' ? "" : args[RS],
+          args[QTY][0] == '1' ? "" : " -qt ",
+          args[QTY][0] == '1' ? "" : args[QTY],
+          // Optional args:  LC, NOR, JI & NL
           args[LC][0] == '0' ? "" : " -lc ",
           args[LC][0] == '0' ? "" : args[LC],
           args[NOR][0] == '0' ? "" : " -nor",
-          strlen(args[JI])==1 && args[JI][0] == '0' ? "" : " -jitter",
+          args[JI][0] == '0' ? "" : " -jitter",
+          args[NL][0] == '1' ? "" : " -nl ",
+          args[NL][0] == '1' ? "" : args[NL],
+          // Assembly level
           args[ALV]);
    fflush(0);
 }
@@ -486,36 +521,110 @@ static inline const char *itoa(int i, char *buf)
    return buf;
 }
 
-static void tmop_tests(int myid)
+static inline const char *dtoa(double d, char *buf)
 {
-   static bool all = getenv("MFEM_TESTS_UNIT_TMOP_ALL");
+   std::sprintf(buf, "%.5f", d);
+   return buf;
+}
 
-   // STAR
+class Launch
+{
+   typedef std::list<int> set;
+public:
+   class Args
    {
+      friend class Launch;
+   private:
+      const char *name = nullptr;
+      const char *MSH_ = "star.mesh";
+      int NI_ = 10;
+      int RS_ = 0;
+      int LI_  = 100;
+      bool NOR_ = false;
+      double LC_ = 0.0;
+      double JI_ = 0.0;
+
+      set P_ORDERS = {1,2,3,4};
+      set TARGET_IDS = {1,2,3};
+      set METRIC_IDS = {1,2};
+      set Q_ORDERS = {2,4,8};
+      set LINEAR_SOLVERS = {3,2,1};
+      set NEWTON_LOOPS = {1,3};
+
+   public:
+      Args(const char *name =nullptr): name(name) {}
+      Args &MSH(const char *arg) { MSH_ = arg; return *this; }
+      Args &NI(const int arg) { NI_ = arg; return *this; }
+      Args &RS(const int arg) { RS_ = arg; return *this; }
+      Args &LI(const int arg) { LI_ = arg; return *this; }
+      Args &NOR(const bool arg) { NOR_ = arg; return *this; }
+      Args &LC(const double arg) { LC_ = arg; return *this; }
+      Args &JI(const double arg) { JI_ = arg; return *this; }
+
+      Args &POR(set arg) { P_ORDERS = arg; return *this; }
+      Args &TID(set arg) { TARGET_IDS = arg; return *this; }
+      Args &MID(set arg) { METRIC_IDS = arg; return *this; }
+      Args &QOR(set arg) { Q_ORDERS = arg; return *this; }
+      Args &LS(set arg) { LINEAR_SOLVERS = arg; return *this; }
+      Args &NL(set arg) { NEWTON_LOOPS = arg; return *this; }
+
+   };
+   const char *name, *MSH_;
+   set P_ORDERS, TARGET_IDS, METRIC_IDS, Q_ORDERS, LINEAR_SOLVERS, NEWTON_LOOPS;
+   int *LS_, *NL_;
+   int NI_, RS_, LI_;
+   double LC_, JI_;
+   bool NOR_;
+public:
+   Launch(Args a = Args()):
+      name(a.name), MSH_(a.MSH_), NI_(a.NI_), RS_(a.RS_), LI_(a.LI_),
+      NOR_(a.NOR_), LC_(a.LC_), JI_(a.JI_),
+      P_ORDERS(a.P_ORDERS), TARGET_IDS(a.TARGET_IDS), METRIC_IDS(a.METRIC_IDS),
+      Q_ORDERS(a.Q_ORDERS), LINEAR_SOLVERS(a.LINEAR_SOLVERS),
+      NEWTON_LOOPS(a.NEWTON_LOOPS)
+   { }
+
+   void Run(const int myid =0) const
+   {
+      static bool all = getenv("MFEM_TESTS_UNIT_TMOP_ALL");
+      if (name) { printf("[%s]\n", name); fflush(0); }
       DEFAULT_ARGS;
-      args[MSH] = "star.mesh";
-      for (int p : {1, 2, 3, 4})
+      char ni[2] {}, rs[4] {}, li[4] {}, lc[12] {}, ji[12] {};
+      args[MSH] = MSH_;
+      args[RS] = itoa(RS_,rs);
+      args[NI] = itoa(NI_,ni);
+      args[LI] = itoa(LI_,li);
+      args[LC] = dtoa(LC_,lc);
+      args[JI] = dtoa(JI_,ji);
+      args[NOR] = NOR_ ? "1" : "0";
+      for (int p : P_ORDERS)
       {
          char por[2] {};
          args[POR] = itoa(p, por);
-         for (int t : {1, 2, 3})
+         for (int t : TARGET_IDS)
          {
             char tid[2] {};
             args[TID] = itoa(t, tid);
-            for (int m : {1, 2})
+            for (int m : METRIC_IDS)
             {
-               char mid[2] {};
+               char mid[4] {};
                args[MID] = itoa(m, mid);
-               for (int q : {2, 4, 8})
+               for (int q : Q_ORDERS)
                {
                   if (q <= p) { continue; }
                   char qor[2] {};
                   args[QOR] = itoa(q, qor);
-                  for (int ls : {1, 2, 3})
+                  for (int ls : LINEAR_SOLVERS)
                   {
                      char lsb[2] {};
                      args[LS] = itoa(ls, lsb);
-                     tmop_require(myid, args);
+                     for (int n : NEWTON_LOOPS)
+                     {
+                        char nl[2] {};
+                        args[NL] = itoa(n, nl);
+                        tmop_require(myid, args);
+                        if (!all) { break; }
+                     }
                      if (!all) { break; }
                   }
                   if (!all) { break; }
@@ -527,394 +636,76 @@ static void tmop_tests(int myid)
          if (!all) { break; }
       }
    }
+};
 
-   // SQUARE01 + Adapted analytic Hessian
-   {
-      DEFAULT_ARGS;
-      args[NI] = "100";
-      args[MSH] = "square01.mesh";
-      args[RFS] = "1";
-      for (int p : {1, 2})
-      {
-         char por[2] {};
-         args[POR] = itoa(p, por);
-         for (int t : {4})
-         {
-            char tid[2] {};
-            args[TID] = itoa(t, tid);
-            for (int m : {2})
-            {
-               char mid[2] {};
-               args[MID] = itoa(m, mid);
-               for (int q : {2, 4})
-               {
-                  if (q <= p) { continue; }
-                  char qor[2] {};
-                  args[QOR] = itoa(q, qor);
-                  for (int ls : {2, 3})
-                  {
-                     char lsb[2] {};
-                     args[LS] = itoa(ls, lsb);
-                     tmop_require(myid, args);
-                     if (!all) { break; }
-                  }
-                  if (!all) { break; }
-               }
-               if (!all) { break; }
-            }
-            if (!all) { break; }
-         }
-         if (!all) { break; }
-      }
-   }
+static void tmop_tests(int id)
+{
+   /*Launch(Launch::Args("Star").
+          MSH("star.mesh").
+          POR({1,2,3,4}).QOR({2,4,8}).
+          TID({1,2,3}).MID({1,2})).Run(id);
 
-   // BLADE
-   {
-      DEFAULT_ARGS;
-      args[MSH] = "blade.mesh";
-      args[MID] = "2";
-      args[NI] = "100";
-      args[LI] = "100";
-      for (int p : {1, 2})
-      {
-         char por[2] {};
-         args[POR] = itoa(p, por);
-         for (int q : {2, 4})
-         {
-            char qor[2] {};
-            args[QOR] = itoa(q, qor);
-            for (int t : {1, 2, 3})
-            {
-               char tid[2] {};
-               args[TID] = itoa(t, tid);
-               for (int ls : {1, 2, 3})
-               {
-                  char lsb[2] {};
-                  args[LS] = itoa(ls, lsb);
-                  tmop_require(myid, args);
-                  if (!all) { break; }
-               }
-               if (!all) { break; }
-            }
-            if (!all) { break; }
-         }
-         if (!all) { break; }
-      }
-   }
+   Launch(Launch::Args("Square01 + Adapted analytic Hessian").
+          MSH("square01.mesh").RS(1).
+          POR({1,2}).QOR({2,4}).
+          TID({4}).MID({1,2})).Run(id);
 
-   // BLADE + normalization
-   {
-      DEFAULT_ARGS;
-      args[MSH] = "blade.mesh";
-      args[MID] = "2";
-      args[NI] = "100";
-      args[LI] = "100";
-      args[NOR] = "1";
-      for (int p : {1, 2})
-      {
-         char por[2] {};
-         args[POR] = itoa(p, por);
-         for (int q : {2, 4})
-         {
-            if (q <= p) { continue; }
-            char qor[2] {};
-            args[QOR] = itoa(q, qor);
-            for (int t : {1, 2, 3})
-            {
-               char tid[2] {};
-               args[TID] = itoa(t, tid);
-               for (int ls : {1, 2, 3})
-               {
-                  char lsb[2] {};
-                  args[LS] = itoa(ls, lsb);
-                  tmop_require(myid, args);
-                  if (!all) { break; }
-               }
-               if (!all) { break; }
-            }
-            if (!all) { break; }
-         }
-         if (!all) { break; }
-      }
-   }
+   Launch(Launch::Args("Blade").
+          MSH("blade.mesh").
+          POR({1,2}).QOR({2,4}).
+          TID({1,2,3}).MID({2})).Run(id);
 
-   // BLADE + limiting + normalization
-   {
-      DEFAULT_ARGS;
-      args[MSH] = "blade.mesh";
-      args[MID] = "2";
-      args[NI] = "100";
-      args[LI] = "100";
-      args[LC] = "3.14";
-      args[NOR] = "1";
-      for (int p : {1, 2})
-      {
-         char por[2] {};
-         args[POR] = itoa(p, por);
-         for (int q : {2, 4})
-         {
-            if (q <= p) { continue; }
-            char qor[2] {};
-            args[QOR] = itoa(q, qor);
-            for (int t : {1, 2, 3})
-            {
-               char tid[2] {};
-               args[TID] = itoa(t, tid);
-               for (int ls : {1, 2, 3})
-               {
-                  char lsb[2] {};
-                  args[LS] = itoa(ls, lsb);
-                  tmop_require(myid, args);
-                  if (!all) { break; }
-               }
-               if (!all) { break; }
-            }
-            if (!all) { break; }
-         }
-         if (!all) { break; }
-      }
-   }
+   Launch(Launch::Args("Blade + norm.").
+          MSH("blade.mesh").NOR(true).
+          POR({1,2}).QOR({2,4}).
+          TID({1,2,3}).MID({2})).Run(id);
 
-   // BLADE + Discrete size + normalization, mid: #002 & #007
-   {
-      DEFAULT_ARGS;
-      args[MSH] = "blade.mesh";
-      args[NI] = "100";
-      args[LI] = "200";
-      args[NOR] = "1";
-      for (int p : {1})
-      {
-         char por[2] {};
-         args[POR] = itoa(p, por);
-         for (int q : {2})
-         {
-            if (q <= p) { continue; }
-            char qor[2] {};
-            args[QOR] = itoa(q, qor);
-            for (int m : {2, 7})
-            {
-               char mid[2] {};
-               args[MID] = itoa(m, mid);
-               for (int t : {5})
-               {
-                  char tid[2] {};
-                  args[TID] = itoa(t, tid);
-                  for (int ls : {2})
-                  {
-                     char lsb[2] {};
-                     args[LS] = itoa(ls, lsb);
-                     tmop_require(myid, args);
-                     if (!all) { break; }
-                  }
-                  if (!all) { break; }
-               }
-               if (!all) { break; }
-            }
-            if (!all) { break; }
-         }
-         if (!all) { break; }
-      }
-   }
+   Launch(Launch::Args("Blade + limiting + norm.").
+          MSH("blade.mesh").
+          NI(100).NOR(true).LC(M_PI).
+          POR({1,2}).QOR({2,4}).
+          TID({1,2,3}).MID({2})).Run(id);*/
 
-   {
-      // CUBE
-      DEFAULT_ARGS;
-      args[MSH] = "cube.mesh";
-      args[NI] = "100";
-      args[RFS] = "0";
-      args[JI] = "0.1";
-      for (int p : {1, 2})
-      {
-         char por[2] {};
-         args[POR] = itoa(p, por);
-         for (int q : {2, 4})
-         {
-            if (q <= p) { continue; }
-            char qor[2] {};
-            args[QOR] = itoa(q, qor);
-            for (int m : {302, 303})
-            {
-               char mid[4] {};
-               args[MID] = itoa(m, mid);
-               for (int t : {2, 3})
-               {
-                  char tid[2] {};
-                  args[TID] = itoa(t, tid);
-                  for (int ls : {1, 2, 3})
-                  {
-                     char lsb[2] {};
-                     args[LS] = itoa(ls, lsb);
-                     tmop_require(myid, args);
-                     if (!all) { break; }
-                  }
-                  if (!all) { break; }
-               }
-               if (!all) { break; }
-            }
-            if (!all) { break; }
-         }
-         if (!all) { break; }
-      }
-   }
+   Launch(Launch::Args("Blade + Discrete size + norm.").
+          MSH("blade.mesh").
+          NI(100).LI(200).NOR(true).
+          POR({1}).QOR({2}).
+          TID({5}).MID({7}).LS({2}).NL({2})).Run(id);
 
-   // CUBE + Discrete size & aspect-ratio + normalization + limiting
-   {
-      DEFAULT_ARGS;
-      args[MSH] = "cube.mesh";
-      args[RFS] = "0";
-      args[NOR] = "1";
-      args[LC] = "3.14";
-      //args[JI] = "0.1";
-      for (int p : {1, 2})
-      {
-         char por[2] {};
-         args[POR] = itoa(p, por);
-         for (int q : {2, 4})
-         {
-            if (q <= p) { continue; }
-            char qor[2] {};
-            args[QOR] = itoa(q, qor);
-            for (int m : {302, 321})
-            {
-               char mid[4] {};
-               args[MID] = itoa(m, mid);
-               for (int t : {7})
-               {
-                  char tid[2] {};
-                  args[TID] = itoa(t, tid);
-                  for (int ls : {3, 2, 1})
-                  {
-                     char lsb[2] {};
-                     args[LS] = itoa(ls, lsb);
-                     tmop_require(myid, args);
-                     if (!all) { break; }
-                  }
-                  if (!all) { break; }
-               }
-               if (!all) { break; }
-            }
-            if (!all) { break; }
-         }
-         if (!all) { break; }
-      }
-   }
+   Launch(Launch::Args("Blade + Discrete size + norm.").
+          MSH("blade.mesh").
+          NI(100).LI(200).NOR(true).
+          POR({1}).QOR({2}).
+          TID({5}).MID({2,7})).Run(id);
 
-   // TOROID-HEX
-   {
-      DEFAULT_ARGS;
-      args[MSH] = "toroid-hex.mesh";
-      args[RFS] = "0";
-      for (int p : {1, 2})
-      {
-         char por[2] {};
-         args[POR] = itoa(p, por);
-         for (int q : {2, 4, 8})
-         {
-            char qor[2] {};
-            args[QOR] = itoa(q, qor);
-            for (int m : {302, 303, 321})
-            {
-               char mid[4] {};
-               args[MID] = itoa(m, mid);
-               for (int t : {1, 2, 3})
-               {
-                  char tid[2] {};
-                  args[TID] = itoa(t, tid);
-                  for (int ls : {1, 2, 3})
-                  {
-                     char lsb[2] {};
-                     args[LS] = itoa(ls, lsb);
-                     tmop_require(myid, args);
-                     if (!all) { break; }
-                  }
-                  if (!all) { break; }
-               }
-               if (!all) { break; }
-            }
-            if (!all) { break; }
-         }
-         if (!all) { break; }
-      }
-   }
+   Launch(Launch::Args("Cube").
+          MSH("cube.mesh").
+          NI(100).JI(0.1).
+          POR({1,2}).QOR({2,4}).
+          TID({2,3}).MID({302,303})).Run(id);
 
-   // TOROID-HEX + limiting, no normalization
-   {
-      DEFAULT_ARGS;
-      args[MSH] = "toroid-hex.mesh";
-      args[RFS] = "0";
-      args[LC] = "3.14";
-      for (int p : {1, 2})
-      {
-         char por[2] {};
-         args[POR] = itoa(p, por);
-         for (int q : {2, 4})
-         {
-            char qor[2] {};
-            args[QOR] = itoa(q, qor);
-            for (int m : {321})
-            {
-               char mid[4] {};
-               args[MID] = itoa(m, mid);
-               for (int t : {1, 2})
-               {
-                  char tid[2] {};
-                  args[TID] = itoa(t, tid);
-                  for (int ls : {3, 2, 1})
-                  {
-                     char lsb[2] {};
-                     args[LS] = itoa(ls, lsb);
-                     tmop_require(myid, args);
-                     if (!all) { break; }
-                  }
-                  if (!all) { break; }
-               }
-               if (!all) { break; }
-            }
-            if (!all) { break; }
-         }
-         if (!all) { break; }
-      }
-   }
+   Launch(Launch::Args("Cube + Discrete size & aspect + norm. + limiting").
+          MSH("cube.mesh").
+          NOR(true).LC(M_PI).
+          POR({1,2}).QOR({2,4}).
+          TID({7}).MID({302,321})).Run(id);
 
-   // TOROID-HEX + limiting + normalization
-   {
-      DEFAULT_ARGS;
-      args[MSH] = "toroid-hex.mesh";
-      args[RFS] = "0";
-      args[LC] = "3.14";
-      args[NOR] = "1";
-      for (int p : {1, 2})
-      {
-         char por[2] {};
-         args[POR] = itoa(p, por);
-         for (int q : {2, 4})
-         {
-            char qor[2] {};
-            args[QOR] = itoa(q, qor);
-            for (int m : {321})
-            {
-               char mid[4] {};
-               args[MID] = itoa(m, mid);
-               for (int t : {1, 2})
-               {
-                  char tid[2] {};
-                  args[TID] = itoa(t, tid);
-                  for (int ls : {1, 2, 3})
-                  {
-                     char lsb[2] {};
-                     args[LS] = itoa(ls, lsb);
-                     tmop_require(myid, args);
-                     if (!all) { break; }
-                  }
-                  if (!all) { break; }
-               }
-               if (!all) { break; }
-            }
-            if (!all) { break; }
-         }
-         if (!all) { break; }
-      }
-   }
+   Launch(Launch::Args("Toroid-Hex").
+          MSH("toroid-hex.mesh").
+          POR({1,2}).QOR({2,4,8}).
+          TID({1,2,3}).MID({302,303,321})).Run(id);
+
+   Launch(Launch::Args("Toroid-Hex + limiting").
+          MSH("toroid-hex.mesh").
+          LC(M_PI).
+          POR({1,2}).QOR({2,4}).
+          TID({1,2}).MID({321})).Run(id);
+
+   Launch(Launch::Args("Toroid-Hex + limiting + norm.").
+          MSH("toroid-hex.mesh").
+          LC(M_PI).NOR(true).
+          POR({1,2}).QOR({2,4}).
+          TID({1,2}).MID({321})).Run(id);
 }
 
 #if defined(MFEM_TMOP_MPI)
