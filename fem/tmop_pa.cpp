@@ -13,6 +13,7 @@
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
+#include "quadinterpolator.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 
@@ -146,8 +147,12 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    const int ne = PA.ne = fes.GetMesh()->GetNE();
    const int dim = PA.dim = mesh->Dimension();
    MFEM_VERIFY(PA.dim == 2 || PA.dim == 3, "Not yet implemented!");
+
+
    PA.maps = &fes.GetFE(0)->GetDofToQuad(*ir, DofToQuad::TENSOR);
-   PA.geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
+   PA.geom = mesh->GetGeometricFactors(*ir,
+                                       GeometricFactors::JACOBIANS,
+                                       DofToQuad::TENSOR);
 
    // Energy vector
    PA.E.UseDevice(true);
@@ -288,9 +293,6 @@ double TMOP_Integrator::GetGridFunctionEnergyPA(const Vector &xe) const
    double energy = 0.0;
 
    ComputeElementTargetsPA(xe);
-   /*MFEM_VERIFY(PA.X0.Size() == xe.Size(),"");
-   PA.R->Mult(*nodes0, PA.X0);
-   PA.R->Mult(*lim_dist, PA.LD);*/
 
    if (PA.dim == 2)
    {
