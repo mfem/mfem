@@ -31,6 +31,7 @@ KnotVector::KnotVector(std::istream &input)
 {
    input >> Order >> NumOfControlPoints;
    knot.Load(input, NumOfControlPoints + Order + 1);
+   NumOfElements = 0;
    GetElements();
 }
 
@@ -39,8 +40,8 @@ KnotVector::KnotVector(int Order_, int NCP)
    Order = Order_;
    NumOfControlPoints = NCP;
    knot.SetSize(NumOfControlPoints + Order + 1);
-
    knot = -1.;
+   NumOfElements = 0;
 }
 
 KnotVector &KnotVector::operator=(const KnotVector &kv)
@@ -84,8 +85,9 @@ KnotVector *KnotVector::DegreeElevate(int t) const
    return newkv;
 }
 
-void KnotVector::UniformRefinement(Vector &newknots) const
+void KnotVector::UniformRefinement(Vector &newknots)
 {
+   GetElements();
    newknots.SetSize(NumOfElements);
    int j = 0;
    for (int i = 0; i < knot.Size()-1; i++)
@@ -98,8 +100,10 @@ void KnotVector::UniformRefinement(Vector &newknots) const
    }
 }
 
-void KnotVector::GetElements()
+void KnotVector::GetElements(bool force)
 {
+   if (!force && NumOfElements > 0) return;
+
    NumOfElements = 0;
    for (int i = Order; i < NumOfControlPoints; i++)
    {
@@ -542,6 +546,7 @@ void NURBSPatch::init(int dim_)
 {
    Dim = dim_;
    sd = nd = -1;
+   projected = false;
 
    if (kv.Size() == 2)
    {
@@ -678,6 +683,7 @@ NURBSPatch::NURBSPatch(NURBSPatch *parent, int dir, int Order, int NCP)
          kv[i] = new KnotVector(Order, NCP);
       }
    init(parent->Dim);
+   projected = parent->isProjected();
 }
 
 void NURBSPatch::swap(NURBSPatch *np)
@@ -694,6 +700,7 @@ void NURBSPatch::swap(NURBSPatch *np)
 
    data = np->data;
    np->kv.Copy(kv);
+   projected = np->isProjected();
 
    ni  = np->ni;
    nj  = np->nj;
@@ -741,6 +748,60 @@ void NURBSPatch::Print(std::ostream &out) const
       }
       out << '\n';
    }
+}
+
+
+void NURBSPatch::PrintMesh(const char* mesh_file) const
+{
+   // Save Mesh by closing file
+   // Open mesh output file
+   ofstream output(mesh_file);
+
+   // File header
+   output<<"MFEM NURBS mesh v1.0"<<endl;
+   output<< endl << "# " << kv.Size() << "D single patch mesh" << endl << endl;
+   output<< "dimension"<<endl;
+   output<< kv.Size() <<endl;
+   output<< endl;
+   if (kv.Size() == 2 )
+   {
+      // Elements
+      output<<"elements"<<endl;
+      output<<"1"<<endl;
+      output<<"1 3 0 1 2 3"<<endl;
+      output<<endl;
+
+      // Boundaries
+      output<<"boundary"<<endl;
+      output<<"4"<<endl;
+      output<<"1 1  0  1"<< endl;
+      output<<"2 1  1  2"<< endl;
+      output<<"3 1  2  3"<< endl;
+      output<<"4 1  3  0"<< endl;
+      output<<endl;
+
+      // Edges
+      output<<"edges"<<endl;
+      output<<"4"<<endl;
+      output << "0  0  1"<<endl;
+      output << "0  3  2"<<endl;
+      output << "1  0  3"<<endl;
+      output << "1  1  2"<<endl;
+      output << endl;
+
+      // Vertices
+      output << "vertices" << endl;
+      output << 4 << endl;
+   }
+
+   //output << endl;
+   output<<"patches"<<endl;
+   output<<endl;
+   Print(output);
+   output<<endl;
+
+   // Close
+   output.close();
 }
 
 int NURBSPatch::SetLoopDirection(int dir)
@@ -801,6 +862,56 @@ int NURBSPatch::SetLoopDirection(int dir)
 
    return -1;
 }
+
+void NURBSPatch::ApplyProjection()
+{
+   if (isProjected()) return;
+
+   int size = 1;
+
+   for (int i = 0; i < kv.Size(); i++)
+   {
+      size *= kv[i]->GetNCP();
+   }
+
+   for (int j = 0, i = 0; i < size; i++)
+   {
+      double wgt = data[j + Dim -1];
+      for (int d = 0; d < Dim-1; d++)
+      {
+         data[j++] *= wgt;
+      }
+      j++;
+   }
+   projected = true;
+   return;
+}
+
+void NURBSPatch::UndoProjection()
+{
+   if (!isProjected()) return;
+
+   int size = 1;
+
+   for (int i = 0; i < kv.Size(); i++)
+   {
+      size *= kv[i]->GetNCP();
+   }
+
+   for (int j = 0, i = 0; i < size; i++)
+   {
+      double invwgt = 1.0/data[j + Dim -1];
+
+      for (int d = 0; d < Dim-1; d++)
+      {
+         data[j++] *= invwgt;
+      }
+      j++;
+   }
+   projected = false;
+   return;
+}
+
 
 void NURBSPatch::UniformRefinement()
 {
@@ -981,7 +1092,7 @@ void NURBSPatch::DegreeElevate(int dir, int t)
 
    NURBSPatch &oldp  = *this;
    KnotVector &oldkv = *kv[dir];
-
+   oldkv.GetElements();
    NURBSPatch *newpatch = new NURBSPatch(this, dir, oldkv.GetOrder() + t,
                                          oldkv.GetNCP() + oldkv.GetNE()*t);
    NURBSPatch &newp  = *newpatch;

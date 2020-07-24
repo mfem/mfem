@@ -52,7 +52,7 @@ public:
    int Size()     const { return knot.Size(); }
 
    /// Count the number of elements
-   void GetElements();
+   void GetElements(bool force = false);
 
    bool isElement(int i) const { return (knot(Order+i) != knot(Order+i+1)); }
 
@@ -77,7 +77,7 @@ public:
    void FindInterpolant(Array<Vector*> &x);
 
    void Difference(const KnotVector &kv, Vector &diff) const;
-   void UniformRefinement(Vector &newknots) const;
+   void UniformRefinement(Vector &newknots);
    /** Return a new KnotVector with elevated degree by repeating the endpoints
        of the knot vector. */
    KnotVector *DegreeElevate(int t) const;
@@ -101,6 +101,7 @@ class NURBSPatch
 protected:
    int     ni, nj, nk, Dim;
    double *data; // the layout of data is: (Dim x ni x nj x nk)
+   bool    projected;
 
    Array<KnotVector *> kv;
 
@@ -128,6 +129,7 @@ public:
    ~NURBSPatch();
 
    void Print(std::ostream &out) const;
+   void PrintMesh(const char* mesh_file) const;
 
    void DegreeElevate(int dir, int t);
    void KnotInsert   (int dir, const KnotVector &knot);
@@ -143,6 +145,12 @@ public:
    int GetNC() const { return Dim; }
    int GetNKV() const { return kv.Size(); }
    KnotVector *GetKV(int i) { return kv[i]; }
+
+   // B-NET projection functions
+   void SetProjected(bool proj_) {projected = proj_;};
+   bool isProjected() {return projected;};
+   void ApplyProjection();
+   void UndoProjection();
 
    // Standard B-NET access functions
    inline       double &operator()(int i, int j, int l);
