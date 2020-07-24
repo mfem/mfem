@@ -89,8 +89,8 @@ private:
    void (*Function)(const Vector &, CartesianPML * , Vector &);
 public:
    PMLDiagMatrixCoefficient(int dim, void(*F)(const Vector &, CartesianPML *,
-                                          Vector &),
-                        CartesianPML * pml_)
+                                              Vector &),
+                            CartesianPML * pml_)
       : VectorCoefficient(dim), pml(pml_), Function(F)
    {}
    virtual void Eval(Vector &K, ElementTransformation &T,
