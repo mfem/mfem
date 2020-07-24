@@ -379,11 +379,9 @@ void QuadratureInterpolator::MultByNodesTensor(
    const int NE = fespace->GetNE();
    if (NE == 0) { return; }
    const int vdim = fespace->GetVDim();
-   const int dim = fespace->GetMesh()->Dimension();
    const FiniteElement *fe = fespace->GetFE(0);
    const IntegrationRule *ir =
       IntRule ? IntRule : &qspace->GetElementIntRule(0);
-   const DofToQuad &maps_f = fe->GetDofToQuad(*ir, DofToQuad::FULL);
    const DofToQuad &maps_t = fe->GetDofToQuad(*ir, DofToQuad::TENSOR);
    const int D1D = maps_t.ndof;
    const int Q1D = maps_t.nqpt;
@@ -395,19 +393,23 @@ void QuadratureInterpolator::MultByNodesTensor(
    double *Y_der = q_der.Write();
    if (id == 0x333)
    {
-      // The strain energy decreased by: 0.472407538769 %.
 #if 0
       Eval3D<3,3,3>(NE,vdim,maps_f,e_vec,q_val,q_der,q_det,eval_flags);
 #else
-      if (eval_flags & VALUES)
-      {
-         EvalTensor3D<3,3,3>(NE, maps_t.B.Read(), X, Y_val);
-      }
-      if (eval_flags & DERIVATIVES)
-      {
-         GradTensor3D<3,3,3>(NE, B, G, X, Y_der);
-      }
+      if (eval_flags & VALUES) { EvalTensor3D<3,3,3>(NE, B, X, Y_val); }
+      if (eval_flags & DERIVATIVES) { GradTensor3D<3,3,3>(NE, B, G, X, Y_der); }
+#endif
+      return;
+   }
 
+   if (id == 0x335)
+   {
+#if 0
+      const DofToQuad &maps_f = fe->GetDofToQuad(*ir, DofToQuad::FULL);
+      Eval3D<3,3,3>(NE,vdim,maps_f,e_vec,q_val,q_der,q_det,eval_flags);
+#else
+      if (eval_flags & VALUES) { EvalTensor3D<3,3,5>(NE, B, X, Y_val); }
+      if (eval_flags & DERIVATIVES) { GradTensor3D<3,3,5>(NE, B, G, X, Y_der); }
 #endif
       return;
    }
