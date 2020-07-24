@@ -80,8 +80,8 @@ protected:
    mfem::Coefficient* coeff;
    mfem::Coefficient* load;
 
-   //pLapIntegrandTH qint;
-   pLapIntegrandTJ qint;
+   pLapIntegrandTH qint;
+   //pLapIntegrandTJ qint;
 public:
    pLaplaceAD()
    {

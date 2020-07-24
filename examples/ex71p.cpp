@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
    int newton_iter = 500;
    int print_level = 0;
    double pp = 2.0;
-   int integrator=0;
+   int integrator=1; //use AD
    mfem::StopWatch* timer=new mfem::StopWatch();
 
    mfem::OptionsParser args(argc, argv);
@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
    args.AddOption((&print_level),"-prt","--print-level",
                   "Print level.");
    args.AddOption(&integrator, "-int","--integrator",
-                  "Integrator 0: standard; 1: AD uaing energy; 2: AD using gradients");
+                  "Integrator 0: standard; 1: AD");
 
    args.Parse();
    if (!args.Good())

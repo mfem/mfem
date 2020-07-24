@@ -56,7 +56,6 @@ set(SRCS
   tmop.cpp
   tmop_tools.cpp
   gslib.cpp
-  adnonlininteg.cpp
   transfer.cpp
   )
 
