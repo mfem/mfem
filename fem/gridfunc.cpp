@@ -397,8 +397,16 @@ const
    fes->DofsToVDofs(vdim-1, dofs);
    Vector DofVal(dofs.Size()), LocVec;
    const FiniteElement *fe = fes->GetFE(i);
-   MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE, "invalid FE map type");
-   fe->CalcShape(ip, DofVal);
+   if (fe->GetMapType() == FiniteElement::VALUE)
+   {
+      fe->CalcShape(ip, DofVal);
+   }
+   else
+   {
+      ElementTransformation *Tr = fes->GetElementTransformation(i);
+      Tr->SetIntPoint(&ip);
+      fe->CalcPhysShape(*Tr, DofVal);
+   }
    GetSubVector(dofs, LocVec);
 
    return (DofVal * LocVec);
@@ -415,10 +423,17 @@ void GridFunction::GetVectorValue(int i, const IntegrationPoint &ip,
    GetSubVector(vdofs, loc_data);
    if (FElem->GetRangeType() == FiniteElement::SCALAR)
    {
-      MFEM_ASSERT(FElem->GetMapType() == FiniteElement::VALUE,
-                  "invalid FE map type");
       Vector shape(dof);
-      FElem->CalcShape(ip, shape);
+      if (FElem->GetMapType() == FiniteElement::VALUE)
+      {
+         FElem->CalcShape(ip, shape);
+      }
+      else
+      {
+         ElementTransformation *Tr = fes->GetElementTransformation(i);
+         Tr->SetIntPoint(&ip);
+         FElem->CalcPhysShape(*Tr, shape);
+      }
       int vdim = fes->GetVDim();
       val.SetSize(vdim);
       for (int k = 0; k < vdim; k++)
