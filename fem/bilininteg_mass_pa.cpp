@@ -83,9 +83,9 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
       const int NE = ne;
       const int NQ = nq;
       const bool const_c = coeff.Size() == 1;
-      auto w = ir->GetWeights().Read();
-      auto J = Reshape(geom->J.Read(), NQ,2,2,NE);
-      auto C =
+      const auto w = ir->GetWeights().Read();
+      const auto J = Reshape(geom->J.Read(), NQ,2,2,NE);
+      const auto C =
          const_c ? Reshape(coeff.Read(), 1,1) : Reshape(coeff.Read(), NQ,NE);
       auto v = Reshape(pa_data.Write(), NQ, NE);
       MFEM_FORALL(e, NE,
@@ -107,9 +107,9 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
       const int NE = ne;
       const int NQ = nq;
       const bool const_c = coeff.Size() == 1;
-      auto W = ir->GetWeights().Read();
-      auto J = Reshape(geom->J.Read(), NQ,3,3,NE);
-      auto C =
+      const auto W = ir->GetWeights().Read();
+      const auto J = Reshape(geom->J.Read(), NQ,3,3,NE);
+      const auto C =
          const_c ? Reshape(coeff.Read(), 1,1) : Reshape(coeff.Read(), NQ,NE);
       auto v = Reshape(pa_data.Write(), NQ,NE);
       MFEM_FORALL(e, NE,
@@ -147,8 +147,8 @@ static void PAMassAssembleDiagonal2D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b, Q1D, D1D);
-   auto D = Reshape(d, Q1D, Q1D, NE);
+   const auto B = Reshape(b, Q1D, D1D);
+   const auto D = Reshape(d, Q1D, Q1D, NE);
    auto Y = Reshape(y, D1D, D1D, NE);
    MFEM_FORALL(e, NE,
    {
@@ -196,8 +196,8 @@ static void SmemPAMassAssembleDiagonal2D(const int NE,
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
-   auto b = Reshape(b_, Q1D, D1D);
-   auto D = Reshape(d_, Q1D, Q1D, NE);
+   const auto b = Reshape(b_, Q1D, D1D);
+   const auto D = Reshape(d_, Q1D, Q1D, NE);
    auto Y = Reshape(y_, D1D, D1D, NE);
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
@@ -259,8 +259,8 @@ static void PAMassAssembleDiagonal3D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b, Q1D, D1D);
-   auto D = Reshape(d, Q1D, Q1D, Q1D, NE);
+   const auto B = Reshape(b, Q1D, D1D);
+   const auto D = Reshape(d, Q1D, Q1D, Q1D, NE);
    auto Y = Reshape(y, D1D, D1D, D1D, NE);
    MFEM_FORALL(e, NE,
    {
@@ -330,8 +330,8 @@ static void SmemPAMassAssembleDiagonal3D(const int NE,
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
-   auto b = Reshape(b_, Q1D, D1D);
-   auto D = Reshape(d_, Q1D, Q1D, Q1D, NE);
+   const auto b = Reshape(b_, Q1D, D1D);
+   const auto D = Reshape(d_, Q1D, Q1D, Q1D, NE);
    auto Y = Reshape(y_, D1D, D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
@@ -553,10 +553,10 @@ static void PAMassApply2D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b_, Q1D, D1D);
-   auto Bt = Reshape(bt_, D1D, Q1D);
-   auto D = Reshape(d_, Q1D, Q1D, NE);
-   auto X = Reshape(x_, D1D, D1D, NE);
+   const auto B = Reshape(b_, Q1D, D1D);
+   const auto Bt = Reshape(bt_, D1D, Q1D);
+   const auto D = Reshape(d_, Q1D, Q1D, NE);
+   const auto X = Reshape(x_, D1D, D1D, NE);
    auto Y = Reshape(y_, D1D, D1D, NE);
    MFEM_FORALL(e, NE,
    {
@@ -649,9 +649,9 @@ static void SmemPAMassApply2D(const int NE,
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
-   auto b = Reshape(b_, Q1D, D1D);
-   auto D = Reshape(d_, Q1D, Q1D, NE);
-   auto x = Reshape(x_, D1D, D1D, NE);
+   const auto b = Reshape(b_, Q1D, D1D);
+   const auto D = Reshape(d_, Q1D, Q1D, NE);
+   const auto x = Reshape(x_, D1D, D1D, NE);
    auto Y = Reshape(y_, D1D, D1D, NE);
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
@@ -768,10 +768,10 @@ static void PAMassApply3D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b_, Q1D, D1D);
-   auto Bt = Reshape(bt_, D1D, Q1D);
-   auto D = Reshape(d_, Q1D, Q1D, Q1D, NE);
-   auto X = Reshape(x_, D1D, D1D, D1D, NE);
+   const auto B = Reshape(b_, Q1D, D1D);
+   const auto Bt = Reshape(bt_, D1D, Q1D);
+   const auto D = Reshape(d_, Q1D, Q1D, Q1D, NE);
+   const auto X = Reshape(x_, D1D, D1D, D1D, NE);
    auto Y = Reshape(y_, D1D, D1D, D1D, NE);
    MFEM_FORALL(e, NE,
    {
@@ -912,9 +912,9 @@ static void SmemPAMassApply3D(const int NE,
    constexpr int M1D = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= M1D, "");
    MFEM_VERIFY(Q1D <= M1Q, "");
-   auto b = Reshape(b_, Q1D, D1D);
-   auto d = Reshape(d_, Q1D, Q1D, Q1D, NE);
-   auto x = Reshape(x_, D1D, D1D, D1D, NE);
+   const auto b = Reshape(b_, Q1D, D1D);
+   const auto d = Reshape(d_, Q1D, Q1D, Q1D, NE);
+   const auto x = Reshape(x_, D1D, D1D, D1D, NE);
    auto y = Reshape(y_, D1D, D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, 1,
    {

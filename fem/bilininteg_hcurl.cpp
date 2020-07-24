@@ -33,10 +33,9 @@ void PAHcurlSetup2D(const int Q1D,
                     Vector &op)
 {
    const int NQ = Q1D*Q1D;
-   auto W = w.Read();
-
-   auto J = Reshape(j, NQ, 2, 2, NE);
-   auto coeff = Reshape(_coeff, coeffDim, NQ, NE);
+   const auto W = w.Read();
+   const auto J = Reshape(j, NQ, 2, 2, NE);
+   const auto coeff = Reshape(_coeff, coeffDim, NQ, NE);
    auto y = Reshape(op.Write(), NQ, 3, NE);
 
    MFEM_FORALL(e, NE,
@@ -67,9 +66,9 @@ void PAHcurlSetup3D(const int Q1D,
                     Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
-   auto W = w.Read();
-   auto J = Reshape(j, NQ, 3, 3, NE);
-   auto coeff = Reshape(_coeff, coeffDim, NQ, NE);
+   const auto W = w.Read();
+   const auto J = Reshape(j, NQ, 3, 3, NE);
+   const auto coeff = Reshape(_coeff, coeffDim, NQ, NE);
    auto y = Reshape(op.Write(), NQ, 6, NE);
 
    MFEM_FORALL(e, NE,
@@ -128,12 +127,12 @@ void PAHcurlMassApply2D(const int D1D,
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
 
-   auto Bo = Reshape(_Bo, Q1D, D1D-1);
-   auto Bc = Reshape(_Bc, Q1D, D1D);
-   auto Bot = Reshape(_Bot, D1D-1, Q1D);
-   auto Bct = Reshape(_Bct, D1D, Q1D);
-   auto op = Reshape(_op, Q1D, Q1D, 3, NE);
-   auto x = Reshape(_x, 2*(D1D-1)*D1D, NE);
+   const auto Bo = Reshape(_Bo, Q1D, D1D-1);
+   const auto Bc = Reshape(_Bc, Q1D, D1D);
+   const auto Bot = Reshape(_Bot, D1D-1, Q1D);
+   const auto Bct = Reshape(_Bct, D1D, Q1D);
+   const auto op = Reshape(_op, Q1D, Q1D, 3, NE);
+   const auto x = Reshape(_x, 2*(D1D-1)*D1D, NE);
    auto y = Reshape(_y, 2*(D1D-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
@@ -252,9 +251,9 @@ void PAHcurlMassAssembleDiagonal2D(const int D1D,
    constexpr static int VDIM = 2;
    constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
 
-   auto Bo = Reshape(_Bo, Q1D, D1D-1);
-   auto Bc = Reshape(_Bc, Q1D, D1D);
-   auto op = Reshape(_op, Q1D, Q1D, 3, NE);
+   const auto Bo = Reshape(_Bo, Q1D, D1D-1);
+   const auto Bc = Reshape(_Bc, Q1D, D1D);
+   const auto op = Reshape(_op, Q1D, Q1D, 3, NE);
    auto diag = Reshape(_diag, 2*(D1D-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
@@ -311,9 +310,9 @@ void PAHcurlMassAssembleDiagonal3D(const int D1D,
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
    constexpr static int VDIM = 3;
 
-   auto Bo = Reshape(_Bo, Q1D, D1D-1);
-   auto Bc = Reshape(_Bc, Q1D, D1D);
-   auto op = Reshape(_op, Q1D, Q1D, Q1D, 6, NE);
+   const auto Bo = Reshape(_Bo, Q1D, D1D-1);
+   const auto Bc = Reshape(_Bc, Q1D, D1D);
+   const auto op = Reshape(_op, Q1D, Q1D, Q1D, 6, NE);
    auto diag = Reshape(_diag, 3*(D1D-1)*D1D*D1D, NE);
 
    MFEM_FORALL(e, NE,
@@ -384,12 +383,12 @@ void PAHcurlMassApply3D(const int D1D,
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
    constexpr static int VDIM = 3;
 
-   auto Bo = Reshape(_Bo, Q1D, D1D-1);
-   auto Bc = Reshape(_Bc, Q1D, D1D);
-   auto Bot = Reshape(_Bot, D1D-1, Q1D);
-   auto Bct = Reshape(_Bct, D1D, Q1D);
-   auto op = Reshape(_op, Q1D, Q1D, Q1D, 6, NE);
-   auto x = Reshape(_x, 3*(D1D-1)*D1D*D1D, NE);
+   const auto Bo = Reshape(_Bo, Q1D, D1D-1);
+   const auto Bc = Reshape(_Bc, Q1D, D1D);
+   const auto Bot = Reshape(_Bot, D1D-1, Q1D);
+   const auto Bct = Reshape(_Bct, D1D, Q1D);
+   const auto op = Reshape(_op, Q1D, Q1D, Q1D, 6, NE);
+   const auto x = Reshape(_x, 3*(D1D-1)*D1D*D1D, NE);
    auto y = Reshape(_y, 3*(D1D-1)*D1D*D1D, NE);
 
    MFEM_FORALL(e, NE,
@@ -566,9 +565,9 @@ static void PACurlCurlSetup2D(const int Q1D,
                               Vector &op)
 {
    const int NQ = Q1D*Q1D;
-   auto W = w.Read();
-   auto J = Reshape(j, NQ, 2, 2, NE);
-   auto coeff = Reshape(_coeff, NQ, NE);
+   const auto W = w.Read();
+   const auto J = Reshape(j, NQ, 2, 2, NE);
+   const auto coeff = Reshape(_coeff, NQ, NE);
    auto y = Reshape(op.Write(), NQ, NE);
    MFEM_FORALL(e, NE,
    {
@@ -594,9 +593,9 @@ static void PACurlCurlSetup3D(const int Q1D,
                               Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
-   auto W = w.Read();
-   auto J = Reshape(j, NQ, 3, 3, NE);
-   auto coeff = Reshape(_coeff, coeffDim, NQ, NE);
+   const auto W = w.Read();
+   const auto J = Reshape(j, NQ, 3, 3, NE);
+   const auto coeff = Reshape(_coeff, coeffDim, NQ, NE);
    auto y = Reshape(op.Write(), NQ, 6, NE);
    MFEM_FORALL(e, NE,
    {
@@ -709,12 +708,12 @@ static void PACurlCurlApply2D(const int D1D,
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
 
-   auto Bo = Reshape(_Bo, Q1D, D1D-1);
-   auto Bot = Reshape(_Bot, D1D-1, Q1D);
-   auto Gc = Reshape(_Gc, Q1D, D1D);
-   auto Gct = Reshape(_Gct, D1D, Q1D);
-   auto op = Reshape(_op, Q1D, Q1D, NE);
-   auto x = Reshape(_x, 2*(D1D-1)*D1D, NE);
+   const auto Bo = Reshape(_Bo, Q1D, D1D-1);
+   const auto Bot = Reshape(_Bot, D1D-1, Q1D);
+   const auto Gc = Reshape(_Gc, Q1D, D1D);
+   const auto Gct = Reshape(_Gct, D1D, Q1D);
+   const auto op = Reshape(_op, Q1D, Q1D, NE);
+   const auto x = Reshape(_x, 2*(D1D-1)*D1D, NE);
    auto y = Reshape(_y, 2*(D1D-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
@@ -838,14 +837,14 @@ static void PACurlCurlApply3D(const int D1D,
 
    constexpr static int VDIM = 3;
 
-   auto Bo = Reshape(_Bo, Q1D, D1D-1);
-   auto Bc = Reshape(_Bc, Q1D, D1D);
-   auto Bot = Reshape(_Bot, D1D-1, Q1D);
-   auto Bct = Reshape(_Bct, D1D, Q1D);
-   auto Gc = Reshape(_Gc, Q1D, D1D);
-   auto Gct = Reshape(_Gct, D1D, Q1D);
-   auto op = Reshape(_op, Q1D, Q1D, Q1D, 6, NE);
-   auto x = Reshape(_x, 3*(D1D-1)*D1D*D1D, NE);
+   const auto Bo = Reshape(_Bo, Q1D, D1D-1);
+   const auto Bc = Reshape(_Bc, Q1D, D1D);
+   const auto Bot = Reshape(_Bot, D1D-1, Q1D);
+   const auto Bct = Reshape(_Bct, D1D, Q1D);
+   const auto Gc = Reshape(_Gc, Q1D, D1D);
+   const auto Gct = Reshape(_Gct, D1D, Q1D);
+   const auto op = Reshape(_op, Q1D, Q1D, Q1D, 6, NE);
+   const auto x = Reshape(_x, 3*(D1D-1)*D1D*D1D, NE);
    auto y = Reshape(_y, 3*(D1D-1)*D1D*D1D, NE);
 
    MFEM_FORALL(e, NE,
@@ -1351,9 +1350,9 @@ static void PACurlCurlAssembleDiagonal2D(const int D1D,
    constexpr static int VDIM = 2;
    constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
 
-   auto Bo = Reshape(_Bo, Q1D, D1D-1);
-   auto Gc = Reshape(_Gc, Q1D, D1D);
-   auto op = Reshape(_op, Q1D, Q1D, NE);
+   const auto Bo = Reshape(_Bo, Q1D, D1D-1);
+   const auto Gc = Reshape(_Gc, Q1D, D1D);
+   const auto op = Reshape(_op, Q1D, Q1D, NE);
    auto diag = Reshape(_diag, 2*(D1D-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
@@ -1409,11 +1408,11 @@ static void PACurlCurlAssembleDiagonal3D(const int D1D,
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
 
-   auto Bo = Reshape(_Bo, Q1D, D1D-1);
-   auto Bc = Reshape(_Bc, Q1D, D1D);
-   auto Go = Reshape(_Go, Q1D, D1D-1);
-   auto Gc = Reshape(_Gc, Q1D, D1D);
-   auto op = Reshape(_op, Q1D, Q1D, Q1D, 6, NE);
+   const auto Bo = Reshape(_Bo, Q1D, D1D-1);
+   const auto Bc = Reshape(_Bc, Q1D, D1D);
+   const auto Go = Reshape(_Go, Q1D, D1D-1);
+   const auto Gc = Reshape(_Gc, Q1D, D1D);
+   const auto op = Reshape(_op, Q1D, Q1D, Q1D, 6, NE);
    auto diag = Reshape(_diag, 3*(D1D-1)*D1D*D1D, NE);
 
    MFEM_FORALL(e, NE,
@@ -1633,12 +1632,12 @@ void PAHcurlH1Apply3D(const int D1D,
 
    constexpr static int VDIM = 3;
 
-   auto Bc = Reshape(_Bc, Q1D, D1D);
-   auto Gc = Reshape(_Gc, Q1D, D1D);
-   auto Bot = Reshape(_Bot, D1D-1, Q1D);
-   auto Bct = Reshape(_Bct, D1D, Q1D);
-   auto op = Reshape(_op, Q1D, Q1D, Q1D, 6, NE);
-   auto x = Reshape(_x, D1D, D1D, D1D, NE);
+   const auto Bc = Reshape(_Bc, Q1D, D1D);
+   const auto Gc = Reshape(_Gc, Q1D, D1D);
+   const auto Bot = Reshape(_Bot, D1D-1, Q1D);
+   const auto Bct = Reshape(_Bct, D1D, Q1D);
+   const auto op = Reshape(_op, Q1D, Q1D, Q1D, 6, NE);
+   const auto x = Reshape(_x, D1D, D1D, D1D, NE);
    auto y = Reshape(_y, 3*(D1D-1)*D1D*D1D, NE);
 
    MFEM_FORALL(e, NE,
@@ -1819,12 +1818,12 @@ void PAHcurlH1Apply2D(const int D1D,
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
 
-   auto Bc = Reshape(_Bc, Q1D, D1D);
-   auto Gc = Reshape(_Gc, Q1D, D1D);
-   auto Bot = Reshape(_Bot, D1D-1, Q1D);
-   auto Bct = Reshape(_Bct, D1D, Q1D);
-   auto op = Reshape(_op, Q1D, Q1D, 3, NE);
-   auto x = Reshape(_x, D1D, D1D, NE);
+   const auto Bc = Reshape(_Bc, Q1D, D1D);
+   const auto Gc = Reshape(_Gc, Q1D, D1D);
+   const auto Bot = Reshape(_Bot, D1D-1, Q1D);
+   const auto Bct = Reshape(_Bct, D1D, Q1D);
+   const auto op = Reshape(_op, Q1D, Q1D, 3, NE);
+   const auto x = Reshape(_x, D1D, D1D, NE);
    auto y = Reshape(_y, 2*(D1D-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
@@ -1935,8 +1934,8 @@ static void PAHcurlL2Setup3D(const int Q1D,
                              Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
-   auto W = w;
-   auto coeff = Reshape(_coeff, coeffDim, NQ, NE);
+   const auto W = w;
+   const auto coeff = Reshape(_coeff, coeffDim, NQ, NE);
    auto y = Reshape(op.Write(), coeffDim, NQ, NE);
 
    MFEM_FORALL(e, NE,
@@ -2077,13 +2076,13 @@ static void PAHcurlL2Apply3D(const int D1D,
 
    constexpr static int VDIM = 3;
 
-   auto Bo = Reshape(_Bo, Q1D, D1D-1);
-   auto Bc = Reshape(_Bc, Q1D, D1D);
-   auto Bot = Reshape(_Bot, D1D-1, Q1D);
-   auto Bct = Reshape(_Bct, D1D, Q1D);
-   auto Gc = Reshape(_Gc, Q1D, D1D);
-   auto op = Reshape(_op, coeffDim, Q1D, Q1D, Q1D, NE);
-   auto x = Reshape(_x, 3*(D1D-1)*D1D*D1D, NE);
+   const auto Bo = Reshape(_Bo, Q1D, D1D-1);
+   const auto Bc = Reshape(_Bc, Q1D, D1D);
+   const auto Bot = Reshape(_Bot, D1D-1, Q1D);
+   const auto Bct = Reshape(_Bct, D1D, Q1D);
+   const auto Gc = Reshape(_Gc, Q1D, D1D);
+   const auto op = Reshape(_op, coeffDim, Q1D, Q1D, Q1D, NE);
+   const auto x = Reshape(_x, 3*(D1D-1)*D1D*D1D, NE);
    auto y = Reshape(_y, 3*(D1D-1)*D1D*D1D, NE);
 
    MFEM_FORALL(e, NE,
@@ -2418,13 +2417,13 @@ static void PAHcurlHdivApply3D(const int D1D,
 
    constexpr static int VDIM = 3;
 
-   auto Bo = Reshape(_Bo, Q1D, D1D-1);
-   auto Bc = Reshape(_Bc, Q1D, D1D);
-   auto Bot = Reshape(_Bot, D1Dtest-1, Q1D);
-   auto Bct = Reshape(_Bct, D1Dtest, Q1D);
-   auto Gc = Reshape(_Gc, Q1D, D1D);
-   auto op = Reshape(_op, Q1D, Q1D, Q1D, 6, NE);
-   auto x = Reshape(_x, 3*(D1D-1)*D1D*D1D, NE);
+   const auto Bo = Reshape(_Bo, Q1D, D1D-1);
+   const auto Bc = Reshape(_Bc, Q1D, D1D);
+   const auto Bot = Reshape(_Bot, D1Dtest-1, Q1D);
+   const auto Bct = Reshape(_Bct, D1Dtest, Q1D);
+   const auto Gc = Reshape(_Gc, Q1D, D1D);
+   const auto op = Reshape(_op, Q1D, Q1D, Q1D, 6, NE);
+   const auto x = Reshape(_x, 3*(D1D-1)*D1D*D1D, NE);
    auto y = Reshape(_y, 3*(D1Dtest-1)*(D1Dtest-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
@@ -2875,13 +2874,13 @@ static void PAHcurlL2Apply3DTranspose(const int D1D,
 
    constexpr static int VDIM = 3;
 
-   auto Bo = Reshape(_Bo, Q1D, D1D-1);
-   auto Bc = Reshape(_Bc, Q1D, D1D);
-   auto Bot = Reshape(_Bot, D1D-1, Q1D);
-   auto Bct = Reshape(_Bct, D1D, Q1D);
-   auto Gct = Reshape(_Gct, D1D, Q1D);
-   auto op = Reshape(_op, coeffDim, Q1D, Q1D, Q1D, NE);
-   auto x = Reshape(_x, 3*(D1D-1)*D1D*D1D, NE);
+   const auto Bo = Reshape(_Bo, Q1D, D1D-1);
+   const auto Bc = Reshape(_Bc, Q1D, D1D);
+   const auto Bot = Reshape(_Bot, D1D-1, Q1D);
+   const auto Bct = Reshape(_Bct, D1D, Q1D);
+   const auto Gct = Reshape(_Gct, D1D, Q1D);
+   const auto op = Reshape(_op, coeffDim, Q1D, Q1D, Q1D, NE);
+   const auto x = Reshape(_x, 3*(D1D-1)*D1D*D1D, NE);
    auto y = Reshape(_y, 3*(D1D-1)*D1D*D1D, NE);
 
    MFEM_FORALL(e, NE,

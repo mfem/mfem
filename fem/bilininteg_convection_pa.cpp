@@ -31,11 +31,10 @@ static void PAConvectionSetup2D(const int Q1D,
 {
    const int NE = ne;
    const int NQ = Q1D*Q1D;
-   auto W = w.Read();
-
-   auto J = Reshape(j, NQ, 2, 2, NE);
+   const auto W = w.Read();
+   const auto J = Reshape(j, NQ, 2, 2, NE);
    const bool const_v = vel.Size() == 2;
-   auto V =
+   const auto V =
       const_v ? Reshape(vel, 2,1,1) : Reshape(vel, 2,NQ,NE);
    auto y = Reshape(op.Write(), NQ, 2, NE);
 
@@ -69,10 +68,10 @@ static void PAConvectionSetup3D(const int Q1D,
                                 Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
-   auto W = w;
-   auto J = Reshape(j, NQ, 3, 3, NE);
+   const auto W = w;
+   const auto J = Reshape(j, NQ, 3, 3, NE);
    const bool const_v = vel.Size() == 3;
-   auto V =
+   const auto V =
       const_v ? Reshape(vel, 3,1,1) : Reshape(vel, 3,NQ,NE);
    auto y = Reshape(op.Write(), NQ, 3, NE);
    MFEM_FORALL(e, NE,
@@ -152,11 +151,11 @@ void PAConvectionApply2D(const int ne,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b, Q1D, D1D);
-   auto G = Reshape(g, Q1D, D1D);
-   auto Bt = Reshape(bt, D1D, Q1D);
-   auto op = Reshape(_op, Q1D, Q1D, 2, NE);
-   auto x = Reshape(_x, D1D, D1D, NE);
+   const auto B = Reshape(b, Q1D, D1D);
+   const auto G = Reshape(g, Q1D, D1D);
+   const auto Bt = Reshape(bt, D1D, Q1D);
+   const auto op = Reshape(_op, Q1D, Q1D, 2, NE);
+   const auto x = Reshape(_x, D1D, D1D, NE);
    auto y = Reshape(_y, D1D, D1D, NE);
    MFEM_FORALL(e, NE,
    {
@@ -272,11 +271,11 @@ void SmemPAConvectionApply2D(const int ne,
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b, Q1D, D1D);
-   auto G = Reshape(g, Q1D, D1D);
-   auto Bt = Reshape(bt, D1D, Q1D);
-   auto op = Reshape(_op, Q1D, Q1D, 2, NE);
-   auto x = Reshape(_x, D1D, D1D, NE);
+   const auto B = Reshape(b, Q1D, D1D);
+   const auto G = Reshape(g, Q1D, D1D);
+   const auto Bt = Reshape(bt, D1D, Q1D);
+   const auto op = Reshape(_op, Q1D, Q1D, 2, NE);
+   const auto x = Reshape(_x, D1D, D1D, NE);
    auto y = Reshape(_y, D1D, D1D, NE);
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
@@ -399,11 +398,11 @@ void PAConvectionApply3D(const int ne,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b, Q1D, D1D);
-   auto G = Reshape(g, Q1D, D1D);
-   auto Bt = Reshape(bt, D1D, Q1D);
-   auto op = Reshape(_op, Q1D, Q1D, Q1D, 3, NE);
-   auto x = Reshape(_x, D1D, D1D, D1D, NE);
+   const auto B = Reshape(b, Q1D, D1D);
+   const auto G = Reshape(g, Q1D, D1D);
+   const auto Bt = Reshape(bt, D1D, Q1D);
+   const auto op = Reshape(_op, Q1D, Q1D, Q1D, 3, NE);
+   const auto x = Reshape(_x, D1D, D1D, D1D, NE);
    auto y = Reshape(_y, D1D, D1D, D1D, NE);
    MFEM_FORALL(e, NE,
    {
@@ -580,11 +579,11 @@ void SmemPAConvectionApply3D(const int ne,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b, Q1D, D1D);
-   auto G = Reshape(g, Q1D, D1D);
-   auto Bt = Reshape(bt, D1D, Q1D);
-   auto op = Reshape(_op, Q1D, Q1D, Q1D, 3, NE);
-   auto x = Reshape(_x, D1D, D1D, D1D, NE);
+   const auto B = Reshape(b, Q1D, D1D);
+   const auto G = Reshape(g, Q1D, D1D);
+   const auto Bt = Reshape(bt, D1D, Q1D);
+   const auto op = Reshape(_op, Q1D, Q1D, Q1D, 3, NE);
+   const auto x = Reshape(_x, D1D, D1D, D1D, NE);
    auto y = Reshape(_y, D1D, D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {

@@ -24,7 +24,7 @@ void TransposeIntegrator::AssembleEA(const FiniteElementSpace &fes,
    const int ne = fes.GetNE();
    if (ne == 0) { return; }
    const int dofs = fes.GetFE(0)->GetDof();
-   auto A = Reshape(ea_data_tmp.Read(), dofs, dofs, ne);
+   const auto A = Reshape(ea_data_tmp.Read(), dofs, dofs, ne);
    auto AT = Reshape(ea_data, dofs, dofs, ne);
    MFEM_FORALL(e, ne,
    {
@@ -52,8 +52,8 @@ void TransposeIntegrator::AssembleEAInteriorFaces(const FiniteElementSpace& fes,
    bfi->AssembleEAInteriorFaces(fes, ea_data_int_tmp, ea_data_ext_tmp);
    const int faceDofs = fes.GetTraceElement(0,
                                             fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof();
-   auto A_int = Reshape(ea_data_int_tmp.Read(), faceDofs, faceDofs, 2, nf);
-   auto A_ext = Reshape(ea_data_ext_tmp.Read(), faceDofs, faceDofs, 2, nf);
+   const auto A_int = Reshape(ea_data_int_tmp.Read(), faceDofs, faceDofs, 2, nf);
+   const auto A_ext = Reshape(ea_data_ext_tmp.Read(), faceDofs, faceDofs, 2, nf);
    auto AT_int = Reshape(ea_data_int, faceDofs, faceDofs, 2, nf);
    auto AT_ext = Reshape(ea_data_ext, faceDofs, faceDofs, 2, nf);
    MFEM_FORALL(f, nf,
@@ -85,7 +85,7 @@ void TransposeIntegrator::AssembleEABoundaryFaces(const FiniteElementSpace& fes,
    bfi->AssembleEABoundaryFaces(fes, ea_data_bdr_tmp);
    const int faceDofs = fes.GetTraceElement(0,
                                             fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof();
-   auto A_bdr = Reshape(ea_data_bdr_tmp.Read(), faceDofs, faceDofs, nf);
+   const auto A_bdr = Reshape(ea_data_bdr_tmp.Read(), faceDofs, faceDofs, nf);
    auto AT_bdr = Reshape(ea_data_bdr, faceDofs, faceDofs, nf);
    MFEM_FORALL(f, nf,
    {

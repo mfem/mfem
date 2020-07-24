@@ -29,9 +29,8 @@ static void PAVectorDiffusionSetup2D(const int Q1D,
                                      Vector &op)
 {
    const int NQ = Q1D*Q1D;
-   auto W = w.Read();
-
-   auto J = Reshape(j, NQ, 2, 2, NE);
+   const auto W = w.Read();
+   const auto J = Reshape(j, NQ, 2, 2, NE);
    auto y = Reshape(op.Write(), NQ, 3, NE);
 
    MFEM_FORALL(e, NE,
@@ -59,8 +58,8 @@ static void PAVectorDiffusionSetup3D(const int Q1D,
                                      Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
-   auto W = w.Read();
-   auto J = Reshape(j, NQ, 3, 3, NE);
+   const auto W = w.Read();
+   const auto J = Reshape(j, NQ, 3, 3, NE);
    auto y = Reshape(op.Write(), NQ, 6, NE);
    MFEM_FORALL(e, NE,
    {
@@ -156,8 +155,8 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       constexpr int DIM = 2;
       constexpr int SDIM = 3;
       const int NQ = quad1D*quad1D;
-      auto W = w.Read();
-      auto J = Reshape(j, NQ, SDIM, DIM, ne);
+      const auto W = w.Read();
+      const auto J = Reshape(j, NQ, SDIM, DIM, ne);
       auto D = Reshape(d.Write(), NQ, SDIM, ne);
       MFEM_FORALL(e, ne,
       {
@@ -206,12 +205,12 @@ void PAVectorDiffusionApply2D(const int NE,
    const int VDIM = T_VDIM ? T_VDIM : vdim;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b, Q1D, D1D);
-   auto G = Reshape(g, Q1D, D1D);
-   auto Bt = Reshape(bt, D1D, Q1D);
-   auto Gt = Reshape(gt, D1D, Q1D);
-   auto D = Reshape(d_, Q1D*Q1D, 3, NE);
-   auto x = Reshape(x_, D1D, D1D, VDIM, NE);
+   const auto B = Reshape(b, Q1D, D1D);
+   const auto G = Reshape(g, Q1D, D1D);
+   const auto Bt = Reshape(bt, D1D, Q1D);
+   const auto Gt = Reshape(gt, D1D, Q1D);
+   const auto D = Reshape(d_, Q1D*Q1D, 3, NE);
+   const auto x = Reshape(x_, D1D, D1D, VDIM, NE);
    auto y = Reshape(y_, D1D, D1D, VDIM, NE);
    MFEM_FORALL(e, NE,
    {
@@ -327,12 +326,12 @@ void PAVectorDiffusionApply3D(const int NE,
    constexpr int VDIM = 3;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b, Q1D, D1D);
-   auto G = Reshape(g, Q1D, D1D);
-   auto Bt = Reshape(bt, D1D, Q1D);
-   auto Gt = Reshape(gt, D1D, Q1D);
-   auto op = Reshape(_op, Q1D*Q1D*Q1D, 6, NE);
-   auto x = Reshape(_x, D1D, D1D, D1D, VDIM, NE);
+   const auto B = Reshape(b, Q1D, D1D);
+   const auto G = Reshape(g, Q1D, D1D);
+   const auto Bt = Reshape(bt, D1D, Q1D);
+   const auto Gt = Reshape(gt, D1D, Q1D);
+   const auto op = Reshape(_op, Q1D*Q1D*Q1D, 6, NE);
+   const auto x = Reshape(_x, D1D, D1D, D1D, VDIM, NE);
    auto y = Reshape(_y, D1D, D1D, D1D, VDIM, NE);
    MFEM_FORALL(e, NE,
    {
@@ -618,9 +617,9 @@ static void PAVectorDiffusionDiagonal3D(const int NE,
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
-   auto B = Reshape(b, Q1D, D1D);
-   auto G = Reshape(g, Q1D, D1D);
-   auto Q = Reshape(d, Q1D*Q1D*Q1D, 6, NE);
+   const auto B = Reshape(b, Q1D, D1D);
+   const auto G = Reshape(g, Q1D, D1D);
+   const auto Q = Reshape(d, Q1D*Q1D*Q1D, 6, NE);
    auto Y = Reshape(y, D1D, D1D, D1D, 3, NE);
    MFEM_FORALL(e, NE,
    {
