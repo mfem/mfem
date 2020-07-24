@@ -21,6 +21,9 @@
 #include "../general/gecko.hpp"
 #include "../fem/quadinterpolator.hpp"
 
+#define MFEM_DEBUG_COLOR 118
+#include "../general/debug.hpp"
+
 #include <iostream>
 #include <sstream>
 #include <fstream>
@@ -754,7 +757,8 @@ void Mesh::GetLocalQuadToWdgTransformation(
 }
 
 const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
-                                                  const int flags)
+                                                  const int flags,
+                                                  mfem::DofToQuad::Mode mode)
 {
    for (int i = 0; i < geom_factors.Size(); i++)
    {
@@ -766,8 +770,7 @@ const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
    }
 
    this->EnsureNodes();
-
-   GeometricFactors *gf = new GeometricFactors(this, ir, flags);
+   GeometricFactors *gf = new GeometricFactors(this, ir, flags, mode);
    geom_factors.Append(gf);
    return gf;
 }
@@ -10511,8 +10514,11 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
 
 
 GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
-                                   int flags)
+                                   int flags, DofToQuad::Mode mode)
 {
+   const bool use_tensor_products = mode == DofToQuad::TENSOR;
+   dbg("mode:%s", use_tensor_products ? "TENSOR" : "FULL");
+
    this->mesh = mesh;
    IntRule = &ir;
    computed_factors = flags;
@@ -10527,8 +10533,10 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    const int NQ   = ir.GetNPoints();
 
    // For now, we are not using tensor product evaluation
-   const Operator *elem_restr = fespace->GetElementRestriction(
-                                   ElementDofOrdering::NATIVE);
+   const ElementDofOrdering e_ordering =
+      use_tensor_products ?
+      ElementDofOrdering::LEXICOGRAPHIC : ElementDofOrdering::NATIVE;
+   const Operator *elem_restr = fespace->GetElementRestriction(e_ordering);
 
    unsigned eval_flags = 0;
    if (flags & GeometricFactors::COORDINATES)
@@ -10547,10 +10555,9 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
       eval_flags |= QuadratureInterpolator::DETERMINANTS;
    }
 
-   const QuadratureInterpolator *qi = fespace->GetQuadratureInterpolator(ir);
-   // For now, we are not using tensor product evaluation (not implemented)
-   qi->DisableTensorProducts();
-   qi->SetOutputLayout(QVectorLayout::byNODES);
+   const QuadratureInterpolator *qi =
+      fespace->GetQuadratureInterpolator(ir, mode);
+   if (use_tensor_products) { qi->EnableTensorProducts(); }
    if (elem_restr)
    {
       Vector Enodes(vdim*ND*NE);
