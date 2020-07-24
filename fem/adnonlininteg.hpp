@@ -108,8 +108,8 @@ public:
           m_stack.new_recording();
           rez=func(vparam,aduu);
           m_stack.independent(aduu.GetData(), n);//independent variables
-          m_stack.dependent(rez, 1);//dependent variables
-          m_stack.jacobian(rr.Data());
+          m_stack.dependent(&rez, 1);//dependent variables
+          m_stack.jacobian(rr.GetData());
        }
        m_stack.deactivate();
 #elif  defined MFEM_USE_FADBADPP

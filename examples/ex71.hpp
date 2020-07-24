@@ -71,7 +71,11 @@ public:
 
 typedef ADQFunctionTH<MyQFunctorH> pLapIntegrandTH;
 
-
+//comment the line below in order to use
+//pLapIntegrandTJ for differentiation
+//the user interface for both TH and TJ versions
+//is exacly the same
+//#define USE_ADH
 
 class pLaplaceAD: public mfem::NonlinearFormIntegrator
 {
@@ -79,9 +83,11 @@ protected:
    mfem::Coefficient* pp;
    mfem::Coefficient* coeff;
    mfem::Coefficient* load;
-
+#ifdef USE_ADH
    pLapIntegrandTH qint;
-   //pLapIntegrandTJ qint;
+#else
+   pLapIntegrandTJ qint;
+#endif
 public:
    pLaplaceAD()
    {

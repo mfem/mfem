@@ -3,38 +3,36 @@
 // Compile with: make ex71
 //
 // Sample runs:
-//    ex71 -m ../data/beam-quad.mesh
-//    ex71 -m ../data/beam-tri.mesh
+//    ex71 -m ../data/beam-quad.mesh -pp 3.5
+//    ex71 -m ../data/beam-tri.mesh  -pp 4.6
 //    ex71 -m ../data/beam-hex.mesh
 //    ex71 -m ../data/beam-tet.mesh
 //    ex71 -m ../data/beam-wedge.mesh
 //
 // Description:  This examples solves a quasi-static nonlinear
 //               pLaplacian problem with zero Dirichlet boundary
-//           conditions applied on all defined boundaries
+//               conditions applied on all defined boundaries
 //
-//               The example demonstrates the use of nonlinear operators
+//           The example demonstrates the use of nonlinear operators
 //           combined with automatic differentiation (AD). The definitions
 //           of the integrators are written in the ex71.hpp.
-//           Selecting integrator=0 will use handcoded integrator.
-//           Selecting integrator=1 will utilize AD integrator.
-//           The AD integrator can be modifief to use ADQFunctionJ
-//           or ADQFunctionH by overwritting the class type of qint,
-//           i.e., pLapIntegrandJ or pLapIntegrandH.
+//           Selecting integrator=0 will use the handcoded integrator.
+//           Selecting integrator=1 will utilize the AD integrator.
+//           The AD integrator can be modifief to use ADQFunctionTJ.
 //
 //           qint (the integrand) is a function which is evaluated
 //           at every integration point. For implementations utilizing
-//           ADQFunctionJ, the user has to implement the function and the
-//           residual evaluation - all virtual methods. The Jacobian of
-//           the residual is evaluated using AD
+//           ADQFunctionTJ, the user has to implement the function and the
+//           residual evaluation. The Jacobian of the residual is evaluated
+//           using AD
 //
-//           For implementations utilizing ADQFunctionH, the user has
-//           to implement only the function evaluation (preferebaly as
+//           For implementations utilizing ADQFunctionTH, the user has
+//           to implement only the function evaluation (as
 //           a template) and the first derivative (the residual) and the
 //           second derivatives (the Hessian) are evaluated using AD.
 //
-//               We recommend viewing examples 1 and 19, before viewing this
-//               example.
+//           We recommend viewing examples 1 and 19, before viewing this
+//           example.
 
 #include "ex71.hpp"
 
