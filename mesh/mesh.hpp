@@ -515,7 +515,7 @@ public:
    Element *NewElement(int geom);
 
    int AddVertex(double x, double y = 0.0, double z = 0.0);
-   int AddVertex(const double *);
+   int AddVertex(const double *coords);
    /// Mark vertex @a i as non-conforming, with parent vertices @a p1 and @a p2.
    void AddVertexParents(int i, int p1, int p2);
 
@@ -532,8 +532,8 @@ public:
    // TODO
    void AddTet(const int *vi, int attr = 1);
 
-   // TODO
-   void AddWedge(const int *vi, int attr = 1);
+   int AddWedge(int v1, int v2, int v3, int v4, int v5, int v6, int attr = 1);
+   int AddWedge(const int *vi, int attr = 1);
 
    // TODO
    void AddHex(const int *vi, int attr = 1);
@@ -547,6 +547,7 @@ public:
    int AddBdrSegment(int v1, int v2, int attr = 1);
    int AddBdrSegment(const int *vi, int attr = 1);
 
+   // TODO
    void AddBdrTriangle(const int *vi, int attr = 1);
    void AddBdrQuad(const int *vi, int attr = 1);
    void AddBdrQuadAsTriangles(const int *vi, int attr = 1);
