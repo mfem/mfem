@@ -74,11 +74,14 @@ static void PAGradientSetup2D(const int Q1D,
                               const int NE,
                               const Array<double> &w,
                               const Vector &j,
-                              const double COEFF,
+                              const Vector &coeff,
                               Vector &op)
 {
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
+   const bool const_c = coeff.Size() == 1;
+   auto C = const_c ?
+               Reshape(coeff.Read(), 1, 1) : Reshape(coeff.Read(), NQ, NE);
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
    auto y = Reshape(op.Write(), NQ, 2, 2, NE);
 
@@ -91,6 +94,7 @@ static void PAGradientSetup2D(const int Q1D,
          const double J21 = J(q,1,0,e);
          const double J22 = J(q,1,1,e);
          // Store wq * Q * adj(J)
+         const double COEFF = const_c ? C(0,0) : C(q,e);
          y(q,0,0,e) = W[q] * COEFF *  J22; // 1,1
          y(q,0,1,e) = W[q] * COEFF * -J12; // 1,2
          y(q,1,0,e) = W[q] * COEFF * -J21; // 2,1
@@ -104,11 +108,14 @@ static void PAGradientSetup3D(const int Q1D,
                               const int NE,
                               const Array<double> &w,
                               const Vector &j,
-                              const double COEFF,
+                              const Vector &coeff,
                               Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
+   const bool const_c = coeff.Size() == 1;
+   auto C = const_c ?
+               Reshape(coeff.Read(), 1, 1) : Reshape(coeff.Read(), NQ, NE);
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
    auto y = Reshape(op.Write(), NQ, 3, 3, NE);
    MFEM_FORALL(e, NE,
@@ -124,6 +131,7 @@ static void PAGradientSetup3D(const int Q1D,
          const double J13 = J(q,0,2,e);
          const double J23 = J(q,1,2,e);
          const double J33 = J(q,2,2,e);
+         const double COEFF = const_c ? C(0,0) : C(q,e);
          const double cw  = W[q] * COEFF;
          // adj(J)
          const double A11 = (J22 * J33) - (J23 * J32);
@@ -156,17 +164,17 @@ static void PAGradientSetup(const int dim,
                             const int NE,
                             const Array<double> &W,
                             const Vector &J,
-                            const double COEFF,
+                            const Vector &coeff,
                             Vector &op)
 {
    if (dim == 1) { MFEM_ABORT("dim==1 not supported in PAGradientSetup"); }
    if (dim == 2)
    {
-      PAGradientSetup2D(Q1D, NE, W, J, COEFF, op);
+      PAGradientSetup2D(Q1D, NE, W, J, coeff, op);
    }
    if (dim == 3)
    {
-      PAGradientSetup3D(Q1D, NE, W, J, COEFF, op);
+      PAGradientSetup3D(Q1D, NE, W, J, coeff, op);
    }
 }
 
@@ -196,12 +204,15 @@ void GradientIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    MFEM_ASSERT(quad1D == test_maps->nqpt,
                "PA requires test and trial space to have same number of quadrature points!");
    pa_data.SetSize(nq * dimsToStore * ne, Device::GetMemoryType());
-   double coeff = 1.0;
+   Vector coeff;
    if (Q)
    {
-      ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(Q);
-      MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
-      coeff = cQ->constant;
+      Q->Eval(trial_fes,*ir,coeff);
+   }
+   else
+   {
+      coeff.SetSize(1);
+      coeff(0) = 1.0;
    }
    PAGradientSetup(dim, trial_dofs1D, test_dofs1D, quad1D,
                    ne, ir->GetWeights(), geom->J, coeff, pa_data);
