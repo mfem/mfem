@@ -38,9 +38,10 @@ void PAHdivSetup2D(const int Q1D,
 {
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
-
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
-   auto coeff = Reshape(_coeff.Read(), NQ, NE);
+   const bool const_c = _coeff.Size()==1;
+   auto coeff = const_c ?
+                  Reshape(_coeff.Read(), 1, 1) : Reshape(_coeff.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, 3, NE);
 
    MFEM_FORALL(e, NE,
@@ -51,7 +52,8 @@ void PAHdivSetup2D(const int Q1D,
          const double J21 = J(q,1,0,e);
          const double J12 = J(q,0,1,e);
          const double J22 = J(q,1,1,e);
-         const double c_detJ = W[q] * coeff(q, e) / ((J11*J22)-(J21*J12));
+         const double C = const_c ? coeff(0,0) : coeff(q, e);
+         const double c_detJ = W[q] * C / ((J11*J22)-(J21*J12));
          // (c/detJ) J^T J
          y(q,0,e) = c_detJ * (J11*J11 + J21*J21); // 1,1
          y(q,1,e) = c_detJ * (J11*J12 + J21*J22); // 1,2
@@ -71,7 +73,9 @@ void PAHdivSetup3D(const int Q1D,
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
-   auto coeff = Reshape(_coeff.Read(), NQ, NE);
+   const bool const_c = _coeff.Size()==1;
+   auto coeff = const_c ?
+                  Reshape(_coeff.Read(), 1, 1) : Reshape(_coeff.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, 6, NE);
 
    MFEM_FORALL(e, NE,
@@ -90,7 +94,8 @@ void PAHdivSetup3D(const int Q1D,
          const double detJ = J11 * (J22 * J33 - J32 * J23) -
          /* */               J21 * (J12 * J33 - J32 * J13) +
          /* */               J31 * (J12 * J23 - J22 * J13);
-         const double c_detJ = W[q] * coeff(q, e) / detJ;
+         const double C = const_c ? coeff(0,0) : coeff(q, e);
+         const double c_detJ = W[q] * C / detJ;
          // (c/detJ) J^T J
          y(q,0,e) = c_detJ * (J11*J11 + J21*J21 + J31*J31); // 1,1
          y(q,1,e) = c_detJ * (J12*J11 + J22*J21 + J32*J31); // 2,1
@@ -555,7 +560,9 @@ static void PADivDivSetup2D(const int Q1D,
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
-   auto coeff = Reshape(_coeff.Read(), NQ, NE);
+   const bool const_c = _coeff.Size()==1;
+   auto coeff = const_c ?
+                  Reshape(_coeff.Read(), 1, 1) : Reshape(_coeff.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, NE);
    MFEM_FORALL(e, NE,
    {
@@ -566,7 +573,8 @@ static void PADivDivSetup2D(const int Q1D,
          const double J12 = J(q,0,1,e);
          const double J22 = J(q,1,1,e);
          const double detJ = (J11*J22)-(J21*J12);
-         y(q,e) = W[q] * coeff(q,e) / detJ;
+         const double C = const_c ? coeff(0,0) : coeff(q, e);
+         y(q,e) = W[q] * C / detJ;
       }
    });
 }
@@ -581,7 +589,9 @@ static void PADivDivSetup3D(const int Q1D,
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
-   auto coeff = Reshape(_coeff.Read(), NQ, NE);
+   const bool const_c = _coeff.Size()==1;
+   auto coeff = const_c ?
+                  Reshape(_coeff.Read(), 1, 1) : Reshape(_coeff.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, NE);
 
    MFEM_FORALL(e, NE,
@@ -600,7 +610,8 @@ static void PADivDivSetup3D(const int Q1D,
          const double detJ = J11 * (J22 * J33 - J32 * J23) -
          /* */               J21 * (J12 * J33 - J32 * J13) +
          /* */               J31 * (J12 * J23 - J22 * J13);
-         y(q,e) = W[q] * coeff(q, e) / detJ;
+         const double C = const_c ? coeff(0,0) : coeff(q, e);
+         y(q,e) = W[q] * C / detJ;
       }
    });
 }
@@ -931,18 +942,15 @@ void DivDivIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    pa_data.SetSize(nq * ne, Device::GetMemoryType());
 
-   Vector coeff(ne * nq);
-   coeff = 1.0;
+   Vector coeff;
    if (Q)
    {
-      for (int e=0; e<ne; ++e)
-      {
-         ElementTransformation *tr = mesh->GetElementTransformation(e);
-         for (int p=0; p<nq; ++p)
-         {
-            coeff[p + (e * nq)] = Q->Eval(*tr, ir->IntPoint(p));
-         }
-      }
+      Q->Eval(fes,*ir,coeff);
+   }
+   else
+   {
+      coeff.SetSize(1);
+      coeff(0) = 1.0;
    }
 
    if (el->GetDerivType() == mfem::FiniteElement::DIV && dim == 3)
@@ -1118,13 +1126,16 @@ static void PADivL2Setup2D(const int Q1D,
 {
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
-   auto coeff = Reshape(_coeff.Read(), NQ, NE);
+   const bool const_c = _coeff.Size()==1;
+   auto coeff = const_c ?
+                  Reshape(_coeff.Read(), 1, 1) : Reshape(_coeff.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, NE);
    MFEM_FORALL(e, NE,
    {
       for (int q = 0; q < NQ; ++q)
       {
-         y(q,e) = W[q] * coeff(q,e);
+         const double C = const_c ? coeff(0,0) : coeff(q, e);
+         y(q,e) = W[q] * C;
       }
    });
 }
@@ -1137,14 +1148,17 @@ static void PADivL2Setup3D(const int Q1D,
 {
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
-   auto coeff = Reshape(_coeff.Read(), NQ, NE);
+   const bool const_c = _coeff.Size()==1;
+   auto coeff = const_c ?
+                  Reshape(_coeff.Read(), 1, 1) : Reshape(_coeff.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, NE);
 
    MFEM_FORALL(e, NE,
    {
       for (int q = 0; q < NQ; ++q)
       {
-         y(q,e) = W[q] * coeff(q, e);
+         const double C = const_c ? coeff(0,0) : coeff(q, e);
+         y(q,e) = W[q] * C;
       }
    });
 }
@@ -1201,18 +1215,15 @@ VectorFEDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
 
    pa_data.SetSize(nq * ne, Device::GetMemoryType());
 
-   Vector coeff(ne * nq);
-   coeff = 1.0;
+   Vector coeff;
    if (Q)
    {
-      for (int e=0; e<ne; ++e)
-      {
-         ElementTransformation *tr = mesh->GetElementTransformation(e);
-         for (int p=0; p<nq; ++p)
-         {
-            coeff[p + (e * nq)] = Q->Eval(*tr, ir->IntPoint(p));
-         }
-      }
+      Q->Eval(trial_fes,*ir,coeff);
+   }
+   else
+   {
+      coeff.SetSize(1);
+      coeff(0) = 1.0;
    }
 
    if (trial_el->GetDerivType() == mfem::FiniteElement::DIV && dim == 3)
