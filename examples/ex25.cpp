@@ -491,10 +491,10 @@ int main(int argc, char *argv[])
          pc_i = d11;
 
          // Gauss-Seidel Smoother
-//         GSSmoother *gs00 = new GSSmoother(*PCOpAh.As<SparseMatrix>());
-//         ScaledOperator *gs11 = new ScaledOperator(gs00, s);
-//         pc_r = gs00;
-//         pc_i = gs11;
+         //         GSSmoother *gs00 = new GSSmoother(*PCOpAh.As<SparseMatrix>());
+         //         ScaledOperator *gs11 = new ScaledOperator(gs00, s);
+         //         pc_r = gs00;
+         //         pc_i = gs11;
       }
 
       BlockDiagonalPreconditioner BlockDP(offsets);
