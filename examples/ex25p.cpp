@@ -432,7 +432,7 @@ int main(int argc, char *argv[])
    }
 
    // 16. Solve using a direct or an iterative solver
-#ifndef MFEM_USE_SUPERLU
+#ifdef MFEM_USE_SUPERLU
    {
       SuperLURowLocMatrix SA(*A);
       SuperLUSolver superlu(MPI_COMM_WORLD);
