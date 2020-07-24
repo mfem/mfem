@@ -10,6 +10,15 @@
 //               ex25 -o 2 -f 8.0 -ref 3 -prob 4 -m ../data/inline-quad.mesh
 //               ex25 -o 2 -f 2.0 -ref 1 -prob 4 -m ../data/inline-hex.mesh
 //
+// Device sample runs:
+// TODO: PA not working because matrix coef. in CurlCurlIntegrator is not yet supported
+//               ex25 -o 2 -f 1.0 -ref 2 -prob 0 -pa
+//               ex25 -o 2 -f 5.0 -ref 4 -prob 2 -pa
+//               ex25 -o 2 -f 1.0 -ref 2 -prob 3 -pa
+//               ex25 -o 2 -f 1.0 -ref 2 -prob 0 -pa -m ../data/beam-quad.mesh
+//               ex25 -o 2 -f 8.0 -ref 3 -prob 4 -pa -m ../data/inline-quad.mesh
+//               ex25 -o 2 -f 2.0 -ref 1 -prob 4 -pa -m ../data/inline-hex.mesh
+//
 // Description:  This example code solves a simple electromagnetic wave
 //               propagation problem corresponding to the second order
 //               indefinite Maxwell equation
@@ -153,6 +162,8 @@ int main(int argc, char *argv[])
    double freq = 5.0;
    bool herm_conv = true;
    bool visualization = 1;
+   bool pa = false;
+   const char *device_config = "cpu";
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -174,12 +185,21 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.Parse();
 
    if (iprob > 4) { iprob = 4; }
    prob = (prob_type)iprob;
 
-   // 2. Setup the mesh
+   // 2. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   Device device(device_config);
+   device.Print();
+
+   // 3. Setup the mesh
    if (!mesh_file)
    {
       exact_known = true;
@@ -220,7 +240,7 @@ int main(int argc, char *argv[])
    // Setup PML length
    Array2D<double> length(dim, 2); length = 0.0;
 
-   // 3. Setup the Cartesian PML region.
+   // 4. Setup the Cartesian PML region.
    switch (prob)
    {
       case disc:
@@ -246,19 +266,19 @@ int main(int argc, char *argv[])
    comp_domain_bdr = pml->GetCompDomainBdr();
    domain_bdr = pml->GetDomainBdr();
 
-   // 4. Refine the mesh to increase the resolution.
+   // 5. Refine the mesh to increase the resolution.
    for (int l = 0; l < ref_levels; l++)
    {
       mesh->UniformRefinement();
    }
 
-   // 5. Reorient mesh in case of a tet mesh
+   // 6. Reorient mesh in case of a tet mesh
    mesh->ReorientTetMesh();
 
    // Set element attributes in order to distinguish elements in the PML region
    pml->SetAttributes(mesh);
 
-   // 6. Define a finite element space on the mesh. Here we use the Nedelec
+   // 7. Define a finite element space on the mesh. Here we use the Nedelec
    //    finite elements of the specified order.
    FiniteElementCollection *fec = new ND_FECollection(order, dim);
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
@@ -266,7 +286,7 @@ int main(int argc, char *argv[])
 
    cout << "Number of finite element unknowns: " << size << endl;
 
-   // 7. Determine the list of true essential boundary dofs. In this example,
+   // 8. Determine the list of true essential boundary dofs. In this example,
    //    the boundary conditions are defined based on the specific mesh and the
    //    problem type.
    Array<int> ess_tdof_list;
@@ -308,12 +328,12 @@ int main(int argc, char *argv[])
    }
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-   // 8. Setup Complex Operator convention
+   // 9. Setup Complex Operator convention
    ComplexOperator::Convention conv =
       herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
 
-   // 9. Set up the linear form b(.) which corresponds to the right-hand side of
-   //    the FEM linear system.
+   // 10. Set up the linear form b(.) which corresponds to the right-hand side of
+   //     the FEM linear system.
    VectorFunctionCoefficient f(dim, source);
    ComplexLinearForm b(fespace, conv);
    if (prob == load_src)
@@ -323,7 +343,7 @@ int main(int argc, char *argv[])
    b.Vector::operator=(0.0);
    b.Assemble();
 
-   // 10. Define the solution vector x as a complex finite element grid function
+   // 11. Define the solution vector x as a complex finite element grid function
    //     corresponding to fespace.
    ComplexGridFunction x(fespace);
    x = 0.0;
@@ -331,7 +351,7 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient E_Im(dim, E_bdr_data_Im);
    x.ProjectBdrCoefficientTangent(E_Re, E_Im, ess_bdr);
 
-   // 11. Set up the sesquilinear form a(.,.)
+   // 12. Set up the sesquilinear form a(.,.)
    //
    //     In Comp
    //     Domain:   1/mu (Curl E, Curl F) - omega^2 * epsilon (E,F)
@@ -385,7 +405,11 @@ int main(int argc, char *argv[])
    a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_c2_Re),
                          new VectorFEMassIntegrator(restr_c2_Im));
 
-   // 12. Assemble the bilinear form and the corresponding linear system,
+#ifndef MFEM_USE_SUITESPARSE
+   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+#endif
+
+   // 13. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: assembly, eliminating
    //     boundary conditions, applying conforming constraints for
    //     non-conforming AMR, etc.
@@ -395,16 +419,17 @@ int main(int argc, char *argv[])
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-   // 13. Solve using a direct or an iterative solver
+   // 14. Solve using a direct or an iterative solver
 #ifdef MFEM_USE_SUITESPARSE
    {
+      if (pa) { cout << "PA not available with MFEM_USE_SUITESPARSE" << endl; }
       ComplexUMFPackSolver csolver(*A.As<ComplexSparseMatrix>());
       csolver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
       csolver.SetPrintLevel(1);
       csolver.Mult(B, X);
    }
 #else
-   // 13a. Set up the Bilinear form a(.,.) for the preconditioner
+   // 14a. Set up the Bilinear form a(.,.) for the preconditioner
    //
    //    In Comp
    //    Domain:   1/mu (Curl E, Curl F) + omega^2 * epsilon (E,F)
@@ -430,25 +455,51 @@ int main(int argc, char *argv[])
       prec.AddDomainIntegrator(new CurlCurlIntegrator(restr_c1_abs));
       prec.AddDomainIntegrator(new VectorFEMassIntegrator(restr_c2_abs));
 
+      if (pa) { prec.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+
       prec.Assemble();
 
-      OperatorPtr PCOpAh;
-      prec.FormSystemMatrix(ess_tdof_list, PCOpAh);
-
-      // 13b. Define and apply a GMRES solver for AU=B with a block diagonal
-      //      preconditioner based on the Gauss-Seidel sparse smoother.
+      // 14b. Define and apply a GMRES solver for AU=B with a block diagonal
+      //      preconditioner based on the Gauss-Seidel or Jacobi sparse smoother.
       Array<int> offsets(3);
       offsets[0] = 0;
       offsets[1] = fespace->GetTrueVSize();
       offsets[2] = fespace->GetTrueVSize();
       offsets.PartialSum();
 
-      GSSmoother gs00(*PCOpAh.As<SparseMatrix>());
-      BlockDiagonalPreconditioner BlockGS(offsets);
-      ScaledOperator gs11(&gs00,
-                          (conv == ComplexOperator::HERMITIAN) ? -1.0 : 1.0);
-      BlockGS.SetDiagonalBlock(0,&gs00);
-      BlockGS.SetDiagonalBlock(1,&gs11);
+      Operator *pc_r = nullptr;
+      Operator *pc_i = nullptr;
+      int s = (conv == ComplexOperator::HERMITIAN) ? -1.0 : 1.0;
+      if (pa)
+      {
+         // Jacobi Smoother
+         OperatorJacobiSmoother *d00 = new OperatorJacobiSmoother(prec, ess_tdof_list);
+         ScaledOperator *d11 = new ScaledOperator(d00, s);
+         pc_r = d00;
+         pc_i = d11;
+      }
+      else
+      {
+         OperatorPtr PCOpAh;
+         prec.SetDiagonalPolicy(mfem::Operator::DIAG_ONE);
+         prec.FormSystemMatrix(ess_tdof_list, PCOpAh);
+
+         // Jacobi Smoother (testing only)
+         DSmoother *d00 = new DSmoother(*PCOpAh.As<SparseMatrix>());
+         ScaledOperator *d11 = new ScaledOperator(d00, s);
+         pc_r = d00;
+         pc_i = d11;
+
+         // Gauss-Seidel Smoother
+//         GSSmoother *gs00 = new GSSmoother(*PCOpAh.As<SparseMatrix>());
+//         ScaledOperator *gs11 = new ScaledOperator(gs00, s);
+//         pc_r = gs00;
+//         pc_i = gs11;
+      }
+
+      BlockDiagonalPreconditioner BlockDP(offsets);
+      BlockDP.SetDiagonalBlock(0,pc_r);
+      BlockDP.SetDiagonalBlock(1,pc_i);
 
       GMRESSolver gmres;
       gmres.SetPrintLevel(1);
@@ -457,12 +508,12 @@ int main(int argc, char *argv[])
       gmres.SetRelTol(1e-5);
       gmres.SetAbsTol(0.0);
       gmres.SetOperator(*A);
-      gmres.SetPreconditioner(BlockGS);
+      gmres.SetPreconditioner(BlockDP);
       gmres.Mult(B, X);
    }
 #endif
 
-   // 14. Recover the solution as a finite element grid function and compute the
+   // 15. Recover the solution as a finite element grid function and compute the
    //     errors if the exact solution is known.
    a.RecoverFEMSolution(X, b, x);
 
@@ -499,7 +550,7 @@ int main(int argc, char *argv[])
            << sqrt(L2Error_Re*L2Error_Re + L2Error_Im*L2Error_Im) << "\n\n";
    }
 
-   // 15. Save the refined mesh and the solution. This output can be viewed
+   // 16. Save the refined mesh and the solution. This output can be viewed
    //     later using GLVis: "glvis -m mesh -g sol".
    {
       ofstream mesh_ofs("ex25.mesh");
@@ -514,7 +565,7 @@ int main(int argc, char *argv[])
       x.imag().Save(sol_i_ofs);
    }
 
-   // 16. Send the solution by socket to a GLVis server.
+   // 17. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       // Define visualization keys for GLVis (see GLVis documentation)
@@ -565,7 +616,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 17. Free the used memory.
+   // 18. Free the used memory.
    delete pml;
    delete fespace;
    delete fec;
