@@ -150,12 +150,6 @@ inline DeviceTensor<sizeof...(Dims),T> Reshape(T *ptr, Dims... dims)
    return DeviceTensor<sizeof...(Dims),T>(ptr, dims...);
 }
 
-template <typename T, typename... Dims>
-inline const DeviceTensor<sizeof...(Dims),T> Reshape(const T *ptr, Dims... dims)
-{
-   return DeviceTensor<sizeof...(Dims),T>(const_cast<T*>(ptr), dims...);
-}
-
 typedef DeviceTensor<1,int> DeviceArray;
 typedef DeviceTensor<1,double> DeviceVector;
 typedef DeviceTensor<2,double> DeviceMatrix;
