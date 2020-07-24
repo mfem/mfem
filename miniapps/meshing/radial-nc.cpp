@@ -32,10 +32,13 @@ struct Params
 {
    double r, dr;
    double a, da;
+   double b, db;
 
    Params() = default;
    Params(double r0, double r1, double a0, double a1)
       : r(r0), dr(r1 - r0), a(a0), da(a1 - a0) {}
+   Params(double r0, double r1, double a0, double a1, double b0, double b1)
+      : r(r0), dr(r1 - r0), a(a0), da(a1 - a0), b(b0), db(b1 - b0) {}
 };
 
 
@@ -178,8 +181,10 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
 
          for (int j = 0, k = 0; j < coords.Size(); k++, j += 2)
          {
-            int sfc = ((i & 1) ? coords[j] : width-1 - coords[j]) + coords[j+1]*width;
+            int sfc = ((i & 1) ? coords[j] : (width-1 - coords[j]))
+                      + coords[j+1]*width;
             int old_index = beg + sfc;
+
             ordering[old_index] = beg + k;
             new_params[beg + k] = params[old_index];
          }
@@ -237,6 +242,81 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
 }
 
 
+struct Vert : public Hashed2
+{
+   int id;
+};
+
+int GetMidVertex(int v1, int v2, double r, double a, double b,
+                 Mesh *mesh, HashTable<Vert> &hash)
+{
+   int vmid = hash.FindId(v1, v2);
+   if (vmid < 0)
+   {
+      vmid = hash.GetId(v1, v2);
+      hash[vmid].id =
+         mesh->AddVertex(r*cos(a)*cos(b), r*sin(a)*cos(b), r*sin(b));
+   }
+   return hash[vmid].id;
+}
+
+void MakeLayer(int vx1, int vy1, int vz1, int vx2, int vy2, int vz2, int level,
+               double r1, double r2, double a1, double a2, double b1, double b2,
+               Mesh *mesh, HashTable<Vert> &hash, Array<Params> &params)
+{
+   if (level <= 0)
+   {
+      mesh->AddWedge(vx1, vy1, vz1, vx2, vy2, vz2);
+      params.Append(Params(r1, r2, a1, a2, b1, b2));
+   }
+   else
+   {
+      double amid = (a1+a2)/2, bmid = (b1+b2)/2;
+
+      int vxy1 = GetMidVertex(vx1, vy1, r1, amid, b1, mesh, hash);
+      int vyz1 = GetMidVertex(vy1, vz1, r1, a2, bmid, mesh, hash);
+      int vxz1 = GetMidVertex(vx1, vz1, r1, a1, bmid, mesh, hash);
+      int vxy2 = GetMidVertex(vx2, vy2, r2, amid, b1, mesh, hash);
+      int vyz2 = GetMidVertex(vy2, vz2, r2, a2, bmid, mesh, hash);
+      int vxz2 = GetMidVertex(vx2, vz2, r2, a1, bmid, mesh, hash);
+
+      MakeLayer(vx1, vxy1, vxz1, vx2, vxy2, vxz2, level-1, r1, r2,
+                a1, amid, b1, bmid, mesh, hash, params);
+      MakeLayer(vxy1, vy1, vyz1, vxy2, vy2, vyz2, level-1, r1, r2,
+                amid, a2, b1, bmid, mesh, hash, params);
+      MakeLayer(vxz1, vyz1, vz1, vxz2, vyz2, vz2, level-1, r1, r2,
+                a1, a2, bmid, b2, mesh, hash, params);
+      MakeLayer(vyz1, vxz1, vxy1, vyz2, vxz2, vxy2, level-1, r1, r2,
+                a2, a1, bmid, b1, mesh, hash, params);
+   }
+}
+
+Mesh* Make3D(int nsteps, double rstep, double aspect, int order)
+{
+   Mesh *mesh = new Mesh(3, 0, 0);
+
+   HashTable<Vert> hash;
+   Array<Params> params;
+
+   int a = mesh->AddVertex(rstep, 0, 0);
+   int b = mesh->AddVertex(0, rstep, 0);
+   int c = mesh->AddVertex(0, 0, rstep);
+
+   double r = rstep + rstep;
+   int d = mesh->AddVertex(r, 0, 0);
+   int e = mesh->AddVertex(0, r, 0);
+   int f = mesh->AddVertex(0, 0, r);
+
+   const double pi2 = M_PI / 2;
+
+   MakeLayer(a, b, c, d, e, f, 2, rstep, r, 0, pi2, 0, pi2, mesh, hash, params);
+
+   mesh->FinalizeMesh();
+
+   return mesh;
+}
+
+
 int main(int argc, char *argv[])
 {
    int dim = 2;
@@ -247,7 +327,7 @@ int main(int argc, char *argv[])
    int order = 2;
    bool sfc = true;
 
-   // Parse command line
+   // parse command line
    OptionsParser args(argc, argv);
    args.AddOption(&dim, "-d", "--dim", "Mesh dimension (2 or 3).");
    args.AddOption(&radius, "-r", "--radius", "Radius of the domain.");
@@ -275,7 +355,7 @@ int main(int argc, char *argv[])
 
    double phi = angle * M_PI / 180;
 
-   // Generate
+   // generate
    Mesh *mesh;
    if (dim == 2)
    {
@@ -283,10 +363,10 @@ int main(int argc, char *argv[])
    }
    else
    {
-      MFEM_ABORT("TODO");
+      mesh = Make3D(nsteps, radius/nsteps, aspect, order);
    }
 
-   // Save the final mesh
+   // save the final mesh
    ofstream ofs("radial.mesh");
    ofs.precision(8);
    mesh->Print(ofs);

@@ -1217,13 +1217,6 @@ static void CheckEnlarge(Array<T> &array, int size)
    if (size >= array.Size()) { array.SetSize(size + 1); }
 }
 
-int Mesh::AddVertex(const double *x)
-{
-   CheckEnlarge(vertices, NumOfVertices);
-   vertices[NumOfVertices].SetCoords(spaceDim, x);
-   return NumOfVertices++;
-}
-
 int Mesh::AddVertex(double x, double y, double z)
 {
    CheckEnlarge(vertices, NumOfVertices);
@@ -1231,6 +1224,13 @@ int Mesh::AddVertex(double x, double y, double z)
    v[0] = x;
    v[1] = y;
    v[2] = z;
+   return NumOfVertices++;
+}
+
+int Mesh::AddVertex(const double *coords)
+{
+   CheckEnlarge(vertices, NumOfVertices);
+   vertices[NumOfVertices].SetCoords(spaceDim, coords);
    return NumOfVertices++;
 }
 
@@ -1305,9 +1305,18 @@ void Mesh::AddTet(const int *vi, int attr)
 #endif
 }
 
-void Mesh::AddWedge(const int *vi, int attr)
+int Mesh::AddWedge(int v1, int v2, int v3, int v4, int v5, int v6, int attr)
 {
-   elements[NumOfElements++] = new Wedge(vi, attr);
+   CheckEnlarge(elements, NumOfElements);
+   elements[NumOfElements] = new Wedge(v1, v2, v3, v4, v5, v6, attr);
+   return NumOfElements++;
+}
+
+int Mesh::AddWedge(const int *vi, int attr)
+{
+   CheckEnlarge(elements, NumOfElements);
+   elements[NumOfElements] = new Wedge(vi, attr);
+   return NumOfElements++;
 }
 
 void Mesh::AddHex(const int *vi, int attr)
