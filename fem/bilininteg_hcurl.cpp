@@ -692,7 +692,6 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
       mfem_error("Not yet supported");
       MQ->Eval(fes,*ir,coeff);
    }
-   
    else
    {
       coeff.SetSize(1);
@@ -2031,11 +2030,11 @@ void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    }
    else if (VQ)
    {
+      mfem_error("Not yet supported.");
       VQ->Eval(trial_fes,*ir,coeff);
    }
    else if (DQ)
    {
-      mfem_error("Not yet supported.");
       DQ->Eval(trial_fes,*ir,coeff);
    }
    else if (MQ)
