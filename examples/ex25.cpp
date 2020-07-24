@@ -389,27 +389,22 @@ int main(int argc, char *argv[])
    //     applying any necessary transformations such as: assembly, eliminating
    //     boundary conditions, applying conforming constraints for
    //     non-conforming AMR, etc.
-   a.Assemble();
+   a.Assemble(0);
 
-   OperatorHandle Ah;
+   OperatorPtr A;
    Vector B, X;
-   a.FormLinearSystem(ess_tdof_list, x, b, Ah, X, B);
+   a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-   // 13. Transform to monolithic SparseMatrix
-   SparseMatrix *A = Ah.As<ComplexSparseMatrix>()->GetSystemMatrix();
-
-   cout << "Size of linear system: " << A->Height() << endl;
-
-   // 14. Solve using a direct or an iterative solver
+   // 13. Solve using a direct or an iterative solver
 #ifdef MFEM_USE_SUITESPARSE
    {
-      UMFPackSolver  solver(*A);
-      solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-      solver.Mult(B, X);
+      ComplexUMFPackSolver csolver(*A.As<ComplexSparseMatrix>());
+      csolver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+      csolver.SetPrintLevel(1);
+      csolver.Mult(B, X);
    }
 #else
-
-   // 14a. Set up the Bilinear form a(.,.) for the preconditioner
+   // 13a. Set up the Bilinear form a(.,.) for the preconditioner
    //
    //    In Comp
    //    Domain:   1/mu (Curl E, Curl F) + omega^2 * epsilon (E,F)
@@ -437,10 +432,10 @@ int main(int argc, char *argv[])
 
       prec.Assemble();
 
-      OperatorHandle PCOpAh;
+      OperatorPtr PCOpAh;
       prec.FormSystemMatrix(ess_tdof_list, PCOpAh);
 
-      // 14b. Define and apply a GMRES solver for AU=B with a block diagonal
+      // 13b. Define and apply a GMRES solver for AU=B with a block diagonal
       //      preconditioner based on the Gauss-Seidel sparse smoother.
       Array<int> offsets(3);
       offsets[0] = 0;
@@ -467,17 +462,15 @@ int main(int argc, char *argv[])
    }
 #endif
 
-   // 15. Recover the solution as a finite element grid function and compute the
+   // 14. Recover the solution as a finite element grid function and compute the
    //     errors if the exact solution is known.
    a.RecoverFEMSolution(X, b, x);
 
    // If exact is known compute the error
    if (exact_known)
    {
-      ComplexGridFunction x_gf(fespace);
       VectorFunctionCoefficient E_ex_Re(dim, E_exact_Re);
       VectorFunctionCoefficient E_ex_Im(dim, E_exact_Im);
-      x_gf.ProjectCoefficient(E_ex_Re, E_ex_Im);
       int order_quad = max(2, 2 * order + 1);
       const IntegrationRule *irs[Geometry::NumGeom];
       for (int i = 0; i < Geometry::NumGeom; ++i)
@@ -506,7 +499,7 @@ int main(int argc, char *argv[])
            << sqrt(L2Error_Re*L2Error_Re + L2Error_Im*L2Error_Im) << "\n\n";
    }
 
-   // 16. Save the refined mesh and the solution. This output can be viewed
+   // 15. Save the refined mesh and the solution. This output can be viewed
    //     later using GLVis: "glvis -m mesh -g sol".
    {
       ofstream mesh_ofs("ex25.mesh");
@@ -521,7 +514,7 @@ int main(int argc, char *argv[])
       x.imag().Save(sol_i_ofs);
    }
 
-   // 17. Send the solution by socket to a GLVis server.
+   // 16. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       // Define visualization keys for GLVis (see GLVis documentation)
@@ -572,8 +565,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 18. Free the used memory.
-   delete A;
+   // 17. Free the used memory.
    delete pml;
    delete fespace;
    delete fec;
