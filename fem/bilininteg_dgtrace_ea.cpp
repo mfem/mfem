@@ -22,7 +22,7 @@ static void EADGTraceAssemble1DInt(const int NF,
                                    Vector &eadata_int,
                                    Vector &eadata_ext)
 {
-   auto D = Reshape(padata, 2, 2, NF);
+   const auto D = Reshape(padata, 2, 2, NF);
    auto A_int = Reshape(eadata_int, 2, NF);
    auto A_ext = Reshape(eadata_ext, 2, NF);
    MFEM_FORALL(f, NF,
@@ -44,7 +44,7 @@ static void EADGTraceAssemble1DBdr(const int NF,
                                    const Vector &padata,
                                    Vector &eadata_bdr)
 {
-   auto D = Reshape(padata, 2, 2, NF);
+   const auto D = Reshape(padata, 2, 2, NF);
    auto A_bdr = Reshape(eadata_bdr, NF);
    MFEM_FORALL(f, NF,
    {
@@ -65,8 +65,8 @@ static void EADGTraceAssemble2DInt(const int NF,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(basis, Q1D, D1D);
-   auto D = Reshape(padata, Q1D, 2, 2, NF);
+   const auto B = Reshape(basis, Q1D, D1D);
+   const auto D = Reshape(padata, Q1D, 2, 2, NF);
    auto A_int = Reshape(eadata_int, D1D, D1D, 2, NF);
    auto A_ext = Reshape(eadata_ext, D1D, D1D, 2, NF);
    MFEM_FORALL_3D(f, NF, D1D, D1D, 1,
@@ -109,8 +109,8 @@ static void EADGTraceAssemble2DBdr(const int NF,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(basis, Q1D, D1D);
-   auto D = Reshape(padata, Q1D, 2, 2, NF);
+   const auto B = Reshape(basis, Q1D, D1D);
+   const auto D = Reshape(padata, Q1D, 2, 2, NF);
    auto A_bdr = Reshape(eadata_bdr, D1D, D1D, NF);
    MFEM_FORALL_3D(f, NF, D1D, D1D, 1,
    {
@@ -144,8 +144,8 @@ static void EADGTraceAssemble3DInt(const int NF,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(basis, Q1D, D1D);
-   auto D = Reshape(padata, Q1D, Q1D, 2, 2, NF);
+   const auto B = Reshape(basis, Q1D, D1D);
+   const auto D = Reshape(padata, Q1D, Q1D, 2, 2, NF);
    auto A_int = Reshape(eadata_int, D1D, D1D, D1D, D1D, 2, NF);
    auto A_ext = Reshape(eadata_ext, D1D, D1D, D1D, D1D, 2, NF);
    MFEM_FORALL_3D(f, NF, D1D, D1D, 1,
@@ -230,8 +230,8 @@ static void EADGTraceAssemble3DBdr(const int NF,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(basis, Q1D, D1D);
-   auto D = Reshape(padata, Q1D, Q1D, 2, 2, NF);
+   const auto B = Reshape(basis, Q1D, D1D);
+   const auto D = Reshape(padata, Q1D, Q1D, 2, 2, NF);
    auto A_bdr = Reshape(eadata_bdr, D1D, D1D, D1D, D1D, NF);
    MFEM_FORALL_3D(f, NF, D1D, D1D, 1,
    {

@@ -263,10 +263,10 @@ void PADGTraceApply2D(const int NF,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b, Q1D, D1D);
-   auto Bt = Reshape(bt, D1D, Q1D);
-   auto op = Reshape(_op, Q1D, 2, 2, NF);
-   auto x = Reshape(_x, D1D, VDIM, 2, NF);
+   const auto B = Reshape(b, Q1D, D1D);
+   const auto Bt = Reshape(bt, D1D, Q1D);
+   const auto op = Reshape(_op, Q1D, 2, 2, NF);
+   const auto x = Reshape(_x, D1D, VDIM, 2, NF);
    auto y = Reshape(_y, D1D, VDIM, 2, NF);
 
    MFEM_FORALL(f, NF,
@@ -354,10 +354,10 @@ void PADGTraceApply3D(const int NF,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b, Q1D, D1D);
-   auto Bt = Reshape(bt, D1D, Q1D);
-   auto op = Reshape(_op, Q1D, Q1D, 2, 2, NF);
-   auto x = Reshape(_x, D1D, D1D, VDIM, 2, NF);
+   const auto B = Reshape(b, Q1D, D1D);
+   const auto Bt = Reshape(bt, D1D, Q1D);
+   const auto op = Reshape(_op, Q1D, Q1D, 2, 2, NF);
+   const auto x = Reshape(_x, D1D, D1D, VDIM, 2, NF);
    auto y = Reshape(_y, D1D, D1D, VDIM, 2, NF);
 
    MFEM_FORALL(f, NF,
@@ -499,10 +499,10 @@ void SmemPADGTraceApply3D(const int NF,
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b, Q1D, D1D);
-   auto Bt = Reshape(bt, D1D, Q1D);
-   auto op = Reshape(_op, Q1D, Q1D, 2, 2, NF);
-   auto x = Reshape(_x, D1D, D1D, 2, NF);
+   const auto B = Reshape(b, Q1D, D1D);
+   const auto Bt = Reshape(bt, D1D, Q1D);
+   const auto op = Reshape(_op, Q1D, Q1D, 2, 2, NF);
+   const auto x = Reshape(_x, D1D, D1D, 2, NF);
    auto y = Reshape(_y, D1D, D1D, 2, NF);
 
    MFEM_FORALL_2D(f, NF, Q1D, Q1D, NBZ,
@@ -663,10 +663,10 @@ void PADGTraceApplyTranspose2D(const int NF,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b, Q1D, D1D);
-   auto Bt = Reshape(bt, D1D, Q1D);
-   auto op = Reshape(_op, Q1D, 2, 2, NF);
-   auto x = Reshape(_x, D1D, VDIM, 2, NF);
+   const auto B = Reshape(b, Q1D, D1D);
+   const auto Bt = Reshape(bt, D1D, Q1D);
+   const auto op = Reshape(_op, Q1D, 2, 2, NF);
+   const auto x = Reshape(_x, D1D, VDIM, 2, NF);
    auto y = Reshape(_y, D1D, VDIM, 2, NF);
 
    MFEM_FORALL(f, NF,
@@ -759,10 +759,10 @@ void PADGTraceApplyTranspose3D(const int NF,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b, Q1D, D1D);
-   auto Bt = Reshape(bt, D1D, Q1D);
-   auto op = Reshape(_op, Q1D, Q1D, 2, 2, NF);
-   auto x = Reshape(_x, D1D, D1D, VDIM, 2, NF);
+   const auto B = Reshape(b, Q1D, D1D);
+   const auto Bt = Reshape(bt, D1D, Q1D);
+   const auto op = Reshape(_op, Q1D, Q1D, 2, 2, NF);
+   const auto x = Reshape(_x, D1D, D1D, VDIM, 2, NF);
    auto y = Reshape(_y, D1D, D1D, VDIM, 2, NF);
 
    MFEM_FORALL(f, NF,
@@ -915,10 +915,10 @@ void SmemPADGTraceApplyTranspose3D(const int NF,
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b, Q1D, D1D);
-   auto Bt = Reshape(bt, D1D, Q1D);
-   auto op = Reshape(_op, Q1D, Q1D, 2, 2, NF);
-   auto x = Reshape(_x, D1D, D1D, 2, NF);
+   const auto B = Reshape(b, Q1D, D1D);
+   const auto Bt = Reshape(bt, D1D, Q1D);
+   const auto op = Reshape(_op, Q1D, Q1D, 2, 2, NF);
+   const auto x = Reshape(_x, D1D, D1D, 2, NF);
    auto y = Reshape(_y, D1D, D1D, 2, NF);
 
    MFEM_FORALL_2D(f, NF, Q1D, Q1D, NBZ,

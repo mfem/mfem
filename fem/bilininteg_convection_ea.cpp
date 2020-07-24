@@ -29,9 +29,9 @@ static void EAConvectionAssemble1D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b, Q1D, D1D);
-   auto G = Reshape(g, Q1D, D1D);
-   auto D = Reshape(padata, Q1D, NE);
+   const auto B = Reshape(b, Q1D, D1D);
+   const auto G = Reshape(g, Q1D, D1D);
+   const auto D = Reshape(padata, Q1D, NE);
    auto A = Reshape(eadata, D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, D1D, D1D, 1,
    {
@@ -73,9 +73,9 @@ static void EAConvectionAssemble2D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b, Q1D, D1D);
-   auto G = Reshape(g, Q1D, D1D);
-   auto D = Reshape(padata, Q1D, Q1D, 2, NE);
+   const auto B = Reshape(b, Q1D, D1D);
+   const auto G = Reshape(g, Q1D, D1D);
+   const auto D = Reshape(padata, Q1D, Q1D, 2, NE);
    auto A = Reshape(eadata, D1D, D1D, D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, D1D, D1D, 1,
    {
@@ -142,9 +142,9 @@ static void EAConvectionAssemble3D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b, Q1D, D1D);
-   auto G = Reshape(g, Q1D, D1D);
-   auto D = Reshape(padata, Q1D, Q1D, Q1D, 3, NE);
+   const auto B = Reshape(b, Q1D, D1D);
+   const auto G = Reshape(g, Q1D, D1D);
+   const auto D = Reshape(padata, Q1D, Q1D, Q1D, 3, NE);
    auto A = Reshape(eadata, D1D, D1D, D1D, D1D, D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, D1D, D1D, D1D,
    {

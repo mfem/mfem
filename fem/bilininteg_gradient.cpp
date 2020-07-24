@@ -78,8 +78,8 @@ static void PAGradientSetup2D(const int Q1D,
                               Vector &op)
 {
    const int NQ = Q1D*Q1D;
-   auto W = w.Read();
-   auto J = Reshape(j, NQ, 2, 2, NE);
+   const auto W = w.Read();
+   const auto J = Reshape(j, NQ, 2, 2, NE);
    auto y = Reshape(op.Write(), NQ, 2, 2, NE);
 
    MFEM_FORALL(e, NE,
@@ -108,8 +108,8 @@ static void PAGradientSetup3D(const int Q1D,
                               Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
-   auto W = w.Read();
-   auto J = Reshape(j, NQ, 3, 3, NE);
+   const auto W = w.Read();
+   const auto J = Reshape(j, NQ, 3, 3, NE);
    auto y = Reshape(op.Write(), NQ, 3, 3, NE);
    MFEM_FORALL(e, NE,
    {
@@ -226,11 +226,11 @@ static void PAGradientApply2D(const int NE,
    MFEM_VERIFY(TR_D1D <= MAX_D1D, "");
    MFEM_VERIFY(TE_D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b, Q1D, TR_D1D);
-   auto G = Reshape(g, Q1D, TR_D1D);
-   auto Bt = Reshape(bt, TE_D1D, Q1D);
-   auto op = Reshape(_op, Q1D*Q1D, 2,2, NE);
-   auto x = Reshape(_x, TR_D1D, TR_D1D, NE);
+   const auto B = Reshape(b, Q1D, TR_D1D);
+   const auto G = Reshape(g, Q1D, TR_D1D);
+   const auto Bt = Reshape(bt, TE_D1D, Q1D);
+   const auto op = Reshape(_op, Q1D*Q1D, 2,2, NE);
+   const auto x = Reshape(_x, TR_D1D, TR_D1D, NE);
    auto y = Reshape(_y, TE_D1D, TE_D1D, 2, NE);
    MFEM_FORALL(e, NE,
    {
@@ -356,11 +356,11 @@ static void PAGradientApply3D(const int NE,
    MFEM_VERIFY(TR_D1D <= MAX_D1D, "");
    MFEM_VERIFY(TE_D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b, Q1D, TR_D1D);
-   auto G = Reshape(g, Q1D, TR_D1D);
-   auto Bt = Reshape(bt, TE_D1D, Q1D);
-   auto op = Reshape(_op, Q1D*Q1D*Q1D, 3,3, NE);
-   auto x = Reshape(_x, TR_D1D, TR_D1D, TR_D1D, NE);
+   const auto B = Reshape(b, Q1D, TR_D1D);
+   const auto G = Reshape(g, Q1D, TR_D1D);
+   const auto Bt = Reshape(bt, TE_D1D, Q1D);
+   const auto op = Reshape(_op, Q1D*Q1D*Q1D, 3,3, NE);
+   const auto x = Reshape(_x, TR_D1D, TR_D1D, TR_D1D, NE);
    auto y = Reshape(_y, TE_D1D, TE_D1D, TE_D1D, 3, NE);
    MFEM_FORALL(e, NE,
    {
@@ -555,11 +555,11 @@ static void SmemPAGradientApply3D(const int NE,
    MFEM_VERIFY(TE_D1D <= Q1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
 
-   auto b = Reshape(b_, Q1D, TR_D1D);
-   auto g = Reshape(g_, Q1D, TR_D1D);
-   auto bt = Reshape(bt_, TE_D1D, Q1D);
-   auto D = Reshape(d_, Q1D*Q1D*Q1D, 3, 3, NE);
-   auto x = Reshape(x_, TR_D1D, TR_D1D, TR_D1D, NE);
+   const auto b = Reshape(b_, Q1D, TR_D1D);
+   const auto g = Reshape(g_, Q1D, TR_D1D);
+   const auto bt = Reshape(bt_, TE_D1D, Q1D);
+   const auto D = Reshape(d_, Q1D*Q1D*Q1D, 3, 3, NE);
+   const auto x = Reshape(x_, TR_D1D, TR_D1D, TR_D1D, NE);
    auto y = Reshape(y_, TE_D1D, TE_D1D, TE_D1D, 3, NE);
 
    MFEM_FORALL_3D(e, NE, (Q1D>8)?8:Q1D, (Q1D>8)?8:Q1D, (Q1D>8)?8:Q1D,
