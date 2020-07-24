@@ -177,36 +177,24 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    const int coeffDim = VQ ? VQ->GetVDim() : 1;
 
-   Vector coeff(coeffDim * ne * nq);
-   coeff = 1.0;
-   auto coeffh = Reshape(coeff.HostWrite(), coeffDim, nq, ne);
-   if (Q || VQ)
+   Vector coeff;
+   if (Q)
    {
-      Vector D(VQ ? coeffDim : 0);
-      if (VQ)
-      {
-         MFEM_VERIFY(coeffDim == dim, "");
-      }
-
-      for (int e=0; e<ne; ++e)
-      {
-         ElementTransformation *tr = mesh->GetElementTransformation(e);
-         for (int p=0; p<nq; ++p)
-         {
-            if (VQ)
-            {
-               VQ->Eval(D, *tr, ir->IntPoint(p));
-               for (int i=0; i<coeffDim; ++i)
-               {
-                  coeffh(i, p, e) = D[i];
-               }
-            }
-            else
-            {
-               coeffh(0, p, e) = Q->Eval(*tr, ir->IntPoint(p));
-            }
-         }
-      }
+      Q->Eval(fes,*ir,coeff);
+   }
+   else if(VQ)
+   {
+      VQ->Eval(fes,*ir,coeff);
+   }
+   else if(MQ)
+   {
+      mfem_error("Not yet implemented");
+      MQ->Eval(fes,*ir,coeff);
+   }
+   else
+   {
+      coeff.SetSize(1);
+      coeff(0) = 1.0;
    }
 
    fetype = el->GetDerivType();
@@ -354,20 +342,32 @@ void MixedVectorGradientIntegrator::AssemblePA(const FiniteElementSpace
 
    pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
 
-   Vector coeff(ne * nq);
-   coeff = 1.0;
+   Vector coeff;
    if (Q)
    {
-      for (int e=0; e<ne; ++e)
-      {
-         ElementTransformation *tr = mesh->GetElementTransformation(e);
-         for (int p=0; p<nq; ++p)
-         {
-            coeff[p + (e * nq)] = Q->Eval(*tr, ir->IntPoint(p));
-         }
-      }
+      Q->Eval(trial_fes,*ir,coeff);
    }
-
+   if (VQ)
+   {
+      mfem_error("Not yet implemented.");
+      VQ->Eval(trial_fes,*ir,coeff);
+   }
+   if (DQ)
+   {
+      mfem_error("Not yet implemented.");
+      DQ->Eval(trial_fes,*ir,coeff);
+   }
+   if (MQ)
+   {
+      mfem_error("Not yet implemented.");
+      MQ->Eval(trial_fes,*ir,coeff);
+   }
+   else
+   {
+      coeff.SetSize(1);
+      coeff(0) = 1.0;
+   }
+   
    // Use the same setup functions as VectorFEMassIntegrator.
    if (test_el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3)
    {
