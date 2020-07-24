@@ -39,7 +39,8 @@ namespace mfem
 // m - dimension of the residual vector
 // the Jacobian will have dimensions [m,length(uu)]
 template<template <typename, typename> class CTD, int m>
-class ADQFunctionTJ{
+class ADQFunctionTJ
+{
 protected:
 #ifdef MFEM_USE_ADEPT
    adept::Stack  m_stack;
@@ -69,189 +70,189 @@ public:
 #ifdef MFEM_USE_ADEPT
    ADQFunctionTJ():m_stack(false)  {}
 #else
-   ADQFunctionTJ(){}
+   ADQFunctionTJ() {}
 #endif
 
-   ~ADQFunctionTJ(){}
+   ~ADQFunctionTJ() {}
 
    double QFunction(const mfem::Vector& vparam, mfem::Vector& uu)
    {
-        CTD<double,mfem::Vector> func;
-        return func(vparam,uu);
+      CTD<double,mfem::Vector> func;
+      return func(vparam,uu);
    }
 
    void   QFunctionDU(const mfem::Vector& vparam, ADFVector& uu,
-                                                       ADFVector& rr)
+                      ADFVector& rr)
    {
-        CTD<ADFType,ADFVector> func;
-        func(vparam,uu,rr);
+      CTD<ADFType,ADFVector> func;
+      func(vparam,uu,rr);
    }
 
    void  QFunctionAU(const Vector &vparam, mfem::Vector &uu,
-                                                    mfem::Vector &rr)
+                     mfem::Vector &rr)
    {
-       //the result is computed automaticaly by differentiating
-       //QFunction with respect to uu
-       CTD<ADFType,ADFVector> func;
-       int n=uu.Size();
-       rr.SetSize(n);
+      //the result is computed automaticaly by differentiating
+      //QFunction with respect to uu
+      CTD<ADFType,ADFVector> func;
+      int n=uu.Size();
+      rr.SetSize(n);
 
 #if defined MFEM_USE_ADEPT
-       //use ADEPT package
-       adept::Stack* p_stack=adept::active_stack();
-       p_stack->deactivate();
+      //use ADEPT package
+      adept::Stack* p_stack=adept::active_stack();
+      p_stack->deactivate();
 
-       m_stack.activate();
-       {
-          ADFVector aduu(uu);
-          ADFType   rez;
-          m_stack.new_recording();
-          rez=func(vparam,aduu);
-          m_stack.independent(aduu.GetData(), n);//independent variables
-          m_stack.dependent(&rez, 1);//dependent variables
-          m_stack.jacobian(rr.GetData());
-       }
-       m_stack.deactivate();
+      m_stack.activate();
+      {
+         ADFVector aduu(uu);
+         ADFType   rez;
+         m_stack.new_recording();
+         rez=func(vparam,aduu);
+         m_stack.independent(aduu.GetData(), n);//independent variables
+         m_stack.dependent(&rez, 1);//dependent variables
+         m_stack.jacobian(rr.GetData());
+      }
+      m_stack.deactivate();
 #elif  defined MFEM_USE_FADBADPP
-       //use FADBAD++
-    #ifdef MFEM_USE_ADFORWARD
-           {
-              ADFVector aduu(uu);
-              ADFType   rez;
-              for (int ii=0; ii<n; ii++)
-              {
-                 aduu[ii].diff(ii,n);
-              }
-              rez=func(vparam,aduu);
-              for (int ii=0; ii<n; ii++)
-              {
-                  rr[ii]=rez.d(ii);
-              }
-           }
-    #else
-           {
-              ADFVector aduu(uu);
-              ADFType   rez;
-              rez=func(vparam,aduu);
-              rez.diff(0,1);
-              for (int ii=0; ii<n; ii++)
-              {
-                  rr[ii]=aduu[ii].d(0);
-              }
-           }
-    #endif
+      //use FADBAD++
+#ifdef MFEM_USE_ADFORWARD
+      {
+         ADFVector aduu(uu);
+         ADFType   rez;
+         for (int ii=0; ii<n; ii++)
+         {
+            aduu[ii].diff(ii,n);
+         }
+         rez=func(vparam,aduu);
+         for (int ii=0; ii<n; ii++)
+         {
+            rr[ii]=rez.d(ii);
+         }
+      }
 #else
-       //use native AD package
-       {
-          ADFVector aduu(uu); //all dual numbers are initialized to zero
-          ADFType rez;
+      {
+         ADFVector aduu(uu);
+         ADFType   rez;
+         rez=func(vparam,aduu);
+         rez.diff(0,1);
+         for (int ii=0; ii<n; ii++)
+         {
+            rr[ii]=aduu[ii].d(0);
+         }
+      }
+#endif
+#else
+      //use native AD package
+      {
+         ADFVector aduu(uu); //all dual numbers are initialized to zero
+         ADFType rez;
 
-          for (int ii=0; ii<n; ii++)
-          {
-             aduu[ii].dual(1.0);
-             rez=func(vparam,aduu);
-             rr[ii]=rez.dual();
-             aduu[ii].dual(0.0);
-          }
-       }
+         for (int ii=0; ii<n; ii++)
+         {
+            aduu[ii].dual(1.0);
+            rez=func(vparam,aduu);
+            rr[ii]=rez.dual();
+            aduu[ii].dual(0.0);
+         }
+      }
 #endif
 
    }
 
    void QFunctionDU(const mfem::Vector& vparam, mfem::Vector& uu,
-                                                    mfem::Vector& rr)
+                    mfem::Vector& rr)
    {
-       CTD<double,mfem::Vector> func;
-       func(vparam,uu,rr);
+      CTD<double,mfem::Vector> func;
+      func(vparam,uu,rr);
    }
 
    void QFunctionDD(const mfem::Vector& vparam, mfem::Vector& uu,
-                                                mfem::DenseMatrix& jac)
+                    mfem::DenseMatrix& jac)
    {
 #if defined MFEM_USE_ADEPT
-       //use ADEPT package
-       adept::Stack* p_stack=adept::active_stack();
-       p_stack->deactivate();
+      //use ADEPT package
+      adept::Stack* p_stack=adept::active_stack();
+      p_stack->deactivate();
 
-       int n=uu.Size();
-       jac.SetSize(m,n);
-       jac=0.0;
-       m_stack.activate();
-       {
-          ADFVector aduu(uu);
-          ADFVector rr(m); //residual vector
-          m_stack.new_recording();
-          QFunctionDU(vparam,aduu,rr);
-          m_stack.independent(aduu.GetData(), n);//independent variables
-          m_stack.dependent(rr.GetData(), m);//dependent variables
-          m_stack.jacobian(jac.Data());
-       }
-       m_stack.deactivate();
+      int n=uu.Size();
+      jac.SetSize(m,n);
+      jac=0.0;
+      m_stack.activate();
+      {
+         ADFVector aduu(uu);
+         ADFVector rr(m); //residual vector
+         m_stack.new_recording();
+         QFunctionDU(vparam,aduu,rr);
+         m_stack.independent(aduu.GetData(), n);//independent variables
+         m_stack.dependent(rr.GetData(), m);//dependent variables
+         m_stack.jacobian(jac.Data());
+      }
+      m_stack.deactivate();
 #elif defined MFEM_USE_FADBADPP
-   //use FADBAD++
+      //use FADBAD++
 #ifdef MFEM_USE_ADFORWARD
-       int n=uu.Size();
-       jac.SetSize(m,n);
-       jac=0.0;
-       {
-          ADFVector aduu(uu);
-          ADFVector rr(m);
+      int n=uu.Size();
+      jac.SetSize(m,n);
+      jac=0.0;
+      {
+         ADFVector aduu(uu);
+         ADFVector rr(m);
 
-          for (int ii=0; ii<n; ii++)
-          {
-             aduu[ii].diff(ii,n);
-          }
-          QFunctionDU(vparam,aduu,rr);
-          for (int ii=0; ii<n; ii++)
-          {
-             for (int jj=0; jj<m; jj++)
-             {
-                jac(jj,ii)=rr[jj].d(ii);
-             }
-          }
-       }
+         for (int ii=0; ii<n; ii++)
+         {
+            aduu[ii].diff(ii,n);
+         }
+         QFunctionDU(vparam,aduu,rr);
+         for (int ii=0; ii<n; ii++)
+         {
+            for (int jj=0; jj<m; jj++)
+            {
+               jac(jj,ii)=rr[jj].d(ii);
+            }
+         }
+      }
 #else
-       int n=uu.Size();
-       jac.SetSize(m,n);
-       jac=0.0;
-       {
-          ADFVector aduu(uu);
-          ADFVector rr(m);
-          QFunctionDU(vparam,aduu,rr);
-          for (int ii=0; ii<m; ii++)
-          {
-             rr[ii].diff(ii,m);
-          }
-          for (int ii=0; ii<n; ii++)
-          {
-             for (int jj=0; jj<m; jj++)
-             {
-                jac(jj,ii)=aduu[ii].d(jj);
-             }
-          }
+      int n=uu.Size();
+      jac.SetSize(m,n);
+      jac=0.0;
+      {
+         ADFVector aduu(uu);
+         ADFVector rr(m);
+         QFunctionDU(vparam,aduu,rr);
+         for (int ii=0; ii<m; ii++)
+         {
+            rr[ii].diff(ii,m);
+         }
+         for (int ii=0; ii<n; ii++)
+         {
+            for (int jj=0; jj<m; jj++)
+            {
+               jac(jj,ii)=aduu[ii].d(jj);
+            }
+         }
 
-       }
+      }
 #endif
 #else
-       //use native AD package
-       int n=uu.Size();
-       jac.SetSize(m,n);
-       jac=0.0;
-       {
-          ADFVector aduu(uu); //all dual numbers are initialized to zero
-          ADFVector rr(m);
+      //use native AD package
+      int n=uu.Size();
+      jac.SetSize(m,n);
+      jac=0.0;
+      {
+         ADFVector aduu(uu); //all dual numbers are initialized to zero
+         ADFVector rr(m);
 
-          for (int ii=0; ii<n; ii++)
-          {
-             aduu[ii].dual(1.0);
-             QFunctionDU(vparam,aduu,rr);
-             for (int jj=0; jj<m; jj++)
-             {
-                jac(jj,ii)=rr[jj].dual();
-             }
-             aduu[ii].dual(0.0);
-          }
-       }
+         for (int ii=0; ii<n; ii++)
+         {
+            aduu[ii].dual(1.0);
+            QFunctionDU(vparam,aduu,rr);
+            for (int jj=0; jj<m; jj++)
+            {
+               jac(jj,ii)=rr[jj].dual();
+            }
+            aduu[ii].dual(0.0);
+         }
+      }
 #endif
    }
 
@@ -263,7 +264,8 @@ public:
 //for differentiation is supplied as a functor
 //the operator()(scalar,vector) defines the actual function
 template<template <typename, typename> class CTD>
-class ADQFunctionTH{
+class ADQFunctionTH
+{
 public:
 #if defined MFEM_USE_FADBADPP
    typedef fadbad::B<double>             ADFType;
@@ -283,106 +285,111 @@ public:
    typedef TADDenseMatrix<ADSType>    ADSDenseMatrix;
 #endif
 
-    ADQFunctionTH() {}
+   ADQFunctionTH() {}
 
-    ~ADQFunctionTH() {}
+   ~ADQFunctionTH() {}
 
-    double QFunction(const mfem::Vector& vparam, const mfem::Vector& uu){
-        CTD<double,const mfem::Vector> tf;
-        return tf(vparam, uu);
-    }
+   double QFunction(const mfem::Vector& vparam, const mfem::Vector& uu)
+   {
+      CTD<double,const mfem::Vector> tf;
+      return tf(vparam, uu);
+   }
 
-    ADFType QFunction(const mfem::Vector& vparam, ADFVector& uu){
-        CTD<ADFType,ADFVector> tf;
-        return tf(vparam, uu);
-    }
+   ADFType QFunction(const mfem::Vector& vparam, ADFVector& uu)
+   {
+      CTD<ADFType,ADFVector> tf;
+      return tf(vparam, uu);
+   }
 
-    ADSType QFunction(const mfem::Vector &vparam, ADSVector& uu){
-        CTD<ADSType,ADSVector> tf;
-        return tf(vparam, uu);
-    }
+   ADSType QFunction(const mfem::Vector &vparam, ADSVector& uu)
+   {
+      CTD<ADSType,ADSVector> tf;
+      return tf(vparam, uu);
+   }
 
-    void QFunctionDU(const mfem::Vector& vparam, mfem::Vector& uu,
-                             mfem::Vector& rr){
+   void QFunctionDU(const mfem::Vector& vparam, mfem::Vector& uu,
+                    mfem::Vector& rr)
+   {
 #if defined MFEM_USE_FADBADPP
-        int n=uu.Size();
-        rr.SetSize(n);
-        ADFVector aduu(uu);
-        ADFType   rez;
-        rez=QFunction(vparam,aduu);
-        rez.diff(0,1);
-        for (int ii=0; ii<n; ii++)
-        {
-            rr[ii]=aduu[ii].d(0);
-        }
+      int n=uu.Size();
+      rr.SetSize(n);
+      ADFVector aduu(uu);
+      ADFType   rez;
+      rez=QFunction(vparam,aduu);
+      rez.diff(0,1);
+      for (int ii=0; ii<n; ii++)
+      {
+         rr[ii]=aduu[ii].d(0);
+      }
 #else
-        int n=uu.Size();
-        rr.SetSize(n);
-        ADFVector aduu(uu);
-        ADFType   rez;
-        for (int ii=0; ii<n; ii++)
-        {
-            aduu[ii].dual(1.0);
-            rez=QFunction(vparam,aduu);
-            rr[ii]=rez.dual();
-            aduu[ii].dual(0.0);
-        }
+      int n=uu.Size();
+      rr.SetSize(n);
+      ADFVector aduu(uu);
+      ADFType   rez;
+      for (int ii=0; ii<n; ii++)
+      {
+         aduu[ii].dual(1.0);
+         rez=QFunction(vparam,aduu);
+         rr[ii]=rez.dual();
+         aduu[ii].dual(0.0);
+      }
 #endif
-    }
+   }
 
-    void QFunctionDD(const mfem::Vector& vparam, const mfem::Vector& uu,
-                     mfem::DenseMatrix& jac){
+   void QFunctionDD(const mfem::Vector& vparam, const mfem::Vector& uu,
+                    mfem::DenseMatrix& jac)
+   {
 #if defined MFEM_USE_FADBADPP
-       int n=uu.Size();
-       jac.SetSize(n);
-       jac=0.0;
-       {
-        ADSVector aduu(n);
-        for (int ii = 0;  ii < n ; ii++)
-        {
-             aduu[ii]=uu[ii];
-             aduu[ii].x().diff(ii,n);
-        }
-        ADSType rez=QFunction(vparam,aduu);
-        rez.diff(0,1);
-        for (int ii = 0; ii < n ; ii++)
-        {
-          for (int jj=0; jj<ii; jj++)
-          {
-            jac(ii,jj)=aduu[ii].d(0).d(jj);
-            jac(jj,ii)=aduu[jj].d(0).d(ii);
-          }
-          jac(ii,ii)=aduu[ii].d(0).d(ii);
-        }
-       }
+      int n=uu.Size();
+      jac.SetSize(n);
+      jac=0.0;
+      {
+         ADSVector aduu(n);
+         for (int ii = 0;  ii < n ; ii++)
+         {
+            aduu[ii]=uu[ii];
+            aduu[ii].x().diff(ii,n);
+         }
+         ADSType rez=QFunction(vparam,aduu);
+         rez.diff(0,1);
+         for (int ii = 0; ii < n ; ii++)
+         {
+            for (int jj=0; jj<ii; jj++)
+            {
+               jac(ii,jj)=aduu[ii].d(0).d(jj);
+               jac(jj,ii)=aduu[jj].d(0).d(ii);
+            }
+            jac(ii,ii)=aduu[ii].d(0).d(ii);
+         }
+      }
 #else
-       int n=uu.Size();
-       jac.SetSize(n);
-       jac=0.0;
-       {
-          ADSVector aduu(n);
-          for (int ii = 0;  ii < n ; ii++)
-          {
-             aduu[ii].real(ADFType(uu[ii],0.0));
-             aduu[ii].dual(ADFType(0.0,0.0));
-          }
+      int n=uu.Size();
+      jac.SetSize(n);
+      jac=0.0;
+      {
+         ADSVector aduu(n);
+         for (int ii = 0;  ii < n ; ii++)
+         {
+            aduu[ii].real(ADFType(uu[ii],0.0));
+            aduu[ii].dual(ADFType(0.0,0.0));
+         }
 
-          for (int ii = 0; ii < n ; ii++)
-          {
-             aduu[ii].real(ADFType(uu[ii],1.0));
-             for (int jj=0; jj<(ii+1); jj++)
-             {
-                aduu[jj].dual(ADFType(1.0,0.0));
-                ADSType rez=QFunction(vparam,aduu);
-                jac(ii,jj)=rez.dual().dual();
-                jac(jj,ii)=rez.dual().dual();
-                aduu[jj].dual(ADFType(0.0,0.0));
-             }
-             aduu[ii].real(ADFType(uu[ii],0.0));
-          }
-       }
+         for (int ii = 0; ii < n ; ii++)
+         {
+            aduu[ii].real(ADFType(uu[ii],1.0));
+            for (int jj=0; jj<(ii+1); jj++)
+            {
+               aduu[jj].dual(ADFType(1.0,0.0));
+               ADSType rez=QFunction(vparam,aduu);
+               jac(ii,jj)=rez.dual().dual();
+               jac(jj,ii)=rez.dual().dual();
+               aduu[jj].dual(ADFType(0.0,0.0));
+            }
+            aduu[ii].real(ADFType(uu[ii],0.0));
+         }
+      }
 #endif
-    }
+   }
 
 
 };// end template ADFunctionTH
