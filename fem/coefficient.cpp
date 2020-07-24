@@ -15,11 +15,37 @@
 
 #include <cmath>
 #include <limits>
+#include "../linalg/dtensor.hpp"
 
 namespace mfem
 {
 
 using namespace std;
+
+void Coefficient::Eval(const FiniteElementSpace &fes, const IntegrationRule &ir,
+                       Vector &qcoeff)
+{
+   const int ne = fes.GetMesh()->GetNE();
+   const int nq = ir.GetNPoints();
+   qcoeff.SetSize(nq * ne);
+   auto C = Reshape(qcoeff.HostWrite(), nq, ne);
+   for (int e = 0; e < ne; ++e)
+   {
+      ElementTransformation& T = *fes.GetElementTransformation(e);
+      for (int q = 0; q < nq; ++q)
+      {
+         C(q,e) = this->Eval(T, ir.IntPoint(q));
+      }
+   }
+}
+
+void ConstantCoefficient::Eval(const FiniteElementSpace &fes,
+                               const IntegrationRule &ir,
+                               Vector &qcoeff)
+{
+   qcoeff.SetSize(1);
+   qcoeff(0) = constant;      
+}
 
 double PWConstCoefficient::Eval(ElementTransformation & T,
                                 const IntegrationPoint & ip)
@@ -98,6 +124,40 @@ void VectorCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
       const IntegrationPoint &ip = ir.IntPoint(i);
       T.SetIntPoint(&ip);
       Eval(Mi, T, ip);
+   }
+}
+
+void VectorCoefficient::Eval(const FiniteElementSpace &fes,
+                             const IntegrationRule &ir,
+                             Vector &qcoeff)
+{
+   const int ne = fes.GetMesh()->GetNE();
+   const int nq = ir.GetNPoints();
+   qcoeff.SetSize(vdim * nq * ne);
+   auto C = Reshape(qcoeff.HostWrite(), vdim, nq, ne);
+   DenseMatrix M(vdim, nq);
+   for (int e = 0; e < ne; ++e)
+   {
+      ElementTransformation& T = *fes.GetElementTransformation(e);
+      Eval(M, T, ir);
+      for (int q = 0; q < nq; ++q)
+      {
+         for (int d = 0; d < vdim; d++)
+         {
+            C(d,q,e) = M(d,q);
+         }
+      }
+   }
+}
+
+void VectorConstantCoefficient::Eval(const FiniteElementSpace &fes,
+                                     const IntegrationRule &ir,
+                                     Vector &qcoeff)
+{
+   qcoeff.SetSize(vdim);
+   for (int d = 0; d < vdim; d++)
+   {
+      qcoeff(d) = vec(d);
    }
 }
 
@@ -316,6 +376,46 @@ void MatrixFunctionCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    if (Q)
    {
       K *= Q->Eval(T, ip, GetTime());
+   }
+}
+void MatrixCoefficient::Eval(const FiniteElementSpace &fes,
+                             const IntegrationRule &ir,
+                             Vector &qcoeff)
+{
+   const int ne = fes.GetMesh()->GetNE();
+   const int nq = ir.GetNPoints();
+   qcoeff.SetSize(height * width * nq * ne);
+   auto C = Reshape(qcoeff.HostWrite(), height, width, nq, ne);
+   DenseMatrix K(height, width);
+   for (int e = 0; e < ne; ++e)
+   {
+      ElementTransformation& T = *fes.GetElementTransformation(e);
+      for (int q = 0; q < nq; ++q)
+      {
+         Eval(K, T, ir.IntPoint(q));
+         for (int w = 0; w < width; w++)
+         {
+            for (int h = 0; h < height; h++)
+            {
+               C(h,w,q,e) = K(h,w);
+            }
+         }
+      }
+   }
+}
+
+void MatrixConstantCoefficient::Eval(const FiniteElementSpace &fes,
+                                     const IntegrationRule &ir,
+                                     Vector &qcoeff)
+{
+   qcoeff.SetSize(height * width);
+   auto C = Reshape(qcoeff.HostWrite(), height, width);
+   for (int w = 0; w < width; w++)
+   {
+      for (int h = 0; h < height; h++)
+      {
+         C(h,w) = mat(h,w);
+      }
    }
 }
 

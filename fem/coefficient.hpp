@@ -21,6 +21,7 @@ namespace mfem
 {
 
 class Mesh;
+class FiniteElementSpace;
 
 #ifdef MFEM_USE_MPI
 class ParMesh;
@@ -68,6 +69,11 @@ public:
       return Eval(T, ip);
    }
 
+   /** @brief Evaluate the coefficient at all the quadrature points given by the
+       IntegrationRule @a ir on the FiniteElementSpace @a fes. */
+   virtual void Eval(const FiniteElementSpace &fes, const IntegrationRule &ir,
+                     Vector &qcoeff);
+
    virtual ~Coefficient() { }
 };
 
@@ -85,6 +91,9 @@ public:
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
    { return (constant); }
+
+   void Eval(const FiniteElementSpace &fes, const IntegrationRule &ir,
+             Vector &qcoeff);
 };
 
 /** @brief A piecewise constant coefficient with the constants keyed
@@ -382,6 +391,11 @@ public:
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationRule &ir);
 
+   /** @brief Evaluate the coefficient at all the quadrature points given by the
+       IntegrationRule @a ir on the FiniteElementSpace @a fes. */
+   virtual void Eval(const FiniteElementSpace &fes, const IntegrationRule &ir,
+                     Vector &qcoeff);
+
    virtual ~VectorCoefficient() { }
 };
 
@@ -400,6 +414,9 @@ public:
    ///  Evaluate the vector coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip) { V = vec; }
+
+   void Eval(const FiniteElementSpace &fes, const IntegrationRule &ir,
+             Vector &qcoeff);
 
    /// Return a reference to the constant vector in this class.
    const Vector& GetVec() { return vec; }
@@ -726,6 +743,11 @@ public:
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip) = 0;
 
+   /** @brief Evaluate the coefficient at all the quadrature points given by the
+       IntegrationRule @a ir on the FiniteElementSpace @a fes. */
+   virtual void Eval(const FiniteElementSpace &fes, const IntegrationRule &ir,
+                     Vector &qcoeff);
+
    virtual ~MatrixCoefficient() { }
 };
 
@@ -743,6 +765,9 @@ public:
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationPoint &ip) { M = mat; }
+
+   void Eval(const FiniteElementSpace &fes, const IntegrationRule &ir,
+             Vector &qcoeff);
 };
 
 
