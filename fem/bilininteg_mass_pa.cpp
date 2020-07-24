@@ -54,37 +54,23 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
    quad1D = maps->nqpt;
    pa_data.SetSize(ne*nq, Device::GetDeviceMemoryType());
    Vector coeff;
-   if (Q == nullptr)
+   if (Q)
    {
-      coeff.SetSize(1);
-      coeff(0) = 1.0;
-   }
-   else if (ConstantCoefficient* cQ = dynamic_cast<ConstantCoefficient*>(Q))
-   {
-      coeff.SetSize(1);
-      coeff(0) = cQ->constant;
+      Q->Eval(fes,*ir,coeff);
    }
    else
    {
-      coeff.SetSize(nq * ne);
-      auto C = Reshape(coeff.HostWrite(), nq, ne);
-      for (int e = 0; e < ne; ++e)
-      {
-         ElementTransformation& T = *fes.GetElementTransformation(e);
-         for (int q = 0; q < nq; ++q)
-         {
-            C(q,e) = Q->Eval(T, ir->IntPoint(q));
-         }
-      }
+      coeff.SetSize(1);
+      coeff(0) = 1.0;
    }
    if (dim==1) { MFEM_ABORT("Not supported yet... stay tuned!"); }
    if (dim==2)
    {
       const int NE = ne;
       const int NQ = nq;
-      const bool const_c = coeff.Size() == 1;
       auto w = ir->GetWeights().Read();
       auto J = Reshape(geom->J.Read(), NQ,2,2,NE);
+      const bool const_c = coeff.Size() == 1;
       auto C =
          const_c ? Reshape(coeff.Read(), 1,1) : Reshape(coeff.Read(), NQ,NE);
       auto v = Reshape(pa_data.Write(), NQ, NE);
@@ -106,9 +92,9 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
    {
       const int NE = ne;
       const int NQ = nq;
-      const bool const_c = coeff.Size() == 1;
       auto W = ir->GetWeights().Read();
       auto J = Reshape(geom->J.Read(), NQ,3,3,NE);
+      const bool const_c = coeff.Size() == 1;
       auto C =
          const_c ? Reshape(coeff.Read(), 1,1) : Reshape(coeff.Read(), NQ,NE);
       auto v = Reshape(pa_data.Write(), NQ,NE);
