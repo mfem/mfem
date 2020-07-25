@@ -58,16 +58,10 @@ private:
    void ComputeOverlapDofMaps();
    void Getijk(int ip, int & i, int & j, int & k ) const;
    int GetPatchId(const Array<int> & ijk) const;
-   // SparseMatrix * GetHelmholtzPmlSystemMatrix(int ip);
-   // SparseMatrix * GetMaxwellPmlSystemMatrix(int ip);
   
    void SetHelmholtzPmlSystemMatrix(int ip);
    void SetMaxwellPmlSystemMatrix(int ip);
 
-   // void GetCutOffSolution(const Vector & sol, Vector & cfsol,
-   //                        int ip, Array2D<int> direct, int nlayers, bool local=false) const;                          
-   // void GetChiRes(const Vector & res, Vector & cfres,
-   //                int ip, Array2D<int> direct, int nlayers) const;  
    void GetChiRes(Vector & res, int ip, Array2D<int> direct) const;                    
    void GetStepSubdomains(const int sweep, const int step, Array2D<int> & subdomains) const;
    void TransferSources(int sweep, int ip, Vector & sol_ext) const;

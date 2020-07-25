@@ -75,3 +75,43 @@ public:
 void SaveMeshPartition(Array<Mesh * > meshes, 
                        string mfilename="output/mesh.",
                        string sfilename="output/sol.");
+
+
+#ifdef MFEM_USE_MPI
+
+class CartesianParMeshPartition 
+{
+private:
+   ParMesh *pmesh=nullptr;
+public:
+   int nrpatch;
+   int nxyz[3];
+   double MeshSize;
+   std::vector<Array<int>> element_map;
+   Array3D<int>subdomains;
+   // constructor
+   CartesianParMeshPartition(ParMesh * pmesh_,int & nx, int & ny, int & nz);
+   ~CartesianParMeshPartition() {};
+};
+
+class ParMeshPartition
+{
+private:
+   ParMesh *pmesh=nullptr;
+   void AddElementToMesh(Mesh * mesh,mfem::Element::Type elem_type,int * ind);
+   void GetNumVertices(int type, mfem::Element::Type & elem_type, int & nrvert);
+   void PrintElementMap();
+public:
+   int nrpatch;
+   double MeshSize;
+   std::vector<Array<int>> element_map;
+   Array3D<int> subdomains;
+   Array<Mesh *> patch_mesh;
+   int partition_kind;
+   int nxyz[3];
+   // constructor
+   ParMeshPartition(ParMesh * pmesh_, int part, int mx=1, int my=1, int mz=1, int ovl_nlayers=0);
+   ~ParMeshPartition();
+};
+
+#endif

@@ -713,3 +713,21 @@ MeshPartition::~MeshPartition()
    }
    patch_mesh.DeleteAll();
 }
+
+
+#ifdef MFEM_USE_MPI
+
+
+CartesianParMeshPartition::CartesianParMeshPartition(ParMesh * pmesh_,int & nx, int & ny, int & nz) : pmesh(pmesh_)
+{
+   //TODO
+}
+
+
+
+ParMeshPartition::ParMeshPartition(ParMesh* pmesh_, int part,int nx, int ny, int nz, int nrlayers) : pmesh(pmesh_)
+{
+   //TODO
+}
+
+#endif
