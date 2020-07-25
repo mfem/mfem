@@ -44,8 +44,6 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../../data/one-hex.mesh";
    // finite element order of approximation
    int order = 1;
-   // static condensation flag
-   bool static_cond = false;
    bool visualization = 1;
    // number of wavelengths
    double k = 0.5;
