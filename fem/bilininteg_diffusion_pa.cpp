@@ -291,6 +291,7 @@ void DiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
    }
    else if (MQ)
    {
+      mfem_error("Not yet implemented");
       MQ->Eval(fes,*ir,coeff);
    }
    else

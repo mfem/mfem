@@ -157,108 +157,19 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
    quad1D = maps->nqpt;
    pa_data.SetSize(symmDims * nq * nf, Device::GetMemoryType());
    Vector r;
-   if (rho==nullptr)
+   if (rho)
    {
-      r.SetSize(1);
-      r(0) = 1.0;
-   }
-   else if (ConstantCoefficient *c_rho = dynamic_cast<ConstantCoefficient*>(rho))
-   {
-      r.SetSize(1);
-      r(0) = c_rho->constant;
-   }
-   else if (QuadratureFunctionCoefficient* c_rho =
-               dynamic_cast<QuadratureFunctionCoefficient*>(rho))
-   {
-      const QuadratureFunction &qFun = c_rho->GetQuadFunction();
-      MFEM_VERIFY(qFun.Size() == nq * nf,
-                  "Incompatible QuadratureFunction dimension \n");
-
-      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
-                  "IntegrationRule used within integrator and in"
-                  " QuadratureFunction appear to be different");
-      qFun.Read();
-      r.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
+      rho->Eval(fes,*ir,type,r);
    }
    else
    {
-      r.SetSize(nq * nf);
-      auto C = Reshape(r.HostWrite(), nq, nf);
-      int f_ind = 0;
-      for (int f = 0; f < fes.GetNF(); ++f)
-      {
-         int e1, e2;
-         int inf1, inf2;
-         fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-         fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-         int face_id = inf1 / 64;
-         if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-             (type==FaceType::Boundary && e2<0 && inf2<0) )
-         {
-            ElementTransformation& T = *fes.GetMesh()->GetFaceTransformation(f);
-            for (int q = 0; q < nq; ++q)
-            {
-               // Convert to lexicographic ordering
-               int iq = ToLexOrdering(dim, face_id, quad1D, q);
-               C(iq,f_ind) = rho->Eval(T, ir->IntPoint(q));
-            }
-            f_ind++;
-         }
-      }
-      MFEM_VERIFY(f_ind==nf, "Incorrect number of faces.");
-   }
+      r.SetSize(1);
+      r(0) = 1.0;      
+   }   
+   
    Vector vel;
-   if (VectorConstantCoefficient *c_u = dynamic_cast<VectorConstantCoefficient*>
-                                        (u))
-   {
-      vel = c_u->GetVec();
-   }
-   else if (VectorQuadratureFunctionCoefficient* c_u =
-               dynamic_cast<VectorQuadratureFunctionCoefficient*>(u))
-   {
-      // Assumed to be in lexicographical ordering
-      const QuadratureFunction &qFun = c_u->GetQuadFunction();
-      MFEM_VERIFY(qFun.Size() == dim * nq * nf,
-                  "Incompatible QuadratureFunction dimension \n");
-
-      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
-                  "IntegrationRule used within integrator and in"
-                  " QuadratureFunction appear to be different");
-      qFun.Read();
-      vel.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
-   }
-   else
-   {
-      vel.SetSize(dim * nq * nf);
-      auto C = Reshape(vel.HostWrite(), dim, nq, nf);
-      Vector Vq(dim);
-      int f_ind = 0;
-      for (int f = 0; f < fes.GetNF(); ++f)
-      {
-         int e1, e2;
-         int inf1, inf2;
-         fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-         fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-         int face_id = inf1 / 64;
-         if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-             (type==FaceType::Boundary && e2<0 && inf2<0) )
-         {
-            ElementTransformation& T = *fes.GetMesh()->GetFaceTransformation(f);
-            for (int q = 0; q < nq; ++q)
-            {
-               // Convert to lexicographic ordering
-               int iq = ToLexOrdering(dim, face_id, quad1D, q);
-               u->Eval(Vq, T, ir->IntPoint(q));
-               for (int i = 0; i < dim; ++i)
-               {
-                  C(i,iq,f_ind) = Vq(i);
-               }
-            }
-            f_ind++;
-         }
-      }
-      MFEM_VERIFY(f_ind==nf, "Incorrect number of faces.");
-   }
+   u->Eval(fes,*ir,type,vel);
+   
    PADGTraceSetup(dim, dofs1D, quad1D, nf, ir->GetWeights(),
                   geom->detJ, geom->normal, r, vel,
                   alpha, beta, pa_data);

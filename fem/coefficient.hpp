@@ -22,6 +22,7 @@ namespace mfem
 
 class Mesh;
 class FiniteElementSpace;
+enum class FaceType : bool;
 
 #ifdef MFEM_USE_MPI
 class ParMesh;
@@ -74,6 +75,13 @@ public:
    virtual void Eval(const FiniteElementSpace &fes, const IntegrationRule &ir,
                      Vector &qcoeff);
 
+   /** @brief Evaluate the coefficient at all the quadrature points given by the
+       IntegrationRule @a ir on the faces of the FiniteElementSpace @a fes. */
+   virtual void Eval(const FiniteElementSpace &fes,
+                     const IntegrationRule &ir,
+                     const FaceType type,
+                     Vector &qcoeff);
+
    virtual ~Coefficient() { }
 };
 
@@ -93,6 +101,11 @@ public:
    { return (constant); }
 
    void Eval(const FiniteElementSpace &fes, const IntegrationRule &ir,
+             Vector &qcoeff);
+
+   void Eval(const FiniteElementSpace &fes,
+             const IntegrationRule &ir,
+             const FaceType type,
              Vector &qcoeff);
 };
 
@@ -396,6 +409,13 @@ public:
    virtual void Eval(const FiniteElementSpace &fes, const IntegrationRule &ir,
                      Vector &qcoeff);
 
+   /** @brief Evaluate the coefficient at all the quadrature points given by the
+       IntegrationRule @a ir on the faces of the FiniteElementSpace @a fes. */
+   virtual void Eval(const FiniteElementSpace &fes,
+                     const IntegrationRule &ir,
+                     const FaceType type,
+                     Vector &qcoeff);
+
    virtual ~VectorCoefficient() { }
 };
 
@@ -417,7 +437,12 @@ public:
 
    void Eval(const FiniteElementSpace &fes, const IntegrationRule &ir,
              Vector &qcoeff);
-
+   
+   void Eval(const FiniteElementSpace &fes,
+             const IntegrationRule &ir,
+             const FaceType type,
+             Vector &qcoeff);
+   
    /// Return a reference to the constant vector in this class.
    const Vector& GetVec() { return vec; }
 };
@@ -1583,6 +1608,10 @@ public:
    void Eval(const FiniteElementSpace &fes, const IntegrationRule &ir,
              Vector &qcoeff);
 
+   void Eval(const FiniteElementSpace &fes,
+             const IntegrationRule &ir,
+             const FaceType type,
+             Vector &qcoeff);
    virtual ~VectorQuadratureFunctionCoefficient() { }
 };
 
@@ -1603,6 +1632,11 @@ public:
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 
    void Eval(const FiniteElementSpace &fes, const IntegrationRule &ir,
+             Vector &qcoeff);
+
+   void Eval(const FiniteElementSpace &fes,
+             const IntegrationRule &ir,
+             const FaceType type,
              Vector &qcoeff);
 
    virtual ~QuadratureFunctionCoefficient() { }
