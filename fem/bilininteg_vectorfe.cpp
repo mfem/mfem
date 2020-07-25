@@ -347,17 +347,17 @@ void MixedVectorGradientIntegrator::AssemblePA(const FiniteElementSpace
    {
       Q->Eval(trial_fes,*ir,coeff);
    }
-   if (VQ)
+   else if (VQ)
    {
       mfem_error("Not yet implemented.");
       VQ->Eval(trial_fes,*ir,coeff);
    }
-   if (DQ)
+   else if (DQ)
    {
       mfem_error("Not yet implemented.");
       DQ->Eval(trial_fes,*ir,coeff);
    }
-   if (MQ)
+   else if (MQ)
    {
       mfem_error("Not yet implemented.");
       MQ->Eval(trial_fes,*ir,coeff);
