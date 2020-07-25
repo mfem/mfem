@@ -653,6 +653,7 @@ private:
       ParMesh               &pmesh_;
       ParGridFunction       &yGF_;
       ParGridFunction       &kGF_;
+      mutable ParLinearForm rLF_;
 
       GridFunctionCoefficient yCoef_;
       GridFunctionCoefficient kCoef_;

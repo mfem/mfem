@@ -962,7 +962,7 @@ int main(int argc, char *argv[])
    */
    ParGridFunction errorT(&L2FESpace0);
    T1 = 0.0;
-
+   T1_hpv = 0.0;
    /*
    ParGridFunction yGF(fespace);
    ParGridFunction kGF(fespace);
@@ -1010,8 +1010,8 @@ int main(int argc, char *argv[])
    {
       T1.ProjectCoefficient(TCoef);
       // q.ProjectCoefficient(qCoef);
+      T1.ParallelProject(T1_hpv);
    }
-   T1.ParallelProject(T1_hpv);
    
    T1.GridFunction::ComputeElementL2Errors(TCoef, errorT);
    ExactT.ProjectCoefficient(TCoef);

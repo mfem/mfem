@@ -1329,6 +1329,7 @@ DGAdvectionDiffusionTDO::NLOperator::NLOperator(const MPI_Session & mpi,
      pmesh_(*fes_.GetParMesh()),
      yGF_(yGF),
      kGF_(kGF),
+     rLF_(&fes_),
      yCoef_(&yGF_),
      kCoef_(&kGF_),
      ykCoef_(ykCoef),
@@ -1402,18 +1403,19 @@ void DGAdvectionDiffusionTDO::NLOperator::SetTimeStep(double dt)
    ykCoef_.SetBeta(dt_);
 }
 
-void DGAdvectionDiffusionTDO::NLOperator::Mult(const Vector &k, Vector &r) const
+void DGAdvectionDiffusionTDO::NLOperator::Mult(const Vector &k_tdof,
+					       Vector &r_tdof) const
 {
    if (mpi_.Root() && logging_ > 1)
    {
       cout << log_prefix_ << "DGAdvectionDiffusionTDO::NLOperator::Mult" << endl;
    }
 
-   r = 0.0;
+   rLF_ = 0.0;
    cout << mpi_.WorldRank() << ": setting kGF_ in Mult " << endl;
-   cout << mpi_.WorldRank() << ": size of k " << k.Size() << endl;
+   cout << mpi_.WorldRank() << ": size of k " << k_tdof.Size() << endl;
    cout << mpi_.WorldRank() << ": size of kGF_" << kGF_.Size() << endl;
-   kGF_.Distribute(k);
+   kGF_.Distribute(k_tdof);
    kGF_.ExchangeFaceNbrData();
    /*
    double *prev_k = kGF_.GetData();
@@ -1445,7 +1447,7 @@ void DGAdvectionDiffusionTDO::NLOperator::Mult(const Vector &k, Vector &r) const
 
          elmat_.AddMult(locdvec_, elvec_);
       }
-      r.AddElementVector(vdofs_, elvec_);
+      rLF_.AddElementVector(vdofs_, elvec_);
    }
 
    if (mpi_.Root() && logging_ > 2)
@@ -1484,7 +1486,7 @@ void DGAdvectionDiffusionTDO::NLOperator::Mult(const Vector &k, Vector &r) const
 
          elmat_.Mult(locvec_, elvec_);
 
-         r.AddElementVector(vdofs_, elvec_);
+         rLF_.AddElementVector(vdofs_, elvec_);
       }
    }
 
@@ -1529,7 +1531,7 @@ void DGAdvectionDiffusionTDO::NLOperator::Mult(const Vector &k, Vector &r) const
 
             elmat_.Mult(locvec_, elvec_);
 
-            r.AddElementVector(vdofs_, elvec_);
+            rLF_.AddElementVector(vdofs_, elvec_);
          }
       }
 
@@ -1580,7 +1582,7 @@ void DGAdvectionDiffusionTDO::NLOperator::Mult(const Vector &k, Vector &r) const
 
             elmat_.Mult(locvec_, elvec_);
 
-            r.AddElementVector(vdofs_, elvec);
+            rLF_.AddElementVector(vdofs_, elvec);
          }
       }
    }
@@ -1653,7 +1655,7 @@ void DGAdvectionDiffusionTDO::NLOperator::Mult(const Vector &k, Vector &r) const
 
             elmat_.Mult(locvec_, elvec_);
 
-            r.AddElementVector(vdofs_, elvec_);
+            rLF_.AddElementVector(vdofs_, elvec_);
          }
       }
    }
@@ -1661,20 +1663,22 @@ void DGAdvectionDiffusionTDO::NLOperator::Mult(const Vector &k, Vector &r) const
    if (dlfi_.Size())
    {
       ElementTransformation *eltrans = NULL;
-
+      const FiniteElement *fe = NULL;
+      
       for (int i=0; i < fes_.GetNE(); i++)
       {
          fes_.GetElementVDofs(i, vdofs_);
          eltrans = fes_.GetElementTransformation(i);
-
+	 fe = fes_.GetFE(i);
+	 
          int ndof = vdofs_.Size();
          elvec_.SetSize(ndof);
 
          for (int k=0; k < dlfi_.Size(); k++)
          {
-            dlfi_[k]->AssembleRHSElementVect(*fes_.GetFE(i), *eltrans, elvec_);
+            dlfi_[k]->AssembleRHSElementVect(*fe, *eltrans, elvec_);
             elvec_ *= -1.0;
-            r.AddElementVector (vdofs_, elvec_);
+            rLF_.AddElementVector (vdofs_, elvec_);
          }
       }
    }
@@ -1726,11 +1730,13 @@ void DGAdvectionDiffusionTDO::NLOperator::Mult(const Vector &k, Vector &r) const
                bflfi_[k] -> AssembleRHSElementVect (*fes_.GetFE(tr -> Elem1No),
                                                     *tr, elvec_);
                elvec_ *= -1.0;
-               r.AddElementVector (vdofs_, elvec_);
+               rLF_.AddElementVector (vdofs_, elvec_);
             }
          }
       }
    }
+
+   rLF_.ParallelAssemble(r_tdof);
    /*
    kGF_.MakeRef(&fes_, prev_k);
    if (prev_k != NULL)
