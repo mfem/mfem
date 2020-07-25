@@ -1663,9 +1663,9 @@ void ParMesh::GenerateOffsets(int N, HYPRE_BigInt loc_sizes[],
    }
    else
    {
-      Array<HYPRE_Int> temp(N*NRanks);
-      MPI_Allgather(loc_sizes, N, HYPRE_MPI_INT, temp.GetData(), N,
-                    HYPRE_MPI_INT, MyComm);
+      Array<HYPRE_BigInt> temp(N*NRanks);
+      MPI_Allgather(loc_sizes, N, HYPRE_MPI_BIG_INT, temp.GetData(), N,
+                    HYPRE_MPI_BIG_INT, MyComm);
       for (int i = 0; i < N; i++)
       {
          Array<HYPRE_BigInt> &offs = *offsets[i];
