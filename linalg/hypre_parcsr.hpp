@@ -21,6 +21,13 @@
 
 #include "_hypre_parcsr_mv.h"
 
+// Older hypre versions do not define HYPRE_BigInt and HYPRE_MPI_BIG_INT, so we
+// define them here for backward compatibility.
+#if MFEM_HYPRE_VERSION < 21600
+typedef HYPRE_Int HYPRE_BigInt;
+#define HYPRE_MPI_BIG_INT HYPRE_MPI_INT
+#endif
+
 // Define macro wrappers for hypre_TAlloc, hypre_CTAlloc and hypre_TFree:
 // mfem_hypre_TAlloc, mfem_hypre_CTAlloc, and mfem_hypre_TFree, respectively.
 // Note: these macros are used in hypre.cpp, hypre_parcsr.cpp, and perhaps
