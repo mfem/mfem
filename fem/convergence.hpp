@@ -22,7 +22,17 @@ namespace mfem
 {
 
 /** @brief Class to compute error and convergence rates.
-    It supports H1, H(curl) (ND elements), H(div) (RT elements) and L2 (DG). */
+    It supports H1, H(curl) (ND elements), H(div) (RT elements) and L2 (DG).
+
+    For "smooth enough" solutions the Galerkin error
+    measured in the appropriate norm satisfies
+    || u - u_h || ~  h^k
+
+    Here, k is called the assymptotic rate of convergence
+
+    For succesive uniform h-refinements the rate can be estimated by
+    k = log(||u - u_h|| / ||u - u_{h/2}||)/log(2)
+*/
 class ConvergenceStudy
 {
 private:

@@ -101,6 +101,8 @@ void ConvergenceStudy::AddL2Error(GridFunction * gf,
       MFEM_ABORT("Exact Solution Coefficient pointer is NULL");
    }
    L2Errors.Append(L2Err);
+   // Compute the rate of convergence by:
+   // rate = log (||u - u_h|| / ||u - u_{h/2}||)/log(2)
    double val = (counter) ? log(L2Errors[counter-1]/L2Err)/log(2.0) : 0.0;
    L2Rates.Append(val);
    counter++;
@@ -124,6 +126,8 @@ void ConvergenceStudy::AddGf(GridFunction * gf, Coefficient * scalar_u,
       DErrors.Append(GradErr);
       double err = sqrt(L2Errors[counter-1]*L2Errors[counter-1]+GradErr*GradErr);
       EnErrors.Append(err);
+      // Compute the rate of convergence by:
+      // rate = log (||u - u_h|| / ||u - u_{h/2}||)/log(2)
       double val = (dcounter) ? log(DErrors[dcounter-1]/GradErr)/log(2.0) : 0.0;
       double eval = (dcounter) ? log(EnErrors[dcounter-1]/err)/log(2.0) : 0.0;
       DRates.Append(val);
@@ -138,6 +142,8 @@ void ConvergenceStudy::AddGf(GridFunction * gf, Coefficient * scalar_u,
    {
       double DGErr = gf->ComputeDGFaceJumpError(scalar_u,ell_coeff,Nu);
       DGFaceErrors.Append(DGErr);
+      // Compute the rate of convergence by:
+      // rate = log (||u - u_h|| / ||u - u_{h/2}||)/log(2)
       double val=(fcounter) ? log(DGFaceErrors[fcounter-1]/DGErr)/log(2.0):0.;
       DGFaceRates.Append(val);
       fcounter++;
@@ -171,6 +177,8 @@ void ConvergenceStudy::AddGf(GridFunction * gf, VectorCoefficient * vector_u,
       double err = sqrt(L2Errors[counter-1]*L2Errors[counter-1] + DErr*DErr);
       DErrors.Append(DErr);
       EnErrors.Append(err);
+      // Compute the rate of convergence by:
+      // rate = log (||u - u_h|| / ||u - u_{h/2}||)/log(2)
       double val = (dcounter) ? log(DErrors[dcounter-1]/DErr)/log(2.0) : 0.0;
       double eval = (dcounter) ? log(EnErrors[dcounter-1]/err)/log(2.0) : 0.0;
       DRates.Append(val);
