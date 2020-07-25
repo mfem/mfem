@@ -297,19 +297,19 @@ char HypreParMatrix::CopyBoolCSR(Table *bool_csr, hypre_CSRMatrix *hypre_csr)
 void HypreParMatrix::CopyCSR_J(hypre_CSRMatrix *hypre_csr, int *J)
 {
    HYPRE_Int nnz = hypre_CSRMatrixNumNonzeros(hypre_csr);
-   if (hypre_CSRMatrixJ(hypre_csr))
-   {
-      for (HYPRE_Int j = 0; j < nnz; j++)
-      {
-         J[j] = int(hypre_CSRMatrixJ(hypre_csr)[j]);
-      }
-   }
-   else
+#if MFEM_HYPRE_VERSION >= 21600
+   if (hypre_CSRMatrixBigJ(hypre_csr))
    {
       for (HYPRE_Int j = 0; j < nnz; j++)
       {
          J[j] = int(hypre_CSRMatrixBigJ(hypre_csr)[j]);
       }
+      return;
+   }
+#endif
+   for (HYPRE_Int j = 0; j < nnz; j++)
+   {
+      J[j] = int(hypre_CSRMatrixJ(hypre_csr)[j]);
    }
 }
 

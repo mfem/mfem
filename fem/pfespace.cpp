@@ -2470,7 +2470,7 @@ ParFiniteElementSpace::RebalanceMatrix(int old_ndofs,
                "be called before ParFiniteElementSpace::RebalanceMatrix");
 
    HYPRE_BigInt old_offset = HYPRE_AssumedPartitionCheck()
-                          ? old_dof_offsets[0] : old_dof_offsets[MyRank];
+                             ? old_dof_offsets[0] : old_dof_offsets[MyRank];
 
    // send old DOFs of elements we used to own
    ParNCMesh* pncmesh = pmesh->pncmesh;
@@ -2558,7 +2558,7 @@ ParFiniteElementSpace::RebalanceMatrix(int old_ndofs,
    }
 
 #ifndef HYPRE_MIXEDINT
-   HYPRE_Int *i_offd_hi = i_offd;
+   HYPRE_Int *j_offd_hi = j_offd;
 #else
    HYPRE_Int *j_offd_hi = Memory<HYPRE_Int>(offd_cols);
    Memory<HYPRE_BigInt>(j_offd, offd_cols, true).Delete();
@@ -2629,7 +2629,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    std::map<int, DerefDofMessage> messages;
 
    HYPRE_BigInt old_offset = HYPRE_AssumedPartitionCheck()
-                          ? old_dof_offsets[0] : old_dof_offsets[MyRank];
+                             ? old_dof_offsets[0] : old_dof_offsets[MyRank];
 
    // communicate DOFs for derefinements that straddle processor boundaries,
    // note that this is infrequent due to the way elements are ordered
