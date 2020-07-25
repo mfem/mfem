@@ -146,3 +146,4 @@ clean-exec:
 	@rm -f ex21*.mesh ex21*.sol ex21p_*.*
 	@rm -f ex23.mesh ex23-*.gf
 	@rm -f ex25.mesh ex25-*.gf ex25p-*.*
+	@rm -rf pLap
