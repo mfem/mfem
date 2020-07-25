@@ -44,7 +44,7 @@ void ConstantCoefficient::Eval(const FiniteElementSpace &fes,
                                Vector &qcoeff)
 {
    qcoeff.SetSize(1);
-   qcoeff(0) = constant;      
+   qcoeff(0) = constant;
 }
 
 double PWConstCoefficient::Eval(ElementTransformation & T,
