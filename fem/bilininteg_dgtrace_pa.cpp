@@ -164,12 +164,12 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
    else
    {
       r.SetSize(1);
-      r(0) = 1.0;      
-   }   
+      r(0) = 1.0;
+   }
    
    Vector vel;
    u->Eval(fes,*ir,type,vel);
-   
+
    PADGTraceSetup(dim, dofs1D, quad1D, nf, ir->GetWeights(),
                   geom->detJ, geom->normal, r, vel,
                   alpha, beta, pa_data);

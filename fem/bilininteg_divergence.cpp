@@ -32,7 +32,7 @@ static void PADivergenceSetup2D(const int Q1D,
    auto W = w.Read();
    const bool const_c = coeff.Size() == 1;
    auto C = const_c ?
-               Reshape(coeff.Read(), 1, 1) : Reshape(coeff.Read(), NQ, NE);
+            Reshape(coeff.Read(), 1, 1) : Reshape(coeff.Read(), NQ, NE);
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
    auto y = Reshape(op.Write(), NQ, 2, 2, NE);
 
@@ -66,7 +66,7 @@ static void PADivergenceSetup3D(const int Q1D,
    auto W = w.Read();
    const bool const_c = coeff.Size() == 1;
    auto C = const_c ?
-               Reshape(coeff.Read(), 1, 1) : Reshape(coeff.Read(), NQ, NE);
+            Reshape(coeff.Read(), 1, 1) : Reshape(coeff.Read(), NQ, NE);
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
    auto y = Reshape(op.Write(), NQ, 3, 3, NE);
    MFEM_FORALL(e, NE,
@@ -163,8 +163,8 @@ void VectorDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    else
    {
       coeff.SetSize(1);
-      coeff(0) = 1.0;      
-   }   
+      coeff(0) = 1.0;
+   }
    PADivergenceSetup(dim, trial_dofs1D, test_dofs1D, quad1D,
                      ne, ir->GetWeights(), geom->J, coeff, pa_data);
 }

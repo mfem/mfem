@@ -49,7 +49,7 @@ void Coefficient::Eval(const FiniteElementSpace &fes,
    const int dim = fes.GetMesh()->Dimension();
    const int quad1D =
       fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0))
-         ->GetDofToQuad(ir, DofToQuad::TENSOR).nqpt;
+      ->GetDofToQuad(ir, DofToQuad::TENSOR).nqpt;
    qcoeff.SetSize(nq * nf);
    auto C = Reshape(qcoeff.HostWrite(), nq, nf);
    int f_ind = 0;
@@ -61,7 +61,7 @@ void Coefficient::Eval(const FiniteElementSpace &fes,
       fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
       int face_id = inf1 / 64;
       if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-            (type==FaceType::Boundary && e2<0 && inf2<0) )
+          (type==FaceType::Boundary && e2<0 && inf2<0) )
       {
          ElementTransformation& T = *fes.GetMesh()->GetFaceTransformation(f);
          for (int q = 0; q < nq; ++q)
@@ -239,7 +239,7 @@ void VectorCoefficient::Eval(const FiniteElementSpace &fes,
    const int dim = fes.GetMesh()->Dimension();
    const int quad1D =
       fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0))
-         ->GetDofToQuad(ir, DofToQuad::TENSOR).nqpt;
+      ->GetDofToQuad(ir, DofToQuad::TENSOR).nqpt;
    qcoeff.SetSize(dim * nq * nf);
    auto C = Reshape(qcoeff.HostWrite(), dim, nq, nf);
    Vector Vq(dim);
@@ -252,7 +252,7 @@ void VectorCoefficient::Eval(const FiniteElementSpace &fes,
       fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
       int face_id = inf1 / 64;
       if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-            (type==FaceType::Boundary && e2<0 && inf2<0) )
+          (type==FaceType::Boundary && e2<0 && inf2<0) )
       {
          ElementTransformation& T = *fes.GetMesh()->GetFaceTransformation(f);
          for (int q = 0; q < nq; ++q)

@@ -37,8 +37,8 @@ void PAHcurlSetup2D(const int Q1D,
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
    const bool const_c = _coeff.Size()==coeffDim;
    auto coeff = const_c ?
-                  Reshape(_coeff.Read(), coeffDim, 1, 1)
-                  : Reshape(_coeff.Read(), coeffDim, NQ, NE);
+                Reshape(_coeff.Read(), coeffDim, 1, 1)
+                : Reshape(_coeff.Read(), coeffDim, NQ, NE);
    auto y = Reshape(op.Write(), NQ, 3, NE);
 
    MFEM_FORALL(e, NE,
@@ -51,7 +51,7 @@ void PAHcurlSetup2D(const int Q1D,
          const double J22 = J(q,1,1,e);
          const double coeff1 = const_c ? coeff(0,0,0) : coeff(0, q, e);
          const double coeff2 = coeffDim == 2 ?
-            (const_c ? coeff(1,0,0) : coeff(1, q, e)) : coeff1;
+         (const_c ? coeff(1,0,0) : coeff(1, q, e)) : coeff1;
          const double w = W[q];
          const double c_detJ1 = w * coeff1 / ((J11*J22)-(J21*J12));
          const double c_detJ2 = w * coeff2 / ((J11*J22)-(J21*J12));
@@ -76,8 +76,8 @@ void PAHcurlSetup3D(const int Q1D,
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
    const bool const_c = _coeff.Size()==coeffDim;
    auto coeff = const_c ?
-                  Reshape(_coeff.Read(), coeffDim, 1, 1)
-                  : Reshape(_coeff.Read(), coeffDim, NQ, NE);
+                Reshape(_coeff.Read(), coeffDim, 1, 1)
+                : Reshape(_coeff.Read(), coeffDim, NQ, NE);
    auto y = Reshape(op.Write(), NQ, 6, NE);
 
    MFEM_FORALL(e, NE,
@@ -99,9 +99,9 @@ void PAHcurlSetup3D(const int Q1D,
          const double w_detJ = W[q] / detJ;
          const double D1 = const_c ? coeff(0,0,0) : coeff(0, q, e);
          const double D2 = coeffDim == 3 ?
-            (const_c ? coeff(1,0,0) : coeff(1, q, e)) : D1;
+         (const_c ? coeff(1,0,0) : coeff(1, q, e)) : D1;
          const double D3 = coeffDim == 3 ?
-            (const_c ? coeff(2,0,0) : coeff(2, q, e)) : D1;
+         (const_c ? coeff(2,0,0) : coeff(2, q, e)) : D1;
          // adj(J)
          const double A11 = (J22 * J33) - (J23 * J32);
          const double A12 = (J32 * J13) - (J12 * J33);
@@ -611,8 +611,8 @@ static void PACurlCurlSetup3D(const int Q1D,
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
    const bool const_c = _coeff.Size() == coeffDim;
    auto coeff = const_c ?
-                  Reshape(_coeff.Read(), coeffDim, 1, 1)
-                  : Reshape(_coeff.Read(), coeffDim, NQ, NE);
+                Reshape(_coeff.Read(), coeffDim, 1, 1)
+                : Reshape(_coeff.Read(), coeffDim, NQ, NE);
    auto y = Reshape(op.Write(), NQ, 6, NE);
    MFEM_FORALL(e, NE,
    {
@@ -633,9 +633,9 @@ static void PACurlCurlSetup3D(const int Q1D,
 
          const double D1 = const_c ? coeff(0,0,0) : coeff(0, q, e);
          const double D2 = coeffDim == 3 ?
-            (const_c ? coeff(1,0,0) : coeff(1, q, e)) : D1;
+         (const_c ? coeff(1,0,0) : coeff(1, q, e)) : D1;
          const double D3 = coeffDim == 3 ?
-            (const_c ? coeff(2,0,0) : coeff(2, q, e)) : D1;
+         (const_c ? coeff(2,0,0) : coeff(2, q, e)) : D1;
 
          // set y to the 6 entries of J^T D J / det^2
          const double c_detJ = W[q] / detJ;
@@ -1958,8 +1958,8 @@ static void PAHcurlL2Setup3D(const int Q1D,
    auto W = w.Read();
    const bool const_c = _coeff.Size()==coeffDim;
    auto coeff = const_c ?
-                  Reshape(_coeff.Read(), coeffDim, 1, 1)
-                  : Reshape(_coeff.Read(), coeffDim, NQ, NE);
+                Reshape(_coeff.Read(), coeffDim, 1, 1)
+                : Reshape(_coeff.Read(), coeffDim, NQ, NE);
    auto y = Reshape(op.Write(), coeffDim, NQ, NE);
 
    MFEM_FORALL(e, NE,
@@ -2831,7 +2831,7 @@ void MixedVectorWeakCurlIntegrator::AssemblePA(const FiniteElementSpace
    {
       mfem_error("Not yet implemented");
       VQ->Eval(trial_fes,*ir,coeff);
-   }   
+   }
    else if (DQ)
    {
       DQ->Eval(trial_fes,*ir,coeff);
@@ -2840,7 +2840,7 @@ void MixedVectorWeakCurlIntegrator::AssemblePA(const FiniteElementSpace
    {
       mfem_error("Not yet implemented");
       MQ->Eval(trial_fes,*ir,coeff);
-   }   
+   }
    else
    {
       coeff.SetSize(coeffDim);

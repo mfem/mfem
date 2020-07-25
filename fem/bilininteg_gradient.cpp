@@ -81,7 +81,7 @@ static void PAGradientSetup2D(const int Q1D,
    auto W = w.Read();
    const bool const_c = coeff.Size() == 1;
    auto C = const_c ?
-               Reshape(coeff.Read(), 1, 1) : Reshape(coeff.Read(), NQ, NE);
+            Reshape(coeff.Read(), 1, 1) : Reshape(coeff.Read(), NQ, NE);
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
    auto y = Reshape(op.Write(), NQ, 2, 2, NE);
 
@@ -115,7 +115,7 @@ static void PAGradientSetup3D(const int Q1D,
    auto W = w.Read();
    const bool const_c = coeff.Size() == 1;
    auto C = const_c ?
-               Reshape(coeff.Read(), 1, 1) : Reshape(coeff.Read(), NQ, NE);
+            Reshape(coeff.Read(), 1, 1) : Reshape(coeff.Read(), NQ, NE);
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
    auto y = Reshape(op.Write(), NQ, 3, 3, NE);
    MFEM_FORALL(e, NE,

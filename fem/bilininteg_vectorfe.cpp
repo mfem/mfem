@@ -182,11 +182,11 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    {
       Q->Eval(fes,*ir,coeff);
    }
-   else if(VQ)
+   else if (VQ)
    {
       VQ->Eval(fes,*ir,coeff);
    }
-   else if(MQ)
+   else if (MQ)
    {
       mfem_error("Not yet implemented");
       MQ->Eval(fes,*ir,coeff);
@@ -367,7 +367,7 @@ void MixedVectorGradientIntegrator::AssemblePA(const FiniteElementSpace
       coeff.SetSize(1);
       coeff(0) = 1.0;
    }
-   
+
    // Use the same setup functions as VectorFEMassIntegrator.
    if (test_el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3)
    {

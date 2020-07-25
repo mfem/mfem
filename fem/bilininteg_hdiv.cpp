@@ -41,7 +41,7 @@ void PAHdivSetup2D(const int Q1D,
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
    const bool const_c = _coeff.Size()==1;
    auto coeff = const_c ?
-                  Reshape(_coeff.Read(), 1, 1) : Reshape(_coeff.Read(), NQ, NE);
+                Reshape(_coeff.Read(), 1, 1) : Reshape(_coeff.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, 3, NE);
 
    MFEM_FORALL(e, NE,
@@ -75,7 +75,7 @@ void PAHdivSetup3D(const int Q1D,
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
    const bool const_c = _coeff.Size()==1;
    auto coeff = const_c ?
-                  Reshape(_coeff.Read(), 1, 1) : Reshape(_coeff.Read(), NQ, NE);
+                Reshape(_coeff.Read(), 1, 1) : Reshape(_coeff.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, 6, NE);
 
    MFEM_FORALL(e, NE,
@@ -562,7 +562,7 @@ static void PADivDivSetup2D(const int Q1D,
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
    const bool const_c = _coeff.Size()==1;
    auto coeff = const_c ?
-                  Reshape(_coeff.Read(), 1, 1) : Reshape(_coeff.Read(), NQ, NE);
+                Reshape(_coeff.Read(), 1, 1) : Reshape(_coeff.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, NE);
    MFEM_FORALL(e, NE,
    {
@@ -591,7 +591,7 @@ static void PADivDivSetup3D(const int Q1D,
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
    const bool const_c = _coeff.Size()==1;
    auto coeff = const_c ?
-                  Reshape(_coeff.Read(), 1, 1) : Reshape(_coeff.Read(), NQ, NE);
+                Reshape(_coeff.Read(), 1, 1) : Reshape(_coeff.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, NE);
 
    MFEM_FORALL(e, NE,
@@ -1128,7 +1128,7 @@ static void PADivL2Setup2D(const int Q1D,
    auto W = w.Read();
    const bool const_c = _coeff.Size()==1;
    auto coeff = const_c ?
-                  Reshape(_coeff.Read(), 1, 1) : Reshape(_coeff.Read(), NQ, NE);
+                Reshape(_coeff.Read(), 1, 1) : Reshape(_coeff.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, NE);
    MFEM_FORALL(e, NE,
    {
@@ -1150,7 +1150,7 @@ static void PADivL2Setup3D(const int Q1D,
    auto W = w.Read();
    const bool const_c = _coeff.Size()==1;
    auto coeff = const_c ?
-                  Reshape(_coeff.Read(), 1, 1) : Reshape(_coeff.Read(), NQ, NE);
+                Reshape(_coeff.Read(), 1, 1) : Reshape(_coeff.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, NE);
 
    MFEM_FORALL(e, NE,
