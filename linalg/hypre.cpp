@@ -3992,7 +3992,7 @@ HypreLOBPCG::SetPreconditioner(Solver & precond)
 void
 HypreLOBPCG::SetOperator(Operator & A)
 {
-   HYPRE_Int locSize = A.Width();
+   HYPRE_BigInt locSize = A.Width();
 
    if (HYPRE_AssumedPartitionCheck())
    {

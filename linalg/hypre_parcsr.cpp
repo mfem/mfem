@@ -664,7 +664,7 @@ void hypre_ParCSRMatrixEliminateAAe(hypre_ParCSRMatrix *A,
       if (col_mark[i]) { Ae_offd_ncols++; }
    }
 
-   Ae_col_map_offd  = mfem_hypre_CTAlloc(HYPRE_BigInt, Ae_offd_ncols);
+   Ae_col_map_offd = mfem_hypre_CTAlloc(HYPRE_BigInt, Ae_offd_ncols);
 
    Ae_offd_ncols = 0;
    for (i = 0; i < A_offd_ncols; i++)
@@ -875,7 +875,12 @@ void hypre_ParCSRMatrixSplit(hypre_ParCSRMatrix *A,
       }
       mfem_hypre_TFree(block_global_col);
 
-      comm_handle = hypre_ParCSRCommHandleCreate(21, comm_pkg, int_buf_data,
+#if MFEM_HYPRE_VERSION < 21600
+      const int job = 11;
+#else
+      const int job = 21;
+#endif
+      comm_handle = hypre_ParCSRCommHandleCreate(job, comm_pkg, int_buf_data,
                                                  offd_col_block_num);
    }
 
