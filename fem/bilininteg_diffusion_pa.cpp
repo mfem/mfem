@@ -293,7 +293,6 @@ void DiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
    {
       MQ->Eval(fes,*ir,coeff);
    }
-   
    else
    {
       coeff.SetSize(1);

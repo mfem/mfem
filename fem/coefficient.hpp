@@ -1580,6 +1580,9 @@ public:
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
+   void Eval(const FiniteElementSpace &fes, const IntegrationRule &ir,
+             Vector &qcoeff);
+
    virtual ~VectorQuadratureFunctionCoefficient() { }
 };
 
@@ -1598,6 +1601,9 @@ public:
    const QuadratureFunction& GetQuadFunction() const { return QuadF; }
 
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+
+   void Eval(const FiniteElementSpace &fes, const IntegrationRule &ir,
+             Vector &qcoeff);
 
    virtual ~QuadratureFunctionCoefficient() { }
 };

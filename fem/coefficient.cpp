@@ -92,6 +92,22 @@ double TransformedCoefficient::Eval(ElementTransformation &T,
    }
 }
 
+void QuadratureFunctionCoefficient::Eval(const FiniteElementSpace &fes,
+                                         const IntegrationRule &ir,
+                                         Vector &qcoeff)
+{
+   const int ne = fes.GetMesh()->GetNE();
+   const int nq = ir.GetNPoints();
+   MFEM_VERIFY(QuadF.Size() == nq * ne,
+               "Incompatible QuadratureFunction dimension \n");
+
+   MFEM_VERIFY(&ir == &QuadF.GetSpace()->GetElementIntRule(0),
+               "IntegrationRule used within integrator and in"
+               " QuadratureFunction appear to be different");
+   QuadF.Read();
+   qcoeff.MakeRef(const_cast<QuadratureFunction &>(QuadF),0);
+}
+
 void DeltaCoefficient::SetDeltaCenter(const Vector& vcenter)
 {
    MFEM_VERIFY(vcenter.Size() <= 3,
@@ -182,6 +198,24 @@ void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
    {
       V *= Q->Eval(T, ip, GetTime());
    }
+}
+
+void VectorQuadratureFunctionCoefficient::Eval(const FiniteElementSpace &fes,
+                                               const IntegrationRule &ir,
+                                               Vector &qcoeff)
+{
+   const int ne = fes.GetMesh()->GetNE();
+   const int nq = ir.GetNPoints();
+   const int dim = fes.GetMesh()->Dimension();
+   MFEM_VERIFY(QuadF.Size() == dim * nq * ne,
+               "Incompatible QuadratureFunction dimension \n");
+
+   MFEM_VERIFY(&ir == &QuadF.GetSpace()->GetElementIntRule(0),
+               "IntegrationRule used within integrator and in"
+               " QuadratureFunction appear to be different");
+
+   QuadF.Read();
+   qcoeff.MakeRef(const_cast<QuadratureFunction &>(QuadF),0);
 }
 
 VectorArrayCoefficient::VectorArrayCoefficient (int dim)
