@@ -280,14 +280,14 @@ public:
 class DiffusionCoef : public StateVariableCoef
 {
 private:
-   ParGridFunction * T_gf_;
+   Coefficient * T_;
    double Tau_;
    double kappa_;
    int p_;
 
 public:
-   DiffusionCoef(ParGridFunction &T, double Tau, double kappa, int p)
-      : T_gf_(&T), Tau_(Tau), kappa_(kappa), p_(p)
+   DiffusionCoef(Coefficient &T, double Tau, double kappa, int p)
+      : T_(&T), Tau_(Tau), kappa_(kappa), p_(p)
    {
       MFEM_VERIFY(kappa_ > 0.0, "Diffusion coefficient must be positive");
       MFEM_VERIFY(Tau_ > 0.0, "Temperature scale must be positive");
@@ -296,7 +296,7 @@ public:
 
    virtual DiffusionCoef * Clone() const
    {
-      return new DiffusionCoef(*T_gf_, Tau_, kappa_, p_);
+      return new DiffusionCoef(*T_, Tau_, kappa_, p_);
    }
 
    virtual bool NonTrivialValue(FieldType deriv) const
@@ -312,7 +312,8 @@ public:
       }
       else
       {
-         double temp = T_gf_->GetValue(T);
+         // double temp = T_gf_->GetValue(T);
+         double temp = T_->Eval(T, ip);
          MFEM_VERIFY(temp > 0.0, "Temperature must be positive");
          return kappa_ * pow(sqrt(temp/Tau_), p_);
       }
@@ -326,9 +327,10 @@ public:
       }
       else
       {
-         double temp = T_gf_->GetValue(T);
+         // double temp = T_gf_->GetValue(T);
+         double temp = T_->Eval(T, ip);
          MFEM_VERIFY(temp > 0.0, "Temperature must be positive");
-         return 0.5 * kappa_ * p_ * (1.0 / Tau_) * pow(sqrt(temp/Tau_), p_ - 1);
+         return 0.5 * kappa_ * p_ * (1.0 / Tau_) * pow(sqrt(temp/Tau_), p_ - 2);
       }
    }
 };
@@ -951,18 +953,28 @@ int main(int argc, char *argv[])
    */
    ParGridFunction Q(&L2FESpace);
    ParGridFunction T1(fespace);
-   ParGridFunction T0(fespace);
-   ParGridFunction dT(fespace);
    ParGridFunction ExactT(fespace);
+   HypreParVector T1_hpv(fespace);
    /*
    ParGridFunction errorq(&L2FESpace0);
    ParGridFunction errorqPara(&L2FESpace0);
    ParGridFunction errorqPerp(&L2FESpace0);
    */
    ParGridFunction errorT(&L2FESpace0);
-   T0 = 0.0;
    T1 = 0.0;
-   dT = 1.0;
+
+   /*
+   ParGridFunction yGF(fespace);
+   ParGridFunction kGF(fespace);
+   yGF = 0.0;
+   kGF = 0.0;
+   */
+   ParGridFunction yGF(fespace);
+   ParGridFunction kGF(fespace);
+   
+   GridFunctionCoefficient yCoef(&yGF);
+   GridFunctionCoefficient kCoef(&kGF);
+   SumCoefficient ykCoef(yCoef, kCoef, 1.0, dt);
 
    // 13. Get the boundary conditions, set up the exact solution grid functions
    //     These VectorCoefficients have an Eval function.  Note that e_exact and
@@ -989,7 +1001,7 @@ int main(int argc, char *argv[])
    // MatVecCoefficient qPerpCoef(ImbbTCoef, qCoef);
 
    ConstantStateVariableCoef HeatCapacityCoef(c_rho);
-   DiffusionCoef             ThermalConductivityCoef(T1, Tau, kappa, p);
+   DiffusionCoef             ThermalConductivityCoef(ykCoef, Tau, kappa, p);
    ConstantStateVariableCoef HeatSourceCoef(0.0);
 
    Q.ProjectCoefficient(HeatSourceCoef);
@@ -999,14 +1011,23 @@ int main(int argc, char *argv[])
       T1.ProjectCoefficient(TCoef);
       // q.ProjectCoefficient(qCoef);
    }
-
+   T1.ParallelProject(T1_hpv);
+   
    T1.GridFunction::ComputeElementL2Errors(TCoef, errorT);
    ExactT.ProjectCoefficient(TCoef);
 
+   if (mpi.Root())
+   {
+     cout << "Configuring boundary conditions" << endl;
+   }
    CoefFactory coefFact;
    AdvectionDiffusionBC bcs(pmesh->bdr_attributes);
    if (strncmp(bc_file,"",1) != 0)
    {
+     if (mpi.Root())
+       {
+	 cout << "Reading boundary conditions from " << bc_file << endl;
+       }
      ifstream bcfs(bc_file);
      bcs.LoadBCs(coefFact, bcfs);
    }
@@ -1078,13 +1099,14 @@ int main(int argc, char *argv[])
    // 14. Initialize the Diffusion operator, the GLVis visualization and print
    //     the initial energies.
    /*
-   DiffusionTDO oper(HGradFESpace,
+   DiffusionTDO oper(*fespace,
                      zeroCoef, ess_bdr,
                      HeatCapacityCoef, false,
                      ThermalConductivityCoef, false,
                      HeatSourceCoef, false);
    */
-   DGAdvectionDiffusionTDO oper(mpi, dg_params, *fespace, T0, dT, bcs,
+   DGAdvectionDiffusionTDO oper(mpi, dg_params, h1, *fespace,
+                                yGF, kGF, ykCoef, bcs,
                                 term_flag, vis_flag, false, logging);
 
    oper.SetHeatCapacityCoef(HeatCapacityCoef);
@@ -1352,8 +1374,10 @@ int main(int argc, char *argv[])
    t = t_init;
    while (t < t_final)
    {
-      ode_controller.Run(T1, t, t_final);
+      ode_controller.Run(T1_hpv, t, t_final);
 
+      T1 = T1_hpv;
+      T1.ExchangeFaceNbrData();
       TCoef.SetTime(t);
       double nrm1 = T1.ComputeL2Error(oneCoef);
       double err1 = T1.ComputeL2Error(TCoef);

@@ -573,6 +573,32 @@ protected:
       : StateVariableFunc(deriv), MatrixCoefficient(h, w) {}
 };
 
+/** @brief A TimeDependentOperator class for integrating the non-linear
+    diffusion equation.
+
+    The equation being solved is the non-linear heat equation:
+
+       c_rho dT/dt = Div(kappa * (T/tau)^{p/2} Grad T) + Q
+
+    Where T is the temperature, c_rho is the heat capacity,
+    kappa * (T/tau)^{p/2} is the thermal conductivity coefficient,
+    and Q is the heat source.
+
+    To avoid time step restrictions we will solve this with an implicit
+    SDIRK method which will require us to find k=dT/dt satisfying the
+    following equation for a sequence of different T's but a single dt:
+
+    c_rho k = Div(kappa * ((T + dt k)/tau)^{p/2} Grad(T + dt k)) + Q
+
+    This nonlinear equation will be solved using Newton's method in the
+    DGAdvectionDiffusionTDO::ImplicitSolve(dt, T, k) member function.
+
+    The Newton solver will repeatedly evaluate this equation and its gradient
+    for a fixed T and a sequence of k's.  The evaluation is performed by
+    DGAdvectionDiffusionTDO::NLOperator::Mult(k, r) and the gradient is
+    computed by DGAdvectionDiffusionTDO::NLOperator::GetGradient(k).
+
+*/
 class DGAdvectionDiffusionTDO : public TimeDependentOperator
 {
 private:
@@ -581,7 +607,8 @@ private:
 
    ParFiniteElementSpace &fes_;
    ParGridFunction       &yGF_;
-   ParGridFunction       &kGF_;
+   // ParGridFunction       &kGF_;
+   // SumCoefficient        &ykCoef_;
 
    class ADPrec : public Solver
    {
@@ -630,6 +657,8 @@ private:
       GridFunctionCoefficient yCoef_;
       GridFunctionCoefficient kCoef_;
 
+      SumCoefficient &ykCoef_;
+
       // mutable Vector shape_;
       // mutable DenseMatrix dshape_;
       // mutable DenseMatrix dshapedxt_;
@@ -670,8 +699,10 @@ private:
       std::map<std::string, socketstream*> socks_;
 
       NLOperator(const MPI_Session & mpi, const DGParams & dg,
+		 ParFiniteElementSpace &fes,
                  ParGridFunction & yGF,
                  ParGridFunction & kGF,
+                 SumCoefficient &ykCoef,
                  int term_flag, int vis_flag, int logging = 0,
                  const std::string & log_prefix = "");
 
@@ -682,12 +713,13 @@ private:
 
       void SetLogging(int logging, const std::string & prefix = "");
 
-      virtual void SetTimeStep(double dt) { dt_ = dt; }
+      virtual void SetTimeStep(double dt);
 
-      virtual void Mult(const Vector &k, Vector &y) const;
+      virtual void Mult(const Vector &k, Vector &r) const;
 
       virtual void Update();
-      virtual Operator &GetGradient(const Vector &x) const;
+
+      virtual Operator &GetGradient(const Vector &k) const;
 
       inline bool CheckTermFlag(int flag) { return (term_flag_>> flag) & 1; }
 
@@ -715,15 +747,18 @@ private:
       std::vector<socketstream*> sout_;
       ParGridFunction coefGF_;
 
-      GridFunctionCoefficient &y0Coef_;
+      // GridFunctionCoefficient &y0Coef_;
 
       const AdvectionDiffusionBC & bcs_;
 
    public:
 
       AdvectionDiffusionOp(const MPI_Session & mpi, const DGParams & dg,
+                           bool h1,
+                           ParFiniteElementSpace &fes,
                            ParGridFunction & yGF,
                            ParGridFunction & kGF,
+                           SumCoefficient &ykCoef,
                            const AdvectionDiffusionBC & bcs,
                            int term_flag, int vis_flag,
                            int logging = 0,
@@ -732,6 +767,8 @@ private:
       ~AdvectionDiffusionOp();
 
       virtual void SetTimeStep(double dt);
+
+      virtual void Update();
 
       /** Sets the time derivative on the left hand side of the equation to be:
              d MCoef / dt
@@ -770,9 +807,11 @@ private:
 public:
    DGAdvectionDiffusionTDO(const MPI_Session & mpi,
                            const DGParams & dg,
+                           bool h1,
                            ParFiniteElementSpace &fes,
                            ParGridFunction &yGF,
                            ParGridFunction &kGF,
+                           SumCoefficient & ykCoef,
                            const AdvectionDiffusionBC & bcs,
                            int term_flag,
                            int vis_flag,

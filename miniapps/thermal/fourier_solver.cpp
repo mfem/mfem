@@ -1099,30 +1099,38 @@ AdvectionDiffusionTDO::ImplicitSolve(const double dt,
 
 DGAdvectionDiffusionTDO::DGAdvectionDiffusionTDO(const MPI_Session &mpi,
                                                  const DGParams &dg,
+                                                 bool h1,
                                                  ParFiniteElementSpace &fes,
                                                  ParGridFunction &yGF,
                                                  ParGridFunction &kGF,
-                                                 const AdvectionDiffusionBC & bcs,
+                                                 SumCoefficient &ykCoef,
+                                                 const AdvectionDiffusionBC &bcs,
                                                  int term_flag,
                                                  int vis_flag,
                                                  bool imex,
                                                  int logging)
-   : TimeDependentOperator(fes.GetVSize()),
+   : TimeDependentOperator(fes.GetTrueVSize()),
      mpi_(mpi),
      logging_(logging),
      fes_(fes),
      yGF_(yGF),
-     kGF_(kGF),
+     // kGF_(kGF),
+     // ykCoef_(ykCoef),
      // newton_op_prec_(NULL),
      newton_op_solver_(fes.GetComm()),
      newton_solver_(fes.GetComm()),
-     op_(mpi, dg, yGF, kGF, bcs,
+     op_(mpi, dg, h1, fes, yGF, kGF, ykCoef, bcs,
          term_flag, vis_flag, logging)
 {
    if ( mpi_.Root() && logging_ > 1)
    {
       cout << "Constructing DGAdvectionDiffusionTDO" << endl;
    }
+   if (logging_ > 2)
+   {
+     cout << mpi_.WorldRank() << ": TDO size " << width << endl;
+   }
+   
    const double rel_tol = 1e-6;
 
    newton_op_solver_.SetRelTol(rel_tol * 1.0e-4);
@@ -1136,7 +1144,7 @@ DGAdvectionDiffusionTDO::DGAdvectionDiffusionTDO(const MPI_Session &mpi,
    newton_solver_.SetOperator(op_);
    newton_solver_.SetPrintLevel(1); // print Newton iterations
    newton_solver_.SetRelTol(rel_tol);
-   newton_solver_.SetAbsTol(0.0);
+   newton_solver_.SetAbsTol(1e-6);
    newton_solver_.SetMaxIter(10);
 
    if (mpi_.Root() && logging_ > 1)
@@ -1218,16 +1226,24 @@ void DGAdvectionDiffusionTDO::ImplicitSolve(const double dt, const Vector &y,
 
    // Coefficient inside the NLOperator classes use data from yGF_ to evaluate
    // fields.  We need to make sure this data accesses the provided vector y.
+   cout << mpi_.WorldRank() << ": setting yGF_ in ImplicitSolve " << endl;
+   cout << mpi_.WorldRank() << ": size of y " << y.Size() << endl;
+   cout << mpi_.WorldRank() << ": size of k " << k.Size() << endl;
+   cout << mpi_.WorldRank() << ": size of yGF_" << yGF_.Size() << endl;
+   yGF_.Distribute(y);
+   yGF_.ExchangeFaceNbrData();
+   /*
    double *prev_y = yGF_.GetData();
 
    yGF_.MakeRef(&fes_, y.GetData());
    yGF_.ExchangeFaceNbrData();
-
+   */
+   /*
    double *prev_k = kGF_.GetData();
 
    kGF_.MakeRef(&fes_, k.GetData());
    kGF_.ExchangeFaceNbrData();
-
+   */
    if (mpi_.Root() && logging_ > 0)
    {
       cout << "Setting time step: " << dt << " in DGAdvectionDiffusionTDO"
@@ -1239,15 +1255,20 @@ void DGAdvectionDiffusionTDO::ImplicitSolve(const double dt, const Vector &y,
    newton_solver_.Mult(zero, k);
 
    // Restore the data arrays to those used before this method was called.
+   /*
    yGF_.MakeRef(&fes_, prev_y);
-   yGF_.ExchangeFaceNbrData();
-
+   if (prev_y != NULL)
+   {
+      yGF_.ExchangeFaceNbrData();
+   }
+   */
+   /*
    kGF_.MakeRef(&fes_, prev_k);
    if (prev_k != NULL)
    {
       kGF_.ExchangeFaceNbrData();
    }
-
+   */
    if (mpi_.Root() && logging_ > 1)
    {
       cout << "Leaving DGAdvectionDiffusionTDO::ImplicitSolve" << endl;
@@ -1261,7 +1282,7 @@ void DGAdvectionDiffusionTDO::Update()
       cout << "Entering DGAdvectionDiffusionTDO::Update" << endl;
    }
 
-   height = width = fes_.GetVSize();
+   height = width = fes_.GetTrueVSize();
 
    op_.Update();
 
@@ -1292,22 +1313,25 @@ DGAdvectionDiffusionTDO::ADPrec::SetOperator(const Operator &op)
 
 DGAdvectionDiffusionTDO::NLOperator::NLOperator(const MPI_Session & mpi,
                                                 const DGParams & dg,
+						ParFiniteElementSpace &fes,
                                                 ParGridFunction & yGF,
                                                 ParGridFunction & kGF,
+                                                SumCoefficient &ykCoef,
                                                 int term_flag, int vis_flag,
                                                 int logging,
                                                 const string & log_prefix)
-   : Operator(yGF.ParFESpace()->GetVSize(),
-              yGF.ParFESpace()->GetVSize()),
+   : Operator(fes.GetTrueVSize(),
+              fes.GetTrueVSize()),
      mpi_(mpi), dg_(dg),
      logging_(logging), log_prefix_(log_prefix),
      dt_(0.0),
-     fes_(*yGF.ParFESpace()),
+     fes_(fes),
      pmesh_(*fes_.GetParMesh()),
      yGF_(yGF),
      kGF_(kGF),
      yCoef_(&yGF_),
      kCoef_(&kGF_),
+     ykCoef_(ykCoef),
      dbfi_m_(NULL),
      blf_(NULL),
      term_flag_(term_flag),
@@ -1371,15 +1395,32 @@ void DGAdvectionDiffusionTDO::NLOperator::SetLogging(int logging,
    log_prefix_ = prefix;
 }
 
-void DGAdvectionDiffusionTDO::NLOperator::Mult(const Vector &k, Vector &y) const
+void DGAdvectionDiffusionTDO::NLOperator::SetTimeStep(double dt)
+{
+   dt_ = dt;
+
+   ykCoef_.SetBeta(dt_);
+}
+
+void DGAdvectionDiffusionTDO::NLOperator::Mult(const Vector &k, Vector &r) const
 {
    if (mpi_.Root() && logging_ > 1)
    {
       cout << log_prefix_ << "DGAdvectionDiffusionTDO::NLOperator::Mult" << endl;
    }
 
-   y = 0.0;
+   r = 0.0;
+   cout << mpi_.WorldRank() << ": setting kGF_ in Mult " << endl;
+   cout << mpi_.WorldRank() << ": size of k " << k.Size() << endl;
+   cout << mpi_.WorldRank() << ": size of kGF_" << kGF_.Size() << endl;
+   kGF_.Distribute(k);
+   kGF_.ExchangeFaceNbrData();
+   /*
+   double *prev_k = kGF_.GetData();
 
+   kGF_.MakeRef(&fes_, k.GetData());
+   kGF_.ExchangeFaceNbrData();
+   */
    ElementTransformation *eltrans = NULL;
 
    for (int i=0; i < fes_.GetNE(); i++)
@@ -1404,7 +1445,7 @@ void DGAdvectionDiffusionTDO::NLOperator::Mult(const Vector &k, Vector &y) const
 
          elmat_.AddMult(locdvec_, elvec_);
       }
-      y.AddElementVector(vdofs_, elvec_);
+      r.AddElementVector(vdofs_, elvec_);
    }
 
    if (mpi_.Root() && logging_ > 2)
@@ -1443,7 +1484,7 @@ void DGAdvectionDiffusionTDO::NLOperator::Mult(const Vector &k, Vector &y) const
 
          elmat_.Mult(locvec_, elvec_);
 
-         y.AddElementVector(vdofs_, elvec_);
+         r.AddElementVector(vdofs_, elvec_);
       }
    }
 
@@ -1488,7 +1529,7 @@ void DGAdvectionDiffusionTDO::NLOperator::Mult(const Vector &k, Vector &y) const
 
             elmat_.Mult(locvec_, elvec_);
 
-            y.AddElementVector(vdofs_, elvec_);
+            r.AddElementVector(vdofs_, elvec_);
          }
       }
 
@@ -1504,13 +1545,14 @@ void DGAdvectionDiffusionTDO::NLOperator::Mult(const Vector &k, Vector &y) const
       for (int i = 0; i < nsfaces; i++)
       {
          ftrans = pmesh_.GetSharedFaceTransformations(i);
-         fes_.GetElementVDofs(ftrans->Elem1No, vdofs_);
-         fes_.GetFaceNbrElementVDofs(ftrans->Elem2No, vdofs2_);
+	 int nbr_el_no = ftrans->Elem2No - pmesh_.GetNE();
+	 fes_.GetElementVDofs(ftrans->Elem1No, vdofs_);
+         fes_.GetFaceNbrElementVDofs(nbr_el_no, vdofs2_);
 
          for (int k = 0; k < fbfi_.Size(); k++)
          {
             fbfi_[k]->AssembleFaceMatrix(*fes_.GetFE(ftrans->Elem1No),
-                                         *fes_.GetFaceNbrFE(ftrans->Elem2No),
+                                         *fes_.GetFaceNbrFE(nbr_el_no),
                                          *ftrans, elmat_);
 
             int ndof  = vdofs_.Size();
@@ -1538,7 +1580,7 @@ void DGAdvectionDiffusionTDO::NLOperator::Mult(const Vector &k, Vector &y) const
 
             elmat_.Mult(locvec_, elvec_);
 
-            y.AddElementVector(vdofs_, elvec);
+            r.AddElementVector(vdofs_, elvec);
          }
       }
    }
@@ -1611,7 +1653,7 @@ void DGAdvectionDiffusionTDO::NLOperator::Mult(const Vector &k, Vector &y) const
 
             elmat_.Mult(locvec_, elvec_);
 
-            y.AddElementVector(vdofs_, elvec_);
+            r.AddElementVector(vdofs_, elvec_);
          }
       }
    }
@@ -1632,7 +1674,7 @@ void DGAdvectionDiffusionTDO::NLOperator::Mult(const Vector &k, Vector &y) const
          {
             dlfi_[k]->AssembleRHSElementVect(*fes_.GetFE(i), *eltrans, elvec_);
             elvec_ *= -1.0;
-            y.AddElementVector (vdofs_, elvec_);
+            r.AddElementVector (vdofs_, elvec_);
          }
       }
    }
@@ -1684,12 +1726,18 @@ void DGAdvectionDiffusionTDO::NLOperator::Mult(const Vector &k, Vector &y) const
                bflfi_[k] -> AssembleRHSElementVect (*fes_.GetFE(tr -> Elem1No),
                                                     *tr, elvec_);
                elvec_ *= -1.0;
-               y.AddElementVector (vdofs_, elvec_);
+               r.AddElementVector (vdofs_, elvec_);
             }
          }
       }
    }
-
+   /*
+   kGF_.MakeRef(&fes_, prev_k);
+   if (prev_k != NULL)
+   {
+      kGF_.ExchangeFaceNbrData();
+   }
+   */
    if (mpi_.Root() && logging_ > 1)
    {
       cout << log_prefix_
@@ -1704,8 +1752,8 @@ void DGAdvectionDiffusionTDO::NLOperator::Update()
       cout << "Entering DGAdvectionDiffusionTDO::NLOperator::Update" << endl;
    }
 
-   height = fes_.GetVSize();
-   width  = fes_.GetVSize();
+   height = fes_.GetTrueVSize();
+   width  = fes_.GetTrueVSize();
 
    if (blf_ != NULL)
    {
@@ -1719,7 +1767,7 @@ void DGAdvectionDiffusionTDO::NLOperator::Update()
 }
 
 Operator &
-DGAdvectionDiffusionTDO::NLOperator::GetGradient(const Vector &x) const
+DGAdvectionDiffusionTDO::NLOperator::GetGradient(const Vector &k) const
 {
    if (mpi_.Root() && logging_ > 1)
    {
@@ -1729,10 +1777,32 @@ DGAdvectionDiffusionTDO::NLOperator::GetGradient(const Vector &x) const
 
    MFEM_VERIFY(blf_ != NULL, "The Bilinear Form object is NULL!");
 
+   // yGF_ = x;
+   // kGF_ = k;
+   cout << mpi_.WorldRank() << ": setting kGF_ in GetGradient " << endl;
+   cout << mpi_.WorldRank() << ": size of k " << k.Size() << endl;
+   cout << mpi_.WorldRank() << ": size of kGF_" << kGF_.Size() << endl;
+   kGF_.Distribute(k);
+   kGF_.ExchangeFaceNbrData();
+
+   /*
+   double *prev_k = kGF_.GetData();
+
+   kGF_.MakeRef(&fes_, k.GetData());
+   kGF_.ExchangeFaceNbrData();
+   */
    blf_->Update();
    blf_->Assemble(0);
    blf_->Finalize(0);
    blf_op_ = blf_->ParallelAssemble();
+   cout << mpi_.WorldRank() << ": grad dimensions " << blf_op_->Height() << " x " << blf_op_->Width() << endl;
+   /*
+   kGF_.MakeRef(&fes_, prev_k);
+   if (prev_k != NULL)
+   {
+      kGF_.ExchangeFaceNbrData();
+   }
+   */
    return *blf_op_;
 }
 
@@ -1754,16 +1824,19 @@ DGAdvectionDiffusionTDO::NLOperator::PrepareDataFields()
 
 DGAdvectionDiffusionTDO::AdvectionDiffusionOp::AdvectionDiffusionOp(
    const MPI_Session & mpi, const DGParams & dg,
+   bool h1,
+   ParFiniteElementSpace &fes,
    ParGridFunction & yGF,
    ParGridFunction & kGF,
+   SumCoefficient &ykCoef,
    const AdvectionDiffusionBC & bcs,
    int term_flag, int vis_flag,
    int logging,
    const std::string & log_prefix)
-   : NLOperator(mpi, dg, yGF, kGF, term_flag, vis_flag,
+  : NLOperator(mpi, dg, fes, yGF, kGF, ykCoef, term_flag, vis_flag,
                 logging, log_prefix),
-     coefGF_(yGF.ParFESpace()),
-     y0Coef_(yCoef_),
+     coefGF_(&fes),
+     // y0Coef_(yCoef_),
      bcs_(bcs)
 {
 
@@ -1847,6 +1920,25 @@ void DGAdvectionDiffusionTDO::AdvectionDiffusionOp::SetTimeStep(double dt)
    }
 }
 
+void DGAdvectionDiffusionTDO::AdvectionDiffusionOp::Update()
+{
+   if (mpi_.Root() && logging_ > 1)
+   {
+      cout << "Entering DGAdvectionDiffusionTDO::AdvectionDiffusionOp::Update"
+	   << endl;
+   }
+
+   coefGF_.Update();
+
+   this->NLOperator::Update();
+   
+   if (mpi_.Root() && logging_ > 1)
+   {
+      cout << "Leaving DGAdvectionDiffusionTDO::AdvectionDiffusionOp::Update"
+	   << endl;
+   }
+}
+
 void DGAdvectionDiffusionTDO::AdvectionDiffusionOp::SetTimeDerivativeTerm(
    StateVariableCoef &MCoef)
 {
@@ -1898,20 +1990,20 @@ void DGAdvectionDiffusionTDO::AdvectionDiffusionOp::SetDiffusionTerm(
                                 dg_.sigma,
                                 dg_.kappa));
 
-   const vector<CoefficientByAttr> & dbc = bcs_.GetDirichletBCs();
-   for (unsigned int i=0; i<dbc.size(); i++)
+   const Array<CoefficientByAttr*> & dbc = bcs_.GetDirichletBCs();
+   for (unsigned int i=0; i<dbc.Size(); i++)
    {
       bfbfi_marker_.Append(new Array<int>);
-      AttrToMarker(pmesh_.bdr_attributes.Max(), dbc[i].attr,
+      AttrToMarker(pmesh_.bdr_attributes.Max(), dbc[i]->attr,
                    *bfbfi_marker_.Last());
       bfbfi_.Append(new DGDiffusionIntegrator(DCoef,
                                               dg_.sigma,
                                               dg_.kappa));
 
       bflfi_marker_.Append(new Array<int>);
-      AttrToMarker(pmesh_.bdr_attributes.Max(), dbc[i].attr,
+      AttrToMarker(pmesh_.bdr_attributes.Max(), dbc[i]->attr,
                    *bflfi_marker_.Last());
-      bflfi_.Append(new DGDirichletLFIntegrator(*dbc[i].coef, DCoef,
+      bflfi_.Append(new DGDirichletLFIntegrator(*dbc[i]->coef, DCoef,
                                                 dg_.sigma,
                                                 dg_.kappa));
 
@@ -1921,30 +2013,31 @@ void DGAdvectionDiffusionTDO::AdvectionDiffusionOp::SetDiffusionTerm(
                                  *bfbfi_marker_.Last());
    }
 
-   const vector<CoefficientByAttr> & nbc = bcs_.GetNeumannBCs();
-   for (unsigned int i=0; i<nbc.size(); i++)
+   const Array<CoefficientByAttr*> & nbc = bcs_.GetNeumannBCs();
+   for (unsigned int i=0; i<nbc.Size(); i++)
    {
       bflfi_marker_.Append(new Array<int>);
-      AttrToMarker(pmesh_.bdr_attributes.Max(), nbc[i].attr,
+      AttrToMarker(pmesh_.bdr_attributes.Max(), nbc[i]->attr,
                    *bflfi_marker_.Last());
-      bflfi_.Append(new BoundaryLFIntegrator(*nbc[i].coef));
+      coefs_.Append(new ProductCoefficient(DCoef, *nbc[i]->coef));
+      bflfi_.Append(new BoundaryLFIntegrator(*coefs_.Last()));
    }
 
-   const vector<CoefficientsByAttr> & rbc = bcs_.GetRobinBCs();
-   for (unsigned int i=0; i<rbc.size(); i++)
+   const Array<CoefficientsByAttr*> & rbc = bcs_.GetRobinBCs();
+   for (unsigned int i=0; i<rbc.Size(); i++)
    {
       bfbfi_marker_.Append(new Array<int>);
-      AttrToMarker(pmesh_.bdr_attributes.Max(), rbc[i].attr,
+      AttrToMarker(pmesh_.bdr_attributes.Max(), rbc[i]->attr,
                    *bfbfi_marker_.Last());
-      bfbfi_.Append(new BoundaryMassIntegrator(*rbc[i].coefs[0]));
+      bfbfi_.Append(new BoundaryMassIntegrator(*rbc[i]->coefs[0]));
 
       bflfi_marker_.Append(new Array<int>);
-      AttrToMarker(pmesh_.bdr_attributes.Max(), rbc[i].attr,
+      AttrToMarker(pmesh_.bdr_attributes.Max(), rbc[i]->attr,
                    *bflfi_marker_.Last());
-      bflfi_.Append(new BoundaryLFIntegrator(*rbc[i].coefs[1]));
+      bflfi_.Append(new BoundaryLFIntegrator(*rbc[i]->coefs[1]));
 
       ProductCoefficient * dtaCoef = new ProductCoefficient(dt_,
-                                                            *rbc[i].coefs[0]);
+                                                            *rbc[i]->coefs[0]);
       dtSCoefs_.Append(dtaCoef);
 
       blf_->AddBdrFaceIntegrator(new BoundaryMassIntegrator(*dtaCoef),
@@ -1980,20 +2073,20 @@ void DGAdvectionDiffusionTDO::AdvectionDiffusionOp::SetDiffusionTerm(
                                 dg_.sigma,
                                 dg_.kappa));
 
-   const vector<CoefficientByAttr> & dbc = bcs_.GetDirichletBCs();
-   for (unsigned int i=0; i<dbc.size(); i++)
+   const Array<CoefficientByAttr*> & dbc = bcs_.GetDirichletBCs();
+   for (unsigned int i=0; i<dbc.Size(); i++)
    {
       bfbfi_marker_.Append(new Array<int>);
-      AttrToMarker(pmesh_.bdr_attributes.Max(), dbc[i].attr,
+      AttrToMarker(pmesh_.bdr_attributes.Max(), dbc[i]->attr,
                    *bfbfi_marker_.Last());
       bfbfi_.Append(new DGDiffusionIntegrator(DCoef,
                                               dg_.sigma,
                                               dg_.kappa));
 
       bflfi_marker_.Append(new Array<int>);
-      AttrToMarker(pmesh_.bdr_attributes.Max(), dbc[i].attr,
+      AttrToMarker(pmesh_.bdr_attributes.Max(), dbc[i]->attr,
                    *bflfi_marker_.Last());
-      bflfi_.Append(new DGDirichletLFIntegrator(*dbc[i].coef, DCoef,
+      bflfi_.Append(new DGDirichletLFIntegrator(*dbc[i]->coef, DCoef,
                                                 dg_.sigma,
                                                 dg_.kappa));
 
@@ -2003,30 +2096,30 @@ void DGAdvectionDiffusionTDO::AdvectionDiffusionOp::SetDiffusionTerm(
                                  *bfbfi_marker_.Last());
    }
 
-   const vector<CoefficientByAttr> & nbc = bcs_.GetNeumannBCs();
-   for (unsigned int i=0; i<nbc.size(); i++)
+   const Array<CoefficientByAttr*> & nbc = bcs_.GetNeumannBCs();
+   for (unsigned int i=0; i<nbc.Size(); i++)
    {
       bflfi_marker_.Append(new Array<int>);
-      AttrToMarker(pmesh_.bdr_attributes.Max(), nbc[i].attr,
+      AttrToMarker(pmesh_.bdr_attributes.Max(), nbc[i]->attr,
                    *bflfi_marker_.Last());
-      bflfi_.Append(new BoundaryLFIntegrator(*nbc[i].coef));
+      bflfi_.Append(new BoundaryLFIntegrator(*nbc[i]->coef));
    }
 
-   const vector<CoefficientsByAttr> & rbc = bcs_.GetRobinBCs();
-   for (unsigned int i=0; i<rbc.size(); i++)
+   const Array<CoefficientsByAttr*> & rbc = bcs_.GetRobinBCs();
+   for (unsigned int i=0; i<rbc.Size(); i++)
    {
       bfbfi_marker_.Append(new Array<int>);
-      AttrToMarker(pmesh_.bdr_attributes.Max(), rbc[i].attr,
+      AttrToMarker(pmesh_.bdr_attributes.Max(), rbc[i]->attr,
                    *bfbfi_marker_.Last());
-      bfbfi_.Append(new BoundaryMassIntegrator(*rbc[i].coefs[0]));
+      bfbfi_.Append(new BoundaryMassIntegrator(*rbc[i]->coefs[0]));
 
       bflfi_marker_.Append(new Array<int>);
-      AttrToMarker(pmesh_.bdr_attributes.Max(), rbc[i].attr,
+      AttrToMarker(pmesh_.bdr_attributes.Max(), rbc[i]->attr,
                    *bflfi_marker_.Last());
-      bflfi_.Append(new BoundaryLFIntegrator(*rbc[i].coefs[1]));
+      bflfi_.Append(new BoundaryLFIntegrator(*rbc[i]->coefs[1]));
 
       ProductCoefficient * dtaCoef = new ProductCoefficient(dt_,
-                                                            *rbc[i].coefs[0]);
+                                                            *rbc[i]->coefs[0]);
       dtSCoefs_.Append(dtaCoef);
 
       blf_->AddBdrFaceIntegrator(new BoundaryMassIntegrator(*dtaCoef),
