@@ -297,9 +297,19 @@ char HypreParMatrix::CopyBoolCSR(Table *bool_csr, hypre_CSRMatrix *hypre_csr)
 void HypreParMatrix::CopyCSR_J(hypre_CSRMatrix *hypre_csr, int *J)
 {
    HYPRE_Int nnz = hypre_CSRMatrixNumNonzeros(hypre_csr);
-   for (HYPRE_Int j = 0; j < nnz; j++)
+   if (hypre_CSRMatrixJ(hypre_csr))
    {
-      J[j] = int(hypre_CSRMatrixJ(hypre_csr)[j]);
+      for (HYPRE_Int j = 0; j < nnz; j++)
+      {
+         J[j] = int(hypre_CSRMatrixJ(hypre_csr)[j]);
+      }
+   }
+   else
+   {
+      for (HYPRE_Int j = 0; j < nnz; j++)
+      {
+         J[j] = int(hypre_CSRMatrixBigJ(hypre_csr)[j]);
+      }
    }
 }
 
@@ -558,7 +568,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
                                HYPRE_BigInt *row, HYPRE_BigInt *col,
                                HYPRE_Int *i_diag, HYPRE_Int *j_diag,
                                HYPRE_Int *i_offd, HYPRE_Int *j_offd,
-                               HYPRE_BigInt *cmap, HYPRE_BigInt cmap_size)
+                               HYPRE_BigInt *cmap, HYPRE_Int cmap_size)
 {
    HYPRE_Int diag_nnz, offd_nnz;
 
@@ -637,14 +647,14 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
 // (9 arguments)
 HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows,
                                HYPRE_BigInt glob_nrows,
-                               HYPRE_BigInt glob_ncols, int *I, HYPRE_Int *J,
+                               HYPRE_BigInt glob_ncols, int *I, HYPRE_BigInt *J,
                                double *data, HYPRE_BigInt *rows, HYPRE_BigInt *cols)
 {
    Init();
 
    // Determine partitioning size, and my column start and end
    int part_size;
-   HYPRE_Int my_col_start, my_col_end; // my range: [my_col_start, my_col_end)
+   HYPRE_BigInt my_col_start, my_col_end; // my range: [my_col_start, my_col_end)
    if (HYPRE_AssumedPartitionCheck())
    {
       part_size = 2;
@@ -685,23 +695,22 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows,
    // Create a map for the off-diagonal indices - global to local. Count the
    // number of diagonal and off-diagonal entries.
    HYPRE_Int diag_nnz = 0, offd_nnz = 0, offd_num_cols = 0;
-   map<HYPRE_Int, HYPRE_Int> offd_map;
+   map<HYPRE_BigInt, HYPRE_Int> offd_map;
    for (HYPRE_Int j = 0, loc_nnz = I[nrows]; j < loc_nnz; j++)
    {
-      HYPRE_Int glob_col = J[j];
+      HYPRE_BigInt glob_col = J[j];
       if (my_col_start <= glob_col && glob_col < my_col_end)
       {
          diag_nnz++;
       }
       else
       {
-         offd_map.insert(pair<const HYPRE_Int, HYPRE_Int>(glob_col, -1));
+         offd_map.insert(pair<const HYPRE_BigInt, HYPRE_Int>(glob_col, -1));
          offd_nnz++;
       }
    }
    // count the number of columns in the off-diagonal and set the local indices
-   for (map<HYPRE_Int, HYPRE_Int>::iterator it = offd_map.begin();
-        it != offd_map.end(); ++it)
+   for (auto it = offd_map.begin(); it != offd_map.end(); ++it)
    {
       it->second = offd_num_cols++;
    }
@@ -730,7 +739,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows,
       offd_i[i] = offd_nnz;
       for (HYPRE_Int j_end = I[i+1]; j < j_end; j++)
       {
-         HYPRE_Int glob_col = J[j];
+         HYPRE_BigInt glob_col = J[j];
          if (my_col_start <= glob_col && glob_col < my_col_end)
          {
             diag_j[diag_nnz] = glob_col - my_col_start;
@@ -747,8 +756,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows,
    }
    diag_i[nrows] = diag_nnz;
    offd_i[nrows] = offd_nnz;
-   for (map<HYPRE_Int, HYPRE_Int>::iterator it = offd_map.begin();
-        it != offd_map.end(); ++it)
+   for (auto it = offd_map.begin(); it != offd_map.end(); ++it)
    {
       offd_col_map[it->second] = it->first;
    }
@@ -1289,8 +1297,8 @@ void HypreParMatrix::Threshold(double threshold)
 
    bool old_owns_row = hypre_ParCSRMatrixOwnsRowStarts(A);
    bool old_owns_col = hypre_ParCSRMatrixOwnsColStarts(A);
-   HYPRE_Int global_num_rows = hypre_ParCSRMatrixGlobalNumRows(A);
-   HYPRE_Int global_num_cols = hypre_ParCSRMatrixGlobalNumCols(A);
+   HYPRE_BigInt global_num_rows = hypre_ParCSRMatrixGlobalNumRows(A);
+   HYPRE_BigInt global_num_cols = hypre_ParCSRMatrixGlobalNumCols(A);
    parcsr_A_ptr = hypre_ParCSRMatrixCreate(comm, global_num_rows,
                                            global_num_cols,
                                            row_starts, col_starts,
@@ -1673,10 +1681,10 @@ HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
 void GatherBlockOffsetData(MPI_Comm comm, const int rank, const int nprocs,
                            const int num_loc, const Array<int> &offsets,
                            std::vector<int> &all_num_loc, const int numBlocks,
-                           std::vector<std::vector<HYPRE_Int>> &blockProcOffsets,
-                           std::vector<HYPRE_Int> &procOffsets,
+                           std::vector<std::vector<HYPRE_BigInt>> &blockProcOffsets,
+                           std::vector<HYPRE_BigInt> &procOffsets,
                            std::vector<std::vector<int>> &procBlockOffsets,
-                           HYPRE_Int &firstLocal, HYPRE_Int &globalNum)
+                           HYPRE_BigInt &firstLocal, HYPRE_BigInt &globalNum)
 {
    std::vector<std::vector<int>> all_block_num_loc(numBlocks);
 
@@ -1816,14 +1824,14 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
 
    std::vector<int> all_num_loc_rows(nprocs);
    std::vector<int> all_num_loc_cols(nprocs);
-   std::vector<HYPRE_Int> procRowOffsets(nprocs);
-   std::vector<HYPRE_Int> procColOffsets(nprocs);
-   std::vector<std::vector<HYPRE_Int>> blockRowProcOffsets(numBlockRows);
-   std::vector<std::vector<HYPRE_Int>> blockColProcOffsets(numBlockCols);
+   std::vector<HYPRE_BigInt> procRowOffsets(nprocs);
+   std::vector<HYPRE_BigInt> procColOffsets(nprocs);
+   std::vector<std::vector<HYPRE_BigInt>> blockRowProcOffsets(numBlockRows);
+   std::vector<std::vector<HYPRE_BigInt>> blockColProcOffsets(numBlockCols);
    std::vector<std::vector<int>> procBlockRowOffsets(nprocs);
    std::vector<std::vector<int>> procBlockColOffsets(nprocs);
 
-   HYPRE_Int first_loc_row, glob_nrows, first_loc_col, glob_ncols;
+   HYPRE_BigInt first_loc_row, glob_nrows, first_loc_col, glob_ncols;
    GatherBlockOffsetData(comm, rank, nprocs, num_loc_rows, rowOffsets,
                          all_num_loc_rows, numBlockRows, blockRowProcOffsets,
                          procRowOffsets, procBlockRowOffsets, first_loc_row,
@@ -1877,7 +1885,7 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
 
    const int nnz = opI[num_loc_rows];
 
-   std::vector<HYPRE_Int> opJ(nnz);
+   std::vector<HYPRE_BigInt> opJ(nnz);
    std::vector<double> data(nnz);
 
    // Loop over all blocks, to set matrix data.
@@ -1951,10 +1959,10 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
                "only 'assumed partition' mode is supported");
 
    return new HypreParMatrix(comm, num_loc_rows, glob_nrows, glob_ncols,
-                             (int *)opI.data(), (HYPRE_Int *)opJ.data(),
-                             (double *)data.data(),
-                             (HYPRE_BigInt *)rowStarts2.data(),
-                             (HYPRE_BigInt *)colStarts2.data());
+                             opI.data(), opJ.data(),
+                             data.data(),
+                             rowStarts2.data(),
+                             colStarts2.data());
 }
 
 void EliminateBC(HypreParMatrix &A, HypreParMatrix &Ae,

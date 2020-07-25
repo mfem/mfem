@@ -181,7 +181,7 @@ public:
    // Face-neighbor to ldof in the face-neighbor numbering
    Table face_nbr_ldof;
    // The global ldof indices of the face-neighbor dofs
-   Array<HYPRE_Int> face_nbr_glob_dof_map;
+   Array<HYPRE_BigInt> face_nbr_glob_dof_map;
    // Local face-neighbor data: face-neighbor to ldof
    Table send_face_nbr_ldof;
 
@@ -325,14 +325,14 @@ public:
        tdof number, otherwise return -1 */
    int GetLocalTDofNumber(int ldof) const;
    /// Returns the global tdof number of the given local degree of freedom
-   HYPRE_Int GetGlobalTDofNumber(int ldof) const;
+   HYPRE_BigInt GetGlobalTDofNumber(int ldof) const;
    /** Returns the global tdof number of the given local degree of freedom in
        the scalar version of the current finite element space. The input should
        be a scalar local dof. */
-   HYPRE_Int GetGlobalScalarTDofNumber(int sldof);
+   HYPRE_BigInt GetGlobalScalarTDofNumber(int sldof);
 
-   HYPRE_Int GetMyDofOffset() const;
-   HYPRE_Int GetMyTDofOffset() const;
+   HYPRE_BigInt GetMyDofOffset() const;
+   HYPRE_BigInt GetMyTDofOffset() const;
 
    virtual const Operator *GetProlongationMatrix() const;
    /// Get the R matrix which restricts a local dof vector to true dof vector.
@@ -346,7 +346,7 @@ public:
    void GetFaceNbrFaceVDofs(int i, Array<int> &vdofs) const;
    const FiniteElement *GetFaceNbrFE(int i) const;
    const FiniteElement *GetFaceNbrFaceFE(int i) const;
-   const HYPRE_Int *GetFaceNbrGlobalDofMap() { return face_nbr_glob_dof_map; }
+   const HYPRE_BigInt *GetFaceNbrGlobalDofMap() { return face_nbr_glob_dof_map; }
    ElementTransformation *GetFaceNbrElementTransformation(int i) const
    { return pmesh->GetFaceNbrElementTransformation(i); }
 

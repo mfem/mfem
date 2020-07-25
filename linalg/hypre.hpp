@@ -150,7 +150,7 @@ public:
    /// Sets the data of the Vector and the hypre_ParVector to @a _data.
    /** Must be used only for HypreParVector%s that do not own the data,
        e.g. created with the constructor:
-       HypreParVector(MPI_Comm, HYPRE_Int, double *, HYPRE_Int *). */
+       HypreParVector(MPI_Comm, HYPRE_BigInt, double *, HYPRE_BigInt *). */
    void SetData(double *_data);
 
    /// Set random values
@@ -227,7 +227,7 @@ private:
    static char CopyBoolCSR(Table *bool_csr, hypre_CSRMatrix *hypre_csr);
 
    // Copy the j array of a hypre_CSRMatrix to the given J array, converting
-   // the indices from HYPRE_Int to int.
+   // the indices from HYPRE_Int/HYPRE_BigInt to int.
    static void CopyCSR_J(hypre_CSRMatrix *hypre_csr, int *J);
 
 public:
@@ -314,7 +314,7 @@ public:
                   HYPRE_BigInt *col,
                   HYPRE_Int *i_diag, HYPRE_Int *j_diag, HYPRE_Int *i_offd,
                   HYPRE_Int *j_offd, HYPRE_BigInt *cmap,
-                  HYPRE_BigInt cmap_size); // constructor with 11 arguments
+                  HYPRE_Int cmap_size); // constructor with 11 arguments
 
    /** @brief Creates a general parallel matrix from a local CSR matrix on each
        processor described by the @a I, @a J and @a data arrays. */
@@ -323,7 +323,7 @@ public:
        arrays (so they can be deleted). See @ref hypre_partitioning_descr "here"
        for a description of the partitioning arrays @a rows and @a cols. */
    HypreParMatrix(MPI_Comm comm, int nrows, HYPRE_BigInt glob_nrows,
-                  HYPRE_BigInt glob_ncols, int *I, HYPRE_Int *J,
+                  HYPRE_BigInt glob_ncols, int *I, HYPRE_BigInt *J,
                   double *data, HYPRE_BigInt *rows,
                   HYPRE_BigInt *cols); // constructor with 9 arguments
 
@@ -367,7 +367,7 @@ public:
    void CopyColStarts();
 
    /// Returns the global number of nonzeros
-   inline HYPRE_Int NNZ() const { return A->num_nonzeros; }
+   inline HYPRE_BigInt NNZ() const { return A->num_nonzeros; }
    /// Returns the row partitioning
    /** See @ref hypre_partitioning_descr "here" for a description of the
        partitioning array. */

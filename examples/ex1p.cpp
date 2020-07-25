@@ -73,6 +73,7 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
+   int pref = 2;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -80,6 +81,8 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&pref, "-pr", "--pr",
+                  "pre");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -134,7 +137,7 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
-      int par_ref_levels = 2;
+      int par_ref_levels = pref;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();
@@ -162,7 +165,7 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(order = 1, dim);
    }
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
-   HYPRE_Int size = fespace->GlobalTrueVSize();
+   HYPRE_BigInt size = fespace->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << size << endl;
@@ -240,32 +243,32 @@ int main(int argc, char *argv[])
    //     local finite element solution on each processor.
    a->RecoverFEMSolution(X, *b, x);
 
-   // 15. Save the refined mesh and the solution in parallel. This output can
-   //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
-   {
-      ostringstream mesh_name, sol_name;
-      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
-      sol_name << "sol." << setfill('0') << setw(6) << myid;
+   //    // 15. Save the refined mesh and the solution in parallel. This output can
+   //    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
+   //    {
+   //       ostringstream mesh_name, sol_name;
+   //       mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+   //       sol_name << "sol." << setfill('0') << setw(6) << myid;
 
-      ofstream mesh_ofs(mesh_name.str().c_str());
-      mesh_ofs.precision(8);
-      pmesh->Print(mesh_ofs);
+   //       ofstream mesh_ofs(mesh_name.str().c_str());
+   //       mesh_ofs.precision(8);
+   //       pmesh->Print(mesh_ofs);
 
-      ofstream sol_ofs(sol_name.str().c_str());
-      sol_ofs.precision(8);
-      x.Save(sol_ofs);
-   }
+   //       ofstream sol_ofs(sol_name.str().c_str());
+   //       sol_ofs.precision(8);
+   //       x.Save(sol_ofs);
+   //    }
 
-   // 16. Send the solution by socket to a GLVis server.
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock.precision(8);
-      sol_sock << "solution\n" << *pmesh << x << flush;
-   }
+   //    // 16. Send the solution by socket to a GLVis server.
+   //    if (visualization)
+   //    {
+   //       char vishost[] = "localhost";
+   //       int  visport   = 19916;
+   //       socketstream sol_sock(vishost, visport);
+   //       sol_sock << "parallel " << num_procs << " " << myid << "\n";
+   //       sol_sock.precision(8);
+   //       sol_sock << "solution\n" << *pmesh << x << flush;
+   //    }
 
    // 17. Free the used memory.
    delete a;

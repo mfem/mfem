@@ -300,7 +300,7 @@ PetscParVector::PetscParVector(Vec y, bool ref) : Vector()
 PetscParVector::PetscParVector(ParFiniteElementSpace *pfes) : Vector()
 {
 
-   HYPRE_Int* offsets = pfes->GetTrueDofOffsets();
+   HYPRE_BigInt* offsets = pfes->GetTrueDofOffsets();
    MPI_Comm  comm = pfes->GetComm();
    ierr = VecCreate(comm,&x); CCHKERRQ(comm,ierr);
 

@@ -670,7 +670,7 @@ void
 ParComplexGridFunction::Distribute(const Vector *tv)
 {
    ParFiniteElementSpace * pfes = pgfr->ParFESpace();
-   HYPRE_Int size = pfes->GetTrueVSize();
+   int size = pfes->GetTrueVSize();
 
    double * tvd = tv->GetData();
    Vector tvr(tvd, size);
@@ -684,7 +684,7 @@ void
 ParComplexGridFunction::ParallelProject(Vector &tv) const
 {
    ParFiniteElementSpace * pfes = pgfr->ParFESpace();
-   HYPRE_Int size = pfes->GetTrueVSize();
+   int size = pfes->GetTrueVSize();
 
    double * tvd = tv.GetData();
    Vector tvr(tvd, size);
@@ -817,7 +817,7 @@ ParComplexLinearForm::Assemble()
 void
 ParComplexLinearForm::ParallelAssemble(Vector &tv)
 {
-   HYPRE_Int size = plfr->ParFESpace()->GetTrueVSize();
+   int size = plfr->ParFESpace()->GetTrueVSize();
 
    double * tvd = tv.GetData();
    Vector tvr(tvd, size);
@@ -836,7 +836,7 @@ ParComplexLinearForm::ParallelAssemble()
                                             2*(pfes->GlobalTrueVSize()),
                                             tdof_offsets);
 
-   HYPRE_Int size = pfes->GetTrueVSize();
+   int size = pfes->GetTrueVSize();
 
    double * tvd = tv->GetData();
    Vector tvr(tvd, size);
