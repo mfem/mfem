@@ -47,7 +47,7 @@ public:
                Vector & point_charges);
    ~VoltaSolver();
 
-   HYPRE_Int GetProblemSize();
+   HYPRE_BigInt GetProblemSize();
 
    void PrintSizes();
 

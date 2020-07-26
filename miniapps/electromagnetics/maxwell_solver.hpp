@@ -50,7 +50,7 @@ public:
    int GetLogging() const { return logging_; }
    void SetLogging(int logging) { logging_ = logging; }
 
-   HYPRE_Int GetProblemSize();
+   HYPRE_BigInt GetProblemSize();
 
    void PrintSizes();
 

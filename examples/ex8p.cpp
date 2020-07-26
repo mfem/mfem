@@ -145,9 +145,9 @@ int main(int argc, char *argv[])
    xhat_space = new ParFiniteElementSpace(pmesh, xhat_fec);
    test_space = new ParFiniteElementSpace(pmesh, test_fec);
 
-   HYPRE_Int glob_true_s0     =   x0_space->GlobalTrueVSize();
-   HYPRE_Int glob_true_s1     = xhat_space->GlobalTrueVSize();
-   HYPRE_Int glob_true_s_test = test_space->GlobalTrueVSize();
+   HYPRE_BigInt glob_true_s0     =   x0_space->GlobalTrueVSize();
+   HYPRE_BigInt glob_true_s1     = xhat_space->GlobalTrueVSize();
+   HYPRE_BigInt glob_true_s_test = test_space->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "\nNumber of Unknowns:\n"

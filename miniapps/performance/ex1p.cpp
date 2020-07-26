@@ -255,7 +255,7 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(order = 1, dim, basis);
    }
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
-   HYPRE_Int size = fespace->GlobalTrueVSize();
+   HYPRE_BigInt size = fespace->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << size << endl;
@@ -378,7 +378,7 @@ int main(int argc, char *argv[])
    if (perf && matrix_free)
    {
       a_hpc->FormLinearSystem(ess_tdof_list, x, *b, a_oper, X, B);
-      HYPRE_Int glob_size = fespace->GlobalTrueVSize();
+      HYPRE_BigInt glob_size = fespace->GlobalTrueVSize();
       if (myid == 0)
       {
          cout << "Size of linear system: " << glob_size << endl;
@@ -387,7 +387,7 @@ int main(int argc, char *argv[])
    else
    {
       a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-      HYPRE_Int glob_size = A.GetGlobalNumRows();
+      HYPRE_BigInt glob_size = A.GetGlobalNumRows();
       if (myid == 0)
       {
          cout << "Size of linear system: " << glob_size << endl;
