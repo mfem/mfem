@@ -328,7 +328,8 @@ OverlappingCartesianMeshPartition::OverlappingCartesianMeshPartition(Mesh *mesh_
 }
 
 
-OverlappingCartesianMeshPartition::OverlappingCartesianMeshPartition(Mesh *mesh_,int & nx,int & ny,int & nz, int ovlp_nlayers) : mesh(mesh_)
+OverlappingCartesianMeshPartition::OverlappingCartesianMeshPartition
+(Mesh *mesh_,int & nx,int & ny,int & nz, int ovlp_nlayers) : mesh(mesh_)
 {  // default overlap size is 2 elements 
    int dim = mesh->Dimension();
    int n = pow(mesh->GetNE(), 1.0/(double)dim);
@@ -718,16 +719,564 @@ MeshPartition::~MeshPartition()
 #ifdef MFEM_USE_MPI
 
 
-CartesianParMeshPartition::CartesianParMeshPartition(ParMesh * pmesh_,int & nx, int & ny, int & nz) : pmesh(pmesh_)
+CartesianParMeshPartition::CartesianParMeshPartition(ParMesh * pmesh_,
+                                                     int & nx, 
+                                                     int & ny, 
+                                                     int & nz,
+                                                     int ovlp_nlayers) : pmesh(pmesh_)
 {
-   //TODO
+   int num_procs,myid;
+   MPI_Comm comm = pmesh->GetComm();
+   MPI_Comm_size(comm, &num_procs);
+   MPI_Comm_rank(comm, &myid);
+   int dim = pmesh->Dimension();
+   subdomains.SetSize(nx,ny,nz);
+   nxyz[0] = nx; nxyz[1]=ny; nxyz[2] = nz;
+
+   if (dim == 2 ) nz = 1;
+   nrsubdomains = nx*ny*nz;
+
+   Vector pmin, pmax;
+   pmesh->GetBoundingBox(pmin, pmax);
+   double h = pmesh->GetElementSize(0);
+
+   // Check that ovlp_size does not exit subdomain size
+   for (int d = 0; d<dim; d++)
+   {
+      MFEM_VERIFY((pmax[d]-pmin[d])/nxyz[d] >= h*ovlp_nlayers, 
+                  "Check ovlp size in partition"); 
+   }
+   local_element_map.resize(nrsubdomains);
+
+   double ppt[dim];
+   Vector pt(ppt, dim);
+   int mynrelem = pmesh->GetNE();
+
+   int myelem_offset;
+   MPI_Scan(&mynrelem, &myelem_offset, 1, MPI_INT, MPI_SUM, comm);
+   myelem_offset -= mynrelem;
+
+   for (int el = 0; el < mynrelem; el++)
+   {
+      pmesh->GetElementTransformation(el)->Transform(
+         Geometries.GetCenter(pmesh->GetElementBaseGeometry(el)), pt);
+      // Given the center coordinates determine the patches that this element contributes to
+      Array<int> idx0(dim);
+      Array<int> idx1(dim);
+      Array<int> idx2(dim);
+      vector<Array<int>> idx(3);
+      if (dim == 2) idx[2].Append(0);
+
+      for (int i = 0; i<dim; i++)
+      {
+         idx0[i]  = (int)floor(nxyz[i]*((pt(i) - pmin[i])/(pmax[i] - pmin[i])));
+         idx1[i] = (int)floor(nxyz[i]*((pt(i)+ovlp_nlayers*h - pmin[i])/(pmax[i] - pmin[i])));
+         idx2[i] = (int)floor(nxyz[i]*((pt(i)-ovlp_nlayers*h - pmin[i])/(pmax[i] - pmin[i])));
+
+         if (idx0[i] < 0) idx0[i] = 0;
+         if (idx0[i] >= nxyz[i]) idx0[i] = nxyz[i]-1;
+         
+         if (idx1[i] < 0) idx1[i] = 0;
+         if (idx1[i] >= nxyz[i]) idx1[i] = nxyz[i]-1;
+
+         if (idx2[i] < 0) idx2[i] = 0;
+         if (idx2[i] >= nxyz[i]) idx2[i] = nxyz[i]-1;
+         // convenient to put in one list
+         idx[i].Append(idx0[i]);
+         if (idx1[i] != idx0[i]) idx[i].Append(idx1[i]);
+         if (idx2[i] != idx0[i] && idx2[i] != idx1[i]) idx[i].Append(idx2[i]);
+      }
+      // Now loop through all the combinations according to the idx above
+      // in case of dim = 2 then kk = 0
+      for (int k=0; k<idx[2].Size(); k++)
+      {
+         int kk = idx[2][k];
+         for (int j=0; j<idx[1].Size(); j++)
+         {
+            int jj = idx[1][j];
+            for (int i=0; i<idx[0].Size(); i++)
+            {
+               int ii = idx[0][i];
+               int ip = kk*nxyz[0]*nxyz[1] + jj*nxyz[0]+ii;
+               local_element_map[ip].Append(el+myelem_offset);
+            }
+         }
+      }
+   }
+
+
+
+   if (myid==0)
+   {
+      for (int ip = 0; ip<nrsubdomains; ip++)
+      {
+         if(local_element_map[ip])
+         {
+            cout << "myid: " << myid <<", subdomain: " << ip 
+            << ", elements " ; local_element_map[ip].Print(cout,10);
+         }
+      }
+   }
+   MPI_Barrier(comm);
+   if (myid==1)
+   {
+      for (int ip = 0; ip<nrsubdomains; ip++)
+      {
+         if(local_element_map[ip])
+         {
+            cout << "myid: " << myid <<", subdomain: " << ip 
+            << ", elements " ; local_element_map[ip].Print(cout,10);
+         }
+      }
+   }
+
+   Array<int>subdomain_size(nrsubdomains);
+   for (int ip = 0; ip < nrsubdomains; ++ip)
+   {
+      subdomain_size[ip] = local_element_map[ip].Size();
+   }
+
+   Array<int>subdomain_ranks(nrsubdomains*num_procs);
+   MPI_Allgather(subdomain_size, nrsubdomains, MPI_INT, 
+                 subdomain_ranks, nrsubdomains, MPI_INT, comm);
+
+   Array<int> max(nrsubdomains);
+   max = -1;
+   subdomain_rank.SetSize(nrsubdomains);
+   subdomain_rank = -1;
+   // loop through the patches and determine the rank with the max number of elements
+   for (int irank = 0; irank < num_procs; ++irank)
+   {
+      int offset = irank*nrsubdomains;
+      for (int ip = 0; ip<nrsubdomains; ++ip)
+      {
+         if (subdomain_ranks[ip+offset]>= max[ip])
+         {
+            max[ip] = subdomain_ranks[ip+offset];
+            subdomain_rank[ip] = irank;
+         }
+      }
+   }
+
+   // for (int ip = 0; ip<nrsubdomains; ip++)
+   // {
+   //    cout << "myid: " << myid << ", subdomain: " << ip 
+   //          << ", rank " << subdomain_rank[ip] << endl;
+   // }
+   subdomains.SetSize(nx,ny,nz);
+   for (int k = 0; k<nz; k++)
+   {
+      for (int j = 0; j<ny; j++)
+      {
+         for (int i = 0; i<nx; i++)
+         {
+            subdomains(i,j,k) = k*ny*nx + j*nx + i;
+         }
+      }   
+   }
 }
 
 
 
-ParMeshPartition::ParMeshPartition(ParMesh* pmesh_, int part,int nx, int ny, int nz, int nrlayers) : pmesh(pmesh_)
+ParMeshPartition::ParMeshPartition(ParMesh* pmesh_,
+         int nx, int ny, int nz, int nrlayers) : pmesh(pmesh_)
 {
-   //TODO
+
+   int num_procs,myid;
+   comm = pmesh->GetComm();
+   MPI_Comm_size(comm, &num_procs);
+   MPI_Comm_rank(comm, &myid);
+
+   int dim = pmesh->Dimension();
+   CartesianParMeshPartition partition(pmesh,nx, ny, nz,nrlayers);
+   local_element_map = partition.local_element_map;
+   subdomains = partition.subdomains;
+   nxyz[0] = partition.nxyz[0];
+   nxyz[1] = partition.nxyz[1];
+   nxyz[2] = partition.nxyz[2];
+   MeshSize = partition.MeshSize;
+   subdomain_rank = partition.subdomain_rank;
+
+   int myelem_offset;
+   nrsubdomains = partition.local_element_map.size();
+   int mynrelem = pmesh->GetNE();
+   MPI_Scan(&mynrelem, &myelem_offset, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   myelem_offset -= mynrelem;
+
+   // communicate the element map to every processor that is involved
+   element_map.resize(nrsubdomains);
+   for (int ip = 0; ip < nrsubdomains; ++ip)
+   {
+      Array<int> count(num_procs);
+      int size = local_element_map[ip].Size();
+      count[myid] = size;
+      MPI_Allgather(&size, 1, MPI_INT, count, 1, MPI_INT, comm);
+      Array<int>displs(num_procs);
+      displs[0] = 0;
+      for (int j = 1; j < num_procs; j++)
+      {
+         displs[j] = displs[j-1] + count[j-1];
+      }
+      int tot_size = displs[num_procs - 1] + count[num_procs - 1];
+      // Get a group identifier for comm.
+      MPI_Group world_group_id;
+      MPI_Comm new_comm = MPI_COMM_NULL;
+      MPI_Group new_group_id;
+      MPI_Comm_group (comm, &world_group_id);
+      // count the ranks that do not have zero length
+      int num_ranks = 0;
+      for (int k = 0; k<num_procs; k++)
+      {
+         if (count[k] != 0)
+         {
+            num_ranks++;
+         }
+      }
+      Array<int> new_count(num_ranks);
+      Array<int> new_displs(num_ranks);
+      int sub_comm_ranks[num_ranks];
+      num_ranks = 0;
+      for (int j = 0; j <num_procs ; j++ )
+      {
+         if (count[j] != 0)
+         {
+            sub_comm_ranks[num_ranks] = j;
+            new_count[num_ranks] = count[j];
+            new_displs[num_ranks] = displs[j];
+            num_ranks++;
+         }
+      }
+      MPI_Group_incl(world_group_id, num_ranks, sub_comm_ranks, &new_group_id);
+      MPI_Comm_create(comm, new_group_id, &new_comm);
+      if (size != 0)
+      {
+         element_map[ip].SetSize(tot_size);
+         MPI_Allgatherv(local_element_map[ip],size,MPI_INT,
+                        element_map[ip],new_count,new_displs,MPI_INT,new_comm);
+      }
+      MPI_Group_free(&world_group_id);
+      MPI_Group_free(&new_group_id);
+      if (new_comm != MPI_COMM_NULL) { MPI_Comm_free(&new_comm); }
+   }
+
+   // Now each process will send the vertex coords and elements 
+   // to the subdomain's host rank
+   Array<int> send_count(num_procs);
+   Array<int> send_displ(num_procs);
+   Array<int> recv_count(num_procs);
+   Array<int> recv_displ(num_procs);
+   send_count = 0;
+   send_displ = 0;
+   recv_count = 0;
+   recv_displ = 0;
+
+   // send buffer for coordinates
+   Array<int> send_count_d(num_procs);
+   Array<int> send_displ_d(num_procs);
+   Array<int> recv_count_d(num_procs);
+   Array<int> recv_displ_d(num_procs);
+   send_count_d = 0;
+   send_displ_d = 0;
+   recv_count_d = 0;
+   recv_displ_d = 0;
+
+
+   for (int ip = 0; ip < nrsubdomains; ++ip)
+   {
+      if (myid == subdomain_rank[ip]) 
+      {
+         cout << "myid, ip " << myid << ", " << ip 
+         << ", elems = " ; element_map[ip].Print(); 
+      }
+      // a) patch no
+      // b) element global number
+      // c) type of the element (int)
+      // c) number of vertices
+      // d) global index of vertices
+      // e) the coordinates of the vertices (x,y,z) 
+      //---------------------------------------------
+      // get local element_map size
+      int subdomain_local_nelems = local_element_map[ip].Size();
+      if (subdomain_local_nelems !=0) // the rank is contributing to the subdomain ip
+      {
+         // loop through the elements
+         for (int iel=0; iel<subdomain_local_nelems; ++iel)
+         {
+            // get the vertices list for the element
+            Array<int> elem_vertices;
+            int iel_idx = local_element_map[ip][iel]-myelem_offset;
+            pmesh->GetElementVertices(iel_idx,elem_vertices);
+            int nrvert = elem_vertices.Size();
+            send_count[subdomain_rank[ip]] += 1 + 1 + 1 + 1 + nrvert;
+            send_count_d[subdomain_rank[ip]] += dim * nrvert;
+         }
+      }
+   }
+
+   // communicate so that recv_count is constructed
+   MPI_Alltoall(send_count,1,MPI_INT,recv_count,1,MPI_INT,comm);
+   MPI_Alltoall(send_count_d,1,MPI_INT,recv_count_d,1,MPI_INT,comm);
+   for (int k=0; k<num_procs-1; k++)
+   {
+      send_displ[k+1] = send_displ[k] + send_count[k];
+      recv_displ[k+1] = recv_displ[k] + recv_count[k];
+      send_displ_d[k+1] = send_displ_d[k] + send_count_d[k];
+      recv_displ_d[k+1] = recv_displ_d[k] + recv_count_d[k];
+   }
+   int sbuff_size = send_count.Sum();
+   int rbuff_size = recv_count.Sum();
+
+   int sbuff_size_d = send_count_d.Sum();
+   int rbuff_size_d = recv_count_d.Sum();
+
+   // now allocate space for the send buffer
+   Array<int> sendbuf(sbuff_size);
+   sendbuf = 0;
+   Array<int> soffs(num_procs);
+   soffs = 0;
+
+   Array<double> sendbuf_d(sbuff_size_d);
+   sendbuf_d = 0.0;
+   Array<int> soffs_d(num_procs);
+   soffs_d = 0;
+
+   // now the data will be placed according to process offsets
+   FiniteElementCollection * aux_fec = new H1_FECollection(1, dim);
+   ParFiniteElementSpace * aux_fespace = new ParFiniteElementSpace(pmesh, aux_fec);
+   for (int ip = 0; ip < nrsubdomains; ++ip)
+   {
+      // The send_buffer contains the following:
+      // a) patch no
+      // b) element global number
+      // c) number of vertices
+      // d) global index of vertices
+      // e) the coordinates of the vertices (x,y,z)
+      // f) The type of the element
+      //---------------------------------------------
+      // get local element_map size
+      int subdomain_local_nelems = local_element_map[ip].Size();
+      if (subdomain_local_nelems !=0) // the rank is contributing to the patch ip
+      {
+         // loop through the elements
+         for (int iel=0; iel<subdomain_local_nelems; ++iel)
+         {
+            // get the vertex list for the element
+            Array<int> elem_vertices;
+            int iel_idx = local_element_map[ip][iel]-myelem_offset;
+            pmesh->GetElementVertices(iel_idx,elem_vertices);
+            int nrvert = elem_vertices.Size();
+            int j = send_displ[subdomain_rank[ip]] + soffs[subdomain_rank[ip]];
+            int j_d = send_displ_d[subdomain_rank[ip]] + soffs_d[subdomain_rank[ip]];
+            sendbuf[j] = ip;
+            sendbuf[j+1] = iel_idx + myelem_offset;
+            sendbuf[j+2] = pmesh->GetElementType(iel_idx);
+            sendbuf[j+3] = nrvert;
+            for (int iv = 0; iv<nrvert; ++iv)
+            {
+               sendbuf[j+4+iv] = aux_fespace->GetGlobalTDofNumber(elem_vertices[iv]);
+               for (int comp=0; comp<dim; ++comp)
+               {
+                  sendbuf_d[j_d+iv+comp] = pmesh->GetVertex(elem_vertices[iv])[comp];
+               }
+               j_d += dim-1;
+            }
+            soffs[subdomain_rank[ip]] += 1 + 1 + 1 + 1 + nrvert;
+            soffs_d[subdomain_rank[ip]] += dim * nrvert;
+         }
+      }
+   }
+   delete aux_fespace;
+   delete aux_fec;
+
+   // Communication
+   Array<int> recvbuf(rbuff_size);
+   MPI_Alltoallv(sendbuf, send_count, send_displ, MPI_INT, recvbuf,
+                 recv_count, recv_displ, MPI_INT, comm);
+
+   Array<double> recvbuf_d(rbuff_size_d);
+   MPI_Alltoallv(sendbuf_d, send_count_d, send_displ_d, MPI_DOUBLE, recvbuf_d,
+                 recv_count_d, recv_displ_d, MPI_DOUBLE, comm);
+
+
+   // Extract from the recv_buffer
+   std::vector<Array<int>> subdomain_elements(nrsubdomains);
+   std::vector<Array<int>> subdomain_elements_type(nrsubdomains);
+   std::vector<Array<int>> subdomain_vertices(nrsubdomains);
+   std::vector<Array<double>> subdomain_vertex_xcoord(nrsubdomains);
+   std::vector<Array<double>> subdomain_vertex_ycoord(nrsubdomains);
+   std::vector<Array<double>> subdomain_vertex_zcoord(nrsubdomains);
+   int k=0;
+   int kd=0;
+
+   while (k<rbuff_size)
+   {
+      int ip = recvbuf[k];
+      k++;
+      subdomain_elements[ip].Append(recvbuf[k]);
+      k++;
+      subdomain_elements_type[ip].Append(recvbuf[k]);
+      k++;
+      int nrvert = recvbuf[k];
+      k++;
+      int id = 0;
+      for (int iv = 0; iv < nrvert; ++iv)
+      {
+         subdomain_vertices[ip].Append(recvbuf[k+iv]);
+         subdomain_vertex_xcoord[ip].Append(recvbuf_d[kd+iv+id]);
+         subdomain_vertex_ycoord[ip].Append(recvbuf_d[kd+iv+1+id]);
+         if (dim == 3) { subdomain_vertex_zcoord[ip].Append(recvbuf_d[kd+iv+2+id]); }
+         id += dim-1;
+      }
+      k += nrvert;
+      kd += dim* nrvert;
+   }
+   subdomain_mesh.SetSize(nrsubdomains);
+   for (int ip = 0; ip < nrsubdomains; ++ip)
+   {
+      subdomain_mesh[ip] = nullptr;
+      if (myid == subdomain_rank[ip])
+      {
+         Array<int> vertices_local_id(subdomain_vertices[ip].Size());
+         // loop through the patch vertices;
+         UniqueIndexGenerator gen;
+         gen.Reset();
+         for (int iv = 0; iv< subdomain_vertices[ip].Size(); ++iv)
+         {
+            int global_idx = subdomain_vertices[ip][iv];
+            int local_idx = gen.Get(global_idx);
+            vertices_local_id[iv] = local_idx;
+         }
+         int subdomain_nrvertices = gen.counter;
+         int subdomain_nrelems = subdomain_elements[ip].Size();
+         subdomain_mesh[ip] = new Mesh(dim,subdomain_nrvertices,subdomain_nrelems);
+         // Add the vertices
+         int k = -1;
+         for (int iv = 0; iv<subdomain_vertices[ip].Size(); ++iv)
+         {
+            int vert_local_idx = vertices_local_id[iv];
+            if (vert_local_idx > k)
+            {
+               double vert[dim];
+               vert[0] = subdomain_vertex_xcoord[ip][iv];
+               vert[1] = subdomain_vertex_ycoord[ip][iv];
+               if (dim == 3) { vert[2] = subdomain_vertex_zcoord[ip][iv]; }
+               subdomain_mesh[ip]->AddVertex(vert);
+               k++;
+            }
+         }
+
+         int l = 0;
+         for (int iel=0; iel<subdomain_nrelems; ++iel)
+         {
+            enum mfem::Element::Type elem_type;
+            int type = subdomain_elements_type[ip][iel];
+            int nrvert;
+            GetNumVertices(type, elem_type, nrvert);
+            // get the vertices list for the element
+            int ind[nrvert];
+            for (int iv = 0; iv<nrvert; ++iv)
+            {
+               ind[iv] = vertices_local_id[iv+l];
+            }
+            l += nrvert;
+            AddElementToMesh(subdomain_mesh[ip],elem_type,ind);
+         }
+         subdomain_mesh[ip]->FinalizeTopology();
+      }
+   }
+   SaveMeshPartition();
 }
+
+
+void ParMeshPartition::AddElementToMesh(Mesh * mesh,
+                                        mfem::Element::Type elem_type,int * ind)
+{
+   switch (elem_type)
+   {
+      case Element::QUADRILATERAL:
+         mesh->AddQuad(ind);
+         break;
+      case Element::TRIANGLE :
+         mesh->AddTri(ind);
+         break;
+      case Element::HEXAHEDRON :
+         mesh->AddHex(ind);
+         break;
+      case Element::TETRAHEDRON :
+         mesh->AddTet(ind);
+         break;
+      case Element::WEDGE :
+         mesh->AddWedge(ind);
+         break;
+      default:
+         MFEM_ABORT("Unknown element type");
+         break;
+   }
+}
+
+void ParMeshPartition::GetNumVertices(int type, mfem::Element::Type & elem_type,
+                                      int & nrvert)
+{
+   switch (type)
+   {
+      case 0:
+         elem_type = Element::POINT;
+         nrvert = 1;
+         break;
+      case 1:
+         elem_type = Element::SEGMENT;
+         nrvert = 2;
+         break;
+      case 2:
+         elem_type = Element::TRIANGLE;
+         nrvert = 3;
+         break;
+      case 3:
+         elem_type = Element::QUADRILATERAL;
+         nrvert = 4;
+         break;
+      case 4:
+         elem_type = Element::TETRAHEDRON;
+         nrvert = 4;
+         break;
+      case 5:
+         elem_type = Element::HEXAHEDRON;
+         nrvert = 8;
+         break;
+      case 6:
+         elem_type = Element::WEDGE;
+         nrvert = 6;
+         break;
+      default:
+         MFEM_ABORT("Unknown element type");
+         break;
+   }
+}
+
+void ParMeshPartition::SaveMeshPartition()
+{
+   for (int ip = 0; ip<nrsubdomains; ++ip)
+   {
+      if (subdomain_mesh[ip])
+      {
+         ostringstream mesh_name;
+         mesh_name << "output/mesh." << setfill('0') << setw(6) << ip;
+         ofstream mesh_ofs(mesh_name.str().c_str());
+         mesh_ofs.precision(8);
+         subdomain_mesh[ip]->Print(mesh_ofs);
+      }
+   }
+}
+
+ParMeshPartition::~ParMeshPartition()
+{
+   for (int ip = 0; ip<nrsubdomains; ++ip)
+   {
+      delete subdomain_mesh[ip];
+      subdomain_mesh[ip] = nullptr;
+   }
+   subdomain_mesh.DeleteAll();
+}
+
 
 #endif

@@ -143,7 +143,10 @@ int main(int argc, char *argv[])
    comp_bdr = pml.GetCompDomainBdr(); 
 
       // 4. Define a parallel mesh by a partitioning of the serial mesh.
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   // ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   int nxyz[3] = {1,num_procs,1};
+   int * part = mesh->CartesianPartitioning(nxyz);
+   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD,*mesh,part);
    delete mesh;
    {
       for (int l = 0; l < par_ref_levels; l++)
@@ -151,6 +154,32 @@ int main(int argc, char *argv[])
          pmesh->UniformRefinement();
       }
    }
+
+{
+   int nx = 2;
+   int ny = 2;
+   int nz = 2;
+   int nlayers = 1;
+   // CartesianParMeshPartition part(pmesh,nx,ny,nz,nlayers);
+   ParMeshPartition part(pmesh,nx,ny,nz,nlayers);
+
+
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream mesh_sock(vishost, visport);
+      mesh_sock.precision(8);
+      mesh_sock << "parallel " << num_procs << " " << myid << "\n"
+                  << "mesh\n" << *pmesh  << flush;
+   }
+
+
+
+   // cout << "myid = " << myid << endl;
+   MPI_Finalize();
+   return 0;
+}
 
    // 6. Define a finite element space on the mesh.
    FiniteElementCollection *fec = new H1_FECollection(order, dim);
@@ -257,7 +286,6 @@ int main(int argc, char *argv[])
 }
 
 
-//calculate RHS from exact solution f = - \Delta u
 double f_exact_Re(const Vector &x)
 {
    double f_re = 0.0;
