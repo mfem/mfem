@@ -46,7 +46,7 @@ public:
                void   (*m_src)(const Vector&, Vector&));
    ~TeslaSolver();
 
-   HYPRE_Int GetProblemSize();
+   HYPRE_BigInt GetProblemSize();
 
    void PrintSizes();
 

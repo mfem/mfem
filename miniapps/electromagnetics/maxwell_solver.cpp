@@ -334,7 +334,7 @@ MaxwellSolver::~MaxwellSolver()
    }
 }
 
-HYPRE_Int
+HYPRE_BigInt
 MaxwellSolver::GetProblemSize()
 {
    return HCurlFESpace_->GlobalTrueVSize();
@@ -343,8 +343,8 @@ MaxwellSolver::GetProblemSize()
 void
 MaxwellSolver::PrintSizes()
 {
-   HYPRE_Int size_nd = HCurlFESpace_->GlobalTrueVSize();
-   HYPRE_Int size_rt = HDivFESpace_->GlobalTrueVSize();
+   HYPRE_BigInt size_nd = HCurlFESpace_->GlobalTrueVSize();
+   HYPRE_BigInt size_rt = HDivFESpace_->GlobalTrueVSize();
    if ( myid_ == 0 )
    {
       cout << "Number of H(Curl) unknowns: " << size_nd << endl;
