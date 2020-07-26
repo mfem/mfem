@@ -625,13 +625,13 @@ void ParFiniteElementSpace::GenerateGlobalOffsets() const
       int request_counter = 0;
       for (int i = 1; i <= nsize; i++)
       {
-         MPI_Irecv(&tdof_nb_offsets[i], 1, HYPRE_MPI_INT,
+         MPI_Irecv(&tdof_nb_offsets[i], 1, HYPRE_MPI_BIG_INT,
                    gt.GetNeighborRank(i), 5365, MyComm,
                    &requests[request_counter++]);
       }
       for (int i = 1; i <= nsize; i++)
       {
-         MPI_Isend(&tdof_nb_offsets[0], 1, HYPRE_MPI_INT,
+         MPI_Isend(&tdof_nb_offsets[0], 1, HYPRE_MPI_BIG_INT,
                    gt.GetNeighborRank(i), 5365, MyComm,
                    &requests[request_counter++]);
       }
