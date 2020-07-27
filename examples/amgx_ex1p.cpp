@@ -53,6 +53,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include <chrono>
 
 using namespace std;
 using namespace mfem;
@@ -76,6 +77,9 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = true;
    const char *amgx_cfg = 0;
+   int nsolves = 1;
+   int ser_ref_levels = 5;
+   int par_ref_levels = 2;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -95,6 +99,9 @@ int main(int argc, char *argv[])
    args.AddOption(&amgx_cfg, "-c","--c","AMGX solver file");
    args.AddOption(&amgx, "-amgx","--amgx","-no-amgx",
                   "--no-amgx","Use AMGX");
+   args.AddOption(&nsolves, "-solves","--solves","Number of Solves");
+   args.AddOption(&ser_ref_levels, "-nr","--nr","Number of Solves");
+   args.AddOption(&par_ref_levels, "-np","--np","Number of Solves");
    args.Parse();
    if (!args.Good())
    {
@@ -126,9 +133,9 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
-      int ref_levels = 1;
-      //(int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
-      for (int l = 0; l < ref_levels; l++)
+
+
+      for (int l = 0; l < ser_ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
@@ -140,7 +147,7 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
-      int par_ref_levels = 1;
+
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();
@@ -194,6 +201,7 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
 
+
    // 10. Define the solution vector x as a parallel finite element grid function
    //     corresponding to fespace. Initialize x with initial guess of zero,
    //     which satisfies the boundary conditions.
@@ -207,6 +215,7 @@ int main(int argc, char *argv[])
    if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
 
+
    // 12. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
    //     assembly, eliminating boundary conditions, applying conforming
@@ -214,8 +223,10 @@ int main(int argc, char *argv[])
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
 
+
    HypreParMatrix A;
    Vector B, X;
+
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
 
@@ -232,7 +243,7 @@ int main(int argc, char *argv[])
       }
    }
    else
-   {
+   {l
       prec = new HypreBoomerAMG;
    }
 #endif
@@ -245,14 +256,20 @@ int main(int argc, char *argv[])
       //AMGX
       std::string amgx_str;
       amgx_str = amgx_cfg;
-      NvidiaAMGX amgx;
-      //amgx.Init(MPI_COMM_WORLD, "dDDI", amgx_str);
-      amgx.initialize_new(MPI_COMM_WORLD, "dDDI", amgx_str);
+      AmgXSolver amgx;
 
-      amgx.SetA(A);
+      auto start1 = std::chrono::steady_clock::now();
+      amgx.initialize(MPI_COMM_WORLD, "dDDI", amgx_str);
 
-      X = 0.0; //set to zero
-      //amgx.Solve(X, B);
+      amgx.setA(A);
+
+      for (int i = 0; i < nsolves; i++){
+        X = 0.0; //set to zero
+        amgx.solve(X, B);
+      }
+      auto end1 = std::chrono::steady_clock::now();
+      std::chrono::duration<double> elapsed_seconds1 = end1-start1;
+      std::cout << "Solve Time "<< elapsed_seconds1.count() << "\n";
 #endif
    }
    else
@@ -264,7 +281,15 @@ int main(int argc, char *argv[])
       pcg->SetTol(1e-12);
       pcg->SetMaxIter(200);
       pcg->SetPrintLevel(2);
-      pcg->Mult(B, X);
+      auto start1 = std::chrono::steady_clock::now();
+      for(int i = 0; i < nsolves; i++){
+        X = 0.0; //set to zero
+        pcg->Mult(B, X);
+      }
+      auto end1 = std::chrono::steady_clock::now();
+      std::chrono::duration<double> elapsed_seconds1 = end1-start1;
+      std::cout << "Solve Time "<< elapsed_seconds1.count() << "\n";
+
       delete pcg;
    }
 
