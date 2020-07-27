@@ -746,10 +746,12 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
 
    symmetric = MQ ? MQ->IsSymmetric() : true;
 
-   if ((trial_fetype == mfem::FiniteElement::CURL &&
-        test_fetype == mfem::FiniteElement::DIV) ||
-       (trial_fetype == mfem::FiniteElement::DIV &&
-        test_fetype == mfem::FiniteElement::CURL))
+   const bool trial_curl = (trial_fetype == mfem::FiniteElement::CURL);
+   const bool trial_div = (trial_fetype == mfem::FiniteElement::DIV);
+   const bool test_curl = (test_fetype == mfem::FiniteElement::CURL);
+   const bool test_div = (test_fetype == mfem::FiniteElement::DIV);
+
+   if ((trial_curl && test_div) || (trial_div && test_curl))
       pa_data.SetSize((coeffDim == 1 ? 1 : dim*dim) * nq * ne,
                       Device::GetMemoryType());
    else
@@ -829,34 +831,27 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
       }
    }
 
-   if (trial_fetype == mfem::FiniteElement::CURL && test_fetype == trial_fetype
-       && dim == 3)
+   if (trial_curl && test_fetype == trial_fetype && dim == 3)
    {
       PAHcurlSetup3D(quad1D, coeffDim, ne, ir->GetWeights(), geom->J,
                      coeff, pa_data);
    }
-   else if (trial_fetype == mfem::FiniteElement::CURL
-            && test_fetype == trial_fetype && dim == 2)
+   else if (trial_curl && test_fetype == trial_fetype && dim == 2)
    {
       PAHcurlSetup2D(quad1D, coeffDim, ne, ir->GetWeights(), geom->J,
                      coeff, pa_data);
    }
-   else if (trial_fetype == mfem::FiniteElement::DIV
-            && test_fetype == trial_fetype && dim == 3)
+   else if (trial_div && test_fetype == trial_fetype && dim == 3)
    {
       PAHdivSetup3D(quad1D, ne, ir->GetWeights(), geom->J,
                     coeff, pa_data);
    }
-   else if (trial_fetype == mfem::FiniteElement::DIV
-            && test_fetype == trial_fetype && dim == 2)
+   else if (trial_div && test_fetype == trial_fetype && dim == 2)
    {
       PAHdivSetup2D(quad1D, ne, ir->GetWeights(), geom->J,
                     coeff, pa_data);
    }
-   else if (((trial_fetype == mfem::FiniteElement::CURL &&
-              test_fetype == mfem::FiniteElement::DIV) ||
-             (trial_fetype == mfem::FiniteElement::DIV &&
-              test_fetype == mfem::FiniteElement::CURL)) &&
+   else if (((trial_curl && test_div) || (trial_div && test_curl)) &&
             test_fel->GetOrder() == trial_fel->GetOrder())
    {
       if (coeffDim == 1)
@@ -865,8 +860,7 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
       }
       else
       {
-         const bool tr = (trial_fetype == mfem::FiniteElement::DIV &&
-                          test_fetype == mfem::FiniteElement::CURL);
+         const bool tr = (trial_div && test_curl);
          if (dim == 3)
             PAHcurlHdivSetup3D(quad1D, coeffDim, ne, tr, ir->GetWeights(),
                                geom->J, coeff, pa_data);
@@ -923,29 +917,31 @@ void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
 
 void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
+   const bool trial_curl = (trial_fetype == mfem::FiniteElement::CURL);
+   const bool trial_div = (trial_fetype == mfem::FiniteElement::DIV);
+   const bool test_curl = (test_fetype == mfem::FiniteElement::CURL);
+   const bool test_div = (test_fetype == mfem::FiniteElement::DIV);
+
    if (dim == 3)
    {
-      if (trial_fetype == mfem::FiniteElement::CURL && test_fetype == trial_fetype)
+      if (trial_curl && test_fetype == trial_fetype)
       {
          PAHcurlMassApply3D(dofs1D, quad1D, ne, symmetric, mapsO->B, mapsC->B,
                             mapsO->Bt, mapsC->Bt, pa_data, x, y);
       }
-      else if (trial_fetype == mfem::FiniteElement::DIV &&
-               test_fetype == trial_fetype)
+      else if (trial_div && test_fetype == trial_fetype)
       {
          PAHdivMassApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
                            mapsC->Bt, pa_data, x, y);
       }
-      else if (trial_fetype == mfem::FiniteElement::CURL &&
-               test_fetype == mfem::FiniteElement::DIV)
+      else if (trial_curl && test_div)
       {
          const bool scalarCoeff = !(VQ || MQ);
          PAHcurlHdivMassApply3D(dofs1D, dofs1Dtest, quad1D, ne, scalarCoeff,
                                 true, mapsO->B, mapsC->B, mapsOtest->Bt,
                                 mapsCtest->Bt, pa_data, x, y);
       }
-      else if (trial_fetype == mfem::FiniteElement::DIV &&
-               test_fetype == mfem::FiniteElement::CURL)
+      else if (trial_div && test_curl)
       {
          const bool scalarCoeff = !(VQ || MQ);
          PAHcurlHdivMassApply3D(dofs1D, dofs1Dtest, quad1D, ne, scalarCoeff,
@@ -959,26 +955,21 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
    else
    {
-      if (trial_fetype == mfem::FiniteElement::CURL && test_fetype == trial_fetype)
+      if (trial_curl && test_fetype == trial_fetype)
       {
          PAHcurlMassApply2D(dofs1D, quad1D, ne, symmetric, mapsO->B, mapsC->B,
                             mapsO->Bt, mapsC->Bt, pa_data, x, y);
       }
-      else if (trial_fetype == mfem::FiniteElement::DIV &&
-               test_fetype == trial_fetype)
+      else if (trial_div && test_fetype == trial_fetype)
       {
          PAHdivMassApply2D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
                            mapsC->Bt, pa_data, x, y);
       }
-      else if ((trial_fetype == mfem::FiniteElement::CURL &&
-                test_fetype == mfem::FiniteElement::DIV) ||
-               (trial_fetype == mfem::FiniteElement::DIV &&
-                test_fetype == mfem::FiniteElement::CURL))
+      else if ((trial_curl && test_div) || (trial_div && test_curl))
       {
          const bool scalarCoeff = !(VQ || MQ);
-         const bool trialHcurl = (trial_fetype == mfem::FiniteElement::CURL);
          PAHcurlHdivMassApply2D(dofs1D, dofs1Dtest, quad1D, ne, scalarCoeff,
-                                trialHcurl, mapsO->B, mapsC->B, mapsOtest->Bt,
+                                trial_curl, mapsO->B, mapsC->B, mapsOtest->Bt,
                                 mapsCtest->Bt, pa_data, x, y);
       }
       else
