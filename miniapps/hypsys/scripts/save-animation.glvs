@@ -6,15 +6,15 @@ solution grid.mesh initial.gf
 # Setup the GLVis scene. Executed after pressing the space bar.
 {
    # keys mcjppppppppppppppppppppppppppp6666666666666666666666666666666666666666666666666666666666666666666666662222222222
-   keys mcjpppppppppppppppppppppppppppR
+   keys mcjlpppppppppppppppppppppppppppR****
 }
 
 # Take multiple screenshots. Executed after pressing the space bar.
 {
-   solution grid.mesh initial.gf valuerange -1 0.8 screenshot screenshot.00.png
-   solution grid.mesh solution01.gf valuerange -1 0.8 screenshot screenshot.01.png
-   solution grid.mesh solution02.gf valuerange -1 0.8 screenshot screenshot.02.png
-   solution grid.mesh solution03.gf valuerange -1 0.8 screenshot screenshot.03.png
-   solution grid.mesh solution04.gf valuerange -1 0.8 screenshot screenshot.04.png
-   solution grid.mesh solution05.gf valuerange -1 0.8 screenshot screenshot.05.png
+   solution grid.mesh initial.gf valuerange -1 0.8 screenshot screenshot00.png
+   solution grid.mesh trans0.gf valuerange -1 0.8 screenshot screenshot01.png
+   solution grid.mesh trans1.gf valuerange -1 0.8 screenshot screenshot02.png
+   solution grid.mesh trans2.gf valuerange -1 0.8 screenshot screenshot03.png
+   solution grid.mesh trans3.gf valuerange -1 0.8 screenshot screenshot04.png
+   solution grid.mesh ultimate.gf valuerange -1 0.8 screenshot screenshot05.png
 }

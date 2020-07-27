@@ -28,8 +28,7 @@ void ParGalerkinEvolution::Mult(const Vector &x, Vector &y) const
    ComputeTimeDerivative(x, y, xMPI);
 }
 
-double ParGalerkinEvolution::ConvergenceCheck(double dt, double tol,
-                                              const Vector &u) const
+double ParGalerkinEvolution::ConvergenceCheck(double dt, const Vector &u) const
 {
    z = u;
    z -= uOld;

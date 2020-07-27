@@ -81,7 +81,6 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
    // The following computes and stores all necessary evaluations of the time-independent velocity.
    Mesh *mesh = fes->GetMesh();
    DofInfo dofs(fes);
-   const int dim = mesh->Dimension();
    const int ne = fes->GetNE();
    const IntegrationRule *IntRuleElem = GetElementIntegrationRule(fes,
                                                                   NodalQuadRule);
@@ -166,7 +165,6 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
 void Advection::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
                              int e, int k, int i) const
 {
-   int dim = FluxEval.Width();
    Vector x(dim), v(dim);
    VelocityFunctionAdv(x, v);
    v *= u(0);

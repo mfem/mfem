@@ -34,8 +34,7 @@ void ParMCL_Evolution::Mult(const Vector &x, Vector &y) const
    ComputeTimeDerivative(x, y, xMPI);
 }
 
-double ParMCL_Evolution::ConvergenceCheck(double dt, double tol,
-                                          const Vector &u) const
+double ParMCL_Evolution::ConvergenceCheck(double dt, const Vector &u) const
 {
    z = u;
    z -= uOld;

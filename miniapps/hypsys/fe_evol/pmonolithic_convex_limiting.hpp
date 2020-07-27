@@ -20,7 +20,7 @@ public:
    virtual ~ParMCL_Evolution() { delete pfesH1; }
 
    void Mult(const Vector&x, Vector &y) const override;
-   double ConvergenceCheck(double dt, double tol, const Vector &u) const override;
+   double ConvergenceCheck(double dt, const Vector &u) const override;
 };
 
 #endif

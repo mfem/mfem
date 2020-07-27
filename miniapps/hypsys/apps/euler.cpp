@@ -71,7 +71,7 @@ Euler::Euler(FiniteElementSpace *fes_, BlockVector &u_block,
       case 4:
       {
          ProblemName = "Euler Equations of Gas dynamics - Sedov Blast";
-         glvis_scale = "off valuerange 0 2.5"; // TODO
+         glvis_scale = "on";
          SpHeatRatio = 5.0 / 3.0;
          SolutionKnown = false;
          SteadyState = false;
@@ -153,7 +153,7 @@ Euler::Euler(FiniteElementSpace *fes_, BlockVector &u_block,
       {
          ProblemName = "Euler Equations of Gas dynamics - Gresho Vortex";
          glvis_scale = "on";
-         SpHeatRatio = 1.4; // TODO, gamma
+         SpHeatRatio = 1.4;
          SolutionKnown = true;
          SteadyState = true;
          TimeDepBC = false;
@@ -168,7 +168,6 @@ Euler::Euler(FiniteElementSpace *fes_, BlockVector &u_block,
 
 double Euler::EvaluatePressure(const Vector &u) const
 {
-   const int dim = u.Size() - 2;
    double aux = 0.;
    for (int i = 0; i < dim; i++)
    {
@@ -188,7 +187,6 @@ double Euler::EvaluatePressure(const Vector &u) const
 void Euler::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
                          int e, int k, int i) const
 {
-   const int dim = u.Size() - 2;
    double RhoMin = 0.001;
 
    if (u.Size() != NumEq)
@@ -308,7 +306,6 @@ void Euler::SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal,
    {
       case -1: // wall boundary
       {
-         int dim = normal.Size();
          if (dim == 1)
          {
             y2(0) = y1(0);
@@ -351,7 +348,6 @@ void Euler::SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal,
 
 void Euler::ComputeDerivedQuantities(const Vector &u) const
 {
-   const int dim = fes->GetMesh()->Dimension();
    Vector p(ne*nd);
    for (int e = 0; e < ne; e++)
    {
@@ -393,7 +389,7 @@ void EvaluateEnergy(Vector &u, const double &pressure)
 void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
 {
    const int dim = x.Size();
-   u.SetSize(dim + 2);
+   u.SetSize(dim+2);
 
    // Map to the reference domain [-1,1].
    Vector X(dim);
@@ -414,7 +410,6 @@ void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
 
          X *= 5.; // Map to test case specific domain [-5,5].
 
-         // Parameters
          double beta = 5.;
          double r = X.Norml2();
          double T0 = 1. - (SpHeatRatio - 1.) * beta * beta
@@ -557,7 +552,7 @@ void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
 void InitialConditionEuler(const Vector &x, Vector &u)
 {
    const int dim = x.Size();
-   u.SetSize(dim + 2);
+   u.SetSize(dim+2);
 
    // Map to the reference domain [-1,1].
    Vector X(dim);
@@ -622,7 +617,7 @@ void InitialConditionEuler(const Vector &x, Vector &u)
          u = 0.0;
          u(0) = 1.0;
          // TODO make sure that energy is essentially a delta distribution.
-         u(dim+1) = X.Norml2() < 1.0E-1 ? 100.0 : 1.0E-8;
+         u(dim+1) = X.Norml2() < 1.0E-1 ? 1000.0 : 1.0E-8;
          break;
       }
       case 7:

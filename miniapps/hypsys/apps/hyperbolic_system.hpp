@@ -5,14 +5,8 @@
 
 struct Configuration
 {
-   int ProblemNum;
    int ConfigNum;
-   int order;
    double tFinal;
-   double dt;
-   int odeSolverType; // TODO necessary?
-   int VisSteps;
-   int precision; // TODO necessary? - check all!
    Vector bbMin, bbMax;
 };
 
@@ -26,11 +20,10 @@ public:
    {
       ne = fes->GetNE();
       nd = fes->GetFE(0)->GetDof();
+      dim = fes->GetMesh()->Dimension();
 
-      l2_fec = new L2_FECollection(fes->GetFE(0)->GetOrder(),
-                                   fes->GetMesh()->Dimension());
-      l2_fes = new FiniteElementSpace(fes->GetMesh(), l2_fec, NumEq,
-                                      Ordering::byNODES);
+      l2_fec = new L2_FECollection(fes->GetFE(0)->GetOrder(), fes->GetMesh()->Dimension());
+      l2_fes = new FiniteElementSpace(fes->GetMesh(), l2_fec, NumEq, Ordering::byNODES);
       l2_proj = new GridFunction(l2_fes);
    }
 
@@ -51,6 +44,7 @@ public:
    virtual void ComputeDerivedQuantities(const Vector &u) const = 0; // TODO: use this properly!
    virtual void ComputeErrors(Array<double> &errors, const GridFunction &u,
                               double DomainSize, double t) const = 0;
+
    virtual void WriteErrors(const Array<double> &errors) const
    {
       ofstream file("errors.txt", ios_base::app);
@@ -83,16 +77,12 @@ public:
       proj.ProjectGridFunction(*l2_proj);
    }
 
-   int ne, nd;
+   int ne, nd, dim;
 
-   // 0: L2 projection, 1: Nodal values as dofs (second order accurate for Bernstein)
+   // 0: L2 projection,
+   // 1: Nodal values as GridFunction coefficients (only second order accurate).
    int ProjType;
    const int NumEq;
-
-   // TODO: Visualization
-   // const int NumUnknowns; // number of physical unknowns, e.g. 2 for SWE: height and momentum
-   // const Array<bool> VectorOutput;
-   // VectorOutput.SetSize(NumUnknowns);
 
    FiniteElementSpace *fes;
    GridFunction u0;
@@ -108,8 +98,6 @@ public:
    bool SolutionKnown;
    bool SteadyState;
    bool TimeDepBC;
-
-   bool FileOutput = true;
 };
 
 #endif

@@ -58,8 +58,6 @@ BuckleyLeverett::BuckleyLeverett(FiniteElementSpace *fes_, BlockVector &u_block,
 void BuckleyLeverett::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
                                    int e, int k, int i) const
 {
-   const int dim = FluxEval.Width();
-
    if (dim == 1)
    {
       FluxEval(0,0) = 4.*u(0)*u(0) / (4.*u(0)*u(0) + (1.-u(0))*(1.-u(0)));
@@ -76,8 +74,6 @@ void BuckleyLeverett::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
 double BuckleyLeverett::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
                                      int i) const
 {
-   const int dim = n.Size();
-
    if (dim == 1)
    {
       return abs( 8.*u(0)*(1.-u(0)) / pow(4.*u(0)*u(0) + (1.-u(0))*(1.-u(0)), 2.) );

@@ -81,7 +81,6 @@ ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
 void ShallowWater::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
                                 int e, int k, int i) const
 {
-   const int dim = u.Size() - 1;
    double HMin = 0.001;
 
    if (u.Size() != NumEq)
@@ -182,7 +181,6 @@ void ShallowWater::SetBdrCond(const Vector &y1, Vector &y2,
 
 void ShallowWater::ComputeDerivedQuantities(const Vector &u) const
 {
-   const int dim = fes->GetMesh()->Dimension();
    Vector VelocityMagnitude(ne*nd);
    for (int e = 0; e < ne; e++)
    {

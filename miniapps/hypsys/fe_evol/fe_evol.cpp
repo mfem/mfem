@@ -255,8 +255,7 @@ void FE_Evolution::LaxFriedrichs(const Vector &x1, const Vector &x2,
    y *= 0.5;
 }
 
-double FE_Evolution::ConvergenceCheck(double dt, double tol,
-                                      const Vector &u) const
+double FE_Evolution::ConvergenceCheck(double dt, const Vector &u) const
 {
    z = u;
    z -= uOld;

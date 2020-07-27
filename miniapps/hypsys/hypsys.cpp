@@ -5,36 +5,37 @@
 int main(int argc, char *argv[])
 {
    Configuration config;
-   config.ProblemNum = 0;
+   int ProblemNum = 0;
    config.ConfigNum = 1;
-   config.VisSteps = 100;
+   int VisSteps = 100;
    config.tFinal = 1.;
-   config.odeSolverType = 3;
-   config.dt = 0.001;
+   int odeSolverType = 3;
+   double dt = 0.001;
    const char *MeshFile = "data/unstr.mesh";
-   config.order = 3;
+   int order = 3;
    int refinements = 1;
    EvolutionScheme scheme = MonolithicConvexLimiting;
    const char *OutputDir = "."; // Directory has to exist to produce output.
+   bool TransOutput = false; // Use this to produce output for videos.
 
-   config.precision = 8;
-   cout.precision(config.precision);
+   int precision = 8;
+   cout.precision(precision);
 
    OptionsParser args(argc, argv);
-   args.AddOption(&config.ProblemNum, "-p", "--problem",
+   args.AddOption(&ProblemNum, "-p", "--problem",
                   "Hyperbolic system of equations to solve.");
    args.AddOption(&config.ConfigNum, "-c", "--configuration",
                   "Problem setup to use.");
-   args.AddOption(&config.VisSteps, "-vs", "--visualization-steps",
+   args.AddOption(&VisSteps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
    args.AddOption(&config.tFinal, "-tf", "--t-final",
                   "Final time; start time is 0.");
-   args.AddOption(&config.odeSolverType, "-s", "--ode-solver",
+   args.AddOption(&odeSolverType, "-s", "--ode-solver",
                   "ODE solver: 0 - RK6 solver, 1 - Forward Euler,\n\t"
                   "            2 - RK2 SSP, 3 - RK3 SSP.");
-   args.AddOption(&config.dt, "-dt", "--time-step", "Time step.");
+   args.AddOption(&dt, "-dt", "--time-step", "Time step.");
    args.AddOption(&MeshFile, "-m", "--mesh", "Mesh file to use.");
-   args.AddOption(&config.order, "-o", "--order",
+   args.AddOption(&order, "-o", "--order",
                   "Order (polynomial degree) of the finite element space.");
    args.AddOption(&refinements, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
@@ -42,6 +43,8 @@ int main(int argc, char *argv[])
                   "Scheme: 0 - Galerkin Finite Element Approximation,\n\t"
                   "        1 - Monolithic Convex Limiting.");
    args.AddOption(&OutputDir, "-out", "--output", "Output directory.");
+   args.AddOption(&TransOutput, "-t", "--transitional-output", "-no-t",
+                  "--transitional-output", "Print transitional output files.");
 
    args.Parse();
    if (!args.Good())
@@ -51,20 +54,20 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   if (config.order == 0)
+   if (order == 0)
    {
       scheme = Galerkin;
    }
 
    ODESolver *odeSolver = NULL;
-   switch (config.odeSolverType)
+   switch (odeSolverType)
    {
       case 0: odeSolver = new RK6Solver; break;
       case 1: odeSolver = new ForwardEulerSolver; break;
       case 2: odeSolver = new RK2Solver(1.0); break;
       case 3: odeSolver = new RK3SSPSolver; break;
       default:
-         cout << "Unknown ODE solver type: " << config.odeSolverType << endl;
+         cout << "Unknown ODE solver type: " << odeSolverType << endl;
          return -1;
    }
 
@@ -77,13 +80,13 @@ int main(int argc, char *argv[])
    }
    if (mesh.NURBSext)
    {
-      mesh.SetCurvature(max(config.order, 1));
+      mesh.SetCurvature(max(order, 1));
    }
 
-   mesh.GetBoundingBox(config.bbMin, config.bbMax, max(config.order, 1));
+   mesh.GetBoundingBox(config.bbMin, config.bbMax, max(order, 1));
 
    int NumEq;
-   switch (config.ProblemNum)
+   switch (ProblemNum)
    {
       case 0:
       case 1:
@@ -92,14 +95,14 @@ int main(int argc, char *argv[])
       case 4: NumEq = 1 + dim; break;
       case 5: NumEq = 2 + dim; break;
       default:
-         cout << "Unknown hyperbolic system: " << config.ProblemNum << endl;
+         cout << "Unknown hyperbolic system: " << ProblemNum << endl;
          delete odeSolver;
          return -1;
    }
 
    // Create Bernstein Finite Element Space.
    const int btype = BasisType::Positive;
-   L2_FECollection fec(config.order, dim, btype);
+   L2_FECollection fec(order, dim, btype);
    FiniteElementSpace fes(&mesh, &fec);
    FiniteElementSpace vfes(&mesh, &fec, NumEq, Ordering::byNODES);
 
@@ -119,7 +122,7 @@ int main(int argc, char *argv[])
    }
 
    HyperbolicSystem *hyp;
-   switch (config.ProblemNum)
+   switch (ProblemNum)
    {
       case 0: { hyp = new Advection(&vfes, u_block, config, NodalQuadRule); break; }
       case 1: { hyp = new Burgers(&vfes, u_block, config); break; }
@@ -131,7 +134,7 @@ int main(int argc, char *argv[])
          return -1;
    }
 
-   if (config.odeSolverType != 1 && hyp->SteadyState)
+   if (odeSolverType != 1 && hyp->SteadyState)
    {
       MFEM_WARNING("Better use forward Euler pseudo time stepping for steady state simulations.");
    }
@@ -139,31 +142,29 @@ int main(int argc, char *argv[])
    GridFunction u(&vfes, u_block);
    u = hyp->u0;
 
-   // uk is used for visualization with GLVis.
-   GridFunction uk(&fes, u_block.GetBlock(0));
-   if (hyp->FileOutput)
-   {
-      ostringstream MeshName, SolName;
-      MeshName << OutputDir << "/grid.mesh";
-      SolName << OutputDir << "/initial.gf";
-      ofstream omesh(MeshName.str().c_str());
-      omesh.precision(config.precision);
-      mesh.Print(omesh);
-      ofstream osol(SolName.str().c_str());
-      osol.precision(config.precision);
-      uk.Save(osol);
-   }
+   // The main is variable is visualized, printed, and used to check for mass leaks or violation of maximum principles.
+   GridFunction main(&fes, u_block.GetBlock(0));
+
+   ostringstream MeshName, InitName;
+   MeshName << OutputDir << "/grid.mesh";
+   InitName << OutputDir << "/initial.gf";
+   ofstream omesh(MeshName.str().c_str());
+   omesh.precision(precision);
+   mesh.Print(omesh);
+   ofstream initial(InitName.str().c_str());
+   initial.precision(precision);
+   main.Save(initial);
 
    socketstream sout;
    char vishost[] = "localhost";
    int visport = 19916;
-   VisualizeField(sout, vishost, visport, hyp->ProblemName, uk, hyp->glvis_scale);
+   VisualizeField(sout, vishost, visport, hyp->ProblemName, main, hyp->glvis_scale);
 
    FE_Evolution *evol;
    switch (scheme)
    {
       case Galerkin: { evol = new GalerkinEvolution(&vfes, hyp, dofs); break; }
-      case MonolithicConvexLimiting: { evol = new MCL_Evolution(&vfes, hyp, dofs, config.dt); break; }
+      case MonolithicConvexLimiting: { evol = new MCL_Evolution(&vfes, hyp, dofs, dt); break; }
       default:
          MFEM_ABORT("Unknown evolution scheme");
    }
@@ -175,7 +176,7 @@ int main(int argc, char *argv[])
    ml.Finalize();
    ml.SpMat().GetDiag(LumpedMassMat);
 
-   double InitialMass = LumpedMassMat * uk;
+   double InitialMass = LumpedMassMat * main;
 
    odeSolver->Init(*evol);
    if (hyp->SteadyState)
@@ -184,7 +185,8 @@ int main(int argc, char *argv[])
       evol->uOld = 0.;
    }
 
-   double dt, res, t = 0., tol = 1.e-12;
+   int TransStep = 0;
+   double dtLast, res, t = 0., tol = 1.e-12;
    bool done = t >= config.tFinal;
    tic_toc.Clear();
    tic_toc.Start();
@@ -192,15 +194,15 @@ int main(int argc, char *argv[])
 
    for (int ti = 0; !done;)
    {
-      dt = min(config.dt, config.tFinal - t);
-      odeSolver->Step(u, t, dt);
+      dtLast = min(dt, config.tFinal - t);
+      odeSolver->Step(u, t, dtLast);
       ti++;
 
-      done = (t >= config.tFinal - 1.e-8 * config.dt);
+      done = (t >= config.tFinal - 1.e-8 * dt);
 
       if (hyp->SteadyState)
       {
-         res = evol->ConvergenceCheck(dt, tol, u);
+         res = evol->ConvergenceCheck(dt, u);
          if (res < tol)
          {
             done = true;
@@ -208,7 +210,7 @@ int main(int argc, char *argv[])
          }
       }
 
-      if (done || ti % config.VisSteps == 0)
+      if (done || ti % VisSteps == 0)
       {
          if (hyp->SteadyState)
          {
@@ -220,7 +222,16 @@ int main(int argc, char *argv[])
             cout << "time step: " << ti << ", time: " << t << endl;
          }
 
-         VisualizeField(sout, vishost, visport, hyp->ProblemName, uk, hyp->glvis_scale);
+         VisualizeField(sout, vishost, visport, hyp->ProblemName, main, hyp->glvis_scale);
+         if (TransOutput)
+         {
+            ostringstream TransName;
+            TransName << OutputDir << "/trans" << TransStep << ".gf";
+            ofstream trans(TransName.str().c_str());
+            trans.precision(precision);
+            main.Save(trans);
+            TransStep++;
+         }
       }
    }
 
@@ -233,25 +244,19 @@ int main(int argc, char *argv[])
       Array<double> errors;
       hyp->ComputeErrors(errors, u, DomainSize, t);
       cout << "L1 error:                    " << errors[0] << endl;
-      if (hyp->FileOutput)
-      {
-         hyp->WriteErrors(errors);
-      }
+      hyp->WriteErrors(errors);
    }
 
-   cout << "Min of primary field:        " << uk.Min() << endl
-        << "Max of primary field:        " << uk.Max() << endl
+   cout << "Min of primary field:        " << main.Min() << endl
+        << "Max of primary field:        " << main.Max() << endl
         << "Difference in solution mass: "
-        << abs(InitialMass - LumpedMassMat * uk) / DomainSize << "\n\n";
+        << abs(InitialMass - LumpedMassMat * main) / DomainSize << "\n\n";
 
-   if (hyp->FileOutput)
-   {
-      ostringstream SolName;
-      SolName << OutputDir << "/ultimate.gf";
-      ofstream osol(SolName.str().c_str());
-      osol.precision(config.precision);
-      uk.Save(osol);
-   }
+   ostringstream FinalName;
+   FinalName << OutputDir << "/ultimate.gf";
+   ofstream ultimate(FinalName.str().c_str());
+   ultimate.precision(precision);
+   main.Save(ultimate);
 
    delete evol;
    delete hyp;

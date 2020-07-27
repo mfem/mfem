@@ -4,7 +4,27 @@ ATTENTION
 DEBUG
 
 
-PAPER
+TODO
+   Minor Tasks
+      advection.cpp TODOs
+
+   High Priority:
+      Cleanup
+      Efficiency
+
+   Medium Priority:
+      TODO either set tFinal in each configuration, or remove from Configuration struct
+      Advection - NodalQuadRule
+      DerivedQuantities - do it properly, not just with Bernstein coefficients
+
+   Low Priority:
+      Test GMS for Euler, remove if unnecessary
+      Try to run  MCL on curved geometries
+
+   Desirable:
+      Expression for momentum in narrowing channel
+      Sedov setup
+      Euler missing boundary conditions
 
 
 next steps
