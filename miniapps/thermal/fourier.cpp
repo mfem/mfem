@@ -504,6 +504,8 @@ int main(int argc, char *argv[])
 
    bool h1 = false;
    DGParams dg_params;
+   dg_params.sigma = -1.0;
+   dg_params.kappa = -1.0;
 
    // Diffusion cofficient is kappa_ * pow(T/Tau_, 0.5 * p_)
    int    p     = 0;
@@ -712,6 +714,10 @@ int main(int argc, char *argv[])
       }
       MPI_Finalize();
       return 1;
+   }
+   if (dg_params.kappa < 0.0)
+   {
+      dg_params.kappa = (double)(order+1)*(order+1);
    }
    if (myid == 0)
    {
