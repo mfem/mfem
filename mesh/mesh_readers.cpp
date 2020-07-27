@@ -1471,8 +1471,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                            break;
                         }
                      /*
-                     // MFEM does not currently support pyramids but we want
-                     // to be prepared
+                     // MFEM does not support pyramids yet
                      case   7: el_order--; //   5-node pyramid
                      case  14: el_order--; //  14-node pyramid (2nd order)
                      case 118: el_order--; //  30-node pyramid (3rd order)
@@ -1692,8 +1691,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                         break;
                      }
                   /*
-                  // MFEM does not currently support pyramids but we want
-                  // to be prepared
+                  // MFEM does not support pyramids yet
                   case   7: el_order--; //   5-node pyramid
                   case  14: el_order--; //  14-node pyramid (2nd order)
                   case 118: el_order--; //  30-node pyramid (3rd order)
