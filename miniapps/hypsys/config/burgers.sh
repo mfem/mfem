@@ -9,7 +9,7 @@ $EXEC $CONFIG -e $SCHEME -o 1 -r 4
 
 SCHEME=1
 
-$EXEC $CONFIG -e $SCHEME -o 1 -r 4
-$EXEC $CONFIG -e $SCHEME -o 3 -r 3
-$EXEC $CONFIG -e $SCHEME -o 7 -r 2
+$EXEC $CONFIG -e $SCHEME -o  1 -r 4
+$EXEC $CONFIG -e $SCHEME -o  3 -r 3
+$EXEC $CONFIG -e $SCHEME -o  7 -r 2
 $EXEC $CONFIG -e $SCHEME -o 15 -r 1

@@ -47,40 +47,20 @@ double KPP::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
 
 double InitialConditionKPP(const Vector &x)
 {
-   const int dim = x.Size();
-
-   // Map to the reference domain [-1,1].
-   Vector X(dim);
-   for (int i = 0; i < dim; i++)
+   if (x.Size() != 2)
    {
-      double center = (ConfigKPP.bbMin(i) + ConfigKPP.bbMax(i)) * 0.5;
-      X(i) = 2. * (x(i) - center) / (ConfigKPP.bbMax(i) - ConfigKPP.bbMin(i));
+      MFEM_ABORT("Test case only implemented in 2D.");
    }
 
-   switch (ConfigKPP.ConfigNum)
-   {
-      case 1:
-         if (dim != 2)
-         {
-            MFEM_ABORT("Test case only implemented in 2D.");
-         }
+   // Map to test case specific domain [-2,2] x [-2.5,1.5].
+   Vector X(2);
+   X(0) = ( 4.0 * x(0) - 2.0 * (ConfigKPP.bbMin(0) + ConfigKPP.bbMax(0)) ) / (ConfigKPP.bbMax(0) - ConfigKPP.bbMin(0));
+   X(1) = ( 4.0 * x(1) - 1.5 * ConfigKPP.bbMin(1) - 2.5 * ConfigKPP.bbMax(1) ) / (ConfigKPP.bbMax(1) - ConfigKPP.bbMin(1));
 
-         // Map to test case specific domain [-2,2] x [-2.5,1.5].
-         X(0) = 2. * X(0);
-         X(1) = 2. * X(1) - 0.5;
-
-         return X.Norml2() <= 1. ? 3.5 * M_PI : 0.25 * M_PI;
-      default: { MFEM_ABORT("No such test case implemented."); }
-   }
+   return X.Norml2() <= 1. ? 3.5 * M_PI : 0.25 * M_PI;
 }
 
 void InflowFunctionKPP(const Vector &x, double t, Vector &u)
 {
-   switch (ConfigKPP.ConfigNum)
-   {
-      case 1:
-         u(0) = 0.25 * M_PI;
-         break;
-      default: { MFEM_ABORT("No such test case implemented."); }
-   }
+   u(0) = 0.25 * M_PI;
 }

@@ -81,7 +81,7 @@ void InitialConditionBuckleyLeverett(const Vector &x, Vector &u)
    Vector X(dim);
    for (int i = 0; i < dim; i++)
    {
-      double center = (ConfigBL.bbMin(i) + ConfigBL.bbMax(i)) * 0.5;
+      double center = 0.5 * (ConfigBL.bbMin(i) + ConfigBL.bbMax(i));
       X(i) = 2. * (x(i) - center) / (ConfigBL.bbMax(i) - ConfigBL.bbMin(i));
    }
 

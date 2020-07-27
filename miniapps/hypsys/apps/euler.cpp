@@ -628,8 +628,6 @@ void InitialConditionEuler(const Vector &x, Vector &u)
          EvaluateEnergy(u, 0.1);
          break;
       }
-      default:
-         MFEM_ABORT("No such test case implemented.");
    }
 }
 
@@ -654,7 +652,5 @@ void InflowFunctionEuler(const Vector &x, double t, Vector &u)
       case 1:
       case 2:
       case 4: break; // No boundary condition needed.
-      default:
-         MFEM_ABORT("No such test case implemented.");
    }
 }

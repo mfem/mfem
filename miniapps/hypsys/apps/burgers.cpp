@@ -35,9 +35,6 @@ Burgers::Burgers(FiniteElementSpace *fes_, BlockVector &u_block,
          SolutionKnown = true;
          SteadyState = false;
          TimeDepBC = true;
-
-         // Use L2 projection to get exact initial condition,
-         // but low order projection for boundary condition.
          ProjType = 1;
          L2_Projection(ic, u0);
          break;
@@ -116,15 +113,14 @@ void Burgers::ComputeErrors(Array<double> &errors, const GridFunction &u,
 double AnalyticalSolutionBurgers(const Vector &x, double t)
 {
    const int dim = x.Size();
-
-   // Map to the reference domain [-1,1].
    Vector X(dim);
+
+   // Map to the reference domain [0,1]^d.
    for (int i = 0; i < dim; i++)
    {
-      double center = (ConfigBurgers.bbMin(i) + ConfigBurgers.bbMax(i)) * 0.5;
-      double factor = 2. / (ConfigBurgers.bbMax(i) - ConfigBurgers.bbMin(i));
-      X(i) = factor * (x(i) - center);
-      t *= pow(factor, 1./(double(dim)));
+      double factor = 1.0 / ( ConfigBurgers.bbMax(i) - ConfigBurgers.bbMin(i));
+      X(i) = factor * (x(i) - ConfigBurgers.bbMin(i));
+      t *= pow(factor, 1.0 / (double(dim)));
    }
 
    switch (ConfigBurgers.ConfigNum)
@@ -133,39 +129,30 @@ double AnalyticalSolutionBurgers(const Vector &x, double t)
       {
          if (dim != 1) { MFEM_ABORT("Test case only implemented in 1D."); }
 
-         X(0) = 0.5 * (X(0) + 1.);
-         t *= 0.5;
-
-         double un = sin(2.*M_PI*X(0));
-         double unp1 = 0., fn = 0., fpn = 0.;
+         double un = sin(2.0*M_PI*X(0));
+         double fn, fpn;
          double tol = 1.E-15;
          double error = 1.0;
          int iter = 0, maxiter = 100;
 
          while(error > tol)
          {
-            // There's no warning here. Don't trust the solution at a later time than 0.5.
+            // Do not trust this solution at a time later than t = 0.1.
             if (iter == maxiter) { break; }
 
-            fn = sin(2.*M_PI*(X(0)-un*t))-un;
-            fpn = -2.*M_PI*t*cos(2.*M_PI*(X(0)-un*t))-1.0;
-            unp1 = un - fn/fpn;
-            un = unp1;
-            error = abs(sin(2.*M_PI*(X(0)-unp1*t))-unp1);
+            fn = sin(2.0*M_PI*(X(0)-un*t))-un;
+            fpn = -2.0*M_PI*t*cos(2.*M_PI*(X(0)-un*t))-1.0;
+            un -= fn/fpn;
+            error = abs(sin(2.*M_PI*(X(0)-un*t))-un);
             iter++;
          }
 
-         return unp1;
+         return un;
       }
       case 1:
       case 2:
       {
          if (dim != 2) { MFEM_ABORT("Test case only implemented in 2D."); }
-
-         X(0) += 1.;
-         X(1) += 1.;
-         X *= 0.5; // Map to test case specific domain [0,1].
-         t *= 0.5;
 
          if (X(0) <= 0.5 - 0.6 * t)
          {
@@ -191,8 +178,6 @@ double AnalyticalSolutionBurgers(const Vector &x, double t)
 
          break;
       }
-      default:
-         MFEM_ABORT("No such test case implemented.");
    }
 }
 

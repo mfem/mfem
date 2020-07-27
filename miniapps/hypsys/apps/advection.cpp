@@ -75,7 +75,7 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
       }
       case 5:
       {
-         ProblemName = "Advection - Curve of C1 smoothness";
+         ProblemName = "Advection - C1 curve";
          glvis_scale = "on";
          SolutionKnown = true;
          SteadyState = false;
@@ -309,7 +309,7 @@ double AnalyticalSolutionAdv(const Vector &x, double t)
          case 3: // Map to the reference domain [-1,1]^d.
          {
             double center = 0.5 * (ConfigAdv.bbMin(i) + ConfigAdv.bbMax(i));
-            X(i) = 2. * (x(i) - center) / (ConfigAdv.bbMax(i) - ConfigAdv.bbMin(i));
+            X(i) = 2.0 * (x(i) - center) / (ConfigAdv.bbMax(i) - ConfigAdv.bbMin(i));
             break;
          }
       }
@@ -345,8 +345,6 @@ double AnalyticalSolutionAdv(const Vector &x, double t)
          return abs(r - 0.3) < 0.1 ? 1. : ( (abs(r-0.7) < 0.2) ? (exp(10.)*exp(-1./(r-0.5))*exp(1./(r-0.9))) : 0. );
       case 5:
          return abs(r-0.25) <= 0.15 ? 0.5*(1.+cos(M_PI*(r-0.25)/0.15)) : 0.;
-      default:
-         MFEM_ABORT("No such test case implemented.");
    }
    return 0.;
 }

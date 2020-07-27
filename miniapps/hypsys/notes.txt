@@ -7,8 +7,10 @@ DEBUG
 TODO
    Minor Tasks
       Check apps/bl.cpp for correctness
+      Pick a MoST gimmick problem - get rid of it in burgers, ...
 
    High Priority:
+      Discrepancy to results in paper :(
       Cleanup
       Efficiency
 

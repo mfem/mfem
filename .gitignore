@@ -165,13 +165,13 @@ miniapps/electromagnetics/Joule_*
 
 miniapps/hypsys/build
 miniapps/hypsys/errors.txt
-miniapps/hypsys/grid.mesh
+miniapps/hypsys/grid*
 miniapps/hypsys/hypsys
-miniapps/hypsys/initial.gf
+miniapps/hypsys/initial*
 miniapps/hypsys/phypsys
 miniapps/hypsys/results
 miniapps/hypsys/scripts/gridfunc-scatter
-miniapps/hypsys/ultimate.gf
+miniapps/hypsys/ultimate*
 miniapps/hypsys/various
 
 miniapps/meshing/mobius-strip
