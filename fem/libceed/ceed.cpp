@@ -417,6 +417,29 @@ void CeedPAAssemble(const CeedPAOperator& op,
 
 void CeedAssembleDiagonalPA(const CeedData ceedDataPtr, Vector &diag)
 {
+   CeedScalar *d_ptr;
+   CeedMemType mem;
+   CeedGetPreferredMemType(internal::ceed, &mem);
+   if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
+   {
+      d_ptr = diag.ReadWrite();
+   }
+   else
+   {
+      d_ptr = diag.HostReadWrite();
+      mem = CEED_MEM_HOST;
+   }
+   CeedVectorSetArray(ceedDataPtr->v, mem, CEED_USE_POINTER, d_ptr);
+
+   CeedOperatorLinearAssembleAddDiagonal(ceedDataPtr->oper, ceedDataPtr->v,
+                                         CEED_REQUEST_IMMEDIATE);
+
+   CeedVectorTakeArray(ceedDataPtr->v, mem, &d_ptr);
+}
+
+void CeedAddMultPA(const CeedData ceedDataPtr, const Vector &x,
+                   Vector &y)
+{
    const CeedScalar *x_ptr;
    CeedScalar *y_ptr;
    CeedMemType mem;
@@ -441,29 +464,6 @@ void CeedAssembleDiagonalPA(const CeedData ceedDataPtr, Vector &diag)
 
    CeedVectorTakeArray(ceedDataPtr->u, mem, &x_ptr);
    CeedVectorTakeArray(ceedDataPtr->v, mem, &y_ptr);
-}
-
-void CeedAddMultPA(const CeedData ceedDataPtr, const Vector &x,
-                   Vector &y)
-{
-   CeedScalar *d_ptr;
-   CeedMemType mem;
-   CeedGetPreferredMemType(internal::ceed, &mem);
-   if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
-   {
-      d_ptr = diag.ReadWrite();
-   }
-   else
-   {
-      d_ptr = diag.HostReadWrite();
-      mem = CEED_MEM_HOST;
-   }
-   CeedVectorSetArray(ceedDataPtr->v, mem, CEED_USE_POINTER, d_ptr);
-
-   CeedOperatorLinearAssembleAddDiagonal(ceedDataPtr->oper, ceedDataPtr->v,
-                                         CEED_REQUEST_IMMEDIATE);
-
-   CeedVectorTakeArray(ceedDataPtr->v, mem, &d_ptr);
 }
 
 } // namespace mfem
