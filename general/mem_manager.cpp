@@ -9,8 +9,6 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#define MFEM_DEBUG_COLOR 201
-#include "debug.hpp"
 #include "forall.hpp"
 #include "mem_manager.hpp"
 
@@ -455,10 +453,7 @@ public:
    void AliasUnprotect(const void *ptr, size_t bytes)
    { MmuAllow(MmuAddrP(ptr), MmuLengthP(ptr, bytes)); }
    void *HtoD(void *dst, const void *src, size_t bytes)
-   {
-      dbg("0x%x",bytes);
-      return std::memcpy(dst, src, bytes);
-   }
+   { return std::memcpy(dst, src, bytes); }
    void *DtoD(void *dst, const void *src, size_t bytes)
    { return std::memcpy(dst, src, bytes); }
    void *DtoH(void *dst, const void *src, size_t bytes)

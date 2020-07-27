@@ -14,6 +14,8 @@
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
 #include "quadinterpolator.hpp"
+#define MFEM_DEBUG_COLOR 47
+#include "../general/debug.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 
