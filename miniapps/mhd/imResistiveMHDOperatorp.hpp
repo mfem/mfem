@@ -1393,7 +1393,6 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
 
            if (usefd)
            {
-              if (myid==0) cout <<"======WARNING: usefd in preconditioner ======"<<endl;
               delete StabNb;
               StabNb = new ParBilinearForm(&fespace);
               StabNb->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, Bfield, true));
@@ -1406,6 +1405,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
               tmp1 = ParAdd(ScFull, tmp2);
               delete ScFull;
               ScFull=tmp1;
+              tmp1=NULL;
               delete MatStabNb;
            }
 
