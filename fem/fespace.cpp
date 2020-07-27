@@ -439,7 +439,8 @@ void FiniteElementSpace::MarkerToList(const Array<int> &marker,
    {
       if (marker[i]) { num_marked++; }
    }
-   list.DeleteAll();
+   list.SetSize(0); // original statement
+   //list.DeleteAll(); // fixes the issue
    list.Reserve(num_marked);
    for (int i = 0; i < marker.Size(); i++)
    {
