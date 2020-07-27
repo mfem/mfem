@@ -289,9 +289,9 @@ public:
 
    ~ADQFunctionTH() {}
 
-   double QFunction(const mfem::Vector& vparam, const mfem::Vector& uu)
+   double QFunction(const mfem::Vector& vparam, mfem::Vector& uu)
    {
-      CTD<double,const mfem::Vector> tf;
+      CTD<double, mfem::Vector> tf;
       return tf(vparam, uu);
    }
 
