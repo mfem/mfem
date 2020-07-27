@@ -612,6 +612,7 @@ class DGAdvectionDiffusionTDO : public TimeDependentOperator
 private:
    const MPI_Session & mpi_;
    int logging_;
+   bool h1_;
 
    ParFiniteElementSpace &fes_;
    ParGridFunction       &yGF_;
@@ -621,10 +622,13 @@ private:
    class ADPrec : public Solver
    {
    private:
+      const MPI_Session &mpi_;
+      int logging_;
       Operator *prec_;
 
    public:
-      ADPrec() : prec_(NULL) {}
+      ADPrec(const MPI_Session & mpi, int logging = 0)
+         : mpi_(mpi), logging_(logging), prec_(NULL) {}
 
       ~ADPrec() { delete prec_; }
 
@@ -650,6 +654,7 @@ private:
    protected:
       const MPI_Session &mpi_;
       const DGParams &dg_;
+      bool h1_;
 
       int logging_;
       std::string log_prefix_;
@@ -707,8 +712,8 @@ private:
       // Sockets used to communicate with GLVis
       std::map<std::string, socketstream*> socks_;
 
-      NLOperator(const MPI_Session & mpi, const DGParams & dg,
-		 ParFiniteElementSpace &fes,
+      NLOperator(const MPI_Session & mpi, const DGParams & dg, bool h1,
+                 ParFiniteElementSpace &fes,
                  ParGridFunction & yGF,
                  ParGridFunction & kGF,
                  SumCoefficient &ykCoef,

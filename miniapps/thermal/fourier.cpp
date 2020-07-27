@@ -43,14 +43,19 @@ void display_banner(ostream & os);
 static double TInf_    = 1.0;
 static double TMin_    = 10.0;
 static double TMax_    = 100.0;
+static double kappa_ = 1.0;
+static double c_rho_ = 1.0;
 //static double TWPara_  = 0.125;
 //static double TWPerp_  = 0.125;
 
 static vector<Vector> aVec_;
 
-double TFunc(const Vector &x)
+double TFunc(const Vector &x, double t)
 {
-   return 0.5 * (TMax_ + TMin_) + 0.5 * (TMax_ - TMin_) * cos(x.Norml2());
+   double f = 0.5 * (TMax_ - TMin_) * cos(M_PI * x[0]) * cos(M_PI * x[1]);
+   double g = exp(-2.0 * M_PI * M_PI * kappa_ * t / c_rho_);
+   return 0.5 * (TMax_ + TMin_) + f * g;
+   // return 0.5 * (TMax_ + TMin_) + 0.5 * (TMax_ - TMin_) * cos(x.Norml2());
 }
 /*
 class NormedDifferenceMeasure : public ODEDifferenceMeasure
@@ -497,16 +502,16 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
 
-   bool h1 = true;
+   bool h1 = false;
    DGParams dg_params;
 
    // Diffusion cofficient is kappa_ * pow(T/Tau_, 0.5 * p_)
    int    p     = 0;
-   double kappa = 1.0;
+   // double kappa = 1.0;
    double Tau   = 10.0;
 
    // Heat capacity per unit volume c_p * rho
-   double c_rho = 1.0;
+   // double c_rho = 1.0;
 
    int ode_solver_type = 1;
    int ode_msr_type = 1;
@@ -590,9 +595,9 @@ int main(int argc, char *argv[])
                   " Negative values are replaced with (order+1)^2.");
    args.AddOption(&irOrder, "-iro", "--int-rule-order",
                   "Integration Rule Order.");
-   args.AddOption(&c_rho, "-c-rho", "--heat-capacity",
+   args.AddOption(&c_rho_, "-c-rho", "--heat-capacity",
                   "Heat capacity per unit volume (c_p * rho)");
-   args.AddOption(&kappa, "-kappa", "--diff-coef",
+   args.AddOption(&kappa_, "-kappa", "--diff-coef",
                   "Linear diffusion coefficient k in (k*sqrt(T/Tau)^p)");
    args.AddOption(&Tau, "-Tau", "--nl-temp-scale",
                   "Nonlinear diffusion scale factor (k*sqrt(T/Tau)^p)");
@@ -971,7 +976,7 @@ int main(int argc, char *argv[])
    */
    ParGridFunction yGF(fespace);
    ParGridFunction kGF(fespace);
-   
+
    GridFunctionCoefficient yCoef(&yGF);
    GridFunctionCoefficient kCoef(&kGF);
    SumCoefficient ykCoef(yCoef, kCoef, 1.0, dt);
@@ -1000,8 +1005,8 @@ int main(int argc, char *argv[])
    // MatVecCoefficient qParaCoef(bbTCoef, qCoef);
    // MatVecCoefficient qPerpCoef(ImbbTCoef, qCoef);
 
-   ConstantStateVariableCoef HeatCapacityCoef(c_rho);
-   DiffusionCoef             ThermalConductivityCoef(ykCoef, Tau, kappa, p);
+   ConstantStateVariableCoef HeatCapacityCoef(c_rho_);
+   DiffusionCoef             ThermalConductivityCoef(ykCoef, Tau, kappa_, p);
    ConstantStateVariableCoef HeatSourceCoef(0.0);
 
    Q.ProjectCoefficient(HeatSourceCoef);
@@ -1012,24 +1017,24 @@ int main(int argc, char *argv[])
       // q.ProjectCoefficient(qCoef);
       T1.ParallelProject(T1_hpv);
    }
-   
+
    T1.GridFunction::ComputeElementL2Errors(TCoef, errorT);
    ExactT.ProjectCoefficient(TCoef);
 
    if (mpi.Root())
    {
-     cout << "Configuring boundary conditions" << endl;
+      cout << "Configuring boundary conditions" << endl;
    }
    CoefFactory coefFact;
    AdvectionDiffusionBC bcs(pmesh->bdr_attributes);
    if (strncmp(bc_file,"",1) != 0)
    {
-     if (mpi.Root())
-       {
-	 cout << "Reading boundary conditions from " << bc_file << endl;
-       }
-     ifstream bcfs(bc_file);
-     bcs.LoadBCs(coefFact, bcfs);
+      if (mpi.Root())
+      {
+         cout << "Reading boundary conditions from " << bc_file << endl;
+      }
+      ifstream bcfs(bc_file);
+      bcs.LoadBCs(coefFact, bcfs);
    }
    /*
    Array<int> dbc_attr(1);
@@ -1216,7 +1221,7 @@ int main(int argc, char *argv[])
       double h_min, h_max, kappa_min, kappa_max;
       pmesh->GetCharacteristics(h_min, h_max, kappa_min, kappa_max);
 
-      double dt_cfl = h_min * h_min / kappa;
+      double dt_cfl = h_min * h_min / kappa_;
 
       if (dt < 0.0)
       {
