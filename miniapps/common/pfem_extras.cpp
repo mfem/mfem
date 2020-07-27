@@ -359,6 +359,151 @@ void VisualizeField(socketstream &sock, const char *vishost, int visport,
    while (connection_failed);
 }
 
+Visualizer::Visualizer(const string &vishost, int visport)
+   : host(vishost), port(visport),
+     Wx(0), Wy(0), Ww(50), Wh(50),
+     new_title(true), new_geom(true), new_keys(true)
+{}
+
+void Visualizer::SetPosition(int x, int y)
+{
+   Wx = x; Wy = y;
+   new_geom = true;
+}
+
+void Visualizer::SetSize(int w, int h)
+{
+   Ww = w; Wh = h;
+   new_geom = true;
+}
+
+void Visualizer::SetGeometry(int x, int y, int w, int h)
+{
+   Wx = x; Wy = y;
+   Ww = w; Wh = h;
+   new_geom = true;
+}
+
+void Visualizer::SetTitle(const string &title)
+{
+   Wtitle = title;
+   new_title = true;
+}
+
+void Visualizer::SetKeys(const string &keys)
+{
+   Wkeys = keys;
+   new_keys = true;
+}
+
+void Visualizer::VisMesh(ParMesh &pmesh)
+{
+   MPI_Comm comm = pmesh.GetComm();
+
+   int num_procs, myid;
+   MPI_Comm_size(comm, &num_procs);
+   MPI_Comm_rank(comm, &myid);
+
+   bool newly_opened = false;
+   int connection_failed;
+
+   do
+   {
+      if (myid == 0)
+      {
+         if (!sock.is_open() || !sock)
+         {
+            sock.open(host.c_str(), port);
+            newly_opened = true;
+         }
+         sock << "solution\n";
+      }
+
+      pmesh.PrintAsOne(sock);
+
+      if (myid == 0)
+      {
+         if (new_title)
+         {
+            if (Wtitle.size()) { sock << "window_title '" << Wtitle << "'\n"; }
+         }
+         if (new_geom)
+         {
+            sock << "window_geometry "
+                 << Wx << " " << Wy << " " << Ww << " " << Wh << "\n";
+         }
+         if (new_keys)
+         {
+            if ( Wkeys.size() ) { sock << "keys " << Wkeys << "\n"; }
+            else { sock << "keys maaAc\n"; }
+         }
+
+         connection_failed = !sock && !newly_opened;
+      }
+      MPI_Bcast(&connection_failed, 1, MPI_INT, 0, comm);
+   }
+   while (connection_failed);
+
+   new_title = false;
+   new_geom  = false;
+   new_keys  = false;
+}
+
+void Visualizer::VisField(ParGridFunction &gf)
+{
+   ParMesh &pmesh = *gf.ParFESpace()->GetParMesh();
+   MPI_Comm comm = pmesh.GetComm();
+
+   int num_procs, myid;
+   MPI_Comm_size(comm, &num_procs);
+   MPI_Comm_rank(comm, &myid);
+
+   bool newly_opened = false;
+   int connection_failed;
+
+   do
+   {
+      if (myid == 0)
+      {
+         if (!sock.is_open() || !sock)
+         {
+            sock.open(host.c_str(), port);
+            newly_opened = true;
+         }
+         sock << "solution\n";
+      }
+
+      pmesh.PrintAsOne(sock);
+      gf.SaveAsOne(sock);
+
+      if (myid == 0)
+      {
+         if (new_title)
+         {
+            if (Wtitle.size()) { sock << "window_title '" << Wtitle << "'\n"; }
+         }
+         if (new_geom)
+         {
+            sock << "window_geometry "
+                 << Wx << " " << Wy << " " << Ww << " " << Wh << "\n";
+         }
+         if (new_keys)
+         {
+            if ( Wkeys.size() ) { sock << "keys " << Wkeys << "\n"; }
+            else { sock << "keys maaAc\n"; }
+         }
+
+         connection_failed = !sock && !newly_opened;
+      }
+      MPI_Bcast(&connection_failed, 1, MPI_INT, 0, comm);
+   }
+   while (connection_failed);
+
+   new_title = false;
+   new_geom  = false;
+   new_keys  = false;
+}
+
 } // namespace common
 
 } // namespace mfem
