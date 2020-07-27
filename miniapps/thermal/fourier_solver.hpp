@@ -377,11 +377,15 @@ public:
 
 class AdvectionDiffusionBC
 {
+public:
+   enum BCType {DIRICHLET_BC, NEUMANN_BC, ROBIN_BC};
+
 private:
    Array<CoefficientByAttr*>  dbc; // Dirichlet BC data
    Array<CoefficientByAttr*>  nbc; // Neumann BC data
    Array<CoefficientsByAttr*> rbc; // Robin BC data
-   mutable Array<int>  hbc; // Homogeneous Neumann BC boundry attributes
+   mutable Array<int>  hbc_attr; // Homogeneous Neumann BC boundary attributes
+   Array<int>  dbc_attr; // Dirichlet BC boundary attributes
 
    std::set<int> bc_attr;
    const Array<int> & bdr_attr;
@@ -391,15 +395,15 @@ private:
    void ReadBCs(std::istream &input);
 
    void ReadAttr(std::istream &input,
-                 const std::string &bctype,
+                 BCType bctype,
                  Array<int> &attr);
 
    void ReadCoefByAttr(std::istream &input,
-                       const std::string &bctype,
+                       BCType bctype,
                        CoefficientByAttr &cba);
 
    void ReadCoefsByAttr(std::istream &input,
-                        const std::string &bctype,
+                        BCType bctype,
                         CoefficientsByAttr &cba);
 
 public:
@@ -427,7 +431,9 @@ public:
    const Array<CoefficientByAttr*> & GetDirichletBCs() const { return dbc; }
    const Array<CoefficientByAttr*> & GetNeumannBCs() const { return nbc; }
    const Array<CoefficientsByAttr*> & GetRobinBCs() const { return rbc; }
-   const Array<int> & GetHomogeneousNeumannBCs() const;
+
+   const Array<int> & GetHomogeneousNeumannBDR() const;
+   const Array<int> & GetDirichletBDR() const { return dbc_attr; }
 };
 
 enum FieldType {INVALID = -1,

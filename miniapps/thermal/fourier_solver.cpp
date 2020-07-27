@@ -150,8 +150,18 @@ AdvectionDiffusionBC::~AdvectionDiffusionBC()
    }
 }
 
+const char * AdvectionDiffusionBC::GetBCTypeName(BCType bctype)
+{
+   switch (bctype)
+   {
+      case DIRICHLET_BC: return "Dirichlet";
+      case NEUMANN_BC: return "Neumann";
+      case ROBIN_BC: return "Robin";
+   }
+}
+
 void AdvectionDiffusionBC::ReadAttr(std::istream &input,
-                                    const std::string &bctype,
+                                    BCType bctype,
                                     Array<int> &attr)
 {
    int nbdr = 0;
@@ -164,10 +174,15 @@ void AdvectionDiffusionBC::ReadAttr(std::istream &input,
       if (bc_attr.count(b) == 0)
       {
          bc_attr.insert(b);
+         if (bctype == DIRICHLET_BC)
+         {
+            dbc_attr.Append(b);
+         }
       }
       else
       {
-         MFEM_ABORT("Attempting to add a " << bctype << " BC on boundary " << b
+         MFEM_ABORT("Attempting to add a " << GetBCTypeName(bctype)
+                    << " BC on boundary " << b
                     << " which already has a boundary condition defined.");
       }
       attr.Append(b);
@@ -175,7 +190,7 @@ void AdvectionDiffusionBC::ReadAttr(std::istream &input,
 }
 
 void AdvectionDiffusionBC::ReadCoefByAttr(std::istream &input,
-                                          const std::string &bctype,
+                                          BCType bctype,
                                           CoefficientByAttr &cba)
 {
    ReadAttr(input, bctype, cba.attr);
@@ -184,7 +199,7 @@ void AdvectionDiffusionBC::ReadCoefByAttr(std::istream &input,
 }
 
 void AdvectionDiffusionBC::ReadCoefsByAttr(std::istream &input,
-                                           const std::string &bctype,
+                                           BCType bctype,
                                            CoefficientsByAttr &cba)
 {
    ReadAttr(input, bctype, cba.attr);
@@ -210,19 +225,19 @@ void AdvectionDiffusionBC::ReadBCs(std::istream &input)
       if (buff == "dirichlet")
       {
          CoefficientByAttr * c = new CoefficientByAttr;
-         ReadCoefByAttr(input, "Dirichlet", *c);
+         ReadCoefByAttr(input, DIRICHLET_BC, *c);
          dbc.Append(c);
       }
       else if (buff == "neumann")
       {
          CoefficientByAttr * c = new CoefficientByAttr;
-         ReadCoefByAttr(input, "Neumann", *c);
+         ReadCoefByAttr(input, NEUMANN_BC, *c);
          nbc.Append(c);
       }
       else if (buff == "robin")
       {
          CoefficientsByAttr * c = new CoefficientsByAttr;
-         ReadCoefsByAttr(input, "Robin", *c);
+         ReadCoefsByAttr(input, ROBIN_BC, *c);
          rbc.Append(c);
       }
    }
@@ -236,6 +251,7 @@ void AdvectionDiffusionBC::AddDirichletBC(const Array<int> & bdr,
       if (bc_attr.count(bdr[i]) == 0)
       {
          bc_attr.insert(bdr[i]);
+         dbc_attr.Append(bdr[i]);
       }
       else
       {
@@ -297,21 +313,21 @@ void AdvectionDiffusionBC::AddRobinBC(const Array<int> & bdr, Coefficient &a,
    rbc.Append(c);
 }
 
-const Array<int> & AdvectionDiffusionBC::GetHomogeneousNeumannBCs() const
+const Array<int> & AdvectionDiffusionBC::GetHomogeneousNeumannBDR() const
 {
-   if (hbc.Size() != bdr_attr.Size() - bc_attr.size())
+   if (hbc_attr.Size() != bdr_attr.Size() - bc_attr.size())
    {
-      hbc.SetSize(bdr_attr.Size() - bc_attr.size());
+      hbc_attr.SetSize(bdr_attr.Size() - bc_attr.size());
       int o = 0;
       for (int i=0; i<bdr_attr.Size(); i++)
       {
          if (bc_attr.count(bdr_attr[i]) == 0)
          {
-            hbc[o++] = bdr_attr[i];
+            hbc_attr[o++] = bdr_attr[i];
          }
       }
    }
-   return hbc;
+   return hbc_attr;
 }
 
 AdvectionTDO::AdvectionTDO(ParFiniteElementSpace &H1_FES,
