@@ -16,6 +16,7 @@
 
 #ifdef MFEM_USE_CEED
 #include "../../general/device.hpp"
+#include "../../linalg/vector.hpp"
 #include <ceed.h>
 
 namespace mfem
