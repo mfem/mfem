@@ -21,9 +21,9 @@ MESH=data/outflow-bdr-4quad.mesh
 CONFIG="-p 4 -c 2 -vs 50 -tf 0.06 -s 3 -m $MESH -e 1"
 
 # p-refinement & h-coarsening
-$EXEC $CONFIG -e 1 -o 1 -r 5 -dt 0.0001
-$EXEC $CONFIG -e 1 -o 3 -r 4 -dt 0.0001
-$EXEC $CONFIG -e 1 -o 7 -r 3 -dt 0.0001
+$EXEC $CONFIG -o 1 -r 5 -dt 0.0001
+$EXEC $CONFIG -o 3 -r 4 -dt 0.0001
+$EXEC $CONFIG -o 7 -r 3 -dt 0.0001
 
 ## Constricted channel
 MESH=data/constr-channel.mesh

@@ -40,10 +40,10 @@ public:
    virtual double GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
                                int i = -1) const = 0;
    virtual void SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal,
-                           int attr) const = 0;
-   virtual void ComputeDerivedQuantities(const Vector &u) const = 0; // TODO: use this properly!
+                           int attr) const  { };
+   virtual void ComputeDerivedQuantities(const Vector &u) const { };
    virtual void ComputeErrors(Array<double> &errors, const GridFunction &u,
-                              double DomainSize, double t) const = 0;
+                              double DomainSize, double t) const { };
 
    virtual void WriteErrors(const Array<double> &errors) const
    {

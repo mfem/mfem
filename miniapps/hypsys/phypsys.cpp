@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
                   "        1 - Monolithic Convex Limiting.");
    args.AddOption(&OutputDir, "-out", "--output", "Output directory.");
    args.AddOption(&TransOutput, "-t", "--transitional-output", "-no-t",
-                  "--transitional-output", "Print transitional output files.");
+                  "--no-transitional-output", "Print transitional output files.");
 
    args.Parse();
    if (!args.Good())

@@ -6,7 +6,7 @@ DEBUG
 
 TODO
    Minor Tasks
-      advection.cpp TODOs
+      Check apps/bl.cpp for correctness
 
    High Priority:
       Cleanup
@@ -22,9 +22,10 @@ TODO
       Try to run  MCL on curved geometries
 
    Desirable:
-      Expression for momentum in narrowing channel
-      Sedov setup
-      Euler missing boundary conditions
+      -Euler: Implement subsonic in- and outflow.
+      -Sedov setup
+      -Expression for momentum in narrowing channel
+      -visualization of other unknowns / quotients of unknowns, vector valued unknowns
 
 
 next steps
@@ -39,10 +40,9 @@ minor tasks:
    -Remove all MFEM_ABORTS in repeated switches
    -Use mfem::Mult for matrix multiplication
    -Since MCL works only for elements with constant Jacobians, maybe use Vector of size ne
-   -Restructure galerkin, fe_evol and mcl (constructors)
-   -Euler: Implement subsonic in- and outflow.
-   -Change final time by modifying it in the apps/*.cpp files (for non steady examples or generally if it makes sense).
-   -visualization of other unknowns / quotients of unknowns, vector valued unknowns
+   -Restructure galerkin, fe_evol and mcl (constructors
 
 
 future tasks
+   -Entropy fixes
+   -Smoothness indicator

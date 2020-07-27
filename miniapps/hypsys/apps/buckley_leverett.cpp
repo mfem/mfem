@@ -1,8 +1,7 @@
 #include "buckley_leverett.hpp"
 
-Configuration ConfigBuckleyLeverett;
+Configuration ConfigBL;
 
-void AnalyticalSolutionBuckleyLeverett(const Vector &x, double t, Vector &u);
 void InitialConditionBuckleyLeverett(const Vector &x, Vector &u);
 void InflowFunctionBuckleyLeverett(const Vector &x, double t, Vector &u);
 
@@ -11,23 +10,12 @@ BuckleyLeverett::BuckleyLeverett(FiniteElementSpace *fes_, BlockVector &u_block,
    : HyperbolicSystem(fes_, u_block, 1, config_,
                       VectorFunctionCoefficient(1, InflowFunctionBuckleyLeverett))
 {
-   ConfigBuckleyLeverett = config_;
+   ConfigBL = config_;
 
    VectorFunctionCoefficient ic(1, InitialConditionBuckleyLeverett);
 
-   switch (ConfigBuckleyLeverett.ConfigNum)
+   switch (ConfigBL.ConfigNum)
    {
-      case 0:
-      {
-         ProblemName = "Buckley-Leverett - Smooth solution";
-         glvis_scale = "on";
-         SolutionKnown = false;
-         SteadyState = false;
-         TimeDepBC = false;
-         ProjType = 0;
-         L2_Projection(ic, u0);
-         break;
-      }
       case 1:
       {
          ProblemName = "Buckley-Leverett - 1D";
@@ -85,52 +73,28 @@ double BuckleyLeverett::GetWaveSpeed(const Vector &u, const Vector n, int e, int
    else { MFEM_ABORT("Not implemented."); }
 }
 
-void BuckleyLeverett::SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal,
-                                 int attr) const
-{
-   return;
-}
-
-void BuckleyLeverett::ComputeErrors(Array<double> &errors, const GridFunction &u,
-                             double DomainSize, double t) const
-{
-   errors.SetSize(3);
-   VectorFunctionCoefficient uAnalytic(NumEq, AnalyticalSolutionBuckleyLeverett);
-   uAnalytic.SetTime(t);
-   errors[0] = u.ComputeLpError(1., uAnalytic) / DomainSize;
-   errors[1] = u.ComputeLpError(2., uAnalytic) / DomainSize;
-   errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic);
-}
-
-
-void AnalyticalSolutionBuckleyLeverett(const Vector &x, double t, Vector &u)
-{
-
-}
-
 void InitialConditionBuckleyLeverett(const Vector &x, Vector &u)
 {
    const int dim = x.Size();
 
-   // Map to the reference domain [-1,1].
+   // Map to the reference domain [-1,1]^d.
    Vector X(dim);
    for (int i = 0; i < dim; i++)
    {
-      double center = (ConfigBuckleyLeverett.bbMin(i) + ConfigBuckleyLeverett.bbMax(i)) * 0.5;
-      X(i) = 2. * (x(i) - center) / (ConfigBuckleyLeverett.bbMax(i) - ConfigBuckleyLeverett.bbMin(i));
+      double center = (ConfigBL.bbMin(i) + ConfigBL.bbMax(i)) * 0.5;
+      X(i) = 2. * (x(i) - center) / (ConfigBL.bbMax(i) - ConfigBL.bbMin(i));
    }
 
-   switch (ConfigBuckleyLeverett.ConfigNum)
+   switch (ConfigBL.ConfigNum)
    {
       case 1:
       {
-         u(0) =  X(0) < 0. ? -3. : 3.;
+         u(0) =  X(0) < 0.0 ? -3.0 : 3.0;
          break;
       }
       case 2:
       {
-         X *= 1.5;
-         u(0) = X.Norml2()*X.Norml2() < 0.5 ? 1. : 0.;
+         u(0) = X.Norml2()*X.Norml2() < 2.0 / 9.0 ? 1.0 : 0.0;
          break;
       }
    }
@@ -138,11 +102,11 @@ void InitialConditionBuckleyLeverett(const Vector &x, Vector &u)
 
 void InflowFunctionBuckleyLeverett(const Vector &x, double t, Vector &u)
 {
-   switch (ConfigBuckleyLeverett.ConfigNum)
+   switch (ConfigBL.ConfigNum)
    {
       case 1:
       {
-         u(0) = x(0) > 0. ? 3. : -3;
+         u(0) = x(0) < 0. ? 3. : -3;
          break;
       }
       case 2:

@@ -2,7 +2,6 @@
 
 Configuration ConfigKPP;
 
-double AnalyticalSolutionKPP(const Vector &x, double t);
 double InitialConditionKPP(const Vector &x);
 void InflowFunctionKPP(const Vector &x, double t, Vector &u);
 
@@ -44,29 +43,6 @@ double KPP::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
                          int i) const
 {
    return 1.;
-}
-
-void KPP::SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal,
-                     int attr) const
-{
-   return;
-}
-
-void KPP::ComputeErrors(Array<double> &errors, const GridFunction &u,
-                        double DomainSize, double t) const
-{
-   errors.SetSize(3);
-   FunctionCoefficient uAnalytic(AnalyticalSolutionKPP);
-   uAnalytic.SetTime(t);
-   errors[0] = u.ComputeLpError(1., uAnalytic) / DomainSize;
-   errors[1] = u.ComputeLpError(2., uAnalytic) / DomainSize;
-   errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic);
-}
-
-
-double AnalyticalSolutionKPP(const Vector &x, double t)
-{
-   MFEM_ABORT("Analytical solution unknown.");
 }
 
 double InitialConditionKPP(const Vector &x)

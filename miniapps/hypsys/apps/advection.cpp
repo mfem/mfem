@@ -1,6 +1,6 @@
 #include "advection.hpp"
 
-Configuration ConfigAdvection;
+Configuration ConfigAdv;
 
 double AnalyticalSolutionAdv(const Vector &x, double t);
 double InitialConditionAdv(const Vector &x);
@@ -12,11 +12,11 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
    : HyperbolicSystem(fes_, u_block, 1, config_,
                       VectorFunctionCoefficient (1, InflowFunctionAdv))
 {
-   ConfigAdvection = config_;
+   ConfigAdv = config_;
 
    FunctionCoefficient ic(InitialConditionAdv);
 
-   switch (ConfigAdvection.ConfigNum)
+   switch (ConfigAdv.ConfigNum)
    {
       case 0:
       {
@@ -73,7 +73,17 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
          u0.ProjectCoefficient(ic);
          break;
       }
-
+      case 5:
+      {
+         ProblemName = "Advection - Curve of C1 smoothness";
+         glvis_scale = "on";
+         SolutionKnown = true;
+         SteadyState = false;
+         TimeDepBC = false;
+         ProjType = 1;
+         u0.ProjectCoefficient(ic);
+         break;
+      }
       default:
          MFEM_ABORT("No such test case implemented.");
    }
@@ -198,12 +208,6 @@ double Advection::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
    return abs(VelocityVector * n);
 }
 
-void Advection::SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal,
-                           int attr) const
-{
-   return;
-}
-
 void Advection::ComputeErrors(Array<double> &errors, const GridFunction &u,
                               double DomainSize, double t) const
 {
@@ -225,24 +229,36 @@ void VelocityFunctionAdv(const Vector &x, Vector &v)
    Vector X(dim);
    for (int i = 0; i < dim; i++)
    {
-      double center = (ConfigAdvection.bbMin(i) + ConfigAdvection.bbMax(i)) * 0.5;
-      X(i) = 2. * (x(i) - center)
-             / (ConfigAdvection.bbMax(i) - ConfigAdvection.bbMin(i));
-      s *= ConfigAdvection.bbMax(i) - ConfigAdvection.bbMin(i);
+      switch (ConfigAdv.ConfigNum)
+      {
+         case 0: // Map to the reference domain [0,1]^d.
+         {
+            X(i) = (x(i) - ConfigAdv.bbMin(i)) / (ConfigAdv.bbMax(i) - ConfigAdv.bbMin(i));
+            s *= ConfigAdv.bbMax(i) - ConfigAdv.bbMin(i);
+            break;
+         }
+         case 1: // Map to the reference domain [-1,1]^d.
+         {
+            double center = 0.5 * (ConfigAdv.bbMin(i) + ConfigAdv.bbMax(i));
+            X(i) = 2. * (x(i) - center) / (ConfigAdv.bbMax(i) - ConfigAdv.bbMin(i));
+            s *= ConfigAdv.bbMax(i) - ConfigAdv.bbMin(i);
+            break;
+         }
+      }
    }
 
    // Scale to be normed to a full revolution.
    s = pow(s, 1./dim) * M_PI;
 
-   switch (ConfigAdvection.ConfigNum)
+   switch (ConfigAdv.ConfigNum)
    {
       case 0: // Rotation around corner.
       {
          switch (dim)
          {
             case 1: v(0) = 1.0; break;
-            case 2: v(0) = s*(X(1)+1.); v(1) = -s*(X(0)+1.); break;
-            case 3: v(0) = s*(X(1)+1.); v(1) = -s*(X(0)+1.); v(2) = 0.0; break;
+            case 2: v(0) = s*X(1); v(1) = -s*X(0); break;
+            case 3: v(0) = s*X(1); v(1) = -s*X(0); v(2) = 0.0; break;
          }
          break;
       }
@@ -258,7 +274,8 @@ void VelocityFunctionAdv(const Vector &x, Vector &v)
       }
       case 2:
       case 3:
-      case 4: // Constant velocity.
+      case 4:
+      case 5:
       {
          switch (dim)
          {
@@ -268,74 +285,66 @@ void VelocityFunctionAdv(const Vector &x, Vector &v)
          }
          break;
       }
-      default:
-         MFEM_ABORT("No such test case implemented.");
    }
 }
 
 double AnalyticalSolutionAdv(const Vector &x, double t)
 {
    const int dim = x.Size();
-
-   // Map to the reference [-1,1] domain.
    Vector X(dim);
+
    for (int i = 0; i < dim; i++)
    {
-      double center = (ConfigAdvection.bbMin(i) + ConfigAdvection.bbMax(i)) * 0.5;
-      X(i) = 2. * (x(i) - center)
-             / (ConfigAdvection.bbMax(i) - ConfigAdvection.bbMin(i));
+      switch (ConfigAdv.ConfigNum)
+      {
+         case 0:
+         case 1:
+         case 4:
+         case 5: // Map to the reference domain [0,1]^d.
+         {
+            X(i) = (x(i) - ConfigAdv.bbMin(i)) / (ConfigAdv.bbMax(i) - ConfigAdv.bbMin(i));
+            break;
+         }
+         case 2:
+         case 3: // Map to the reference domain [-1,1]^d.
+         {
+            double center = 0.5 * (ConfigAdv.bbMin(i) + ConfigAdv.bbMax(i));
+            X(i) = 2. * (x(i) - center) / (ConfigAdv.bbMax(i) - ConfigAdv.bbMin(i));
+            break;
+         }
+      }
    }
 
-   switch (ConfigAdvection.ConfigNum)
+   double r = X.Norml2();
+
+   switch (ConfigAdv.ConfigNum)
    {
       case 0:
       {
-         Vector Y(dim); Y = 1.;
-         X += Y;
-         X *= 0.5; // Map to test case specific domain [0,1].
-
-         double r = X.Norml2();
          double a = 0.5, b = 0.03, c = 0.1;
          return 0.25 * (1. + tanh((r+c-a)/b)) * (1. - tanh((r-c-a)/b));
       }
       case 1:
       {
-         if (dim==1) { return abs(X(0) + 0.7) <= 0.15; }
+         if (dim==1) { MFEM_ABORT("Test case not implemented in 1D."); }
 
-         double s = 0.0225;
-         double coef = (0.5/sqrt(s));
-         double slit = (X(0) <= -0.05) || (X(0) >= 0.05) || (X(1) >= 0.7);
-         double cone = coef * sqrt(pow(X(0), 2.) + pow(X(1) + 0.5, 2.));
-         double hump = coef * sqrt(pow(X(0) + 0.5, 2.) + pow(X(1), 2.));
+         double s = 0.15;
+         double cone = sqrt(pow(X(0)-0.5, 2.) + pow(X(1)-0.25, 2.));
+         double hump = sqrt(pow(X(0)-0.25, 2.) + pow(X(1)-0.5, 2.));
 
-         return (slit && ((pow(X(0),2.) + pow(X(1)-.5,2.))<=4.*s)) ? 1. : 0.
-                + (1. - cone) * (pow(X(0), 2.) + pow(X(1)+.5, 2.) <= 4.*s)
-                + .25 * (1. + cos(M_PI*hump))
-                * ((pow(X(0)+.5, 2.) + pow(X(1), 2.)) <= 4.*s);
+         return (1. - cone / s) * (cone <= s) +
+                0.25 * (1. + cos(M_PI*hump / s)) * (hump <= s) +
+                ( ( sqrt(pow(X(0)-0.5, 2.) + pow(X(1)-0.75, 2.)) <= s ) &&
+                  ( abs(X(0)-0.5) >= 0.025 || (X(1) >= 0.85) ) ? 1. : 0. );
       }
       case 2:
-      {
-         return X.Norml2() < 0.2 ? 1. : 0.; // TODO these are i.c.'s
-      }
+         return r < 0.2 ? 1. : 0.;
       case 3:
-      {
-         return exp(-25. * X.Norml2()*X.Norml2());
-      }
+         return exp(-25. * r*r);
       case 4:
-      {
-         Vector Y(dim); Y = 1.;
-         X += Y;
-         X *= 0.5; // Map to test case specific domain [0,1].
-         double r = X.Norml2();
-         double c = exp(10.);
-
-         return abs(r - 0.3) < 0.1 ? 1. : ( (abs(r-0.7) < 0.2) ? (c*exp(-1./(r-0.5))*exp(1./(r-0.9))) : 0. );
-      }
+         return abs(r - 0.3) < 0.1 ? 1. : ( (abs(r-0.7) < 0.2) ? (exp(10.)*exp(-1./(r-0.5))*exp(1./(r-0.9))) : 0. );
       case 5:
-      {
-         // TODO implement properly
-         return abs(x(0)-0.25) <= 0.15 ? 0.5*(1.+cos(M_PI*(x(0)-0.25)/0.15)) : 0.;
-      }
+         return abs(r-0.25) <= 0.15 ? 0.5*(1.+cos(M_PI*(r-0.25)/0.15)) : 0.;
       default:
          MFEM_ABORT("No such test case implemented.");
    }

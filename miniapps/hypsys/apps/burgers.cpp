@@ -101,12 +101,6 @@ double Burgers::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
    return abs(u(0) * n.Sum());
 }
 
-void Burgers::SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal,
-                         int attr) const
-{
-   return;
-}
-
 void Burgers::ComputeErrors(Array<double> &errors, const GridFunction &u,
                             double DomainSize, double t) const
 {
