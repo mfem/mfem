@@ -1213,8 +1213,6 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
        Mmatlp.GetDiag(*MmatlpD);
        MinvKB->InvScaleRows(*MmatlpD);
        delete MmatlpD;
-       if (usesupg)
-          *MinvKB *= viscosity;
     }
 
     int sc = height/3;
@@ -1297,7 +1295,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
        HypreParMatrix *NbtDinv=NULL, *S=NULL;
        HypreParMatrix *tmp=Mdtpr;  //if use lumped matrix, it needs to be scaled by dt
 
-       if (iSc==0 && (!usefd) )
+       if (iSc==0)
        {
            if (usesupg && i_supgpre==0)           
            {
@@ -1333,7 +1331,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
                 }
                 delete MatStabNv;
            }
-           else
+           else if (usesupg)
            {
                 delete StabMass;
                 StabMass = new ParBilinearForm(&fespace);
@@ -1352,6 +1350,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
                 HypreParMatrix *MatStabNv=StabNv->ParallelAssemble();
 
                 S = ParMult(MatStabMass, MinvKB);
+                *S *= viscosity;
                 HypreParMatrix *tmp=Add(1./dt, *MatStabMass, 1., *MatStabNv);
                 HypreParMatrix *MatStabSum=ParAdd(tmp, S);
 
@@ -1392,6 +1391,25 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
            S = ParMult(NbtDinv, NbFull);
            ScFull = ParAdd(ASltmp, S);
 
+           if (usefd)
+           {
+              if (myid==0) cout <<"======WARNING: usefd in preconditioner ======"<<endl;
+              delete StabNb;
+              StabNb = new ParBilinearForm(&fespace);
+              StabNb->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, Bfield, true));
+              StabNb->Assemble(); 
+              StabNb->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
+              StabNb->Finalize();
+              HypreParMatrix *MatStabNb=StabNb->ParallelAssemble();
+
+              tmp2 = ParMult(MatStabNb, MinvKB);
+              tmp1 = ParAdd(ScFull, tmp2);
+              delete ScFull;
+              ScFull=tmp1;
+              delete MatStabNb;
+           }
+
+           /*
            if (false && im_supg==1 && usesupg)
            {
             if (myid==0 && false) cout <<"======WARNING: use preconditioner with terms on ARe======"<<endl;
@@ -1400,8 +1418,10 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
                 delete AReFull;
                 AReFull=tmp;
            }
+           */
        }
-       else if (iSc==0 && usefd)
+       /*
+       else if (iSc==0 && usefd && !usesupg)
        {
            //VERSION3: Luis's preconditioner + hyperdiffusion
            AReFull->GetDiag(*ARed);
@@ -1423,7 +1443,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
            ScFull = ParAdd(ScFull1, S);
            delete ScFull1;
            delete MatStabNb;
-       }
+       }*/
        else if (iSc==3)
        {
            //more complicated version to handle stabilization terms
