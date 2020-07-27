@@ -2316,13 +2316,17 @@ protected:
    const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
    const GeometricFactors *geom;   ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
+   bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
 public:
    CurlCurlIntegrator() { Q = NULL; DQ = NULL; MQ = NULL; }
    /// Construct a bilinear form integrator for Nedelec elements
-   CurlCurlIntegrator(Coefficient &q) : Q(&q) { DQ = NULL; MQ = NULL; }
-   CurlCurlIntegrator(VectorCoefficient &dq) : DQ(&dq) { Q = NULL; MQ = NULL; }
-   CurlCurlIntegrator(MatrixCoefficient &mq) : MQ(&mq) { Q = NULL; DQ = NULL; }
+   CurlCurlIntegrator(Coefficient &q, const IntegrationRule *ir = NULL) :
+      BilinearFormIntegrator(ir), Q(&q) { DQ = NULL; MQ = NULL; }
+   CurlCurlIntegrator(VectorCoefficient &dq, const IntegrationRule *ir = NULL) :
+      BilinearFormIntegrator(ir), DQ(&dq) { Q = NULL; MQ = NULL; }
+   CurlCurlIntegrator(MatrixCoefficient &mq, const IntegrationRule *ir = NULL) :
+      BilinearFormIntegrator(ir), MQ(&mq) { Q = NULL; DQ = NULL; }
 
    /* Given a particular Finite Element, compute the
       element curl-curl matrix elmat */
