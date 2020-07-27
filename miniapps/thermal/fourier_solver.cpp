@@ -1254,7 +1254,7 @@ void DGAdvectionDiffusionTDO::ImplicitSolve(const double dt, const Vector &y,
    else
    {
       yGF_ = y;
-      // yGF_.ExchangeFaceNbrData();
+      yGF_.ExchangeFaceNbrData();
    }
    /*
    double *prev_y = yGF_.GetData();
@@ -1447,7 +1447,7 @@ void DGAdvectionDiffusionTDO::NLOperator::Mult(const Vector &k_tdof,
    else
    {
       kGF_ = k_tdof;
-      // kGF_.ExchangeFaceNbrData();
+      kGF_.ExchangeFaceNbrData();
    }
    /*
    double *prev_k = kGF_.GetData();
@@ -1829,7 +1829,7 @@ DGAdvectionDiffusionTDO::NLOperator::GetGradient(const Vector &k) const
    else
    {
       kGF_ = k;
-      // kGF_.ExchangeFaceNbrData();
+      kGF_.ExchangeFaceNbrData();
    }
 
    /*
