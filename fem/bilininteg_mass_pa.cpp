@@ -41,6 +41,8 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
       InitCeedCoeff(Q, ptr);
       return CeedPAMassAssemble(fes, *ir, *ptr);
    }
+#else
+   MFEM_CONTRACT_VAR(force);
 #endif
    dim = mesh->Dimension();
    ne = fes.GetMesh()->GetNE();
@@ -61,6 +63,19 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
    {
       coeff.SetSize(1);
       coeff(0) = cQ->constant;
+   }
+   else if (QuadratureFunctionCoefficient* cQ =
+               dynamic_cast<QuadratureFunctionCoefficient*>(Q))
+   {
+      const QuadratureFunction &qFun = cQ->GetQuadFunction();
+      MFEM_VERIFY(qFun.Size() == nq * ne,
+                  "Incompatible QuadratureFunction dimension \n");
+
+      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
+                  "IntegrationRule used within integrator and in"
+                  " QuadratureFunction appear to be different");
+      qFun.Read();
+      coeff.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
    }
    else
    {
@@ -639,6 +654,7 @@ static void SmemPAMassApply2D(const int NE,
                               const int d1d = 0,
                               const int q1d = 0)
 {
+   MFEM_CONTRACT_VAR(bt_);
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
@@ -902,6 +918,7 @@ static void SmemPAMassApply3D(const int NE,
                               const int d1d = 0,
                               const int q1d = 0)
 {
+   MFEM_CONTRACT_VAR(bt_);
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int M1Q = T_Q1D ? T_Q1D : MAX_Q1D;
