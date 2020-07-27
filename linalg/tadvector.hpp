@@ -333,14 +333,14 @@ public:
       return operator()(i);
    }
    /// Read only access to Vector entries. Index i = 0 .. size-1.
-   const double &Elem(int i) const
+   const dtype &Elem(int i) const
    {
       return operator()(i);
    }
 
    /// Access Vector entries using () for 0-based indexing.
    /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
-   inline double &operator()(int i)
+   inline dtype &operator()(int i)
    {
       MFEM_ASSERT(data && i >= 0 && i < size,
                   "index [" << i << "] is out of range [0," << size << ")");
@@ -350,7 +350,7 @@ public:
 
    /// Read only access to Vector entries using () for 0-based indexing.
    /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
-   inline const double &operator()(int i) const
+   inline const dtype &operator()(int i) const
    {
       MFEM_ASSERT(data && i >= 0 && i < size,
                   "index [" << i << "] is out of range [0," << size << ")");
