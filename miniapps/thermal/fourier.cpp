@@ -1131,11 +1131,13 @@ int main(int argc, char *argv[])
    socketstream vis_qPara, vis_errqPara;
    socketstream vis_qPerp, vis_errqPerp;
    */
-   socketstream vis_T, vis_ExactT, vis_errT;
-   char vishost[] = "localhost";
-   int  visport   = 19916;
+   Visualizer vis_T;
+   Visualizer vis_ExactT;
+   Visualizer vis_ErrorT;
+
    int Wx = 0, Wy = 0; // window position
    int Ww = 400, Wh = 270; // window size
+
    int offx = Ww+3/*, offy = Wh+25*/; // window offsets
    const char * h1_keys = "mmaaAc";
    const char * l2_keys = "aaAc";
@@ -1146,9 +1148,25 @@ int main(int argc, char *argv[])
       // another set of GLVis connections (one from each rank):
       MPI_Barrier(pmesh->GetComm());
 
-      vis_T.precision(8);
-      vis_ExactT.precision(8);
-      vis_errT.precision(8);
+      vis_T.SetTitle("Temperature (t = 0.0)");
+      vis_T.SetGeometry(Wx, Wy, Ww, Wh);
+      vis_T.SetKeys(h1_keys);
+      vis_T.SetPrecision(8);
+      vis_T.VisField(T1);
+
+      Wx += offx;
+      vis_ExactT.SetTitle("Exact Temperature (t = 0.0)");
+      vis_ExactT.SetGeometry(Wx, Wy, Ww, Wh);
+      vis_ExactT.SetKeys(h1_keys);
+      vis_ExactT.SetPrecision(8);
+      vis_ExactT.VisField(ExactT);
+
+      Wx += offx;
+      vis_ErrorT.SetTitle("Error in Temperature (t = 0.0)");
+      vis_ErrorT.SetGeometry(Wx, Wy, Ww, Wh);
+      vis_ErrorT.SetKeys(l2_keys);
+      vis_ErrorT.SetPrecision(8);
+      vis_ErrorT.VisField(errorT);
       /*
       vis_q.precision(8);
       vis_errq.precision(8);
@@ -1157,17 +1175,6 @@ int main(int argc, char *argv[])
       vis_qPerp.precision(8);
       vis_errqPerp.precision(8);
       */
-      VisualizeField(vis_T, vishost, visport,
-                     T1, "Temperature", Wx, Wy, Ww, Wh, h1_keys);
-
-      Wx += offx;
-      VisualizeField(vis_ExactT, vishost, visport,
-                     ExactT, "Exact Temperature",
-                     Wx, Wy, Ww, Wh, h1_keys);
-
-      Wx += offx;
-      VisualizeField(vis_errT, vishost, visport,
-                     errorT, "Error in T", Wx, Wy, Ww, Wh, l2_keys);
       /*
       Wx += offx;
       Wy -= offy;
@@ -1405,17 +1412,18 @@ int main(int argc, char *argv[])
          T1.GridFunction::ComputeElementL2Errors(TCoef, errorT);
          ExactT.ProjectCoefficient(TCoef);
 
-         VisualizeField(vis_T, vishost, visport,
-                        T1, "Temperature",
-                        Wx, Wy, Ww, Wh, h1_keys);
+         ostringstream ossT, ossX, ossE;
+         ossT << "Temperature (t = " << t << ")";
+         ossX << "Exact Temperature (t = " << t << ")";
+         ossE << "Error in T (t = " << t << ")";
 
-         VisualizeField(vis_ExactT, vishost, visport,
-                        ExactT, "Exact Temperature",
-                        Wx, Wy, Ww, Wh, h1_keys);
+         vis_T.SetTitle(ossT.str());
+         vis_ExactT.SetTitle(ossX.str());
+         vis_ErrorT.SetTitle(ossE.str());
 
-         VisualizeField(vis_errT, vishost, visport,
-                        errorT, "Error in T",
-                        Wx, Wy, Ww, Wh, l2_keys);
+         vis_T.VisField(T1);
+         vis_ExactT.VisField(ExactT);
+         vis_ErrorT.VisField(errorT);
       }
    }
 
@@ -1425,9 +1433,9 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       // vis_q.close();
-      vis_T.close();
-      vis_ExactT.close();
-      vis_errT.close();
+      vis_T.Close();
+      vis_ExactT.Close();
+      vis_ErrorT.Close();
       /*
       vis_errq.close();
       vis_errqPara.close();
