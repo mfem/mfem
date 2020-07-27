@@ -363,7 +363,7 @@ public:
    ~CoefFactory();
 
    void StealData(Array<Coefficient*> &c) { c = coefs; coefs.LoseData(); }
-  
+
    int AddExternalFactory(CoefFactory &cf) { return ext_fac.Append(&cf); }
 
    int AddExternalGridFunction(GridFunction &gf) { return ext_gf.Append(&gf); }
@@ -416,9 +416,11 @@ public:
 
    ~AdvectionDiffusionBC();
 
+   static const char * GetBCTypeName(BCType bctype);
+
    void LoadBCs(CoefFactory &cf, std::istream &input)
    { coefFact = &cf; ReadBCs(input); }
-  
+
    // Enforce u = val on boundaries with attributes in bdr
    void AddDirichletBC(const Array<int> & bdr, Coefficient &val);
 
