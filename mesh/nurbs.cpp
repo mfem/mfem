@@ -40,8 +40,23 @@ KnotVector::KnotVector(int Order_, int NCP)
    Order = Order_;
    NumOfControlPoints = NCP;
    knot.SetSize(NumOfControlPoints + Order + 1);
-   knot = -1.;
+
+   int i;
+   for (i = 0; i < Order+1; i++)
+   {
+      knot[i] = 0.0;
+   }
+   for (i = Order+1; i < NumOfControlPoints; i++)
+   {
+      knot[i] = (i-Order)/double(NumOfControlPoints-Order);
+   }
+   for (i = NumOfControlPoints ; i < NumOfControlPoints + Order + 1; i++)
+   {
+      knot[i] = 1.0;
+   }
+
    NumOfElements = 0;
+   GetElements();
 }
 
 KnotVector &KnotVector::operator=(const KnotVector &kv)
@@ -686,6 +701,16 @@ NURBSPatch::NURBSPatch(NURBSPatch *parent, int dir, int Order, int NCP)
    projected = parent->isProjected();
 }
 
+NURBSPatch::NURBSPatch(int kv_dim, int dim_)
+{
+   kv.SetSize(kv_dim);
+   for (int i = 0; i < kv.Size(); i++)
+      kv[i] = new KnotVector(1,2);
+
+   init(dim_);
+   projected = false;
+}
+
 void NURBSPatch::swap(NURBSPatch *np)
 {
    if (data != NULL)
@@ -911,7 +936,6 @@ void NURBSPatch::UndoProjection()
    projected = false;
    return;
 }
-
 
 void NURBSPatch::UniformRefinement()
 {

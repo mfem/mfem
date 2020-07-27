@@ -125,6 +125,7 @@ public:
    NURBSPatch(const KnotVector *kv0, const KnotVector *kv1,
               const KnotVector *kv2, int dim_);
    NURBSPatch(Array<const KnotVector *> &kv, int dim_);
+   NURBSPatch(int kv_dim, int dim_);
 
    ~NURBSPatch();
 
