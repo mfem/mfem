@@ -51,26 +51,24 @@ QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
                "Only scalar finite elements are supported");
 }
 
-template<>
-void QuadratureInterpolator::Mult<QVectorLayout::UNSET>(
-   const Vector &e_vec,
-   unsigned eval_flags,
-   Vector &q_val,
-   Vector &q_der,
-   Vector &q_det) const
+void QuadratureInterpolator::Mult(const Vector &e_vec,
+                                  unsigned eval_flags,
+                                  Vector &q_val,
+                                  Vector &q_der,
+                                  Vector &q_det) const
 {
-   dbg("%s", q_layout == QVectorLayout::byVDIM ? "byVDIM" : "byNODES");
-   dbg("use_tensor_products: %s", use_tensor_products ? "true" : "false");
-
-   if (q_layout == QVectorLayout::byVDIM)
-   { Mult<QVectorLayout::byVDIM>(e_vec, eval_flags, q_val, q_der, q_det); }
-
    if (q_layout == QVectorLayout::byNODES)
    {
       if (use_tensor_products)
       {
-         if (eval_flags & VALUES) { EvalByNodesTensor(e_vec, q_val); }
-         if (eval_flags & DERIVATIVES) { GradByNodesTensor(e_vec, q_der); }
+         if (eval_flags & VALUES)
+         {
+            Values<QVectorLayout::byNODES>(e_vec, q_val);
+         }
+         if (eval_flags & DERIVATIVES)
+         {
+            Derivatives<QVectorLayout::byNODES>(e_vec, q_der);
+         }
          if (eval_flags & DETERMINANTS)
          {
             MFEM_ABORT("tensor evaluation of determinants with 'byNODES'"
@@ -78,48 +76,120 @@ void QuadratureInterpolator::Mult<QVectorLayout::UNSET>(
          }
       }
       else
-      { Mult<QVectorLayout::byNODES>(e_vec, eval_flags, q_val, q_der, q_det); }
+      {
+         Mult<QVectorLayout::byNODES>(e_vec, eval_flags, q_val, q_der, q_det);
+      }
+   }
+
+   if (q_layout == QVectorLayout::byVDIM)
+   {
+      if (use_tensor_products)
+      {
+         if (eval_flags & VALUES)
+         {
+            Values<QVectorLayout::byVDIM>(e_vec, q_val);
+         }
+         if (eval_flags & DERIVATIVES)
+         {
+            Derivatives<QVectorLayout::byVDIM>(e_vec, q_der);
+         }
+         if (eval_flags & DETERMINANTS)
+         {
+            MFEM_ABORT("tensor evaluation of determinants with 'byVDIM'"
+                       " output layout is not implemented yet!");
+         }
+      }
+      else
+      {
+         MFEM_ABORT("this method is not implemented yet");
+      }
    }
 }
 
-void QuadratureInterpolator::MultTranspose(
-   unsigned eval_flags, const Vector &q_val, const Vector &q_der,
-   Vector &e_vec) const
+void QuadratureInterpolator::MultTranspose(unsigned eval_flags,
+                                           const Vector &q_val,
+                                           const Vector &q_der,
+                                           Vector &e_vec) const
 {
    MFEM_ABORT("this method is not implemented yet");
 }
 
-template<>
-void QuadratureInterpolator::Values<QVectorLayout::UNSET>(
-   const Vector &e_vec, Vector &q_val) const
+void QuadratureInterpolator::Values(const Vector &e_vec,
+                                    Vector &q_val) const
 {
-   if (q_layout == QVectorLayout::byNODES)
-   { Values<QVectorLayout::byNODES>(e_vec, q_val); }
+   if (use_tensor_products)
+   {
+      if (q_layout == QVectorLayout::byNODES)
+      {
+         Values<QVectorLayout::byNODES>(e_vec, q_val);
+      }
 
-   if (q_layout == QVectorLayout::byVDIM)
-   { Values<QVectorLayout::byVDIM>(e_vec, q_val); }
+      if (q_layout == QVectorLayout::byVDIM)
+      {
+         Values<QVectorLayout::byVDIM>(e_vec, q_val);
+      }
+   }
+   else
+   {
+      if (q_layout == QVectorLayout::byNODES)
+      {
+         Vector empty;
+         Mult<QVectorLayout::byNODES>(e_vec, VALUES, q_val, empty, empty);
+      }
+      else
+      {
+         MFEM_ABORT("this method is not implemented yet");
+      }
+   }
 }
 
-template<>
-void QuadratureInterpolator::Derivatives<QVectorLayout::UNSET>(
-   const Vector &e_vec, Vector &q_der) const
+void QuadratureInterpolator::Derivatives(const Vector &e_vec,
+                                         Vector &q_der) const
 {
-   if (q_layout == QVectorLayout::byNODES)
-   { Derivatives<QVectorLayout::byNODES>(e_vec, q_der); }
+   if (use_tensor_products)
+   {
+      if (q_layout == QVectorLayout::byNODES)
+      {
+         Derivatives<QVectorLayout::byNODES>(e_vec, q_der);
+      }
 
-   if (q_layout == QVectorLayout::byVDIM)
-   { Derivatives<QVectorLayout::byVDIM>(e_vec, q_der); }
+      if (q_layout == QVectorLayout::byVDIM)
+      {
+         Derivatives<QVectorLayout::byVDIM>(e_vec, q_der);
+      }
+   }
+   else
+   {
+      if (q_layout == QVectorLayout::byNODES)
+      {
+         Vector empty;
+         Mult<QVectorLayout::byNODES>(e_vec, DERIVATIVES, empty, q_der, empty);
+      }
+      if (q_layout == QVectorLayout::byVDIM)
+      {
+         MFEM_ABORT("this method is not implemented yet");
+      }
+   }
 }
 
-template<>
-void QuadratureInterpolator::PhysDerivatives<QVectorLayout::UNSET>(
-   const Vector &e_vec, Vector &q_der) const
+void QuadratureInterpolator::PhysDerivatives(const Vector &e_vec,
+                                             Vector &q_der) const
 {
-   if (q_layout == QVectorLayout::byNODES)
-   { PhysDerivatives<QVectorLayout::byNODES>(e_vec, q_der); }
-
-   if (q_layout == QVectorLayout::byVDIM)
-   { PhysDerivatives<QVectorLayout::byVDIM>(e_vec, q_der); }
+   if (use_tensor_products)
+   {
+      if (q_layout == QVectorLayout::byNODES)
+      {
+         MFEM_ABORT("this method is not implemented yet");
+      }
+      if (q_layout == QVectorLayout::byVDIM)
+      {
+         PhysDerivatives<QVectorLayout::byVDIM>(e_vec, q_der);
+      }
+   }
+   else
+   {
+      MFEM_ABORT("this method is not implemented yet");
+   }
 }
 
 } // namespace mfem

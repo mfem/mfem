@@ -14,9 +14,6 @@
 #include "../linalg/dtensor.hpp"
 #include "../linalg/kernels.hpp"
 
-#define MFEM_DEBUG_COLOR 226
-#include "../general/debug.hpp"
-
 namespace mfem
 {
 
@@ -218,10 +215,10 @@ static void D2QValues3D(const int NE,
    });
 }
 
-void QuadratureInterpolator::D2QValues(const FiniteElementSpace &fes,
-                                       const DofToQuad *maps,
-                                       const Vector &e_vec,
-                                       Vector &q_val)
+static void D2QValues(const FiniteElementSpace &fes,
+                      const DofToQuad *maps,
+                      const Vector &e_vec,
+                      Vector &q_val)
 {
    const int dim = fes.GetMesh()->Dimension();
    const int vdim = fes.GetVDim();
@@ -276,6 +273,18 @@ void QuadratureInterpolator::D2QValues(const FiniteElementSpace &fes,
    }
    mfem::out << "Unknown kernel 0x" << std::hex << id << std::endl;
    MFEM_ABORT("Unknown kernel");
+}
+
+template<>
+void QuadratureInterpolator::Values<QVectorLayout::byVDIM>(
+   const Vector &e_vec, Vector &q_val) const
+{
+   MFEM_VERIFY(q_layout == QVectorLayout::byVDIM, "");
+   if (fespace->GetNE() == 0) { return; }
+   const IntegrationRule &ir = *IntRule;
+   const DofToQuad::Mode mode = DofToQuad::TENSOR;
+   const DofToQuad &d2q = fespace->GetFE(0)->GetDofToQuad(ir, mode);
+   D2QValues(*fespace, &d2q, e_vec, q_val);
 }
 
 } // namespace mfem

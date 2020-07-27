@@ -21,9 +21,107 @@ namespace mfem
 {
 
 template<int T_VDIM, int T_D1D, int T_Q1D,
-         const int MAX_ND3D = QuadratureInterpolator::MAX_ND3D,
-         const int MAX_NQ3D = QuadratureInterpolator::MAX_NQ3D,
-         const int MAX_VDIM3D = QuadratureInterpolator::MAX_VDIM3D>
+         int T_NBZ =1, int MAX_D1D = 0, int MAX_Q1D = 0>
+static void GradTensor2D(const int NE,
+                         const double *b_,
+                         const double *g_,
+                         const double *x_,
+                         double *y_,
+                         const int vdim = 1,
+                         const int d1d = 0,
+                         const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   const int VDIM = T_VDIM ? T_VDIM : vdim;
+
+   const auto b = Reshape(b_, Q1D, D1D);
+   const auto g = Reshape(g_, Q1D, D1D);
+   const auto x = Reshape(x_,  D1D, D1D, VDIM, NE);
+   auto y = Reshape(y_, Q1D, Q1D, VDIM, 2, NE);
+
+   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      const int VDIM = T_VDIM ? T_VDIM : vdim;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+      const int tidz = MFEM_THREAD_ID(z);
+      MFEM_SHARED double s_B[MQ1][MD1];
+      MFEM_SHARED double s_G[MQ1][MD1];
+      DeviceTensor<2,double> B((double*)(s_B), Q1D, D1D);
+      DeviceTensor<2,double> G((double*)(s_G), Q1D, D1D);
+
+      MFEM_SHARED double s_X[NBZ][MD1*MD1];
+      DeviceTensor<2,double> X((double*)(s_X+tidz), MD1, MD1);
+
+      MFEM_SHARED double sm[2][NBZ][MD1*MQ1];
+      DeviceTensor<2,double> DQ0((double*)(sm[0]+tidz), MD1, MQ1);
+      DeviceTensor<2,double> DQ1((double*)(sm[1]+tidz), MD1, MQ1);
+
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(d,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q1D)
+            {
+               B(q,d) = b(q,d);
+               G(q,d) = g(q,d);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      for (int c = 0; c < VDIM; ++c)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            MFEM_FOREACH_THREAD(dy,y,D1D)
+            {
+               X(dx,dy) = x(dx,dy,c,e);
+            }
+         }
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               double u = 0.0;
+               double v = 0.0;
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  const double input = X(dx,dy);
+                  u += input * B(qx,dx);
+                  v += input * G(qx,dx);
+               }
+               DQ0(dy,qx) = u;
+               DQ1(dy,qx) = v;
+            }
+         }
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               double u = 0.0;
+               double v = 0.0;
+               for (int dy = 0; dy < D1D; ++dy)
+               {
+                  u += DQ1(dy,qx) * B(qy,dy);
+                  v += DQ0(dy,qx) * G(qy,dy);
+               }
+               y(qx,qy,c,0,e) = u;
+               y(qx,qy,c,1,e) = v;
+            }
+         }
+      }
+   });
+}
+
+template<int T_VDIM, int T_D1D, int T_Q1D, int MAX_D1D = 0, int MAX_Q1D = 0>
 static void GradTensor3D(const int NE,
                          const double *b_,
                          const double *g_,
@@ -47,8 +145,8 @@ static void GradTensor3D(const int NE,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_NQ3D;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_ND3D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
 
       const int tidz = MFEM_THREAD_ID(z);
       MFEM_SHARED double s_B[MQ1][MD1];
@@ -159,7 +257,8 @@ static void GradTensor3D(const int NE,
    });
 }
 
-void QuadratureInterpolator::GradByNodesTensor(
+template<>
+void QuadratureInterpolator::Derivatives<QVectorLayout::byNODES>(
    const Vector &e_vec, Vector &q_der) const
 {
    const int NE = fespace->GetNE();
@@ -177,25 +276,47 @@ void QuadratureInterpolator::GradByNodesTensor(
    const double *X = e_vec.Read();
    double *Y = q_der.Write();
 
-   const int id = (vdim<<8) | (D1D<<4) | Q1D;
+   const int id = (dim<<12) | (vdim<<8) | (D1D<<4) | Q1D;
 
-   if (dim == 3)
+   switch (id)
    {
-      switch (id)
-      {
-         case 0x124: return GradTensor3D<1,2,4>(NE,B,G,X,Y);
-         case 0x136: return GradTensor3D<1,3,6>(NE,B,G,X,Y);
-         case 0x148: return GradTensor3D<1,4,8>(NE,B,G,X,Y);
+      case 0x2222: return GradTensor2D<2,2,2>(NE,B,G,X,Y);
+      case 0x2223: return GradTensor2D<2,2,3>(NE,B,G,X,Y);
+      case 0x2224: return GradTensor2D<2,2,4>(NE,B,G,X,Y);
+      case 0x2226: return GradTensor2D<2,2,6>(NE,B,G,X,Y);
+      case 0x2234: return GradTensor2D<2,3,4>(NE,B,G,X,Y);
+      case 0x2236: return GradTensor2D<2,3,6>(NE,B,G,X,Y);
+      case 0x2244: return GradTensor2D<2,4,4>(NE,B,G,X,Y);
+      case 0x2246: return GradTensor2D<2,4,6>(NE,B,G,X,Y);
+      case 0x2256: return GradTensor2D<2,5,6>(NE,B,G,X,Y);
 
-         case 0x324: return GradTensor3D<3,2,4>(NE,B,G,X,Y);
-         case 0x333: return GradTensor3D<3,3,3>(NE,B,G,X,Y);
-         case 0x335: return GradTensor3D<3,3,5>(NE,B,G,X,Y);
-         case 0x336: return GradTensor3D<3,3,6>(NE,B,G,X,Y);
-         case 0x348: return GradTensor3D<3,4,8>(NE,B,G,X,Y);
+      case 0x3124: return GradTensor3D<1,2,4>(NE,B,G,X,Y);
+      case 0x3136: return GradTensor3D<1,3,6>(NE,B,G,X,Y);
+      case 0x3148: return GradTensor3D<1,4,8>(NE,B,G,X,Y);
+
+      case 0x3324: return GradTensor3D<3,2,4>(NE,B,G,X,Y);
+      case 0x3333: return GradTensor3D<3,3,3>(NE,B,G,X,Y);
+      case 0x3335: return GradTensor3D<3,3,5>(NE,B,G,X,Y);
+      case 0x3336: return GradTensor3D<3,3,6>(NE,B,G,X,Y);
+      case 0x3348: return GradTensor3D<3,4,8>(NE,B,G,X,Y);
+      default:
+      {
+         constexpr int MD1 = 8;
+         constexpr int MQ1 = 8;
+         MFEM_VERIFY(D1D <= MD1, "Orders higher than " << MD1-1
+                     << " are not supported!");
+         MFEM_VERIFY(Q1D <= MQ1, "Quadrature rules with more than "
+                     << MQ1 << " 1D points are not supported!");
+         //if (dim == 2) { GradTensor2D<0,0,0,MD1,MQ1>(NE,B,G,X,Y,vdim,D1D,Q1D); }
+         if (dim == 3)
+         {
+            return GradTensor3D<0,0,0,MD1,MQ1>(NE,B,G,X,Y,vdim,D1D,Q1D);
+         }
       }
+
    }
    dbg("0x%x",id);
-   MFEM_ABORT("");
+   MFEM_ABORT("Kernel not supported yet");
 }
 
 } // namespace mfem

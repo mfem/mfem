@@ -20,9 +20,8 @@ namespace mfem
 /// Type describing possible layouts for Q-vectors.
 enum class QVectorLayout
 {
-   UNSET   = 0,
-   byNODES = 1 << 0, ///< NQPT x VDIM x NE
-   byVDIM  = 1 << 1  ///< VDIM x NQPT x NE
+   byNODES, ///< NQPT x VDIM x NE
+   byVDIM   ///< VDIM x NQPT x NE
 };
 
 /** @brief A class that performs interpolation from an E-vector to quadrature
@@ -44,7 +43,7 @@ protected:
    const IntegrationRule *IntRule;     ///< Not owned
    mutable QVectorLayout q_layout;     ///< Output Q-vector layout
 
-   mutable bool use_tensor_products;
+   mutable bool use_tensor_products;   ///< Tensor product evaluation mmode
 
 public:
    static const int MAX_NQ2D = 100;
@@ -75,13 +74,11 @@ public:
 
    /** @brief Disable the use of tensor product evaluations, for tensor-product
        elements, e.g. quads and hexes. */
-   /** Currently, tensor product evaluations are not implemented and this method
-       has no effect. */
-   void DisableTensorProducts(bool disable = true) const
-   { use_tensor_products = !disable; }
+   void DisableTensorProducts() const { use_tensor_products = false; }
 
-   void EnableTensorProducts(bool enable = true) const
-   { use_tensor_products = enable; }
+   /** @brief Enable the use of tensor product evaluations, for tensor-product
+       elements, e.g. quads and hexes. */
+   void EnableTensorProducts() const { use_tensor_products = true; }
 
    /** @brief Query the current evaluation mode. */
    bool UseTensorProducts() const { return use_tensor_products; }
@@ -92,8 +89,7 @@ public:
 
    /** @brief Set the desired output Q-vector layout. The default value is
        QVectorLayout::byNODES. */
-   void SetOutputLayout(QVectorLayout out_layout) const
-   { q_layout = out_layout; }
+   void SetOutputLayout(QVectorLayout layout) const { q_layout = layout; }
 
    /// Interpolate the E-vector @a e_vec to quadrature points.
    /** The @a eval_flags are a bitwise mask of constants from the EvalFlags
@@ -104,22 +100,27 @@ public:
        form a matrix at each quadrature point (i.e. the associated
        FiniteElementSpace is a vector space) and their determinants are computed
        and stored in @a q_det. */
-   template<QVectorLayout = QVectorLayout::UNSET>
+   template <QVectorLayout>
+   void Mult(const Vector &e_vec, unsigned eval_flags,
+             Vector &q_val, Vector &q_der, Vector &q_det) const;
    void Mult(const Vector &e_vec, unsigned eval_flags,
              Vector &q_val, Vector &q_der, Vector &q_det) const;
 
    /// Interpolate the values of the E-vector @a e_vec at quadrature points.
-   template<QVectorLayout = QVectorLayout::UNSET>
+   template <QVectorLayout>
+   void Values(const Vector &e_vec, Vector &q_val) const;
    void Values(const Vector &e_vec, Vector &q_val) const;
 
    /** @brief Interpolate the derivatives of the E-vector @a e_vec at quadrature
        points. */
-   template<QVectorLayout = QVectorLayout::UNSET>
+   template <QVectorLayout>
+   void Derivatives(const Vector &e_vec, Vector &q_der) const;
    void Derivatives(const Vector &e_vec, Vector &q_der) const;
 
    /** @brief Interpolate the derivatives in physical space of the E-vector
        @a e_vec at quadrature points. */
-   template<QVectorLayout = QVectorLayout::UNSET>
+   template <QVectorLayout>
+   void PhysDerivatives(const Vector &e_vec, Vector &q_der) const;
    void PhysDerivatives(const Vector &e_vec, Vector &q_der) const;
 
    /// Perform the transpose operation of Mult(). (TODO)
@@ -127,7 +128,6 @@ public:
                       const Vector &q_der, Vector &e_vec) const;
 
    // Compute kernels follow (cannot be private or protected with nvcc)
-
    /// Template compute kernel for 2D.
    template<const int T_VDIM = 0, const int T_ND = 0, const int T_NQ = 0>
    static void Mult2D(const int NE,
@@ -149,30 +149,6 @@ public:
                       Vector &q_der,
                       Vector &q_det,
                       const int eval_flags);
-   ///
-   void EvalByNodesTensor(const Vector &e_vec, Vector &q_val) const;
-
-   ///
-   void GradByNodesTensor(const Vector &e_vec, Vector &q_der) const;
-
-   /// Interpolate kernels with QVectorLayout::byVDIM.
-   static void D2QValues(const FiniteElementSpace &fes,
-                         const DofToQuad *maps,
-                         const Vector &e_vec,
-                         Vector &q_val);
-
-   /// Derivative kernels with QVectorLayout::byVDIM.
-   static void D2QGrad(const FiniteElementSpace &fes,
-                       const DofToQuad *maps,
-                       const Vector &e_vec,
-                       Vector &q_der);
-
-   /// Derivative in physical space kernels with QVectorLayout::byVDIM.
-   static void D2QPhysGrad(const FiniteElementSpace &fes,
-                           const GeometricFactors *geom,
-                           const DofToQuad *maps,
-                           const Vector &e_vec,
-                           Vector &q_der);
 };
 
 }
