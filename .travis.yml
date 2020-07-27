@@ -326,7 +326,7 @@ before_install:
    #      brew install open-mpi;
    #   fi
 
-   # Disable the use ccache while building dependencies that are cached:
+   # Disable ccache while building dependencies that are cached:
    - echo "before \$PATH = $PATH";
      export PATH=${PATH//\/usr\/lib\/ccache:/};
      echo "after  \$PATH = $PATH"
