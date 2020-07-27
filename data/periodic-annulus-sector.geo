@@ -48,10 +48,10 @@ Transfinite Curve{4} = nazm2+1;
 If (nazm1 == nazm2)
    Transfinite Surface{1};
 EndIf
+
 If (type == 4)
    Recombine Surface {1};
 EndIf
-
 
 // Set a rotation periodicity constraint:
 If (periodic)
@@ -75,4 +75,3 @@ If (periodic)
 Else
    Save Sprintf("annulus-sector-t%01g-o%01g.msh", type, order);
 EndIf
-   
