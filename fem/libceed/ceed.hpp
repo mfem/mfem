@@ -146,7 +146,7 @@ void CeedPAAssemble(const CeedPAOperator& op,
 
 /** @brief Function that applies a libCEED PA operator. */
 void CeedAddMultPA(const CeedData ceedDataPtr, const Vector &x,
-                            Vector &y);
+                   Vector &y);
 
 /** @brief Function that assembleds a libCEED PA operator diagonal. */
 void CeedAssembleDiagonalPA(const CeedData ceedDataPtr, Vector &diag);
