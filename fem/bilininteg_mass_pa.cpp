@@ -443,7 +443,7 @@ void MassIntegrator::AssembleDiagonalPA(Vector &diag)
 #ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
-      CeedAssembleDiagonalPA(ceedDataPtr, diag);
+      CeedAssembleDiagonalPA(*ceedDataPtr, diag);
    }
    else
 #endif
@@ -1202,7 +1202,7 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 #ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
-      CeedAddMultPA(ceedDataPtr, x, y);
+      CeedAddMultPA(*ceedDataPtr, x, y);
    }
    else
 #endif
