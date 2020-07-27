@@ -804,32 +804,6 @@ CartesianParMeshPartition::CartesianParMeshPartition(ParMesh * pmesh_,
       }
    }
 
-
-
-   if (myid==0)
-   {
-      for (int ip = 0; ip<nrsubdomains; ip++)
-      {
-         if(local_element_map[ip])
-         {
-            cout << "myid: " << myid <<", subdomain: " << ip 
-            << ", elements " ; local_element_map[ip].Print(cout,10);
-         }
-      }
-   }
-   MPI_Barrier(comm);
-   if (myid==1)
-   {
-      for (int ip = 0; ip<nrsubdomains; ip++)
-      {
-         if(local_element_map[ip])
-         {
-            cout << "myid: " << myid <<", subdomain: " << ip 
-            << ", elements " ; local_element_map[ip].Print(cout,10);
-         }
-      }
-   }
-
    Array<int>subdomain_size(nrsubdomains);
    for (int ip = 0; ip < nrsubdomains; ++ip)
    {
@@ -876,8 +850,6 @@ CartesianParMeshPartition::CartesianParMeshPartition(ParMesh * pmesh_,
    }
 }
 
-
-
 ParMeshPartition::ParMeshPartition(ParMesh* pmesh_,
          int nx, int ny, int nz, int nrlayers) : pmesh(pmesh_)
 {
@@ -905,99 +877,108 @@ ParMeshPartition::ParMeshPartition(ParMesh* pmesh_,
 
    // communicate the element map to every processor that is involved
    element_map.resize(nrsubdomains);
+   // Alternative way to construct element_map on the host rank
+   // Each contributing process sends the contents of local_element_map
+   // to the host rank
+   Array<int> send_count(num_procs); send_count = 0;
+   Array<int> send_displ(num_procs); send_displ = 0;
+   Array<int> recv_count(num_procs); recv_count = 0;
+   Array<int> recv_displ(num_procs); recv_displ = 0;
+   
    for (int ip = 0; ip < nrsubdomains; ++ip)
    {
-      Array<int> count(num_procs);
-      int size = local_element_map[ip].Size();
-      count[myid] = size;
-      MPI_Allgather(&size, 1, MPI_INT, count, 1, MPI_INT, comm);
-      Array<int>displs(num_procs);
-      displs[0] = 0;
-      for (int j = 1; j < num_procs; j++)
+      // a) subdomain number
+      // b) subdomain size (local) number of elements
+      // c) the list of elements
+      if (local_element_map[ip].Size())
       {
-         displs[j] = displs[j-1] + count[j-1];
+         send_count[subdomain_rank[ip]] += 1+1+local_element_map[ip].Size();
       }
-      int tot_size = displs[num_procs - 1] + count[num_procs - 1];
-      // Get a group identifier for comm.
-      MPI_Group world_group_id;
-      MPI_Comm new_comm = MPI_COMM_NULL;
-      MPI_Group new_group_id;
-      MPI_Comm_group (comm, &world_group_id);
-      // count the ranks that do not have zero length
-      int num_ranks = 0;
-      for (int k = 0; k<num_procs; k++)
+   }
+   
+   MPI_Alltoall(send_count,1,MPI_INT,recv_count,1,MPI_INT,comm);
+   for (int k=0; k<num_procs-1; k++)
+   {
+      send_displ[k+1] = send_displ[k] + send_count[k];
+      recv_displ[k+1] = recv_displ[k] + recv_count[k];
+   }
+   int sbuff_size = send_count.Sum();
+   int rbuff_size = recv_count.Sum();
+   Array<int> sendbuf(sbuff_size);  sendbuf = 0;
+   Array<int> soffs(num_procs);     soffs = 0;
+
+   for (int ip = 0; ip < nrsubdomains; ++ip)
+   {
+      // a) subdomain number
+      // b) subdomain size (local) number of elements
+      // c) the list of elements
+      if (local_element_map[ip].Size())
       {
-         if (count[k] != 0)
+         int j = send_displ[subdomain_rank[ip]] + soffs[subdomain_rank[ip]];
+         sendbuf[j] = ip;
+         sendbuf[j+1] = local_element_map[ip].Size();
+         for (int i=0; i<local_element_map[ip].Size(); i++)
          {
-            num_ranks++;
+            sendbuf[j+2+i] = local_element_map[ip][i];
          }
+         soffs[subdomain_rank[ip]] += 1 + 1 + local_element_map[ip].Size();
       }
-      Array<int> new_count(num_ranks);
-      Array<int> new_displs(num_ranks);
-      int sub_comm_ranks[num_ranks];
-      num_ranks = 0;
-      for (int j = 0; j <num_procs ; j++ )
-      {
-         if (count[j] != 0)
-         {
-            sub_comm_ranks[num_ranks] = j;
-            new_count[num_ranks] = count[j];
-            new_displs[num_ranks] = displs[j];
-            num_ranks++;
-         }
-      }
-      MPI_Group_incl(world_group_id, num_ranks, sub_comm_ranks, &new_group_id);
-      MPI_Comm_create(comm, new_group_id, &new_comm);
-      if (size != 0)
-      {
-         element_map[ip].SetSize(tot_size);
-         MPI_Allgatherv(local_element_map[ip],size,MPI_INT,
-                        element_map[ip],new_count,new_displs,MPI_INT,new_comm);
-      }
-      MPI_Group_free(&world_group_id);
-      MPI_Group_free(&new_group_id);
-      if (new_comm != MPI_COMM_NULL) { MPI_Comm_free(&new_comm); }
    }
 
-   // Now each process will send the vertex coords and elements 
-   // to the subdomain's host rank
-   Array<int> send_count(num_procs);
-   Array<int> send_displ(num_procs);
-   Array<int> recv_count(num_procs);
-   Array<int> recv_displ(num_procs);
-   send_count = 0;
-   send_displ = 0;
-   recv_count = 0;
-   recv_displ = 0;
+   Array<int> recvbuf(rbuff_size);
+   MPI_Alltoallv(sendbuf, send_count, send_displ, MPI_INT, recvbuf,
+                 recv_count, recv_displ, MPI_INT, comm);
 
-   // send buffer for coordinates
-   Array<int> send_count_d(num_procs);
-   Array<int> send_displ_d(num_procs);
-   Array<int> recv_count_d(num_procs);
-   Array<int> recv_displ_d(num_procs);
-   send_count_d = 0;
-   send_displ_d = 0;
-   recv_count_d = 0;
-   recv_displ_d = 0;
+   // recv_count.Print();
 
+   // Extract from recvbuff
+   int k=0;
+   while (k<rbuff_size)
+   {
+      int ip = recvbuf[k]; 
+      int ipsize = recvbuf[k+1];
+      for (int i=0; i<ipsize; i++)
+      {
+         element_map[ip].Append(recvbuf[k+2+i]);
+      }
+      k += 1+1+ipsize;
+   }
 
    for (int ip = 0; ip < nrsubdomains; ++ip)
    {
       if (myid == subdomain_rank[ip]) 
       {
          cout << "myid, ip " << myid << ", " << ip 
-         << ", elems = " ; element_map[ip].Print(); 
+         << ", elems = " ; element_map[ip].Print(cout,20); 
       }
+   }
+
+
+   // Now each process sends the vertex coords and elements 
+   // to the subdomain's host rank
+   send_count = 0;
+   send_displ = 0;
+   recv_count = 0;
+   recv_displ = 0;
+
+   // send buffer for coordinates
+   Array<int> send_count_d(num_procs); send_count_d = 0;
+   Array<int> send_displ_d(num_procs); send_displ_d = 0;
+   Array<int> recv_count_d(num_procs); recv_count_d = 0;
+   Array<int> recv_displ_d(num_procs); recv_displ_d = 0;
+
+   for (int ip = 0; ip < nrsubdomains; ++ip)
+   {
       // a) patch no
       // b) element global number
       // c) type of the element (int)
-      // c) number of vertices
-      // d) global index of vertices
-      // e) the coordinates of the vertices (x,y,z) 
+      // d) number of vertices
+      // e) global index of vertices
+      // f) the coordinates of the vertices (x,y,z) 
       //---------------------------------------------
       // get local element_map size
       int subdomain_local_nelems = local_element_map[ip].Size();
-      if (subdomain_local_nelems !=0) // the rank is contributing to the subdomain ip
+      if (subdomain_local_nelems) // the rank is contributing to the subdomain ip
       {
          // loop through the elements
          for (int iel=0; iel<subdomain_local_nelems; ++iel)
@@ -1023,24 +1004,18 @@ ParMeshPartition::ParMeshPartition(ParMesh* pmesh_,
       send_displ_d[k+1] = send_displ_d[k] + send_count_d[k];
       recv_displ_d[k+1] = recv_displ_d[k] + recv_count_d[k];
    }
-   int sbuff_size = send_count.Sum();
-   int rbuff_size = recv_count.Sum();
-
+   sbuff_size = send_count.Sum();
+   rbuff_size = recv_count.Sum();
    int sbuff_size_d = send_count_d.Sum();
    int rbuff_size_d = recv_count_d.Sum();
 
    // now allocate space for the send buffer
-   Array<int> sendbuf(sbuff_size);
-   sendbuf = 0;
-   Array<int> soffs(num_procs);
+   sendbuf.SetSize(sbuff_size); sendbuf = 0;
    soffs = 0;
 
-   Array<double> sendbuf_d(sbuff_size_d);
-   sendbuf_d = 0.0;
-   Array<int> soffs_d(num_procs);
-   soffs_d = 0;
+   Array<double> sendbuf_d(sbuff_size_d);  sendbuf_d = 0.0;
+   Array<int> soffs_d(num_procs);  soffs_d = 0;
 
-   // now the data will be placed according to process offsets
    FiniteElementCollection * aux_fec = new H1_FECollection(1, dim);
    ParFiniteElementSpace * aux_fespace = new ParFiniteElementSpace(pmesh, aux_fec);
    for (int ip = 0; ip < nrsubdomains; ++ip)
@@ -1089,7 +1064,7 @@ ParMeshPartition::ParMeshPartition(ParMesh* pmesh_,
    delete aux_fec;
 
    // Communication
-   Array<int> recvbuf(rbuff_size);
+   recvbuf.SetSize(rbuff_size);
    MPI_Alltoallv(sendbuf, send_count, send_displ, MPI_INT, recvbuf,
                  recv_count, recv_displ, MPI_INT, comm);
 
@@ -1105,23 +1080,21 @@ ParMeshPartition::ParMeshPartition(ParMesh* pmesh_,
    std::vector<Array<double>> subdomain_vertex_xcoord(nrsubdomains);
    std::vector<Array<double>> subdomain_vertex_ycoord(nrsubdomains);
    std::vector<Array<double>> subdomain_vertex_zcoord(nrsubdomains);
-   int k=0;
-   int kd=0;
 
+   k=0;
+   int kd=0;
    while (k<rbuff_size)
    {
-      int ip = recvbuf[k];
-      k++;
-      subdomain_elements[ip].Append(recvbuf[k]);
-      k++;
-      subdomain_elements_type[ip].Append(recvbuf[k]);
-      k++;
-      int nrvert = recvbuf[k];
-      k++;
+      int ip = recvbuf[k]; k++;
+      subdomain_elements[ip].Append(recvbuf[k]); k++;
+      subdomain_elements_type[ip].Append(recvbuf[k]); k++;
+      int nrvert = recvbuf[k]; k++;
       int id = 0;
       for (int iv = 0; iv < nrvert; ++iv)
       {
-         subdomain_vertices[ip].Append(recvbuf[k+iv]);
+         int vertid = recvbuf[k+iv];
+         // if (sets[ip]->insert(vertid).second) continue;
+         subdomain_vertices[ip].Append(vertid);
          subdomain_vertex_xcoord[ip].Append(recvbuf_d[kd+iv+id]);
          subdomain_vertex_ycoord[ip].Append(recvbuf_d[kd+iv+1+id]);
          if (dim == 3) { subdomain_vertex_zcoord[ip].Append(recvbuf_d[kd+iv+2+id]); }
@@ -1168,7 +1141,7 @@ ParMeshPartition::ParMeshPartition(ParMesh* pmesh_,
          int l = 0;
          for (int iel=0; iel<subdomain_nrelems; ++iel)
          {
-            enum mfem::Element::Type elem_type;
+            mfem::Element::Type elem_type;
             int type = subdomain_elements_type[ip][iel];
             int nrvert;
             GetNumVertices(type, elem_type, nrvert);

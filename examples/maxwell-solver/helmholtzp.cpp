@@ -155,31 +155,31 @@ int main(int argc, char *argv[])
       }
    }
 
-{
-   int nx = 2;
-   int ny = 2;
-   int nz = 2;
-   int nlayers = 1;
-   // CartesianParMeshPartition part(pmesh,nx,ny,nz,nlayers);
-   ParMeshPartition part(pmesh,nx,ny,nz,nlayers);
-
-
-   if (visualization)
    {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream mesh_sock(vishost, visport);
-      mesh_sock.precision(8);
-      mesh_sock << "parallel " << num_procs << " " << myid << "\n"
-                  << "mesh\n" << *pmesh  << flush;
+      int nx = 2;
+      int ny = 2;
+      int nz = 2;
+      int nlayers = 1;
+      // CartesianParMeshPartition part(pmesh,nx,ny,nz,nlayers);
+      ParMeshPartition part(pmesh,nx,ny,nz,nlayers);
+
+
+      if (visualization)
+      {
+         char vishost[] = "localhost";
+         int  visport   = 19916;
+         socketstream mesh_sock(vishost, visport);
+         mesh_sock.precision(8);
+         mesh_sock << "parallel " << num_procs << " " << myid << "\n"
+                     << "mesh\n" << *pmesh  << flush;
+      }
+
+
+
+      // cout << "myid = " << myid << endl;
+      MPI_Finalize();
+      return 0;
    }
-
-
-
-   // cout << "myid = " << myid << endl;
-   MPI_Finalize();
-   return 0;
-}
 
    // 6. Define a finite element space on the mesh.
    FiniteElementCollection *fec = new H1_FECollection(order, dim);
