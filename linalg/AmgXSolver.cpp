@@ -24,14 +24,16 @@ namespace mfem
   // initialize AmgXSolver::count to 0
   int AmgXSolver::count = 0;
 
+  int AmgXSolver::count2 = 0;
+
   // initialize AmgXSolver::rsrc to nullptr;
   AMGX_resources_handle AmgXSolver::rsrc = nullptr;
 
   /* \implements AmgXSolver::AmgXSolver */
   AmgXSolver::AmgXSolver(const MPI_Comm &comm,
-                         const std::string &modeStr, const std::string &cfgFile, int &nDevs)
+                         const std::string &modeStr, const std::string &cfgFile)
   {
-    initialize(comm, modeStr, cfgFile, nDevs);
+    initialize(comm, modeStr, cfgFile);
   }
 
   /* \implements AmgXSolver::~AmgXSolver */
@@ -50,7 +52,7 @@ namespace mfem
 
   /* \implements AmgXSolver::initialize */
   void AmgXSolver::initialize(const MPI_Comm &comm,
-                              const std::string &modeStr, const std::string &cfgFile, int &nDevs)
+                              const std::string &modeStr, const std::string &cfgFile)
   {
 
     // if this instance has already been initialized, skip
@@ -70,29 +72,17 @@ namespace mfem
 
     MPI_Comm_rank(comm, &globalcommrank);
 
-    auto start1 = std::chrono::steady_clock::now();
     // get the mode of AmgX solver
     setMode(modeStr);
-    auto end1 = std::chrono::steady_clock::now();
-    std::chrono::duration<double> elapsed_seconds1 = end1-start1;
-    if(globalcommrank == 0) std::cout << "setMode "<< elapsed_seconds1.count() << "\n";
 
-    start1 = std::chrono::steady_clock::now();
     // initialize communicators and corresponding information
-    initMPIcomms(comm, nDevs);
-    end1 = std::chrono::steady_clock::now();
-    elapsed_seconds1 = end1-start1;
-    if(globalcommrank == 0) std::cout << "initMPIcomms "<< elapsed_seconds1.count() << "\n";
+    initMPIcomms(comm);
 
-    start1 = std::chrono::steady_clock::now();
     // only processes in gpuWorld are required to initialize AmgX
     if (gpuProc == 0)
       {
         initAmgX(cfgFile);
       }
-    end1 = std::chrono::steady_clock::now();
-    elapsed_seconds1 = end1-start1;
-    if(globalcommrank == 0) std::cout << "initAmgX "<< elapsed_seconds1.count() << "\n";
 
     // a bool indicating if this instance is initialized
     isInitialized = true;
@@ -100,7 +90,7 @@ namespace mfem
 
 
   /* \implements AmgXSolver::initMPIcomms */
-  void AmgXSolver::initMPIcomms(const MPI_Comm &comm, int &nDevs)
+  void AmgXSolver::initMPIcomms(const MPI_Comm &comm)
   {
     // duplicate the global communicator
     MPI_Comm_dup(comm, &globalCpuWorld);
@@ -119,8 +109,11 @@ namespace mfem
     MPI_Comm_size(localCpuWorld, &localSize);
     MPI_Comm_rank(localCpuWorld, &myLocalRank);
 
+    //cudaGetDeviceCount(&nDevs);
+    nDevs = 3;
+
     // set up corresponding ID of the device used by each local process
-    setDeviceIDs(nDevs);
+    setDeviceIDs();
 
     MPI_Barrier(globalCpuWorld);
 
@@ -183,7 +176,7 @@ namespace mfem
 
 
   /* \implements AmgXSolver::setDeviceIDs */
-  void AmgXSolver::setDeviceIDs(int &nDevs)
+  void AmgXSolver::setDeviceIDs()
   {
 
     // set the ID of device that each local process will use
@@ -594,6 +587,127 @@ namespace mfem
 
   }
 
+  void AmgXSolver::updateA(const HypreParMatrix &A)
+  {
+    //Want to work in devWorld, rank 0 is team leader
+    //and will talk to the gpu
+    //printf("devWorld rank %d device id %d gpuProc %d \n",
+           //myDevWorldRank, devID, gpuProc);
+    //Local processor data
+    Array<int> loc_I;
+    Array<int64_t> loc_J;
+    Array<double> loc_A;
+
+
+    // create an AmgX solver object
+    GetLocalA(A, loc_I, loc_J, loc_A);
+
+    //
+    //Send data to devWorld team lead
+    //
+    Array<int> all_I;
+    Array<int64_t> all_J;
+    Array<double> all_A;
+
+    //
+    //Determine array sizes
+    int J_allsz(0), all_NNZ(0), nDevRows(0);
+    const int loc_row_len = std::abs(A.RowPart()[1] -
+                                     A.RowPart()[0]); //end of row partition
+    const int loc_Jz_sz = loc_J.Size();
+    const int loc_A_sz = loc_A.Size();
+
+    //printf("loc_jz_sz %d\n",loc_Jz_sz);
+    //printf("loc_A_sz %d\n",loc_A_sz);
+    MPI_Allreduce(&loc_row_len, &nDevRows, 1, MPI_INT, MPI_SUM, devWorld);
+    MPI_Allreduce(&loc_Jz_sz, &J_allsz, 1, MPI_INT, MPI_SUM, devWorld);
+    MPI_Allreduce(&loc_A_sz, &all_NNZ, 1, MPI_INT, MPI_SUM, devWorld);
+
+    MPI_Barrier(devWorld);
+
+    if(myDevWorldRank == 0)
+      {
+        all_I.SetSize(nDevRows+devWorldSize);
+        all_J.SetSize(J_allsz); all_J = 0.0;
+        all_A.SetSize(all_NNZ);
+      }
+
+    mfem::Array<int> I_rowInfo;
+
+
+    GatherArray(I_rowInfo, loc_I, all_I, devWorldSize, devWorld);
+    GatherArray(loc_J, all_J, devWorldSize, devWorld);
+    GatherArray(loc_A, all_A, devWorldSize, devWorld);
+
+    MPI_Barrier(devWorld);
+
+    int local_nnz(0);
+    int64_t local_rows(0);
+
+    if(myDevWorldRank == 0){
+
+      Array<int> z_ind(devWorldSize+1);
+      int iter = 1;
+      while(iter < devWorldSize-1){
+
+        //Determine the indices of zeros in global all_I array
+        int counter = 0;
+        z_ind[counter] = counter;
+        counter++;
+        for(int idx=1; idx<all_I.Size()-1; idx++){
+          if(all_I[idx]==0){
+            z_ind[counter] = idx-1;
+            counter++;
+          }
+        }
+        z_ind[devWorldSize] = all_I.Size()-1;
+        //End of determining indices of zeros in global all_I Array
+
+        //Bump all_I
+        for(int idx=z_ind[1]+1; idx < z_ind[2]; idx++){
+          all_I[idx] = all_I[idx-1] + (all_I[idx+1] - all_I[idx]);
+        }
+
+        //Shift array after bump to remove uncesssary values in middle of array
+        for(int idx=z_ind[2]; idx < all_I.Size()-1; ++idx){
+          all_I[idx] = all_I[idx+1];
+        }
+        iter++;
+      }
+
+      // LAST TIME THROUGH ARRAY
+      //Determine the indices of zeros in global row_ptr array
+      int counter = 0;
+      z_ind[counter] = counter;
+      counter++;
+      for(int idx=1; idx<all_I.Size()-1; idx++){
+        if(all_I[idx]==0){
+          z_ind[counter] = idx-1;
+          counter++;
+        }
+      }
+      z_ind[devWorldSize] = all_I.Size()-1;
+      //End of determining indices of zeros in global all_I Array\
+      //BUMP all_I one last time
+      for(int idx=z_ind[1]+1; idx < all_I.Size()-1; idx++){
+        all_I[idx] = all_I[idx-1] + (all_I[idx+1] - all_I[idx]);
+      }
+      local_nnz = all_I[all_I.Size()-devWorldSize];
+      local_rows = nDevRows;
+
+    }
+
+    //Create row partition
+    m_local_rows = local_rows; //class copy
+    mfem::Array<int64_t> rowPart;
+
+
+    if(gpuProc == 0){
+      AMGX_matrix_replace_coefficients(AmgXA,A.M(),local_nnz,all_A,0);
+    }
+
+  }
+
   void AmgXSolver::GatherArray(Vector &inArr, Vector &outArr,
                                int MPI_SZ, MPI_Comm &mpi_comm, Array<int> &Apart, Array<int> &Adisp)
   {
@@ -662,6 +776,10 @@ namespace mfem
     ScatterArray(all_X, X, devWorldSize, devWorld, Apart_X, Adisp_X);
 
   }
+
+
+
+
 
   /* \implements AmgXSolver::finalize */
   void AmgXSolver::finalize()
