@@ -275,11 +275,11 @@ static  void D2QPhysGrad3D(const int NE,
    });
 }
 
-void QuadratureInterpolator::D2QPhysGrad(const FiniteElementSpace &fes,
-                                         const GeometricFactors *geom,
-                                         const DofToQuad *maps,
-                                         const Vector &e_vec,
-                                         Vector &q_der)
+static void D2QPhysGrad(const FiniteElementSpace &fes,
+                        const GeometricFactors *geom,
+                        const DofToQuad *maps,
+                        const Vector &e_vec,
+                        Vector &q_der)
 {
    const int dim = fes.GetMesh()->Dimension();
    const int vdim = fes.GetVDim();
@@ -338,6 +338,22 @@ void QuadratureInterpolator::D2QPhysGrad(const FiniteElementSpace &fes,
    }
    mfem::out << "Unknown kernel 0x" << std::hex << id << std::endl;
    MFEM_ABORT("Unknown kernel");
+}
+
+template<>
+void QuadratureInterpolator::PhysDerivatives<QVectorLayout::byVDIM>(
+   const Vector &e_vec, Vector &q_der) const
+{
+   // q_layout == QVectorLayout::byVDIM
+   Mesh *mesh = fespace->GetMesh();
+   if (mesh->GetNE() == 0) { return; }
+   // mesh->DeleteGeometricFactors(); // This should be done outside
+   const IntegrationRule &ir = *IntRule;
+   const GeometricFactors *geom =
+      mesh->GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
+   const DofToQuad::Mode mode = DofToQuad::TENSOR;
+   const DofToQuad &d2q = fespace->GetFE(0)->GetDofToQuad(ir, mode);
+   D2QPhysGrad(*fespace, geom, &d2q, e_vec, q_der);
 }
 
 } // namespace mfem

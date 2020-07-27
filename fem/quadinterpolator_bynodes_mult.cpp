@@ -10,8 +10,6 @@
 // CONTRIBUTING.md for details.
 
 #include "quadinterpolator.hpp"
-#define MFEM_DEBUG_COLOR 177
-#include "../general/debug.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/dtensor.hpp"
 #include "../linalg/kernels.hpp"
@@ -203,7 +201,6 @@ void QuadratureInterpolator::Mult<QVectorLayout::byNODES>(const Vector &e_vec,
                                                           Vector &q_der,
                                                           Vector &q_det) const
 {
-   dbg();
    MFEM_VERIFY(!use_tensor_products, "");
    const int ne = fespace->GetNE();
    if (ne == 0) { return; }
@@ -330,11 +327,7 @@ void QuadratureInterpolator::Mult<QVectorLayout::byNODES>(const Vector &e_vec,
             case 2549: mult = &Mult2D<2,25,49>; break;
             case 2564: mult = &Mult2D<2,25,64>; break;
          }
-         if (nq >= 100 || !mult)
-         {
-            dbg("Unknown Mult2D nd:%d, nq:%d",nd,nq);
-            mult = &Mult2D<2>;
-         }
+         if (nq >= 100 || !mult) { mult = &Mult2D<2>; }
       }
       else if (dim == 3)
       {
@@ -355,40 +348,11 @@ void QuadratureInterpolator::Mult<QVectorLayout::byNODES>(const Vector &e_vec,
             case 125125: mult = &Mult3D<3,125,125>; break;
             case 125216: mult = &Mult3D<3,125,216>; break;
          }
-         if (nq >= 1000 || !mult)
-         {
-            dbg("Unknown Mult3D nd:%d, nq:%d",nd,nq);
-            mult = &Mult3D<3>;
-         }
+         if (nq >= 1000 || !mult) {  mult = &Mult3D<3>; }
       }
    }
    if (mult) { mult(ne, vdim, maps, e_vec, q_val, q_der, q_det, eval_flags); }
    else { MFEM_ABORT("case not supported yet"); }
-}
-
-template<> void QuadratureInterpolator::Values<QVectorLayout::byNODES>(
-   const Vector &e_vec, Vector &q_val) const
-{
-   MFEM_VERIFY(q_layout == QVectorLayout::byNODES, "");
-   Vector empty;
-   Mult<QVectorLayout::byNODES>(e_vec, VALUES, q_val, empty, empty);
-}
-
-template<>
-void QuadratureInterpolator::Derivatives<QVectorLayout::byNODES>(
-   const Vector &e_vec, Vector &q_der) const
-{
-   MFEM_VERIFY(q_layout == QVectorLayout::byNODES, "");
-   Vector empty;
-   Mult<QVectorLayout::byNODES>(e_vec, DERIVATIVES, empty, q_der, empty);
-}
-
-template<>
-void QuadratureInterpolator::PhysDerivatives<QVectorLayout::byNODES>(
-   const Vector &e_vec, Vector &q_der) const
-{
-   MFEM_ABORT("evaluation of physical derivatives with 'byNODES' output"
-              " layout is not implemented yet!");
 }
 
 } // namespace mfem

@@ -415,11 +415,13 @@ int tmop(int myid, Req &res, int argc, char *argv[])
       x.SetTrueVector();
 
       if (normalization == 1) { he_nlf_integ->EnableNormalization(x); }
+
+      dist *= 0.93;
+      if (normalization == 1) { dist = small_phys_size; }
+
       ConstantCoefficient lim_coeff(lim_const);
       if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, dist, lim_coeff); }
 
-      //dist *= M_PI;
-      //if (normalization == 1) { dist = small_phys_size; }
       DiscreteAdaptTC *datc = dynamic_cast<DiscreteAdaptTC*>(target_c);
       if (datc && target_id == 5) { datc->SetDiscreteTargetSize(size); }
       if (datc && target_id == 7) { datc->SetDiscreteTargetAspectRatio(aspr3d); }
@@ -515,15 +517,15 @@ static void tmop_require(int myid, const char *args[])
    REQUIRE(res[0].diag == Approx(res[1].diag));
 }
 
-static inline const char *itoa(int i, char *buf)
+static inline const char *itoa(const int i, char *buf)
 {
    std::sprintf(buf, "%d", i);
    return buf;
 }
 
-static inline const char *dtoa(double d, char *buf)
+static inline const char *dtoa(const double d, char *buf)
 {
-   std::sprintf(buf, "%.5f", d);
+   std::sprintf(buf, "%.4f", d);
    return buf;
 }
 
@@ -536,52 +538,51 @@ public:
       friend class Launch;
    private:
       const char *name = nullptr;
-      const char *MSH_ = "star.mesh";
-      int NI_ = 10;
-      int RS_ = 0;
-      int LI_  = 100;
-      bool NOR_ = false;
-      double LC_ = 0.0;
-      double JI_ = 0.0;
-
-      set P_ORDERS = {1,2,3,4};
-      set TARGET_IDS = {1,2,3};
-      set METRIC_IDS = {1,2};
-      set Q_ORDERS = {2,4,8};
-      set LINEAR_SOLVERS = {3,2,1};
-      set NEWTON_LOOPS = {1,3};
+      const char *mesh = "star.mesh";
+      int newton_iter = 10;
+      int rs_levels = 0;
+      int max_lin_iter  = 100;
+      bool normalization = false;
+      double lim_const = 0.0;
+      double jitter = 0.0;
+      set order = {1,2,3,4};
+      set target_id = {1,2,3};
+      set metric_id = {1,2};
+      set quad_order = {2,4,8};
+      set lin_solver = {3,2,1};
+      set newton_loop = {1,3};
 
    public:
       Args(const char *name =nullptr): name(name) {}
-      Args &MSH(const char *arg) { MSH_ = arg; return *this; }
-      Args &NI(const int arg) { NI_ = arg; return *this; }
-      Args &RS(const int arg) { RS_ = arg; return *this; }
-      Args &LI(const int arg) { LI_ = arg; return *this; }
-      Args &NOR(const bool arg) { NOR_ = arg; return *this; }
-      Args &LC(const double arg) { LC_ = arg; return *this; }
-      Args &JI(const double arg) { JI_ = arg; return *this; }
+      Args &MESH(const char *arg) { mesh = arg; return *this; }
+      Args &NEWTON_ITERATIONS(const int arg) { newton_iter = arg; return *this; }
+      Args &REFINE(const int arg) { rs_levels = arg; return *this; }
+      Args &LINEAR_ITERATIONS(const int arg) { max_lin_iter = arg; return *this; }
+      Args &NORMALIZATION(const bool arg) { normalization = arg; return *this; }
+      Args &LIMITING(const double arg) { lim_const = arg; return *this; }
+      Args &JI(const double arg) { jitter = arg; return *this; }
 
-      Args &POR(set arg) { P_ORDERS = arg; return *this; }
-      Args &TID(set arg) { TARGET_IDS = arg; return *this; }
-      Args &MID(set arg) { METRIC_IDS = arg; return *this; }
-      Args &QOR(set arg) { Q_ORDERS = arg; return *this; }
-      Args &LS(set arg) { LINEAR_SOLVERS = arg; return *this; }
-      Args &NL(set arg) { NEWTON_LOOPS = arg; return *this; }
-
+      Args &POR(set arg) { order = arg; return *this; }
+      Args &TID(set arg) { target_id = arg; return *this; }
+      Args &MID(set arg) { metric_id = arg; return *this; }
+      Args &QOR(set arg) { quad_order = arg; return *this; }
+      Args &LS(set arg) { lin_solver = arg; return *this; }
+      Args &NL(set arg) { newton_loop = arg; return *this; }
    };
-   const char *name, *MSH_;
+   const char *name, *mesh;
+   int NEWTON_ITERATIONS, REFINE, LINEAR_ITERATIONS;
+   bool NORMALIZATION;
+   double LIMITING, JITTER;
    set P_ORDERS, TARGET_IDS, METRIC_IDS, Q_ORDERS, LINEAR_SOLVERS, NEWTON_LOOPS;
-   int *LS_, *NL_;
-   int NI_, RS_, LI_;
-   double LC_, JI_;
-   bool NOR_;
 public:
    Launch(Args a = Args()):
-      name(a.name), MSH_(a.MSH_), NI_(a.NI_), RS_(a.RS_), LI_(a.LI_),
-      NOR_(a.NOR_), LC_(a.LC_), JI_(a.JI_),
-      P_ORDERS(a.P_ORDERS), TARGET_IDS(a.TARGET_IDS), METRIC_IDS(a.METRIC_IDS),
-      Q_ORDERS(a.Q_ORDERS), LINEAR_SOLVERS(a.LINEAR_SOLVERS),
-      NEWTON_LOOPS(a.NEWTON_LOOPS)
+      name(a.name), mesh(a.mesh),
+      NEWTON_ITERATIONS(a.newton_iter), REFINE(a.rs_levels),
+      LINEAR_ITERATIONS(a.max_lin_iter),
+      NORMALIZATION(a.normalization), LIMITING(a.lim_const), JITTER(a.jitter),
+      P_ORDERS(a.order), TARGET_IDS(a.target_id), METRIC_IDS(a.metric_id),
+      Q_ORDERS(a.quad_order), LINEAR_SOLVERS(a.lin_solver),
+      NEWTON_LOOPS(a.newton_loop)
    { }
 
    void Run(const int myid =0) const
@@ -590,13 +591,13 @@ public:
       if (name) { printf("[%s]\n", name); fflush(0); }
       DEFAULT_ARGS;
       char ni[2] {}, rs[4] {}, li[4] {}, lc[12] {}, ji[12] {};
-      args[MSH] = MSH_;
-      args[RS] = itoa(RS_,rs);
-      args[NI] = itoa(NI_,ni);
-      args[LI] = itoa(LI_,li);
-      args[LC] = dtoa(LC_,lc);
-      args[JI] = dtoa(JI_,ji);
-      args[NOR] = NOR_ ? "1" : "0";
+      args[MSH] = mesh;
+      args[RS] = itoa(REFINE,rs);
+      args[NI] = itoa(NEWTON_ITERATIONS,ni);
+      args[LI] = itoa(LINEAR_ITERATIONS,li);
+      args[LC] = dtoa(LIMITING,lc);
+      args[JI] = dtoa(JITTER,ji);
+      args[NOR] = NORMALIZATION ? "1" : "0";
       for (int p : P_ORDERS)
       {
          char por[2] {};
@@ -640,70 +641,72 @@ public:
 
 static void tmop_tests(int id)
 {
-   /*Launch(Launch::Args("Star").
-          MSH("star.mesh").
+   Launch(Launch::Args("Star").
+          MESH("star.mesh").
           POR({1,2,3,4}).QOR({2,4,8}).
           TID({1,2,3}).MID({1,2})).Run(id);
 
    Launch(Launch::Args("Square01 + Adapted analytic Hessian").
-          MSH("square01.mesh").RS(1).
+          MESH("square01.mesh").REFINE(1).
           POR({1,2}).QOR({2,4}).
           TID({4}).MID({1,2})).Run(id);
 
    Launch(Launch::Args("Blade").
-          MSH("blade.mesh").
+          MESH("blade.mesh").
           POR({1,2}).QOR({2,4}).
-          TID({1,2,3}).MID({2})).Run(id);
+          TID({1,2,3}).MID({2}).LS({2})).Run(id);
 
    Launch(Launch::Args("Blade + norm.").
-          MSH("blade.mesh").NOR(true).
+          MESH("blade.mesh").NORMALIZATION(true).
           POR({1,2}).QOR({2,4}).
           TID({1,2,3}).MID({2})).Run(id);
 
    Launch(Launch::Args("Blade + limiting + norm.").
-          MSH("blade.mesh").
-          NI(100).NOR(true).LC(M_PI).
+          MESH("blade.mesh").
+          NEWTON_ITERATIONS(100).NORMALIZATION(true).LIMITING(M_PI).
           POR({1,2}).QOR({2,4}).
-          TID({1,2,3}).MID({2})).Run(id);*/
+          TID({1,2,3}).MID({2})).Run(id);
 
    Launch(Launch::Args("Blade + Discrete size + norm.").
-          MSH("blade.mesh").
-          NI(100).LI(200).NOR(true).
+          MESH("blade.mesh").
+          NEWTON_ITERATIONS(100).LINEAR_ITERATIONS(300).
+          NORMALIZATION(true).
           POR({1}).QOR({2}).
           TID({5}).MID({7}).LS({2}).NL({2})).Run(id);
 
    Launch(Launch::Args("Blade + Discrete size + norm.").
-          MSH("blade.mesh").
-          NI(100).LI(200).NOR(true).
+          MESH("blade.mesh").
+          NEWTON_ITERATIONS(100).LINEAR_ITERATIONS(200).
+          NORMALIZATION(true).
           POR({1}).QOR({2}).
-          TID({5}).MID({2,7})).Run(id);
+          TID({5}).MID({2})).Run(id);
 
    Launch(Launch::Args("Cube").
-          MSH("cube.mesh").
-          NI(100).JI(0.1).
+          MESH("cube.mesh").
+          NEWTON_ITERATIONS(100).REFINE(1).JI(0.1).
           POR({1,2}).QOR({2,4}).
           TID({2,3}).MID({302,303})).Run(id);
 
    Launch(Launch::Args("Cube + Discrete size & aspect + norm. + limiting").
-          MSH("cube.mesh").
-          NOR(true).LC(M_PI).
+          MESH("cube.mesh").
+          NORMALIZATION(true).LIMITING(M_PI).
           POR({1,2}).QOR({2,4}).
           TID({7}).MID({302,321})).Run(id);
 
    Launch(Launch::Args("Toroid-Hex").
-          MSH("toroid-hex.mesh").
+          MESH("toroid-hex.mesh").
           POR({1,2}).QOR({2,4,8}).
           TID({1,2,3}).MID({302,303,321})).Run(id);
 
    Launch(Launch::Args("Toroid-Hex + limiting").
-          MSH("toroid-hex.mesh").
-          LC(M_PI).
+          MESH("toroid-hex.mesh").
+          LIMITING(M_PI).
           POR({1,2}).QOR({2,4}).
           TID({1,2}).MID({321})).Run(id);
 
    Launch(Launch::Args("Toroid-Hex + limiting + norm.").
-          MSH("toroid-hex.mesh").
-          LC(M_PI).NOR(true).
+          MESH("toroid-hex.mesh").
+          LIMITING(M_PI).NORMALIZATION(true).
           POR({1,2}).QOR({2,4}).
           TID({1,2}).MID({321})).Run(id);
 }

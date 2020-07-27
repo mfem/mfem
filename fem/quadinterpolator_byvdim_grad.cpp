@@ -254,10 +254,10 @@ static  void D2QGrad3D(const int NE,
    });
 }
 
-void QuadratureInterpolator::D2QGrad(const FiniteElementSpace &fes,
-                                     const DofToQuad *maps,
-                                     const Vector &e_vec,
-                                     Vector &q_der)
+static void D2QGrad(const FiniteElementSpace &fes,
+                    const DofToQuad *maps,
+                    const Vector &e_vec,
+                    Vector &q_der)
 {
    const int dim = fes.GetMesh()->Dimension();
    const int vdim = fes.GetVDim();
@@ -315,6 +315,18 @@ void QuadratureInterpolator::D2QGrad(const FiniteElementSpace &fes,
    }
    mfem::out << "Unknown kernel 0x" << std::hex << id << std::endl;
    MFEM_ABORT("Unknown kernel");
+}
+
+template<>
+void QuadratureInterpolator::Derivatives<QVectorLayout::byVDIM>(
+   const Vector &e_vec, Vector &q_der) const
+{
+   MFEM_VERIFY(q_layout == QVectorLayout::byVDIM, "");
+   if (fespace->GetNE() == 0) { return; }
+   const IntegrationRule &ir = *IntRule;
+   const DofToQuad::Mode mode = DofToQuad::TENSOR;
+   const DofToQuad &d2q = fespace->GetFE(0)->GetDofToQuad(ir, mode);
+   D2QGrad(*fespace, &d2q, e_vec, q_der);
 }
 
 } // namespace mfem

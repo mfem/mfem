@@ -21,9 +21,6 @@
 #include "../general/gecko.hpp"
 #include "../fem/quadinterpolator.hpp"
 
-#define MFEM_DEBUG_COLOR 118
-#include "../general/debug.hpp"
-
 #include <iostream>
 #include <sstream>
 #include <fstream>
@@ -10516,9 +10513,6 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
 GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
                                    int flags, DofToQuad::Mode mode)
 {
-   const bool use_tensor_products = mode == DofToQuad::TENSOR;
-   dbg("mode:%s", use_tensor_products ? "TENSOR" : "FULL");
-
    this->mesh = mesh;
    IntRule = &ir;
    computed_factors = flags;
@@ -10531,6 +10525,7 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    const int NE   = fespace->GetNE();
    const int ND   = fe->GetDof();
    const int NQ   = ir.GetNPoints();
+   const bool use_tensor_products = mode == DofToQuad::TENSOR;
 
    // For now, we are not using tensor product evaluation
    const ElementDofOrdering e_ordering =
