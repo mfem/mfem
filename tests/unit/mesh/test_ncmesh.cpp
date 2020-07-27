@@ -17,9 +17,10 @@ namespace mfem
 
 constexpr double EPS = 1.e-12;
 
-// Test case: Verify that a conforming mesh yields the same diagonal with PA
-//            (except for permutations of the values) when using the standard
-//            (conforming) Mesh vs. the corresponding (non-conforming) NCMesh.
+// Test case: Verify that a conforming mesh yields the same norm for the
+//            assembled diagonal with PA when using the standard (conforming)
+//            Mesh vs. the corresponding (non-conforming) NCMesh.
+//            (note: permutations of the values in the diagonal are expected)
 TEST_CASE("NCMesh PA diagonal", "[NCMesh]")
 {
    SECTION("Quad mesh")
@@ -112,9 +113,10 @@ TEST_CASE("NCMesh PA diagonal", "[NCMesh]")
 
 #ifdef MFEM_USE_MPI
 
-// Test case: Verify that a conforming parallel mesh yields the same diagonal with PA
-//            (except for permutations of the values) when using the standard
-//            (conforming) Mesh vs. the corresponding (non-conforming) NCMesh.
+// Test case: Verify that a conforming mesh yields the same norm for the
+//            assembled diagonal with PA when using the standard (conforming)
+//            Mesh vs. the corresponding (non-conforming) NCMesh.
+//            (note: permutations of the values in the diagonal are expected)
 TEST_CASE("pNCMesh PA diagonal",  "[Parallel], [NCMesh]")
 {
    int rank;
