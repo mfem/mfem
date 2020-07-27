@@ -166,7 +166,7 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       r.SetSize(1);
       r(0) = 1.0;
    }
-   
+
    Vector vel;
    u->Eval(fes,*ir,type,vel);
 
