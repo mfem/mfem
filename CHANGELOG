@@ -58,6 +58,8 @@ Improved GPU capabilities
   compute a global sparse matrix. All integrators supported by element assembly
   are also supported by full assembly. See the '-fa' option in Example 9.
 
+- Added support for BlockOperator on GPU. See the updated Example 5.
+
 Discretization improvements
 ---------------------------
 - Added support for matrix-free interpolation and restriction operators between
@@ -160,6 +162,8 @@ New and updated examples and miniapps
 - Added a simple mesh editing miniapp, Trimmer, which trims away portions of a
   mesh based on element attributes. Any newly exposed boundary elements are
   assigned attribute numbers related to the trimmed element attributes.
+
+- Added device support in Example 5/5p.
 
 Improved testing
 ----------------
