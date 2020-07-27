@@ -831,22 +831,22 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
       }
    }
 
-   if (trial_curl && test_fetype == trial_fetype && dim == 3)
+   if (trial_curl && test_curl && dim == 3)
    {
       PAHcurlSetup3D(quad1D, coeffDim, ne, ir->GetWeights(), geom->J,
                      coeff, pa_data);
    }
-   else if (trial_curl && test_fetype == trial_fetype && dim == 2)
+   else if (trial_curl && test_curl && dim == 2)
    {
       PAHcurlSetup2D(quad1D, coeffDim, ne, ir->GetWeights(), geom->J,
                      coeff, pa_data);
    }
-   else if (trial_div && test_fetype == trial_fetype && dim == 3)
+   else if (trial_div && test_div && dim == 3)
    {
       PAHdivSetup3D(quad1D, ne, ir->GetWeights(), geom->J,
                     coeff, pa_data);
    }
-   else if (trial_div && test_fetype == trial_fetype && dim == 2)
+   else if (trial_div && test_div && dim == 2)
    {
       PAHdivSetup2D(quad1D, ne, ir->GetWeights(), geom->J,
                     coeff, pa_data);
@@ -924,12 +924,12 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 
    if (dim == 3)
    {
-      if (trial_curl && test_fetype == trial_fetype)
+      if (trial_curl && test_curl)
       {
          PAHcurlMassApply3D(dofs1D, quad1D, ne, symmetric, mapsO->B, mapsC->B,
                             mapsO->Bt, mapsC->Bt, pa_data, x, y);
       }
-      else if (trial_div && test_fetype == trial_fetype)
+      else if (trial_div && test_div)
       {
          PAHdivMassApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
                            mapsC->Bt, pa_data, x, y);
@@ -955,12 +955,12 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
    else
    {
-      if (trial_curl && test_fetype == trial_fetype)
+      if (trial_curl && test_curl)
       {
          PAHcurlMassApply2D(dofs1D, quad1D, ne, symmetric, mapsO->B, mapsC->B,
                             mapsO->Bt, mapsC->Bt, pa_data, x, y);
       }
-      else if (trial_div && test_fetype == trial_fetype)
+      else if (trial_div && test_div)
       {
          PAHdivMassApply2D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
                            mapsC->Bt, pa_data, x, y);
