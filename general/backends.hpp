@@ -51,6 +51,7 @@
       (defined(MFEM_USE_HIP)  && defined(__HIP_DEVICE_COMPILE__)))
 #define MFEM_SHARED
 #define MFEM_SYNC_THREAD
+#define MFEM_BLOCK_ID(k) 0
 #define MFEM_THREAD_ID(k) 0
 #define MFEM_THREAD_SIZE(k) 1
 #define MFEM_FOREACH_THREAD(i,k,N) for(int i=0; i<N; i++)
@@ -66,6 +67,17 @@ MFEM_HOST_DEVICE T AtomicAdd(T &add, const T val)
    T old = add;
    add += val;
    return old;
+#endif
+}
+
+template <typename T>
+MFEM_HOST_DEVICE T AtomicMin(T &min, const T val)
+{
+#if ((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) || \
+     (defined(MFEM_USE_HIP)  && defined(__HIP_DEVICE_COMPILE__)))
+   return atomicMin_double(&min,val);
+#else
+   return std::fmin(min,val);
 #endif
 }
 

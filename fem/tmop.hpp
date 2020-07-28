@@ -693,6 +693,11 @@ public:
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
 
+   virtual bool ComputeElementTargetsPA(const FiniteElementSpace *fes,
+                                        const IntegrationRule *ir,
+                                        DenseTensor &Jtr,
+                                        const Vector &xe = Vector()) const;
+
    virtual void ComputeElementTargetsGradient(const IntegrationRule &ir,
                                               const Vector &elfun,
                                               IsoparametricTransformation &Tpr,
@@ -737,6 +742,11 @@ public:
                                       const IntegrationRule &ir,
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
+
+   virtual bool ComputeElementTargetsPA(const FiniteElementSpace *fes,
+                                        const IntegrationRule *ir,
+                                        DenseTensor &Jtr,
+                                        const Vector &xe = Vector()) const;
 
    virtual void ComputeElementTargetsGradient(const IntegrationRule &ir,
                                               const Vector &elfun,
@@ -881,6 +891,11 @@ public:
                                       const IntegrationRule &ir,
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
+
+   virtual bool ComputeElementTargetsPA(const FiniteElementSpace *fes,
+                                        const IntegrationRule *ir,
+                                        DenseTensor &Jtr,
+                                        const Vector &xe = Vector()) const;
 
    virtual void ComputeElementTargetsGradient(const IntegrationRule &ir,
                                               const Vector &elfun,

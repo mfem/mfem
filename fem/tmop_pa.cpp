@@ -17,6 +17,9 @@
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 
+#define MFEM_DEBUG_COLOR 159
+#include "../general/debug.hpp"
+
 namespace mfem
 {
 
@@ -85,16 +88,25 @@ void TMOP_Integrator::EnableLimitingPA(const GridFunction &n0)
 //                                    Jtr(i) *= R_theta        (orientation)
 void TMOP_Integrator::ComputeElementTargetsPA(const Vector &xe) const
 {
+   PA.setup_Jtr = false;
+   const FiniteElementSpace *fes = PA.fes;
+   const IntegrationRule *ir = EnergyIntegrationRule(*fes->GetFE(0));
+
+   {
+      // Try to use the TargetConstructor ComputeElementTargetsPA
+      PA.setup_Jtr = targetC->ComputeElementTargetsPA(PA.fes,ir,PA.Jtr);
+      if (PA.setup_Jtr) { return; }
+   }
+
+   dbg("Defaulting to host version");
    PA.Jtr.HostWrite();
 
    const int NE = PA.ne;
    const int NQ = PA.nq;
    const int dim = PA.dim;
    DenseTensor &Jtr = PA.Jtr;
-   const FiniteElementSpace *fes = PA.fes;
 
    const TargetConstructor::TargetType &target_type = targetC->Type();
-   const IntegrationRule &ir = *EnergyIntegrationRule(*PA.fes->GetFE(0));
 
    Vector x;
    const bool useable_input_vector = xe.Size() > 0;
@@ -130,7 +142,7 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &xe) const
          x.GetSubVector(vdofs, elfun);
       }
       J.UseExternalData(Jtr(e*NQ).Data(), dim, dim, NQ);
-      targetC->ComputeElementTargets(e, fe, ir, elfun, J);
+      targetC->ComputeElementTargets(e, fe, *ir, elfun, J);
    }
    PA.setup_Jtr = true;
 }
