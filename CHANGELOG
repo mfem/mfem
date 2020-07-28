@@ -18,6 +18,11 @@ Meshing improvements
   always available. The interface has also been improved, see for example the
   mesh-explorer miniapp.
 
+- Improved Gmsh reader (version 2.2), which now supports both high-order and
+  periodic meshes. Segments, triangles, quadrilaterals, and tetrahedra are
+  supported up to order 10. Wedges and hexahedra are supported up to order 9.
+  For sample periodic meshes, see the periodic*.msh files in the data directory.
+
 - Added support for finite difference-based gradient and Hessian approximation
   in the TMOP mesh optimization algorithms. This improves the accuracy of the
   Hessian for r-adaptivity using discrete fields, and allows use of skewness
@@ -28,10 +33,6 @@ Meshing improvements
   size, aspect-ratio, orientation, and skew of elements in the mesh.
 
 - Added TMOP capability for approximate tangential mesh relaxation.
-
-- Added support for reading periodic meshes in Gmsh format (version 2.2). See
-  for example the periodic-annulus-sector and periodic-torus-sector files in
-  the data directory.
 
 - Added complete action of the TMOP Integrator to account for the spatial
   derivatives of discrete and analytic targets.
