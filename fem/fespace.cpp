@@ -452,7 +452,9 @@ void FiniteElementSpace::MarkerToList(const Array<int> &marker,
 void FiniteElementSpace::ListToMarker(const Array<int> &list, int marker_size,
                                       Array<int> &marker, int mark_val)
 {
+   list.HostRead(); // make sure we can read the array on host
    marker.SetSize(marker_size);
+   marker.HostWrite();
    marker = 0;
    for (int i = 0; i < list.Size(); i++)
    {
