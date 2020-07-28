@@ -1206,17 +1206,21 @@ void ComputeRho0DetJ0AndVolume(const int dim,
                                double &loc_area)
 {
    const int NQ = ir.GetNPoints();
+   DofToQuad::Mode mode = DofToQuad::FULL;
    const int Q1D = IntRules.Get(Geometry::SEGMENT,ir.GetOrder()).GetNPoints();
    const int flags = GeometricFactors::JACOBIANS|GeometricFactors::DETERMINANTS;
-   const GeometricFactors *geom = mesh->GetGeometricFactors(ir, flags);
+   const GeometricFactors *geom = mesh->GetGeometricFactors(ir, flags, mode);
    Vector rho0Q(NQ*NE);
    rho0Q.UseDevice(true);
    const QuadratureInterpolator *qi = l2_fes.GetQuadratureInterpolator(ir);
+   qi->DisableTensorProducts();
+   //qi->SetOutputLayout(QVectorLayout::byVDIM);
+   qi->SetOutputLayout(QVectorLayout::byNODES);
    qi->Values(rho0, rho0Q);
-   auto W = ir.GetWeights().Read();
-   auto R = Reshape(rho0Q.Read(), NQ, NE);
-   auto J = Reshape(geom->J.Read(), NQ, dim, dim, NE);
-   auto detJ = Reshape(geom->detJ.Read(), NQ, NE);
+   const auto W = ir.GetWeights().Read();
+   const auto R = Reshape(rho0Q.Read(), NQ, NE);
+   const auto J = Reshape(geom->J.Read(), NQ, dim, dim, NE);
+   const auto detJ = Reshape(geom->detJ.Read(), NQ, NE);
    auto V = Reshape(quad_data.rho0DetJ0w.Write(), NQ, NE);
    Memory<double> &Jinv_m = quad_data.Jac0inv.GetMemory();
    auto invJ = Reshape(Jinv_m.Write(Device::GetDeviceMemoryClass(),
@@ -1517,12 +1521,14 @@ void QUpdate::UpdateQuadratureData(const Vector &S,
    GridFunction d_x, d_v, d_e;
    d_x.MakeRef(&H1,*S_p, 0);
    H1ER->Mult(d_x, d_h1_v_local_in);
+   q1->EnableTensorProducts();
    q1->SetOutputLayout(QVectorLayout::byVDIM);
    q1->Derivatives(d_h1_v_local_in, d_h1_grad_x_data);
    d_v.MakeRef(&H1,*S_p, H1_size);
    H1ER->Mult(d_v, d_h1_v_local_in);
    q1->Derivatives(d_h1_v_local_in, d_h1_grad_v_data);
    d_e.MakeRef(&L2, *S_p, 2*H1_size);
+   q2->EnableTensorProducts();
    q2->SetOutputLayout(QVectorLayout::byVDIM);
    q2->Values(d_e, d_l2_e_quads_data);
    d_dt_est = quad_data.dt_est;

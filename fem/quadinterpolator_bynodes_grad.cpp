@@ -22,14 +22,14 @@ namespace mfem
 
 template<int T_VDIM, int T_D1D, int T_Q1D,
          int T_NBZ =1, int MAX_D1D = 0, int MAX_Q1D = 0>
-static void GradTensor2D(const int NE,
-                         const double *b_,
-                         const double *g_,
-                         const double *x_,
-                         double *y_,
-                         const int vdim = 1,
-                         const int d1d = 0,
-                         const int q1d = 0)
+static void GradByNodes2D(const int NE,
+                          const double *b_,
+                          const double *g_,
+                          const double *x_,
+                          double *y_,
+                          const int vdim = 1,
+                          const int d1d = 0,
+                          const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -122,14 +122,14 @@ static void GradTensor2D(const int NE,
 }
 
 template<int T_VDIM, int T_D1D, int T_Q1D, int MAX_D1D = 0, int MAX_Q1D = 0>
-static void GradTensor3D(const int NE,
-                         const double *b_,
-                         const double *g_,
-                         const double *x_,
-                         double *y_,
-                         const int vdim = 1,
-                         const int d1d = 0,
-                         const int q1d = 0)
+static void GradByNodes3D(const int NE,
+                          const double *b_,
+                          const double *g_,
+                          const double *x_,
+                          double *y_,
+                          const int vdim = 1,
+                          const int d1d = 0,
+                          const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -280,25 +280,25 @@ void QuadratureInterpolator::Derivatives<QVectorLayout::byNODES>(
 
    switch (id)
    {
-      case 0x2222: return GradTensor2D<2,2,2>(NE,B,G,X,Y);
-      case 0x2223: return GradTensor2D<2,2,3>(NE,B,G,X,Y);
-      case 0x2224: return GradTensor2D<2,2,4>(NE,B,G,X,Y);
-      case 0x2226: return GradTensor2D<2,2,6>(NE,B,G,X,Y);
-      case 0x2234: return GradTensor2D<2,3,4>(NE,B,G,X,Y);
-      case 0x2236: return GradTensor2D<2,3,6>(NE,B,G,X,Y);
-      case 0x2244: return GradTensor2D<2,4,4>(NE,B,G,X,Y);
-      case 0x2246: return GradTensor2D<2,4,6>(NE,B,G,X,Y);
-      case 0x2256: return GradTensor2D<2,5,6>(NE,B,G,X,Y);
+      case 0x2222: return GradByNodes2D<2,2,2>(NE,B,G,X,Y);
+      case 0x2223: return GradByNodes2D<2,2,3>(NE,B,G,X,Y);
+      case 0x2224: return GradByNodes2D<2,2,4>(NE,B,G,X,Y);
+      case 0x2226: return GradByNodes2D<2,2,6>(NE,B,G,X,Y);
+      case 0x2234: return GradByNodes2D<2,3,4>(NE,B,G,X,Y);
+      case 0x2236: return GradByNodes2D<2,3,6>(NE,B,G,X,Y);
+      case 0x2244: return GradByNodes2D<2,4,4>(NE,B,G,X,Y);
+      case 0x2246: return GradByNodes2D<2,4,6>(NE,B,G,X,Y);
+      case 0x2256: return GradByNodes2D<2,5,6>(NE,B,G,X,Y);
 
-      case 0x3124: return GradTensor3D<1,2,4>(NE,B,G,X,Y);
-      case 0x3136: return GradTensor3D<1,3,6>(NE,B,G,X,Y);
-      case 0x3148: return GradTensor3D<1,4,8>(NE,B,G,X,Y);
+      case 0x3124: return GradByNodes3D<1,2,4>(NE,B,G,X,Y);
+      case 0x3136: return GradByNodes3D<1,3,6>(NE,B,G,X,Y);
+      case 0x3148: return GradByNodes3D<1,4,8>(NE,B,G,X,Y);
 
-      case 0x3324: return GradTensor3D<3,2,4>(NE,B,G,X,Y);
-      case 0x3333: return GradTensor3D<3,3,3>(NE,B,G,X,Y);
-      case 0x3335: return GradTensor3D<3,3,5>(NE,B,G,X,Y);
-      case 0x3336: return GradTensor3D<3,3,6>(NE,B,G,X,Y);
-      case 0x3348: return GradTensor3D<3,4,8>(NE,B,G,X,Y);
+      case 0x3324: return GradByNodes3D<3,2,4>(NE,B,G,X,Y);
+      case 0x3333: return GradByNodes3D<3,3,3>(NE,B,G,X,Y);
+      case 0x3335: return GradByNodes3D<3,3,5>(NE,B,G,X,Y);
+      case 0x3336: return GradByNodes3D<3,3,6>(NE,B,G,X,Y);
+      case 0x3348: return GradByNodes3D<3,4,8>(NE,B,G,X,Y);
       default:
       {
          constexpr int MD1 = 8;
@@ -310,7 +310,7 @@ void QuadratureInterpolator::Derivatives<QVectorLayout::byNODES>(
          //if (dim == 2) { GradTensor2D<0,0,0,MD1,MQ1>(NE,B,G,X,Y,vdim,D1D,Q1D); }
          if (dim == 3)
          {
-            return GradTensor3D<0,0,0,MD1,MQ1>(NE,B,G,X,Y,vdim,D1D,Q1D);
+            return GradByNodes3D<0,0,0,MD1,MQ1>(NE,B,G,X,Y,vdim,D1D,Q1D);
          }
       }
 

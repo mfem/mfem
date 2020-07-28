@@ -10525,13 +10525,6 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    const int NE   = fespace->GetNE();
    const int ND   = fe->GetDof();
    const int NQ   = ir.GetNPoints();
-   const bool use_tensor_products = mode == DofToQuad::TENSOR;
-
-   // For now, we are not using tensor product evaluation
-   const ElementDofOrdering e_ordering =
-      use_tensor_products ?
-      ElementDofOrdering::LEXICOGRAPHIC : ElementDofOrdering::NATIVE;
-   const Operator *elem_restr = fespace->GetElementRestriction(e_ordering);
 
    unsigned eval_flags = 0;
    if (flags & GeometricFactors::COORDINATES)
@@ -10552,7 +10545,14 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
 
    const QuadratureInterpolator *qi =
       fespace->GetQuadratureInterpolator(ir, mode);
-   if (use_tensor_products) { qi->EnableTensorProducts(); }
+   const bool use_tensor_products = qi->UseTensorProducts();
+
+   // For now, we are not using tensor product evaluation
+   const ElementDofOrdering e_ordering =
+      use_tensor_products ?
+      ElementDofOrdering::LEXICOGRAPHIC : ElementDofOrdering::NATIVE;
+   const Operator *elem_restr = fespace->GetElementRestriction(e_ordering);
+
    if (elem_restr)
    {
       Vector Enodes(vdim*ND*NE);
