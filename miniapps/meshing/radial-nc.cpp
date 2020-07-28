@@ -261,8 +261,9 @@ int GetMidVertex(int v1, int v2, double r, double a, double b,
 }
 
 void MakeLayer(int vx1, int vy1, int vz1, int vx2, int vy2, int vz2, int level,
-               double r1, double r2, double a1, double a2, double b1, double b2,
-               Mesh *mesh, HashTable<Vert> &hash, Array<Params> &params)
+               double r1, double r2, double a1, double a2, double a3,
+               double b1, double b2, Mesh *mesh, HashTable<Vert> &hash,
+               Array<Params> &params)
 {
    if (level <= 0)
    {
@@ -271,23 +272,24 @@ void MakeLayer(int vx1, int vy1, int vz1, int vx2, int vy2, int vz2, int level,
    }
    else
    {
-      double amid = (a1+a2)/2, bmid = (b1+b2)/2;
+      double a12 = (a1+a2)/2, a23 = (a2+a3)/2, a31 = (a3+a1)/2;
+      double b12 = (b1+b2)/2;
 
-      int vxy1 = GetMidVertex(vx1, vy1, r1, amid, b1, mesh, hash);
-      int vyz1 = GetMidVertex(vy1, vz1, r1, a2, bmid, mesh, hash);
-      int vxz1 = GetMidVertex(vx1, vz1, r1, a1, bmid, mesh, hash);
-      int vxy2 = GetMidVertex(vx2, vy2, r2, amid, b1, mesh, hash);
-      int vyz2 = GetMidVertex(vy2, vz2, r2, a2, bmid, mesh, hash);
-      int vxz2 = GetMidVertex(vx2, vz2, r2, a1, bmid, mesh, hash);
+      int vxy1 = GetMidVertex(vx1, vy1, r1, a12, b1, mesh, hash);
+      int vyz1 = GetMidVertex(vy1, vz1, r1, a23, b12, mesh, hash);
+      int vxz1 = GetMidVertex(vx1, vz1, r1, a31, b12, mesh, hash);
+      int vxy2 = GetMidVertex(vx2, vy2, r2, a12, b1, mesh, hash);
+      int vyz2 = GetMidVertex(vy2, vz2, r2, a23, b12, mesh, hash);
+      int vxz2 = GetMidVertex(vx2, vz2, r2, a31, b12, mesh, hash);
 
       MakeLayer(vx1, vxy1, vxz1, vx2, vxy2, vxz2, level-1, r1, r2,
-                a1, amid, b1, bmid, mesh, hash, params);
+                a1, a12, a31, b1, b12, mesh, hash, params);
       MakeLayer(vxy1, vy1, vyz1, vxy2, vy2, vyz2, level-1, r1, r2,
-                amid, a2, b1, bmid, mesh, hash, params);
+                a12, a2, a23, b1, b12, mesh, hash, params);
       MakeLayer(vxz1, vyz1, vz1, vxz2, vyz2, vz2, level-1, r1, r2,
-                a1, a2, bmid, b2, mesh, hash, params);
+                a31, a23, a3, b12, b2, mesh, hash, params);
       MakeLayer(vyz1, vxz1, vxy1, vyz2, vxz2, vxy2, level-1, r1, r2,
-                a2, a1, bmid, b1, mesh, hash, params);
+                a23, a31, a12, b12, b1, mesh, hash, params);
    }
 }
 
@@ -309,7 +311,7 @@ Mesh* Make3D(int nsteps, double rstep, double aspect, int order)
 
    const double pi2 = M_PI / 2;
 
-   MakeLayer(a, b, c, d, e, f, 2, rstep, r, 0, pi2, 0, pi2, mesh, hash, params);
+   MakeLayer(a, b, c, d, e, f, 3, rstep, r, 0, pi2, 0, 0, pi2, mesh, hash, params);
 
    mesh->FinalizeMesh();
 
