@@ -919,8 +919,17 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
    // starting from 1, not 0)
    map<int, int> vertices_map;
 
-   // Gmsh always outputs coordinates in 3D
-   spaceDim = 3;
+   // Gmsh always outputs coordinates in 3D.  We will check for a
+   // lower dimensional subspace by measuring the bounding box.  The
+   // assumption will be that the mesh is at least 2D if the
+   // y-dimension of the box is non-trivial and 3D if the z-dimension
+   // is non-trivial.  Note that with these assumptions a 2D mesh
+   // parallel to the yz plane will be regarded as a surface mesh
+   // embedded in 3D whereas the same 2D mesh parallel to the xy plane
+   // will be regarded as a 2D mesh.
+   double bb_tol = 1e-14;
+   double bb_min[3];
+   double bb_max[3];
 
    // Mesh order
    int mesh_order = 1;
@@ -960,7 +969,28 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             }
             vertices[ver] = Vertex(coord, gmsh_dim);
             vertices_map[serial_number] = ver;
+
+            for (int ci = 0; ci < gmsh_dim; ++ci)
+            {
+               bb_min[ci] = (ver == 0) ? coord[ci] :
+                            std::min(bb_min[ci], coord[ci]);
+               bb_max[ci] = (ver == 0) ? coord[ci] :
+                            std::max(bb_max[ci], coord[ci]);
+            }
          }
+         double bb_size = std::max(bb_max[0] - bb_min[0],
+                                   std::max(bb_max[1] - bb_min[1],
+                                            bb_max[2] - bb_min[2]));
+         spaceDim = 1;
+         if (bb_max[1] - bb_min[1] > bb_size * bb_tol)
+         {
+            spaceDim++;
+         }
+         if (bb_max[2] - bb_min[2] > bb_size * bb_tol)
+         {
+            spaceDim++;
+         }
+
          if (static_cast<int>(vertices_map.size()) != NumOfVertices)
          {
             MFEM_ABORT("Gmsh file : vertices indices are not unique");
