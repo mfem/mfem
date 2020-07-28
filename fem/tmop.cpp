@@ -14,6 +14,9 @@
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
 
+#define MFEM_DEBUG_COLOR 79
+#include "../general/debug.hpp"
+
 namespace mfem
 {
 
@@ -1245,6 +1248,11 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
              nqp = ir.GetNPoints();
    Jtrcomp.SetSize(dim, dim, 4*nqp);
 
+   if (sizeidx != -1) { dbg("sizeidx"); }
+   if (aspectratioidx!= -1) { dbg("aspectratioidx"); }
+   if (skewidx!= -1) { dbg("skewidx"); }
+   if (orientationidx!= -1) { dbg("orientationidx"); }
+
    switch (target_type)
    {
       case IDEAL_SHAPE_GIVEN_SIZE:
@@ -1279,10 +1287,13 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
             if (sizeidx != -1) // Set size
             {
                par_vals.SetDataAndSize(tspec_vals.GetData()+sizeidx*ndofs, ndofs);
+               //if (e_id == 0) { dbg("par_vals:"); par_vals.Print(); }
                const double min_size = par_vals.Min();
+               if (e_id == 0) { dbg("min_size: %f",min_size); }
                MFEM_VERIFY(min_size > 0.0,
                            "Non-positive size propagated in the target definition.");
                const double size = std::max(shape * par_vals, min_size);
+               if (e_id == 0) { dbg("size: %f (%f)", size, shape * par_vals); }
                Jtr(q).Set(std::pow(size, 1.0/dim), Jtr(q));
                DenseMatrix Jtrcomp_q(Jtrcomp.GetData(0 + 4*q), dim, dim);
                Jtrcomp_q = Jtr(q);
