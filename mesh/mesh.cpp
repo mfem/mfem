@@ -5825,6 +5825,7 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
    el_to_el = NULL;
 
    // Check for empty partitionings (a "feature" in METIS)
+   if (nparts > 1 && NumOfElements > nparts)
    {
       Array< Pair<int,int> > psize(nparts);
       int empty_parts;
