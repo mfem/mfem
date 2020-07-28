@@ -804,7 +804,8 @@ protected:
                    Vector &dofs) const;
 
    void Project_RT(const double *nk, const Array<int> &d2n,
-                   Vector &vc, ElementTransformation &Trans, Vector &dofs) const;
+                   Vector &vc, ElementTransformation &Trans,
+                   Vector &dofs) const;
 
    // project the rows of the matrix coefficient in an RT space
    void ProjectMatrixCoefficient_RT(
