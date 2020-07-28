@@ -20,7 +20,8 @@
 namespace mfem
 {
 
-template<int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 1>
+template<int T_VDIM, int T_D1D, int T_Q1D, int T_NBZ = 1,
+         int MAX_D1D = 0, int MAX_Q1D = 0>
 static void EvalByNodes2D(const int NE,
                           const double *b_,
                           const double *x_,
@@ -243,7 +244,17 @@ void QuadratureInterpolator::Values<QVectorLayout::byNODES>(
       case 0x2124: return EvalByNodes2D<1,2,4>(NE,B,X,Y);
 
       case 0x2222: return EvalByNodes2D<2,2,2>(NE,B,X,Y);
+      case 0x2223: return EvalByNodes2D<2,2,3>(NE,B,X,Y);
+      case 0x2224: return EvalByNodes2D<2,2,4>(NE,B,X,Y);
+      case 0x2225: return EvalByNodes2D<2,2,5>(NE,B,X,Y);
+      case 0x2226: return EvalByNodes2D<2,2,6>(NE,B,X,Y);
       case 0x2234: return EvalByNodes2D<2,3,4>(NE,B,X,Y);
+      case 0x2236: return EvalByNodes2D<2,3,6>(NE,B,X,Y);
+      case 0x2244: return EvalByNodes2D<2,4,4>(NE,B,X,Y);
+      case 0x2245: return EvalByNodes2D<2,4,5>(NE,B,X,Y);
+      case 0x2246: return EvalByNodes2D<2,4,6>(NE,B,X,Y);
+      case 0x2247: return EvalByNodes2D<2,4,7>(NE,B,X,Y);
+      case 0x2256: return EvalByNodes2D<2,5,6>(NE,B,X,Y);
 
       case 0x3124: return EvalByNodes3D<1,2,4>(NE,B,X,Y);
       case 0x3136: return EvalByNodes3D<1,3,6>(NE,B,X,Y);
@@ -253,10 +264,14 @@ void QuadratureInterpolator::Values<QVectorLayout::byNODES>(
       case 0x3223: return EvalByNodes3D<2,2,3>(NE,B,X,Y);
       case 0x3234: return EvalByNodes3D<2,3,4>(NE,B,X,Y);
 
+      case 0x3323: return EvalByNodes3D<3,2,3>(NE,B,X,Y);
       case 0x3324: return EvalByNodes3D<3,2,4>(NE,B,X,Y);
+      case 0x3325: return EvalByNodes3D<3,2,5>(NE,B,X,Y);
+      case 0x3326: return EvalByNodes3D<3,2,6>(NE,B,X,Y);
       case 0x3333: return EvalByNodes3D<3,3,3>(NE,B,X,Y);
       case 0x3335: return EvalByNodes3D<3,3,5>(NE,B,X,Y);
       case 0x3336: return EvalByNodes3D<3,3,6>(NE,B,X,Y);
+      case 0x3347: return EvalByNodes3D<3,4,7>(NE,B,X,Y);
       case 0x3348: return EvalByNodes3D<3,4,8>(NE,B,X,Y);
       default:
       {
@@ -266,13 +281,16 @@ void QuadratureInterpolator::Values<QVectorLayout::byNODES>(
                      << " are not supported!");
          MFEM_VERIFY(Q1D <= MQ1, "Quadrature rules with more than "
                      << MQ1 << " 1D points are not supported!");
+         if (dim == 2)
+         {
+            //return EvalByNodes2D<0,0,0,1,MD1,MQ1>(NE,B,X,Y,vdim,D1D,Q1D);
+         }
          if (dim == 3)
          {
             return EvalByNodes3D<0,0,0,MD1,MQ1>(NE,B,X,Y,vdim,D1D,Q1D);
          }
       }
    }
-
    dbg("0x%x",id);
    MFEM_ABORT("Kernel not supported yet");
 }
