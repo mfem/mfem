@@ -21,14 +21,13 @@
 // values. The miniapp also uses FindPoints to interpolate the solution from one
 // mesh onto another, and visualize the difference using GLVis.
 //
-// Compile with: make field-diff
+// Compile with: make field-interp
 //
 // Sample runs:
-//    field-interp -m1 hdivsol.mesh -s1 hdivsol.gf -m2 hdivsol.mesh -o 3
-//    field-interp -m1 squarehdiv.mesh -s1 squarehdiv.gf -m2 squarehdiv.mesh -o 2
-//    field-interp -m1 hcurlsol.mesh -s1 hcurlsol.gf -m2 hcurlsol.mesh  -o 3
-//    field-interm
-#include "../../mfem.hpp"
+//    field-interp -m1 ../meshing/square01.mesh -s1 source2d_hdiv.gf -m2 ../../data/inline-tri.mesh -o 2 -r 1
+//    field-interp -m1 ../meshing/square01.mesh -s1 source2d_hcurl.gf -m2 ../../data/inline-tri.mesh
+
+#include "mfem.hpp"
 #include <fstream>
 
 using namespace mfem;
@@ -37,7 +36,7 @@ using namespace std;
 int main (int argc, char *argv[])
 {
    // Set the method's default parameters.
-   const char *mesh_file_1 = "source2d.mesh";
+   const char *mesh_file_1 = "../meshing/square01.mesh";
    const char *mesh_file_2 = "../../data/inline-tri.mesh";
    const char *sltn_file_1 = "source2d_hdiv.gf";
    int order = 3;
@@ -155,7 +154,7 @@ int main (int argc, char *argv[])
    }
    else
    {
-      MFEM_ABORT(" GridFunction type not supported.");
+      MFEM_ABORT("GridFunction type not supported.");
    }
 
    GridFunction func_target(sc_fes);
