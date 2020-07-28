@@ -128,21 +128,19 @@ public:
 class FunctionCoefficient : public Coefficient
 {
 protected:
-   double (*Function)(const Vector &);
-   double (*TDFunction)(const Vector &, double);
+   std::function<double(const Vector &)> Function;
+   std::function<double(const Vector &, double)> TDFunction;
 
 public:
-   /// Define a time-independent coefficient from a pointer to a C-function
-   FunctionCoefficient(double (*f)(const Vector &))
+   /// Define a time-independent coefficient from a pointer to a std function
+   FunctionCoefficient(std::function<double(const Vector &)> F)
    {
       Function = f;
-      TDFunction = NULL;
    }
 
-   /// Define a time-dependent coefficient from a pointer to a C-function
-   FunctionCoefficient(double (*tdf)(const Vector &, double))
+   /// Define a time-dependent coefficient from a pointer to a std function
+   FunctionCoefficient(std::function<double(const Vector &, double)> TDF)
    {
-      Function = NULL;
       TDFunction = tdf;
    }
 
@@ -409,27 +407,28 @@ public:
 class VectorFunctionCoefficient : public VectorCoefficient
 {
 private:
-   void (*Function)(const Vector &, Vector &);
-   void (*TDFunction)(const Vector &, double, Vector &);
+   std::function<void(const Vector &, Vector &)> Function;
+   std::function<void(const Vector &, double, Vector &)> TDFunction;
    Coefficient *Q;
 
 public:
-   /// Construct a time-independent vector coefficient from a C-function
-   VectorFunctionCoefficient(int dim, void (*F)(const Vector &, Vector &),
+   /// Construct a time-independent vector coefficient from a std function
+   VectorFunctionCoefficient(int dim,
+                             std::function<void(const Vector &, Vector &)> F,
                              Coefficient *q = NULL)
       : VectorCoefficient(dim), Q(q)
    {
       Function = F;
-      TDFunction = NULL;
    }
 
-   /// Construct a time-dependent vector coefficient from a C-function
+   /// Construct a time-dependent vector coefficient from a std function
    VectorFunctionCoefficient(int dim,
-                             void (*TDF)(const Vector &, double, Vector &),
+                             std::function<void(const Vector &,
+                                                double,
+                                                Vector &)> TDF,
                              Coefficient *q = NULL)
       : VectorCoefficient(dim), Q(q)
    {
-      Function = NULL;
       TDFunction = TDF;
    }
 
@@ -752,20 +751,21 @@ public:
 class MatrixFunctionCoefficient : public MatrixCoefficient
 {
 private:
-   void (*Function)(const Vector &, DenseMatrix &);
-   void (*TDFunction)(const Vector &, double, DenseMatrix &);
+   std::function<void(const Vector &, DenseMatrix &)> Function;
+   std::function<void(const Vector &, double, DenseMatrix &)> TDFunction;
    Coefficient *Q;
    DenseMatrix mat;
 
 public:
-   /// Construct a square matrix coefficient from a C-function without time
+   /// Construct a square matrix coefficient from a std function without time
    /// dependence.
-   MatrixFunctionCoefficient(int dim, void (*F)(const Vector &, DenseMatrix &),
+   MatrixFunctionCoefficient(int dim,
+                             std::function<void(const Vector &,
+                                                DenseMatrix &)> F,
                              Coefficient *q = NULL)
       : MatrixCoefficient(dim), Q(q)
    {
       Function = F;
-      TDFunction = NULL;
       mat.SetSize(0);
    }
 
@@ -773,19 +773,18 @@ public:
    MatrixFunctionCoefficient(const DenseMatrix &m, Coefficient &q)
       : MatrixCoefficient(m.Height(), m.Width()), Q(&q)
    {
-      Function = NULL;
-      TDFunction = NULL;
       mat = m;
    }
 
-   /// Construct a square matrix coefficient from a C-function with
+   /// Construct a square matrix coefficient from a std function with
    /// time-dependence.
    MatrixFunctionCoefficient(int dim,
-                             void (*TDF)(const Vector &, double, DenseMatrix &),
+                             std::function<void(const Vector &,
+                                                double,
+                                                DenseMatrix &)> TDF,
                              Coefficient *q = NULL)
       : MatrixCoefficient(dim), Q(q)
    {
-      Function = NULL;
       TDFunction = TDF;
       mat.SetSize(0);
    }
