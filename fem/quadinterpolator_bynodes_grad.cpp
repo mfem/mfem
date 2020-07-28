@@ -283,21 +283,28 @@ void QuadratureInterpolator::Derivatives<QVectorLayout::byNODES>(
       case 0x2222: return GradByNodes2D<2,2,2>(NE,B,G,X,Y);
       case 0x2223: return GradByNodes2D<2,2,3>(NE,B,G,X,Y);
       case 0x2224: return GradByNodes2D<2,2,4>(NE,B,G,X,Y);
+      case 0x2225: return GradByNodes2D<2,2,5>(NE,B,G,X,Y);
       case 0x2226: return GradByNodes2D<2,2,6>(NE,B,G,X,Y);
       case 0x2234: return GradByNodes2D<2,3,4>(NE,B,G,X,Y);
       case 0x2236: return GradByNodes2D<2,3,6>(NE,B,G,X,Y);
       case 0x2244: return GradByNodes2D<2,4,4>(NE,B,G,X,Y);
+      case 0x2245: return GradByNodes2D<2,4,5>(NE,B,G,X,Y);
       case 0x2246: return GradByNodes2D<2,4,6>(NE,B,G,X,Y);
+      case 0x2247: return GradByNodes2D<2,4,7>(NE,B,G,X,Y);
       case 0x2256: return GradByNodes2D<2,5,6>(NE,B,G,X,Y);
 
       case 0x3124: return GradByNodes3D<1,2,4>(NE,B,G,X,Y);
       case 0x3136: return GradByNodes3D<1,3,6>(NE,B,G,X,Y);
       case 0x3148: return GradByNodes3D<1,4,8>(NE,B,G,X,Y);
 
+      case 0x3323: return GradByNodes3D<3,2,3>(NE,B,G,X,Y);
       case 0x3324: return GradByNodes3D<3,2,4>(NE,B,G,X,Y);
+      case 0x3325: return GradByNodes3D<3,2,5>(NE,B,G,X,Y);
+      case 0x3326: return GradByNodes3D<3,2,6>(NE,B,G,X,Y);
       case 0x3333: return GradByNodes3D<3,3,3>(NE,B,G,X,Y);
       case 0x3335: return GradByNodes3D<3,3,5>(NE,B,G,X,Y);
       case 0x3336: return GradByNodes3D<3,3,6>(NE,B,G,X,Y);
+      case 0x3347: return GradByNodes3D<3,4,7>(NE,B,G,X,Y);
       case 0x3348: return GradByNodes3D<3,4,8>(NE,B,G,X,Y);
       default:
       {
@@ -307,7 +314,10 @@ void QuadratureInterpolator::Derivatives<QVectorLayout::byNODES>(
                      << " are not supported!");
          MFEM_VERIFY(Q1D <= MQ1, "Quadrature rules with more than "
                      << MQ1 << " 1D points are not supported!");
-         //if (dim == 2) { GradTensor2D<0,0,0,MD1,MQ1>(NE,B,G,X,Y,vdim,D1D,Q1D); }
+         if (dim == 2)
+         {
+            return GradByNodes2D<0,0,0,1,MD1,MQ1>(NE,B,G,X,Y,vdim,D1D,Q1D);
+         }
          if (dim == 3)
          {
             return GradByNodes3D<0,0,0,MD1,MQ1>(NE,B,G,X,Y,vdim,D1D,Q1D);
