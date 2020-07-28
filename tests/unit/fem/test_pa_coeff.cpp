@@ -479,8 +479,25 @@ TEST_CASE("Hcurl/Hdiv pa_coeff")
                      {
                         if (spaceType == Hcurl)
                         {
-                           paform.AddDomainIntegrator(new CurlCurlIntegrator(*coeff2));
-                           assemblyform.AddDomainIntegrator(new CurlCurlIntegrator(*coeff2));
+                           const FiniteElement *fel = fespace.GetFE(0);
+                           const IntegrationRule *intRule = &MassIntegrator::GetRule(*fel, *fel,
+                                                                                     *mesh->GetElementTransformation(0));
+
+                           if (coeffType >= 3 && dimension == 3)
+                           {
+                              paform.AddDomainIntegrator(new CurlCurlIntegrator(*smcoeff, intRule));
+                              assemblyform.AddDomainIntegrator(new CurlCurlIntegrator(*mcoeff, intRule));
+                           }
+                           else if (coeffType == 2 && dimension == 3)
+                           {
+                              paform.AddDomainIntegrator(new CurlCurlIntegrator(*vcoeff, intRule));
+                              assemblyform.AddDomainIntegrator(new CurlCurlIntegrator(*vcoeff, intRule));
+                           }
+                           else
+                           {
+                              paform.AddDomainIntegrator(new CurlCurlIntegrator(*coeff2));
+                              assemblyform.AddDomainIntegrator(new CurlCurlIntegrator(*coeff2));
+                           }
                         }
                         else
                         {
