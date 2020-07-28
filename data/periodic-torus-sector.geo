@@ -66,6 +66,10 @@ Physical Surface(2) = {222};
 Physical Surface(3) = {221,217,213,209};
 Physical Volume(1) = {1};
 
+// Optimize the high-order mesh?
+// See https://gmsh.info/doc/texinfo/gmsh.html#index-Mesh_002eHighOrderOptimize
+// Mesh.HighOrderOptimize = 2;
+
 // Generate 3D mesh
 Mesh 3;
 SetOrder order;

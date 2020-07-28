@@ -919,14 +919,16 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
    // starting from 1, not 0)
    map<int, int> vertices_map;
 
-   // Gmsh always outputs coordinates in 3D.  We will check for a
-   // lower dimensional subspace by measuring the bounding box.  The
-   // assumption will be that the mesh is at least 2D if the
-   // y-dimension of the box is non-trivial and 3D if the z-dimension
-   // is non-trivial.  Note that with these assumptions a 2D mesh
-   // parallel to the yz plane will be regarded as a surface mesh
-   // embedded in 3D whereas the same 2D mesh parallel to the xy plane
-   // will be regarded as a 2D mesh.
+   // Gmsh always outputs coordinates in 3D, but MFEM distinguishes between the
+   // mesh element dimension (Dim) and the dimension of the space in which the
+   // mesh is embedded (spaceDim). For example, a 2D MFEM mesh has Dim = 2 and
+   // spaceDim = 2, while a 2D surface mesh in 3D has Dim = 2 but spaceDim = 3.
+   // Below we set spaceDim by measuring the mesh bounding box and checking for
+   // a lower dimensional subspace. The assumption is that the mesh is at least
+   // 2D if the y-dimension of the box is non-trivial and 3D if the z-dimension
+   // is non-trivial. Note that with these assumptions a 2D mesh parallel to the
+   // yz plane will be considered a surface mesh embedded in 3D whereas the same
+   // 2D mesh parallel to the xy plane will be considered a 2D mesh.
    double bb_tol = 1e-14;
    double bb_min[3];
    double bb_max[3];
