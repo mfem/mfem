@@ -193,8 +193,6 @@ void QuadratureInterpolator::PhysDerivatives(const Vector &e_vec,
 void QuadratureInterpolator::Determinants(const Vector &e_vec,
                                           Vector &q_det) const
 {
-   MFEM_ABORT("this method is not implemented yet");
-   /*
    if (use_tensor_products)
    {
       if (q_layout == QVectorLayout::byNODES)
@@ -218,7 +216,7 @@ void QuadratureInterpolator::Determinants(const Vector &e_vec,
       {
          MFEM_ABORT("this method is not implemented yet");
       }
-   }*/
+   }
 }
 
 } // namespace mfem

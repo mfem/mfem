@@ -20,8 +20,8 @@ namespace mfem
 /// Type describing possible layouts for Q-vectors.
 enum class QVectorLayout
 {
-   byNODES, ///< NQPT x VDIM x NE
-   byVDIM   ///< VDIM x NQPT x NE
+   byNODES,  ///< NQPT x VDIM x NE
+   byVDIM    ///< VDIM x NQPT x NE
 };
 
 /** @brief A class that performs interpolation from an E-vector to quadrature

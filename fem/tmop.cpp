@@ -14,9 +14,6 @@
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
 
-#define MFEM_DEBUG_COLOR 206
-#include "../general/debug.hpp"
-
 namespace mfem
 {
 
@@ -1176,8 +1173,6 @@ void DiscreteAdaptTC::FinalizeSerialDiscreteTargetSpec()
    adapt_eval->SetInitialField(*tspec_fes->GetMesh()->GetNodes(), tspec);
 
    tspec_sav = tspec;
-   MFEM_VERIFY(tspec.UseDevice(),"");
-   MFEM_VERIFY(tspec_sav.UseDevice(),"");
 
    delete tspec_fesv;
    tspec_fesv = new FiniteElementSpace(tspec_fes->GetMesh(),

@@ -148,11 +148,9 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    const int dim = PA.dim = mesh->Dimension();
    MFEM_VERIFY(PA.dim == 2 || PA.dim == 3, "Not yet implemented!");
 
-
-   PA.maps = &fes.GetFE(0)->GetDofToQuad(*ir, DofToQuad::TENSOR);
-   PA.geom = mesh->GetGeometricFactors(*ir,
-                                       GeometricFactors::JACOBIANS,
-                                       DofToQuad::TENSOR);
+   const DofToQuad::Mode mode = DofToQuad::TENSOR;
+   PA.maps = &fes.GetFE(0)->GetDofToQuad(*ir, mode);
+   PA.geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mode);
 
    // Energy vector
    PA.E.UseDevice(true);
