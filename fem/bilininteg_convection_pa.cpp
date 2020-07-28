@@ -68,47 +68,53 @@ static void PAConvectionSetup3D(const int Q1D,
                                 const double alpha,
                                 Vector &op)
 {
-   const int NQ = Q1D*Q1D*Q1D;
-   auto W = w.Read();
-   auto J = Reshape(j.Read(), NQ, 3, 3, NE);
+   const auto W = Reshape(w.Read(), Q1D,Q1D,Q1D);
+   const auto J = Reshape(j.Read(), Q1D,Q1D,Q1D,3,3,NE);
    const bool const_v = vel.Size() == 3;
-   auto V =
-      const_v ? Reshape(vel.Read(), 3,1,1) : Reshape(vel.Read(), 3,NQ,NE);
-   auto y = Reshape(op.Write(), NQ, 3, NE);
-   MFEM_FORALL(e, NE,
+   const auto V = const_v ?
+                  Reshape(vel.Read(), 3,1,1,1,1) :
+                  Reshape(vel.Read(), 3,Q1D,Q1D,Q1D,NE);
+   auto y = Reshape(op.Write(), Q1D,Q1D,Q1D,3,NE);
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
-      for (int q = 0; q < NQ; ++q)
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
-         const double J11 = J(q,0,0,e);
-         const double J21 = J(q,1,0,e);
-         const double J31 = J(q,2,0,e);
-         const double J12 = J(q,0,1,e);
-         const double J22 = J(q,1,1,e);
-         const double J32 = J(q,2,1,e);
-         const double J13 = J(q,0,2,e);
-         const double J23 = J(q,1,2,e);
-         const double J33 = J(q,2,2,e);
-         const double w = alpha * W[q];
-         const double v0 = const_v ? V(0,0,0) : V(0,q,e);
-         const double v1 = const_v ? V(1,0,0) : V(1,q,e);
-         const double v2 = const_v ? V(2,0,0) : V(2,q,e);
-         const double wx = w * v0;
-         const double wy = w * v1;
-         const double wz = w * v2;
-         // adj(J)
-         const double A11 = (J22 * J33) - (J23 * J32);
-         const double A12 = (J32 * J13) - (J12 * J33);
-         const double A13 = (J12 * J23) - (J22 * J13);
-         const double A21 = (J31 * J23) - (J21 * J33);
-         const double A22 = (J11 * J33) - (J13 * J31);
-         const double A23 = (J21 * J13) - (J11 * J23);
-         const double A31 = (J21 * J32) - (J31 * J22);
-         const double A32 = (J31 * J12) - (J11 * J32);
-         const double A33 = (J11 * J22) - (J12 * J21);
-         // q . J^{-1} = q . adj(J)
-         y(q,0,e) =  wx * A11 + wy * A12 + wz * A13;
-         y(q,1,e) =  wx * A21 + wy * A22 + wz * A23;
-         y(q,2,e) =  wx * A31 + wy * A32 + wz * A33;
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qz,z,Q1D)
+            {
+               const double J11 = J(qx,qy,qz,0,0,e);
+               const double J12 = J(qx,qy,qz,0,1,e);
+               const double J13 = J(qx,qy,qz,0,2,e);
+               const double J21 = J(qx,qy,qz,1,0,e);
+               const double J22 = J(qx,qy,qz,1,1,e);
+               const double J23 = J(qx,qy,qz,1,2,e);
+               const double J31 = J(qx,qy,qz,2,0,e);
+               const double J32 = J(qx,qy,qz,2,1,e);
+               const double J33 = J(qx,qy,qz,2,2,e);
+               const double w = alpha *  W(qx,qy,qz);
+               const double v0 = const_v ? V(0,0,0,0,0) : V(0,qx,qy,qz,e);
+               const double v1 = const_v ? V(1,0,0,0,0) : V(1,qx,qy,qz,e);
+               const double v2 = const_v ? V(2,0,0,0,0) : V(2,qx,qy,qz,e);
+               const double wx = w * v0;
+               const double wy = w * v1;
+               const double wz = w * v2;
+               // adj(J)
+               const double A11 = (J22 * J33) - (J23 * J32);
+               const double A12 = (J32 * J13) - (J12 * J33);
+               const double A13 = (J12 * J23) - (J22 * J13);
+               const double A21 = (J31 * J23) - (J21 * J33);
+               const double A22 = (J11 * J33) - (J13 * J31);
+               const double A23 = (J21 * J13) - (J11 * J23);
+               const double A31 = (J21 * J32) - (J31 * J22);
+               const double A32 = (J31 * J12) - (J11 * J32);
+               const double A33 = (J11 * J22) - (J12 * J21);
+               // q . J^{-1} = q . adj(J)
+               y(qx,qy,qz,0,e) =  wx * A11 + wy * A12 + wz * A13;
+               y(qx,qy,qz,1,e) =  wx * A21 + wy * A22 + wz * A23;
+               y(qx,qy,qz,2,e) =  wx * A31 + wy * A32 + wz * A33;
+            }
+         }
       }
    });
 }
@@ -778,8 +784,9 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
    ne = fes.GetNE();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
-   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   const DofToQuad::Mode mode = DofToQuad::TENSOR;
+   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mode);
+   maps = &el.GetDofToQuad(*ir, mode);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());

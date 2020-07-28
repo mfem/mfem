@@ -17,7 +17,7 @@
 #include <iomanip>
 #include <iostream>
 
-#include "mfem.hpp"
+#include "globals.hpp"
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
@@ -64,15 +64,23 @@ public:
       if (!debug) { return; }
       for (; *fmt != '\0'; fmt++ )
       {
-         if ( *fmt == '%' )
+         if (*fmt == '%')
          {
             fmt++;
             const char c = *fmt;
             if (c == 'p') { operator<<(arg); }
             if (c == 's' || c == 'd' || c == 'f') { operator<<(arg); }
+            if (c == 'x' || c == 'X')
+            {
+               mfem::out << std::hex;
+               if (c == 'X') { mfem::out << std::uppercase; }
+               operator<<(arg);
+               mfem::out << std::nouppercase << std::dec;
+            }
             if (c == '.')
             {
                fmt++;
+               const char c = *fmt;
                char num[8] = { 0 };
                for (int k = 0; *fmt != '\0'; fmt++, k++)
                {
@@ -81,8 +89,8 @@ public:
                   num[k] = *fmt;
                }
                const int fx = std::atoi(num);
-               if (*fmt=='e') { mfem::out << std::scientific; }
-               if (*fmt=='f') { mfem::out << std::fixed; }
+               if (c == 'e') { mfem::out << std::scientific; }
+               if (c == 'f') { mfem::out << std::fixed; }
                mfem::out << std::setprecision(fx);
                operator<<(arg);
                mfem::out << std::setprecision(6);

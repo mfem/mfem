@@ -754,7 +754,8 @@ void Mesh::GetLocalQuadToWdgTransformation(
 }
 
 const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
-                                                  const int flags)
+                                                  const int flags,
+                                                  mfem::DofToQuad::Mode mode)
 {
    for (int i = 0; i < geom_factors.Size(); i++)
    {
@@ -766,8 +767,7 @@ const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
    }
 
    this->EnsureNodes();
-
-   GeometricFactors *gf = new GeometricFactors(this, ir, flags);
+   GeometricFactors *gf = new GeometricFactors(this, ir, flags, mode);
    geom_factors.Append(gf);
    return gf;
 }
@@ -10511,7 +10511,7 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
 
 
 GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
-                                   int flags)
+                                   int flags, DofToQuad::Mode mode)
 {
    this->mesh = mesh;
    IntRule = &ir;
@@ -10525,10 +10525,6 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    const int NE   = fespace->GetNE();
    const int ND   = fe->GetDof();
    const int NQ   = ir.GetNPoints();
-
-   // For now, we are not using tensor product evaluation
-   const Operator *elem_restr = fespace->GetElementRestriction(
-                                   ElementDofOrdering::NATIVE);
 
    unsigned eval_flags = 0;
    if (flags & GeometricFactors::COORDINATES)
@@ -10547,10 +10543,15 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
       eval_flags |= QuadratureInterpolator::DETERMINANTS;
    }
 
-   const QuadratureInterpolator *qi = fespace->GetQuadratureInterpolator(ir);
-   // For now, we are not using tensor product evaluation (not implemented)
-   qi->DisableTensorProducts();
-   qi->SetOutputLayout(QVectorLayout::byNODES);
+   const QuadratureInterpolator *qi =
+      fespace->GetQuadratureInterpolator(ir, mode);
+   const bool t_prod = qi->UseTensorProducts();
+
+   // Use LEXICOGRAPHIC ordering in case of tensor product evaluation
+   const ElementDofOrdering e_ordering =
+      t_prod ? ElementDofOrdering::LEXICOGRAPHIC : ElementDofOrdering::NATIVE;
+   const Operator *elem_restr = fespace->GetElementRestriction(e_ordering);
+
    if (elem_restr)
    {
       Vector Enodes(vdim*ND*NE);
