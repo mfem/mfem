@@ -21,13 +21,13 @@ namespace mfem
 {
 
 template<int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 1>
-static void EvalTensor2D(const int NE,
-                         const double *b_,
-                         const double *x_,
-                         double *y_,
-                         const int vdim = 1,
-                         const int d1d = 0,
-                         const int q1d = 0)
+static void EvalByNodes2D(const int NE,
+                          const double *b_,
+                          const double *x_,
+                          double *y_,
+                          const int vdim = 1,
+                          const int d1d = 0,
+                          const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -109,13 +109,13 @@ static void EvalTensor2D(const int NE,
 }
 
 template<int T_VDIM, int T_D1D, int T_Q1D, int MAX_D1D = 0, int MAX_Q1D = 0>
-static void EvalTensor3D(const int NE,
-                         const double *b_,
-                         const double *x_,
-                         double *y_,
-                         const int vdim = 1,
-                         const int d1d = 0,
-                         const int q1d = 0)
+static void EvalByNodes3D(const int NE,
+                          const double *b_,
+                          const double *x_,
+                          double *y_,
+                          const int vdim = 1,
+                          const int d1d = 0,
+                          const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -240,21 +240,24 @@ void QuadratureInterpolator::Values<QVectorLayout::byNODES>(
 
    switch (id)
    {
-      case 0x2222: return EvalTensor2D<2,2,2>(NE,B,X,Y);
+      case 0x2124: return EvalByNodes2D<1,2,4>(NE,B,X,Y);
 
-      case 0x3124: return EvalTensor3D<1,2,4>(NE,B,X,Y);
-      case 0x3136: return EvalTensor3D<1,3,6>(NE,B,X,Y);
-      case 0x3148: return EvalTensor3D<1,4,8>(NE,B,X,Y);
+      case 0x2222: return EvalByNodes2D<2,2,2>(NE,B,X,Y);
+      case 0x2234: return EvalByNodes2D<2,3,4>(NE,B,X,Y);
 
-      case 0x3222: return EvalTensor3D<2,2,2>(NE,B,X,Y);
-      case 0x3223: return EvalTensor3D<2,2,3>(NE,B,X,Y);
-      case 0x3234: return EvalTensor3D<2,3,4>(NE,B,X,Y);
+      case 0x3124: return EvalByNodes3D<1,2,4>(NE,B,X,Y);
+      case 0x3136: return EvalByNodes3D<1,3,6>(NE,B,X,Y);
+      case 0x3148: return EvalByNodes3D<1,4,8>(NE,B,X,Y);
 
-      case 0x3324: return EvalTensor3D<3,2,4>(NE,B,X,Y);
-      case 0x3333: return EvalTensor3D<3,3,3>(NE,B,X,Y);
-      case 0x3335: return EvalTensor3D<3,3,5>(NE,B,X,Y);
-      case 0x3336: return EvalTensor3D<3,3,6>(NE,B,X,Y);
-      case 0x3348: return EvalTensor3D<3,4,8>(NE,B,X,Y);
+      case 0x3222: return EvalByNodes3D<2,2,2>(NE,B,X,Y);
+      case 0x3223: return EvalByNodes3D<2,2,3>(NE,B,X,Y);
+      case 0x3234: return EvalByNodes3D<2,3,4>(NE,B,X,Y);
+
+      case 0x3324: return EvalByNodes3D<3,2,4>(NE,B,X,Y);
+      case 0x3333: return EvalByNodes3D<3,3,3>(NE,B,X,Y);
+      case 0x3335: return EvalByNodes3D<3,3,5>(NE,B,X,Y);
+      case 0x3336: return EvalByNodes3D<3,3,6>(NE,B,X,Y);
+      case 0x3348: return EvalByNodes3D<3,4,8>(NE,B,X,Y);
       default:
       {
          constexpr int MD1 = 8;
@@ -265,7 +268,7 @@ void QuadratureInterpolator::Values<QVectorLayout::byNODES>(
                      << MQ1 << " 1D points are not supported!");
          if (dim == 3)
          {
-            return EvalTensor3D<0,0,0,MD1,MQ1>(NE,B,X,Y,vdim,D1D,Q1D);
+            return EvalByNodes3D<0,0,0,MD1,MQ1>(NE,B,X,Y,vdim,D1D,Q1D);
          }
       }
    }

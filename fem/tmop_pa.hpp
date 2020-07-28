@@ -31,8 +31,8 @@ MFEM_HOST_DEVICE inline void LoadBG(const int D1D, const int Q1D,
                                     double sBG[2][MQ1*MD1])
 {
    const int tidz = MFEM_THREAD_ID(z);
-   double (*B)[MD1] = (double (*)[MD1])(sBG+0);
-   double (*G)[MD1] = (double (*)[MD1])(sBG+1);
+   DeviceTensor<2,double> B((double*)(sBG+0), Q1D, D1D);
+   DeviceTensor<2,double> G((double*)(sBG+1), Q1D, D1D);
 
    if (tidz == 0)
    {
@@ -40,8 +40,8 @@ MFEM_HOST_DEVICE inline void LoadBG(const int D1D, const int Q1D,
       {
          MFEM_FOREACH_THREAD(q,x,Q1D)
          {
-            B[q][d] = b(q,d);
-            G[q][d] = g(q,d);
+            B(q,d) = b(q,d);
+            G(q,d) = g(q,d);
          }
       }
    }
@@ -161,8 +161,7 @@ MFEM_HOST_DEVICE inline void PullEvalS(const int qx, const int qy,
 
 /// Load 2D input vector into shared memory
 template<int MD1, int NBZ>
-MFEM_HOST_DEVICE inline void LoadX(const int e,
-                                   const int D1D,
+MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
                                    const DeviceTensor<4, const double> X,
                                    double sX[2][NBZ][MD1*MD1])
 {
@@ -422,19 +421,19 @@ MFEM_HOST_DEVICE inline void GradY(const int D1D, const int Q1D,
 /// Pull 2D Gradient
 template<int MQ1, int NBZ>
 MFEM_HOST_DEVICE inline void PullGradXY(const int qx, const int qy,
-                                        const double sQQ[4][NBZ][MQ1*MQ1],
-                                        double *Jpr)
+                                        const double QQ[4][NBZ][MQ1*MQ1],
+                                        double *J)
 {
    const int tidz = MFEM_THREAD_ID(z);
-   double (*X0GB)[MQ1] = (double (*)[MQ1])(sQQ[0] + tidz);
-   double (*X0BG)[MQ1] = (double (*)[MQ1])(sQQ[1] + tidz);
-   double (*X1GB)[MQ1] = (double (*)[MQ1])(sQQ[2] + tidz);
-   double (*X1BG)[MQ1] = (double (*)[MQ1])(sQQ[3] + tidz);
+   double (*X0GB)[MQ1] = (double (*)[MQ1])(QQ[0] + tidz);
+   double (*X0BG)[MQ1] = (double (*)[MQ1])(QQ[1] + tidz);
+   double (*X1GB)[MQ1] = (double (*)[MQ1])(QQ[2] + tidz);
+   double (*X1BG)[MQ1] = (double (*)[MQ1])(QQ[3] + tidz);
 
-   Jpr[0] = X0GB[qy][qx];
-   Jpr[1] = X1GB[qy][qx];
-   Jpr[2] = X0BG[qy][qx];
-   Jpr[3] = X1BG[qy][qx];
+   J[0] = X0GB[qy][qx];
+   J[1] = X1GB[qy][qx];
+   J[2] = X0BG[qy][qx];
+   J[3] = X1BG[qy][qx];
 }
 
 /// Push 2D Gradient
@@ -833,7 +832,7 @@ template<int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void GradX(const int D1D, const int Q1D,
                                    const double sBG[2][MQ1*MD1],
                                    const double sDDD[3][MD1*MD1*MD1],
-                                   double sDDQ[9][MD1*MD1*MQ1])
+                                   double sDDQ[6][MD1*MD1*MQ1])
 {
    double (*B)[MD1] = (double (*)[MD1])(sBG+0);
    double (*G)[MD1] = (double (*)[MD1])(sBG+1);

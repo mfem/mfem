@@ -123,6 +123,11 @@ public:
    void PhysDerivatives(const Vector &e_vec, Vector &q_der) const;
    void PhysDerivatives(const Vector &e_vec, Vector &q_der) const;
 
+   /// Compute the determinant of the E-vector @a e_vec at quadrature points.
+   template <QVectorLayout>
+   void Determinants(const Vector &e_vec, Vector &q_det) const;
+   void Determinants(const Vector &e_vec, Vector &q_det) const;
+
    /// Perform the transpose operation of Mult(). (TODO)
    void MultTranspose(unsigned eval_flags, const Vector &q_val,
                       const Vector &q_der, Vector &e_vec) const;

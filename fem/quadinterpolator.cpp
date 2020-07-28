@@ -71,8 +71,7 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
          }
          if (eval_flags & DETERMINANTS)
          {
-            MFEM_ABORT("tensor evaluation of determinants with 'byNODES'"
-                       " output layout is not implemented yet!");
+            Determinants<QVectorLayout::byNODES>(e_vec, q_det);
          }
       }
       else
@@ -95,8 +94,7 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
          }
          if (eval_flags & DETERMINANTS)
          {
-            MFEM_ABORT("tensor evaluation of determinants with 'byVDIM'"
-                       " output layout is not implemented yet!");
+            Determinants<QVectorLayout::byVDIM>(e_vec, q_det);
          }
       }
       else
@@ -136,7 +134,7 @@ void QuadratureInterpolator::Values(const Vector &e_vec,
          Vector empty;
          Mult<QVectorLayout::byNODES>(e_vec, VALUES, q_val, empty, empty);
       }
-      else
+      if (q_layout == QVectorLayout::byVDIM)
       {
          MFEM_ABORT("this method is not implemented yet");
       }
@@ -190,6 +188,37 @@ void QuadratureInterpolator::PhysDerivatives(const Vector &e_vec,
    {
       MFEM_ABORT("this method is not implemented yet");
    }
+}
+
+void QuadratureInterpolator::Determinants(const Vector &e_vec,
+                                          Vector &q_det) const
+{
+   MFEM_ABORT("this method is not implemented yet");
+   /*
+   if (use_tensor_products)
+   {
+      if (q_layout == QVectorLayout::byNODES)
+      {
+         Determinants<QVectorLayout::byNODES>(e_vec, q_det);
+      }
+
+      if (q_layout == QVectorLayout::byVDIM)
+      {
+         Determinants<QVectorLayout::byVDIM>(e_vec, q_det);
+      }
+   }
+   else
+   {
+      if (q_layout == QVectorLayout::byNODES)
+      {
+         Vector empty;
+         Mult<QVectorLayout::byNODES>(e_vec, DETERMINANTS, empty, empty, q_det);
+      }
+      if (q_layout == QVectorLayout::byVDIM)
+      {
+         MFEM_ABORT("this method is not implemented yet");
+      }
+   }*/
 }
 
 } // namespace mfem
