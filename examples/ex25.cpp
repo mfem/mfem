@@ -11,13 +11,9 @@
 //               ex25 -o 2 -f 2.0 -ref 1 -prob 4 -m ../data/inline-hex.mesh
 //
 // Device sample runs:
-// TODO: PA not working because matrix coef. in CurlCurlIntegrator is not yet supported
-//               ex25 -o 2 -f 1.0 -ref 2 -prob 0 -pa
-//               ex25 -o 2 -f 5.0 -ref 4 -prob 2 -pa
-//               ex25 -o 2 -f 1.0 -ref 2 -prob 3 -pa
-//               ex25 -o 2 -f 1.0 -ref 2 -prob 0 -pa -m ../data/beam-quad.mesh
-//               ex25 -o 2 -f 8.0 -ref 3 -prob 4 -pa -m ../data/inline-quad.mesh
-//               ex25 -o 2 -f 2.0 -ref 1 -prob 4 -pa -m ../data/inline-hex.mesh
+// TODO: PA is working but device "cuda" is not tested yet
+//               ex25 -o 2 -f 8.0 -ref 3 -prob 4 -m ../data/inline-quad.mesh -pa -d cuda
+//               ex25 -o 2 -f 2.0 -ref 1 -prob 4 -m ../data/inline-hex.mesh -pa -d cuda
 //
 // Description:  This example code solves a simple electromagnetic wave
 //               propagation problem corresponding to the second order
@@ -504,7 +500,7 @@ int main(int argc, char *argv[])
       GMRESSolver gmres;
       gmres.SetPrintLevel(1);
       gmres.SetKDim(200);
-      gmres.SetMaxIter(2000);
+      gmres.SetMaxIter(pa ? 5000 : 2000);
       gmres.SetRelTol(1e-5);
       gmres.SetAbsTol(0.0);
       gmres.SetOperator(*A);
