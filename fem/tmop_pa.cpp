@@ -13,6 +13,7 @@
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
+#include "quadinterpolator.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 
@@ -146,8 +147,10 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    const int ne = PA.ne = fes.GetMesh()->GetNE();
    const int dim = PA.dim = mesh->Dimension();
    MFEM_VERIFY(PA.dim == 2 || PA.dim == 3, "Not yet implemented!");
-   PA.maps = &fes.GetFE(0)->GetDofToQuad(*ir, DofToQuad::TENSOR);
-   PA.geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
+
+   const DofToQuad::Mode mode = DofToQuad::TENSOR;
+   PA.maps = &fes.GetFE(0)->GetDofToQuad(*ir, mode);
+   PA.geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mode);
 
    // Energy vector
    PA.E.UseDevice(true);
@@ -292,13 +295,7 @@ double TMOP_Integrator::GetGridFunctionEnergyPA(const Vector &xe) const
    if (PA.dim == 2)
    {
       energy = GetGridFunctionEnergyPA_2D(xe);
-      if (coeff0)
-      {
-         MFEM_VERIFY(PA.X0.Size() == xe.Size(),"");
-         PA.R->Mult(*nodes0, PA.X0);
-         PA.R->Mult(*lim_dist, PA.LD);
-         energy += GetGridFunctionEnergyPA_C0_2D(xe);
-      }
+      if (coeff0) { energy += GetGridFunctionEnergyPA_C0_2D(xe); }
    }
 
    if (PA.dim == 3)

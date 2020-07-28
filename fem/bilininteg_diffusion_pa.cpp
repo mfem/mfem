@@ -170,47 +170,53 @@ static void PADiffusionSetup3D(const int Q1D,
                                const Vector &c,
                                Vector &d)
 {
-   const int NQ = Q1D*Q1D*Q1D;
    const bool const_c = c.Size() == 1;
-   auto W = w.Read();
-   auto J = Reshape(j.Read(), NQ, 3, 3, NE);
-   auto C = const_c ? Reshape(c.Read(), 1, 1) : Reshape(c.Read(), NQ, NE);
-   auto D = Reshape(d.Write(), NQ, 6, NE);
-   MFEM_FORALL(e, NE,
+   const auto W = Reshape(w.Read(), Q1D,Q1D,Q1D);
+   const auto J = Reshape(j.Read(), Q1D,Q1D,Q1D,3,3,NE);
+   const auto C = const_c ? Reshape(c.Read(), 1,1,1,1) :
+                  Reshape(c.Read(), Q1D,Q1D,Q1D,NE);
+   auto D = Reshape(d.Write(), Q1D,Q1D,Q1D, 6, NE);
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
-      for (int q = 0; q < NQ; ++q)
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
-         const double J11 = J(q,0,0,e);
-         const double J21 = J(q,1,0,e);
-         const double J31 = J(q,2,0,e);
-         const double J12 = J(q,0,1,e);
-         const double J22 = J(q,1,1,e);
-         const double J32 = J(q,2,1,e);
-         const double J13 = J(q,0,2,e);
-         const double J23 = J(q,1,2,e);
-         const double J33 = J(q,2,2,e);
-         const double detJ = J11 * (J22 * J33 - J32 * J23) -
-         /* */               J21 * (J12 * J33 - J32 * J13) +
-         /* */               J31 * (J12 * J23 - J22 * J13);
-         const double coeff = const_c ? C(0,0) : C(q,e);
-         const double c_detJ = W[q] * coeff / detJ;
-         // adj(J)
-         const double A11 = (J22 * J33) - (J23 * J32);
-         const double A12 = (J32 * J13) - (J12 * J33);
-         const double A13 = (J12 * J23) - (J22 * J13);
-         const double A21 = (J31 * J23) - (J21 * J33);
-         const double A22 = (J11 * J33) - (J13 * J31);
-         const double A23 = (J21 * J13) - (J11 * J23);
-         const double A31 = (J21 * J32) - (J31 * J22);
-         const double A32 = (J31 * J12) - (J11 * J32);
-         const double A33 = (J11 * J22) - (J12 * J21);
-         // detJ J^{-1} J^{-T} = (1/detJ) adj(J) adj(J)^T
-         D(q,0,e) = c_detJ * (A11*A11 + A12*A12 + A13*A13); // 1,1
-         D(q,1,e) = c_detJ * (A11*A21 + A12*A22 + A13*A23); // 2,1
-         D(q,2,e) = c_detJ * (A11*A31 + A12*A32 + A13*A33); // 3,1
-         D(q,3,e) = c_detJ * (A21*A21 + A22*A22 + A23*A23); // 2,2
-         D(q,4,e) = c_detJ * (A21*A31 + A22*A32 + A23*A33); // 3,2
-         D(q,5,e) = c_detJ * (A31*A31 + A32*A32 + A33*A33); // 3,3
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qz,z,Q1D)
+            {
+               const double J11 = J(qx,qy,qz,0,0,e);
+               const double J21 = J(qx,qy,qz,1,0,e);
+               const double J31 = J(qx,qy,qz,2,0,e);
+               const double J12 = J(qx,qy,qz,0,1,e);
+               const double J22 = J(qx,qy,qz,1,1,e);
+               const double J32 = J(qx,qy,qz,2,1,e);
+               const double J13 = J(qx,qy,qz,0,2,e);
+               const double J23 = J(qx,qy,qz,1,2,e);
+               const double J33 = J(qx,qy,qz,2,2,e);
+               const double detJ = J11 * (J22 * J33 - J32 * J23) -
+               /* */               J21 * (J12 * J33 - J32 * J13) +
+               /* */               J31 * (J12 * J23 - J22 * J13);
+               const double coeff = const_c ? C(0,0,0,0) : C(qx,qy,qz,e);
+               const double c_detJ = W(qx,qy,qz) * coeff / detJ;
+               // adj(J)
+               const double A11 = (J22 * J33) - (J23 * J32);
+               const double A12 = (J32 * J13) - (J12 * J33);
+               const double A13 = (J12 * J23) - (J22 * J13);
+               const double A21 = (J31 * J23) - (J21 * J33);
+               const double A22 = (J11 * J33) - (J13 * J31);
+               const double A23 = (J21 * J13) - (J11 * J23);
+               const double A31 = (J21 * J32) - (J31 * J22);
+               const double A32 = (J31 * J12) - (J11 * J32);
+               const double A33 = (J11 * J22) - (J12 * J21);
+               // detJ J^{-1} J^{-T} = (1/detJ) adj(J) adj(J)^T
+               D(qx,qy,qz,0,e) = c_detJ * (A11*A11 + A12*A12 + A13*A13); // 1,1
+               D(qx,qy,qz,1,e) = c_detJ * (A11*A21 + A12*A22 + A13*A23); // 2,1
+               D(qx,qy,qz,2,e) = c_detJ * (A11*A31 + A12*A32 + A13*A33); // 3,1
+               D(qx,qy,qz,3,e) = c_detJ * (A21*A21 + A22*A22 + A23*A23); // 2,2
+               D(qx,qy,qz,4,e) = c_detJ * (A21*A31 + A22*A32 + A23*A33); // 3,2
+               D(qx,qy,qz,5,e) = c_detJ * (A31*A31 + A32*A32 + A33*A33); // 3,3
+            }
+         }
       }
    });
 }
@@ -279,9 +285,10 @@ void DiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
    const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
    ne = fes.GetNE();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
+   const DofToQuad::Mode mode = DofToQuad::TENSOR;
+   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mode);
    const int sdim = mesh->SpaceDimension();
-   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   maps = &el.GetDofToQuad(*ir, mode);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(symmDims * nq * ne, Device::GetDeviceMemoryType());
