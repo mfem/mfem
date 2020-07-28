@@ -24,6 +24,12 @@ int iUpdateJ=1; //control how J is computed (whether or not Dirichelt boundary c
 int iSc=0;      //the parameter to control precondtioner
 bool lumpedMass = false;
 
+int useFull=2; // control version of preconditioner 
+             // 0: a simple block preconditioner
+             // 1: physics-based preconditioner
+             // 2: physics-based but supg more complicated version
+
+
 extern int icase;
 
 // reduced system 
@@ -38,7 +44,6 @@ private:
    mutable HypreParMatrix *ScFull, *AReFull, *NbFull, *PwMat, Mmatlp, *NbMat;
    mutable HypreParMatrix *tmp1, *tmp2, *tmp3;
    bool initialMdt;
-   int useFull;
    HypreParVector *E0Vec;
    mutable ParLinearForm *StabE0; //source terms
    FunctionCoefficient *E0rhs;
@@ -80,7 +85,7 @@ public:
                          ParBilinearForm *DSl_, HypreParMatrix *DSlmat_,
                          CGSolver *M_solver_, CGSolver *M_solver2_, 
                          const double visc, const double resi,
-                         const Array<int> &ess_tdof_list_, const Array<int> &ess_bdr_, int useFull_);
+                         const Array<int> &ess_tdof_list_, const Array<int> &ess_bdr_);
 
    // Set current values - needed to compute action and Jacobian.
    void SetParameters(double dt_, const Vector *phi_, const Vector *psi_, const Vector *w_)
@@ -92,7 +97,7 @@ public:
            double rate=dtOld/dt;
            *Mdtpr*=rate;
 
-           if (useFull == 1)
+           if (useFull > 0)
            {
                delete ARe;
                delete ASl;
@@ -113,7 +118,7 @@ public:
            *Mdtpr*=(1./dt); 
            initialMdt=true;
 
-           if (useFull == 1)
+           if (useFull > 0)
            {
               if (DRematpr!=NULL)
                  ARe = ParAdd(Mdtpr, DRematpr);
@@ -208,7 +213,12 @@ public:
    FullPreconditionerFactory(const ReducedSystemOperator& op_,
                          const string& name_): PetscPreconditionerFactory(name_), op(op_) {};
    virtual mfem::Solver* NewPreconditioner(const mfem::OperatorHandle &oh)
-   { return new FullBlockSolver(oh);}
+   { 
+       if(useFull==1)
+          return new FullBlockSolver(oh);
+       else
+          return new SupgBlockSolver(oh);
+   }
 
    virtual ~FullPreconditionerFactory() {};
 };
@@ -486,10 +496,9 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
           DSlpr = &DSl;
       }
 
-      int useFull = 1;
       reduced_oper  = new ReducedSystemOperator(fespace, M, Mmat, K, Kmat,
                          KB, *KBMat, DRepr, DRematpr, DSlpr, DSlmatpr, &M_solver, &M_solver2,
-                         viscosity, resistivity, ess_tdof_list, ess_bdr, useFull);
+                         viscosity, resistivity, ess_tdof_list, ess_bdr);
 
 
       const double rel_tol=1e-4;
@@ -504,7 +513,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
          //SNESKSPSetUseEW(snes,PETSC_TRUE);
          //SNESKSPSetParametersEW(snes,2,1e-4,0.1,0.9,1.5,1.5,0.1);
 
-         if (useFull==1)
+         if (useFull>0)
             J_factory = new FullPreconditionerFactory(*reduced_oper, "JFNK Full preconditioner");
          else
             J_factory = new PreconditionerFactory(*reduced_oper, "JFNK preconditioner");
@@ -635,11 +644,10 @@ void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr)
       }
 
       delete reduced_oper;
-      int useFull = 1;
       //if needed, we can replace new with another update function for AMR
       reduced_oper  = new ReducedSystemOperator(fespace, M, Mmat, K, Kmat,
                          KB, *KBMat, DRepr, DRematpr, DSlpr, DSlmatpr, &M_solver, &M_solver2,
-                         viscosity, resistivity, ess_tdof_list, ess_bdr, useFull);
+                         viscosity, resistivity, ess_tdof_list, ess_bdr);
 
       const double rel_tol=1e-4;
       delete pnewton_solver;
@@ -651,7 +659,7 @@ void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr)
 		 SNESGetKSP(snes,&ksp);
 
          delete J_factory;
-         if (useFull==1)
+         if (useFull>0)
             J_factory = new FullPreconditionerFactory(*reduced_oper, "JFNK Full preconditioner");
          else
             J_factory = new PreconditionerFactory(*reduced_oper, "JFNK preconditioner");
@@ -1173,7 +1181,7 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
    ParBilinearForm *DSl_, HypreParMatrix *DSlmat_,
    CGSolver *M_solver_, CGSolver *M_solver2_,
    const double visc, const double resi,
-   const Array<int> &ess_tdof_list_, const Array<int> &ess_bdr_, int useFull_)
+   const Array<int> &ess_tdof_list_, const Array<int> &ess_bdr_)
    : Operator(3*f.TrueVSize()), fespace(f), 
      M(M_), K(K_), KB(KB_), DRe(DRe_), DSl(DSl_), Mmat(Mmat_), Kmat(Kmat_), KBMat(KBMat_),
      initialMdt(false),E0Vec(NULL), StabE0(NULL), E0rhs(NULL),
@@ -1187,7 +1195,6 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
      Jacobian(NULL), z(height/3), zdiff(height/3), z2(height/3), z3(height/3), 
      J(height/3), zFull(f.GetVSize())
 { 
-    useFull = useFull_;
     MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
     Mdtpr = new HypreParMatrix(Mmat_);
@@ -1233,7 +1240,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
 {
    MFEM_ASSERT(initialMdt, "Mdt not initialized correctly!"); 
 
-   if (useFull==1)
+   if (useFull>0)
    {
        delete Jacobian;
        delete AReFull; 
@@ -1293,237 +1300,258 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
        HypreParVector *ARed = new HypreParVector(AReFull->GetComm(), AReFull->GetGlobalNumRows(),
                                         AReFull->GetRowStarts());
        HypreParMatrix *NbtDinv=NULL, *S=NULL;
-       HypreParMatrix *tmp=Mdtpr;  //if use lumped matrix, it needs to be scaled by dt
 
-       if (iSc==0)
+       if (useFull==1)
        {
-           if (usesupg && i_supgpre==0)           
-           {
-                delete StabNv;
-                StabNv = new ParBilinearForm(&fespace);
-                StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, resistivity, velocity));
-                StabNv->Assemble(); 
-                StabNv->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
-                StabNv->Finalize();
-                HypreParMatrix *MatStabNv=StabNv->ParallelAssemble();
+         if (iSc==0)
+         {
+             if (usesupg && i_supgpre==0)           
+             {
+                  delete StabNv;
+                  StabNv = new ParBilinearForm(&fespace);
+                  StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, resistivity, velocity));
+                  StabNv->Assemble(); 
+                  StabNv->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
+                  StabNv->Finalize();
+                  HypreParMatrix *MatStabNv=StabNv->ParallelAssemble();
 
-                HypreParMatrix *tmp=ParAdd(ASltmp, MatStabNv);
-                delete ASltmp;
-                ASltmp=tmp;
+                  HypreParMatrix *tmp=ParAdd(ASltmp, MatStabNv);
+                  delete ASltmp;
+                  ASltmp=tmp;
 
-                if ( im_supg==1 || im_supg==3 )
-                {
-                    if (resistivity!=viscosity)
-                    {
-                        delete StabNv;
-                        StabNv = new ParBilinearForm(&fespace);
-                        StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, velocity));
-                        StabNv->Assemble(); 
-                        StabNv->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
-                        StabNv->Finalize();
-                        delete MatStabNv;
-                        MatStabNv=StabNv->ParallelAssemble();
-                    }
+                  if ( im_supg==1 || im_supg==3 )
+                  {
+                      if (resistivity!=viscosity)
+                      {
+                          delete StabNv;
+                          StabNv = new ParBilinearForm(&fespace);
+                          StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, velocity));
+                          StabNv->Assemble(); 
+                          StabNv->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
+                          StabNv->Finalize();
+                          delete MatStabNv;
+                          MatStabNv=StabNv->ParallelAssemble();
+                      }
 
-                    tmp=ParAdd(AReFull, MatStabNv);
-                    delete AReFull;
-                    AReFull=tmp;
-                }
-                delete MatStabNv;
-           }
-           else if (usesupg)
-           {
-                delete StabMass;
-                StabMass = new ParBilinearForm(&fespace);
-                StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, resistivity, velocity));
-                StabMass->Assemble(); 
-                StabMass->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
-                StabMass->Finalize();
-                HypreParMatrix *MatStabMass=StabMass->ParallelAssemble();
+                      tmp=ParAdd(AReFull, MatStabNv);
+                      delete AReFull;
+                      AReFull=tmp;
+                  }
+                  delete MatStabNv;
+             }
+             else if (usesupg)
+             {
+                  delete StabMass;
+                  StabMass = new ParBilinearForm(&fespace);
+                  StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, resistivity, velocity));
+                  StabMass->Assemble(); 
+                  StabMass->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
+                  StabMass->Finalize();
+                  HypreParMatrix *MatStabMass=StabMass->ParallelAssemble();
 
-                delete StabNv;
-                StabNv = new ParBilinearForm(&fespace);
-                StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, resistivity, velocity));
-                StabNv->Assemble(); 
-                StabNv->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
-                StabNv->Finalize();
-                HypreParMatrix *MatStabNv=StabNv->ParallelAssemble();
+                  delete StabNv;
+                  StabNv = new ParBilinearForm(&fespace);
+                  StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, resistivity, velocity));
+                  StabNv->Assemble(); 
+                  StabNv->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
+                  StabNv->Finalize();
+                  HypreParMatrix *MatStabNv=StabNv->ParallelAssemble();
 
-                S = ParMult(MatStabMass, MinvKB);
-                *S *= viscosity;
-                HypreParMatrix *tmp=Add(1./dt, *MatStabMass, 1., *MatStabNv);
-                HypreParMatrix *MatStabSum=ParAdd(tmp, S);
+                  S = ParMult(MatStabMass, MinvKB);
+                  *S *= viscosity;
+                  HypreParMatrix *tmp=Add(1./dt, *MatStabMass, 1., *MatStabNv);
+                  HypreParMatrix *MatStabSum=ParAdd(tmp, S);
 
-                delete tmp;
-                tmp=ParAdd(ASltmp, MatStabSum);
-                delete ASltmp;
-                ASltmp=tmp;
+                  delete S;
+                  delete tmp;
+                  tmp=ParAdd(ASltmp, MatStabSum);
+                  delete ASltmp;
+                  ASltmp=tmp;
 
-                if (i_supgpre>2 && ( im_supg==1 || im_supg==3 ) )
-                {
-                    if (resistivity!=viscosity)
-                    {
-                        MFEM_ABORT("Error in preconditioner. Need to assemble another MinvKB"); 
-                    }
-                    tmp=ParAdd(AReFull, MatStabSum);
-                    delete AReFull;
-                    AReFull=tmp;
-                }
-                else if (i_supgpre==2 && ( im_supg==1 || im_supg==3 ) )
-                {
-                    if (resistivity!=viscosity)
-                    {
-                        MFEM_ABORT("Error in preconditioner. Need to assemble another MinvKB"); 
-                    }
-                    tmp=ParAdd(AReFull, MatStabNv);
-                    delete AReFull;
-                    AReFull=tmp;
-                }
-                delete MatStabMass;
-                delete MatStabNv;
-                delete MatStabSum;
-           }
+                  if (i_supgpre>2 && ( im_supg==1 || im_supg==3 ) )
+                  {
+                      if (resistivity!=viscosity)
+                      {
+                          MFEM_ABORT("Error in preconditioner. Need to assemble another MinvKB"); 
+                      }
+                      tmp=ParAdd(AReFull, MatStabSum);
+                      delete AReFull;
+                      AReFull=tmp;
+                  }
+                  else if (i_supgpre==2 && ( im_supg==1 || im_supg==3 ) )
+                  {
+                      if (resistivity!=viscosity)
+                      {
+                          MFEM_ABORT("Error in preconditioner. Need to assemble another MinvKB"); 
+                      }
+                      tmp=ParAdd(AReFull, MatStabNv);
+                      delete AReFull;
+                      AReFull=tmp;
+                  }
+                  delete MatStabMass;
+                  delete MatStabNv;
+                  delete MatStabSum;
+             }
 
-           //VERSION0: same as Luis's preconditioner
-           AReFull->GetDiag(*ARed);
-           DinvNb->InvScaleRows(*ARed);
-           NbtDinv=DinvNb->Transpose();
-           S = ParMult(NbtDinv, NbFull);
-           ScFull = ParAdd(ASltmp, S);
+             //VERSION0: same as Luis's preconditioner
+             AReFull->GetDiag(*ARed);
+             DinvNb->InvScaleRows(*ARed);
+             NbtDinv=DinvNb->Transpose();
+             S = ParMult(NbtDinv, NbFull);
+             ScFull = ParAdd(ASltmp, S);
 
-           if (usefd)
-           {
-              delete StabNb;
-              StabNb = new ParBilinearForm(&fespace);
-              StabNb->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, Bfield, true));
-              StabNb->Assemble(); 
-              StabNb->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
-              StabNb->Finalize();
-              HypreParMatrix *MatStabNb=StabNb->ParallelAssemble();
+             if (usefd)
+             {
+                delete StabNb;
+                StabNb = new ParBilinearForm(&fespace);
+                StabNb->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, Bfield, true));
+                StabNb->Assemble(); 
+                StabNb->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
+                StabNb->Finalize();
+                HypreParMatrix *MatStabNb=StabNb->ParallelAssemble();
 
-              tmp2 = ParMult(MatStabNb, MinvKB);
-              tmp1 = ParAdd(ScFull, tmp2);
-              delete ScFull;
-              ScFull=tmp1;
-              tmp1=NULL;
-              delete MatStabNb;
-           }
+                tmp2 = ParMult(MatStabNb, MinvKB);
+                tmp1 = ParAdd(ScFull, tmp2);
+                delete ScFull;
+                ScFull=tmp1;
+                tmp1=NULL;
+                delete MatStabNb;
+             }
 
-           /*
-           if (false && im_supg==1 && usesupg)
-           {
-            if (myid==0 && false) cout <<"======WARNING: use preconditioner with terms on ARe======"<<endl;
-                HypreParMatrix *MatStabNv=StabNv->ParallelAssemble();
-                tmp=ParAdd(AReFull, MatStabNv);
-                delete AReFull;
-                AReFull=tmp;
-           }
-           */
+             /*
+             if (false && im_supg==1 && usesupg)
+             {
+              if (myid==0 && false) cout <<"======WARNING: use preconditioner with terms on ARe======"<<endl;
+                  HypreParMatrix *MatStabNv=StabNv->ParallelAssemble();
+                  tmp=ParAdd(AReFull, MatStabNv);
+                  delete AReFull;
+                  AReFull=tmp;
+             }
+             */
+         }
+         /*
+         else if (iSc==0 && usefd && !usesupg)
+         {
+             //VERSION3: Luis's preconditioner + hyperdiffusion
+             AReFull->GetDiag(*ARed);
+             DinvNb->InvScaleRows(*ARed);
+             NbtDinv=DinvNb->Transpose();
+             S = ParMult(NbtDinv, NbFull);
+             HypreParMatrix *ScFull1 = ParAdd(ASltmp, S);
+
+             delete StabNb;
+             StabNb = new ParBilinearForm(&fespace);
+             StabNb->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, Bfield, true));
+             StabNb->Assemble(); 
+             StabNb->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
+             StabNb->Finalize();
+             HypreParMatrix *MatStabNb=StabNb->ParallelAssemble();
+
+             delete S;
+             S = ParMult(MatStabNb, MinvKB);
+             ScFull = ParAdd(ScFull1, S);
+             delete ScFull1;
+             delete MatStabNb;
+         }
+         */
+         else if (iSc==1)
+         {
+             //VERSION1: schur complement without transpose
+             //here Sc=ASl-B D^-1 B 
+             AReFull->GetDiag(*ARed);
+             DinvNb->InvScaleRows(*ARed);
+             S = ParMult(NbFull, DinvNb);
+             *S *= -1;
+             ScFull = ParAdd(ASltmp, S);
+         }
+         else if (iSc==2) {
+             //VERSION2: use (lumped) mass matrix
+             if (myid==0) cout <<"======WARNING: use scaled mass matrix in Schur complement. this changes preconditioner in pcshell======"<<endl;
+             
+             Mdtpr->GetDiag(*ARed);
+             DinvNb->InvScaleRows(*ARed);
+             NbtDinv=DinvNb->Transpose();
+             S = ParMult(NbtDinv, NbFull);
+             ScFull = ParAdd(ASltmp, S);
+         } 
+         else 
+             MFEM_ABORT("Error in preconditioner."); 
+
+         Jacobian = new BlockOperator(block_trueOffsets);
+         Jacobian->SetBlock(0,0,AReFull);
+         Jacobian->SetBlock(0,1,NbFull);
+         Jacobian->SetBlock(1,0,PwMat);
+         Jacobian->SetBlock(1,1,ScFull);
+         Jacobian->SetBlock(2,0,&Kmat);
+         Jacobian->SetBlock(2,2,&Mmat);
+
+         if (iSc==2) Jacobian->SetBlock(0,2,Mdtpr);
        }
-       /*
-       else if (iSc==0 && usefd && !usesupg)
+       else
        {
-           //VERSION3: Luis's preconditioner + hyperdiffusion
-           AReFull->GetDiag(*ARed);
-           DinvNb->InvScaleRows(*ARed);
-           NbtDinv=DinvNb->Transpose();
-           S = ParMult(NbtDinv, NbFull);
-           HypreParMatrix *ScFull1 = ParAdd(ASltmp, S);
+         if (iSc!=0 || !usesupg || usefd)
+            MFEM_ABORT("ERROR in preconditioner: wrong option!"); 
 
-           delete StabNb;
-           StabNb = new ParBilinearForm(&fespace);
-           StabNb->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, Bfield, true));
-           StabNb->Assemble(); 
-           StabNb->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
-           StabNb->Finalize();
-           HypreParMatrix *MatStabNb=StabNb->ParallelAssemble();
+         //more complicated version to handle stabilization terms
+         delete StabMass;
+         StabMass = new ParBilinearForm(&fespace);
+         StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, resistivity, velocity));
+         StabMass->Assemble(); 
+         StabMass->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
+         StabMass->Finalize();
+         HypreParMatrix *MatStabMass=StabMass->ParallelAssemble();
 
-           delete S;
-           S = ParMult(MatStabNb, MinvKB);
-           ScFull = ParAdd(ScFull1, S);
-           delete ScFull1;
-           delete MatStabNb;
-       }*/
-       else if (iSc==3)
-       {
-           //more complicated version to handle stabilization terms
-           delete StabMass;
-           StabMass = new ParBilinearForm(&fespace);
-           StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, resistivity, velocity));
-           StabMass->Assemble(); 
-           StabMass->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
-           StabMass->Finalize();
-           HypreParMatrix *MatStabMass=StabMass->ParallelAssemble();
+         delete StabNv;
+         StabNv = new ParBilinearForm(&fespace);
+         StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, resistivity, velocity));
+         StabNv->Assemble(); 
+         StabNv->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
+         StabNv->Finalize();
+         HypreParMatrix *MatStabNv=StabNv->ParallelAssemble();
 
-           delete StabNv;
-           StabNv = new ParBilinearForm(&fespace);
-           StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, resistivity, velocity));
-           StabNv->Assemble(); 
-           StabNv->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
-           StabNv->Finalize();
-           HypreParMatrix *MatStabNv=StabNv->ParallelAssemble();
+         S = ParMult(MatStabMass, MinvKB);
+         *S *= viscosity;
 
-           S = ParMult(MatStabMass, MinvKB);
-           tmp1=Add(1./dt, *MatStabMass, 1., *MatStabNv);
-           HypreParMatrix *MatStabSum=ParAdd(tmp1, S);
+         tmp1=Add(1./dt, *MatStabMass, 1., *MatStabNv);
+         tmp2=ParAdd(tmp1, S);  //tmp2 is the stablization term
 
-           delete tmp1;
-           tmp1=ParAdd(ASltmp, MatStabSum);
-           delete ASltmp;
-           ASltmp=tmp1;
+         delete S;
+         delete MatStabMass;
+         delete MatStabNv;
+         delete tmp1;
 
-           if (resistivity!=viscosity)
-           {
-               MFEM_ABORT("Error in preconditioner. Need to assemble another MinvKB"); 
-           }
+         tmp1=ParAdd(ASltmp, tmp2);
+         delete ASltmp;
+         ASltmp=tmp1;
+         tmp1=NULL;
 
-           tmp2=AReFull;    //hold ARe without stabilization
-           tmp3=MatStabSum; //hold Stabilizatino term
-           AReFull=ParAdd(tmp2, MatStabSum);
+         if (resistivity!=viscosity)
+         {
+             MFEM_ABORT("Error in preconditioner. Need to assemble another MinvKB"); 
+         }
 
-           delete MatStabMass;
-           delete MatStabNv;
+         //VERSION0: same as Luis's preconditioner
+         AReFull->GetDiag(*ARed);
+         DinvNb->InvScaleRows(*ARed);
+         NbtDinv=DinvNb->Transpose();
+         S = ParMult(NbtDinv, NbFull);
+         ScFull = ParAdd(ASltmp, S);
 
-
-           //VERSION0: same as Luis's preconditioner
-           tmp2->GetDiag(*ARed);
-           DinvNb->InvScaleRows(*ARed);
-           NbtDinv=DinvNb->Transpose();
-           S = ParMult(NbtDinv, NbFull);
-           ScFull = ParAdd(ASltmp, S);
-
+         Jacobian = new BlockOperator(block_trueOffsets);
+         Jacobian->SetBlock(0,0,AReFull);
+         Jacobian->SetBlock(0,1,NbFull);
+         Jacobian->SetBlock(0,2,tmp2);
+         Jacobian->SetBlock(1,0,PwMat);
+         Jacobian->SetBlock(1,1,ScFull);
+         Jacobian->SetBlock(2,0,&Kmat);
+         Jacobian->SetBlock(2,2,&Mmat);
        }
-       else if (iSc==1)
-       {
-           //VERSION1: schur complement without transpose
-           //here Sc=ASl-B D^-1 B 
-           AReFull->GetDiag(*ARed);
-           DinvNb->InvScaleRows(*ARed);
-           S = ParMult(NbFull, DinvNb);
-           *S *= -1;
-           ScFull = ParAdd(ASltmp, S);
-       }
-       else if (iSc==2) {
-           //VERSION2: use (lumped) mass matrix
-           if (myid==0) 
-           {
-              cout <<"======WARNING: use scaled mass matrix in Schur complement======"<<endl;
-              cout <<"======WARNING: this changes preconditioner in pcshell !!!======"<<endl;
-           }
-           tmp->GetDiag(*ARed);
-           DinvNb->InvScaleRows(*ARed);
-           NbtDinv=DinvNb->Transpose();
-           S = ParMult(NbtDinv, NbFull);
-           ScFull = ParAdd(ASltmp, S);
-       } 
-       else 
-           MFEM_ABORT("Error in preconditioner."); 
 
        bool outputMatrix=false;
        if (outputMatrix)
        {
-           if (myid==0) 
-              cout <<"======OUTPUT: matrices in ReducedSystemOperator:GetGradient======"<<endl;
+           if (myid==0) cout <<"======OUTPUT: matrices in ReducedSystemOperator:GetGradient======"<<endl;
+
            ofstream myf ("DRe.m");
            DRematpr->PrintMatlab(myf);
 
@@ -1549,21 +1577,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
        delete NvMat;
        delete ASltmp;
 
-       Jacobian = new BlockOperator(block_trueOffsets);
-       Jacobian->SetBlock(0,0,AReFull);
-       Jacobian->SetBlock(0,1,NbFull);
-       Jacobian->SetBlock(1,0,PwMat);
-       Jacobian->SetBlock(1,1,ScFull);
-       Jacobian->SetBlock(2,0,&Kmat);
-       Jacobian->SetBlock(2,2,&Mmat);
 
-       if (iSc==2) Jacobian->SetBlock(0,2,tmp);
-
-       if (iSc==3) 
-       {
-           Jacobian->SetBlock(0,2,tmp1);
-           Jacobian->SetBlock(1,2,tmp2);
-       }
    }
    else
    {
