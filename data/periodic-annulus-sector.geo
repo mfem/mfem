@@ -65,6 +65,10 @@ Physical Curve(3) = {1};
 Physical Curve(4) = {2};
 Physical Surface(1) = {1};
 
+// Optimize the high-order mesh?
+// See https://gmsh.info/doc/texinfo/gmsh.html#index-Mesh_002eHighOrderOptimize
+// Mesh.HighOrderOptimize = 2;
+
 // Generate 2D mesh
 Mesh 2;
 SetOrder order;
