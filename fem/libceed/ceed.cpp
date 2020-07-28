@@ -415,7 +415,8 @@ void CeedPAAssemble(const CeedPAOperator& op,
    CeedVectorCreate(ceed, fes.GetNDofs(), &ceedData.v);
 }
 
-void CeedAddMultPA(const CeedData ceedDataPtr, const Vector &x,
+void CeedAddMultPA(const CeedData *ceedDataPtr,
+                   const Vector &x,
                    Vector &y)
 {
    const CeedScalar *x_ptr;
@@ -433,18 +434,19 @@ void CeedAddMultPA(const CeedData ceedDataPtr, const Vector &x,
       y_ptr = y.HostReadWrite();
       mem = CEED_MEM_HOST;
    }
-   CeedVectorSetArray(ceedDataPtr.u, mem, CEED_USE_POINTER,
+   CeedVectorSetArray(ceedDataPtr->u, mem, CEED_USE_POINTER,
                       const_cast<CeedScalar*>(x_ptr));
-   CeedVectorSetArray(ceedDataPtr.v, mem, CEED_USE_POINTER, y_ptr);
+   CeedVectorSetArray(ceedDataPtr->v, mem, CEED_USE_POINTER, y_ptr);
 
-   CeedOperatorApplyAdd(ceedDataPtr.oper, ceedDataPtr.u, ceedDataPtr.v,
+   CeedOperatorApplyAdd(ceedDataPtr->oper, ceedDataPtr->u, ceedDataPtr->v,
                         CEED_REQUEST_IMMEDIATE);
 
-   CeedVectorTakeArray(ceedDataPtr.u, mem, const_cast<CeedScalar**>(&x_ptr));
-   CeedVectorTakeArray(ceedDataPtr.v, mem, &y_ptr);
+   CeedVectorTakeArray(ceedDataPtr->u, mem, const_cast<CeedScalar**>(&x_ptr));
+   CeedVectorTakeArray(ceedDataPtr->v, mem, &y_ptr);
 }
 
-void CeedAssembleDiagonalPA(const CeedData ceedDataPtr, Vector &diag)
+void CeedAssembleDiagonalPA(const CeedData *ceedDataPtr,
+                            Vector &diag)
 {
    CeedScalar *d_ptr;
    CeedMemType mem;
@@ -458,12 +460,12 @@ void CeedAssembleDiagonalPA(const CeedData ceedDataPtr, Vector &diag)
       d_ptr = diag.HostReadWrite();
       mem = CEED_MEM_HOST;
    }
-   CeedVectorSetArray(ceedDataPtr.v, mem, CEED_USE_POINTER, d_ptr);
+   CeedVectorSetArray(ceedDataPtr->v, mem, CEED_USE_POINTER, d_ptr);
 
-   CeedOperatorLinearAssembleAddDiagonal(ceedDataPtr.oper, ceedDataPtr.v,
+   CeedOperatorLinearAssembleAddDiagonal(ceedDataPtr->oper, ceedDataPtr->v,
                                          CEED_REQUEST_IMMEDIATE);
 
-   CeedVectorTakeArray(ceedDataPtr.v, mem, &d_ptr);
+   CeedVectorTakeArray(ceedDataPtr->v, mem, &d_ptr);
 }
 
 } // namespace mfem
