@@ -157,8 +157,7 @@ int main(int argc, char *argv[])
    // 12. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
    const int max_dofs = 50000;
-   Array<int> ess_tdof_list;
-   for (int it = 0; it < 2; it++)
+   for (int it = 0; ; it++)
    {
       int cdofs = fespace.GetTrueVSize();
       cout << "\nAMR iteration " << it << endl;
@@ -169,15 +168,9 @@ int main(int argc, char *argv[])
 
       // 14. Set Dirichlet boundary values in the GridFunction x.
       //     Determine the list of Dirichlet true DOFs in the linear system.
+      Array<int> ess_tdof_list;
       x.ProjectBdrCoefficient(zero, ess_bdr);
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-
-      cout << "ess_tdof_list.Print():" << endl;
-      ess_tdof_list.Print();
-      cout << "ess_tdof_list.HostRead()" << endl;
-      ess_tdof_list.HostRead();
-      cout << "ess_tdof_list.Print():" << endl;
-      ess_tdof_list.Print();
 
       // 15. Assemble the stiffness matrix.
       a.Assemble();
@@ -208,7 +201,7 @@ int main(int argc, char *argv[])
       }
       else // No preconditioning for now in partial assembly mode.
       {
-         CG(*A, B, X, 1, 2000, 1e-12, 0.0);
+         CG(*A, B, X, 3, 2000, 1e-12, 0.0);
       }
 
       // 18. After solving the linear system, reconstruct the solution as a
