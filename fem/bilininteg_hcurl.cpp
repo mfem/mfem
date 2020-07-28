@@ -788,6 +788,8 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
    dim = mesh->Dimension();
    MFEM_VERIFY(dim == 2 || dim == 3, "");
 
+   const int dimc = (dim == 3) ? 3 : 1;
+
    ne = fes.GetNE();
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
    mapsC = &el->GetDofToQuad(*ir, DofToQuad::TENSOR);
@@ -824,18 +826,18 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
          }
          else
          {
-            M.SetSize(dim);
+            M.SetSize(dimc);
          }
       }
 
       if (DQ)
       {
-         MFEM_VERIFY(coeffDim == dim, "");
+         MFEM_VERIFY(coeffDim == dimc, "");
       }
       if (MQ)
       {
          MFEM_VERIFY(coeffDim == MQdim, "");
-         MFEM_VERIFY(MQ->GetHeight() == dim && MQ->GetWidth() == dim, "");
+         MFEM_VERIFY(MQ->GetHeight() == dimc && MQ->GetWidth() == dimc, "");
       }
 
       for (int e=0; e<ne; ++e)
@@ -858,10 +860,10 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
                {
                   MQ->Eval(M, *tr, ir->IntPoint(p));
 
-                  for (int i=0; i<dim; ++i)
-                     for (int j=0; j<dim; ++j)
+                  for (int i=0; i<dimc; ++i)
+                     for (int j=0; j<dimc; ++j)
                      {
-                        coeffh(j+(i*dim), p, e) = M(i,j);
+                        coeffh(j+(i*dimc), p, e) = M(i,j);
                      }
                }
             }
