@@ -145,7 +145,7 @@ int main (int argc, char *argv[])
 
    MFEM_ASSERT(ncomp > 0, " Invalid input for ncomp.");
    int ncfinal = ncomp;
-   GridFunction field_vals;
+   ParGridFunction field_vals;
    H1_FECollection fech(order, dim);
    L2_FECollection fecl(order, dim);
    ND_FECollection fechdiv(order, dim);
