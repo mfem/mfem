@@ -15,27 +15,38 @@
 #include "../linalg/dtensor.hpp"
 #include "../linalg/kernels.hpp"
 
-#define MFEM_DEBUG_COLOR 226
-#include "../general/debug.hpp"
-
 namespace mfem
 {
 
-template<int D1D, int Q1D>
-static void DetbyNODES2D(const int NE,
-                         const double *b, const double *g,
-                         const double *x, double *y)
+template<int T_D1D, int T_Q1D, int MAX_D1D = 0, int MAX_Q1D = 0>
+static void Determinants2D(const int NE,
+                           const double *b,
+                           const double *g,
+                           const double *x,
+                           double *y,
+                           const int vdim = 1,
+                           const int d1d = 0,
+                           const int q1d = 0)
 {
+   constexpr int DIM = 2;
+   constexpr int NBZ = 1;
+
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+
    const auto B = Reshape(b, Q1D, D1D);
    const auto G = Reshape(g, Q1D, D1D);
-   const auto X = Reshape(x, D1D, D1D, 2, NE);
+   const auto X = Reshape(x,  D1D, D1D, DIM, NE);
    auto Y = Reshape(y, Q1D, Q1D, NE);
 
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
+   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       constexpr int NBZ = 1;
-      constexpr int MQ1 = Q1D;
-      constexpr int MD1 = D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+
       MFEM_SHARED double BG[2][MQ1*MD1];
       MFEM_SHARED double XY[2][NBZ][MD1*MD1];
       MFEM_SHARED double DQ[4][NBZ][MD1*MQ1];
@@ -60,13 +71,14 @@ static void DetbyNODES2D(const int NE,
 }
 
 template<int T_D1D, int T_Q1D, int MAX_D1D = 0, int MAX_Q1D = 0>
-static void DetbyNODES3D(const int NE,
-                         const double *b,
-                         const double *g,
-                         const double *x,
-                         double *y,
-                         const int d1d = 0,
-                         const int q1d = 0)
+static void Determinants3D(const int NE,
+                           const double *b,
+                           const double *g,
+                           const double *x,
+                           double *y,
+                           const int vdim = 1,
+                           const int d1d = 0,
+                           const int q1d = 0)
 {
    constexpr int DIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -113,7 +125,7 @@ static void DetbyNODES3D(const int NE,
 }
 
 template<>
-void QuadratureInterpolator::Determinants<QVectorLayout::byNODES>(
+void QuadratureInterpolator::Determinants<QVectorLayout::byVDIM>(
    const Vector &e_vec, Vector &q_det) const
 {
    const int NE = fespace->GetNE();
@@ -131,25 +143,25 @@ void QuadratureInterpolator::Determinants<QVectorLayout::byNODES>(
    const double *X = e_vec.Read();
    double *Y = q_det.Write();
 
-   MFEM_VERIFY(dim == vdim, "");
    const int id = (dim<<12) | (vdim<<8) | (D1D<<4) | Q1D;
 
    switch (id)
    {
-      case 0x2222: return DetbyNODES2D<2,2>(NE,B,G,X,Y);
-      case 0x2223: return DetbyNODES2D<2,3>(NE,B,G,X,Y);
-      case 0x2224: return DetbyNODES2D<2,4>(NE,B,G,X,Y);
-      case 0x2226: return DetbyNODES2D<2,6>(NE,B,G,X,Y);
-      case 0x2236: return DetbyNODES2D<3,6>(NE,B,G,X,Y);
-      case 0x2244: return DetbyNODES2D<4,4>(NE,B,G,X,Y);
-      case 0x2246: return DetbyNODES2D<4,6>(NE,B,G,X,Y);
-      case 0x2256: return DetbyNODES2D<5,6>(NE,B,G,X,Y);
+      case 0x2222: return Determinants2D<2,2>(NE,B,G,X,Y);
+      case 0x2223: return Determinants2D<2,3>(NE,B,G,X,Y);
+      case 0x2224: return Determinants2D<2,4>(NE,B,G,X,Y);
+      case 0x2226: return Determinants2D<2,6>(NE,B,G,X,Y);
+      case 0x2234: return Determinants2D<3,4>(NE,B,G,X,Y);
+      case 0x2236: return Determinants2D<3,6>(NE,B,G,X,Y);
+      case 0x2244: return Determinants2D<4,4>(NE,B,G,X,Y);
+      case 0x2246: return Determinants2D<4,6>(NE,B,G,X,Y);
+      case 0x2256: return Determinants2D<5,6>(NE,B,G,X,Y);
 
-      case 0x3324: return DetbyNODES3D<2,4>(NE,B,G,X,Y);
-      case 0x3333: return DetbyNODES3D<3,3>(NE,B,G,X,Y);
-      case 0x3335: return DetbyNODES3D<3,5>(NE,B,G,X,Y);
-      case 0x3336: return DetbyNODES3D<3,6>(NE,B,G,X,Y);
-      //case 0x3348: return DetbyNODES3D<4,8>(NE,B,G,X,Y);
+      case 0x3324: return Determinants3D<2,4>(NE,B,G,X,Y);
+      case 0x3333: return Determinants3D<3,3>(NE,B,G,X,Y);
+      case 0x3335: return Determinants3D<3,5>(NE,B,G,X,Y);
+      case 0x3336: return Determinants3D<3,6>(NE,B,G,X,Y);
+      //case 0x3348: return Determinants3D<4,8>(NE,B,G,X,Y);
       default:
       {
          constexpr int MD1 = 4;
@@ -158,16 +170,25 @@ void QuadratureInterpolator::Determinants<QVectorLayout::byNODES>(
                      << " are not supported!");
          MFEM_VERIFY(Q1D <= MQ1, "Quadrature rules with more than "
                      << MQ1 << " 1D points are not supported!");
-         //if (dim == 2) { DetbyNODES2D<0,0,0,MD1,MQ1>(NE,B,G,X,Y,vdim,D1D,Q1D); }
+         if (dim == 2)
+         {
+            return Determinants2D<0,0,MD1,MQ1>(NE,B,G,X,Y,vdim,D1D,Q1D);
+         }
          if (dim == 3)
          {
-            return DetbyNODES3D<0,0,MD1,MQ1>(NE,B,G,X,Y,D1D,Q1D);
+            return Determinants3D<0,0,MD1,MQ1>(NE,B,G,X,Y,vdim,D1D,Q1D);
          }
       }
 
    }
-   dbg("0x%x",id);
-   MFEM_ABORT("Kernel not supported yet");
+   MFEM_ABORT("Kernel " << std::hex << id << std::dec << " not supported yet");
+}
+
+template<>
+void QuadratureInterpolator::Determinants<QVectorLayout::byNODES>(
+   const Vector &e_vec, Vector &q_det) const
+{
+   return Determinants<QVectorLayout::byVDIM>(e_vec, q_det);
 }
 
 } // namespace mfem

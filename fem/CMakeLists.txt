@@ -50,11 +50,10 @@ set(SRCS
   fespacehierarchy.cpp
   nonlininteg_vectorconvection.cpp
   quadinterpolator.cpp
-  quadinterpolator_bynodes_det.cpp
+  quadinterpolator_det.cpp
   quadinterpolator_bynodes_eval.cpp
   quadinterpolator_bynodes_grad.cpp
   quadinterpolator_bynodes_mult.cpp
-  quadinterpolator_byvdim_det.cpp
   quadinterpolator_byvdim_eval.cpp
   quadinterpolator_byvdim_grad.cpp
   quadinterpolator_byvdim_grad_phys.cpp

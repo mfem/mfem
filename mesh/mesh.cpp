@@ -10545,12 +10545,11 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
 
    const QuadratureInterpolator *qi =
       fespace->GetQuadratureInterpolator(ir, mode);
-   const bool use_tensor_products = qi->UseTensorProducts();
+   const bool t_prod = qi->UseTensorProducts();
 
-   // For now, we are not using tensor product evaluation
+   // Use LEXICOGRAPHIC ordering in case of tensor product evaluation
    const ElementDofOrdering e_ordering =
-      use_tensor_products ?
-      ElementDofOrdering::LEXICOGRAPHIC : ElementDofOrdering::NATIVE;
+      t_prod ? ElementDofOrdering::LEXICOGRAPHIC : ElementDofOrdering::NATIVE;
    const Operator *elem_restr = fespace->GetElementRestriction(e_ordering);
 
    if (elem_restr)
