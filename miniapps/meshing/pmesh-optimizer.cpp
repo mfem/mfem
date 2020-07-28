@@ -485,11 +485,10 @@ int main (int argc, char *argv[])
             }
          }
          double volume_all, volume_ind_all;
-         int NE_ALL;
          MPI_Allreduce(&volume, &volume_all, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
          MPI_Allreduce(&volume_ind, &volume_ind_all, 1, MPI_DOUBLE, MPI_SUM,
                        MPI_COMM_WORLD);
-         MPI_Allreduce(&NE, &NE_ALL, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+         const int NE_ALL = pmesh->GetGlobalNE();
 
          const double avg_zone_size = volume_all / NE_ALL;
 
