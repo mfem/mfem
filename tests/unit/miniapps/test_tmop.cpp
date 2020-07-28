@@ -648,6 +648,7 @@ static void tmop_tests(int id)
 
    Launch(Launch::Args("Square01 + Adapted analytic Hessian").
           MESH("square01.mesh").REFINE(1).
+          NEWTON_ITERATIONS(20).
           POR({1,2}).QOR({2,4}).
           TID({4}).MID({1,2})).Run(id);
 
@@ -656,25 +657,25 @@ static void tmop_tests(int id)
           POR({1,2}).QOR({2,4}).
           TID({1,2,3}).MID({2}).LS({2})).Run(id);
 
-   Launch(Launch::Args("Blade + norm.").
+   Launch(Launch::Args("Blade + normalization").
           MESH("blade.mesh").NORMALIZATION(true).
           POR({1,2}).QOR({2,4}).
           TID({1,2,3}).MID({2})).Run(id);
 
-   Launch(Launch::Args("Blade + limiting + norm.").
+   Launch(Launch::Args("Blade + limiting + normalization").
           MESH("blade.mesh").
           NEWTON_ITERATIONS(100).NORMALIZATION(true).LIMITING(M_PI).
           POR({1,2}).QOR({2,4}).
           TID({1,2,3}).MID({2})).Run(id);
 
-   Launch(Launch::Args("Blade + Discrete size + norm.").
+   Launch(Launch::Args("Blade + Discrete size + normalization").
           MESH("blade.mesh").
           NEWTON_ITERATIONS(100).LINEAR_ITERATIONS(300).
           NORMALIZATION(true).
           POR({1}).QOR({2}).
           TID({5}).MID({7}).LS({2}).NL({2})).Run(id);
 
-   Launch(Launch::Args("Blade + Discrete size + norm.").
+   Launch(Launch::Args("Blade + Discrete size + normalization").
           MESH("blade.mesh").
           NEWTON_ITERATIONS(100).LINEAR_ITERATIONS(200).
           NORMALIZATION(true).
