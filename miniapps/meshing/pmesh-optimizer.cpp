@@ -31,6 +31,9 @@
 //
 // Compile with: make pmesh-optimizer
 //
+// Diagonal PA test:
+//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -bnd -qt 1 -qo 8 -ls 3 -nor -lc 0.1 -vl 2 -pa -d cpu
+//
 // Sample runs:
 //   Adapted analytic shape:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
@@ -122,6 +125,8 @@ int main (int argc, char *argv[])
    bool fdscheme         = false;
    int adapt_eval        = 0;
    bool exactaction      = false;
+   const char *devopt    = "cpu";
+   bool pa               = false;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -180,7 +185,12 @@ int main (int argc, char *argv[])
    args.AddOption(&solver_rtol, "-rtol", "--newton-rel-tolerance",
                   "Relative tolerance for the Newton solver.");
    args.AddOption(&lin_solver, "-ls", "--lin-solver",
-                  "Linear solver: 0 - l1-Jacobi, 1 - CG, 2 - MINRES.");
+                  "Linear solver:\n\t"
+                  "0: l1-Jacobi\n\t"
+                  "1: CG\n\t"
+                  "2: MINRES\n\t"
+                  "3: MINRES + Jacobi preconditioner"
+                  "4: MINRES + l1-Jacobi preconditioner");
    args.AddOption(&max_lin_iter, "-li", "--lin-iter",
                   "Maximum number of iterations in the linear solve.");
    args.AddOption(&move_bnd, "-bnd", "--move-boundary", "-fix-bnd",
@@ -207,6 +217,10 @@ int main (int argc, char *argv[])
                   "Set the verbosity level - 0, 1, or 2.");
    args.AddOption(&adapt_eval, "-ae", "--adaptivity-evaluator",
                   "0 - Advection based (DEFAULT), 1 - GSLIB.");
+   args.AddOption(&devopt, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.Parse();
    if (!args.Good())
    {
@@ -214,6 +228,9 @@ int main (int argc, char *argv[])
       return 1;
    }
    if (myid == 0) { args.PrintOptions(cout); }
+
+   Device device(devopt);
+   if (myid == 0) { device.Print();}
 
    // 3. Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
@@ -299,6 +316,7 @@ int main (int argc, char *argv[])
    rdm.Randomize();
    rdm -= 0.25; // Shift to random values in [-0.5,0.5].
    rdm *= jitter;
+   rdm.HostReadWrite();
    // Scale the random values to be of order of the local mesh size.
    for (int i = 0; i < pfespace->GetNDofs(); i++)
    {
@@ -328,7 +346,8 @@ int main (int argc, char *argv[])
       mesh_name << "perturbed.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh->PrintAsOne(mesh_ofs);
+      //x.HostRead();
+      //pmesh->PrintAsOne(mesh_ofs);
    }
 
    // 11. Store the starting (prior to the optimization) positions.
@@ -372,8 +391,9 @@ int main (int argc, char *argv[])
    ParFiniteElementSpace ind_fes(pmesh, &ind_fec);
    ParFiniteElementSpace ind_fesv(pmesh, &ind_fec, dim);
    ParGridFunction size(&ind_fes), aspr(&ind_fes), disc(&ind_fes), ori(&ind_fes);
-   ParGridFunction aspr3d(&ind_fesv), size3d(&ind_fesv);
-
+   ParGridFunction aspr3d(&ind_fesv);
+   const AssemblyLevel al =
+      pa ? AssemblyLevel::PARTIAL : AssemblyLevel::LEGACYFULL;
    switch (target_id)
    {
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
@@ -394,7 +414,7 @@ int main (int argc, char *argv[])
          DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
          if (adapt_eval == 0)
          {
-            tc->SetAdaptivityEvaluator(new AdvectorCG);
+            tc->SetAdaptivityEvaluator(new AdvectorCG(al));
          }
          else
          {
@@ -420,7 +440,7 @@ int main (int argc, char *argv[])
          disc.ProjectCoefficient(ind_coeff);
          if (adapt_eval == 0)
          {
-            tc->SetAdaptivityEvaluator(new AdvectorCG);
+            tc->SetAdaptivityEvaluator(new AdvectorCG(al));
          }
          else
          {
@@ -518,7 +538,7 @@ int main (int argc, char *argv[])
          DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
          if (adapt_eval == 0)
          {
-            tc->SetAdaptivityEvaluator(new AdvectorCG);
+            tc->SetAdaptivityEvaluator(new AdvectorCG(al));
          }
          else
          {
@@ -540,7 +560,7 @@ int main (int argc, char *argv[])
          DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
          if (adapt_eval == 0)
          {
-            tc->SetAdaptivityEvaluator(new AdvectorCG);
+            tc->SetAdaptivityEvaluator(new AdvectorCG(al));
          }
          else
          {
@@ -583,7 +603,14 @@ int main (int argc, char *argv[])
    }
    target_c->SetNodes(x0);
    TMOP_Integrator *he_nlf_integ= new TMOP_Integrator(metric, target_c);
-   if (fdscheme) { he_nlf_integ->EnableFiniteDifferences(x); }
+
+   // Finite differences for computations of derivatives.
+   if (fdscheme)
+   {
+      MFEM_VERIFY(pa == false, "PA for finite differences is not imlemented.");
+
+      he_nlf_integ->EnableFiniteDifferences(x);
+   }
    he_nlf_integ->SetExactActionFlag(exactaction);
 
    // 13. Setup the quadrature rule for the non-linear form integrator.
@@ -619,10 +646,12 @@ int main (int argc, char *argv[])
    AdaptivityEvaluator *adapt_evaluator = NULL;
    if (adapt_lim_const > 0.0)
    {
+      MFEM_VERIFY(pa == false, "PA is not implemented for adaptive limiting");
+
       FunctionCoefficient alim_coeff(adapt_lim_fun);
       zeta_0.ProjectCoefficient(alim_coeff);
 
-      if (adapt_eval == 0) { adapt_evaluator = new AdvectorCG; }
+      if (adapt_eval == 0) { adapt_evaluator = new AdvectorCG(al); }
       else if (adapt_eval == 1)
       {
 #ifdef MFEM_USE_GSLIB
@@ -649,6 +678,7 @@ int main (int argc, char *argv[])
    //     no command-line options for the weights and the type of the second
    //     metric; one should update those in the code.
    ParNonlinearForm a(pfespace);
+   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    ConstantCoefficient *coeff1 = NULL;
    TMOP_QualityMetric *metric2 = NULL;
    TargetConstructor *target_c2 = NULL;
@@ -686,6 +716,8 @@ int main (int argc, char *argv[])
       a.AddDomainIntegrator(combo);
    }
    else { a.AddDomainIntegrator(he_nlf_integ); }
+
+   if (pa) { a.Setup(); }
 
    const double init_energy = a.GetParGridFunctionEnergy(x);
 
@@ -751,9 +783,9 @@ int main (int argc, char *argv[])
       a.SetEssentialVDofs(ess_vdofs);
    }
 
-   // 18. As we use the Newton method to solve the resulting nonlinear system,
-   //     here we setup the linear solver for the system's Jacobian.
-   Solver *S = NULL;
+   // As we use the Newton method to solve the resulting nonlinear system, here
+   // we setup the linear solver for the system's Jacobian.
+   Solver *S = NULL, *S_prec = NULL;
    const double linsol_rtol = 1e-12;
    if (lin_solver == 0)
    {
@@ -775,6 +807,22 @@ int main (int argc, char *argv[])
       minres->SetRelTol(linsol_rtol);
       minres->SetAbsTol(0.0);
       minres->SetPrintLevel(verbosity_level >= 2 ? 3 : -1);
+      if (lin_solver == 3 || lin_solver == 4)
+      {
+         if (pa)
+         {
+            MFEM_VERIFY(lin_solver != 4, "PA l1-Jacobi is not implemented");
+            S_prec = new OperatorJacobiSmoother(a, a.GetEssentialTrueDofs());
+         }
+         else
+         {
+            HypreSmoother *hs = new HypreSmoother;
+            hs->SetType((lin_solver == 3) ? HypreSmoother::Jacobi
+                        : HypreSmoother::l1Jacobi, 1);
+            S_prec = hs;
+         }
+         minres->SetPreconditioner(*S_prec);
+      }
       S = minres;
    }
 
@@ -887,6 +935,7 @@ int main (int argc, char *argv[])
    }
 
    // 24. Free the used memory.
+   delete S_prec;
    delete S;
    delete target_c2;
    delete metric2;

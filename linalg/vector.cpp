@@ -747,6 +747,7 @@ double Vector::Norml2() const
 
 double Vector::Normlinf() const
 {
+   HostRead();
    double max = 0.0;
    for (int i = 0; i < size; i++)
    {
@@ -757,6 +758,7 @@ double Vector::Normlinf() const
 
 double Vector::Norml1() const
 {
+   HostRead();
    double sum = 0.0;
    for (int i = 0; i < size; i++)
    {
@@ -819,6 +821,7 @@ double Vector::Max() const
 {
    if (size == 0) { return -infinity(); }
 
+   HostRead();
    double max = data[0];
 
    for (int i = 1; i < size; i++)
@@ -1026,6 +1029,7 @@ static double hipVectorDot(const int N, const double *X, const double *Y)
 double Vector::operator*(const Vector &v) const
 {
    MFEM_ASSERT(size == v.size, "incompatible Vectors!");
+   if (size == 0) { return 0.0; }
 
    const bool use_dev = UseDevice() || v.UseDevice();
 #if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP) || defined(MFEM_USE_OPENMP)

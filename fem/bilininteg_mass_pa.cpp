@@ -48,9 +48,11 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
    dim = mesh->Dimension();
    ne = fes.GetMesh()->GetNE();
    nq = ir->GetNPoints();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::COORDINATES |
-                                    GeometricFactors::JACOBIANS);
-   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   const DofToQuad::Mode mode = DofToQuad::TENSOR;
+   const int flags = GeometricFactors::JACOBIANS |
+                     GeometricFactors::COORDINATES;
+   geom = mesh->GetGeometricFactors(*ir, flags, mode);
+   maps = &el.GetDofToQuad(*ir, mode);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(ne*nq, Device::GetDeviceMemoryType());
@@ -115,25 +117,38 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
    if (dim==3)
    {
       const int NE = ne;
-      const int NQ = nq;
+      const int Q1D = quad1D;
       const bool const_c = coeff->Size() == 1;
-      auto W = ir->GetWeights().Read();
-      auto J = Reshape(geom->J.Read(), NQ,3,3,NE);
-      auto C =
-         const_c ? Reshape(coeff->Read(), 1,1) : Reshape(coeff->Read(), NQ,NE);
-      auto v = Reshape(pa_data.Write(), NQ,NE);
-      MFEM_FORALL(e, NE,
+      const auto W = Reshape(ir->GetWeights().Read(),Q1D,Q1D,Q1D);
+      const auto J = Reshape(geom->J.Read(), Q1D,Q1D,Q1D,3,3,NE);
+      const auto C = const_c ?
+                     Reshape(coeff->Read(), 1,1,1,1) :
+                     Reshape(coeff->Read(), Q1D,Q1D,Q1D,NE);
+      auto V = Reshape(pa_data.Write(), Q1D,Q1D,Q1D,NE);
+      MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
       {
-         for (int q = 0; q < NQ; ++q)
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            const double J11 = J(q,0,0,e), J12 = J(q,0,1,e), J13 = J(q,0,2,e);
-            const double J21 = J(q,1,0,e), J22 = J(q,1,1,e), J23 = J(q,1,2,e);
-            const double J31 = J(q,2,0,e), J32 = J(q,2,1,e), J33 = J(q,2,2,e);
-            const double detJ = J11 * (J22 * J33 - J32 * J23) -
-            /* */               J21 * (J12 * J33 - J32 * J13) +
-            /* */               J31 * (J12 * J23 - J22 * J13);
-            const double coeff = const_c ? C(0,0) : C(q,e);
-            v(q,e) = W[q] * coeff * detJ;
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
+            {
+               MFEM_FOREACH_THREAD(qz,z,Q1D)
+               {
+                  const double J11 = J(qx,qy,qz,0,0,e);
+                  const double J12 = J(qx,qy,qz,0,1,e);
+                  const double J13 = J(qx,qy,qz,0,2,e);
+                  const double J21 = J(qx,qy,qz,1,0,e);
+                  const double J22 = J(qx,qy,qz,1,1,e);
+                  const double J23 = J(qx,qy,qz,1,2,e);
+                  const double J31 = J(qx,qy,qz,2,0,e);
+                  const double J32 = J(qx,qy,qz,2,1,e);
+                  const double J33 = J(qx,qy,qz,2,2,e);
+                  const double detJ = J11 * (J22 * J33 - J32 * J23) -
+                  /* */               J21 * (J12 * J33 - J32 * J13) +
+                  /* */               J31 * (J12 * J23 - J22 * J13);
+                  const double coeff = const_c ? C(0,0,0,0) : C(qx,qy,qz,e);
+                  V(qx,qy,qz,e) = W(qx,qy,qz) * coeff * detJ;
+               }
+            }
          }
       });
    }
@@ -1167,10 +1182,13 @@ static void PAMassApply(const int dim,
          case 0x24: return SmemPAMassApply2D<2,4,16>(NE,B,Bt,D,X,Y);
          case 0x33: return SmemPAMassApply2D<3,3,16>(NE,B,Bt,D,X,Y);
          case 0x34: return SmemPAMassApply2D<3,4,16>(NE,B,Bt,D,X,Y);
+         case 0x35: return SmemPAMassApply2D<3,5,16>(NE,B,Bt,D,X,Y);
          case 0x36: return SmemPAMassApply2D<3,6,16>(NE,B,Bt,D,X,Y);
          case 0x44: return SmemPAMassApply2D<4,4,8>(NE,B,Bt,D,X,Y);
+         case 0x46: return SmemPAMassApply2D<4,6,8>(NE,B,Bt,D,X,Y);
          case 0x48: return SmemPAMassApply2D<4,8,4>(NE,B,Bt,D,X,Y);
          case 0x55: return SmemPAMassApply2D<5,5,8>(NE,B,Bt,D,X,Y);
+         case 0x57: return SmemPAMassApply2D<5,7,8>(NE,B,Bt,D,X,Y);
          case 0x58: return SmemPAMassApply2D<5,8,2>(NE,B,Bt,D,X,Y);
          case 0x66: return SmemPAMassApply2D<6,6,4>(NE,B,Bt,D,X,Y);
          case 0x77: return SmemPAMassApply2D<7,7,4>(NE,B,Bt,D,X,Y);
@@ -1178,6 +1196,7 @@ static void PAMassApply(const int dim,
          case 0x99: return SmemPAMassApply2D<9,9,2>(NE,B,Bt,D,X,Y);
          default:   return PAMassApply2D(NE,B,Bt,D,X,Y,D1D,Q1D);
       }
+      mfem::out << "Unknown 2D kernel 0x" << std::hex << id << std::endl;
    }
    else if (dim == 3)
    {
@@ -1186,7 +1205,9 @@ static void PAMassApply(const int dim,
          case 0x23: return SmemPAMassApply3D<2,3>(NE,B,Bt,D,X,Y);
          case 0x24: return SmemPAMassApply3D<2,4>(NE,B,Bt,D,X,Y);
          case 0x34: return SmemPAMassApply3D<3,4>(NE,B,Bt,D,X,Y);
+         case 0x35: return SmemPAMassApply3D<3,5>(NE,B,Bt,D,X,Y);
          case 0x36: return SmemPAMassApply3D<3,6>(NE,B,Bt,D,X,Y);
+         case 0x37: return SmemPAMassApply3D<3,7>(NE,B,Bt,D,X,Y);
          case 0x45: return SmemPAMassApply3D<4,5>(NE,B,Bt,D,X,Y);
          case 0x46: return SmemPAMassApply3D<4,6>(NE,B,Bt,D,X,Y);
          case 0x48: return SmemPAMassApply3D<4,8>(NE,B,Bt,D,X,Y);
@@ -1198,8 +1219,8 @@ static void PAMassApply(const int dim,
          case 0x9A: return SmemPAMassApply3D<9,10>(NE,B,Bt,D,X,Y);
          default:   return PAMassApply3D(NE,B,Bt,D,X,Y,D1D,Q1D);
       }
+      mfem::out << "Unknown 3D kernel 0x" << std::hex << id << std::endl;
    }
-   mfem::out << "Unknown kernel 0x" << std::hex << id << std::endl;
    MFEM_ABORT("Unknown kernel.");
 }
 

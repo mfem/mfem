@@ -1249,6 +1249,7 @@ void HypreParMatrix::operator*=(double s)
 static void get_sorted_rows_cols(const Array<int> &rows_cols,
                                  Array<HYPRE_Int> &hypre_sorted)
 {
+   rows_cols.HostRead();
    hypre_sorted.SetSize(rows_cols.Size());
    bool sorted = true;
    for (int i = 0; i < rows_cols.Size(); i++)

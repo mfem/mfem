@@ -17,28 +17,60 @@
 
 namespace mfem
 {
-class NonlinearForm;
 
+class NonlinearForm;
+class NonlinearFormIntegrator;
+
+/** @brief Class extending the NonlinearForm class to support the different
+    AssemblyLevel%s. */
 class NonlinearFormExtension : public Operator
 {
 protected:
-   NonlinearForm *n; ///< Not owned
+   const NonlinearForm *nlf;
 public:
-   NonlinearFormExtension(NonlinearForm *form);
-   virtual void AssemblePA() = 0;
+   NonlinearFormExtension(const NonlinearForm*);
+   virtual void Setup() = 0;
+   virtual Operator &GetGradient(const Vector&) const = 0;
+   virtual double GetGridFunctionEnergy(const Vector &x) const = 0;
+   virtual void AssembleGradientDiagonal(Vector &diag) const
+   {
+      MFEM_ABORT("Not implemented for this assembly level!");
+   }
 };
 
+class PANonlinearForm;
+
+
 /// Data and methods for partially-assembled nonlinear forms
-class PANonlinearFormExtension : public NonlinearFormExtension
+class PANonlinearForm : public NonlinearFormExtension
 {
+private:
+   class Gradient : public Operator
+   {
+   protected:
+      const Operator *R;
+      mutable Vector ge, xe, ye, ze;
+      const Array<NonlinearFormIntegrator*> &dnfi;
+   public:
+      Gradient(const Vector &x, const PANonlinearForm &ext);
+      virtual void Mult(const Vector &x, Vector &y) const;
+   };
+
 protected:
-   const FiniteElementSpace &fes; // Not owned
-   mutable Vector localX, localY;
-   const Operator *elem_restrict_lex; // Not owned
+   mutable Vector xe, ye;
+   mutable const Vector *x_grad;
+   mutable OperatorHandle Grad;
+   const FiniteElementSpace &fes;
+   const Array<NonlinearFormIntegrator*> &dnfi;
+   const Operator *R;
+
 public:
-   PANonlinearFormExtension(NonlinearForm*);
-   void AssemblePA();
+   PANonlinearForm(NonlinearForm *nlf);
+   void Setup();
    void Mult(const Vector &x, Vector &y) const;
+   Operator &GetGradient(const Vector &x) const;
+   double GetGridFunctionEnergy(const Vector &x) const;
+   void AssembleGradientDiagonal(Vector &diag) const;
 };
 }
 #endif // NONLINEARFORM_EXT_HPP

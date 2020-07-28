@@ -1103,6 +1103,7 @@ void DiscreteAdaptTC::SetDiscreteTargetBase(const GridFunction &tspec_)
    // copy data from tspec_temp -> tspec, then add new entries
    Vector tspec_temp = tspec;
    tspec.UseDevice(true);
+   tspec_sav.UseDevice(true);
    tspec.SetSize(ncomp*dof_cnt);
 
    for (int i = 0; i < tspec_temp.Size(); i++)
@@ -1130,7 +1131,6 @@ void DiscreteAdaptTC::SetTspecAtIndex(int idx, const GridFunction &tspec_)
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetSize(const GridFunction &tspec_)
 {
-
    if (sizeidx > -1) { SetTspecAtIndex(sizeidx, tspec_); return; }
    sizeidx = ncomp;
    SetDiscreteTargetBase(tspec_);
@@ -1258,7 +1258,6 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
 
          Vector shape(ndofs), tspec_vals(ntspec_dofs), par_vals,
                 par_vals_c1, par_vals_c2, par_vals_c3;
-
          Array<int> dofs;
          DenseMatrix D_rho(dim), Q_phi(dim), R_theta(dim);
          tspec_fesv->GetElementVDofs(e_id, dofs);
@@ -1269,6 +1268,7 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
          {
             const IntegrationPoint &ip = ir.IntPoint(q);
             tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
+
             Jtr(q) = Wideal; // Initialize to identity
             for (int d = 0; d < 4; d++)
             {
@@ -1901,6 +1901,7 @@ void TMOP_Integrator::EnableLimiting(const GridFunction &n0,
 {
    EnableLimiting(n0, w0, lfunc);
    lim_dist = &dist;
+   EnableLimitingPA(n0);
 }
 void TMOP_Integrator::EnableLimiting(const GridFunction &n0, Coefficient &w0,
                                      TMOP_LimiterFunction *lfunc)
@@ -2725,6 +2726,8 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
 
 void TMOP_Integrator::UpdateAfterMeshChange(const Vector &new_x)
 {
+   PA.setup_Jtr = false;
+   PA.setup_Grad = false;
    // Update zeta if adaptive limiting is enabled.
    if (zeta) { adapt_eval->ComputeAtNewPosition(new_x, *zeta); }
 }
@@ -2880,6 +2883,30 @@ void TMOPComboIntegrator::ParEnableNormalization(const ParGridFunction &x)
 }
 #endif
 
+void TMOPComboIntegrator::AssemblePA(const FiniteElementSpace &fes)
+{
+   for (int i = 0; i < tmopi.Size(); i++)
+   {
+      tmopi[i]->AssemblePA(fes);
+   }
+}
+
+void TMOPComboIntegrator::AddMultPA(const Vector &xe, Vector &ye) const
+{
+   for (int i = 0; i < tmopi.Size(); i++)
+   {
+      tmopi[i]->AddMultPA(xe, ye);
+   }
+}
+
+void TMOPComboIntegrator::AddMultGradPA(const Vector &xe, const Vector &re,
+                                        Vector &ce) const
+{
+   for (int i = 0; i < tmopi.Size(); i++)
+   {
+      tmopi[i]->AddMultGradPA(xe, re, ce);
+   }
+}
 
 void InterpolateTMOP_QualityMetric(TMOP_QualityMetric &metric,
                                    const TargetConstructor &tc,
