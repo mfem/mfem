@@ -968,7 +968,6 @@ protected:
       const GeometricFactors *geom;
       const FiniteElementSpace *fes;
       const Operator *R;
-      const QuadratureInterpolator *qi;
    } PA;
 
    void ComputeNormalizationEnergies(const GridFunction &x,

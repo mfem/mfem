@@ -1206,16 +1206,12 @@ void ComputeRho0DetJ0AndVolume(const int dim,
                                double &loc_area)
 {
    const int NQ = ir.GetNPoints();
-   DofToQuad::Mode mode = DofToQuad::FULL;
    const int Q1D = IntRules.Get(Geometry::SEGMENT,ir.GetOrder()).GetNPoints();
    const int flags = GeometricFactors::JACOBIANS|GeometricFactors::DETERMINANTS;
-   const GeometricFactors *geom = mesh->GetGeometricFactors(ir, flags, mode);
+   const GeometricFactors *geom = mesh->GetGeometricFactors(ir, flags);
    Vector rho0Q(NQ*NE);
    rho0Q.UseDevice(true);
    const QuadratureInterpolator *qi = l2_fes.GetQuadratureInterpolator(ir);
-   qi->DisableTensorProducts();
-   //qi->SetOutputLayout(QVectorLayout::byVDIM);
-   qi->SetOutputLayout(QVectorLayout::byNODES);
    qi->Values(rho0, rho0Q);
    const auto W = ir.GetWeights().Read();
    const auto R = Reshape(rho0Q.Read(), NQ, NE);
