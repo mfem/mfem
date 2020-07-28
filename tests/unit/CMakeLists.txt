@@ -31,6 +31,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_ode2.cpp
   linalg/test_operator.cpp
   linalg/test_cg_indefinite.cpp
+  linalg/test_vector.cpp
   mesh/test_mesh.cpp
   fem/test_1d_bilininteg.cpp
   fem/test_2d_bilininteg.cpp
@@ -50,6 +51,7 @@ set(UNIT_TESTS_SRCS
   fem/test_pa_coeff.cpp
   fem/test_pa_kernels.cpp
   fem/test_projection_revdiff.cpp
+  fem/test_quadf_coef.cpp
   fem/test_quadraturefunc.cpp
   miniapps/test_sedov.cpp
 )
@@ -60,6 +62,8 @@ endif()
 
 # All serial non-device unit tests are built into a single executable 'unit_tests'.
 add_executable(unit_tests unit_test_main.cpp ${UNIT_TESTS_SRCS})
+# Unit tests need the ../../data directory.
+add_dependencies(unit_tests copy_data)
 target_link_libraries(unit_tests mfem)
 
 # All device unit tests are built into another executable, in order to be able
