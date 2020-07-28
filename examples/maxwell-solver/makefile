@@ -19,7 +19,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_EXAMPLES = helmholtz maxwell
-PAR_EXAMPLES = 
+PAR_EXAMPLES = helmholtzp
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else
@@ -31,7 +31,9 @@ endif
 .PHONY: all clean
 .PRECIOUS: %.o
 
-COMMON_O= common/PML.o common/MeshPartition.o common/Utilities.o DST/DST.o DST2D/DST2D.o 
+COMMON_O= common/PML.o common/MeshPartition.o \
+			 common/Utilities.o \
+			 DST/DST.o DST2D/DST2D.o ParDST/ParDST.o
 
 # Remove built-in rules
 %: %.cpp

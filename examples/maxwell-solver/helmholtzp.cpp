@@ -12,7 +12,8 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "DST/DST.hpp"
+// #include "DST/DST.hpp"
+#include "ParDST/ParDST.hpp"
 #include "common/PML.hpp"
 
 using namespace std;
@@ -155,31 +156,31 @@ int main(int argc, char *argv[])
       }
    }
 
-   {
-      int nx = 2;
-      int ny = 2;
-      int nz = 2;
-      int nlayers = 1;
-      // CartesianParMeshPartition part(pmesh,nx,ny,nz,nlayers);
-      ParMeshPartition part(pmesh,nx,ny,nz,nlayers);
+   // {
+   //    int nx = 2;
+   //    int ny = 2;
+   //    int nz = 2;
+   //    int nlayers = 1;
+   //    // CartesianParMeshPartition part(pmesh,nx,ny,nz,nlayers);
+   //    ParMeshPartition part(pmesh,nx,ny,nz,nlayers);
 
 
-      if (visualization)
-      {
-         char vishost[] = "localhost";
-         int  visport   = 19916;
-         socketstream mesh_sock(vishost, visport);
-         mesh_sock.precision(8);
-         mesh_sock << "parallel " << num_procs << " " << myid << "\n"
-                     << "mesh\n" << *pmesh  << flush;
-      }
+   //    if (visualization)
+   //    {
+   //       char vishost[] = "localhost";
+   //       int  visport   = 19916;
+   //       socketstream mesh_sock(vishost, visport);
+   //       mesh_sock.precision(8);
+   //       mesh_sock << "parallel " << num_procs << " " << myid << "\n"
+   //                   << "mesh\n" << *pmesh  << flush;
+   //    }
 
 
 
-      // cout << "myid = " << myid << endl;
-      MPI_Finalize();
-      return 0;
-   }
+   //    // cout << "myid = " << myid << endl;
+   //    MPI_Finalize();
+   //    return 0;
+   // }
 
    // 6. Define a finite element space on the mesh.
    FiniteElementCollection *fec = new H1_FECollection(order, dim);
@@ -243,6 +244,32 @@ int main(int argc, char *argv[])
    Vector X, B;
 
    a.FormLinearSystem(ess_tdof_list, p_gf, b, Ah, X, B);
+
+
+   {
+      int nx = 2;
+      int ny = 2;
+      int nz = 2;
+      int nlayers = 1;
+      // ParMeshPartition part(pmesh,nx,ny,nz,nlayers);
+      ParDST S(&a,lengths,omega, &ws,nlayers,nx,ny,nz);
+
+      // if (visualization)
+      // {
+      //    char vishost[] = "localhost";
+      //    int  visport   = 19916;
+      //    socketstream mesh_sock(vishost, visport);
+      //    mesh_sock.precision(8);
+      //    mesh_sock << "parallel " << num_procs << " " << myid << "\n"
+      //                << "mesh\n" << *pmesh  << flush;
+      // }
+
+      // cout << "myid = " << myid << endl;
+      MPI_Finalize();
+      return 0;
+   }
+
+
 
    // solve
 {

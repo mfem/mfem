@@ -195,7 +195,6 @@ int main(int argc, char *argv[])
    ProductCoefficient c2_re(c2_re0, ws);
    ProductCoefficient c2_im(c2_im0, ws);
 
-
    SesquilinearForm a(fespace,conv);
 
    a.AddDomainIntegrator(new DiffusionIntegrator(c1_re),
