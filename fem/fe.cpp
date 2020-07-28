@@ -945,7 +945,7 @@ void VectorFiniteElement::Project_RT_RevDiff(
    const int sdim = Trans.GetSpaceDim();
    MFEM_ASSERT(vc.GetVDim() == sdim, "");
    Vector xk(vk, sdim);
-   MFEM_ASSERT(Dim == sdim, "VectorFiniteElement::Project_RT_RevDiff\n"
+   MFEM_ASSERT(dim == sdim, "VectorFiniteElement::Project_RT_RevDiff\n"
                  "\tOnly implemented if space dim == reference dim!\n");
 
    DenseMatrix temp_bar(PointMat_bar.Height(), PointMat_bar.Width());
@@ -953,14 +953,14 @@ void VectorFiniteElement::Project_RT_RevDiff(
    IsoparametricTransformation &isotrans =
                            dynamic_cast<IsoparametricTransformation&>(Trans);
 
-   for (int k = 0; k < Dof; k++)
+   for (int k = 0; k < dof; k++)
    {
       temp_bar = 0.0;
       isotrans.SetIntPoint(&Nodes.IntPoint(k));
       vc.Eval(xk, isotrans, Nodes.IntPoint(k));
       // dof_k = nk^t adj(J) xk
-      const Vector nk_vec(const_cast<double*>(nk + d2n[k]*Dim), sdim);
-      DenseMatrix adjJ_bar(Dim);
+      const Vector nk_vec(const_cast<double*>(nk + d2n[k]*dim), sdim);
+      DenseMatrix adjJ_bar(dim);
       MultVWt(nk_vec, xk, adjJ_bar);
       isotrans.AdjugateJacobianRevDiff(adjJ_bar, temp_bar);
 
@@ -1160,7 +1160,7 @@ void VectorFiniteElement::Project_ND_RevDiff(
    const int sdim = Trans.GetSpaceDim();
    MFEM_ASSERT(vc.GetVDim() == sdim, "");
    Vector xk(vk, sdim);
-   MFEM_ASSERT(Dim == sdim, "VectorFiniteElement::Project_RT_RevDiff\n"
+   MFEM_ASSERT(dim == sdim, "VectorFiniteElement::Project_RT_RevDiff\n"
                  "\tOnly implemented if space dim == reference dim!\n");
    
    DenseMatrix temp_bar(PointMat_bar.Height(), PointMat_bar.Width());
@@ -1168,13 +1168,13 @@ void VectorFiniteElement::Project_ND_RevDiff(
    IsoparametricTransformation &isotrans =
                            dynamic_cast<IsoparametricTransformation&>(Trans);
 
-   for (int k = 0; k < Dof; k++)
+   for (int k = 0; k < dof; k++)
    {
       temp_bar = 0.0;
       isotrans.SetIntPoint(&Nodes.IntPoint(k));
       vc.Eval(xk, isotrans, Nodes.IntPoint(k));
       // dof_k = nk^t J xk
-      const Vector tk_vec(const_cast<double*>(tk + d2t[k]*Dim), sdim);
+      const Vector tk_vec(const_cast<double*>(tk + d2t[k]*dim), sdim);
 
       DenseMatrix J_bar(sdim);
       MultVWt(xk, tk_vec, J_bar);
