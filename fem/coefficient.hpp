@@ -134,17 +134,27 @@ protected:
    std::function<double(const Vector &, double)> TDFunction;
 
 public:
-   /// Define a time-independent coefficient from a pointer to a std function
+   /// Define a time-independent coefficient from a std function
    FunctionCoefficient(std::function<double(const Vector &)> F)
    {
       Function = F;
    }
 
-   /// Define a time-dependent coefficient from a pointer to a std function
+   /// Define a time-independent coefficient from a pointer to a C-function
+   FunctionCoefficient(double (*F)(const Vector &))
+    : FunctionCoefficient((std::function<double(const Vector &)>)F)
+   { }
+
+   /// Define a time-dependent coefficient from a std function
    FunctionCoefficient(std::function<double(const Vector &, double)> TDF)
    {
       TDFunction = TDF;
    }
+
+   /// Define a time-dependent coefficient from a pointer to a C-function
+   FunctionCoefficient(double (*TDF)(const Vector &, double))
+    : FunctionCoefficient((std::function<double(const Vector &, double)>)TDF)
+   { }
 
    /// (DEPRECATED) Define a time-independent coefficient from a C-function
    /** @deprecated Use the method where the C-function, @a f, uses a const
@@ -423,6 +433,17 @@ public:
       Function = F;
    }
 
+   /// Construct a time-independent vector coefficient from a pointer to a
+   /// C-function
+   VectorFunctionCoefficient(int dim,
+                             void(*F)(const Vector &, Vector &),
+                             Coefficient *q = NULL)
+    : VectorFunctionCoefficient(dim,
+                               (std::function<void(const Vector &,
+                                                   Vector &)>) F,
+                               q)
+   { }
+
    /// Construct a time-dependent vector coefficient from a std function
    VectorFunctionCoefficient(int dim,
                              std::function<void(const Vector &,
@@ -433,6 +454,18 @@ public:
    {
       TDFunction = TDF;
    }
+
+   /// Construct a time-dependent vector coefficient from a pointer to a
+   /// C-function
+   VectorFunctionCoefficient(int dim,
+                             void(*TDF)(const Vector &, double, Vector &),
+                             Coefficient *q = NULL)
+    : VectorFunctionCoefficient(dim,
+                               (std::function<void(const Vector &,
+                                                   double,
+                                                   Vector &)>) TDF,
+                               q)
+   { }
 
    using VectorCoefficient::Eval;
    /// Evaluate the vector coefficient at @a ip.
@@ -771,6 +804,17 @@ public:
       mat.SetSize(0);
    }
 
+   /// Construct a square matrix coefficient from a pointer to a C-function
+   /// without time dependence.
+   MatrixFunctionCoefficient(int dim,
+                             void(*F)(const Vector &, DenseMatrix &),
+                             Coefficient *q = NULL)
+    : MatrixFunctionCoefficient(dim,
+                               (std::function<void(const Vector &,
+                                                   DenseMatrix &)>) F,
+                                q)
+   { }
+
    /// Construct a constant matrix coefficient times a scalar Coefficient
    MatrixFunctionCoefficient(const DenseMatrix &m, Coefficient &q)
       : MatrixCoefficient(m.Height(), m.Width()), Q(&q)
@@ -790,6 +834,18 @@ public:
       TDFunction = TDF;
       mat.SetSize(0);
    }
+
+   /// Construct a square matrix coefficient from a pointer to a C-function
+   /// with time dependence.
+   MatrixFunctionCoefficient(int dim,
+                             void(*TDF)(const Vector &, double, DenseMatrix &),
+                             Coefficient *q = NULL)
+    : MatrixFunctionCoefficient(dim,
+                               (std::function<void(const Vector &,
+                                                   double,
+                                                   DenseMatrix &)>) TDF,
+                                q)
+   { }
 
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
