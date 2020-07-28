@@ -12,6 +12,8 @@
 #ifndef MFEM_COEFFICIENT
 #define MFEM_COEFFICIENT
 
+#include <functional>
+
 #include "../config/config.hpp"
 #include "../linalg/linalg.hpp"
 #include "intrules.hpp"
@@ -135,13 +137,13 @@ public:
    /// Define a time-independent coefficient from a pointer to a std function
    FunctionCoefficient(std::function<double(const Vector &)> F)
    {
-      Function = f;
+      Function = F;
    }
 
    /// Define a time-dependent coefficient from a pointer to a std function
    FunctionCoefficient(std::function<double(const Vector &, double)> TDF)
    {
-      TDFunction = tdf;
+      TDFunction = TDF;
    }
 
    /// (DEPRECATED) Define a time-independent coefficient from a C-function
