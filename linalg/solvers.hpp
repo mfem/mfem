@@ -125,13 +125,14 @@ public:
        the matrix-free setting. */
    OperatorJacobiSmoother(const Vector &d,
                           const Array<int> &ess_tdof_list,
-                          const double damping=1.0);
+                          const double damping=1.0, 
+                          const bool inverse=false);
    ~OperatorJacobiSmoother() {}
 
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
    void SetOperator(const Operator &op) { oper = &op; }
-   void Setup(const Vector &diag);
+   void Setup(const Vector &diag, const bool inverse=false);
 
 private:
    const int N;

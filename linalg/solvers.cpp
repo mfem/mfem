@@ -134,7 +134,7 @@ OperatorJacobiSmoother::OperatorJacobiSmoother(const BilinearForm &a,
 
 OperatorJacobiSmoother::OperatorJacobiSmoother(const Vector &d,
                                                const Array<int> &ess_tdofs,
-                                               const double dmpng)
+                                               const double dmpng, const bool inverse)
    :
    Solver(d.Size()),
    N(d.Size()),
@@ -143,16 +143,23 @@ OperatorJacobiSmoother::OperatorJacobiSmoother(const Vector &d,
    ess_tdof_list(ess_tdofs),
    residual(N)
 {
-   Setup(d);
+   Setup(d, inverse);
 }
 
-void OperatorJacobiSmoother::Setup(const Vector &diag)
+void OperatorJacobiSmoother::Setup(const Vector &diag, const bool inverse)
 {
    residual.UseDevice(true);
    const double delta = damping;
    auto D = diag.Read();
    auto DI = dinv.Write();
-   MFEM_FORALL(i, N, DI[i] = delta / D[i]; );
+   if (inverse)
+   {
+      MFEM_FORALL(i, N, DI[i] = delta * D[i]; );
+   }
+   else
+   {
+      MFEM_FORALL(i, N, DI[i] = delta / D[i]; );
+   }
    auto I = ess_tdof_list.Read();
    MFEM_FORALL(i, ess_tdof_list.Size(), DI[I[i]] = delta; );
 }
