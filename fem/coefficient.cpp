@@ -132,6 +132,7 @@ void GridFunctionCoefficient::Eval(const FiniteElementSpace &fes,
    const FiniteElementSpace &coeff_fes = *GridF->FESpace();
    const int ne = fes.GetMesh()->GetNE();
    const int nq = ir.GetNPoints();
+   const int nd = coeff_fes.GetFE(0)->GetDof();
    const int dim = fes.GetMesh()->Dimension();
    qcoeff.SetSize(nq * ne);
    if (UsesTensorBasis(coeff_fes))
@@ -140,7 +141,7 @@ void GridFunctionCoefficient::Eval(const FiniteElementSpace &fes,
       const int D1D = maps.ndof;
       const int Q1D = maps.nqpt;
       const Operator *r = coeff_fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
-      Vector GridE(nq*ne);
+      Vector GridE(nd*ne);
       r->Mult(*GridF, GridE);
       if (dim == 1)
       {
@@ -257,7 +258,7 @@ void GridFunctionCoefficient::Eval(const FiniteElementSpace &fes,
       const int D = maps.ndof;
       const int Q = maps.nqpt;
       const Operator *r = coeff_fes.GetElementRestriction(ElementDofOrdering::NATIVE);
-      Vector GridE(nq*ne);
+      Vector GridE(nd*ne);
       r->Mult(*GridF, GridE);
       auto B = Reshape(maps.B.Read(), Q, D);
       auto x = Reshape(GridE.Read(), D, ne);
