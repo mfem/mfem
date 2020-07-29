@@ -118,7 +118,7 @@ protected:
 
    // Quadrature points that are checked for negative Jacobians etc.
    const IntegrationRule &ir;
-   // These fields are used relevant for mixed meshes.
+   // These fields are relevant for mixed meshes.
    IntegrationRules *IntegRules;
    int integ_order;
 
