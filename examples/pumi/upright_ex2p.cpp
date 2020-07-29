@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
 
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/pumi/parallel/upright/2p5kg1.smb";
-   const char *boundary_file = "../../data/pumi/serial/boundary_upright.mesh";
+   const char *boundary_file = "../../data/pumi/geom/upright.def";
 #ifdef MFEM_USE_SIMMETRIX
    const char *model_file = "../../data/pumi/geom/upright_defeatured_geomsim.smd";
 #else
