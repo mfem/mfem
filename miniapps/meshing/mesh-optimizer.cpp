@@ -616,7 +616,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 14. Setup the final NonlinearForm (which defines the integral of interest,
+   // 12. Setup the final NonlinearForm (which defines the integral of interest,
    //     its first and second derivatives). Here we can use a combination of
    //     metrics, i.e., optimize the sum of two integrals, where both are
    //     scaled by used-defined space-dependent weights. Note that there are no
@@ -672,7 +672,7 @@ int main(int argc, char *argv[])
       vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, *mesh, title, 0);
    }
 
-   // 16. Fix all boundary nodes, or fix only a given component depending on the
+   // 13. Fix all boundary nodes, or fix only a given component depending on the
    //     boundary attributes of the given mesh. Attributes 1/2/3 correspond to
    //     fixed x/y/z components of the node. Attribute 4 corresponds to an
    //     entirely fixed node. Other boundary attributes do not affect the node
@@ -728,7 +728,7 @@ int main(int argc, char *argv[])
       a.SetEssentialVDofs(ess_vdofs);
    }
 
-   // 17. As we use the Newton method to solve the resulting nonlinear system,
+   // 14. As we use the Newton method to solve the resulting nonlinear system,
    //     here we setup the linear solver for the system's Jacobian.
    Solver *S = NULL;
    const double linsol_rtol = 1e-12;
@@ -795,7 +795,7 @@ int main(int argc, char *argv[])
       cout << "Nonlinear solver: rtol = " << solver_rtol << " not achieved.\n";
    }
 
-   // 20. Save the optimized mesh to a file. This output can be viewed later
+   // 15. Save the optimized mesh to a file. This output can be viewed later
    //     using GLVis: "glvis -m optimized.mesh".
    {
       ofstream mesh_ofs("optimized.mesh");
@@ -803,7 +803,7 @@ int main(int argc, char *argv[])
       mesh->Print(mesh_ofs);
    }
 
-   // 21. Compute the amount of energy decrease.
+   // 16. Compute the amount of energy decrease.
    const double fin_energy = a.GetGridFunctionEnergy(x);
    double metric_part = fin_energy;
    if (lim_const > 0.0 || adapt_lim_const > 0.0)
@@ -823,7 +823,7 @@ int main(int argc, char *argv[])
    cout << "The strain energy decreased by: " << setprecision(12)
         << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
 
-   // 22. Visualize the final mesh and metric values.
+   // 17. Visualize the final mesh and metric values.
    if (visualization)
    {
       char title[] = "Final metric values";
@@ -837,7 +837,7 @@ int main(int argc, char *argv[])
                              600, 600, 300, 300);
    }
 
-   // 23. Visualize the mesh displacement.
+   // 18. Visualize the mesh displacement.
    if (visualization)
    {
       x0 -= x;
@@ -852,7 +852,7 @@ int main(int argc, char *argv[])
            << "keys jRmclA" << endl;
    }
 
-   // 24. Free the used memory.
+   // 19. Free the used memory.
    delete S;
    delete target_c2;
    delete metric2;
