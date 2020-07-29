@@ -1127,10 +1127,10 @@ void DiscreteAdaptTC::SetDiscreteTargetBase(const GridFunction &tspec_)
       tspec(i+(ncomp-vdim)*dof_cnt) = tspec_(i);
    }
 #else
-   const int Nc = dof_cnt*vdim;
+   //const int Nc = dof_cnt*vdim;
    const auto tspec__d = tspec_.Read();
    const int offset = (ncomp-vdim)*dof_cnt;
-   MFEM_FORALL(i, Nc, tspec_d[i+offset] = tspec__d[i];);
+   MFEM_FORALL(i, dof_cnt*vdim, tspec_d[i+offset] = tspec__d[i];);
    //tspec.HostReadWrite();
 #endif
 }
