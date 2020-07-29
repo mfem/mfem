@@ -156,9 +156,9 @@ bool DiscreteAdaptTC::ComputeElementTargetsPA(const IntegrationRule *ir,
 
    const bool SizeKernel = sizeidx != -1;
 
-   MFEM_VERIFY(skewidx == -1, "!skewidx");
-   MFEM_VERIFY(aspectratioidx == -1, "!aspectratioidx");
-   MFEM_VERIFY(orientationidx == -1, "!orientationidx");
+   if (skewidx != -1) { dbg("!skewidx"); return false; }
+   if (aspectratioidx != -1) { dbg("!aspectratioidx"); return false; }
+   if (orientationidx != -1) { dbg("!orientationidx"); return false; }
 
    if (DIM == 3 && SizeKernel)
    {
