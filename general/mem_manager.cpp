@@ -14,6 +14,7 @@
 
 #define MFEM_DEBUG_COLOR 84
 #include "debug.hpp"
+#define MFEM_COPY_THRESHOLD 0x10000
 
 #include <list>
 #include <cstring> // std::memcpy, std::memcmp
@@ -398,11 +399,20 @@ public:
    void Alloc(Memory &base) { CuMemAlloc(&base.d_ptr, base.bytes); }
    void Dealloc(Memory &base) { CuMemFree(base.d_ptr); }
    void *HtoD(void *dst, const void *src, size_t bytes)
-   { dbg("0x%x",bytes); return CuMemcpyHtoD(dst, src, bytes); }
+   {
+      if (bytes > MFEM_COPY_THRESHOLD) { dbg("0x%x =>", bytes); }
+      return CuMemcpyHtoD(dst, src, bytes);
+   }
    void *DtoD(void* dst, const void* src, size_t bytes)
-   { return CuMemcpyDtoD(dst, src, bytes); }
+   {
+      if (bytes > MFEM_COPY_THRESHOLD) { dbg("0x%x =", bytes); }
+      return CuMemcpyDtoD(dst, src, bytes);
+   }
    void *DtoH(void *dst, const void *src, size_t bytes)
-   { return CuMemcpyDtoH(dst, src, bytes); }
+   {
+      if (bytes > MFEM_COPY_THRESHOLD) { dbg("0x%x <=", bytes); }
+      return CuMemcpyDtoH(dst, src, bytes);
+   }
 };
 
 /// The HIP device memory space
@@ -457,16 +467,19 @@ public:
    { MmuAllow(MmuAddrP(ptr), MmuLengthP(ptr, bytes)); }
    void *HtoD(void *dst, const void *src, size_t bytes)
    {
-      if (bytes >= 0x10000)
-      {
-         dbg("0x%x",bytes);
-      }
+      if (bytes > MFEM_COPY_THRESHOLD) { dbg("0x%x =>", bytes); }
       return std::memcpy(dst, src, bytes);
    }
    void *DtoD(void *dst, const void *src, size_t bytes)
-   { return std::memcpy(dst, src, bytes); }
+   {
+      if (bytes > MFEM_COPY_THRESHOLD) { dbg("0x%x =", bytes); }
+      return std::memcpy(dst, src, bytes);
+   }
    void *DtoH(void *dst, const void *src, size_t bytes)
-   { return std::memcpy(dst, src, bytes); }
+   {
+      if (bytes > MFEM_COPY_THRESHOLD) { dbg("0x%x <=", bytes); }
+      return std::memcpy(dst, src, bytes);
+   }
 };
 
 #ifndef MFEM_USE_UMPIRE
