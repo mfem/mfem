@@ -153,9 +153,6 @@ New and updated examples and miniapps
 - Added a new meshing miniapp, Minimal Surface, which solves Plateau's problem:
   the Dirichlet problem for the minimal surface equation.
 
-- Added partial assembly support to Example 4/4p and Example 5/5p, with diagonal
-  preconditioning.
-
 - Added full assembly support in Example 9/9p.
 
 - Added a new test problem in Example 24/24p, demonstrating a mixed bilinear
@@ -167,10 +164,8 @@ New and updated examples and miniapps
   mesh based on element attributes. Any newly exposed boundary elements are
   assigned attribute numbers related to the trimmed element attributes.
 
-- Added device support in Example 5/5p.
-
-- Added partial assembly and device support to Example 22/22p, with diagonal
-  preconditioning.
+- Added partial assembly and device support to Example 4/4p, Example 5/5p,
+  Example 22/22p, and Example 25/25p, with diagonal preconditioning.
 
 Improved testing
 ----------------
