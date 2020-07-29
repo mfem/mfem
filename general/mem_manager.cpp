@@ -457,7 +457,7 @@ public:
    { MmuAllow(MmuAddrP(ptr), MmuLengthP(ptr, bytes)); }
    void *HtoD(void *dst, const void *src, size_t bytes)
    {
-      if (bytes >= 0xc0000)
+      if (bytes >= 0x10000)
       {
          dbg("0x%x",bytes);
       }

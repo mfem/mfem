@@ -12,6 +12,9 @@
 #include "operator.hpp"
 #include "ode.hpp"
 
+#define MFEM_DEBUG_COLOR 87
+#include "../general/debug.hpp"
+
 namespace mfem
 {
 
@@ -115,20 +118,24 @@ void RK4Solver::Step(Vector &x, double &t, double &dt)
    // -----+-------------------
    //      | 1/6  1/3  1/3  1/6
 
+   dbg("1");
    f->SetTime(t);
    f->Mult(x, k); // k1
    add(x, dt/2, k, y);
    add(x, dt/6, k, z);
 
+   dbg("2");
    f->SetTime(t + dt/2);
    f->Mult(y, k); // k2
    add(x, dt/2, k, y);
    z.Add(dt/3, k);
 
+   dbg("3");
    f->Mult(y, k); // k3
    add(x, dt, k, y);
    z.Add(dt/3, k);
 
+   dbg("4");
    f->SetTime(t + dt);
    f->Mult(y, k); // k4
    add(z, dt/6, k, x);
