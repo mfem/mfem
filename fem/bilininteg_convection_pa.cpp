@@ -956,40 +956,19 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
          {
             case 0x23: QEvalVGF3D<3,2,3>(ne,B,x,y); break;
             case 0x34: QEvalVGF3D<3,3,4>(ne,B,x,y); break;
-            //case 0x48: QEvalVGF3D<3,4,8>(ne,B,x,y); break;
+            case 0x46: QEvalVGF3D<3,4,6>(ne,B,x,y); break;
+            case 0x48: QEvalVGF3D<3,4,8>(ne,B,x,y); break;
             default:
             {
                constexpr int MAX_DQ = 6;
+               printf("\033[7mdim:%d, 0x%x",dim, id); fflush(0);
                MFEM_VERIFY(D1D <= MAX_DQ, "");
                MFEM_VERIFY(Q1D <= MAX_DQ, "");
-               printf("\033[7mdim:%d, 0x%x",dim, id); fflush(0);
                QEvalVGF3D<0,0,0,MAX_DQ>(ne,B,x,y,vdim,D1D,Q1D);
                MFEM_ABORT("");
             }
          }
       }
-      Vector vel2(dim * nq * ne);
-      auto C = Reshape(vel2.HostWrite(), vdim, nq, ne);
-      Vector Vq(vdim);
-      for (int e = 0; e < ne; ++e)
-      {
-         ElementTransformation& T = *fes.GetElementTransformation(e);
-         for (int q = 0; q < nq; ++q)
-         {
-            Q->Eval(Vq, T, ir->IntPoint(q));
-            for (int i = 0; i < vdim; ++i)
-            {
-               C(i,q,e) = Vq(i);
-            }
-         }
-      }
-      const bool ok = fabs(vel*vel - vel2*vel2) < 1e-12;
-      if (!ok)
-      {
-         dbg("D1D:%d, Q1D:%d", D1D, Q1D);
-         dbg("%.12e %.12e",vel*vel, vel2*vel2);
-      }
-      MFEM_VERIFY(ok,"");
    }
    else
    {
@@ -1040,7 +1019,11 @@ static void PAConvectionApply(const int dim,
          case 0x77: return SmemPAConvectionApply2D<7,7,1>(NE,B,G,Bt,Gt,op,x,y);
          case 0x88: return SmemPAConvectionApply2D<8,8,1>(NE,B,G,Bt,Gt,op,x,y);
          case 0x99: return SmemPAConvectionApply2D<9,9,1>(NE,B,G,Bt,Gt,op,x,y);
-         default:   return PAConvectionApply2D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
+         default:
+         {
+            printf("\033[7m2D, D1D:%d, Q1D:%d",D1D,Q1D); fflush(0);
+            return PAConvectionApply2D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
+         }
       }
    }
    else if (dim == 3)
@@ -1048,6 +1031,7 @@ static void PAConvectionApply(const int dim,
       switch ((D1D << 4 ) | Q1D)
       {
          case 0x23: return SmemPAConvectionApply3D<2,3>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x26: return SmemPAConvectionApply3D<2,6>(NE,B,G,Bt,Gt,op,x,y);
          case 0x24: return SmemPAConvectionApply3D<2,4>(NE,B,G,Bt,Gt,op,x,y);
          case 0x34: return SmemPAConvectionApply3D<3,4>(NE,B,G,Bt,Gt,op,x,y);
          case 0x35: return SmemPAConvectionApply3D<3,5>(NE,B,G,Bt,Gt,op,x,y);
@@ -1057,7 +1041,11 @@ static void PAConvectionApply(const int dim,
          case 0x67: return SmemPAConvectionApply3D<6,7>(NE,B,G,Bt,Gt,op,x,y);
          case 0x78: return SmemPAConvectionApply3D<7,8>(NE,B,G,Bt,Gt,op,x,y);
          case 0x89: return SmemPAConvectionApply3D<8,9>(NE,B,G,Bt,Gt,op,x,y);
-         default:   return PAConvectionApply3D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
+         default:
+         {
+            printf("\033[7m3D, D1D:%d, Q1D:%d",D1D,Q1D); fflush(0);
+            return PAConvectionApply3D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
+         }
       }
    }
    MFEM_ABORT("Unknown kernel.");
