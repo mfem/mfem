@@ -216,6 +216,10 @@ public:
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
+
+   void Eval(const FiniteElementSpace &fes,
+             const IntegrationRule &ir,
+             Vector &qcoeff);
 };
 
 

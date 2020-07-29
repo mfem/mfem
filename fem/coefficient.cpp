@@ -16,6 +16,7 @@
 #include <cmath>
 #include <limits>
 #include "../linalg/dtensor.hpp"
+#include "../general/forall.hpp"
 
 namespace mfem
 {
@@ -122,6 +123,159 @@ double GridFunctionCoefficient::Eval (ElementTransformation &T,
                                       const IntegrationPoint &ip)
 {
    return GridF -> GetValue (T, ip, Component);
+}
+
+void GridFunctionCoefficient::Eval(const FiniteElementSpace &fes,
+                                   const IntegrationRule &ir,
+                                   Vector &qcoeff)
+{
+   const FiniteElementSpace &coeff_fes = *GridF->FESpace();
+   const int ne = fes.GetMesh()->GetNE();
+   const int nq = ir.GetNPoints();
+   const int dim = fes.GetMesh()->Dimension();
+   qcoeff.SetSize(nq * ne);
+   if (UsesTensorBasis(coeff_fes))
+   {
+      const DofToQuad &maps = coeff_fes.GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
+      const int D1D = maps.ndof;
+      const int Q1D = maps.nqpt;
+      const Operator *r = coeff_fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+      Vector GridE(nq*ne);
+      r->Mult(*GridF, GridE);
+      if (dim == 1)
+      {
+         auto b = Reshape(maps.B.Read(), Q1D, D1D);
+         auto x = Reshape(GridE.Read(), D1D, ne);
+         auto C = Reshape(qcoeff.Write(), Q1D, ne);
+
+         MFEM_FORALL_3D(e, ne, Q1D, 1, 1,
+         {
+            MFEM_SHARED double B[16][16];
+            for (int d = 0; d < D1D; d++)
+            {  
+               MFEM_FOREACH_THREAD(q,x,Q1D)
+               {
+                  B[q][d] = b(q,d);
+               }
+            }
+            MFEM_SYNC_THREAD;
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               double qval = 0.0;
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  qval += B[qx][dx] * x(dx,e);
+               }
+               C(qx,e) = qval;
+            }
+         });
+      }
+      else if (dim == 2)
+      {
+         auto b = Reshape(maps.B.Read(), Q1D, D1D);
+         auto x = Reshape(GridE.Read(), D1D, D1D, ne);
+         auto C = Reshape(qcoeff.Write(), Q1D, Q1D, ne);
+
+         MFEM_FORALL_3D(e, ne, Q1D, Q1D, 1,
+         {
+            MFEM_SHARED double B[16][16];
+            MFEM_FOREACH_THREAD(d,y,D1D)
+            {
+               MFEM_FOREACH_THREAD(q,x,Q1D)
+               {
+                  B[q][d] = b(q,d);
+               }
+            }
+            MFEM_SYNC_THREAD;
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               MFEM_FOREACH_THREAD(qy,y,Q1D)
+               {
+                  double qval = 0.0;
+                  for (int dy = 0; dy < D1D; ++dy)
+                  {
+                     const double By = B[qy][dy];
+                     for (int dx = 0; dx < D1D; ++dx)
+                     {
+                        qval += B[qx][dx]*By * x(dx,dy,e);
+                     }
+                  }
+                  C(qx,qy,e) = qval;
+               }
+            }
+         });
+      }
+      else if (dim == 3)
+      {
+         auto b = Reshape(maps.B.Read(), Q1D, D1D);
+         auto x = Reshape(GridE.Read(), D1D, D1D, D1D, ne);
+         auto C = Reshape(qcoeff.Write(), Q1D, Q1D, Q1D, ne);
+
+         MFEM_FORALL_3D(e, ne, Q1D, Q1D, Q1D,
+         {
+            MFEM_SHARED double B[16][16];
+            if (MFEM_THREAD_ID(z) == 0)
+            {
+               MFEM_FOREACH_THREAD(d,y,D1D)
+               {
+                  MFEM_FOREACH_THREAD(q,x,Q1D)
+                  {
+                     B[q][d] = b(q,d);
+                  }
+               }
+            }
+            MFEM_SYNC_THREAD;
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               MFEM_FOREACH_THREAD(qy,y,Q1D)
+               {
+                  MFEM_FOREACH_THREAD(qz,z,Q1D)
+                  {
+                     double qval = 0.0;
+                     for (int dz = 0; dz < D1D; ++dz)
+                     {
+                        const double Bz = B[qz][dz];
+                        for (int dy = 0; dy < D1D; ++dy)
+                        {
+                           const double By = B[qy][dy];
+                           for (int dx = 0; dx < D1D; ++dx)
+                           {
+                              qval += B[qx][dx]*By*Bz * x(dx,dy,dz,e);
+                           }
+                        }
+                     }
+                     C(qx,qy,qz,e) = qval;
+                  }
+               }
+            }
+         });
+      }
+   }
+   else // non-tensor elements
+   {
+      const DofToQuad &maps = coeff_fes.GetFE(0)->GetDofToQuad(ir, DofToQuad::FULL);
+      const int D = maps.ndof;
+      const int Q = maps.nqpt;
+      const Operator *r = coeff_fes.GetElementRestriction(ElementDofOrdering::NATIVE);
+      Vector GridE(nq*ne);
+      r->Mult(*GridF, GridE);
+      auto B = Reshape(maps.B.Read(), Q, D);
+      auto x = Reshape(GridE.Read(), D, ne);
+      auto C = Reshape(qcoeff.Write(), Q, ne);
+
+      MFEM_FORALL_3D(e, ne, Q, 1, 1,
+      {
+         MFEM_FOREACH_THREAD(q,x,Q)
+         {
+            double qval = 0.0;
+            for (int d = 0; d < D; ++d)
+            {
+               qval += B(q,d) * x(d,e);
+            }
+            C(q,e) = qval;
+         }
+      });
+   }
 }
 
 double TransformedCoefficient::Eval(ElementTransformation &T,
