@@ -1857,6 +1857,7 @@ class DiffusionIntegrator: public BilinearFormIntegrator
 {
 protected:
    Coefficient *Q;
+   VectorCoefficient *VQ;
    MatrixCoefficient *MQ;
 
 private:
@@ -1864,6 +1865,7 @@ private:
 #ifndef MFEM_THREAD_SAFE
    DenseMatrix dshape, dshapedxt, invdfdx, mq;
    DenseMatrix te_dshape, te_dshapedxt;
+   Vector D;
 #endif
 
    // PA extension
@@ -1883,6 +1885,7 @@ public:
    DiffusionIntegrator()
    {
       Q = NULL;
+      VQ = NULL;
       MQ = NULL;
       maps = NULL;
       geom = NULL;
@@ -1895,6 +1898,20 @@ public:
    DiffusionIntegrator(Coefficient &q)
       : Q(&q)
    {
+      VQ = NULL;
+      MQ = NULL;
+      maps = NULL;
+      geom = NULL;
+#ifdef MFEM_USE_CEED
+      ceedDataPtr = NULL;
+#endif
+   }
+
+   /// Construct a diffusion integrator with a vector coefficient q
+   DiffusionIntegrator(VectorCoefficient &q)
+      : VQ(&q)
+   {
+      Q = NULL;
       MQ = NULL;
       maps = NULL;
       geom = NULL;
@@ -1908,6 +1925,7 @@ public:
       : MQ(&q)
    {
       Q = NULL;
+      VQ = NULL;
       maps = NULL;
       geom = NULL;
 #ifdef MFEM_USE_CEED
@@ -3011,6 +3029,17 @@ protected:
    VectorCoefficient *VQ;
 };
 
-}
 
+
+// PA Diffusion Assemble 2D kernel
+template<const int T_SDIM>
+void PADiffusionSetup2D(const int Q1D,
+                        const int coeffDim,
+                        const int NE,
+                        const Array<double> &w,
+                        const Vector &j,
+                        const Vector &c,
+                        Vector &d);
+
+}
 #endif
