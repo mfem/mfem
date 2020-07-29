@@ -20,7 +20,7 @@
 namespace mfem
 {
 
-template<int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+template<int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 1>
 static void D2QPhysGrad2D(const int NE,
                           const double *b_,
                           const double *g_,
@@ -33,13 +33,13 @@ static void D2QPhysGrad2D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    const int VDIM = T_VDIM ? T_VDIM : vdim;
+   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
 
-   auto b = Reshape(b_, Q1D, D1D);
-   auto g = Reshape(g_, Q1D, D1D);
-   auto j = Reshape(j_, Q1D, Q1D, 2, 2, NE);
-   auto x = Reshape(x_, D1D, D1D, VDIM, NE);
+   const auto b = Reshape(b_, Q1D, D1D);
+   const auto g = Reshape(g_, Q1D, D1D);
+   const auto j = Reshape(j_, Q1D, Q1D, 2, 2, NE);
+   const auto x = Reshape(x_, D1D, D1D, VDIM, NE);
    auto y = Reshape(y_, VDIM, 2, Q1D, Q1D, NE);
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
@@ -51,15 +51,17 @@ static void D2QPhysGrad2D(const int NE,
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
       const int tidz = MFEM_THREAD_ID(z);
-      MFEM_SHARED double B[MQ1][MD1];
-      MFEM_SHARED double G[MQ1][MD1];
+      MFEM_SHARED double s_B[MQ1][MD1];
+      MFEM_SHARED double s_G[MQ1][MD1];
+      DeviceTensor<2,double> B((double*)(s_B), Q1D, D1D);
+      DeviceTensor<2,double> G((double*)(s_G), Q1D, D1D);
 
-      MFEM_SHARED double Xz[NBZ][MD1][MD1];
-      double (*X)[MD1] = (double (*)[MD1])(Xz + tidz);
+      MFEM_SHARED double s_X[NBZ][MD1*MD1];
+      DeviceTensor<2,double> X((double*)(s_X+tidz), MD1, MD1);
 
-      MFEM_SHARED double GD[2][NBZ][MD1][MQ1];
-      double (*DQ0)[MQ1] = (double (*)[MQ1])(GD[0] + tidz);
-      double (*DQ1)[MQ1] = (double (*)[MQ1])(GD[1] + tidz);
+      MFEM_SHARED double sm[2][NBZ][MD1*MQ1];
+      DeviceTensor<2,double> DQ0((double*)(sm[0]+tidz), MD1, MQ1);
+      DeviceTensor<2,double> DQ1((double*)(sm[1]+tidz), MD1, MQ1);
 
       if (tidz == 0)
       {
@@ -67,8 +69,8 @@ static void D2QPhysGrad2D(const int NE,
          {
             MFEM_FOREACH_THREAD(q,x,Q1D)
             {
-               B[q][d] = b(q,d);
-               G[q][d] = g(q,d);
+               B(q,d) = b(q,d);
+               G(q,d) = g(q,d);
             }
          }
       }
@@ -80,7 +82,7 @@ static void D2QPhysGrad2D(const int NE,
          {
             MFEM_FOREACH_THREAD(dy,y,D1D)
             {
-               X[dx][dy] = x(dx,dy,c,e);
+               X(dx,dy) = x(dx,dy,c,e);
             }
          }
          MFEM_SYNC_THREAD;
@@ -92,12 +94,12 @@ static void D2QPhysGrad2D(const int NE,
                double v = 0.0;
                for (int dx = 0; dx < D1D; ++dx)
                {
-                  const double input = X[dx][dy];
-                  u += B[qx][dx] * input;
-                  v += G[qx][dx] * input;
+                  const double input = X(dx,dy);
+                  u += input * B(qx,dx);
+                  v += input * G(qx,dx);
                }
-               DQ0[dy][qx] = u;
-               DQ1[dy][qx] = v;
+               DQ0(dy,qx) = u;
+               DQ1(dy,qx) = v;
             }
          }
          MFEM_SYNC_THREAD;
@@ -110,8 +112,8 @@ static void D2QPhysGrad2D(const int NE,
                double v = 0.0;
                for (int dy = 0; dy < D1D; ++dy)
                {
-                  u += DQ1[dy][qx] * B[qy][dy];
-                  v += DQ0[dy][qx] * G[qy][dy];
+                  u += DQ1(dy,qx) * B(qy,dy);
+                  v += DQ0(dy,qx) * G(qy,dy);
                }
                double Jloc[4], Jinv[4];
                Jloc[0] = j(qx,qy,0,0,e);
@@ -158,17 +160,19 @@ static  void D2QPhysGrad3D(const int NE,
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q;
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D;
       const int tidz = MFEM_THREAD_ID(z);
-      MFEM_SHARED double B[MQ1][MD1];
-      MFEM_SHARED double G[MQ1][MD1];
+      MFEM_SHARED double s_B[MQ1][MD1];
+      MFEM_SHARED double s_G[MQ1][MD1];
+      DeviceTensor<2,double> B((double*)(s_B), Q1D, D1D);
+      DeviceTensor<2,double> G((double*)(s_G), Q1D, D1D);
 
       MFEM_SHARED double sm0[3][MQ1*MQ1*MQ1];
       MFEM_SHARED double sm1[3][MQ1*MQ1*MQ1];
-      double (*X)[MD1][MD1]    = (double (*)[MD1][MD1]) (sm0+2);
-      double (*DDQ0)[MD1][MQ1] = (double (*)[MD1][MQ1]) (sm0+0);
-      double (*DDQ1)[MD1][MQ1] = (double (*)[MD1][MQ1]) (sm0+1);
-      double (*DQQ0)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm1+0);
-      double (*DQQ1)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm1+1);
-      double (*DQQ2)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm1+2);
+      DeviceTensor<3,double> X((double*)(sm0+2), MD1, MD1, MD1);
+      DeviceTensor<3,double> DDQ0((double*)(sm0+0), MD1, MD1, MQ1);
+      DeviceTensor<3,double> DDQ1((double*)(sm0+1), MD1, MD1, MQ1);
+      DeviceTensor<3,double> DQQ0((double*)(sm1+0), MD1, MQ1, MQ1);
+      DeviceTensor<3,double> DQQ1((double*)(sm1+1), MD1, MQ1, MQ1);
+      DeviceTensor<3,double> DQQ2((double*)(sm1+2), MD1, MQ1, MQ1);
 
       if (tidz == 0)
       {
@@ -176,8 +180,8 @@ static  void D2QPhysGrad3D(const int NE,
          {
             MFEM_FOREACH_THREAD(q,x,Q1D)
             {
-               B[q][d] = b(q,d);
-               G[q][d] = g(q,d);
+               B(q,d) = b(q,d);
+               G(q,d) = g(q,d);
             }
          }
       }
@@ -191,8 +195,7 @@ static  void D2QPhysGrad3D(const int NE,
             {
                MFEM_FOREACH_THREAD(dz,z,D1D)
                {
-
-                  X[dx][dy][dz] = x(dx,dy,dz,c,e);
+                  X(dx,dy,dz) = x(dx,dy,dz,c,e);
                }
             }
          }
@@ -208,12 +211,12 @@ static  void D2QPhysGrad3D(const int NE,
                   double v = 0.0;
                   for (int dx = 0; dx < D1D; ++dx)
                   {
-                     const double coords = X[dx][dy][dz];
-                     u += coords * B[qx][dx];
-                     v += coords * G[qx][dx];
+                     const double coords = X(dx,dy,dz);
+                     u += coords * B(qx,dx);
+                     v += coords * G(qx,dx);
                   }
-                  DDQ0[dz][dy][qx] = u;
-                  DDQ1[dz][dy][qx] = v;
+                  DDQ0(dz,dy,qx) = u;
+                  DDQ1(dz,dy,qx) = v;
                }
             }
          }
@@ -229,13 +232,13 @@ static  void D2QPhysGrad3D(const int NE,
                   double w = 0.0;
                   for (int dy = 0; dy < D1D; ++dy)
                   {
-                     u += DDQ1[dz][dy][qx] * B[qy][dy];
-                     v += DDQ0[dz][dy][qx] * G[qy][dy];
-                     w += DDQ0[dz][dy][qx] * B[qy][dy];
+                     u += DDQ1(dz,dy,qx) * B(qy,dy);
+                     v += DDQ0(dz,dy,qx) * G(qy,dy);
+                     w += DDQ0(dz,dy,qx) * B(qy,dy);
                   }
-                  DQQ0[dz][qy][qx] = u;
-                  DQQ1[dz][qy][qx] = v;
-                  DQQ2[dz][qy][qx] = w;
+                  DQQ0(dz,qy,qx) = u;
+                  DQQ1(dz,qy,qx) = v;
+                  DQQ2(dz,qy,qx) = w;
                }
             }
          }
@@ -251,9 +254,9 @@ static  void D2QPhysGrad3D(const int NE,
                   double w = 0.0;
                   for (int dz = 0; dz < D1D; ++dz)
                   {
-                     u += DQQ0[dz][qy][qx] * B[qz][dz];
-                     v += DQQ1[dz][qy][qx] * B[qz][dz];
-                     w += DQQ2[dz][qy][qx] * G[qz][dz];
+                     u += DQQ0(dz,qy,qx) * B(qz,dz);
+                     v += DQQ1(dz,qy,qx) * B(qz,dz);
+                     w += DQQ2(dz,qy,qx) * G(qz,dz);
                   }
                   double Jloc[9], Jinv[9];
                   for (int col = 0; col < 3; col++)

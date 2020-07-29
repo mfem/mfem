@@ -53,6 +53,7 @@ set(SRCS
   quadinterpolator_det.cpp
   quadinterpolator_bynodes_eval.cpp
   quadinterpolator_bynodes_grad.cpp
+  quadinterpolator_bynodes_grad_phys.cpp
   quadinterpolator_bynodes_mult.cpp
   quadinterpolator_byvdim_eval.cpp
   quadinterpolator_byvdim_grad.cpp

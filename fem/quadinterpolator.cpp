@@ -177,7 +177,7 @@ void QuadratureInterpolator::PhysDerivatives(const Vector &e_vec,
    {
       if (q_layout == QVectorLayout::byNODES)
       {
-         MFEM_ABORT("this method is not implemented yet");
+         PhysDerivatives<QVectorLayout::byNODES>(e_vec, q_der);
       }
       if (q_layout == QVectorLayout::byVDIM)
       {
