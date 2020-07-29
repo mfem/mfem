@@ -17,7 +17,6 @@ TODO
    Medium Priority:
       TODO either set tFinal in each configuration, or remove from Configuration struct
       Advection - NodalQuadRule
-      DerivedQuantities - do it properly, not just with Bernstein coefficients
 
    Low Priority:
       Test GMS for Euler, remove if unnecessary
@@ -27,7 +26,6 @@ TODO
       -Euler: Implement subsonic in- and outflow.
       -Sedov setup
       -Expression for momentum in narrowing channel
-      -visualization of other unknowns / quotients of unknowns, vector valued unknowns
 
 
 next steps

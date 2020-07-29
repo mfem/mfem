@@ -169,9 +169,11 @@ miniapps/hypsys/grid*
 miniapps/hypsys/hypsys
 miniapps/hypsys/initial*
 miniapps/hypsys/phypsys
+miniapps/hypsys/pressure*
 miniapps/hypsys/results
 miniapps/hypsys/scripts/gridfunc-scatter
 miniapps/hypsys/ultimate*
+miniapps/hypsys/velocity*
 miniapps/hypsys/various
 
 miniapps/meshing/mobius-strip

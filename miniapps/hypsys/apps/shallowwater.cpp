@@ -23,13 +23,14 @@ ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
    {
       case 0:
       {
+         // Periodic meshes must be used for this problem.
          ProblemName = "Shallow Water Equations - Vorticity Advection";
          glvis_scale = "on";
          GravConst = 1.0;
          Depth = 1.0;
          SolutionKnown = true;
          SteadyState = false;
-         TimeDepBC = false; // Usage of periodic meshes is required.
+         TimeDepBC = false;
          ProjType = 0;
          L2_Projection(ic, u0);
          break;
@@ -50,7 +51,7 @@ ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
       case 2:
       {
          ProblemName = "Shallow Water Equations - Radial Dam Break";
-         glvis_scale = "on";
+         glvis_scale = "off valuerange 0.1 1";
          GravConst = 9.81;
          Depth = 0.1;
          SolutionKnown = false;
@@ -81,20 +82,7 @@ ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
 void ShallowWater::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
                                 int e, int k, int i) const
 {
-   double HMin = 0.001;
-
-   if (u.Size() != NumEq)
-   {
-      MFEM_ABORT("Invalid solution vector.");
-   }
-   if (u(0) < HMin)
-   {
-      ostringstream height_str;
-      height_str << u(0);
-      string err_msg = "Water height too small H = ";
-      MFEM_ABORT(err_msg << height_str.str());
-   }
-
+   CheckAdmissibility(u);
    switch (dim)
    {
       case 1:
@@ -127,13 +115,29 @@ void ShallowWater::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
 double ShallowWater::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
                                   int i) const
 {
+   CheckAdmissibility(u);
    switch (u.Size())
    {
       case 2:
-         return abs(u(1)*n(0)) / u(0) + sqrt(GravConst * u(0));
+         return abs(u(1)*n(0) / u(0)) + sqrt(GravConst * u(0));
       case 3:
-         return abs(u(1)*n(0) + u(2)*n(1)) / u(0) + sqrt(GravConst * u(0));
+         return abs((u(1)*n(0) + u(2)*n(1)) / u(0)) + sqrt(GravConst * u(0));
       default: MFEM_ABORT("Invalid solution vector.");
+   }
+}
+
+void ShallowWater::CheckAdmissibility(const Vector &u) const
+{
+   double HMin = 1.e-12;
+
+   if (u.Size() != NumEq) { MFEM_ABORT("Invalid solution vector."); }
+
+   if (u(0) < HMin)
+   {
+      ostringstream height_str;
+      height_str << u(0);
+      string err_msg = "Water height too small H = ";
+      MFEM_ABORT(err_msg << height_str.str() << ".");
    }
 }
 
@@ -142,7 +146,7 @@ void ShallowWater::SetBdrCond(const Vector &y1, Vector &y2,
 {
    switch (attr)
    {
-      case -1: // land boundary
+      case -1: // Land boundary
       {
          if (normal.Size() == 1)
          {
@@ -151,47 +155,54 @@ void ShallowWater::SetBdrCond(const Vector &y1, Vector &y2,
          }
          else
          {
-            double Mom_x_Norm = y1(1) * normal(0) + y1(2) * normal(1);
+            double MomTimesNor = y1(1) * normal(0) + y1(2) * normal(1);
             y2(0) = y1(0);
-            y2(1) = y1(1) - 2. * Mom_x_Norm * normal(0);
-            y2(2) = y1(2) - 2. * Mom_x_Norm * normal(1);
+            y2(1) = y1(1) - 2. * MomTimesNor * normal(0);
+            y2(2) = y1(2) - 2. * MomTimesNor * normal(1);
          }
-         return;
+         break;
       }
-      case -2: // radiation boundary
+      case -2: // Radiation boundary
       {
          y2 = y1;
-         return;
+         break;
       }
-      case -3: // river boundary
+      case -3: // River boundary
       {
-         return;
+         break;
       }
-      case -4: // open sea boundary
+      case -4: // Open sea boundary
       {
          double tmp = y2(0);
          y2 = y1;
          y2(0) = tmp;
-         return;
+         break;
       }
       default:
          MFEM_ABORT("Invalid boundary attribute.");
    }
 }
 
-void ShallowWater::ComputeDerivedQuantities(const Vector &u) const
+void ShallowWater::ComputeDerivedQuantities(const GridFunction &u, GridFunction &d1, GridFunction &d2) const
 {
-   Vector VelocityMagnitude(ne*nd);
+   double height, momentum;
+   const IntegrationRule ir = u.FESpace()->GetFE(0)->GetNodes();
+
    for (int e = 0; e < ne; e++)
    {
       for (int i = 0; i < nd; i++)
       {
-         double aux = 0.;
-         for (int l = 0; l < dim; l++)
+         const IntegrationPoint &ip = ir.IntPoint(i);
+         height = u.GetValue(e, ip, 1);
+         momentum = u.GetValue(e, ip, 2);
+         d1(e*nd + i) = pow(momentum / height, 2.0);
+
+         if (dim==2)
          {
-            aux += u((l+1)*ne*nd + e*nd + i) * u((l+1)*ne*nd + e*nd + i);
+            momentum = u.GetValue(e, ip, 3);
+            d1(e*nd + i) += pow(momentum / height, 2.0);
          }
-         VelocityMagnitude(e*nd+i) = sqrt(aux);
+         d1(e*nd + i) = sqrt(d1(e*nd + i));
       }
    }
 }
@@ -217,15 +228,28 @@ void AnalyticalSolutionSWE(const Vector &x, double t, Vector &u)
 {
    const int dim = x.Size();
    u.SetSize(dim+1);
-
-   // Map to the reference domain [-1,1].
    Vector X(dim);
+
    for (int i = 0; i < dim; i++)
    {
-      double center = (ConfigSWE.bbMin(i) + ConfigSWE.bbMax(i)) * 0.5;
-      double factor = 2. / (ConfigSWE.bbMax(i) - ConfigSWE.bbMin(i));
-      X(i) = factor * (x(i) - center);
-      t *= pow(factor, 1./(double(dim)));
+      switch (ConfigSWE.ConfigNum)
+      {
+         case 0: // Map to the reference domain [-1,1]^d.
+         {
+            double center = 0.5 * (ConfigSWE.bbMin(i) + ConfigSWE.bbMax(i));
+            double factor = 2.0 / (ConfigSWE.bbMax(i) - ConfigSWE.bbMin(i));
+            X(i) = factor * (x(i) - center);
+            t *= pow(factor, 1.0 / (double(dim)));
+            break;
+         }
+         case 1: // Map to the reference domain [0,1]^d.
+         {
+            double factor = 1.0 / (ConfigSWE.bbMax(i) - ConfigSWE.bbMin(i));
+            X(i) = factor * (x(i) - ConfigSWE.bbMin(i));
+            t *= pow(factor, 1.0 / (double(dim)));
+            break;
+         }
+      }
    }
 
    switch (ConfigSWE.ConfigNum)
@@ -241,47 +265,47 @@ void AnalyticalSolutionSWE(const Vector &x, double t, Vector &u)
          X *= 50.;
          t *= 50.;
 
-         double M = .5;
-         double c1 = -.04;
-         double c2 = .02;
-         double a = M_PI / 4.;
-         double x0 = 0.;
-         double y0 = 0.;
+         double M = 0.5;
+         double c1 = -0.04;
+         double c2 = 0.02;
+         double a = M_PI / 4.0;
+         double x0 = 0.0;
+         double y0 = 0.0;
 
-         double f = -c2 * ( pow(X(0) - x0 - M*t*cos(a), 2.)
-                          + pow(X(1) - y0 - M*t*sin(a), 2.) );
+         double f = -c2 * ( pow(X(0) - x0 - M*t*cos(a), 2.0)
+                          + pow(X(1) - y0 - M*t*sin(a), 2.0) );
 
-         u(0) = 1.;
+         u(0) = 1.0;
          u(1) = M*cos(a) + c1 * (X(1) - y0 - M*t*sin(a)) * exp(f);
          u(2) = M*sin(a) - c1 * (X(0) - x0 - M*t*cos(a)) * exp(f);
-         u *= Depth - c1*c1 / (4.*c2*GravConst) * exp(2.*f);
+         u *= Depth - c1*c1 / (4.0*c2*GravConst) * exp(2.0*f);
 
          break;
       }
       case 1:
       {
          // Map to test case specific domain [0,1000]^d.
-         for (int l = 0; l < dim; l++) { X(l) = 500. * (X(l) + 1.); }
-         t *= 500.;
+         X *= 1000;
+         t *= 1000;
 
-         double r =  X.Norml2();
+         double r =  X(0);
          u = 0.;
 
          if (t==0)
          {
-            u(0) = r < 500. ? Depth + 9. : Depth;
+            u(0) = r < 500.0 ? Depth + 9.0 : Depth;
             return;
          }
 
          double cm = 6.23416;
-         double aux = sqrt(10.*GravConst);
-         double xA = 500. - t*aux;
-         double xB = 500. + t*(2.*aux - 3.*cm);
-         double xC = 500. + t*(2.*cm*cm*(aux - cm))/(cm*cm - GravConst);
+         double aux = sqrt(10.0 * GravConst);
+         double xA = 500.0 - t*aux;
+         double xB = 500.0 + t*(2.0*aux - 3.0*cm);
+         double xC = 500.0 + t*(2.0*cm*cm*(aux - cm))/(cm*cm - GravConst);
 
-         u(0) = 9. * (r<xA) + (4./(9.*GravConst) * pow( aux - (r-500.)/(2.*t), 2. ) - 1.) * (r>=xA) * (r<xB)
+         u(0) = 9.0 * (r<xA) + (4.0/(9.0*GravConst) * pow( aux - (r-500.0)/(2.0*t), 2.0 ) - 1.0) * (r>=xA) * (r<xB)
                + (cm*cm/GravConst - 1.) * (r>=xB) * (r<xC);
-         u(1) = 2./3. * ((r-500.)/t + aux) * (r >= xA) * (r < xB) + 2. * (aux - cm) * (r >= xB) * (r < xC);
+         u(1) = 2.0/3.0 * ((r-500.0)/t + aux) * (r >= xA) * (r < xB) + 2.0 * (aux - cm) * (r >= xB) * (r < xC);
          u(0) += Depth;
          u(1) *= u(0);
 
@@ -313,12 +337,8 @@ void AnalyticalSolutionSWE(const Vector &x, double t, Vector &u)
          }
 
          u(0) += Depth;
-
-         // TODO momentum?
          break;
       }
-      default:
-         MFEM_ABORT("No such test case implemented.");
    }
 }
 
@@ -326,13 +346,13 @@ void InitialConditionSWE(const Vector &x, Vector &u)
 {
    const int dim = x.Size();
    u.SetSize(dim+1);
-
-   // Map to the reference domain [-1,1].
    Vector X(dim);
+
+   // Map to the reference domain [-1,1]^d.
    for (int i = 0; i < dim; i++)
    {
-      double center = (ConfigSWE.bbMin(i) + ConfigSWE.bbMax(i)) * 0.5;
-      double factor = 2. / (ConfigSWE.bbMax(i) - ConfigSWE.bbMin(i));
+      double center = 0.5 * (ConfigSWE.bbMin(i) + ConfigSWE.bbMax(i));
+      double factor = 2.0 / (ConfigSWE.bbMax(i) - ConfigSWE.bbMin(i));
       X(i) = factor * (x(i) - center);
    }
 
@@ -346,19 +366,18 @@ void InitialConditionSWE(const Vector &x, Vector &u)
       }
       case 2:
       {
-         u = 0.;
-         u(0) = X.Norml2() < 0.5 ? 0.9 + Depth : Depth;
+         u = 0.0;
+         u(0) = X.Norml2() < 0.5 ? 0.9 : 0.0;
+         u(0) += Depth;
          break;
       }
       case 3:
       {
          u(0) = Depth;
-         u(1) = 1.;
+         u(1) = Depth;
          u(2) = 0.;
          break;
       }
-      default:
-         MFEM_ABORT("No such test case implemented.");
    }
 }
 
@@ -367,14 +386,14 @@ void InflowFunctionSWE(const Vector &x, double t, Vector &u)
    switch (ConfigSWE.ConfigNum)
    {
       case 0:
+      case 2:
+      {
+         // Do not impose inflow values in this setup.
+         break;
+      }
       case 1:
       {
          AnalyticalSolutionSWE(x, 0., u);
-         break;
-      }
-      case 2:
-      {
-         u = 0.; // No inflow boundary should be used.
          break;
       }
       case 3:
@@ -382,7 +401,5 @@ void InflowFunctionSWE(const Vector &x, double t, Vector &u)
          InitialConditionSWE(x, u);
          break;
       }
-      default:
-         MFEM_ABORT("No such test case implemented.");
    }
 }

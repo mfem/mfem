@@ -30,9 +30,9 @@ int main(int argc, char *argv[])
                   "Hyperbolic system of equations to solve.");
    args.AddOption(&config.ConfigNum, "-c", "--configuration",
                   "Problem setup to use.");
-   args.AddOption(&VisSteps, "-vs", "--visualization-steps",
+   args.AddOption(&VisSteps, "-vf", "--visualization-frequency",
                   "Visualize every n-th timestep.");
-   args.AddOption(&config.tFinal, "-tf", "--t-final",
+   args.AddOption(&config.tFinal, "-tf", "--final-time",
                   "Final time; start time is 0.");
    args.AddOption(&odeSolverType, "-s", "--ode-solver",
                   "ODE solver: 0 - RK6 solver, 1 - Forward Euler,\n\t"
@@ -41,14 +41,14 @@ int main(int argc, char *argv[])
    args.AddOption(&MeshFile, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Order (polynomial degree) of the finite element space.");
-   args.AddOption(&refinements, "-r", "--refine",
+   args.AddOption(&refinements, "-r", "--serial-refinements",
                   "Number of times to refine the mesh uniformly in serial.");
-   args.AddOption(&prefinements, "-pr", "--parallel-refine",
+   args.AddOption(&prefinements, "-pr", "--parallel-refinements",
                   "Number of times to refine the mesh uniformly in parallel.");
-   args.AddOption((int*)(&scheme), "-e", "--EvolutionScheme",
+   args.AddOption((int*)(&scheme), "-e", "--evolution-scheme",
                   "Scheme: 0 - Galerkin Finite Element Approximation,\n\t"
                   "        1 - Monolithic Convex Limiting.");
-   args.AddOption(&OutputDir, "-out", "--output", "Output directory.");
+   args.AddOption(&OutputDir, "-out", "--output-directory", "Output directory.");
    args.AddOption(&TransOutput, "-t", "--transitional-output", "-no-t",
                   "--no-transitional-output", "Print transitional output files.");
 
@@ -308,6 +308,27 @@ int main(int argc, char *argv[])
    ofstream ultimate(FinalName.str().c_str());
    ultimate.precision(precision);
    main.Save(ultimate);
+
+   if (ProblemNum > 3)
+   {
+      ParGridFunction v(&pfes), p(&pfes);
+      hyp->ComputeDerivedQuantities(u, v, p);
+
+      ostringstream VelocityName;
+      VelocityName << OutputDir << "/velocity-gf." << setfill('0') << setw(6) << myid;
+      ofstream velocity(VelocityName.str().c_str());
+      velocity.precision(precision);
+      v.Save(velocity);
+
+      if (ProblemNum == 5)
+      {
+         ostringstream PressureName;
+         PressureName << OutputDir << "/pressure-gf." << setfill('0') << setw(6) << myid;
+         ofstream pressure(PressureName.str().c_str());
+         pressure.precision(precision);
+         p.Save(pressure);
+      }
+   }
 
    delete evol;
    delete hyp;
