@@ -126,6 +126,7 @@ private:
    Mesh * mesh = nullptr;
    std::vector<std::vector<Array<int>>> OvlpElems;
    std::vector<std::vector<Array<int>>> OvlpDofMaps;
+
    DofMap * dmap = nullptr;
    int nrsubdomains = 0;
    int ovlp_layers = 0;
@@ -154,4 +155,6 @@ public:
                    int ovlp_layers_);
 
    void GetNeighborDofMap(const int ip, const int jp);
+   Array<int> test_list0;
+   Array<int> test_list1;
 };

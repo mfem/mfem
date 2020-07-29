@@ -513,7 +513,7 @@ void NeighborDofMaps::ComputeNeighborDofMaps()
    Array<int> ip0list;
    Array<int> ip1list;
    // for (int ip0 = 0; ip0<nrsubdomains; ip0++)
-   for (int ip0 = 1; ip0<2; ip0++)
+   for (int ip0 = 0; ip0<1; ip0++)
    {
       int neighbor = 0;
       OvlpDofMaps[ip0].resize(nrneighbors);
@@ -527,7 +527,7 @@ void NeighborDofMaps::ComputeNeighborDofMaps()
       cout << "ip0 = " << ip0 << endl;
 
       // for (int i=-1; i<2; i++)
-      for (int i=-1; i<0; i++)
+      for (int i=1; i<2; i++)
       {
          int i1 = i0 + i;
          if (i1 <0 || i1>=nxyz[0]) continue;
@@ -611,6 +611,16 @@ void NeighborDofMaps::ComputeNeighborDofMaps()
 
    cout << "ip0list = " ; ip0list.Print();
    cout << "ip1list = " ; ip1list.Print();
+
+   test_list0 = ip0list;
+   test_list1 = ip1list;
+   int n =dmap->fespaces[0]->GetTrueVSize();
+   int m =dmap->fespaces[1]->GetTrueVSize();
+   for (int i=0;i<ip0list.Size();i++) ip0list[i] += n;
+   for (int i=0;i<ip1list.Size();i++) ip1list[i] += m;
+
+   test_list0.Append(ip0list);
+   test_list1.Append(ip1list);
 
    // Vector X(10);
    // for (int i=0; i<10; i++)

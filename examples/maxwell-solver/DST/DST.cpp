@@ -31,6 +31,9 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
    dmap  = new DofMap(bf->FESpace(),part);
    NeighborDofMaps NeighborMaps(part,bf->FESpace(),dmap,ovlpnrlayers); 
 
+   test_list0 = NeighborMaps.test_list0;
+   test_list1 = NeighborMaps.test_list1;
+
    MarkOverlapElements();
    MarkOverlapDofs();
    // ComputeOverlapDofMaps();
@@ -331,6 +334,28 @@ int DST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, Vect
    Psi1.SetSize(Dof2GlobalDof1->Size());
    Vector zloc(Psi1.Size()); 
    zaux.GetSubVector(*Dof2GlobalDof1,zloc);
+
+   if (ip0 == 0 && ip1 == 1) // testing new patch-to-patch maps
+   {
+      Vector test0(test_list0.Size());
+      Psi0.GetSubVector(test_list0,test0);
+      Vector test1(Dof2GlobalDof1->Size()); test1 =0.0;
+      test1.SetSubVector(test_list1,test0);
+
+      // zloc.Print();
+      for (int i = 0; i<test_list0.Size(); i++)
+      {
+         // pick up input possition
+         int j = test_list0[i];
+         // destination
+         int k = test_list1[i];
+         test1[k] = Psi0[j];
+      }
+      // cout<< endl;
+      test1-=zloc;
+      cout << "test norm = " << test1.Norml2() << endl;
+   }
+
    PmlMat[ip1]->Mult(zloc,Psi1);
 
    Array2D<int> direct(dim,2); direct = 0;

@@ -30,7 +30,8 @@ private:
    Array< OperatorPtr * > Optr;
    Array<ComplexSparseMatrix *> PmlMat;
    Array<ComplexUMFPackSolver *> PmlMatInv;
-
+   Array<int> test_list0;
+   Array<int> test_list1;
    Sweep * swp=nullptr;
    mutable Array<Vector *> f_orig;
    mutable Array<Array<Vector * >> f_transf;
