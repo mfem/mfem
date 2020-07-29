@@ -16,6 +16,7 @@
 
 #include "hypre_parcsr.hpp"
 #include <limits>
+#include <cmath>
 
 namespace mfem
 {
@@ -1056,7 +1057,7 @@ void hypre_CSRMatrixAbsMatvec(hypre_CSRMatrix *A,
          tempx = 0;
          for (jj = A_i[m]; jj < A_i[m+1]; jj++)
          {
-            tempx += fabs(A_data[jj])*x_data[A_j[jj]];
+            tempx += std::abs(A_data[jj])*x_data[A_j[jj]];
          }
          y_data[m] += tempx;
       }
@@ -1068,7 +1069,7 @@ void hypre_CSRMatrixAbsMatvec(hypre_CSRMatrix *A,
          tempx = 0;
          for (jj = A_i[i]; jj < A_i[i+1]; jj++)
          {
-            tempx += fabs(A_data[jj])*x_data[A_j[jj]];
+            tempx += std::abs(A_data[jj])*x_data[A_j[jj]];
          }
          y_data[i] += tempx;
       }
@@ -1150,7 +1151,7 @@ void hypre_CSRMatrixAbsMatvecT(hypre_CSRMatrix *A,
       for (jj = A_i[i]; jj < A_i[i+1]; jj++)
       {
          j = A_j[jj];
-         y_data[j] += fabs(A_data[jj]) * x_data[i];
+         y_data[j] += std::abs(A_data[jj]) * x_data[i];
       }
    }
 
