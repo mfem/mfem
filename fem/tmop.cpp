@@ -1041,17 +1041,10 @@ void DiscreteAdaptTC::SetTspecAtIndex(int idx, const ParGridFunction &tspec_)
 {
    const int vdim     = tspec_.FESpace()->GetVDim(),
              dof_cnt  = tspec_.Size()/vdim;
-#if 0
-   for (int i = 0; i < dof_cnt*vdim; i++)
-   {
-      tspec(i+idx*dof_cnt) = tspec_(i);
-   }
-#else
    const auto tspec__d = tspec_.Read();
    auto tspec_d = tspec.ReadWrite();
    const int offset = idx*dof_cnt;
    MFEM_FORALL(i, dof_cnt*vdim, tspec_d[i+offset] = tspec__d[i];);
-#endif
    FinalizeParDiscreteTargetSpec(tspec_);
 }
 
@@ -1115,30 +1108,13 @@ void DiscreteAdaptTC::SetDiscreteTargetBase(const GridFunction &tspec_)
    tspec_sav.UseDevice(true);
    tspec.SetSize(ncomp*dof_cnt);
 
-#if 0
-   for (int i = 0; i < tspec_temp.Size(); i++)
-   {
-      tspec(i) = tspec_temp(i);
-   }
-#else
    const auto tspec_temp_d = tspec_temp.Read();
    auto tspec_d = tspec.ReadWrite();
    MFEM_FORALL(i, tspec_temp.Size(), tspec_d[i] = tspec_temp_d[i];);
-#endif
 
-#if 0
-   tspec.HostReadWrite();
-   for (int i = 0; i < dof_cnt*vdim; i++)
-   {
-      tspec(i+(ncomp-vdim)*dof_cnt) = tspec_(i);
-   }
-#else
-   //const int Nc = dof_cnt*vdim;
    const auto tspec__d = tspec_.Read();
    const int offset = (ncomp-vdim)*dof_cnt;
    MFEM_FORALL(i, dof_cnt*vdim, tspec_d[i+offset] = tspec__d[i];);
-   //tspec.HostReadWrite();
-#endif
 }
 
 void DiscreteAdaptTC::SetTspecAtIndex(int idx, const GridFunction &tspec_)
@@ -1146,20 +1122,10 @@ void DiscreteAdaptTC::SetTspecAtIndex(int idx, const GridFunction &tspec_)
    const int vdim     = tspec_.FESpace()->GetVDim(),
              dof_cnt  = tspec_.Size()/vdim;
 
-#if 0
-   tspec_.HostRead();
-   tspec.HostReadWrite();
-   for (int i = 0; i < dof_cnt*vdim; i++)
-   {
-      tspec(i+idx*dof_cnt) = tspec_(i);
-   }
-#else
    const auto tspec__d = tspec_.Read();
    auto tspec_d = tspec.ReadWrite();
    const int offset = idx*dof_cnt;
    MFEM_FORALL(i, dof_cnt*vdim, tspec_d[i+offset] = tspec__d[i];);
-#endif
-
    FinalizeSerialDiscreteTargetSpec();
 }
 
