@@ -400,17 +400,17 @@ public:
    void Dealloc(Memory &base) { CuMemFree(base.d_ptr); }
    void *HtoD(void *dst, const void *src, size_t bytes)
    {
-      if (bytes > MFEM_COPY_THRESHOLD) { dbg("0x%x =>", bytes); }
+      //if (bytes > MFEM_COPY_THRESHOLD) { dbg("0x%x =>", bytes); }
       return CuMemcpyHtoD(dst, src, bytes);
    }
    void *DtoD(void* dst, const void* src, size_t bytes)
    {
-      if (bytes > MFEM_COPY_THRESHOLD) { dbg("0x%x =", bytes); }
+      //if (bytes > MFEM_COPY_THRESHOLD) { dbg("0x%x =", bytes); }
       return CuMemcpyDtoD(dst, src, bytes);
    }
    void *DtoH(void *dst, const void *src, size_t bytes)
    {
-      if (bytes > MFEM_COPY_THRESHOLD) { dbg("0x%x <=", bytes); }
+      //if (bytes > MFEM_COPY_THRESHOLD) { dbg("0x%x <=", bytes); }
       return CuMemcpyDtoH(dst, src, bytes);
    }
 };
@@ -467,17 +467,17 @@ public:
    { MmuAllow(MmuAddrP(ptr), MmuLengthP(ptr, bytes)); }
    void *HtoD(void *dst, const void *src, size_t bytes)
    {
-      if (bytes > MFEM_COPY_THRESHOLD) { dbg("0x%x =>", bytes); }
+      //if (bytes > MFEM_COPY_THRESHOLD) { dbg("0x%x =>", bytes); }
       return std::memcpy(dst, src, bytes);
    }
    void *DtoD(void *dst, const void *src, size_t bytes)
    {
-      if (bytes > MFEM_COPY_THRESHOLD) { dbg("0x%x =", bytes); }
+      //if (bytes > MFEM_COPY_THRESHOLD) { dbg("0x%x =", bytes); }
       return std::memcpy(dst, src, bytes);
    }
    void *DtoH(void *dst, const void *src, size_t bytes)
    {
-      if (bytes > MFEM_COPY_THRESHOLD) { dbg("0x%x <=", bytes); }
+      //if (bytes > MFEM_COPY_THRESHOLD) { dbg("0x%x <=", bytes); }
       return std::memcpy(dst, src, bytes);
    }
 };
