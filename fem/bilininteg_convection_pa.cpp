@@ -13,6 +13,9 @@
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
 
+#define MFEM_DEBUG_COLOR 231
+#include "../general/debug.hpp"
+
 using namespace std;
 
 namespace mfem
@@ -71,6 +74,7 @@ static void PAConvectionSetup3D(const int Q1D,
    const auto W = Reshape(w.Read(), Q1D,Q1D,Q1D);
    const auto J = Reshape(j.Read(), Q1D,Q1D,Q1D,3,3,NE);
    const bool const_v = vel.Size() == 3;
+   dbg("coeff.Read");
    const auto V = const_v ?
                   Reshape(vel.Read(), 3,1,1,1,1) :
                   Reshape(vel.Read(), 3,Q1D,Q1D,Q1D,NE);
@@ -797,6 +801,7 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    else
    {
+      dbg();
       vel.SetSize(dim * nq * ne);
       auto C = Reshape(vel.HostWrite(), dim, nq, ne);
       Vector Vq(dim);
