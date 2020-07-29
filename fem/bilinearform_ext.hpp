@@ -128,6 +128,10 @@ public:
    void Assemble();
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
+   SparseMatrix &SpMat()
+   {
+      return mat;
+   }
 };
 
 /// Data and methods for matrix-free bilinear forms NOT YET IMPLEMENTED.
