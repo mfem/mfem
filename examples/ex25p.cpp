@@ -10,6 +10,15 @@
 //               mpirun -np 4 ex25p -o 2 -f 8.0 -rs 2 -rp 2 -prob 4 -m ../data/inline-quad.mesh
 //               mpirun -np 4 ex25p -o 2 -f 2.0 -rs 1 -rp 1 -prob 4 -m ../data/inline-hex.mesh
 //
+// Device sample runs:
+// TODO: device "cuda" not tested yet
+//               mpirun -np 4 ex25p -o 2 -f 1.0 -rs 1 -rp 1 -prob 0 -pa -d cuda
+//               mpirun -np 4 ex25p -o 3 -f 5.0 -rs 3 -rp 1 -prob 2 -pa -d cuda
+//               mpirun -np 4 ex25p -o 2 -f 1.0 -rs 1 -rp 1 -prob 3 -pa -d cuda
+//               mpirun -np 4 ex25p -o 2 -f 1.0 -rs 2 -rp 2 -prob 0 -m ../data/beam-quad.mesh -pa -d cuda
+//               mpirun -np 4 ex25p -o 2 -f 8.0 -rs 2 -rp 2 -prob 4 -m ../data/inline-quad.mesh -pa -d cuda
+//               mpirun -np 4 ex25p -o 2 -f 2.0 -rs 1 -rp 1 -prob 4 -m ../data/inline-hex.mesh -pa -d cuda
+//
 // Description:  This example code solves a simple electromagnetic wave
 //               propagation problem corresponding to the second order
 //               indefinite Maxwell equation
@@ -160,6 +169,8 @@ int main(int argc, char *argv[])
    double freq = 5.0;
    bool herm_conv = true;
    bool visualization = 1;
+   bool pa = false;
+   const char *device_config = "cpu";
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -183,12 +194,21 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.Parse();
 
    if (iprob > 4) { iprob = 4; }
    prob = (prob_type)iprob;
 
-   // 3. Setup the (serial) mesh on all processors.
+   // 3. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   Device device(device_config);
+   device.Print();
+
+   // 4. Setup the (serial) mesh on all processors.
    if (!mesh_file)
    {
       exact_known = true;
@@ -236,7 +256,7 @@ int main(int argc, char *argv[])
    // Setup PML length
    Array2D<double> length(dim, 2); length = 0.0;
 
-   // 4. Setup the Cartesian PML region.
+   // 5. Setup the Cartesian PML region.
    switch (prob)
    {
       case disc:
@@ -262,13 +282,13 @@ int main(int argc, char *argv[])
    comp_domain_bdr = pml->GetCompDomainBdr();
    domain_bdr = pml->GetDomainBdr();
 
-   // 5. Refine the serial mesh on all processors to increase the resolution.
+   // 6. Refine the serial mesh on all processors to increase the resolution.
    for (int l = 0; l < ref_levels; l++)
    {
       mesh->UniformRefinement();
    }
 
-   // 6. Define a parallel mesh by a partitioning of the serial mesh.
+   // 7. Define a parallel mesh by a partitioning of the serial mesh.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
@@ -278,13 +298,13 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 6a. Reorient mesh in case of a tet mesh
+   // 7a. Reorient mesh in case of a tet mesh
    pmesh->ReorientTetMesh();
 
-   // 7. Set element attributes in order to distinguish elements in the PML
+   // 8. Set element attributes in order to distinguish elements in the PML
    pml->SetAttributes(pmesh);
 
-   // 8. Define a parallel finite element space on the parallel mesh. Here we
+   // 9. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Nedelec finite elements of the specified order.
    FiniteElementCollection *fec = new ND_FECollection(order, dim);
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
@@ -294,9 +314,9 @@ int main(int argc, char *argv[])
       cout << "Number of finite element unknowns: " << size << endl;
    }
 
-   // 9. Determine the list of true (i.e. parallel conforming) essential
-   //    boundary dofs. In this example, the boundary conditions are defined
-   //    based on the specific mesh and the problem type.
+   // 10. Determine the list of true (i.e. parallel conforming) essential
+   //     boundary dofs. In this example, the boundary conditions are defined
+   //     based on the specific mesh and the problem type.
    Array<int> ess_tdof_list;
    Array<int> ess_bdr;
    if (pmesh->bdr_attributes.Size())
@@ -336,11 +356,11 @@ int main(int argc, char *argv[])
    }
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-   // 10. Setup Complex Operator convention
+   // 11. Setup Complex Operator convention
    ComplexOperator::Convention conv =
       herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
 
-   // 11. Set up the parallel linear form b(.) which corresponds to the
+   // 12. Set up the parallel linear form b(.) which corresponds to the
    //     right-hand side of the FEM linear system.
    VectorFunctionCoefficient f(dim, source);
    ParComplexLinearForm b(fespace, conv);
@@ -351,7 +371,7 @@ int main(int argc, char *argv[])
    b.Vector::operator=(0.0);
    b.Assemble();
 
-   // 12. Define the solution vector x as a parallel complex finite element grid
+   // 13. Define the solution vector x as a parallel complex finite element grid
    //     function corresponding to fespace.
    ParComplexGridFunction x(fespace);
    x = 0.0;
@@ -359,7 +379,7 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient E_Im(dim, E_bdr_data_Im);
    x.ProjectBdrCoefficientTangent(E_Re, E_Im, ess_bdr);
 
-   // 13. Set up the parallel sesquilinear form a(.,.)
+   // 14. Set up the parallel sesquilinear form a(.,.)
    //
    //     In Comp
    //     Domain:   1/mu (Curl E, Curl F) - omega^2 * epsilon (E,F)
@@ -413,7 +433,11 @@ int main(int argc, char *argv[])
    a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_c2_Re),
                          new VectorFEMassIntegrator(restr_c2_Im));
 
-   // 14. Assemble the parallel bilinear form and the corresponding linear
+#ifndef MFEM_USE_SUPERLU
+   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+#endif
+
+   // 15. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, etc.
@@ -423,9 +447,10 @@ int main(int argc, char *argv[])
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, Ah, X, B);
 
-   // 15. Solve using a direct or an iterative solver
+   // 16. Solve using a direct or an iterative solver
 #ifdef MFEM_USE_SUPERLU
    {
+      if (pa) { cout << "PA not available with MFEM_USE_SUPERLU" << endl; }
       // Transform to monolithic HypreParMatrix
       HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
       SuperLURowLocMatrix SA(*A);
@@ -464,10 +489,8 @@ int main(int argc, char *argv[])
       prec.AddDomainIntegrator(new CurlCurlIntegrator(restr_c1_abs));
       prec.AddDomainIntegrator(new VectorFEMassIntegrator(restr_c2_abs));
 
+      if (pa) { prec.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
       prec.Assemble();
-
-      OperatorPtr PCOpAh;
-      prec.FormSystemMatrix(ess_tdof_list, PCOpAh);
 
       // 16b. Define and apply a parallel GMRES solver for AU=B with a block
       //      diagonal preconditioner based on hypre's AMS preconditioner.
@@ -477,12 +500,38 @@ int main(int argc, char *argv[])
       offsets[2] = fespace->GetTrueVSize();
       offsets.PartialSum();
 
-      HypreAMS ams00(*PCOpAh.As<HypreParMatrix>(),fespace);
-      BlockDiagonalPreconditioner BlockAMS(offsets);
-      ScaledOperator ams11(&ams00,
-                           (conv == ComplexOperator::HERMITIAN) ? -1.0 : 1.0);
-      BlockAMS.SetDiagonalBlock(0,&ams00);
-      BlockAMS.SetDiagonalBlock(1,&ams11);
+      Operator *pc_r = nullptr;
+      Operator *pc_i = nullptr;
+      int s = (conv == ComplexOperator::HERMITIAN) ? -1.0 : 1.0;
+      if (pa)
+      {
+         // Jacobi Smoother
+         OperatorJacobiSmoother *d00 = new OperatorJacobiSmoother(prec, ess_tdof_list);
+         ScaledOperator *d11 = new ScaledOperator(d00, s);
+         pc_r = d00;
+         pc_i = d11;
+      }
+      else
+      {
+         OperatorPtr PCOpAh;
+         prec.FormSystemMatrix(ess_tdof_list, PCOpAh);
+
+         // Jacobi Smoother (testing only)
+         HypreDiagScale *d00 = new HypreDiagScale(*PCOpAh.As<HypreParMatrix>());
+         ScaledOperator *d11 = new ScaledOperator(d00, s);
+         pc_r = d00;
+         pc_i = d11;
+
+         // Hypre AMS
+         //HypreAMS *ams00 = new HypreAMS(*PCOpAh.As<HypreParMatrix>(), fespace);
+         //ScaledOperator *ams11 = new ScaledOperator(ams00, s);
+         //pc_r = ams00;
+         //pc_i = ams11;
+      }
+
+      BlockDiagonalPreconditioner BlockDP(offsets);
+      BlockDP.SetDiagonalBlock(0,pc_r);
+      BlockDP.SetDiagonalBlock(1,pc_i);
 
       GMRESSolver gmres(MPI_COMM_WORLD);
       gmres.SetPrintLevel(1);
@@ -491,7 +540,7 @@ int main(int argc, char *argv[])
       gmres.SetRelTol(1e-5);
       gmres.SetAbsTol(0.0);
       gmres.SetOperator(*Ah);
-      gmres.SetPreconditioner(BlockAMS);
+      gmres.SetPreconditioner(BlockDP);
       gmres.Mult(B, X);
    }
 #endif
