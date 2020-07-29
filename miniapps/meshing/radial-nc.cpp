@@ -17,8 +17,9 @@
 //
 // Compile with: make radial-nc
 //
-// Sample runs:  radial-nc
-//               radial-nc TODO
+// Sample runs:  radial-nc --radius 1 --nsteps 10
+//               radial-nc --aspect 2 --order 4
+//               radial-nc --dim 3 --nsteps 20
 
 #include "mfem.hpp"
 #include <fstream>
@@ -51,7 +52,7 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
 
    // n is the number of steps in the polar direction
    int n = 1;
-   while (phi * rstep / n * aspect > rstep) { n++; }
+   while (phi * rstep/2 / n * aspect > rstep) { n++; }
 
    double r = rstep;
    int first = mesh->AddVertex(r, 0.0);
@@ -83,7 +84,7 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
       double prev_r = r;
       r += rstep;
 
-      if (phi * (r + prev_r)/2 / n * aspect <= rstep)
+      if (phi * (r + prev_r)/2 / n * aspect < rstep * sqrt(2))
       {
          if (k == 1) { blocks.Append(Pair<int, int>(mesh->GetNE(), n)); }
 
@@ -242,76 +243,150 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
 }
 
 
+const double pi2 = M_PI / 2;
+
 struct Vert : public Hashed2
 {
    int id;
 };
 
-int GetMidVertex(int v1, int v2, double r, double a, double b,
+int GetMidVertex(int v1, int v2, double r, double u, double v, bool hanging,
                  Mesh *mesh, HashTable<Vert> &hash)
 {
    int vmid = hash.FindId(v1, v2);
    if (vmid < 0)
    {
       vmid = hash.GetId(v1, v2);
-      hash[vmid].id =
-         mesh->AddVertex(r*cos(a)*cos(b), r*sin(a)*cos(b), r*sin(b));
+      double w = 1 - u - v;
+#if 1
+      double q = r / sqrt(u*u + v*v + w*w);
+      int index = mesh->AddVertex(u*q, v*q, w*q);
+#else
+      double a = pi2 * v / (u+v);
+      double b = pi2 * w / (u+v+w);
+      int index = mesh->AddVertex(r*cos(a)*cos(b), r*sin(a)*cos(b), r*sin(b));
+#endif
+      if (hanging) { mesh->AddVertexParents(index, v1, v2); }
+
+      hash[vmid].id = index;
    }
    return hash[vmid].id;
 }
 
 void MakeLayer(int vx1, int vy1, int vz1, int vx2, int vy2, int vz2, int level,
-               double r1, double r2, double a1, double a2, double a3,
-               double b1, double b2, Mesh *mesh, HashTable<Vert> &hash,
+               double r1, double r2, double u1, double v1, double u2, double v2,
+               double u3, double v3, Mesh *mesh, HashTable<Vert> &hash,
                Array<Params> &params)
 {
-   if (level <= 0)
+   if (!level)
    {
       mesh->AddWedge(vx1, vy1, vz1, vx2, vy2, vz2);
-      params.Append(Params(r1, r2, a1, a2, b1, b2));
+      params.Append(Params(r1, r2, u1, u2, v1, v2));
    }
    else
    {
-      double a12 = (a1+a2)/2, a23 = (a2+a3)/2, a31 = (a3+a1)/2;
-      double b12 = (b1+b2)/2;
+      double u12 = (u1+u2)/2, v12 = (v1+v2)/2;
+      double u23 = (u2+u3)/2, v23 = (v2+v3)/2;
+      double u31 = (u3+u1)/2, v31 = (v3+v1)/2;
 
-      int vxy1 = GetMidVertex(vx1, vy1, r1, a12, b1, mesh, hash);
-      int vyz1 = GetMidVertex(vy1, vz1, r1, a23, b12, mesh, hash);
-      int vxz1 = GetMidVertex(vx1, vz1, r1, a31, b12, mesh, hash);
-      int vxy2 = GetMidVertex(vx2, vy2, r2, a12, b1, mesh, hash);
-      int vyz2 = GetMidVertex(vy2, vz2, r2, a23, b12, mesh, hash);
-      int vxz2 = GetMidVertex(vx2, vz2, r2, a31, b12, mesh, hash);
+      bool hang = (level == 1);
+
+      int vxy1 = GetMidVertex(vx1, vy1, r1, u12, v12, hang, mesh, hash);
+      int vyz1 = GetMidVertex(vy1, vz1, r1, u23, v23, hang, mesh, hash);
+      int vxz1 = GetMidVertex(vx1, vz1, r1, u31, v31, hang, mesh, hash);
+      int vxy2 = GetMidVertex(vx2, vy2, r2, u12, v12, false, mesh, hash);
+      int vyz2 = GetMidVertex(vy2, vz2, r2, u23, v23, false, mesh, hash);
+      int vxz2 = GetMidVertex(vx2, vz2, r2, u31, v31, false, mesh, hash);
 
       MakeLayer(vx1, vxy1, vxz1, vx2, vxy2, vxz2, level-1, r1, r2,
-                a1, a12, a31, b1, b12, mesh, hash, params);
+                u1, v1, u12, v12, u31, v31, mesh, hash, params);
       MakeLayer(vxy1, vy1, vyz1, vxy2, vy2, vyz2, level-1, r1, r2,
-                a12, a2, a23, b1, b12, mesh, hash, params);
+                u12, v12, u2, v2, u23, v23, mesh, hash, params);
       MakeLayer(vxz1, vyz1, vz1, vxz2, vyz2, vz2, level-1, r1, r2,
-                a31, a23, a3, b12, b2, mesh, hash, params);
+                u31, v31, u23, v23, u3, v3, mesh, hash, params);
       MakeLayer(vyz1, vxz1, vxy1, vyz2, vxz2, vxy2, level-1, r1, r2,
-                a23, a31, a12, b12, b1, mesh, hash, params);
+                u23, v23, u31, v31, u12, v12, mesh, hash, params);
    }
 }
 
-Mesh* Make3D(int nsteps, double rstep, double aspect, int order)
+void MakeCenter(int vx, int vy, int vz, int level, double r, double u1,
+                double v1, double u2, double v2, double u3, double v3,
+                Mesh *mesh, HashTable<Vert> &hash, Array<Params> &params)
+{
+   if (!level)
+   {
+      mesh->AddTet(0, vx, vy, vz);
+      params.Append(Params(0, r, u1, u2, v1, v2));
+   }
+   else
+   {
+      double u12 = (u1+u2)/2, v12 = (v1+v2)/2;
+      double u23 = (u2+u3)/2, v23 = (v2+v3)/2;
+      double u31 = (u3+u1)/2, v31 = (v3+v1)/2;
+
+      int vxy = GetMidVertex(vx, vy, r, u12, v12, false, mesh, hash);
+      int vyz = GetMidVertex(vy, vz, r, u23, v23, false, mesh, hash);
+      int vxz = GetMidVertex(vx, vz, r, u31, v31, false, mesh, hash);
+
+      MakeCenter(vx, vxy, vxz, level-1, r,
+                 u1, v1, u12, v12, u31, v31, mesh, hash, params);
+      MakeCenter(vxy, vy, vyz, level-1, r,
+                 u12, v12, u2, v2, u23, v23, mesh, hash, params);
+      MakeCenter(vxz, vyz, vz, level-1, r,
+                 u31, v31, u23, v23, u3, v3, mesh, hash, params);
+      MakeCenter(vyz, vxz, vxy, level-1, r,
+                 u23, v23, u31, v31, u12, v12, mesh, hash, params);
+   }
+}
+
+Mesh* Make3D(int nsteps, double rstep, double aspect, int order, bool sfc)
 {
    Mesh *mesh = new Mesh(3, 0, 0);
 
    HashTable<Vert> hash;
    Array<Params> params;
 
-   int a = mesh->AddVertex(rstep, 0, 0);
-   int b = mesh->AddVertex(0, rstep, 0);
-   int c = mesh->AddVertex(0, 0, rstep);
+   mesh->AddVertex(0, 0, 0);
 
-   double r = rstep + rstep;
-   int d = mesh->AddVertex(r, 0, 0);
-   int e = mesh->AddVertex(0, r, 0);
-   int f = mesh->AddVertex(0, 0, r);
+   double r = rstep;
+   int a = mesh->AddVertex(r, 0, 0);
+   int b = mesh->AddVertex(0, r, 0);
+   int c = mesh->AddVertex(0, 0, r);
 
-   const double pi2 = M_PI / 2;
+   int levels = 1;
 
-   MakeLayer(a, b, c, d, e, f, 3, rstep, r, 0, pi2, 0, 0, pi2, mesh, hash, params);
+   MakeCenter(a, b, c, levels, r,
+              1, 0, 0, 1, 0, 0, mesh, hash, params);
+
+   for (int k = 1; k < nsteps; k++)
+   {
+      double prev_r = r;
+      r += rstep;
+
+      if ((prev_r + rstep/2) * pi2 * aspect / (1 << levels) > rstep * sqrt(2))
+      {
+         levels++;
+      }
+
+      int d = mesh->AddVertex(r, 0, 0);
+      int e = mesh->AddVertex(0, r, 0);
+      int f = mesh->AddVertex(0, 0, r);
+
+      MakeLayer(a, b, c, d, e, f, levels, prev_r, r,
+                1, 0, 0, 1, 0, 0, mesh, hash, params);
+
+      a = d;
+      b = e;
+      c = f;
+   }
+
+   // reorder mesh with Hilbert spatial sort
+   if (sfc)
+   {
+      Array<int> ordering;
+      mesh->GetHilbertElementOrdering(ordering);
+      mesh->ReorderElements(ordering, false);
+   }
 
    mesh->FinalizeMesh();
 
@@ -365,7 +440,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      mesh = Make3D(nsteps, radius/nsteps, aspect, order);
+      mesh = Make3D(nsteps, radius/nsteps, aspect, order, sfc);
    }
 
    // save the final mesh

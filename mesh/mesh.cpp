@@ -1292,17 +1292,25 @@ int Mesh::AddQuad(const int *vi, int attr)
    return NumOfElements++;
 }
 
-void Mesh::AddTet(const int *vi, int attr)
+int Mesh::AddTet(int v1, int v2, int v3, int v4, int attr)
 {
+   int vi[4] = {v1, v2, v3, v4};
+   return AddTet(vi, attr);
+}
+
+int Mesh::AddTet(const int *vi, int attr)
+{
+   CheckEnlarge(elements, NumOfElements);
 #ifdef MFEM_USE_MEMALLOC
    Tetrahedron *tet;
    tet = TetMemory.Alloc();
    tet->SetVertices(vi);
    tet->SetAttribute(attr);
-   elements[NumOfElements++] = tet;
+   elements[NumOfElements] = tet;
 #else
-   elements[NumOfElements++] = new Tetrahedron(vi, attr);
+   elements[NumOfElements] = new Tetrahedron(vi, attr);
 #endif
+   return NumOfElements++;
 }
 
 int Mesh::AddWedge(int v1, int v2, int v3, int v4, int v5, int v6, int attr)

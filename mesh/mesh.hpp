@@ -529,8 +529,8 @@ public:
    int AddQuad(int v1, int v2, int v3, int v4, int attr = 1);
    int AddQuad(const int *vi, int attr = 1);
 
-   // TODO
-   void AddTet(const int *vi, int attr = 1);
+   int AddTet(int v1, int v2, int v3, int v4, int attr = 1);
+   int AddTet(const int *vi, int attr = 1);
 
    int AddWedge(int v1, int v2, int v3, int v4, int v5, int v6, int attr = 1);
    int AddWedge(const int *vi, int attr = 1);
