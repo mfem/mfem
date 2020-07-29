@@ -40,7 +40,7 @@ static void D2QPhysGrad2D(const int NE,
    const auto g = Reshape(g_, Q1D, D1D);
    const auto j = Reshape(j_, Q1D, Q1D, 2, 2, NE);
    const auto x = Reshape(x_, D1D, D1D, VDIM, NE);
-   auto y = Reshape(y_, VDIM, 2, Q1D, Q1D, NE);
+   auto y = Reshape(y_, Q1D, Q1D, VDIM, 2, NE);
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
@@ -121,8 +121,8 @@ static void D2QPhysGrad2D(const int NE,
                Jloc[2] = j(qx,qy,0,1,e);
                Jloc[3] = j(qx,qy,1,1,e);
                kernels::CalcInverse<2>(Jloc, Jinv);
-               y(c,0,qx,qy,e) = Jinv[0]*u + Jinv[1]*v;
-               y(c,1,qx,qy,e) = Jinv[2]*u + Jinv[3]*v;
+               y(qx,qy,c,0,e) = Jinv[0]*u + Jinv[1]*v;
+               y(qx,qy,c,1,e) = Jinv[2]*u + Jinv[3]*v;
             }
          }
          MFEM_SYNC_THREAD;
@@ -150,7 +150,7 @@ static  void D2QPhysGrad3D(const int NE,
    auto g = Reshape(g_, Q1D, D1D);
    auto j = Reshape(j_, Q1D, Q1D, Q1D, 3, 3, NE);
    auto x = Reshape(x_, D1D, D1D, D1D, VDIM, NE);
-   auto y = Reshape(y_, VDIM, 3, Q1D, Q1D, Q1D, NE);
+   auto y = Reshape(y_, Q1D, Q1D, Q1D, VDIM, 3, NE);
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
@@ -267,9 +267,9 @@ static  void D2QPhysGrad3D(const int NE,
                      }
                   }
                   kernels::CalcInverse<3>(Jloc, Jinv);
-                  y(c,0,qx,qy,qz,e) = Jinv[0]*u + Jinv[1]*v + Jinv[2]*w;
-                  y(c,1,qx,qy,qz,e) = Jinv[3]*u + Jinv[4]*v + Jinv[5]*w;
-                  y(c,2,qx,qy,qz,e) = Jinv[6]*u + Jinv[7]*v + Jinv[8]*w;
+                  y(qx,qy,qz,c,0,e) = Jinv[0]*u + Jinv[1]*v + Jinv[2]*w;
+                  y(qx,qy,qz,c,1,e) = Jinv[3]*u + Jinv[4]*v + Jinv[5]*w;
+                  y(qx,qy,qz,c,2,e) = Jinv[6]*u + Jinv[7]*v + Jinv[8]*w;
                }
             }
          }
@@ -344,10 +344,10 @@ static void D2QPhysGrad(const FiniteElementSpace &fes,
 }
 
 template<>
-void QuadratureInterpolator::PhysDerivatives<QVectorLayout::byVDIM>(
+void QuadratureInterpolator::PhysDerivatives<QVectorLayout::byNODES>(
    const Vector &e_vec, Vector &q_der) const
 {
-   // q_layout == QVectorLayout::byVDIM
+   // q_layout == QVectorLayout::byNODES
    Mesh *mesh = fespace->GetMesh();
    if (mesh->GetNE() == 0) { return; }
    // mesh->DeleteGeometricFactors(); // This should be done outside

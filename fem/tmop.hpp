@@ -693,6 +693,10 @@ public:
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
 
+   virtual bool ComputeElementTargetsPA(const IntegrationRule *ir,
+                                        DenseTensor &Jtr,
+                                        const Vector &xe = Vector()) const;
+
    virtual void ComputeElementTargetsGradient(const IntegrationRule &ir,
                                               const Vector &elfun,
                                               IsoparametricTransformation &Tpr,
@@ -738,6 +742,10 @@ public:
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
 
+   virtual bool ComputeElementTargetsPA(const IntegrationRule *ir,
+                                        DenseTensor &Jtr,
+                                        const Vector &xe = Vector()) const;
+
    virtual void ComputeElementTargetsGradient(const IntegrationRule &ir,
                                               const Vector &elfun,
                                               IsoparametricTransformation &Tpr,
@@ -780,12 +788,19 @@ protected:
    // Owned.
    AdaptivityEvaluator *adapt_eval;
 
-   void SetDiscreteTargetBase(const GridFunction &tspec_);
-   void SetTspecAtIndex(int idx, const GridFunction &tspec_);
+   // PA extension
+   struct { mutable Vector tspec_e; } PA;
+
    void FinalizeSerialDiscreteTargetSpec();
 #ifdef MFEM_USE_MPI
-   void SetTspecAtIndex(int idx, const ParGridFunction &tspec_);
    void FinalizeParDiscreteTargetSpec(const ParGridFunction &tspec_);
+#endif
+
+public: // MFEM_FORALL nvcc restriction that it must be public
+   void SetDiscreteTargetBase(const GridFunction &tspec_);
+   void SetTspecAtIndex(int idx, const GridFunction &tspec_);
+#ifdef MFEM_USE_MPI
+   void SetTspecAtIndex(int idx, const ParGridFunction &tspec_);
 #endif
 
 public:
@@ -881,6 +896,10 @@ public:
                                       const IntegrationRule &ir,
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
+
+   virtual bool ComputeElementTargetsPA(const IntegrationRule *ir,
+                                        DenseTensor &Jtr,
+                                        const Vector &xe = Vector()) const;
 
    virtual void ComputeElementTargetsGradient(const IntegrationRule &ir,
                                               const Vector &elfun,

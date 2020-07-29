@@ -13,6 +13,9 @@
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
+#include "../general/forall.hpp"
+#define MFEM_DEBUG_COLOR 214
+#include "../general/debug.hpp"
 
 namespace mfem
 {
@@ -1038,11 +1041,10 @@ void DiscreteAdaptTC::SetTspecAtIndex(int idx, const ParGridFunction &tspec_)
 {
    const int vdim     = tspec_.FESpace()->GetVDim(),
              dof_cnt  = tspec_.Size()/vdim;
-   for (int i = 0; i < dof_cnt*vdim; i++)
-   {
-      tspec(i+idx*dof_cnt) = tspec_(i);
-   }
-
+   const auto tspec__d = tspec_.Read();
+   auto tspec_d = tspec.ReadWrite();
+   const int offset = idx*dof_cnt;
+   MFEM_FORALL(i, dof_cnt*vdim, tspec_d[i+offset] = tspec__d[i];);
    FinalizeParDiscreteTargetSpec(tspec_);
 }
 
@@ -1106,26 +1108,24 @@ void DiscreteAdaptTC::SetDiscreteTargetBase(const GridFunction &tspec_)
    tspec_sav.UseDevice(true);
    tspec.SetSize(ncomp*dof_cnt);
 
-   for (int i = 0; i < tspec_temp.Size(); i++)
-   {
-      tspec(i) = tspec_temp(i);
-   }
+   const auto tspec_temp_d = tspec_temp.Read();
+   auto tspec_d = tspec.ReadWrite();
+   MFEM_FORALL(i, tspec_temp.Size(), tspec_d[i] = tspec_temp_d[i];);
 
-   for (int i = 0; i < dof_cnt*vdim; i++)
-   {
-      tspec(i+(ncomp-vdim)*dof_cnt) = tspec_(i);
-   }
+   const auto tspec__d = tspec_.Read();
+   const int offset = (ncomp-vdim)*dof_cnt;
+   MFEM_FORALL(i, dof_cnt*vdim, tspec_d[i+offset] = tspec__d[i];);
 }
 
 void DiscreteAdaptTC::SetTspecAtIndex(int idx, const GridFunction &tspec_)
 {
    const int vdim     = tspec_.FESpace()->GetVDim(),
              dof_cnt  = tspec_.Size()/vdim;
-   for (int i = 0; i < dof_cnt*vdim; i++)
-   {
-      tspec(i+idx*dof_cnt) = tspec_(i);
-   }
 
+   const auto tspec__d = tspec_.Read();
+   auto tspec_d = tspec.ReadWrite();
+   const int offset = idx*dof_cnt;
+   MFEM_FORALL(i, dof_cnt*vdim, tspec_d[i+offset] = tspec__d[i];);
    FinalizeSerialDiscreteTargetSpec();
 }
 

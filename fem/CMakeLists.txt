@@ -53,6 +53,7 @@ set(SRCS
   quadinterpolator_det.cpp
   quadinterpolator_bynodes_eval.cpp
   quadinterpolator_bynodes_grad.cpp
+  quadinterpolator_bynodes_grad_phys.cpp
   quadinterpolator_bynodes_mult.cpp
   quadinterpolator_byvdim_eval.cpp
   quadinterpolator_byvdim_grad.cpp
@@ -76,6 +77,7 @@ set(SRCS
   tmop_pa_h3s_c0.cpp
   tmop_pa_j2.cpp
   tmop_pa_j3.cpp
+  tmop_pa_jtr.cpp
   tmop_pa_p2.cpp
   tmop_pa_p2_c0.cpp
   tmop_pa_p3.cpp

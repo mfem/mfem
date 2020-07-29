@@ -14,6 +14,9 @@
 #include "pnonlinearform.hpp"
 #include "../general/osockstream.hpp"
 
+#define MFEM_DEBUG_COLOR 220
+#include "../general/debug.hpp"
+
 namespace mfem
 {
 
