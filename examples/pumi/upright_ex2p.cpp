@@ -30,6 +30,7 @@
 #include <apfMDS.h>
 #include <gmi_null.h>
 #include <PCU.h>
+#include <lionPrint.h>
 #include <spr.h>
 #include <apfConvert.h>
 #include <gmi_mesh.h>
@@ -37,6 +38,13 @@
 
 using namespace std;
 using namespace mfem;
+
+void writeVtk(apf::Mesh* m, int itr) {
+  std::stringstream ss;
+  ss << "upright_" << itr;
+  std::string vtkName = ss.str();
+  apf::writeVtkFiles(vtkName.c_str(), m);    
+}
 
 int main(int argc, char *argv[])
 {
@@ -62,6 +70,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool amg_elast = 0;
    double adapt_ratio = 0.2;
+   int verbose = 0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -85,7 +94,8 @@ int main(int argc, char *argv[])
                   "txt file containing boundary tags");
    args.AddOption(&adapt_ratio, "-ar", "--adapt_ratio",
                   "adaptation factor used in MeshAdapt");   
-
+   args.AddOption(&verbose, "-v", "--verbose",
+                  "increase the output from PUMI; 0:silent, >0:not silent");   
    
    args.Parse();
    if (!args.Good())
@@ -113,6 +123,7 @@ int main(int argc, char *argv[])
 #endif
    gmi_register_mesh();
 
+   lion_set_verbosity(verbose);
    apf::Mesh2* pumi_mesh;
    pumi_mesh = apf::loadMdsMesh(model_file, mesh_file);
 
@@ -441,8 +452,7 @@ int main(int argc, char *argv[])
        //     current mesh, visualize the solution, and adapt the mesh.
        //
        //write vtk file
-       apf::writeVtkFiles("upright_Before_ma", pumi_mesh);    
-
+       writeVtk(pumi_mesh,Itr);
 
        // 18. Field transfer. Scalar solution field and magnitude field for
        //     error estimation are created the pumi mesh.
@@ -485,9 +495,6 @@ int main(int argc, char *argv[])
         }
         pumi_mesh->verify();
 
-        //write vtk file
-        apf::writeVtkFiles("upright_After_ma", pumi_mesh);      
-
         ParMesh* Adapmesh = new ParPumiMesh(MPI_COMM_WORLD, pumi_mesh);
         pPPmesh->UpdateMesh(Adapmesh);
         delete Adapmesh;   
@@ -509,6 +516,8 @@ int main(int argc, char *argv[])
         delete b;
      
    }
+
+   writeVtk(pumi_mesh,max_iter);
 
    // 18. Free the used memory.
    delete a;
