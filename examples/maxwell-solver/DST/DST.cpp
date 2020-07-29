@@ -2,42 +2,6 @@
 
 #include "DST.hpp"
 
-Sweep::Sweep(int dim_) : dim(dim_)
-{
-   nsweeps = pow(2,dim);
-   sweeps.resize(nsweeps);
-
-   for (int is = 0; is<nsweeps; is++)
-   {
-      sweeps[is].SetSize(dim);
-   }
-
-   switch(dim)
-   {
-      case 1: 
-         sweeps[0][0] =  1; 
-         sweeps[1][0] = -1; 
-         break;
-      case 2: 
-         sweeps[0][0] =  1; sweeps[0][1] =  1; 
-         sweeps[1][0] = -1; sweeps[1][1] =  1; 
-         sweeps[2][0] =  1; sweeps[2][1] = -1; 
-         sweeps[3][0] = -1; sweeps[3][1] = -1;
-         break;
-      default:
-         sweeps[0][0] =  1; sweeps[0][1] =  1; sweeps[0][2] =  1; 
-         sweeps[1][0] = -1; sweeps[1][1] =  1; sweeps[1][2] =  1; 
-         sweeps[2][0] =  1; sweeps[2][1] = -1; sweeps[2][2] =  1; 
-         sweeps[3][0] = -1; sweeps[3][1] = -1; sweeps[3][2] =  1;
-         sweeps[4][0] =  1; sweeps[4][1] =  1; sweeps[4][2] = -1; 
-         sweeps[5][0] = -1; sweeps[5][1] =  1; sweeps[5][2] = -1; 
-         sweeps[6][0] =  1; sweeps[6][1] = -1; sweeps[6][2] = -1; 
-         sweeps[7][0] = -1; sweeps[7][1] = -1; sweeps[7][2] = -1;
-         break;
-   }
-}
-
-
 DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_, 
          double omega_, Coefficient * ws_,  int nrlayers_ , int nx_, int ny_, int nz_)
    : Solver(2*bf_->FESpace()->GetTrueVSize(), 2*bf_->FESpace()->GetTrueVSize()), 
@@ -64,7 +28,9 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
 
    swp = new Sweep(dim);
 
-   dmap  = new DofMap(bf->FESpace(),part); 
+   dmap  = new DofMap(bf->FESpace(),part);
+   NeighborDofMaps NeighborMaps(part,bf->FESpace(),dmap,ovlpnrlayers); 
+
    MarkOverlapElements();
    MarkOverlapDofs();
    // ComputeOverlapDofMaps();

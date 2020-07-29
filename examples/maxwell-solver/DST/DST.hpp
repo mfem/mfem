@@ -5,21 +5,6 @@ using namespace std;
 using namespace mfem;
 
 
-struct Sweep
-{
-private:
-   int dim;
-   std::vector<Array<int>> sweeps;
-public:   
-   int nsweeps;
-   Sweep(int dim_);
-   void GetSweep(const int i, Array<int> & sweep)
-   {
-      MFEM_VERIFY(i<nsweeps, "Sweep number out of bounds");
-      sweep.SetSize(dim);
-      sweep = sweeps[i];
-   }
-};
 
 class DST : public Solver//
 {

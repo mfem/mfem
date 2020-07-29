@@ -1,6 +1,57 @@
 #pragma once
 #include "MeshPartition.hpp"
 
+struct UniqueIndexGen
+{
+   int counter = 0;
+   std::unordered_map<int,int> idx;
+
+   void Set(int i)
+   {
+      std::unordered_map<int,int>::iterator f = idx.find(i);
+      if (f == idx.end())
+      {
+         idx[i] = counter;
+         counter++;
+      }
+   }
+
+   int Get(int i)
+   {
+      std::unordered_map<int,int>::iterator f = idx.find(i);
+      if (f == idx.end())
+      {
+         return -1;
+      }
+      else
+      {
+         return (*f).second;
+      }
+   }
+   void Reset()
+   {
+      counter = 0;
+      idx.clear();
+   }
+};
+
+
+struct Sweep
+{
+private:
+   int dim;
+   std::vector<Array<int>> sweeps;
+public:   
+   int nsweeps;
+   Sweep(int dim_);
+   void GetSweep(const int i, Array<int> & sweep)
+   {
+      MFEM_VERIFY(i<nsweeps, "Sweep number out of bounds");
+      sweep.SetSize(dim);
+      sweep = sweeps[i];
+   }
+};
+
 
 
 // Function coefficient that takes the bounding box of the mesh as an input
@@ -63,4 +114,44 @@ public:
    LocalDofMap(const FiniteElementCollection * fec_, MeshPartition * part1_, 
                MeshPartition * part2_);
    ~LocalDofMap();
+};
+
+
+struct NeighborDofMaps
+{
+private:
+   int dim;
+   MeshPartition * part = nullptr;
+   FiniteElementSpace * fes = nullptr;
+   Mesh * mesh = nullptr;
+   std::vector<std::vector<Array<int>>> OvlpElems;
+   std::vector<std::vector<Array<int>>> OvlpDofMaps;
+   DofMap * dmap = nullptr;
+   int nrsubdomains = 0;
+   int ovlp_layers = 0;
+   Array<int> nxyz;
+   void MarkOvlpElements();
+   void ComputeNeighborDofMaps();
+
+   void Getijk(int ip, int & i, int & j, int & k) const
+   {
+      k = ip/(nxyz[0]*nxyz[1]);
+      j = (ip-k*nxyz[0]*nxyz[1])/nxyz[0];
+      i = (ip-k*nxyz[0]*nxyz[1])%nxyz[0];
+   }
+
+   int GetPatchId(const Array<int> & ijk) const
+   {
+      int d=ijk.Size();
+      int z = (d==2)? 0 : ijk[2];
+      return part->subdomains(ijk[0],ijk[1],z);
+   }
+
+public:   
+   NeighborDofMaps(MeshPartition * part_, 
+                   FiniteElementSpace * fes_, 
+                   DofMap * dmap_,
+                   int ovlp_layers_);
+
+   void GetNeighborDofMap(const int ip, const int jp);
 };

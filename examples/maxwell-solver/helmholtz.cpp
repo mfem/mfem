@@ -137,6 +137,16 @@ int main(int argc, char *argv[])
    // cout << "pml length = " << hl*nrlayers << endl;
    Mesh *mesh_ext = ExtendMesh(mesh,directions);
 
+
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream mesh_sock(vishost, visport);
+      mesh_sock.precision(8);
+      mesh_sock << "mesh\n" << *mesh_ext << flush;
+   }
+
    // char vishost[] = "localhost";
    // int  visport   = 19916;
    // socketstream mesh_sock(vishost, visport);
@@ -240,7 +250,7 @@ int main(int argc, char *argv[])
 	// gmres.iterative_mode = true;
    gmres.SetPreconditioner(S);
 	gmres.SetOperator(*AZ);
-	gmres.SetRelTol(1e-6);
+	gmres.SetRelTol(1e-12);
 	gmres.SetMaxIter(20);
 	gmres.SetPrintLevel(1);
 	gmres.Mult(B, X);
