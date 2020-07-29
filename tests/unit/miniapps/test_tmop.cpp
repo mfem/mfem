@@ -69,7 +69,7 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    int quad_type         = 1;
    int quad_order        = 2;
    int newton_iter       = 10;
-   double newton_rtol    = 1e-8;
+   double newton_rtol    = 1e-10;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    double lim_const      = 0.0;
@@ -394,7 +394,7 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    res.tauval = tauval;
 
    // Perform the nonlinear optimization
-   Vector b(0), &x_t(x.GetTrueVector());
+   Vector b(0);
    b.UseDevice(true);
 #if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
    NewtonSolver *newton = new TMOPNewtonSolver(PFesGetParMeshGetComm(fes),*ir);
@@ -414,7 +414,9 @@ int tmop(int myid, Req &res, int argc, char *argv[])
       x = x_init;
       x.SetTrueVector();
 
-      if (normalization == 1) { he_nlf_integ->EnableNormalization(x); }
+      DiscreteAdaptTC *datc = dynamic_cast<DiscreteAdaptTC*>(target_c);
+      if (datc && target_id == 5) { datc->SetDiscreteTargetSize(size); }
+      if (datc && target_id == 7) { datc->SetDiscreteTargetAspectRatio(aspr3d); }
 
       dist *= 0.93;
       if (normalization == 1) { dist = small_phys_size; }
@@ -422,15 +424,15 @@ int tmop(int myid, Req &res, int argc, char *argv[])
       ConstantCoefficient lim_coeff(lim_const);
       if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, dist, lim_coeff); }
 
-      DiscreteAdaptTC *datc = dynamic_cast<DiscreteAdaptTC*>(target_c);
-      if (datc && target_id == 5) { datc->SetDiscreteTargetSize(size); }
-      if (datc && target_id == 7) { datc->SetDiscreteTargetAspectRatio(aspr3d); }
+      if (normalization == 1) { he_nlf_integ->EnableNormalization(x); }
 
       newton->Mult(b, x.GetTrueVector());
       x.SetFromTrueVector();
+      //x.SetTrueVector();
       REQUIRE(newton->GetConverged());
    }
 
+   Vector &x_t(x.GetTrueVector());
    double x_t_dot = x_t*x_t, dot;
    MPI_Allreduce(&x_t_dot, &dot, 1, MPI_DOUBLE, MPI_SUM, pmesh->GetComm());
    res.dot = dot;
@@ -641,6 +643,14 @@ public:
 
 static void tmop_tests(int id)
 {
+   // -m cube.mesh -rs 1 -tid 5 -mid 321 -ni 5 -ls 3 -li 100 -lc 1.0 -nor
+   Launch(Launch::Args("Cube + Blast options").
+          MESH("cube.mesh").REFINE(1).
+          TID({5}).MID({321}).
+          NEWTON_ITERATIONS(5).LS({3}).LINEAR_ITERATIONS(100).
+          LIMITING(M_PI).NORMALIZATION(true).
+          POR({1,2,3}).QOR({2,4}).NL({1,2})).Run(id);
+
    Launch(Launch::Args("Star").
           MESH("star.mesh").
           POR({1,2,3,4}).QOR({2,4,8}).
@@ -688,10 +698,10 @@ static void tmop_tests(int id)
           POR({1,2}).QOR({2,4}).
           TID({2,3}).MID({302,303})).Run(id);
 
-   Launch(Launch::Args("Cube + Discrete size & aspect + norm. + limiting").
+   Launch(Launch::Args("Cube + Discrete size & aspect + normalization + limiting").
           MESH("cube.mesh").
           NORMALIZATION(true).LIMITING(M_PI).
-          POR({1,2}).QOR({2,4}).
+          POR({1,2}).QOR({4,2}).
           TID({7}).MID({302,321})).Run(id);
 
    Launch(Launch::Args("Toroid-Hex").
