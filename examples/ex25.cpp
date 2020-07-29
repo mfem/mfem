@@ -451,7 +451,6 @@ int main(int argc, char *argv[])
       prec.AddDomainIntegrator(new VectorFEMassIntegrator(restr_c2_abs));
 
       if (pa) { prec.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-
       prec.Assemble();
 
       // 14b. Define and apply a GMRES solver for AU=B with a block diagonal
