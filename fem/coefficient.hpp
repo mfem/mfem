@@ -559,6 +559,10 @@ public:
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationRule &ir);
 
+
+   void Eval(const FiniteElementSpace &fes, const IntegrationRule &ir,
+             Vector &qcoeff);
+
    virtual ~VectorGridFunctionCoefficient() { }
 };
 
@@ -1435,6 +1439,7 @@ public:
              const IntegrationRule &ir,
              const FaceType type,
              Vector &qcoeff);
+
    virtual ~VectorQuadratureFunctionCoefficient() { }
 };
 
