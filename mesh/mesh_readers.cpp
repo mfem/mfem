@@ -1776,7 +1776,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             {
                boundary[el] = elements_2D[el];
             }
-            for (int el = 0; el < ho_el_order_3D.size(); el++)
+            for (size_t el = 0; el < ho_el_order_3D.size(); el++)
             {
                mesh_order = max(mesh_order, ho_el_order_3D[el]);
             }
@@ -1805,7 +1805,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             {
                boundary[el] = elements_1D[el];
             }
-            for (int el = 0; el < ho_el_order_2D.size(); el++)
+            for (size_t el = 0; el < ho_el_order_2D.size(); el++)
             {
                mesh_order = max(mesh_order, ho_el_order_2D[el]);
             }
@@ -1830,7 +1830,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             {
                boundary[el] = elements_0D[el];
             }
-            for (int el = 0; el < ho_el_order_1D.size(); el++)
+            for (size_t el = 0; el < ho_el_order_1D.size(); el++)
             {
                mesh_order = max(mesh_order, ho_el_order_1D[el]);
             }
