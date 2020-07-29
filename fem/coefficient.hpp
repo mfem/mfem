@@ -22,7 +22,7 @@ namespace mfem
 
 class Mesh;
 class FiniteElementSpace;
-enum class FaceType : bool;
+enum class FaceType;
 
 #ifdef MFEM_USE_MPI
 class ParMesh;
