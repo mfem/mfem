@@ -400,14 +400,13 @@ int main(int argc, char *argv[])
    a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_c2_Re),
                          new VectorFEMassIntegrator(restr_c2_Im));
 
-#ifndef MFEM_USE_SUITESPARSE
-   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-#endif
-
    // 13. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: assembly, eliminating
    //     boundary conditions, applying conforming constraints for
    //     non-conforming AMR, etc.
+#ifndef MFEM_USE_SUITESPARSE
+   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+#endif
    a.Assemble(0);
 
    OperatorPtr A;
@@ -486,8 +485,8 @@ int main(int argc, char *argv[])
       }
 
       BlockDiagonalPreconditioner BlockDP(offsets);
-      BlockDP.SetDiagonalBlock(0,pc_r);
-      BlockDP.SetDiagonalBlock(1,pc_i);
+      BlockDP.SetDiagonalBlock(0, pc_r);
+      BlockDP.SetDiagonalBlock(1, pc_i);
 
       GMRESSolver gmres;
       gmres.SetPrintLevel(1);
