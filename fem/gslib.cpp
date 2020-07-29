@@ -569,22 +569,17 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
    const FiniteElementCollection *fec_in =  field_in.FESpace()->FEColl();
    const H1_FECollection *fec_h1 = dynamic_cast<const H1_FECollection *>(fec_in);
    const L2_FECollection *fec_l2 = dynamic_cast<const L2_FECollection *>(fec_in);
-   const ND_FECollection *fec_nd = dynamic_cast<const ND_FECollection *>(fec_in);
-   const RT_FECollection *fec_rt = dynamic_cast<const RT_FECollection *>(fec_in);
 
-   if (fec_h1 && gf_order == mesh_order)
+   if (fec_h1 && gf_order == mesh_order &&
+       fec_h1->GetBasisType() == BasisType::GaussLobatto)
    {
       InterpolateH1(field_in, field_out);
       return;
    }
-   else if (fec_l2 || fec_nd || fec_rt)
+   else
    {
       InterpolateGeneral(field_in, field_out);
       if (!fec_l2) { return; }
-   }
-   else
-   {
-      MFEM_ABORT("GridFunction type not yet supported by FindPointsGSLIB.")
    }
 
    // For points on element borders, project the L2 GridFunction to H1 and
@@ -618,7 +613,7 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
          MFEM_ABORT("Invalid averaging type.");
       }
 
-      if (gf_order == mesh_order)
+      if (gf_order == mesh_order) // basis is GaussLobatto by default
       {
          InterpolateH1(field_in_h1, field_out_l2);
       }

@@ -69,8 +69,8 @@ protected:
 
    /// Use GSLIB for communication and interpolation
    void InterpolateH1(const GridFunction &field_in, Vector &field_out);
-   /// Uses GSLIB Crystal Router for communication followed by GetValue for
-   /// interpolation
+   /// Uses GSLIB Crystal Router for communication followed by MFEM's
+   /// interpolation functions
    void InterpolateGeneral(const GridFunction &field_in, Vector &field_out);
    /// Map {r,s,t} coordinates from [-1,1] to [0,1] for MFEM. For simplices mesh
    /// find the original element number (that was split into micro quads/hexes
