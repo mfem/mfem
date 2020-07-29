@@ -723,7 +723,7 @@ public:
       }
 
       using mtx = gko::matrix::Csr<double, int>;
-      const int nnz =  a.GetMemoryData().Capacity(); 
+      const int nnz =  a.GetMemoryData().Capacity();
       auto gko_sparse = mtx::create(
                            exec, gko::dim<2>(a.Height(), a.Width()),
                            gko::Array<double>::view(exec,
@@ -775,7 +775,7 @@ public:
       }
 
       using mtx = gko::matrix::Csr<double, int>;
-      const int nnz =  a.GetMemoryData().Capacity(); 
+      const int nnz =  a.GetMemoryData().Capacity();
       auto gko_sparse = mtx::create(
                            exec, gko::dim<2>(a.Height(), a.Width()),
                            gko::Array<double>::view(exec,
@@ -830,7 +830,7 @@ public:
       }
 
       using mtx = gko::matrix::Csr<double, int>;
-      const int nnz =  a.GetMemoryData().Capacity(); 
+      const int nnz =  a.GetMemoryData().Capacity();
       auto gko_sparse = mtx::create(
                            exec, gko::dim<2>(a.Height(), a.Width()),
                            gko::Array<double>::view(exec,
@@ -844,9 +844,9 @@ public:
 
       using ilu_fact_type = gko::factorization::ParIlu<double, int>;
       std::shared_ptr<ilu_fact_type::Factory> fact_factory = std::move(
-                                                            ilu_fact_type::build()
-                                                            .with_iterations(par_ilu_its)
-                                                            .on(exec));
+                                                                ilu_fact_type::build()
+                                                                .with_iterations(par_ilu_its)
+                                                                .on(exec));
 
 
       if (trisolve_type == "isai")
@@ -900,7 +900,7 @@ public:
       }
 
       using mtx = gko::matrix::Csr<double, int>;
-      const int nnz =  a.GetMemoryData().Capacity(); 
+      const int nnz =  a.GetMemoryData().Capacity();
       auto gko_sparse = mtx::create(
                            exec, gko::dim<2>(a.Height(), a.Width()),
                            gko::Array<double>::view(exec,
@@ -914,9 +914,9 @@ public:
 
       using ilu_fact_type = gko::factorization::ParIlu<double, int>;
       std::shared_ptr<ilu_fact_type::Factory> fact_factory = std::move(
-                                                            ilu_fact_type::build()
-                                                            .with_iterations(par_ilu_its)
-                                                            .on(exec));
+                                                                ilu_fact_type::build()
+                                                                .with_iterations(par_ilu_its)
+                                                                .on(exec));
 
       if (trisolve_type == "isai")
       {

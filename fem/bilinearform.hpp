@@ -298,14 +298,17 @@ public:
    /// Returns a reference to the sparse matrix:  \f$ M \f$
    SparseMatrix &SpMat()
    {
-      FABilinearFormExtension *fa_ext = dynamic_cast<FABilinearFormExtension*>(this->ext);
-      if (fa_ext) {
+      FABilinearFormExtension *fa_ext = dynamic_cast<FABilinearFormExtension*>
+                                        (this->ext);
+      if (fa_ext)
+      {
          return fa_ext->SpMat();
       }
-      else {
-        MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
-        return *mat;
-     }
+      else
+      {
+         MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
+         return *mat;
+      }
    }
 
    /**  @brief Nullifies the internal matrix \f$ M \f$ and returns a pointer
