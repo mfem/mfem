@@ -70,15 +70,4 @@ MFEM_HOST_DEVICE T AtomicAdd(T &add, const T val)
 #endif
 }
 
-template <typename T>
-MFEM_HOST_DEVICE T AtomicMin(T &min, const T val)
-{
-#if ((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) || \
-     (defined(MFEM_USE_HIP)  && defined(__HIP_DEVICE_COMPILE__)))
-   return atomicMin_double(&min,val);
-#else
-   return std::fmin(min,val);
-#endif
-}
-
 #endif // MFEM_BACKENDS_HPP

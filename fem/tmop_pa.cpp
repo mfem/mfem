@@ -94,7 +94,7 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &xe) const
 
    {
       // Try to use the TargetConstructor ComputeElementTargetsPA
-      PA.setup_Jtr = targetC->ComputeElementTargetsPA(PA.fes,ir,PA.Jtr);
+      PA.setup_Jtr = targetC->ComputeElementTargetsPA(ir,PA.Jtr);
       if (PA.setup_Jtr) { return; }
    }
 

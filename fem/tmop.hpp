@@ -693,8 +693,7 @@ public:
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
 
-   virtual bool ComputeElementTargetsPA(const FiniteElementSpace *fes,
-                                        const IntegrationRule *ir,
+   virtual bool ComputeElementTargetsPA(const IntegrationRule *ir,
                                         DenseTensor &Jtr,
                                         const Vector &xe = Vector()) const;
 
@@ -743,8 +742,7 @@ public:
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
 
-   virtual bool ComputeElementTargetsPA(const FiniteElementSpace *fes,
-                                        const IntegrationRule *ir,
+   virtual bool ComputeElementTargetsPA(const IntegrationRule *ir,
                                         DenseTensor &Jtr,
                                         const Vector &xe = Vector()) const;
 
@@ -789,6 +787,9 @@ protected:
    // Evaluation of the discrete target specification on different meshes.
    // Owned.
    AdaptivityEvaluator *adapt_eval;
+
+   // PA extension
+   struct { mutable Vector tspec_e; } PA;
 
    void SetDiscreteTargetBase(const GridFunction &tspec_);
    void SetTspecAtIndex(int idx, const GridFunction &tspec_);
@@ -892,8 +893,7 @@ public:
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
 
-   virtual bool ComputeElementTargetsPA(const FiniteElementSpace *fes,
-                                        const IntegrationRule *ir,
+   virtual bool ComputeElementTargetsPA(const IntegrationRule *ir,
                                         DenseTensor &Jtr,
                                         const Vector &xe = Vector()) const;
 
