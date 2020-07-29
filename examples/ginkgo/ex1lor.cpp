@@ -154,8 +154,10 @@ int main(int argc, char *argv[])
    int pc_max_bs = 32;
    int permute = 0;
    bool skip_sort = false;
-   bool output_mesh = true;
+   bool output_sol = false;
+   bool output_pc = false;
    int isai_sparsity_power = 1;
+   int par_ilu_its = 0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -184,10 +186,17 @@ int main(int argc, char *argv[])
                   "Maximum block size for Ginkgo BlockJacobi.");
    args.AddOption(&permute, "-per", "--permutation",
                   "Specify preconditioner permutation.");
-   args.AddOption(&skip_sort, "-skip-sort", "--skip-sort", "-sort",
-                  "--do-sort", "Skip matrix sorting for ISAI creation.");
+   args.AddOption(&output_sol, "-out", "--output-solution-and-mesh", "-no-out",
+                  "--no-solution-and-mesh-output",
+                  "Output mesh and solution for inspection.");
+   args.AddOption(&output_pc, "-out-pc", "--output-lor-matrix-and-mesh",
+                  "-no-out-pc",
+                  "--no-lor-matrix-and-mesh-output",
+                  "Output LOR mesh and sparse matrix for inspection.");
    args.AddOption(&isai_sparsity_power, "-isai-sp", "--isai-sparsity-power",
                   "Power to use for sparsity pattern of ISAI in Ginkgo ILU-ISAI.");
+   args.AddOption(&par_ilu_its, "-pilu-its", "--par-ilu-iterations",
+                  "Number of iterations for the Ginkgo ParILU algorithm.");
    args.Parse();
    if (!args.Good())
    {
@@ -208,7 +217,14 @@ int main(int argc, char *argv[])
       trisolve_type = "isai";
    }
    else if (!strcmp(pc_type, "mfem:gs")) { pc_choice = MFEM_GS; }
-   else if (!strcmp(pc_type, "mfem:umf")) { pc_choice = MFEM_UMFPACK; }
+   else if (!strcmp(pc_type, "mfem:umf"))
+   {
+#ifdef MFEM_USE_SUITESPARSE
+      pc_choice = MFEM_UMFPACK;
+#else
+      mfem_error("Preconditioner requires SuiteSparse");
+#endif
+   }
    else if (!strcmp(pc_type, "none"))
    {
       pc_choice = NONE;
@@ -562,6 +578,7 @@ int main(int argc, char *argv[])
       else if (pc_choice == MFEM_UMFPACK)
       {
 
+#ifdef MFEM_USE_SUITESPARSE
          // Create MFEM preconditioner
          tic_toc.Clear();
          tic_toc.Start();
@@ -578,7 +595,7 @@ int main(int argc, char *argv[])
          total_its = pcg_solve(*A, M, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
 
          cout << "Real time in PCG: " << it_time << "\n";
-
+#endif
       }
    }
    else
@@ -599,7 +616,7 @@ int main(int argc, char *argv[])
    // later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
 
-   if (output_mesh)
+   if (output_sol)
    {
       ofstream mesh_ofs("refined.mesh");
       mesh_ofs.precision(8);
@@ -607,18 +624,17 @@ int main(int argc, char *argv[])
       ofstream sol_ofs("sol.gf");
       sol_ofs.precision(8);
       x.Save(sol_ofs);
+   }
 
-      if (pc)
-      {
-         ofstream mesh_lor_ofs("lor-refined.mesh");
-         mesh_lor_ofs.precision(8);
-         mesh_lor->Print(mesh_lor_ofs);
+   if (pc && output_pc)
+   {
+      ofstream mesh_lor_ofs("lor-refined.mesh");
+      mesh_lor_ofs.precision(8);
+      mesh_lor->Print(mesh_lor_ofs);
 
-
-         ofstream apc_lor_ofs("lor-mat.dat");
-         mesh_lor_ofs.precision(8);
-         A_pc.PrintCSR(apc_lor_ofs);
-      }
+      ofstream apc_lor_ofs("lor-mat.dat");
+      mesh_lor_ofs.precision(8);
+      A_pc.PrintCSR(apc_lor_ofs);
    }
 
    // 14. Send the solution by socket to a GLVis server.

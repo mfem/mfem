@@ -40,6 +40,7 @@
 //               optional connection to the GLVis tool for visualization.
 
 #include "mfem.hpp"
+#include "../../general/forall.hpp"
 
 #include <fstream>
 #include <iostream>
@@ -108,15 +109,17 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    bool pa = true;
    const char *device_config = "cpu";
-   bool visualization = true;
+   bool visualization = false;
    const char *pc_type = "gko:bj";
    const char *pc_storage_opt = "auto";
    double pc_acc = 1.e-1;
    int pc_max_bs = 32;
    bool permute = false;
    bool skip_sort = false;
-   bool output_mesh = false;
+   bool output_sol = false;
+   bool output_pc = false;
    int isai_sparsity_power = 1;
+   int par_ilu_its = 0;
    double sigma_val = 1.0;
 
    OptionsParser args(argc, argv);
@@ -126,7 +129,8 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   args.AddOption(&coeff_name, "-c", "--coeff", "Type of coefficient for Laplace operator.");
+   args.AddOption(&coeff_name, "-c", "--coeff",
+                  "Type of coefficient for Laplace operator.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -149,11 +153,17 @@ int main(int argc, char *argv[])
                   "--no-permutation", "Enable preconditioner permutation.");
    args.AddOption(&skip_sort, "-skip-sort", "--skip-sort", "-sort",
                   "--do-sort", "Skip matrix sorting for ISAI creation.");
-   args.AddOption(&output_mesh, "-out", "--output-matrix-and-mesh", "-no-out",
-                  "--no-matrix-and-mesh-output",
-                  "Output sparse matrix and mesh files for inspection.");
+   args.AddOption(&output_sol, "-out", "--output-solution-and-mesh", "-no-out",
+                  "--no-solution-and-mesh-output",
+                  "Output mesh and solution for inspection.");
+   args.AddOption(&output_pc, "-out-pc", "--output-lor-matrix-and-mesh",
+                  "-no-out-pc",
+                  "--no-lor-matrix-and-mesh-output",
+                  "Output LOR mesh and sparse matrix for inspection.");
    args.AddOption(&isai_sparsity_power, "-isai-sp", "--isai-sparsity-power",
                   "Power to use for sparsity pattern of ISAI in Ginkgo ILU-ISAI.");
+   args.AddOption(&par_ilu_its, "-pilu-its", "--par-ilu-iterations",
+                  "Number of iterations for the Ginkgo ParILU algorithm.");
    args.AddOption(&sigma_val, "-sv", "--sigma-value",
                   "Non-unity value for piecewise discontinuous coefficient.");
    args.Parse();
@@ -169,7 +179,7 @@ int main(int argc, char *argv[])
    if (!strcmp(coeff_name, "const")) { coeff_type = CONSTANT; }
    else if (!strcmp(coeff_name, "var")) { coeff_type = VARIABLE; }
    else if (!strcmp(coeff_name, "pw")) { coeff_type = PW_CONSTANT; }
-   else 
+   else
    {
       mfem_error("Invalid coefficient type specified");
    }
@@ -186,7 +196,14 @@ int main(int argc, char *argv[])
       trisolve_type = "isai";
    }
    else if (!strcmp(pc_type, "mfem:gs")) { pc_choice = MFEM_GS; }
-   else if (!strcmp(pc_type, "mfem:umf")) { pc_choice = MFEM_UMFPACK; }
+   else if (!strcmp(pc_type, "mfem:umf"))
+   {
+#ifdef MFEM_USE_SUITESPARSE
+      pc_choice = MFEM_UMFPACK;
+#else
+      mfem_error("Preconditioner requires SuiteSparse");
+#endif
+   }
    else if (!strcmp(pc_type, "none"))
    {
       pc_choice = NONE;
@@ -249,7 +266,7 @@ int main(int argc, char *argv[])
          mesh->UniformRefinement();
       }
    }
-   cout << "Total elements in refined mesh: " <<  mesh->GetNE() << std::endl;
+   cout << "Total elements in refined mesh: " <<  mesh->GetNE() << endl;
 
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
@@ -289,6 +306,9 @@ int main(int argc, char *argv[])
       if (permute)
       {
 
+         tic_toc.Clear();
+         tic_toc.Start();
+
          const Table &pre_reorder_dofs = fespace_lor->GetElementToDofTable();
          const Table pre_reorder_dofs_copy(pre_reorder_dofs);
          fespace_lor->ReorderElementToDofTable();
@@ -304,13 +324,16 @@ int main(int argc, char *argv[])
             post_reorder_dofs.GetRow(i, new_row);
             for (int j = 0; j < pre_reorder_dofs_copy.RowSize(i); j++)
             {
-               int new_dof = new_row.operator[](j);
-               int old_dof = old_row.operator[](j);
-               inv_reordering->operator[](old_dof) = new_dof;
+               int new_dof = new_row[j];
+               int old_dof = old_row[j];
+               (*inv_reordering)[old_dof] = new_dof;
             }
          }
-      }
 
+         tic_toc.Stop();
+         cout << "Real time spent reordering: " <<
+              tic_toc.RealTime() << "\n";
+      }
    }
 
    // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
@@ -373,27 +396,27 @@ int main(int argc, char *argv[])
 
    if (coeff_type == CONSTANT)
    {
-     coeff = new ConstantCoefficient(1.0);
+      coeff = new ConstantCoefficient(1.0);
    }
    else if (coeff_type == VARIABLE)
    {
-     coeff = new FunctionCoefficient(&coeff_func);
+      coeff = new FunctionCoefficient(&coeff_func);
    }
-   else if (coeff_type == PW_CONSTANT) 
+   else if (coeff_type == PW_CONSTANT)
    {
-     int num_subregions = mesh->attributes.Max();
-     cout << "Number of subregions in mesh: " << num_subregions << "\n";
-     Vector sigma(num_subregions);
-     sigma = 1;
-     if (num_subregions < 2)
-     {
-       cout << "Warning: PW Constant Coefficient not used, mesh only has one element attribute!\n";
-     }
-     else 
-     {
-       sigma(num_subregions-1) = sigma_val;
-     }
-     coeff = new PWConstCoefficient(sigma);
+      int num_subregions = mesh->attributes.Max();
+      cout << "Number of subregions in mesh: " << num_subregions << "\n";
+      Vector sigma(num_subregions);
+      sigma = 1;
+      if (num_subregions < 2)
+      {
+         cout << "Warning: PW Constant Coefficient not used, mesh only has one element attribute!\n";
+      }
+      else
+      {
+         sigma(num_subregions-1) = sigma_val;
+      }
+      coeff = new PWConstCoefficient(sigma);
    }
    a->AddDomainIntegrator(new DiffusionIntegrator(*coeff));
 
@@ -416,21 +439,57 @@ int main(int argc, char *argv[])
    double it_time = 0.;
    int total_its = 0;
 
-   SparseMatrix A_pc;
+   bool on_dev = false;
+   if (!strcmp(device_config, "cuda"))
+   {
+      on_dev = true;
+   }
+   SparseMatrix *A_pc;
    if (pc)
    {
-
       tic_toc.Clear();
       tic_toc.Start();
 
       a_pc->AddDomainIntegrator(new DiffusionIntegrator(*coeff));
-      a_pc->UsePrecomputedSparsity();
+      a_pc->SetAssemblyLevel(AssemblyLevel::FULL);
       a_pc->Assemble();
-      a_pc->FormSystemMatrix(ess_pc_tdof_list, A_pc);
+      A_pc = &(a_pc->SpMat());
+
+      // Manually set essential BC rows/columns, so we can use device if applicable
+      // Get device or host pointers
+      auto d_I = A_pc->ReadWriteI(on_dev);
+      auto d_J = A_pc->ReadWriteJ(on_dev);
+      auto d_A = A_pc->ReadWriteData(on_dev);
+      auto d_ess_list = ess_pc_tdof_list.Read(on_dev);
+      MFEM_FORALL_SWITCH(on_dev, i, ess_pc_tdof_list.Size(),
+      {
+         int rc = d_ess_list[i];
+         if (rc < 0 ) { rc = -1-rc; }
+         for (int j = d_I[rc]; j < d_I[rc+1]; j++)
+         {
+            const int col = d_J[j];
+            if (col != rc)
+            {
+               d_A[j] = 0.0;
+               for (int k = d_I[col]; 1; k++)
+               {
+                  if (k == d_I[col+1])
+                  {
+                     break;
+                  }
+                  else if (d_J[k] == rc)
+                  {
+                     d_A[k] = 0.0;
+                     break;
+                  }
+               }
+            }
+         }
+      });
 
       tic_toc.Stop();
-      std::cout << "Real time creating A_pc SparseMatrix: " <<
-                tic_toc.RealTime() << std::endl;
+      cout << "Real time creating A_pc SparseMatrix: " <<
+           tic_toc.RealTime() << endl;
 
       if (pc_choice == GKO_BLOCK_JACOBI)
       {
@@ -442,32 +501,32 @@ int main(int argc, char *argv[])
          {
             tic_toc.Clear();
             tic_toc.Start();
-            GinkgoWrappers::GinkgoJacobiPreconditioner M(executor, A_pc, *inv_reordering,
+            GinkgoWrappers::GinkgoJacobiPreconditioner M(executor, *A_pc, *inv_reordering,
                                                          pc_storage_opt,
                                                          pc_acc, pc_max_bs);
             tic_toc.Stop();
-            std::cout << "Real time creating Ginkgo BlockJacobi preconditioner: " <<
-                      tic_toc.RealTime() << std::endl;
+            cout << "Real time creating Ginkgo BlockJacobi preconditioner: " <<
+                 tic_toc.RealTime() << endl;
 
             // Use preconditioned CG
             total_its = pcg_solve(*A, M, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
 
-            std::cout << "Real time in PCG: " << it_time << std::endl;
+            cout << "Real time in PCG: " << it_time << endl;
          }
          else
          {
             tic_toc.Clear();
             tic_toc.Start();
-            GinkgoWrappers::GinkgoJacobiPreconditioner M(executor, A_pc, pc_storage_opt,
+            GinkgoWrappers::GinkgoJacobiPreconditioner M(executor, *A_pc, pc_storage_opt,
                                                          pc_acc, pc_max_bs);
             tic_toc.Stop();
-            std::cout << "Real time creating Ginkgo BlockJacobi preconditioner: " <<
-                      tic_toc.RealTime() << std::endl;
+            cout << "Real time creating Ginkgo BlockJacobi preconditioner: " <<
+                 tic_toc.RealTime() << endl;
 
             // Use preconditioned CG
             total_its = pcg_solve(*A, M, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
 
-            std::cout << "Real time in PCG: " << it_time << std::endl;
+            cout << "Real time in PCG: " << it_time << endl;
          }
 
       }
@@ -482,17 +541,17 @@ int main(int argc, char *argv[])
             tic_toc.Clear();
             tic_toc.Start();
 
-            GinkgoWrappers::GinkgoIluPreconditioner M(executor, A_pc, *inv_reordering,
+            GinkgoWrappers::GinkgoIluPreconditioner M(executor, *A_pc, *inv_reordering,
                                                       trisolve_type, isai_sparsity_power, skip_sort);
 
             tic_toc.Stop();
-            std::cout << "Real time creating Ginkgo Ilu preconditioner: " <<
-                      tic_toc.RealTime() << std::endl;
+            cout << "Real time creating Ginkgo Ilu preconditioner: " <<
+                 tic_toc.RealTime() << endl;
 
             // Use preconditioned CG
             total_its = pcg_solve(*A, M, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
 
-            std::cout << "Real time in PCG: " << it_time << std::endl;
+            cout << "Real time in PCG: " << it_time << endl;
 
          }
          else
@@ -501,17 +560,17 @@ int main(int argc, char *argv[])
             tic_toc.Clear();
             tic_toc.Start();
 
-            GinkgoWrappers::GinkgoIluPreconditioner M(executor, A_pc, trisolve_type,
+            GinkgoWrappers::GinkgoIluPreconditioner M(executor, *A_pc, trisolve_type,
                                                       isai_sparsity_power, skip_sort);
 
             tic_toc.Stop();
-            std::cout << "Real time creating Ginkgo Ilu preconditioner: " <<
-                      tic_toc.RealTime() << std::endl;
+            cout << "Real time creating Ginkgo Ilu preconditioner: " <<
+                 tic_toc.RealTime() << endl;
 
             // Use preconditioned CG
             total_its = pcg_solve(*A, M, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
 
-            std::cout << "Real time in PCG: " << it_time << std::endl;
+            cout << "Real time in PCG: " << it_time << endl;
 
          }
       }
@@ -522,38 +581,39 @@ int main(int argc, char *argv[])
          tic_toc.Clear();
          tic_toc.Start();
 
-         GSSmoother M(A_pc);
+         GSSmoother M(*A_pc);
 
          tic_toc.Stop();
-         std::cout << "Real time creating MFEM GS preconditioner: " <<
-                   tic_toc.RealTime() << std::endl;
+         cout << "Real time creating MFEM GS preconditioner: " <<
+              tic_toc.RealTime() << endl;
 
          // Use preconditioned CG
          total_its = pcg_solve(*A, M, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
 
-         std::cout << "Real time in PCG: " << it_time << std::endl;
+         cout << "Real time in PCG: " << it_time << endl;
 
       }
       else if (pc_choice == MFEM_UMFPACK)
       {
 
+#ifdef MFEM_USE_SUITESPARSE
          // Create MFEM preconditioner
          tic_toc.Clear();
          tic_toc.Start();
 
          UMFPackSolver M;
          M.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-         M.SetOperator(A_pc);
+         M.SetOperator(*A_pc);
 
          tic_toc.Stop();
-         std::cout << "Real time creating MFEM UMFPACK preconditioner: " <<
-                   tic_toc.RealTime() << std::endl;
+         cout << "Real time creating MFEM UMFPACK preconditioner: " <<
+              tic_toc.RealTime() << endl;
 
          // Use preconditioned CG
          total_its = pcg_solve(*A, M, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
 
-         std::cout << "Real time in PCG: " << it_time << std::endl;
-
+         cout << "Real time in PCG: " << it_time << endl;
+#endif
       }
    }
    else
@@ -561,12 +621,12 @@ int main(int argc, char *argv[])
 
       total_its = cg_solve(*A, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
 
-      std::cout << "Real time in CG: " << it_time << std::endl;
+      cout << "Real time in CG: " << it_time << endl;
    }
 
-   std::cout << "Total iterations: " << total_its << std::endl;
-   std::cout << "Avg time per iteration: " << it_time/double(
-                total_its) << std::endl;
+   cout << "Total iterations: " << total_its << endl;
+   cout << "Avg time per iteration: " << it_time/double(
+           total_its) << endl;
 
    // 12. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
@@ -575,7 +635,7 @@ int main(int argc, char *argv[])
    // later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
 
-   if (output_mesh)
+   if (output_sol)
    {
       ofstream mesh_ofs("refined.mesh");
       mesh_ofs.precision(8);
@@ -583,18 +643,17 @@ int main(int argc, char *argv[])
       ofstream sol_ofs("sol.gf");
       sol_ofs.precision(8);
       x.Save(sol_ofs);
+   }
 
-      if (pc)
-      {
-         ofstream mesh_lor_ofs("lor-refined.mesh");
-         mesh_lor_ofs.precision(8);
-         mesh_lor->Print(mesh_lor_ofs);
+   if (pc && output_pc)
+   {
+      ofstream mesh_lor_ofs("lor-refined.mesh");
+      mesh_lor_ofs.precision(8);
+      mesh_lor->Print(mesh_lor_ofs);
 
-
-         ofstream apc_lor_ofs("lor-mat.dat");
-         mesh_lor_ofs.precision(8);
-         A_pc.PrintCSR(apc_lor_ofs);
-      }
+      ofstream apc_lor_ofs("lor-mat.dat");
+      mesh_lor_ofs.precision(8);
+      A_pc->PrintCSR(apc_lor_ofs);
    }
 
    // 14. Send the solution by socket to a GLVis server.
