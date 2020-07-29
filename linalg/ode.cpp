@@ -824,6 +824,7 @@ void EmbeddedRKSolver::Init(TimeDependentOperator &_f)
    for (int i = 0; i < s; i++)
    {
       k[i].SetSize(n, mem_type);
+      k[i] = 0.0;
    }
 }
 
@@ -1101,6 +1102,7 @@ void EmbeddedSDIRKSolver::Init(TimeDependentOperator &_f)
    for (int i = 0; i < s; i++)
    {
       k[i].SetSize(n, mem_type);
+      k[i] = 0.0;
    }
 }
 
