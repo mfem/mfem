@@ -1872,7 +1872,7 @@ private:
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, dofs1D, quad1D;
    Vector pa_data;
-
+   bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 #ifdef MFEM_USE_CEED
    // CEED extension
    CeedData* ceedDataPtr;

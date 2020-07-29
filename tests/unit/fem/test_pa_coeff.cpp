@@ -131,7 +131,7 @@ TEST_CASE("H1 pa_coeff")
 {
    for (dimension = 2; dimension < 4; ++dimension)
    {
-      for (int coeffType = 0; coeffType < 3; ++coeffType)
+      for (int coeffType = 0; coeffType < 5; ++coeffType)
       {
          for (int integrator = 0; integrator < 2; ++integrator)
          {
@@ -159,6 +159,8 @@ TEST_CASE("H1 pa_coeff")
                BilinearForm paform(&h1_fespace);
                GridFunction* coeffGridFunction = nullptr;
                Coefficient* coeff = nullptr;
+               MatrixCoefficient* mcoeff = nullptr;
+               MatrixCoefficient* smcoeff = nullptr;
                if (coeffType == 0)
                {
                   coeff = new ConstantCoefficient(1.0);
@@ -167,17 +169,40 @@ TEST_CASE("H1 pa_coeff")
                {
                   coeff = new FunctionCoefficient(&coeffFunction);
                }
-               else if (coeffType == 2)
+               else if (coeffType >= 2)
                {
                   FunctionCoefficient tmpCoeff(&coeffFunction);
                   coeffGridFunction = new GridFunction(&h1_fespace);
                   coeffGridFunction->ProjectCoefficient(tmpCoeff);
                   coeff = new GridFunctionCoefficient(coeffGridFunction);
                }
+
+               if (coeffType == 3)
+               {
+                  mcoeff = new MatrixFunctionCoefficient(dimension,
+                                                         &fullSymmetricMatrixCoeffFunction);
+                  smcoeff = new MatrixFunctionCoefficient(dimension,
+                                                          &symmetricMatrixCoeffFunction);
+               }
+               else if (coeffType == 4)
+               {
+                  mcoeff = new MatrixFunctionCoefficient(dimension,
+                                                         &asymmetricMatrixCoeffFunction);
+                  smcoeff = new MatrixFunctionCoefficient(dimension,
+                                                          &asymmetricMatrixCoeffFunction);
+               }
+
                paform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
                if (integrator < 2)
                {
-                  paform.AddDomainIntegrator(new DiffusionIntegrator(*coeff));
+                  if (coeffType >= 3)
+                  {
+                     paform.AddDomainIntegrator(new DiffusionIntegrator(*smcoeff));
+                  }
+                  else
+                  {
+                     paform.AddDomainIntegrator(new DiffusionIntegrator(*coeff));
+                  }
                }
                if (integrator > 0)
                {
@@ -190,8 +215,14 @@ TEST_CASE("H1 pa_coeff")
                BilinearForm assemblyform(&h1_fespace);
                if (integrator < 2)
                {
-                  assemblyform.AddDomainIntegrator(
-                     new DiffusionIntegrator(*coeff));
+                  if (coeffType >= 3)
+                  {
+                     assemblyform.AddDomainIntegrator(new DiffusionIntegrator(*mcoeff));
+                  }
+                  else
+                  {
+                     assemblyform.AddDomainIntegrator(new DiffusionIntegrator(*coeff));
+                  }
                }
                if (integrator > 0)
                {
@@ -229,6 +260,8 @@ TEST_CASE("H1 pa_coeff")
                REQUIRE(assembly_error < 1.e-12);
 
                delete coeff;
+               delete mcoeff;
+               delete smcoeff;
                delete coeffGridFunction;
                delete mesh;
                delete h1_fec;
