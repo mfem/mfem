@@ -596,8 +596,9 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
       {
          if (gsl_code[i] == 1) { indl2.Append(i); }
       }
-      Vector field_out_l2(field_out.Size());
+      if (indl2.Size() == 0) { return; } // no points on element borders
 
+      Vector field_out_l2(field_out.Size());
       VectorGridFunctionCoefficient field_in_dg(&field_in);
       H1_FECollection fec(gf_order, dim);
       const int ncomp = field_in.FESpace()->GetVDim();
