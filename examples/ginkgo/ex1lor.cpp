@@ -448,11 +448,20 @@ int main(int argc, char *argv[])
       a_pc->AddDomainIntegrator(new DiffusionIntegrator(one));
       a_pc->UsePrecomputedSparsity();
       a_pc->Assemble();
+
+      tic_toc.Stop();
+      cout << "Real time assembling A_pc SparseMatrix: " <<
+           tic_toc.RealTime() << "\n";
+
+      tic_toc.Clear();
+      tic_toc.Start();
+
       a_pc->FormSystemMatrix(ess_pc_tdof_list, A_pc);
 
       tic_toc.Stop();
-      cout << "Real time creating A_pc SparseMatrix: " <<
+      cout << "Real time adjusting A_pc for essential BC: " <<
            tic_toc.RealTime() << "\n";
+
 
       if (permute == 2)
       {

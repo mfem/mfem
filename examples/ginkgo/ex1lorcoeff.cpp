@@ -455,6 +455,13 @@ int main(int argc, char *argv[])
       a_pc->Assemble();
       A_pc = &(a_pc->SpMat());
 
+      tic_toc.Stop();
+      cout << "Real time assembling A_pc SparseMatrix: " <<
+           tic_toc.RealTime() << "\n";
+
+      tic_toc.Clear();
+      tic_toc.Start();
+
       // Manually set essential BC rows/columns, so we can use device if applicable
       // Get device or host pointers
       auto d_I = A_pc->ReadWriteI(on_dev);
@@ -488,8 +495,8 @@ int main(int argc, char *argv[])
       });
 
       tic_toc.Stop();
-      cout << "Real time creating A_pc SparseMatrix: " <<
-           tic_toc.RealTime() << endl;
+      cout << "Real time adjusting A_pc for essential BC: " <<
+           tic_toc.RealTime() << "\n";
 
       if (pc_choice == GKO_BLOCK_JACOBI)
       {
