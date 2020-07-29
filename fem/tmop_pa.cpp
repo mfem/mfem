@@ -98,7 +98,7 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &xe) const
       if (PA.setup_Jtr) { return; }
    }
 
-   dbg("Defaulting to host version");
+   // Defaulting to host version
    PA.Jtr.HostWrite();
 
    const int NE = PA.ne;

@@ -649,7 +649,7 @@ static void tmop_tests(int id)
           TID({5}).MID({321}).
           NEWTON_ITERATIONS(5).LS({3}).LINEAR_ITERATIONS(100).
           LIMITING(M_PI).NORMALIZATION(true).
-          POR({1,2,3}).QOR({2,4}).NL({1})).Run(id);
+          POR({1,2,3}).QOR({2,4}).NL({1,2})).Run(id);
 
    Launch(Launch::Args("Star").
           MESH("star.mesh").

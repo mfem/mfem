@@ -36,7 +36,6 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    const int pnt_cnt = new_field.Size()/ncomp;
 
    new_field = field0;
-   dbg("new_field.HostReadWrite");
    new_field.HostReadWrite();
    Vector new_field_temp;
    for (int i = 0; i < ncomp; i++)
@@ -141,7 +140,6 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
          dt = 1.0 - t;
          last_step = true;
       }
-      dbg("Step");
       ode_solver.Step(new_field, t, dt);
    }
 
@@ -156,7 +154,6 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
 #endif
 
    // Trim the overshoots and undershoots.
-   dbg("new_field.HostReadWrite");
    new_field.HostReadWrite();
    for (int i = 0; i < s; i++)
    {
