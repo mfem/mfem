@@ -61,4 +61,8 @@
 #include "adios2datacollection.hpp"
 #endif
 
+#ifdef MFEM_USE_FMS
+#include "fmsconvert.hpp"
+#endif
+
 #endif
