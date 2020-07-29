@@ -85,7 +85,7 @@ public:
 
    ~FindPointsGSLIB();
 
-   enum mfem::GridFunction::AvgType avgtype;
+   GridFunction::AvgType avgtype;
 
    /** Initializes the internal mesh in gslib, by sending the positions of the
        Gauss-Lobatto nodes of the input Mesh object @a m.
@@ -136,7 +136,7 @@ public:
    void Interpolate(Mesh &m, const Vector &point_pos,
                     const GridFunction &field_in, Vector &field_out);
 
-   void SetL2AvgType(mfem::GridFunction::AvgType avgtype_) { avgtype = avgtype_; }
+   void SetL2AvgType(GridFunction::AvgType avgtype_) { avgtype = avgtype_; }
 
    /** Cleans up memory allocated internally by gslib.
        Note that in parallel, this must be called before MPI_Finalize(), as
