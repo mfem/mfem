@@ -15,21 +15,13 @@
 namespace mfem
 {
 
-void PAHcurlSetup2D(const int Q1D,
-                    const int coeffDim,
-                    const int NE,
-                    const Array<double> &w,
-                    const Vector &j,
-                    Vector &_coeff,
-                    Vector &op);
-
-void PAHcurlSetup3D(const int Q1D,
-                    const int coeffDim,
-                    const int NE,
-                    const Array<double> &w,
-                    const Vector &j,
-                    Vector &_coeff,
-                    Vector &op);
+void PADiffusionSetup3D(const int Q1D,
+                        const int coeffDim,
+                        const int NE,
+                        const Array<double> &w,
+                        const Vector &j,
+                        const Vector &_coeff,
+                        Vector &op);
 
 void PAHcurlMassAssembleDiagonal2D(const int D1D,
                                    const int Q1D,
@@ -833,13 +825,13 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
 
    if (trial_curl && test_curl && dim == 3)
    {
-      PAHcurlSetup3D(quad1D, coeffDim, ne, ir->GetWeights(), geom->J,
-                     coeff, pa_data);
+      PADiffusionSetup3D(quad1D, coeffDim, ne, ir->GetWeights(), geom->J,
+                         coeff, pa_data);
    }
    else if (trial_curl && test_curl && dim == 2)
    {
-      PAHcurlSetup2D(quad1D, coeffDim, ne, ir->GetWeights(), geom->J,
-                     coeff, pa_data);
+      PADiffusionSetup2D<2>(quad1D, coeffDim, ne, ir->GetWeights(), geom->J,
+                            coeff, pa_data);
    }
    else if (trial_div && test_div && dim == 3)
    {
@@ -1037,13 +1029,13 @@ void MixedVectorGradientIntegrator::AssemblePA(const FiniteElementSpace
    // Use the same setup functions as VectorFEMassIntegrator.
    if (test_el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3)
    {
-      PAHcurlSetup3D(quad1D, 1, ne, ir->GetWeights(), geom->J,
-                     coeff, pa_data);
+      PADiffusionSetup3D(quad1D, 1, ne, ir->GetWeights(), geom->J,
+                         coeff, pa_data);
    }
    else if (test_el->GetDerivType() == mfem::FiniteElement::CURL && dim == 2)
    {
-      PAHcurlSetup2D(quad1D, 1, ne, ir->GetWeights(), geom->J,
-                     coeff, pa_data);
+      PADiffusionSetup2D<2>(quad1D, 1, ne, ir->GetWeights(), geom->J,
+                            coeff, pa_data);
    }
    else
    {

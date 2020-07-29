@@ -131,7 +131,7 @@ TEST_CASE("H1 pa_coeff")
 {
    for (dimension = 2; dimension < 4; ++dimension)
    {
-      for (int coeffType = 0; coeffType < 5; ++coeffType)
+      for (int coeffType = 0; coeffType < 6; ++coeffType)
       {
          for (int integrator = 0; integrator < 2; ++integrator)
          {
@@ -159,6 +159,7 @@ TEST_CASE("H1 pa_coeff")
                BilinearForm paform(&h1_fespace);
                GridFunction* coeffGridFunction = nullptr;
                Coefficient* coeff = nullptr;
+               VectorCoefficient* vcoeff = nullptr;
                MatrixCoefficient* mcoeff = nullptr;
                MatrixCoefficient* smcoeff = nullptr;
                if (coeffType == 0)
@@ -179,12 +180,16 @@ TEST_CASE("H1 pa_coeff")
 
                if (coeffType == 3)
                {
+                  vcoeff = new VectorFunctionCoefficient(dimension, &vectorCoeffFunction);
+               }
+               else if (coeffType == 4)
+               {
                   mcoeff = new MatrixFunctionCoefficient(dimension,
                                                          &fullSymmetricMatrixCoeffFunction);
                   smcoeff = new MatrixFunctionCoefficient(dimension,
                                                           &symmetricMatrixCoeffFunction);
                }
-               else if (coeffType == 4)
+               else if (coeffType == 5)
                {
                   mcoeff = new MatrixFunctionCoefficient(dimension,
                                                          &asymmetricMatrixCoeffFunction);
@@ -195,7 +200,11 @@ TEST_CASE("H1 pa_coeff")
                paform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
                if (integrator < 2)
                {
-                  if (coeffType >= 3)
+                  if (coeffType == 3)
+                  {
+                     paform.AddDomainIntegrator(new DiffusionIntegrator(*vcoeff));
+                  }
+                  else if (coeffType >= 4)
                   {
                      paform.AddDomainIntegrator(new DiffusionIntegrator(*smcoeff));
                   }
@@ -215,7 +224,11 @@ TEST_CASE("H1 pa_coeff")
                BilinearForm assemblyform(&h1_fespace);
                if (integrator < 2)
                {
-                  if (coeffType >= 3)
+                  if (coeffType == 3)
+                  {
+                     assemblyform.AddDomainIntegrator(new DiffusionIntegrator(*vcoeff));
+                  }
+                  else if (coeffType >= 4)
                   {
                      assemblyform.AddDomainIntegrator(new DiffusionIntegrator(*mcoeff));
                   }
@@ -260,6 +273,7 @@ TEST_CASE("H1 pa_coeff")
                REQUIRE(assembly_error < 1.e-12);
 
                delete coeff;
+               delete vcoeff;
                delete mcoeff;
                delete smcoeff;
                delete coeffGridFunction;
