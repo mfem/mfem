@@ -15,6 +15,9 @@
 #include "../mesh/nurbs.hpp"
 #include "../general/text.hpp"
 
+#define MFEM_DEBUG_COLOR 13
+#include "../general/debug.hpp"
+
 #include <limits>
 #include <cstring>
 #include <string>
@@ -841,6 +844,8 @@ void GridFunction::GetVectorValue(ElementTransformation &T,
    Array<int> vdofs;
    const FiniteElement *fe = NULL;
 
+   //dbg("T.ElementType: %d", T.ElementType);
+   MFEM_VERIFY(T.ElementType == 1,"");
    switch (T.ElementType)
    {
       case ElementTransformation::ELEMENT:
@@ -935,6 +940,13 @@ void GridFunction::GetVectorValue(ElementTransformation &T,
    int dof = fe->GetDof();
    Vector loc_data;
    GetSubVector(vdofs, loc_data);
+
+   //dbg("fe->GetRangeType(): %d", fe->GetRangeType());
+   MFEM_VERIFY(fe->GetRangeType() == FiniteElement::RangeType::SCALAR,"");
+
+   //dbg("fe->GetMapType(): %d", fe->GetMapType());
+   MFEM_VERIFY(fe->GetMapType() == FiniteElement::VALUE,"");
+
    if (fe->GetRangeType() == FiniteElement::SCALAR)
    {
       Vector shape(dof);

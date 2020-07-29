@@ -77,7 +77,6 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
    if (fes)
    {
       fess = new FiniteElementSpace(fes->GetMesh(), fes->FEColl(), 1);
-      dbg("new SerialAdvectorCGOper");
       oper = new SerialAdvectorCGOper(nodes0, u, *fess, al);
    }
 #ifdef MFEM_USE_MPI
@@ -89,11 +88,9 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
 #endif
    MFEM_VERIFY(oper != NULL,
                "No FE space has been given to the AdaptivityEvaluator.");
-   dbg("ode_solver.Init(");
    ode_solver.Init(*oper);
 
    // Compute some time step [mesh_size / speed].
-   dbg("h_min");
    double h_min = std::numeric_limits<double>::infinity();
    for (int i = 0; i < m->GetNE(); i++)
    {
@@ -102,7 +99,6 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
    double v_max = 0.0;
    const int s = new_field.Size();
 
-   dbg("u.HostReadWrite");
    u.HostReadWrite();
    for (int i = 0; i < s; i++)
    {

@@ -69,7 +69,7 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    int quad_type         = 1;
    int quad_order        = 2;
    int newton_iter       = 10;
-   double newton_rtol    = 1e-8;
+   double newton_rtol    = 1e-10;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    double lim_const      = 0.0;
@@ -691,7 +691,7 @@ static void tmop_tests(int id)
    Launch(Launch::Args("Cube + Discrete size & aspect + norm. + limiting").
           MESH("cube.mesh").
           NORMALIZATION(true).LIMITING(M_PI).
-          POR({1,2}).QOR({2,4}).
+          POR({1,2}).QOR({4,2}).
           TID({7}).MID({302,321})).Run(id);
 
    Launch(Launch::Args("Toroid-Hex").

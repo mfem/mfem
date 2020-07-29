@@ -13,6 +13,10 @@
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
 
+#include "restriction.hpp"
+#include "tmop_pa.hpp"
+#include "../linalg/kernels.hpp"
+
 #define MFEM_DEBUG_COLOR 231
 #include "../general/debug.hpp"
 
@@ -74,7 +78,6 @@ static void PAConvectionSetup3D(const int Q1D,
    const auto W = Reshape(w.Read(), Q1D,Q1D,Q1D);
    const auto J = Reshape(j.Read(), Q1D,Q1D,Q1D,3,3,NE);
    const bool const_v = vel.Size() == 3;
-   dbg("coeff.Read");
    const auto V = const_v ?
                   Reshape(vel.Read(), 3,1,1,1,1) :
                   Reshape(vel.Read(), 3,Q1D,Q1D,Q1D,NE);
@@ -776,6 +779,107 @@ void SmemPAConvectionApply3D(const int ne,
    });
 }
 
+template<int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0> static
+void QEvalVGF2D(const int NE, const double *b_, const double *x_, double *y_,
+                const int vdim = 1, const int d1d = 0, const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   const int VDIM = T_VDIM ? T_VDIM : vdim;
+
+   const auto b = Reshape(b_, Q1D, D1D);
+   const auto X = Reshape(x_, D1D, D1D, VDIM, NE);
+   auto C = Reshape(y_, VDIM, Q1D, Q1D, NE);
+
+   MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
+   {
+      constexpr int NBZ = 1;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
+      constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
+
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      const int VDIM = T_VDIM ? T_VDIM : vdim;
+
+      MFEM_SHARED double B[MQ1*MD1];
+      mfem::kernels::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
+
+      MFEM_SHARED double DD[NBZ][MD1*MD1];
+      MFEM_SHARED double DQ[NBZ][MD1*MQ1];
+      MFEM_SHARED double QQ[NBZ][MQ1*MQ1];
+
+      for (int c = 0; c < VDIM; c++)
+      {
+         mfem::kernels::LoadXS<MD1,NBZ>(e,D1D,c,X,DD);
+         mfem::kernels::EvalXS<MD1,MQ1,NBZ>(D1D,Q1D,B,DD,DQ);
+         mfem::kernels::EvalYS<MD1,MQ1,NBZ>(D1D,Q1D,B,DQ,QQ);
+
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
+            {
+               double G;
+               mfem::kernels::PullEvalXYS<MQ1,NBZ>(qx,qy,QQ,G);
+               C(c,qx,qy,e) = G;
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
+   });
+}
+
+template<int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0> static
+void QEvalVGF3D(const int NE, const double *b_, const double *x_, double *y_,
+                const int vdim = 1, const int d1d = 0, const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   const int VDIM = T_VDIM ? T_VDIM : vdim;
+
+   const auto b = Reshape(b_, Q1D, D1D);
+   const auto X = Reshape(x_, D1D, D1D, D1D, VDIM, NE);
+   auto C = Reshape(y_, VDIM, Q1D, Q1D, Q1D, NE);
+
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      const int VDIM = T_VDIM ? T_VDIM : vdim;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
+      constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
+
+      MFEM_SHARED double B[MQ1*MD1];
+      mfem::kernels::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
+
+      MFEM_SHARED double DDD[MD1*MD1*MD1];
+      MFEM_SHARED double DDQ[MD1*MD1*MQ1];
+      MFEM_SHARED double DQQ[MD1*MQ1*MQ1];
+      MFEM_SHARED double QQQ[MQ1*MQ1*MQ1];
+
+      for (int c = 0; c < VDIM; c++)
+      {
+         mfem::kernels::LoadXS<MD1>(e,D1D,c,X,DDD);
+         mfem::kernels::EvalXS<MD1,MQ1>(D1D,Q1D,B,DDD,DDQ);
+         mfem::kernels::EvalYS<MD1,MQ1>(D1D,Q1D,B,DDQ,DQQ);
+         mfem::kernels::EvalZS<MD1,MQ1>(D1D,Q1D,B,DQQ,QQQ);
+
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
+            {
+               MFEM_FOREACH_THREAD(qz,z,Q1D)
+               {
+                  double G;
+                  mfem::kernels::PullEvalXYZS<MQ1>(qx,qy,qz,QQQ,G);
+                  C(c,qx,qy,qz,e) = G;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
+   });
+}
+
 void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    // Assumes tensor-product elements
@@ -795,13 +899,100 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    quad1D = maps->nqpt;
    pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
    Vector vel;
-   if (VectorConstantCoefficient *cQ = dynamic_cast<VectorConstantCoefficient*>(Q))
+   if (VectorConstantCoefficient *cQ =
+          dynamic_cast<VectorConstantCoefficient*>(Q))
    {
       vel = cQ->GetVec();
    }
+   else if (VectorGridFunctionCoefficient *vgfQ =
+               dynamic_cast<VectorGridFunctionCoefficient*>(Q))
+   {
+      Vector xe;
+      vel.SetSize(dim * nq * ne);
+
+      const GridFunction *gf = vgfQ->GetGridFunction();
+      const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+      const FiniteElementSpace &gf_fes = *gf->FESpace();
+
+      const int vdim = gf_fes.GetVDim();
+      const Operator *R = gf_fes.GetElementRestriction(ordering);
+      const FiniteElement &el_gf = *gf_fes.GetFE(0);
+      const DofToQuad *maps_gf = &el_gf.GetDofToQuad(*ir, mode);
+      const int D1D = maps_gf->ndof;
+      const int Q1D = maps_gf->nqpt;
+
+      MFEM_VERIFY(R,"");
+      MFEM_VERIFY(vdim == dim, "");
+      MFEM_VERIFY(dim==2 || dim==3,"");
+
+      xe.SetSize(R->Height(), Device::GetMemoryType());
+      xe.UseDevice(true);
+      R->Mult(*gf, xe);
+
+      const auto B = maps_gf->B.Read();
+      const auto x = xe.Read();
+      auto y = vel.Write();
+
+      const int id = (D1D << 4 ) | Q1D;
+      if (dim == 2)
+      {
+         switch (id)
+         {
+            case 0x22: QEvalVGF2D<2,2,2>(ne,B,x,y); break;
+            default:
+            {
+               constexpr int MAX_DQ = 8;
+               MFEM_VERIFY(D1D <= MAX_DQ, "");
+               MFEM_VERIFY(Q1D <= MAX_DQ, "");
+               printf("\033[7mdim:%d, 0x%x",dim, id); fflush(0);
+               QEvalVGF2D<0,0,0,MAX_DQ>(ne,B,x,y,D1D,Q1D);
+               MFEM_ABORT("");
+            }
+         }
+      }
+      if (dim == 3)
+      {
+         switch (id)
+         {
+            case 0x23: QEvalVGF3D<3,2,3>(ne,B,x,y); break;
+            case 0x34: QEvalVGF3D<3,3,4>(ne,B,x,y); break;
+            //case 0x48: QEvalVGF3D<3,4,8>(ne,B,x,y); break;
+            default:
+            {
+               constexpr int MAX_DQ = 6;
+               MFEM_VERIFY(D1D <= MAX_DQ, "");
+               MFEM_VERIFY(Q1D <= MAX_DQ, "");
+               printf("\033[7mdim:%d, 0x%x",dim, id); fflush(0);
+               QEvalVGF3D<0,0,0,MAX_DQ>(ne,B,x,y,vdim,D1D,Q1D);
+               MFEM_ABORT("");
+            }
+         }
+      }
+      Vector vel2(dim * nq * ne);
+      auto C = Reshape(vel2.HostWrite(), vdim, nq, ne);
+      Vector Vq(vdim);
+      for (int e = 0; e < ne; ++e)
+      {
+         ElementTransformation& T = *fes.GetElementTransformation(e);
+         for (int q = 0; q < nq; ++q)
+         {
+            Q->Eval(Vq, T, ir->IntPoint(q));
+            for (int i = 0; i < vdim; ++i)
+            {
+               C(i,q,e) = Vq(i);
+            }
+         }
+      }
+      const bool ok = fabs(vel*vel - vel2*vel2) < 1e-12;
+      if (!ok)
+      {
+         dbg("D1D:%d, Q1D:%d", D1D, Q1D);
+         dbg("%.12e %.12e",vel*vel, vel2*vel2);
+      }
+      MFEM_VERIFY(ok,"");
+   }
    else
    {
-      dbg();
       vel.SetSize(dim * nq * ne);
       auto C = Reshape(vel.HostWrite(), dim, nq, ne);
       Vector Vq(dim);
