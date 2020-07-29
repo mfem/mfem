@@ -835,13 +835,13 @@ int main(int argc, char *argv[])
    {
       case 1:
          ode_err_msr = (etaVec.Size() == 0) ?
-                       new MaxAbsRelDiffMeasure(etaScl) :
-                       new MaxAbsRelDiffMeasure(etaVec);
+                       new ParMaxAbsRelDiffMeasure(MPI_COMM_WORLD, etaScl) :
+                       new ParMaxAbsRelDiffMeasure(MPI_COMM_WORLD, etaVec);
          break;
       case 2:
          ode_err_msr = (etaVec.Size() == 0) ?
-                       new L2AbsRelDiffMeasure(etaScl) :
-                       new L2AbsRelDiffMeasure(etaVec);
+                       new ParL2AbsRelDiffMeasure(MPI_COMM_WORLD, etaScl) :
+                       new ParL2AbsRelDiffMeasure(MPI_COMM_WORLD, etaVec);
          break;
       default:
          cout << "Unknown difference measure type: " << ode_msr_type << '\n';
@@ -1411,6 +1411,7 @@ int main(int argc, char *argv[])
       {
          T1.GridFunction::ComputeElementL2Errors(TCoef, errorT);
          ExactT.ProjectCoefficient(TCoef);
+         ExactT.ExchangeFaceNbrData();
 
          ostringstream ossT, ossX, ossE;
          ossT << "Temperature (t = " << t << ")";

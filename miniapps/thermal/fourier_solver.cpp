@@ -158,6 +158,7 @@ const char * AdvectionDiffusionBC::GetBCTypeName(BCType bctype)
       case NEUMANN_BC: return "Neumann";
       case ROBIN_BC: return "Robin";
    }
+   return "Unknown";
 }
 
 void AdvectionDiffusionBC::ReadAttr(std::istream &input,
@@ -1321,6 +1322,12 @@ void DGAdvectionDiffusionTDO::Update()
 void
 DGAdvectionDiffusionTDO::ADPrec::SetOperator(const Operator &op)
 {
+   if (mpi_.Root() && logging_)
+   {
+      cout << "ADPrec::SetOperator"
+           << endl;
+   }
+
    height = width = op.Height();
 
    delete prec_;
@@ -1768,7 +1775,17 @@ void DGAdvectionDiffusionTDO::NLOperator::Mult(const Vector &k_tdof,
       }
    }
 
-   rLF_.ParallelAssemble(r_tdof);
+   cout << mpi_.WorldRank() << ": size of r " << r_tdof.Size() << endl;
+   cout << mpi_.WorldRank() << ": size of rLF_" << rLF_.Size() << endl;
+
+   if (h1_)
+   {
+      rLF_.ParallelAssemble(r_tdof);
+   }
+   else
+   {
+      r_tdof = rLF_;
+   }
    /*
    kGF_.MakeRef(&fes_, prev_k);
    if (prev_k != NULL)
