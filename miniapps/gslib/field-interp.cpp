@@ -207,14 +207,13 @@ int main (int argc, char *argv[])
    }
    else // H(div) or H(curl)
    {
-      int i;
       Array<int> vdofs;
       Vector vals;
       const int nsp = func_target.FESpace()->GetFE(0)->GetNodes().GetNPoints(),
                 NE  = mesh_2.GetNE();
       Vector elem_dof_vals(nsp*dim);
 
-      for (i = 0; i < mesh_2.GetNE(); i++)
+      for (int i = 0; i < mesh_2.GetNE(); i++)
       {
          fes->GetElementVDofs(i, vdofs);
          vals.SetSize(vdofs.Size());
@@ -226,9 +225,9 @@ int main (int argc, char *argv[])
                elem_dof_vals(j*ncomp+d) = interp_vals(d*nsp*NE + i*nsp + j);
             }
          }
-         fes->GetFE(i)->ProjectFromElementNodes(elem_dof_vals,
-                                                *fes->GetElementTransformation(i),
-                                                vals);
+         fes->GetFE(i)->ProjectFromNodes(elem_dof_vals,
+                                         *fes->GetElementTransformation(i),
+                                         vals);
          func_target.SetSubVector(vdofs, vals);
       }
    }

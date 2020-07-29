@@ -31,7 +31,7 @@ namespace mfem
 FindPointsGSLIB::FindPointsGSLIB()
    : mesh(NULL), meshsplit(NULL), ir_simplex(NULL), fdata2D(NULL), fdata3D(NULL),
      dim(-1), points_cnt(0), setupflag(false), cr(NULL), gsl_comm(NULL),
-     avgtype(mfem::GridFunction::ARITHMETIC)
+     avgtype(GridFunction::ARITHMETIC)
 {
    gsl_comm = new comm;
    cr       = new crystal;
@@ -59,7 +59,7 @@ FindPointsGSLIB::~FindPointsGSLIB()
 FindPointsGSLIB::FindPointsGSLIB(MPI_Comm _comm)
    : mesh(NULL), meshsplit(NULL), ir_simplex(NULL), fdata2D(NULL), fdata3D(NULL),
      dim(-1), points_cnt(0), setupflag(false), cr(NULL), gsl_comm(NULL),
-     avgtype(mfem::GridFunction::ARITHMETIC)
+     avgtype(GridFunction::ARITHMETIC)
 {
    gsl_comm = new comm;
    cr      = new crystal;
@@ -563,58 +563,67 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
 void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
                                   Vector &field_out)
 {
-   const char *gf_name   = field_in.FESpace()->FEColl()->Name();
    const int  gf_order   = field_in.FESpace()->GetFE(0)->GetOrder(),
               mesh_order = mesh->GetNodalFESpace()->GetFE(0)->GetOrder();
 
-   if ( strncmp(gf_name, "H1", 2) == 0 && gf_order == mesh_order )
+   const FiniteElementCollection *fec_in =  field_in.FESpace()->FEColl();
+   const H1_FECollection *fec_h1 = dynamic_cast<const H1_FECollection *>(fec_in);
+   const L2_FECollection *fec_l2 = dynamic_cast<const L2_FECollection *>(fec_in);
+   const ND_FECollection *fec_nd = dynamic_cast<const ND_FECollection *>(fec_in);
+   const RT_FECollection *fec_rt = dynamic_cast<const RT_FECollection *>(fec_in);
+
+   if (fec_h1 && gf_order == mesh_order)
    {
       InterpolateH1(field_in, field_out);
       return;
    }
-   else
+   else if (fec_l2 || fec_nd || fec_rt)
    {
       InterpolateGeneral(field_in, field_out);
-      if (strncmp(gf_name, "L2", 2) != 0) { return; }
+      if (!fec_l2) { return; }
+   }
+   else
+   {
+      MFEM_ABORT("GridFunction type not yet supported by FindPointsGSLIB.")
    }
 
-   if (strncmp(gf_name, "L2", 2) == 0)
-      // For points on element borders, project the L2 GridFunction to H1 and
-      // re-interpolate.
+   // For points on element borders, project the L2 GridFunction to H1 and
+   // re-interpolate.
+   if (fec_l2)
    {
       Array<int> indl2;
       for (int i = 0; i < points_cnt; i++)
       {
          if (gsl_code[i] == 1) { indl2.Append(i); }
       }
-      Vector field_outl2 = field_out;
+      Vector field_out_l2(field_out.Size());
 
-      VectorGridFunctionCoefficient dg_field_in(&field_in);
-      H1_FECollection fecl2(gf_order, dim);
+      VectorGridFunctionCoefficient field_in_dg(&field_in);
+      H1_FECollection fec(gf_order, dim);
       const int ncomp = field_in.FESpace()->GetVDim();
-      FiniteElementSpace fesl2(mesh, &fecl2, ncomp);
-      GridFunction h1_gf(&fesl2);
+      FiniteElementSpace fes(mesh, &fec, ncomp);
+      GridFunction field_in_h1(&fes);
 
-      if (avgtype == mfem::GridFunction::AvgType::ARITHMETIC)
+      if (avgtype == GridFunction::AvgType::ARITHMETIC)
       {
-         h1_gf.ProjectDiscCoefficient(dg_field_in, mfem::GridFunction::ARITHMETIC);
+         field_in_h1.ProjectDiscCoefficient(field_in_dg, GridFunction::ARITHMETIC);
       }
-      else if (avgtype == mfem::GridFunction::AvgType::HARMONIC)
+      else if (avgtype == GridFunction::AvgType::HARMONIC)
       {
-         h1_gf.ProjectDiscCoefficient(dg_field_in, mfem::GridFunction::HARMONIC);
+         field_in_h1.ProjectDiscCoefficient(field_in_dg, GridFunction::HARMONIC);
       }
       else
       {
-         MFEM_ABORT(" Invalid averaging type.");
+         MFEM_ABORT("Invalid averaging type.");
       }
 
       if (gf_order == mesh_order)
       {
-         InterpolateH1(h1_gf, field_outl2);
+         InterpolateH1(field_in_h1, field_out_l2);
       }
       else
       {
-         InterpolateGeneral(h1_gf, field_outl2);
+         InterpolateGeneral(field_in_h1, field_out_l2);
       }
 
       // Copy interpolated values for the points on element border
@@ -623,7 +632,7 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
          for (int i = 0; i < indl2.Size(); i++)
          {
             int idx = indl2[i] + j*points_cnt;
-            field_out(idx) = field_outl2(idx);
+            field_out(idx) = field_out_l2(idx);
          }
       }
    }
@@ -677,8 +686,11 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
        nptorig = points_cnt,
        npt     = points_cnt;
 
-   const char *gf_name   = field_in.FESpace()->FEColl()->Name();
-   if ( strncmp(gf_name, "RT", 2) == 0 || strncmp(gf_name, "ND", 2) == 0 )
+   const FiniteElementCollection *fec_in =  field_in.FESpace()->FEColl();
+   const RT_FECollection *fec_rt = dynamic_cast<const RT_FECollection *>(fec_in);
+   const ND_FECollection *fec_nd = dynamic_cast<const ND_FECollection *>(fec_in);
+
+   if ( fec_rt || fec_nd )
    {
       ncomp = field_in.VectorDim();
    }

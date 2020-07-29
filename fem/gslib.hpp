@@ -56,6 +56,8 @@ protected:
    struct crystal *cr;
    struct comm *gsl_comm;
 
+   GridFunction::AvgType avgtype;
+
    /// Get GridFunction from MFEM format to GSLIB format
    void GetNodeValues(const GridFunction &gf_in, Vector &node_vals);
    /// Get nodal coordinates from mesh to the format expected by GSLIB for quads
@@ -84,8 +86,6 @@ public:
 #endif
 
    ~FindPointsGSLIB();
-
-   GridFunction::AvgType avgtype;
 
    /** Initializes the internal mesh in gslib, by sending the positions of the
        Gauss-Lobatto nodes of the input Mesh object @a m.
