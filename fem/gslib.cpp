@@ -589,8 +589,7 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
       }
       Vector field_outl2 = field_out;
 
-      VectorGridFunctionCoefficient dg_field_in(const_cast<GridFunction *>
-                                                (&field_in));
+      VectorGridFunctionCoefficient dg_field_in(&field_in);
       H1_FECollection fecl2(gf_order, dim);
       const int ncomp = field_in.FESpace()->GetVDim();
       FiniteElementSpace fesl2(mesh, &fecl2, ncomp);
