@@ -11,13 +11,8 @@
 //               mpirun -np 4 ex25p -o 2 -f 2.0 -rs 1 -rp 1 -prob 4 -m ../data/inline-hex.mesh
 //
 // Device sample runs:
-// TODO: device "cuda" not tested yet
-//               mpirun -np 4 ex25p -o 2 -f 1.0 -rs 1 -rp 1 -prob 0 -pa -d cuda
-//               mpirun -np 4 ex25p -o 3 -f 5.0 -rs 3 -rp 1 -prob 2 -pa -d cuda
+//               mpirun -np 4 ex25p -o 1 -f 3.0 -rs 3 -rp 1 -prob 2 -pa -d cuda
 //               mpirun -np 4 ex25p -o 2 -f 1.0 -rs 1 -rp 1 -prob 3 -pa -d cuda
-//               mpirun -np 4 ex25p -o 2 -f 1.0 -rs 2 -rp 2 -prob 0 -m ../data/beam-quad.mesh -pa -d cuda
-//               mpirun -np 4 ex25p -o 2 -f 8.0 -rs 2 -rp 2 -prob 4 -m ../data/inline-quad.mesh -pa -d cuda
-//               mpirun -np 4 ex25p -o 2 -f 2.0 -rs 1 -rp 1 -prob 4 -m ../data/inline-hex.mesh -pa -d cuda
 //
 // Description:  This example code solves a simple electromagnetic wave
 //               propagation problem corresponding to the second order
@@ -433,14 +428,13 @@ int main(int argc, char *argv[])
    a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_c2_Re),
                          new VectorFEMassIntegrator(restr_c2_Im));
 
-#ifndef MFEM_USE_SUPERLU
-   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-#endif
-
    // 15. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, etc.
+#ifndef MFEM_USE_SUPERLU
+   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+#endif
    a.Assemble();
 
    OperatorPtr Ah;
@@ -516,27 +510,21 @@ int main(int argc, char *argv[])
          OperatorPtr PCOpAh;
          prec.FormSystemMatrix(ess_tdof_list, PCOpAh);
 
-         // Jacobi Smoother (testing only)
-         HypreDiagScale *d00 = new HypreDiagScale(*PCOpAh.As<HypreParMatrix>());
-         ScaledOperator *d11 = new ScaledOperator(d00, s);
-         pc_r = d00;
-         pc_i = d11;
-
          // Hypre AMS
-         //HypreAMS *ams00 = new HypreAMS(*PCOpAh.As<HypreParMatrix>(), fespace);
-         //ScaledOperator *ams11 = new ScaledOperator(ams00, s);
-         //pc_r = ams00;
-         //pc_i = ams11;
+         HypreAMS *ams00 = new HypreAMS(*PCOpAh.As<HypreParMatrix>(), fespace);
+         ScaledOperator *ams11 = new ScaledOperator(ams00, s);
+         pc_r = ams00;
+         pc_i = ams11;
       }
 
       BlockDiagonalPreconditioner BlockDP(offsets);
-      BlockDP.SetDiagonalBlock(0,pc_r);
-      BlockDP.SetDiagonalBlock(1,pc_i);
+      BlockDP.SetDiagonalBlock(0, pc_r);
+      BlockDP.SetDiagonalBlock(1, pc_i);
 
       GMRESSolver gmres(MPI_COMM_WORLD);
       gmres.SetPrintLevel(1);
       gmres.SetKDim(200);
-      gmres.SetMaxIter(2000);
+      gmres.SetMaxIter(pa ? 5000 : 2000);
       gmres.SetRelTol(1e-5);
       gmres.SetAbsTol(0.0);
       gmres.SetOperator(*Ah);
