@@ -63,6 +63,7 @@
 
 #ifdef MFEM_USE_FMS
 #include "fmsconvert.hpp"
+#include "fmsdatacollection.hpp"
 #endif
 
 #endif

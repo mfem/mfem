@@ -117,8 +117,8 @@ if (MFEM_USE_ADIOS2)
 endif()
 
 if (MFEM_USE_FMS)
-  list(APPEND SRCS fmsconvert.cpp)
-  list(APPEND HDRS fmsconvert.hpp)
+  list(APPEND SRCS fmsdatacollection.cpp fmsconvert.cpp)
+  list(APPEND HDRS fmsdatacollection.hpp fmsconvert.hpp)
 endif()
 
 if (MFEM_USE_MPI)
