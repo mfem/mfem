@@ -18,7 +18,7 @@ Phi = Pi/3.0;
 nazm = 3;
 
 // Number of elements around a quarter of the circle
-narc = 2;
+narc = 4;
 
 lc = 0.5;
 
