@@ -935,7 +935,6 @@ void GridFunction::GetVectorValue(ElementTransformation &T,
    int dof = fe->GetDof();
    Vector loc_data;
    GetSubVector(vdofs, loc_data);
-
    if (fe->GetRangeType() == FiniteElement::SCALAR)
    {
       Vector shape(dof);
