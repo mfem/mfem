@@ -21,6 +21,10 @@ Vertex::Vertex (double *xx, int dim)
    {
       coord[i] = xx[i];
    }
+   for (int i = dim; i < 3; i++)
+   {
+      coord[i] = 0.0;
+   }
 }
 
 }
