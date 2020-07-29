@@ -13,6 +13,9 @@
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
+#include "../general/forall.hpp"
+#define MFEM_DEBUG_COLOR 214
+#include "../general/debug.hpp"
 
 namespace mfem
 {
@@ -1102,19 +1105,34 @@ void DiscreteAdaptTC::SetDiscreteTargetBase(const GridFunction &tspec_)
    // make a copy of tspec->tspec_temp, increase its size, and
    // copy data from tspec_temp -> tspec, then add new entries
    Vector tspec_temp = tspec;
-   //tspec.UseDevice(true);
-   //tspec_sav.UseDevice(true);
+   tspec.UseDevice(true);
+   tspec_sav.UseDevice(true);
    tspec.SetSize(ncomp*dof_cnt);
 
+#if 0
    for (int i = 0; i < tspec_temp.Size(); i++)
    {
       tspec(i) = tspec_temp(i);
    }
+#else
+   const auto tspec_temp_d = tspec_temp.Read();
+   auto tspec_d = tspec.ReadWrite();
+   MFEM_FORALL(i, tspec_temp.Size(), tspec_d[i] = tspec_temp_d[i];);
+#endif
 
+#if 0
+   tspec.HostReadWrite();
    for (int i = 0; i < dof_cnt*vdim; i++)
    {
       tspec(i+(ncomp-vdim)*dof_cnt) = tspec_(i);
    }
+#else
+   const int Nc = dof_cnt*vdim;
+   const auto tspec__d = tspec_.Read();
+   const int offset = (ncomp-vdim)*dof_cnt;
+   MFEM_FORALL(i, Nc, tspec_d[i+offset] = tspec__d[i];);
+   //tspec.HostReadWrite();
+#endif
 }
 
 void DiscreteAdaptTC::SetTspecAtIndex(int idx, const GridFunction &tspec_)

@@ -398,7 +398,7 @@ public:
    void Alloc(Memory &base) { CuMemAlloc(&base.d_ptr, base.bytes); }
    void Dealloc(Memory &base) { CuMemFree(base.d_ptr); }
    void *HtoD(void *dst, const void *src, size_t bytes)
-   { return CuMemcpyHtoD(dst, src, bytes); }
+   { dbg("0x%x",bytes); return CuMemcpyHtoD(dst, src, bytes); }
    void *DtoD(void* dst, const void* src, size_t bytes)
    { return CuMemcpyDtoD(dst, src, bytes); }
    void *DtoH(void *dst, const void *src, size_t bytes)
@@ -456,7 +456,13 @@ public:
    void AliasUnprotect(const void *ptr, size_t bytes)
    { MmuAllow(MmuAddrP(ptr), MmuLengthP(ptr, bytes)); }
    void *HtoD(void *dst, const void *src, size_t bytes)
-   { dbg("0x%x",bytes); return std::memcpy(dst, src, bytes); }
+   {
+      if (bytes >= 0xc0000)
+      {
+         dbg("0x%x",bytes);
+      }
+      return std::memcpy(dst, src, bytes);
+   }
    void *DtoD(void *dst, const void *src, size_t bytes)
    { return std::memcpy(dst, src, bytes); }
    void *DtoH(void *dst, const void *src, size_t bytes)
