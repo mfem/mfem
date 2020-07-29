@@ -11,7 +11,6 @@
 //               ex25 -o 2 -f 2.0 -ref 1 -prob 4 -m ../data/inline-hex.mesh
 //
 // Device sample runs:
-// TODO: PA is working but device "cuda" is not tested yet
 //               ex25 -o 2 -f 8.0 -ref 3 -prob 4 -m ../data/inline-quad.mesh -pa -d cuda
 //               ex25 -o 2 -f 2.0 -ref 1 -prob 4 -m ../data/inline-hex.mesh -pa -d cuda
 //
@@ -480,17 +479,11 @@ int main(int argc, char *argv[])
          prec.SetDiagonalPolicy(mfem::Operator::DIAG_ONE);
          prec.FormSystemMatrix(ess_tdof_list, PCOpAh);
 
-         // Jacobi Smoother (testing only)
-         DSmoother *d00 = new DSmoother(*PCOpAh.As<SparseMatrix>());
-         ScaledOperator *d11 = new ScaledOperator(d00, s);
-         pc_r = d00;
-         pc_i = d11;
-
          // Gauss-Seidel Smoother
-         //         GSSmoother *gs00 = new GSSmoother(*PCOpAh.As<SparseMatrix>());
-         //         ScaledOperator *gs11 = new ScaledOperator(gs00, s);
-         //         pc_r = gs00;
-         //         pc_i = gs11;
+         GSSmoother *gs00 = new GSSmoother(*PCOpAh.As<SparseMatrix>());
+         ScaledOperator *gs11 = new ScaledOperator(gs00, s);
+         pc_r = gs00;
+         pc_i = gs11;
       }
 
       BlockDiagonalPreconditioner BlockDP(offsets);
