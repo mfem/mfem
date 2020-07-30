@@ -111,6 +111,12 @@ void BilinearFormIntegrator::AddMultTransposeMF(const Vector &, Vector &) const
                "   is not implemented for this class.");
 }
 
+void BilinearFormIntegrator::AssembleDiagonalMF(Vector &)
+{
+   mfem_error ("BilinearFormIntegrator::AssembleDiagonalMF(...)\n"
+               "   is not implemented for this class.");
+}
+
 void BilinearFormIntegrator::AssembleElementMatrix (
    const FiniteElement &el, ElementTransformation &Trans,
    DenseMatrix &elmat )

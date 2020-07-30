@@ -41,6 +41,20 @@ void MassIntegrator::AssembleMF(const FiniteElementSpace &fes)
    mfem_error("Not yet implemented");
 }
 
+void MassIntegrator::AssembleDiagonalMF(Vector &diag)
+{
+#ifdef MFEM_USE_CEED
+   if (DeviceCanUseCeed())
+   {
+      CeedAssembleDiagonal(ceedDataPtr, diag);
+   }
+   else
+#endif
+   {
+      mfem_error("Not yet implemented");
+   }
+}
+
 void MassIntegrator::AddMultMF(const Vector &x, Vector &y) const
 {
 #ifdef MFEM_USE_CEED
