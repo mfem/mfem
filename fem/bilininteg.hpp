@@ -108,6 +108,9 @@ public:
        called. */
    virtual void AddMultTransposeMF(const Vector &x, Vector &y) const;
 
+   /// Assemble diagonal and add it to Vector @a diag.
+   virtual void AssembleDiagonalMF(Vector &diag);
+
    virtual void AssembleEAInteriorFaces(const FiniteElementSpace &fes,
                                         Vector &ea_data_int,
                                         Vector &ea_data_ext);
@@ -1972,6 +1975,8 @@ public:
 
    virtual void AssembleDiagonalPA(Vector &diag);
 
+   virtual void AssembleDiagonalMF(Vector &diag);
+
    virtual void AddMultMF(const Vector&, Vector&) const;
 
    virtual void AddMultPA(const Vector&, Vector&) const;
@@ -2050,6 +2055,8 @@ public:
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
 
    virtual void AssembleDiagonalPA(Vector &diag);
+
+   virtual void AssembleDiagonalMF(Vector &diag);
 
    virtual void AddMultMF(const Vector&, Vector&) const;
 

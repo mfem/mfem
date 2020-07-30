@@ -67,7 +67,7 @@ void MFBilinearFormExtension::AssembleDiagonal(Vector &y) const
       localY = 0.0;
       for (int i = 0; i < iSz; ++i)
       {
-         integrators[i]->AssembleDiagonalPA(localY);
+         integrators[i]->AssembleDiagonalMF(localY);
       }
       const ElementRestriction* H1elem_restrict =
          dynamic_cast<const ElementRestriction*>(elem_restrict);
@@ -86,7 +86,7 @@ void MFBilinearFormExtension::AssembleDiagonal(Vector &y) const
       y = 0.0;
       for (int i = 0; i < iSz; ++i)
       {
-         integrators[i]->AssembleDiagonalPA(y);
+         integrators[i]->AssembleDiagonalMF(y);
       }
    }
 }
