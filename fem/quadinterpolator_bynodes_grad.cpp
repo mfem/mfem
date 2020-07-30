@@ -14,14 +14,11 @@
 #include "../linalg/dtensor.hpp"
 #include "../linalg/kernels.hpp"
 
-#define MFEM_DEBUG_COLOR 226
-#include "../general/debug.hpp"
-
 namespace mfem
 {
 
 template<int T_VDIM, int T_D1D, int T_Q1D,
-         int T_NBZ =1, int MAX_D1D = 0, int MAX_Q1D = 0>
+         int T_NBZ = 1, int MAX_D1D = 0, int MAX_Q1D = 0>
 static void GradByNodes2D(const int NE,
                           const double *b_,
                           const double *g_,
@@ -34,13 +31,13 @@ static void GradByNodes2D(const int NE,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    const int VDIM = T_VDIM ? T_VDIM : vdim;
+   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
 
    const auto b = Reshape(b_, Q1D, D1D);
    const auto g = Reshape(g_, Q1D, D1D);
    const auto x = Reshape(x_,  D1D, D1D, VDIM, NE);
    auto y = Reshape(y_, Q1D, Q1D, VDIM, 2, NE);
 
-   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -325,7 +322,6 @@ void QuadratureInterpolator::Derivatives<QVectorLayout::byNODES>(
       }
 
    }
-   dbg("0x%x",id);
    MFEM_ABORT("Kernel not supported yet");
 }
 

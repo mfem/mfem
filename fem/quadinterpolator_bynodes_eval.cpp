@@ -14,9 +14,6 @@
 #include "../linalg/dtensor.hpp"
 #include "../linalg/kernels.hpp"
 
-#define MFEM_DEBUG_COLOR 226
-#include "../general/debug.hpp"
-
 namespace mfem
 {
 
@@ -291,7 +288,6 @@ void QuadratureInterpolator::Values<QVectorLayout::byNODES>(
          }
       }
    }
-   dbg("0x%x",id);
    MFEM_ABORT("Kernel not supported yet");
 }
 

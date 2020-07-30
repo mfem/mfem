@@ -75,6 +75,19 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
       coeff = cQ->Data();
       own_coeff = false;
    }
+   else if (QuadratureFunctionCoefficient* cQ =
+               dynamic_cast<QuadratureFunctionCoefficient*>(Q))
+   {
+      const QuadratureFunction &qFun = cQ->GetQuadFunction();
+      MFEM_VERIFY(qFun.Size() == nq * ne,
+                  "Incompatible QuadratureFunction dimension \n");
+
+      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
+                  "IntegrationRule used within integrator and in"
+                  " QuadratureFunction appear to be different");
+      qFun.Read();
+      coeff.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
+   }
    else
    {
       coeff = new Vector;
@@ -455,8 +468,12 @@ static void PAMassAssembleDiagonal(const int dim, const int D1D,
       switch ((D1D << 4 ) | Q1D)
       {
          case 0x23: return SmemPAMassAssembleDiagonal3D<2,3>(NE,B,D,Y);
+         case 0x24: return SmemPAMassAssembleDiagonal3D<2,4>(NE,B,D,Y);
+         case 0x26: return SmemPAMassAssembleDiagonal3D<2,6>(NE,B,D,Y);
          case 0x34: return SmemPAMassAssembleDiagonal3D<3,4>(NE,B,D,Y);
+         case 0x35: return SmemPAMassAssembleDiagonal3D<3,5>(NE,B,D,Y);
          case 0x45: return SmemPAMassAssembleDiagonal3D<4,5>(NE,B,D,Y);
+         case 0x48: return SmemPAMassAssembleDiagonal3D<4,8>(NE,B,D,Y);
          case 0x56: return SmemPAMassAssembleDiagonal3D<5,6>(NE,B,D,Y);
          case 0x67: return SmemPAMassAssembleDiagonal3D<6,7>(NE,B,D,Y);
          case 0x78: return SmemPAMassAssembleDiagonal3D<7,8>(NE,B,D,Y);
