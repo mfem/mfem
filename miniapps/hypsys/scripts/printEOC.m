@@ -1,6 +1,6 @@
 function printEOC()
 
-filename = 'p1e1o4-seg.txt';
+filename = '../errors.txt';
 file = fopen(filename, 'r');
 data = zeros(0,3);
 while true

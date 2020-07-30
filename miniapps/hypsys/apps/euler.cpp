@@ -463,6 +463,7 @@ void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
 
          // Map to test case specific domain [0,4] x [0,1].
          X(0) = 4.0 * X(0);
+         t *= 2.0;
 
          bool PostShock = X(0) < 1.0/6.0 + (X(1) + 20.0*t) / sqrt(3.0);
 
@@ -533,11 +534,11 @@ void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
       {
          if (dim != 2) { MFEM_ABORT("Test case works only in 2D."); }
 
-         double pressure = 3. + 4.*log(2.);
+         double pressure = 3.0 + 4.0*log(2.0);
          double r = X.Norml2();
 
-         u = 0.;
-         u(0) = 1.;
+         u = 0.0;
+         u(0) = 1.0;
 
          if (r < 0.2)
          {

@@ -259,9 +259,9 @@ void AnalyticalSolutionSWE(const Vector &x, double t, Vector &u)
          X *= 50.;
          t *= 50.;
 
-         double M = 0.5;
-         double c1 = -0.04;
-         double c2 = 0.02;
+         double M = sqrt(2);
+         double c1 = -0.1;
+         double c2 = 0.005;
          double a = M_PI / 4.0;
          double x0 = 0.0;
          double y0 = 0.0;

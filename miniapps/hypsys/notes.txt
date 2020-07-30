@@ -11,7 +11,7 @@ TODO
       Pick a MoST gimmick problem - get rid of it in burgers, ...
 
    High Priority:
-      Discrepancy to results in paper :(
+      Discrepancy to results in paper :( - already in 1D low order method, Woodward-Colella breaks
       Cleanup
       Efficiency
 
@@ -26,11 +26,14 @@ TODO
    Desirable:
       -Euler: Implement subsonic in- and outflow.
       -Sedov setup
+      -Theoretically, double-mach requires a subsonic outlet at the short edge before wall boundaries
+      -Noh problem: zero verlocity part of bdr: wall, rest: supersonic outflow (east, north)
+         and supersonic inflow (south, east), i.e.  bdr type changes in time
       -Expression for momentum in narrowing channel
 
 
 next steps
-   -Pressure fix: Required for Woodward-Colella, HO double-mach, Sedov, Noh, (MoST)
+   -Pressure fix: Required for Woodward-Colella, double-mach, Sedov, Noh, (MoST)
 
 If possible: try to make advection with non-constant velocity and MCL work
 
