@@ -127,20 +127,20 @@ public:
 
 namespace detail
 {
-   template <typename T> struct deduce_type;
 
-   template <typename Treturn_type, typename Tclass_type, typename... Targs>
-   struct deduce_type<Treturn_type(Tclass_type::*)(Targs...) const>
-   {
-      using type = std::function<Treturn_type(Targs...)>;
-   };
+template <typename T> struct deduce_type;
 
-   template<typename T>
-   using deduce_type_t = typename deduce_type<T>::type;
+template <typename Treturn_type, typename Tclass_type, typename... Targs>
+struct deduce_type<Treturn_type(Tclass_type::*)(Targs...) const>
+{
+   using type = std::function<Treturn_type(Targs...)>;
+};
 
-   /// C++14 feature
-   template<bool Condition, typename T = void>
-   using enable_if_t = typename std::enable_if<Condition, T>::type;
+template<typename T>
+using deduce_type_t = typename deduce_type<T>::type;
+
+template<bool Condition, typename T = void>
+using enable_if_t = typename std::enable_if<Condition, T>::type;
 }
 
 /// A general C-function coefficient
@@ -159,7 +159,7 @@ public:
 
    /// Define a time-independent coefficient from a pointer to a C-function
    FunctionCoefficient(double (*F)(const Vector &))
-    : FunctionCoefficient((std::function<double(const Vector &)>)F)
+      : FunctionCoefficient((std::function<double(const Vector &)>)F)
    { }
 
    /// Define a time-independent coefficient from a lambda function
@@ -171,14 +171,14 @@ public:
    /// between the std::function and function pointer constructors when using
    /// a stateless lambda
    template<
-   typename lambda,
-   detail::enable_if_t<
-      std::is_same<
-         decltype(detail::deduce_type_t<decltype(&lambda::operator())>()),
-         std::function<double(const Vector &)>>::value, int> = 0>
+      typename lambda,
+      detail::enable_if_t<
+         std::is_same<
+            decltype(detail::deduce_type_t<decltype(&lambda::operator())>()),
+            std::function<double(const Vector &)>>::value, int> = 0>
    FunctionCoefficient(const lambda &F)
-    : FunctionCoefficient(
-       detail::deduce_type_t<decltype(&lambda::operator())>(F))
+      : FunctionCoefficient(
+           detail::deduce_type_t<decltype(&lambda::operator())>(F))
    { }
 
 
@@ -190,7 +190,7 @@ public:
 
    /// Define a time-dependent coefficient from a pointer to a C-function
    FunctionCoefficient(double (*TDF)(const Vector &, double))
-    : FunctionCoefficient((std::function<double(const Vector &, double)>)TDF)
+      : FunctionCoefficient((std::function<double(const Vector &, double)>)TDF)
    { }
 
    /// Define a time-dependent coefficient from a lambda function
@@ -202,14 +202,14 @@ public:
    /// ambiguity between the std::function and function pointer constructors
    /// when using a stateless lambda
    template<
-   typename lambda,
-   detail::enable_if_t<
-      std::is_same<
-         decltype(detail::deduce_type_t<decltype(&lambda::operator())>()),
-         std::function<double(const Vector &, double)>>::value, int> = 0>
+      typename lambda,
+      detail::enable_if_t<
+         std::is_same<
+            decltype(detail::deduce_type_t<decltype(&lambda::operator())>()),
+            std::function<double(const Vector &, double)>>::value, int> = 0>
    FunctionCoefficient(const lambda &TDF)
-    : FunctionCoefficient(
-       detail::deduce_type_t<decltype(&lambda::operator())>(TDF))
+      : FunctionCoefficient(
+           detail::deduce_type_t<decltype(&lambda::operator())>(TDF))
    { }
 
    /// (DEPRECATED) Define a time-independent coefficient from a C-function
@@ -494,10 +494,10 @@ public:
    VectorFunctionCoefficient(int dim,
                              void(*F)(const Vector &, Vector &),
                              Coefficient *q = nullptr)
-    : VectorFunctionCoefficient(dim,
-                               (std::function<void(const Vector &,
-                                                   Vector &)>) F,
-                               q)
+      : VectorFunctionCoefficient(dim,
+                                  (std::function<void(const Vector &,
+                                                      Vector &)>) F,
+                                  q)
    { }
 
    /// Define a time-independent coefficient from a lambda function
@@ -509,18 +509,18 @@ public:
    /// ambiguity between the std::function and function pointer constructors
    /// when using a stateless lambda
    template<
-   typename lambda,
-   detail::enable_if_t<
-      std::is_same<
-         decltype(detail::deduce_type_t<decltype(&lambda::operator())>()),
-         std::function<void(const Vector &, Vector &)>>::value, int> = 0>
+      typename lambda,
+      detail::enable_if_t<
+         std::is_same<
+            decltype(detail::deduce_type_t<decltype(&lambda::operator())>()),
+            std::function<void(const Vector &, Vector &)>>::value, int> = 0>
    VectorFunctionCoefficient(int dim,
                              const lambda &F,
                              Coefficient *q = nullptr)
-    : VectorFunctionCoefficient(
-       dim,
-       detail::deduce_type_t<decltype(&lambda::operator())>(F),
-       q)
+      : VectorFunctionCoefficient(
+           dim,
+           detail::deduce_type_t<decltype(&lambda::operator())>(F),
+           q)
    { }
 
    /// Construct a time-dependent vector coefficient from a std function
@@ -539,11 +539,11 @@ public:
    VectorFunctionCoefficient(int dim,
                              void(*TDF)(const Vector &, double, Vector &),
                              Coefficient *q = nullptr)
-    : VectorFunctionCoefficient(dim,
-                               (std::function<void(const Vector &,
-                                                   double,
-                                                   Vector &)>) TDF,
-                               q)
+      : VectorFunctionCoefficient(dim,
+                                  (std::function<void(const Vector &,
+                                                      double,
+                                                      Vector &)>) TDF,
+                                  q)
    { }
 
    /// Define a time-dependent coefficient from a lambda function
@@ -555,19 +555,19 @@ public:
    /// removes the ambiguity between the std::function and function pointer
    /// constructors when using a stateless lambda
    template<
-   typename lambda,
-   detail::enable_if_t<
-      std::is_same<
-         decltype(detail::deduce_type_t<decltype(&lambda::operator())>()),
-         std::function<void(const Vector &, double, Vector &)>>::value,
-      int> = 0>
+      typename lambda,
+      detail::enable_if_t<
+         std::is_same<
+            decltype(detail::deduce_type_t<decltype(&lambda::operator())>()),
+            std::function<void(const Vector &, double, Vector &)>>::value,
+         int> = 0>
    VectorFunctionCoefficient(int dim,
                              const lambda &TDF,
                              Coefficient *q = nullptr)
-    : VectorFunctionCoefficient(
-       dim,
-       detail::deduce_type_t<decltype(&lambda::operator())>(TDF),
-       q)
+      : VectorFunctionCoefficient(
+           dim,
+           detail::deduce_type_t<decltype(&lambda::operator())>(TDF),
+           q)
    { }
 
    using VectorCoefficient::Eval;
@@ -912,10 +912,10 @@ public:
    MatrixFunctionCoefficient(int dim,
                              void(*F)(const Vector &, DenseMatrix &),
                              Coefficient *q = nullptr)
-    : MatrixFunctionCoefficient(dim,
-                               (std::function<void(const Vector &,
-                                                   DenseMatrix &)>) F,
-                                q)
+      : MatrixFunctionCoefficient(dim,
+                                  (std::function<void(const Vector &,
+                                                      DenseMatrix &)>) F,
+                                  q)
    { }
 
    /// Define a time-independent coefficient from a lambda function
@@ -927,19 +927,19 @@ public:
    /// removes the ambiguity between the std::function and function pointer
    /// constructors when using a stateless lambda
    template<
-   typename lambda,
-   detail::enable_if_t<
-      std::is_same<
-         decltype(detail::deduce_type_t<decltype(&lambda::operator())>()),
-         std::function<void(const Vector &, DenseMatrix &)>>::value,
-      int> = 0>
+      typename lambda,
+      detail::enable_if_t<
+         std::is_same<
+            decltype(detail::deduce_type_t<decltype(&lambda::operator())>()),
+            std::function<void(const Vector &, DenseMatrix &)>>::value,
+         int> = 0>
    MatrixFunctionCoefficient(int dim,
                              const lambda &F,
                              Coefficient *q = nullptr)
-    : MatrixFunctionCoefficient(
-       dim,
-       detail::deduce_type_t<decltype(&lambda::operator())>(F),
-       q)
+      : MatrixFunctionCoefficient(
+           dim,
+           detail::deduce_type_t<decltype(&lambda::operator())>(F),
+           q)
    { }
 
    /// Construct a constant matrix coefficient times a scalar Coefficient
@@ -967,11 +967,11 @@ public:
    MatrixFunctionCoefficient(int dim,
                              void(*TDF)(const Vector &, double, DenseMatrix &),
                              Coefficient *q = nullptr)
-    : MatrixFunctionCoefficient(dim,
-                               (std::function<void(const Vector &,
-                                                   double,
-                                                   DenseMatrix &)>) TDF,
-                                q)
+      : MatrixFunctionCoefficient(dim,
+                                  (std::function<void(const Vector &,
+                                                      double,
+                                                      DenseMatrix &)>) TDF,
+                                  q)
    { }
 
    /// Define a time-dependent coefficient from a lambda function
@@ -983,19 +983,19 @@ public:
    /// removes the ambiguity between the std::function and function pointer
    /// constructors when using a stateless lambda
    template<
-   typename lambda,
-   detail::enable_if_t<
-      std::is_same<
-         decltype(detail::deduce_type_t<decltype(&lambda::operator())>()),
-         std::function<void(const Vector &, double, DenseMatrix &)>>::value,
-      int> = 0>
+      typename lambda,
+      detail::enable_if_t<
+         std::is_same<
+            decltype(detail::deduce_type_t<decltype(&lambda::operator())>()),
+            std::function<void(const Vector &, double, DenseMatrix &)>>::value,
+         int> = 0>
    MatrixFunctionCoefficient(int dim,
                              const lambda &TDF,
                              Coefficient *q = nullptr)
-    : MatrixFunctionCoefficient(
-       dim,
-       detail::deduce_type_t<decltype(&lambda::operator())>(TDF),
-       q)
+      : MatrixFunctionCoefficient(
+           dim,
+           detail::deduce_type_t<decltype(&lambda::operator())>(TDF),
+           q)
    { }
 
    /// Evaluate the matrix coefficient at @a ip.
