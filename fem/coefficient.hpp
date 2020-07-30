@@ -185,9 +185,8 @@ protected:
 public:
    /// Define a time-independent coefficient from a std function
    FunctionCoefficient(std::function<double(const Vector &)> F)
-   {
-      Function = F;
-   }
+      : Function(F)
+   { }
 
    /// Define a time-independent coefficient from a pointer to a C-function
    FunctionCoefficient(double (*F)(const Vector &))
@@ -216,9 +215,8 @@ public:
 
    /// Define a time-dependent coefficient from a std function
    FunctionCoefficient(std::function<double(const Vector &, double)> TDF)
-   {
-      TDFunction = TDF;
-   }
+      : TDFunction(TDF)
+   { }
 
    /// Construct time-independent coefficient that can be differentiated
    FunctionCoefficient(std::function<double(const Vector &)> F,
@@ -563,10 +561,8 @@ public:
    VectorFunctionCoefficient(int dim,
                              std::function<void(const Vector &, Vector &)> F,
                              Coefficient *q = nullptr)
-      : VectorCoefficient(dim), Q(q)
-   {
-      Function = F;
-   }
+      : VectorCoefficient(dim), Function(F), Q(q)
+   { }
 
    /// Construct a time-independent vector coefficient from a pointer to a
    /// C-function
@@ -608,10 +604,8 @@ public:
                                                 double,
                                                 Vector &)> TDF,
                              Coefficient *q = nullptr)
-      : VectorCoefficient(dim), Q(q)
-   {
-      TDFunction = TDF;
-   }
+      : VectorCoefficient(dim), TDFunction(TDF), Q(q)
+   { }
 
    /// Construct a time-dependent vector coefficient from a pointer to a
    /// C-function
@@ -1044,11 +1038,8 @@ public:
                              std::function<void(const Vector &,
                                                 DenseMatrix &)> F,
                              Coefficient *q = nullptr)
-      : MatrixCoefficient(dim), Q(q)
-   {
-      Function = F;
-      mat.SetSize(0);
-   }
+      : MatrixCoefficient(dim), Function(F), Q(q), mat(0)
+   { }
 
    /// Construct a square matrix coefficient from a pointer to a C-function
    /// without time dependence.
@@ -1087,10 +1078,8 @@ public:
 
    /// Construct a constant matrix coefficient times a scalar Coefficient
    MatrixFunctionCoefficient(const DenseMatrix &m, Coefficient &q)
-      : MatrixCoefficient(m.Height(), m.Width()), Q(&q)
-   {
-      mat = m;
-   }
+      : MatrixCoefficient(m.Height(), m.Width()), Q(&q), mat(m)
+   { }
 
    /// Construct a square matrix coefficient from a std function with
    /// time-dependence.
@@ -1099,11 +1088,8 @@ public:
                                                 double,
                                                 DenseMatrix &)> TDF,
                              Coefficient *q = nullptr)
-      : MatrixCoefficient(dim), Q(q)
-   {
-      TDFunction = TDF;
-      mat.SetSize(0);
-   }
+      : MatrixCoefficient(dim), TDFunction(TDF), Q(q), mat(0)
+   { }
 
    /// Construct a square matrix coefficient from a pointer to a C-function
    /// with time dependence.
