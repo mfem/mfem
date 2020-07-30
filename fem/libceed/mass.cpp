@@ -32,6 +32,19 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
    CeedPAAssemble(massOp, ceedData);
 }
 
+void CeedMFMassAssemble(const FiniteElementSpace &fes,
+                        const mfem::IntegrationRule &irm, CeedData& ceedData)
+{
+   CeedMFOperator massOp = {fes, irm,
+                            1, "/mass.h",
+                            ":f_apply_mass_mf_const", f_apply_mass_mf_const,
+                            ":f_apply_mass_mf_grid", f_apply_mass_mf_grid,
+                            CEED_EVAL_INTERP,
+                            CEED_EVAL_INTERP
+                           };
+   CeedMFAssemble(massOp, ceedData);
+}
+
 } // namespace mfem
 
 #endif // MFEM_USE_CEED

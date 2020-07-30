@@ -736,7 +736,7 @@ void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 #ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
-      CeedAssembleDiagonalPA(ceedDataPtr, diag);
+      CeedAssembleDiagonal(ceedDataPtr, diag);
    }
    else
 #endif
@@ -1700,7 +1700,7 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 #ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
-      CeedAddMultPA(ceedDataPtr, x, y);
+      CeedAddMult(ceedDataPtr, x, y);
    }
    else
 #endif

@@ -133,8 +133,7 @@ void BilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
          ext = new PABilinearFormExtension(this);
          break;
       case AssemblyLevel::NONE:
-         mfem_error("Matrix-free action not supported yet... stay tuned!");
-         // ext = new MFBilinearFormExtension(this);
+         ext = new MFBilinearFormExtension(this);
          break;
       default:
          mfem_error("Unknown assembly level");

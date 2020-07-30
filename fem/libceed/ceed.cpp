@@ -415,7 +415,104 @@ void CeedPAAssemble(const CeedPAOperator& op,
    CeedVectorCreate(ceed, fes.GetNDofs(), &ceedData.v);
 }
 
-void CeedAddMultPA(const CeedData *ceedDataPtr,
+void CeedMFAssemble(const CeedMFOperator& op,
+                    CeedData& ceedData)
+{
+   const FiniteElementSpace &fes = op.fes;
+   const mfem::IntegrationRule &irm = op.ir;
+   Ceed ceed(internal::ceed);
+   mfem::Mesh *mesh = fes.GetMesh();
+   CeedInt nqpts, nelem = mesh->GetNE();
+   CeedInt dim = mesh->SpaceDimension(), vdim = fes.GetVDim();
+
+   mesh->EnsureNodes();
+   InitCeedBasisAndRestriction(fes, irm, ceed, &ceedData.basis, &ceedData.restr);
+
+   const mfem::FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
+   MFEM_VERIFY(mesh_fes, "the Mesh has no nodal FE space");
+   InitCeedBasisAndRestriction(*mesh_fes, irm, ceed, &ceedData.mesh_basis,
+                               &ceedData.mesh_restr);
+
+   CeedBasisGetNumQuadraturePoints(ceedData.basis, &nqpts);
+
+   const int qdatasize = op.qdatasize;
+   CeedElemRestrictionCreateStrided(ceed, nelem, nqpts, qdatasize,
+                                    nelem*nqpts*qdatasize, CEED_STRIDES_BACKEND,
+                                    &ceedData.restr_i);
+
+   CeedVectorCreate(ceed, mesh->GetNodes()->Size(), &ceedData.node_coords);
+   CeedVectorSetArray(ceedData.node_coords, CEED_MEM_HOST, CEED_USE_POINTER,
+                      mesh->GetNodes()->GetData());
+
+   CeedVectorCreate(ceed, nelem * nqpts * qdatasize, &ceedData.rho);
+
+   // Context data to be passed to the 'f_build_diff' Q-function.
+   ceedData.build_ctx.dim = mesh->Dimension();
+   ceedData.build_ctx.space_dim = mesh->SpaceDimension();
+
+   std::string qf_file = GetCeedPath() + op.header;
+   std::string qf;
+
+   // Create the Q-function that builds the operator (i.e. computes its
+   // quadrature data) and set its context data.
+   CeedInt dimU = vdim*(op.trial_op==CEED_EVAL_GRAD ? dim : 1);
+   CeedInt dimV = vdim*(op.test_op==CEED_EVAL_GRAD ? dim : 1);
+   switch (ceedData.coeff_type)
+   {
+      case CeedCoeff::Const:
+         qf = qf_file + op.const_func;
+         CeedQFunctionCreateInterior(ceed, 1, op.const_qf,
+                                     qf.c_str(),
+                                     &ceedData.apply_qfunc);
+         ceedData.build_ctx.coeff = ((CeedConstCoeff*)ceedData.coeff)->val;
+         break;
+      case CeedCoeff::Grid:
+         qf = qf_file + op.grid_func;
+         CeedQFunctionCreateInterior(ceed, 1, op.grid_qf,
+                                     qf.c_str(),
+                                     &ceedData.apply_qfunc);
+         CeedQFunctionAddInput(ceedData.apply_qfunc, "coeff", 1, CEED_EVAL_INTERP);
+         break;
+      default:
+         MFEM_ABORT("This coeff_type is not handled");
+   }
+   CeedQFunctionAddInput(ceedData.apply_qfunc, "u", dimU, op.trial_op);
+   CeedQFunctionAddInput(ceedData.apply_qfunc, "dx", dim * dim, CEED_EVAL_GRAD);
+   CeedQFunctionAddInput(ceedData.apply_qfunc, "weights", 1, CEED_EVAL_WEIGHT);
+   CeedQFunctionAddOutput(ceedData.apply_qfunc, "v", dimV, op.test_op);
+   CeedQFunctionSetContext(ceedData.apply_qfunc, &ceedData.build_ctx,
+                           sizeof(ceedData.build_ctx));
+
+   // Create the operator.
+   CeedOperatorCreate(ceed, ceedData.apply_qfunc, NULL, NULL, &ceedData.oper);
+   CeedOperatorSetField(ceedData.oper, "u", ceedData.restr, ceedData.basis,
+                        CEED_VECTOR_ACTIVE);
+   if (ceedData.coeff_type==CeedCoeff::Grid)
+   {
+      CeedGridCoeff* ceedCoeff = (CeedGridCoeff*)ceedData.coeff;
+      InitCeedBasisAndRestriction(*ceedCoeff->coeff->FESpace(), irm, ceed,
+                                  &ceedCoeff->basis,
+                                  &ceedCoeff->restr);
+      CeedVectorCreate(ceed, ceedCoeff->coeff->FESpace()->GetNDofs(),
+                       &ceedCoeff->coeffVector);
+      CeedVectorSetArray(ceedCoeff->coeffVector, CEED_MEM_HOST, CEED_USE_POINTER,
+                         ceedCoeff->coeff->GetData());
+      CeedOperatorSetField(ceedData.
+      oper, "coeff", ceedCoeff->restr,
+                           ceedCoeff->basis, ceedCoeff->coeffVector);
+   }
+   CeedOperatorSetField(ceedData.oper, "dx", ceedData.mesh_restr,
+                        ceedData.mesh_basis, ceedData.node_coords);
+   CeedOperatorSetField(ceedData.oper, "weights", CEED_ELEMRESTRICTION_NONE,
+                        ceedData.mesh_basis, CEED_VECTOR_NONE);
+   CeedOperatorSetField(ceedData.oper, "v", ceedData.restr, ceedData.basis,
+                        CEED_VECTOR_ACTIVE);
+
+   CeedVectorCreate(ceed, fes.GetNDofs(), &ceedData.u);
+   CeedVectorCreate(ceed, fes.GetNDofs(), &ceedData.v);
+}
+
+void CeedAddMult(const CeedData *ceedDataPtr,
                    const Vector &x,
                    Vector &y)
 {
@@ -445,8 +542,8 @@ void CeedAddMultPA(const CeedData *ceedDataPtr,
    CeedVectorTakeArray(ceedDataPtr->v, mem, &y_ptr);
 }
 
-void CeedAssembleDiagonalPA(const CeedData *ceedDataPtr,
-                            Vector &diag)
+void CeedAssembleDiagonal(const CeedData *ceedDataPtr,
+                          Vector &diag)
 {
    CeedScalar *d_ptr;
    CeedMemType mem;
