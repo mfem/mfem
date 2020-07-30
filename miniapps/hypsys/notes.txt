@@ -6,6 +6,7 @@ DEBUG
 
 TODO
    Minor Tasks
+      Check if it is actually possible to make Gresho vortex converge to steady state (with galerkin first)
       Check apps/bl.cpp for correctness
       Pick a MoST gimmick problem - get rid of it in burgers, ...
 
@@ -29,7 +30,7 @@ TODO
 
 
 next steps
-   -Pressure fix
+   -Pressure fix: Required for Woodward-Colella, HO double-mach, Sedov, Noh, (MoST)
 
 If possible: try to make advection with non-constant velocity and MCL work
 

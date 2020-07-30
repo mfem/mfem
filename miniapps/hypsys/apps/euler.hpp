@@ -17,9 +17,10 @@ public:
    virtual double GetGMS(const Vector &uL, const Vector &uR, const Vector &normal) const override;
    virtual double GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
                                int i) const;
+   virtual void CheckAdmissibility(const Vector &u) const override;
    virtual void SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal,
                            int attr) const override;
-   virtual void ComputeDerivedQuantities(const Vector &u) const override;
+   virtual void ComputeDerivedQuantities(const GridFunction &u, GridFunction &d1, GridFunction &d2) const override;
    virtual void ComputeErrors(Array<double> &errors, const GridFunction &u,
                               double DomainSize, double t) const override;
 };

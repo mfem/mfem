@@ -22,12 +22,13 @@ Euler::Euler(FiniteElementSpace *fes_, BlockVector &u_block,
    {
       case 0:
       {
+         // Periodic meshes must be used for this problem.
          ProblemName = "Euler Equations of Gas dynamics - Smooth Vortex";
          glvis_scale = "on";
          SpHeatRatio = 1.4;
          SolutionKnown = true;
          SteadyState = false;
-         TimeDepBC = false; // Usage of periodic meshes is required.
+         TimeDepBC = false;
          ProjType = 0;
          L2_Projection(ic, u0);
          break;
@@ -105,7 +106,7 @@ Euler::Euler(FiniteElementSpace *fes_, BlockVector &u_block,
          Mesh *mesh = fes->GetMesh();
          const int nd = fes->GetFE(0)->GetDof();
          const int ne = fes->GetNE();
-         if (mesh->Dimension() != 2) { MFEM_ABORT("Test case is 2D."); }
+         if (mesh->Dimension() != 2) { MFEM_ABORT("Test case works only in 2D."); }
          u0 = 0.;
 
          for (int e = 0; e < ne; e++)
@@ -168,12 +169,12 @@ Euler::Euler(FiniteElementSpace *fes_, BlockVector &u_block,
 
 double Euler::EvaluatePressure(const Vector &u) const
 {
-   double aux = 0.;
-   for (int i = 0; i < dim; i++)
+   double aux = 0.0;
+   for (int l = 0; l < dim; l++)
    {
-      aux += u(1+i) * u(1+i);
+      aux += u(1+l) * u(1+l);
    }
-   double pressure = (SpHeatRatio - 1.) * (u(dim + 1) - 0.5 * aux / u(0));
+   double pressure = (SpHeatRatio - 1.0) * (u(dim+1) - 0.5 * aux / u(0));
    if (pressure < 0.)
    {
       ostringstream press_str;
@@ -187,21 +188,8 @@ double Euler::EvaluatePressure(const Vector &u) const
 void Euler::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
                          int e, int k, int i) const
 {
-   double RhoMin = 0.001;
-
-   if (u.Size() != NumEq)
-   {
-      MFEM_ABORT("Invalid solution vector.");
-   }
-   if (u(0) < RhoMin)
-   {
-      ostringstream rho_str;
-      rho_str << u(0);
-      string err_msg = "Density too small rho = ";
-      MFEM_ABORT(err_msg << rho_str.str());
-   }
-
    double pressure = EvaluatePressure(u);
+   CheckAdmissibility(u);
 
    switch (dim)
    {
@@ -267,6 +255,8 @@ void Euler::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
 
 double Euler::GetGMS(const Vector &uL, const Vector &uR, const Vector &normal) const
 {
+   CheckAdmissibility(uL);
+   CheckAdmissibility(uR);
    double pL = EvaluatePressure(uL);
    double pR = EvaluatePressure(uR);
    double aL = sqrt(SpHeatRatio * pL / uL(0));
@@ -284,18 +274,32 @@ double Euler::GetGMS(const Vector &uL, const Vector &uR, const Vector &normal) c
 double Euler::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
                            int i) const
 {
+   CheckAdmissibility(u);
    switch (u.Size())
    {
       case 3:
-         return abs(u(1)*n(0)) / u(0) + sqrt(SpHeatRatio * EvaluatePressure(u) / u(0));
+         return abs( u(1)*n(0) / u(0) ) + sqrt(SpHeatRatio * EvaluatePressure(u) / u(0));
       case 4:
-         return abs(u(1)*n(0) + u(2)*n(1)) / u(0)
+         return abs( (u(1)*n(0) + u(2)*n(1)) / u(0) )
                 + sqrt(SpHeatRatio * EvaluatePressure(u) / u(0));
       case 5:
-         return abs(u(1)*n(0) + u(2)*n(1) + u(3)*n(2)) / u(0)
+         return abs( (u(1)*n(0) + u(2)*n(1) + u(3)*n(2)) / u(0) )
                 + sqrt(SpHeatRatio * EvaluatePressure(u) / u(0));
-      default:
-         MFEM_ABORT("Invalid solution vector.");
+   }
+}
+
+void Euler::CheckAdmissibility(const Vector &u) const
+{
+   double RhoMin = 1.e-12;
+
+   if (u.Size() != NumEq) { MFEM_ABORT("Invalid solution vector."); }
+
+   if (u(0) < RhoMin)
+   {
+      ostringstream rho_str;
+      rho_str << u(0);
+      string err_msg = "Density too small rho = ";
+      MFEM_ABORT(err_msg << rho_str.str());
    }
 }
 
@@ -314,31 +318,31 @@ void Euler::SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal,
          }
          else if (dim == 2)
          {
-            double Mom_x_Norm = y1(1) * normal(0) + y1(2) * normal(1);
+            double MomTimesNorm = y1(1) * normal(0) + y1(2) * normal(1);
             y2(0) = y1(0);
-            y2(1) = y1(1) - 2. * Mom_x_Norm * normal(0);
-            y2(2) = y1(2) - 2. * Mom_x_Norm * normal(1);
+            y2(1) = y1(1) - 2. * MomTimesNorm * normal(0);
+            y2(2) = y1(2) - 2. * MomTimesNorm * normal(1);
             y2(3) = y1(3);
          }
          else
          {
-            double Mom_x_Norm = y1(1) * normal(0) + y1(2) * normal(1) + y1(3) * normal(2);
+            double MomTimesNorm = y1(1) * normal(0) + y1(2) * normal(1) + y1(3) * normal(2);
             y2(0) = y1(0);
-            y2(1) = y1(1) - 2. * Mom_x_Norm * normal(0);
-            y2(2) = y1(2) - 2. * Mom_x_Norm * normal(1);
-            y2(3) = y1(3) - 2. * Mom_x_Norm * normal(2);
+            y2(1) = y1(1) - 2. * MomTimesNorm * normal(0);
+            y2(2) = y1(2) - 2. * MomTimesNorm * normal(1);
+            y2(3) = y1(3) - 2. * MomTimesNorm * normal(2);
             y2(4) = y1(4);
          }
-         return;
+         break;
       }
       case -2: // supersonic outlet
       {
          y2 = y1;
-         return;
+         break;
       }
       case -3: // supersonic inlet
       {
-         return;
+         break;
       }
       // TODO subsonic in- and outlet
       default:
@@ -346,19 +350,33 @@ void Euler::SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal,
    }
 }
 
-void Euler::ComputeDerivedQuantities(const Vector &u) const
+void Euler::ComputeDerivedQuantities(const GridFunction &u, GridFunction &d1, GridFunction &d2) const
 {
-   Vector p(ne*nd);
+   double density, momentum;
+   const IntegrationRule ir = u.FESpace()->GetFE(0)->GetNodes();
+
    for (int e = 0; e < ne; e++)
    {
       for (int i = 0; i < nd; i++)
       {
-         double aux = 0.;
-         for (int l = 0; l < dim; l++)
+         const IntegrationPoint &ip = ir.IntPoint(i);
+         density = u.GetValue(e, ip, 1);
+         momentum = u.GetValue(e, ip, 2);
+         d1(e*nd + i) = pow(momentum / density, 2.0);
+
+         if (dim > 1)
          {
-            aux += u((l+1)*ne*nd + e*nd + i) * u((l+1)*ne*nd + e*nd + i);
+            momentum = u.GetValue(e, ip, 3);
+            d1(e*nd + i) += pow(momentum / density, 2.0);
          }
-         p(e*nd+i) = (SpHeatRatio - 1.) * (u((dim+1)*ne*nd + e*nd + i) - 0.5 * aux / u(e*nd + i));
+         if (dim > 2)
+         {
+            momentum = u.GetValue(e, ip, 4);
+            d1(e*nd + i) += pow(momentum / density, 2.0);
+         }
+
+         d2(e*nd + i) = (SpHeatRatio - 1.0) * (u.GetValue(e, ip, dim+2) - 0.5 * density * d1(e*nd + i));
+         d1(e*nd + i) = sqrt(d1(e*nd + i));
       }
    }
 }
@@ -368,8 +386,10 @@ void Euler::ComputeErrors(Array<double> & errors, const GridFunction &u,
 {
    errors.SetSize(3);
    VectorFunctionCoefficient uAnalytic(NumEq, AnalyticalSolutionEuler);
-   // Right now we use initial condition = solution due to periodic mesh.
-   uAnalytic.SetTime(0);
+
+   if (ConfigEuler.ConfigNum == 0) { uAnalytic.SetTime(0);  }
+   else { uAnalytic.SetTime(t); }
+
    errors[0] = u.ComputeLpError(1., uAnalytic) / DomainSize;
    errors[1] = u.ComputeLpError(2., uAnalytic) / DomainSize;
    errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic);
@@ -378,86 +398,93 @@ void Euler::ComputeErrors(Array<double> & errors, const GridFunction &u,
 void EvaluateEnergy(Vector &u, const double &pressure)
 {
    const int dim = u.Size() - 2;
-   double aux = 0.;
-   for (int i = 0; i < dim; i++)
+   double aux = 0.0;
+   for (int l = 0; l < dim; l++)
    {
-      aux += u(1+i) * u(1+i);
+      aux += u(1+l)*u(1+l);
    }
-   u(dim+1) = pressure / (SpHeatRatio - 1.) + 0.5 * aux / u(0);
+   u(dim+1) = pressure / (SpHeatRatio - 1.0) + 0.5 * aux / u(0);
 }
 
 void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
 {
    const int dim = x.Size();
    u.SetSize(dim+2);
-
-   // Map to the reference domain [-1,1].
    Vector X(dim);
+
    for (int i = 0; i < dim; i++)
    {
-      double center = (ConfigEuler.bbMin(i) + ConfigEuler.bbMax(i)) * 0.5;
-      X(i) = 2. * (x(i) - center) / (ConfigEuler.bbMax(i) - ConfigEuler.bbMin(i));
+      switch (ConfigEuler.ConfigNum)
+      {
+         case 0:
+         case 8: // Map to the reference domain [-1,1]^d.
+         {
+            double center = 0.5 * (ConfigEuler.bbMin(i) + ConfigEuler.bbMax(i));
+            double factor = 2.0 / (ConfigEuler.bbMax(i) - ConfigEuler.bbMin(i));
+            X(i) = factor * (x(i) - center);
+            t *= pow(factor, 1.0 / (double(dim)));
+            break;
+         }
+         case 3:
+         case 5: // Map to the reference domain [0,1]^d.
+         {
+            double factor = 1.0 / (ConfigEuler.bbMax(i) - ConfigEuler.bbMin(i));
+            X(i) = factor * (x(i) - ConfigEuler.bbMin(i));
+            t *= pow(factor, 1.0 / (double(dim)));
+            break;
+         }
+      }
    }
 
    switch (ConfigEuler.ConfigNum)
    {
       case 0:
       {
-         if (dim != 2)
-         {
-            MFEM_ABORT("Test case only implemented in 2D.");
-         }
+         if (dim != 2) { MFEM_ABORT("Test case works only in 2D."); }
 
-         X *= 5.; // Map to test case specific domain [-5,5].
+         // Map to test case specific domain [-5,5]^d.
+         X *= 5.0;
+         t *= 5.0;
 
-         double beta = 5.;
+         double beta = 5.0;
          double r = X.Norml2();
-         double T0 = 1. - (SpHeatRatio - 1.) * beta * beta
-                     / (8. * SpHeatRatio * M_PI * M_PI) * exp(1. - r * r);
+         double T0 = 1.0 - (SpHeatRatio - 1.0) * beta * beta
+                     / (8.0 * SpHeatRatio * M_PI * M_PI) * exp(1.0 - r * r);
 
-         u(0) = pow(T0, 1. / (SpHeatRatio - 1.));
-         u(1) = (1. - beta / (2. * M_PI) * exp(0.5 * (1 - r * r)) * X(1)) * u(0);
-         u(2) = (1. + beta / (2. * M_PI) * exp(0.5 * (1 - r * r)) * X(0)) * u(0);
+         u(0) = pow(T0, 1.0 / (SpHeatRatio - 1.0));
+         u(1) = (1.0 - beta / (2.0 * M_PI) * exp(0.5 * (1.0 - r*r)) * X(1)) * u(0);
+         u(2) = (1.0 + beta / (2.0 * M_PI) * exp(0.5 * (1.0 - r*r)) * X(0)) * u(0);
          EvaluateEnergy(u, u(0) * T0);
          break;
       }
       case 3:
       {
-         if (dim != 2)
+         if (dim != 2) { MFEM_ABORT("Test case works only in 2D."); }
+
+         // Map to test case specific domain [0,4] x [0,1].
+         X(0) = 4.0 * X(0);
+
+         bool PostShock = X(0) < 1.0/6.0 + (X(1) + 20.0*t) / sqrt(3.0);
+
+         if (PostShock)
          {
-            MFEM_ABORT("Test case only implemented in 2D.");
-         }
-
-         X(0) = 2. * (X(0) + 1.);
-         X(1) = 0.5 * (X(1) + 1.);
-
-         bool left = X(0) < 1. / 6. + (X(1) + 20.*t) / sqrt(3.);
-
-         if (left)
-         {
-            u(0) = 8.;
-            u(1) = 66. * cos(M_PI / 6.);
-            u(2) = -66. * sin(M_PI / 6.);
+            u(0) = 8.0;
+            u(1) =  66.0 * cos(M_PI / 6.0);
+            u(2) = -66.0 * sin(M_PI / 6.0);
             EvaluateEnergy(u, 116.5);
          }
          else
          {
-            u = 0.;
+            u = 0.0;
             u(0) = 1.4;
-            EvaluateEnergy(u, 1.);
+            EvaluateEnergy(u, 1.0);
          }
 
          break;
       }
       case 5:
       {
-         if (dim != 2)
-         {
-            MFEM_ABORT("Test case only implemented in 2D.");
-         }
-
-         X(0) = 0.5 * (X(0) + 1.0);
-         X(1) = 0.5 * (X(1) + 1.0);
+         if (dim != 2) { MFEM_ABORT("Test case works only in 2D."); }
 
          double r = X.Norml2();
 
@@ -480,10 +507,7 @@ void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
       }
       case 6:
       {
-         if (dim != 2)
-         {
-            MFEM_ABORT("Test case only implemented in 2D.");
-         }
+         if (dim != 2) { MFEM_ABORT("Test case works only in 2D."); } // TODO remove
 
          bool left = X(0) < 0. && X(0)*X(0) + 0.24 * (X(1)+1.)*(X(1)+1.) > 1.05;
          X(0) = 0.5 * (X(0) + 1.);
@@ -507,41 +531,28 @@ void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
       }
       case 8:
       {
-         if (dim != 2)
-         {
-            MFEM_ABORT("Test case only implemented in 2D.");
-         }
-
-         // X(0) = 0.5*(X(0)+1.);
-         // X(1) = 0.5*(X(1)+1.);
-         X = x;
+         if (dim != 2) { MFEM_ABORT("Test case works only in 2D."); }
 
          double pressure = 3. + 4.*log(2.);
-         double r = sqrt( (X(0) - 0.5)*(X(0) - 0.5) + (0.5 - X(1))*(0.5 - X(1)) );
-         // double r = X.Norml2();
+         double r = X.Norml2();
 
          u = 0.;
          u(0) = 1.;
 
-         if (r <= 0.2)
+         if (r < 0.2)
          {
-            u(1) = 5. * (0.5 - X(1));
-            u(2) = 5. * (X(0) - 0.5);
-            // u(1) = -5. * X(1);
-            // u(2) =  5. * X(0);
-            pressure = 5. + 12.5*r*r;
+            u(1) = -5.0 * X(1);
+            u(2) =  5.0 * X(0);
+            pressure = 5.0 + 12.5*r*r;
          }
          else if (r < 0.4)
          {
-            u(1) = (2./r - 5.) * (0.5 - X(1));
-            u(2) = (2./r - 5.) * (X(0) - 0.5);
-            // u(1) = -(2./r - 5.) * X(1);
-            // u(2) =  (2./r - 5.) * X(0);
-            pressure = 9. + 4.*(log(r) - log(0.2)) + 12.5*r*r - 20.*r;
+            u(1) = -(2.0 / r - 5.0) * X(1);
+            u(2) =  (2.0 / r - 5.0) * X(0);
+            pressure = 9.0 + 4.0 * (log(r) - log(0.2)) + 12.5*r*r - 20.0*r;
          }
 
          EvaluateEnergy(u, pressure);
-
          break;
       }
       default:
@@ -553,13 +564,27 @@ void InitialConditionEuler(const Vector &x, Vector &u)
 {
    const int dim = x.Size();
    u.SetSize(dim+2);
-
-   // Map to the reference domain [-1,1].
    Vector X(dim);
+
    for (int i = 0; i < dim; i++)
    {
-      double center = (ConfigEuler.bbMin(i) + ConfigEuler.bbMax(i)) * 0.5;
-      X(i) = 2. * (x(i) - center) / (ConfigEuler.bbMax(i) - ConfigEuler.bbMin(i));
+      switch (ConfigEuler.ConfigNum)
+      {
+         case 4: // Map to the reference domain [-1,1]^d.
+         {
+            double center = 0.5 * (ConfigEuler.bbMin(i) + ConfigEuler.bbMax(i));
+            double factor = 2.0 / (ConfigEuler.bbMax(i) - ConfigEuler.bbMin(i));
+            X(i) = factor * (x(i) - center);
+            break;
+         }
+         case 1:
+         case 2: // Map to the reference domain [0,1]^d.
+         {
+            double factor = 1.0 / (ConfigEuler.bbMax(i) - ConfigEuler.bbMin(i));
+            X(i) = factor * (x(i) - ConfigEuler.bbMin(i));
+            break;
+         }
+      }
    }
 
    switch (ConfigEuler.ConfigNum)
@@ -575,10 +600,7 @@ void InitialConditionEuler(const Vector &x, Vector &u)
       }
       case 1:
       {
-         for (int i = 0; i < dim; i++)
-         {
-            X(i) = 0.5 * (X(i) + 1.);
-         }
+         if (dim != 1) { MFEM_ABORT("Test case works only in 1D."); }
 
          u = 0.0;
          u(0) = X.Norml2() < 0.5 ? 1.0 : 0.125;
@@ -587,12 +609,7 @@ void InitialConditionEuler(const Vector &x, Vector &u)
       }
       case 2:
       {
-         if (dim != 1)
-         {
-            MFEM_ABORT("Test case only implemented in 1D.");
-         }
-
-         X(0) = 0.5 * (X(0) + 1.0);
+         if (dim != 1) { MFEM_ABORT("Test case works only in 1D."); }
 
          u = 0.0;
          u(0) = 1.0;
@@ -612,6 +629,7 @@ void InitialConditionEuler(const Vector &x, Vector &u)
       }
       case 4:
       {
+         // Map to test case specific domain [-5,5]^d.
          X *= 5.0;
 
          u = 0.0;
@@ -622,9 +640,9 @@ void InitialConditionEuler(const Vector &x, Vector &u)
       }
       case 7:
       {
-         u(0) = 1.;
-         u(1) = 1.;
-         u(2) = 0.;
+         u = 0.0;
+         u(0) = 1.0;
+         u(1) = 1.0;
          EvaluateEnergy(u, 0.1);
          break;
       }
@@ -651,6 +669,6 @@ void InflowFunctionEuler(const Vector &x, double t, Vector &u)
       }
       case 1:
       case 2:
-      case 4: break; // No boundary condition needed.
+      case 4: break; // No boundary conditions needed.
    }
 }

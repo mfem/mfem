@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&prefinements, "-pr", "--parallel-refinements",
                   "Number of times to refine the mesh uniformly in parallel.");
-   args.AddOption((int*)(&scheme), "-e", "--evolution-scheme",
+   args.AddOption((int*)(&scheme), "-es", "--evolution-scheme",
                   "Scheme: 0 - Galerkin Finite Element Approximation,\n\t"
                   "        1 - Monolithic Convex Limiting.");
    args.AddOption(&OutputDir, "-out", "--output-directory", "Output directory.");

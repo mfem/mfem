@@ -119,10 +119,9 @@ double ShallowWater::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
    switch (u.Size())
    {
       case 2:
-         return abs(u(1)*n(0) / u(0)) + sqrt(GravConst * u(0));
+         return abs( u(1)*n(0) / u(0) ) + sqrt(GravConst * u(0));
       case 3:
-         return abs((u(1)*n(0) + u(2)*n(1)) / u(0)) + sqrt(GravConst * u(0));
-      default: MFEM_ABORT("Invalid solution vector.");
+         return abs( (u(1)*n(0) + u(2)*n(1)) / u(0) ) + sqrt(GravConst * u(0));
    }
 }
 
@@ -212,11 +211,9 @@ void ShallowWater::ComputeErrors(Array<double> &errors, const GridFunction &u,
 {
    errors.SetSize(3);
    VectorFunctionCoefficient uAnalytic(NumEq, AnalyticalSolutionSWE);
-   switch (ConfigSWE.ConfigNum)
-   {
-      case 0: { uAnalytic.SetTime(0); break; }
-      default: { uAnalytic.SetTime(t); break; }
-   }
+
+   if (ConfigSWE.ConfigNum == 0) { uAnalytic.SetTime(0);  }
+   else { uAnalytic.SetTime(t); }
 
    errors[0] = u.ComputeLpError(1., uAnalytic) / DomainSize;
    errors[1] = u.ComputeLpError(2., uAnalytic) / DomainSize;
@@ -256,10 +253,7 @@ void AnalyticalSolutionSWE(const Vector &x, double t, Vector &u)
    {
       case 0:
       {
-         if (dim != 2)
-         {
-            MFEM_ABORT("Test case is only implemented in 2D.");
-         }
+         if (dim != 2) { MFEM_ABORT("Test case works only in 2D."); }
 
          // Map to test case specific domain [-50,50].
          X *= 50.;
@@ -313,10 +307,7 @@ void AnalyticalSolutionSWE(const Vector &x, double t, Vector &u)
       }
       case 3:
       {
-         if (dim != 2)
-         {
-            MFEM_ABORT("Test case is only implemented in 2D.");
-         }
+         if (dim != 2) { MFEM_ABORT("Test case works only in 2D."); }
 
          const double x1[2]={-10., 0.}, x2[2]={-10., 40.},
                       x3[2]={53.8622, 5.5872}, x4[2]={53.8622, 34.4128},
