@@ -166,7 +166,7 @@ public:
    /** Combine the blocks making up this complex operator into a single
        SparseMatrix. The resulting matrix can be passed to solvers which require
        access to the matrix entries themselves, such as sparse direct solvers,
-       rather than simply the action of the opertor. Note that this combined
+       rather than simply the action of the operator. Note that this combined
        operator requires roughly twice the memory of the block structured
        operator. */
    SparseMatrix * GetSystemMatrix() const;
