@@ -3,7 +3,7 @@
 -snes_mf_operator
 -snes_max_it 20
 -snes_rtol 1e-4
--snes_stol 0.
+-snes_stol 1e-9
 -snes_converged_reason 
 -snes_linesearch_type l2
 -snes_view
@@ -18,7 +18,7 @@
 ## SNESKSPSetParametersEW(snes,3,tolgm,0.9,0.9,1.5,1.5,0.1)
 -snes_ksp_ew
 -snes_ksp_ew_version 3
--snes_ksp_ew_rtol0 0.3
+-snes_ksp_ew_rtol0 0.1
 -snes_ksp_ew_rtolmax 0.9
 -snes_ksp_ew_gamma 0.9
 -snes_ksp_ew_alpha 1.5
@@ -47,6 +47,7 @@
 -ksp_type fgmres
 -ksp_converged_reason
 -ksp_gmres_restart 100
+-ksp_max_it 200
 #-ksp_view
 #-ksp_rtol 1e-4
 #-ksp_monitor_true_residual

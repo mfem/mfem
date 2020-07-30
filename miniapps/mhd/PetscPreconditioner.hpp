@@ -298,6 +298,8 @@ SupgBlockSolver::SupgBlockSolver(const OperatorHandle &oh) : Solver() {
    if (Stab==NULL)
    { MFEM_ABORT("SupgBlockSolver: Stab Mat is not found.");}
 
+   //PetscPrintf(PETSC_COMM_WORLD,"===inside petsc full-supg preconditioner===");
+
    //sum ARe and Stabilzation term
    MatDuplicate(ARe, MAT_COPY_VALUES, &AReFull);
    MatAXPY(AReFull,1.,Stab, DIFFERENT_NONZERO_PATTERN);
@@ -406,12 +408,10 @@ void SupgBlockSolver::Mult(const Vector &x, Vector &y) const
 
 SupgBlockSolver::~SupgBlockSolver()
 {
-    for (int i=0; i<3; i++)
+    for (int i=0; i<4; i++)
     {
         KSPDestroy(&kspblock[i]);
     }
-    if(smoothOmega)
-        KSPDestroy(&kspblock[3]);
     
     VecDestroy(&b);
     VecDestroy(&bhat); 

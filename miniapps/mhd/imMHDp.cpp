@@ -159,6 +159,8 @@ int main(int argc, char *argv[])
                   "Use supg in the explicit solvers.");
    args.AddOption(&maxtau, "-max-tau", "--max-tau", "-no-max-tau", "--no-max-tau",
                   "Use max-tau in supg.");
+   args.AddOption(&useFull, "-useFull", "--useFull",
+                  "version of Full preconditioner");
    args.AddOption(&usefd, "-fd", "--use-fd", "-no-fd",
                   "--no-fd",
                   "Use fd-fem in the implicit solvers.");
@@ -356,6 +358,7 @@ int main(int argc, char *argv[])
    fe_offset[3] = 3*fe_size;
 
    BlockVector vx(fe_offset);
+   BlockVector vxold(fe_offset);
    ParGridFunction psi, phi, w, psiBack(&fespace), psiPer(&fespace);
    phi.MakeTRef(&fespace, vx, fe_offset[0]);
    psi.MakeTRef(&fespace, vx, fe_offset[1]);
@@ -524,7 +527,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   double t = 0.0;
+   double t = .0, told=.0;
    oper.SetTime(t);
    if (explicitSolve)
       ode_solver->Init(oper);
@@ -613,7 +616,25 @@ int main(int argc, char *argv[])
       }
       else
       {
+         vxold=vx;
+         told=t;
          ode_solver2->Step(vx, t, dt_real);
+
+         if (!oper.getConverged())
+         {
+            t=told;
+            dt=dt/2.;
+            dt_real = min(dt, t_final - t);
+            oper.resetConverged();
+            if (myid==0) cout << "====== reduced new dt = "<<dt<<endl;
+
+            vx=vxold;
+            ode_solver2->Step(vx, t, dt_real);
+
+            if (!oper.getConverged())
+                MFEM_ABORT("======ERROR: reduced time step once still failed; checkme!======");
+         }
+         
       }
 
       last_step = (t >= t_final - 1e-8*dt);

@@ -24,10 +24,10 @@ int iUpdateJ=1; //control how J is computed (whether or not Dirichelt boundary c
 int iSc=0;      //the parameter to control precondtioner
 bool lumpedMass = false;
 
-int useFull=2; // control version of preconditioner 
-             // 0: a simple block preconditioner
-             // 1: physics-based preconditioner
-             // 2: physics-based but supg more complicated version
+int useFull=1; // control version of preconditioner 
+               // 0: a simple block preconditioner
+               // 1: physics-based preconditioner
+               // 2: physics-based but supg more complicated version
 
 
 extern int icase;
@@ -264,7 +264,7 @@ protected:
    HypreParVector *E0Vec;
    FunctionCoefficient *E0rhs;
    double viscosity, resistivity;
-   bool useAMG, use_petsc, use_factory;
+   bool useAMG, use_petsc, use_factory, convergedSolver;
    ConstantCoefficient visc_coeff, resi_coeff;
    FunctionCoefficient visc_vari, resi_vari;
 
@@ -310,6 +310,10 @@ public:
    {int sc = height/3; gftmp.MakeTRef(&fespace, vx, sc);}
 
    void computeV(ParGridFunction *phi, ParGridFunction *v1, ParGridFunction *v2);
+
+   bool getConverged(){ return convergedSolver;}
+   void resetConverged(){ convergedSolver=true;}
+
 
    //update grid functions (grid functions have to be updated immediately)
    void UpdateGridFunction()
@@ -357,6 +361,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
      Nv(NULL), Nb(NULL), StabMass(NULL), StabNb(NULL), StabNv(NULL),  
      E0(NULL), StabE0(NULL), zLF(&fespace), MfullMat(NULL), E0Vec(NULL), E0rhs(NULL),
      viscosity(visc),  resistivity(resi), useAMG(false), use_petsc(use_petsc_), use_factory(use_factory_),
+     convergedSolver(true),
      visc_coeff(visc),  resi_coeff(resi),  visc_vari(resiVari),  resi_vari(resiVari),  
      reduced_oper(NULL), pnewton_solver(NULL), bchandler(NULL), J_factory(NULL),
      M_solver(f.GetComm()), M_prec(NULL), M_solver2(f.GetComm()), M_prec2(NULL),
@@ -900,15 +905,30 @@ void ResistiveMHDOperator::ImplicitSolve(const double dt,
    Vector psi(vx.GetData() +  sc, sc);
    Vector   w(vx.GetData() +2*sc, sc);
 
-   //if (myid==0) cout <<"dt="<<dt<<endl;
    reduced_oper->SetParameters(dt, &phi, &psi, &w);
    Vector zero; // empty vector is interpreted as zero r.h.s. by NewtonSolver
    
    k = vx; //Provide the initial guess as vx and use iterative_mode
    bchandler->SetBoundary(vx);   //setup the essential boundary (in the first solve)
+
+   //we skip the current solve if convergedSolver is not true (happens in later stage of RK)
+   if (!convergedSolver)
+   {
+       if (myid==0) cout<<"======WARNING: Previous ImplicitSolve did not converge. Skip current ImplicitSolve until it gets reset!======\n";
+       return;
+   }
+
    pnewton_solver->Mult(zero, k);  //here k is solved as vx^{n+1}
-   MFEM_VERIFY(pnewton_solver->GetConverged(),
-                  "Newton solver did not converge.");
+    
+   if (pnewton_solver->GetConverged())
+   {
+      convergedSolver=true;
+   }
+   else
+   {
+      if (myid==0) cout<<"======WARNING: Newton solver did not converge. reduce timestep!======\n";
+      convergedSolver=false;
+   }
    //modify k so that it fits into the backward euler framework
    k-=vx;
    k/=dt;
