@@ -139,6 +139,8 @@ bool DiscreteAdaptTC::ComputeElementTargetsPA(const IntegrationRule *ir,
 
    const FiniteElementSpace *fes = tspec_fesv;
 
+   if (!fes) { dbg("!fes, returning !"); return false;}
+
    const FiniteElement &fe = *fes->GetFE(0);
    const DenseMatrix &W = Geometries.GetGeomToPerfGeomJac(fe.GetGeomType());
    const int DIM = W.Height();
