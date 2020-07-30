@@ -113,7 +113,8 @@ public:
    /** If @a mat is finalized and @a copy_graph is false, the #I and #J arrays
        will use a shallow copy (copy the pointers only) without transferring
        ownership. */
-   SparseMatrix(const SparseMatrix &mat, bool copy_graph = true);
+   SparseMatrix(const SparseMatrix &mat, bool copy_graph = true,
+                MemoryType mt = MemoryType::SIZE);
 
    /// Create a SparseMatrix with diagonal @a v, i.e. A = Diag(v)
    SparseMatrix(const Vector & v);
