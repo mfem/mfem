@@ -509,11 +509,9 @@ void NeighborDofMaps::ComputeNeighborDofMaps()
    }
 
    // construct dof maps
-   int nrneighbors = (dim == 3) ? 26 : 8; // at most
-   Array<int> ip0list;
-   Array<int> ip1list;
-   // for (int ip0 = 0; ip0<nrsubdomains; ip0++)
-   for (int ip0 = 0; ip0<1; ip0++)
+   int nrneighbors = (dim == 3) ? 27 : 9; // at most (including itself)
+
+   for (int ip0 = 0; ip0<nrsubdomains; ip0++)
    {
       int neighbor = 0;
       OvlpDofMaps[ip0].resize(nrneighbors);
@@ -524,118 +522,81 @@ void NeighborDofMaps::ComputeNeighborDofMaps()
       int i0, j0, k0;
       Array<int> ijk(dim);
       Getijk(ip0, i0,j0,k0);
-      cout << "ip0 = " << ip0 << endl;
 
-      // for (int i=-1; i<2; i++)
-      for (int i=1; i<2; i++)
+      int kbeg = (dim == 2) ? 0 : -1;
+      int kend = (dim == 2) ? 1 :  2;
+      for (int k=kbeg; k<kend; k++)
       {
-         int i1 = i0 + i;
-         if (i1 <0 || i1>=nxyz[0]) continue;
-         // for (int j=-1; j<2; j++)
-         for (int j=0; j<1; j++)
+         int k1 = k0 + k;
+         if (k1 <0 || k1>=nxyz[2]) continue;
+         int kk = (dim == 2) ? -1 : k;
+         for (int j=-1; j<2; j++)
          {
             int j1 = j0 + j;
             if (j1 <0 || j1>=nxyz[1]) continue;
-            int kbeg = (dim == 2) ? 0 : -1;
-            int kend = (dim == 2) ? 1 :  2;
-            for (int k=kbeg; k<kend; k++)
+            for (int i=-1; i<2; i++)
             {
-               int k1 = k0 + k;
-               if (k1 <0 || k1>=nxyz[2]) continue;
-               if (i==0 && j==0 && k==0) continue;
-               // neighbor++;
-
+               int i1 = i0 + i;
+               if (i1 <0 || i1>=nxyz[0]) continue;
+     
                ijk[0]=i1; ijk[1]=j1; 
                if (dim == 3 ) ijk[2]=k1;
                int ip1 = GetPatchId(ijk);
-               cout << "ip1 = " << ip1 << endl;
-               FiniteElementSpace * fes1 = dmap->fespaces[ip1];
-               int tdofs1 = fes1->GetTrueVSize();
-               Array<int> marker1(tdofs1); marker1 = 0;
 
                // loop through elements
                int nel = part->element_map[ip0].Size();
+               Array<int> ip0list;  marker0 = 0;
                for (int iel0 = 0; iel0<nel; ++iel0)
                {
                   int iel_idx = part->element_map[ip0][iel0];
                   int iel1 = Gen[ip1]->Get(iel_idx);
+
                   if (iel1 < 0) continue;
 
                   Array<int> ElemDofs0;
-                  Array<int> ElemDofs1;
 
                   fes0->GetElementDofs(iel0,ElemDofs0);
-                  fes1->GetElementDofs(iel1,ElemDofs1);
-
-                  // the sizes have to match
-                  MFEM_VERIFY(ElemDofs0.Size() == ElemDofs1.Size(),
-                        "Size inconsistency");
-
                   int ndof = ElemDofs0.Size();
                   // since the elements are added to the subdomain meshes 
                   // in the same ordered fashion (as they come from the
                   // original mesh) then the ordering of elements in each 
                   // subdomain is the same. Hence the dof ovlp lists
                   // can be computed for each subdomain independendly
-                  for (int i = 0; i<ndof; ++i)
+                  for (int l = 0; l<ndof; ++l)
                   {
-                     int dof0_ = ElemDofs0[i];
-                     int dof1_ = ElemDofs1[i];
+                     int dof0_ = ElemDofs0[l];
                      int dof0 = (dof0_ >= 0) ? dof0_ : abs(dof0_) - 1;
-                     int dof1 = (dof1_ >= 0) ? dof1_ : abs(dof1_) - 1;
-                     MFEM_VERIFY(marker0[dof0] == marker1[dof1], "Inconsistency");
                      if (!marker0[dof0])
                      {
                         ip0list.Append(dof0); // dofs of ip0 in ovlp
-                        ip1list.Append(dof1); // dofs of ip1 in ovlp
                         marker0[dof0] = 1;
-                        marker1[dof1] = 1;
                      }
-                     // Dof2GlobalDof[ip][dof0] = dof1;
-                     // Dof2GlobalDof[ip][dof0+tdofs0] = dof1+tdofs1;
                   }
                }
+               int directionId = GetDirectionId(i,j,kk);
+               OvlpDofMaps[ip0][directionId].Append(ip0list);
+               int tsize = fes0->GetTrueVSize();
+               for (int l=0;l<ip0list.Size(); l++) { ip0list[l] += tsize; }
+               OvlpDofMaps[ip0][directionId].Append(ip0list);
             }
          }
       }
-      marker0.Print();
-
    }
-
-   part->element_map[0].Print();
-
-   cout << endl;
-
-   part->element_map[1].Print();
+}
 
 
-   cout << "ip0list = " ; ip0list.Print();
-   cout << "ip1list = " ; ip1list.Print();
+void NeighborDofMaps::GetNeighborDofMap(const int ip,
+                                        const Array<int> & directions, 
+                                        Array<int> & dofmap)
+{
+   int k = (dim == 2) ? -1 : directions[2];
+   int directionid = GetDirectionId(directions[0],directions[1],k);
 
-   test_list0 = ip0list;
-   test_list1 = ip1list;
-   int n =dmap->fespaces[0]->GetTrueVSize();
-   int m =dmap->fespaces[1]->GetTrueVSize();
-   for (int i=0;i<ip0list.Size();i++) ip0list[i] += n;
-   for (int i=0;i<ip1list.Size();i++) ip1list[i] += m;
+   // cout << "ip0 = " << ip << endl;
+   // cout << "directions = " ; directions.Print();
+   // cout << "directionid = " << directionid << endl;
 
-   test_list0.Append(ip0list);
-   test_list1.Append(ip1list);
-
-   // Vector X(10);
-   // for (int i=0; i<10; i++)
-   // {
-   //    X(i) = i+10;
-   // }
-   // cout << "X = " ; X.Print(cout,10);
-   // Array<int> perm(2); perm = 0;
-   // perm[0] = 1;
-   // perm[1] = 9;
-
-   // Vector Y(10); Y = 0.0;
-   // Y.SetSubVector(perm,X);
-   // cout << "Y = " ; Y.Print(cout,10);
-
-
+   // cout << "map = " ; OvlpDofMaps[ip][directionid].Print();
+   dofmap = OvlpDofMaps[ip][directionid];
 
 }

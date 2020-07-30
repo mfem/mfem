@@ -117,6 +117,9 @@ public:
 };
 
 
+
+
+
 struct NeighborDofMaps
 {
 private:
@@ -126,6 +129,9 @@ private:
    Mesh * mesh = nullptr;
    std::vector<std::vector<Array<int>>> OvlpElems;
    std::vector<std::vector<Array<int>>> OvlpDofMaps;
+   Array<int> directionsX;
+   Array<int> directionsY;
+   Array<int> directionsZ;
 
    DofMap * dmap = nullptr;
    int nrsubdomains = 0;
@@ -147,6 +153,18 @@ private:
       int z = (d==2)? 0 : ijk[2];
       return part->subdomains(ijk[0],ijk[1],z);
    }
+      int GetDirectionId(int i, int j, int k=-1) 
+   {
+      int n = 3;
+      return (k+1)*n*n + (j+1)*n + i+1; 
+   }
+   void GetDirections(const int id, int & i, int & j, int & k) 
+   {
+      int n = 3;
+      k = id/(n*n) - 1;
+      j = (id-(k+1)*n*n)/n - 1;
+      i = (id-(k+1)*n*n)%n - 1;
+   }
 
 public:   
    NeighborDofMaps(MeshPartition * part_, 
@@ -154,7 +172,6 @@ public:
                    DofMap * dmap_,
                    int ovlp_layers_);
 
-   void GetNeighborDofMap(const int ip, const int jp);
-   Array<int> test_list0;
-   Array<int> test_list1;
+   void GetNeighborDofMap(const int ip, const Array<int> & directions,
+                          Array<int> & dofmap);
 };

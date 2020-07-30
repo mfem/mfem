@@ -29,14 +29,10 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
    swp = new Sweep(dim);
 
    dmap  = new DofMap(bf->FESpace(),part);
-   NeighborDofMaps NeighborMaps(part,bf->FESpace(),dmap,ovlpnrlayers); 
-
-   test_list0 = NeighborMaps.test_list0;
-   test_list1 = NeighborMaps.test_list1;
+   NeighborMap = new NeighborDofMaps(part,bf->FESpace(),dmap,ovlpnrlayers); 
 
    MarkOverlapElements();
    MarkOverlapDofs();
-   // ComputeOverlapDofMaps();
 
    // Set up the local patch problems
    sqf.SetSize(nrpatch);
@@ -335,26 +331,27 @@ int DST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, Vect
    Vector zloc(Psi1.Size()); 
    zaux.GetSubVector(*Dof2GlobalDof1,zloc);
 
-   if (ip0 == 0 && ip1 == 1) // testing new patch-to-patch maps
-   {
-      Vector test0(test_list0.Size());
-      Psi0.GetSubVector(test_list0,test0);
-      Vector test1(Dof2GlobalDof1->Size()); test1 =0.0;
-      test1.SetSubVector(test_list1,test0);
 
-      // zloc.Print();
-      for (int i = 0; i<test_list0.Size(); i++)
-      {
-         // pick up input possition
-         int j = test_list0[i];
-         // destination
-         int k = test_list1[i];
-         test1[k] = Psi0[j];
-      }
-      // cout<< endl;
-      test1-=zloc;
-      cout << "test norm = " << test1.Norml2() << endl;
+   Array<int> test_list0;
+   Array<int> test_list1;
+   Array<int>direction1(dim);
+
+   for (int i = 0; i<dim; i++) direction1[i] = -direction[i];
+
+   NeighborMap->GetNeighborDofMap(ip0,direction,test_list0);
+   NeighborMap->GetNeighborDofMap(ip1,direction1,test_list1);
+
+   Vector test1(zloc.Size()); test1 = 0.0;
+   for (int i = 0; i<test_list0.Size(); i++)
+   {
+      // pick up input possition
+      int j = test_list0[i];
+      // destination
+      int k = test_list1[i];
+      test1[k] = Psi0[j];
    }
+   test1-=zloc;
+   cout << "test norm = " << test1.Norml2() << endl;
 
    PmlMat[ip1]->Mult(zloc,Psi1);
 

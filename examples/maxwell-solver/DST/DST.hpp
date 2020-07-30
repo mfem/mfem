@@ -25,13 +25,11 @@ private:
    // Auxiliary global vector for transfers
    std::vector<std::vector<Array<int>>> NovlpElems;
    std::vector<std::vector<Array<int>>> NovlpDofs;
-
+   NeighborDofMaps * NeighborMap = nullptr;
    Array< SesquilinearForm * > sqf;
    Array< OperatorPtr * > Optr;
    Array<ComplexSparseMatrix *> PmlMat;
    Array<ComplexUMFPackSolver *> PmlMatInv;
-   Array<int> test_list0;
-   Array<int> test_list1;
    Sweep * swp=nullptr;
    mutable Array<Vector *> f_orig;
    mutable Array<Array<Vector * >> f_transf;
