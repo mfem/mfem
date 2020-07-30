@@ -65,14 +65,19 @@ Physical Curve(3) = {1};
 Physical Curve(4) = {2};
 Physical Surface(1) = {1};
 
-// Optimize the high-order mesh?
+// Optimize the high-order mesh
 // See https://gmsh.info/doc/texinfo/gmsh.html#index-Mesh_002eHighOrderOptimize
-// Mesh.HighOrderOptimize = 2;
+// Mesh.ElementOrder = order;
+// Mesh.HighOrderOptimize = 1;
 
 // Generate 2D mesh
 Mesh 2;
 SetOrder order;
 Mesh.MshFileVersion = 2.2;
+
+// Check the element quality (the Plugin may be called AnalyseCurvedMesh)
+// Plugin(AnalyseMeshQuality).JacobianDeterminant = 1;
+// Plugin(AnalyseMeshQuality).Run;
 
 If (periodic)
    Save Sprintf("periodic-annulus-sector-t%01g-o%01g.msh", type, order);
