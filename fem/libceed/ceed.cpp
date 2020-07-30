@@ -435,16 +435,9 @@ void CeedMFAssemble(const CeedMFOperator& op,
 
    CeedBasisGetNumQuadraturePoints(ceedData.basis, &nqpts);
 
-   const int qdatasize = op.qdatasize;
-   CeedElemRestrictionCreateStrided(ceed, nelem, nqpts, qdatasize,
-                                    nelem*nqpts*qdatasize, CEED_STRIDES_BACKEND,
-                                    &ceedData.restr_i);
-
    CeedVectorCreate(ceed, mesh->GetNodes()->Size(), &ceedData.node_coords);
    CeedVectorSetArray(ceedData.node_coords, CEED_MEM_HOST, CEED_USE_POINTER,
                       mesh->GetNodes()->GetData());
-
-   CeedVectorCreate(ceed, nelem * nqpts * qdatasize, &ceedData.rho);
 
    // Context data to be passed to the 'f_build_diff' Q-function.
    ceedData.build_ctx.dim = mesh->Dimension();
