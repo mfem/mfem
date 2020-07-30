@@ -518,7 +518,9 @@ public:
                              const lambda &F,
                              Coefficient *q = nullptr)
     : VectorFunctionCoefficient(
-       detail::deduce_type_t<decltype(&lambda::operator())>(F))
+       dim,
+       detail::deduce_type_t<decltype(&lambda::operator())>(F),
+       q)
    { }
 
    /// Construct a time-dependent vector coefficient from a std function
