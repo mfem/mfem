@@ -128,17 +128,25 @@ public:
 namespace detail
 {
 
+/// Default implementation of deduce_type defines no aliases
 template <typename T> struct deduce_type;
 
+/// If `T` can be converted to a std::function then deduce_type defines an
+/// alias `type` to the std::function version of T
+/// This implementation and the above default are used together to enable
+/// compile time introspection. See templated FunctionCoefficient constructors
+/// for usage.
 template <typename Treturn_type, typename Tclass_type, typename... Targs>
 struct deduce_type<Treturn_type(Tclass_type::*)(Targs...) const>
 {
    using type = std::function<Treturn_type(Targs...)>;
 };
 
+/// shorthand for typename deduce_type<>::type
 template<typename T>
 using deduce_type_t = typename deduce_type<T>::type;
 
+/// C++14 feature enabling shorthand for typename enable_if<>::type
 template<bool Condition, typename T = void>
 using enable_if_t = typename std::enable_if<Condition, T>::type;
 }
