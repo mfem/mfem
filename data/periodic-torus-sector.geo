@@ -18,7 +18,7 @@ Phi = Pi/3.0;
 nazm = 3;
 
 // Number of elements around a quarter of the circle
-narc = 2;
+narc = 4;
 
 lc = 0.5;
 
@@ -68,20 +68,20 @@ Physical Volume(1) = {1};
 
 // Optimize the high-order mesh
 // See https://gmsh.info/doc/texinfo/gmsh.html#index-Mesh_002eHighOrderOptimize
-Mesh.ElementOrder = order;
-Mesh.HighOrderOptimize = 1;
+// Mesh.ElementOrder = order;
+// Mesh.HighOrderOptimize = 1;
 
 // Generate 3D mesh
 Mesh 3;
 SetOrder order;
 Mesh.MshFileVersion = 2.2;
 
+// Check the element quality (the Plugin may be called AnalyseCurvedMesh)
+// Plugin(AnalyseMeshQuality).JacobianDeterminant = 1;
+// Plugin(AnalyseMeshQuality).Run;
+
 If (periodic)
    Save Sprintf("periodic-torus-sector-t%01g-o%01g.msh", type, order);
 Else
    Save Sprintf("torus-sector-t%01g-o%01g.msh", type, order);
 EndIf
-
-// Check the element quality (the Plugin may be called AnalyseCurvedMesh)
-// Plugin(AnalyseMeshQuality).JacobianDeterminant = 1;
-// Plugin(AnalyseMeshQuality).Run;
