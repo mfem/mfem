@@ -140,7 +140,8 @@ void GridFunctionCoefficient::Eval(const FiniteElementSpace &fes,
       const DofToQuad &maps = coeff_fes.GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
       const int D1D = maps.ndof;
       const int Q1D = maps.nqpt;
-      const Operator *r = coeff_fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+      const Operator *r = coeff_fes.GetElementRestriction(
+                             ElementDofOrdering::LEXICOGRAPHIC);
       Vector GridE(nd*ne);
       r->Mult(*GridF, GridE);
       if (dim == 1)
@@ -153,7 +154,7 @@ void GridFunctionCoefficient::Eval(const FiniteElementSpace &fes,
          {
             MFEM_SHARED double B[16][16];
             for (int d = 0; d < D1D; d++)
-            {  
+            {
                MFEM_FOREACH_THREAD(q,x,Q1D)
                {
                   B[q][d] = b(q,d);
@@ -587,7 +588,8 @@ void VectorGridFunctionCoefficient::Eval(const FiniteElementSpace &fes,
       const DofToQuad &maps = coeff_fes.GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
       const int D1D = maps.ndof;
       const int Q1D = maps.nqpt;
-      const Operator *r = coeff_fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+      const Operator *r = coeff_fes.GetElementRestriction(
+                             ElementDofOrdering::LEXICOGRAPHIC);
       Vector GridE(vdim*nd*ne);
       r->Mult(*GridFunc, GridE);
       const bool byVDIM = coeff_fes.GetOrdering()==Ordering::byVDIM;
@@ -603,7 +605,7 @@ void VectorGridFunctionCoefficient::Eval(const FiniteElementSpace &fes,
             {
                MFEM_SHARED double B[16][16];
                for (int d = 0; d < D1D; d++)
-               {  
+               {
                   MFEM_FOREACH_THREAD(q,x,Q1D)
                   {
                      B[q][d] = b(q,d);
@@ -622,7 +624,7 @@ void VectorGridFunctionCoefficient::Eval(const FiniteElementSpace &fes,
                      }
                      C(c,qx,e) = qval;
                   }
-               }               
+               }
             });
          }
          else if (dim == 2)
@@ -726,7 +728,7 @@ void VectorGridFunctionCoefficient::Eval(const FiniteElementSpace &fes,
             {
                MFEM_SHARED double B[16][16];
                for (int d = 0; d < D1D; d++)
-               {  
+               {
                   MFEM_FOREACH_THREAD(q,x,Q1D)
                   {
                      B[q][d] = b(q,d);
@@ -868,7 +870,7 @@ void VectorGridFunctionCoefficient::Eval(const FiniteElementSpace &fes,
                   {
                      const double x = X(c,d,e);
                      qval[c] += b * x;
-                  }                  
+                  }
                }
                for (int c = 0; c < vdim; c++)
                {
