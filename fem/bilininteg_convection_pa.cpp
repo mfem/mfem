@@ -939,14 +939,14 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
          switch (id)
          {
             case 0x22: QEvalVGF2D<2,2,2>(ne,B,x,y); break;
+            case 0x33: QEvalVGF2D<2,3,3>(ne,B,x,y); break;
             default:
             {
                constexpr int MAX_DQ = 8;
+               printf("\033[7mdim:%d, 0x%x\033[m",dim, id); fflush(0);
                MFEM_VERIFY(D1D <= MAX_DQ, "");
                MFEM_VERIFY(Q1D <= MAX_DQ, "");
-               printf("\033[7mdim:%d, 0x%x",dim, id); fflush(0);
                QEvalVGF2D<0,0,0,MAX_DQ>(ne,B,x,y,D1D,Q1D);
-               MFEM_ABORT("");
             }
          }
       }
@@ -962,11 +962,10 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
             default:
             {
                constexpr int MAX_DQ = 6;
-               printf("\033[7mdim:%d, 0x%x",dim, id); fflush(0);
+               printf("\033[7mdim:%d, 0x%x\033[m",dim, id); fflush(0);
                MFEM_VERIFY(D1D <= MAX_DQ, "");
                MFEM_VERIFY(Q1D <= MAX_DQ, "");
                QEvalVGF3D<0,0,0,MAX_DQ>(ne,B,x,y,vdim,D1D,Q1D);
-               MFEM_ABORT("");
             }
          }
       }

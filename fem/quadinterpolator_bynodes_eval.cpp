@@ -245,6 +245,7 @@ void QuadratureInterpolator::Values<QVectorLayout::byNODES>(
       case 0x2224: return EvalByNodes2D<2,2,4>(NE,B,X,Y);
       case 0x2225: return EvalByNodes2D<2,2,5>(NE,B,X,Y);
       case 0x2226: return EvalByNodes2D<2,2,6>(NE,B,X,Y);
+      case 0x2233: return EvalByNodes2D<2,3,3>(NE,B,X,Y);
       case 0x2234: return EvalByNodes2D<2,3,4>(NE,B,X,Y);
       case 0x2236: return EvalByNodes2D<2,3,6>(NE,B,X,Y);
       case 0x2244: return EvalByNodes2D<2,4,4>(NE,B,X,Y);
@@ -274,13 +275,14 @@ void QuadratureInterpolator::Values<QVectorLayout::byNODES>(
       {
          constexpr int MD1 = 8;
          constexpr int MQ1 = 8;
+         printf("\033[7m[EvalByNodes] 0x%x\033[m", id); fflush(0);
          MFEM_VERIFY(D1D <= MD1, "Orders higher than " << MD1-1
                      << " are not supported!");
          MFEM_VERIFY(Q1D <= MQ1, "Quadrature rules with more than "
                      << MQ1 << " 1D points are not supported!");
          if (dim == 2)
          {
-            //return EvalByNodes2D<0,0,0,1,MD1,MQ1>(NE,B,X,Y,vdim,D1D,Q1D);
+            return EvalByNodes2D<0,0,0,1,MD1,MQ1>(NE,B,X,Y,vdim,D1D,Q1D);
          }
          if (dim == 3)
          {
