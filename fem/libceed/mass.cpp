@@ -36,7 +36,7 @@ void CeedMFMassAssemble(const FiniteElementSpace &fes,
                         const mfem::IntegrationRule &irm, CeedData& ceedData)
 {
    CeedMFOperator massOp = {fes, irm,
-                            1, "/mass.h",
+                            "/mass.h",
                             ":f_apply_mass_mf_const", f_apply_mass_mf_const,
                             ":f_apply_mass_mf_grid", f_apply_mass_mf_grid,
                             CEED_EVAL_INTERP,

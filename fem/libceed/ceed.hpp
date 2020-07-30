@@ -132,8 +132,6 @@ struct CeedMFOperator
    const FiniteElementSpace &fes;
    /** The Integration Rule to use to compote the operator. */
    const IntegrationRule &ir;
-   /** The number of quadrature data at each quadrature point. */
-   int qdatasize;
    /** The path to the header containing the functions for libCEED. */
    std::string header;
    /** The name of the Qfunction to apply the quadrature data with a constant

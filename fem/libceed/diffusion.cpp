@@ -38,7 +38,7 @@ void CeedMFDiffusionAssemble(const FiniteElementSpace &fes,
 {
    CeedInt dim = fes.GetMesh()->SpaceDimension();
    CeedMFOperator diffOp = {fes, irm,
-                            dim * (dim + 1) / 2, "/diffusion.h",
+                            "/diffusion.h",
                             ":f_apply_diff_mf_const", f_apply_diff_mf_const,
                             ":f_apply_diff_mf_grid", f_apply_diff_mf_grid,
                             CEED_EVAL_GRAD,
