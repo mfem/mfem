@@ -762,7 +762,8 @@ public:
          std::is_same<
             decltype(detail::deduce_type_t<decltype(&dLambda::operator())>()),
             std::function<void(const Vector &, const Vector, Vector &)>>::value, int> = 0>
-   VectorFunctionCoefficient(int dim, const lambda &F, const dLambda &dF, Coefficient *q = nullptr)
+   VectorFunctionCoefficient(int dim, const lambda &F, const dLambda &dF,
+                             Coefficient *q = nullptr)
       : VectorFunctionCoefficient(
            dim,
            detail::deduce_type_t<decltype(&lambda::operator())>(F),
@@ -820,8 +821,10 @@ public:
       detail::enable_if_t<
          std::is_same<
             decltype(detail::deduce_type_t<decltype(&dLambda::operator())>()),
-            std::function<void(const Vector &, double, const Vector &, Vector &)>>::value, int> = 0>
-   VectorFunctionCoefficient(int dim, const lambda &F, const dLambda &dF, Coefficient *q = nullptr)
+            std::function<void(const Vector &, double, const Vector &, Vector &)>>::value,
+         int> = 0>
+   VectorFunctionCoefficient(int dim, const lambda &F, const dLambda &dF,
+                             Coefficient *q = nullptr)
       : VectorFunctionCoefficient(
            dim,
            detail::deduce_type_t<decltype(&lambda::operator())>(F),
