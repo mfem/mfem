@@ -1062,6 +1062,7 @@ int main(int argc, char *argv[])
    // 4.5. Partition the mesh in serial, to define subdomains.
    // Note that the mesh attribute is overwritten here for convenience, which is bad if the attribute is needed.
    int nxyzSubdomains[3] = {4, 4, 4};
+   //int nxyzSubdomains[3] = {1, 2, 1};
    const int numSubdomains = nxyzSubdomains[0] * nxyzSubdomains[1] *
                              nxyzSubdomains[2];
    {
@@ -1220,11 +1221,11 @@ int main(int argc, char *argv[])
       //int nxyzGlobal[3] = {1, 1, 1};
       //int nxyzGlobal[3] = {2, 2, 4};
       //int nxyzGlobal[3] = {1, 1, 4};
-      //int nxyzGlobal[3] = {1, 2, 1};
-      //int nxyzGlobal[3] = {2, 2, 2};
+     //int nxyzGlobal[3] = {1, 2, 1};
       //int nxyzGlobal[3] = {2, 2, 4};
+      //int nxyzGlobal[3] = {1, 2, 2};
       //int nxyzGlobal[3] = {3, 3, 4};
-      int nxyzGlobal[3] = {4, 4, 4};
+     int nxyzGlobal[3] = {4, 4, 4};
       //int nxyzGlobal[3] = {6, 6, 6};
       //int nxyzGlobal[3] = {6, 6, 12};  // 432
       //int nxyzGlobal[3] = {6, 12, 12};  // 864
@@ -2565,7 +2566,9 @@ int main(int argc, char *argv[])
    }
 
    ddi.PrintTiming(myid);
-   //ddi.PrintFOSLSTiming(myid);
+#ifdef SDFOSLS
+   ddi.PrintFOSLSTiming(myid);
+#endif
 
    /*
    { // Sleep in order to check memory usage using top.
