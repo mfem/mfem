@@ -369,16 +369,46 @@ cout << "FmsMeshToMesh: num_comp=" << num_comp << endl;
   FmsInt n_ents[FMS_NUM_ENTITY_TYPES];
   FmsInt n_main_parts;
   FmsComponentGetNumParts(main_comp, &n_main_parts);
+cout << "FmsMeshToMesh: n_main_parts=" << n_main_parts << endl;
+
+#define RENUMBER_ENTITIES
+#ifdef RENUMBER_ENTITIES
+  int *verts_per_part = new int[n_main_parts];
+#endif
+
+  // Sum the counts for each entity type across parts.
   for (FmsInt et = FMS_VERTEX; et < FMS_NUM_ENTITY_TYPES; et++) {
     n_ents[et] = 0;
+cout << "et=" << et << endl;
     for (FmsInt part_id = 0; part_id < n_main_parts; part_id++) {
       FmsInt num_ents;
       FmsComponentGetPart(main_comp, part_id, (FmsEntityType)et, NULL, NULL,
                           NULL, NULL, &num_ents);
+cout << "\t" << part_id << ": num_ents=" << num_ents << endl;
       n_ents[et] += num_ents;
+#ifdef RENUMBER_ENTITIES
+      if(et == FMS_VERTEX)
+          verts_per_part[part_id] = num_ents;
+#endif
     }
   }
   n_vert = n_ents[FMS_VERTEX];
+
+#ifdef RENUMBER_ENTITIES
+  int *verts_start = new int[n_main_parts];
+  verts_start[0] = 0;
+  for(int i = 1; i < n_main_parts;++i)
+     verts_start[i] = verts_start[i-1] + verts_per_part[i-1];
+
+  cout << "verts_per_part = {";
+  for(int i = 0; i < n_main_parts;++i)
+      cout << verts_per_part[i] << ", ";
+  cout << "}" << endl;
+  cout << "verts_start = {";
+  for(int i = 0; i < n_main_parts;++i)
+      cout << verts_start[i] << ", ";
+  cout << "}" << endl;
+#endif
 
   // The first related component of dimension dim-1 will be the boundary of the
   // new mfem mesh.
@@ -400,7 +430,15 @@ cout << "FmsMeshToMesh: num_comp=" << num_comp << endl;
   }
 
   FmsFieldGet(coords, NULL, &space_dim, NULL, NULL, NULL);
-
+#if 1
+cout << "dim=" << dim << endl;
+cout << "n_vert=" << n_vert << endl;
+cout << "n_elem=" << n_elem << endl;
+cout << "n_bdr_elem=" << n_bdr_elem << endl;
+cout << "space_dim=" << space_dim << endl;
+for (FmsInt et = FMS_VERTEX; et < FMS_NUM_ENTITY_TYPES; et++)
+    cout << "n_ents[" << et << "]=" << n_ents[et] << endl;
+#endif
   int err = 0;
   Mesh *mesh = nullptr;
   mesh = new Mesh(dim, n_vert, n_elem, n_bdr_elem, space_dim);
@@ -452,7 +490,9 @@ cout << "FmsMeshToMesh: num_comp=" << num_comp << endl;
   }
 
   // Add elements
+cout << "n_main_parts=" << n_main_parts << endl;
   for (FmsInt part_id = 0; part_id < n_main_parts; part_id++) {
+cout << "part " << part_id << ":" << endl;
     for (int et = FMS_VERTEX; et < FMS_NUM_ENTITY_TYPES; et++) {
       if (FmsEntityDim[et] != dim) { continue; }
 
@@ -463,6 +503,7 @@ cout << "FmsMeshToMesh: num_comp=" << num_comp << endl;
       FmsInt num_elems;
       FmsComponentGetPart(main_comp, part_id, (FmsEntityType)et, &domain,
                           &elem_id_type, &elem_ids, &elem_ori, &num_elems);
+cout << "Getting component part " << part_id << "'s entities et=" << et << ". num_elems=" << num_elems << endl;
       if (num_elems == 0) { continue; }
 
       if (elem_ids != NULL &&
@@ -492,7 +533,21 @@ cout << "FmsMeshToMesh: num_comp=" << num_comp << endl;
         goto func_exit;
         break;
       case FMS_TRIANGLE:
+#ifdef RENUMBER_ENTITIES
+        // The domain vertices/edges were defined in local ordering. We now
+        // have a set of triangle vertices defined in terms of local vertex
+        // numbers. Renumber them to a global numbering.
+        for (FmsInt i = 0; i < num_elems*3; i++)
+            ents_verts[i] += verts_start[part_id];
+#endif
+
         for (FmsInt i = 0; i < num_elems; i++) {
+#if 1
+          cout << "\tAddTriangle: {"
+               << ents_verts[3*i+0] << ", "
+               << ents_verts[3*i+1] << ", "
+               << ents_verts[3*i+2] << "}, tag=" << (elem_tag ? attr[elem_offset+i] : 1) << endl;
+#endif
           mesh->AddTriangle(
             &ents_verts[3*i], elem_tag ? attr[elem_offset+i] : 1);
         }
@@ -582,6 +637,11 @@ cout << "FmsMeshToMesh: num_comp=" << num_comp << endl;
       }
     }
   }
+
+#ifdef RENUMBER_ENTITIES
+  delete [] verts_per_part;
+  delete [] verts_start;
+#endif
 
   // Finalize the mesh topology
   // FIXME: mfem::Mesh::FinalizeCheck() assumes all vertices are added
