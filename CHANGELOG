@@ -33,6 +33,9 @@ Meshing improvements
   for example the periodic-annulus-sector and periodic-torus-sector files in
   the data directory.
 
+- Added complete action of the TMOP Integrator to account for the spatial
+  derivatives of discrete and analytic targets.
+
 Performance improvements
 ------------------------
 - Added support for explicit vectorization in the high-performance templated
@@ -47,6 +50,15 @@ Performance improvements
 Improved GPU capabilities
 -------------------------
 - Added support for Chebyshev accelerated polynomial smoother on GPU.
+
+- Optimized AMD/HIP kernel support.
+
+- Added a Full Assembly mode compatible with Device kernel execution. This
+  assembly level builds on top of the current Element Assembly kernels to
+  compute a global sparse matrix. All integrators supported by element assembly
+  are also supported by full assembly. See the '-fa' option in Example 9.
+
+- Added support for BlockOperator on GPU. See the updated Example 5.
 
 Discretization improvements
 ---------------------------
@@ -71,7 +83,7 @@ Discretization improvements
   and, in the continuous field case, arbitrary mesh edges and faces.
 
 - Added new coefficient and vector coefficient classes for QuadratureFunctions.
-  Additionaly, new LinearForm integrators were also added which make use of
+  Additionally, new LinearForm integrators were also added which make use of
   these new QuadratureFunction coefficient classes.
 
 - Added support face integrals on the boundaries of NURBS meshes.
@@ -88,12 +100,18 @@ Linear and nonlinear solvers
   and solution during the solving process of an IterativeSolver after every
   iteration.
 
+- Added support for the CVODES package in SUNDIALS which provides ODE
+  solvers with sensitivity analysis capabilities. See the CVODESSolver
+  class and the new adjoint miniapps below.
+
 - Block arrays of parallel matrices can now be merged into a single parallel
   matrix with the function HypreParMatrixFromBlocks. This could be useful for
   solving block systems with parallel direct solvers such as STRUMPACK.
 
 - In SLISolver, changed the residual inner product from (Br,r) to (Br,Br) so the
   solver can work with non-SPD preconditioner B.
+
+- Added support for the SLEPc eigensolver package.
 
 New and updated examples and miniapps
 -------------------------------------
@@ -113,6 +131,17 @@ New and updated examples and miniapps
   equations of incompressible fluid dynamics. See the miniapps/navier directory
   for more details.
 
+- Added a new miniapps/adjoint directory with two miniapps demonstrating how to
+  solve adjoint problems in MFEM using the CVODES package in SUNDIALS. Both of
+  these miniapps require the MFEM_USE_SUNDIALS configuration option.
+  * The cvsRoberts_ASAi_dns miniapp solves a backward adjoint problem for a
+    system of ODEs, evaluating both forward and adjoint quadratures in serial.
+  * The adjoint_advection_diffusion miniapp solves a backward adjoint problem
+    for an advection diffusion PDE, evaluating adjoint quadratures in parallel.
+
+- Ported Example 11p to SLEPc, to demonstrate solving the Laplace eigenvalue
+  equation with the shift-and-invert spectral transformation method.
+
 - Added a simple meshing miniapp, Twist, which demonstrates MFEM's strategy of
   stitching together opposite surfaces of a mesh to create a topologically
   periodic mesh.
@@ -120,17 +149,21 @@ New and updated examples and miniapps
 - Added a new meshing miniapp, Minimal Surface, which solves Plateau's problem:
   the Dirichlet problem for the minimal surface equation.
 
-- Added partial assembly support to examples 4/4p and 5/5p, with diagonal
+- Added partial assembly support to Example 4/4p and Example 5/5p, with diagonal
   preconditioning.
 
-- Added a new test problem in example 24/24p, demonstrating a mixed bilinear
-  form for H(div) and L_2, with partial assembly support.
+- Added full assembly support in Example 9/9p.
+
+- Added a new test problem in Example 24/24p, demonstrating a mixed bilinear
+  form for H1, H(curl), H(div) and L_2, with partial assembly support.
 
 - Added weak Dirichlet boundary conditions (Nitsche) to the NURBS miniapp.
 
 - Added a simple mesh editing miniapp, Trimmer, which trims away portions of a
   mesh based on element attributes. Any newly exposed boundary elements are
   assigned attribute numbers related to the trimmed element attributes.
+
+- Added device support in Example 5/5p.
 
 Improved testing
 ----------------

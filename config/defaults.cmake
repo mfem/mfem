@@ -39,6 +39,7 @@ option(MFEM_USE_GNUTLS "Enable GNUTLS usage" OFF)
 option(MFEM_USE_GSLIB "Enable GSLIB usage" OFF)
 option(MFEM_USE_NETCDF "Enable NETCDF usage" OFF)
 option(MFEM_USE_PETSC "Enable PETSc support." OFF)
+option(MFEM_USE_SLEPC "Enable SLEPc support." OFF)
 option(MFEM_USE_MPFR "Enable MPFR usage." OFF)
 option(MFEM_USE_SIDRE "Enable Axom/Sidre usage" OFF)
 option(MFEM_USE_CONDUIT "Enable Conduit usage" OFF)
@@ -87,6 +88,8 @@ set(METIS_DIR "${MFEM_DIR}/../metis-4.0" CACHE PATH "Path to the METIS library."
 
 set(LIBUNWIND_DIR "" CACHE PATH "Path to Libunwind.")
 
+# For sundials_nvecparhyp and nvecparallel remember to build with MPI_ENABLED=ON
+# and modify cmake variables for hypre for sundials
 set(SUNDIALS_DIR "${MFEM_DIR}/../sundials-5.0.0/instdir" CACHE PATH
     "Path to the SUNDIALS library.")
 # The following may be necessary, if SUNDIALS was built with KLU:
@@ -154,6 +157,10 @@ set(NetCDF_REQUIRED_PACKAGES "" CACHE STRING
 set(PETSC_DIR "${MFEM_DIR}/../petsc" CACHE PATH
     "Path to the PETSc main directory.")
 set(PETSC_ARCH "arch-linux2-c-debug" CACHE STRING "PETSc build architecture.")
+
+set(SLEPC_DIR "${MFEM_DIR}/../slepc" CACHE PATH
+    "Path to the SLEPc main directory.")
+set(SLEPC_ARCH "arch-linux2-c-debug" CACHE STRING "SLEPC build architecture.")
 
 set(MPFR_DIR "" CACHE PATH "Path to the MPFR library.")
 

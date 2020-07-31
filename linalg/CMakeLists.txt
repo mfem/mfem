@@ -62,6 +62,12 @@ if (MFEM_USE_MPI)
       petsc.cpp)
     list(APPEND HDRS
       petsc.hpp)
+    if (MFEM_USE_SLEPC)
+      list(APPEND SRCS
+        slepc.cpp)
+      list(APPEND HDRS
+        slepc.hpp)
+    endif()
   endif()
 endif()
 
