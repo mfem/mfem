@@ -612,12 +612,9 @@ class DGAdvectionDiffusionTDO : public TimeDependentOperator
 private:
    const MPI_Session & mpi_;
    int logging_;
-   bool h1_;
 
    ParFiniteElementSpace &fes_;
    ParGridFunction       &yGF_;
-   // ParGridFunction       &kGF_;
-   // SumCoefficient        &ykCoef_;
 
    class ADPrec : public Solver
    {
@@ -641,6 +638,7 @@ private:
    // Array<HypreSmoother*> newton_op_prec_blocks_;
    // Operator    * newton_op_prec_;
    GMRESSolver   newton_op_solver_;
+   // MINRESSolver   newton_op_solver_;
    NewtonSolver  newton_solver_;
 
    // Data collection used to write data files
@@ -654,7 +652,6 @@ private:
    protected:
       const MPI_Session &mpi_;
       const DGParams &dg_;
-      bool h1_;
 
       int logging_;
       std::string log_prefix_;
@@ -666,24 +663,19 @@ private:
       ParMesh               &pmesh_;
       ParGridFunction       &yGF_;
       ParGridFunction       &kGF_;
-      mutable ParLinearForm rLF_;
 
       GridFunctionCoefficient yCoef_;
       GridFunctionCoefficient kCoef_;
 
       SumCoefficient &ykCoef_;
 
-      // mutable Vector shape_;
-      // mutable DenseMatrix dshape_;
-      // mutable DenseMatrix dshapedxt_;
       mutable Array<int> vdofs_;
       mutable Array<int> vdofs2_;
       mutable DenseMatrix elmat_;
-      mutable DenseMatrix elmat_k_;
+      mutable DenseMatrix elmat_j_;
       mutable Vector elvec_;
       mutable Vector locvec_;
       mutable Vector locdvec_;
-      // mutable Vector vec_;
 
       // Domain integrators for time derivatives of field variables
       BilinearFormIntegrator* dbfi_m_;  // Domain Integrators
@@ -712,7 +704,7 @@ private:
       // Sockets used to communicate with GLVis
       std::map<std::string, socketstream*> socks_;
 
-      NLOperator(const MPI_Session & mpi, const DGParams & dg, bool h1,
+      NLOperator(const MPI_Session & mpi, const DGParams & dg,
                  ParFiniteElementSpace &fes,
                  ParGridFunction & yGF,
                  ParGridFunction & kGF,
@@ -761,14 +753,11 @@ private:
       std::vector<socketstream*> sout_;
       ParGridFunction coefGF_;
 
-      // GridFunctionCoefficient &y0Coef_;
-
       const AdvectionDiffusionBC & bcs_;
 
    public:
 
       AdvectionDiffusionOp(const MPI_Session & mpi, const DGParams & dg,
-                           bool h1,
                            ParFiniteElementSpace &fes,
                            ParGridFunction & yGF,
                            ParGridFunction & kGF,
@@ -821,7 +810,6 @@ private:
 public:
    DGAdvectionDiffusionTDO(const MPI_Session & mpi,
                            const DGParams & dg,
-                           bool h1,
                            ParFiniteElementSpace &fes,
                            ParGridFunction &yGF,
                            ParGridFunction &kGF,
