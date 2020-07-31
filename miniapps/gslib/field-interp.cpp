@@ -10,16 +10,15 @@
 // Software Foundation) version 2.1 dated February 1999.
 //
 //      --------------------------------------------------------------
-//      Field Diff Miniapp: Compare grid functions on different meshes
+//      Field Interp Miniapp: Transfer a GridFunction from one mesh onto another
 //      --------------------------------------------------------------
 //
-// This miniapp compares two different high-order grid functions, defined on two
-// different high-order meshes, based on the GSLIB-FindPoints general off-grid
-// interpolation utility. Using a set of points defined within the bounding box
-// of the domain, FindPoints is used to interpolate the grid functions from the
-// two different meshes and output the difference between the interpolated
-// values. The miniapp also uses FindPoints to interpolate the solution from one
-// mesh onto another, and visualize the difference using GLVis.
+// This miniapp provides the capability to transfer a GridFunction
+// (H1, L2, H(div), and H(curl)) from one mesh onto another using FindPointsGSLIB.
+// Using FindPoints, we identify the nodal positions of the target mesh with
+// respect to the source mesh and then interpolate the source GridFunction.
+// The interpolated values are then projected onto the desired FiniteElementSpace
+// on the target mesh. Finally, the transferred solution is visualized using GLVis.
 //
 // Compile with: make field-interp
 //
@@ -38,25 +37,29 @@ using namespace std;
 int main (int argc, char *argv[])
 {
    // Set the method's default parameters.
-   const char *mesh_file_1 = "../meshing/square01.mesh";
-   const char *mesh_file_2 = "../../data/inline-tri.mesh";
-   const char *sltn_file_1 = "square01_hdiv.gf";
-   int order = 3;
+   const char *src_mesh_file = "../meshing/square01.mesh";
+   const char *tar_mesh_file = "../../data/inline-tri.mesh";
+   const char *src_sltn_file = "square01_hdiv.gf";
+   int order      = 3;
    int ref_levels = 0;
+   int fieldtype  = -1;
    bool visualization = true;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file_1, "-m1", "--mesh1",
+   args.AddOption(&src_mesh_file, "-m1", "--mesh1",
                   "Mesh file for the starting solution.");
-   args.AddOption(&sltn_file_1, "-s1", "--solution1",
+   args.AddOption(&src_sltn_file, "-s1", "--solution1",
                   "Grid function for the starting solution.");
-   args.AddOption(&mesh_file_2, "-m2", "--mesh2",
+   args.AddOption(&tar_mesh_file, "-m2", "--mesh2",
                   "Mesh file for interpolation.");
    args.AddOption(&order, "-o", "--order",
                   "Order of the interpolated solution.");
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of refinements of the interpolation mesh.");
+   args.AddOption(&fieldtype, "-ft", "--field-type",
+                  "Target GridFunction type: -1 - source GridFunction type (default),"
+                  "0 - H1, 1 - L2, 2 - H(div), 3 - H(curl).");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -69,25 +72,25 @@ int main (int argc, char *argv[])
    args.PrintOptions(cout);
 
    // Input meshes.
-   Mesh mesh_1(mesh_file_1, 1, 1, false);
-   Mesh mesh_2(mesh_file_2, 1, 1, false);
+   Mesh mesh_1(src_mesh_file, 1, 1, false);
+   Mesh mesh_2(tar_mesh_file, 1, 1, false);
    const int dim = mesh_1.Dimension();
    MFEM_ASSERT(dim == mesh_2.Dimension(), "Source and target meshes "
                "must be in the same dimension.");
+   MFEM_VERIFY(dim > 1, "GSLIB requires a 2D or a 3D mesh" );
 
    for (int lev = 0; lev < ref_levels; lev++)
    {
       mesh_2.UniformRefinement();
    }
 
-   MFEM_VERIFY(dim > 1, "GSLIB requires a 2D or a 3D mesh" );
    if (mesh_1.GetNodes() == NULL) { mesh_1.SetCurvature(1); }
    if (mesh_2.GetNodes() == NULL) { mesh_2.SetCurvature(1); }
    const int mesh_poly_deg = mesh_2.GetNodes()->FESpace()->GetOrder(0);
-   cout << "Mesh curvature: "
+   cout << "Target mesh curvature: "
         << mesh_2.GetNodes()->OwnFEC()->Name() << " " << mesh_poly_deg << endl;
 
-   ifstream mat_stream_1(sltn_file_1);
+   ifstream mat_stream_1(src_sltn_file);
    GridFunction func_source(&mesh_1, mat_stream_1);
 
    // Display the starting mesh and the field.
@@ -118,51 +121,72 @@ int main (int argc, char *argv[])
    MFEM_VERIFY(gt != Geometry::PRISM, "Wedge elements are not currently "
                "supported.");
 
-   H1_FECollection fech(order, dim);
-   L2_FECollection fecl(order, dim);
-   RT_FECollection fechdiv(order, dim);
-   ND_FECollection feccurl(order, dim);
+   // Ensure the source GridFunction can be transferred using FindPointsGSLIB.
+   const FiniteElementCollection *fec_in = func_source.FESpace()->FEColl();
+   const int vdim_src   = func_source.FESpace()->GetVDim(),
+             ncomp_src = func_source.VectorDim();
+   int fieldtype_src = -1;
+   {
+      const H1_FECollection *fec_h1 = dynamic_cast<const H1_FECollection *>(fec_in);
+      const L2_FECollection *fec_l2 = dynamic_cast<const L2_FECollection *>(fec_in);
+      const RT_FECollection *fec_rt = dynamic_cast<const RT_FECollection *>(fec_in);
+      const ND_FECollection *fec_nd = dynamic_cast<const ND_FECollection *>(fec_in);
+      if (fec_h1)      { fieldtype_src = 0; }
+      else if (fec_l2) { fieldtype_src = 1; }
+      else if (fec_rt) { fieldtype_src = 2; }
+      else if (fec_nd) { fieldtype_src = 3; }
+      else { MFEM_ABORT("GridFunction type not supported yet.") }
+      if (fec_h1 && fec_h1->GetBasisType() != BasisType::GaussLobatto)
+      {
+         MFEM_ABORT("Only nodal basis are currently supported in this miniapp.");
+      }
+   }
+   if (fieldtype == -1) { fieldtype = fieldtype_src; }
+
+   // Setup the FiniteElementSpace and GridFunction on the target mesh.
+   FiniteElementCollection *fec = NULL;
    FiniteElementSpace *fes = NULL;
 
-   int fieldtype = 0;
-   const char *gf_name  = func_source.FESpace()->FEColl()->Name();
-   int ncomp = func_source.FESpace()->GetVDim();
-   if ( strncmp(gf_name, "H1", 2) == 0)
+   int vdim_tar = vdim_src;
+   if (fieldtype == 0)
    {
-      fieldtype = 0;
-      fes = new FiniteElementSpace(&mesh_2, &fech, ncomp);
+      fec = new H1_FECollection(order, dim);
+      vdim_tar = (fieldtype_src > 1) ? dim : vdim_src;
       std::cout << "H1-GridFunction\n";
    }
-   else if ( strncmp(gf_name, "L2", 2) == 0)
+   else if (fieldtype == 1)
    {
-      fieldtype = 1;
-      fes = new FiniteElementSpace(&mesh_2, &fecl, ncomp);
+      fec = new L2_FECollection(order, dim);
+      vdim_tar = (fieldtype_src > 1) ? dim : vdim_src;
       std::cout << "L2-GridFunction\n";
    }
-   else if ( strncmp(gf_name, "RT", 2) == 0)
+   else if (fieldtype == 2)
    {
-      fieldtype = 2;
-      fes = new FiniteElementSpace(&mesh_2, &fechdiv);
-      ncomp = dim;
+      fec = new RT_FECollection(order, dim);
+      vdim_tar = 1;
+      MFEM_VERIFY(fieldtype_src > 1, "Cannot interpolate a scalar "
+                  "GridFunction to a vector");
       std::cout << "H(div)-GridFunction\n";
 
    }
-   else if ( strncmp(gf_name, "ND", 2) == 0)
+   else if (fieldtype == 3)
    {
-      fieldtype = 3;
-      fes = new FiniteElementSpace(&mesh_2, &feccurl);
-      ncomp = dim;
+      fec = new ND_FECollection(order, dim);
+      vdim_tar = 1;
+      MFEM_VERIFY(fieldtype_src > 1, "Cannot interpolate a scalar "
+                  "GridFunction to a vector");
       std::cout << "H(curl)-GridFunction\n";
    }
    else
    {
       MFEM_ABORT("GridFunction type not supported.");
    }
-
+   fes = new FiniteElementSpace(&mesh_2, fec, vdim_tar);
    GridFunction func_target(fes);
 
    const int NE = mesh_2.GetNE(),
-             nsp = fes->GetFE(0)->GetNodes().GetNPoints();
+             nsp = fes->GetFE(0)->GetNodes().GetNPoints(),
+             ncomp_tar = func_target.VectorDim();
 
    // Generate list of points where the Gridfunction will be evaluated.
    Vector vxyz;
@@ -196,11 +220,12 @@ int main (int argc, char *argv[])
    const int nodes_cnt = vxyz.Size() / dim;
 
    // Evaluate source gridfunction.
-   Vector interp_vals(nodes_cnt*ncomp);
+   Vector interp_vals(nodes_cnt*ncomp_tar);
    FindPointsGSLIB finder;
    finder.Setup(mesh_1);
    finder.Interpolate(vxyz, func_source, interp_vals);
 
+   // Project the interpolated values to the target FiniteElementSpace.
    if (fieldtype <= 1) // H1 or L2
    {
       func_target = interp_vals;
@@ -219,10 +244,10 @@ int main (int argc, char *argv[])
          vals.SetSize(vdofs.Size());
          for (int j = 0; j < nsp; j++)
          {
-            for (int d = 0; d < ncomp; d++)
+            for (int d = 0; d < ncomp_tar; d++)
             {
                // Arrange values by dofs
-               elem_dof_vals(j*ncomp+d) = interp_vals(d*nsp*NE + i*nsp + j);
+               elem_dof_vals(j*ncomp_tar+d) = interp_vals(d*nsp*NE + i*nsp + j);
             }
          }
          fes->GetFE(i)->ProjectFromNodes(elem_dof_vals,
@@ -232,6 +257,7 @@ int main (int argc, char *argv[])
       }
    }
 
+   // Visualize the transferred solution.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -255,6 +281,7 @@ int main (int argc, char *argv[])
       }
    }
 
+   // Output the target mesh with the interpolated solution.
    ostringstream rho_name;
    rho_name  << "interpolated.gf";
    ofstream rho_ofs(rho_name.str().c_str());
@@ -264,6 +291,10 @@ int main (int argc, char *argv[])
 
    // Free the internal gslib data.
    finder.FreeData();
+
+   // Delete
+   delete fes;
+   delete fec;
 
    return 0;
 }

@@ -678,18 +678,10 @@ void FindPointsGSLIB::InterpolateH1(const GridFunction &field_in,
 void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
                                          Vector &field_out)
 {
-   int ncomp   = field_in.FESpace()->GetVDim(),
+   int ncomp   = field_in.VectorDim(),
        nptorig = points_cnt,
        npt     = points_cnt;
 
-   const FiniteElementCollection *fec_in =  field_in.FESpace()->FEColl();
-   const RT_FECollection *fec_rt = dynamic_cast<const RT_FECollection *>(fec_in);
-   const ND_FECollection *fec_nd = dynamic_cast<const ND_FECollection *>(fec_in);
-
-   if ( fec_rt || fec_nd )
-   {
-      ncomp = field_in.VectorDim();
-   }
    field_out.SetSize(points_cnt*ncomp);
 
    if (gsl_comm->np == 1) // serial

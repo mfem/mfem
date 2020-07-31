@@ -114,41 +114,43 @@ int main (int argc, char *argv[])
    }
 
    // Curve the mesh based on the chosen polynomial degree.
-   H1_FECollection fec(mesh_poly_deg, dim);
-   FiniteElementSpace fespace(&mesh, &fec, dim);
+   H1_FECollection fecm(mesh_poly_deg, dim);
+   FiniteElementSpace fespace(&mesh, &fecm, dim);
    mesh.SetNodalFESpace(&fespace);
-   cout << "Mesh curvature of the curved mesh: " << fec.Name() << endl;
+   cout << "Mesh curvature of the curved mesh: " << fecm.Name() << endl;
 
    MFEM_ASSERT(ncomp > 0, " Invalid input for ncomp.");
    int ncfinal = ncomp;
    GridFunction field_vals;
-   H1_FECollection fech(order, dim);
-   L2_FECollection fecl(order, dim);
-   ND_FECollection fechdiv(order, dim);
-   RT_FECollection feccurl(order, dim);
+   FiniteElementCollection *fec = NULL;
    FiniteElementSpace *sc_fes = NULL;
    if (fieldtype == 0)
    {
-      sc_fes = new FiniteElementSpace(&mesh, &fech, ncomp);
+      fec = new H1_FECollection(order, dim);
       cout << "H1-GridFunction\n";
    }
    else if (fieldtype == 1)
    {
-      sc_fes = new FiniteElementSpace(&mesh, &fecl, ncomp);
+      fec = new L2_FECollection(order, dim);
       cout << "L2-GridFunction\n";
    }
    else if (fieldtype == 2)
    {
-      sc_fes = new FiniteElementSpace(&mesh, &fechdiv);
+      fec = new ND_FECollection(order, dim);
       ncfinal = dim;
       cout << "H(div)-GridFunction\n";
    }
    else if (fieldtype == 3)
    {
-      sc_fes = new FiniteElementSpace(&mesh, &feccurl);
+      fec = new RT_FECollection(order, dim);
       ncfinal = dim;
       cout << "H(curl)-GridFunction\n";
    }
+   else
+   {
+      MFEM_ABORT("Invalid FECollection type.");
+   }
+   sc_fes = new FiniteElementSpace(&mesh, fec, ncfinal);
    field_vals.SetSpace(sc_fes);
 
    // Project the GridFunction using VectorFunctionCoefficient.
@@ -249,5 +251,9 @@ int main (int argc, char *argv[])
 
    // Free the internal gslib data.
    finder.FreeData();
+   // Delete
+   delete sc_fes;
+   delete fec;
+
    return 0;
 }
