@@ -41,8 +41,10 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../data/square-disc.mesh";
+   //const char *mesh_file = "../data/periodic-square.mesh";
    int ref_levels = -1;
    int order = 1;
+   int N = 5;
    double sigma = -1.0;
    double kappa = 50.0;
    bool visualization = 1;
@@ -50,6 +52,8 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&N, "-n", "--#elements",
+                  "number of mesh elements.");
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly, -1 for auto.");
    args.AddOption(&order, "-o", "--order",
@@ -79,7 +83,7 @@ int main(int argc, char *argv[])
    //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
    //    NURBS meshes are projected to second order meshes.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   // Mesh *mesh = new Mesh(10, 10, Element::QUADRILATERAL, true,
+   // Mesh *mesh = new Mesh(N, N, Element::QUADRILATERAL, true,
    //                       1, 1, true);
    int dim = mesh->Dimension();
    cout << "number of elements " << mesh->GetNE() << endl;
@@ -90,16 +94,16 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. By default, or if ref_levels < 0,
    //    we choose it to be the largest number that gives a final mesh with no
    //    more than 50,000 elements.
-   {
-      if (ref_levels < 0)
-      {
-         ref_levels = (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
-      }
-      for (int l = 0; l < ref_levels; l++)
-      {
-         mesh->UniformRefinement();
-      }
-   }
+   // {
+   //    if (ref_levels < 0)
+   //    {
+   //       ref_levels = (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+   //    }
+   //    for (int l = 0; l < ref_levels; l++)
+   //    {
+   //       mesh->UniformRefinement();
+   //    }
+   // }
    // if (mesh->NURBSext)
    // {
    //    mesh->SetCurvature(max(order, 1));
@@ -129,7 +133,6 @@ int main(int argc, char *argv[])
    GridFunction x(fespace);
    x = 0.0;
    x.ProjectCoefficient(u);
-
    // 7. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator and the interior and boundary DG face integrators.
@@ -143,13 +146,13 @@ int main(int argc, char *argv[])
    a->Assemble();
    a->Finalize();
    const SparseMatrix &A = a->SpMat();
-   ofstream write("stiffmat.txt");
+   ofstream write("stiffmat_dg_lap.txt");
    A.PrintMatlab(write);
    write.close();
    //cout << "bilinear form size " << a->Size() << endl;
    //A.Print();
    //cout << x.Size() << endl;
-#ifndef MFEM_USE_SUITESPARSE
+//#ifndef MFEM_USE_SUITESPARSE
    // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
    //    non-symmetric one.
@@ -162,13 +165,13 @@ int main(int argc, char *argv[])
    {
       GMRES(A, M, *b, x, 1, 500, 10, 1e-16, 0.0);
    }
-#else
-   // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-   UMFPackSolver umf_solver;
-   umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-   umf_solver.SetOperator(A);
-   umf_solver.Mult(*b, x);
-#endif
+// #else
+//    // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+//    UMFPackSolver umf_solver;
+//    umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+//    umf_solver.SetOperator(A);
+//    umf_solver.Mult(*b, x);
+// #endif
 
    // 9. Save the refined mesh and the solution. This output can be viewed later
    //    using GLVis: "glvis -m refined.mesh -g sol.gf".
@@ -193,21 +196,29 @@ int main(int argc, char *argv[])
       sol_sock.precision(8);
       sol_sock << "solution\n" << *mesh << x << flush;
    }
-  cout << x.ComputeL2Error(u) << endl;
-   // 11. Free the used memory.
-   delete a;
-   delete b;
-   delete fespace;
-   delete fec;
-   delete mesh;
-   return 0;
+  double norm = x.ComputeL2Error(u);
+  cout << "----------------------------- " << endl;
+  cout << "mesh size, h = " << 1.0 / N << endl;
+  cout << "solution norm: " << norm << endl;
+  // 11. Free the used memory.
+  delete a;
+  delete b;
+  delete fespace;
+  delete fec;
+  delete mesh;
+  return 0;
 }
 double u_exact(const Vector &x)
 {
+   //return exp(x(0));
+   //return (x(0) * x(0) ) + (x(1) * x(1));
+   //return x(0)*x(0);
    return sin(M_PI* x(0))*sin(M_PI*x(1));
    //return (2*x(0)) - (2*x(1));
 }
 double f_exact(const Vector &x)
 {
+   //return -exp(x(0));
+   //return -4.0;
    return 2*M_PI * M_PI* sin(M_PI*x(0)) * sin(M_PI* x(1));
 }

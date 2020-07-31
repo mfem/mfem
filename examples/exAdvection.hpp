@@ -97,14 +97,14 @@ class BoundaryAdvectIntegrator : public LinearFormIntegrator
 private:
    Coefficient *uD;
    VectorCoefficient *u;
-   double alpha, beta;
+   double alpha, beta, scale;
    int nels;
    Vector shape;
 
 public:
    BoundaryAdvectIntegrator(Coefficient &_uD, VectorCoefficient &_u,
-                          double a, double b, int ne)
-   { uD = &_uD; u = &_u; alpha = a; beta = b; nels= ne;}
+                          double a, double b, int ne, double scaling)
+   { uD = &_uD; u = &_u; alpha = a; beta = b; nels= ne; scale =scaling;}
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
                                        Vector &elvect);

@@ -15,7 +15,7 @@ void exact_function(const Vector &x, Vector &v);
 int main(int argc, char *argv[])
 {
    int ref_levels = -1;
-   int order = 4;
+   int order = 1;
    bool visualization = 1;
    double scale;
    int cutsize = 1;
@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
    FunctionCoefficient u(u_exact);
    VectorFunctionCoefficient velocity(dim, velocity_function);
    b->AddDomainIntegrator(new CutDomainLFIntegrator(f, scale, nels));
-   b->AddBdrFaceIntegrator(new BoundaryAdvectIntegrator(one, velocity, -1.0, -0.5, nels));
+   b->AddBdrFaceIntegrator(new BoundaryAdvectIntegrator(u, velocity, -1.0, -0.5, nels, scale));
    b->Assemble();
    BilinearForm *a = new BilinearForm(fes);
    a->AddDomainIntegrator(new AdvectionIntegrator(velocity, scale, nels, -1.0));
@@ -163,7 +163,7 @@ double u_exact(const Vector &x)
 }
 double f_exact(const Vector &x)
 {
-   return -exp(x(0));
+   return exp(x(0));
    //return -1.0;
    //return -2.0*x(0);
 }
@@ -174,7 +174,7 @@ void velocity_function(const Vector &x, Vector &v)
    switch (dim)
    {
    case 1:
-      v(0) = 1.0;
+      v(0) = -1.0;
       break;
    case 2:
       v(0) = sqrt(2. / 3.);
@@ -560,7 +560,11 @@ void BoundaryAdvectIntegrator::AssembleRHSElementVect(
    dim = el.GetDim();
    ndof = el.GetDof();
    elvect.SetSize(ndof);
-   if (Tr.Face->ElementNo == nels - 1)
+   // if (Tr.Face->ElementNo == nels - 1)
+   // {
+   //    elvect = 0.0;
+   // }
+   if (Tr.Face->ElementNo == 0)
    {
       elvect = 0.0;
    }
@@ -586,12 +590,14 @@ void BoundaryAdvectIntegrator::AssembleRHSElementVect(
          const IntegrationPoint &ip = ir->IntPoint(p);
          IntegrationPoint eip;
          Tr.Loc1.Transform(ip, eip);
+         eip.x = (scale * eip.x) / Tr.Elem1->Weight();
          el.CalcShape(eip, shape);
          Tr.Face->SetIntPoint(&ip);
          u->Eval(vu, *Tr.Elem1, eip);
-         nor(0) = 2 * eip.x - 1.0;
+         //nor(0) = 2 * eip.x - 1.0;
+         nor(0) = 1;
          un = vu * nor;
-         w = 0.5 * alpha * un - beta * fabs(un);
+         w = -0.5 * alpha * un + beta * fabs(un);
          w *= ip.weight * uD->Eval(*Tr.Elem1, eip);
          elvect.Add(w, shape);
       }

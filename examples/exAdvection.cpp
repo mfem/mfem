@@ -14,7 +14,7 @@ int main(int argc, char *argv[])
    // 1. mesh to be used
    //const char *mesh_file = "../data/periodic-segment.mesh";
    int ref_levels = -1;
-   int order = 4;
+   int order = 1;
    int cutsize = 1;
    int N = 20;
    bool visualization = 1;
@@ -58,9 +58,10 @@ int main(int argc, char *argv[])
    ConstantCoefficient zero(0.0);
    FunctionCoefficient f(f_exact);
    FunctionCoefficient u(u_exact);
+   ConstantCoefficient left(-1.0);
    VectorFunctionCoefficient velocity(dim, velocity_function);
    b->AddDomainIntegrator(new CutDomainLFIntegrator(f, scale, nels));
-   b->AddBdrFaceIntegrator(new BoundaryAdvectIntegrator(one, velocity, -1.0, -0.5, nels));
+   b->AddBdrFaceIntegrator(new BoundaryAdvectIntegrator(u, velocity, -1.0, -0.5, nels, scale));
    b->Assemble();
    BilinearForm *a = new BilinearForm(fespace);
    a->AddDomainIntegrator(new AdvectionIntegrator(velocity, scale, nels, -1.0));
@@ -74,7 +75,8 @@ int main(int argc, char *argv[])
    write.close();
    cout << "stiffness matrix size " << A.Size() << endl;
    GridFunction x(fespace);
-   x = 0.0;
+  // x = 0.0;
+   x.ProjectCoefficient(u);
 #ifndef MFEM_USE_SUITESPARSE
    // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
@@ -120,7 +122,7 @@ double u_exact(const Vector &x)
 }
 double f_exact(const Vector &x)
 {
-  return -exp(x(0));
+   return exp(x(0));
   //return -1.0;
    //return -2.0*x(0);
 }
@@ -131,7 +133,7 @@ void velocity_function(const Vector &x, Vector &v)
    switch (dim)
    {
    case 1:
-      v(0) = 1.0;
+      v(0) = -1.0;
       break;
    case 2:
       v(0) = sqrt(2. / 3.);
@@ -397,6 +399,7 @@ void DGFaceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
       }
       ir = &IntRules.Get(Trans.FaceGeom, order);
    }
+   //cout << "face geomtery " << Trans.FaceGeom << endl;
    // IntegrationRule *cutir;
    // if (Trans.Elem1No == nels - 1)
    // {
@@ -446,6 +449,7 @@ void DGFaceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
       a = 0.5 * alpha * un;
       b = beta * fabs(un);
       w = ip.weight * (a + b);
+      //cout << "face weight " << ip.weight << endl;
       if (ndof2)
       {
          w /= 2;
@@ -494,7 +498,11 @@ void BoundaryAdvectIntegrator::AssembleRHSElementVect(
    dim = el.GetDim();
    ndof = el.GetDof();
    elvect.SetSize(ndof);
-   if (Tr.Face->ElementNo == nels - 1)
+   // if (Tr.Face->ElementNo == nels - 1)
+   // {
+   //    elvect = 0.0;
+   // }
+   if (Tr.Face->ElementNo == 0)
    {
       elvect = 0.0;
    }
@@ -520,12 +528,15 @@ void BoundaryAdvectIntegrator::AssembleRHSElementVect(
          const IntegrationPoint &ip = ir->IntPoint(p);
          IntegrationPoint eip;
          Tr.Loc1.Transform(ip, eip);
+         eip.x = (scale * eip.x) / Tr.Elem1->Weight();
          el.CalcShape(eip, shape);
          Tr.Face->SetIntPoint(&ip);
          u->Eval(vu, *Tr.Elem1, eip);
-         nor(0) = 2 * eip.x - 1.0;
+         //nor(0) = 2 * eip.x - 1.0;
+         nor(0) = 1;
+         cout << "normal is " << nor(0) << endl;
          un = vu * nor;
-         w = 0.5 * alpha * un - beta * fabs(un);
+         w = -0.5 * alpha * un + beta * fabs(un);
          w *= ip.weight * uD->Eval(*Tr.Elem1, eip);
          elvect.Add(w, shape);
       }

@@ -36,8 +36,11 @@ list(APPEND ALL_EXE_SRCS
   exArea.cpp
   exMesh.cpp
   exLaplace.cpp
+  exLaplace_GD.cpp
+  ex14_GD.cpp
   exAdvection.cpp
   exAdvection_GD.cpp
+  exAdvection_merge.cpp
   )
 
 if (MFEM_USE_MPI)

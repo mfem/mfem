@@ -112,6 +112,7 @@ void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
    T.Transform(ip, transip);
 
    V.SetSize(vdim);
+  
    if (Function)
    {
       // for(int k=0; k<transip.Size(); ++k)
