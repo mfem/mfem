@@ -14,6 +14,9 @@
 #include "../linalg/dtensor.hpp"
 #include "../linalg/kernels.hpp"
 
+#define MFEM_DEBUG_COLOR 226
+#include "../general/debug.hpp"
+
 namespace mfem
 {
 
@@ -298,15 +301,20 @@ void QuadratureInterpolator::Derivatives<QVectorLayout::byNODES>(
       case 0x3324: return GradByNodes3D<3,2,4>(NE,B,G,X,Y);
       case 0x3325: return GradByNodes3D<3,2,5>(NE,B,G,X,Y);
       case 0x3326: return GradByNodes3D<3,2,6>(NE,B,G,X,Y);
+
       case 0x3333: return GradByNodes3D<3,3,3>(NE,B,G,X,Y);
+      case 0x3334: return GradByNodes3D<3,3,4>(NE,B,G,X,Y);
       case 0x3335: return GradByNodes3D<3,3,5>(NE,B,G,X,Y);
       case 0x3336: return GradByNodes3D<3,3,6>(NE,B,G,X,Y);
+      case 0x3344: return GradByNodes3D<3,4,4>(NE,B,G,X,Y);
+      case 0x3346: return GradByNodes3D<3,4,6>(NE,B,G,X,Y);
       case 0x3347: return GradByNodes3D<3,4,7>(NE,B,G,X,Y);
       case 0x3348: return GradByNodes3D<3,4,8>(NE,B,G,X,Y);
       default:
       {
          constexpr int MD1 = 8;
          constexpr int MQ1 = 8;
+         dbg("Using standard kernel #id 0x%x", id);
          MFEM_VERIFY(D1D <= MD1, "Orders higher than " << MD1-1
                      << " are not supported!");
          MFEM_VERIFY(Q1D <= MQ1, "Quadrature rules with more than "

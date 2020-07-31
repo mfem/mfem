@@ -307,6 +307,7 @@ static void D2QPhysGrad(const FiniteElementSpace &fes,
          case 0x258: return D2QPhysGrad2D<2,5,8,2>(NE, B, G, J, X, Y);
          default:
          {
+            dbg("Using standard kernel #id 0x%x", id);
             MFEM_VERIFY(D1D <= MAX_D1D, "Orders higher than " << MAX_D1D-1
                         << " are not supported!");
             MFEM_VERIFY(Q1D <= MAX_Q1D, "Quadrature rules with more than "
@@ -330,6 +331,7 @@ static void D2QPhysGrad(const FiniteElementSpace &fes,
          {
             constexpr int MD = 8;
             constexpr int MQ = 8;
+            dbg("Using standard kernel #id 0x%x", id);
             MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
                         << " are not supported!");
             MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than " << MQ
@@ -352,9 +354,9 @@ void QuadratureInterpolator::PhysDerivatives<QVectorLayout::byNODES>(
    if (mesh->GetNE() == 0) { return; }
    // mesh->DeleteGeometricFactors(); // This should be done outside
    const IntegrationRule &ir = *IntRule;
+   constexpr DofToQuad::Mode mode = DofToQuad::TENSOR;
    const GeometricFactors *geom =
-      mesh->GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
-   const DofToQuad::Mode mode = DofToQuad::TENSOR;
+      mesh->GetGeometricFactors(ir, GeometricFactors::JACOBIANS, mode);
    const DofToQuad &d2q = fespace->GetFE(0)->GetDofToQuad(ir, mode);
    D2QPhysGrad(*fespace, geom, &d2q, e_vec, q_der);
 }

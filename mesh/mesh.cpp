@@ -10545,11 +10545,15 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
 
    const QuadratureInterpolator *qi =
       fespace->GetQuadratureInterpolator(ir, mode);
-   const bool t_prod = qi->UseTensorProducts();
+   const bool use_tensor_products = qi->UseTensorProducts();
+
+   // GeometricFactors arrays use a column-major layout
+   qi->SetOutputLayout(QVectorLayout::byNODES);
 
    // Use LEXICOGRAPHIC ordering in case of tensor product evaluation
-   const ElementDofOrdering e_ordering =
-      t_prod ? ElementDofOrdering::LEXICOGRAPHIC : ElementDofOrdering::NATIVE;
+   const ElementDofOrdering e_ordering = use_tensor_products ?
+                                         ElementDofOrdering::LEXICOGRAPHIC :
+                                         ElementDofOrdering::NATIVE;
    const Operator *elem_restr = fespace->GetElementRestriction(e_ordering);
 
    if (elem_restr)
