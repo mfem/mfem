@@ -238,6 +238,7 @@ static void D2QValues(const FiniteElementSpace &fes,
          case 0x136: return D2QValues2D<1,3,6,4>(NE, maps->B, e_vec, q_val);
          case 0x148: return D2QValues2D<1,4,8,2>(NE, maps->B, e_vec, q_val);
          case 0x224: return D2QValues2D<2,2,4,8>(NE, maps->B, e_vec, q_val);
+         case 0x234: return D2QValues2D<2,3,4,8>(NE, maps->B, e_vec, q_val);
          case 0x236: return D2QValues2D<2,3,6,4>(NE, maps->B, e_vec, q_val);
          case 0x248: return D2QValues2D<2,4,8,2>(NE, maps->B, e_vec, q_val);
          default:
