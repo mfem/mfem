@@ -491,7 +491,7 @@ void CeedMFAssemble(const CeedMFOperator& op,
       CeedVectorSetArray(ceedCoeff->coeffVector, CEED_MEM_HOST, CEED_USE_POINTER,
                          ceedCoeff->coeff->GetData());
       CeedOperatorSetField(ceedData.
-      oper, "coeff", ceedCoeff->restr,
+                           oper, "coeff", ceedCoeff->restr,
                            ceedCoeff->basis, ceedCoeff->coeffVector);
    }
    CeedOperatorSetField(ceedData.oper, "dx", ceedData.mesh_restr,
@@ -506,8 +506,8 @@ void CeedMFAssemble(const CeedMFOperator& op,
 }
 
 void CeedAddMult(const CeedData *ceedDataPtr,
-                   const Vector &x,
-                   Vector &y)
+                 const Vector &x,
+                 Vector &y)
 {
    const CeedScalar *x_ptr;
    CeedScalar *y_ptr;
