@@ -302,6 +302,7 @@ static void D2QPhysGrad(const FiniteElementSpace &fes,
          case 0x134: return D2QPhysGrad2D<1,3,4,8>(NE, B, G, J, X, Y);
          case 0x146: return D2QPhysGrad2D<1,4,6,4>(NE, B, G, J, X, Y);
          case 0x158: return D2QPhysGrad2D<1,5,8,2>(NE, B, G, J, X, Y);
+         case 0x233: return D2QPhysGrad2D<2,3,3,8>(NE, B, G, J, X, Y);
          case 0x234: return D2QPhysGrad2D<2,3,4,8>(NE, B, G, J, X, Y);
          case 0x246: return D2QPhysGrad2D<2,4,6,4>(NE, B, G, J, X, Y);
          case 0x258: return D2QPhysGrad2D<2,5,8,2>(NE, B, G, J, X, Y);

@@ -285,6 +285,7 @@ void QuadratureInterpolator::Derivatives<QVectorLayout::byNODES>(
       case 0x2224: return GradByNodes2D<2,2,4>(NE,B,G,X,Y);
       case 0x2225: return GradByNodes2D<2,2,5>(NE,B,G,X,Y);
       case 0x2226: return GradByNodes2D<2,2,6>(NE,B,G,X,Y);
+      case 0x2233: return GradByNodes2D<2,3,3>(NE,B,G,X,Y);
       case 0x2234: return GradByNodes2D<2,3,4>(NE,B,G,X,Y);
       case 0x2236: return GradByNodes2D<2,3,6>(NE,B,G,X,Y);
       case 0x2244: return GradByNodes2D<2,4,4>(NE,B,G,X,Y);
