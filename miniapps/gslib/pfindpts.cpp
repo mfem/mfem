@@ -135,44 +135,46 @@ int main (int argc, char *argv[])
    for (int lev = 0; lev < rp_levels; lev++) { pmesh.UniformRefinement(); }
 
    // Curve the mesh based on the chosen polynomial degree.
-   H1_FECollection fec(mesh_poly_deg, dim);
-   ParFiniteElementSpace pfespace(&pmesh, &fec, dim);
+   H1_FECollection fecm(mesh_poly_deg, dim);
+   ParFiniteElementSpace pfespace(&pmesh, &fecm, dim);
    pmesh.SetNodalFESpace(&pfespace);
    if (myid == 0)
    {
-      cout << "Mesh curvature of the curved mesh: " << fec.Name() << endl;
+      cout << "Mesh curvature of the curved mesh: " << fecm.Name() << endl;
    }
 
    MFEM_ASSERT(ncomp > 0, " Invalid input for ncomp.");
    int ncfinal = ncomp;
    ParGridFunction field_vals;
-   H1_FECollection fech(order, dim);
-   L2_FECollection fecl(order, dim);
-   ND_FECollection fechdiv(order, dim);
-   RT_FECollection feccurl(order, dim);
+   FiniteElementCollection *fec = NULL;
    ParFiniteElementSpace *sc_fes = NULL;
    if (fieldtype == 0)
    {
-      sc_fes = new ParFiniteElementSpace(&pmesh, &fech, ncomp);
-      if (myid == 0) { std::cout << "H1-GridFunction\n"; }
+      fec = new H1_FECollection(order, dim);
+      if (myid == 0) { cout << "H1-GridFunction\n"; }
    }
    else if (fieldtype == 1)
    {
-      sc_fes = new ParFiniteElementSpace(&pmesh, &fecl, ncomp);
-      if (myid == 0) { std::cout << "L2-GridFunction\n"; }
+      fec = new L2_FECollection(order, dim);
+      if (myid == 0) { cout << "L2-GridFunction\n"; }
    }
    else if (fieldtype == 2)
    {
-      sc_fes = new ParFiniteElementSpace(&pmesh, &fechdiv);
+      fec = new ND_FECollection(order, dim);
       ncfinal = dim;
-      if (myid == 0) { std::cout << "H(div)-GridFunction\n"; }
+      if (myid == 0) { cout << "H(div)-GridFunction\n"; }
    }
    else if (fieldtype == 3)
    {
-      sc_fes = new ParFiniteElementSpace(&pmesh, &feccurl);
+      fec = new RT_FECollection(order, dim);
       ncfinal = dim;
-      if (myid == 0) { std::cout << "H(curl)-GridFunction\n"; }
+      if (myid == 0) { cout << "H(curl)-GridFunction\n"; }
    }
+   else
+   {
+      if (myid == 0) { MFEM_ABORT("Invalid FECollection type."); }
+   }
+   sc_fes = new ParFiniteElementSpace(&pmesh, fec, ncfinal);
    field_vals.SetSpace(sc_fes);
 
    // Project the GridFunction using VectorFunctionCoefficient.
@@ -310,6 +312,10 @@ int main (int argc, char *argv[])
 
    // Free the internal gslib data.
    finder.FreeData();
+   // Delete
+   delete sc_fes;
+   delete fec;
+
    MPI_Finalize();
    return 0;
 }
