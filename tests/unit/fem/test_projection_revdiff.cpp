@@ -59,7 +59,7 @@ void func2D(const Vector &x, Vector &y)
 void func2DRevDiff(const Vector &x, const Vector &v_bar, Vector &x_bar)
 {
    x_bar(0) = v_bar(0) * 2*x(0) + v_bar(1) * exp(x(1));
-   x_bar(1) = -v_bar(0) + v_bar(1) * x(0) * exp(x(1)); 
+   x_bar(1) = -v_bar(0) + v_bar(1) * x(0) * exp(x(1));
 }
 
 void func3D(const Vector &x, Vector &y)
@@ -73,8 +73,8 @@ void func3D(const Vector &x, Vector &y)
 void func3DRevDiff(const Vector &x, const Vector &v_bar, Vector &x_bar)
 {
    x_bar(0) = v_bar(0) * 2*x(0) + v_bar(1) * exp(x(1)) + v_bar(2)*x(2);
-   x_bar(1) = -v_bar(0) + v_bar(1) * x(0) * exp(x(1)) - v_bar(2); 
-   x_bar(2) = v_bar(2) * x(0); 
+   x_bar(1) = -v_bar(0) + v_bar(1) * x(0) * exp(x(1)) - v_bar(2);
+   x_bar(2) = v_bar(2) * x(0);
 }
 
 } // anonymous namespace
@@ -133,7 +133,7 @@ TEST_CASE("FiniteElement::Project_RevDiff reverse-mode differentiation",
          }
 
          Vector dofs_fd(dof), dofs_pert(dof);
-      
+
          // reverse-mode differentiation of projection
          coords_bar = 0.0;
          el.Project_RevDiff(P_bar, vc2D, trans, coords_bar);
@@ -183,7 +183,7 @@ TEST_CASE("FiniteElement::Project_RevDiff reverse-mode differentiation",
          }
 
          Vector dofs_fd(dof), dofs_pert(dof);
-      
+
          // reverse-mode differentiation of projection
          coords_bar = 0.0;
          el.Project_RevDiff(P_bar, vc2D, trans, coords_bar);
@@ -209,8 +209,8 @@ TEST_CASE("FiniteElement::Project_RevDiff reverse-mode differentiation",
    }
 
    Mesh mesh3D(1, 1, 1, Element::TETRAHEDRON,
-             true /* gen. edges */, 1.0,
-             1.0, 1.0, true);
+               true /* gen. edges */, 1.0,
+               1.0, 1.0, true);
    mesh3D.EnsureNodes();
 
    if (dumpMesh)
@@ -248,7 +248,7 @@ TEST_CASE("FiniteElement::Project_RevDiff reverse-mode differentiation",
          }
 
          Vector dofs_fd(dof), dofs_pert(dof);
-      
+
          // reverse-mode differentiation of projection
          coords_bar = 0.0;
          el.Project_RevDiff(P_bar, vc3D, trans, coords_bar);
@@ -298,7 +298,7 @@ TEST_CASE("FiniteElement::Project_RevDiff reverse-mode differentiation",
          }
 
          Vector dofs_fd(dof), dofs_pert(dof);
-      
+
          // reverse-mode differentiation of projection
          coords_bar = 0.0;
          el.Project_RevDiff(P_bar, vc3D, trans, coords_bar);

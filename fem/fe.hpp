@@ -513,9 +513,9 @@ public:
    virtual void Project (VectorCoefficient &vc,
                          ElementTransformation &Trans, Vector &dofs) const;
 
-/** Given a vector coefficient and a transformation, compute the derivative of
-       its projection (approximation) in the local finite dimensional space
-       w.r.t. the mesh nodes (VectorFiniteElements) */
+   /** Given a vector coefficient and a transformation, compute the derivative of
+          its projection (approximation) in the local finite dimensional space
+          w.r.t. the mesh nodes (VectorFiniteElements) */
    virtual void Project_RevDiff (const Vector &P_bar,
                                  VectorCoefficient &vc,
                                  ElementTransformation &Trans,

@@ -58,7 +58,7 @@ public:
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip) = 0;
 
-   /** @brief Evaluate the derivative of a coefficient in the element 
+   /** @brief Evaluate the derivative of a coefficient in the element
        described by @a T at the point @a ip, with respect to the mesh nodes,
        storing the result in @a PointMat_bar. */
    /** @note When this method is called, the caller must make sure that the
@@ -218,27 +218,6 @@ public:
       : TDFunction(TDF)
    { }
 
-   /// Construct time-independent coefficient that can be differentiated
-   FunctionCoefficient(std::function<double(const Vector &)> F,
-                       std::function<void(const Vector &,
-                                          const double,
-                                          Vector &)> dF)
-   {
-      Function = F;
-      FunctionRevDiff = dF;
-   }
-
-   /// Construct time-dependent coefficient that can be differentiated
-   FunctionCoefficient(std::function<double(const Vector &, double)> TDF,
-                       std::function<void(const Vector &,
-                                          double,
-                                          const double,
-                                          Vector &)> dTDF)
-   {
-      TDFunction = TDF;
-      TDFunctionRevDiff = dTDF;
-   }
-
    /// Define a time-dependent coefficient from a pointer to a C-function
    FunctionCoefficient(double (*TDF)(const Vector &, double))
       : FunctionCoefficient((std::function<double(const Vector &, double)>)TDF)
@@ -261,6 +240,101 @@ public:
    FunctionCoefficient(const lambda &TDF)
       : FunctionCoefficient(
            detail::deduce_type_t<decltype(&lambda::operator())>(TDF))
+   { }
+
+   /// Construct time-independent coefficient that can be differentiated
+   FunctionCoefficient(std::function<double(const Vector &)> F,
+                       std::function<void(const Vector &,
+                                          const double,
+                                          Vector &)> dF)
+      : Function(F), FunctionRevDiff(dF)
+   { }
+
+   /// Define a time-independent coefficient that can be differentiated from a
+   /// pointer to a C-function
+   FunctionCoefficient(double (*F)(const Vector &),
+                       void (*dF)(const Vector &, const double, Vector &))
+      : FunctionCoefficient((std::function<double(const Vector &)>)F,
+                            (std::function<void(const Vector &,
+                                                const double,
+                                                Vector &)>) dF)
+   { }
+
+   /// \brief Define a time-independent coefficient that can be differentiated
+   /// from a lambda function
+   /// \tparam lambda - type of lambda
+   /// \tparam dLambda - type of differentiated lambda
+   /// \param F - time-independent lambda function
+   /// \param dF - differentiated time-independent lambda function
+   /// \note uses template meta-programing technique SFINAE to enable this
+   /// constructor only for lambda functions that are convertable to a
+   /// std::function<double(const Vector &, double)>. Using this removes the
+   /// ambiguity between the std::function and function pointer constructors
+   /// when using a stateless lambda
+   template<
+      typename lambda,
+      typename dLambda,
+      detail::enable_if_t<
+         std::is_same<
+            decltype(detail::deduce_type_t<decltype(&lambda::operator())>()),
+            std::function<double(const Vector &)>>::value, int> = 0,
+      detail::enable_if_t<
+         std::is_same<
+            decltype(detail::deduce_type_t<decltype(&dLambda::operator())>()),
+            std::function<void(const Vector &, const double, Vector &)>>::value, int> = 0>
+   FunctionCoefficient(const lambda &F, const dLambda &dF)
+      : FunctionCoefficient(
+           detail::deduce_type_t<decltype(&lambda::operator())>(F),
+           detail::deduce_type_t<decltype(&dLambda::operator())>(dF))
+   { }
+
+   /// Construct time-dependent coefficient that can be differentiated
+   FunctionCoefficient(std::function<double(const Vector &, double)> TDF,
+                       std::function<void(const Vector &,
+                                          double,
+                                          const double,
+                                          Vector &)> dTDF)
+      : TDFunction(TDF), TDFunctionRevDiff(dTDF)
+   { }
+
+   /// Define a time-dependent coefficient that can be differentiated from a
+   /// pointer to a C-function
+   FunctionCoefficient(double (*TDF)(const Vector &, double),
+                       void (*dTDF)(const Vector &, double, const double, Vector &))
+      : FunctionCoefficient((std::function<double(const Vector &, double)>)TDF,
+                            (std::function<void(const Vector &,
+                                                double,
+                                                const double,
+                                                Vector &)>) dTDF)
+   { }
+
+   /// \brief Define a time-dependent coefficient that can be differentiated
+   /// from a lambda function
+   /// \tparam lambda - type of lambda
+   /// \tparam dLambda - type of differentiated lambda
+   /// \param TDF - time-dependent lambda function
+   /// \param dTDF - differentiated time-dependent lambda function
+   /// \note uses template meta-programing technique SFINAE to enable this
+   /// constructor only for lambda functions that are convertable to a
+   /// std::function<double(const Vector &, double)>. Using this removes the
+   /// ambiguity between the std::function and function pointer constructors
+   /// when using a stateless lambda
+   template<
+      typename lambda,
+      typename dLambda,
+      detail::enable_if_t<
+         std::is_same<
+            decltype(detail::deduce_type_t<decltype(&lambda::operator())>()),
+            std::function<double(const Vector &, double)>>::value, int> = 0,
+      detail::enable_if_t<
+         std::is_same<
+            decltype(detail::deduce_type_t<decltype(&dLambda::operator())>()),
+            std::function<void(const Vector &, double, const double, Vector &)>>::value,
+         int> = 0>
+   FunctionCoefficient(const lambda &TDF, const dLambda &dTDF)
+      : FunctionCoefficient(
+           detail::deduce_type_t<decltype(&lambda::operator())>(TDF),
+           detail::deduce_type_t<decltype(&dLambda::operator())>(dTDF))
    { }
 
    /// (DEPRECATED) Define a time-independent coefficient from a C-function
@@ -491,7 +565,7 @@ public:
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip) = 0;
 
-   /** @brief Evaluate the derivative of a vector coefficient in the element 
+   /** @brief Evaluate the derivative of a vector coefficient in the element
        described by @a T at the point @a ip, with respect to the mesh nodes,
        storing the result in @a PointMat_bar. */
    /** @note When this method is called, the caller must make sure that the
@@ -650,23 +724,50 @@ public:
                              std::function<void(const Vector &,
                                                 const Vector &,
                                                 Vector &)> dF)
-                             : VectorCoefficient(dim), Q(NULL)
-   {
-      Function = F;
-      FunctionRevDiff = dF;
-   }
+      : VectorCoefficient(dim), Function(F), FunctionRevDiff(dF), Q(NULL)
+   { }
 
    /// Construct a time-independent vector coefficient from a pointer to a
    /// C-function that can be differentiated
    VectorFunctionCoefficient(int dim,
                              void(*F)(const Vector &, Vector &),
                              void(*dF)(const Vector &, const Vector &, Vector &))
-    : VectorFunctionCoefficient(dim,
-                               (std::function<void(const Vector &,
-                                                   Vector &)>) F,
-                               (std::function<void(const Vector &,
-                                                   const Vector &,
-                                                   Vector &)>) dF)
+      : VectorFunctionCoefficient(dim,
+                                  (std::function<void(const Vector &,
+                                                      Vector &)>) F,
+                                  (std::function<void(const Vector &,
+                                                      const Vector &,
+                                                      Vector &)>) dF)
+   { }
+
+   /// \brief Define a time-independent coefficient that can be differentiated
+   /// from a lambda function
+   /// \tparam lambda - type of lambda
+   /// \tparam dLambda - type of differentiated lambda
+   /// \param F - time-independent lambda function
+   /// \param dF - differentiated time-independent lambda function
+   /// \note uses template meta-programing technique SFINAE to enable this
+   /// constructor only for lambda functions that are convertable to a
+   /// std::function<double(const Vector &, double)>. Using this removes the
+   /// ambiguity between the std::function and function pointer constructors
+   /// when using a stateless lambda
+   template<
+      typename lambda,
+      typename dLambda,
+      detail::enable_if_t<
+         std::is_same<
+            decltype(detail::deduce_type_t<decltype(&lambda::operator())>()),
+            std::function<void(const Vector &, Vector &)>>::value, int> = 0,
+      detail::enable_if_t<
+         std::is_same<
+            decltype(detail::deduce_type_t<decltype(&dLambda::operator())>()),
+            std::function<void(const Vector &, const Vector, Vector &)>>::value, int> = 0>
+   VectorFunctionCoefficient(int dim, const lambda &F, const dLambda &dF, Coefficient *q = nullptr)
+      : VectorFunctionCoefficient(
+           dim,
+           detail::deduce_type_t<decltype(&lambda::operator())>(F),
+           detail::deduce_type_t<decltype(&dLambda::operator())>(dF),
+           q)
    { }
 
 
@@ -677,7 +778,7 @@ public:
                                                 Vector &)> TDF,
                              std::function<void(const Vector &,
                                                 double, const Vector &, Vector &)> dTDF)
-                             : VectorCoefficient(dim), Q(NULL)
+      : VectorCoefficient(dim), Q(NULL)
    {
       TDFunction = TDF;
       TDFunctionRevDiff = dTDF;
@@ -688,14 +789,44 @@ public:
    VectorFunctionCoefficient(int dim,
                              void(*TDF)(const Vector &, double, Vector &),
                              void(*dTDF)(const Vector &, double, const Vector &, Vector &))
-    : VectorFunctionCoefficient(dim,
-                               (std::function<void(const Vector &,
-                                                   double,
-                                                   Vector &)>) TDF,
-                               (std::function<void(const Vector &,
-                                                   double,
-                                                   const Vector &,
-                                                   Vector &)>) dTDF)
+      : VectorFunctionCoefficient(dim,
+                                  (std::function<void(const Vector &,
+                                                      double,
+                                                      Vector &)>) TDF,
+                                  (std::function<void(const Vector &,
+                                                      double,
+                                                      const Vector &,
+                                                      Vector &)>) dTDF)
+   { }
+
+   /// \brief Define a time-dependent coefficient that can be differentiated
+   /// from a lambda function
+   /// \tparam lambda - type of lambda
+   /// \tparam dLambda - type of differentiated lambda
+   /// \param TDF - time-dependent lambda function
+   /// \param dTDF - differentiated time-independent lambda function
+   /// \note uses template meta-programing technique SFINAE to enable this
+   /// constructor only for lambda functions that are convertable to a
+   /// std::function<double(const Vector &, double)>. Using this removes the
+   /// ambiguity between the std::function and function pointer constructors
+   /// when using a stateless lambda
+   template<
+      typename lambda,
+      typename dLambda,
+      detail::enable_if_t<
+         std::is_same<
+            decltype(detail::deduce_type_t<decltype(&lambda::operator())>()),
+            std::function<void(const Vector &, double, Vector &)>>::value, int> = 0,
+      detail::enable_if_t<
+         std::is_same<
+            decltype(detail::deduce_type_t<decltype(&dLambda::operator())>()),
+            std::function<void(const Vector &, double, const Vector &, Vector &)>>::value, int> = 0>
+   VectorFunctionCoefficient(int dim, const lambda &F, const dLambda &dF, Coefficient *q = nullptr)
+      : VectorFunctionCoefficient(
+           dim,
+           detail::deduce_type_t<decltype(&lambda::operator())>(F),
+           detail::deduce_type_t<decltype(&dLambda::operator())>(dF),
+           q)
    { }
 
    using VectorCoefficient::Eval;
@@ -705,7 +836,7 @@ public:
 
    /// Reverse-diff version of Eval
    /// @param[in] V_bar - derivative of functional with respect to `V`
-   /// @param[in] T - an element transformation 
+   /// @param[in] T - an element transformation
    /// @param[in] ip - defines location in reference space
    /// @param[out] PointMat_bar - derivative of function w.r.t. mesh nodes
    virtual void EvalRevDiff(const Vector &V_bar, ElementTransformation &T,

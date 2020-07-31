@@ -64,22 +64,22 @@ void FunctionCoefficient::EvalRevDiff(const double Q_bar,
    Vector transip(x, 3);
    double x_bar[3];
    Vector transip_bar(x_bar, 3);
-   T.Transform(ip, transip);  
+   T.Transform(ip, transip);
    transip_bar = 0.0;
    if (Function)
    {
       MFEM_ASSERT(FunctionRevDiff, "EvalRevDiff: reverse-mode differentiated "
-                                   "version of Function must be provided");
+                  "version of Function must be provided");
       FunctionRevDiff(transip, Q_bar, transip_bar);
    }
    else
    {
       MFEM_ASSERT(TDFunctionRevDiff, "EvalRevDiff: reverse-mode differentiated"
-                                    " version of TDFunction must be provided");
+                  " version of TDFunction must be provided");
       TDFunctionRevDiff(transip, GetTime(), Q_bar, transip_bar);
    }
    static_cast<IsoparametricTransformation &>(T).TransformRevDiff(
-       ip, transip_bar, PointMat_bar);
+      ip, transip_bar, PointMat_bar);
 }
 
 double GridFunctionCoefficient::Eval (ElementTransformation &T,
@@ -180,22 +180,22 @@ void VectorFunctionCoefficient::EvalRevDiff(const Vector &V_bar,
    Vector transip(x, vdim);
    double x_bar[3];
    Vector transip_bar(x_bar, vdim);
-   T.Transform(ip, transip);  
+   T.Transform(ip, transip);
    transip_bar = 0.0;
    if (Function)
    {
       MFEM_ASSERT(FunctionRevDiff, "EvalRevDiff: reverse-mode differentiated "
-                                   "version of Function must be provided");
+                  "version of Function must be provided");
       FunctionRevDiff(transip, V_bar, transip_bar);
    }
    else
    {
       MFEM_ASSERT(TDFunctionRevDiff, "EvalRevDiff: reverse-mode differentiated"
-                                    " version of TDFunction must be provided");
+                  " version of TDFunction must be provided");
       TDFunctionRevDiff(transip, GetTime(), V_bar, transip_bar);
    }
    static_cast<IsoparametricTransformation &>(T).TransformRevDiff(
-       ip, transip_bar, PointMat_bar);
+      ip, transip_bar, PointMat_bar);
 }
 
 VectorArrayCoefficient::VectorArrayCoefficient (int dim)

@@ -946,12 +946,12 @@ void VectorFiniteElement::Project_RT_RevDiff(
    MFEM_ASSERT(vc.GetVDim() == sdim, "");
    Vector xk(vk, sdim);
    MFEM_ASSERT(dim == sdim, "VectorFiniteElement::Project_RT_RevDiff\n"
-                 "\tOnly implemented if space dim == reference dim!\n");
+               "\tOnly implemented if space dim == reference dim!\n");
 
    DenseMatrix temp_bar(PointMat_bar.Height(), PointMat_bar.Width());
 
    IsoparametricTransformation &isotrans =
-                           dynamic_cast<IsoparametricTransformation&>(Trans);
+      dynamic_cast<IsoparametricTransformation&>(Trans);
 
    for (int k = 0; k < dof; k++)
    {
@@ -1161,12 +1161,12 @@ void VectorFiniteElement::Project_ND_RevDiff(
    MFEM_ASSERT(vc.GetVDim() == sdim, "");
    Vector xk(vk, sdim);
    MFEM_ASSERT(dim == sdim, "VectorFiniteElement::Project_RT_RevDiff\n"
-                 "\tOnly implemented if space dim == reference dim!\n");
-   
+               "\tOnly implemented if space dim == reference dim!\n");
+
    DenseMatrix temp_bar(PointMat_bar.Height(), PointMat_bar.Width());
 
    IsoparametricTransformation &isotrans =
-                           dynamic_cast<IsoparametricTransformation&>(Trans);
+      dynamic_cast<IsoparametricTransformation&>(Trans);
 
    for (int k = 0; k < dof; k++)
    {
