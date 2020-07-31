@@ -354,13 +354,14 @@ FmsMeshToMesh(FmsMesh fms_mesh, Mesh **mfem_mesh)
   // mesh.
   FmsInt num_comp;
   FmsMeshGetNumComponents(fms_mesh, &num_comp);
+cout << "FmsMeshToMesh: num_comp=" << num_comp << endl;
   FmsComponent main_comp = NULL;
   FmsField coords = NULL;
   for (FmsInt comp_id = 0; comp_id < num_comp; comp_id++) {
     FmsComponent comp;
     FmsMeshGetComponent(fms_mesh, comp_id, &comp);
     FmsComponentGetCoordinates(comp, &coords);
-    if (coords) { main_comp = comp; break; }
+    if (coords) { cout << "comp " << comp_id << " has coordinates." << endl; main_comp = comp; break; }
   }
   if (!main_comp) { return 1; }
   FmsComponentGetDimension(main_comp, &dim);
@@ -668,7 +669,8 @@ int FmsDataCollectionToDataCollection(FmsDataCollection dc, DataCollection **mfe
   // NOTE: The MFEM data collection has a single Mesh. Mesh has a constructor
   //       to take multiple Mesh objects but it appears to glue them together.
   Mesh *mesh = nullptr;
-  if(FmsMeshToMesh(fms_mesh, &mesh) == 0)
+  int err = FmsMeshToMesh(fms_mesh, &mesh);
+  if(err == 0)
   {
      std::string collection_name("collection");
      char *cn = nullptr;
@@ -733,6 +735,8 @@ cout << "FmsDataCollectionToDataCollection: convert " << name << endl;
   }
   else
   {
+cout << "FmsDataCollectionToDataCollection: mesh failed to convert. err=" << err << endl;
+
       retval = 1;
   }
 
