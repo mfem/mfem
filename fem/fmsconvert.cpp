@@ -60,7 +60,7 @@ FmsFieldGetOrderAndLayout(FmsField f, FmsInt *f_order, FmsLayoutType *f_layout)
 */
 template <typename DataType>
 int
-FmsFieldToGridFunction(FmsMesh fms_mesh, FmsField f, const Mesh *mesh, GridFunction &func)
+FmsFieldToGridFunction(FmsMesh fms_mesh, FmsField f, Mesh *mesh, GridFunction &func, bool setFE)
 {
     int err = 0;
 
@@ -133,6 +133,18 @@ FmsFieldToGridFunction(FmsMesh fms_mesh, FmsField f, const Mesh *mesh, GridFunct
       return 11;
     }
 
+//------------------------------------------------------------------
+    if(setFE)
+    {
+// We could assemble a name based on fe_coll.hpp rules and pass to FiniteElementCollection::New()
+        auto fec = new H1_FECollection(f_order, dim);
+        int ordering = (f_layout == FMS_BY_VDIM) ? Ordering::byVDIM : Ordering::byNODES;        
+        auto fes = new FiniteElementSpace(mesh, fec, space_dim, ordering);
+        func.SetSpace(fes);
+cout << "\tFESpace=" << (void*)func.FESpace() << endl;
+
+    }
+//------------------------------------------------------------------
     const FmsInt nstride = (f_layout == FMS_BY_VDIM) ? space_dim : 1;
     const FmsInt vstride = (f_layout == FMS_BY_VDIM) ? 1 : f_num_dofs;
 
@@ -603,7 +615,7 @@ cout << "coords_layout=" << coords_layout << endl;
 
     // Set the high-order mesh nodes
     mfem::GridFunction &nodes = *mesh->GetNodes();
-    int ce = FmsFieldToGridFunction<double>(fms_mesh, coords, mesh, nodes);
+    int ce = FmsFieldToGridFunction<double>(fms_mesh, coords, mesh, nodes, false);
 cout << "FmsFieldToGridFunction (for coords) returned " << ce << endl;
 
   }
@@ -669,7 +681,7 @@ int FmsDataCollectionToDataCollection(FmsDataCollection dc, DataCollection **mfe
      mdc->SetOwnData(true);
 
      // TODO: Now do fields, etc. and add them to mdc.
-
+#if 1
      FmsField *fields = nullptr;
      FmsInt num_fields = 0;
      if(FmsDataCollectionGetFields(dc, &fields, &num_fields) == 0)
@@ -678,6 +690,7 @@ int FmsDataCollectionToDataCollection(FmsDataCollection dc, DataCollection **mfe
          {
              const char *name = nullptr;
              FmsFieldGetName(fields[i], &name);
+cout << "FmsDataCollectionToDataCollection: convert " << name << endl;
 
              GridFunction *gf = new GridFunction;
 
@@ -694,10 +707,10 @@ int FmsDataCollectionToDataCollection(FmsDataCollection dc, DataCollection **mfe
              switch(f_data_type)
              {
              case FMS_FLOAT:
-                 err = FmsFieldToGridFunction<float>(fms_mesh, fields[i], mesh, *gf);
+                 err = FmsFieldToGridFunction<float>(fms_mesh, fields[i], mesh, *gf, true);
                  break;
              case FMS_DOUBLE:
-                 err = FmsFieldToGridFunction<double>(fms_mesh, fields[i], mesh, *gf);
+                 err = FmsFieldToGridFunction<double>(fms_mesh, fields[i], mesh, *gf, true);
                  break;
              case FMS_COMPLEX_FLOAT:
              case FMS_COMPLEX_DOUBLE:
@@ -715,9 +728,8 @@ int FmsDataCollectionToDataCollection(FmsDataCollection dc, DataCollection **mfe
              }
          }
      }
-
+#endif
      *mfem_dc = mdc;
-     retval = true;
   }
   else
   {
