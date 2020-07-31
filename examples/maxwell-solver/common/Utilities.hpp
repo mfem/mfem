@@ -117,9 +117,6 @@ public:
 };
 
 
-
-
-
 struct NeighborDofMaps
 {
 private:
@@ -137,6 +134,10 @@ private:
    int nrsubdomains = 0;
    int ovlp_layers = 0;
    Array<int> nxyz;
+   void SetElementToOverlap(int ip, int iel,
+                           const Array<bool> & neg, 
+                           const Array<bool> & pos);
+
    void MarkOvlpElements();
    void ComputeNeighborDofMaps();
 
