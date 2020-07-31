@@ -216,13 +216,21 @@ int tmop(int myid, Req &res, int argc, char *argv[])
          target_c = tc;
          break;
       }
-      case 5: // Discrete size 2D
+      case 5: // Discrete size 2D or 3D
       {
          target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
          DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
          tc->SetAdaptivityEvaluator(new AdvectorCG(al));
-         FunctionCoefficient ind_coeff(discrete_size_2d);
-         size.ProjectCoefficient(ind_coeff);
+         if (dim == 2)
+         {
+            FunctionCoefficient ind_coeff(discrete_size_2d);
+            size.ProjectCoefficient(ind_coeff);
+         }
+         else if (dim == 3)
+         {
+            FunctionCoefficient ind_coeff(discrete_size_3d);
+            size.ProjectCoefficient(ind_coeff);
+         }
          tc->SetDiscreteTargetSize(size);
          target_c = tc;
          break;
@@ -250,7 +258,7 @@ int tmop(int myid, Req &res, int argc, char *argv[])
       target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
    }
 #else
-   if (target_c == NULL)
+   if (target_c == nullptr)
    {
       target_c = new TargetConstructor(target_t);
    }
@@ -428,17 +436,17 @@ int tmop(int myid, Req &res, int argc, char *argv[])
 
       newton->Mult(b, x.GetTrueVector());
       x.SetFromTrueVector();
-      //x.SetTrueVector();
+
       REQUIRE(newton->GetConverged());
+
+      const double final_energy = nlf.GetParGridFunctionEnergy(x);
+      res.final_energy = final_energy;
    }
 
    Vector &x_t(x.GetTrueVector());
    double x_t_dot = x_t*x_t, dot;
    MPI_Allreduce(&x_t_dot, &dot, 1, MPI_DOUBLE, MPI_SUM, pmesh->GetComm());
    res.dot = dot;
-
-   const double final_energy = nlf.GetParGridFunctionEnergy(x);
-   res.final_energy = final_energy;
 
    delete S;
    delete pmesh;
