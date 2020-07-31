@@ -600,7 +600,7 @@ public:
       static bool all = getenv("MFEM_TESTS_UNIT_TMOP_ALL");
       if (name) { printf("[%s]\n", name); fflush(0); }
       DEFAULT_ARGS;
-      char ni[2] {}, rs[4] {}, li[4] {}, lc[12] {}, ji[12] {};
+      char ni[8] {}, rs[8] {}, li[8] {}, lc[16] {}, ji[16] {};
       args[MSH] = mesh;
       args[RS] = itoa(REFINE,rs);
       args[NI] = itoa(NEWTON_ITERATIONS,ni);
