@@ -65,7 +65,6 @@ FindPointsGSLIB::FindPointsGSLIB(MPI_Comm _comm)
    cr      = new crystal;
    comm_init(gsl_comm, _comm);
    crystal_init(cr, gsl_comm);
-
 }
 #endif
 
