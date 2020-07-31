@@ -583,11 +583,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    */
    // Bilinear Forms
    a1_ = new ParSesquilinearForm(HCurlFESpace_, conv_);
-   if (pa_)
-   {
-      a1_->real().SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      a1_->imag().SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   }
+   if (pa_) { a1_->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a1_->AddDomainIntegrator(new CurlCurlIntegrator(*muInvCoef_), NULL);
    a1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massReCoef_),
                             new VectorFEMassIntegrator(*massImCoef_));
@@ -616,21 +612,15 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    }
 
    b1_ = new ParBilinearForm(HCurlFESpace_);
-   if (pa_)
-   {
-      b1_->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   }
+   if (pa_) { b1_->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    b1_->AddDomainIntegrator(new CurlCurlIntegrator(*muInvCoef_));
    // b1_->AddDomainIntegrator(new VectorFEMassIntegrator(*epsAbsCoef_));
    b1_->AddDomainIntegrator(new VectorFEMassIntegrator(*posMassCoef_));
    //b1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massImCoef_));
 
    m2_ = new ParBilinearForm(HDivFESpace_);
+   if (pa_) { m2_->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    m2_->AddDomainIntegrator(new VectorFEMassIntegrator);
-   if (pa_)
-   {
-      m2_->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   }
 
    m12EpsRe_ = new ParMixedBilinearForm(HCurlFESpace_, HDivFESpace_);
    m12EpsIm_ = new ParMixedBilinearForm(HCurlFESpace_, HDivFESpace_);
