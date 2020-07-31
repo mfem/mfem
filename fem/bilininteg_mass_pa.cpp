@@ -86,7 +86,7 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
                   "IntegrationRule used within integrator and in"
                   " QuadratureFunction appear to be different");
       qFun.Read();
-      coeff.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
+      coeff->MakeRef(const_cast<QuadratureFunction &>(qFun),0);
    }
    else
    {
