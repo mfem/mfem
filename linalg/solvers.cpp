@@ -154,7 +154,14 @@ void OperatorJacobiSmoother::Setup(const Vector &diag, const bool inverse)
    auto DI = dinv.Write();
    if (inverse)
    {
-      MFEM_FORALL(i, N, DI[i] = delta * D[i]; );
+      if (delta > 0.0)
+      {
+         MFEM_FORALL(i, N, DI[i] = delta * D[i]; );
+      }
+      else
+      {
+         MFEM_FORALL(i, N, DI[i] = D[i]; );
+      }
    }
    else
    {

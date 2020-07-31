@@ -11,9 +11,8 @@
 //               ex25 -o 2 -f 2.0 -ref 1 -prob 4 -m ../data/inline-hex.mesh
 //
 // Device sample runs:
-// TODO: PA is working but device "cuda" is not tested yet
-//               ex25 -o 2 -f 8.0 -ref 3 -prob 4 -m ../data/inline-quad.mesh -pa -d cuda
-//               ex25 -o 2 -f 2.0 -ref 1 -prob 4 -m ../data/inline-hex.mesh -pa -d cuda
+//               ex25-gpu -o 2 -f 8.0 -ref 3 -prob 4 -m ../data/inline-quad.mesh -pa -d cuda
+//               ex25-gpu -o 2 -f 2.0 -ref 1 -prob 4 -m ../data/inline-hex.mesh -pa -d cuda
 //
 // Description:  This example code solves a simple electromagnetic wave
 //               propagation problem corresponding to the second order
@@ -41,6 +40,54 @@
 
 using namespace std;
 using namespace mfem;
+
+class DiagonalOperator : public Operator
+{
+public:
+   DiagonalOperator(const Vector & diag_, Array<int> ess_tdofs_, const double delta = 1.0) 
+: Operator(diag_.Size()), diag(diag_), ess_tdofs(ess_tdofs_)
+   {
+      for (int i = 0; i<ess_tdofs.Size(); i++)
+      {
+         int j = ess_tdofs[i];
+         diag[j] = delta;
+      }
+   }
+
+   void Mult(const Vector &x, Vector &y) const
+   {
+      for (int i = 0; i<this->Height(); i++) y[i] = diag[i]*x[i];
+   }
+private:
+   Vector diag;
+   Array<int>ess_tdofs;
+};
+
+// Class for complex Jacobi preconditioner
+class ComplexOperatorJacobiSmoother : public Solver
+{
+public:
+   ComplexOperatorJacobiSmoother(const Vector &d_r, const Vector &d_i,
+                                 const Array<int> &ess_tdofs,
+                                 ComplexOperator::Convention conv_,
+                                 const double damping_ = 1.0);
+   void Mult(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
+   void SetOperator(const Operator &op) { oper = &op; }
+   void Setup(const Vector &diag_r, const Vector &diag_i);
+private:
+   ComplexOperator * ComplexJacobi=nullptr;
+   OperatorJacobiSmoother * Jacobi_r=nullptr;
+   OperatorJacobiSmoother * Jacobi_i=nullptr;
+   const int N;
+   Vector dinv_r;
+   Vector dinv_i;
+   const Array<int> &ess_tdof_list;
+   ComplexOperator::Convention conv;
+   const double damping;
+   const Operator *oper;
+};
+
 
 // Class for setting up a simple Cartesian PML region
 class CartesianPML
@@ -86,30 +133,7 @@ public:
    void StretchFunction(const Vector &x, vector<complex<double>> &dxs);
 };
 
-// Class for returning the PML coefficients of the bilinear form
-class ComplexOperatorJacobiSmoother : public Solver
-{
-public:
-   ComplexOperatorJacobiSmoother(const Vector &d_r, const Vector &d_i,
-                                 const Array<int> &ess_tdofs,
-                                 ComplexOperator::Convention conv_,
-                                 const double damping = 1.0);
-   void Mult(const Vector &x, Vector &y) const;
-   void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
-   void SetOperator(const Operator &op) { oper = &op; }
-   void Setup(const Vector &diag_r, const Vector &diag_i);
-private:
-   ComplexOperator * ComplexJacobi=nullptr;
-   OperatorJacobiSmoother * Jacobi_r=nullptr;
-   OperatorJacobiSmoother * Jacobi_i=nullptr;
-   const int N;
-   Vector dinv_r;
-   Vector dinv_i;
-   const Array<int> &ess_tdof_list;
-   ComplexOperator::Convention conv;
-   const double damping;
-   const Operator *oper;
-};
+
 
 class PMLDiagMatrixCoefficient : public VectorCoefficient
 {
@@ -512,34 +536,40 @@ int main(int argc, char *argv[])
          pc_i = d11;
 
          // Gauss-Seidel Smoother
-         //         GSSmoother *gs00 = new GSSmoother(*PCOpAh.As<SparseMatrix>());
-         //         ScaledOperator *gs11 = new ScaledOperator(gs00, s);
-         //         pc_r = gs00;
-         //         pc_i = gs11;
+         //GSSmoother *gs00 = new GSSmoother(*PCOpAh.As<SparseMatrix>());
+         //ScaledOperator *gs11 = new ScaledOperator(gs00, s);
+         //pc_r = gs00;
+         //pc_i = gs11;
       }
 
+      // Block Diagonal Preconditioner
       BlockDiagonalPreconditioner BlockDP(offsets);
       BlockDP.SetDiagonalBlock(0,pc_r);
       BlockDP.SetDiagonalBlock(1,pc_i);
 
-      Vector diag_r(fespace->GetTrueVSize()), diag_i(fespace->GetTrueVSize());
+      // Complex Jacobi Preconditioner
+      Vector diag_r(fespace->GetTrueVSize());
+      Vector diag_i(fespace->GetTrueVSize());
       a.real().AssembleDiagonal(diag_r);
       a.imag().AssembleDiagonal(diag_i);
-      // prec.AssembleDiagonal(diag_r);
-      // diag_r *= -1.0;
-      ComplexOperatorJacobiSmoother * S = 
-      new ComplexOperatorJacobiSmoother(diag_r,diag_i,ess_tdof_list,conv,1.0);
 
+      ComplexOperatorJacobiSmoother Dinv(diag_r, diag_i,ess_tdof_list, conv,1.0);
+
+      Vector Y(X);
       GMRESSolver gmres;
-      gmres.SetPrintLevel(1);
+      gmres.SetPrintLevel(3);
       gmres.SetKDim(200);
       gmres.SetMaxIter(pa ? 5000 : 2000);
       gmres.SetRelTol(1e-5);
       gmres.SetAbsTol(0.0);
       gmres.SetOperator(*A);
-      gmres.SetPreconditioner(BlockDP);
-      // gmres.SetPreconditioner(*S);
+      cout << "Preconditioner :: ComplexOperatorJacobiSmoother " << endl;
+      gmres.SetPreconditioner(Dinv);
       gmres.Mult(B, X);
+      cout << endl;
+      cout << "Preconditioner :: BlockOperatorJacobiSmoother " << endl;
+      gmres.SetPreconditioner(BlockDP);
+      gmres.Mult(B, Y);
    }
 #endif
 
@@ -1061,12 +1091,11 @@ void CartesianPML::StretchFunction(const Vector &x,
    }
 }
 
-
 ComplexOperatorJacobiSmoother::ComplexOperatorJacobiSmoother(
                                const Vector &d_r, const Vector &d_i,
                                const Array<int> &ess_tdofs,
                                ComplexOperator::Convention conv_,
-                               const double dmpng )
+                               const double damping_)
 :
 Solver(2*d_r.Size()),
 N(d_r.Size()),
@@ -1074,33 +1103,33 @@ dinv_r(N),
 dinv_i(N), 
 ess_tdof_list(ess_tdofs),
 conv(conv_),
-damping(dmpng)
+damping(damping_)
 {
-   Setup(d_r,d_i);
+   Setup(d_r, d_i);
 }
 
 void ComplexOperatorJacobiSmoother::Setup(const Vector &diag_r, const Vector &diag_i)
 {
-   const double delta = damping;
-
    // just on CPU now
-   for (int i = 0; i<N; i++)
+   for (int i = 0; i < N; i++)
    {
-      complex<double> dinv = 1.0/(complex<double>(diag_r[i],diag_i[i]));
-      dinv_r[i] = dinv.real(); // this can be inf
-      dinv_i[i] = dinv.imag(); // this can be inf
+      complex<double> dinv = 1.0/(complex<double>(diag_r[i], diag_i[i]));
+      dinv_r[i] = dinv.real();
+      dinv_i[i] = dinv.imag();
    }
 
-   // Array<int> temp;
-   Jacobi_r = new OperatorJacobiSmoother(dinv_r,ess_tdof_list,delta,true);
-   Jacobi_i = new OperatorJacobiSmoother(dinv_i,ess_tdof_list,delta,true);
+   if (conv==ComplexOperator::BLOCK_SYMMETRIC) dinv_i *=-1.0;
+   double delta = damping;
+   Jacobi_r = new OperatorJacobiSmoother(dinv_r, ess_tdof_list, delta, true);
+   delta = 0.0; // set ess_tdof to 0 in imag operator
+   Jacobi_i = new OperatorJacobiSmoother(dinv_i, ess_tdof_list, delta, true);
 
-   ComplexOperator::Convention conv1 = (conv==ComplexOperator::Convention::BLOCK_SYMMETRIC) ? 
-                                 ComplexOperator::Convention::HERMITIAN : ComplexOperator::Convention::BLOCK_SYMMETRIC;
+   ComplexOperator::Convention herm = ComplexOperator::Convention::HERMITIAN;
+   ComplexOperator::Convention symm = ComplexOperator::Convention::BLOCK_SYMMETRIC;
+   ComplexOperator::Convention conv_swap = (conv==herm) ? symm : herm;
 
-   ComplexJacobi = new ComplexOperator(Jacobi_r,Jacobi_i,true,true,conv1);
+   ComplexJacobi = new ComplexOperator(Jacobi_r, Jacobi_i, true, true, conv_swap);
 }
-
 
 void ComplexOperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
 {
