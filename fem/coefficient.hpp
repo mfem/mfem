@@ -170,7 +170,7 @@ public:
    { }
 
    /// Define a time-independent coefficient from a lambda function
-   /// \tparam lamda - type of lambda (use auto when capturing labmda)
+   /// \tparam lambda - type of lambda (use auto when capturing labmda)
    /// \param F - time-independent lambda function
    /// \note uses template meta-programing technique SFINAE to enable this
    /// constructor only for lambda functions that are convertable to a
@@ -200,8 +200,8 @@ public:
    { }
 
    /// Define a time-dependent coefficient from a lambda function
-   /// \tparam lamda - type of lambda (use auto when capturing labmda)
-   /// \param F - time-dependent lambda function
+   /// \tparam lambda - type of lambda (use auto when capturing labmda)
+   /// \param TDF - time-dependent lambda function
    /// \note uses template meta-programing technique SFINAE to enable this
    /// constructor only for lambda functions that are convertable to a
    /// std::function<double(const Vector &, double)>. Using this removes the
@@ -505,7 +505,7 @@ public:
    { }
 
    /// Define a time-independent coefficient from a lambda function
-   /// \tparam lamda - type of lambda (use auto when capturing labmda)
+   /// \tparam lambda - type of lambda (use auto when capturing labmda)
    /// \param F - time-independent lambda function
    /// \note uses template meta-programing technique SFINAE to enable this
    /// constructor only for lambda functions that are convertable to a
@@ -549,8 +549,8 @@ public:
    { }
 
    /// Define a time-dependent coefficient from a lambda function
-   /// \tparam lamda - type of lambda (use auto when capturing labmda)
-   /// \param F - time-dependent lambda function
+   /// \tparam lambda - type of lambda (use auto when capturing labmda)
+   /// \param TDF - time-dependent lambda function
    /// \note uses template meta-programing technique SFINAE to enable this
    /// constructor only for lambda functions that are convertable to a
    /// std::function<void(const Vector &, double, Vector &)>. Using this
@@ -918,11 +918,11 @@ public:
    { }
 
    /// Define a time-independent coefficient from a lambda function
-   /// \tparam lamda - type of lambda (use auto when capturing labmda)
+   /// \tparam lambda - type of lambda (use auto when capturing labmda)
    /// \param F - time-independent lambda function
    /// \note uses template meta-programing technique SFINAE to enable this
    /// constructor only for lambda functions that are convertable to a
-   /// std::function<void(const Vector &, double, Vector &)>. Using this
+   /// std::function<void(const Vector &, DenseMatrix &)>. Using this
    /// removes the ambiguity between the std::function and function pointer
    /// constructors when using a stateless lambda
    template<
@@ -969,11 +969,11 @@ public:
    { }
 
    /// Define a time-dependent coefficient from a lambda function
-   /// \tparam lamda - type of lambda (use auto when capturing labmda)
-   /// \param F - time-dependent lambda function
+   /// \tparam lambda - type of lambda (use auto when capturing labmda)
+   /// \param TDF - time-dependent lambda function
    /// \note uses template meta-programing technique SFINAE to enable this
    /// constructor only for lambda functions that are convertable to a
-   /// std::function<void(const Vector &, double, Vector &)>. Using this
+   /// std::function<void(const Vector &, double, DenseMatrix &)>. Using this
    /// removes the ambiguity between the std::function and function pointer
    /// constructors when using a stateless lambda
    template<
