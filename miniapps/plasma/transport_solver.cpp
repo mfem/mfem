@@ -1146,7 +1146,7 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &y,
       yGF_[i]->MakeRef(&fes_, y.GetData() + offsets_[i]);
    }
    yGF_.ExchangeFaceNbrData();
-
+   /*
    double *prev_k = kGF_[0]->GetData();
 
    for (int i=0; i<offsets_.Size() - 1; i++)
@@ -1154,7 +1154,7 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &y,
       kGF_[i]->MakeRef(&fes_, k.GetData() + offsets_[i]);
    }
    kGF_.ExchangeFaceNbrData();
-
+   */
    if (mpi_.Root() && logging_ > 0)
    {
       cout << "Setting time step: " << dt << " in DGTransportTDO" << endl;
@@ -1170,7 +1170,7 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &y,
       yGF_[i]->MakeRef(&fes_, prev_y + offsets_[i]);
    }
    yGF_.ExchangeFaceNbrData();
-
+   /*
    for (int i=0; i<offsets_.Size() - 1; i++)
    {
       kGF_[i]->MakeRef(&fes_, prev_k + offsets_[i]);
@@ -1179,7 +1179,7 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &y,
    {
       kGF_.ExchangeFaceNbrData();
    }
-
+   */
    if (mpi_.Root() && logging_ > 1)
    {
       cout << "Leaving DGTransportTDO::ImplicitSolve" << endl;
@@ -1230,6 +1230,7 @@ DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
      kGF_(kGF),
      yCoefPtrs_(yGF_.Size()),
      kCoefPtrs_(kGF_.Size()),
+     ykCoefPtrs_(kGF_.Size()),
      dbfi_m_(5),
      blf_(5),
      term_flag_(term_flag),
@@ -1246,7 +1247,13 @@ DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
    for (int i=0; i<yGF_.Size(); i++)
    {
       yCoefPtrs_[i] = new StateVariableGridFunctionCoef(yGF_[i], (FieldType)i);
-      kCoefPtrs_[i] = new StateVariableGridFunctionCoef(kGF_[i], (FieldType)i);
+      kCoefPtrs_[i] = new StateVariableGridFunctionCoef(kGF_[i], INVALID);
+
+      // y + dt k
+      // Note that dt_ has not been set yet but we use it here for emphasis
+      ykCoefPtrs_[i] = new StateVariableSumCoef(*yCoefPtrs_[i],
+                                                *kCoefPtrs_[i],
+                                                1.0, dt_);
    }
 
    blf_ = NULL;
@@ -1310,14 +1317,24 @@ void DGTransportTDO::NLOperator::SetLogging(int logging, const string & prefix)
    log_prefix_ = prefix;
 }
 
-void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
+void DGTransportTDO::NLOperator::SetTimeStep(double dt)
+{
+   dt_ = dt;
+
+   for (int i=0; i<ykCoefPtrs_.Size(); i++)
+   {
+      ykCoefPtrs_[i]->SetBeta(dt);
+   }
+}
+
+void DGTransportTDO::NLOperator::Mult(const Vector &, Vector &r) const
 {
    if (mpi_.Root() && logging_ > 1)
    {
       cout << log_prefix_ << "DGTransportTDO::NLOperator::Mult" << endl;
    }
 
-   y = 0.0;
+   r = 0.0;
 
    ElementTransformation *eltrans = NULL;
 
@@ -1351,7 +1368,7 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
             elmat_.AddMult(locdvec_, elvec_);
          }
       }
-      y.AddElementVector(vdofs_, elvec_);
+      r.AddElementVector(vdofs_, elvec_);
    }
 
    if (mpi_.Root() && logging_ > 2)
@@ -1390,7 +1407,7 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
 
          elmat_.Mult(locvec_, elvec_);
 
-         y.AddElementVector(vdofs_, elvec_);
+         r.AddElementVector(vdofs_, elvec_);
       }
    }
 
@@ -1435,7 +1452,7 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
 
             elmat_.Mult(locvec_, elvec_);
 
-            y.AddElementVector(vdofs_, elvec_);
+            r.AddElementVector(vdofs_, elvec_);
          }
       }
 
@@ -1485,7 +1502,7 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
 
             elmat_.Mult(locvec_, elvec_);
 
-            y.AddElementVector(vdofs_, elvec);
+            r.AddElementVector(vdofs_, elvec);
          }
       }
    }
@@ -1558,7 +1575,7 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
 
             elmat_.Mult(locvec_, elvec_);
 
-            y.AddElementVector(vdofs_, elvec_);
+            r.AddElementVector(vdofs_, elvec_);
          }
       }
    }
@@ -1579,7 +1596,7 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
          {
             dlfi_[k]->AssembleRHSElementVect(*fes_.GetFE(i), *eltrans, elvec_);
             elvec_ *= -1.0;
-            y.AddElementVector (vdofs_, elvec_);
+            r.AddElementVector (vdofs_, elvec_);
          }
       }
    }
@@ -1631,7 +1648,7 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
                bflfi_[k] -> AssembleRHSElementVect (*fes_.GetFE(tr -> Elem1No),
                                                     *tr, elvec_);
                elvec_ *= -1.0;
-               y.AddElementVector (vdofs_, elvec_);
+               r.AddElementVector (vdofs_, elvec_);
             }
          }
       }
@@ -1747,6 +1764,7 @@ DGTransportTDO::TransportOp::~TransportOp()
    {
       delete yCoefPtrs_[i];
       delete kCoefPtrs_[i];
+      delete ykCoefPtrs_[i];
    }
 
    for (unsigned int i=0; i<sout_.size(); i++)
@@ -1781,6 +1799,8 @@ void DGTransportTDO::TransportOp::SetTimeStep(double dt)
    {
       dtMCoefs_[i]->SetAConst(dt);
    }
+
+   // Te1Coef_.SetBeta(dt);
 }
 
 void DGTransportTDO::TransportOp::SetTimeDerivativeTerm(
@@ -2054,25 +2074,27 @@ DGTransportTDO::TransportOp::InitializeGLVis()
 void
 DGTransportTDO::TransportOp::DisplayToGLVis()
 {
-   for (int i=0; i<coefs_.Size(); i++)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
+   /*
+    for (int i=0; i<coefs_.Size(); i++)
+    {
+       char vishost[] = "localhost";
+       int  visport   = 19916;
 
-      int Wx = 0, Wy = 0; // window position
-      int Ww = 275, Wh = 250; // window size
-      int Dx = 3, Dy = 25;
+       int Wx = 0, Wy = 0; // window position
+       int Ww = 275, Wh = 250; // window size
+       int Dx = 3, Dy = 25;
 
-      ostringstream oss;
-      oss << "coef " << index_ << " " << i + 1;
+       ostringstream oss;
+       oss << "coef " << index_ << " " << i + 1;
 
-      coefGF_.ProjectCoefficient(*coefs_[i]);
+       coefGF_.ProjectCoefficient(*coefs_[i]);
 
-      int c = i % 4;
-      int r = i / 4;
-      VisualizeField(*sout_[i], vishost, visport, coefGF_, oss.str().c_str(),
-                     Wx + c * (Ww + Dx), Wy + r * (Wh + Dy), Ww, Wh);
-   }
+       int c = i % 4;
+       int r = i / 4;
+       VisualizeField(*sout_[i], vishost, visport, coefGF_, oss.str().c_str(),
+                      Wx + c * (Ww + Dx), Wy + r * (Wh + Dy), Ww, Wh);
+    }
+   */
 }
 
 DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
@@ -2367,15 +2389,12 @@ void DGTransportTDO::CombinedOp::UpdateGradient(const Vector &k) const
    }
 }
 
-void DGTransportTDO::CombinedOp::Mult(const Vector &k, Vector &y) const
+void DGTransportTDO::CombinedOp::Mult(const Vector &k, Vector &r) const
 {
    if ( mpi_.Root() && logging_ > 1)
    {
       cout << "DGTransportTDO::CombinedOp::Mult" << endl;
    }
-   // cout << "calling CombinedOp::Mult with arg k = " << k.GetData() << ", pgf = "
-   //    << (*pgf_)[0]->GetData() << ", dpgf = " << (*dpgf_)[0]->GetData() << " -> " <<
-   //   k.GetData() << endl;
 
    double *prev_k = kGF_[0]->GetData();
 
@@ -2389,13 +2408,9 @@ void DGTransportTDO::CombinedOp::Mult(const Vector &k, Vector &y) const
    {
       int size = offsets_[i+1] - offsets_[i];
 
-      // Vector k_i(const_cast<double*>(&k[offsets_[i]]), size);
-      Vector y_i(&y[offsets_[i]], size);
+      Vector r_i(&r[offsets_[i]], size);
 
-      op_[i]->Mult(k, y_i);
-
-      // cout << "Norm of y_" << i << " " << y_i.Norml2() << ", offsets = " <<
-      //   offsets_[i] << endl;
+      op_[i]->Mult(k, r_i);
    }
 
    for (int i=0; i<offsets_.Size() - 1; i++)
@@ -2426,11 +2441,11 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
    : TransportOp(mpi, dg, plasma, 0, "Neutral Density", yGF, kGF, bcs,
                  term_flag, vis_flag, logging, log_prefix),
      vnCoef_(v_n_),
-     izCoef_(Te0Coef_),
-     rcCoef_(Te0Coef_),
-     DCoef_(ne0Coef_, vnCoef_, izCoef_),
-     SizCoef_(ne0Coef_, nn0Coef_, izCoef_),
-     SrcCoef_(ne0Coef_, ni0Coef_, rcCoef_),
+     izCoef_(TeCoef_),
+     rcCoef_(TeCoef_),
+     DCoef_(neCoef_, vnCoef_, izCoef_),
+     SizCoef_(neCoef_, nnCoef_, izCoef_),
+     SrcCoef_(neCoef_, niCoef_, rcCoef_),
      SCoef_(SrcCoef_, SizCoef_, 1.0, -1.0),
      DGF_(NULL),
      SGF_(NULL)
@@ -2455,7 +2470,7 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
    }
 
    // Time derivative term: dn_n / dt
-   SetTimeDerivativeTerm(nn0Coef_);
+   SetTimeDerivativeTerm(nnCoef_);
 
    if (this->CheckTermFlag(DIFFUSION_TERM))
    {
@@ -2584,13 +2599,13 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
    : TransportOp(mpi, dg, plasma, 1, "Ion Density", yGF, kGF, bcs,
                  term_flag, vis_flag, logging, log_prefix),
      // DPerpConst_(DPerp),
-     izCoef_(Te0Coef_),
-     rcCoef_(Te0Coef_),
+     izCoef_(TeCoef_),
+     rcCoef_(TeCoef_),
      DPerpCoef_(DPerp),
      DCoef_(DPerpCoef_, B3Coef),
-     ViCoef_(vi0Coef_, B3Coef),
-     SizCoef_(ne0Coef_, nn0Coef_, izCoef_),
-     SrcCoef_(ne0Coef_, ni0Coef_, rcCoef_),
+     ViCoef_(viCoef_, B3Coef),
+     SizCoef_(neCoef_, nnCoef_, izCoef_),
+     SrcCoef_(neCoef_, niCoef_, rcCoef_),
      SCoef_(SizCoef_, SrcCoef_, 1.0, -1.0),
      DPerpGF_(NULL),
      AGF_(NULL),
@@ -2619,7 +2634,7 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
 
    // Time derivative term: dn_i / dt
    // dbfi_m_[1].Append(new MassIntegrator);
-   SetTimeDerivativeTerm(ni0Coef_);
+   SetTimeDerivativeTerm(niCoef_);
 
    // Diffusion term: -Div(D_i Grad n_i)
    // dbfi_.Append(new DiffusionIntegrator(DCoef_));
@@ -2788,17 +2803,17 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
      DPerpConst_(DPerp),
      DPerpCoef_(DPerp),
      B3Coef_(&B3Coef),
-     momCoef_(m_i_, ni0Coef_, vi0Coef_),
-     EtaParaCoef_(z_i_, m_i_, Ti0Coef_),
-     EtaPerpCoef_(DPerpConst_, m_i_, ni0Coef_),
+     momCoef_(m_i_, niCoef_, viCoef_),
+     EtaParaCoef_(z_i_, m_i_, TiCoef_),
+     EtaPerpCoef_(DPerpConst_, m_i_, niCoef_),
      EtaCoef_(EtaParaCoef_, EtaPerpCoef_, *B3Coef_),
-     miniViCoef_(ni0Coef_, vi0Coef_, m_i_, DPerpCoef_, B3Coef),
+     miniViCoef_(niCoef_, viCoef_, m_i_, DPerpCoef_, B3Coef),
      gradPCoef_(yGF, kGF, z_i_, B3Coef),
-     izCoef_(Te0Coef_),
-     SizCoef_(ne0Coef_, nn0Coef_, izCoef_),
+     izCoef_(TeCoef_),
+     SizCoef_(neCoef_, nnCoef_, izCoef_),
      negSizCoef_(-1.0, SizCoef_),
-     nnizCoef_(nn0Coef_, izCoef_),
-     niizCoef_(ni0Coef_, izCoef_),
+     nnizCoef_(nnCoef_, izCoef_),
+     niizCoef_(niCoef_, izCoef_),
      EtaParaGF_(NULL),
      EtaPerpGF_(NULL),
      MomParaGF_(NULL),
@@ -3032,7 +3047,7 @@ IonStaticPressureOp(const MPI_Session & mpi,
      ChiPerpConst_(ChiPerp),
      izCoef_(*yCoefPtrs_[ELECTRON_TEMPERATURE]),
      B3Coef_(&B3Coef),
-     presCoef_(ni0Coef_, Ti0Coef_),
+     presCoef_(niCoef_, TiCoef_),
      ChiParaCoef_(plasma.z_i, plasma.m_i,
                   *yCoefPtrs_[ION_DENSITY], *yCoefPtrs_[ION_TEMPERATURE]),
      ChiPerpCoef_(ChiPerpConst_, *yCoefPtrs_[ION_DENSITY]),
@@ -3185,11 +3200,11 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
    : TransportOp(mpi, dg, plasma, 4, "Electron Temperature", yGF, kGF, bcs,
                  term_flag, vis_flag, logging, log_prefix),
      ChiPerpConst_(ChiPerp),
-     izCoef_(Te0Coef_),
+     izCoef_(TeCoef_),
      B3Coef_(&B3Coef),
-     presCoef_(z_i_, ni0Coef_, Te0Coef_),
-     ChiParaCoef_(plasma.z_i, ne0Coef_, Te0Coef_),
-     ChiPerpCoef_(ChiPerpConst_, ne0Coef_),
+     presCoef_(z_i_, niCoef_, TeCoef_),
+     ChiParaCoef_(plasma.z_i, neCoef_, TeCoef_),
+     ChiPerpCoef_(ChiPerpConst_, neCoef_),
      ChiCoef_(ChiParaCoef_, ChiPerpCoef_, *B3Coef_),
      ChiParaGF_(new ParGridFunction(yGF_[ELECTRON_TEMPERATURE]->ParFESpace())),
      ChiPerpGF_(new ParGridFunction(yGF_[ELECTRON_TEMPERATURE]->ParFESpace()))
@@ -3202,7 +3217,7 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
    if (term_flag_ < 0)
    {
       // Set default terms
-      term_flag_ = 1;
+      term_flag_ = 3;
    }
    if (vis_flag_ < 0)
    {

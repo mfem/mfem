@@ -589,23 +589,31 @@ public:
       return (deriv == INVALID || deriv == fieldType_);
    }
 
-   virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip)
+   virtual double Eval_Func(ElementTransformation &T,
+                            const IntegrationPoint &ip)
    {
-      if (derivType_ == INVALID)
-      {
-         return gfc_.Eval(T, ip);
-      }
-      else if (derivType_ == fieldType_)
-      {
-         return 1.0;
-      }
-      else
-      {
-         return 0.0;
-      }
+      return gfc_.Eval(T, ip);
    }
 
+   virtual double Eval_dNn(ElementTransformation &T,
+                           const IntegrationPoint &ip)
+   { return (fieldType_ == NEUTRAL_DENSITY) ? 1.0 : 0.0; }
+
+   virtual double Eval_dNi(ElementTransformation &T,
+                           const IntegrationPoint &ip)
+   { return (fieldType_ == ION_DENSITY) ? 1.0 : 0.0; }
+
+   virtual double Eval_dVi(ElementTransformation &T,
+                           const IntegrationPoint &ip)
+   { return (fieldType_ == ION_PARA_VELOCITY) ? 1.0 : 0.0; }
+
+   virtual double Eval_dTi(ElementTransformation &T,
+                           const IntegrationPoint &ip)
+   { return (fieldType_ == ION_TEMPERATURE) ? 1.0 : 0.0; }
+
+   virtual double Eval_dTe(ElementTransformation &T,
+                           const IntegrationPoint &ip)
+   { return (fieldType_ == ELECTRON_TEMPERATURE) ? 1.0 : 0.0; }
 };
 
 class StateVariableSumCoef : public StateVariableCoef
@@ -882,7 +890,7 @@ class IonAdvectionCoef : public StateVariableVecCoef
 private:
    // double dt_;
 
-   StateVariableGridFunctionCoef &vi_;
+   StateVariableCoef &vi_;
    // GridFunctionCoefficient vi0_;
    // GridFunctionCoefficient dvi0_;
 
@@ -891,7 +899,7 @@ private:
    mutable Vector B_;
 
 public:
-   IonAdvectionCoef(StateVariableGridFunctionCoef &vi,
+   IonAdvectionCoef(StateVariableCoef &vi,
                     VectorCoefficient &B3Coef)
       : StateVariableVecCoef(2),
         vi_(vi),
@@ -1307,65 +1315,42 @@ class IonMomentumAdvectionCoef : public StateVariableVecCoef
 {
 private:
    double mi_;
-   // double dt_;
 
-   StateVariableGridFunctionCoef &ni_;
-   StateVariableGridFunctionCoef &vi_;
+   StateVariableCoef &ni_;
+   StateVariableCoef &vi_;
 
-   // GridFunctionCoefficient ni0_;
-   // GridFunctionCoefficient vi0_;
-
-   // GridFunctionCoefficient dni0_;
-   // GridFunctionCoefficient dvi0_;
-
-   GradientGridFunctionCoefficient grad_ni_;
-   // GradientGridFunctionCoefficient grad_dni0_;
+   GradientGridFunctionCoefficient grad_ni0_;
+   GradientGridFunctionCoefficient grad_dni0_;
+   double dt_;
 
    Coefficient       * Dperp_;
    VectorCoefficient * B3_;
 
    mutable Vector gni_;
-   // mutable Vector gdni0_;
-   // mutable Vector gni1_;
+   mutable Vector gdni_;
 
    mutable Vector B_;
 
 public:
-   /*
-   IonMomentumAdvectionCoef(ParGridFunctionArray &yGF,
-                             ParGridFunctionArray &kGF,
-                             double ion_mass,
-                             Coefficient &DperpCoef,
-                             VectorCoefficient &B3Coef)
-       : StateVariableVecCoef(2),
-         mi_(ion_mass),
-         dt_(0.0),
-         ni0_(yGF[ION_DENSITY]), vi0_(yGF[ION_PARA_VELOCITY]),
-         dni0_(kGF[ION_DENSITY]), dvi0_(kGF[ION_PARA_VELOCITY]),
-         grad_ni0_(yGF[ION_DENSITY]), grad_dni0_(kGF[ION_DENSITY]),
-         Dperp_(&DperpCoef),
-         B3_(&B3Coef), B_(3)
-    {}
-   */
-   IonMomentumAdvectionCoef(StateVariableGridFunctionCoef &ni,
-                            StateVariableGridFunctionCoef &vi,
+   IonMomentumAdvectionCoef(StateVariableCoef &ni,
+                            StateVariableCoef &vi,
                             double ion_mass,
                             Coefficient &DperpCoef,
                             VectorCoefficient &B3Coef)
       : StateVariableVecCoef(2),
         mi_(ion_mass),
-        // dt_(0.0),
         ni_(ni),
         vi_(vi),
-        // ni0_(yGF[ION_DENSITY]), vi0_(yGF[ION_PARA_VELOCITY]),
-        // dni0_(kGF[ION_DENSITY]), dvi0_(kGF[ION_PARA_VELOCITY]),
-        grad_ni_(ni.GetGridFunction()),
-        //grad_ni0_(yGF[ION_DENSITY]), grad_dni0_(kGF[ION_DENSITY]),
+        grad_ni0_(dynamic_cast<StateVariableGridFunctionCoef*>
+                  (dynamic_cast<StateVariableSumCoef&>(ni).GetACoef())->
+                  GetGridFunction()),
+        grad_dni0_(dynamic_cast<StateVariableGridFunctionCoef*>
+                   (dynamic_cast<StateVariableSumCoef&>(ni).GetBCoef())->
+                   GetGridFunction()),
+        dt_(dynamic_cast<StateVariableSumCoef&>(ni).GetBeta()),
         Dperp_(&DperpCoef),
         B3_(&B3Coef), B_(3)
    {}
-
-   // void SetTimeStep(double dt) { dt_ = dt; }
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
@@ -1387,8 +1372,10 @@ public:
       // double ni1 = ni0 + dt_ * dni0;
       // double vi1 = vi0 + dt_ * dvi0;
 
-      grad_ni_.Eval(gni_, T, ip);
+      grad_ni0_.Eval(gni_, T, ip);
+      grad_dni0_.Eval(gdni_, T, ip);
       // grad_dni0_.Eval(gdni0_, T, ip);
+      gni_.Add(dt_, gdni_);
 
       // gni1_.SetSize(gni0_.Size());
       // add(gni0_, dt_, gdni0_, gni1_);
@@ -1414,18 +1401,18 @@ class StaticPressureCoef : public StateVariableCoef
 private:
    FieldType fieldType_;
    int z_i_;
-   StateVariableGridFunctionCoef &niCoef_;
-   StateVariableGridFunctionCoef &TCoef_;
+   StateVariableCoef &niCoef_;
+   StateVariableCoef &TCoef_;
 
 public:
-   StaticPressureCoef(StateVariableGridFunctionCoef &niCoef,
-                      StateVariableGridFunctionCoef &TCoef)
+   StaticPressureCoef(StateVariableCoef &niCoef,
+                      StateVariableCoef &TCoef)
       : fieldType_(ION_TEMPERATURE),
         z_i_(1), niCoef_(niCoef), TCoef_(TCoef) {}
 
    StaticPressureCoef(int z_i,
-                      StateVariableGridFunctionCoef &niCoef,
-                      StateVariableGridFunctionCoef &TCoef)
+                      StateVariableCoef &niCoef,
+                      StateVariableCoef &TCoef)
       : fieldType_(ELECTRON_TEMPERATURE),
         z_i_(z_i), niCoef_(niCoef), TCoef_(TCoef) {}
 
@@ -2062,8 +2049,9 @@ private:
       ParGridFunctionArray  &yGF_;
       ParGridFunctionArray  &kGF_;
 
-      Array<StateVariableGridFunctionCoef*> yCoefPtrs_;
-      Array<StateVariableGridFunctionCoef*> kCoefPtrs_;
+      Array<StateVariableGridFunctionCoef*>  yCoefPtrs_;
+      Array<StateVariableGridFunctionCoef*>  kCoefPtrs_;
+      Array<StateVariableSumCoef*>          ykCoefPtrs_;
 
       // mutable Vector shape_;
       // mutable DenseMatrix dshape_;
@@ -2118,7 +2106,7 @@ private:
 
       void SetLogging(int logging, const std::string & prefix = "");
 
-      virtual void SetTimeStep(double dt) { dt_ = dt; }
+      virtual void SetTimeStep(double dt);
 
       virtual void Mult(const Vector &k, Vector &y) const;
 
@@ -2162,14 +2150,25 @@ private:
       double v_n_;
       double m_i_;
       int    z_i_;
-
+      /*
       StateVariableGridFunctionCoef &nn0Coef_;
       StateVariableGridFunctionCoef &ni0Coef_;
       StateVariableGridFunctionCoef &vi0Coef_;
       StateVariableGridFunctionCoef &Ti0Coef_;
       StateVariableGridFunctionCoef &Te0Coef_;
+      */
+      StateVariableCoef &nnCoef_;
+      StateVariableCoef &niCoef_;
+      StateVariableCoef &viCoef_;
+      StateVariableCoef &TiCoef_;
+      StateVariableCoef &TeCoef_;
+      ProductCoefficient neCoef_;
 
-      ProductCoefficient      ne0Coef_;
+      StateVariableGridFunctionCoef &dTe0Coef_;
+
+      // StateVariableSumCoef Te1Coef_;
+
+      // ProductCoefficient      ne0Coef_;
 
       const AdvectionDiffusionBC & bcs_;
 
@@ -2191,12 +2190,22 @@ private:
            v_n_(sqrt(8.0 * T_n_ * eV_ / (M_PI * m_n_ * amu_))),
            m_i_(plasma.m_i),
            z_i_(plasma.z_i),
-           nn0Coef_(*yCoefPtrs_[NEUTRAL_DENSITY]),
-           ni0Coef_(*yCoefPtrs_[ION_DENSITY]),
-           vi0Coef_(*yCoefPtrs_[ION_PARA_VELOCITY]),
-           Ti0Coef_(*yCoefPtrs_[ION_TEMPERATURE]),
-           Te0Coef_(*yCoefPtrs_[ELECTRON_TEMPERATURE]),
-           ne0Coef_(z_i_, ni0Coef_),
+           /*
+                nn0Coef_(*yCoefPtrs_[NEUTRAL_DENSITY]),
+                ni0Coef_(*yCoefPtrs_[ION_DENSITY]),
+                vi0Coef_(*yCoefPtrs_[ION_PARA_VELOCITY]),
+                Ti0Coef_(*yCoefPtrs_[ION_TEMPERATURE]),
+                Te0Coef_(*yCoefPtrs_[ELECTRON_TEMPERATURE]),
+           */
+           nnCoef_(*ykCoefPtrs_[NEUTRAL_DENSITY]),
+           niCoef_(*ykCoefPtrs_[ION_DENSITY]),
+           viCoef_(*ykCoefPtrs_[ION_PARA_VELOCITY]),
+           TiCoef_(*ykCoefPtrs_[ION_TEMPERATURE]),
+           TeCoef_(*ykCoefPtrs_[ELECTRON_TEMPERATURE]),
+           neCoef_(z_i_, niCoef_),
+           dTe0Coef_(*kCoefPtrs_[ELECTRON_TEMPERATURE]),
+           // Te1Coef_(Te0Coef_, dTe0Coef_, 1.0, 0.0),
+           // ne0Coef_(z_i_, ni0Coef_),
            bcs_(bcs)
       {}
 
