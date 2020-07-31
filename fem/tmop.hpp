@@ -979,6 +979,7 @@ protected:
    // PA extension
    struct
    {
+      bool enabled;
       int dim, ne, nq;
       mutable DenseTensor Jtr;
       mutable bool setup_Grad, setup_Jtr;
@@ -1062,7 +1063,7 @@ public:
         zeta_0(NULL), zeta(NULL), coeff_zeta(NULL), adapt_eval(NULL),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
         fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
-   { }
+   { PA.enabled = false; }
 
    ~TMOP_Integrator();
 

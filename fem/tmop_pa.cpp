@@ -46,6 +46,7 @@ void TMOP_Integrator::SetupGradPA(const Vector &xe) const
 // It is the case when EnableLimiting is called before the Setup => AssemblePA.
 void TMOP_Integrator::EnableLimitingPA(const GridFunction &n0)
 {
+   MFEM_ASSERT(PA.enabled, "EnableLimitingPA but PA is not enabled!");
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
    PA.R = n0.FESpace()->GetElementRestriction(ordering);
 
@@ -149,6 +150,7 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &xe) const
 
 void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 {
+   PA.enabled = true;
    const IntegrationRule *ir = EnergyIntegrationRule(*fes.GetFE(0));
    MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES,
                "PA Only supports Ordering::byNODES!");

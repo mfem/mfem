@@ -1901,7 +1901,7 @@ void TMOP_Integrator::EnableLimiting(const GridFunction &n0,
 {
    EnableLimiting(n0, w0, lfunc);
    lim_dist = &dist;
-   EnableLimitingPA(n0);
+   if (PA.enabled) { EnableLimitingPA(n0); }
 }
 void TMOP_Integrator::EnableLimiting(const GridFunction &n0, Coefficient &w0,
                                      TMOP_LimiterFunction *lfunc)
@@ -2047,7 +2047,8 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
          PMatI.MultTranspose(shape, p);
          pos0.MultTranspose(shape, p0);
          val += lim_normal *
-                lim_func->Eval(p, p0, d_vals(i)) * coeff0->Eval(*Tpr, ip);
+                lim_func->Eval(p, p0, d_vals(i)) *
+                coeff0->Eval(*Tpr, ip);
       }
 
       if (adaptive_limiting)
