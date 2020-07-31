@@ -378,7 +378,7 @@ int main(int argc, char *argv[])
          target_c = tc;
          break;
       }
-      case 5: // Discrete size 2D
+      case 5: // Discrete size 2D or 3D
       {
          target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
          DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
