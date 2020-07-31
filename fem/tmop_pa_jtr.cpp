@@ -139,7 +139,7 @@ bool DiscreteAdaptTC::ComputeElementTargetsPA(const IntegrationRule *ir,
 
    const FiniteElementSpace *fes = tspec_fesv;
 
-   if (!fes) { dbg("!fes, returning !"); return false;}
+   if (!fes) { return false;}
 
    const FiniteElement &fe = *fes->GetFE(0);
    const DenseMatrix &W = Geometries.GetGeomToPerfGeomJac(fe.GetGeomType());
@@ -163,8 +163,8 @@ bool DiscreteAdaptTC::ComputeElementTargetsPA(const IntegrationRule *ir,
       const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
       const Operator *R = fes->GetElementRestriction(ordering);
       MFEM_VERIFY(R,"");
-      tspec_e.SetSize(R->Height(), Device::GetDeviceMemoryType());
       MFEM_VERIFY(R->Height() == NE*ncomp*D1D*D1D*D1D,"");
+      tspec_e.SetSize(R->Height(), Device::GetDeviceMemoryType());
       tspec_e.UseDevice(true);
       tspec.UseDevice(true);
       R->Mult(tspec, tspec_e);

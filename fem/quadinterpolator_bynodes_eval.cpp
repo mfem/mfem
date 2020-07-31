@@ -14,6 +14,9 @@
 #include "../linalg/dtensor.hpp"
 #include "../linalg/kernels.hpp"
 
+#define MFEM_DEBUG_COLOR 226
+#include "../general/debug.hpp"
+
 namespace mfem
 {
 
@@ -267,27 +270,30 @@ void QuadratureInterpolator::Values<QVectorLayout::byNODES>(
       case 0x3325: return EvalByNodes3D<3,2,5>(NE,B,X,Y);
       case 0x3326: return EvalByNodes3D<3,2,6>(NE,B,X,Y);
       case 0x3333: return EvalByNodes3D<3,3,3>(NE,B,X,Y);
+      case 0x3334: return EvalByNodes3D<3,3,4>(NE,B,X,Y);
       case 0x3335: return EvalByNodes3D<3,3,5>(NE,B,X,Y);
       case 0x3336: return EvalByNodes3D<3,3,6>(NE,B,X,Y);
+      case 0x3346: return EvalByNodes3D<3,4,6>(NE,B,X,Y);
       case 0x3347: return EvalByNodes3D<3,4,7>(NE,B,X,Y);
       case 0x3348: return EvalByNodes3D<3,4,8>(NE,B,X,Y);
       default:
       {
          constexpr int MD1 = 8;
          constexpr int MQ1 = 8;
-         printf("\033[7m[EvalByNodes] 0x%x\033[m", id); fflush(0);
+         dbg("Using standard kernel #id 0x%x", id);
          MFEM_VERIFY(D1D <= MD1, "Orders higher than " << MD1-1
                      << " are not supported!");
          MFEM_VERIFY(Q1D <= MQ1, "Quadrature rules with more than "
                      << MQ1 << " 1D points are not supported!");
          if (dim == 2)
          {
-            return EvalByNodes2D<0,0,0,1,MD1,MQ1>(NE,B,X,Y,vdim,D1D,Q1D);
+            EvalByNodes2D<0,0,0,1,MD1,MQ1>(NE,B,X,Y,vdim,D1D,Q1D);
          }
          if (dim == 3)
          {
-            return EvalByNodes3D<0,0,0,MD1,MQ1>(NE,B,X,Y,vdim,D1D,Q1D);
+            EvalByNodes3D<0,0,0,MD1,MQ1>(NE,B,X,Y,vdim,D1D,Q1D);
          }
+         return;
       }
    }
    MFEM_ABORT("Kernel not supported yet");
