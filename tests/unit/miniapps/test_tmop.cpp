@@ -449,10 +449,12 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    res.dot = dot;
 
    delete S;
+   delete S_prec;
    delete pmesh;
    delete metric;
    delete newton;
    delete target_c;
+   delete adapt_coeff;
 
    return 0;
 }
