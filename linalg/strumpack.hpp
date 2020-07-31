@@ -26,7 +26,7 @@
 namespace mfem
 {
 
-  class HypreParMatrix;
+class HypreParMatrix;
 
 class STRUMPACKRowLocMatrix : public Operator
 {

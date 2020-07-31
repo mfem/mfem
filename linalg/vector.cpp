@@ -238,11 +238,13 @@ Vector &Vector::Set(const double a, const Vector &Va)
    return *this;
 }
 
-  Vector &Vector::SetOffset(const double a, const Vector &Va, const int offset, const int myoffset, const int L)
+Vector &Vector::SetOffset(const double a, const Vector &Va, const int offset,
+                          const int myoffset, const int L)
 {
    const int N = L > 0 ? L : size;
 
-   MFEM_ASSERT(N + offset <= Va.size && N + myoffset <= size, "incompatible Vectors!");
+   MFEM_ASSERT(N + offset <= Va.size &&
+               N + myoffset <= size, "incompatible Vectors!");
 
    const bool use_dev = UseDevice() || Va.UseDevice();
    auto x = Va.Read(use_dev);
@@ -1199,19 +1201,13 @@ Vector::Vector(N_Vector nv)
       case SUNDIALS_NVEC_PARALLEL:
          SetDataAndSize(NV_DATA_P(nv), NV_LOCLENGTH_P(nv));
          break;
-      case SUNDIALS_NVEC_PARHYP:
-      {
-         hypre_Vector *hpv_local = N_VGetVector_ParHyp(nv)->local_vector;
-         SetDataAndSize(hpv_local->data, hpv_local->size);
-         break;
-      }
 #endif
       default:
          MFEM_ABORT("N_Vector type " << nvid << " is not supported");
    }
 }
 
-void Vector::ToNVector(N_Vector &nv)
+void Vector::ToNVector(N_Vector &nv, long global_length)
 {
    MFEM_ASSERT(nv, "N_Vector handle is NULL");
    N_Vector_ID nvid = N_VGetVectorID(nv);
@@ -1227,15 +1223,20 @@ void Vector::ToNVector(N_Vector &nv)
          MFEM_ASSERT(NV_OWN_DATA_P(nv) == SUNFALSE, "invalid parallel N_Vector");
          NV_DATA_P(nv) = data;
          NV_LOCLENGTH_P(nv) = size;
+         if (global_length == 0)
+         {
+            global_length = NV_GLOBLENGTH_P(nv);
+
+            if (global_length == 0 && global_length != size)
+            {
+               MPI_Comm sundials_comm = NV_COMM_P(nv);
+               long local_size = size;
+               MPI_Allreduce(&local_size, &global_length, 1, MPI_LONG,
+                             MPI_SUM,sundials_comm);
+            }
+         }
+         NV_GLOBLENGTH_P(nv) = global_length;
          break;
-      case SUNDIALS_NVEC_PARHYP:
-      {
-         hypre_Vector *hpv_local = N_VGetVector_ParHyp(nv)->local_vector;
-         MFEM_ASSERT(hpv_local->owns_data == false, "invalid hypre N_Vector");
-         hpv_local->data = data;
-         hpv_local->size = size;
-         break;
-      }
 #endif
       default:
          MFEM_ABORT("N_Vector type " << nvid << " is not supported");

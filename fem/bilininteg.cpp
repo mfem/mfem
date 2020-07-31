@@ -902,18 +902,18 @@ void VectorFEBoundaryTangentIntegrator::AssembleElementMatrix
 (const FiniteElement &el, ElementTransformation &Trans,
  DenseMatrix &elmat)
 {
-  const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, Trans);
-  
-  const int nd1 = el.GetDof();
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, Trans);
 
-  DenseMatrix vshape(nd1, 3);
-  DenseMatrix vshapeRotated(nd1, 3);
+   const int nd1 = el.GetDof();
 
-  elmat.SetSize(nd1);
+   DenseMatrix vshape(nd1, 3);
+   DenseMatrix vshapeRotated(nd1, 3);
 
-  elmat = 0.0;
-  for (int i = 0; i < ir->GetNPoints(); i++)
-    {
+   elmat.SetSize(nd1);
+
+   elmat = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
       const IntegrationPoint &ip = ir->IntPoint(i);
       Trans.SetIntPoint (&ip);
 
@@ -923,16 +923,17 @@ void VectorFEBoundaryTangentIntegrator::AssembleElementMatrix
       el.CalcVShape(Trans, vshape);
 
       for (int j=0; j<nd1; ++j)
-	{ // Set vshapeRotated(j) = n x vshape
-	  vshapeRotated(j, 0) = (n[1] * vshape(j, 2)) - (n[2] * vshape(j, 1));
-	  vshapeRotated(j, 1) = (n[2] * vshape(j, 0)) - (n[0] * vshape(j, 2));
-	  vshapeRotated(j, 2) = (n[0] * vshape(j, 1)) - (n[1] * vshape(j, 0));
-	}
+      {
+         // Set vshapeRotated(j) = n x vshape
+         vshapeRotated(j, 0) = (n[1] * vshape(j, 2)) - (n[2] * vshape(j, 1));
+         vshapeRotated(j, 1) = (n[2] * vshape(j, 0)) - (n[0] * vshape(j, 2));
+         vshapeRotated(j, 2) = (n[0] * vshape(j, 1)) - (n[1] * vshape(j, 0));
+      }
 
       const double w = alpha * ip.weight; // Trans.Weight() is included in n
 
       AddMult_a_ABt(w, vshape, vshapeRotated, elmat);
-    }
+   }
 }
 
 void BoundaryMassIntegrator::AssembleFaceMatrix(

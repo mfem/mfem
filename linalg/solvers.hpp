@@ -114,14 +114,14 @@ public:
    /** Setup a Jacobi smoother with the diagonal of @a a obtained by calling
        a.AssembleDiagonal(). It is assumed that the underlying operator acts as
        the identity on entries in ess_tdof_list, corresponding to (assembled)
-       DIAG_ONE policy or ConstratinedOperator in the matrix-free setting. */
+       DIAG_ONE policy or ConstrainedOperator in the matrix-free setting. */
    OperatorJacobiSmoother(const BilinearForm &a,
                           const Array<int> &ess_tdof_list,
                           const double damping=1.0);
 
    /** Application is by the *inverse* of the given vector. It is assumed that
        the underlying operator acts as the identity on entries in ess_tdof_list,
-       corresponding to (assembled) DIAG_ONE policy or ConstratinedOperator in
+       corresponding to (assembled) DIAG_ONE policy or ConstrainedOperator in
        the matrix-free setting. */
    OperatorJacobiSmoother(const Vector &d,
                           const Array<int> &ess_tdof_list,
@@ -129,6 +129,7 @@ public:
    ~OperatorJacobiSmoother() {}
 
    void Mult(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
    void SetOperator(const Operator &op) { oper = &op; }
    void Setup(const Vector &diag);
 
@@ -180,6 +181,8 @@ public:
    ~OperatorChebyshevSmoother() {}
 
    void Mult(const Vector&x, Vector &y) const;
+
+   void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
 
    void SetOperator(const Operator &op_)
    {
@@ -271,8 +274,8 @@ class GMRESSolver : public IterativeSolver
 {
 protected:
    int m; // see SetKDim()
-  std::string name;
-  
+   std::string name;
+
 public:
    GMRESSolver() { m = 50; }
 
@@ -285,10 +288,10 @@ public:
 
    virtual void Mult(const Vector &b, Vector &x) const;
 
-  void SetName(const std::string &s)
-  {
-    name = s;
-  }
+   void SetName(const std::string &s)
+   {
+      name = s;
+   }
 };
 
 /// FGMRES method
@@ -694,7 +697,8 @@ private:
 
 #ifdef MFEM_USE_MPI
 
-class GMGSolver : public Solver {
+class GMGSolver : public Solver
+{
 private:
    /// The linear system matrix
    HypreParMatrix * Af;
@@ -702,18 +706,18 @@ private:
    std::vector<HypreParMatrix *> P;
    std::vector<HypreSmoother  *> S;
    int NumGrids;
-//   
+   //
 #ifdef MFEM_USE_PETSC
    PetscLinearSolver *petsc = nullptr;
-#endif   
+#endif
 #ifdef MFEM_USE_STRUMPACK
    STRUMPACKRowLocMatrix *StpA = nullptr;
    STRUMPACKSolver *strumpack = nullptr;
-#endif   
-#ifdef MFEM_USE_SUPERLU   
+#endif
+#ifdef MFEM_USE_SUPERLU
    SuperLURowLocMatrix *SluA = nullptr;
    SuperLUSolver *superlu = nullptr;
-#endif   
+#endif
    Solver * invAc=nullptr;
    double theta = 1.0;
 public:
@@ -731,7 +735,8 @@ public:
    virtual ~GMGSolver();
 };
 
-class ComplexGMGSolver : public Solver {
+class ComplexGMGSolver : public Solver
+{
 private:
    /// The linear system matrix
    ComplexHypreParMatrix * Af;
@@ -743,22 +748,23 @@ private:
    //
 #ifdef MFEM_USE_PETSC
    PetscLinearSolver *petsc = nullptr;
-#endif   
+#endif
 #ifdef MFEM_USE_STRUMPACK
    STRUMPACKRowLocMatrix *StpA = nullptr;
    STRUMPACKSolver *strumpack = nullptr;
-#endif   
-#ifdef MFEM_USE_SUPERLU   
+#endif
+#ifdef MFEM_USE_SUPERLU
    SuperLURowLocMatrix *SluA = nullptr;
    SuperLUSolver *superlu = nullptr;
-#endif   
+#endif
    double theta = 1.0;
    mutable Array<int> block_OffsetsI;
    mutable Array<int> block_OffsetsJ;
 public:
-  enum CoarseSolver { PETSC, SUPERLU, STRUMPACK, UMFPACK };
+   enum CoarseSolver { PETSC, SUPERLU, STRUMPACK, UMFPACK };
 
-  ComplexGMGSolver(ComplexHypreParMatrix * Af_, std::vector<HypreParMatrix *> P_, CoarseSolver cs, bool printCoarse=false);
+   ComplexGMGSolver(ComplexHypreParMatrix * Af_, std::vector<HypreParMatrix *> P_,
+                    CoarseSolver cs, bool printCoarse=false);
    virtual void SetOperator(const Operator &op) {}
 
    virtual void SetSmootherType(const HypreSmoother::Type type) const;
@@ -769,7 +775,8 @@ public:
    virtual ~ComplexGMGSolver();
 };
 
-class ComplexGMGPASolver : public Solver {
+class ComplexGMGPASolver : public Solver
+{
 private:
    ComplexOperator * AOf;
    std::vector<ComplexOperator *> AO;
@@ -784,30 +791,30 @@ private:
    OperatorJacobiSmoother Jacobi;
 
    std::vector<Operator*> S;
-  
+
 #ifdef MFEM_USE_STRUMPACK
    STRUMPACKRowLocMatrix *StpA = nullptr;
    STRUMPACKSolver *strumpack = nullptr;
-#endif   
-  
+#endif
+
    double theta = 1.0;
    mutable Array<int> block_OffsetsI;
    mutable Array<int> block_OffsetsJ;
 public:
    ComplexGMGPASolver(MPI_Comm comm, Operator * Af_Re, Operator * Af_Im,
-		      Vector& diagRe_, 
-		      Array<int>& ess_tdof_list,
-		      std::vector<HypreParMatrix *> P_,
-		      HypreParMatrix * Ac_Re, HypreParMatrix * Ac_Im, bool printCoarse=false);
+                      Vector& diagRe_,
+                      Array<int>& ess_tdof_list,
+                      std::vector<HypreParMatrix *> P_,
+                      HypreParMatrix * Ac_Re, HypreParMatrix * Ac_Im, bool printCoarse=false);
 
    virtual void SetOperator(const Operator &op) {}
 
-  //virtual void SetSmootherType(const HypreSmoother::Type type) const;
+   //virtual void SetSmootherType(const HypreSmoother::Type type) const;
 
    virtual void SetTheta(const double a) {theta = a;}
 
    virtual void Mult(const Vector &r, Vector &z) const;
-  ~ComplexGMGPASolver();
+   ~ComplexGMGPASolver();
 };
 #endif
 
@@ -888,31 +895,31 @@ public:
 class OrthominSolver : public IterativeSolver
 {
 private:
-  int omk;
+   int omk;
 
 protected:
-  mutable Vector p, r, Ap, Ar;
-  mutable std::vector<Vector> pprev, Apprev;
-  mutable std::vector<double> Ap2prev;
+   mutable Vector p, r, Ap, Ar;
+   mutable std::vector<Vector> pprev, Apprev;
+   mutable std::vector<double> Ap2prev;
 
-  void UpdateVectors();
+   void UpdateVectors();
 
 public:
-  OrthominSolver() { }
+   OrthominSolver() { }
 
 #ifdef MFEM_USE_MPI
-  OrthominSolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
+   OrthominSolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
 #endif
 
-  virtual void SetOperator(const Operator &op)
-  { IterativeSolver::SetOperator(op); UpdateVectors(); }
-  
-  virtual void Mult(const Vector &b, Vector &x) const;
+   virtual void SetOperator(const Operator &op)
+   { IterativeSolver::SetOperator(op); UpdateVectors(); }
 
-  void SetKDim(const int k)
-  {
-    omk = k;
-  }
+   virtual void Mult(const Vector &b, Vector &x) const;
+
+   void SetKDim(const int k)
+   {
+      omk = k;
+   }
 };
 
 }

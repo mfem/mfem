@@ -47,7 +47,7 @@ public:
    /// Method defining partial assembly.
    /** The result of the partial assembly is stored internally so that it can be
        used later in the methods AddMultPA() and AddMultTransposePA(). */
-  virtual void AssemblePA(const FiniteElementSpace &fes);
+   virtual void AssemblePA(const FiniteElementSpace &fes);
    /** Used with BilinearFormIntegrators that have different spaces. */
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
@@ -200,8 +200,8 @@ public:
 
    virtual ~BilinearFormIntegrator() { }
 
-  bool isBdryInteg = false;
-  Array<int> *el_marker = NULL;
+   bool isBdryInteg = false;
+   Array<int> *el_marker = NULL;
 };
 
 /** Wraps a given @a BilinearFormIntegrator and transposes the resulting element
@@ -2056,13 +2056,14 @@ public:
 class VectorFEBoundaryTangentIntegrator : public MassIntegrator
 {
 private:
-  double alpha;
-  
-public:
-  VectorFEBoundaryTangentIntegrator(double a = 1.0) : alpha(a)
-  { }
+   double alpha;
 
-  void AssembleElementMatrix(const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat);
+public:
+   VectorFEBoundaryTangentIntegrator(double a = 1.0) : alpha(a)
+   { }
+
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans, DenseMatrix &elmat);
 };
 
 /// alpha (q . grad u, v)

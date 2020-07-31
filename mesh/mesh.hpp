@@ -257,8 +257,8 @@ protected:
        reference element at the center of the element. */
    void GetElementJacobian(int i, DenseMatrix &J);
 
-  //void GetElementCenter(int i, Vector &c);
-  
+   //void GetElementCenter(int i, Vector &c);
+
    void MarkForRefinement();
    void MarkTriMeshForRefinement();
    void GetEdgeOrdering(DSTable &v_to_v, Array<int> &order);
@@ -508,7 +508,7 @@ public:
       InitMesh(_Dim, _spaceDim, NVert, NElem, NBdrElem);
    }
 
-  void GetElementCenter(int i, Vector &c);
+   void GetElementCenter(int i, Vector &c);
 
    /** @name Methods for Mesh construction.
 
@@ -1058,8 +1058,8 @@ public:
    virtual void ReorientTetMesh();
 
    int *CartesianPartitioning(int nxyz[]);
-  int *CartesianPartitioningXY(int nxyz[], const int X, const int Y);
-  
+   int *CartesianPartitioningXY(int nxyz[], const int X, const int Y);
+
    int *GeneratePartitioning(int nparts, int part_method = 1);
    void CheckPartitioning(int *partitioning);
 

@@ -326,16 +326,17 @@ ProductOperator::~ProductOperator()
 }
 
 SumOperator::SumOperator(const Operator *A_, const Operator *B_,
-			 bool ownA_, bool ownB_, double cA_, double cB_)
+                         bool ownA_, bool ownB_, double cA_, double cB_)
    : Operator(A_->Height(), B_->Width()),
-     A(A_), B(B_), ownA(ownA_), ownB(ownB_), z(A_->Height()), w(A_->Width()), cA(cA_), cB(cB_)
+     A(A_), B(B_), ownA(ownA_), ownB(ownB_), z(A_->Height()), w(A_->Width()),
+     cA(cA_), cB(cB_)
 {
-  MFEM_VERIFY(A->Width() == B->Width() && A->Height() == B->Height(),
-	      "incompatible Operators: A->Width() = " << A->Width()
-	      << ", B->Height() = " << B->Height());
+   MFEM_VERIFY(A->Width() == B->Width() && A->Height() == B->Height(),
+               "incompatible Operators: A->Width() = " << A->Width()
+               << ", B->Height() = " << B->Height());
 
-  z.UseDevice(true);
-  w.UseDevice(true);
+   z.UseDevice(true);
+   w.UseDevice(true);
 }
 
 SumOperator::~SumOperator()
@@ -427,8 +428,10 @@ TripleProductOperator::~TripleProductOperator()
 
 
 ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
-                                         bool _own_A)
-   : Operator(A->Height(), A->Width()), A(A), own_A(_own_A)
+                                         bool _own_A,
+                                         DiagonalPolicy _diag_policy)
+   : Operator(A->Height(), A->Width()), A(A), own_A(_own_A),
+     diag_policy(_diag_policy)
 {
    // 'mem_class' should work with A->Mult() and MFEM_FORALL():
    mem_class = A->GetMemoryClass()*Device::GetDeviceMemoryClass();
@@ -488,11 +491,30 @@ void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
    auto d_x = x.Read();
    // Use read+write access - we are modifying sub-vector of y
    auto d_y = y.ReadWrite();
-   MFEM_FORALL(i, csz,
+   switch (diag_policy)
    {
-      const int id = idx[i];
-      d_y[id] = d_x[id];
-   });
+      case DIAG_ONE:
+         MFEM_FORALL(i, csz,
+         {
+            const int id = idx[i];
+            d_y[id] = d_x[id];
+         });
+         break;
+      case DIAG_ZERO:
+         MFEM_FORALL(i, csz,
+         {
+            const int id = idx[i];
+            d_y[id] = 0.0;
+         });
+         break;
+      case DIAG_KEEP:
+         // Needs action of the operator diagonal on vector
+         mfem_error("ConstrainedOperator::Mult #1");
+         break;
+      default:
+         mfem_error("ConstrainedOperator::Mult #2");
+         break;
+   }
 }
 
 RectangularConstrainedOperator::RectangularConstrainedOperator(

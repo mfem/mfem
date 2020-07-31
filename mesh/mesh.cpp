@@ -5620,19 +5620,20 @@ int *Mesh::CartesianPartitioningXY(int nxyz[], const int X, const int Y)
          if (idx < 0) { idx = 0; }
          if (idx >= nxyz[i]) { idx = nxyz[i]-1; }
          part = part * nxyz[i] + idx;
-	 pvec[i] = idx;
+         pvec[i] = idx;
       }
 
       {
-	const int idX = pvec[0] / X;
-	const int idY = pvec[1] / Y;
-	
-	const int idbX = pvec[0] - (idX * X);
-	const int idbY = pvec[1] - (idY * Y);
-	
-	part = (pvec[2] * nxyz[1] * nxyz[0]) + (((idY * nxyz[0] / X) + idX) * X * Y) + (idbY * X) + idbX;
+         const int idX = pvec[0] / X;
+         const int idY = pvec[1] / Y;
+
+         const int idbX = pvec[0] - (idX * X);
+         const int idbY = pvec[1] - (idY * Y);
+
+         part = (pvec[2] * nxyz[1] * nxyz[0]) + (((idY * nxyz[0] / X) + idX) * X * Y) +
+                (idbY * X) + idbX;
       }
-      
+
       partitioning[el] = part;
    }
 

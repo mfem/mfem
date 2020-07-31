@@ -116,38 +116,40 @@ void PAHcurlSetup3D(const int Q1D,
 
 // PA H(curl) Mass Assemble 3D kernel
 static void PAHcurlSetup3DHost(const int Q1D,
-                           const int coeffDim,
-                           const int NE,
-                           const Array<double> &w,
-                           const Vector &j,
-                           Vector &_coeff,
-                           Vector &op)
+                               const int coeffDim,
+                               const int NE,
+                               const Array<double> &w,
+                               const Vector &j,
+                               Vector &_coeff,
+                               Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
    auto J = j.HostRead();
    auto y = op.HostWrite();
 
    for (int e=0; e<NE; ++e)
-     {
-       const int os = 9*NQ*e;
+   {
+      const int os = 9*NQ*e;
       for (int q = 0; q < NQ; ++q)
       {
-	const double J11 = J[os + q]; //J(q,0,0,e);
-	const double J21 = J[os + NQ + q]; //J(q,1,0,e);
-	const double J31 = J[os + (2*NQ) + q]; //J(q,2,0,e);
-	const double J12 = J[os + (3*NQ) + q]; //J(q,0,1,e);
+         const double J11 = J[os + q]; //J(q,0,0,e);
+         const double J21 = J[os + NQ + q]; //J(q,1,0,e);
+         const double J31 = J[os + (2*NQ) + q]; //J(q,2,0,e);
+         const double J12 = J[os + (3*NQ) + q]; //J(q,0,1,e);
          const double J22 = J[os + (4*NQ) + q]; //J(q,1,1,e);
          const double J32 = J[os + (5*NQ) + q]; //J(q,2,1,e);
          const double J13 = J[os + (6*NQ) + q]; //J(q,0,2,e);
          const double J23 = J[os + (7*NQ) + q]; //J(q,1,2,e);
          const double J33 = J[os + (8*NQ) + q]; //J(q,2,2,e);
          const double detJ = J11 * (J22 * J33 - J32 * J23) -
-         /* */               J21 * (J12 * J33 - J32 * J13) +
-         /* */               J31 * (J12 * J23 - J22 * J13);
+                             /* */               J21 * (J12 * J33 - J32 * J13) +
+                             /* */               J31 * (J12 * J23 - J22 * J13);
          const double w_detJ = w[q] / detJ;
          const double D1 = _coeff[coeffDim*((NQ*e)+q)]; //coeff(0, q, e);
-         const double D2 = (coeffDim == 3) ? _coeff[(coeffDim*((NQ*e)+q))+1] : D1; //coeff(coeffDim == 3 ? 1 : 0, q, e);
-         const double D3 = (coeffDim == 3) ? _coeff[(coeffDim*((NQ*e)+q))+2] : D1; // coeff(coeffDim == 3 ? 2 : 0, q, e);
+         const double D2 = (coeffDim == 3) ? _coeff[(coeffDim*((NQ*e)+q))+1] :
+                           D1; //coeff(coeffDim == 3 ? 1 : 0, q, e);
+         const double D3 = (coeffDim == 3) ? _coeff[(coeffDim*((NQ*e)+q))+2] :
+                           D1; // coeff(coeffDim == 3 ? 2 : 0, q, e);
          // adj(J)
          const double A11 = (J22 * J33) - (J23 * J32);
          const double A12 = (J32 * J13) - (J12 * J33);
@@ -159,22 +161,26 @@ static void PAHcurlSetup3DHost(const int Q1D,
          const double A32 = (J31 * J12) - (J11 * J32);
          const double A33 = (J11 * J22) - (J12 * J21);
          // detJ J^{-1} J^{-T} = (1/detJ) adj(J) D adj(J)^T
-	 y[(6*NQ*e) + q] = w_detJ * (D1*A11*A11 + D2*A12*A12 + D3*A13*A13); // 1,1
-	 y[(6*NQ*e) + NQ + q] = w_detJ * (D1*A11*A21 + D2*A12*A22 + D3*A13*A23); // 2,1
-	 y[(6*NQ*e) + (2*NQ) + q] = w_detJ * (D1*A11*A31 + D2*A12*A32 + D3*A13*A33); // 3,1
-	 y[(6*NQ*e) + (3*NQ) + q] = w_detJ * (D1*A21*A21 + D2*A22*A22 + D3*A23*A23); // 2,2
-	 y[(6*NQ*e) + (4*NQ) + q] = w_detJ * (D1*A21*A31 + D2*A22*A32 + D3*A23*A33); // 3,2
-	 y[(6*NQ*e) + (5*NQ) + q] = w_detJ * (D1*A31*A31 + D2*A32*A32 + D3*A33*A33); // 3,3
+         y[(6*NQ*e) + q] = w_detJ * (D1*A11*A11 + D2*A12*A12 + D3*A13*A13); // 1,1
+         y[(6*NQ*e) + NQ + q] = w_detJ * (D1*A11*A21 + D2*A12*A22 + D3*A13*A23); // 2,1
+         y[(6*NQ*e) + (2*NQ) + q] = w_detJ * (D1*A11*A31 + D2*A12*A32 +
+                                              D3*A13*A33); // 3,1
+         y[(6*NQ*e) + (3*NQ) + q] = w_detJ * (D1*A21*A21 + D2*A22*A22 +
+                                              D3*A23*A23); // 2,2
+         y[(6*NQ*e) + (4*NQ) + q] = w_detJ * (D1*A21*A31 + D2*A22*A32 +
+                                              D3*A23*A33); // 3,2
+         y[(6*NQ*e) + (5*NQ) + q] = w_detJ * (D1*A31*A31 + D2*A32*A32 +
+                                              D3*A33*A33); // 3,3
       }
-     }
+   }
 }
 
 void PAHcurlSetup2Din3D(const int Q1D,
-			const int NE,
-			const Array<double> &w,
-			const Vector &j,
-			Vector &_coeff,
-			Vector &op)
+                        const int NE,
+                        const Array<double> &w,
+                        const Vector &j,
+                        Vector &_coeff,
+                        Vector &op)
 {
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
@@ -193,27 +199,27 @@ void PAHcurlSetup2Din3D(const int Q1D,
          const double J12 = J(q,0,1,e);
          const double J22 = J(q,1,1,e);
          const double J32 = J(q,2,1,e);
-	 // Following DenseMatrix::Weight() in the 3x2 case.
-	 double E = J11 * J11 + J21 * J21 + J31 * J31;
-	 double G = J12 * J12 + J22 * J22 + J32 * J32;
-	 double F = J11 * J12 + J21 * J22 + J31 * J32;
-	 const double t = (E*G - F*F);
-	 const double det = sqrt(t);
+         // Following DenseMatrix::Weight() in the 3x2 case.
+         double E = J11 * J11 + J21 * J21 + J31 * J31;
+         double G = J12 * J12 + J22 * J22 + J32 * J32;
+         double F = J11 * J12 + J21 * J22 + J31 * J32;
+         const double t = (E*G - F*F);
+         const double det = sqrt(t);
          const double c_detJ = W[q] * coeff(q, e) * det;
- 
-	 // Following CalcInverse in densemat.cpp in the 3x2 case.
-	 E /= t;
-	 G /= t;
-	 F /= t;
-	 
-	 const double invJ11 = J11*G - J12*F;
-	 const double invJ21 = J12*E - J11*F;
-	 const double invJ12 = J21*G - J22*F;
-	 const double invJ22 = J22*E - J21*F;
-	 const double invJ13 = J31*G - J32*F;
-	 const double invJ23 = J32*E - J31*F;
-	 
-	 // Compute detJ J^{-1} J^{-T} as a symmetric 2x2 matrix.
+
+         // Following CalcInverse in densemat.cpp in the 3x2 case.
+         E /= t;
+         G /= t;
+         F /= t;
+
+         const double invJ11 = J11*G - J12*F;
+         const double invJ21 = J12*E - J11*F;
+         const double invJ12 = J21*G - J22*F;
+         const double invJ22 = J22*E - J21*F;
+         const double invJ13 = J31*G - J32*F;
+         const double invJ23 = J32*E - J31*F;
+
+         // Compute detJ J^{-1} J^{-T} as a symmetric 2x2 matrix.
          y(q,0,e) = c_detJ * (invJ11*invJ11 + invJ12*invJ12 + invJ13*invJ13); // 1,1
          y(q,1,e) = c_detJ * (invJ11*invJ21 + invJ12*invJ22 + invJ13*invJ23); // 1,2
          y(q,2,e) = c_detJ * (invJ21*invJ21 + invJ22*invJ22 + invJ23*invJ23); // 2,2
@@ -475,18 +481,19 @@ void PAHcurlMassAssembleDiagonal3D(const int D1D,
 }
 
 void PAHcurlMassAssembleDiagonal3DHost(const int D1D,
-				       const int Q1D,
-				       const int NE,
-				       const Array<double> &Bo,
-				       const Array<double> &Bc,
-				       const Vector &_op,
-				       Vector &_diag)
+                                       const int Q1D,
+                                       const int NE,
+                                       const Array<double> &Bo,
+                                       const Array<double> &Bc,
+                                       const Vector &_op,
+                                       Vector &_diag)
 {
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
 
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
+
    constexpr static int VDIM = 3;
 
    auto op = _op.HostRead();
@@ -515,13 +522,16 @@ void PAHcurlMassAssembleDiagonal3DHost(const int D1D,
                   mass[qx] = 0.0;
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
-		    const double wy = (c == 1) ? Bo[qy + (Q1D*dy)] : Bc[qy + (Q1D*dy)];  // Bo(qy,dy) : Bc(qy,dy);
+                     const double wy = (c == 1) ? Bo[qy + (Q1D*dy)] : Bc[qy +
+                                                                         (Q1D*dy)];  // Bo(qy,dy) : Bc(qy,dy);
 
                      for (int qz = 0; qz < Q1D; ++qz)
                      {
-		       const double wz = (c == 2) ? Bo[qz + (Q1D*dz)] : Bc[qz + (Q1D*dz)]; // Bo(qz,dz) : Bc(qz,dz);
+                        const double wz = (c == 2) ? Bo[qz + (Q1D*dz)] : Bc[qz +
+                                                                            (Q1D*dz)]; // Bo(qz,dz) : Bc(qz,dz);
 
-		       mass[qx] += wy * wy * wz * wz * op[qx + (qy*Q1D) + (qz*Q1D*Q1D) + (opc*Q1D*Q1D*Q1D) + (e*Q1D*Q1D*Q1D*6)];  // op(qx,qy,qz,opc,e);
+                        mass[qx] += wy * wy * wz * wz * op[qx + (qy*Q1D) + (qz*Q1D*Q1D) +
+                                                           (opc*Q1D*Q1D*Q1D) + (e*Q1D*Q1D*Q1D*6)];  // op(qx,qy,qz,opc,e);
                      }
                   }
                }
@@ -530,10 +540,13 @@ void PAHcurlMassAssembleDiagonal3DHost(const int D1D,
                {
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
-		    const double wx = ((c == 0) ? Bo[qx + (Q1D*dx)] : Bc[qx + (Q1D*dx)]);  // Bo(qx,dx) : Bc(qx,dx));
-		    //diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += mass[qx] * wx * wx;
-		    diag[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + (e*3*(D1D-1)*D1D*D1D)] += mass[qx] * wx * wx;
+                     const double wx = ((c == 0) ? Bo[qx + (Q1D*dx)] : Bc[qx +
+                                                                          (Q1D*dx)]);  // Bo(qx,dx) : Bc(qx,dx));
+                     //diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += mass[qx] * wx * wx;
+                     diag[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + (e*3*(D1D-1)*D1D*D1D)] += mass[qx]
+                                                                                             * wx * wx;
                   }
+
                }
             }
          }
@@ -541,6 +554,130 @@ void PAHcurlMassAssembleDiagonal3DHost(const int D1D,
          osc += D1Dx * D1Dy * D1Dz;
       }  // loop c
    }
+}
+
+void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
+                                       const int Q1D,
+                                       const int NE,
+                                       const Array<double> &_Bo,
+                                       const Array<double> &_Bc,
+                                       const Vector &_op,
+                                       Vector &_diag)
+{
+   constexpr static int VDIM = 3;
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
+
+   MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
+
+   auto bo = Reshape(_Bo.Read(), Q1D, D1D-1);
+   auto bc = Reshape(_Bc.Read(), Q1D, D1D);
+   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 6, NE);
+   auto diag = Reshape(_diag.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
+
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   {
+      MFEM_SHARED double BG[2][MAX_Q1D*MAX_D1D];
+      double (*Bo)[MAX_Q1D] = (double (*)[MAX_Q1D]) (BG+0);
+      double (*Bc)[MAX_Q1D] = (double (*)[MAX_Q1D]) (BG+1);
+
+      double op3[3];
+      MFEM_SHARED double sop[3*MAX_Q1D*MAX_Q1D];
+
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qz,z,Q1D)
+            {
+               op3[0] = op(qx,qy,qz,0,e);
+               op3[1] = op(qx,qy,qz,3,e);
+               op3[2] = op(qx,qy,qz,5,e);
+            }
+         }
+      }
+
+      const int tidx = MFEM_THREAD_ID(x);
+      const int tidy = MFEM_THREAD_ID(y);
+      const int tidz = MFEM_THREAD_ID(z);
+
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(d,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q1D)
+            {
+               Bc[q][d] = bc(q,d);
+               if (d < D1D-1)
+               {
+                  Bo[q][d] = bo(q,d);
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      int osc = 0;
+      for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
+      {
+         const int D1Dz = (c == 2) ? D1D - 1 : D1D;
+         const int D1Dy = (c == 1) ? D1D - 1 : D1D;
+         const int D1Dx = (c == 0) ? D1D - 1 : D1D;
+
+         double dxyz = 0.0;
+
+         for (int qz=0; qz < Q1D; ++qz)
+         {
+            if (tidz == qz)
+            {
+               for (int i=0; i<3; ++i)
+               {
+                  sop[i + (3*tidx) + (3*Q1D*tidy)] = op3[i];
+               }
+            }
+
+            MFEM_SYNC_THREAD;
+
+            MFEM_FOREACH_THREAD(dz,z,D1Dz)
+            {
+               const double wz = ((c == 2) ? Bo[qz][dz] : Bc[qz][dz]);
+
+               MFEM_FOREACH_THREAD(dy,y,D1Dy)
+               {
+                  MFEM_FOREACH_THREAD(dx,x,D1Dx)
+                  {
+                     for (int qy = 0; qy < Q1D; ++qy)
+                     {
+                        const double wy = ((c == 1) ? Bo[qy][dy] : Bc[qy][dy]);
+
+                        for (int qx = 0; qx < Q1D; ++qx)
+                        {
+                           const double wx = ((c == 0) ? Bo[qx][dx] : Bc[qx][dx]);
+                           dxyz += sop[c + (3*qx) + (3*Q1D*qy)] * wx * wx * wy * wy * wz * wz;
+                        }
+                     }
+                  }
+               }
+            }
+
+            MFEM_SYNC_THREAD;
+         }  // qz loop
+
+         MFEM_FOREACH_THREAD(dz,z,D1Dz)
+         {
+            MFEM_FOREACH_THREAD(dy,y,D1Dy)
+            {
+               MFEM_FOREACH_THREAD(dx,x,D1Dx)
+               {
+                  diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += dxyz;
+               }
+            }
+         }
+
+         osc += D1Dx * D1Dy * D1Dz;
+      }  // c loop
+   }); // end of element loop
 }
 
 void PAHcurlMassApply3D(const int D1D,
@@ -734,6 +871,193 @@ void PAHcurlMassApply3D(const int D1D,
    }); // end of element loop
 }
 
+void SmemPAHcurlMassApply3D(const int D1D,
+                            const int Q1D,
+                            const int NE,
+                            const Array<double> &_Bo,
+                            const Array<double> &_Bc,
+                            const Array<double> &_Bot,
+                            const Array<double> &_Bct,
+                            const Vector &_op,
+                            const Vector &_x,
+                            Vector &_y)
+{
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
+
+   MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
+   constexpr static int VDIM = 3;
+
+   auto bo = Reshape(_Bo.Read(), Q1D, D1D-1);
+   auto bc = Reshape(_Bc.Read(), Q1D, D1D);
+   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 6, NE);
+   auto x = Reshape(_x.Read(), 3*(D1D-1)*D1D*D1D, NE);
+   auto y = Reshape(_y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
+
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   {
+      MFEM_SHARED double BG[2][MAX_Q1D*MAX_D1D];
+      double (*Bo)[MAX_Q1D] = (double (*)[MAX_Q1D]) (BG+0);
+      double (*Bc)[MAX_Q1D] = (double (*)[MAX_Q1D]) (BG+1);
+
+      double op6[6];
+      MFEM_SHARED double sop[6*MAX_Q1D*MAX_Q1D];
+      MFEM_SHARED double mass[MAX_Q1D][MAX_Q1D][3];
+
+      MFEM_SHARED double X[MAX_D1D][MAX_D1D][MAX_D1D];
+
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qz,z,Q1D)
+            {
+               for (int i=0; i<6; ++i)
+               {
+                  op6[i] = op(qx,qy,qz,i,e);
+               }
+            }
+         }
+      }
+
+      const int tidx = MFEM_THREAD_ID(x);
+      const int tidy = MFEM_THREAD_ID(y);
+      const int tidz = MFEM_THREAD_ID(z);
+
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(d,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q1D)
+            {
+               Bc[q][d] = bc(q,d);
+               if (d < D1D-1)
+               {
+                  Bo[q][d] = bo(q,d);
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      for (int qz=0; qz < Q1D; ++qz)
+      {
+         int osc = 0;
+         for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
+         {
+            const int D1Dz = (c == 2) ? D1D - 1 : D1D;
+            const int D1Dy = (c == 1) ? D1D - 1 : D1D;
+            const int D1Dx = (c == 0) ? D1D - 1 : D1D;
+
+            MFEM_FOREACH_THREAD(dz,z,D1Dz)
+            {
+               MFEM_FOREACH_THREAD(dy,y,D1Dy)
+               {
+                  MFEM_FOREACH_THREAD(dx,x,D1Dx)
+                  {
+                     X[dz][dy][dx] = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  }
+               }
+            }
+            MFEM_SYNC_THREAD;
+
+            if (tidz == qz)
+            {
+               for (int i=0; i<6; ++i)
+               {
+                  sop[i + (6*tidx) + (6*Q1D*tidy)] = op6[i];
+               }
+
+               MFEM_FOREACH_THREAD(qy,y,Q1D)
+               {
+                  MFEM_FOREACH_THREAD(qx,x,Q1D)
+                  {
+                     double u = 0.0;
+
+                     for (int dz = 0; dz < D1Dz; ++dz)
+                     {
+                        const double wz = (c == 2) ? Bo[qz][dz] : Bc[qz][dz];
+                        for (int dy = 0; dy < D1Dy; ++dy)
+                        {
+                           const double wy = (c == 1) ? Bo[qy][dy] : Bc[qy][dy];
+                           for (int dx = 0; dx < D1Dx; ++dx)
+                           {
+                              const double t = X[dz][dy][dx];
+                              const double wx = (c == 0) ? Bo[qx][dx] : Bc[qx][dx];
+                              u += t * wx * wy * wz;
+                           }
+                        }
+                     }
+
+                     mass[qy][qx][c] = u;
+                  } // qx
+               } // qy
+            } // tidz == qz
+
+            osc += D1Dx * D1Dy * D1Dz;
+            MFEM_SYNC_THREAD;
+         } // c
+
+         MFEM_SYNC_THREAD;  // Sync mass[qy][qx][d] and sop
+
+         osc = 0;
+         for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
+         {
+            const int D1Dz = (c == 2) ? D1D - 1 : D1D;
+            const int D1Dy = (c == 1) ? D1D - 1 : D1D;
+            const int D1Dx = (c == 0) ? D1D - 1 : D1D;
+
+            double dxyz = 0.0;
+
+            MFEM_FOREACH_THREAD(dz,z,D1Dz)
+            {
+               const double wz = (c == 2) ? Bo[qz][dz] : Bc[qz][dz];
+
+               MFEM_FOREACH_THREAD(dy,y,D1Dy)
+               {
+                  MFEM_FOREACH_THREAD(dx,x,D1Dx)
+                  {
+                     for (int qy = 0; qy < Q1D; ++qy)
+                     {
+                        const double wy = (c == 1) ? Bo[qy][dy] : Bc[qy][dy];
+                        for (int qx = 0; qx < Q1D; ++qx)
+                        {
+                           const int os = (6*qx) + (6*Q1D*qy);
+                           const int id1 = os + ((c == 0) ? 0 : ((c == 1) ? 1 : 2)); // O11, O12, O13
+                           const int id2 = os + ((c == 0) ? 1 : ((c == 1) ? 3 : 4)); // O12, O22, O23
+                           const int id3 = os + ((c == 0) ? 2 : ((c == 1) ? 4 : 5)); // O13, O23, O33
+
+                           const double m_c = (sop[id1] * mass[qy][qx][0]) + (sop[id2] * mass[qy][qx][1]) +
+                                              (sop[id3] * mass[qy][qx][2]);
+
+                           const double wx = (c == 0) ? Bo[qx][dx] : Bc[qx][dx];
+                           dxyz += m_c * wx * wy * wz;
+                        }
+                     }
+                  }
+               }
+            }
+
+            MFEM_SYNC_THREAD;
+
+            MFEM_FOREACH_THREAD(dz,z,D1Dz)
+            {
+               MFEM_FOREACH_THREAD(dy,y,D1Dy)
+               {
+                  MFEM_FOREACH_THREAD(dx,x,D1Dx)
+                  {
+                     y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += dxyz;
+                  }
+               }
+            }
+
+            osc += D1Dx * D1Dy * D1Dz;
+         } // c loop
+      } // qz
+   }); // end of element loop
+}
+
 // PA H(curl) curl-curl assemble 2D kernel
 static void PACurlCurlSetup2D(const int Q1D,
                               const int NE,
@@ -811,11 +1135,11 @@ static void PACurlCurlSetup3D(const int Q1D,
 
 // PA H(curl) curl-curl assemble 3D kernel
 static void PACurlCurlSetup3DHost(const int Q1D,
-                              const int NE,
-                              const Array<double> &w,
-                              const Vector &j,
-                              Vector &_coeff,
-                              Vector &op)
+                                  const int NE,
+                                  const Array<double> &w,
+                                  const Vector &j,
+                                  Vector &_coeff,
+                                  Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
    auto J = j.HostRead();
@@ -823,14 +1147,14 @@ static void PACurlCurlSetup3DHost(const int Q1D,
 
    for (int e=0; e<NE; ++e)
    {
-       const int os = 9*NQ*e;
+      const int os = 9*NQ*e;
 
       for (int q = 0; q < NQ; ++q)
       {
-	const double J11 = J[os + q]; //J(q,0,0,e);
-	const double J21 = J[os + NQ + q]; //J(q,1,0,e);
-	const double J31 = J[os + (2*NQ) + q]; //J(q,2,0,e);
-	const double J12 = J[os + (3*NQ) + q]; //J(q,0,1,e);
+         const double J11 = J[os + q]; //J(q,0,0,e);
+         const double J21 = J[os + NQ + q]; //J(q,1,0,e);
+         const double J31 = J[os + (2*NQ) + q]; //J(q,2,0,e);
+         const double J12 = J[os + (3*NQ) + q]; //J(q,0,1,e);
          const double J22 = J[os + (4*NQ) + q]; //J(q,1,1,e);
          const double J32 = J[os + (5*NQ) + q]; //J(q,2,1,e);
          const double J13 = J[os + (6*NQ) + q]; //J(q,0,2,e);
@@ -838,19 +1162,19 @@ static void PACurlCurlSetup3DHost(const int Q1D,
          const double J33 = J[os + (8*NQ) + q]; //J(q,2,2,e);
 
          const double detJ = J11 * (J22 * J33 - J32 * J23) -
-         /* */               J21 * (J12 * J33 - J32 * J13) +
-         /* */               J31 * (J12 * J23 - J22 * J13);
+                             /* */               J21 * (J12 * J33 - J32 * J13) +
+                             /* */               J31 * (J12 * J23 - J22 * J13);
 
          // set y to the 6 entries of J^T J / det^2
 
          const double c_detJ = w[q] * _coeff[q+(NQ*e)] / detJ;
 
-	 y[(6*NQ*e) + q] = c_detJ * (J11*J11 + J21*J21 + J31*J31); // 1,1
-	 y[(6*NQ*e) + NQ + q] = c_detJ * (J11*J12 + J21*J22 + J31*J32); // 1,2
-	 y[(6*NQ*e) + (2*NQ) + q] = c_detJ * (J11*J13 + J21*J23 + J31*J33); // 1,3
-	 y[(6*NQ*e) + (3*NQ) + q] = c_detJ * (J12*J12 + J22*J22 + J32*J32); // 2,2
-	 y[(6*NQ*e) + (4*NQ) + q] = c_detJ * (J12*J13 + J22*J23 + J32*J33); // 2,3
-	 y[(6*NQ*e) + (5*NQ) + q] = c_detJ * (J13*J13 + J23*J23 + J33*J33); // 3,3
+         y[(6*NQ*e) + q] = c_detJ * (J11*J11 + J21*J21 + J31*J31); // 1,1
+         y[(6*NQ*e) + NQ + q] = c_detJ * (J11*J12 + J21*J22 + J31*J32); // 1,2
+         y[(6*NQ*e) + (2*NQ) + q] = c_detJ * (J11*J13 + J21*J23 + J31*J33); // 1,3
+         y[(6*NQ*e) + (3*NQ) + q] = c_detJ * (J12*J12 + J22*J22 + J32*J32); // 2,2
+         y[(6*NQ*e) + (4*NQ) + q] = c_detJ * (J12*J13 + J22*J23 + J32*J33); // 2,3
+         y[(6*NQ*e) + (5*NQ) + q] = c_detJ * (J13*J13 + J23*J23 + J33*J33); // 3,3
       }
    }
 }
@@ -905,7 +1229,7 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
    {
 #ifdef SETUPONHOST
       PACurlCurlSetup3DHost(quad1D, ne, ir->GetWeights(), geom->J,
-                        coeff, pa_data);
+                            coeff, pa_data);
 #else
       PACurlCurlSetup3D(quad1D, 1, ne, ir->GetWeights(), geom->J,
                         coeff, pa_data);
@@ -1552,17 +1876,17 @@ static void PACurlCurlApply3D(const int D1D,
 
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 static void PACurlCurlApply3DHost(const int D1D,
-                              const int Q1D,
-                              const int NE,
-                              const Array<double> &_Bo,
-                              const Array<double> &_Bc,
-                              const Array<double> &_Bot,
-                              const Array<double> &_Bct,
-                              const Array<double> &_Gc,
-                              const Array<double> &_Gct,
-                              const Vector &_op,
-                              const Vector &_x,
-                              Vector &_y)
+                                  const int Q1D,
+                                  const int NE,
+                                  const Array<double> &_Bo,
+                                  const Array<double> &_Bc,
+                                  const Array<double> &_Bot,
+                                  const Array<double> &_Bct,
+                                  const Array<double> &_Gc,
+                                  const Array<double> &_Gct,
+                                  const Vector &_op,
+                                  const Vector &_x,
+                                  Vector &_y)
 {
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
@@ -1637,17 +1961,18 @@ static void PACurlCurlApply3DHost(const int D1D,
 
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-		 //const double t = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
-		 const double t = x[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + (e*3*(D1D-1)*D1D*D1D)];
+                  //const double t = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  const double t = x[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + (e*3*
+                                                                               (D1D-1)*D1D*D1D)];
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
-		    massX[qx] += t * Bo[qx+(Q1D*dx)];
+                     massX[qx] += t * Bo[qx+(Q1D*dx)];
                   }
                }
 
                for (int qy = 0; qy < Q1D; ++qy)
                {
-		 const double wy = Bc[qy+(Q1D*dy)];
+                  const double wy = Bc[qy+(Q1D*dy)];
                   const double wDy = Gc[qy+(Q1D*dy)];
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
@@ -1660,7 +1985,7 @@ static void PACurlCurlApply3DHost(const int D1D,
 
             for (int qz = 0; qz < Q1D; ++qz)
             {
-	      const double wz = Bc[qz+(Q1D*dz)];
+               const double wz = Bc[qz+(Q1D*dz)];
                const double wDz = Gc[qz+(Q1D*dz)];
                for (int qy = 0; qy < Q1D; ++qy)
                {
@@ -1707,17 +2032,18 @@ static void PACurlCurlApply3DHost(const int D1D,
 
                for (int dy = 0; dy < D1Dy; ++dy)
                {
-		 //const double t = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
-		 const double t = x[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + (e*3*(D1D-1)*D1D*D1D)];
+                  //const double t = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  const double t = x[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + (e*3*
+                                                                               (D1D-1)*D1D*D1D)];
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
-		    massY[qy] += t * Bo[qy+(Q1D*dy)];
+                     massY[qy] += t * Bo[qy+(Q1D*dy)];
                   }
                }
 
                for (int qx = 0; qx < Q1D; ++qx)
                {
-		 const double wx = Bc[qx+(Q1D*dx)];
+                  const double wx = Bc[qx+(Q1D*dx)];
                   const double wDx = Gc[qx+(Q1D*dx)];
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
@@ -1730,8 +2056,8 @@ static void PACurlCurlApply3DHost(const int D1D,
 
             for (int qz = 0; qz < Q1D; ++qz)
             {
-	      const double wz = Bc[qz+(Q1D*dz)];
-	      const double wDz = Gc[qz+(Q1D*dz)];
+               const double wz = Bc[qz+(Q1D*dz)];
+               const double wDz = Gc[qz+(Q1D*dz)];
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   for (int qx = 0; qx < Q1D; ++qx)
@@ -1777,19 +2103,20 @@ static void PACurlCurlApply3DHost(const int D1D,
 
                for (int dz = 0; dz < D1Dz; ++dz)
                {
-		 //const double t = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
-		 const double t = x[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + (e*3*(D1D-1)*D1D*D1D)];
+                  //const double t = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  const double t = x[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + (e*3*
+                                                                               (D1D-1)*D1D*D1D)];
 
                   for (int qz = 0; qz < Q1D; ++qz)
                   {
-		    massZ[qz] += t * Bo[qz+(Q1D*dz)];
+                     massZ[qz] += t * Bo[qz+(Q1D*dz)];
                   }
                }
 
                for (int qy = 0; qy < Q1D; ++qy)
                {
-		 const double wy = Bc[qy+(Q1D*dy)];
-		 const double wDy = Gc[qy+(Q1D*dy)];
+                  const double wy = Bc[qy+(Q1D*dy)];
+                  const double wDy = Gc[qy+(Q1D*dy)];
                   for (int qz = 0; qz < Q1D; ++qz)
                   {
                      const double wz = massZ[qz];
@@ -1801,8 +2128,8 @@ static void PACurlCurlApply3DHost(const int D1D,
 
             for (int qx = 0; qx < Q1D; ++qx)
             {
-	      const double wx = Bc[qx+(Q1D*dx)];
-	      const double wDx = Gc[qx+(Q1D*dx)];
+               const double wx = Bc[qx+(Q1D*dx)];
+               const double wDx = Gc[qx+(Q1D*dx)];
 
                for (int qy = 0; qy < Q1D; ++qy)
                {
@@ -1824,21 +2151,27 @@ static void PACurlCurlApply3DHost(const int D1D,
          {
             for (int qx = 0; qx < Q1D; ++qx)
             {
-	      /*
-               const double O11 = op(qx,qy,qz,0,e);
-               const double O12 = op(qx,qy,qz,1,e);
-               const double O13 = op(qx,qy,qz,2,e);
-               const double O22 = op(qx,qy,qz,3,e);
-               const double O23 = op(qx,qy,qz,4,e);
-               const double O33 = op(qx,qy,qz,5,e);
-	      */
+               /*
+                     const double O11 = op(qx,qy,qz,0,e);
+                     const double O12 = op(qx,qy,qz,1,e);
+                     const double O13 = op(qx,qy,qz,2,e);
+                     const double O22 = op(qx,qy,qz,3,e);
+                     const double O23 = op(qx,qy,qz,4,e);
+                     const double O33 = op(qx,qy,qz,5,e);
+               */
 
-               const double O11 = op[qx+(qy*Q1D)+(qz*Q1D*Q1D)+(0*Q1D*Q1D*Q1D)+(e*6*Q1D*Q1D*Q1D)];
-               const double O12 = op[qx+(qy*Q1D)+(qz*Q1D*Q1D)+(1*Q1D*Q1D*Q1D)+(e*6*Q1D*Q1D*Q1D)];
-               const double O13 = op[qx+(qy*Q1D)+(qz*Q1D*Q1D)+(2*Q1D*Q1D*Q1D)+(e*6*Q1D*Q1D*Q1D)];
-               const double O22 = op[qx+(qy*Q1D)+(qz*Q1D*Q1D)+(3*Q1D*Q1D*Q1D)+(e*6*Q1D*Q1D*Q1D)];
-               const double O23 = op[qx+(qy*Q1D)+(qz*Q1D*Q1D)+(4*Q1D*Q1D*Q1D)+(e*6*Q1D*Q1D*Q1D)];
-               const double O33 = op[qx+(qy*Q1D)+(qz*Q1D*Q1D)+(5*Q1D*Q1D*Q1D)+(e*6*Q1D*Q1D*Q1D)];
+               const double O11 = op[qx+(qy*Q1D)+(qz*Q1D*Q1D)+(0*Q1D*Q1D*Q1D)+
+                                     (e*6*Q1D*Q1D*Q1D)];
+               const double O12 = op[qx+(qy*Q1D)+(qz*Q1D*Q1D)+(1*Q1D*Q1D*Q1D)+
+                                     (e*6*Q1D*Q1D*Q1D)];
+               const double O13 = op[qx+(qy*Q1D)+(qz*Q1D*Q1D)+(2*Q1D*Q1D*Q1D)+
+                                     (e*6*Q1D*Q1D*Q1D)];
+               const double O22 = op[qx+(qy*Q1D)+(qz*Q1D*Q1D)+(3*Q1D*Q1D*Q1D)+
+                                     (e*6*Q1D*Q1D*Q1D)];
+               const double O23 = op[qx+(qy*Q1D)+(qz*Q1D*Q1D)+(4*Q1D*Q1D*Q1D)+
+                                     (e*6*Q1D*Q1D*Q1D)];
+               const double O33 = op[qx+(qy*Q1D)+(qz*Q1D*Q1D)+(5*Q1D*Q1D*Q1D)+
+                                     (e*6*Q1D*Q1D*Q1D)];
 
                const double c1 = (O11 * curl[qz][qy][qx][0]) + (O12 * curl[qz][qy][qx][1]) +
                                  (O13 * curl[qz][qy][qx][2]);
@@ -1888,7 +2221,7 @@ static void PACurlCurlApply3DHost(const int D1D,
                {
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
-		    const double wx = Bot[dx+((D1D-1)*qx)];
+                     const double wx = Bot[dx+((D1D-1)*qx)];
 
                      massX[dx][0] += wx * curl[qz][qy][qx][1];
                      massX[dx][1] += wx * curl[qz][qy][qx][2];
@@ -1896,8 +2229,8 @@ static void PACurlCurlApply3DHost(const int D1D,
                }
                for (int dy = 0; dy < D1Dy; ++dy)
                {
-		 const double wy = Bct[dy+(D1D*qy)];
-		 const double wDy = Gct[dy+(D1D*qy)];
+                  const double wy = Bct[dy+(D1D*qy)];
+                  const double wDy = Gct[dy+(D1D*qy)];
 
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
@@ -1909,7 +2242,7 @@ static void PACurlCurlApply3DHost(const int D1D,
 
             for (int dz = 0; dz < D1Dz; ++dz)
             {
-	      const double wz = Bct[dz+(D1D*qz)];
+               const double wz = Bct[dz+(D1D*qz)];
                const double wDz = Gct[dz+(D1D*qz)];
                for (int dy = 0; dy < D1Dy; ++dy)
                {
@@ -1917,10 +2250,10 @@ static void PACurlCurlApply3DHost(const int D1D,
                   {
                      // \hat{\nabla}\times\hat{u} is [0, (u_0)_{x_2}, -(u_0)_{x_1}]
                      // (u_0)_{x_2} * (op * curl)_1 - (u_0)_{x_1} * (op * curl)_2
-		    //y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-		    // e) += (gradXY21[dy][dx] * wDz) - (gradXY12[dy][dx] * wz);
-		    y[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + (e*3*(D1D-1)*D1D*D1D)]
-		      += (gradXY21[dy][dx] * wDz) - (gradXY12[dy][dx] * wz);
+                     //y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
+                     // e) += (gradXY21[dy][dx] * wDz) - (gradXY12[dy][dx] * wz);
+                     y[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + (e*3*(D1D-1)*D1D*D1D)]
+                     += (gradXY21[dy][dx] * wDz) - (gradXY12[dy][dx] * wz);
                   }
                }
             }
@@ -1960,7 +2293,7 @@ static void PACurlCurlApply3DHost(const int D1D,
                {
                   for (int dy = 0; dy < D1Dy; ++dy)
                   {
-		    const double wy = Bot[dy+((D1D-1)*qy)];
+                     const double wy = Bot[dy+((D1D-1)*qy)];
 
                      massY[dy][0] += wy * curl[qz][qy][qx][2];
                      massY[dy][1] += wy * curl[qz][qy][qx][0];
@@ -1968,8 +2301,8 @@ static void PACurlCurlApply3DHost(const int D1D,
                }
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-		 const double wx = Bct[dx+(D1D*qx)];
-		 const double wDx = Gct[dx+(D1D*qx)];
+                  const double wx = Bct[dx+(D1D*qx)];
+                  const double wDx = Gct[dx+(D1D*qx)];
 
                   for (int dy = 0; dy < D1Dy; ++dy)
                   {
@@ -1981,8 +2314,8 @@ static void PACurlCurlApply3DHost(const int D1D,
 
             for (int dz = 0; dz < D1Dz; ++dz)
             {
-	      const double wz = Bct[dz+(D1D*qz)];
-	      const double wDz = Gct[dz+(D1D*qz)];
+               const double wz = Bct[dz+(D1D*qz)];
+               const double wDz = Gct[dz+(D1D*qz)];
                for (int dy = 0; dy < D1Dy; ++dy)
                {
                   for (int dx = 0; dx < D1Dx; ++dx)
@@ -1990,9 +2323,9 @@ static void PACurlCurlApply3DHost(const int D1D,
                      // \hat{\nabla}\times\hat{u} is [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
                      // -(u_1)_{x_2} * (op * curl)_0 + (u_1)_{x_0} * (op * curl)_2
                      //y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-		    //e) += (-gradXY20[dy][dx] * wDz) + (gradXY02[dy][dx] * wz);
+                     //e) += (-gradXY20[dy][dx] * wDz) + (gradXY02[dy][dx] * wz);
                      y[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + (e*3*(D1D-1)*D1D*D1D)]
-		       += (-gradXY20[dy][dx] * wDz) + (gradXY02[dy][dx] * wz);
+                     += (-gradXY20[dy][dx] * wDz) + (gradXY02[dy][dx] * wz);
                   }
                }
             }
@@ -2034,7 +2367,7 @@ static void PACurlCurlApply3DHost(const int D1D,
                {
                   for (int dz = 0; dz < D1Dz; ++dz)
                   {
-		    const double wz = Bot[dz+((D1D-1)*qz)];
+                     const double wz = Bot[dz+((D1D-1)*qz)];
 
                      massZ[dz][0] += wz * curl[qz][qy][qx][0];
                      massZ[dz][1] += wz * curl[qz][qy][qx][1];
@@ -2042,8 +2375,8 @@ static void PACurlCurlApply3DHost(const int D1D,
                }
                for (int dy = 0; dy < D1Dy; ++dy)
                {
-		 const double wy = Bct[dy+(D1D*qy)];
-		 const double wDy = Gct[dy+(D1D*qy)];
+                  const double wy = Bct[dy+(D1D*qy)];
+                  const double wDy = Gct[dy+(D1D*qy)];
 
                   for (int dz = 0; dz < D1Dz; ++dz)
                   {
@@ -2055,8 +2388,8 @@ static void PACurlCurlApply3DHost(const int D1D,
 
             for (int dx = 0; dx < D1Dx; ++dx)
             {
-	      const double wx = Bct[dx+(D1D*qx)];
-	      const double wDx = Gct[dx+(D1D*qx)];
+               const double wx = Bct[dx+(D1D*qx)];
+               const double wDx = Gct[dx+(D1D*qx)];
 
                for (int dy = 0; dy < D1Dy; ++dy)
                {
@@ -2064,10 +2397,10 @@ static void PACurlCurlApply3DHost(const int D1D,
                   {
                      // \hat{\nabla}\times\hat{u} is [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
                      // (u_2)_{x_1} * (op * curl)_0 - (u_2)_{x_0} * (op * curl)_1
-		    //y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-		    //e) += (gradYZ10[dz][dy] * wx) - (gradYZ01[dz][dy] * wDx);
+                     //y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
+                     //e) += (gradYZ10[dz][dy] * wx) - (gradYZ01[dz][dy] * wDx);
                      y[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + (e*3*(D1D-1)*D1D*D1D)]
-                       += (gradYZ10[dz][dy] * wx) - (gradYZ01[dz][dy] * wDx);
+                     += (gradYZ10[dz][dy] * wx) - (gradYZ01[dz][dy] * wDx);
                   }
                }
             }
@@ -2076,14 +2409,325 @@ static void PACurlCurlApply3DHost(const int D1D,
    }
 }
 
+template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
+static void SmemPACurlCurlApply3D(const int D1D,
+                                  const int Q1D,
+                                  const int NE,
+                                  const Array<double> &_Bo,
+                                  const Array<double> &_Bc,
+                                  const Array<double> &_Bot,
+                                  const Array<double> &_Bct,
+                                  const Array<double> &_Gc,
+                                  const Array<double> &_Gct,
+                                  const Vector &_op,
+                                  const Vector &_x,
+                                  Vector &_y)
+{
+   MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
+   // Using (\nabla\times u) F = 1/det(dF) dF \hat{\nabla}\times\hat{u} (p. 78 of Monk), we get
+   // (\nabla\times u) \cdot (\nabla\times v) = 1/det(dF)^2 \hat{\nabla}\times\hat{u}^T dF^T dF \hat{\nabla}\times\hat{v}
+   // If c = 0, \hat{\nabla}\times\hat{u} reduces to [0, (u_0)_{x_2}, -(u_0)_{x_1}]
+   // If c = 1, \hat{\nabla}\times\hat{u} reduces to [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
+   // If c = 2, \hat{\nabla}\times\hat{u} reduces to [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
+
+   constexpr static int VDIM = 3;
+
+   auto bo = Reshape(_Bo.Read(), Q1D, D1D-1);
+   auto bc = Reshape(_Bc.Read(), Q1D, D1D);
+   auto gc = Reshape(_Gc.Read(), Q1D, D1D);
+   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 6, NE);
+   auto x = Reshape(_x.Read(), 3*(D1D-1)*D1D*D1D, NE);
+   auto y = Reshape(_y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
+
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   {
+      MFEM_SHARED double BG[3][MAX_Q1D*MAX_D1D];
+      double (*Bo)[MAX_D1D] = (double (*)[MAX_D1D]) (BG+0);
+      double (*Bc)[MAX_D1D] = (double (*)[MAX_D1D]) (BG+1);
+      double (*Gc)[MAX_D1D] = (double (*)[MAX_D1D]) (BG+2);
+
+      double op6[6];
+      MFEM_SHARED double sop[6*MAX_Q1D*MAX_Q1D];
+      MFEM_SHARED double curl[MAX_Q1D][MAX_Q1D][3];
+
+      MFEM_SHARED double X[MAX_D1D][MAX_D1D][MAX_D1D];
+
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qz,z,Q1D)
+            {
+               for (int i=0; i<6; ++i)
+               {
+                  op6[i] = op(qx,qy,qz,i,e);
+               }
+            }
+         }
+      }
+
+      const int tidx = MFEM_THREAD_ID(x);
+      const int tidy = MFEM_THREAD_ID(y);
+      const int tidz = MFEM_THREAD_ID(z);
+
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(d,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q1D)
+            {
+               Bc[d][q] = bc(q,d);
+               Gc[d][q] = gc(q,d);
+               if (d < D1D-1)
+               {
+                  Bo[d][q] = bo(q,d);
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      for (int qz=0; qz < Q1D; ++qz)
+      {
+         if (tidz == qz)
+         {
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
+            {
+               MFEM_FOREACH_THREAD(qx,x,Q1D)
+               {
+                  for (int i=0; i<3; ++i)
+                  {
+                     curl[qy][qx][i] = 0.0;
+                  }
+               }
+            }
+         }
+
+         int osc = 0;
+         for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
+         {
+            const int D1Dz = (c == 2) ? D1D - 1 : D1D;
+            const int D1Dy = (c == 1) ? D1D - 1 : D1D;
+            const int D1Dx = (c == 0) ? D1D - 1 : D1D;
+
+            MFEM_FOREACH_THREAD(dz,z,D1Dz)
+            {
+               MFEM_FOREACH_THREAD(dy,y,D1Dy)
+               {
+                  MFEM_FOREACH_THREAD(dx,x,D1Dx)
+                  {
+                     X[dz][dy][dx] = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  }
+               }
+            }
+            MFEM_SYNC_THREAD;
+
+            if (tidz == qz)
+            {
+               if (c == 0)
+               {
+                  for (int i=0; i<6; ++i)
+                  {
+                     sop[i + (6*tidx) + (6*Q1D*tidy)] = op6[i];
+                  }
+               }
+
+               MFEM_FOREACH_THREAD(qy,y,Q1D)
+               {
+                  MFEM_FOREACH_THREAD(qx,x,Q1D)
+                  {
+                     double u = 0.0;
+                     double v = 0.0;
+
+                     // We treat x, y, z components separately for optimization specific to each.
+                     if (c == 0) // x component
+                     {
+                        // \hat{\nabla}\times\hat{u} is [0, (u_0)_{x_2}, -(u_0)_{x_1}]
+
+                        for (int dz = 0; dz < D1Dz; ++dz)
+                        {
+                           const double wz = Bc[dz][qz];
+                           const double wDz = Gc[dz][qz];
+
+                           for (int dy = 0; dy < D1Dy; ++dy)
+                           {
+                              const double wy = Bc[dy][qy];
+                              const double wDy = Gc[dy][qy];
+
+                              for (int dx = 0; dx < D1Dx; ++dx)
+                              {
+                                 const double wx = X[dz][dy][dx] * Bo[dx][qx];
+                                 u += wx * wDy * wz;
+                                 v += wx * wy * wDz;
+                              }
+                           }
+                        }
+
+                        curl[qy][qx][1] += v; // (u_0)_{x_2}
+                        curl[qy][qx][2] -= u;  // -(u_0)_{x_1}
+                     }
+                     else if (c == 1)  // y component
+                     {
+                        // \hat{\nabla}\times\hat{u} is [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
+
+                        for (int dz = 0; dz < D1Dz; ++dz)
+                        {
+                           const double wz = Bc[dz][qz];
+                           const double wDz = Gc[dz][qz];
+
+                           for (int dy = 0; dy < D1Dy; ++dy)
+                           {
+                              const double wy = Bo[dy][qy];
+
+                              for (int dx = 0; dx < D1Dx; ++dx)
+                              {
+                                 const double t = X[dz][dy][dx];
+                                 const double wx = t * Bc[dx][qx];
+                                 const double wDx = t * Gc[dx][qx];
+
+                                 u += wDx * wy * wz;
+                                 v += wx * wy * wDz;
+                              }
+                           }
+                        }
+
+                        curl[qy][qx][0] -= v; // -(u_1)_{x_2}
+                        curl[qy][qx][2] += u; // (u_1)_{x_0}
+                     }
+                     else // z component
+                     {
+                        // \hat{\nabla}\times\hat{u} is [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
+
+                        for (int dz = 0; dz < D1Dz; ++dz)
+                        {
+                           const double wz = Bo[dz][qz];
+
+                           for (int dy = 0; dy < D1Dy; ++dy)
+                           {
+                              const double wy = Bc[dy][qy];
+                              const double wDy = Gc[dy][qy];
+
+                              for (int dx = 0; dx < D1Dx; ++dx)
+                              {
+                                 const double t = X[dz][dy][dx];
+                                 const double wx = t * Bc[dx][qx];
+                                 const double wDx = t * Gc[dx][qx];
+
+                                 u += wDx * wy * wz;
+                                 v += wx * wDy * wz;
+                              }
+                           }
+                        }
+
+                        curl[qy][qx][0] += v; // (u_2)_{x_1}
+                        curl[qy][qx][1] -= u; // -(u_2)_{x_0}
+                     }
+                  } // qx
+               } // qy
+            } // tidz == qz
+
+            osc += D1Dx * D1Dy * D1Dz;
+            MFEM_SYNC_THREAD;
+         } // c
+
+         double dxyz1 = 0.0;
+         double dxyz2 = 0.0;
+         double dxyz3 = 0.0;
+
+         MFEM_FOREACH_THREAD(dz,z,D1D)
+         {
+            const double wcz = Bc[dz][qz];
+            const double wcDz = Gc[dz][qz];
+            const double wz = (dz < D1D-1) ? Bo[dz][qz] : 0.0;
+
+            MFEM_FOREACH_THREAD(dy,y,D1D)
+            {
+               MFEM_FOREACH_THREAD(dx,x,D1D)
+               {
+                  for (int qy = 0; qy < Q1D; ++qy)
+                  {
+                     const double wcy = Bc[dy][qy];
+                     const double wcDy = Gc[dy][qy];
+                     const double wy = (dy < D1D-1) ? Bo[dy][qy] : 0.0;
+
+                     for (int qx = 0; qx < Q1D; ++qx)
+                     {
+                        const double O11 = sop[0 + (6*qx) + (6*Q1D*qy)];
+                        const double O12 = sop[1 + (6*qx) + (6*Q1D*qy)];
+                        const double O13 = sop[2 + (6*qx) + (6*Q1D*qy)];
+                        const double O22 = sop[3 + (6*qx) + (6*Q1D*qy)];
+                        const double O23 = sop[4 + (6*qx) + (6*Q1D*qy)];
+                        const double O33 = sop[5 + (6*qx) + (6*Q1D*qy)];
+
+                        const double c1 = (O11 * curl[qy][qx][0]) + (O12 * curl[qy][qx][1]) +
+                                          (O13 * curl[qy][qx][2]);
+                        const double c2 = (O12 * curl[qy][qx][0]) + (O22 * curl[qy][qx][1]) +
+                                          (O23 * curl[qy][qx][2]);
+                        const double c3 = (O13 * curl[qy][qx][0]) + (O23 * curl[qy][qx][1]) +
+                                          (O33 * curl[qy][qx][2]);
+
+                        const double wcx = Bc[dx][qx];
+                        const double wDx = Gc[dx][qx];
+
+                        if (dx < D1D-1)
+                        {
+                           // \hat{\nabla}\times\hat{u} is [0, (u_0)_{x_2}, -(u_0)_{x_1}]
+                           // (u_0)_{x_2} * (op * curl)_1 - (u_0)_{x_1} * (op * curl)_2
+                           const double wx = Bo[dx][qx];
+                           dxyz1 += (wx * c2 * wcy * wcDz) - (wx * c3 * wcDy * wcz);
+                        }
+
+                        // \hat{\nabla}\times\hat{u} is [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
+                        // -(u_1)_{x_2} * (op * curl)_0 + (u_1)_{x_0} * (op * curl)_2
+                        dxyz2 += (-wy * c1 * wcx * wcDz) + (wy * c3 * wDx * wcz);
+
+                        // \hat{\nabla}\times\hat{u} is [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
+                        // (u_2)_{x_1} * (op * curl)_0 - (u_2)_{x_0} * (op * curl)_1
+                        dxyz3 += (wcDy * wz * c1 * wcx) - (wcy * wz * c2 * wDx);
+                     } // qx
+                  } // qy
+               } // dx
+            } // dy
+         } // dz
+
+         MFEM_SYNC_THREAD;
+
+         MFEM_FOREACH_THREAD(dz,z,D1D)
+         {
+            MFEM_FOREACH_THREAD(dy,y,D1D)
+            {
+               MFEM_FOREACH_THREAD(dx,x,D1D)
+               {
+                  if (dx < D1D-1)
+                  {
+                     y(dx + ((dy + (dz * D1D)) * (D1D-1)), e) += dxyz1;
+                  }
+                  if (dy < D1D-1)
+                  {
+                     y(dx + ((dy + (dz * (D1D-1))) * D1D) + ((D1D-1)*D1D*D1D), e) += dxyz2;
+                  }
+                  if (dz < D1D-1)
+                  {
+                     y(dx + ((dy + (dz * D1D)) * D1D) + (2*(D1D-1)*D1D*D1D), e) += dxyz3;
+                  }
+               }
+            }
+         }
+      } // qz
+   }); // end of element loop
+}
+
 void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (dim == 3)
    {
-     PACurlCurlApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
-                        mapsC->Bt, mapsC->G, mapsC->Gt, pa_data, x, y);
-     //PACurlCurlApply3DHost(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
-     //                   mapsC->Bt, mapsC->G, mapsC->Gt, pa_data, x, y);
+      if (x.GetMemory().GetMemoryType() >= MemoryType::DEVICE && quad1D <= 6)
+         SmemPACurlCurlApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
+                               mapsC->Bt, mapsC->G, mapsC->Gt, pa_data, x, y);
+      else
+         PACurlCurlApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
+                           mapsC->Bt, mapsC->G, mapsC->Gt, pa_data, x, y);
    }
    else if (dim == 2)
    {
@@ -2347,15 +2991,194 @@ static void PACurlCurlAssembleDiagonal3D(const int D1D,
 }
 
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
+static void SmemPACurlCurlAssembleDiagonal3D(const int D1D,
+                                             const int Q1D,
+                                             const int NE,
+                                             const Array<double> &_Bo,
+                                             const Array<double> &_Bc,
+                                             const Array<double> &_Go,
+                                             const Array<double> &_Gc,
+                                             const Vector &_op,
+                                             Vector &_diag)
+{
+   constexpr static int VDIM = 3;
+   MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
+
+   auto bo = Reshape(_Bo.Read(), Q1D, D1D-1);
+   auto bc = Reshape(_Bc.Read(), Q1D, D1D);
+   auto go = Reshape(_Go.Read(), Q1D, D1D-1);
+   auto gc = Reshape(_Gc.Read(), Q1D, D1D);
+   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 6, NE);
+   auto diag = Reshape(_diag.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
+
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   {
+      // Using (\nabla\times u) F = 1/det(dF) dF \hat{\nabla}\times\hat{u} (p. 78 of Monk), we get
+      // (\nabla\times u) \cdot (\nabla\times u) = 1/det(dF)^2 \hat{\nabla}\times\hat{u}^T dF^T dF \hat{\nabla}\times\hat{u}
+      // If c = 0, \hat{\nabla}\times\hat{u} reduces to [0, (u_0)_{x_2}, -(u_0)_{x_1}]
+      // If c = 1, \hat{\nabla}\times\hat{u} reduces to [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
+      // If c = 2, \hat{\nabla}\times\hat{u} reduces to [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
+
+      MFEM_SHARED double BG[4][MAX_Q1D*MAX_D1D];
+      double (*Bo)[MAX_Q1D] = (double (*)[MAX_Q1D]) (BG+0);
+      double (*Bc)[MAX_Q1D] = (double (*)[MAX_Q1D]) (BG+1);
+      double (*Go)[MAX_Q1D] = (double (*)[MAX_Q1D]) (BG+2);
+      double (*Gc)[MAX_Q1D] = (double (*)[MAX_Q1D]) (BG+3);
+
+      double op6[6];
+      MFEM_SHARED double sop[6*MAX_Q1D*MAX_Q1D];
+
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qz,z,Q1D)
+            {
+               for (int i=0; i<6; ++i)
+               {
+                  op6[i] = op(qx,qy,qz,i,e);
+               }
+            }
+         }
+      }
+
+      const int tidx = MFEM_THREAD_ID(x);
+      const int tidy = MFEM_THREAD_ID(y);
+      const int tidz = MFEM_THREAD_ID(z);
+
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(d,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q1D)
+            {
+               Bc[q][d] = bc(q,d);
+               Gc[q][d] = gc(q,d);
+               if (d < D1D-1)
+               {
+                  Bo[q][d] = bo(q,d);
+                  Go[q][d] = go(q,d);
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      int osc = 0;
+      for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
+      {
+         const int D1Dz = (c == 2) ? D1D - 1 : D1D;
+         const int D1Dy = (c == 1) ? D1D - 1 : D1D;
+         const int D1Dx = (c == 0) ? D1D - 1 : D1D;
+
+         double dxyz = 0.0;
+
+         for (int qz=0; qz < Q1D; ++qz)
+         {
+            if (tidz == qz)
+            {
+               for (int i=0; i<6; ++i)
+               {
+                  sop[i + (6*tidx) + (6*Q1D*tidy)] = op6[i];
+               }
+            }
+
+            MFEM_SYNC_THREAD;
+
+            MFEM_FOREACH_THREAD(dz,z,D1Dz)
+            {
+               const double wz = ((c == 2) ? Bo[qz][dz] : Bc[qz][dz]);
+               const double wDz = ((c == 2) ? Go[qz][dz] : Gc[qz][dz]);
+
+               MFEM_FOREACH_THREAD(dy,y,D1Dy)
+               {
+                  MFEM_FOREACH_THREAD(dx,x,D1Dx)
+                  {
+                     for (int qy = 0; qy < Q1D; ++qy)
+                     {
+                        const double wy = ((c == 1) ? Bo[qy][dy] : Bc[qy][dy]);
+                        const double wDy = ((c == 1) ? Go[qy][dy] : Gc[qy][dy]);
+
+                        for (int qx = 0; qx < Q1D; ++qx)
+                        {
+                           const double wx = ((c == 0) ? Bo[qx][dx] : Bc[qx][dx]);
+                           const double wDx = ((c == 0) ? Go[qx][dx] : Gc[qx][dx]);
+
+                           if (c == 0)
+                           {
+                              // (u_0)_{x_2} (O22 (u_0)_{x_2} - O23 (u_0)_{x_1}) - (u_0)_{x_1} (O32 (u_0)_{x_2} - O33 (u_0)_{x_1})
+
+                              // (u_0)_{x_2} O22 (u_0)_{x_2}
+                              dxyz += sop[3 + (6*qx) + (6*Q1D*qy)] * wx * wx * wy * wy * wDz * wDz;
+
+                              // -(u_0)_{x_2} O23 (u_0)_{x_1} - (u_0)_{x_1} O32 (u_0)_{x_2}
+                              dxyz += -2.0 * sop[4 + (6*qx) + (6*Q1D*qy)] * wx * wx * wDy * wy * wDz * wz;
+
+                              // (u_0)_{x_1} O33 (u_0)_{x_1}
+                              dxyz += sop[5 + (6*qx) + (6*Q1D*qy)] * wx * wx * wDy * wDy * wz * wz;
+                           }
+                           else if (c == 1)
+                           {
+                              // (u_1)_{x_2} (O11 (u_1)_{x_2} - O13 (u_1)_{x_0}) + (u_1)_{x_0} (-O31 (u_1)_{x_2} + O33 (u_1)_{x_0})
+
+                              // (u_1)_{x_2} O11 (u_1)_{x_2}
+                              dxyz += sop[(6*qx) + (6*Q1D*qy)] * wx * wx * wy * wy * wDz * wDz;
+
+                              // -(u_1)_{x_2} O13 (u_1)_{x_0} - (u_1)_{x_0} O31 (u_1)_{x_2}
+                              dxyz += -2.0 * sop[2 + (6*qx) + (6*Q1D*qy)] * wDx * wx * wy * wy * wDz * wz;
+
+                              // (u_1)_{x_0} O33 (u_1)_{x_0})
+                              dxyz += sop[5 + (6*qx) + (6*Q1D*qy)] * wDx * wDx * wy * wy * wz * wz;
+                           }
+                           else
+                           {
+                              // (u_2)_{x_1} (O11 (u_2)_{x_1} - O12 (u_2)_{x_0}) - (u_2)_{x_0} (O21 (u_2)_{x_1} - O22 (u_2)_{x_0})
+
+                              // (u_2)_{x_1} O11 (u_2)_{x_1}
+                              dxyz += sop[(6*qx) + (6*Q1D*qy)] * wx * wx * wDy * wDy * wz * wz;
+
+                              // -(u_2)_{x_1} O12 (u_2)_{x_0} - (u_2)_{x_0} O21 (u_2)_{x_1}
+                              dxyz += -2.0 * sop[1 + (6*qx) + (6*Q1D*qy)] * wDx * wx * wDy * wy * wz * wz;
+
+                              // (u_2)_{x_0} O22 (u_2)_{x_0}
+                              dxyz += sop[3 + (6*qx) + (6*Q1D*qy)] * wDx * wDx * wy * wy * wz * wz;
+                           }
+                        }
+                     }
+                  }
+               }
+            }
+
+            MFEM_SYNC_THREAD;
+         }  // qz loop
+
+         MFEM_FOREACH_THREAD(dz,z,D1Dz)
+         {
+            MFEM_FOREACH_THREAD(dy,y,D1Dy)
+            {
+               MFEM_FOREACH_THREAD(dx,x,D1Dx)
+               {
+                  diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += dxyz;
+               }
+            }
+         }
+
+         osc += D1Dx * D1Dy * D1Dz;
+      }  // c loop
+   }); // end of element loop
+}
+
+template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 static void PACurlCurlAssembleDiagonal3DHost(const int D1D,
-                                         const int Q1D,
-                                         const int NE,
-                                         const Array<double> &Bo,
-                                         const Array<double> &Bc,
-                                         const Array<double> &Go,
-                                         const Array<double> &Gc,
-                                         const Vector &_op,
-                                         Vector &_diag)
+                                             const int Q1D,
+                                             const int NE,
+                                             const Array<double> &Bo,
+                                             const Array<double> &Bc,
+                                             const Array<double> &Go,
+                                             const Array<double> &Gc,
+                                             const Vector &_op,
+                                             Vector &_diag)
 {
    constexpr static int VDIM = 3;
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
@@ -2411,15 +3234,18 @@ static void PACurlCurlAssembleDiagonal3DHost(const int D1D,
 
                   for (int qz = 0; qz < Q1D; ++qz)
                   {
-		    const double wz = ((c == 2) ? Bo[qz + (dz*Q1D)] : Bc[qz + (dz*Q1D)]); // Bo(qz,dz) : Bc(qz,dz)
-		    const double wDz = ((c == 2) ? Go[qz + (dz*Q1D)] : Gc[qz + (dz*Q1D)]); // Go(qz,dz) : Gc(qz,dz)
+                     const double wz = ((c == 2) ? Bo[qz + (dz*Q1D)] : Bc[qz +
+                                                                          (dz*Q1D)]); // Bo(qz,dz) : Bc(qz,dz)
+                     const double wDz = ((c == 2) ? Go[qz + (dz*Q1D)] : Gc[qz +
+                                                                           (dz*Q1D)]); // Go(qz,dz) : Gc(qz,dz)
 
                      for (int i=0; i<6; ++i)
                      {
-		       const double op_i = op[qx+(qy*Q1D)+(qz*Q1D*Q1D)+(i*Q1D*Q1D*Q1D)+(e*6*Q1D*Q1D*Q1D)]; // op(qx,qy,qz,i,e)
-		       zt[qx][qy][dz][i][0] += wz * wz * op_i;
-		       zt[qx][qy][dz][i][1] += wDz * wz * op_i;
-		       zt[qx][qy][dz][i][2] += wDz * wDz * op_i;
+                        const double op_i = op[qx+(qy*Q1D)+(qz*Q1D*Q1D)+(i*Q1D*Q1D*Q1D)+
+                                               (e*6*Q1D*Q1D*Q1D)]; // op(qx,qy,qz,i,e)
+                        zt[qx][qy][dz][i][0] += wz * wz * op_i;
+                        zt[qx][qy][dz][i][1] += wDz * wz * op_i;
+                        zt[qx][qy][dz][i][2] += wDz * wDz * op_i;
                      }
                   }
                }
@@ -2446,8 +3272,10 @@ static void PACurlCurlAssembleDiagonal3DHost(const int D1D,
 
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
-		    const double wy = ((c == 1) ? Bo[qy+(dy*Q1D)] : Bc[qy+(dy*Q1D)]);  // Bo(qy,dy) : Bc(qy,dy)
-		    const double wDy = ((c == 1) ? Go[qy+(dy*Q1D)] : Gc[qy+(dy*Q1D)]);  // Go(qy,dy) : Gc(qy,dy)
+                     const double wy = ((c == 1) ? Bo[qy+(dy*Q1D)] : Bc[qy+
+                                                                        (dy*Q1D)]);  // Bo(qy,dy) : Bc(qy,dy)
+                     const double wDy = ((c == 1) ? Go[qy+(dy*Q1D)] : Gc[qy+
+                                                                         (dy*Q1D)]);  // Go(qy,dy) : Gc(qy,dy)
 
                      for (int i=0; i<6; ++i)
                      {
@@ -2472,8 +3300,10 @@ static void PACurlCurlAssembleDiagonal3DHost(const int D1D,
                {
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
-		    const double wx = ((c == 0) ? Bo[qx + (dx*Q1D)] : Bc[qx+(dx*Q1D)]);  // Bo(qx,dx) : Bc(qx,dx)
-		    const double wDx = ((c == 0) ? Go[qx+(dx*Q1D)] : Gc[qx+(dx*Q1D)]);  // Go(qx,dx) : Gc(qx,dx)
+                     const double wx = ((c == 0) ? Bo[qx + (dx*Q1D)] : Bc[qx+
+                                                                          (dx*Q1D)]);  // Bo(qx,dx) : Bc(qx,dx)
+                     const double wDx = ((c == 0) ? Go[qx+(dx*Q1D)] : Gc[qx+
+                                                                         (dx*Q1D)]);  // Go(qx,dx) : Gc(qx,dx)
 
                      // Using (\nabla\times u) F = 1/det(dF) dF \hat{\nabla}\times\hat{u} (p. 78 of Monk), we get
                      // (\nabla\times u) \cdot (\nabla\times u) = 1/det(dF)^2 \hat{\nabla}\times\hat{u}^T dF^T dF \hat{\nabla}\times\hat{u}
@@ -2495,75 +3325,84 @@ static void PACurlCurlAssembleDiagonal3DHost(const int D1D,
                         // (u_0)_{x_2} (O22 (u_0)_{x_2} - O23 (u_0)_{x_1}) - (u_0)_{x_1} (O32 (u_0)_{x_2} - O33 (u_0)_{x_1})
 
                         // (u_0)_{x_2} O22 (u_0)_{x_2}
-		       /*
-                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                             e) += yt[qx][dy][dz][3][2][0] * wx * wx;
-		       */
-		       diag[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + (e*os_e)] += yt[qx][dy][dz][3][2][0] * wx * wx;
+                        /*
+                                   diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
+                                        e) += yt[qx][dy][dz][3][2][0] * wx * wx;
+                        */
+                        diag[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + (e*os_e)] +=
+                           yt[qx][dy][dz][3][2][0] * wx * wx;
 
                         // -(u_0)_{x_2} O23 (u_0)_{x_1} - (u_0)_{x_1} O32 (u_0)_{x_2}
-		       /*
-		       diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                             e) += -2.0 * yt[qx][dy][dz][4][1][1] * wx * wx;
-		       */
-		       diag[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + (e*os_e)] += -2.0 * yt[qx][dy][dz][4][1][1] * wx * wx;
-			    
+                        /*
+                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
+                                        e) += -2.0 * yt[qx][dy][dz][4][1][1] * wx * wx;
+                        */
+                        diag[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + (e*os_e)] += -2.0 *
+                                                                                   yt[qx][dy][dz][4][1][1] * wx * wx;
+
                         // (u_0)_{x_1} O33 (u_0)_{x_1}
-		       /*
-		       diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                             e) += yt[qx][dy][dz][5][0][2] * wx * wx;
-		       */
-		       diag[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + (e*os_e)] += yt[qx][dy][dz][5][0][2] * wx * wx;
+                        /*
+                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
+                                        e) += yt[qx][dy][dz][5][0][2] * wx * wx;
+                        */
+                        diag[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + (e*os_e)] +=
+                           yt[qx][dy][dz][5][0][2] * wx * wx;
                      }
                      else if (c == 1)
                      {
                         // (u_1)_{x_2} (O11 (u_1)_{x_2} - O13 (u_1)_{x_0}) + (u_1)_{x_0} (-O31 (u_1)_{x_2} + O33 (u_1)_{x_0})
 
                         // (u_1)_{x_2} O11 (u_1)_{x_2}
-		       /*
-                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                             e) += yt[qx][dy][dz][0][2][0] * wx * wx;
-		       */
-		       diag[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + (e*os_e)] += yt[qx][dy][dz][0][2][0] * wx * wx;
+                        /*
+                                   diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
+                                        e) += yt[qx][dy][dz][0][2][0] * wx * wx;
+                        */
+                        diag[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + (e*os_e)] +=
+                           yt[qx][dy][dz][0][2][0] * wx * wx;
 
                         // -(u_1)_{x_2} O13 (u_1)_{x_0} - (u_1)_{x_0} O31 (u_1)_{x_2}
-		       /*
-                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                             e) += -2.0 * yt[qx][dy][dz][2][1][0] * wDx * wx;
-		       */
-		       diag[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + (e*os_e)] += -2.0 * yt[qx][dy][dz][2][1][0] * wDx * wx;
+                        /*
+                                   diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
+                                        e) += -2.0 * yt[qx][dy][dz][2][1][0] * wDx * wx;
+                        */
+                        diag[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + (e*os_e)] += -2.0 *
+                                                                                   yt[qx][dy][dz][2][1][0] * wDx * wx;
 
                         // (u_1)_{x_0} O33 (u_1)_{x_0})
-		       /*
-			 diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-			 e) += yt[qx][dy][dz][5][0][0] * wDx * wDx;
-		       */
-		       diag[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + (e*os_e)] += yt[qx][dy][dz][5][0][0] * wDx * wDx;
+                        /*
+                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
+                         e) += yt[qx][dy][dz][5][0][0] * wDx * wDx;
+                             */
+                        diag[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + (e*os_e)] +=
+                           yt[qx][dy][dz][5][0][0] * wDx * wDx;
                      }
                      else
                      {
                         // (u_2)_{x_1} (O11 (u_2)_{x_1} - O12 (u_2)_{x_0}) - (u_2)_{x_0} (O21 (u_2)_{x_1} - O22 (u_2)_{x_0})
 
                         // (u_2)_{x_1} O11 (u_2)_{x_1}
-		       /*
-                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                             e) += yt[qx][dy][dz][0][0][2] * wx * wx;
-		       */
-		       diag[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + (e*os_e)] += yt[qx][dy][dz][0][0][2] * wx * wx;
+                        /*
+                                   diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
+                                        e) += yt[qx][dy][dz][0][0][2] * wx * wx;
+                        */
+                        diag[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + (e*os_e)] +=
+                           yt[qx][dy][dz][0][0][2] * wx * wx;
 
                         // -(u_2)_{x_1} O12 (u_2)_{x_0} - (u_2)_{x_0} O21 (u_2)_{x_1}
-		       /*
-                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                             e) += -2.0 * yt[qx][dy][dz][1][0][1] * wDx * wx;
-		       */
-		       diag[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + (e*os_e)] += -2.0 * yt[qx][dy][dz][1][0][1] * wDx * wx;
+                        /*
+                                   diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
+                                        e) += -2.0 * yt[qx][dy][dz][1][0][1] * wDx * wx;
+                        */
+                        diag[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + (e*os_e)] += -2.0 *
+                                                                                   yt[qx][dy][dz][1][0][1] * wDx * wx;
 
                         // (u_2)_{x_0} O22 (u_2)_{x_0}
-		       /*
-                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                             e) += yt[qx][dy][dz][3][0][0] * wDx * wDx;
-		       */
-		       diag[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + (e*os_e)] += yt[qx][dy][dz][3][0][0] * wDx * wDx;
+                        /*
+                                   diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
+                                        e) += yt[qx][dy][dz][3][0][0] * wDx * wDx;
+                        */
+                        diag[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + (e*os_e)] +=
+                           yt[qx][dy][dz][3][0][0] * wDx * wDx;
                      }
                   }
                }
@@ -2578,25 +3417,34 @@ static void PACurlCurlAssembleDiagonal3DHost(const int D1D,
 
 void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
 {
-  //constexpr static int MAX_D1D = HCURL_MAX_D1D;
-  //constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
+   //constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   //constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
 
    if (dim == 3)
    {
       // Reduce HCURL_MAX_D1D/Q1D to avoid using too much memory
       constexpr int MAX_D1D = HCURL_MAX_D1D;
       constexpr int MAX_Q1D = HCURL_MAX_Q1D;
+
+      if (diag.GetMemory().GetMemoryType() >= MemoryType::DEVICE && quad1D <= 6)
+      {
 #ifdef SETUPONHOST
-      PACurlCurlAssembleDiagonal3DHost<MAX_D1D,MAX_Q1D>(dofs1D, quad1D, ne,
-                                                    mapsO->B, mapsC->B,
-                                                    mapsO->G, mapsC->G,
-                                                    pa_data, diag);
+         PACurlCurlAssembleDiagonal3DHost<MAX_D1D,MAX_Q1D>(dofs1D, quad1D, ne,
+                                                           mapsO->B, mapsC->B,
+                                                           mapsO->G, mapsC->G,
+                                                           pa_data, diag);
 #else
-      PACurlCurlAssembleDiagonal3D<MAX_D1D,MAX_Q1D>(dofs1D, quad1D, ne,
-                                                    mapsO->B, mapsC->B,
-                                                    mapsO->G, mapsC->G,
-                                                    pa_data, diag);
+         SmemPACurlCurlAssembleDiagonal3D<MAX_D1D,MAX_Q1D>(dofs1D, quad1D, ne,
+                                                           mapsO->B, mapsC->B,
+                                                           mapsO->G, mapsC->G,
+                                                           pa_data, diag);
 #endif
+      }
+      else
+         PACurlCurlAssembleDiagonal3D<MAX_D1D,MAX_Q1D>(dofs1D, quad1D, ne,
+                                                       mapsO->B, mapsC->B,
+                                                       mapsO->G, mapsC->G,
+                                                       pa_data, diag);
    }
    else if (dim == 2)
    {
@@ -2612,15 +3460,15 @@ void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
 // Apply to x corresponding to DOF's in H^1 (trial), whose gradients are integrated
 // against H(curl) test functions corresponding to y.
 void PAHcurlH1Apply3D(const int D1D,
-		      const int Q1D,
-		      const int NE,
-		      const Array<double> &_Bc,
-		      const Array<double> &_Gc,
-		      const Array<double> &_Bot,
-		      const Array<double> &_Bct,
-		      const Vector &_op,
-		      const Vector &_x,
-		      Vector &_y)
+                      const int Q1D,
+                      const int NE,
+                      const Array<double> &_Bc,
+                      const Array<double> &_Gc,
+                      const Array<double> &_Bot,
+                      const Array<double> &_Bct,
+                      const Vector &_op,
+                      const Vector &_x,
+                      Vector &_y)
 {
    constexpr static int VDIM = 3;
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
@@ -2798,15 +3646,15 @@ void PAHcurlH1Apply3D(const int D1D,
 // Apply to x corresponding to DOF's in H^1 (trial), whose gradients are integrated
 // against H(curl) test functions corresponding to y.
 void PAHcurlH1Apply2D(const int D1D,
-		      const int Q1D,
-		      const int NE,
-		      const Array<double> &_Bc,
-		      const Array<double> &_Gc,
-		      const Array<double> &_Bot,
-		      const Array<double> &_Bct,
-		      const Vector &_op,
-		      const Vector &_x,
-		      Vector &_y)
+                      const int Q1D,
+                      const int NE,
+                      const Array<double> &_Bc,
+                      const Array<double> &_Gc,
+                      const Array<double> &_Bot,
+                      const Array<double> &_Bct,
+                      const Vector &_op,
+                      const Vector &_x,
+                      Vector &_y)
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
@@ -2947,7 +3795,7 @@ static void PAHcurlL2Setup3D(const int Q1D,
 void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
                                            const FiniteElementSpace &test_fes)
 {
-     // Assumes tensor-product elements, with vector test and trial spaces.
+   // Assumes tensor-product elements, with vector test and trial spaces.
    Mesh *mesh = trial_fes.GetMesh();
    const FiniteElement *trial_fel = trial_fes.GetFE(0);
    const FiniteElement *test_fel = test_fes.GetFE(0);
@@ -3385,6 +4233,295 @@ static void PAHcurlL2Apply3D(const int D1D,
 }
 
 // Apply to x corresponding to DOF's in H(curl) (trial), whose curl is
+// integrated against H(curl) test functions corresponding to y.
+template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
+static void SmemPAHcurlL2Apply3D(const int D1D,
+                                 const int Q1D,
+                                 const int coeffDim,
+                                 const int NE,
+                                 const Array<double> &_Bo,
+                                 const Array<double> &_Bc,
+                                 const Array<double> &_Gc,
+                                 const Vector &_op,
+                                 const Vector &_x,
+                                 Vector &_y)
+{
+   MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
+
+   constexpr static int VDIM = 3;
+   constexpr static int maxCoeffDim = 3;
+
+   auto bo = Reshape(_Bo.Read(), Q1D, D1D-1);
+   auto bc = Reshape(_Bc.Read(), Q1D, D1D);
+   auto gc = Reshape(_Gc.Read(), Q1D, D1D);
+   auto op = Reshape(_op.Read(), coeffDim, Q1D, Q1D, Q1D, NE);
+   auto x = Reshape(_x.Read(), 3*(D1D-1)*D1D*D1D, NE);
+   auto y = Reshape(_y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
+
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   {
+      MFEM_SHARED double BG[3][MAX_Q1D*MAX_D1D];
+      double (*Bo)[MAX_D1D] = (double (*)[MAX_D1D]) (BG+0);
+      double (*Bc)[MAX_D1D] = (double (*)[MAX_D1D]) (BG+1);
+      double (*Gc)[MAX_D1D] = (double (*)[MAX_D1D]) (BG+2);
+
+      double opc[maxCoeffDim];
+      MFEM_SHARED double sop[maxCoeffDim*MAX_Q1D*MAX_Q1D];
+      MFEM_SHARED double curl[MAX_Q1D][MAX_Q1D][3];
+
+      MFEM_SHARED double X[MAX_D1D][MAX_D1D][MAX_D1D];
+
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qz,z,Q1D)
+            {
+               for (int i=0; i<coeffDim; ++i)
+               {
+                  opc[i] = op(i,qx,qy,qz,e);
+               }
+            }
+         }
+      }
+
+      const int tidx = MFEM_THREAD_ID(x);
+      const int tidy = MFEM_THREAD_ID(y);
+      const int tidz = MFEM_THREAD_ID(z);
+
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(d,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q1D)
+            {
+               Bc[d][q] = bc(q,d);
+               Gc[d][q] = gc(q,d);
+               if (d < D1D-1)
+               {
+                  Bo[d][q] = bo(q,d);
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      for (int qz=0; qz < Q1D; ++qz)
+      {
+         if (tidz == qz)
+         {
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
+            {
+               MFEM_FOREACH_THREAD(qx,x,Q1D)
+               {
+                  for (int i=0; i<3; ++i)
+                  {
+                     curl[qy][qx][i] = 0.0;
+                  }
+               }
+            }
+         }
+
+         int osc = 0;
+         for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
+         {
+            const int D1Dz = (c == 2) ? D1D - 1 : D1D;
+            const int D1Dy = (c == 1) ? D1D - 1 : D1D;
+            const int D1Dx = (c == 0) ? D1D - 1 : D1D;
+
+            MFEM_FOREACH_THREAD(dz,z,D1Dz)
+            {
+               MFEM_FOREACH_THREAD(dy,y,D1Dy)
+               {
+                  MFEM_FOREACH_THREAD(dx,x,D1Dx)
+                  {
+                     X[dz][dy][dx] = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  }
+               }
+            }
+            MFEM_SYNC_THREAD;
+
+            if (tidz == qz)
+            {
+               if (c == 0)
+               {
+                  for (int i=0; i<coeffDim; ++i)
+                  {
+                     sop[i + (coeffDim*(tidx + (Q1D*tidy)))] = opc[i];
+                  }
+               }
+
+               MFEM_FOREACH_THREAD(qy,y,Q1D)
+               {
+                  MFEM_FOREACH_THREAD(qx,x,Q1D)
+                  {
+                     double u = 0.0;
+                     double v = 0.0;
+
+                     // We treat x, y, z components separately for optimization specific to each.
+                     if (c == 0) // x component
+                     {
+                        // \hat{\nabla}\times\hat{u} is [0, (u_0)_{x_2}, -(u_0)_{x_1}]
+
+                        for (int dz = 0; dz < D1Dz; ++dz)
+                        {
+                           const double wz = Bc[dz][qz];
+                           const double wDz = Gc[dz][qz];
+
+                           for (int dy = 0; dy < D1Dy; ++dy)
+                           {
+                              const double wy = Bc[dy][qy];
+                              const double wDy = Gc[dy][qy];
+
+                              for (int dx = 0; dx < D1Dx; ++dx)
+                              {
+                                 const double wx = X[dz][dy][dx] * Bo[dx][qx];
+                                 u += wx * wDy * wz;
+                                 v += wx * wy * wDz;
+                              }
+                           }
+                        }
+
+                        curl[qy][qx][1] += v; // (u_0)_{x_2}
+                        curl[qy][qx][2] -= u;  // -(u_0)_{x_1}
+                     }
+                     else if (c == 1)  // y component
+                     {
+                        // \hat{\nabla}\times\hat{u} is [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
+
+                        for (int dz = 0; dz < D1Dz; ++dz)
+                        {
+                           const double wz = Bc[dz][qz];
+                           const double wDz = Gc[dz][qz];
+
+                           for (int dy = 0; dy < D1Dy; ++dy)
+                           {
+                              const double wy = Bo[dy][qy];
+
+                              for (int dx = 0; dx < D1Dx; ++dx)
+                              {
+                                 const double t = X[dz][dy][dx];
+                                 const double wx = t * Bc[dx][qx];
+                                 const double wDx = t * Gc[dx][qx];
+
+                                 u += wDx * wy * wz;
+                                 v += wx * wy * wDz;
+                              }
+                           }
+                        }
+
+                        curl[qy][qx][0] -= v; // -(u_1)_{x_2}
+                        curl[qy][qx][2] += u; // (u_1)_{x_0}
+                     }
+                     else // z component
+                     {
+                        // \hat{\nabla}\times\hat{u} is [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
+
+                        for (int dz = 0; dz < D1Dz; ++dz)
+                        {
+                           const double wz = Bo[dz][qz];
+
+                           for (int dy = 0; dy < D1Dy; ++dy)
+                           {
+                              const double wy = Bc[dy][qy];
+                              const double wDy = Gc[dy][qy];
+
+                              for (int dx = 0; dx < D1Dx; ++dx)
+                              {
+                                 const double t = X[dz][dy][dx];
+                                 const double wx = t * Bc[dx][qx];
+                                 const double wDx = t * Gc[dx][qx];
+
+                                 u += wDx * wy * wz;
+                                 v += wx * wDy * wz;
+                              }
+                           }
+                        }
+
+                        curl[qy][qx][0] += v; // (u_2)_{x_1}
+                        curl[qy][qx][1] -= u; // -(u_2)_{x_0}
+                     }
+                  } // qx
+               } // qy
+            } // tidz == qz
+
+            osc += D1Dx * D1Dy * D1Dz;
+            MFEM_SYNC_THREAD;
+         } // c
+
+         double dxyz1 = 0.0;
+         double dxyz2 = 0.0;
+         double dxyz3 = 0.0;
+
+         MFEM_FOREACH_THREAD(dz,z,D1D)
+         {
+            const double wcz = Bc[dz][qz];
+            const double wz = (dz < D1D-1) ? Bo[dz][qz] : 0.0;
+
+            MFEM_FOREACH_THREAD(dy,y,D1D)
+            {
+               MFEM_FOREACH_THREAD(dx,x,D1D)
+               {
+                  for (int qy = 0; qy < Q1D; ++qy)
+                  {
+                     const double wcy = Bc[dy][qy];
+                     const double wy = (dy < D1D-1) ? Bo[dy][qy] : 0.0;
+
+                     for (int qx = 0; qx < Q1D; ++qx)
+                     {
+                        const double O1 = sop[0 + (coeffDim*(qx + (Q1D*qy)))];
+                        const double O2 = (coeffDim == 3) ? sop[1 + (coeffDim*(qx + (Q1D*qy)))] : O1;
+                        const double O3 = (coeffDim == 3) ? sop[2 + (coeffDim*(qx + (Q1D*qy)))] : O1;
+
+                        const double c1 = O1 * curl[qy][qx][0];
+                        const double c2 = O2 * curl[qy][qx][1];
+                        const double c3 = O3 * curl[qy][qx][2];
+
+                        const double wcx = Bc[dx][qx];
+
+                        if (dx < D1D-1)
+                        {
+                           const double wx = Bo[dx][qx];
+                           dxyz1 += c1 * wx * wcy * wcz;
+                        }
+
+                        dxyz2 += c2 * wcx * wy * wcz;
+                        dxyz3 += c3 * wcx * wcy * wz;
+                     } // qx
+                  } // qy
+               } // dx
+            } // dy
+         } // dz
+
+         MFEM_SYNC_THREAD;
+
+         MFEM_FOREACH_THREAD(dz,z,D1D)
+         {
+            MFEM_FOREACH_THREAD(dy,y,D1D)
+            {
+               MFEM_FOREACH_THREAD(dx,x,D1D)
+               {
+                  if (dx < D1D-1)
+                  {
+                     y(dx + ((dy + (dz * D1D)) * (D1D-1)), e) += dxyz1;
+                  }
+                  if (dy < D1D-1)
+                  {
+                     y(dx + ((dy + (dz * (D1D-1))) * D1D) + ((D1D-1)*D1D*D1D), e) += dxyz2;
+                  }
+                  if (dz < D1D-1)
+                  {
+                     y(dx + ((dy + (dz * D1D)) * D1D) + (2*(D1D-1)*D1D*D1D), e) += dxyz3;
+                  }
+               }
+            }
+         }
+      } // qz
+   }); // end of element loop
+}
+
+// Apply to x corresponding to DOF's in H(curl) (trial), whose curl is
 // integrated against H(div) test functions corresponding to y.
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 static void PAHcurlHdivApply3D(const int D1D,
@@ -3744,8 +4881,14 @@ void MixedVectorCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (testType == mfem::FiniteElement::CURL &&
        trialType == mfem::FiniteElement::CURL && dim == 3)
-      PAHcurlL2Apply3D(dofs1D, quad1D, coeffDim, ne, mapsO->B, mapsC->B,
-                       mapsO->Bt, mapsC->Bt, mapsC->G, pa_data, x, y);
+   {
+      if (x.GetMemory().GetMemoryType() >= MemoryType::DEVICE && quad1D <= 6)
+         SmemPAHcurlL2Apply3D(dofs1D, quad1D, coeffDim, ne, mapsO->B, mapsC->B,
+                              mapsC->G, pa_data, x, y);
+      else
+         PAHcurlL2Apply3D(dofs1D, quad1D, coeffDim, ne, mapsO->B, mapsC->B,
+                          mapsO->Bt, mapsC->Bt, mapsC->G, pa_data, x, y);
+   }
    else if (testType == mfem::FiniteElement::DIV &&
             trialType == mfem::FiniteElement::CURL && dim == 3)
       PAHcurlHdivApply3D(dofs1D, dofs1Dtest, quad1D, ne, mapsO->B,
@@ -4189,12 +5332,242 @@ static void PAHcurlL2Apply3DTranspose(const int D1D,
    });
 }
 
+template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
+static void SmemPAHcurlL2Apply3DTranspose(const int D1D,
+                                          const int Q1D,
+                                          const int coeffDim,
+                                          const int NE,
+                                          const Array<double> &_Bo,
+                                          const Array<double> &_Bc,
+                                          const Array<double> &_Gc,
+                                          const Vector &_op,
+                                          const Vector &_x,
+                                          Vector &_y)
+{
+   MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
+
+   constexpr static int VDIM = 3;
+   constexpr static int maxCoeffDim = 3;
+
+   auto bo = Reshape(_Bo.Read(), Q1D, D1D-1);
+   auto bc = Reshape(_Bc.Read(), Q1D, D1D);
+   auto gc = Reshape(_Gc.Read(), Q1D, D1D);
+   auto op = Reshape(_op.Read(), coeffDim, Q1D, Q1D, Q1D, NE);
+   auto x = Reshape(_x.Read(), 3*(D1D-1)*D1D*D1D, NE);
+   auto y = Reshape(_y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
+
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   {
+      MFEM_SHARED double BG[3][MAX_Q1D*MAX_D1D];
+      double (*Bo)[MAX_D1D] = (double (*)[MAX_D1D]) (BG+0);
+      double (*Bc)[MAX_D1D] = (double (*)[MAX_D1D]) (BG+1);
+      double (*Gc)[MAX_D1D] = (double (*)[MAX_D1D]) (BG+2);
+
+      double opc[maxCoeffDim];
+      MFEM_SHARED double sop[maxCoeffDim*MAX_Q1D*MAX_Q1D];
+      MFEM_SHARED double mass[MAX_Q1D][MAX_Q1D][3];
+
+      MFEM_SHARED double X[MAX_D1D][MAX_D1D][MAX_D1D];
+
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qz,z,Q1D)
+            {
+               for (int i=0; i<coeffDim; ++i)
+               {
+                  opc[i] = op(i,qx,qy,qz,e);
+               }
+            }
+         }
+      }
+
+      const int tidx = MFEM_THREAD_ID(x);
+      const int tidy = MFEM_THREAD_ID(y);
+      const int tidz = MFEM_THREAD_ID(z);
+
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(d,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q1D)
+            {
+               Bc[d][q] = bc(q,d);
+               Gc[d][q] = gc(q,d);
+               if (d < D1D-1)
+               {
+                  Bo[d][q] = bo(q,d);
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      for (int qz=0; qz < Q1D; ++qz)
+      {
+         if (tidz == qz)
+         {
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
+            {
+               MFEM_FOREACH_THREAD(qx,x,Q1D)
+               {
+                  for (int i=0; i<3; ++i)
+                  {
+                     mass[qy][qx][i] = 0.0;
+                  }
+               }
+            }
+         }
+
+         int osc = 0;
+         for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
+         {
+            const int D1Dz = (c == 2) ? D1D - 1 : D1D;
+            const int D1Dy = (c == 1) ? D1D - 1 : D1D;
+            const int D1Dx = (c == 0) ? D1D - 1 : D1D;
+
+            MFEM_FOREACH_THREAD(dz,z,D1Dz)
+            {
+               MFEM_FOREACH_THREAD(dy,y,D1Dy)
+               {
+                  MFEM_FOREACH_THREAD(dx,x,D1Dx)
+                  {
+                     X[dz][dy][dx] = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  }
+               }
+            }
+            MFEM_SYNC_THREAD;
+
+            if (tidz == qz)
+            {
+               if (c == 0)
+               {
+                  for (int i=0; i<coeffDim; ++i)
+                  {
+                     sop[i + (coeffDim*(tidx + (Q1D*tidy)))] = opc[i];
+                  }
+               }
+
+               MFEM_FOREACH_THREAD(qy,y,Q1D)
+               {
+                  MFEM_FOREACH_THREAD(qx,x,Q1D)
+                  {
+                     double u = 0.0;
+
+                     for (int dz = 0; dz < D1Dz; ++dz)
+                     {
+                        const double wz = (c == 2) ? Bo[dz][qz] : Bc[dz][qz];
+
+                        for (int dy = 0; dy < D1Dy; ++dy)
+                        {
+                           const double wy = (c == 1) ? Bo[dy][qy] : Bc[dy][qy];
+
+                           for (int dx = 0; dx < D1Dx; ++dx)
+                           {
+                              const double wx = X[dz][dy][dx] * ((c == 0) ? Bo[dx][qx] : Bc[dx][qx]);
+                              u += wx * wy * wz;
+                           }
+                        }
+                     }
+
+                     mass[qy][qx][c] += u;
+                  } // qx
+               } // qy
+            } // tidz == qz
+
+            osc += D1Dx * D1Dy * D1Dz;
+            MFEM_SYNC_THREAD;
+         } // c
+
+         double dxyz1 = 0.0;
+         double dxyz2 = 0.0;
+         double dxyz3 = 0.0;
+
+         MFEM_FOREACH_THREAD(dz,z,D1D)
+         {
+            const double wcz = Bc[dz][qz];
+            const double wcDz = Gc[dz][qz];
+            const double wz = (dz < D1D-1) ? Bo[dz][qz] : 0.0;
+
+            MFEM_FOREACH_THREAD(dy,y,D1D)
+            {
+               MFEM_FOREACH_THREAD(dx,x,D1D)
+               {
+                  for (int qy = 0; qy < Q1D; ++qy)
+                  {
+                     const double wcy = Bc[dy][qy];
+                     const double wcDy = Gc[dy][qy];
+                     const double wy = (dy < D1D-1) ? Bo[dy][qy] : 0.0;
+
+                     for (int qx = 0; qx < Q1D; ++qx)
+                     {
+                        const double O1 = sop[0 + (coeffDim*(qx + (Q1D*qy)))];
+                        const double O2 = (coeffDim == 3) ? sop[1 + (coeffDim*(qx + (Q1D*qy)))] : O1;
+                        const double O3 = (coeffDim == 3) ? sop[2 + (coeffDim*(qx + (Q1D*qy)))] : O1;
+
+                        const double c1 = O1 * mass[qy][qx][0];
+                        const double c2 = O2 * mass[qy][qx][1];
+                        const double c3 = O3 * mass[qy][qx][2];
+
+                        const double wcx = Bc[dx][qx];
+                        const double wDx = Gc[dx][qx];
+
+                        if (dx < D1D-1)
+                        {
+                           const double wx = Bo[dx][qx];
+                           dxyz1 += (wx * c2 * wcy * wcDz) - (wx * c3 * wcDy * wcz);
+                        }
+
+                        dxyz2 += (-wy * c1 * wcx * wcDz) + (wy * c3 * wDx * wcz);
+
+                        dxyz3 += (wcDy * wz * c1 * wcx) - (wcy * wz * c2 * wDx);
+                     } // qx
+                  } // qy
+               } // dx
+            } // dy
+         } // dz
+
+         MFEM_SYNC_THREAD;
+
+         MFEM_FOREACH_THREAD(dz,z,D1D)
+         {
+            MFEM_FOREACH_THREAD(dy,y,D1D)
+            {
+               MFEM_FOREACH_THREAD(dx,x,D1D)
+               {
+                  if (dx < D1D-1)
+                  {
+                     y(dx + ((dy + (dz * D1D)) * (D1D-1)), e) += dxyz1;
+                  }
+                  if (dy < D1D-1)
+                  {
+                     y(dx + ((dy + (dz * (D1D-1))) * D1D) + ((D1D-1)*D1D*D1D), e) += dxyz2;
+                  }
+                  if (dz < D1D-1)
+                  {
+                     y(dx + ((dy + (dz * D1D)) * D1D) + (2*(D1D-1)*D1D*D1D), e) += dxyz3;
+                  }
+               }
+            }
+         }
+      } // qz
+   }); // end of element loop
+}
+
 void MixedVectorWeakCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (testType == mfem::FiniteElement::CURL &&
        trialType == mfem::FiniteElement::CURL && dim == 3)
-      PAHcurlL2Apply3DTranspose(dofs1D, quad1D, coeffDim, ne, mapsO->B, mapsC->B,
-                                mapsO->Bt, mapsC->Bt, mapsC->Gt, pa_data, x, y);
+   {
+      if (x.GetMemory().GetMemoryType() >= MemoryType::DEVICE && quad1D <= 6)
+         SmemPAHcurlL2Apply3DTranspose(dofs1D, quad1D, coeffDim, ne, mapsO->B, mapsC->B,
+                                       mapsC->G, pa_data, x, y);
+      else
+         PAHcurlL2Apply3DTranspose(dofs1D, quad1D, coeffDim, ne, mapsO->B, mapsC->B,
+                                   mapsO->Bt, mapsC->Bt, mapsC->Gt, pa_data, x, y);
+   }
    else
    {
       MFEM_ABORT("Unsupported dimension or space!");

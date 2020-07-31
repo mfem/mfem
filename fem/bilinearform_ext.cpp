@@ -105,7 +105,7 @@ void PABilinearFormExtension::Assemble()
    const int bdryIntegratorCount = bdryIntegrators.Size();
    for (int i = 0; i < bdryIntegratorCount; ++i)
    {
-     bdryIntegrators[i]->AssemblePA(*a->FESpace());
+      bdryIntegrators[i]->AssemblePA(*a->FESpace());
    }
 
    Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
@@ -127,88 +127,89 @@ void PABilinearFormExtension::Assemble()
 
    if (bdryIntegratorCount > 0)
    {
-     FiniteElementSpace *fes = a->GetFES();
-     const int nbe = fes->GetNBE();
-     const int bedofs = nbe > 0 ? nbe * fes->GetVDim() * fes->GetBE(0)->GetDof() : 0;
-     gatherMap.SetSize(bedofs);
-     indices.SetSize(bedofs);
+      FiniteElementSpace *fes = a->GetFES();
+      const int nbe = fes->GetNBE();
+      const int bedofs = nbe > 0 ? nbe * fes->GetVDim() * fes->GetBE(0)->GetDof() : 0;
+      gatherMap.SetSize(bedofs);
+      indices.SetSize(bedofs);
 
-     ndofs = fes->GetNDofs();
-     offsets.SetSize(ndofs+1);
-     for (int i = 0; i <= ndofs; ++i)
-       {
-	 offsets[i] = 0;
-       }
+      ndofs = fes->GetNDofs();
+      offsets.SetSize(ndofs+1);
+      for (int i = 0; i <= ndofs; ++i)
+      {
+         offsets[i] = 0;
+      }
 
-     for (int i = 0; i < nbe; i++)
-       {
-	 const FiniteElement &be = *fes->GetBE(i);
-	 Array<int> vdofs;
-	 fes -> GetBdrElementVDofs (i, vdofs);
+      for (int i = 0; i < nbe; i++)
+      {
+         const FiniteElement &be = *fes->GetBE(i);
+         Array<int> vdofs;
+         fes -> GetBdrElementVDofs (i, vdofs);
 
-	 const TensorBasisElement* el =
-	   dynamic_cast<const TensorBasisElement*>(&be);
+         const TensorBasisElement* el =
+            dynamic_cast<const TensorBasisElement*>(&be);
 
-	 MFEM_VERIFY(el != NULL, "");
-	 
-	 const Array<int> &fe_dof_map = el->GetDofMap();
+         MFEM_VERIFY(el != NULL, "");
 
-	 MFEM_VERIFY(fe_dof_map.Size() == fes->GetBE(i)->GetDof(), "");
-	 MFEM_VERIFY(vdofs.Size() == fes->GetBE(i)->GetDof(), "");
+         const Array<int> &fe_dof_map = el->GetDofMap();
 
-	 for (int j=0; j<vdofs.Size(); ++j)
-	   {
-	     const int sidj = fe_dof_map[j];
-	     const int idj = sidj >= 0 ? sidj : -1 - sidj;
-	     const int dof_j = vdofs[idj];
-	     const int d = dof_j >= 0 ? dof_j : -1-dof_j;
-	     offsets[d+1]++;
-	   }
-       }
+         MFEM_VERIFY(fe_dof_map.Size() == fes->GetBE(i)->GetDof(), "");
+         MFEM_VERIFY(vdofs.Size() == fes->GetBE(i)->GetDof(), "");
 
-     for (int i = 1; i <= ndofs; ++i)
-       { // Partial sum
-	 offsets[i] += offsets[i - 1];
-       }
+         for (int j=0; j<vdofs.Size(); ++j)
+         {
+            const int sidj = fe_dof_map[j];
+            const int idj = sidj >= 0 ? sidj : -1 - sidj;
+            const int dof_j = vdofs[idj];
+            const int d = dof_j >= 0 ? dof_j : -1-dof_j;
+            offsets[d+1]++;
+         }
+      }
 
-     int os = 0;
-     Array<int> cnt(ndofs);
-     cnt = 0;
-     indices = 0;
+      for (int i = 1; i <= ndofs; ++i)
+      {
+         // Partial sum
+         offsets[i] += offsets[i - 1];
+      }
 
-     for (int i = 0; i < nbe; i++)
-       {
-	 const FiniteElement &be = *fes->GetBE(i);
-	 Array<int> vdofs;
-	 fes -> GetBdrElementVDofs (i, vdofs);
+      int os = 0;
+      Array<int> cnt(ndofs);
+      cnt = 0;
+      indices = 0;
 
-	 const TensorBasisElement* el =
-	   dynamic_cast<const TensorBasisElement*>(&be);
+      for (int i = 0; i < nbe; i++)
+      {
+         const FiniteElement &be = *fes->GetBE(i);
+         Array<int> vdofs;
+         fes -> GetBdrElementVDofs (i, vdofs);
 
-	 MFEM_VERIFY(el != NULL, "");
-	 
-	 const Array<int> &fe_dof_map = el->GetDofMap();
+         const TensorBasisElement* el =
+            dynamic_cast<const TensorBasisElement*>(&be);
 
-	 MFEM_VERIFY(fe_dof_map.Size() == fes->GetBE(i)->GetDof(), "");
-	 MFEM_VERIFY(vdofs.Size() == fes->GetBE(i)->GetDof(), "");
+         MFEM_VERIFY(el != NULL, "");
 
-	 for (int j=0; j<vdofs.Size(); ++j)
-	   {
-	     const int sidj = fe_dof_map[j];
-	     const int idj = sidj >= 0 ? sidj : -1 - sidj;
-	     const int dof_j = vdofs[idj];
-	     const bool plus = (sidj >= 0 && dof_j >= 0) || (sidj < 0 && dof_j < 0);
-	     const int d = dof_j >= 0 ? dof_j : -1-dof_j;
-	     const int lid = os + j;
-	     gatherMap[lid] = plus ? d : -1-d;
-	     indices[offsets[d] + cnt[d]] = plus ? lid : -1-lid;
-	     cnt[d]++;
-	   }
+         const Array<int> &fe_dof_map = el->GetDofMap();
 
-	 os += vdofs.Size();
-       }
+         MFEM_VERIFY(fe_dof_map.Size() == fes->GetBE(i)->GetDof(), "");
+         MFEM_VERIFY(vdofs.Size() == fes->GetBE(i)->GetDof(), "");
 
-     MFEM_VERIFY(os == bedofs, "");
+         for (int j=0; j<vdofs.Size(); ++j)
+         {
+            const int sidj = fe_dof_map[j];
+            const int idj = sidj >= 0 ? sidj : -1 - sidj;
+            const int dof_j = vdofs[idj];
+            const bool plus = (sidj >= 0 && dof_j >= 0) || (sidj < 0 && dof_j < 0);
+            const int d = dof_j >= 0 ? dof_j : -1-dof_j;
+            const int lid = os + j;
+            gatherMap[lid] = plus ? d : -1-d;
+            indices[offsets[d] + cnt[d]] = plus ? lid : -1-lid;
+            cnt[d]++;
+         }
+
+         os += vdofs.Size();
+      }
+
+      MFEM_VERIFY(os == bedofs, "");
    }
 }
 
@@ -324,71 +325,71 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const int biSz = bdryIntegrators.Size();
    if (DeviceCanUseCeed() || !elem_restrict)
    {
-     MFEM_ABORT("Not implemented");
+      MFEM_ABORT("Not implemented");
    }
    else if (biSz > 0)
    {
-     FiniteElementSpace *fes = a->GetFES();
+      FiniteElementSpace *fes = a->GetFES();
 
-     const int nbe = fes->GetNBE();
-     const int bedofs = nbe > 0 ? nbe * fes->GetVDim() * fes->GetBE(0)->GetDof() : 0;
-     bdryX.SetSize(bedofs);
-     bdryY.SetSize(bedofs);
-     bdryX.UseDevice(true);
-     bdryY.UseDevice(true);
-     bdryX = 0.0;
-     bdryY = 0.0;
+      const int nbe = fes->GetNBE();
+      const int bedofs = nbe > 0 ? nbe * fes->GetVDim() * fes->GetBE(0)->GetDof() : 0;
+      bdryX.SetSize(bedofs);
+      bdryY.SetSize(bedofs);
+      bdryX.UseDevice(true);
+      bdryY.UseDevice(true);
+      bdryX = 0.0;
+      bdryY = 0.0;
 
-     {
-       MFEM_VERIFY(gatherMap.Size() == bedofs, "");
-       auto d_gatherMap = gatherMap.Read();
-       auto d_x = x.Read();
-       auto d_bdryX = bdryX.Write();
+      {
+         MFEM_VERIFY(gatherMap.Size() == bedofs, "");
+         auto d_gatherMap = gatherMap.Read();
+         auto d_x = x.Read();
+         auto d_bdryX = bdryX.Write();
 
-       MFEM_FORALL(i, bedofs,
-       {
-	 const int gid = d_gatherMap[i];
-	 const bool plus = gid >= 0;
-	 const int j = plus ? gid : -1-gid;
+         MFEM_FORALL(i, bedofs,
+         {
+            const int gid = d_gatherMap[i];
+            const bool plus = gid >= 0;
+            const int j = plus ? gid : -1-gid;
 
-	 d_bdryX[i] = plus ? d_x[j] : -d_x[j];
-       });
-     }
+            d_bdryX[i] = plus ? d_x[j] : -d_x[j];
+         });
+      }
 
       for (int i = 0; i < biSz; ++i)
       {
-	bdryIntegrators[i]->AddMultPA(bdryX, bdryY);
+         bdryIntegrators[i]->AddMultPA(bdryX, bdryY);
       }
       //elem_restrict->MultTranspose(bdryY, y);
 
       // bdryY contains quantities on all boundary elements. Now add them to y.
 
       {
-	const int xsize = x.Size();
-	MFEM_VERIFY(y.Size() == xsize, "");
-	MFEM_VERIFY(gatherMap.Size() == bedofs, "");
-	auto d_offsets = offsets.Read();
-	auto d_indices = indices.Read();
-	auto d_y = y.ReadWrite();
-	auto d_bdryY = bdryY.Read();
+         const int xsize = x.Size();
+         MFEM_VERIFY(y.Size() == xsize, "");
+         MFEM_VERIFY(gatherMap.Size() == bedofs, "");
+         auto d_offsets = offsets.Read();
+         auto d_indices = indices.Read();
+         auto d_y = y.ReadWrite();
+         auto d_bdryY = bdryY.Read();
 
-	MFEM_FORALL(i, ndofs,
-	{
-	  const int offset = d_offsets[i];
-	  const int nextOffset = d_offsets[i + 1];
+         MFEM_FORALL(i, ndofs,
+         {
+            const int offset = d_offsets[i];
+            const int nextOffset = d_offsets[i + 1];
 
-	  double val = 0.0;
-	  for (int j = offset; j < nextOffset; ++j)
-	    {
-	      const int id = d_indices[j];
-	      const bool plus = id >= 0;
-	      const int idj = plus ? id : -1-id;
-	      const double yval = d_bdryY[idj];
-	      val += plus ? yval : -yval;
-	    }
+            double val = 0.0;
+            for (int j = offset; j < nextOffset; ++j)
+            {
+               const int id = d_indices[j];
+               const bool plus = id >= 0;
+               const int idj = plus ? id : -1-id;
+               const double yval = d_bdryY[idj];
+               val += plus ? yval : -yval;
+            }
 
-	  d_y[i] += val;
-	});
+            d_y[i] += val;
+         });
       }
    }
 
@@ -453,11 +454,11 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
          integrators[i]->AddMultTransposePA(x, y);
       }
    }
-   
+
    Array<BilinearFormIntegrator*> &bdryIntegrators = *a->GetBBFI();
    const int biSz = bdryIntegrators.Size();
    MFEM_VERIFY(biSz == 0, "TODO");
-   
+
    Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)

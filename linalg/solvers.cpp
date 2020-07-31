@@ -610,7 +610,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
          converged = 0;
          final_iter = 0;
          final_norm = sqrt(nom);
-	 cout << myid << ": PCG iter " << final_iter << '\n' << std::flush;
+         cout << myid << ": PCG iter " << final_iter << '\n' << std::flush;
          return;
       }
    }
@@ -837,12 +837,12 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
       if (iterative_mode)
       {
          subtract(b, r, w);
-	 l2resid = Norm(w);
+         l2resid = Norm(w);
          prec->Mult(w, r);    // r = M (b - A x)
       }
       else
       {
-	 l2resid = Norm(b);
+         l2resid = Norm(b);
          prec->Mult(b, r);
       }
    }
@@ -887,11 +887,11 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
 
    for (j = 1; j <= max_iter; )
    {
-      if (v[0] == NULL) 
-	{
-	  v[0] = new Vector(n); 
-	  v[0]->UseDevice(true);
-	}
+      if (v[0] == NULL)
+      {
+         v[0] = new Vector(n);
+         v[0]->UseDevice(true);
+      }
       v[0]->Set(1.0/beta, r);
       s = 0.0; s(0) = beta;
 
@@ -915,11 +915,11 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
 
          H(i+1,i) = Norm(w);           // H(i+1,i) = ||w||
          MFEM_ASSERT(IsFinite(H(i+1,i)), "Norm(w) = " << H(i+1,i));
-         if (v[i+1] == NULL) 
-	   { 
-	     v[i+1] = new Vector(n); 
-	     v[i+1]->UseDevice(true);
-	   }
+         if (v[i+1] == NULL)
+         {
+            v[i+1] = new Vector(n);
+            v[i+1]->UseDevice(true);
+         }
          v[i+1]->Set(1.0/H(i+1,i), w); // v[i+1] = w / H(i+1,i)
 
          for (k = 0; k < i; k++)
@@ -949,7 +949,8 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
                       << "   Iteration : " << setw(3) << j
                       << "  ||B r|| = " << resid << '\n';
 
-	    cout << "Pass " << (j-1)/m+1 << ", iteration " << j << ", ||B r|| = " << resid << endl;
+            cout << "Pass " << (j-1)/m+1 << ", iteration " << j << ", ||B r|| = " << resid
+                 << endl;
          }
 
          Monitor(j, resid, r, x);
@@ -966,17 +967,17 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
       if (prec)
       {
          subtract(b, r, w);
-	 l2resid = Norm(w);
+         l2resid = Norm(w);
          prec->Mult(w, r);    // r = M (b - A x)
       }
       else
       {
          subtract(b, r, r);
-	 l2resid = Norm(r);
+         l2resid = Norm(r);
       }
 
-      if (print_level == 1) mfem::out << "   ||r|| = " << l2resid << '\n';
-      
+      if (print_level == 1) { mfem::out << "   ||r|| = " << l2resid << '\n'; }
+
       beta = Norm(r);         // beta = ||r||
       MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
       if (beta <= final_norm)
@@ -1005,7 +1006,7 @@ finish:
    }
    if (print_level >= 0 && !converged)
    {
-     mfem::out << "GMRES: " << name << ": No convergence!\n";
+      mfem::out << "GMRES: " << name << ": No convergence!\n";
    }
 
    Monitor(final_iter, final_norm, r, x, true);
@@ -2209,7 +2210,8 @@ slbqp_done:
 
 GMGSolver::GMGSolver(HypreParMatrix * Af_,
                      std::vector<HypreParMatrix *> P_, CoarseSolver cs)
-   : Solver(Af_->Height(), Af_->Width()), Af(Af_), P(P_) {
+   : Solver(Af_->Height(), Af_->Width()), Af(Af_), P(P_)
+{
 
    NumGrids = P.size();
    S.resize(NumGrids);
@@ -2222,7 +2224,7 @@ GMGSolver::GMGSolver(HypreParMatrix * Af_,
       A[i - 1] = RAP(A[i], P[i - 1]);
    }
    // Set up coarse solve operator
-   switch(cs)
+   switch (cs)
    {
       case PETSC:
 #ifndef MFEM_USE_PETSC
@@ -2233,7 +2235,7 @@ GMGSolver::GMGSolver(HypreParMatrix * Af_,
          petsc->SetOperator(PetscParMatrix(A[0], Operator::PETSC_MATAIJ));
          invAc = petsc;
 #endif
-      break;   
+         break;
       case SUPERLU:
 #ifndef MFEM_USE_SUPERLU
          MFEM_ABORT("Invalid choice of CoarseSolver. MFEM is not linked with SUPERLU");
@@ -2243,11 +2245,11 @@ GMGSolver::GMGSolver(HypreParMatrix * Af_,
          superlu->SetPrintStatistics(false);
          superlu->SetSymmetricPattern(true);
          superlu->SetColumnPermutation(superlu::PARMETIS);
-         // superlu->SetColumnPermutation(superlu::NATURAL); // Sometimes parmetis crashes for multiple processos. 
+         // superlu->SetColumnPermutation(superlu::NATURAL); // Sometimes parmetis crashes for multiple processos.
          superlu->SetOperator(*SluA);
          invAc = superlu;
 #endif
-      break;
+         break;
       case STRUMPACK:
 #ifndef MFEM_USE_STRUMPACK
          MFEM_ABORT("Invalid choice of CoarseSolver. MFEM is not linked with STRUMPACK");
@@ -2263,9 +2265,9 @@ GMGSolver::GMGSolver(HypreParMatrix * Af_,
          invAc = strumpack;
 #endif
          break;
-   }   
-   // Check if direct solver is found 
-   if (!invAc) MFEM_ABORT("Direct Solver of coarse solve not found");
+   }
+   // Check if direct solver is found
+   if (!invAc) { MFEM_ABORT("Direct Solver of coarse solve not found"); }
    // construct smoothers
    for (int i = NumGrids - 1; i >= 0 ; i--)
    {
@@ -2333,7 +2335,8 @@ void GMGSolver::Mult(const Vector &r, Vector &z) const
    z = zv[NumGrids];
 }
 
-GMGSolver::~GMGSolver() {
+GMGSolver::~GMGSolver()
+{
    int n = S.size();
    for (int i = n - 1; i >= 0 ; i--)
    {
@@ -2344,21 +2347,22 @@ GMGSolver::~GMGSolver() {
    A.clear();
 #ifdef MFEM_USE_PETSC
    // delete petsc;
-#endif   
+#endif
 #ifdef MFEM_USE_STRUMPACK
    delete StpA;
    delete strumpack;
-#endif   
-#ifdef MFEM_USE_SUPERLU   
+#endif
+#ifdef MFEM_USE_SUPERLU
    // delete SluA;
    // delete superlu;
-#endif   
+#endif
    //delete invAc;
 }
 
 ComplexGMGSolver::ComplexGMGSolver(ComplexHypreParMatrix * Af_,
-                     std::vector<HypreParMatrix *> P_, CoarseSolver cs, bool printCoarse)
-   : Solver(Af_->Height(), Af_->Width()), Af(Af_), P(P_) {
+                                   std::vector<HypreParMatrix *> P_, CoarseSolver cs, bool printCoarse)
+   : Solver(Af_->Height(), Af_->Width()), Af(Af_), P(P_)
+{
 
    NumGrids = P.size();
    S.resize(NumGrids);
@@ -2377,7 +2381,7 @@ ComplexGMGSolver::ComplexGMGSolver(ComplexHypreParMatrix * Af_,
                                            false, false, ComplexOperator::HERMITIAN);
    }
    // Set up coarse solve operator
-   switch(cs)
+   switch (cs)
    {
       case PETSC:
 #ifndef MFEM_USE_PETSC
@@ -2385,10 +2389,11 @@ ComplexGMGSolver::ComplexGMGSolver(ComplexHypreParMatrix * Af_,
 #else
          petsc = new PetscLinearSolver(MPI_COMM_WORLD, "direct");
          // Convert to PetscParMatrix
-         petsc->SetOperator(PetscParMatrix(A[0]->GetSystemMatrix(), Operator::PETSC_MATAIJ));
+         petsc->SetOperator(PetscParMatrix(A[0]->GetSystemMatrix(),
+                                           Operator::PETSC_MATAIJ));
          invAc = petsc;
 #endif
-      break;   
+         break;
       case SUPERLU:
 #ifndef MFEM_USE_SUPERLU
          MFEM_ABORT("Invalid choice of CoarseSolver. MFEM is not linked with SUPERLU");
@@ -2402,52 +2407,54 @@ ComplexGMGSolver::ComplexGMGSolver(ComplexHypreParMatrix * Af_,
          superlu->SetOperator(*SluA);
          invAc = superlu;
 #endif
-      break;
+         break;
       case STRUMPACK:
 #ifndef MFEM_USE_STRUMPACK
          MFEM_ABORT("Invalid choice of CoarseSolver. MFEM is not linked with STRUMPACK");
 #else
-	 {
-	   HypreParMatrix *Ahyp0 = A[0]->GetSystemMatrix();
-	   if (printCoarse)
-	     Ahyp0->Print("A0FA.txt");
-	 
-	   StpA = new STRUMPACKRowLocMatrix(*Ahyp0);
-	   // StpA = new STRUMPACKRowLocMatrix(*A[0]->GetSystemMatrix());
-	   strumpack = new STRUMPACKSolver(*StpA);
-	   strumpack->SetPrintFactorStatistics(false);
-	   strumpack->SetPrintSolveStatistics(false);
-	   strumpack->SetOperator(*StpA);
-	   strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
-	   strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
-	   strumpack->DisableMatching();
-	   invAc = strumpack;
-	 }
+         {
+            HypreParMatrix *Ahyp0 = A[0]->GetSystemMatrix();
+            if (printCoarse)
+            {
+               Ahyp0->Print("A0FA.txt");
+            }
+
+            StpA = new STRUMPACKRowLocMatrix(*Ahyp0);
+            // StpA = new STRUMPACKRowLocMatrix(*A[0]->GetSystemMatrix());
+            strumpack = new STRUMPACKSolver(*StpA);
+            strumpack->SetPrintFactorStatistics(false);
+            strumpack->SetPrintSolveStatistics(false);
+            strumpack->SetOperator(*StpA);
+            strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+            strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+            strumpack->DisableMatching();
+            invAc = strumpack;
+         }
 #endif
          break;
-   case UMFPACK:
-         {
+      case UMFPACK:
+      {
 #ifdef MFEM_USE_SUITESPARSE
-	   HypreParMatrix *Ahyp0 = A[0]->GetSystemMatrix();
-	   {
-	     int nprocs = 0;
-	     MPI_Comm_size(Ahyp0->GetComm(), &nprocs);
-	     MFEM_VERIFY(nprocs == 1, "");
-	   }
-	   SparseMatrix *Asp = new SparseMatrix();
-	   Ahyp0->GetDiag(*Asp);  // Asp does not own the data
-	   UMFPackSolver *umf_solver = new UMFPackSolver();
-	   umf_solver->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-	   umf_solver->SetOperator(*Asp);
-	   invAc = umf_solver;
+         HypreParMatrix *Ahyp0 = A[0]->GetSystemMatrix();
+         {
+            int nprocs = 0;
+            MPI_Comm_size(Ahyp0->GetComm(), &nprocs);
+            MFEM_VERIFY(nprocs == 1, "");
+         }
+         SparseMatrix *Asp = new SparseMatrix();
+         Ahyp0->GetDiag(*Asp);  // Asp does not own the data
+         UMFPackSolver *umf_solver = new UMFPackSolver();
+         umf_solver->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+         umf_solver->SetOperator(*Asp);
+         invAc = umf_solver;
 #endif
-	 }
-	 break;
-   }   
-   // Check if direct solver is found 
-   if (!invAc) MFEM_ABORT("Direct Solver of coarse solve not found");
+      }
+      break;
+   }
+   // Check if direct solver is found
+   if (!invAc) { MFEM_ABORT("Direct Solver of coarse solve not found"); }
 
-    // construct smoothers
+   // construct smoothers
    for (int i = NumGrids - 1; i >= 0 ; i--)
    {
       S[i] = new HypreSmoother;
@@ -2473,7 +2480,7 @@ void ComplexGMGSolver::Mult(const Vector &r, Vector &z) const
    // allocation
 
    // TODO: make the block operators members of the class, so they do not reallocate their data (e.g. tmp) on every Mult() call.
-   
+
    for (int i = 0; i <= NumGrids ; i++)
    {
       int n = A[i]->Width();
@@ -2532,7 +2539,8 @@ void ComplexGMGSolver::Mult(const Vector &r, Vector &z) const
    }
    z = zv[NumGrids];
 }
-ComplexGMGSolver::~ComplexGMGSolver() {
+ComplexGMGSolver::~ComplexGMGSolver()
+{
    int n = S.size();
    for (int i = n - 1; i >= 0 ; i--)
    {
@@ -2540,25 +2548,26 @@ ComplexGMGSolver::~ComplexGMGSolver() {
    }
 #ifdef MFEM_USE_PETSC
    // delete petsc;
-#endif   
+#endif
 #ifdef MFEM_USE_STRUMPACK
    delete StpA;
    delete strumpack;
-#endif   
-#ifdef MFEM_USE_SUPERLU   
+#endif
+#ifdef MFEM_USE_SUPERLU
    // delete SluA;
    // delete superlu;
-#endif   
+#endif
    // delete invAc;
 }
 
-ComplexGMGPASolver::ComplexGMGPASolver(MPI_Comm comm, Operator * Af_Re, Operator * Af_Im,
-				       Vector& diagRe_, 
-				       Array<int>& ess_tdof_list,
-				       std::vector<HypreParMatrix *> P_,
-				       HypreParMatrix * Ac_Re, HypreParMatrix * Ac_Im, bool printCoarse)
-  : Solver(2*Af_Re->Height(), 2*Af_Re->Width()), P(P_), diagRe(diagRe_), 
-    Jacobi(diagRe, ess_tdof_list, 1.0)
+ComplexGMGPASolver::ComplexGMGPASolver(MPI_Comm comm, Operator * Af_Re,
+                                       Operator * Af_Im,
+                                       Vector& diagRe_,
+                                       Array<int>& ess_tdof_list,
+                                       std::vector<HypreParMatrix *> P_,
+                                       HypreParMatrix * Ac_Re, HypreParMatrix * Ac_Im, bool printCoarse)
+   : Solver(2*Af_Re->Height(), 2*Af_Re->Width()), P(P_), diagRe(diagRe_),
+     Jacobi(diagRe, ess_tdof_list, 1.0)
 {
    NumGrids = P.size();
    Pt.resize(NumGrids);
@@ -2575,15 +2584,18 @@ ComplexGMGPASolver::ComplexGMGPASolver(MPI_Comm comm, Operator * Af_Re, Operator
    AO_Im[NumGrids] = Af_Im;
 
    AO[NumGrids] = new ComplexOperator(AO_Re[NumGrids], AO_Im[NumGrids],
-				      false, false, ComplexOperator::HERMITIAN);
-   
-   Ac = new ComplexHypreParMatrix(Ac_Re, Ac_Im, false, false, ComplexOperator::HERMITIAN);
+                                      false, false, ComplexOperator::HERMITIAN);
+
+   Ac = new ComplexHypreParMatrix(Ac_Re, Ac_Im, false, false,
+                                  ComplexOperator::HERMITIAN);
 
 #ifdef MFEM_USE_STRUMPACK
    HypreParMatrix *Ahyp0 = Ac->GetSystemMatrix();
    if (printCoarse)
-     Ahyp0->Print("A0PA.txt");
-   
+   {
+      Ahyp0->Print("A0PA.txt");
+   }
+
    //StpA = new STRUMPACKRowLocMatrix(*Ac->GetSystemMatrix());
    StpA = new STRUMPACKRowLocMatrix(*Ahyp0);
    strumpack = new STRUMPACKSolver(*StpA);
@@ -2595,26 +2607,30 @@ ComplexGMGPASolver::ComplexGMGPASolver(MPI_Comm comm, Operator * Af_Re, Operator
    strumpack->DisableMatching();
    invAc = strumpack;
 #endif
-   
+
    for (int i = NumGrids ; i > 0; i--)
    {
-     Pt[i - 1] = new TransposeOperator(P[i - 1]);
-     AO_Re[i - 1] = new TripleProductOperator(Pt[i - 1], AO_Re[i], P[i - 1], false, false, false);
-     AO_Im[i - 1] = (AO_Im[i] == NULL) ? NULL : new TripleProductOperator(Pt[i - 1], AO_Im[i], P[i - 1], false, false, false);
-     AO[i - 1] = new ComplexOperator(AO_Re[i - 1], AO_Im[i - 1],
-				     false, false, ComplexOperator::HERMITIAN);
+      Pt[i - 1] = new TransposeOperator(P[i - 1]);
+      AO_Re[i - 1] = new TripleProductOperator(Pt[i - 1], AO_Re[i], P[i - 1], false,
+                                               false, false);
+      AO_Im[i - 1] = (AO_Im[i] == NULL) ? NULL : new TripleProductOperator(Pt[i - 1],
+                                                                           AO_Im[i], P[i - 1], false, false, false);
+      AO[i - 1] = new ComplexOperator(AO_Re[i - 1], AO_Im[i - 1],
+                                      false, false, ComplexOperator::HERMITIAN);
    }
 
-   // Check if direct solver is found 
-   if (!invAc) MFEM_ABORT("Direct Solver of coarse solve not found");
+   // Check if direct solver is found
+   if (!invAc) { MFEM_ABORT("Direct Solver of coarse solve not found"); }
 
    if (NumGrids > 0)
-     S[NumGrids - 1] = &Jacobi;
-   
+   {
+      S[NumGrids - 1] = &Jacobi;
+   }
+
    // construct smoothers
    for (int i = NumGrids - 2; i >= 0 ; i--)
    {
-     S[i] = new TripleProductOperator(Pt[i+1], S[i+1], P[i+1], false, false, false);
+      S[i] = new TripleProductOperator(Pt[i+1], S[i+1], P[i+1], false, false, false);
    }
 }
 
@@ -2627,7 +2643,7 @@ void ComplexGMGPASolver::Mult(const Vector &r, Vector &z) const
    // allocation
 
    // TODO: make the block operators members of the class, so they do not reallocate their data (e.g. tmp) on every Mult() call.
-   
+
    for (int i = 0; i <= NumGrids ; i++)
    {
       int n = AO[i]->Width();
@@ -2640,16 +2656,16 @@ void ComplexGMGPASolver::Mult(const Vector &r, Vector &z) const
    for (int i = NumGrids; i > 0 ; i--)
    {
       // Pre smooth
-     block_OffsetsI[1] = S[i - 1]->Height();
-     block_OffsetsI[2] = S[i - 1]->Height();
-     block_OffsetsI.PartialSum();
-     BlockOperator BlkS(block_OffsetsI);
-     BlkS.SetBlock(0,0,S[i-1]);
-     BlkS.SetBlock(1,1,S[i-1]);
-     BlkS.Mult(rv[i], zv[i]);
-     zv[i] *= theta;
-     //S[i - 1]->Mult(rv[i], zv[i]); zv[i] *= theta;
-     
+      block_OffsetsI[1] = S[i - 1]->Height();
+      block_OffsetsI[2] = S[i - 1]->Height();
+      block_OffsetsI.PartialSum();
+      BlockOperator BlkS(block_OffsetsI);
+      BlkS.SetBlock(0,0,S[i-1]);
+      BlkS.SetBlock(1,1,S[i-1]);
+      BlkS.Mult(rv[i], zv[i]);
+      zv[i] *= theta;
+      //S[i - 1]->Mult(rv[i], zv[i]); zv[i] *= theta;
+
       // compute residual
       Vector w(AO[i]->Height());
       AO[i]->Mult(zv[i], w);
@@ -2706,11 +2722,11 @@ void ComplexGMGPASolver::Mult(const Vector &r, Vector &z) const
 
 ComplexGMGPASolver::~ComplexGMGPASolver()
 {
-  delete invAc;
+   delete invAc;
 #ifdef MFEM_USE_STRUMPACK
-  delete StpA;
+   delete StpA;
 #endif
-  delete Ac;
+   delete Ac;
 }
 #endif
 
@@ -3343,7 +3359,8 @@ void UMFPackSolver::Mult(const Vector &b, Vector &x) const
    else
    {
       SuiteSparse_long status =
-	umfpack_dl_solve(UMFPACK_At, AI, AJ, mat->GetData(), x.HostWrite(), b.HostRead(),
+         umfpack_dl_solve(UMFPACK_At, AI, AJ, mat->GetData(), x.HostWrite(),
+                          b.HostRead(),
                           Numeric, Control, Info);
       umfpack_dl_report_info(Control, Info);
       if (status < 0)
@@ -3481,50 +3498,51 @@ KLUSolver::~KLUSolver()
 
 void OrthominSolver::UpdateVectors()
 {
-  p.SetSize(width);
-  Ap.SetSize(width);
-  r.SetSize(width);
-  omk = width;
+   p.SetSize(width);
+   Ap.SetSize(width);
+   r.SetSize(width);
+   omk = width;
 }
 
 void OrthominSolver::Mult(const Vector &b, Vector &x) const
 {
-  pprev.clear();
-  Apprev.clear();
-  Ap2prev.clear();
+   pprev.clear();
+   Apprev.clear();
+   Ap2prev.clear();
 
-  if (iterative_mode)
-    {
+   if (iterative_mode)
+   {
       oper->Mult(x, r);
       subtract(b, r, r); // r = b - A x
-    }
-  else
-    {
+   }
+   else
+   {
       x = 0.0;
       r = b;
-    }
+   }
 
-  double resid = Norm(r);
-  MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
-  if (print_level >= 0)
-    mfem::out << "   Iteration : " << setw(3) << 0
-	      << "   ||r|| = " << resid << '\n';
+   double resid = Norm(r);
+   MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
+   if (print_level >= 0)
+      mfem::out << "   Iteration : " << setw(3) << 0
+                << "   ||r|| = " << resid << '\n';
 
-  const double tol_goal = std::max(resid*rel_tol, abs_tol);
+   const double tol_goal = std::max(resid*rel_tol, abs_tol);
 
-  if (resid <= tol_goal)
-    {
+   if (resid <= tol_goal)
+   {
       final_norm = resid;
       final_iter = 0;
       converged = 1;
       return;
-    }
+   }
 
-  p = r;
-  oper->Mult(p, Ap);
+   p = r;
+   oper->Mult(p, Ap);
 
-  for (int i = 1; i <= max_iter; i++)
-    { // TODO: can this be optimized more?
+   for (int i = 1; i <= max_iter; i++)
+   {
+      // TODO: can this be optimized more?
       const double Ap2 = Dot(Ap, Ap);
       const double ai = Dot(r, Ap) / Ap2;
 
@@ -3534,30 +3552,30 @@ void OrthominSolver::Mult(const Vector &b, Vector &x) const
       resid = Norm(r);
       MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
       if (resid < tol_goal)
-	{
-	  if (print_level >= 0)
-	    mfem::out << "   Iteration : " << setw(3) << i
+      {
+         if (print_level >= 0)
+            mfem::out << "   Iteration : " << setw(3) << i
                       << "   ||r|| = " << resid << '\n';
-	  final_norm = resid;
-	  final_iter = i;
-	  converged = 1;
-	  return;
-	}
+         final_norm = resid;
+         final_iter = i;
+         converged = 1;
+         return;
+      }
       if (print_level >= 0)
-	mfem::out << "   Iteration : " << setw(3) << i
-		  << "   ||r|| = " << resid << '\n';
+         mfem::out << "   Iteration : " << setw(3) << i
+                   << "   ||r|| = " << resid << '\n';
 
       pprev.push_back(p);
       Apprev.push_back(Ap);
       Ap2prev.push_back(Ap2);
 
       if (pprev.size() > omk) // orthomin(k)
-	{
-	  //cout << "Orthomin erasing" << endl;
-	  pprev.erase(pprev.begin()); 
-	  Apprev.erase(Apprev.begin()); 
-	  Ap2prev.erase(Ap2prev.begin()); 
-	}
+      {
+         //cout << "Orthomin erasing" << endl;
+         pprev.erase(pprev.begin());
+         Apprev.erase(Apprev.begin());
+         Ap2prev.erase(Ap2prev.begin());
+      }
 
       // Compute next p
       p = r;
@@ -3570,12 +3588,12 @@ void OrthominSolver::Mult(const Vector &b, Vector &x) const
       MFEM_VERIFY(np == Apprev.size() && np == Ap2prev.size(), "");
 
       for (int j=0; j<np; ++j)
-	{
-	  p.Add(-Dot(Ap, Apprev[j]) / Ap2prev[j], pprev[j]);
-	}
+      {
+         p.Add(-Dot(Ap, Apprev[j]) / Ap2prev[j], pprev[j]);
+      }
 
       oper->Mult(p, Ap);
-    }
+   }
 }
 
 }

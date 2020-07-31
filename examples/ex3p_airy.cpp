@@ -62,11 +62,11 @@ int dim;
 
 void test_Airy_epsilon(const Vector &x, Vector &e)
 {
-  e(0) = 1.0;
-  e(1) = 1.0;
-  e(2) = (4.0 * (x(0) + XSHIFT)) - 1.0;
+   e(0) = 1.0;
+   e(1) = 1.0;
+   e(2) = (4.0 * (x(0) + XSHIFT)) - 1.0;
 
-  e *= -K2_VALUE;
+   e *= -K2_VALUE;
 }
 
 int main(int argc, char *argv[])
@@ -125,7 +125,7 @@ int main(int argc, char *argv[])
    }
    kappa = freq * M_PI;
 
-   
+
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
@@ -207,7 +207,7 @@ int main(int argc, char *argv[])
    x.ProjectCoefficient(E);
 
    solproj = x;
-   
+
    // 10. Set up the parallel bilinear form corresponding to the EM diffusion
    //     operator curl muinv curl + sigma I, by adding the curl-curl and the
    //     mass domain integrators.
@@ -221,7 +221,7 @@ int main(int argc, char *argv[])
 #else
    a->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
 #endif
-   
+
    // 11. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
    //     assembly, eliminating boundary conditions, applying conforming
@@ -260,33 +260,34 @@ int main(int argc, char *argv[])
 
       strumpack->Mult(B, X);
       //X = 0.0;
-      
+
       {
-	// Check residual
-	Vector res(X.Size());
-	Vector ssol(X.Size());
-	ssol = X;
+         // Check residual
+         Vector res(X.Size());
+         Vector ssol(X.Size());
+         ssol = X;
 
-	const double Bnrm = B.Norml2();
-	const double Bnrm2 = Bnrm*Bnrm;
-	     
-	A.Mult(ssol, res);
-	res -= B;
+         const double Bnrm = B.Norml2();
+         const double Bnrm2 = Bnrm*Bnrm;
 
-	const double Rnrm = res.Norml2();
-	const double Rnrm2 = Rnrm*Rnrm;
+         A.Mult(ssol, res);
+         res -= B;
 
-	double sumBnrm2 = 0.0;
-	double sumRnrm2 = 0.0;
-	MPI_Allreduce(&Bnrm2, &sumBnrm2, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-	MPI_Allreduce(&Rnrm2, &sumRnrm2, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+         const double Rnrm = res.Norml2();
+         const double Rnrm2 = Rnrm*Rnrm;
 
-	if (myid == 0)
-	  {
-	    cout << myid << ": STRUMPACK residual norm " << sqrt(sumRnrm2) << ", B norm " << sqrt(sumBnrm2) << endl;
-	  }
+         double sumBnrm2 = 0.0;
+         double sumRnrm2 = 0.0;
+         MPI_Allreduce(&Bnrm2, &sumBnrm2, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+         MPI_Allreduce(&Rnrm2, &sumRnrm2, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+         if (myid == 0)
+         {
+            cout << myid << ": STRUMPACK residual norm " << sqrt(sumRnrm2) << ", B norm " <<
+                 sqrt(sumBnrm2) << endl;
+         }
       }
-      
+
       delete strumpack;
       delete Arow;
    }
@@ -311,7 +312,9 @@ int main(int argc, char *argv[])
 
    chrono.Stop();
    if (myid == 0)
-     cout << "Solver time " << chrono.RealTime() << endl;
+   {
+      cout << "Solver time " << chrono.RealTime() << endl;
+   }
 
    // 13. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
@@ -322,12 +325,13 @@ int main(int argc, char *argv[])
       double err = x.ComputeL2Error(E);
       ParGridFunction x0(fespace);
       x0 = 0.0;
-      
+
       double solnrm = x0.ComputeL2Error(E);
 
       if (myid == 0)
       {
-	cout << "\n|| E_h - E ||_{L^2} = " << err << ", relative error " << err / solnrm << endl;
+         cout << "\n|| E_h - E ||_{L^2} = " << err << ", relative error " << err / solnrm
+              << endl;
       }
    }
 
@@ -379,13 +383,13 @@ void E_exact(const Vector &x, Vector &E)
    if (dim == 3)
    {
 #ifdef TEST_AIRY
-     const double y = (4.0 * (x(0) + XSHIFT)) - 1.0;
-     const double k = sqrt(K2_VALUE);
-     const double beta = pow(0.25 * k, 2.0/3.0);
-  
-     E(0) = 0.0;
-     E(1) = 0.0;
-     E(2) = gsl_sf_airy_Ai(-beta * y, GSL_PREC_DOUBLE);
+      const double y = (4.0 * (x(0) + XSHIFT)) - 1.0;
+      const double k = sqrt(K2_VALUE);
+      const double beta = pow(0.25 * k, 2.0/3.0);
+
+      E(0) = 0.0;
+      E(1) = 0.0;
+      E(2) = gsl_sf_airy_Ai(-beta * y, GSL_PREC_DOUBLE);
 #else
       E(0) = sin(kappa * x(1));
       E(1) = sin(kappa * x(2));
@@ -405,11 +409,11 @@ void f_exact(const Vector &x, Vector &f)
    if (dim == 3)
    {
 #ifdef TEST_AIRY
-     f = 0.0;
+      f = 0.0;
 #else
-     f(0) = (-K2_VALUE + kappa * kappa) * sin(kappa * x(1));
-     f(1) = (-K2_VALUE + kappa * kappa) * sin(kappa * x(2));
-     f(2) = (-K2_VALUE + kappa * kappa) * sin(kappa * x(0));
+      f(0) = (-K2_VALUE + kappa * kappa) * sin(kappa * x(1));
+      f(1) = (-K2_VALUE + kappa * kappa) * sin(kappa * x(2));
+      f(2) = (-K2_VALUE + kappa * kappa) * sin(kappa * x(0));
 #endif
    }
    else

@@ -24,11 +24,11 @@ void PAHcurlSetup2D(const int Q1D,
                     Vector &op);
 
 void PAHcurlSetup2Din3D(const int Q1D,
-			const int NE,
-			const Array<double> &w,
-			const Vector &j,
-			Vector &_coeff,
-			Vector &op);
+                        const int NE,
+                        const Array<double> &w,
+                        const Vector &j,
+                        Vector &_coeff,
+                        Vector &op);
 
 void PAHcurlSetup3D(const int Q1D,
                     const int coeffDim,
@@ -55,12 +55,20 @@ void PAHcurlMassAssembleDiagonal3D(const int D1D,
                                    Vector &_diag);
 
 void PAHcurlMassAssembleDiagonal3DHost(const int D1D,
-				       const int Q1D,
-				       const int NE,
-				       const Array<double> &_Bo,
-				       const Array<double> &_Bc,
-				       const Vector &_op,
-				       Vector &_diag);
+                                       const int Q1D,
+                                       const int NE,
+                                       const Array<double> &_Bo,
+                                       const Array<double> &_Bc,
+                                       const Vector &_op,
+                                       Vector &_diag);
+
+void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
+                                       const int Q1D,
+                                       const int NE,
+                                       const Array<double> &_Bo,
+                                       const Array<double> &_Bc,
+                                       const Vector &_op,
+                                       Vector &_diag);
 
 void PAHcurlMassApply2D(const int D1D,
                         const int Q1D,
@@ -83,6 +91,17 @@ void PAHcurlMassApply3D(const int D1D,
                         const Vector &_op,
                         const Vector &_x,
                         Vector &_y);
+
+void SmemPAHcurlMassApply3D(const int D1D,
+                            const int Q1D,
+                            const int NE,
+                            const Array<double> &_Bo,
+                            const Array<double> &_Bc,
+                            const Array<double> &_Bot,
+                            const Array<double> &_Bct,
+                            const Vector &_op,
+                            const Vector &_x,
+                            Vector &_y);
 
 void PAHdivSetup2D(const int Q1D,
                    const int NE,
@@ -166,22 +185,25 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    const bool bdryInteg = isBdryInteg;
 
-   // TODO: this implementation applies boundary markers just by setting coeff to zero on boundary elements. It would be better to skip those elements in AddMultPA. 
-   
+   // TODO: this implementation applies boundary markers just by setting coeff to zero on boundary elements. It would be better to skip those elements in AddMultPA.
+
    const FiniteElement *fel = bdryInteg ? fes.GetBE(0) : fes.GetFE(0);
-   
+
    const VectorTensorFiniteElement *el =
       dynamic_cast<const VectorTensorFiniteElement*>(fel);
    MFEM_VERIFY(el != NULL, "Only VectorTensorFiniteElement is supported!");
 
    if (bdryInteg)
-     {
-       MFEM_VERIFY(el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3 && mesh->SpaceDimension() == 3 && el->GetDim() == 2, "");
-     }
-   
+   {
+      MFEM_VERIFY(el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3 &&
+                  mesh->SpaceDimension() == 3 && el->GetDim() == 2, "");
+   }
+
    const IntegrationRule *ir
-     = IntRule ? IntRule : &MassIntegrator::GetRule(*el, *el, bdryInteg ? *mesh->GetBdrElementTransformation(0) : *mesh->GetElementTransformation(0));
-                                                     
+      = IntRule ? IntRule : &MassIntegrator::GetRule(*el, *el,
+                                                     bdryInteg ? *mesh->GetBdrElementTransformation(0) :
+                                                     *mesh->GetElementTransformation(0));
+
    const int dims = el->GetDim();
    MFEM_VERIFY(dims == 2 || dims == 3, "");
 
@@ -192,13 +214,13 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    ne = bdryInteg ? fes.GetNBE() : fes.GetNE();
    Vector bdryJac;
    if (bdryInteg)
-     {
-       bdryJac.SetSize(ne*nq*6);
-     }
+   {
+      bdryJac.SetSize(ne*nq*6);
+   }
    else
-     {
-       geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
-     }
+   {
+      geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
+   }
    mapsC = &el->GetDofToQuad(*ir, DofToQuad::TENSOR);
    mapsO = &el->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
    dofs1D = mapsC->ndof;
@@ -211,10 +233,10 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const int coeffDim = VQ ? VQ->GetVDim() : 1;
 
    if (bdryInteg)
-     {
-       MFEM_VERIFY(coeffDim == 1 && dims == 2, "");
-     }
-   
+   {
+      MFEM_VERIFY(coeffDim == 1 && dims == 2, "");
+   }
+
    Vector coeff(coeffDim * nq * ne);
    coeff = 1.0;
    auto coeffh = Reshape(coeff.HostWrite(), coeffDim, nq, ne);
@@ -228,7 +250,8 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
       for (int e=0; e<ne; ++e)
       {
-	ElementTransformation *tr = bdryInteg ? mesh->GetBdrElementTransformation(e) : mesh->GetElementTransformation(e);
+         ElementTransformation *tr = bdryInteg ? mesh->GetBdrElementTransformation(
+                                        e) : mesh->GetElementTransformation(e);
          for (int p=0; p<nq; ++p)
          {
             if (VQ)
@@ -236,78 +259,81 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
                VQ->Eval(D, *tr, ir->IntPoint(p));
                for (int i=0; i<coeffDim; ++i)
                {
-		  coeffh(i, p, e) = D[i];
+                  coeffh(i, p, e) = D[i];
                }
             }
             else
             {
-	       coeffh(0, p, e) = Q->Eval(*tr, ir->IntPoint(p));
+               coeffh(0, p, e) = Q->Eval(*tr, ir->IntPoint(p));
             }
          }
       }
    }
 
    if (el_marker)
-     {
-       MFEM_VERIFY(bdryInteg, "");
-       MFEM_VERIFY(el_marker->Size() == mesh->bdr_attributes.Max(), "");
-       
-       for (int e=0; e<ne; ++e)
-	 {
-	   const int el_attr = (bdryInteg) ? mesh->GetBdrAttribute(e) : -1;
-	   MFEM_VERIFY(el_attr > 0, "");
-	   
-	   if ((*el_marker)[el_attr-1] == 0)
-	     {
-	       for (int p=0; p<nq; ++p)
-		 {
-		   for (int i=0; i<coeffDim; ++i)
-		     {
-		       coeffh(i, p, e) = 0.0;
-		     }
-		 }
-	     }
-	 }
-     }
+   {
+      MFEM_VERIFY(bdryInteg, "");
+      MFEM_VERIFY(el_marker->Size() == mesh->bdr_attributes.Max(), "");
+
+      for (int e=0; e<ne; ++e)
+      {
+         const int el_attr = (bdryInteg) ? mesh->GetBdrAttribute(e) : -1;
+         MFEM_VERIFY(el_attr > 0, "");
+
+         if ((*el_marker)[el_attr-1] == 0)
+         {
+            for (int p=0; p<nq; ++p)
+            {
+               for (int i=0; i<coeffDim; ++i)
+               {
+                  coeffh(i, p, e) = 0.0;
+               }
+            }
+         }
+      }
+   }
 
    fetype = el->GetDerivType();
-   
-   if (isBdryInteg || (el->GetDerivType() == mfem::FiniteElement::CURL && dim == 2 && mesh->SpaceDimension() == 3))
-     {
-       MFEM_VERIFY(coeffDim == 1, "");  // Vector coefficient not implemented in this case
 
-       if (isBdryInteg)
-	 {
-	   for (int e=0; e<ne; ++e)
-	     {
-	       ElementTransformation *tr = mesh->GetBdrElementTransformation(e);
-	       for (int q = 0; q < nq; ++q)
-		 {
-		   tr->SetIntPoint(&(ir->IntPoint(q)));
-		   const DenseMatrix& jac = tr->Jacobian();
-		   for (int i=0; i<3; ++i)
-		     for (int j=0; j<2; ++j)
-		       {
-			 bdryJac[(6*nq*e) + (3*nq*j) + (i*nq) + q] = jac(i,j);
-		       }
-		 }
-	     }
-	 }
-       else
-	 {
-	   // J is allocated as 3x3, but entries (i,j) are set only for 0 <= i < 3, 0 <= j < 2.
-	   // That is, on each element J is 3x2 with 6 entries, not 9, so the last third of geom->J is unused.
-	   MFEM_VERIFY(geom->J.Size() == 6 * ne * nq, "");  
-	 }
-	   
-       PAHcurlSetup2Din3D(quad1D, ne, ir->GetWeights(), isBdryInteg ? bdryJac : geom->J,
-			  coeff, pa_data);
-     }
+   if (isBdryInteg || (el->GetDerivType() == mfem::FiniteElement::CURL &&
+                       dim == 2 && mesh->SpaceDimension() == 3))
+   {
+      MFEM_VERIFY(coeffDim == 1,
+                  "");  // Vector coefficient not implemented in this case
+
+      if (isBdryInteg)
+      {
+         for (int e=0; e<ne; ++e)
+         {
+            ElementTransformation *tr = mesh->GetBdrElementTransformation(e);
+            for (int q = 0; q < nq; ++q)
+            {
+               tr->SetIntPoint(&(ir->IntPoint(q)));
+               const DenseMatrix& jac = tr->Jacobian();
+               for (int i=0; i<3; ++i)
+                  for (int j=0; j<2; ++j)
+                  {
+                     bdryJac[(6*nq*e) + (3*nq*j) + (i*nq) + q] = jac(i,j);
+                  }
+            }
+         }
+      }
+      else
+      {
+         // J is allocated as 3x3, but entries (i,j) are set only for 0 <= i < 3, 0 <= j < 2.
+         // That is, on each element J is 3x2 with 6 entries, not 9, so the last third of geom->J is unused.
+         MFEM_VERIFY(geom->J.Size() == 6 * ne * nq, "");
+      }
+
+      PAHcurlSetup2Din3D(quad1D, ne, ir->GetWeights(),
+                         isBdryInteg ? bdryJac : geom->J,
+                         coeff, pa_data);
+   }
    else if (el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3)
    {
 #ifdef SETUPONHOST
       PAHcurlSetup3DHost(quad1D, coeffDim, ne, ir->GetWeights(), geom->J,
-       coeff, pa_data);
+                         coeff, pa_data);
 #else
       PAHcurlSetup3D(quad1D, coeffDim, ne, ir->GetWeights(), geom->J,
                      coeff, pa_data);
@@ -315,8 +341,8 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    else if (el->GetDerivType() == mfem::FiniteElement::CURL && dim == 2)
    {
-     PAHcurlSetup2D(quad1D, coeffDim, ne, ir->GetWeights(), geom->J,
-		    coeff, pa_data);
+      PAHcurlSetup2D(quad1D, coeffDim, ne, ir->GetWeights(), geom->J,
+                     coeff, pa_data);
    }
    else if (el->GetDerivType() == mfem::FiniteElement::DIV && dim == 3)
    {
@@ -340,13 +366,19 @@ void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
    {
       if (fetype == mfem::FiniteElement::CURL)
       {
+         if (diag.GetMemory().GetMemoryType() >= MemoryType::DEVICE && quad1D <= 6)
+         {
 #ifdef SETUPONHOST
-         PAHcurlMassAssembleDiagonal3DHost(dofs1D, quad1D, ne,
-					   mapsO->B, mapsC->B, pa_data, diag);
+            PAHcurlMassAssembleDiagonal3DHost(dofs1D, quad1D, ne,
+                                              mapsO->B, mapsC->B, pa_data, diag);
 #else
-         PAHcurlMassAssembleDiagonal3D(dofs1D, quad1D, ne,
-                                       mapsO->B, mapsC->B, pa_data, diag);
+            SmemPAHcurlMassAssembleDiagonal3D(dofs1D, quad1D, ne,
+                                              mapsO->B, mapsC->B, pa_data, diag);
 #endif
+         }
+         else
+            PAHcurlMassAssembleDiagonal3D(dofs1D, quad1D, ne,
+                                          mapsO->B, mapsC->B, pa_data, diag);
       }
       else if (fetype == mfem::FiniteElement::DIV)
       {
@@ -383,8 +415,12 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    {
       if (fetype == mfem::FiniteElement::CURL)
       {
-         PAHcurlMassApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
-                            mapsC->Bt, pa_data, x, y);
+         if (x.GetMemory().GetMemoryType() >= MemoryType::DEVICE && quad1D <= 6)
+            SmemPAHcurlMassApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
+                                   mapsC->Bt, pa_data, x, y);
+         else
+            PAHcurlMassApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
+                               mapsC->Bt, pa_data, x, y);
       }
       else if (fetype == mfem::FiniteElement::DIV)
       {

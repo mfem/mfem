@@ -42,9 +42,6 @@
 
 #include "sparsemat.hpp"
 #include "hypre_parcsr.hpp"
-#ifdef MFEM_USE_SUNDIALS
-#include <nvector/nvector_parhyp.h>
-#endif
 
 namespace mfem
 {
@@ -52,7 +49,7 @@ namespace mfem
 class ParFiniteElementSpace;
 class HypreParMatrix;
 class STRUMPACKSolver;
-  
+
 namespace internal
 {
 
@@ -172,13 +169,9 @@ public:
    ~HypreParVector();
 
 #ifdef MFEM_USE_SUNDIALS
-   /// Return a new wrapper SUNDIALS N_Vector of type SUNDIALS_NVEC_PARHYP.
+   /// Return a new wrapper SUNDIALS N_Vector of type SUNDIALS_NVEC_PARALLEL.
    /** The returned N_Vector must be destroyed by the caller. */
-   virtual N_Vector ToNVector() { return N_VMake_ParHyp(x); }
-
-   /** @brief Update an existing wrapper SUNDIALS N_Vector of type
-       SUNDIALS_NVEC_PARHYP to point to this Vector. */
-   virtual void ToNVector(N_Vector &nv);
+   virtual N_Vector ToNVector();
 #endif
 };
 
@@ -533,7 +526,7 @@ public:
        elements in a new matrix Ae (returned), so that the modified matrix and
        Ae sum to the original matrix. */
    HypreParMatrix* EliminateRowsCols(const Array<int> &rows_cols);
-  
+
    /** Eliminate columns from the matrix and store the eliminated elements in a
        new matrix Ae (returned) so that the modified matrix and Ae sum to the
        original matrix. */
@@ -658,7 +651,7 @@ public:
        16   = Chebyshev
        1001 = Taubin polynomial smoother
        1002 = FIR polynomial smoother. */
-  enum Type { Jacobi = 0, l1Jacobi = 1, l1GS = 2, Kaczmarz = 3, l1GStr = 4, lumpedJacobi = 5,
+   enum Type { Jacobi = 0, l1Jacobi = 1, l1GS = 2, Kaczmarz = 3, l1GStr = 4, lumpedJacobi = 5,
                GS = 6, Chebyshev = 16, Taubin = 1001, FIR = 1002
              };
 
@@ -751,52 +744,52 @@ public:
    virtual void Mult(const Vector &b, Vector &x) const;
 
 #ifdef HYPRE_DYLAN
-  virtual HYPRE_ParCSRMatrix Get_Pix() const
-  {
-    return 0;
-  }
-  
-  virtual HYPRE_ParCSRMatrix Get_Piy() const
-  {
-    return 0;
-  }
-    
-  virtual HYPRE_ParCSRMatrix Get_Piz() const
-  {
-    return 0;
-  }
-  
-  virtual HYPRE_ParCSRMatrix Get_G() const
-  {
-    return 0;
-  }
-  
-  virtual HYPRE_ParCSRMatrix Get_A_Pix() const
-  {
-    return 0;
-  }
-  
-  virtual HYPRE_ParCSRMatrix Get_A_Piy() const
-  {
-    return 0;
-  }
-    
-  virtual HYPRE_ParCSRMatrix Get_A_Piz() const
-  {
-    return 0;
-  }
-  
-  virtual HYPRE_ParCSRMatrix Get_A_G() const
-  {
-    return 0;
-  }
+   virtual HYPRE_ParCSRMatrix Get_Pix() const
+   {
+      return 0;
+   }
 
-  virtual HYPRE_ParCSRMatrix* Get_Restriction() const
-  {
-    return 0;
-  }
+   virtual HYPRE_ParCSRMatrix Get_Piy() const
+   {
+      return 0;
+   }
+
+   virtual HYPRE_ParCSRMatrix Get_Piz() const
+   {
+      return 0;
+   }
+
+   virtual HYPRE_ParCSRMatrix Get_G() const
+   {
+      return 0;
+   }
+
+   virtual HYPRE_ParCSRMatrix Get_A_Pix() const
+   {
+      return 0;
+   }
+
+   virtual HYPRE_ParCSRMatrix Get_A_Piy() const
+   {
+      return 0;
+   }
+
+   virtual HYPRE_ParCSRMatrix Get_A_Piz() const
+   {
+      return 0;
+   }
+
+   virtual HYPRE_ParCSRMatrix Get_A_G() const
+   {
+      return 0;
+   }
+
+   virtual HYPRE_ParCSRMatrix* Get_Restriction() const
+   {
+      return 0;
+   }
 #endif
-  
+
    /** @brief Set the behavior for treating hypre errors, see the ErrorMode
        enum. The default mode in the base class is ABORT_HYPRE_ERRORS. */
    /** Currently, there are three cases in derived classes where the error flag
@@ -1072,16 +1065,16 @@ public:
    virtual HYPRE_PtrToParSolverFcn SolveFcn() const
    { return (HYPRE_PtrToParSolverFcn) HYPRE_BoomerAMGSolve; }
 
-  /*
-  virtual HYPRE_ParCSRMatrix* Get_Restriction() const
-  {
-    //int m = hypre_ParAMGData_GetMaxLevels(amg_precond);
-    //int n = hypre_ParAMGData_GetNumLevels(amg_precond);
-    //return hypre_AMGGetRestriction(amg_precond);
-    //hypre_ParCSRMatrix** hypre_AMGGetRestriction(void *solver);
-    //return (HYPRE_ParCSRMatrix) hypre_ParAMGDataRArray(amg_precond);  // See hypre/src/parcsr_ls/par_amg.h
-  }
-  */
+   /*
+   virtual HYPRE_ParCSRMatrix* Get_Restriction() const
+   {
+     //int m = hypre_ParAMGData_GetMaxLevels(amg_precond);
+     //int n = hypre_ParAMGData_GetNumLevels(amg_precond);
+     //return hypre_AMGGetRestriction(amg_precond);
+     //hypre_ParCSRMatrix** hypre_AMGGetRestriction(void *solver);
+     //return (HYPRE_ParCSRMatrix) hypre_ParAMGDataRArray(amg_precond);  // See hypre/src/parcsr_ls/par_amg.h
+   }
+   */
 
    virtual ~HypreBoomerAMG();
 };
@@ -1130,48 +1123,48 @@ public:
    { return (HYPRE_PtrToParSolverFcn) HYPRE_AMSSolve; }
 
 #ifdef HYPRE_DYLAN
-  virtual HYPRE_ParCSRMatrix Get_Pix() const
-  {
-    return hypre_AMSGet_Pix(ams);
-  }
+   virtual HYPRE_ParCSRMatrix Get_Pix() const
+   {
+      return hypre_AMSGet_Pix(ams);
+   }
 
-  virtual HYPRE_ParCSRMatrix Get_Piy() const
-  {
-    return hypre_AMSGet_Piy(ams);
-  }
+   virtual HYPRE_ParCSRMatrix Get_Piy() const
+   {
+      return hypre_AMSGet_Piy(ams);
+   }
 
-  virtual HYPRE_ParCSRMatrix Get_Piz() const
-  {
-    return hypre_AMSGet_Piz(ams);
-  }
+   virtual HYPRE_ParCSRMatrix Get_Piz() const
+   {
+      return hypre_AMSGet_Piz(ams);
+   }
 
-  virtual HYPRE_ParCSRMatrix Get_G() const
-  {
-    return hypre_AMSGet_G(ams);
-  }
+   virtual HYPRE_ParCSRMatrix Get_G() const
+   {
+      return hypre_AMSGet_G(ams);
+   }
 
-  virtual HYPRE_ParCSRMatrix Get_A_Pix() const
-  {
-    return hypre_AMSGetA_Pix(ams);
-  }
+   virtual HYPRE_ParCSRMatrix Get_A_Pix() const
+   {
+      return hypre_AMSGetA_Pix(ams);
+   }
 
-  virtual HYPRE_ParCSRMatrix Get_A_Piy() const
-  {
-    return hypre_AMSGetA_Piy(ams);
-  }
+   virtual HYPRE_ParCSRMatrix Get_A_Piy() const
+   {
+      return hypre_AMSGetA_Piy(ams);
+   }
 
-  virtual HYPRE_ParCSRMatrix Get_A_Piz() const
-  {
-    return hypre_AMSGetA_Piz(ams);
-  }
+   virtual HYPRE_ParCSRMatrix Get_A_Piz() const
+   {
+      return hypre_AMSGetA_Piz(ams);
+   }
 
-  virtual HYPRE_ParCSRMatrix Get_A_G() const
-  {
-    return hypre_AMSGetA_G(ams);
-  }
+   virtual HYPRE_ParCSRMatrix Get_A_G() const
+   {
+      return hypre_AMSGetA_G(ams);
+   }
 #endif
 
-  virtual ~HypreAMS();
+   virtual ~HypreAMS();
 };
 
 /// The Auxiliary-space Divergence Solver in hypre
@@ -1433,73 +1426,74 @@ public:
 class HypreIAMS : public Solver
 {
 private:
-  Operator* Arow[4];
-  STRUMPACKSolver* strumpack[4];
-  HypreAMS *m_ams;
-  HYPRE_Solver empty_ams;
-  HypreParMatrix m_Pix, m_Piy, m_Piz, m_G;
-  HypreParMatrix *m_A;
-  HypreSmoother smoother;
-  mutable HypreParVector z, w, r, v;
-  STRUMPACKSolver *m_CSL;
-  BlockVector *m_trueBlockX, *m_trueBlockY;
-  
+   Operator* Arow[4];
+   STRUMPACKSolver* strumpack[4];
+   HypreAMS *m_ams;
+   HYPRE_Solver empty_ams;
+   HypreParMatrix m_Pix, m_Piy, m_Piz, m_G;
+   HypreParMatrix *m_A;
+   HypreSmoother smoother;
+   mutable HypreParVector z, w, r, v;
+   STRUMPACKSolver *m_CSL;
+   BlockVector *m_trueBlockX, *m_trueBlockY;
+
 public:
-  HypreIAMS(HypreParMatrix &A, HypreParMatrix *H, STRUMPACKSolver *CSL, BlockVector *trueBlockX, BlockVector *trueBlockY, HypreAMS *ams,
-  	    int argc, char *argv[]);
-  
-  void SetPrintLevel(int print_lvl);
+   HypreIAMS(HypreParMatrix &A, HypreParMatrix *H, STRUMPACKSolver *CSL,
+             BlockVector *trueBlockX, BlockVector *trueBlockY, HypreAMS *ams,
+             int argc, char *argv[]);
 
-  virtual void Mult(const Vector &x, Vector &y) const;
-  //virtual void Mult(const HypreParVector &b, HypreParVector &x) const;
-  virtual void SetOperator(const Operator &op);
+   void SetPrintLevel(int print_lvl);
 
-  void MultAdditive(const Vector &x, Vector &y) const;
-  void MultMultiplicative(const Vector &x, Vector &y) const;
-  void MultCSL(const mfem::Vector &x, mfem::Vector &y) const;
-  
-  void Smooth(const int n, const mfem::Vector &x, mfem::Vector &y) const;
+   virtual void Mult(const Vector &x, Vector &y) const;
+   //virtual void Mult(const HypreParVector &b, HypreParVector &x) const;
+   virtual void SetOperator(const Operator &op);
 
-  void CorrectionGradient(const mfem::Vector &x, mfem::Vector &y) const;
-  void CorrectionCSL(const mfem::Vector &x, mfem::Vector &y) const;
-  void CorrectionPix(const mfem::Vector &x, mfem::Vector &y) const;
-  void CorrectionPiy(const mfem::Vector &x, mfem::Vector &y) const;
-  void CorrectionPiz(const mfem::Vector &x, mfem::Vector &y) const;
-  
-  /*
-  virtual operator HYPRE_Solver() const { return empty_ams; }
-  //virtual operator HYPRE_Solver() const { return m_ams->HYPRE_Solver(); }
+   void MultAdditive(const Vector &x, Vector &y) const;
+   void MultMultiplicative(const Vector &x, Vector &y) const;
+   void MultCSL(const mfem::Vector &x, mfem::Vector &y) const;
 
-  virtual HYPRE_PtrToParSolverFcn SetupFcn() const
-  { return (HYPRE_PtrToParSolverFcn) HYPRE_AMSSetup; }
-  virtual HYPRE_PtrToParSolverFcn SolveFcn() const
-  { return (HYPRE_PtrToParSolverFcn) HYPRE_AMSSolve; }
-  */
-  
-  virtual ~HypreIAMS();
+   void Smooth(const int n, const mfem::Vector &x, mfem::Vector &y) const;
+
+   void CorrectionGradient(const mfem::Vector &x, mfem::Vector &y) const;
+   void CorrectionCSL(const mfem::Vector &x, mfem::Vector &y) const;
+   void CorrectionPix(const mfem::Vector &x, mfem::Vector &y) const;
+   void CorrectionPiy(const mfem::Vector &x, mfem::Vector &y) const;
+   void CorrectionPiz(const mfem::Vector &x, mfem::Vector &y) const;
+
+   /*
+   virtual operator HYPRE_Solver() const { return empty_ams; }
+   //virtual operator HYPRE_Solver() const { return m_ams->HYPRE_Solver(); }
+
+   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   { return (HYPRE_PtrToParSolverFcn) HYPRE_AMSSetup; }
+   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   { return (HYPRE_PtrToParSolverFcn) HYPRE_AMSSolve; }
+   */
+
+   virtual ~HypreIAMS();
 };
 
 class HypreAMSG : public Solver
 {
 private:
-  Operator* Arow;
-  STRUMPACKSolver* strumpack;
-  HypreParMatrix m_G;
-  HypreParMatrix *m_A;
-  HypreSmoother smoother;
-  mutable HypreParVector z, w, v;
-  
+   Operator* Arow;
+   STRUMPACKSolver* strumpack;
+   HypreParMatrix m_G;
+   HypreParMatrix *m_A;
+   HypreSmoother smoother;
+   mutable HypreParVector z, w, v;
+
 public:
-  HypreAMSG(HypreAMS *ams, int argc, char *argv[]);
-  
-  void SetPrintLevel(int print_lvl);
+   HypreAMSG(HypreAMS *ams, int argc, char *argv[]);
 
-  virtual void Mult(const Vector &x, Vector &y) const;
-  virtual void SetOperator(const Operator &op);
+   void SetPrintLevel(int print_lvl);
 
-  virtual ~HypreAMSG();
+   virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void SetOperator(const Operator &op);
+
+   virtual ~HypreAMSG();
 };
-#endif 
+#endif
 
 
 }

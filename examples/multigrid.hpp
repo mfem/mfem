@@ -4,243 +4,270 @@
 
 using namespace std;
 
-namespace mfem {
-
-  STRUMPACKSolver* CreateStrumpackSolver(Operator *Arow, MPI_Comm comm)
-  {
-    //STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, comm);
-    STRUMPACKSolver * strumpack = new STRUMPACKSolver(0, NULL, comm);
-    strumpack->SetPrintFactorStatistics(true);
-    strumpack->SetPrintSolveStatistics(false);
-    strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
-    strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
-    strumpack->SetOperator(*Arow);
-    strumpack->SetFromCommandLine();
-    return strumpack;
-  }
-
-  hypre_CSRMatrix* GetHypreParMatrixData(const HypreParMatrix & hypParMat)
+namespace mfem
 {
-  // First cast the parameter to a hypre_ParCSRMatrix
-  hypre_ParCSRMatrix * parcsr_op =
-    (hypre_ParCSRMatrix *)const_cast<HypreParMatrix&>(hypParMat);
 
-  MFEM_ASSERT(parcsr_op != NULL,"STRUMPACK: const_cast failed in SetOperator");
+STRUMPACKSolver* CreateStrumpackSolver(Operator *Arow, MPI_Comm comm)
+{
+   //STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, comm);
+   STRUMPACKSolver * strumpack = new STRUMPACKSolver(0, NULL, comm);
+   strumpack->SetPrintFactorStatistics(true);
+   strumpack->SetPrintSolveStatistics(false);
+   strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+   strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+   strumpack->SetOperator(*Arow);
+   strumpack->SetFromCommandLine();
+   return strumpack;
+}
 
-  // Create the CSRMatrixMPI A_ by borrowing the internal data from a hypre_CSRMatrix.
-  return hypre_MergeDiagAndOffd(parcsr_op);
+hypre_CSRMatrix* GetHypreParMatrixData(const HypreParMatrix & hypParMat)
+{
+   // First cast the parameter to a hypre_ParCSRMatrix
+   hypre_ParCSRMatrix * parcsr_op =
+      (hypre_ParCSRMatrix *)const_cast<HypreParMatrix&>(hypParMat);
+
+   MFEM_ASSERT(parcsr_op != NULL,"STRUMPACK: const_cast failed in SetOperator");
+
+   // Create the CSRMatrixMPI A_ by borrowing the internal data from a hypre_CSRMatrix.
+   return hypre_MergeDiagAndOffd(parcsr_op);
 }
 
 // Row and column offsets are assumed to be the same, for each process.
 // Array offsets stores process-local offsets with respect to the blocks. Process offsets are not included.
-HypreParMatrix* CreateHypreParMatrixFromBlocks(MPI_Comm comm, Array<int> const& offsets, Array2D<HypreParMatrix*> const& blocks,
-					       Array2D<SparseMatrix*> const& blocksSp,
-					       Array2D<double> const& coefficient,
-					       std::vector<std::vector<int> > const& blockProcOffsets,
-					       std::vector<std::vector<int> > const& all_block_num_loc_rows)
+HypreParMatrix* CreateHypreParMatrixFromBlocks(MPI_Comm comm,
+                                               Array<int> const& offsets, Array2D<HypreParMatrix*> const& blocks,
+                                               Array2D<SparseMatrix*> const& blocksSp,
+                                               Array2D<double> const& coefficient,
+                                               std::vector<std::vector<int> > const& blockProcOffsets,
+                                               std::vector<std::vector<int> > const& all_block_num_loc_rows)
 {
-  const int numBlocks = offsets.Size() - 1;
-  const int num_loc_rows = offsets[numBlocks];
+   const int numBlocks = offsets.Size() - 1;
+   const int num_loc_rows = offsets[numBlocks];
 
-  int nprocs, rank;
-  MPI_Comm_rank(comm, &rank);
-  MPI_Comm_size(comm, &nprocs);
+   int nprocs, rank;
+   MPI_Comm_rank(comm, &rank);
+   MPI_Comm_size(comm, &nprocs);
 
-  std::vector<int> all_num_loc_rows(nprocs);
-  std::vector<int> procOffsets(nprocs);
-  std::vector<std::vector<int> > procBlockOffsets(nprocs);
+   std::vector<int> all_num_loc_rows(nprocs);
+   std::vector<int> procOffsets(nprocs);
+   std::vector<std::vector<int> > procBlockOffsets(nprocs);
 
-  MPI_Allgather(&num_loc_rows, 1, MPI_INT, all_num_loc_rows.data(), 1, MPI_INT, comm);
+   MPI_Allgather(&num_loc_rows, 1, MPI_INT, all_num_loc_rows.data(), 1, MPI_INT,
+                 comm);
 
-  int first_loc_row = 0;
-  int glob_nrows = 0;
-  procOffsets[0] = 0;
-  for (int i=0; i<nprocs; ++i)
-    {
+   int first_loc_row = 0;
+   int glob_nrows = 0;
+   procOffsets[0] = 0;
+   for (int i=0; i<nprocs; ++i)
+   {
       glob_nrows += all_num_loc_rows[i];
       if (i < rank)
-	first_loc_row += all_num_loc_rows[i];
+      {
+         first_loc_row += all_num_loc_rows[i];
+      }
 
       if (i < nprocs-1)
-	procOffsets[i+1] = procOffsets[i] + all_num_loc_rows[i];
+      {
+         procOffsets[i+1] = procOffsets[i] + all_num_loc_rows[i];
+      }
 
       if (numBlocks > 0)
-	{
-	  procBlockOffsets[i].resize(numBlocks);
-	  procBlockOffsets[i][0] = 0;
-	}
-      
+      {
+         procBlockOffsets[i].resize(numBlocks);
+         procBlockOffsets[i][0] = 0;
+      }
+
       for (int j=1; j<numBlocks; ++j)
-	procBlockOffsets[i][j] = procBlockOffsets[i][j-1] + all_block_num_loc_rows[j-1][i];
-    }
-    
-  const int glob_ncols = glob_nrows;
+      {
+         procBlockOffsets[i][j] = procBlockOffsets[i][j-1] + all_block_num_loc_rows[j
+                                                                                    -1][i];
+      }
+   }
 
-  std::vector<int> opI(num_loc_rows+1);
-  std::vector<int> cnt(num_loc_rows);
+   const int glob_ncols = glob_nrows;
 
-  for (int i=0; i<num_loc_rows; ++i)
-    {
+   std::vector<int> opI(num_loc_rows+1);
+   std::vector<int> cnt(num_loc_rows);
+
+   for (int i=0; i<num_loc_rows; ++i)
+   {
       opI[i] = 0;
       cnt[i] = 0;
-    }
+   }
 
-  opI[num_loc_rows] = 0;
-  
-  Array2D<hypre_CSRMatrix*> csr_blocks(numBlocks, numBlocks);
-  
-  // Loop over all blocks, to determine nnz for each row.
-  for (int i=0; i<numBlocks; ++i)
-    {
+   opI[num_loc_rows] = 0;
+
+   Array2D<hypre_CSRMatrix*> csr_blocks(numBlocks, numBlocks);
+
+   // Loop over all blocks, to determine nnz for each row.
+   for (int i=0; i<numBlocks; ++i)
+   {
       for (int j=0; j<numBlocks; ++j)
-	{
-	  if (blocks(i, j) == NULL)
-	    {
-	      csr_blocks(i, j) = NULL;
+      {
+         if (blocks(i, j) == NULL)
+         {
+            csr_blocks(i, j) = NULL;
 
-	      if (blocksSp(i, j) != NULL)
-		{
-		  const int nrows = blocksSp(i, j)->Height();
-		  for (int k=0; k<nrows; ++k)
-		    {
-		      const int rowg = offsets[i] + k;
-		      opI[rowg + 1] += blocksSp(i, j)->GetI()[k+1] - blocksSp(i, j)->GetI()[k];
-		    }
-		}
-	    }
-	  else
-	    {
-	      MFEM_VERIFY(blocksSp(i, j) == NULL, "");
-	      
-	      csr_blocks(i, j) = GetHypreParMatrixData(*(blocks(i, j)));
+            if (blocksSp(i, j) != NULL)
+            {
+               const int nrows = blocksSp(i, j)->Height();
+               for (int k=0; k<nrows; ++k)
+               {
+                  const int rowg = offsets[i] + k;
+                  opI[rowg + 1] += blocksSp(i, j)->GetI()[k+1] - blocksSp(i, j)->GetI()[k];
+               }
+            }
+         }
+         else
+         {
+            MFEM_VERIFY(blocksSp(i, j) == NULL, "");
 
-	      const int nrows = csr_blocks(i, j)->num_rows;
+            csr_blocks(i, j) = GetHypreParMatrixData(*(blocks(i, j)));
 
-	      for (int k=0; k<nrows; ++k)
-		{
-		  const int rowg = offsets[i] + k;
-		  //(*(leftInjection(i, j)))[k]
-		  opI[rowg + 1] += csr_blocks(i, j)->i[k+1] - csr_blocks(i, j)->i[k];
-		}
-	    }
-	}
-    }
+            const int nrows = csr_blocks(i, j)->num_rows;
 
-  // Now opI[i] is nnz for row i-1. Do a partial sum to get offsets.
-  for (int i=0; i<num_loc_rows; ++i)
-    opI[i+1] += opI[i];
+            for (int k=0; k<nrows; ++k)
+            {
+               const int rowg = offsets[i] + k;
+               //(*(leftInjection(i, j)))[k]
+               opI[rowg + 1] += csr_blocks(i, j)->i[k+1] - csr_blocks(i, j)->i[k];
+            }
+         }
+      }
+   }
 
-  const int nnz = opI[num_loc_rows];
+   // Now opI[i] is nnz for row i-1. Do a partial sum to get offsets.
+   for (int i=0; i<num_loc_rows; ++i)
+   {
+      opI[i+1] += opI[i];
+   }
 
-  std::vector<HYPRE_Int> opJ(nnz);
-  std::vector<double> data(nnz);
+   const int nnz = opI[num_loc_rows];
 
-  // Loop over all blocks, to set matrix data.
-  for (int i=0; i<numBlocks; ++i)
-    {
+   std::vector<HYPRE_Int> opJ(nnz);
+   std::vector<double> data(nnz);
+
+   // Loop over all blocks, to set matrix data.
+   for (int i=0; i<numBlocks; ++i)
+   {
       for (int j=0; j<numBlocks; ++j)
-	{
-	  if (csr_blocks(i, j) != NULL || blocksSp(i, j) != NULL)
-	    {
-	      const bool useCSR = (csr_blocks(i, j) != NULL);
-	      
-	      const int nrows = useCSR ? csr_blocks(i, j)->num_rows : blocksSp(i, j)->Height();
-	      const double coef = coefficient(i, j);
+      {
+         if (csr_blocks(i, j) != NULL || blocksSp(i, j) != NULL)
+         {
+            const bool useCSR = (csr_blocks(i, j) != NULL);
 
-	      int *Iarray = useCSR ? csr_blocks(i, j)->i : blocksSp(i, j)->GetI();
-	      
-	      //const bool failure = (nrows != offsets[i+1] - offsets[i]);
-	      
-	      MFEM_VERIFY(nrows == offsets[i+1] - offsets[i], "");
-	      
-	      for (int k=0; k<nrows; ++k)
-		{
-		  const int rowg = offsets[i] + k;  // process-local row
-		  const int nnz_k = Iarray[k+1] - Iarray[k];
-		  const int osk = Iarray[k];
-		  
-		  for (int l=0; l<nnz_k; ++l)
-		    {
-		      // Find the column process offset for the block.
-		      const int bcol = useCSR ? csr_blocks(i, j)->j[osk + l] : blocksSp(i, j)->GetJ()[osk + l];
-		      int bcolproc = 0;
+            const int nrows = useCSR ? csr_blocks(i, j)->num_rows : blocksSp(i,
+                                                                             j)->Height();
+            const double coef = coefficient(i, j);
 
-		      for (int p=1; p<nprocs; ++p)
-			{
-			  if (blockProcOffsets[j][p] > bcol)
-			    {
-			      bcolproc = p-1;
-			      break;
-			    }
-			}
+            int *Iarray = useCSR ? csr_blocks(i, j)->i : blocksSp(i, j)->GetI();
 
-		      if (blockProcOffsets[j][nprocs - 1] <= bcol)
-			bcolproc = nprocs - 1;
+            //const bool failure = (nrows != offsets[i+1] - offsets[i]);
 
-		      const int colg = procOffsets[bcolproc] + procBlockOffsets[bcolproc][j] + (bcol - blockProcOffsets[j][bcolproc]);
+            MFEM_VERIFY(nrows == offsets[i+1] - offsets[i], "");
 
-		      if (colg < 0)
-			cout << "BUG, negative global column index" << endl;
-		      
-		      opJ[opI[rowg] + cnt[rowg]] = colg;
-		      data[opI[rowg] + cnt[rowg]] = useCSR ? coef * csr_blocks(i, j)->data[osk + l] : coef * blocksSp(i, j)->GetData()[osk + l];
-		      cnt[rowg]++;
-		    }
-		}
-	    }
-	}
-    }
+            for (int k=0; k<nrows; ++k)
+            {
+               const int rowg = offsets[i] + k;  // process-local row
+               const int nnz_k = Iarray[k+1] - Iarray[k];
+               const int osk = Iarray[k];
 
-  bool cntCheck = true;
-  for (int i=0; i<num_loc_rows; ++i)
-    {
+               for (int l=0; l<nnz_k; ++l)
+               {
+                  // Find the column process offset for the block.
+                  const int bcol = useCSR ? csr_blocks(i, j)->j[osk + l] : blocksSp(i,
+                                                                                    j)->GetJ()[osk + l];
+                  int bcolproc = 0;
+
+                  for (int p=1; p<nprocs; ++p)
+                  {
+                     if (blockProcOffsets[j][p] > bcol)
+                     {
+                        bcolproc = p-1;
+                        break;
+                     }
+                  }
+
+                  if (blockProcOffsets[j][nprocs - 1] <= bcol)
+                  {
+                     bcolproc = nprocs - 1;
+                  }
+
+                  const int colg = procOffsets[bcolproc] + procBlockOffsets[bcolproc][j] +
+                                   (bcol - blockProcOffsets[j][bcolproc]);
+
+                  if (colg < 0)
+                  {
+                     cout << "BUG, negative global column index" << endl;
+                  }
+
+                  opJ[opI[rowg] + cnt[rowg]] = colg;
+                  data[opI[rowg] + cnt[rowg]] = useCSR ? coef * csr_blocks(i,
+                                                                           j)->data[osk + l] : coef * blocksSp(i, j)->GetData()[osk + l];
+                  cnt[rowg]++;
+               }
+            }
+         }
+      }
+   }
+
+   bool cntCheck = true;
+   for (int i=0; i<num_loc_rows; ++i)
+   {
       if (cnt[i] != opI[i+1] - opI[i])
-	cntCheck = false;
-    }
+      {
+         cntCheck = false;
+      }
+   }
 
-  MFEM_VERIFY(cntCheck, "");
+   MFEM_VERIFY(cntCheck, "");
 
-  for (int i=0; i<numBlocks; ++i)
-    {
+   for (int i=0; i<numBlocks; ++i)
+   {
       for (int j=0; j<numBlocks; ++j)
-	{
-	  if (csr_blocks(i, j) != NULL)
-	    {
-	      hypre_CSRMatrixDestroy(csr_blocks(i, j));
-	    }
-	}
-    }
-  
-  std::vector<HYPRE_Int> rowStarts2(2);
-  rowStarts2[0] = first_loc_row;
-  rowStarts2[1] = first_loc_row + all_num_loc_rows[rank];
+      {
+         if (csr_blocks(i, j) != NULL)
+         {
+            hypre_CSRMatrixDestroy(csr_blocks(i, j));
+         }
+      }
+   }
 
-  if (nnz > 0)
-    {
+   std::vector<HYPRE_Int> rowStarts2(2);
+   rowStarts2[0] = first_loc_row;
+   rowStarts2[1] = first_loc_row + all_num_loc_rows[rank];
+
+   if (nnz > 0)
+   {
       HYPRE_Int minJ = opJ[0];
       HYPRE_Int maxJ = opJ[0];
       for (int i=0; i<nnz; ++i)
-	{
-	  minJ = std::min(minJ, opJ[i]);
-	  maxJ = std::max(maxJ, opJ[i]);
+      {
+         minJ = std::min(minJ, opJ[i]);
+         maxJ = std::max(maxJ, opJ[i]);
 
-	  if (opJ[i] >= glob_ncols)
-	    cout << "Column indices out of range" << endl;
-	}
-    }
-  
-  HypreParMatrix *hmat = new HypreParMatrix(comm, num_loc_rows, glob_nrows, glob_ncols, (int*) opI.data(), (HYPRE_Int*) opJ.data(), (double*) data.data(),
-					    (HYPRE_Int*) rowStarts2.data(), (HYPRE_Int*) rowStarts2.data());
-  
-  return hmat;
+         if (opJ[i] >= glob_ncols)
+         {
+            cout << "Column indices out of range" << endl;
+         }
+      }
+   }
+
+   HypreParMatrix *hmat = new HypreParMatrix(comm, num_loc_rows, glob_nrows,
+                                             glob_ncols, (int*) opI.data(), (HYPRE_Int*) opJ.data(), (double*) data.data(),
+                                             (HYPRE_Int*) rowStarts2.data(), (HYPRE_Int*) rowStarts2.data());
+
+   return hmat;
 }
 
 class BlockMGSolver : public Solver
 {
 private:
    /// The linear system matrix
-   Array2D<HypreParMatrix *>& Af;  // TODO: remove this, as it is used only in the constructor
-   Array2D<double>& Acoef;  // TODO: remove this, as it is used only in the constructor
+   Array2D<HypreParMatrix *>&
+   Af;  // TODO: remove this, as it is used only in the constructor
+   Array2D<double>&
+   Acoef;  // TODO: remove this, as it is used only in the constructor
    vector<Array<int>> Aoffsets;
    vector<Array<int>> Poffsets_i;
    vector<Array<int>> Poffsets_j;
@@ -256,7 +283,7 @@ private:
 
 public:
    BlockMGSolver(const int height, const int width, Array2D<HypreParMatrix *>& Af_,
-		 Array2D<double>& Acoef_, std::vector<HypreParMatrix *>& P_);
+                 Array2D<double>& Acoef_, std::vector<HypreParMatrix *>& P_);
 
    virtual void SetOperator(const Operator &op) {}
 
@@ -267,9 +294,9 @@ public:
 };
 
 BlockMGSolver::BlockMGSolver(const int height, const int width,
-			     Array2D<HypreParMatrix *>& Af_, Array2D<double>& Acoef_,
-			     std::vector<HypreParMatrix *>& P_)
-  : Solver(height, width), Af(Af_), Acoef(Acoef_), P(P_)
+                             Array2D<HypreParMatrix *>& Af_, Array2D<double>& Acoef_,
+                             std::vector<HypreParMatrix *>& P_)
+   : Solver(height, width), Af(Af_), Acoef(Acoef_), P(P_)
 {
    numBlocks = Af.NumRows();
    MFEM_VERIFY(Af.NumCols() == numBlocks, "");
@@ -288,7 +315,9 @@ BlockMGSolver::BlockMGSolver(const int height, const int width,
       A[k - 1].SetSize(numBlocks,numBlocks);
       Aoffsets[k].SetSize(numBlocks+1); Aoffsets[k][0] = 0;
       for (int i=0; i<numBlocks; i++)
-	Aoffsets[k][i+1] = A[k](i,i)->Height();
+      {
+         Aoffsets[k][i+1] = A[k](i,i)->Height();
+      }
 
       Aoffsets[k].PartialSum();
       BlkA[k] = new BlockOperator(Aoffsets[k]);
@@ -298,42 +327,48 @@ BlockMGSolver::BlockMGSolver(const int height, const int width,
       {
          for (int j=0; j<numBlocks; j++)
          {
-	    if (A[k](i,j) == NULL)
-	      A[k - 1](i,j) = NULL;
-	    else
-	      {
-		A[k - 1](i,j) = RAP(A[k](i,j), P[k - 1]);
-		BlkA[k]->SetBlock(i, j, A[k](i,j), Acoef(i,j));
-	      }
+            if (A[k](i,j) == NULL)
+            {
+               A[k - 1](i,j) = NULL;
+            }
+            else
+            {
+               A[k - 1](i,j) = RAP(A[k](i,j), P[k - 1]);
+               BlkA[k]->SetBlock(i, j, A[k](i,j), Acoef(i,j));
+            }
          }
 
-	 HypreSmoother *S_i = new HypreSmoother;
-	 S_i->SetType(HypreSmoother::Jacobi);
-	 S_i->SetOperator(*(A[k](i,i)));
-	 
-	 S[k - 1]->SetBlock(i,i,S_i);
+         HypreSmoother *S_i = new HypreSmoother;
+         S_i->SetType(HypreSmoother::Jacobi);
+         S_i->SetOperator(*(A[k](i,i)));
+
+         S[k - 1]->SetBlock(i,i,S_i);
       }
 
       Poffsets_i[k-1].SetSize(numBlocks+1); Poffsets_i[k-1][0] = 0;
       Poffsets_j[k-1].SetSize(numBlocks+1); Poffsets_j[k-1][0] = 0;
       for (int i=0; i<numBlocks; i++)
-	{
-	  Poffsets_i[k-1][i+1] = P[k-1]->Height();
-	  Poffsets_j[k-1][i+1] = P[k-1]->Width();
-	}
+      {
+         Poffsets_i[k-1][i+1] = P[k-1]->Height();
+         Poffsets_j[k-1][i+1] = P[k-1]->Width();
+      }
       Poffsets_i[k-1].PartialSum();
       Poffsets_j[k-1].PartialSum();
 
       BlkP[k-1] = new BlockOperator(Poffsets_i[k-1],Poffsets_j[k-1]);
       for (int i=0; i<numBlocks; i++)
-	BlkP[k-1]->SetBlock(i,i,P[k-1]);
+      {
+         BlkP[k-1]->SetBlock(i,i,P[k-1]);
+      }
    }
    // Set up coarse solve operator
    // Convert the coarse grid blockmatrix to a HypreParMatrix
    Array<int> offsets(numBlocks+1);
    offsets[0]=0;
    for (int i=0; i<numBlocks; i++)
-     offsets[i+1]=A[0](i,i)->Height();
+   {
+      offsets[i+1]=A[0](i,i)->Height();
+   }
 
    offsets.PartialSum();
 
@@ -347,11 +382,13 @@ BlockMGSolver::BlockMGSolver(const int height, const int width,
    {
       for (int j=0; j<numBlocks; j++)
       {
-	 if (A[0](i,j) != NULL)
-	   BlkA[0]->SetBlock(i, j, A[0](i,j), Acoef(i,j));
-	 
-	 Asp(i,j) = NULL;
-	 //Acoef(i,j) = 1.0;
+         if (A[0](i,j) != NULL)
+         {
+            BlkA[0]->SetBlock(i, j, A[0](i,j), Acoef(i,j));
+         }
+
+         Asp(i,j) = NULL;
+         //Acoef(i,j) = 1.0;
       }
    }
 
@@ -362,43 +399,50 @@ BlockMGSolver::BlockMGSolver(const int height, const int width,
    std::vector<std::vector<int> > all_block_num_loc_rows(numBlocks);
 
    {
-     int nprocs, rank;
-     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
+      int nprocs, rank;
+      MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+      MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
-     std::vector<int> allnumrows(nprocs);
-     const int blockNumRows = A[0](0,0)->Height();
-     MPI_Allgather(&blockNumRows, 1, MPI_INT, allnumrows.data(), 1, MPI_INT, MPI_COMM_WORLD);
+      std::vector<int> allnumrows(nprocs);
+      const int blockNumRows = A[0](0,0)->Height();
+      MPI_Allgather(&blockNumRows, 1, MPI_INT, allnumrows.data(), 1, MPI_INT,
+                    MPI_COMM_WORLD);
 
-     for (int b=0; b<numBlocks; ++b)
-       {
-	 blockProcOffsets[b].resize(nprocs);
-	 all_block_num_loc_rows[b].resize(nprocs);
-       }
-     
-     blockProcOffsets[0][0] = 0;
-     for (int i=0; i<nprocs-1; ++i)
-       blockProcOffsets[0][i+1] = blockProcOffsets[0][i] + allnumrows[i];
+      for (int b=0; b<numBlocks; ++b)
+      {
+         blockProcOffsets[b].resize(nprocs);
+         all_block_num_loc_rows[b].resize(nprocs);
+      }
 
-     for (int i=0; i<nprocs; ++i)
-       {
-	 for (int b=0; b<numBlocks; ++b)
-	   all_block_num_loc_rows[b][i] = allnumrows[i];
+      blockProcOffsets[0][0] = 0;
+      for (int i=0; i<nprocs-1; ++i)
+      {
+         blockProcOffsets[0][i+1] = blockProcOffsets[0][i] + allnumrows[i];
+      }
 
-	 for (int b=1; b<numBlocks; ++b)
-	   blockProcOffsets[b][i] = blockProcOffsets[0][i];
-       }
+      for (int i=0; i<nprocs; ++i)
+      {
+         for (int b=0; b<numBlocks; ++b)
+         {
+            all_block_num_loc_rows[b][i] = allnumrows[i];
+         }
+
+         for (int b=1; b<numBlocks; ++b)
+         {
+            blockProcOffsets[b][i] = blockProcOffsets[0][i];
+         }
+      }
    }
-   
+
    Ac = CreateHypreParMatrixFromBlocks(MPI_COMM_WORLD, offsets, A[0], Asp,
-				       Acoef, blockProcOffsets, all_block_num_loc_rows);
+                                       Acoef, blockProcOffsets, all_block_num_loc_rows);
 
    invAc = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*Ac), MPI_COMM_WORLD);
 
    delete Ac;
 }
 
- void BlockMGSolver::Mult(const Vector &r, Vector &z) const
+void BlockMGSolver::Mult(const Vector &r, Vector &z) const
 {
    // Residual vectors
    std::vector<Vector> rv(numGrids + 1);
@@ -449,7 +493,7 @@ BlockMGSolver::BlockMGSolver(const int height, const int width,
    z = zv[numGrids];
 }
 
-BlockMGSolver::~BlockMGSolver() 
+BlockMGSolver::~BlockMGSolver()
 {
    for (int i = numGrids - 1; i >= 0 ; i--)
    {
@@ -469,5 +513,5 @@ BlockMGSolver::~BlockMGSolver()
    delete invAc;
    A.clear();
 }
-  
+
 } // namespace mfem

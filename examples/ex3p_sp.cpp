@@ -61,98 +61,103 @@ int dim;
 #ifdef USE_HELMHOLTZ
 void GetHelmholtzMatrix(ParMesh *pmesh, const int dir, HypreParMatrix *A)
 {
-  const int order = 1;
-  FiniteElementCollection *fec;
-  fec = new H1_FECollection(order, dim);
-  ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
+   const int order = 1;
+   FiniteElementCollection *fec;
+   fec = new H1_FECollection(order, dim);
+   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
 
-  Array<int> ess_tdof_list;
+   Array<int> ess_tdof_list;
 
-  const bool homogeneousBCeverywhere = false;
-  if (homogeneousBCeverywhere)
-    {
+   const bool homogeneousBCeverywhere = false;
+   if (homogeneousBCeverywhere)
+   {
       if (pmesh->bdr_attributes.Size())
-	{
-	  Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-	  ess_bdr = 1;
-	  fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-	}
-    }
-  else
-    { // Set boundary conditions, depending on dir.
+      {
+         Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+         ess_bdr = 1;
+         fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      }
+   }
+   else
+   {
+      // Set boundary conditions, depending on dir.
       MFEM_VERIFY(dim == 3, "");
       for (int i=0; i<pmesh->GetNBE(); ++i)
-	{
-	  Element *elem = pmesh->GetBdrElement(i);
-	  MFEM_VERIFY(elem->GetNVertices() >= 3, "");
-	  const int *vertices = elem->GetVertices();
-	  double *v[3];
-	  for (int j=0; j<3; ++j)
-	    v[j] = pmesh->GetVertex(vertices[j]);
+      {
+         Element *elem = pmesh->GetBdrElement(i);
+         MFEM_VERIFY(elem->GetNVertices() >= 3, "");
+         const int *vertices = elem->GetVertices();
+         double *v[3];
+         for (int j=0; j<3; ++j)
+         {
+            v[j] = pmesh->GetVertex(vertices[j]);
+         }
 
-	  double u[3];
-	  double w[3];
-	  for (int j=0; j<3; ++j)
-	    {
-	      u[j] = v[1][j] - v[0][j];  // An edge tangent
-	      w[j] = v[2][j] - v[1][j];  // Another edge tangent, not parallel to u.
-	    }
-	  
-	  double n[3];  // normal vector, taken as the cross product u x v
-	  n[0] = (u[1]*w[2]) - (u[2]*w[1]);
-	  n[1] = (u[2]*w[0]) - (u[0]*w[2]);
-	  n[2] = (u[0]*w[1]) - (u[1]*w[0]);
+         double u[3];
+         double w[3];
+         for (int j=0; j<3; ++j)
+         {
+            u[j] = v[1][j] - v[0][j];  // An edge tangent
+            w[j] = v[2][j] - v[1][j];  // Another edge tangent, not parallel to u.
+         }
 
-	  double t = sqrt((n[0]*n[0]) + (n[1]*n[1]) + (n[2]*n[2]));
+         double n[3];  // normal vector, taken as the cross product u x v
+         n[0] = (u[1]*w[2]) - (u[2]*w[1]);
+         n[1] = (u[2]*w[0]) - (u[0]*w[2]);
+         n[2] = (u[0]*w[1]) - (u[1]*w[0]);
 
-	  int d = -1;
-	  for (int j=0; j<3; ++j)
-	    {
-	      n[j] /= t;  // normalize
-	      if (fabs(fabs(n[j]) - 1.0) < 1.0e-8)
-		d = j;
-	    }
+         double t = sqrt((n[0]*n[0]) + (n[1]*n[1]) + (n[2]*n[2]));
 
-	  MFEM_VERIFY(d >= 0, "");
+         int d = -1;
+         for (int j=0; j<3; ++j)
+         {
+            n[j] /= t;  // normalize
+            if (fabs(fabs(n[j]) - 1.0) < 1.0e-8)
+            {
+               d = j;
+            }
+         }
 
-	  if (d != dir)  // face has essential BC at all DOF's.
-	    {
-	      elem->SetAttribute(1);
-	    }
-	  else
-	    {
-	      elem->SetAttribute(0);
-	    }
-	}
+         MFEM_VERIFY(d >= 0, "");
+
+         if (d != dir)  // face has essential BC at all DOF's.
+         {
+            elem->SetAttribute(1);
+         }
+         else
+         {
+            elem->SetAttribute(0);
+         }
+      }
 
       Array<int> ess_bdr(2);
       ess_bdr = 0;
       ess_bdr[1] = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-    }
+   }
 
-  ParBilinearForm *a = new ParBilinearForm(fespace);
-  ConstantCoefficient one(1.0);
-  ConstantCoefficient neg(SIGMAVAL);
+   ParBilinearForm *a = new ParBilinearForm(fespace);
+   ConstantCoefficient one(1.0);
+   ConstantCoefficient neg(SIGMAVAL);
 
-  a->AddDomainIntegrator(new DiffusionIntegrator(one));
-  a->AddDomainIntegrator(new MassIntegrator(neg));
+   a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   a->AddDomainIntegrator(new MassIntegrator(neg));
 
-  ParLinearForm *b = new ParLinearForm(fespace);
-  ConstantCoefficient zero(0.0);
-  b->AddDomainIntegrator(new DomainLFIntegrator(zero));
-  b->Assemble();
+   ParLinearForm *b = new ParLinearForm(fespace);
+   ConstantCoefficient zero(0.0);
+   b->AddDomainIntegrator(new DomainLFIntegrator(zero));
+   b->Assemble();
 
-  bool static_cond = false;
+   bool static_cond = false;
 
-  if (static_cond) { a->EnableStaticCondensation(); }
-  a->Assemble();
+   if (static_cond) { a->EnableStaticCondensation(); }
+   a->Assemble();
 
-  ParGridFunction x(fespace);
-  x = 0.0;
+   ParGridFunction x(fespace);
+   x = 0.0;
 
-  Vector B, X;
-  a->FormLinearSystem(ess_tdof_list, x, *b, *A, X, B);
+   Vector B, X;
+   a->FormLinearSystem(ess_tdof_list, x, *b, *A, X, B);
 }
 #endif
 
@@ -246,18 +251,19 @@ int main(int argc, char *argv[])
    pmesh->ReorientTetMesh();
 
    {
-     double minsize = pmesh->GetElementSize(0);
-     double maxsize = minsize;
-     for (int i=1; i<pmesh->GetNE(); ++i)
-       {
-	 const double size_i = pmesh->GetElementSize(i);
-	 minsize = std::min(minsize, size_i);
-	 maxsize = std::max(maxsize, size_i);
-       }
+      double minsize = pmesh->GetElementSize(0);
+      double maxsize = minsize;
+      for (int i=1; i<pmesh->GetNE(); ++i)
+      {
+         const double size_i = pmesh->GetElementSize(i);
+         minsize = std::min(minsize, size_i);
+         maxsize = std::max(maxsize, size_i);
+      }
 
-     cout << myid << ": Element size range: (" << minsize << ", " << maxsize << ")" << endl;
+      cout << myid << ": Element size range: (" << minsize << ", " << maxsize << ")"
+           << endl;
    }
-   
+
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Nedelec finite elements of the specified order.
    FiniteElementCollection *fec = new ND_FECollection(order, dim);
@@ -266,11 +272,12 @@ int main(int argc, char *argv[])
    long globalNE = pmesh->GetGlobalNE();
    if (myid == 0)
    {
-     cout << "Number of mesh elements: " << globalNE << endl;
-     cout << "Number of finite element unknowns: " << size << endl;
-     cout << "Root local number of finite element unknowns: " << fespace->TrueVSize() << endl;
+      cout << "Number of mesh elements: " << globalNE << endl;
+      cout << "Number of finite element unknowns: " << size << endl;
+      cout << "Root local number of finite element unknowns: " << fespace->TrueVSize()
+           << endl;
    }
-   
+
    // 7. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined
    //    by marking all the boundary attributes from the mesh as essential
@@ -282,7 +289,7 @@ int main(int argc, char *argv[])
       ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
-   
+
    // 8. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system, which in this case is
    //    (f,phi_i) where f is given by the function f_exact and phi_i are the
@@ -312,7 +319,7 @@ int main(int argc, char *argv[])
    a->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
 
    //cout << myid << ": NBE " << pmesh->GetNBE() << endl;
-   
+
 #ifdef FORM_DEFINITE
    ParBilinearForm *adef = new ParBilinearForm(fespace);
    adef->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
@@ -328,16 +335,17 @@ int main(int argc, char *argv[])
 
 #ifdef USE_CSL
    Vector Bdef, Xdef;
-   
+
    ParBilinearForm *Mform =  new ParBilinearForm(fespace);
    Mform->AddDomainIntegrator(new VectorFEMassIntegrator(*sigmaAbs));
    Mform->Assemble();
-   
+
    // Mform->Finalize();
 
    HypreParMatrix Mmat, Smat, Mcopy;
    Mform->FormLinearSystem(ess_tdof_list, x, *b, Mmat, Xdef, Bdef);
-   Mform->FormLinearSystem(ess_tdof_list, x, *b, Mcopy, Xdef, Bdef);  // There must be a better way than creating two identical matrices.
+   Mform->FormLinearSystem(ess_tdof_list, x, *b, Mcopy, Xdef,
+                           Bdef);  // There must be a better way than creating two identical matrices.
 
    ParBilinearForm *Sform =  new ParBilinearForm(fespace);
    Sform->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
@@ -357,22 +365,23 @@ int main(int argc, char *argv[])
 
 #ifdef ITER_A2
    Vector Bdef, Xdef;
-   
+
    ParBilinearForm *Mform =  new ParBilinearForm(fespace);
    Mform->AddDomainIntegrator(new VectorFEMassIntegrator(*sigmaAbs));
    Mform->Assemble();
-   
+
    Mform->Finalize();
 
    HypreParMatrix Mmat, Mcopy;
    Mform->FormLinearSystem(ess_tdof_list, x, *b, Mmat, Xdef, Bdef);
-   Mform->FormLinearSystem(ess_tdof_list, x, *b, Mcopy, Xdef, Bdef);  // There must be a better way to implement M^2.
+   Mform->FormLinearSystem(ess_tdof_list, x, *b, Mcopy, Xdef,
+                           Bdef);  // There must be a better way to implement M^2.
 
    /*
    HypreParMatrix *Mmat = Mform->ParallelAssemble();
    HypreParMatrix *Mcopy = Mform->ParallelAssemble();  // There must be a better way to implement M^2.
    */
-   
+
    ParBilinearForm *Sform =  new ParBilinearForm(fespace);
    Sform->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
    Sform->Assemble();
@@ -381,7 +390,7 @@ int main(int argc, char *argv[])
    Sform->FormLinearSystem(ess_tdof_list, x, *b, Smat, Xdef, Bdef);
    Sform->FormLinearSystem(ess_tdof_list, x, *b, Scopy, Xdef, Bdef);
 #endif
-   
+
    // 11. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
    //     assembly, eliminating boundary conditions, applying conforming
@@ -396,11 +405,11 @@ int main(int argc, char *argv[])
 #ifdef SOLVE_A2
    HypreParMatrix Acopy;
    {
-     Vector Bdum, Xdum;
-     a->FormLinearSystem(ess_tdof_list, x, *b, Acopy, Xdum, Bdum);
+      Vector Bdum, Xdum;
+      a->FormLinearSystem(ess_tdof_list, x, *b, Acopy, Xdum, Bdum);
    }
 #endif
-   
+
    if (myid == 0)
    {
       cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
@@ -411,381 +420,401 @@ int main(int argc, char *argv[])
    chrono.Start();
 
    //A.Print("maxwell1000_2");
-   
+
 #ifdef MFEM_USE_STRUMPACK
    if (use_strumpack)
-     {
-       const bool fullDirect = true;
+   {
+      const bool fullDirect = true;
 
 #ifdef USE_CSL
-       const double beta1 = 1.0;
-       const double beta2 = 0.5;
+      const double beta1 = 1.0;
+      const double beta2 = 0.5;
 
-       Mmat *= -beta1;
-	   
-       // HypreParMatrix *cslRe = Add(1.0, Smat, -beta1, Mmat);
-       HypreParMatrix * cslRe = ParAdd(&Smat, &Mmat);
-	   
-       Mcopy *= beta2;
-	   
-       //ComplexHypreParMatrix chpm(cslRe, &Mcopy, false, false);
-       ComplexHypreParMatrix chpm(&A, &Mcopy, false, false);  // For the case beta1 = 1.
+      Mmat *= -beta1;
 
-       HypreParMatrix *cSysMat = chpm.GetSystemMatrix();
+      // HypreParMatrix *cslRe = Add(1.0, Smat, -beta1, Mmat);
+      HypreParMatrix * cslRe = ParAdd(&Smat, &Mmat);
 
-       Array<int> block_offsets(3); // number of variables + 1
-       block_offsets[0] = 0;
-       block_offsets[1] = fespace->GetVSize();
-       block_offsets[2] = fespace->GetVSize();
-       block_offsets.PartialSum();
+      Mcopy *= beta2;
 
-       Array<int> block_trueOffsets(3); // number of variables + 1
-       block_trueOffsets[0] = 0;
-       block_trueOffsets[1] = fespace->TrueVSize();
-       block_trueOffsets[2] = fespace->TrueVSize();
-       block_trueOffsets.PartialSum();
+      //ComplexHypreParMatrix chpm(cslRe, &Mcopy, false, false);
+      ComplexHypreParMatrix chpm(&A, &Mcopy, false,
+                                 false);  // For the case beta1 = 1.
 
-       //cout << myid << ": V size " << fespace->GetVSize() << ", true " << fespace->TrueVSize() << ", global true " << size << ", B size "
-       //<< B.Size() << ", X size " << X.Size() << endl;
-	   
-       // Note that B is of true size.
-       BlockVector trueY(block_trueOffsets), trueX(block_trueOffsets), trueRhs(block_trueOffsets);
-	   
-       trueRhs.GetBlock(0) = B;
-       trueRhs.GetBlock(1) = 0.0;
-	   
-       Operator * Arow = new STRUMPACKRowLocMatrix(*cSysMat);
+      HypreParMatrix *cSysMat = chpm.GetSystemMatrix();
 
-       STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
-       strumpack->SetPrintFactorStatistics(true);
-       strumpack->SetPrintSolveStatistics(false);
-       strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
-       strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
-       // strumpack->SetMC64Job(strumpack::MC64Job::NONE);
-       // strumpack->SetSymmetricPattern(true);
-       strumpack->SetOperator(*Arow);
-       strumpack->SetFromCommandLine();
+      Array<int> block_offsets(3); // number of variables + 1
+      block_offsets[0] = 0;
+      block_offsets[1] = fespace->GetVSize();
+      block_offsets[2] = fespace->GetVSize();
+      block_offsets.PartialSum();
+
+      Array<int> block_trueOffsets(3); // number of variables + 1
+      block_trueOffsets[0] = 0;
+      block_trueOffsets[1] = fespace->TrueVSize();
+      block_trueOffsets[2] = fespace->TrueVSize();
+      block_trueOffsets.PartialSum();
+
+      //cout << myid << ": V size " << fespace->GetVSize() << ", true " << fespace->TrueVSize() << ", global true " << size << ", B size "
+      //<< B.Size() << ", X size " << X.Size() << endl;
+
+      // Note that B is of true size.
+      BlockVector trueY(block_trueOffsets), trueX(block_trueOffsets),
+                  trueRhs(block_trueOffsets);
+
+      trueRhs.GetBlock(0) = B;
+      trueRhs.GetBlock(1) = 0.0;
+
+      Operator * Arow = new STRUMPACKRowLocMatrix(*cSysMat);
+
+      STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
+      strumpack->SetPrintFactorStatistics(true);
+      strumpack->SetPrintSolveStatistics(false);
+      strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+      strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+      // strumpack->SetMC64Job(strumpack::MC64Job::NONE);
+      // strumpack->SetSymmetricPattern(true);
+      strumpack->SetOperator(*Arow);
+      strumpack->SetFromCommandLine();
 #endif
-       
-       if (fullDirect)
-	 {
+
+      if (fullDirect)
+      {
 #ifdef USE_CSL
-	   //Solver * precond = strumpack;
+         //Solver * precond = strumpack;
 
-	   // strumpack->Mult(B, X);
+         // strumpack->Mult(B, X);
 
-	   BlockOperator blockDiagA(block_trueOffsets);
-	   for (int i=0; i<2; ++i)
-	     blockDiagA.SetDiagonalBlock(i, &A);
+         BlockOperator blockDiagA(block_trueOffsets);
+         for (int i=0; i<2; ++i)
+         {
+            blockDiagA.SetDiagonalBlock(i, &A);
+         }
 
-	   ParFiniteElementSpace *prec_fespace =
-	     (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
-	   HypreSolver *amsgrad = new HypreAMS(Agrad, prec_fespace);
+         ParFiniteElementSpace *prec_fespace =
+            (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
+         HypreSolver *amsgrad = new HypreAMS(Agrad, prec_fespace);
 
 #ifdef HYPRE_DYLAN
-	   {
-	     Vector Xtmp(X);
-	     amsgrad->Mult(B, Xtmp);  // Just a hack to get ams to run its setup function. There should be a better way.
-	   }
+         {
+            Vector Xtmp(X);
+            amsgrad->Mult(B,
+                          Xtmp);  // Just a hack to get ams to run its setup function. There should be a better way.
+         }
 
-	   HypreAMSG *amsg = new HypreAMSG((HypreAMS*) amsgrad, argc, argv);
-	   BlockOperator blockDiagP(block_trueOffsets);
-	   for (int i=0; i<2; ++i)
-	     blockDiagP.SetDiagonalBlock(i, amsg);
+         HypreAMSG *amsg = new HypreAMSG((HypreAMS*) amsgrad, argc, argv);
+         BlockOperator blockDiagP(block_trueOffsets);
+         for (int i=0; i<2; ++i)
+         {
+            blockDiagP.SetDiagonalBlock(i, amsg);
+         }
 
-	   TripleProductOperator strumpackProj(&blockDiagP, strumpack, &blockDiagP, false, false, false);
-	   ProductOperator prod(&blockDiagA, &strumpackProj, false, false);
+         TripleProductOperator strumpackProj(&blockDiagP, strumpack, &blockDiagP, false,
+                                             false, false);
+         ProductOperator prod(&blockDiagA, &strumpackProj, false, false);
 #else
-	   ProductOperator prod(&blockDiagA, strumpack, false, false);
+         ProductOperator prod(&blockDiagA, strumpack, false, false);
 #endif
-	   
-	   GMRESSolver *gmres = new GMRESSolver(fespace->GetComm());
-	   //BiCGSTABSolver *gmres = new BiCGSTABSolver(fespace->GetComm());
-	   
-	   gmres->SetOperator(prod);
-	   gmres->SetRelTol(1e-12);
-	   gmres->SetMaxIter(1000);
-	   gmres->SetPrintLevel(1);
 
-	   gmres->Mult(trueRhs, trueY);
-	   strumpack->Mult(trueY, trueX);
+         GMRESSolver *gmres = new GMRESSolver(fespace->GetComm());
+         //BiCGSTABSolver *gmres = new BiCGSTABSolver(fespace->GetComm());
 
-	   X = trueX.GetBlock(0);
-	   double xim2 = trueX.GetBlock(1).Norml2();
-	   xim2 *= xim2;
-	   double sumxim2 = 0.0;
-	   
-	   MPI_Allreduce(&xim2, &sumxim2, 1, MPI_DOUBLE, MPI_SUM, fespace->GetComm());
+         gmres->SetOperator(prod);
+         gmres->SetRelTol(1e-12);
+         gmres->SetMaxIter(1000);
+         gmres->SetPrintLevel(1);
 
-	   if (myid == 0)
-	     cout << myid << ": norm of Xim " << trueX.GetBlock(1).Norml2() << ", global " << sqrt(sumxim2) << endl;
-	   
-	   delete gmres;
-	   delete strumpack;
-	   delete Arow;
+         gmres->Mult(trueRhs, trueY);
+         strumpack->Mult(trueY, trueX);
+
+         X = trueX.GetBlock(0);
+         double xim2 = trueX.GetBlock(1).Norml2();
+         xim2 *= xim2;
+         double sumxim2 = 0.0;
+
+         MPI_Allreduce(&xim2, &sumxim2, 1, MPI_DOUBLE, MPI_SUM, fespace->GetComm());
+
+         if (myid == 0)
+         {
+            cout << myid << ": norm of Xim " << trueX.GetBlock(1).Norml2() << ", global " <<
+                 sqrt(sumxim2) << endl;
+         }
+
+         delete gmres;
+         delete strumpack;
+         delete Arow;
 #else
-	   cout << "Solving with STRUMPACK" << endl;
+         cout << "Solving with STRUMPACK" << endl;
 
 #ifdef TEST_MULTIPLE_SP
-	   const int Ns = 2;
-	   std::vector<Operator*> Arows(Ns);
-	   std::vector<STRUMPACKSolver*> strumpacks(Ns);
+         const int Ns = 2;
+         std::vector<Operator*> Arows(Ns);
+         std::vector<STRUMPACKSolver*> strumpacks(Ns);
 
-	   //Operator * Arow = new STRUMPACKRowLocMatrix(A);
+         //Operator * Arow = new STRUMPACKRowLocMatrix(A);
 
-	   for (int m=0; m<Ns; ++m)
-	     {
-	       Arows[m] = new STRUMPACKRowLocMatrix(A);
+         for (int m=0; m<Ns; ++m)
+         {
+            Arows[m] = new STRUMPACKRowLocMatrix(A);
 
-	       //STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
-	       strumpacks[m] = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
-	       strumpacks[m]->SetPrintFactorStatistics(true);
-	       strumpacks[m]->SetPrintSolveStatistics(false);
-	       strumpacks[m]->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
-	       strumpacks[m]->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
-	       // strumpack->SetMC64Job(strumpack::MC64Job::NONE);
-	       // strumpack->SetSymmetricPattern(true);
-	       strumpacks[m]->SetOperator(*Arows[m]);
-	       strumpacks[m]->SetFromCommandLine();
-	       //Solver * precond = strumpack;
+            //STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
+            strumpacks[m] = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
+            strumpacks[m]->SetPrintFactorStatistics(true);
+            strumpacks[m]->SetPrintSolveStatistics(false);
+            strumpacks[m]->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+            strumpacks[m]->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+            // strumpack->SetMC64Job(strumpack::MC64Job::NONE);
+            // strumpack->SetSymmetricPattern(true);
+            strumpacks[m]->SetOperator(*Arows[m]);
+            strumpacks[m]->SetFromCommandLine();
+            //Solver * precond = strumpack;
 
-	       strumpacks[m]->Mult(B, X);
-       
-	       //delete strumpack;
-	       //delete Arow;
-	     }
-#else	   
-	   Operator * Arow = new STRUMPACKRowLocMatrix(A);
+            strumpacks[m]->Mult(B, X);
 
-	   STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
-	   strumpack->SetPrintFactorStatistics(true);
-	   strumpack->SetPrintSolveStatistics(false);
-	   strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
-	   strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
-	   // strumpack->SetMC64Job(strumpack::MC64Job::NONE);
-	   // strumpack->SetSymmetricPattern(true);
-	   strumpack->SetOperator(*Arow);
-	   strumpack->SetFromCommandLine();
-	   //Solver * precond = strumpack;
+            //delete strumpack;
+            //delete Arow;
+         }
+#else
+         Operator * Arow = new STRUMPACKRowLocMatrix(A);
 
-	   cout << "Solving with strumpack one time" << endl;
-	   
-	   strumpack->Mult(B, X);
-       
-	   delete strumpack;
-	   delete Arow;
+         STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
+         strumpack->SetPrintFactorStatistics(true);
+         strumpack->SetPrintSolveStatistics(false);
+         strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+         strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+         // strumpack->SetMC64Job(strumpack::MC64Job::NONE);
+         // strumpack->SetSymmetricPattern(true);
+         strumpack->SetOperator(*Arow);
+         strumpack->SetFromCommandLine();
+         //Solver * precond = strumpack;
+
+         cout << "Solving with strumpack one time" << endl;
+
+         strumpack->Mult(B, X);
+
+         delete strumpack;
+         delete Arow;
 #endif
 #endif
-	 }
-       else
-	 {
-	   ParFiniteElementSpace *prec_fespace =
-	     (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
-	   HypreSolver *ams = new HypreAMS(A, prec_fespace);
+      }
+      else
+      {
+         ParFiniteElementSpace *prec_fespace =
+            (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
+         HypreSolver *ams = new HypreAMS(A, prec_fespace);
 
 #ifdef HYPRE_DYLAN
-	   {
-	     Vector Xtmp(X);
-	     ams->Mult(B, Xtmp);  // Just a hack to get ams to run its setup function. There should be a better way.
-	   }
+         {
+            Vector Xtmp(X);
+            ams->Mult(B,
+                      Xtmp);  // Just a hack to get ams to run its setup function. There should be a better way.
+         }
 
-	   HypreParMatrix H[3];
+         HypreParMatrix H[3];
 #ifdef USE_HELMHOLTZ
-	   for (int i=0; i<3; ++i)
-	     GetHelmholtzMatrix(pmesh, i, &(H[i]));
+         for (int i=0; i<3; ++i)
+         {
+            GetHelmholtzMatrix(pmesh, i, &(H[i]));
+         }
 #endif
 
 #ifdef USE_CSL
-	   HypreIAMS *iams = new HypreIAMS(A, H, strumpack, &trueX, &trueY, (HypreAMS*) ams, argc, argv);
+         HypreIAMS *iams = new HypreIAMS(A, H, strumpack, &trueX, &trueY,
+                                         (HypreAMS*) ams, argc, argv);
 #else
-	   HypreIAMS *iams = new HypreIAMS(A, H, strumpack, NULL, NULL, (HypreAMS*) ams, argc, argv);
+         HypreIAMS *iams = new HypreIAMS(A, H, strumpack, NULL, NULL, (HypreAMS*) ams,
+                                         argc, argv);
 #endif
 
-	   GMRESSolver *gmres = new GMRESSolver(fespace->GetComm());
-	   //FGMRESSolver *gmres = new FGMRESSolver(fespace->GetComm());
-	   //BiCGSTABSolver *gmres = new BiCGSTABSolver(fespace->GetComm());
-	   //MINRESSolver *gmres = new MINRESSolver(fespace->GetComm());
-	   
-	   gmres->SetOperator(A);
-	   gmres->SetRelTol(1e-16);
-	   gmres->SetMaxIter(1000);
-	   gmres->SetPrintLevel(1);
+         GMRESSolver *gmres = new GMRESSolver(fespace->GetComm());
+         //FGMRESSolver *gmres = new FGMRESSolver(fespace->GetComm());
+         //BiCGSTABSolver *gmres = new BiCGSTABSolver(fespace->GetComm());
+         //MINRESSolver *gmres = new MINRESSolver(fespace->GetComm());
+
+         gmres->SetOperator(A);
+         gmres->SetRelTol(1e-16);
+         gmres->SetMaxIter(1000);
+         gmres->SetPrintLevel(1);
 
 #ifdef SOLVE_A2
-	   {
-	     StopWatch chronoA2;
-	     chronoA2.Clear();
-	     chronoA2.Start();
+         {
+            StopWatch chronoA2;
+            chronoA2.Clear();
+            chronoA2.Start();
 
-	     HypreParMatrix * A2 = ParMult(&A, &Acopy);
+            HypreParMatrix * A2 = ParMult(&A, &Acopy);
 
-	     chronoA2.Stop();
-	     cout << "A2 setup time " << chronoA2.RealTime() << endl;
-	     
-	     Vector AB(B);
-	     A.Mult(B, AB);
-	     gmres->SetOperator(*A2);
+            chronoA2.Stop();
+            cout << "A2 setup time " << chronoA2.RealTime() << endl;
 
-	     HypreSolver *ams2 = new HypreAMS(A, prec_fespace);
-	     {
-	       Vector Xtmp(X);
-	       ams2->Mult(B, Xtmp);  // Just a hack to get ams to run its setup function. There should be a better way.
-	     }
+            Vector AB(B);
+            A.Mult(B, AB);
+            gmres->SetOperator(*A2);
+
+            HypreSolver *ams2 = new HypreAMS(A, prec_fespace);
+            {
+               Vector Xtmp(X);
+               ams2->Mult(B,
+                          Xtmp);  // Just a hack to get ams to run its setup function. There should be a better way.
+            }
 
 #ifdef ITER_A2
-	     // Iteratively solve 0.5 (A^2 + S^2 + M^2) u^{k+1} = 0.5 (SM + MS) u^k + Ab 
+            // Iteratively solve 0.5 (A^2 + S^2 + M^2) u^{k+1} = 0.5 (SM + MS) u^k + Ab
 
-	     StopWatch chronoIterA2;
-	     chronoIterA2.Clear();
-	     chronoIterA2.Start();
+            StopWatch chronoIterA2;
+            chronoIterA2.Clear();
+            chronoIterA2.Start();
 
-	     HypreParMatrix * M2 = ParMult(&Mmat, &Mcopy);
-	     HypreParMatrix * S2 = ParMult(&Smat, &Scopy);
+            HypreParMatrix * M2 = ParMult(&Mmat, &Mcopy);
+            HypreParMatrix * S2 = ParMult(&Smat, &Scopy);
 
-	     HypreParMatrix * MS = ParMult(&Mmat, &Scopy);
-	     HypreParMatrix * SM = ParMult(&Smat, &Mcopy);
+            HypreParMatrix * MS = ParMult(&Mmat, &Scopy);
+            HypreParMatrix * SM = ParMult(&Smat, &Mcopy);
 
-             HypreParMatrix * Bmat = ParAdd(SM, MS);
-	     (*Bmat) *= 0.5;
-	     
-	     // TODO: there must be a better way to form a sum of three matrices. Of course, we could define an operator that does 3 mat-vecs. 
-             //HypreParMatrix * S2M2 = ParAdd(S2, M2);
-	     //HypreParMatrix * iterMat = ParAdd(A2, S2M2);
-	     HypreParMatrix * iterMat = ParAdd(A2, Bmat);
-	     
-	     chronoIterA2.Stop();
-	     cout << "Iter A2 setup time " << chronoIterA2.RealTime() << endl;
+            HypreParMatrix * Bmat = ParAdd(SM, MS);
+            (*Bmat) *= 0.5;
 
-	     /*
-	     HypreSolver *ams3 = new HypreAMS(*iterMat, prec_fespace);
-	     {
-	       Vector Xtmp(X);
-	       ams3->Mult(B, Xtmp);  // Just a hack to get ams to run its setup function. There should be a better way.
-	     }
-	     */
-	     	     
-	     /*
-	     // GMRES
-	     gmres->SetOperator(*iterMat);
-	     gmres->SetPreconditioner(*ams2);
-	     */
-	     
+            // TODO: there must be a better way to form a sum of three matrices. Of course, we could define an operator that does 3 mat-vecs.
+            //HypreParMatrix * S2M2 = ParAdd(S2, M2);
+            //HypreParMatrix * iterMat = ParAdd(A2, S2M2);
+            HypreParMatrix * iterMat = ParAdd(A2, Bmat);
 
-	     //HypreBoomerAMG *amg = new HypreBoomerAMG(*iterMat);
-	     HypreBoomerAMG *amg = new HypreBoomerAMG(*A2);
+            chronoIterA2.Stop();
+            cout << "Iter A2 setup time " << chronoIterA2.RealTime() << endl;
 
-	     // PCG
-	     HyprePCG *pcg = new HyprePCG(*iterMat);
-	     //HyprePCG *pcg = new HyprePCG(*A2);
-	     pcg->SetTol(1e-12);
-	     pcg->SetMaxIter(10);
-	     pcg->SetPrintLevel(2);
-	     pcg->SetPreconditioner(*amg);
+            /*
+            HypreSolver *ams3 = new HypreAMS(*iterMat, prec_fespace);
+            {
+              Vector Xtmp(X);
+              ams3->Mult(B, Xtmp);  // Just a hack to get ams to run its setup function. There should be a better way.
+            }
+            */
 
-	     /*
-	     // Strumpack linear solver
-	     Operator * Arow = new STRUMPACKRowLocMatrix(*iterMat);
+            /*
+            // GMRES
+            gmres->SetOperator(*iterMat);
+            gmres->SetPreconditioner(*ams2);
+            */
 
-	     STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
-	     strumpack->SetPrintFactorStatistics(true);
-	     strumpack->SetPrintSolveStatistics(false);
-	     strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
-	     strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
-	     strumpack->SetOperator(*Arow);
-	     strumpack->SetFromCommandLine();
-	     */
-	     
-	     Vector iterRHS(AB);
-	     Vector iterU(AB);
-	     Vector iterU0(AB);
 
-	     iterU = 0.0;
-	     iterU0 = 0.0;
-	     
-	     bool iterate = true;
-	     int numIter = 0;
-	     while (iterate)
-	       {
-		 iterRHS = iterU;
-		 iterRHS.Add(-1.0, iterU0);
+            //HypreBoomerAMG *amg = new HypreBoomerAMG(*iterMat);
+            HypreBoomerAMG *amg = new HypreBoomerAMG(*A2);
 
-		 cout << "Iteration " << numIter + 1 << ": diff norm " << iterRHS.Norml2() << endl;
-		 
-		 iterU0 = iterU;
+            // PCG
+            HyprePCG *pcg = new HyprePCG(*iterMat);
+            //HyprePCG *pcg = new HyprePCG(*A2);
+            pcg->SetTol(1e-12);
+            pcg->SetMaxIter(10);
+            pcg->SetPrintLevel(2);
+            pcg->SetPreconditioner(*amg);
 
-		 Bmat->Mult(iterU0, iterRHS);
-		 //iterRHS.Add(2.0, AB);
-		 iterRHS.Add(1.0, AB);
-				 
-		 //gmres->Mult(iterRHS, iterU);
-		 pcg->Mult(iterRHS, iterU);
-		 //strumpack->Mult(iterRHS, iterU);
+            /*
+            // Strumpack linear solver
+            Operator * Arow = new STRUMPACKRowLocMatrix(*iterMat);
 
-		 numIter++;
+            STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
+            strumpack->SetPrintFactorStatistics(true);
+            strumpack->SetPrintSolveStatistics(false);
+            strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+            strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+            strumpack->SetOperator(*Arow);
+            strumpack->SetFromCommandLine();
+            */
 
-		 if (numIter > 100)
-		   iterate = false;
-	       }
+            Vector iterRHS(AB);
+            Vector iterU(AB);
+            Vector iterU0(AB);
 
-	     //delete strumpack;
-	     //delete Arow;
+            iterU = 0.0;
+            iterU0 = 0.0;
 
-	     delete pcg;
+            bool iterate = true;
+            int numIter = 0;
+            while (iterate)
+            {
+               iterRHS = iterU;
+               iterRHS.Add(-1.0, iterU0);
 
-	     X = iterU;
+               cout << "Iteration " << numIter + 1 << ": diff norm " << iterRHS.Norml2() <<
+                    endl;
+
+               iterU0 = iterU;
+
+               Bmat->Mult(iterU0, iterRHS);
+               //iterRHS.Add(2.0, AB);
+               iterRHS.Add(1.0, AB);
+
+               //gmres->Mult(iterRHS, iterU);
+               pcg->Mult(iterRHS, iterU);
+               //strumpack->Mult(iterRHS, iterU);
+
+               numIter++;
+
+               if (numIter > 100)
+               {
+                  iterate = false;
+               }
+            }
+
+            //delete strumpack;
+            //delete Arow;
+
+            delete pcg;
+
+            X = iterU;
 #else
-	     //HypreIAMS *iams2 = new HypreIAMS(*A2, (HypreAMS*) ams2, argc, argv);
-	     //gmres->SetPreconditioner(*iams2);
-	     cout << myid << ": Solving" << endl;
-	     gmres->SetPreconditioner(*ams2);
-	     gmres->Mult(AB, X);
-	     cout << myid << ": Solved" << endl;
-	     return 3;
+            //HypreIAMS *iams2 = new HypreIAMS(*A2, (HypreAMS*) ams2, argc, argv);
+            //gmres->SetPreconditioner(*iams2);
+            cout << myid << ": Solving" << endl;
+            gmres->SetPreconditioner(*ams2);
+            gmres->Mult(AB, X);
+            cout << myid << ": Solved" << endl;
+            return 3;
 #endif
-	   }
+         }
 #else
-	   gmres->SetPreconditioner(*iams);
-	   gmres->Mult(B, X);
+         gmres->SetPreconditioner(*iams);
+         gmres->Mult(B, X);
 #endif
 #else
-	   HypreGMRES *gmres = new HypreGMRES(A);
-	   gmres->SetTol(1e-12);
-	   gmres->SetMaxIter(100);
-	   gmres->SetPrintLevel(10);
+         HypreGMRES *gmres = new HypreGMRES(A);
+         gmres->SetTol(1e-12);
+         gmres->SetMaxIter(100);
+         gmres->SetPrintLevel(10);
 
 #ifdef FORM_DEFINITE
-	   HypreSolver *amsdef = new HypreAMS(Adef, prec_fespace);
-	   gmres->SetPreconditioner(*amsdef);
+         HypreSolver *amsdef = new HypreAMS(Adef, prec_fespace);
+         gmres->SetPreconditioner(*amsdef);
 #else
-	   gmres->SetPreconditioner(*ams);
+         gmres->SetPreconditioner(*ams);
 #endif
-	   gmres->Mult(B, X);
+         gmres->Mult(B, X);
 #endif
 
-	   delete gmres;
-	   //delete iams;
-	   //delete ams;
-	 }
-     }
+         delete gmres;
+         //delete iams;
+         //delete ams;
+      }
+   }
    else
 #endif
-     {
-       // 12. Define and apply a parallel PCG solver for AX=B with the AMS
-       //     preconditioner from hypre.
-       ParFiniteElementSpace *prec_fespace =
-	 (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
-       HypreSolver *ams = new HypreAMS(A, prec_fespace);
-       HyprePCG *pcg = new HyprePCG(A);
-       pcg->SetTol(1e-12);
-       pcg->SetMaxIter(500);
-       pcg->SetPrintLevel(2);
-       pcg->SetPreconditioner(*ams);
-       pcg->Mult(B, X);
+   {
+      // 12. Define and apply a parallel PCG solver for AX=B with the AMS
+      //     preconditioner from hypre.
+      ParFiniteElementSpace *prec_fespace =
+         (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
+      HypreSolver *ams = new HypreAMS(A, prec_fespace);
+      HyprePCG *pcg = new HyprePCG(A);
+      pcg->SetTol(1e-12);
+      pcg->SetMaxIter(500);
+      pcg->SetPrintLevel(2);
+      pcg->SetPreconditioner(*ams);
+      pcg->Mult(B, X);
 
-       delete pcg;
-       delete ams;
-     }
-   
+      delete pcg;
+      delete ams;
+   }
+
    chrono.Stop();
    cout << myid << ": Solver time " << chrono.RealTime() << endl;
 
@@ -806,8 +835,8 @@ int main(int argc, char *argv[])
       if (myid == 0)
       {
          cout << "|| E_h - E ||_{L^2} = " << err << endl;
-	 cout << "|| E_h ||_{L^2} = " << normX << endl;
-	 cout << "|| E ||_{L^2} = " << normE << endl;
+         cout << "|| E_h ||_{L^2} = " << normX << endl;
+         cout << "|| E ||_{L^2} = " << normE << endl;
       }
    }
 
