@@ -41,8 +41,8 @@ protected:
    const FiniteElementSpace *fespace;  ///< Not owned
    const QuadratureSpace *qspace;      ///< Not owned
    const IntegrationRule *IntRule;     ///< Not owned
-   mutable QVectorLayout q_layout;     ///< Output Q-vector layout
 
+   mutable QVectorLayout q_layout;     ///< Output Q-vector layout
    mutable bool use_tensor_products;   ///< Tensor product evaluation mmode
 
 public:

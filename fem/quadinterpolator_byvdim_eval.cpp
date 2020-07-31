@@ -14,6 +14,9 @@
 #include "../linalg/dtensor.hpp"
 #include "../linalg/kernels.hpp"
 
+#define MFEM_DEBUG_COLOR 226
+#include "../general/debug.hpp"
+
 namespace mfem
 {
 
@@ -239,6 +242,7 @@ static void D2QValues(const FiniteElementSpace &fes,
          case 0x248: return D2QValues2D<2,4,8,2>(NE, maps->B, e_vec, q_val);
          default:
          {
+            dbg("Using standard kernel #id 0x%x", id);
             MFEM_VERIFY(D1D <= MAX_D1D, "Orders higher than " << MAX_D1D-1
                         << " are not supported!");
             MFEM_VERIFY(Q1D <= MAX_Q1D, "Quadrature rules with more than "
@@ -262,6 +266,7 @@ static void D2QValues(const FiniteElementSpace &fes,
          {
             constexpr int MD = 8;
             constexpr int MQ = 8;
+            dbg("Using standard kernel #id 0x%x", id);
             MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
                         << " are not supported!");
             MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than " << MQ
