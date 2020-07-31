@@ -32,15 +32,161 @@ parallel plot:
 glvis -np 4 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 glvis -np 36 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 glvis -np 48 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
+glvis -np 72 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 glvis -np 512 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
 glvis -np 4 -m mesh -g sol_omega -k "mmc" -ww 400 -wh 400
+
+7/30
+improved the preconditioner (commute or not)
+1e-5 works well with dt=.05; amr probably will also work
+1e-6 still running
+discuss HDG results: the stoppage criterion? reduce time step?
+
+better rc_debug for res=1e-6 (let it solve more accurately in each nonlinear solver)
+rtol=2e-4
+rtol0=0.1
+for instance rtol0=.3 will fail at a very earlier time
+
+cfl estimate?
+flow speed and B 
+time stepping? adaptive (yes)
+
+AMR for 1e-5?
+
+7/23
+1. improve the preconditioner 
+done. which version is better? check res=1e-5 and res=1e-6
+2. improve the Schur complement solver (ParaSails works better, Euclid behaves strangely)
+3. test the case for 1e-6 
+
+srun -n 72 ./imMHDp -m ./Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -no-vis -vs 1 -tf 1. -dt .05 -usepetsc --petscopts ./petscrc/rc_simple -s 3 -shell -resi 1e-6 -visc 1e-6 -im_supg 1 -supg -i_supgpre 3 -no-fd -local -lr 4
+
+srun -n 72 ./imMHDpNew -m ./Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -no-vis -vs 1 -tf .1 -dt .05 -usepetsc --petscopts ./petscrc/rc_debug4 -s 3 -shell -resi 1e-6 -visc 1e-6 -im_supg 1 -supg -i_supgpre 3 -fd -local -lr 6 
+
+
+7/20
+good results:
+srun -N 32 -n 512  --ntasks-per-node=16 ../imMHDp -m ../../Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -no-vis -vs 1 -tf 8. -dt .05 -usepetsc --petscopts ../rc_debug4 -s 3 -shell -resi 1e-5 -visc 1e-5 -im_supg 1 -supg -i_supgpre 3 -no-fd -local -lr 5 -visit
+
+2/2^11
+
+7/17
+after fix, it can run to t=6.7 and I think 6.8 is the first peak for 1e-5, it is challenging
+
+memory leakage:
+
+try this:
+srun -n 36 ./imMHDp -m ./Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -no-vis -vs 1 -tf .4 -dt .1 -usepetsc --petscopts ./petscrc/rc_debu -s 3 -shell -resi 1e-5 -visc 1e-5 -im_supg 1 -supg -i_supgpre 3 -no-fd -tchange .2
+
+srun -n 36 valgrind --leak-check=yes --track-origins=yes --log-file="log-valgrind1.out" ./imMHDp -m ./Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -no-vis -vs 1 -tf .4 -dt .1 -usepetsc --petscopts ./petscrc/rc_debug -s 3 -shell -resi 1e-5 -visc 1e-5 -im_supg 1 -supg -i_supgpre 3 -no-fd -tchange .2
+
+7/16
+conclusions:
+0. tau is okay
+
+1. supg is doing the right thing (the system is nicer, nonlinear residual decays monotone, it does not need many nonlinear iteration to converge, but the physics-based preconditioner does not like that, typically 300-400 linear iterations for 5-6 Newton iterations); so we need to improve the preconditioner for hard problems
+>>> compare with two other implementations of supg, I think my implementation is fine
+>>> with supg, the Schur complement and ARe works well for res=1e-5
+>>> however we may need to improve our preconditioner w.r.t. supg, this may not be easy; In supg/pspg Navier-Stokes case, they keep almost every terms from supg
+
+2. if the mesh is packed correctly, the simulation can run through the simulation with 1e-5
+
+3. I will try 1e-6
+
+4. there is a chance we could use pAIR if needed 
+
+
+at least r4rl4 can run to t=8 with supg, so there is hope
+
+todo:
+check supg if adding terms into it
+push resolution and resisitivity
+add more terms for supg
+
+
+
+7/15
+explicit scheme
+srun -n 72 ./imMHDp -m ../Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -no-vis -vs 100 -tf .1 -dt .001  -resi 1e-5 -visc 1e-5 -ex_supg 1 -stab -s 2 -itau 3 -no-fd -local -lr 5
+
+srun -n 6 ./imMHDp -m ./Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -no-vis -vs 100 -tf .1 -dt .001  -resi 1e-5 -visc 1e-5 -ex_supg 1 -stab -s 2 -itau 3 
+
+7/14
+questions: 
+1. does 1e-4 works on finer mesh?
+todo
+2. is there a mesh 1e-5 working?
+yes, but still underresolved
+3. small time step for implicit scheme (not good, this is strange)
+
+7/12
+srun -n 72  ../imMHDp -m ../Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -no-vis -vs 1 -tf 1. -dt .1 -usepetsc --petscopts rc_debug -s 3 -shell -resi 1e-5 -visc 1e-5 -supg -im_supg 1 -no-fd -local -lr 2
+
+tau=0.0146444 Unorm=7.35696e-07  h=0.03125??
+
+try the same resolution on both res? (fine and coarse)
+
+coarse case:
+srun -n 72  ../imMHDp -m ../Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -no-vis -vs 1 -tf 8. -dt .1 -usepetsc --petscopts rc_debug -s 3 -shell -resi 1e-5 -visc 1e-5 -supg -im_supg 1 -no-fd -local -lr 2
+
+The preconditioner struggles after t=3.3, it is not clear if it is underresolved or just the preconditioner becomes bad
+
+when preconditioner becomes inefficient, v is still small, less than 0.1?
+
+this becomes significantly worse than 1e-4!
+
+this was the starting point:
+https://github.com/mfem/mfem/blob/pumi-NS/fem/NSnonlininteg.cpp
+
+how about only add the diffusion term? I have a smaller dt??
+srun -n 72  ../imMHDp -m ../Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -no-vis -vs 1 -tf 8. -dt .1 -usepetsc --petscopts rc_debug -s 3 -shell -resi 1e-5 -visc 1e-5 -supg -im_supg 1 -no-fd -local -lr 2
+
+the trend: the preconditioner struggles if supg diffusion is larger!
+
+7/9
+Things to try:
+1. small time step to run thourgh (with the dt term ignored)
+??
+
+2. run the same simulation with the same mesh for 1e-5
+it works for coarser meshes but finer meshes struggles? why? maybe if we can fix the issue w.r.t. stabilization terms, it would be better
+
+3. change ||v|| to local instead of max
+this was the case
+
+7/6
+supg optimization
+mpirun -n 48  ../imMHDp -m ../Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -no-vis -vs 1 -tf 1. -dt .1 -usepetsc --petscopts ../petscrc/rc_debug -s 3 -shell -resi 1e-4 -visc 1e-4 -no-supg -no-fd -local -lr 2
+vs
+mpirun -n 48  ../imMHDp -m ../Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -no-vis -vs 1 -tf 1. -dt .1 -usepetsc --petscopts ../petscrc/rc_debug -s 3 -shell -resi 1e-4 -visc 1e-4 -supg -no-fd -local -lr 2
+vs
+mpirun -n 48  ../imMHDp -m ../Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -no-vis -vs 1 -tf 1. -dt .1 -usepetsc --petscopts ../petscrc/rc_debug -s 3 -shell -resi 1e-4 -visc 1e-4 -supg -im_supg 1 -no-fd -local -lr 2
+
+first try supg on y2 only; preconditioner good earlier time and it can run through
+then try add supg on both terms but no Nb term; precondition works slightly worse (ok up to t=8)
+fails t=2.5 if Nb term turned on 
+
+6/23
+compare later time with other terms in the diagonal 
 
 6/22
 optimize this for supg preconditioner:
 mpirun -n 12 --oversubscribe ../imMHDp -m ../Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -no-vis -vs 1 -tf 1. -dt .1 -usepetsc --petscopts ../petscrc/rc_debug -s 3 -shell -resi 1e-4 -visc 1e-4 -no-supg -no-fd -local -lr 2
 vs
 mpirun -n 12 --oversubscribe ../imMHDp -m ../Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -no-vis -vs 1 -tf 1. -dt .1 -usepetsc --petscopts ../petscrc/rc_debug -s 3 -shell -resi 1e-4 -visc 1e-4 -supg -no-fd -local -lr 2
+
+this was not good with supg alone (after two time steps):
+srun -n 72 ../imMHDp -m ../Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -no-vis -vs 1 -tf 1. -dt .1 -usepetsc --petscopts ../petscrc/rc_debug -s 3 -shell -resi 1e-5 -visc 1e-5 -no-supg -no-fd -local -lr 2
+
+mpirun -n 48 ./imMHDp -m ./Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -no-vis -vs 1 -tf 1. -dt .1 -usepetsc --petscopts ../petscrc/rc_debug -s 3 -shell -resi 1e-5 -visc 1e-5 -supg -no-fd -local -lr 2
+
+preconditioner ok with only (v.grad)^2 term
+adding extra mass terms into supg is not good?
+
+what about supg on omega? any preconditioner on that would help?? a simple addition to ARe not very good, but is it better than doing nothing?? very little
+
+adding supg only to ARe? this is close to doing nothing?
 
 6/14
 question to investigate:
