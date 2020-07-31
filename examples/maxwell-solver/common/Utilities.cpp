@@ -410,7 +410,6 @@ LocalDofMap::LocalDofMap(const FiniteElementCollection * fec_, MeshPartition * p
 };
 
 
-
 NeighborDofMaps::NeighborDofMaps(MeshPartition * part_, FiniteElementSpace * fes_,
                                 DofMap * dmap_, 
                                 int ovlp_layers_) : part(part_), fes(fes_), 
@@ -423,11 +422,8 @@ NeighborDofMaps::NeighborDofMaps(MeshPartition * part_, FiniteElementSpace * fes
    mesh = fes->GetMesh();
    dim = mesh->Dimension();
    for (int d=0; d<3; d++)  nxyz[d] = part->nxyz[d];
-
    MarkOvlpElements();
-
    ComputeNeighborDofMaps();
-
 }
 
 void NeighborDofMaps::MarkOvlpElements()
@@ -463,6 +459,7 @@ void NeighborDofMaps::MarkOvlpElements()
          // loop through dimensions   
          Array<bool> pos(dim); pos = 0;
          Array<bool> neg(dim); neg = 0;
+
          for (int d=0;d<dim; d++)
          {
             if (ijk[d]>0 && center[d] < pmin[d]+2.0*h*ovlp_layers)
@@ -477,33 +474,7 @@ void NeighborDofMaps::MarkOvlpElements()
          }
          SetElementToOverlap(ip,iel,neg,pos);        
       }   
-
-      // cout << "ip = " << ip << endl;
-      // for (int i = 0; i<2*dim; i++)
-      // {
-      //    cout << "direction = " << i << endl;
-      //    cout << "elems = " ; 
-      //    for (int iel = 0; iel< OvlpElems[ip][i].Size(); iel++)
-      //    {
-      //       int loc_idx = OvlpElems[ip][i][iel];
-      //       int iel_idx = part->element_map[ip][loc_idx];
-      //       cout << iel_idx ;
-      //       if (iel<OvlpElems[ip][i].Size()-1) cout << ", " ;
-      //    }
-      //    cout << endl;
-      //    cin.get();
-      // }
    }
-   // OvlpElems[0][GetDirectionId(1,1)].Print();
-   for (int i = 0; i<OvlpElems[0][GetDirectionId(0,1)].Size(); i++ )
-   {
-      int iel = OvlpElems[0][GetDirectionId(0,1)][i] ;
-
-      int jel = part->element_map[0][iel] ;
-      cout << jel << ", " ;
-   }
-   cout << endl;
-   cin.get();
 }
 
 void NeighborDofMaps::ComputeNeighborDofMaps()
@@ -529,7 +500,6 @@ void NeighborDofMaps::ComputeNeighborDofMaps()
 
    for (int ip0 = 0; ip0<nrsubdomains; ip0++)
    {
-      int neighbor = 0;
       OvlpDofMaps[ip0].resize(nrneighbors);
 
       FiniteElementSpace * fes0 = dmap->fespaces[ip0];
@@ -555,23 +525,15 @@ void NeighborDofMaps::ComputeNeighborDofMaps()
                int i1 = i0 + i;
                if (i1 <0 || i1>=nxyz[0]) continue;
      
-               ijk[0]=i1; ijk[1]=j1; 
-               if (dim == 3 ) ijk[2]=k1;
-               int ip1 = GetPatchId(ijk);
-
-               // loop through elements
-               int nel = part->element_map[ip0].Size();
                Array<int> ip0list;  marker0 = 0;
                int directionId = GetDirectionId(i,j,kk);
-               Array<int> OvlpElems;
-               // GetOverlapElements(ip0,directionId,OvlpElems);
-               for (int iel0 = 0; iel0<nel; ++iel0)
+
+               Array<int> Elems = OvlpElems[ip0][directionId];
+               int nel = Elems.Size();
+
+               for (int iel = 0; iel<nel; ++iel)
                {
-                  int iel_idx = part->element_map[ip0][iel0];
-                  int iel1 = Gen[ip1]->Get(iel_idx);
-
-                  if (iel1 < 0) continue;
-
+                  int iel0 = Elems[iel];   
                   Array<int> ElemDofs0;
 
                   fes0->GetElementDofs(iel0,ElemDofs0);
@@ -595,13 +557,13 @@ void NeighborDofMaps::ComputeNeighborDofMaps()
                
                OvlpDofMaps[ip0][directionId].Append(ip0list);
                int tsize = fes0->GetTrueVSize();
+               // Imaginary part
                for (int l=0;l<ip0list.Size(); l++) { ip0list[l] += tsize; }
                OvlpDofMaps[ip0][directionId].Append(ip0list);
             }
          }
       }
    }
-
 }
 
 
@@ -619,51 +581,30 @@ void NeighborDofMaps::SetElementToOverlap(int ip, int iel,
                         const Array<bool> & neg, 
                         const Array<bool> & pos)
 {
-   if (dim == 2)
+   int kbeg = (dim == 2) ? 0 : -1;
+   int kend = (dim == 2) ? 0 :  1;
+   for (int k = kbeg; k<=kend; k++)
    {
-      if (neg[0])
+      if (dim == 3)
       {
-         int DirId = GetDirectionId(-1,0);
-         OvlpElems[ip][DirId].Append(iel);
-      }
-      if (neg[1])
+         if (k == -1 && !neg[2]) continue;   
+         if (k ==  1 && !pos[2]) continue;   
+      }   
+      for (int j = -1; j<=1; j++)
       {
-         int DirId = GetDirectionId(0,-1);
-         OvlpElems[ip][DirId].Append(iel);
+         if (j== -1 && !neg[1]) continue;   
+         if (j==  1 && !pos[1]) continue;   
+         for (int i = -1; i<=1; i++)
+         {
+            // cases to skip 
+            if (i==-1 && !neg[0]) continue;   
+            if (i== 1 && !pos[0]) continue;   
+
+            if (i==0 && j==0 && k == 0) continue;
+            int kk  = (dim==2)?-1 : k;  
+            int DirId = GetDirectionId(i,j,kk);
+            OvlpElems[ip][DirId].Append(iel);
+         }
       }
-      if (pos[0])
-      {
-         int DirId = GetDirectionId(1,0);
-         OvlpElems[ip][DirId].Append(iel);
-      }
-      if (pos[1])
-      {
-         int DirId = GetDirectionId(0,1);
-         OvlpElems[ip][DirId].Append(iel);
-      }
-      if (neg[0] && neg[1])
-      {
-         int DirId = GetDirectionId(-1,-1);
-         OvlpElems[ip][DirId].Append(iel);
-      }
-      if (neg[0] && pos[1])
-      {
-         int DirId = GetDirectionId(-1,1);
-         OvlpElems[ip][DirId].Append(iel);
-      }
-      if (pos[0] && neg[1])
-      {
-         int DirId = GetDirectionId(1,-1);
-         OvlpElems[ip][DirId].Append(iel);
-      }
-      if (pos[0] && pos[1])
-      {
-         int DirId = GetDirectionId(1,1);
-         OvlpElems[ip][DirId].Append(iel);
-      }
-   }
-   else if (dim == 3)
-   {
-      MFEM_ABORT("TODO");
    }
 }

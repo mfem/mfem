@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
    if (nd == 2)
    {
       // mesh = new Mesh(mesh_file,1,1);
-      mesh = new Mesh(4, 4, Element::QUADRILATERAL, true, length, length, false);
+      mesh = new Mesh(1, 1, Element::QUADRILATERAL, true, length, length, false);
    }
    else
    {
@@ -120,7 +120,7 @@ int main(int argc, char *argv[])
    // double domain_length = pmax[0] - pmin[0];
    // double pml_thickness = 0.125/domain_length;
    // int nrlayers = pml_thickness/hl;
-   int nrlayers = 1;
+   int nrlayers = 2;
    Array<int> directions;
    
    for (int i = 0; i<nrlayers; i++)
@@ -138,14 +138,14 @@ int main(int argc, char *argv[])
    Mesh *mesh_ext = ExtendMesh(mesh,directions);
 
 
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream mesh_sock(vishost, visport);
-      mesh_sock.precision(8);
-      mesh_sock << "mesh\n" << *mesh_ext << flush;
-   }
+   // if (visualization)
+   // {
+   //    char vishost[] = "localhost";
+   //    int  visport   = 19916;
+   //    socketstream mesh_sock(vishost, visport);
+   //    mesh_sock.precision(8);
+   //    mesh_sock << "mesh\n" << *mesh_ext << flush;
+   // }
 
    // char vishost[] = "localhost";
    // int  visport   = 19916;

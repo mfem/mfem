@@ -24,15 +24,31 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
    // MeshPartition * part1 = new MeshPartition(mesh, partition_kind,nx,ny,nz);
    // SaveMeshPartition(part1->patch_mesh, "output/mesh3x3.", "output/sol3x3.");
    // SaveMeshPartition(part->patch_mesh, "output/mesh3x3.", "output/sol3x3.");
-
-
    swp = new Sweep(dim);
 
+   StopWatch chrono;
+   chrono.Clear();
+   chrono.Start();
    dmap  = new DofMap(bf->FESpace(),part);
-   NeighborMap = new NeighborDofMaps(part,bf->FESpace(),dmap,ovlpnrlayers); 
+   chrono.Stop();
+   cout << "Computing subdomain to global maps: " 
+        << chrono.RealTime() <<" s" << endl; 
 
+
+   chrono.Clear();
+   chrono.Start();
+   NeighborMap = new NeighborDofMaps(part,bf->FESpace(),dmap,ovlpnrlayers); 
+   chrono.Stop();
+   cout << "Computing subdomain to neighbor maps: " 
+        << chrono.RealTime() <<" s" << endl; 
+
+   chrono.Clear();
+   chrono.Start();
    MarkOverlapElements();
    MarkOverlapDofs();
+   chrono.Stop();
+   cout << "Computing subdomain overlap dofs: " 
+        << chrono.RealTime() <<" s" << endl; 
 
    // Set up the local patch problems
    sqf.SetSize(nrpatch);
@@ -41,8 +57,10 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
    PmlMatInv.SetSize(nrpatch);
    f_orig.SetSize(nrpatch);
    f_transf.SetSize(nrpatch);
-   cout << "nrpatch = " << nrpatch << endl;
+   cout << "nrsubdomain = " << nrpatch << endl;
 
+   chrono.Clear();
+   chrono.Start();
    for (int ip=0; ip<nrpatch; ip++)
    {
       // cout << "Setting up patch ip = " << ip << endl;
@@ -70,6 +88,9 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
          f_transf[ip][i] = new Vector(ndofs);
       }
    }
+   chrono.Stop();
+   cout << "Computing and factoring subdomain matrices: " 
+        << chrono.RealTime() <<" s" << endl; 
 
    zaux.SetSize(2*bf->FESpace()->GetTrueVSize());
 }
@@ -323,13 +344,13 @@ int DST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, Vect
    if (dim == 3 ) ijk[2]=k1;
    int ip1 = GetPatchId(ijk);
 
-   Array<int> * Dof2GlobalDof0 = &dmap->Dof2GlobalDof[ip0];
+   // Array<int> * Dof2GlobalDof0 = &dmap->Dof2GlobalDof[ip0];
    Array<int> * Dof2GlobalDof1 = &dmap->Dof2GlobalDof[ip1];
-   zaux.SetSubVector(*Dof2GlobalDof1,0.0);
-   zaux.SetSubVector(*Dof2GlobalDof0,Psi0);
+   // zaux.SetSubVector(*Dof2GlobalDof1,0.0);
+   // zaux.SetSubVector(*Dof2GlobalDof0,Psi0);
    Psi1.SetSize(Dof2GlobalDof1->Size());
-   Vector zloc(Psi1.Size()); 
-   zaux.GetSubVector(*Dof2GlobalDof1,zloc);
+   Vector zloc(Psi1.Size()); zloc = 0.0;
+   // zaux.GetSubVector(*Dof2GlobalDof1,zloc);
 
 
    Array<int> test_list0;
@@ -348,10 +369,8 @@ int DST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, Vect
       int j = test_list0[i];
       // destination
       int k = test_list1[i];
-      test1[k] = Psi0[j];
+      zloc[k] = Psi0[j];
    }
-   test1-=zloc;
-   cout << "test norm = " << test1.Norml2() << endl;
 
    PmlMat[ip1]->Mult(zloc,Psi1);
 
@@ -558,7 +577,7 @@ void DST::PlotSolution(Vector & sol, socketstream & sol_sock, int ip,
 
    void DST::MarkOverlapElements()
    {
-      cout<< "Compute Overlap Elements (in each possible direction) " << endl;
+      // cout<< "Compute Overlap Elements (in each possible direction) " << endl;
       
       // Lists of elements
       // x,y,z = +/- 1 ovlp 
@@ -623,7 +642,7 @@ void DST::PlotSolution(Vector & sol, socketstream & sol_sock, int ip,
 
 void DST::MarkOverlapDofs()
 {
-   cout<< "Compute Overlap dofs (in each possible direction) " << endl;
+   // cout<< "Compute Overlap dofs (in each possible direction) " << endl;
    NovlpDofs.resize(nrpatch);
    for (int ip = 0; ip<nrpatch; ip++)
    {
@@ -668,31 +687,3 @@ void DST::MarkOverlapDofs()
       }
    }
 }
-
-
-void DST::ComputeOverlapDofMaps()
-{
-   // TODO
-   // local to local subdomain maps
-   // i.e maps dofs of each subdomain to all its neighbors
-   
-   // cout<< "Compute Overlap dofs Maps" << endl;
-   // OvlpDofMap.resize(nrpatch);
-   // for (int ip = 0; ip<nrpatch; ip++)
-   // {
-   //    int nrneighbors = pow(3,dim)-1;
-   //    OvlpDofMap[ip].resize(nrneighbors);
-   //    int i0,j0,k0;
-   //    Getijk(ip, i0,j0,k0);
-   //    // loop over neighbors
-   //    for (int i = -1; i<=1; i++)
-   //    {
-   //       for (int j = -1; j<=1; j++)
-   //       {
-   //          if (i==0 && j==0) continue;
-
-   //       }
-   //    }
-   // }
-}
-
