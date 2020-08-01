@@ -2190,13 +2190,6 @@ private:
            v_n_(sqrt(8.0 * T_n_ * eV_ / (M_PI * m_n_ * amu_))),
            m_i_(plasma.m_i),
            z_i_(plasma.z_i),
-           /*
-                nn0Coef_(*yCoefPtrs_[NEUTRAL_DENSITY]),
-                ni0Coef_(*yCoefPtrs_[ION_DENSITY]),
-                vi0Coef_(*yCoefPtrs_[ION_PARA_VELOCITY]),
-                Ti0Coef_(*yCoefPtrs_[ION_TEMPERATURE]),
-                Te0Coef_(*yCoefPtrs_[ELECTRON_TEMPERATURE]),
-           */
            nnCoef_(*ykCoefPtrs_[NEUTRAL_DENSITY]),
            niCoef_(*ykCoefPtrs_[ION_DENSITY]),
            viCoef_(*ykCoefPtrs_[ION_PARA_VELOCITY]),
@@ -2204,8 +2197,6 @@ private:
            TeCoef_(*ykCoefPtrs_[ELECTRON_TEMPERATURE]),
            neCoef_(z_i_, niCoef_),
            dTe0Coef_(*kCoefPtrs_[ELECTRON_TEMPERATURE]),
-           // Te1Coef_(Te0Coef_, dTe0Coef_, 1.0, 0.0),
-           // ne0Coef_(z_i_, ni0Coef_),
            bcs_(bcs)
       {}
 

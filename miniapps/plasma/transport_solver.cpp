@@ -1045,7 +1045,7 @@ DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
    newton_solver_.SetOperator(op_);
    newton_solver_.SetPrintLevel(1); // print Newton iterations
    newton_solver_.SetRelTol(rel_tol);
-   newton_solver_.SetAbsTol(1e-4);
+   newton_solver_.SetAbsTol(1e-6);
    newton_solver_.SetMaxIter(10);
 
    BxyGF_ = new ParGridFunction(&vfes_);
@@ -1799,8 +1799,6 @@ void DGTransportTDO::TransportOp::SetTimeStep(double dt)
    {
       dtMCoefs_[i]->SetAConst(dt);
    }
-
-   // Te1Coef_.SetBeta(dt);
 }
 
 void DGTransportTDO::TransportOp::SetTimeDerivativeTerm(
@@ -2411,6 +2409,12 @@ void DGTransportTDO::CombinedOp::Mult(const Vector &k, Vector &r) const
       Vector r_i(&r[offsets_[i]], size);
 
       op_[i]->Mult(k, r_i);
+
+      double norm_r = sqrt(InnerProduct(MPI_COMM_WORLD, r_i, r_i));
+      if (mpi_.Root())
+	{
+	  cout << "norm(r_" << i << ") " << norm_r << endl;
+	}
    }
 
    for (int i=0; i<offsets_.Size() - 1; i++)
