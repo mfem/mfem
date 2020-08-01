@@ -844,6 +844,7 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    // problem_ = 1;
    const char *mesh_file = "ellipse_origin_h0pt0625_o3.mesh";
+   const char *bc_file = "";
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
    int nc_limit = 3;         // maximum level of hanging nodes
@@ -908,6 +909,8 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&bc_file, "-bc", "--bc-file",
+                  "Boundary condition input file.");
    args.AddOption(&logging, "-l", "--logging",
                   "Set the logging level.");
    args.AddOption(&op_flag, "-op", "--operator-test",
@@ -1566,7 +1569,22 @@ int main(int argc, char *argv[])
    ion_energy.ProjectCoefficient(Ti0Coef);
    elec_energy.ProjectCoefficient(Te0Coef);
 
+   if (mpi.Root())
+   {
+      cout << "Configuring boundary conditions" << endl;
+   }
+   CoefFactory coefFact;
    TransportBCs bcs(pmesh.bdr_attributes, 5);
+   if (strncmp(bc_file,"",1) != 0)
+   {
+      if (mpi.Root())
+      {
+         cout << "Reading boundary conditions from " << bc_file << endl;
+      }
+      ifstream bcfs(bc_file);
+      bcs.LoadBCs(coefFact, bcfs);
+   }
+   /*
    Array<Coefficient*> coefs;
    if (prob_ == 1)
    {
@@ -1591,6 +1609,7 @@ int main(int argc, char *argv[])
       coefs.Append(Te_max);
       coefs.Append(Te_min);
    }
+   */
    /*
    vector<CoefficientByAttr>  Ti_dbc;
    if (prob_ == 1)
@@ -2177,11 +2196,6 @@ int main(int argc, char *argv[])
    if (mpi.Root()) { ofs_controller.close(); }
    // Free the used memory.
    delete ode_solver;
-   // delete ode_imp_solver;
-   for (int i=0; i<coefs.Size(); i++)
-   {
-      delete coefs[i];
-   }
    delete dc;
 
    return 0;

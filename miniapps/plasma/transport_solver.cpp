@@ -10,6 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "transport_solver.hpp"
+#include "../../general/text.hpp"
 
 #ifdef MFEM_USE_MPI
 
@@ -64,6 +65,212 @@ std::string FieldSymbol(FieldType t)
    }
 }
 
+CoefFactory::~CoefFactory()
+{
+   for (int i=0; i<coefs.Size(); i++)
+   {
+      delete coefs[i];
+   }
+}
+
+Coefficient * CoefFactory::operator()(std::istream &input)
+{
+   string buff;
+
+   skip_comment_lines(input, '#');
+   input >> buff;
+   return (*this)(buff, input);
+}
+
+Coefficient * CoefFactory::operator()(std::string &name, std::istream &input)
+{
+   if (name == "ConstantCoefficient")
+   {
+      double val;
+      input >> val;
+      int c = coefs.Append(new ConstantCoefficient(val));
+      return coefs[--c];
+   }
+   else if (name == "PWConstCoefficient")
+   {
+      int nvals;
+      input >> nvals;
+      Vector vals(nvals);
+      for (int i=0; i<nvals; i++)
+      {
+         input >> vals[i];
+      }
+      int c = coefs.Append(new PWConstCoefficient(vals));
+      return coefs[--c];
+   }
+   else if (name == "FunctionCoefficient")
+   {
+      int index;
+      input >> index;
+      MFEM_VERIFY(index >=0 && index < ext_fn.Size(),
+                  "Invalid Function index read by CoefFactory");
+      int c = coefs.Append(new FunctionCoefficient(ext_fn[index]));
+      return coefs[--c];
+   }
+   else if (name == "GridFunctionCoefficient")
+   {
+      int index;
+      input >> index;
+      MFEM_VERIFY(index >=0 && index < ext_gf.Size(),
+                  "Invalid GridFunction index read by CoefFactory");
+      int c = coefs.Append(new GridFunctionCoefficient(ext_gf[index]));
+      return coefs[--c];
+   }
+   else if (name == "RestrictedCoefficient")
+   {
+      Coefficient * rc = (*this)(input);
+      int nattr;
+      input >> nattr;
+      Array<int> attr(nattr);
+      for (int i=0; i<nattr; i++)
+      {
+         input >> attr[i];
+      }
+      int c = coefs.Append(new RestrictedCoefficient(*rc, attr));
+      return coefs[--c];
+   }
+   else
+   {
+      // Unrecognized coefficient type.  Try external factories.
+      for (int i=0; i<ext_fac.Size(); i++)
+      {
+         Coefficient * c = (*ext_fac[i])(name, input);
+         if (c != NULL) { return c; }
+      }
+      return NULL;
+   }
+}
+
+AdvectionDiffusionBC::~AdvectionDiffusionBC()
+{
+   for (int i=0; i<dbc.Size(); i++)
+   {
+      if (dbc[i]->ownCoef)
+      {
+         delete dbc[i]->coef;
+      }
+      delete dbc[i];
+   }
+   for (int i=0; i<nbc.Size(); i++)
+   {
+      if (nbc[i]->ownCoef)
+      {
+         delete nbc[i]->coef;
+      }
+      delete nbc[i];
+   }
+   for (int i=0; i<rbc.Size(); i++)
+   {
+      for (int j=0; j<rbc[i]->coefs.Size(); j++)
+      {
+         if (rbc[i]->ownCoefs[j])
+         {
+            delete rbc[i]->coefs[j];
+         }
+      }
+      delete rbc[i];
+   }
+}
+
+const char * AdvectionDiffusionBC::GetBCTypeName(BCType bctype)
+{
+   switch (bctype)
+   {
+      case DIRICHLET_BC: return "Dirichlet";
+      case NEUMANN_BC: return "Neumann";
+      case ROBIN_BC: return "Robin";
+   }
+   return "Unknown";
+}
+
+void AdvectionDiffusionBC::ReadAttr(std::istream &input,
+                                    BCType bctype,
+                                    Array<int> &attr)
+{
+   int nbdr = 0;
+   skip_comment_lines(input, '#');
+   input >> nbdr;
+   for (int i=0; i<nbdr; i++)
+   {
+      int b = 0;
+      input >> b;
+      if (bc_attr.count(b) == 0)
+      {
+         bc_attr.insert(b);
+         if (bctype == DIRICHLET_BC)
+         {
+            dbc_attr.Append(b);
+         }
+      }
+      else
+      {
+         MFEM_ABORT("Attempting to add a " << GetBCTypeName(bctype)
+                    << " BC on boundary " << b
+                    << " which already has a boundary condition defined.");
+      }
+      attr.Append(b);
+   }
+}
+
+void AdvectionDiffusionBC::ReadCoefByAttr(std::istream &input,
+                                          BCType bctype,
+                                          CoefficientByAttr &cba)
+{
+   ReadAttr(input, bctype, cba.attr);
+   cba.coef = (*coefFact)(input);
+   cba.ownCoef = false;
+}
+
+void AdvectionDiffusionBC::ReadCoefsByAttr(std::istream &input,
+                                           BCType bctype,
+                                           CoefficientsByAttr &cba)
+{
+   ReadAttr(input, bctype, cba.attr);
+   cba.coefs.SetSize(2);
+   cba.coefs[0] = (*coefFact)(input);
+   cba.coefs[1] = (*coefFact)(input);
+   cba.ownCoefs.SetSize(2);
+   cba.ownCoefs[0] = false;
+   cba.ownCoefs[1] = false;
+}
+
+void AdvectionDiffusionBC::ReadBCs(std::istream &input)
+{
+   string buff;
+
+   skip_comment_lines(input, '#');
+   input >> buff;
+   MFEM_VERIFY(buff == "scalar_bcs", "invalid BC file");
+
+   while (input >> buff)
+   {
+      skip_comment_lines(input, '#');
+      if (buff == "dirichlet")
+      {
+         CoefficientByAttr * c = new CoefficientByAttr;
+         ReadCoefByAttr(input, DIRICHLET_BC, *c);
+         dbc.Append(c);
+      }
+      else if (buff == "neumann")
+      {
+         CoefficientByAttr * c = new CoefficientByAttr;
+         ReadCoefByAttr(input, NEUMANN_BC, *c);
+         nbc.Append(c);
+      }
+      else if (buff == "robin")
+      {
+         CoefficientsByAttr * c = new CoefficientsByAttr;
+         ReadCoefsByAttr(input, ROBIN_BC, *c);
+         rbc.Append(c);
+      }
+   }
+}
+
 void AdvectionDiffusionBC::AddDirichletBC(const Array<int> & bdr,
                                           Coefficient &val)
 {
@@ -82,7 +289,8 @@ void AdvectionDiffusionBC::AddDirichletBC(const Array<int> & bdr,
    CoefficientByAttr * c = new CoefficientByAttr;
    c->attr = bdr;
    c->coef = &val;
-   dbc.push_back(*c);
+   c->ownCoef = false;
+   dbc.Append(c);
 }
 
 void AdvectionDiffusionBC::AddNeumannBC(const Array<int> & bdr,
@@ -103,7 +311,8 @@ void AdvectionDiffusionBC::AddNeumannBC(const Array<int> & bdr,
    CoefficientByAttr * c = new CoefficientByAttr;
    c->attr = bdr;
    c->coef = &val;
-   nbc.push_back(*c);
+   c->ownCoef = false;
+   nbc.Append(c);
 }
 
 void AdvectionDiffusionBC::AddRobinBC(const Array<int> & bdr, Coefficient &a,
@@ -126,24 +335,94 @@ void AdvectionDiffusionBC::AddRobinBC(const Array<int> & bdr, Coefficient &a,
    c->coefs.SetSize(2);
    c->coefs[0] = &a;
    c->coefs[1] = &b;
-   rbc.push_back(*c);
+   c->ownCoefs.SetSize(2);
+   c->ownCoefs = false;
+   rbc.Append(c);
 }
 
-const Array<int> & AdvectionDiffusionBC::GetHomogeneousNeumannBCs() const
+const Array<int> & AdvectionDiffusionBC::GetHomogeneousNeumannBDR() const
 {
-   if (hbc.Size() != bdr_attr.Size() - bc_attr.size())
+   if (hbc_attr.Size() != bdr_attr.Size() - bc_attr.size())
    {
-      hbc.SetSize(bdr_attr.Size() - bc_attr.size());
+      hbc_attr.SetSize(bdr_attr.Size() - bc_attr.size());
       int o = 0;
       for (int i=0; i<bdr_attr.Size(); i++)
       {
          if (bc_attr.count(bdr_attr[i]) == 0)
          {
-            hbc[o++] = bdr_attr[i];
+            hbc_attr[o++] = bdr_attr[i];
          }
       }
    }
-   return hbc;
+   return hbc_attr;
+}
+
+TransportBCs::TransportBCs(const Array<int> & bdr_attr, int neqn,
+			   CoefFactory &cf, std::istream &input)
+  : neqn_(neqn),
+    bcs_(NULL),
+    bdr_attr_(bdr_attr)
+{
+   bcs_ = new AdvectionDiffusionBC*[neqn];
+
+   this->ReadBCs(cf, input);
+}
+
+void TransportBCs::ReadBCs(CoefFactory &cf, std::istream &input)
+{
+   string buff;
+
+   skip_comment_lines(input, '#');
+   input >> buff;
+   MFEM_VERIFY(buff == "transport_bcs", "invalid BC file");
+
+   Array<ios::streampos> pos(neqn_+1);
+   while (input >> buff)
+   {
+      skip_comment_lines(input, '#');
+      if (buff == "neutral_density")
+      {
+	pos[0] = input.tellg();
+      }
+      else if (buff == "ion_density")
+      {
+	pos[1] = input.tellg();
+      }
+      else if (buff == "ion_parallel_velocity")
+      {
+	pos[2] = input.tellg();
+      }
+      else if (buff == "ion_temperature")
+      {
+	pos[3] = input.tellg();
+      }
+      else if (buff == "electron_temperature")
+      {
+	pos[4] = input.tellg();
+      }
+   }
+   pos[neqn_] = input.end;
+   
+   for (int i=0; i<neqn_; i++)
+      {
+	input.seekg(pos[i]);
+	int length = pos[i+1] - pos[i];
+	if (length > 0)
+	{
+	  char * buffer = new char[length];
+	  input.read(buffer, length);
+
+	  string buff_str(buffer);
+	  istringstream iss(buff_str);
+	  bcs_[i] = new AdvectionDiffusionBC(bdr_attr_, cf, iss);
+
+	  delete [] buffer;
+	}
+	else
+	  {
+	    bcs_[i] = new AdvectionDiffusionBC(bdr_attr_);
+	  }
+      }
 }
 
 /*
@@ -1855,20 +2134,20 @@ void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableCoef &DCoef)
                                 dg_.sigma,
                                 dg_.kappa));
 
-   const vector<CoefficientByAttr> & dbc = bcs_.GetDirichletBCs();
-   for (unsigned int i=0; i<dbc.size(); i++)
+   const Array<CoefficientByAttr*> & dbc = bcs_.GetDirichletBCs();
+   for (int i=0; i<dbc.Size(); i++)
    {
       bfbfi_marker_.Append(new Array<int>);
-      AttrToMarker(pmesh_.bdr_attributes.Max(), dbc[i].attr,
+      AttrToMarker(pmesh_.bdr_attributes.Max(), dbc[i]->attr,
                    *bfbfi_marker_.Last());
       bfbfi_.Append(new DGDiffusionIntegrator(DCoef,
                                               dg_.sigma,
                                               dg_.kappa));
 
       bflfi_marker_.Append(new Array<int>);
-      AttrToMarker(pmesh_.bdr_attributes.Max(), dbc[i].attr,
+      AttrToMarker(pmesh_.bdr_attributes.Max(), dbc[i]->attr,
                    *bflfi_marker_.Last());
-      bflfi_.Append(new DGDirichletLFIntegrator(*dbc[i].coef, DCoef,
+      bflfi_.Append(new DGDirichletLFIntegrator(*dbc[i]->coef, DCoef,
                                                 dg_.sigma,
                                                 dg_.kappa));
 
@@ -1878,30 +2157,30 @@ void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableCoef &DCoef)
                                          *bfbfi_marker_.Last());
    }
 
-   const vector<CoefficientByAttr> & nbc = bcs_.GetNeumannBCs();
-   for (unsigned int i=0; i<nbc.size(); i++)
+   const Array<CoefficientByAttr*> & nbc = bcs_.GetNeumannBCs();
+   for (int i=0; i<nbc.Size(); i++)
    {
       bflfi_marker_.Append(new Array<int>);
-      AttrToMarker(pmesh_.bdr_attributes.Max(), nbc[i].attr,
+      AttrToMarker(pmesh_.bdr_attributes.Max(), nbc[i]->attr,
                    *bflfi_marker_.Last());
-      bflfi_.Append(new BoundaryLFIntegrator(*nbc[i].coef));
+      bflfi_.Append(new BoundaryLFIntegrator(*nbc[i]->coef));
    }
 
-   const vector<CoefficientsByAttr> & rbc = bcs_.GetRobinBCs();
-   for (unsigned int i=0; i<rbc.size(); i++)
+   const Array<CoefficientsByAttr*> & rbc = bcs_.GetRobinBCs();
+   for (int i=0; i<rbc.Size(); i++)
    {
       bfbfi_marker_.Append(new Array<int>);
-      AttrToMarker(pmesh_.bdr_attributes.Max(), rbc[i].attr,
+      AttrToMarker(pmesh_.bdr_attributes.Max(), rbc[i]->attr,
                    *bfbfi_marker_.Last());
-      bfbfi_.Append(new BoundaryMassIntegrator(*rbc[i].coefs[0]));
+      bfbfi_.Append(new BoundaryMassIntegrator(*rbc[i]->coefs[0]));
 
       bflfi_marker_.Append(new Array<int>);
-      AttrToMarker(pmesh_.bdr_attributes.Max(), rbc[i].attr,
+      AttrToMarker(pmesh_.bdr_attributes.Max(), rbc[i]->attr,
                    *bflfi_marker_.Last());
-      bflfi_.Append(new BoundaryLFIntegrator(*rbc[i].coefs[1]));
+      bflfi_.Append(new BoundaryLFIntegrator(*rbc[i]->coefs[1]));
 
       ProductCoefficient * dtaCoef = new ProductCoefficient(dt_,
-                                                            *rbc[i].coefs[0]);
+                                                            *rbc[i]->coefs[0]);
       dtSCoefs_.Append(dtaCoef);
 
       blf_[index_]->AddBdrFaceIntegrator(new BoundaryMassIntegrator(*dtaCoef),
@@ -1936,20 +2215,20 @@ void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableMatCoef &DCoef)
                                 dg_.sigma,
                                 dg_.kappa));
 
-   const vector<CoefficientByAttr> & dbc = bcs_.GetDirichletBCs();
-   for (unsigned int i=0; i<dbc.size(); i++)
+   const Array<CoefficientByAttr*> & dbc = bcs_.GetDirichletBCs();
+   for (int i=0; i<dbc.Size(); i++)
    {
       bfbfi_marker_.Append(new Array<int>);
-      AttrToMarker(pmesh_.bdr_attributes.Max(), dbc[i].attr,
+      AttrToMarker(pmesh_.bdr_attributes.Max(), dbc[i]->attr,
                    *bfbfi_marker_.Last());
       bfbfi_.Append(new DGDiffusionIntegrator(DCoef,
                                               dg_.sigma,
                                               dg_.kappa));
 
       bflfi_marker_.Append(new Array<int>);
-      AttrToMarker(pmesh_.bdr_attributes.Max(), dbc[i].attr,
+      AttrToMarker(pmesh_.bdr_attributes.Max(), dbc[i]->attr,
                    *bflfi_marker_.Last());
-      bflfi_.Append(new DGDirichletLFIntegrator(*dbc[i].coef, DCoef,
+      bflfi_.Append(new DGDirichletLFIntegrator(*dbc[i]->coef, DCoef,
                                                 dg_.sigma,
                                                 dg_.kappa));
 
@@ -1959,30 +2238,30 @@ void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableMatCoef &DCoef)
                                          *bfbfi_marker_.Last());
    }
 
-   const vector<CoefficientByAttr> & nbc = bcs_.GetNeumannBCs();
-   for (unsigned int i=0; i<nbc.size(); i++)
+   const Array<CoefficientByAttr*> & nbc = bcs_.GetNeumannBCs();
+   for (int i=0; i<nbc.Size(); i++)
    {
       bflfi_marker_.Append(new Array<int>);
-      AttrToMarker(pmesh_.bdr_attributes.Max(), nbc[i].attr,
+      AttrToMarker(pmesh_.bdr_attributes.Max(), nbc[i]->attr,
                    *bflfi_marker_.Last());
-      bflfi_.Append(new BoundaryLFIntegrator(*nbc[i].coef));
+      bflfi_.Append(new BoundaryLFIntegrator(*nbc[i]->coef));
    }
 
-   const vector<CoefficientsByAttr> & rbc = bcs_.GetRobinBCs();
-   for (unsigned int i=0; i<rbc.size(); i++)
+   const Array<CoefficientsByAttr*> & rbc = bcs_.GetRobinBCs();
+   for (int i=0; i<rbc.Size(); i++)
    {
       bfbfi_marker_.Append(new Array<int>);
-      AttrToMarker(pmesh_.bdr_attributes.Max(), rbc[i].attr,
+      AttrToMarker(pmesh_.bdr_attributes.Max(), rbc[i]->attr,
                    *bfbfi_marker_.Last());
-      bfbfi_.Append(new BoundaryMassIntegrator(*rbc[i].coefs[0]));
+      bfbfi_.Append(new BoundaryMassIntegrator(*rbc[i]->coefs[0]));
 
       bflfi_marker_.Append(new Array<int>);
-      AttrToMarker(pmesh_.bdr_attributes.Max(), rbc[i].attr,
+      AttrToMarker(pmesh_.bdr_attributes.Max(), rbc[i]->attr,
                    *bflfi_marker_.Last());
-      bflfi_.Append(new BoundaryLFIntegrator(*rbc[i].coefs[1]));
+      bflfi_.Append(new BoundaryLFIntegrator(*rbc[i]->coefs[1]));
 
       ProductCoefficient * dtaCoef = new ProductCoefficient(dt_,
-                                                            *rbc[i].coefs[0]);
+                                                            *rbc[i]->coefs[0]);
       dtSCoefs_.Append(dtaCoef);
 
       blf_[index_]->AddBdrFaceIntegrator(new BoundaryMassIntegrator(*dtaCoef),
