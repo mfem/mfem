@@ -377,10 +377,12 @@ void TransportBCs::ReadBCs(CoefFactory &cf, std::istream &input)
    MFEM_VERIFY(buff == "transport_bcs", "invalid BC file");
 
    Array<ios::streampos> pos(neqn_+1);
+   pos = -1;
    while (input >> buff)
    {
+      pos[neqn_] = std::max(pos[neqn_], input.tellg());
       skip_comment_lines(input, '#');
-      if (buff == "neutral_density")
+     if (buff == "neutral_density")
       {
 	pos[0] = input.tellg();
       }
@@ -395,24 +397,29 @@ void TransportBCs::ReadBCs(CoefFactory &cf, std::istream &input)
       else if (buff == "ion_temperature")
       {
 	pos[3] = input.tellg();
-      }
+     }
       else if (buff == "electron_temperature")
       {
 	pos[4] = input.tellg();
       }
    }
-   pos[neqn_] = input.end;
-   
+   for (int i=neqn_-1; i >= 0; i--)
+   {
+     if (pos[i] < 0) pos[i] = pos[i+1];
+   }
+
+   input.clear();
    for (int i=0; i<neqn_; i++)
       {
-	input.seekg(pos[i]);
+	input.seekg(pos[i], std::ios::beg);
 	int length = pos[i+1] - pos[i];
 	if (length > 0)
 	{
 	  char * buffer = new char[length];
 	  input.read(buffer, length);
 
-	  string buff_str(buffer);
+	  string buff_str(buffer, length);
+
 	  istringstream iss(buff_str);
 	  bcs_[i] = new AdvectionDiffusionBC(bdr_attr_, cf, iss);
 
