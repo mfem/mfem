@@ -373,6 +373,14 @@ cout << "FmsMeshToMesh: n_main_parts=" << n_main_parts << endl;
 
 #define RENUMBER_ENTITIES
 #ifdef RENUMBER_ENTITIES
+// I noticed that to get domains working right, since they appear to be 
+// defined in a local vertex numbering scheme, we have to offset the 
+// vertex ids that MFEM makes for shapes to move them to the coordinates
+// in the current domain.
+
+// However, parts would just be a set of element ids in the current domain
+// and it does not seem appropriate to offset the points in that case.
+// Should domains be treated specially?
   int *verts_per_part = new int[n_main_parts];
 #endif
 
@@ -553,16 +561,32 @@ cout << "Getting component part " << part_id << "'s entities et=" << et << ". nu
         }
         break;
       case FMS_QUADRILATERAL:
+#ifdef RENUMBER_ENTITIES
+        for (FmsInt i = 0; i < num_elems*4; i++)
+            ents_verts[i] += verts_start[part_id];
+#endif
         for (FmsInt i = 0; i < num_elems; i++) {
           mesh->AddQuad(&ents_verts[4*i], elem_tag ? attr[elem_offset+i] : 1);
         }
         break;
       case FMS_TETRAHEDRON:
+#ifdef RENUMBER_ENTITIES
+        for (FmsInt i = 0; i < num_elems*4; i++)
+            ents_verts[i] += verts_start[part_id];
+#endif
         for (FmsInt i = 0; i < num_elems; i++) {
           mesh->AddTet(&ents_verts[4*i], elem_tag ? attr[elem_offset+i] : 1);
         }
         break;
+
+      // TODO: What about wedges and pyramids?
+
+
       case FMS_HEXAHEDRON:
+#ifdef RENUMBER_ENTITIES
+        for (FmsInt i = 0; i < num_elems*8; i++)
+            ents_verts[i] += verts_start[part_id];
+#endif
         for (FmsInt i = 0; i < num_elems; i++) {
           mesh->AddHex(&ents_verts[8*i], elem_tag ? attr[elem_offset+i] : 1);
         }
