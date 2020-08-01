@@ -154,7 +154,13 @@ foreach my $sha (@commits) {
         my $sz1 = int(`git diff -U0 --binary $src1 $dst | gzip -c | wc -c`);
         my $sz2 = int(`git diff -U0 --binary $src2 $dst | gzip -c | wc -c`);
         $blob_size += $sz1 < $sz2 ? $sz1 : $sz2; }
-      else { die "Unknown git status letter: $mode." }
+      elsif ($mode eq "AM") {
+        my $sz2 = int(`git diff -U0 --binary $src2 $dst | gzip -c | wc -c`);
+        $blob_size += $sz2; }
+      elsif ($mode eq "MA") {
+        my $sz1 = int(`git diff -U0 --binary $src1 $dst | gzip -c | wc -c`);
+        $blob_size += $sz1; }
+      else { die "Unknown git status letter: $mode, commit: $sha, file: $fname.\n\t" }
     }
 
     if ($blob_size > $max_blob_kb*1024) {
@@ -178,6 +184,7 @@ if ($total_size > $max_branch_kb*1024) {
 }
 
 if ($status) {
+  printf STDERR "\033[36mBranch $branch has errors.\033[0m\n";
   chdir $cur_dir;
   my $testname = basename $0;
   open(my $f, '>', "$testname.msg");
