@@ -322,14 +322,14 @@ private:
    int neqn_;
    AdvectionDiffusionBC ** bcs_;
    const Array<int> bdr_attr_;
-  
+
    void ReadBCs(CoefFactory &cf, std::istream &input);
-  
+
 public:
    TransportBCs(const Array<int> & bdr_attr, int neqn)
       : neqn_(neqn),
         bcs_(NULL),
-	bdr_attr_(bdr_attr)
+        bdr_attr_(bdr_attr)
    {
       bcs_ = new AdvectionDiffusionBC*[neqn];
       for (int i=0; i<neqn_; i++)
@@ -339,8 +339,8 @@ public:
    }
 
    TransportBCs(const Array<int> & bdr_attr, int neqn,
-		CoefFactory &cf, std::istream &input);
-     
+                CoefFactory &cf, std::istream &input);
+
    ~TransportBCs()
    {
       for (int i=0; i<neqn_; i++)

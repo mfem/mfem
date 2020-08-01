@@ -358,10 +358,10 @@ const Array<int> & AdvectionDiffusionBC::GetHomogeneousNeumannBDR() const
 }
 
 TransportBCs::TransportBCs(const Array<int> & bdr_attr, int neqn,
-			   CoefFactory &cf, std::istream &input)
-  : neqn_(neqn),
-    bcs_(NULL),
-    bdr_attr_(bdr_attr)
+                           CoefFactory &cf, std::istream &input)
+   : neqn_(neqn),
+     bcs_(NULL),
+     bdr_attr_(bdr_attr)
 {
    bcs_ = new AdvectionDiffusionBC*[neqn];
 
@@ -382,54 +382,54 @@ void TransportBCs::ReadBCs(CoefFactory &cf, std::istream &input)
    {
       pos[neqn_] = std::max(pos[neqn_], input.tellg());
       skip_comment_lines(input, '#');
-     if (buff == "neutral_density")
+      if (buff == "neutral_density")
       {
-	pos[0] = input.tellg();
+         pos[0] = input.tellg();
       }
       else if (buff == "ion_density")
       {
-	pos[1] = input.tellg();
+         pos[1] = input.tellg();
       }
       else if (buff == "ion_parallel_velocity")
       {
-	pos[2] = input.tellg();
+         pos[2] = input.tellg();
       }
       else if (buff == "ion_temperature")
       {
-	pos[3] = input.tellg();
-     }
+         pos[3] = input.tellg();
+      }
       else if (buff == "electron_temperature")
       {
-	pos[4] = input.tellg();
+         pos[4] = input.tellg();
       }
    }
    for (int i=neqn_-1; i >= 0; i--)
    {
-     if (pos[i] < 0) pos[i] = pos[i+1];
+      if (pos[i] < 0) { pos[i] = pos[i+1]; }
    }
 
    input.clear();
    for (int i=0; i<neqn_; i++)
+   {
+      input.seekg(pos[i], std::ios::beg);
+      int length = pos[i+1] - pos[i];
+      if (length > 0)
       {
-	input.seekg(pos[i], std::ios::beg);
-	int length = pos[i+1] - pos[i];
-	if (length > 0)
-	{
-	  char * buffer = new char[length];
-	  input.read(buffer, length);
+         char * buffer = new char[length];
+         input.read(buffer, length);
 
-	  string buff_str(buffer, length);
+         string buff_str(buffer, length);
 
-	  istringstream iss(buff_str);
-	  bcs_[i] = new AdvectionDiffusionBC(bdr_attr_, cf, iss);
+         istringstream iss(buff_str);
+         bcs_[i] = new AdvectionDiffusionBC(bdr_attr_, cf, iss);
 
-	  delete [] buffer;
-	}
-	else
-	  {
-	    bcs_[i] = new AdvectionDiffusionBC(bdr_attr_);
-	  }
+         delete [] buffer;
       }
+      else
+      {
+         bcs_[i] = new AdvectionDiffusionBC(bdr_attr_);
+      }
+   }
 }
 
 /*
@@ -2698,9 +2698,9 @@ void DGTransportTDO::CombinedOp::Mult(const Vector &k, Vector &r) const
 
       double norm_r = sqrt(InnerProduct(MPI_COMM_WORLD, r_i, r_i));
       if (mpi_.Root())
-	{
-	  cout << "norm(r_" << i << ") " << norm_r << endl;
-	}
+      {
+         cout << "norm(r_" << i << ") " << norm_r << endl;
+      }
    }
 
    for (int i=0; i<offsets_.Size() - 1; i++)
