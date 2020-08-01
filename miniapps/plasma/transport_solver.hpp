@@ -957,9 +957,10 @@ public:
    IonSourceCoef(const IonSourceCoef &other)
    {
       derivType_ = other.derivType_;
-      ne_ = other.ne_;
-      nn_ = other.nn_;
-      iz_ = other.iz_;
+      ne_  = other.ne_;
+      nn_  = other.nn_;
+      iz_  = other.iz_;
+      nn0_ = other.nn0_;
    }
 
    virtual IonSourceCoef * Clone() const
