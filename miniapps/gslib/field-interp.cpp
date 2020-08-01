@@ -135,8 +135,11 @@ int main (int argc, char *argv[])
       else if (fec_l2) { fieldtype_src = 1; }
       else if (fec_rt) { fieldtype_src = 2; }
       else if (fec_nd) { fieldtype_src = 3; }
-      else { MFEM_ABORT("GridFunction type not supported yet.") }
-      if (fec_h1 && fec_h1->GetBasisType() != BasisType::GaussLobatto)
+      else { MFEM_ABORT("GridFunction type not supported yet."); }
+
+      if (fieldtype_src <= 1 &&
+          fec_h1->GetBasisType() != BasisType::GaussLobatto &&
+          fec_h1->GetBasisType() != BasisType::GaussLegendre)
       {
          MFEM_ABORT("Only nodal basis are currently supported in this miniapp.");
       }
