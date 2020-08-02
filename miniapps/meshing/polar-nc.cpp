@@ -13,7 +13,14 @@
 //       Polar NC: polar non-conforming mesh generator
 //       --------------------------------------------------------------
 //
-// This miniapp TODO
+// This miniapp generates a circular sector mesh that consist of quadrilaterals
+// and triangles of similar sizes. The 3D version of the mesh is made of prisms
+// and tetrahedra. The mesh is non-conforming by design, and can optionally be
+// made curvilinear. The elements are ordered along a space-filling curve by
+// default, which makes the mesh ready for parallel non-conforming AMR in MFEM.
+//
+// The implementation also demonstrates how to initialize a non-conforming mesh
+// on the fly by marking hanging nodes with Mesh::AddVertexParents.
 //
 // Compile with: make polar-nc
 //
@@ -367,7 +374,8 @@ Mesh* Make3D(int nsteps, double rstep, double aspect, int order, bool sfc)
    HashTable<Vert> hash;
    Array<Params3> params;
 
-   mesh->AddVertex(0, 0, 0);
+   int origin = mesh->AddVertex(0, 0, 0);
+   MFEM_ASSERT(origin == 0, "");
 
    double r = rstep;
    int a = mesh->AddVertex(r, 0, 0);
@@ -494,7 +502,7 @@ int main(int argc, char *argv[])
                   "Number of elements along the radial direction");
    args.AddOption(&aspect, "-a", "--aspect",
                   "Target aspect ratio of the elements.");
-   args.AddOption(&angle, "-phi", "--phi", "Angular range.");
+   args.AddOption(&angle, "-phi", "--phi", "Angular range (2D only).");
    args.AddOption(&order, "-o", "--order",
                   "Polynomial degree of mesh curvature.");
    args.AddOption(&sfc, "-sfc", "--sfc", "-no-sfc", "--no-sfc",

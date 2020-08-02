@@ -107,7 +107,7 @@ clean: clean-build clean-exec
 clean-build:
 	rm -f *.o *~ mobius-strip klein-bottle toroid twist
 	rm -f mesh-explorer shaper extruder trimmer
-	rm -f mesh-optimizer pmesh-optimizer
+        rm -f mesh-optimizer pmesh-optimizer polar-nc
 	rm -f minimal-surface pminimal-surface
 	rm -rf *.dSYM *.TVD.*breakpoints
 
@@ -115,4 +115,4 @@ clean-exec:
 	@rm -f mobius-strip.mesh klein-bottle.mesh mesh-explorer.mesh
 	@rm -f toroid-*.mesh twist-*.mesh trimmer.mesh
 	@rm -f partitioning.txt shaper.mesh extruder.mesh
-	@rm -f optimized* perturbed*
+        @rm -f optimized* perturbed* polar.mesh
