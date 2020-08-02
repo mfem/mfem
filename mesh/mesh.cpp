@@ -1327,9 +1327,20 @@ int Mesh::AddWedge(const int *vi, int attr)
    return NumOfElements++;
 }
 
-void Mesh::AddHex(const int *vi, int attr)
+int Mesh::AddHex(int v1, int v2, int v3, int v4, int v5, int v6, int v7, int v8,
+                 int attr)
 {
-   elements[NumOfElements++] = new Hexahedron(vi, attr);
+   CheckEnlarge(elements, NumOfElements);
+   elements[NumOfElements] =
+      new Hexahedron(v1, v2, v3, v4, v5, v6, v7, v8, attr);
+   return NumOfElements++;
+}
+
+int Mesh::AddHex(const int *vi, int attr)
+{
+   CheckEnlarge(elements, NumOfElements);
+   elements[NumOfElements] = new Hexahedron(vi, attr);
+   return NumOfElements++;
 }
 
 void Mesh::AddHexAsTets(const int *vi, int attr)
@@ -1369,6 +1380,20 @@ void Mesh::AddHexAsWedges(const int *vi, int attr)
    }
 }
 
+int Mesh::AddElement(Element *elem)
+{
+   CheckEnlarge(boundary, NumOfBdrElements);
+   elements[NumOfElements] = elem;
+   return NumOfElements++;
+}
+
+int Mesh::AddBdrElement(Element *elem)
+{
+   CheckEnlarge(boundary, NumOfBdrElements);
+   boundary[NumOfBdrElements] = elem;
+   return NumOfBdrElements++;
+}
+
 int Mesh::AddBdrSegment(int v1, int v2, int attr)
 {
    CheckEnlarge(boundary, NumOfBdrElements);
@@ -1383,14 +1408,32 @@ int Mesh::AddBdrSegment(const int *vi, int attr)
    return NumOfBdrElements++;
 }
 
-void Mesh::AddBdrTriangle(const int *vi, int attr)
+int Mesh::AddBdrTriangle(int v1, int v2, int v3, int attr)
 {
-   boundary[NumOfBdrElements++] = new Triangle(vi, attr);
+   CheckEnlarge(boundary, NumOfBdrElements);
+   boundary[NumOfBdrElements] = new Triangle(v1, v2, v3, attr);
+   return NumOfBdrElements++;
 }
 
-void Mesh::AddBdrQuad(const int *vi, int attr)
+int Mesh::AddBdrTriangle(const int *vi, int attr)
 {
-   boundary[NumOfBdrElements++] = new Quadrilateral(vi, attr);
+   CheckEnlarge(boundary, NumOfBdrElements);
+   boundary[NumOfBdrElements] = new Triangle(vi, attr);
+   return NumOfBdrElements++;
+}
+
+int Mesh::AddBdrQuad(int v1, int v2, int v3, int v4, int attr)
+{
+   CheckEnlarge(boundary, NumOfBdrElements);
+   boundary[NumOfBdrElements] = new Quadrilateral(v1, v2, v3, v4, attr);
+   return NumOfBdrElements++;
+}
+
+int Mesh::AddBdrQuad(const int *vi, int attr)
+{
+   CheckEnlarge(boundary, NumOfBdrElements);
+   boundary[NumOfBdrElements] = new Quadrilateral(vi, attr);
+   return NumOfBdrElements++;
 }
 
 void Mesh::AddBdrQuadAsTriangles(const int *vi, int attr)

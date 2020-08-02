@@ -535,21 +535,24 @@ public:
    int AddWedge(int v1, int v2, int v3, int v4, int v5, int v6, int attr = 1);
    int AddWedge(const int *vi, int attr = 1);
 
-   // TODO
-   void AddHex(const int *vi, int attr = 1);
+   int AddHex(int v1, int v2, int v3, int v4, int v5, int v6, int v7, int v8,
+              int attr = 1);
+   int AddHex(const int *vi, int attr = 1);
    void AddHexAsTets(const int *vi, int attr = 1);
    void AddHexAsWedges(const int *vi, int attr = 1);
 
    /// The parameter @a elem should be allocated using the NewElement() method
-   void AddElement(Element *elem)     { elements[NumOfElements++] = elem; }
-   void AddBdrElement(Element *elem)  { boundary[NumOfBdrElements++] = elem; }
+   int AddElement(Element *elem);
+   int AddBdrElement(Element *elem);
 
    int AddBdrSegment(int v1, int v2, int attr = 1);
    int AddBdrSegment(const int *vi, int attr = 1);
 
-   // TODO
-   void AddBdrTriangle(const int *vi, int attr = 1);
-   void AddBdrQuad(const int *vi, int attr = 1);
+   int AddBdrTriangle(int v1, int v2, int v3, int attr = 1);
+   int AddBdrTriangle(const int *vi, int attr = 1);
+
+   int AddBdrQuad(int v1, int v2, int v3, int v4, int attr = 1);
+   int AddBdrQuad(const int *vi, int attr = 1);
    void AddBdrQuadAsTriangles(const int *vi, int attr = 1);
 
    void GenerateBoundaryElements();
