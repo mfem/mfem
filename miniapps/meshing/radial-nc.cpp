@@ -29,17 +29,14 @@ using namespace mfem;
 using namespace std;
 
 
-struct Params
+struct Params2
 {
    double r, dr;
    double a, da;
-   double b, db;
 
-   Params() = default;
-   Params(double r0, double r1, double a0, double a1)
+   Params2() = default;
+   Params2(double r0, double r1, double a0, double a1)
       : r(r0), dr(r1 - r0), a(a0), da(a1 - a0) {}
-   Params(double r0, double r1, double a0, double a1, double b0, double b1)
-      : r(r0), dr(r1 - r0), a(a0), da(a1 - a0), b(b0), db(b1 - b0) {}
 };
 
 
@@ -57,7 +54,7 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
    double r = rstep;
    int first = mesh->AddVertex(r, 0.0);
 
-   Array<Params> params;
+   Array<Params2> params;
    Array<Pair<int, int>> blocks;
 
    // create triangles around the origin
@@ -68,7 +65,7 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
       mesh->AddVertex(r*cos(alpha), r*sin(alpha));
       mesh->AddTriangle(origin, first+i, first+i+1);
 
-      params.Append(Params(0, r, prev_alpha, alpha));
+      params.Append(Params2(0, r, prev_alpha, alpha));
       prev_alpha = alpha;
    }
 
@@ -99,7 +96,7 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
             mesh->AddVertex(r*cos(alpha), r*sin(alpha));
             mesh->AddQuad(prev_first+i, first+i, first+i+1, prev_first+i+1);
 
-            params.Append(Params(prev_r, r, prev_alpha, alpha));
+            params.Append(Params2(prev_r, r, prev_alpha, alpha));
             prev_alpha = alpha;
          }
 
@@ -143,8 +140,8 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
 
             a = e, b = f;
 
-            params.Append(Params(prev_r, r, prev_alpha, alpha_half));
-            params.Append(Params(prev_r, r, alpha_half, alpha));
+            params.Append(Params2(prev_r, r, prev_alpha, alpha_half));
+            params.Append(Params2(prev_r, r, alpha_half, alpha));
             prev_alpha = alpha;
          }
 
@@ -162,7 +159,7 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
    {
       blocks.Append(Pair<int, int>(mesh->GetNE(), 0));
 
-      Array<Params> new_params(params.Size());
+      Array<Params2> new_params(params.Size());
 
       Array<int> ordering(mesh->GetNE());
       for (int i = 0; i < blocks[0].one; i++)
@@ -211,7 +208,7 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
 
       for (int i = 0; i < mesh->GetNE(); i++)
       {
-         const Params &par = params[i];
+         const Params2 &par = params[i];
          const IntegrationRule &ir = fes->GetFE(i)->GetNodes();
          Geometry::Type geom = mesh->GetElementBaseGeometry(i);
          fes->GetElementDofs(i, dofs);
@@ -245,6 +242,18 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
 
 const double pi2 = M_PI / 2;
 
+struct Params3
+{
+   double r, dr;
+   double u1, u2, u3;
+   double v1, v2, v3;
+
+   Params3() = default;
+   Params3(double r0, double r1,
+           double u1, double v1, double u2, double v2, double u3, double v3)
+      : r(r0), dr(r1 - r0), u1(u1), u2(u2), u3(u3), v1(v1), v2(v2), v3(v3) {}
+};
+
 struct Vert : public Hashed2
 {
    int id;
@@ -257,7 +266,7 @@ int GetMidVertex(int v1, int v2, double r, double u, double v, bool hanging,
    if (vmid < 0)
    {
       vmid = hash.GetId(v1, v2);
-      double w = 1 - u - v;
+      double w = 1.0 - u - v;
 #if 1
       double q = r / sqrt(u*u + v*v + w*w);
       int index = mesh->AddVertex(u*q, v*q, w*q);
@@ -276,12 +285,12 @@ int GetMidVertex(int v1, int v2, double r, double u, double v, bool hanging,
 void MakeLayer(int vx1, int vy1, int vz1, int vx2, int vy2, int vz2, int level,
                double r1, double r2, double u1, double v1, double u2, double v2,
                double u3, double v3, Mesh *mesh, HashTable<Vert> &hash,
-               Array<Params> &params)
+               Array<Params3> &params)
 {
    if (!level)
    {
       mesh->AddWedge(vx1, vy1, vz1, vx2, vy2, vz2);
-      params.Append(Params(r1, r2, u1, u2, v1, v2));
+      params.Append(Params3(r1, r2, u1, v1, u2, v2, u3, v3));
    }
    else
    {
@@ -311,12 +320,12 @@ void MakeLayer(int vx1, int vy1, int vz1, int vx2, int vy2, int vz2, int level,
 
 void MakeCenter(int vx, int vy, int vz, int level, double r, double u1,
                 double v1, double u2, double v2, double u3, double v3,
-                Mesh *mesh, HashTable<Vert> &hash, Array<Params> &params)
+                Mesh *mesh, HashTable<Vert> &hash, Array<Params3> &params)
 {
    if (!level)
    {
       mesh->AddTet(0, vx, vy, vz);
-      params.Append(Params(0, r, u1, u2, v1, v2));
+      params.Append(Params3(0, r, u1, v1, u2, v2, u3, v3));
    }
    else
    {
@@ -344,7 +353,7 @@ Mesh* Make3D(int nsteps, double rstep, double aspect, int order, bool sfc)
    Mesh *mesh = new Mesh(3, 0, 0);
 
    HashTable<Vert> hash;
-   Array<Params> params;
+   Array<Params3> params;
 
    mesh->AddVertex(0, 0, 0);
 
@@ -386,9 +395,69 @@ Mesh* Make3D(int nsteps, double rstep, double aspect, int order, bool sfc)
       Array<int> ordering;
       mesh->GetHilbertElementOrdering(ordering);
       mesh->ReorderElements(ordering, false);
+
+      Array<Params3> new_params(params.Size());
+      for (int i = 0; i < ordering.Size(); i++)
+      {
+         new_params[ordering[i]] = params[i];
+      }
+      mfem::Swap(params, new_params);
    }
 
    mesh->FinalizeMesh();
+
+   // create high-order curvature
+   if (order > 1)
+   {
+      mesh->SetCurvature(order);
+
+      GridFunction *nodes = mesh->GetNodes();
+      const FiniteElementSpace *fes = mesh->GetNodalFESpace();
+
+      Array<int> dofs;
+      MFEM_ASSERT(params.Size() == mesh->GetNE(), "");
+
+      for (int i = 0; i < mesh->GetNE(); i++)
+      {
+         const Params3 &par = params[i];
+         const IntegrationRule &ir = fes->GetFE(i)->GetNodes();
+         Geometry::Type geom = mesh->GetElementBaseGeometry(i);
+         fes->GetElementDofs(i, dofs);
+
+         for (int j = 0; j < dofs.Size(); j++)
+         {
+            const IntegrationPoint &ip = ir[j];
+
+            double u, v, w, r;
+            if (geom == Geometry::PRISM)
+            {
+               double l1 = 1.0 - ip.x - ip.y;
+               double l2 = ip.x, l3 = ip.y;
+
+               u = l1 * par.u1 + l2 * par.u2 + l3 * par.u3;
+               v = l1 * par.v1 + l2 * par.v2 + l3 * par.v3;
+               w = 1.0 - u - v;
+               r = par.r + ip.z * par.dr;
+            }
+            else
+            {
+               u = ip.x * par.u1 + ip.y * par.u2 + ip.z * par.u3;
+               v = ip.x * par.v1 + ip.y * par.v2 + ip.z * par.v3;
+               double rr = ip.x + ip.y + ip.z;
+               if (std::abs(rr) < 1e-12) { continue; }
+               w = rr - u - v;
+               r = par.r + rr * par.dr;
+            }
+
+            double q = r / sqrt(u*u + v*v + w*w);
+            (*nodes)(fes->DofToVDof(dofs[j], 0)) = u*q;
+            (*nodes)(fes->DofToVDof(dofs[j], 1)) = v*q;
+            (*nodes)(fes->DofToVDof(dofs[j], 2)) = w*q;
+         }
+      }
+
+      nodes->RestrictConforming();
+   }
 
    return mesh;
 }
