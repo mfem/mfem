@@ -15,7 +15,9 @@
 //
 // This miniapp solves a time dependent heat equation.
 //
-
+// Test cases:
+// mpirun -np 5 ./fourier -bc fourier_bc.inp -tol 1e0 -tf 30 -l 0 -rs 1 -o 2 -p 0 -kappa 0.1 -dt 1e-3
+//
 #include "fourier_solver.hpp"
 #include <cassert>
 #include <memory>
