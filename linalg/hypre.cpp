@@ -1545,6 +1545,8 @@ void HypreParMatrix::Destroy()
    }
 }
 
+#if MFEM_HYPRE_VERSION < 21400
+
 HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
                     double beta,  const HypreParMatrix &B)
 {
@@ -1562,6 +1564,39 @@ HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
    return C;
 }
 
+HypreParMatrix * ParAdd(const HypreParMatrix *A, const HypreParMatrix *B)
+{
+   hypre_ParCSRMatrix * C = internal::hypre_ParCSRMatrixAdd(*A,*B);
+
+   hypre_MatvecCommPkgCreate(C);
+
+   return new HypreParMatrix(C);
+}
+
+#else
+
+HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
+                    double beta,  const HypreParMatrix &B)
+{
+   hypre_ParCSRMatrix *C;
+   hypre_ParcsrAdd(alpha, A, beta, B, &C);
+   hypre_MatvecCommPkgCreate(C);
+
+   return new HypreParMatrix(C);
+}
+
+HypreParMatrix * ParAdd(const HypreParMatrix *A, const HypreParMatrix *B)
+{
+   hypre_ParCSRMatrix *C;
+   hypre_ParcsrAdd(1.0, *A, 1.0, *B, &C);
+
+   hypre_MatvecCommPkgCreate(C);
+
+   return new HypreParMatrix(C);
+}
+
+#endif
+
 HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B)
 {
    hypre_ParCSRMatrix * ab;
@@ -1573,14 +1608,7 @@ HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B)
    return new HypreParMatrix(ab);
 }
 
-HypreParMatrix * ParAdd(const HypreParMatrix *A, const HypreParMatrix *B)
-{
-   hypre_ParCSRMatrix * C = internal::hypre_ParCSRMatrixAdd(*A,*B);
 
-   hypre_MatvecCommPkgCreate(C);
-
-   return new HypreParMatrix(C);
-}
 
 HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P)
 {
