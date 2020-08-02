@@ -1036,6 +1036,31 @@ public:
    { return pow(a->Eval(T, ip), p); }
 };
 
+/// Coefficient which returns (k*x) or func(k*x) where k is a vector
+class PhaseCoefficient : public Coefficient
+{
+private:
+   double(*func_)(double);
+   VectorCoefficient * k_;
+   mutable Vector kVec_;
+
+public:
+   PhaseCoefficient(Vector & k, double(*func)(double) = NULL)
+      : func_(func), k_(NULL), kVec_(k) {}
+
+   PhaseCoefficient(VectorCoefficient & k, double(*func)(double) = NULL)
+      : func_(func), k_(&k), kVec_(k.GetVDim()) {}
+
+   double Eval(ElementTransformation &T,
+               const IntegrationPoint &ip)
+   {
+      double x[3];
+      Vector transip(x, 3);
+      T.Transform(ip, transip);
+      if (k_) { k_->Eval(kVec_, T, ip); }
+      return (func_) ? (*func_)(kVec_ * transip) : (kVec_ * transip);
+   }
+};
 
 /// Scalar coefficient defined as the inner product of two vector coefficients
 class InnerProductCoefficient : public Coefficient
