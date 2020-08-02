@@ -578,6 +578,12 @@ public:
    Type GetType() const { return MFEM_SPARSEMAT; }
 };
 
+inline std::ostream& operator<<(std::ostream& os, SparseMatrix const& mat)
+{
+   mat.Print(os);
+   return os;
+}
+
 /// Applies f() to each element of the matrix (after it is finalized).
 void SparseMatrixFunction(SparseMatrix &S, double (*f)(double));
 

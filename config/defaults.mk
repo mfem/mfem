@@ -138,7 +138,7 @@ MFEM_USE_RAJA          = NO
 MFEM_USE_OCCA          = NO
 MFEM_USE_CEED          = NO
 MFEM_USE_UMPIRE        = NO
-MFEM_USE_SIMD          = YES
+MFEM_USE_SIMD          = NO
 MFEM_USE_ADIOS2        = NO
 
 # Compile and link options for zlib.
@@ -189,10 +189,12 @@ OPENMP_LIB =
 POSIX_CLOCKS_LIB = -lrt
 
 # SUNDIALS library configuration
+# For sundials_nvecparhyp and nvecparallel remember to build with MPI_ENABLED=ON
+# and modify cmake variables for hypre for sundials
 SUNDIALS_DIR = @MFEM_DIR@/../sundials-5.0.0/instdir
 SUNDIALS_OPT = -I$(SUNDIALS_DIR)/include
 SUNDIALS_LIB = -Wl,-rpath,$(SUNDIALS_DIR)/lib64 -L$(SUNDIALS_DIR)/lib64\
- -lsundials_arkode -lsundials_cvode -lsundials_nvecserial -lsundials_kinsol
+ -lsundials_arkode -lsundials_cvodes -lsundials_nvecserial -lsundials_kinsol
 
 ifeq ($(MFEM_USE_MPI),YES)
    SUNDIALS_LIB += -lsundials_nvecparhyp -lsundials_nvecparallel
