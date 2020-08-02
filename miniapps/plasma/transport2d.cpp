@@ -1061,8 +1061,11 @@ int main(int argc, char *argv[])
    if (eqn_weights.Size() != 5)
    {
       eqn_weights.SetSize(5);
-      eqn_weights = 1.0;
-      eqn_weights[0] = 1e-15;
+      eqn_weights[     NEUTRAL_DENSITY] = 1e-15; // n_n ~ 1e15
+      eqn_weights[         ION_DENSITY] = 1e-19; // n_i ~ 1e19
+      eqn_weights[   ION_PARA_VELOCITY] = 1e-22; // mom_i ~ 1e19 * 1e3
+      eqn_weights[     ION_TEMPERATURE] = 1e-20; // pres_i ~ 1e19 * 1e1
+      eqn_weights[ELECTRON_TEMPERATURE] = 1e-21; // pres_e ~ 1e19 * 1e2
    }
 
    if (amr_weights.Size() != 5)
