@@ -10,16 +10,16 @@
 // CONTRIBUTING.md for details.
 //
 //       --------------------------------------------------------------
-//       Radial NC: radial non-conforming mesh generator
+//       Polar NC: polar non-conforming mesh generator
 //       --------------------------------------------------------------
 //
 // This miniapp TODO
 //
-// Compile with: make radial-nc
+// Compile with: make polar-nc
 //
-// Sample runs:  radial-nc --radius 1 --nsteps 10
-//               radial-nc --aspect 2
-//               radial-nc --dim 3 --order 4
+// Sample runs:  polar-nc --radius 1 --nsteps 10
+//               polar-nc --aspect 2
+//               polar-nc --dim 3 --order 4
 
 #include "mfem.hpp"
 #include <fstream>
@@ -526,7 +526,7 @@ int main(int argc, char *argv[])
    }
 
    // save the final mesh
-   ofstream ofs("radial.mesh");
+   ofstream ofs("polar.mesh");
    ofs.precision(8);
    mesh->Print(ofs);
 
