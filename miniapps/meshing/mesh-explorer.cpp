@@ -72,6 +72,27 @@ double region(const Vector &p)
    return std::max(std::max(x - 0.25, -y), y - 1.0);
 }
 
+double level_function(const Vector &p)
+{
+   double x = p(0);
+   double y = p.Size() > 1 ? p(1) : 0.0;
+   double z = p.Size() > 2 ? p(2) : 0.0;
+
+   if (1)
+   {
+      // torus in the xy-plane
+      const double r_big = 2.0;
+      const double r_small = 1.0;
+      return hypot(r_big - hypot(x, y), z) - r_small;
+   }
+   if (0)
+   {
+      // sphere at the origin:
+      const double r = 1.0;
+      return hypot(hypot(x, y), z) - r;
+   }
+}
+
 Mesh *read_par_mesh(int np, const char *mesh_prefix)
 {
    Mesh *mesh;
@@ -329,6 +350,7 @@ int main (int argc, char *argv[])
            "e) View elements\n"
            "h) View element sizes, h\n"
            "k) View element ratios, kappa\n"
+           "l) View the 'level_function'\n"
            "x) Print sub-element stats\n"
            "f) Find physical point in reference space\n"
            "p) Generate a partitioning\n"
@@ -667,7 +689,7 @@ int main (int argc, char *argv[])
          }
       }
 
-      // These are the cases that open a new GLVis window
+      // These are most of the cases that open a new GLVis window
       if (mk == 'm' || mk == 'b' || mk == 'e' || mk == 'v' || mk == 'h' ||
           mk == 'k' || mk == 'p')
       {
@@ -978,6 +1000,42 @@ int main (int argc, char *argv[])
          }
          delete attr_fespace;
          delete bdr_attr_fespace;
+      }
+
+      if (mk == 'l')
+      {
+         int p;
+         FiniteElementCollection *fec = NULL;
+         cout << "Enter projection space order: " << flush;
+         cin >> p;
+         if (p >= 1)
+         {
+            fec = new H1_FECollection(p, mesh->Dimension(),
+                                      BasisType::GaussLobatto);
+         }
+         else
+         {
+            fec = new DG_FECollection(-p, mesh->Dimension(),
+                                      BasisType::GaussLegendre);
+         }
+         FiniteElementSpace fes(mesh, fec);
+         GridFunction level(&fes);
+         FunctionCoefficient level_coeff(level_function);
+         level.ProjectCoefficient(level_coeff);
+         char vishost[] = "localhost";
+         int  visport   = 19916;
+         socketstream sol_sock(vishost, visport);
+         if (sol_sock.is_open())
+         {
+            sol_sock.precision(14);
+            sol_sock << "solution\n" << *mesh << level << flush;
+         }
+         else
+         {
+            cout << "Unable to connect to "
+                 << vishost << ':' << visport << endl;
+         }
+         delete fec;
       }
 
       if (mk == 'S')
