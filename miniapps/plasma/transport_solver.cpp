@@ -1282,6 +1282,7 @@ void TransportPrec::SetOperator(const Operator &op)
 
 DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
                                const PlasmaParams &plasma,
+			       const Vector &eqn_weights,
                                ParFiniteElementSpace &fes,
                                ParFiniteElementSpace &vfes,
                                ParFiniteElementSpace &ffes,
@@ -1306,7 +1307,7 @@ DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
      newton_op_prec_(offsets),
      newton_op_solver_(fes.GetComm()),
      newton_solver_(fes.GetComm()),
-     op_(mpi, dg, plasma, vfes, yGF, kGF, bcs, offsets_,
+     op_(mpi, dg, plasma, eqn_weights, vfes, yGF, kGF, bcs, offsets_,
          Di_perp, Xi_perp, Xe_perp, B3Coef,// Ti_dbc, Te_dbc,
          term_flags, vis_flags, op_flag, logging),
      BxyCoef_(B3Coef),
@@ -1754,13 +1755,14 @@ void DGTransportTDO::NLOperator::Mult(const Vector &, Vector &r) const
       for (int i = 0; i < nsfaces; i++)
       {
          ftrans = pmesh_.GetSharedFaceTransformations(i);
+         int nbr_el_no = ftrans->Elem2No - pmesh_.GetNE();
          fes_.GetElementVDofs(ftrans->Elem1No, vdofs_);
-         fes_.GetFaceNbrElementVDofs(ftrans->Elem2No, vdofs2_);
+         fes_.GetFaceNbrElementVDofs(nbr_el_no, vdofs2_);
 
          for (int k = 0; k < fbfi_.Size(); k++)
          {
             fbfi_[k]->AssembleFaceMatrix(*fes_.GetFE(ftrans->Elem1No),
-                                         *fes_.GetFaceNbrFE(ftrans->Elem2No),
+                                         *fes_.GetFaceNbrFE(nbr_el_no),
                                          *ftrans, elmat_);
 
             int ndof  = vdofs_.Size();
@@ -2032,20 +2034,20 @@ DGTransportTDO::TransportOp::~TransportOp()
    {
       delete dtMCoefs_[i];
    }
-   /*
    for (int i=0; i<sCoefs_.Size(); i++)
    {
       delete sCoefs_[i];
    }
+   /*
    for (int i=0; i<vCoefs_.Size(); i++)
    {
       delete vCoefs_[i];
    }
+   */
    for (int i=0; i<mCoefs_.Size(); i++)
    {
       delete mCoefs_[i];
    }
-   */
    for (int i=0; i<yGF_.Size(); i++)
    {
       delete yCoefPtrs_[i];
@@ -2147,6 +2149,12 @@ void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableCoef &DCoef)
       bfbfi_marker_.Append(new Array<int>);
       AttrToMarker(pmesh_.bdr_attributes.Max(), dbc[i]->attr,
                    *bfbfi_marker_.Last());
+
+      blf_[index_]->AddBdrFaceIntegrator(new DGDiffusionIntegrator(*dtDCoef,
+                                                                   dg_.sigma,
+                                                                   dg_.kappa),
+                                         *bfbfi_marker_.Last());
+
       bfbfi_.Append(new DGDiffusionIntegrator(DCoef,
                                               dg_.sigma,
                                               dg_.kappa));
@@ -2157,11 +2165,6 @@ void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableCoef &DCoef)
       bflfi_.Append(new DGDirichletLFIntegrator(*dbc[i]->coef, DCoef,
                                                 dg_.sigma,
                                                 dg_.kappa));
-
-      blf_[index_]->AddBdrFaceIntegrator(new DGDiffusionIntegrator(*dtDCoef,
-                                                                   dg_.sigma,
-                                                                   dg_.kappa),
-                                         *bfbfi_marker_.Last());
    }
 
    const Array<CoefficientByAttr*> & nbc = bcs_.GetNeumannBCs();
@@ -2170,7 +2173,8 @@ void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableCoef &DCoef)
       bflfi_marker_.Append(new Array<int>);
       AttrToMarker(pmesh_.bdr_attributes.Max(), nbc[i]->attr,
                    *bflfi_marker_.Last());
-      bflfi_.Append(new BoundaryLFIntegrator(*nbc[i]->coef));
+      sCoefs_.Append(new ProductCoefficient(DCoef, *nbc[i]->coef));
+      bflfi_.Append(new BoundaryLFIntegrator(*sCoefs_.Last()));
    }
 
    const Array<CoefficientsByAttr*> & rbc = bcs_.GetRobinBCs();
@@ -2327,6 +2331,14 @@ void DGTransportTDO::TransportOp::SetSourceTerm(StateVariableCoef &SCoef)
    {
       if (SCoef.NonTrivialValue((FieldType)i))
       {
+         if ( mpi_.Root() && logging_ > 0)
+         {
+            cout << field_name_
+                 << ": Adding source term proportional to d "
+                 << FieldSymbol((FieldType)i) << " / dt "
+		 << "in the gradient" << endl;
+         }
+
          StateVariableCoef * coef = SCoef.Clone();
          coef->SetDerivType((FieldType)i);
          ProductCoefficient * dtdSCoef = new ProductCoefficient(-dt_, *coef);
@@ -2384,7 +2396,8 @@ DGTransportTDO::TransportOp::DisplayToGLVis()
 DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
                                        const DGParams & dg,
                                        const PlasmaParams & plasma,
-                                       ParFiniteElementSpace & vfes,
+				       const Vector &eqn_weights,
+				       ParFiniteElementSpace & vfes,
                                        ParGridFunctionArray & yGF,
                                        ParGridFunctionArray & kGF,
                                        const TransportBCs & bcs,
@@ -2403,6 +2416,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
      // yGF_(yGF),
      kGF_(kGF),
      op_(neq_),
+     wgts_(eqn_weights),
      offsets_(offsets),
      grad_(NULL)
 {
@@ -2653,7 +2667,7 @@ void DGTransportTDO::CombinedOp::UpdateGradient(const Vector &k) const
          Operator * gradIJ = op_[i]->GetGradientBlock(j);
          if (gradIJ)
          {
-            grad_->SetBlock(i, j, gradIJ);
+	   grad_->SetBlock(i, j, gradIJ, wgts_[i]);
          }
       }
    }
@@ -2696,6 +2710,8 @@ void DGTransportTDO::CombinedOp::Mult(const Vector &k, Vector &r) const
 
       op_[i]->Mult(k, r_i);
 
+      r_i *= wgts_[i];
+      
       double norm_r = sqrt(InnerProduct(MPI_COMM_WORLD, r_i, r_i));
       if (mpi_.Root())
       {

@@ -900,6 +900,7 @@ int main(int argc, char *argv[])
    double      Xi_perp = 1.0;        // Ion thermal diffusion (m^2/s)
    double      Xe_perp = 1.0;        // Electron thermal diffusion (m^2/s)
 
+   Vector eqn_weights;
    Vector amr_weights;
    Vector ode_weights;
 
@@ -915,6 +916,8 @@ int main(int argc, char *argv[])
                   "Set the logging level.");
    args.AddOption(&op_flag, "-op", "--operator-test",
                   "Bitmask for disabling operators.");
+   args.AddOption(&eqn_weights, "-eqn-w","--equation-weights",
+                  "Normalization factors for balancing the coupled equations.");
    args.AddOption(&prob_, "-p", "--problem",
                   "Problem setup to use.");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
@@ -1054,6 +1057,13 @@ int main(int argc, char *argv[])
    }
    */
    imex = ode_solver_type < 10;
+
+   if (eqn_weights.Size() != 5)
+   {
+      eqn_weights.SetSize(5);
+      eqn_weights = 1.0;
+      eqn_weights[0] = 1e-15;
+   }
 
    if (amr_weights.Size() != 5)
    {
@@ -1752,7 +1762,8 @@ int main(int argc, char *argv[])
       coefNrm[4] = bnXeb / bMb;
    }
 
-   DGTransportTDO oper(mpi, dg, plasma, fes, vfes, ffes, offsets, yGF, kGF,
+   DGTransportTDO oper(mpi, dg, plasma, eqn_weights, fes, vfes, ffes,
+		       offsets, yGF, kGF,
                        bcs, Di_perp, Xi_perp, Xe_perp, B3Coef,
                        term_flags, vis_flags, imex, op_flag, logging);
 

@@ -2208,9 +2208,9 @@ private:
       Array<ProductCoefficient*>             negdtSCoefs_;
       Array<ScalarVectorProductCoefficient*> dtVCoefs_;
       Array<ScalarMatrixProductCoefficient*> dtMCoefs_;
-      // Array<Coefficient*>       sCoefs_;
+      Array<Coefficient*>       sCoefs_;
       // Array<VectorCoefficient*> vCoefs_;
-      // Array<MatrixCoefficient*> mCoefs_;
+      Array<MatrixCoefficient*> mCoefs_;
       std::vector<socketstream*> sout_;
       ParGridFunction coefGF_;
 
@@ -2761,6 +2761,8 @@ private:
       */
       Array<NLOperator*> op_;
 
+      const Vector &wgts_;
+
       Array<int> & offsets_;
       mutable BlockOperator *grad_;
 
@@ -2768,7 +2770,7 @@ private:
 
    public:
       CombinedOp(const MPI_Session & mpi, const DGParams & dg,
-                 const PlasmaParams & plasma,
+                 const PlasmaParams & plasma, const Vector &eqn_weights,
                  ParFiniteElementSpace & vfes,
                  ParGridFunctionArray & yGF, ParGridFunctionArray & kGF,
                  const TransportBCs & bcs,
@@ -2831,10 +2833,11 @@ private:
 public:
    DGTransportTDO(const MPI_Session & mpi, const DGParams & dg,
                   const PlasmaParams & plasma,
+		  const Vector &eqn_weights,
                   ParFiniteElementSpace &fes,
                   ParFiniteElementSpace &vfes,
                   ParFiniteElementSpace &ffes,
-                  Array<int> &offsets,
+		  Array<int> &offsets,
                   ParGridFunctionArray &yGF,
                   ParGridFunctionArray &kGF,
                   const TransportBCs & bcs,
