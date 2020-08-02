@@ -18,8 +18,8 @@
 // Compile with: make radial-nc
 //
 // Sample runs:  radial-nc --radius 1 --nsteps 10
-//               radial-nc --aspect 2 --order 4
-//               radial-nc --dim 3 --nsteps 20
+//               radial-nc --aspect 2
+//               radial-nc --dim 3 --order 4
 
 #include "mfem.hpp"
 #include <fstream>
@@ -38,7 +38,6 @@ struct Params2
    Params2(double r0, double r1, double a0, double a1)
       : r(r0), dr(r1 - r0), a(a0), da(a1 - a0) {}
 };
-
 
 Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
              bool sfc)
@@ -266,15 +265,11 @@ int GetMidVertex(int v1, int v2, double r, double u, double v, bool hanging,
    if (vmid < 0)
    {
       vmid = hash.GetId(v1, v2);
+
       double w = 1.0 - u - v;
-#if 1
       double q = r / sqrt(u*u + v*v + w*w);
       int index = mesh->AddVertex(u*q, v*q, w*q);
-#else
-      double a = pi2 * v / (u+v);
-      double b = pi2 * w / (u+v+w);
-      int index = mesh->AddVertex(r*cos(a)*cos(b), r*sin(a)*cos(b), r*sin(b));
-#endif
+
       if (hanging) { mesh->AddVertexParents(index, v1, v2); }
 
       hash[vmid].id = index;
@@ -290,10 +285,12 @@ void MakeLayer(int vx1, int vy1, int vz1, int vx2, int vy2, int vz2, int level,
    if (!level)
    {
       mesh->AddWedge(vx1, vy1, vz1, vx2, vy2, vz2);
+
       if (bnd1) { mesh->AddBdrQuad(vx1, vy1, vy2, vx2, 1); }
       if (bnd2) { mesh->AddBdrQuad(vy1, vz1, vz2, vy2, 2); }
       if (bnd3) { mesh->AddBdrQuad(vz1, vx1, vx2, vz2, 3); }
       if (bnd4) { mesh->AddBdrTriangle(vx2, vy2, vz2, 4); }
+
       params.Append(Params3(r1, r2, u1, v1, u2, v2, u3, v3));
    }
    else
@@ -334,10 +331,12 @@ void MakeCenter(int vx, int vy, int vz, int level, double r,
    if (!level)
    {
       mesh->AddTet(0, vx, vy, vz);
+
       if (bnd1) { mesh->AddBdrTriangle(0, vy, vx, 1); }
       if (bnd2) { mesh->AddBdrTriangle(0, vz, vy, 2); }
       if (bnd3) { mesh->AddBdrTriangle(0, vx, vz, 3); }
       if (bnd4) { mesh->AddBdrTriangle(vx, vy, vz, 4); }
+
       params.Append(Params3(0, r, u1, v1, u2, v2, u3, v3));
    }
    else
@@ -375,7 +374,8 @@ Mesh* Make3D(int nsteps, double rstep, double aspect, int order, bool sfc)
    int b = mesh->AddVertex(0, r, 0);
    int c = mesh->AddVertex(0, 0, r);
 
-   int levels = 1;
+   int levels = 0;
+   while (pi2 * rstep / (1 << levels) * aspect > rstep) { levels++; }
 
    MakeCenter(a, b, c, levels, r, 1, 0, 0, 1, 0, 0,
               true, true, true, (nsteps == 1), mesh, hash, params);
