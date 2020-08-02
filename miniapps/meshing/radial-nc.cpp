@@ -284,12 +284,16 @@ int GetMidVertex(int v1, int v2, double r, double u, double v, bool hanging,
 
 void MakeLayer(int vx1, int vy1, int vz1, int vx2, int vy2, int vz2, int level,
                double r1, double r2, double u1, double v1, double u2, double v2,
-               double u3, double v3, Mesh *mesh, HashTable<Vert> &hash,
-               Array<Params3> &params)
+               double u3, double v3, bool bnd1, bool bnd2, bool bnd3, bool bnd4,
+               Mesh *mesh, HashTable<Vert> &hash, Array<Params3> &params)
 {
    if (!level)
    {
       mesh->AddWedge(vx1, vy1, vz1, vx2, vy2, vz2);
+      if (bnd1) { mesh->AddBdrQuad(vx1, vy1, vy2, vx2, 1); }
+      if (bnd2) { mesh->AddBdrQuad(vy1, vz1, vz2, vy2, 2); }
+      if (bnd3) { mesh->AddBdrQuad(vz1, vx1, vx2, vz2, 3); }
+      if (bnd4) { mesh->AddBdrTriangle(vx2, vy2, vz2, 4); }
       params.Append(Params3(r1, r2, u1, v1, u2, v2, u3, v3));
    }
    else
@@ -307,24 +311,33 @@ void MakeLayer(int vx1, int vy1, int vz1, int vx2, int vy2, int vz2, int level,
       int vyz2 = GetMidVertex(vy2, vz2, r2, u23, v23, false, mesh, hash);
       int vxz2 = GetMidVertex(vx2, vz2, r2, u31, v31, false, mesh, hash);
 
-      MakeLayer(vx1, vxy1, vxz1, vx2, vxy2, vxz2, level-1, r1, r2,
-                u1, v1, u12, v12, u31, v31, mesh, hash, params);
-      MakeLayer(vxy1, vy1, vyz1, vxy2, vy2, vyz2, level-1, r1, r2,
-                u12, v12, u2, v2, u23, v23, mesh, hash, params);
-      MakeLayer(vxz1, vyz1, vz1, vxz2, vyz2, vz2, level-1, r1, r2,
-                u31, v31, u23, v23, u3, v3, mesh, hash, params);
-      MakeLayer(vyz1, vxz1, vxy1, vyz2, vxz2, vxy2, level-1, r1, r2,
-                u23, v23, u31, v31, u12, v12, mesh, hash, params);
+      MakeLayer(vx1, vxy1, vxz1, vx2, vxy2, vxz2, level-1,
+                r1, r2, u1, v1, u12, v12, u31, v31,
+                bnd1, false, bnd3, bnd4, mesh, hash, params);
+      MakeLayer(vxy1, vy1, vyz1, vxy2, vy2, vyz2, level-1,
+                r1, r2, u12, v12, u2, v2, u23, v23,
+                bnd1, bnd2, false, bnd4, mesh, hash, params);
+      MakeLayer(vxz1, vyz1, vz1, vxz2, vyz2, vz2, level-1,
+                r1, r2, u31, v31, u23, v23, u3, v3,
+                false, bnd2, bnd3, bnd4, mesh, hash, params);
+      MakeLayer(vyz1, vxz1, vxy1, vyz2, vxz2, vxy2, level-1,
+                r1, r2, u23, v23, u31, v31, u12, v12,
+                false, false, false, bnd4, mesh, hash, params);
    }
 }
 
-void MakeCenter(int vx, int vy, int vz, int level, double r, double u1,
-                double v1, double u2, double v2, double u3, double v3,
+void MakeCenter(int vx, int vy, int vz, int level, double r,
+                double u1, double v1, double u2, double v2, double u3, double v3,
+                bool bnd1, bool bnd2, bool bnd3, bool bnd4,
                 Mesh *mesh, HashTable<Vert> &hash, Array<Params3> &params)
 {
    if (!level)
    {
       mesh->AddTet(0, vx, vy, vz);
+      if (bnd1) { mesh->AddBdrTriangle(0, vy, vx, 1); }
+      if (bnd2) { mesh->AddBdrTriangle(0, vz, vy, 2); }
+      if (bnd3) { mesh->AddBdrTriangle(0, vx, vz, 3); }
+      if (bnd4) { mesh->AddBdrTriangle(vx, vy, vz, 4); }
       params.Append(Params3(0, r, u1, v1, u2, v2, u3, v3));
    }
    else
@@ -337,14 +350,14 @@ void MakeCenter(int vx, int vy, int vz, int level, double r, double u1,
       int vyz = GetMidVertex(vy, vz, r, u23, v23, false, mesh, hash);
       int vxz = GetMidVertex(vx, vz, r, u31, v31, false, mesh, hash);
 
-      MakeCenter(vx, vxy, vxz, level-1, r,
-                 u1, v1, u12, v12, u31, v31, mesh, hash, params);
-      MakeCenter(vxy, vy, vyz, level-1, r,
-                 u12, v12, u2, v2, u23, v23, mesh, hash, params);
-      MakeCenter(vxz, vyz, vz, level-1, r,
-                 u31, v31, u23, v23, u3, v3, mesh, hash, params);
-      MakeCenter(vyz, vxz, vxy, level-1, r,
-                 u23, v23, u31, v31, u12, v12, mesh, hash, params);
+      MakeCenter(vx, vxy, vxz, level-1, r, u1, v1, u12, v12, u31, v31,
+                 bnd1, false, bnd3, bnd4, mesh, hash, params);
+      MakeCenter(vxy, vy, vyz, level-1, r, u12, v12, u2, v2, u23, v23,
+                 bnd1, bnd2, false, bnd4, mesh, hash, params);
+      MakeCenter(vxz, vyz, vz, level-1, r, u31, v31, u23, v23, u3, v3,
+                 false, bnd2, bnd3, bnd4, mesh, hash, params);
+      MakeCenter(vyz, vxz, vxy, level-1, r, u23, v23, u31, v31, u12, v12,
+                 false, false, false, bnd4, mesh, hash, params);
    }
 }
 
@@ -364,8 +377,8 @@ Mesh* Make3D(int nsteps, double rstep, double aspect, int order, bool sfc)
 
    int levels = 1;
 
-   MakeCenter(a, b, c, levels, r,
-              1, 0, 0, 1, 0, 0, mesh, hash, params);
+   MakeCenter(a, b, c, levels, r, 1, 0, 0, 1, 0, 0,
+              true, true, true, (nsteps == 1), mesh, hash, params);
 
    for (int k = 1; k < nsteps; k++)
    {
@@ -382,7 +395,8 @@ Mesh* Make3D(int nsteps, double rstep, double aspect, int order, bool sfc)
       int f = mesh->AddVertex(0, 0, r);
 
       MakeLayer(a, b, c, d, e, f, levels, prev_r, r,
-                1, 0, 0, 1, 0, 0, mesh, hash, params);
+                1, 0, 0, 1, 0, 0, true, true, true, (k == nsteps-1),
+                mesh, hash, params);
 
       a = d;
       b = e;
@@ -433,7 +447,6 @@ Mesh* Make3D(int nsteps, double rstep, double aspect, int order, bool sfc)
             {
                double l1 = 1.0 - ip.x - ip.y;
                double l2 = ip.x, l3 = ip.y;
-
                u = l1 * par.u1 + l2 * par.u2 + l3 * par.u3;
                v = l1 * par.v1 + l2 * par.v2 + l3 * par.v3;
                w = 1.0 - u - v;
