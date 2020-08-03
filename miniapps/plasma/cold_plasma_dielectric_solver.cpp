@@ -1186,10 +1186,8 @@ CPDSolver::Solve()
       {
          rhs.imag() *= -1.0;
       }
-      rhs.real().SyncAliasMemory(rhs);
-      rhs.imag().SyncAliasMemory(rhs);
-      tmp.real().SyncAliasMemory(tmp);
-      tmp.imag().SyncAliasMemory(tmp);
+      rhs.SyncAlias();
+      tmp.SyncAlias();
 
       Array<int> ess_tdof;
       m2_->FormSystemMatrix(ess_tdof, M2);
