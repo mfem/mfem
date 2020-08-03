@@ -492,9 +492,13 @@ PADiscreteLinearOperatorExtension::PADiscreteLinearOperatorExtension(DiscreteLin
 {
 }
 
+const Operator *PADiscreteLinearOperatorExtension::GetLocalOutputProlongation() const
+{
+   return a->GetLocalOutputProlongation();
+}
+
 void PADiscreteLinearOperatorExtension::Assemble()
 {
-   std::cout << "  PADiscreteLinearOperatorExtension::Assemble" << std::endl;
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
@@ -522,12 +526,10 @@ void PADiscreteLinearOperatorExtension::Assemble()
    }
 }
 
-/// is this really AddMult? I think it's more like Mult...
+/// TODO is this really AddMult? I think it's more like Mult...
 void PADiscreteLinearOperatorExtension::AddMult(
    const Vector &x, Vector &y, const double c) const
 {
-   std::cout << "PADiscreteLinearOperatorExtension::AddMult" << std::endl;
-
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int iSz = integrators.Size();
 
@@ -558,14 +560,10 @@ void PADiscreteLinearOperatorExtension::AddMult(
    }
 }
 
-/**
-   WIP
-*/
+/// TODO is this AddMultTranspose?
 void PADiscreteLinearOperatorExtension::AddMultTranspose(
    const Vector &x, Vector &y, const double c) const
 {
-   std::cout << "PADiscreteLinearOperatorExtension::AddMultTranspose" << std::endl;
-
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int iSz = integrators.Size();
 
@@ -594,15 +592,20 @@ void PADiscreteLinearOperatorExtension::AddMultTranspose(
    }
 }
 
-// We actually don't use the ess arrays, but we're matching a given
-// signature (not sure that's the best design)
 void PADiscreteLinearOperatorExtension::FormRectangularSystemOperator(
-   Array<int>& ess1, Array<int>& ess2, OperatorHandle &A)
+   const Array<int>& ess1, const Array<int>& ess2, OperatorHandle &A)
 {
-   Operator * oper;
-   Array<int> empty;
-   Operator::FormRectangularSystemOperator(empty, empty, oper);
-   A.Reset(oper); // A will own oper
+   // below copied from Operator::FormRectangularConstrainedSystemOperator()
+   const Operator *Pi = this->GetProlongation();
+   const Operator *Po = this->GetLocalOutputProlongation();
+   Operator *rap = SetupRAP(Pi, Po); 
+
+   // TODO the next bit is unnecessary (no essential dofs) but deletion is not
+   // clean without it
+   RectangularConstrainedOperator *Arco
+      = new RectangularConstrainedOperator(rap, ess1, ess2, rap != this);
+
+   A.Reset(Arco);
 }
 
 

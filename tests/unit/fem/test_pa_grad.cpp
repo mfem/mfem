@@ -155,7 +155,7 @@ double par_compare_pa_assembly(int dim, int num_elements, int order, bool transp
    pa_grad.Assemble();
    // pa_grad.Finalize();
    OperatorPtr pa_grad_oper;
-   pa_grad_oper.SetType(Operator::ANY_TYPE);
+   // pa_grad_oper.SetType(Operator::ANY_TYPE);
    // pa_grad.ParallelAssemble(pa_grad_oper);
    pa_grad.FormRectangularSystemMatrix(pa_grad_oper);
 
@@ -173,6 +173,8 @@ double par_compare_pa_assembly(int dim, int num_elements, int order, bool transp
    Vector xv(insize);
    Vector assembled_y(outsize);
    Vector pa_y(outsize);
+   assembled_y = 0.0;
+   pa_y = 0.0;
 
    xv.Randomize();
    if (transpose)
@@ -194,13 +196,6 @@ double par_compare_pa_assembly(int dim, int num_elements, int order, bool transp
 
    for (int p = 0; p < size; ++p)
    {
-      if (rank == 0)
-      {
-         for (int i = 0; i < error_vec.Size(); ++i)
-         {
-            std::cout << i << " : " << assembled_y(i) << " " << pa_y(i) << " (" << error_vec(i) << ")" << std::endl;
-         }
-      }
       if (rank == p)
       {
          std::cout << "[" << rank << "]" << std::endl;
@@ -213,6 +208,14 @@ double par_compare_pa_assembly(int dim, int num_elements, int order, bool transp
             std::cout << " T";
          }
          std::cout << ": error in PA gradient: " << error << std::endl;
+         if (false && transpose && error > 1.e-12)
+         {
+            for (int i = 0; i < error_vec.Size(); ++i)
+            {
+               std::cout << i << " : " << assembled_y(i) << " " << pa_y(i)
+                         << " (" << error_vec(i) << ")" << std::endl;
+            }
+         }
          std::cout.flush();
       }
       MPI_Barrier(MPI_COMM_WORLD);
