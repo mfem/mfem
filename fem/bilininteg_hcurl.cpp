@@ -54,48 +54,6 @@ static void PAHcurlSetup2D(const int Q1D,
    });
 }
 
-/// this orientation business is gonna be harder than I thought...
-/// (you really do need to go through the tk, dof2tk chain and get actual
-/// orientations, one day just buckle down and do it)
-/// [but that's not what I do?]
-/// (can't just use the Jacobian)
-// PA H(curl) Gradient Assemble 2D kernel
-static void PAHcurlSetup2DGrad(const int Q1D,
-                               const int NE,
-                               const Vector &tk_v,
-                               const Array<int> & dof2tk_v,
-                               Vector &orientations_)
-{
-   const int NQ = Q1D*Q1D;
-
-   // auto tk = //// ????
-   // auto J = Reshape(j.Read(), NQ, 2, 2, NE);
-   // auto coeff = Reshape(_coeff.Read(), NQ, NE);
-   const int ned_dofs_per_elem = 1;
-   auto orientations = Reshape(orientations_.Write(), NE, ned_dofs_per_elem);
-
-   // auto orient = Reshape(op.Write(), NQ, 3, NE); // ???
-
-   MFEM_FORALL(e, NE,
-   {
-      for (int q = 0; q < NQ; ++q)
-      {
-         /*
-         const double J11 = J(q,0,0,e);
-         const double J21 = J(q,1,0,e);
-         const double J12 = J(q,0,1,e);
-         const double J22 = J(q,1,1,e);
-         const double c_detJ = W[q] * coeff(q, e) / ((J11*J22)-(J21*J12));
-         y(q,0,e) =  c_detJ * (J12*J12 + J22*J22); // 1,1 // ???
-         y(q,1,e) = -c_detJ * (J12*J11 + J22*J21); // 1,2
-         y(q,2,e) =  c_detJ * (J11*J11 + J21*J21); // 2,2
-         */
-         orientations(e, q) = 0.0;
-      }
-   });
-}
-
-
 // PA H(curl) Mass Assemble 3D kernel
 static void PAHcurlSetup3D(const int Q1D,
                            const int NE,
@@ -146,16 +104,6 @@ static void PAHcurlSetup3D(const int Q1D,
          y(q,5,e) = c_detJ * (A31*A31 + A32*A32 + A33*A33); // 3,3
       }
    });
-}
-
-// PA H(curl) Mass Assemble 3D kernel
-static void PAHcurlSetup3DGrad(const int Q1D,
-                               const int NE,
-                               const Array<double> &w,
-                               const Vector &j,
-                               Vector &orientations)
-{
-   mfem_error("Not implemented!");
 }
 
 void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
