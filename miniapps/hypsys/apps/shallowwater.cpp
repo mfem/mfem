@@ -16,7 +16,6 @@ ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
                                                 InflowFunctionSWE))
 {
    ConfigSWE = config_;
-
    VectorFunctionCoefficient ic(NumEq, InitialConditionSWE);
 
    switch (ConfigSWE.ConfigNum)
@@ -224,7 +223,6 @@ void ShallowWater::ComputeErrors(Array<double> &errors, const GridFunction &u,
 void AnalyticalSolutionSWE(const Vector &x, double t, Vector &u)
 {
    const int dim = x.Size();
-   u.SetSize(dim+1);
    Vector X(dim);
 
    for (int i = 0; i < dim; i++)
@@ -336,7 +334,6 @@ void AnalyticalSolutionSWE(const Vector &x, double t, Vector &u)
 void InitialConditionSWE(const Vector &x, Vector &u)
 {
    const int dim = x.Size();
-   u.SetSize(dim+1);
    Vector X(dim);
 
    // Map to the reference domain [-1,1]^d.

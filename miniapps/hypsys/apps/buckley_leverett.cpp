@@ -11,8 +11,7 @@ BuckleyLeverett::BuckleyLeverett(FiniteElementSpace *fes_, BlockVector &u_block,
                       VectorFunctionCoefficient(1, InflowFunctionBuckleyLeverett))
 {
    ConfigBL = config_;
-
-   VectorFunctionCoefficient ic(1, InitialConditionBuckleyLeverett);
+   VectorFunctionCoefficient ic(NumEq, InitialConditionBuckleyLeverett);
 
    switch (ConfigBL.ConfigNum)
    {
@@ -106,12 +105,12 @@ void InflowFunctionBuckleyLeverett(const Vector &x, double t, Vector &u)
    {
       case 1:
       {
-         u(0) = x(0) < 0. ? 3. : -3;
+         u(0) = x(0) < 0.0 ? 3.0 : -3.0;
          break;
       }
       case 2:
       {
-         u(0) = 0.;
+         u(0) = 0.0;
          break;
       }
    }

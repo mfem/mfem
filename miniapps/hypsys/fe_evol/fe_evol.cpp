@@ -255,6 +255,33 @@ void FE_Evolution::LaxFriedrichs(const Vector &x1, const Vector &x2,
    y *= 0.5;
 }
 
+void FE_Evolution::HLL(const Vector &x1, const Vector &x2, const Vector &normal,
+                       Vector &y, int e, int k, int i) const
+{
+   hyp->EvaluateFlux(x1, Flux, e, k, i);
+   hyp->EvaluateFlux(x2, FluxNbr, e, k, i);
+
+   // Note: Hardcoded for 2D Euler
+   double v1 = (x1(1) * normal(0) + x1(2) * normal(1)) / x1(0);
+   double v2 = (x2(1) * normal(0) + x2(2) * normal(1)) / x2(0);
+   double p1 = 0.4 * ( x1(3) - 0.5 * (x1(1)*x1(1) + x1(2)*x1(2)) / x1(0) );
+   double p2 = 0.4 * ( x2(3) - 0.5 * (x2(1)*x2(1) + x2(2)*x2(2)) / x2(0) );
+   double c1 = sqrt(1.4 * p1 / x1(0));
+   double c2 = sqrt(1.4 * p2 / x2(0));
+   double s1 = min(v1, v2) - max(c1, c2);
+   double s2 = max(v1, v2) + min(c1, c2);
+
+   if (s1 > 0.0) { Flux.Mult(normal, y); }
+   else if  (s2 < 0.0) { FluxNbr.Mult(normal, y); }
+   else
+   {
+      subtract(s1*s2, x2, x1, y);
+      Flux.AddMult_a(s2, normal, y);
+      FluxNbr.AddMult_a(-s1, normal, y);
+      y /= (s2 -s1);
+   }
+}
+
 double FE_Evolution::ConvergenceCheck(double dt, const Vector &u) const
 {
    z = u;

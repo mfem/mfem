@@ -66,6 +66,8 @@ public:
                          int e, int i, int k) const;
    virtual void LaxFriedrichs(const Vector &x1, const Vector &x2, const Vector &normal,
                               Vector &y, int e, int k, int i) const;
+   virtual void HLL(const Vector &x1, const Vector &x2, const Vector &normal,
+                    Vector &y, int e, int k, int i) const;
    virtual double ConvergenceCheck(double dt, const Vector &u) const;
 };
 

@@ -2,8 +2,8 @@
 
 Configuration ConfigAdv;
 
-double AnalyticalSolutionAdv(const Vector &x, double t);
-double InitialConditionAdv(const Vector &x);
+void AnalyticalSolutionAdv(const Vector &x, double t, Vector &u);
+void InitialConditionAdv(const Vector &x, Vector &u);
 void InflowFunctionAdv(const Vector &x, double t, Vector &u);
 void VelocityFunctionAdv(const Vector &x, Vector &v);
 
@@ -13,8 +13,7 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
                       VectorFunctionCoefficient (1, InflowFunctionAdv))
 {
    ConfigAdv = config_;
-
-   FunctionCoefficient ic(InitialConditionAdv);
+   VectorFunctionCoefficient ic(NumEq, InitialConditionAdv);
 
    switch (ConfigAdv.ConfigNum)
    {
@@ -212,7 +211,7 @@ void Advection::ComputeErrors(Array<double> &errors, const GridFunction &u,
                               double DomainSize, double t) const
 {
    errors.SetSize(3);
-   FunctionCoefficient uAnalytic(AnalyticalSolutionAdv);
+   VectorFunctionCoefficient uAnalytic(NumEq, AnalyticalSolutionAdv);
    uAnalytic.SetTime(t);
    errors[0] = u.ComputeLpError(1., uAnalytic) / DomainSize;
    errors[1] = u.ComputeLpError(2., uAnalytic) / DomainSize;
@@ -222,11 +221,10 @@ void Advection::ComputeErrors(Array<double> &errors, const GridFunction &u,
 
 void VelocityFunctionAdv(const Vector &x, Vector &v)
 {
-   double s = 1.;
    const int dim = x.Size();
-
-   // Map to the reference [-1,1] domain.
    Vector X(dim);
+   double s = 1.0;
+
    for (int i = 0; i < dim; i++)
    {
       switch (ConfigAdv.ConfigNum)
@@ -288,7 +286,7 @@ void VelocityFunctionAdv(const Vector &x, Vector &v)
    }
 }
 
-double AnalyticalSolutionAdv(const Vector &x, double t)
+void AnalyticalSolutionAdv(const Vector &x, double t, Vector &u)
 {
    const int dim = x.Size();
    Vector X(dim);
@@ -322,7 +320,8 @@ double AnalyticalSolutionAdv(const Vector &x, double t)
       case 0:
       {
          double a = 0.5, b = 0.03, c = 0.1;
-         return 0.25 * (1. + tanh((r+c-a)/b)) * (1. - tanh((r-c-a)/b));
+         u(0) = 0.25 * (1. + tanh((r+c-a)/b)) * (1. - tanh((r-c-a)/b));
+         break;
       }
       case 1:
       {
@@ -332,29 +331,25 @@ double AnalyticalSolutionAdv(const Vector &x, double t)
          double cone = sqrt(pow(X(0)-0.5, 2.) + pow(X(1)-0.25, 2.));
          double hump = sqrt(pow(X(0)-0.25, 2.) + pow(X(1)-0.5, 2.));
 
-         return (1. - cone / s) * (cone <= s) +
+         u(0) = (1. - cone / s) * (cone <= s) +
                 0.25 * (1. + cos(M_PI*hump / s)) * (hump <= s) +
                 ( ( sqrt(pow(X(0)-0.5, 2.) + pow(X(1)-0.75, 2.)) <= s ) &&
                   ( abs(X(0)-0.5) >= 0.025 || (X(1) >= 0.85) ) ? 1. : 0. );
+         break;
       }
-      case 2:
-         return r < 0.2 ? 1. : 0.;
-      case 3:
-         return exp(-25. * r*r);
-      case 4:
-         return abs(r - 0.3) < 0.1 ? 1. : ( (abs(r-0.7) < 0.2) ? (exp(10.)*exp(-1./(r-0.5))*exp(1./(r-0.9))) : 0. );
-      case 5:
-         return abs(r-0.25) <= 0.15 ? 0.5*(1.+cos(M_PI*(r-0.25)/0.15)) : 0.;
+      case 2: { u(0) = r < 0.2 ? 1. : 0.; break; }
+      case 3: { u(0) = exp(-25. * r*r); break; }
+      case 4: { u(0) = abs(r - 0.3) < 0.1 ? 1. : ( (abs(r-0.7) < 0.2) ? (exp(10.)*exp(-1./(r-0.5))*exp(1./(r-0.9))) : 0. ); }
+      case 5: { u(0) = abs(r-0.25) <= 0.15 ? 0.5*(1.+cos(M_PI*(r-0.25)/0.15)) : 0.; }
    }
-   return 0.;
 }
 
-double InitialConditionAdv(const Vector &x)
+void InitialConditionAdv(const Vector &x, Vector &u)
 {
-   return AnalyticalSolutionAdv(x, 0.);
+   AnalyticalSolutionAdv(x, 0.0, u);
 }
 
 void InflowFunctionAdv(const Vector &x, double t, Vector &u)
 {
-   u(0) = AnalyticalSolutionAdv(x, t);
+   AnalyticalSolutionAdv(x, t, u);
 }

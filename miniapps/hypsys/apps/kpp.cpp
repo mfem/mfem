@@ -2,7 +2,7 @@
 
 Configuration ConfigKPP;
 
-double InitialConditionKPP(const Vector &x);
+void InitialConditionKPP(const Vector &x, Vector &u);
 void InflowFunctionKPP(const Vector &x, double t, Vector &u);
 
 KPP::KPP(FiniteElementSpace *fes_, BlockVector &u_block,
@@ -11,8 +11,7 @@ KPP::KPP(FiniteElementSpace *fes_, BlockVector &u_block,
                       VectorFunctionCoefficient(1, InflowFunctionKPP))
 {
    ConfigKPP = config_;
-
-   FunctionCoefficient ic(InitialConditionKPP);
+   VectorFunctionCoefficient ic(NumEq, InitialConditionKPP);
 
    switch (ConfigKPP.ConfigNum)
    {
@@ -45,19 +44,16 @@ double KPP::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
    return 1.;
 }
 
-double InitialConditionKPP(const Vector &x)
+void InitialConditionKPP(const Vector &x, Vector &u)
 {
-   if (x.Size() != 2)
-   {
-      MFEM_ABORT("Test case only implemented in 2D.");
-   }
+   if (x.Size() != 2) { MFEM_ABORT("Test case only implemented in 2D."); }
 
    // Map to test case specific domain [-2,2] x [-2.5,1.5].
    Vector X(2);
    X(0) = ( 4.0 * x(0) - 2.0 * (ConfigKPP.bbMin(0) + ConfigKPP.bbMax(0)) ) / (ConfigKPP.bbMax(0) - ConfigKPP.bbMin(0));
    X(1) = ( 4.0 * x(1) - 1.5 * ConfigKPP.bbMin(1) - 2.5 * ConfigKPP.bbMax(1) ) / (ConfigKPP.bbMax(1) - ConfigKPP.bbMin(1));
 
-   return X.Norml2() <= 1. ? 3.5 * M_PI : 0.25 * M_PI;
+   u(0) = X.Norml2() <= 1. ? 3.5 * M_PI : 0.25 * M_PI;
 }
 
 void InflowFunctionKPP(const Vector &x, double t, Vector &u)

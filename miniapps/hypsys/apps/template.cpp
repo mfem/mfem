@@ -12,7 +12,6 @@ TEMPLATE::TEMPLATE(FiniteElementSpace *fes_, BlockVector &u_block,
                       VectorFunctionCoefficient(NUMEQ, InflowFunctionTEMPLATE))
 {
    ConfigTEMPLATE = config_;
-
    VectorFunctionCoefficient ic(NumEq, InitialConditionTEMPLATE);
 
    switch (ConfigTEMPLATE.ConfigNum)
@@ -78,13 +77,28 @@ void TEMPLATE::ComputeErrors(Array<double> &errors, const GridFunction &u,
 void AnalyticalSolutionTEMPLATE(const Vector &x, double t, Vector &u)
 {
    const int dim = x.Size();
-
-   // Map to the reference domain [-1,1].
    Vector X(dim);
+
    for (int i = 0; i < dim; i++)
    {
-      double center = (ConfigTEMPLATE.bbMin(i) + ConfigTEMPLATE.bbMax(i)) * 0.5;
-      X(i) = 2. * (x(i) - center) / (ConfigTEMPLATE.bbMax(i) - ConfigTEMPLATE.bbMin(i));
+      switch (ConfigTEMPLATE.ConfigNum)
+      {
+         case /* TODO */: // Map to the reference domain [-1,1]^d.
+         {
+            double center = 0.5 * (ConfigTEMPLATE.bbMin(i) + ConfigTEMPLATE.bbMax(i));
+            double factor = 2.0 / (ConfigTEMPLATE.bbMax(i) - ConfigTEMPLATE.bbMin(i));
+            X(i) = factor * (x(i) - center);
+            t *= pow(factor, 1.0 / (double(dim)));
+            break;
+         }
+         case /* TODO */: // Map to the reference domain [0,1]^d.
+         {
+            double factor = 1.0 / (ConfigTEMPLATE.bbMax(i) - ConfigTEMPLATE.bbMin(i));
+            X(i) = factor * (x(i) - ConfigTEMPLATE.bbMin(i));
+            t *= pow(factor, 1.0 / (double(dim)));
+            break;
+         }
+      }
    }
 
    // TODO
@@ -92,10 +106,10 @@ void AnalyticalSolutionTEMPLATE(const Vector &x, double t, Vector &u)
 
 void InitialConditionTEMPLATE(const Vector &x, Vector &u)
 {
-   AnalyticalSolutionTEMPLATE(x, 0., u);
+   // TODO
 }
 
 void InflowFunctionTEMPLATE(const Vector &x, double t, Vector &u)
 {
-   AnalyticalSolutionTEMPLATE(x, t, u);
+   // TODO
 }

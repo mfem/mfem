@@ -31,18 +31,22 @@ $EXEC $CONFIG -r 1 -o 31 -dt 0.0004
 # $EXEC $CONFIG -o 1 -r 3 -dt 5e-5
 
 
-# ## Vortex advection
-# SCHEME=0
-# MESH3=data/periodic-3quad.mesh
-# MESH4=data/periodic-4quad.mesh
-# ORDER=1
-# ODESOLVER=2
-# DT=0.000625
-# CONFIG="-p 5 -c 0 -vf 100 -tf 1 -s $ODESOLVER -dt $DT -o $ORDER -es $SCHEME"
+## Vortex advection
+SCHEME=0
+MESH3=data/periodic-3quad.mesh
+MESH4=data/periodic-4quad.mesh
+ORDER=1
+ODESOLVER=2
+DT=0.000625
+# ORDER=2
+# ODESOLVER=3
+# DT=0.0002
+CONFIG="-p 5 -c 0 -vf 100 -tf 1 -s $ODESOLVER -dt $DT -o $ORDER -es $SCHEME"
 
-# rm errors.txt
-# $EXEC $CONFIG -m $MESH3 -r 3
-# $EXEC $CONFIG -m $MESH4 -r 3
-# $EXEC $CONFIG -m $MESH3 -r 4
-# $EXEC $CONFIG -m $MESH4 -r 4
-# $EXEC $CONFIG -m $MESH3 -r 5
+rm errors.txt
+$EXEC $CONFIG -m $MESH3 -r 3
+$EXEC $CONFIG -m $MESH4 -r 3
+$EXEC $CONFIG -m $MESH3 -r 4
+$EXEC $CONFIG -m $MESH4 -r 4
+$EXEC $CONFIG -m $MESH3 -r 5
+# $EXEC $CONFIG -m $MESH4 -r 5

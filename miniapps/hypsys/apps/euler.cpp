@@ -15,7 +15,6 @@ Euler::Euler(FiniteElementSpace *fes_, BlockVector &u_block,
                                                 InflowFunctionEuler))
 {
    ConfigEuler = config_;
-
    VectorFunctionCoefficient ic(NumEq, InitialConditionEuler);
 
    switch (ConfigEuler.ConfigNum)
@@ -409,7 +408,6 @@ void EvaluateEnergy(Vector &u, const double &pressure)
 void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
 {
    const int dim = x.Size();
-   u.SetSize(dim+2);
    Vector X(dim);
 
    for (int i = 0; i < dim; i++)
@@ -449,7 +447,7 @@ void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
          double beta = 5.0;
          double r = X.Norml2();
          double T0 = 1.0 - (SpHeatRatio - 1.0) * beta * beta
-                     / (8.0 * SpHeatRatio * M_PI * M_PI) * exp(1.0 - r * r);
+                     / (8.0 * SpHeatRatio * M_PI * M_PI) * exp(1.0 - r*r);
 
          u(0) = pow(T0, 1.0 / (SpHeatRatio - 1.0));
          u(1) = (1.0 - beta / (2.0 * M_PI) * exp(0.5 * (1.0 - r*r)) * X(1)) * u(0);
@@ -508,7 +506,7 @@ void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
       }
       case 6:
       {
-         if (dim != 2) { MFEM_ABORT("Test case works only in 2D."); } // TODO remove
+         if (dim != 2) { MFEM_ABORT("Test case works only in 2D."); }
 
          bool left = X(0) < 0. && X(0)*X(0) + 0.24 * (X(1)+1.)*(X(1)+1.) > 1.05;
          X(0) = 0.5 * (X(0) + 1.);
@@ -564,7 +562,6 @@ void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
 void InitialConditionEuler(const Vector &x, Vector &u)
 {
    const int dim = x.Size();
-   u.SetSize(dim+2);
    Vector X(dim);
 
    for (int i = 0; i < dim; i++)
