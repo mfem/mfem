@@ -146,17 +146,13 @@ double par_compare_pa_assembly(int dim, int num_elements, int order, bool transp
    const int skip_zeros = 1;
    assembled_grad.Assemble(skip_zeros);
    assembled_grad.Finalize(skip_zeros);
-   // const SparseMatrix& assembled_grad_mat = assembled_grad.SpMat();
    HypreParMatrix * assembled_grad_mat = assembled_grad.ParallelAssemble();
 
    ParDiscreteLinearOperator pa_grad(&h1_fespace, &nd_fespace);
    pa_grad.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    pa_grad.AddDomainInterpolator(new GradientInterpolator);
    pa_grad.Assemble();
-   // pa_grad.Finalize();
    OperatorPtr pa_grad_oper;
-   // pa_grad_oper.SetType(Operator::ANY_TYPE);
-   // pa_grad.ParallelAssemble(pa_grad_oper);
    pa_grad.FormRectangularSystemMatrix(pa_grad_oper);
 
    int insize, outsize;
@@ -198,9 +194,9 @@ double par_compare_pa_assembly(int dim, int num_elements, int order, bool transp
    {
       if (rank == p)
       {
-         std::cout << "[" << rank << "]" << std::endl;
-         std::cout << "pa_y.Norml2() = " << pa_y.Norml2() << std::endl;
-         std::cout << "assembled_y.Norml2() = " << assembled_y.Norml2() << std::endl;
+         std::cout << "[" << rank << "]";
+         // std::cout << "pa_y.Norml2() = " << pa_y.Norml2() << std::endl;
+         // std::cout << "assembled_y.Norml2() = " << assembled_y.Norml2() << std::endl;
          std::cout << "[par] dim " << dim << " ne " << num_elements << " order "
                    << order;
          if (transpose)
@@ -208,14 +204,6 @@ double par_compare_pa_assembly(int dim, int num_elements, int order, bool transp
             std::cout << " T";
          }
          std::cout << ": error in PA gradient: " << error << std::endl;
-         if (false && transpose && error > 1.e-12)
-         {
-            for (int i = 0; i < error_vec.Size(); ++i)
-            {
-               std::cout << i << " : " << assembled_y(i) << " " << pa_y(i)
-                         << " (" << error_vec(i) << ")" << std::endl;
-            }
-         }
          std::cout.flush();
       }
       MPI_Barrier(MPI_COMM_WORLD);
