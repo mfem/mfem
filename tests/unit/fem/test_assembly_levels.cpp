@@ -48,8 +48,6 @@ void test_assembly_level(Mesh &&mesh, int order, bool dg, const int pb,
                          const AssemblyLevel assembly)
 {
    mesh.EnsureNodes();
-   mesh.SetCurvature(mesh.GetNodalFESpace()->GetOrder(0),
-                     mesh.GetNodalFESpace()->IsDGSpace());
    int dim = mesh.Dimension();
 
    FiniteElementCollection *fec;
