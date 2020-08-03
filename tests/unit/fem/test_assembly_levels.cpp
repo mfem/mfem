@@ -176,7 +176,7 @@ TEST_CASE("Assembly Levels", "[AssemblyLevel]")
       {
          for (AssemblyLevel assembly : {AssemblyLevel::PARTIAL,AssemblyLevel::ELEMENT,AssemblyLevel::FULL})
          {
-            for (int pb : {0, 1})
+            for (int pb : {0, 1, 2})
             {
                for (int order : {2, 3, 4})
                {
@@ -194,7 +194,7 @@ TEST_CASE("Assembly Levels", "[AssemblyLevel]")
       {
          for (AssemblyLevel assembly : {AssemblyLevel::PARTIAL,AssemblyLevel::ELEMENT,AssemblyLevel::FULL})
          {
-            for (int pb : {0, 1})
+            for (int pb : {0, 1, 2})
             {
                for (bool dg : {true, false})
                {
