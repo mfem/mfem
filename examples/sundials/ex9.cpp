@@ -90,7 +90,6 @@ int main(int argc, char *argv[])
    double dt = 0.01;
    bool visualization = true;
    bool visit = false;
-   bool binary = false;
    int vis_steps = 5;
 
    // Relative and absolute tolerances for CVODE and ARKODE.
@@ -128,9 +127,6 @@ int main(int argc, char *argv[])
    args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
                   "--no-visit-datafiles",
                   "Save data files for VisIt (visit.llnl.gov) visualization.");
-   args.AddOption(&binary, "-binary", "--binary-datafiles", "-ascii",
-                  "--ascii-datafiles",
-                  "Use binary (Sidre) or ascii format for VisIt data files.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
    args.Parse();
@@ -215,24 +211,13 @@ int main(int argc, char *argv[])
       u.Save(osol);
    }
 
-   // Create data collection for solution output: either VisItDataCollection for
-   // ascii data files, or SidreDataCollection for binary data files.
+   // Create data collection for solution output: VisItDataCollection for
+   // ascii data files
    DataCollection *dc = NULL;
    if (visit)
    {
-      if (binary)
-      {
-#ifdef MFEM_USE_SIDRE
-         dc = new SidreDataCollection("Example9", &mesh);
-#else
-         MFEM_ABORT("Must build with MFEM_USE_SIDRE=YES for binary output.");
-#endif
-      }
-      else
-      {
-         dc = new VisItDataCollection("Example9", &mesh);
-         dc->SetPrecision(precision);
-      }
+      dc = new VisItDataCollection("Example9", &mesh);
+      dc->SetPrecision(precision);
       dc->RegisterField("solution", &u);
       dc->SetCycle(0);
       dc->SetTime(0.0);
