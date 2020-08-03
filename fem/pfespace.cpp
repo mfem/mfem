@@ -101,6 +101,7 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
 
    P = NULL;
    Pconf = NULL;
+   Pconf_local = NULL;
    R = NULL;
 
    num_face_nbr_dofs = -1;
@@ -913,6 +914,40 @@ const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
    else
    {
       return Dof_TrueDof_Matrix();
+   }
+}
+
+const Operator *ParFiniteElementSpace::GetLocalProlongationMatrix() const
+{
+   std::cout << "    <PFES::GetLocalProlongationMatrix>" << std::endl;
+   if (Conforming())
+   {
+      if (Pconf_local) { return Pconf_local; }
+
+      if (NRanks == 1)
+      {
+         Pconf_local = new IdentityOperator(GetTrueVSize());
+      }
+      else
+      {
+         if (!Device::Allows(Backend::DEVICE_MASK))
+         {
+            Pconf_local = new ConformingProlongationOperator(*this, true);
+         }
+         else
+         {
+            // Pconf = new DeviceConformingProlongationOperator(*this);
+            mfem_error("Not implemented!");
+         }
+      }
+      return Pconf_local;
+   }
+   else
+   {
+      // return Dof_TrueDof_Matrix();
+      // just need diagonal portion, not too hard
+      mfem_error("Not implemented!");
+      return NULL;
    }
 }
 
@@ -2827,6 +2862,7 @@ void ParFiniteElementSpace::Destroy()
 
    delete P; P = NULL;
    delete Pconf; Pconf = NULL;
+   delete Pconf_local; Pconf_local = NULL;
    delete R; R = NULL;
 
    delete gcomm; gcomm = NULL;
@@ -2952,13 +2988,44 @@ void ParFiniteElementSpace::Update(bool want_transform)
    }
 }
 
+/*
+  the stack that needs to be created / edited:
+
+PADiscreteLinearOperatorExtension::FormRectangularSystemOperator() calls
+Operator::SetupRAP() with Po = this(PADiscreteLinearOperatorExtension)->GetLocalOutputProlongation()
+  which calls
+BilinearForm::GetLocalOutputProlongation() which is reimplemented by
+DiscreteLinearOperator::GetLocalOutputProlongation() calls
+test_fes(FiniteElementSpace)->GetLocalProlongationMatrix() is reimplemented by
+ParFiniteElementSpace::GetLocalProlongationMatrix() returns
+ConformingProlongationOperator(true) [which I still need to understand]
+
+(first we should understand the PAMixedBilinearFormExtension stack, then think about the above)
+
+PAMixedBilinearFormExtension::FormRectangularSystemOperator() calls
+Operator::FormRectangularSystemOperator() calls
+Operator::FormRectangularConstrainedSystemOperator() calls
+Operator::SetupRAP(Pi, Po) with Po from this(Operator)->GetOutputProlongation()
+  by default calls Operator::GetProlongation(), but this case is reimplemented by
+MixedBilinearFormExtension::GetOutputProlongation() calls
+BilinearForm::GetOutputProlongation()
+  by default calls BilinearForm::GetProlongation() but this case is reimplemented by
+MixedBilinearForm::GetOutputProlongation() calls
+test_fes(FiniteElementSpace)->GetProlongationMatrix() is reimplemented by
+ParFiniteElementSpace::GetProlongationMatrix() returns
+ConformingProlongationOperator() [which I still need to understand]
+*/
 
 ConformingProlongationOperator::ConformingProlongationOperator(
-   const ParFiniteElementSpace &pfes)
+   const ParFiniteElementSpace &pfes, bool local_)
    : Operator(pfes.GetVSize(), pfes.GetTrueVSize()),
      external_ldofs(),
-     gc(pfes.GroupComm())
+     gc(pfes.GroupComm()),
+     local(local_)
 {
+   /// TODO TODO ATB unfortunately I am going to need to understand this,
+   /// see notebook 22 July 2020
+
    MFEM_VERIFY(pfes.Conforming(), "");
    const Table &group_ldof = gc.GroupLDofTable();
    external_ldofs.Reserve(Height()-Width());
@@ -3006,7 +3073,14 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
    const int m = external_ldofs.Size();
 
    const int in_layout = 2; // 2 - input is ltdofs array
-   gc.BcastBegin(const_cast<double*>(xdata), in_layout);
+   if (local)
+   {
+      y = 0.0;
+   }
+   else
+   {
+      gc.BcastBegin(const_cast<double*>(xdata), in_layout);
+   }
 
    int j = 0;
    for (int i = 0; i < m; i++)
@@ -3018,7 +3092,10 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
    std::copy(xdata+j-m, xdata+Width(), ydata+j);
 
    const int out_layout = 0; // 0 - output is ldofs array
-   gc.BcastEnd(ydata, out_layout);
+   if (!local)
+   {
+      gc.BcastEnd(ydata, out_layout);
+   }
 }
 
 void ConformingProlongationOperator::MultTranspose(
@@ -3031,7 +3108,10 @@ void ConformingProlongationOperator::MultTranspose(
    double *ydata = y.HostWrite();
    const int m = external_ldofs.Size();
 
-   gc.ReduceBegin(xdata);
+   if (!local)
+   {
+      gc.ReduceBegin(xdata);
+   }
 
    int j = 0;
    for (int i = 0; i < m; i++)
@@ -3043,7 +3123,10 @@ void ConformingProlongationOperator::MultTranspose(
    std::copy(xdata+j, xdata+Height(), ydata+j-m);
 
    const int out_layout = 2; // 2 - output is an array on all ltdofs
-   gc.ReduceEnd<double>(ydata, out_layout, GroupCommunicator::Sum);
+   if (!local)
+   {
+      gc.ReduceEnd<double>(ydata, out_layout, GroupCommunicator::Sum);
+   }
 }
 
 DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(

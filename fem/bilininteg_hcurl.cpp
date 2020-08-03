@@ -1997,8 +1997,6 @@ static void PAHcurlApplyGradient2D(const int c_dofs1D,
                                    const Vector &_x,
                                    Vector &_y)
 {
-   std::cout << "PAHcurlApplyGradient2D [kernel]" << std::endl;
-
    auto B = Reshape(_B.Read(), c_dofs1D, c_dofs1D);
    auto G = Reshape(_G.Read(), o_dofs1D, c_dofs1D);
    // const int ned_dofs_per_elem = (2 * o_dofs1D * c_dofs1D);
@@ -2074,8 +2072,6 @@ static void PAHcurlApplyGradientTranspose2D(
    const Array<double> &_B, const Array<double> &_G,
    const Vector &_x, Vector &_y)
 {
-   std::cout << "PAHcurlApplyGradientTranspose2D [kernel]" << std::endl;
-
    auto B = Reshape(_B.Read(), c_dofs1D, c_dofs1D);
    auto G = Reshape(_G.Read(), o_dofs1D, c_dofs1D);
 
@@ -2150,8 +2146,6 @@ static void PAHcurlApplyGradient3D(const int c_dofs1D,
                                    const Vector &_x,
                                    Vector &_y)
 {
-   std::cout << "PAHcurlApplyGradient3D [kernel]" << std::endl;
-
    auto B = Reshape(_B.Read(), c_dofs1D, c_dofs1D);
    auto G = Reshape(_G.Read(), o_dofs1D, c_dofs1D);
 
@@ -2343,8 +2337,6 @@ static void PAHcurlApplyGradientTranspose3D(
    const Array<double> &_B, const Array<double> &_G,
    const Vector &_x, Vector &_y)
 {
-   std::cout << "PAHcurlApplyGradientTranspose3D [kernel]" << std::endl;
-
    auto B = Reshape(_B.Read(), c_dofs1D, c_dofs1D);
    auto G = Reshape(_G.Read(), o_dofs1D, c_dofs1D);
 
@@ -2801,8 +2793,6 @@ void BuildOrientations2D(int ndof, ElementTransformation& trans, double* orienta
 void GradientInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
                                       const FiniteElementSpace &test_fes)
 {
-   std::cout << "    GradientInterpolator::AssemblePA" << std::endl;
-
    // Assumes tensor-product elements, with a vector test space and H^1 trial space.
    Mesh *mesh = trial_fes.GetMesh();
    const FiniteElement *trial_fel = trial_fes.GetFE(0);
@@ -2822,8 +2812,6 @@ void GradientInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
    const int dims = trial_el->GetDim();
    MFEM_VERIFY(dims == 2 || dims == 3, "");
 
-   // const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
-   // const int nq = old_ir->GetNPoints();
    dim = mesh->Dimension();
    MFEM_VERIFY(dim == 2 || dim == 3, "");
 
@@ -2849,46 +2837,10 @@ void GradientInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
    c_dofs1D = maps_C_C->nqpt;
    MFEM_VERIFY(maps_O_C->ndof == c_dofs1D, "Bad programming!");
    MFEM_VERIFY(maps_C_C->ndof == c_dofs1D, "Bad programming!");
-
-   // pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
-
-   /*
-   const int ned_dofs_per_elem = (dim == 2) ? (2 * o_dofs1D * c_dofs1D) :
-      (3 * o_dofs1D * c_dofs1D * c_dofs1D);
-   orientations.SetSize(ne * ned_dofs_per_elem);
-
-   for (int e = 0; e < ne; ++e)
-   {
-      MFEM_ASSERT(dim == 2, "3D not implemented at this point!");
-      BuildOrientations2D(order + 1, *trial_fes.GetElementTransformation(e),
-                          orientations.GetData() + (e * ned_dofs_per_elem));
-   }
-   */
-
-   // not sure what I'm trying to accomplish here;
-   // think the original idea was these routines would *fill*
-   // the orientations array
-   /*
-   if (test_el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3)
-   {
-      int quad1D = o_dofs1D;
-      PAHcurlSetup3DGrad(quad1D, ne, geom->J, orientations);
-   }
-   else if (test_el->GetDerivType() == mfem::FiniteElement::CURL && dim == 2)
-   {
-      int quad1D = o_dofs1D;
-      PAHcurlSetup2DGrad(quad1D, ne, geom->J, orientations);
-   }
-   else
-   {
-      MFEM_ABORT("Unknown kernel.");
-   }
-   */
 }
 
 void GradientInterpolator::AddMultPA(const Vector &x, Vector &y) const
 {
-   std::cout << "  GradientInterpolator::AddMultPA" << std::endl;
    if (dim == 3)
    {
       PAHcurlApplyGradient3D(c_dofs1D, o_dofs1D, ne, maps_C_C->B, maps_O_C->G,
@@ -2907,7 +2859,6 @@ void GradientInterpolator::AddMultPA(const Vector &x, Vector &y) const
 
 void GradientInterpolator::AddMultTransposePA(const Vector &x, Vector &y) const
 {
-   std::cout << "  GradientInterpolator::AddMultTransposePA" << std::endl;
    if (dim == 3)
    {
       PAHcurlApplyGradientTranspose3D(c_dofs1D, o_dofs1D, ne, maps_C_C->B,

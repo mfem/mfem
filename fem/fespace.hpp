@@ -311,6 +311,9 @@ public:
    virtual const Operator *GetProlongationMatrix() const
    { return GetConformingProlongation(); }
 
+   virtual const Operator *GetLocalProlongationMatrix() const
+   { return GetConformingProlongation(); }
+
    /// The returned SparseMatrix is owned by the FiniteElementSpace.
    virtual const SparseMatrix *GetRestrictionMatrix() const
    { return GetConformingRestriction(); }

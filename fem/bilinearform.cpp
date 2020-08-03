@@ -1686,7 +1686,6 @@ MixedBilinearForm::~MixedBilinearForm()
    delete ext;
 }
 
-
 void DiscreteLinearOperator::SetAssemblyLevel(AssemblyLevel assembly_level)
 {
    if (ext)

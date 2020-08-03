@@ -243,7 +243,7 @@ public:
 
 
 /**
-   Can we just use PAMixedBilinearFormExtension or do we need this?
+   Need this for 'Set' insead of 'Add' in the ConformingProlongation operator
 */
 class PADiscreteLinearOperatorExtension : public PAMixedBilinearFormExtension
 {
@@ -253,14 +253,16 @@ public:
    /// Partial assembly of all internal integrators
    void Assemble();
 
-   /// not really AddMult() TODO (?)
+   /// not really AddMult() TODO  (?)
    void AddMult(const Vector &x, Vector &y, const double c) const;
 
-   void AddMultTranspose(const Vector &x, Vector &y, const double c) const;
+   void AddMultTranspose(const Vector &x, Vector &y, const double c=1.0) const;
 
-   /// Note that this implementation does not use the essential arrays, they
+   /// Note that this implementation does not use the essential dof arrays, they
    /// are just unnecessary
-   void FormRectangularSystemOperator(Array<int>&, Array<int>&, OperatorHandle& A);
+   void FormRectangularSystemOperator(const Array<int>&, const Array<int>&, OperatorHandle& A);
+
+   const Operator * GetLocalOutputProlongation() const;
 
 private:
    Vector test_multiplicity;

@@ -558,6 +558,7 @@ HypreParMatrix* ParDiscreteLinearOperator::ParallelAssemble() const
 }
 
 /// @todo copied from ParMixedBilinearForm, should be some inheritance?
+/// (also, if we use this we need to fix the type?)
 /// (even if A is ANY_TYPE, it becomes SPARSE_MATRIX here!)
 void ParDiscreteLinearOperator::ParallelAssemble(OperatorHandle &A)
 {
@@ -595,7 +596,10 @@ void ParDiscreteLinearOperator::FormRectangularSystemMatrix(OperatorHandle &A)
 {
    if (ext)
    {
-      /// TODO: need to worry about parallel multiplicity!!
+      /// /// TODO: need to worry about parallel multiplicity!!
+
+      // the secret sauce is relatedto this line from HypreParMatrix* ParallelAssemble():
+      //    HypreParMatrix* RAP = P->LeftDiagMult(*RA, range_fes->GetTrueDofOffsets());
 
       Array<int> empty;
       ext->FormRectangularSystemOperator(empty, empty, A);
@@ -625,6 +629,8 @@ void ParDiscreteLinearOperator::FormRectangularSystemMatrix(OperatorHandle &A)
 
 /// @todo copied from ParMixedBilinearForm, should be some inheritance?
 /// Compute y += a (P^t A P) x, where x and y are vectors on the true dofs
+
+/// need some kind of Set not Add for the restriction...
 void ParDiscreteLinearOperator::TrueAddMult(const Vector &x, Vector &y,
                                             const double a) const
 {
