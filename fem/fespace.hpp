@@ -604,7 +604,7 @@ public:
        to restricts the marked tDOFs to the specified component. */
    virtual void GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
                                      Array<int> &ess_tdof_list,
-                                     int component = -1);
+                                     int component = -1) const;
 
    /// Convert a Boolean marker array to a list containing all marked indices.
    static void MarkerToList(const Array<int> &marker, Array<int> &list);

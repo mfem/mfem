@@ -775,7 +775,7 @@ void ParFiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
 void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
                                                  &bdr_attr_is_ess,
                                                  Array<int> &ess_tdof_list,
-                                                 int component)
+                                                 int component) const
 {
    Array<int> ess_dofs, true_ess_dofs;
 
