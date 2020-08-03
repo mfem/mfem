@@ -915,7 +915,7 @@ void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
    else
 #endif
    {
-      if (pa_data.Size()==0) { SetupPA(*fespace, true); }
+      if (pa_data.Size()==0) { SetupPA(*fespace); }
       PADiffusionAssembleDiagonal(dim, dofs1D, quad1D, ne, symmetric,
                                   maps->B, maps->G, pa_data, diag);
    }
