@@ -168,6 +168,7 @@ miniapps/hypsys/errors.txt
 miniapps/hypsys/grid*
 miniapps/hypsys/hypsys
 miniapps/hypsys/initial*
+miniapps/hypsys/output
 miniapps/hypsys/phypsys
 miniapps/hypsys/pressure*
 miniapps/hypsys/results

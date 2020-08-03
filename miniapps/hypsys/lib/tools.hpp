@@ -11,7 +11,7 @@ using namespace mfem;
 const IntegrationRule* GetElementIntegrationRule(FiniteElementSpace *fes,
                                                  bool NodalQuadRule = false);
 
-// Appropriate quadrature rule for faces, conforming with DGTraceIntegrator.
+// Appropriate quadrature rule for faces according to DGTraceIntegrator.
 const IntegrationRule *GetFaceIntegrationRule(FiniteElementSpace *fes,
                                               bool NodalQuadRule = false);
 

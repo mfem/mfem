@@ -13,7 +13,6 @@ const IntegrationRule* GetElementIntegrationRule(FiniteElementSpace *fes,
    return &IntRules.Get(el->GetGeomType(), order);
 }
 
-// Appropriate quadrature rule for faces according to DGTraceIntegrator.
 const IntegrationRule *GetFaceIntegrationRule(FiniteElementSpace *fes,
                                               bool NodalQuadRule)
 {

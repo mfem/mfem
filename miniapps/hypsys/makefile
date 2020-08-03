@@ -46,25 +46,6 @@ endif
 PROBLEM = 0
 VALGRIND-CONFIG = -tf 0.001 -dt 0.001 -p $(PROBLEM) -e 0
 
-# grid-convergence-test setup
-MESH0 = data/inline-3$(GEOM).mesh
-MESH1 = data/inline-4$(GEOM).mesh
-GEOM = quad
-
-# ADVECTION
-CONFIG = -p 0 -e 0 -o 1 -c 0 -tf 1 -dt 0.00001 -s 1 -vs 1000
-CONFIG-NAME = p0e0o1-$(GEOM)
-
-# SHALLOW WATER
-MESH = data/periodic-tri.mesh
-CONFIG = -p 3 -e 0 -o 3 -c 0 -tf 2.828427125 -dt 0.0001 -s 3 -vs 1000
-CONFIG-NAME = p3e0o3-$(GEOM)
-
-# EULER
-MESH = data/periodic-square.mesh
-CONFIG = -p 4 -e 0 -o 2 -c 0 -tf 2 -dt 0.00005 -s 3 -vs 1000
-CONFIG-NAME = p4e0o2-$(GEOM)
-
 ## Makefile rules. #############################################################
 
 # Keywords that are not associated with files (by default, all are).
@@ -102,46 +83,18 @@ phypsys: library
 clean:
 	@rm -f hypsys phypsys errors.txt *gf* grid* $(BLD_DIR)/*
 
-valgrind-test:
+valgrind-serial:
 	valgrind ./hypsys $(VALGRIND-CONFIG) -c 1 -m data/inline-4segment.mesh -r 4 -o 1
 	valgrind ./hypsys $(VALGRIND-CONFIG) -c 0 -m data/periodic-square.mesh -r 2 -o 2 -s 1
 	valgrind ./hypsys $(VALGRIND-CONFIG) -c 0 -m data/beam-quad.mesh -r 1 -o 3
 	valgrind ./hypsys $(VALGRIND-CONFIG) -c 1 -m data/wall-bdr-4hex.mesh -r 0 -o 2
 
-# TODO
+# TODO does not work yet
 valgrind-parallel:
 	# mpirun -np 2 valgrind --leak-check=yes ./par-hypsys -tf 0.1 -r 0
 	# valgrind --gen-suppressions=yes phypsys $(VALGRIND-CONFIG)
 	# valgrind --suppressions=$(MPI_HOME)/share/openmpi/openmpi-valgrind.supp phypsys $(VALGRIND-CONFIG)
 	valgrind --suppressions=./my-mpi-suppressions.supp phypsys $(VALGRIND-CONFIG)
-
-grid-convergence-advection:
-	rm errors.txt; \
-	mpirun -np 8 ./phypsys $(CONFIG) -m $(MESH0) -r 4; \
-	mpirun -np 8 ./phypsys $(CONFIG) -m $(MESH1) -r 4; \
-	mpirun -np 8 ./phypsys $(CONFIG) -m $(MESH0) -r 5; \
-	mpirun -np 8 ./phypsys $(CONFIG) -m $(MESH1) -r 5; \
-	mpirun -np 8 ./phypsys $(CONFIG) -m $(MESH0) -r 6; \
-	mpirun -np 8 ./phypsys $(CONFIG) -m $(MESH1) -r 6; \
-	mpirun -np 8 ./phypsys $(CONFIG) -m $(MESH0) -r 7; \
-	mv errors.txt $(OUT_DIR)/$(CONFIG-NAME).txt
-
-grid-convergence-swe:
-	rm errors.txt; \
-	hypsys $(CONFIG) -m $(MESH) -r 2; \
-	hypsys $(CONFIG) -m $(MESH) -r 3; \
-	hypsys $(CONFIG) -m $(MESH) -r 4; \
-	hypsys $(CONFIG) -m $(MESH) -r 5; \
-	mv errors.txt $(OUT_DIR)/$(CONFIG-NAME).txt
-
-grid-convergence-euler:
-	rm errors.txt; \
-	mpirun -np 8 ./phypsys $(CONFIG) -m $(MESH) -r 2; \
-	mpirun -np 8 ./phypsys $(CONFIG) -m $(MESH) -r 3; \
-	mpirun -np 8 ./phypsys $(CONFIG) -m $(MESH) -r 4; \
-	mpirun -np 8 ./phypsys $(CONFIG) -m $(MESH) -r 5; \
-	mpirun -np 8 ./phypsys $(CONFIG) -m $(MESH) -r 6; \
-	mv errors.txt $(OUT_DIR)/$(CONFIG-NAME).txt
 
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)

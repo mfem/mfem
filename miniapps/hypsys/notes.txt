@@ -4,6 +4,15 @@ ATTENTION
 DEBUG
 
 
+ROADMAP
+   -Fix Discrepancy
+
+
+CLEANUP
+   -lib: check quadrature orders - other than that *tools* *lib.hpp is done
+      TODO: (p-) bounds, dofs, massmat
+   -fe_evol
+
 TODO
    Minor Tasks
       Check if it is actually possible to make Gresho vortex converge to steady state (with galerkin first)
@@ -22,6 +31,7 @@ TODO
    Low Priority:
       Test GMS for Euler, remove if unnecessary
       Try to run  MCL on curved geometries
+      Vector output as arrows
 
    Desirable:
       -Euler: Implement subsonic in- and outflow.
@@ -41,10 +51,9 @@ minor tasks:
    -C++ type cleanup, e.g for DofInfo classes
    -Maybe move stuff thats not needed within main routines (e.g. dofs) into fe_evol.cpp
    -If difficult, move bound computation to MCL Evolution.
-   -Remove all MFEM_ABORTS in repeated switches
    -Use mfem::Mult for matrix multiplication
    -Since MCL works only for elements with constant Jacobians, maybe use Vector of size ne
-   -Restructure galerkin, fe_evol and mcl (constructors
+   -Restructure galerkin, fe_evol and mcl (constructors)
 
 
 future tasks

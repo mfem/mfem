@@ -19,7 +19,7 @@ int main(int argc, char *argv[])
    int refinements = 1;
    int prefinements = 0;
    EvolutionScheme scheme = MonolithicConvexLimiting;
-   const char *OutputDir = "."; // Directory has to exist to produce output.
+   const char *OutputDir = "output"; // Directory has to exist to produce output.
    bool TransOutput = false; // Use this to produce output for videos.
 
    int precision = 8;
