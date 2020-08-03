@@ -919,7 +919,6 @@ const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
 
 const Operator *ParFiniteElementSpace::GetLocalProlongationMatrix() const
 {
-   std::cout << "    <PFES::GetLocalProlongationMatrix>" << std::endl;
    if (Conforming())
    {
       if (Pconf_local) { return Pconf_local; }
