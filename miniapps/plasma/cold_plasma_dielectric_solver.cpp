@@ -589,7 +589,11 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
                             new VectorFEMassIntegrator(*massImCoef_));
    if ( kCoef_ )
    {
-      if (pa_) { cout << "WARNING: kCoef_ domain integrator (PA)" << endl; }
+      if (pa_)
+      {
+         MFEM_ABORT("kCoef_: Partial Assembly has not yet been implemented for "
+                    "MixedCrossCurlIntegrator and MixedWeakCurlCrossIntegrator.");
+      }
       a1_->AddDomainIntegrator(new VectorFEMassIntegrator(*negMuInvkxkxCoef_),
                                NULL);
       a1_->AddDomainIntegrator(NULL,
@@ -599,13 +603,21 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    }
    if ( abcCoef_ )
    {
-      if (pa_) { cout << "WARNING: abcCoef_ boundary integrator (PA)" << endl; }
+      if (pa_)
+      {
+         MFEM_ABORT("abcCoef_: Partial Assembly has not yet been tested for "
+                    "this BoundaryIntegrator.");
+      }
       a1_->AddBoundaryIntegrator(NULL, new VectorFEMassIntegrator(*abcCoef_),
                                  abc_marker_);
    }
    if ( sbcReCoef_ && sbcImCoef_ )
    {
-      if (pa_) { cout << "WARNING: sbcCoef_ boundary integrator (PA)" << endl; }
+      if (pa_)
+      {
+         MFEM_ABORT("sbcCoef_: Partial Assembly has not yet been tested for "
+                    "this BoundaryIntegrator.");
+      }
       a1_->AddBoundaryIntegrator(new VectorFEMassIntegrator(*sbcReCoef_),
                                  new VectorFEMassIntegrator(*sbcImCoef_),
                                  sbc_marker_);
