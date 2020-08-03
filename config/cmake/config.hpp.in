@@ -107,9 +107,6 @@
 // Enable MFEM functionality based on the SLEPc library
 #cmakedefine MFEM_USE_SLEPC
 
-// Enable MFEM functionality based on the Sidre library
-#cmakedefine MFEM_USE_SIDRE
-
 // Enable the use of SIMD in the high performance templated classes
 #cmakedefine MFEM_USE_SIMD
 

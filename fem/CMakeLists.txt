@@ -101,11 +101,6 @@ set(HDRS
   transfer.hpp
   )
 
-if (MFEM_USE_SIDRE)
-  list(APPEND SRCS sidredatacollection.cpp)
-  list(APPEND HDRS sidredatacollection.hpp)
-endif()
-
 if (MFEM_USE_CONDUIT)
   list(APPEND SRCS conduitdatacollection.cpp)
   list(APPEND HDRS conduitdatacollection.hpp)

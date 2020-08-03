@@ -393,13 +393,6 @@ MFEM_USE_MPFR = YES/NO
    quadrature rules. When enabled, this option uses the MPFR_* library options,
    see below.
 
-MFEM_USE_SIDRE = YES/NO
-   Sidre is a component of LLNL's axom project, https://github.com/LLNL/axom,
-   that provides an HDF5-based file format for visualization or restart
-   capability following the Conduit (https://github.com/LLNL/conduit) mesh
-   blueprint specification. When enabled, this option requires installation of
-   HDF5 (see also MFEM_USE_NETCDF), Conduit and LLNL's axom project.
-
 MFEM_USE_SIMD = YES/NO
    Enables the high performance templated classes to use architecture dependent
    SIMD intrinsics instead of the generic implementation of class AutoSIMD in
@@ -607,14 +600,6 @@ The specific libraries and their options are:
   Options: SLEPC_OPT, SLEPC_LIB.
   Versions: SLEPc >= 3.8.0.
 
-- Sidre (optional), part of LLNL's axom project, used when MFEM_USE_SIDRE = YES.
-  Starting with MFEM v4.1, Axom version 0.3.1 or later is required.
-  URL: https://github.com/LLNL/axom
-       https://github.com/LLNL/conduit (Conduit)
-       https://support.hdfgroup.org/HDF5 (HDF5)
-  Options: SIDRE_OPT, SIDRE_LIB.
-  Versions: Axom >= 0.3.1.
-
 - Conduit (optional), used when MFEM_USE_CONDUIT = YES. Conduit Mesh Blueprint
   support requires Conduit >= v0.3.1 and VisIt >= v2.13.1 to read the output.
   URL: https://github.com/LLNL/conduit (Conduit)
@@ -818,7 +803,6 @@ MFEM_USE_OCCA
 MFEM_USE_CEED
 MFEM_USE_RAJA
 MFEM_USE_UMPIRE
-MFEM_USE_SIDRE
 
 The following options are CMake specific:
 
@@ -870,7 +854,6 @@ The CMake build system adds auto-detection for the following packages/libraries:
  - OCCA
  - RAJA
  - UMPIRE
- - AXOM - Used when MFEM_USE_SIDRE is enabled
 
 The following built-in CMake packages are also used:
 

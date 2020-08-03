@@ -67,7 +67,6 @@ set(XSDK_ENABLE_Fortran OFF)
 # Check if we need to enable C or Fortran.
 if (CMAKE_VERSION VERSION_LESS 3.2 OR
     MFEM_USE_CONDUIT OR
-    MFEM_USE_SIDRE OR
     MFEM_USE_PETSC)
    # This seems to be needed by:
    #  * find_package(BLAS REQUIRED) and
@@ -267,11 +266,6 @@ endif()
 
 if (MFEM_USE_CONDUIT)
     find_package(Conduit REQUIRED conduit relay blueprint )
-endif()
-
-# Axom/Sidre
-if (MFEM_USE_SIDRE)
-  find_package(Axom REQUIRED Axom)
 endif()
 
 # PUMI
