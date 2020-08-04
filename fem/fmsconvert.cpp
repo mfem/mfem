@@ -716,29 +716,181 @@ func_exit:
 }
 
 //---------------------------------------------------------------------------
-#if 0
-   GridFunction *res = NULL;
-   mfem::FiniteElementCollection *fec = FiniteElementCollection::New(
-                                           fec_name.c_str());
-   mfem::FiniteElementSpace *fes = new FiniteElementSpace(mesh,
-                                                          fec,
-                                                          vdim,
-                                                          ordering);
+bool
+FmsMetaDataGetInteger(FmsMetaData mdata, const std::string &key, std::vector<int> &values)
+{   
+    if (!mdata) false;
 
-   if (zero_copy)
-   {
-      res = new GridFunction(fes,const_cast<double*>(vals_ptr));
-   }
-   else
-   {
-      // copy case, this constructor will alloc the space for the GF data
-      res = new GridFunction(fes);
-      // create an mfem vector that wraps the conduit data
-      Vector vals_vec(const_cast<double*>(vals_ptr),fes->GetVSize());
-      // copy values into the result
-      (*res) = vals_vec;
-   }
-#endif
+    bool retval = false;
+    FmsMetaDataType type;
+    FmsIntType int_type;
+    FmsInt i, size;
+    FmsMetaData *children = nullptr;
+    const void *data = nullptr;
+    const char *mdata_name = nullptr;
+    if(FmsMetaDataGetType(mdata, &type) == 0)
+    {
+        switch(type)
+        {
+        case FMS_INTEGER:
+            if(FmsMetaDataGetIntegers(mdata, &mdata_name, &int_type, &size, &data) == 0)
+            {
+                if(strcasecmp(key.c_str(), mdata_name) == 0)
+                {
+                    retval = true;
+
+                    // Interpret the integers and store them in the std::vector<int>
+                    switch(int_type)
+                    {
+                    case FMS_INT8:
+                        for(i = 0; i < size; i++)
+                           values.push_back(static_cast<int>(reinterpret_cast<const int8_t*>(data)[i]));
+                        break;
+                    case FMS_INT16:
+                        for(i = 0; i < size; i++)
+                            values.push_back(static_cast<int>(reinterpret_cast<const int16_t*>(data)[i]));
+                        break;
+                    case FMS_INT32:
+                        for(i = 0; i < size; i++)
+                            values.push_back(static_cast<int>(reinterpret_cast<const int32_t*>(data)[i]));
+                        break;
+                    case FMS_INT64:
+                        for(i = 0; i < size; i++)
+                            values.push_back(static_cast<int>(reinterpret_cast<const int64_t*>(data)[i]));
+                        break;
+                    case FMS_UINT8:
+                        for(i = 0; i < size; i++)
+                            values.push_back(static_cast<int>(reinterpret_cast<const uint8_t*>(data)[i]));
+                        break;
+                    case FMS_UINT16:
+                        for(i = 0; i < size; i++)
+                            values.push_back(static_cast<int>(reinterpret_cast<const uint16_t*>(data)[i]));
+                        break;
+                    case FMS_UINT32:
+                        for(i = 0; i < size; i++)
+                            values.push_back(static_cast<int>(reinterpret_cast<const uint32_t*>(data)[i]));
+                        break;
+                    case FMS_UINT64:
+                        for(i = 0; i < size; i++)
+                            values.push_back(static_cast<int>(reinterpret_cast<const uint64_t*>(data)[i]));
+                        break;
+                    default:
+                        retval = false;
+                        break;
+                    }
+                }
+            }
+            break;
+        case FMS_META_DATA:
+            if(FmsMetaDataGetMetaData(mdata, &mdata_name, &size, &children) == 0)
+            {
+                // Recurse to look for the key we want.
+                for(i = 0; i < size && !retval; i++)
+                    retval = FmsMetaDataGetInteger(children[i], key, values);
+            }
+            break;
+        }
+    }
+
+    return retval;
+}
+
+//---------------------------------------------------------------------------
+bool
+FmsMetaDataGetScalar(FmsMetaData mdata, const std::string &key, std::vector<double> &values)
+{   
+    if (!mdata) false;
+
+    bool retval = false;
+    FmsMetaDataType type;
+    FmsScalarType scal_type;
+    FmsInt i, size;
+    FmsMetaData *children = nullptr;
+    const void *data = nullptr;
+    const char *mdata_name = nullptr;
+    if(FmsMetaDataGetType(mdata, &type) == 0)
+    {
+        switch(type)
+        {
+        case FMS_SCALAR:
+            if(FmsMetaDataGetScalars(mdata, &mdata_name, &scal_type, &size, &data) == 0)
+            {
+                if(strcasecmp(key.c_str(), mdata_name) == 0)
+                {
+                    retval = true;
+
+                    // Interpret the integers and store them in the std::vector<int>
+                    switch(scal_type)
+                    {
+                    case FMS_FLOAT:
+                        for(i = 0; i < size; i++)
+                           values.push_back(static_cast<double>(reinterpret_cast<const float*>(data)[i]));
+                        break;
+                    case FMS_DOUBLE:
+                        for(i = 0; i < size; i++)
+                            values.push_back(reinterpret_cast<const double*>(data)[i]);
+                        break;
+                    default:
+                        retval = false;
+                        break;
+                    }
+                }
+            }
+            break;
+        case FMS_META_DATA:
+            if(FmsMetaDataGetMetaData(mdata, &mdata_name, &size, &children) == 0)
+            {
+                // Recurse to look for the key we want.
+                for(i = 0; i < size && !retval; i++)
+                    retval = FmsMetaDataGetScalar(children[i], key, values);
+            }
+            break;
+        }
+    }
+
+    return retval;
+}
+
+//---------------------------------------------------------------------------
+bool
+FmsMetaDataGetString(FmsMetaData mdata, const std::string &key, std::string &value)
+{   
+    if (!mdata) false;
+
+    bool retval = false;
+    FmsMetaDataType type;
+    FmsInt i, size;
+    FmsMetaData *children = nullptr;
+    const char *mdata_name = nullptr;
+    const char *str_value = nullptr;
+
+    if(FmsMetaDataGetType(mdata, &type) == 0)
+    {
+        switch(type)
+        {
+        case FMS_STRING:
+            if(FmsMetaDataGetString(mdata, &mdata_name, &str_value) == 0)
+            {
+                if(strcasecmp(key.c_str(), mdata_name) == 0)
+                {
+                    retval = true;
+                    value = str_value;
+                }
+            }
+            break;
+        case FMS_META_DATA:
+            if(FmsMetaDataGetMetaData(mdata, &mdata_name, &size, &children) == 0)
+            {
+                // Recurse to look for the key we want.
+                for(i = 0; i < size && !retval; i++)
+                    retval = FmsMetaDataGetString(children[i], key, value);
+            }
+            break;
+        }
+    }
+
+    return retval;
+}
 
 /* -------------------------------------------------------------------------- */
 /* FMS to MFEM conversion function */
@@ -815,6 +967,31 @@ cout << "FmsDataCollectionToDataCollection: convert " << name << endl;
          }
      }
 #endif
+
+     // If we have metadata in FMS, pass what we can through to MFEM.
+     FmsMetaData mdata;
+     if(FmsDataCollectionGetMetaData(dc, &mdata) == 0)
+     {
+         std::vector<int> ivalues;
+         std::vector<double> dvalues;
+         std::string svalue;
+         if(FmsMetaDataGetInteger(mdata, "cycle", ivalues))
+         {
+             if(!ivalues.empty())
+                 mdc->SetCycle(ivalues[0]);
+         }
+         if(FmsMetaDataGetScalar(mdata, "time", dvalues))
+         {
+             if(!dvalues.empty())
+                 mdc->SetTime(dvalues[0]);
+         }
+         if(FmsMetaDataGetScalar(mdata, "timestep", dvalues))
+         {
+             if(!dvalues.empty())
+                 mdc->SetTimeStep(dvalues[0]);
+         }
+     }
+
      *mfem_dc = mdc;
   }
   else
