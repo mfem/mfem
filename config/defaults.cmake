@@ -51,7 +51,7 @@ option(MFEM_USE_RAJA "Enable RAJA" OFF)
 option(MFEM_USE_CEED "Enable CEED" OFF)
 option(MFEM_USE_JIT "Enable JIT" OFF)
 option(MFEM_USE_UMPIRE "Enable Umpire" OFF)
-option(MFEM_USE_SIMD "Enable use of SIMD intrinsics" ON)
+option(MFEM_USE_SIMD "Enable use of SIMD intrinsics" OFF)
 option(MFEM_USE_ADIOS2 "Enable ADIOS2" OFF)
 
 set(MFEM_MPI_NP 4 CACHE STRING "Number of processes used for MPI tests")
