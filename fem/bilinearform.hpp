@@ -416,9 +416,7 @@ public:
        returned in the variable @a A, of type OpType, holding a *reference* to
        the system matrix (created with the method OpType::MakeRef()). The
        reference will be invalidated when SetOperatorType(), Update(), or the
-       destructor is called.
-
-       Currently, this method can be used only with AssemblyLevel::LEGACYFULL. */
+       destructor is called. */
    template <typename OpType>
    void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
                          OpType &A, Vector &X, Vector &B,
@@ -440,9 +438,7 @@ public:
        returned in the variable @a A, of type OpType, holding a *reference* to
        the system matrix (created with the method OpType::MakeRef()). The
        reference will be invalidated when SetOperatorType(), Update(), or the
-       destructor is called.
-
-       Currently, this method can be used only with AssemblyLevel::LEGACYFULL. */
+       destructor is called. */
    template <typename OpType>
    void FormSystemMatrix(const Array<int> &ess_tdof_list, OpType &A)
    {
@@ -862,9 +858,7 @@ public:
        returned in the variable @a A, of type OpType, holding a *reference* to
        the system matrix (created with the method OpType::MakeRef()). The
        reference will be invalidated when SetOperatorType(), Update(), or the
-       destructor is called.
-
-       Currently, this method can be used only with AssemblyLevel::LEGACYFULL. */
+       destructor is called. */
    template <typename OpType>
    void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
                                     const Array<int> &test_tdof_list, OpType &A)
@@ -894,9 +888,7 @@ public:
        returned in the variable @a A, of type OpType, holding a *reference* to
        the system matrix (created with the method OpType::MakeRef()). The
        reference will be invalidated when SetOperatorType(), Update(), or the
-       destructor is called.
-
-       Currently, this method can be used only with AssemblyLevel::LEGACYFULL. */
+       destructor is called. */
    template <typename OpType>
    void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
                                     const Array<int> &test_tdof_list,
