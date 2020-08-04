@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include "catch.hpp"
+#include "unit_tests.hpp"
 #include <cmath>
 
 using namespace mfem;
@@ -364,4 +364,3 @@ TEST_CASE("First order ODE methods",
       REQUIRE(check.order(new AM4Solver(),true) + tol > 5.0 );
    }
 }
-
