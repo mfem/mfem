@@ -105,7 +105,7 @@ public:
        have the same size.
 
        @note Defining this method overwrites the implicitly defined copy
-       assignemnt operator. */
+       assignment operator. */
    GridFunction &operator=(const GridFunction &rhs)
    { return operator=((const Vector &)rhs); }
 
@@ -714,7 +714,7 @@ public:
        the same size.
 
        @note Defining this method overwrites the implicitly defined copy
-       assignemnt operator. */
+       assignment operator. */
    QuadratureFunction &operator=(const QuadratureFunction &v);
 
    /// Get the IntegrationRule associated with mesh element @a idx.
