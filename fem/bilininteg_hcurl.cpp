@@ -116,25 +116,25 @@ void PAHcurlSetup3D(const int Q1D,
 void PAHcurlMassApply2D(const int D1D,
                         const int Q1D,
                         const int NE,
-                        const Array<double> &_Bo,
-                        const Array<double> &_Bc,
-                        const Array<double> &_Bot,
-                        const Array<double> &_Bct,
-                        const Vector &_op,
-                        const Vector &_x,
-                        Vector &_y)
+                        const Array<double> &bo,
+                        const Array<double> &bc,
+                        const Array<double> &bot,
+                        const Array<double> &bct,
+                        const Vector &pa_data,
+                        const Vector &x,
+                        Vector &y)
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
 
-   auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
-   auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
-   auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
-   auto Bct = Reshape(_Bct.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, 3, NE);
-   auto x = Reshape(_x.Read(), 2*(D1D-1)*D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), 2*(D1D-1)*D1D, NE);
+   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   auto Bc = Reshape(bc.Read(), Q1D, D1D);
+   auto Bot = Reshape(bot.Read(), D1D-1, Q1D);
+   auto Bct = Reshape(bct.Read(), D1D, Q1D);
+   auto op = Reshape(pa_data.Read(), Q1D, Q1D, 3, NE);
+   auto X = Reshape(x.Read(), 2*(D1D-1)*D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -168,7 +168,7 @@ void PAHcurlMassApply2D(const int D1D,
 
             for (int dx = 0; dx < D1Dx; ++dx)
             {
-               const double t = x(dx + (dy * D1Dx) + osc, e);
+               const double t = X(dx + (dy * D1Dx) + osc, e);
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   massX[qx] += t * ((c == 0) ? Bo(qx,dx) : Bc(qx,dx));
@@ -231,7 +231,7 @@ void PAHcurlMassApply2D(const int D1D,
 
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  y(dx + (dy * D1Dx) + osc, e) += massX[dx] * wy;
+                  Y(dx + (dy * D1Dx) + osc, e) += massX[dx] * wy;
                }
             }
 
@@ -244,18 +244,18 @@ void PAHcurlMassApply2D(const int D1D,
 void PAHcurlMassAssembleDiagonal2D(const int D1D,
                                    const int Q1D,
                                    const int NE,
-                                   const Array<double> &_Bo,
-                                   const Array<double> &_Bc,
-                                   const Vector &_op,
-                                   Vector &_diag)
+                                   const Array<double> &bo,
+                                   const Array<double> &bc,
+                                   const Vector &pa_data,
+                                   Vector &diag)
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
 
-   auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
-   auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, 3, NE);
-   auto diag = Reshape(_diag.ReadWrite(), 2*(D1D-1)*D1D, NE);
+   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   auto Bc = Reshape(bc.Read(), Q1D, D1D);
+   auto op = Reshape(pa_data.Read(), Q1D, Q1D, 3, NE);
+   auto D = Reshape(diag.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -286,7 +286,7 @@ void PAHcurlMassAssembleDiagonal2D(const int D1D,
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   const double wx = ((c == 0) ? Bo(qx,dx) : Bc(qx,dx));
-                  diag(dx + (dy * D1Dx) + osc, e) += mass[qx] * wx * wx;
+                  D(dx + (dy * D1Dx) + osc, e) += mass[qx] * wx * wx;
                }
             }
          }
@@ -299,10 +299,10 @@ void PAHcurlMassAssembleDiagonal2D(const int D1D,
 void PAHcurlMassAssembleDiagonal3D(const int D1D,
                                    const int Q1D,
                                    const int NE,
-                                   const Array<double> &_Bo,
-                                   const Array<double> &_Bc,
-                                   const Vector &_op,
-                                   Vector &_diag)
+                                   const Array<double> &bo,
+                                   const Array<double> &bc,
+                                   const Vector &pa_data,
+                                   Vector &diag)
 {
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
@@ -311,10 +311,10 @@ void PAHcurlMassAssembleDiagonal3D(const int D1D,
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
    constexpr static int VDIM = 3;
 
-   auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
-   auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 6, NE);
-   auto diag = Reshape(_diag.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
+   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   auto Bc = Reshape(bc.Read(), Q1D, D1D);
+   auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, 6, NE);
+   auto D = Reshape(diag.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -355,7 +355,7 @@ void PAHcurlMassAssembleDiagonal3D(const int D1D,
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      const double wx = ((c == 0) ? Bo(qx,dx) : Bc(qx,dx));
-                     diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += mass[qx] * wx * wx;
+                     D(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += mass[qx] * wx * wx;
                   }
                }
             }
@@ -369,10 +369,10 @@ void PAHcurlMassAssembleDiagonal3D(const int D1D,
 void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
                                        const int Q1D,
                                        const int NE,
-                                       const Array<double> &_Bo,
-                                       const Array<double> &_Bc,
-                                       const Vector &_op,
-                                       Vector &_diag)
+                                       const Array<double> &bo,
+                                       const Array<double> &bc,
+                                       const Vector &pa_data,
+                                       Vector &diag)
 {
    constexpr static int VDIM = 3;
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
@@ -381,19 +381,19 @@ void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
 
-   auto bo = Reshape(_Bo.Read(), Q1D, D1D-1);
-   auto bc = Reshape(_Bc.Read(), Q1D, D1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 6, NE);
-   auto diag = Reshape(_diag.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
+   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   auto Bc = Reshape(bc.Read(), Q1D, D1D);
+   auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, 6, NE);
+   auto D = Reshape(diag.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
-      MFEM_SHARED double BG[2][MAX_Q1D*MAX_D1D];
-      double (*Bo)[MAX_Q1D] = (double (*)[MAX_Q1D]) (BG+0);
-      double (*Bc)[MAX_Q1D] = (double (*)[MAX_Q1D]) (BG+1);
+      MFEM_SHARED double sBG[2][MAX_Q1D*MAX_D1D];
+      double (*sBo)[MAX_Q1D] = (double (*)[MAX_Q1D]) (sBG+0);
+      double (*sBc)[MAX_Q1D] = (double (*)[MAX_Q1D]) (sBG+1);
 
       double op3[3];
-      MFEM_SHARED double sop[3*MAX_Q1D*MAX_Q1D];
+      MFEM_SHARED double sop[3][MAX_Q1D][MAX_Q1D];
 
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
@@ -418,10 +418,10 @@ void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
          {
             MFEM_FOREACH_THREAD(q,x,Q1D)
             {
-               Bc[q][d] = bc(q,d);
+               sBc[q][d] = Bc(q,d);
                if (d < D1D-1)
                {
-                  Bo[q][d] = bo(q,d);
+                  sBo[q][d] = Bo(q,d);
                }
             }
          }
@@ -443,7 +443,7 @@ void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
             {
                for (int i=0; i<3; ++i)
                {
-                  sop[i + (3*tidx) + (3*Q1D*tidy)] = op3[i];
+                  sop[i][tidx][tidy] = op3[i];
                }
             }
 
@@ -451,7 +451,7 @@ void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
 
             MFEM_FOREACH_THREAD(dz,z,D1Dz)
             {
-               const double wz = ((c == 2) ? Bo[qz][dz] : Bc[qz][dz]);
+               const double wz = ((c == 2) ? sBo[qz][dz] : sBc[qz][dz]);
 
                MFEM_FOREACH_THREAD(dy,y,D1Dy)
                {
@@ -459,12 +459,12 @@ void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
                   {
                      for (int qy = 0; qy < Q1D; ++qy)
                      {
-                        const double wy = ((c == 1) ? Bo[qy][dy] : Bc[qy][dy]);
+                        const double wy = ((c == 1) ? sBo[qy][dy] : sBc[qy][dy]);
 
                         for (int qx = 0; qx < Q1D; ++qx)
                         {
-                           const double wx = ((c == 0) ? Bo[qx][dx] : Bc[qx][dx]);
-                           dxyz += sop[c + (3*qx) + (3*Q1D*qy)] * wx * wx * wy * wy * wz * wz;
+                           const double wx = ((c == 0) ? sBo[qx][dx] : sBc[qx][dx]);
+                           dxyz += sop[c][qx][qy] * wx * wx * wy * wy * wz * wz;
                         }
                      }
                   }
@@ -480,7 +480,7 @@ void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
             {
                MFEM_FOREACH_THREAD(dx,x,D1Dx)
                {
-                  diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += dxyz;
+                  D(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += dxyz;
                }
             }
          }
@@ -493,13 +493,13 @@ void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
 void PAHcurlMassApply3D(const int D1D,
                         const int Q1D,
                         const int NE,
-                        const Array<double> &_Bo,
-                        const Array<double> &_Bc,
-                        const Array<double> &_Bot,
-                        const Array<double> &_Bct,
-                        const Vector &_op,
-                        const Vector &_x,
-                        Vector &_y)
+                        const Array<double> &bo,
+                        const Array<double> &bc,
+                        const Array<double> &bot,
+                        const Array<double> &bct,
+                        const Vector &pa_data,
+                        const Vector &x,
+                        Vector &y)
 {
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
@@ -508,13 +508,13 @@ void PAHcurlMassApply3D(const int D1D,
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
    constexpr static int VDIM = 3;
 
-   auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
-   auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
-   auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
-   auto Bct = Reshape(_Bct.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 6, NE);
-   auto x = Reshape(_x.Read(), 3*(D1D-1)*D1D*D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
+   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   auto Bc = Reshape(bc.Read(), Q1D, D1D);
+   auto Bot = Reshape(bot.Read(), D1D-1, Q1D);
+   auto Bct = Reshape(bct.Read(), D1D, Q1D);
+   auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, 6, NE);
+   auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -563,7 +563,7 @@ void PAHcurlMassApply3D(const int D1D,
 
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  const double t = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  const double t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      massX[qx] += t * ((c == 0) ? Bo(qx,dx) : Bc(qx,dx));
@@ -670,7 +670,7 @@ void PAHcurlMassApply3D(const int D1D,
                {
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
-                     y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += massXY[dy][dx] * wz;
+                     Y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += massXY[dy][dx] * wz;
                   }
                }
             }
@@ -684,13 +684,13 @@ void PAHcurlMassApply3D(const int D1D,
 void SmemPAHcurlMassApply3D(const int D1D,
                             const int Q1D,
                             const int NE,
-                            const Array<double> &_Bo,
-                            const Array<double> &_Bc,
-                            const Array<double> &_Bot,
-                            const Array<double> &_Bct,
-                            const Vector &_op,
-                            const Vector &_x,
-                            Vector &_y)
+                            const Array<double> &bo,
+                            const Array<double> &bc,
+                            const Array<double> &bot,
+                            const Array<double> &bct,
+                            const Vector &pa_data,
+                            const Vector &x,
+                            Vector &y)
 {
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
@@ -699,23 +699,23 @@ void SmemPAHcurlMassApply3D(const int D1D,
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
    constexpr static int VDIM = 3;
 
-   auto bo = Reshape(_Bo.Read(), Q1D, D1D-1);
-   auto bc = Reshape(_Bc.Read(), Q1D, D1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 6, NE);
-   auto x = Reshape(_x.Read(), 3*(D1D-1)*D1D*D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
+   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   auto Bc = Reshape(bc.Read(), Q1D, D1D);
+   auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, 6, NE);
+   auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
-      MFEM_SHARED double BG[2][MAX_Q1D*MAX_D1D];
-      double (*Bo)[MAX_Q1D] = (double (*)[MAX_Q1D]) (BG+0);
-      double (*Bc)[MAX_Q1D] = (double (*)[MAX_Q1D]) (BG+1);
+      MFEM_SHARED double sBG[2][MAX_Q1D*MAX_D1D];
+      double (*sBo)[MAX_Q1D] = (double (*)[MAX_Q1D]) (sBG+0);
+      double (*sBc)[MAX_Q1D] = (double (*)[MAX_Q1D]) (sBG+1);
 
       double op6[6];
       MFEM_SHARED double sop[6*MAX_Q1D*MAX_Q1D];
       MFEM_SHARED double mass[MAX_Q1D][MAX_Q1D][3];
 
-      MFEM_SHARED double X[MAX_D1D][MAX_D1D][MAX_D1D];
+      MFEM_SHARED double sX[MAX_D1D][MAX_D1D][MAX_D1D];
 
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
@@ -741,10 +741,10 @@ void SmemPAHcurlMassApply3D(const int D1D,
          {
             MFEM_FOREACH_THREAD(q,x,Q1D)
             {
-               Bc[q][d] = bc(q,d);
+               sBc[q][d] = Bc(q,d);
                if (d < D1D-1)
                {
-                  Bo[q][d] = bo(q,d);
+                  sBo[q][d] = Bo(q,d);
                }
             }
          }
@@ -766,7 +766,7 @@ void SmemPAHcurlMassApply3D(const int D1D,
                {
                   MFEM_FOREACH_THREAD(dx,x,D1Dx)
                   {
-                     X[dz][dy][dx] = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                     sX[dz][dy][dx] = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   }
                }
             }
@@ -787,14 +787,14 @@ void SmemPAHcurlMassApply3D(const int D1D,
 
                      for (int dz = 0; dz < D1Dz; ++dz)
                      {
-                        const double wz = (c == 2) ? Bo[qz][dz] : Bc[qz][dz];
+                        const double wz = (c == 2) ? sBo[qz][dz] : sBc[qz][dz];
                         for (int dy = 0; dy < D1Dy; ++dy)
                         {
-                           const double wy = (c == 1) ? Bo[qy][dy] : Bc[qy][dy];
+                           const double wy = (c == 1) ? sBo[qy][dy] : sBc[qy][dy];
                            for (int dx = 0; dx < D1Dx; ++dx)
                            {
-                              const double t = X[dz][dy][dx];
-                              const double wx = (c == 0) ? Bo[qx][dx] : Bc[qx][dx];
+                              const double t = sX[dz][dy][dx];
+                              const double wx = (c == 0) ? sBo[qx][dx] : sBc[qx][dx];
                               u += t * wx * wy * wz;
                            }
                         }
@@ -822,7 +822,7 @@ void SmemPAHcurlMassApply3D(const int D1D,
 
             MFEM_FOREACH_THREAD(dz,z,D1Dz)
             {
-               const double wz = (c == 2) ? Bo[qz][dz] : Bc[qz][dz];
+               const double wz = (c == 2) ? sBo[qz][dz] : sBc[qz][dz];
 
                MFEM_FOREACH_THREAD(dy,y,D1Dy)
                {
@@ -830,7 +830,7 @@ void SmemPAHcurlMassApply3D(const int D1D,
                   {
                      for (int qy = 0; qy < Q1D; ++qy)
                      {
-                        const double wy = (c == 1) ? Bo[qy][dy] : Bc[qy][dy];
+                        const double wy = (c == 1) ? sBo[qy][dy] : sBc[qy][dy];
                         for (int qx = 0; qx < Q1D; ++qx)
                         {
                            const int os = (6*qx) + (6*Q1D*qy);
@@ -841,7 +841,7 @@ void SmemPAHcurlMassApply3D(const int D1D,
                            const double m_c = (sop[id1] * mass[qy][qx][0]) + (sop[id2] * mass[qy][qx][1]) +
                                               (sop[id3] * mass[qy][qx][2]);
 
-                           const double wx = (c == 0) ? Bo[qx][dx] : Bc[qx][dx];
+                           const double wx = (c == 0) ? sBo[qx][dx] : sBc[qx][dx];
                            dxyz += m_c * wx * wy * wz;
                         }
                      }
@@ -857,7 +857,7 @@ void SmemPAHcurlMassApply3D(const int D1D,
                {
                   MFEM_FOREACH_THREAD(dx,x,D1Dx)
                   {
-                     y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += dxyz;
+                     Y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += dxyz;
                   }
                }
             }
@@ -873,13 +873,13 @@ static void PACurlCurlSetup2D(const int Q1D,
                               const int NE,
                               const Array<double> &w,
                               const Vector &j,
-                              Vector &_coeff,
+                              Vector &coeff,
                               Vector &op)
 {
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
-   auto coeff = Reshape(_coeff.Read(), NQ, NE);
+   auto C = Reshape(coeff.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, NE);
    MFEM_FORALL(e, NE,
    {
@@ -890,7 +890,7 @@ static void PACurlCurlSetup2D(const int Q1D,
          const double J12 = J(q,0,1,e);
          const double J22 = J(q,1,1,e);
          const double detJ = (J11*J22)-(J21*J12);
-         y(q,e) = W[q] * coeff(q,e) / detJ;
+         y(q,e) = W[q] * C(q,e) / detJ;
       }
    });
 }
@@ -901,13 +901,13 @@ static void PACurlCurlSetup3D(const int Q1D,
                               const int NE,
                               const Array<double> &w,
                               const Vector &j,
-                              Vector &_coeff,
+                              Vector &coeff,
                               Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
-   auto coeff = Reshape(_coeff.Read(), coeffDim, NQ, NE);
+   auto C = Reshape(coeff.Read(), coeffDim, NQ, NE);
    auto y = Reshape(op.Write(), NQ, 6, NE);
    MFEM_FORALL(e, NE,
    {
@@ -926,9 +926,9 @@ static void PACurlCurlSetup3D(const int Q1D,
          /* */               J21 * (J12 * J33 - J32 * J13) +
          /* */               J31 * (J12 * J23 - J22 * J13);
 
-         const double D1 = coeff(0, q, e);
-         const double D2 = coeffDim == 3 ? coeff(1, q, e) : D1;
-         const double D3 = coeffDim == 3 ? coeff(2, q, e) : D1;
+         const double D1 = C(0, q, e);
+         const double D2 = coeffDim == 3 ? C(1, q, e) : D1;
+         const double D3 = coeffDim == 3 ? C(2, q, e) : D1;
 
          // set y to the 6 entries of J^T D J / det^2
          const double c_detJ = W[q] / detJ;
@@ -1008,25 +1008,25 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
 static void PACurlCurlApply2D(const int D1D,
                               const int Q1D,
                               const int NE,
-                              const Array<double> &_Bo,
-                              const Array<double> &_Bot,
-                              const Array<double> &_Gc,
-                              const Array<double> &_Gct,
-                              const Vector &_op,
-                              const Vector &_x,
-                              Vector &_y)
+                              const Array<double> &bo,
+                              const Array<double> &bot,
+                              const Array<double> &gc,
+                              const Array<double> &gct,
+                              const Vector &pa_data,
+                              const Vector &x,
+                              Vector &y)
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
 
-   auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
-   auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
-   auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
-   auto Gct = Reshape(_Gct.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, NE);
-   auto x = Reshape(_x.Read(), 2*(D1D-1)*D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), 2*(D1D-1)*D1D, NE);
+   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   auto Bot = Reshape(bot.Read(), D1D-1, Q1D);
+   auto Gc = Reshape(gc.Read(), Q1D, D1D);
+   auto Gct = Reshape(gct.Read(), D1D, Q1D);
+   auto op = Reshape(pa_data.Read(), Q1D, Q1D, NE);
+   auto X = Reshape(x.Read(), 2*(D1D-1)*D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -1059,7 +1059,7 @@ static void PACurlCurlApply2D(const int D1D,
 
             for (int dx = 0; dx < D1Dx; ++dx)
             {
-               const double t = x(dx + (dy * D1Dx) + osc, e);
+               const double t = X(dx + (dy * D1Dx) + osc, e);
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   gradX[qx] += t * ((c == 0) ? Bo(qx,dx) : Gc(qx,dx));
@@ -1115,7 +1115,7 @@ static void PACurlCurlApply2D(const int D1D,
 
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  y(dx + (dy * D1Dx) + osc, e) += gradX[dx] * wy;
+                  Y(dx + (dy * D1Dx) + osc, e) += gradX[dx] * wy;
                }
             }
 
@@ -1129,15 +1129,15 @@ template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 static void PACurlCurlApply3D(const int D1D,
                               const int Q1D,
                               const int NE,
-                              const Array<double> &_Bo,
-                              const Array<double> &_Bc,
-                              const Array<double> &_Bot,
-                              const Array<double> &_Bct,
-                              const Array<double> &_Gc,
-                              const Array<double> &_Gct,
-                              const Vector &_op,
-                              const Vector &_x,
-                              Vector &_y)
+                              const Array<double> &bo,
+                              const Array<double> &bc,
+                              const Array<double> &bot,
+                              const Array<double> &bct,
+                              const Array<double> &gc,
+                              const Array<double> &gct,
+                              const Vector &pa_data,
+                              const Vector &x,
+                              Vector &y)
 {
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
@@ -1149,15 +1149,15 @@ static void PACurlCurlApply3D(const int D1D,
 
    constexpr static int VDIM = 3;
 
-   auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
-   auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
-   auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
-   auto Bct = Reshape(_Bct.Read(), D1D, Q1D);
-   auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
-   auto Gct = Reshape(_Gct.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 6, NE);
-   auto x = Reshape(_x.Read(), 3*(D1D-1)*D1D*D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
+   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   auto Bc = Reshape(bc.Read(), Q1D, D1D);
+   auto Bot = Reshape(bot.Read(), D1D-1, Q1D);
+   auto Bct = Reshape(bct.Read(), D1D, Q1D);
+   auto Gc = Reshape(gc.Read(), Q1D, D1D);
+   auto Gct = Reshape(gct.Read(), D1D, Q1D);
+   auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, 6, NE);
+   auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -1212,7 +1212,7 @@ static void PACurlCurlApply3D(const int D1D,
 
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  const double t = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  const double t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      massX[qx] += t * Bo(qx,dx);
@@ -1281,7 +1281,7 @@ static void PACurlCurlApply3D(const int D1D,
 
                for (int dy = 0; dy < D1Dy; ++dy)
                {
-                  const double t = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  const double t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
                      massY[qy] += t * Bo(qy,dy);
@@ -1350,7 +1350,7 @@ static void PACurlCurlApply3D(const int D1D,
 
                for (int dz = 0; dz < D1Dz; ++dz)
                {
-                  const double t = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  const double t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   for (int qz = 0; qz < Q1D; ++qz)
                   {
                      massZ[qz] += t * Bo(qz,dz);
@@ -1479,7 +1479,7 @@ static void PACurlCurlApply3D(const int D1D,
                   {
                      // \hat{\nabla}\times\hat{u} is [0, (u_0)_{x_2}, -(u_0)_{x_1}]
                      // (u_0)_{x_2} * (op * curl)_1 - (u_0)_{x_1} * (op * curl)_2
-                     y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
+                     Y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
                        e) += (gradXY21[dy][dx] * wDz) - (gradXY12[dy][dx] * wz);
                   }
                }
@@ -1549,7 +1549,7 @@ static void PACurlCurlApply3D(const int D1D,
                   {
                      // \hat{\nabla}\times\hat{u} is [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
                      // -(u_1)_{x_2} * (op * curl)_0 + (u_1)_{x_0} * (op * curl)_2
-                     y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
+                     Y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
                        e) += (-gradXY20[dy][dx] * wDz) + (gradXY02[dy][dx] * wz);
                   }
                }
@@ -1622,14 +1622,13 @@ static void PACurlCurlApply3D(const int D1D,
                   {
                      // \hat{\nabla}\times\hat{u} is [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
                      // (u_2)_{x_1} * (op * curl)_0 - (u_2)_{x_0} * (op * curl)_1
-                     y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
+                     Y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
                        e) += (gradYZ10[dz][dy] * wx) - (gradYZ01[dz][dy] * wDx);
                   }
                }
             }
          }  // loop qx
       }
-
    }); // end of element loop
 }
 
@@ -1637,15 +1636,15 @@ template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 static void SmemPACurlCurlApply3D(const int D1D,
                                   const int Q1D,
                                   const int NE,
-                                  const Array<double> &_Bo,
-                                  const Array<double> &_Bc,
-                                  const Array<double> &_Bot,
-                                  const Array<double> &_Bct,
-                                  const Array<double> &_Gc,
-                                  const Array<double> &_Gct,
-                                  const Vector &_op,
-                                  const Vector &_x,
-                                  Vector &_y)
+                                  const Array<double> &bo,
+                                  const Array<double> &bc,
+                                  const Array<double> &bot,
+                                  const Array<double> &bct,
+                                  const Array<double> &gc,
+                                  const Array<double> &gct,
+                                  const Vector &pa_data,
+                                  const Vector &x,
+                                  Vector &y)
 {
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
@@ -1657,25 +1656,25 @@ static void SmemPACurlCurlApply3D(const int D1D,
 
    constexpr static int VDIM = 3;
 
-   auto bo = Reshape(_Bo.Read(), Q1D, D1D-1);
-   auto bc = Reshape(_Bc.Read(), Q1D, D1D);
-   auto gc = Reshape(_Gc.Read(), Q1D, D1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 6, NE);
-   auto x = Reshape(_x.Read(), 3*(D1D-1)*D1D*D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
+   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   auto Bc = Reshape(bc.Read(), Q1D, D1D);
+   auto Gc = Reshape(gc.Read(), Q1D, D1D);
+   auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, 6, NE);
+   auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
-      MFEM_SHARED double BG[3][MAX_Q1D*MAX_D1D];
-      double (*Bo)[MAX_D1D] = (double (*)[MAX_D1D]) (BG+0);
-      double (*Bc)[MAX_D1D] = (double (*)[MAX_D1D]) (BG+1);
-      double (*Gc)[MAX_D1D] = (double (*)[MAX_D1D]) (BG+2);
+      MFEM_SHARED double sBG[3][MAX_Q1D*MAX_D1D];
+      double (*sBo)[MAX_D1D] = (double (*)[MAX_D1D]) (sBG+0);
+      double (*sBc)[MAX_D1D] = (double (*)[MAX_D1D]) (sBG+1);
+      double (*sGc)[MAX_D1D] = (double (*)[MAX_D1D]) (sBG+2);
 
       double op6[6];
-      MFEM_SHARED double sop[6*MAX_Q1D*MAX_Q1D];
+      MFEM_SHARED double sop[6][MAX_Q1D][MAX_Q1D];
       MFEM_SHARED double curl[MAX_Q1D][MAX_Q1D][3];
 
-      MFEM_SHARED double X[MAX_D1D][MAX_D1D][MAX_D1D];
+      MFEM_SHARED double sX[MAX_D1D][MAX_D1D][MAX_D1D];
 
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
@@ -1701,11 +1700,11 @@ static void SmemPACurlCurlApply3D(const int D1D,
          {
             MFEM_FOREACH_THREAD(q,x,Q1D)
             {
-               Bc[d][q] = bc(q,d);
-               Gc[d][q] = gc(q,d);
+               sBc[d][q] = Bc(q,d);
+               sGc[d][q] = Gc(q,d);
                if (d < D1D-1)
                {
-                  Bo[d][q] = bo(q,d);
+                  sBo[d][q] = Bo(q,d);
                }
             }
          }
@@ -1741,7 +1740,7 @@ static void SmemPACurlCurlApply3D(const int D1D,
                {
                   MFEM_FOREACH_THREAD(dx,x,D1Dx)
                   {
-                     X[dz][dy][dx] = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                     sX[dz][dy][dx] = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   }
                }
             }
@@ -1753,7 +1752,7 @@ static void SmemPACurlCurlApply3D(const int D1D,
                {
                   for (int i=0; i<6; ++i)
                   {
-                     sop[i + (6*tidx) + (6*Q1D*tidy)] = op6[i];
+                     sop[i][tidx][tidy] = op6[i];
                   }
                }
 
@@ -1771,17 +1770,17 @@ static void SmemPACurlCurlApply3D(const int D1D,
 
                         for (int dz = 0; dz < D1Dz; ++dz)
                         {
-                           const double wz = Bc[dz][qz];
-                           const double wDz = Gc[dz][qz];
+                           const double wz = sBc[dz][qz];
+                           const double wDz = sGc[dz][qz];
 
                            for (int dy = 0; dy < D1Dy; ++dy)
                            {
-                              const double wy = Bc[dy][qy];
-                              const double wDy = Gc[dy][qy];
+                              const double wy = sBc[dy][qy];
+                              const double wDy = sGc[dy][qy];
 
                               for (int dx = 0; dx < D1Dx; ++dx)
                               {
-                                 const double wx = X[dz][dy][dx] * Bo[dx][qx];
+                                 const double wx = sX[dz][dy][dx] * sBo[dx][qx];
                                  u += wx * wDy * wz;
                                  v += wx * wy * wDz;
                               }
@@ -1797,18 +1796,18 @@ static void SmemPACurlCurlApply3D(const int D1D,
 
                         for (int dz = 0; dz < D1Dz; ++dz)
                         {
-                           const double wz = Bc[dz][qz];
-                           const double wDz = Gc[dz][qz];
+                           const double wz = sBc[dz][qz];
+                           const double wDz = sGc[dz][qz];
 
                            for (int dy = 0; dy < D1Dy; ++dy)
                            {
-                              const double wy = Bo[dy][qy];
+                              const double wy = sBo[dy][qy];
 
                               for (int dx = 0; dx < D1Dx; ++dx)
                               {
-                                 const double t = X[dz][dy][dx];
-                                 const double wx = t * Bc[dx][qx];
-                                 const double wDx = t * Gc[dx][qx];
+                                 const double t = sX[dz][dy][dx];
+                                 const double wx = t * sBc[dx][qx];
+                                 const double wDx = t * sGc[dx][qx];
 
                                  u += wDx * wy * wz;
                                  v += wx * wy * wDz;
@@ -1825,18 +1824,18 @@ static void SmemPACurlCurlApply3D(const int D1D,
 
                         for (int dz = 0; dz < D1Dz; ++dz)
                         {
-                           const double wz = Bo[dz][qz];
+                           const double wz = sBo[dz][qz];
 
                            for (int dy = 0; dy < D1Dy; ++dy)
                            {
-                              const double wy = Bc[dy][qy];
-                              const double wDy = Gc[dy][qy];
+                              const double wy = sBc[dy][qy];
+                              const double wDy = sGc[dy][qy];
 
                               for (int dx = 0; dx < D1Dx; ++dx)
                               {
-                                 const double t = X[dz][dy][dx];
-                                 const double wx = t * Bc[dx][qx];
-                                 const double wDx = t * Gc[dx][qx];
+                                 const double t = sX[dz][dy][dx];
+                                 const double wx = t * sBc[dx][qx];
+                                 const double wDx = t * sGc[dx][qx];
 
                                  u += wDx * wy * wz;
                                  v += wx * wDy * wz;
@@ -1861,9 +1860,9 @@ static void SmemPACurlCurlApply3D(const int D1D,
 
          MFEM_FOREACH_THREAD(dz,z,D1D)
          {
-            const double wcz = Bc[dz][qz];
-            const double wcDz = Gc[dz][qz];
-            const double wz = (dz < D1D-1) ? Bo[dz][qz] : 0.0;
+            const double wcz = sBc[dz][qz];
+            const double wcDz = sGc[dz][qz];
+            const double wz = (dz < D1D-1) ? sBo[dz][qz] : 0.0;
 
             MFEM_FOREACH_THREAD(dy,y,D1D)
             {
@@ -1871,18 +1870,18 @@ static void SmemPACurlCurlApply3D(const int D1D,
                {
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
-                     const double wcy = Bc[dy][qy];
-                     const double wcDy = Gc[dy][qy];
-                     const double wy = (dy < D1D-1) ? Bo[dy][qy] : 0.0;
+                     const double wcy = sBc[dy][qy];
+                     const double wcDy = sGc[dy][qy];
+                     const double wy = (dy < D1D-1) ? sBo[dy][qy] : 0.0;
 
                      for (int qx = 0; qx < Q1D; ++qx)
                      {
-                        const double O11 = sop[0 + (6*qx) + (6*Q1D*qy)];
-                        const double O12 = sop[1 + (6*qx) + (6*Q1D*qy)];
-                        const double O13 = sop[2 + (6*qx) + (6*Q1D*qy)];
-                        const double O22 = sop[3 + (6*qx) + (6*Q1D*qy)];
-                        const double O23 = sop[4 + (6*qx) + (6*Q1D*qy)];
-                        const double O33 = sop[5 + (6*qx) + (6*Q1D*qy)];
+                        const double O11 = sop[0][qx][qy];
+                        const double O12 = sop[1][qx][qy];
+                        const double O13 = sop[2][qx][qy];
+                        const double O22 = sop[3][qx][qy];
+                        const double O23 = sop[4][qx][qy];
+                        const double O33 = sop[5][qx][qy];
 
                         const double c1 = (O11 * curl[qy][qx][0]) + (O12 * curl[qy][qx][1]) +
                                           (O13 * curl[qy][qx][2]);
@@ -1891,14 +1890,14 @@ static void SmemPACurlCurlApply3D(const int D1D,
                         const double c3 = (O13 * curl[qy][qx][0]) + (O23 * curl[qy][qx][1]) +
                                           (O33 * curl[qy][qx][2]);
 
-                        const double wcx = Bc[dx][qx];
-                        const double wDx = Gc[dx][qx];
+                        const double wcx = sBc[dx][qx];
+                        const double wDx = sGc[dx][qx];
 
                         if (dx < D1D-1)
                         {
                            // \hat{\nabla}\times\hat{u} is [0, (u_0)_{x_2}, -(u_0)_{x_1}]
                            // (u_0)_{x_2} * (op * curl)_1 - (u_0)_{x_1} * (op * curl)_2
-                           const double wx = Bo[dx][qx];
+                           const double wx = sBo[dx][qx];
                            dxyz1 += (wx * c2 * wcy * wcDz) - (wx * c3 * wcDy * wcz);
                         }
 
@@ -1925,15 +1924,15 @@ static void SmemPACurlCurlApply3D(const int D1D,
                {
                   if (dx < D1D-1)
                   {
-                     y(dx + ((dy + (dz * D1D)) * (D1D-1)), e) += dxyz1;
+                     Y(dx + ((dy + (dz * D1D)) * (D1D-1)), e) += dxyz1;
                   }
                   if (dy < D1D-1)
                   {
-                     y(dx + ((dy + (dz * (D1D-1))) * D1D) + ((D1D-1)*D1D*D1D), e) += dxyz2;
+                     Y(dx + ((dy + (dz * (D1D-1))) * D1D) + ((D1D-1)*D1D*D1D), e) += dxyz2;
                   }
                   if (dz < D1D-1)
                   {
-                     y(dx + ((dy + (dz * D1D)) * D1D) + (2*(D1D-1)*D1D*D1D), e) += dxyz3;
+                     Y(dx + ((dy + (dz * D1D)) * D1D) + (2*(D1D-1)*D1D*D1D), e) += dxyz3;
                   }
                }
             }
@@ -1967,18 +1966,18 @@ void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
 static void PACurlCurlAssembleDiagonal2D(const int D1D,
                                          const int Q1D,
                                          const int NE,
-                                         const Array<double> &_Bo,
-                                         const Array<double> &_Gc,
-                                         const Vector &_op,
-                                         Vector &_diag)
+                                         const Array<double> &bo,
+                                         const Array<double> &gc,
+                                         const Vector &pa_data,
+                                         Vector &diag)
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
 
-   auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
-   auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, NE);
-   auto diag = Reshape(_diag.ReadWrite(), 2*(D1D-1)*D1D, NE);
+   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   auto Gc = Reshape(gc.Read(), Q1D, D1D);
+   auto op = Reshape(pa_data.Read(), Q1D, Q1D, NE);
+   auto D = Reshape(diag.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -2008,7 +2007,7 @@ static void PACurlCurlAssembleDiagonal2D(const int D1D,
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   const double wx = ((c == 0) ? Bo(qx,dx) : Gc(qx,dx));
-                  diag(dx + (dy * D1Dx) + osc, e) += t[qx] * wx * wx;
+                  D(dx + (dy * D1Dx) + osc, e) += t[qx] * wx * wx;
                }
             }
          }
@@ -2022,23 +2021,23 @@ template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 static void PACurlCurlAssembleDiagonal3D(const int D1D,
                                          const int Q1D,
                                          const int NE,
-                                         const Array<double> &_Bo,
-                                         const Array<double> &_Bc,
-                                         const Array<double> &_Go,
-                                         const Array<double> &_Gc,
-                                         const Vector &_op,
-                                         Vector &_diag)
+                                         const Array<double> &bo,
+                                         const Array<double> &bc,
+                                         const Array<double> &go,
+                                         const Array<double> &gc,
+                                         const Vector &pa_data,
+                                         Vector &diag)
 {
    constexpr static int VDIM = 3;
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
 
-   auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
-   auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
-   auto Go = Reshape(_Go.Read(), Q1D, D1D-1);
-   auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 6, NE);
-   auto diag = Reshape(_diag.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
+   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   auto Bc = Reshape(bc.Read(), Q1D, D1D);
+   auto Go = Reshape(go.Read(), Q1D, D1D-1);
+   auto Gc = Reshape(gc.Read(), Q1D, D1D);
+   auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, 6, NE);
+   auto D = Reshape(diag.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -2160,48 +2159,48 @@ static void PACurlCurlAssembleDiagonal3D(const int D1D,
                         // (u_0)_{x_2} (O22 (u_0)_{x_2} - O23 (u_0)_{x_1}) - (u_0)_{x_1} (O32 (u_0)_{x_2} - O33 (u_0)_{x_1})
 
                         // (u_0)_{x_2} O22 (u_0)_{x_2}
-                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                             e) += yt[qx][dy][dz][3][2][0] * wx * wx;
+                        D(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
+                          e) += yt[qx][dy][dz][3][2][0] * wx * wx;
 
                         // -(u_0)_{x_2} O23 (u_0)_{x_1} - (u_0)_{x_1} O32 (u_0)_{x_2}
-                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                             e) += -2.0 * yt[qx][dy][dz][4][1][1] * wx * wx;
+                        D(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
+                          e) += -2.0 * yt[qx][dy][dz][4][1][1] * wx * wx;
 
                         // (u_0)_{x_1} O33 (u_0)_{x_1}
-                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                             e) += yt[qx][dy][dz][5][0][2] * wx * wx;
+                        D(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
+                          e) += yt[qx][dy][dz][5][0][2] * wx * wx;
                      }
                      else if (c == 1)
                      {
                         // (u_1)_{x_2} (O11 (u_1)_{x_2} - O13 (u_1)_{x_0}) + (u_1)_{x_0} (-O31 (u_1)_{x_2} + O33 (u_1)_{x_0})
 
                         // (u_1)_{x_2} O11 (u_1)_{x_2}
-                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                             e) += yt[qx][dy][dz][0][2][0] * wx * wx;
+                        D(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
+                          e) += yt[qx][dy][dz][0][2][0] * wx * wx;
 
                         // -(u_1)_{x_2} O13 (u_1)_{x_0} - (u_1)_{x_0} O31 (u_1)_{x_2}
-                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                             e) += -2.0 * yt[qx][dy][dz][2][1][0] * wDx * wx;
+                        D(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
+                          e) += -2.0 * yt[qx][dy][dz][2][1][0] * wDx * wx;
 
                         // (u_1)_{x_0} O33 (u_1)_{x_0})
-                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                             e) += yt[qx][dy][dz][5][0][0] * wDx * wDx;
+                        D(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
+                          e) += yt[qx][dy][dz][5][0][0] * wDx * wDx;
                      }
                      else
                      {
                         // (u_2)_{x_1} (O11 (u_2)_{x_1} - O12 (u_2)_{x_0}) - (u_2)_{x_0} (O21 (u_2)_{x_1} - O22 (u_2)_{x_0})
 
                         // (u_2)_{x_1} O11 (u_2)_{x_1}
-                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                             e) += yt[qx][dy][dz][0][0][2] * wx * wx;
+                        D(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
+                          e) += yt[qx][dy][dz][0][0][2] * wx * wx;
 
                         // -(u_2)_{x_1} O12 (u_2)_{x_0} - (u_2)_{x_0} O21 (u_2)_{x_1}
-                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                             e) += -2.0 * yt[qx][dy][dz][1][0][1] * wDx * wx;
+                        D(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
+                          e) += -2.0 * yt[qx][dy][dz][1][0][1] * wDx * wx;
 
                         // (u_2)_{x_0} O22 (u_2)_{x_0}
-                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                             e) += yt[qx][dy][dz][3][0][0] * wDx * wDx;
+                        D(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
+                          e) += yt[qx][dy][dz][3][0][0] * wDx * wDx;
                      }
                   }
                }
@@ -2217,23 +2216,23 @@ template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 static void SmemPACurlCurlAssembleDiagonal3D(const int D1D,
                                              const int Q1D,
                                              const int NE,
-                                             const Array<double> &_Bo,
-                                             const Array<double> &_Bc,
-                                             const Array<double> &_Go,
-                                             const Array<double> &_Gc,
-                                             const Vector &_op,
-                                             Vector &_diag)
+                                             const Array<double> &bo,
+                                             const Array<double> &bc,
+                                             const Array<double> &go,
+                                             const Array<double> &gc,
+                                             const Vector &pa_data,
+                                             Vector &diag)
 {
    constexpr static int VDIM = 3;
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
 
-   auto bo = Reshape(_Bo.Read(), Q1D, D1D-1);
-   auto bc = Reshape(_Bc.Read(), Q1D, D1D);
-   auto go = Reshape(_Go.Read(), Q1D, D1D-1);
-   auto gc = Reshape(_Gc.Read(), Q1D, D1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 6, NE);
-   auto diag = Reshape(_diag.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
+   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   auto Bc = Reshape(bc.Read(), Q1D, D1D);
+   auto Go = Reshape(go.Read(), Q1D, D1D-1);
+   auto Gc = Reshape(gc.Read(), Q1D, D1D);
+   auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, 6, NE);
+   auto D = Reshape(diag.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
@@ -2243,14 +2242,14 @@ static void SmemPACurlCurlAssembleDiagonal3D(const int D1D,
       // If c = 1, \hat{\nabla}\times\hat{u} reduces to [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
       // If c = 2, \hat{\nabla}\times\hat{u} reduces to [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
 
-      MFEM_SHARED double BG[4][MAX_Q1D*MAX_D1D];
-      double (*Bo)[MAX_Q1D] = (double (*)[MAX_Q1D]) (BG+0);
-      double (*Bc)[MAX_Q1D] = (double (*)[MAX_Q1D]) (BG+1);
-      double (*Go)[MAX_Q1D] = (double (*)[MAX_Q1D]) (BG+2);
-      double (*Gc)[MAX_Q1D] = (double (*)[MAX_Q1D]) (BG+3);
+      MFEM_SHARED double sBG[4][MAX_Q1D*MAX_D1D];
+      double (*sBo)[MAX_Q1D] = (double (*)[MAX_Q1D]) (sBG+0);
+      double (*sBc)[MAX_Q1D] = (double (*)[MAX_Q1D]) (sBG+1);
+      double (*sGo)[MAX_Q1D] = (double (*)[MAX_Q1D]) (sBG+2);
+      double (*sGc)[MAX_Q1D] = (double (*)[MAX_Q1D]) (sBG+3);
 
       double op6[6];
-      MFEM_SHARED double sop[6*MAX_Q1D*MAX_Q1D];
+      MFEM_SHARED double sop[6][MAX_Q1D][MAX_Q1D];
 
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
@@ -2276,12 +2275,12 @@ static void SmemPACurlCurlAssembleDiagonal3D(const int D1D,
          {
             MFEM_FOREACH_THREAD(q,x,Q1D)
             {
-               Bc[q][d] = bc(q,d);
-               Gc[q][d] = gc(q,d);
+               sBc[q][d] = Bc(q,d);
+               sGc[q][d] = Gc(q,d);
                if (d < D1D-1)
                {
-                  Bo[q][d] = bo(q,d);
-                  Go[q][d] = go(q,d);
+                  sBo[q][d] = Bo(q,d);
+                  sGo[q][d] = Go(q,d);
                }
             }
          }
@@ -2303,7 +2302,7 @@ static void SmemPACurlCurlAssembleDiagonal3D(const int D1D,
             {
                for (int i=0; i<6; ++i)
                {
-                  sop[i + (6*tidx) + (6*Q1D*tidy)] = op6[i];
+                  sop[i][tidx][tidy] = op6[i];
                }
             }
 
@@ -2311,8 +2310,8 @@ static void SmemPACurlCurlAssembleDiagonal3D(const int D1D,
 
             MFEM_FOREACH_THREAD(dz,z,D1Dz)
             {
-               const double wz = ((c == 2) ? Bo[qz][dz] : Bc[qz][dz]);
-               const double wDz = ((c == 2) ? Go[qz][dz] : Gc[qz][dz]);
+               const double wz = ((c == 2) ? sBo[qz][dz] : sBc[qz][dz]);
+               const double wDz = ((c == 2) ? sGo[qz][dz] : sGc[qz][dz]);
 
                MFEM_FOREACH_THREAD(dy,y,D1Dy)
                {
@@ -2320,52 +2319,52 @@ static void SmemPACurlCurlAssembleDiagonal3D(const int D1D,
                   {
                      for (int qy = 0; qy < Q1D; ++qy)
                      {
-                        const double wy = ((c == 1) ? Bo[qy][dy] : Bc[qy][dy]);
-                        const double wDy = ((c == 1) ? Go[qy][dy] : Gc[qy][dy]);
+                        const double wy = ((c == 1) ? sBo[qy][dy] : sBc[qy][dy]);
+                        const double wDy = ((c == 1) ? sGo[qy][dy] : sGc[qy][dy]);
 
                         for (int qx = 0; qx < Q1D; ++qx)
                         {
-                           const double wx = ((c == 0) ? Bo[qx][dx] : Bc[qx][dx]);
-                           const double wDx = ((c == 0) ? Go[qx][dx] : Gc[qx][dx]);
+                           const double wx = ((c == 0) ? sBo[qx][dx] : sBc[qx][dx]);
+                           const double wDx = ((c == 0) ? sGo[qx][dx] : sGc[qx][dx]);
 
                            if (c == 0)
                            {
                               // (u_0)_{x_2} (O22 (u_0)_{x_2} - O23 (u_0)_{x_1}) - (u_0)_{x_1} (O32 (u_0)_{x_2} - O33 (u_0)_{x_1})
 
                               // (u_0)_{x_2} O22 (u_0)_{x_2}
-                              dxyz += sop[3 + (6*qx) + (6*Q1D*qy)] * wx * wx * wy * wy * wDz * wDz;
+                              dxyz += sop[3][qx][qy] * wx * wx * wy * wy * wDz * wDz;
 
                               // -(u_0)_{x_2} O23 (u_0)_{x_1} - (u_0)_{x_1} O32 (u_0)_{x_2}
-                              dxyz += -2.0 * sop[4 + (6*qx) + (6*Q1D*qy)] * wx * wx * wDy * wy * wDz * wz;
+                              dxyz += -2.0 * sop[4][qx][qy] * wx * wx * wDy * wy * wDz * wz;
 
                               // (u_0)_{x_1} O33 (u_0)_{x_1}
-                              dxyz += sop[5 + (6*qx) + (6*Q1D*qy)] * wx * wx * wDy * wDy * wz * wz;
+                              dxyz += sop[5][qx][qy] * wx * wx * wDy * wDy * wz * wz;
                            }
                            else if (c == 1)
                            {
                               // (u_1)_{x_2} (O11 (u_1)_{x_2} - O13 (u_1)_{x_0}) + (u_1)_{x_0} (-O31 (u_1)_{x_2} + O33 (u_1)_{x_0})
 
                               // (u_1)_{x_2} O11 (u_1)_{x_2}
-                              dxyz += sop[(6*qx) + (6*Q1D*qy)] * wx * wx * wy * wy * wDz * wDz;
+                              dxyz += sop[0][qx][qy] * wx * wx * wy * wy * wDz * wDz;
 
                               // -(u_1)_{x_2} O13 (u_1)_{x_0} - (u_1)_{x_0} O31 (u_1)_{x_2}
-                              dxyz += -2.0 * sop[2 + (6*qx) + (6*Q1D*qy)] * wDx * wx * wy * wy * wDz * wz;
+                              dxyz += -2.0 * sop[2][qx][qy] * wDx * wx * wy * wy * wDz * wz;
 
                               // (u_1)_{x_0} O33 (u_1)_{x_0})
-                              dxyz += sop[5 + (6*qx) + (6*Q1D*qy)] * wDx * wDx * wy * wy * wz * wz;
+                              dxyz += sop[5][qx][qy] * wDx * wDx * wy * wy * wz * wz;
                            }
                            else
                            {
                               // (u_2)_{x_1} (O11 (u_2)_{x_1} - O12 (u_2)_{x_0}) - (u_2)_{x_0} (O21 (u_2)_{x_1} - O22 (u_2)_{x_0})
 
                               // (u_2)_{x_1} O11 (u_2)_{x_1}
-                              dxyz += sop[(6*qx) + (6*Q1D*qy)] * wx * wx * wDy * wDy * wz * wz;
+                              dxyz += sop[0][qx][qy] * wx * wx * wDy * wDy * wz * wz;
 
                               // -(u_2)_{x_1} O12 (u_2)_{x_0} - (u_2)_{x_0} O21 (u_2)_{x_1}
-                              dxyz += -2.0 * sop[1 + (6*qx) + (6*Q1D*qy)] * wDx * wx * wDy * wy * wz * wz;
+                              dxyz += -2.0 * sop[1][qx][qy] * wDx * wx * wDy * wy * wz * wz;
 
                               // (u_2)_{x_0} O22 (u_2)_{x_0}
-                              dxyz += sop[3 + (6*qx) + (6*Q1D*qy)] * wDx * wDx * wy * wy * wz * wz;
+                              dxyz += sop[3][qx][qy] * wDx * wDx * wy * wy * wz * wz;
                            }
                         }
                      }
@@ -2382,7 +2381,7 @@ static void SmemPACurlCurlAssembleDiagonal3D(const int D1D,
             {
                MFEM_FOREACH_THREAD(dx,x,D1Dx)
                {
-                  diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += dxyz;
+                  D(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += dxyz;
                }
             }
          }
@@ -2427,13 +2426,13 @@ void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
 void PAHcurlH1Apply3D(const int D1D,
                       const int Q1D,
                       const int NE,
-                      const Array<double> &_Bc,
-                      const Array<double> &_Gc,
-                      const Array<double> &_Bot,
-                      const Array<double> &_Bct,
-                      const Vector &_op,
-                      const Vector &_x,
-                      Vector &_y)
+                      const Array<double> &bc,
+                      const Array<double> &gc,
+                      const Array<double> &bot,
+                      const Array<double> &bct,
+                      const Vector &pa_data,
+                      const Vector &x,
+                      Vector &y)
 {
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
@@ -2443,13 +2442,13 @@ void PAHcurlH1Apply3D(const int D1D,
 
    constexpr static int VDIM = 3;
 
-   auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
-   auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
-   auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
-   auto Bct = Reshape(_Bct.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 6, NE);
-   auto x = Reshape(_x.Read(), D1D, D1D, D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
+   auto Bc = Reshape(bc.Read(), Q1D, D1D);
+   auto Gc = Reshape(gc.Read(), Q1D, D1D);
+   auto Bot = Reshape(bot.Read(), D1D-1, Q1D);
+   auto Bct = Reshape(bct.Read(), D1D, Q1D);
+   auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, 6, NE);
+   auto X = Reshape(x.Read(), D1D, D1D, D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -2491,7 +2490,7 @@ void PAHcurlH1Apply3D(const int D1D,
             }
             for (int dx = 0; dx < D1D; ++dx)
             {
-               const double s = x(dx,dy,dz,e);
+               const double s = X(dx,dy,dz,e);
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   gradX[qx][0] += s * Bc(qx,dx);
@@ -2601,7 +2600,7 @@ void PAHcurlH1Apply3D(const int D1D,
                {
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
-                     y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += massXY[dy][dx] * wz;
+                     Y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += massXY[dy][dx] * wz;
                   }
                }
             }
@@ -2617,25 +2616,25 @@ void PAHcurlH1Apply3D(const int D1D,
 void PAHcurlH1Apply2D(const int D1D,
                       const int Q1D,
                       const int NE,
-                      const Array<double> &_Bc,
-                      const Array<double> &_Gc,
-                      const Array<double> &_Bot,
-                      const Array<double> &_Bct,
-                      const Vector &_op,
-                      const Vector &_x,
-                      Vector &_y)
+                      const Array<double> &bc,
+                      const Array<double> &gc,
+                      const Array<double> &bot,
+                      const Array<double> &bct,
+                      const Vector &pa_data,
+                      const Vector &x,
+                      Vector &y)
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
 
-   auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
-   auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
-   auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
-   auto Bct = Reshape(_Bct.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, 3, NE);
-   auto x = Reshape(_x.Read(), D1D, D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), 2*(D1D-1)*D1D, NE);
+   auto Bc = Reshape(bc.Read(), Q1D, D1D);
+   auto Gc = Reshape(gc.Read(), Q1D, D1D);
+   auto Bot = Reshape(bot.Read(), D1D-1, Q1D);
+   auto Bct = Reshape(bct.Read(), D1D, Q1D);
+   auto op = Reshape(pa_data.Read(), Q1D, Q1D, 3, NE);
+   auto X = Reshape(x.Read(), D1D, D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -2662,7 +2661,7 @@ void PAHcurlH1Apply2D(const int D1D,
          }
          for (int dx = 0; dx < D1D; ++dx)
          {
-            const double s = x(dx,dy,e);
+            const double s = X(dx,dy,e);
             for (int qx = 0; qx < Q1D; ++qx)
             {
                gradX[qx][0] += s * Bc(qx,dx);
@@ -2726,7 +2725,7 @@ void PAHcurlH1Apply2D(const int D1D,
 
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  y(dx + (dy * D1Dx) + osc, e) += massX[dx] * wy;
+                  Y(dx + (dy * D1Dx) + osc, e) += massX[dx] * wy;
                }
             }
 
@@ -2741,12 +2740,12 @@ static void PAHcurlL2Setup3D(const int Q1D,
                              const int coeffDim,
                              const int NE,
                              const Array<double> &w,
-                             Vector &_coeff,
+                             Vector &coeff,
                              Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
-   auto coeff = Reshape(_coeff.Read(), coeffDim, NQ, NE);
+   auto C = Reshape(coeff.Read(), coeffDim, NQ, NE);
    auto y = Reshape(op.Write(), coeffDim, NQ, NE);
 
    MFEM_FORALL(e, NE,
@@ -2755,7 +2754,7 @@ static void PAHcurlL2Setup3D(const int Q1D,
       {
          for (int c=0; c<coeffDim; ++c)
          {
-            y(c,q,e) = W[q] * coeff(c,q,e);
+            y(c,q,e) = W[q] * C(c,q,e);
          }
       }
    });
@@ -2867,14 +2866,14 @@ static void PAHcurlL2Apply3D(const int D1D,
                              const int Q1D,
                              const int coeffDim,
                              const int NE,
-                             const Array<double> &_Bo,
-                             const Array<double> &_Bc,
-                             const Array<double> &_Bot,
-                             const Array<double> &_Bct,
-                             const Array<double> &_Gc,
-                             const Vector &_op,
-                             const Vector &_x,
-                             Vector &_y)
+                             const Array<double> &bo,
+                             const Array<double> &bc,
+                             const Array<double> &bot,
+                             const Array<double> &bct,
+                             const Array<double> &gc,
+                             const Vector &pa_data,
+                             const Vector &x,
+                             Vector &y)
 {
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
@@ -2887,14 +2886,14 @@ static void PAHcurlL2Apply3D(const int D1D,
 
    constexpr static int VDIM = 3;
 
-   auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
-   auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
-   auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
-   auto Bct = Reshape(_Bct.Read(), D1D, Q1D);
-   auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
-   auto op = Reshape(_op.Read(), coeffDim, Q1D, Q1D, Q1D, NE);
-   auto x = Reshape(_x.Read(), 3*(D1D-1)*D1D*D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
+   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   auto Bc = Reshape(bc.Read(), Q1D, D1D);
+   auto Bot = Reshape(bot.Read(), D1D-1, Q1D);
+   auto Bct = Reshape(bct.Read(), D1D, Q1D);
+   auto Gc = Reshape(gc.Read(), Q1D, D1D);
+   auto op = Reshape(pa_data.Read(), coeffDim, Q1D, Q1D, Q1D, NE);
+   auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -2949,7 +2948,7 @@ static void PAHcurlL2Apply3D(const int D1D,
 
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  const double t = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  const double t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      massX[qx] += t * Bo(qx,dx);
@@ -3018,7 +3017,7 @@ static void PAHcurlL2Apply3D(const int D1D,
 
                for (int dy = 0; dy < D1Dy; ++dy)
                {
-                  const double t = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  const double t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
                      massY[qy] += t * Bo(qy,dy);
@@ -3087,7 +3086,7 @@ static void PAHcurlL2Apply3D(const int D1D,
 
                for (int dz = 0; dz < D1Dz; ++dz)
                {
-                  const double t = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  const double t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   for (int qz = 0; qz < Q1D; ++qz)
                   {
                      massZ[qz] += t * Bo(qz,dz);
@@ -3190,7 +3189,7 @@ static void PAHcurlL2Apply3D(const int D1D,
                {
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
-                     y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += massXY[dy][dx] * wz;
+                     Y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += massXY[dy][dx] * wz;
                   }
                }
             }
@@ -3208,12 +3207,12 @@ static void SmemPAHcurlL2Apply3D(const int D1D,
                                  const int Q1D,
                                  const int coeffDim,
                                  const int NE,
-                                 const Array<double> &_Bo,
-                                 const Array<double> &_Bc,
-                                 const Array<double> &_Gc,
-                                 const Vector &_op,
-                                 const Vector &_x,
-                                 Vector &_y)
+                                 const Array<double> &bo,
+                                 const Array<double> &bc,
+                                 const Array<double> &gc,
+                                 const Vector &pa_data,
+                                 const Vector &x,
+                                 Vector &y)
 {
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
@@ -3221,25 +3220,25 @@ static void SmemPAHcurlL2Apply3D(const int D1D,
    constexpr static int VDIM = 3;
    constexpr static int maxCoeffDim = 3;
 
-   auto bo = Reshape(_Bo.Read(), Q1D, D1D-1);
-   auto bc = Reshape(_Bc.Read(), Q1D, D1D);
-   auto gc = Reshape(_Gc.Read(), Q1D, D1D);
-   auto op = Reshape(_op.Read(), coeffDim, Q1D, Q1D, Q1D, NE);
-   auto x = Reshape(_x.Read(), 3*(D1D-1)*D1D*D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
+   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   auto Bc = Reshape(bc.Read(), Q1D, D1D);
+   auto Gc = Reshape(gc.Read(), Q1D, D1D);
+   auto op = Reshape(pa_data.Read(), coeffDim, Q1D, Q1D, Q1D, NE);
+   auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
-      MFEM_SHARED double BG[3][MAX_Q1D*MAX_D1D];
-      double (*Bo)[MAX_D1D] = (double (*)[MAX_D1D]) (BG+0);
-      double (*Bc)[MAX_D1D] = (double (*)[MAX_D1D]) (BG+1);
-      double (*Gc)[MAX_D1D] = (double (*)[MAX_D1D]) (BG+2);
+      MFEM_SHARED double sBG[3][MAX_Q1D*MAX_D1D];
+      double (*sBo)[MAX_D1D] = (double (*)[MAX_D1D]) (sBG+0);
+      double (*sBc)[MAX_D1D] = (double (*)[MAX_D1D]) (sBG+1);
+      double (*sGc)[MAX_D1D] = (double (*)[MAX_D1D]) (sBG+2);
 
       double opc[maxCoeffDim];
-      MFEM_SHARED double sop[maxCoeffDim*MAX_Q1D*MAX_Q1D];
+      MFEM_SHARED double sop[maxCoeffDim][MAX_Q1D][MAX_Q1D];
       MFEM_SHARED double curl[MAX_Q1D][MAX_Q1D][3];
 
-      MFEM_SHARED double X[MAX_D1D][MAX_D1D][MAX_D1D];
+      MFEM_SHARED double sX[MAX_D1D][MAX_D1D][MAX_D1D];
 
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
@@ -3265,11 +3264,11 @@ static void SmemPAHcurlL2Apply3D(const int D1D,
          {
             MFEM_FOREACH_THREAD(q,x,Q1D)
             {
-               Bc[d][q] = bc(q,d);
-               Gc[d][q] = gc(q,d);
+               sBc[d][q] = Bc(q,d);
+               sGc[d][q] = Gc(q,d);
                if (d < D1D-1)
                {
-                  Bo[d][q] = bo(q,d);
+                  sBo[d][q] = Bo(q,d);
                }
             }
          }
@@ -3305,7 +3304,7 @@ static void SmemPAHcurlL2Apply3D(const int D1D,
                {
                   MFEM_FOREACH_THREAD(dx,x,D1Dx)
                   {
-                     X[dz][dy][dx] = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                     sX[dz][dy][dx] = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   }
                }
             }
@@ -3317,7 +3316,7 @@ static void SmemPAHcurlL2Apply3D(const int D1D,
                {
                   for (int i=0; i<coeffDim; ++i)
                   {
-                     sop[i + (coeffDim*(tidx + (Q1D*tidy)))] = opc[i];
+                     sop[i][tidx][tidy] = opc[i];
                   }
                }
 
@@ -3335,17 +3334,17 @@ static void SmemPAHcurlL2Apply3D(const int D1D,
 
                         for (int dz = 0; dz < D1Dz; ++dz)
                         {
-                           const double wz = Bc[dz][qz];
-                           const double wDz = Gc[dz][qz];
+                           const double wz = sBc[dz][qz];
+                           const double wDz = sGc[dz][qz];
 
                            for (int dy = 0; dy < D1Dy; ++dy)
                            {
-                              const double wy = Bc[dy][qy];
-                              const double wDy = Gc[dy][qy];
+                              const double wy = sBc[dy][qy];
+                              const double wDy = sGc[dy][qy];
 
                               for (int dx = 0; dx < D1Dx; ++dx)
                               {
-                                 const double wx = X[dz][dy][dx] * Bo[dx][qx];
+                                 const double wx = sX[dz][dy][dx] * sBo[dx][qx];
                                  u += wx * wDy * wz;
                                  v += wx * wy * wDz;
                               }
@@ -3361,18 +3360,18 @@ static void SmemPAHcurlL2Apply3D(const int D1D,
 
                         for (int dz = 0; dz < D1Dz; ++dz)
                         {
-                           const double wz = Bc[dz][qz];
-                           const double wDz = Gc[dz][qz];
+                           const double wz = sBc[dz][qz];
+                           const double wDz = sGc[dz][qz];
 
                            for (int dy = 0; dy < D1Dy; ++dy)
                            {
-                              const double wy = Bo[dy][qy];
+                              const double wy = sBo[dy][qy];
 
                               for (int dx = 0; dx < D1Dx; ++dx)
                               {
-                                 const double t = X[dz][dy][dx];
-                                 const double wx = t * Bc[dx][qx];
-                                 const double wDx = t * Gc[dx][qx];
+                                 const double t = sX[dz][dy][dx];
+                                 const double wx = t * sBc[dx][qx];
+                                 const double wDx = t * sGc[dx][qx];
 
                                  u += wDx * wy * wz;
                                  v += wx * wy * wDz;
@@ -3389,18 +3388,18 @@ static void SmemPAHcurlL2Apply3D(const int D1D,
 
                         for (int dz = 0; dz < D1Dz; ++dz)
                         {
-                           const double wz = Bo[dz][qz];
+                           const double wz = sBo[dz][qz];
 
                            for (int dy = 0; dy < D1Dy; ++dy)
                            {
-                              const double wy = Bc[dy][qy];
-                              const double wDy = Gc[dy][qy];
+                              const double wy = sBc[dy][qy];
+                              const double wDy = sGc[dy][qy];
 
                               for (int dx = 0; dx < D1Dx; ++dx)
                               {
-                                 const double t = X[dz][dy][dx];
-                                 const double wx = t * Bc[dx][qx];
-                                 const double wDx = t * Gc[dx][qx];
+                                 const double t = sX[dz][dy][dx];
+                                 const double wx = t * sBc[dx][qx];
+                                 const double wDx = t * sGc[dx][qx];
 
                                  u += wDx * wy * wz;
                                  v += wx * wDy * wz;
@@ -3425,8 +3424,8 @@ static void SmemPAHcurlL2Apply3D(const int D1D,
 
          MFEM_FOREACH_THREAD(dz,z,D1D)
          {
-            const double wcz = Bc[dz][qz];
-            const double wz = (dz < D1D-1) ? Bo[dz][qz] : 0.0;
+            const double wcz = sBc[dz][qz];
+            const double wz = (dz < D1D-1) ? sBo[dz][qz] : 0.0;
 
             MFEM_FOREACH_THREAD(dy,y,D1D)
             {
@@ -3434,24 +3433,24 @@ static void SmemPAHcurlL2Apply3D(const int D1D,
                {
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
-                     const double wcy = Bc[dy][qy];
-                     const double wy = (dy < D1D-1) ? Bo[dy][qy] : 0.0;
+                     const double wcy = sBc[dy][qy];
+                     const double wy = (dy < D1D-1) ? sBo[dy][qy] : 0.0;
 
                      for (int qx = 0; qx < Q1D; ++qx)
                      {
-                        const double O1 = sop[0 + (coeffDim*(qx + (Q1D*qy)))];
-                        const double O2 = (coeffDim == 3) ? sop[1 + (coeffDim*(qx + (Q1D*qy)))] : O1;
-                        const double O3 = (coeffDim == 3) ? sop[2 + (coeffDim*(qx + (Q1D*qy)))] : O1;
+                        const double O1 = sop[0][qx][qy];
+                        const double O2 = (coeffDim == 3) ? sop[1][qx][qy] : O1;
+                        const double O3 = (coeffDim == 3) ? sop[2][qx][qy] : O1;
 
                         const double c1 = O1 * curl[qy][qx][0];
                         const double c2 = O2 * curl[qy][qx][1];
                         const double c3 = O3 * curl[qy][qx][2];
 
-                        const double wcx = Bc[dx][qx];
+                        const double wcx = sBc[dx][qx];
 
                         if (dx < D1D-1)
                         {
-                           const double wx = Bo[dx][qx];
+                           const double wx = sBo[dx][qx];
                            dxyz1 += c1 * wx * wcy * wcz;
                         }
 
@@ -3473,15 +3472,15 @@ static void SmemPAHcurlL2Apply3D(const int D1D,
                {
                   if (dx < D1D-1)
                   {
-                     y(dx + ((dy + (dz * D1D)) * (D1D-1)), e) += dxyz1;
+                     Y(dx + ((dy + (dz * D1D)) * (D1D-1)), e) += dxyz1;
                   }
                   if (dy < D1D-1)
                   {
-                     y(dx + ((dy + (dz * (D1D-1))) * D1D) + ((D1D-1)*D1D*D1D), e) += dxyz2;
+                     Y(dx + ((dy + (dz * (D1D-1))) * D1D) + ((D1D-1)*D1D*D1D), e) += dxyz2;
                   }
                   if (dz < D1D-1)
                   {
-                     y(dx + ((dy + (dz * D1D)) * D1D) + (2*(D1D-1)*D1D*D1D), e) += dxyz3;
+                     Y(dx + ((dy + (dz * D1D)) * D1D) + (2*(D1D-1)*D1D*D1D), e) += dxyz3;
                   }
                }
             }
@@ -3497,14 +3496,14 @@ static void PAHcurlHdivApply3D(const int D1D,
                                const int D1Dtest,
                                const int Q1D,
                                const int NE,
-                               const Array<double> &_Bo,
-                               const Array<double> &_Bc,
-                               const Array<double> &_Bot,
-                               const Array<double> &_Bct,
-                               const Array<double> &_Gc,
-                               const Vector &_op,
-                               const Vector &_x,
-                               Vector &_y)
+                               const Array<double> &bo,
+                               const Array<double> &bc,
+                               const Array<double> &bot,
+                               const Array<double> &bct,
+                               const Array<double> &gc,
+                               const Vector &pa_data,
+                               const Vector &x,
+                               Vector &y)
 {
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
@@ -3517,14 +3516,14 @@ static void PAHcurlHdivApply3D(const int D1D,
 
    constexpr static int VDIM = 3;
 
-   auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
-   auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
-   auto Bot = Reshape(_Bot.Read(), D1Dtest-1, Q1D);
-   auto Bct = Reshape(_Bct.Read(), D1Dtest, Q1D);
-   auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 6, NE);
-   auto x = Reshape(_x.Read(), 3*(D1D-1)*D1D*D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), 3*(D1Dtest-1)*(D1Dtest-1)*D1D, NE);
+   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   auto Bc = Reshape(bc.Read(), Q1D, D1D);
+   auto Bot = Reshape(bot.Read(), D1Dtest-1, Q1D);
+   auto Bct = Reshape(bct.Read(), D1Dtest, Q1D);
+   auto Gc = Reshape(gc.Read(), Q1D, D1D);
+   auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, 6, NE);
+   auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), 3*(D1Dtest-1)*(D1Dtest-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -3579,7 +3578,7 @@ static void PAHcurlHdivApply3D(const int D1D,
 
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  const double t = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  const double t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      massX[qx] += t * Bo(qx,dx);
@@ -3648,7 +3647,7 @@ static void PAHcurlHdivApply3D(const int D1D,
 
                for (int dy = 0; dy < D1Dy; ++dy)
                {
-                  const double t = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  const double t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
                      massY[qy] += t * Bo(qy,dy);
@@ -3717,7 +3716,7 @@ static void PAHcurlHdivApply3D(const int D1D,
 
                for (int dz = 0; dz < D1Dz; ++dz)
                {
-                  const double t = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  const double t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   for (int qz = 0; qz < Q1D; ++qz)
                   {
                      massZ[qz] += t * Bo(qz,dz);
@@ -3834,7 +3833,7 @@ static void PAHcurlHdivApply3D(const int D1D,
                {
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
-                     y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) +=
+                     Y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) +=
                         massXY[dy][dx] * wz;
                   }
                }
@@ -3964,14 +3963,14 @@ static void PAHcurlL2Apply3DTranspose(const int D1D,
                                       const int Q1D,
                                       const int coeffDim,
                                       const int NE,
-                                      const Array<double> &_Bo,
-                                      const Array<double> &_Bc,
-                                      const Array<double> &_Bot,
-                                      const Array<double> &_Bct,
-                                      const Array<double> &_Gct,
-                                      const Vector &_op,
-                                      const Vector &_x,
-                                      Vector &_y)
+                                      const Array<double> &bo,
+                                      const Array<double> &bc,
+                                      const Array<double> &bot,
+                                      const Array<double> &bct,
+                                      const Array<double> &gct,
+                                      const Vector &pa_data,
+                                      const Vector &x,
+                                      Vector &y)
 {
    // See PAHcurlL2Apply3D for comments.
 
@@ -3980,14 +3979,14 @@ static void PAHcurlL2Apply3DTranspose(const int D1D,
 
    constexpr static int VDIM = 3;
 
-   auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
-   auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
-   auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
-   auto Bct = Reshape(_Bct.Read(), D1D, Q1D);
-   auto Gct = Reshape(_Gct.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), coeffDim, Q1D, Q1D, Q1D, NE);
-   auto x = Reshape(_x.Read(), 3*(D1D-1)*D1D*D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
+   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   auto Bc = Reshape(bc.Read(), Q1D, D1D);
+   auto Bot = Reshape(bot.Read(), D1D-1, Q1D);
+   auto Bct = Reshape(bct.Read(), D1D, Q1D);
+   auto Gct = Reshape(gct.Read(), D1D, Q1D);
+   auto op = Reshape(pa_data.Read(), coeffDim, Q1D, Q1D, Q1D, NE);
+   auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -4036,7 +4035,7 @@ static void PAHcurlL2Apply3DTranspose(const int D1D,
 
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  const double t = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  const double t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      massX[qx] += t * ((c == 0) ? Bo(qx,dx) : Bc(qx,dx));
@@ -4148,7 +4147,7 @@ static void PAHcurlL2Apply3DTranspose(const int D1D,
                   {
                      // \hat{\nabla}\times\hat{u} is [0, (u_0)_{x_2}, -(u_0)_{x_1}]
                      // (u_0)_{x_2} * (op * curl)_1 - (u_0)_{x_1} * (op * curl)_2
-                     y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
+                     Y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
                        e) += (gradXY21[dy][dx] * wDz) - (gradXY12[dy][dx] * wz);
                   }
                }
@@ -4218,7 +4217,7 @@ static void PAHcurlL2Apply3DTranspose(const int D1D,
                   {
                      // \hat{\nabla}\times\hat{u} is [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
                      // -(u_1)_{x_2} * (op * curl)_0 + (u_1)_{x_0} * (op * curl)_2
-                     y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
+                     Y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
                        e) += (-gradXY20[dy][dx] * wDz) + (gradXY02[dy][dx] * wz);
                   }
                }
@@ -4291,7 +4290,7 @@ static void PAHcurlL2Apply3DTranspose(const int D1D,
                   {
                      // \hat{\nabla}\times\hat{u} is [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
                      // (u_2)_{x_1} * (op * curl)_0 - (u_2)_{x_0} * (op * curl)_1
-                     y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
+                     Y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
                        e) += (gradYZ10[dz][dy] * wx) - (gradYZ01[dz][dy] * wDx);
                   }
                }
@@ -4306,12 +4305,12 @@ static void SmemPAHcurlL2Apply3DTranspose(const int D1D,
                                           const int Q1D,
                                           const int coeffDim,
                                           const int NE,
-                                          const Array<double> &_Bo,
-                                          const Array<double> &_Bc,
-                                          const Array<double> &_Gc,
-                                          const Vector &_op,
-                                          const Vector &_x,
-                                          Vector &_y)
+                                          const Array<double> &bo,
+                                          const Array<double> &bc,
+                                          const Array<double> &gc,
+                                          const Vector &pa_data,
+                                          const Vector &x,
+                                          Vector &y)
 {
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
@@ -4319,25 +4318,25 @@ static void SmemPAHcurlL2Apply3DTranspose(const int D1D,
    constexpr static int VDIM = 3;
    constexpr static int maxCoeffDim = 3;
 
-   auto bo = Reshape(_Bo.Read(), Q1D, D1D-1);
-   auto bc = Reshape(_Bc.Read(), Q1D, D1D);
-   auto gc = Reshape(_Gc.Read(), Q1D, D1D);
-   auto op = Reshape(_op.Read(), coeffDim, Q1D, Q1D, Q1D, NE);
-   auto x = Reshape(_x.Read(), 3*(D1D-1)*D1D*D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
+   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   auto Bc = Reshape(bc.Read(), Q1D, D1D);
+   auto Gc = Reshape(gc.Read(), Q1D, D1D);
+   auto op = Reshape(pa_data.Read(), coeffDim, Q1D, Q1D, Q1D, NE);
+   auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
-      MFEM_SHARED double BG[3][MAX_Q1D*MAX_D1D];
-      double (*Bo)[MAX_D1D] = (double (*)[MAX_D1D]) (BG+0);
-      double (*Bc)[MAX_D1D] = (double (*)[MAX_D1D]) (BG+1);
-      double (*Gc)[MAX_D1D] = (double (*)[MAX_D1D]) (BG+2);
+      MFEM_SHARED double sBG[3][MAX_Q1D*MAX_D1D];
+      double (*sBo)[MAX_D1D] = (double (*)[MAX_D1D]) (sBG+0);
+      double (*sBc)[MAX_D1D] = (double (*)[MAX_D1D]) (sBG+1);
+      double (*sGc)[MAX_D1D] = (double (*)[MAX_D1D]) (sBG+2);
 
       double opc[maxCoeffDim];
-      MFEM_SHARED double sop[maxCoeffDim*MAX_Q1D*MAX_Q1D];
+      MFEM_SHARED double sop[maxCoeffDim][MAX_Q1D][MAX_Q1D];
       MFEM_SHARED double mass[MAX_Q1D][MAX_Q1D][3];
 
-      MFEM_SHARED double X[MAX_D1D][MAX_D1D][MAX_D1D];
+      MFEM_SHARED double sX[MAX_D1D][MAX_D1D][MAX_D1D];
 
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
@@ -4363,11 +4362,11 @@ static void SmemPAHcurlL2Apply3DTranspose(const int D1D,
          {
             MFEM_FOREACH_THREAD(q,x,Q1D)
             {
-               Bc[d][q] = bc(q,d);
-               Gc[d][q] = gc(q,d);
+               sBc[d][q] = Bc(q,d);
+               sGc[d][q] = Gc(q,d);
                if (d < D1D-1)
                {
-                  Bo[d][q] = bo(q,d);
+                  sBo[d][q] = Bo(q,d);
                }
             }
          }
@@ -4403,7 +4402,7 @@ static void SmemPAHcurlL2Apply3DTranspose(const int D1D,
                {
                   MFEM_FOREACH_THREAD(dx,x,D1Dx)
                   {
-                     X[dz][dy][dx] = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                     sX[dz][dy][dx] = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   }
                }
             }
@@ -4415,7 +4414,7 @@ static void SmemPAHcurlL2Apply3DTranspose(const int D1D,
                {
                   for (int i=0; i<coeffDim; ++i)
                   {
-                     sop[i + (coeffDim*(tidx + (Q1D*tidy)))] = opc[i];
+                     sop[i][tidx][tidy] = opc[i];
                   }
                }
 
@@ -4427,15 +4426,15 @@ static void SmemPAHcurlL2Apply3DTranspose(const int D1D,
 
                      for (int dz = 0; dz < D1Dz; ++dz)
                      {
-                        const double wz = (c == 2) ? Bo[dz][qz] : Bc[dz][qz];
+                        const double wz = (c == 2) ? sBo[dz][qz] : sBc[dz][qz];
 
                         for (int dy = 0; dy < D1Dy; ++dy)
                         {
-                           const double wy = (c == 1) ? Bo[dy][qy] : Bc[dy][qy];
+                           const double wy = (c == 1) ? sBo[dy][qy] : sBc[dy][qy];
 
                            for (int dx = 0; dx < D1Dx; ++dx)
                            {
-                              const double wx = X[dz][dy][dx] * ((c == 0) ? Bo[dx][qx] : Bc[dx][qx]);
+                              const double wx = sX[dz][dy][dx] * ((c == 0) ? sBo[dx][qx] : sBc[dx][qx]);
                               u += wx * wy * wz;
                            }
                         }
@@ -4456,9 +4455,9 @@ static void SmemPAHcurlL2Apply3DTranspose(const int D1D,
 
          MFEM_FOREACH_THREAD(dz,z,D1D)
          {
-            const double wcz = Bc[dz][qz];
-            const double wcDz = Gc[dz][qz];
-            const double wz = (dz < D1D-1) ? Bo[dz][qz] : 0.0;
+            const double wcz = sBc[dz][qz];
+            const double wcDz = sGc[dz][qz];
+            const double wz = (dz < D1D-1) ? sBo[dz][qz] : 0.0;
 
             MFEM_FOREACH_THREAD(dy,y,D1D)
             {
@@ -4466,26 +4465,26 @@ static void SmemPAHcurlL2Apply3DTranspose(const int D1D,
                {
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
-                     const double wcy = Bc[dy][qy];
-                     const double wcDy = Gc[dy][qy];
-                     const double wy = (dy < D1D-1) ? Bo[dy][qy] : 0.0;
+                     const double wcy = sBc[dy][qy];
+                     const double wcDy = sGc[dy][qy];
+                     const double wy = (dy < D1D-1) ? sBo[dy][qy] : 0.0;
 
                      for (int qx = 0; qx < Q1D; ++qx)
                      {
-                        const double O1 = sop[0 + (coeffDim*(qx + (Q1D*qy)))];
-                        const double O2 = (coeffDim == 3) ? sop[1 + (coeffDim*(qx + (Q1D*qy)))] : O1;
-                        const double O3 = (coeffDim == 3) ? sop[2 + (coeffDim*(qx + (Q1D*qy)))] : O1;
+                        const double O1 = sop[0][qx][qy];
+                        const double O2 = (coeffDim == 3) ? sop[1][qx][qy] : O1;
+                        const double O3 = (coeffDim == 3) ? sop[2][qx][qy] : O1;
 
                         const double c1 = O1 * mass[qy][qx][0];
                         const double c2 = O2 * mass[qy][qx][1];
                         const double c3 = O3 * mass[qy][qx][2];
 
-                        const double wcx = Bc[dx][qx];
-                        const double wDx = Gc[dx][qx];
+                        const double wcx = sBc[dx][qx];
+                        const double wDx = sGc[dx][qx];
 
                         if (dx < D1D-1)
                         {
-                           const double wx = Bo[dx][qx];
+                           const double wx = sBo[dx][qx];
                            dxyz1 += (wx * c2 * wcy * wcDz) - (wx * c3 * wcDy * wcz);
                         }
 
@@ -4508,15 +4507,15 @@ static void SmemPAHcurlL2Apply3DTranspose(const int D1D,
                {
                   if (dx < D1D-1)
                   {
-                     y(dx + ((dy + (dz * D1D)) * (D1D-1)), e) += dxyz1;
+                     Y(dx + ((dy + (dz * D1D)) * (D1D-1)), e) += dxyz1;
                   }
                   if (dy < D1D-1)
                   {
-                     y(dx + ((dy + (dz * (D1D-1))) * D1D) + ((D1D-1)*D1D*D1D), e) += dxyz2;
+                     Y(dx + ((dy + (dz * (D1D-1))) * D1D) + ((D1D-1)*D1D*D1D), e) += dxyz2;
                   }
                   if (dz < D1D-1)
                   {
-                     y(dx + ((dy + (dz * D1D)) * D1D) + (2*(D1D-1)*D1D*D1D), e) += dxyz3;
+                     Y(dx + ((dy + (dz * D1D)) * D1D) + (2*(D1D-1)*D1D*D1D), e) += dxyz3;
                   }
                }
             }
