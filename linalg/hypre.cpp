@@ -2999,7 +2999,7 @@ HypreEuclid::HypreEuclid(HypreParMatrix &A) : HypreSolver(&A)
 
 void HypreEuclid::SetDefaultOptions()
 {
-   int    euc_level = 1; // We use ILU(1)
+   int    euc_level = 4; // We use ILU(1)
    int    euc_stats = 0; // No logging
    int    euc_mem   = 0; // No memory logging
    int    euc_bj    = 0; // 1: Use Block Jacobi
