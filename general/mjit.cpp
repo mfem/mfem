@@ -338,7 +338,8 @@ bool Compile(const char *cc, const char *co,
 
    // Install shared library
    const char *install[] =
-   { shell, "install", "--backup=none", lib_so_v, lib_so, nullptr };
+      //{ shell, "install", "--backup=none", lib_so_v, lib_so, nullptr };
+   { shell, "install", lib_so_v, lib_so, nullptr };
    if (mfem::jit::System(const_cast<char**>(install)) != 0) { return false; }
 
    if (!getenv("TMP")) { unlink(cc); }
