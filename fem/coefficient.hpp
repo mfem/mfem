@@ -30,7 +30,10 @@ class ParMesh;
 /** @brief Base class Coefficients that optionally depend on space and time.
     These are used by the BilinearFormIntegrator, LinearFormIntegrator, and
     NonlinearFormIntegrator classes to represent the physical coefficients in
-    the PDEs that are being discretized. */
+    the PDEs that are being discretized. This class can also be used in a more
+    general way to represent functions that don't necessarily belong to a FE
+    space, e.g., to project onto GridFunctions to use as initial conditions,
+    exact solutions, etc. See, e.g., ex4 or ex22 for these uses. */
 class Coefficient
 {
 protected:
