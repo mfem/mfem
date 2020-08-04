@@ -27,35 +27,24 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
                                            ElementDofOrdering e_ordering,
                                            FaceType type,
                                            L2FaceValues m)
-   : fes(fes),
-     nf(fes.GetNFbyType(type)),
-     vdim(fes.GetVDim()),
-     byvdim(fes.GetOrdering() == Ordering::byVDIM),
-     ndofs(fes.GetNDofs()),
-     dof(nf>0 ?
-         fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof()
-         : 0),
-     m(m),
-     nfdofs(nf*dof),
-     scatter_indices1(nf*dof),
-     scatter_indices2(m==L2FaceValues::DoubleValued?nf*dof:0),
-     offsets(ndofs+1),
-     gather_indices((m==L2FaceValues::DoubleValued? 2 : 1)*nf*dof)
+   : L2FaceRestriction(fes, type, m)
 {
    if (nf==0) { return; }
    // If fespace == L2
-   const FiniteElement *fe = fes.GetFE(0);
+   const ParFiniteElementSpace &pfes =
+      static_cast<const ParFiniteElementSpace&>(this->fes);
+   const FiniteElement *fe = pfes.GetFE(0);
    const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
    MFEM_VERIFY(tfe != NULL &&
                (tfe->GetBasisType()==BasisType::GaussLobatto ||
                 tfe->GetBasisType()==BasisType::Positive),
                "Only Gauss-Lobatto and Bernstein basis are supported in "
                "ParL2FaceRestriction.");
-   MFEM_VERIFY(fes.GetMesh()->Conforming(),
+   MFEM_VERIFY(pfes.GetMesh()->Conforming(),
                "Non-conforming meshes not yet supported with partial assembly.");
    // Assuming all finite elements are using Gauss-Lobatto dofs
    height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nf*dof;
-   width = fes.GetVSize();
+   width = pfes.GetVSize();
    const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
    if (!dof_reorder)
    {
@@ -63,32 +52,32 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
    }
    if (dof_reorder && nf > 0)
    {
-      for (int f = 0; f < fes.GetNF(); ++f)
+      for (int f = 0; f < pfes.GetNF(); ++f)
       {
          const FiniteElement *fe =
-            fes.GetTraceElement(f, fes.GetMesh()->GetFaceBaseGeometry(f));
+            pfes.GetTraceElement(f, pfes.GetMesh()->GetFaceBaseGeometry(f));
          const TensorBasisElement* el =
             dynamic_cast<const TensorBasisElement*>(fe);
          if (el) { continue; }
          mfem_error("Finite element not suitable for lexicographic ordering");
       }
    }
-   const Table& e2dTable = fes.GetElementToDofTable();
+   const Table& e2dTable = pfes.GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
    Array<int> faceMap1(dof), faceMap2(dof);
    int e1, e2;
    int inf1, inf2;
    int face_id1, face_id2;
    int orientation;
-   const int dof1d = fes.GetFE(0)->GetOrder()+1;
-   const int elem_dofs = fes.GetFE(0)->GetDof();
-   const int dim = fes.GetMesh()->SpaceDimension();
+   const int dof1d = pfes.GetFE(0)->GetOrder()+1;
+   const int elem_dofs = pfes.GetFE(0)->GetDof();
+   const int dim = pfes.GetMesh()->SpaceDimension();
    // Computation of scatter indices
    int f_ind=0;
-   for (int f = 0; f < fes.GetNF(); ++f)
+   for (int f = 0; f < pfes.GetNF(); ++f)
    {
-      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
+      pfes.GetMesh()->GetFaceElements(f, &e1, &e2);
+      pfes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
       if (dof_reorder)
       {
          orientation = inf1 % 64;
@@ -136,7 +125,7 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
             {
                const int se2 = -1 - e2;
                Array<int> sharedDofs;
-               fes.GetFaceNbrElementVDofs(se2, sharedDofs);
+               pfes.GetFaceNbrElementVDofs(se2, sharedDofs);
                for (int d = 0; d < dof; ++d)
                {
                   const int pd = PermuteFaceL2(dim, face_id1, face_id2,
@@ -180,10 +169,10 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
       offsets[i] = 0;
    }
    f_ind = 0;
-   for (int f = 0; f < fes.GetNF(); ++f)
+   for (int f = 0; f < pfes.GetNF(); ++f)
    {
-      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
+      pfes.GetMesh()->GetFaceElements(f, &e1, &e2);
+      pfes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
       if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
           (type==FaceType::Boundary && e2<0 && inf2<0) )
       {
@@ -222,10 +211,10 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
       offsets[i] += offsets[i - 1];
    }
    f_ind = 0;
-   for (int f = 0; f < fes.GetNF(); ++f)
+   for (int f = 0; f < pfes.GetNF(); ++f)
    {
-      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
+      pfes.GetMesh()->GetFaceElements(f, &e1, &e2);
+      pfes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
       if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
           (type==FaceType::Boundary && e2<0 && inf2<0) )
       {
@@ -272,8 +261,10 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
 
 void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 {
+   const ParFiniteElementSpace &pfes =
+      static_cast<const ParFiniteElementSpace&>(this->fes);
    ParGridFunction x_gf;
-   x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(&fes),
+   x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(&pfes),
                 const_cast<Vector&>(x), 0);
    x_gf.ExchangeFaceNbrData();
 
@@ -337,34 +328,122 @@ void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
    }
 }
 
-void ParL2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
+static MFEM_HOST_DEVICE int AddNnz(const int iE, int *I, const int dofs)
 {
-   // Assumes all elements have the same number of dofs
-   const int nd = dof;
-   const int vd = vdim;
-   const bool t = byvdim;
-   const int dofs = nfdofs;
-   auto d_offsets = offsets.Read();
-   auto d_indices = gather_indices.Read();
-   auto d_x = Reshape(x.Read(), nd, vd, 2, nf);
-   auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
-   MFEM_FORALL(i, ndofs,
+   int val = AtomicAdd(I[iE],dofs);
+   return val;
+}
+
+void ParL2FaceRestriction::FillI(SparseMatrix &mat,
+                                 SparseMatrix &face_mat) const
+{
+   const int face_dofs = dof;
+   const int Ndofs = ndofs;
+   auto d_indices1 = scatter_indices1.Read();
+   auto d_indices2 = scatter_indices2.Read();
+   auto I = mat.ReadWriteI();
+   auto I_face = face_mat.ReadWriteI();
+   MFEM_FORALL(i, ne*elemDofs*vdim+1,
    {
-      const int offset = d_offsets[i];
-      const int nextOffset = d_offsets[i + 1];
-      for (int c = 0; c < vd; ++c)
+      I_face[i] = 0;
+   });
+   MFEM_FORALL(fdof, nf*face_dofs,
+   {
+      const int f  = fdof/face_dofs;
+      const int iF = fdof%face_dofs;
+      const int iE1 = d_indices1[f*face_dofs+iF];
+      if (iE1 < Ndofs)
       {
-         double dofValue = 0;
-         for (int j = offset; j < nextOffset; ++j)
+         for (int jF = 0; jF < face_dofs; jF++)
          {
-            int idx_j = d_indices[j];
-            bool isE1 = idx_j < dofs;
-            idx_j = isE1 ? idx_j : idx_j - dofs;
-            dofValue +=  isE1 ?
-            d_x(idx_j % nd, c, 0, idx_j / nd)
-            :d_x(idx_j % nd, c, 1, idx_j / nd);
+            const int jE2 = d_indices2[f*face_dofs+jF];
+            if (jE2 < Ndofs)
+            {
+               AddNnz(iE1,I,1);
+            }
+            else
+            {
+               AddNnz(iE1,I_face,1);
+            }
          }
-         d_y(t?c:i,t?i:c) += dofValue;
+      }
+      const int iE2 = d_indices2[f*face_dofs+iF];
+      if (iE2 < Ndofs)
+      {
+         for (int jF = 0; jF < face_dofs; jF++)
+         {
+            const int jE1 = d_indices1[f*face_dofs+jF];
+            if (jE1 < Ndofs)
+            {
+               AddNnz(iE2,I,1);
+            }
+            else
+            {
+               AddNnz(iE2,I_face,1);
+            }
+         }
+      }
+   });
+}
+
+void ParL2FaceRestriction::FillJAndData(const Vector &ea_data,
+                                        SparseMatrix &mat,
+                                        SparseMatrix &face_mat) const
+{
+   const int face_dofs = dof;
+   const int Ndofs = ndofs;
+   auto d_indices1 = scatter_indices1.Read();
+   auto d_indices2 = scatter_indices2.Read();
+   auto mat_fea = Reshape(ea_data.Read(), face_dofs, face_dofs, 2, nf);
+   auto I = mat.ReadWriteI();
+   auto I_face = face_mat.ReadWriteI();
+   auto J = mat.WriteJ();
+   auto J_face = face_mat.WriteJ();
+   auto Data = mat.WriteData();
+   auto Data_face = face_mat.WriteData();
+   MFEM_FORALL(fdof, nf*face_dofs,
+   {
+      const int f  = fdof/face_dofs;
+      const int iF = fdof%face_dofs;
+      const int iE1 = d_indices1[f*face_dofs+iF];
+      if (iE1 < Ndofs)
+      {
+         for (int jF = 0; jF < face_dofs; jF++)
+         {
+            const int jE2 = d_indices2[f*face_dofs+jF];
+            if (jE2 < Ndofs)
+            {
+               const int offset = AddNnz(iE1,I,1);
+               J[offset] = jE2;
+               Data[offset] = mat_fea(jF,iF,1,f);
+            }
+            else
+            {
+               const int offset = AddNnz(iE1,I_face,1);
+               J_face[offset] = jE2-Ndofs;
+               Data_face[offset] = mat_fea(jF,iF,1,f);
+            }
+         }
+      }
+      const int iE2 = d_indices2[f*face_dofs+iF];
+      if (iE2 < Ndofs)
+      {
+         for (int jF = 0; jF < face_dofs; jF++)
+         {
+            const int jE1 = d_indices1[f*face_dofs+jF];
+            if (jE1 < Ndofs)
+            {
+               const int offset = AddNnz(iE2,I,1);
+               J[offset] = jE1;
+               Data[offset] = mat_fea(jF,iF,0,f);
+            }
+            else
+            {
+               const int offset = AddNnz(iE2,I_face,1);
+               J_face[offset] = jE1-Ndofs;
+               Data_face[offset] = mat_fea(jF,iF,0,f);
+            }
+         }
       }
    });
 }
