@@ -140,6 +140,14 @@ configure_file("${PROJECT_SOURCE_DIR}/miniapps/meshing/cube.mesh"
 configure_file("${PROJECT_SOURCE_DIR}/data/toroid-hex.mesh"
                "${PROJECT_BINARY_DIR}/tests/unit/toroid-hex.mesh")
 
+# Copy square-disc-nurbs.mesh to the tests/unit build directory.
+configure_file("${PROJECT_SOURCE_DIR}/data/square-disc-nurbs.mesh"
+               "${PROJECT_BINARY_DIR}/tests/unit/square-disc-nurbs.mesh")
+
+# Copy beam-hex-nurbs.mesh to the tests/unit build directory.
+configure_file("${PROJECT_SOURCE_DIR}/data/beam-hex-nurbs.mesh"
+               "${PROJECT_BINARY_DIR}/tests/unit/beam-hex-nurbs.mesh")
+
 # Add unit tests
 add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME}
                 unit_tests
