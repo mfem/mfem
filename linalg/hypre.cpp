@@ -2868,6 +2868,166 @@ HypreGMRES::~HypreGMRES()
 }
 
 
+HypreFGMRES::HypreFGMRES(MPI_Comm comm) : precond(NULL)
+{
+   iterative_mode = true;
+
+   HYPRE_ParCSRFlexGMRESCreate(comm, &fgmres_solver);
+   SetDefaultOptions();
+}
+
+HypreFGMRES::HypreFGMRES(HypreParMatrix &_A) : HypreSolver(&_A), precond(NULL)
+{
+   MPI_Comm comm;
+
+   iterative_mode = true;
+
+   HYPRE_ParCSRMatrixGetComm(*A, &comm);
+
+   HYPRE_ParCSRFlexGMRESCreate(comm, &fgmres_solver);
+   SetDefaultOptions();
+}
+
+void HypreFGMRES::SetDefaultOptions()
+{
+   int k_dim    = 50;
+   int max_iter = 100;
+   double tol   = 1e-6;
+
+   HYPRE_ParCSRFlexGMRESSetKDim(fgmres_solver, k_dim);
+   HYPRE_ParCSRFlexGMRESSetMaxIter(fgmres_solver, max_iter);
+   HYPRE_ParCSRFlexGMRESSetTol(fgmres_solver, tol);
+}
+
+void HypreFGMRES::SetOperator(const Operator &op)
+{
+   const HypreParMatrix *new_A = dynamic_cast<const HypreParMatrix *>(&op);
+   MFEM_VERIFY(new_A, "new Operator must be a HypreParMatrix!");
+
+   // update base classes: Operator, Solver, HypreSolver
+   height = new_A->Height();
+   width  = new_A->Width();
+   A = const_cast<HypreParMatrix *>(new_A);
+   if (precond)
+   {
+      precond->SetOperator(*A);
+      this->SetPreconditioner(*precond);
+   }
+   setup_called = 0;
+   delete X;
+   delete B;
+   B = X = NULL;
+}
+
+void HypreFGMRES::SetTol(double tol)
+{
+   HYPRE_ParCSRFlexGMRESSetTol(fgmres_solver, tol);
+}
+
+void HypreFGMRES::SetMaxIter(int max_iter)
+{
+   HYPRE_ParCSRFlexGMRESSetMaxIter(fgmres_solver, max_iter);
+}
+
+void HypreFGMRES::SetKDim(int k_dim)
+{
+   HYPRE_ParCSRFlexGMRESSetKDim(fgmres_solver, k_dim);
+}
+
+void HypreFGMRES::SetLogging(int logging)
+{
+   HYPRE_ParCSRFlexGMRESSetLogging(fgmres_solver, logging);
+}
+
+void HypreFGMRES::SetPrintLevel(int print_lvl)
+{
+   HYPRE_ParCSRFlexGMRESSetPrintLevel(fgmres_solver, print_lvl);
+}
+
+void HypreFGMRES::SetPreconditioner(HypreSolver &_precond)
+{
+   precond = &_precond;
+
+   HYPRE_ParCSRGMRESSetPrecond(fgmres_solver,
+                               _precond.SolveFcn(),
+                               _precond.SetupFcn(),
+                               _precond);
+}
+
+void HypreFGMRES::Mult(const HypreParVector &b, HypreParVector &x) const
+{
+   int myid;
+   HYPRE_Int time_index = 0;
+   HYPRE_Int num_iterations;
+   double final_res_norm;
+   MPI_Comm comm;
+   HYPRE_Int print_level;
+
+   HYPRE_FlexGMRESGetPrintLevel(fgmres_solver, &print_level);
+
+   HYPRE_ParCSRMatrixGetComm(*A, &comm);
+
+   if (!setup_called)
+   {
+      if (print_level > 0)
+      {
+         time_index = hypre_InitializeTiming("FGMRES Setup");
+         hypre_BeginTiming(time_index);
+      }
+
+      HYPRE_ParCSRFlexGMRESSetup(fgmres_solver, *A, b, x);
+      setup_called = 1;
+
+      if (print_level > 0)
+      {
+         hypre_EndTiming(time_index);
+         hypre_PrintTiming("Setup phase times", comm);
+         hypre_FinalizeTiming(time_index);
+         hypre_ClearTiming();
+      }
+   }
+
+   if (print_level > 0)
+   {
+      time_index = hypre_InitializeTiming("FGMRES Solve");
+      hypre_BeginTiming(time_index);
+   }
+
+   if (!iterative_mode)
+   {
+      x = 0.0;
+   }
+
+   HYPRE_ParCSRFlexGMRESSolve(fgmres_solver, *A, b, x);
+
+   if (print_level > 0)
+   {
+      hypre_EndTiming(time_index);
+      hypre_PrintTiming("Solve phase times", comm);
+      hypre_FinalizeTiming(time_index);
+      hypre_ClearTiming();
+
+      HYPRE_ParCSRFlexGMRESGetNumIterations(fgmres_solver, &num_iterations);
+      HYPRE_ParCSRFlexGMRESGetFinalRelativeResidualNorm(fgmres_solver,
+                                                        &final_res_norm);
+
+      MPI_Comm_rank(comm, &myid);
+
+      if (myid == 0)
+      {
+         mfem::out << "FGMRES Iterations = " << num_iterations << endl
+                   << "Final FGMRES Relative Residual Norm = " << final_res_norm
+                   << endl;
+      }
+   }
+}
+
+HypreFGMRES::~HypreFGMRES()
+{
+   HYPRE_ParCSRFlexGMRESDestroy(fgmres_solver);
+}
+
+
 void HypreDiagScale::SetOperator(const Operator &op)
 {
    const HypreParMatrix *new_A = dynamic_cast<const HypreParMatrix *>(&op);
@@ -3049,6 +3209,128 @@ HypreEuclid::~HypreEuclid()
    HYPRE_EuclidDestroy(euc_precond);
 }
 
+
+HypreILU::HypreILU()
+{
+   HYPRE_ILUCreate(&ilu_precond);
+   SetDefaultOptions();
+}
+
+void HypreILU::SetDefaultOptions()
+{
+   max_iter = 1; // Maximum iterations; preconditioner = 1 iter
+   tol = 0.0; // Set to 0.0 for preconditioner
+   lev_fill = 1; // Fill level for ILU(k)
+   nz_max = 1000; // Max non-zeros per row (for ILUT only)
+   drop_thres = 1e-2; // Drop tolerance for ILUT
+   nsh_thres = 1e-2; // Drop tol in Newton–Schulz–Hotelling iteration
+   schur_max_iter = 5; // Max number of iter to solve Schur system
+   ilu_type = 0; // 0 = ILU(k) and 1 = ILUT
+   reorder_type = 1; // 0 = no reordering, 1 = reverse Cuthill-McKee
+   print_level = 0; // 0 = none, 1 = setup, 2 = solve, 3 = setup+solve
+   SetOptions();
+}
+
+void HypreILU::SetOptions()
+{
+   HYPRE_ILUSetMaxIter(ilu_precond, max_iter);
+   HYPRE_ILUSetTol(ilu_precond, tol);
+   HYPRE_ILUSetLevelOfFill(ilu_precond, lev_fill);
+   HYPRE_ILUSetMaxNnzPerRow(ilu_precond, nz_max);
+   HYPRE_ILUSetDropThreshold(ilu_precond, drop_thres);
+   HYPRE_ILUSetNSHDropThreshold(ilu_precond, nsh_thres);
+   HYPRE_ILUSetSchurMaxIter(ilu_precond, schur_max_iter);
+   HYPRE_ILUSetType(ilu_precond, ilu_type);
+   HYPRE_ILUSetLocalReordering(ilu_precond, reorder_type);
+   HYPRE_ILUSetPrintLevel(ilu_precond, print_level);
+}
+
+void HypreILU::ResetILUPrecond()
+{
+   if (ilu_precond)
+   {
+      HYPRE_ILUDestroy(ilu_precond);
+      HYPRE_ILUCreate(&ilu_precond);
+      SetOptions();
+   }
+   else
+   {
+      HYPRE_ILUCreate(&ilu_precond);
+      SetDefaultOptions();
+   }
+}
+
+void HypreILU::SetMaxIter(HYPRE_Int max_iter)
+{
+   HYPRE_ILUSetMaxIter(ilu_precond, max_iter);
+}
+
+void HypreILU::SetTol(HYPRE_Real tol)
+{
+   HYPRE_ILUSetTol(ilu_precond, tol);
+}
+
+void HypreILU::SetLevelOfFill(HYPRE_Int lev_fill)
+{
+   HYPRE_ILUSetLevelOfFill(ilu_precond, lev_fill);
+}
+
+void HypreILU::SetMaxNnzPerRow(HYPRE_Int nz_max)
+{
+   HYPRE_ILUSetMaxNnzPerRow(ilu_precond, nz_max);
+}
+
+void HypreILU::SetDropThreshold(HYPRE_Real drop_thres)
+{
+   HYPRE_ILUSetDropThreshold(ilu_precond, drop_thres);
+}
+
+void HypreILU::SetNSHDropThreshold(HYPRE_Real nsh_thres)
+{
+   HYPRE_ILUSetNSHDropThreshold(ilu_precond, nsh_thres);
+}
+
+void HypreILU::SetSchurMaxIter(HYPRE_Int schur_max_iter)
+{
+   HYPRE_ILUSetSchurMaxIter(ilu_precond, schur_max_iter);
+}
+
+void HypreILU::SetType(HYPRE_Int ilu_type)
+{
+   HYPRE_ILUSetType(ilu_precond, ilu_type);
+}
+
+void HypreILU::SetLocalReordering(HYPRE_Int reorder_type)
+{
+   HYPRE_ILUSetLocalReordering(ilu_precond, reorder_type);
+}
+
+void HypreILU::SetPrintLevel(HYPRE_Int print_level)
+{
+   HYPRE_ILUSetPrintLevel(ilu_precond, print_level);
+}
+
+void HypreILU::SetOperator(const Operator &op)
+{
+   const HypreParMatrix *new_A = dynamic_cast<const HypreParMatrix *>(&op);
+   MFEM_VERIFY(new_A, "new Operator must be a HypreParMatrix!");
+
+   if (A) ResetILUPrecond();
+
+   // update base classes: Operator, Solver, HypreSolver
+   height = new_A->Height();
+   width  = new_A->Width();
+   A = const_cast<HypreParMatrix *>(new_A);
+   setup_called = 0;
+   delete X;
+   delete B;
+   B = X = NULL;
+}
+
+HypreILU::~HypreILU()
+{
+   HYPRE_ILUDestroy(ilu_precond);
+}
 
 HypreBoomerAMG::HypreBoomerAMG()
 {

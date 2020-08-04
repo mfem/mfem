@@ -850,6 +850,53 @@ public:
    virtual ~HypreGMRES();
 };
 
+/// Flexible GMRES solver in hypre
+class HypreFGMRES : public HypreSolver
+{
+private:
+   HYPRE_Solver fgmres_solver;
+
+   HypreSolver * precond;
+
+   /// Default, generally robust, FGMRES options
+   void SetDefaultOptions();
+
+public:
+   HypreFGMRES(MPI_Comm comm);
+
+   HypreFGMRES(HypreParMatrix &_A);
+
+   virtual void SetOperator(const Operator &op);
+
+   void SetTol(double tol);
+   void SetMaxIter(int max_iter);
+   void SetKDim(int dim);
+   void SetLogging(int logging);
+   void SetPrintLevel(int print_lvl);
+
+   /// Set the hypre solver to be used as a preconditioner
+   void SetPreconditioner(HypreSolver &precond);
+
+   /// non-hypre setting
+   void SetZeroInintialIterate() { iterative_mode = false; }
+
+   /// The typecast to HYPRE_Solver returns the internal fgmres_solver
+   virtual operator HYPRE_Solver() const  { return fgmres_solver; }
+
+   /// FGMRES Setup function
+   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRFlexGMRESSetup; }
+   /// FGMRES Solve function
+   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRFlexGMRESSolve; }
+
+   /// Solve Ax=b with hypre's FGMRES
+   virtual void Mult (const HypreParVector &b, HypreParVector &x) const;
+   using HypreSolver::Mult;
+
+   virtual ~HypreFGMRES();
+};
+
 /// The identity operator as a hypre solver
 class HypreIdentity : public HypreSolver
 {
@@ -954,6 +1001,94 @@ public:
    { return (HYPRE_PtrToParSolverFcn) HYPRE_EuclidSolve; }
 
    virtual ~HypreEuclid();
+};
+
+class HypreILU : public HypreSolver
+{
+private:
+   HYPRE_Solver ilu_precond;
+
+   /// Maximum iterations; 1 iter for preconditioning
+   HYPRE_Int max_iter;
+   // The tolerance when used as a smoother; set to 0.0 for preconditioner
+   HYPRE_Real tol;
+   // Fill level for ILU(k)
+   HYPRE_Int lev_fill;
+   // Maximum non-zeros per row (for ILUT only)
+   HYPRE_Int nz_max;
+   // Drop tolerance for ILUT
+   HYPRE_Real drop_thres;
+   // Drop tol in Newton–Schulz–Hotelling iteration
+   HYPRE_Real nsh_thres;
+   // Maximum number of iter to solve Schur system
+   HYPRE_Int schur_max_iter;
+   // The type of incomplete LU; 0 = ILU(k) and 1 = ILUT
+   HYPRE_Int ilu_type;
+   // Local reordering scheme; 0 = no reordering, 1 = reverse Cuthill-McKee
+   HYPRE_Int reorder_type;
+   // Information print level; 0 = none, 1 = setup, 2 = solve, 3 = setup+solve
+   HYPRE_Int print_level;
+
+   /// Set the ILU default options
+   void SetDefaultOptions();
+
+   /// Set ILU options based on the values saved in data members of this wrapper
+   void SetOptions();
+
+   /// Reset the ILU preconditioner
+   /// \note If ilu_precond is NULL, this method allocates it and sets default
+   /// options. Otherwise the method destroys ilu_precond, allocates a new
+   /// object, and sets its options based on the data members of *this
+   void ResetILUPrecond();
+
+public:
+   /// Constructor; sets the default options
+   HypreILU();
+
+   virtual ~HypreILU();
+
+   /// Set the maximum number of iterations; set max_iter = 1 for preconditioner
+   void SetMaxIter(HYPRE_Int max_iter);
+
+   /// Set the tolerance when used as a smoother
+   void SetTol(HYPRE_Real tol);
+
+   /// Set the fill level for ILU(k) variant
+   void SetLevelOfFill(HYPRE_Int lev_fill);
+      
+   /// Set the maximum number of non-zers per row (needed by ILUT variant)
+   void SetMaxNnzPerRow(HYPRE_Int nz_max);
+
+   /// Set the drop tolerance threshold used by the ILUT variant
+   void SetDropThreshold(HYPRE_Real drop_thres);
+
+   /// Set drop tol used in the Newton-Schulz-Hotelling solution of Schur system
+   void SetNSHDropThreshold(HYPRE_Real nsh_thres);
+
+   /// Set the maximum number of iterations used to solve the Schur system
+   void SetSchurMaxIter(HYPRE_Int schur_max_iter);
+
+   /// Set the ILU type: 0 = ILU with level of fill, and 1 = tresholded ILU
+   void SetType(HYPRE_Int ilu_type);
+
+   /// Set the local reordering for unknowns: 0 = no reordering, 1 = RCM 
+   void SetLocalReordering(HYPRE_Int reorder_type);
+
+   /// Set the print level: 0 = none, 1 = setup, 2 = solve, 3 = setup+solve
+   void SetPrintLevel(HYPRE_Int print_level);
+
+   /// The typecast to HYPRE_Solver returns the internal ilu_precond
+   virtual operator HYPRE_Solver() const { return ilu_precond; }
+
+   virtual void SetOperator(const Operator &op);
+
+   /// ILU Setup function
+   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   { return (HYPRE_PtrToParSolverFcn) HYPRE_ILUSetup; }
+
+   /// ILU Solve function
+   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   { return (HYPRE_PtrToParSolverFcn) HYPRE_ILUSolve; }
 };
 
 /// The BoomerAMG solver in hypre
