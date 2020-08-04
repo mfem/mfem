@@ -31,9 +31,14 @@ namespace mfem
 
   /* \implements AmgXSolver::AmgXSolver */
   AmgXSolver::AmgXSolver(const MPI_Comm &comm,
-                         const std::string &modeStr, const std::string &cfgFile)
+                         const std::string &modeStr, const std::string &cfgFile, int &nDevs)
   {
-    initialize(comm, modeStr, cfgFile);
+    initialize(comm, modeStr, cfgFile, nDevs);
+  }
+
+  AmgXSolver::AmgXSolver(const std::string &modeStr, const std::string &cfgFile)
+  {
+    initialize(modeStr, cfgFile);
   }
 
   /* \implements AmgXSolver::~AmgXSolver */
@@ -52,7 +57,7 @@ namespace mfem
 
   /* \implements AmgXSolver::initialize */
   void AmgXSolver::initialize(const MPI_Comm &comm,
-                              const std::string &modeStr, const std::string &cfgFile)
+                              const std::string &modeStr, const std::string &cfgFile, int &nDevs)
   {
 
     // if this instance has already been initialized, skip
@@ -76,7 +81,7 @@ namespace mfem
     setMode(modeStr);
 
     // initialize communicators and corresponding information
-    initMPIcomms(comm);
+    initMPIcomms(comm, nDevs);
 
     // only processes in gpuWorld are required to initialize AmgX
     if (gpuProc == 0)
@@ -88,9 +93,143 @@ namespace mfem
     isInitialized = true;
   }
 
+  /* \implements AmgXSolver::initialize  for serial runs*/
+  void AmgXSolver::initialize(const std::string &modeStr, const std::string &cfgFile)
+  {
+
+    // get the mode of AmgX solver
+    setMode(modeStr);
+
+    // initialize AmgX
+    AMGX_SAFE_CALL(AMGX_initialize());
+    // intialize AmgX plugings
+    AMGX_SAFE_CALL(AMGX_initialize_plugins());
+    // let AmgX to handle errors returned
+    AMGX_SAFE_CALL(AMGX_install_signal_handler());
+
+    AMGX_SAFE_CALL(AMGX_config_create_from_file(&cfg, cfgFile.c_str()));
+
+    AMGX_resources_create_simple(&rsrc, cfg);
+    AMGX_solver_create(&solver, rsrc, mode, cfg);
+    AMGX_matrix_create(&AmgXA, rsrc, mode);
+    AMGX_vector_create(&AmgXP, rsrc, mode);
+    AMGX_vector_create(&AmgXRHS, rsrc, mode);
+
+    // a bool indicating if this instance is initialized
+    isInitialized = true;
+  }
+
+
+    /* \implements AmgXSolver::initAmgX */
+    void AmgXSolver::initAmgX(const std::string &cfgFile)
+    {
+
+      // only the first instance (AmgX solver) is in charge of initializing AmgX
+      if (count == 1)
+        {
+
+          // initialize AmgX
+          AMGX_SAFE_CALL(AMGX_initialize());
+
+
+          // intialize AmgX plugings
+          AMGX_SAFE_CALL(AMGX_initialize_plugins());
+
+          // let AmgX to handle errors returned
+          AMGX_SAFE_CALL(AMGX_install_signal_handler());
+        }
+
+
+
+      // create an AmgX configure object
+      AMGX_SAFE_CALL(AMGX_config_create_from_file(&cfg, cfgFile.c_str()));
+
+
+      // let AmgX handle returned error codes internally
+      AMGX_SAFE_CALL(AMGX_config_add_parameters(&cfg, "exception_handling=1"));
+
+
+      //AMGX_config_create(&cfg, "communicator=MPI, min_rows_latency_hiding=50000");
+
+      // create an AmgX resource object, only the first instance is in charge
+      if (count == 1) AMGX_resources_create(&rsrc, cfg, &gpuWorld, 1, &devID);
+
+
+
+      // create AmgX vector object for unknowns and RHS
+      AMGX_vector_create(&AmgXP, rsrc, mode);
+      AMGX_vector_create(&AmgXRHS, rsrc, mode);
+      // create AmgX matrix object for unknowns and RHS
+      AMGX_matrix_create(&AmgXA, rsrc, mode);
+
+      // create an AmgX solver object
+      AMGX_solver_create(&solver, rsrc, mode, cfg);
+      // obtain the default number of rings based on current configuration
+      AMGX_config_get_default_number_of_rings(cfg, &ring);
+    }
+
+    void AmgXSolver::InitializeAsPreconditioner(bool verbose, const std::string &modeStr)
+  {
+
+    // get the mode of AmgX solver
+    setMode(modeStr);
+
+    // initialize AmgX
+    AMGX_SAFE_CALL(AMGX_initialize());
+    // intialize AmgX plugings
+    AMGX_SAFE_CALL(AMGX_initialize_plugins());
+    // let AmgX to handle errors returned
+    AMGX_SAFE_CALL(AMGX_install_signal_handler());
+
+     std::string configs = "{\n"
+                           "    \"config_version\": 2, \n"
+                           "    \"solver\": {\n"
+                           "        \"max_uncolored_percentage\": 0.15, \n"
+                           "        \"algorithm\": \"AGGREGATION\", \n"
+                           "        \"solver\": \"AMG\", \n"
+                           "        \"smoother\": \"MULTICOLOR_GS\", \n"
+                           "        \"presweeps\": 1, \n"
+                           "        \"symmetric_GS\": 1, \n"
+                           "        \"selector\": \"SIZE_2\", \n"
+                           "        \"coarsest_sweeps\": 10, \n"
+                           "        \"max_iters\": 200, \n"
+                           "        \"postsweeps\": 1, \n"
+                           "        \"scope\": \"main\", \n"
+                           "        \"max_levels\": 1000, \n"
+                           "        \"matrix_coloring_scheme\": \"MIN_MAX\", \n"
+                           "        \"tolerance\": 0.0, \n"
+                           "        \"norm\": \"L2\", \n"
+                           "        \"cycle\": \"V\"";
+
+     if (verbose)
+     {
+        configs = configs + ",\n"
+                  "        \"obtain_timings\": 1, \n"
+                  "        \"monitor_residual\": 1, \n"
+                  "        \"print_grid_stats\": 1, \n"
+                  "        \"print_solve_stats\": 1 \n";
+     }
+     else
+     {
+        configs = configs + "\n";
+     }
+     configs = configs + "    }\n" + "}\n";
+
+     AMGX_SAFE_CALL(AMGX_config_create(&cfg, configs.c_str()));
+
+     AMGX_resources_create_simple(&rsrc, cfg);
+     AMGX_solver_create(&solver, rsrc, mode, cfg);
+     AMGX_matrix_create(&AmgXA, rsrc, mode);
+     AMGX_vector_create(&AmgXP, rsrc, mode);
+     AMGX_vector_create(&AmgXRHS, rsrc, mode);
+
+     // a bool indicating if this instance is initialized
+     isInitialized = true;
+  }
+
 
   /* \implements AmgXSolver::initMPIcomms */
-  void AmgXSolver::initMPIcomms(const MPI_Comm &comm)
+  void AmgXSolver::initMPIcomms(const MPI_Comm &comm, int &nDevs)
   {
     // duplicate the global communicator
     MPI_Comm_dup(comm, &globalCpuWorld);
@@ -109,11 +248,8 @@ namespace mfem
     MPI_Comm_size(localCpuWorld, &localSize);
     MPI_Comm_rank(localCpuWorld, &myLocalRank);
 
-    //cudaGetDeviceCount(&nDevs);
-    nDevs = 3;
-
     // set up corresponding ID of the device used by each local process
-    setDeviceIDs();
+    setDeviceIDs(nDevs);
 
     MPI_Barrier(globalCpuWorld);
 
@@ -176,7 +312,7 @@ namespace mfem
 
 
   /* \implements AmgXSolver::setDeviceIDs */
-  void AmgXSolver::setDeviceIDs()
+  void AmgXSolver::setDeviceIDs(int &nDevs)
   {
 
     // set the ID of device that each local process will use
@@ -213,54 +349,6 @@ namespace mfem
 
   }
 
-
-  /* \implements AmgXSolver::initAmgX */
-  void AmgXSolver::initAmgX(const std::string &cfgFile)
-  {
-
-    // only the first instance (AmgX solver) is in charge of initializing AmgX
-    if (count == 1)
-      {
-
-        // initialize AmgX
-        AMGX_SAFE_CALL(AMGX_initialize());
-
-
-        // intialize AmgX plugings
-        AMGX_SAFE_CALL(AMGX_initialize_plugins());
-
-        // let AmgX to handle errors returned
-        AMGX_SAFE_CALL(AMGX_install_signal_handler());
-      }
-
-
-
-    // create an AmgX configure object
-    AMGX_SAFE_CALL(AMGX_config_create_from_file(&cfg, cfgFile.c_str()));
-
-
-    // let AmgX handle returned error codes internally
-    AMGX_SAFE_CALL(AMGX_config_add_parameters(&cfg, "exception_handling=1"));
-
-
-    //AMGX_config_create(&cfg, "communicator=MPI, min_rows_latency_hiding=50000");
-
-    // create an AmgX resource object, only the first instance is in charge
-    if (count == 1) AMGX_resources_create(&rsrc, cfg, &gpuWorld, 1, &devID);
-
-
-
-    // create AmgX vector object for unknowns and RHS
-    AMGX_vector_create(&AmgXP, rsrc, mode);
-    AMGX_vector_create(&AmgXRHS, rsrc, mode);
-    // create AmgX matrix object for unknowns and RHS
-    AMGX_matrix_create(&AmgXA, rsrc, mode);
-
-    // create an AmgX solver object
-    AMGX_solver_create(&solver, rsrc, mode, cfg);
-    // obtain the default number of rings based on current configuration
-    AMGX_config_get_default_number_of_rings(cfg, &ring);
-  }
 
   void AmgXSolver::GetLocalA(const HypreParMatrix &in_A, Array<HYPRE_Int> &I,
                              Array<int64_t> &J, Array<double> &Data)
@@ -334,6 +422,8 @@ namespace mfem
       }
 
   }
+
+
 
   void AmgXSolver::GatherArray(Array<double> &inArr, Array<double> &outArr,
                                int MPI_SZ, MPI_Comm &mpiTeam)
@@ -587,6 +677,38 @@ namespace mfem
 
   }
 
+  void AmgXSolver::SetOperator(const Operator& op)
+{
+   spop = const_cast<SparseMatrix*>(dynamic_cast<const SparseMatrix*>(&op));
+   MFEM_VERIFY(spop, "Operator is not of correct type!");
+
+   AMGX_matrix_upload_all(AmgXA, spop->Height(),
+                          spop->NumNonZeroElems(),
+                          1, 1,
+                          spop->ReadWriteI(),
+                          spop->ReadWriteJ(),
+                          spop->ReadWriteData(), NULL);
+
+   AMGX_solver_setup(solver, AmgXA);
+   AMGX_vector_bind(AmgXP, AmgXA);
+   AMGX_vector_bind(AmgXRHS, AmgXA);
+}
+
+void AmgXSolver::SetOperator(const SparseMatrix &in_A)
+{
+
+ AMGX_matrix_upload_all(AmgXA, in_A.Size(),
+                        in_A.NumNonZeroElems(),
+                        1, 1,
+                        in_A.GetI(),
+                        in_A.GetJ(),
+                        in_A.GetData(), NULL);
+
+ AMGX_solver_setup(solver, AmgXA);
+ AMGX_vector_bind(AmgXP, AmgXA);
+ AMGX_vector_bind(AmgXRHS, AmgXA);
+}
+
   void AmgXSolver::updateA(const HypreParMatrix &A)
   {
     //Want to work in devWorld, rank 0 is team leader
@@ -777,6 +899,18 @@ namespace mfem
 
   }
 
+  void AmgXSolver::Mult(const Vector& b, Vector& x) const
+{
+   AMGX_vector_upload(AmgXRHS, b.Size(), 1, b.Read());
+
+   AMGX_vector_set_zero(AmgXP, x.Size(), 1);
+   // AMGX_vector_upload(amgx_x, x.Size(), 1, x.Read()); // leads to nans...
+
+   AMGX_solver_solve(solver, AmgXRHS, AmgXP);
+
+   AMGX_vector_download(AmgXP, x.HostWrite());
+}
+
 
 
 
@@ -824,11 +958,13 @@ namespace mfem
 
     // re-set necessary variables in case users want to reuse
     // the variable of this instance for a new instance
+
     gpuProc = MPI_UNDEFINED;
+    if(globalCpuWorld != MPI_COMM_NULL){
     MPI_Comm_free(&globalCpuWorld);
     MPI_Comm_free(&localCpuWorld);
     MPI_Comm_free(&devWorld);
-
+    }
     // decrease the number of instances
     count -= 1;
 

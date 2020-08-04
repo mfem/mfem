@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
-   bool amgx_solver = true;
+   bool amgx_solver = false;
    bool amgx_verbose = false;
    const char* amgx_json_file = ""; // jason file for amgx
    const char* amgx_parameter = ""; // command line config for amgx
@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&amgx_json_file, "--amgx-file", "--amgx-file",
+   args.AddOption(&amgx_json_file, "-c", "--c",
                   "AMGX solver config file (overrides --amgx-solver, --amgx-verbose)");
    args.AddOption(&amgx_parameter, "--amgx-config", "--amgx-config",
                   "AMGX solver config as string (overrides --amgx-solver, --amgx-verbose)");
@@ -125,8 +125,8 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels =
-         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+      int ref_levels = 5;
+         //(int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -185,7 +185,7 @@ int main(int argc, char *argv[])
    //    domain integrator.
    BilinearForm *a = new BilinearForm(fespace);
    if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   a->AddDomainIntegrator(new MassIntegrator(one));
+   a->AddDomainIntegrator(new DiffusionIntegrator(one));
    a->Assemble();
    a->Finalize();
 
@@ -193,25 +193,26 @@ int main(int argc, char *argv[])
    // 10. Solve the linear system A X = B.
    if (!pa)
    {
-      NvidiaAMGX amgx;
+      AmgXSolver amgx;
       if (amgx_solver)
       {
          std::string amgx_str;
          amgx_str = amgx_json_file;
-         amgx.Init("dDDI",amgx_str);
-         amgx.SetA(a->SpMat());
+         amgx.initialize("dDDI",amgx_str);
+         amgx.SetOperator(a->SpMat());
          amgx.Mult(*b, x);
       }
       else
       {
-         //  amgx.ConfigureAsPreconditioner(amgx_verbose);
-         // SparseMatrix A;
-         // Vector B, X;
-         // Array<int> ess_tdof_list(0);
-         // a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-         // amgx.SetOperator(A);
-         // X = 0.0;
-         // PCG(A, amgx, B, X, 1, 40, 1e-12, 0.0);
+
+         SparseMatrix A;
+         Vector B, X;
+         Array<int> ess_tdof_list(0);
+         amgx.InitializeAsPreconditioner(amgx_verbose,"dDDI");
+         a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+         amgx.SetOperator(A);
+         X = 0.0;
+         PCG(A, amgx, B, X, 1, 400, 1e-12, 0.0);
       }
    }
    else // Jacobi preconditioning in partial assembly mode
@@ -261,11 +262,6 @@ int main(int argc, char *argv[])
    delete fespace;
    if (order > 0) { delete fec; }
    delete mesh;
-
-   // NvidiaAMGX destructor has to be called before these
-   // (could use a context or something)
-   AMGX_finalize_plugins();
-   AMGX_finalize();
 
    return 0;
 }

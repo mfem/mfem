@@ -29,9 +29,6 @@
  #include <mpi.h>
  #include "hypre.hpp"
 
-
-
-
 # define CHECK(call)                                                        \
   {                                                                           \
   const cudaError_t       error = call;                                   \
@@ -46,7 +43,7 @@
 namespace mfem
 {
 
-class AmgXSolver
+class AmgXSolver : public Solver
 {
 
 public:
@@ -57,21 +54,28 @@ public:
   AmgXSolver(const MPI_Comm &comm,
              const std::string &modeStr, const std::string &cfgFile, int &nDevs);
 
-  ~AmgXSolver();
+  AmgXSolver(const std::string &modeStr, const std::string &cfgFile);
 
+  ~AmgXSolver();
 
   void initialize(const MPI_Comm &comm,
                   const std::string &modeStr, const std::string &cfgFile, int &nDevs);
 
+  void initialize(const std::string &modeStr, const std::string &cfgFile);
 
   void finalize();
 
   void setA(const mfem::HypreParMatrix &A);
 
+  virtual void SetOperator(const Operator &op);
+
+  virtual void SetOperator(const SparseMatrix &in_A);
+
+  void InitializeAsPreconditioner(bool verbose, const std::string &modeStr);
+
   void GetLocalA(const HypreParMatrix &A, Array<HYPRE_Int> &I,
                  Array<int64_t> &J, Array<double> &Data);
 
-  //Send data to proc who talks to the gpu
   void GatherArray(Array<double> &inArr, Array<double> &outArr,
                    int MPI_SZ, MPI_Comm &mpiTeam);
 
@@ -92,7 +96,12 @@ public:
   void ScatterArray(Vector &inArr, Vector &outArr,
                     int MPI_SZ, MPI_Comm &mpi_comm, Array<int> &Apart, Array<int> &Adisp);
 
+  void updateA(const HypreParMatrix &A);
+
   void solve(mfem::Vector &p, mfem::Vector &b);
+
+  virtual void Mult(const Vector& b, Vector& x) const;
+
 
 private:
 
@@ -103,6 +112,8 @@ private:
    * resource instance.
    */
   static int              count;
+
+  static int              count2;
 
   /** \brief A flag indicating if this instance has been initialized. */
   bool                    isInitialized = false;
@@ -120,7 +131,7 @@ private:
   int                     gpuProc = MPI_UNDEFINED;
 
   /** \brief A communicator for global world. */
-  MPI_Comm                globalCpuWorld;
+  MPI_Comm                globalCpuWorld = MPI_COMM_NULL;
 
   /** \brief A communicator for local world (i.e., in-node). */
   MPI_Comm                localCpuWorld;
@@ -130,7 +141,6 @@ private:
 
   /** \brief A communicator for MPI processes that can talk to GPUs. */
   MPI_Comm                gpuWorld;
-
 
   /** \brief Size of \ref AmgXSolver::globalCpuWorld "globalCpuWorld". */
   int                     globalSize;
@@ -177,6 +187,8 @@ private:
   /** \brief AmgX solver object. */
   AMGX_solver_handle      solver = nullptr;
 
+  SparseMatrix * spop;
+
   /** \brief AmgX resource object.
    */
   static AMGX_resources_handle   rsrc;
@@ -202,9 +214,7 @@ private:
 
   void initAmgX(const std::string &cfgFile);
 
-
   void getLocalA(const HypreParMatrix &A);
-
 
   int64_t m_local_rows;  //mlocal rows for ranks that talk to the gpu
 
