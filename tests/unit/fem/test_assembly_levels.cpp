@@ -107,11 +107,10 @@ void test_assembly_level(const char *meshname, int order, bool dg, const int pb,
    delete fec;
 }
 
-TEST_CASE("Assembly Levels", "[AssemblyLevel]")
+TEST_CASE("Assembly Levels", "[AssemblyLevel], [PartialAssembly]")
 {
-   // Re-enable after PR #1660 is merged
-   // auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::ELEMENT,AssemblyLevel::FULL);
-   auto assembly = GENERATE(AssemblyLevel::PARTIAL);
+   auto assembly = GENERATE(AssemblyLevel::PARTIAL, AssemblyLevel::ELEMENT,
+                            AssemblyLevel::FULL);
    auto pb = GENERATE(0, 1, 2);
    auto dg = GENERATE(true, false);
    auto order_2d = GENERATE(2, 3, 4);
