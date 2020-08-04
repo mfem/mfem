@@ -44,16 +44,19 @@ static int    prob_ = 4;
 
 static double nn_max_ = 1.0e15;
 static double nn_min_ = 0.9e15;
+static double nn_exp_ = 0.0;
 
 static double ni_max_ = 1.0e18;
 static double ni_min_ = 1.0e16;
+static double ni_exp_ = 0.0;
 
 static double Ti_max_ = 10.0;
 static double Ti_min_ =  1.0;
+static double Ti_exp_ =  0.0;
 
-static double Te_max_ = 10.0;
-static double Te_min_ =  1.0;
-static double Te_exp_ =  0.0;
+static double Te_max_ = 440.0;
+static double Te_min_ =  10.0;
+static double Te_exp_ =   0.0;
 
 static double Tot_B_max_ = 5.0; // Maximum of total B field
 static double Pol_B_max_ = 0.5; // Maximum of poloidal B field
@@ -169,7 +172,9 @@ double nnFunc(const Vector &x, double t)
          double rb = 0.64;
 
          double r = (sqrt(pow(x[0], 2) + pow(x[1], 2)) - ra) / (rb - ra);
-         return nn_max_ + (nn_min_ - nn_max_) * (0.5 + 0.5 * cos(M_PI * r));
+         double rs = pow(x[0] - 0.5 * (ra + rb), 2) + pow(x[1], 2);
+         return nn_max_ + (nn_min_ - nn_max_) * (0.5 + 0.5 * cos(M_PI * r)) +
+                0.5 * nn_exp_ * exp(-400.0 * rs);
       }
       case 4:
       {
@@ -197,7 +202,9 @@ double niFunc(const Vector &x, double t)
          double rb = 0.64;
 
          double r = (sqrt(pow(x[0], 2) + pow(x[1], 2)) - ra) / (rb - ra);
-         return ni_min_ + (ni_max_ - ni_min_) * (0.5 + 0.5 * cos(M_PI * r));
+         double rs = pow(x[0] - 0.5 * (ra + rb), 2) + pow(x[1], 2);
+         return ni_min_ + (ni_max_ - ni_min_) * (0.5 + 0.5 * cos(M_PI * r)) +
+                0.5 * ni_exp_ * exp(-400.0 * rs);
       }
       case 4:
       {
@@ -225,7 +232,9 @@ double TiFunc(const Vector &x, double t)
          double rb = 0.64;
 
          double r = (sqrt(pow(x[0], 2) + pow(x[1], 2)) - ra) / (rb - ra);
-         return Ti_min_ + (Ti_max_ - Ti_min_) * (0.5 + 0.5 * cos(M_PI * r));
+         double rs = pow(x[0] - 0.5 * (ra + rb), 2) + pow(x[1], 2);
+         return Ti_min_ + (Ti_max_ - Ti_min_) * (0.5 + 0.5 * cos(M_PI * r)) +
+                0.5 * Ti_exp_ * exp(-400.0 * rs);
       }
       case 4:
       {
@@ -985,14 +994,20 @@ int main(int argc, char *argv[])
                   "Minimum of inital neutral density");
    args.AddOption(&nn_max_, "-nn-max", "--max-neutral-density",
                   "Maximum of inital neutral density");
+   args.AddOption(&nn_exp_, "-nn-exp", "--neutral-density-exp",
+                  "Amplitude of inital neutral density gaussian");
    args.AddOption(&ni_min_, "-ni-min", "--min-ion-density",
                   "Minimum of inital ion density");
    args.AddOption(&ni_max_, "-ni-max", "--max-ion-density",
                   "Maximum of inital ion density");
+   args.AddOption(&ni_exp_, "-ni-exp", "--ion-density-exp",
+                  "Amplitude of inital ion density gaussian");
    args.AddOption(&Ti_min_, "-Ti-min", "--min-ion-temp",
                   "Minimum of inital ion temperature");
    args.AddOption(&Ti_max_, "-Ti-max", "--max-ion-temp",
                   "Maximum of inital ion temperature");
+   args.AddOption(&Ti_exp_, "-Ti-exp", "--ion-temp-exp",
+                  "Amplitude of inital ion temperature gaussian");
    args.AddOption(&Te_min_, "-Te-min", "--min-electron-temp",
                   "Minimum of inital electron temperature");
    args.AddOption(&Te_max_, "-Te-max", "--max-electron-temp",
