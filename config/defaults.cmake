@@ -50,7 +50,7 @@ option(MFEM_USE_OCCA "Enable OCCA" OFF)
 option(MFEM_USE_RAJA "Enable RAJA" OFF)
 option(MFEM_USE_CEED "Enable CEED" OFF)
 option(MFEM_USE_UMPIRE "Enable Umpire" OFF)
-option(MFEM_USE_SIMD "Enable use of SIMD intrinsics" ON)
+option(MFEM_USE_SIMD "Enable use of SIMD intrinsics" OFF)
 option(MFEM_USE_ADIOS2 "Enable ADIOS2" OFF)
 
 set(MFEM_MPI_NP 4 CACHE STRING "Number of processes used for MPI tests")
@@ -88,6 +88,8 @@ set(METIS_DIR "${MFEM_DIR}/../metis-4.0" CACHE PATH "Path to the METIS library."
 
 set(LIBUNWIND_DIR "" CACHE PATH "Path to Libunwind.")
 
+# For sundials_nvecparhyp and nvecparallel remember to build with MPI_ENABLED=ON
+# and modify cmake variables for hypre for sundials
 set(SUNDIALS_DIR "${MFEM_DIR}/../sundials-5.0.0/instdir" CACHE PATH
     "Path to the SUNDIALS library.")
 # The following may be necessary, if SUNDIALS was built with KLU:
