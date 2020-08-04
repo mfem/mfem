@@ -3279,7 +3279,7 @@ IonMomentumOp::RegisterDataFields(DataCollection & dc)
 {
    NLOperator::RegisterDataFields(dc);
 
-   if (this->CheckVisFlag(DIFFUSION_PARA_COEF))
+   if (this->CheckVisFlag(DIFFUSION_PERP_COEF))
    {
       ostringstream oss;
       oss << field_name_ << " Eta_i Perpendicular";
