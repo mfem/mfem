@@ -120,31 +120,31 @@ TEST_CASE("Assembly Levels", "[AssemblyLevel]")
    SECTION("2D")
    {
       test_assembly_level("../../data/periodic-square.mesh",
-                           order_2d, dg, pb, assembly);
+                          order_2d, dg, pb, assembly);
       test_assembly_level("../../data/periodic-hexagon.mesh",
-                           order_2d, dg, pb, assembly);
+                          order_2d, dg, pb, assembly);
       test_assembly_level("../../data/star-q3.mesh",
-                           order_2d, dg, pb, assembly);
+                          order_2d, dg, pb, assembly);
    }
 
    SECTION("3D")
    {
       test_assembly_level("../../data/periodic-cube.mesh",
-                           order_3d, dg, pb, assembly);
+                          order_3d, dg, pb, assembly);
       test_assembly_level("../../data/fichera-q3.mesh",
-                           order_3d, dg, pb, assembly);
+                          order_3d, dg, pb, assembly);
    }
 
    // Test AMR cases (DG not implemented)
    SECTION("AMR 2D")
    {
       test_assembly_level("../../data/amr-quad.mesh",
-                           order_2d, false, 0, assembly);
+                          order_2d, false, 0, assembly);
    }
    SECTION("AMR 3D")
    {
       test_assembly_level("../../data/fichera-amr.mesh",
-                           order_3d, false, 0, assembly);
+                          order_3d, false, 0, assembly);
    }
 } // test case
 

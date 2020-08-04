@@ -319,12 +319,14 @@ TEST_CASE("PA Vector Diffusion", "[PartialAssembly], [VectorPA]")
 {
    SECTION("2D")
    {
-      REQUIRE(test_vector_pa_integrator<VectorDiffusionIntegrator>(2) == MFEM_Approx(0.0));
+      REQUIRE(test_vector_pa_integrator<VectorDiffusionIntegrator>(2)
+              == MFEM_Approx(0.0));
    }
 
    SECTION("3D")
    {
-      REQUIRE(test_vector_pa_integrator<VectorDiffusionIntegrator>(3) == MFEM_Approx(0.0));
+      REQUIRE(test_vector_pa_integrator<VectorDiffusionIntegrator>(3)
+              == MFEM_Approx(0.0));
    }
 }
 
