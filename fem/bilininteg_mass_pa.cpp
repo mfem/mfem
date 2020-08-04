@@ -23,7 +23,7 @@ namespace mfem
 
 // PA Mass Assemble kernel
 
-void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
+void MassIntegrator::SetupPA(const FiniteElementSpace &fes)
 {
    // Assuming the same element type
    fespace = &fes;
@@ -33,7 +33,7 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
    ElementTransformation *T = mesh->GetElementTransformation(0);
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T);
 #ifdef MFEM_USE_CEED
-   if (DeviceCanUseCeed() && !force)
+   if (DeviceCanUseCeed())
    {
       if (ceedDataPtr) { delete ceedDataPtr; }
       CeedData* ptr = new CeedData();
@@ -61,6 +61,19 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
    {
       coeff.SetSize(1);
       coeff(0) = cQ->constant;
+   }
+   else if (QuadratureFunctionCoefficient* cQ =
+               dynamic_cast<QuadratureFunctionCoefficient*>(Q))
+   {
+      const QuadratureFunction &qFun = cQ->GetQuadFunction();
+      MFEM_VERIFY(qFun.Size() == nq * ne,
+                  "Incompatible QuadratureFunction dimension \n");
+
+      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
+                  "IntegrationRule used within integrator and in"
+                  " QuadratureFunction appear to be different");
+      qFun.Read();
+      coeff.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
    }
    else
    {
@@ -440,8 +453,16 @@ static void PAMassAssembleDiagonal(const int dim, const int D1D,
 
 void MassIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   if (pa_data.Size()==0) { SetupPA(*fespace, true); }
-   PAMassAssembleDiagonal(dim, dofs1D, quad1D, ne, maps->B, pa_data, diag);
+#ifdef MFEM_USE_CEED
+   if (DeviceCanUseCeed())
+   {
+      CeedAssembleDiagonalPA(ceedDataPtr, diag);
+   }
+   else
+#endif
+   {
+      PAMassAssembleDiagonal(dim, dofs1D, quad1D, ne, maps->B, pa_data, diag);
+   }
 }
 
 
@@ -639,6 +660,7 @@ static void SmemPAMassApply2D(const int NE,
                               const int d1d = 0,
                               const int q1d = 0)
 {
+   MFEM_CONTRACT_VAR(bt_);
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
@@ -902,6 +924,7 @@ static void SmemPAMassApply3D(const int NE,
                               const int d1d = 0,
                               const int q1d = 0)
 {
+   MFEM_CONTRACT_VAR(bt_);
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int M1Q = T_Q1D ? T_Q1D : MAX_Q1D;
@@ -1192,29 +1215,7 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 #ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
-      const CeedScalar *x_ptr;
-      CeedScalar *y_ptr;
-      CeedMemType mem;
-      CeedGetPreferredMemType(internal::ceed, &mem);
-      if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
-      {
-         x_ptr = x.Read();
-         y_ptr = y.ReadWrite();
-      }
-      else
-      {
-         x_ptr = x.HostRead();
-         y_ptr = y.HostReadWrite();
-         mem = CEED_MEM_HOST;
-      }
-      CeedVectorSetArray(ceedDataPtr->u, mem, CEED_USE_POINTER,
-                         const_cast<CeedScalar*>(x_ptr));
-      CeedVectorSetArray(ceedDataPtr->v, mem, CEED_USE_POINTER, y_ptr);
-
-      CeedOperatorApplyAdd(ceedDataPtr->oper, ceedDataPtr->u, ceedDataPtr->v,
-                           CEED_REQUEST_IMMEDIATE);
-
-      CeedVectorSyncArray(ceedDataPtr->v, mem);
+      CeedAddMultPA(ceedDataPtr, x, y);
    }
    else
 #endif

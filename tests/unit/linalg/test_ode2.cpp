@@ -79,7 +79,21 @@ TEST_CASE("Second order ODE methods",
          dt = t_final/double(ti_steps);
       };
 
-      double order(SecondOrderODESolver* ode_solver)
+      void init_hist(SecondOrderODESolver* ode_solver,double dt)
+      {
+         int nstate = ode_solver->GetStateSize();
+
+         for (int s = 0; s< nstate; s++)
+         {
+            double t = -(s)*dt;
+            Vector uh(1);
+            uh[0] = -cos(t) - sin(t);
+            ode_solver->SetStateVector(s,uh);
+         }
+      }
+
+
+      double order(SecondOrderODESolver* ode_solver, bool init_hist_ = false)
       {
          double dt,t;
          Vector u(1);
@@ -93,10 +107,9 @@ TEST_CASE("Second order ODE methods",
          u = u0;
          du = dudt0;
          ode_solver->Init(*oper);
-         for (int ti = 0; ti< steps; ti++)
-         {
-            ode_solver->Step(u, du, t, dt);
-         }
+         if (init_hist_) { init_hist(ode_solver,dt); }
+         ode_solver->Run(u, du, t, dt,t_final - 1e-12);
+
          u -= u0;
          du -= dudt0;
 
@@ -112,18 +125,49 @@ TEST_CASE("Second order ODE methods",
          std::cout<<std::setw(12)<<err_u[0]
                   <<std::setw(12)<<err_du[0]<<std::endl;
 
+         std::vector<Vector> uh(ode_solver->GetMaxStateSize());
          for (int l = 1; l< levels; l++)
          {
+            int lvl = pow(2,l);
             t = 0.0;
-            steps *=2;
-            dt = t_final/double(steps);
+            dt *= 0.5;
             u = u0;
             du = dudt0;
             ode_solver->Init(*oper);
-            for (int ti = 0; ti< steps; ti++)
+            if (init_hist_) { init_hist(ode_solver,dt); }
+
+            // Instead of single run command:
+            // ode_solver->Run(u, du, t, dt, t_final - 1e-12);
+            // Chop-up sequence with Get/Set in between
+            // in order to test these routines
+            for (int ti = 0; ti < steps; ti++)
             {
                ode_solver->Step(u, du, t, dt);
             }
+
+            int nstate = ode_solver->GetStateSize();
+            for (int s = 0; s < nstate; s++)
+            {
+               ode_solver->GetStateVector(s,uh[s]);
+            }
+
+            for (int ll = 1; ll < lvl; ll++)
+            {
+               for (int s = 0; s < nstate; s++)
+               {
+                  ode_solver->SetStateVector(s,uh[s]);
+               }
+               for (int ti = 0; ti < steps; ti++)
+               {
+                  ode_solver->Step(u, du, t, dt);
+               }
+               nstate = ode_solver->GetStateSize();
+               for (int s = 0; s< nstate; s++)
+               {
+                  uh[s] = ode_solver->GetStateVector(s);
+               }
+            }
+
             u -= u0;
             du -= dudt0;
             err_u[l] = u.Norml2();
@@ -179,6 +223,12 @@ TEST_CASE("Second order ODE methods",
    {
       std::cout <<"\nTesting GeneralizedAlpha(0.5)" << std::endl;
       REQUIRE(check.order(new GeneralizedAlpha2Solver(0.5)) + tol > 2.0 );
+   }
+
+   SECTION("GeneralizedAlpha(0.5) - restart")
+   {
+      std::cout <<"\nTesting GeneralizedAlpha(0.5) - restart" << std::endl;
+      REQUIRE(check.order(new GeneralizedAlpha2Solver(0.5),true) + tol > 2.0 );
    }
 
    SECTION("GeneralizedAlpha(1.0)")
