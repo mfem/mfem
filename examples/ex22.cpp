@@ -13,6 +13,11 @@
 //               ex22 -m ../data/inline-hex.mesh -o 2 -p 2
 //               ex22 -m ../data/star.mesh -r 1 -o 2 -sigma 10.0
 //
+// With partial assembly:
+//               ex22 -m ../data/inline-quad.mesh -o 3 -p 1 -pa
+//               ex22 -m ../data/inline-hex.mesh -o 2 -p 2 -pa
+//               ex22 -m ../data/star.mesh -r 1 -o 2 -sigma 10.0 -pa
+//
 // Description:  This example code demonstrates the use of MFEM to define and
 //               solve simple complex-valued linear systems. It implements three
 //               variants of a damped harmonic oscillator:
@@ -76,6 +81,7 @@ int main(int argc, char *argv[])
    bool visualization = 1;
    bool herm_conv = true;
    bool exact_sol = true;
+   bool pa = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -106,6 +112,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.Parse();
    if (!args.Good())
    {
@@ -282,6 +290,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient negMassCoef(omega_ * omega_ * epsilon_);
 
    SesquilinearForm *a = new SesquilinearForm(fespace, conv);
+   if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    switch (prob)
    {
       case 0:
@@ -318,6 +327,8 @@ int main(int argc, char *argv[])
    //         -Grad(a Div) - omega^2 b + omega c
    //
    BilinearForm *pcOp = new BilinearForm(fespace);
+   if (pa) { pcOp->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+
    switch (prob)
    {
       case 0:
@@ -348,19 +359,8 @@ int main(int argc, char *argv[])
    Vector B, U;
 
    a->FormLinearSystem(ess_tdof_list, u, b, A, U, B);
-   u = 0.0;
-   U = 0.0;
 
-   OperatorHandle PCOp;
-   pcOp->FormSystemMatrix(ess_tdof_list, PCOp);
-
-   {
-      ComplexSparseMatrix * Asp =
-         dynamic_cast<ComplexSparseMatrix*>(A.Ptr());
-
-      cout << "Size of linear system: "
-           << 2 * Asp->real().Width() << endl << endl;
-   }
+   cout << "Size of linear system: " << A->Width() << endl << endl;
 
    // 10. Define and apply a GMRES solver for AU=B with a block diagonal
    //     preconditioner based on the appropriate sparse smoother.
@@ -368,8 +368,8 @@ int main(int argc, char *argv[])
       Array<int> blockOffsets;
       blockOffsets.SetSize(3);
       blockOffsets[0] = 0;
-      blockOffsets[1] = PCOp.Ptr()->Height();
-      blockOffsets[2] = PCOp.Ptr()->Height();
+      blockOffsets[1] = A->Height() / 2;
+      blockOffsets[2] = A->Height() / 2;
       blockOffsets.PartialSum();
 
       BlockDiagonalPreconditioner BDP(blockOffsets);
@@ -377,22 +377,31 @@ int main(int argc, char *argv[])
       Operator * pc_r = NULL;
       Operator * pc_i = NULL;
 
-      double s = 1.0;
-      switch (prob)
+      if (pa)
       {
-         case 0:
-            pc_r = new DSmoother(*PCOp.As<SparseMatrix>());
-            break;
-         case 1:
-            pc_r = new GSSmoother(*PCOp.As<SparseMatrix>());
-            s = -1.0;
-            break;
-         case 2:
-            pc_r = new DSmoother(*PCOp.As<SparseMatrix>());
-            break;
-
-         default: break; // This should be unreachable
+         pc_r = new OperatorJacobiSmoother(*pcOp, ess_tdof_list);
       }
+      else
+      {
+         OperatorHandle PCOp;
+         pcOp->SetDiagonalPolicy(mfem::Operator::DIAG_ONE);
+         pcOp->FormSystemMatrix(ess_tdof_list, PCOp);
+         switch (prob)
+         {
+            case 0:
+               pc_r = new DSmoother(*PCOp.As<SparseMatrix>());
+               break;
+            case 1:
+               pc_r = new GSSmoother(*PCOp.As<SparseMatrix>());
+               break;
+            case 2:
+               pc_r = new DSmoother(*PCOp.As<SparseMatrix>());
+               break;
+            default:
+               break; // This should be unreachable
+         }
+      }
+      double s = (prob != 1) ? 1.0 : -1.0;
       pc_i = new ScaledOperator(pc_r,
                                 (conv == ComplexOperator::HERMITIAN) ?
                                 s:-s);

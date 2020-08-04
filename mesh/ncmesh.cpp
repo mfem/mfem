@@ -3948,6 +3948,7 @@ const CoarseFineTransformations& NCMesh::GetRefinementTransforms()
          }
       }
    }
+
    return transforms;
 }
 
@@ -4125,15 +4126,16 @@ void CoarseFineTransformations::GetCoarseToFineMap(
 }
 
 void CoarseFineTransformations::GetCoarseToFineMapFast(
-   const mfem::Mesh &fine_mesh, Table &coarse_to_fine) const
+   const mfem::Mesh &fine_mesh, Table &coarse_to_fine, int NGhost) const
 {
-   const int fine_ne = embeddings.Size();
+   int fine_ne = embeddings.Size()-NGhost;
    int coarse_ne = -1;
    for (int i = 0; i < fine_ne; i++)
    {
       coarse_ne = std::max(coarse_ne, embeddings[i].parent);
    }
    coarse_ne++;
+   std::cout << coarse_ne << " " << fine_ne << " k10coarsefine\n";
 
    coarse_to_fine.SetDims(coarse_ne, fine_ne);
 

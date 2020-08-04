@@ -106,6 +106,9 @@
 // Enable Sidre support
 // #define MFEM_USE_SIDRE
 
+// Enable the use of SIMD in the high performance templated classes
+// #define MFEM_USE_SIMD
+
 // Enable Conduit support
 // #define MFEM_USE_CONDUIT
 
@@ -114,6 +117,9 @@
 
 // Enable functionality based on the PETSc library
 // #define MFEM_USE_PETSC
+
+// Enable functionality based on the SLEPc library
+// #define MFEM_USE_SLEPC
 
 // Enable functionality based on the MPFR library.
 // #define MFEM_USE_MPFR

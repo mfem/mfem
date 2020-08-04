@@ -234,6 +234,7 @@ public:
        The debug mesh will have element attributes set to element rank + 1. */
    void GetDebugMesh(Mesh &debug_mesh) const;
 
+   virtual int GetNumGhostElements() const { return NGhostElements; }
 
 protected: // interface for ParMesh
 
@@ -294,7 +295,6 @@ protected: // implementation
    virtual bool IsGhost(const Element& el) const
    { return el.rank != MyRank; }
 
-   virtual int GetNumGhostElements() const { return NGhostElements; }
    virtual int GetNumGhostVertices() const { return NGhostVertices; }
 
    /// Return the processor number for a global element number.
