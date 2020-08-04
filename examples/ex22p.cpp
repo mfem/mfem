@@ -469,7 +469,6 @@ int main(int argc, char *argv[])
    // 14. Recover the parallel grid function corresponding to U. This is the
    //     local finite element solution on each processor.
    a->RecoverFEMSolution(U, b, u);
-   u.Sync(); // Sync memory of u.real and u.imag if using device
 
    if (exact_sol)
    {

@@ -429,7 +429,6 @@ int main(int argc, char *argv[])
    // 12. Recover the solution as a finite element grid function and compute the
    //     errors if the exact solution is known.
    a->RecoverFEMSolution(U, b, u);
-   u.Sync(); // Sync memory of u.real and u.imag if using device
 
    if (exact_sol)
    {
