@@ -71,7 +71,7 @@ struct CoarseFineTransformations
                            Array<Geometry::Type> &ref_type_to_geom) const;
 
    void GetCoarseToFineMapFast(const Mesh &fine_mesh,
-                               Table &coarse_to_fine) const;
+                               Table &coarse_to_fine, int NGhost=0) const;
 
    void Clear();
    bool IsInitialized() const;
@@ -147,6 +147,8 @@ public:
        derefinements may have to be skipped to preserve mesh consistency. */
    virtual void Derefine(const Array<int> &derefs);
 
+
+   int GetNGhostElements() const { return 0; }
 
    // master/slave lists
 
