@@ -78,8 +78,9 @@ int main(int argc, char *argv[])
    bool visualization = true;
    const char *amgx_cfg = 0;
    int nsolves = 1;
-   int ser_ref_levels = 5;
+   int ser_ref_levels = 4;
    int par_ref_levels = 2;
+   int ndevices = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -99,9 +100,11 @@ int main(int argc, char *argv[])
    args.AddOption(&amgx_cfg, "-c","--c","AMGX solver file");
    args.AddOption(&amgx, "-amgx","--amgx","-no-amgx",
                   "--no-amgx","Use AMGX");
-   args.AddOption(&nsolves, "-solves","--solves","Number of Solves");
-   args.AddOption(&ser_ref_levels, "-nr","--nr","Number of Solves");
-   args.AddOption(&par_ref_levels, "-np","--np","Number of Solves");
+   args.AddOption(&nsolves, "-nsolves","--nsolves","Number of Solves");
+   args.AddOption(&ser_ref_levels, "-nr","--nr","Number of Serial Refinements");
+   args.AddOption(&par_ref_levels, "-np","--np","Number of Parallel Refinements");
+   args.AddOption(&ndevices, "-nd","--nd","Number of GPU Devices");
+
    args.Parse();
    if (!args.Good())
    {
@@ -211,6 +214,7 @@ int main(int argc, char *argv[])
    // 11. Set up the parallel bilinear form a(.,.) on the finite element space
    //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //     domain integrator.
+
    ParBilinearForm *a = new ParBilinearForm(fespace);
    if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
@@ -223,12 +227,9 @@ int main(int argc, char *argv[])
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
 
-
    HypreParMatrix A;
    Vector B, X;
-
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-
 
    // 13. Solve the linear system A X = B.
    //     * With full assembly, use the BoomerAMG preconditioner from hypre.
@@ -257,9 +258,7 @@ int main(int argc, char *argv[])
       std::string amgx_str;
       amgx_str = amgx_cfg;
       AmgXSolver amgx;
-
-      auto start1 = std::chrono::steady_clock::now();
-      amgx.initialize(MPI_COMM_WORLD, "dDDI", amgx_str);
+      amgx.initialize(MPI_COMM_WORLD, "dDDI", amgx_str, ndevices);
 
       amgx.setA(A);
 
@@ -267,9 +266,6 @@ int main(int argc, char *argv[])
         X = 0.0; //set to zero
         amgx.solve(X, B);
       }
-      auto end1 = std::chrono::steady_clock::now();
-      std::chrono::duration<double> elapsed_seconds1 = end1-start1;
-      std::cout << "Solve Time "<< elapsed_seconds1.count() << "\n";
 #endif
    }
    else
@@ -281,15 +277,11 @@ int main(int argc, char *argv[])
       pcg->SetTol(1e-12);
       pcg->SetMaxIter(200);
       pcg->SetPrintLevel(2);
-      auto start1 = std::chrono::steady_clock::now();
+
       for(int i = 0; i < nsolves; i++){
         X = 0.0; //set to zero
         pcg->Mult(B, X);
       }
-      auto end1 = std::chrono::steady_clock::now();
-      std::chrono::duration<double> elapsed_seconds1 = end1-start1;
-      std::cout << "Solve Time "<< elapsed_seconds1.count() << "\n";
-
       delete pcg;
    }
 
