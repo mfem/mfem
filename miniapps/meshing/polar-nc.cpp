@@ -493,6 +493,7 @@ int main(int argc, char *argv[])
    double aspect = 1.0;
    int order = 2;
    bool sfc = true;
+   bool visualization = true;
 
    // parse command line
    OptionsParser args(argc, argv);
@@ -507,6 +508,9 @@ int main(int argc, char *argv[])
                   "Polynomial degree of mesh curvature.");
    args.AddOption(&sfc, "-sfc", "--sfc", "-no-sfc", "--no-sfc",
                   "Try to order elements along a space-filling curve.");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.Parse();
    if (!args.Good())
    {
@@ -537,6 +541,16 @@ int main(int argc, char *argv[])
    ofstream ofs("polar.mesh");
    ofs.precision(8);
    mesh->Print(ofs);
+
+   // output the mesh to GLVis
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock.precision(8);
+      sol_sock << "mesh\n" << *mesh << flush;
+   }
 
    delete mesh;
 
