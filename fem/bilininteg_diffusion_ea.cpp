@@ -263,7 +263,7 @@ void DiffusionIntegrator::AssembleEA(const FiniteElementSpace &fes,
          case 0x88: return EADiffusionAssemble1D<8,8>(ne,B,G,pa_data,ea_data,add);
          case 0x99: return EADiffusionAssemble1D<9,9>(ne,B,G,pa_data,ea_data,add);
          default:   return EADiffusionAssemble1D(ne,B,G,pa_data,ea_data,add,
-                                                 dofs1D,quad1D);
+                                                    dofs1D,quad1D);
       }
    }
    else if (dim == 2)
@@ -279,7 +279,7 @@ void DiffusionIntegrator::AssembleEA(const FiniteElementSpace &fes,
          case 0x88: return EADiffusionAssemble2D<8,8>(ne,B,G,pa_data,ea_data,add);
          case 0x99: return EADiffusionAssemble2D<9,9>(ne,B,G,pa_data,ea_data,add);
          default:   return EADiffusionAssemble2D(ne,B,G,pa_data,ea_data,add,
-                                                 dofs1D,quad1D);
+                                                    dofs1D,quad1D);
       }
    }
    else if (dim == 3)
@@ -294,7 +294,7 @@ void DiffusionIntegrator::AssembleEA(const FiniteElementSpace &fes,
          case 0x78: return EADiffusionAssemble3D<7,8>(ne,B,G,pa_data,ea_data,add);
          case 0x89: return EADiffusionAssemble3D<8,9>(ne,B,G,pa_data,ea_data,add);
          default:   return EADiffusionAssemble3D(ne,B,G,pa_data,ea_data,add,
-                                                 dofs1D,quad1D);
+                                                    dofs1D,quad1D);
       }
    }
    MFEM_ABORT("Unknown kernel.");
