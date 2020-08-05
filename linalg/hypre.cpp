@@ -3218,6 +3218,7 @@ HypreILU::HypreILU()
 
 void HypreILU::SetDefaultOptions()
 {
+   ilu_type = 0; // 0 = ILU(k) and 1 = ILUT
    max_iter = 1; // Maximum iterations; preconditioner = 1 iter
    tol = 0.0; // Set to 0.0 for preconditioner
    lev_fill = 1; // Fill level for ILU(k)
@@ -3225,7 +3226,6 @@ void HypreILU::SetDefaultOptions()
    drop_thres = 1e-2; // Drop tolerance for ILUT
    nsh_thres = 1e-2; // Drop tol in Newton–Schulz–Hotelling iteration
    schur_max_iter = 5; // Max number of iter to solve Schur system
-   ilu_type = 0; // 0 = ILU(k) and 1 = ILUT
    reorder_type = 1; // 0 = no reordering, 1 = reverse Cuthill-McKee
    print_level = 0; // 0 = none, 1 = setup, 2 = solve, 3 = setup+solve
    SetOptions();
@@ -3233,14 +3233,15 @@ void HypreILU::SetDefaultOptions()
 
 void HypreILU::SetOptions()
 {
+   HYPRE_ILUSetType(ilu_precond, ilu_type);
    HYPRE_ILUSetMaxIter(ilu_precond, max_iter);
    HYPRE_ILUSetTol(ilu_precond, tol);
    HYPRE_ILUSetLevelOfFill(ilu_precond, lev_fill);
    HYPRE_ILUSetMaxNnzPerRow(ilu_precond, nz_max);
    HYPRE_ILUSetDropThreshold(ilu_precond, drop_thres);
-   HYPRE_ILUSetNSHDropThreshold(ilu_precond, nsh_thres);
+   if ( (ilu_type == 20) || (ilu_type == 21) )
+      HYPRE_ILUSetNSHDropThreshold(ilu_precond, nsh_thres);
    HYPRE_ILUSetSchurMaxIter(ilu_precond, schur_max_iter);
-   HYPRE_ILUSetType(ilu_precond, ilu_type);
    HYPRE_ILUSetLocalReordering(ilu_precond, reorder_type);
    HYPRE_ILUSetPrintLevel(ilu_precond, print_level);
 }
@@ -3287,7 +3288,15 @@ void HypreILU::SetDropThreshold(HYPRE_Real drop_thres)
 
 void HypreILU::SetNSHDropThreshold(HYPRE_Real nsh_thres)
 {
-   HYPRE_ILUSetNSHDropThreshold(ilu_precond, nsh_thres);
+   if ( (ilu_type == 20) || (ilu_type == 21) )
+   {
+      HYPRE_ILUSetNSHDropThreshold(ilu_precond, nsh_thres);
+   }
+   else
+   {
+      mfem_error("HypreILU type must be 20 or 21 to set NSH drop threshold");
+      return;
+   }
 }
 
 void HypreILU::SetSchurMaxIter(HYPRE_Int schur_max_iter)
