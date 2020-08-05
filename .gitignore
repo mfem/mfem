@@ -151,6 +151,7 @@ examples/ex71
 examples/ex71p
 examples/Example71*
 examples/Example71
+examples/Example71/
 
 examples/pumi/refined.mesh
 examples/pumi/sol.gf
