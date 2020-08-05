@@ -538,7 +538,7 @@ int main(int argc, char *argv[])
    }
 
    // save the final mesh
-   ofstream ofs("polar.mesh");
+   ofstream ofs("polar-nc.mesh");
    ofs.precision(8);
    mesh->Print(ofs);
 

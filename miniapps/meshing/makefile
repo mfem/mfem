@@ -115,4 +115,4 @@ clean-exec:
 	@rm -f mobius-strip.mesh klein-bottle.mesh mesh-explorer.mesh
 	@rm -f toroid-*.mesh twist-*.mesh trimmer.mesh
 	@rm -f partitioning.txt shaper.mesh extruder.mesh
-	@rm -f optimized* perturbed* polar.mesh
+	@rm -f optimized* perturbed* polar-nc.mesh

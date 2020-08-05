@@ -188,7 +188,7 @@ miniapps/meshing/extruder.mesh
 miniapps/meshing/trimmer.mesh
 miniapps/meshing/optimized*
 miniapps/meshing/perturbed*
-miniapps/meshing/polar.mesh
+miniapps/meshing/polar-nc.mesh
 
 miniapps/performance/ex1
 miniapps/performance/ex1p
