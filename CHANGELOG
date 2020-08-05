@@ -38,8 +38,8 @@ Meshing improvements
 
 - Added support for initialization of non-conforming meshes. Hanging nodes can
   now be marked with Mesh::AddVertexParents when building the mesh with the
-  "init" constructor. The usage is demonstrated in a new meshing miniapp,
-  (polar-nc), which generates meshes that are non-conforming from the start.
+  "init" constructor. The usage is demonstrated in a new meshing miniapp
+  (polar-nc) which generates meshes that are non-conforming from the start.
 
 Performance improvements
 ------------------------
