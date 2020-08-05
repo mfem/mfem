@@ -125,8 +125,9 @@ int main(int argc, char *argv[])
    sv=0.0;
 
    // 9. Define ParaView DataCollection
-   mfem::ParaViewDataCollection *dacol=new mfem::ParaViewDataCollection("Example71",
-                                                                        mesh);
+   mfem::ParaViewDataCollection *dacol=new
+   mfem::ParaViewDataCollection("Example71",
+                                mesh);
    dacol->SetLevelsOfDetail(order);
    dacol->RegisterField("sol",&x);
 
