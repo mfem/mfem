@@ -231,7 +231,33 @@ int main (int argc, char *argv[])
    // Project the interpolated values to the target FiniteElementSpace.
    if (fieldtype <= 1) // H1 or L2
    {
-      func_target = interp_vals;
+      if ((fieldtype == 0 && order == mesh_poly_deg) || fieldtype == 1)
+      {
+         func_target = interp_vals;
+      }
+      else // H1 - but mesh order != GridFunction order
+      {
+         Array<int> vdofs;
+         Vector vals;
+         const int nsp = func_target.FESpace()->GetFE(0)->GetNodes().GetNPoints(),
+                   NE  = mesh_2.GetNE();
+         Vector elem_dof_vals(nsp*dim);
+
+         for (int i = 0; i < mesh_2.GetNE(); i++)
+         {
+            fes->GetElementVDofs(i, vdofs);
+            vals.SetSize(vdofs.Size());
+            for (int j = 0; j < nsp; j++)
+            {
+               for (int d = 0; d < ncomp_tar; d++)
+               {
+                  // Arrange values byNodes
+                  elem_dof_vals(j+d*nsp) = interp_vals(d*nsp*NE + i*nsp + j);
+               }
+            }
+            func_target.SetSubVector(vdofs, elem_dof_vals);
+         }
+      }
    }
    else // H(div) or H(curl)
    {
@@ -249,7 +275,7 @@ int main (int argc, char *argv[])
          {
             for (int d = 0; d < ncomp_tar; d++)
             {
-               // Arrange values by dofs
+               // Arrange values byVDim
                elem_dof_vals(j*ncomp_tar+d) = interp_vals(d*nsp*NE + i*nsp + j);
             }
          }
