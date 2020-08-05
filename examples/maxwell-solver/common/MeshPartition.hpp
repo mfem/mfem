@@ -132,6 +132,7 @@ private:
    void PrintElementMap();
 public:
    int nrsubdomains;
+   int myelem_offset = 0;
    double MeshSize;
    std::vector<Array<int>> element_map;
    std::vector<Array<int>> local_element_map;

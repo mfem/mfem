@@ -6,6 +6,26 @@ using namespace std;
 using namespace mfem;
 
 
+class ParSubdomainDofInfo
+{
+public:
+   ParFiniteElementSpace *fespace = nullptr;
+   ParMeshPartition * part;
+   MPI_Comm comm = MPI_COMM_WORLD;
+   int nrsubdomains=0;
+   Array<int> subdomain_rank;
+   // list of all the true dofs in a subdomain
+   vector<Array<int>> SubdomainGlobalTrueDofs; 
+   vector<Array<int>> SubdomainTrueDofs;
+   Array<FiniteElementSpace *> subdomain_fespaces;
+   std::vector<Array<int>> subdomain_dof_map;
+   // constructor
+   ParSubdomainDofInfo(ParFiniteElementSpace *fespace_, ParMeshPartition * part_);
+   // void Print();
+   ~ParSubdomainDofInfo();
+};
+
+
 class ParDST : public Solver//
 {
 private:
@@ -19,9 +39,11 @@ private:
    double omega = 0.5;
    Coefficient * ws;
    int nrlayers;
-
    int nrsubdomains = 0;
    int nx,ny,nz;
+
+   Sweep * sweeps=nullptr;
+
 
 
    void Getijk(int ip, int & i, int & j, int & k ) const;

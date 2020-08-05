@@ -869,7 +869,6 @@ ParMeshPartition::ParMeshPartition(ParMesh* pmesh_,
    MeshSize = partition.MeshSize;
    subdomain_rank = partition.subdomain_rank;
 
-   int myelem_offset;
    nrsubdomains = partition.local_element_map.size();
    int mynrelem = pmesh->GetNE();
    MPI_Scan(&mynrelem, &myelem_offset, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
@@ -944,7 +943,8 @@ ParMeshPartition::ParMeshPartition(ParMesh* pmesh_,
       k += 1+1+ipsize;
    }
 
-   for (int ip = 0; ip < nrsubdomains; ++ip)
+   // for (int ip = 0; ip < nrsubdomains; ++ip)
+   for (int ip = 0; ip < 1; ++ip)
    {
       if (myid == subdomain_rank[ip]) 
       {

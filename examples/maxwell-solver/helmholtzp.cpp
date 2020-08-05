@@ -115,7 +115,7 @@ int main(int argc, char *argv[])
    if (nd == 2)
    {
       // mesh = new Mesh(mesh_file,1,1);
-      mesh = new Mesh(4, 4, Element::QUADRILATERAL, true, length, length, false);
+      mesh = new Mesh(1, 1, Element::QUADRILATERAL, true, length, length, false);
    }
    else
    {
@@ -130,7 +130,7 @@ int main(int argc, char *argv[])
    dim = mesh->Dimension();
 
    double hl = GetUniformMeshElementSize(mesh);
-   int nrlayers = 2;
+   int nrlayers = 1;
 
    Array2D<double> lengths(dim,2);
    lengths = hl*nrlayers;
@@ -165,15 +165,15 @@ int main(int argc, char *argv[])
    //    ParMeshPartition part(pmesh,nx,ny,nz,nlayers);
 
 
-   //    if (visualization)
-   //    {
-   //       char vishost[] = "localhost";
-   //       int  visport   = 19916;
-   //       socketstream mesh_sock(vishost, visport);
-   //       mesh_sock.precision(8);
-   //       mesh_sock << "parallel " << num_procs << " " << myid << "\n"
-   //                   << "mesh\n" << *pmesh  << flush;
-   //    }
+      if (visualization)
+      {
+         char vishost[] = "localhost";
+         int  visport   = 19916;
+         socketstream mesh_sock(vishost, visport);
+         mesh_sock.precision(8);
+         mesh_sock << "parallel " << num_procs << " " << myid << "\n"
+                     << "mesh\n" << *pmesh  << flush;
+      }
 
 
 
