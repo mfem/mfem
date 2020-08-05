@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "fmsconvert.hpp"
+#include <unordered_map>
 #include <climits>
 using std::cout;
 using std::endl;
@@ -1035,15 +1036,201 @@ MeshToFmsMesh(const Mesh *mfem_mesh, FmsMesh *outmesh)
 }
 
 int
-DataCollectionToFmsDataCollection(const DataCollection *mfem_dc, FmsDataCollection *dc)
+DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc)
 {
-    // TODO: Write me.
+  // TODO: Write me
 
-    
+  const Mesh *mmesh = mfem_dc->GetMesh();
+  const int num_verticies = mmesh->GetNV();
+  const int num_edges = mmesh->GetNEdges();
+  const int num_faces = mmesh->GetNFaces();
+  const int num_elements = mmesh->GetNE();
+
+  std::cout << "nverts: " << num_verticies << std::endl;
+  std::cout << "nedges: " << num_edges << std::endl;
+  std::cout << "nfaces: " << num_faces << std::endl;
+  std::cout << "nele: " << num_elements << std::endl;
+
+  FmsMesh fmesh = NULL;
+  FmsMeshConstruct(&fmesh);
+  FmsMeshSetPartitionId(fmesh, 0, 1);
+
+  FmsDomain *domains = NULL;
+  FmsMeshAddDomains(fmesh, "Domain", 1, &domains);
+  
+  FmsDomainSetNumVertices(domains[0], num_verticies);
+  // Only 2D (for now)
+/*     /// Constants for the classes derived from Element.
+   enum Type { POINT, SEGMENT, TRIANGLE, QUADRILATERAL,
+               TETRAHEDRON, HEXAHEDRON, WEDGE
+             }; */
+  FmsInt edgeid = 0;
+  mfem::HashTable<mfem::Hashed2> edges;
+  mfem::HashTable<mfem::Hashed4> faces;
+  std::vector<int> tri_edges;
+  std::vector<int> quad_edges;
+  std::vector<int> tet_faces;
+  std::vector<int> hex_faces;
+  std::vector<int> wed_faces;
+  for(int i = 0; i < num_elements; i++) {
+    auto *ele = mmesh->GetElement(i);
+    auto e_type = ele->GetType();
+    const int *verts = ele->GetVertices();
+
+    switch(e_type) {
+      case Element::POINT: {
+        // TODO: Will there ever be points
+        break;
+      }
+      case Element::SEGMENT: {
+        edges.GetId(verts[0], verts[1]);
+        break;
+      }
+      case Element::TRIANGLE: {
+        tri_edges.push_back(edges.GetId(verts[0], verts[1]));
+        tri_edges.push_back(edges.GetId(verts[1], verts[2]));
+        tri_edges.push_back(edges.GetId(verts[2], verts[0]));
+        break;
+      }
+      case Element::QUADRILATERAL: {
+        quad_edges.push_back(edges.GetId(verts[0], verts[1]));
+        quad_edges.push_back(edges.GetId(verts[1], verts[2]));
+        quad_edges.push_back(edges.GetId(verts[2], verts[3]));
+        quad_edges.push_back(edges.GetId(verts[3], verts[0]));
+        break;
+      }
+      case Element::TETRAHEDRON: {
+        // Build each face by getting the edge ids for each edge
+        tet_faces.push_back(faces.GetId(
+          edges.GetId(verts[1], verts[0]),
+          edges.GetId(verts[0], verts[2]),
+          edges.GetId(verts[2], verts[1])));
+
+        tet_faces.push_back(faces.GetId(
+          edges.GetId(verts[0], verts[1]),
+          edges.GetId(verts[1], verts[3]),
+          edges.GetId(verts[3], verts[0])));
+
+        tet_faces.push_back(faces.GetId(
+          edges.GetId(verts[2], verts[0]),
+          edges.GetId(verts[0], verts[3]),
+          edges.GetId(verts[3], verts[2])));
+
+        tet_faces.push_back(faces.GetId(
+          edges.GetId(verts[1], verts[2]),
+          edges.GetId(verts[2], verts[3]),
+          edges.GetId(verts[3], verts[1])));
+      }
+      case Element::HEXAHEDRON: {
+        // Build each face by getting the edge ids for each edge
+        hex_faces.push_back(faces.GetId(
+          edges.GetId(verts[1], verts[0]),
+          edges.GetId(verts[0], verts[3]),
+          edges.GetId(verts[3], verts[2]),
+          edges.GetId(verts[2], verts[1])));
+      
+        hex_faces.push_back(faces.GetId(
+          edges.GetId(verts[4], verts[5]),
+          edges.GetId(verts[5], verts[6]),
+          edges.GetId(verts[6], verts[7]),
+          edges.GetId(verts[7], verts[4])));
+
+        hex_faces.push_back(faces.GetId(
+          edges.GetId(verts[0], verts[1]),
+          edges.GetId(verts[1], verts[5]),
+          edges.GetId(verts[5], verts[4]),
+          edges.GetId(verts[4], verts[0])));
+
+        hex_faces.push_back(faces.GetId(
+          edges.GetId(verts[2], verts[3]),
+          edges.GetId(verts[3], verts[7]),
+          edges.GetId(verts[7], verts[6]),
+          edges.GetId(verts[6], verts[2])));
+
+        hex_faces.push_back(faces.GetId(
+          edges.GetId(verts[3], verts[0]),
+          edges.GetId(verts[0], verts[4]),
+          edges.GetId(verts[4], verts[7]),
+          edges.GetId(verts[7], verts[3])));
+
+        hex_faces.push_back(faces.GetId(
+          edges.GetId(verts[1], verts[2]),
+          edges.GetId(verts[2], verts[6]),
+          edges.GetId(verts[6], verts[5]),
+          edges.GetId(verts[5], verts[1])));
+      }
+      default: {
+        break;
+      }
+    }
+  }
+
+  std::cout << "ALL EDGES" << std::endl;
+  std::vector<int> edge_verts;
+  edge_verts.reserve(edges.Size() * 2 + 1);
+  for(int i = 0; i < edges.Size(); i++) {
+    const auto &edge = edges[i];
+    std::cout << "\t" << i << " " << edge.p1 << " " << edge.p2 << std::endl;
+    edge_verts.push_back(edge.p1);
+    edge_verts.push_back(edge.p2);
+  }
+
+  FmsDomainSetNumEntities(domains[0], FMS_EDGE, FMS_INT32, edges.Size());
+  FmsDomainAddEntities(domains[0], FMS_EDGE, NULL, FMS_INT32, edge_verts.data(), edges.Size());
+
+  std::cout << "QUADS" << std::endl;
+  for(int i = 0; i < tri_edges.size(); i++) {
+    if(i % 3 == 0) std::cout << std::endl << "\t" << i/4 << " ";
+    std::cout << tri_edges[i] << " ";
+  }
+  std::cout << std::endl;
+
+  FmsDomainSetNumEntities(domains[0], FMS_TRIANGLE, FMS_INT32, tri_edges.size() / 4);
+  FmsDomainAddEntities(domains[0], FMS_TRIANGLE, NULL, FMS_INT32, tri_edges.data(), tri_edges.size() / 4);
+
+  FmsComponent volume;
+  FmsMeshAddComponent(fmesh, "volume", &volume);
+  FmsComponentAddDomain(volume, domains[0]);
+
+  FmsMeshFinalize(fmesh);
+  FmsMeshValidate(fmesh);
+
+  FmsDataCollectionCreate(fmesh, "DataCollection", dc);
+
+  const mfem::GridFunction &coords = *mmesh->GetNodes();
+  // coords.Print();
+
+  double *c = coords.GetData();
+  int s = coords.Size();
+  
+  std::cout << "Coords.Size() " << s << std::endl;
+  int vdim = coords.VectorDim();
+  const mfem::FiniteElementSpace *fespace = coords.FESpace();
+  int order = fespace->GetOrder(0);
+  int dim = fespace->GetVDim();
+  fespace->GetElementType(0);
+  FmsFieldDescriptor fd;
+  FmsDataCollectionAddFieldDescriptor(*dc, "CoordsDescriptor", &fd);
+  FmsFieldDescriptorSetComponent(fd, volume);
+  FmsFieldDescriptorSetFixedOrder(fd, FMS_CONTINUOUS, FMS_NODAL_GAUSS_CLOSED, order);
+  FmsInt ndofs;
+  FmsFieldDescriptorGetNumDofs(fd, &ndofs);
+  std::cout << "FD num dofs " << ndofs << std::endl;
+
+  FmsField fcoords;
+  FmsDataCollectionAddField(*dc, "Coords", &fcoords);
+  FmsFieldSet(fcoords, fd, vdim, FMS_BY_VDIM, FMS_DOUBLE, c);
+
+  FmsComponentSetCoordinates(volume, fcoords);
 
 
-    *dc = nullptr;
-    return 1;
+   // std::cout << "Coordinates - size " << mfem_coords.Size();
+  // for(int i = 0; i < mfem_coords.Size(); i++) {
+  //   if(i % 3 == 0) std::cout << std::endl << "\t";
+  //   std::cout << mfem_coords.Elem(i) << " ";
+  // }
+  // std::cout << std::endl;
+  return 0;
 }
 
 } // end namespace mfem
