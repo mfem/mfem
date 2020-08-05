@@ -330,14 +330,14 @@ void MakeLayer(int vx1, int vy1, int vz1, int vx2, int vy2, int vz2, int level,
    }
 }
 
-void MakeCenter(int vx, int vy, int vz, int level, double r,
+void MakeCenter(int origin, int vx, int vy, int vz, int level, double r,
                 double u1, double v1, double u2, double v2, double u3, double v3,
                 bool bnd1, bool bnd2, bool bnd3, bool bnd4,
                 Mesh *mesh, HashTable<Vert> &hash, Array<Params3> &params)
 {
    if (!level)
    {
-      mesh->AddTet(0, vx, vy, vz);
+      mesh->AddTet(origin, vx, vy, vz);
 
       if (bnd1) { mesh->AddBdrTriangle(0, vy, vx, 1); }
       if (bnd2) { mesh->AddBdrTriangle(0, vz, vy, 2); }
@@ -356,13 +356,13 @@ void MakeCenter(int vx, int vy, int vz, int level, double r,
       int vyz = GetMidVertex(vy, vz, r, u23, v23, false, mesh, hash);
       int vxz = GetMidVertex(vx, vz, r, u31, v31, false, mesh, hash);
 
-      MakeCenter(vx, vxy, vxz, level-1, r, u1, v1, u12, v12, u31, v31,
+      MakeCenter(origin, vx, vxy, vxz, level-1, r, u1, v1, u12, v12, u31, v31,
                  bnd1, false, bnd3, bnd4, mesh, hash, params);
-      MakeCenter(vxy, vy, vyz, level-1, r, u12, v12, u2, v2, u23, v23,
+      MakeCenter(origin, vxy, vy, vyz, level-1, r, u12, v12, u2, v2, u23, v23,
                  bnd1, bnd2, false, bnd4, mesh, hash, params);
-      MakeCenter(vxz, vyz, vz, level-1, r, u31, v31, u23, v23, u3, v3,
+      MakeCenter(origin, vxz, vyz, vz, level-1, r, u31, v31, u23, v23, u3, v3,
                  false, bnd2, bnd3, bnd4, mesh, hash, params);
-      MakeCenter(vyz, vxz, vxy, level-1, r, u23, v23, u31, v31, u12, v12,
+      MakeCenter(origin, vyz, vxz, vxy, level-1, r, u23, v23, u31, v31, u12, v12,
                  false, false, false, bnd4, mesh, hash, params);
    }
 }
@@ -375,7 +375,6 @@ Mesh* Make3D(int nsteps, double rstep, double aspect, int order, bool sfc)
    Array<Params3> params;
 
    int origin = mesh->AddVertex(0, 0, 0);
-   MFEM_ASSERT(origin == 0, "");
 
    double r = rstep;
    int a = mesh->AddVertex(r, 0, 0);
@@ -385,7 +384,7 @@ Mesh* Make3D(int nsteps, double rstep, double aspect, int order, bool sfc)
    int levels = 0;
    while (pi2 * rstep / (1 << levels) * aspect > rstep) { levels++; }
 
-   MakeCenter(a, b, c, levels, r, 1, 0, 0, 1, 0, 0,
+   MakeCenter(origin, a, b, c, levels, r, 1, 0, 0, 1, 0, 0,
               true, true, true, (nsteps == 1), mesh, hash, params);
 
    for (int k = 1; k < nsteps; k++)
