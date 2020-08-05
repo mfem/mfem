@@ -449,12 +449,12 @@ MFEM_USE_HIOP = YES/NO
   HPC solver for nonlinear optimization problems.
 
 MFEM_USE_ADEPT = YES/NO
-  Enable automatic differentiation using ADEPT library. 
+  Enable automatic differentiation using the ADEPT library. 
   (http://www.met.reading.ac.uk/clouds/adept) 
-  Please, compile the library with  flag --disable-openmp.
+  Please, compile the library with flag --disable-openmp.
 
 MFEM_USE_FADBADPP = YES/NO
-  Enable automatic differentiation using FADBAD++ library.
+  Enable automatic differentiation using the FADBAD++ library.
   www.fadbad.com/fadbad.html 
 
 MFEM_USE_ADFORWARD = YES/NO
@@ -653,7 +653,7 @@ The specific libraries and their options are:
   Options: ADEPT_OPT, ADEPT_LIB
   Versions: 1.1 and 2.0.5
 
-- FADBAD++ (optiobal) , used with MFEM_USE_FADBADPP = YES
+- FADBAD++ (optiobal), used with MFEM_USE_FADBADPP = YES
   URL: www.fadbad.com/fadbad.html
   Options: FADBADPP_OPT
   Versions: 2.1

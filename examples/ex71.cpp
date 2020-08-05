@@ -10,7 +10,7 @@
 //    ex71 -m ../data/beam-wedge.mesh
 //
 // Description:  This examples solves a quasi-static nonlinear
-//               pLaplacian problem with zero Dirichlet boundary
+//               p-Laplacian problem with zero Dirichlet boundary
 //               conditions applied on all defined boundaries
 //
 //           The example demonstrates the use of nonlinear operators

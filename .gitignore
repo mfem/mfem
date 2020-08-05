@@ -152,7 +152,6 @@ examples/pLap/
 examples/ex71p
 examples/pLap/*
 examples/pLap
-examples/pLap/
 
 examples/pumi/refined.mesh
 examples/pumi/sol.gf

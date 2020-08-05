@@ -165,5 +165,4 @@
 // use forward mode for automatic differentiation
 #cmakedefine MFEM_USE_ADFORWARD
 
-
 #endif // MFEM_CONFIG_HEADER
