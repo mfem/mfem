@@ -273,7 +273,6 @@ public:
       int ndof = el.GetDof();
       int ndim = el.GetDim();
       int spaceDim = trans.GetSpaceDim();
-      bool square = (ndim == spaceDim);
       const mfem::IntegrationRule *ir = NULL;
       int order = 2 * trans.OrderGrad(&el) - 1; // correct order?
       ir = &mfem::IntRules.Get(el.GetGeomType(), order);
@@ -298,14 +297,12 @@ public:
       vparam[2]=1.0;  //default load
 
       double w;
-      double detJ;
 
       for (int i = 0; i < ir -> GetNPoints(); i++)
       {
          const mfem::IntegrationPoint &ip = ir->IntPoint(i);
          trans.SetIntPoint(&ip);
          w = trans.Weight();
-         detJ = (square ? w : w*w);
          w = ip.weight * w;
 
          el.CalcDShape(ip,dshape_iso);
