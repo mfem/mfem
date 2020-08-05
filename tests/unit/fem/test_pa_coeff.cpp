@@ -129,7 +129,7 @@ TEST_CASE("H1 pa_coeff")
                {
                   assemblyform.AddDomainIntegrator(new MassIntegrator(*coeff));
                }
-               assemblyform.SetDiagonalPolicy(Matrix::DIAG_ONE);
+               assemblyform.SetDiagonalPolicy(Operator::DIAG_ONE);
                assemblyform.Assemble();
                assemblyform.Finalize();
                const SparseMatrix& A_explicit = assemblyform.SpMat();
@@ -307,7 +307,7 @@ TEST_CASE("Hcurl/Hdiv pa_coeff",
                   OperatorHandle paopr;
                   paform->FormSystemMatrix(ess_tdof_list, paopr);
 
-                  assemblyform->SetDiagonalPolicy(Matrix::DIAG_ONE);
+                  assemblyform->SetDiagonalPolicy(Operator::DIAG_ONE);
                   assemblyform->Assemble();
                   assemblyform->Finalize();
                   OperatorPtr A_explicit;
@@ -524,13 +524,12 @@ TEST_CASE("Hcurl/Hdiv mixed pa_coeff",
                             << std::endl;
                   REQUIRE(assembly_error < 1.e-12);
 
+                  delete xin;
                   if (spaceType == HdivL2)
                   {
                      // Test the transpose.
-                     delete xin;
                      xin = new Vector((spaceType == 0) ? v_fespace.GetTrueVSize() :
                                       s_fespace.GetTrueVSize());
-
                      xin->Randomize();
 
                      y_mat.SetSize((spaceType == 0) ? s_fespace.GetTrueVSize() :

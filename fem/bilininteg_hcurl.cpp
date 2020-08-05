@@ -392,10 +392,6 @@ void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
-     //MFEM_SHARED double sBG[2][tQ1D*tD1D];  // TODO: Changing MAX_D1D to tD1D results in failing unit tests, although ex3p succeeds.
-     //double (*sBo)[tQ1D] = (double (*)[tQ1D]) (sBG+0);
-     //double (*sBc)[tQ1D] = (double (*)[tQ1D]) (sBG+1);
-
       MFEM_SHARED double sBo[tQ1D][tD1D];
       MFEM_SHARED double sBc[tQ1D][tD1D];
 
