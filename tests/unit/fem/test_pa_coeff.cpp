@@ -207,7 +207,7 @@ TEST_CASE("Hcurl/Hdiv pa_coeff",
             coeff2 = new FunctionCoefficient(&linearFunction);
          }
 
-         for (int spaceType = 0; spaceType < 1; ++spaceType)
+         for (int spaceType = 0; spaceType < 2; ++spaceType)
          {
             if (spaceType == 1 && coeffType == 2)
             {
