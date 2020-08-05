@@ -169,7 +169,7 @@ void TransposeIntegrator::AssembleEABoundaryFaces(const FiniteElementSpace& fes,
       {
          for (int i = 0; i < faceDofs; i++)
          {
-            for (int j = 0; j < faceDofs; j++)
+            for (int j = i+1; j < faceDofs; j++)
             {
                const double aij_bdr = A_bdr(i, j, f);
                const double aji_bdr = A_bdr(j, i, f);
