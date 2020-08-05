@@ -614,24 +614,24 @@ void ParDiscreteLinearOperator::FormRectangularSystemMatrix(OperatorHandle &A)
       return;
    }
 
-/*
-   if (mat)
-   {
-      Finalize();
-      ParallelAssemble(p_mat);
-      delete mat;
-      mat = NULL;
-      delete mat_e;
-      mat_e = NULL;
-      HypreParMatrix *temp =
-         p_mat.As<HypreParMatrix>()->EliminateCols(trial_tdof_list);
-      p_mat.As<HypreParMatrix>()->EliminateRows(test_tdof_list);
-      p_mat_e.Reset(temp, true);
-   }
+   /*
+      if (mat)
+      {
+         Finalize();
+         ParallelAssemble(p_mat);
+         delete mat;
+         mat = NULL;
+         delete mat_e;
+         mat_e = NULL;
+         HypreParMatrix *temp =
+            p_mat.As<HypreParMatrix>()->EliminateCols(trial_tdof_list);
+         p_mat.As<HypreParMatrix>()->EliminateRows(test_tdof_list);
+         p_mat_e.Reset(temp, true);
+      }
 
 
-   A = p_mat;
-*/
+      A = p_mat;
+   */
    mfem_error("not implemented!");
 }
 

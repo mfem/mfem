@@ -117,7 +117,8 @@ TEST_CASE("PAGradient", "[PAGradient]")
 
 #ifdef MFEM_USE_MPI
 
-double par_compare_pa_assembly(int dim, int num_elements, int order, bool transpose)
+double par_compare_pa_assembly(int dim, int num_elements, int order,
+                               bool transpose)
 {
    int rank;
    MPI_Comm_rank(MPI_COMM_WORLD, &rank);

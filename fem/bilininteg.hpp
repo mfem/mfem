@@ -1797,7 +1797,7 @@ protected:
 
 /** Class for integrating the bilinear form a(u,v) := (Q grad u, v) where Q is a
     scalar coefficient, and v is a vector with components v_i in the same (H1) space
-    as u. 
+    as u.
 
     See also MixedVectorGradientIntegrator when v is in H(curl). */
 class GradientIntegrator : public BilinearFormIntegrator
@@ -2858,7 +2858,7 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat)
    { nd_fe.ProjectGrad(h1_fe, Trans, elmat); }
-   
+
    using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
