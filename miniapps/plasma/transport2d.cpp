@@ -3,7 +3,11 @@
 //
 
 // Annular benchmark test
-// mpirun -np 10 ./transport2d -v 1 -vs 1 -epus -tf 1 -op 16 -l 1 -m annulus-quad-o3.mesh -p 1 -ni-min 3e19 -ni-max 3e19 -Te-min 11 -Te-max 440 -ode-w '1e-8 1 0 0 1e-4' -dt 1e-2 -visit
+// mpirun -np 10 ./transport2d -v 1 -vs 1 -epus -tol 1e2 -tf 1 -op 16 -l 1 -m annulus-quad-o3.mesh -p 1 -ni-min 3e19 -ni-max 3e19 -Te-min 11 -Te-max 440 -dt 1e-2 -visit
+// mpirun -np 10 ./transport2d -v 1 -vs 1 -eps -tol 1e-4 -tf 1 -op 16 -l 1 -m annulus-quad-o3.mesh -p 1 -ni-min 3e19 -ni-max 3e19 -Te-min 11 -Te-max 440 -dt 1e-2 -visit
+
+// The following leads to an AMR-related crash (DBC n_i=3e19 on bdr 2)
+// mpirun -np 10 ./transport2d -vs 1 -epus -tf 1 -op 2 -l 1 -m annulus-quad-o3.mesh -p 1 -nn-min 1e15 -nn-max 1e15 -nn-exp 2e15 -ni-min 3e19 -ni-max 3e19 -Ti-min 10 -Ti-max 10 -Te-min 200 -Te-max 200 -dt 1e-9 -visit -bc transport2d_bc.inp
 
 #include "mfem.hpp"
 #include <fstream>
@@ -867,8 +871,9 @@ int main(int argc, char *argv[])
 
    int ode_solver_type = 2;
    int logging = 0;
-   bool   imex = true;
+   bool     imex = false;
    bool ode_epus = false;
+   bool      amr = true;
    int    op_flag = 31;
    double tol_ode = 1e-3;
    double rej_ode = 1.2;
@@ -935,6 +940,9 @@ int main(int argc, char *argv[])
    args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
                   "Number of times to refine the mesh uniformly after parallel"
                   " partitioning.");
+   args.AddOption(&amr, "-amr", "--enable-amr", "-no-amr",
+                  "--disable-amr",
+                  "Enable or disable adaptive mesh refinement.");
    args.AddOption(&max_elem_error, "-e", "--max-err",
                   "Maximum element error");
    args.AddOption(&hysteresis, "-y", "--hysteresis",
@@ -1093,8 +1101,8 @@ int main(int argc, char *argv[])
    {
       ode_weights.SetSize(5);
       ode_weights = 1.0;
-      ode_weights[0] = 1e-8;
-      ode_weights[4] = 1e-10;
+      // ode_weights[0] = 1e-8;
+      // ode_weights[4] = 1e-10;
    }
 
    if (term_flags.Size() != 5)
@@ -1192,6 +1200,7 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace vfes(&pmesh, &fec, 2);
 
    // Adaptively refine mesh to accurately represent a given coefficient
+   if (amr)
    {
       ParGridFunctionArray coef_gf(5, &fes);
       Array<Coefficient*> coef(5);
@@ -1963,6 +1972,7 @@ int main(int argc, char *argv[])
    int cycle = 0;
    int amr_it = 0;
    int ref_it = 0;
+   int reb_it = 0;
    int dref_it = 0;
 
    double t = t_init;
@@ -2053,66 +2063,39 @@ int main(int argc, char *argv[])
                            Wx + Ww + Dx, Wy, Ww, Wh);
          }
 
-         refiner.Apply(pmesh);
-
-         if (refiner.Stop())
+         if (amr)
          {
-            if (mpi.Root())
-            {
-               cout << "No refinements necessary." << endl;
-            }
-            // continue;
-         }
-         else
-         {
-            ref_it++;
-            if (mpi.Root())
-            {
-               cout << "Refining elements (iteration " << ref_it << ")" << endl;
-            }
+            refiner.Apply(pmesh);
 
-            // 21. Update the finite element space (recalculate the number of DOFs,
-            //     etc.) and create a grid function update matrix. Apply the matrix
-            //     to any GridFunctions over the space. In this case, the update
-            //     matrix is an interpolation matrix so the updated GridFunction will
-            //     still represent the same function as before refinement.
-            ffes.Update();
-            vfes.Update();
-            fes.Update();
-            fes.ExchangeFaceNbrData();
-            fes_l2_o0.Update();
-            u.Update();
-
-
+            if (refiner.Stop())
             {
-               for (int k = 0; k <= num_equations; k++)
+               if (mpi.Root())
                {
-                  offsets[k] = k * fes.GetNDofs();
+                  cout << "No refinements necessary." << endl;
+               }
+               // continue;
+            }
+            else
+            {
+               ref_it++;
+               if (mpi.Root())
+               {
+                  cout << "Refining elements (iteration " << ref_it << ")" << endl;
                }
 
-               neu_density.MakeRef(&fes, u, offsets[0]);
-               ion_density.MakeRef(&fes, u, offsets[1]);
-               para_velocity.MakeRef(&fes, u, offsets[2]);
-               ion_energy.MakeRef(&fes, u, offsets[3]);
-               elec_energy.MakeRef(&fes, u, offsets[4]);
-            }
-            oper.Update();
-            ode_solver->Init(oper);
-
-            // 22. Load balance the mesh, and update the space and solution. Currently
-            //     available only for nonconforming meshes.
-            if (pmesh.Nonconforming())
-            {
-               pmesh.Rebalance();
-
-               // Update the space and the GridFunction. This time the update matrix
-               // redistributes the GridFunction among the processors.
+               // 21. Update the finite element space (recalculate the number of DOFs,
+               //     etc.) and create a grid function update matrix. Apply the matrix
+               //     to any GridFunctions over the space. In this case, the update
+               //     matrix is an interpolation matrix so the updated GridFunction will
+               //     still represent the same function as before refinement.
                ffes.Update();
                vfes.Update();
                fes.Update();
-               fes.ExchangeFaceNbrData();
+               // fes.ExchangeFaceNbrData();
                fes_l2_o0.Update();
                u.Update();
+
+
                {
                   for (int k = 0; k <= num_equations; k++)
                   {
@@ -2127,64 +2110,107 @@ int main(int argc, char *argv[])
                }
                oper.Update();
                ode_solver->Init(oper);
-            }
-            // m.Update(); m.Assemble(); m.Finalize();
-            // ode_diff_msr.SetOperator(m);
-         }
-         if (derefiner.Apply(pmesh))
-         {
-            dref_it++;
-            if (mpi.Root())
-            {
-               cout << "Derefining elements (iteration " << dref_it << ")" << endl;
-            }
 
-            // 24. Update the space and the solution, rebalance the mesh.
-            // cout << "fes.Update();" << endl;
-            ffes.Update();
-            vfes.Update();
-            fes.Update();
-            fes.ExchangeFaceNbrData();
-            // cout << "fes_l2_o0.Update();" << endl;
-            fes_l2_o0.Update();
-            // cout << "u.Update();" << endl;
-            u.Update();
-            {
-               for (int k = 0; k <= num_equations; k++)
+               // 22. Load balance the mesh, and update the space and solution. Currently
+               //     available only for nonconforming meshes.
+               if (pmesh.Nonconforming())
                {
-                  offsets[k] = k * fes.GetNDofs();
+                  reb_it++;
+                  if (mpi.Root())
+                  {
+                     cout << "Rebalancing elements (iteration " << reb_it << ")"
+                          << endl;
+                  }
+                  pmesh.Rebalance();
+
+                  // Update the space and the GridFunction. This time the update matrix
+                  // redistributes the GridFunction among the processors.
+                  ffes.Update();
+                  vfes.Update();
+                  fes.Update();
+                  // fes.ExchangeFaceNbrData();
+                  fes_l2_o0.Update();
+                  u.Update();
+                  {
+                     for (int k = 0; k <= num_equations; k++)
+                     {
+                        offsets[k] = k * fes.GetNDofs();
+                     }
+
+                     neu_density.MakeRef(&fes, u, offsets[0]);
+                     ion_density.MakeRef(&fes, u, offsets[1]);
+                     para_velocity.MakeRef(&fes, u, offsets[2]);
+                     ion_energy.MakeRef(&fes, u, offsets[3]);
+                     elec_energy.MakeRef(&fes, u, offsets[4]);
+                  }
+                  oper.Update();
+                  ode_solver->Init(oper);
+               }
+               // m.Update(); m.Assemble(); m.Finalize();
+               // ode_diff_msr.SetOperator(m);
+            }
+            if (derefiner.Apply(pmesh))
+            {
+               dref_it++;
+               if (mpi.Root())
+               {
+                  cout << "Derefining elements (iteration " << dref_it << ")" << endl;
                }
 
-               neu_density.MakeRef(&fes, u, offsets[0]);
-               ion_density.MakeRef(&fes, u, offsets[1]);
-               para_velocity.MakeRef(&fes, u, offsets[2]);
-               ion_energy.MakeRef(&fes, u, offsets[3]);
-               elec_energy.MakeRef(&fes, u, offsets[4]);
+               // 24. Update the space and the solution, rebalance the mesh.
+               // cout << "fes.Update();" << endl;
+               ffes.Update();
+               vfes.Update();
+               fes.Update();
+               // fes.ExchangeFaceNbrData();
+               // cout << "fes_l2_o0.Update();" << endl;
+               fes_l2_o0.Update();
+               // cout << "u.Update();" << endl;
+               u.Update();
+               {
+                  for (int k = 0; k <= num_equations; k++)
+                  {
+                     offsets[k] = k * fes.GetNDofs();
+                  }
+
+                  neu_density.MakeRef(&fes, u, offsets[0]);
+                  ion_density.MakeRef(&fes, u, offsets[1]);
+                  para_velocity.MakeRef(&fes, u, offsets[2]);
+                  ion_energy.MakeRef(&fes, u, offsets[3]);
+                  elec_energy.MakeRef(&fes, u, offsets[4]);
+               }
+               // cout << "m.Update();" << endl;
+               // m.Update(); m.Assemble(); m.Finalize();
+               // ode_diff_msr.SetOperator(m);
+               // cout << "oper.Update();" << endl;
+               oper.Update();
+               ode_solver->Init(oper);
             }
-            // cout << "m.Update();" << endl;
-            // m.Update(); m.Assemble(); m.Finalize();
-            // ode_diff_msr.SetOperator(m);
-            // cout << "oper.Update();" << endl;
-            oper.Update();
-            ode_solver->Init(oper);
-         }
-         else
-         {
+            else
+            {
+               if (mpi.Root())
+               {
+                  cout << "No derefinements needed." << endl;
+               }
+            }
+
+            amr_it++;
+
+            global_dofs = fes.GlobalTrueVSize();
             if (mpi.Root())
             {
-               cout << "No derefinements needed." << endl;
+               cout << "\nAMR iteration " << amr_it << endl;
+               cout << "Number of unknowns: " << global_dofs << endl;
+            }
+            if (amr_it == 23)
+            {
+               ostringstream oss;
+               oss << "bar_" << mpi.WorldRank() << ".ncmesh";
+               ofstream ofs(oss.str().c_str());
+               pmesh.ParPrint(ofs);
+               ofs.close();
             }
          }
-
-         amr_it++;
-
-         global_dofs = fes.GlobalTrueVSize();
-         if (mpi.Root())
-         {
-            cout << "\nAMR iteration " << amr_it << endl;
-            cout << "Number of unknowns: " << global_dofs << endl;
-         }
-
       }
    }
 
