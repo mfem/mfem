@@ -1829,7 +1829,7 @@ static void PAHcurlApplyGradient2D(const int c_dofs1D,
       // horizontal part
       for (int dx = 0; dx < c_dofs1D; ++dx)
       {
-         for (int ey = 0; ey < c_dofs1D; ++ey) 
+         for (int ey = 0; ey < c_dofs1D; ++ey)
          {
             hw(dx, ey) = 0.0;
             for (int dy = 0; dy < c_dofs1D; ++dy)
@@ -1874,7 +1874,7 @@ static void PAHcurlApplyGradient2D(const int c_dofs1D,
                y(local_index, e) += B(ex, dx) * vw(dx, ey);
             }
          }
-      }  
+      }
    });
 
 }
@@ -1989,7 +1989,7 @@ static void PAHcurlApplyGradient3D(const int c_dofs1D,
       // ---
 
       // contract in z
-      for (int ez = 0; ez < c_dofs1D; ++ez) 
+      for (int ez = 0; ez < c_dofs1D; ++ez)
       {
          for (int dx = 0; dx < c_dofs1D; ++dx)
          {
@@ -2042,7 +2042,7 @@ static void PAHcurlApplyGradient3D(const int c_dofs1D,
       // ---
 
       // contract in z
-      for (int ez = 0; ez < c_dofs1D; ++ez) 
+      for (int ez = 0; ez < c_dofs1D; ++ez)
       {
          for (int dx = 0; dx < c_dofs1D; ++dx)
          {
@@ -2083,7 +2083,7 @@ static void PAHcurlApplyGradient3D(const int c_dofs1D,
                for (int dx = 0; dx < c_dofs1D; ++dx)
                {
                   const int local_index = c_dofs1D*c_dofs1D*o_dofs1D +
-                     ez*c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
+                                          ez*c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
                   y(local_index, e) += B(ex, dx) * pyw2(dx, ey, ez);
                }
             }
@@ -2095,7 +2095,7 @@ static void PAHcurlApplyGradient3D(const int c_dofs1D,
       // ---
 
       // contract in z
-      for (int ez = 0; ez < o_dofs1D; ++ez) 
+      for (int ez = 0; ez < o_dofs1D; ++ez)
       {
          for (int dx = 0; dx < c_dofs1D; ++dx)
          {
@@ -2136,7 +2136,7 @@ static void PAHcurlApplyGradient3D(const int c_dofs1D,
                for (int dx = 0; dx < c_dofs1D; ++dx)
                {
                   const int local_index = 2*c_dofs1D*c_dofs1D*o_dofs1D +
-                     ez*c_dofs1D*c_dofs1D + ey*c_dofs1D + ex;
+                                          ez*c_dofs1D*c_dofs1D + ey*c_dofs1D + ex;
                   y(local_index, e) += B(ex, dx) * pzw2(dx, ey, ez);
                }
             }
@@ -2242,7 +2242,7 @@ static void PAHcurlApplyGradientTranspose3D(
                for (int ez = 0; ez < c_dofs1D; ++ez)
                {
                   const int local_index = c_dofs1D*c_dofs1D*o_dofs1D +
-                     ez*c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
+                                          ez*c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
                   pyw1(ex, ey, dz) += B(ez, dz) * x(local_index, e);
                }
             }
@@ -2295,7 +2295,7 @@ static void PAHcurlApplyGradientTranspose3D(
                for (int ez = 0; ez < o_dofs1D; ++ez)
                {
                   const int local_index = 2*c_dofs1D*c_dofs1D*o_dofs1D +
-                     ez*c_dofs1D*c_dofs1D + ey*c_dofs1D + ex;
+                                          ez*c_dofs1D*c_dofs1D + ey*c_dofs1D + ex;
                   pzw1(ex, ey, dz) += G(ez, dz) * x(local_index, e);
                }
             }
@@ -3833,7 +3833,8 @@ void BuildDof2Orientation2D(int order, Array<int>& dof2orientation)
 /// ugly hack, copied from TensorNedelec.cpp
 /// (double* or int* for orientations?)
 /// TODO: not needed for Grad, might need for Pi
-void BuildOrientations2D(int ndof, ElementTransformation& trans, double* orientations)
+void BuildOrientations2D(int ndof, ElementTransformation& trans,
+                         double* orientations)
 {
    const int nipclosed = ndof;
    const int nipopen = ndof - 1;
@@ -3937,7 +3938,7 @@ void GradientInterpolator::AddMultPA(const Vector &x, Vector &y) const
                              x, y);
    }
    else
-   { 
+   {
       mfem_error("Bad dimension!");
    }
 }
@@ -3955,7 +3956,7 @@ void GradientInterpolator::AddMultTransposePA(const Vector &x, Vector &y) const
                                       maps_O_C->G, x, y);
    }
    else
-   { 
+   {
       mfem_error("Bad dimension!");
    }
 }

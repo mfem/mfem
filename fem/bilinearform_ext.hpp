@@ -271,7 +271,8 @@ public:
 
    /// Note that this implementation does not use the essential dof arrays, they
    /// are just unnecessary
-   void FormRectangularSystemOperator(const Array<int>&, const Array<int>&, OperatorHandle& A);
+   void FormRectangularSystemOperator(const Array<int>&, const Array<int>&,
+                                      OperatorHandle& A);
 
    const Operator * GetLocalOutputProlongation() const;
 

@@ -1011,12 +1011,14 @@ void PAMixedBilinearFormExtension::AssembleDiagonal_ADAt(const Vector &D,
    }
 }
 
-PADiscreteLinearOperatorExtension::PADiscreteLinearOperatorExtension(DiscreteLinearOperator *linop) :
+PADiscreteLinearOperatorExtension::PADiscreteLinearOperatorExtension(
+   DiscreteLinearOperator *linop) :
    PAMixedBilinearFormExtension(linop)
 {
 }
 
-const Operator *PADiscreteLinearOperatorExtension::GetLocalOutputProlongation() const
+const Operator *PADiscreteLinearOperatorExtension::GetLocalOutputProlongation()
+const
 {
    return a->GetLocalOutputProlongation();
 }
@@ -1122,7 +1124,7 @@ void PADiscreteLinearOperatorExtension::FormRectangularSystemOperator(
    // below copied from Operator::FormRectangularConstrainedSystemOperator()
    const Operator *Pi = this->GetProlongation();
    const Operator *Po = this->GetLocalOutputProlongation();
-   Operator *rap = SetupRAP(Pi, Po); 
+   Operator *rap = SetupRAP(Pi, Po);
 
    // TODO the next bit is unnecessary (no essential dofs) but deletion is not
    // clean without it
