@@ -115,19 +115,21 @@ void FMSDataCollection::Load(int cycle)
            SetMesh(mdc->GetMesh());
 
            // Set mdc's fields/qfields as ours.
-           for(auto it = mdc->GetFieldMap().begin();
-               it != mdc->GetFieldMap().end(); it++)
-           {
-               mdc->DeregisterField(it->first);
-               RegisterField(it->first, it->second);
-           }
+        //    int i = 0;
+        //    for(auto it = mdc->GetFieldMap().begin();
+        //        it != mdc->GetFieldMap().end(); it++)
+        //    {
+        //        std::cout << i++ << " " << std::endl;
+        //        mdc->DeregisterField(it->first);
+        //        RegisterField(it->first, it->second);
+        //    }
 
-           for(auto it = mdc->GetQFieldMap().begin();
-               it != mdc->GetQFieldMap().end(); it++)
-           {
-               mdc->DeregisterQField(it->first);
-               RegisterQField(it->first, it->second);
-           }
+        //    for(auto it = mdc->GetQFieldMap().begin();
+        //        it != mdc->GetQFieldMap().end(); it++)
+        //    {
+        //        mdc->DeregisterQField(it->first);
+        //        RegisterQField(it->first, it->second);
+        //    }
 
            // Indicate that we own the data.
            SetOwnData(true);

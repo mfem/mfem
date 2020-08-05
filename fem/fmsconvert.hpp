@@ -48,7 +48,7 @@ int MeshToFmsMesh(const Mesh *mfem_mesh, FmsMesh *mesh);
     @param[out] dc A pointer to a new FmsDataCollection containing the MFEM data.
     @return 0 on success; non-zero on failure.
 */
-int DataCollectionToFmsDataCollection(const DataCollection *mfem_dc,
+int DataCollectionToFmsDataCollection(DataCollection *mfem_dc,
                                       FmsDataCollection *dc);
 
 // Question: Would it be helpful to also define an mfem::FMSDataCollection class 
