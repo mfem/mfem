@@ -1282,7 +1282,7 @@ void TransportPrec::SetOperator(const Operator &op)
 
 DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
                                const PlasmaParams &plasma,
-			       const Vector &eqn_weights,
+                               const Vector &eqn_weights,
                                ParFiniteElementSpace &fes,
                                ParFiniteElementSpace &vfes,
                                ParFiniteElementSpace &ffes,
@@ -2336,7 +2336,7 @@ void DGTransportTDO::TransportOp::SetSourceTerm(StateVariableCoef &SCoef)
             cout << field_name_
                  << ": Adding source term proportional to d "
                  << FieldSymbol((FieldType)i) << " / dt "
-		 << "in the gradient" << endl;
+                 << "in the gradient" << endl;
          }
 
          StateVariableCoef * coef = SCoef.Clone();
@@ -2396,8 +2396,8 @@ DGTransportTDO::TransportOp::DisplayToGLVis()
 DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
                                        const DGParams & dg,
                                        const PlasmaParams & plasma,
-				       const Vector &eqn_weights,
-				       ParFiniteElementSpace & vfes,
+                                       const Vector &eqn_weights,
+                                       ParFiniteElementSpace & vfes,
                                        ParGridFunctionArray & yGF,
                                        ParGridFunctionArray & kGF,
                                        const TransportBCs & bcs,
@@ -2667,7 +2667,7 @@ void DGTransportTDO::CombinedOp::UpdateGradient(const Vector &k) const
          Operator * gradIJ = op_[i]->GetGradientBlock(j);
          if (gradIJ)
          {
-	   grad_->SetBlock(i, j, gradIJ, wgts_[i]);
+            grad_->SetBlock(i, j, gradIJ, wgts_[i]);
          }
       }
    }
@@ -2711,7 +2711,7 @@ void DGTransportTDO::CombinedOp::Mult(const Vector &k, Vector &r) const
       op_[i]->Mult(k, r_i);
 
       r_i *= wgts_[i];
-      
+
       double norm_r = sqrt(InnerProduct(MPI_COMM_WORLD, r_i, r_i));
       if (mpi_.Root())
       {

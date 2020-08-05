@@ -2833,11 +2833,11 @@ private:
 public:
    DGTransportTDO(const MPI_Session & mpi, const DGParams & dg,
                   const PlasmaParams & plasma,
-		  const Vector &eqn_weights,
+                  const Vector &eqn_weights,
                   ParFiniteElementSpace &fes,
                   ParFiniteElementSpace &vfes,
                   ParFiniteElementSpace &ffes,
-		  Array<int> &offsets,
+                  Array<int> &offsets,
                   ParGridFunctionArray &yGF,
                   ParGridFunctionArray &kGF,
                   const TransportBCs & bcs,
