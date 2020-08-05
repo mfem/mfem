@@ -20,7 +20,7 @@ void PAHcurlSetup2D(const int Q1D,
                     const int NE,
                     const Array<double> &w,
                     const Vector &j,
-                    Vector &_coeff,
+                    Vector &coeff,
                     Vector &op);
 
 void PAHcurlSetup3D(const int Q1D,
@@ -28,65 +28,66 @@ void PAHcurlSetup3D(const int Q1D,
                     const int NE,
                     const Array<double> &w,
                     const Vector &j,
-                    Vector &_coeff,
+                    Vector &coeff,
                     Vector &op);
 
 void PAHcurlMassAssembleDiagonal2D(const int D1D,
                                    const int Q1D,
                                    const int NE,
-                                   const Array<double> &_Bo,
-                                   const Array<double> &_Bc,
-                                   const Vector &_op,
-                                   Vector &_diag);
+                                   const Array<double> &bo,
+                                   const Array<double> &bc,
+                                   const Vector &pa_data,
+                                   Vector &diag);
 
 void PAHcurlMassAssembleDiagonal3D(const int D1D,
                                    const int Q1D,
                                    const int NE,
-                                   const Array<double> &_Bo,
-                                   const Array<double> &_Bc,
-                                   const Vector &_op,
-                                   Vector &_diag);
+                                   const Array<double> &bo,
+                                   const Array<double> &bc,
+                                   const Vector &pa_data,
+                                   Vector &diag);
 
+template<int T_D1D = 0, int T_Q1D = 0>
 void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
                                        const int Q1D,
                                        const int NE,
-                                       const Array<double> &_Bo,
-                                       const Array<double> &_Bc,
-                                       const Vector &_op,
-                                       Vector &_diag);
+                                       const Array<double> &bo,
+                                       const Array<double> &bc,
+                                       const Vector &pa_data,
+                                       Vector &diag);
 
 void PAHcurlMassApply2D(const int D1D,
                         const int Q1D,
                         const int NE,
-                        const Array<double> &_Bo,
-                        const Array<double> &_Bc,
-                        const Array<double> &_Bot,
-                        const Array<double> &_Bct,
-                        const Vector &_op,
-                        const Vector &_x,
-                        Vector &_y);
+                        const Array<double> &bo,
+                        const Array<double> &bc,
+                        const Array<double> &bot,
+                        const Array<double> &bct,
+                        const Vector &pa_data,
+                        const Vector &x,
+                        Vector &y);
 
 void PAHcurlMassApply3D(const int D1D,
                         const int Q1D,
                         const int NE,
-                        const Array<double> &_Bo,
-                        const Array<double> &_Bc,
-                        const Array<double> &_Bot,
-                        const Array<double> &_Bct,
-                        const Vector &_op,
-                        const Vector &_x,
-                        Vector &_y);
+                        const Array<double> &bo,
+                        const Array<double> &bc,
+                        const Array<double> &bot,
+                        const Array<double> &bct,
+                        const Vector &pa_data,
+                        const Vector &x,
+                        Vector &y);
 
 void SmemPAHcurlMassApply3D(const int D1D,
                             const int Q1D,
                             const int NE,
-                            const Array<double> &_Bo,
-                            const Array<double> &_Bc,
-                            const Array<double> &_Bot,
-                            const Array<double> &_Bct,
-                            const Vector &_op,
-                            const Vector &_x,
-                            Vector &_y);
+                            const Array<double> &bo,
+                            const Array<double> &bc,
+                            const Array<double> &bot,
+                            const Array<double> &bct,
+                            const Vector &pa_data,
+                            const Vector &x,
+                            Vector &y);
 
 void PAHdivSetup2D(const int Q1D,
                    const int NE,
@@ -105,24 +106,24 @@ void PAHdivSetup3D(const int Q1D,
 void PAHcurlH1Apply2D(const int D1D,
                       const int Q1D,
                       const int NE,
-                      const Array<double> &_Bc,
-                      const Array<double> &_Gc,
-                      const Array<double> &_Bot,
-                      const Array<double> &_Bct,
-                      const Vector &_op,
-                      const Vector &_x,
-                      Vector &_y);
+                      const Array<double> &bc,
+                      const Array<double> &gc,
+                      const Array<double> &bot,
+                      const Array<double> &bct,
+                      const Vector &pa_data,
+                      const Vector &x,
+                      Vector &y);
 
 void PAHcurlH1Apply3D(const int D1D,
                       const int Q1D,
                       const int NE,
-                      const Array<double> &_Bc,
-                      const Array<double> &_Gc,
-                      const Array<double> &_Bot,
-                      const Array<double> &_Bct,
-                      const Vector &_op,
-                      const Vector &_x,
-                      Vector &_y);
+                      const Array<double> &bc,
+                      const Array<double> &gc,
+                      const Array<double> &bot,
+                      const Array<double> &bct,
+                      const Vector &pa_data,
+                      const Vector &x,
+                      Vector &y);
 
 void PAHdivMassAssembleDiagonal2D(const int D1D,
                                   const int Q1D,
@@ -263,8 +264,22 @@ void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
       if (fetype == mfem::FiniteElement::CURL)
       {
          if (diag.GetMemory().GetMemoryType() >= MemoryType::DEVICE && quad1D <= 6)
-            SmemPAHcurlMassAssembleDiagonal3D(dofs1D, quad1D, ne,
-                                              mapsO->B, mapsC->B, pa_data, diag);
+         {
+            const int ID = (dofs1D << 4 ) | quad1D;
+            switch (ID)
+            {
+               case 0x23: return SmemPAHcurlMassAssembleDiagonal3D<2,3>(dofs1D, quad1D, ne,
+                                                                           mapsO->B, mapsC->B, pa_data, diag);
+               case 0x34: return SmemPAHcurlMassAssembleDiagonal3D<3,4>(dofs1D, quad1D, ne,
+                                                                           mapsO->B, mapsC->B, pa_data, diag);
+               case 0x45: return SmemPAHcurlMassAssembleDiagonal3D<4,5>(dofs1D, quad1D, ne,
+                                                                           mapsO->B, mapsC->B, pa_data, diag);
+               case 0x56: return SmemPAHcurlMassAssembleDiagonal3D<5,6>(dofs1D, quad1D, ne,
+                                                                           mapsO->B, mapsC->B, pa_data, diag);
+               default: return PAHcurlMassAssembleDiagonal3D(dofs1D, quad1D, ne,
+                                                                mapsO->B, mapsC->B, pa_data, diag);
+            }
+         }
          else
             PAHcurlMassAssembleDiagonal3D(dofs1D, quad1D, ne,
                                           mapsO->B, mapsC->B, pa_data, diag);
