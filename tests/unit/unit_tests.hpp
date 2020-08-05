@@ -14,8 +14,8 @@
 
 #include "catch.hpp"
 
-// MFEM_Approx can be used to compare floating point values within an absolute
-// tolerance of `margin` (default value 1e-12).
+/// MFEM_Approx can be used to compare floating point values within an absolute
+/// tolerance of `margin` (default value 1e-12).
 inline Approx MFEM_Approx(double val, double margin = 1e-12)
 {
    return Approx(val).margin(margin);
