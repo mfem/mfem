@@ -123,8 +123,7 @@ int main (int argc, char *argv[])
 
    // Ensure the source GridFunction can be transferred using FindPointsGSLIB.
    const FiniteElementCollection *fec_in = func_source.FESpace()->FEColl();
-   const int vdim_src   = func_source.FESpace()->GetVDim(),
-             ncomp_src = func_source.VectorDim();
+   const int vdim_src   = func_source.FESpace()->GetVDim();
    int fieldtype_src = -1;
    {
       const H1_FECollection *fec_h1 = dynamic_cast<const H1_FECollection *>(fec_in);
