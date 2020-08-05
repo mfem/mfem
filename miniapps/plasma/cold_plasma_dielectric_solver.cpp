@@ -255,7 +255,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
                      // VectorCoefficient & EImCoef,
                      void (*j_r_src)(const Vector&, Vector&),
                      void (*j_i_src)(const Vector&, Vector&),
-                     bool vis_u)
+                     bool vis_u, bool pa)
    : myid_(0),
      num_procs_(1),
      order_(order),
@@ -266,6 +266,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      conv_(conv),
      ownsEtaInv_(etaInvCoef == NULL),
      vis_u_(vis_u),
+     pa_(pa),
      omega_(omega),
      // solNorm_(-1.0),
      pmesh_(&pmesh),
@@ -589,11 +590,17 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    */
    // Bilinear Forms
    a1_ = new ParSesquilinearForm(HCurlFESpace_, conv_);
+   if (pa_) { a1_->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a1_->AddDomainIntegrator(new CurlCurlIntegrator(*muInvCoef_), NULL);
    a1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massReCoef_),
                             new VectorFEMassIntegrator(*massImCoef_));
-   if ( kCoef_)
+   if ( kCoef_ )
    {
+      if (pa_)
+      {
+         MFEM_ABORT("kCoef_: Partial Assembly has not yet been implemented for "
+                    "MixedCrossCurlIntegrator and MixedWeakCurlCrossIntegrator.");
+      }
       a1_->AddDomainIntegrator(new VectorFEMassIntegrator(*negMuInvkxkxCoef_),
                                NULL);
       a1_->AddDomainIntegrator(NULL,
@@ -603,30 +610,48 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    }
    if ( abcCoef_ )
    {
+      if (pa_)
+      {
+         MFEM_ABORT("abcCoef_: Partial Assembly has not yet been tested for "
+                    "this BoundaryIntegrator.");
+      }
       a1_->AddBoundaryIntegrator(NULL, new VectorFEMassIntegrator(*abcCoef_),
                                  abc_marker_);
    }
    /*
    if ( sbcReCoef_ && sbcImCoef_ )
    {
+      if (pa_)
+      {
+         MFEM_ABORT("sbcCoef_: Partial Assembly has not yet been tested for "
+                    "this BoundaryIntegrator.");
+      }
       a1_->AddBoundaryIntegrator(new VectorFEMassIntegrator(*sbcReCoef_),
                                  new VectorFEMassIntegrator(*sbcImCoef_),
                                  sbc_marker_);
    }
    */
    b1_ = new ParBilinearForm(HCurlFESpace_);
+   if (pa_) { b1_->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    b1_->AddDomainIntegrator(new CurlCurlIntegrator(*muInvCoef_));
    // b1_->AddDomainIntegrator(new VectorFEMassIntegrator(*epsAbsCoef_));
    b1_->AddDomainIntegrator(new VectorFEMassIntegrator(*posMassCoef_));
    //b1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massImCoef_));
 
    m2_ = new ParBilinearForm(HDivFESpace_);
+   if (pa_) { m2_->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    m2_->AddDomainIntegrator(new VectorFEMassIntegrator);
 
    m12EpsRe_ = new ParMixedBilinearForm(HCurlFESpace_, HDivFESpace_);
    m12EpsIm_ = new ParMixedBilinearForm(HCurlFESpace_, HDivFESpace_);
    m12EpsRe_->AddDomainIntegrator(new VectorFEMassIntegrator(*epsReCoef_));
    m12EpsIm_->AddDomainIntegrator(new VectorFEMassIntegrator(*epsImCoef_));
+   if (pa_)
+   {
+      // TODO: PA
+      //m12EpsRe_->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      //m12EpsIm_->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   }
 
    if (sbcs_->Size() > 0)
    {
@@ -841,7 +866,7 @@ CPDSolver::Assemble()
    // a0_->Finalize();
 
    a1_->Assemble();
-   a1_->Finalize();
+   if (!pa_) { a1_->Finalize(); }
 
    tic_toc.Stop();
    if ( myid_ == 0 && logging_ > 0 )
@@ -854,7 +879,7 @@ CPDSolver::Assemble()
    tic_toc.Start();
 
    b1_->Assemble();
-   b1_->Finalize();
+   if (!pa_) { b1_->Finalize(); }
 
    tic_toc.Stop();
    if ( myid_ == 0 && logging_ > 0 )
@@ -867,7 +892,7 @@ CPDSolver::Assemble()
    tic_toc.Start();
 
    m2_->Assemble();
-   m2_->Finalize();
+   if (!pa_) { m2_->Finalize(); }
 
    tic_toc.Stop();
    if ( myid_ == 0 && logging_ > 0 )
@@ -879,11 +904,15 @@ CPDSolver::Assemble()
    tic_toc.Clear();
    tic_toc.Start();
 
+   // TODO: PA
    m12EpsRe_->Assemble();
    m12EpsRe_->Finalize();
+   //if (!pa_) m12EpsRe_->Finalize();
 
+   // TODO: PA
    m12EpsIm_->Assemble();
    m12EpsIm_->Finalize();
+   //if (!pa_) m12EpsIm_->Finalize();
 
    if (m0_)
    {
@@ -1102,9 +1131,6 @@ CPDSolver::Solve()
    // cout << "Norm of jd (post-fls): " << jd_->Norml2() << endl;
    // cout << "Norm of RHS: " << RHS.Norml2() << endl;
 
-   OperatorHandle PCOp;
-   b1_->FormSystemMatrix(ess_bdr_tdofs_, PCOp);
-
    tic_toc.Clear();
    tic_toc.Start();
 
@@ -1112,8 +1138,32 @@ CPDSolver::Solve()
    Operator * pci = NULL;
    BlockDiagonalPreconditioner * BDP = NULL;
 
-   if (sol_ == GMRES || sol_ == FGMRES || sol_ == MINRES)
+   if (pa_)
    {
+      switch (prec_)
+      {
+         case INVALID_PC:
+            if ( myid_ == 0 && logging_ > 0 )
+            {
+               cout << "No Preconditioner Requested (PA)" << endl;
+            }
+            break;
+         case DIAG_SCALE:
+            if ( myid_ == 0 && logging_ > 0 )
+            {
+               cout << "Diagonal Scaling Preconditioner Requested (PA)" << endl;
+            }
+            pcr = new OperatorJacobiSmoother(*b1_, ess_bdr_tdofs_);
+            break;
+         default:
+            MFEM_ABORT("Requested preconditioner is not available with PA.");
+            break;
+      }
+   }
+   else if (sol_ == GMRES || sol_ == FGMRES || sol_ == MINRES)
+   {
+      OperatorHandle PCOp;
+      b1_->FormSystemMatrix(ess_bdr_tdofs_, PCOp);
       switch (prec_)
       {
          case INVALID_PC:
@@ -1161,24 +1211,23 @@ CPDSolver::Solve()
             MFEM_ABORT("Requested preconditioner is not available.");
             break;
       }
-      if (pcr && conv_ != ComplexOperator::HERMITIAN)
-      {
-         pci = new ScaledOperator(pcr, -1.0);
-      }
-      else
-      {
-         pci = pcr;
-      }
-
-      if (pcr)
-      {
-         BDP = new BlockDiagonalPreconditioner(blockTrueOffsets_);
-         BDP->SetDiagonalBlock(0, pcr);
-         BDP->SetDiagonalBlock(1, pci);
-         BDP->owns_blocks = 0;
-      }
    }
 
+   if (pcr && conv_ != ComplexOperator::HERMITIAN)
+   {
+      pci = new ScaledOperator(pcr, -1.0);
+   }
+   else
+   {
+      pci = pcr;
+   }
+   if (pcr)
+   {
+      BDP = new BlockDiagonalPreconditioner(blockTrueOffsets_);
+      BDP->SetDiagonalBlock(0, pcr);
+      BDP->SetDiagonalBlock(1, pci);
+      BDP->owns_blocks = 0;
+   }
 
    switch (sol_)
    {
@@ -1214,8 +1263,6 @@ CPDSolver::Solve()
          fgmres.SetPrintLevel(solOpts_.printLvl);
 
          fgmres.Mult(RHS, E);
-
-         // delete B1;
       }
       break;
       case MINRES:
@@ -1288,7 +1335,7 @@ CPDSolver::Solve()
 
    // Update D = epsilon E
    {
-      HypreParMatrix M2;
+      OperatorPtr M2;
       Vector D, RHS2;
 
       ParComplexLinearForm rhs(HDivFESpace_);
@@ -1307,6 +1354,8 @@ CPDSolver::Solve()
       {
          rhs.imag() *= -1.0;
       }
+      rhs.SyncAlias();
+      tmp.SyncAlias();
 
       Array<int> ess_tdof;
       m2_->FormSystemMatrix(ess_tdof, M2);
@@ -1314,24 +1363,36 @@ CPDSolver::Solve()
       D.SetSize(HDivFESpace_->TrueVSize());
       RHS2.SetSize(HDivFESpace_->TrueVSize());
 
-      HypreDiagScale diag(M2);
-
-      HyprePCG pcg(M2);
-      pcg.SetPreconditioner(diag);
-      pcg.SetTol(1e-12);
-      pcg.SetMaxIter(1000);
-
+      Operator *diag = NULL;
+      Operator *pcg = NULL;
+      if (pa_)
+      {
+         diag = new OperatorJacobiSmoother(*m2_, ess_tdof);
+         CGSolver *cg = new CGSolver(MPI_COMM_WORLD);
+         cg->SetOperator(*M2);
+         cg->SetPreconditioner(static_cast<OperatorJacobiSmoother&>(*diag));
+         cg->SetRelTol(1e-12);
+         cg->SetMaxIter(1000);
+         pcg = cg;
+      }
+      else
+      {
+         diag = new HypreDiagScale(*M2.As<HypreParMatrix>());
+         HyprePCG *cg = new HyprePCG(*M2.As<HypreParMatrix>());
+         cg->SetPreconditioner(static_cast<HypreDiagScale&>(*diag));
+         cg->SetTol(1e-12);
+         cg->SetMaxIter(1000);
+         pcg = cg;
+      }
       rhs.real().ParallelAssemble(RHS2);
-
-      pcg.Mult(RHS2, D);
-
+      pcg->Mult(RHS2, D);
       d_->real().Distribute(D);
-
       rhs.imag().ParallelAssemble(RHS2);
-
-      pcg.Mult(RHS2, D);
-
+      pcg->Mult(RHS2, D);
       d_->imag().Distribute(D);
+
+      delete diag;
+      delete pcg;
    }
 
    // Update phi = z n.D on the boundary

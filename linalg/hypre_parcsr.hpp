@@ -118,6 +118,34 @@ void hypre_ParCSRMatrixSplit(hypre_ParCSRMatrix *A,
 typedef int HYPRE_Bool;
 #define HYPRE_MPI_BOOL MPI_INT
 
+/// Computes y = alpha * |A| * x + beta * y, using entry-wise absolute values of matrix A
+void hypre_CSRMatrixAbsMatvec(hypre_CSRMatrix *A,
+                              HYPRE_Real alpha,
+                              HYPRE_Real *x,
+                              HYPRE_Real beta,
+                              HYPRE_Real *y);
+
+/// Computes y = alpha * |At| * x + beta * y, using entry-wise absolute values of the transpose of matrix A
+void hypre_CSRMatrixAbsMatvecT(hypre_CSRMatrix *A,
+                               HYPRE_Real alpha,
+                               HYPRE_Real *x,
+                               HYPRE_Real beta,
+                               HYPRE_Real *y);
+
+/// Computes y = alpha * |A| * x + beta * y, using entry-wise absolute values of matrix A
+void hypre_ParCSRMatrixAbsMatvec(hypre_ParCSRMatrix *A,
+                                 HYPRE_Real alpha,
+                                 HYPRE_Real *x,
+                                 HYPRE_Real beta,
+                                 HYPRE_Real *y);
+
+/// Computes y = alpha * |At| * x + beta * y, using entry-wise absolute values of the transpose of matrix A
+void hypre_ParCSRMatrixAbsMatvecT(hypre_ParCSRMatrix *A,
+                                  HYPRE_Real alpha,
+                                  HYPRE_Real *x,
+                                  HYPRE_Real beta,
+                                  HYPRE_Real *y);
+
 /** The "Boolean" analog of y = alpha * A * x + beta * y, where elements in the
     sparsity pattern of the CSR matrix A are treated as "true". */
 void hypre_CSRMatrixBooleanMatvec(hypre_CSRMatrix *A,

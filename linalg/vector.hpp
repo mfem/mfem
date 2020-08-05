@@ -242,6 +242,8 @@ public:
 
    Vector &operator-=(const Vector &v);
 
+   Vector &operator+=(double c);
+
    Vector &operator+=(const Vector &v);
 
    /// (*this) += a * Va
@@ -399,8 +401,14 @@ public:
    virtual N_Vector ToNVector() { return N_VMake_Serial(Size(), GetData()); }
 
    /** @brief Update an existing wrapper SUNDIALS N_Vector to point to this
-       Vector. */
-   virtual void ToNVector(N_Vector &nv);
+       Vector.
+
+       \param[in] nv N_Vector to assign this vector's data to
+       \param[in] global_length An optional parameter that designates the global
+        length. If nv is a parallel vector and global_length == 0 then this
+        method will perform a global reduction and calculate the global length
+   */
+   virtual void ToNVector(N_Vector &nv, long global_length = 0);
 #endif
 };
 

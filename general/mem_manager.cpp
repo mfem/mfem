@@ -143,10 +143,10 @@ struct Memory
 /// Alias class that holds the base memory region and the offset
 struct Alias
 {
-   Memory *const mem;
-   const size_t offset, bytes;
+   Memory *mem;
+   size_t offset, bytes;
    size_t counter;
-   const MemoryType h_mt;
+   MemoryType h_mt;
 };
 
 /// Maps for the Memory and the Alias classes
@@ -659,7 +659,7 @@ void *MemoryManager::New_(void *h_tmp, size_t bytes, MemoryType mt,
    flags |= is_host_mem ? Mem::VALID_HOST : Mem::VALID_DEVICE;
    if (is_host_mem) { mm.Insert(h_ptr, bytes, h_mt, d_mt); }
    else { mm.InsertDevice(nullptr, h_ptr, bytes, h_mt, d_mt); }
-   CheckHostMemoryType_(h_mt, h_ptr);
+   CheckHostMemoryType_(h_mt, h_ptr, false);
    return h_ptr;
 }
 
@@ -701,7 +701,7 @@ void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
       flags = own ? flags | Mem::OWNS_HOST   : flags & ~Mem::OWNS_HOST;
       flags |= Mem::VALID_DEVICE;
    }
-   CheckHostMemoryType_(h_mt, h_ptr);
+   CheckHostMemoryType_(h_mt, h_ptr, alias);
    return h_ptr;
 }
 
@@ -800,7 +800,7 @@ bool MemoryManager::MemoryClassCheck_(MemoryClass mc, void *h_ptr,
 void *MemoryManager::ReadWrite_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
                                 size_t bytes, unsigned &flags)
 {
-   MemoryManager::CheckHostMemoryType_(h_mt, h_ptr);
+   if (h_ptr) { CheckHostMemoryType_(h_mt, h_ptr, flags & Mem::ALIAS); }
    if (bytes > 0) { MFEM_VERIFY(flags & Mem::REGISTERED,""); }
    MFEM_ASSERT(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),"");
    if (IsHostMemory(GetMemoryType(mc)) && mc < MemoryClass::DEVICE)
@@ -824,7 +824,7 @@ void *MemoryManager::ReadWrite_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
 const void *MemoryManager::Read_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
                                  size_t bytes, unsigned &flags)
 {
-   CheckHostMemoryType_(h_mt, h_ptr);
+   if (h_ptr) { CheckHostMemoryType_(h_mt, h_ptr, flags & Mem::ALIAS); }
    if (bytes > 0) { MFEM_VERIFY(flags & Mem::REGISTERED,""); }
    MFEM_ASSERT(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),"");
    if (IsHostMemory(GetMemoryType(mc)) && mc < MemoryClass::DEVICE)
@@ -848,7 +848,7 @@ const void *MemoryManager::Read_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
 void *MemoryManager::Write_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
                             size_t bytes, unsigned &flags)
 {
-   CheckHostMemoryType_(h_mt, h_ptr);
+   if (h_ptr) { CheckHostMemoryType_(h_mt, h_ptr, flags & Mem::ALIAS); }
    if (bytes > 0) { MFEM_VERIFY(flags & Mem::REGISTERED,""); }
    MFEM_ASSERT(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),"");
    if (IsHostMemory(GetMemoryType(mc)) && mc < MemoryClass::DEVICE)
@@ -1130,14 +1130,13 @@ void MemoryManager::InsertAlias(const void *base_ptr, void *alias_ptr,
                             internal::Alias{&mem, offset, bytes, 1, mem.h_mt});
    if (res.second == false) // alias_ptr was already in the map
    {
-      if (res.first->second.mem != &mem || res.first->second.offset != offset)
-      {
-         mfem_error("alias already exists with different base/offset!");
-      }
-      else
-      {
-         res.first->second.counter++;
-      }
+      internal::Alias &alias = res.first->second;
+      // Update the alias data in case the existing alias is dangling
+      alias.mem = &mem;
+      alias.offset = offset;
+      alias.bytes = bytes; // aliases with different sizes should be fine
+      alias.h_mt = mem.h_mt;
+      alias.counter++;
    }
 }
 
@@ -1367,13 +1366,20 @@ void MemoryPrintFlags(unsigned flags)
          << std::endl;
 }
 
-void MemoryManager::CheckHostMemoryType_(MemoryType h_mt, void *h_ptr)
+void MemoryManager::CheckHostMemoryType_(MemoryType h_mt, void *h_ptr,
+                                         bool alias)
 {
    if (!mm.exists) {return;}
-   const bool known = mm.IsKnown(h_ptr);
-   const bool alias = mm.IsAlias(h_ptr);
-   if (known) { MFEM_VERIFY(h_mt == maps->memories.at(h_ptr).h_mt,""); }
-   if (alias) { MFEM_VERIFY(h_mt == maps->aliases.at(h_ptr).mem->h_mt,""); }
+   if (!alias)
+   {
+      auto it = maps->memories.find(h_ptr);
+      MFEM_VERIFY(it != maps->memories.end() && h_mt == it->second.h_mt,"");
+   }
+   else
+   {
+      auto it = maps->aliases.find(h_ptr);
+      MFEM_VERIFY(it != maps->aliases.end() && h_mt == it->second.mem->h_mt,"");
+   }
 }
 
 MemoryManager mm;

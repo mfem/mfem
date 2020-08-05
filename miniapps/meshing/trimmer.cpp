@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
 
    // Count the number of boundary elements in the final mesh
    int num_bdr_elements = 0;
-   for (int f=0; f<mesh.GetNFaces(); f++)
+   for (int f=0; f<mesh.GetNumFaces(); f++)
    {
       int e1 = -1, e2 = -1;
       mesh.GetFaceElements(f, &e1, &e2);
@@ -162,8 +162,22 @@ int main(int argc, char *argv[])
       }
    }
 
-   // Create boundary elements
-   for (int f=0; f<mesh.GetNFaces(); f++)
+   // Copy selected boundary elements
+   for (int be=0; be<mesh.GetNBE(); be++)
+   {
+      int e, info;
+      mesh.GetBdrElementAdjacentElement(be, e, info);
+
+      int elem_attr = mesh.GetElement(e)->GetAttribute();
+      if (!marker[elem_attr-1])
+      {
+         Element * nbel = mesh.GetBdrElement(be)->Duplicate(&trimmed_mesh);
+         trimmed_mesh.AddBdrElement(nbel);
+      }
+   }
+
+   // Create new boundary elements
+   for (int f=0; f<mesh.GetNumFaces(); f++)
    {
       int e1 = -1, e2 = -1;
       mesh.GetFaceElements(f, &e1, &e2);
@@ -175,25 +189,21 @@ int main(int argc, char *argv[])
       if (e1 >= 0) { a1 = mesh.GetElement(e1)->GetAttribute(); }
       if (e2 >= 0) { a2 = mesh.GetElement(e2)->GetAttribute(); }
 
-      if (a1 == 0 || a2 == 0)
-      {
-         if ((a1 == 0 && !marker[a2-1]) || (a2 == 0 && !marker[a1-1]))
-         {
-            Element * bel = mesh.GetFace(f)->Duplicate(&trimmed_mesh);
-            trimmed_mesh.AddBdrElement(bel);
-         }
-      }
-      else
+      if (a1 != 0 && a2 != 0)
       {
          if (marker[a1-1] && !marker[a2-1])
          {
-            Element * bel = mesh.GetFace(f)->Duplicate(&trimmed_mesh);
+            Element * bel = (mesh.Dimension() == 1) ?
+                            (Element*)new Point(&f) :
+                            mesh.GetFace(f)->Duplicate(&trimmed_mesh);
             bel->SetAttribute(bdr_attr[attr_inv[a1-1]]);
             trimmed_mesh.AddBdrElement(bel);
          }
          else if (!marker[a1-1] && marker[a2-1])
          {
-            Element * bel = mesh.GetFace(f)->Duplicate(&trimmed_mesh);
+            Element * bel = (mesh.Dimension() == 1) ?
+                            (Element*)new Point(&f) :
+                            mesh.GetFace(f)->Duplicate(&trimmed_mesh);
             bel->SetAttribute(bdr_attr[attr_inv[a2-1]]);
             trimmed_mesh.AddBdrElement(bel);
          }
