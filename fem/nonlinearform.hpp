@@ -87,6 +87,7 @@ public:
 
    /// Access all integrators added with AddDomainIntegrator().
    Array<NonlinearFormIntegrator*> *GetDNFI() { return &dnfi; }
+   const Array<NonlinearFormIntegrator*> *GetDNFI() const { return &dnfi; }
 
    /// Adds new Interior Face Integrator.
    void AddInteriorFaceIntegrator(NonlinearFormIntegrator *nlfi)
@@ -110,8 +111,8 @@ public:
        have zero entries at the essential true dofs. */
    void SetEssentialBC(const Array<int> &bdr_attr_is_ess, Vector *rhs = NULL);
 
-   /// (DEPRECATED) Specify essential boundary conditions.
-   /** @deprecated Use either SetEssentialBC() or SetEssentialTrueDofs(). */
+   /// Specify essential boundary conditions.
+   /** Use either SetEssentialBC() or SetEssentialTrueDofs() if possible. */
    void SetEssentialVDofs(const Array<int> &ess_vdofs_list);
 
    /// Specify essential boundary conditions.

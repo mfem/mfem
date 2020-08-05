@@ -15,6 +15,7 @@
 #include "bilinearform.hpp"
 #include "pbilinearform.hpp"
 #include "tmop.hpp"
+#include "gslib.hpp"
 
 namespace mfem
 {
@@ -26,9 +27,13 @@ private:
    RK4Solver ode_solver;
    Vector nodes0;
    Vector field0;
+   const double dt_scale;
 
+   void ComputeAtNewPositionScalar(const Vector &new_nodes, Vector &new_field);
 public:
-   AdvectorCG() : AdaptivityEvaluator(), ode_solver(), nodes0(), field0() { }
+   AdvectorCG(double timestep_scale = 0.5)
+      : AdaptivityEvaluator(),
+        ode_solver(), nodes0(), field0(), dt_scale(timestep_scale) { }
 
    virtual void SetInitialField(const Vector &init_nodes,
                                 const Vector &init_field);
@@ -36,6 +41,33 @@ public:
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
                                      Vector &new_field);
 };
+
+#ifdef MFEM_USE_GSLIB
+class InterpolatorFP : public AdaptivityEvaluator
+{
+private:
+   Vector nodes0;
+   GridFunction field0_gf;
+   FindPointsGSLIB *finder;
+   Array<uint> el_id_out, code_out, task_id_out;
+   Vector pos_r_out, dist_p_out;
+   int dim;
+public:
+   InterpolatorFP() : finder(NULL) { }
+
+   virtual void SetInitialField(const Vector &init_nodes,
+                                const Vector &init_field);
+
+   virtual void ComputeAtNewPosition(const Vector &new_nodes,
+                                     Vector &new_field);
+
+   ~InterpolatorFP()
+   {
+      finder->FreeData();
+      delete finder;
+   }
+};
+#endif
 
 /// Performs a single remap advection step in serial.
 class SerialAdvectorCGOper : public TimeDependentOperator
@@ -77,53 +109,56 @@ public:
 };
 #endif
 
-class TMOPNewtonSolver : public NewtonSolver
+class TMOPNewtonSolver : public LBFGSSolver
 {
-private:
+protected:
+   // 0 - Newton, 1 - LBFGS.
+   int solver_type;
    bool parallel;
 
    // Quadrature points that are checked for negative Jacobians etc.
    const IntegrationRule &ir;
 
-   mutable DiscreteAdaptTC *discr_tc;
+   void UpdateDiscreteTC(const TMOP_Integrator &ti, const Vector &x_new) const;
 
 public:
 #ifdef MFEM_USE_MPI
-   TMOPNewtonSolver(MPI_Comm comm, const IntegrationRule &irule)
-      : NewtonSolver(comm), parallel(true), ir(irule), discr_tc(NULL) { }
+   TMOPNewtonSolver(MPI_Comm comm, const IntegrationRule &irule, int type = 0)
+      : LBFGSSolver(comm), solver_type(type), parallel(true), ir(irule) { }
 #endif
-   TMOPNewtonSolver(const IntegrationRule &irule)
-      : NewtonSolver(), parallel(false), ir(irule), discr_tc(NULL) { }
-
-   void SetDiscreteAdaptTC(DiscreteAdaptTC *tc) { discr_tc = tc; }
+   TMOPNewtonSolver(const IntegrationRule &irule, int type = 0)
+      : LBFGSSolver(), solver_type(type), parallel(false), ir(irule) { }
 
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
 
    virtual void ProcessNewState(const Vector &x) const;
-};
 
-/// Allows negative Jacobians. Used for untangling.
-class TMOPDescentNewtonSolver : public NewtonSolver
-{
-private:
-   bool parallel;
+   virtual void Mult(const Vector &b, Vector &x) const
+   {
+      if (solver_type == 0)
+      {
+         NewtonSolver::Mult(b, x);
+      }
+      else if (solver_type == 1)
+      {
+         LBFGSSolver::Mult(b, x);
+      }
+      else { MFEM_ABORT("Invalid type"); }
+   }
 
-   // Quadrature points that are checked for negative Jacobians etc.
-   const IntegrationRule &ir;
-
-   mutable DiscreteAdaptTC *discr_tc;
-
-public:
-#ifdef MFEM_USE_MPI
-   TMOPDescentNewtonSolver(MPI_Comm comm, const IntegrationRule &irule)
-      : NewtonSolver(comm), parallel(true), ir(irule), discr_tc(NULL) { }
-#endif
-   TMOPDescentNewtonSolver(const IntegrationRule &irule)
-      : NewtonSolver(), parallel(false), ir(irule), discr_tc(NULL) { }
-
-   virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
-
-   virtual void ProcessNewState(const Vector &x) const;
+   virtual void SetSolver(Solver &solver)
+   {
+      if (solver_type == 0)
+      {
+         NewtonSolver::SetSolver(solver);
+      }
+      else if (solver_type == 1)
+      {
+         LBFGSSolver::SetSolver(solver);
+      }
+      else { MFEM_ABORT("Invalid type"); }
+   }
+   virtual void SetPreconditioner(Solver &pr) { SetSolver(pr); }
 };
 
 void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,
