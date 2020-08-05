@@ -27,7 +27,6 @@
 // Compile with: make pfindpts
 //
 // Sample runs:
-//    mpirun -np 2 pfindpts -m ../../data/rt-2d-q3.mesh -o 3 -mo 4 -ft 2
 //    mpirun -np 2 pfindpts -m ../../data/rt-2d-p4-tri.mesh -o 4
 //    mpirun -np 2 pfindpts -m ../../data/inline-tri.mesh -o 3
 //    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -o 3
@@ -35,6 +34,7 @@
 //    mpirun -np 2 pfindpts -m ../../data/inline-hex.mesh -o 3
 //    mpirun -np 2 pfindpts -m ../../data/inline-wedge.mesh -o 3
 //    mpirun -np 2 pfindpts -m ../../data/amr-quad.mesh -o 2
+//    mpirun -np 2 pfindpts -m ../../data/rt-2d-q3.mesh -o 3 -mo 4 -ft 2
 
 
 #include "mfem.hpp"
@@ -90,7 +90,7 @@ int main (int argc, char *argv[])
    args.AddOption(&fieldtype, "-ft", "--field-type",
                   "Field type: 0 - H1, 1 - L2, 2 - H(div), 3 - H(curl).");
    args.AddOption(&ncomp, "-nc", "--ncomp",
-                  "VDim for GridFunction");
+                  "Number of components for H1 or L2 GridFunctions");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -143,11 +143,9 @@ int main (int argc, char *argv[])
       cout << "Mesh curvature of the curved mesh: " << fecm.Name() << endl;
    }
 
-   MFEM_ASSERT(ncomp > 0, " Invalid input for ncomp.");
-   int ncfinal = ncomp;
-   ParGridFunction field_vals;
+   MFEM_VERIFY(ncomp > 0, "Invalid number of components.");
+   int vec_dim = ncomp;
    FiniteElementCollection *fec = NULL;
-   ParFiniteElementSpace *sc_fes = NULL;
    if (fieldtype == 0)
    {
       fec = new H1_FECollection(order, dim);
@@ -160,25 +158,27 @@ int main (int argc, char *argv[])
    }
    else if (fieldtype == 2)
    {
-      fec = new ND_FECollection(order, dim);
-      ncfinal = dim;
+      fec = new RT_FECollection(order, dim);
+      ncomp = 1;
+      vec_dim = dim;
       if (myid == 0) { cout << "H(div)-GridFunction\n"; }
    }
    else if (fieldtype == 3)
    {
-      fec = new RT_FECollection(order, dim);
-      ncfinal = dim;
+      fec = new ND_FECollection(order, dim);
+      ncomp = 1;
+      vec_dim = dim;
       if (myid == 0) { cout << "H(curl)-GridFunction\n"; }
    }
    else
    {
       if (myid == 0) { MFEM_ABORT("Invalid FECollection type."); }
    }
-   sc_fes = new ParFiniteElementSpace(&pmesh, fec, ncfinal);
-   field_vals.SetSpace(sc_fes);
+   ParFiniteElementSpace sc_fes(&pmesh, fec, ncomp);
+   ParGridFunction field_vals(&sc_fes);
 
    // Project the GridFunction using VectorFunctionCoefficient.
-   VectorFunctionCoefficient F(ncfinal, F_exact);
+   VectorFunctionCoefficient F(vec_dim, F_exact);
    field_vals.ProjectCoefficient(F);
 
    // Display the mesh and the field through glvis.
@@ -238,7 +238,7 @@ int main (int argc, char *argv[])
    }
 
    // Find and Interpolate FE function values on the desired points.
-   Vector interp_vals(pts_cnt*ncfinal);
+   Vector interp_vals(pts_cnt*vec_dim);
    FindPointsGSLIB finder(MPI_COMM_WORLD);
    finder.Setup(pmesh);
    finder.Interpolate(vxyz, field_vals, interp_vals);
@@ -250,7 +250,7 @@ int main (int argc, char *argv[])
    double max_err = 0.0, max_dist = 0.0;
    Vector pos(dim);
    int npt = 0;
-   for (int j = 0; j < ncfinal; j++)
+   for (int j = 0; j < vec_dim; j++)
    {
       for (int i = 0; i < pts_cnt; i++)
       {
@@ -262,7 +262,7 @@ int main (int argc, char *argv[])
          if (code_out[i] < 2)
          {
             for (int d = 0; d < dim; d++) { pos(d) = vxyz(d * pts_cnt + i); }
-            Vector exact_val(ncfinal);
+            Vector exact_val(vec_dim);
             F_exact(pos, exact_val);
             max_err  = std::max(max_err, fabs(exact_val(j) - interp_vals[npt]));
             max_dist = std::max(max_dist, dist_p_out(i));
@@ -312,8 +312,7 @@ int main (int argc, char *argv[])
 
    // Free the internal gslib data.
    finder.FreeData();
-   // Delete
-   delete sc_fes;
+
    delete fec;
 
    MPI_Finalize();
