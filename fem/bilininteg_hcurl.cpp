@@ -29,14 +29,14 @@ void PAHcurlSetup2D(const int Q1D,
                     const int NE,
                     const Array<double> &w,
                     const Vector &j,
-                    Vector &_coeff,
+                    Vector &coeff,
                     Vector &op)
 {
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
 
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
-   auto coeff = Reshape(_coeff.Read(), coeffDim, NQ, NE);
+   auto C = Reshape(coeff.Read(), coeffDim, NQ, NE);
    auto y = Reshape(op.Write(), NQ, 3, NE);
 
    MFEM_FORALL(e, NE,
@@ -47,8 +47,8 @@ void PAHcurlSetup2D(const int Q1D,
          const double J21 = J(q,1,0,e);
          const double J12 = J(q,0,1,e);
          const double J22 = J(q,1,1,e);
-         const double c_detJ1 = W[q] * coeff(0, q, e) / ((J11*J22)-(J21*J12));
-         const double c_detJ2 = coeffDim == 2 ? W[q] * coeff(1, q, e)
+         const double c_detJ1 = W[q] * C(0, q, e) / ((J11*J22)-(J21*J12));
+         const double c_detJ2 = coeffDim == 2 ? W[q] * C(1, q, e)
          / ((J11*J22)-(J21*J12)) : c_detJ1;
          y(q,0,e) =  (c_detJ2*J12*J12 + c_detJ1*J22*J22); // 1,1
          y(q,1,e) = -(c_detJ2*J12*J11 + c_detJ1*J22*J21); // 1,2
@@ -63,13 +63,13 @@ void PAHcurlSetup3D(const int Q1D,
                     const int NE,
                     const Array<double> &w,
                     const Vector &j,
-                    Vector &_coeff,
+                    Vector &coeff,
                     Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
-   auto coeff = Reshape(_coeff.Read(), coeffDim, NQ, NE);
+   auto C = Reshape(coeff.Read(), coeffDim, NQ, NE);
    auto y = Reshape(op.Write(), NQ, 6, NE);
 
    MFEM_FORALL(e, NE,
@@ -89,9 +89,9 @@ void PAHcurlSetup3D(const int Q1D,
          /* */               J21 * (J12 * J33 - J32 * J13) +
          /* */               J31 * (J12 * J23 - J22 * J13);
          const double w_detJ = W[q] / detJ;
-         const double D1 = coeff(0, q, e);
-         const double D2 = coeffDim == 3 ? coeff(1, q, e) : D1;
-         const double D3 = coeffDim == 3 ? coeff(2, q, e) : D1;
+         const double D1 = C(0, q, e);
+         const double D2 = coeffDim == 3 ? C(1, q, e) : D1;
+         const double D3 = coeffDim == 3 ? C(2, q, e) : D1;
          // adj(J)
          const double A11 = (J22 * J33) - (J23 * J32);
          const double A12 = (J32 * J13) - (J12 * J33);
@@ -366,6 +366,7 @@ void PAHcurlMassAssembleDiagonal3D(const int D1D,
    }); // end of element loop
 }
 
+template<int T_D1D, int T_Q1D>
 void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
                                        const int Q1D,
                                        const int NE,
@@ -378,6 +379,9 @@ void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
 
+   constexpr int tD1D = T_D1D ? T_D1D : MAX_D1D;
+   constexpr int tQ1D = T_Q1D ? T_Q1D : MAX_Q1D;
+
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
 
@@ -388,12 +392,12 @@ void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
-      MFEM_SHARED double sBG[2][MAX_Q1D*MAX_D1D];
-      double (*sBo)[MAX_Q1D] = (double (*)[MAX_Q1D]) (sBG+0);
-      double (*sBc)[MAX_Q1D] = (double (*)[MAX_Q1D]) (sBG+1);
+      MFEM_SHARED double sBG[2][tQ1D*MAX_D1D];  // TODO: Changing MAX_D1D to tD1D results in failing unit tests, although ex3p succeeds.
+      double (*sBo)[tQ1D] = (double (*)[tQ1D]) (sBG+0);
+      double (*sBc)[tQ1D] = (double (*)[tQ1D]) (sBG+1);
 
       double op3[3];
-      MFEM_SHARED double sop[3][MAX_Q1D][MAX_Q1D];
+      MFEM_SHARED double sop[3][tQ1D][tQ1D];
 
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
@@ -4542,4 +4546,35 @@ void MixedVectorWeakCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
 }
 
+template void SmemPAHcurlMassAssembleDiagonal3D<2,3>(const int D1D,
+                                                     const int Q1D,
+                                                     const int NE,
+                                                     const Array<double> &bo,
+                                                     const Array<double> &bc,
+                                                     const Vector &pa_data,
+                                                     Vector &diag);
+
+template void SmemPAHcurlMassAssembleDiagonal3D<3,4>(const int D1D,
+                                                     const int Q1D,
+                                                     const int NE,
+                                                     const Array<double> &bo,
+                                                     const Array<double> &bc,
+                                                     const Vector &pa_data,
+                                                     Vector &diag);
+
+template void SmemPAHcurlMassAssembleDiagonal3D<4,5>(const int D1D,
+                                                     const int Q1D,
+                                                     const int NE,
+                                                     const Array<double> &bo,
+                                                     const Array<double> &bc,
+                                                     const Vector &pa_data,
+                                                     Vector &diag);
+
+template void SmemPAHcurlMassAssembleDiagonal3D<5,6>(const int D1D,
+                                                     const int Q1D,
+                                                     const int NE,
+                                                     const Array<double> &bo,
+                                                     const Array<double> &bc,
+                                                     const Vector &pa_data,
+                                                     Vector &diag);
 } // namespace mfem
