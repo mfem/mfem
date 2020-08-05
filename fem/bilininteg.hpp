@@ -82,7 +82,7 @@ public:
    /** The result of the element assembly is added to the @a emat Vector if
        @a add is true, it sets @a emat if @a add is false. */
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
-                           const bool add = false);
+                           const bool add = true);
    /** Used with BilinearFormIntegrators that have different spaces. */
    // virtual void AssembleEA(const FiniteElementSpace &trial_fes,
    //                         const FiniteElementSpace &test_fes,
@@ -91,11 +91,11 @@ public:
    virtual void AssembleEAInteriorFaces(const FiniteElementSpace &fes,
                                         Vector &ea_data_int,
                                         Vector &ea_data_ext,
-                                        const bool add = false);
+                                        const bool add = true);
 
    virtual void AssembleEABoundaryFaces(const FiniteElementSpace &fes,
                                         Vector &ea_data_bdr,
-                                        const bool add = false);
+                                        const bool add = true);
 
    /// Given a particular Finite Element computes the element matrix elmat.
    virtual void AssembleElementMatrix(const FiniteElement &el,
