@@ -10,12 +10,12 @@
 // Software Foundation) version 2.1 dated February 1999.
 //
 //   -----------------------------------------------------------------------
-//   Hertz Miniapp:  Simple Frequency-Domain Electromagnetic Simulation Code
+//       Stix1D Miniapp: Cold Plasma Electromagnetic Simulation Code
 //   -----------------------------------------------------------------------
 //
 //   Assumes that all sources and boundary conditions oscillate with the same
-//   frequency although not necessarily in phase with one another.  This
-//   assumptions implies that we can factor out the time dependence which we
+//   frequency although not necessarily in phase with one another. This
+//   assumption implies that we can factor out the time dependence which we
 //   take to be of the form exp(i omega t).  With these assumptions we can
 //   write the Maxwell equations in the form:
 //
@@ -27,7 +27,7 @@
 //   Curl mu^{-1} Curl E - omega^2 epsilon E + i omega sigma E = - i omega J
 //
 //   We discretize this equation with H(Curl) a.k.a Nedelec basis
-//   functions.  The curl curl operator must be handled with
+//   functions. The curl curl operator must be handled with
 //   integration by parts which yields a surface integral:
 //
 //   (W, Curl mu^{-1} Curl E) = (Curl W, mu^{-1} Curl E)
@@ -47,43 +47,30 @@
 //   (W, Curl mu^{-1} Curl E) = (Curl W, mu^{-1} Curl E)
 //               - i omega sqrt{epsilon/mu} (W, E)_{\Gamma}
 //
+// (By default the sources and fields are all zero)
 //
-// Compile with: make hertz
+// Compile with: make stix1d
 //
 // Sample runs:
+//   ./stix1d -md 0.24  -ne  50 -dbcs '3 5' -s 1 -f 80e6 -B '5.4 0 0' -w R -num '2e20 2e20'
+//   ./stix1d -md 0.24  -ne  50 -dbcs '3 5' -s 1 -f 80e6 -B '5.4 0 0' -w L -num '2e20 2e20'
+//   ./stix1d -md 0.007 -ne  50 -dbcs '3 5' -s 1 -f 80e6 -B '0 5.4 0' -w O -num '2e20 2e20'
+//   ./stix1d -md 0.24  -ne 480 -dbcs '3 5' -s 1 -f 80e6 -B '0 0 5.4' -w J -num '2e20 2e20' -slab '0 1 0 0.16 0.02' -maxit 1
 //
-//   By default the sources and fields are all zero
-//     mpirun -np 4 hertz
+// Sample runs with partial assembly:
+//   ./stix1d -md 0.24  -ne  50 -dbcs '3 5' -s 1 -f 80e6 -B '5.4 0 0' -w R -num '2e20 2e20' -pa
+//   ./stix1d -md 0.24  -ne  50 -dbcs '3 5' -s 1 -f 80e6 -B '5.4 0 0' -w L -num '2e20 2e20' -pa
+//   ./stix1d -md 0.007 -ne  50 -dbcs '3 5' -s 1 -f 80e6 -B '0 5.4 0' -w O -num '2e20 2e20' -pa
 //
-// ./stix1d -md 0.24 -ne 50 -dbcs '3 5' -s 5 -f 80e6 -B '5.4 0 0' -w R -num '2e20 2e20'
+// Device sample runs:
+//   ./stix1d -md 0.24  -ne  50 -dbcs '3 5' -s 1 -f 80e6 -B '5.4 0 0' -w R -num '2e20 2e20' -pa -d cuda
+//   ./stix1d -md 0.24  -ne  50 -dbcs '3 5' -s 1 -f 80e6 -B '5.4 0 0' -w L -num '2e20 2e20' -pa -d cuda
+//   ./stix1d -md 0.007 -ne  50 -dbcs '3 5' -s 1 -f 80e6 -B '0 5.4 0' -w O -num '2e20 2e20' -pa -d cuda
 //
-// ./stix1d -md 0.24 -ne 50 -dbcs '3 5' -s 5 -f 80e6 -B '5.4 0 0' -w L -num '2e20 2e20'
-//
-// ./stix1d -md 0.007 -ne 50 -dbcs '3 5' -s 5 -f 80e6 -B '0 5.4 0' -w O -num '2e20 2e20'
-//
-// ./stix1d -md 0.24 -ne 480 -dbcs '3 5' -s 5 -f 80e6 -maxit 1 -B '0 0 5.4' -w J -slab '0 1 0 0.16 0.02' -num '2e20 2e20'
-//
-//   Current source in a sphere with absorbing boundary conditions
-//     mpirun -np 4 hertz -m ../../data/ball-nurbs.mesh -rs 2
-//                        -abcs '-1' -f 3e8
-//                        -do '-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5'
-//
-//   Current source in a metal sphere with dielectric and conducting materials
-//     mpirun -np 4 hertz -m ../../data/ball-nurbs.mesh -rs 2
-//                        -dbcs '-1' -f 3e8
-//                        -do '-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5'
-//                        -cs '0.0 0.0 -0.5 .2 10'
-//                        -ds '0.0 0.0 0.5 .2 10'
-//
-//   Current source in a metal box
-//     mpirun -np 4 hertz -m ../../data/fichera.mesh -rs 3
-//                        -dbcs '-1' -f 3e8
-//                        -do '-0.5 -0.5 0.0 -0.5 -0.5 1.0 0.1 1 .5 1'
-//
-//   Current source with a mixture of absorbing and reflecting boundaries
-//     mpirun -np 4 hertz -m ../../data/fichera.mesh -rs 3
-//                        -do '-0.5 -0.5 0.0 -0.5 -0.5 1.0 0.1 1 .5 1'
-//                        -dbcs '4 8 19 21' -abcs '5 18' -f 3e8
+// Parallel sample runs:
+//   mpirun -np 4 ./stix1d -md 0.24  -ne  50 -dbcs '3 5' -s 1 -f 80e6 -B '5.4 0 0' -w R -num '2e20 2e20'
+//   mpirun -np 4 ./stix1d -md 0.24  -ne  50 -dbcs '3 5' -s 1 -f 80e6 -B '5.4 0 0' -w L -num '2e20 2e20'
+//   mpirun -np 4 ./stix1d -md 0.007 -ne  50 -dbcs '3 5' -s 1 -f 80e6 -B '0 5.4 0' -w O -num '2e20 2e20'
 //
 
 #include "cold_plasma_dielectric_coefs.hpp"
@@ -299,6 +286,9 @@ int main(int argc, char *argv[])
    solOpts.relTol = 1e-4;
    solOpts.euLvl = 1;
 
+   bool pa = false;
+   const char *device_config = "cpu";
+
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
@@ -401,6 +391,10 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&visit, "-visit", "--visit", "-no-visit", "--no-visit",
                   "Enable or disable VisIt visualization.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.Parse();
    if (!args.Good())
    {
@@ -409,6 +403,11 @@ int main(int argc, char *argv[])
          args.PrintUsage(cout);
       }
       return 1;
+   }
+   Device device(device_config);
+   if (mpi.Root())
+   {
+      device.Print();
    }
    if (numbers.Size() == 0)
    {
@@ -925,7 +924,7 @@ int main(int argc, char *argv[])
                  abcs, sbcs, dbcs, nbcs,
                  // e_bc_r, e_bc_i,
                  // EReCoef, EImCoef,
-                 (slab_params_.Size() > 0) ? j_src : NULL, NULL, vis_u);
+                 (slab_params_.Size() > 0) ? j_src : NULL, NULL, vis_u, pa);
 
    // Initialize GLVis visualization
    if (visualization)

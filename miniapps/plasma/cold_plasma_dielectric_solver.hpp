@@ -229,7 +229,8 @@ public:
              Array<ComplexVectorCoefficientByAttr> & nbcs,
              void (*j_r_src)(const Vector&, Vector&),
              void (*j_i_src)(const Vector&, Vector&),
-             bool vis_u = false);
+             bool vis_u = false,
+             bool pa = false);
    ~CPDSolver();
 
    HYPRE_Int GetProblemSize();
@@ -274,6 +275,7 @@ private:
 
    bool ownsEtaInv_;
    bool vis_u_;
+   bool pa_;
 
    double omega_;
 

@@ -34,6 +34,7 @@ void PAHcurlSetup3D(const int Q1D,
 void PAHcurlMassAssembleDiagonal2D(const int D1D,
                                    const int Q1D,
                                    const int NE,
+                                   const bool symmetric,
                                    const Array<double> &_Bo,
                                    const Array<double> &_Bc,
                                    const Vector &_op,
@@ -42,6 +43,7 @@ void PAHcurlMassAssembleDiagonal2D(const int D1D,
 void PAHcurlMassAssembleDiagonal3D(const int D1D,
                                    const int Q1D,
                                    const int NE,
+                                   const bool symmetric,
                                    const Array<double> &_Bo,
                                    const Array<double> &_Bc,
                                    const Vector &_op,
@@ -50,6 +52,7 @@ void PAHcurlMassAssembleDiagonal3D(const int D1D,
 void PAHcurlMassApply2D(const int D1D,
                         const int Q1D,
                         const int NE,
+                        const bool symmetric,
                         const Array<double> &_Bo,
                         const Array<double> &_Bc,
                         const Array<double> &_Bot,
@@ -61,6 +64,7 @@ void PAHcurlMassApply2D(const int D1D,
 void PAHcurlMassApply3D(const int D1D,
                         const int Q1D,
                         const int NE,
+                        const bool symmetric,
                         const Array<double> &_Bo,
                         const Array<double> &_Bc,
                         const Array<double> &_Bot,
@@ -173,19 +177,33 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
 
-   pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
+   const int MQsymmDim = MQ ? (MQ->GetWidth() * (MQ->GetWidth() + 1)) / 2 : 0;
+   const int MQfullDim = MQ ? (MQ->GetHeight() * MQ->GetWidth()) : 0;
+   const int MQdim = MQ ? (MQ->IsSymmetric() ? MQsymmDim : MQfullDim) : 0;
+   const int coeffDim = MQ ? MQdim : (VQ ? VQ->GetVDim() : 1);
 
-   const int coeffDim = VQ ? VQ->GetVDim() : 1;
+   symmetric = MQ ? MQ->IsSymmetric() : true;
+
+   pa_data.SetSize((symmetric ? symmDims : MQfullDim) * nq * ne,
+                   Device::GetMemoryType());
 
    Vector coeff(coeffDim * ne * nq);
    coeff = 1.0;
    auto coeffh = Reshape(coeff.HostWrite(), coeffDim, nq, ne);
-   if (Q || VQ)
+   if (Q || VQ || MQ)
    {
       Vector D(VQ ? coeffDim : 0);
+      DenseMatrix M(MQ ? dim : 0);
+      Vector Msymm(MQsymmDim);
+
       if (VQ)
       {
          MFEM_VERIFY(coeffDim == dim, "");
+      }
+      if (MQ)
+      {
+         MFEM_VERIFY(coeffDim == MQdim, "");
+         MFEM_VERIFY(MQ->GetHeight() == dim && MQ->GetWidth() == dim, "");
       }
 
       for (int e=0; e<ne; ++e)
@@ -193,7 +211,29 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
          ElementTransformation *tr = mesh->GetElementTransformation(e);
          for (int p=0; p<nq; ++p)
          {
-            if (VQ)
+            if (MQ)
+            {
+               if (MQ->IsSymmetric())
+               {
+                  MQ->EvalSymmetric(Msymm, *tr, ir->IntPoint(p));
+
+                  for (int i=0; i<MQsymmDim; ++i)
+                  {
+                     coeffh(i, p, e) = Msymm[i];
+                  }
+               }
+               else
+               {
+                  MQ->Eval(M, *tr, ir->IntPoint(p));
+
+                  for (int i=0; i<dim; ++i)
+                     for (int j=0; j<dim; ++j)
+                     {
+                        coeffh(j+(i*dim), p, e) = M(i,j);
+                     }
+               }
+            }
+            else if (VQ)
             {
                VQ->Eval(D, *tr, ir->IntPoint(p));
                for (int i=0; i<coeffDim; ++i)
@@ -243,7 +283,7 @@ void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
    {
       if (fetype == mfem::FiniteElement::CURL)
       {
-         PAHcurlMassAssembleDiagonal3D(dofs1D, quad1D, ne,
+         PAHcurlMassAssembleDiagonal3D(dofs1D, quad1D, ne, symmetric,
                                        mapsO->B, mapsC->B, pa_data, diag);
       }
       else if (fetype == mfem::FiniteElement::DIV)
@@ -260,7 +300,7 @@ void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
    {
       if (fetype == mfem::FiniteElement::CURL)
       {
-         PAHcurlMassAssembleDiagonal2D(dofs1D, quad1D, ne,
+         PAHcurlMassAssembleDiagonal2D(dofs1D, quad1D, ne, symmetric,
                                        mapsO->B, mapsC->B, pa_data, diag);
       }
       else if (fetype == mfem::FiniteElement::DIV)
@@ -281,8 +321,8 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    {
       if (fetype == mfem::FiniteElement::CURL)
       {
-         PAHcurlMassApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
-                            mapsC->Bt, pa_data, x, y);
+         PAHcurlMassApply3D(dofs1D, quad1D, ne, symmetric, mapsO->B, mapsC->B,
+                            mapsO->Bt, mapsC->Bt, pa_data, x, y);
       }
       else if (fetype == mfem::FiniteElement::DIV)
       {
@@ -298,8 +338,8 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    {
       if (fetype == mfem::FiniteElement::CURL)
       {
-         PAHcurlMassApply2D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
-                            mapsC->Bt, pa_data, x, y);
+         PAHcurlMassApply2D(dofs1D, quad1D, ne, symmetric, mapsO->B, mapsC->B,
+                            mapsO->Bt, mapsC->Bt, pa_data, x, y);
       }
       else if (fetype == mfem::FiniteElement::DIV)
       {

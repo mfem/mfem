@@ -59,6 +59,74 @@ double linearFunction(const Vector & x)
    }
 }
 
+void asymmetricMatrixCoeffFunction(const Vector & x, DenseMatrix & f)
+{
+   f = 0.0;
+   if (dimension == 2)
+   {
+      f(0,0) = 1.1 + sin(M_PI * x[1]);  // 1,1
+      f(1,0) = cos(1.3 * M_PI * x[1]);  // 2,1
+      f(0,1) = cos(2.5 * M_PI * x[0]);  // 1,2
+      f(1,1) = 1.1 + sin(4.9 * M_PI * x[0]);  // 2,2
+   }
+   else if (dimension == 3)
+   {
+      f(0,0) = 1.1 + sin(M_PI * x[1]);  // 1,1
+      f(0,1) = cos(2.5 * M_PI * x[0]);  // 1,2
+      f(0,2) = sin(4.9 * M_PI * x[2]);  // 1,3
+      f(1,0) = cos(M_PI * x[0]);  // 2,1
+      f(1,1) = 1.1 + sin(6.1 * M_PI * x[1]);  // 2,2
+      f(1,2) = cos(6.1 * M_PI * x[2]);  // 2,3
+      f(2,0) = sin(1.5 * M_PI * x[1]);  // 3,1
+      f(2,1) = cos(2.9 * M_PI * x[0]);  // 3,2
+      f(2,2) = 1.1 + sin(6.1 * M_PI * x[2]);  // 3,3
+   }
+}
+
+void fullSymmetricMatrixCoeffFunction(const Vector & x, DenseMatrix & f)
+{
+   f = 0.0;
+   if (dimension == 2)
+   {
+      f(0,0) = 1.1 + sin(M_PI * x[1]);  // 1,1
+      f(0,1) = cos(2.5 * M_PI * x[0]);  // 1,2
+      f(1,1) = 1.1 + sin(4.9 * M_PI * x[0]);  // 2,2
+      f(1,0) = f(0,1);
+   }
+   else if (dimension == 3)
+   {
+      f(0,0) = sin(M_PI * x[1]);  // 1,1
+      f(0,1) = cos(2.5 * M_PI * x[0]);  // 1,2
+      f(0,2) = sin(4.9 * M_PI * x[2]);  // 1,3
+      f(1,1) = sin(6.1 * M_PI * x[1]);  // 2,2
+      f(1,2) = cos(6.1 * M_PI * x[2]);  // 2,3
+      f(2,2) = sin(6.1 * M_PI * x[2]);  // 3,3
+      f(1,0) = f(0,1);
+      f(2,0) = f(0,2);
+      f(2,1) = f(1,2);
+   }
+}
+
+void symmetricMatrixCoeffFunction(const Vector & x, Vector & f)
+{
+   f = 0.0;
+   if (dimension == 2)
+   {
+      f[0] = 1.1 + sin(M_PI * x[1]);  // 1,1
+      f[1] = cos(2.5 * M_PI * x[0]);  // 1,2
+      f[2] = 1.1 + sin(4.9 * M_PI * x[0]);  // 2,2
+   }
+   else if (dimension == 3)
+   {
+      f[0] = sin(M_PI * x[1]);  // 1,1
+      f[1] = cos(2.5 * M_PI * x[0]);  // 1,2
+      f[2] = sin(4.9 * M_PI * x[2]);  // 1,3
+      f[3] = sin(6.1 * M_PI * x[1]);  // 2,2
+      f[4] = cos(6.1 * M_PI * x[2]);  // 2,3
+      f[5] = sin(6.1 * M_PI * x[2]);  // 3,3
+   }
+}
+
 TEST_CASE("H1 pa_coeff")
 {
    for (dimension = 2; dimension < 4; ++dimension)
@@ -185,11 +253,13 @@ TEST_CASE("Hcurl/Hdiv pa_coeff")
          mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
       }
 
-      for (int coeffType = 0; coeffType < 3; ++coeffType)
+      for (int coeffType = 0; coeffType < 5; ++coeffType)
       {
          Coefficient* coeff = nullptr;
          Coefficient* coeff2 = nullptr;
          VectorCoefficient* vcoeff = nullptr;
+         MatrixCoefficient* mcoeff = nullptr;
+         MatrixCoefficient* smcoeff = nullptr;
          if (coeffType == 0)
          {
             coeff = new ConstantCoefficient(12.34);
@@ -205,10 +275,26 @@ TEST_CASE("Hcurl/Hdiv pa_coeff")
             vcoeff = new VectorFunctionCoefficient(dimension, &vectorCoeffFunction);
             coeff2 = new FunctionCoefficient(&linearFunction);
          }
+         else if (coeffType == 3)
+         {
+            mcoeff = new MatrixFunctionCoefficient(dimension,
+                                                   &fullSymmetricMatrixCoeffFunction);
+            smcoeff = new MatrixFunctionCoefficient(dimension,
+                                                    &symmetricMatrixCoeffFunction);
+            coeff2 = new FunctionCoefficient(&linearFunction);
+         }
+         else if (coeffType == 4)
+         {
+            mcoeff = new MatrixFunctionCoefficient(dimension,
+                                                   &asymmetricMatrixCoeffFunction);
+            smcoeff = new MatrixFunctionCoefficient(dimension,
+                                                    &asymmetricMatrixCoeffFunction);
+            coeff2 = new FunctionCoefficient(&linearFunction);
+         }
 
          for (int spaceType = 0; spaceType < 2; ++spaceType)
          {
-            if (spaceType == 1 && coeffType == 2)
+            if (spaceType == 1 && coeffType >= 2)
             {
                continue;   // Case not implemented yet
             }
@@ -218,13 +304,13 @@ TEST_CASE("Hcurl/Hdiv pa_coeff")
             {
                if (spaceType == 0)
                   std::cout << "Testing " << dimension
-                            << "D ND partial assembly with " << "coeffType "
-                            << coeffType << " and " << "integrator "
+                            << "D ND partial assembly with coeffType "
+                            << coeffType << " and integrator "
                             << integrator << std::endl;
                else
                   std::cout << "Testing " << dimension
-                            << "D RT partial assembly with " << "coeffType "
-                            << coeffType << " and " << "integrator "
+                            << "D RT partial assembly with coeffType "
+                            << coeffType << " and integrator "
                             << integrator << std::endl;
 
                for (int order = 1; order < 4; ++order)
@@ -275,7 +361,13 @@ TEST_CASE("Hcurl/Hdiv pa_coeff")
                   BilinearForm assemblyform(&fespace);
                   if (integrator < 2)
                   {
-                     if (coeffType == 2)
+                     if (coeffType >= 3)
+                     {
+                        paform.AddDomainIntegrator(new VectorFEMassIntegrator(*smcoeff));
+                        assemblyform.AddDomainIntegrator(
+                           new VectorFEMassIntegrator(*mcoeff));
+                     }
+                     else if (coeffType == 2)
                      {
                         paform.AddDomainIntegrator(new VectorFEMassIntegrator(*vcoeff));
                         assemblyform.AddDomainIntegrator(
@@ -307,7 +399,6 @@ TEST_CASE("Hcurl/Hdiv pa_coeff")
 
                   assemblyform.SetDiagonalPolicy(Matrix::DIAG_ONE);
                   assemblyform.Assemble();
-                  assemblyform.Finalize();
                   SparseMatrix A_explicit;
                   assemblyform.FormSystemMatrix(ess_tdof_list, A_explicit);
 
@@ -344,6 +435,9 @@ TEST_CASE("Hcurl/Hdiv pa_coeff")
 
          delete coeff;
          delete coeff2;
+         delete vcoeff;
+         delete mcoeff;
+         delete smcoeff;
       }
 
       delete mesh;

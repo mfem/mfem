@@ -1048,6 +1048,36 @@ HYPRE_Int HypreParMatrix::MultTranspose(HypreParVector & x, HypreParVector & y,
    return hypre_ParCSRMatrixMatvecT(a, A, x, b, y);
 }
 
+void HypreParMatrix::AbsMult(double a, const Vector &x,
+                             double b, Vector &y) const
+{
+   MFEM_ASSERT(x.Size() == Width(), "invalid x.Size() = " << x.Size()
+               << ", expected size = " << Width());
+   MFEM_ASSERT(y.Size() == Height(), "invalid y.Size() = " << y.Size()
+               << ", expected size = " << Height());
+
+   auto x_data = x.HostRead();
+   auto y_data = (b == 0.0) ? y.HostWrite() : y.HostReadWrite();
+
+   internal::hypre_ParCSRMatrixAbsMatvec(A, a, const_cast<double*>(x_data),
+                                         b, y_data);
+}
+
+void HypreParMatrix::AbsMultTranspose(double a, const Vector &x,
+                                      double b, Vector &y) const
+{
+   MFEM_ASSERT(x.Size() == Height(), "invalid x.Size() = " << x.Size()
+               << ", expected size = " << Height());
+   MFEM_ASSERT(y.Size() == Width(), "invalid y.Size() = " << y.Size()
+               << ", expected size = " << Width());
+
+   auto x_data = x.HostRead();
+   auto y_data = (b == 0.0) ? y.HostWrite() : y.HostReadWrite();
+
+   internal::hypre_ParCSRMatrixAbsMatvecT(A, a, const_cast<double*>(x_data),
+                                          b, y_data);
+}
+
 HypreParMatrix* HypreParMatrix::LeftDiagMult(const SparseMatrix &D,
                                              HYPRE_Int* row_starts) const
 {

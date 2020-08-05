@@ -695,13 +695,16 @@ class MatrixCoefficient
 protected:
    int height, width;
    double time;
+   bool symmetric;
 
 public:
    /// Construct a dim x dim matrix coefficient.
-   explicit MatrixCoefficient(int dim) { height = width = dim; time = 0.; }
+   explicit MatrixCoefficient(int dim, bool symm=false)
+   { height = width = dim; time = 0.; symmetric = symm; }
 
    /// Construct a h x w matrix coefficient.
-   MatrixCoefficient(int h, int w) : height(h), width(w), time(0.) { }
+   MatrixCoefficient(int h, int w, bool symm=false) :
+      height(h), width(w), time(0.), symmetric(symm) { }
 
    /// Set the time for time dependent coefficients
    void SetTime(double t) { time = t; }
@@ -718,6 +721,9 @@ public:
    /// For backward compatibility get the width of the matrix.
    int GetVDim() const { return width; }
 
+   void SetSymmetric(bool s) { symmetric = s; }
+   bool IsSymmetric() const { return symmetric; }
+
    /** @brief Evaluate the matrix coefficient in the element described by @a T
        at the point @a ip, storing the result in @a K. */
    /** @note When this method is called, the caller must make sure that the
@@ -725,6 +731,14 @@ public:
        achieved by calling T.SetIntPoint(&ip). */
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip) = 0;
+
+   /** @brief Evaluate the upper triangular entries of the matrix coefficient
+       in the symmetric case, similarly to Eval. Matrix entry (i,j) is stored
+       in K[j - i + os_i] for 0 <= i <= j < width, os_0 = 0,
+       os_{i+1} = os_i + width - i. */
+   virtual void EvalSymmetric(Vector &K, ElementTransformation &T,
+                              const IntegrationPoint &ip)
+   { mfem_error("MatrixCoefficient::EvalSymmetric"); }
 
    virtual ~MatrixCoefficient() { }
 };
@@ -753,6 +767,7 @@ class MatrixFunctionCoefficient : public MatrixCoefficient
 {
 private:
    void (*Function)(const Vector &, DenseMatrix &);
+   void (*SymmFunction)(const Vector &, Vector &);
    void (*TDFunction)(const Vector &, double, DenseMatrix &);
    Coefficient *Q;
    DenseMatrix mat;
@@ -790,9 +805,24 @@ public:
       mat.SetSize(0);
    }
 
+   /// Construct a symmetric square matrix coefficient from a C-function
+   MatrixFunctionCoefficient(int dim, void (*F)(const Vector &, Vector &),
+                             Coefficient *q = NULL)
+      : MatrixCoefficient(dim, true), Q(q)
+   {
+      SymmFunction = F;
+      Function = NULL;
+      TDFunction = NULL;
+      mat.SetSize(0);
+   }
+
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
+
+   /// Evaluate the symmetric matrix coefficient at @a ip.
+   virtual void EvalSymmetric(Vector &K, ElementTransformation &T,
+                              const IntegrationPoint &ip);
 
    virtual ~MatrixFunctionCoefficient() { }
 };
