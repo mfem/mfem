@@ -131,7 +131,6 @@ static void EAMassAssemble2D(const int NE,
                   {
                      M(i1, i2, j1, j2, e) = val;
                   }
-                  
                }
             }
          }
@@ -244,7 +243,7 @@ void MassIntegrator::AssembleEA(const FiniteElementSpace &fes,
          case 0x88: return EAMassAssemble1D<8,8>(ne,B,pa_data,ea_data,add);
          case 0x99: return EAMassAssemble1D<9,9>(ne,B,pa_data,ea_data,add);
          default:   return EAMassAssemble1D(ne,B,pa_data,ea_data,add,
-                                            dofs1D,quad1D);
+                                               dofs1D,quad1D);
       }
    }
    else if (dim == 2)
@@ -260,7 +259,7 @@ void MassIntegrator::AssembleEA(const FiniteElementSpace &fes,
          case 0x88: return EAMassAssemble2D<8,8>(ne,B,pa_data,ea_data,add);
          case 0x99: return EAMassAssemble2D<9,9>(ne,B,pa_data,ea_data,add);
          default:   return EAMassAssemble2D(ne,B,pa_data,ea_data,add,
-                                            dofs1D,quad1D);
+                                               dofs1D,quad1D);
       }
    }
    else if (dim == 3)
@@ -275,7 +274,7 @@ void MassIntegrator::AssembleEA(const FiniteElementSpace &fes,
          case 0x78: return EAMassAssemble3D<7,8>(ne,B,pa_data,ea_data,add);
          case 0x89: return EAMassAssemble3D<8,9>(ne,B,pa_data,ea_data,add);
          default:   return EAMassAssemble3D(ne,B,pa_data,ea_data,add,
-                                            dofs1D,quad1D);
+                                               dofs1D,quad1D);
       }
    }
    MFEM_ABORT("Unknown kernel.");

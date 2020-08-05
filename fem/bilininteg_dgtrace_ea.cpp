@@ -116,7 +116,7 @@ static void EADGTraceAssemble2DInt(const int NF,
                A_ext(i1, j1, 1, f) += val_ext10;
             }
             else
-            {   
+            {
                A_int(i1, j1, 0, f) = val_int0;
                A_int(i1, j1, 1, f) = val_int1;
                A_ext(i1, j1, 0, f) = val_ext01;
@@ -164,9 +164,6 @@ static void EADGTraceAssemble2DBdr(const int NF,
             {
                A_bdr(i1, j1, f) = val_bdr;
             }
-            
-            
-            
          }
       }
    });

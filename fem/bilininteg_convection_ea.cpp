@@ -246,7 +246,7 @@ void ConvectionIntegrator::AssembleEA(const FiniteElementSpace &fes,
          case 0x88: return EAConvectionAssemble1D<8,8>(ne,B,G,pa_data,ea_data,add);
          case 0x99: return EAConvectionAssemble1D<9,9>(ne,B,G,pa_data,ea_data,add);
          default:   return EAConvectionAssemble1D(ne,B,G,pa_data,ea_data,add,
-                                                  dofs1D,quad1D);
+                                                     dofs1D,quad1D);
       }
    }
    else if (dim == 2)
@@ -262,7 +262,7 @@ void ConvectionIntegrator::AssembleEA(const FiniteElementSpace &fes,
          case 0x88: return EAConvectionAssemble2D<8,8>(ne,B,G,pa_data,ea_data,add);
          case 0x99: return EAConvectionAssemble2D<9,9>(ne,B,G,pa_data,ea_data,add);
          default:   return EAConvectionAssemble2D(ne,B,G,pa_data,ea_data,add,
-                                                  dofs1D,quad1D);
+                                                     dofs1D,quad1D);
       }
    }
    else if (dim == 3)
@@ -277,7 +277,7 @@ void ConvectionIntegrator::AssembleEA(const FiniteElementSpace &fes,
          case 0x78: return EAConvectionAssemble3D<7,8>(ne,B,G,pa_data,ea_data,add);
          case 0x89: return EAConvectionAssemble3D<8,9>(ne,B,G,pa_data,ea_data,add);
          default:   return EAConvectionAssemble3D(ne,B,G,pa_data,ea_data,add,
-                                                  dofs1D,quad1D);
+                                                     dofs1D,quad1D);
       }
    }
    MFEM_ABORT("Unknown kernel.");
