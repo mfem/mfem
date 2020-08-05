@@ -130,7 +130,7 @@ int main(int argc, char *argv[])
    dacol->SetLevelsOfDetail(order);
    dacol->RegisterField("sol",&x);
 
-
+    mfem::Operator &op;
    // 11. Set domain integrators - start with linear diffusion
    {
       // the default power coefficient is 2.0
@@ -150,7 +150,7 @@ int main(int argc, char *argv[])
       // time the assembly
       timer->Clear();
       timer->Start();
-      mfem::Operator &op=nf->GetGradient(sv);
+      op=nf->GetGradient(sv);
       timer->Stop();
       std::cout<<"[2] The assembly time is: "<<timer->RealTime()<<std::endl;
       mfem::Solver *prec;
@@ -216,7 +216,7 @@ int main(int argc, char *argv[])
       // time the assembly
       timer->Clear();
       timer->Start();
-      mfem::Operator &op=nf->GetGradient(sv);
+      op=nf->GetGradient(sv);
       timer->Stop();
       std::cout<<"[pp="<<i<<"] The assembly time is: "<<timer->RealTime()<<std::endl;
       mfem::Solver *prec;
@@ -281,7 +281,7 @@ int main(int argc, char *argv[])
       // time the assembly
       timer->Clear();
       timer->Start();
-      mfem::Operator &op=nf->GetGradient(sv);
+      op=nf->GetGradient(sv);
       timer->Stop();
       std::cout<<"[pp="<<pp<<"] The assembly time is: "<<timer->RealTime()<<std::endl;
       mfem::Solver *prec;
