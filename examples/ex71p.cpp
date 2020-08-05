@@ -181,7 +181,7 @@ int main(int argc, char *argv[])
       // time the assembly
       timer->Clear();
       timer->Start();
-      mfem::Operator &op=nf->GetGradient(*sv);
+      nf->GetGradient(*sv);
       timer->Stop();
       if (myrank==0)
       {
@@ -254,7 +254,7 @@ int main(int argc, char *argv[])
       // time the assembly
       timer->Clear();
       timer->Start();
-      mfem::Operator &op=nf->GetGradient(*sv);
+      nf->GetGradient(*sv);
       timer->Stop();
       if (myrank==0)
       {
@@ -326,7 +326,7 @@ int main(int argc, char *argv[])
       // time the assembly
       timer->Clear();
       timer->Start();
-      mfem::Operator &op=nf->GetGradient(*sv);
+      nf->GetGradient(*sv);
       timer->Stop();
       if (myrank==0)
       {
