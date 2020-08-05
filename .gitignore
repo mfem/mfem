@@ -148,10 +148,8 @@ examples/hiop/ex9-init.*
 examples/hiop/ex9-final.*
 
 examples/ex71
-examples/Example71/
 examples/ex71p
-examples/Example71/*
-examples/Example71
+examples/Example71*
 
 examples/pumi/refined.mesh
 examples/pumi/sol.gf
