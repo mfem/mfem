@@ -37,8 +37,9 @@ int main(int argc, char *argv[])
    // Exclude tests marked as Parallel in a serial run, even when compiled with
    // MPI. This is done because there is no MPI session initialized.
    cfg.testsOrTags.push_back("~[Parallel]");
-   session.useConfigData(cfg);
 #endif
+
+   session.useConfigData(cfg);
 
    int result = session.run();
 
