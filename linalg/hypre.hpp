@@ -1003,30 +1003,42 @@ public:
    virtual ~HypreEuclid();
 };
 
+/// Parallel ILU preconditioner
+/// \note There are several variants available depending on the ilu_type chosen:
+/// ilu_type = 0: ILU(k) locally and block Jacobi globally
+/// ilu_type = 1: ILUT locally and block Jacobi globally
+/// ilu_type = 10: ILU(k) locally with inexact GMRES solution of Schur system
+/// ilu_type = 11: ILUT locally with inexact GMRES solution of Schur system
+/// ilu_type = 20: ILU(k) locally with Newton-Schultz-Hotelling (NSH) on Schur
+/// ilu_type = 21: ILUT locally with Newton-Schultz-Hotelling (NSH) on Schur
+/// ilu_type = 30: ILU(k) locally with restricted additive Schwarz globally
+/// ilu_type = 31: ILUT locally with restricted additive Schwarz globally
+/// ilu_type = 40: ILU(k) locally with GMRES with ddPQ ordering for Schur
+/// ilu_type = 41: ILUT locally with GMRES with ddPQ ordering for Schur
 class HypreILU : public HypreSolver
 {
 private:
    HYPRE_Solver ilu_precond;
 
+   /// The type of incomplete LU used locally and globally (see class doc)
+   HYPRE_Int ilu_type;
    /// Maximum iterations; 1 iter for preconditioning
    HYPRE_Int max_iter;
-   // The tolerance when used as a smoother; set to 0.0 for preconditioner
+   /// The tolerance when used as a smoother; set to 0.0 for preconditioner
    HYPRE_Real tol;
-   // Fill level for ILU(k)
+   /// Fill level for ILU(k)
    HYPRE_Int lev_fill;
-   // Maximum non-zeros per row (for ILUT only)
+   /// Maximum non-zeros per row (for ILUT only)
    HYPRE_Int nz_max;
-   // Drop tolerance for ILUT
+   /// Drop tolerance for ILUT
    HYPRE_Real drop_thres;
-   // Drop tol in Newton–Schulz–Hotelling iteration
+   /// Drop tol in Newton–Schulz–Hotelling iteration
    HYPRE_Real nsh_thres;
-   // Maximum number of iter to solve Schur system
+   /// Maximum number of iter to solve Schur system
    HYPRE_Int schur_max_iter;
-   // The type of incomplete LU; 0 = ILU(k) and 1 = ILUT
-   HYPRE_Int ilu_type;
-   // Local reordering scheme; 0 = no reordering, 1 = reverse Cuthill-McKee
+   /// Local reordering scheme; 0 = no reordering, 1 = reverse Cuthill-McKee
    HYPRE_Int reorder_type;
-   // Information print level; 0 = none, 1 = setup, 2 = solve, 3 = setup+solve
+   /// Information print level; 0 = none, 1 = setup, 2 = solve, 3 = setup+solve
    HYPRE_Int print_level;
 
    /// Set the ILU default options
@@ -1068,7 +1080,7 @@ public:
    /// Set the maximum number of iterations used to solve the Schur system
    void SetSchurMaxIter(HYPRE_Int schur_max_iter);
 
-   /// Set the ILU type: 0 = ILU with level of fill, and 1 = tresholded ILU
+   /// Set the ILU type; see class header documentation for more information
    void SetType(HYPRE_Int ilu_type);
 
    /// Set the local reordering for unknowns: 0 = no reordering, 1 = RCM 
