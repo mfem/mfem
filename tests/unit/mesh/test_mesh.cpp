@@ -14,8 +14,6 @@ using namespace mfem;
 
 #include "catch.hpp"
 
-#ifdef MFEM_USE_GECKO
-
 TEST_CASE("Gecko integration in MFEM", "[Mesh]")
 {
    Array<int> perm;
@@ -93,5 +91,3 @@ TEST_CASE("Gecko integration in MFEM", "[Mesh]")
       }
    }
 }
-
-#endif

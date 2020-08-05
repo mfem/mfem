@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env perl
 
 # Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
@@ -11,216 +11,157 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-# Print usage information
-case $1 in
-   -h|-help)
-      cat <<EOF
+use strict;
+use File::Basename;
+use Cwd;
 
-   $0 [-h|-help]
-   $0 {mfem_dir} [-commit <hash>] [-fast]
-   $0 {mfem_dir} [-range <hash>..<hash>] [-fast]
+# Print usage information and exit with status code passed as argument
+sub usage {
+  printf STDOUT <<EOF;
+
+   $0 [-h|--help]
+   $0 {mfem_dir}
 
    where: {mfem_dir}  is the MFEM source directory [default value: ../..]
-          -h|-help    prints this usage information and exits
+          -h|--help   prints this usage information and exits
 
    This script checks if the current branch history, defined as the commits that
    will be merged in master (those shown in a GitHub PR), contains unusually
    large files, unusually large number of changes in a commit, unusually large
-   number of commits, etc. (Optionally one can specify a different range of
-   commits to be checked via the -commit and -range options.)
+   number of commits, etc.
 
-   The specific checks are provided at 3 levels: branch, commit and file.
-
-   Branch-level checks:
-   - Check if the branch contains unusually large number of commits
-   - Check if the branch adds/modifies unusually large files
-
-   Commit-level checks:
-   - Check if the commit changes an unusually large number of files
-   - Check if the commit changes an unusually large number of lines
-
-   File-level checks:
-   - Check if the file is binary
-   - Check if the file is unusually large
-   - Check if an unusually large number of lines have been added to the file
-   - Check if an unusually large number of lines have been deleted from the file
-
-   The option -fast, allows to skip the checks that require checkout of the
-   individual commits, which could be convenient when there are local
-   changes. Currently, only the first two file-level checks will be skipped.
-
-   To be useful, the script should be run in a clean repository that doesn't
-   have any uncommitted changes and is not in a "detached HEAD" state.
-
-   Example usage: $0 ../..
-                  $0 ../../ -commit 8d50f48
-                  $0 ../../ -range eb2017b..5dd5511
-                  $0 ../../ -range master..d5f6f7e
-                  $0 ../../ -commit d5f6f7e -fast > /dev/null
+   Example usage: $0
 
 EOF
-      exit
-      ;;
-esac
+  exit $_[0];
+}
+
+my $mfem_dir = "../..";
+
+if (scalar @ARGV > 2) {
+  printf STDERR "Error: too many command line arguments\n";
+  usage 1;
+}
+
+while (my $opt = shift) {
+  if ($opt) {
+    if ($opt eq "-h" || $opt eq "--help") {
+      usage 0;
+    } else {
+      $mfem_dir = $opt;
+    }
+  }
+}
+
+my $cur_dir = getcwd;
+if (!chdir $mfem_dir) {
+  printf STDERR "Error: invalid value for mfem_dir: $mfem_dir\n";
+  usage 1;
+}
 
 # Maximum number of acceptable commits in the branch
-branch_max_commits=200
+my $branch_max_commits = 200;
 # Maximum number of acceptable files changed in any commit in the branch
-commit_max_files_changed=50
-# Maximum number of acceptable lines changed in any commit in the branch
-commit_max_lines_changed=2000
-# Maximum acceptable size (in K) of any file changed in any commit in the branch
-file_max_size=200
-# Maximum number of acceptable lines added to any file changed in any commit in the branch
-file_max_lines_added=1000
-# Maximum number of acceptable lines deleted from any file changed in any commit in the branch
-file_max_lines_deleted=1000
+my $commit_max_files_changed = 50;
+# Maximum acceptable size (in K) of any git blob in the branch
+my $max_blob_kb = 200;
+# Maximum acceptable size (in K) of any commit in the branch
+my $max_commit_kb = 400;
+# Maximum acceptable size (in K) of the sum of the commit sizes in the branch
+my $max_branch_kb = 1000;
 
-# Setup
-cur_dir=`pwd`
-mfem_dir=$1
-if [ "$mfem_dir" = "" ]; then
-    mfem_dir="../.."
-fi
-cd $mfem_dir
-mfem_dir=`pwd`
-shift
+my $status = 0; # Return code
 
-current_branch="$(git symbolic-ref --short HEAD)"
-commit_range="master..${current_branch}"
-if [ "$1" = "-commit" ]; then
-    shift
-    # check just the specified commit
-    commit="$1"
-    commit_range="`git rev-parse ${commit}^`..${commit}"
-    shift
-fi
-if [ "$1" = "-range" ]; then
-    shift
-    commit_range="$1"
-    shift
-fi
+# Get SHA hash of all commits in this branch
+my @commits = split /\n/, `git log --pretty=format:%H master..HEAD`;
 
-checkout_commits=true
-if [ "$1" = "-fast" ]; then
-    checkout_commits=false
-fi
+# Check if total number of commits in this branch exceeds the maximum allowable
+my $ncommits = scalar @commits;
+if ($ncommits > $branch_max_commits) {
+  printf STDERR
+    "\033[31mNumber of commits in this branch (%d) exceeds maximum allowable (%d).\033[0m\n",
+    $ncommits, $branch_max_commits;
+  $status = 1;
+}
 
-# Check if the branch contains unusually large number of commits
-num_commits="$(git rev-list --count --no-merges ${commit_range})"
-if [ ${num_commits} -gt ${branch_max_commits} ]
-then
-    printf '\033[35m'"This branch contains unusually many commits: " 1>&2
-    printf "${num_commits} commits not in master"'\033[0m\n' 1>&2
-fi
+# Print SHA in blue
+sub print_sha {
+  printf STDERR "\033[34m    ^---> SHA: %s\033[0m\n", $_[0];
+}
 
-# Check if the branch adds/modifies unusually large files (this can catch large
-# binary files not addressed by the checks below)
-git_objects=$(git rev-list --objects --no-merges ${commit_range} \
-              | git cat-file --batch-check='%(objecttype) %(objectsize) %(rest)' \
-              | sed -n 's/^blob //p' \
-              | awk '{if (max[$2]<$1) max[$2]=$1} END {for (f in max) print max[f], f}' \
-              | sort --numeric-sort --key=1)
+sub formatSize {
+  my $size = shift;
+  my $exp = 0;
+  my $units = [qw(B KB MB GB TB PB)];
+  for (@$units) {
+    last if $size < 1024;
+    $size /= 1024;
+    $exp++;
+  }
+  return sprintf("%.2f %s", $size, $units->[$exp]);
+}
 
-while read -r obj; do
-    obj_fname="$(echo ${obj} | awk '{print $2}')"
-    obj_size="$(echo ${obj} | awk '{print int($1/1024)}')"
-    if [ ${obj_size} -gt ${file_max_size} ]
-    then
-        printf '\033[35m'"This branch adds/modifies a large file: " 1>&2
-        printf "${obj_fname} (size ${obj_size}K)"'\033[0m\n' 1>&2
-    fi
-done <<< "${git_objects}"
+# Loop over each commit in this branch, and check for large diffs
+my $total_size = 0;
+foreach my $sha (@commits) {
+  my @blobs = `git diff-tree -r --no-commit-id $sha`;
+  my $nfiles_changed = scalar @blobs;
+  if ($nfiles_changed > $commit_max_files_changed) {
+    printf STDERR
+      "\033[31mNumber of files changed in one commit (%d) exceeds maximum allowable (%d).\033[0m\n",
+      $nfiles_changed, $commit_max_files_changed;
+    print_sha($sha);
+    $status = 1;
+  }
+  # Accumulate size of each commit in bytes
+  my $commit_size = 0;
+  foreach my $blob (@blobs) {
+    my @blob_split = (split /\s/, $blob);
+    my $src = @blob_split[2];
+    my $dst = @blob_split[3];
+    my $mode = @blob_split[4];
+    my $fname = @blob_split[5];
 
-# Check all the commits in the current branch (i.e. the commits that will be
-# merged in master, as shown in a GitHub PR):
-while read -r rev
-do
-    echo "Processing commit ${rev}..."
-    if [ "${checkout_commits}" = true ]
-    then
-        git checkout -q "${rev}"
-    fi
-    shortrev="$(git log -1 --format=%h ${rev})" # short commit hash
+    my $blob_size = 0;
+    # File was added
+    if ($mode eq "A") { $blob_size += int(`git cat-file -s $dst`); }
+    # File was copied
+    elsif ($mode =~ m/C\d*/) { $blob_size += int(`git cat-file -s $dst`); }
+    elsif ($mode eq "D") { }
+    # File was modified, use the gzip'ed diff as a proxy of the required git storage
+    elsif ($mode =~ m/M\d*/) { $blob_size += int(`git diff -U0 --binary $src $dst | gzip -c | wc -c`); }
+    elsif ($mode =~ m/R\d*/) { }
+    elsif ($mode eq "T") { }
+    elsif ($mode eq "U") { }
+    else { die "Unknown git status letter." }
+    if ($blob_size > $max_blob_kb*1024) {
+      $status = 1;
+      printf STDERR "\033[31mLarge change of size %s in file %s.\033[0m\n", formatSize($blob_size), $fname;
+      print_sha($sha);
+    }
+    $commit_size += $blob_size;
+  }
+  if ($commit_size > $max_commit_kb*1024) {
+    $status = 1;
+    printf STDERR "\033[31mLarge commit of size %s.\033[0m\n", formatSize($commit_size);
+    print_sha($sha);
+  }
+  $total_size += $commit_size;
+}
 
-    # Check if the commit changes an unusually large number of files
-    files_changed="$(git show --pretty="" --shortstat ${rev} | awk '{print $1}')"
-    if [ ${files_changed} -gt ${commit_max_files_changed} ]
-    then
-        printf '\033[36m'"Commit ${shortrev} changes unusually many files: " 1>&2
-        printf "${files_changed} files changed"'\033[0m\n' 1>&2
-    fi
+if ($total_size > $max_branch_kb*1024) {
+  printf STDERR "\033[31mLarge total branch size: %s.\033[0m\n", formatSize($total_size);
+  $status = 1;
+}
 
-    # Check if the commit changes an unusually large number of lines
-    lines_changed="$(git show --pretty="" --shortstat ${rev} | awk '{print $4+$6}')"
-    if [ ${lines_changed} -gt ${commit_max_lines_changed} ]
-    then
-        printf '\033[36m'"Commit ${shortrev} makes unusually many changes: " 1>&2
-        printf "${lines_changed} total lines changed"'\033[0m\n' 1>&2
-    fi
+if ($status) {
+  chdir $cur_dir;
+  my $testname = basename $0;
+  open(my $f, '>', "$testname.msg");
+  print $f <<EOF;
 
-    # Check all the files modified in the current commit:
-    while read -r filelog
-    do
-        fname="$(echo ${filelog} | awk '{print $3}')"
-
-        if [ -e $fname ] && [ "${checkout_commits}" = true ] # exclude deleted files
-        then
-            # Check if the file is binary (non-text file as reported by "file")
-            binary="$(file -b ${fname} | grep -v 'text')"
-            if [ -n "${binary}" ]
-            then
-                printf '\033[31m'"Commit ${shortrev} contains a binary file: " 1>&2
-                printf "${fname} (${binary})"'\033[0m\n' 1>&2
-            fi
-
-            # Check if the file is unusually large
-            file_size="$(du -k ${fname} | cut -f1)"
-            if [ ${file_size} -gt ${file_max_size} ]
-            then
-                printf '\033[31m'"Commit ${shortrev} adds/modifies a large file: " 1>&2
-                printf "${fname} (size ${file_size}K)"'\033[0m\n' 1>&2
-            fi
-        fi
-
-        # Check if an unusually large number of lines have been added to the file
-        file_lines_added="$(echo ${filelog} | awk '{print $1}')"
-        if [ "${file_lines_added}" != "-" ] # exclude binary files
-        then
-            if [ ${file_lines_added} -gt ${file_max_lines_added} ]
-            then
-                printf '\033[31m'"Commit ${shortrev} adds unusually many lines to " 1>&2
-                printf "${fname} (${file_lines_added} lines added)"'\033[0m\n' 1>&2
-            fi
-        fi
-
-        # Check if an unusually large number of lines have been deleted from the file
-        file_lines_deleted="$(echo ${filelog} | awk '{print $2}')"
-        if [ "${file_lines_deleted}" != "-" ] # exclude binary files
-        then
-            if [ ${file_lines_deleted} -gt ${file_max_lines_deleted} ]
-            then
-                printf '\033[31m'"Commit ${shortrev} deletes unusually many lines from " 1>&2
-                printf "${fname} (${file_lines_deleted} lines deleted)"'\033[0m\n' 1>&2
-            fi
-        fi
-    done < <(git show --pretty="" --numstat --no-renames ${rev})
-done < <(git rev-list --reverse --no-merges ${commit_range})
-
-# Return to the original branch and directory
-if [ "${checkout_commits}" = true ]
-then
-    git checkout -q ${current_branch}
-fi
-cd $cur_dir
-
-# Tell users what to do if the script fails
-test_name="$(basename "$0")"
-if [ -s "$test_name.err" ]; then
-    cat >  $test_name.msg <<EOF
-
-The failure of this script indicates that large files have been added or
-committed in the current branch history.
+The failure of this script indicates that large files or a large number of files
+have been added or committed in the current branch history.
 
 This could be OK, in certain cases, but it could also be a sign that large files
 have accidentally been committed.
@@ -235,4 +176,6 @@ deleted, please either:
 or contact a member of the MFEM team for help if you have questions.
 
 EOF
-fi
+}
+
+exit $status;

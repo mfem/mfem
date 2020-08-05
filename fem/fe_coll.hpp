@@ -19,10 +19,10 @@
 namespace mfem
 {
 
-/** Collection of finite elements from the same family in multiple dimensions.
-    This class is used to match the degrees of freedom of a FiniteElementSpace
-    between elements, and to provide the finite element restriction from an
-    element to its boundary. */
+/** @brief Collection of finite elements from the same family in multiple
+    dimensions. This class is used to match the degrees of freedom of a
+    FiniteElementSpace between elements, and to provide the finite element
+    restriction from an element to its boundary. */
 class FiniteElementCollection
 {
 protected:
@@ -40,6 +40,14 @@ protected:
                               const int face_info);
 
 public:
+   /** @brief Enumeration for ContType: defines the continuity of the field
+       across element interfaces. */
+   enum { CONTINUOUS,   ///< Field is continuous across element interfaces
+          TANGENTIAL,   ///< Tangential components of vector field
+          NORMAL,       ///< Normal component of vector field
+          DISCONTINUOUS ///< Field is discontinuous across element interfaces
+        };
+
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const = 0;
 
@@ -51,6 +59,8 @@ public:
                                              int Or) const = 0;
 
    virtual const char * Name() const { return "Undefined"; }
+
+   virtual int GetContType() const = 0;
 
    int HasFaceDofs(Geometry::Type GeomType) const;
 
@@ -66,15 +76,81 @@ public:
 
    /** @brief Factory method: return a newly allocated FiniteElementCollection
        according to the given name. */
+   /**
+   | FEC Name | Space | Order | BasisType | FiniteElement::MapT | Notes |
+   | :------: | :---: | :---: | :-------: | :-----: | :---: |
+   | H1_[DIM]_[ORDER] | H1 | * | 1 | VALUE | H1 nodal elements |
+   | H1@[BTYPE]_[DIM]_[ORDER] | H1 | * | * | VALUE | H1 nodal elements |
+   | H1Pos_[DIM]_[ORDER] | H1 | * | 1 | VALUE | H1 nodal elements |
+   | H1Pos_Trace_[DIM]_[ORDER] | H^{1/2} | * | 2 | VALUE | H^{1/2}-conforming trace elements for H1 defined on the interface between mesh elements (faces,edges,vertices) |
+   | H1_Trace_[DIM]_[ORDER] | H^{1/2} | * | 1 | VALUE | H^{1/2}-conforming trace elements for H1 defined on the interface between mesh elements (faces,edges,vertices) |
+   | H1_Trace@[BTYPE]_[DIM]_[ORDER] | H^{1/2} | * | 1 | VALUE | H^{1/2}-conforming trace elements for H1 defined on the interface between mesh elements (faces,edges,vertices) |
+   | ND_[DIM]_[ORDER] | H(curl) | * | 1 / 0 | H_CURL | Nedelec vector elements |
+   | ND@[CBTYPE][OBTYPE]_[DIM]_[ORDER] | H(curl) | * | * / * | H_CURL | Nedelec vector elements |
+   | ND_Trace_[DIM]_[ORDER] | H^{1/2} | * | 1 / 0  | H_CURL | H^{1/2}-conforming trace elements for H(curl) defined on the interface between mesh elements (faces) |
+   | ND_Trace@[CBTYPE][OBTYPE]_[DIM]_[ORDER] | H^{1/2} | * | 1 / 0 | H_CURL | H^{1/2}-conforming trace elements for H(curl) defined on the interface between mesh elements (faces) |
+   | RT_[DIM]_[ORDER] | H(div) | * | 1 / 0 | H_DIV | Raviart-Thomas vector elements |
+   | RT@[CBTYPE][OBTYPE]_[DIM]_[ORDER] | H(div) | * | * / * | H_DIV | Raviart-Thomas vector elements |
+   | RT_Trace_[DIM]_[ORDER] | H^{1/2} | * | 1 / 0 | INTEGRAL | H^{1/2}-conforming trace elements for H(div) defined on the interface between mesh elements (faces) |
+   | RT_ValTrace_[DIM]_[ORDER] | H^{1/2} | * | 1 / 0 | VALUE | H^{1/2}-conforming trace elements for H(div) defined on the interface between mesh elements (faces) |
+   | RT_Trace@[BTYPE]_[DIM]_[ORDER] | H^{1/2} | * | 1 / 0 | INTEGRAL | H^{1/2}-conforming trace elements for H(div) defined on the interface between mesh elements (faces) |
+   | RT_ValTrace@[BTYPE]_[DIM]_[ORDER] |  H^{1/2} | * | 1 / 0 | VALUE | H^{1/2}-conforming trace elements for H(div) defined on the interface between mesh elements (faces) |
+   | L2_[DIM]_[ORDER] | L2 | * | 0 | VALUE | Discontinous L2 elements |
+   | L2_T[BTYPE]_[DIM]_[ORDER] | L2 | * | 0 | VALUE | Discontinous L2 elements |
+   | L2Int_[DIM]_[ORDER] | L2 | * | 0 | INTEGRAL | Discontinous L2 elements |
+   | L2Int_T[BTYPE]_[DIM]_[ORDER] | L2 | * | 0 | INTEGRAL | Discontinous L2 elements |
+   | DG_Iface_[DIM]_[ORDER] | - | * | 0 | VALUE | Discontinuous elements on the interface between mesh elements (faces) |
+   | DG_Iface@[BTYPE]_[DIM]_[ORDER] | - | * | 0 | VALUE | Discontinuous elements on the interface between mesh elements (faces) |
+   | DG_IntIface_[DIM]_[ORDER] | - | * | 0 | INTEGRAL | Discontinuous elements on the interface between mesh elements (faces) |
+   | DG_IntIface@[BTYPE]_[DIM]_[ORDER] | - | * | 0 | INTEGRAL | Discontinuous elements on the interface between mesh elements (faces) |
+   | NURBS[ORDER] | - | * | - | VALUE | Non-Uniform Rational B-Splines (NURBS) elements |
+   | LinearNonConf3D | - | 1 | 1 | VALUE | Piecewise-linear nonconforming finite elements in 3D |
+   | CrouzeixRaviart | - | - | - | - | Crouzeix-Raviart nonconforming elements in 2D |
+   | Local_[FENAME] | - | - | - | - | Special collection that builds a local version out of the FENAME collection |
+   |-|-|-|-|-|-|
+   | Linear | H1 | 1 | 1 | VALUE | Left in for backward compatibility, consider using H1_ |
+   | Quadratic | H1 | 2 | 1 | VALUE | Left in for backward compatibility, consider using H1_ |
+   | QuadraticPos | H1 | 2 | 2 | VALUE | Left in for backward compatibility, consider using H1_ |
+   | Cubic | H1 | 2 | 1 | VALUE | Left in for backward compatibility, consider using H1_ |
+   | Const2D | L2 | 0 | 1 | VALUE | Left in for backward compatibility, consider using L2_ |
+   | Const3D | L2 | 0 | 1 | VALUE | Left in for backward compatibility, consider using L2_ |
+   | LinearDiscont2D | L2 | 1 | 1 | VALUE | Left in for backward compatibility, consider using L2_ |
+   | GaussLinearDiscont2D | L2 | 1 | 0 | VALUE | Left in for backward compatibility, consider using L2_ |
+   | P1OnQuad | H1 | 1 | 1 | VALUE | Linear P1 element with 3 nodes on a square |
+   | QuadraticDiscont2D | L2 | 2 | 1 | VALUE | Left in for backward compatibility, consider using L2_ |
+   | QuadraticPosDiscont2D | L2 | 2 | 2 | VALUE | Left in for backward compatibility, consider using L2_ |
+   | GaussQuadraticDiscont2D | L2 | 2 | 0 | VALUE | Left in for backward compatibility, consider using L2_ |
+   | CubicDiscont2D | L2 | 3 | 1 | VALUE | Left in for backward compatibility, consider using L2_ |
+   | LinearDiscont3D | L2 | 1 | 1 | VALUE | Left in for backward compatibility, consider using L2_ |
+   | QuadraticDiscont3D | L2 | 2 | 1 | VALUE | Left in for backward compatibility, consider using L2_ |
+   | ND1_3D | H(Curl) | 1 | 1 / 0 | H_CURL | Left in for backward compatibility, consider using ND_ |
+   | RT0_2D | H(Div) | 1 | 1 / 0 | H_DIV | Left in for backward compatibility, consider using RT_ |
+   | RT1_2D | H(Div) | 2 | 1 / 0 | H_DIV | Left in for backward compatibility, consider using RT_ |
+   | RT2_2D | H(Div) | 3 | 1 / 0 | H_DIV | Left in for backward compatibility, consider using RT_ |
+   | RT0_3D | H(Div) | 1 | 1 / 0 | H_DIV | Left in for backward compatibility, consider using RT_ |
+   | RT1_3D | H(Div) | 2 | 1 / 0 | H_DIV | Left in for backward compatibility, consider using RT_ |
+
+   | Tag | Description |
+   | :------: | :--------: |
+   | [DIM]    | Dimension of the elements (1D, 2D, 3D) |
+   | [ORDER]  | Approximation order of the elements (P0, P1, P2, ...) |
+   | [BTYPE]  | BasisType of the element (0-GaussLegendre, 1 - GaussLobatto, 2-Bernstein, 3-OpenUniform, 4-CloseUniform, 5-OpenHalfUniform) |
+   | [OBTYPE] | Open BasisType of the element for elements which have both types |
+   | [CBTYPE] | Closed BasisType of the element for elements which have both types |
+
+   [FENAME]  Is a special case for the Local FEC which generates a local version of a given
+   FEC.  It is selected from one of (BiCubic2DFiniteElement, Quad_Q3, Nedelec1HexFiniteElement,
+      Hex_ND1, H1_[DIM]_[ORDER],H1Pos_[DIM]_[ORDER], L2_[DIM]_[ORDER] )
+   */
    static FiniteElementCollection *New(const char *name);
 
    /** @brief Get the local dofs for a given sub-manifold.
 
-      Return the local dofs for a SDim-dimensional sub-manifold (0D - vertex,
-      1D - edge, 2D - face) including those on its boundary. The local index of
-      the sub-manifold (inside Geom) and its orientation are given by the
-      parameter Info = 64 * SubIndex + SubOrientation. Naturally, it is assumed
-      that 0 <= SDim <= Dim(Geom). */
+      Return the local dofs for a SDim-dimensional sub-manifold (0D - vertex, 1D
+      - edge, 2D - face) including those on its boundary. The local index of the
+      sub-manifold (inside Geom) and its orientation are given by the parameter
+      Info = 64 * SubIndex + SubOrientation. Naturally, it is assumed that 0 <=
+      SDim <= Dim(Geom). */
    void SubDofOrder(Geometry::Type Geom, int SDim, int Info,
                     Array<int> &dofs) const;
 };
@@ -88,7 +164,7 @@ protected:
    char h1_name[32];
    FiniteElement *H1_Elements[Geometry::NumGeom];
    int H1_dof[Geometry::NumGeom];
-   int *SegDofOrd[2], *TriDofOrd[6], *QuadDofOrd[8];
+   int *SegDofOrd[2], *TriDofOrd[6], *QuadDofOrd[8], *TetDofOrd[24];
 
 public:
    explicit H1_FECollection(const int p, const int dim = 3,
@@ -102,6 +178,7 @@ public:
    virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
                                              int Or) const;
    virtual const char *Name() const { return h1_name; }
+   virtual int GetContType() const { return CONTINUOUS; }
    FiniteElementCollection *GetTraceCollection() const;
 
    int GetBasisType() const { return b_type; }
@@ -111,14 +188,15 @@ public:
    virtual ~H1_FECollection();
 };
 
-/** Arbitrary order H1-conforming (continuous) finite elements with positive
-    basis functions. */
+/** @brief Arbitrary order H1-conforming (continuous) finite elements with
+    positive basis functions. */
 class H1Pos_FECollection : public H1_FECollection
 {
 public:
    explicit H1Pos_FECollection(const int p, const int dim = 3)
       : H1_FECollection(p, dim, BasisType::Positive) { }
 };
+
 
 /** Arbitrary order H1-conforming (continuous) serendipity finite elements;
     Current implementation works in 2D only; 3D version is in development. */
@@ -129,9 +207,9 @@ public:
       : H1_FECollection(p, dim, BasisType::Serendipity) { };
 };
 
-/** Arbitrary order "H^{1/2}-conforming" trace finite elements defined on the
-    interface between mesh elements (faces,edges,vertices); these are the trace
-    FEs of the H1-conforming FEs. */
+/** @brief Arbitrary order "H^{1/2}-conforming" trace finite elements defined on
+    the interface between mesh elements (faces,edges,vertices); these are the
+    trace FEs of the H1-conforming FEs. */
 class H1_Trace_FECollection : public H1_FECollection
 {
 public:
@@ -147,9 +225,10 @@ private:
    char d_name[32];
    ScalarFiniteElement *L2_Elements[Geometry::NumGeom];
    ScalarFiniteElement *Tr_Elements[Geometry::NumGeom];
-   int *SegDofOrd[2]; // for rotating segment dofs in 1D
-   int *TriDofOrd[6]; // for rotating triangle dofs in 2D
-   int *OtherDofOrd;  // for rotating other types of elements (for Or == 0)
+   int *SegDofOrd[2];  // for rotating segment dofs in 1D
+   int *TriDofOrd[6];  // for rotating triangle dofs in 2D
+   int *TetDofOrd[24]; // for rotating tetrahedron dofs in 3D
+   int *OtherDofOrd;   // for rotating other types of elements (for Or == 0)
 
 public:
    L2_FECollection(const int p, const int dim,
@@ -172,6 +251,8 @@ public:
    virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
                                              int Or) const;
    virtual const char *Name() const { return d_name; }
+
+   virtual int GetContType() const { return DISCONTINUOUS; }
 
    virtual const FiniteElement *TraceFiniteElementForGeometry(
       Geometry::Type GeomType) const
@@ -220,14 +301,15 @@ public:
    virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
                                              int Or) const;
    virtual const char *Name() const { return rt_name; }
+   virtual int GetContType() const { return NORMAL; }
    FiniteElementCollection *GetTraceCollection() const;
 
    virtual ~RT_FECollection();
 };
 
-/** Arbitrary order "H^{-1/2}-conforming" face finite elements defined on the
-    interface between mesh elements (faces); these are the normal trace FEs of
-    the H(div)-conforming FEs. */
+/** @brief Arbitrary order "H^{-1/2}-conforming" face finite elements defined on
+    the interface between mesh elements (faces); these are the normal trace FEs
+    of the H(div)-conforming FEs. */
 class RT_Trace_FECollection : public RT_FECollection
 {
 public:
@@ -269,14 +351,15 @@ public:
    virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
                                              int Or) const;
    virtual const char *Name() const { return nd_name; }
+   virtual int GetContType() const { return TANGENTIAL; }
    FiniteElementCollection *GetTraceCollection() const;
 
    virtual ~ND_FECollection();
 };
 
-/** Arbitrary order H(curl)-trace finite elements defined on the interface
-    between mesh elements (faces,edges); these are the tangential trace FEs of
-    the H(curl)-conforming FEs. */
+/** @brief Arbitrary order H(curl)-trace finite elements defined on the
+    interface between mesh elements (faces,edges); these are the tangential
+    trace FEs of the H(curl)-conforming FEs. */
 class ND_Trace_FECollection : public ND_FECollection
 {
 public:
@@ -333,13 +416,15 @@ public:
 
    virtual const char *Name() const { return name; }
 
+   virtual int GetContType() const { return CONTINUOUS; }
+
    FiniteElementCollection *GetTraceCollection() const;
 
    virtual ~NURBSFECollection();
 };
 
 
-/// Piecewise-(bi)linear continuous finite elements.
+/// Piecewise-(bi/tri)linear continuous finite elements.
 class LinearFECollection : public FiniteElementCollection
 {
 private:
@@ -362,6 +447,8 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "Linear"; }
+
+   virtual int GetContType() const { return CONTINUOUS; }
 };
 
 /// Piecewise-(bi)quadratic continuous finite elements.
@@ -388,6 +475,8 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "Quadratic"; }
+
+   virtual int GetContType() const { return CONTINUOUS; }
 };
 
 /// Version of QuadraticFECollection with positive basis functions.
@@ -409,6 +498,8 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "QuadraticPos"; }
+
+   virtual int GetContType() const { return CONTINUOUS; }
 };
 
 /// Piecewise-(bi)cubic continuous finite elements.
@@ -436,6 +527,8 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "Cubic"; }
+
+   virtual int GetContType() const { return CONTINUOUS; }
 };
 
 /// Crouzeix-Raviart nonconforming elements in 2D.
@@ -457,6 +550,8 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "CrouzeixRaviart"; }
+
+   virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
 /// Piecewise-linear nonconforming finite elements in 3D.
@@ -480,11 +575,13 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "LinearNonConf3D"; }
+
+   virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
 
-/** First order Raviart-Thomas finite elements in 2D. This class is kept only
-    for backward compatibility, consider using RT_FECollection instead. */
+/** @brief First order Raviart-Thomas finite elements in 2D. This class is kept
+    only for backward compatibility, consider using RT_FECollection instead. */
 class RT0_2DFECollection : public FiniteElementCollection
 {
 private:
@@ -503,10 +600,12 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "RT0_2D"; }
+
+   virtual int GetContType() const { return NORMAL; }
 };
 
-/** Second order Raviart-Thomas finite elements in 2D. This class is kept only
-    for backward compatibility, consider using RT_FECollection instead. */
+/** @brief Second order Raviart-Thomas finite elements in 2D. This class is kept
+    only for backward compatibility, consider using RT_FECollection instead. */
 class RT1_2DFECollection : public FiniteElementCollection
 {
 private:
@@ -525,10 +624,12 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "RT1_2D"; }
+
+   virtual int GetContType() const { return NORMAL; }
 };
 
-/** Third order Raviart-Thomas finite elements in 2D. This class is kept only
-    for backward compatibility, consider using RT_FECollection instead. */
+/** @brief Third order Raviart-Thomas finite elements in 2D. This class is kept
+    only for backward compatibility, consider using RT_FECollection instead. */
 class RT2_2DFECollection : public FiniteElementCollection
 {
 private:
@@ -547,10 +648,13 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "RT2_2D"; }
+
+   virtual int GetContType() const { return NORMAL; }
 };
 
-/** Piecewise-constant discontinuous finite elements in 2D. This class is kept
-    only for backward compatibility, consider using L2_FECollection instead. */
+/** @brief Piecewise-constant discontinuous finite elements in 2D. This class is
+    kept only for backward compatibility, consider using L2_FECollection
+    instead. */
 class Const2DFECollection : public FiniteElementCollection
 {
 private:
@@ -568,10 +672,13 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "Const2D"; }
+
+   virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
-/** Piecewise-linear discontinuous finite elements in 2D. This class is kept
-    only for backward compatibility, consider using L2_FECollection instead. */
+/** @brief Piecewise-linear discontinuous finite elements in 2D. This class is
+    kept only for backward compatibility, consider using L2_FECollection
+    instead. */
 class LinearDiscont2DFECollection : public FiniteElementCollection
 {
 private:
@@ -590,6 +697,8 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "LinearDiscont2D"; }
+
+   virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
 /// Version of LinearDiscont2DFECollection with dofs in the Gaussian points.
@@ -612,6 +721,8 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "GaussLinearDiscont2D"; }
+
+   virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
 /// Linear (P1) finite elements on quadrilaterals.
@@ -627,10 +738,12 @@ public:
    virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
                                              int Or) const;
    virtual const char * Name() const { return "P1OnQuad"; }
+   virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
-/** Piecewise-quadratic discontinuous finite elements in 2D. This class is kept
-    only for backward compatibility, consider using L2_FECollection instead. */
+/** @brief Piecewise-quadratic discontinuous finite elements in 2D. This class
+    is kept only for backward compatibility, consider using L2_FECollection
+    instead. */
 class QuadraticDiscont2DFECollection : public FiniteElementCollection
 {
 private:
@@ -649,6 +762,7 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "QuadraticDiscont2D"; }
+   virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
 /// Version of QuadraticDiscont2DFECollection with positive basis functions.
@@ -666,6 +780,7 @@ public:
                                              int Or) const
    { return NULL; }
    virtual const char * Name() const { return "QuadraticPosDiscont2D"; }
+   virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
 /// Version of QuadraticDiscont2DFECollection with dofs in the Gaussian points.
@@ -688,10 +803,12 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "GaussQuadraticDiscont2D"; }
+   virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
-/** Piecewise-cubic discontinuous finite elements in 2D. This class is kept
-    only for backward compatibility, consider using L2_FECollection instead. */
+/** @brief Piecewise-cubic discontinuous finite elements in 2D. This class is
+    kept only for backward compatibility, consider using L2_FECollection
+    instead. */
 class CubicDiscont2DFECollection : public FiniteElementCollection
 {
 private:
@@ -710,10 +827,12 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "CubicDiscont2D"; }
+   virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
-/** Piecewise-constant discontinuous finite elements in 3D. This class is kept
-    only for backward compatibility, consider using L2_FECollection instead. */
+/** @brief Piecewise-constant discontinuous finite elements in 3D. This class is
+    kept only for backward compatibility, consider using L2_FECollection
+    instead. */
 class Const3DFECollection : public FiniteElementCollection
 {
 private:
@@ -733,10 +852,12 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "Const3D"; }
+   virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
-/** Piecewise-linear discontinuous finite elements in 3D. This class is kept
-    only for backward compatibility, consider using L2_FECollection instead. */
+/** @brief Piecewise-linear discontinuous finite elements in 3D. This class is
+    kept only for backward compatibility, consider using L2_FECollection
+    instead. */
 class LinearDiscont3DFECollection : public FiniteElementCollection
 {
 private:
@@ -755,10 +876,12 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "LinearDiscont3D"; }
+   virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
-/** Piecewise-quadratic discontinuous finite elements in 3D. This class is kept
-    only for backward compatibility, consider using L2_FECollection instead. */
+/** @brief Piecewise-quadratic discontinuous finite elements in 3D. This class
+    is kept only for backward compatibility, consider using L2_FECollection
+    instead. */
 class QuadraticDiscont3DFECollection : public FiniteElementCollection
 {
 private:
@@ -777,6 +900,7 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "QuadraticDiscont3D"; }
+   virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
 /// Finite element collection on a macro-element.
@@ -802,10 +926,12 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "RefinedLinear"; }
+   virtual int GetContType() const { return CONTINUOUS; }
 };
 
-/** Lowest order Nedelec finite elements in 3D. This class is kept only for
-    backward compatibility, consider using the new ND_FECollection instead. */
+/** @brief Lowest order Nedelec finite elements in 3D. This class is kept only
+    for backward compatibility, consider using the new ND_FECollection
+    instead. */
 class ND1_3DFECollection : public FiniteElementCollection
 {
 private:
@@ -824,10 +950,11 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "ND1_3D"; }
+   virtual int GetContType() const { return TANGENTIAL; }
 };
 
-/** First order Raviart-Thomas finite elements in 3D. This class is kept only
-    for backward compatibility, consider using RT_FECollection instead. */
+/** @brief First order Raviart-Thomas finite elements in 3D. This class is kept
+    only for backward compatibility, consider using RT_FECollection instead. */
 class RT0_3DFECollection : public FiniteElementCollection
 {
 private:
@@ -847,10 +974,11 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "RT0_3D"; }
+   virtual int GetContType() const { return NORMAL; }
 };
 
-/** Second order Raviart-Thomas finite elements in 3D. This class is kept only
-    for backward compatibility, consider using RT_FECollection instead. */
+/** @brief Second order Raviart-Thomas finite elements in 3D. This class is kept
+    only for backward compatibility, consider using RT_FECollection instead. */
 class RT1_3DFECollection : public FiniteElementCollection
 {
 private:
@@ -869,6 +997,7 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "RT1_3D"; }
+   virtual int GetContType() const { return NORMAL; }
 };
 
 /// Discontinuous collection defined locally by a given finite element.
@@ -893,6 +1022,7 @@ public:
    virtual const char *Name() const { return d_name; }
 
    virtual ~Local_FECollection() { delete Local_Element; }
+   virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
 }

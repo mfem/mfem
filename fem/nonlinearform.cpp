@@ -933,6 +933,17 @@ Operator &BlockNonlinearForm::GetGradientBlocked(const BlockVector &bx) const
       }
    }
 
+   if (!Grads(0,0)->Finalized())
+   {
+      for (int i=0; i<fes.Size(); ++i)
+      {
+         for (int j=0; j<fes.Size(); ++j)
+         {
+            Grads(i,j)->Finalize(skip_zeros);
+         }
+      }
+   }
+
    for (int s=0; s<fes.Size(); ++s)
    {
       for (int i = 0; i < ess_vdofs[s]->Size(); ++i)
@@ -948,17 +959,6 @@ Operator &BlockNonlinearForm::GetGradientBlocked(const BlockVector &bx) const
                Grads(s,j)->EliminateRow((*ess_vdofs[s])[i]);
                Grads(j,s)->EliminateCol((*ess_vdofs[s])[i]);
             }
-         }
-      }
-   }
-
-   if (!Grads(0,0)->Finalized())
-   {
-      for (int i=0; i<fes.Size(); ++i)
-      {
-         for (int j=0; j<fes.Size(); ++j)
-         {
-            Grads(i,j)->Finalize(skip_zeros);
          }
       }
    }

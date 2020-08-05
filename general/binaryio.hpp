@@ -25,12 +25,14 @@ namespace mfem
 namespace bin_io
 {
 
+/// Write 'value' to stream.
 template<typename T>
 inline void write(std::ostream& os, T value)
 {
    os.write((char*) &value, sizeof(T));
 }
 
+/// Read a value from the stream and return it.
 template<typename T>
 inline T read(std::istream& is)
 {

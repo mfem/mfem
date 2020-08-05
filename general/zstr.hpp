@@ -69,7 +69,9 @@ static std::string strerror()
    {
       buff = "Unknown error";
    }
-#elif (_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600) && ! _GNU_SOURCE || defined(__APPLE__)
+#elif (_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600) && ! _GNU_SOURCE || \
+      defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || \
+      defined(__NetBSD__) || defined(__DragonFly__)
    // XSI-compliant strerror_r()
    if (strerror_r(errno, &buff[0], buff.size()) != 0)
    {
@@ -173,7 +175,7 @@ struct static_method_holder
          is_p->peek();
          peek_failed = is_p->fail();
       }
-      catch (std::ios_base::failure &e) {}
+      catch (std::ios_base::failure&) {}
       if (peek_failed)
       {
          throw Exception(std::string("strict_fstream: open('")
@@ -201,10 +203,10 @@ public:
    {
       mode |= std::ios_base::in;
       exceptions(std::ios_base::badbit);
-      detail::static_method_holder::check_mode(filename, mode);
+      // detail::static_method_holder::check_mode(filename, mode);
       std::ifstream::open(filename, mode);
-      detail::static_method_holder::check_open(this, filename, mode);
-      detail::static_method_holder::check_peek(this, filename, mode);
+      // detail::static_method_holder::check_open(this, filename, mode);
+      // detail::static_method_holder::check_peek(this, filename, mode);
    }
 }; // class ifstream
 
@@ -223,9 +225,9 @@ public:
    {
       mode |= std::ios_base::out;
       exceptions(std::ios_base::badbit);
-      detail::static_method_holder::check_mode(filename, mode);
+      // detail::static_method_holder::check_mode(filename, mode);
       std::ofstream::open(filename, mode);
-      detail::static_method_holder::check_open(this, filename, mode);
+      // detail::static_method_holder::check_open(this, filename, mode);
    }
 }; // class ofstream
 
@@ -244,10 +246,10 @@ public:
    {
       if (! (mode & std::ios_base::out)) { mode |= std::ios_base::in; }
       exceptions(std::ios_base::badbit);
-      detail::static_method_holder::check_mode(filename, mode);
+      // detail::static_method_holder::check_mode(filename, mode);
       std::fstream::open(filename, mode);
-      detail::static_method_holder::check_open(this, filename, mode);
-      detail::static_method_holder::check_peek(this, filename, mode);
+      // detail::static_method_holder::check_open(this, filename, mode);
+      // detail::static_method_holder::check_peek(this, filename, mode);
    }
 }; // class fstream
 
@@ -752,6 +754,7 @@ public:
       {
          rdbuf(_fs.rdbuf());
       }
+      setstate(_fs.rdstate());
       exceptions(std::ios_base::badbit);
    }
 
@@ -779,6 +782,7 @@ public:
 #else
       rdbuf(_fs.rdbuf());
 #endif
+      setstate(_fs.rdstate());
       exceptions(std::ios_base::badbit);
    }
 

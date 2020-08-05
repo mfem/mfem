@@ -82,6 +82,9 @@ public:
    void Mult(const Vector &e_vec, unsigned eval_flags,
              Vector &q_val, Vector &q_der, Vector &q_det, Vector &q_nor) const;
 
+   /// Interpolate the values of the E-vector @a e_vec at quadrature points.
+   void Values(const Vector &e_vec, Vector &q_val) const;
+
    // Compute kernels follow (cannot be private or protected with nvcc)
 
    /// Template compute kernel for 2D.
