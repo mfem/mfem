@@ -21,6 +21,9 @@ namespace mfem
 {
 
 class Mesh;
+class FiniteElementSpace;
+class QuadratureFunction;
+enum class FaceType;
 
 #ifdef MFEM_USE_MPI
 class ParMesh;
@@ -68,6 +71,18 @@ public:
       return Eval(T, ip);
    }
 
+   /** @brief Evaluate the coefficient at all the quadrature points given by the
+       IntegrationRule @a ir on the FiniteElementSpace @a fes. */
+   virtual void Eval(const FiniteElementSpace &fes, const IntegrationRule &ir,
+                     Vector &qcoeff);
+
+   /** @brief Evaluate the coefficient at all the quadrature points given by the
+       IntegrationRule @a ir on the faces of the FiniteElementSpace @a fes. */
+   virtual void Eval(const FiniteElementSpace &fes,
+                     const IntegrationRule &ir,
+                     const FaceType type,
+                     Vector &qcoeff);
+
    virtual ~Coefficient() { }
 };
 
@@ -85,6 +100,14 @@ public:
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
    { return (constant); }
+
+   void Eval(const FiniteElementSpace &fes, const IntegrationRule &ir,
+             Vector &qcoeff);
+
+   void Eval(const FiniteElementSpace &fes,
+             const IntegrationRule &ir,
+             const FaceType type,
+             Vector &qcoeff);
 };
 
 /** @brief A piecewise constant coefficient with the constants keyed
@@ -194,6 +217,10 @@ public:
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
+
+   void Eval(const FiniteElementSpace &fes,
+             const IntegrationRule &ir,
+             Vector &qcoeff);
 };
 
 
@@ -382,6 +409,18 @@ public:
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationRule &ir);
 
+   /** @brief Evaluate the coefficient at all the quadrature points given by the
+       IntegrationRule @a ir on the FiniteElementSpace @a fes. */
+   virtual void Eval(const FiniteElementSpace &fes, const IntegrationRule &ir,
+                     Vector &qcoeff);
+
+   /** @brief Evaluate the coefficient at all the quadrature points given by the
+       IntegrationRule @a ir on the faces of the FiniteElementSpace @a fes. */
+   virtual void Eval(const FiniteElementSpace &fes,
+                     const IntegrationRule &ir,
+                     const FaceType type,
+                     Vector &qcoeff);
+
    virtual ~VectorCoefficient() { }
 };
 
@@ -400,6 +439,14 @@ public:
    ///  Evaluate the vector coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip) { V = vec; }
+
+   void Eval(const FiniteElementSpace &fes, const IntegrationRule &ir,
+             Vector &qcoeff);
+
+   void Eval(const FiniteElementSpace &fes,
+             const IntegrationRule &ir,
+             const FaceType type,
+             Vector &qcoeff);
 
    /// Return a reference to the constant vector in this class.
    const Vector& GetVec() { return vec; }
@@ -511,6 +558,10 @@ public:
        M. */
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationRule &ir);
+
+
+   void Eval(const FiniteElementSpace &fes, const IntegrationRule &ir,
+             Vector &qcoeff);
 
    virtual ~VectorGridFunctionCoefficient() { }
 };
@@ -726,6 +777,11 @@ public:
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip) = 0;
 
+   /** @brief Evaluate the coefficient at all the quadrature points given by the
+       IntegrationRule @a ir on the FiniteElementSpace @a fes. */
+   virtual void Eval(const FiniteElementSpace &fes, const IntegrationRule &ir,
+                     Vector &qcoeff);
+
    virtual ~MatrixCoefficient() { }
 };
 
@@ -743,6 +799,9 @@ public:
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationPoint &ip) { M = mat; }
+
+   void Eval(const FiniteElementSpace &fes, const IntegrationRule &ir,
+             Vector &qcoeff);
 };
 
 
@@ -820,6 +879,8 @@ public:
        default this will take ownership of the Coefficient passed in, but this
        can be overridden with the @a own parameter. */
    void Set(int i, int j, Coefficient * c, bool own=true);
+
+   using MatrixCoefficient::Eval;
 
    /// Evaluate coefficient located at (i,j) in the matrix using integration
    /// point @a ip.
@@ -1116,6 +1177,33 @@ public:
                        const IntegrationPoint &ip);
 };
 
+/** @brief Quadrature function coefficient which requires that the quadrature
+    rules used for this coefficient be the same as those that live within the
+    supplied QuadratureFunction. */
+class QuadratureFunctionCoefficient : public Coefficient
+{
+private:
+   const QuadratureFunction &QuadF;
+
+public:
+   /// Constructor with a quadrature function as input
+   QuadratureFunctionCoefficient(QuadratureFunction &qf);
+
+   const QuadratureFunction& GetQuadFunction() const { return QuadF; }
+
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+
+   void Eval(const FiniteElementSpace &fes, const IntegrationRule &ir,
+             Vector &qcoeff);
+
+   void Eval(const FiniteElementSpace &fes,
+             const IntegrationRule &ir,
+             const FaceType type,
+             Vector &qcoeff);
+
+   virtual ~QuadratureFunctionCoefficient() { }
+};
+
 /// Vector coefficient defined as the linear combination of two vectors
 class VectorSumCoefficient : public VectorCoefficient
 {
@@ -1318,6 +1406,41 @@ public:
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
    using VectorCoefficient::Eval;
+};
+
+/** @brief Vector quadrature function coefficient which requires that the
+    quadrature rules used for this vector coefficient be the same as those that
+    live within the supplied QuadratureFunction. */
+class VectorQuadratureFunctionCoefficient : public VectorCoefficient
+{
+private:
+   const QuadratureFunction &QuadF; //do not own
+   int index;
+
+public:
+   /// Constructor with a quadrature function as input
+   VectorQuadratureFunctionCoefficient(QuadratureFunction &qf);
+
+   /** Set the starting index within the QuadFunc that'll be used to project
+       outwards as well as the corresponding length. The projected length should
+       have the bounds of 1 <= length <= (length QuadFunc - index). */
+   void SetComponent(int _index, int _length);
+
+   const QuadratureFunction& GetQuadFunction() const { return QuadF; }
+
+   using VectorCoefficient::Eval;
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+
+   void Eval(const FiniteElementSpace &fes, const IntegrationRule &ir,
+             Vector &qcoeff);
+
+   void Eval(const FiniteElementSpace &fes,
+             const IntegrationRule &ir,
+             const FaceType type,
+             Vector &qcoeff);
+
+   virtual ~VectorQuadratureFunctionCoefficient() { }
 };
 
 /// Convenient alias for the MatrixVectorProductCoefficient
@@ -1526,54 +1649,6 @@ public:
                      const IntegrationPoint &ip);
 };
 ///@}
-
-class QuadratureFunction;
-
-/** @brief Vector quadrature function coefficient which requires that the
-    quadrature rules used for this vector coefficient be the same as those that
-    live within the supplied QuadratureFunction. */
-class VectorQuadratureFunctionCoefficient : public VectorCoefficient
-{
-private:
-   const QuadratureFunction &QuadF; //do not own
-   int index;
-
-public:
-   /// Constructor with a quadrature function as input
-   VectorQuadratureFunctionCoefficient(QuadratureFunction &qf);
-
-   /** Set the starting index within the QuadFunc that'll be used to project
-       outwards as well as the corresponding length. The projected length should
-       have the bounds of 1 <= length <= (length QuadFunc - index). */
-   void SetComponent(int _index, int _length);
-
-   const QuadratureFunction& GetQuadFunction() const { return QuadF; }
-
-   using VectorCoefficient::Eval;
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
-
-   virtual ~VectorQuadratureFunctionCoefficient() { }
-};
-
-/** @brief Quadrature function coefficient which requires that the quadrature
-    rules used for this coefficient be the same as those that live within the
-    supplied QuadratureFunction. */
-class QuadratureFunctionCoefficient : public Coefficient
-{
-private:
-   const QuadratureFunction &QuadF;
-
-public:
-   /// Constructor with a quadrature function as input
-   QuadratureFunctionCoefficient(QuadratureFunction &qf);
-
-   const QuadratureFunction& GetQuadFunction() const { return QuadF; }
-
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
-
-   virtual ~QuadratureFunctionCoefficient() { }
-};
 
 /** @brief Compute the Lp norm of a function f.
     \f$ \| f \|_{Lp} = ( \int_\Omega | f |^p d\Omega)^{1/p} \f$ */
