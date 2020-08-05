@@ -24,8 +24,8 @@
 // Compile with: make field-diff
 //
 // Sample runs:
-//    compare
-//    compare -m1 triple-pt-1.mesh -s1 triple-pt-1.gf -m2 triple-pt-2.mesh -s2 triple-pt-1.gf -p 200
+//    field-diff
+//    field-diff -m1 triple-pt-1.mesh -s1 triple-pt-1.gf -m2 triple-pt-2.mesh -s2 triple-pt-1.gf -p 200
 
 #include "mfem.hpp"
 #include <fstream>
@@ -156,27 +156,14 @@ int main (int argc, char *argv[])
       }
    }
 
-   FindPointsGSLIB finder;
-   const double rel_bbox_el = 0.05;
-   const double newton_tol  = 1.0e-12;
-   const int npts_at_once   = 256;
-   Array<unsigned int> el_id_out(pts_cnt), code_out(pts_cnt), task_id_out(pts_cnt);
-   Vector pos_r_out(pts_cnt * dim), dist_p_out(pts_cnt);
+   FindPointsGSLIB finder1, finder2;
    Vector interp_vals_1(pts_cnt), interp_vals_2(pts_cnt);
 
    // First solution.
-   finder.Setup(mesh_1, rel_bbox_el, newton_tol, npts_at_once);
-   finder.FindPoints(vxyz, code_out, task_id_out,
-                     el_id_out, pos_r_out, dist_p_out);
-   finder.Interpolate(code_out, task_id_out, el_id_out,
-                      pos_r_out, func_1, interp_vals_1);
+   finder1.Interpolate(mesh_1, vxyz, func_1, interp_vals_1);
 
    // Second solution.
-   finder.Setup(mesh_2, rel_bbox_el, newton_tol, npts_at_once);
-   finder.FindPoints(vxyz, code_out, task_id_out,
-                     el_id_out, pos_r_out, dist_p_out);
-   finder.Interpolate(code_out, task_id_out, el_id_out,
-                      pos_r_out, func_2, interp_vals_2);
+   finder2.Interpolate(mesh_2, vxyz, func_2, interp_vals_2);
 
    // Compute differences between the two sets of values.
    double avg_diff = 0.0, max_diff = 0.0, diff_p;
@@ -220,15 +207,8 @@ int main (int argc, char *argv[])
    const int nodes_cnt = vxyz.Size() / dim;
 
    // Difference at the nodes of mesh 1.
-   el_id_out.SetSize(nodes_cnt); code_out.SetSize(nodes_cnt);
-   task_id_out.SetSize(nodes_cnt);
-   pos_r_out.SetSize(nodes_cnt * dim); dist_p_out.SetSize(nodes_cnt * dim);
    interp_vals_2.SetSize(nodes_cnt);
-   finder.Setup(mesh_2, rel_bbox_el, newton_tol, npts_at_once);
-   finder.FindPoints(vxyz, code_out, task_id_out,
-                     el_id_out, pos_r_out, dist_p_out);
-   finder.Interpolate(code_out, task_id_out, el_id_out,
-                      pos_r_out, func_2, interp_vals_2);
+   finder2.Interpolate(vxyz, func_2, interp_vals_2);
    for (int n = 0; n < nodes_cnt; n++)
    {
       diff(n) = fabs(func_1(n) - interp_vals_2(n));
@@ -258,7 +238,8 @@ int main (int argc, char *argv[])
    std::cout << "Vol diff: " << vol_diff << std::endl;
 
    // Free the internal gslib data.
-   finder.FreeData();
+   finder1.FreeData();
+   finder2.FreeData();
 
    return 0;
 }

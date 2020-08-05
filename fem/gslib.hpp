@@ -28,14 +28,19 @@ class FindPointsGSLIB
 {
 protected:
    Mesh *mesh;
-   Vector gsl_mesh;
+   IntegrationRule *ir_simplex;
    struct findpts_data_2 *fdata2D;
    struct findpts_data_3 *fdata3D;
    int dim;
+   Array<unsigned int> gsl_code, gsl_proc, gsl_elem;
+   Vector gsl_mesh, gsl_ref, gsl_dist;
+   bool setupflag;
 
    struct comm *gsl_comm;
 
    void GetNodeValues(const GridFunction &gf_in, Vector &node_vals);
+   void GetQuadHexNodalCoordinates();
+   void GetSimplexNodalCoordinates();
 
 public:
    FindPointsGSLIB();
@@ -56,7 +61,8 @@ public:
        @param[in] newt_tol  Newton tolerance for the gslib search methods.
        @param[in] npt_max   Number of points for simultaneous iteration. This
                             alters performance and memory footprint. */
-   void Setup(Mesh &m, double bb_t, double newt_tol, int npt_max);
+   void Setup(Mesh &m, const double bb_t = 0.1, const double newt_tol = 1.0e-12,
+              const int npt_max = 256);
 
    /** Searches positions given in physical space by @a point_pos. All output
        Arrays and Vectors are expected to have the correct size.
@@ -70,11 +76,15 @@ public:
        @param[out] ref_pos    Reference coordinates of the found point. Ordered
                               by vdim (XYZ,XYZ,XYZ...).
                               Note: the gslib reference frame is [-1,1].
-       @param[out] dist       Distance between the seeked and the found point
+       @param[out] dist       Distance between the sought and the found point
                               in physical space. */
-   void FindPoints(Vector &point_pos, Array<unsigned int> &codes,
+   void FindPoints(const Vector &point_pos, Array<unsigned int> &codes,
                    Array<unsigned int> &proc_ids, Array<unsigned int> &elem_ids,
                    Vector &ref_pos, Vector &dist);
+   void FindPoints(const Vector &point_pos);
+   /// Setup FindPoints and search positions
+   void FindPoints(Mesh &m, const Vector &point_pos, const double bb_t = 0.1,
+                   const double newt_tol = 1.0e-12,  const int npt_max = 256);
 
    /** Interpolation of field values at prescribed reference space positions.
 
@@ -93,11 +103,31 @@ public:
    void Interpolate(Array<unsigned int> &codes, Array<unsigned int> &proc_ids,
                     Array<unsigned int> &elem_ids, Vector &ref_pos,
                     const GridFunction &field_in, Vector &field_out);
+   void Interpolate(const GridFunction &field_in, Vector &field_out);
+   /** Search positions and interpolate */
+   void Interpolate(const Vector &point_pos, const GridFunction &field_in,
+                    Vector &field_out);
+   /** Setup FindPoints, search positions and interpolate */
+   void Interpolate(Mesh &m, const Vector &point_pos,
+                    const GridFunction &field_in, Vector &field_out);
 
    /** Cleans up memory allocated internally by gslib.
        Note that in parallel, this must be called before MPI_Finalize(), as
        it calls MPI_Comm_free() for internal gslib communicators. */
    void FreeData();
+
+   /// Return code for each point searched by FindPoints: inside element (0), on
+   /// element boundary (1), or not found (2).
+   const Array<unsigned int> &GetCode() const { return gsl_code; }
+   /// Return element number for each point found by FindPoints.
+   const Array<unsigned int> &GetElem() const { return gsl_elem; }
+   /// Return MPI rank on which each point was found by FindPoints.
+   const Array<unsigned int> &GetProc() const { return gsl_proc; }
+   /// Return reference coordinates for each point found by FindPoints.
+   const Vector &GetReferencePosition() const { return gsl_ref;  }
+   /// Return distance Distance between the sought and the found point
+   /// in physical space, for each point found by FindPoints.
+   const Vector &GetDist()              const { return gsl_dist; }
 };
 
 } // namespace mfem

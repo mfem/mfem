@@ -563,12 +563,8 @@ SurfaceCurrent::SurfaceCurrent(ParFiniteElementSpace & H1FESpace,
    s0_->Finalize();
    S0_ = new HypreParMatrix;
 
-   ess_bdr_.SetSize(H1FESpace_->GetParMesh()->bdr_attributes.Max());
-   ess_bdr_ = 0;
-   for (int i=0; i<vbcs_->Size(); i++)
-   {
-      ess_bdr_[(*vbcs_)[i]-1] = 1;
-   }
+   AttrToMarker(H1FESpace_->GetParMesh()->bdr_attributes.Max(),
+                *vbcs_, ess_bdr_);
    H1FESpace_->GetEssentialTrueDofs(ess_bdr_, ess_bdr_tdofs_);
 
    non_k_bdr_.SetSize(H1FESpace_->GetParMesh()->bdr_attributes.Max());

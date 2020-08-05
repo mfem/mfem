@@ -9,11 +9,12 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-# Defines the following variables:
-#   - GECKO_FOUND
-#   - GECKO_LIBRARIES
-#   - GECKO_INCLUDE_DIRS
+add_mfem_miniapp(cvsRoberts_ASAi_dns
+  MAIN cvsRoberts_ASAi_dns.cpp
+  LIBRARIES mfem mfem-common)
 
-include(MfemCmakeUtilities)
-mfem_find_package(Gecko GECKO GECKO_DIR "include;inc" graph.h "lib" gecko
-  "Paths to headers required by Gecko." "Libraries required by Gecko.")
+if (MFEM_USE_MPI)
+  add_mfem_miniapp(adjoint_advection_diffusion
+    MAIN adjoint_advection_diffusion.cpp
+    LIBRARIES mfem mfem-common)
+endif()

@@ -60,7 +60,7 @@ FiniteElementSpace::FiniteElementSpace()
    : mesh(NULL), fec(NULL), vdim(0), ordering(Ordering::byNODES),
      ndofs(0), nvdofs(0), nedofs(0), nfdofs(0), nbdofs(0),
      fdofs(NULL), bdofs(NULL),
-     elem_dof(NULL), bdrElem_dof(NULL),
+     elem_dof(NULL), bdrElem_dof(NULL), face_dof(NULL),
      NURBSext(NULL), own_ext(false),
      cP(NULL), cR(NULL), cP_is_set(false),
      Th(Operator::ANY_TYPE),
@@ -231,6 +231,54 @@ void FiniteElementSpace::BuildElementToDofTable() const
    }
    el_dof -> ShiftUpI();
    elem_dof = el_dof;
+}
+
+void FiniteElementSpace::BuildBdrElementToDofTable() const
+{
+   if (bdrElem_dof) { return; }
+
+   Table *bel_dof = new Table;
+   Array<int> dofs;
+   bel_dof->MakeI(mesh->GetNBE());
+   for (int i = 0; i < mesh->GetNBE(); i++)
+   {
+      GetBdrElementDofs(i, dofs);
+      bel_dof->AddColumnsInRow(i, dofs.Size());
+   }
+   bel_dof->MakeJ();
+   for (int i = 0; i < mesh->GetNBE(); i++)
+   {
+      GetBdrElementDofs(i, dofs);
+      bel_dof->AddConnections(i, (int *)dofs, dofs.Size());
+   }
+   bel_dof->ShiftUpI();
+   bdrElem_dof = bel_dof;
+}
+
+void FiniteElementSpace::BuildFaceToDofTable() const
+{
+   // Here, "face" == (dim-1)-dimensional mesh entity.
+
+   if (face_dof) { return; }
+
+   if (NURBSext) { BuildNURBSFaceToDofTable(); return; }
+
+   Table *fc_dof = new Table;
+   Array<int> dofs;
+   fc_dof->MakeI(mesh->GetNumFaces());
+   for (int i = 0; i < fc_dof->Size(); i++)
+   {
+      GetFaceDofs(i, dofs);
+      fc_dof->AddColumnsInRow(i, dofs.Size());
+   }
+   fc_dof->MakeJ();
+   for (int i = 0; i < fc_dof->Size(); i++)
+   {
+      GetFaceDofs(i, dofs);
+      fc_dof->AddConnections(i, (int *)dofs, dofs.Size());
+   }
+   fc_dof->ShiftUpI();
+   face_dof = fc_dof;
 }
 
 void FiniteElementSpace::RebuildElementToDofTable()
@@ -495,9 +543,10 @@ FiniteElementSpace::H2L_GlobalRestrictionMatrix (FiniteElementSpace *lfes)
 {
    SparseMatrix *R;
    DenseMatrix loc_restr;
-   Array<int> l_dofs, h_dofs;
+   Array<int> l_dofs, h_dofs, l_vdofs, h_vdofs;
 
-   R = new SparseMatrix (lfes -> GetNDofs(), ndofs);
+   int vdim = lfes->GetVDim();
+   R = new SparseMatrix (vdim * lfes -> GetNDofs(), vdim * ndofs);
 
    Geometry::Type cached_geom = Geometry::INVALID;
    const FiniteElement *h_fe = NULL;
@@ -520,7 +569,16 @@ FiniteElementSpace::H2L_GlobalRestrictionMatrix (FiniteElementSpace *lfes)
          cached_geom = geom;
       }
 
-      R -> SetSubMatrix (l_dofs, h_dofs, loc_restr, 1);
+      for (int vd = 0; vd < vdim; vd++)
+      {
+         l_dofs.Copy(l_vdofs);
+         lfes->DofsToVDofs(vd, l_vdofs);
+
+         h_dofs.Copy(h_vdofs);
+         this->DofsToVDofs(vd, h_vdofs);
+
+         R -> SetSubMatrix (l_vdofs, h_vdofs, loc_restr, 1);
+      }
    }
 
    R -> Finalize();
@@ -670,7 +728,6 @@ void FiniteElementSpace::BuildConformingInterpolation() const
             if (!slave_dofs.Size()) { continue; }
 
             slave.OrientedPointMatrix(T.GetPointMat());
-            T.FinalizeTransformation();
             fe->GetLocalInterpolation(T, I);
 
             // make each slave DOF dependent on all master DOFs
@@ -834,8 +891,7 @@ const Operator *FiniteElementSpace::GetElementRestriction(
    ElementDofOrdering e_ordering) const
 {
    // Check if we have a discontinuous space using the FE collection:
-   const L2_FECollection *dg_space = dynamic_cast<const L2_FECollection*>(fec);
-   if (dg_space)
+   if (IsDGSpace())
    {
       if (L2E_nat.Ptr() == NULL)
       {
@@ -862,7 +918,7 @@ const Operator *FiniteElementSpace::GetElementRestriction(
 const Operator *FiniteElementSpace::GetFaceRestriction(
    ElementDofOrdering e_ordering, FaceType type, L2FaceValues mul) const
 {
-   const bool is_dg_space = dynamic_cast<const L2_FECollection*>(fec)!=nullptr;
+   const bool is_dg_space = IsDGSpace();
    const L2FaceValues m = (is_dg_space && mul==L2FaceValues::DoubleValued) ?
                           L2FaceValues::DoubleValued : L2FaceValues::SingleValued;
    key_face key = std::make_tuple(is_dg_space, e_ordering, type, m);
@@ -1027,8 +1083,7 @@ void FiniteElementSpace::GetLocalRefinementMatrices(
    localP.SetSize(ldof, ldof, nmat);
    for (int i = 0; i < nmat; i++)
    {
-      isotr.GetPointMat() = pmats(i);
-      isotr.FinalizeTransformation();
+      isotr.SetPointMat(pmats(i));
       fe->GetLocalInterpolation(isotr, localP(i));
    }
 }
@@ -1097,13 +1152,12 @@ void FiniteElementSpace::RefinementOperator
    Mesh* mesh = fespace->GetMesh();
    const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
 
-   Array<int> dofs, old_dofs, old_vdofs;
-
-   Array<char> processed(fespace->GetVSize());
-   processed = 0;
+   Array<int> dofs, vdofs, old_dofs, old_vdofs;
 
    int vdim = fespace->GetVDim();
    int old_ndofs = width / vdim;
+
+   Vector subY, subX;
 
    for (int k = 0; k < mesh->GetNE(); k++)
    {
@@ -1111,32 +1165,77 @@ void FiniteElementSpace::RefinementOperator
       const Geometry::Type geom = mesh->GetElementBaseGeometry(k);
       const DenseMatrix &lP = localP[geom](emb.matrix);
 
+      subY.SetSize(lP.Height());
+
       fespace->GetElementDofs(k, dofs);
       old_elem_dof->GetRow(emb.parent, old_dofs);
 
       for (int vd = 0; vd < vdim; vd++)
       {
+         dofs.Copy(vdofs);
+         fespace->DofsToVDofs(vd, vdofs);
          old_dofs.Copy(old_vdofs);
          fespace->DofsToVDofs(vd, old_vdofs, old_ndofs);
+         x.GetSubVector(old_vdofs, subX);
+         lP.Mult(subX, subY);
+         y.SetSubVector(vdofs, subY);
+      }
+   }
+}
 
-         for (int i = 0; i < dofs.Size(); i++)
+void FiniteElementSpace::RefinementOperator
+::MultTranspose(const Vector &x, Vector &y) const
+{
+   y = 0.0;
+
+   Mesh* mesh = fespace->GetMesh();
+   const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
+
+   Array<char> processed(fespace->GetVSize());
+   processed = 0;
+
+   Array<int> f_dofs, c_dofs, f_vdofs, c_vdofs;
+
+   int vdim = fespace->GetVDim();
+   int old_ndofs = width / vdim;
+
+   Vector subY, subX;
+
+   for (int k = 0; k < mesh->GetNE(); k++)
+   {
+      const Embedding &emb = rtrans.embeddings[k];
+      const Geometry::Type geom = mesh->GetElementBaseGeometry(k);
+      const DenseMatrix &lP = localP[geom](emb.matrix);
+
+      fespace->GetElementDofs(k, f_dofs);
+      old_elem_dof->GetRow(emb.parent, c_dofs);
+
+      subY.SetSize(lP.Width());
+
+      for (int vd = 0; vd < vdim; vd++)
+      {
+         f_dofs.Copy(f_vdofs);
+         fespace->DofsToVDofs(vd, f_vdofs);
+         c_dofs.Copy(c_vdofs);
+         fespace->DofsToVDofs(vd, c_vdofs, old_ndofs);
+
+         x.GetSubVector(f_vdofs, subX);
+
+         for (int p = 0; p < f_dofs.Size(); ++p)
          {
-            double rsign, osign;
-            int r = fespace->DofToVDof(dofs[i], vd);
-            r = DecodeDof(r, rsign);
-
-            if (!processed[r])
+            if (processed[DecodeDof(f_dofs[p])])
             {
-               double value = 0.0;
-               for (int j = 0; j < old_vdofs.Size(); j++)
-               {
-                  int o = DecodeDof(old_vdofs[j], osign);
-                  value += x[o] * lP(i, j) * osign;
-               }
-               y[r] = value * rsign;
-               processed[r] = 1;
+               subX[p] = 0.0;
             }
          }
+
+         lP.MultTranspose(subX, subY);
+         y.AddElementVector(c_vdofs, subY);
+      }
+
+      for (int p = 0; p < f_dofs.Size(); ++p)
+      {
+         processed[DecodeDof(f_dofs[p])] = 1;
       }
    }
 }
@@ -1172,8 +1271,7 @@ FiniteElementSpace::DerefinementOperator::DerefinementOperator(
       emb_tr.SetIdentityTransformation(geom);
       for (int i = 0; i < pmats.SizeK(); i++)
       {
-         emb_tr.GetPointMat() = pmats(i);
-         emb_tr.FinalizeTransformation();
+         emb_tr.SetPointMat(pmats(i));
          // Get the local interpolation matrix for this refinement type
          fine_fe->GetTransferMatrix(*coarse_fe, emb_tr, lP(i));
          // Get the local mass matrix for this refinement type
@@ -1293,9 +1391,7 @@ void FiniteElementSpace::GetLocalDerefinementMatrices(Geometry::Type geom,
    localR.SetSize(ldof, ldof, nmat);
    for (int i = 0; i < nmat; i++)
    {
-      isotr.GetPointMat() = pmats(i);
-      isotr.FinalizeTransformation();
-
+      isotr.SetPointMat(pmats(i));
       fe->GetLocalRestriction(isotr, localR(i));
    }
 }
@@ -1393,8 +1489,7 @@ void FiniteElementSpace::GetLocalRefinementMatrices(
    localP.SetSize(fine_fe->GetDof(), coarse_fe->GetDof(), nmat);
    for (int i = 0; i < nmat; i++)
    {
-      isotr.GetPointMat() = pmats(i);
-      isotr.FinalizeTransformation();
+      isotr.SetPointMat(pmats(i));
       fine_fe->GetTransferMatrix(*coarse_fe, isotr, localP(i));
    }
 }
@@ -1409,6 +1504,7 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
    this->ordering = (Ordering::Type) ordering;
 
    elem_dof = NULL;
+   face_dof = NULL;
    sequence = mesh->GetSequence();
    Th.SetType(Operator::ANY_TYPE);
 
@@ -1458,6 +1554,8 @@ NURBSExtension *FiniteElementSpace::StealNURBSext()
 
 void FiniteElementSpace::UpdateNURBS()
 {
+   MFEM_VERIFY(NURBSext, "NURBSExt not defined.");
+
    nvdofs = 0;
    nedofs = 0;
    nfdofs = 0;
@@ -1465,11 +1563,64 @@ void FiniteElementSpace::UpdateNURBS()
    fdofs = NULL;
    bdofs = NULL;
 
+   delete face_dof;
+   face_dof = NULL;
+   face_to_be.DeleteAll();
+
    dynamic_cast<const NURBSFECollection *>(fec)->Reset();
 
    ndofs = NURBSext->GetNDof();
    elem_dof = NURBSext->GetElementDofTable();
    bdrElem_dof = NURBSext->GetBdrElementDofTable();
+}
+
+void FiniteElementSpace::BuildNURBSFaceToDofTable() const
+{
+   if (face_dof) { return; }
+
+   const int dim = mesh->Dimension();
+
+   // Find bdr to face mapping
+   face_to_be.SetSize(GetNF());
+   face_to_be = -1;
+   for (int b = 0; b < GetNBE(); b++)
+   {
+      int f = mesh->GetBdrElementEdgeIndex(b);
+      face_to_be[f] = b;
+   }
+
+   // Loop over faces in correct order, to prevent a sort
+   // Sort will destroy orientation info in ordering of dofs
+   Array<Connection> face_dof_list;
+   Array<int> row;
+   for (int f = 0; f < GetNF(); f++)
+   {
+      int b = face_to_be[f];
+      if (b == -1) { continue; }
+      // FIXME: this assumes the boundary element and the face element have the
+      //        same orientation.
+      if (dim > 1)
+      {
+         const Element *fe = mesh->GetFace(f);
+         const Element *be = mesh->GetBdrElement(b);
+         const int nv = be->GetNVertices();
+         const int *fv = fe->GetVertices();
+         const int *bv = be->GetVertices();
+         for (int i = 0; i < nv; i++)
+         {
+            MFEM_VERIFY(fv[i] == bv[i],
+                        "non-matching face and boundary elements detected!");
+         }
+      }
+      GetBdrElementDofs(b, row);
+      Connection conn(f,0);
+      for (int i = 0; i < row.Size(); i++)
+      {
+         conn.to = row[i];
+         face_dof_list.Append(conn);
+      }
+   }
+   face_dof = new Table(GetNF(), face_dof_list);
 }
 
 void FiniteElementSpace::Construct()
@@ -1479,6 +1630,7 @@ void FiniteElementSpace::Construct()
 
    elem_dof = NULL;
    bdrElem_dof = NULL;
+   face_dof = NULL;
 
    ndofs = 0;
    nedofs = nfdofs = nbdofs = 0;
@@ -1741,59 +1893,68 @@ void FiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
 
 void FiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
 {
-   int j, k, nv, ne, nf, nd, dim = mesh->Dimension();
-   Array<int> V, E, Eo;
-   const int *ind;
+   // If face_dof is already built, use it.
+   // If it is not and we have a NURBS space, build the face_dof and use it.
+   if (face_dof || (NURBSext && (BuildNURBSFaceToDofTable(), true)))
+   {
+      face_dof->GetRow(i, dofs);
+   }
+   else
+   {
+      int j, k, nv, ne, nf, nd, dim = mesh->Dimension();
+      Array<int> V, E, Eo;
+      const int *ind;
 
-   // for 1D, 2D and 3D faces
-   nv = fec->DofForGeometry(Geometry::POINT);
-   ne = (dim > 1) ? fec->DofForGeometry(Geometry::SEGMENT) : 0;
-   if (nv > 0)
-   {
-      mesh->GetFaceVertices(i, V);
-   }
-   if (ne > 0)
-   {
-      mesh->GetFaceEdges(i, E, Eo);
-   }
-   nf = (fdofs) ? (fdofs[i+1]-fdofs[i]) : (0);
-   nd = V.Size() * nv + E.Size() * ne + nf;
-   dofs.SetSize(nd);
-   if (nv > 0)
-   {
-      for (k = 0; k < V.Size(); k++)
+      // for 1D, 2D and 3D faces
+      nv = fec->DofForGeometry(Geometry::POINT);
+      ne = (dim > 1) ? fec->DofForGeometry(Geometry::SEGMENT) : 0;
+      if (nv > 0)
       {
-         for (j = 0; j < nv; j++)
-         {
-            dofs[k*nv+j] = V[k]*nv+j;
-         }
+         mesh->GetFaceVertices(i, V);
       }
-   }
-   nv *= V.Size();
-   if (ne > 0)
-   {
-      for (k = 0; k < E.Size(); k++)
+      if (ne > 0)
       {
-         ind = fec->DofOrderForOrientation(Geometry::SEGMENT, Eo[k]);
-         for (j = 0; j < ne; j++)
+         mesh->GetFaceEdges(i, E, Eo);
+      }
+      nf = (fdofs) ? (fdofs[i+1]-fdofs[i]) : (0);
+      nd = V.Size() * nv + E.Size() * ne + nf;
+      dofs.SetSize(nd);
+      if (nv > 0)
+      {
+         for (k = 0; k < V.Size(); k++)
          {
-            if (ind[j] < 0)
+            for (j = 0; j < nv; j++)
             {
-               dofs[nv+k*ne+j] = -1 - ( nvdofs+E[k]*ne+(-1-ind[j]) );
-            }
-            else
-            {
-               dofs[nv+k*ne+j] = nvdofs+E[k]*ne+ind[j];
+               dofs[k*nv+j] = V[k]*nv+j;
             }
          }
       }
-   }
-   ne = nv + ne * E.Size();
-   if (nf > 0)
-   {
-      for (j = nvdofs+nedofs+fdofs[i], k = 0; k < nf; j++, k++)
+      nv *= V.Size();
+      if (ne > 0)
       {
-         dofs[ne+k] = j;
+         for (k = 0; k < E.Size(); k++)
+         {
+            ind = fec->DofOrderForOrientation(Geometry::SEGMENT, Eo[k]);
+            for (j = 0; j < ne; j++)
+            {
+               if (ind[j] < 0)
+               {
+                  dofs[nv+k*ne+j] = -1 - ( nvdofs+E[k]*ne+(-1-ind[j]) );
+               }
+               else
+               {
+                  dofs[nv+k*ne+j] = nvdofs+E[k]*ne+ind[j];
+               }
+            }
+         }
+      }
+      ne = nv + ne * E.Size();
+      if (nf > 0)
+      {
+         for (j = nvdofs+nedofs+fdofs[i], k = 0; k < nf; j++, k++)
+         {
+            dofs[ne+k] = j;
+         }
       }
    }
 }
@@ -1922,14 +2083,21 @@ const FiniteElement *FiniteElementSpace::GetFaceElement(int i) const
          fe = fec->FiniteElementForGeometry(mesh->GetFaceBaseGeometry(i));
    }
 
-   // if (NURBSext)
-   //    NURBSext->LoadFaceElement(i, fe);
+   if (NURBSext)
+   {
+      // Ensure 'face_to_be' is built:
+      if (!face_dof) { BuildNURBSFaceToDofTable(); }
+      MFEM_ASSERT(face_to_be[i] >= 0,
+                  "NURBS mesh: only boundary faces are supported!");
+      NURBSext->LoadBE(face_to_be[i], fe);
+   }
 
    return fe;
 }
 
 const FiniteElement *FiniteElementSpace::GetEdgeElement(int i) const
 {
+   MFEM_ASSERT(mesh->Dimension() > 1, "No edges with a mesh dimension < 2");
    return fec->FiniteElementForGeometry(Geometry::SEGMENT);
 }
 
@@ -1977,11 +2145,14 @@ void FiniteElementSpace::Destroy()
    if (NURBSext)
    {
       if (own_ext) { delete NURBSext; }
+      delete face_dof;
+      face_to_be.DeleteAll();
    }
    else
    {
       delete elem_dof;
       delete bdrElem_dof;
+      delete face_dof;
 
       delete [] bdofs;
       delete [] fdofs;
@@ -2568,7 +2739,9 @@ const Operator &InterpolationGridTransfer::BackwardOperator()
 
 L2ProjectionGridTransfer::L2Projection::L2Projection(
    const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_)
-   : fes_ho(fes_ho_), fes_lor(fes_lor_)
+   : Operator(fes_lor_.GetVSize(), fes_ho_.GetVSize()),
+     fes_ho(fes_ho_),
+     fes_lor(fes_lor_)
 {
    Mesh *mesh_ho = fes_ho.GetMesh();
    MFEM_VERIFY(mesh_ho->GetNumGeometries(mesh_ho->Dimension()) <= 1,
@@ -2651,8 +2824,7 @@ L2ProjectionGridTransfer::L2Projection::L2Projection(
 
          // Create the transformation that embeds the fine low-order element
          // within the coarse high-order element in reference space
-         emb_tr.GetPointMat() = pmats(cf_tr.embeddings[ilor].matrix);
-         emb_tr.FinalizeTransformation();
+         emb_tr.SetPointMat(pmats(cf_tr.embeddings[ilor].matrix));
 
          int order = fe_lor->GetOrder() + fe_ho->GetOrder() + el_tr->OrderW();
          const IntegrationRule *ir = &IntRules.Get(geom, order);

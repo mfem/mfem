@@ -115,9 +115,6 @@ const char *GetConfigStr()
 #ifdef MFEM_USE_STRUMPACK
       "MFEM_USE_STRUMPACK\n"
 #endif
-#ifdef MFEM_USE_GECKO
-      "MFEM_USE_GECKO\n"
-#endif
 #ifdef MFEM_USE_GNUTLS
       "MFEM_USE_GNUTLS\n"
 #endif
@@ -150,6 +147,12 @@ const char *GetConfigStr()
 #endif
 #ifdef MFEM_USE_OCCA
       "MFEM_USE_OCCA\n"
+#endif
+#ifdef MFEM_USE_SIMD
+      "MFEM_USE_SIMD\n"
+#endif
+#ifdef MFEM_USE_ADIOS2
+      "MFEM_USE_ADIOS2\n"
 #endif
       "MFEM_TIMER_TYPE = " EXPAND_AND_QUOTE(MFEM_TIMER_TYPE)
       ;
