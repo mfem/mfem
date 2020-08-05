@@ -153,7 +153,7 @@ int main(int argc, char *argv[])
    mfem::HypreParVector* sv=x.GetTrueDofs();
 
    // 11. Define ParaView DataCollection
-   mfem::ParaViewDataCollection *dacol=new mfem::ParaViewDataCollection("pLap",
+   mfem::ParaViewDataCollection *dacol=new mfem::ParaViewDataCollection("Example71",
                                                                         pmesh);
    dacol->SetLevelsOfDetail(order);
    dacol->RegisterField("sol",&x);
