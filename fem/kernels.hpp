@@ -101,14 +101,12 @@ MFEM_HOST_DEVICE inline void LoadS(const int e, const int D1D,
 {
    MFEM_ABORT("");
    const int tidz = MFEM_THREAD_ID(z);
-   //double (*X)[MD1] = (double (*)[MD1])(sX + tidz);
    DeviceMatrix X(sX[tidz], MD1, MD1);
 
    MFEM_FOREACH_THREAD(dy,y,D1D)
    {
       MFEM_FOREACH_THREAD(dx,x,D1D)
       {
-         //X[dy][dx] = x(dx,dy,e);
          X(dx,dy) = x(dx,dy,e);
       }
    }
@@ -232,10 +230,15 @@ MFEM_HOST_DEVICE inline void EvalX(const int D1D, const int Q1D,
                                    const double sX[2][NBZ][MD1*MD1],
                                    double sDQ[2][NBZ][MD1*MQ1])
 {
+   //#warning MFEM_ABORT
+   MFEM_ABORT("");
    const int tidz = MFEM_THREAD_ID(z);
-   double (*B)[MD1] = (double (*)[MD1])(sB);
-   double (*X0)[MD1]  = (double (*)[MD1])(sX[0] + tidz);
-   double (*X1)[MD1]  = (double (*)[MD1])(sX[1] + tidz);
+   //double (*B)[MD1] = (double (*)[MD1])(sB);
+   ConstDeviceMatrix B(sB, MD1, MQ1);
+   //double (*X0)[MD1]  = (double (*)[MD1])(sX[0] + tidz);
+   ConstDeviceMatrix X0(sX[0][tidz], MD1, MD1);
+   //double (*X1)[MD1]  = (double (*)[MD1])(sX[1] + tidz);
+   ConstDeviceMatrix X1(sX[1][tidz], MD1, MD1);
    double (*DQ0)[MQ1] = (double (*)[MQ1])(sDQ[0] + tidz);
    double (*DQ1)[MQ1] = (double (*)[MQ1])(sDQ[1] + tidz);
 
@@ -246,10 +249,10 @@ MFEM_HOST_DEVICE inline void EvalX(const int D1D, const int Q1D,
          double u[2] = {0.0, 0.0};
          for (int dx = 0; dx < D1D; ++dx)
          {
-            const double xx = X0[dy][dx];
-            const double xy = X1[dy][dx];
-            u[0] += B[qx][dx] * xx;
-            u[1] += B[qx][dx] * xy;
+            const double xx = X0(dx,dy);//[dy][dx];
+            const double xy = X1(dx,dy);//[dy][dx];
+            u[0] += B(dx,qx) * xx;
+            u[1] += B(dx,qx) * xy;
          }
          DQ0[dy][qx] = u[0];
          DQ1[dy][qx] = u[1];
@@ -265,6 +268,8 @@ MFEM_HOST_DEVICE inline void EvalY(const int D1D, const int Q1D,
                                    const double sDQ[2][NBZ][MD1*MQ1],
                                    double sQQ[2][NBZ][MQ1*MQ1])
 {
+   //#warning MFEM_ABORT
+   MFEM_ABORT("");
    const int tidz = MFEM_THREAD_ID(z);
    double (*B)[MD1] = (double (*)[MD1])(sB);
    double (*DQ0)[MQ1] = (double (*)[MQ1])(sDQ[0] + tidz);
@@ -297,11 +302,11 @@ MFEM_HOST_DEVICE inline void EvalX(const int D1D, const int Q1D,
                                    double sDQ[2][NBZ][MD1*MQ1])
 {
    const int tidz = MFEM_THREAD_ID(z);
-   double (*B)[MD1] = (double (*)[MD1])(sBG+0);
-   double (*X0)[MD1]  = (double (*)[MD1])(sX[0] + tidz);
-   double (*X1)[MD1]  = (double (*)[MD1])(sX[1] + tidz);
-   double (*DQ0)[MQ1] = (double (*)[MQ1])(sDQ[0] + tidz);
-   double (*DQ1)[MQ1] = (double (*)[MQ1])(sDQ[1] + tidz);
+   ConstDeviceMatrix B(sBG[0], MD1, MQ1);
+   ConstDeviceMatrix X0(sX[0][tidz], MD1, MD1);
+   ConstDeviceMatrix X1(sX[1][tidz], MD1, MD1);
+   DeviceMatrix DQ0(sDQ[0][tidz], MQ1, MD1);
+   DeviceMatrix DQ1(sDQ[1][tidz], MQ1, MD1);
 
    MFEM_FOREACH_THREAD(dy,y,D1D)
    {
@@ -310,13 +315,13 @@ MFEM_HOST_DEVICE inline void EvalX(const int D1D, const int Q1D,
          double u[2] = {0.0, 0.0};
          for (int dx = 0; dx < D1D; ++dx)
          {
-            const double xx = X0[dy][dx];
-            const double xy = X1[dy][dx];
-            u[0] += B[qx][dx] * xx;
-            u[1] += B[qx][dx] * xy;
+            const double xx = X0(dx,dy);
+            const double xy = X1(dx,dy);
+            u[0] += B(dx,qx)* xx;
+            u[1] += B(dx,qx) * xy;
          }
-         DQ0[dy][qx] = u[0];
-         DQ1[dy][qx] = u[1];
+         DQ0(qx,dy) = u[0];
+         DQ1(qx,dy) = u[1];
       }
    }
    MFEM_SYNC_THREAD;
@@ -330,11 +335,11 @@ MFEM_HOST_DEVICE inline void EvalY(const int D1D, const int Q1D,
                                    double sQQ[2][NBZ][MQ1*MQ1])
 {
    const int tidz = MFEM_THREAD_ID(z);
-   double (*B)[MD1] = (double (*)[MD1])(sBG+0);
-   double (*DQ0)[MQ1] = (double (*)[MQ1])(sDQ[0] + tidz);
-   double (*DQ1)[MQ1] = (double (*)[MQ1])(sDQ[1] + tidz);
-   double (*QQ0)[MQ1] = (double (*)[MQ1])(sQQ[0] + tidz);
-   double (*QQ1)[MQ1] = (double (*)[MQ1])(sQQ[1] + tidz);
+   ConstDeviceMatrix B(sBG[0], MD1, MQ1);
+   ConstDeviceMatrix DQ0(sDQ[0][tidz], MQ1, MD1);
+   ConstDeviceMatrix DQ1(sDQ[1][tidz], MQ1, MD1);
+   DeviceMatrix QQ0(sQQ[0][tidz], MQ1, MQ1);
+   DeviceMatrix QQ1(sQQ[1][tidz], MQ1, MQ1);
 
    MFEM_FOREACH_THREAD(qy,y,Q1D)
    {
@@ -343,11 +348,11 @@ MFEM_HOST_DEVICE inline void EvalY(const int D1D, const int Q1D,
          double u[2] = {0.0, 0.0};
          for (int dy = 0; dy < D1D; ++dy)
          {
-            u[0] += DQ0[dy][qx] * B[qy][dy];
-            u[1] += DQ1[dy][qx] * B[qy][dy];
+            u[0] += DQ0(qx,dy) * B(dy,qy);
+            u[1] += DQ1(qx,dy) * B(dy,qy);
          }
-         QQ0[qy][qx] = u[0];
-         QQ1[qy][qx] = u[1];
+         QQ0(qx,qy) = u[0];
+         QQ1(qx,qy) = u[1];
       }
    }
    MFEM_SYNC_THREAD;
@@ -360,9 +365,9 @@ MFEM_HOST_DEVICE inline void PullEvalXYS(const int qx, const int qy,
                                          double &P)
 {
    const int tidz = MFEM_THREAD_ID(z);
-   double (*QQ0)[MQ1] = (double (*)[MQ1])(sQQ + tidz);
+   ConstDeviceMatrix QQ0(sQQ[tidz], MQ1, MQ1);
 
-   P = QQ0[qy][qx];
+   P = QQ0(qx,qy);
 }
 
 /// Pull 2D Evaluation
@@ -372,11 +377,11 @@ MFEM_HOST_DEVICE inline void PullEvalXY(const int qx, const int qy,
                                         double *P)
 {
    const int tidz = MFEM_THREAD_ID(z);
-   double (*QQ0)[MQ1] = (double (*)[MQ1])(sQQ[0] + tidz);
-   double (*QQ1)[MQ1] = (double (*)[MQ1])(sQQ[1] + tidz);
+   ConstDeviceMatrix QQ0(sQQ[0][tidz], MQ1, MQ1);
+   ConstDeviceMatrix QQ1(sQQ[1][tidz], MQ1, MQ1);
 
-   P[0] = QQ0[qy][qx];
-   P[1] = QQ1[qy][qx];
+   P[0] = QQ0(qx,qy);//[qy][qx];
+   P[1] = QQ1(qx,qy);//[qy][qx];
 }
 
 /// Push 2D Evaluation
@@ -386,11 +391,13 @@ MFEM_HOST_DEVICE inline void PushEvalXY(const int qx, const int qy,
                                         double sQQ[2][NBZ][MQ1*MQ1])
 {
    const int tidz = MFEM_THREAD_ID(z);
-   double (*QQ0)[MQ1] = (double (*)[MQ1])(sQQ[0] + tidz);
-   double (*QQ1)[MQ1] = (double (*)[MQ1])(sQQ[1] + tidz);
+   //double (*QQ0)[MQ1] = (double (*)[MQ1])(sQQ[0] + tidz);
+   DeviceMatrix QQ0(sQQ[0][tidz], MQ1, MQ1);
+   //double (*QQ1)[MQ1] = (double (*)[MQ1])(sQQ[1] + tidz);
+   DeviceMatrix QQ1(sQQ[1][tidz], MQ1, MQ1);
 
-   QQ0[qy][qx] = P[0];
-   QQ1[qy][qx] = P[1];
+   QQ0(qx,qy)/*[qy][qx]*/ = P[0];
+   QQ1(qx,qy)/*[qy][qx]*/ = P[1];
 }
 
 /// 2D Transposed evaluation, 1/2
@@ -401,11 +408,16 @@ MFEM_HOST_DEVICE inline void EvalXt(const int D1D, const int Q1D,
                                     double sDQ[2][NBZ][MD1*MQ1])
 {
    const int tidz = MFEM_THREAD_ID(z);
-   double (*Bt)[MQ1] = (double (*)[MQ1])(sBG+0);
-   double (*QQ0)[MQ1] = (double (*)[MQ1])(sQQ[0] + tidz);
-   double (*QQ1)[MQ1] = (double (*)[MQ1])(sQQ[1] + tidz);
-   double (*DQ0)[MQ1] = (double (*)[MQ1])(sDQ[0] + tidz);
-   double (*DQ1)[MQ1] = (double (*)[MQ1])(sDQ[1] + tidz);
+   //double (*Bt)[MQ1] = (double (*)[MQ1])(sBG+0);
+   ConstDeviceMatrix Bt(sBG[0], MQ1, MD1);
+   //double (*QQ0)[MQ1] = (double (*)[MQ1])(sQQ[0] + tidz);
+   ConstDeviceMatrix QQ0(sQQ[0][tidz], MQ1, MQ1);
+   //double (*QQ1)[MQ1] = (double (*)[MQ1])(sQQ[1] + tidz);
+   ConstDeviceMatrix QQ1(sQQ[1][tidz], MQ1, MQ1);
+   //double (*DQ0)[MQ1] = (double (*)[MQ1])(sDQ[0] + tidz);
+   DeviceMatrix DQ0(sDQ[0][tidz], MQ1, MD1);
+   //double (*DQ1)[MQ1] = (double (*)[MQ1])(sDQ[1] + tidz);
+   DeviceMatrix DQ1(sDQ[1][tidz], MQ1, MD1);
 
    MFEM_FOREACH_THREAD(qy,y,Q1D)
    {
@@ -414,11 +426,11 @@ MFEM_HOST_DEVICE inline void EvalXt(const int D1D, const int Q1D,
          double u[2] = {0.0, 0.0};
          for (int qx = 0; qx < Q1D; ++qx)
          {
-            u[0] += QQ0[qy][qx] * Bt[dx][qx];
-            u[1] += QQ1[qy][qx] * Bt[dx][qx];
+            u[0] += QQ0(qx,qy)/*[qy][qx]*/ * Bt(qx,dx);//[dx][qx];
+            u[1] += QQ1(qx,qy)/*[qy][qx]*/ * Bt(qx,dx);//[dx][qx];
          }
-         DQ0[dx][qy] = u[0];
-         DQ1[dx][qy] = u[1];
+         DQ0(qy,dx)/*[dx][qy]*/ = u[0];
+         DQ1(qy,dx)/*[dx][qy]*/ = u[1];
       }
    }
    MFEM_SYNC_THREAD;
@@ -432,9 +444,12 @@ MFEM_HOST_DEVICE inline void EvalYt(const int D1D, const int Q1D,
                                     DeviceTensor<4, double> Y, const int e)
 {
    const int tidz = MFEM_THREAD_ID(z);
-   double (*Bt)[MQ1] = (double (*)[MQ1]) (sBG+0);
-   double (*DQ0)[MQ1] = (double (*)[MQ1])(sDQ[0] + tidz);
-   double (*DQ1)[MQ1] = (double (*)[MQ1])(sDQ[1] + tidz);
+   //double (*Bt)[MQ1] = (double (*)[MQ1]) (sBG+0);
+   ConstDeviceMatrix Bt(sBG[0], MQ1, MD1);
+   //double (*DQ0)[MQ1] = (double (*)[MQ1])(sDQ[0] + tidz);
+   ConstDeviceMatrix DQ0(sDQ[0][tidz], MQ1, MD1);
+   //double (*DQ1)[MQ1] = (double (*)[MQ1])(sDQ[1] + tidz);
+   ConstDeviceMatrix DQ1(sDQ[1][tidz], MQ1, MD1);
 
    MFEM_FOREACH_THREAD(dy,y,D1D)
    {
@@ -443,8 +458,8 @@ MFEM_HOST_DEVICE inline void EvalYt(const int D1D, const int Q1D,
          double u[2] = {0.0, 0.0};
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            u[0] += Bt[dy][qy] * DQ0[dx][qy];
-            u[1] += Bt[dy][qy] * DQ1[dx][qy];
+            u[0] += Bt(qy,dy)/*[dy][qy]*/ * DQ0(qy,dx);//[dx][qy];
+            u[1] += Bt(qy,dy)/*[dy][qy]*/ * DQ1(qy,dx);//[dx][qy];
          }
          Y(dx,dy,0,e) += u[0];
          Y(dx,dy,1,e) += u[1];
