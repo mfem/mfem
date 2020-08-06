@@ -78,6 +78,7 @@ void PAHcurlMassApply3D(const int D1D,
                         const Vector &x,
                         Vector &y);
 
+template<int T_D1D = 0, int T_Q1D = 0>
 void SmemPAHcurlMassApply3D(const int D1D,
                             const int Q1D,
                             const int NE,
@@ -265,7 +266,7 @@ void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
       {
          if (diag.GetMemory().GetMemoryType() >= MemoryType::DEVICE && quad1D <= 6)
          {
-            const int ID = (dofs1D << 4 ) | quad1D;
+            const int ID = (dofs1D << 4) | quad1D;
             switch (ID)
             {
                case 0x23: return SmemPAHcurlMassAssembleDiagonal3D<2,3>(dofs1D, quad1D, ne,
@@ -276,8 +277,8 @@ void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
                                                                            mapsO->B, mapsC->B, pa_data, diag);
                case 0x56: return SmemPAHcurlMassAssembleDiagonal3D<5,6>(dofs1D, quad1D, ne,
                                                                            mapsO->B, mapsC->B, pa_data, diag);
-               default: return PAHcurlMassAssembleDiagonal3D(dofs1D, quad1D, ne,
-                                                                mapsO->B, mapsC->B, pa_data, diag);
+               default: return SmemPAHcurlMassAssembleDiagonal3D(dofs1D, quad1D, ne,
+                                                                    mapsO->B, mapsC->B, pa_data, diag);
             }
          }
          else
@@ -320,8 +321,26 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
       if (fetype == mfem::FiniteElement::CURL)
       {
          if (x.GetMemory().GetMemoryType() >= MemoryType::DEVICE && quad1D <= 6)
-            SmemPAHcurlMassApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
-                                   mapsC->Bt, pa_data, x, y);
+         {
+            const int ID = (dofs1D << 4) | quad1D;
+            switch (ID)
+            {
+               case 0x23: return SmemPAHcurlMassApply3D<2,3>(dofs1D, quad1D, ne, mapsO->B,
+                                                                mapsC->B, mapsO->Bt,
+                                                                mapsC->Bt, pa_data, x, y);
+               case 0x34: return SmemPAHcurlMassApply3D<3,4>(dofs1D, quad1D, ne, mapsO->B,
+                                                                mapsC->B, mapsO->Bt,
+                                                                mapsC->Bt, pa_data, x, y);
+               case 0x45: return SmemPAHcurlMassApply3D<4,5>(dofs1D, quad1D, ne, mapsO->B,
+                                                                mapsC->B, mapsO->Bt,
+                                                                mapsC->Bt, pa_data, x, y);
+               case 0x56: return SmemPAHcurlMassApply3D<5,6>(dofs1D, quad1D, ne, mapsO->B,
+                                                                mapsC->B, mapsO->Bt,
+                                                                mapsC->Bt, pa_data, x, y);
+               default: return SmemPAHcurlMassApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B,
+                                                         mapsO->Bt, mapsC->Bt, pa_data, x, y);
+            }
+         }
          else
             PAHcurlMassApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
                                mapsC->Bt, pa_data, x, y);

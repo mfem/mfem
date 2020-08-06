@@ -684,6 +684,7 @@ void PAHcurlMassApply3D(const int D1D,
    }); // end of element loop
 }
 
+template<int T_D1D, int T_Q1D>
 void SmemPAHcurlMassApply3D(const int D1D,
                             const int Q1D,
                             const int NE,
@@ -698,6 +699,9 @@ void SmemPAHcurlMassApply3D(const int D1D,
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
 
+   constexpr int tD1D = T_D1D ? T_D1D : MAX_D1D;
+   constexpr int tQ1D = T_Q1D ? T_Q1D : MAX_Q1D;
+
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
    constexpr static int VDIM = 3;
@@ -710,15 +714,14 @@ void SmemPAHcurlMassApply3D(const int D1D,
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
-      MFEM_SHARED double sBG[2][MAX_Q1D*MAX_D1D];
-      double (*sBo)[MAX_Q1D] = (double (*)[MAX_Q1D]) (sBG+0);
-      double (*sBc)[MAX_Q1D] = (double (*)[MAX_Q1D]) (sBG+1);
+      MFEM_SHARED double sBo[tQ1D][tD1D];
+      MFEM_SHARED double sBc[tQ1D][tD1D];
 
       double op6[6];
-      MFEM_SHARED double sop[6*MAX_Q1D*MAX_Q1D];
-      MFEM_SHARED double mass[MAX_Q1D][MAX_Q1D][3];
+      MFEM_SHARED double sop[6*tQ1D*tQ1D];
+      MFEM_SHARED double mass[tQ1D][tQ1D][3];
 
-      MFEM_SHARED double sX[MAX_D1D][MAX_D1D][MAX_D1D];
+      MFEM_SHARED double sX[tD1D][tD1D][tD1D];
 
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
@@ -1668,10 +1671,9 @@ static void SmemPACurlCurlApply3D(const int D1D,
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
-      MFEM_SHARED double sBG[3][MAX_Q1D*MAX_D1D];
-      double (*sBo)[MAX_D1D] = (double (*)[MAX_D1D]) (sBG+0);
-      double (*sBc)[MAX_D1D] = (double (*)[MAX_D1D]) (sBG+1);
-      double (*sGc)[MAX_D1D] = (double (*)[MAX_D1D]) (sBG+2);
+      MFEM_SHARED double sBo[MAX_D1D][MAX_Q1D];
+      MFEM_SHARED double sBc[MAX_D1D][MAX_Q1D];
+      MFEM_SHARED double sGc[MAX_D1D][MAX_Q1D];
 
       double op6[6];
       MFEM_SHARED double sop[6][MAX_Q1D][MAX_Q1D];
@@ -1949,8 +1951,27 @@ void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
    if (dim == 3)
    {
       if (x.GetMemory().GetMemoryType() >= MemoryType::DEVICE && quad1D <= 6)
-         SmemPACurlCurlApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
-                               mapsC->Bt, mapsC->G, mapsC->Gt, pa_data, x, y);
+      {
+         const int ID = (dofs1D << 4) | quad1D;
+         switch (ID)
+         {
+            case 0x23: return SmemPACurlCurlApply3D<2,3>(dofs1D, quad1D, ne, mapsO->B,
+                                                            mapsC->B, mapsO->Bt,
+                                                            mapsC->Bt, mapsC->G, mapsC->Gt, pa_data, x, y);
+            case 0x34: return SmemPACurlCurlApply3D<3,4>(dofs1D, quad1D, ne, mapsO->B,
+                                                            mapsC->B, mapsO->Bt,
+                                                            mapsC->Bt, mapsC->G, mapsC->Gt, pa_data, x, y);
+            case 0x45: return SmemPACurlCurlApply3D<4,5>(dofs1D, quad1D, ne, mapsO->B,
+                                                            mapsC->B, mapsO->Bt,
+                                                            mapsC->Bt, mapsC->G, mapsC->Gt, pa_data, x, y);
+            case 0x56: return SmemPACurlCurlApply3D<5,6>(dofs1D, quad1D, ne, mapsO->B,
+                                                            mapsC->B, mapsO->Bt,
+                                                            mapsC->Bt, mapsC->G, mapsC->Gt, pa_data, x, y);
+            default: return SmemPACurlCurlApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B,
+                                                     mapsO->Bt,
+                                                     mapsC->Bt, mapsC->G, mapsC->Gt, pa_data, x, y);
+         }
+      }
       else
          PACurlCurlApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
                            mapsC->Bt, mapsC->G, mapsC->Gt, pa_data, x, y);
@@ -2245,11 +2266,10 @@ static void SmemPACurlCurlAssembleDiagonal3D(const int D1D,
       // If c = 1, \hat{\nabla}\times\hat{u} reduces to [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
       // If c = 2, \hat{\nabla}\times\hat{u} reduces to [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
 
-      MFEM_SHARED double sBG[4][MAX_Q1D*MAX_D1D];
-      double (*sBo)[MAX_Q1D] = (double (*)[MAX_Q1D]) (sBG+0);
-      double (*sBc)[MAX_Q1D] = (double (*)[MAX_Q1D]) (sBG+1);
-      double (*sGo)[MAX_Q1D] = (double (*)[MAX_Q1D]) (sBG+2);
-      double (*sGc)[MAX_Q1D] = (double (*)[MAX_Q1D]) (sBG+3);
+      MFEM_SHARED double sBo[MAX_Q1D][MAX_D1D];
+      MFEM_SHARED double sBc[MAX_Q1D][MAX_D1D];
+      MFEM_SHARED double sGo[MAX_Q1D][MAX_D1D];
+      MFEM_SHARED double sGc[MAX_Q1D][MAX_D1D];
 
       double op6[6];
       MFEM_SHARED double sop[6][MAX_Q1D][MAX_Q1D];
@@ -2398,20 +2418,38 @@ void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
 {
    if (dim == 3)
    {
-      // Reduce HCURL_MAX_D1D/Q1D to avoid using too much memory
-      constexpr int MAX_D1D = HCURL_MAX_D1D;
-      constexpr int MAX_Q1D = HCURL_MAX_Q1D;
-
       if (diag.GetMemory().GetMemoryType() >= MemoryType::DEVICE && quad1D <= 6)
-         SmemPACurlCurlAssembleDiagonal3D<MAX_D1D,MAX_Q1D>(dofs1D, quad1D, ne,
-                                                           mapsO->B, mapsC->B,
-                                                           mapsO->G, mapsC->G,
-                                                           pa_data, diag);
+      {
+         const int ID = (dofs1D << 4) | quad1D;
+         switch (ID)
+         {
+            case 0x23: return SmemPACurlCurlAssembleDiagonal3D<2,3>(dofs1D, quad1D, ne,
+                                                                       mapsO->B, mapsC->B,
+                                                                       mapsO->G, mapsC->G,
+                                                                       pa_data, diag);
+            case 0x34: return SmemPACurlCurlAssembleDiagonal3D<3,4>(dofs1D, quad1D, ne,
+                                                                       mapsO->B, mapsC->B,
+                                                                       mapsO->G, mapsC->G,
+                                                                       pa_data, diag);
+            case 0x45: return SmemPACurlCurlAssembleDiagonal3D<4,5>(dofs1D, quad1D, ne,
+                                                                       mapsO->B, mapsC->B,
+                                                                       mapsO->G, mapsC->G,
+                                                                       pa_data, diag);
+            case 0x56: return SmemPACurlCurlAssembleDiagonal3D<5,6>(dofs1D, quad1D, ne,
+                                                                       mapsO->B, mapsC->B,
+                                                                       mapsO->G, mapsC->G,
+                                                                       pa_data, diag);
+            default: return SmemPACurlCurlAssembleDiagonal3D(dofs1D, quad1D, ne,
+                                                                mapsO->B, mapsC->B,
+                                                                mapsO->G, mapsC->G,
+                                                                pa_data, diag);
+         }
+      }
       else
-         PACurlCurlAssembleDiagonal3D<MAX_D1D,MAX_Q1D>(dofs1D, quad1D, ne,
-                                                       mapsO->B, mapsC->B,
-                                                       mapsO->G, mapsC->G,
-                                                       pa_data, diag);
+         PACurlCurlAssembleDiagonal3D(dofs1D, quad1D, ne,
+                                      mapsO->B, mapsC->B,
+                                      mapsO->G, mapsC->G,
+                                      pa_data, diag);
    }
    else if (dim == 2)
    {
@@ -3232,10 +3270,9 @@ static void SmemPAHcurlL2Apply3D(const int D1D,
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
-      MFEM_SHARED double sBG[3][MAX_Q1D*MAX_D1D];
-      double (*sBo)[MAX_D1D] = (double (*)[MAX_D1D]) (sBG+0);
-      double (*sBc)[MAX_D1D] = (double (*)[MAX_D1D]) (sBG+1);
-      double (*sGc)[MAX_D1D] = (double (*)[MAX_D1D]) (sBG+2);
+      MFEM_SHARED double sBo[MAX_D1D][MAX_Q1D];
+      MFEM_SHARED double sBc[MAX_D1D][MAX_Q1D];
+      MFEM_SHARED double sGc[MAX_D1D][MAX_Q1D];
 
       double opc[maxCoeffDim];
       MFEM_SHARED double sop[maxCoeffDim][MAX_Q1D][MAX_Q1D];
@@ -3854,8 +3891,27 @@ void MixedVectorCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
        trialType == mfem::FiniteElement::CURL && dim == 3)
    {
       if (x.GetMemory().GetMemoryType() >= MemoryType::DEVICE && quad1D <= 6)
-         SmemPAHcurlL2Apply3D(dofs1D, quad1D, coeffDim, ne, mapsO->B, mapsC->B,
-                              mapsC->G, pa_data, x, y);
+      {
+         const int ID = (dofs1D << 4) | quad1D;
+         switch (ID)
+         {
+            case 0x23: return SmemPAHcurlL2Apply3D<2,3>(dofs1D, quad1D, coeffDim, ne,
+                                                           mapsO->B, mapsC->B,
+                                                           mapsC->G, pa_data, x, y);
+            case 0x34: return SmemPAHcurlL2Apply3D<3,4>(dofs1D, quad1D, coeffDim, ne,
+                                                           mapsO->B, mapsC->B,
+                                                           mapsC->G, pa_data, x, y);
+            case 0x45: return SmemPAHcurlL2Apply3D<4,5>(dofs1D, quad1D, coeffDim, ne,
+                                                           mapsO->B, mapsC->B,
+                                                           mapsC->G, pa_data, x, y);
+            case 0x56: return SmemPAHcurlL2Apply3D<5,6>(dofs1D, quad1D, coeffDim, ne,
+                                                           mapsO->B, mapsC->B,
+                                                           mapsC->G, pa_data, x, y);
+            default: return SmemPAHcurlL2Apply3D(dofs1D, quad1D, coeffDim, ne, mapsO->B,
+                                                    mapsC->B,
+                                                    mapsC->G, pa_data, x, y);
+         }
+      }
       else
          PAHcurlL2Apply3D(dofs1D, quad1D, coeffDim, ne, mapsO->B, mapsC->B,
                           mapsO->Bt, mapsC->Bt, mapsC->G, pa_data, x, y);
@@ -4330,10 +4386,9 @@ static void SmemPAHcurlL2Apply3DTranspose(const int D1D,
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
-      MFEM_SHARED double sBG[3][MAX_Q1D*MAX_D1D];
-      double (*sBo)[MAX_D1D] = (double (*)[MAX_D1D]) (sBG+0);
-      double (*sBc)[MAX_D1D] = (double (*)[MAX_D1D]) (sBG+1);
-      double (*sGc)[MAX_D1D] = (double (*)[MAX_D1D]) (sBG+2);
+      MFEM_SHARED double sBo[MAX_D1D][MAX_Q1D];
+      MFEM_SHARED double sBc[MAX_D1D][MAX_Q1D];
+      MFEM_SHARED double sGc[MAX_D1D][MAX_Q1D];
 
       double opc[maxCoeffDim];
       MFEM_SHARED double sop[maxCoeffDim][MAX_Q1D][MAX_Q1D];
@@ -4533,8 +4588,27 @@ void MixedVectorWeakCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
        trialType == mfem::FiniteElement::CURL && dim == 3)
    {
       if (x.GetMemory().GetMemoryType() >= MemoryType::DEVICE && quad1D <= 6)
-         SmemPAHcurlL2Apply3DTranspose(dofs1D, quad1D, coeffDim, ne, mapsO->B, mapsC->B,
-                                       mapsC->G, pa_data, x, y);
+      {
+         const int ID = (dofs1D << 4) | quad1D;
+         switch (ID)
+         {
+            case 0x23: return SmemPAHcurlL2Apply3DTranspose<2,3>(dofs1D, quad1D, coeffDim,
+                                                                    ne, mapsO->B, mapsC->B,
+                                                                    mapsC->G, pa_data, x, y);
+            case 0x34: return SmemPAHcurlL2Apply3DTranspose<3,4>(dofs1D, quad1D, coeffDim,
+                                                                    ne, mapsO->B, mapsC->B,
+                                                                    mapsC->G, pa_data, x, y);
+            case 0x45: return SmemPAHcurlL2Apply3DTranspose<4,5>(dofs1D, quad1D, coeffDim,
+                                                                    ne, mapsO->B, mapsC->B,
+                                                                    mapsC->G, pa_data, x, y);
+            case 0x56: return SmemPAHcurlL2Apply3DTranspose<5,6>(dofs1D, quad1D, coeffDim,
+                                                                    ne, mapsO->B, mapsC->B,
+                                                                    mapsC->G, pa_data, x, y);
+            default: return SmemPAHcurlL2Apply3DTranspose(dofs1D, quad1D, coeffDim, ne,
+                                                             mapsO->B, mapsC->B,
+                                                             mapsC->G, pa_data, x, y);
+         }
+      }
       else
          PAHcurlL2Apply3DTranspose(dofs1D, quad1D, coeffDim, ne, mapsO->B, mapsC->B,
                                    mapsO->Bt, mapsC->Bt, mapsC->Gt, pa_data, x, y);
@@ -4544,6 +4618,14 @@ void MixedVectorWeakCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
       MFEM_ABORT("Unsupported dimension or space!");
    }
 }
+
+template void SmemPAHcurlMassAssembleDiagonal3D<0,0>(const int D1D,
+                                                     const int Q1D,
+                                                     const int NE,
+                                                     const Array<double> &bo,
+                                                     const Array<double> &bc,
+                                                     const Vector &pa_data,
+                                                     Vector &diag);
 
 template void SmemPAHcurlMassAssembleDiagonal3D<2,3>(const int D1D,
                                                      const int Q1D,
@@ -4576,4 +4658,60 @@ template void SmemPAHcurlMassAssembleDiagonal3D<5,6>(const int D1D,
                                                      const Array<double> &bc,
                                                      const Vector &pa_data,
                                                      Vector &diag);
+
+template void SmemPAHcurlMassApply3D<0,0>(const int D1D,
+                                          const int Q1D,
+                                          const int NE,
+                                          const Array<double> &bo,
+                                          const Array<double> &bc,
+                                          const Array<double> &bot,
+                                          const Array<double> &bct,
+                                          const Vector &pa_data,
+                                          const Vector &x,
+                                          Vector &y);
+
+template void SmemPAHcurlMassApply3D<2,3>(const int D1D,
+                                          const int Q1D,
+                                          const int NE,
+                                          const Array<double> &bo,
+                                          const Array<double> &bc,
+                                          const Array<double> &bot,
+                                          const Array<double> &bct,
+                                          const Vector &pa_data,
+                                          const Vector &x,
+                                          Vector &y);
+
+template void SmemPAHcurlMassApply3D<3,4>(const int D1D,
+                                          const int Q1D,
+                                          const int NE,
+                                          const Array<double> &bo,
+                                          const Array<double> &bc,
+                                          const Array<double> &bot,
+                                          const Array<double> &bct,
+                                          const Vector &pa_data,
+                                          const Vector &x,
+                                          Vector &y);
+
+template void SmemPAHcurlMassApply3D<4,5>(const int D1D,
+                                          const int Q1D,
+                                          const int NE,
+                                          const Array<double> &bo,
+                                          const Array<double> &bc,
+                                          const Array<double> &bot,
+                                          const Array<double> &bct,
+                                          const Vector &pa_data,
+                                          const Vector &x,
+                                          Vector &y);
+
+template void SmemPAHcurlMassApply3D<5,6>(const int D1D,
+                                          const int Q1D,
+                                          const int NE,
+                                          const Array<double> &bo,
+                                          const Array<double> &bc,
+                                          const Array<double> &bot,
+                                          const Array<double> &bct,
+                                          const Vector &pa_data,
+                                          const Vector &x,
+                                          Vector &y);
+
 } // namespace mfem
