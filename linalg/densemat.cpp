@@ -401,7 +401,7 @@ void DenseMatrix::InvSymmetricScaling(const Vector & s)
 {
    if (height != width || s.Size() != width)
    {
-      mfem_error("DenseMatrix::SymmetricScaling: dimension mismatch");
+      mfem_error("DenseMatrix::InvSymmetricScaling: dimension mismatch");
    }
 
    double * ss = new double[width];
@@ -528,7 +528,7 @@ double DenseMatrix::Weight() const
       double F = d[0] * d[3] + d[1] * d[4] + d[2] * d[5];
       return sqrt(E * G - F * F);
    }
-   mfem_error("DenseMatrix::Weight(): dimension mismatch");
+   mfem_error("DenseMatrix::Weight(): mismatched or unsupported dimensions");
    return 0.0;
 }
 
@@ -1164,7 +1164,7 @@ void DenseMatrix::Eigensystem(DenseMatrix &b, Vector &ev,
    MFEM_CONTRACT_VAR(b);
    MFEM_CONTRACT_VAR(ev);
    MFEM_CONTRACT_VAR(evect);
-   mfem_error("DenseMatrix::Eigensystem: Compiled without LAPACK");
+   mfem_error("DenseMatrix::Eigensystem(generalized): Compiled without LAPACK");
 #endif
 }
 
@@ -2093,7 +2093,7 @@ void CalcAdjugate(const DenseMatrix &a, DenseMatrix &adja)
 #ifdef MFEM_DEBUG
    if (a.Width() > a.Height() || a.Width() < 1 || a.Height() > 3)
    {
-      mfem_error("CalcAdjugate(...): dimension mismatch");
+      mfem_error("CalcAdjugate(...): unsupported dimensions");
    }
    if (a.Width() != adja.Height() || a.Height() != adja.Width())
    {
