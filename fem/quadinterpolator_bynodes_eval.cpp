@@ -20,16 +20,18 @@
 namespace mfem
 {
 
-template<int T_VDIM, int T_D1D, int T_Q1D, int T_NBZ = 1,
+template<int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0,
          int MAX_D1D = 0, int MAX_Q1D = 0>
 static void EvalByNodes2D(const int NE,
                           const double *b_,
                           const double *x_,
                           double *y_,
-                          const int vdim = 1,
+                          const int vdim = 0,
                           const int d1d = 0,
                           const int q1d = 0)
 {
+   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    const int VDIM = T_VDIM ? T_VDIM : vdim;
@@ -38,7 +40,6 @@ static void EvalByNodes2D(const int NE,
    const auto x = Reshape(x_, D1D, D1D, VDIM, NE);
    auto y = Reshape(y_, Q1D, Q1D, VDIM, NE);
 
-   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -48,14 +49,15 @@ static void EvalByNodes2D(const int NE,
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
       constexpr int NBZ = T_NBZ ? T_NBZ : 1;
       const int tidz = MFEM_THREAD_ID(z);
-      MFEM_SHARED double s_B[MQ1][MD1];
-      DeviceTensor<2,double> B((double*)(s_B), Q1D, D1D);
 
-      MFEM_SHARED double s_X[NBZ][MD1*MD1];
-      DeviceTensor<2,double> X((double*)(s_X+tidz), MD1, MD1);
+      MFEM_SHARED double s_B[MQ1*MD1];
+      DeviceTensor<2,double> B(s_B, Q1D, D1D);
 
-      MFEM_SHARED double sm[NBZ][MD1*MQ1];
-      DeviceTensor<2,double> DQ((double*)(sm+tidz), MD1, MQ1);
+      MFEM_SHARED double s_DD[NBZ][MD1*MD1];
+      DeviceTensor<2,double> DD((double*)(s_DD+tidz), MD1, MD1);
+
+      MFEM_SHARED double s_DQ[NBZ][MD1*MQ1];
+      DeviceTensor<2,double> DQ((double*)(s_DQ+tidz), MD1, MQ1);
 
       if (tidz == 0)
       {
@@ -75,7 +77,7 @@ static void EvalByNodes2D(const int NE,
          {
             MFEM_FOREACH_THREAD(dy,y,D1D)
             {
-               X(dx,dy) = x(dx,dy,c,e);
+               DD(dx,dy) = x(dx,dy,c,e);
             }
          }
          MFEM_SYNC_THREAD;
@@ -86,7 +88,7 @@ static void EvalByNodes2D(const int NE,
                double u = 0.0;
                for (int dx = 0; dx < D1D; ++dx)
                {
-                  u += B(qx,dx) *  X(dx,dy);
+                  u += B(qx,dx) *  DD(dx,dy);
                }
                DQ(dy,qx) = u;
             }
@@ -109,12 +111,13 @@ static void EvalByNodes2D(const int NE,
    });
 }
 
-template<int T_VDIM, int T_D1D, int T_Q1D, int MAX_D1D = 0, int MAX_Q1D = 0>
+template<int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0,
+         int MAX_D1D = 0, int MAX_Q1D = 0>
 static void EvalByNodes3D(const int NE,
                           const double *b_,
                           const double *x_,
                           double *y_,
-                          const int vdim = 1,
+                          const int vdim = 0,
                           const int d1d = 0,
                           const int q1d = 0)
 {
@@ -135,12 +138,15 @@ static void EvalByNodes3D(const int NE,
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
       constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
       const int tidz = MFEM_THREAD_ID(z);
-      MFEM_SHARED double B[MQ1][MD1];
+
+      MFEM_SHARED double s_B[MQ1*MD1];
+      DeviceTensor<2,double> B(s_B, Q1D, D1D);
+
       MFEM_SHARED double sm0[MDQ*MDQ*MDQ];
       MFEM_SHARED double sm1[MDQ*MDQ*MDQ];
-      double (*X)[MD1][MD1]   = (double (*)[MD1][MD1]) sm0;
-      double (*DDQ)[MD1][MQ1] = (double (*)[MD1][MQ1]) sm1;
-      double (*DQQ)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) sm0;
+      DeviceTensor<3,double> DDD(sm0, MD1, MD1, MD1);
+      DeviceTensor<3,double> DDQ(sm1, MD1, MD1, MQ1);
+      DeviceTensor<3,double> DQQ(sm0, MD1, MQ1, MQ1);
 
       if (tidz == 0)
       {
@@ -148,7 +154,7 @@ static void EvalByNodes3D(const int NE,
          {
             MFEM_FOREACH_THREAD(q,x,Q1D)
             {
-               B[q][d] = b(q,d);
+               B(q,d) = b(q,d);
             }
          }
       }
@@ -162,7 +168,7 @@ static void EvalByNodes3D(const int NE,
             {
                MFEM_FOREACH_THREAD(dx,x,D1D)
                {
-                  X[dz][dy][dx] = x(dx,dy,dz,c,e);
+                  DDD(dx,dy,dz) = x(dx,dy,dz,c,e);
                }
             }
          }
@@ -176,9 +182,9 @@ static void EvalByNodes3D(const int NE,
                   double u = 0.0;
                   for (int dx = 0; dx < D1D; ++dx)
                   {
-                     u += B[qx][dx] * X[dz][dy][dx];
+                     u += B(qx,dx) * DDD(dx,dy,dz);
                   }
-                  DDQ[dz][dy][qx] = u;
+                  DDQ(dz,dy,qx) = u;
                }
             }
          }
@@ -192,9 +198,9 @@ static void EvalByNodes3D(const int NE,
                   double u = 0.0;
                   for (int dy = 0; dy < D1D; ++dy)
                   {
-                     u += DDQ[dz][dy][qx] * B[qy][dy];
+                     u += DDQ(dz,dy,qx) * B(qy,dy);
                   }
-                  DQQ[dz][qy][qx] = u;
+                  DQQ(dz,qy,qx) = u;
                }
             }
          }
@@ -208,7 +214,7 @@ static void EvalByNodes3D(const int NE,
                   double u = 0.0;
                   for (int dz = 0; dz < D1D; ++dz)
                   {
-                     u += DQQ[dz][qy][qx] * B[qz][dz];
+                     u +=  DQQ(dz,qy,qx) * B(qz,dz);
                   }
                   y(qx,qy,qz,c,e) = u;
                }
@@ -276,6 +282,7 @@ void QuadratureInterpolator::Values<QVectorLayout::byNODES>(
       case 0x3346: return EvalByNodes3D<3,4,6>(NE,B,X,Y);
       case 0x3347: return EvalByNodes3D<3,4,7>(NE,B,X,Y);
       case 0x3348: return EvalByNodes3D<3,4,8>(NE,B,X,Y);
+
       default:
       {
          constexpr int MD1 = 8;
@@ -287,7 +294,7 @@ void QuadratureInterpolator::Values<QVectorLayout::byNODES>(
                      << MQ1 << " 1D points are not supported!");
          if (dim == 2)
          {
-            EvalByNodes2D<0,0,0,1,MD1,MQ1>(NE,B,X,Y,vdim,D1D,Q1D);
+            EvalByNodes2D<0,0,0,0,MD1,MQ1>(NE,B,X,Y,vdim,D1D,Q1D);
          }
          if (dim == 3)
          {
@@ -296,6 +303,7 @@ void QuadratureInterpolator::Values<QVectorLayout::byNODES>(
          return;
       }
    }
+   mfem::out << "Unknown kernel 0x" << std::hex << id << std::endl;
    MFEM_ABORT("Kernel not supported yet");
 }
 

@@ -20,25 +20,25 @@
 namespace mfem
 {
 
-template<int T_VDIM, int T_D1D, int T_Q1D,
-         int T_NBZ = 1, int MAX_D1D = 0, int MAX_Q1D = 0>
+template<int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0,
+         int T_NBZ = 0, int MAX_D1D = 0, int MAX_Q1D = 0>
 static void GradByNodes2D(const int NE,
                           const double *b_,
                           const double *g_,
                           const double *x_,
                           double *y_,
-                          const int vdim = 1,
+                          const int vdim = 0,
                           const int d1d = 0,
                           const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   const int VDIM = T_VDIM ? T_VDIM : vdim;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+   const int VDIM = T_VDIM ? T_VDIM : vdim;
 
    const auto b = Reshape(b_, Q1D, D1D);
    const auto g = Reshape(g_, Q1D, D1D);
-   const auto x = Reshape(x_,  D1D, D1D, VDIM, NE);
+   const auto x = Reshape(x_, D1D, D1D, VDIM, NE);
    auto y = Reshape(y_, Q1D, Q1D, VDIM, 2, NE);
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
@@ -50,17 +50,17 @@ static void GradByNodes2D(const int NE,
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
       constexpr int NBZ = T_NBZ ? T_NBZ : 1;
       const int tidz = MFEM_THREAD_ID(z);
-      MFEM_SHARED double s_B[MQ1][MD1];
-      MFEM_SHARED double s_G[MQ1][MD1];
-      DeviceTensor<2,double> B((double*)(s_B), Q1D, D1D);
-      DeviceTensor<2,double> G((double*)(s_G), Q1D, D1D);
+      MFEM_SHARED double s_B[MQ1*MD1];
+      MFEM_SHARED double s_G[MQ1*MD1];
+      DeviceTensor<2,double> B(s_B, Q1D, D1D);
+      DeviceTensor<2,double> G(s_G, Q1D, D1D);
 
       MFEM_SHARED double s_X[NBZ][MD1*MD1];
       DeviceTensor<2,double> X((double*)(s_X+tidz), MD1, MD1);
 
-      MFEM_SHARED double sm[2][NBZ][MD1*MQ1];
-      DeviceTensor<2,double> DQ0((double*)(sm[0]+tidz), MD1, MQ1);
-      DeviceTensor<2,double> DQ1((double*)(sm[1]+tidz), MD1, MQ1);
+      MFEM_SHARED double s_DQ[2][NBZ][MD1*MQ1];
+      DeviceTensor<2,double> DQ0((double*)(s_DQ[0]+tidz), MD1, MQ1);
+      DeviceTensor<2,double> DQ1((double*)(s_DQ[1]+tidz), MD1, MQ1);
 
       if (tidz == 0)
       {
@@ -117,17 +117,19 @@ static void GradByNodes2D(const int NE,
                y(qx,qy,c,1,e) = v;
             }
          }
+         MFEM_SYNC_THREAD;
       }
    });
 }
 
-template<int T_VDIM, int T_D1D, int T_Q1D, int MAX_D1D = 0, int MAX_Q1D = 0>
+template<int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0,
+         int MAX_D1D = 0, int MAX_Q1D = 0>
 static void GradByNodes3D(const int NE,
                           const double *b_,
                           const double *g_,
                           const double *x_,
                           double *y_,
-                          const int vdim = 1,
+                          const int vdim = 0,
                           const int d1d = 0,
                           const int q1d = 0)
 {
@@ -149,10 +151,10 @@ static void GradByNodes3D(const int NE,
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
 
       const int tidz = MFEM_THREAD_ID(z);
-      MFEM_SHARED double s_B[MQ1][MD1];
-      MFEM_SHARED double s_G[MQ1][MD1];
-      DeviceTensor<2,double> B((double*)(s_B+0), Q1D, D1D);
-      DeviceTensor<2,double> G((double*)(s_G+0), Q1D, D1D);
+      MFEM_SHARED double s_B[MQ1*MD1];
+      MFEM_SHARED double s_G[MQ1*MD1];
+      DeviceTensor<2,double> B(s_B, Q1D, D1D);
+      DeviceTensor<2,double> G(s_G, Q1D, D1D);
 
       MFEM_SHARED double sm0[3][MQ1*MQ1*MQ1];
       MFEM_SHARED double sm1[3][MQ1*MQ1*MQ1];
@@ -280,19 +282,22 @@ void QuadratureInterpolator::Derivatives<QVectorLayout::byNODES>(
 
    switch (id)
    {
-      case 0x2222: return GradByNodes2D<2,2,2>(NE,B,G,X,Y);
-      case 0x2223: return GradByNodes2D<2,2,3>(NE,B,G,X,Y);
-      case 0x2224: return GradByNodes2D<2,2,4>(NE,B,G,X,Y);
-      case 0x2225: return GradByNodes2D<2,2,5>(NE,B,G,X,Y);
-      case 0x2226: return GradByNodes2D<2,2,6>(NE,B,G,X,Y);
-      case 0x2233: return GradByNodes2D<2,3,3>(NE,B,G,X,Y);
-      case 0x2234: return GradByNodes2D<2,3,4>(NE,B,G,X,Y);
-      case 0x2236: return GradByNodes2D<2,3,6>(NE,B,G,X,Y);
-      case 0x2244: return GradByNodes2D<2,4,4>(NE,B,G,X,Y);
-      case 0x2245: return GradByNodes2D<2,4,5>(NE,B,G,X,Y);
-      case 0x2246: return GradByNodes2D<2,4,6>(NE,B,G,X,Y);
-      case 0x2247: return GradByNodes2D<2,4,7>(NE,B,G,X,Y);
-      case 0x2256: return GradByNodes2D<2,5,6>(NE,B,G,X,Y);
+      case 0x2222: return GradByNodes2D<2,2,2,16>(NE,B,G,X,Y);
+      case 0x2223: return GradByNodes2D<2,2,3,8>(NE,B,G,X,Y);
+      case 0x2224: return GradByNodes2D<2,2,4,4>(NE,B,G,X,Y);
+      case 0x2225: return GradByNodes2D<2,2,5,4>(NE,B,G,X,Y);
+      case 0x2226: return GradByNodes2D<2,2,6,2>(NE,B,G,X,Y);
+
+      case 0x2233: return GradByNodes2D<2,3,3,2>(NE,B,G,X,Y);
+      case 0x2234: return GradByNodes2D<2,3,4,4>(NE,B,G,X,Y);
+      case 0x2236: return GradByNodes2D<2,3,6,2>(NE,B,G,X,Y);
+
+      case 0x2244: return GradByNodes2D<2,4,4,2>(NE,B,G,X,Y);
+      case 0x2245: return GradByNodes2D<2,4,5,2>(NE,B,G,X,Y);
+      case 0x2246: return GradByNodes2D<2,4,6,2>(NE,B,G,X,Y);
+      case 0x2247: return GradByNodes2D<2,4,7,2>(NE,B,G,X,Y);
+
+      case 0x2256: return GradByNodes2D<2,5,6,2>(NE,B,G,X,Y);
 
       case 0x3124: return GradByNodes3D<1,2,4>(NE,B,G,X,Y);
       case 0x3136: return GradByNodes3D<1,3,6>(NE,B,G,X,Y);
@@ -322,15 +327,15 @@ void QuadratureInterpolator::Derivatives<QVectorLayout::byNODES>(
                      << MQ1 << " 1D points are not supported!");
          if (dim == 2)
          {
-            return GradByNodes2D<0,0,0,1,MD1,MQ1>(NE,B,G,X,Y,vdim,D1D,Q1D);
+            return GradByNodes2D<0,0,0,0,MD1,MQ1>(NE,B,G,X,Y,vdim,D1D,Q1D);
          }
          if (dim == 3)
          {
             return GradByNodes3D<0,0,0,MD1,MQ1>(NE,B,G,X,Y,vdim,D1D,Q1D);
          }
       }
-
    }
+   mfem::out << "Unknown kernel 0x" << std::hex << id << std::endl;
    MFEM_ABORT("Kernel not supported yet");
 }
 

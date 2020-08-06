@@ -20,14 +20,14 @@
 namespace mfem
 {
 
-template<int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 1>
+template<int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 static void D2QPhysGrad2D(const int NE,
                           const double *b_,
                           const double *g_,
                           const double *j_,
                           const double *x_,
                           double *y_,
-                          const int vdim = 1,
+                          const int vdim = 0,
                           const int d1d = 0,
                           const int q1d = 0)
 {
@@ -302,6 +302,7 @@ static void D2QPhysGrad(const FiniteElementSpace &fes,
          case 0x134: return D2QPhysGrad2D<1,3,4,8>(NE, B, G, J, X, Y);
          case 0x146: return D2QPhysGrad2D<1,4,6,4>(NE, B, G, J, X, Y);
          case 0x158: return D2QPhysGrad2D<1,5,8,2>(NE, B, G, J, X, Y);
+         case 0x233: return D2QPhysGrad2D<2,3,3,8>(NE, B, G, J, X, Y);
          case 0x234: return D2QPhysGrad2D<2,3,4,8>(NE, B, G, J, X, Y);
          case 0x246: return D2QPhysGrad2D<2,4,6,4>(NE, B, G, J, X, Y);
          case 0x258: return D2QPhysGrad2D<2,5,8,2>(NE, B, G, J, X, Y);
@@ -349,10 +350,8 @@ template<>
 void QuadratureInterpolator::PhysDerivatives<QVectorLayout::byNODES>(
    const Vector &e_vec, Vector &q_der) const
 {
-   // q_layout == QVectorLayout::byNODES
    Mesh *mesh = fespace->GetMesh();
    if (mesh->GetNE() == 0) { return; }
-   // mesh->DeleteGeometricFactors(); // This should be done outside
    const IntegrationRule &ir = *IntRule;
    constexpr DofToQuad::Mode mode = DofToQuad::TENSOR;
    const GeometricFactors *geom =
