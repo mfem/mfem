@@ -457,9 +457,9 @@ SheathImpedance::SheathImpedance(const ParGridFunction & B,
      L2FESpace_(L2FESpace),
      H1FESpace_(H1FESpace),
      omega_(omega),
+     realPart_(realPart),
      charges_(charges),
-     masses_(masses),
-     realPart_(realPart)
+     masses_(masses)
 {
    density_vals_.SetSize(charges_.Size());
    temp_vals_.SetSize(charges_.Size());
