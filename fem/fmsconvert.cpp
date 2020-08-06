@@ -716,6 +716,65 @@ func_exit:
   return err;
 }
 
+int
+GridFunctionToFmsField(FmsDataCollection dc, FmsFieldDescriptor fd, FmsField f, FmsComponent comp, const GridFunction *gf) {
+  if(!dc) return 1;
+  if(!fd) return 2;
+  if(!f) return 3;
+  if(!comp) return 4;
+  if(!gf) return 5;
+
+  double *c = gf->GetData();
+  int s = gf->Size();
+  
+  std::cout << "Coords.Size() " << s << std::endl;
+  const mfem::FiniteElementSpace *fespace = gf->FESpace();
+  const mfem::FiniteElementCollection *fecoll = fespace->FEColl();
+
+  FmsFieldType ftype;
+  switch(fecoll->GetContType()) {
+    case mfem::FiniteElementCollection::CONTINUOUS: {
+      ftype = FMS_CONTINUOUS;
+      break;
+    }
+    case mfem::FiniteElementCollection::DISCONTINUOUS: {
+      ftype = FMS_DISCONTINUOUS;
+      break;
+    }
+    case mfem::FiniteElementCollection::TANGENTIAL: {
+      ftype = FMS_HCURL; // Q: Is this correct? I don't think so.
+      break;
+    }
+    case mfem::FiniteElementCollection::NORMAL: {
+      ftype = FMS_HDIV; // Q: Is this correct? I don't think so.
+      break;
+    }
+    default: {
+      break;
+    }
+  }
+
+  FmsBasisType btype = FMS_NODAL_GAUSS_CLOSED;
+  /* Q: No getter for the basis, do different kinds of FECollection have implied basis?
+      There are two subclasses that actually have the getter, maybe those aren't implied?
+  */
+
+  /* Q: Why is order defined on a per element basis? */
+  FmsInt order = static_cast<FmsInt>(fespace->GetOrder(0));
+  FmsFieldDescriptorSetComponent(fd, comp);
+  FmsFieldDescriptorSetFixedOrder(fd, ftype, FMS_NODAL_GAUSS_CLOSED, order);
+
+  FmsInt ndofs;
+  FmsFieldDescriptorGetNumDofs(fd, &ndofs);
+  std::cout << "FD num dofs " << ndofs << std::endl;
+
+  FmsInt vdim = static_cast<FmsInt>(gf->VectorDim());
+  FmsFieldSet(f, fd, vdim, FMS_BY_VDIM, FMS_DOUBLE, c);
+
+
+  return 0;
+}
+
 //---------------------------------------------------------------------------
 bool
 FmsMetaDataGetInteger(FmsMetaData mdata, const std::string &key, std::vector<int> &values)
@@ -970,8 +1029,9 @@ cout << "FmsDataCollectionToDataCollection: convert " << name << endl;
 #endif
 
      // If we have metadata in FMS, pass what we can through to MFEM.
-     FmsMetaData mdata;
-     if(FmsDataCollectionGetMetaData(dc, &mdata) == 0)
+     FmsMetaData mdata = NULL;
+     FmsDataCollectionGetMetaData(dc, &mdata);
+     if(mdata)
      {
          std::vector<int> ivalues;
          std::vector<double> dvalues;
@@ -1159,77 +1219,113 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
           edges.GetId(verts[6], verts[5]),
           edges.GetId(verts[5], verts[1])));
       }
+      case Element::WEDGE: {
+        // TODO:
+        break;
+      }
       default: {
         break;
       }
     }
   }
 
-  std::cout << "ALL EDGES" << std::endl;
-  std::vector<int> edge_verts;
-  edge_verts.reserve(edges.Size() * 2 + 1);
-  for(int i = 0; i < edges.Size(); i++) {
-    const auto &edge = edges[i];
-    std::cout << "\t" << i << " " << edge.p1 << " " << edge.p2 << std::endl;
-    edge_verts.push_back(edge.p1);
-    edge_verts.push_back(edge.p2);
+  if(edges.Size()) {
+    std::vector<int> edge_verts;
+    edge_verts.reserve(edges.Size() * 2 + 1);
+    for(int i = 0; i < edges.Size(); i++) {
+      const auto &edge = edges[i];
+      edge_verts.push_back(edge.p1);
+      edge_verts.push_back(edge.p2);
+    }
+
+    FmsDomainSetNumEntities(domains[0], FMS_EDGE, FMS_INT32, edges.Size());
+    FmsDomainAddEntities(domains[0], FMS_EDGE, NULL, FMS_INT32, edge_verts.data(), edges.Size());
+  }
+  else {
+    // ERROR?
+    return 1;
   }
 
-  FmsDomainSetNumEntities(domains[0], FMS_EDGE, FMS_INT32, edges.Size());
-  FmsDomainAddEntities(domains[0], FMS_EDGE, NULL, FMS_INT32, edge_verts.data(), edges.Size());
-
-  std::cout << "QUADS" << std::endl;
-  for(int i = 0; i < tri_edges.size(); i++) {
-    if(i % 3 == 0) std::cout << std::endl << "\t" << i/4 << " ";
-    std::cout << tri_edges[i] << " ";
+  if(tri_edges.size()) {
+    const FmsInt ntris = tri_edges.size() / 3u;
+    FmsDomainSetNumEntities(domains[0], FMS_TRIANGLE, FMS_INT32, tri_edges.size() / 3);
+    FmsDomainAddEntities(domains[0], FMS_TRIANGLE, NULL, FMS_INT32, tri_edges.data(), tri_edges.size() / 3);
   }
-  std::cout << std::endl;
 
-  FmsDomainSetNumEntities(domains[0], FMS_TRIANGLE, FMS_INT32, tri_edges.size() / 4);
-  FmsDomainAddEntities(domains[0], FMS_TRIANGLE, NULL, FMS_INT32, tri_edges.data(), tri_edges.size() / 4);
+  if(quad_edges.size()) {
+    const FmsInt nquads = quad_edges.size() / 4u;
+    FmsDomainSetNumEntities(domains[0], FMS_QUADRILATERAL, FMS_INT32, nquads);
+    FmsDomainAddEntities(domains[0], FMS_QUADRILATERAL, NULL, FMS_INT32, quad_edges.data(), nquads);
+  }
+
+  /* Q: All the edges are stored in one array so the IDs are implied (the index in the array).
+    3D elements refer to faces by their face ID, faces are not stored in one array because they are stored
+    between TRI and QUAD arrays. How does FMS know that it should lookup ID=5 from triangles or quads - does this even matter?
+  */
+  if(tet_faces.size()) {
+    const FmsInt ntets = tet_faces.size() / 4u;
+    FmsDomainSetNumEntities(domains[0], FMS_TETRAHEDRON, FMS_INT32, ntets);
+    FmsDomainAddEntities(domains[0], FMS_TETRAHEDRON, NULL, FMS_INT32, tet_faces.data(), ntets);
+  }
+
+  if(hex_faces.size()) {
+    const FmsInt nhexes = hex_faces.size() / 6u;
+    FmsDomainSetNumEntities(domains[0], FMS_HEXAHEDRON, FMS_INT32, nhexes);
+    FmsDomainAddEntities(domains[0], FMS_HEXAHEDRON, NULL, FMS_INT32, hex_faces.data(), nhexes);
+  }
+
+  if(wed_faces.size()) {
+    const FmsInt nweds = wed_faces.size() / 5u;
+    FmsDomainSetNumEntities(domains[0], FMS_WEDGE, FMS_INT32, nweds);
+    FmsDomainAddEntities(domains[0], FMS_WEDGE, NULL, FMS_INT32, wed_faces.data(), nweds);
+  }
 
   FmsComponent volume;
   FmsMeshAddComponent(fmesh, "volume", &volume);
   FmsComponentAddDomain(volume, domains[0]);
 
+  // TODO: Add boundaries
+
   FmsMeshFinalize(fmesh);
   FmsMeshValidate(fmesh);
 
-  FmsDataCollectionCreate(fmesh, "DataCollection", dc);
+  FmsDataCollectionCreate(fmesh, mfem_dc->GetCollectionName().c_str(), dc);
 
-  const mfem::GridFunction &coords = *mmesh->GetNodes();
-  // coords.Print();
+  // Add the coordinates field to the data collection
+  const mfem::GridFunction *mcoords = mmesh->GetNodes();
+  if(mcoords) {
+    FmsFieldDescriptor fcoords_fd = NULL;
+    FmsField fcoords = NULL;
+    FmsDataCollectionAddFieldDescriptor(*dc, "CoordsDescriptor", &fcoords_fd);
+    FmsDataCollectionAddField(*dc, "Coords", &fcoords);
+    GridFunctionToFmsField(*dc, fcoords_fd, fcoords, volume, mcoords);
+    FmsComponentSetCoordinates(volume, fcoords);
+  }
+  else {
+    // ERROR?
+  }
 
-  double *c = coords.GetData();
-  int s = coords.Size();
-  
-  std::cout << "Coords.Size() " << s << std::endl;
-  int vdim = coords.VectorDim();
-  const mfem::FiniteElementSpace *fespace = coords.FESpace();
-  int order = fespace->GetOrder(0);
-  int dim = fespace->GetVDim();
-  fespace->GetElementType(0);
-  FmsFieldDescriptor fd;
-  FmsDataCollectionAddFieldDescriptor(*dc, "CoordsDescriptor", &fd);
-  FmsFieldDescriptorSetComponent(fd, volume);
-  FmsFieldDescriptorSetFixedOrder(fd, FMS_CONTINUOUS, FMS_NODAL_GAUSS_CLOSED, order);
-  FmsInt ndofs;
-  FmsFieldDescriptorGetNumDofs(fd, &ndofs);
-  std::cout << "FD num dofs " << ndofs << std::endl;
+  const auto &fields = mfem_dc->GetFieldMap();
+  for(const auto &pair : fields) {
+    FmsFieldDescriptor fd = NULL;
+    FmsField f = NULL;
+    std::string fd_name(pair.first + "Collection");
+    FmsDataCollectionAddFieldDescriptor(*dc, fd_name.c_str(), &fd);
+    FmsDataCollectionAddField(*dc, pair.first.c_str(), &f);
+    GridFunctionToFmsField(*dc, fd, f, volume, pair.second); // TODO: Volume isn't always going to be correct
+  }
 
-  FmsField fcoords;
-  FmsDataCollectionAddField(*dc, "Coords", &fcoords);
-  FmsFieldSet(fcoords, fd, vdim, FMS_BY_VDIM, FMS_DOUBLE, c);
+  /* TODO:
+  const auto &qfields = mfem_dc->GetQFieldMap();
+  for(const auto &pair : qfields) {
+    FmsFieldDescriptor fd = NULL;
+    FmsField f = NULL;
+    std::string fd_name(pair.first + "Collection");
+    FmsDataCollectionAddFieldDescriptor(*dc, fd_name.c_str(), &fd);
+    FmsDataCollectionAddField(*dc, pair.first.c_str(), &f);
+    GridFunctionToFmsField(*dc, fd, f, volume, pair.second); // TODO: Volume isn't always going to be correct
+  } */
 
-  FmsComponentSetCoordinates(volume, fcoords);
-
-
-   // std::cout << "Coordinates - size " << mfem_coords.Size();
-  // for(int i = 0; i < mfem_coords.Size(); i++) {
-  //   if(i % 3 == 0) std::cout << std::endl << "\t";
-  //   std::cout << mfem_coords.Elem(i) << " ";
-  // }
-  // std::cout << std::endl;
   return 0;
 }
 
