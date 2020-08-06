@@ -33,9 +33,9 @@
 //
 //   For a magnetic field aligned with the z-axis the dielectric tensor has
 //   the form:
-//              / S  -iD 0 \
+//              | S  -iD 0 |
 //    epsilon = |iD   S  0 |
-//              \ 0   0  P /
+//              | 0   0  P |
 //
 //   Where:
 //      S = 1 - Sum_species omega_p^2 / (omega^2 - omega_c^2)
