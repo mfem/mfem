@@ -116,7 +116,7 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 
    const int iSz = integrators.Size();
-   if (elem_restrict)
+   if (elem_restrict && !DeviceCanUseCeed())
    {
       localY = 0.0;
       for (int i = 0; i < iSz; ++i)
