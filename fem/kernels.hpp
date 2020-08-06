@@ -24,11 +24,11 @@ namespace kernels
 /// Load B1d matrice into shared memory
 template<int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void LoadB(const int D1D, const int Q1D,
-                                   const DeviceTensor<2, const double> b,
+                                   const ConstDeviceMatrix b,
                                    double sB[MQ1*MD1])
 {
    const int tidz = MFEM_THREAD_ID(z);
-   double (*B)[MD1] = (double (*)[MD1])(sB);
+   DeviceMatrix B(sB, MD1, MQ1);
 
    if (tidz == 0)
    {
@@ -36,7 +36,7 @@ MFEM_HOST_DEVICE inline void LoadB(const int D1D, const int Q1D,
       {
          MFEM_FOREACH_THREAD(q,x,Q1D)
          {
-            B[q][d] = b(q,d);
+            B(d,q) = b(q,d);
          }
       }
    }

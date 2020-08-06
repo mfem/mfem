@@ -20,7 +20,8 @@
 namespace mfem
 {
 
-template<int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+template<int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0,
+         int T_NBZ = 1, int MAX_D1D = 0, int MAX_Q1D = 0>
 static void D2QPhysGrad2D(const int NE,
                           const double *b_,
                           const double *g_,
