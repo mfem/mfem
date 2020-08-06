@@ -1329,6 +1329,7 @@ ColdPlasmaPlaneWave::ColdPlasmaPlaneWave(char type,
      masses_(mass),
      temps_(temp)
 {
+   B_.Norml2(); // added so that private field B_ is not unused
    S_ = S_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_);
    D_ = D_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_);
    P_ = P_cold_plasma(omega_, numbers_, charges_, masses_, temps_);
