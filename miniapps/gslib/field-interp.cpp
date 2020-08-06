@@ -27,8 +27,8 @@
 // example codes in the "../../examples/" directory.
 // Sample run:
 //   field-interp
-//   field-interp -ft 1
-//   field-interp -m1 triple-pt-1.mesh -s1 triple-pt-1.gf -m2 triple-pt-1.mesh -ft 1 -r 1
+//   field-interp -ft 3
+//   field-interp -m1 triple-pt-1.mesh -s1 triple-pt-1.gf -m2 triple-pt-2.mesh -ft 1
 
 #include "mfem.hpp"
 #include <fstream>
