@@ -26,7 +26,9 @@
 // Other functions [H1, H(curl), and L2] can be generated using existing MFEM
 // example codes in the "../../examples/" directory.
 // Sample run:
-//    field-interp -m1 ../meshing/square01.mesh -s1 square01_hdiv.gf -m2 ../../data/inline-tri.mesh -o 3
+//   field-interp
+//   field-interp -ft 1
+//   field-interp -m1 triple-pt-1.mesh -s1 triple-pt-1.gf -m2 triple-pt-1.mesh -ft 1 -r 1
 
 #include "mfem.hpp"
 #include <fstream>
@@ -87,8 +89,10 @@ int main (int argc, char *argv[])
    if (mesh_1.GetNodes() == NULL) { mesh_1.SetCurvature(1); }
    if (mesh_2.GetNodes() == NULL) { mesh_2.SetCurvature(1); }
    const int mesh_poly_deg = mesh_2.GetNodes()->FESpace()->GetOrder(0);
-   cout << "Target mesh curvature: "
-        << mesh_2.GetNodes()->OwnFEC()->Name() << " " << mesh_poly_deg << endl;
+   cout << "Source mesh curvature: "
+        << mesh_1.GetNodes()->OwnFEC()->Name() << endl
+        << "Target mesh curvature: "
+        << mesh_2.GetNodes()->OwnFEC()->Name() << endl;
 
    ifstream mat_stream_1(src_sltn_file);
    GridFunction func_source(&mesh_1, mat_stream_1);
@@ -123,6 +127,7 @@ int main (int argc, char *argv[])
 
    // Ensure the source GridFunction can be transferred using FindPointsGSLIB.
    const FiniteElementCollection *fec_in = func_source.FESpace()->FEColl();
+   std::cout << "Source FE collection: " << fec_in->Name() << std::endl;
    const int vdim_src   = func_source.FESpace()->GetVDim();
    int fieldtype_src = -1;
    {
@@ -154,13 +159,11 @@ int main (int argc, char *argv[])
    {
       fec = new H1_FECollection(order, dim);
       vdim_tar = (fieldtype_src > 1) ? dim : vdim_src;
-      std::cout << "H1-GridFunction\n";
    }
    else if (fieldtype == 1)
    {
       fec = new L2_FECollection(order, dim);
       vdim_tar = (fieldtype_src > 1) ? dim : vdim_src;
-      std::cout << "L2-GridFunction\n";
    }
    else if (fieldtype == 2)
    {
@@ -168,7 +171,6 @@ int main (int argc, char *argv[])
       vdim_tar = 1;
       MFEM_VERIFY(fieldtype_src > 1, "Cannot interpolate a scalar "
                   "GridFunction to a vector");
-      std::cout << "H(div)-GridFunction\n";
 
    }
    else if (fieldtype == 3)
@@ -177,12 +179,12 @@ int main (int argc, char *argv[])
       vdim_tar = 1;
       MFEM_VERIFY(fieldtype_src > 1, "Cannot interpolate a scalar "
                   "GridFunction to a vector");
-      std::cout << "H(curl)-GridFunction\n";
    }
    else
    {
       MFEM_ABORT("GridFunction type not supported.");
    }
+   std::cout << "Target FE collection: " << fec->Name() << std::endl;
    fes = new FiniteElementSpace(&mesh_2, fec, vdim_tar);
    GridFunction func_target(fes);
 
