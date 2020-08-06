@@ -75,9 +75,9 @@ set(SRCS
   tmop_pa_h3m_c0.cpp
   tmop_pa_h3s.cpp
   tmop_pa_h3s_c0.cpp
-  tmop_pa_j2.cpp
-  tmop_pa_j3.cpp
-  tmop_pa_jtr.cpp
+  tmop_pa_jp2.cpp
+  tmop_pa_jp3.cpp
+  tmop_pa_jt3.cpp
   tmop_pa_p2.cpp
   tmop_pa_p2_c0.cpp
   tmop_pa_p3.cpp
