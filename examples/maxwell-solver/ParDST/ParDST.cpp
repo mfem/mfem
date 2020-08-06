@@ -2,7 +2,8 @@
 
 #include "ParDST.hpp"
 
-
+//1. Computing the list of global tdofs for each subdomain 
+//   on the host_rank
 ParSubdomainDofInfo::ParSubdomainDofInfo(ParFiniteElementSpace *fespace_, 
                                          ParMeshPartition * part_)
 : fespace(fespace_), part(part_)                                         
@@ -10,8 +11,9 @@ ParSubdomainDofInfo::ParSubdomainDofInfo(ParFiniteElementSpace *fespace_,
    // MPI workspace
    MPI_Comm comm = fespace->GetComm();
    int num_procs, myid;
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
+   MPI_Comm_size(comm, &num_procs);
    MPI_Comm_rank(comm, &myid);
+   ComputeTdofOffsets();
    ParMesh * pmesh = fespace->GetParMesh();
    int myelemoffset = part->myelem_offset;
    subdomain_rank = part->subdomain_rank;
@@ -22,30 +24,58 @@ ParSubdomainDofInfo::ParSubdomainDofInfo(ParFiniteElementSpace *fespace_,
    Array<int> recv_count(num_procs);  recv_count = 0;
    Array<int> recv_displ(num_procs);  recv_displ = 0;
   
-   // each element contributing to a subdomain has to communicate 
-   // to the subdomain host rank the list
-   // of its tdof numbers whether it owns them or not
-   // After these lists are constructed to the host rank then they will be brodcasted to
-   // the participating ranks
-   
+
+   //----------------------------------------------------------
+   // Each rank constructs the list of its own tdofs in a subdomain 
+   // After that they communicate it to the host rank to 
+   // create the complete list
+   SubdomainLocalTrueDofs.resize(nrsubdomains);
+   Array<int> dof_marker(fespace->GetTrueVSize());
    for (int ip = 0; ip<nrsubdomains; ++ip)
    {
-      int nrelems = part->local_element_map[ip].Size();
-      if (nrelems >0 )
+      dof_marker = 0;
+      int nel = part->local_element_map[ip].Size();
+      if (nel)
       {
-         for (int iel=0; iel<nrelems; ++iel)
+         for (int iel = 0; iel<nel; iel++)
          {
-            Array<int>element_dofs;
             int elem_idx = part->local_element_map[ip][iel] - myelemoffset;
-            int nrdofs = fespace->GetFE(elem_idx)->GetDof();
-            // send the number of dofs for each element and the tdof numbers
-            // subdomain no, nrdofs the list of tdofs
-           send_count[subdomain_rank[ip]] += 1 + 1 + nrdofs; 
+            Array<int> element_dofs;
+            fespace->GetElementDofs(elem_idx, element_dofs);
+            int ndofs = element_dofs.Size();
+            for (int i=0; i<ndofs; i++)
+            {
+               int pdof_ = element_dofs[i];
+               int pdof = (pdof_ >= 0) ? pdof_ : abs(pdof_) - 1;
+               int tdof = fespace->GetGlobalTDofNumber(pdof);
+               if (myid == get_rank(tdof))
+               {
+                  if (!dof_marker[tdof-mytoffset])
+                  {
+                     SubdomainLocalTrueDofs[ip].Append(tdof);
+                     dof_marker[tdof-mytoffset] = 1;
+                  }
+               }
+            }
          }
       }
    }
-
-   // comunicate so that recv_count is constructed
+  
+   // Communicate to the host rank
+   // 1. Construct send count
+   for (int ip = 0; ip<nrsubdomains; ++ip)
+   {
+      int ndofs = SubdomainLocalTrueDofs[ip].Size();
+      if (ndofs)
+      {
+         // Data to send to the subdomain rank
+         // 1. Subdomain no 
+         // 2. Number of dofs
+         // 3. The list of dofs
+         send_count[subdomain_rank[ip]] += 1 + 1 + ndofs; 
+      }
+   }
+   // 2. Construct receive count
    MPI_Alltoall(send_count,1,MPI_INT,recv_count,1,MPI_INT,comm);
    for (int k=0; k<num_procs-1; k++)
    {
@@ -57,112 +87,63 @@ ParSubdomainDofInfo::ParSubdomainDofInfo(ParFiniteElementSpace *fespace_,
    // now allocate space for the send buffer
    Array<int> sendbuf(sbuff_size);  sendbuf = 0;
    Array<int> soffs(num_procs); soffs = 0;
-
-   // fill up the send_buffer
+   // 3. Fill up the send buffer
    for (int ip = 0; ip<nrsubdomains; ++ip)
    {
-      int nrelems = part->local_element_map[ip].Size();
-
-      if (nrelems > 0)
+      int ndofs = SubdomainLocalTrueDofs[ip].Size();
+      if (ndofs)
       {
-         for (int iel=0; iel<nrelems; ++iel)
+         // Data to send to the subdomain rank
+         // 1. Subdomain no 
+         // 2. Number of dofs
+         // 3. The list of dofs
+         int j = send_displ[subdomain_rank[ip]] + soffs[subdomain_rank[ip]];
+         sendbuf[j] = ip;
+         sendbuf[j+1] = ndofs;
+         for (int k = 0; k < ndofs ; ++k)
          {
-            Array<int>element_dofs;
-            int elem_idx = part->local_element_map[ip][iel] - myelemoffset;
-            fespace->GetElementDofs(elem_idx, element_dofs);
-            int nrdofs = element_dofs.Size();
-            int j = send_displ[subdomain_rank[ip]] + soffs[subdomain_rank[ip]];
-            sendbuf[j] = ip;
-            sendbuf[j+1] = nrdofs;
-            for (int idof = 0; idof < nrdofs ; ++idof)
-            {
-               int pdof_ = element_dofs[idof];
-               int pdof = (pdof_ >= 0) ? pdof_ : abs(pdof_) - 1;
-               sendbuf[j+2+idof] = fespace->GetGlobalTDofNumber(pdof);
-            }
-            soffs[subdomain_rank[ip]] +=  2 + nrdofs;
+            sendbuf[j+2+k] = SubdomainLocalTrueDofs[ip][k];
          }
+         soffs[subdomain_rank[ip]] +=  2 + ndofs;
       }
    }
-   cout << "fes size = " << fespace->GetTrueVSize() << endl;
 
    // Communication
    Array<int> recvbuf(rbuff_size);
    MPI_Alltoallv(sendbuf, send_count, send_displ, MPI_INT, recvbuf,
                  recv_count, recv_displ, MPI_INT, comm);
-   //  // Extract from the recv_buffer
-   std::vector<Array<int>> subdomain_true_dofs(nrsubdomains);
 
+   SubdomainGlobalTrueDofs.resize(nrsubdomains);
    int k=0;
    while (k<rbuff_size)
    {
       int ip = recvbuf[k];
       k++;
-      int nrdofs = recvbuf[k];
+      int ndofs = recvbuf[k];
       k++;
-      for (int idof = 0; idof < nrdofs; ++idof)
+      for (int i = 0; i < ndofs; ++i)
       {
-         subdomain_true_dofs[ip].Append(recvbuf[k+idof]);
+         SubdomainGlobalTrueDofs[ip].Append(recvbuf[k+i]);
       }
-      k += nrdofs;
+      k += ndofs;
    }
 
-   // build the lists from of tdofs on each subdomain
-   subdomain_fespaces.SetSize(nrsubdomains);
-   subdomain_dof_map.resize(nrsubdomains);
-   const FiniteElementCollection * fec = fespace->FEColl();
-   for (int ip=0; ip<nrsubdomains; ++ip)
-   {
-      subdomain_fespaces[ip] = nullptr;
-      if (part->subdomain_mesh[ip])
-      {
-         subdomain_fespaces[ip] = new FiniteElementSpace(part->subdomain_mesh[ip],fec);
-         // create the dof map
-         int nrdof = subdomain_fespaces[ip]->GetTrueVSize();
-         subdomain_dof_map[ip].SetSize(nrdof);
-         int nrelems = part->element_map[ip].Size();
-         int k = 0;
-         for (int iel = 0; iel<nrelems; ++iel)
-         {
-            Array<int> subdomain_elem_dofs;
-            subdomain_fespaces[ip]->GetElementDofs(iel,subdomain_elem_dofs);
-            int ndof = subdomain_elem_dofs.Size();
-            for (int i = 0; i<ndof; ++i)
-            {
-               int pdof_ = subdomain_elem_dofs[i];
-               int pdof = (pdof_ >= 0) ? pdof_ : abs(pdof_) - 1;
-               subdomain_dof_map[ip][pdof] = subdomain_true_dofs[ip][i+k];
-            }
-            k += ndof;
-         }
-      }
-   }
+   // for (int ip = 0; ip<nrsubdomains; ++ip)
+   // {
+   //    if (SubdomainLocalTrueDofs[ip].Size())
+   //    {
+   //       cout << "myid, ip = " << myid << ", " << ip << ", SubdomainLocalTrueDofs: " ;
+   //       SubdomainLocalTrueDofs[ip].Print(cout, SubdomainLocalTrueDofs[ip].Size());
+   //    }
+   //    if (SubdomainGlobalTrueDofs[ip].Size())
+   //    {
+   //       cout << "myid, ip = " << myid << ", " << ip << ", SubdomainGlobalTrueDofs: ";
+   //       SubdomainGlobalTrueDofs[ip].Print(cout, SubdomainGlobalTrueDofs[ip].Size());
+   //    }
+   //    MPI_Barrier(comm);
+   // }
+   // MPI_Barrier(MPI_COMM_WORLD);
 
-   // Append the complex dof tdofs indices.
-   for (int ip = 0; ip<nrsubdomains; ip++)
-   {
-      int tsize = subdomain_dof_map[ip].Size();
-      if (tsize)
-      {
-         Array<int> imag_tdofs(subdomain_dof_map[ip]);
-         for (int i = 0; i<tsize; i++)
-         {
-            imag_tdofs[i] += fespace->GetTrueVSize();
-         }
-         subdomain_dof_map[ip].Append(imag_tdofs);
-      }
-   }
-
-   if (myid == 1)
-   {
-      cout << "subdomain size = " << subdomain_dof_map[2].Size() << endl;
-      subdomain_dof_map[2].Print(cout, subdomain_dof_map[2].Size()/2);
-   }
-
-
-
-
-   MPI_Barrier(MPI_COMM_WORLD);
 }
 
 
