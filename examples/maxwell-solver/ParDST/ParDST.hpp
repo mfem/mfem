@@ -6,26 +6,39 @@ using namespace std;
 using namespace mfem;
 
 
-class ParSubdomainDofInfo
+class SubdomainToGlobalMap
 {
 public:
+   // constructor
+   SubdomainToGlobalMap(ParFiniteElementSpace *fespace_, ParMeshPartition * part_);
+   ~SubdomainToGlobalMap();
+
+   void Setup();
+   void Mult(const std::vector<Vector > & sol, Vector & z);
+   void MultTranspose(const Vector & r, std::vector<Vector> & res);
+
+private:
    ParFiniteElementSpace *fespace = nullptr;
    ParMeshPartition * part;
    MPI_Comm comm = MPI_COMM_WORLD;
+   int num_procs, myid;
    int mytoffset = 0;
+   int myelemoffset=0;
    int nrsubdomains=0;
-   
+   vector<int> tdof_offsets;
    Array<int> subdomain_rank;
+
+   Array<int> send_count; 
+   Array<int> send_displ;  
+   Array<int> recv_count;  
+   Array<int> recv_displ;  
+   int sbuff_size = 0;
+   int rbuff_size = 0;
+
    // list of all the true dofs in a subdomain
    vector<Array<int>> SubdomainGlobalTrueDofs; 
    vector<Array<int>> SubdomainLocalTrueDofs;
    Array<FiniteElementSpace *> subdomain_fespaces;
-   // constructor
-   ParSubdomainDofInfo(ParFiniteElementSpace *fespace_, ParMeshPartition * part_);
-   ~ParSubdomainDofInfo();
-
-private:
-   vector<int> tdof_offsets;
 
    void ComputeTdofOffsets()
    {
@@ -35,7 +48,6 @@ private:
       mytoffset = fespace->GetMyTDofOffset();
       MPI_Allgather(&mytoffset,1,MPI_INT,&tdof_offsets[0],1,MPI_INT,comm);
    }
-
    int get_rank(int tdof)
    {
       int size = tdof_offsets.size();
@@ -64,8 +76,6 @@ private:
    int nx,ny,nz;
 
    Sweep * sweeps=nullptr;
-
-
 
    void Getijk(int ip, int & i, int & j, int & k ) const;
    int GetPatchId(const Array<int> & ijk) const;
