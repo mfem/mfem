@@ -57,7 +57,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_C0_2D,
       MFEM_SHARED double QQ[2][NBZ][MQ1*MQ1];
 
       kernels::LoadX<MD1,NBZ>(e,D1D,R,XY);
-      kernels::LoadBG<MD1,MQ1>(D1D, Q1D, b, g, BG);
+      kernels::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
 
       kernels::EvalX<MD1,MQ1,NBZ>(D1D,Q1D,BG,XY,DQ);
       kernels::EvalY<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,QQ);
