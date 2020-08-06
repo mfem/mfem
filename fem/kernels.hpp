@@ -99,14 +99,17 @@ MFEM_HOST_DEVICE inline void LoadS(const int e, const int D1D,
                                    const DeviceTensor<3, const double> x,
                                    double sX[NBZ][MD1*MD1])
 {
+   MFEM_ABORT("");
    const int tidz = MFEM_THREAD_ID(z);
-   double (*X)[MD1] = (double (*)[MD1])(sX + tidz);
+   //double (*X)[MD1] = (double (*)[MD1])(sX + tidz);
+   DeviceMatrix X(sX[tidz], MD1, MD1);
 
    MFEM_FOREACH_THREAD(dy,y,D1D)
    {
       MFEM_FOREACH_THREAD(dx,x,D1D)
       {
-         X[dy][dx] = x(dx,dy,e);
+         //X[dy][dx] = x(dx,dy,e);
+         X(dx,dy) = x(dx,dy,e);
       }
    }
    MFEM_SYNC_THREAD;
@@ -118,14 +121,17 @@ MFEM_HOST_DEVICE inline void LoadXS(const int e, const int D1D, const int c,
                                     const DeviceTensor<4, const double> x,
                                     double sm[NBZ][MD1*MD1])
 {
+   MFEM_ABORT("");
    const int tidz = MFEM_THREAD_ID(z);
-   double (*X)[MD1] = (double (*)[MD1])(sm + tidz);
+   //double (*X)[MD1] = (double (*)[MD1])(sm + tidz);
+   DeviceMatrix X(sm[tidz], MD1, MD1);
 
    MFEM_FOREACH_THREAD(dy,y,D1D)
    {
       MFEM_FOREACH_THREAD(dx,x,D1D)
       {
-         X[dy][dx] = x(dx,dy,c,e);
+         //X[dy][dx] = x(dx,dy,c,e);
+         X(dx,dy) = x(dx,dy,c,e);
       }
    }
    MFEM_SYNC_THREAD;
@@ -138,6 +144,7 @@ MFEM_HOST_DEVICE inline void EvalXS(const int D1D, const int Q1D,
                                     const double sX[NBZ][MD1*MD1],
                                     double sDQ[NBZ][MD1*MQ1])
 {
+   MFEM_ABORT("");
    const int tidz = MFEM_THREAD_ID(z);
    double (*B)[MD1] = (double (*)[MD1])(sB);
    double (*X)[MD1]  = (double (*)[MD1])(sX + tidz);
@@ -204,15 +211,15 @@ MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
                                    double sX[2][NBZ][MD1*MD1])
 {
    const int tidz = MFEM_THREAD_ID(z);
-   double (*X0)[MD1] = (double (*)[MD1])(sX[0] + tidz);
-   double (*X1)[MD1] = (double (*)[MD1])(sX[1] + tidz);
+   DeviceMatrix X0(sX[0][tidz], MD1, MD1);
+   DeviceMatrix X1(sX[1][tidz], MD1, MD1);
 
    MFEM_FOREACH_THREAD(dy,y,D1D)
    {
       MFEM_FOREACH_THREAD(dx,x,D1D)
       {
-         X0[dy][dx] = X(dx,dy,0,e);
-         X1[dy][dx] = X(dx,dy,1,e);
+         X0(dx,dy) = X(dx,dy,0,e);
+         X1(dx,dy) = X(dx,dy,1,e);
       }
    }
    MFEM_SYNC_THREAD;
