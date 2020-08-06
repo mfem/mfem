@@ -1168,15 +1168,16 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
    // create vertices in 'face_nbr_vertices'
    {
       pmesh.face_nbr_vertices.SetSize(vert_map.size());
-      tmp_vertex = new TmpVertex[nodes.NumIds()]; // TODO: something cheaper?
-
-      std::map<int, int>::iterator it;
-      for (it = vert_map.begin(); it != vert_map.end(); ++it)
+      if (coordinates.Size())
       {
-         pmesh.face_nbr_vertices[it->second-1].SetCoords(
-            spaceDim, CalcVertexPos(it->first));
+         tmp_vertex = new TmpVertex[nodes.NumIds()]; // TODO: something cheaper?
+         for (auto it = vert_map.begin(); it != vert_map.end(); ++it)
+         {
+            pmesh.face_nbr_vertices[it->second-1].SetCoords(
+               spaceDim, CalcVertexPos(it->first));
+         }
+         delete [] tmp_vertex;
       }
-      delete [] tmp_vertex;
    }
 
    // make the 'send_face_nbr_elements' table
