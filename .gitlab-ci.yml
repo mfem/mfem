@@ -106,6 +106,15 @@ setup:
   before_script:
     - module load gcc/6.1.0
 
+# On lassen
+.with_gcc_8_3_1:
+  variables:
+    TOOLCHAIN: gcc_8_3_1
+    CXX: g++
+    CC: gcc
+  before_script:
+    - module load gcc/8.3.1
+
 .with_gcc_4_9_3:
   variables:
     TOOLCHAIN: gcc_4_9_3
