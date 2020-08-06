@@ -6,11 +6,13 @@
 //               ex22 -m ../data/inline-tri.mesh -o 3
 //               ex22 -m ../data/inline-quad.mesh -o 3
 //               ex22 -m ../data/inline-quad.mesh -o 3 -p 1
+//               ex22 -m ../data/inline-quad.mesh -o 3 -p 1 -pa
 //               ex22 -m ../data/inline-quad.mesh -o 3 -p 2
 //               ex22 -m ../data/inline-tet.mesh -o 2
 //               ex22 -m ../data/inline-hex.mesh -o 2
 //               ex22 -m ../data/inline-hex.mesh -o 2 -p 1
 //               ex22 -m ../data/inline-hex.mesh -o 2 -p 2
+//               ex22 -m ../data/inline-hex.mesh -o 2 -p 2 -pa
 //               ex22 -m ../data/star.mesh -r 1 -o 2 -sigma 10.0
 //
 // Device sample runs:
