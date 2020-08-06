@@ -96,6 +96,9 @@ void PABilinearFormExtension::Assemble()
       integrators[i]->AssemblePA(*a->FESpace());
    }
 
+   MFEM_ASSERT(a->GetBBFI()->Size() == 0,
+               "Partial assembly does not support AddBoundaryIntegrator yet.");
+
    Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
    const int intFaceIntegratorCount = intFaceIntegrators.Size();
    for (int i = 0; i < intFaceIntegratorCount; ++i)
@@ -319,6 +322,9 @@ void EABilinearFormExtension::Assemble()
    faceDofs = trialFes ->
               GetTraceElement(0, trialFes->GetMesh()->GetFaceBaseGeometry(0)) ->
               GetDof();
+
+   MFEM_ASSERT(a->GetBBFI()->Size() == 0,
+               "Element assembly does not support AddBoundaryIntegrator yet.");
 
    Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
    const int intFaceIntegratorCount = intFaceIntegrators.Size();
@@ -794,6 +800,9 @@ void PAMixedBilinearFormExtension::Assemble()
    {
       integrators[i]->AssemblePA(*trialFes, *testFes);
    }
+
+   MFEM_ASSERT(a->GetBBFI()->Size() == 0,
+               "Partial assembly does not support AddBoundaryIntegrator yet.");
 }
 
 void PAMixedBilinearFormExtension::Update()
