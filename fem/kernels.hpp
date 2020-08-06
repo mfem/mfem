@@ -51,8 +51,8 @@ MFEM_HOST_DEVICE inline void LoadBG(const int D1D, const int Q1D,
                                     double sBG[2][MQ1*MD1])
 {
    const int tidz = MFEM_THREAD_ID(z);
-   double (*B)[MD1] = (double (*)[MD1])(sBG+0);
-   double (*G)[MD1] = (double (*)[MD1])(sBG+1);
+   DeviceMatrix B(sBG[0], MD1, MQ1);
+   DeviceMatrix G(sBG[1], MD1, MQ1);
 
    if (tidz == 0)
    {
@@ -60,8 +60,8 @@ MFEM_HOST_DEVICE inline void LoadBG(const int D1D, const int Q1D,
       {
          MFEM_FOREACH_THREAD(q,x,Q1D)
          {
-            B[q][d] = b(q,d);
-            G[q][d] = g(q,d);
+            B(d,q) = b(q,d);
+            G(d,q) = g(q,d);
          }
       }
    }
@@ -76,8 +76,8 @@ MFEM_HOST_DEVICE inline void LoadBGt(const int D1D, const int Q1D,
                                      double sBG[2][MQ1*MD1])
 {
    const int tidz = MFEM_THREAD_ID(z);
-   double (*Bt)[MQ1] = (double (*)[MQ1]) (sBG+0);
-   double (*Gt)[MQ1] = (double (*)[MQ1]) (sBG+1);
+   DeviceMatrix Bt(sBG[0], MQ1, MD1);
+   DeviceMatrix Gt(sBG[1], MQ1, MD1);
 
    if (tidz == 0)
    {
@@ -85,8 +85,8 @@ MFEM_HOST_DEVICE inline void LoadBGt(const int D1D, const int Q1D,
       {
          MFEM_FOREACH_THREAD(q,x,Q1D)
          {
-            Bt[d][q] = b(q,d);
-            Gt[d][q] = g(q,d);
+            Bt(q,d) = b(q,d);
+            Gt(q,d) = g(q,d);
          }
       }
    }
