@@ -1302,13 +1302,13 @@ DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
      vfes_(vfes),
      ffes_(ffes),
      yGF_(yGF),
-     kGF_(kGF),
+     // kGF_(kGF),
      offsets_(offsets),
      newton_op_prec_(offsets),
      newton_op_solver_(fes.GetComm()),
      newton_solver_(fes.GetComm()),
      op_(mpi, dg, plasma, eqn_weights, vfes, yGF, kGF, bcs, offsets_,
-         Di_perp, Xi_perp, Xe_perp, B3Coef,// Ti_dbc, Te_dbc,
+         Di_perp, Xi_perp, Xe_perp, B3Coef,
          term_flags, vis_flags, op_flag, logging),
      BxyCoef_(B3Coef),
      BzCoef_(B3Coef),
@@ -2063,9 +2063,9 @@ DGTransportTDO::TransportOp::~TransportOp()
 
 void DGTransportTDO::TransportOp::SetTimeStep(double dt)
 {
-   if (mpi_.Root() && logging_)
+   if (mpi_.Root() && logging_ > 1)
    {
-      cout << "Setting time step: " << dt << " in NLOperator"
+      cout << "Setting time step: " << dt << " in TransportOp"
            << endl;
    }
 

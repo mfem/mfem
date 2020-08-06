@@ -2088,7 +2088,7 @@ private:
    ParFiniteElementSpace &vfes_;
    ParFiniteElementSpace &ffes_;
    ParGridFunctionArray  &yGF_;
-   ParGridFunctionArray  &kGF_;
+   // ParGridFunctionArray  &kGF_;
 
    Array<int> &offsets_;
 
@@ -2732,7 +2732,7 @@ private:
 
       virtual void SetTimeStep(double dt)
       {
-         if (mpi_.Root() && logging_ > 0)
+         if (mpi_.Root() && logging_ > 1)
          {
             std::cout << "Setting time step: " << dt << " in DummyOp\n";
          }
