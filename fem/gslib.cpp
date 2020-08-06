@@ -554,7 +554,8 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
 
       IntegrationPoint ip;
       Vector mfem_ref(gsl_mfem_ref.GetData()+i*dim, dim);
-      ip.Set3(mfem_ref.GetData());
+      ip.Set2(mfem_ref.GetData());
+      if (dim == 3) { ip.z = mfem_ref(2); }
       gf_lin.GetVectorValue(local_elem, ip, mfem_ref); // map to rst of macro element
    }
 }
@@ -688,7 +689,8 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
       for (int index = 0; index < npt; index++)
       {
          IntegrationPoint ip;
-         ip.Set3(gsl_mfem_ref.GetData()+index*dim);
+         ip.Set2(gsl_mfem_ref.GetData()+index*dim);
+         if (dim == 3) { ip.z = gsl_mfem_ref(index*dim + 2); }
          Vector localval(ncomp);
          field_in.GetVectorValue(gsl_mfem_elem[index], ip, localval);
          for (int i = 0; i < ncomp; i++)
