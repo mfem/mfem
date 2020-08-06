@@ -655,6 +655,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
 
    if (sbcs_->Size() > 0)
    {
+      // TODO: PA does not support BoundaryIntegrator yet
       m0_ = new ParBilinearForm(H1FESpace_);
       m0_->AddBoundaryIntegrator(new MassIntegrator);
 
@@ -926,8 +927,10 @@ CPDSolver::Assemble()
       tic_toc.Clear();
       tic_toc.Start();
 
+      // TODO: PA
       m0_->Assemble();
       m0_->Finalize();
+      //if (!pa_) m0_->Finalize();
 
       tic_toc.Stop();
       if ( myid_ == 0 && logging_ > 0 )
@@ -941,9 +944,11 @@ CPDSolver::Assemble()
 
       n20ZRe_->Assemble();
       n20ZRe_->Finalize();
+      //if (!pa_) n20ZRe_->Finalize();
 
       n20ZIm_->Assemble();
       n20ZIm_->Finalize();
+      //if (!pa_) n20ZIm_->Finalize();
    }
 
    tic_toc.Stop();
