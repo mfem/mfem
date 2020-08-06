@@ -570,32 +570,21 @@ HypreParMatrix* ParDiscreteLinearOperator::ParallelAssemble() const
 /// (even if A is ANY_TYPE, it becomes SPARSE_MATRIX here!)
 void ParDiscreteLinearOperator::ParallelAssemble(OperatorHandle &A)
 {
-   std::cout << "A.Type() = " << A.Type() << std::endl;
-
    // construct the rectangular block-diagonal matrix dA
    OperatorHandle dA(A.Type());
-   std::cout << "dA.Type() = " << dA.Type() << std::endl;
    dA.MakeRectangularBlockDiag(domain_fes->GetComm(),
                                range_fes->GlobalVSize(),
                                domain_fes->GlobalVSize(),
                                range_fes->GetDofOffsets(),
                                domain_fes->GetDofOffsets(),
                                mat);
-   std::cout << "dA.Type() = " << dA.Type() << std::endl;
 
    OperatorHandle P_test(A.Type()), P_trial(A.Type());
-
-   std::cout << "Operator::ANY_TYPE = " << Operator::ANY_TYPE << std::endl;
-   std::cout << "A.Type() = " << A.Type() << std::endl;
-   std::cout << "P_test.Type() = " << P_test.Type() << std::endl;
 
    // TODO - construct the Dof_TrueDof_Matrix directly in the required format.
    P_test.ConvertFrom(range_fes->Dof_TrueDof_Matrix());
    P_trial.ConvertFrom(domain_fes->Dof_TrueDof_Matrix());
 
-   std::cout << "P_test.Type() = " << P_test.Type() << std::endl;
-   std::cout << "P_trial.Type() = " << P_test.Type() << std::endl;
-   std::cout << "dA.Type() = " << dA.Type() << std::endl;
    A.MakeRAP(P_test, dA, P_trial);
 }
 
