@@ -62,6 +62,8 @@ private:
 class ParDST : public Solver//
 {
 private:
+   MPI_Comm comm = MPI_COMM_WORLD;
+   int num_procs, myid;
    // Constructor inputs
    ParSesquilinearForm *bf=nullptr;
    ParFiniteElementSpace * pfes = nullptr;
