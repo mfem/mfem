@@ -466,23 +466,15 @@ MFEM_HOST_DEVICE inline void GradX(const int D1D, const int Q1D,
                                    double sDQ[4][NBZ][MD1*MQ1])
 {
    const int tidz = MFEM_THREAD_ID(z);
-   //double (*B)[MD1] = (double (*)[MD1])(sBG+0);
    ConstDeviceMatrix B(sBG[0], MD1, MQ1);
-   //double (*G)[MD1] = (double (*)[MD1])(sBG+1);
    ConstDeviceMatrix G(sBG[1], MD1, MQ1);
 
-   //double (*X0)[MD1]  = (double (*)[MD1])(sX[0] + tidz);
    ConstDeviceMatrix X0(sX[0][tidz], MD1, MD1);
-   //double (*X1)[MD1]  = (double (*)[MD1])(sX[1] + tidz);
    ConstDeviceMatrix X1(sX[1][tidz], MD1, MD1);
 
-   //double (*X0B)[MQ1] = (double (*)[MQ1])(sDQ[0] + tidz);
    DeviceMatrix X0B(sDQ[0][tidz], MQ1, MD1);
-   //double (*X0G)[MQ1] = (double (*)[MQ1])(sDQ[1] + tidz);
    DeviceMatrix X0G(sDQ[1][tidz], MQ1, MD1);
-   //double (*X1B)[MQ1] = (double (*)[MQ1])(sDQ[2] + tidz);
    DeviceMatrix X1B(sDQ[2][tidz], MQ1, MD1);
-   //double (*X1G)[MQ1] = (double (*)[MQ1])(sDQ[3] + tidz);
    DeviceMatrix X1G(sDQ[3][tidz], MQ1, MD1);
 
    MFEM_FOREACH_THREAD(dy,y,D1D)
@@ -495,17 +487,17 @@ MFEM_HOST_DEVICE inline void GradX(const int D1D, const int Q1D,
          {
             const double Bx = B(dx,qx);
             const double Gx = G(dx,qx);
-            const double x0 = X0(dx,dy);//[dy][dx];
-            const double x1 = X1(dx,dy);//[dy][dx];
+            const double x0 = X0(dx,dy);
+            const double x1 = X1(dx,dy);
             u[0] += Bx * x0;
             v[0] += Gx * x0;
             u[1] += Bx * x1;
             v[1] += Gx * x1;
          }
-         X0B(qx,dy)/*[dy][qx]*/ = u[0];
-         X0G(qx,dy)/*[dy][qx]*/ = v[0];
-         X1B(qx,dy)/*[dy][qx]*/ = u[1];
-         X1G(qx,dy)/*[dy][qx]*/ = v[1];
+         X0B(qx,dy) = u[0];
+         X0G(qx,dy) = v[0];
+         X1B(qx,dy) = u[1];
+         X1G(qx,dy) = v[1];
       }
    }
    MFEM_SYNC_THREAD;
@@ -519,27 +511,17 @@ MFEM_HOST_DEVICE inline void GradY(const int D1D, const int Q1D,
                                    double sQQ[4][NBZ][MQ1*MQ1])
 {
    const int tidz = MFEM_THREAD_ID(z);
-   //double (*B)[MD1] = (double (*)[MD1])(sBG+0);
    ConstDeviceMatrix B(sBG[0], MD1, MQ1);
-   //double (*G)[MD1] = (double (*)[MD1])(sBG+1);
    ConstDeviceMatrix G(sBG[1], MD1, MQ1);
 
-   //double (*X0B)[MQ1] = (double (*)[MQ1])(sDQ[0] + tidz);
    ConstDeviceMatrix X0B(sDQ[0][tidz], MQ1, MD1);
-   //double (*X0G)[MQ1] = (double (*)[MQ1])(sDQ[1] + tidz);
    ConstDeviceMatrix X0G(sDQ[1][tidz], MQ1, MD1);
-   //double (*X1B)[MQ1] = (double (*)[MQ1])(sDQ[2] + tidz);
    ConstDeviceMatrix X1B(sDQ[2][tidz], MQ1, MD1);
-   //double (*X1G)[MQ1] = (double (*)[MQ1])(sDQ[3] + tidz);
    ConstDeviceMatrix X1G(sDQ[3][tidz], MQ1, MD1);
 
-   //double (*X0GB)[MQ1] = (double (*)[MQ1])(sQQ[0] + tidz);
    DeviceMatrix X0GB(sQQ[0][tidz], MQ1, MQ1);
-   //double (*X0BG)[MQ1] = (double (*)[MQ1])(sQQ[1] + tidz);
    DeviceMatrix X0BG(sQQ[1][tidz], MQ1, MQ1);
-   //double (*X1GB)[MQ1] = (double (*)[MQ1])(sQQ[2] + tidz);
    DeviceMatrix X1GB(sQQ[2][tidz], MQ1, MQ1);
-   //double (*X1BG)[MQ1] = (double (*)[MQ1])(sQQ[3] + tidz);
    DeviceMatrix X1BG(sQQ[3][tidz], MQ1, MQ1);
 
    MFEM_FOREACH_THREAD(qy,y,Q1D)
@@ -552,15 +534,15 @@ MFEM_HOST_DEVICE inline void GradY(const int D1D, const int Q1D,
          {
             const double By = B(dy,qy);
             const double Gy = G(dy,qy);
-            u[0] += X0G(qx,dy)/*[dy][qx]*/ * By;
-            v[0] += X0B(qx,dy)/*[dy][qx]*/ * Gy;
-            u[1] += X1G(qx,dy)/*[dy][qx]*/ * By;
-            v[1] += X1B(qx,dy)/*[dy][qx]*/ * Gy;
+            u[0] += X0G(qx,dy) * By;
+            v[0] += X0B(qx,dy) * Gy;
+            u[1] += X1G(qx,dy) * By;
+            v[1] += X1B(qx,dy) * Gy;
          }
-         X0GB(qx,qy)/*[qy][qx]*/ = u[0];
-         X0BG(qx,qy)/*[qy][qx]*/ = v[0];
-         X1GB(qx,qy)/*[qy][qx]*/ = u[1];
-         X1BG(qx,qy)/*[qy][qx]*/ = v[1];
+         X0GB(qx,qy) = u[0];
+         X0BG(qx,qy) = v[0];
+         X1GB(qx,qy) = u[1];
+         X1BG(qx,qy) = v[1];
       }
    }
    MFEM_SYNC_THREAD;
@@ -573,19 +555,15 @@ MFEM_HOST_DEVICE inline void PullGradXY(const int qx, const int qy,
                                         double *Jpr)
 {
    const int tidz = MFEM_THREAD_ID(z);
-   //double (*X0GB)[MQ1] = (double (*)[MQ1])(sQQ[0] + tidz);
    ConstDeviceMatrix X0GB(sQQ[0][tidz], MQ1, MQ1);
-   //double (*X0BG)[MQ1] = (double (*)[MQ1])(sQQ[1] + tidz);
    ConstDeviceMatrix X0BG(sQQ[1][tidz], MQ1, MQ1);
-   //double (*X1GB)[MQ1] = (double (*)[MQ1])(sQQ[2] + tidz);
    ConstDeviceMatrix X1GB(sQQ[2][tidz], MQ1, MQ1);
-   //double (*X1BG)[MQ1] = (double (*)[MQ1])(sQQ[3] + tidz);
    ConstDeviceMatrix X1BG(sQQ[3][tidz], MQ1, MQ1);
 
-   Jpr[0] = X0GB(qx,qy);//[qy][qx];
-   Jpr[1] = X1GB(qx,qy);//[qy][qx];
-   Jpr[2] = X0BG(qx,qy);//[qy][qx];
-   Jpr[3] = X1BG(qx,qy);//[qy][qx];
+   Jpr[0] = X0GB(qx,qy);
+   Jpr[1] = X1GB(qx,qy);
+   Jpr[2] = X0BG(qx,qy);
+   Jpr[3] = X1BG(qx,qy);
 }
 
 /// Push 2D Gradient
@@ -595,19 +573,15 @@ MFEM_HOST_DEVICE inline void PushGradXY(const int qx, const int qy,
                                         double sQQ[4][NBZ][MQ1*MQ1])
 {
    const int tidz = MFEM_THREAD_ID(z);
-   //double (*X0GB)[MQ1] = (double (*)[MQ1])(sQQ[0] + tidz);
    DeviceMatrix X0GB(sQQ[0][tidz], MQ1, MQ1);
-   //double (*X0BG)[MQ1] = (double (*)[MQ1])(sQQ[1] + tidz);
    DeviceMatrix X0BG(sQQ[1][tidz], MQ1, MQ1);
-   //double (*X1GB)[MQ1] = (double (*)[MQ1])(sQQ[2] + tidz);
    DeviceMatrix X1GB(sQQ[2][tidz], MQ1, MQ1);
-   //double (*X1BG)[MQ1] = (double (*)[MQ1])(sQQ[3] + tidz);
    DeviceMatrix X1BG(sQQ[3][tidz], MQ1, MQ1);
 
-   X0GB(qx,qy)/*[qy][qx]*/ = A[0];
-   X1GB(qx,qy)/*[qy][qx]*/ = A[2];
-   X0BG(qx,qy)/*[qy][qx]*/ = A[1];
-   X1BG(qx,qy)/*[qy][qx]*/ = A[3];
+   X0GB(qx,qy) = A[0];
+   X1GB(qx,qy) = A[2];
+   X0BG(qx,qy) = A[1];
+   X1BG(qx,qy) = A[3];
 }
 
 /// 2D Transposed gradient, 1/2
@@ -618,27 +592,17 @@ MFEM_HOST_DEVICE inline void GradYt(const int D1D, const int Q1D,
                                     double GD[4][NBZ][MD1*MQ1])
 {
    const int tidz = MFEM_THREAD_ID(z);
-   //double (*Bt)[MQ1] = (double (*)[MQ1]) (sBG+0);
    ConstDeviceMatrix Bt(sBG[0], MQ1, MD1);
-   //double (*Gt)[MQ1] = (double (*)[MQ1]) (sBG+1);
    ConstDeviceMatrix Gt(sBG[1], MQ1, MD1);
 
-   //double (*QQx0)[MQ1] = (double (*)[MQ1])(GQ[0] + tidz);
    ConstDeviceMatrix QQx0(GQ[0][tidz], MQ1, MQ1);
-   //double (*QQx1)[MQ1] = (double (*)[MQ1])(GQ[1] + tidz);
    ConstDeviceMatrix QQx1(GQ[1][tidz], MQ1, MQ1);
-   //double (*QQy0)[MQ1] = (double (*)[MQ1])(GQ[2] + tidz);
    ConstDeviceMatrix QQy0(GQ[2][tidz], MQ1, MQ1);
-   //double (*QQy1)[MQ1] = (double (*)[MQ1])(GQ[3] + tidz);
    ConstDeviceMatrix QQy1(GQ[3][tidz], MQ1, MQ1);
 
-   //double (*DQxB)[MQ1] = (double (*)[MQ1])(GD[0] + tidz);
    DeviceMatrix DQxB(GD[0][tidz], MQ1, MD1);
-   //double (*DQxG)[MQ1] = (double (*)[MQ1])(GD[1] + tidz);
    DeviceMatrix DQxG(GD[1][tidz], MQ1, MD1);
-   //double (*DQyB)[MQ1] = (double (*)[MQ1])(GD[2] + tidz);
    DeviceMatrix DQyB(GD[2][tidz], MQ1, MD1);
-   //double (*DQyG)[MQ1] = (double (*)[MQ1])(GD[3] + tidz);
    DeviceMatrix DQyG(GD[3][tidz], MQ1, MD1);
 
    MFEM_FOREACH_THREAD(qy,y,Q1D)
@@ -649,15 +613,15 @@ MFEM_HOST_DEVICE inline void GradYt(const int D1D, const int Q1D,
          double v[2] = {0.0, 0.0};
          for (int qx = 0; qx < Q1D; ++qx)
          {
-            u[0] += Gt(qx,dx)/*[dx][qx]*/ * QQx0(qx,qy);//[qy][qx];
-            u[1] += Gt(qx,dx)/*[dx][qx]*/ * QQy0(qx,qy);//[qy][qx];
-            v[0] += Bt(qx,dx)/*[dx][qx]*/ * QQx1(qx,qy);//[qy][qx];
-            v[1] += Bt(qx,dx)/*[dx][qx]*/ * QQy1(qx,qy);//[qy][qx];
+            u[0] += Gt(qx,dx) * QQx0(qx,qy);
+            u[1] += Gt(qx,dx) * QQy0(qx,qy);
+            v[0] += Bt(qx,dx) * QQx1(qx,qy);
+            v[1] += Bt(qx,dx) * QQy1(qx,qy);
          }
-         DQxB(qy,dx)/*[dx][qy]*/ = u[0];
-         DQyB(qy,dx)/*[dx][qy]*/ = u[1];
-         DQxG(qy,dx)/*[dx][qy]*/ = v[0];
-         DQyG(qy,dx)/*[dx][qy]*/ = v[1];
+         DQxB(qy,dx) = u[0];
+         DQyB(qy,dx) = u[1];
+         DQxG(qy,dx) = v[0];
+         DQyG(qy,dx) = v[1];
       }
    }
    MFEM_SYNC_THREAD;
@@ -673,18 +637,12 @@ MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
 {
    const int tidz = MFEM_THREAD_ID(z);
 
-   //double (*Bt)[MQ1] = (double (*)[MQ1]) (sBG+0);
    ConstDeviceMatrix Bt(sBG[0], MQ1, MD1);
-   //double (*Gt)[MQ1] = (double (*)[MQ1]) (sBG+1);
    ConstDeviceMatrix Gt(sBG[1], MQ1, MD1);
 
-   //double (*DQxB)[MQ1] = (double (*)[MQ1])(GD[0] + tidz);
    ConstDeviceMatrix DQxB(GD[0][tidz], MQ1, MD1);
-   //double (*DQxG)[MQ1] = (double (*)[MQ1])(GD[1] + tidz);
    ConstDeviceMatrix DQxG(GD[1][tidz], MQ1, MD1);
-   //double (*DQyB)[MQ1] = (double (*)[MQ1])(GD[2] + tidz);
    ConstDeviceMatrix DQyB(GD[2][tidz], MQ1, MD1);
-   //double (*DQyG)[MQ1] = (double (*)[MQ1])(GD[3] + tidz);
    ConstDeviceMatrix DQyG(GD[3][tidz], MQ1, MD1);
 
    MFEM_FOREACH_THREAD(dy,y,D1D)
@@ -695,10 +653,10 @@ MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
          double v[2] = {0.0, 0.0};
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            u[0] += DQxB(qy,dx)/*[dx][qy]*/ * Bt(qy,dy);//[dy][qy];
-            u[1] += DQyB(qy,dx)/*[dx][qy]*/ * Bt(qy,dy);//[dy][qy];
-            v[0] += DQxG(qy,dx)/*[dx][qy]*/ * Gt(qy,dy);//[dy][qy];
-            v[1] += DQyG(qy,dx)/*[dx][qy]*/ * Gt(qy,dy);//[dy][qy];
+            u[0] += DQxB(qy,dx) * Bt(qy,dy);
+            u[1] += DQyB(qy,dx) * Bt(qy,dy);
+            v[0] += DQxG(qy,dx) * Gt(qy,dy);
+            v[1] += DQyG(qy,dx) * Gt(qy,dy);
          }
          Y(dx,dy,0,e) += u[0] + v[0];
          Y(dx,dy,1,e) += u[1] + v[1];
