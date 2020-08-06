@@ -1212,14 +1212,6 @@ int main(int argc, char *argv[])
 
       coef_gf.ProjectCoefficient(coef);
 
-      //Array<double> w(5); w = 1.0;
-      /*
-      w[0] = 1.0 / nn_max_;
-      w[1] = 1.0 / ni_max_;
-      w[2] = 1.0 / v_max_;
-      w[3] = 1.0 / T_max_;
-      w[4] = 1.0 / T_max_;
-      */
       L2_FECollection fec_l2_o0(0, dim);
       // Finite element space for a scalar (thermodynamic quantity)
       ParFiniteElementSpace err_fes(&pmesh, &fec_l2_o0);
@@ -1247,9 +1239,6 @@ int main(int argc, char *argv[])
    if (mpi.Root())
    { cout << "Total number of unknowns:     " << glob_size_tot << endl; }
 
-   //ConstantCoefficient nuCoef(diffusion_constant_);
-   // MatrixFunctionCoefficient nuCoef(dim, ChiFunc);
-
    // 8. Define the initial conditions, save the corresponding mesh and grid
    //    functions to a file. This can be opened with GLVis with the -gc option.
 
@@ -1262,182 +1251,6 @@ int main(int argc, char *argv[])
       offsets[k] = k * fes.GetNDofs();
    }
    ParGridFunction u(&ffes);
-   // BlockVector u_block(u.GetData(), offsets);
-   /*
-   Array<int> n_offsets(num_species_ + 2);
-   for (int k = 0; k <= num_species_ + 1; k++)
-   {
-      n_offsets[k] = offsets[k];
-   }
-   BlockVector n_block(u_block, n_offsets);
-   */
-   /*
-   ParGridFunction density(&fes, u_block.GetData());
-   ParGridFunction velocity(&dfes, u_block.GetData() + offsets[1]);
-   ParGridFunction temperature(&fes, u_block.GetData() + offsets[dim+1]);
-   */
-   /*
-   // Initialize the state.
-   VectorFunctionCoefficient u0(num_equations_, InitialCondition);
-   ParGridFunction sol(&ffes, u_block.GetData());
-   sol.ProjectCoefficient(u0);
-
-   VectorFunctionCoefficient BCoef(dim, bFunc);
-   ParGridFunction B(&fes_rt);
-   B.ProjectCoefficient(BCoef);
-   */
-   // Output the initial solution.
-   /*
-   {
-      ostringstream mesh_name;
-      mesh_name << "transport-mesh." << setfill('0') << setw(6)
-      << mpi.WorldRank();
-      ofstream mesh_ofs(mesh_name.str().c_str());
-      mesh_ofs.precision(precision);
-      mesh_ofs << pmesh;
-
-      for (int i = 0; i < num_species_; i++)
-   for (int j = 0; j < dim + 2; j++)
-   {
-      int k = 0;
-      ParGridFunction uk(&sfes, u_block.GetBlock(k));
-      ostringstream sol_name;
-      sol_name << "species-" << i << "-field-" << j << "-init."
-          << setfill('0') << setw(6) << mpi.WorldRank();
-      ofstream sol_ofs(sol_name.str().c_str());
-      sol_ofs.precision(precision);
-      sol_ofs << uk;
-   }
-   }
-   */
-
-   // 9. Set up the nonlinear form corresponding to the DG discretization of the
-   //    flux divergence, and assemble the corresponding mass matrix.
-   /*
-   MixedBilinearForm Aflux(&dfes, &fes);
-   Aflux.AddDomainIntegrator(new DomainIntegrator(dim, num_equations_));
-   Aflux.Assemble();
-
-   ParNonlinearForm A(&vfes);
-   RiemannSolver rsolver(num_equations_, specific_heat_ratio_);
-   A.AddInteriorFaceIntegrator(new FaceIntegrator(rsolver, dim,
-                    num_equations_));
-
-   // 10. Define the time-dependent evolution operator describing the ODE
-   //     right-hand side, and perform time-integration (looping over the time
-   //     iterations, ti, with a time-step dt).
-   AdvectionTDO adv(vfes, A, Aflux.SpMat(), num_equations_,
-                    specific_heat_ratio_);
-   DiffusionTDO diff(fes, dfes, vfes, nuCoef, dg_sigma_, dg_kappa_);
-   */
-   // TransportSolver transp(ode_imp_solver, ode_exp_solver, sfes, vfes, ffes,
-   //                     n_block, B, ion_charges, ion_masses);
-   /*
-   // Visualize the density, momentum, and energy
-   vector<socketstream> dout(num_species_+1), vout(num_species_+1),
-          tout(num_species_+1), xout(num_species_+1), eout(num_species_+1);
-
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-
-      int Wx = 0, Wy = 0; // window position
-      int Ww = 275, Wh = 250; // window size
-      int offx = Ww + 3, offy = Wh + 25; // window offsets
-
-      MPI_Barrier(pmesh.GetComm());
-
-      for (int i=0; i<=num_species_; i++)
-      {
-         int doff = offsets[i];
-         int voff = offsets[i * dim + num_species_ + 1];
-         int toff = offsets[i + (num_species_ + 1) * (dim + 1)];
-         double * u_data = u_block.GetData();
-         ParGridFunction density(&fespace, u_data + doff);
-         ParGridFunction velocity(&vfes, u_data + voff);
-         ParGridFunction temperature(&fespace, u_data + toff);
-   */
-   /*
-        ParGridFunction chi_para(&sfes);
-        ParGridFunction eta_para(&sfes);
-        if (i==0)
-        {
-           ChiParaCoefficient chiParaCoef(n_block, ion_charges);
-           chiParaCoef.SetT(temperature);
-           chi_para.ProjectCoefficient(chiParaCoef);
-
-           EtaParaCoefficient etaParaCoef(n_block, ion_charges);
-           etaParaCoef.SetT(temperature);
-           eta_para.ProjectCoefficient(etaParaCoef);
-        }
-        else
-        {
-           ChiParaCoefficient chiParaCoef(n_block, i - 1,
-                                          ion_charges,
-                                          ion_masses);
-           chiParaCoef.SetT(temperature);
-           chi_para.ProjectCoefficient(chiParaCoef);
-
-           EtaParaCoefficient etaParaCoef(n_block, i - 1,
-                                          ion_charges,
-                                          ion_masses);
-           etaParaCoef.SetT(temperature);
-           eta_para.ProjectCoefficient(etaParaCoef);
-        }
-   */
-   /*
-         ostringstream head;
-         if (i==0)
-         {
-            head << "Electron";
-         }
-         else
-         {
-            head << "Species " << i;
-         }
-
-         ostringstream doss;
-         doss << head.str() << " Density";
-         VisualizeField(dout[i], vishost, visport,
-                        density, doss.str().c_str(),
-                        Wx, Wy, Ww, Wh);
-         Wx += offx;
-
-         ostringstream voss; voss << head.str() << " Velocity";
-         VisualizeField(vout[i], vishost, visport,
-                        velocity, voss.str().c_str(),
-                        Wx, Wy, Ww, Wh, NULL, true);
-         Wx += offx;
-
-         ostringstream toss; toss << head.str() << " Temperature";
-         VisualizeField(tout[i], vishost, visport,
-                        temperature, toss.str().c_str(),
-                        Wx, Wy, Ww, Wh);
-   */
-   /*
-   Wx += offx;
-
-   ostringstream xoss; xoss << head.str() << " Chi Parallel";
-   VisualizeField(xout[i], vishost, visport,
-                  chi_para, xoss.str().c_str(),
-                  Wx, Wy, Ww, Wh);
-
-   Wx += offx;
-
-   ostringstream eoss; eoss << head.str() << " Eta Parallel";
-   VisualizeField(eout[i], vishost, visport,
-                  eta_para, eoss.str().c_str(),
-                  Wx, Wy, Ww, Wh);
-
-   Wx -= 4 * offx;
-   */
-   /*
-         Wx -= 2 * offx;
-         Wy += offy;
-      }
-   }
-   */
 
    // Determine the minimum element size.
    double hmin;
@@ -1470,42 +1283,13 @@ int main(int argc, char *argv[])
    IAdjFactor   dt_rej(kI_rej);
    MaxLimiter   dt_max(lim_max);
 
-   /*
-   ODESolver * ode_solver = NULL;
-   switch (ode_solver_type)
-   {
-      // Implicit-Explicit methods
-      case 1:  ode_solver = new IMEX_BE_FE; break;
-      case 2:  ode_solver = new IMEXRK2; break;
-      // Implicit L-stable methods
-      case 11: ode_solver = new BackwardEulerSolver; break;
-      case 12: ode_solver = new SDIRK23Solver(2); break;
-      case 13: ode_solver = new SDIRK33Solver; break;
-      // Implicit A-stable methods (not L-stable)
-      case 22: ode_solver = new ImplicitMidpointSolver; break;
-      case 23: ode_solver = new SDIRK23Solver; break;
-      case 34: ode_solver = new SDIRK34Solver; break;
-      default:
-         if (mpi.Root())
-         {
-            cout << "Unknown Implicit ODE solver type: "
-                 << ode_solver_type << '\n';
-         }
-         return 3;
-   }
-   */
    ODEEmbeddedSolver * ode_solver   = NULL;
    switch (ode_solver_type)
    {
       case 1: ode_solver = new SDIRK212Solver; break;
       case 2: ode_solver = new SDIRK534Solver; break;
    }
-   /*
-   ParBilinearForm m(&fes);
-   m.AddDomainIntegrator(new MassIntegrator);
-   m.Assemble();
-   m.Finalize();
-   */
+
    // Density, Velocity, and Energy grid functions on for visualization.
    ParGridFunction  neu_density (&fes, u.GetData());
    ParGridFunction  ion_density (&fes, u.GetData() + offsets[1]);
@@ -1528,18 +1312,9 @@ int main(int argc, char *argv[])
    }
    kGF.SetOwner(true);
 
-   // ParGridFunction u(&fes);
-   // u.ProjectCoefficient(u0Coef);
-   // neu_density = 1.0e16;
-   // ion_density = 1.0e19;
    para_velocity = 0.0;
 
-   // Array<double> weights(5);
-   // weights = 1.0;
-   // weights[0] = 1.0;
-   // weights[4] = 0.0;
    VectorRelativeErrorMeasure ode_diff_msr(MPI_COMM_WORLD, ode_weights);
-   // ode_diff_msr.SetOperator(m);
 
    // Coefficients representing primary fields
    GridFunctionCoefficient nnCoef(&neu_density);
@@ -1621,53 +1396,7 @@ int main(int argc, char *argv[])
       ifstream bcfs(bc_file);
       bcs.LoadBCs(coefFact, bcfs);
    }
-   /*
-   Array<Coefficient*> coefs;
-   if (prob_ == 1)
-   {
-      Array<int> dbc_max(1);
-      Array<int> dbc_min(1);
 
-      dbc_max = 1;
-      dbc_min = 2;
-
-      Coefficient * Ti_max = new ConstantCoefficient(Ti_max_);
-      Coefficient * Ti_min = new ConstantCoefficient(Ti_min_);
-      bcs[ION_TEMPERATURE].AddDirichletBC(dbc_max, *Ti_max);
-      bcs[ION_TEMPERATURE].AddDirichletBC(dbc_min, *Ti_min);
-
-      Coefficient * Te_max = new ConstantCoefficient(Te_max_);
-      Coefficient * Te_min = new ConstantCoefficient(Te_min_);
-      bcs[ELECTRON_TEMPERATURE].AddDirichletBC(dbc_max, *Te_max);
-      bcs[ELECTRON_TEMPERATURE].AddDirichletBC(dbc_min, *Te_min);
-
-      coefs.Append(Ti_max);
-      coefs.Append(Ti_min);
-      coefs.Append(Te_max);
-      coefs.Append(Te_min);
-   }
-   */
-   /*
-   vector<CoefficientByAttr>  Ti_dbc;
-   if (prob_ == 1)
-   {
-      Ti_dbc.resize(2);
-      Ti_dbc[0].attr.Append(1);
-      Ti_dbc[0].coef = new ConstantCoefficient(Ti_max_);
-      Ti_dbc[1].attr.Append(2);
-      Ti_dbc[1].coef = new ConstantCoefficient(Ti_min_);
-   }
-
-   vector<CoefficientByAttr>  Te_dbc;
-   if (prob_ == 1)
-   {
-      Te_dbc.resize(2);
-      Te_dbc[0].attr.Append(1);
-      Te_dbc[0].coef = new ConstantCoefficient(Te_max_);
-      Te_dbc[1].attr.Append(2);
-      Te_dbc[1].coef = new ConstantCoefficient(Te_min_);
-   }
-   */
    Array<double> coefNrm(5);
    {
       L2_ParFESpace l2_fes(&pmesh, order - 1, dim);
@@ -1800,33 +1529,7 @@ int main(int argc, char *argv[])
    {
       oper.InitializeGLVis();
    }
-   /*
-   oper.SetNnDiffusionCoefficient(DnCoef);
-   oper.SetNnSourceCoefficient(SnCoef);
 
-   oper.SetNiDiffusionCoefficient(DiCoef);
-   oper.SetNiAdvectionCoefficient(ViCoef);
-   oper.SetNiSourceCoefficient(SiCoef);
-   */
-   /*
-   oper.SetViDiffusionCoefficient(EtaCoef);
-   oper.SetViAdvectionCoefficient(MomCoef);
-   oper.SetViSourceCoefficient(SMomCoef);
-
-   oper.SetTiDiffusionCoefficient(XiCoef);
-   oper.SetTiAdvectionCoefficient(ViCoef);
-   oper.SetTiSourceCoefficient(QiCoef);
-
-   oper.SetTeDiffusionCoefficient(XeCoef);
-   oper.SetTeAdvectionCoefficient(VeCoef);
-   oper.SetTeSourceCoefficient(QeCoef);
-
-   Array<int> dbcAttr(pmesh.bdr_attributes.Max());
-   dbcAttr = 1;
-   oper.SetViDirichletBC(dbcAttr, vi0Coef);
-   oper.SetTiDirichletBC(dbcAttr, Ti0Coef);
-   oper.SetTeDirichletBC(dbcAttr, Te0Coef);
-   */
    oper.SetTime(0.0);
    ode_solver->Init(oper);
 
