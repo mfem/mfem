@@ -745,7 +745,7 @@ void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
 PlasmaProfile::PlasmaProfile(Type type, const Vector & params)
    : type_(type), p_(params), x_(3)
 {
-   MFEM_ASSERT(params.Size() == np_[type],
+   MFEM_VERIFY(params.Size() == np_[type],
                "Incorrect number of parameters, " << params.Size()
                << ", for profile of type: " << type << ".");
 }
