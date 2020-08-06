@@ -26,7 +26,7 @@
 // Other functions [H1, H(curl), and L2] can be generated using existing MFEM
 // example codes in the "../../examples/" directory.
 //
-// Sample run:
+// Sample runs:
 //   field-interp
 //   field-interp -ft 3
 //   field-interp -m1 triple-pt-1.mesh -s1 triple-pt-1.gf -m2 triple-pt-2.mesh -ft 1
