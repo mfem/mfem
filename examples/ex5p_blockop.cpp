@@ -261,7 +261,7 @@ int main(int argc, char *argv[])
       tx.UseDevice(true);
       ty.UseDevice(true);
       tx = 1.0;
-      
+
       //const int N = darcyOp->Width();
 
       const int s1 = 0;
@@ -275,7 +275,7 @@ int main(int argc, char *argv[])
       block11_trueOffsets.PartialSum();
 
       BlockOperator *b11 = new BlockOperator(block11_trueOffsets);
-      if (s1 > 0) b11->SetBlock(0,0, new IdentityOperator(s1));
+      if (s1 > 0) { b11->SetBlock(0,0, new IdentityOperator(s1)); }
       b11->SetBlock(1,1, new IdentityOperator(s2));
 
       darcyOp->SetBlock(1,1, b11);
