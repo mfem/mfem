@@ -375,15 +375,8 @@ void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
                                        const Vector &pa_data,
                                        Vector &diag)
 {
-   constexpr static int VDIM = 3;
-   constexpr static int MAX_D1D = HCURL_MAX_D1D;
-   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
-
-   constexpr int tD1D = T_D1D ? T_D1D : MAX_D1D;
-   constexpr int tQ1D = T_Q1D ? T_Q1D : MAX_Q1D;
-
-   MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
+   MFEM_VERIFY(D1D <= HCURL_MAX_D1D, "Error: D1D > MAX_D1D");
+   MFEM_VERIFY(Q1D <= HCURL_MAX_Q1D, "Error: Q1D > MAX_Q1D");
 
    auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(bc.Read(), Q1D, D1D);
@@ -392,6 +385,10 @@ void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
+      constexpr int VDIM = 3;
+      constexpr int tD1D = T_D1D ? T_D1D : HCURL_MAX_D1D;
+      constexpr int tQ1D = T_Q1D ? T_Q1D : HCURL_MAX_Q1D;
+
       MFEM_SHARED double sBo[tQ1D][tD1D];
       MFEM_SHARED double sBc[tQ1D][tD1D];
 
