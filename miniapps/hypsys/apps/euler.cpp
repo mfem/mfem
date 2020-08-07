@@ -83,7 +83,7 @@ Euler::Euler(FiniteElementSpace *fes_, BlockVector &u_block,
       case 5:
       {
          ProblemName = "Euler Equations of Gas dynamics - Noh Problem";
-         glvis_scale = "off valuerange 1 16";
+         glvis_scale = "on";
          SpHeatRatio = 5.0 / 3.0;
          SolutionKnown = true;
          SteadyState = false;
@@ -383,15 +383,53 @@ void Euler::ComputeDerivedQuantities(const GridFunction &u, GridFunction &d1, Gr
 void Euler::ComputeErrors(Array<double> & errors, const GridFunction &u,
                           double DomainSize, double t) const
 {
-   errors.SetSize(3);
+   errors.SetSize(NumEq*3);
+   Vector component(dim+2);
    VectorFunctionCoefficient uAnalytic(NumEq, AnalyticalSolutionEuler);
 
    if (ConfigEuler.ConfigNum == 0) { uAnalytic.SetTime(0);  }
    else { uAnalytic.SetTime(t); }
 
-   errors[0] = u.ComputeLpError(1., uAnalytic) / DomainSize;
-   errors[1] = u.ComputeLpError(2., uAnalytic) / DomainSize;
-   errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic);
+   component = 0.0;
+   component(0) = 1.0;
+   VectorConstantCoefficient weight1(component);
+   errors[0] = u.ComputeLpError(1.0, uAnalytic, NULL, &weight1) / DomainSize;
+   errors[1] = u.ComputeLpError(2.0, uAnalytic, NULL, &weight1) / DomainSize;
+   errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic, NULL, &weight1);
+
+   component = 0.0;
+   component(1) = 1.0;
+   VectorConstantCoefficient weight2(component);
+   errors[3] = u.ComputeLpError(1.0, uAnalytic, NULL, &weight2) / DomainSize;
+   errors[4] = u.ComputeLpError(2.0, uAnalytic, NULL, &weight2) / DomainSize;
+   errors[5] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic, NULL, &weight2);
+
+   component = 0.0;
+   component(2) = 1.0;
+   VectorConstantCoefficient weight3(component);
+   errors[6] = u.ComputeLpError(1.0, uAnalytic, NULL, &weight3) / DomainSize;
+   errors[7] = u.ComputeLpError(2.0, uAnalytic, NULL, &weight3) / DomainSize;
+   errors[8] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic, NULL, &weight3);
+
+   if (dim > 1)
+   {
+      component = 0.0;
+      component(3) = 1.0;
+      VectorConstantCoefficient weight4(component);
+      errors[9] = u.ComputeLpError(1.0, uAnalytic, NULL, &weight4) / DomainSize;
+      errors[10] = u.ComputeLpError(2.0, uAnalytic, NULL, &weight4) / DomainSize;
+      errors[11] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic, NULL, &weight4);
+   }
+
+   if (dim > 2)
+   {
+      component = 0.0;
+      component(4) = 1.0;
+      VectorConstantCoefficient weight5(component);
+      errors[12] = u.ComputeLpError(1.0, uAnalytic, NULL, &weight5) / DomainSize;
+      errors[13] = u.ComputeLpError(2.0, uAnalytic, NULL, &weight5) / DomainSize;
+      errors[14] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic, NULL, &weight5);
+   }
 }
 
 void EvaluateEnergy(Vector &u, const double &pressure)
@@ -415,6 +453,7 @@ void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
       switch (ConfigEuler.ConfigNum)
       {
          case 0:
+         case 5:
          case 8: // Map to the reference domain [-1,1]^d.
          {
             double center = 0.5 * (ConfigEuler.bbMin(i) + ConfigEuler.bbMax(i));
@@ -423,8 +462,7 @@ void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
             t *= pow(factor, 1.0 / (double(dim)));
             break;
          }
-         case 3:
-         case 5: // Map to the reference domain [0,1]^d.
+         case 3: // Map to the reference domain [0,1]^d.
          {
             double factor = 1.0 / (ConfigEuler.bbMax(i) - ConfigEuler.bbMin(i));
             X(i) = factor * (x(i) - ConfigEuler.bbMin(i));
@@ -483,22 +521,18 @@ void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
       }
       case 5:
       {
-         if (dim != 2) { MFEM_ABORT("Test case works only in 2D."); }
-
          double r = X.Norml2();
 
          if (r > t / 3.)
          {
             u(0) = 1.0 + t / r;
-            u(1) = -X(0) / r * u(0);
-            u(2) = -X(1) / r * u(0);
+            for (int l = 0; l < dim; l++) { u(l+1) = -X(l) / r * u(0); }
             EvaluateEnergy(u, 1.0E-6);
          }
          else
          {
-            u(0) = 16.0;
-            u(1) = 0.0;
-            u(2) = 0.0;
+            u(0) = 1.0;
+            for (int l = 0; l < dim; l++) { u(l+1) = 0.0; }
             EvaluateEnergy(u, 16.0 / 3.0);
          }
 

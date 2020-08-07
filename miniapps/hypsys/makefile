@@ -22,11 +22,11 @@ APP_DIR = apps
 BLD_DIR = build
 EVL_DIR = fe_evol
 LIB_DIR = lib
-OUT_DIR = results
+OUT_DIR = output
 
-DIRS = $(LIB_DIR) $(EVL_DIR) $(APP_DIR)
+DIRS = $(APP_DIR) $(EVL_DIR) $(LIB_DIR)
 
-OBJ_FILES = $(BLD_DIR)/massmat.o $(BLD_DIR)/dofs.o $(BLD_DIR)/tools.o $(BLD_DIR)/bounds.o
+LIB_FILES = $(BLD_DIR)/massmat.o $(BLD_DIR)/dofs.o $(BLD_DIR)/tools.o $(BLD_DIR)/bounds.o
 EVL_FILES = $(BLD_DIR)/fe_evol.evl $(BLD_DIR)/galerkin.evl $(BLD_DIR)/monolithic_convex_limiting.evl
 APP_FILES = $(BLD_DIR)/advection.app $(BLD_DIR)/burgers.app $(BLD_DIR)/kpp.app $(BLD_DIR)/buckley_leverett.app # scalar problems
 APP_FILES+= $(BLD_DIR)/shallowwater.app $(BLD_DIR)/euler.app # hyperbolic systems
@@ -35,9 +35,9 @@ MAIN_FILES = hypsys
 
 ifeq ($(MFEM_USE_MPI), YES)
    MAIN_FILES += phypsys
-   POBJ_FILES += $(BLD_DIR)/pdofs.o
-   POBJ_FILES += $(BLD_DIR)/ptools.o
-	POBJ_FILES += $(BLD_DIR)/pbounds.o
+   PLIB_FILES += $(BLD_DIR)/pdofs.o
+   PLIB_FILES += $(BLD_DIR)/ptools.o
+	PLIB_FILES += $(BLD_DIR)/pbounds.o
    PEVL_FILES += $(BLD_DIR)/pgalerkin.evl
    PEVL_FILES += $(BLD_DIR)/pmonolithic_convex_limiting.evl
 endif
@@ -59,7 +59,7 @@ VALGRIND-CONFIG = -tf 0.001 -dt 0.001 -p $(PROBLEM) -e 0
 
 # Replace the default implicit rule for *.cpp files
 %: %.cpp $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(OBJ_FILES) $(APP_FILES) $(MFEM_LIBS)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(LIB_FILES) $(APP_FILES) $(MFEM_LIBS)
 
 %.o: ../$(LIB_DIR)/%.cpp
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $^ -o $@
@@ -72,16 +72,16 @@ VALGRIND-CONFIG = -tf 0.001 -dt 0.001 -p $(PROBLEM) -e 0
 
 all: $(MAIN_FILES)
 
-library: $(OBJ_FILES) $(POBJ_FILES) $(EVL_FILES) $(PEVL_FILES) $(APP_FILES)
+library: $(LIB_FILES) $(PLIB_FILES) $(EVL_FILES) $(PEVL_FILES) $(APP_FILES)
 
 hypsys: library
-	$(MFEM_CXX) $(MFEM_FLAGS) hypsys.cpp -o $@ $(OBJ_FILES) $(EVL_FILES) $(APP_FILES) $(MFEM_LIBS)
+	$(MFEM_CXX) $(MFEM_FLAGS) hypsys.cpp -o $@ $(LIB_FILES) $(EVL_FILES) $(APP_FILES) $(MFEM_LIBS)
 
 phypsys: library
-	$(MFEM_CXX) $(MFEM_FLAGS) phypsys.cpp -o $@ $(OBJ_FILES) $(POBJ_FILES) $(EVL_FILES) $(PEVL_FILES) $(APP_FILES) $(MFEM_LIBS)
+	$(MFEM_CXX) $(MFEM_FLAGS) phypsys.cpp -o $@ $(LIB_FILES) $(PLIB_FILES) $(EVL_FILES) $(PEVL_FILES) $(APP_FILES) $(MFEM_LIBS)
 
 clean:
-	@rm -f hypsys phypsys errors.txt *gf* grid* $(BLD_DIR)/*
+	@rm -f hypsys phypsys errors.txt *gf* grid* $(OUT_DIR)/* $(BLD_DIR)/*
 
 valgrind-serial:
 	valgrind ./hypsys $(VALGRIND-CONFIG) -c 1 -m data/inline-4segment.mesh -r 4 -o 1

@@ -40,6 +40,7 @@ TODO
       -Noh problem: zero verlocity part of bdr: wall, rest: supersonic outflow (east, north)
          and supersonic inflow (south, east), i.e.  bdr type changes in time
       -Expression for momentum in narrowing channel
+      -If possible: Try to distinguish boundary types by considering eigenvalues of systems
 
 
 next steps

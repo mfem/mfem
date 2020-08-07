@@ -229,13 +229,17 @@ void VelocityFunctionAdv(const Vector &x, Vector &v)
    {
       switch (ConfigAdv.ConfigNum)
       {
-         case 0: // Map to the reference domain [0,1]^d.
+         case 0:
+         case 1:
+         case 4:
+         case 5: // Map to the reference domain [0,1]^d.
          {
             X(i) = (x(i) - ConfigAdv.bbMin(i)) / (ConfigAdv.bbMax(i) - ConfigAdv.bbMin(i));
             s *= ConfigAdv.bbMax(i) - ConfigAdv.bbMin(i);
             break;
          }
-         case 1: // Map to the reference domain [-1,1]^d.
+         case 2:
+         case 3: // Map to the reference domain [-1,1]^d.
          {
             double center = 0.5 * (ConfigAdv.bbMin(i) + ConfigAdv.bbMax(i));
             X(i) = 2. * (x(i) - center) / (ConfigAdv.bbMax(i) - ConfigAdv.bbMin(i));
@@ -246,7 +250,7 @@ void VelocityFunctionAdv(const Vector &x, Vector &v)
    }
 
    // Scale to be normed to a full revolution.
-   s = pow(s, 1./dim) * M_PI;
+   s = 2.0 * pow(s, 1./dim) * M_PI;
 
    switch (ConfigAdv.ConfigNum)
    {
@@ -254,7 +258,7 @@ void VelocityFunctionAdv(const Vector &x, Vector &v)
       {
          switch (dim)
          {
-            case 1: v(0) = 1.0; break;
+            case 1: v(0) = s; break;
             case 2: v(0) = s*X(1); v(1) = -s*X(0); break;
             case 3: v(0) = s*X(1); v(1) = -s*X(0); v(2) = 0.0; break;
          }
@@ -264,9 +268,9 @@ void VelocityFunctionAdv(const Vector &x, Vector &v)
       {
          switch (dim)
          {
-            case 1: v(0) = 1.0; break;
-            case 2: v(0) = -s*X(1); v(1) = s*X(0); break;
-            case 3: v(0) = -s*X(1); v(1) = s*X(0); v(2) = 0.0; break;
+            case 1: v(0) = s; break;
+            case 2: v(0) = s * (0.5-X(1)); v(1) = s*(X(0)-0.5); break;
+            case 3: v(0) = s * (0.5-X(1)); v(1) = s*(X(0)-0.5); v(2) = 0.0; break;
          }
          break;
       }
@@ -277,9 +281,9 @@ void VelocityFunctionAdv(const Vector &x, Vector &v)
       {
          switch (dim)
          {
-            case 1: v(0) = 1.0; break;
-            case 2: v(0) = 1.0; v(1) = -0.5; break;
-            case 3: v(0) = 1.0; v(1) = -0.5; v(2) = 0.25; break;
+            case 1: v(0) = s; break;
+            case 2: v(0) = s; v(1) = -0.5*s; break;
+            case 3: v(0) = s; v(1) = -0.5*s; v(2) = 0.25*s; break;
          }
          break;
       }

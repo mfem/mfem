@@ -1,17 +1,18 @@
-function printEOC()
+function printEOC(data)
 
-filename = '../errors.txt';
-file = fopen(filename, 'r');
-data = zeros(0,3);
-while true
-  aux = fgets(file);
-  if aux == -1
-    break;
+if nargin == 0
+  filename = '../errors.txt';
+  file = fopen(filename, 'r');
+  data = zeros(0,3);
+  while true
+    aux = fgets(file);
+    if aux == -1
+      break;
+    end
+    data(end+1,:) = str2num(aux);
   end
-  data(end+1,:) = str2num(aux);
+  fclose(file);
 end
-
-fclose(file);
 
 numElPerDim = [48 64 96 128 192 256 384]';
 numElPerDim = numElPerDim(1:size(data,1));

@@ -57,7 +57,11 @@ public:
       else
       {
          ostringstream strs;
-         strs << errors[0] << " " << errors[1] << " " << errors[2] << "\n";
+         for (int i = 0; i < errors.Size(); i++)
+         {
+            strs << errors[i] << " ";
+         }
+         strs << "\n";
          string str = strs.str();
          file << str;
          file.close();

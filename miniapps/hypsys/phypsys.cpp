@@ -35,8 +35,8 @@ int main(int argc, char *argv[])
    args.AddOption(&config.tFinal, "-tf", "--final-time",
                   "Final time; start time is 0.");
    args.AddOption(&odeSolverType, "-s", "--ode-solver",
-                  "ODE solver: 0 - RK6 solver, 1 - Forward Euler,\n\t"
-                  "            2 - RK2 SSP, 3 - RK3 SSP.");
+                  "ODE solver: 1 - Forward Euler,\n\t"
+                  "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
    args.AddOption(&dt, "-dt", "--time-step", "Time step.");
    args.AddOption(&MeshFile, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
@@ -68,13 +68,19 @@ int main(int argc, char *argv[])
    ODESolver *odeSolver = NULL;
    switch (odeSolverType)
    {
-      case 0: odeSolver = new RK6Solver; break;
       case 1: odeSolver = new ForwardEulerSolver; break;
       case 2: odeSolver = new RK2Solver(1.0); break;
       case 3: odeSolver = new RK3SSPSolver; break;
+      case 4: odeSolver = new RK4Solver; break;
+      case 6: odeSolver = new RK6Solver; break;
       default:
          cout << "Unknown ODE solver type: " << odeSolverType << endl;
          return -1;
+   }
+
+   if (myid == 0 && odeSolverType > 3)
+   {
+      MFEM_WARNING("Non-SSP odeSolver: Maximum principles may be violated.");
    }
 
    // Read the serial mesh from the given mesh file on all processors.

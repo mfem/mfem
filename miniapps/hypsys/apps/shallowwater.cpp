@@ -208,15 +208,36 @@ void ShallowWater::ComputeDerivedQuantities(const GridFunction &u, GridFunction 
 void ShallowWater::ComputeErrors(Array<double> &errors, const GridFunction &u,
                                  double DomainSize, double t) const
 {
-   errors.SetSize(3);
+   errors.SetSize(NumEq*3);
+   Vector component(dim+1);
    VectorFunctionCoefficient uAnalytic(NumEq, AnalyticalSolutionSWE);
 
-   if (ConfigSWE.ConfigNum == 0) { uAnalytic.SetTime(0);  }
+   if (ConfigSWE.ConfigNum == 0) { uAnalytic.SetTime(0); }
    else { uAnalytic.SetTime(t); }
 
-   errors[0] = u.ComputeLpError(1., uAnalytic) / DomainSize;
-   errors[1] = u.ComputeLpError(2., uAnalytic) / DomainSize;
-   errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic);
+   component = 0.0;
+   component(0) = 1.0;
+   VectorConstantCoefficient weight1(component);
+   errors[0] = u.ComputeLpError(1.0, uAnalytic, NULL, &weight1) / DomainSize;
+   errors[1] = u.ComputeLpError(2.0, uAnalytic, NULL, &weight1) / DomainSize;
+   errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic, NULL, &weight1);
+
+   component = 0.0;
+   component(1) = 1.0;
+   VectorConstantCoefficient weight2(component);
+   errors[3] = u.ComputeLpError(1.0, uAnalytic, NULL, &weight2) / DomainSize;
+   errors[4] = u.ComputeLpError(2.0, uAnalytic, NULL, &weight2) / DomainSize;
+   errors[5] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic, NULL, &weight2);
+
+   if (dim ==  2)
+   {
+      component = 0.0;
+      component(2) = 1.0;
+      VectorConstantCoefficient weight3(component);
+      errors[6] = u.ComputeLpError(1.0, uAnalytic, NULL, &weight3) / DomainSize;
+      errors[7] = u.ComputeLpError(2.0, uAnalytic, NULL, &weight3) / DomainSize;
+      errors[8] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic, NULL, &weight3);
+   }
 }
 
 
