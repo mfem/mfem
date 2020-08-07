@@ -2696,7 +2696,7 @@ void ResidualBCMonitor::MonitorResidual(
    if ((it == 0 || final || bc_norm_squared > 0.0) && print)
    {
       mfem::out << "      ResidualBCMonitor : b.c. residual norm = "
-                << sqrt(bc_norm_squared) << std::endl;
+                << sqrt(bc_norm_squared) << endl;
    }
 }
 
