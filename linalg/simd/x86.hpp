@@ -12,22 +12,10 @@
 #ifndef MFEM_SIMD_X86_HPP
 #define MFEM_SIMD_X86_HPP
 
-#include "../../config/tconfig.hpp"
-
-#ifndef MFEM_USE_CUDA
-
-#if defined(__x86_64__)
-#include <x86intrin.h>
-#else // assuming MSVC with _M_X64 or _M_IX86
-#include <intrin.h>
-#endif
-
 #include "m128.hpp"
 
 #include "m256.hpp"
 
 #include "m512.hpp"
-
-#endif // MFEM_USE_CUDA
 
 #endif // MFEM_SIMD_X86_HPP

@@ -12,17 +12,6 @@
 #ifndef MFEM_SIMD_VSX_HPP
 #define MFEM_SIMD_VSX_HPP
 
-#include "../../config/tconfig.hpp"
-
-#ifndef MFEM_USE_CUDA
-
-#include <altivec.h>
-#ifdef __GNUC__
-#undef bool
-#endif
-
 #include "vsx128.hpp"
-
-#endif // MFEM_USE_CUDA
 
 #endif // MFEM_SIMD_VSX_HPP

@@ -14,6 +14,13 @@
 
 #ifdef __VSX__
 
+#include "../../config/tconfig.hpp"
+#include <altivec.h>
+
+#ifdef __GNUC__
+#undef bool
+#endif
+
 namespace mfem
 {
 
