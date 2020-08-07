@@ -46,8 +46,8 @@ MFEM_HOST_DEVICE inline void LoadB(const int D1D, const int Q1D,
 /// Load B1d & G1d matrices into shared memory
 template<int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void LoadBG(const int D1D, const int Q1D,
-                                    const DeviceTensor<2, const double> b,
-                                    const DeviceTensor<2, const double> g,
+                                    const ConstDeviceMatrix b,
+                                    const ConstDeviceMatrix g,
                                     double sBG[2][MQ1*MD1])
 {
    const int tidz = MFEM_THREAD_ID(z);
@@ -71,8 +71,8 @@ MFEM_HOST_DEVICE inline void LoadBG(const int D1D, const int Q1D,
 /// Load Bt1d & Gt1d matrices into shared memory
 template<int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void LoadBGt(const int D1D, const int Q1D,
-                                     const DeviceTensor<2, const double> b,
-                                     const DeviceTensor<2, const double> g,
+                                     const ConstDeviceMatrix b,
+                                     const ConstDeviceMatrix g,
                                      double sBG[2][MQ1*MD1])
 {
    const int tidz = MFEM_THREAD_ID(z);
@@ -99,7 +99,6 @@ MFEM_HOST_DEVICE inline void LoadS(const int e, const int D1D,
                                    const DeviceTensor<3, const double> x,
                                    double sX[NBZ][MD1*MD1])
 {
-   //MFEM_ABORT("");
    const int tidz = MFEM_THREAD_ID(z);
    DeviceMatrix X(sX[tidz], MD1, MD1);
 
@@ -119,16 +118,13 @@ MFEM_HOST_DEVICE inline void LoadXS(const int e, const int D1D, const int c,
                                     const DeviceTensor<4, const double> x,
                                     double sm[NBZ][MD1*MD1])
 {
-   //MFEM_ABORT("");
    const int tidz = MFEM_THREAD_ID(z);
-   //double (*X)[MD1] = (double (*)[MD1])(sm + tidz);
    DeviceMatrix X(sm[tidz], MD1, MD1);
 
    MFEM_FOREACH_THREAD(dy,y,D1D)
    {
       MFEM_FOREACH_THREAD(dx,x,D1D)
       {
-         //X[dy][dx] = x(dx,dy,c,e);
          X(dx,dy) = x(dx,dy,c,e);
       }
    }
@@ -142,11 +138,10 @@ MFEM_HOST_DEVICE inline void EvalXS(const int D1D, const int Q1D,
                                     const double sX[NBZ][MD1*MD1],
                                     double sDQ[NBZ][MD1*MQ1])
 {
-   //MFEM_ABORT("");
    const int tidz = MFEM_THREAD_ID(z);
-   double (*B)[MD1] = (double (*)[MD1])(sB);
-   double (*X)[MD1]  = (double (*)[MD1])(sX + tidz);
-   double (*DQ)[MQ1] = (double (*)[MQ1])(sDQ + tidz);
+   ConstDeviceMatrix B(sB, MD1, MQ1);
+   ConstDeviceMatrix X(sX[tidz], MD1, MD1);
+   DeviceMatrix DQ(sDQ[tidz], MQ1, MD1);
 
    MFEM_FOREACH_THREAD(dy,y,D1D)
    {
@@ -155,9 +150,9 @@ MFEM_HOST_DEVICE inline void EvalXS(const int D1D, const int Q1D,
          double u = 0.0;
          for (int dx = 0; dx < D1D; ++dx)
          {
-            u += B[qx][dx] * X[dy][dx];
+            u += B(dx,qx) * X(dx,dy);
          }
-         DQ[dy][qx] = u;
+         DQ(qx,dy) = u;
       }
    }
    MFEM_SYNC_THREAD;
@@ -171,9 +166,9 @@ MFEM_HOST_DEVICE inline void EvalYS(const int D1D, const int Q1D,
                                     double sQQ[NBZ][MQ1*MQ1])
 {
    const int tidz = MFEM_THREAD_ID(z);
-   double (*B)[MD1] = (double (*)[MD1])(sB);
-   double (*DQ)[MQ1] = (double (*)[MQ1])(sDQ + tidz);
-   double (*QQ)[MQ1] = (double (*)[MQ1])(sQQ + tidz);
+   ConstDeviceMatrix B(sB, MD1, MQ1);
+   ConstDeviceMatrix DQ(sDQ[tidz], MQ1, MD1);
+   DeviceMatrix QQ(sQQ[tidz], MQ1, MQ1);
 
    MFEM_FOREACH_THREAD(qy,y,Q1D)
    {
@@ -182,9 +177,9 @@ MFEM_HOST_DEVICE inline void EvalYS(const int D1D, const int Q1D,
          double u = 0.0;
          for (int dy = 0; dy < D1D; ++dy)
          {
-            u += DQ[dy][qx] * B[qy][dy];
+            u += DQ(qx,dy) * B(dy,qy);
          }
-         QQ[qy][qx] = u;
+         QQ(qx,qy) = u;
       }
    }
    MFEM_SYNC_THREAD;
@@ -197,9 +192,9 @@ MFEM_HOST_DEVICE inline void PullEvalS(const int qx, const int qy,
                                        double *P)
 {
    const int tidz = MFEM_THREAD_ID(z);
-   double (*QQ)[MQ1] = (double (*)[MQ1])(sQQ + tidz);
+   ConstDeviceMatrix QQ(sQQ[tidz], MQ1, MQ1);
 
-   P[0] = QQ[qy][qx];
+   P[0] = QQ(qx,qy);
 }
 
 /// Load 2D input vector into shared memory
@@ -230,17 +225,12 @@ MFEM_HOST_DEVICE inline void EvalX(const int D1D, const int Q1D,
                                    const double sX[2][NBZ][MD1*MD1],
                                    double sDQ[2][NBZ][MD1*MQ1])
 {
-   //#warning MFEM_ABORT
-   //MFEM_ABORT("");
    const int tidz = MFEM_THREAD_ID(z);
-   //double (*B)[MD1] = (double (*)[MD1])(sB);
    ConstDeviceMatrix B(sB, MD1, MQ1);
-   //double (*X0)[MD1]  = (double (*)[MD1])(sX[0] + tidz);
    ConstDeviceMatrix X0(sX[0][tidz], MD1, MD1);
-   //double (*X1)[MD1]  = (double (*)[MD1])(sX[1] + tidz);
    ConstDeviceMatrix X1(sX[1][tidz], MD1, MD1);
-   double (*DQ0)[MQ1] = (double (*)[MQ1])(sDQ[0] + tidz);
-   double (*DQ1)[MQ1] = (double (*)[MQ1])(sDQ[1] + tidz);
+   DeviceMatrix DQ0(sDQ[0][tidz], MQ1, MD1);
+   DeviceMatrix DQ1(sDQ[1][tidz], MQ1, MD1);
 
    MFEM_FOREACH_THREAD(dy,y,D1D)
    {
@@ -249,13 +239,13 @@ MFEM_HOST_DEVICE inline void EvalX(const int D1D, const int Q1D,
          double u[2] = {0.0, 0.0};
          for (int dx = 0; dx < D1D; ++dx)
          {
-            const double xx = X0(dx,dy);//[dy][dx];
-            const double xy = X1(dx,dy);//[dy][dx];
+            const double xx = X0(dx,dy);
+            const double xy = X1(dx,dy);
             u[0] += B(dx,qx) * xx;
             u[1] += B(dx,qx) * xy;
          }
-         DQ0[dy][qx] = u[0];
-         DQ1[dy][qx] = u[1];
+         DQ0(qx,dy) = u[0];
+         DQ1(qx,dy) = u[1];
       }
    }
    MFEM_SYNC_THREAD;
@@ -268,14 +258,12 @@ MFEM_HOST_DEVICE inline void EvalY(const int D1D, const int Q1D,
                                    const double sDQ[2][NBZ][MD1*MQ1],
                                    double sQQ[2][NBZ][MQ1*MQ1])
 {
-   //#warning MFEM_ABORT
-   //MFEM_ABORT("");
    const int tidz = MFEM_THREAD_ID(z);
-   double (*B)[MD1] = (double (*)[MD1])(sB);
-   double (*DQ0)[MQ1] = (double (*)[MQ1])(sDQ[0] + tidz);
-   double (*DQ1)[MQ1] = (double (*)[MQ1])(sDQ[1] + tidz);
-   double (*QQ0)[MQ1] = (double (*)[MQ1])(sQQ[0] + tidz);
-   double (*QQ1)[MQ1] = (double (*)[MQ1])(sQQ[1] + tidz);
+   ConstDeviceMatrix B(sB, MD1, MQ1);
+   ConstDeviceMatrix DQ0(sDQ[0][tidz], MQ1, MD1);
+   ConstDeviceMatrix DQ1(sDQ[1][tidz], MQ1, MD1);
+   DeviceMatrix QQ0(sQQ[0][tidz], MQ1, MQ1);
+   DeviceMatrix QQ1(sQQ[1][tidz], MQ1, MQ1);
 
    MFEM_FOREACH_THREAD(qy,y,Q1D)
    {
@@ -284,11 +272,11 @@ MFEM_HOST_DEVICE inline void EvalY(const int D1D, const int Q1D,
          double u[2] = {0.0, 0.0};
          for (int dy = 0; dy < D1D; ++dy)
          {
-            u[0] += DQ0[dy][qx] * B[qy][dy];
-            u[1] += DQ1[dy][qx] * B[qy][dy];
+            u[0] += DQ0(qx,dy) * B(dy,qy);
+            u[1] += DQ1(qx,dy) * B(dy,qy);
          }
-         QQ0[qy][qx] = u[0];
-         QQ1[qy][qx] = u[1];
+         QQ0(qx,qy) = u[0];
+         QQ1(qx,qy) = u[1];
       }
    }
    MFEM_SYNC_THREAD;
@@ -301,7 +289,8 @@ MFEM_HOST_DEVICE inline void EvalX(const int D1D, const int Q1D,
                                    const double sX[2][NBZ][MD1*MD1],
                                    double sDQ[2][NBZ][MD1*MQ1])
 {
-   const int tidz = MFEM_THREAD_ID(z);
+   EvalX<MD1,MQ1,NBZ>(D1D,Q1D,sBG[0],sX,sDQ);
+   /*const int tidz = MFEM_THREAD_ID(z);
    ConstDeviceMatrix B(sBG[0], MD1, MQ1);
    ConstDeviceMatrix X0(sX[0][tidz], MD1, MD1);
    ConstDeviceMatrix X1(sX[1][tidz], MD1, MD1);
@@ -324,7 +313,7 @@ MFEM_HOST_DEVICE inline void EvalX(const int D1D, const int Q1D,
          DQ1(qx,dy) = u[1];
       }
    }
-   MFEM_SYNC_THREAD;
+   MFEM_SYNC_THREAD;*/
 }
 
 /// 2D Evaluation, 2/2
@@ -334,7 +323,8 @@ MFEM_HOST_DEVICE inline void EvalY(const int D1D, const int Q1D,
                                    const double sDQ[2][NBZ][MD1*MQ1],
                                    double sQQ[2][NBZ][MQ1*MQ1])
 {
-   const int tidz = MFEM_THREAD_ID(z);
+   EvalY<MD1,MQ1,NBZ>(D1D,Q1D,sBG,sDQ,sQQ);
+   /*const int tidz = MFEM_THREAD_ID(z);
    ConstDeviceMatrix B(sBG[0], MD1, MQ1);
    ConstDeviceMatrix DQ0(sDQ[0][tidz], MQ1, MD1);
    ConstDeviceMatrix DQ1(sDQ[1][tidz], MQ1, MD1);
@@ -355,7 +345,7 @@ MFEM_HOST_DEVICE inline void EvalY(const int D1D, const int Q1D,
          QQ1(qx,qy) = u[1];
       }
    }
-   MFEM_SYNC_THREAD;
+   MFEM_SYNC_THREAD;*/
 }
 
 /// Pull 2D Scalar Evaluation
