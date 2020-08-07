@@ -52,14 +52,14 @@ struct s_NavierContext
 {
    int ser_ref_levels = 1;
    int order = 5;
-   double kinvis = .00010;
+   double kinvis = .0001;
    double t_final = .5;
    double dt = 0.25e-3;
    bool pa = true;
    bool ni = false;
    bool visualization = false;
    bool checkres = false;
-   double lid = .10;
+   double lid = .1;
    double top = 0.0;
    double rel_tol = 1e-6;
 } ctx;
@@ -178,6 +178,7 @@ int main(int argc, char *argv[])
 
    std::string meshName(mesh_file);
 
+   //Determining where the lid is located.
    Mesh *mesh = new Mesh(mesh_file);
    for (int m = 0; m < mesh->GetNV(); m++){
       double& vert = *(mesh->GetVertex(m)+1);
@@ -271,7 +272,7 @@ int main(int argc, char *argv[])
       }
 
       naviersolver.Step(t, dt, step);
-
+      //Take out this if statement if you want a pure transient solver.
       if (step > 0)
       {
          double err_u = u_gf->DistanceTo(prev_u);
@@ -285,6 +286,7 @@ int main(int argc, char *argv[])
       prev_u = *u_gf;
       prev_p = *p_gf;
 
+      //Modify this if statement if you want more data saved.
       //if (step % 50 == 0)
       if (last_step)
       {
