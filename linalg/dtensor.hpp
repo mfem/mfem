@@ -140,9 +140,16 @@ inline DeviceTensor<sizeof...(Dims),T> Reshape(T *ptr, Dims... dims)
 
 
 typedef DeviceTensor<1,int> DeviceArray;
+typedef DeviceTensor<1,const int> ConstDeviceArray;
+
 typedef DeviceTensor<1,double> DeviceVector;
+typedef DeviceTensor<1,const double> ConstDeviceVector;
+
 typedef DeviceTensor<2,double> DeviceMatrix;
 typedef DeviceTensor<2,const double> ConstDeviceMatrix;
+
+typedef DeviceTensor<3,double> DeviceCube;
+typedef DeviceTensor<3,const double> ConstDeviceCube;
 
 } // mfem namespace
 
