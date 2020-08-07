@@ -730,15 +730,15 @@ CartesianParMeshPartition::CartesianParMeshPartition(ParMesh * pmesh_,
    MPI_Comm_size(comm, &num_procs);
    MPI_Comm_rank(comm, &myid);
    int dim = pmesh->Dimension();
+   if (dim == 2 ) nz = 1;
    subdomains.SetSize(nx,ny,nz);
    nxyz[0] = nx; nxyz[1]=ny; nxyz[2] = nz;
-
-   if (dim == 2 ) nz = 1;
    nrsubdomains = nx*ny*nz;
 
    Vector pmin, pmax;
    pmesh->GetBoundingBox(pmin, pmax);
    double h = pmesh->GetElementSize(0);
+   MeshSize = h;
 
    // Check that ovlp_size does not exit subdomain size
    for (int d = 0; d<dim; d++)
@@ -851,7 +851,7 @@ CartesianParMeshPartition::CartesianParMeshPartition(ParMesh * pmesh_,
 }
 
 ParMeshPartition::ParMeshPartition(ParMesh* pmesh_,
-         int nx, int ny, int nz, int nrlayers) : pmesh(pmesh_)
+         int nx, int ny, int nz, int nrlayers) : pmesh(pmesh_), OvlpNlayers(nrlayers)
 {
 
    int num_procs,myid;
@@ -944,14 +944,14 @@ ParMeshPartition::ParMeshPartition(ParMesh* pmesh_,
    }
 
    // for (int ip = 0; ip < nrsubdomains; ++ip)
-   for (int ip = 0; ip < 1; ++ip)
-   {
-      if (myid == subdomain_rank[ip]) 
-      {
-         cout << "myid, ip " << myid << ", " << ip 
-         << ", elems = " ; element_map[ip].Print(cout,20); 
-      }
-   }
+   // for (int ip = 0; ip < 1; ++ip)
+   // {
+   //    if (myid == subdomain_rank[ip]) 
+   //    {
+   //       cout << "myid, ip " << myid << ", " << ip 
+   //       << ", elems = " ; element_map[ip].Print(cout,20); 
+   //    }
+   // }
 
 
    // Now each process sends the vertex coords and elements 

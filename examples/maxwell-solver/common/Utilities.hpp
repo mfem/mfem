@@ -126,9 +126,6 @@ private:
    Mesh * mesh = nullptr;
    std::vector<std::vector<Array<int>>> OvlpElems;
    std::vector<std::vector<Array<int>>> OvlpDofMaps;
-   Array<int> directionsX;
-   Array<int> directionsY;
-   Array<int> directionsZ;
 
    DofMap * dmap = nullptr;
    int nrsubdomains = 0;

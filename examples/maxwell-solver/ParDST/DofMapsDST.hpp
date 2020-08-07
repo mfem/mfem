@@ -2,9 +2,100 @@
 #include "../common/Utilities.hpp"
 #include "../common/PML.hpp"
 #include "../DST/DST.hpp"
-#include "DofMapsDST.hpp"
 using namespace std;
 using namespace mfem;
+
+
+
+void ComputeTdofOffsets(const MPI_Comm & comm, const ParFiniteElementSpace * pfes, 
+                        std::vector<int> & tdof_offsets);
+
+void GetSubdomainijk(int ip, const Array<int> nxyz, Array<int> & ijk);
+void GetDirectionijk(int id, Array<int> & ijk);
+int GetSubdomainId(const Array<int> nxyz, Array<int> & ijk);
+int GetDirectionId(const Array<int> & ijk);
+
+
+
+// class handling two types of dof maps
+// 1. Subdomain truedofs ---> Global truedofs
+// 2. Subdomain truedofs ---> Neighbor truedofs 
+class DofMaps
+{
+private:
+   // The FE space of the problem (H1/Hcurl)
+   ParFiniteElementSpace *pfes = nullptr;
+
+   // The given partition of the parmesh
+   ParMeshPartition *part = nullptr;
+   // partition in x-y-z
+   Array<int> nxyz;
+
+   // MPI parameters
+   MPI_Comm comm = MPI_COMM_WORLD;
+   int num_procs, myid;
+
+   // true dof offset and element offset of the processor
+   vector<int> tdof_offsets;
+   int mytoffset;
+   int myelemoffset;
+   
+   int dim;
+   // Total number of subdomains
+   int nrsubdomains;
+   
+   // Array specifying the subdomain rank
+   Array<int> subdomain_rank;
+
+   // Initializing mpi and helper parameters
+   void Init();
+
+   // Setting the subdomains FE spaces
+   void Setup();
+
+   // Compute Subdomain tdofs in the overlaps with 
+   // neighboring subdomains
+   std::vector<std::vector<Array<int>>> OvlpElems;
+   void AddElementToOvlpLists(int l, int iel, 
+                            const Array<bool> & neg, const Array<bool> & pos);
+   void ComputeOvlpElems();
+
+   std::vector<std::vector<Array<int>>> OvlpTDofs;
+   void ComputeOvlpTdofs();
+   void PrintOvlpTdofs();
+
+   // Transfering OvlpTdofs form subdomain i to j
+   void TransferToNeighbor(int i, int j);
+
+
+
+
+
+public:
+   // constructor
+
+   // FiniteElementSpaces of the subdomains
+   Array<FiniteElementSpace *> fes;
+
+   DofMaps(ParFiniteElementSpace *fespace_, ParMeshPartition * part_);
+   ~DofMaps();
+   // Transfering from subdomain i to all its neighbors
+   void TransferToNeighbors(int i);
+
+   // Prolongation of subdomain solutions to the global solution
+   void SubdomainsToGlobal(const std::vector<Vector> & x, Vector & y);
+   // Restriction of global residual to subdomain residuals
+   void GlobalToSubdomains(const Vector & y, std::vector<Vector> & x);
+
+};
+
+
+
+
+
+
+
+
 
 
 
@@ -87,39 +178,4 @@ using namespace mfem;
 //       return std::distance(tdof_offsets.begin(),up)-1;
 //    }
 // };
-
-
-class ParDST : public Solver//
-{
-private:
-   MPI_Comm comm = MPI_COMM_WORLD;
-   int num_procs, myid;
-   // Constructor inputs
-   ParSesquilinearForm *bf=nullptr;
-   ParFiniteElementSpace * pfes = nullptr;
-   ParMesh * pmesh = nullptr;
-   const FiniteElementCollection * fec = nullptr;
-   Array2D<double> Pmllength;
-   int dim = 2;
-   double omega = 0.5;
-   Coefficient * ws;
-   int nrlayers;
-   int nrsubdomains = 0;
-   int nx,ny,nz;
-
-   Sweep * sweeps=nullptr;
-
-   void Getijk(int ip, int & i, int & j, int & k ) const;
-   int GetPatchId(const Array<int> & ijk) const;
-   void IdentifyCommonDofs(); // TODO (Use global Elem number for matching dofs)
-   void TransferToNeighbors(int ip); // TODO
-  
-public:
-   ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
-       double omega_, Coefficient * ws_, int nrlayers_, int nx_=2, int ny_=2, int nz_=2);
-   virtual void SetOperator(const Operator &op) {}
-   virtual void Mult(const Vector &r, Vector &z) const;
-   virtual ~ParDST();
-};
-
 

@@ -145,9 +145,9 @@ int main(int argc, char *argv[])
 
       // 4. Define a parallel mesh by a partitioning of the serial mesh.
    // ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-   int nprocs = sqrt(num_procs);
-   MFEM_VERIFY(nprocs*nprocs == num_procs, "Check MPI partitioning");
-   int nxyz[3] = {nprocs,nprocs,1};
+   // int nprocs = sqrt(num_procs);
+   // MFEM_VERIFY(nprocs*nprocs == num_procs, "Check MPI partitioning");
+   int nxyz[3] = {num_procs,1,1};
    int * part = mesh->CartesianPartitioning(nxyz);
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD,*mesh,part);
    delete mesh;

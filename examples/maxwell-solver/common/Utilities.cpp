@@ -481,19 +481,19 @@ void NeighborDofMaps::ComputeNeighborDofMaps()
 {
    OvlpDofMaps.resize(nrsubdomains);
 
-   Array<UniqueIndexGen * > Gen(nrsubdomains);
-   // construct unique number generator for the elements of a patch
-   for (int ip = 0; ip<nrsubdomains; ip++)
-   {
-      Gen[ip] = new UniqueIndexGen;
-      // register the elements
-      int nel = part->element_map[ip].Size();
-      for (int iel=0; iel<nel; iel++)
-      {
-         int iel_idx = part->element_map[ip][iel];
-         Gen[ip]->Set(iel_idx);
-      }
-   }
+   // Array<UniqueIndexGen * > Gen(nrsubdomains);
+   // // construct unique number generator for the elements of a patch
+   // for (int ip = 0; ip<nrsubdomains; ip++)
+   // {
+   //    Gen[ip] = new UniqueIndexGen;
+   //    // register the elements
+   //    int nel = part->element_map[ip].Size();
+   //    for (int iel=0; iel<nel; iel++)
+   //    {
+   //       int iel_idx = part->element_map[ip][iel];
+   //       Gen[ip]->Set(iel_idx);
+   //    }
+   // }
 
    // construct dof maps
    int nrneighbors = pow(3,dim); // including its self

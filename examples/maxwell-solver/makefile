@@ -33,7 +33,7 @@ endif
 
 COMMON_O= common/PML.o common/MeshPartition.o \
 			 common/Utilities.o \
-			 DST/DST.o DST2D/DST2D.o ParDST/ParDST.o
+			 DST/DST.o DST2D/DST2D.o ParDST/ParDST.o ParDST/DofMapsDST.o
 
 # Remove built-in rules
 %: %.cpp
