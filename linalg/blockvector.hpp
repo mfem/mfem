@@ -102,6 +102,8 @@ public:
     */
    void Update(double *data, const Array<int> & bOffsets);
 
+   void Update(Vector & data, const Array<int> & bOffsets);
+
    /// Update a BlockVector with new @a bOffsets and make sure it owns its data.
    /** The block-vector will be re-allocated if either:
        - the offsets @a bOffsets are different from the current offsets, or
