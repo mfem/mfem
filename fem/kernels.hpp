@@ -299,7 +299,7 @@ MFEM_HOST_DEVICE inline void EvalY(const int D1D, const int Q1D,
                                    const double sDQ[2][NBZ][MD1*MQ1],
                                    double sQQ[2][NBZ][MQ1*MQ1])
 {
-   EvalY<MD1,MQ1,NBZ>(D1D,Q1D,sBG,sDQ,sQQ);
+   EvalY<MD1,MQ1,NBZ>(D1D,Q1D,sBG[0],sDQ,sQQ);
 }
 
 /// Pull 2D Scalar Evaluation
@@ -412,10 +412,8 @@ MFEM_HOST_DEVICE inline void GradX(const int D1D, const int Q1D,
    const int tidz = MFEM_THREAD_ID(z);
    ConstDeviceMatrix B(sBG[0], MD1, MQ1);
    ConstDeviceMatrix G(sBG[1], MD1, MQ1);
-
    ConstDeviceMatrix X0(sX[0][tidz], MD1, MD1);
    ConstDeviceMatrix X1(sX[1][tidz], MD1, MD1);
-
    DeviceMatrix X0B(sDQ[0][tidz], MQ1, MD1);
    DeviceMatrix X0G(sDQ[1][tidz], MQ1, MD1);
    DeviceMatrix X1B(sDQ[2][tidz], MQ1, MD1);
@@ -457,12 +455,10 @@ MFEM_HOST_DEVICE inline void GradY(const int D1D, const int Q1D,
    const int tidz = MFEM_THREAD_ID(z);
    ConstDeviceMatrix B(sBG[0], MD1, MQ1);
    ConstDeviceMatrix G(sBG[1], MD1, MQ1);
-
    ConstDeviceMatrix X0B(sDQ[0][tidz], MQ1, MD1);
    ConstDeviceMatrix X0G(sDQ[1][tidz], MQ1, MD1);
    ConstDeviceMatrix X1B(sDQ[2][tidz], MQ1, MD1);
    ConstDeviceMatrix X1G(sDQ[3][tidz], MQ1, MD1);
-
    DeviceMatrix X0GB(sQQ[0][tidz], MQ1, MQ1);
    DeviceMatrix X0BG(sQQ[1][tidz], MQ1, MQ1);
    DeviceMatrix X1GB(sQQ[2][tidz], MQ1, MQ1);
@@ -538,12 +534,10 @@ MFEM_HOST_DEVICE inline void GradYt(const int D1D, const int Q1D,
    const int tidz = MFEM_THREAD_ID(z);
    ConstDeviceMatrix Bt(sBG[0], MQ1, MD1);
    ConstDeviceMatrix Gt(sBG[1], MQ1, MD1);
-
    ConstDeviceMatrix QQx0(GQ[0][tidz], MQ1, MQ1);
    ConstDeviceMatrix QQx1(GQ[1][tidz], MQ1, MQ1);
    ConstDeviceMatrix QQy0(GQ[2][tidz], MQ1, MQ1);
    ConstDeviceMatrix QQy1(GQ[3][tidz], MQ1, MQ1);
-
    DeviceMatrix DQxB(GD[0][tidz], MQ1, MD1);
    DeviceMatrix DQxG(GD[1][tidz], MQ1, MD1);
    DeviceMatrix DQyB(GD[2][tidz], MQ1, MD1);
@@ -580,10 +574,8 @@ MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
                                     const int e)
 {
    const int tidz = MFEM_THREAD_ID(z);
-
    ConstDeviceMatrix Bt(sBG[0], MQ1, MD1);
    ConstDeviceMatrix Gt(sBG[1], MQ1, MD1);
-
    ConstDeviceMatrix DQxB(GD[0][tidz], MQ1, MD1);
    ConstDeviceMatrix DQxG(GD[1][tidz], MQ1, MD1);
    ConstDeviceMatrix DQyB(GD[2][tidz], MQ1, MD1);
@@ -763,11 +755,9 @@ MFEM_HOST_DEVICE inline void EvalX(const int D1D, const int Q1D,
                                    double sDDQ[3][MD1*MD1*MQ1])
 {
    ConstDeviceMatrix B(sB, MD1, MQ1);
-
    ConstDeviceCube Xx(sDDD[0], MD1, MD1, MD1);
    ConstDeviceCube Xy(sDDD[1], MD1, MD1, MD1);
    ConstDeviceCube Xz(sDDD[2], MD1, MD1, MD1);
-
    DeviceCube XxB(sDDQ[0], MQ1, MD1, MD1);
    DeviceCube XyB(sDDQ[1], MQ1, MD1, MD1);
    DeviceCube XzB(sDDQ[2], MQ1, MD1, MD1);
@@ -803,11 +793,9 @@ MFEM_HOST_DEVICE inline void EvalY(const int D1D, const int Q1D,
                                    double sDQQ[3][MD1*MQ1*MQ1])
 {
    ConstDeviceMatrix B(sB, MD1, MQ1);
-
    ConstDeviceCube XxB(sDDQ[0], MQ1, MD1, MD1);
    ConstDeviceCube XyB(sDDQ[1], MQ1, MD1, MD1);
    ConstDeviceCube XzB(sDDQ[2], MQ1, MD1, MD1);
-
    DeviceCube XxBB(sDQQ[0], MQ1, MQ1, MD1);
    DeviceCube XyBB(sDQQ[1], MQ1, MQ1, MD1);
    DeviceCube XzBB(sDQQ[2], MQ1, MQ1, MD1);
@@ -843,11 +831,9 @@ MFEM_HOST_DEVICE inline void EvalZ(const int D1D, const int Q1D,
                                    double sQQQ[3][MQ1*MQ1*MQ1])
 {
    ConstDeviceMatrix B(sB, MD1, MQ1);
-
    ConstDeviceCube XxBB(sDQQ[0], MQ1, MQ1, MD1);
    ConstDeviceCube XyBB(sDQQ[1], MQ1, MQ1, MD1);
    ConstDeviceCube XzBB(sDQQ[2], MQ1, MQ1, MD1);
-
    DeviceCube XxBBB(sQQQ[0], MQ1, MQ1, MQ1);
    DeviceCube XyBBB(sQQQ[1], MQ1, MQ1, MQ1);
    DeviceCube XzBBB(sQQQ[2], MQ1, MQ1, MQ1);
@@ -943,11 +929,9 @@ MFEM_HOST_DEVICE inline void EvalXt(const int D1D, const int Q1D,
                                     double sDQQ[3][MD1*MQ1*MQ1])
 {
    ConstDeviceMatrix Bt(sBG[0], MQ1, MD1);
-
    ConstDeviceCube XxBBB(sQQQ[0], MQ1, MQ1, MQ1);
    ConstDeviceCube XyBBB(sQQQ[1], MQ1, MQ1, MQ1);
    ConstDeviceCube XzBBB(sQQQ[2], MQ1, MQ1, MQ1);
-
    DeviceCube XxBB(sDQQ[0], MQ1, MQ1, MD1);
    DeviceCube XyBB(sDQQ[1], MQ1, MQ1, MD1);
    DeviceCube XzBB(sDQQ[2], MQ1, MQ1, MD1);
@@ -986,7 +970,6 @@ MFEM_HOST_DEVICE inline void EvalYt(const int D1D, const int Q1D,
    ConstDeviceCube XxBB(sDQQ[0], MQ1, MQ1, MD1);
    ConstDeviceCube XyBB(sDQQ[1], MQ1, MQ1, MD1);
    ConstDeviceCube XzBB(sDQQ[2], MQ1, MQ1, MD1);
-
    DeviceCube XxB(sDDQ[0], MQ1, MD1, MD1);
    DeviceCube XyB(sDDQ[1], MQ1, MD1, MD1);
    DeviceCube XzB(sDDQ[2], MQ1, MD1, MD1);
@@ -1061,7 +1044,6 @@ MFEM_HOST_DEVICE inline void GradX(const int D1D, const int Q1D,
    ConstDeviceCube Xx(sDDD[0], MD1, MD1, MD1);
    ConstDeviceCube Xy(sDDD[1], MD1, MD1, MD1);
    ConstDeviceCube Xz(sDDD[2], MD1, MD1, MD1);
-
    DeviceCube XxB(sDDQ[0], MQ1, MD1, MD1);
    DeviceCube XxG(sDDQ[1], MQ1, MD1, MD1);
    DeviceCube XyB(sDDQ[2], MQ1, MD1, MD1);
@@ -1114,14 +1096,12 @@ MFEM_HOST_DEVICE inline void GradY(const int D1D, const int Q1D,
 {
    ConstDeviceMatrix B(sBG[0], MD1, MQ1);
    ConstDeviceMatrix G(sBG[1], MD1, MQ1);
-
    ConstDeviceCube XxB(sDDQ[0], MQ1, MD1, MD1);
    ConstDeviceCube XxG(sDDQ[1], MQ1, MD1, MD1);
    ConstDeviceCube XyB(sDDQ[2], MQ1, MD1, MD1);
    ConstDeviceCube XyG(sDDQ[3], MQ1, MD1, MD1);
    ConstDeviceCube XzB(sDDQ[4], MQ1, MD1, MD1);
    ConstDeviceCube XzG(sDDQ[5], MQ1, MD1, MD1);
-
    DeviceCube XxBB(sDQQ[0], MQ1, MQ1, MD1);
    DeviceCube XxBG(sDQQ[1], MQ1, MQ1, MD1);
    DeviceCube XxGB(sDQQ[2], MQ1, MQ1, MD1);
@@ -1184,7 +1164,6 @@ MFEM_HOST_DEVICE inline void GradZ(const int D1D, const int Q1D,
 {
    ConstDeviceMatrix B(sBG[0], MD1, MQ1);
    ConstDeviceMatrix G(sBG[1], MD1, MQ1);
-
    ConstDeviceCube XxBB(sDQQ[0], MQ1, MQ1, MD1);
    ConstDeviceCube XxBG(sDQQ[1], MQ1, MQ1, MD1);
    ConstDeviceCube XxGB(sDQQ[2], MQ1, MQ1, MD1);
@@ -1194,7 +1173,6 @@ MFEM_HOST_DEVICE inline void GradZ(const int D1D, const int Q1D,
    ConstDeviceCube XzBB(sDQQ[6], MQ1, MQ1, MD1);
    ConstDeviceCube XzBG(sDQQ[7], MQ1, MQ1, MD1);
    ConstDeviceCube XzGB(sDQQ[8], MQ1, MQ1, MD1);
-
    DeviceCube XxBBG(sQQQ[0], MQ1, MQ1, MQ1);
    DeviceCube XxBGB(sQQQ[1], MQ1, MQ1, MQ1);
    DeviceCube XxGBB(sQQQ[2], MQ1, MQ1, MQ1);
@@ -1294,11 +1272,9 @@ MFEM_HOST_DEVICE inline void PushGradXYZ(const int x, const int y, const int z,
    XxBBG(x,y,z) = A[0];
    XxBGB(x,y,z) = A[1];
    XxGBB(x,y,z) = A[2];
-
    XyBBG(x,y,z) = A[3];
    XyBGB(x,y,z) = A[4];
    XyGBB(x,y,z) = A[5];
-
    XzBBG(x,y,z) = A[6];
    XzBGB(x,y,z) = A[7];
    XzGBB(x,y,z) = A[8];
@@ -1314,7 +1290,6 @@ MFEM_HOST_DEVICE inline void GradZt(const int D1D, const int Q1D,
 
    ConstDeviceMatrix Bt(sBG[0], MQ1, MD1);
    ConstDeviceMatrix Gt(sBG[1], MQ1, MD1);
-
    ConstDeviceCube XxBBG(sQQQ[0], MQ1, MQ1, MQ1);
    ConstDeviceCube XxBGB(sQQQ[1], MQ1, MQ1, MQ1);
    ConstDeviceCube XxGBB(sQQQ[2], MQ1, MQ1, MQ1);
@@ -1324,7 +1299,6 @@ MFEM_HOST_DEVICE inline void GradZt(const int D1D, const int Q1D,
    ConstDeviceCube XzBBG(sQQQ[6], MQ1, MQ1, MQ1);
    ConstDeviceCube XzBGB(sQQQ[7], MQ1, MQ1, MQ1);
    ConstDeviceCube XzGBB(sQQQ[8], MQ1, MQ1, MQ1);
-
    DeviceCube XxBB(sDQQ[0], MQ1, MQ1, MD1);
    DeviceCube XxBG(sDQQ[1], MQ1, MQ1, MD1);
    DeviceCube XxGB(sDQQ[2], MQ1, MQ1, MD1);
@@ -1387,7 +1361,6 @@ MFEM_HOST_DEVICE inline void GradYt(const int D1D, const int Q1D,
 {
    ConstDeviceMatrix Bt(sBG[0], MQ1, MD1);
    ConstDeviceMatrix Gt(sBG[1], MQ1, MD1);
-
    ConstDeviceCube XxBB(sDQQ[0], MQ1, MQ1, MD1);
    ConstDeviceCube XxBG(sDQQ[1], MQ1, MQ1, MD1);
    ConstDeviceCube XxGB(sDQQ[2], MQ1, MQ1, MD1);
@@ -1397,7 +1370,6 @@ MFEM_HOST_DEVICE inline void GradYt(const int D1D, const int Q1D,
    ConstDeviceCube XzBB(sDQQ[6], MQ1, MQ1, MD1);
    ConstDeviceCube XzBG(sDQQ[7], MQ1, MQ1, MD1);
    ConstDeviceCube XzGB(sDQQ[8], MQ1, MQ1, MD1);
-
    DeviceCube XxB(sDDQ[0], MQ1, MD1, MD1);
    DeviceCube XxG(sDDQ[1], MQ1, MD1, MD1);
    DeviceCube XyB(sDDQ[2], MQ1, MD1, MD1);
@@ -1461,7 +1433,6 @@ MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
 {
    ConstDeviceMatrix Bt(sBG[0], MQ1, MD1);
    ConstDeviceMatrix Gt(sBG[1], MQ1, MD1);
-
    ConstDeviceCube XxB(sDDQ[0], MQ1, MD1, MD1);
    ConstDeviceCube XxG(sDDQ[1], MQ1, MD1, MD1);
    ConstDeviceCube XyB(sDDQ[2], MQ1, MD1, MD1);
