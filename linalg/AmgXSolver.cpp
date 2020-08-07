@@ -54,6 +54,12 @@ namespace mfem
     else mfem_error("Mode not supported \n");
   }
 
+  void AmgXSolver::getNumIterations(int &getIters)
+  {
+      AMGX_solver_get_iterations_number(solver, &getIters);
+  }
+
+
 
   /* \implements AmgXSolver::initialize */
   void AmgXSolver::initialize(const MPI_Comm &comm,

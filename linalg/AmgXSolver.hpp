@@ -102,6 +102,8 @@ public:
 
   virtual void Mult(const Vector& b, Vector& x) const;
 
+  void getNumIterations(int &getIters);
+
 
 private:
 
