@@ -802,9 +802,9 @@ void PAMixedBilinearFormExtension::Assemble()
    }
    MFEM_ASSERT(a->GetBBFI()->Size() == 0,
                "Partial assembly does not support AddBoundaryIntegrator yet.");
-   MFEM_ASSERT(a->TFBFI()->Size() == 0,
+   MFEM_ASSERT(a->GetTFBFI()->Size() == 0,
                "Partial assembly does not support AddTraceFaceIntegrator yet.");
-   MFEM_ASSERT(a->BTFBFI()->Size() == 0,
+   MFEM_ASSERT(a->GetBTFBFI()->Size() == 0,
                "Partial assembly does not support AddBdrTraceFaceIntegrator yet.");
 }
 
