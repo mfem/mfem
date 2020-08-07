@@ -7038,8 +7038,8 @@ void Poly_1D::Basis::Eval(const double y, Vector &u, Vector &d,
                           Vector &d2) const
 {
    MFEM_VERIFY(etype == Barycentric,
-               "Basis::Eval with second order derivatives not implemented for etype = " <<
-               etype);
+               "Basis::Eval with second order derivatives not implemented for"
+               " etype = " << etype);
    switch (etype)
    {
       case ChangeOfBasis:
@@ -7047,6 +7047,7 @@ void Poly_1D::Basis::Eval(const double y, Vector &u, Vector &d,
          CalcBasis(Ai.Width() - 1, y, x, w);
          Ai.Mult(x, u);
          Ai.Mult(w, d);
+         // set d2 (not implemented yet)
          break;
       }
       case Barycentric:
@@ -7846,8 +7847,8 @@ void H1_QuadrilateralElement::CalcHessian(const IntegrationPoint &ip,
    const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
-   Vector shape_x(p+1), shape_y(p+1), dshape_x(p+1), dshape_y(p+1), d2shape_x(p+1),
-          d2shape_y(p+1);
+   Vector shape_x(p+1), shape_y(p+1), dshape_x(p+1), dshape_y(p+1),
+          d2shape_x(p+1), d2shape_y(p+1);
 #endif
 
    basis1d.Eval(ip.x, shape_x, dshape_x, d2shape_x);
@@ -8010,7 +8011,8 @@ void H1_HexahedronElement::CalcHessian(const IntegrationPoint &ip,
             Hessian(dof_map[o],2) =  dshape_x(i)*  shape_y(j)* dshape_z(k);
             Hessian(dof_map[o],3) =   shape_x(i)*d2shape_y(j)*  shape_z(k);
             Hessian(dof_map[o],4) =   shape_x(i)* dshape_y(j)* dshape_z(k);
-            Hessian(dof_map[o],5) =   shape_x(i)*  shape_y(j)*d2shape_z(k);  o++;
+            Hessian(dof_map[o],5) =   shape_x(i)*  shape_y(j)*d2shape_z(k);
+            o++;
          }
 }
 
