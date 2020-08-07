@@ -264,7 +264,7 @@ void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
    {
       if (fetype == mfem::FiniteElement::CURL)
       {
-         if (diag.GetMemory().GetMemoryType() >= MemoryType::DEVICE && quad1D <= 6)
+         if (Device::Allows(Backend::DEVICE_MASK))
          {
             const int ID = (dofs1D << 4) | quad1D;
             switch (ID)
@@ -320,7 +320,7 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    {
       if (fetype == mfem::FiniteElement::CURL)
       {
-         if (x.GetMemory().GetMemoryType() >= MemoryType::DEVICE && quad1D <= 6)
+         if (Device::Allows(Backend::DEVICE_MASK))
          {
             const int ID = (dofs1D << 4) | quad1D;
             switch (ID)

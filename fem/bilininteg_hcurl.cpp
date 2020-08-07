@@ -1950,7 +1950,7 @@ void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (dim == 3)
    {
-      if (x.GetMemory().GetMemoryType() >= MemoryType::DEVICE && quad1D <= 6)
+      if (Device::Allows(Backend::DEVICE_MASK))
       {
          const int ID = (dofs1D << 4) | quad1D;
          switch (ID)
@@ -2418,7 +2418,7 @@ void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
 {
    if (dim == 3)
    {
-      if (diag.GetMemory().GetMemoryType() >= MemoryType::DEVICE && quad1D <= 6)
+      if (Device::Allows(Backend::DEVICE_MASK))
       {
          const int ID = (dofs1D << 4) | quad1D;
          switch (ID)
@@ -3890,7 +3890,7 @@ void MixedVectorCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
    if (testType == mfem::FiniteElement::CURL &&
        trialType == mfem::FiniteElement::CURL && dim == 3)
    {
-      if (x.GetMemory().GetMemoryType() >= MemoryType::DEVICE && quad1D <= 6)
+      if (Device::Allows(Backend::DEVICE_MASK))
       {
          const int ID = (dofs1D << 4) | quad1D;
          switch (ID)
@@ -4587,7 +4587,7 @@ void MixedVectorWeakCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
    if (testType == mfem::FiniteElement::CURL &&
        trialType == mfem::FiniteElement::CURL && dim == 3)
    {
-      if (x.GetMemory().GetMemoryType() >= MemoryType::DEVICE && quad1D <= 6)
+      if (Device::Allows(Backend::DEVICE_MASK))
       {
          const int ID = (dofs1D << 4) | quad1D;
          switch (ID)
