@@ -693,15 +693,8 @@ void SmemPAHcurlMassApply3D(const int D1D,
                             const Vector &x,
                             Vector &y)
 {
-   constexpr static int MAX_D1D = HCURL_MAX_D1D;
-   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
-
-   constexpr int tD1D = T_D1D ? T_D1D : MAX_D1D;
-   constexpr int tQ1D = T_Q1D ? T_Q1D : MAX_Q1D;
-
-   MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
-   constexpr static int VDIM = 3;
+   MFEM_VERIFY(D1D <= HCURL_MAX_D1D, "Error: D1D > MAX_D1D");
+   MFEM_VERIFY(Q1D <= HCURL_MAX_Q1D, "Error: Q1D > MAX_Q1D");
 
    auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(bc.Read(), Q1D, D1D);
@@ -711,6 +704,10 @@ void SmemPAHcurlMassApply3D(const int D1D,
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
+      constexpr int VDIM = 3;
+      constexpr int tD1D = T_D1D ? T_D1D : HCURL_MAX_D1D;
+      constexpr int tQ1D = T_Q1D ? T_Q1D : HCURL_MAX_Q1D;
+
       MFEM_SHARED double sBo[tQ1D][tD1D];
       MFEM_SHARED double sBc[tQ1D][tD1D];
 
@@ -1657,8 +1654,6 @@ static void SmemPACurlCurlApply3D(const int D1D,
    // If c = 1, \hat{\nabla}\times\hat{u} reduces to [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
    // If c = 2, \hat{\nabla}\times\hat{u} reduces to [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
 
-   constexpr static int VDIM = 3;
-
    auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(bc.Read(), Q1D, D1D);
    auto Gc = Reshape(gc.Read(), Q1D, D1D);
@@ -1668,6 +1663,8 @@ static void SmemPACurlCurlApply3D(const int D1D,
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
+      constexpr int VDIM = 3;
+
       MFEM_SHARED double sBo[MAX_D1D][MAX_Q1D];
       MFEM_SHARED double sBc[MAX_D1D][MAX_Q1D];
       MFEM_SHARED double sGc[MAX_D1D][MAX_Q1D];
@@ -2244,7 +2241,6 @@ static void SmemPACurlCurlAssembleDiagonal3D(const int D1D,
                                              const Vector &pa_data,
                                              Vector &diag)
 {
-   constexpr static int VDIM = 3;
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
 
@@ -2262,6 +2258,8 @@ static void SmemPACurlCurlAssembleDiagonal3D(const int D1D,
       // If c = 0, \hat{\nabla}\times\hat{u} reduces to [0, (u_0)_{x_2}, -(u_0)_{x_1}]
       // If c = 1, \hat{\nabla}\times\hat{u} reduces to [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
       // If c = 2, \hat{\nabla}\times\hat{u} reduces to [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
+
+      constexpr int VDIM = 3;
 
       MFEM_SHARED double sBo[MAX_Q1D][MAX_D1D];
       MFEM_SHARED double sBc[MAX_Q1D][MAX_D1D];
@@ -3255,9 +3253,6 @@ static void SmemPAHcurlL2Apply3D(const int D1D,
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
 
-   constexpr static int VDIM = 3;
-   constexpr static int maxCoeffDim = 3;
-
    auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(bc.Read(), Q1D, D1D);
    auto Gc = Reshape(gc.Read(), Q1D, D1D);
@@ -3267,6 +3262,9 @@ static void SmemPAHcurlL2Apply3D(const int D1D,
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
+      constexpr int VDIM = 3;
+      constexpr int maxCoeffDim = 3;
+
       MFEM_SHARED double sBo[MAX_D1D][MAX_Q1D];
       MFEM_SHARED double sBc[MAX_D1D][MAX_Q1D];
       MFEM_SHARED double sGc[MAX_D1D][MAX_Q1D];
@@ -4371,9 +4369,6 @@ static void SmemPAHcurlL2Apply3DTranspose(const int D1D,
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
 
-   constexpr static int VDIM = 3;
-   constexpr static int maxCoeffDim = 3;
-
    auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(bc.Read(), Q1D, D1D);
    auto Gc = Reshape(gc.Read(), Q1D, D1D);
@@ -4383,6 +4378,9 @@ static void SmemPAHcurlL2Apply3DTranspose(const int D1D,
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
+      constexpr int VDIM = 3;
+      constexpr int maxCoeffDim = 3;
+
       MFEM_SHARED double sBo[MAX_D1D][MAX_Q1D];
       MFEM_SHARED double sBc[MAX_D1D][MAX_Q1D];
       MFEM_SHARED double sGc[MAX_D1D][MAX_Q1D];
