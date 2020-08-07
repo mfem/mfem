@@ -357,7 +357,7 @@ UMPIRE_OPT = -I$(UMPIRE_DIR)/include
 UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -lumpire
 
 # AMGX library configuration
-AMGX_DIR = @MFEM_DIR@/../AMGX
+AMGX_DIR = @MFEM_DIR@/../amgx
 AMGX_OPT = -I$(AMGX_DIR)/include
 AMGX_LIB = -L$(CUDA_HOME)/lib64 -lcusparse -lcusolver -lcublas -lnvToolsExt -L$(AMGX_DIR)/lib -lamgx -Xlinker=-rpath=$(CUDA_HOME)/lib64
 
