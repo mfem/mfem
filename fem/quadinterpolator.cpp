@@ -199,7 +199,6 @@ void QuadratureInterpolator::Determinants(const Vector &e_vec,
       {
          Determinants<QVectorLayout::byNODES>(e_vec, q_det);
       }
-
       if (q_layout == QVectorLayout::byVDIM)
       {
          Determinants<QVectorLayout::byVDIM>(e_vec, q_det);
