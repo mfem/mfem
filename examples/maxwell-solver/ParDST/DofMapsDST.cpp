@@ -84,8 +84,46 @@ void DofMaps::Setup()
    // cout << "Computing Overlap Tdofs" << endl;
    ComputeOvlpTdofs();
    // PrintOvlpTdofs();
-}
 
+
+   Vector X, Y;
+   if (fes[0])
+   {
+      X.SetSize(fes[0]->GetTrueVSize());
+      // X = 1.0;
+      X.Randomize();
+   }
+   int i0 = 0;
+   Array<int> directions(3); 
+   directions[0] = 1;
+   directions[1] = 0;
+   directions[2] = -1;
+   TransferToNeighbor(i0,directions,X,Y);
+
+   // if (myid == 0)
+   // {
+      
+   //    GridFunction gf0(fes[0]);
+   //    gf0.SetVector(X,0);
+   //    char vishost[] = "localhost";
+   //    int  visport   = 19916;
+   //    socketstream sol_sock(vishost, visport);
+   //    sol_sock.precision(8);
+   //    sol_sock << "solution\n" << *(part->subdomain_mesh[0]) << gf0 << flush;
+   // }
+   // if (myid == 1)
+   // {
+      
+   //    GridFunction gf0(fes[1]);
+   //    gf0.SetVector(Y,0);
+   //    char vishost[] = "localhost";
+   //    int  visport   = 19916;
+   //    socketstream sol_sock(vishost, visport);
+   //    sol_sock.precision(8);
+   //    sol_sock << "solution\n" << *(part->subdomain_mesh[1]) << gf0 << flush;
+   // }
+
+}
 
 void DofMaps::AddElementToOvlpLists(int l, int iel, 
                             const Array<bool> & neg, const Array<bool> & pos)
@@ -220,6 +258,72 @@ void DofMaps::ComputeOvlpTdofs()
    }
 }
 
+void DofMaps::TransferToNeighbor(int i0, const Array<int> & direction0, 
+                                 const Vector & x0, Vector & x1)
+{
+   // Find neighbor id;
+   
+   Array<int> ijk0;
+   GetSubdomainijk(i0,nxyz,ijk0);
+   Array<int> ijk1(3); ijk1=0;
+   Array<int> direction1(3); direction1 = -1; // default for dim = 2, 3rd direction
+   for (int d=0;d<dim;d++) 
+   { 
+      ijk1[d] = ijk0[d] + direction0[d]; 
+      direction1[d] = -direction0[d];
+   }
+
+   int i1 = GetSubdomainId(nxyz,ijk1);
+   int rank1 = subdomain_rank[i1];
+   if (myid == subdomain_rank[i0])
+   {
+      int d0 = GetDirectionId(direction0);
+      Array<int> tdofs0 = OvlpTDofs[i0][d0];
+      if (myid == rank1)
+      {
+         // The subdomain is on the same processor 
+         int d1 = GetDirectionId(direction1);
+         Array<int> tdofs1 = OvlpTDofs[i1][d1];
+         x1.SetSize(fes[i1]->GetTrueVSize()); x1 = 0.0;
+         for (int i = 0; i<tdofs0.Size(); i++)
+         {
+            // pick up input possition
+            int j = tdofs0[i];
+            // destination
+            int k = tdofs1[i];
+            x1[k] = x0[j];
+         }
+      }
+      else
+      {
+         // The subdomain is not on the processor 
+         Vector y0(tdofs0.Size());
+         x0.GetSubVector(tdofs0, y0);
+         // For now we use blocking send/receive
+         int dest = subdomain_rank[i1];
+         int tag = i0;
+         int count = tdofs0.Size();
+         MPI_Send(y0.GetData(),count,MPI_DOUBLE,dest,tag,comm);
+      }
+   }
+   else if (myid == rank1)
+   {
+      int d1 = GetDirectionId(direction1);
+      Array<int> tdofs1 = OvlpTDofs[i1][d1];
+      Vector y1(tdofs1.Size());
+      int count = tdofs1.Size();
+      int src = subdomain_rank[i0];
+      int tag = i0; 
+      // receive data
+      MPI_Status status;
+      MPI_Recv(y1.GetData(),count,MPI_DOUBLE,src,tag,comm,&status);
+      x1.SetSize(fes[i1]->GetTrueVSize()); x1 = 0.0;
+      x1.SetSubVector(tdofs1,y1);
+   }
+}
+
+
+
 
 void DofMaps::PrintOvlpTdofs()
 {
@@ -249,7 +353,6 @@ void DofMaps::PrintOvlpTdofs()
          }
       }
    }
-
 }
 
 

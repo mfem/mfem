@@ -64,8 +64,9 @@ private:
    void ComputeOvlpTdofs();
    void PrintOvlpTdofs();
 
-   // Transfering OvlpTdofs form subdomain i to j
-   void TransferToNeighbor(int i, int j);
+   // Transfering OvlpTdofs form subdomain i to the given direction
+   void TransferToNeighbor(int i, const Array<int> & direction, 
+                           const Vector & x, Vector & y);
 
 
 
