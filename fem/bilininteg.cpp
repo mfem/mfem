@@ -3427,7 +3427,7 @@ VectorScalarProductInterpolator::AssembleElementMatrix2(
       VecShapeCoefficient(VectorCoefficient &vq, const FiniteElement &fe_)
          : MatrixCoefficient(fe_.GetDof(), vq.GetVDim()), VQ(vq), fe(fe_),
            vc(width), shape(height) { }
-      
+
       using MatrixCoefficient::Eval;
 
       virtual void Eval(DenseMatrix &M, ElementTransformation &T,
