@@ -147,7 +147,8 @@ int main(int argc, char *argv[])
    // ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    // int nprocs = sqrt(num_procs);
    // MFEM_VERIFY(nprocs*nprocs == num_procs, "Check MPI partitioning");
-   int nxyz[3] = {num_procs,1,1};
+   // int nxyz[3] = {num_procs,1,1};
+   int nxyz[3] = {2,2,1};
    int * part = mesh->CartesianPartitioning(nxyz);
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD,*mesh,part);
    delete mesh;

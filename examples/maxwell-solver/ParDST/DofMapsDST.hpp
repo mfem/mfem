@@ -5,6 +5,7 @@
 using namespace std;
 using namespace mfem;
 
+double testcoeff(const Vector & x);
 
 
 void ComputeTdofOffsets(const MPI_Comm & comm, const ParFiniteElementSpace * pfes, 
@@ -67,7 +68,7 @@ private:
    // Transfering OvlpTdofs form subdomain i to the given direction
    void TransferToNeighbor(int i, const Array<int> & direction, 
                            const Vector & x, Vector & y);
-
+   void TransferToNeighbors(int i, const Vector & x, Vector & y);
 
 
 
