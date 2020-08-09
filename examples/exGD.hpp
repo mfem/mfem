@@ -27,10 +27,10 @@ protected:
    double scale;
 public:
    /// Class constructor. 
-   GalerkinDifference(mfem::Mesh *pm, int di, int ne, const mfem::FiniteElementCollection *f, double scaling,
+   GalerkinDifference(mfem::Mesh *pm, int di, int ne, const mfem::FiniteElementCollection *f, 
                       int vdi= 1, int ordering = mfem::Ordering::byVDIM,
                       int de = 0)
-   : FiniteElementSpace(pm, f, vdi, ordering), mesh(pm), dim(di), nEle(ne), fec(f), scale(scaling), degree(de), vdim(vdi) {BuildGDProlongation();}
+   : FiniteElementSpace(pm, f, vdi, ordering), mesh(pm), dim(di), nEle(ne), fec(f), degree(de), vdim(vdi) {BuildGDProlongation();}
 //    GalerkinDifference::GalerkinDifference(Mesh *pm, const FiniteElementCollection *f,
 //    int vdim, int ordering, int de)
 //    : SpaceType(pm, f, vdim, ordering)

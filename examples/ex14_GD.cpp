@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
    //    finite elements of the specified order >= 0.
    FiniteElementCollection *fec = new L2_FECollection(order, dim);
    FiniteElementSpace *fes = new GalerkinDifference(mesh, dim, mesh->GetNE(), fec,
-                                                    1, 1, Ordering::byVDIM, order);
+                                                    1, Ordering::byVDIM, order);
    FunctionCoefficient u(u_exact);
    GridFunction x_exact(fes);
    x_exact.ProjectCoefficient(u);
@@ -278,6 +278,7 @@ void GalerkinDifference::BuildGDProlongation() const
       break;
    case 2:
       nelmt = (degree + 1) * (degree + 2) / 2;
+     // nelmt = nelmt + 1;
       break;
    default:;
    }
@@ -324,6 +325,7 @@ void GalerkinDifference::BuildGDProlongation() const
    // cP->PrintMatlab(cp_save);
    // cp_save.close();
 }
+
 void GalerkinDifference::AssembleProlongationMatrix(const mfem::Array<int> &id,
                                                     const DenseMatrix &local_mat) const
 {
@@ -459,6 +461,7 @@ void buildLSInterpolation(int dim, int degree, const DenseMatrix &x_center,
    double work[lwork];
    dgels_(&TRANS, &num_elem, &num_basis, &num_elem, V.GetData(), &num_elem,
           coeff.GetData(), &num_elem, work, &lwork, &info);
+   cout << "info is " << info << endl;
    MFEM_ASSERT(info == 0, "Fail to solve the underdetermined system.\n");
 
    // Perform matrix-matrix multiplication between basis functions evalauted at

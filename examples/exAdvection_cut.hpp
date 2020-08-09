@@ -8,7 +8,7 @@ using namespace std;
 /// Class for domain integration L(v) := (f, v)
 double CutComputeL2Error( GridFunction &x, FiniteElementSpace *fes,
     Coefficient &exsol, double scale);
-class AdvDomainLFIntegrator : public DeltaLFIntegrator
+class CutDomainLFIntegrator : public DeltaLFIntegrator
 {
    Vector shape;
    Coefficient &Q;
@@ -16,10 +16,10 @@ class AdvDomainLFIntegrator : public DeltaLFIntegrator
    double scale;
 public:
    /// Constructs a domain integrator with a given Coefficient
-  AdvDomainLFIntegrator(Coefficient &QF, int a = 2, int b = 0)
+  CutDomainLFIntegrator(Coefficient &QF,  double scaling, int ne,   int a = 2, int b = 0)
    // the old default was a = 1, b = 1
    // for simple elliptic problems a = 2, b = -2 is OK
-      :DeltaLFIntegrator(QF), Q(QF), oa(a), ob(b) { }
+      :DeltaLFIntegrator(QF), Q(QF), scale(scaling), nels(ne), oa(a), ob(b) { }
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
@@ -54,8 +54,8 @@ private:
 #endif
 
 public:
-   AdvectionIntegrator(VectorCoefficient &q, double a = 1.0)
-      : Q(&q) { alpha = a;}
+   AdvectionIntegrator(VectorCoefficient &q, double scaling, int ne, double a = 1.0)
+      : Q(&q) { scale = scaling; nels = ne; alpha = a;}
    virtual void AssembleElementMatrix(const FiniteElement &,
                                       ElementTransformation &,
                                       DenseMatrix &);
@@ -78,8 +78,8 @@ private:
 
 public:
    /// Construct integrator with rho = 1.
-   DGFaceIntegrator(VectorCoefficient &_u)
-   { u = &_u;}
+   DGFaceIntegrator(VectorCoefficient &_u, double scaling, int ne)
+   { u = &_u;  scale = scaling; nels= ne;}
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
@@ -102,8 +102,9 @@ private:
    Vector shape;
 
 public:
-   BoundaryAdvectIntegrator(Coefficient &_uD, VectorCoefficient &_u)
-   { uD = &_uD; u = &_u;}
+   BoundaryAdvectIntegrator(Coefficient &_uD, VectorCoefficient &_u,
+    int ne, double scaling)
+   { uD = &_uD; u = &_u; nels= ne; scale =scaling;}
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
                                        Vector &elvect);

@@ -157,7 +157,7 @@ int main(int argc, char *argv[])
    FiniteElementCollection *fec = new DG_FECollection(order, dim);
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec, 1);
    /// GD finite element space
-   FiniteElementSpace *fes = new GalerkinDifference(mesh, dim, mesh->GetNE(), fec, 1, 1, Ordering::byVDIM, order);
+   FiniteElementSpace *fes = new GalerkinDifference(mesh, dim, mesh->GetNE(), fec,  1, Ordering::byVDIM, order);
    cout << "fes created " << endl;
    cout << "Number of unknowns in GD: " << fes->GetTrueVSize() << endl;
    cout << "Number of unknowns: " << fespace->GetVSize() << endl;
