@@ -261,7 +261,7 @@ int main(int argc, char *argv[])
       amgx_str = amgx_cfg;
       AmgXSolver amgx;
 
-     amgx.initialize(MPI_COMM_WORLD, "dDDI", amgx_str);
+      amgx.initialize(MPI_COMM_WORLD, "dDDI", amgx_str);
 
       amgx.setA(A);
 
@@ -287,7 +287,7 @@ int main(int argc, char *argv[])
       pcg->SetTol(1e-12);
       pcg->SetMaxIter(200);
       pcg->SetPrintLevel(2);
-     for (int i = 0; i < nsolves; i++)
+      for (int i = 0; i < nsolves; i++)
       {
          X = 0.0; //set to zero
          pcg->Mult(B, X);
