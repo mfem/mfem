@@ -565,9 +565,6 @@ HypreParMatrix* ParDiscreteLinearOperator::ParallelAssemble() const
    return RAP;
 }
 
-/// @todo copied from ParMixedBilinearForm, should be some inheritance?
-/// (also, if we use this we need to fix the type?)
-/// (even if A is ANY_TYPE, it becomes SPARSE_MATRIX here!)
 void ParDiscreteLinearOperator::ParallelAssemble(OperatorHandle &A)
 {
    // construct the rectangular block-diagonal matrix dA
@@ -593,53 +590,26 @@ void ParDiscreteLinearOperator::FormRectangularSystemMatrix(OperatorHandle &A)
 {
    if (ext)
    {
-      /// /// TODO: need to worry about parallel multiplicity!!
-
-      // the secret sauce is relatedto this line from HypreParMatrix* ParallelAssemble():
-      //    HypreParMatrix* RAP = P->LeftDiagMult(*RA, range_fes->GetTrueDofOffsets());
-
       Array<int> empty;
       ext->FormRectangularSystemOperator(empty, empty, A);
       return;
    }
 
    /*
-      if (mat)
-      {
-         Finalize();
-         ParallelAssemble(p_mat);
-         delete mat;
-         mat = NULL;
-         delete mat_e;
-         mat_e = NULL;
-         HypreParMatrix *temp =
-            p_mat.As<HypreParMatrix>()->EliminateCols(trial_tdof_list);
-         p_mat.As<HypreParMatrix>()->EliminateRows(test_tdof_list);
-         p_mat_e.Reset(temp, true);
-      }
-
-
-      A = p_mat;
-   */
-   mfem_error("not implemented!");
-}
-
-/// @todo copied from ParMixedBilinearForm, should be some inheritance?
-/// Compute y += a (P^t A P) x, where x and y are vectors on the true dofs
-
-/// need some kind of Set not Add for the restriction...
-void ParDiscreteLinearOperator::TrueAddMult(const Vector &x, Vector &y,
-                                            const double a) const
-{
-   if (X.ParFESpace() != domain_fes)
+   if (mat)
    {
-      X.SetSpace(domain_fes);
-      Y.SetSpace(range_fes);
+      Finalize();
+      ParallelAssemble(p_mat);
+      delete mat;
+      mat = NULL;
+      delete mat_e;
+      mat_e = NULL;
+      p_mat_e = NULL;
    }
+   A = p_mat;
+   */
 
-   X.Distribute(&x);
-   mat->Mult(X, Y);
-   range_fes->Dof_TrueDof_Matrix()->MultTranspose(a, Y, 1.0, y);
+   mfem_error("not implemented!");
 }
 
 void ParDiscreteLinearOperator::GetParBlocks(Array2D<HypreParMatrix *> &blocks)

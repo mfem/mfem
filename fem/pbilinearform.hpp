@@ -283,8 +283,6 @@ protected:
    ParFiniteElementSpace *domain_fes;
    /// Points to the same object as #test_fes
    ParFiniteElementSpace *range_fes;
-   /// Auxiliary objects used in TrueAddMult().
-   mutable ParGridFunction X, Y;
 
 private:
    /// Copy construction is not supported; body is undefined.
@@ -317,9 +315,6 @@ public:
 
    /** @brief Return in @a A a parallel (on truedofs) version of this operator. */
    virtual void FormRectangularSystemMatrix(OperatorHandle &A);
-
-   /// Compute y += a (P^t A P) x, where x and y are vectors on the true dofs
-   void TrueAddMult(const Vector &x, Vector &y, const double a = 1.0) const;
 
    virtual ~ParDiscreteLinearOperator() { }
 };
