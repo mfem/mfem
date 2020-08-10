@@ -95,6 +95,7 @@ void BlockOperator::Mult (const Vector & x, Vector & y) const
 
    for (int iRow=0; iRow < nRowBlocks; ++iRow)
    {
+      if (yblock.BlockSize(iRow) == 0) { continue; }
       yblock.GetBlock(iRow).SyncAliasMemory(y);
    }
 
@@ -131,6 +132,7 @@ void BlockOperator::MultTranspose (const Vector & x, Vector & y) const
 
    for (int iRow=0; iRow < nColBlocks; ++iRow)
    {
+      if (yblock.BlockSize(iRow) == 0) { continue; }
       yblock.GetBlock(iRow).SyncAliasMemory(y);
    }
 
@@ -206,6 +208,7 @@ void BlockDiagonalPreconditioner::Mult (const Vector & x, Vector & y) const
 
    for (int i=0; i<nBlocks; ++i)
    {
+      if (yblock.BlockSize(i) == 0) { continue; }
       yblock.GetBlock(i).SyncAliasMemory(y);
    }
 
@@ -242,6 +245,7 @@ void BlockDiagonalPreconditioner::MultTranspose (const Vector & x,
 
    for (int i=0; i<nBlocks; ++i)
    {
+      if (yblock.BlockSize(i) == 0) { continue; }
       yblock.GetBlock(i).SyncAliasMemory(y);
    }
 
