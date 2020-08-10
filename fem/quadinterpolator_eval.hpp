@@ -36,7 +36,7 @@ static void Eval2D(const int NE,
 
    const auto b = Reshape(b_, Q1D, D1D);
    const auto x = Reshape(x_, D1D, D1D, VDIM, NE);
-   auto y = Q_LAYOUT ==QVectorLayout:: byNODES ?
+   auto y = Q_LAYOUT == QVectorLayout:: byNODES ?
             Reshape(y_, Q1D, Q1D, VDIM, NE):
             Reshape(y_, VDIM, Q1D, Q1D, NE);
 
@@ -129,7 +129,7 @@ static void Eval3D(const int NE,
 
    const auto b = Reshape(b_, Q1D, D1D);
    const auto x = Reshape(x_, D1D, D1D, D1D, VDIM, NE);
-   auto y = Q_LAYOUT ==QVectorLayout:: byNODES ?
+   auto y = Q_LAYOUT == QVectorLayout:: byNODES ?
             Reshape(y_, Q1D, Q1D, Q1D, VDIM, NE):
             Reshape(y_, VDIM, Q1D, Q1D, Q1D, NE);
 

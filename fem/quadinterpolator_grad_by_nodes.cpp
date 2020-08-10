@@ -11,12 +11,6 @@
 
 #include "quadinterpolator.hpp"
 #include "quadinterpolator_grad.hpp"
-#include "../general/forall.hpp"
-#include "../linalg/dtensor.hpp"
-#include "../linalg/kernels.hpp"
-
-#define MFEM_DEBUG_COLOR 226
-#include "../general/debug.hpp"
 
 namespace mfem
 {
@@ -27,6 +21,7 @@ void QuadratureInterpolator::Derivatives<QVectorLayout::byNODES>(
 {
    const int NE = fespace->GetNE();
    if (NE == 0) { return; }
+
    const int vdim = fespace->GetVDim();
    const int dim = fespace->GetMesh()->Dimension();
    const FiniteElement *fe = fespace->GetFE(0);
@@ -46,6 +41,11 @@ void QuadratureInterpolator::Derivatives<QVectorLayout::byNODES>(
 
    switch (id)
    {
+      case 0x2133: return Grad2D<L,1,3,3,16>(NE,B,G,X,Y);
+      case 0x2134: return Grad2D<L,1,3,4,16>(NE,B,G,X,Y);
+      case 0x2143: return Grad2D<L,1,4,3,16>(NE,B,G,X,Y);
+      case 0x2144: return Grad2D<L,1,4,4,16>(NE,B,G,X,Y);
+
       case 0x2222: return Grad2D<L,2,2,2,16>(NE,B,G,X,Y);
       case 0x2223: return Grad2D<L,2,2,3,8>(NE,B,G,X,Y);
       case 0x2224: return Grad2D<L,2,2,4,4>(NE,B,G,X,Y);
@@ -54,6 +54,7 @@ void QuadratureInterpolator::Derivatives<QVectorLayout::byNODES>(
 
       case 0x2233: return Grad2D<L,2,3,3,2>(NE,B,G,X,Y);
       case 0x2234: return Grad2D<L,2,3,4,4>(NE,B,G,X,Y);
+      case 0x2243: return Grad2D<L,2,4,3,4>(NE,B,G,X,Y);
       case 0x2236: return Grad2D<L,2,3,6,2>(NE,B,G,X,Y);
 
       case 0x2244: return Grad2D<L,2,4,4,2>(NE,B,G,X,Y);
@@ -64,7 +65,10 @@ void QuadratureInterpolator::Derivatives<QVectorLayout::byNODES>(
       case 0x2256: return Grad2D<L,2,5,6,2>(NE,B,G,X,Y);
 
       case 0x3124: return Grad3D<L,1,2,4>(NE,B,G,X,Y);
+      case 0x3133: return Grad3D<L,1,3,3>(NE,B,G,X,Y);
+      case 0x3134: return Grad3D<L,1,3,4>(NE,B,G,X,Y);
       case 0x3136: return Grad3D<L,1,3,6>(NE,B,G,X,Y);
+      case 0x3144: return Grad3D<L,1,4,4>(NE,B,G,X,Y);
       case 0x3148: return Grad3D<L,1,4,8>(NE,B,G,X,Y);
 
       case 0x3323: return Grad3D<L,3,2,3>(NE,B,G,X,Y);
@@ -84,7 +88,6 @@ void QuadratureInterpolator::Derivatives<QVectorLayout::byNODES>(
       {
          constexpr int MD1 = 8;
          constexpr int MQ1 = 8;
-         dbg("Using standard kernel #id 0x%x", id);
          MFEM_VERIFY(D1D <= MD1, "Orders higher than " << MD1-1
                      << " are not supported!");
          MFEM_VERIFY(Q1D <= MQ1, "Quadrature rules with more than "

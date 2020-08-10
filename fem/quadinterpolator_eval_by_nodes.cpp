@@ -15,9 +15,6 @@
 #include "../linalg/dtensor.hpp"
 #include "../linalg/kernels.hpp"
 
-#define MFEM_DEBUG_COLOR 226
-#include "../general/debug.hpp"
-
 namespace mfem
 {
 
@@ -45,7 +42,12 @@ void QuadratureInterpolator::Values<QVectorLayout::byNODES>(
 
    switch (id)
    {
+      case 0x2133: return Eval2D<L,1,3,3>(NE,B,X,Y);
       case 0x2124: return Eval2D<L,1,2,4>(NE,B,X,Y);
+      case 0x2132: return Eval2D<L,1,3,2>(NE,B,X,Y);
+      case 0x2134: return Eval2D<L,1,3,4>(NE,B,X,Y);
+      case 0x2143: return Eval2D<L,1,4,3>(NE,B,X,Y);
+      case 0x2144: return Eval2D<L,1,4,4>(NE,B,X,Y);
 
       case 0x2222: return Eval2D<L,2,2,2>(NE,B,X,Y);
       case 0x2223: return Eval2D<L,2,2,3>(NE,B,X,Y);
@@ -55,6 +57,7 @@ void QuadratureInterpolator::Values<QVectorLayout::byNODES>(
       case 0x2233: return Eval2D<L,2,3,3>(NE,B,X,Y);
       case 0x2234: return Eval2D<L,2,3,4>(NE,B,X,Y);
       case 0x2236: return Eval2D<L,2,3,6>(NE,B,X,Y);
+      case 0x2243: return Eval2D<L,2,4,3>(NE,B,X,Y);
       case 0x2244: return Eval2D<L,2,4,4>(NE,B,X,Y);
       case 0x2245: return Eval2D<L,2,4,5>(NE,B,X,Y);
       case 0x2246: return Eval2D<L,2,4,6>(NE,B,X,Y);
@@ -62,7 +65,11 @@ void QuadratureInterpolator::Values<QVectorLayout::byNODES>(
       case 0x2256: return Eval2D<L,2,5,6>(NE,B,X,Y);
 
       case 0x3124: return Eval3D<L,1,2,4>(NE,B,X,Y);
+      case 0x3133: return Eval3D<L,1,3,3>(NE,B,X,Y);
+      case 0x3134: return Eval3D<L,1,3,4>(NE,B,X,Y);
       case 0x3136: return Eval3D<L,1,3,6>(NE,B,X,Y);
+      case 0x3143: return Eval3D<L,1,4,3>(NE,B,X,Y);
+      case 0x3144: return Eval3D<L,1,4,4>(NE,B,X,Y);
       case 0x3148: return Eval3D<L,1,4,8>(NE,B,X,Y);
 
       case 0x3222: return Eval3D<L,2,2,2>(NE,B,X,Y);
@@ -77,6 +84,8 @@ void QuadratureInterpolator::Values<QVectorLayout::byNODES>(
       case 0x3334: return Eval3D<L,3,3,4>(NE,B,X,Y);
       case 0x3335: return Eval3D<L,3,3,5>(NE,B,X,Y);
       case 0x3336: return Eval3D<L,3,3,6>(NE,B,X,Y);
+      case 0x3343: return Eval3D<L,3,4,3>(NE,B,X,Y);
+      case 0x3344: return Eval3D<L,3,4,4>(NE,B,X,Y);
       case 0x3346: return Eval3D<L,3,4,6>(NE,B,X,Y);
       case 0x3347: return Eval3D<L,3,4,7>(NE,B,X,Y);
       case 0x3348: return Eval3D<L,3,4,8>(NE,B,X,Y);
@@ -85,7 +94,6 @@ void QuadratureInterpolator::Values<QVectorLayout::byNODES>(
       {
          constexpr int MD1 = 8;
          constexpr int MQ1 = 8;
-         dbg("Using standard kernel #id 0x%x", id);
          MFEM_VERIFY(D1D <= MD1, "Orders higher than " << MD1-1
                      << " are not supported!");
          MFEM_VERIFY(Q1D <= MQ1, "Quadrature rules with more than "

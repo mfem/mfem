@@ -10,19 +10,13 @@
 // CONTRIBUTING.md for details.
 
 #include "quadinterpolator.hpp"
-#include "quadinterpolator_grdp.hpp"
-#include "../general/forall.hpp"
-#include "../linalg/dtensor.hpp"
-#include "../linalg/kernels.hpp"
-
-#define MFEM_DEBUG_COLOR 226
-#include "../general/debug.hpp"
+#include "quadinterpolator_grad_phys.hpp"
 
 namespace mfem
 {
 
 template<>
-void QuadratureInterpolator::PhysDerivatives<QVectorLayout::byVDIM>(
+void QuadratureInterpolator::PhysDerivatives<QVectorLayout::byNODES>(
    const Vector &e_vec, Vector &q_der) const
 {
    const int NE = fespace->GetNE();
@@ -47,7 +41,7 @@ void QuadratureInterpolator::PhysDerivatives<QVectorLayout::byVDIM>(
    const double *X = e_vec.Read();
    double *Y = q_der.Write();
 
-   constexpr QVectorLayout L = QVectorLayout::byVDIM;
+   constexpr QVectorLayout L = QVectorLayout::byNODES;
 
    const int id = (vdim<<8) | (D1D<<4) | Q1D;
 
@@ -55,19 +49,23 @@ void QuadratureInterpolator::PhysDerivatives<QVectorLayout::byVDIM>(
    {
       switch (id)
       {
-         case 0x134: return PhysGrad2D<L,1,3,4,8>(NE, B, G, J, X, Y);
-         case 0x146: return PhysGrad2D<L,1,4,6,4>(NE, B, G, J, X, Y);
-         case 0x158: return PhysGrad2D<L,1,5,8,2>(NE, B, G, J, X, Y);
+         case 0x133: return PhysGrad2D<L,1,3,3,8>(NE,B,G,J,X,Y);
+         case 0x134: return PhysGrad2D<L,1,3,4,8>(NE,B,G,J,X,Y);
+         case 0x143: return PhysGrad2D<L,1,4,3,4>(NE,B,G,J,X,Y);
+         case 0x144: return PhysGrad2D<L,1,4,4,4>(NE,B,G,J,X,Y);
+         case 0x146: return PhysGrad2D<L,1,4,6,4>(NE,B,G,J,X,Y);
+         case 0x158: return PhysGrad2D<L,1,5,8,2>(NE,B,G,J,X,Y);
 
-         case 0x233: return PhysGrad2D<L,2,3,3,8>(NE, B, G, J, X, Y);
-         case 0x234: return PhysGrad2D<L,2,3,4,8>(NE, B, G, J, X, Y);
-         case 0x246: return PhysGrad2D<L,2,4,6,4>(NE, B, G, J, X, Y);
-         case 0x258: return PhysGrad2D<L,2,5,8,2>(NE, B, G, J, X, Y);
+         case 0x233: return PhysGrad2D<L,2,3,3,8>(NE,B,G,J,X,Y);
+         case 0x234: return PhysGrad2D<L,2,3,4,8>(NE,B,G,J,X,Y);
+         case 0x243: return PhysGrad2D<L,2,4,3,4>(NE,B,G,J,X,Y);
+         case 0x244: return PhysGrad2D<L,2,4,4,4>(NE,B,G,J,X,Y);
+         case 0x246: return PhysGrad2D<L,2,4,6,4>(NE,B,G,J,X,Y);
+         case 0x258: return PhysGrad2D<L,2,5,8,2>(NE,B,G,J,X,Y);
          default:
          {
             constexpr int MD = MAX_D1D;
             constexpr int MQ = MAX_Q1D;
-            dbg("Using standard kernel #id 0x%x", id);
             MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
                         << " are not supported!");
             MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than " << MQ
@@ -81,18 +79,21 @@ void QuadratureInterpolator::PhysDerivatives<QVectorLayout::byVDIM>(
    {
       switch (id)
       {
-         case 0x134: return PhysGrad3D<L,1,3,4>(NE, B, G, J, X, Y);
-         case 0x146: return PhysGrad3D<L,1,4,6>(NE, B, G, J, X, Y);
-         case 0x158: return PhysGrad3D<L,1,5,8>(NE, B, G, J, X, Y);
+         case 0x133: return PhysGrad3D<L,1,3,3>(NE,B,G,J,X,Y);
+         case 0x134: return PhysGrad3D<L,1,3,4>(NE,B,G,J,X,Y);
+         case 0x144: return PhysGrad3D<L,1,4,4>(NE,B,G,J,X,Y);
+         case 0x146: return PhysGrad3D<L,1,4,6>(NE,B,G,J,X,Y);
+         case 0x158: return PhysGrad3D<L,1,5,8>(NE,B,G,J,X,Y);
 
-         case 0x334: return PhysGrad3D<L,3,3,4>(NE, B, G, J, X, Y);
-         case 0x346: return PhysGrad3D<L,3,4,6>(NE, B, G, J, X, Y);
-         case 0x358: return PhysGrad3D<L,3,5,8>(NE, B, G, J, X, Y);
+         case 0x333: return PhysGrad3D<L,3,3,3>(NE,B,G,J,X,Y);
+         case 0x334: return PhysGrad3D<L,3,3,4>(NE,B,G,J,X,Y);
+         case 0x344: return PhysGrad3D<L,3,4,4>(NE,B,G,J,X,Y);
+         case 0x346: return PhysGrad3D<L,3,4,6>(NE,B,G,J,X,Y);
+         case 0x358: return PhysGrad3D<L,3,5,8>(NE,B,G,J,X,Y);
          default:
          {
             constexpr int MD = 8;
             constexpr int MQ = 8;
-            dbg("Using standard kernel #id 0x%x", id);
             MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
                         << " are not supported!");
             MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than " << MQ
