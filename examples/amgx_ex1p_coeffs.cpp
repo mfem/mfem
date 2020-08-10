@@ -245,7 +245,8 @@ int main(int argc, char *argv[])
       }
    }
    else
-   {l
+   {
+      l
       prec = new HypreBoomerAMG;
    }
 #endif
@@ -260,24 +261,21 @@ int main(int argc, char *argv[])
       amgx_str = amgx_cfg;
       AmgXSolver amgx;
 
-      auto start1 = std::chrono::steady_clock::now();
-      amgx.initialize(MPI_COMM_WORLD, "dDDI", amgx_str);
+     amgx.initialize(MPI_COMM_WORLD, "dDDI", amgx_str);
 
       amgx.setA(A);
 
 
-      for (int i = 0; i < nsolves; i++){
-        X = 0.0; //set to zero
-        amgx.solve(X, B);
-        amgx.updateA(A0);
-        X = 0.0;
-        amgx.solve(X0 ,B0);
+      for (int i = 0; i < nsolves; i++)
+      {
+         X = 0.0; //set to zero
+         amgx.solve(X, B);
+         amgx.updateA(A0);
+         X = 0.0;
+         amgx.solve(X0 ,B0);
       }
 
 
-      auto end1 = std::chrono::steady_clock::now();
-      std::chrono::duration<double> elapsed_seconds1 = end1-start1;
-      std::cout << "Solve Time "<< elapsed_seconds1.count() << "\n";
 #endif
    }
    else
@@ -289,15 +287,11 @@ int main(int argc, char *argv[])
       pcg->SetTol(1e-12);
       pcg->SetMaxIter(200);
       pcg->SetPrintLevel(2);
-      auto start1 = std::chrono::steady_clock::now();
-      for(int i = 0; i < nsolves; i++){
-        X = 0.0; //set to zero
-        pcg->Mult(B, X);
+     for (int i = 0; i < nsolves; i++)
+      {
+         X = 0.0; //set to zero
+         pcg->Mult(B, X);
       }
-      auto end1 = std::chrono::steady_clock::now();
-      std::chrono::duration<double> elapsed_seconds1 = end1-start1;
-      std::cout << "Solve Time "<< elapsed_seconds1.count() << "\n";
-
       delete pcg;
    }
 
