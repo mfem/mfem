@@ -238,58 +238,58 @@ int main(int argc, char *argv[])
    //     system is preconditioned with hypre's BoomerAMG. In the partial
    //     assembly case, use Jacobi preconditioning.
    if (amgx)
-    {
+   {
 
-      #ifdef MFEM_USE_AMGX
-           std::string amgx_str;
-           amgx_str = amgx_cfg;
-           AmgXSolver amgx;
+#ifdef MFEM_USE_AMGX
+      std::string amgx_str;
+      amgx_str = amgx_cfg;
+      AmgXSolver amgx;
 
-           amgx.initialize(MPI_COMM_WORLD, "dDDI", amgx_str, ndevices);
+      amgx.initialize(MPI_COMM_WORLD, "dDDI", amgx_str, ndevices);
 
-           amgx.setA(*A.As<HypreParMatrix>());
+      amgx.setA(*A.As<HypreParMatrix>());
 
-           for(int i = 0; i < nsolves; i++)
-           {
-             X = 0.0; //set to zero
-             amgx.solve(X, B);
-           }
-      #endif
-     }
-     else
-     {
-       auto start4 = std::chrono::steady_clock::now();
-       Solver *prec = NULL;
-       CGSolver *pcg = new CGSolver(MPI_COMM_WORLD);
-       pcg->SetOperator(*A);
-       pcg->SetRelTol(1e-12);
-       pcg->SetMaxIter(2000);
-       pcg->SetPrintLevel(1);
-       if (hybridization) { prec = new HypreBoomerAMG(*A.As<HypreParMatrix>()); }
-       else if (pa) { prec = new OperatorJacobiSmoother(*a, ess_tdof_list); }
-       else
-       {
+      for (int i = 0; i < nsolves; i++)
+      {
+         X = 0.0; //set to zero
+         amgx.solve(X, B);
+      }
+#endif
+   }
+   else
+   {
+      auto start4 = std::chrono::steady_clock::now();
+      Solver *prec = NULL;
+      CGSolver *pcg = new CGSolver(MPI_COMM_WORLD);
+      pcg->SetOperator(*A);
+      pcg->SetRelTol(1e-12);
+      pcg->SetMaxIter(2000);
+      pcg->SetPrintLevel(1);
+      if (hybridization) { prec = new HypreBoomerAMG(*A.As<HypreParMatrix>()); }
+      else if (pa) { prec = new OperatorJacobiSmoother(*a, ess_tdof_list); }
+      else
+      {
          ParFiniteElementSpace *prec_fespace =
-         (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
+            (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
          if (dim == 2)   { prec = new HypreAMS(*A.As<HypreParMatrix>(), prec_fespace); }
          else            { prec = new HypreADS(*A.As<HypreParMatrix>(), prec_fespace); }
-       }
-       pcg->SetPreconditioner(*prec);
-       auto end4 = std::chrono::steady_clock::now();
-       std::chrono::duration<double> elapsed_seconds4 = end4-start4;
-       std::cout << "Set up: " << elapsed_seconds4.count() << "s\n";
-       auto start5 = std::chrono::steady_clock::now();
-       for(int i = 0; i < nsolves; i++)
-       {
+      }
+      pcg->SetPreconditioner(*prec);
+      auto end4 = std::chrono::steady_clock::now();
+      std::chrono::duration<double> elapsed_seconds4 = end4-start4;
+      std::cout << "Set up: " << elapsed_seconds4.count() << "s\n";
+      auto start5 = std::chrono::steady_clock::now();
+      for (int i = 0; i < nsolves; i++)
+      {
          X = 0.0;
          pcg->Mult(B, X);
-       }
-       auto end5 = std::chrono::steady_clock::now();
-       std::chrono::duration<double> elapsed_seconds5 = end5-start5;
-       std::cout << "Solve: " << elapsed_seconds5.count() << "s\n";
-       delete pcg;
-       delete prec;
-     }
+      }
+      auto end5 = std::chrono::steady_clock::now();
+      std::chrono::duration<double> elapsed_seconds5 = end5-start5;
+      std::cout << "Solve: " << elapsed_seconds5.count() << "s\n";
+      delete pcg;
+      delete prec;
+   }
 
    // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
