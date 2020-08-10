@@ -89,21 +89,21 @@ void discrete_aspr_3d(const Vector &x, Vector &v)
    v[2] = l3/pow(l2*l1,0.5);
 }
 
-class HessianCoefficient : public MatrixCoefficient
+class HessianCoefficient : public TMOPMatrixCoefficient
 {
 private:
    int metric;
 
 public:
    HessianCoefficient(int dim, int metric_id)
-      : MatrixCoefficient(dim), metric(metric_id) { }
+      : TMOPMatrixCoefficient(dim), metric(metric_id) { }
 
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip)
    {
       Vector pos(3);
       T.Transform(ip, pos);
-      if (metric != 14 && metric != 87)
+      if (metric != 14 && metric != 85)
       {
          const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
          const double r = sqrt(xc*xc + yc*yc);
@@ -131,7 +131,7 @@ public:
 
          K *= alpha_bar;
       }
-      else if (metric == 87) // Shape + Alignment
+      else if (metric == 85) // Shape + Alignment
       {
          Vector x = pos;
          double xc = x(0)-0.5, yc = x(1)-0.5;
@@ -162,6 +162,35 @@ public:
          K(1, 0) *=  1/pow(asp_ratio_tar,0.5);
          K(0, 1) *=  pow(asp_ratio_tar,0.5);
          K(1, 1) *=  pow(asp_ratio_tar,0.5);
+      }
+   }
+
+   virtual void EvalGrad(DenseMatrix &K, ElementTransformation &T,
+                         const IntegrationPoint &ip, int comp)
+   {
+      Vector pos(3);
+      T.Transform(ip, pos);
+      K = 0.;
+      if (metric != 14 && metric != 85)
+      {
+         const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
+         const double r = sqrt(xc*xc + yc*yc);
+         double r1 = 0.15; double r2 = 0.35; double sf=30.0;
+
+         const double tan1 = std::tanh(sf*(r-r1)),
+                      tan2 = std::tanh(sf*(r-r2));
+         double tan1d = 0., tan2d = 0.;
+         if (r > 0.001)
+         {
+            tan1d = (1.-tan1*tan1)*(sf)/r,
+            tan2d = (1.-tan2*tan2)*(sf)/r;
+         }
+
+         K(0, 1) = 0.0;
+         K(1, 0) = 0.0;
+         K(1, 1) = 1.0;
+         if (comp == 0) { K(0, 0) = tan1d*xc - tan2d*xc; }
+         else if (comp == 1) { K(0, 0) = tan1d*yc - tan2d*yc; }
       }
    }
 };
