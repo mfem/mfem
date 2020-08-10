@@ -76,6 +76,7 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 2;
    int par_ref_levels = 2;
    int ndevices = 4;
+   int nsolves = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -102,7 +103,8 @@ int main(int argc, char *argv[])
                   "--no-amgx","Use AMGX");
    args.AddOption(&ser_ref_levels, "-nr","--nr","Number of Serial Refinements");
    args.AddOption(&par_ref_levels, "-np","--np","Number of Parallel Refinements");
-   args.AddOption(&ndevices, "-nd","--nd","Number of Solves");
+   args.AddOption(&ndevices, "-nd","--nd","Number of Devices");
+   args.AddOption(&nsolves, "-nsolves","--nsolves","Number of Solves");
    args.Parse();
    if (!args.Good())
    {
@@ -242,15 +244,21 @@ int main(int argc, char *argv[])
            std::string amgx_str;
            amgx_str = amgx_cfg;
            AmgXSolver amgx;
-           amgx.initialize(MPI_COMM_WORLD, "dDDI", amgx_str, ndevices);
-           amgx.setA(*A.As<HypreParMatrix>());
-           X = 0.0; //set to zero
-           amgx.solve(X, B);
 
+           amgx.initialize(MPI_COMM_WORLD, "dDDI", amgx_str, ndevices);
+
+           amgx.setA(*A.As<HypreParMatrix>());
+
+           for(int i = 0; i < nsolves; i++)
+           {
+             X = 0.0; //set to zero
+             amgx.solve(X, B);
+           }
       #endif
      }
      else
      {
+       auto start4 = std::chrono::steady_clock::now();
        Solver *prec = NULL;
        CGSolver *pcg = new CGSolver(MPI_COMM_WORLD);
        pcg->SetOperator(*A);
@@ -267,8 +275,18 @@ int main(int argc, char *argv[])
          else            { prec = new HypreADS(*A.As<HypreParMatrix>(), prec_fespace); }
        }
        pcg->SetPreconditioner(*prec);
-       pcg->Mult(B, X);
-
+       auto end4 = std::chrono::steady_clock::now();
+       std::chrono::duration<double> elapsed_seconds4 = end4-start4;
+       std::cout << "Set up: " << elapsed_seconds4.count() << "s\n";
+       auto start5 = std::chrono::steady_clock::now();
+       for(int i = 0; i < nsolves; i++)
+       {
+         X = 0.0;
+         pcg->Mult(B, X);
+       }
+       auto end5 = std::chrono::steady_clock::now();
+       std::chrono::duration<double> elapsed_seconds5 = end5-start5;
+       std::cout << "Solve: " << elapsed_seconds5.count() << "s\n";
        delete pcg;
        delete prec;
      }

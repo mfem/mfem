@@ -1,4 +1,4 @@
- //                       MFEM Example 16 - Parallel Version
+//                       MFEM Example 16 - Parallel Version
 //
 // Compile with: make ex16p
 //
@@ -79,7 +79,7 @@ protected:
 public:
 
    ConductionOperator(ParFiniteElementSpace &f, double alpha, double kappa,
-                                         const Vector &u, const std::string &amgx_cfg, int &nDevs);
+                      const Vector &u, const std::string &amgx_cfg, int &nDevs);
 
    virtual void Mult( const Vector &u, Vector &du_dt) const;
    /** Solve the Backward-Euler equation: k = f(u + dt*k, t), for the unknown k.
@@ -154,10 +154,10 @@ int main(int argc, char *argv[])
    args.AddOption(&adios2, "-adios2", "--adios2-streams", "-no-adios2",
                   "--no-adios2-streams",
                   "Save data using adios2 streams.");
-  args.AddOption(&amgx_cfg, "-c","--c","AMGX solver file");
-  args.AddOption(&amgx, "-amgx","--amgx","-no-amgx",
-                                 "--no-amgx","Use AMGX");
-  args.AddOption(&nDevs, "-nd","--nd","Number of GPU devices on a node.");
+   args.AddOption(&amgx_cfg, "-c","--c","AMGX solver file");
+   args.AddOption(&amgx, "-amgx","--amgx","-no-amgx",
+                  "--no-amgx","Use AMGX");
+   args.AddOption(&nDevs, "-nd","--nd","Number of GPU devices on a node.");
    args.Parse();
    if (!args.Good())
    {

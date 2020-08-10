@@ -244,7 +244,8 @@ int main(int argc, char *argv[])
       }
    }
    else
-   {l
+   {
+      l
       prec = new HypreBoomerAMG;
    }
 #endif
@@ -262,9 +263,10 @@ int main(int argc, char *argv[])
 
       amgx.setA(A);
 
-      for (int i = 0; i < nsolves; i++){
-        X = 0.0; //set to zero
-        amgx.solve(X, B);
+      for (int i = 0; i < nsolves; i++)
+      {
+         X = 0.0; //set to zero
+         amgx.solve(X, B);
       }
 #endif
    }
@@ -278,9 +280,10 @@ int main(int argc, char *argv[])
       pcg->SetMaxIter(200);
       pcg->SetPrintLevel(2);
 
-      for(int i = 0; i < nsolves; i++){
-        X = 0.0; //set to zero
-        pcg->Mult(B, X);
+      for (int i = 0; i < nsolves; i++)
+      {
+         X = 0.0; //set to zero
+         pcg->Mult(B, X);
       }
       delete pcg;
    }
