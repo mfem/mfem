@@ -254,7 +254,9 @@ public:
 
 
 /**
-   Need this for 'Set' insead of 'Add' in the ConformingProlongation operator
+   This acts very much like PAMixedBilinearFormExtension, but its
+   FormRectangularSystemOperator implementation emulates 'Set' rather than
+   'Add' in the assembly case.
 */
 class PADiscreteLinearOperatorExtension : public PAMixedBilinearFormExtension
 {
@@ -264,13 +266,10 @@ public:
    /// Partial assembly of all internal integrators
    void Assemble();
 
-   /// not really AddMult() TODO  (?)
    void AddMult(const Vector &x, Vector &y, const double c) const;
 
    void AddMultTranspose(const Vector &x, Vector &y, const double c=1.0) const;
 
-   /// Note that this implementation does not use the essential dof arrays, they
-   /// are just unnecessary
    void FormRectangularSystemOperator(const Array<int>&, const Array<int>&,
                                       OperatorHandle& A);
 

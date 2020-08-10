@@ -1802,8 +1802,9 @@ void PAHcurlH1Apply3D(const int D1D,
    }); // end of element loop
 }
 
-// Apply to x corresponding to DOF's in H^1 (trial) the (topological) gradient
-// to get a dof in H(curl) (test, kinda, but there's no integration)
+// Apply to x corresponding to DOFs in H^1 (domain) the (topological) gradient
+// to get a dof in H(curl) (range). You can think of the range as the "test" space
+// and the domain as the "trial" space, but there's no integration.
 static void PAHcurlApplyGradient2D(const int c_dofs1D,
                                    const int o_dofs1D,
                                    const int NE,
@@ -1879,9 +1880,6 @@ static void PAHcurlApplyGradient2D(const int c_dofs1D,
 
 }
 
-// see eg. TensorNedelec.cpp:TensorGradMultTranspose()
-// maps from Nedelec space to H1 space
-// dx ~ j1, ey ~ i2 kinda?
 static void PAHcurlApplyGradientTranspose2D(
    const int c_dofs1D, const int o_dofs1D, const int NE,
    const Array<double> &_B, const Array<double> &_G,
@@ -2146,7 +2144,6 @@ static void PAHcurlApplyGradient3D(const int c_dofs1D,
    });
 }
 
-/// WIP
 static void PAHcurlApplyGradientTranspose3D(
    const int c_dofs1D, const int o_dofs1D, const int NE,
    const Array<double> &_B, const Array<double> &_G,
