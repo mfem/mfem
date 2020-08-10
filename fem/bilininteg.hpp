@@ -2860,6 +2860,10 @@ public:
    { nd_fe.ProjectGrad(h1_fe, Trans, elmat); }
 
    using BilinearFormIntegrator::AssemblePA;
+   /**
+      trial_fes should be H1 Lagrange
+      test_fes should be Nedelec
+   */
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
 
