@@ -13,6 +13,8 @@
 #define MFEM_DTENSOR
 
 #include "../general/backends.hpp"
+#include "vector.hpp"
+#include "../general/array.hpp"
 
 namespace mfem
 {
@@ -114,14 +116,28 @@ public:
 
    /// Const accessor for the data
    template <typename... Args> MFEM_HOST_DEVICE inline
-   Scalar& operator()(Args... args) const
+   const Scalar& operator()(Args... args) const
+   {
+      static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
+      return data[ TensorInd<1, Dim, Args...>::result(sizes, args...) ];
+   }
+
+   /// Accessor for the data
+   template <typename... Args> MFEM_HOST_DEVICE inline
+   Scalar& operator()(Args... args)
    {
       static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
       return data[ TensorInd<1, Dim, Args...>::result(sizes, args...) ];
    }
 
    /// Subscript operator where the tensor is viewed as a 1D array.
-   MFEM_HOST_DEVICE inline Scalar& operator[](int i) const
+   MFEM_HOST_DEVICE inline const Scalar& operator[](int i) const
+   {
+      return data[i];
+   }
+
+   /// Subscript operator where the tensor is viewed as a 1D array.
+   MFEM_HOST_DEVICE inline Scalar& operator[](int i)
    {
       return data[i];
    }
@@ -136,6 +152,33 @@ inline DeviceTensor<sizeof...(Dims),T> Reshape(T *ptr, Dims... dims)
    return DeviceTensor<sizeof...(Dims),T>(ptr, dims...);
 }
 
+/** Vector interface */
+template <typename... Dims>
+inline DeviceTensor<sizeof...(Dims),double> Reshape(Vector &v, Dims... dims)
+{
+   return Reshape(v.ReadWrite(), dims...);
+}
+
+template <typename... Dims>
+inline const DeviceTensor<sizeof...(Dims),const double> Reshape(const Vector &v,
+                                                                Dims... dims)
+{
+   return Reshape(v.Read(), dims...);
+}
+
+/** Array interface */
+template <typename T, typename... Dims>
+inline DeviceTensor<sizeof...(Dims),T> Reshape(Array<T> &v, Dims... dims)
+{
+   return Reshape(v.ReadWrite(), dims...);
+}
+
+template <typename T, typename... Dims>
+inline const DeviceTensor<sizeof...(Dims),const T> Reshape(const Array<T> &v,
+                                                           Dims... dims)
+{
+   return Reshape(v.Read(), dims...);
+}
 
 typedef DeviceTensor<1,int> DeviceArray;
 typedef DeviceTensor<1,double> DeviceVector;

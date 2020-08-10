@@ -55,8 +55,8 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const double constant = coeff;
       const int NE = ne;
       const int NQ = nq;
-      auto w = ir->GetWeights().Read();
-      auto J = Reshape(geom->J.Read(), NQ,2,2,NE);
+      const auto w = ir->GetWeights().Read();
+      const auto J = Reshape(geom->J.Read(), NQ,2,2,NE);
       auto v = Reshape(pa_data.Write(), NQ, NE);
       MFEM_FORALL(e, NE,
       {
@@ -76,8 +76,8 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const double constant = coeff;
       const int NE = ne;
       const int NQ = nq;
-      auto W = ir->GetWeights().Read();
-      auto J = Reshape(geom->J.Read(), NQ,3,3,NE);
+      const auto W = ir->GetWeights().Read();
+      const auto J = Reshape(geom->J.Read(), NQ,3,3,NE);
       auto v = Reshape(pa_data.Write(), NQ,NE);
       MFEM_FORALL(e, NE,
       {
@@ -111,11 +111,11 @@ static void PAVectorMassApply2D(const int NE,
    constexpr int VDIM = 2;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(_B.Read(), Q1D, D1D);
-   auto Bt = Reshape(_Bt.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, NE);
-   auto x = Reshape(_x.Read(), D1D, D1D, VDIM, NE);
-   auto y = Reshape(_y.ReadWrite(), D1D, D1D, VDIM, NE);
+   const auto B = Reshape(_B, Q1D, D1D);
+   const auto Bt = Reshape(_Bt, D1D, Q1D);
+   const auto op = Reshape(_op, Q1D, Q1D, NE);
+   const auto x = Reshape(_x, D1D, D1D, VDIM, NE);
+   auto y = Reshape(_y, D1D, D1D, VDIM, NE);
    MFEM_FORALL(e, NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
@@ -208,11 +208,11 @@ static void PAVectorMassApply3D(const int NE,
    constexpr int VDIM = 3;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(_B.Read(), Q1D, D1D);
-   auto Bt = Reshape(_Bt.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, NE);
-   auto x = Reshape(_x.Read(), D1D, D1D, D1D, VDIM, NE);
-   auto y = Reshape(_y.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
+   const auto B = Reshape(_B, Q1D, D1D);
+   const auto Bt = Reshape(_Bt, D1D, Q1D);
+   const auto op = Reshape(_op, Q1D, Q1D, Q1D, NE);
+   const auto x = Reshape(_x, D1D, D1D, D1D, VDIM, NE);
+   auto y = Reshape(_y, D1D, D1D, D1D, VDIM, NE);
    MFEM_FORALL(e, NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -378,9 +378,9 @@ static void PAVectorMassAssembleDiagonal2D(const int NE,
    constexpr int VDIM = 2;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(_B.Read(), Q1D, D1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, NE);
-   auto y = Reshape(_diag.ReadWrite(), D1D, D1D, VDIM, NE);
+   const auto B = Reshape(_B, Q1D, D1D);
+   const auto op = Reshape(_op, Q1D, Q1D, NE);
+   auto y = Reshape(_diag, D1D, D1D, VDIM, NE);
    MFEM_FORALL(e, NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -430,9 +430,9 @@ static void PAVectorMassAssembleDiagonal3D(const int NE,
    constexpr int VDIM = 3;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(_B.Read(), Q1D, D1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, NE);
-   auto y = Reshape(_diag.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
+   const auto B = Reshape(_B, Q1D, D1D);
+   const auto op = Reshape(_op, Q1D, Q1D, Q1D, NE);
+   auto y = Reshape(_diag, D1D, D1D, D1D, VDIM, NE);
    MFEM_FORALL(e, NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
