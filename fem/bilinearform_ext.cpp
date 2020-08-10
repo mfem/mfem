@@ -1052,7 +1052,6 @@ void PADiscreteLinearOperatorExtension::Assemble()
    }
 }
 
-/// TODO is this really AddMult? I think it's more like Mult...
 void PADiscreteLinearOperatorExtension::AddMult(
    const Vector &x, Vector &y, const double c) const
 {
@@ -1069,8 +1068,8 @@ void PADiscreteLinearOperatorExtension::AddMult(
       integrators[i]->AddMultPA(localTrial, localTest);
    }
 
-   /// need to do a kind of "set" rather than "add" in the below
-   /// operation as compared to the BilinearForm case
+   // do a kind of "set" rather than "add" in the below
+   // operation as compared to the BilinearForm case
    // * G^T operation (kind of...)
    const ElementRestriction* elem_restrict =
       dynamic_cast<const ElementRestriction*>(elem_restrict_test);
@@ -1086,15 +1085,15 @@ void PADiscreteLinearOperatorExtension::AddMult(
    }
 }
 
-/// TODO is this AddMultTranspose?
 void PADiscreteLinearOperatorExtension::AddMultTranspose(
    const Vector &x, Vector &y, const double c) const
 {
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int iSz = integrators.Size();
 
+   // do a kind of "set" rather than "add" in the below
+   // operation as compared to the BilinearForm case
    // * G operation (kinda)
-   /// TODO: should this scaling live in a elem_restrict method?
    Vector xscaled(x);
    for (int i = 0; i < x.Size(); ++i)
    {
@@ -1121,13 +1120,10 @@ void PADiscreteLinearOperatorExtension::AddMultTranspose(
 void PADiscreteLinearOperatorExtension::FormRectangularSystemOperator(
    const Array<int>& ess1, const Array<int>& ess2, OperatorHandle &A)
 {
-   // below copied from Operator::FormRectangularConstrainedSystemOperator()
    const Operator *Pi = this->GetProlongation();
    const Operator *Po = this->GetLocalOutputProlongation();
    Operator *rap = SetupRAP(Pi, Po);
 
-   // TODO the next bit is unnecessary (no essential dofs) but deletion is not
-   // clean without it
    RectangularConstrainedOperator *Arco
       = new RectangularConstrainedOperator(rap, ess1, ess2, rap != this);
 

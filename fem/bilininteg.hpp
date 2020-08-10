@@ -2867,12 +2867,9 @@ public:
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
 private:
-   // PA extension
-   // Vector pa_data;
-   Vector orientations;
-
+   /// 1D finit element that generates and owns the 1D DofToQuad maps below
    FiniteElement * fake_fe;
-   // TODO: document ownership of maps below (almost certainly not owned)
+
    const DofToQuad *maps_C_C; // one-d map with Lobatto rows, Lobatto columns
    const DofToQuad *maps_O_C; // one-d map with Legendre rows, Lobatto columns
    const GeometricFactors *geom;   ///< Not owned
