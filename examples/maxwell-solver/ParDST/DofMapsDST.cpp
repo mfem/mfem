@@ -82,49 +82,55 @@ void DofMaps::Setup()
       fes[i] = nullptr; // initialize with null on all procs
       if (myid == subdomain_rank[i])
       {
-         Mesh * mesh = part->subdomain_mesh[i];
-         fes[i] = new FiniteElementSpace(mesh,fec);
+         fes[i] = new FiniteElementSpace(part->subdomain_mesh[i],fec);
       }
    }
    // cout << "Computing Overlap Tdofs" << endl;
    ComputeOvlpTdofs();
-   // PrintOvlpTdofs();
+   // // PrintOvlpTdofs();
 
 
-   Vector X, Y;
-   FunctionCoefficient c1(testcoeff);
+   // Vector X, Y;
+   // FunctionCoefficient c1(testcoeff);
    
-   Y = 0.0;
-   GridFunction gf(fes[myid]);
-   gf.ProjectCoefficient(c1);
-   // X.SetSize(fes[0]->GetTrueVSize());
-   // X = 1.0;
-   X.SetDataAndSize(gf.GetData(),gf.Size());
-   // X.Randomize();
-   for (int i0=0; i0<1; i0++)
+   // Y = 0.0;
+   // GridFunction gf(fes[myid]);
+   // gf.ProjectCoefficient(c1);
+   // // X.SetSize(fes[0]->GetTrueVSize());
+   // // X = 1.0;
+   // X.SetDataAndSize(gf.GetData(),gf.Size());
+   // // X.Randomize();
+   cout << "nrsubdomains = " << nrsubdomains << endl;
+   int nrsub = nrsubdomains;
+   Array<int> subdomain_ids(nrsub);
+   for (int i = 0; i<nrsub; i++)
    {
-      TransferToNeighbors(i0,X,Y);
-      ostringstream oss;
-      oss << "Rank Id = " << myid ;
-      string keys = "keys amrRljc\n";
-      GridFunction gf0(fes[myid]);
-      if (myid == i0) 
-      {
-         gf0.SetVector(X,0);
-      }
-      else
-      {
-         gf0.SetVector(Y,0);
-      }
-      
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      sol_sock << "solution\n" << *(part->subdomain_mesh[myid]) << gf0 
-      << keys
-      << "window_title '" << oss.str() << "'" << flush;
+      subdomain_ids[i] = i;
    }
+   // MPI_Barrier(comm); // leave this here for now
+   TransferToNeighbors(subdomain_ids);
+   //    cout << "Y = "; Y.Print();
+   //    ostringstream oss;
+   //    oss << "Rank Id = " << myid ;
+   //    string keys = "keys amrRljc\n";
+   //    GridFunction gf0(fes[myid]);
+   //    if (myid == i0) 
+   //    {
+   //       gf0.SetVector(X,0);
+   //    }
+   //    else
+   //    {
+   //       gf0.SetVector(Y,0);
+   //    }
+      
+   //    char vishost[] = "localhost";
+   //    int  visport   = 19916;
+   //    socketstream sol_sock(vishost, visport);
+   //    sol_sock.precision(8);
+   //    sol_sock << "solution\n" << *(part->subdomain_mesh[myid]) << gf0 
+   //    << keys
+   //    << "window_title '" << oss.str() << "'" << flush;
+   // }
 }
 
 void DofMaps::AddElementToOvlpLists(int l, int iel, 
@@ -215,9 +221,11 @@ void DofMaps::ComputeOvlpTdofs()
    ComputeOvlpElems();
 
    OvlpTDofs.resize(nrsubdomains);
+   OvlpSol.resize(nrsubdomains);
    int nrneighbors = pow(3,dim); // including its self
 
    // loop through subdomains
+   cout << "nrsubdomains = " << nrsubdomains << endl;
    for (int l = 0; l<nrsubdomains; l++)
    {
       if (myid == subdomain_rank[l])
@@ -225,6 +233,7 @@ void DofMaps::ComputeOvlpTdofs()
          int ntdofs = fes[l]->GetTrueVSize();
          Array<int> tdof_marker(ntdofs); 
          OvlpTDofs[l].resize(nrneighbors);
+         OvlpSol[l].resize(nrneighbors);
          // loop through neighboring directions/neighbors
          for (int d=0; d<nrneighbors; d++)
          {
@@ -331,79 +340,84 @@ void DofMaps::TransferToNeighbor(int i0, const Array<int> & direction0,
 }
 
 
-void DofMaps::TransferToNeighbors(int i0, const Vector & x0, Vector & x1)
+void DofMaps::TransferToNeighbors(const Array<int> & SubdomainIds)
 {
    // 2D for now....
+
+   int nrsendIds = SubdomainIds.Size();
    int nrneighbors = pow(3,dim);
    // send First
    // loop through neighbors
-   MPI_Status status;
-   MPI_Request send_request;
-   MPI_Request recv_request;
-   // MPI_Request send_requests;
-   // MPI_Request recv_requests;
-   MPI_Request *recv_requests = new MPI_Request[nrneighbors];
-   MPI_Request *send_requests = new MPI_Request[nrneighbors];
-   MPI_Status  *recv_statuses = new MPI_Status[nrneighbors];
-   MPI_Status  *send_statuses = new MPI_Status[nrneighbors];
+   MPI_Request *recv_requests = new MPI_Request[nrsendIds*nrneighbors];
+   MPI_Request *send_requests = new MPI_Request[nrsendIds*nrneighbors];
+   MPI_Status  *recv_statuses = new MPI_Status[nrsendIds*nrneighbors];
+   MPI_Status  *send_statuses = new MPI_Status[nrsendIds*nrneighbors];
+   Array<Vector * > y0(nrsendIds*nrneighbors);
+   Array<Vector * > y1(nrsendIds*nrneighbors);
    int request_counter1 = 0;
    int request_counter2 = 0;
-   Array<int> ijk;
-   GetSubdomainijk(i0,nxyz,ijk);
-   for (int d=0;d<nrneighbors; d++)
+   for (int is = 0; is<nrsendIds; is++)
    {
-      Array<int>directions;
-      GetDirectionijk(d,directions);
-      if (directions[0] == 0 && directions[1] == 0) continue;
-      int i = ijk[0] + directions[0];
-      if (i<0 || i>=nxyz[0]) continue;
-      int j = ijk[1] + directions[1];
-      if (j<0 || j>=nxyz[1]) continue;
-      Array<int>ijk1(3);
-      ijk1[0] = i;
-      ijk1[1] = j;
-      ijk1[2] = 0;
-      int i1 = GetSubdomainId(nxyz,ijk1);
-      if (myid == subdomain_rank[i0])
+      int i0 = SubdomainIds[is];
+      Array<int> ijk;
+      GetSubdomainijk(i0,nxyz,ijk);
+      for (int d=0;d<nrneighbors; d++)
       {
-         cout << "myid = " << myid << endl;
-         Array<int> tdofs0 = OvlpTDofs[i0][d]; // map of dofs in the overlap
-         Vector y0(tdofs0.Size());
-         x0.GetSubVector(tdofs0, y0);
+         Array<int>directions;
+         GetDirectionijk(d,directions);
+         if (directions[0] == 0 && directions[1] == 0) continue;
+         int i = ijk[0] + directions[0];
+         if (i<0 || i>=nxyz[0]) continue;
+         int j = ijk[1] + directions[1];
+         if (j<0 || j>=nxyz[1]) continue;
+         Array<int>ijk1(3);
+         ijk1[0] = i;
+         ijk1[1] = j;
+         ijk1[2] = 0;
+         int i1 = GetSubdomainId(nxyz,ijk1);
+         if (myid == subdomain_rank[i0])
+         {
+            Array<int> tdofs0 = OvlpTDofs[i0][d]; // map of dofs in the overlap
+            y0[request_counter1] = new Vector(tdofs0.Size());
+            // Vector y0(tdofs0.Size());
+            // x0.GetSubVector(tdofs0, *y0[request_counter1]);
+            *y0[request_counter1] = 0.0;
 
-         // Destination rank
-         int dest = subdomain_rank[i1];
-         cout << "dest = " << dest << endl;
-         int tag = i0;
-         int count = tdofs0.Size();
-         // MPI_Isend(y0.GetData(),count,MPI_DOUBLE,dest,tag,comm,&send_request);
-         MPI_Isend(y0.GetData(),count,MPI_DOUBLE,dest,tag,comm,&send_requests[request_counter1++]);
-         // MPI_Send(y0.GetData(),count,MPI_DOUBLE,dest,tag,comm);
-         // MPI_Wait(&send_request,&status);
-      }
-      if (myid == subdomain_rank[i1])
-      {
-         Array<int> direction1(3); direction1 = -1;
-         for (int d=0;d<dim;d++) 
-         { 
-            direction1[d] = -directions[d];
+            // Destination rank
+            int dest = subdomain_rank[i1];
+            cout << "sending from (id,sub) = (" << myid << "," << i0 << ") to: " 
+                 << "(" << dest << ","<< i1 << ")" << endl;
+            int tag = i0;
+            int count = tdofs0.Size();
+            // // MPI_Isend(y0.GetData(),count,MPI_DOUBLE,dest,tag,comm,&send_request);
+            MPI_Isend(y0[request_counter1]->GetData(),count,MPI_DOUBLE,dest,tag,comm,&send_requests[request_counter1]);
+            request_counter1++;
+            // MPI_Send(y0.GetData(),count,MPI_DOUBLE,dest,tag,comm);
+            // MPI_Wait(&send_request,&status);
          }
-         int d1 = GetDirectionId(direction1);
+         if (myid == subdomain_rank[i1])
+         {
+            Array<int> direction1(3); direction1 = -1;
+            for (int d=0;d<dim;d++) 
+            { 
+               direction1[d] = -directions[d];
+            }
+            int d1 = GetDirectionId(direction1);
 
-         Array<int> tdofs1 = OvlpTDofs[i1][d1]; // map of dofs in the overlap
-         Vector y1(tdofs1.Size());
-         int count = tdofs1.Size();
-         int src = subdomain_rank[i0];
-         int tag = i0; 
-         MPI_Irecv(y1.GetData(),count,MPI_DOUBLE,src,tag,comm,&recv_request);
-         // MPI_Irecv(y1.GetData(),count,MPI_DOUBLE,src,tag,comm,&recv_requests[request_counter2++]);
-         MPI_Wait(&recv_request,&status);
-         x1.SetSize(fes[i1]->GetTrueVSize()); x1 = 0.0;
-         x1.SetSubVector(tdofs1,y1);
-      }
-   }   
+            int count = OvlpTDofs[i1][d1].Size();
+            y1[request_counter2] = new Vector(count);
+            int src = subdomain_rank[i0];
+            int tag = i0; 
+            // MPI_Irecv(y1.GetData(),count,MPI_DOUBLE,src,tag,comm,&recv_request);
+            MPI_Irecv(y1[request_counter2]->GetData(),
+                     count,MPI_DOUBLE,src,tag,comm,
+                     &recv_requests[request_counter2]);
+            request_counter2++;
+         }
+      }   
+   }
    MPI_Waitall(request_counter1, send_requests, send_statuses);
-   // MPI_Waitall(request_counter2, recv_requests, recv_statuses);
+   MPI_Waitall(request_counter2, recv_requests, recv_statuses);
 
    // delete [] statuses;
    // delete [] requests;

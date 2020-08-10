@@ -62,13 +62,14 @@ private:
    void ComputeOvlpElems();
 
    std::vector<std::vector<Array<int>>> OvlpTDofs;
+   std::vector<std::vector<Vector>> OvlpSol;
    void ComputeOvlpTdofs();
    void PrintOvlpTdofs();
 
    // Transfering OvlpTdofs form subdomain i to the given direction
    void TransferToNeighbor(int i, const Array<int> & direction, 
                            const Vector & x, Vector & y);
-   void TransferToNeighbors(int i, const Vector & x, Vector & y);
+   void TransferToNeighbors(const Array<int> & SubdomainIds);
 
 
 
