@@ -169,6 +169,9 @@ Miscellaneous
 
 - Various other simplifications, extensions, and bugfixes in the code.
 
+- Construct abstract parallel rectangular truedof-to-truedof operators via
+  Operator::FormDiscreteOperator().
+
 API changes
 -----------
 - In multiple places, use Geometry::Type instead of int, where appropriate.

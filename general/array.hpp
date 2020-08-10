@@ -254,6 +254,8 @@ public:
    // STL-like begin/end
    inline T* begin() { return data; }
    inline T* end() { return data + size; }
+   inline const T* begin() const { return data; }
+   inline const T* end() const { return data + size; }
 
    long MemoryUsage() const { return Capacity() * sizeof(T); }
 

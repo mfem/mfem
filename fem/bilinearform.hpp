@@ -613,13 +613,13 @@ public:
        MixedBilinearForm becomes an operator on the conforming FE spaces. */
    void ConformingAssemble();
 
-   void EliminateTrialDofs(Array<int> &bdr_attr_is_ess,
+   void EliminateTrialDofs(const Array<int> &bdr_attr_is_ess,
                            const Vector &sol, Vector &rhs);
 
-   void EliminateEssentialBCFromTrialDofs(Array<int> &marked_vdofs,
+   void EliminateEssentialBCFromTrialDofs(const Array<int> &marked_vdofs,
                                           const Vector &sol, Vector &rhs);
 
-   virtual void EliminateTestDofs(Array<int> &bdr_attr_is_ess);
+   virtual void EliminateTestDofs(const Array<int> &bdr_attr_is_ess);
 
    void Update();
 

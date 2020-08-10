@@ -31,6 +31,12 @@ std::string MakeParFilename(const std::string &prefix, const int myid,
    return fname.str();
 }
 
+#ifdef MFEM_COUNT_FLOPS
+namespace internal
+{
+long long flop_count;
+}
+#endif
 
 #ifdef MFEM_USE_MPI
 

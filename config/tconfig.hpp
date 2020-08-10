@@ -43,15 +43,14 @@
 #define MFEM_ALIGN_SIZE(size,type) \
    MFEM_ROUNDUP(size,(MFEM_SIMD_SIZE)/sizeof(type))
 
+#ifdef MFEM_COUNT_FLOPS
 namespace mfem
 {
 namespace internal
 {
-long long flop_count;
+extern long long flop_count;
 }
 }
-
-#ifdef MFEM_COUNT_FLOPS
 #define MFEM_FLOPS_RESET() (mfem::internal::flop_count = 0)
 #define MFEM_FLOPS_ADD(cnt) (mfem::internal::flop_count += (cnt))
 #define MFEM_FLOPS_GET() (mfem::internal::flop_count)
