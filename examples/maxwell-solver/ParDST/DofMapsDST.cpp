@@ -387,7 +387,8 @@ void DofMaps::TransferToNeighbors(const Array<int> & SubdomainIds)
             int dest = subdomain_rank[i1];
             cout << "sending from (id,sub) = (" << myid << "," << i0 << ") to: " 
                  << "(" << dest << ","<< i1 << ")" << endl;
-            int tag = i0;
+            // int tag = i0; // this has to be unique (sender: combine subdomain and direction id)
+            int tag = i0 * nrneighbors + d;
             int count = tdofs0.Size();
             // // MPI_Isend(y0.GetData(),count,MPI_DOUBLE,dest,tag,comm,&send_request);
             MPI_Isend(y0[request_counter1]->GetData(),count,MPI_DOUBLE,dest,tag,comm,&send_requests[request_counter1]);
@@ -407,7 +408,8 @@ void DofMaps::TransferToNeighbors(const Array<int> & SubdomainIds)
             int count = OvlpTDofs[i1][d1].Size();
             y1[request_counter2] = new Vector(count);
             int src = subdomain_rank[i0];
-            int tag = i0; 
+            // int tag = i0; 
+            int tag = i0 * nrneighbors + d;
             // MPI_Irecv(y1.GetData(),count,MPI_DOUBLE,src,tag,comm,&recv_request);
             MPI_Irecv(y1[request_counter2]->GetData(),
                      count,MPI_DOUBLE,src,tag,comm,
@@ -419,8 +421,10 @@ void DofMaps::TransferToNeighbors(const Array<int> & SubdomainIds)
    MPI_Waitall(request_counter1, send_requests, send_statuses);
    MPI_Waitall(request_counter2, recv_requests, recv_statuses);
 
-   // delete [] statuses;
-   // delete [] requests;
+   delete [] send_statuses;
+   delete [] send_requests;
+   delete [] recv_statuses;
+   delete [] recv_requests;
 }
 
 

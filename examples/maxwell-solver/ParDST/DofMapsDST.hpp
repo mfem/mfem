@@ -70,6 +70,10 @@ private:
    void TransferToNeighbor(int i, const Array<int> & direction, 
                            const Vector & x, Vector & y);
    void TransferToNeighbors(const Array<int> & SubdomainIds);
+   int GetUniqueTag(int ip0, int d)
+   {
+      
+   }
 
 
 
