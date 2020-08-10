@@ -34,9 +34,6 @@
 
 #include "sparsemat.hpp"
 #include "hypre_parcsr.hpp"
-#ifdef MFEM_USE_SUNDIALS
-#include <nvector/nvector_parhyp.h>
-#endif
 
 namespace mfem
 {
@@ -163,13 +160,9 @@ public:
    ~HypreParVector();
 
 #ifdef MFEM_USE_SUNDIALS
-   /// Return a new wrapper SUNDIALS N_Vector of type SUNDIALS_NVEC_PARHYP.
+   /// Return a new wrapper SUNDIALS N_Vector of type SUNDIALS_NVEC_PARALLEL.
    /** The returned N_Vector must be destroyed by the caller. */
-   virtual N_Vector ToNVector() { return N_VMake_ParHyp(x); }
-
-   /** @brief Update an existing wrapper SUNDIALS N_Vector of type
-       SUNDIALS_NVEC_PARHYP to point to this Vector. */
-   virtual void ToNVector(N_Vector &nv);
+   virtual N_Vector ToNVector();
 #endif
 };
 
@@ -577,7 +570,7 @@ HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
     each process remain on that process in the resulting matrix. Some blocks can
     be NULL. Each block and the entire system can be rectangular. Scalability to
     extremely large processor counts is limited by global MPI communication, see
-    GatherBlockOffsetData in hypre.cpp. */
+    GatherBlockOffsetData() in hypre.cpp. */
 HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
                                           Array2D<double> *blockCoeff=NULL);
 
