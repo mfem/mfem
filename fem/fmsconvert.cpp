@@ -768,8 +768,10 @@ GridFunctionToFmsField(FmsDataCollection dc, FmsFieldDescriptor fd, FmsField f, 
   FmsFieldDescriptorGetNumDofs(fd, &ndofs);
   std::cout << "FD num dofs " << ndofs << std::endl;
 
+  FmsLayoutType layout = (fespace->GetOrdering() == mfem::Ordering::byVDIM) ? FMS_BY_VDIM : FMS_BY_NODES;
+
   FmsInt vdim = static_cast<FmsInt>(gf->VectorDim());
-  FmsFieldSet(f, fd, vdim, FMS_BY_VDIM, FMS_DOUBLE, c);
+  FmsFieldSet(f, fd, vdim, layout, FMS_DOUBLE, c);
 
 
   return 0;
