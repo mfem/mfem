@@ -51,13 +51,12 @@ set(SRCS
   nonlininteg_vectorconvection.cpp
   quadinterpolator.cpp
   quadinterpolator_det.cpp
-  quadinterpolator_eval_nds.cpp
-  quadinterpolator_eval_vdm.cpp
-  quadinterpolator_grad_nds.cpp
-  quadinterpolator_grad_vdm.cpp
-  quadinterpolator_grdp_nds.cpp
-  quadinterpolator_grdp_vdm.cpp
-  quadinterpolator_mult.cpp
+  quadinterpolator_eval_by_nodes.cpp
+  quadinterpolator_eval_by_vdim.cpp
+  quadinterpolator_grad_by_nodes.cpp
+  quadinterpolator_grad_by_vdim.cpp
+  quadinterpolator_grad_phys_by_nodes.cpp
+  quadinterpolator_grad_phys_by_vdim.cpp
   quadinterpolator_face.cpp
   restriction.cpp
   staticcond.cpp
@@ -118,7 +117,7 @@ set(HDRS
   quadinterpolator_eval.hpp
   quadinterpolator_face.hpp
   quadinterpolator_grad.hpp
-  quadinterpolator_grdp.hpp
+  quadinterpolator_grad_phys.hpp
   restriction.hpp
   fespacehierarchy.hpp
   staticcond.hpp

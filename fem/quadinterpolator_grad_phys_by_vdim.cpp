@@ -10,19 +10,13 @@
 // CONTRIBUTING.md for details.
 
 #include "quadinterpolator.hpp"
-#include "quadinterpolator_grdp.hpp"
-#include "../general/forall.hpp"
-#include "../linalg/dtensor.hpp"
-#include "../linalg/kernels.hpp"
-
-#define MFEM_DEBUG_COLOR 226
-#include "../general/debug.hpp"
+#include "quadinterpolator_grad_phys.hpp"
 
 namespace mfem
 {
 
 template<>
-void QuadratureInterpolator::PhysDerivatives<QVectorLayout::byNODES>(
+void QuadratureInterpolator::PhysDerivatives<QVectorLayout::byVDIM>(
    const Vector &e_vec, Vector &q_der) const
 {
    const int NE = fespace->GetNE();
@@ -47,7 +41,7 @@ void QuadratureInterpolator::PhysDerivatives<QVectorLayout::byNODES>(
    const double *X = e_vec.Read();
    double *Y = q_der.Write();
 
-   constexpr QVectorLayout L = QVectorLayout::byNODES;
+   constexpr QVectorLayout L = QVectorLayout::byVDIM;
 
    const int id = (vdim<<8) | (D1D<<4) | Q1D;
 
@@ -67,7 +61,6 @@ void QuadratureInterpolator::PhysDerivatives<QVectorLayout::byNODES>(
          {
             constexpr int MD = MAX_D1D;
             constexpr int MQ = MAX_Q1D;
-            dbg("Using standard kernel #id 0x%x", id);
             MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
                         << " are not supported!");
             MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than " << MQ
@@ -92,7 +85,6 @@ void QuadratureInterpolator::PhysDerivatives<QVectorLayout::byNODES>(
          {
             constexpr int MD = 8;
             constexpr int MQ = 8;
-            dbg("Using standard kernel #id 0x%x", id);
             MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
                         << " are not supported!");
             MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than " << MQ

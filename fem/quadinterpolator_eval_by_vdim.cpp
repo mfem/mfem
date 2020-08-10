@@ -15,9 +15,6 @@
 #include "../linalg/dtensor.hpp"
 #include "../linalg/kernels.hpp"
 
-#define MFEM_DEBUG_COLOR 226
-#include "../general/debug.hpp"
-
 namespace mfem
 {
 
@@ -66,7 +63,6 @@ void QuadratureInterpolator::Values<QVectorLayout::byVDIM>(
       {
          constexpr int MD1 = 8;
          constexpr int MQ1 = 8;
-         dbg("Using standard kernel #id 0x%x", id);
          MFEM_VERIFY(D1D <= MD1, "Orders higher than " << MD1-1
                      << " are not supported!");
          MFEM_VERIFY(Q1D <= MQ1, "Quadrature rules with more than "
