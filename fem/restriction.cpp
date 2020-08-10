@@ -207,19 +207,15 @@ void ElementRestriction::MultLeftInverse(const Vector& x, Vector& y) const
    auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
    MFEM_FORALL(i, ndofs,
    {
-      // const int offset = d_offsets[i];
       const int nextOffset = d_offsets[i + 1];
       for (int c = 0; c < vd; ++c)
       {
          double dofValue = 0;
-         // for (int j = offset; j < nextOffset; ++j)
-         {
-            const int j = nextOffset - 1;
-            const int idx_j = (d_indices[j] >= 0) ? d_indices[j] : -1 - d_indices[j];
-            dofValue =
-            (d_indices[j] >= 0) ?
-            d_x(idx_j % nd, c, idx_j / nd) : -d_x(idx_j % nd, c, idx_j / nd);
-         }
+         const int j = nextOffset - 1;
+         const int idx_j = (d_indices[j] >= 0) ? d_indices[j] : -1 - d_indices[j];
+         dofValue =
+         (d_indices[j] >= 0) ?
+         d_x(idx_j % nd, c, idx_j / nd) : -d_x(idx_j % nd, c, idx_j / nd);
          d_y(t?c:i,t?i:c) = dofValue;
       }
    });
