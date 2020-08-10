@@ -273,7 +273,8 @@ int main(int argc, char *argv[])
                     case 1: y0=0.3; break;
                     case 2: y0=0.2; break;
                     case 3: y0=0.18; x0=.08; break;
-                    case 4: y0=0.15; x0=.04; break;
+                    case 4: y0=0.16; x0=.05; break;
+                    case 5: y0=0.15; x0=.04; break;
                     default:
                         if (myid == 0) cout << "Unknown level: " << lev << '\n';
                         delete mesh;
