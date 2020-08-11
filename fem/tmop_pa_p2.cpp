@@ -47,6 +47,16 @@ void EvalP_007(const double *Jpt, double *P)
                 -ie.Get_I1() / (I2*I2), ie.Get_dI2(), P);
 }
 
+static MFEM_HOST_DEVICE inline
+void EvalP_077(const double *Jpt, double *P)
+{
+   double dI2[4], dI2b[4];
+   kernels::InvariantsEvaluator2D ie(Args().
+                                     J(Jpt).
+                                     dI2(dI2).dI2b(dI2b));
+   const double I2 = ie.Get_I2();
+   kernels::Set(2,2, 0.5 * (1.0 - 1.0 / (I2 * I2)), ie.Get_dI2(), P);
+}
 
 MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_2D,
                            const double metric_normal,
@@ -61,6 +71,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_2D,
                            const int d1d,
                            const int q1d)
 {
+   MFEM_VERIFY(mid == 1 || mid == 2 || mid == 7 || mid == 77,
+               "Metric not yet implemented!");
+
    constexpr int DIM = 2;
    constexpr int NBZ = 1;
 
@@ -115,9 +128,10 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_2D,
 
             // metric->EvalP(Jpt, P);
             double P[4];
-            if (mid == 1) { EvalP_001(Jpt, P); }
-            if (mid == 2) { EvalP_002(Jpt, P); }
-            if (mid == 7) { EvalP_007(Jpt, P); }
+            if (mid ==  1) { EvalP_001(Jpt, P); }
+            if (mid ==  2) { EvalP_002(Jpt, P); }
+            if (mid ==  7) { EvalP_007(Jpt, P); }
+            if (mid == 77) { EvalP_077(Jpt, P); }
             for (int i = 0; i < 4; i++) { P[i] *= weight; }
 
             // PMatO +=  DS . P^t += DSh . (Jrt . P^t)

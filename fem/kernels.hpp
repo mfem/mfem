@@ -211,12 +211,12 @@ MFEM_HOST_DEVICE inline void EvalY(const int D1D, const int Q1D,
 template<int MQ1, int NBZ>
 MFEM_HOST_DEVICE inline void PullEval(const int qx, const int qy,
                                       const double sQQ[NBZ][MQ1*MQ1],
-                                      double *P)
+                                      double &P)
 {
    const int tidz = MFEM_THREAD_ID(z);
    ConstDeviceMatrix QQ(sQQ[tidz], MQ1, MQ1);
 
-   P[0] = QQ(qx,qy);
+   P = QQ(qx,qy);
 }
 
 /// Load 2D input vector into shared memory
@@ -304,23 +304,11 @@ MFEM_HOST_DEVICE inline void EvalY(const int D1D, const int Q1D,
    MFEM_SYNC_THREAD;
 }
 
-/// Pull 2D Scalar Evaluation
-template<int MQ1, int NBZ>
-MFEM_HOST_DEVICE inline void PullEval(const int qx, const int qy,
-                                      const double sQQ[NBZ][MQ1*MQ1],
-                                      double &P)
-{
-   const int tidz = MFEM_THREAD_ID(z);
-   ConstDeviceMatrix QQ0(sQQ[tidz], MQ1, MQ1);
-
-   P = QQ0(qx,qy);
-}
-
 /// Pull 2D Evaluation
 template<int MQ1, int NBZ>
 MFEM_HOST_DEVICE inline void PullEval(const int qx, const int qy,
                                       const double sQQ[2][NBZ][MQ1*MQ1],
-                                      double *P)
+                                      double P[2])
 {
    const int tidz = MFEM_THREAD_ID(z);
    ConstDeviceMatrix QQ0(sQQ[0][tidz], MQ1, MQ1);
