@@ -193,8 +193,8 @@ TEST_CASE("QuadratureInterpolator", "[QuadratureInterpolator]")
 {
    constexpr const int D = 3;
    constexpr const int n = 5;
-   constexpr const int P = 7;
-   constexpr const int Q = 8;
+   constexpr const int P = 5;
+   constexpr const int Q = 6;
    const auto QLayouts = { QVectorLayout::byNODES, QVectorLayout::byVDIM };
 
    for (int d = 2; d <= D; d+=1) // dimension

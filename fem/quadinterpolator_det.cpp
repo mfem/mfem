@@ -66,14 +66,14 @@ static void Det2D(const int NE,
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             double J[4];
-            kernels::PullGradXY<MQ1,NBZ>(qx,qy,QQ,J);
+            kernels::PullGrad<MQ1,NBZ>(qx,qy,QQ,J);
             Y(qx,qy,e) = kernels::Det<2>(J);
          }
       }
    });
 }
 
-template<int T_D1D, int T_Q1D, int MAX_D1D = 0, int MAX_Q1D = 0>
+template<int T_D1D = 0, int T_Q1D = 0, int MAX_D1D = 0, int MAX_Q1D = 0>
 static void Det3D(const int NE,
                   const double *b,
                   const double *g,
@@ -98,12 +98,16 @@ static void Det3D(const int NE,
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MDQ = MQ1 > MD1 ? MQ1 : MD1;
 
       MFEM_SHARED double BG[2][MQ1*MD1];
-      MFEM_SHARED double DDD[3][MD1*MD1*MD1];
-      MFEM_SHARED double DDQ[6][MD1*MD1*MQ1];
-      MFEM_SHARED double DQQ[9][MD1*MQ1*MQ1];
-      MFEM_SHARED double QQQ[9][MQ1*MQ1*MQ1];
+      MFEM_SHARED double sm0[9][MDQ*MDQ*MDQ];
+      MFEM_SHARED double sm1[9][MDQ*MDQ*MDQ];
+
+      double (*DDD)[MD1*MD1*MD1] = (double (*)[MD1*MD1*MD1]) (sm0);
+      double (*DDQ)[MD1*MD1*MQ1] = (double (*)[MD1*MD1*MQ1]) (sm1);
+      double (*DQQ)[MD1*MQ1*MQ1] = (double (*)[MD1*MQ1*MQ1]) (sm0);
+      double (*QQQ)[MQ1*MQ1*MQ1] = (double (*)[MQ1*MQ1*MQ1]) (sm1);
 
       kernels::LoadX<MD1>(e,D1D,X,DDD);
       kernels::LoadBG<MD1,MQ1>(D1D,Q1D,B,G,BG);
@@ -119,7 +123,7 @@ static void Det3D(const int NE,
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
                double J[9];
-               kernels::PullGradXYZ<MQ1>(qx,qy,qz, QQQ, J);
+               kernels::PullGrad<MQ1>(qx,qy,qz, QQQ, J);
                Y(qx,qy,qz,e) = kernels::Det<3>(J);
             }
          }
@@ -166,20 +170,27 @@ void QuadratureInterpolator::Determinants(const Vector &e_vec,
          case 0x3335: return Det3D<3,5>(NE,B,G,X,Y);
          case 0x3336: return Det3D<3,6>(NE,B,G,X,Y);
          //case 0x3348: return Det3D<4,8>(NE,B,G,X,Y);
+
          default:
          {
-            constexpr int MD1 = 8;
-            constexpr int MQ1 = 8;
-            MFEM_VERIFY(D1D <= MD1, "Orders higher than " << MD1-1
-                        << " are not supported!");
-            MFEM_VERIFY(Q1D <= MQ1, "Quadrature rules with more than "
-                        << MQ1 << " 1D points are not supported!");
             if (dim == 2)
             {
+               constexpr int MD1 = 8;
+               constexpr int MQ1 = 8;
+               MFEM_VERIFY(D1D <= MD1, "Orders higher than " << MD1-1
+                           << " are not supported!");
+               MFEM_VERIFY(Q1D <= MQ1, "Quadrature rules with more than "
+                           << MQ1 << " 1D points are not supported!");
                return Det2D<0,0,MD1,MQ1>(NE,B,G,X,Y,vdim,D1D,Q1D);
             }
             if (dim == 3)
             {
+               constexpr int MD1 = 6;
+               constexpr int MQ1 = 6;
+               MFEM_VERIFY(D1D <= MD1, "Orders higher than " << MD1-1
+                           << " are not supported!");
+               MFEM_VERIFY(Q1D <= MQ1, "Quadrature rules with more than "
+                           << MQ1 << " 1D points are not supported!");
                return Det3D<0,0,MD1,MQ1>(NE,B,G,X,Y,vdim,D1D,Q1D);
             }
          }
