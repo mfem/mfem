@@ -244,16 +244,29 @@ int main(int argc, char *argv[])
       std::string amgx_str;
       amgx_str = amgx_cfg;
       AmgXSolver amgx;
-
+      auto start = std::chrono::steady_clock::now();
       amgx.initialize(MPI_COMM_WORLD, "dDDI", amgx_str, ndevices);
+      auto end = std::chrono::steady_clock::now();
+      std::chrono::duration<double> elapsed_seconds = end-start;
+      std::cout << "Initialize: " << elapsed_seconds.count() << "s\n";
 
+      auto start2 = std::chrono::steady_clock::now();
       amgx.setA(*A.As<HypreParMatrix>());
+      auto end2 = std::chrono::steady_clock::now();
+      std::chrono::duration<double> elapsed_seconds2 = end2-start2;
+      std::cout << "Setup: " << elapsed_seconds2.count() << "s\n";
 
+      auto start3 = std::chrono::steady_clock::now();
       for (int i = 0; i < nsolves; i++)
       {
          X = 0.0; //set to zero
          amgx.solve(X, B);
+
       }
+      cudaDeviceSynchronize();
+      auto end3 = std::chrono::steady_clock::now();
+      std::chrono::duration<double> elapsed_seconds3 = end3-start3;
+      std::cout << "Solve: " << elapsed_seconds3.count() << "s\n";
 #endif
    }
    else
