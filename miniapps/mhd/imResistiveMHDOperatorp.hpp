@@ -8,15 +8,15 @@ using namespace std;
 using namespace mfem;
 
 //------------this is for explicit solver only------------
-int ex_supg=2;    //1: test supg with v term only (it assumes viscosity==resistivity now)
+int ex_supg=2;  //1: test supg with v term only (it assumes viscosity==resistivity now)
                 //2: test hyperdiffusion along B only 
                 //3: test a general hyperdiffusion 
                 
 //------------this is for implicit solver only------------
 bool usesupg=true;  //add supg in both psi and omega
-int im_supg=4;
-int i_supgpre=0;
-bool usefd=true;    //add field-line diffusion for psi in implicit solvers
+int im_supg=1;
+int i_supgpre=3;    //3 - full supg terms on both psi and phi
+bool usefd=false;   //add field-line diffusion for psi in implicit solvers
 
 int iUpdateJ=1; //control how J is computed (whether or not Dirichelt boundary condition
                 //is forced at physical boundary, preconditioner prefers enforcing boundary)
@@ -42,7 +42,7 @@ private:
    //own by this:
    HypreParMatrix *Mdtpr, *ARe, *ASl, *MinvKB;
    mutable HypreParMatrix *ScFull, *AReFull, *NbFull, *PwMat, Mmatlp, *NbMat;
-   mutable HypreParMatrix *tmp1, *tmp2, *tmp3;
+   mutable HypreParMatrix *tmp1, *tmp2;
    bool initialMdt;
    HypreParVector *E0Vec;
    mutable ParLinearForm *StabE0; //source terms
@@ -511,12 +511,14 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
       if (use_factory)
       {
          SNES snes=SNES(*pnewton_solver);
+
+         /*
          KSP ksp; 
 		 SNESGetKSP(snes,&ksp);
-
-		 //KSPSetType(ksp,KSPFGMRES);
-         //SNESKSPSetUseEW(snes,PETSC_TRUE);
-         //SNESKSPSetParametersEW(snes,2,1e-4,0.1,0.9,1.5,1.5,0.1);
+		 KSPSetType(ksp,KSPFGMRES);
+         SNESKSPSetUseEW(snes,PETSC_TRUE);
+         SNESKSPSetParametersEW(snes,2,1e-4,0.1,0.9,1.5,1.5,0.1);
+         */
 
          if (useFull>0)
             J_factory = new FullPreconditionerFactory(*reduced_oper, "JFNK Full preconditioner");
@@ -660,8 +662,6 @@ void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr)
       if (use_factory)
       {
          SNES snes=SNES(*pnewton_solver);
-         KSP ksp; 
-		 SNESGetKSP(snes,&ksp);
 
          delete J_factory;
          if (useFull>0)
@@ -1224,7 +1224,7 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
     DSlmatpr = DSlmat_;
 
     AReFull=NULL; ScFull=NULL; NbFull=NULL; PwMat=NULL; NbMat=NULL; MinvKB=NULL;
-    tmp1=NULL; tmp2=NULL; tmp3=NULL;
+    tmp1=NULL; tmp2=NULL;
 
     MassIntegrator *mass = new MassIntegrator;
     Mlp = new ParBilinearForm(&fespace);
@@ -1269,7 +1269,6 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
        delete PwMat;
        delete tmp1;
        delete tmp2;
-       delete tmp3;
 
        Vector &k_ = const_cast<Vector &>(k);
 
@@ -1627,7 +1626,6 @@ ReducedSystemOperator::~ReducedSystemOperator()
    delete NbMat;
    delete tmp1;
    delete tmp2;
-   delete tmp3;
    delete Jacobian;
    delete Nv;
    delete Nb;
