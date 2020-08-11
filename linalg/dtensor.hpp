@@ -1734,6 +1734,64 @@ Tensor<dTensor<VDIM>,Q1d>&& Grad(const dTensor<Q1d,P1d> &B,
 }
 
 // Determinant
+double Determinant(const dTensor<3,3> &J)
+{
+   return J(0,0)*J(1,1)*J(2,2)-J(0,2)*J(1,1)*J(2,0)
+         +J(0,1)*J(1,2)*J(2,0)-J(0,1)*J(1,0)*J(2,2)
+         +J(0,2)*J(1,0)*J(2,1)-J(0,0)*J(1,2)*J(2,1);
+}
+
+double Determinant(const dTensor<2,2> &J)
+{
+   return J(0,0)*J(1,1)-J(0,1)*J(1,0);
+}
+
+double Determinant(const dTensor<1,1> &J)
+{
+   return J(0,0);
+}
+
+template<int Q,int Dim> MFEM_HOST_DEVICE inline
+dTensor<Q>&& Determinant(const Tensor<dTensor<Dim,Dim>,Q> &J)
+{
+   dTensor<Q> det;
+   MFEM_FOREACH_THREAD(q,x,Q)
+   {
+      det(q) = Determinant(J(q));
+   }
+   return det;
+}
+
+template<int Q1d> MFEM_HOST_DEVICE inline
+dTensor<Q1d,Q1d,Q1d>&& Determinant(const Tensor<dTensor<3,3>,Q1d,Q1d,Q1d> &J)
+{
+   dTensor<Q1d,Q1d,Q1d> det;
+   for (int qz = 0; qz < Q1d; qz++)
+   {
+      MFEM_FOREACH_THREAD(qy,y,Q1d)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1d)
+         {
+            det(qx,qy,qz) = Determinant(J(qx,qy,qz));
+         }
+      }
+   }
+   return det;
+}
+
+template<int Q1d> MFEM_HOST_DEVICE inline
+dTensor<Q1d,Q1d>&& Determinant(const Tensor<dTensor<2,2>,Q1d,Q1d> &J)
+{
+   dTensor<Q1d,Q1d> det;
+   MFEM_FOREACH_THREAD(qy,y,Q1d)
+   {
+      MFEM_FOREACH_THREAD(qx,x,Q1d)
+      {
+         det(qx,qy) = Determinant(J(qx,qy));
+      }
+   }
+   return det;
+}
 
 } // mfem namespace
 
