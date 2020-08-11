@@ -367,6 +367,7 @@ public:
    /// Set the element that will be used to compute the transformations
    void SetFE(const FiniteElement *FE)
    {
+      MFEM_ASSERT(FE != NULL, "Must provide a valid FiniteElement object!");
       EvalState = (FE != FElem) ? 0 : EvalState;
       FElem = FE; geom = FE->GetGeomType();
    }
