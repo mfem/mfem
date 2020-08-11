@@ -360,10 +360,14 @@ private:
    // Evaluate the Hessian of the transformation at the IntPoint and store it
    // in d2Fdx2.
    virtual const DenseMatrix &EvalHessian();
+
 public:
+   IsoparametricTransformation() : FElem(NULL) {}
+
    /// Set the element that will be used to compute the transformations
    void SetFE(const FiniteElement *FE)
    {
+      MFEM_ASSERT(FE != NULL, "Must provide a valid FiniteElement object!");
       EvalState = (FE != FElem) ? 0 : EvalState;
       FElem = FE; geom = FE->GetGeomType();
    }
