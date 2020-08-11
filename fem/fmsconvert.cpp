@@ -14,6 +14,9 @@
 #include <climits>
 using std::cout;
 using std::endl;
+
+#define DEBUG_MFEM_FMS 1
+
 namespace mfem
 {
 
@@ -1108,10 +1111,12 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
   const int num_faces = mmesh->GetNFaces();
   const int num_elements = mmesh->GetNE();
 
+#ifdef DEBUG_MFEM_FMS
   std::cout << "nverts: " << num_verticies << std::endl;
   std::cout << "nedges: " << num_edges << std::endl;
   std::cout << "nfaces: " << num_faces << std::endl;
   std::cout << "nele: " << num_elements << std::endl;
+#endif
 
   FmsMesh fmesh = NULL;
   FmsMeshConstruct(&fmesh);
@@ -1137,6 +1142,9 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
     return 1;
   }
 
+  // TODO: This is almost correct, need to expose edge_verts and face_edges then add them to FMS at the end
+  //  This is because it's possible for there to be top level edges that need to be added to the mesh and setting "NumEntities" 
+  //  up here messes that up.
   // Build edges
   std::vector<int> edge_verts(edges->Size() * 2);
   for(int i = 0; i < edges->Size(); i++) {
@@ -1161,38 +1169,64 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
   if(faces) {
     // TODO: Support Triangles and Quads
     int rowsize = faces->RowSize(0);
-    std::vector<int> fs(faces->Size() * rowsize);
+    std::vector<int> face_edges(faces->Size() * rowsize);
     for(int i = 0; i < faces->Size(); i++) {
       mfem::Array<int> eids;
       faces->GetRow(i, eids);
       for(int j = 0; j < rowsize; j++) {
-        fs[i*rowsize + j] = eids[j];
+        face_edges[i*rowsize + j] = eids[j];
       }
     }
     FmsEntityType ent_type = (rowsize == 3) ? FMS_TRIANGLE : FMS_QUADRILATERAL;
-    FmsDomainSetNumEntities(domains[0], ent_type, FMS_INT32, fs.size() / rowsize);
-    FmsDomainAddEntities(domains[0], ent_type, reorder, FMS_INT32, fs.data(), fs.size() / rowsize);
+    FmsDomainSetNumEntities(domains[0], ent_type, FMS_INT32, face_edges.size() / rowsize);
+    FmsDomainAddEntities(domains[0], ent_type, reorder, FMS_INT32, face_edges.data(), face_edges.size() / rowsize);
 #ifdef DEBUG_MFEM_FMS
     std::cout << "FACES: ";
-    for(int i = 0; i < fs.size(); i++) {
-      if(i % 4 == 0) std::cout << std::endl << "\t" << i/rowsize << ": ";
-      std::cout << "(" << edge_verts[fs[i]*2] << ", " << edge_verts[fs[i]*2+1] << ") ";
+    for(int i = 0; i < face_edges.size(); i++) {
+      if(i % rowsize == 0) std::cout << std::endl << "\t" << i/rowsize << ": ";
+      std::cout << "(" << edge_verts[face_edges[i]*2] << ", " << edge_verts[face_edges[i]*2+1] << ") ";
     }
     std::cout << std::endl;
 #endif
   }
 
   // Add top level elements
+  std::vector<int> tris;
   std::vector<int> quads;
+  std::vector<int> tets;
   std::vector<int> hexes;
   for(int i = 0; i < num_elements; i++) {
     auto etype = mmesh->GetElementType(i);
     switch(etype) {
+      case mfem::Element::POINT: {
+        // TODO: ?
+        break;
+      }
+      case mfem::Element::SEGMENT: {
+        // TODO: ?
+        break;
+      }
+      case mfem::Element::TRIANGLE: {
+        mfem::Array<int> eids, oris;
+        mmesh->GetElementEdges(i, eids, oris);
+        for(int e = 0; e < 3; e++) {
+          tris.push_back(eids[e]);
+        }
+        break;
+      }
       case mfem::Element::QUADRILATERAL: {
         mfem::Array<int> eids, oris;
         mmesh->GetElementEdges(i, eids, oris);
         for(int e = 0; e < 4; e++) {
           quads.push_back(eids[e]);
+        }
+        break;
+      }
+      case mfem::Element::TETRAHEDRON: {
+        mfem::Array<int> fids, oris;
+        mmesh->GetElementFaces(i, fids, oris);
+        for(int f = 0; f < 4; f++) {
+          tets.push_back(fids[f]);
         }
         break;
       }
@@ -1208,13 +1242,48 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
         mfem::out << "Error, element not implemented." << std::endl;
         return 3;
     }
+  }
 
+  // TODO: Test, might need a reorder
+  if(tris.size()) {
+    FmsDomainSetNumEntities(domains[0], FMS_TRIANGLE, FMS_INT32, tris.size() / 3);
+    FmsDomainAddEntities(domains[0], FMS_TRIANGLE, NULL, FMS_INT32, tris.data(), tris.size() / 3);
+#ifdef DEBUG_MFEM_FMS
+    std::cout << "TRIS: ";
+    for(int i = 0; i < tris.size(); i++) {
+      if(i % 3 == 0) std::cout << std::endl << "\t" << i/3 << ": ";
+      std::cout << tris[i] << " ";
+    }
+    std::cout << std::endl;
+#endif
   }
 
   if(quads.size()) {
     // TODO: Not quite right either, if there are hexes and quads then this will overwrite the faces that made up the hexes
     FmsDomainSetNumEntities(domains[0], FMS_QUADRILATERAL, FMS_INT32, quads.size() / 4);
     FmsDomainAddEntities(domains[0], FMS_QUADRILATERAL, NULL, FMS_INT32, quads.data(), quads.size() / 4);
+#ifdef DEBUG_MFEM_FMS
+    std::cout << "QUADS: ";
+    for(int i = 0; i < quads.size(); i++) {
+      if(i % 4 == 0) std::cout << std::endl << "\t" << i/4 << ": ";
+      std::cout << quads[i] << " ";
+    }
+    std::cout << std::endl;
+#endif
+  }
+
+  // TODO: Test, probably needs a reorder
+  if(tets.size()) {
+    FmsDomainSetNumEntities(domains[0], FMS_TETRAHEDRON, FMS_INT32, tets.size() / 4);
+    FmsDomainAddEntities(domains[0], FMS_TETRAHEDRON, reorder, FMS_INT32, tets.data(), tets.size() / 4);
+#ifdef DEBUG_MFEM_FMS
+    std::cout << "TETS: ";
+    for(int i = 0; i < tets.size(); i++) {
+      if(i % 4 == 0) std::cout << std::endl << "\t" << i/4 << ": ";
+      std::cout << tets[i] << " ";
+    }
+    std::cout << std::endl;
+#endif
   }
 
   if(hexes.size()) {
@@ -1229,8 +1298,6 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
     std::cout << std::endl;
 #endif
   }
-
-
 
   FmsComponent volume;
   FmsMeshAddComponent(fmesh, "volume", &volume);
