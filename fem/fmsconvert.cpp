@@ -1121,6 +1121,11 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
   FmsMeshAddDomains(fmesh, "Domain", 1, &domains);
   FmsDomainSetNumVertices(domains[0], num_verticies);
 
+  const int edge_reorder[2] = {1, 0};
+  const int quad_reorder[4] = {2,3,0,1};
+  const int hex_reorder[6] = {2, 4, 3, 1, 5, 0};
+  const int *reorder[8] = {NULL, edge_reorder, NULL, quad_reorder, NULL, hex_reorder, NULL, NULL};
+
   const mfem::Table *edges = mmesh->GetEdgeVertexTable();
   if(!edges) {
     mfem::out << "Error, mesh has no edges." << std::endl;
@@ -1141,60 +1146,90 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
       edge_verts[i*2 + j] = nids[j];
     }
   }
-
-  // Build faces
-  int rowsize = faces->RowSize(0);
-  std::vector<int> fs(faces->Size() * rowsize);
-  for(int i = 0; i < faces->Size(); i++) {
-    mfem::Array<int> eids;
-    faces->GetRow(i, eids);
-    for(int j = 0; j < rowsize; j++) {
-      fs[i*rowsize + j] = eids[j];
-    }
-  }
-
-  // Build cells
-  std::vector<int> hexes(num_elements * 6);
-  for(int i = 0; i < num_elements; i++) {
-    mfem::Array<int> fids, oris;
-    mmesh->GetElementFaces(i, fids, oris);
-    int reorder[6] = {0,1,2,3,4,5};
-    for(int j = 0; j < 6; j++) {
-      hexes[i*6 + j] = fids[j];
-    }
-  }
-
+  FmsDomainSetNumEntities(domains[0], FMS_EDGE, FMS_INT32, edge_verts.size() / 2);
+  FmsDomainAddEntities(domains[0], FMS_EDGE, reorder, FMS_INT32, edge_verts.data(), edge_verts.size() / 2);
+#ifdef DEBUG_MFEM_FMS
   std::cout << "EDGES: ";
   for(int i = 0; i < edge_verts.size(); i++) {
     if(i % 2 == 0) std::cout << std::endl << "\t" << i/2 << ": ";
     std::cout << edge_verts[i] << " ";
   }
   std::cout << std::endl;
+#endif
 
-  std::cout << "FACES: ";
-  for(int i = 0; i < fs.size(); i++) {
-    if(i % 4 == 0) std::cout << std::endl << "\t" << i/4 << ": ";
-    std::cout << "(" << edge_verts[fs[i]*2] << ", " << edge_verts[fs[i]*2+1] << ") ";
+  // Build faces
+  if(faces) {
+    // TODO: Support Triangles and Quads
+    int rowsize = faces->RowSize(0);
+    std::vector<int> fs(faces->Size() * rowsize);
+    for(int i = 0; i < faces->Size(); i++) {
+      mfem::Array<int> eids;
+      faces->GetRow(i, eids);
+      for(int j = 0; j < rowsize; j++) {
+        fs[i*rowsize + j] = eids[j];
+      }
+    }
+    FmsEntityType ent_type = (rowsize == 3) ? FMS_TRIANGLE : FMS_QUADRILATERAL;
+    FmsDomainSetNumEntities(domains[0], ent_type, FMS_INT32, fs.size() / rowsize);
+    FmsDomainAddEntities(domains[0], ent_type, reorder, FMS_INT32, fs.data(), fs.size() / rowsize);
+#ifdef DEBUG_MFEM_FMS
+    std::cout << "FACES: ";
+    for(int i = 0; i < fs.size(); i++) {
+      if(i % 4 == 0) std::cout << std::endl << "\t" << i/rowsize << ": ";
+      std::cout << "(" << edge_verts[fs[i]*2] << ", " << edge_verts[fs[i]*2+1] << ") ";
+    }
+    std::cout << std::endl;
+#endif
   }
-  std::cout << std::endl;
 
-  std::cout << "CELLS: ";
-  for(int i = 0; i < hexes.size(); i++) {
-    if(i % 6 == 0) std::cout << std::endl << "\t" << i/6 << ": ";
-    std::cout << hexes[i] << " ";
+  // Add top level elements
+  std::vector<int> quads;
+  std::vector<int> hexes;
+  for(int i = 0; i < num_elements; i++) {
+    auto etype = mmesh->GetElementType(i);
+    switch(etype) {
+      case mfem::Element::QUADRILATERAL: {
+        mfem::Array<int> eids, oris;
+        mmesh->GetElementEdges(i, eids, oris);
+        for(int e = 0; e < 4; e++) {
+          quads.push_back(eids[e]);
+        }
+        break;
+      }
+      case mfem::Element::HEXAHEDRON: {
+        mfem::Array<int> fids, oris;
+        mmesh->GetElementFaces(i, fids, oris);
+        for(int f = 0; f < 6; f++) {
+          hexes.push_back(fids[f]);
+        }
+        break;
+      }
+      default:
+        mfem::out << "Error, element not implemented." << std::endl;
+        return 3;
+    }
+
   }
-  std::cout << std::endl;
 
-  const int edge_reorder[2] = {1, 0};
-  const int quad_reorder[4] = {2,3,0,1};
-  const int hex_reorder[6] = {2, 4, 3, 1, 5, 0};
-  const int *reorder[8] = {NULL, edge_reorder, NULL, quad_reorder, NULL, hex_reorder, NULL, NULL};
-  FmsDomainSetNumEntities(domains[0], FMS_EDGE, FMS_INT32, edge_verts.size() / 2);
-  FmsDomainSetNumEntities(domains[0], FMS_QUADRILATERAL, FMS_INT32, fs.size() / 4);
-  FmsDomainSetNumEntities(domains[0], FMS_HEXAHEDRON, FMS_INT32, hexes.size() / 6);
-  FmsDomainAddEntities(domains[0], FMS_EDGE, reorder, FMS_INT32, edge_verts.data(), edge_verts.size() / 2);
-  FmsDomainAddEntities(domains[0], FMS_QUADRILATERAL, reorder, FMS_INT32, fs.data(), fs.size() / 4);
-  FmsDomainAddEntities(domains[0], FMS_HEXAHEDRON, reorder, FMS_INT32, hexes.data(), hexes.size() / 6);
+  if(quads.size()) {
+    // TODO: Not quite right either, if there are hexes and quads then this will overwrite the faces that made up the hexes
+    FmsDomainSetNumEntities(domains[0], FMS_QUADRILATERAL, FMS_INT32, quads.size() / 4);
+    FmsDomainAddEntities(domains[0], FMS_QUADRILATERAL, NULL, FMS_INT32, quads.data(), quads.size() / 4);
+  }
+
+  if(hexes.size()) {
+    FmsDomainSetNumEntities(domains[0], FMS_HEXAHEDRON, FMS_INT32, hexes.size() / 6);
+    FmsDomainAddEntities(domains[0], FMS_HEXAHEDRON, reorder, FMS_INT32, hexes.data(), hexes.size() / 6);
+#ifdef DEBUG_MFEM_FMS
+    std::cout << "HEXES: ";
+    for(int i = 0; i < hexes.size(); i++) {
+      if(i % 6 == 0) std::cout << std::endl << "\t" << i/6 << ": ";
+      std::cout << hexes[i] << " ";
+    }
+    std::cout << std::endl;
+#endif
+  }
+
 
 
   FmsComponent volume;
