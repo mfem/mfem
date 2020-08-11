@@ -100,12 +100,14 @@ struct CoarseFineTransformations
 class NCMesh
 {
 public:
-   /** Initialize with elements from 'mesh'. If an already nonconforming mesh
-       is being loaded, 'vertex_parents' must point to a stream at the appropriate
-       section of the mesh file which contains the vertex hierarchy. */
-   explicit NCMesh(const Mesh *mesh, std::istream *vertex_parents = NULL);
+   //// Initialize with elements from an existing 'mesh'.
+   explicit NCMesh(const Mesh *mesh);
 
-   NCMesh(const NCMesh &other); // deep copy
+   /// Load from a stream. The id header is assumed to have been read already.
+   NCMesh(std::istream &input, int version, int &curved);
+
+   /// Deep copy of another instance.
+   NCMesh(const NCMesh &other);
 
    virtual ~NCMesh();
 
@@ -336,21 +338,8 @@ public:
                                   Array<int> &fattr) const;
 
 
-   /// I/O: Print the "vertex_parents" section of the mesh file (ver. >= 1.1).
-   void PrintVertexParents(std::ostream &out) const;
-
-   /// I/O: Print the "coarse_elements" section of the mesh file (ver. >= 1.1).
-   void PrintCoarseElements(std::ostream &out) const;
-
-   /** I/O: Load the vertex parent hierarchy from a mesh file. NOTE: called
-       indirectly through the constructor. */
-   void LoadVertexParents(std::istream &input);
-
-   /// I/O: Load the element refinement hierarchy from a mesh file.
-   void LoadCoarseElements(std::istream &input);
-
-   /// I/O: Set positions of all vertices (used by mesh loader).
-   void SetVertexPositions(const Array<mfem::Vertex> &vertices);
+   /// I/O: Print the mesh in "MFEM nonconforming mesh v1.0" format.
+   void Print(std::ostream &out) const;
 
    /// Save memory by releasing all non-essential and cached data.
    virtual void Trim();
@@ -447,11 +436,12 @@ protected: // implementation
          int node[8];  ///< element corners (if ref_type == 0)
          int child[8]; ///< 2-8 children (if ref_type != 0)
       };
-      int parent; ///< parent element, -1 if this is a root element, -2 if free
+      int parent; ///< parent element, -1 if this is a root element, -2 if free'd
 
       Element(Geometry::Type geom, int attr);
 
       Geometry::Type Geom() const { return Geometry::Type(geom); }
+      bool IsLeaf() const { return !ref_type && (parent != -2); }
    };
 
    // primary data
@@ -467,14 +457,9 @@ protected: // implementation
        NOTE: the first M items of 'elements' is the coarse mesh. */
    Array<int> root_state;
 
-   /// coordinates of top-level vertices (organized as triples)
-   Array<double> top_vertex_pos;
-
-   typedef HashTable<Node>::iterator node_iterator;
-   typedef HashTable<Face>::iterator face_iterator;
-   typedef HashTable<Node>::const_iterator node_const_iterator;
-   typedef HashTable<Face>::const_iterator face_const_iterator;
-   typedef BlockArray<Element>::iterator elem_iterator;
+   /** Coordinates of top-level vertices (organized as triples). If empty,
+       the Mesh is curved (Nodes != NULL) and NCMesh is topology-only. */
+   Array<double> coordinates;
 
 
    // secondary data
@@ -550,6 +535,7 @@ protected: // implementation
    void FreeElement(int id)
    {
       free_element_ids.Append(id);
+      elements[id].ref_type = 0;
       elements[id].parent = -2; // mark the element as free
    }
 
@@ -824,9 +810,39 @@ protected: // implementation
    void CountSplits(int elem, int splits[3]) const;
    void GetLimitRefinements(Array<Refinement> &refinements, int max_level);
 
-   int PrintElements(std::ostream &out, int elem, int &coarse_id) const;
+
+   // I/O
+
+   /// Print the "vertex_parents" section of the mesh file.
+   int PrintVertexParents(std::ostream *out) const;
+   /// Load the vertex parent hierarchy from a mesh file.
+   void LoadVertexParents(std::istream &input);
+
+   /** Print the "boundary" section of the mesh file.
+       If out == NULL, only return the number of boundary elements. */
+   int PrintBoundary(std::ostream *out) const;
+   /// Load the "boundary" section of the mesh file.
+   void LoadBoundary(std::istream &input);
+
+   /// Print the "coordinates" section of the mesh file.
+   void PrintCoordinates(std::ostream &out) const;
+   /// Load the "coordinates" section of the mesh file.
+   void LoadCoordinates(std::istream &input);
+
+   /// Count root elements and intialize root_state.
+   void InitRootElements();
+   /// Return the index of the last top-level node plus one.
+   int CountTopLevelNodes() const;
+   /// Return true if all root_states are zero.
+   bool ZeroRootStates() const;
+
+   /// Load the element refinement hierarchy from a legacy mesh file.
+   void LoadCoarseElements(std::istream &input);
    void CopyElements(int elem, const BlockArray<Element> &tmp_elements,
                      Array<int> &index_map);
+   /// Load the deprecated MFEM mesh v1.1 format for backward compatibility.
+   void LoadLegacyFormat(std::istream &input, int &curved);
+
 
    // geometry
 
@@ -841,7 +857,7 @@ protected: // implementation
 
       bool initialized;
       GeomInfo() : initialized(false) {}
-      void Initialize(const mfem::Element* elem);
+      void InitGeom(Geometry::Type geom);
    };
 
    static GeomInfo GI[Geometry::NumGeom];
