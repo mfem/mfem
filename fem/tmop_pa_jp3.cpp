@@ -64,7 +64,7 @@ MFEM_REGISTER_TMOP_KERNELS(int, CheckDetJpr_Kernel_3D,
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
                double J[9];
-               kernels::PullGradXYZ<MQ1>(qx,qy,qz, QQQ, J);
+               kernels::PullGrad<MQ1>(qx,qy,qz, QQQ, J);
                const double detJ = kernels::Det<3>(J);
                E(qx,qy,qz,e) = (detJ <= 0.0) ? 0.0 : 1.0;
             }
@@ -146,7 +146,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, MinDetJpr_Kernel_3D,
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
                double Jpr[9];
-               kernels::PullGradXYZ<MQ1>(qx,qy,qz, QQQ, Jpr);
+               kernels::PullGrad<MQ1>(qx,qy,qz, QQQ, Jpr);
                D(qx,qy,qz,e) = kernels::Det<3>(Jpr);
             }
          }

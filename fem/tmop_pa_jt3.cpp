@@ -73,7 +73,7 @@ MFEM_REGISTER_TMOP_KERNELS(bool, DatcSize,
       MFEM_SHARED double DQQ[MD1*MQ1*MQ1];
       MFEM_SHARED double QQQ[MQ1*MQ1*MQ1];
 
-      kernels::LoadXS<MD1>(e,D1D,sizeidx,X,DDD);
+      kernels::LoadX<MD1>(e,D1D,sizeidx,X,DDD);
 
       double min;
       MFEM_SHARED double min_size[MFEM_CUDA_BLOCKS];
@@ -101,9 +101,9 @@ MFEM_REGISTER_TMOP_KERNELS(bool, DatcSize,
       min = min_size[0];
 
       kernels::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
-      kernels::EvalXS<MD1,MQ1>(D1D,Q1D,B,DDD,DDQ);
-      kernels::EvalYS<MD1,MQ1>(D1D,Q1D,B,DDQ,DQQ);
-      kernels::EvalZS<MD1,MQ1>(D1D,Q1D,B,DQQ,QQQ);
+      kernels::EvalX<MD1,MQ1>(D1D,Q1D,B,DDD,DDQ);
+      kernels::EvalY<MD1,MQ1>(D1D,Q1D,B,DDQ,DQQ);
+      kernels::EvalZ<MD1,MQ1>(D1D,Q1D,B,DQQ,QQQ);
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
          MFEM_FOREACH_THREAD(qy,y,Q1D)
@@ -111,7 +111,7 @@ MFEM_REGISTER_TMOP_KERNELS(bool, DatcSize,
             MFEM_FOREACH_THREAD(qz,z,Q1D)
             {
                double T;
-               kernels::PullEvalXYZS<MQ1>(qx,qy,qz,QQQ,T);
+               kernels::PullEval<MQ1>(qx,qy,qz,QQQ,T);
                const double shape_par_vals = T;
                const double size = fmax(shape_par_vals, min);
                const double alpha = std::pow(size, 1.0/DIM);

@@ -21,7 +21,6 @@ namespace mfem
 MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_C0_2D,
                            const int NE,
                            const Array<double> &b_,
-                           const Array<double> &g_,
                            const Vector &h0_,
                            const Vector &r_,
                            Vector &c_,
@@ -36,7 +35,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_C0_2D,
 
    const auto H0 = Reshape(h0_.Read(), DIM, DIM, Q1D, Q1D, NE);
    const auto b = Reshape(b_.Read(), Q1D, D1D);
-   const auto g = Reshape(g_.Read(), Q1D, D1D);
    const auto R = Reshape(r_.Read(), D1D, D1D, DIM, NE);
 
    auto Y = Reshape(c_.ReadWrite(), D1D, D1D, DIM, NE);
@@ -50,17 +48,17 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_C0_2D,
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
-      MFEM_SHARED double BG[2][MQ1*MD1];
+      MFEM_SHARED double B[MQ1*MD1];
 
       MFEM_SHARED double XY[2][NBZ][MD1*MD1];
       MFEM_SHARED double DQ[2][NBZ][MD1*MQ1];
       MFEM_SHARED double QQ[2][NBZ][MQ1*MQ1];
 
       kernels::LoadX<MD1,NBZ>(e,D1D,R,XY);
-      kernels::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
+      kernels::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
 
-      kernels::EvalX<MD1,MQ1,NBZ>(D1D,Q1D,BG,XY,DQ);
-      kernels::EvalY<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,QQ);
+      kernels::EvalX<MD1,MQ1,NBZ>(D1D,Q1D,B,XY,DQ);
+      kernels::EvalY<MD1,MQ1,NBZ>(D1D,Q1D,B,DQ,QQ);
 
       MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
@@ -68,7 +66,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_C0_2D,
          {
             // Xh = X^T . Sh
             double Xh[2];
-            kernels::PullEvalXY<MQ1,NBZ>(qx,qy,QQ,Xh);
+            kernels::PullEval<MQ1,NBZ>(qx,qy,QQ,Xh);
 
             double B[4];
             DeviceMatrix H(B,2,2);
@@ -83,13 +81,13 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_C0_2D,
             // p2 = B . Xh
             double p2[2];
             kernels::Mult(2,2,B,Xh,p2);
-            kernels::PushEvalXY<MQ1,NBZ>(qx,qy,p2,QQ);
+            kernels::PushEval<MQ1,NBZ>(qx,qy,p2,QQ);
          }
       }
       MFEM_SYNC_THREAD;
-      kernels::LoadBGt<MD1,MQ1>(D1D,Q1D,b,g,BG);
-      kernels::EvalXt<MD1,MQ1,NBZ>(D1D,Q1D,BG,QQ,DQ);
-      kernels::EvalYt<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,Y,e);
+      kernels::LoadBt<MD1,MQ1>(D1D,Q1D,b,B);
+      kernels::EvalXt<MD1,MQ1,NBZ>(D1D,Q1D,B,QQ,DQ);
+      kernels::EvalYt<MD1,MQ1,NBZ>(D1D,Q1D,B,DQ,Y,e);
    });
 }
 
@@ -101,10 +99,9 @@ void TMOP_Integrator::AddMultGradPA_C0_2D(const Vector &X, const Vector &R,
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
    const Array<double> &B = PA.maps->B;
-   const Array<double> &G = PA.maps->G;
    const Vector &H0 = PA.H0;
 
-   MFEM_LAUNCH_TMOP_KERNEL(AddMultGradPA_Kernel_C0_2D,id,N,B,G,H0,R,C);
+   MFEM_LAUNCH_TMOP_KERNEL(AddMultGradPA_Kernel_C0_2D,id,N,B,H0,R,C);
 }
 
 } // namespace mfem
