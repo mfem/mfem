@@ -9,21 +9,10 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-# Include the source directory where mfem.hpp and mfem-performance.hpp are.
-include_directories(BEFORE ${PROJECT_BINARY_DIR})
 
-set(MINIAPPS_COMMON_SOURCES "")
-set(MINIAPPS_COMMON_HEADERS "")
-if (MFEM_USE_SUNDIALS)
-   add_subdirectory(adjoint)
-endif()
-add_subdirectory(common)
-add_subdirectory(electromagnetics)
-add_subdirectory(navier)
-add_subdirectory(mtop)
-add_subdirectory(meshing)
-add_subdirectory(performance)
-add_subdirectory(tools)
-add_subdirectory(toys)
-add_subdirectory(nurbs)
-add_subdirectory(gslib)
+#PDEFilter
+add_mfem_miniapp(pdefilt
+    MAIN pdefilt.cpp
+    EXTRA_SOURCES pdenssolver.cpp pphyssolvers.cpp
+    EXTRA_HEADERS pdenssolver.hpp pphyssolvers.hpp
+    LIBRARIES mfem)
