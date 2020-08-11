@@ -250,9 +250,9 @@ int main(int argc, char *argv[])
 
 
    {
-      int nx = 4;
-      int ny = 4;
-      int nz = 2;
+      // int nx = 4;
+      // int ny = 4;
+      // int nz = 2;
       int nlayers = 1;
       // ParMeshPartition part(pmesh,nx,ny,nz,nlayers);
       ParDST S(&a,lengths,omega, &ws,nlayers,nx,ny,nz);
