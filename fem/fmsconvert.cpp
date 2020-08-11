@@ -1121,236 +1121,81 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
   FmsMeshAddDomains(fmesh, "Domain", 1, &domains);
   FmsDomainSetNumVertices(domains[0], num_verticies);
 
-  mfem::HashTable<mfem::Hashed2> edge_table;
-  mfem::HashTable<mfem::Hashed4> face_table;
-  std::vector<int> tri_edges;
-  std::vector<int> quad_edges;
-  std::vector<int> tet_faces;
-  std::vector<int> hex_faces;
+  const mfem::Table *edges = mmesh->GetEdgeVertexTable();
+  if(!edges) {
+    mfem::out << "Error, mesh has no edges." << std::endl;
+    return 1;
+  }
+  mfem::Table *faces = mmesh->GetFaceEdgeTable();
+  if(!faces && num_faces > 0) {
+    mfem::out << "Error, mesh contains faces but the \"GetFaceEdgeTable\" returned NULL." << std::endl;
+    return 1;
+  }
+
+  // Build edges
+  std::vector<int> edge_verts(edges->Size() * 2);
+  for(int i = 0; i < edges->Size(); i++) {
+    mfem::Array<int> nids;
+    edges->GetRow(i, nids);
+    for(int j = 0; j < 2; j++) {
+      edge_verts[i*2 + j] = nids[j];
+    }
+  }
+
+  // Build faces
+  int rowsize = faces->RowSize(0);
+  std::vector<int> fs(faces->Size() * rowsize);
+  for(int i = 0; i < faces->Size(); i++) {
+    mfem::Array<int> eids;
+    faces->GetRow(i, eids);
+    for(int j = 0; j < rowsize; j++) {
+      fs[i*rowsize + j] = eids[j];
+    }
+  }
+
+  // Build cells
+  std::vector<int> hexes(num_elements * 6);
   for(int i = 0; i < num_elements; i++) {
-    const mfem::Element *ele = mmesh->GetElement(i);
-    if(!ele) return 1;
-    auto ele_type = ele->GetType();
-    const int *as_verts = ele->GetVertices();
-    switch(ele_type) {
-      case mfem::Element::POINT: {
-        
-        break;
-      }
-      case mfem::Element::SEGMENT: {
-        edge_table.GetId(as_verts[0], as_verts[1]);
-        break;
-      }
-      case mfem::Element::TRIANGLE: {
-        int edgeids[3]; /* = {
-          edge_table.GetId(as_verts[0], as_verts[1]),
-          edge_table.GetId(as_verts[1], as_verts[2]),
-          edge_table.GetId(as_verts[2], as_verts[0])
-        };*/
-        for(int i = 0; i < 3; i++) {
-          const int *vertidxs = ele->GetEdgeVertices(i);
-          edgeids[i] = edge_table.GetId(as_verts[vertidxs[0]], as_verts[vertidxs[1]]);
-        }
-        tri_edges.push_back(edgeids[0]);
-        tri_edges.push_back(edgeids[1]);
-        tri_edges.push_back(edgeids[2]);
-        face_table.GetId(edgeids[0], edgeids[1], edgeids[2]);
-        break;
-      }
-      case mfem::Element::QUADRILATERAL: {
-        int edgeids[4]; /* = {
-          edge_table.GetId(as_verts[0], as_verts[1]),
-          edge_table.GetId(as_verts[1], as_verts[2]),
-          edge_table.GetId(as_verts[2], as_verts[3]),
-          edge_table.GetId(as_verts[3], as_verts[0])
-        }; */
-        for(int i = 0; i < 4; i++) {
-          const int *vertidxs = ele->GetEdgeVertices(i);
-          edgeids[i] = edge_table.GetId(as_verts[vertidxs[0]], as_verts[vertidxs[1]]);
-        }
-        quad_edges.push_back(edgeids[0]);
-        quad_edges.push_back(edgeids[1]);
-        quad_edges.push_back(edgeids[2]);
-        quad_edges.push_back(edgeids[3]);
-        face_table.GetId(edgeids[0], edgeids[1], edgeids[2], edgeids[3]);
-        break;
-      }
-      case mfem::Element::TETRAHEDRON: {
-        // Have to build the edges then build the faces
-        int edgeids[6];
-        for(int i = 0; i < 6; i++) {
-          const int *vertidxs = ele->GetEdgeVertices(i);
-          edgeids[i] = edge_table.GetId(as_verts[vertidxs[0]], as_verts[vertidxs[1]]);
-        }
-
-        // Build the 4 triangles that make up the tet
-        int tris[4][3] = {
-          {edgeids[0], edgeids[2], edgeids[1]}, // acb
-          {edgeids[0], edgeids[4], edgeids[3]}, // aed
-          {edgeids[2], edgeids[3], edgeids[5]}, // cdf
-          {edgeids[1], edgeids[5], edgeids[4]}  // bfe
-        };
-        tri_edges.push_back(tris[0][0]); tri_edges.push_back(tris[0][1]); tri_edges.push_back(tris[0][2]);
-        tri_edges.push_back(tris[1][0]); tri_edges.push_back(tris[1][1]); tri_edges.push_back(tris[1][2]);
-        tri_edges.push_back(tris[2][0]); tri_edges.push_back(tris[2][1]); tri_edges.push_back(tris[2][2]);
-        tri_edges.push_back(tris[3][0]); tri_edges.push_back(tris[3][1]); tri_edges.push_back(tris[3][2]);
-        
-        // Finally create the tet
-        int faceids[4];
-        faceids[0] = face_table.GetId(tris[0][0], tris[0][1], tris[0][2]); 
-        faceids[1] = face_table.GetId(tris[1][0], tris[1][1], tris[1][2]); 
-        faceids[2] = face_table.GetId(tris[2][0], tris[2][1], tris[2][2]); 
-        faceids[3] = face_table.GetId(tris[3][0], tris[3][1], tris[3][2]); 
-        tet_faces.push_back(faceids[0]);
-        tet_faces.push_back(faceids[1]);
-        tet_faces.push_back(faceids[2]);
-        tet_faces.push_back(faceids[3]);
-        break;
-      }
-      case mfem::Element::HEXAHEDRON: {
-        // Build the edges
-        int edgeids[12] = {
-          // Bottom
-          edge_table.GetId(as_verts[0], as_verts[1]),
-          edge_table.GetId(as_verts[1], as_verts[2]),
-          edge_table.GetId(as_verts[2], as_verts[3]),
-          edge_table.GetId(as_verts[3], as_verts[0]),
-          // Top
-          edge_table.GetId(as_verts[4], as_verts[5]),
-          edge_table.GetId(as_verts[5], as_verts[6]),
-          edge_table.GetId(as_verts[6], as_verts[7]),
-          edge_table.GetId(as_verts[7], as_verts[4]),
-          // Sides
-          edge_table.GetId(as_verts[0], as_verts[4]),
-          edge_table.GetId(as_verts[1], as_verts[5]),
-          edge_table.GetId(as_verts[2], as_verts[6]),
-          edge_table.GetId(as_verts[3], as_verts[7]),
-        };
-        // for(int i = 0; i < 12; i++) {
-        //   const int *vertidxs = ele->GetEdgeVertices(i);
-        //   edgeids[i] = edge_table.GetId(as_verts[vertidxs[0]], as_verts[vertidxs[1]]);
-        // }
-        // Build the 6 quads that make up the hex
-        int quads[6][4] = {
-          {edgeids[0], edgeids[9], edgeids[4], edgeids[8]}, // ajei
-          {edgeids[2], edgeids[11], edgeids[6], edgeids[10]}, // clgk
-          {edgeids[0], edgeids[3], edgeids[2], edgeids[1]}, // adcb
-          {edgeids[4], edgeids[5], edgeids[6], edgeids[7]}, // efgh
-          {edgeids[3], edgeids[8], edgeids[7], edgeids[11]}, // dihl
-          {edgeids[1], edgeids[10], edgeids[5], edgeids[9]} // gkfj
-        };
-        for(int j = 0; j < 6; j++) {
-          // Dont add this quad to the vector if it's already in the face table
-          if(face_table.FindId(quads[j][0], quads[j][1], quads[j][2], quads[j][3]) > 0) continue;
-          for(int k = 0; k < 4; k++) {
-            quad_edges.push_back(quads[j][k]);
-          }
-        }
-        int faceids[6] = {
-          face_table.GetId(quads[0][0], quads[0][1], quads[0][2], quads[0][3]), 
-          face_table.GetId(quads[1][0], quads[1][1], quads[1][2], quads[1][3]),
-          face_table.GetId(quads[2][0], quads[2][1], quads[2][2], quads[2][3]),
-          face_table.GetId(quads[3][0], quads[3][1], quads[3][2], quads[3][3]),
-          face_table.GetId(quads[4][0], quads[4][1], quads[4][2], quads[4][3]),
-          face_table.GetId(quads[5][0], quads[5][1], quads[5][2], quads[5][3])
-        };
-        for(int j = 0; j < 6; j++) {
-          hex_faces.push_back(faceids[j]);
-        }
-        break;
-      }
-      default: {
-        // ERROR: Not implemented
-        return 2;
-      }
+    mfem::Array<int> fids, oris;
+    mmesh->GetElementFaces(i, fids, oris);
+    int reorder[6] = {0,1,2,3,4,5};
+    for(int j = 0; j < 6; j++) {
+      hexes[i*6 + j] = fids[j];
     }
   }
 
-  if(edge_table.Size()) {
-    std::vector<int> edge_verts;
-    edge_verts.reserve(edge_table.Size() * 2 + 1);
-    for(int i = 0; i < edge_table.Size(); i++) {
-      const auto &edge = edge_table[i];
-      edge_verts.push_back(edge.p1);
-      edge_verts.push_back(edge.p2);
-    }
-    std::cout << "EDGES:";
-    for(int i = 0; i < edge_verts.size(); i++) {
-      if(i%2==0) std::cout << std::endl << "\t" << i/2 << ": ";
-      std::cout << edge_verts[i] << " ";
-    }
-    std::cout << std::endl;
-    
-    const FmsInt nedges = edge_verts.size() / 2u;
-    FmsDomainSetNumEntities(domains[0], FMS_EDGE, FMS_INT32, nedges);
-    FmsDomainAddEntities(domains[0], FMS_EDGE, NULL, FMS_INT32, edge_verts.data(), nedges);
+  std::cout << "EDGES: ";
+  for(int i = 0; i < edge_verts.size(); i++) {
+    if(i % 2 == 0) std::cout << std::endl << "\t" << i/2 << ": ";
+    std::cout << edge_verts[i] << " ";
   }
-  else {
-    // ERROR?
-    return 3;
+  std::cout << std::endl;
+
+  std::cout << "FACES: ";
+  for(int i = 0; i < fs.size(); i++) {
+    if(i % 4 == 0) std::cout << std::endl << "\t" << i/4 << ": ";
+    std::cout << "(" << edge_verts[fs[i]*2] << ", " << edge_verts[fs[i]*2+1] << ") ";
   }
+  std::cout << std::endl;
 
-  if(tri_edges.size()) {
-    std::cout << "TRIANGLES:";
-    for(int i = 0; i < tri_edges.size(); i++) {
-      if(i%3==0) std::cout << std::endl << "\t" << i/3 << ": ";
-      std::cout << tri_edges[i] << " ";
-    }
-    std::cout << std::endl;
-
-    const FmsInt ntris = tri_edges.size() / 3u;
-    FmsDomainSetNumEntities(domains[0], FMS_TRIANGLE, FMS_INT32, ntris);
-    FmsDomainAddEntities(domains[0], FMS_TRIANGLE, NULL, FMS_INT32, tri_edges.data(), ntris);
+  std::cout << "CELLS: ";
+  for(int i = 0; i < hexes.size(); i++) {
+    if(i % 6 == 0) std::cout << std::endl << "\t" << i/6 << ": ";
+    std::cout << hexes[i] << " ";
   }
+  std::cout << std::endl;
 
-  if(quad_edges.size()) {
-      std::cout << "QUADS:";
-    for(int i = 0; i < quad_edges.size(); i++) {
-      if(i%4==0) std::cout << std::endl << "\t" << i/4 << ": ";
-      std::cout << quad_edges[i] << " ";
-    }
-    std::cout << std::endl;
+  const int edge_reorder[2] = {1, 0};
+  const int quad_reorder[4] = {2,3,0,1};
+  const int hex_reorder[6] = {2, 4, 3, 1, 5, 0};
+  const int *reorder[8] = {NULL, edge_reorder, NULL, quad_reorder, NULL, hex_reorder, NULL, NULL};
+  FmsDomainSetNumEntities(domains[0], FMS_EDGE, FMS_INT32, edge_verts.size() / 2);
+  FmsDomainSetNumEntities(domains[0], FMS_QUADRILATERAL, FMS_INT32, fs.size() / 4);
+  FmsDomainSetNumEntities(domains[0], FMS_HEXAHEDRON, FMS_INT32, hexes.size() / 6);
+  FmsDomainAddEntities(domains[0], FMS_EDGE, reorder, FMS_INT32, edge_verts.data(), edge_verts.size() / 2);
+  FmsDomainAddEntities(domains[0], FMS_QUADRILATERAL, reorder, FMS_INT32, fs.data(), fs.size() / 4);
+  FmsDomainAddEntities(domains[0], FMS_HEXAHEDRON, reorder, FMS_INT32, hexes.data(), hexes.size() / 6);
 
-    const FmsInt nquads = quad_edges.size() / 4u;
-    FmsDomainSetNumEntities(domains[0], FMS_QUADRILATERAL, FMS_INT32, nquads);
-    FmsDomainAddEntities(domains[0], FMS_QUADRILATERAL, NULL, FMS_INT32, quad_edges.data(), nquads);
-  }
-
-  /* Q: All the edges are stored in one array so the IDs are implied (the index in the array).
-    3D elements refer to faces by their face ID, faces are not stored in one array because they are stored
-    between TRI and QUAD arrays. How does FMS know that it should lookup ID=5 from triangles or quads - does this even matter?
-  */
-  if(tet_faces.size()) {
-    std::cout << "TETS:";
-    for(int i = 0; i < tet_faces.size(); i++) {
-      if(i%4==0) std::cout << std::endl << "\t" << i/4 << ": ";
-      std::cout << tet_faces[i] << " ";
-    }
-    std::cout << std::endl;
-
-    const FmsInt ntets = tet_faces.size() / 4u;
-    FmsDomainSetNumEntities(domains[0], FMS_TETRAHEDRON, FMS_INT32, ntets);
-    FmsDomainAddEntities(domains[0], FMS_TETRAHEDRON, NULL, FMS_INT32, tet_faces.data(), ntets);
-  }
-
-  if(hex_faces.size()) {
-    std::cout << "HEXES:";
-    for(int i = 0; i < hex_faces.size(); i++) {
-      if(i%6==0) std::cout << std::endl << "\t" << i/6 << ": ";
-      std::cout << hex_faces[i] << " ";
-    }
-    std::cout << std::endl;
-
-    const FmsInt nhexes = hex_faces.size() / 6u;
-    FmsDomainSetNumEntities(domains[0], FMS_HEXAHEDRON, FMS_INT32, nhexes);
-    FmsDomainAddEntities(domains[0], FMS_HEXAHEDRON, NULL, FMS_INT32, hex_faces.data(), nhexes);
-  }
-
-  // if(wed_faces.size()) {
-  //   const FmsInt nweds = wed_faces.size() / 5u;
-  //   FmsDomainSetNumEntities(domains[0], FMS_WEDGE, FMS_INT32, nweds);
-  //   FmsDomainAddEntities(domains[0], FMS_WEDGE, NULL, FMS_INT32, wed_faces.data(), nweds);
-  // }
 
   FmsComponent volume;
   FmsMeshAddComponent(fmesh, "volume", &volume);
