@@ -56,9 +56,11 @@ void AmgXSolver::setMode(const std::string &modeStr)
    else { mfem_error("Mode not supported \n"); }
 }
 
-void AmgXSolver::getNumIterations(int &getIters)
+int AmgXSolver::getNumIterations()
 {
+   int getIters;
    AMGX_solver_get_iterations_number(solver, &getIters);
+   return getIters;
 }
 
 
@@ -645,7 +647,7 @@ void AmgXSolver::setA(const HypreParMatrix &A)
          }
       }
       z_ind[devWorldSize] = all_I.Size()-1;
-      //End of determining indices of zeros in global all_I Array\
+      //End of determining indices of zeros in global all_I Array
       //BUMP all_I one last time
       for (int idx=z_ind[1]+1; idx < all_I.Size()-1; idx++)
       {
