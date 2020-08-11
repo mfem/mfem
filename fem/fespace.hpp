@@ -176,6 +176,14 @@ protected:
    void CalculateMinimumOrders(Array<int> &edge_min_order,
                                Array<int> &face_min_order) const;
 
+   typedef std::uint64_t VarOrderBits;
+   enum { MaxVarOrder = 8*sizeof(VarOrderBits) - 1 };
+
+   /** In a variable order space, calculate a bitmask of polynomial orders that
+       need to be represented on each edge and face. */
+   void CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
+                              Array<VarOrderBits> &face_orders) const;
+
    /** Build the table edge_dofs (or face_dofs) in a variable order space;
        return total edge/face DOFs. */
    int AssignVarOrderDofs(int ent_dim, const Array<int> &ent_min_order,
