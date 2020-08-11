@@ -26,28 +26,11 @@ BlockOperator::BlockOperator(const Array<int> & offsets)
      row_offsets(0),
      col_offsets(0),
      op(nRowBlocks, nRowBlocks),
-     coef(nRowBlocks, nColBlocks),
-     vr(nRowBlocks),
-     vc(nColBlocks)
+     coef(nRowBlocks, nColBlocks)
 {
    op = static_cast<Operator *>(NULL);
    row_offsets.MakeRef(offsets);
    col_offsets.MakeRef(offsets);
-
-   for (int i=0; i<nRowBlocks; ++i)
-   {
-      //vr[i].SetData(NULL);
-      //vr[i].SetSize(row_offsets[i+1] - row_offsets[i], offsets.GetMemoryType());
-      vr[i] = new Vector(row_offsets[i+1] - row_offsets[i], offsets.GetMemoryType());
-      //vr[i].UseDevice(true);
-   }
-   for (int i=0; i<nColBlocks; ++i)
-   {
-      //vc[i].SetData(NULL);
-      //vc[i].SetSize(col_offsets[i+1] - col_offsets[i], offsets.GetMemoryType());
-      vc[i] = new Vector(col_offsets[i+1] - col_offsets[i], offsets.GetMemoryType());
-      //vc[i].UseDevice(true);
-   }
 }
 
 BlockOperator::BlockOperator(const Array<int> & row_offsets_,
@@ -59,30 +42,11 @@ BlockOperator::BlockOperator(const Array<int> & row_offsets_,
      row_offsets(0),
      col_offsets(0),
      op(nRowBlocks, nColBlocks),
-     coef(nRowBlocks, nColBlocks),
-     vr(nRowBlocks),
-     vc(nColBlocks)
+     coef(nRowBlocks, nColBlocks)
 {
    op = static_cast<Operator *>(NULL);
    row_offsets.MakeRef(row_offsets_);
    col_offsets.MakeRef(col_offsets_);
-
-   for (int i=0; i<nRowBlocks; ++i)
-   {
-      //vr[i].SetData(NULL);
-      //vr[i].SetSize(row_offsets[i+1] - row_offsets[i], row_offsets_.GetMemoryType());
-      vr[i] = new Vector(row_offsets[i+1] - row_offsets[i],
-                         row_offsets_.GetMemoryType());
-      //vr[i].UseDevice(true);
-   }
-   for (int i=0; i<nColBlocks; ++i)
-   {
-      //vc[i].SetData(NULL);
-      //vc[i].SetSize(col_offsets[i+1] - col_offsets[i], row_offsets_.GetMemoryType());
-      vc[i] = new Vector(col_offsets[i+1] - col_offsets[i],
-                         row_offsets_.GetMemoryType());
-      //vc[i].UseDevice(true);
-   }
 }
 
 void BlockOperator::SetDiagonalBlock(int iblock, Operator *op, double c)
@@ -116,21 +80,26 @@ void BlockOperator::Mult (const Vector & x, Vector & y) const
    xblock.Update(const_cast<Vector&>(x),col_offsets);
    yblock.Update(y,row_offsets);
 
+   // TODO: this should not be necessary, but it is in case tmp.SetSize(0) is called for first row.
+   tmp.SetSize(10);
+
    for (int iRow=0; iRow < nRowBlocks; ++iRow)
    {
+      tmp.SetSize(row_offsets[iRow+1] - row_offsets[iRow]);
+
       for (int jCol=0; jCol < nColBlocks; ++jCol)
       {
          if (op(iRow,jCol))
          {
-            vc[jCol]->SetOffset(1.0, x, col_offsets[jCol]);
-            op(iRow,jCol)->Mult(*vc[jCol], *vr[iRow]);
-            y.AddOffset(coef(iRow,jCol), *vr[iRow], row_offsets[iRow]);
+            op(iRow,jCol)->Mult(xblock.GetBlock(jCol), tmp);
+            yblock.GetBlock(iRow).Add(coef(iRow,jCol), tmp);
          }
       }
    }
 
    for (int iRow=0; iRow < nRowBlocks; ++iRow)
    {
+      if (yblock.BlockSize(iRow) == 0) { continue; }
       yblock.GetBlock(iRow).SyncAliasMemory(y);
    }
 
@@ -154,19 +123,20 @@ void BlockOperator::MultTranspose (const Vector & x, Vector & y) const
 
    for (int iRow=0; iRow < nColBlocks; ++iRow)
    {
+      tmp.SetSize(col_offsets[iRow+1] - col_offsets[iRow]);
       for (int jCol=0; jCol < nRowBlocks; ++jCol)
       {
          if (op(jCol,iRow))
          {
-            vr[jCol]->SetOffset(1.0, x, row_offsets[jCol]);
-            op(jCol,iRow)->MultTranspose(*vr[jCol], *vc[iRow]);
-            y.AddOffset(coef(jCol,iRow), *vc[iRow], col_offsets[iRow]);
+            op(jCol,iRow)->MultTranspose(xblock.GetBlock(jCol), tmp);
+            yblock.GetBlock(iRow).Add(coef(jCol,iRow), tmp);
          }
       }
    }
 
    for (int iRow=0; iRow < nColBlocks; ++iRow)
    {
+      if (yblock.BlockSize(iRow) == 0) { continue; }
       yblock.GetBlock(iRow).SyncAliasMemory(y);
    }
 
@@ -201,12 +171,6 @@ BlockDiagonalPreconditioner::BlockDiagonalPreconditioner(
 {
    op = static_cast<Operator *>(NULL);
    offsets.MakeRef(offsets_);
-
-   for (int i=0; i<nBlocks; ++i)
-   {
-      vr[i].SetSize(offsets[i+1] - offsets[i]);
-      vc[i].SetSize(offsets[i+1] - offsets[i]);
-   }
 }
 
 void BlockDiagonalPreconditioner::SetDiagonalBlock(int iblock, Operator *opt)
@@ -238,9 +202,7 @@ void BlockDiagonalPreconditioner::Mult (const Vector & x, Vector & y) const
    {
       if (op[i])
       {
-         vc[i].SetOffset(1.0, x, offsets[i]);
-         op[i]->Mult(vc[i], vr[i]);
-         y.AddOffset(1.0, vr[i], offsets[i]);
+         op[i]->Mult(xblock.GetBlock(i), yblock.GetBlock(i));
       }
       else
       {
@@ -250,6 +212,7 @@ void BlockDiagonalPreconditioner::Mult (const Vector & x, Vector & y) const
 
    for (int i=0; i<nBlocks; ++i)
    {
+      if (yblock.BlockSize(i) == 0) { continue; }
       yblock.GetBlock(i).SyncAliasMemory(y);
    }
 
@@ -286,6 +249,7 @@ void BlockDiagonalPreconditioner::MultTranspose (const Vector & x,
 
    for (int i=0; i<nBlocks; ++i)
    {
+      if (yblock.BlockSize(i) == 0) { continue; }
       yblock.GetBlock(i).SyncAliasMemory(y);
    }
 

@@ -121,10 +121,8 @@ private:
    //! 2D array that stores a coefficient for each block of the operator.
    Array2D<double> coef;
 
-   mutable Array<Vector*> vr, vc;
-
    //! Temporary Vectors used to efficiently apply the Mult and MultTranspose methods.
-   mutable BlockVector xblock; // TODO: remove these?
+   mutable BlockVector xblock;
    mutable BlockVector yblock;
    mutable Vector tmp;
 };
@@ -194,10 +192,8 @@ private:
    Array<Operator *> op;
    //! Temporary Vectors used to efficiently apply the Mult and MultTranspose
    //! methods.
-   mutable BlockVector xblock;  // TODO: are these still used?
+   mutable BlockVector xblock;
    mutable BlockVector yblock;
-
-   mutable Array<Vector> vr, vc;
 };
 
 //! @class BlockLowerTriangularPreconditioner
