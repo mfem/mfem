@@ -321,6 +321,8 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 77; }
 };
 
 /// Shape & orientation metric, 2D.
@@ -1241,12 +1243,15 @@ public:
    void ParEnableNormalization(const ParGridFunction &x);
 #endif
 
+   /// PA extension
    using NonlinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace&);
    using NonlinearFormIntegrator::AddMultPA;
    virtual void AddMultPA(const Vector&, Vector&) const;
    using NonlinearFormIntegrator::AddMultGradPA;
    virtual void AddMultGradPA(const Vector&, const Vector&, Vector&) const;
+   using NonlinearFormIntegrator::GetGridFunctionEnergyPA;
+   virtual double GetGridFunctionEnergyPA(const Vector&) const;
 };
 
 /// Interpolates the @a metric's values at the nodes of @a metric_gf.

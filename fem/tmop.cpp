@@ -444,8 +444,8 @@ void TMOP_Metric_058::AssembleH(const DenseMatrix &Jpt,
 double TMOP_Metric_077::EvalW(const DenseMatrix &Jpt) const
 {
    ie.SetJacobian(Jpt.GetData());
-   const double I2 = ie.Get_I2b();
-   return  0.5*(I2*I2 + 1./(I2*I2) - 2.);
+   const double I2b = ie.Get_I2b();
+   return  0.5*(I2b*I2b + 1./(I2b*I2b) - 2.);
 }
 
 void TMOP_Metric_077::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
@@ -2908,6 +2908,16 @@ void TMOPComboIntegrator::AddMultGradPA(const Vector &xe, const Vector &re,
    {
       tmopi[i]->AddMultGradPA(xe, re, ce);
    }
+}
+
+double TMOPComboIntegrator::GetGridFunctionEnergyPA(const Vector &xe) const
+{
+   double energy = 0.0;
+   for (int i = 0; i < tmopi.Size(); i++)
+   {
+      energy += tmopi[i]->GetGridFunctionEnergyPA(xe);
+   }
+   return energy;
 }
 
 void InterpolateTMOP_QualityMetric(TMOP_QualityMetric &metric,
