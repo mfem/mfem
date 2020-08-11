@@ -810,16 +810,16 @@ void QEvalVGF2D(const int NE, const double *b_, const double *x_, double *y_,
 
       for (int c = 0; c < VDIM; c++)
       {
-         mfem::kernels::LoadXS<MD1,NBZ>(e,D1D,c,X,DD);
-         mfem::kernels::EvalXS<MD1,MQ1,NBZ>(D1D,Q1D,B,DD,DQ);
-         mfem::kernels::EvalYS<MD1,MQ1,NBZ>(D1D,Q1D,B,DQ,QQ);
+         mfem::kernels::LoadX<MD1,NBZ>(e,D1D,c,X,DD);
+         mfem::kernels::EvalX<MD1,MQ1,NBZ>(D1D,Q1D,B,DD,DQ);
+         mfem::kernels::EvalY<MD1,MQ1,NBZ>(D1D,Q1D,B,DQ,QQ);
 
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             MFEM_FOREACH_THREAD(qy,y,Q1D)
             {
                double G;
-               mfem::kernels::PullEvalXYS<MQ1,NBZ>(qx,qy,QQ,G);
+               mfem::kernels::PullEval<MQ1,NBZ>(qx,qy,QQ,G);
                C(c,qx,qy,e) = G;
             }
          }
@@ -858,10 +858,10 @@ void QEvalVGF3D(const int NE, const double *b_, const double *x_, double *y_,
 
       for (int c = 0; c < VDIM; c++)
       {
-         mfem::kernels::LoadXS<MD1>(e,D1D,c,X,DDD);
-         mfem::kernels::EvalXS<MD1,MQ1>(D1D,Q1D,B,DDD,DDQ);
-         mfem::kernels::EvalYS<MD1,MQ1>(D1D,Q1D,B,DDQ,DQQ);
-         mfem::kernels::EvalZS<MD1,MQ1>(D1D,Q1D,B,DQQ,QQQ);
+         mfem::kernels::LoadX<MD1>(e,D1D,c,X,DDD);
+         mfem::kernels::EvalX<MD1,MQ1>(D1D,Q1D,B,DDD,DDQ);
+         mfem::kernels::EvalY<MD1,MQ1>(D1D,Q1D,B,DDQ,DQQ);
+         mfem::kernels::EvalZ<MD1,MQ1>(D1D,Q1D,B,DQQ,QQQ);
 
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
@@ -870,7 +870,7 @@ void QEvalVGF3D(const int NE, const double *b_, const double *x_, double *y_,
                MFEM_FOREACH_THREAD(qz,z,Q1D)
                {
                   double G;
-                  mfem::kernels::PullEvalXYZS<MQ1>(qx,qy,qz,QQQ,G);
+                  mfem::kernels::PullEval<MQ1>(qx,qy,qz,QQQ,G);
                   C(c,qx,qy,qz,e) = G;
                }
             }

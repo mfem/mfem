@@ -123,7 +123,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_3D,
 
                // Jpr = X^T.DSh
                double Jpr[9];
-               kernels::PullGradXYZ<MQ1>(qx,qy,qz, s_QQQ, Jpr);
+               kernels::PullGrad<MQ1>(qx,qy,qz, s_QQQ, Jpr);
 
                // Jpt = X^T.DS = (X^T.DSh).Jrt = Jpr.Jrt
                double Jpt[9];
@@ -139,7 +139,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_3D,
                // Y +=  DS . P^t += DSh . (Jrt . P^t)
                double A[9];
                kernels::MultABt(3,3,3, Jrt, P, A);
-               kernels::PushGradXYZ<MQ1>(qx,qy,qz, A, s_QQQ);
+               kernels::PushGrad<MQ1>(qx,qy,qz, A, s_QQQ);
             }
          }
       }

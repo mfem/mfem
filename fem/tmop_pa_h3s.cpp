@@ -208,7 +208,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_3D,
 
                // Jpr = X^T.DSh
                double Jpr[9];
-               kernels::PullGradXYZ<MQ1>(qx,qy,qz, s_QQQ, Jpr);
+               kernels::PullGrad<MQ1>(qx,qy,qz, s_QQQ, Jpr);
 
                // Jpt = X^T . DS = (X^T.DSh) . Jrt = Jpr . Jrt
                double Jpt[9];

@@ -26,7 +26,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_3D,
                            const DenseTensor &j_,
                            const Array<double> &w_,
                            const Array<double> &b_,
-                           const Array<double> &g_,
                            const Vector &x0_,
                            const Vector &x1_,
                            Vector &y_,
@@ -45,7 +44,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_3D,
    const auto LD = Reshape(lim_dist.Read(), D1D, D1D, D1D, DIM, NE);
    const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
    const auto b = Reshape(b_.Read(), Q1D, D1D);
-   const auto g = Reshape(g_.Read(), Q1D, D1D);
    const auto W = Reshape(w_.Read(), Q1D, Q1D, Q1D);
    const auto X0 = Reshape(x0_.Read(), D1D, D1D, D1D, DIM, NE);
    const auto X1 = Reshape(x1_.Read(), D1D, D1D, D1D, DIM, NE);
@@ -59,7 +57,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_3D,
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
-      MFEM_SHARED double BG[2][MQ1*MD1];
+      MFEM_SHARED double B[MQ1*MD1];
 
       MFEM_SHARED double DDD[3][MD1*MD1*MD1];
       MFEM_SHARED double DDQ[3][MD1*MD1*MQ1];
@@ -80,19 +78,19 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_3D,
       kernels::LoadX<MD1>(e,D1D,X0,DDD0);
       kernels::LoadX<MD1>(e,D1D,X1,DDD1);
 
-      kernels::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
+      kernels::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
 
-      kernels::EvalX<MD1,MQ1>(D1D,Q1D,BG,DDD,DDQ);
-      kernels::EvalY<MD1,MQ1>(D1D,Q1D,BG,DDQ,DQQ);
-      kernels::EvalZ<MD1,MQ1>(D1D,Q1D,BG,DQQ,QQQ);
+      kernels::EvalX<MD1,MQ1>(D1D,Q1D,B,DDD,DDQ);
+      kernels::EvalY<MD1,MQ1>(D1D,Q1D,B,DDQ,DQQ);
+      kernels::EvalZ<MD1,MQ1>(D1D,Q1D,B,DQQ,QQQ);
 
-      kernels::EvalX<MD1,MQ1>(D1D,Q1D,BG,DDD0,DDQ0);
-      kernels::EvalY<MD1,MQ1>(D1D,Q1D,BG,DDQ0,DQQ0);
-      kernels::EvalZ<MD1,MQ1>(D1D,Q1D,BG,DQQ0,QQQ0);
+      kernels::EvalX<MD1,MQ1>(D1D,Q1D,B,DDD0,DDQ0);
+      kernels::EvalY<MD1,MQ1>(D1D,Q1D,B,DDQ0,DQQ0);
+      kernels::EvalZ<MD1,MQ1>(D1D,Q1D,B,DQQ0,QQQ0);
 
-      kernels::EvalX<MD1,MQ1>(D1D,Q1D,BG,DDD1,DDQ1);
-      kernels::EvalY<MD1,MQ1>(D1D,Q1D,BG,DDQ1,DQQ1);
-      kernels::EvalZ<MD1,MQ1>(D1D,Q1D,BG,DQQ1,QQQ1);
+      kernels::EvalX<MD1,MQ1>(D1D,Q1D,B,DDD1,DDQ1);
+      kernels::EvalY<MD1,MQ1>(D1D,Q1D,B,DDQ1,DQQ1);
+      kernels::EvalZ<MD1,MQ1>(D1D,Q1D,B,DQQ1,QQQ1);
 
       MFEM_FOREACH_THREAD(qz,z,Q1D)
       {
@@ -106,9 +104,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_3D,
 
                double D[3], p0[3], p1[3];
                const double coeff0 = const_c0 ? C0(0,0,0,0) : C0(qx,qy,qz,e);
-               kernels::PullEvalXYZ<MQ1>(qx,qy,qz,QQQ,D);
-               kernels::PullEvalXYZ<MQ1>(qx,qy,qz,QQQ0,p0);
-               kernels::PullEvalXYZ<MQ1>(qx,qy,qz,QQQ1,p1);
+               kernels::PullEval<MQ1>(qx,qy,qz,QQQ,D);
+               kernels::PullEval<MQ1>(qx,qy,qz,QQQ0,p0);
+               kernels::PullEval<MQ1>(qx,qy,qz,QQQ1,p1);
 
                double d1[3];
                // Eval_d1
@@ -119,15 +117,15 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_3D,
                const double a = 1.0 / (dist * dist);
                const double w = weight * lim_normal * coeff0;
                kernels::Subtract<3>(w*a, p1, p0, d1);
-               kernels::PushEvalXYZ<MQ1>(qx,qy,qz,d1,QQQ0);
+               kernels::PushEval<MQ1>(qx,qy,qz,d1,QQQ0);
             }
          }
       }
       MFEM_SYNC_THREAD;
-      kernels::LoadBGt<MD1,MQ1>(D1D, Q1D, b, g, BG);
-      kernels::EvalXt<MD1,MQ1>(D1D,Q1D,BG,QQQ0,DQQ0);
-      kernels::EvalYt<MD1,MQ1>(D1D,Q1D,BG,DQQ0,DDQ0);
-      kernels::EvalZt<MD1,MQ1>(D1D,Q1D,BG,DDQ0,Y,e);
+      kernels::LoadBt<MD1,MQ1>(D1D,Q1D,b,B);
+      kernels::EvalXt<MD1,MQ1>(D1D,Q1D,B,QQQ0,DQQ0);
+      kernels::EvalYt<MD1,MQ1>(D1D,Q1D,B,DQQ0,DDQ0);
+      kernels::EvalZt<MD1,MQ1>(D1D,Q1D,B,DDQ0,Y,e);
    });
 }
 
@@ -142,11 +140,10 @@ void TMOP_Integrator::AddMultPA_C0_3D(const Vector &X, Vector &Y) const
    const DenseTensor &J = PA.Jtr;
    const Array<double> &W = IntRule->GetWeights();
    const Array<double> &B = PA.maps->B;
-   const Array<double> &G = PA.maps->G;
    const Vector &X0 = PA.X0;
    const Vector &C0 = PA.C0;
 
-   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_C0_3D,id,ln,LD,C0,N,J,W,B,G,X0,X,Y);
+   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_C0_3D,id,ln,LD,C0,N,J,W,B,X0,X,Y);
 }
 
 } // namespace mfem

@@ -26,7 +26,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_C0_2D,
                            const DenseTensor &j_,
                            const Array<double> &w_,
                            const Array<double> &b_,
-                           const Array<double> &g_,
                            Vector &h0_,
                            const int d1d,
                            const int q1d)
@@ -44,7 +43,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_C0_2D,
    const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, NE);
    const auto W = Reshape(w_.Read(), Q1D, Q1D);
    const auto b = Reshape(b_.Read(), Q1D, D1D);
-   const auto g = Reshape(g_.Read(), Q1D, D1D);
 
    auto H0 = Reshape(h0_.Write(), DIM, DIM, Q1D, Q1D, NE);
 
@@ -56,16 +54,16 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_C0_2D,
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
-      MFEM_SHARED double BG[2][MQ1*MD1];
+      MFEM_SHARED double B[MQ1*MD1];
 
       MFEM_SHARED double XY[2][NBZ][MD1*MD1];
       MFEM_SHARED double DQ[2][NBZ][MD1*MQ1];
       MFEM_SHARED double QQ[2][NBZ][MQ1*MQ1];
 
       kernels::LoadX<MD1,NBZ>(e,D1D,LD,XY);
-      kernels::LoadBG<MD1,MQ1>(D1D, Q1D, b, g, BG);
-      kernels::EvalX<MD1,MQ1,NBZ>(D1D,Q1D,BG,XY,DQ);
-      kernels::EvalY<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,QQ);
+      kernels::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
+      kernels::EvalX<MD1,MQ1,NBZ>(D1D,Q1D,B,XY,DQ);
+      kernels::EvalY<MD1,MQ1,NBZ>(D1D,Q1D,B,DQ,QQ);
 
       MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
@@ -78,7 +76,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_C0_2D,
             const double weight_m = weight * lim_normal * coeff0;
 
             double D[2];
-            kernels::PullEvalXY<MQ1,NBZ>(qx,qy,QQ,D);
+            kernels::PullEval<MQ1,NBZ>(qx,qy,QQ,D);
             const double dist = D[0]; // GetValues, default comp set to 0
 
             // lim_func->Eval_d2(p1, p0, d_vals(q), grad_grad);
@@ -112,11 +110,10 @@ void TMOP_Integrator::AssembleGradPA_C0_2D(const Vector &X) const
    const IntegrationRule *ir = IntRule;
    const Array<double> &W = ir->GetWeights();
    const Array<double> &B = PA.maps->B;
-   const Array<double> &G = PA.maps->G;
    const Vector &C0 = PA.C0;
    Vector &H0 = PA.H0;
 
-   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_C0_2D,id,ln,LD,C0,N,J,W,B,G,H0);
+   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_C0_2D,id,ln,LD,C0,N,J,W,B,H0);
 }
 
 } // namespace mfem

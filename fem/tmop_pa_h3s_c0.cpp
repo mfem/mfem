@@ -26,7 +26,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Kernel_C0_3D,
                            const DenseTensor &j_,
                            const Array<double> &w_,
                            const Array<double> &b_,
-                           const Array<double> &g_,
                            Vector &h0_,
                            const int d1d,
                            const int q1d)
@@ -43,7 +42,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Kernel_C0_3D,
    const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
    const auto W = Reshape(w_.Read(), Q1D, Q1D, Q1D);
    const auto b = Reshape(b_.Read(), Q1D, D1D);
-   const auto g = Reshape(g_.Read(), Q1D, D1D);
 
    auto H0 = Reshape(h0_.Write(), DIM, DIM, Q1D, Q1D, Q1D, NE);
 
@@ -55,17 +53,17 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Kernel_C0_3D,
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
-      MFEM_SHARED double BG[2][MQ1*MD1];
+      MFEM_SHARED double B[MQ1*MD1];
       MFEM_SHARED double DDD[3][MD1*MD1*MD1];
       MFEM_SHARED double DDQ[3][MD1*MD1*MQ1];
       MFEM_SHARED double DQQ[3][MD1*MQ1*MQ1];
       MFEM_SHARED double QQQ[3][MQ1*MQ1*MQ1];
 
       kernels::LoadX<MD1>(e,D1D,LD,DDD);
-      kernels::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
-      kernels::EvalX<MD1,MQ1>(D1D,Q1D,BG,DDD,DDQ);
-      kernels::EvalY<MD1,MQ1>(D1D,Q1D,BG,DDQ,DQQ);
-      kernels::EvalZ<MD1,MQ1>(D1D,Q1D,BG,DQQ,QQQ);
+      kernels::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
+      kernels::EvalX<MD1,MQ1>(D1D,Q1D,B,DDD,DDQ);
+      kernels::EvalY<MD1,MQ1>(D1D,Q1D,B,DDQ,DQQ);
+      kernels::EvalZ<MD1,MQ1>(D1D,Q1D,B,DQQ,QQQ);
 
       MFEM_FOREACH_THREAD(qz,z,Q1D)
       {
@@ -80,7 +78,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Kernel_C0_3D,
                const double weight_m = weight * lim_normal * coeff0;
 
                double D[3];
-               kernels::PullEvalXYZ<MQ1>(qx,qy,qz,QQQ,D);
+               kernels::PullEval<MQ1>(qx,qy,qz,QQQ,D);
                const double dist = D[0]; // GetValues, default comp set to 0
 
                // lim_func->Eval_d2(p1, p0, d_vals(q), grad_grad);
@@ -115,11 +113,10 @@ void TMOP_Integrator::AssembleGradPA_C0_3D(const Vector &X) const
    const IntegrationRule *ir = IntRule;
    const Array<double> &W = ir->GetWeights();
    const Array<double> &B = PA.maps->B;
-   const Array<double> &G = PA.maps->G;
    const Vector &C0 = PA.C0;
    Vector &H0 = PA.H0;
 
-   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_Kernel_C0_3D,id,ln,LD,C0,N,J,W,B,G,H0);
+   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_Kernel_C0_3D,id,ln,LD,C0,N,J,W,B,H0);
 }
 
 } // namespace mfem
