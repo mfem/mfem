@@ -34,8 +34,45 @@ glvis -np 36 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 glvis -np 48 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 glvis -np 72 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 glvis -np 512 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
+glvis -np 4096 -m mesh -g sol_omega -k "mmc" -ww 1000 -wh 1000
 
 glvis -np 4 -m mesh -g sol_omega -k "mmc" -ww 400 -wh 400
+
+8/10
+after merging to master, imMHDp seems okay
+
+8/5
+res=1e-6 starts behave okay (run to t=6 so far, working on later time)
+>>> time adapativity works okay but it may introduce oscillations
+    1/dt in the diffusion with a floor (or growth rate)
+>>> underresolve?
+>>> plasmoid happens later time?
+>>> working on restart
+
+p refinement: Schur complement grows but # of preconditioner grow quickly (indicates we need to reduce time step)
+
+* better scaling (the algorithm seems really slow)
+  still scaled up to 4096
+  challenging to run longer time
+
+* better preconditioner
+  playing with all parameters in preconditioner: the effective one is err=0.1; 1e-7 starts to work but need more tests
+
+number of plasmoids??
+
+8/4
+todo:
+amr
+p refinement
+
+test:
+srun -n 256 ./imMHDp -m ../Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -no-vis -vs 1 -tf .2 -dt .05 -usepetsc --petscopts ./rc_debug -s 3 -shell -resi 1e-6 -visc 1e-6 -im_supg 1 -supg -i_supgpre 3 -no-fd -local -lr 4
+
+srun -N 32 -n 1024  --ntasks-per-node=32 ./imMHDp -m ../Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -no-vis -vs 2 -tf .2 -dt .025 -usepetsc --petscopts ./rc_debug -s 3 -shell -resi 1e-6 -visc 1e-6 -im_supg 1 -supg -i_supgpre 3 -no-fd -local -lr 5
+1024 interactive: 831s on nersc
+2048 interactive: 400s on nersc
+
+srun -N 64 -n 2048  --ntasks-per-node=32 ./imMHDp -m ../Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -no-vis -vs 2 -tf .2 -dt .025 -usepetsc --petscopts ./rc_debug -s 3 -shell -resi 1e-6 -visc 1e-6 -im_supg 1 -supg -i_supgpre 3 -no-fd -local -lr 5
 
 7/30
 improved the preconditioner (commute or not)
@@ -54,15 +91,23 @@ time stepping? adaptive (yes)
 
 AMR for 1e-5?
 
+the reduce time step gives strange solution? The diffusion seems not enough
+
+determine the possible ideal number of cores
+let lr=5 be the resolution to get res=1e-6 (h=5e-4)
+
 7/23
 1. improve the preconditioner 
 done. which version is better? check res=1e-5 and res=1e-6
 2. improve the Schur complement solver (ParaSails works better, Euclid behaves strangely)
 3. test the case for 1e-6 
 
-srun -n 72 ./imMHDp -m ./Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -no-vis -vs 1 -tf 1. -dt .05 -usepetsc --petscopts ./petscrc/rc_simple -s 3 -shell -resi 1e-6 -visc 1e-6 -im_supg 1 -supg -i_supgpre 3 -no-fd -local -lr 4
+srun -n 72 ./imMHDp -m ./Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -no-vis -vs 1 -tf .2 -dt .05 -usepetsc --petscopts ./petscrc/rc_simple -s 3 -shell -resi 1e-7 -visc 1e-7 -im_supg 1 -supg -i_supgpre 3 -no-fd -local -lr 4
 
 srun -n 72 ./imMHDpNew -m ./Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -no-vis -vs 1 -tf .1 -dt .05 -usepetsc --petscopts ./petscrc/rc_debug4 -s 3 -shell -resi 1e-6 -visc 1e-6 -im_supg 1 -supg -i_supgpre 3 -fd -local -lr 6 
+
+on badger debug:
+srun -n 2 ./imMHDp -m ./Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -no-vis -dt .05 -usepetsc --petscopts ./petscrc/rc_debug -s 3 -shell -resi 1e-5 -visc 1e-5 -im_supg 1 -supg -i_supgpre 3 -no-fd -no-local
 
 
 7/20
