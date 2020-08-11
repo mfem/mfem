@@ -47,6 +47,16 @@ void EvalP_007(const double *Jpt, double *P)
                 -ie.Get_I1() / (I2*I2), ie.Get_dI2(), P);
 }
 
+static MFEM_HOST_DEVICE inline
+void EvalP_077(const double *Jpt, double *P)
+{
+   double dI2[4], dI2b[4];
+   kernels::InvariantsEvaluator2D ie(Args().
+                                     J(Jpt).
+                                     dI2(dI2).dI2b(dI2b));
+   const double I2 = ie.Get_I2();
+   kernels::Set(2,2, 0.5 * (1.0 - 1.0 / (I2 * I2)), ie.Get_dI2(), P);
+}
 
 MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_2D,
                            const double metric_normal,
@@ -61,6 +71,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_2D,
                            const int d1d,
                            const int q1d)
 {
+   MFEM_VERIFY(mid == 1 || mid == 2 || mid == 7 || mid == 77,
+               "Metric not yet implemented!");
+
    constexpr int DIM = 2;
    constexpr int NBZ = 1;
 
@@ -107,7 +120,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_2D,
 
             // Jpr = X{^T}.DSh
             double Jpr[4];
-            kernels::PullGradXY<MQ1,NBZ>(qx,qy,QQ,Jpr);
+            kernels::PullGrad<MQ1,NBZ>(qx,qy,QQ,Jpr);
 
             // Jpt = X{^T}.DS = (X{^T}.DSh).Jrt = Jpr.Jrt
             double Jpt[4];
@@ -115,19 +128,20 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_2D,
 
             // metric->EvalP(Jpt, P);
             double P[4];
-            if (mid == 1) { EvalP_001(Jpt, P); }
-            if (mid == 2) { EvalP_002(Jpt, P); }
-            if (mid == 7) { EvalP_007(Jpt, P); }
+            if (mid ==  1) { EvalP_001(Jpt, P); }
+            if (mid ==  2) { EvalP_002(Jpt, P); }
+            if (mid ==  7) { EvalP_007(Jpt, P); }
+            if (mid == 77) { EvalP_077(Jpt, P); }
             for (int i = 0; i < 4; i++) { P[i] *= weight; }
 
             // PMatO +=  DS . P^t += DSh . (Jrt . P^t)
             double A[4];
             kernels::MultABt(2,2,2, Jrt, P, A);
-            kernels::PushGradXY<MQ1,NBZ>(qx,qy,A,QQ);
+            kernels::PushGrad<MQ1,NBZ>(qx,qy,A,QQ);
          }
       }
       MFEM_SYNC_THREAD;
-      kernels::LoadBGt<MD1,MQ1>(D1D, Q1D, b, g, BG);
+      kernels::LoadBGt<MD1,MQ1>(D1D,Q1D,b,g,BG);
       kernels::GradYt<MD1,MQ1,NBZ>(D1D,Q1D,BG,QQ,DQ);
       kernels::GradXt<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,Y,e);
    });

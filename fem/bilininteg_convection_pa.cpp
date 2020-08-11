@@ -17,7 +17,7 @@
 #include "tmop_pa.hpp"
 #include "../linalg/kernels.hpp"
 
-#define MFEM_DEBUG_COLOR 231
+#define MFEM_DEBUG_COLOR 135
 #include "../general/debug.hpp"
 
 using namespace std;
@@ -779,9 +779,14 @@ void SmemPAConvectionApply3D(const int ne,
    });
 }
 
-template<int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0> static
-void QEvalVGF2D(const int NE, const double *b_, const double *x_, double *y_,
-                const int vdim = 1, const int d1d = 0, const int q1d = 0)
+template<int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0>
+static void QEvalVGF2D(const int NE,
+                       const double *b_,
+                       const double *x_,
+                       double *y_,
+                       const int vdim = 1,
+                       const int d1d = 0,
+                       const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -810,16 +815,16 @@ void QEvalVGF2D(const int NE, const double *b_, const double *x_, double *y_,
 
       for (int c = 0; c < VDIM; c++)
       {
-         mfem::kernels::LoadXS<MD1,NBZ>(e,D1D,c,X,DD);
-         mfem::kernels::EvalXS<MD1,MQ1,NBZ>(D1D,Q1D,B,DD,DQ);
-         mfem::kernels::EvalYS<MD1,MQ1,NBZ>(D1D,Q1D,B,DQ,QQ);
+         mfem::kernels::LoadX<MD1,NBZ>(e,D1D,c,X,DD);
+         mfem::kernels::EvalX<MD1,MQ1,NBZ>(D1D,Q1D,B,DD,DQ);
+         mfem::kernels::EvalY<MD1,MQ1,NBZ>(D1D,Q1D,B,DQ,QQ);
 
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             MFEM_FOREACH_THREAD(qy,y,Q1D)
             {
                double G;
-               mfem::kernels::PullEvalXYS<MQ1,NBZ>(qx,qy,QQ,G);
+               mfem::kernels::PullEval<MQ1,NBZ>(qx,qy,QQ,G);
                C(c,qx,qy,e) = G;
             }
          }
@@ -828,9 +833,14 @@ void QEvalVGF2D(const int NE, const double *b_, const double *x_, double *y_,
    });
 }
 
-template<int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0> static
-void QEvalVGF3D(const int NE, const double *b_, const double *x_, double *y_,
-                const int vdim = 1, const int d1d = 0, const int q1d = 0)
+template<int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0>
+static void QEvalVGF3D(const int NE,
+                       const double *b_,
+                       const double *x_,
+                       double *y_,
+                       const int vdim = 1,
+                       const int d1d = 0,
+                       const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -858,10 +868,10 @@ void QEvalVGF3D(const int NE, const double *b_, const double *x_, double *y_,
 
       for (int c = 0; c < VDIM; c++)
       {
-         mfem::kernels::LoadXS<MD1>(e,D1D,c,X,DDD);
-         mfem::kernels::EvalXS<MD1,MQ1>(D1D,Q1D,B,DDD,DDQ);
-         mfem::kernels::EvalYS<MD1,MQ1>(D1D,Q1D,B,DDQ,DQQ);
-         mfem::kernels::EvalZS<MD1,MQ1>(D1D,Q1D,B,DQQ,QQQ);
+         mfem::kernels::LoadX<MD1>(e,D1D,c,X,DDD);
+         mfem::kernels::EvalX<MD1,MQ1>(D1D,Q1D,B,DDD,DDQ);
+         mfem::kernels::EvalY<MD1,MQ1>(D1D,Q1D,B,DDQ,DQQ);
+         mfem::kernels::EvalZ<MD1,MQ1>(D1D,Q1D,B,DQQ,QQQ);
 
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
@@ -870,7 +880,7 @@ void QEvalVGF3D(const int NE, const double *b_, const double *x_, double *y_,
                MFEM_FOREACH_THREAD(qz,z,Q1D)
                {
                   double G;
-                  mfem::kernels::PullEvalXYZS<MQ1>(qx,qy,qz,QQQ,G);
+                  mfem::kernels::PullEval<MQ1>(qx,qy,qz,QQQ,G);
                   C(c,qx,qy,qz,e) = G;
                }
             }
@@ -940,13 +950,14 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
          {
             case 0x22: QEvalVGF2D<2,2,2>(ne,B,x,y); break;
             case 0x33: QEvalVGF2D<2,3,3>(ne,B,x,y); break;
+            case 0x34: QEvalVGF2D<2,3,4>(ne,B,x,y); break;
             default:
             {
                constexpr int MAX_DQ = 8;
-               printf("\033[7mdim:%d, 0x%x\033[m",dim, id); fflush(0);
+               dbg("dim:%d, 0x%x",dim, id);
                MFEM_VERIFY(D1D <= MAX_DQ, "");
                MFEM_VERIFY(Q1D <= MAX_DQ, "");
-               QEvalVGF2D<0,0,0,MAX_DQ>(ne,B,x,y,D1D,Q1D);
+               QEvalVGF2D<0,0,0,MAX_DQ>(ne,B,x,y,vdim,D1D,Q1D);
             }
          }
       }
@@ -962,7 +973,7 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
             default:
             {
                constexpr int MAX_DQ = 6;
-               printf("\033[7mdim:%d, 0x%x\033[m",dim, id); fflush(0);
+               dbg("dim:%d, 0x%x",dim, id);
                MFEM_VERIFY(D1D <= MAX_DQ, "");
                MFEM_VERIFY(Q1D <= MAX_DQ, "");
                QEvalVGF3D<0,0,0,MAX_DQ>(ne,B,x,y,vdim,D1D,Q1D);

@@ -42,6 +42,14 @@ double EvalW_007(const double *Jpt)
    return ie.Get_I1() * (1.0 + 1.0/ie.Get_I2()) - 4.0;
 }
 
+static MFEM_HOST_DEVICE inline
+double EvalW_077(const double *Jpt)
+{
+   kernels::InvariantsEvaluator2D ie(Args().J(Jpt));
+   const double I2 = ie.Get_I2b(); // Get_I2b or Get_I2 ?
+   return 0.5*(I2*I2 + 1./(I2*I2) - 2.);
+}
+
 MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_2D,
                            const double metric_normal,
                            const int mid,
@@ -56,7 +64,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_2D,
                            const int d1d,
                            const int q1d)
 {
-   MFEM_VERIFY(mid == 1 || mid == 2 || mid == 7,
+   MFEM_VERIFY(mid == 1 || mid == 2 || mid == 7 || mid == 77,
                "2D metric not yet implemented!");
 
    constexpr int DIM = 2;
@@ -106,7 +114,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_2D,
 
             // Jpr = X^t.DSh
             double Jpr[4];
-            kernels::PullGradXY<MQ1,NBZ>(qx,qy,QQ,Jpr);
+            kernels::PullGrad<MQ1,NBZ>(qx,qy,QQ,Jpr);
 
             // Jpt = X^T.DS = (X^T.DSh).Jrt = Jpr.Jrt
             double Jpt[4];
@@ -114,9 +122,10 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_2D,
 
             // metric->EvalW(Jpt);
             const double EvalW =
-            mid == 1 ? EvalW_001(Jpt) :
-            mid == 2 ? EvalW_002(Jpt) :
-            mid == 7 ? EvalW_007(Jpt) : 0.0;
+            mid ==  1 ? EvalW_001(Jpt) :
+            mid ==  2 ? EvalW_002(Jpt) :
+            mid ==  7 ? EvalW_007(Jpt) :
+            mid == 77 ? EvalW_077(Jpt) : 0.0;
 
             E(qx,qy,e) = weight * EvalW;
          }
