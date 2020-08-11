@@ -199,6 +199,7 @@ struct TensorIndex
    }
 };
 
+/// A fixed size tensor class
 template<typename T, int... Dims>
 class Tensor{
 private:
@@ -224,21 +225,180 @@ public:
 template <int... Dims>
 using dTensor = Tensor<double,Dims...>;
 
-template<int Q, int P> MFEM_HOST_DEVICE inline
+// Functions to read degrees of freedom
+// Non-tensor dofs
+template<int P> MFEM_HOST_DEVICE inline
+void readDofs(const DeviceTensor<2> &l_vec, const int e, dTensor<P> &u)
+{
+   MFEM_FOREACH_THREAD(p,x,P)
+   {
+      u(p) = l_vec(p, e);
+   }
+   MFEM_SYNC_THREAD;
+}
+
+// Non-tensor dofs with VDIM
+template<int P, int VDIM> MFEM_HOST_DEVICE inline
+void readDofs(const DeviceTensor<3> &l_vec, const int e,
+              Tensor<dTensor<VDIM>,P> &u)
+{
+   for (int c = 0; c < count; c++)
+   {   
+      MFEM_FOREACH_THREAD(p,x,P)
+      {
+         u(p)(c) = l_vec(p, c, e);
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+// 3D tensor dofs
+template <int D1d> MFEM_HOST_DEVICE inline
+void readDofs(const DeviceTensor<4> &l_vec, const int e,
+              dTensor<D1d,D1d,D1d> &u)
+{
+   for (int dz = 0; dz < D1d; dz++)
+   {
+      MFEM_FOREACH_THREAD(dy,y,D1d)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1d)
+         {
+            u(dx,dy,dz) = l_vec(dx,dy,dz,e);
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+// 3D tensor dofs with VDIM
+template <int D1d, int VDIM> MFEM_HOST_DEVICE inline
+void readDofs(const DeviceTensor<5> &l_vec, const int e,
+              Tensor<dTensor<VDIM>,D1d,D1d,D1d> &u)
+{
+   for (int c = 0; c < count; c++)
+   {
+      for (int dz = 0; dz < D1d; dz++)
+      {
+         MFEM_FOREACH_THREAD(dy,y,D1d)
+         {
+            MFEM_FOREACH_THREAD(dx,x,D1d)
+            {
+               u(dx,dy,dz)(c) = l_vec(dx,dy,dz,c,e);
+            }
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+// 2D tensor dofs
+template <int D1d> MFEM_HOST_DEVICE inline
+void readDofs(const DeviceTensor<3> &l_vec, const int e,
+              dTensor<D1d,D1d> &u)
+{
+   MFEM_FOREACH_THREAD(dy,y,D1d)
+   {
+      MFEM_FOREACH_THREAD(dx,x,D1d)
+      {
+         u(dx,dy) = l_vec(dx,dy,e);
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+// 2D tensor dofs with VDIM
+template <int D1d, int VDIM> MFEM_HOST_DEVICE inline
+void readDofs(const DeviceTensor<4> &l_vec, const int e,
+              Tensor<dTensor<VDIM>,D1d,D1d> &u)
+{
+   for (int c = 0; c < count; c++)
+   {
+      MFEM_FOREACH_THREAD(dy,y,D1d)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1d)
+         {
+            u(dx,dy)(c) = l_vec(dx,dy,c,e);
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+// 1D tensor dofs
+template <int D1d> MFEM_HOST_DEVICE inline
+void readDofs(const DeviceTensor<2> &l_vec, const int e,
+              dTensor<D1d> &u)
+{
+   MFEM_FOREACH_THREAD(dx,x,D1d)
+   {
+      u(dx) = l_vec(dx,e);
+   }
+   MFEM_SYNC_THREAD;
+}
+
+// 1D tensor dofs with VDIM
+template <int D1d, int VDIM> MFEM_HOST_DEVICE inline
+void readDofs(const DeviceTensor<3> &l_vec, const int e,
+              Tensor<dTensor<VDIM>,D1d> &u)
+{
+   for (int c = 0; c < count; c++)
+   {
+      MFEM_FOREACH_THREAD(dx,x,D1d)
+      {
+         u(dx)(c) = l_vec(dx,c,e);
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+// Functions to interpolate from degrees of freedom to quadrature points
+// Non-tensor case
+template<int P, int Q> MFEM_HOST_DEVICE inline
 void Interp(const dTensor<Q,P> &B,
             const dTensor<P> &u,
             dTensor<Q> &u_q)
 {
    MFEM_FOREACH_THREAD(q,x,Q)
    {
-      u_q(q) = 0;
+      double v = 0.0;
       for (int d = 0; d < P; ++d)
       {
-         u_q(q) += B(q,d) * u(d);
+         const double b = B(q,d);
+         v += b * u(d);
+      }
+      u_q(q) = v;
+   }
+}
+
+// Non-tensor case with VDIM
+template<int Q, int P, int VDIM> MFEM_HOST_DEVICE inline
+void Interp(const dTensor<Q,P> &B,
+            const Tensor<dTensor<VDIM>,P> &u,
+            Tensor<dTensor<VDIM>,Q> &u_q)
+{
+   MFEM_FOREACH_THREAD(q,x,Q)
+   {
+      double v[VDIM];
+      for (int c = 0; c < VDIM; c++)
+      {
+         v[c] = 0.0;
+      }
+      for (int d = 0; d < P; ++d)
+      {
+         const double b = B(q,d);
+         for (int c = 0; c < VDIM; c++)
+         {
+            v[c] += b * u(d)(c);
+         }
+      }
+      for (int c = 0; c < VDIM; c++)
+      {
+         u_q(q)(c) = v[c];
       }
    }
 }
 
+// 3D Tensor case
 template<int Q1d, int P1d> MFEM_HOST_DEVICE inline
 void Interp(const dTensor<Q1d,P1d> &B,
             const dTensor<P1d,P1d,P1d> &u,
@@ -302,6 +462,101 @@ void Interp(const dTensor<Q1d,P1d> &B,
    MFEM_SYNC_THREAD;
 }
 
+// 3D Tensor case with VDIM
+template<int Q1d, int P1d, int VDIM> MFEM_HOST_DEVICE inline
+void Interp(const dTensor<Q1d,P1d> &B,
+            const Tensor<dTensor<VDIM>,P1d,P1d,P1d> &u,
+            Tensor<dTensor<VDIM>,Q1d,Q1d,Q1d> &u_q)
+{
+   Tensor<dTensor<VDIM>,Q1d,P1d,P1d> Bu;
+   MFEM_FOREACH_THREAD(dz,z,D1D)
+   {
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            double val[VDIM];
+            for (int c = 0; c < VDIM; c++)
+            {
+               val[c] = 0.0;
+            }
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               const double b = B(qx,dx);
+               for (int c = 0; c < count; c++)
+               {
+                  const double x = u(dx,dy,dz)(c);
+                  val[c] += b * x;
+               }
+            }
+            for (int c = 0; c < VDIM; c++)
+            {
+               Bu(qx,dy,dz)(c) = val[c];
+            }
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   Tensor<dTensor<VDIM>,Q1d,Q1d,P1d> BBu;
+   MFEM_FOREACH_THREAD(dz,z,D1D)
+   {
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            double val[VDIM];
+            for (int c = 0; c < VDIM; c++)
+            {
+               val[c] = 0.0;
+            }
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               const double b = B(qy,dy);
+               for (int c = 0; c < count; c++)
+               {
+                  const double x = Bu(qx,dy,dz)(c);
+                  val[c] += b * x;
+               }
+            }
+            for (int c = 0; c < VDIM; c++)
+            {
+               BBu(qx,qy,dz)(c) = val[c];
+            }
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(qx,x,Q1D)
+   {
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qz,z,D1D)
+         {
+            double val[VDIM];
+            for (int c = 0; c < VDIM; c++)
+            {
+               val[c] = 0.0;
+            }
+            for (int dz = 0; dz < D1D; ++dz)
+            {
+               const double b = B(qz,dz);
+               for (int c = 0; c < count; c++)
+               {
+                  const double x = Bu(qx,qy,dz)(c);
+                  val[c] += b * x;
+               }
+            }
+            for (int c = 0; c < VDIM; c++)
+            {
+               u_q(qx,qy,qz)(c) = val[c];
+            }
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+// 2D Tensor case
 template<int Q1d, int P1d> MFEM_HOST_DEVICE inline
 void Interp(const dTensor<Q1d,P1d> &B,
             const dTensor<P1d,P1d> &u,
@@ -335,6 +590,115 @@ void Interp(const dTensor<Q1d,P1d> &B,
             val += b * x;
          }
          u_q(qx,qy) = val;
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+// 2D Tensor case with VDIM
+template<int Q1d, int P1d, int VDIM> MFEM_HOST_DEVICE inline
+void Interp(const dTensor<Q1d,P1d> &B,
+            const Tensor<dTensor<VDIM>,P1d,P1d> &u,
+            Tensor<dTensor<VDIM>,Q1d,Q1d> &u_q)
+{
+   Tensor<dTensor<VDIM>,Q1d,P1d> Bu;
+   MFEM_FOREACH_THREAD(dy,y,D1D)
+   {
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         double val[VDIM];
+         for (int c = 0; c < VDIM; c++)
+         {
+            val[c] = 0.0;
+         }
+         for (int dx = 0; dx < D1D; ++dx)
+         {
+            const double b = B(qx,dx);
+            for (int c = 0; c < VDIM; c++)
+            {
+               const double x = u(dx,dy)(c);
+               val[c] += b * x;
+            }
+         }
+         for (int c = 0; c < VDIM; c++)
+         {
+            Bu(qx,dy)(c) = val[c];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(qx,x,Q1D)
+   {
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         double val[VDIM];
+         for (int c = 0; c < VDIM; c++)
+         {
+            val[c] = 0.0;
+         }
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            const double b = B(qy,dy);
+            for (int c = 0; c < VDIM; c++)
+            {
+               const double x = Bu(qx,dy)(c);
+               val[c] += b * x;
+            }
+         }
+         for (int c = 0; c < VDIM; c++)
+         {
+            u_q(qx,qy)(c) = val[c];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+// 1D Tensor case
+template<int Q1d, int P1d> MFEM_HOST_DEVICE inline
+void Interp(const dTensor<Q1d,P1d> &B,
+            const dTensor<P1d> &u,
+            dTensor<Q1d> &u_q)
+{
+   MFEM_FOREACH_THREAD(qx,x,Q1D)
+   {
+      double val = 0.0;
+      for (int dx = 0; dx < D1D; ++dx)
+      {
+         const double b = B(qx,dx);
+         const double x = u(dx);
+         val += b * x;
+      }
+      u_q(qx) = val;
+   }
+   MFEM_SYNC_THREAD;
+}
+
+// 1D Tensor case with VDIM
+template<int Q1d, int P1d, int VDIM> MFEM_HOST_DEVICE inline
+void Interp(const dTensor<Q1d,P1d> &B,
+            const Tensor<dTensor<VDIM>,P1d> &u,
+            Tensor<dTensor<VDIM>,Q1d> &u_q)
+{
+   MFEM_FOREACH_THREAD(qx,x,Q1D)
+   {
+      double val[VDIM];
+      for (int c = 0; c < VDIM; c++)
+      {
+         val[c] = 0.0;
+      }
+      for (int dx = 0; dx < D1D; ++dx)
+      {
+         const double b = B(qx,dx);
+         for (int c = 0; c < VDIM; c++)
+         {
+            const double x = u(dx)(c);
+            val[c] += b * x;
+         }
+      }
+      for (int c = 0; c < VDIM; c++)
+      {
+         u_q(qx)(c) = val[c];
       }
    }
    MFEM_SYNC_THREAD;
