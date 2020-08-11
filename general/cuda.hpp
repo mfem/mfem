@@ -64,8 +64,14 @@ void* CuMemAlloc(void **d_ptr, size_t bytes);
 /// Allocates managed device memory
 void* CuMallocManaged(void **d_ptr, size_t bytes);
 
+/// Allocate page-locked (pinned) host memory
+void* CuMemAllocHost(void **ptr, size_t bytes);
+
 /// Frees device memory and returns destination ptr.
 void* CuMemFree(void *d_ptr);
+
+/// Frees page-locked (pinned) host memory and returns destination ptr.
+void* CuMemFreeHost(void *ptr);
 
 /// Copies memory from Host to Device and returns destination ptr.
 void* CuMemcpyHtoD(void *d_dst, const void *h_src, size_t bytes);
