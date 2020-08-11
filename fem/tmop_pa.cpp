@@ -17,9 +17,6 @@
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 
-#define MFEM_DEBUG_COLOR 159
-#include "../general/debug.hpp"
-
 namespace mfem
 {
 

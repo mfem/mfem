@@ -14,8 +14,6 @@
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
 #include "../general/forall.hpp"
-#define MFEM_DEBUG_COLOR 214
-#include "../general/debug.hpp"
 
 namespace mfem
 {

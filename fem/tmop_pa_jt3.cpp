@@ -14,9 +14,6 @@
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 
-#define MFEM_DEBUG_COLOR 206
-#include "../general/debug.hpp"
-
 namespace mfem
 {
 
@@ -153,9 +150,10 @@ bool DiscreteAdaptTC::ComputeElementTargetsPA(const IntegrationRule *ir,
 
    const bool SizeKernel = sizeidx != -1;
 
-   if (skewidx != -1) { dbg("!skewidx"); return false; }
-   if (aspectratioidx != -1) { dbg("!aspectratioidx"); return false; }
-   if (orientationidx != -1) { dbg("!orientationidx"); return false; }
+   // Until it is not implemented, return on host
+   if (skewidx != -1) { return false; }
+   if (aspectratioidx != -1) { return false; }
+   if (orientationidx != -1) { return false; }
 
    if (DIM == 3 && SizeKernel)
    {
