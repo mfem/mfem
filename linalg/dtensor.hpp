@@ -351,6 +351,20 @@ void readDofs(const DeviceTensor<3> &l_vec, const int e,
    MFEM_SYNC_THREAD;
 }
 
+// Functions to read dofs to quad matrix
+template<int P, int Q> MFEM_HOST_DEVICE inline
+void readMatrix(const DeviceTensor<2> &d_B, dTensor<Q,P> &s_B)
+{
+   for (int p = 0; p < P; p++)
+   {
+      MFEM_FOREACH_THREAD(q,x,Q)
+      {
+         s_B(q,p) = d_B(q,p);
+      }    
+   }
+   MFEM_SYNC_THREAD;
+}
+
 // Functions to interpolate from degrees of freedom to quadrature points
 // Non-tensor case
 template<int P, int Q> MFEM_HOST_DEVICE inline
