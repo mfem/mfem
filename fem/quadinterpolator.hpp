@@ -61,7 +61,8 @@ public:
       /** @brief Assuming the derivative at quadrature points form a matrix,
           this flag can be used to compute and store their determinants. This
           flag can only be used in Mult(). */
-      DETERMINANTS = 1 << 2
+      DETERMINANTS = 1 << 2,
+      PHYSICAL_DERIVATIVES = 1 << 3 ///< Evaluate the physical derivatives
    };
 
    QuadratureInterpolator(const FiniteElementSpace &fes,
@@ -100,9 +101,6 @@ public:
        form a matrix at each quadrature point (i.e. the associated
        FiniteElementSpace is a vector space) and their determinants are computed
        and stored in @a q_det. */
-   template <QVectorLayout>
-   void Mult(const Vector &e_vec, unsigned eval_flags,
-             Vector &q_val, Vector &q_der, Vector &q_det) const;
    void Mult(const Vector &e_vec, unsigned eval_flags,
              Vector &q_val, Vector &q_der, Vector &q_det) const;
 
@@ -124,8 +122,6 @@ public:
    void PhysDerivatives(const Vector &e_vec, Vector &q_der) const;
 
    /// Compute the determinant of the E-vector @a e_vec at quadrature points.
-   template <QVectorLayout>
-   void Determinants(const Vector &e_vec, Vector &q_det) const;
    void Determinants(const Vector &e_vec, Vector &q_det) const;
 
    /// Perform the transpose operation of Mult(). (TODO)
@@ -137,6 +133,8 @@ public:
    template<const int T_VDIM = 0, const int T_ND = 0, const int T_NQ = 0>
    static void Mult2D(const int NE,
                       const int vdim,
+                      const QVectorLayout q_layout,
+                      const GeometricFactors *geom,
                       const DofToQuad &maps,
                       const Vector &e_vec,
                       Vector &q_val,
@@ -148,6 +146,8 @@ public:
    template<const int T_VDIM = 0, const int T_ND = 0, const int T_NQ = 0>
    static void Mult3D(const int NE,
                       const int vdim,
+                      const QVectorLayout q_layout,
+                      const GeometricFactors *geom,
                       const DofToQuad &maps,
                       const Vector &e_vec,
                       Vector &q_val,

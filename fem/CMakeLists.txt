@@ -51,13 +51,12 @@ set(SRCS
   nonlininteg_vectorconvection.cpp
   quadinterpolator.cpp
   quadinterpolator_det.cpp
-  quadinterpolator_bynodes_eval.cpp
-  quadinterpolator_bynodes_grad.cpp
-  quadinterpolator_bynodes_grad_phys.cpp
-  quadinterpolator_bynodes_mult.cpp
-  quadinterpolator_byvdim_eval.cpp
-  quadinterpolator_byvdim_grad.cpp
-  quadinterpolator_byvdim_grad_phys.cpp
+  quadinterpolator_eval_by_nodes.cpp
+  quadinterpolator_eval_by_vdim.cpp
+  quadinterpolator_grad_by_nodes.cpp
+  quadinterpolator_grad_by_vdim.cpp
+  quadinterpolator_grad_phys_by_nodes.cpp
+  quadinterpolator_grad_phys_by_vdim.cpp
   quadinterpolator_face.cpp
   restriction.cpp
   staticcond.cpp
@@ -75,9 +74,9 @@ set(SRCS
   tmop_pa_h3m_c0.cpp
   tmop_pa_h3s.cpp
   tmop_pa_h3s_c0.cpp
-  tmop_pa_j2.cpp
-  tmop_pa_j3.cpp
-  tmop_pa_jtr.cpp
+  tmop_pa_jp2.cpp
+  tmop_pa_jp3.cpp
+  tmop_pa_jt3.cpp
   tmop_pa_p2.cpp
   tmop_pa_p2_c0.cpp
   tmop_pa_p3.cpp
@@ -115,7 +114,10 @@ set(HDRS
   nonlinearform_ext.hpp
   nonlininteg.hpp
   quadinterpolator.hpp
+  quadinterpolator_eval.hpp
   quadinterpolator_face.hpp
+  quadinterpolator_grad.hpp
+  quadinterpolator_grad_phys.hpp
   restriction.hpp
   fespacehierarchy.hpp
   staticcond.hpp

@@ -260,7 +260,8 @@ tests/unit/star.mesh
 tests/unit/blade.mesh
 tests/unit/square01.mesh
 tests/unit/toroid-hex.mesh
-
+tests/unit/beam-hex-nurbs.mesh
+tests/unit/square-disc-nurbs.mesh
 
 # Test script output
 tests/scripts/*.err

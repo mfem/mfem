@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_KERNELS_HPP
-#define MFEM_KERNELS_HPP
+#ifndef MFEM_LINALG_KERNELS_HPP
+#define MFEM_LINALG_KERNELS_HPP
 
 #ifdef _WIN32
 #define _USE_MATH_DEFINES
@@ -1564,4 +1564,4 @@ inline void LUSolve(const double *data, const int m, const int *ipiv,
 
 } // namespace mfem
 
-#endif // MFEM_KERNELS_HPP
+#endif // MFEM_LINALG_KERNELS_HPP

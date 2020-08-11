@@ -138,7 +138,8 @@ $(eval $(call psedov_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
 
 # TMOP rules to copy the mesh files
 # Needed for running the sample runs when building out-of-source
-DATA_MESH_FILES = star.mesh toroid-hex.mesh
+DATA_MESH_FILES = star.mesh toroid-hex.mesh \
+						square-disc-nurbs.mesh beam-hex-nurbs.mesh
 MINIAPPS_MESHING_MESH_FILES = square01.mesh blade.mesh cube.mesh
 $(DATA_MESH_FILES): %: $(MFEM_DIR)/data/%
 	ln -sf $(<) .
@@ -166,6 +167,7 @@ $(eval $(call tmop_tests,cuda,CUDA,cuda))
 $(eval $(call tmop_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
 
 define ptmop_tests
+ptmop_tests_$(1): | $(DATA_MESH_FILES) $(MINIAPPS_MESHING_MESH_FILES)
 ptmop_tests_$(1): TMOP_TESTS_FLAGS =-DMFEM_TMOP_MPI
 ptmop_tests_$(1): TMOP_TESTS_FLAGS+=-DMFEM_TMOP_TESTS -DMFEM_TMOP_DEVICE='"$(3)"'
 ptmop_tests_$(1): punit_test_main.o $$(PAR_TMOP_$(2)_OBJ_FILES) \

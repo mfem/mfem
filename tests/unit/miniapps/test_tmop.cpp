@@ -68,8 +68,8 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    int target_id         = 1;
    int quad_type         = 1;
    int quad_order        = 2;
-   int newton_iter       = 10;
-   double newton_rtol    = 1e-10;
+   int newton_iter       = 100;
+   double newton_rtol    = 1e-8;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    double lim_const      = 0.0;
@@ -449,10 +449,12 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    res.dot = dot;
 
    delete S;
+   delete S_prec;
    delete pmesh;
    delete metric;
    delete newton;
    delete target_c;
+   delete adapt_coeff;
 
    return 0;
 }
@@ -549,7 +551,7 @@ public:
    private:
       const char *name = nullptr;
       const char *mesh = "star.mesh";
-      int newton_iter = 10;
+      int newton_iter = 100;
       int rs_levels = 0;
       int max_lin_iter  = 100;
       bool normalization = false;
@@ -600,7 +602,7 @@ public:
       static bool all = getenv("MFEM_TESTS_UNIT_TMOP_ALL");
       if (name) { printf("[%s]\n", name); fflush(0); }
       DEFAULT_ARGS;
-      char ni[2] {}, rs[4] {}, li[4] {}, lc[12] {}, ji[12] {};
+      char ni[8] {}, rs[8] {}, li[8] {}, lc[16] {}, ji[16] {};
       args[MSH] = mesh;
       args[RS] = itoa(REFINE,rs);
       args[NI] = itoa(NEWTON_ITERATIONS,ni);
@@ -651,11 +653,23 @@ public:
 
 static void tmop_tests(int id)
 {
+   const double jitter = 1./(M_PI*M_PI);
+
+   // NURBS
+   Launch(Launch::Args("2D Nurbs").
+          MESH("square-disc-nurbs.mesh").REFINE(1).JI(jitter).
+          POR({1,2}).QOR({2,4}).
+          TID({1,2,3}).MID({1,2})).Run(id);
+
+   Launch(Launch::Args("3D Nurbs").
+          MESH("beam-hex-nurbs.mesh").REFINE(1).JI(jitter).
+          POR({1,2}).QOR({2,4}).
+          TID({1,2,3}).MID({302,321})).Run(id);
+
    // -m cube.mesh -rs 1 -tid 5 -mid 321 -ni 5 -ls 3 -li 100 -lc 1.0 -nor
    Launch(Launch::Args("Cube + Blast options").
           MESH("cube.mesh").REFINE(1).
-          TID({5}).MID({321}).
-          NEWTON_ITERATIONS(5).LS({3}).LINEAR_ITERATIONS(100).
+          TID({5}).MID({321}).LS({3}).LINEAR_ITERATIONS(100).
           LIMITING(M_PI).NORMALIZATION(true).
           POR({1,2,3}).QOR({2,4}).NL({1,2})).Run(id);
 
@@ -666,7 +680,6 @@ static void tmop_tests(int id)
 
    Launch(Launch::Args("Square01 + Adapted analytic Hessian").
           MESH("square01.mesh").REFINE(1).
-          NEWTON_ITERATIONS(20).
           POR({1,2}).QOR({2,4}).
           TID({4}).MID({1,2})).Run(id);
 
@@ -676,33 +689,31 @@ static void tmop_tests(int id)
           TID({1,2,3}).MID({2}).LS({2})).Run(id);
 
    Launch(Launch::Args("Blade + normalization").
-          MESH("blade.mesh").NORMALIZATION(true).
+          MESH("blade.mesh").
+          NORMALIZATION(true).
           POR({1,2}).QOR({2,4}).
           TID({1,2,3}).MID({2})).Run(id);
 
    Launch(Launch::Args("Blade + limiting + normalization").
           MESH("blade.mesh").
-          NEWTON_ITERATIONS(100).NORMALIZATION(true).LIMITING(M_PI).
+          NORMALIZATION(true).LIMITING(M_PI).
           POR({1,2}).QOR({2,4}).
           TID({1,2,3}).MID({2})).Run(id);
 
    Launch(Launch::Args("Blade + Discrete size + normalization").
           MESH("blade.mesh").
-          NEWTON_ITERATIONS(100).LINEAR_ITERATIONS(300).
-          NORMALIZATION(true).
+          LINEAR_ITERATIONS(300).NORMALIZATION(true).
           POR({1}).QOR({2}).
           TID({5}).MID({7}).LS({2}).NL({2})).Run(id);
 
    Launch(Launch::Args("Blade + Discrete size + normalization").
           MESH("blade.mesh").
-          NEWTON_ITERATIONS(100).LINEAR_ITERATIONS(200).
-          NORMALIZATION(true).
+          LINEAR_ITERATIONS(200).NORMALIZATION(true).
           POR({1}).QOR({2}).
           TID({5}).MID({2})).Run(id);
 
    Launch(Launch::Args("Cube").
-          MESH("cube.mesh").
-          NEWTON_ITERATIONS(100).REFINE(1).JI(0.1).
+          MESH("cube.mesh").REFINE(1).JI(jitter).
           POR({1,2}).QOR({2,4}).
           TID({2,3}).MID({302,303})).Run(id);
 

@@ -14,22 +14,21 @@
 #include "../linalg/dtensor.hpp"
 #include "../linalg/kernels.hpp"
 
-#define MFEM_DEBUG_COLOR 226
-#include "../general/debug.hpp"
-
 namespace mfem
 {
 
-template<int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 1>
-static void D2QPhysGrad2D(const int NE,
-                          const double *b_,
-                          const double *g_,
-                          const double *j_,
-                          const double *x_,
-                          double *y_,
-                          const int vdim = 1,
-                          const int d1d = 0,
-                          const int q1d = 0)
+template<QVectorLayout Q_LAYOUT,
+         int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0,
+         int T_NBZ = 1, int MAX_D1D = 0, int MAX_Q1D = 0>
+static void PhysGrad2D(const int NE,
+                       const double *b_,
+                       const double *g_,
+                       const double *j_,
+                       const double *x_,
+                       double *y_,
+                       const int vdim = 0,
+                       const int d1d = 0,
+                       const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -40,7 +39,9 @@ static void D2QPhysGrad2D(const int NE,
    const auto g = Reshape(g_, Q1D, D1D);
    const auto j = Reshape(j_, Q1D, Q1D, 2, 2, NE);
    const auto x = Reshape(x_, D1D, D1D, VDIM, NE);
-   auto y = Reshape(y_, Q1D, Q1D, VDIM, 2, NE);
+   auto y = Q_LAYOUT ==QVectorLayout:: byNODES ?
+            Reshape(y_, Q1D, Q1D, VDIM, 2, NE):
+            Reshape(y_, VDIM, 2, Q1D, Q1D, NE);
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
@@ -121,8 +122,17 @@ static void D2QPhysGrad2D(const int NE,
                Jloc[2] = j(qx,qy,0,1,e);
                Jloc[3] = j(qx,qy,1,1,e);
                kernels::CalcInverse<2>(Jloc, Jinv);
-               y(qx,qy,c,0,e) = Jinv[0]*u + Jinv[1]*v;
-               y(qx,qy,c,1,e) = Jinv[2]*u + Jinv[3]*v;
+               if (Q_LAYOUT == QVectorLayout::byVDIM)
+               {
+                  y(c,0,qx,qy,e) = Jinv[0]*u + Jinv[1]*v;
+                  y(c,1,qx,qy,e) = Jinv[2]*u + Jinv[3]*v;
+               }
+               if (Q_LAYOUT == QVectorLayout::byNODES)
+               {
+                  y(qx,qy,c,0,e) = Jinv[0]*u + Jinv[1]*v;
+                  y(qx,qy,c,1,e) = Jinv[2]*u + Jinv[3]*v;
+
+               }
             }
          }
          MFEM_SYNC_THREAD;
@@ -130,27 +140,30 @@ static void D2QPhysGrad2D(const int NE,
    });
 }
 
-template<int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0,
+template<QVectorLayout Q_LAYOUT,
+         int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0,
          int MAX_D = 0, int MAX_Q = 0>
-static  void D2QPhysGrad3D(const int NE,
-                           const double *b_,
-                           const double *g_,
-                           const double *j_,
-                           const double *x_,
-                           double *y_,
-                           const int vdim = 1,
-                           const int d1d = 0,
-                           const int q1d = 0)
+static  void PhysGrad3D(const int NE,
+                        const double *b_,
+                        const double *g_,
+                        const double *j_,
+                        const double *x_,
+                        double *y_,
+                        const int vdim = 1,
+                        const int d1d = 0,
+                        const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    const int VDIM = T_VDIM ? T_VDIM : vdim;
 
-   auto b = Reshape(b_, Q1D, D1D);
-   auto g = Reshape(g_, Q1D, D1D);
-   auto j = Reshape(j_, Q1D, Q1D, Q1D, 3, 3, NE);
-   auto x = Reshape(x_, D1D, D1D, D1D, VDIM, NE);
-   auto y = Reshape(y_, Q1D, Q1D, Q1D, VDIM, 3, NE);
+   const auto b = Reshape(b_, Q1D, D1D);
+   const auto g = Reshape(g_, Q1D, D1D);
+   const auto j = Reshape(j_, Q1D, Q1D, Q1D, 3, 3, NE);
+   const auto x = Reshape(x_, D1D, D1D, D1D, VDIM, NE);
+   auto y = Q_LAYOUT ==QVectorLayout:: byNODES ?
+            Reshape(y_, Q1D, Q1D, Q1D, VDIM, 3, NE):
+            Reshape(y_, VDIM, 3, Q1D, Q1D, Q1D, NE);
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
@@ -267,98 +280,24 @@ static  void D2QPhysGrad3D(const int NE,
                      }
                   }
                   kernels::CalcInverse<3>(Jloc, Jinv);
-                  y(qx,qy,qz,c,0,e) = Jinv[0]*u + Jinv[1]*v + Jinv[2]*w;
-                  y(qx,qy,qz,c,1,e) = Jinv[3]*u + Jinv[4]*v + Jinv[5]*w;
-                  y(qx,qy,qz,c,2,e) = Jinv[6]*u + Jinv[7]*v + Jinv[8]*w;
+                  if (Q_LAYOUT == QVectorLayout::byNODES)
+                  {
+                     y(qx,qy,qz,c,0,e) = Jinv[0]*u + Jinv[1]*v + Jinv[2]*w;
+                     y(qx,qy,qz,c,1,e) = Jinv[3]*u + Jinv[4]*v + Jinv[5]*w;
+                     y(qx,qy,qz,c,2,e) = Jinv[6]*u + Jinv[7]*v + Jinv[8]*w;
+                  }
+                  if (Q_LAYOUT == QVectorLayout::byVDIM)
+                  {
+                     y(c,0,qx,qy,qz,e) = Jinv[0]*u + Jinv[1]*v + Jinv[2]*w;
+                     y(c,1,qx,qy,qz,e) = Jinv[3]*u + Jinv[4]*v + Jinv[5]*w;
+                     y(c,2,qx,qy,qz,e) = Jinv[6]*u + Jinv[7]*v + Jinv[8]*w;
+                  }
                }
             }
          }
          MFEM_SYNC_THREAD;
       }
    });
-}
-
-static void D2QPhysGrad(const FiniteElementSpace &fes,
-                        const GeometricFactors *geom,
-                        const DofToQuad *maps,
-                        const Vector &e_vec,
-                        Vector &q_der)
-{
-   const int dim = fes.GetMesh()->Dimension();
-   const int vdim = fes.GetVDim();
-   const int NE = fes.GetNE();
-   const int D1D = maps->ndof;
-   const int Q1D = maps->nqpt;
-   const int id = (vdim<<8) | (D1D<<4) | Q1D;
-   const double *B = maps->B.Read();
-   const double *G = maps->G.Read();
-   const double *J = geom->J.Read();
-   const double *X = e_vec.Read();
-   double *Y = q_der.Write();
-   if (dim == 2)
-   {
-      switch (id)
-      {
-         case 0x134: return D2QPhysGrad2D<1,3,4,8>(NE, B, G, J, X, Y);
-         case 0x146: return D2QPhysGrad2D<1,4,6,4>(NE, B, G, J, X, Y);
-         case 0x158: return D2QPhysGrad2D<1,5,8,2>(NE, B, G, J, X, Y);
-         case 0x234: return D2QPhysGrad2D<2,3,4,8>(NE, B, G, J, X, Y);
-         case 0x246: return D2QPhysGrad2D<2,4,6,4>(NE, B, G, J, X, Y);
-         case 0x258: return D2QPhysGrad2D<2,5,8,2>(NE, B, G, J, X, Y);
-         default:
-         {
-            dbg("Using standard kernel #id 0x%x", id);
-            MFEM_VERIFY(D1D <= MAX_D1D, "Orders higher than " << MAX_D1D-1
-                        << " are not supported!");
-            MFEM_VERIFY(Q1D <= MAX_Q1D, "Quadrature rules with more than "
-                        << MAX_Q1D << " 1D points are not supported!");
-            D2QPhysGrad2D(NE, B, G, J, X, Y, vdim, D1D, Q1D);
-            return;
-         }
-      }
-   }
-   if (dim == 3)
-   {
-      switch (id)
-      {
-         case 0x134: return D2QPhysGrad3D<1,3,4>(NE, B, G, J, X, Y);
-         case 0x146: return D2QPhysGrad3D<1,4,6>(NE, B, G, J, X, Y);
-         case 0x158: return D2QPhysGrad3D<1,5,8>(NE, B, G, J, X, Y);
-         case 0x334: return D2QPhysGrad3D<3,3,4>(NE, B, G, J, X, Y);
-         case 0x346: return D2QPhysGrad3D<3,4,6>(NE, B, G, J, X, Y);
-         case 0x358: return D2QPhysGrad3D<3,5,8>(NE, B, G, J, X, Y);
-         default:
-         {
-            constexpr int MD = 8;
-            constexpr int MQ = 8;
-            dbg("Using standard kernel #id 0x%x", id);
-            MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
-                        << " are not supported!");
-            MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than " << MQ
-                        << " 1D points are not supported!");
-            D2QPhysGrad3D<0,0,0,MD,MQ>(NE, B, G, J, X, Y, vdim, D1D, Q1D);
-            return;
-         }
-      }
-   }
-   mfem::out << "Unknown kernel 0x" << std::hex << id << std::endl;
-   MFEM_ABORT("Unknown kernel");
-}
-
-template<>
-void QuadratureInterpolator::PhysDerivatives<QVectorLayout::byNODES>(
-   const Vector &e_vec, Vector &q_der) const
-{
-   // q_layout == QVectorLayout::byNODES
-   Mesh *mesh = fespace->GetMesh();
-   if (mesh->GetNE() == 0) { return; }
-   // mesh->DeleteGeometricFactors(); // This should be done outside
-   const IntegrationRule &ir = *IntRule;
-   constexpr DofToQuad::Mode mode = DofToQuad::TENSOR;
-   const GeometricFactors *geom =
-      mesh->GetGeometricFactors(ir, GeometricFactors::JACOBIANS, mode);
-   const DofToQuad &d2q = fespace->GetFE(0)->GetDofToQuad(ir, mode);
-   D2QPhysGrad(*fespace, geom, &d2q, e_vec, q_der);
 }
 
 } // namespace mfem
