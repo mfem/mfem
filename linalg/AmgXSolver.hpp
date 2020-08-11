@@ -17,17 +17,17 @@
  * \param call [in] Function call to CUDA API.
  */
 
-#ifndef MFEM_AMGX_SOLVER
-#define MFEM_AMGX_SOLVER
+ #ifndef MFEM_AMGX_SOLVER
+ #define MFEM_AMGX_SOLVER
 
-#include "../config/config.hpp"
+ #include "../config/config.hpp"
 
-#ifdef MFEM_USE_AMGX
-#ifdef MFEM_USE_MPI
+ #ifdef MFEM_USE_AMGX
+ #ifdef MFEM_USE_MPI
 
-#include <amgx_c.h>
-#include <mpi.h>
-#include "hypre.hpp"
+ #include <amgx_c.h>
+ #include <mpi.h>
+ #include "hypre.hpp"
 
 # define CHECK(call)                                                        \
   {                                                                           \
@@ -49,176 +49,176 @@ class AmgXSolver : public Solver
 public:
 
 
-   AmgXSolver() = default;
+  AmgXSolver() = default;
 
-   AmgXSolver(const MPI_Comm &comm,
-              const std::string &modeStr, const std::string &cfgFile, int &nDevs);
+  AmgXSolver(const MPI_Comm &comm,
+             const std::string &modeStr, const std::string &cfgFile, int &nDevs);
 
-   AmgXSolver(const std::string &modeStr, const std::string &cfgFile);
+  AmgXSolver(const std::string &modeStr, const std::string &cfgFile);
 
-   ~AmgXSolver();
+  ~AmgXSolver();
 
-   void initialize(const MPI_Comm &comm,
-                   const std::string &modeStr, const std::string &cfgFile, int &nDevs);
+  void initialize(const MPI_Comm &comm,
+                  const std::string &modeStr, const std::string &cfgFile, int &nDevs);
 
-   void initialize(const std::string &modeStr, const std::string &cfgFile);
+  void initialize(const std::string &modeStr, const std::string &cfgFile);
 
-   void finalize();
+  void finalize();
 
-   void setA(const mfem::HypreParMatrix &A);
+  void setA(const mfem::HypreParMatrix &A);
 
-   virtual void SetOperator(const Operator &op);
+  virtual void SetOperator(const Operator &op);
 
-   virtual void SetOperator(const SparseMatrix &in_A);
+  virtual void SetOperator(const SparseMatrix &in_A);
 
-   void InitializeAsPreconditioner(bool verbose, const std::string &modeStr);
+  void InitializeAsPreconditioner(bool verbose, const std::string &modeStr);
 
-   void GetLocalA(const HypreParMatrix &A, Array<HYPRE_Int> &I,
-                  Array<int64_t> &J, Array<double> &Data);
+  void GetLocalA(const HypreParMatrix &A, Array<HYPRE_Int> &I,
+                 Array<int64_t> &J, Array<double> &Data);
 
-   void GatherArray(Array<double> &inArr, Array<double> &outArr,
-                    int MPI_SZ, MPI_Comm &mpiTeam);
+  void GatherArray(Array<double> &inArr, Array<double> &outArr,
+                   int MPI_SZ, MPI_Comm &mpiTeam);
 
-   void GatherArray(Vector &inArr, Vector &outArr,
-                    int MPI_SZ, MPI_Comm &mpiTeam);
+  void GatherArray(Vector &inArr, Vector &outArr,
+                   int MPI_SZ, MPI_Comm &mpiTeam);
 
-   void GatherArray(Array<int> &Apart,
-                    Array<int> &inArr, Array<int> &outArr,
-                    int MPI_SZ, MPI_Comm &mpiTeam);
+  void GatherArray(Array<int> &Apart,
+                   Array<int> &inArr, Array<int> &outArr,
+                   int MPI_SZ, MPI_Comm &mpiTeam);
 
-   void GatherArray(Array<int64_t> &inArr, Array<int64_t> &outArr,
-                    int MPI_SZ, MPI_Comm &mpiTeam);
+  void GatherArray(Array<int64_t> &inArr, Array<int64_t> &outArr,
+                   int MPI_SZ, MPI_Comm &mpiTeam);
 
 
-   void GatherArray(Vector &inArr, Vector &outArr,
+  void GatherArray(Vector &inArr, Vector &outArr,
+                   int MPI_SZ, MPI_Comm &mpi_comm, Array<int> &Apart, Array<int> &Adisp);
+
+  void ScatterArray(Vector &inArr, Vector &outArr,
                     int MPI_SZ, MPI_Comm &mpi_comm, Array<int> &Apart, Array<int> &Adisp);
 
-   void ScatterArray(Vector &inArr, Vector &outArr,
-                     int MPI_SZ, MPI_Comm &mpi_comm, Array<int> &Apart, Array<int> &Adisp);
+  void updateA(const HypreParMatrix &A);
 
-   void updateA(const HypreParMatrix &A);
+  void solve(mfem::Vector &p, mfem::Vector &b);
 
-   void solve(mfem::Vector &p, mfem::Vector &b);
+  virtual void Mult(const Vector& b, Vector& x) const;
 
-   virtual void Mult(const Vector& b, Vector& x) const;
-
-   void getNumIterations(int &getIters);
+  int getNumIterations();
 
 
 private:
 
-   /** \brief Current count of AmgXSolver instances.
-    *
-    * This static variable is used to count the number of instances. The
-    * fisrt instance is responsable for initializing AmgX library and the
-    * resource instance.
-    */
-   static int              count;
+  /** \brief Current count of AmgXSolver instances.
+   *
+   * This static variable is used to count the number of instances. The
+   * fisrt instance is responsable for initializing AmgX library and the
+   * resource instance.
+   */
+  static int              count;
 
-   static int              count2;
+  static int              count2;
 
-   /** \brief A flag indicating if this instance has been initialized. */
-   bool                    isInitialized = false;
+  /** \brief A flag indicating if this instance has been initialized. */
+  bool                    isInitialized = false;
 
-   /** \brief The name of the node that this MPI process belongs to. */
-   std::string             nodeName;
+  /** \brief The name of the node that this MPI process belongs to. */
+  std::string             nodeName;
 
-   /** \brief Number of local GPU devices used by AmgX.*/
-   int                     nDevs;
+  /** \brief Number of local GPU devices used by AmgX.*/
+  int                     nDevs;
 
-   /** \brief The ID of corresponding GPU device used by this MPI process. */
-   int                     devID;
+  /** \brief The ID of corresponding GPU device used by this MPI process. */
+  int                     devID;
 
-   /** \brief A flag indicating if this process will talk to GPU. */
-   int                     gpuProc = MPI_UNDEFINED;
+  /** \brief A flag indicating if this process will talk to GPU. */
+  int                     gpuProc = MPI_UNDEFINED;
 
-   /** \brief A communicator for global world. */
-   MPI_Comm                globalCpuWorld = MPI_COMM_NULL;
+  /** \brief A communicator for global world. */
+  MPI_Comm                globalCpuWorld = MPI_COMM_NULL;
 
-   /** \brief A communicator for local world (i.e., in-node). */
-   MPI_Comm                localCpuWorld;
+  /** \brief A communicator for local world (i.e., in-node). */
+  MPI_Comm                localCpuWorld;
 
-   /** \brief A communicator for processes sharing the same devices. */
-   MPI_Comm                devWorld;
+  /** \brief A communicator for processes sharing the same devices. */
+  MPI_Comm                devWorld;
 
-   /** \brief A communicator for MPI processes that can talk to GPUs. */
-   MPI_Comm                gpuWorld;
+  /** \brief A communicator for MPI processes that can talk to GPUs. */
+  MPI_Comm                gpuWorld;
 
-   /** \brief Size of \ref AmgXSolver::globalCpuWorld "globalCpuWorld". */
-   int                     globalSize;
+  /** \brief Size of \ref AmgXSolver::globalCpuWorld "globalCpuWorld". */
+  int                     globalSize;
 
-   /** \brief Size of \ref AmgXSolver::localCpuWorld "localCpuWorld". */
-   int                     localSize;
+  /** \brief Size of \ref AmgXSolver::localCpuWorld "localCpuWorld". */
+  int                     localSize;
 
-   /** \brief Size of \ref AmgXSolver::gpuWorld "gpuWorld". */
-   int                     gpuWorldSize;
+  /** \brief Size of \ref AmgXSolver::gpuWorld "gpuWorld". */
+  int                     gpuWorldSize;
 
-   /** \brief Size of \ref AmgXSolver::devWorld "devWorld". */
-   int                     devWorldSize;
+  /** \brief Size of \ref AmgXSolver::devWorld "devWorld". */
+  int                     devWorldSize;
 
-   /** \brief Rank in \ref AmgXSolver::globalCpuWorld "globalCpuWorld". */
-   int                     myGlobalRank;
+  /** \brief Rank in \ref AmgXSolver::globalCpuWorld "globalCpuWorld". */
+  int                     myGlobalRank;
 
-   /** \brief Rank in \ref AmgXSolver::localCpuWorld "localCpuWorld". */
-   int                     myLocalRank;
+  /** \brief Rank in \ref AmgXSolver::localCpuWorld "localCpuWorld". */
+  int                     myLocalRank;
 
-   /** \brief Rank in \ref AmgXSolver::gpuWorld "gpuWorld". */
-   int                     myGpuWorldRank;
+  /** \brief Rank in \ref AmgXSolver::gpuWorld "gpuWorld". */
+  int                     myGpuWorldRank;
 
-   /** \brief Rank in \ref AmgXSolver::devWorld "devWorld". */
-   int                     myDevWorldRank;
+  /** \brief Rank in \ref AmgXSolver::devWorld "devWorld". */
+  int                     myDevWorldRank;
 
-   /** \brief A parameter used by AmgX. */
-   int                     ring;
+  /** \brief A parameter used by AmgX. */
+  int                     ring;
 
-   /** \brief AmgX solver mode. */
-   AMGX_Mode               mode;
+  /** \brief AmgX solver mode. */
+  AMGX_Mode               mode;
 
-   /** \brief AmgX config object. */
-   AMGX_config_handle      cfg = nullptr;
+  /** \brief AmgX config object. */
+  AMGX_config_handle      cfg = nullptr;
 
-   /** \brief AmgX matrix object. */
-   AMGX_matrix_handle      AmgXA = nullptr;
+  /** \brief AmgX matrix object. */
+  AMGX_matrix_handle      AmgXA = nullptr;
 
-   /** \brief AmgX vector object representing unknowns. */
-   AMGX_vector_handle      AmgXP = nullptr;
+  /** \brief AmgX vector object representing unknowns. */
+  AMGX_vector_handle      AmgXP = nullptr;
 
-   /** \brief AmgX vector object representing RHS. */
-   AMGX_vector_handle      AmgXRHS = nullptr;
+  /** \brief AmgX vector object representing RHS. */
+  AMGX_vector_handle      AmgXRHS = nullptr;
 
-   /** \brief AmgX solver object. */
-   AMGX_solver_handle      solver = nullptr;
+  /** \brief AmgX solver object. */
+  AMGX_solver_handle      solver = nullptr;
 
-   SparseMatrix * spop;
+  SparseMatrix * spop;
 
-   /** \brief AmgX resource object.
-    */
-   static AMGX_resources_handle   rsrc;
+  /** \brief AmgX resource object.
+   */
+  static AMGX_resources_handle   rsrc;
 
-   /** \brief Set AmgX solver mode based on the user-provided string.
-    */
-   void setMode(const std::string &modeStr);
-
-
-   /** \brief Get the number of GPU devices on this computing node.
-    */
-   void setDeviceCount();
+  /** \brief Set AmgX solver mode based on the user-provided string.
+   */
+  void setMode(const std::string &modeStr);
 
 
-   /** \brief Set the ID of the corresponding GPU used by this process.
-    */
-   void setDeviceIDs(int &nDevs);
+  /** \brief Get the number of GPU devices on this computing node.
+   */
+  void setDeviceCount();
 
 
-   /** \brief Initialize all MPI communicators.
-    */
-   void initMPIcomms(const MPI_Comm &comm, int &nDevs);
+  /** \brief Set the ID of the corresponding GPU used by this process.
+   */
+  void setDeviceIDs(int &nDevs);
 
-   void initAmgX(const std::string &cfgFile);
 
-   void getLocalA(const HypreParMatrix &A);
+  /** \brief Initialize all MPI communicators.
+   */
+  void initMPIcomms(const MPI_Comm &comm, int &nDevs);
 
-   int64_t m_local_rows;  //mlocal rows for ranks that talk to the gpu
+  void initAmgX(const std::string &cfgFile);
+
+  void getLocalA(const HypreParMatrix &A);
+
+  int64_t m_local_rows;  //mlocal rows for ranks that talk to the gpu
 
 };
 

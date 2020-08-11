@@ -263,7 +263,7 @@ int main(int argc, char *argv[])
          amgx.solve(X, B);
 
       }
-      cudaDeviceSynchronize();
+
       auto end3 = std::chrono::steady_clock::now();
       std::chrono::duration<double> elapsed_seconds3 = end3-start3;
       std::cout << "Solve: " << elapsed_seconds3.count() << "s\n";
