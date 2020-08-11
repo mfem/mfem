@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_HYPRE
 #define MFEM_HYPRE
@@ -34,9 +34,6 @@
 
 #include "sparsemat.hpp"
 #include "hypre_parcsr.hpp"
-#ifdef MFEM_USE_SUNDIALS
-#include <nvector/nvector_parhyp.h>
-#endif
 
 namespace mfem
 {
@@ -163,13 +160,9 @@ public:
    ~HypreParVector();
 
 #ifdef MFEM_USE_SUNDIALS
-   /// Return a new wrapper SUNDIALS N_Vector of type SUNDIALS_NVEC_PARHYP.
+   /// Return a new wrapper SUNDIALS N_Vector of type SUNDIALS_NVEC_PARALLEL.
    /** The returned N_Vector must be destroyed by the caller. */
-   virtual N_Vector ToNVector() { return N_VMake_ParHyp(x); }
-
-   /** @brief Update an existing wrapper SUNDIALS N_Vector of type
-       SUNDIALS_NVEC_PARHYP to point to this Vector. */
-   virtual void ToNVector(N_Vector &nv);
+   virtual N_Vector ToNVector();
 #endif
 };
 
@@ -325,7 +318,7 @@ public:
                   double *data, HYPRE_Int *rows,
                   HYPRE_Int *cols); // constructor with 9 arguments
 
-   /** @brief Copy constructor for a CSR matrix which creates a deep copy of
+   /** @brief Copy constructor for a ParCSR matrix which creates a deep copy of
        structure and data from @a P. */
    HypreParMatrix(const HypreParMatrix &P);
 
@@ -525,6 +518,14 @@ public:
        Ae sum to the original matrix. */
    HypreParMatrix* EliminateRowsCols(const Array<int> &rows_cols);
 
+   /** Eliminate columns from the matrix and store the eliminated elements in a
+       new matrix Ae (returned) so that the modified matrix and Ae sum to the
+       original matrix. */
+   HypreParMatrix* EliminateCols(const Array<int> &cols);
+
+   /// Eliminate rows from the diagonal and off-diagonal blocks of the matrix.
+   void EliminateRows(const Array<int> &rows);
+
    /// Prints the locally owned rows in parallel
    void Print(const char *fname, HYPRE_Int offi = 0, HYPRE_Int offj = 0);
    /// Reads the matrix from a file
@@ -547,8 +548,10 @@ public:
 HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
                     double beta,  const HypreParMatrix &B);
 
-/// Returns the matrix A * B
-HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B);
+/** Returns the matrix @a A * @a B. Returned matrix does not necessarily own
+    row or column starts unless the bool @a own_matrix is set to true. */
+HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B,
+                         bool own_matrix = false);
 /// Returns the matrix A + B
 /** It is assumed that both matrices use the same row and column partitions and
     the same col_map_offd arrays. */
@@ -559,6 +562,17 @@ HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P);
 /// Returns the matrix Rt^t * A * P
 HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
                      const HypreParMatrix *P);
+
+/// Returns a merged hypre matrix constructed from hypre matrix blocks.
+/** It is assumed that all block matrices use the same communicator, and the
+    block sizes are consistent in rows and columns. Rows and columns are
+    renumbered but not redistributed in parallel, e.g. the block rows owned by
+    each process remain on that process in the resulting matrix. Some blocks can
+    be NULL. Each block and the entire system can be rectangular. Scalability to
+    extremely large processor counts is limited by global MPI communication, see
+    GatherBlockOffsetData() in hypre.cpp. */
+HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
+                                          Array2D<double> *blockCoeff=NULL);
 
 /** Eliminate essential BC specified by 'ess_dof_list' from the solution X to
     the r.h.s. B. Here A is a matrix with eliminated BC, while Ae is such that
@@ -605,6 +619,8 @@ protected:
    double *l1_norms;
    /// If set, take absolute values of the computed l1_norms
    bool pos_l1_norms;
+   /// Number of CG iterations to determine eigenvalue estimates
+   int eig_est_cg_iter;
    /// Maximal eigenvalue estimate for polynomial smoothing
    double max_eig_est;
    /// Minimal eigenvalue estimate for polynomial smoothing
@@ -635,14 +651,17 @@ public:
    HypreSmoother(HypreParMatrix &_A, int type = l1GS,
                  int relax_times = 1, double relax_weight = 1.0,
                  double omega = 1.0, int poly_order = 2,
-                 double poly_fraction = .3);
+                 double poly_fraction = .3, int eig_est_cg_iter = 10);
 
    /// Set the relaxation type and number of sweeps
    void SetType(HypreSmoother::Type type, int relax_times = 1);
    /// Set SOR-related parameters
    void SetSOROptions(double relax_weight, double omega);
    /// Set parameters for polynomial smoothing
-   void SetPolyOptions(int poly_order, double poly_fraction);
+   /** By default, 10 iterations of CG are used to estimate the eigenvalues.
+       Setting eig_est_cg_iter = 0 uses hypre's hypre_ParCSRMaxEigEstimate() instead. */
+   void SetPolyOptions(int poly_order, double poly_fraction,
+                       int eig_est_cg_iter = 10);
    /// Set parameters for Taubin's lambda-mu method
    void SetTaubinOptions(double lambda, double mu, int iter);
 
@@ -735,8 +754,14 @@ class HyprePCG : public HypreSolver
 private:
    HYPRE_Solver pcg_solver;
 
+   HypreSolver * precond;
+
 public:
+   HyprePCG(MPI_Comm comm);
+
    HyprePCG(HypreParMatrix &_A);
+
+   virtual void SetOperator(const Operator &op);
 
    void SetTol(double tol);
    void SetMaxIter(int max_iter);
@@ -784,8 +809,17 @@ class HypreGMRES : public HypreSolver
 private:
    HYPRE_Solver gmres_solver;
 
+   HypreSolver * precond;
+
+   /// Default, generally robust, GMRES options
+   void SetDefaultOptions();
+
 public:
+   HypreGMRES(MPI_Comm comm);
+
    HypreGMRES(HypreParMatrix &_A);
+
+   virtual void SetOperator(const Operator &op);
 
    void SetTol(double tol);
    void SetMaxIter(int max_iter);
@@ -838,6 +872,8 @@ public:
    explicit HypreDiagScale(HypreParMatrix &A) : HypreSolver(&A) { }
    virtual operator HYPRE_Solver() const { return NULL; }
 
+   virtual void SetOperator(const Operator &op);
+
    virtual HYPRE_PtrToParSolverFcn SetupFcn() const
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRDiagScaleSetup; }
    virtual HYPRE_PtrToParSolverFcn SolveFcn() const
@@ -853,8 +889,20 @@ class HypreParaSails : public HypreSolver
 private:
    HYPRE_Solver sai_precond;
 
+   /// Default, generally robust, ParaSails options
+   void SetDefaultOptions();
+
+   // If sai_precond is NULL, this method allocates it and sets default options.
+   // Otherwise the method saves the options from sai_precond, destroys it,
+   // allocates a new object, and sets its options to the saved values.
+   void ResetSAIPrecond(MPI_Comm comm);
+
 public:
+   HypreParaSails(MPI_Comm comm);
+
    HypreParaSails(HypreParMatrix &A);
+
+   virtual void SetOperator(const Operator &op);
 
    void SetSymmetry(int sym);
 
@@ -882,8 +930,20 @@ class HypreEuclid : public HypreSolver
 private:
    HYPRE_Solver euc_precond;
 
+   /// Default, generally robust, Euclid options
+   void SetDefaultOptions();
+
+   // If euc_precond is NULL, this method allocates it and sets default options.
+   // Otherwise the method saves the options from euc_precond, destroys it,
+   // allocates a new object, and sets its options to the saved values.
+   void ResetEuclidPrecond(MPI_Comm comm);
+
 public:
+   HypreEuclid(MPI_Comm comm);
+
    HypreEuclid(HypreParMatrix &A);
+
+   virtual void SetOperator(const Operator &op);
 
    /// The typecast to HYPRE_Solver returns the internal euc_precond
    virtual operator HYPRE_Solver() const { return euc_precond; }
@@ -963,6 +1023,9 @@ HypreParMatrix* DiscreteCurl(ParFiniteElementSpace *face_fespace,
 class HypreAMS : public HypreSolver
 {
 private:
+   /// Constuct AMS solver from finite element space
+   void Init(ParFiniteElementSpace *edge_space);
+
    HYPRE_Solver ams;
 
    /// Vertex coordinates
@@ -973,7 +1036,11 @@ private:
    HypreParMatrix *Pi, *Pix, *Piy, *Piz;
 
 public:
+   HypreAMS(ParFiniteElementSpace *edge_fespace);
+
    HypreAMS(HypreParMatrix &A, ParFiniteElementSpace *edge_fespace);
+
+   virtual void SetOperator(const Operator &op);
 
    void SetPrintLevel(int print_lvl);
 
@@ -995,6 +1062,9 @@ public:
 class HypreADS : public HypreSolver
 {
 private:
+   /// Constuct ADS solver from finite element space
+   void Init(ParFiniteElementSpace *face_fespace);
+
    HYPRE_Solver ads;
 
    /// Vertex coordinates
@@ -1009,7 +1079,11 @@ private:
    HypreParMatrix *RT_Pi, *RT_Pix, *RT_Piy, *RT_Piz;
 
 public:
+   HypreADS(ParFiniteElementSpace *face_fespace);
+
    HypreADS(HypreParMatrix &A, ParFiniteElementSpace *face_fespace);
+
+   virtual void SetOperator(const Operator &op);
 
    void SetPrintLevel(int print_lvl);
 

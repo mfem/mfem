@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_PMESH
 #define MFEM_PMESH
@@ -78,6 +78,12 @@ protected:
    // sface ids: all triangles first, then all quads
    Array<int> sface_lface;
 
+   IsoparametricTransformation FaceNbrTransformation;
+
+   // glob_elem_offset + local element number defines a global element numbering
+   mutable long glob_elem_offset, glob_offset_sequence;
+   void ComputeGlobalElementOffset() const;
+
    /// Create from a nonconforming mesh.
    ParMesh(const ParNCMesh &pncmesh);
 
@@ -103,7 +109,7 @@ protected:
    void GetFaceNbrElementTransformation(
       int i, IsoparametricTransformation *ElTr);
 
-   ElementTransformation* GetGhostFaceTransformation(
+   void GetGhostFaceTransformation(
       FaceElementTransformations* FETr, Element::Type face_type,
       Geometry::Type face_geom);
 
@@ -141,6 +147,9 @@ protected:
    virtual bool NonconformingDerefinement(Array<double> &elem_error,
                                           double threshold, int nc_limit = 0,
                                           int op = 1);
+
+   void RebalanceImpl(const Array<int> *partition);
+
    void DeleteFaceNbrData();
 
    bool WantSkipSharedMaster(const NCMesh::Master &master) const;
@@ -190,6 +199,8 @@ protected:
    void BuildSharedVertMapping(int nvert, const Table* vert_element,
                                const Array<int> &vert_global_local);
 
+   /// Ensure that bdr_attributes and attributes agree across processors
+   void DistributeAttributes(Array<int> &attr);
 
 public:
    /** Copy constructor. Performs a deep copy of (almost) all data, so that the
@@ -220,9 +231,18 @@ public:
 
    virtual void Finalize(bool refine = false, bool fix_orientation = false);
 
+   virtual void SetAttributes();
+
    MPI_Comm GetComm() const { return MyComm; }
    int GetNRanks() const { return NRanks; }
    int GetMyRank() const { return MyRank; }
+
+   /** Map a global element number to a local element number. If the global
+       element is not on this processor, return -1. */
+   int GetLocalElementNum(long global_element_num) const;
+
+   /// Map a local element number to a global element number.
+   long GetGlobalElementNum(int local_element_num) const;
 
    GroupTopology gtopo;
 
@@ -260,6 +280,9 @@ public:
    void ExchangeFaceNbrData();
    void ExchangeFaceNbrNodes();
 
+   virtual void SetCurvature(int order, bool discont = false, int space_dim = -1,
+                             int ordering = 1);
+
    int GetNFaceNeighbors() const { return face_nbr_group.Size(); }
    int GetFaceNbrGroup(int fn) const { return face_nbr_group[fn]; }
    int GetFaceNbrRank(int fn) const;
@@ -274,6 +297,14 @@ public:
    FaceElementTransformations *
    GetSharedFaceTransformations(int sf, bool fill2 = true);
 
+   ElementTransformation *
+   GetFaceNbrElementTransformation(int i)
+   {
+      GetFaceNbrElementTransformation(i, &FaceNbrTransformation);
+
+      return &FaceNbrTransformation;
+   }
+
    /// Return the number of shared faces (3D), edges (2D), vertices (1D)
    int GetNSharedFaces() const;
 
@@ -286,12 +317,24 @@ public:
    /// Utility function: sum integers from all processors (Allreduce).
    virtual long ReduceInt(int value) const;
 
-   /// Load balance the mesh. NC meshes only.
+   /** Load balance the mesh by equipartitioning the global space-filling
+       sequence of elements. Works for nonconforming meshes only. */
    void Rebalance();
+
+   /** Load balance a nonconforming mesh using a user-defined partition.
+       Each local element 'i' is migrated to processor rank 'partition[i]',
+       for 0 <= i < GetNE(). */
+   void Rebalance(const Array<int> &partition);
 
    /** Print the part of the mesh in the calling processor adding the interface
        as boundary (for visualization purposes) using the mfem v1.0 format. */
    virtual void Print(std::ostream &out = mfem::out) const;
+
+#ifdef MFEM_USE_ADIOS2
+   /** Print the part of the mesh in the calling processor using adios2 bp
+       format. */
+   virtual void Print(adios2stream &out) const;
+#endif
 
    /** Print the part of the mesh in the calling processor adding the interface
        as boundary (for visualization purposes) using Netgen/Truegrid format .*/
@@ -331,6 +374,10 @@ public:
    friend class ParNCMesh;
 #ifdef MFEM_USE_PUMI
    friend class ParPumiMesh;
+#endif
+
+#ifdef MFEM_USE_ADIOS2
+   friend class adios2stream;
 #endif
 };
 
