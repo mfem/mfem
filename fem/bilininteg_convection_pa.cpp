@@ -17,9 +17,6 @@
 #include "tmop_pa.hpp"
 #include "../linalg/kernels.hpp"
 
-#define MFEM_DEBUG_COLOR 135
-#include "../general/debug.hpp"
-
 using namespace std;
 
 namespace mfem
@@ -954,7 +951,6 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
             default:
             {
                constexpr int MAX_DQ = 8;
-               dbg("dim:%d, 0x%x",dim, id);
                MFEM_VERIFY(D1D <= MAX_DQ, "");
                MFEM_VERIFY(Q1D <= MAX_DQ, "");
                QEvalVGF2D<0,0,0,MAX_DQ>(ne,B,x,y,vdim,D1D,Q1D);
@@ -973,7 +969,6 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
             default:
             {
                constexpr int MAX_DQ = 6;
-               dbg("dim:%d, 0x%x",dim, id);
                MFEM_VERIFY(D1D <= MAX_DQ, "");
                MFEM_VERIFY(Q1D <= MAX_DQ, "");
                QEvalVGF3D<0,0,0,MAX_DQ>(ne,B,x,y,vdim,D1D,Q1D);

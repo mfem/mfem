@@ -12,10 +12,6 @@
 #include "forall.hpp"
 #include "mem_manager.hpp"
 
-#define MFEM_DEBUG_COLOR 84
-#include "debug.hpp"
-#define MFEM_COPY_THRESHOLD 0x10000
-
 #include <list>
 #include <cstring> // std::memcpy, std::memcmp
 #include <unordered_map>
@@ -399,20 +395,11 @@ public:
    void Alloc(Memory &base) { CuMemAlloc(&base.d_ptr, base.bytes); }
    void Dealloc(Memory &base) { CuMemFree(base.d_ptr); }
    void *HtoD(void *dst, const void *src, size_t bytes)
-   {
-      //if (bytes > MFEM_COPY_THRESHOLD) { dbg("0x%x =>", bytes); }
-      return CuMemcpyHtoD(dst, src, bytes);
-   }
+   { return CuMemcpyHtoD(dst, src, bytes); }
    void *DtoD(void* dst, const void* src, size_t bytes)
-   {
-      //if (bytes > MFEM_COPY_THRESHOLD) { dbg("0x%x =", bytes); }
-      return CuMemcpyDtoD(dst, src, bytes);
-   }
+   { return CuMemcpyDtoD(dst, src, bytes); }
    void *DtoH(void *dst, const void *src, size_t bytes)
-   {
-      //if (bytes > MFEM_COPY_THRESHOLD) { dbg("0x%x <=", bytes); }
-      return CuMemcpyDtoH(dst, src, bytes);
-   }
+   { return CuMemcpyDtoH(dst, src, bytes); }
 };
 
 /// The HIP device memory space
@@ -466,20 +453,11 @@ public:
    void AliasUnprotect(const void *ptr, size_t bytes)
    { MmuAllow(MmuAddrP(ptr), MmuLengthP(ptr, bytes)); }
    void *HtoD(void *dst, const void *src, size_t bytes)
-   {
-      //if (bytes > MFEM_COPY_THRESHOLD) { dbg("0x%x =>", bytes); }
-      return std::memcpy(dst, src, bytes);
-   }
+   { return std::memcpy(dst, src, bytes); }
    void *DtoD(void *dst, const void *src, size_t bytes)
-   {
-      //if (bytes > MFEM_COPY_THRESHOLD) { dbg("0x%x =", bytes); }
-      return std::memcpy(dst, src, bytes);
-   }
+   { return std::memcpy(dst, src, bytes); }
    void *DtoH(void *dst, const void *src, size_t bytes)
-   {
-      //if (bytes > MFEM_COPY_THRESHOLD) { dbg("0x%x <=", bytes); }
-      return std::memcpy(dst, src, bytes);
-   }
+   { return std::memcpy(dst, src, bytes); }
 };
 
 #ifndef MFEM_USE_UMPIRE
