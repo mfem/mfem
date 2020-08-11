@@ -6,6 +6,7 @@ using namespace std;
 using namespace mfem;
 
 double testcoeff(const Vector & x);
+int get_rank(int tdof, std::vector<int> & tdof_offsets);
 
 
 void ComputeTdofOffsets(const MPI_Comm & comm, const ParFiniteElementSpace * pfes, 
@@ -51,26 +52,40 @@ private:
    // Initializing mpi and helper parameters
    void Init();
 
-   // Setting the subdomains FE spaces
+   // 1. Setting up the subdomains FE spaces
+   // 2. Setting up the subdomains-to-subdomains maps
+   // 3. Setting up the subdomain-to-global maps
    void Setup();
 
-   // Compute Subdomain tdofs in the overlaps with 
-   // neighboring subdomains
+   // -----------------------------------------------
+   //           Subdomain to Subdomain maps
+   // -----------------------------------------------
    std::vector<std::vector<Array<int>>> OvlpElems;
    void AddElementToOvlpLists(int l, int iel, 
-                            const Array<bool> & neg, const Array<bool> & pos);
-   void ComputeOvlpElems();
-
+                            const Array<bool> & neg, 
+                            const Array<bool> & pos);
    std::vector<std::vector<Array<int>>> OvlpTDofs;
    std::vector<std::vector<Vector * >> OvlpSol;
+   void SubdomainToSubdomainMapsSetup();
+   void ComputeOvlpElems();
    void ComputeOvlpTdofs();
    void PrintOvlpTdofs();
 
-   // Transfering OvlpTdofs form subdomain i to the given direction
-   void TransferToNeighbor(int i, const Array<int> & direction, 
-                           const Vector & x, Vector & y);
-   void TransferToNeighbors(const Array<int> & SubdomainIds, const Array<Vector *> & x);
+   // -----------------------------------------------
+   //           Subdomain to Global maps
+   // -----------------------------------------------
+   std::vector<Array<int>> SubdomainGTrueDofs; // Subdomain Tdofs to Global Tdofs
+   std::vector<Array<int>> SubdomainLTrueDofs; // Subdomain Tdofs to Local (on rank) Tdofs
 
+   Array<int> send_count, send_displ;  
+   Array<int> recv_count, recv_displ;  
+   int sbuff_size = 0;
+   int rbuff_size = 0;
+   void SubdomainToGlobalMapsSetup();
+
+   // Testing
+   void TestSubdomainToGlobalMaps();
+   void TestSubdomainToSubdomainMaps();
 
 
 
@@ -82,8 +97,8 @@ public:
 
    DofMaps(ParFiniteElementSpace *fespace_, ParMeshPartition * part_);
    ~DofMaps();
-   // Transfering from subdomain i to all its neighbors
-   void TransferToNeighbors(int i);
+   // Transfering from subdomains SubdomainIds to all their neighbors
+   void TransferToNeighbors(const Array<int> & SubdomainIds, const Array<Vector *> & x);
 
    // Prolongation of subdomain solutions to the global solution
    void SubdomainsToGlobal(const std::vector<Vector> & x, Vector & y);

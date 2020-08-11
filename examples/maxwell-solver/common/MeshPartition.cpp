@@ -1157,7 +1157,7 @@ ParMeshPartition::ParMeshPartition(ParMesh* pmesh_,
          subdomain_mesh[ip]->FinalizeTopology();
       }
    }
-   SaveMeshPartition();
+   // SaveMeshPartition();
 }
 
 

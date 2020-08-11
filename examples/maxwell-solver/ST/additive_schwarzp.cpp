@@ -780,7 +780,7 @@ ParPatchAssembly::ParPatchAssembly(ParBilinearForm * bf_,int part) : bf(bf_)
       }
    }
 
-   // comunicate so that recv_count is constructed
+   // communicate so that recv_count is constructed
    MPI_Alltoall(send_count,1,MPI_INT,recv_count,1,MPI_INT,comm);
    for (int k=0; k<num_procs-1; k++)
    {
