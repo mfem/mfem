@@ -171,13 +171,22 @@ protected:
 
    void BuildElementToDofTable();
 
+#if 0
    /** In a variable order space, calculate the "true" (minimum) polynomial
        order for each edge and face. */
    void CalculateMinimumOrders(Array<int> &edge_min_order,
                                Array<int> &face_min_order) const;
+   /** Build the table edge_dofs (or face_dofs) in a variable order space;
+       return total edge/face DOFs. */
+   int AssignVarOrderDofs(int ent_dim, const Array<int> &ent_min_order,
+                          Table &entity_dofs);
 
+#else
    typedef std::uint64_t VarOrderBits;
    enum { MaxVarOrder = 8*sizeof(VarOrderBits) - 1 };
+
+   /// Return the minimum order (least significant bit set) in the bit mask.
+   static int MinOrder(VarOrderBits bits);
 
    /** In a variable order space, calculate a bitmask of polynomial orders that
        need to be represented on each edge and face. */
@@ -186,8 +195,9 @@ protected:
 
    /** Build the table edge_dofs (or face_dofs) in a variable order space;
        return total edge/face DOFs. */
-   int AssignVarOrderDofs(int ent_dim, const Array<int> &ent_min_order,
-                          Table &entity_dofs);
+   int MakeDofTable(int ent_dim, const Array<int> &entity_orders,
+                    Table &entity_dofs);
+#endif
 
    /// Search row of a DOF table for a DOF set of size 'ndof', return first DOF.
    int FindDofs(const Table &dof_table, int row, int ndof) const;
