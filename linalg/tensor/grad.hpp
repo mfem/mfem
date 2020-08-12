@@ -19,7 +19,8 @@
 namespace mfem
 {
 
-// Functions to interpolate from degrees of freedom to derivatives at quadrature points
+// Functions to interpolate the gradient from degrees of freedom to derivatives
+// at quadrature points.
 // Non-tensor case
 template<int D, int Q, int Dim> MFEM_HOST_DEVICE inline
 Tensor<dTensor<Dim>,Q>&& Gradient(const dTensor<Q,D> &B,
