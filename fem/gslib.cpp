@@ -44,7 +44,6 @@ FindPointsGSLIB::FindPointsGSLIB()
 #else
    comm_init(gsl_comm, 0);
 #endif
-   crystal_init(cr, gsl_comm);
 }
 
 FindPointsGSLIB::~FindPointsGSLIB()
@@ -64,7 +63,6 @@ FindPointsGSLIB::FindPointsGSLIB(MPI_Comm _comm)
    gsl_comm = new comm;
    cr      = new crystal;
    comm_init(gsl_comm, _comm);
-   crystal_init(cr, gsl_comm);
 }
 #endif
 
@@ -78,6 +76,7 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
    // call FreeData if FindPointsGSLIB::Setup has been called already
    if (setupflag) { FreeData(); }
 
+   crystal_init(cr, gsl_comm);
    mesh = &m;
    dim  = mesh->Dimension();
    const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(0);
@@ -196,8 +195,8 @@ void FindPointsGSLIB::Interpolate(Mesh &m, const Vector &point_pos,
 
 void FindPointsGSLIB::FreeData()
 {
-   crystal_free(cr);
    if (!setupflag) { return; }
+   crystal_free(cr);
    if (dim == 2)
    {
       findpts_free_2(fdata2D);
@@ -206,13 +205,13 @@ void FindPointsGSLIB::FreeData()
    {
       findpts_free_3(fdata3D);
    }
-   setupflag = false;
    gsl_code.DeleteAll();
    gsl_proc.DeleteAll();
    gsl_elem.DeleteAll();
    gsl_mesh.Destroy();
    gsl_ref.Destroy();
    gsl_dist.Destroy();
+   setupflag = false;
 }
 
 void FindPointsGSLIB::GetNodeValues(const GridFunction &gf_in,
