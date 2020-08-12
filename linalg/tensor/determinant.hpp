@@ -20,26 +20,27 @@ namespace mfem
 {
 
 // Determinant
-MFEM_HOST_DEVICE inline
-double Determinant(const dTensor<3,3> &J)
+template <typename T> MFEM_HOST_DEVICE inline
+T&& Determinant(const Tensor<T,3,3> &J)
 {
    return J(0,0)*J(1,1)*J(2,2)-J(0,2)*J(1,1)*J(2,0)
          +J(0,1)*J(1,2)*J(2,0)-J(0,1)*J(1,0)*J(2,2)
          +J(0,2)*J(1,0)*J(2,1)-J(0,0)*J(1,2)*J(2,1);
 }
 
-MFEM_HOST_DEVICE inline
-double Determinant(const dTensor<2,2> &J)
+template <typename T> MFEM_HOST_DEVICE inline
+T&& Determinant(const Tensor<T,2,2> &J)
 {
    return J(0,0)*J(1,1)-J(0,1)*J(1,0);
 }
 
-MFEM_HOST_DEVICE inline
-double Determinant(const dTensor<1,1> &J)
+template <typename T> MFEM_HOST_DEVICE inline
+T&& Determinant(const Tensor<T,1,1> &J)
 {
    return J(0,0);
 }
 
+// Computes determinant for all quadrature points
 template<int Q,int Dim> MFEM_HOST_DEVICE inline
 dTensor<Q>&& Determinant(const Tensor<dTensor<Dim,Dim>,Q> &J)
 {
