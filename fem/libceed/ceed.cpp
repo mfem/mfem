@@ -327,8 +327,8 @@ void CeedPAAssemble(const CeedPAOperator& op,
    CeedVectorCreate(ceed, nelem * nqpts * qdatasize, &ceedData.rho);
 
    // Context data to be passed to the 'f_build_diff' Q-function.
-   ceedData.build_ctx.dim = mesh->Dimension();
-   ceedData.build_ctx.space_dim = mesh->SpaceDimension();
+   ceedData.build_ctx_data.dim = mesh->Dimension();
+   ceedData.build_ctx_data.space_dim = mesh->SpaceDimension();
 
    std::string qf_file = GetCeedPath() + op.header;
    std::string qf;
@@ -342,7 +342,7 @@ void CeedPAAssemble(const CeedPAOperator& op,
          CeedQFunctionCreateInterior(ceed, 1, op.const_qf,
                                      qf.c_str(),
                                      &ceedData.build_qfunc);
-         ceedData.build_ctx.coeff = ((CeedConstCoeff*)ceedData.coeff)->val;
+         ceedData.build_ctx_data.coeff = ((CeedConstCoeff*)ceedData.coeff)->val;
          break;
       case CeedCoeff::Grid:
          qf = qf_file + op.grid_func;
@@ -358,8 +358,12 @@ void CeedPAAssemble(const CeedPAOperator& op,
    CeedQFunctionAddInput(ceedData.build_qfunc, "weights", 1, CEED_EVAL_WEIGHT);
    CeedQFunctionAddOutput(ceedData.build_qfunc, "qdata", qdatasize,
                           CEED_EVAL_NONE);
-   CeedQFunctionSetContext(ceedData.build_qfunc, &ceedData.build_ctx,
-                           sizeof(ceedData.build_ctx));
+
+   CeedQFunctionContextCreate(ceed, &ceedData.build_ctx);
+   CeedQFunctionContextSetData(ceedData.build_ctx, CEED_MEM_HOST, CEED_USE_POINTER,
+                               sizeof(ceedData.build_ctx_data),
+                               &ceedData.build_ctx_data);
+   CeedQFunctionSetContext(ceedData.build_qfunc, ceedData.build_ctx);
 
    // Create the operator that builds the quadrature data for the operator.
    CeedOperatorCreate(ceed, ceedData.build_qfunc, NULL, NULL,
@@ -399,8 +403,7 @@ void CeedPAAssemble(const CeedPAOperator& op,
    CeedQFunctionAddInput(ceedData.apply_qfunc, "qdata", qdatasize,
                          CEED_EVAL_NONE);
    CeedQFunctionAddOutput(ceedData.apply_qfunc, "v", dimV, op.test_op);
-   CeedQFunctionSetContext(ceedData.apply_qfunc, &ceedData.build_ctx,
-                           sizeof(ceedData.build_ctx));
+   CeedQFunctionSetContext(ceedData.apply_qfunc, ceedData.build_ctx);
 
    // Create the diff operator.
    CeedOperatorCreate(ceed, ceedData.apply_qfunc, NULL, NULL, &ceedData.oper);
