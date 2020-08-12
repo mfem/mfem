@@ -1483,40 +1483,41 @@ void ParNCMesh::LimitNCLevel(int max_nc_level)
    }
 }
 
-void ParNCMesh::GetFineToCoarsePartitioning(const Array<int> &derefs, Array<int> &new_ranks)
+void ParNCMesh::GetFineToCoarsePartitioning(const Array<int> &derefs,
+                                            Array<int> &new_ranks)
 {
-    new_ranks.SetSize(leaf_elements.Size());
-    for (int i = 0; i < leaf_elements.Size(); i++)
-    {
-       new_ranks[i] = elements[leaf_elements[i]].rank;
-    }
+   new_ranks.SetSize(leaf_elements.Size());
+   for (int i = 0; i < leaf_elements.Size(); i++)
+   {
+      new_ranks[i] = elements[leaf_elements[i]].rank;
+   }
 
-    for (int i = 0; i < derefs.Size(); i++)
-    {
-       int row = derefs[i];
-       MFEM_VERIFY(row >= 0 && row < derefinements.Size(),
-                   "invalid derefinement number.");
+   for (int i = 0; i < derefs.Size(); i++)
+   {
+      int row = derefs[i];
+      MFEM_VERIFY(row >= 0 && row < derefinements.Size(),
+                  "invalid derefinement number.");
 
-       const int* fine = derefinements.GetRow(row);
-       int size = derefinements.RowSize(row);
+      const int* fine = derefinements.GetRow(row);
+      int size = derefinements.RowSize(row);
 
-       int coarse_rank = INT_MAX;
-       for (int j = 0; j < size; j++)
-       {
-          int fine_rank = elements[leaf_elements[fine[j]]].rank;
-          coarse_rank = std::min(coarse_rank, fine_rank);
-       }
-       for (int j = 0; j < size; j++)
-       {
-          new_ranks[fine[j]] = coarse_rank;
-       }
-    }
+      int coarse_rank = INT_MAX;
+      for (int j = 0; j < size; j++)
+      {
+         int fine_rank = elements[leaf_elements[fine[j]]].rank;
+         coarse_rank = std::min(coarse_rank, fine_rank);
+      }
+      for (int j = 0; j < size; j++)
+      {
+         new_ranks[fine[j]] = coarse_rank;
+      }
+   }
 
-    int target_elements = 0;
-    for (int i = 0; i < new_ranks.Size(); i++)
-    {
-       if (new_ranks[i] == MyRank) { target_elements++; }
-    }
+   int target_elements = 0;
+   for (int i = 0; i < new_ranks.Size(); i++)
+   {
+      if (new_ranks[i] == MyRank) { target_elements++; }
+   }
 }
 
 void ParNCMesh::Derefine(const Array<int> &derefs)

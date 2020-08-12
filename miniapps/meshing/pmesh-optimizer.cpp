@@ -245,15 +245,17 @@ int main (int argc, char *argv[])
 
    mesh->EnsureNCMesh();
 
-   for (int lev = 0; lev < ars_levels; lev++) {
-       Array<Refinement> marked_elements;
-       for (int e = 0; e < mesh->GetNE(); e++) {
-           marked_elements.Append(e);
-       }
-       mesh->GeneralRefinement(marked_elements, 1, 0);
+   for (int lev = 0; lev < ars_levels; lev++)
+   {
+      Array<Refinement> marked_elements;
+      for (int e = 0; e < mesh->GetNE(); e++)
+      {
+         marked_elements.Append(e);
+      }
+      mesh->GeneralRefinement(marked_elements, 1, 0);
    }
 
-   mesh->RandomRefinement(0.6, false, 1, 0);
+   mesh->RandomRefinement(0.0, false, 1, 0);
 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
 
@@ -853,19 +855,20 @@ int main (int argc, char *argv[])
    solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
 
    // 20. AMR based size refinemenet if a size metric is used
-   TMOPAMR tmopamrupdate(*he_nlf_integ, *pmesh, move_bnd);
-   //tmopamrupdate.AddFESpaceAr(pfespace);
+   TMOPAMR tmopamrupdate(a, *pmesh, move_bnd);
    tmopamrupdate.AddMeshNodeAr(&x);
    tmopamrupdate.AddMeshNodeAr(&x0);
-   TMOPRefinerEstimator tmop_r_est(*pmesh, *he_nlf_integ, mesh_poly_deg, amrmetric_id);
+   TMOPRefinerEstimator tmop_r_est(*pmesh, *he_nlf_integ, mesh_poly_deg,
+                                   amrmetric_id);
    TMOPRefiner tmop_r(tmop_r_est);
    TMOPDeRefinerEstimator tmop_dr_est(*pmesh, *he_nlf_integ);
-   TMOPDeRefiner tmop_dr(tmop_dr_est);
+   ThresholdDerefiner tmop_dr(tmop_dr_est);
 
    int newtonstop = 0;
    int NEGlob = pmesh->GetGlobalNE();
-   if (myid == 0) {
-       std::cout << NEGlob << " Number of elements at beginning\n";
+   if (myid == 0)
+   {
+      std::cout << NEGlob << " Number of elements at beginning\n";
    }
    if (amr_flag==1)
    {
@@ -874,9 +877,6 @@ int main (int argc, char *argv[])
       int amrstop = 0;
       int amrdstop = 0;
       int nc_limit = 1; //AMR per iteration - FIXED FOR NOW
-
-      //tmoptr.PreferNonconformingRefinement();
-      //tmoptr.SetNCLimit(nc_limit);
 
       tmop_r.Reset();
       tmop_dr.Reset();
@@ -890,8 +890,11 @@ int main (int argc, char *argv[])
          x.SetFromTrueVector();
          if (solver.GetConverged() == false)
          {
-            if (myid == 0) { cout << "NewtonIteration: rtol = " << solver_rtol << " not achieved."
-                 << endl; }
+            if (myid == 0)
+            {
+               cout << "NewtonIteration: rtol = " << solver_rtol << " not achieved."
+                    << endl;
+            }
          }
          else
          {
@@ -911,51 +914,66 @@ int main (int argc, char *argv[])
             int NEorig = pfespace->GetNE();
             NEGlob = pmesh->GetGlobalNE();
             double tmopenergy = a.GetParGridFunctionEnergy(x);
-            if (myid == 0) { std::cout << 0 << " " <<  NEGlob << " " << tmopenergy/NEGlob
-                      << " basenergy\n"; }
+            if (myid == 0)
+            {
+               std::cout << 0 << " " <<  NEGlob << " " << tmopenergy/NEGlob
+                         << " basenergy\n";
+            }
             //std::cout << pmesh->GetNE() << " k10startderefinement\n";
 
             int ne1 = pmesh->GetGlobalNE();
             ParNCMesh *pncmesh = pmesh->pncmesh;
 
-            if (pncmesh && (amrdstop == 0 || amrstop == 0)) { //derefinement
-                tmopamrupdate.RebalanceParNCMesh();
-                tmopamrupdate.Update(a);
+            if (pncmesh && (amrdstop == 0 || amrstop == 0))   //derefinement
+            {
+               tmopamrupdate.RebalanceParNCMesh();
+               tmopamrupdate.ParUpdate();
 
-                tmop_dr.Apply(*pmesh);
-                tmopamrupdate.Update(a);
+               tmop_dr.Apply(*pmesh);
+               tmopamrupdate.ParUpdate();
             }
 
             int ne2 = pmesh->GetGlobalNE();
-            if (ne1 == ne2) {
-                amrdstop = 1;
-                if (myid == 0) { std::cout << " No elements derefined\n"; }
-            } else {
-                amrdstop = 0;
-                if (myid == 0) { std::cout << ne2 << " Derefine useful\n"; }
+            if (ne1 == ne2)
+            {
+               amrdstop = 1;
+               if (myid == 0) { std::cout << " No elements derefined\n"; }
+            }
+            else
+            {
+               amrdstop = 0;
+               if (myid == 0) { std::cout << ne2 << " Derefine useful\n"; }
             }
 
             NEorig = pfespace->GetNE();
 
-            if (amrdstop == 0 || amrstop == 0) {
-                tmop_r.Apply(*pmesh);
-                tmopamrupdate.Update(a);
-           }
+            if (amrdstop == 0 || amrstop == 0)
+            {
+               tmop_r.Apply(*pmesh);
+               tmopamrupdate.ParUpdate();
+            }
 
             if (amrstop==0)
             {
                if (tmop_r.Stop()) { amrstop = 1; }
-               if (amrstop == 1 && amrdstop == 1) {
-                   newtonstop = 1;
-                   if (myid == 0) { cout << it << " " << amrit <<
-                        " AMR stopping criterion satisfied. Stop." << endl; }
+               if (amrstop == 1 && amrdstop == 1)
+               {
+                  newtonstop = 1;
+                  if (myid == 0)
+                  {
+                     cout << it << " " << amrit <<
+                          " AMR stopping criterion satisfied. Stop." << endl;
+                  }
                }
                else
                {
-                   amrstop = 0;
-                   NEGlob = pmesh->GetGlobalNE();
-                   if (myid == 0) { std::cout << NEGlob <<
-                                                 " Number of elements after AMR\n"; }
+                  amrstop = 0;
+                  NEGlob = pmesh->GetGlobalNE();
+                  if (myid == 0)
+                  {
+                     std::cout << NEGlob <<
+                               " Number of elements after AMR\n";
+                  }
                }
             }
          } //amrit limit
@@ -967,7 +985,7 @@ int main (int argc, char *argv[])
    if (newtonstop == 0)
    {
       solver.SetOperator(a);
-      //solver.Mult(b, x.GetTrueVector());
+      solver.Mult(b, x.GetTrueVector());
       x.SetFromTrueVector();
       if (solver.GetConverged() == false)
       {

@@ -4135,7 +4135,6 @@ void CoarseFineTransformations::GetCoarseToFineMapFast(
       coarse_ne = std::max(coarse_ne, embeddings[i].parent);
    }
    coarse_ne++;
-   std::cout << coarse_ne << " " << fine_ne << " k10coarsefine\n";
 
    coarse_to_fine.SetDims(coarse_ne, fine_ne);
 
