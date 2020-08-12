@@ -407,6 +407,20 @@ int main (int argc, char *argv[])
       case 315: amrmetric = new TMOP_Metric_315; break;
       default: cout << "Unknown metric_id: " << amrmetric_id << endl; return 3;
    }
+
+   if (metric_id < 300)  {
+       MFEM_VERIFY(dim == 2, "Incompatible metric for 3D meshes");
+   }
+   if (amrmetric_id < 300)  {
+       MFEM_VERIFY(dim == 2, "Incompatible metric for 3D meshes");
+   }
+   if (metric_id >= 300)  {
+       MFEM_VERIFY(dim == 3, "Incompatible metric for 2D meshes");
+   }
+   if (amrmetric_id >= 300)  {
+       MFEM_VERIFY(dim == 3, "Incompatible metric for 2D meshes");
+   }
+
    TargetConstructor::TargetType target_t;
    TargetConstructor *target_c = NULL;
    HessianCoefficientAMR *adapt_coeff = NULL;
