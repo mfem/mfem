@@ -21,7 +21,7 @@ namespace mfem
 
 // Functions to read dofs to quad matrix
 template<int P, int Q> MFEM_HOST_DEVICE inline
-dTensor<Q,P>&& ReadMatrix(const DeviceTensor<2> &d_B)
+const dTensor<Q,P>&& ReadMatrix(const DeviceTensor<2> &d_B)
 {
    dTensor<Q,P> s_B;
    for (int p = 0; p < P; p++)
@@ -37,7 +37,7 @@ dTensor<Q,P>&& ReadMatrix(const DeviceTensor<2> &d_B)
 
 // Functions to read dofs to derivatives matrix
 template<int P, int Q, int Dim> MFEM_HOST_DEVICE inline
-Tensor<dTensor<Dim>,Q,P>&& ReadMatrix(const DeviceTensor<3> &d_G)
+const Tensor<dTensor<Dim>,Q,P>&& ReadMatrix(const DeviceTensor<3> &d_G)
 {
    Tensor<dTensor<Dim>,Q,P> s_G;
    for (int p = 0; p < P; p++)
@@ -56,8 +56,8 @@ Tensor<dTensor<Dim>,Q,P>&& ReadMatrix(const DeviceTensor<3> &d_G)
 
 // Non-tensor read with VDIMxVDIM components
 template<int P, int VDIM> MFEM_HOST_DEVICE inline
-Tensor<dTensor<VDIM,VDIM>,P>&& ReadMatrix(const DeviceTensor<4> &e_vec,
-                                          const int e)
+const Tensor<dTensor<VDIM,VDIM>,P>&& ReadMatrix(const DeviceTensor<4> &e_vec,
+                                                const int e)
 {
    Tensor<dTensor<VDIM,VDIM>,P> u;
    for (int w = 0; w < VDIM; w++)
