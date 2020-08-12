@@ -1774,6 +1774,7 @@ void FiniteElementSpace::UpdateNURBS()
    bdr_elem_dof = NURBSext->GetBdrElementDofTable();
 }
 
+#if 0
 void FiniteElementSpace::DumpOrders(const Table &ent_dofs, int dim)
 {
    Array<int> V;
@@ -1932,6 +1933,7 @@ void FiniteElementSpace
       os << "\n";
    }
 }
+#endif
 
 void FiniteElementSpace::Construct()
 {
@@ -1953,20 +1955,21 @@ void FiniteElementSpace::Construct()
 
    int order = fec->DefaultOrder();
 
-   // for variable order spaces, calculate orders of edges and faces
-#if 0
-   Array<int> edge_min_order, face_min_order;
-   if (IsVariableOrder() && !relaxed_hp)
-   {
-      CalculateMinimumOrders(edge_min_order, face_min_order);
-   }
-#else
+   bool mixed_elements = (mesh->GetNumGeometries(mesh->Dimension()) > 1);
+   bool mixed_faces = (mesh->GetNumGeometries(2) > 1);
+
    Array<VarOrderBits> edge_orders, face_orders;
    if (IsVariableOrder())
    {
+      // for variable order spaces, calculate orders of edges and faces
       CalcEdgeFaceVarOrders(edge_orders, face_orders);
    }
-#endif
+   else if (mixed_faces)
+   {
+      // for mixed faces we also create the face_dofs table, see below
+      face_orders.SetSize(mesh->GetNFaces());
+      face_orders = (VarOrderBits(1) << order);
+   }
 
    // assign vertex DOFs
    if (mesh->GetNV())
@@ -1979,7 +1982,7 @@ void FiniteElementSpace::Construct()
    {
       if (IsVariableOrder())
       {
-         nedofs = AssignVarOrderDofs(1, edge_min_order, edge_dofs);
+         nedofs = MakeDofTable(1, edge_orders, edge_dofs);
       }
       else
       {
@@ -1991,10 +1994,10 @@ void FiniteElementSpace::Construct()
    // assign face DOFs
    if (mesh->GetNFaces())
    {
-      if (IsVariableOrder() || mesh->GetNumGeometries(2) > 1)
+      if (IsVariableOrder() || mixed_faces)
       {
          // NOTE: we use Table face_dofs for mixed faces as well
-         nfdofs = AssignVarOrderDofs(2, face_min_order, face_dofs);
+         nfdofs = MakeDofTable(2, face_orders, face_dofs);
       }
       else
       {
@@ -2007,7 +2010,7 @@ void FiniteElementSpace::Construct()
    // assign internal ("bubble") DOFs
    if (mesh->GetNE())
    {
-      if (IsVariableOrder() || mesh->GetNumGeometries(mesh->Dimension()) > 1)
+      if (IsVariableOrder() || mixed_elements)
       {
          bdofs = new int[mesh->GetNE()+1];
          bdofs[0] = 0;
@@ -2039,103 +2042,16 @@ void FiniteElementSpace::Construct()
    // later.
 }
 
-#if 0
-void FiniteElementSpace::CalculateMinimumOrders(Array<int> &edge_min_order,
-                                                Array<int> &face_min_order) const
+int FiniteElementSpace::MinOrder(VarOrderBits bits)
 {
-   MFEM_ASSERT(IsVariableOrder(), "");
-   MFEM_ASSERT(elem_order.Size() == mesh->GetNE(), "");
-
-   edge_min_order.SetSize(mesh->GetNEdges());
-   face_min_order.SetSize(mesh->GetNFaces());
-
-   edge_min_order = INT_MAX;
-   face_min_order = INT_MAX;
-
-   // initial edge/face order is the minimum of incident element orders
-   Array<int> E, F, ori;
-   for (int i = 0; i < mesh->GetNE(); i++)
+   MFEM_ASSERT(bits != 0, "invalid bit mask");
+   for (int order = 0; bits != 0; order++, bits >>= 1)
    {
-      int order = elem_order[i];
-
-      mesh->GetElementEdges(i, E, ori);
-      for (int j = 0; j < E.Size(); j++)
-      {
-         int &emo = edge_min_order[E[j]];
-         emo = std::min(emo, order);
-      }
-
-      if (mesh->Dimension() > 2)
-      {
-         mesh->GetElementFaces(i, F, ori);
-         for (int j = 0; j < F.Size(); j++)
-         {
-            int &fmo = face_min_order[F[j]];
-            fmo = std::min(fmo, order);
-         }
-      }
+      if (bits & 1) { return order; }
    }
-
-   // iterate while minimum orders propagate by master/slave relations
-   bool done;
-   do
-   {
-      done = true;
-
-      // propagate from slave edges to master edges
-      const NCMesh::NCList &edge_list = mesh->ncmesh->GetEdgeList();
-      for (const NCMesh::Master &master : edge_list.masters)
-      {
-         int min_order = INT_MAX;
-         for (int i = master.slaves_begin; i < master.slaves_end; i++)
-         {
-            const NCMesh::Slave &slave = edge_list.slaves[i];
-            min_order = std::min(edge_min_order[slave.index], min_order);
-         }
-
-         if (min_order < edge_min_order[master.index])
-         {
-            edge_min_order[master.index] = min_order;
-            done = false;
-         }
-      }
-
-      // propagate from slave faces(+edges) to master faces(+edges)
-      const NCMesh::NCList &face_list = mesh->ncmesh->GetFaceList();
-      for (const NCMesh::Master &master : face_list.masters)
-      {
-         int min_order = INT_MAX;
-         for (int i = master.slaves_begin; i < master.slaves_end; i++)
-         {
-            const NCMesh::Slave &slave = face_list.slaves[i];
-            min_order = std::min(face_min_order[slave.index], min_order);
-
-            mesh->GetFaceEdges(slave.index, E, ori);
-            for (int j = 0; j < E.Size(); j++)
-            {
-               min_order = std::min(edge_min_order[E[j]], min_order);
-            }
-         }
-
-         if (min_order < face_min_order[master.index])
-         {
-            face_min_order[master.index] = min_order;
-            done = false;
-         }
-         mesh->GetFaceEdges(master.index, E, ori);
-         for (int j = 0; j < E.Size(); j++)
-         {
-            if (min_order < edge_min_order[E[j]])
-            {
-               edge_min_order[E[j]] = min_order;
-               done = false;
-            }
-         }
-      }
-   }
-   while (!done);
+   return 0;
 }
-#else
+
 void FiniteElementSpace
    ::CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
                            Array<VarOrderBits> &face_orders) const
@@ -2239,74 +2155,17 @@ void FiniteElementSpace
    }
    while (!done);
 }
-#endif
 
-#if 0
-int FiniteElementSpace::AssignVarOrderDofs(int ent_dim,
-                                           const Array<int> &ent_min_order,
-                                           Table &entity_dofs)
+int FiniteElementSpace::MakeDofTable(int ent_dim,
+                                     const Array<int> &entity_orders,
+                                     Table &entity_dofs)
 {
-   Array<Connection> ent_orders;
-   ent_orders.Reserve(12*mesh->GetNE() + ent_min_order.Size());
-
-   // get a list of orders for each edge (face)
-   Array<int> E, ori;
-   for (int i = 0; i < mesh->GetNE(); i++)
-   {
-      int order = IsVariableOrder() ? elem_order[i] : fec->DefaultOrder();
-
-      (ent_dim == 1) ? mesh->GetElementEdges(i, E, ori)
-      /**/           : mesh->GetElementFaces(i, E, ori);
-
-      for (int j = 0; j < E.Size(); j++)
-      {
-         ent_orders.Append(Connection(E[j], order));
-      }
-   }
-   for (int i = 0; i < ent_min_order.Size(); i++)
-   {
-      ent_orders.Append(Connection(i, ent_min_order[i]));
-   }
-
-   // For each edge (face) we now have a list of polynomial orders in which it
-   // needs to be represented. We assign the DOF numbers and fill the table
-   // edge_dofs (face_dofs), where each row contains the indices of the
-   // beginnings of the DOF ranges for the different polynomial orders.
-
-   ent_orders.Sort();
-   ent_orders.Unique();
-
-   // assign DOFs according to orders
+   int num_ent = entity_orders.Size();
    int total_dofs = 0;
-   for (int i = 0; i < ent_orders.Size(); i++)
-   {
-      auto geom = (ent_dim == 1) ? Geometry::SEGMENT
-                  : mesh->GetFaceGeometry(ent_orders[i].from);
 
-      int order = ent_orders[i].to;
-      int dofs = fec->GetNumDof(geom, order);
-
-      ent_orders[i].to = total_dofs;
-      total_dofs += dofs;
-   }
-
-   // append a dummy row as terminator
-   int num_ent = (ent_dim == 1) ? mesh->GetNEdges() : mesh->GetNFaces();
-   ent_orders.Append(Connection(num_ent, total_dofs));
-
-   // build the table
-   entity_dofs.MakeFromList(num_ent+1, ent_orders);
-
-   return total_dofs;
-}
-#else
-int FiniteElementSpace::AssignVarOrderDofs(int ent_dim,
-                                           const Array<int> &entity_orders,
-                                           Table &entity_dofs)
-{
-   // assign DOFs according to orders
-   int total_dofs = 0;
-   for (int i = 0; i < entity_orders.Size(); i++)
+   // assign DOFs according to order bit masks
+   Array<Connection> list;
+   for (int i = 0; i < num_ent; i++)
    {
       auto geom = (ent_dim == 1) ? Geometry::SEGMENT : mesh->GetFaceGeometry(i);
 
@@ -2316,23 +2175,20 @@ int FiniteElementSpace::AssignVarOrderDofs(int ent_dim,
          if (bits & 1)
          {
             int dofs = fec->GetNumDof(geom, order);
-
-            entity_orders[i].to = total_dofs;
+            list.Append(Connection(i, total_dofs));
             total_dofs += dofs;
          }
       }
    }
 
    // append a dummy row as terminator
-   int num_ent = (ent_dim == 1) ? mesh->GetNEdges() : mesh->GetNFaces();
-   entity_orders.Append(Connection(num_ent, total_dofs));
+   list.Append(Connection(num_ent, total_dofs));
 
    // build the table
-   entity_dofs.MakeFromList(num_ent+1, entity_orders);
+   entity_dofs.MakeFromList(num_ent+1, list);
 
    return total_dofs;
 }
-#endif
 
 int FiniteElementSpace::FindDofs(const Table &dof_table, int row, int ndof) const
 {

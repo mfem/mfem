@@ -32,6 +32,7 @@ double exact_sln_1(const Vector &p)
    }
 }
 
+// Another exact solution: x(1-x)y(1-y)
 double exact_sln_2(const Vector &p)
 {
    MFEM_ASSERT(p.Size() == 2, "");
@@ -167,7 +168,7 @@ int main(int argc, char *argv[])
    mesh->UniformRefinement();
    fespace->Update(false);*/
 
-   if (1)
+   if (0)
    {
       std::ofstream f("mesh.dump");
       mesh->ncmesh->DebugDump(f);
@@ -345,7 +346,6 @@ int main(int argc, char *argv[])
    double eps = 1e-10;
    MFEM_VERIFY(error < eps,
               "Failure: L2 error bigger than given threshold.");
-
 
    // Free the used memory.
    delete fespace;
