@@ -410,7 +410,7 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
 
-   virtual int Id() const { return 302; };
+   virtual int Id() const { return 302; }
 };
 
 /// Shape, ideal barrier metric, 3D
@@ -428,7 +428,7 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
 
-   virtual int Id() const { return 303; };
+   virtual int Id() const { return 303; }
 };
 
 /// Volume metric, 3D
@@ -445,6 +445,8 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 315; }
 };
 
 /// Volume, ideal barrier metric, 3D

@@ -39,6 +39,16 @@ double EvalW_303(const double *J)
    return ie.Get_I1b()/3. - 1.;
 }
 
+// mu_315 = (I3b - 1)^2
+static MFEM_HOST_DEVICE inline
+double EvalW_315(const double *J)
+{
+   double B[9];
+   kernels::InvariantsEvaluator3D ie(Args().J(J).B(B));
+   const double a = ie.Get_I3b() - 1.0;
+   return a*a;
+}
+
 // mu_321 = I1 + I2/I3 - 6
 static MFEM_HOST_DEVICE inline
 double EvalW_321(const double *J)
@@ -62,7 +72,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_3D,
                            const int d1d,
                            const int q1d)
 {
-   MFEM_VERIFY(mid == 302 || mid == 303 || mid == 321 ,
+   MFEM_VERIFY(mid == 302 || mid == 303 || mid == 315 || mid == 321 ,
                "3D metric not yet implemented!");
 
    constexpr int DIM = 3;
@@ -123,6 +133,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_3D,
                const double EvalW =
                mid == 302 ? EvalW_302(Jpt) :
                mid == 303 ? EvalW_303(Jpt) :
+               mid == 315 ? EvalW_315(Jpt) :
                mid == 321 ? EvalW_321(Jpt) : 0.0;
 
                E(qx,qy,qz,e) = weight * EvalW;
