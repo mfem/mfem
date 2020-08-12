@@ -457,9 +457,9 @@ SheathImpedance::SheathImpedance(const ParGridFunction & B,
      L2FESpace_(L2FESpace),
      H1FESpace_(H1FESpace),
      omega_(omega),
+     realPart_(realPart),
      charges_(charges),
-     masses_(masses),
-     realPart_(realPart)
+     masses_(masses)
 {
    density_vals_.SetSize(charges_.Size());
    temp_vals_.SetSize(charges_.Size());
@@ -745,6 +745,7 @@ void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
 PlasmaProfile::PlasmaProfile(Type type, const Vector & params)
    : type_(type), p_(params), x_(3)
 {
+   MFEM_CONTRACT_VAR(np_); // added so that private field np_ is not unused
    MFEM_ASSERT(params.Size() == np_[type],
                "Incorrect number of parameters, " << params.Size()
                << ", for profile of type: " << type << ".");

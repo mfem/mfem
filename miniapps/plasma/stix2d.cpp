@@ -33,9 +33,9 @@
 //
 //   For a magnetic field aligned with the z-axis the dielectric tensor has
 //   the form:
-//              / S  -iD 0 \
+//              | S  -iD 0 |
 //    epsilon = |iD   S  0 |
-//              \ 0   0  P /
+//              | 0   0  P |
 //
 //   Where:
 //      S = 1 - Sum_species omega_p^2 / (omega^2 - omega_c^2)
@@ -72,40 +72,21 @@
 //   (W, Curl mu^{-1} Curl E) = (Curl W, mu^{-1} Curl E)
 //               - i omega sqrt{epsilon/mu} (W, E)_{\Gamma}
 //
+// (By default the sources and fields are all zero)
 //
 // Compile with: make stix2d
 //
 // Sample runs:
+//   ./stix2d -rod '0 0 1 0 0 0.1' -o 3 -s 1 -rs 0 -maxit 1 -f 1e6
 //
-//   By default the sources and fields are all zero
-//     mpirun -np 4 stix2d
+// Sample runs with partial assembly:
+//   ./stix2d -rod '0 0 1 0 0 0.1' -o 3 -s 1 -rs 0 -maxit 1 -f 1e6 -pa
 //
+// Device sample runs:
+//   ./stix2d -rod '0 0 1 0 0 0.1' -o 3 -s 1 -rs 0 -maxit 1 -f 1e6 -pa -d cuda
 //
-// ./stix2d -rod '0 0 1 0 0 0.1' -o 3 -s 5 -rs 0 -maxit 1 -f 1e6
-//
-// mpirun -np 8 ./stix2d -rod '0 0 1 0 0 0.1' -dbcs '1' -w Z -o 3 -s 5 -rs 0 -maxit 1 -f 1e6
-//
-//   Current source in a sphere with absorbing boundary conditions
-//     mpirun -np 4 hertz -m ../../data/ball-nurbs.mesh -rs 2
-//                        -abcs '-1' -f 3e8
-//                        -do '-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5'
-//
-//   Current source in a metal sphere with dielectric and conducting materials
-//     mpirun -np 4 hertz -m ../../data/ball-nurbs.mesh -rs 2
-//                        -dbcs '-1' -f 3e8
-//                        -do '-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5'
-//                        -cs '0.0 0.0 -0.5 .2 10'
-//                        -ds '0.0 0.0 0.5 .2 10'
-//
-//   Current source in a metal box
-//     mpirun -np 4 hertz -m ../../data/fichera.mesh -rs 3
-//                        -dbcs '-1' -f 3e8
-//                        -do '-0.5 -0.5 0.0 -0.5 -0.5 1.0 0.1 1 .5 1'
-//
-//   Current source with a mixture of absorbing and reflecting boundaries
-//     mpirun -np 4 hertz -m ../../data/fichera.mesh -rs 3
-//                        -do '-0.5 -0.5 0.0 -0.5 -0.5 1.0 0.1 1 .5 1'
-//                        -dbcs '4 8 19 21' -abcs '5 18' -f 3e8
+// Parallel sample runs:
+//   mpirun -np 4 ./stix2d -rod '0 0 1 0 0 0.1' -dbcs '1' -w Z -o 3 -s 1 -rs 0 -maxit 1 -f 1e6
 //
 
 #include "cold_plasma_dielectric_coefs.hpp"
@@ -376,6 +357,9 @@ int main(int argc, char *argv[])
    solOpts.relTol = 1e-4;
    solOpts.euLvl = 1;
 
+   bool pa = false;
+   const char *device_config = "cpu";
+
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
@@ -492,6 +476,10 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&visit, "-visit", "--visit", "-no-visit", "--no-visit",
                   "Enable or disable VisIt visualization.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.Parse();
    if (!args.Good())
    {
@@ -500,6 +488,11 @@ int main(int argc, char *argv[])
          args.PrintUsage(cout);
       }
       return 1;
+   }
+   Device device(device_config);
+   if (mpi.Root())
+   {
+      device.Print();
    }
    if (numbers.Size() == 0)
    {
@@ -1119,7 +1112,7 @@ int main(int argc, char *argv[])
                  abcs, dbcs, nbcs, sbcs,
                  // e_bc_r, e_bc_i,
                  // EReCoef, EImCoef,
-                 (rod_params_.Size() > 0) ? j_src : NULL, NULL, vis_u);
+                 (rod_params_.Size() > 0) ? j_src : NULL, NULL, vis_u, pa);
 
    // Initialize GLVis visualization
    if (visualization)

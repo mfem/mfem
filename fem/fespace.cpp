@@ -439,7 +439,7 @@ void FiniteElementSpace::MarkerToList(const Array<int> &marker,
    {
       if (marker[i]) { num_marked++; }
    }
-   list.SetSize(0);
+   list.DeleteAll();
    list.Reserve(num_marked);
    for (int i = 0; i < marker.Size(); i++)
    {
