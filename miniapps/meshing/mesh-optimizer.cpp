@@ -230,25 +230,25 @@ int main(int argc, char *argv[])
    else { cout << "(NONE)"; }
    cout << endl;
 
-   for (int lev = 0; lev < ars_levels; lev++) {
-       Array<Refinement> marked_elements;
-       for (int e = 0; e < mesh->GetNE(); e++) {
-           marked_elements.Append(e);
-       }
-       mesh->GeneralRefinement(marked_elements, 1, 0);
-   }
+   mesh->EnsureNCMesh();
 
    // 3. Define a finite element space on the mesh-> Here we use vector finite
    //    elements which are tensor products of quadratic finite elements. The
    //    number of components in the vector finite element space is specified by
    //    the last parameter of the FiniteElementSpace constructor.
-   H1_FECollection fec(mesh_poly_deg, dim);
-   FiniteElementSpace fespace(mesh, &fec, dim);
+   FiniteElementCollection *fec;
+   if (mesh_poly_deg <= 0)
+   {
+      fec = new QuadraticPosFECollection;
+      mesh_poly_deg = 2;
+   }
+   else { fec = new H1_FECollection(mesh_poly_deg, dim); }
+   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec, dim);
 
    // 4. Make the mesh curved based on the above finite element space. This
    //    means that we define the mesh elements through a fespace-based
    //    transformation of the reference element.
-   mesh->SetNodalFESpace(&fespace);
+   mesh->SetNodalFESpace(fespace);
 
    // 5. Set up an empty right-hand side vector b, which is equivalent to b=0.
    Vector b(0);
@@ -256,24 +256,32 @@ int main(int argc, char *argv[])
    // 6. Get the mesh nodes (vertices and other degrees of freedom in the finite
    //    element space) as a finite element grid function in fespace. Note that
    //    changing x automatically changes the shapes of the mesh elements.
-   GridFunction x(&fespace);
-   GridFunction xnew(&fespace);
-   GridFunction x0new(&fespace);
+   GridFunction x(fespace);
    mesh->SetNodalGridFunction(&x);
+
+   for (int lev = 0; lev < ars_levels; lev++) {
+       Array<Refinement> marked_elements;
+       for (int e = 0; e < mesh->GetNE(); e++) {
+           marked_elements.Append(e);
+       }
+       mesh->GeneralRefinement(marked_elements, 1, 0);
+       fespace->Update();
+       x.Update();
+   }
 
    // 7. Define a vector representing the minimal local mesh size in the mesh
    //    nodes. We index the nodes using the scalar version of the degrees of
    //    freedom in fespace. Note: this is partition-dependent.
    //
    //    In addition, compute average mesh size and total volume.
-   Vector h0(fespace.GetNDofs());
+   Vector h0(fespace->GetNDofs());
    h0 = infinity();
    double volume = 0.0;
    Array<int> dofs;
    for (int i = 0; i < mesh->GetNE(); i++)
    {
       // Get the local scalar element degrees of freedom in dofs.
-      fespace.GetElementDofs(i, dofs);
+      fespace->GetElementDofs(i, dofs);
       // Adjust the value of h0 in dofs based on the local mesh size.
       const double hi = mesh->GetElementSize(i);
       for (int j = 0; j < dofs.Size(); j++)
@@ -289,23 +297,23 @@ int main(int argc, char *argv[])
    //    zero on the boundary and its values are locally of the order of h0.
    //    The latter is based on the DofToVDof() method which maps the scalar to
    //    the vector degrees of freedom in fespace.
-   GridFunction rdm(&fespace);
+   GridFunction rdm(fespace);
    rdm.Randomize();
    rdm -= 0.25; // Shift to random values in [-0.5,0.5].
    rdm *= jitter;
    // Scale the random values to be of order of the local mesh size.
-   for (int i = 0; i < fespace.GetNDofs(); i++)
+   for (int i = 0; i < fespace->GetNDofs(); i++)
    {
       for (int d = 0; d < dim; d++)
       {
-         rdm(fespace.DofToVDof(i,d)) *= h0(i);
+         rdm(fespace->DofToVDof(i,d)) *= h0(i);
       }
    }
    Array<int> vdofs;
-   for (int i = 0; i < fespace.GetNBE(); i++)
+   for (int i = 0; i < fespace->GetNBE(); i++)
    {
       // Get the vector degrees of freedom in the boundary element.
-      fespace.GetBdrElementVDofs(i, vdofs);
+      fespace->GetBdrElementVDofs(i, vdofs);
       // Set the boundary values to zero.
       for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
    }
@@ -321,7 +329,7 @@ int main(int argc, char *argv[])
    }
 
    // 10. Store the starting (prior to the optimization) positions.
-   GridFunction x0(&fespace);
+   GridFunction x0(fespace);
    x0 = x;
 
    // 11. Form the integrator that uses the chosen metric and target.
@@ -455,7 +463,7 @@ int main(int argc, char *argv[])
          }
          const double eps = 0.01;
          const double aspr_ratio = 20.0;
-         const double size_ratio = 80.0;
+         const double size_ratio = 40.0;
 
          for (int i = 0; i < size.Size(); i++)
          {
@@ -583,7 +591,7 @@ int main(int argc, char *argv[])
 
    // 12. Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = NULL;
-   const int geom_type = fespace.GetFE(0)->GetGeomType();
+   const int geom_type = fespace->GetFE(0)->GetGeomType();
    switch (quad_type)
    {
       case 1: ir = &IntRulesLo.Get(geom_type, quad_order); break;
@@ -599,7 +607,7 @@ int main(int argc, char *argv[])
 
    // 13. Limit the node movement.
    // The limiting distances can be given by a general function of space.
-   GridFunction dist(&fespace);
+   GridFunction dist(fespace);
    dist = 1.0;
    // The small_phys_size is relevant only with proper normalization.
    if (normalization) { dist = small_phys_size; }
@@ -641,7 +649,7 @@ int main(int argc, char *argv[])
    //     scaled by used-defined space-dependent weights. Note that there are no
    //     command-line options for the weights and the type of the second
    //     metric; one should update those in the code.
-   NonlinearForm a(&fespace);
+   NonlinearForm a(fespace);
    ConstantCoefficient *coeff1 = NULL;
    TMOP_QualityMetric *metric2 = NULL;
    TargetConstructor *target_c2 = NULL;
@@ -702,7 +710,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      const int nd  = fespace.GetBE(0)->GetDof();
+      const int nd  = fespace->GetBE(0)->GetDof();
       int n = 0;
       for (int i = 0; i < mesh->GetNBE(); i++)
       {
@@ -719,7 +727,7 @@ int main(int argc, char *argv[])
       for (int i = 0; i < mesh->GetNBE(); i++)
       {
          const int attr = mesh->GetBdrElement(i)->GetAttribute();
-         fespace.GetBdrElementVDofs(i, vdofs);
+         fespace->GetBdrElementVDofs(i, vdofs);
          if (attr == 1) // Fix x components.
          {
             for (int j = 0; j < nd; j++)
@@ -799,38 +807,14 @@ int main(int argc, char *argv[])
    solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
 
    // 20. AMR based size refinemenet if a size metric is used
-   TMOPEstimator       tmope(fespace, *he_nlf_integ, x, amrmetric_id);
-   TMOPTypeRefiner     tmoptr(tmope, dim);
-   TMOPTypeDeRefiner   tmoptdr(tmope, dim);
-   TMOPAMR tmopamrupdate(*tcd);
-   tmopamrupdate.AddFESpace(&fespace);
+   TMOPAMR tmopamrupdate(*he_nlf_integ, *mesh, move_bnd);
+   tmopamrupdate.AddFESpaceAr(fespace);
    tmopamrupdate.AddMeshNodeAr(&x);
    tmopamrupdate.AddMeshNodeAr(&x0);
-   //tmopamrupdate.SetDiscreteTC(tcd);
-
-   int metrictype = he_nlf_integ->GetAMRQualityMetric().GetMetricType();
-   int num_ref_types = 3 + 4*(dim-2);
-   Vector amr_ref_check(num_ref_types);
-   amr_ref_check = 0.;
-   if (dim == 2)
-   {
-       if ( (metrictype & 1) && (metrictype & 2)) //Shape
-       {
-          amr_ref_check(0) = 1; //x
-          amr_ref_check(1) = 1; //y
-       }
-       if (metrictype & 8)  // Size
-       {
-          amr_ref_check(2) = 1; //xy
-       }
-   }
-   else
-   {
-       if (metrictype & 8)  // Size
-       {
-          amr_ref_check(6) = 1; //xy
-       }
-   }
+   TMOPRefinerEstimator tmop_r_est(*mesh, *he_nlf_integ, mesh_poly_deg, amrmetric_id);
+   TMOPRefiner tmop_r(tmop_r_est);
+   TMOPDeRefinerEstimator tmop_dr_est(*mesh, *he_nlf_integ);
+   TMOPDeRefiner tmop_dr(tmop_dr_est);
 
    int newtonstop = 0;
    std::cout << mesh->GetNE() << " Number of elements at beginning\n";
@@ -843,12 +827,14 @@ int main(int argc, char *argv[])
       int amrdstop = 0;
       int nc_limit = 1; //AMR per iteration - FIXED FOR NOW
 
-      tmoptr.PreferNonconformingRefinement();
-      tmoptr.SetNCLimit(nc_limit);
+      tmop_r.PreferNonconformingRefinement();
+      tmop_r.SetNCLimit(nc_limit);
+
+      tmop_dr.Reset();
+      tmop_r.Reset();
 
       for (int it = 0; it<ni_limit; it++)
       {
-
          std::cout << it << " Begin NEWTON+AMR Iteration\n";
          solver.SetOperator(a);
          solver.Mult(b, x.GetTrueVector());
@@ -873,119 +859,35 @@ int main(int argc, char *argv[])
 
          for (int amrit=0; amrit<nc_limit; amrit++)
          {
-            int NEorig = fespace.GetNE();
-            Vector amr_base_energy(NEorig);
-            tmope.GetAMRTypeEnergy(amr_base_energy);
             std::cout << 0 << " " <<  mesh->GetNE() << " " << a.GetGridFunctionEnergy(x)/mesh->GetNE()
                       << " k10basenergy\n";
 
             int ne1 = mesh->GetNE();
             NCMesh *ncmesh = mesh->ncmesh;
             if (ncmesh && (amrdstop == 0 || amrstop == 0)) { //derefinement
-                tmoptdr.Reset();
-                tmoptdr.SetRefType(0);
-                // Make a copy of the mesh for derefinement
-                tmoptdr.SetMetaInfo(*mesh, x);
-
-                // Derefine all the child
-                tmoptdr.Apply(*mesh);
-                tmopamrupdate.Update(a, *mesh, fespace, move_bnd);
-                //std::cout << mesh->GetNE() << " k102\n";
-
-                // For the new coarse elements, determine the original children
-                // elements and get their energy. Get the original parent.
-                // Also get the refinemenqt type for those original elements.
-                Vector amrevecin(fespace.GetNE());
-                tmope.GetAMRTypeEnergy(amrevecin);
-                Array<int> new_parent_ref_type(fespace.GetNE());
-                tmoptdr.DetermineAMRTypeEnergy(*mesh, amrevecin, amr_base_energy,
-                                               new_parent_ref_type);
-
-                // Do refinement on elements that have positive energy
-                tmoptr.SetRefType(0);
-                tmoptr.SetParentEnergy(amrevecin);
-                tmoptr.SetParentEnergyRefType(new_parent_ref_type);
-                tmoptr.Apply(*mesh);
-                tmopamrupdate.Update(a, *mesh, fespace, move_bnd);
-                //std::cout << mesh->GetNE() << " " << xsav.FESpace()->GetNE() << " k103\n";
-
-                // Restore the nodal data from original mesh to restore transformation
-                tmoptdr.RestoreNodalPositions(*mesh, x);
-
-                std::cout << mesh->GetNE() << " Number of Elements after DeRefine\n";
+                tmop_dr.Apply(*mesh);
+                tmopamrupdate.Update(a);
             }
+
+            if (tmop_dr.Stop()) { amrdstop = 1; }
             int ne2 = mesh->GetNE();
-            if (ne1 == ne2) {
-                amrdstop = 1;
-                std::cout << " No elements derefined\n";
-            } else {
-                amrdstop = 0;
-                std::cout << " Derefine useful\n";
-            }
+            std::cout << ne1 << " " << ne2 << " elements before and after derefine\n";
 
-            NEorig = fespace.GetNE();
-            amr_base_energy.SetSize(NEorig);
-            tmope.GetAMRTypeEnergy(amr_base_energy);
-
+            // Refiner
             if (amrdstop == 0 || amrstop == 0) {
-                // Do all different refinements and measure energy
-                Vector amr_parent_energy(NEorig);
-                amr_parent_energy = 1.*std::numeric_limits<float>::max();
-                Array<int> amr_parent_ref(NEorig);
-                amr_parent_ref = -1;
-                Vector amr_temp_energy(NEorig);
-
-               for (int i = 1;i < num_ref_types+1; i++)
-               {
-                   if ( amr_ref_check(i-1) != 1 ) { continue; }
-                   tmoptr.Reset();
-                   tmoptr.SetRefType(i);
-                   tmoptr.Apply(*mesh);
-                   tmopamrupdate.Update(a, *mesh, fespace, move_bnd);
-
-                   Vector amr_child_energy(fespace.GetNE());
-                   tmope.GetAMRTypeEnergy(amr_child_energy);
-
-                   tmoptr.DetermineAMRTypeEnergy(*mesh, amr_child_energy, amr_temp_energy);
-
-                   for (int e = 0; e < NEorig; e++) {
-                       if ( amr_temp_energy(e) < amr_parent_energy(e) ) {
-                           amr_parent_energy(e) = amr_temp_energy(e);
-                           amr_parent_ref[e] = i;
-                       }
-                   }
-
-                   tmoptdr.Reset();
-                   tmoptdr.SetRefType(i);
-                   tmoptdr.Apply(*mesh);
-                   tmopamrupdate.Update(a, *mesh, fespace, move_bnd);
-               }
-
-               amr_parent_energy -= amr_base_energy;
-               amr_parent_energy *= -1;
-               tmoptr.SetParentEnergy(amr_parent_energy);
-               tmoptr.SetParentEnergyRefType(amr_parent_ref);
-
-               // Refiner
-               tmoptr.SetRefType(0);
-               tmoptr.Reset();
-               if (amrstop==0) { tmoptr.Apply(*mesh); }
-               tmopamrupdate.Update(a, *mesh, fespace, move_bnd);
+                tmop_r.Apply(*mesh);
+                tmopamrupdate.Update(a);
            }
+           if (tmop_r.Stop()) { amrstop = 1; }
 
-            if (amrstop==0)
-            {
-               if (tmoptr.Stop()) { amrstop = 1; }
-               if (amrstop == 1 && amrdstop == 1) {
-                   newtonstop = 1;
-                   cout << it << " " << amrit <<
+            if (amrstop == 1 && amrdstop == 1) {
+                newtonstop = 1;
+                cout << it << " " << amrit <<
                         " AMR stopping criterion satisfied. Stop." << endl;
-               }
-               else
-               {
-                   amrstop = 0;
-                   std::cout << mesh->GetNE() << " Number of elements after AMR\n";
-               }
+            }
+            else
+            {
+                amrstop = 0; amrdstop = 0;
             }
          } //amrit limit
          if (it==nic_limit-1) { amrstop=1; amrdstop = 1; }
@@ -1020,6 +922,8 @@ int main(int argc, char *argv[])
    }
 
    // 22. Compute the amount of energy decrease.
+   std::cout << a.GetGridFunctionEnergy(x);
+
    const double fin_energy = a.GetGridFunctionEnergy(x)/mesh->GetNE();
    double metric_part = fin_energy;
    if (lim_const > 0.0 || adapt_lim_const > 0.0)
@@ -1052,6 +956,7 @@ int main(int argc, char *argv[])
       common::VisualizeField(vis0, "localhost", 19916, zeta_0, "Xi 0",
                              600, 600, 300, 300);
    }
+
 
    // 23. Visualize the mesh displacement.
    if (visualization)

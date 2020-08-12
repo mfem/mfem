@@ -146,7 +146,7 @@ public:
        Note that if anisotropic refinements are present in the mesh, some of the
        derefinements may have to be skipped to preserve mesh consistency. */
    virtual void Derefine(const Array<int> &derefs);
-
+   virtual void GetFineToCoarsePartitioning(const Array<int> &derefs, Array<int> &new_ranks) {}
 
    int GetNGhostElements() const { return 0; }
 

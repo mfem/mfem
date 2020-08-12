@@ -124,7 +124,7 @@ int main (int argc, char *argv[])
    int verbosity_level   = 0;
    int hessiantype       = 1;
    bool fdscheme         = false;
-   int adapt_eval        = 0;
+   int adapt_eval        = 1;
    bool exactaction      = false;
 
    // 2. Parse command-line options.
@@ -252,6 +252,8 @@ int main (int argc, char *argv[])
        }
        mesh->GeneralRefinement(marked_elements, 1, 0);
    }
+
+   mesh->RandomRefinement(0.6, false, 1, 0);
 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
 
@@ -492,7 +494,7 @@ int main (int argc, char *argv[])
          }
          const double eps = 0.01;
          const double aspr_ratio = 20.0;
-         const double size_ratio = 80.0;
+         const double size_ratio = 40.0;
 
          for (int i = 0; i < size.Size(); i++)
          {
@@ -851,37 +853,14 @@ int main (int argc, char *argv[])
    solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
 
    // 20. AMR based size refinemenet if a size metric is used
-   TMOPEstimator       tmope(*pfespace, *he_nlf_integ, x, amrmetric_id);
-   TMOPTypeRefiner     tmoptr(tmope, dim);
-   TMOPTypeDeRefiner   tmoptdr(tmope, dim);
-   TMOPAMR tmopamrupdate(*tcd);
-   tmopamrupdate.AddFESpace(pfespace);
+   TMOPAMR tmopamrupdate(*he_nlf_integ, *pmesh, move_bnd);
+   //tmopamrupdate.AddFESpaceAr(pfespace);
    tmopamrupdate.AddMeshNodeAr(&x);
    tmopamrupdate.AddMeshNodeAr(&x0);
-
-   int metrictype = he_nlf_integ->GetAMRQualityMetric().GetMetricType();
-   int num_ref_types = 3 + 4*(dim-2);
-   Vector amr_ref_check(num_ref_types);
-   amr_ref_check = 0.;
-   if (dim == 2)
-   {
-       if ( (metrictype & 1) && (metrictype & 2)) //Shape
-       {
-          amr_ref_check(0) = 1; //x
-          amr_ref_check(1) = 1; //y
-       }
-       if (metrictype & 8)  // Size
-       {
-          amr_ref_check(2) = 1; //xy
-       }
-   }
-   else
-   {
-       if (metrictype & 8)  // Size
-       {
-          amr_ref_check(6) = 1; //xy
-       }
-   }
+   TMOPRefinerEstimator tmop_r_est(*pmesh, *he_nlf_integ, mesh_poly_deg, amrmetric_id);
+   TMOPRefiner tmop_r(tmop_r_est);
+   TMOPDeRefinerEstimator tmop_dr_est(*pmesh, *he_nlf_integ);
+   TMOPDeRefiner tmop_dr(tmop_dr_est);
 
    int newtonstop = 0;
    int NEGlob = pmesh->GetGlobalNE();
@@ -890,14 +869,17 @@ int main (int argc, char *argv[])
    }
    if (amr_flag==1)
    {
-      int ni_limit = 3; //Newton + AMR
+      int ni_limit = 5; //Newton + AMR
       int nic_limit = std::max(ni_limit, 4); //Number of iterations with AMR
       int amrstop = 0;
       int amrdstop = 0;
       int nc_limit = 1; //AMR per iteration - FIXED FOR NOW
 
-      tmoptr.PreferNonconformingRefinement();
-      tmoptr.SetNCLimit(nc_limit);
+      //tmoptr.PreferNonconformingRefinement();
+      //tmoptr.SetNCLimit(nc_limit);
+
+      tmop_r.Reset();
+      tmop_dr.Reset();
 
       for (int it = 0; it<ni_limit; it++)
       {
@@ -927,8 +909,6 @@ int main (int argc, char *argv[])
          for (int amrit=0; amrit<nc_limit; amrit++)
          {
             int NEorig = pfespace->GetNE();
-            Vector amr_base_energy(NEorig);
-            tmope.GetAMRTypeEnergy(amr_base_energy);
             NEGlob = pmesh->GetGlobalNE();
             double tmopenergy = a.GetParGridFunctionEnergy(x);
             if (myid == 0) { std::cout << 0 << " " <<  NEGlob << " " << tmopenergy/NEGlob
@@ -936,43 +916,14 @@ int main (int argc, char *argv[])
             //std::cout << pmesh->GetNE() << " k10startderefinement\n";
 
             int ne1 = pmesh->GetGlobalNE();
-            ParNCMesh *ncmesh = pmesh->pncmesh;
+            ParNCMesh *pncmesh = pmesh->pncmesh;
 
-            if (ncmesh && (amrdstop == 0 || amrstop == 0)) { //derefinement
-                //derefine stuff
-                tmoptdr.Reset();
-                tmoptdr.SetRefType(0);
-                // Make a copy of the mesh for derefinement
-                tmoptdr.SetMetaInfo(*pmesh, x);
+            if (pncmesh && (amrdstop == 0 || amrstop == 0)) { //derefinement
+                tmopamrupdate.RebalanceParNCMesh();
+                tmopamrupdate.Update(a);
 
-                // Derefine all the child
-                int NGhost = ncmesh->GetNGhostElements();
-                tmoptdr.Apply(*pmesh);
-                tmopamrupdate.Update(a, *pmesh, *pfespace, move_bnd);
-
-                int NEtemp = pmesh->GetGlobalNE();
-
-                if (ne1 != NEtemp) {
-                    // For the new coarse elements, determine the original children
-                    // elements and get their energy. Get the original parent.
-                    // Also get the refinemenqt type for those original elements.
-                    //std::cout << pmesh->GetNE() <<" " << pmesh->GetGlobalNE() <<  " k10step0\n";
-                    Vector amrevecin(pfespace->GetNE());
-                    tmope.GetAMRTypeEnergy(amrevecin);
-                    Array<int> new_parent_ref_type(pfespace->GetNE());
-                    tmoptdr.DetermineAMRTypeEnergy(*pmesh, amrevecin, amr_base_energy,
-                                                   new_parent_ref_type, NGhost);
-
-                    // Do refinement on elements that have positive energy
-                    tmoptr.SetRefType(0);
-                    tmoptr.SetParentEnergy(amrevecin);
-                    tmoptr.SetParentEnergyRefType(new_parent_ref_type);
-                    tmoptr.Apply(*pmesh);
-                    tmopamrupdate.Update(a, *pmesh, *pfespace, move_bnd);
-
-                    // Restore the nodal data from original mesh to restore transformation
-                    tmoptdr.RestoreNodalPositions(*pmesh, x);
-                }
+                tmop_dr.Apply(*pmesh);
+                tmopamrupdate.Update(a);
             }
 
             int ne2 = pmesh->GetGlobalNE();
@@ -985,58 +936,15 @@ int main (int argc, char *argv[])
             }
 
             NEorig = pfespace->GetNE();
-            amr_base_energy.SetSize(NEorig);
-            tmope.GetAMRTypeEnergy(amr_base_energy);
 
             if (amrdstop == 0 || amrstop == 0) {
-                // Do all different refinements and measure energy
-                Vector amr_parent_energy(NEorig);
-                amr_parent_energy = 1.*std::numeric_limits<float>::max();
-                Array<int> amr_parent_ref(NEorig);
-                amr_parent_ref = -1;
-                Vector amr_temp_energy(NEorig);
-
-               for (int i = 1;i < num_ref_types+1; i++)
-               {
-                   if ( amr_ref_check(i-1) != 1 ) { continue; }
-                   tmoptr.Reset();
-                   tmoptr.SetRefType(i);
-                   tmoptr.Apply(*pmesh);
-                   tmopamrupdate.Update(a, *pmesh, *pfespace, move_bnd);
-
-                   Vector amr_child_energy(pfespace->GetNE());
-                   tmope.GetAMRTypeEnergy(amr_child_energy);
-
-                   tmoptr.DetermineAMRTypeEnergy(*pmesh, amr_child_energy, amr_temp_energy);
-
-                   for (int e = 0; e < NEorig; e++) {
-                       if ( amr_temp_energy(e) < amr_parent_energy(e) ) {
-                           amr_parent_energy(e) = amr_temp_energy(e);
-                           amr_parent_ref[e] = i;
-                       }
-                   }
-
-                   tmoptdr.Reset();
-                   tmoptdr.SetRefType(i);
-                   tmoptdr.Apply(*pmesh);
-                   tmopamrupdate.Update(a, *pmesh, *pfespace, move_bnd);
-               }
-
-               amr_parent_energy -= amr_base_energy;
-               amr_parent_energy *= -1;
-               tmoptr.SetParentEnergy(amr_parent_energy);
-               tmoptr.SetParentEnergyRefType(amr_parent_ref);
-
-               // Refiner
-               tmoptr.SetRefType(0);
-               tmoptr.Reset();
-               if (amrstop==0) { tmoptr.Apply(*pmesh); }
-               tmopamrupdate.Update(a, *pmesh, *pfespace, move_bnd);
+                tmop_r.Apply(*pmesh);
+                tmopamrupdate.Update(a);
            }
 
             if (amrstop==0)
             {
-               if (tmoptr.Stop()) { amrstop = 1; }
+               if (tmop_r.Stop()) { amrstop = 1; }
                if (amrstop == 1 && amrdstop == 1) {
                    newtonstop = 1;
                    if (myid == 0) { cout << it << " " << amrit <<

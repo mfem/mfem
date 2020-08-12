@@ -85,6 +85,7 @@ public:
    /** Parallel reimplementation of NCMesh::Derefine, keeps ghost layers
        in sync. The interface is identical. */
    virtual void Derefine(const Array<int> &derefs);
+   virtual void GetFineToCoarsePartitioning(const Array<int> &derefs, Array<int> &new_ranks);
 
    /** Migrate leaf elements of the global refinement hierarchy (including ghost
        elements) so that each processor owns the same number of leaves (+-1).
