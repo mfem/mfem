@@ -152,7 +152,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_3D,
                if (mid == 321) { EvalP_321(Jpt,P); }
                for (int i = 0; i < 9; i++) { P[i] *= weight; }
 
-               // Y +=  DS . P^t += DSh . (Jrt . P^t)
+               // Y += DS . P^t += DSh . (Jrt . P^t)
                double A[9];
                kernels::MultABt(3,3,3, Jrt, P, A);
                kernels::PushGrad<MQ1>(qx,qy,qz, A, s_QQQ);
