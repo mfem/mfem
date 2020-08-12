@@ -537,7 +537,7 @@ static void dump_args(const char *args[])
    const char *format =
       "tmop -m %s -o %s -qo %s -mid %s -tid %s -ls %s"
       "%s%s%s%s"         // Optional args: RS, QTY
-      "%s%s%s%s%s%s%s%s" // Optional args:  LC, NOR, JI, NL & CMB
+      "%s%s%s%s%s%s%s%s" // Optional args: LC, NOR, JI, NL & CMB
       " %s\n";           // Assembly level
    printf(format,
           args[MSH], args[POR], args[QOR], args[MID], args[TID], args[LS],
@@ -546,7 +546,7 @@ static void dump_args(const char *args[])
           args[RS][0] == '0' ? "" : args[RS],
           args[QTY][0] == '1' ? "" : " -qt ",
           args[QTY][0] == '1' ? "" : args[QTY],
-          // Optional args:  LC, NOR, JI, NL & CMB
+          // Optional args: LC, NOR, JI, NL & CMB
           args[LC][0] == '0' ? "" : " -lc ",
           args[LC][0] == '0' ? "" : args[LC],
           args[NOR][0] == '0' ? "" : " -nor",
