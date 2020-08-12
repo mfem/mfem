@@ -82,6 +82,22 @@ private:
    MFEM_SHARED T data[Size<Dims...>::val];
 
 public:
+   explicit Tensor(const T &val)
+   {
+      for (size_t i = 0; i < Size<Dims...>::val; i++)
+      {
+         data[i] = val;
+      }      
+   }
+
+   Tensor(const Tensor &rhs)
+   {
+      for (size_t i = 0; i < Size<Dims...>::val; i++)
+      {
+         data[i] = rhs[i];
+      }
+   }
+
    template<typename... Idx> MFEM_HOST_DEVICE inline
    const T& operator()(Idx... args) const
    {
@@ -94,6 +110,15 @@ public:
    {
       static_assert(sizeof...(Dims)==sizeof...(Idx), "Wrong number of indices");
       return data[ TensorIndex<Dims...>::eval(args...) ];
+   }
+
+   Tensor<T,Dims...>& operator= (const T &val)
+   {
+      for (size_t i = 0; i < Size<Dims...>::val; i++)
+      {
+         data[i] = val;
+      }
+      return *this;
    }
 
 };
