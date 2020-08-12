@@ -883,7 +883,7 @@ void DofMaps::TestSubdomainToGlobalMaps()
       GridFunction gf(fes[i]);
       gf = 0.0;
 
-      if (i==5) gf.ProjectCoefficient(c1);
+      if (i==3) gf.ProjectCoefficient(c1);
       x[i] = gf;
    }
 
@@ -909,6 +909,27 @@ void DofMaps::TestSubdomainToGlobalMaps()
       sol_sock << "parallel " << num_procs << " " << myid << "\n"
                   << "solution\n" << *pfes->GetParMesh() << pgf 
                   << keys << flush;
+
+
+   ParGridFunction pgf1(pfes);
+   pgf1.ProjectCoefficient(c1);
+   Vector y1(pfes->GetTrueVSize());
+   const SparseMatrix * R = pfes->GetRestrictionMatrix();
+
+   R->Mult(pgf1,y1);
+   // P.MultTranspose(pgf1,y1);
+   std::vector<Vector> x1(nrsubdomains);
+   GlobalToSubdomains(y1,x1);
+
+   for (int i = 0 ; i<nrsubdomains; i++)
+   {
+      if (myid != subdomain_rank[i]) continue;
+      GridFunction gf(fes[i]);
+      gf = x1[i];
+      socketstream sol_sock(vishost, visport);
+      sol_sock  << "solution\n" << *fes[i]->GetMesh() << gf 
+                  << keys << flush;
+   }
 
 
 }
