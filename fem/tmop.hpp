@@ -1246,6 +1246,7 @@ public:
    /// PA extension
    using NonlinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace&);
+   virtual void AssembleGradientDiagonalPA(const Vector&, Vector&) const;
    using NonlinearFormIntegrator::AddMultPA;
    virtual void AddMultPA(const Vector&, Vector&) const;
    using NonlinearFormIntegrator::AddMultGradPA;
