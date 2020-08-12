@@ -19,7 +19,7 @@
 namespace mfem
 {
 
-// Functions to read dofs to quad matrix
+// Functions to read a matrix, for example the dofs to quad matrix
 template<int P, int Q> MFEM_HOST_DEVICE inline
 const dTensor<Q,P>&& ReadMatrix(const DeviceTensor<2> &d_B)
 {
@@ -46,7 +46,7 @@ const Tensor<dTensor<Dim>,Q,P>&& ReadMatrix(const DeviceTensor<3> &d_G)
       {      
          MFEM_FOREACH_THREAD(q,x,Q)
          {
-            s_G(q,p)(s) = d_B(q,s,p);
+            s_G(q,p)(s) = d_G(q,s,p);
          }
       }    
    }
