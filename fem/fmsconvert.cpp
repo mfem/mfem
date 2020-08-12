@@ -250,6 +250,7 @@ cout << "space_dim=" << space_dim << endl;
             fes->GetElementInteriorDofs(mfem_ent_cnt[dim]+e, dofs);
             for (int i = 0; i < ent_dofs[et]; i++, fms_dof_offset++) {
               for (int j = 0; j < vdim; j++) {
+                std::cout << fes->DofToVDof(dofs[i],j) << " = " << fms_dof_offset*nstride+j*vstride << std::endl;
                 func(fes->DofToVDof(dofs[i],j)) =
                   static_cast<double>(src_data[fms_dof_offset*nstride+j*vstride]);
               }
@@ -332,6 +333,7 @@ cout << "space_dim=" << space_dim << endl;
             fes->GetFaceInteriorDofs(mfem_face_id, dofs);
             for (int i = 0; i < quad_dofs; i++) {
               for (int j = 0; j < vdim; j++) {
+                std::cout << fes->DofToVDof(dofs[i],j) << " = " << (fms_dof_offset+perm[i])*nstride+j*vstride << std::endl;
                 func(fes->DofToVDof(dofs[i],j)) =
                   static_cast<double>(src_data[(fms_dof_offset+perm[i])*nstride+j*vstride]);
               }
@@ -730,7 +732,6 @@ GridFunctionToFmsField(FmsDataCollection dc, FmsFieldDescriptor fd, FmsField f, 
   double *c = gf->GetData();
   int s = gf->Size();
   
-  std::cout << "Coords.Size() " << s << std::endl;
   const mfem::FiniteElementSpace *fespace = gf->FESpace();
   const mfem::FiniteElementCollection *fecoll = fespace->FEColl();
 
@@ -740,19 +741,9 @@ GridFunctionToFmsField(FmsDataCollection dc, FmsFieldDescriptor fd, FmsField f, 
       ftype = FMS_CONTINUOUS;
       break;
     }
-    case mfem::FiniteElementCollection::DISCONTINUOUS: {
-      ftype = FMS_DISCONTINUOUS;
-      break;
-    }
-    case mfem::FiniteElementCollection::TANGENTIAL: {
-      ftype = FMS_HCURL; // Q: Is this correct? I don't think so.
-      break;
-    }
-    case mfem::FiniteElementCollection::NORMAL: {
-      ftype = FMS_CONTINUOUS; // Q: Is this correct? I don't think so.
-      break;
-    }
     default: {
+      mfem::out << "Warning, unsupported ContType. Using FMS_CONTINUOUS." << std::endl;
+      ftype = FMS_CONTINUOUS;
       break;
     }
   }
@@ -765,18 +756,17 @@ GridFunctionToFmsField(FmsDataCollection dc, FmsFieldDescriptor fd, FmsField f, 
   /* Q: Why is order defined on a per element basis? */
   FmsInt order = static_cast<FmsInt>(fespace->GetOrder(0));
   FmsFieldDescriptorSetComponent(fd, comp);
-  FmsFieldDescriptorSetFixedOrder(fd, ftype, FMS_NODAL_GAUSS_CLOSED, order);
+  FmsFieldDescriptorSetFixedOrder(fd, ftype, btype, order);
 
   FmsInt ndofs;
   FmsFieldDescriptorGetNumDofs(fd, &ndofs);
-  std::cout << "FD num dofs " << ndofs << std::endl;
 
-  FmsLayoutType layout = (fespace->GetOrdering() == mfem::Ordering::byVDIM) ? FMS_BY_VDIM : FMS_BY_NODES;
-
-  FmsInt vdim = static_cast<FmsInt>(gf->VectorDim());
+  const char *name = NULL;
+  FmsFieldGetName(f, &name);
+  const int vdim = gf->VectorDim();
+  std::cout << "Field " << name << " is order " << order << " with vdim " << vdim << " and nDoFs " << ndofs << std::endl;
+  FmsLayoutType layout = fespace->GetOrdering() == mfem::Ordering::byVDIM ? FMS_BY_VDIM : FMS_BY_NODES;
   FmsFieldSet(f, fd, vdim, layout, FMS_DOUBLE, c);
-
-
   return 0;
 }
 
@@ -1128,7 +1118,66 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
 
   const int edge_reorder[2] = {1, 0};
   const int quad_reorder[4] = {2,3,0,1};
-  const int hex_reorder[6] = {2, 4, 3, 1, 5, 0};
+  const int x = 5, x1 = 0, y = 2, y1 = 4, z = 1, z1 = 3;
+  const int hex_reorder[6] = /*{4, 2, 3, 1, 0, 5};
+  /*
+    */{z,z1,y,y1,x,x1}/* swirls  MATCHES FMS DOC
+    {z,z1,y,y1,x1,x}/* garbage
+    {z,z1,y1,y,x,x1}/* garbage
+    {z,z1,y1,y,x1,x}/* NO
+    {z,z1,x,x1,y,y1}/* NO
+    {z,z1,x,x1,y1,y}/* garbage
+    {z,z1,x1,x,y,y1}/* garbage
+    {z,z1,x1,x,y1,y}/* NO
+    {z1,z,y,y1,x,x1}/* garbage
+    {z1,z,y,y1,x1,x}/* garbage
+    {z1,z,y1,y,x,x1}/* garbage
+    {z1,z,y1,y,x1,x}/* garbage
+    {z1,z,x,x1,y,y1}/* broken
+    {z1,z,x,x1,y1,y}/* broken
+    {z1,z,x1,x,y,y1}/* broken
+    {z1,z,x1,x,y1,y}/* broken
+
+    {x,x1,y,y1,z,z1}/* broken
+    {x,x1,y,y1,z1,z}/* broken
+    {x,x1,y1,y,z,z1}/* broken
+    {x,x1,y1,y,z1,z}/* broken
+    {x,x1,z,z1,y,y1}/* garbage
+    {x,x1,z,z1,y1,y}/* garbage
+    {x,x1,z1,z,y,y1}/* broken
+    {x,x1,z1,z,y1,y}/* broken
+
+    {x1,x,y,y1,z,z1}/* garbage
+    {x1,x,y,y1,z1,z}/* NO
+    {x1,x,y1,y,z,z1}/* closer
+    {x1,x,y1,y,z1,z}/* garbage
+    {x1,x,z,z1,y,y1}/* garbage
+    {x1,x,z,z1,y1,y}/* garbage
+    {x1,x,z1,z,y,y1}/* broken
+    {x1,x,z1,z,y1,y}/* broken
+
+    {y,y1,x,x1,z,z1}/* garbage
+    {y,y1,x,x1,z1,z}/* NO
+    {y,y1,x1,x,z,z1}/* no
+    {y,y1,x1,x,z1,z}/* garbage MATCHES HEXES.c
+    {y,y1,z,z1,x,x1}/* NO
+    {y,y1,z,z1,x1,x}/* no
+    {y,y1,z1,z,x,x1}/* NO 
+    {y,y1,z1,z,x1,x}/* GARBAGE
+
+    {y1,y,x,x1,z,z1}/* broken
+    {y1,y,x,x1,z1,z}/* broken
+    {y1,y,x1,x,z,z1}/* broken
+    {y1,y,x1,x,z1,z}/* broken
+    {y1,y,z,z1,x,x1}/* no
+    {y1,y,z,z1,x1,x}/* garbage
+    {y1,y,z1,z,x,x1}/* garbage
+    {y1,y,z1,z,x1,x}/* NO
+
+    {x,y,z,x1,y1,z1}/* ERROR
+    {z1,z,y1,y,x1,x}/* no
+  */
+  ;
   const int *reorder[8] = {NULL, edge_reorder, NULL, quad_reorder, NULL, hex_reorder, NULL, NULL};
 
   const mfem::Table *edges = mmesh->GetEdgeVertexTable();
@@ -1247,7 +1296,7 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
   // TODO: Test, might need a reorder
   if(tris.size()) {
     FmsDomainSetNumEntities(domains[0], FMS_TRIANGLE, FMS_INT32, tris.size() / 3);
-    FmsDomainAddEntities(domains[0], FMS_TRIANGLE, NULL, FMS_INT32, tris.data(), tris.size() / 3);
+    FmsDomainAddEntities(domains[0], FMS_TRIANGLE, reorder, FMS_INT32, tris.data(), tris.size() / 3);
 #ifdef DEBUG_MFEM_FMS
     std::cout << "TRIS: ";
     for(int i = 0; i < tris.size(); i++) {
@@ -1261,7 +1310,7 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
   if(quads.size()) {
     // TODO: Not quite right either, if there are hexes and quads then this will overwrite the faces that made up the hexes
     FmsDomainSetNumEntities(domains[0], FMS_QUADRILATERAL, FMS_INT32, quads.size() / 4);
-    FmsDomainAddEntities(domains[0], FMS_QUADRILATERAL, NULL, FMS_INT32, quads.data(), quads.size() / 4);
+    FmsDomainAddEntities(domains[0], FMS_QUADRILATERAL, reorder, FMS_INT32, quads.data(), quads.size() / 4);
 #ifdef DEBUG_MFEM_FMS
     std::cout << "QUADS: ";
     for(int i = 0; i < quads.size(); i++) {
