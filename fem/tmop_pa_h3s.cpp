@@ -99,12 +99,11 @@ static MFEM_HOST_DEVICE inline
 void EvalH_315(const int e, const int qx, const int qy, const int qz,
                const double weight, const double *J, DeviceTensor<8,double> dP)
 {
-   double B[9];
    double dI3b[9], ddI3b[9];
    constexpr int DIM = 3;
-   kernels::InvariantsEvaluator3D ie(Args()
-                                     .J(J).B(B)
-                                     .dI3b(dI3b).ddI3b(ddI3b));
+   kernels::InvariantsEvaluator3D ie(Args().
+                                     J(J).
+                                     dI3b(dI3b).ddI3b(ddI3b));
 
    double sign_detJ;
    const double I3b = ie.Get_I3b(sign_detJ);

@@ -51,13 +51,12 @@ void EvalP_303(const double *J, double *P)
 static MFEM_HOST_DEVICE inline
 void EvalP_315(const double *J, double *P)
 {
-   double B[9];
    double dI3b[9];
-   kernels::InvariantsEvaluator3D ie(Args().J(J).B(B).dI3b(dI3b));
+   kernels::InvariantsEvaluator3D ie(Args().J(J).dI3b(dI3b));
 
    double sign_detJ;
-   kernels::Set(3,3, 2.0 * (ie.Get_I3b(sign_detJ) - 1.0),
-                     ie.Get_dI3b(sign_detJ), P);
+   const double I3b = ie.Get_I3b(sign_detJ);
+   kernels::Set(3,3, 2.0 * (I3b - 1.0), ie.Get_dI3b(sign_detJ), P);
 }
 
 // P_321 = dI1 + (1/I3)*dI2 - (2*I2/I3b^3)*dI3b

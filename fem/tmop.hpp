@@ -71,7 +71,7 @@ public:
 
    /** @brief Return the metric ID.
     */
-   virtual int Id() const { return 0; };
+   virtual int Id() const { return 0; }
 };
 
 
@@ -482,7 +482,7 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
 
-   virtual int Id() const { return 321; };
+   virtual int Id() const { return 321; }
 };
 
 /// Shifted barrier form of 3D metric 16 (volume, ideal barrier metric), 3D
