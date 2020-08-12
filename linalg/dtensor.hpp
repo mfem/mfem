@@ -255,25 +255,6 @@ Tensor<dTensor<VDIM>,P>&& Read(const DeviceTensor<3> &e_vec, const int e)
    return u;
 }
 
-// Non-tensor read with VDIMxVDIM components
-template<int P, int VDIM> MFEM_HOST_DEVICE inline
-Tensor<dTensor<VDIM,VDIM>,P>&& Read(const DeviceTensor<4> &e_vec, const int e)
-{
-   Tensor<dTensor<VDIM,VDIM>,P> u;
-   for (int w = 0; w < VDIM; w++)
-   {   
-      for (int h = 0; h < VDIM; h++)
-      {
-         MFEM_FOREACH_THREAD(p,x,P)
-         {
-            u(p)(h,w) = e_vec(p, h, w, e);
-         }
-      }
-   }
-   MFEM_SYNC_THREAD;
-   return u;
-}
-
 // 3D tensor read
 template <int D1d> MFEM_HOST_DEVICE inline
 dTensor<D1d,D1d,D1d>&& Read(const DeviceTensor<4> &e_vec, const int e)
@@ -479,6 +460,26 @@ Tensor<dTensor<Dim>,Q,P>&& ReadMatrix(const DeviceTensor<3> &d_G)
    }
    MFEM_SYNC_THREAD;
    return s_G;
+}
+
+// Non-tensor read with VDIMxVDIM components
+template<int P, int VDIM> MFEM_HOST_DEVICE inline
+Tensor<dTensor<VDIM,VDIM>,P>&& ReadMatrix(const DeviceTensor<4> &e_vec,
+                                          const int e)
+{
+   Tensor<dTensor<VDIM,VDIM>,P> u;
+   for (int w = 0; w < VDIM; w++)
+   {   
+      for (int h = 0; h < VDIM; h++)
+      {
+         MFEM_FOREACH_THREAD(p,x,P)
+         {
+            u(p)(h,w) = e_vec(p, h, w, e);
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   return u;
 }
 
 // Functions to write values (dofs or values at quadrature point)
