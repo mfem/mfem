@@ -47,6 +47,19 @@ void EvalP_303(const double *J, double *P)
    kernels::Set(3,3, 1./3., ie.Get_dI1b(), P);
 }
 
+// P_315 = 2*(I3b - 1)*dI3b
+static MFEM_HOST_DEVICE inline
+void EvalP_315(const double *J, double *P)
+{
+   double B[9];
+   double dI3b[9];
+   kernels::InvariantsEvaluator3D ie(Args().J(J).B(B).dI3b(dI3b));
+
+   double sign_detJ;
+   kernels::Set(3,3, 2.0 * (ie.Get_I3b(sign_detJ) - 1.0),
+                     ie.Get_dI3b(sign_detJ), P);
+}
+
 // P_321 = dI1 + (1/I3)*dI2 - (2*I2/I3b^3)*dI3b
 static MFEM_HOST_DEVICE inline
 void EvalP_321(const double *J, double *P)
@@ -133,6 +146,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_3D,
                double P[9];
                if (mid == 302) { EvalP_302(Jpt,P); }
                if (mid == 303) { EvalP_303(Jpt,P); }
+               if (mid == 315) { EvalP_315(Jpt,P); }
                if (mid == 321) { EvalP_321(Jpt,P); }
                for (int i = 0; i < 9; i++) { P[i] *= weight; }
 

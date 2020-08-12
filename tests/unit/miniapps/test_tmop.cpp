@@ -184,6 +184,7 @@ int tmop(int myid, Req &res, int argc, char *argv[])
       case  77: metric = new TMOP_Metric_077; break;
       case 302: metric = new TMOP_Metric_302; break;
       case 303: metric = new TMOP_Metric_303; break;
+      case 315: metric = new TMOP_Metric_315; break;
       case 321: metric = new TMOP_Metric_321; break;
       default:
       {
@@ -308,7 +309,8 @@ int tmop(int myid, Req &res, int argc, char *argv[])
       coeff1 = new ConstantCoefficient(1.0);
       he_nlf_integ->SetCoefficient(*coeff1);
       // Second metric.
-      metric2 = new TMOP_Metric_077;
+      if (dim == 2) { metric2 = new TMOP_Metric_077; }
+      else          { metric2 = new TMOP_Metric_315; }
       TMOP_Integrator *he_nlf_integ2 = nullptr;
       if (combo == 1)
       {
@@ -699,10 +701,16 @@ static void tmop_tests(int id)
 {
    const double jitter = 1./(M_PI*M_PI);
 
-   // Combo
+   // Combo 2D
    Launch(Launch::Args("Square01 + Combo").
           MESH("square01.mesh").REFINE(1).JI(jitter).NORMALIZATION(true).
           TID({5}).MID({2}).LS({2}).
+          POR({2}).QOR({8}).CMB(2)).Run(id);
+
+   // Combo 3D
+   Launch(Launch::Args("Cube + Combo").
+          MESH("cube.mesh").REFINE(1).JI(jitter).NORMALIZATION(true).
+          TID({5}).MID({302}).LS({2}).
           POR({2}).QOR({8}).CMB(2)).Run(id);
 
    // NURBS
