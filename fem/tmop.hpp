@@ -946,19 +946,23 @@ public:
 
    void SetTspecFromVec(Vector &amr_vec_vals_)
    {
-       tspec_amr_vec_vals = amr_vec_vals_;
+      tspec_amr_vec_vals = amr_vec_vals_;
    }
-   void SetCoarseTspecFESpace(FiniteElementSpace *fes) {
-       c_tspec_fesv = fes;
-   }
-
-   void ResetAMRTspecData() {
-       tspec_amr_mat_vals.Clear();
-       amr_el = -1;
+   void SetCoarseTspecFESpace(FiniteElementSpace *fes)
+   {
+      c_tspec_fesv = fes;
    }
 
-   void ResetAMRTspecVec() {
-       tspec_amr_vec_vals.Destroy();
+   void ResetAMRTspecData()
+   {
+      tspec_amr_mat_vals.Clear();
+      amr_el = -1;
+      c_tspec_fesv = NULL;
+   }
+
+   void ResetAMRTspecVec()
+   {
+      tspec_amr_vec_vals.Destroy();
    }
 
    void SetAMRSubElement(int amr_el_) { amr_el = amr_el_; }
@@ -1110,7 +1114,7 @@ public:
         zeta_0(NULL), zeta(NULL), coeff_zeta(NULL), adapt_eval(NULL),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
         fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
-    { }
+   { }
 
    ~TMOP_Integrator();
 
@@ -1172,18 +1176,14 @@ public:
                                    const Vector &elfun);
 
    virtual double GetAMRElementEnergy(const FiniteElement &el,
-                                   ElementTransformation &T,
-                                   const Vector &elfun);
-
-   virtual double GetAMRElementEnergy(const FiniteElement &el,
                                       ElementTransformation &T,
                                       const Vector &elfun,
                                       const IntegrationRule &irule);
 
    virtual double GetDeRefinementElementEnergy(const FiniteElement &el,
-                                      ElementTransformation &T,
-                                      const Vector &elfun,
-                                      FiniteElementSpace *c_fes);
+                                               ElementTransformation &T,
+                                               const Vector &elfun,
+                                               FiniteElementSpace *c_fes);
 
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &T,
@@ -1194,14 +1194,6 @@ public:
                                     const Vector &elfun, DenseMatrix &elmat);
 
    TMOP_QualityMetric &GetAMRQualityMetric() { return *amrmetric; }
-
-   double GetAMRElementEnergy(const FiniteElement &el,
-                              ElementTransformation &T,
-                              const Vector &elfun, int reftype);
-
-   double GetAMRDeRefElementEnergy(const FiniteElement &el,
-                                   ElementTransformation &T,
-                                   const Vector &elfun, int reftype);
 
    void UpdateTargetConstructor(TargetConstructor *tc)
    {

@@ -259,14 +259,16 @@ int main(int argc, char *argv[])
    GridFunction x(fespace);
    mesh->SetNodalGridFunction(&x);
 
-   for (int lev = 0; lev < ars_levels; lev++) {
-       Array<Refinement> marked_elements;
-       for (int e = 0; e < mesh->GetNE(); e++) {
-           marked_elements.Append(e);
-       }
-       mesh->GeneralRefinement(marked_elements, 1, 0);
-       fespace->Update();
-       x.Update();
+   for (int lev = 0; lev < ars_levels; lev++)
+   {
+      Array<Refinement> marked_elements;
+      for (int e = 0; e < mesh->GetNE(); e++)
+      {
+         marked_elements.Append(e);
+      }
+      mesh->GeneralRefinement(marked_elements, 1, 0);
+      fespace->Update();
+      x.Update();
    }
 
    // 7. Define a vector representing the minimal local mesh size in the mesh
@@ -807,14 +809,14 @@ int main(int argc, char *argv[])
    solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
 
    // 20. AMR based size refinemenet if a size metric is used
-   TMOPAMR tmopamrupdate(*he_nlf_integ, *mesh, move_bnd);
-   tmopamrupdate.AddFESpaceAr(fespace);
+   TMOPAMR tmopamrupdate(a, *mesh, move_bnd);
    tmopamrupdate.AddMeshNodeAr(&x);
    tmopamrupdate.AddMeshNodeAr(&x0);
-   TMOPRefinerEstimator tmop_r_est(*mesh, *he_nlf_integ, mesh_poly_deg, amrmetric_id);
+   TMOPRefinerEstimator tmop_r_est(*mesh, *he_nlf_integ, mesh_poly_deg,
+                                   amrmetric_id);
    TMOPRefiner tmop_r(tmop_r_est);
    TMOPDeRefinerEstimator tmop_dr_est(*mesh, *he_nlf_integ);
-   TMOPDeRefiner tmop_dr(tmop_dr_est);
+   ThresholdDerefiner tmop_dr(tmop_dr_est);
 
    int newtonstop = 0;
    std::cout << mesh->GetNE() << " Number of elements at beginning\n";
@@ -826,9 +828,6 @@ int main(int argc, char *argv[])
       int amrstop = 0;
       int amrdstop = 0;
       int nc_limit = 1; //AMR per iteration - FIXED FOR NOW
-
-      tmop_r.PreferNonconformingRefinement();
-      tmop_r.SetNCLimit(nc_limit);
 
       tmop_dr.Reset();
       tmop_r.Reset();
@@ -854,19 +853,18 @@ int main(int argc, char *argv[])
             cout << it << " Newton and AMR have converged" << endl;
             break;
          }
-         char title1[10];
-         sprintf(title1, "%s %d","Newton", it);
-
          for (int amrit=0; amrit<nc_limit; amrit++)
          {
-            std::cout << 0 << " " <<  mesh->GetNE() << " " << a.GetGridFunctionEnergy(x)/mesh->GetNE()
+            std::cout << 0 << " " <<  mesh->GetNE() << " " << a.GetGridFunctionEnergy(
+                         x)/mesh->GetNE()
                       << " k10basenergy\n";
 
             int ne1 = mesh->GetNE();
             NCMesh *ncmesh = mesh->ncmesh;
-            if (ncmesh && (amrdstop == 0 || amrstop == 0)) { //derefinement
-                tmop_dr.Apply(*mesh);
-                tmopamrupdate.Update(a);
+            if (ncmesh && (amrdstop == 0 || amrstop == 0))   //derefinement
+            {
+               tmop_dr.Apply(*mesh);
+               tmopamrupdate.Update();
             }
 
             if (tmop_dr.Stop()) { amrdstop = 1; }
@@ -874,25 +872,25 @@ int main(int argc, char *argv[])
             std::cout << ne1 << " " << ne2 << " elements before and after derefine\n";
 
             // Refiner
-            if (amrdstop == 0 || amrstop == 0) {
-                tmop_r.Apply(*mesh);
-                tmopamrupdate.Update(a);
-           }
-           if (tmop_r.Stop()) { amrstop = 1; }
+            if (amrdstop == 0 || amrstop == 0)
+            {
+               tmop_r.Apply(*mesh);
+               tmopamrupdate.Update();
+            }
+            if (tmop_r.Stop()) { amrstop = 1; }
 
-            if (amrstop == 1 && amrdstop == 1) {
-                newtonstop = 1;
-                cout << it << " " << amrit <<
-                        " AMR stopping criterion satisfied. Stop." << endl;
+            if (amrstop == 1 && amrdstop == 1)
+            {
+               newtonstop = 1;
+               cout << it << " " << amrit <<
+                    " AMR stopping criterion satisfied. Stop." << endl;
             }
             else
             {
-                amrstop = 0; amrdstop = 0;
+               amrstop = 0; amrdstop = 0;
             }
          } //amrit limit
          if (it==nic_limit-1) { amrstop=1; amrdstop = 1; }
-
-         sprintf(title1, "%s %d","AMR", it);
       } //ni_limit
    } //amr_flag==1
    if (newtonstop == 0)

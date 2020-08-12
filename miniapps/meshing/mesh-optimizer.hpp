@@ -467,86 +467,103 @@ void DiffuseField(ParGridFunction &field, int smooth_steps)
 class TMOPAMR
 {
 protected:
-    TMOP_Integrator *tmopi;
-    Array<GridFunction *> meshnodarr;
-    Array<FiniteElementSpace *> fespacearr;
-    Mesh *mesh;
+   NonlinearForm *nlf;
+   Array<GridFunction *> meshnodarr;
+   Mesh *mesh;
 #ifdef MFEM_USE_MPI
-    Array<ParGridFunction *> pmeshnodarr;
-    Array<ParFiniteElementSpace *> pfespacearr;
-    ParMesh *pmesh;
+   ParNonlinearForm *pnlf;
+   Array<ParGridFunction *> pmeshnodarr;
+   ParMesh *pmesh;
 #endif
 
-    bool move_bnd, serial;
+   bool move_bnd;
 
 
 public:
-    TMOPAMR(TMOP_Integrator &tmopi_, Mesh &mesh_,
-            bool move_bnd_) :
-        tmopi(&tmopi_), meshnodarr(), mesh(&mesh_), move_bnd(move_bnd_),
-        serial(true)
-    { }
+   TMOPAMR(NonlinearForm &nlf_, Mesh &mesh_, bool move_bnd_) :
+      nlf(&nlf_), meshnodarr(), mesh(&mesh_), move_bnd(move_bnd_) { }
 #ifdef MFEM_USE_MPI
-    TMOPAMR(TMOP_Integrator &tmopi_, ParMesh &pmesh_,
-            bool move_bnd_) :
-        tmopi(&tmopi_), pmeshnodarr(), pmesh(&pmesh_), move_bnd(move_bnd_),
-        serial(false)
-    { }
+   TMOPAMR(ParNonlinearForm &pnlf_, ParMesh &pmesh_, bool move_bnd_) :
+      nlf(&pnlf_), pnlf(&pnlf_), pmeshnodarr(), pmesh(&pmesh_), move_bnd(move_bnd_) { }
 #endif
 
-    void AddMeshNodeAr(GridFunction *gf_) { meshnodarr.Append(gf_); }
-    void AddFESpaceAr(FiniteElementSpace *fes_) { fespacearr.Append(fes_); }
+   void AddMeshNodeAr(GridFunction *gf_) { meshnodarr.Append(gf_); }
 #ifdef MFEM_USE_MPI
-    void AddMeshNodeAr(ParGridFunction *pgf_) { pmeshnodarr.Append(pgf_); }
+   void AddMeshNodeAr(ParGridFunction *pgf_) { pmeshnodarr.Append(pgf_); }
 #endif
 
-    void Update(NonlinearForm &nlf);
+   void Update();
 #ifdef MFEM_USE_MPI
-    void Update(ParNonlinearForm &pnlf);
+   void ParUpdate();
 #endif
 
-    void RebalanceParNCMesh();
+   void RebalanceParNCMesh();
 };
 
 void TMOPAMR::RebalanceParNCMesh()
 {
-    ParNCMesh *pncmesh = pmesh->pncmesh;
-    if (pncmesh) {
-        const Table &dreftable = pncmesh->GetDerefinementTable();
-        Array<int> drefs, new_ranks;
-        for (int i = 0; i < dreftable.Size(); i++) {
-            drefs.Append(i);
-        }
-        pncmesh->GetFineToCoarsePartitioning(drefs, new_ranks);
-        new_ranks.SetSize(pmesh->GetNE());
-        pmesh->Rebalance(new_ranks);
-    }
+   ParNCMesh *pncmesh = pmesh->pncmesh;
+   if (pncmesh)
+   {
+      const Table &dreftable = pncmesh->GetDerefinementTable();
+      Array<int> drefs, new_ranks;
+      for (int i = 0; i < dreftable.Size(); i++)
+      {
+         drefs.Append(i);
+      }
+      pncmesh->GetFineToCoarsePartitioning(drefs, new_ranks);
+      new_ranks.SetSize(pmesh->GetNE());
+      pmesh->Rebalance(new_ranks);
+   }
 }
 
 
-void TMOPAMR::Update(NonlinearForm &nlf)
+void TMOPAMR::Update()
 {
-   // Update FE and GF
-   for (int i = 0; i < fespacearr.Size(); i++) { fespacearr[i]->Update(); }
-   for (int i = 0; i < meshnodarr.Size(); i++) {
-       meshnodarr[i]->Update();
-       meshnodarr[i]->SetTrueVector();
-       meshnodarr[i]->SetFromTrueVector();
+   // Update nodal GF
+   for (int i = 0; i < meshnodarr.Size(); i++)
+   {
+      meshnodarr[i]->Update();
+      meshnodarr[i]->SetTrueVector();
+      meshnodarr[i]->SetFromTrueVector();
    }
 
    const FiniteElementSpace *fespace = mesh->GetNodalFESpace();
 
-   // Update Discrete Indicator
-   if (tmopi->GetDiscreteAdaptTC()) { tmopi->GetDiscreteAdaptTC()->Update(); }
+   // Update Discrete Indicator for all the TMOP_Integrators in NonLinearForm
+   Array<NonlinearFormIntegrator*> &integs = *(nlf->GetDNFI());
+   TMOP_Integrator *ti  = NULL;
+   TMOPComboIntegrator *co = NULL;
+   DiscreteAdaptTC *dtc = NULL;
+   for (int i = 0; i < integs.Size(); i++)
+   {
+      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+      if (ti)
+      {
+         dtc = ti->GetDiscreteAdaptTC();
+         if (dtc) { dtc->Update(); }
+      }
+      co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+      if (co)
+      {
+         Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
+         for (int j = 0; j < ati.Size(); j++)
+         {
+            dtc = ati[j]->GetDiscreteAdaptTC();
+            if (dtc) { dtc->Update(); }
+         }
+      }
+   }
+   //if (tmopi->GetDiscreteAdaptTC()) { tmopi->GetDiscreteAdaptTC()->Update(); }
 
    // Update Nonlinear form and Set Essential BC
-   nlf.Update();
+   nlf->Update();
    int dim = fespace->GetFE(0)->GetDim();
    if (move_bnd == false)
    {
       Array<int> ess_bdr(mesh->bdr_attributes.Max());
       ess_bdr = 1;
-      nlf.SetEssentialBC(ess_bdr);
+      nlf->SetEssentialBC(ess_bdr);
    }
    else
    {
@@ -589,136 +606,157 @@ void TMOPAMR::Update(NonlinearForm &nlf)
             { ess_vdofs[n++] = vdofs[j]; }
          }
       }
-      nlf.SetEssentialVDofs(ess_vdofs);
+      nlf->SetEssentialVDofs(ess_vdofs);
    }
 };
 
 #ifdef MFEM_USE_MPI
-void TMOPAMR::Update(ParNonlinearForm &pnlf)
+void TMOPAMR::ParUpdate()
 {
-   // Update FE and GF
-   for (int i = 0; i < pmeshnodarr.Size(); i++) {
-       pmeshnodarr[i]->Update();
-       pmeshnodarr[i]->SetTrueVector();
-       pmeshnodarr[i]->SetFromTrueVector();
+   // Update nodal GF
+   for (int i = 0; i < pmeshnodarr.Size(); i++)
+   {
+      pmeshnodarr[i]->Update();
+      pmeshnodarr[i]->SetTrueVector();
+      pmeshnodarr[i]->SetFromTrueVector();
    }
 
    // Update Discrete Indicator
-   if (tmopi->GetDiscreteAdaptTC()) { tmopi->GetDiscreteAdaptTC()->ParUpdate(); }
+   Array<NonlinearFormIntegrator*> &integs = *(nlf->GetDNFI());
+   TMOP_Integrator *ti  = NULL;
+   TMOPComboIntegrator *co = NULL;
+   DiscreteAdaptTC *dtc = NULL;
+   for (int i = 0; i < integs.Size(); i++)
+   {
+      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+      if (ti)
+      {
+         dtc = ti->GetDiscreteAdaptTC();
+         if (dtc) { dtc->ParUpdate(); }
+      }
+      co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+      if (co)
+      {
+         Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
+         for (int j = 0; j < ati.Size(); j++)
+         {
+            dtc = ati[j]->GetDiscreteAdaptTC();
+            if (dtc) { dtc->ParUpdate(); }
+         }
+      }
+   }
+   //if (tmopi->GetDiscreteAdaptTC()) { tmopi->GetDiscreteAdaptTC()->ParUpdate(); }
 
    const FiniteElementSpace *pfespace = pmesh->GetNodalFESpace();
 
    // Update Nonlinear form and Set Essential BC
-   pnlf.Update();
+   pnlf->Update();
    int dim = pfespace->GetFE(0)->GetDim();
    if (move_bnd == false)
    {
-       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-       ess_bdr = 1;
-       pnlf.SetEssentialBC(ess_bdr);
+      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+      ess_bdr = 1;
+      pnlf->SetEssentialBC(ess_bdr);
    }
    else
    {
-       const int nd  = pfespace->GetBE(0)->GetDof();
-       int n = 0;
-       for (int i = 0; i < pmesh->GetNBE(); i++)
-       {
-          const int attr = pmesh->GetBdrElement(i)->GetAttribute();
-          MFEM_VERIFY(!(dim == 2 && attr == 3),
-                      "Boundary attribute 3 must be used only for 3D meshes. "
-                      "Adjust the attributes (1/2/3/4 for fixed x/y/z/all "
-                      "components, rest for free nodes), or use -fix-bnd.");
-          if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
-          if (attr == 4) { n += nd * dim; }
-       }
-       Array<int> ess_vdofs(n), vdofs;
-       n = 0;
-       for (int i = 0; i < pmesh->GetNBE(); i++)
-       {
-          const int attr = pmesh->GetBdrElement(i)->GetAttribute();
-          pfespace->GetBdrElementVDofs(i, vdofs);
-          if (attr == 1) // Fix x components.
-          {
-             for (int j = 0; j < nd; j++)
-             { ess_vdofs[n++] = vdofs[j]; }
-          }
-          else if (attr == 2) // Fix y components.
-          {
-             for (int j = 0; j < nd; j++)
-             { ess_vdofs[n++] = vdofs[j+nd]; }
-          }
-          else if (attr == 3) // Fix z components.
-          {
-             for (int j = 0; j < nd; j++)
-             { ess_vdofs[n++] = vdofs[j+2*nd]; }
-          }
-          else if (attr == 4) // Fix all components.
-          {
-             for (int j = 0; j < vdofs.Size(); j++)
-             { ess_vdofs[n++] = vdofs[j]; }
-          }
-       }
-       pnlf.SetEssentialVDofs(ess_vdofs);
+      const int nd  = pfespace->GetBE(0)->GetDof();
+      int n = 0;
+      for (int i = 0; i < pmesh->GetNBE(); i++)
+      {
+         const int attr = pmesh->GetBdrElement(i)->GetAttribute();
+         MFEM_VERIFY(!(dim == 2 && attr == 3),
+                     "Boundary attribute 3 must be used only for 3D meshes. "
+                     "Adjust the attributes (1/2/3/4 for fixed x/y/z/all "
+                     "components, rest for free nodes), or use -fix-bnd.");
+         if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
+         if (attr == 4) { n += nd * dim; }
+      }
+      Array<int> ess_vdofs(n), vdofs;
+      n = 0;
+      for (int i = 0; i < pmesh->GetNBE(); i++)
+      {
+         const int attr = pmesh->GetBdrElement(i)->GetAttribute();
+         pfespace->GetBdrElementVDofs(i, vdofs);
+         if (attr == 1) // Fix x components.
+         {
+            for (int j = 0; j < nd; j++)
+            { ess_vdofs[n++] = vdofs[j]; }
+         }
+         else if (attr == 2) // Fix y components.
+         {
+            for (int j = 0; j < nd; j++)
+            { ess_vdofs[n++] = vdofs[j+nd]; }
+         }
+         else if (attr == 3) // Fix z components.
+         {
+            for (int j = 0; j < nd; j++)
+            { ess_vdofs[n++] = vdofs[j+2*nd]; }
+         }
+         else if (attr == 4) // Fix all components.
+         {
+            for (int j = 0; j < vdofs.Size(); j++)
+            { ess_vdofs[n++] = vdofs[j]; }
+         }
+      }
+      pnlf->SetEssentialVDofs(ess_vdofs);
    }
 };
 #endif
 
-class TMOPRefinerEstimator : public ErrorEstimator
+class TMOPRefinerEstimator : public AnisotropicErrorEstimator
 {
 protected:
-    Mesh *mesh;
-    TMOP_Integrator *tmopi;
-    int order;
-    int amrmetric;
-    Array<IntegrationRule *> TriIntRule;
-    Array<IntegrationRule *> QuadIntRule;
-    long current_sequence;
-    Vector error_estimates;
-    Array<int> aniso_flags;
+   Mesh *mesh;
+   TMOP_Integrator *tmopi;
+   int order;
+   int amrmetric;
+   Array<IntegrationRule *> TriIntRule;
+   Array<IntegrationRule *> QuadIntRule;
+   long current_sequence;
+   Vector error_estimates;
+   Array<int> aniso_flags;
 
-    /// Check if the mesh of the solution was modified.
-    bool MeshIsModified()
-    {
-       long mesh_sequence = mesh->GetSequence();
-       MFEM_ASSERT(mesh_sequence >= current_sequence, "");
-       return (mesh_sequence > current_sequence);
-    }
+   /// Check if the mesh of the solution was modified.
+   bool MeshIsModified()
+   {
+      long mesh_sequence = mesh->GetSequence();
+      MFEM_ASSERT(mesh_sequence >= current_sequence, "");
+      return (mesh_sequence > current_sequence);
+   }
 
-    /// Compute the element error estimates.
-    void ComputeEstimates();
-
-
-    // Construct the integration rules for each element type - only 2D right now
-    void SetQuadIntRules();
-    void SetTriIntRules();
-    void GetTMOPRefinementEnergy(int reftype, Vector &el_energy_vec);
-
-    IntegrationRule* SetIntRulesFromMesh(Mesh &meshsplit);
+   /// Compute the element error estimates.
+   void ComputeEstimates();
 
 
+   // Construct the integration rules for each element type - only 2D right now
+   void SetQuadIntRules();
+   void SetTriIntRules();
+   void GetTMOPRefinementEnergy(int reftype, Vector &el_energy_vec);
 
+   IntegrationRule* SetIntRulesFromMesh(Mesh &meshsplit);
 public:
    TMOPRefinerEstimator(Mesh &mesh_,
                         TMOP_Integrator &tmopi_, int order_, int amrmetric_) :
-       mesh(&mesh_), tmopi(&tmopi_), order(order_), amrmetric(amrmetric_),
-       TriIntRule(0), QuadIntRule(0),
-       current_sequence(-1), error_estimates(), aniso_flags()
+      mesh(&mesh_), tmopi(&tmopi_), order(order_), amrmetric(amrmetric_),
+      TriIntRule(0), QuadIntRule(0),
+      current_sequence(-1), error_estimates(), aniso_flags()
    {
-       MFEM_VERIFY(mesh->Dimension()==2," 3D not implemented yet.");
-       SetQuadIntRules();
-       SetTriIntRules();
+      MFEM_VERIFY(mesh->Dimension()==2," 3D not implemented yet.");
+      SetQuadIntRules();
+      SetTriIntRules();
    }
    // destructor
    ~TMOPRefinerEstimator()
    {
-       for (int i = 0;i < QuadIntRule.Size();i++)
-       {
-           delete QuadIntRule[i];
-       }
-       for (int i = 0;i < TriIntRule.Size();i++)
-       {
-           delete TriIntRule[i];
-       }
+      for (int i = 0; i < QuadIntRule.Size(); i++)
+      {
+         delete QuadIntRule[i];
+      }
+      for (int i = 0; i < TriIntRule.Size(); i++)
+      {
+         delete TriIntRule[i];
+      }
    }
 
    virtual const Vector &GetLocalErrors()
@@ -738,446 +776,367 @@ public:
 
 void TMOPRefinerEstimator::ComputeEstimates()
 {
-    bool iso = false;
-    bool aniso = false;
-    if (amrmetric == 1 || amrmetric == 2 || amrmetric == 58
-     || amrmetric == 301 || amrmetric == 302 || amrmetric == 303) {
-        aniso = true;
-    }
-    if (amrmetric == 55 || amrmetric == 56 || amrmetric == 77
-     || amrmetric == 315 || amrmetric == 316) {
-        iso = true;
-    }
-    if (amrmetric == 7 || amrmetric == 9 || amrmetric == 321) {
-        iso = true; aniso = true;
-    }
+   bool iso = false;
+   bool aniso = false;
+   if (amrmetric == 1 || amrmetric == 2 || amrmetric == 58
+       || amrmetric == 301 || amrmetric == 302 || amrmetric == 303)
+   {
+      aniso = true;
+   }
+   if (amrmetric == 55 || amrmetric == 56 || amrmetric == 77
+       || amrmetric == 315 || amrmetric == 316)
+   {
+      iso = true;
+   }
+   if (amrmetric == 7 || amrmetric == 9 || amrmetric == 321)
+   {
+      iso = true; aniso = true;
+   }
 
-    if (iso == false && aniso == false) {
-        MFEM_ABORT("Metric type not supported in hr-adaptivity.");
-    }
+   if (iso == false && aniso == false)
+   {
+      MFEM_ABORT("Metric type not supported in hr-adaptivity.");
+   }
 
-    const int dim = mesh->Dimension();
-    const int num_ref_types = 3 + 4*(dim-2);
-    const int NEorig = mesh->GetNE();
+   const int dim = mesh->Dimension();
+   const int num_ref_types = 3 + 4*(dim-2);
+   const int NEorig = mesh->GetNE();
 
-    aniso_flags.SetSize(NEorig);
-    error_estimates.SetSize(NEorig);
-    Vector amr_base_energy(NEorig), amr_temp_energy(NEorig);
-    error_estimates = 1.*std::numeric_limits<float>::max();
-    aniso_flags = -1;
-    GetTMOPRefinementEnergy(0, amr_base_energy);
+   aniso_flags.SetSize(NEorig);
+   error_estimates.SetSize(NEorig);
+   Vector amr_base_energy(NEorig), amr_temp_energy(NEorig);
+   error_estimates = 1.*std::numeric_limits<float>::max();
+   aniso_flags = -1;
+   GetTMOPRefinementEnergy(0, amr_base_energy);
 
-    for (int i = 1;i < num_ref_types+1; i++)
-    {
-        if ( dim == 2 && i < 3 && aniso != true ) { continue; }
-        if ( dim == 2 && i == 3 && iso != true ) { continue; }
-        if ( dim == 3 && i < 7 && aniso != true ) { continue; }
-        if ( dim == 3 && i == 7 && iso != true ) { continue; }
+   for (int i = 1; i < num_ref_types+1; i++)
+   {
+      if ( dim == 2 && i < 3 && aniso != true ) { continue; }
+      if ( dim == 2 && i == 3 && iso != true ) { continue; }
+      if ( dim == 3 && i < 7 && aniso != true ) { continue; }
+      if ( dim == 3 && i == 7 && iso != true ) { continue; }
 
-        GetTMOPRefinementEnergy(i, amr_temp_energy);
+      GetTMOPRefinementEnergy(i, amr_temp_energy);
 
-        for (int e = 0; e < NEorig; e++) {
-            if ( amr_temp_energy(e) < error_estimates(e) ) {
-                error_estimates(e) = amr_temp_energy(e);
-                aniso_flags[e] = i;
-            }
-        }
-    }
-    error_estimates -= amr_base_energy;
-    error_estimates *= -1;
-    current_sequence = mesh->GetSequence();
+      for (int e = 0; e < NEorig; e++)
+      {
+         if ( amr_temp_energy(e) < error_estimates(e) )
+         {
+            error_estimates(e) = amr_temp_energy(e);
+            aniso_flags[e] = i;
+         }
+      }
+   }
+
+   error_estimates -= amr_base_energy;
+   error_estimates *= -1;
+   current_sequence = mesh->GetSequence();
 }
 
-void TMOPRefinerEstimator::GetTMOPRefinementEnergy(int reftype, Vector &el_energy_vec)
+void TMOPRefinerEstimator::GetTMOPRefinementEnergy(int reftype,
+                                                   Vector &el_energy_vec)
 {
-    const FiniteElementSpace *fes = mesh->GetNodalFESpace();
-    const int NE = fes->GetNE();
-    GridFunction *xdof = mesh->GetNodes();
-    xdof->SetTrueVector();
-    xdof->SetFromTrueVector();
+   const FiniteElementSpace *fes = mesh->GetNodalFESpace();
+   const int NE = fes->GetNE();
+   GridFunction *xdof = mesh->GetNodes();
+   xdof->SetTrueVector();
+   xdof->SetFromTrueVector();
 
-    el_energy_vec.SetSize(NE);
+   el_energy_vec.SetSize(NE);
 
-    for (int e = 0; e < NE; e++)
-    {
-        //std::cout << e << "  " << NE << " ELement\n";
-        Geometry::Type gtype = fes->GetFE(e)->GetGeomType();
-        DenseMatrix tr, vals;
-        int NEsplit = 1;
-        IntegrationRule *irule = NULL;
-        switch (gtype)
-        {
-            case Geometry::TRIANGLE:
-            {
-                if (reftype != 0) { NEsplit = 4; }
-                int ref_access = reftype == 0 ? 0 : 1;
-                xdof->GetVectorValues(e, *TriIntRule[ref_access], vals, tr);
-                irule = TriIntRule[ref_access];
-                break;
-            }
-            case Geometry::SQUARE:
-            {
-                MFEM_VERIFY(QuadIntRule[reftype], " Integration rule does not exist.");
-                xdof->GetVectorValues(e, *QuadIntRule[reftype], vals, tr);
-                if (reftype == 0) { NEsplit = 1; }
-                else if (reftype == 1 || reftype == 2) { NEsplit = 2; }
-                else { NEsplit = 4; }
-                irule = QuadIntRule[reftype];
-                break;
-            }
-            default:
-               MFEM_ABORT("Incompatible geometry type!");
-        }
-        vals.Transpose();
+   for (int e = 0; e < NE; e++)
+   {
+      Geometry::Type gtype = fes->GetFE(e)->GetGeomType();
+      DenseMatrix tr, vals;
+      int NEsplit = 1;
+      IntegrationRule *irule = NULL;
+      switch (gtype)
+      {
+         case Geometry::TRIANGLE:
+         {
+            if (reftype != 0) { NEsplit = 4; }
+            int ref_access = reftype == 0 ? 0 : 1;
+            xdof->GetVectorValues(e, *TriIntRule[ref_access], vals, tr);
+            irule = TriIntRule[ref_access];
+            break;
+         }
+         case Geometry::SQUARE:
+         {
+            MFEM_VERIFY(QuadIntRule[reftype], " Integration rule does not exist.");
+            xdof->GetVectorValues(e, *QuadIntRule[reftype], vals, tr);
+            if (reftype == 0) { NEsplit = 1; }
+            else if (reftype == 1 || reftype == 2) { NEsplit = 2; }
+            else { NEsplit = 4; }
+            irule = QuadIntRule[reftype];
+            break;
+         }
+         default:
+            MFEM_ABORT("Incompatible geometry type!");
+      }
+      vals.Transpose();
 
-        // The data format is xe1,xe2,..xen,ye1,ye2..yen.
-        // We will reformat it inside GetAMRElementENergy
-        Vector elfun(vals.GetData(), vals.NumCols()*vals.NumRows());
+      // The data format is xe1,xe2,..xen,ye1,ye2..yen.
+      // We will reformat it inside GetAMRElementENergy
+      Vector elfun(vals.GetData(), vals.NumCols()*vals.NumRows());
 
-        el_energy_vec(e) = tmopi->GetAMRElementEnergy(*fes->GetFE(e),
-                                                      *mesh->GetElementTransformation(e),
-                                                      elfun,
-                                                      *irule);
-    }
+      el_energy_vec(e) = tmopi->GetAMRElementEnergy(*fes->GetFE(e),
+                                                    *mesh->GetElementTransformation(e),
+                                                    elfun,
+                                                    *irule);
+   }
 }
 
 void TMOPRefinerEstimator::SetQuadIntRules()
 {
-    QuadIntRule.SetSize(3+1);
+   QuadIntRule.SetSize(3+1);
 
-    // Reftype = 0 // original element
-    Mesh *meshsplit = NULL;
-    int Nvert = 9;
-    int NEsplit = 1;
-    meshsplit = new Mesh(2, Nvert, NEsplit, 0, 2);
+   // Reftype = 0 // original element
+   Mesh *meshsplit = NULL;
+   int Nvert = 9;
+   int NEsplit = 1;
+   meshsplit = new Mesh(2, Nvert, NEsplit, 0, 2);
 
-    double quad_v[9][2] =
-    {
-       {0, 0}, {1, 0}, {0, 1}, {1, 1},
-       {0., 0.5}, {1.0, 0.5}, {0.5, 0.}, {0.5, 1.0},
-       {0.5, 0.5}
-    };
-    int quad_e0[1][4] =
-    {
-       {0, 1, 3, 2}
-    };
+   double quad_v[9][2] =
+   {
+      {0, 0}, {1, 0}, {0, 1}, {1, 1},
+      {0., 0.5}, {1.0, 0.5}, {0.5, 0.}, {0.5, 1.0},
+      {0.5, 0.5}
+   };
+   int quad_e0[1][4] =
+   {
+      {0, 1, 3, 2}
+   };
 
-    for (int j = 0; j < Nvert; j++)
-    {
-       meshsplit->AddVertex(quad_v[j]);
-    }
-    for (int j = 0; j < NEsplit; j++)
-    {
-       int attribute = j + 1;
-       meshsplit->AddQuad(quad_e0[j], attribute);
-    }
-    meshsplit->FinalizeQuadMesh(1, 1, true);
+   for (int j = 0; j < Nvert; j++)
+   {
+      meshsplit->AddVertex(quad_v[j]);
+   }
+   for (int j = 0; j < NEsplit; j++)
+   {
+      int attribute = j + 1;
+      meshsplit->AddQuad(quad_e0[j], attribute);
+   }
+   meshsplit->FinalizeQuadMesh(1, 1, true);
 
-    QuadIntRule[0] = SetIntRulesFromMesh(*meshsplit);
-    delete meshsplit;
+   QuadIntRule[0] = SetIntRulesFromMesh(*meshsplit);
+   delete meshsplit;
 
-    // Reftype = 1
-    NEsplit = 2;
-    meshsplit = new Mesh(2, Nvert, NEsplit, 0, 2);
+   // Reftype = 1
+   NEsplit = 2;
+   meshsplit = new Mesh(2, Nvert, NEsplit, 0, 2);
 
-    int quad_e1[2][4] =
-    {
-       {0, 6, 7, 2}, {6, 1, 3, 7}
-    };
+   int quad_e1[2][4] =
+   {
+      {0, 6, 7, 2}, {6, 1, 3, 7}
+   };
 
-    for (int j = 0; j < Nvert; j++)
-    {
-       meshsplit->AddVertex(quad_v[j]);
-    }
-    for (int j = 0; j < NEsplit; j++)
-    {
-       int attribute = j + 1;
-       meshsplit->AddQuad(quad_e1[j], attribute);
-    }
-    meshsplit->FinalizeQuadMesh(1, 1, true);
+   for (int j = 0; j < Nvert; j++)
+   {
+      meshsplit->AddVertex(quad_v[j]);
+   }
+   for (int j = 0; j < NEsplit; j++)
+   {
+      int attribute = j + 1;
+      meshsplit->AddQuad(quad_e1[j], attribute);
+   }
+   meshsplit->FinalizeQuadMesh(1, 1, true);
 
-    QuadIntRule[1] = SetIntRulesFromMesh(*meshsplit);
-    delete meshsplit;
+   QuadIntRule[1] = SetIntRulesFromMesh(*meshsplit);
+   delete meshsplit;
 
-    // Reftype = 2
-    meshsplit = new Mesh(2, Nvert, NEsplit, 0, 2);
-    int quad_e2[2][4] =
-    {
-       {0, 1, 5, 4}, {4, 5, 3, 2}
-    };
+   // Reftype = 2
+   meshsplit = new Mesh(2, Nvert, NEsplit, 0, 2);
+   int quad_e2[2][4] =
+   {
+      {0, 1, 5, 4}, {4, 5, 3, 2}
+   };
 
-    for (int j = 0; j < Nvert; j++)
-    {
-       meshsplit->AddVertex(quad_v[j]);
-    }
-    for (int j = 0; j < NEsplit; j++)
-    {
-       int attribute = j + 1;
-       meshsplit->AddQuad(quad_e2[j], attribute);
-    }
-    meshsplit->FinalizeQuadMesh(1, 1, true);
+   for (int j = 0; j < Nvert; j++)
+   {
+      meshsplit->AddVertex(quad_v[j]);
+   }
+   for (int j = 0; j < NEsplit; j++)
+   {
+      int attribute = j + 1;
+      meshsplit->AddQuad(quad_e2[j], attribute);
+   }
+   meshsplit->FinalizeQuadMesh(1, 1, true);
 
-    QuadIntRule[2] = SetIntRulesFromMesh(*meshsplit);
-    delete meshsplit;
+   QuadIntRule[2] = SetIntRulesFromMesh(*meshsplit);
+   delete meshsplit;
 
-    // Reftype = 3
-    NEsplit = 4;
-    meshsplit = new Mesh(2, Nvert, NEsplit, 0, 2);
-    int quad_e3[4][4] =
-    {
-       {0, 6, 8, 4}, {6, 1, 5, 8}, {8, 5, 3, 7}, {4, 8, 7, 2}
-    };
+   // Reftype = 3
+   NEsplit = 4;
+   meshsplit = new Mesh(2, Nvert, NEsplit, 0, 2);
+   int quad_e3[4][4] =
+   {
+      {0, 6, 8, 4}, {6, 1, 5, 8}, {8, 5, 3, 7}, {4, 8, 7, 2}
+   };
 
-    for (int j = 0; j < Nvert; j++)
-    {
-       meshsplit->AddVertex(quad_v[j]);
-    }
-    for (int j = 0; j < NEsplit; j++)
-    {
-       int attribute = j + 1;
-       meshsplit->AddQuad(quad_e3[j], attribute);
-    }
-    meshsplit->FinalizeQuadMesh(1, 1, true);
+   for (int j = 0; j < Nvert; j++)
+   {
+      meshsplit->AddVertex(quad_v[j]);
+   }
+   for (int j = 0; j < NEsplit; j++)
+   {
+      int attribute = j + 1;
+      meshsplit->AddQuad(quad_e3[j], attribute);
+   }
+   meshsplit->FinalizeQuadMesh(1, 1, true);
 
-    QuadIntRule[3] = SetIntRulesFromMesh(*meshsplit);
-    delete meshsplit;
+   QuadIntRule[3] = SetIntRulesFromMesh(*meshsplit);
+   delete meshsplit;
 }
 
 void TMOPRefinerEstimator::SetTriIntRules()
 {
-    TriIntRule.SetSize(1+1);
+   TriIntRule.SetSize(1+1);
 
-    // Reftype = 0
-    Mesh *meshsplit = NULL;
-    int Nvert = 6;
-    int NEsplit = 1;
-    meshsplit = new Mesh(2, Nvert, NEsplit, 0, 2);
+   // Reftype = 0
+   Mesh *meshsplit = NULL;
+   int Nvert = 6;
+   int NEsplit = 1;
+   meshsplit = new Mesh(2, Nvert, NEsplit, 0, 2);
 
-    double tri_v[6][2] =
-    {
-       {0, 0}, {1, 0}, {0, 1}, {0.5, 0}, {0.5, 0.5}, {0., 0.5}
-    };
-    int tri_e0[4][3] =
-    {
-       {0, 1, 2}
-    };
+   double tri_v[6][2] =
+   {
+      {0, 0}, {1, 0}, {0, 1}, {0.5, 0}, {0.5, 0.5}, {0., 0.5}
+   };
+   int tri_e0[4][3] =
+   {
+      {0, 1, 2}
+   };
 
-    for (int j = 0; j < Nvert; j++)
-    {
-       meshsplit->AddVertex(tri_v[j]);
-    }
-    for (int j = 0; j < NEsplit; j++)
-    {
-       int attribute = j + 1;
-       meshsplit->AddTri(tri_e0[j], attribute);
-    }
-    meshsplit->FinalizeTriMesh(1, 1, true);
+   for (int j = 0; j < Nvert; j++)
+   {
+      meshsplit->AddVertex(tri_v[j]);
+   }
+   for (int j = 0; j < NEsplit; j++)
+   {
+      int attribute = j + 1;
+      meshsplit->AddTri(tri_e0[j], attribute);
+   }
+   meshsplit->FinalizeTriMesh(1, 1, true);
 
-    TriIntRule[0] = SetIntRulesFromMesh(*meshsplit);
-    delete meshsplit;
+   TriIntRule[0] = SetIntRulesFromMesh(*meshsplit);
+   delete meshsplit;
 
-    // Reftype = 1
-    NEsplit = 4;
-    meshsplit = new Mesh(2, Nvert, NEsplit, 0, 2);
+   // Reftype = 1
+   NEsplit = 4;
+   meshsplit = new Mesh(2, Nvert, NEsplit, 0, 2);
 
-    int tri_e1[4][3] =
-    {
-       {0, 3, 5}, {5, 3, 4}, {3, 1, 4}, {5, 4, 2}
-    };
+   int tri_e1[4][3] =
+   {
+      {0, 3, 5}, {5, 3, 4}, {3, 1, 4}, {5, 4, 2}
+   };
 
-    for (int j = 0; j < Nvert; j++)
-    {
-       meshsplit->AddVertex(tri_v[j]);
-    }
-    for (int j = 0; j < NEsplit; j++)
-    {
-       int attribute = j + 1;
-       meshsplit->AddTri(tri_e1[j], attribute);
-    }
-    meshsplit->FinalizeTriMesh(1, 1, true);
+   for (int j = 0; j < Nvert; j++)
+   {
+      meshsplit->AddVertex(tri_v[j]);
+   }
+   for (int j = 0; j < NEsplit; j++)
+   {
+      int attribute = j + 1;
+      meshsplit->AddTri(tri_e1[j], attribute);
+   }
+   meshsplit->FinalizeTriMesh(1, 1, true);
 
-    TriIntRule[1] = SetIntRulesFromMesh(*meshsplit);
-    delete meshsplit;
+   TriIntRule[1] = SetIntRulesFromMesh(*meshsplit);
+   delete meshsplit;
 }
 
 IntegrationRule* TMOPRefinerEstimator::SetIntRulesFromMesh(Mesh &meshsplit)
 {
-    const int dim = meshsplit.Dimension();
-    H1_FECollection fec(order, dim);
-    FiniteElementSpace nodal_fes(&meshsplit, &fec, dim);
-    meshsplit.SetNodalFESpace(&nodal_fes);
+   const int dim = meshsplit.Dimension();
+   H1_FECollection fec(order, dim);
+   FiniteElementSpace nodal_fes(&meshsplit, &fec, dim);
+   meshsplit.SetNodalFESpace(&nodal_fes);
 
-    const int NEsplit = meshsplit.GetNE();
-    const int dof_cnt = nodal_fes.GetFE(0)->GetDof(),
-              pts_cnt = NEsplit * dof_cnt;
+   const int NEsplit = meshsplit.GetNE();
+   const int dof_cnt = nodal_fes.GetFE(0)->GetDof(),
+             pts_cnt = NEsplit * dof_cnt;
 
-    DenseMatrix pos(dof_cnt, dim);
-    Vector posV(pos.Data(), dof_cnt * dim);
-    Array<int> xdofs(dof_cnt * dim);
+   DenseMatrix pos(dof_cnt, dim);
+   Vector posV(pos.Data(), dof_cnt * dim);
+   Array<int> xdofs(dof_cnt * dim);
 
-    // Create an IntegrationRule on the nodes of the reference submesh.
-    IntegrationRule *irule = new IntegrationRule(pts_cnt);
-    GridFunction *nodesplit = meshsplit.GetNodes();
+   // Create an IntegrationRule on the nodes of the reference submesh.
+   IntegrationRule *irule = new IntegrationRule(pts_cnt);
+   GridFunction *nodesplit = meshsplit.GetNodes();
 
-    int pt_id = 0;
-    for (int i = 0; i < NEsplit; i++)
-    {
-       nodal_fes.GetElementVDofs(i, xdofs);
-       nodesplit->GetSubVector(xdofs, posV);
-       for (int j = 0; j < dof_cnt; j++)
-       {
-          if (dim == 2)
-          {
-              irule->IntPoint(pt_id).Set2(pos(j, 0), pos(j, 1));
-          }
-          else if (dim == 3)
-          {
-              irule->IntPoint(pt_id).Set3(pos(j, 0), pos(j, 1), pos(j, 2));
-          }
-          pt_id++;
-       }
-    }
-    return irule;
-}
-
-class TMOPRefiner : public MeshOperator
-{
-protected:
-   TMOPRefinerEstimator &estimator;
-
-   long max_elements;
-   long num_marked_elements;
-   const double threshold = 0.0;
-
-   Array<Refinement> marked_elements;
-   long current_sequence;
-
-   int non_conforming;
-   int nc_limit;
-
-   double GetNorm(const Vector &local_err, Mesh &mesh) const;
-
-   /** @brief Apply the operator to theG mesh->
-       @return STOP if a stopping criterion is satisfied or no elements were
-       marked for refinement; REFINED + CONTINUE otherwise. */
-   virtual int ApplyImpl(Mesh &mesh);
-public:
-   /// Construct a ThresholdRefiner using the given ErrorEstimator.
-   TMOPRefiner(TMOPRefinerEstimator &est);
-   // default destructor (virtual)
-
-   /// Use nonconforming refinement, if possible (triangles, quads, hexes).
-   void PreferNonconformingRefinement() { non_conforming = 1; }
-
-   /** @brief Use conforming refinement, if possible (triangles, tetrahedra)
-       -- this is the default. */
-   void PreferConformingRefinement() { non_conforming = -1; }
-
-   /** @brief Set the maximum ratio of refinement levels of adjacent elements
-       (0 = unlimited). */
-   void SetNCLimit(int nc_limit)
+   int pt_id = 0;
+   for (int i = 0; i < NEsplit; i++)
    {
-      MFEM_ASSERT(nc_limit >= 0, "Invalid NC limit");
-      this->nc_limit = nc_limit;
-   }
-
-   /// Get the number of marked elements in the last Apply() call.
-   long GetNumMarkedElements() const { return num_marked_elements; }
-
-   /// Reset the associated estimator.
-   virtual void Reset();
-};
-
-TMOPRefiner::TMOPRefiner(TMOPRefinerEstimator &est)
-   : estimator(est)
-{
-   max_elements = std::numeric_limits<long>::max();
-
-   num_marked_elements = 0L;
-   current_sequence = -1;
-
-   non_conforming = 1;
-   nc_limit = 0;
-}
-
-int TMOPRefiner::ApplyImpl(Mesh &mesh)
-{
-   num_marked_elements = 0;
-   marked_elements.SetSize(0);
-   current_sequence = mesh.GetSequence();
-
-   const long num_elements = mesh.GetGlobalNE();
-   if (num_elements >= max_elements) { return STOP; }
-
-   const int NE = mesh.GetNE();
-
-   Vector parentenergy = estimator.GetLocalErrors();
-   Array<int> parentreftype = estimator.GetAnisotropicFlags();
-   MFEM_ASSERT(parentenergy.Size() == NE, "invalid size of local_err");
-
-   for (int el = 0; el < NE; el++)
-   {
-      if (parentenergy(el) > threshold && parentreftype[el] > 0) {
-          marked_elements.Append(Refinement(el, parentreftype[el]));
+      nodal_fes.GetElementVDofs(i, xdofs);
+      nodesplit->GetSubVector(xdofs, posV);
+      for (int j = 0; j < dof_cnt; j++)
+      {
+         if (dim == 2)
+         {
+            irule->IntPoint(pt_id).Set2(pos(j, 0), pos(j, 1));
+         }
+         else if (dim == 3)
+         {
+            irule->IntPoint(pt_id).Set3(pos(j, 0), pos(j, 1), pos(j, 2));
+         }
+         pt_id++;
       }
    }
-
-   num_marked_elements = mesh.ReduceInt(marked_elements.Size());
-   if (num_marked_elements == 0) { return STOP; }
-   mesh.GeneralRefinement(marked_elements, non_conforming, nc_limit);
-
-   return CONTINUE + REFINED;
+   return irule;
 }
 
-void TMOPRefiner::Reset()
+// TMOPRefiner is ThresholdRefiner with total_error_fraction = 0.;
+class TMOPRefiner : public ThresholdRefiner
 {
-   estimator.Reset();
-   current_sequence = -1;
-   num_marked_elements = 0;
-}
-
+public:
+   /// Construct a ThresholdRefiner using the given ErrorEstimator.
+   TMOPRefiner(TMOPRefinerEstimator &est) : ThresholdRefiner(est)
+   {
+      SetTotalErrorFraction(0.);
+   }
+};
 
 class TMOPDeRefinerEstimator : public ErrorEstimator
 {
 protected:
-    Mesh *mesh;
+   Mesh *mesh;
 #ifdef MFEM_USE_MPI
-    ParMesh *pmesh;
+   ParMesh *pmesh;
 #endif
-    TMOP_Integrator *tmopi;
-    int order;
-    int amrmetric;
-    long current_sequence;
-    Vector error_estimates;
-    bool serial;
+   TMOP_Integrator *tmopi;
+   int order;
+   int amrmetric;
+   long current_sequence;
+   Vector error_estimates;
+   bool serial;
 
-    /// Check if the mesh of the solution was modified.
-    bool MeshIsModified()
-    {
-       long mesh_sequence = mesh->GetSequence();
-       MFEM_ASSERT(mesh_sequence >= current_sequence, "");
-       return (mesh_sequence > current_sequence);
-    }
+   /// Check if the mesh of the solution was modified.
+   bool MeshIsModified()
+   {
+      long mesh_sequence = mesh->GetSequence();
+      MFEM_ASSERT(mesh_sequence >= current_sequence, "");
+      return (mesh_sequence > current_sequence);
+   }
 
-    /// Compute the element error estimates.
-    void ComputeEstimates();
+   /// Compute the element error estimates.
+   void ComputeEstimates();
 
-    void GetTMOPDerefinementEnergy(Mesh &cmesh,
-                                   Vector &el_energy_vec,
-                                   FiniteElementSpace *tcdfes = NULL);
+   void GetTMOPDerefinementEnergy(Mesh &cmesh,
+                                  Vector &el_energy_vec,
+                                  FiniteElementSpace *tcdfes = NULL);
 public:
    TMOPDeRefinerEstimator(Mesh &mesh_, TMOP_Integrator &tmopi_) :
-       mesh(&mesh_), tmopi(&tmopi_),
-       current_sequence(-1), error_estimates(), serial(true)
+      mesh(&mesh_), tmopi(&tmopi_),
+      current_sequence(-1), error_estimates(), serial(true)
    {
-       MFEM_VERIFY(mesh->Dimension()==2," 3D not implemented yet.");
+      MFEM_VERIFY(mesh->Dimension()==2," 3D not implemented yet.");
    }
 #ifdef MFEM_USE_MPI
    TMOPDeRefinerEstimator(ParMesh &pmesh_, TMOP_Integrator &tmopi_) :
-       mesh(&pmesh_), pmesh(&pmesh_), tmopi(&tmopi_),
-       current_sequence(-1), error_estimates(), serial(false)
+      mesh(&pmesh_), pmesh(&pmesh_), tmopi(&tmopi_),
+      current_sequence(-1), error_estimates(), serial(false)
    {
-       MFEM_VERIFY(pmesh->Dimension()==2," 3D not implemented yet.");
+      MFEM_VERIFY(pmesh->Dimension()==2," 3D not implemented yet.");
    }
 #endif
 
@@ -1199,570 +1158,155 @@ public:
 
 void TMOPDeRefinerEstimator::ComputeEstimates()
 {
-    DiscreteAdaptTC *tcd = tmopi->GetDiscreteAdaptTC();
-    const Operator *c_op = NULL;
+   DiscreteAdaptTC *tcd = tmopi->GetDiscreteAdaptTC();
+   const Operator *c_op = NULL;
 
-    if (serial) {
-        Mesh meshcopy(*mesh);
+   if (serial)
+   {
+      Mesh meshcopy(*mesh);
 
-        FiniteElementSpace *tcdfes = NULL;
-        if (tcd) {
-            tcdfes = new FiniteElementSpace(*tcd->GetTSpecFESpace(), &meshcopy);
-        }
+      FiniteElementSpace *tcdfes = NULL;
+      if (tcd)
+      {
+         tcdfes = new FiniteElementSpace(*tcd->GetTSpecFESpace(), &meshcopy);
+      }
 
-        Vector local_err(meshcopy.GetNE());
-        local_err = 0.;
-        double threshold = std::numeric_limits<float>::max();
-        meshcopy.DerefineByError(local_err, threshold, 0, 1);
+      Vector local_err(meshcopy.GetNE());
+      local_err = 0.;
+      double threshold = std::numeric_limits<float>::max();
+      meshcopy.DerefineByError(local_err, threshold, 0, 1);
 
-        if (meshcopy.GetGlobalNE() == mesh->GetGlobalNE()) {
-            error_estimates = 1;
-            delete tcdfes;
-            return;
-        }
+      if (meshcopy.GetGlobalNE() == mesh->GetGlobalNE())
+      {
+         error_estimates = 1;
+         delete tcdfes;
+         return;
+      }
 
-        if (tcd) {
-            tcdfes->Update();
-            c_op = tcdfes->GetUpdateOperator();
-            Vector tcd_data = *(tcd->GetTSpecVec());
-            Vector amr_tspec_vals(c_op->Height());
-            c_op->Mult(tcd_data, amr_tspec_vals);
-            tcd->SetTspecFromVec(amr_tspec_vals);
-        }
+      if (tcd)
+      {
+         tcdfes->Update();
+         c_op = tcdfes->GetUpdateOperator();
+         Vector tcd_data = *(tcd->GetTSpecVec());
+         Vector amr_tspec_vals(c_op->Height());
+         c_op->Mult(tcd_data, amr_tspec_vals);
+         tcd->SetTspecFromVec(amr_tspec_vals);
+      }
 
-        Vector coarse_el_energy(meshcopy.GetNE());
-        GetTMOPDerefinementEnergy(meshcopy, coarse_el_energy, tcdfes);
-        if (tcd) { tcd->ResetAMRTspecVec(); }
-        GetTMOPDerefinementEnergy(*mesh, error_estimates);
+      Vector coarse_el_energy(meshcopy.GetNE());
+      GetTMOPDerefinementEnergy(meshcopy, coarse_el_energy, tcdfes);
+      if (tcd) { tcd->ResetAMRTspecVec(); }
+      GetTMOPDerefinementEnergy(*mesh, error_estimates);
 
-        const CoarseFineTransformations &dtrans = meshcopy.ncmesh->GetDerefinementTransforms();
-        Table coarse_to_fine;
-        dtrans.GetCoarseToFineMapFast(meshcopy, coarse_to_fine);
+      const CoarseFineTransformations &dtrans =
+         meshcopy.ncmesh->GetDerefinementTransforms();
+      Table coarse_to_fine;
+      dtrans.GetCoarseToFineMapFast(meshcopy, coarse_to_fine);
 
-        for (int pe = 0; pe < coarse_to_fine.Size(); pe++) {
-            Array<int> tabrow;
-            coarse_to_fine.GetRow(pe, tabrow);
-            int nchild = tabrow.Size();
-            double parent_energy = coarse_el_energy(pe);
-            for (int fe = 0; fe < nchild; fe++) {
-                int child = tabrow[fe];
-                MFEM_VERIFY(child < mesh->GetNE(), " invalid coarse to fine mapping");
-                error_estimates(child) -= parent_energy/nchild;
-            }
-        }
-        delete tcdfes;
-    }
-    else {
+      for (int pe = 0; pe < coarse_to_fine.Size(); pe++)
+      {
+         Array<int> tabrow;
+         coarse_to_fine.GetRow(pe, tabrow);
+         int nchild = tabrow.Size();
+         double parent_energy = coarse_el_energy(pe);
+         for (int fe = 0; fe < nchild; fe++)
+         {
+            int child = tabrow[fe];
+            MFEM_VERIFY(child < mesh->GetNE(), " invalid coarse to fine mapping");
+            error_estimates(child) -= parent_energy/nchild;
+         }
+      }
+      delete tcdfes;
+   }
+   else
+   {
 #ifdef MFEM_USE_MPI
-        ParMesh meshcopy(*pmesh);
-        ParFiniteElementSpace *tcdfes = NULL;
-        if (tcd) {
-            tcdfes = new ParFiniteElementSpace(*tcd->GetTSpecParFESpace(), meshcopy);
-        }
+      ParMesh meshcopy(*pmesh);
+      ParFiniteElementSpace *tcdfes = NULL;
+      if (tcd)
+      {
+         tcdfes = new ParFiniteElementSpace(*tcd->GetTSpecParFESpace(), meshcopy);
+      }
 
-        Vector local_err(meshcopy.GetNE());
-        local_err = 0.;
-        double threshold = std::numeric_limits<float>::max();
-        meshcopy.DerefineByError(local_err, threshold, 0, 1);
+      Vector local_err(meshcopy.GetNE());
+      local_err = 0.;
+      double threshold = std::numeric_limits<float>::max();
+      meshcopy.DerefineByError(local_err, threshold, 0, 1);
 
-        if (meshcopy.GetGlobalNE() == pmesh->GetGlobalNE()) {
-            error_estimates = 1;
-            delete tcdfes;
-            return;
-        }
+      if (meshcopy.GetGlobalNE() == pmesh->GetGlobalNE())
+      {
+         error_estimates = 1;
+         delete tcdfes;
+         return;
+      }
 
-        if (tcd) {
-            tcdfes->Update();
-            c_op = tcdfes->GetUpdateOperator();
-            Vector tcd_data = *(tcd->GetTSpecVec());
-            Vector amr_tspec_vals(c_op->Height());
-            c_op->Mult(tcd_data, amr_tspec_vals);
-            tcd->SetTspecFromVec(amr_tspec_vals);
-        }
+      if (tcd)
+      {
+         tcdfes->Update();
+         c_op = tcdfes->GetUpdateOperator();
+         Vector tcd_data = *(tcd->GetTSpecVec());
+         Vector amr_tspec_vals(c_op->Height());
+         c_op->Mult(tcd_data, amr_tspec_vals);
+         tcd->SetTspecFromVec(amr_tspec_vals);
+      }
 
-        Vector coarse_el_energy(meshcopy.GetNE());
-        GetTMOPDerefinementEnergy(meshcopy, coarse_el_energy, tcdfes);
-        if (tcd) { tcd->ResetAMRTspecVec(); }
-        MPI_Barrier(MPI_COMM_WORLD);
+      Vector coarse_el_energy(meshcopy.GetNE());
+      GetTMOPDerefinementEnergy(meshcopy, coarse_el_energy, tcdfes);
+      if (tcd) { tcd->ResetAMRTspecVec(); }
+      MPI_Barrier(MPI_COMM_WORLD);
 
-        GetTMOPDerefinementEnergy(*pmesh, error_estimates);
-        MPI_Barrier(MPI_COMM_WORLD);
+      GetTMOPDerefinementEnergy(*pmesh, error_estimates);
+      MPI_Barrier(MPI_COMM_WORLD);
 
-        const CoarseFineTransformations &dtrans = meshcopy.pncmesh->GetDerefinementTransforms();
-        Table coarse_to_fine;
-        MPI_Barrier(MPI_COMM_WORLD);
-        dtrans.GetCoarseToFineMapFast(meshcopy, coarse_to_fine, pmesh->pncmesh->GetNGhostElements());
-        MPI_Barrier(MPI_COMM_WORLD);
+      const CoarseFineTransformations &dtrans =
+         meshcopy.pncmesh->GetDerefinementTransforms();
+      Table coarse_to_fine;
+      MPI_Barrier(MPI_COMM_WORLD);
+      dtrans.GetCoarseToFineMapFast(meshcopy, coarse_to_fine,
+                                    pmesh->pncmesh->GetNGhostElements());
+      MPI_Barrier(MPI_COMM_WORLD);
 
-        for (int pe = 0; pe < meshcopy.GetNE(); pe++) {
-            Array<int> tabrow;
-            coarse_to_fine.GetRow(pe, tabrow);
-            int nchild = tabrow.Size();
-            double parent_energy = coarse_el_energy(pe);
-            for (int fe = 0; fe < nchild; fe++) {
-                int child = tabrow[fe];
-                MFEM_VERIFY(child < pmesh->GetNE(), " invalid coarse to fine mapping");
-                error_estimates(child) -= parent_energy/nchild;
-            }
-        }
-        delete tcdfes;
+      for (int pe = 0; pe < meshcopy.GetNE(); pe++)
+      {
+         Array<int> tabrow;
+         coarse_to_fine.GetRow(pe, tabrow);
+         int nchild = tabrow.Size();
+         double parent_energy = coarse_el_energy(pe);
+         for (int fe = 0; fe < nchild; fe++)
+         {
+            int child = tabrow[fe];
+            MFEM_VERIFY(child < pmesh->GetNE(), " invalid coarse to fine mapping");
+            error_estimates(child) -= parent_energy/nchild;
+         }
+      }
+      delete tcdfes;
 #endif
-    }
-    error_estimates *= -1.; // error_estimate(e) = energy(parent_of_e)-energy(e)
-                            // -ve energy means derefinement is desirable
+   }
+   error_estimates *= -1.; // error_estimate(e) = energy(parent_of_e)-energy(e)
+   // -ve energy means derefinement is desirable
 }
 
 void TMOPDeRefinerEstimator::GetTMOPDerefinementEnergy(Mesh &cmesh,
                                                        Vector &el_energy_vec,
                                                        FiniteElementSpace *tcdfes)
 {
-    const int cNE = cmesh.GetNE();
-    el_energy_vec.SetSize(cNE);
-    const FiniteElementSpace *fespace = cmesh.GetNodalFESpace();
+   const int cNE = cmesh.GetNE();
+   el_energy_vec.SetSize(cNE);
+   const FiniteElementSpace *fespace = cmesh.GetNodalFESpace();
 
-    GridFunction *cxdof = cmesh.GetNodes();
+   GridFunction *cxdof = cmesh.GetNodes();
 
-    Array<int> vdofs;
-    Vector el_x;
-    const FiniteElement *fe;
-    ElementTransformation *T;
+   Array<int> vdofs;
+   Vector el_x;
+   const FiniteElement *fe;
+   ElementTransformation *T;
 
-    for (int j = 0; j < cNE; j++)
-    {
-        fe = fespace->GetFE(j);
-        fespace->GetElementVDofs(j, vdofs);
-        T = cmesh.GetElementTransformation(j);
-        cxdof->GetSubVector(vdofs, el_x);
-        el_energy_vec(j) = tmopi->GetDeRefinementElementEnergy(*fe, *T, el_x, tcdfes);
-    }
-}
-
-class TMOPDeRefiner : public MeshOperator
-{
-protected:
-   TMOPDeRefinerEstimator &estimator;
-
-   long max_elements;
-   long num_marked_elements;
-   const double threshold = 0.0;
-
-   Array<Refinement> marked_elements;
-   long current_sequence;
-
-   int non_conforming;
-   int nc_limit;
-
-   double GetNorm(const Vector &local_err, Mesh &mesh) const;
-
-   /** @brief Apply the operator to theG mesh->
-       @return STOP if a stopping criterion is satisfied or no elements were
-       marked for refinement; REFINED + CONTINUE otherwise. */
-   virtual int ApplyImpl(Mesh &mesh);
-public:
-   /// Construct a ThresholdRefiner using the given ErrorEstimator.
-   TMOPDeRefiner(TMOPDeRefinerEstimator &est);
-   // default destructor (virtual)
-
-   /// Use nonconforming refinement, if possible (triangles, quads, hexes).
-   void PreferNonconformingRefinement() { non_conforming = 1; }
-
-   /** @brief Use conforming refinement, if possible (triangles, tetrahedra)
-       -- this is the default. */
-   void PreferConformingRefinement() { non_conforming = -1; }
-
-   /** @brief Set the maximum ratio of refinement levels of adjacent elements
-       (0 = unlimited). */
-   void SetNCLimit(int nc_limit)
+   for (int j = 0; j < cNE; j++)
    {
-      MFEM_ASSERT(nc_limit >= 0, "Invalid NC limit");
-      this->nc_limit = nc_limit;
+      fe = fespace->GetFE(j);
+      fespace->GetElementVDofs(j, vdofs);
+      T = cmesh.GetElementTransformation(j);
+      cxdof->GetSubVector(vdofs, el_x);
+      el_energy_vec(j) = tmopi->GetDeRefinementElementEnergy(*fe, *T, el_x, tcdfes);
    }
-
-   /// Get the number of marked elements in the last Apply() call.
-   long GetNumMarkedElements() const { return num_marked_elements; }
-
-   /// Reset the associated estimator.
-   virtual void Reset();
-};
-
-TMOPDeRefiner::TMOPDeRefiner(TMOPDeRefinerEstimator &est)
-   : estimator(est)
-{
-   max_elements = std::numeric_limits<long>::max();
-
-   num_marked_elements = 0L;
-   current_sequence = -1;
-
-   non_conforming = 1;
-   nc_limit = 0;
-}
-
-int TMOPDeRefiner::ApplyImpl(Mesh &mesh)
-{
-   num_marked_elements = 0;
-   marked_elements.SetSize(0);
-   current_sequence = mesh.GetSequence();
-
-   const long num_elements = mesh.GetGlobalNE();
-   if (num_elements >= max_elements) { return STOP; }
-
-   Vector local_err = estimator.GetLocalErrors();
-   double threshold = 0.;
-   bool derefs = mesh.DerefineByError(local_err, threshold, nc_limit, 1);
-
-   return derefs ? CONTINUE + DEREFINED : STOP;
-}
-
-void TMOPDeRefiner::Reset()
-{
-   estimator.Reset();
-   current_sequence = -1;
-   num_marked_elements = 0;
-}
-
-class TMOPAMR2
-{
-protected:
-    Mesh *mesh;
-    GridFunction *xdof;
-    TMOP_Integrator *tmopi;
-    int order;
-    Array<IntegrationRule *> TriIntRule;
-    Array<IntegrationRule *> QuadIntRule;
-
-public:
-    // constructor
-    TMOPAMR2(Mesh &mesh_, GridFunction &x_, TMOP_Integrator &tmopi_, int order_) :
-        mesh(&mesh_), xdof(&x_), tmopi(&tmopi_), order(order_),
-        TriIntRule(0), QuadIntRule(0)
-    {
-        SetQuadIntRules();
-        SetTriIntRules();
-    }
-
-    // destructor
-    ~TMOPAMR2()
-    {
-        for (int i = 0;i < QuadIntRule.Size();i++)
-        {
-            delete QuadIntRule[i];
-        }
-        for (int i = 0;i < TriIntRule.Size();i++)
-        {
-            delete TriIntRule[i];
-        }
-    }
-
-    // Construct the integration rules for each element type
-    void SetQuadIntRules();
-    void SetTriIntRules();
-    void GetTMOPRefinementEnergy(int reftype, Vector &el_energy_vec);
-
-    IntegrationRule* SetIntRulesFromMesh(Mesh &meshsplit);
-};
-
-void TMOPAMR2::GetTMOPRefinementEnergy(int reftype, Vector &el_energy_vec)
-{
-    const FiniteElementSpace *fes = xdof->FESpace();
-    const int NE = fes->GetNE();
-    xdof->SetTrueVector();
-    xdof->SetFromTrueVector();
-
-    el_energy_vec.SetSize(NE);
-
-    for (int e = 0; e < NE; e++)
-    {
-        Geometry::Type gtype = fes->GetFE(e)->GetGeomType();
-        DenseMatrix tr, vals;
-        int NEsplit = 1;
-        IntegrationRule *irule = NULL;
-        switch (gtype)
-        {
-            case Geometry::TRIANGLE:
-            {
-                if (reftype != 0) { NEsplit = 4; }
-                int ref_access = reftype == 0 ? 0 : 1;
-                xdof->GetVectorValues(e, *TriIntRule[ref_access], vals, tr);
-                irule = TriIntRule[ref_access];
-                break;
-            }
-            case Geometry::SQUARE:
-            {
-                MFEM_VERIFY(QuadIntRule[reftype], " Integration rule does not exist.");
-                xdof->GetVectorValues(e, *QuadIntRule[reftype], vals, tr);
-                if (reftype == 0) { NEsplit = 1; }
-                else if (reftype == 1 || reftype == 2) { NEsplit = 2; }
-                else { NEsplit = 4; }
-                irule = QuadIntRule[reftype];
-                break;
-            }
-            default:
-               MFEM_ABORT("Incompatible geometry type!");
-        }
-        vals.Transpose();
-
-        // The data format is xe1,xe2,..xen,ye1,ye2..yen.
-        // We will reformat it inside GetAMRElementENergy
-        Vector elfun(vals.GetData(), vals.NumCols()*vals.NumRows());
-
-        el_energy_vec(e) = tmopi->GetAMRElementEnergy(*fes->GetFE(e),
-                                                      *mesh->GetElementTransformation(e),
-                                                      elfun,
-                                                      *irule);
-    }
-}
-
-void TMOPAMR2::SetQuadIntRules()
-{
-    QuadIntRule.SetSize(3+1);
-
-    // Reftype = 0 // original element
-    Mesh *meshsplit = NULL;
-    int Nvert = 9;
-    int NEsplit = 1;
-    meshsplit = new Mesh(2, Nvert, NEsplit, 0, 2);
-
-    double quad_v[9][2] =
-    {
-       {0, 0}, {1, 0}, {0, 1}, {1, 1},
-       {0., 0.5}, {1.0, 0.5}, {0.5, 0.}, {0.5, 1.0},
-       {0.5, 0.5}
-    };
-    int quad_e0[1][4] =
-    {
-       {0, 1, 3, 2}
-    };
-
-    for (int j = 0; j < Nvert; j++)
-    {
-       meshsplit->AddVertex(quad_v[j]);
-    }
-    for (int j = 0; j < NEsplit; j++)
-    {
-       int attribute = j + 1;
-       meshsplit->AddQuad(quad_e0[j], attribute);
-    }
-    meshsplit->FinalizeQuadMesh(1, 1, true);
-
-    QuadIntRule[0] = SetIntRulesFromMesh(*meshsplit);
-    delete meshsplit;
-
-    // Reftype = 1
-    NEsplit = 2;
-    meshsplit = new Mesh(2, Nvert, NEsplit, 0, 2);
-
-    int quad_e1[2][4] =
-    {
-       {0, 6, 7, 2}, {6, 1, 3, 7}
-    };
-
-    for (int j = 0; j < Nvert; j++)
-    {
-       meshsplit->AddVertex(quad_v[j]);
-    }
-    for (int j = 0; j < NEsplit; j++)
-    {
-       int attribute = j + 1;
-       meshsplit->AddQuad(quad_e1[j], attribute);
-    }
-    meshsplit->FinalizeQuadMesh(1, 1, true);
-
-    QuadIntRule[1] = SetIntRulesFromMesh(*meshsplit);
-    delete meshsplit;
-
-    // Reftype = 2
-    meshsplit = new Mesh(2, Nvert, NEsplit, 0, 2);
-    int quad_e2[2][4] =
-    {
-       {0, 1, 5, 4}, {4, 5, 3, 2}
-    };
-
-    for (int j = 0; j < Nvert; j++)
-    {
-       meshsplit->AddVertex(quad_v[j]);
-    }
-    for (int j = 0; j < NEsplit; j++)
-    {
-       int attribute = j + 1;
-       meshsplit->AddQuad(quad_e2[j], attribute);
-    }
-    meshsplit->FinalizeQuadMesh(1, 1, true);
-
-    QuadIntRule[2] = SetIntRulesFromMesh(*meshsplit);
-    delete meshsplit;
-
-    // Reftype = 3
-    NEsplit = 4;
-    meshsplit = new Mesh(2, Nvert, NEsplit, 0, 2);
-    int quad_e3[4][4] =
-    {
-       {0, 6, 8, 4}, {6, 1, 5, 8}, {8, 5, 3, 7}, {4, 8, 7, 2}
-    };
-
-    for (int j = 0; j < Nvert; j++)
-    {
-       meshsplit->AddVertex(quad_v[j]);
-    }
-    for (int j = 0; j < NEsplit; j++)
-    {
-       int attribute = j + 1;
-       meshsplit->AddQuad(quad_e3[j], attribute);
-    }
-    meshsplit->FinalizeQuadMesh(1, 1, true);
-
-    QuadIntRule[3] = SetIntRulesFromMesh(*meshsplit);
-    delete meshsplit;
-}
-
-void TMOPAMR2::SetTriIntRules()
-{
-    TriIntRule.SetSize(1+1);
-
-    // Reftype = 0
-    Mesh *meshsplit = NULL;
-    int Nvert = 6;
-    int NEsplit = 1;
-    meshsplit = new Mesh(2, Nvert, NEsplit, 0, 2);
-
-    double tri_v[6][2] =
-    {
-       {0, 0}, {1, 0}, {0, 1}, {0.5, 0}, {0.5, 0.5}, {0., 0.5}
-    };
-    int tri_e0[4][3] =
-    {
-       {0, 1, 2}
-    };
-
-    for (int j = 0; j < Nvert; j++)
-    {
-       meshsplit->AddVertex(tri_v[j]);
-    }
-    for (int j = 0; j < NEsplit; j++)
-    {
-       int attribute = j + 1;
-       meshsplit->AddTri(tri_e0[j], attribute);
-    }
-    meshsplit->FinalizeTriMesh(1, 1, true);
-
-    TriIntRule[0] = SetIntRulesFromMesh(*meshsplit);
-    delete meshsplit;
-
-    // Reftype = 1
-    NEsplit = 4;
-    meshsplit = new Mesh(2, Nvert, NEsplit, 0, 2);
-
-    int tri_e1[4][3] =
-    {
-       {0, 3, 5}, {5, 3, 4}, {3, 1, 4}, {5, 4, 2}
-    };
-
-    for (int j = 0; j < Nvert; j++)
-    {
-       meshsplit->AddVertex(tri_v[j]);
-    }
-    for (int j = 0; j < NEsplit; j++)
-    {
-       int attribute = j + 1;
-       meshsplit->AddTri(tri_e1[j], attribute);
-    }
-    meshsplit->FinalizeTriMesh(1, 1, true);
-
-    TriIntRule[1] = SetIntRulesFromMesh(*meshsplit);
-    delete meshsplit;
-}
-
-IntegrationRule* TMOPAMR2::SetIntRulesFromMesh(Mesh &meshsplit)
-{
-    const int dim = meshsplit.Dimension();
-    H1_FECollection fec(order, dim);
-    FiniteElementSpace nodal_fes(&meshsplit, &fec, dim);
-    meshsplit.SetNodalFESpace(&nodal_fes);
-
-    const int NEsplit = meshsplit.GetNE();
-    const int dof_cnt = nodal_fes.GetFE(0)->GetDof(),
-              pts_cnt = NEsplit * dof_cnt;
-
-    DenseMatrix pos(dof_cnt, dim);
-    Vector posV(pos.Data(), dof_cnt * dim);
-    Array<int> xdofs(dof_cnt * dim);
-
-    // Create an IntegrationRule on the nodes of the reference submesh.
-    IntegrationRule *irule = new IntegrationRule(pts_cnt);
-    GridFunction *nodesplit = meshsplit.GetNodes();
-
-    int pt_id = 0;
-    for (int i = 0; i < NEsplit; i++)
-    {
-       nodal_fes.GetElementVDofs(i, xdofs);
-       nodesplit->GetSubVector(xdofs, posV);
-       for (int j = 0; j < dof_cnt; j++)
-       {
-          if (dim == 2)
-          {
-              irule->IntPoint(pt_id).Set2(pos(j, 0), pos(j, 1));
-          }
-          else if (dim == 3)
-          {
-              irule->IntPoint(pt_id).Set3(pos(j, 0), pos(j, 1), pos(j, 2));
-          }
-          pt_id++;
-       }
-    }
-    return irule;
-}
-
-void SetBoundaryConditions(NonlinearForm &a, Mesh &mesh, bool move_bnd)
-{
-    const FiniteElementSpace *fespace = mesh.GetNodalFESpace();
-    MFEM_VERIFY(fespace," Mesh does not have nodal fespace.");
-    int dim = fespace->GetFE(0)->GetDim();
-    if (move_bnd == false)
-    {
-       Array<int> ess_bdr(mesh.bdr_attributes.Max());
-       ess_bdr = 1;
-       a.SetEssentialBC(ess_bdr);
-    }
-    else
-    {
-       const int nd  = fespace->GetBE(0)->GetDof();
-       int n = 0;
-       for (int i = 0; i < mesh.GetNBE(); i++)
-       {
-          const int attr = mesh.GetBdrElement(i)->GetAttribute();
-          MFEM_VERIFY(!(dim == 2 && attr == 3),
-                      "Boundary attribute 3 must be used only for 3D meshes. "
-                      "Adjust the attributes (1/2/3/4 for fixed x/y/z/all "
-                      "components, rest for free nodes), or use -fix-bnd.");
-          if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
-          if (attr == 4) { n += nd * dim; }
-       }
-       Array<int> ess_vdofs(n), vdofs;
-       n = 0;
-       for (int i = 0; i < mesh.GetNBE(); i++)
-       {
-          const int attr = mesh.GetBdrElement(i)->GetAttribute();
-          fespace->GetBdrElementVDofs(i, vdofs);
-          if (attr == 1) // Fix x components.
-          {
-             for (int j = 0; j < nd; j++)
-             { ess_vdofs[n++] = vdofs[j]; }
-          }
-          else if (attr == 2) // Fix y components.
-          {
-             for (int j = 0; j < nd; j++)
-             { ess_vdofs[n++] = vdofs[j+nd]; }
-          }
-          else if (attr == 3) // Fix z components.
-          {
-             for (int j = 0; j < nd; j++)
-             { ess_vdofs[n++] = vdofs[j+2*nd]; }
-          }
-          else if (attr == 4) // Fix all components.
-          {
-             for (int j = 0; j < vdofs.Size(); j++)
-             { ess_vdofs[n++] = vdofs[j]; }
-          }
-       }
-       a.SetEssentialVDofs(ess_vdofs);
-    }
 }
