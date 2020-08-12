@@ -102,7 +102,7 @@ void KnotVector::UniformRefinement(Vector &newknots)
 
 void KnotVector::GetElements(bool force)
 {
-   if (!force && NumOfElements > 0) return;
+   if (!force && NumOfElements > 0) { return; }
 
    NumOfElements = 0;
    for (int i = Order; i < NumOfControlPoints; i++)
@@ -865,7 +865,7 @@ int NURBSPatch::SetLoopDirection(int dir)
 
 void NURBSPatch::ApplyProjection()
 {
-   if (isProjected()) return;
+   if (isProjected()) { return; }
 
    int size = 1;
 
@@ -889,7 +889,7 @@ void NURBSPatch::ApplyProjection()
 
 void NURBSPatch::UndoProjection()
 {
-   if (!isProjected()) return;
+   if (!isProjected()) { return; }
 
    int size = 1;
 
