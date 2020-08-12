@@ -31,7 +31,7 @@ protected:
    // 0 0 0 0 starting from left for V (size) O (orientation) Q (skew) A(aspect-ratio)
    // Shape metrics are QA = 0011 = 3
    // Size metrics are 1000 = 8
-   // Shape + size are 11
+   // Shape + size are 1011 = 11
 
    /** @brief The method SetTransformation() is hidden for TMOP_QualityMetric%s,
        because it is not used. */
@@ -784,11 +784,15 @@ protected:
    Vector tspec_pert1h;      //eta(x+h)
    Vector tspec_pert2h;      //eta(x+2*h)
    Vector tspec_pertmix;     //eta(x+h,y+h)
+   DenseMatrix tspec_amr_mat_vals;
+   Vector tspec_amr_vec_vals;
    // The order inside these perturbation vectors (e.g. in 2D) is
    // eta1(x+h,y), eta2(x+h,y) ... etan(x+h,y), eta1(x,y+h), eta2(x,y+h) ...
    // same for tspec_pert2h and tspec_pertmix.
    Array<GridFunction *> gfarr;
+#ifdef MFEM_USE_MPI
    Array<ParGridFunction *> pgfarr;
+#endif
 
    // Components of Target Jacobian at each quadrature point of an element. This
    // is required for computation of the derivative using chain rule.
@@ -796,11 +800,17 @@ protected:
 
    // Note: do not use the Nodes of this space as they may not be on the
    // positions corresponding to the values of tspec.
-#ifdef MFEM_USE_MPI
-   ParFiniteElementSpace *ptspec_fes;
-#endif
    FiniteElementSpace *tspec_fes;
    FiniteElementSpace *tspec_fesv;
+   FiniteElementSpace *c_tspec_fesv;
+   GridFunction *gfall;
+#ifdef MFEM_USE_MPI
+   ParFiniteElementSpace *ptspec_fes;
+   ParFiniteElementSpace *ptspec_fesv;
+   ParGridFunction *pgfall;
+#endif
+
+   int amr_el;
 
    // These flags can be used by outside functions to avoid recomputing the
    // tspec and tspec_perth fields again on the same mesh.
@@ -824,16 +834,16 @@ public:
         ncomp(0),
         sizeidx(-1), skewidx(-1), aspectratioidx(-1), orientationidx(-1),
         tspec(), tspec_sav(), tspec_pert1h(), tspec_pert2h(), tspec_pertmix(),
-        tspec_fes(NULL), tspec_fesv(NULL),
+        tspec_amr_mat_vals(), tspec_amr_vec_vals(),
+        tspec_fes(NULL), tspec_fesv(NULL), c_tspec_fesv(NULL), gfall(NULL),
+#ifdef MFEM_USE_MPI
+        ptspec_fes(NULL), ptspec_fesv(NULL), pgfall(NULL),
+#endif
+        amr_el(-1),
         good_tspec(false), good_tspec_grad(false), good_tspec_hess(false),
         adapt_eval(NULL) { }
 
-   virtual ~DiscreteAdaptTC()
-   {
-      delete adapt_eval;
-      delete tspec_fes;
-      delete tspec_fesv;
-   };
+   virtual ~DiscreteAdaptTC();
 
    /** @name Target specification methods.
        The following methods are used to specify geometric parameters of the
@@ -864,12 +874,17 @@ public:
    void ResetUpdateFlags()
    { good_tspec = good_tspec_grad = good_tspec_hess = false; }
 
-   virtual void GetSerialDiscreteTargetSpec(GridFunction &tspec_, int idx);
+
    virtual void ResetDiscreteFields();
+
+   virtual void GetSerialDiscreteTargetSpec(GridFunction &tspec_, int idx);
    void Update();
+   FiniteElementSpace *GetTSpecFESpace() { return tspec_fesv; }
+   GridFunction *GetTSpecVec() { return gfall; }
 #ifdef MFEM_USE_MPI
    virtual void GetParDiscreteTargetSpec(ParGridFunction &tspec_, int idx);
    void ParUpdate();
+   ParFiniteElementSpace *GetTSpecParFESpace() { return ptspec_fesv; }
 #endif
 
    /** Used to update the target specification after the mesh has changed. The
@@ -923,6 +938,30 @@ public:
                                               const Vector &elfun,
                                               IsoparametricTransformation &Tpr,
                                               DenseTensor &dJtr) const;
+
+   // Generates tspec_vals for target construction using intrule (hr-adaptivity)
+   void SetTspecFromIntRule(const int e_id,
+                            const FiniteElement &fe,
+                            const IntegrationRule &intrule);
+
+   void SetTspecFromVec(Vector &amr_vec_vals_)
+   {
+       tspec_amr_vec_vals = amr_vec_vals_;
+   }
+   void SetCoarseTspecFESpace(FiniteElementSpace *fes) {
+       c_tspec_fesv = fes;
+   }
+
+   void ResetAMRTspecData() {
+       tspec_amr_mat_vals.Clear();
+       amr_el = -1;
+   }
+
+   void ResetAMRTspecVec() {
+       tspec_amr_vec_vals.Destroy();
+   }
+
+   void SetAMRSubElement(int amr_el_) { amr_el = amr_el_; }
 };
 
 class TMOPNewtonSolver;
@@ -1135,6 +1174,16 @@ public:
    virtual double GetAMRElementEnergy(const FiniteElement &el,
                                    ElementTransformation &T,
                                    const Vector &elfun);
+
+   virtual double GetAMRElementEnergy(const FiniteElement &el,
+                                      ElementTransformation &T,
+                                      const Vector &elfun,
+                                      const IntegrationRule &irule);
+
+   virtual double GetDeRefinementElementEnergy(const FiniteElement &el,
+                                      ElementTransformation &T,
+                                      const Vector &elfun,
+                                      FiniteElementSpace *c_fes);
 
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &T,
