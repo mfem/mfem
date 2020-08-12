@@ -22,9 +22,9 @@ namespace mfem
 // Functions to interpolate from degrees of freedom to derivatives at quadrature points
 // Non-tensor case
 template<int D, int Q, int Dim> MFEM_HOST_DEVICE inline
-Tensor<dTensor<Dim>,Q>&& Grad(const dTensor<Q,D> &B,
-                              const Tensor<dTensor<Dim>,Q,D> &G,
-                              const dTensor<D> &u)
+Tensor<dTensor<Dim>,Q>&& Gradient(const dTensor<Q,D> &B,
+                                  const Tensor<dTensor<Dim>,Q,D> &G,
+                                  const dTensor<D> &u)
 {
    Tensor<dTensor<Dim>,Q> gu_q;
    MFEM_FOREACH_THREAD(q,x,Q)
@@ -54,9 +54,9 @@ Tensor<dTensor<Dim>,Q>&& Grad(const dTensor<Q,D> &B,
 
 // Non-tensor case with VDIM components
 template<int Q, int D, int Dim, int VDim> MFEM_HOST_DEVICE inline
-Tensor<dTensor<Dim,VDim>,Q>&& Grad(const dTensor<Q,D> &B,
-                                   const Tensor<dTensor<Dim>,Q,D> &G,
-                                   const Tensor<dTensor<VDim>,D> &u)
+Tensor<dTensor<Dim,VDim>,Q>&& Gradient(const dTensor<Q,D> &B,
+                                       const Tensor<dTensor<Dim>,Q,D> &G,
+                                       const Tensor<dTensor<VDim>,D> &u)
 {
    Tensor<dTensor<Dim,VDim>,Q> gu_q;
    MFEM_FOREACH_THREAD(q,x,Q)
@@ -103,9 +103,9 @@ Tensor<dTensor<Dim,VDim>,Q>&& Grad(const dTensor<Q,D> &B,
 
 // 3D Tensor case
 template<int Q1d, int D1d> MFEM_HOST_DEVICE inline
-Tensor<dTensor<3>,Q1d,Q1d,Q1d>&& Grad(const dTensor<Q1d,D1d> &B,
-                                      const dTensor<Q1d,D1d> &G,
-                                      const dTensor<D1d,D1d,D1d> &u)
+Tensor<dTensor<3>,Q1d,Q1d,Q1d>&& Gradient(const dTensor<Q1d,D1d> &B,
+                                          const dTensor<Q1d,D1d> &G,
+                                          const dTensor<D1d,D1d,D1d> &u)
 {
    dTensor<Q1d,D1d,D1d> Bu;
    dTensor<Q1d,D1d,D1d> Gu;
@@ -193,9 +193,9 @@ Tensor<dTensor<3>,Q1d,Q1d,Q1d>&& Grad(const dTensor<Q1d,D1d> &B,
 
 // 3D Tensor case with VDIM components
 template<int Q1d, int D1d, int VDim> MFEM_HOST_DEVICE inline
-Tensor<dTensor<VDim,3>,Q1d,Q1d,Q1d>&& Grad(const dTensor<Q1d,D1d> &B,
-                                           const dTensor<Q1d,D1d> &G,
-                                           const dTensor<D1d,D1d,D1d> &u)
+Tensor<dTensor<VDim,3>,Q1d,Q1d,Q1d>&& Gradient(const dTensor<Q1d,D1d> &B,
+                                               const dTensor<Q1d,D1d> &G,
+                                               const dTensor<D1d,D1d,D1d> &u)
 {
    Tensor<dTensor<VDim>,Q1d,D1d,D1d> Bu;
    Tensor<dTensor<VDim>,Q1d,D1d,D1d> Gu;
@@ -318,9 +318,9 @@ Tensor<dTensor<VDim,3>,Q1d,Q1d,Q1d>&& Grad(const dTensor<Q1d,D1d> &B,
 
 // 2D Tensor case
 template<int Q1d, int D1d> MFEM_HOST_DEVICE inline
-Tensor<dTensor<2>,Q1d,Q1d>&& Grad(const dTensor<Q1d,D1d> &B,
-                                  const dTensor<Q1d,D1d> &G,
-                                  const dTensor<D1d,D1d> &u)
+Tensor<dTensor<2>,Q1d,Q1d>&& Gradient(const dTensor<Q1d,D1d> &B,
+                                      const dTensor<Q1d,D1d> &G,
+                                      const dTensor<D1d,D1d> &u)
 {
    dTensor<Q1d,D1d> Bu;
    dTensor<Q1d,D1d> Gu;
@@ -369,9 +369,9 @@ Tensor<dTensor<2>,Q1d,Q1d>&& Grad(const dTensor<Q1d,D1d> &B,
 
 // 2D Tensor case with VDIM components
 template<int Q1d, int D1d, int VDIM> MFEM_HOST_DEVICE inline
-Tensor<dTensor<VDIM,2>,Q1d,Q1d>&& Grad(const dTensor<Q1d,D1d> &B,
-                                       const dTensor<Q1d,D1d> &G,
-                                       const Tensor<dTensor<VDIM>,D1d,D1d> &u)
+Tensor<dTensor<VDIM,2>,Q1d,Q1d>&& Gradient(const dTensor<Q1d,D1d> &B,
+                                           const dTensor<Q1d,D1d> &G,
+                                           const Tensor<dTensor<VDIM>,D1d,D1d> &u)
 {
    Tensor<dTensor<VDIM>,Q1d,D1d> Bu;
    Tensor<dTensor<VDIM>,Q1d,D1d> Gu;
@@ -442,9 +442,9 @@ Tensor<dTensor<VDIM,2>,Q1d,Q1d>&& Grad(const dTensor<Q1d,D1d> &B,
 
 // 1D Tensor case
 template<int Q1d, int D1d> MFEM_HOST_DEVICE inline
-dTensor<Q1d>&& Grad(const dTensor<Q1d,D1d> &B,
-                    const dTensor<Q1d,D1d> &G,
-                    const dTensor<D1d> &u)
+dTensor<Q1d>&& Gradient(const dTensor<Q1d,D1d> &B,
+                        const dTensor<Q1d,D1d> &G,
+                        const dTensor<D1d> &u)
 {
    dTensor<Q1d> gu_q;
    MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -464,9 +464,9 @@ dTensor<Q1d>&& Grad(const dTensor<Q1d,D1d> &B,
 
 // 1D Tensor case with VDIM components
 template<int Q1d, int D1d, int VDIM> MFEM_HOST_DEVICE inline
-Tensor<dTensor<VDIM>,Q1d>&& Grad(const dTensor<Q1d,D1d> &B,
-                                 const dTensor<Q1d,D1d> &G,
-                                 const Tensor<dTensor<VDIM>,D1d> &u)
+Tensor<dTensor<VDIM>,Q1d>&& Gradient(const dTensor<Q1d,D1d> &B,
+                                     const dTensor<Q1d,D1d> &G,
+                                     const Tensor<dTensor<VDIM>,D1d> &u)
 {
    Tensor<dTensor<VDIM>,Q1d> gu_q;
    MFEM_FOREACH_THREAD(qx,x,Q1D)
