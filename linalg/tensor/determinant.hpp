@@ -20,6 +20,7 @@ namespace mfem
 {
 
 // Determinant
+MFEM_HOST_DEVICE inline
 double Determinant(const dTensor<3,3> &J)
 {
    return J(0,0)*J(1,1)*J(2,2)-J(0,2)*J(1,1)*J(2,0)
@@ -27,11 +28,13 @@ double Determinant(const dTensor<3,3> &J)
          +J(0,2)*J(1,0)*J(2,1)-J(0,0)*J(1,2)*J(2,1);
 }
 
+MFEM_HOST_DEVICE inline
 double Determinant(const dTensor<2,2> &J)
 {
    return J(0,0)*J(1,1)-J(0,1)*J(1,0);
 }
 
+MFEM_HOST_DEVICE inline
 double Determinant(const dTensor<1,1> &J)
 {
    return J(0,0);

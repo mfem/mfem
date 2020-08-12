@@ -82,7 +82,7 @@ private:
    MFEM_SHARED T data[Size<Dims...>::val];
 
 public:
-   explicit Tensor(const T &val)
+   explicit Tensor(const T &val) MFEM_HOST_DEVICE inline
    {
       for (size_t i = 0; i < Size<Dims...>::val; i++)
       {
@@ -90,7 +90,7 @@ public:
       }      
    }
 
-   Tensor(const Tensor &rhs)
+   Tensor(const Tensor &rhs) MFEM_HOST_DEVICE inline
    {
       for (size_t i = 0; i < Size<Dims...>::val; i++)
       {
@@ -112,7 +112,7 @@ public:
       return data[ TensorIndex<Dims...>::eval(args...) ];
    }
 
-   Tensor<T,Dims...>& operator= (const T &val)
+   Tensor<T,Dims...>& operator= (const T &val) MFEM_HOST_DEVICE inline
    {
       for (size_t i = 0; i < Size<Dims...>::val; i++)
       {
