@@ -55,6 +55,7 @@ protected:
    bool setupflag;
    struct crystal *cr;
    struct comm *gsl_comm;
+   double default_interp_value;
 
    GridFunction::AvgType avgtype;
 
@@ -127,7 +128,8 @@ public:
                               reference positions. Note: it is assumed that
                               @a field_in is in H1 and in the same space as the
                               mesh that was given to Setup().
-       @param[out] field_out  Interpolated values. */
+       @param[out] field_out  Interpolated values. For points that are not found
+                              the value is set to @a default_interp_value */
    void Interpolate(const GridFunction &field_in, Vector &field_out);
    /** Search positions and interpolate */
    void Interpolate(const Vector &point_pos, const GridFunction &field_in,
@@ -136,7 +138,16 @@ public:
    void Interpolate(Mesh &m, const Vector &point_pos,
                     const GridFunction &field_in, Vector &field_out);
 
+   /// Average type to be used for L2 functions in-case a point is located at
+   /// an element boundary where the function might not have a unique value.
    void SetL2AvgType(GridFunction::AvgType avgtype_) { avgtype = avgtype_; }
+
+   /// Set the default interpolation value for points that are not found in the
+   /// mesh.
+   void SetDefaultInterpolationValue(double interp_value_)
+   {
+      default_interp_value = interp_value_;
+   }
 
    /** Cleans up memory allocated internally by gslib.
        Note that in parallel, this must be called before MPI_Finalize(), as
