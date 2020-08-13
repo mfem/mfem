@@ -2284,7 +2284,7 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
       {
          int i = J[ii];
          // Find value of (i,k)
-         double C_ik;
+         double C_ik = 0.0;
          for (int kk=I[i]; kk<I[i+1]; ++kk)
          {
             if (J[kk] == k)
@@ -2334,7 +2334,7 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
             int i = J[ii2];
             if (w_heap.picked(i)) { continue; }
             // Find value of (i,k)
-            double C_ik;
+            double C_ik = 0.0;
             for (int kk2=I[i]; kk2<I[i+1]; ++kk2)
             {
                if (J[kk2] == k)
