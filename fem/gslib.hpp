@@ -78,7 +78,6 @@ protected:
    /// by GetSimplexNodalCoordinates())
    void MapRefPosAndElemIndices();
 
-
 public:
    FindPointsGSLIB();
 
@@ -177,8 +176,6 @@ public:
    /// Return reference coordinates in [-1,1] (internal range in GSLIB) for each
    /// point found by FindPoints.
    const Vector &GetGSLIBReferencePosition() const { return gsl_ref; }
-
-
 };
 
 } // namespace mfem
