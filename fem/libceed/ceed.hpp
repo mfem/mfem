@@ -65,10 +65,6 @@ struct CeedData
    {
       CeedOperatorDestroy(&build_oper);
       CeedOperatorDestroy(&oper);
-      CeedBasisDestroy(&basis);
-      CeedBasisDestroy(&mesh_basis);
-      CeedElemRestrictionDestroy(&restr);
-      CeedElemRestrictionDestroy(&mesh_restr);
       CeedElemRestrictionDestroy(&restr_i);
       CeedElemRestrictionDestroy(&mesh_restr_i);
       CeedQFunctionDestroy(&apply_qfunc);

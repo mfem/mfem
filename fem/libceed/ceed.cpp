@@ -35,6 +35,9 @@ extern Ceed ceed;
 
 std::string ceed_path;
 
+extern khash_t(basis) *ceed_basis_from_fes;
+extern khash_t(restr) *ceed_restr_from_fes;
+
 }
 
 void InitCeedCoeff(Coefficient* Q, CeedData* ptr)
@@ -232,7 +235,9 @@ static void InitCeedTensorBasisAndRestriction(const FiniteElementSpace &fes,
                               qweight1d.GetData(), basis);
 
    if (!restr)
+   {
       return;
+   }
    CeedInt compstride = fes.GetOrdering()==Ordering::byVDIM ? 1 : fes.GetNDofs();
    const Table &el_dof = fes.GetElementToDofTable();
    Array<int> tp_el_dof(el_dof.Size_of_connections());
@@ -263,14 +268,56 @@ void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
                                  Ceed ceed, CeedBasis *basis,
                                  CeedElemRestriction *restr)
 {
+   // Check for FES -> basis, restriction in hash tables
+   const Mesh *mesh = fes.GetMesh();
+   const FiniteElement *fe = fes.GetFE(0);
+   const int P = fe->GetDof();
+   const int Q = irm.GetNPoints();
+   const int nelem = mesh->GetNE();
+   CeedHashIJKLKey basis_key = {(int)(long)&fes, (int)(long)&irm, P, Q};
+   int new_basis;
+   khint_t k_basis = kh_put(basis, internal::ceed_basis_from_fes, basis_key,
+                            &new_basis);
+   CeedHashIJKKey restr_key = {(int)(long)&fes, P, nelem};
+   int new_restr;
+   khint_t k_restr = kh_put(restr, internal::ceed_restr_from_fes, restr_key,
+                            &new_restr);
+
+   // Setup inputs
+   CeedBasis *basis_to_init = new_basis ? basis : NULL;
+   CeedElemRestriction *restr_to_init = new_restr ? restr : NULL;
+
+   // Init, as needed
    if (UsesTensorBasis(fes))
    {
       const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, irm.GetOrder());
-      InitCeedTensorBasisAndRestriction(fes, ir, ceed, basis, restr);
+      InitCeedTensorBasisAndRestriction(fes, ir, ceed, basis_to_init,
+                                        restr_to_init);
    }
    else
    {
-      InitCeedNonTensorBasisAndRestriction(fes, irm, ceed, basis, restr);
+      InitCeedNonTensorBasisAndRestriction(fes, irm, ceed, basis_to_init,
+                                           restr_to_init);
+   }
+
+   // Set or retreive key values
+   if (new_basis)
+   {
+      kh_value(internal::ceed_basis_from_fes, k_basis) = *basis;
+   }
+   else
+   {
+      khint_t k_basis = kh_get(basis, internal::ceed_basis_from_fes, basis_key);
+      CeedHashGetValue(internal::ceed_basis_from_fes, k_basis, *basis);
+   }
+   if (new_restr)
+   {
+      kh_value(internal::ceed_restr_from_fes, k_restr) = *restr;
+   }
+   else
+   {
+      khint_t k_restr = kh_get(restr, internal::ceed_restr_from_fes, restr_key);
+      CeedHashGetValue(internal::ceed_restr_from_fes, k_restr, *restr);
    }
 }
 
