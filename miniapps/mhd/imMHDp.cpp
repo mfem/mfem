@@ -358,6 +358,8 @@ int main(int argc, char *argv[])
    fe_offset[2] = 2*fe_size;
    fe_offset[3] = 3*fe_size;
 
+   cout << "TrueVSize is: " << fe_size<<" id = "<<myid << endl;
+
    BlockVector vx(fe_offset);
    BlockVector vxold(fe_offset);
    ParGridFunction psi, phi, w, psiBack(&fespace), psiPer(&fespace);
@@ -707,11 +709,14 @@ int main(int argc, char *argv[])
 
    //++++++Save the solutions.
    {
-      phi.SetFromTrueVector(); psi.SetFromTrueVector(); w.SetFromTrueVector();
+      phi.SetFromTrueVector(); 
+      psi.SetFromTrueVector(); 
+      w.SetFromTrueVector();
       oper.UpdateJ(vx, &j);
 
-      ostringstream mesh_name, phi_name, psi_name, w_name,j_name;
+      ostringstream mesh_name, mesh_save, phi_name, psi_name, w_name,j_name;
       mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+      mesh_save << "ncmesh." << setfill('0') << setw(6) << myid;
       phi_name << "sol_phi." << setfill('0') << setw(6) << myid;
       psi_name << "sol_psi." << setfill('0') << setw(6) << myid;
       w_name << "sol_omega." << setfill('0') << setw(6) << myid;
@@ -721,16 +726,20 @@ int main(int argc, char *argv[])
       omesh.precision(8);
       pmesh->Print(omesh);
 
+      ofstream ncmesh(mesh_save.str().c_str());
+      ncmesh.precision(16);
+      pmesh->ParPrint(ncmesh);
+
       ofstream osol(phi_name.str().c_str());
-      osol.precision(8);
+      osol.precision(16);
       phi.Save(osol);
 
       ofstream osol3(psi_name.str().c_str());
-      osol3.precision(8);
+      osol3.precision(16);
       psi.Save(osol3);
 
       ofstream osol4(w_name.str().c_str());
-      osol4.precision(8);
+      osol4.precision(16);
       w.Save(osol4);
 
       ofstream osol5(j_name.str().c_str());

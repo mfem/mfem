@@ -18,22 +18,22 @@
 -snes_ksp_ew_threshold 0.1
 #
 #======matrix free parameters (this is important for some cases)======
--mat_mffd_err 1e-3
+-mat_mffd_err 1e-2
 -ksp_type fgmres
 -ksp_converged_reason
 #-ksp_monitor_true_residual
 #======Stiffness matrix======
--s1_ksp_rtol 1e-5
+-s1_ksp_rtol 1e-6
 -s1_ksp_type cg
 -s1_pc_type hypre
 #======Schur matrix======
--s2_ksp_rtol 1e-5
+-s2_ksp_rtol 1e-4
 -s2_ksp_type gmres
 -s2_pc_type hypre
 #======Mass matrix======
 -s3_ksp_rtol 1e-6
 -s3_ksp_type cg
 #======ARe matrix======
--s4_ksp_rtol 1e-5
+-s4_ksp_rtol 1e-4
 -s4_ksp_type gmres
 -s4_pc_type hypre

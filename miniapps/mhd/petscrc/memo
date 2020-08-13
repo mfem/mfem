@@ -11,8 +11,9 @@ mpirun -n 4 exMHDp -rs 4 -tf 10 -vs 200 -dt .001 -i 2
 mpirun -n 4 exMHDp -m xperiodicR3.mesh -rs 0 -o 4 -tf 8 -vs 100 -dt .001 -i 3
 
 case 3 example run
-mpirun -n 8 exMHDp -m xperiodic.mesh -rs 3 -o 4 -tf 8 -vs 100 -dt .001 -i 3
-mpirun -n 8 exAMRMHDp -m xperiodicR1.mesh -rs 0 -rp 2 -o 4 -tf 8 -vs 200 -dt .0001 -i 3 -amrl 3 -ltol 2e-3 -derefine
+mpirun -n 8 exMHDp -m Meshes/xperiodic.mesh -rs 3 -o 4 -tf 8 -vs 100 -dt .001 -i 3
+mpirun -n 8 exAMRMHDp -m Meshes/xperiodicR1.mesh -rs 0 -rp 2 -o 4 -tf 8 -vs 200 -dt .0001 -i 3 -amrl 3 -ltol 2e-3 -derefine
+srun -n 72 imMHDp -m ./Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -no-vis -vs 1 -tf .2 -dt .1 -usepetsc --petscopts ./petscrc/rc_debug -s 3 -shell -resi 1e-4 -visc 1e-4 -im_supg 1 -no-supg -i_supgpre 3 -no-fd -local -lr 3
 
 
 serial AMR quick test:
@@ -36,7 +37,14 @@ glvis -np 72 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 glvis -np 512 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 glvis -np 4096 -m mesh -g sol_omega -k "mmc" -ww 1000 -wh 1000
 
-glvis -np 4 -m mesh -g sol_omega -k "mmc" -ww 400 -wh 400
+8/13
+too many technique issues:
+1. simulation takes too long (3600+16hours and it find the stiff spot, nersc can run longer but it takes forever to schedule)
+2. try to get restart working, so far it can load but a bug found to build the operators
+
+move back and redo the simulation with more cores
+maybe a good time to check amr
+
 
 8/10
 after merging to master, imMHDp seems okay
