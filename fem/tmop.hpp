@@ -71,7 +71,7 @@ public:
 
    /** @brief Return the metric ID.
     */
-   virtual int Id() const { return 0; };
+   virtual int Id() const { return 0; }
 };
 
 
@@ -410,7 +410,7 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
 
-   virtual int Id() const { return 302; };
+   virtual int Id() const { return 302; }
 };
 
 /// Shape, ideal barrier metric, 3D
@@ -428,7 +428,7 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
 
-   virtual int Id() const { return 303; };
+   virtual int Id() const { return 303; }
 };
 
 /// Volume metric, 3D
@@ -445,6 +445,8 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 315; }
 };
 
 /// Volume, ideal barrier metric, 3D
@@ -480,7 +482,7 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
 
-   virtual int Id() const { return 321; };
+   virtual int Id() const { return 321; }
 };
 
 /// Shifted barrier form of 3D metric 16 (volume, ideal barrier metric), 3D
@@ -1246,6 +1248,7 @@ public:
    /// PA extension
    using NonlinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace&);
+   virtual void AssembleGradientDiagonalPA(const Vector&, Vector&) const;
    using NonlinearFormIntegrator::AddMultPA;
    virtual void AddMultPA(const Vector&, Vector&) const;
    using NonlinearFormIntegrator::AddMultGradPA;

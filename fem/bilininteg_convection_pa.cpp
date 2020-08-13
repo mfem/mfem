@@ -17,9 +17,6 @@
 #include "tmop_pa.hpp"
 #include "../linalg/kernels.hpp"
 
-#define MFEM_DEBUG_COLOR 135
-#include "../general/debug.hpp"
-
 using namespace std;
 
 namespace mfem
@@ -99,7 +96,7 @@ static void PAConvectionSetup3D(const int Q1D,
                const double J31 = J(qx,qy,qz,2,0,e);
                const double J32 = J(qx,qy,qz,2,1,e);
                const double J33 = J(qx,qy,qz,2,2,e);
-               const double w = alpha *  W(qx,qy,qz);
+               const double w = alpha * W(qx,qy,qz);
                const double v0 = const_v ? V(0,0,0,0,0) : V(0,qx,qy,qz,e);
                const double v1 = const_v ? V(1,0,0,0,0) : V(1,qx,qy,qz,e);
                const double v2 = const_v ? V(2,0,0,0,0) : V(2,qx,qy,qz,e);
@@ -117,9 +114,9 @@ static void PAConvectionSetup3D(const int Q1D,
                const double A32 = (J31 * J12) - (J11 * J32);
                const double A33 = (J11 * J22) - (J12 * J21);
                // q . J^{-1} = q . adj(J)
-               y(qx,qy,qz,0,e) =  wx * A11 + wy * A12 + wz * A13;
-               y(qx,qy,qz,1,e) =  wx * A21 + wy * A22 + wz * A23;
-               y(qx,qy,qz,2,e) =  wx * A31 + wy * A32 + wz * A33;
+               y(qx,qy,qz,0,e) = wx * A11 + wy * A12 + wz * A13;
+               y(qx,qy,qz,1,e) = wx * A21 + wy * A22 + wz * A23;
+               y(qx,qy,qz,2,e) = wx * A31 + wy * A32 + wz * A33;
             }
          }
       }
@@ -197,8 +194,8 @@ void PAConvectionApply2D(const int ne,
             Gu[dy][qx] = 0.0;
             for (int dx = 0; dx < D1D; ++dx)
             {
-               const double bx  = B(qx,dx);
-               const double gx  = G(qx,dx);
+               const double bx = B(qx,dx);
+               const double gx = G(qx,dx);
                const double x = u[dy][dx];
                Bu[dy][qx] += bx * x;
                Gu[dy][qx] += gx * x;
@@ -215,8 +212,8 @@ void PAConvectionApply2D(const int ne,
             BGu[qy][qx] = 0.0;
             for (int dy = 0; dy < D1D; ++dy)
             {
-               const double bx  = B(qy,dy);
-               const double gx  = G(qy,dy);
+               const double bx = B(qy,dy);
+               const double gx = G(qy,dy);
                GBu[qy][qx] += gx * Bu[dy][qx];
                BGu[qy][qx] += bx * Gu[dy][qx];
             }
@@ -245,7 +242,7 @@ void PAConvectionApply2D(const int ne,
             BDGu[dy][qx] = 0.0;
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               const double w  = Bt(dy,qy);
+               const double w = Bt(dy,qy);
                BDGu[dy][qx] += w * DGu[qy][qx];
             }
          }
@@ -257,7 +254,7 @@ void PAConvectionApply2D(const int ne,
             double BBDGu = 0.0;
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               const double w  = Bt(dx,qx);
+               const double w = Bt(dx,qx);
                BBDGu += w * BDGu[dy][qx];
             }
             y(dx,dy,e) += BBDGu;
@@ -323,7 +320,7 @@ void SmemPAConvectionApply2D(const int ne,
             {
                const double bx = B(qx,dx);
                const double gx = G(qx,dx);
-               const double x  = u[tidz][dy][dx];
+               const double x = u[tidz][dy][dx];
                Bu[tidz][dy][qx] += bx * x;
                Gu[tidz][dy][qx] += gx * x;
             }
@@ -340,8 +337,8 @@ void SmemPAConvectionApply2D(const int ne,
             BGu[tidz][qy][qx] = 0.0;
             for (int dy = 0; dy < D1D; ++dy)
             {
-               const double bx  = B(qy,dy);
-               const double gx  = G(qy,dy);
+               const double bx = B(qy,dy);
+               const double gx = G(qy,dy);
                GBu[tidz][qy][qx] += gx * Bu[tidz][dy][qx];
                BGu[tidz][qy][qx] += bx * Gu[tidz][dy][qx];
             }
@@ -372,7 +369,7 @@ void SmemPAConvectionApply2D(const int ne,
             BDGu[tidz][dy][qx] = 0.0;
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               const double w  = Bt(dy,qy);
+               const double w = Bt(dy,qy);
                BDGu[tidz][dy][qx] += w * DGu[tidz][qy][qx];
             }
          }
@@ -385,7 +382,7 @@ void SmemPAConvectionApply2D(const int ne,
             double BBDGu = 0.0;
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               const double w  = Bt(dx,qx);
+               const double w = Bt(dx,qx);
                BBDGu += w * BDGu[tidz][dy][qx];
             }
             y(dx,dy,e) += BBDGu;
@@ -449,8 +446,8 @@ void PAConvectionApply3D(const int ne,
                Gu[dz][dy][qx] = 0.0;
                for (int dx = 0; dx < D1D; ++dx)
                {
-                  const double bx  = B(qx,dx);
-                  const double gx  = G(qx,dx);
+                  const double bx = B(qx,dx);
+                  const double gx = G(qx,dx);
                   const double x = u[dz][dy][dx];
                   Bu[dz][dy][qx] += bx * x;
                   Gu[dz][dy][qx] += gx * x;
@@ -472,8 +469,8 @@ void PAConvectionApply3D(const int ne,
                BGu[dz][qy][qx] = 0.0;
                for (int dy = 0; dy < D1D; ++dy)
                {
-                  const double bx  = B(qy,dy);
-                  const double gx  = G(qy,dy);
+                  const double bx = B(qy,dy);
+                  const double gx = G(qy,dy);
                   BBu[dz][qy][qx] += bx * Bu[dz][dy][qx];
                   GBu[dz][qy][qx] += gx * Bu[dz][dy][qx];
                   BGu[dz][qy][qx] += bx * Gu[dz][dy][qx];
@@ -495,8 +492,8 @@ void PAConvectionApply3D(const int ne,
                BBGu[qz][qy][qx] = 0.0;
                for (int dz = 0; dz < D1D; ++dz)
                {
-                  const double bx  = B(qz,dz);
-                  const double gx  = G(qz,dz);
+                  const double bx = B(qz,dz);
+                  const double gx = G(qz,dz);
                   GBBu[qz][qy][qx] += gx * BBu[dz][qy][qx];
                   BGBu[qz][qy][qx] += bx * GBu[dz][qy][qx];
                   BBGu[qz][qy][qx] += bx * BGu[dz][qy][qx];
@@ -534,7 +531,7 @@ void PAConvectionApply3D(const int ne,
                BDGu[dz][qy][qx] = 0.0;
                for (int qz = 0; qz < Q1D; ++qz)
                {
-                  const double w  = Bt(dz,qz);
+                  const double w = Bt(dz,qz);
                   BDGu[dz][qy][qx] += w * DGu[qz][qy][qx];
                }
             }
@@ -550,7 +547,7 @@ void PAConvectionApply3D(const int ne,
                BBDGu[dz][dy][qx] = 0.0;
                for (int qy = 0; qy < Q1D; ++qy)
                {
-                  const double w  = Bt(dy,qy);
+                  const double w = Bt(dy,qy);
                   BBDGu[dz][dy][qx] += w * BDGu[dz][qy][qx];
                }
             }
@@ -565,7 +562,7 @@ void PAConvectionApply3D(const int ne,
                double BBBDGu = 0.0;
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  const double w  = Bt(dx,qx);
+                  const double w = Bt(dx,qx);
                   BBBDGu += w * BBDGu[dz][dy][qx];
                }
                y(dx,dy,dz,e) += BBBDGu;
@@ -638,8 +635,8 @@ void SmemPAConvectionApply3D(const int ne,
                double Gu_ = 0.0;
                for (int dx = 0; dx < D1D; ++dx)
                {
-                  const double bx  = B(qx,dx);
-                  const double gx  = G(qx,dx);
+                  const double bx = B(qx,dx);
+                  const double gx = G(qx,dx);
                   const double x = u[dz][dy][dx];
                   Bu_ += bx * x;
                   Gu_ += gx * x;
@@ -664,8 +661,8 @@ void SmemPAConvectionApply3D(const int ne,
                double BGu_ = 0.0;
                for (int dy = 0; dy < D1D; ++dy)
                {
-                  const double bx  = B(qy,dy);
-                  const double gx  = G(qy,dy);
+                  const double bx = B(qy,dy);
+                  const double gx = G(qy,dy);
                   BBu_ += bx * Bu[dz][dy][qx];
                   GBu_ += gx * Bu[dz][dy][qx];
                   BGu_ += bx * Gu[dz][dy][qx];
@@ -691,8 +688,8 @@ void SmemPAConvectionApply3D(const int ne,
                double BBGu_ = 0.0;
                for (int dz = 0; dz < D1D; ++dz)
                {
-                  const double bx  = B(qz,dz);
-                  const double gx  = G(qz,dz);
+                  const double bx = B(qz,dz);
+                  const double gx = G(qz,dz);
                   GBBu_ += gx * BBu[dz][qy][qx];
                   BGBu_ += bx * GBu[dz][qy][qx];
                   BBGu_ += bx * BGu[dz][qy][qx];
@@ -734,7 +731,7 @@ void SmemPAConvectionApply3D(const int ne,
                double BDGu_ = 0.0;
                for (int qz = 0; qz < Q1D; ++qz)
                {
-                  const double w  = Bt(dz,qz);
+                  const double w = Bt(dz,qz);
                   BDGu_ += w * DGu[qz][qy][qx];
                }
                BDGu[dz][qy][qx] = BDGu_;
@@ -752,7 +749,7 @@ void SmemPAConvectionApply3D(const int ne,
                double BBDGu_ = 0.0;
                for (int qy = 0; qy < Q1D; ++qy)
                {
-                  const double w  = Bt(dy,qy);
+                  const double w = Bt(dy,qy);
                   BBDGu_ += w * BDGu[dz][qy][qx];
                }
                BBDGu[dz][dy][qx] = BBDGu_;
@@ -769,7 +766,7 @@ void SmemPAConvectionApply3D(const int ne,
                double BBBDGu = 0.0;
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  const double w  = Bt(dx,qx);
+                  const double w = Bt(dx,qx);
                   BBBDGu += w * BBDGu[dz][dy][qx];
                }
                y(dx,dy,dz,e) = BBBDGu;
@@ -954,7 +951,6 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
             default:
             {
                constexpr int MAX_DQ = 8;
-               dbg("dim:%d, 0x%x",dim, id);
                MFEM_VERIFY(D1D <= MAX_DQ, "");
                MFEM_VERIFY(Q1D <= MAX_DQ, "");
                QEvalVGF2D<0,0,0,MAX_DQ>(ne,B,x,y,vdim,D1D,Q1D);
@@ -973,7 +969,6 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
             default:
             {
                constexpr int MAX_DQ = 6;
-               dbg("dim:%d, 0x%x",dim, id);
                MFEM_VERIFY(D1D <= MAX_DQ, "");
                MFEM_VERIFY(Q1D <= MAX_DQ, "");
                QEvalVGF3D<0,0,0,MAX_DQ>(ne,B,x,y,vdim,D1D,Q1D);

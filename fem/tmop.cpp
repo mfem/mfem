@@ -14,8 +14,6 @@
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
 #include "../general/forall.hpp"
-#define MFEM_DEBUG_COLOR 214
-#include "../general/debug.hpp"
 
 namespace mfem
 {
@@ -2890,6 +2888,15 @@ void TMOPComboIntegrator::AssemblePA(const FiniteElementSpace &fes)
    for (int i = 0; i < tmopi.Size(); i++)
    {
       tmopi[i]->AssemblePA(fes);
+   }
+}
+
+void TMOPComboIntegrator::AssembleGradientDiagonalPA(const Vector &xe,
+                                                     Vector &de) const
+{
+   for (int i = 0; i < tmopi.Size(); i++)
+   {
+      tmopi[i]->AssembleGradientDiagonalPA(xe, de);
    }
 }
 
