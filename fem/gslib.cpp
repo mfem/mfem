@@ -548,6 +548,7 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
    // find the original element number and map the rst from micro to macro element.
    for (int i = 0; i < points_cnt; i++)
    {
+      if (gsl_code[i] == 2) { continue; }
       int local_elem   = gsl_elem[i]%NEsplit;
       gsl_mfem_elem[i] = (gsl_elem[i] - local_elem)/NEsplit; // macro element number
 
@@ -687,6 +688,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
    {
       for (int index = 0; index < npt; index++)
       {
+         if (gsl_code[index] == 2) { continue; }
          IntegrationPoint ip;
          ip.Set2(gsl_mfem_ref.GetData()+index*dim);
          if (dim == 3) { ip.z = gsl_mfem_ref(index*dim + 2); }
@@ -700,16 +702,23 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
    }
    else // parallel
    {
+      // Determine number of points to be sent
+      int nptsend = 0;
+      for (int index = 0; index < npt; index++)
+      {
+         if (gsl_code[index] != 2) { nptsend +=1; }
+      }
+
       // Pack data to send via crystal router
       struct array *outpt = new array;
       struct out_pt { double r[3], ival; uint index, el, proc; };
       struct out_pt *pt;
-      array_init(struct out_pt, outpt, npt);
-      outpt->n=npt;
+      array_init(struct out_pt, outpt, nptsend);
+      outpt->n=nptsend;
       pt = (struct out_pt *)outpt->ptr;
-
       for (int index = 0; index < npt; index++)
       {
+         if (gsl_code[index] == 2) { continue; }
          for (int d = 0; d < dim; ++d) { pt->r[d]= gsl_mfem_ref(index*dim + d); }
          pt->index = index;
          pt->proc  = gsl_proc[index];
