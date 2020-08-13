@@ -162,21 +162,6 @@ public:
    { MFEM_ABORT("Not implemented"); }
 };
 
-/// Shape+Size metric, 2D.
-class TMOP_Metric_SS2D : public TMOP_QualityMetric
-{
-public:
-   // W = 0.5 (1 - cos(theta_Jpr - theta_Jtr)).
-   virtual double EvalW(const DenseMatrix &Jpt) const;
-
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
-   { MFEM_ABORT("Not implemented"); }
-
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const
-   { MFEM_ABORT("Not implemented"); }
-};
-
 /// Shape, ideal barrier metric, 2D
 class TMOP_Metric_002 : public TMOP_QualityMetric
 {
@@ -329,6 +314,21 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
 
+};
+
+/// Shape & orientation metric, 2D.
+class TMOP_Metric_085 : public TMOP_QualityMetric
+{
+public:
+   // W = |T-T'|^2, where T'= |T|*I/sqrt(2).
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   { MFEM_ABORT("Not implemented"); }
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const
+   { MFEM_ABORT("Not implemented"); }
 };
 
 /// Untangling metric, 2D
@@ -598,7 +598,8 @@ public:
     supports a set of algorithms chosen by the #TargetType enumeration.
 
     New target-matrix construction algorithms can be defined by deriving new
-    classes and overriding the method ComputeElementTargets(). */
+    classes and overriding the methods ComputeElementTargets() and
+    ContainsVolumeInfo(). */
 class TargetConstructor
 {
 public:
@@ -666,6 +667,9 @@ public:
    /// Used by target type IDEAL_SHAPE_EQUAL_SIZE. The default volume scale is 1.
    void SetVolumeScale(double vol_scale) { volume_scale = vol_scale; }
 
+   /// Checks if the target matrices contain non-trivial size specification.
+   virtual bool ContainsVolumeInfo() const;
+
    /** @brief Given an element and quadrature rule, computes ref->target
        transformation Jacobians for each quadrature point in the element.
        The physical positions of the element's nodes are given by @a elfun. */
@@ -673,6 +677,25 @@ public:
                                       const IntegrationRule &ir,
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
+
+   virtual void ComputeElementTargetsGradient(const IntegrationRule &ir,
+                                              const Vector &elfun,
+                                              IsoparametricTransformation &Tpr,
+                                              DenseTensor &dJtr) const;
+};
+
+class TMOPMatrixCoefficient  : public MatrixCoefficient
+{
+public:
+   explicit TMOPMatrixCoefficient(int dim) : MatrixCoefficient(dim, dim) { }
+
+   /** @brief Evaluate the derivative of the matrix coefficient with respect to
+       @a comp in the element described by @a T at the point @a ip, storing the
+       result in @a K. */
+   virtual void EvalGrad(DenseMatrix &K, ElementTransformation &T,
+                         const IntegrationPoint &ip, int comp) = 0;
+
+   virtual ~TMOPMatrixCoefficient() { }
 };
 
 class AnalyticAdaptTC : public TargetConstructor
@@ -681,7 +704,7 @@ protected:
    // Analytic target specification.
    Coefficient *scalar_tspec;
    VectorCoefficient *vector_tspec;
-   MatrixCoefficient *matrix_tspec;
+   TMOPMatrixCoefficient *matrix_tspec;
 
 public:
    AnalyticAdaptTC(TargetType ttype)
@@ -690,7 +713,7 @@ public:
 
    virtual void SetAnalyticTargetSpec(Coefficient *sspec,
                                       VectorCoefficient *vspec,
-                                      MatrixCoefficient *mspec);
+                                      TMOPMatrixCoefficient *mspec);
 
    /** @brief Given an element and quadrature rule, computes ref->target
        transformation Jacobians for each quadrature point in the element.
@@ -699,6 +722,11 @@ public:
                                       const IntegrationRule &ir,
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
+
+   virtual void ComputeElementTargetsGradient(const IntegrationRule &ir,
+                                              const Vector &elfun,
+                                              IsoparametricTransformation &Tpr,
+                                              DenseTensor &dJtr) const;
 };
 
 #ifdef MFEM_USE_MPI
@@ -720,13 +748,17 @@ protected:
    // eta1(x+h,y), eta2(x+h,y) ... etan(x+h,y), eta1(x,y+h), eta2(x,y+h) ...
    // same for tspec_pert2h and tspec_pertmix.
 
+   // Components of Target Jacobian at each quadrature point of an element. This
+   // is required for computation of the derivative using chain rule.
+   mutable DenseTensor Jtrcomp;
+
    // Note: do not use the Nodes of this space as they may not be on the
    // positions corresponding to the values of tspec.
    const FiniteElementSpace *tspec_fes;
    const FiniteElementSpace *tspec_fesv;
 
-   // These flags can be used by outside functions to avoid recomputing
-   // the tspec and tspec_perth fields again on the same mesh.
+   // These flags can be used by outside functions to avoid recomputing the
+   // tspec and tspec_perth fields again on the same mesh.
    bool good_tspec, good_tspec_grad, good_tspec_hess;
 
    // Evaluation of the discrete target specification on different meshes.
@@ -833,6 +865,11 @@ public:
                                       const IntegrationRule &ir,
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
+
+   virtual void ComputeElementTargetsGradient(const IntegrationRule &ir,
+                                              const Vector &elfun,
+                                              IsoparametricTransformation &Tpr,
+                                              DenseTensor &dJtr) const;
 };
 
 class TMOPNewtonSolver;
@@ -870,12 +907,24 @@ protected:
    // Normalization factor for the limiting term.
    double lim_normal;
 
+   // Adaptive limiting.
+   const GridFunction *zeta_0;       // Not owned.
+   GridFunction *zeta;               // Owned. Updated by adapt_eval.
+   Coefficient *coeff_zeta;          // Not owned.
+   AdaptivityEvaluator *adapt_eval;  // Not owned.
+
    DiscreteAdaptTC *discr_tc;
 
    // Parameters for FD-based Gradient & Hessian calculation.
-   bool   fdflag;
+   bool fdflag;
    double dx;
    double dxscale;
+   // Specifies that ComputeElementTargets is being called by a FD function.
+   // It's used to skip terms that have exact derivative calculations.
+   bool fd_call_flag;
+   // Compute the exact action of the Integrator (includes derivative of the
+   // target with respect to spatial position)
+   bool exact_action;
 
    Array <Vector *> ElemDer;        //f'(x)
    Array <Vector *> ElemPertEnergy; //f(x+h)
@@ -908,10 +957,17 @@ protected:
                                 ElementTransformation &T,
                                 const Vector &elfun, Vector &elvect);
 
-   /** Assumes that AssembleElementVectorFD has been called. */
+   // Assumes that AssembleElementVectorFD has been called.
    void AssembleElementGradFD(const FiniteElement &el,
                               ElementTransformation &T,
                               const Vector &elfun, DenseMatrix &elmat);
+
+   void AssembleElemVecAdaptLim(const FiniteElement &el, const Vector &weights,
+                                IsoparametricTransformation &Tpr,
+                                const IntegrationRule &ir, DenseMatrix &m);
+   void AssembleElemGradAdaptLim(const FiniteElement &el, const Vector &weights,
+                                 IsoparametricTransformation &Tpr,
+                                 const IntegrationRule &ir, DenseMatrix &m);
 
    double GetFDDerivative(const FiniteElement &el,
                           ElementTransformation &T,
@@ -925,9 +981,27 @@ protected:
 #endif
    void ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
 
+   void UpdateAfterMeshChange(const Vector &new_x);
+
    void DisableLimiting()
    {
       nodes0 = NULL; coeff0 = NULL; lim_dist = NULL; lim_func = NULL;
+   }
+
+   const IntegrationRule *EnergyIntegrationRule(const FiniteElement &el) const
+   {
+      return (IntRule) ? IntRule
+             /*     */ : &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3));
+   }
+   const IntegrationRule *ActionIntegrationRule(const FiniteElement &el) const
+   {
+      // TODO the energy most likely needs less integration points.
+      return EnergyIntegrationRule(el);
+   }
+   const IntegrationRule *GradientIntegrationRule(const FiniteElement &el) const
+   {
+      // TODO the action and energy most likely need less integration points.
+      return EnergyIntegrationRule(el);
    }
 
 public:
@@ -938,19 +1012,12 @@ public:
         coeff1(NULL), metric_normal(1.0),
         nodes0(NULL), coeff0(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
+        zeta_0(NULL), zeta(NULL), coeff_zeta(NULL), adapt_eval(NULL),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
-        fdflag(false), dxscale(1.0e3)
+        fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
    { }
 
-   ~TMOP_Integrator()
-   {
-      delete lim_func;
-      for (int i = 0; i < ElemDer.Size(); i++)
-      {
-         delete ElemDer[i];
-         delete ElemPertEnergy[i];
-      }
-   }
+   ~TMOP_Integrator();
 
    /// Sets a scaling Coefficient for the quality metric term of the integrator.
    /** With this addition, the integrator becomes
@@ -960,15 +1027,15 @@ public:
        not in the target configuration which may be undefined. */
    void SetCoefficient(Coefficient &w1) { coeff1 = &w1; }
 
-   /// Adds a limiting term to the integrator (general version).
-   /** With this addition, the integrator becomes
-          @f$ \int w1 W(Jpt) + w0 f(x, x_0, d) dx @f$,
-       where the second term measures the change with respect to the original
-       physical positions, @a n0.
-       @param[in] n0     Original mesh node coordinates.
-       @param[in] dist   Limiting physical distances.
-       @param[in] w0     Coefficient scaling the limiting term.
-       @param[in] lfunc  TMOP_LimiterFunction defining the limiting term f. If
+   /** @brief Limiting of the mesh displacements (general version).
+
+       Adds the term @f$ \int w_0 f(x, x_0, d) dx @f$, where f is a measure of
+       the displacement between x and x_0, given the max allowed displacement d.
+
+       @param[in] n0     Original mesh node coordinates (x0 above).
+       @param[in] dist   Allowed displacement in physical space (d above).
+       @param[in] w0     Coefficient scaling the limiting integral.
+       @param[in] lfunc  TMOP_LimiterFunction defining the function f. If
                          NULL, a TMOP_QuadraticLimiter will be used. The
                          TMOP_Integrator assumes ownership of this pointer. */
    void EnableLimiting(const GridFunction &n0, const GridFunction &dist,
@@ -978,6 +1045,25 @@ public:
        function (@a dist in the general version of the method) equal to 1. */
    void EnableLimiting(const GridFunction &n0, Coefficient &w0,
                        TMOP_LimiterFunction *lfunc = NULL);
+
+   /** @brief Restriction of the node positions to certain regions.
+
+       Adds the term @f$ \int c (z(x) - z_0(x_0))^2 @f$, where z0(x0) is a given
+       function on the starting mesh, and z(x) is its image on the new mesh.
+       Minimizing this, means that a node at x0 is allowed to move to a
+       position x(x0) only if z(x) ~ z0(x0).
+       Such term can be used for tangential mesh relaxation.
+
+       @param[in] z0     Function z0 that controls the adaptive limiting.
+       @param[in] coeff  Coefficient c for the above integral.
+       @param[in] ae     AdaptivityEvaluator to compute z(x) from z0(x0). */
+   void EnableAdaptiveLimiting(const GridFunction &z0, Coefficient &coeff,
+                               AdaptivityEvaluator &ae);
+#ifdef MFEM_USE_MPI
+   /// Parallel support for adaptive limiting.
+   void EnableAdaptiveLimiting(const ParGridFunction &z0, Coefficient &coeff,
+                               AdaptivityEvaluator &ae);
+#endif
 
    /// Update the original/reference nodes used for limiting.
    void SetLimitingNodes(const GridFunction &n0) { nodes0 = &n0; }
@@ -1016,6 +1102,9 @@ public:
    void   SetFDhScale(double _dxscale) { dxscale = _dxscale; }
    bool   GetFDFlag() const { return fdflag; }
    double GetFDh()    const { return dx; }
+
+   /** @brief Flag to control if exact action of Integration is effected. */
+   void SetExactActionFlag(bool flag_) { exact_action = flag_; }
 };
 
 class TMOPComboIntegrator : public NonlinearFormIntegrator
@@ -1035,7 +1124,7 @@ public:
    /// Adds a new TMOP_Integrator to the combination.
    void AddTMOPIntegrator(TMOP_Integrator *ti) { tmopi.Append(ti); }
 
-   Array<TMOP_Integrator *> GetTMOPIntegrators() const { return tmopi; }
+   const Array<TMOP_Integrator *> &GetTMOPIntegrators() const { return tmopi; }
 
    /// Adds the limiting term to the first integrator. Disables it for the rest.
    void EnableLimiting(const GridFunction &n0, const GridFunction &dist,

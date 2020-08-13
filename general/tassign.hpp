@@ -13,8 +13,7 @@
 #define MFEM_TEMPLATE_ASSIGN
 
 #include "../config/tconfig.hpp"
-#include "../general/cuda.hpp"
-#include "../general/hip.hpp"
+#include "backends.hpp"
 
 namespace mfem
 {

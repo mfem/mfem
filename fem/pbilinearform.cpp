@@ -198,8 +198,9 @@ void ParBilinearForm::AssembleSharedFaces(int skip_zeros)
    for (int i = 0; i < nfaces; i++)
    {
       T = pmesh->GetSharedFaceTransformations(i);
+      int Elem2NbrNo = T->Elem2No - pmesh->GetNE();
       pfes->GetElementVDofs(T->Elem1No, vdofs1);
-      pfes->GetFaceNbrElementVDofs(T->Elem2No, vdofs2);
+      pfes->GetFaceNbrElementVDofs(Elem2NbrNo, vdofs2);
       vdofs1.Copy(vdofs_all);
       for (int j = 0; j < vdofs2.Size(); j++)
       {
@@ -216,7 +217,7 @@ void ParBilinearForm::AssembleSharedFaces(int skip_zeros)
       for (int k = 0; k < fbfi.Size(); k++)
       {
          fbfi[k]->AssembleFaceMatrix(*pfes->GetFE(T->Elem1No),
-                                     *pfes->GetFaceNbrFE(T->Elem2No),
+                                     *pfes->GetFaceNbrFE(Elem2NbrNo),
                                      *T, elemmat);
          if (keep_nbr_block)
          {
@@ -240,7 +241,7 @@ void ParBilinearForm::Assemble(int skip_zeros)
 
    BilinearForm::Assemble(skip_zeros);
 
-   if (fbfi.Size() > 0)
+   if (!ext && fbfi.Size() > 0)
    {
       AssembleSharedFaces(skip_zeros);
    }
