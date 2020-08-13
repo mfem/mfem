@@ -722,7 +722,7 @@ func_exit:
 }
 
 int
-GridFunctionToFmsField(FmsDataCollection dc, FmsFieldDescriptor fd, FmsField f, FmsComponent comp, const GridFunction *gf) {
+GridFunctionToFmsField(FmsDataCollection dc, FmsFieldDescriptor fd, FmsField f, FmsComponent comp, const Mesh *mesh, const GridFunction *gf) {
   if(!dc) return 1;
   if(!fd) return 2;
   if(!f) return 3;
@@ -766,7 +766,69 @@ GridFunctionToFmsField(FmsDataCollection dc, FmsFieldDescriptor fd, FmsField f, 
   const int vdim = gf->VectorDim();
   std::cout << "Field " << name << " is order " << order << " with vdim " << vdim << " and nDoFs " << ndofs << std::endl;
   FmsLayoutType layout = fespace->GetOrdering() == mfem::Ordering::byVDIM ? FMS_BY_VDIM : FMS_BY_NODES;
+#if 1
+  if(order > 2)
+  {
+    // We will need to reorder interior cell dofs, at least for hex to be more compatible with FMS.
+
+    // Make a copy of the grid function data that we can reorder.
+    double *values = new double[s];
+    memcpy(values, c, sizeof(double) * s);
+    const int num_elements = mesh->GetNE();
+
+    // Iterate over hex cells and reorder their interior dofs.
+    int O1=order-1;
+    int O1O1 = O1*O1;
+    for(int e = 0; e < num_elements; e++)
+    {
+      auto etype = mesh->GetElementType(e);
+      switch(etype)
+      {
+      case mfem::Element::HEXAHEDRON:
+          {
+          // Get cell interior dofs for hex.
+          mfem::Array<int> dofs;
+          fespace->GetElementInteriorDofs(e, dofs);
+
+          // Reorder the interior dofs into an order that is compatible with FMS.
+          // Do it in an order-proof way.
+          for(int k = 0; k < O1; ++k)
+          for(int j = 0; j < O1; ++j)
+          for(int i = 0; i < O1; ++i)
+          {
+              int original_index = k*O1O1 + j*O1 + i;
+
+              int kp = O1-1 - i;
+              int jp = O1-1 - j;
+              int ip = O1-1 - k;
+
+              int new_index = kp*O1O1 + jp*O1 + ip;
+
+              for (int vc = 0; vc < vdim; vc++)
+              {
+                  int src = fespace->DofToVDof(dofs[original_index],vc);
+                  int dest = fespace->DofToVDof(dofs[new_index],vc);
+                  values[dest] = (*gf)(src);
+              }
+              //cout << original_index << " : " << new_index << endl;
+          }
+          break;
+          }
+      // Q: do tets need this treatment too?
+      } // switch etype
+    } // for e
+
+    FmsFieldSet(f, fd, vdim, layout, FMS_DOUBLE, values);
+    delete [] values;
+  }
+  else
+  {
+    // The order is such that no reordering is needed.
+    FmsFieldSet(f, fd, vdim, layout, FMS_DOUBLE, c);
+  }
+#else
   FmsFieldSet(f, fd, vdim, layout, FMS_DOUBLE, c);
+#endif
   return 0;
 }
 
@@ -1119,9 +1181,9 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
   const int edge_reorder[2] = {1, 0};
   const int quad_reorder[4] = {2,3,0,1};
   const int x = 5, x1 = 0, y = 2, y1 = 4, z = 1, z1 = 3;
-  const int hex_reorder[6] = /*{4, 2, 3, 1, 0, 5};
+  const int hex_reorder[6] = {2,4,3,1,5,0};/*{4, 2, 3, 1, 0, 5};
   /*
-    */{z,z1,y,y1,x,x1}/* swirls  MATCHES FMS DOC
+    {z,z1,y,y1,x,x1}/* swirls  MATCHES FMS DOC
     {z,z1,y,y1,x1,x}/* garbage
     {z,z1,y1,y,x,x1}/* garbage
     {z,z1,y1,y,x1,x}/* NO
@@ -1366,7 +1428,7 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
     FmsField fcoords = NULL;
     FmsDataCollectionAddFieldDescriptor(*dc, "CoordsDescriptor", &fcoords_fd);
     FmsDataCollectionAddField(*dc, "Coords", &fcoords);
-    GridFunctionToFmsField(*dc, fcoords_fd, fcoords, volume, mcoords);
+    GridFunctionToFmsField(*dc, fcoords_fd, fcoords, volume, mmesh, mcoords);
     FmsComponentSetCoordinates(volume, fcoords);
   }
   else {
@@ -1380,7 +1442,7 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
     std::string fd_name(pair.first + "Collection");
     FmsDataCollectionAddFieldDescriptor(*dc, fd_name.c_str(), &fd);
     FmsDataCollectionAddField(*dc, pair.first.c_str(), &f);
-    GridFunctionToFmsField(*dc, fd, f, volume, pair.second); // TODO: Volume isn't always going to be correct
+    GridFunctionToFmsField(*dc, fd, f, volume, mmesh, pair.second); // TODO: Volume isn't always going to be correct
   }
 
   // /* TODO:
