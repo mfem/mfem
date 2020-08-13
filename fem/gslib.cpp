@@ -164,11 +164,13 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos)
    }
 
    // Set the element number and reference position to 0 for points not found
-   for (int i = 0; i < points_cnt; i++) {
-       if (gsl_code[i] == 2) {
-           gsl_elem[i] = 0;
-           for (int d = 0; d < dim; d++) { gsl_ref(i*dim + d) = -1.; }
-       }
+   for (int i = 0; i < points_cnt; i++)
+   {
+      if (gsl_code[i] == 2)
+      {
+         gsl_elem[i] = 0;
+         for (int d = 0; d < dim; d++) { gsl_ref(i*dim + d) = -1.; }
+      }
    }
 
    // Map element number for simplices, and ref_pos from [-1,1] to [0,1] for both
