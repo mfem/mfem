@@ -33,6 +33,10 @@ occa::device occaDevice;
 
 #ifdef MFEM_USE_CEED
 Ceed ceed = NULL;
+
+// Initalize FES -> CeedBasis, CeedElemRestriction hash tables
+khash_t(basis) *ceed_basis_from_fes = kh_init(basis);
+khash_t(restr) *ceed_restr_from_fes = kh_init(restr);
 #endif
 
 // Backends listed by priority, high to low:
@@ -154,6 +158,17 @@ Device::~Device()
    {
       free(device_option);
 #ifdef MFEM_USE_CEED
+      // Destroy FES -> CeedBasis, CeedElemRestriction hash table contents
+      CeedBasis basis;
+      kh_foreach_value(internal::ceed_basis_from_fes,
+                       basis, CeedBasisDestroy(&basis));
+      kh_destroy(basis, internal::ceed_basis_from_fes);
+      CeedElemRestriction restr;
+      kh_foreach_value(internal::ceed_restr_from_fes,
+                       restr, CeedElemRestrictionDestroy(&restr));
+      kh_destroy(restr, internal::ceed_restr_from_fes);
+
+      // Destroy Ceed context
       CeedDestroy(&internal::ceed);
 #endif
       mm.Destroy();
