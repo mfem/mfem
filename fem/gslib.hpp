@@ -109,13 +109,17 @@ public:
                                    element boundary (1), not found (2).
        @param[out] gsl_proc        MPI proc ids where the points were found.
        @param[out] gsl_elem        Element ids where the points were found.
+                                   Defaults to 0 for points that were not found.
        @param[out] gsl_mfem_elem   Element ids corresponding to MFEM-mesh
                                    where the points were found.
                                    @a gsl_mfem_elem != @a gsl_elem for simplices
+                                   Defaults to 0 for points that were not found.
        @param[out] gsl_ref         Reference coordinates of the found point.
                                    Ordered by vdim (XYZ,XYZ,XYZ...).
                                    Note: the gslib reference frame is [-1,1].
+                                   Defaults to -1 for points that were not found.
        @param[out] gsl_mfem_ref    Reference coordinates @a gsl_ref mapped to [0,1].
+                                   Defaults to 0 for points that were not found.
        @param[out] gsl_dist        Distance between the sought and the found point
                                    in physical space. */
    void FindPoints(const Vector &point_pos);
