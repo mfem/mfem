@@ -13,7 +13,7 @@
 #define MFEM_TENSOR_DET
 
 #include "tensor.hpp"
-#include "../general/backends.hpp"
+#include "../../general/backends.hpp"
 #include "../dtensor.hpp"
 
 namespace mfem
@@ -49,7 +49,7 @@ dTensor<Q>&& Determinant(const Tensor<dTensor<Dim,Dim>,Q> &J)
    {
       det(q) = Determinant(J(q));
    }
-   return det;
+   return std::move(det);
 }
 
 template<int Q1d> MFEM_HOST_DEVICE inline
@@ -66,7 +66,7 @@ dTensor<Q1d,Q1d,Q1d>&& Determinant(const Tensor<dTensor<3,3>,Q1d,Q1d,Q1d> &J)
          }
       }
    }
-   return det;
+   return std::move(det);
 }
 
 template<int Q1d> MFEM_HOST_DEVICE inline
@@ -80,7 +80,7 @@ dTensor<Q1d,Q1d>&& Determinant(const Tensor<dTensor<2,2>,Q1d,Q1d> &J)
          det(qx,qy) = Determinant(J(qx,qy));
       }
    }
-   return det;
+   return std::move(det);
 }
 
 } // namespace mfem

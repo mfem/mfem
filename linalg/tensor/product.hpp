@@ -13,7 +13,7 @@
 #define MFEM_TENSOR_PROD
 
 #include "tensor.hpp"
-#include "../general/backends.hpp"
+#include "../../general/backends.hpp"
 #include "../dtensor.hpp"
 
 namespace mfem
@@ -33,7 +33,7 @@ Tensor<T,H>&& operator*(const Tensor<T,H,W> &A, const Tensor<T,W> &u)
     }
     v(h) = val;
   }
-  return v;
+  return std::move(v);
 }
 
 // Multiplication of a Vector by a scalar.
@@ -45,7 +45,7 @@ Tensor<T,H>&& operator*(const T &a, const Tensor<T,H> &u)
   {
     v(h) = a * u(h);
   }
-  return v;
+  return std::move(v);
 }
 
 // Multiplication of a Matrix by a scalar.
@@ -60,7 +60,7 @@ Tensor<T,H>&& operator*(const T &a, const Tensor<T,H,W> &U)
       V(h,w) = a * U(h,w);
     }
   }
-  return V;
+  return std::move(V);
 }
 
 } // namespace mfem
