@@ -15,17 +15,15 @@
 #include "../config/config.hpp"
 #include "error.hpp"
 
-#ifdef MFEM_USE_CUDA
-#include <cuda_runtime.h>
-#include <cuda.h>
-#endif
-
 // CUDA block size used by MFEM.
 #define MFEM_CUDA_BLOCKS 256
 
 #ifdef MFEM_USE_CUDA
 #define MFEM_DEVICE __device__
+#define MFEM_LAMBDA __host__
 #define MFEM_HOST_DEVICE __host__ __device__
+#define MFEM_DEVICE_SYNC MFEM_GPU_CHECK(cudaDeviceSynchronize())
+#define MFEM_STREAM_SYNC MFEM_GPU_CHECK(cudaStreamSynchronize(0))
 // Define a CUDA error check macro, MFEM_GPU_CHECK(x), where x returns/is of
 // type 'cudaError_t'. This macro evaluates 'x' and raises an error if the
 // result is not cudaSuccess.
@@ -39,8 +37,6 @@
       } \
    } \
    while (0)
-#define MFEM_DEVICE_SYNC MFEM_GPU_CHECK(cudaDeviceSynchronize())
-#define MFEM_STREAM_SYNC MFEM_GPU_CHECK(cudaStreamSynchronize(0))
 #endif // MFEM_USE_CUDA
 
 // Define the MFEM inner threading macros
@@ -49,29 +45,7 @@
 #define MFEM_SYNC_THREAD __syncthreads()
 #define MFEM_THREAD_ID(k) threadIdx.k
 #define MFEM_THREAD_SIZE(k) blockDim.k
-#define MFEM_EXCLUSIVE(v) v
-#define MFEM_EXCLUSIVE_GET(v) v
-#define MFEM_EXCLUSIVE_INC
 #define MFEM_FOREACH_THREAD(i,k,N) for(int i=threadIdx.k; i<N; i+=blockDim.k)
-#endif
-
-#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-#define MFEM_DEVICE
-#define MFEM_HOST_DEVICE
-#define MFEM_DEVICE_SYNC
-#define MFEM_STREAM_SYNC
-#endif
-
-#if !((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) || \
-      (defined(MFEM_USE_HIP)  && defined(__ROCM_ARCH__)))
-#define MFEM_SHARED
-#define MFEM_SYNC_THREAD exclusive_index=0;
-#define MFEM_THREAD_ID(k) 0
-#define MFEM_THREAD_SIZE(k) 1
-#define MFEM_EXCLUSIVE(v) v[256]
-#define MFEM_EXCLUSIVE_GET(v) v[exclusive_index]
-#define MFEM_EXCLUSIVE_INC exclusive_index++
-#define MFEM_FOREACH_THREAD(i,k,N) for(int i=0; i<N; i++)
 #endif
 
 namespace mfem

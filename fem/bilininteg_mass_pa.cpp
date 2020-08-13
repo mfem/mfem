@@ -23,7 +23,7 @@ namespace mfem
 
 // PA Mass Assemble kernel
 
-void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
+void MassIntegrator::SetupPA(const FiniteElementSpace &fes)
 {
    // Assuming the same element type
    fespace = &fes;
@@ -33,7 +33,7 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
    ElementTransformation *T = mesh->GetElementTransformation(0);
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T);
 #ifdef MFEM_USE_CEED
-   if (DeviceCanUseCeed() && !force)
+   if (DeviceCanUseCeed())
    {
       if (ceedDataPtr) { delete ceedDataPtr; }
       CeedData* ptr = new CeedData();
@@ -61,6 +61,19 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
    {
       coeff.SetSize(1);
       coeff(0) = cQ->constant;
+   }
+   else if (QuadratureFunctionCoefficient* cQ =
+               dynamic_cast<QuadratureFunctionCoefficient*>(Q))
+   {
+      const QuadratureFunction &qFun = cQ->GetQuadFunction();
+      MFEM_VERIFY(qFun.Size() == nq * ne,
+                  "Incompatible QuadratureFunction dimension \n");
+
+      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
+                  "IntegrationRule used within integrator and in"
+                  " QuadratureFunction appear to be different");
+      qFun.Read();
+      coeff.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
    }
    else
    {
@@ -440,8 +453,16 @@ static void PAMassAssembleDiagonal(const int dim, const int D1D,
 
 void MassIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   if (pa_data.Size()==0) { SetupPA(*fespace, true); }
-   PAMassAssembleDiagonal(dim, dofs1D, quad1D, ne, maps->B, pa_data, diag);
+#ifdef MFEM_USE_CEED
+   if (DeviceCanUseCeed())
+   {
+      CeedAssembleDiagonalPA(ceedDataPtr, diag);
+   }
+   else
+#endif
+   {
+      PAMassAssembleDiagonal(dim, dofs1D, quad1D, ne, maps->B, pa_data, diag);
+   }
 }
 
 
@@ -639,6 +660,7 @@ static void SmemPAMassApply2D(const int NE,
                               const int d1d = 0,
                               const int q1d = 0)
 {
+   MFEM_CONTRACT_VAR(bt_);
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
@@ -902,6 +924,7 @@ static void SmemPAMassApply3D(const int NE,
                               const int d1d = 0,
                               const int q1d = 0)
 {
+   MFEM_CONTRACT_VAR(bt_);
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int M1Q = T_Q1D ? T_Q1D : MAX_Q1D;
@@ -1118,187 +1141,6 @@ static void SmemPAMassApply3D(const int NE,
    });
 }
 
-
-template<const int T_D1D = 0,
-         const int T_Q1D = 0>
-static void OccaPAMassApply3D(const int NE,
-                              const Array<double> &b_,
-                              const Array<double> &bt_,
-                              const Vector &d_,
-                              const Vector &x_,
-                              Vector &y_,
-                              const int d1d = 0,
-                              const int q1d = 0)
-{
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int M1Q = T_Q1D ? T_Q1D : MAX_Q1D;
-   constexpr int M1D = T_D1D ? T_D1D : MAX_D1D;
-   constexpr int MDQ = (M1Q > M1D) ? M1Q : M1D;
-
-   MFEM_VERIFY(D1D <= M1D, "");
-   MFEM_VERIFY(Q1D <= M1Q, "");
-
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto D = Reshape(d_.Read(), Q1D, Q1D, Q1D, NE);
-   auto X = Reshape(x_.Read(), D1D, D1D, D1D, NE);
-   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-
-   // Iterate over elements
-   MFEM_FORALL_3D(e, NE, MDQ, MDQ, 1,
-   {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
-
-      // Store dof <--> quad mappings
-      MFEM_SHARED double s_B[MDQ*MDQ];
-      double (*B)[MD1] = (double (*)[MD1]) s_B;
-      MFEM_SHARED double s_Bt[MDQ*MDQ];
-      double (*Bt)[MQ1] = (double (*)[MQ1]) s_Bt;
-
-      // Store xy planes in @shared memory
-      MFEM_SHARED double s_xy[MDQ][MDQ];
-
-      // Store z axis as registers
-      double MFEM_EXCLUSIVE(r_qz)[Q1D];
-      double MFEM_EXCLUSIVE(r_dz)[D1D];
-
-      MFEM_FOREACH_THREAD(y,y,MDQ)
-      {
-         MFEM_FOREACH_THREAD(x,x,MDQ)
-         {
-            if ((x < D1D) && (y < Q1D))
-            {
-               B[y][x] = b(y,x);
-               Bt[x][y] = b(y,x);
-            }
-            // Initialize our Z axis
-            for (int qz = 0; qz < Q1D; ++qz)
-            {
-               MFEM_EXCLUSIVE_GET(r_qz)[qz] = 0.0;
-            }
-            for (int dz = 0; dz < D1D; ++dz)
-            {
-               MFEM_EXCLUSIVE_GET(r_dz)[dz] = 0.0;
-            }
-            MFEM_EXCLUSIVE_INC;
-         }
-      }
-      MFEM_SYNC_THREAD;
-
-      MFEM_FOREACH_THREAD(dy,y,MDQ)
-      {
-         MFEM_FOREACH_THREAD(dx,x,MDQ)
-         {
-            if ((dx < D1D) && (dy < D1D))
-            {
-               for (int dz = 0; dz < D1D; ++dz)
-               {
-                  const double s = X(dx, dy, dz, e);
-                  // Calculate D -> Q in the Z axis
-                  for (int qz = 0; qz < Q1D; ++qz)
-                  {
-                     MFEM_EXCLUSIVE_GET(r_qz)[qz] += s * B[qz][dz];
-                  }
-               }
-            }
-            MFEM_EXCLUSIVE_INC;
-         }
-      }
-      MFEM_SYNC_THREAD;
-      // For each xy plane
-      for (int qz = 0; qz < Q1D; ++qz)
-      {
-         // Fill xy plane at given z position
-         MFEM_FOREACH_THREAD(dy,y,MDQ)
-         {
-            MFEM_FOREACH_THREAD(dx,x,MDQ)
-            {
-               if ((dx < D1D) && (dy < D1D))
-               {
-                  s_xy[dx][dy] = MFEM_EXCLUSIVE_GET(r_qz)[qz];
-               }
-               MFEM_EXCLUSIVE_INC;
-            }
-         }
-         MFEM_SYNC_THREAD;
-         // Calculate Dxyz, xDyz, xyDz in plane
-         MFEM_FOREACH_THREAD(qy,y,MDQ)
-         {
-            MFEM_FOREACH_THREAD(qx,x,MDQ)
-            {
-               if ((qx < Q1D) && (qy < Q1D))
-               {
-                  double s = 0.0;
-                  for (int dy = 0; dy < D1D; ++dy)
-                  {
-                     const double wy = B[qy][dy];
-                     for (int dx = 0; dx < D1D; ++dx)
-                     {
-                        const double wx = B[qx][dx];
-                        s += wx * wy * s_xy[dx][dy];
-                     }
-                  }
-
-                  s *= D(qx, qy, qz, e);
-
-                  for (int dz = 0; dz < D1D; ++dz)
-                  {
-                     const double wz  = Bt[dz][qz];
-                     MFEM_EXCLUSIVE_GET(r_dz)[dz] += wz * s;
-                  }
-               }
-               MFEM_EXCLUSIVE_INC;
-            }
-         }
-         MFEM_SYNC_THREAD;
-      }
-      // Iterate over xy planes to compute solution
-      for (int dz = 0; dz < D1D; ++dz)
-      {
-         // Place xy plane in @shared memory
-         MFEM_FOREACH_THREAD(qy,y,MDQ)
-         {
-            MFEM_FOREACH_THREAD(qx,x,MDQ)
-            {
-               if ((qx < Q1D) && (qy < Q1D))
-               {
-                  s_xy[qx][qy] = MFEM_EXCLUSIVE_GET(r_dz)[dz];
-               }
-               MFEM_EXCLUSIVE_INC;
-            }
-         }
-         MFEM_SYNC_THREAD;
-         // Finalize solution in xy plane
-         MFEM_FOREACH_THREAD(dy,y,MDQ)
-         {
-            MFEM_FOREACH_THREAD(dx,x,MDQ)
-            {
-               if ((dx < D1D) && (dy < D1D))
-               {
-                  double solZ = 0;
-                  for (int qy = 0; qy < Q1D; ++qy)
-                  {
-                     const double wy = Bt[dy][qy];
-                     for (int qx = 0; qx < Q1D; ++qx)
-                     {
-                        const double wx = Bt[dx][qx];
-                        solZ += wx * wy * s_xy[qx][qy];
-                     }
-                  }
-                  Y(dx, dy, dz, e) += solZ;
-               }
-               MFEM_EXCLUSIVE_INC;
-            }
-         }
-         MFEM_SYNC_THREAD;
-      }
-   });
-}
-
 static void PAMassApply(const int dim,
                         const int D1D,
                         const int Q1D,
@@ -1373,29 +1215,7 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 #ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
-      const CeedScalar *x_ptr;
-      CeedScalar *y_ptr;
-      CeedMemType mem;
-      CeedGetPreferredMemType(internal::ceed, &mem);
-      if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
-      {
-         x_ptr = x.Read();
-         y_ptr = y.ReadWrite();
-      }
-      else
-      {
-         x_ptr = x.HostRead();
-         y_ptr = y.HostReadWrite();
-         mem = CEED_MEM_HOST;
-      }
-      CeedVectorSetArray(ceedDataPtr->u, mem, CEED_USE_POINTER,
-                         const_cast<CeedScalar*>(x_ptr));
-      CeedVectorSetArray(ceedDataPtr->v, mem, CEED_USE_POINTER, y_ptr);
-
-      CeedOperatorApplyAdd(ceedDataPtr->oper, ceedDataPtr->u, ceedDataPtr->v,
-                           CEED_REQUEST_IMMEDIATE);
-
-      CeedVectorSyncArray(ceedDataPtr->v, mem);
+      CeedAddMultPA(ceedDataPtr, x, y);
    }
    else
 #endif
