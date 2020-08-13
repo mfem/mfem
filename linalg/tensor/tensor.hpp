@@ -12,7 +12,7 @@
 #ifndef MFEM_TENSOR
 #define MFEM_TENSOR
 
-#include "../general/backends.hpp"
+#include "../../general/backends.hpp"
 
 namespace mfem
 {
@@ -82,7 +82,11 @@ private:
    MFEM_SHARED T data[Size<Dims...>::val];
 
 public:
-   explicit Tensor(const T &val) MFEM_HOST_DEVICE inline
+   MFEM_HOST_DEVICE
+   explicit Tensor() {}
+   
+   MFEM_HOST_DEVICE
+   explicit Tensor(const T &val)
    {
       for (size_t i = 0; i < Size<Dims...>::val; i++)
       {
@@ -90,7 +94,8 @@ public:
       }      
    }
 
-   Tensor(const Tensor &rhs) MFEM_HOST_DEVICE inline
+   MFEM_HOST_DEVICE
+   Tensor(const Tensor &rhs)
    {
       for (size_t i = 0; i < Size<Dims...>::val; i++)
       {
@@ -112,13 +117,21 @@ public:
       return data[ TensorIndex<Dims...>::eval(args...) ];
    }
 
-   Tensor<T,Dims...>& operator= (const T &val) MFEM_HOST_DEVICE inline
+   MFEM_HOST_DEVICE inline
+   Tensor<T,Dims...>& operator= (const T &val)
    {
       for (size_t i = 0; i < Size<Dims...>::val; i++)
       {
          data[i] = val;
       }
       return *this;
+   }
+
+private:
+   MFEM_HOST_DEVICE inline
+   const T& operator[] (const int i) const
+   {
+      return data[i];
    }
 
 };
