@@ -31,7 +31,7 @@ static void EADiffusionAssemble1D(const int NE,
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, NE);
-   auto A = Reshape(eadata.Write(), D1D, D1D, NE);
+   auto A = Reshape(eadata.ReadWrite(), D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, D1D, D1D, 1,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -53,7 +53,7 @@ static void EADiffusionAssemble1D(const int NE,
             {
                val += r_Gj[k1] * D(k1, e) * r_Gi[k1];
             }
-            A(i1, j1, e) = val;
+            A(i1, j1, e) += val;
          }
       }
    });
@@ -75,7 +75,7 @@ static void EADiffusionAssemble2D(const int NE,
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, Q1D, 3, NE);
-   auto A = Reshape(eadata.Write(), D1D, D1D, D1D, D1D, NE);
+   auto A = Reshape(eadata.ReadWrite(), D1D, D1D, D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, D1D, D1D, 1,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -120,7 +120,7 @@ static void EADiffusionAssemble2D(const int NE,
                                + gbi * D11 * gbj;
                      }
                   }
-                  A(i1, i2, j1, j2, e) = val;
+                  A(i1, i2, j1, j2, e) += val;
                }
             }
          }
@@ -130,8 +130,8 @@ static void EADiffusionAssemble2D(const int NE,
 
 template<int T_D1D = 0, int T_Q1D = 0>
 static void EADiffusionAssemble3D(const int NE,
-                                  const Array<double> &g,
                                   const Array<double> &b,
+                                  const Array<double> &g,
                                   const Vector &padata,
                                   Vector &eadata,
                                   const int d1d = 0,
@@ -144,7 +144,7 @@ static void EADiffusionAssemble3D(const int NE,
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, Q1D, Q1D, 6, NE);
-   auto A = Reshape(eadata.Write(), D1D, D1D, D1D, D1D, D1D, D1D, NE);
+   auto A = Reshape(eadata.ReadWrite(), D1D, D1D, D1D, D1D, D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, D1D, D1D, D1D,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -208,7 +208,7 @@ static void EADiffusionAssemble3D(const int NE,
                               }
                            }
                         }
-                        A(i1, i2, i3, j1, j2, j3, e) = val;
+                        A(i1, i2, i3, j1, j2, j3, e) += val;
                      }
                   }
                }
