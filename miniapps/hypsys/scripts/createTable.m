@@ -1,18 +1,16 @@
 function createTable()
 
-filename = 'p1e1o';
-geom = 'seg';
-
 q = 1; % q=1: L1, q=2: L2, q=3 LInf errors
+domainSize = 2;
 
-numElPerDim = [48 64 96 128 192 256 384]';
+numElPerDim = [48 64 96 128 192 256 384]' / domainSize;
 numLvls = length(numElPerDim);
 maxOrd = 4;
 data = zeros(numLvls, maxOrd);
 eoc = zeros(numLvls-1, 3);
 
 for j = 1:maxOrd
-  file = fopen([filename num2str(j) '-' geom '.txt'], 'r');
+  file = fopen([num2str(j) '.txt'], 'r');
   for i = 1:numLvls+1-j
     aux = str2num(fgets(file));
     data(i,j) = aux(q);
@@ -30,7 +28,7 @@ end
 % return
 
 file = fopen('table.txt','wt');
-fprintf(file, '\\begin{table}[h!]\n\\footnotesize{\n\\begin{tabular}{||c||c|c||c|c||c|c||c|c||}\n\\hline\n$1/h$ & $p=1$ & EOC & $p=2$ & EOC & $p=3$ & EOC & $p=4$ & EOC\\\\\n\\hline\n');
+fprintf(file, '\\begin{table}[ht!]\n\\centering\n\\begin{tabular}{||c||c|c||c|c||c|c||c|c||}\n\\hline\n$1/h$ & $p=1$ & EOC & $p=2$ & EOC & $p=3$ & EOC & $p=4$ & EOC\\\\\n\\hline\n');
 fprintf(file, '%d  & %1.2E &      & %1.2E &      & %1.2E &      & %1.2E & \\\\\n', numElPerDim(1), data(1,:));
 for i = 2 : numLvls
   switch i
@@ -66,6 +64,6 @@ e = num2str(q);
 if q==3
   e = '\\infty';
 end
-fprintf(file, ['\\hline\n\\end{tabular}\n}\n\\caption{The $\\|\\cdot\\|_{L^' e '(\\Omega)}$~errors and corresponding EOC of ...$\\mathbb Q_p$, $p \\in \\{1,\\hdots,4\\}$ solutions to the 1D advection equation with initial condition ...}\\label{tab:}\n\\end{table}']);
+fprintf(file, ['\\hline\n\\end{tabular}\n\\caption{The $\\|\\cdot\\|_{L^' e '(\\Omega)}$~errors and corresponding EOC of ...$\\mathbb Q_p$, $p \\in \\{1,\\hdots,4\\}$ solutions to the 1D ... equation with initial condition ...}\\label{tab:}\n\\end{table}']);
 fclose(file);
 end

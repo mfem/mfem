@@ -10,6 +10,7 @@ const IntegrationRule* GetElementIntegrationRule(FiniteElementSpace *fes,
    }
    ElementTransformation *eltrans = fes->GetElementTransformation(0);
    int order = eltrans->OrderGrad(el) + eltrans->Order() + el->GetOrder();
+
    return &IntRules.Get(el->GetGeomType(), order);
 }
 
@@ -41,6 +42,7 @@ const IntegrationRule *GetFaceIntegrationRule(FiniteElementSpace *fes,
    {
       order++;
    }
+
    return &IntRules.Get(Trans->FaceGeom, order);
 }
 

@@ -14,7 +14,7 @@ int main(int argc, char *argv[])
    config.tFinal = 1.;
    int odeSolverType = 3;
    double dt = 0.001;
-   const char *MeshFile = "data/unstr.mesh";
+   const char *MeshFile = "data/inline-4quad.mesh";
    int order = 3;
    int refinements = 1;
    int prefinements = 0;

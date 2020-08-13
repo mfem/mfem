@@ -5,7 +5,8 @@ DEBUG
 
 
 ROADMAP
-   -Fix Discrepancy
+   -euler w-c benchmark shows problem with mcl low order method
+   -Change quadrature rules - read up on it/use int rules as in different operators in mfem. Hexes seem off as well.
 
 
 CLEANUP

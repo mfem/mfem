@@ -216,7 +216,7 @@ int main(int argc, char *argv[])
          sol_sock << "solution\n" << mesh << attr;
          if (iter == 0 && sdim == 2)
          {
-            sol_sock << "keys 'RjlmpppppppppppppA*************'\n";
+            sol_sock << "autoscale " << "off valuerange 1 2\n" << "keys 'RjlmpppppppppppppppppppppppA*************'\n";
          }
          if (iter == 0 && sdim == 3)
          {
@@ -230,7 +230,7 @@ int main(int argc, char *argv[])
       // Ask the user if we should continue refining
       cout << "Iteration " << iter+1 << ": mesh has " << mesh.GetNE() <<
            " elements. \n";
-      if ((iter+1) % 3 == 0)
+      if ((iter+1) % 1 == 0)
       {
          if (!visualization) { break; }
          char yn;

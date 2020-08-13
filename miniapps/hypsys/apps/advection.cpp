@@ -250,7 +250,7 @@ void VelocityFunctionAdv(const Vector &x, Vector &v)
    }
 
    // Scale to be normed to a full revolution.
-   s = 2.0 * pow(s, 1./dim) * M_PI;
+   s = pow(s, 1./dim);
 
    switch (ConfigAdv.ConfigNum)
    {
@@ -259,8 +259,8 @@ void VelocityFunctionAdv(const Vector &x, Vector &v)
          switch (dim)
          {
             case 1: v(0) = s; break;
-            case 2: v(0) = s*X(1); v(1) = -s*X(0); break;
-            case 3: v(0) = s*X(1); v(1) = -s*X(0); v(2) = 0.0; break;
+            case 2: s *= 2.0 * M_PI; v(0) = s*X(1); v(1) = -s*X(0); break;
+            case 3: s *= 2.0 * M_PI; v(0) = s*X(1); v(1) = -s*X(0); v(2) = 0.0; break;
          }
          break;
       }
@@ -269,8 +269,8 @@ void VelocityFunctionAdv(const Vector &x, Vector &v)
          switch (dim)
          {
             case 1: v(0) = s; break;
-            case 2: v(0) = s * (0.5-X(1)); v(1) = s*(X(0)-0.5); break;
-            case 3: v(0) = s * (0.5-X(1)); v(1) = s*(X(0)-0.5); v(2) = 0.0; break;
+            case 2: s *= 2.0 * M_PI; v(0) = s * (0.5-X(1)); v(1) = s*(X(0)-0.5); break;
+            case 3: s *= 2.0 * M_PI; v(0) = s * (0.5-X(1)); v(1) = s*(X(0)-0.5); v(2) = 0.0; break;
          }
          break;
       }
@@ -342,9 +342,9 @@ void AnalyticalSolutionAdv(const Vector &x, double t, Vector &u)
          break;
       }
       case 2: { u(0) = r < 0.2 ? 1. : 0.; break; }
-      case 3: { u(0) = exp(-25. * r*r); break; }
-      case 4: { u(0) = abs(r - 0.3) < 0.1 ? 1. : ( (abs(r-0.7) < 0.2) ? (exp(10.)*exp(-1./(r-0.5))*exp(1./(r-0.9))) : 0. ); }
-      case 5: { u(0) = abs(r-0.25) <= 0.15 ? 0.5*(1.+cos(M_PI*(r-0.25)/0.15)) : 0.; }
+      case 3: { u(0) = exp(-25.0 * r*r); break; }
+      case 4: { u(0) = abs(r - 0.3) < 0.1 ? 1. : ( (abs(r-0.7) < 0.2) ? (exp(10.)*exp(-1./(r-0.5))*exp(1./(r-0.9))) : 0. ); break; }
+      case 5: { u(0) = abs(r-0.25) <= 0.15 ? 0.5*(1.+cos(M_PI*(r-0.25)/0.15)) : 0.; break; }
    }
 }
 
