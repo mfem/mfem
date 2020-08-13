@@ -487,7 +487,8 @@ void DofMaps::SubdomainToGlobalMapsSetup()
    // 1. Construct a list of local (to the processor) tdofs 
    //    of the global mesh for each subdomain
    std::vector<Array<int>> local_tdofs(nrsubdomains);
-   Array<int> dof_marker(pfes->GetTrueVSize());
+   // Array<int> dof_marker(pfes->GetTrueVSize());
+   Array<int> dof_marker(pfes->GetVSize());
    for (int ip = 0; ip<nrsubdomains; ++ip)
    {
       dof_marker = 0;
@@ -503,10 +504,12 @@ void DofMaps::SubdomainToGlobalMapsSetup()
             int edof_ = element_dofs[i];
             int edof = (edof_ >= 0) ? edof_ : abs(edof_) - 1;
             int tdof = pfes->GetGlobalTDofNumber(edof);
-            if (myid != get_rank(tdof,tdof_offsets)) continue;
-            if (dof_marker[tdof-mytoffset]) continue;
+            // if (myid != get_rank(tdof,tdof_offsets)) continue;
+            // if (dof_marker[tdof-mytoffset]) continue;
+            // if (dof_marker[edof]) continue;
             local_tdofs[ip].Append(tdof);
-            dof_marker[tdof-mytoffset] = 1;
+            // dof_marker[edof] = 1;
+            // dof_marker[tdof-mytoffset] = 1;
          }
       }
    }
@@ -591,15 +594,15 @@ void DofMaps::SubdomainToGlobalMapsSetup()
       if (myid != subdomain_rank[ip]) continue;
       int nrdof = fes[ip]->GetTrueVSize();
 
-      if (ip==2 && nrdof != global_tdofs[ip].Size())
-      {
-         cout << "nrdof = " << nrdof << endl;
-         cout << "global_tdofs[ip].Size() = " << global_tdofs[ip].Size() << endl;
-         cout << "ip = " << ip << endl;
-         global_tdofs[ip].Print();
-      }
+      // if (ip==2 && nrdof != global_tdofs[ip].Size())
+      // {
+      //    cout << "nrdof = " << nrdof << endl;
+      //    cout << "global_tdofs[ip].Size() = " << global_tdofs[ip].Size() << endl;
+      //    cout << "ip = " << ip << endl;
+      //    global_tdofs[ip].Print();
+      // }
 
-      MFEM_VERIFY(nrdof == global_tdofs[ip].Size(),"TrueDof list size inconsistency");
+      // MFEM_VERIFY(nrdof == global_tdofs[ip].Size(),"TrueDof list size inconsistency");
       Array<int> dof_marker(nrdof); dof_marker = 0;
       SubdomainGTrueDofs[ip].SetSize(nrdof);
       int nel = part->element_map[ip].Size();
@@ -613,12 +616,12 @@ void DofMaps::SubdomainToGlobalMapsSetup()
          {
             int edof_ = elem_dofs[i];
             int edof = (edof_ >= 0) ? edof_ : abs(edof_) - 1;
-            if (dof_marker[edof]) continue;
+            // if (dof_marker[edof]) continue;
             // rearranging dofs from serial fespace for the subdomain 
             // to the ordering of the pfespace
             SubdomainGTrueDofs[ip][edof] = global_tdofs[ip][k];
             k++;
-            dof_marker[edof] = 1;
+            // dof_marker[edof] = 1;
          }
       }
    }
