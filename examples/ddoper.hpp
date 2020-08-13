@@ -744,7 +744,11 @@ public:
                         std::vector<HypreParMatrix*> *sdcRe, std::vector<HypreParMatrix*> *sdcIm,
 #endif
 #ifdef SDFOSLS_PA
+#ifdef COARSE_PA
+                        std::vector<BlockOperator*> *coarseFOSLS,
+#else
                         std::vector<Array2D<HypreParMatrix*> > *coarseFOSLS,
+#endif
 #endif
                         const double h_, const bool partialConstructor=false);
 
@@ -777,7 +781,11 @@ public:
                        std::vector<HypreParMatrix*>& Im);
 
 #ifdef SDFOSLS_PA
+#ifdef COARSE_PA
+   void CopyFOSLSMatrices(std::vector<BlockOperator*>& A);
+#else
    void CopyFOSLSMatrices(std::vector<Array2D<HypreParMatrix*> >& A);
+#endif
 #endif
 
    void TestIFMult(const Vector & x, Vector & y) const
@@ -2000,7 +2008,12 @@ public:
                Array<int>& ess_tdof_list_E,
                ParGridFunction& Eexact, std::vector<HypreParMatrix*> const& P,
 #ifdef SDFOSLS_PA
-               Array2D<HypreParMatrix*> const& blockCoarseA, const bool fullAssembly,
+#ifdef COARSE_PA
+               BlockOperator *blockCoarseA,
+#else
+               Array2D<HypreParMatrix*> const& blockCoarseA,
+#endif
+               const bool fullAssembly,
 #endif
                const double omega_)
       : Solver(4 * fespace_->GetTrueVSize()), M_inv(comm), fespace(fespace_),
@@ -2132,7 +2145,11 @@ public:
       ParMixedBilinearForm *a_mix2 = new ParMixedBilinearForm(fespace,fespace);
 
 #ifdef SDFOSLS_PA
+#ifdef COARSE_PA
+      const bool pa = true;
+#else
       const bool pa = !fullAssembly;
+#endif
 
       if (pa)
       {
@@ -2646,8 +2663,8 @@ public:
       if (!fullAssembly)
       {
          blockgmg::BlockMGPASolver *precMG = new blockgmg::BlockMGPASolver(comm,
-                                                                           LS_Maxwellop->Height(), LS_Maxwellop->Width(), blockA, blockAcoef, blockCoarseA,
-                                                                           P, diag_pa, ess_tdof_list_empty);
+                                                                           LS_Maxwellop->Height(), LS_Maxwellop->Width(), blockA, blockAcoef,
+                                                                           blockCoarseA, P, diag_pa, ess_tdof_list_empty);
          precMG->SetTheta(0.5);
          LSpcg.SetPreconditioner(*precMG);
          LSpcg.iterative_mode = false;

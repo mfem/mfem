@@ -294,6 +294,7 @@ public:
 //#define SWTIMING
 #define SERIAL_PROLONGATION
 #define ITERATIVE_COARSE_SOLVE
+//#define COARSE_PA
 
 class BlockMGPASolver : public Solver
 {
@@ -332,7 +333,11 @@ private:
 public:
    BlockMGPASolver(MPI_Comm comm, const int height, const int width,
                    Array2D<Operator*>& Af_, Array2D<double>& Acoef_,
+#ifdef COARSE_PA
+                   BlockOperator *BlkAc,
+#else
                    Array2D<HypreParMatrix*> const& BlkAc,
+#endif
                    std::vector<HypreParMatrix *> const& P_, std::vector<Vector*> const& diag_,
                    Array<int>& ess_tdof_list)
 #ifdef SERIAL_PROLONGATION
@@ -359,7 +364,9 @@ public:
 
       numBlocks = Af.NumRows();
       MFEM_VERIFY(Af.NumCols() == numBlocks, "");
+#ifndef COARSE_PA
       MFEM_VERIFY(BlkAc.NumCols() == numBlocks && BlkAc.NumRows() == numBlocks, "");
+#endif
       numGrids = P.size();
       MFEM_VERIFY(diag.size() == numBlocks, "");
       BlkP.resize(numGrids);
@@ -416,7 +423,8 @@ public:
             }
             else
             {
-               S[k - 1]->SetBlock(i,i, new TripleProductOperator(Pt[k-1], S[k], P[k-1], false,
+               S[k - 1]->SetBlock(i,i, new TripleProductOperator(Pt[k], &(S[k]->GetBlock(i,i)),
+                                                                 P[k], false,
                                                                  false, false));   // TODO: get a diagonal on each level
             }
          }
@@ -444,12 +452,18 @@ public:
       for (int i=0; i<numBlocks; i++)
       {
          offsets[i+1]=A[0](i,i)->Height();
+#ifndef COARSE_PA
          MFEM_VERIFY(BlkAc(i,i)->Height() == A[0](i,i)->Height(), "");
          MFEM_VERIFY(BlkAc(i,i)->Width() == A[0](i,i)->Width(), "");
+#endif
       }
       offsets.PartialSum();
 
+#ifdef COARSE_PA
+      BlkA[0] = BlkAc;
+#else
       BlkA[0] = new BlockOperator(offsets);
+#endif
 
       Array2D<SparseMatrix*> Asp;
       //Array2D<double> Acoef;
@@ -459,18 +473,30 @@ public:
       {
          for (int j=0; j<numBlocks; j++)
          {
+#ifndef COARSE_PA
             MFEM_VERIFY((A[0](i,j) == NULL) == (BlkAc(i,j) == NULL), "");
 
             if (BlkAc(i,j) != NULL)
             {
                BlkA[0]->SetBlock(i, j, BlkAc(i,j), Acoef(i,j));
             }
+#endif
 
             Asp(i,j) = NULL;
             //Acoef(i,j) = 1.0;
          }
       }
 
+#ifdef COARSE_PA
+      CGSolver *cg_solver = new CGSolver();
+      cg_solver->SetAbsTol(1.0e-6);
+      cg_solver->SetRelTol(1.0e-6);
+      cg_solver->SetMaxIter(1000);
+      cg_solver->SetOperator(*BlkAc);
+      cg_solver->SetPrintLevel(0);
+      cg_solver->iterative_mode = false;
+      invAc = cg_solver;
+#else
       // Convert to HypreParMatrix
       HypreParMatrix * Ac;
 
@@ -516,12 +542,14 @@ public:
       Ac = CreateHypreParMatrixFromBlocks2(comm, offsets, BlkAc, Asp,
                                            Acoef, blockProcOffsets, all_block_num_loc_rows);
 
+
 #ifdef MFEM_USE_STRUMPACK
       invAc = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*Ac), comm);
       delete Ac;
 #else
       Ac->GetDiag(AcSp);  // AcSp does not own the data
       delete Ac;
+
 #ifdef ITERATIVE_COARSE_SOLVE
       //CGSolver *cg_solver = new CGSolver(comm);
       CGSolver *cg_solver = new CGSolver();
@@ -539,6 +567,7 @@ public:
       invAc = umf_solver;
 #endif
 #endif
+#endif  // COARSE_PA
 
       // Residual vectors
       rv.resize(numGrids + 1);
@@ -548,9 +577,6 @@ public:
       for (int i = 0; i <= numGrids ; i++)
       {
          int n = (i==0) ? invAc->Height(): BlkA[i]->Width();
-
-         rv[i].SetData(NULL);
-         zv[i].SetData(NULL);
 
          rv[i].SetSize(n);
          zv[i].SetSize(n);

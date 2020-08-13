@@ -5353,7 +5353,11 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_,
                                            std::vector<HypreParMatrix*> *sdcRe, std::vector<HypreParMatrix*> *sdcIm,
 #endif
 #ifdef SDFOSLS_PA
+#ifdef COARSE_PA
+                                           std::vector<BlockOperator*> *coarseFOSLS,
+#else
                                            std::vector<Array2D<HypreParMatrix*> > *coarseFOSLS,
+#endif
 #endif
                                            const double h_, const bool partialConstructor) :
    numSubdomains(numSubdomains_), numInterfaces(numInterfaces_), orderND(orderND_),
@@ -14179,14 +14183,26 @@ void DDMInterfaceOperator::CopySDMatrices(std::vector<HypreParMatrix*>& Re,
 
 #ifdef SDFOSLS_PA
 void DDMInterfaceOperator::CopyFOSLSMatrices(
+#ifdef COARSE_PA
+   std::vector<BlockOperator*>& A)
+#else
    std::vector<Array2D<HypreParMatrix*> >& A)
+#endif
 {
    A.resize(numSubdomains);
    for (int m=0; m<numSubdomains; ++m)
    {
+#ifdef COARSE_PA
+      A[m] = NULL;
+#endif
+
       if (cfosls[m] != NULL)
       {
+#ifdef COARSE_PA
+         A[m] = cfosls[m]->LS_Maxwellop;
+#else
          cfosls[m]->GetMatrixPointers(A[m]);
+#endif
       }
    }
 }

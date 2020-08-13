@@ -944,6 +944,10 @@ int main(int argc, char *argv[])
    chronoMain.Clear();
    chronoMain.Start();
 
+   StopWatch chronoSetup;
+   chronoSetup.Clear();
+   chronoSetup.Start();
+
    // 1. Initialize MPI.
    int num_procs, myid;
    MPI_Init(&argc, &argv);
@@ -1221,11 +1225,11 @@ int main(int argc, char *argv[])
       //int nxyzGlobal[3] = {1, 1, 1};
       //int nxyzGlobal[3] = {2, 2, 4};
       //int nxyzGlobal[3] = {1, 1, 4};
-     //int nxyzGlobal[3] = {1, 2, 1};
+      //int nxyzGlobal[3] = {1, 2, 1};
       //int nxyzGlobal[3] = {2, 2, 4};
       //int nxyzGlobal[3] = {1, 2, 2};
       //int nxyzGlobal[3] = {3, 3, 4};
-     int nxyzGlobal[3] = {4, 4, 4};
+      int nxyzGlobal[3] = {4, 4, 4};
       //int nxyzGlobal[3] = {6, 6, 6};
       //int nxyzGlobal[3] = {6, 6, 12};  // 432
       //int nxyzGlobal[3] = {6, 12, 12};  // 864
@@ -1322,7 +1326,11 @@ int main(int argc, char *argv[])
 #endif
 
 #ifdef SDFOSLS_PA
+#ifdef COARSE_PA
+   std::vector<BlockOperator*> coarseFOSLS;
+#else
    std::vector<Array2D<HypreParMatrix*> > coarseFOSLS;
+#endif
 #endif
 
    {
@@ -1356,7 +1364,7 @@ int main(int argc, char *argv[])
          ParMesh **pmeshSD_C = sdMeshGen_C.CreateParallelSubdomainMeshes();
          // TODO: isn't pmeshSD_C identical to pmeshSDcoarse? If so, just use pmeshSDcoarse and do not create pmeshSD_C.
 
-         ParFiniteElementSpace fespace_C(pmesh, fec);
+         ParFiniteElementSpace *fespace_C = new ParFiniteElementSpace(pmesh, fec);
 
 #ifdef SERIAL_INTERFACES
          Mesh **smeshInterfaces_C = (numInterfaces_C > 0 ) ? new Mesh*[numInterfaces_C] :
@@ -1379,32 +1387,37 @@ int main(int argc, char *argv[])
 #endif
                               );
 
-         std::vector<Array2D<HypreParMatrix*> > dummyCoarseFOSLS(numSubdomains);
-
-         DDMInterfaceOperator ddiC(numSubdomains, numInterfaces_C, pmesh, &fespace_C,
-                                   pmeshSD_C,
-#ifdef SERIAL_INTERFACES
-                                   smeshInterfaces_C, interfaceFaceOffset_C,
+#ifdef COARSE_PA
+         std::vector<BlockOperator*> dummyCoarseFOSLS(numSubdomains);
 #else
-                                   pmeshInterfaces_C,
+         std::vector<Array2D<HypreParMatrix*> > dummyCoarseFOSLS(numSubdomains);
 #endif
-                                   order, pmesh->Dimension(),
-                                   &interfaces_C, &interfaceGlobalToLocalMap_C, -SIGMAVAL,
+
+         DDMInterfaceOperator *ddiC = new DDMInterfaceOperator(numSubdomains,
+                                                               numInterfaces_C, pmesh, fespace_C,
+                                                               pmeshSD_C,
+#ifdef SERIAL_INTERFACES
+                                                               smeshInterfaces_C, interfaceFaceOffset_C,
+#else
+                                                               pmeshInterfaces_C,
+#endif
+                                                               order, pmesh->Dimension(),
+                                                               &interfaces_C, &interfaceGlobalToLocalMap_C, -SIGMAVAL,
 #ifdef GPWD
-                                   1,
+                                                               1,
 #endif
 #ifdef SD_ITERATIVE_GMG
-                                   sdP, NULL, NULL,  // not used here
+                                                               sdP, NULL, NULL,  // not used here
 #endif
 #ifdef SDFOSLS_PA
-                                   &dummyCoarseFOSLS,  // not used here
+                                                               &dummyCoarseFOSLS,  // not used here
 #endif
-                                   1.0, true);  // hmin value not relevant here
+                                                               1.0, true);  // hmin value not relevant here
 
 #ifdef SDFOSLS_PA
-         ddiC.CopyFOSLSMatrices(coarseFOSLS);
+         ddiC->CopyFOSLSMatrices(coarseFOSLS);
 #else
-         ddiC.CopySDMatrices(sdcRe, sdcIm);
+         ddiC->CopySDMatrices(sdcRe, sdcIm);
 #endif
 
          for (int i=0; i<numInterfaces_C; ++i)
@@ -1422,12 +1435,16 @@ int main(int argc, char *argv[])
          delete pmeshInterfaces_C;
 #endif
 
+#ifndef COARSE_PA
          for (int sd=0; sd<numSubdomains; ++sd)
          {
             delete pmeshSD_C[sd];
          }
 
          delete pmeshSD_C;
+         delete fespace_C;
+         delete ddiC;
+#endif
       }
 #endif
 
@@ -2133,6 +2150,12 @@ int main(int argc, char *argv[])
      pmeshInterfaces[0]->Print(mesh_ofs);
    }
    */
+
+   chronoSetup.Stop();
+   if (myid == 0)
+   {
+      cout << myid << ": Total setup timing " << chronoSetup.RealTime() << endl;
+   }
 
    StopWatch chronoDDC;
    chronoDDC.Clear();
