@@ -13,8 +13,9 @@
 #define MFEM_TENSOR_CWISEMULT
 
 #include "tensor.hpp"
-#include "../general/backends.hpp"
+#include "../../general/backends.hpp"
 #include "../dtensor.hpp"
+#include <utility>
 
 namespace mfem
 {
@@ -29,7 +30,7 @@ auto CWiseMult(const Tensor<T1,Q> &D, const Tensor<T2,Q> &u)
    {
       Du(q) = D(q) * u(q);
    }
-   return Du;
+   return std::move(Du);
 }
 
 // 3D tensor coefficient-wise multiplication
@@ -48,7 +49,7 @@ auto CWiseMult(const Tensor<T1,Q1d,Q1d,Q1d> &D, const Tensor<T2,Q1d,Q1d,Q1d> &u)
          }
       }
    }
-   return Du;
+   return std::move(Du);
 }
 
 // 2D tensor coefficient-wise multiplication
@@ -64,7 +65,7 @@ auto CWiseMult(const Tensor<T1,Q1d,Q1d> &D, const Tensor<T2,Q1d,Q1d> &u)
          Du(qx,qy) = D(qx,qy) * u(qx,qy);
       }
    }
-   return Du;
+   return std::move(Du);
 }
 
 } // namespace mfem

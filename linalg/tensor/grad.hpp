@@ -13,7 +13,7 @@
 #define MFEM_TENSOR_GRAD
 
 #include "tensor.hpp"
-#include "../general/backends.hpp"
+#include "../../general/backends.hpp"
 #include "../dtensor.hpp"
 
 namespace mfem
@@ -50,7 +50,7 @@ Tensor<dTensor<Dim>,Q>&& Gradient(const dTensor<Q,D> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return gu_q;
+   return std::move(gu_q);
 }
 
 // Non-tensor case with VDim components
@@ -99,7 +99,7 @@ Tensor<dTensor<Dim,VDim>,Q>&& Gradient(const dTensor<Q,D> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return gu_q;
+   return std::move(gu_q);
 }
 
 // 3D Tensor case
@@ -189,7 +189,7 @@ Tensor<dTensor<3>,Q1d,Q1d,Q1d>&& Gradient(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return gu_q;
+   return std::move(gu_q);
 }
 
 // 3D Tensor case with VDim components
@@ -314,7 +314,7 @@ Tensor<dTensor<VDim,3>,Q1d,Q1d,Q1d>&& Gradient(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return gu_q;
+   return std::move(gu_q);
 }
 
 // 2D Tensor case
@@ -365,7 +365,7 @@ Tensor<dTensor<2>,Q1d,Q1d>&& Gradient(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return gu_q;
+   return std::move(gu_q);
 }
 
 // 2D Tensor case with VDim components
@@ -438,7 +438,7 @@ Tensor<dTensor<VDim,2>,Q1d,Q1d>&& Gradient(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return gu_q;
+   return std::move(gu_q);
 }
 
 // 1D Tensor case
@@ -460,7 +460,7 @@ dTensor<Q1d>&& Gradient(const dTensor<Q1d,D1d> &B,
       gu_q(qx) = gu;
    }
    MFEM_SYNC_THREAD;
-   return gu_q;
+   return std::move(gu_q);
 }
 
 // 1D Tensor case with VDim components
@@ -492,7 +492,7 @@ Tensor<dTensor<VDim>,Q1d>&& Gradient(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return gu_q;
+   return std::move(gu_q);
 }
 
 // Functions to interpolate the gradient from degrees of freedom to derivatives
@@ -526,7 +526,7 @@ Tensor<dTensor<Dim>,D>&& GradientT(const dTensor<Q,D> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return gu;
+   return std::move(gu);
 }
 
 // Non-tensor case with VDim components
@@ -575,7 +575,7 @@ Tensor<dTensor<Dim,VDim>,D>&& GradientT(const dTensor<Q,D> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return gu;
+   return std::move(gu);
 }
 
 // 3D Tensor case
@@ -665,7 +665,7 @@ Tensor<dTensor<3>,D1d,D1d,D1d>&& GradientT(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return gu;
+   return std::move(gu);
 }
 
 // 3D Tensor case with VDim components
@@ -790,7 +790,7 @@ Tensor<dTensor<VDim,3>,D1d,D1d,D1d>&& GradientT(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return gu;
+   return std::move(gu);
 }
 
 // 2D Tensor case
@@ -820,7 +820,7 @@ Tensor<dTensor<2>,D1d,D1d>&& GradientT(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   Tensor<dTensor<2>,D1d,D1d> u;
+   Tensor<dTensor<2>,D1d,D1d> gu_t;
    MFEM_FOREACH_THREAD(dx,x,D1d)
    {
       MFEM_FOREACH_THREAD(dy,y,D1d)
@@ -836,12 +836,12 @@ Tensor<dTensor<2>,D1d,D1d>&& GradientT(const dTensor<Q1d,D1d> &B,
             gbu += g * bu;
             bgu += b * gu;
          }
-         u(dx,dy)(0) = bgu;
-         u(dx,dy)(1) = gbu;
+         gu_t(dx,dy)(0) = bgu;
+         gu_t(dx,dy)(1) = gbu;
       }
    }
    MFEM_SYNC_THREAD;
-   return u;
+   return std::move(gu_t);
 }
 
 // 2D Tensor case with VDim components
@@ -914,7 +914,7 @@ Tensor<dTensor<VDim,2>,D1d,D1d>&& GradientT(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return gu_t;
+   return std::move(gu_t);
 }
 
 // 1D Tensor case
@@ -936,7 +936,7 @@ dTensor<D1d>&& GradientT(const dTensor<Q1d,D1d> &B,
       gu_t(dx) = gu;
    }
    MFEM_SYNC_THREAD;
-   return gu_t;
+   return std::move(gu_t);
 }
 
 // 1D Tensor case with VDim components
@@ -945,7 +945,7 @@ Tensor<dTensor<VDim>,D1d>&& GradientT(const dTensor<Q1d,D1d> &B,
                                       const dTensor<Q1d,D1d> &G,
                                       const Tensor<dTensor<VDim>,Q1d> &u_q)
 {
-   Tensor<dTensor<VDim>,D1d> gu_q;
+   Tensor<dTensor<VDim>,D1d> gu_t;
    MFEM_FOREACH_THREAD(dx,x,D1d)
    {
       double gu[VDim];
@@ -964,11 +964,11 @@ Tensor<dTensor<VDim>,D1d>&& GradientT(const dTensor<Q1d,D1d> &B,
       }
       for (int c = 0; c < VDim; c++)
       {
-         gu_q(dx)(c) = gu[c];
+         gu_t(dx)(c) = gu[c];
       }
    }
    MFEM_SYNC_THREAD;
-   return gu_q;
+   return std::move(gu_t);
 }
 
 } // namespace mfem
