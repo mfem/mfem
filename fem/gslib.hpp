@@ -133,7 +133,7 @@ public:
                               @a field_in is in H1 and in the same space as the
                               mesh that was given to Setup().
        @param[out] field_out  Interpolated values. For points that are not found
-                              the value is set to @a default_interp_value */
+                              the value is set to #default_interp_value. */
    void Interpolate(const GridFunction &field_in, Vector &field_out);
    /** Search positions and interpolate */
    void Interpolate(const Vector &point_pos, const GridFunction &field_in,
