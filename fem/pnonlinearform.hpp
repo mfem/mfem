@@ -82,6 +82,8 @@ protected:
    mutable BlockOperator *pBlockGrad;
 
 public:
+   virtual double GetEnergy(const Vector &x) const override;
+
    /// Construct an empty ParBlockNonlinearForm. Initialize with SetParSpaces().
    ParBlockNonlinearForm() : pBlockGrad(NULL) { }
 
