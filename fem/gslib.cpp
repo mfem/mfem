@@ -31,7 +31,7 @@ namespace mfem
 FindPointsGSLIB::FindPointsGSLIB()
    : mesh(NULL), meshsplit(NULL), ir_simplex(NULL), fdata2D(NULL), fdata3D(NULL),
      dim(-1), points_cnt(0), setupflag(false), cr(NULL), gsl_comm(NULL),
-     avgtype(GridFunction::ARITHMETIC)
+     default_interp_value(0), avgtype(GridFunction::ARITHMETIC)
 {
    gsl_comm = new comm;
    cr       = new crystal;
@@ -58,7 +58,7 @@ FindPointsGSLIB::~FindPointsGSLIB()
 FindPointsGSLIB::FindPointsGSLIB(MPI_Comm _comm)
    : mesh(NULL), meshsplit(NULL), ir_simplex(NULL), fdata2D(NULL), fdata3D(NULL),
      dim(-1), points_cnt(0), setupflag(false), cr(NULL), gsl_comm(NULL),
-     avgtype(GridFunction::ARITHMETIC)
+     default_interp_value(0), avgtype(GridFunction::ARITHMETIC)
 {
    gsl_comm = new comm;
    cr      = new crystal;
@@ -646,6 +646,7 @@ void FindPointsGSLIB::InterpolateH1(const GridFunction &field_in,
              points_cnt = gsl_code.Size();
 
    field_out.SetSize(points_cnt*ncomp);
+   field_out = default_interp_value;
 
    for (int i = 0; i < ncomp; i++)
    {
@@ -683,6 +684,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
        npt     = points_cnt;
 
    field_out.SetSize(points_cnt*ncomp);
+   field_out = default_interp_value;
 
    if (gsl_comm->np == 1) // serial
    {
