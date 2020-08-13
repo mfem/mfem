@@ -97,7 +97,6 @@ static void InitCeedNonTensorBasisAndRestriction(const FiniteElementSpace &fes,
    Vector qweight(Q);
    Vector shape_i(P);
    DenseMatrix grad_i(P, dim);
-
    CeedInt compstride = fes.GetOrdering()==Ordering::byVDIM ? 1 : fes.GetNDofs();
    const Table &el_dof = fes.GetElementToDofTable();
    Array<int> tp_el_dof(el_dof.Size_of_connections());
@@ -178,13 +177,16 @@ static void InitCeedNonTensorBasisAndRestriction(const FiniteElementSpace &fes,
          }
       }
    }
-   CeedBasisCreateH1(ceed, GetCeedTopology(fe->GetGeomType()), fes.GetVDim(),
-                     fe->GetDof(), ir.GetNPoints(), shape.GetData(),
-                     grad.GetData(), qref.GetData(), qweight.GetData(), basis);
-   CeedElemRestrictionCreate(ceed, mesh->GetNE(), fe->GetDof(), fes.GetVDim(),
-                             compstride, (fes.GetVDim())*(fes.GetNDofs()),
-                             CEED_MEM_HOST, CEED_COPY_VALUES,
-                             tp_el_dof.GetData(), restr);
+   if (basis)
+      CeedBasisCreateH1(ceed, GetCeedTopology(fe->GetGeomType()), fes.GetVDim(),
+                        fe->GetDof(), ir.GetNPoints(), shape.GetData(),
+                        grad.GetData(), qref.GetData(), qweight.GetData(), basis);
+
+   if (restr)
+      CeedElemRestrictionCreate(ceed, mesh->GetNE(), fe->GetDof(), fes.GetVDim(),
+                                compstride, (fes.GetVDim())*(fes.GetNDofs()),
+                                CEED_MEM_HOST, CEED_COPY_VALUES,
+                                tp_el_dof.GetData(), restr);
 }
 
 static void InitCeedTensorBasisAndRestriction(const FiniteElementSpace &fes,
@@ -223,11 +225,14 @@ static void InitCeedTensorBasisAndRestriction(const FiniteElementSpace &fes,
          grad1d(j, i) = grad_i(dof_map_1d[j], 0);
       }
    }
-   CeedBasisCreateTensorH1(ceed, mesh->Dimension(), fes.GetVDim(), order + 1,
-                           ir.GetNPoints(), shape1d.GetData(),
-                           grad1d.GetData(), qref1d.GetData(),
-                           qweight1d.GetData(), basis);
+   if (basis)
+      CeedBasisCreateTensorH1(ceed, mesh->Dimension(), fes.GetVDim(), order + 1,
+                              ir.GetNPoints(), shape1d.GetData(),
+                              grad1d.GetData(), qref1d.GetData(),
+                              qweight1d.GetData(), basis);
 
+   if (!restr)
+      return;
    CeedInt compstride = fes.GetOrdering()==Ordering::byVDIM ? 1 : fes.GetNDofs();
    const Table &el_dof = fes.GetElementToDofTable();
    Array<int> tp_el_dof(el_dof.Size_of_connections());
