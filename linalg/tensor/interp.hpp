@@ -21,7 +21,7 @@ namespace mfem
 {
 
 // Functions to interpolate from degrees of freedom to quadrature points
-// Non-tensor case
+// Non-tensor and 1D cases
 template<int D, int Q> MFEM_HOST_DEVICE inline
 dTensor<Q>&& Interpolate(const dTensor<Q,D> &B,
                          const dTensor<D> &u)
@@ -33,7 +33,8 @@ dTensor<Q>&& Interpolate(const dTensor<Q,D> &B,
       for (int d = 0; d < D; ++d)
       {
          const double b = B(q,d);
-         v += b * u(d);
+         const double x = u(d);
+         v += b * x;
       }
       u_q(q) = v;
    }
@@ -327,27 +328,6 @@ Tensor<dTensor<VDim>,Q1d,Q1d>&& Interpolate(const dTensor<Q1d,D1d> &B,
             u_q(qx,qy)(c) = val[c];
          }
       }
-   }
-   MFEM_SYNC_THREAD;
-   return std::move(u_q);
-}
-
-// 1D Tensor case
-template<int Q1d, int D1d> MFEM_HOST_DEVICE inline
-dTensor<Q1d>&& Interpolate(const dTensor<Q1d,D1d> &B,
-                           const dTensor<D1d> &u)
-{
-   dTensor<Q1d> u_q;
-   MFEM_FOREACH_THREAD(qx,x,Q1d)
-   {
-      double val = 0.0;
-      for (int dx = 0; dx < D1d; ++dx)
-      {
-         const double b = B(qx,dx);
-         const double x = u(dx);
-         val += b * x;
-      }
-      u_q(qx) = val;
    }
    MFEM_SYNC_THREAD;
    return std::move(u_q);
