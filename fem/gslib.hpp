@@ -100,27 +100,26 @@ public:
    void Setup(Mesh &m, const double bb_t = 0.1, const double newt_tol = 1.0e-12,
               const int npt_max = 256);
 
-   /** Searches positions given in physical space by @a point_pos. All output
-       Arrays and Vectors are expected to have the correct size.
-       @param[in]  point_pos       Positions to be found. Must by ordered by nodes
-                                   (XXX...,YYY...,ZZZ).
-       @param[out] gsl_codes       Return codes for each point: inside element (0),
-                                   element boundary (1), not found (2).
-       @param[out] gsl_proc        MPI proc ids where the points were found.
-       @param[out] gsl_elem        Element ids where the points were found.
-                                   Defaults to 0 for points that were not found.
-       @param[out] gsl_mfem_elem   Element ids corresponding to MFEM-mesh
-                                   where the points were found.
-                                   @a gsl_mfem_elem != @a gsl_elem for simplices
-                                   Defaults to 0 for points that were not found.
-       @param[out] gsl_ref         Reference coordinates of the found point.
-                                   Ordered by vdim (XYZ,XYZ,XYZ...).
-                                   Note: the gslib reference frame is [-1,1].
-                                   Defaults to -1 for points that were not found.
-       @param[out] gsl_mfem_ref    Reference coordinates @a gsl_ref mapped to [0,1].
-                                   Defaults to 0 for points that were not found.
-       @param[out] gsl_dist        Distance between the sought and the found point
-                                   in physical space. */
+   /** Searches positions given in physical space by @a point_pos. This function
+       populates the following Class variables:
+       #point_pos       Positions to be found. Must by ordered by nodes:
+                        (XXX...,YYY...,ZZZ).
+       #gsl_code        Return codes for each point: inside element (0),
+                        element boundary (1), not found (2).
+       #gsl_proc        MPI proc ids where the points were found.
+       #gsl_elem        Element ids where the points were found.
+                        Defaults to 0 for points that were not found.
+       #gsl_mfem_elem   Element ids corresponding to MFEM-mesh where the points
+                        were found. #gsl_mfem_elem != #gsl_elem for simplices
+                        Defaults to 0 for points that were not found.
+       #gsl_ref         Reference coordinates of the found point.
+                        Ordered by vdim (XYZ,XYZ,XYZ...). Defaults to -1 for
+                        points that were not found. Note: the gslib reference
+                        frame is [-1,1].
+       #gsl_mfem_ref    Reference coordinates #gsl_ref mapped to [0,1].
+                        Defaults to 0 for points that were not found.
+       #gsl_dist        Distance between the sought and the found point
+                        in physical space. */
    void FindPoints(const Vector &point_pos);
    /// Setup FindPoints and search positions
    void FindPoints(Mesh &m, const Vector &point_pos, const double bb_t = 0.1,
