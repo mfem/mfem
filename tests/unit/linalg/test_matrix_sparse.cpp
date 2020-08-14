@@ -35,8 +35,6 @@ TEST_CASE("SparseMatrixAbsMult", "[SparseMatrixAbsMult]")
       a.AddDomainIntegrator(new VectorFEDivergenceIntegrator);
       a.Assemble();
       a.Finalize();
-      a.Assemble();
-      a.Finalize();
 
       SparseMatrix &A = a.SpMat();
       SparseMatrix *Aabs = new SparseMatrix(A);
