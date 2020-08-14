@@ -291,9 +291,10 @@ public:
 
 };
 
-//#define SWTIMING
+#define SWTIMING
 #define SERIAL_PROLONGATION
 #define ITERATIVE_COARSE_SOLVE
+#define SPARSE_JACOBI
 //#define COARSE_PA
 
 class BlockMGPASolver : public Solver
@@ -329,6 +330,10 @@ private:
 
    mutable std::vector<Vector> rv, zv;
    mutable Vector u, v, w;
+
+   Vector diagAc;
+   Array<int> emptyEssDof;
+   OperatorJacobiSmoother *JacobiAc;
 
 public:
    BlockMGPASolver(MPI_Comm comm, const int height, const int width,
@@ -559,6 +564,11 @@ public:
       cg_solver->SetOperator(AcSp);
       cg_solver->SetPrintLevel(0);
       cg_solver->iterative_mode = false;
+#ifdef SPARSE_JACOBI
+      AcSp.GetDiag(diagAc);
+      JacobiAc = new OperatorJacobiSmoother(diagAc, emptyEssDof);
+      cg_solver->SetPreconditioner(*JacobiAc);
+#endif
       invAc = cg_solver;
 #else
       UMFPackSolver *umf_solver = new UMFPackSolver();
