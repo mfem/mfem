@@ -806,7 +806,7 @@ void SparseMatrix::AbsMult(const Vector &x, Vector &y) const
          double b = 0.0;
          for ( ; row != NULL; row = row->Prev)
          {
-            b += fabs(row->Value) * xp[row->Column];
+            b += std::abs(row->Value) * xp[row->Column];
          }
          *yp += b;
          yp++;
@@ -827,7 +827,7 @@ void SparseMatrix::AbsMult(const Vector &x, Vector &y) const
       const int end = d_I[i+1];
       for (int j = d_I[i]; j < end; j++)
       {
-         d += fabs(d_A[j]) * d_x[d_J[j]];
+         d += std::abs(d_A[j]) * d_x[d_J[j]];
       }
       d_y[i] += d;
    });
@@ -873,7 +873,7 @@ void SparseMatrix::AbsMultTranspose(const Vector &x, Vector &y) const
          for (int j = I[i]; j < end; j++)
          {
             const int Jj = J[j];
-            y[Jj] += fabs(A[j]) * xi;
+            y[Jj] += std::abs(A[j]) * xi;
          }
       }
    }
