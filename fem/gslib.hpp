@@ -44,20 +44,22 @@ namespace mfem
  */
 class FindPointsGSLIB
 {
+public:
+   enum AvgType {NONE, ARITHMETIC, HARMONIC}; // Average type for L2 functions
+
 protected:
    Mesh *mesh, *meshsplit;
-   IntegrationRule *ir_simplex; // IntegrationRule to split quads/hex -> simplex
-   struct findpts_data_2 *fdata2D; // pointer to gslib's
-   struct findpts_data_3 *fdata3D; // internal data
+   IntegrationRule *ir_simplex;    // IntegrationRule to split quads/hex -> simplex
+   struct findpts_data_2 *fdata2D; // gslib's internal data
+   struct findpts_data_3 *fdata3D; // gslib's internal data
+   struct crystal *cr;             // gslib's internal data
+   struct comm *gsl_comm;          // gslib's internal data
    int dim, points_cnt;
    Array<unsigned int> gsl_code, gsl_proc, gsl_elem, gsl_mfem_elem;
    Vector gsl_mesh, gsl_ref, gsl_dist, gsl_mfem_ref;
-   bool setupflag;
-   struct crystal *cr;
-   struct comm *gsl_comm;
-   double default_interp_value;
-
-   GridFunction::AvgType avgtype;
+   bool setupflag;              // flag to indicate wether gslib data has been setup
+   double default_interp_value; // used for points that are not found in the mesh
+   AvgType avgtype;             // average type used for L2 functions
 
    /// Get GridFunction from MFEM format to GSLIB format
    void GetNodeValues(const GridFunction &gf_in, Vector &node_vals);
@@ -140,8 +142,8 @@ public:
                     const GridFunction &field_in, Vector &field_out);
 
    /// Average type to be used for L2 functions in-case a point is located at
-   /// an element boundary where the function might not have a unique value.
-   void SetL2AvgType(GridFunction::AvgType avgtype_) { avgtype = avgtype_; }
+   /// an element boundary where the function might multi-valued.
+   void SetL2AvgType(AvgType avgtype_) { avgtype = avgtype_; }
 
    /// Set the default interpolation value for points that are not found in the
    /// mesh.
