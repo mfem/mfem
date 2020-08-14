@@ -285,7 +285,8 @@ int main(int argc, char *argv[])
       y1.SetVector(y1_re,0);
       y1.SetVector(y1_im,fespace->GetTrueVSize());
       
-      S.Mult(y1,X);
+      // S.Mult(y1,X);
+      S.Mult(B,X);
 
       // if (visualization)
       // {

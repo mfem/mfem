@@ -142,14 +142,72 @@ void ParDST::Mult(const Vector &r, Vector &z) const
 
    char vishost[] = "localhost";
    int  visport   = 19916;
-   int ip=0;
 
-   if (myid == SubdomainRank[ip])
+   // for (int ip = 0; ip<nrsubdomains; ip++)
+   // {
+   //    if (myid == SubdomainRank[ip])
+   //    {
+   //       socketstream sol_sock_re(vishost, visport);
+   //       PlotLocal(*f_orig_re[ip],sol_sock_re,ip);
+   //       socketstream sol_sock_im(vishost, visport);
+   //       PlotLocal(*f_orig_im[ip],sol_sock_im,ip);
+   //    }
+   // }
+
+
+   z = 0.0; 
+   int nsteps;
+   switch(dim)
    {
-      socketstream sol_sock_re(vishost, visport);
-      PlotLocal(*f_orig_re[ip],sol_sock_re,ip);
-      socketstream sol_sock_im(vishost, visport);
-      PlotLocal(*f_orig_im[ip],sol_sock_im,ip);
+      case 1: nsteps = nx; break;
+      case 2: nsteps = nx+ny-1; break;
+      default: nsteps = nx+ny+nz-2; break;
+   }
+   int nsweeps = sweeps->nsweeps;
+   // for (int l=0; l<nsweeps; l++)
+   for (int l=0; l<1; l++)
+   {  
+      for (int s = 0; s<nsteps; s++)
+      {
+         Array2D<int> subdomains;
+         GetStepSubdomains(l,s,subdomains);
+         int nsubdomains = subdomains.NumRows();
+         for (int sb=0; sb< nsubdomains; sb++)
+         {
+            Array<int> ijk(dim); ijk = 0;
+            for (int d=0; d<dim; d++) ijk[d] = subdomains[sb][d]; 
+            int ip = GetSubdomainId(nxyz,ijk);
+            if (myid != SubdomainRank[ip]) continue;
+
+            int n = dmaps->fes[ip]->GetTrueVSize();
+            Vector res_re(n); res_re = 0.0;
+            Vector res_im(n); res_im = 0.0;
+            if (l==0) 
+            {
+               res_re += *f_orig_re[ip];
+               res_im += *f_orig_im[ip];
+            }
+            res_re += *f_transf_re[ip][l];
+            res_im += *f_transf_im[ip][l];
+
+            Vector res_local(2*n);
+            Vector sol_local(2*n);
+            res_local.SetVector(res_re,0);
+            res_local.SetVector(res_im,n);
+            PmlMatInv[ip]->Mult(res_local, sol_local);
+            Vector sol_re;
+            double * data = sol_local.GetData();
+            sol_re.SetDataAndSize(data,n);
+            Vector sol_im;
+            sol_im.SetDataAndSize(&data[n],n);
+            {
+               socketstream sol_sock_re(vishost, visport);
+               PlotLocal(sol_re,sol_sock_re,ip);
+               socketstream sol_sock_im(vishost, visport);
+               PlotLocal(sol_im,sol_sock_im,ip);
+            }
+         }
+      }
    }
 }
 
@@ -443,6 +501,65 @@ void ParDST::PlotLocal(Vector & sol, socketstream & sol_sock, int ip) const
    string keys;
    keys = "keys mrRljc\n";
    sol_sock << "solution\n" << *mesh << gf << keys << flush;
+}
+
+
+void ParDST::GetStepSubdomains(const int sweep, const int step, Array2D<int> & subdomains) const
+{
+   Array<int> aux;
+   switch(dim)
+   {
+      case 2: 
+      for (int i=nx-1;i>=0; i--)
+      {  
+         int j;
+         switch (sweep)
+         {
+            case 0:  j = step-i;         break;
+            case 1:  j = step-nx+i+1;    break;
+            case 2:  j = nx+i-step-1;    break;
+            default: j = nx+ny-i-step-2; break;
+         }
+         if (j<0 || j>=ny) continue;
+         aux.Append(i); aux.Append(j);
+      }
+      break; 
+      default:
+      for (int i=nx-1;i>=0; i--)
+      {  
+         for (int j=ny-1;j>=0; j--)
+         {
+            int k;
+            switch (sweep)
+            {
+               case 0:  k = step-i-j;            break;
+               case 1:  k = step-nx+i+1-j;       break;
+               case 2:  k = step-ny+j+1-i;       break;
+               case 3:  k = step-nx-ny+i+j+2;    break;
+               case 4:  k = i+j+nz-1-step;       break;
+               case 5:  k = nx+nz-i+j-step-2;    break;
+               case 6:  k = ny+nz+i-j-step-2;    break;
+               default: k = nx+ny+nz-i-j-step-3; break;
+            }
+            if (k<0 || k>=nz) continue;   
+            aux.Append(i); aux.Append(j); aux.Append(k); 
+         }
+      }
+      break;
+   }
+
+   int nrows = aux.Size()/dim;
+   int ncols = dim;
+
+   subdomains.SetSize(nrows,ncols);
+   for (int r=0;r<nrows; r++)
+   {
+      for (int c=0; c<ncols; c++)
+      {
+         int k = r*ncols + c;
+         subdomains[r][c] = aux[k];
+      }
+   }
 }
 
 ParDST::~ParDST() {}

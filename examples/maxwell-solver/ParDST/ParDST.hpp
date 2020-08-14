@@ -131,6 +131,7 @@ private:
    void SetMaxwellPmlSystemMatrix(int ip);
    void GetChiRes(Vector & res, int ip, Array2D<int> direct) const;
    void PlotLocal(Vector & sol, socketstream & sol_sock, int ip) const;
+   void GetStepSubdomains(const int sweep, const int step, Array2D<int> & subdomains) const;
 
 public:
    ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
