@@ -327,6 +327,11 @@ if (MFEM_USE_UMPIRE)
    find_package(UMPIRE REQUIRED)
 endif()
 
+# Caliper
+if (MFEM_USE_CALIPER)
+  find_package(Caliper REQUIRED)
+endif()
+
 # ADIOS2 for parallel I/O
 if (MFEM_USE_ADIOS2)
    find_package(ADIOS2 REQUIRED)
