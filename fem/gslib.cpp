@@ -607,7 +607,7 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
 
       Vector field_out_l2(field_out.Size());
       VectorGridFunctionCoefficient field_in_dg(&field_in);
-      int gf_order_h1 = std::max(gf_order, 0); // H1 should be atleast order 1
+      int gf_order_h1 = std::max(gf_order, 1); // H1 should be atleast order 1
       H1_FECollection fec(gf_order_h1, dim);
       const int ncomp = field_in.FESpace()->GetVDim();
       FiniteElementSpace fes(mesh, &fec, ncomp);
