@@ -663,7 +663,7 @@ The specific libraries and their options are:
   URL: https://github.com/CEED/libCEED
        https://ceed.exascaleproject.org/libceed
   Options: CEED_DIR, CEED_OPT, CEED_LIB.
-  Versions: libCEED >= 0.6, git-hash a970f63.
+  Versions: libCEED > 0.6, git-hash fe5822c.
 
 - RAJA (optional), used when MFEM_USE_RAJA = YES.
   Beginning with MFEM v4.1, only RAJA v0.10.0+ is supported.
