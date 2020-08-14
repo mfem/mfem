@@ -29,9 +29,10 @@ namespace mfem
 {
 
 FindPointsGSLIB::FindPointsGSLIB()
-   : mesh(NULL), meshsplit(NULL), ir_simplex(NULL), fdata2D(NULL), fdata3D(NULL),
-     dim(-1), points_cnt(0), setupflag(false), cr(NULL), gsl_comm(NULL),
-     default_interp_value(0), avgtype(GridFunction::ARITHMETIC)
+   : mesh(NULL), meshsplit(NULL), ir_simplex(NULL),
+     fdata2D(NULL), fdata3D(NULL), cr(NULL), gsl_comm(NULL),
+     dim(-1), points_cnt(0), setupflag(false), default_interp_value(0),
+     avgtype(AvgType::ARITHMETIC)
 {
    gsl_comm = new comm;
    cr       = new crystal;
@@ -56,9 +57,10 @@ FindPointsGSLIB::~FindPointsGSLIB()
 
 #ifdef MFEM_USE_MPI
 FindPointsGSLIB::FindPointsGSLIB(MPI_Comm _comm)
-   : mesh(NULL), meshsplit(NULL), ir_simplex(NULL), fdata2D(NULL), fdata3D(NULL),
-     dim(-1), points_cnt(0), setupflag(false), cr(NULL), gsl_comm(NULL),
-     default_interp_value(0), avgtype(GridFunction::ARITHMETIC)
+   : mesh(NULL), meshsplit(NULL), ir_simplex(NULL),
+     fdata2D(NULL), fdata3D(NULL), cr(NULL), gsl_comm(NULL),
+     dim(-1), points_cnt(0), setupflag(false), default_interp_value(0),
+     avgtype(AvgType::ARITHMETIC)
 {
    gsl_comm = new comm;
    cr      = new crystal;
@@ -589,7 +591,7 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
    else
    {
       InterpolateGeneral(field_in, field_out);
-      if (!fec_l2) { return; }
+      if (!fec_l2 || avgtype == AvgType::NONE) { return; }
    }
 
    // For points on element borders, project the L2 GridFunction to H1 and
@@ -605,16 +607,17 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
 
       Vector field_out_l2(field_out.Size());
       VectorGridFunctionCoefficient field_in_dg(&field_in);
-      H1_FECollection fec(gf_order, dim);
+      int gf_order_h1 = std::max(gf_order, 0); // H1 should be atleast order 1
+      H1_FECollection fec(gf_order_h1, dim);
       const int ncomp = field_in.FESpace()->GetVDim();
       FiniteElementSpace fes(mesh, &fec, ncomp);
       GridFunction field_in_h1(&fes);
 
-      if (avgtype == GridFunction::AvgType::ARITHMETIC)
+      if (avgtype == AvgType::ARITHMETIC)
       {
          field_in_h1.ProjectDiscCoefficient(field_in_dg, GridFunction::ARITHMETIC);
       }
-      else if (avgtype == GridFunction::AvgType::HARMONIC)
+      else if (avgtype == AvgType::HARMONIC)
       {
          field_in_h1.ProjectDiscCoefficient(field_in_dg, GridFunction::HARMONIC);
       }
@@ -623,7 +626,7 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
          MFEM_ABORT("Invalid averaging type.");
       }
 
-      if (gf_order == mesh_order) // basis is GaussLobatto by default
+      if (gf_order_h1 == mesh_order) // basis is GaussLobatto by default
       {
          InterpolateH1(field_in_h1, field_out_l2);
       }
