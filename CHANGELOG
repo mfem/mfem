@@ -114,7 +114,7 @@ Linear and nonlinear solvers
 - Added support for the SLEPc eigensolver package.
 
 - Added partially assembled convergent diagonal preconditioner for adaptively
-  refined meshes (i.e. non-conforming finite element spaces), see example 6/6p.
+  refined meshes (i.e. non-conforming finite element spaces), see Example 6/6p.
 
 New and updated examples and miniapps
 -------------------------------------
