@@ -95,9 +95,12 @@ private:
    MPI_Comm comm = MPI_COMM_WORLD;
    int num_procs, myid;
    // Constructor inputs
+   int prob_kind;
    ParSesquilinearForm *bf=nullptr;
    ParFiniteElementSpace * pfes = nullptr;
    ParMesh * pmesh = nullptr;
+   ParMeshPartition * part = nullptr;
+   Array<int> SubdomainRank;
    const FiniteElementCollection * fec = nullptr;
    Array2D<double> Pmllength;
    int dim = 2;
@@ -106,13 +109,18 @@ private:
    int nrlayers;
    int nrsubdomains = 0;
    int nx,ny,nz;
+   Array<int> nxyz;
 
-   Sweep * sweeps=nullptr;
+   Sweep * sweeps = nullptr;
+   DofMaps * dmaps = nullptr;
+   Array< SesquilinearForm * > sqf;
+   Array< OperatorPtr * > Optr;
+   Array<ComplexSparseMatrix *> PmlMat;
+   Array<ComplexUMFPackSolver *> PmlMatInv;
 
-   void Getijk(int ip, int & i, int & j, int & k ) const;
-   int GetPatchId(const Array<int> & ijk) const;
-   void IdentifyCommonDofs(); // TODO (Use global Elem number for matching dofs)
-   void TransferToNeighbors(int ip); // TODO
+   void SetupSubdomainProblems();
+   void SetHelmholtzPmlSystemMatrix(int ip);
+   void SetMaxwellPmlSystemMatrix(int ip);
   
 public:
    ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 

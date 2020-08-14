@@ -96,9 +96,7 @@ void DofMaps::Setup()
    // TestSubdomainToSubdomainMaps();
 
    SubdomainToGlobalMapsSetup();
-   TestSubdomainToGlobalMaps();
-
-
+   // TestSubdomainToGlobalMaps();
 }
 
 void DofMaps::SubdomainToSubdomainMapsSetup()
@@ -196,7 +194,6 @@ void DofMaps::ComputeOvlpTdofs()
    int nrneighbors = pow(3,dim); // including its self
 
    // loop through subdomains
-   cout << "nrsubdomains = " << nrsubdomains << endl;
    for (int l = 0; l<nrsubdomains; l++)
    {
       if (myid != subdomain_rank[l]) continue;
@@ -392,7 +389,10 @@ void DofMaps::TransferToNeighbors(const Array<int> & SubdomainIds, const Array<V
             }
             int d1 = GetDirectionId(direction1);
             Array<int> tdofs1 = OvlpTDofs[i1][d1];
-            OvlpSol[i1][d1] = new Vector(fes[i1]->GetTrueVSize());
+            if (!OvlpSol[i1][d1])
+            {
+               OvlpSol[i1][d1] = new Vector(fes[i1]->GetTrueVSize());
+            }
             *OvlpSol[i1][d1] = 0.0;
             OvlpSol[i1][d1]->SetSubVector(tdofs1,*recv_buffer[recv_counter]);
             recv_counter++;

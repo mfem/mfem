@@ -2,350 +2,6 @@
 
 #include "ParDST.hpp"
 
-// //1. Computing the list of global tdofs for each subdomain 
-// //   on the host_rank
-// SubdomainToGlobalMap::SubdomainToGlobalMap(ParFiniteElementSpace *fespace_, 
-//                                          ParMeshPartition * part_)
-// : fespace(fespace_), part(part_)                                         
-// {
-//    // MPI workspace
-//    comm = fespace->GetComm();
-//    MPI_Comm_size(comm, &num_procs);
-//    MPI_Comm_rank(comm, &myid);
-//    ComputeTdofOffsets();
-//    myelemoffset = part->myelem_offset;
-//    subdomain_rank = part->subdomain_rank;
-//    nrsubdomains = part->nrsubdomains;
-//    Setup();
-// }
-
-
-// void SubdomainToGlobalMap::Setup()
-// {
-//    // workspace for MPI_AlltoAll
-//    send_count.SetSize(num_procs);  send_count = 0;
-//    send_displ.SetSize(num_procs);  send_displ = 0; 
-//    recv_count.SetSize(num_procs);  recv_count = 0;
-//    recv_displ.SetSize(num_procs);  recv_displ = 0;
-//    SubdomainLocalTrueDofs.resize(nrsubdomains);
-   
-//    //----------------------------------------------------------
-//    // Each rank constructs the list of its own tdofs in a subdomain 
-//    // After that they communicate it to the host rank to 
-//    // create the complete list
-//    Array<int> dof_marker(fespace->GetTrueVSize());
-//    for (int ip = 0; ip<nrsubdomains; ++ip)
-//    {
-//       dof_marker = 0;
-//       int nel = part->local_element_map[ip].Size();
-//       for (int iel = 0; iel<nel; iel++)
-//       {
-//          int elem_idx = part->local_element_map[ip][iel] - myelemoffset;
-//          Array<int> element_dofs;
-//          fespace->GetElementDofs(elem_idx, element_dofs);
-//          int ndofs = element_dofs.Size();
-//          for (int i=0; i<ndofs; i++)
-//          {
-//             int pdof_ = element_dofs[i];
-//             int pdof = (pdof_ >= 0) ? pdof_ : abs(pdof_) - 1;
-//             int tdof = fespace->GetGlobalTDofNumber(pdof);
-//             if (myid != get_rank(tdof)) continue;
-//             if (dof_marker[tdof-mytoffset]) continue;
-//             SubdomainLocalTrueDofs[ip].Append(tdof);
-//             dof_marker[tdof-mytoffset] = 1;
-//          }
-//       }
-//    }
-//    // Communicate to the host rank
-//    // 1. Construct send count
-//    for (int ip = 0; ip<nrsubdomains; ++ip)
-//    {
-//       int ndofs = SubdomainLocalTrueDofs[ip].Size();
-//       if (ndofs)
-//       {
-//          // Data to send to the subdomain rank
-//          // 1. Subdomain no 
-//          // 2. Number of dofs
-//          // 3. The list of dofs
-//          send_count[subdomain_rank[ip]] += 1 + 1 + ndofs; 
-//       }
-//    }
-//    // 2. Construct receive count
-//    MPI_Alltoall(send_count,1,MPI_INT,recv_count,1,MPI_INT,comm);
-//    for (int k=0; k<num_procs-1; k++)
-//    {
-//       send_displ[k+1] = send_displ[k] + send_count[k];
-//       recv_displ[k+1] = recv_displ[k] + recv_count[k];
-//    }
-//    sbuff_size = send_count.Sum();
-//    rbuff_size = recv_count.Sum();
-//    // now allocate space for the send buffer
-//    Array<int> sendbuf(sbuff_size);  sendbuf = 0;
-//    Array<int> soffs(num_procs); soffs = 0;
-//    // 3. Fill up the send buffer
-//    for (int ip = 0; ip<nrsubdomains; ++ip)
-//    {
-//       int ndofs = SubdomainLocalTrueDofs[ip].Size();
-//       if (ndofs)
-//       {
-//          // Data to send to the subdomain rank
-//          // 1. Subdomain no 
-//          // 2. Number of dofs
-//          // 3. The list of dofs
-//          int j = send_displ[subdomain_rank[ip]] + soffs[subdomain_rank[ip]];
-//          sendbuf[j] = ip;
-//          sendbuf[j+1] = ndofs;
-//          for (int k = 0; k < ndofs ; ++k)
-//          {
-//             sendbuf[j+2+k] = SubdomainLocalTrueDofs[ip][k];
-//          }
-//          soffs[subdomain_rank[ip]] +=  2 + ndofs;
-//       }
-//    }
-
-//    // Communication
-//    Array<int> recvbuf(rbuff_size);
-//    MPI_Alltoallv(sendbuf, send_count, send_displ, MPI_INT, recvbuf,
-//                  recv_count, recv_displ, MPI_INT, comm);
-
-//    SubdomainGlobalTrueDofs.resize(nrsubdomains);
-//    int k=0;
-//    while (k<rbuff_size)
-//    {
-//       int ip = recvbuf[k];
-//       k++;
-//       int ndofs = recvbuf[k];
-//       k++;
-//       for (int i = 0; i < ndofs; ++i)
-//       {
-//          SubdomainGlobalTrueDofs[ip].Append(recvbuf[k+i]);
-//       }
-//       k += ndofs;
-//    }
-   // for (int ip = 0; ip<nrsubdomains; ++ip)
-   // {
-   //    if (SubdomainLocalTrueDofs[ip].Size())
-   //    {
-   //       cout << "myid, ip = " << myid << ", " << ip << ", SubdomainLocalTrueDofs: " ;
-   //       SubdomainLocalTrueDofs[ip].Print(cout, SubdomainLocalTrueDofs[ip].Size());
-   //    }
-   //    if (SubdomainGlobalTrueDofs[ip].Size())
-   //    {
-   //       cout << "myid, ip = " << myid << ", " << ip << ", SubdomainGlobalTrueDofs: ";
-   //       SubdomainGlobalTrueDofs[ip].Print(cout, SubdomainGlobalTrueDofs[ip].Size());
-   //    }
-   // }
-
-
-
-
-
-   // const FiniteElementCollection * fec = fespace->FEColl();
-
-   // subdomain_fespaces.SetSize(nrsubdomains);
-   // subdomain_dof_map.resize(nrsubdomains);  
-
-
-   // need to construct subdomain true dofs to global true dofs maps
-   // TODO
-
-   // for (int ip=0; ip<nrsubdomains; ++ip)
-   // {
-   //    subdomain_fespaces[ip] = nullptr;
-   //    if (part->subdomain_mesh[ip])
-   //    {
-   //       // patch_true_dofs[ip].Print(cout, 20);
-   //       subdomain_fespaces[ip] = new FiniteElementSpace(part->subdomain_mesh[ip],fec);
-   //       // create the dof map
-   //       int nrdof = subdomain_fespaces[ip]->GetTrueVSize();
-   //       Array<int> dof_marker(nrdof); dof_marker = 0;
-   //       subdomain_dof_map[ip].SetSize(nrdof);
-   //       int nrelems = part->element_map[ip].Size();
-   //       int k = 0;
-   //       for (int iel = 0; iel<nrelems; ++iel)
-   //       {
-   //          Array<int> subdomain_elem_dofs;
-   //          subdomain_fespaces[ip]->GetElementDofs(iel,subdomain_elem_dofs);
-   //          int ndof = subdomain_elem_dofs.Size();
-   //          for (int i = 0; i<ndof; ++i)
-   //          {
-   //             int pdof_ = subdomain_elem_dofs[i];
-   //             int pdof = (pdof_ >= 0) ? pdof_ : abs(pdof_) - 1;
-   //             if (dof_marker[pdof]) continue;
-   //             // rearranging dofs from serial fespace for the subdomain 
-   //             // to the ordering of the pfespace
-   //             subdomain_dof_map[ip][pdof] = SubdomainGlobalTrueDofs[ip][k];
-   //             k++;
-   //             dof_marker[pdof] = 1;
-   //          }
-   //       }
-   //    }
-   // }
-
-
-
-
-   // for (int ip=0; ip<1; ++ip)
-   // {
-   //    if(subdomain_fespaces[ip])
-   //    {
-   //       cout << "subdomain_dof_map = " << endl;
-   //       subdomain_dof_map[ip].Print();
-   //       cout << endl;
-   //       cout << "SubdomainGlobalTrueDofs = " << endl;
-   //       SubdomainGlobalTrueDofs[ip].Print();
-   //    }
-   // }
-// }
-
-// void SubdomainToGlobalMap::MultTranspose(const Vector & r, std::vector<Vector> & res)
-// {
-//    send_count = 0;
-//    send_displ = 0;
-//    recv_count = 0;
-//    recv_displ = 0;
-
-//    for (int ip = 0; ip < nrsubdomains; ip++)
-//    {
-//       int ndofs = SubdomainLocalTrueDofs[ip].Size();
-//       send_count[subdomain_rank[ip]] += ndofs;
-//    }
-
-//    // communicate so that recv_count is constructed
-//    MPI_Alltoall(send_count,1,MPI_INT,recv_count,1,MPI_INT,comm);
-//    //
-//    for (int k=0; k<num_procs-1; k++)
-//    {
-//       send_displ[k+1] = send_displ[k] + send_count[k];
-//       recv_displ[k+1] = recv_displ[k] + recv_count[k];
-//    }
-//    sbuff_size = send_count.Sum();
-//    rbuff_size = recv_count.Sum();
-
-//    Array<double> sendbuf(sbuff_size); sendbuf = 0.0;
-//    Array<int> soffs(num_procs); soffs = 0;
-
-//    for (int ip = 0; ip < nrsubdomains; ip++)
-//    {
-//       int ndofs = SubdomainLocalTrueDofs[ip].Size();
-//       for (int i = 0; i<ndofs; i++)
-//       {
-//          int j = send_displ[subdomain_rank[ip]] + soffs[subdomain_rank[ip]];
-//          soffs[subdomain_rank[ip]]++;
-//          int tdof = SubdomainLocalTrueDofs[ip][i];
-//          sendbuf[j] = r[tdof - mytoffset];
-//       }
-//    }
-
-//    // communication
-//    Array<double> recvbuf(rbuff_size);
-
-//    MPI_Alltoallv(sendbuf, send_count, send_displ, MPI_DOUBLE, recvbuf,
-//                  recv_count, recv_displ, MPI_DOUBLE, comm);
-//    Array<int> roffs(num_procs); roffs = 0;
-//    // Now each process will construct the res vector
-//    res.resize(nrsubdomains);
-
-//    for (int ip = 0; ip < nrsubdomains; ip++)
-//    {
-//       if (myid == subdomain_rank[ip])
-//       {
-//          int ndof = SubdomainGlobalTrueDofs[ip].Size();
-//          res[ip].SetSize(ndof);
-//          // extract the data from receiv buffer
-//          for (int i=0; i<ndof; i++)
-//          {
-//             // pick up the tdof and find its rank
-//             int tdof = SubdomainGlobalTrueDofs[ip][i];
-//             int tdof_rank= get_rank(tdof);
-//             int k = recv_displ[tdof_rank] + roffs[tdof_rank];
-//             roffs[tdof_rank]++;
-//             res[ip][i] = recvbuf[k];
-//          }
-//       }
-//    }
-// }
-
-
-// void SubdomainToGlobalMap::Mult(const std::vector<Vector> & sol, Vector & z)
-// {
-//    send_count = 0;
-//    send_displ = 0;
-//    recv_count = 0;
-//    recv_displ = 0;
-
-//    // Compute send count
-//    for (int ip = 0; ip < nrsubdomains; ip++)
-//    {
-//       if (myid == subdomain_rank[ip])
-//       {
-//          int ndofs = SubdomainGlobalTrueDofs[ip].Size();
-//          // loop through dofs
-//          for (int i=0; i<ndofs; i++)
-//          {
-//             //  pick up the dof and find its tdof_rank
-//             int tdof = SubdomainGlobalTrueDofs[ip][i];
-//             int tdof_rank= get_rank(tdof);
-//             send_count[tdof_rank]++;
-//          }
-//       }
-//    }
-
-//    // communicate so that recv_count is constructed
-//    MPI_Alltoall(send_count,1,MPI_INT,recv_count,1,MPI_INT,comm);
-//    //
-//    for (int k=0; k<num_procs-1; k++)
-//    {
-//       send_displ[k+1] = send_displ[k] + send_count[k];
-//       recv_displ[k+1] = recv_displ[k] + recv_count[k];
-//    }
-//    sbuff_size = send_count.Sum();
-//    rbuff_size = recv_count.Sum();
-
-//    Array<double> sendbuf(sbuff_size); sendbuf = 0.0;
-//    Array<int> soffs(num_procs); soffs = 0;
-
-//    for (int ip = 0; ip < nrsubdomains; ip++)
-//    {
-//       if (myid == subdomain_rank[ip])
-//       {
-//          int ndofs = SubdomainGlobalTrueDofs[ip].Size();
-//          // loop through dofs
-//          for (int i=0; i<ndofs; i++)
-//          {
-//             //  pick up the dof and find its tdof_rank
-//             int tdof = SubdomainGlobalTrueDofs[ip][i];
-//             int tdof_rank= get_rank(tdof);
-//             int k = send_displ[tdof_rank] + soffs[tdof_rank];
-//             soffs[tdof_rank]++;
-//             sendbuf[k] = sol[ip][i];
-//          }
-//       }
-//    }
-
-//    // communication
-//    Array<double> recvbuf(rbuff_size);
-//    MPI_Alltoallv(sendbuf, send_count, send_displ, MPI_DOUBLE, recvbuf,
-//                  recv_count, recv_displ, MPI_DOUBLE, comm);
-//    Array<int> roffs(num_procs); roffs = 0;
-
-//    // 1. Accummulate for the solution
-//    for (int ip = 0; ip < nrsubdomains; ip++)
-//    {
-//       int ndofs = SubdomainLocalTrueDofs[ip].Size();
-//       for (int i = 0; i<ndofs; i++)
-//       {
-//          int j = recv_displ[subdomain_rank[ip]] + roffs[subdomain_rank[ip]];
-//          roffs[subdomain_rank[ip]]++;
-//          int tdof = SubdomainLocalTrueDofs[ip][i];
-//          z[tdof - mytoffset] += recvbuf[j];
-//       }
-//    }
-
-// }
-
-
-
 ParDST::ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
          double omega_, Coefficient * ws_,  int nrlayers_ , int nx_, int ny_, int nz_)
    : Solver(2*bf_->ParFESpace()->GetTrueVSize(), 2*bf_->ParFESpace()->GetTrueVSize()), 
@@ -360,49 +16,71 @@ ParDST::ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_,
    MPI_Comm_rank(comm, &myid);
 
    //1. Indentify problem ... Helmholtz or Maxwell
-   cout << " 1. Indentify problem to be solved ... " << endl;
-   int prob_kind = fec->GetContType();
-   if (prob_kind == 0) cout << "    Helmholtz" << endl;
-   if (prob_kind == 1) cout << "    Maxwell" << endl; 
-
+   prob_kind = fec->GetContType();
+   if (myid == 0)
+   {
+      cout << " 1. Indentify problem to be solved ... " << endl;
+      if (prob_kind == 0) cout << "    Helmholtz" << endl;
+      if (prob_kind == 1) cout << "    Maxwell" << endl; 
+   }
 
    //2. Create the parallel mesh partition
    pmesh = pfes->GetParMesh();
    dim = pmesh->Dimension();
-   cout << "\n 2. Generating ParMesh partitioning ... " << endl;
-   ParMeshPartition part(pmesh,nx_,ny_,nz_,nrlayers);
-   nx = part.nxyz[0]; ny = part.nxyz[1];  nz = part.nxyz[2];
-   nrsubdomains = part.nrsubdomains;
-   cout << "    Done ! " << endl;
+   if (myid == 0)
+   {
+      cout << "\n 2. Generating ParMesh partitioning ... " << endl;
+   }
+   part = new ParMeshPartition(pmesh,nx_,ny_,nz_,nrlayers);
+   nxyz.SetSize(3);
+   nxyz[0] = nx = part->nxyz[0]; 
+   nxyz[1] = ny = part->nxyz[1];  
+   nxyz[2] = nz = part->nxyz[2];
 
+   nrsubdomains = part->nrsubdomains;
+   SubdomainRank = part->subdomain_rank;
+   if (myid == 0)
+   {
+      cout << "    Done ! " << endl;
+   }
 
    //3. Setup info for sweeps
-   cout << "\n 3. Computing sweeps info ..." << endl; 
+   if (myid == 0)
+   {
+      cout << "\n 3. Computing sweeps info ..." << endl; 
+   }
    sweeps = new Sweep(dim);
-   cout << "    Done ! " << endl;
+
+   if (myid == 0)
+   {
+      cout << "    Done ! " << endl;
+   }
 
    //4. Create LocalToGlobal maps 
    //   (local GridFunctions/Vector to Global ParGridFunction/Vector) 
-   cout << "\n 4. Computing subdomain to global maps ..." << endl; 
-   DofMaps * test = new DofMaps(pfes,&part);
+   if (myid == 0)
+   {
+      cout << "\n 4. Computing true dofs maps ..." << endl; 
+   }
+   dmaps = new DofMaps(pfes,part);
 
-   // Vector B(pfes->TrueVSize()); B.Randomize(1); B = 1.0;
-   // std::vector<Vector> res(nrsubdomains);
+   if (myid == 0)
+   {
+      cout << "    Done ! " << endl;
+   }
 
-   // test->MultTranspose(B,res);
+   // 4. Setting up the local problems 
+   if (myid == 0)
+   {
+      cout << "\n 5. Setting up the subdomain problems ..." << endl; 
+   }
+
+   SetupSubdomainProblems();
    
-   // cout << endl;
-   // for (int ip = 0; ip < nrsubdomains; ip++)
-   // {
-   //    cout << "ip = " << ip << ", res = " ; res[ip].Print();
-   // }
-
-   // B = 0.0;
-   // test->Mult(res,B);
-
-   // cout << "myid = " << myid << ", B = " ; B.Print();
-
-   cout << "    Done ! " << endl;
+   if (myid == 0)
+   {
+      cout << "    Done ! " << endl;
+   }
 
 }
 
@@ -411,18 +89,168 @@ void ParDST::Mult(const Vector &r, Vector &z) const
 }
 
 
-// void ParDST::Getijk(int ip, int & i, int & j, int & k) const
-// {
-//    k = ip/(nx*ny);
-//    j = (ip-k*nx*ny)/nx;
-//    i = (ip-k*nx*ny)%nx;
-// }
 
-// int ParDST::GetPatchId(const Array<int> & ijk) const
-// {
-//    int d=ijk.Size();
-//    int z = (d==2)? 0 : ijk[2];
-//    return part->subdomains(ijk[0],ijk[1],z);
-// }
+void ParDST::SetupSubdomainProblems()
+{
+   sqf.SetSize(nrsubdomains);
+   Optr.SetSize(nrsubdomains);
+   PmlMat.SetSize(nrsubdomains);
+   PmlMatInv.SetSize(nrsubdomains);
+
+   for (int ip=0; ip<nrsubdomains; ip++)
+   {
+      if (myid != SubdomainRank[ip]) continue;
+      // cout << "Setting up patch ip = " << ip << endl;
+      if (prob_kind == 0)
+      {
+         SetHelmholtzPmlSystemMatrix(ip);
+      }
+      else if (prob_kind == 1)
+      {
+         SetMaxwellPmlSystemMatrix(ip);
+      }
+      PmlMat[ip] = Optr[ip]->As<ComplexSparseMatrix>();
+
+      // cout << "Factorizing patch ip = " << ip << endl;
+
+      PmlMatInv[ip] = new ComplexUMFPackSolver;
+      PmlMatInv[ip]->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+      PmlMatInv[ip]->SetOperator(*PmlMat[ip]);
+
+      // int ndofs = dmaps->Dof2GlobalDof[ip].Size();
+      // f_orig[ip] = new Vector(ndofs); 
+      // f_transf[ip].SetSize(swp->nsweeps);
+      // for (int i=0;i<swp->nsweeps; i++)
+      // {
+         // f_transf[ip][i] = new Vector(ndofs);
+      // }
+   }
+
+
+}
+
+
+
+void ParDST::SetHelmholtzPmlSystemMatrix(int ip)
+{
+   MFEM_VERIFY(part->subdomain_mesh[ip], "Null mesh pointer");
+   Mesh * mesh = part->subdomain_mesh[ip];
+   double h = part->MeshSize;
+   Array2D<double> length(dim,2);
+   length = h*(nrlayers);
+
+   Array<int> ijk;
+   GetSubdomainijk(ip,nxyz,ijk);
+   int i = ijk[0];
+   int j = ijk[1];
+   int k = ijk[2];
+
+   if (i == 0 )    length[0][0] = Pmllength[0][0];
+   if (i == nx-1 ) length[0][1] = Pmllength[0][1];
+   if (dim  > 1)
+   {
+      if (j == 0 )    length[1][0] = Pmllength[1][0];
+      if (j == ny-1 ) length[1][1] = Pmllength[1][1];
+   }
+   if (dim  == 3)
+   {
+      if (k == 0 )    length[2][0] = Pmllength[2][0];
+      if (k == nz-1 ) length[2][1] = Pmllength[2][1];
+   }
+   
+   CartesianPML pml(mesh, length);
+   pml.SetOmega(omega);
+
+   Array <int> ess_tdof_list;
+   if (mesh->bdr_attributes.Size())
+   {
+      Array<int> ess_bdr(mesh->bdr_attributes.Max());
+      ess_bdr = 1;
+      dmaps->fes[ip]->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   }
+
+   ConstantCoefficient one(1.0);
+   ConstantCoefficient sigma(-pow(omega, 2));
+   PmlMatrixCoefficient c1_re(dim,pml_detJ_JT_J_inv_Re,&pml);
+   PmlMatrixCoefficient c1_im(dim,pml_detJ_JT_J_inv_Im,&pml);
+   PmlCoefficient detJ_re(pml_detJ_Re,&pml);
+   PmlCoefficient detJ_im(pml_detJ_Im,&pml);
+   ProductCoefficient c2_re0(sigma, detJ_re);
+   ProductCoefficient c2_im0(sigma, detJ_im);
+   ProductCoefficient c2_re(c2_re0, *ws);
+   ProductCoefficient c2_im(c2_im0, *ws);
+   sqf[ip] = new SesquilinearForm (dmaps->fes[ip],bf->GetConvention());
+
+   sqf[ip]->AddDomainIntegrator(new DiffusionIntegrator(c1_re),
+                         new DiffusionIntegrator(c1_im));
+   sqf[ip]->AddDomainIntegrator(new MassIntegrator(c2_re),
+                         new MassIntegrator(c2_im));
+   sqf[ip]->Assemble();
+
+   Optr[ip] = new OperatorPtr;
+   sqf[ip]->FormSystemMatrix(ess_tdof_list,*Optr[ip]);
+}
+
+void ParDST::SetMaxwellPmlSystemMatrix(int ip)
+{
+   MFEM_VERIFY(part->subdomain_mesh[ip], "Null mesh pointer");
+   Mesh * mesh = part->subdomain_mesh[ip];
+   double h = part->MeshSize;
+   Array2D<double> length(dim,2);
+   length = h*(nrlayers);
+
+   Array<int> ijk;
+   GetSubdomainijk(ip,nxyz,ijk);
+   int i = ijk[0];
+   int j = ijk[1];
+   int k = ijk[2];
+
+   if (i == 0 )    length[0][0] = Pmllength[0][0];
+   if (i == nx-1 ) length[0][1] = Pmllength[0][1];
+   if (dim  > 1)
+   {
+      if (j == 0 )    length[1][0] = Pmllength[1][0];
+      if (j == ny-1 ) length[1][1] = Pmllength[1][1];
+   }
+   if (dim  == 3)
+   {
+      if (k == 0 )    length[2][0] = Pmllength[2][0];
+      if (k == nz-1 ) length[2][1] = Pmllength[2][1];
+   }
+   
+   CartesianPML pml(mesh, length);
+   pml.SetOmega(omega);
+   Array <int> ess_tdof_list;
+   if (mesh->bdr_attributes.Size())
+   {
+      Array<int> ess_bdr(mesh->bdr_attributes.Max());
+      ess_bdr = 1;
+      dmaps->fes[ip]->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   }
+
+   ConstantCoefficient omeg(-pow(omega, 2));
+   int cdim = (dim == 2) ? 1 : dim;
+
+   PmlMatrixCoefficient pml_c1_Re(cdim,detJ_inv_JT_J_Re, &pml);
+   PmlMatrixCoefficient pml_c1_Im(cdim,detJ_inv_JT_J_Im, &pml);
+
+   PmlMatrixCoefficient pml_c2_Re(dim, detJ_JT_J_inv_Re,&pml);
+   PmlMatrixCoefficient pml_c2_Im(dim, detJ_JT_J_inv_Im,&pml);
+   ScalarMatrixProductCoefficient c2_Re0(omeg,pml_c2_Re);
+   ScalarMatrixProductCoefficient c2_Im0(omeg,pml_c2_Im);
+   ScalarMatrixProductCoefficient c2_Re(*ws,c2_Re0);
+   ScalarMatrixProductCoefficient c2_Im(*ws,c2_Im0);
+
+   sqf[ip] = new SesquilinearForm(dmaps->fes[ip],bf->GetConvention());
+
+   sqf[ip]->AddDomainIntegrator(new CurlCurlIntegrator(pml_c1_Re),
+                         new CurlCurlIntegrator(pml_c1_Im));
+   sqf[ip]->AddDomainIntegrator(new VectorFEMassIntegrator(c2_Re),
+                         new VectorFEMassIntegrator(c2_Im));
+   sqf[ip]->Assemble();
+
+   Optr[ip] = new OperatorPtr;
+   sqf[ip]->FormSystemMatrix(ess_tdof_list,*Optr[ip]);
+}
 
 ParDST::~ParDST() {}
