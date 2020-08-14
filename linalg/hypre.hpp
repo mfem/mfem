@@ -446,6 +446,12 @@ public:
    virtual void MultTranspose(const Vector &x, Vector &y) const
    { MultTranspose(1.0, x, 0.0, y); }
 
+   /// Computes y = a * |A| * x + b * y, using entry-wise absolute values of matrix A
+   void AbsMult(double a, const Vector &x, double b, Vector &y) const;
+
+   /// Computes y = a * |At| * x + b * y, using entry-wise absolute values of the transpose of matrix A
+   void AbsMultTranspose(double a, const Vector &x, double b, Vector &y) const;
+
    /** The "Boolean" analog of y = alpha * A * x + beta * y, where elements in
        the sparsity pattern of the matrix are treated as "true". */
    void BooleanMult(int alpha, const int *x, int beta, int *y)
