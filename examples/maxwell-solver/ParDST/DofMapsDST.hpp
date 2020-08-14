@@ -101,9 +101,9 @@ public:
    void TransferToNeighbors(const Array<int> & SubdomainIds, const Array<Vector *> & x);
 
    // Prolongation of subdomain solutions to the global solution
-   void SubdomainsToGlobal(const std::vector<Vector> & x, Vector & y);
+   void SubdomainsToGlobal(const Array<Vector*> & x, Vector & y);
    // Restriction of global residual to subdomain residuals
-   void GlobalToSubdomains(const Vector & y, std::vector<Vector> & x);
+   void GlobalToSubdomains(const Vector & y, Array<Vector*> & x);
 
 };
 

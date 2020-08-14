@@ -25,6 +25,9 @@ double f_exact_Im(const Vector &x);
 
 double wavespeed(const Vector &x);
 
+double funccoeff_re(const Vector & x);
+double funccoeff_im(const Vector & x);
+
 
 int dim;
 double omega;
@@ -257,6 +260,33 @@ int main(int argc, char *argv[])
       // ParMeshPartition part(pmesh,nx,ny,nz,nlayers);
       ParDST S(&a,lengths,omega, &ws,nlayers,nx,ny,nz);
 
+      ParComplexGridFunction pgf(fespace);
+      FunctionCoefficient cf_re(funccoeff_re);
+      FunctionCoefficient cf_im(funccoeff_im);
+      pgf.ProjectCoefficient(cf_re,cf_im);
+
+
+      Vector y1_re(fespace->GetTrueVSize());
+      Vector y1_im(fespace->GetTrueVSize());
+      const SparseMatrix * R = fespace->GetRestrictionMatrix();
+
+      // Array<int> blockoffsets(3);
+      // blockoffsets[0] = 0;
+      // blockoffsets[1] = fespace->GetTrueVSize();
+      // blockoffsets[2] = fespace->GetTrueVSize();
+      // blockoffsets.PartialSum();
+      // BlockVector y1(blockoffsets);
+
+
+      R->Mult(pgf.real(),y1_re);
+      R->Mult(pgf.imag(),y1_im);
+
+      Vector y1(2*fespace->GetTrueVSize());
+      y1.SetVector(y1_re,0);
+      y1.SetVector(y1_im,fespace->GetTrueVSize());
+      
+      S.Mult(y1,X);
+
       // if (visualization)
       // {
       //    char vishost[] = "localhost";
@@ -385,7 +415,15 @@ double wavespeed(const Vector &x)
 }
 
 
+double funccoeff_re(const Vector & x)
+{
+   return sin(3*M_PI*(x.Sum()));
+}
 
+double funccoeff_im(const Vector & x)
+{
+   return cos(10*M_PI*(x.Sum()));
+}
 
 
 

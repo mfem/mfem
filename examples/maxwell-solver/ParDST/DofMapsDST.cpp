@@ -635,7 +635,7 @@ void DofMaps::SubdomainToGlobalMapsSetup()
 }
 
 // Restriction of global residual to subdomain residuals
-void DofMaps::GlobalToSubdomains(const Vector & y, std::vector<Vector> & x)
+void DofMaps::GlobalToSubdomains(const Vector & y, Array<Vector*> & x)
 {
    send_count = 0; send_displ = 0;
    recv_count = 0; recv_displ = 0;
@@ -683,12 +683,12 @@ void DofMaps::GlobalToSubdomains(const Vector & y, std::vector<Vector> & x)
    Array<int> roffs(num_procs);
    roffs = 0;
    // Now each process will construct the res vector
-   x.resize(nrsubdomains);
+   x.SetSize(nrsubdomains);
    for (int ip = 0; ip < nrsubdomains; ip++)
    {
       if (myid != subdomain_rank[ip]) continue;
       int ndof = SubdomainGTrueDofs[ip].Size();
-      x[ip].SetSize(ndof);
+      x[ip]= new Vector(ndof); *x[ip] = 0.0;
       // extract the data from receiv buffer
       for (int i=0; i<ndof; i++)
       {
@@ -699,19 +699,19 @@ void DofMaps::GlobalToSubdomains(const Vector & y, std::vector<Vector> & x)
          {
             int k = recv_displ[tdof_rank] + roffs[tdof_rank];
             roffs[tdof_rank]++;
-            x[ip][i] = recvbuf[k];
+            (*x[ip])[i] = recvbuf[k];
          }
          else
          {
             int k = tdof - mytoffset;
-            x[ip][i] = y[k];
+            (*x[ip])[i] = y[k];
          }
       }
    }
 }
 
 // Prolongation of subdomain solutions to the global solution
-void DofMaps::SubdomainsToGlobal(const std::vector<Vector> & x, Vector & y)
+void DofMaps::SubdomainsToGlobal(const Array<Vector*> & x, Vector & y)
 {
    send_count = 0; send_displ = 0;
    recv_count = 0; recv_displ = 0;
@@ -758,7 +758,7 @@ void DofMaps::SubdomainsToGlobal(const std::vector<Vector> & x, Vector & y)
          if (tdof_rank == subdomain_rank[ip]) continue;
          int k = send_displ[tdof_rank] + soffs[tdof_rank];
          soffs[tdof_rank]++;
-         sendbuf[k] = x[ip][i];
+         sendbuf[k] = (*x[ip])[i];
       }
    }
 
@@ -777,7 +777,7 @@ void DofMaps::SubdomainsToGlobal(const std::vector<Vector> & x, Vector & y)
             int tdof = SubdomainGTrueDofs[ip][i];
             int k = tdof - mytoffset;
             if (k<0 || k>=pfes->GetTrueVSize()) continue;
-            y[k] += x[ip][i];
+            y[k] += (*x[ip])[i];
          }
       }
       else
@@ -799,17 +799,17 @@ void DofMaps::TestSubdomainToGlobalMaps()
 {
    cout << "Testing Subdomain To Global Maps" << endl;
    FunctionCoefficient c1(testcoeff);
-   std::vector<Vector> x(nrsubdomains);
+   Array<Vector*> x(nrsubdomains);
    Vector y(pfes->GetTrueVSize()); y = 0.0;
    for (int i = 0 ; i<nrsubdomains; i++)
    {
       if (myid != subdomain_rank[i]) continue;
-      x[i].SetSize(fes[i]->GetTrueVSize());
+      x[i] = new Vector(fes[i]->GetTrueVSize());
       GridFunction gf(fes[i]);
       gf = 0.0;
 
       if (i==3) gf.ProjectCoefficient(c1);
-      x[i] = gf;
+      *x[i] = gf;
    }
 
    SubdomainsToGlobal(x,y);
@@ -837,7 +837,7 @@ void DofMaps::TestSubdomainToGlobalMaps()
 
    R->Mult(pgf1,y1);
    // P.MultTranspose(pgf1,y1);
-   std::vector<Vector> x1(nrsubdomains);
+   Array<Vector*> x1;
    GlobalToSubdomains(y1,x1);
 
 
@@ -871,7 +871,7 @@ void DofMaps::TestSubdomainToGlobalMaps()
          GridFunction gf(fes[i]);
          GridFunction gf1(fes[i]);
          gf1.ProjectCoefficient(c1);
-         gf = x1[i];
+         gf = *x1[i];
          gf1-=gf;
          cout << "ip, Diff norm = " <<i<<", " << gf1.Norml2() << endl;
          sol_sock1 << "solution\n" << *fes[i]->GetMesh() << gf

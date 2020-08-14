@@ -31,7 +31,8 @@ ParDST::ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_,
    {
       cout << "\n 2. Generating ParMesh partitioning ... " << endl;
    }
-   part = new ParMeshPartition(pmesh,nx_,ny_,nz_,nrlayers);
+   ovlpnrlayers = nrlayers+1;
+   part = new ParMeshPartition(pmesh,nx_,ny_,nz_,ovlpnrlayers);
    nxyz.SetSize(3);
    nxyz[0] = nx = part->nxyz[0]; 
    nxyz[1] = ny = part->nxyz[1];  
@@ -82,13 +83,75 @@ ParDST::ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_,
       cout << "    Done ! " << endl;
    }
 
+   if (myid == 0)
+   {
+      cout << "\n 6. Mark subdomain overlap truedofs ..." << endl; 
+   }
+
+   MarkSubdomainOverlapDofs();
+   
+   if (myid == 0)
+   {
+      cout << "    Done ! " << endl;
+   }
+
+
+
 }
 
 void ParDST::Mult(const Vector &r, Vector &z) const
 {
+   // Initialize transfered residuals to 0.0;
+   // if (myid == 0) cout << "In Mult " << endl;
+   for (int ip=0; ip<nrsubdomains; ip++)
+   {
+      if (myid != SubdomainRank[ip]) continue;
+      for (int i=0;i<sweeps->nsweeps; i++)
+      {
+         *f_transf_re[ip][i] = 0.0;
+         *f_transf_im[ip][i] = 0.0;
+      }
+   }
+
+   // restrict given residual to subdomains
+   Vector r_re;
+   double * data = r.GetData();
+   int n = pfes->GetTrueVSize();
+   r_re.SetDataAndSize(data,n);
+   Vector r_im;
+   r_im.SetDataAndSize(&data[n],n);
+
+
+   dmaps->GlobalToSubdomains(r_re,f_orig_re);
+   dmaps->GlobalToSubdomains(r_im,f_orig_im);
+
+   for (int ip=0; ip<nrsubdomains; ip++)
+   {
+      if (myid != SubdomainRank[ip]) continue;
+      Array<int> ijk(3);
+      GetSubdomainijk(ip,nxyz,ijk);
+      Array2D<int> direct(dim,2); direct = 0;
+      for (int d=0;d<dim; d++)
+      {
+         if (ijk[d] > 0) direct[d][0] = 1; 
+         if (ijk[d] < part->nxyz[d]-1) direct[d][1] = 1; 
+      }
+      GetChiRes(*f_orig_re[ip],ip,direct);
+      GetChiRes(*f_orig_im[ip],ip,direct);
+   }
+
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+   int ip=0;
+
+   if (myid == SubdomainRank[ip])
+   {
+      socketstream sol_sock_re(vishost, visport);
+      PlotLocal(*f_orig_re[ip],sol_sock_re,ip);
+      socketstream sol_sock_im(vishost, visport);
+      PlotLocal(*f_orig_im[ip],sol_sock_im,ip);
+   }
 }
-
-
 
 void ParDST::SetupSubdomainProblems()
 {
@@ -96,11 +159,13 @@ void ParDST::SetupSubdomainProblems()
    Optr.SetSize(nrsubdomains);
    PmlMat.SetSize(nrsubdomains);
    PmlMatInv.SetSize(nrsubdomains);
-
+   f_orig_re.SetSize(nrsubdomains);
+   f_orig_im.SetSize(nrsubdomains);
+   f_transf_re.SetSize(nrsubdomains);
+   f_transf_im.SetSize(nrsubdomains);
    for (int ip=0; ip<nrsubdomains; ip++)
    {
       if (myid != SubdomainRank[ip]) continue;
-      // cout << "Setting up patch ip = " << ip << endl;
       if (prob_kind == 0)
       {
          SetHelmholtzPmlSystemMatrix(ip);
@@ -111,22 +176,18 @@ void ParDST::SetupSubdomainProblems()
       }
       PmlMat[ip] = Optr[ip]->As<ComplexSparseMatrix>();
 
-      // cout << "Factorizing patch ip = " << ip << endl;
-
       PmlMatInv[ip] = new ComplexUMFPackSolver;
       PmlMatInv[ip]->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
       PmlMatInv[ip]->SetOperator(*PmlMat[ip]);
-
-      // int ndofs = dmaps->Dof2GlobalDof[ip].Size();
-      // f_orig[ip] = new Vector(ndofs); 
-      // f_transf[ip].SetSize(swp->nsweeps);
-      // for (int i=0;i<swp->nsweeps; i++)
-      // {
-         // f_transf[ip][i] = new Vector(ndofs);
-      // }
+      int ndofs = dmaps->fes[ip]->GetTrueVSize();
+      f_transf_re[ip].SetSize(sweeps->nsweeps);
+      f_transf_im[ip].SetSize(sweeps->nsweeps);
+      for (int i=0;i<sweeps->nsweeps; i++)
+      {
+         f_transf_re[ip][i] = new Vector(ndofs);
+         f_transf_im[ip][i] = new Vector(ndofs);
+      }
    }
-
-
 }
 
 
@@ -251,6 +312,137 @@ void ParDST::SetMaxwellPmlSystemMatrix(int ip)
 
    Optr[ip] = new OperatorPtr;
    sqf[ip]->FormSystemMatrix(ess_tdof_list,*Optr[ip]);
+}
+
+
+void ParDST::MarkSubdomainOverlapDofs()
+{
+   // First mark the elements
+         // cout<< "Compute Overlap Elements (in each possible direction) " << endl;
+      // Lists of elements
+      // x,y,z = +/- 1 ovlp 
+   NovlpElems.resize(nrsubdomains);
+
+   for (int ip = 0; ip<nrsubdomains; ip++)
+   {
+      if (myid != SubdomainRank[ip]) continue;
+      Array<int> ijk;
+      GetSubdomainijk(ip,nxyz,ijk);
+
+      Mesh * mesh = dmaps->fes[ip]->GetMesh();
+      NovlpElems[ip].resize(2*dim);
+
+      Vector pmin, pmax;
+      mesh->GetBoundingBox(pmin,pmax);
+      double h = part->MeshSize;
+      // Loop through elements
+      for (int iel=0; iel<mesh->GetNE(); iel++)
+      {
+         // Get element center
+         Vector center(dim);
+         int geom = mesh->GetElementBaseGeometry(iel);
+         ElementTransformation * tr = mesh->GetElementTransformation(iel);
+         tr->Transform(Geometries.GetCenter(geom),center);
+
+         // Assign elements to the appropriate lists
+         for (int d=0;d<dim; d++)
+         {
+            if (ijk[d]>0)
+            {
+               if (center[d] >= pmin[d]+h*ovlpnrlayers) 
+               {
+                  NovlpElems[ip][d].Append(iel);
+               }
+            }
+            else
+            {
+               NovlpElems[ip][d].Append(iel);
+            }
+               
+            if (ijk[d]<nxyz[d]-1)
+            {
+               if (center[d] <= pmax[d]-h*ovlpnrlayers) 
+               {
+                  NovlpElems[ip][dim+d].Append(iel);
+               }
+            }
+            else
+            {
+               NovlpElems[ip][dim+d].Append(iel);
+            }
+         }
+      }
+   }
+
+      // mark dofs
+   NovlpDofs.resize(nrsubdomains);
+   for (int ip = 0; ip<nrsubdomains; ip++)
+   {
+      if (myid != SubdomainRank[ip]) continue;
+      FiniteElementSpace * fes = dmaps->fes[ip];
+      // Loop through the marked elements
+      NovlpDofs[ip].resize(2*dim);
+      int n = fes->GetTrueVSize();
+      Array<int> marker(n);
+      for (int d=0;d<2*dim; d++)
+      {
+         marker = 0;
+         int m = 0;
+         int melems = NovlpElems[ip][d].Size(); 
+         for (int iel=0; iel<melems; iel++)
+         {
+            Array<int> ElemDofs;
+            int el =  NovlpElems[ip][d][iel];
+            fes->GetElementDofs(el,ElemDofs);
+            int ndof = ElemDofs.Size();
+            for (int i = 0; i<ndof; ++i)
+            {
+               int eldof = ElemDofs[i];
+               int tdof = (eldof >= 0) ? eldof : abs(eldof) - 1; 
+               if (marker[tdof] == 1) continue;
+               marker[tdof] = 1;
+               m++;
+            }
+         }
+         int k = n-m;
+         NovlpDofs[ip][d].SetSize(k);
+         int l = 0;
+         for (int i = 0; i<n; i++)
+         {
+            if (marker[i]==0) 
+            {
+               NovlpDofs[ip][d][l] = i;  // real dofs
+               l++;
+            }
+         }
+      }
+   }
+}
+
+void ParDST::GetChiRes(Vector & res, int ip, Array2D<int> direct) const
+{
+   for (int d=0; d<dim; d++)
+   {
+      // negative direction
+      if (direct[d][0]==1) res.SetSubVector(NovlpDofs[ip][d],0.0);
+      // possitive direction
+      if (direct[d][1]==1) res.SetSubVector(NovlpDofs[ip][d+dim],0.0);
+   }
+}
+
+
+
+void ParDST::PlotLocal(Vector & sol, socketstream & sol_sock, int ip) const
+{
+   FiniteElementSpace * fes = dmaps->fes[ip];
+   Mesh * mesh = fes->GetMesh();
+   GridFunction gf(fes);
+   double * data = sol.GetData();
+   gf.SetData(data);
+   
+   string keys;
+   keys = "keys mrRljc\n";
+   sol_sock << "solution\n" << *mesh << gf << keys << flush;
 }
 
 ParDST::~ParDST() {}

@@ -107,6 +107,7 @@ private:
    double omega = 0.5;
    Coefficient * ws;
    int nrlayers;
+   int ovlpnrlayers;
    int nrsubdomains = 0;
    int nx,ny,nz;
    Array<int> nxyz;
@@ -117,11 +118,20 @@ private:
    Array< OperatorPtr * > Optr;
    Array<ComplexSparseMatrix *> PmlMat;
    Array<ComplexUMFPackSolver *> PmlMatInv;
+   mutable Array<Vector *> f_orig_re;
+   mutable Array<Vector *> f_orig_im;
+   mutable Array<Array<Vector * >> f_transf_re;
+   mutable Array<Array<Vector * >> f_transf_im;
 
    void SetupSubdomainProblems();
-   void SetHelmholtzPmlSystemMatrix(int ip);
+   std::vector<std::vector<Array<int>>> NovlpElems;
+   std::vector<std::vector<Array<int>>> NovlpDofs;
+   void MarkSubdomainOverlapDofs();
+   void SetHelmholtzPmlSystemMatrix(int ip);   
    void SetMaxwellPmlSystemMatrix(int ip);
-  
+   void GetChiRes(Vector & res, int ip, Array2D<int> direct) const;
+   void PlotLocal(Vector & sol, socketstream & sol_sock, int ip) const;
+
 public:
    ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
        double omega_, Coefficient * ws_, int nrlayers_, int nx_=2, int ny_=2, int nz_=2);
