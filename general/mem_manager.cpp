@@ -1194,7 +1194,6 @@ void *MemoryManager::GetDevicePtr(const void *h_ptr, size_t bytes,
    if (copy_data)
    {
       MFEM_ASSERT(bytes <= mem.bytes, "invalid copy size");
-      //ctrl->Host(h_mt)->Unprotect(mem, bytes);
       ctrl->Device(d_mt)->HtoD(mem.d_ptr, h_ptr, bytes);
    }
    ctrl->Host(h_mt)->Protect(mem, bytes);
