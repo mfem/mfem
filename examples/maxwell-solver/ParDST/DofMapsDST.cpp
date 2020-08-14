@@ -1,6 +1,5 @@
 #include "DofMapsDST.hpp"
 
-
 double testcoeff(const Vector & x)
 {
    return sin(3*M_PI*(x.Sum()));
@@ -567,7 +566,7 @@ void DofMaps::SubdomainToGlobalMapsSetup()
          {
             int edof_ = elem_dofs[i];
             int edof = (edof_ >= 0) ? edof_ : abs(edof_) - 1;
-            // rearranging dofs from serial fespace ro pfes ordering
+            // rearranging dofs from serial fespace to pfes ordering
             SubdomainGTrueDofs[ip][edof] = global_tdofs[ip][k++];
          }
       }
@@ -577,24 +576,6 @@ void DofMaps::SubdomainToGlobalMapsSetup()
    send_count = 0;  send_displ = 0;
    recv_count = 0;  recv_displ = 0;
 
-//------------------------------------------------------------------
-   // for (int ip = 0; ip < nrsubdomains; ++ip)
-   // {
-   //    if (myid != subdomain_rank[ip]) continue;
-   //    Array<int> ranks_marker(num_procs); ranks_marker = 0;
-
-   //    int ndofs = SubdomainGTrueDofs[ip].Size();
-   //    for (int i = 0; i<ndofs; ++i)
-   //    {
-   //       int tdof = SubdomainGTrueDofs[ip][i];
-   //       int rank = get_rank(tdof,tdof_offsets);
-   //       if (!ranks_marker[rank]) { ranks_marker[rank] = 1; }
-   //    }
-   //    for (int irank = 0; irank<num_procs; ++irank)
-   //    {  // patch_number and size
-   //       if (ranks_marker[irank]) { send_count[irank] += 2+ndofs; } 
-   //    }
-   // }
    for (int ip = 0; ip < nrsubdomains; ++ip)
    {
       if (myid != subdomain_rank[ip]) continue;
@@ -603,10 +584,10 @@ void DofMaps::SubdomainToGlobalMapsSetup()
       {
          int tdof = SubdomainGTrueDofs[ip][i];
          int rank = get_rank(tdof,tdof_offsets);
+         if (rank == subdomain_rank[ip]) continue; // <--------------
          send_count[rank] += 2; // 1 for the dof and 1 for the ip that goes to 
       }
    }
-//------------------------------------------------------------------
 
    // communicate so that recv_count is constructed
    MPI_Alltoall(send_count,1,MPI_INT,recv_count,1,MPI_INT,comm);
@@ -622,33 +603,6 @@ void DofMaps::SubdomainToGlobalMapsSetup()
    sendbuf.SetSize(sbuff_size);  
    sendbuf = 0; soffs = 0;
 
-//------------------------------------------------------------------
-   // for (int ip = 0; ip < nrsubdomains; ip++)
-   // {
-   //    if (myid != subdomain_rank[ip]) continue;
-   //    int ndofs = SubdomainGTrueDofs[ip].Size();
-   //    // loop through dofs
-   //    Array<int> ranks_marker(num_procs); ranks_marker = 0;
-   //    // loop through the dofs and find their rank
-   //    for (int i = 0; i<ndofs; ++i)
-   //    {
-   //       int tdof = SubdomainGTrueDofs[ip][i];
-   //       int rank = get_rank(tdof,tdof_offsets);
-   //       if (!ranks_marker[rank]) { ranks_marker[rank] = 1; }
-   //    }
-   //    for (int irank = 0; irank<num_procs; ++irank)
-   //    {
-   //       if (!ranks_marker[irank]) continue;
-   //       int j = send_displ[irank] + soffs[irank];
-   //       sendbuf[j] = ip;
-   //       sendbuf[j+1] = ndofs;
-   //       for (int i = 0; i<ndofs; ++i)
-   //       {
-   //          sendbuf[j+2+i] = SubdomainGTrueDofs[ip][i];
-   //       }
-   //       soffs[irank] += 2 + ndofs;
-   //    }
-   // }
    for (int ip = 0; ip < nrsubdomains; ip++)
    {
       if (myid != subdomain_rank[ip]) continue;
@@ -658,47 +612,26 @@ void DofMaps::SubdomainToGlobalMapsSetup()
       {
          int tdof = SubdomainGTrueDofs[ip][i];
          int irank = get_rank(tdof,tdof_offsets);
+         if (irank == subdomain_rank[ip]) continue; // <--------------
          int j = send_displ[irank] + soffs[irank];
          sendbuf[j] = ip;
          sendbuf[j+1] = SubdomainGTrueDofs[ip][i];
          soffs[irank] +=  2 ;
       }
    }
-//------------------------------------------------------------------
 
    recvbuf.SetSize(rbuff_size);
    MPI_Alltoallv(sendbuf, send_count, send_displ, MPI_INT, recvbuf,
                  recv_count, recv_displ, MPI_INT, comm);
 
-   // Construct local tdof lists for each patch
-   SubdomainLTrueDofs.resize(nrsubdomains);
-
-   k=0;
-   cout << "rbuff_size = " << rbuff_size << endl;
-//------------------------------------------------------------------
-   // while (k<rbuff_size)
-   // {
-   //    int ip = recvbuf[k++];
-   //    int ndofs = recvbuf[k++];
-   //    for (int idof = 0; idof < ndofs; ++idof)
-   //    {
-   //       int tdof = recvbuf[k+idof];
-   //       if (get_rank(tdof,tdof_offsets) == myid)
-   //       {
-   //          SubdomainLTrueDofs[ip].Append(tdof);
-   //       }
-   //    }
-   //    k += ndofs;
-   // }         
-   // while (k<rbuff_size)
+   // List of tdofs owned by the processor for subdomains not owned
+   SubdomainLTrueDofs.resize(nrsubdomains); 
    for (int k=0; k<rbuff_size/2; k++)
    {
       int ip = recvbuf[2*k];
       int tdof = recvbuf[2*k+1];
       SubdomainLTrueDofs[ip].Append(tdof);
    }    
-//------------------------------------------------------------------
-
 }
 
 // Restriction of global residual to subdomain residuals
@@ -793,6 +726,7 @@ void DofMaps::SubdomainsToGlobal(const std::vector<Vector> & x, Vector & y)
          // pick up the tdof and find its rank
          int tdof = SubdomainGTrueDofs[ip][i];
          int tdof_rank = get_rank(tdof,tdof_offsets);
+         if (tdof_rank == subdomain_rank[ip]) continue;
          send_count[tdof_rank]++;
       }
    }
@@ -821,6 +755,7 @@ void DofMaps::SubdomainsToGlobal(const std::vector<Vector> & x, Vector & y)
          int tdof = SubdomainGTrueDofs[ip][i];
          int tdof_rank = get_rank(tdof,tdof_offsets);
          // offset
+         if (tdof_rank == subdomain_rank[ip]) continue;
          int k = send_displ[tdof_rank] + soffs[tdof_rank];
          soffs[tdof_rank]++;
          sendbuf[k] = x[ip][i];
@@ -834,15 +769,28 @@ void DofMaps::SubdomainsToGlobal(const std::vector<Vector> & x, Vector & y)
 
    for (int ip = 0; ip < nrsubdomains; ip++)
    {
-      int ndofs = SubdomainLTrueDofs[ip].Size();
-      for (int i = 0; i<ndofs; i++)
+      if (myid == subdomain_rank[ip]) 
       {
-         int tdof = SubdomainLTrueDofs[ip][i];
-         // find its rank
-         int k = tdof - mytoffset;
-         int j = recv_displ[subdomain_rank[ip]] + roffs[subdomain_rank[ip]];
-         roffs[subdomain_rank[ip]]++;
-         y[k] += recvbuf[j];
+         int ndofs = SubdomainGTrueDofs[ip].Size();
+         for (int i = 0; i<ndofs; i++)
+         {
+            int tdof = SubdomainGTrueDofs[ip][i];
+            int k = tdof - mytoffset;
+            if (k<0 || k>=pfes->GetTrueVSize()) continue;
+            y[k] += x[ip][i];
+         }
+      }
+      else
+      {
+         int ndofs = SubdomainLTrueDofs[ip].Size();
+         for (int i = 0; i<ndofs; i++)
+         {
+            int tdof = SubdomainLTrueDofs[ip][i];
+            int k = tdof - mytoffset;
+            int j = recv_displ[subdomain_rank[ip]] + roffs[subdomain_rank[ip]];
+            roffs[subdomain_rank[ip]]++;
+            y[k] += recvbuf[j];
+         }
       }
    }              
 }
@@ -911,21 +859,26 @@ void DofMaps::TestSubdomainToGlobalMaps()
    // }
 
 
-   for (int i = 0 ; i<nrsubdomains; i++)
+
+   int nrsub = nrsubdomains;
+   for (int i = 0 ; i<nrsub; i++)
    {
       if (myid == subdomain_rank[i])
       {
          socketstream sol_sock1(vishost, visport);
          sol_sock1.precision(8);
-         sol_sock1 << "parallel " << nrsubdomains << " " << i << "\n";
-         GridFunction * gf = new GridFunction(fes[i]);
-         *gf = x1[i];
-         sol_sock1 << "solution\n" << *fes[i]->GetMesh() << *gf 
+         sol_sock1 << "parallel " << nrsub << " " << i << "\n";
+         GridFunction gf(fes[i]);
+         GridFunction gf1(fes[i]);
+         gf1.ProjectCoefficient(c1);
+         gf = x1[i];
+         gf1-=gf;
+         cout << "ip, Diff norm = " <<i<<", " << gf1.Norml2() << endl;
+         sol_sock1 << "solution\n" << *fes[i]->GetMesh() << gf
                    << keys << flush;
       }
       MPI_Barrier(MPI_COMM_WORLD);
    }
-
 
    socketstream gf_sock(vishost, visport);
    gf_sock.precision(8);
@@ -933,5 +886,3 @@ void DofMaps::TestSubdomainToGlobalMaps()
            << "solution\n" << *pfes->GetParMesh() << pgf1 
            << keys << flush;
 }
-
-
