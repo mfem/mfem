@@ -750,6 +750,8 @@ int main(int argc, char *argv[])
 
    ParGridFunction BField(&HDivFESpace);
    // ParGridFunction LField(&L2FESpace);
+   ParGridFunction ExactReEField(&HCurlFESpace);
+   ParGridFunction ExactImEField(&HCurlFESpace);
    ParGridFunction temperature_gf;
    ParGridFunction density_gf;
    ParGridFunction potential_gf;
@@ -964,8 +966,13 @@ int main(int argc, char *argv[])
 
    if ( visit )
    {
+      ExactReEField.ProjectCoefficient(EReCoef);
+      ExactImEField.ProjectCoefficient(EImCoef);
+       
       CPD.RegisterVisItFields(visit_dc);
       // visit_dc.RegisterField("L", &LField);
+      visit_dc.RegisterField("Exact_Re_E", &ExactReEField);
+      visit_dc.RegisterField("Exact_Im_E", &ExactImEField);
    }
    if (mpi.Root()) { cout << "Initialization done." << endl; }
 
