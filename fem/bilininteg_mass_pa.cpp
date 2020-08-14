@@ -13,6 +13,11 @@
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
 #include "ceed/mass.hpp"
+#include "../linalg/tensor/read.hpp"
+#include "../linalg/tensor/readmatrix.hpp"
+#include "../linalg/tensor/interp.hpp"
+#include "../linalg/tensor/cwisemult.hpp"
+#include "../linalg/tensor/write.hpp"
 
 using namespace std;
 
@@ -1144,6 +1149,87 @@ static void SmemPAMassApply3D(const int NE,
    });
 }
 
+template <typename Basis, typename BasisT, typename Dop,
+typename DofsIn, typename DofsOut> MFEM_HOST_DEVICE inline
+static void Apply(const int e,
+                  const Basis &d_B,
+                  const BasisT &d_Bt,
+                  const Dop &D,
+                  const DofsIn &x,
+                  DofsOut &y)
+{
+   auto u = Read<Basis::D>(x,e);
+
+   // Bu
+   auto B   = ReadMatrix(d_B);
+   auto bu  = Interpolate(B,u);
+   // DBu
+   auto D_e = Read<Basis::Q>(D,e);
+   auto dbu = CWiseMult(D_e,bu);
+   //BtDBu
+   auto Bt   = ReadMatrix(d_Bt);
+   auto bdbu = Interpolate(Bt,dbu);
+
+   WriteAdd(bdbu,e,y);
+}
+
+template <int D1D, int Q1D>
+static void Apply3D(const int NE,
+                    const Array<double> &b,
+                    const Array<double> &bt,
+                    const Vector &d,
+                    const Vector &x,
+                    Vector &y)
+{
+   DeviceBasis<Q1D,D1D> B = {b.Read()};
+   DeviceBasis<D1D,Q1D> Bt = {bt.Read()};
+   auto D = Reshape(d.Read(), Q1D, Q1D, Q1D, NE);
+   auto X = Reshape(x.Read(), D1D, D1D, D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, 1,
+   {
+      Apply(e,B,Bt,D,X,Y);
+   });
+}
+
+template <int D1D, int Q1D, int NBZ>
+static void Apply2D(const int NE,
+                    const Array<double> &b,
+                    const Array<double> &bt,
+                    const Vector &d,
+                    const Vector &x,
+                    Vector &y)
+{
+   DeviceBasis<Q1D,D1D> B = {b.Read()};
+   DeviceBasis<D1D,Q1D> Bt = {bt.Read()};
+   auto D = Reshape(d.Read(), Q1D, Q1D, NE);
+   auto X = Reshape(x.Read(), D1D, D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
+   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   {
+      Apply(e,B,Bt,D,X,Y);
+   });
+}
+
+template <int D1D, int Q1D, int NBZ>
+static void Apply1D(const int NE,
+                    const Array<double> &b,
+                    const Array<double> &bt,
+                    const Vector &d,
+                    const Vector &x,
+                    Vector &y)
+{
+   DeviceBasis<Q1D,D1D> B = {b.Read()};
+   DeviceBasis<D1D,Q1D> Bt = {bt.Read()};
+   auto D = Reshape(d.Read(), Q1D, NE);
+   auto X = Reshape(x.Read(), D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), D1D, NE);
+   MFEM_FORALL_2D(e, NE, Q1D, 1, NBZ,
+   {
+      Apply(e,B,Bt,D,X,Y);
+   });
+}
+
 static void PAMassApply(const int dim,
                         const int D1D,
                         const int Q1D,
@@ -1169,23 +1255,31 @@ static void PAMassApply(const int dim,
    }
 #endif // MFEM_USE_OCCA
    const int id = (D1D << 4) | Q1D;
-   if (dim == 2)
+   if (dim == 1)
    {
       switch (id)
       {
-         case 0x22: return SmemPAMassApply2D<2,2,16>(NE,B,Bt,D,X,Y);
-         case 0x24: return SmemPAMassApply2D<2,4,16>(NE,B,Bt,D,X,Y);
-         case 0x33: return SmemPAMassApply2D<3,3,16>(NE,B,Bt,D,X,Y);
-         case 0x34: return SmemPAMassApply2D<3,4,16>(NE,B,Bt,D,X,Y);
-         case 0x36: return SmemPAMassApply2D<3,6,16>(NE,B,Bt,D,X,Y);
-         case 0x44: return SmemPAMassApply2D<4,4,8>(NE,B,Bt,D,X,Y);
-         case 0x48: return SmemPAMassApply2D<4,8,4>(NE,B,Bt,D,X,Y);
-         case 0x55: return SmemPAMassApply2D<5,5,8>(NE,B,Bt,D,X,Y);
-         case 0x58: return SmemPAMassApply2D<5,8,2>(NE,B,Bt,D,X,Y);
-         case 0x66: return SmemPAMassApply2D<6,6,4>(NE,B,Bt,D,X,Y);
-         case 0x77: return SmemPAMassApply2D<7,7,4>(NE,B,Bt,D,X,Y);
-         case 0x88: return SmemPAMassApply2D<8,8,2>(NE,B,Bt,D,X,Y);
-         case 0x99: return SmemPAMassApply2D<9,9,2>(NE,B,Bt,D,X,Y);
+         case 0x22: return Apply1D<2,2,16>(NE,B,Bt,D,X,Y);
+         default:   mfem_error("default impl not yet implemented.");
+      }
+   }
+   else if (dim == 2)
+   {
+      switch (id)
+      {
+         case 0x22: return Apply2D<2,2,16>(NE,B,Bt,D,X,Y);
+         case 0x24: return Apply2D<2,4,16>(NE,B,Bt,D,X,Y);
+         case 0x33: return Apply2D<3,3,16>(NE,B,Bt,D,X,Y);
+         case 0x34: return Apply2D<3,4,16>(NE,B,Bt,D,X,Y);
+         case 0x36: return Apply2D<3,6,16>(NE,B,Bt,D,X,Y);
+         case 0x44: return Apply2D<4,4,8>(NE,B,Bt,D,X,Y);
+         case 0x48: return Apply2D<4,8,4>(NE,B,Bt,D,X,Y);
+         case 0x55: return Apply2D<5,5,8>(NE,B,Bt,D,X,Y);
+         case 0x58: return Apply2D<5,8,2>(NE,B,Bt,D,X,Y);
+         case 0x66: return Apply2D<6,6,4>(NE,B,Bt,D,X,Y);
+         case 0x77: return Apply2D<7,7,4>(NE,B,Bt,D,X,Y);
+         case 0x88: return Apply2D<8,8,2>(NE,B,Bt,D,X,Y);
+         case 0x99: return Apply2D<9,9,2>(NE,B,Bt,D,X,Y);
          default:   return PAMassApply2D(NE,B,Bt,D,X,Y,D1D,Q1D);
       }
    }
@@ -1193,19 +1287,19 @@ static void PAMassApply(const int dim,
    {
       switch (id)
       {
-         case 0x23: return SmemPAMassApply3D<2,3>(NE,B,Bt,D,X,Y);
-         case 0x24: return SmemPAMassApply3D<2,4>(NE,B,Bt,D,X,Y);
-         case 0x34: return SmemPAMassApply3D<3,4>(NE,B,Bt,D,X,Y);
-         case 0x36: return SmemPAMassApply3D<3,6>(NE,B,Bt,D,X,Y);
-         case 0x45: return SmemPAMassApply3D<4,5>(NE,B,Bt,D,X,Y);
-         case 0x46: return SmemPAMassApply3D<4,6>(NE,B,Bt,D,X,Y);
-         case 0x48: return SmemPAMassApply3D<4,8>(NE,B,Bt,D,X,Y);
-         case 0x56: return SmemPAMassApply3D<5,6>(NE,B,Bt,D,X,Y);
-         case 0x58: return SmemPAMassApply3D<5,8>(NE,B,Bt,D,X,Y);
-         case 0x67: return SmemPAMassApply3D<6,7>(NE,B,Bt,D,X,Y);
-         case 0x78: return SmemPAMassApply3D<7,8>(NE,B,Bt,D,X,Y);
-         case 0x89: return SmemPAMassApply3D<8,9>(NE,B,Bt,D,X,Y);
-         case 0x9A: return SmemPAMassApply3D<9,10>(NE,B,Bt,D,X,Y);
+         case 0x23: return Apply3D<2,3>(NE,B,Bt,D,X,Y);
+         case 0x24: return Apply3D<2,4>(NE,B,Bt,D,X,Y);
+         case 0x34: return Apply3D<3,4>(NE,B,Bt,D,X,Y);
+         case 0x36: return Apply3D<3,6>(NE,B,Bt,D,X,Y);
+         case 0x45: return Apply3D<4,5>(NE,B,Bt,D,X,Y);
+         case 0x46: return Apply3D<4,6>(NE,B,Bt,D,X,Y);
+         case 0x48: return Apply3D<4,8>(NE,B,Bt,D,X,Y);
+         case 0x56: return Apply3D<5,6>(NE,B,Bt,D,X,Y);
+         case 0x58: return Apply3D<5,8>(NE,B,Bt,D,X,Y);
+         case 0x67: return Apply3D<6,7>(NE,B,Bt,D,X,Y);
+         case 0x78: return Apply3D<7,8>(NE,B,Bt,D,X,Y);
+         case 0x89: return Apply3D<8,9>(NE,B,Bt,D,X,Y);
+         case 0x9A: return Apply3D<9,10>(NE,B,Bt,D,X,Y);
          default:   return PAMassApply3D(NE,B,Bt,D,X,Y,D1D,Q1D);
       }
    }
