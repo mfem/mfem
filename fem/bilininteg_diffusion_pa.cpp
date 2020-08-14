@@ -1645,11 +1645,11 @@ static void SmemPADiffusionApply3D(const int NE,
 
 template<int T_D1D = 0, int T_Q1D = 0>
 void BP3Global_v0(const int NE,
-                  const Array<double> &_b,
-                  const Array<double> &_cog,
-                  const Vector &_d,
-                  const Vector &_x,
-                  Vector &_y,
+                  const Array<double> &b_,
+                  const Array<double> &g_,
+                  const Vector &d_,
+                  const Vector &x_,
+                  Vector &y_,
                   const int d1d = 0,
                   const int q1d = 0)
 {
@@ -1661,11 +1661,11 @@ void BP3Global_v0(const int NE,
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
 
-   auto b = Reshape(_b.Read(), Q1D, D1D);
-   auto g = Reshape(_cog.Read(), Q1D, Q1D);
-   auto d = Reshape(_d.Read(), Q1D*Q1D*Q1D, 6, NE);
-   auto x = Reshape(_x.Read(), D1D, D1D, D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), D1D, D1D, D1D, NE);
+   auto b = Reshape(b_.Read(), Q1D, D1D);
+   auto g = Reshape(g_.Read(), Q1D, Q1D);
+   auto d = Reshape(d_.Read(), Q1D*Q1D*Q1D, 6, NE);
+   auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
+   auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
    {
@@ -1946,7 +1946,7 @@ static void CeedQRFactorization(double *mat, double *tau,
                                 const int Q1D, const  int D1D)
 {
    double v[MAX_Q1D];
-   MFEM_VERIFY(D1D > Q1D,"");
+   //MFEM_VERIFY(D1D >= Q1D,"");
    for (int i=0; i<D1D; i++)
    {
       // Calculate Householder vector, magnitude
