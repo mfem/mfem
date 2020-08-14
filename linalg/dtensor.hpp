@@ -13,6 +13,7 @@
 #define MFEM_DTENSOR
 
 #include "../general/backends.hpp"
+#include <utility>
 
 namespace mfem
 {
@@ -84,6 +85,8 @@ protected:
    int sizes[Dim];
 
 public:
+   static const int Rank = Dim;
+
    /// Default constructor
    DeviceTensor() = delete;
 
@@ -136,10 +139,29 @@ inline DeviceTensor<sizeof...(Dims),T> Reshape(T *ptr, Dims... dims)
    return DeviceTensor<sizeof...(Dims),T>(ptr, dims...);
 }
 
+// template <typename T, typename... Dims>
+// inline const DeviceTensor<sizeof...(Dims),T>&& Reshape(const T *ptr, Dims... dims)
+// {
+//    return std::move(DeviceTensor<sizeof...(Dims),T>(const_cast<T*>(ptr), dims...));
+// }
 
 typedef DeviceTensor<1,int> DeviceArray;
 typedef DeviceTensor<1,double> DeviceVector;
 typedef DeviceTensor<2,double> DeviceMatrix;
+
+template <int Quads, int Dofs>
+struct DeviceBasis
+{
+   static const int D = Dofs;
+   static const int Q = Quads;
+   const double *data;
+
+   MFEM_HOST_DEVICE inline
+   const double& operator()(int i, int j) const
+   {
+      return data[i+Q*j];
+   }
+};
 
 } // mfem namespace
 
