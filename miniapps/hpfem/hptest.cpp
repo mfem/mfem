@@ -81,7 +81,7 @@ bool ContainsVertex(Mesh *mesh, int elem, const Vertex& vert)
 }
 
 void Solve(FiniteElementSpace *fespace, GridFunction *sln, Coefficient *exsol, Coefficient *rhs,
-           bool pa, int int_order)
+           bool pa, int int_order, bool relaxed_hp)
 {
    DomainLFIntegrator *dlfi = new DomainLFIntegrator(*rhs);
    Geometry::Type geom = fespace->GetMesh()->GetElementGeometry(0);
@@ -93,10 +93,16 @@ void Solve(FiniteElementSpace *fespace, GridFunction *sln, Coefficient *exsol, C
    lf.AddDomainIntegrator(dlfi);
    lf.Assemble();
 
+   double sigma = -1;
+   double kappa = 1;
+
    // Assemble the bilinear form.
    BilinearForm bf(fespace);
    if (pa) { bf.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    bf.AddDomainIntegrator(new DiffusionIntegrator());
+   if (relaxed_hp) {
+      bf.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa));
+   }
    bf.Assemble();
 
    // Set Dirichlet boundary values in the GridFunction x.
@@ -122,7 +128,7 @@ void Solve(FiniteElementSpace *fespace, GridFunction *sln, Coefficient *exsol, C
    {
       // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
       GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 3, 500, 1e-13, 0.0);
+      PCG(*A, M, B, X, 3, 2000, 1e-30, 0.0);
    }
    else // No preconditioning for now in partial assembly mode.
    {
@@ -175,7 +181,8 @@ struct Solution
 };
 
 
-void FindHPRef(int elem, FiniteElementSpace *fes, Array<double> elemError, int n, Array<Solution*> solution, int max_order, std::map<int, HPRefinement> *hp_refs)
+void FindHPRef(int elem, FiniteElementSpace *fes, Array<double> elemError, int n,
+               Array<Solution*> solution, int max_order, std::map<int, HPRefinement> *hp_refs)
 {
    Mesh* mesh_h = solution[1]->fes.GetMesh();
 
@@ -308,7 +315,7 @@ int main(int argc, char *argv[])
    bool aniso = false;
    bool hp = true;
    int n_enriched = 4;
-   int max_order = 10;
+   int max_order = 12;
    int int_order = 10;
    bool relaxed_hp = false;
    const char *conv_file = "conv.err";
@@ -424,7 +431,7 @@ int main(int argc, char *argv[])
 
       // Solve for the current mesh: (h, p)
       GridFunction sol(&fespace);
-      Solve(&fespace, &sol, &exsol, &rhs, pa, int_order);
+      Solve(&fespace, &sol, &exsol, &rhs, pa, int_order, relaxed_hp);
 
       // Calculate the H^1_0 errors of elements as well as the total error.
       Array<int> ref_type;
@@ -437,7 +444,7 @@ int main(int argc, char *argv[])
       {
          GridFunction *vis_x = ProlongToMaxOrder(&sol);
          VisualizeField(sol_sock, *vis_x, "Solution", keys, 600, 500, 0, 70);
-
+         delete vis_x;
 
          GridFunction projsol(&fespace);
          Vector tmp = sol;
@@ -445,8 +452,7 @@ int main(int argc, char *argv[])
          MakeConforming(projsol);
          projsol -= tmp;
          vis_x = ProlongToMaxOrder(&projsol);
-         VisualizeField(err_sock, *vis_x, "Projected Solution", keys, 600, 500, 0, 70);
-
+         VisualizeField(err_sock, *vis_x, "Error (Projection)", keys, 600, 500, 0, 70);
          delete vis_x;
 
          L2_FECollection l2fec(0, dim);
@@ -484,7 +490,7 @@ int main(int argc, char *argv[])
          // Solve for solution on enriched spaces
          for (int k = 0; k < n_enriched; k++)
          {
-            Solve(&(solution[k]->fes), &(solution[k]->sol), &exsol, &rhs, pa, int_order);
+            Solve(&(solution[k]->fes), &(solution[k]->sol), &exsol, &rhs, pa, int_order, relaxed_hp);
             CalculateH10Error2(&(solution[k]->sol), &exgrad, &(solution[k]->elemError), &ref_type, int_order);
          }
 

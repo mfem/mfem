@@ -1,0 +1,16 @@
+set terminal postscript eps enhanced color
+set title "L-shaped domain problem"
+set size 0.9, 0.9
+set logscale y
+set format y "%1.0e"
+set grid
+set xlabel 'Square root of the number of unknowns'
+set ylabel 'H10 error'
+
+plot "lshape_h1.err" using ($1**(1.0/2.0)):2 w lp pt 7 ps 0.7 linecolor 3 linetype 1 linewidth 1 title 'h-FEM, p = 1', \
+"lshape_h2.err" using ($1**(1.0/2.0)):2 w lp pt 7 ps 0.7 linecolor 2 linetype 1 linewidth 1 title 'h-FEM, p = 2', \
+"lshape_h3.err" using ($1**(1.0/2.0)):2 w lp pt 7 ps 0.7 linecolor 4 linetype 1 linewidth 1 title 'h-FEM, p = 3', \
+"../conv.err" using ($1**(1.0/2.0)):2 w lp pt 7 ps 0.7 linecolor 7 linetype 1 linewidth 1 title 'full hp-FEM', \
+
+
+#"lshape_hp_x_82.err" using ($1**(1.0/2.0)):2 w lp pt 7 ps 0.7 linecolor 7 linetype 1 linewidth 1 title 'hp - relaxed, 82 candidates', \
