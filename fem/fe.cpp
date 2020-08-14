@@ -16,6 +16,7 @@
 #include "../mesh/nurbs.hpp"
 #include "bilininteg.hpp"
 #include <cmath>
+#include "../linalg/kernels.hpp"
 
 namespace mfem
 {
@@ -501,6 +502,7 @@ const DofToQuad &ScalarFiniteElement::GetDofToQuad(const IntegrationRule &ir,
          }
       }
    }
+
    dof2quad_array.Append(d2q);
    return *d2q;
 }
@@ -530,6 +532,7 @@ const DofToQuad &ScalarFiniteElement::GetTensorDofToQuad(
    d2q->B.SetSize(nqpt*ndof);
    d2q->Bt.SetSize(ndof*nqpt);
    d2q->G.SetSize(nqpt*ndof);
+   d2q->CoG.SetSize(nqpt*nqpt);
    d2q->Gt.SetSize(ndof*nqpt);
    Vector val(ndof), grad(ndof);
    for (int i = 0; i < nqpt; i++)
@@ -543,6 +546,11 @@ const DofToQuad &ScalarFiniteElement::GetTensorDofToQuad(
          d2q->G[i+nqpt*j] = d2q->Gt[j+ndof*i] = grad(j);
       }
    }
+   // Compute the collocated gradient d2q->CoG
+   kernels::GetCollocatedGrad(ndof, nqpt,
+                              ConstDeviceMatrix(d2q->B.HostRead(),nqpt,ndof),
+                              ConstDeviceMatrix(d2q->G.HostRead(),nqpt,ndof),
+                              DeviceMatrix(d2q->CoG.HostReadWrite(),nqpt,nqpt));
    dof2quad_array.Append(d2q);
    return *d2q;
 }

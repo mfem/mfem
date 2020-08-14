@@ -200,6 +200,10 @@ public:
          1 when #mode is TENSOR. */
    Array<double> G;
 
+   /// Collocated gradients of basis functions evaluated at quadrature points.
+   /// Only populated for a ScalarFiniteElement, in GetTensorDofToQuad.
+   Array<double> CoG;
+
    /// Transpose of #G.
    /** The storage layout is column-major with dimensions:
        - #ndof x #nqpt x dim, for scalar elements, or

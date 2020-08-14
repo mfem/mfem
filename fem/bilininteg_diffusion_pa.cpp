@@ -1695,6 +1695,7 @@ void BP3Global_v0(const int NE,
             }
             if (i<D1D && j<D1D)
             {
+               MFEM_UNROLL(MD1);
                for (int k = 0; k < D1D; k++)
                {
                   MFEM_REGISTER_2D(r_q,j,i)[k] = x(i,j,k,e);
@@ -1709,9 +1710,11 @@ void BP3Global_v0(const int NE,
          {
             if (a<D1D && b<D1D)
             {
+               MFEM_UNROLL(MQ1);
                for (int k=0; k<Q1D; ++k)
                {
                   double res = 0;
+                  MFEM_UNROLL(MD1);
                   for (int c=0; c<D1D; ++c)
                   {
                      res += s_I[k][c]*MFEM_REGISTER_2D(r_q,b,a)[c];
@@ -1733,9 +1736,11 @@ void BP3Global_v0(const int NE,
                {
                   MFEM_REGISTER_2D(r_Aq,k,a)[b] = s_Iq[k][b][a];
                }
+               MFEM_UNROLL(MQ1);
                for (int j=0; j<Q1D; ++j)
                {
                   double res = 0;
+                  MFEM_UNROLL(MD1);
                   for (int b=0; b<D1D; ++b)
                   {
                      res += s_I[j][b]*MFEM_REGISTER_2D(r_Aq,k,a)[b];
@@ -1754,9 +1759,11 @@ void BP3Global_v0(const int NE,
             {
                MFEM_REGISTER_2D(r_Aq,k,j)[a] = s_Iq[k][j][a];
             }
+            MFEM_UNROLL(MQ1);
             for (int i=0; i<Q1D; ++i)
             {
                double res = 0;
+               MFEM_UNROLL(MD1);
                for (int a=0; a<D1D; ++a)
                {
                   res += s_I[i][a]*MFEM_REGISTER_2D(r_Aq,k,j)[a];
@@ -1770,6 +1777,7 @@ void BP3Global_v0(const int NE,
       {
          MFEM_FOREACH_THREAD(i,x,Q1D)
          {
+            MFEM_UNROLL(MQ1);
             for (int k = 0; k < Q1D; k++)
             {
                MFEM_REGISTER_2D(r_Aq,j,i)[k] = 0.0;
@@ -1835,9 +1843,11 @@ void BP3Global_v0(const int NE,
       {
          MFEM_FOREACH_THREAD(i,x,Q1D)
          {
+            MFEM_UNROLL(D1D);
             for (int c=0; c<D1D; ++c)
             {
                double res = 0;
+               MFEM_UNROLL(MQ1);
                for (int k=0; k<Q1D; ++k)
                {
                   res += s_I[k][c]*MFEM_REGISTER_2D(r_Aq,j,i)[k];
@@ -1853,13 +1863,16 @@ void BP3Global_v0(const int NE,
          {
             if (c<D1D)
             {
+               MFEM_UNROLL(MQ1);
                for (int j=0; j<Q1D; ++j)
                {
                   MFEM_REGISTER_2D(r_Aq,c,i)[j] = s_Iq[c][j][i];
                }
+               MFEM_UNROLL(D1D);
                for (int b=0; b<D1D; ++b)
                {
                   double res = 0;
+                  MFEM_UNROLL(MQ1);
                   for (int j=0; j<Q1D; ++j)
                   {
                      res += s_I[j][b]*MFEM_REGISTER_2D(r_Aq,c,i)[j];
@@ -1877,13 +1890,16 @@ void BP3Global_v0(const int NE,
          {
             if (b<D1D && c<D1D)
             {
+               MFEM_UNROLL(MQ1);
                for (int i=0; i<Q1D; ++i)
                {
                   MFEM_REGISTER_2D(r_Aq,c,b)[i] = s_Iq[c][b][i];
                }
+               MFEM_UNROLL(D1D);
                for (int a=0; a<D1D; ++a)
                {
                   double res = 0;
+                  MFEM_UNROLL(MQ1);
                   for (int i=0; i<Q1D; ++i)
                   {
                      res += s_I[i][a]*MFEM_REGISTER_2D(r_Aq,c,b)[i];
@@ -1911,120 +1927,13 @@ void BP3Global_v0(const int NE,
    });
 }
 
-//******************************************************************************
-static void CeedHouseholderReflect(double *A, const double *v,
-                                   const double b, const int m, const int n,
-                                   const int row, const int col)
-{
-   for (int j=0; j<n; j++)
-   {
-      double w = A[0*row + j*col];
-      for (int i=1; i<m; i++) { w += v[i] * A[i*row + j*col]; }
-      A[0*row + j*col] -= b * w;
-      for (int i=1; i<m; i++) { A[i*row + j*col] -= b * w * v[i]; }
-   }
-}
-
-//******************************************************************************
-static void CeedHouseholderApplyQ(double *A, const double *Q,
-                                  const double *tau,
-                                  const int m, const int n, const int k,
-                                  const int row, const int col)
-{
-   double v[MAX_Q1D];
-   for (int ii=0; ii<k; ii++)
-   {
-      const int i = k-1-ii;
-      for (int j=i+1; j<m; j++) { v[j] = Q[j*k+i]; }
-      // Apply Householder reflector (I - tau v v^T) coG^T
-      CeedHouseholderReflect(&A[i*row], &v[i], tau[i], m-i, n, row, col);
-   }
-}
-
-//******************************************************************************
-static void CeedQRFactorization(double *mat, double *tau,
-                                const int Q1D, const  int D1D)
-{
-   double v[MAX_Q1D];
-   //MFEM_VERIFY(D1D >= Q1D,"");
-   for (int i=0; i<D1D; i++)
-   {
-      // Calculate Householder vector, magnitude
-      double sigma = 0.0;
-      v[i] = mat[i+D1D*i];
-      for (int j=i+1; j<Q1D; j++)
-      {
-         v[j] = mat[i+D1D*j];
-         sigma += v[j] * v[j];
-      }
-      double norm = sqrt(v[i]*v[i] + sigma); // norm of v[i:m]
-      double Rii = -copysign(norm, v[i]);
-      v[i] -= Rii;
-      // norm of v[i:m] after modification above and scaling below
-      //   norm = sqrt(v[i]*v[i] + sigma) / v[i];
-      //   tau = 2 / (norm*norm)
-      tau[i] = 2 * v[i]*v[i] / (v[i]*v[i] + sigma);
-      for (int j=i+1; j<Q1D; j++) { v[j] /= v[i]; }
-      // Apply Householder reflector to lower right panel
-      CeedHouseholderReflect(&mat[i*D1D+i+1], &v[i], tau[i], Q1D-i, D1D-i-1, D1D, 1);
-      // Save v
-      mat[i+D1D*i] = Rii;
-      for (int j=i+1; j<Q1D; j++)
-      {
-         mat[i+D1D*j] = v[j];
-      }
-   }
-}
-
-//******************************************************************************
-static void CeedBasisGetCollocatedGrad(const int P1d,
-                                       const int Q1d,
-                                       const Array<double> &B,
-                                       const Array<double> &G,
-                                       Array<double> &colograd1d)
-{
-   double tau[MAX_Q1D];
-   Array<double> interp1d(Q1d*P1d);
-   Array<double> grad1d(Q1d*P1d);
-   interp1d.HostReadWrite();
-   grad1d.HostReadWrite();
-   for (int d=0; d<P1d; d++)
-   {
-      for (int q=0; q<Q1d; q++)
-      {
-         interp1d[d + P1d*q] = B[q + Q1d*d];
-         grad1d[d + P1d*q] = G[q + Q1d*d];
-      }
-   }
-   CeedQRFactorization(interp1d, tau, Q1d, P1d);
-   // Apply Rinv, colograd1d = grad1d Rinv
-   for (int i=0; i<Q1d; i++)
-   {
-      colograd1d[Q1d*i] = grad1d[P1d*i]/interp1d[0];
-      for (int j=1; j<P1d; j++)
-      {
-         colograd1d[j+Q1d*i] = grad1d[j+P1d*i];
-         for (int k=0; k<j; k++)
-         {
-            colograd1d[j+Q1d*i] -= interp1d[j+P1d*k]*colograd1d[k+Q1d*i];
-         }
-         colograd1d[j+Q1d*i] /= interp1d[j+P1d*j];
-      }
-      for (int j=P1d; j<Q1d; j++)
-      {
-         colograd1d[j+Q1d*i] = 0;
-      }
-   }
-   // Apply Qtranspose, colograd = colograd Qtranspose
-   CeedHouseholderApplyQ(colograd1d, interp1d, tau, Q1d, Q1d, P1d, 1, Q1d);
-}
-
 static void PADiffusionApply(const int dim,
                              const int D1D,
                              const int Q1D,
                              const int NE,
                              const Array<double> &B,
                              const Array<double> &G,
+                             const Array<double> &CoG,
                              const Array<double> &Bt,
                              const Array<double> &Gt,
                              const Vector &D,
@@ -2069,32 +1978,29 @@ static void PADiffusionApply(const int dim,
    {
       const int DQ = (D1D << 4 ) | Q1D;
       //printf("\n\033[33m[Diff] D1D= %d, Q1D= %d => %x\033[m", D1D, Q1D, DQ);
-      static bool BP3Global = getenv("LBP");
+      static bool BP3Global = getenv("REG");
       if (BP3Global)
       {
-         Array<double> coG(Q1D*Q1D);
-         coG.GetMemory().UseDevice(true);
-         CeedBasisGetCollocatedGrad(D1D, Q1D, B, G, coG);
          switch (DQ)
          {
-            case 0x23: return BP3Global_v0<2,3>(NE,B,coG,D,X,Y);
-            case 0x34: return BP3Global_v0<3,4>(NE,B,coG,D,X,Y);
-            case 0x45: return BP3Global_v0<4,5>(NE,B,coG,D,X,Y);
-            case 0x56: return BP3Global_v0<5,6>(NE,B,coG,D,X,Y);
-            case 0x67: return BP3Global_v0<6,7>(NE,B,coG,D,X,Y);
-            case 0x78: return BP3Global_v0<7,8>(NE,B,coG,D,X,Y);
-            case 0x89: return BP3Global_v0<8,9>(NE,B,coG,D,X,Y);
-            case 0x9A: return BP3Global_v0<9,10>(NE,B,coG,D,X,Y);
-            case 0xAB: return BP3Global_v0<10,11>(NE,B,coG,D,X,Y);
-            case 0xBC: return BP3Global_v0<11,12>(NE,B,coG,D,X,Y);
-            case 0xCD: return BP3Global_v0<12,13>(NE,B,coG,D,X,Y);
-            case 0xDE: return BP3Global_v0<13,14>(NE,B,coG,D,X,Y);
-            case 0xEF: return BP3Global_v0<14,15>(NE,B,coG,D,X,Y);
-            case 0xF0: return BP3Global_v0<15,16>(NE,B,coG,D,X,Y);  // 14
-            case 0x111: return BP3Global_v0<16,17>(NE,B,coG,D,X,Y); // 15
+            case 0x23: return BP3Global_v0<2,3>(NE,B,CoG,D,X,Y);
+            case 0x34: return BP3Global_v0<3,4>(NE,B,CoG,D,X,Y);
+            case 0x45: return BP3Global_v0<4,5>(NE,B,CoG,D,X,Y);
+            case 0x56: return BP3Global_v0<5,6>(NE,B,CoG,D,X,Y);
+            case 0x67: return BP3Global_v0<6,7>(NE,B,CoG,D,X,Y);
+            case 0x78: return BP3Global_v0<7,8>(NE,B,CoG,D,X,Y);
+            case 0x89: return BP3Global_v0<8,9>(NE,B,CoG,D,X,Y);
+            case 0x9A: return BP3Global_v0<9,10>(NE,B,CoG,D,X,Y);
+            case 0xAB: return BP3Global_v0<10,11>(NE,B,CoG,D,X,Y);
+            case 0xBC: return BP3Global_v0<11,12>(NE,B,CoG,D,X,Y);
+            case 0xCD: return BP3Global_v0<12,13>(NE,B,CoG,D,X,Y);
+            case 0xDE: return BP3Global_v0<13,14>(NE,B,CoG,D,X,Y);
+            case 0xEF: return BP3Global_v0<14,15>(NE,B,CoG,D,X,Y);
+            case 0xF0: return BP3Global_v0<15,16>(NE,B,CoG,D,X,Y);  // 14
+            case 0x111: return BP3Global_v0<16,17>(NE,B,CoG,D,X,Y); // 15
             // kernels below use too much shared memory
             //case 0x112: return BP3Global_v0<17,18>(NE,B,coG,D,X,Y);
-            default:   return BP3Global_v0(NE,B,coG,D,X,Y,D1D,Q1D);
+            default:   return BP3Global_v0(NE,B,CoG,D,X,Y,D1D,Q1D);
          }
       }
       else
@@ -2129,7 +2035,7 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 #endif
    {
       PADiffusionApply(dim, dofs1D, quad1D, ne,
-                       maps->B, maps->G, maps->Bt, maps->Gt,
+                       maps->B, maps->G, maps->CoG, maps->Bt, maps->Gt,
                        pa_data, x, y);
    }
 }
