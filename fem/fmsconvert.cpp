@@ -130,18 +130,66 @@ FmsFieldToGridFunction(FmsMesh fms_mesh, FmsField f, Mesh *mesh, GridFunction &f
     FmsInt f_order;
     FmsFieldDescriptorGetFixedOrder(f_fd, &f_field_type,
                                     &f_basis_type, &f_order);
+#if 0
     if (f_field_type != FMS_CONTINUOUS) {
       return 10;
     }
+
     if (f_basis_type != FMS_NODAL_GAUSS_CLOSED) {
       return 11;
     }
-
+#endif
 //------------------------------------------------------------------
     if(setFE)
     {
 // We could assemble a name based on fe_coll.hpp rules and pass to FiniteElementCollection::New()
+#if 1
+        FiniteElementCollection *fec = nullptr;
+
+        int bt = mfem::BasisType::GaussLobatto;
+        if(f_basis_type == FMS_NODAL_GAUSS_OPEN)
+            bt = mfem::BasisType::GaussLegendre;
+        else if(f_basis_type == FMS_NODAL_GAUSS_CLOSED)
+            bt = mfem::BasisType::GaussLobatto;
+        else if(f_basis_type == FMS_POSITIVE)
+            bt = mfem::BasisType::Positive;
+        else if(f_basis_type == FMS_NODAL_CHEBYSHEV_OPEN)
+        {
+cout << "FMS basis type == FMS_NODAL_CHEBYSHEV_OPEN. What MFEM basis is that?" << endl;
+        }
+        else if(f_basis_type == FMS_NODAL_CHEBYSHEV_CLOSED)
+        {
+cout << "FMS basis type == FMS_NODAL_CHEBYSHEV_CLOSED. What MFEM basis is that?" << endl;
+        }
+        else if(f_basis_type == FMS_NODAL_UNIFORM_OPEN)
+        {
+cout << "FMS basis type == FMS_NODAL_UNIFORM_OPEN. What MFEM basis is that?" << endl;
+        }
+        else if(f_basis_type == FMS_NODAL_UNIFORM_CLOSED)
+        {
+cout << "FMS basis type == FMS_NODAL_UNIFORM_CLOSED. What MFEM basis is that?" << endl;
+        }
+
+        if(f_field_type == FMS_CONTINUOUS)
+            fec = new H1_FECollection(f_order, dim, bt);
+        else if(f_field_type == FMS_DISCONTINUOUS || f_field_type == FMS_DISCONTINUOUS_WEIGHTED)
+            fec = new L2_FECollection(f_order, dim, bt);
+        else if(f_field_type == FMS_HDIV)
+            fec = new RT_FECollection(f_order, dim);
+        else
+        {
+           // TODO: handle:
+//  FMS_DISCONTINUOUS_WEIGHTED, // "L2-conforming" volume weighted
+//  FMS_HCURL,         // H(curl)-conforming
+//  FMS_HDIV           // H(div)-conforming
+            return 13;
+        }
+
+cout << "\tFECollection name: " << fec->Name() << endl;
+
+#else
         auto fec = new H1_FECollection(f_order, dim);
+#endif
         int ordering = (f_layout == FMS_BY_VDIM) ? Ordering::byVDIM : Ordering::byNODES;        
         auto fes = new FiniteElementSpace(mesh, fec, space_dim, ordering);
         func.SetSpace(fes);
@@ -250,7 +298,7 @@ cout << "space_dim=" << space_dim << endl;
             fes->GetElementInteriorDofs(mfem_ent_cnt[dim]+e, dofs);
             for (int i = 0; i < ent_dofs[et]; i++, fms_dof_offset++) {
               for (int j = 0; j < vdim; j++) {
-                std::cout << fes->DofToVDof(dofs[i],j) << " = " << fms_dof_offset*nstride+j*vstride << std::endl;
+//                std::cout << fes->DofToVDof(dofs[i],j) << " = " << fms_dof_offset*nstride+j*vstride << std::endl;
                 func(fes->DofToVDof(dofs[i],j)) =
                   static_cast<double>(src_data[fms_dof_offset*nstride+j*vstride]);
               }
@@ -333,7 +381,7 @@ cout << "space_dim=" << space_dim << endl;
             fes->GetFaceInteriorDofs(mfem_face_id, dofs);
             for (int i = 0; i < quad_dofs; i++) {
               for (int j = 0; j < vdim; j++) {
-                std::cout << fes->DofToVDof(dofs[i],j) << " = " << (fms_dof_offset+perm[i])*nstride+j*vstride << std::endl;
+//                std::cout << fes->DofToVDof(dofs[i],j) << " = " << (fms_dof_offset+perm[i])*nstride+j*vstride << std::endl;
                 func(fes->DofToVDof(dofs[i],j)) =
                   static_cast<double>(src_data[(fms_dof_offset+perm[i])*nstride+j*vstride]);
               }
@@ -721,11 +769,63 @@ func_exit:
   return err;
 }
 
+bool
+BasisTypeToFmsBasisType(int bt, FmsBasisType &btype)
+{
+    bool retval = false;
+    switch(bt)
+    {
+    case mfem::BasisType::GaussLegendre:
+        cout << "mfem::BasisType::GaussLegendre -> FMS_NODAL_GAUSS_OPEN" << endl;
+        btype = FMS_NODAL_GAUSS_OPEN;
+        retval = true;
+        break;
+    case mfem::BasisType::GaussLobatto:
+        cout << "mfem::BasisType::GaussLobato -> FMS_NODAL_GAUSS_CLOSED" << endl;
+        btype = FMS_NODAL_GAUSS_CLOSED;
+        retval = true;
+        break;
+    case mfem::BasisType::Positive:
+        cout << "mfem::BasisType::Positive -> FMS_POSITIVE" << endl;
+        btype = FMS_POSITIVE;
+        retval = true;
+        break;
+    case mfem::BasisType::OpenUniform:
+        cout << "mfem::BasisType::OpenUniform -> ?" << endl;
+        break;
+    case mfem::BasisType::ClosedUniform:
+        cout << "mfem::BasisType::ClosedUniform -> ?" << endl;
+        break;
+    case mfem::BasisType::OpenHalfUniform:
+        cout << "mfem::BasisType::OpenHalfUniform -> ?" << endl;
+        break;
+    case mfem::BasisType::Serendipity:
+        cout << "mfem::BasisType::Serendipity -> ?" << endl;
+        break;
+    case mfem::BasisType::ClosedGL:
+        cout << "mfem::BasisType::ClosedGL -> ?" << endl;
+        break;
+
+    }
+/*
+    Which MFEM types map to:?
+       FMS_NODAL_CHEBYSHEV_OPEN,
+       FMS_NODAL_CHEBYSHEV_CLOSED,
+       FMS_NODAL_UNIFORM_OPEN,
+       FMS_NODAL_UNIFORM_CLOSED
+*/
+
+    return retval;
+}
+
 int
-GridFunctionToFmsField(FmsDataCollection dc, FmsFieldDescriptor fd, FmsField f, FmsComponent comp, const Mesh *mesh, const GridFunction *gf) {
+GridFunctionToFmsField(FmsDataCollection dc, FmsComponent comp, 
+    const std::string &fd_name, const std::string &field_name, const Mesh *mesh, const GridFunction *gf,
+    FmsField *outfield)
+{
   if(!dc) return 1;
-  if(!fd) return 2;
-  if(!f) return 3;
+//  if(!fd) return 2;
+//  if(!f) return 3;
   if(!comp) return 4;
   if(!gf) return 5;
 
@@ -735,26 +835,86 @@ GridFunctionToFmsField(FmsDataCollection dc, FmsFieldDescriptor fd, FmsField f, 
   const mfem::FiniteElementSpace *fespace = gf->FESpace();
   const mfem::FiniteElementCollection *fecoll = fespace->FEColl();
 
-  FmsFieldType ftype;
-  switch(fecoll->GetContType()) {
-    case mfem::FiniteElementCollection::CONTINUOUS: {
+  FmsInt order = 1;
+  int vdim = 1;
+  FmsFieldType ftype = FMS_CONTINUOUS;;
+  FmsBasisType btype = FMS_NODAL_GAUSS_CLOSED;
+  switch(fecoll->GetContType())
+  {
+    case mfem::FiniteElementCollection::CONTINUOUS:
+      {
       ftype = FMS_CONTINUOUS;
+      cout << "FMS_CONTINUOUS" << endl;
+      order = static_cast<FmsInt>(fespace->GetOrder(0));
+      vdim = gf->VectorDim();
+      auto fec = dynamic_cast<const mfem::H1_FECollection *>(fecoll);
+      if(fec != nullptr)
+      {
+          if(!BasisTypeToFmsBasisType(fec->GetBasisType(), btype))
+              return 6;
+      }
+      }
       break;
-    }
-    default: {
+    case mfem::FiniteElementCollection::DISCONTINUOUS:
+      {
+      ftype = FMS_DISCONTINUOUS;
+      cout << "FMS_DISCONTINUOUS" << endl;
+      order = static_cast<FmsInt>(fespace->GetOrder(0));
+      vdim = gf->VectorDim();
+      auto fec = dynamic_cast<const mfem::L2_FECollection *>(fecoll);
+      if(fec != nullptr)
+      {
+          if(!BasisTypeToFmsBasisType(fec->GetBasisType(), btype))
+              return 7;
+      }
+      }
+      ftype = FMS_DISCONTINUOUS;
+      break;
+    case mfem::FiniteElementCollection::TANGENTIAL:
+      {
+      mfem::out << "Warning, unsupported ContType (TANGENTIAL). Using FMS_CONTINUOUS." << std::endl;
+      }
+      break;
+    case mfem::FiniteElementCollection::NORMAL:
+      {
+      ftype = FMS_HDIV;
+      cout << "FMS_HDIV" << endl;
+      // This RT_FECollection type seems to arise from "RT" fields such as "RT_3D_P1".
+      // Checking fe_coll.hpp, this contains verbiage about H_DIV so we assign it the
+      // FMS type FMS_HDIV.
+
+      // I've seen RT_3D_P1 return the wrong order so get it from the name.
+      int idim, iorder;
+      if(sscanf(fecoll->Name(), "RT_%dD_P%d", &idim, &iorder) == 2)
+          order = (FmsInt)iorder;
+      else
+          order = static_cast<FmsInt>(fespace->GetOrder(0));
+
+      // Get the vdim from the fespace since the grid function is returning 
+      // 3 but we need it to be what was read from the file so we can pass the 
+      // right vdim to the FMS field descriptor to compute the expected number of dofs.
+      vdim = fespace->GetVDim();
+      }
+      break;
+    default:
       mfem::out << "Warning, unsupported ContType. Using FMS_CONTINUOUS." << std::endl;
       ftype = FMS_CONTINUOUS;
       break;
-    }
   }
 
-  FmsBasisType btype = FMS_NODAL_GAUSS_CLOSED;
+  //FmsBasisType btype = FMS_NODAL_GAUSS_CLOSED;
   /* Q: No getter for the basis, do different kinds of FECollection have implied basis?
       There are two subclasses that actually have the getter, maybe those aren't implied?
   */
 
+  // Now that we're not failing, create the fd and field.
+  FmsFieldDescriptor fd = NULL;
+  FmsField f = NULL;
+  FmsDataCollectionAddFieldDescriptor(dc, fd_name.c_str(), &fd);
+  FmsDataCollectionAddField(dc, field_name.c_str(), &f);
+  *outfield = f;
+
   /* Q: Why is order defined on a per element basis? */
-  FmsInt order = static_cast<FmsInt>(fespace->GetOrder(0));
   FmsFieldDescriptorSetComponent(fd, comp);
   FmsFieldDescriptorSetFixedOrder(fd, ftype, btype, order);
 
@@ -763,11 +923,13 @@ GridFunctionToFmsField(FmsDataCollection dc, FmsFieldDescriptor fd, FmsField f, 
 
   const char *name = NULL;
   FmsFieldGetName(f, &name);
-  const int vdim = gf->VectorDim();
   std::cout << "Field " << name << " is order " << order << " with vdim " << vdim << " and nDoFs " << ndofs << std::endl;
+
+  std::cout << "\tthe grid function indicates Size=" << gf->Size() << endl;
   FmsLayoutType layout = fespace->GetOrdering() == mfem::Ordering::byVDIM ? FMS_BY_VDIM : FMS_BY_NODES;
+
 #if 1
-  if(order > 2)
+  if(ftype == FMS_CONTINUOUS && order > 2)
   {
     // We will need to reorder interior cell dofs, at least for hex to be more compatible with FMS.
 
@@ -784,6 +946,34 @@ GridFunctionToFmsField(FmsDataCollection dc, FmsFieldDescriptor fd, FmsField f, 
       auto etype = mesh->GetElementType(e);
       switch(etype)
       {
+      case mfem::Element::QUADRILATERAL:
+          {
+          // Get cell interior dofs for quad.
+          mfem::Array<int> dofs;
+          fespace->GetElementInteriorDofs(e, dofs);
+
+          // Reorder the interior dofs into an order that is compatible with FMS.
+          // Do it in an order-proof way.
+          for(int j = 0; j < O1; ++j)
+          for(int i = 0; i < O1; ++i)
+          {
+              int original_index = j*O1 + i;
+
+              int jp = O1-1 - j;
+              int ip = O1-1 - i;
+
+              int new_index = jp*O1 + ip;
+
+              for (int vc = 0; vc < vdim; vc++)
+              {
+                  int src = fespace->DofToVDof(dofs[original_index],vc);
+                  int dest = fespace->DofToVDof(dofs[new_index],vc);
+                  values[dest] = (*gf)(src);
+              }
+              //cout << original_index << " : " << new_index << endl;
+          }
+          }
+          break;
       case mfem::Element::HEXAHEDRON:
           {
           // Get cell interior dofs for hex.
@@ -821,6 +1011,73 @@ GridFunctionToFmsField(FmsDataCollection dc, FmsFieldDescriptor fd, FmsField f, 
     FmsFieldSet(f, fd, vdim, layout, FMS_DOUBLE, values);
     delete [] values;
   }
+  else if(ftype == FMS_DISCONTINUOUS)
+  {
+    // Make a copy of the grid function data that we can reorder.
+    double *values = new double[s];
+    memcpy(values, c, sizeof(double) * s);
+    const int num_elements = mesh->GetNE();
+
+    // Iterate over cells and reorder data.
+    int hex_reorder[] = {7,3,5,1,6,2,4,0};
+    int cell_data_offset = 0;
+    for(int e = 0; e < num_elements; e++)
+    {
+      auto etype = mesh->GetElementType(e);
+      switch(etype)
+      {
+      case mfem::Element::QUADRILATERAL:
+          {
+          // reorder all the values along the edges.
+          int p = order;
+          int pp1 = order+1;
+          for(int j = 0; j < pp1; j++)
+          for(int i = 0; i < pp1; i++)
+          {
+              int jj = p-j;
+              int ii = p-i;
+              int src = j*pp1 + i;
+              int dest = jj*pp1 + ii;
+              for (int vc = 0; vc < vdim; vc++)
+              {
+                  int vsrc = fespace->DofToVDof(cell_data_offset + src,vc);
+                  int vdest = fespace->DofToVDof(cell_data_offset + dest,vc);
+                  values[vdest] = (*gf)(vsrc);
+              }
+          }
+          cell_data_offset += pp1*pp1;
+          }
+          break;
+      case mfem::Element::TETRAHEDRON:
+          cell_data_offset += 4;
+          break;
+      case mfem::Element::HEXAHEDRON:
+          {
+          // Reorder the values at the cell's vertices.
+          for(int i = 0; i < 8; ++i)
+          {
+              for (int vc = 0; vc < vdim; vc++)
+              {
+                  int src = fespace->DofToVDof(cell_data_offset + i,vc);
+                  int dest = fespace->DofToVDof(cell_data_offset + hex_reorder[i],vc);
+//cout << "values[" << dest << "] = gf[" << src << "]" << endl;
+                  values[dest] = (*gf)(src);
+              }
+              //cout << original_index << " : " << new_index << endl;
+          }
+
+          // Is reordering of edges, faces, interiors also needed?
+
+          cell_data_offset += 8;
+          break;
+          }
+      // Q: do tets need this treatment too?
+      } // switch etype
+    } // for e
+
+    FmsFieldSet(f, fd, vdim, layout, FMS_DOUBLE, values);
+    delete [] values;
+  }
   else
   {
     // The order is such that no reordering is needed.
@@ -829,6 +1086,7 @@ GridFunctionToFmsField(FmsDataCollection dc, FmsFieldDescriptor fd, FmsField f, 
 #else
   FmsFieldSet(f, fd, vdim, layout, FMS_DOUBLE, c);
 #endif
+  cout << "Added FMS field for " << field_name << endl;
   return 0;
 }
 
@@ -1075,10 +1333,12 @@ cout << "FmsDataCollectionToDataCollection: convert " << name << endl;
 
              if(err == 0)
              {
+cout << "Added field " << name << " to data collection." << endl;
                  mdc->RegisterField(name, gf);
              }
              else
              {
+cout << "Error " << err << " converting field " << name << " so we did not add to data collection." << endl;
                  delete gf;
              }
          }
@@ -1181,7 +1441,8 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
   const int edge_reorder[2] = {1, 0};
   const int quad_reorder[4] = {2,3,0,1};
   const int x = 5, x1 = 0, y = 2, y1 = 4, z = 1, z1 = 3;
-  const int hex_reorder[6] = {2,4,3,1,5,0};/*{4, 2, 3, 1, 0, 5};
+  const int hex_reorder[6] = {2,4,3,1,5,0};
+
   /*
     {z,z1,y,y1,x,x1}/* swirls  MATCHES FMS DOC
     {z,z1,y,y1,x1,x}/* garbage
@@ -1424,11 +1685,8 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
   // Add the coordinates field to the data collection
   const mfem::GridFunction *mcoords = mmesh->GetNodes();
   if(mcoords) {
-    FmsFieldDescriptor fcoords_fd = NULL;
-    FmsField fcoords = NULL;
-    FmsDataCollectionAddFieldDescriptor(*dc, "CoordsDescriptor", &fcoords_fd);
-    FmsDataCollectionAddField(*dc, "Coords", &fcoords);
-    GridFunctionToFmsField(*dc, fcoords_fd, fcoords, volume, mmesh, mcoords);
+    FmsField fcoords;
+    GridFunctionToFmsField(*dc, volume, "CoordsDescriptor", "Coords", mmesh, mcoords, &fcoords);
     FmsComponentSetCoordinates(volume, fcoords);
   }
   else {
@@ -1437,12 +1695,9 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
 
   const auto &fields = mfem_dc->GetFieldMap();
   for(const auto &pair : fields) {
-    FmsFieldDescriptor fd = NULL;
-    FmsField f = NULL;
     std::string fd_name(pair.first + "Collection");
-    FmsDataCollectionAddFieldDescriptor(*dc, fd_name.c_str(), &fd);
-    FmsDataCollectionAddField(*dc, pair.first.c_str(), &f);
-    GridFunctionToFmsField(*dc, fd, f, volume, mmesh, pair.second); // TODO: Volume isn't always going to be correct
+    FmsField field;
+    GridFunctionToFmsField(*dc, volume, fd_name, pair.first.c_str(), mmesh, pair.second, &field); // TODO: Volume isn't always going to be correct
   }
 
   // /* TODO:
