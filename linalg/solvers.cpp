@@ -2284,7 +2284,7 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
       {
          int i = J[ii];
          // Find value of (i,k)
-         double C_ik;
+         double C_ik = 0.0;
          for (int kk=I[i]; kk<I[i+1]; ++kk)
          {
             if (J[kk] == k)
@@ -2334,7 +2334,7 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
             int i = J[ii2];
             if (w_heap.picked(i)) { continue; }
             // Find value of (i,k)
-            double C_ik;
+            double C_ik = 0.0;
             for (int kk2=I[i]; kk2<I[i+1]; ++kk2)
             {
                if (J[kk2] == k)
@@ -2664,6 +2664,42 @@ void BlockILU::Mult(const Vector &b, Vector &x) const
       A_ii_inv.Solve(block_size, 1, xi);
    }
 }
+
+
+void ResidualBCMonitor::MonitorResidual(
+   int it, double norm, const Vector &r, bool final)
+{
+   if (!ess_dofs_list) { return; }
+
+   double bc_norm_squared = 0.0;
+   r.HostRead();
+   ess_dofs_list->HostRead();
+   for (int i = 0; i < ess_dofs_list->Size(); i++)
+   {
+      const double r_entry = r((*ess_dofs_list)[i]);
+      bc_norm_squared += r_entry*r_entry;
+   }
+   bool print = true;
+#ifdef MFEM_USE_MPI
+   MPI_Comm comm = iter_solver->GetComm();
+   if (comm != MPI_COMM_NULL)
+   {
+      double glob_bc_norm_squared = 0.0;
+      MPI_Reduce(&bc_norm_squared, &glob_bc_norm_squared, 1, MPI_DOUBLE,
+                 MPI_SUM, 0, comm);
+      bc_norm_squared = glob_bc_norm_squared;
+      int rank;
+      MPI_Comm_rank(comm, &rank);
+      print = (rank == 0);
+   }
+#endif
+   if ((it == 0 || final || bc_norm_squared > 0.0) && print)
+   {
+      mfem::out << "      ResidualBCMonitor : b.c. residual norm = "
+                << sqrt(bc_norm_squared) << endl;
+   }
+}
+
 
 #ifdef MFEM_USE_SUITESPARSE
 

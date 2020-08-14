@@ -48,7 +48,6 @@ void test_assembly_level(Mesh &&mesh, int order, bool dg, const int pb,
                          const AssemblyLevel assembly)
 {
    mesh.EnsureNodes();
-   mesh.SetCurvature(mesh.GetNodalFESpace()->GetOrder(0));
    int dim = mesh.Dimension();
 
    FiniteElementCollection *fec;
@@ -107,13 +106,77 @@ void test_assembly_level(Mesh &&mesh, int order, bool dg, const int pb,
 
 TEST_CASE("Assembly Levels", "[AssemblyLevel]")
 {
-   for (AssemblyLevel assembly : {AssemblyLevel::PARTIAL,AssemblyLevel::ELEMENT,AssemblyLevel::FULL})
+   SECTION("Continuous Galerkin")
    {
-      for (int pb : {0, 1, 2})
+      const bool dg = false;
+      SECTION("2D")
       {
-         for (bool dg : {true, false})
+         for (AssemblyLevel assembly : {AssemblyLevel::PARTIAL,AssemblyLevel::ELEMENT,AssemblyLevel::FULL})
          {
-            SECTION("2D")
+            for (int pb : {0, 1, 2})
+            {
+               for (int order : {2, 3, 4})
+               {
+                  test_assembly_level(Mesh("../../data/inline-quad.mesh", 1, 1),
+                                      order, dg, pb, assembly);
+                  test_assembly_level(Mesh("../../data/periodic-hexagon.mesh", 1, 1),
+                                      order, dg, pb, assembly);
+                  test_assembly_level(Mesh("../../data/star-q3.mesh", 1, 1),
+                                      order, dg, pb, assembly);
+               }
+            }
+         }
+      }
+      SECTION("3D")
+      {
+         for (AssemblyLevel assembly : {AssemblyLevel::PARTIAL,AssemblyLevel::ELEMENT,AssemblyLevel::FULL})
+         {
+            for (int pb : {0, 1, 2})
+            {
+               int order = 2;
+               test_assembly_level(Mesh("../../data/inline-hex.mesh", 1, 1),
+                                   order, dg, pb, assembly);
+               test_assembly_level(Mesh("../../data/fichera-q3.mesh", 1, 1),
+                                   order, dg, pb, assembly);
+            }
+         }
+      }
+      SECTION("AMR 2D")
+      {
+         for (AssemblyLevel assembly : {AssemblyLevel::PARTIAL,AssemblyLevel::ELEMENT,AssemblyLevel::FULL})
+         {
+            for (int pb : {0, 1, 2})
+            {
+               for (int order : {2, 3, 4})
+               {
+                  test_assembly_level(Mesh("../../data/amr-quad.mesh", 1, 1),
+                                      order, false, 0, assembly);
+               }
+            }
+         }
+      }
+      SECTION("AMR 3D")
+      {
+         for (AssemblyLevel assembly : {AssemblyLevel::PARTIAL,AssemblyLevel::ELEMENT,AssemblyLevel::FULL})
+         {
+            for (int pb : {0, 1, 2})
+            {
+               int order = 2;
+               test_assembly_level(Mesh("../../data/fichera-amr.mesh", 1, 1),
+                                   order, false, 0, assembly);
+            }
+         }
+      }
+   }
+
+   SECTION("Discontinuous Galerkin")
+   {
+      const bool dg = true;
+      SECTION("2D")
+      {
+         for (AssemblyLevel assembly : {AssemblyLevel::PARTIAL,AssemblyLevel::ELEMENT,AssemblyLevel::FULL})
+         {
+            for (int pb : {0, 1, 2})
             {
                for (int order : {2, 3, 4})
                {
@@ -125,31 +188,23 @@ TEST_CASE("Assembly Levels", "[AssemblyLevel]")
                                       order, dg, pb, assembly);
                }
             }
-
-            SECTION("3D")
-            {
-               int order = 2;
-               test_assembly_level(Mesh("../../data/periodic-cube.mesh", 1, 1),
-                                   order, dg, pb, assembly);
-               test_assembly_level(Mesh("../../data/fichera-q3.mesh", 1, 1),
-                                   order, dg, pb, assembly);
-            }
          }
-
-         // Test AMR cases (DG not implemented)
-         SECTION("AMR 2D")
+      }
+      SECTION("3D")
+      {
+         for (AssemblyLevel assembly : {AssemblyLevel::PARTIAL,AssemblyLevel::ELEMENT,AssemblyLevel::FULL})
          {
-            for (int order : {2, 3, 4})
+            for (int pb : {0, 1, 2})
             {
-               test_assembly_level(Mesh("../../data/amr-quad.mesh", 1, 1),
-                                   order, false, 0, assembly);
+               for (bool dg : {true, false})
+               {
+                  int order = 2;
+                  test_assembly_level(Mesh("../../data/periodic-cube.mesh", 1, 1),
+                                      order, dg, pb, assembly);
+                  test_assembly_level(Mesh("../../data/fichera-q3.mesh", 1, 1),
+                                      order, dg, pb, assembly);
+               }
             }
-         }
-         SECTION("AMR 3D")
-         {
-            int order = 2;
-            test_assembly_level(Mesh("../../data/fichera-amr.mesh", 1, 1),
-                                order, false, 0, assembly);
          }
       }
    }
