@@ -301,20 +301,20 @@ void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
    }
 
    // Set or retreive key values
-   if (new_basis)
+   if (new_basis && basis)
    {
       kh_value(internal::ceed_basis_from_fes, k_basis) = *basis;
    }
-   else
+   else if (basis)
    {
       khint_t k_basis = kh_get(basis, internal::ceed_basis_from_fes, basis_key);
       CeedHashGetValue(internal::ceed_basis_from_fes, k_basis, *basis);
    }
-   if (new_restr)
+   if (new_restr && restr)
    {
       kh_value(internal::ceed_restr_from_fes, k_restr) = *restr;
    }
-   else
+   else if (restr)
    {
       khint_t k_restr = kh_get(restr, internal::ceed_restr_from_fes, restr_key);
       CeedHashGetValue(internal::ceed_restr_from_fes, k_restr, *restr);
