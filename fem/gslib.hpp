@@ -100,10 +100,9 @@ public:
    void Setup(Mesh &m, const double bb_t = 0.1, const double newt_tol = 1.0e-12,
               const int npt_max = 256);
 
-   /** Searches positions given in physical space by @a point_pos. This function
-       populates the following Class variables:
-       #point_pos       Positions to be found. Must by ordered by nodes:
-                        (XXX...,YYY...,ZZZ).
+   /** Searches positions given in physical space by @a point_pos. These positions
+       must by ordered by nodes: (XXX...,YYY...,ZZZ).
+       This function populates the following member variables:
        #gsl_code        Return codes for each point: inside element (0),
                         element boundary (1), not found (2).
        #gsl_proc        MPI proc ids where the points were found.
