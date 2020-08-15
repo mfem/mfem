@@ -553,22 +553,46 @@ void MatrixCoefficient::Eval(const FiniteElementSpace &fes,
                              const IntegrationRule &ir,
                              Vector &qcoeff)
 {
-   const int ne = fes.GetMesh()->GetNE();
-   const int nq = ir.GetNPoints();
-   qcoeff.SetSize(height * width * nq * ne);
-   auto C = Reshape(qcoeff.HostWrite(), height, width, nq, ne);
-   DenseMatrix K(height, width);
-   for (int e = 0; e < ne; ++e)
+   if (!IsSymmetric())
    {
-      ElementTransformation& T = *fes.GetElementTransformation(e);
-      for (int q = 0; q < nq; ++q)
+      const int ne = fes.GetMesh()->GetNE();
+      const int nq = ir.GetNPoints();
+      qcoeff.SetSize(height * width * nq * ne);
+      auto C = Reshape(qcoeff.HostWrite(), height, width, nq, ne);
+      DenseMatrix K(height, width);
+      for (int e = 0; e < ne; ++e)
       {
-         Eval(K, T, ir.IntPoint(q));
-         for (int w = 0; w < width; w++)
+         ElementTransformation& T = *fes.GetElementTransformation(e);
+         for (int q = 0; q < nq; ++q)
          {
-            for (int h = 0; h < height; h++)
+            Eval(K, T, ir.IntPoint(q));
+            for (int w = 0; w < width; w++)
             {
-               C(h,w,q,e) = K(h,w);
+               for (int h = 0; h < height; h++)
+               {
+                  C(h,w,q,e) = K(h,w);
+               }
+            }
+         }
+      }
+   }
+   else
+   {
+      const int ne = fes.GetMesh()->GetNE();
+      const int nq = ir.GetNPoints();
+      const int symmDim = width*(width+1)/2;
+      qcoeff.SetSize(symmDim * nq * ne);
+      auto C = Reshape(qcoeff.HostWrite(), symmDim, nq, ne);
+      Vector K(symmDim);
+      for (int e = 0; e < ne; ++e)
+      {
+         ElementTransformation& T = *fes.GetElementTransformation(e);
+         for (int q = 0; q < nq; ++q)
+         {
+            EvalSymmetric(K, T, ir.IntPoint(q));
+            for (int c = 0; c < symmDim; c++)
+            {
+               C(c,q,e) = K(c);
             }
          }
       }
@@ -587,6 +611,31 @@ void MatrixConstantCoefficient::Eval(const FiniteElementSpace &fes,
       {
          C(h,w) = mat(h,w);
       }
+   }
+}
+
+void MatrixFunctionCoefficient::EvalSymmetric(Vector &K,
+                                              ElementTransformation &T,
+                                              const IntegrationPoint &ip)
+{
+   MFEM_VERIFY(symmetric && height == width && height < 4 && SymmFunction,
+               "MatrixFunctionCoefficient is not symmetric");
+
+   double x[3];
+   Vector transip(x, 3);
+
+   T.Transform(ip, transip);
+
+   K.SetSize((width * (width + 1)) / 2); // 1x1: 1, 2x2: 3, 3x3: 6
+
+   if (SymmFunction)
+   {
+      (*SymmFunction)(transip, K);
+   }
+
+   if (Q)
+   {
+      K *= Q->Eval(T, ip, GetTime());
    }
 }
 
