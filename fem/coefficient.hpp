@@ -880,7 +880,7 @@ public:
    }
 
    using MatrixCoefficient::Eval;
-   
+
    /// Construct a symmetric square matrix coefficient from a C-function
    /// defining a vector function used by EvalSymmetric
    MatrixFunctionCoefficient(int dim, void (*F)(const Vector &, Vector &),

@@ -73,7 +73,8 @@ void PAHcurlSetup2D(const int Q1D,
          else  // Vector or scalar coefficient version
          {
             const double c0 = const_c ? coeff(0, 0, 0) : coeff(0, q, e);
-            const double c1 = (coeffDim == 2) ? (const_c ? coeff(1, 0, 0) : coeff(1, q, e)) : c0;
+            const double c1 = (coeffDim == 2) ?
+                              (const_c ? coeff(1, 0, 0) : coeff(1, q, e)) : c0;
             const double c_detJ1 = W[q] * c0 / ((J11*J22)-(J21*J12));
             const double c_detJ2 = (coeffDim == 2) ? W[q] * c1
                                    / ((J11*J22)-(J21*J12)) : c_detJ1;
@@ -181,8 +182,10 @@ void PAHcurlSetup3D(const int Q1D,
          else  // Vector or scalar coefficient version
          {
             const double D1 = const_c ? coeff(0, 0, 0) : coeff(0, q, e);
-            const double D2 = coeffDim == 3 ? (const_c ? coeff(1, 0, 0) : coeff(1, q, e)) : D1;
-            const double D3 = coeffDim == 3 ? (const_c ? coeff(2, 0, 0) : coeff(2, q, e)) : D1;
+            const double D2 = coeffDim == 3 ?
+                              (const_c ? coeff(1, 0, 0) : coeff(1, q, e)) : D1;
+            const double D3 = coeffDim == 3 ?
+                              (const_c ? coeff(2, 0, 0) : coeff(2, q, e)) : D1;
             // detJ J^{-1} D J^{-T} = (1/detJ) adj(J) D adj(J)^T
             y(q,0,e) = w_detJ * (D1*A11*A11 + D2*A12*A12 + D3*A13*A13); // 1,1
             y(q,1,e) = w_detJ * (D1*A11*A21 + D2*A12*A22 + D3*A13*A23); // 2,1
