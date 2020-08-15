@@ -167,6 +167,7 @@ New and updated examples and miniapps
 
 Improved testing
 ----------------
+- Upgraded the Catch unit test framework from version 1.6.1 to version 2.13.0.
 - Added a GitLab pipeline that automates PR testing on supercomputing systems
   and Linux clusters at Lawrence Livermore National Lab (LLNL). This can be
   triggered only by LLNL developers, see .gitlab-ci.yml, the .gitlab directory
