@@ -634,9 +634,18 @@ cout << "Getting component part " << part_id << "'s entities et=" << et << ". nu
 #ifdef RENUMBER_ENTITIES
         for (FmsInt i = 0; i < num_elems*8; i++)
             ents_verts[i] += verts_start[part_id];
+            
 #endif
         for (FmsInt i = 0; i < num_elems; i++) {
-          mesh->AddHex(&ents_verts[8*i], elem_tag ? attr[elem_offset+i] : 1);
+          const int *hex_verts = &ents_verts[8*i];
+#if 0
+          const int reorder[8] = {0, 1, 2, 3, 5, 4, 6, 7};
+          const int new_verts[8] = {hex_verts[reorder[0]], hex_verts[reorder[1]], hex_verts[reorder[2]],
+            hex_verts[reorder[3]], hex_verts[reorder[4]], hex_verts[reorder[5]], hex_verts[reorder[6]],
+            hex_verts[reorder[7]]};
+          hex_verts = new_verts;
+#endif     
+          mesh->AddHex(hex_verts, elem_tag ? attr[elem_offset+i] : 1);
         }
         break;
       default:
@@ -919,12 +928,12 @@ GridFunctionToFmsField(FmsDataCollection dc, FmsComponent comp,
 
   const char *name = NULL;
   FmsFieldGetName(f, &name);
-  std::cout << "Field " << name << " is order " << order << " with vdim " << vdim << " and nDoFs " << ndofs << std::endl;
-
-  std::cout << "\tthe grid function indicates Size=" << gf->Size() << endl;
+  std::cout << "\tField is order " << order << " with vdim " << vdim << " and nDoFs " << ndofs << std::endl;
+  std::cout << "\tgf->size() " << gf->Size() << " ndofs * vdim " << ndofs * vdim << std::endl;
   FmsLayoutType layout = fespace->GetOrdering() == mfem::Ordering::byVDIM ? FMS_BY_VDIM : FMS_BY_NODES;
-
-#if 1
+  std::cout << "\tlayout " << layout << " (0 = BY_NODES, 1 = BY_VDIM)" << std::endl;
+  
+#if 0
   if(ftype == FMS_CONTINUOUS && order > 2)
   {
     // We will need to reorder interior cell dofs, at least for hex to be more compatible with FMS.
@@ -1483,15 +1492,84 @@ MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh)
   FmsDomainSetNumVertices(domains[0], num_verticies);
 
   HashTable<Hashed2> edge_ids;
+  HashTable<Hashed4> tri_ids;
   HashTable<Hashed4> quad_ids;
   std::vector<int> edge_verts;
   edge_verts.reserve(num_edges * 2);
+  std::vector<int> tri_edges;
   std::vector<int> quad_edges;
+  std::vector<int> tet_faces;
   std::vector<int> hex_faces;
   for(int ele_idx = 0; ele_idx < num_elements; ele_idx++) {
     const auto &ele = mmesh->GetElement(ele_idx);
     const auto ele_type = ele->GetType();
     switch(ele_type) {
+      case Element::Type::TRIANGLE: {
+        Array<int> verts;
+        ele->GetVertices(verts);
+        const int e_vs[3][2] = {{verts[0],verts[1]}, {verts[1],verts[2]}, {verts[2],verts[0]}};
+        for(int ed =  0; ed < 3; ed++) {
+          const int *vs = e_vs[ed];
+          tri_edges.push_back(edge_ids.GetId(vs[0], vs[1]));
+        }
+        break;
+      }
+      case Element::Type::QUADRILATERAL: {
+        Array<int> verts;
+        ele->GetVertices(verts);
+        const int e_vs[4][2] = {{verts[1],verts[0]},{verts[2],verts[1]},{verts[3],verts[2]}, {verts[0],verts[3]}};
+        for(int ed = 0; ed < 4; ed++) {
+          const int *vs = e_vs[ed];
+          quad_edges.push_back(edge_ids.GetId(vs[0], vs[1]));
+        }
+        break;
+      }
+      case Element::Type::TETRAHEDRON: {
+        // Build the edges
+        Array<int> verts;
+        ele->GetVertices(verts);
+        // std::cout << ele_idx << ": ";
+        // for(int v = 0; v < verts.Size(); v++) {
+        //   std::cout << verts[v] << " ";
+        // }
+        // std::cout << std::endl;
+        const int e_vs[6][2] = {
+          {verts[1],verts[0]}, {verts[2], verts[0]}, {verts[3], verts[0]},
+          {verts[1],verts[2]}, {verts[1], verts[3]}, {verts[2], verts[3]}};
+        int eids[6];
+        for(int ed = 0; ed < 6; ed++) {
+          const int *vs = e_vs[ed];
+          eids[ed] = edge_ids.GetId(vs[0], vs[1]);
+        }
+        
+        // Build the faces
+        const int t_fs[4][3] = {
+          {eids[3], eids[4], eids[5]}, // 
+          {eids[1], eids[2], eids[5]}, // 
+          {eids[0], eids[4], eids[2]}, // 
+          {eids[3], eids[0], eids[1]} // 
+        };
+        int fids[4];
+        for(int f = 0; f < 4; f++) {
+          const int *f_es = t_fs[f];
+          fids[f] = tri_ids.FindId(f_es[0], f_es[1], f_es[2]);
+          if(fids[f] < 0) {
+            fids[f] = tri_ids.GetId(f_es[0], f_es[1], f_es[2]);
+            for(int e = 0; e < 3; e++) {
+              tri_edges.push_back(f_es[e]);
+            }
+            if(tri_edges.size() / 3 - 1 != fids[f]) {
+              std::cout << "Just populated index " << tri_edges.size() / 3  - 1 << " but the face id hashed to " << fids[f] << std::endl;
+            }
+          }
+        }
+
+        const int reorder[4] = {0,1,2,3};
+        for(int f = 0; f < 4; f++) {
+          tet_faces.push_back(fids[f]);
+        }
+        break;
+      }
       case Element::Type::HEXAHEDRON: {
         /*
           // MFEM vertex ordering
@@ -1522,18 +1600,6 @@ MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh)
         for(int ed = 0; ed < 12; ed++) {
           const int *vs = e_vs[ed];
           eids[ed] = edge_ids.GetId(vs[0], vs[1]);
-#if 0
-          // New edge that needs to be pushed to edge_verts
-          // if(eids[ed] < 0) {
-          //   eids[ed] = edge_ids.GetId(vs[0], vs[1]);
-          //   for(int v = 0; v < 2; v++) {
-          //     edge_verts.push_back(vs[v]);
-          //   }
-          //   if(edge_verts.size() / 2 - 1 != eids[ed]) {
-          //     std::cout << "Just populated index " << edge_verts.size() / 4  - 1 << " but the edge id hashed to " << eids[ed] << std::endl;
-          //   }
-          // }
-#endif
         }
         // Build the faces
         const int h_fs[6][4] = {
@@ -1562,8 +1628,9 @@ MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh)
         }
 
         // Now build the hex
+        const int reorder[6] = {0,5,1,3,4,2};
         for(int f = 0; f < 6; f++) {
-          hex_faces.push_back(fids[f]);
+          hex_faces.push_back(fids[reorder[f]]);
         }
         break;
       }
@@ -1602,6 +1669,20 @@ MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh)
     return 4;
   }
 
+  if(tri_edges.size()) {
+    const int ntris = tri_edges.size() / 3;
+    FmsDomainSetNumEntities(domains[0], FMS_TRIANGLE, FMS_INT32, ntris);
+    FmsDomainAddEntities(domains[0], FMS_TRIANGLE, NULL, FMS_INT32, tri_edges.data(), ntris);
+#ifdef DEBUG_MFEM_FMS
+    std::cout << "TRIS: ";
+    for(int i = 0; i < tri_edges.size(); i++) {
+      if(i % 3 == 0) std::cout << std::endl << "\t" << i/3 << ": ";
+      std::cout << tri_edges[i] << " ";
+    }
+    std::cout << std::endl;
+#endif
+  }
+
   if(quad_edges.size()) {
     const int nquads = quad_edges.size() / 4;
     FmsDomainSetNumEntities(domains[0], FMS_QUADRILATERAL, FMS_INT32, nquads);
@@ -1615,6 +1696,22 @@ MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh)
     std::cout << std::endl;
 #endif
   }
+
+#if 1
+  if(tet_faces.size()) {
+    const int ntets = tet_faces.size() / 4;
+    FmsDomainSetNumEntities(domains[0], FMS_TETRAHEDRON, FMS_INT32, ntets);
+    FmsDomainAddEntities(domains[0], FMS_TETRAHEDRON, NULL, FMS_INT32, tet_faces.data(), ntets);
+#ifdef DEBUG_MFEM_FMS
+    std::cout << "TETS: ";
+    for(int i = 0; i < tet_faces.size(); i++) {
+      if(i % 4 == 0) std::cout << std::endl << "\t" << i/4 << ": ";
+      std::cout << tet_faces[i] << " ";
+    }
+    std::cout << std::endl;
+#endif
+  }
+#endif
 
 #if 0
   if(hex_faces.size()) {
@@ -1650,7 +1747,7 @@ MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh)
   return 0;
 }
 
-//#define CDL_EXPERIMENTAL
+#define CDL_EXPERIMENTAL
 #ifdef CDL_EXPERIMENTAL
 int
 DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc)
@@ -1684,11 +1781,12 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
     // ERROR?
   }
 
-#if 0
+// #define PRETEND_ONLY_ONE_HEX 1
+#if PRETEND_ONLY_ONE_HEX
   {
     // 24 Verticies * 1 DoF, 48 edges * 2 DoFs, 30 faces * 4 DoFs, 
     const double *mc = mcoords->GetData();
-    double *small_coords = new double[56*3];
+    double *small_coords = new double[64*3];
     // Copy the first 8 verticies
     for(int i = 0; i < 8; i++) {
       small_coords[i*3 + 0] = mc[i*3+0];
@@ -1708,8 +1806,14 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
       small_coords[idx*3 + 1] = mc[i*3+1];
       small_coords[idx*3 + 2] = mc[i*3+2];
     }
+    const int cell_dof_start = face_dof_start + 30 * 4;
+    for(int  i = cell_dof_start; i < cell_dof_start + 8; i++, idx++) {
+      small_coords[idx*3 + 0] = mc[i*3+0];
+      small_coords[idx*3 + 1] = mc[i*3+1];
+      small_coords[idx*3 + 2] = mc[i*3+2];
+    }
     std::cout << "Small Coords";
-    for(int i = 0; i < 56*3; i++) {
+    for(int i = 0; i < 64*3; i++) {
       if(i % 3 == 0) std::cout << std::endl << "\t" << i/3 << ": ";
       std::cout << small_coords[i];
     }
@@ -1725,6 +1829,7 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
     FmsInt nDofs;
     FmsFieldDescriptorGetNumDofs(sc_fd, &nDofs);
     std::cout << "Fms says that SmallCoords should have " << nDofs << "nDofs." << std::endl;
+    // FmsComponentSetCoordinates(volume, sc_f);
 
     static const double NODE_IDS[8] = {0,1,2,3,4,5,6,7};
     FmsFieldDescriptor nid_fd = NULL;
@@ -1735,7 +1840,7 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
     FmsFieldDescriptorSetFixedOrder(nid_fd, FMS_CONTINUOUS, FMS_NODAL_GAUSS_CLOSED, 1);
     FmsFieldSet(nid_f, nid_fd, 1, FMS_BY_NODES, FMS_DOUBLE, NODE_IDS);
 
-    delete small_coords;
+    delete[] small_coords;
   }
 #endif
 
