@@ -17,6 +17,17 @@
 #include <unordered_map>
 #include <algorithm> // std::max
 
+// Arena headers
+#include <map>
+#include "debug.hpp"
+#define uses(x) if (false && (&x)+1){}
+#include <vector>
+#include <algorithm>
+#include <iostream>
+#include <iterator>
+#include <memory>
+#include <cassert>
+
 // Uncomment to try _WIN32 platform
 //#define _WIN32
 //#define _aligned_malloc(s,a) malloc(s)
@@ -70,6 +81,7 @@ MemoryType MemoryManager::GetDualMemoryType_(MemoryType mt)
       case MemoryType::HOST:           return MemoryType::DEVICE;
       case MemoryType::HOST_32:        return MemoryType::DEVICE;
       case MemoryType::HOST_64:        return MemoryType::DEVICE;
+      case MemoryType::HOST_ARENA:     return MemoryType::DEVICE;
       case MemoryType::HOST_DEBUG:     return MemoryType::DEVICE_DEBUG;
       case MemoryType::HOST_UMPIRE:    return MemoryType::DEVICE_UMPIRE;
       case MemoryType::MANAGED:        return MemoryType::MANAGED;
@@ -89,6 +101,7 @@ static void MFEM_VERIFY_TYPES(const MemoryType h_mt, const MemoryType d_mt)
    const bool sync =
       (h_mt == MemoryType::HOST_UMPIRE && d_mt == MemoryType::DEVICE_UMPIRE) ||
       (h_mt == MemoryType::HOST_DEBUG && d_mt == MemoryType::DEVICE_DEBUG) ||
+      (h_mt == MemoryType::HOST_ARENA && d_mt == MemoryType::DEVICE) ||
       (h_mt == MemoryType::MANAGED && d_mt == MemoryType::MANAGED) ||
       (h_mt == MemoryType::HOST_64 && d_mt == MemoryType::DEVICE) ||
       (h_mt == MemoryType::HOST_32 && d_mt == MemoryType::DEVICE) ||
@@ -198,8 +211,225 @@ public:
    { return std::memcpy(dst, src, bytes); }
 };
 
+/// The memory pool manager
+template <typename RM = HostMemorySpace>
+class Pool
+{
+   struct Blocks
+   {
+      // Metadata of one block of memory
+      struct alignas(uintptr_t) Block
+      {
+         Block *next;
+         uintptr_t *ptr;
+         size_t bytes, pages;
+      };
+
+      inline size_t align(size_t bytes)
+      { return (bytes + sizeof(uintptr_t) - 1) & ~(sizeof(uintptr_t) - 1); }
+
+      // Arena struct
+      struct Arena
+      {
+         /*const*/ RM &rm;
+         const bool std;
+         const size_t size;
+         std::unique_ptr<Arena> next;
+         std::unique_ptr<Block[]> blocks;
+
+         Arena(/*const*/ RM &rm, const bool std, size_t sz):
+            rm(rm), std(std), size(sz), blocks(new Block[size])
+         {
+            std::memset(blocks.get(), 0, size*sizeof(Block));
+            for (size_t i = 1; i < sz; i++) { blocks[i-1].next = &blocks[i]; }
+            blocks[size-1].next = nullptr; // Should not be required
+         }
+
+         ~Arena()
+         {
+            for (size_t i = 0; i < size; i++)
+            {
+               Block &block = blocks[i];
+               if (block.ptr)
+               {
+                  uintptr_t *ptr = block.ptr -1;
+                  (std ? std::free(ptr) : rm.Dealloc((void*)ptr/*, block.bytes*/));
+                  dbg("\033[31m [Memory] DEALLOC %p", ptr);
+                  ptr = nullptr;
+               }
+            }
+         }
+
+         // Get next block
+         Block *Next() const { return blocks.get(); }
+
+         void Next(std::unique_ptr<Arena> &&n)
+         {
+            assert(!next);
+            next.reset(n.release());
+         }
+
+         void Dump()
+         {
+            for (size_t i = size; i > 0; i--)
+            {
+               Block &block = blocks[i-1];
+               const bool used = block.bytes > 0;
+               const uintptr_t *ptr = block.ptr;
+               printf("%s\033[m",
+                      ptr ? used ? "\033[32mX" : "\033[33mx" : "\033[37m.");
+            }
+            printf(" ");
+            if (!next) { return; }
+            next->Dump();
+         }
+      };
+
+      const bool std;
+      /*const*/ RM &rm;
+      const size_t pages, size;
+      std::unique_ptr<Arena> arena;
+      Block *next;
+
+   public:
+      Blocks(/*const*/ RM &rm, size_t pages, size_t size):
+         std(getenv("STD")), rm(rm), pages(pages), size(size),
+         arena(new Arena(rm, std, size)), next(arena->Next()) { }
+
+      /// Allocate bytes from these blocks
+      void *alloc(size_t bytes)
+      {
+         dbg("Aligning bytes: 0x%X => 0x%X", bytes, align(bytes));
+         bytes = align(bytes);
+         bytes += sizeof(uintptr_t);
+
+         if (next == nullptr)
+         {
+            dbg("new_arena");
+            std::unique_ptr<Arena> new_arena(new Arena(rm,std,size));
+            new_arena->Next(std::move(arena));
+            arena.reset(new_arena.release());
+            next = arena->Next();
+         }
+         Block *block = next;
+         next = block->next;
+         const uintptr_t *ptr = block->ptr;
+         const bool used = block->bytes > 0;
+         if (!used && !ptr)
+         {
+            // Update metadata
+            block->pages = pages;
+            // Get memory from the resource manager
+            block->ptr =
+               std ? (uintptr_t*) std::malloc(bytes) :
+               (rm.Alloc((void**)&block->ptr, bytes), block->ptr);
+            // Store the block pointer and increment
+            // From any pointer given back to free, the addres of the block
+            // is embedded 'before' the data
+            *block->ptr++ = reinterpret_cast<uintptr_t>(block);
+            dbg("\033[32m[%p] %p, 0x%X", block, block->ptr, bytes);
+         }
+         block->bytes = bytes;
+         return block->ptr;
+      }
+
+      /// Free the block
+      void free(Block *block)
+      {
+         dbg(" [%p] %p", block, block->ptr);
+         block->bytes = 0;
+         block->next = next;
+         next = block;
+      }
+   };
+
+   // The resource manager
+   RM rm;
+   const size_t ARENA_SIZE;
+   const uintptr_t PAGE_SIZE;
+   // the ordered map is useful for debug
+   using MapBlockArena = std::map<size_t, Blocks>;
+   //using MapBlockArena = std::unordered_map<size_t, Blocks>;
+   MapBlockArena BlocksMap;
+
+public:
+   Pool(size_t asize = 32): ARENA_SIZE(asize),
+      PAGE_SIZE((uintptr_t) sysconf(_SC_PAGE_SIZE))
+   {
+      //dbg("New Pool!");
+      assert(PAGE_SIZE > 0);
+      assert(ARENA_SIZE > 0);
+   }
+
+   void *alloc(size_t bytes)
+   {
+      // number of pages needed for this amount of bytes
+      const size_t pages = 1 + bytes / PAGE_SIZE;
+      //dbg("rm.PageSize(): %ld", rm.PageSize());
+      auto blk_iter = BlocksMap.find(pages);
+      auto end_iter = BlocksMap.end();
+      if (blk_iter == end_iter)
+      {
+         dbg("Creating new %d-pages Arena", pages);
+         auto res = BlocksMap.emplace(pages, Blocks(rm, pages, ARENA_SIZE));
+         assert(res.second); uses(res);
+         blk_iter = BlocksMap.find(pages);
+         end_iter = BlocksMap.end();
+         assert(blk_iter != end_iter);
+      }
+      // Get the bucket in which the allocation will be done
+      Blocks &blocks = blk_iter->second;
+      // Allocate the memory in this bucket
+      return blocks.alloc(bytes);
+   }
+
+   void free(void *ptr)
+   {
+      // From the given pointer, get back the block address
+      const uintptr_t *uintptr = reinterpret_cast<uintptr_t*>(ptr);
+      Pool<>::Blocks::Block *block =
+         reinterpret_cast<Pool<>::Blocks::Block*>(*(uintptr-1));
+
+      assert(uintptr == block->ptr);
+      dbg("\033[33m [%p] %p, 0x%X", block, block->ptr, block->bytes);
+
+      // From the number of pages, get the blocks
+      const size_t pages = block->pages;
+      auto blk_iter = BlocksMap.find(pages);
+      auto end_iter = BlocksMap.end();
+      assert(blk_iter != end_iter); uses(end_iter);
+      Blocks &blocks = blk_iter->second;
+      // Free this block from the blocks
+      blocks.free(block);
+   }
+
+   void Dump()
+   {
+      int k = 0;
+      for (auto &it : BlocksMap)
+      {
+         Blocks &bs = it.second;
+         printf("\033[37m[#%2d:%2dx%2d] ", k++, bs.size, bs.pages);
+         bs.arena->Dump();
+         printf("\n");
+         fflush(0);
+      }
+   }
+};
+
 /// The default std:: host memory space
 class StdHostMemorySpace : public HostMemorySpace { };
+
+/// The arena std:: host memory space
+class ArenaStdHostMemorySpace : public HostMemorySpace
+{
+   Pool<> *pool;
+public:
+   ArenaStdHostMemorySpace(): HostMemorySpace(), pool(new Pool<>()) { }
+   void Alloc(void **ptr, size_t bytes) { *ptr = pool->alloc(bytes); }
+   void Dealloc(void *ptr) { pool->free(ptr); }
+   ~ArenaStdHostMemorySpace() { delete pool; }
+};
 
 /// The No host memory space
 struct NoHostMemorySpace : public HostMemorySpace
@@ -566,6 +796,7 @@ public:
       host[static_cast<int>(MT::HOST)] = new StdHostMemorySpace();
       host[static_cast<int>(MT::HOST_32)] = new Aligned32HostMemorySpace();
       host[static_cast<int>(MT::HOST_64)] = new Aligned64HostMemorySpace();
+      host[static_cast<int>(MT::HOST_ARENA)] = new ArenaStdHostMemorySpace();
       // HOST_DEBUG is delayed, as it reroutes signals
       host[static_cast<int>(MT::HOST_DEBUG)] = nullptr;
       host[static_cast<int>(MT::HOST_UMPIRE)] = new UmpireHostMemorySpace();
@@ -1390,7 +1621,7 @@ MemoryType MemoryManager::device_mem_type = MemoryType::HOST;
 
 const char *MemoryTypeName[MemoryTypeSize] =
 {
-   "host-std", "host-32", "host-64", "host-debug", "host-umpire",
+   "host-std", "host-32", "host-64", "host-arena", "host-debug", "host-umpire",
 #if defined(MFEM_USE_CUDA)
    "cuda-uvm",
    "cuda",

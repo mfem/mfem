@@ -30,6 +30,7 @@ enum class MemoryType
    HOST,           ///< Host memory; using new[] and delete[]
    HOST_32,        ///< Host memory; aligned at 32 bytes
    HOST_64,        ///< Host memory; aligned at 64 bytes
+   HOST_ARENA,     ///< Host memory; using MemoryType::HOST with an arena pool
    HOST_DEBUG,     ///< Host memory; allocated from a "host-debug" pool
    HOST_UMPIRE,    ///< Host memory; using Umpire
    MANAGED,        /**< Managed memory; using CUDA or HIP *MallocManaged
