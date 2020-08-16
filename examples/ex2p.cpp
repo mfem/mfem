@@ -76,8 +76,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&reorder_space, "-nodes", "--by-nodes", "-vdim",
-                  "--by-vdim",
+   args.AddOption(&reorder_space, "-nodes", "--by-nodes", "-vdim", "--by-vdim",
                   "Use byNODES ordering of vector space instead of byVDIM");
    args.Parse();
    if (!args.Good())

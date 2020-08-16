@@ -3191,11 +3191,15 @@ void HypreBoomerAMG::SetOperator(const Operator &op)
 void HypreBoomerAMG::SetSystemsOptions(int dim, bool order_bynodes)
 {
    HYPRE_BoomerAMGSetNumFunctions(amg_precond, dim);
-   if (order_bynodes) // ordering == Ordering::byNODES
+
+   // The default "system" ordering in hypre is Ordering::byVDIM. When we are
+   // using Ordering::byNODES, we have to specify the ordering explicitly with
+   // HYPRE_BoomerAMGSetDofFunc as in the following code.
+   if (order_bynodes)
    {
-      // hypre actually deletes the following pointer in
-      // HYPRE_BoomerAMGDestroy, so we don't need to track it
-      HYPRE_Int * mapping = mfem_hypre_CTAlloc(HYPRE_Int, height);
+      // hypre actually deletes the following pointer in HYPRE_BoomerAMGDestroy,
+      // so we don't need to track it
+      HYPRE_Int *mapping = mfem_hypre_CTAlloc(HYPRE_Int, height);
       int h_nnodes = height / dim; // nodes owned in linear algebra (not fem)
       MFEM_VERIFY(height % dim == 0, "Ordering does not work as claimed!");
       int k = 0;
