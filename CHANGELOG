@@ -16,7 +16,7 @@ Meshing improvements
 - The graph linear ordering library Gecko, previously an external dependency, is
   now included directly in MFEM. As a result, Mesh::GetGeckoElementOrdering is
   always available. The interface has also been improved, see for example the
-  mesh-explorer miniapp.
+  Mesh Explorer miniapp.
 
 - Improved Gmsh reader (version 2.2), which now supports both high-order and
   periodic meshes. Segments, triangles, quadrilaterals, and tetrahedra are
@@ -161,6 +161,8 @@ New and updated examples and miniapps
 - Added a simple mesh editing miniapp, Trimmer, which trims away portions of a
   mesh based on element attributes. Any newly exposed boundary elements are
   assigned attribute numbers related to the trimmed element attributes.
+
+- Added the option to plot a function in Mesh Explorer.
 
 Improved testing
 ----------------
