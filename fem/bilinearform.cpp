@@ -627,6 +627,9 @@ void BilinearForm::AssembleDiagonal(Vector &diag) const
       MFEM_ASSERT(diag.Size() == fes->GetTrueVSize(),
                   "Vector for holding diagonal has wrong size!");
       const Operator *P = fes->GetProlongationMatrix();
+      // For an AMR mesh, a convergent diagonal is assembled with |P^T| d_e,
+      // where |P^T| has the entry-wise absolute values of the conforming
+      // prolongation transpose operator.
       if (P && !fes->Conforming())
       {
          Vector local_diag(P->Height());

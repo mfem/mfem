@@ -39,7 +39,7 @@
 using namespace mfem;
 using namespace std;
 
-// This tranformation can be applied to a mesh with the 't' menu option.
+// This transformation can be applied to a mesh with the 't' menu option.
 void transformation(const Vector &p, Vector &v)
 {
    // simple shear transformation
@@ -72,7 +72,8 @@ double region(const Vector &p)
    return std::max(std::max(x - 0.25, -y), y - 1.0);
 }
 
-double level_function(const Vector &p)
+// The projection of this function can be plotted with the 'l' menu option
+double f(const Vector &p)
 {
    double x = p(0);
    double y = p.Size() > 1 ? p(1) : 0.0;
@@ -350,7 +351,7 @@ int main (int argc, char *argv[])
            "e) View elements\n"
            "h) View element sizes, h\n"
            "k) View element ratios, kappa\n"
-           "l) View the 'level_function'\n"
+           "l) Plot a function\n"
            "x) Print sub-element stats\n"
            "f) Find physical point in reference space\n"
            "p) Generate a partitioning\n"
@@ -1004,6 +1005,7 @@ int main (int argc, char *argv[])
 
       if (mk == 'l')
       {
+         // Project and plot the function 'f'
          int p;
          FiniteElementCollection *fec = NULL;
          cout << "Enter projection space order: " << flush;
@@ -1020,8 +1022,8 @@ int main (int argc, char *argv[])
          }
          FiniteElementSpace fes(mesh, fec);
          GridFunction level(&fes);
-         FunctionCoefficient level_coeff(level_function);
-         level.ProjectCoefficient(level_coeff);
+         FunctionCoefficient coeff(f);
+         level.ProjectCoefficient(coeff);
          char vishost[] = "localhost";
          int  visport   = 19916;
          socketstream sol_sock(vishost, visport);
