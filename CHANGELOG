@@ -58,8 +58,7 @@ Improved GPU capabilities
   compute a global sparse matrix. All integrators supported by element assembly
   are also supported by full assembly. See the '-fa' option in Example 9.
 
-- Added CuSparse support for sparse matrix-vector multiplication when using
-  CUDA.
+- Added CUDA support for sparse matrix-vector multiplication with cuSPARSE.
 
 - Added support for BlockOperator on GPU. See the updated Example 5.
 
