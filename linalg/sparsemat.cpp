@@ -784,6 +784,101 @@ void SparseMatrix::BooleanMultTranspose(const Array<int> &x,
    }
 }
 
+void SparseMatrix::AbsMult(const Vector &x, Vector &y) const
+{
+   MFEM_ASSERT(width == x.Size(), "Input vector size (" << x.Size()
+               << ") must match matrix width (" << width << ")");
+   MFEM_ASSERT(height == y.Size(), "Output vector size (" << y.Size()
+               << ") must match matrix height (" << height << ")");
+
+   if (Finalized()) { y.UseDevice(true); }
+   y = 0.0;
+
+   if (!Finalized())
+   {
+      const double *xp = x.HostRead();
+      double *yp = y.HostReadWrite();
+
+      //  The matrix is not finalized, but multiplication is still possible
+      for (int i = 0; i < height; i++)
+      {
+         RowNode *row = Rows[i];
+         double b = 0.0;
+         for ( ; row != NULL; row = row->Prev)
+         {
+            b += std::abs(row->Value) * xp[row->Column];
+         }
+         *yp += b;
+         yp++;
+      }
+      return;
+   }
+
+   const int height = this->height;
+   const int nnz = J.Capacity();
+   auto d_I = Read(I, height+1);
+   auto d_J = Read(J, nnz);
+   auto d_A = Read(A, nnz);
+   auto d_x = x.Read();
+   auto d_y = y.ReadWrite();
+   MFEM_FORALL(i, height,
+   {
+      double d = 0.0;
+      const int end = d_I[i+1];
+      for (int j = d_I[i]; j < end; j++)
+      {
+         d += std::abs(d_A[j]) * d_x[d_J[j]];
+      }
+      d_y[i] += d;
+   });
+}
+
+void SparseMatrix::AbsMultTranspose(const Vector &x, Vector &y) const
+{
+   MFEM_ASSERT(height == x.Size(), "Input vector size (" << x.Size()
+               << ") must match matrix height (" << height << ")");
+   MFEM_ASSERT(width == y.Size(), "Output vector size (" << y.Size()
+               << ") must match matrix width (" << width << ")");
+
+   y = 0.0;
+
+   if (!Finalized())
+   {
+      double *yp = y.GetData();
+      // The matrix is not finalized, but multiplication is still possible
+      for (int i = 0; i < height; i++)
+      {
+         RowNode *row = Rows[i];
+         double b = x(i);
+         for ( ; row != NULL; row = row->Prev)
+         {
+            yp[row->Column] += fabs(row->Value) * b;
+         }
+      }
+      return;
+   }
+
+   if (At)
+   {
+      At->AbsMult(x, y);
+   }
+   else
+   {
+      MFEM_VERIFY(Device::IsDisabled(), "transpose action on device is not "
+                  "enabled; see BuildTranspose() for details.");
+      for (int i = 0; i < height; i++)
+      {
+         const double xi = x[i];
+         const int end = I[i+1];
+         for (int j = I[i]; j < end; j++)
+         {
+            const int Jj = J[j];
+            y[Jj] += std::abs(A[j]) * xi;
+         }
+      }
+   }
+}
+
 double SparseMatrix::InnerProduct(const Vector &x, const Vector &y) const
 {
    MFEM_ASSERT(x.Size() == Width(), "x.Size() = " << x.Size()
