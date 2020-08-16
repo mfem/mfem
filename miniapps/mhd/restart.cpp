@@ -443,8 +443,8 @@ int main(int argc, char *argv[])
       {
          //---Predictor stage---
          //assemble the nonlinear terms
-         phi->SetFromTrueVector(); 
-         psi->SetFromTrueVector(); 
+         phi->SetFromTrueDofs(vx.GetBlock(0));
+         psi->SetFromTrueDofs(vx.GetBlock(1));
          if (useStab){
             oper.assembleVoper(dt_real, phi, psi);
             oper.assembleBoper(dt_real, phi, psi);
@@ -457,7 +457,7 @@ int main(int argc, char *argv[])
 
          //---Corrector stage---
          //assemble the nonlinear terms (only psi is updated)
-         psi->SetFromTrueVector(); 
+         psi->SetFromTrueDofs(vx.GetBlock(1));
          if (useStab)
             oper.assembleBoper(dt_real, phi, psi);
          else
@@ -493,9 +493,9 @@ int main(int argc, char *argv[])
       if (last_step || (ti % vis_steps) == 0)
       {
          if (myid==0) cout << "step " << ti << ", t = " << t <<endl;
-         psi->SetFromTrueVector();
-         phi->SetFromTrueVector();
-         w->SetFromTrueVector();
+         phi->SetFromTrueDofs(vx.GetBlock(0));
+         psi->SetFromTrueDofs(vx.GetBlock(1));
+           w->SetFromTrueDofs(vx.GetBlock(2));
 
          if (visualization)
          {
@@ -555,9 +555,9 @@ int main(int argc, char *argv[])
    //++++++Save the solutions.
    if(false)
    {
-      phi->SetFromTrueVector(); 
-      psi->SetFromTrueVector(); 
-      w->SetFromTrueVector();
+      phi->SetFromTrueDofs(vx.GetBlock(0));
+      psi->SetFromTrueDofs(vx.GetBlock(1));
+        w->SetFromTrueDofs(vx.GetBlock(2));
       oper.UpdateJ(vx, &j);
 
       ostringstream mesh_name, mesh_save, phi_name, psi_name, w_name,j_name;
