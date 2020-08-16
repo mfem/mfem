@@ -113,7 +113,7 @@ if (MFEM_USE_CUDA)
    message(STATUS "Using CUDA architecture: ${CUDA_ARCH}")
    if (CMAKE_VERSION VERSION_LESS 3.12.0)
       # CMake versions 3.8 and 3.9 require this to work; 3.10 and 3.11 are not
-      # tested and may not actually need this (but it should not hurt).
+      # tested and may not actually need this (but should be ok to keep).
       set(CUDA_FLAGS "-ccbin=${CMAKE_CXX_COMPILER} ${CUDA_FLAGS}")
       set(CMAKE_CUDA_HOST_LINK_LAUNCHER ${CMAKE_CXX_COMPILER})
    endif()
