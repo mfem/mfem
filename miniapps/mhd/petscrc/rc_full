@@ -30,6 +30,7 @@
 -s2_ksp_rtol 1e-4
 -s2_ksp_type gmres
 -s2_pc_type hypre
+-s2_ksp_converged_reason
 #======Mass matrix======
 -s3_ksp_rtol 1e-6
 -s3_ksp_type cg
@@ -37,3 +38,4 @@
 -s4_ksp_rtol 1e-4
 -s4_ksp_type gmres
 -s4_pc_type hypre
+-s4_ksp_converged_reason
