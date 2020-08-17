@@ -715,6 +715,9 @@ protected:
    long current_sequence;
    Vector error_estimates;
    Array<int> aniso_flags;
+   double energy_reduction_factor; // an element is refined only if
+                                   // [mean E(children)]*factor < E(parent)
+
 
    /// Check if the mesh of the solution was modified.
    bool MeshIsModified()
@@ -740,7 +743,7 @@ public:
    TMOPRefinerEstimator(Mesh &mesh_, TMOP_Integrator &tmopi_, int order_, int amrmetric_) :
       mesh(&mesh_), tmopi(&tmopi_), order(order_), amrmetric(amrmetric_),
       TriIntRule(0), QuadIntRule(0), TetIntRule(0), HexIntRule(0),
-      current_sequence(-1), error_estimates(), aniso_flags()
+      current_sequence(-1), error_estimates(), aniso_flags(), energy_reduction_factor(1.)
    {
       if (mesh->Dimension() == 2) {
           SetQuadIntRules();
@@ -754,14 +757,10 @@ public:
    // destructor
    ~TMOPRefinerEstimator()
    {
-      for (int i = 0; i < QuadIntRule.Size(); i++)
-      {
-         delete QuadIntRule[i];
-      }
-      for (int i = 0; i < TriIntRule.Size(); i++)
-      {
-         delete TriIntRule[i];
-      }
+      for (int i = 0; i < QuadIntRule.Size(); i++) { delete QuadIntRule[i]; }
+      for (int i = 0; i < TriIntRule.Size();  i++) { delete TriIntRule[i]; }
+      for (int i = 0; i < HexIntRule.Size();  i++) { delete HexIntRule[i]; }
+      for (int i = 0; i < TetIntRule.Size();  i++) { delete TetIntRule[i]; }
    }
 
    virtual const Vector &GetLocalErrors()
@@ -775,6 +774,8 @@ public:
       return aniso_flags;
    }
 
+   void SetEnergyReductionFactor(double factor_) { energy_reduction_factor = factor_; }
+
    /// Reset the error estimator.
    virtual void Reset() { current_sequence = -1; }
 };
@@ -784,16 +785,15 @@ void TMOPRefinerEstimator::ComputeEstimates()
    bool iso = false;
    bool aniso = false;
    if (amrmetric == 1 || amrmetric == 2 || amrmetric == 58)
-//       || amrmetric == 301 || amrmetric == 302 || amrmetric == 303)
    {
       aniso = true;
    }
-   if (amrmetric == 55 || amrmetric == 56 || amrmetric == 77
-       || amrmetric == 315 || amrmetric == 316 || amrmetric == 321)
+   if (amrmetric == 55 || amrmetric == 56 || amrmetric == 77 ||
+       amrmetric == 315 || amrmetric == 316 || amrmetric == 321)
    {
       iso = true;
    }
-   if (amrmetric == 7 || amrmetric == 9) //|| amrmetric == 321)
+   if (amrmetric == 7 || amrmetric == 9)
    {
       iso = true; aniso = true;
    }
@@ -816,10 +816,10 @@ void TMOPRefinerEstimator::ComputeEstimates()
 
    for (int i = 1; i < num_ref_types+1; i++)
    {
-      if ( dim == 2 && i < 3 && aniso != true ) { continue; }
-      if ( dim == 2 && i == 3 && iso != true ) { continue; }
-      if ( dim == 3 && i < 7 && aniso != true ) { continue; }
-      if ( dim == 3 && i == 7 && iso != true ) { continue; }
+      if ( dim == 2 && i < 3  && aniso != true ) { continue; }
+      if ( dim == 2 && i == 3 && iso   != true ) { continue; }
+      if ( dim == 3 && i < 7  && aniso != true ) { continue; }
+      if ( dim == 3 && i == 7 && iso   != true ) { continue; }
 
       GetTMOPRefinementEnergy(i, amr_temp_energy);
 
@@ -832,6 +832,7 @@ void TMOPRefinerEstimator::ComputeEstimates()
          }
       }
    }
+   error_estimates *= energy_reduction_factor;
 
    error_estimates -= amr_base_energy;
    error_estimates *= -1;
@@ -855,6 +856,15 @@ void TMOPRefinerEstimator::GetTMOPRefinementEnergy(int reftype,
       DenseMatrix tr, vals;
       int NEsplit = 1;
       IntegrationRule *irule = NULL;
+
+      if ( (gtype == Geometry::TRIANGLE && reftype > 0 && reftype < 3) ||
+           (gtype == Geometry::CUBE && reftype > 0 && reftype < 7) ||
+           (gtype == Geometry::TETRAHEDRON && reftype > 0 && reftype < 7) )
+      {
+          el_energy_vec(e) = std::numeric_limits<float>::max();
+          continue;
+      }
+
       switch (gtype)
       {
          case Geometry::TRIANGLE:
@@ -863,6 +873,14 @@ void TMOPRefinerEstimator::GetTMOPRefinementEnergy(int reftype,
             int ref_access = reftype == 0 ? 0 : 1;
             xdof->GetVectorValues(e, *TriIntRule[ref_access], vals, tr);
             irule = TriIntRule[ref_access];
+            break;
+         }
+         case Geometry::TETRAHEDRON:
+         {
+            if (reftype != 0) { NEsplit = 4; }
+            int ref_access = reftype == 0 ? 0 : 1;
+            xdof->GetVectorValues(e, *TetIntRule[ref_access], vals, tr);
+            irule = TetIntRule[ref_access];
             break;
          }
          case Geometry::SQUARE:
@@ -892,18 +910,10 @@ void TMOPRefinerEstimator::GetTMOPRefinementEnergy(int reftype,
       // We will reformat it inside GetAMRElementENergy
       Vector elfun(vals.GetData(), vals.NumCols()*vals.NumRows());
 
-      if ( (gtype == Geometry::TRIANGLE && reftype > 0 && reftype < 3) ||
-           (gtype == Geometry::CUBE && reftype > 0 && reftype < 7) )
-      {
-          el_energy_vec(e) = std::numeric_limits<float>::max();
-      }
-      else
-      {
-          el_energy_vec(e) = tmopi->GetAMRElementEnergy(*fes->GetFE(e),
-                                                        *mesh->GetElementTransformation(e),
-                                                        elfun,
-                                                        *irule);
-      }
+      el_energy_vec(e) = tmopi->GetAMRElementEnergy(*fes->GetFE(e),
+                                                    *mesh->GetElementTransformation(e),
+                                                    elfun,
+                                                    *irule);
    }
 }
 
@@ -1172,7 +1182,7 @@ void TMOPDeRefinerEstimator::ComputeEstimates()
          {
             int child = tabrow[fe];
             MFEM_VERIFY(child < mesh->GetNE(), " invalid coarse to fine mapping");
-            error_estimates(child) -= parent_energy/nchild;
+            error_estimates(child) -= parent_energy*nchild;
          }
       }
       delete tcdfes;
@@ -1235,7 +1245,7 @@ void TMOPDeRefinerEstimator::ComputeEstimates()
          {
             int child = tabrow[fe];
             MFEM_VERIFY(child < pmesh->GetNE(), " invalid coarse to fine mapping");
-            error_estimates(child) -= parent_energy/nchild;
+            error_estimates(child) -= parent_energy*nchild;
          }
       }
       delete tcdfes;
