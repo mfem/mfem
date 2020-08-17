@@ -132,7 +132,7 @@ int main(int argc, char *argv[])
    if (pa)
    {
       a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      a.SetDiagonalPolicy(mfem::Operator::DIAG_ONE);
+      a.SetDiagonalPolicy(Operator::DIAG_ONE);
    }
    ParLinearForm b(&fespace);
 
