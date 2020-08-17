@@ -128,7 +128,7 @@ struct K##kernel##_T {\
 static kernels::Instantiator<K##kernel##_T> K##kernel;\
 template<int T_D1D, int T_Q1D, int T_MAX> return_t kernel(__VA_ARGS__)
 
-/// MFEM_LAUNCH_TMOP_KERNEL macro
+// MFEM_LAUNCH_TMOP_KERNEL macro
 #define MFEM_LAUNCH_TMOP_KERNEL(kernel, id, ...)\
 if (K##kernel.Find(id)) { return K##kernel.At(id)(__VA_ARGS__,0,0); }\
 else {\
