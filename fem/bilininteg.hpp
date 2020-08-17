@@ -80,7 +80,7 @@ public:
 
    /// Method defining element assembly.
    /** The result of the element assembly is added to the @a emat Vector if
-       @a add is true, it sets @a emat if @a add is false. */
+       @a add is true. Otherwise, if @a add is false, we set @a emat. */
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
                            const bool add = true);
    /** Used with BilinearFormIntegrators that have different spaces. */
