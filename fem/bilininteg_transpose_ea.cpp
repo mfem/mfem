@@ -113,20 +113,22 @@ void TransposeIntegrator::AssembleEAInteriorFaces(const FiniteElementSpace& fes,
             {
                const double aij_int0 = A_int(i, j, 0, f);
                const double aij_int1 = A_int(i, j, 1, f);
-               const double aij_ext0 = A_ext(i, j, 0, f);
-               const double aij_ext1 = A_ext(i, j, 1, f);
                const double aji_int0 = A_int(j, i, 0, f);
                const double aji_int1 = A_int(j, i, 1, f);
-               const double aji_ext0 = A_ext(j, i, 0, f);
-               const double aji_ext1 = A_ext(j, i, 1, f);
                A_int(j, i, 0, f) = aij_int0;
                A_int(j, i, 1, f) = aij_int1;
-               A_ext(j, i, 0, f) = aij_ext1;
-               A_ext(j, i, 1, f) = aij_ext0;
                A_int(i, j, 0, f) = aji_int0;
                A_int(i, j, 1, f) = aji_int1;
+            }
+         }
+         for (int i = 0; i < faceDofs; i++)
+         {
+            for (int j = 0; j < faceDofs; j++)
+            {
+               const double aij_ext0 = A_ext(i, j, 0, f);
+               const double aji_ext1 = A_ext(j, i, 1, f);
+               A_ext(j, i, 1, f) = aij_ext0;
                A_ext(i, j, 0, f) = aji_ext1;
-               A_ext(i, j, 1, f) = aji_ext0;
             }
          }
       });
