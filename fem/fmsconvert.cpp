@@ -190,6 +190,7 @@ FmsFieldToGridFunction(FmsMesh fms_mesh, FmsField f, Mesh *mesh, GridFunction &f
         auto fes = new FiniteElementSpace(mesh, fec, space_dim, ordering);
         func.SetSpace(fes);
 cout << "\tFESpace=" << (void*)func.FESpace() << endl;
+cout << "\tFECollection= " << fec->Name() << endl;
 
     }
 //------------------------------------------------------------------
@@ -740,15 +741,32 @@ cout << "n_vert=" << n_vert << endl;
     // Finalize the mesh topology
     mesh->FinalizeTopology();
 
-    FmsInt coords_order = 0;
+    FmsFieldDescriptor coords_fd = NULL;
     FmsLayoutType coords_layout;
-    FmsFieldGetOrderAndLayout(coords, &coords_order, &coords_layout);
+    FmsFieldGet(coords, &coords_fd, NULL, &coords_layout, NULL, NULL);
+    if(!coords_fd) {
+      mfem::err << "Error reading the FMS mesh coords' FieldDescriptor." << std::endl;
+      err = 8;
+      goto func_exit; 
+    }
+    FmsInt coords_order = 0;
+    FmsBasisType coords_btype = FMS_NODAL_GAUSS_CLOSED;
+    FmsFieldType coords_ftype = FMS_CONTINUOUS;
+    FmsFieldDescriptorGetFixedOrder(coords_fd, &coords_ftype, &coords_btype, &coords_order);
+    // Maybe this is extra but it seems mesh->SetCurvature assumes btype=1. Maybe protects us against corrupt data.
+    if(coords_btype != FMS_NODAL_GAUSS_CLOSED) {
+      mfem::err << "Error reading FMS mesh coords." << std::endl;
+      err = 9;
+      goto func_exit;
+    }
+
 cout << "coords_order=" << coords_order << endl;
 cout << "coords_layout=" << coords_layout << endl;
+cout << "coords_continuous?=" << (coords_ftype == FMS_CONTINUOUS ? "true" : "false") << endl;
 
     // Switch to mfem::Mesh with nodes (interpolates the linear coordinates)
     const bool discont = false;
-    mesh->SetCurvature(coords_order, discont, space_dim,
+    mesh->SetCurvature(coords_order, (coords_ftype == FMS_DISCONTINUOUS), space_dim,
                        (coords_layout == FMS_BY_VDIM) ?
                        mfem::Ordering::byVDIM : mfem::Ordering::byNODES);
 
@@ -1564,9 +1582,9 @@ MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh)
           }
         }
 
-        const int reorder[4] = {0,1,2,3};
+        const int reorder[4] = {3,2,1,0};
         for(int f = 0; f < 4; f++) {
-          tet_faces.push_back(fids[f]);
+          tet_faces.push_back(fids[reorder[f]]);
         }
         break;
       }
@@ -1628,7 +1646,7 @@ MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh)
         }
 
         // Now build the hex
-        const int reorder[6] = {0,5,1,3,4,2};
+        const int reorder[6] = {0,5,4,2,1,3};
         for(int f = 0; f < 6; f++) {
           hex_faces.push_back(fids[reorder[f]]);
         }
@@ -1713,7 +1731,7 @@ MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh)
   }
 #endif
 
-#if 0
+#if 1
   if(hex_faces.size()) {
     const int nhexes = hex_faces.size() / 6;
     FmsDomainSetNumEntities(domains[0], FMS_HEXAHEDRON, FMS_INT32, nhexes);
@@ -1747,7 +1765,7 @@ MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh)
   return 0;
 }
 
-#define CDL_EXPERIMENTAL
+// #define CDL_EXPERIMENTAL
 #ifdef CDL_EXPERIMENTAL
 int
 DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc)
@@ -1897,69 +1915,14 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
   FmsDomainSetNumVertices(domains[0], num_verticies);
 
   const int edge_reorder[2] = {1, 0};
-  const int quad_reorder[4] = {2,3,0,1};
-  const int x = 5, x1 = 0, y = 2, y1 = 4, z = 1, z1 = 3;
-  const int hex_reorder[6] = {2,4,3,1,5,0};
-
-  /*
-    {z,z1,y,y1,x,x1}/* swirls  MATCHES FMS DOC
-    {z,z1,y,y1,x1,x}/* garbage
-    {z,z1,y1,y,x,x1}/* garbage
-    {z,z1,y1,y,x1,x}/* NO
-    {z,z1,x,x1,y,y1}/* NO
-    {z,z1,x,x1,y1,y}/* garbage
-    {z,z1,x1,x,y,y1}/* garbage
-    {z,z1,x1,x,y1,y}/* NO
-    {z1,z,y,y1,x,x1}/* garbage
-    {z1,z,y,y1,x1,x}/* garbage
-    {z1,z,y1,y,x,x1}/* garbage
-    {z1,z,y1,y,x1,x}/* garbage
-    {z1,z,x,x1,y,y1}/* broken
-    {z1,z,x,x1,y1,y}/* broken
-    {z1,z,x1,x,y,y1}/* broken
-    {z1,z,x1,x,y1,y}/* broken
-
-    {x,x1,y,y1,z,z1}/* broken
-    {x,x1,y,y1,z1,z}/* broken
-    {x,x1,y1,y,z,z1}/* broken
-    {x,x1,y1,y,z1,z}/* broken
-    {x,x1,z,z1,y,y1}/* garbage
-    {x,x1,z,z1,y1,y}/* garbage
-    {x,x1,z1,z,y,y1}/* broken
-    {x,x1,z1,z,y1,y}/* broken
-
-    {x1,x,y,y1,z,z1}/* garbage
-    {x1,x,y,y1,z1,z}/* NO
-    {x1,x,y1,y,z,z1}/* closer
-    {x1,x,y1,y,z1,z}/* garbage
-    {x1,x,z,z1,y,y1}/* garbage
-    {x1,x,z,z1,y1,y}/* garbage
-    {x1,x,z1,z,y,y1}/* broken
-    {x1,x,z1,z,y1,y}/* broken
-
-    {y,y1,x,x1,z,z1}/* garbage
-    {y,y1,x,x1,z1,z}/* NO
-    {y,y1,x1,x,z,z1}/* no
-    {y,y1,x1,x,z1,z}/* garbage MATCHES HEXES.c
-    {y,y1,z,z1,x,x1}/* NO
-    {y,y1,z,z1,x1,x}/* no
-    {y,y1,z1,z,x,x1}/* NO 
-    {y,y1,z1,z,x1,x}/* GARBAGE
-
-    {y1,y,x,x1,z,z1}/* broken
-    {y1,y,x,x1,z1,z}/* broken
-    {y1,y,x1,x,z,z1}/* broken
-    {y1,y,x1,x,z1,z}/* broken
-    {y1,y,z,z1,x,x1}/* no
-    {y1,y,z,z1,x1,x}/* garbage
-    {y1,y,z1,z,x,x1}/* garbage
-    {y1,y,z1,z,x1,x}/* NO
-
-    {x,y,z,x1,y1,z1}/* ERROR
-    {z1,z,y1,y,x1,x}/* no
-  */
-  ;
-  const int *reorder[8] = {NULL, edge_reorder, NULL, quad_reorder, NULL, hex_reorder, NULL, NULL};
+  const int quad_reorder[4] = {0,1,2,3};
+  const int tet_reorder[4] = {3,2,1,0};
+  const int hex_reorder[6] = {0,5,1,3,4,2};
+  const int *reorder[8] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
+  reorder[FMS_EDGE] = edge_reorder;
+  reorder[FMS_QUADRILATERAL] = quad_reorder;
+  reorder[FMS_TETRAHEDRON] = tet_reorder;
+  reorder[FMS_HEXAHEDRON] = hex_reorder;
 
   const mfem::Table *edges = mmesh->GetEdgeVertexTable();
   if(!edges) {
@@ -2009,7 +1972,7 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
     }
     FmsEntityType ent_type = (rowsize == 3) ? FMS_TRIANGLE : FMS_QUADRILATERAL;
     FmsDomainSetNumEntities(domains[0], ent_type, FMS_INT32, face_edges.size() / rowsize);
-    FmsDomainAddEntities(domains[0], ent_type, reorder, FMS_INT32, face_edges.data(), face_edges.size() / rowsize);
+    FmsDomainAddEntities(domains[0], ent_type, NULL, FMS_INT32, face_edges.data(), face_edges.size() / rowsize);
 #ifdef DEBUG_MFEM_FMS
     std::cout << "FACES: ";
     for(int i = 0; i < face_edges.size(); i++) {
@@ -2055,17 +2018,25 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
       case mfem::Element::TETRAHEDRON: {
         mfem::Array<int> fids, oris;
         mmesh->GetElementFaces(i, fids, oris);
+        
+        std::cout << "\t";
         for(int f = 0; f < 4; f++) {
+          std::cout << oris[f] << " ";
           tets.push_back(fids[f]);
         }
+        std::cout << std::endl;
         break;
       }
       case mfem::Element::HEXAHEDRON: {
         mfem::Array<int> fids, oris;
         mmesh->GetElementFaces(i, fids, oris);
+
+        std::cout << "\t";
         for(int f = 0; f < 6; f++) {
+          std::cout << oris[f] << " ";
           hexes.push_back(fids[f]);
         }
+        std::cout << std::endl;
         break;
       }
       default:
@@ -2074,7 +2045,6 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
     }
   }
 
-  // TODO: Test, might need a reorder
   if(tris.size()) {
     FmsDomainSetNumEntities(domains[0], FMS_TRIANGLE, FMS_INT32, tris.size() / 3);
     FmsDomainAddEntities(domains[0], FMS_TRIANGLE, reorder, FMS_INT32, tris.data(), tris.size() / 3);
@@ -2102,7 +2072,6 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
 #endif
   }
 
-  // TODO: Test, probably needs a reorder
   if(tets.size()) {
     FmsDomainSetNumEntities(domains[0], FMS_TETRAHEDRON, FMS_INT32, tets.size() / 4);
     FmsDomainAddEntities(domains[0], FMS_TETRAHEDRON, reorder, FMS_INT32, tets.data(), tets.size() / 4);
@@ -2148,12 +2117,22 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
     FmsComponentSetCoordinates(volume, fcoords);
   }
   else {
-    // ERROR?
+    // Sometimes the nodes are stored as just a vector of vertex coordinates
+    mfem::Vector mverts;
+    mmesh->GetVertices(mverts);
+    FmsFieldDescriptor fdcoords = NULL;
+    FmsField fcoords = NULL;
+    FmsDataCollectionAddFieldDescriptor(*dc, "CoordsDescriptor", &fdcoords);
+    FmsFieldDescriptorSetComponent(fdcoords, volume);
+    FmsFieldDescriptorSetFixedOrder(fdcoords, FMS_CONTINUOUS, FMS_NODAL_GAUSS_CLOSED, 1);
+    FmsDataCollectionAddField(*dc, "Coords", &fcoords);
+    FmsFieldSet(fcoords, fdcoords, mmesh->SpaceDimension(), FMS_BY_NODES, FMS_DOUBLE, mverts);
+    FmsComponentSetCoordinates(volume, fcoords);
   }
 
   const auto &fields = mfem_dc->GetFieldMap();
   for(const auto &pair : fields) {
-    std::string fd_name(pair.first + "Collection");
+    std::string fd_name(pair.first + "Descriptor");
     FmsField field;
     GridFunctionToFmsField(*dc, volume, fd_name, pair.first.c_str(), mmesh, pair.second, &field); // TODO: Volume isn't always going to be correct
   }
