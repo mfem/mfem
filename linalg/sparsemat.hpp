@@ -86,9 +86,9 @@ protected:
    void Destroy();   // Delete all owned data
    void SetEmpty();  // Init all entries with empty values
 
-   bool useCuSparse{true}; //Use CuSparse if available
+   bool useCuSparse{true}; // Use cuSPARSE if available
 
-   // Initialize CuSparse
+   // Initialize cuSPARSE
    void InitCuSparse();
 
 #ifdef MFEM_USE_CUDA
@@ -148,8 +148,7 @@ public:
    /// Create a SparseMatrix with diagonal @a v, i.e. A = Diag(v)
    SparseMatrix(const Vector & v);
 
-   // Runtime option to use CuSparse
-   // Only valid when using a CUDA backend
+   // Runtime option to use cuSPARSE. Only valid when using a CUDA backend.
    void UseCuSparse(bool _useCuSparse = true) { useCuSparse = _useCuSparse;}
 
    /// Assignment operator: deep copy

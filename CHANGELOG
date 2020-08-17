@@ -60,8 +60,7 @@ Improved GPU capabilities
 
 - Optimized AMD/HIP kernel support.
 
-- Added CuSparse support for sparse matrix-vector multiplication when using
-  CUDA.
+- Added CUDA support for sparse matrix-vector multiplication with cuSPARSE.
 
 - Added support for BlockOperator on GPU. See the updated Example 5.
 
@@ -92,6 +91,9 @@ Discretization improvements
   these new QuadratureFunction coefficient classes.
 
 - Added support face integrals on the boundaries of NURBS meshes.
+
+- Added support for interpolation of functions in L2, H(div) and H(curl)
+  spaces using FindPointsGSLIB.
 
 Linear and nonlinear solvers
 ----------------------------
@@ -170,6 +172,9 @@ New and updated examples and miniapps
 - Added a simple mesh editing miniapp, Trimmer, which trims away portions of a
   mesh based on element attributes. Any newly exposed boundary elements are
   assigned attribute numbers related to the trimmed element attributes.
+
+- Added a new miniapp (field-interp) that demonstrates transfer of solution
+  between different meshes using FindPointsGSLIB.
 
 - Added device support in Example 5/5p.
 
