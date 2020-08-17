@@ -101,10 +101,6 @@ public:
                             alters performance and memory footprint. */
    void Setup(Mesh &m, const double bb_t = 0.1, const double newt_tol = 1.0e-12,
               const int npt_max = 256);
-   void Setup(Mesh &m, const int idsess, GridFunction &gfmax,
-              const double bb_t = 0.1, const double newt_tol = 1.0e-12,
-              const int npt_max = 256);
-
    /** Searches positions given in physical space by @a point_pos. These positions
        must by ordered by nodes: (XXX...,YYY...,ZZZ).
        This function populates the following member variables:
