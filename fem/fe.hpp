@@ -513,9 +513,10 @@ public:
    virtual void Project (VectorCoefficient &vc,
                          ElementTransformation &Trans, Vector &dofs) const;
 
-   /** @brief Given a vector of values at the finite element nodes and a transformation,
-       compute its projection (approximation) in the local finite dimensional space
-       in terms of the degrees of freedom. (VectorFiniteElements) */
+   /** @brief Given a vector of values at the finite element nodes and a
+       transformation, compute its projection (approximation) in the local
+       finite dimensional space in terms of the degrees of freedom. Valid for
+       VectorFiniteElements. */
    virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
                                  Vector &dofs) const;
 
@@ -803,12 +804,12 @@ protected:
                    VectorCoefficient &vc, ElementTransformation &Trans,
                    Vector &dofs) const;
 
-   /// projects the vector of values given at FE nodes to RT space
+   /// Projects the vector of values given at FE nodes to RT space
    void Project_RT(const double *nk, const Array<int> &d2n,
                    Vector &vc, ElementTransformation &Trans,
                    Vector &dofs) const;
 
-   // project the rows of the matrix coefficient in an RT space
+   /// Project the rows of the matrix coefficient in an RT space
    void ProjectMatrixCoefficient_RT(
       const double *nk, const Array<int> &d2n,
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const;
@@ -836,12 +837,12 @@ protected:
                    VectorCoefficient &vc, ElementTransformation &Trans,
                    Vector &dofs) const;
 
-   /// projects the vector of values given at FE nodes to ND space
+   /// Projects the vector of values given at FE nodes to ND space
    void Project_ND(const double *tk, const Array<int> &d2t,
                    Vector &vc, ElementTransformation &Trans,
                    Vector &dofs) const;
 
-   /// project the rows of the matrix coefficient in an ND space
+   /// Project the rows of the matrix coefficient in an ND space
    void ProjectMatrixCoefficient_ND(
       const double *tk, const Array<int> &d2t,
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const;
