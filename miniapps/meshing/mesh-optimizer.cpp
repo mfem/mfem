@@ -111,8 +111,8 @@ int main(int argc, char *argv[])
    int max_lin_iter      = 100;
    bool move_bnd         = true;
    int combomet          = 0;
-   int amr_flag          = 1;
-   int amrmetric_id      = -1;
+   bool hr               = true;
+   int amr_metric_id      = -1;
    bool normalization    = false;
    bool visualization    = true;
    int verbosity_level   = 0;
@@ -190,10 +190,11 @@ int main(int argc, char *argv[])
                   "0: Use single metric\n\t"
                   "1: Shape + space-dependent size given analytically\n\t"
                   "2: Shape + adapted size given discretely; shared target");
-   args.AddOption(&amr_flag, "-amr", "--amr-flag",
-                  "1 - AMR after TMOP");
-   args.AddOption(&amrmetric_id, "-amrm", "--amr-metric",
-                  "0 - Size, 1 - AspectRatio, 2 - Size + AspectRatio");
+   args.AddOption(&hr, "-hr", "--hr-adaptivity", "-no-hr",
+                  "--no-hr-adaptivity",
+                  "Enable hr-adaptivity.");
+   args.AddOption(&amr_metric_id, "-hmid", "--h-metric",
+                  "same options as metric_id");
    args.AddOption(&hessiantype, "-ht", "--Hessian Target type",
                   "1-6");
    args.AddOption(&normalization, "-nor", "--normalization", "-no-nor",
@@ -220,7 +221,7 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   if (amrmetric_id < 0) { amrmetric_id = metric_id; }
+   if (amr_metric_id < 0) { amr_metric_id = metric_id; }
    // 2. Initialize and refine the starting mesh->
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
@@ -363,7 +364,7 @@ int main(int argc, char *argv[])
       default: cout << "Unknown metric_id: " << metric_id << endl; return 3;
    }
    TMOP_QualityMetric *amrmetric = NULL;
-   switch (amrmetric_id)
+   switch (amr_metric_id)
    {
       case 1: amrmetric = new TMOP_Metric_001; break;
       case 2: amrmetric = new TMOP_Metric_002; break;
@@ -375,19 +376,19 @@ int main(int argc, char *argv[])
       case 77: amrmetric = new TMOP_Metric_077; break;
       case 302: amrmetric = new TMOP_Metric_302; break;
       case 315: amrmetric = new TMOP_Metric_315; break;
-      default: cout << "Unknown metric_id: " << amrmetric_id << endl; return 3;
+      default: cout << "Unknown metric_id: " << amr_metric_id << endl; return 3;
    }
 
    if (metric_id < 300)  {
        MFEM_VERIFY(dim == 2, "Incompatible metric for 3D meshes");
    }
-   if (amrmetric_id < 300)  {
+   if (amr_metric_id < 300)  {
        MFEM_VERIFY(dim == 2, "Incompatible metric for 3D meshes");
    }
    if (metric_id >= 300)  {
        MFEM_VERIFY(dim == 3, "Incompatible metric for 2D meshes");
    }
-   if (amrmetric_id >= 300)  {
+   if (amr_metric_id >= 300)  {
        MFEM_VERIFY(dim == 3, "Incompatible metric for 2D meshes");
    }
 
@@ -827,53 +828,43 @@ int main(int argc, char *argv[])
    tmopamrupdate.AddMeshNodeAr(&x);
    tmopamrupdate.AddMeshNodeAr(&x0);
    TMOPRefinerEstimator tmop_r_est(*mesh, *he_nlf_integ, mesh_poly_deg,
-                                   amrmetric_id);
+                                   amr_metric_id);
    TMOPRefiner tmop_r(tmop_r_est);
+   tmop_r_est.SetEnergyReductionFactor(8.);
    TMOPDeRefinerEstimator tmop_dr_est(*mesh, *he_nlf_integ);
    ThresholdDerefiner tmop_dr(tmop_dr_est);
 
    int newtonstop = 0;
-   std::cout << mesh->GetNE() << " Number of elements at beginning\n";
 
-   if (amr_flag==1)
+   if (hr)
    {
-      int ni_limit = 5; //Newton + AMR
-      int nic_limit = std::max(ni_limit, 4); //Number of iterations with AMR
+      int n_hr = 5;         //Newton + AMR iterations
+      int n_r = 1;          //AMR iterations per Newton iteration
       int amrstop = 0;
       int amrdstop = 0;
-      int nc_limit = 1; //AMR per iteration - FIXED FOR NOW
 
       tmop_dr.Reset();
       tmop_r.Reset();
 
-      for (int it = 0; it<ni_limit; it++)
+      for (int i_hr = 0; i_hr < n_hr; i_hr++)
       {
-         std::cout << it << " Begin NEWTON+AMR Iteration\n";
+         std::cout << i_hr << " r-adaptivity iteration.\n";
          solver.SetOperator(a);
          solver.Mult(b, x.GetTrueVector());
          x.SetFromTrueVector();
-         if (solver.GetConverged() == false)
-         {
-            cout << "NewtonIteration: rtol = " << solver_rtol << " not achieved."
-                 << endl;
-         }
-         else
-         {
-            cout << " NewtonSolver converged" << endl;
-         }
+
          if (amrstop==1 && amrdstop == 1)
          {
             newtonstop = 1;
-            cout << it << " Newton and AMR have converged" << endl;
+            cout << " Newton and AMR have converged." << endl;
             break;
          }
-         for (int amrit=0; amrit<nc_limit; amrit++)
-         {
-            std::cout << 0 << " " <<  mesh->GetNE() << " " << a.GetGridFunctionEnergy(
-                         x)/mesh->GetNE()
-                      << " k10basenergy\n";
 
-            int ne1 = mesh->GetNE();
+         std::cout << "TMOP energy after r-adaptivity: " <<
+                      a.GetGridFunctionEnergy(x)/mesh->GetNE() <<
+                      ", Total elements: " << mesh->GetNE() << endl;
+         for (int i_r = 0; i_r < n_r; i_r++)
+         {
             NCMesh *ncmesh = mesh->ncmesh;
             if (ncmesh && (amrdstop == 0 || amrstop == 0))   //derefinement
             {
@@ -881,9 +872,10 @@ int main(int argc, char *argv[])
                tmopamrupdate.Update();
             }
 
-            if (tmop_dr.Stop()) { amrdstop = 1; }
-            int ne2 = mesh->GetNE();
-            std::cout << ne1 << " " << ne2 << " elements before and after derefine\n";
+            if (!tmop_dr.Derefined()) { amrdstop = 1; }
+            std::cout << "TMOP energy after derefinement: " <<
+                         a.GetGridFunctionEnergy(x)/mesh->GetNE() <<
+                         ", Total elements: " << mesh->GetNE() << endl;
 
             // Refiner
             if (amrdstop == 0 || amrstop == 0)
@@ -892,21 +884,22 @@ int main(int argc, char *argv[])
                tmopamrupdate.Update();
             }
             if (tmop_r.Stop()) { amrstop = 1; }
+            std::cout << "TMOP energy after   refinement: " <<
+                         a.GetGridFunctionEnergy(x)/mesh->GetNE() <<
+                         ", Total elements: " << mesh->GetNE() << endl;
 
             if (amrstop == 1 && amrdstop == 1)
             {
                newtonstop = 1;
-               cout << it << " " << amrit <<
-                    " AMR stopping criterion satisfied. Stop." << endl;
+               cout << " AMR stopping criterion satisfied. Stop." << endl;
             }
             else
             {
-               amrstop = 0; amrdstop = 0;
+                amrstop = 0; amrdstop = 0;
             }
-         } //amrit limit
-         if (it==nic_limit-1) { amrstop=1; amrdstop = 1; }
-      } //ni_limit
-   } //amr_flag==1
+         } //n_r
+      } //n_hr
+   } //hr
    if (newtonstop == 0)
    {
       solver.SetOperator(a);
@@ -932,9 +925,6 @@ int main(int argc, char *argv[])
       mesh_ofs.precision(14);
       mesh->Print(mesh_ofs);
    }
-
-   // 22. Compute the amount of energy decrease.
-   std::cout << a.GetGridFunctionEnergy(x);
 
    const double fin_energy = a.GetGridFunctionEnergy(x)/mesh->GetNE();
    double metric_part = fin_energy;
