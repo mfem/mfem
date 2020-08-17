@@ -326,8 +326,6 @@ void EABilinearFormExtension::Assemble()
       nf_int = trialFes->GetNFbyType(FaceType::Interior);
       ea_data_int.SetSize(2*nf_int*faceDofs*faceDofs, Device::GetMemoryType());
       ea_data_ext.SetSize(2*nf_int*faceDofs*faceDofs, Device::GetMemoryType());
-      ea_data_int = 0.0;
-      ea_data_ext = 0.0;
    }
    for (int i = 0; i < intFaceIntegratorCount; ++i)
    {
