@@ -246,7 +246,13 @@ int main(int argc, char *argv[])
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
       mesh->UniformRefinement();
-   }
+   }   
+
+   //it can be performed before or after UniformRefinement
+   Array<int> ordering;
+   mesh->GetHilbertElementOrdering(ordering);
+   mesh->ReorderElements(ordering);
+   mesh->EnsureNCMesh();
 
    //++++++Refine locally first    
    if (local_refine)
@@ -310,31 +316,47 @@ int main(int argc, char *argv[])
       }
    }
 
-   //+++++++here we need to generate a partitioning because the default one is wrong for ncmesh when local_refine is truned on
-   int *partitioning = NULL;
-   partitioning=mesh->GeneratePartitioning(num_procs, part_method);
-   //output partitioning for debugging
-   if (myid==0 && false) 
-   {
-      const char part_file[] = "partitioning.txt";
-      ofstream opart(part_file);
-      opart << "number_of_elements " << mesh->GetNE() << '\n'
-            << "number_of_processors " << num_procs << '\n';
-      for (int i = 0; i < mesh->GetNE(); i++)
-      {
-         opart << partitioning[i] << '\n';
-      }
-      cout << "Partitioning file: " << part_file << endl;
-   }
+   ParMesh *pmesh;
 
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh, partitioning);
+   if (false)
+   {
+      //***this is the old way to use metis***
+      //+++++++here we need to generate a partitioning because the default one is wrong for ncmesh when local_refine is truned on
+      int *partitioning = NULL;
+      partitioning=mesh->GeneratePartitioning(num_procs, part_method);
+      //output partitioning for debugging
+      if (myid==0 && false) 
+      {
+         const char part_file[] = "partitioning.txt";
+         ofstream opart(part_file);
+         opart << "number_of_elements " << mesh->GetNE() << '\n'
+               << "number_of_processors " << num_procs << '\n';
+         for (int i = 0; i < mesh->GetNE(); i++)
+         {
+            opart << partitioning[i] << '\n';
+         }
+         cout << "Partitioning file: " << part_file << endl;
+      }
+
+      pmesh = new ParMesh(MPI_COMM_WORLD, *mesh, partitioning);
+      delete partitioning;
+   }
+   else
+   {
+      if (part_method!=1)
+      {
+        if (myid==0) cout<<"======WARNING: custom part_method is not needed any more!======\n";
+      }
+      pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   }
+   
    delete mesh;
-   delete partitioning;
    for (int lev = 0; lev < par_ref_levels; lev++)
    {
       pmesh->UniformRefinement();
    }
-   //Here rebalancing may create some strange partitioning using certain partitioning methods
+
+   //Here rebalancing may create some strange partitioning using certain partitioning methods (this is also old)
    //Note rebalancing is probably not needed for a static adaptive mesh
    if (local_refine && false)
       pmesh->Rebalance();   
@@ -358,7 +380,7 @@ int main(int argc, char *argv[])
    fe_offset[2] = 2*fe_size;
    fe_offset[3] = 3*fe_size;
 
-   cout << "TrueVSize is: " << fe_size<<" id = "<<myid << endl;
+   //cout << "TrueVSize is: " << fe_size<<" id = "<<myid << endl;
 
    BlockVector vx(fe_offset);
    BlockVector vxold(fe_offset);

@@ -45,6 +45,10 @@ too many technique issues:
 move back and redo the simulation with more cores
 maybe a good time to check amr
 
+srun -n 4 ./imMHDp -m ./Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -no-vis -vs 1 -tf .05 -dt .05 -usepetsc --petscopts ./petscrc/rc_full -s 3 -shell -resi 1e-3 -visc 1e-3 -no-supg -no-fd -local -lr 2
+
+srun -n 4 restart -m ./Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -no-vis -vs 1 -tf .1 -dt .05 -usepetsc --petscopts ./petscrc/rc_full -s 3 -shell -resi 1e-3 -visc 1e-3 -no-supg -no-fd -local -lr 2 -t0 0.05
+
 
 8/10
 after merging to master, imMHDp seems okay
