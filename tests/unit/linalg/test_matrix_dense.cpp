@@ -289,7 +289,7 @@ TEST_CASE("DenseTensor LinearSolve methods",
    {
       for (int r=0; r<N; ++r)
       {
-         REQUIRE(xans_batch(r,e) == X[r]);
+         REQUIRE(xans_batch(r,e) == Approx(X[r]));
       }
    }
 }
