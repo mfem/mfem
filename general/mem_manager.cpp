@@ -17,17 +17,6 @@
 #include <unordered_map>
 #include <algorithm> // std::max
 
-// Arena headers
-#include <map>
-#include "debug.hpp"
-#define uses(x) if (false && (&x)+1){}
-#include <vector>
-#include <algorithm>
-#include <iostream>
-#include <iterator>
-#include <memory>
-#include <cassert>
-
 // Uncomment to try _WIN32 platform
 //#define _WIN32
 //#define _aligned_malloc(s,a) malloc(s)
@@ -81,7 +70,7 @@ MemoryType MemoryManager::GetDualMemoryType_(MemoryType mt)
       case MemoryType::HOST:           return MemoryType::DEVICE;
       case MemoryType::HOST_32:        return MemoryType::DEVICE;
       case MemoryType::HOST_64:        return MemoryType::DEVICE;
-      case MemoryType::HOST_ARENA:     return MemoryType::DEVICE;
+      case MemoryType::HOST_POOL:      return MemoryType::DEVICE;
       case MemoryType::HOST_DEBUG:     return MemoryType::DEVICE_DEBUG;
       case MemoryType::HOST_UMPIRE:    return MemoryType::DEVICE_UMPIRE;
       case MemoryType::MANAGED:        return MemoryType::MANAGED;
@@ -101,7 +90,7 @@ static void MFEM_VERIFY_TYPES(const MemoryType h_mt, const MemoryType d_mt)
    const bool sync =
       (h_mt == MemoryType::HOST_UMPIRE && d_mt == MemoryType::DEVICE_UMPIRE) ||
       (h_mt == MemoryType::HOST_DEBUG && d_mt == MemoryType::DEVICE_DEBUG) ||
-      (h_mt == MemoryType::HOST_ARENA && d_mt == MemoryType::DEVICE) ||
+      (h_mt == MemoryType::HOST_POOL && d_mt == MemoryType::DEVICE) ||
       (h_mt == MemoryType::MANAGED && d_mt == MemoryType::MANAGED) ||
       (h_mt == MemoryType::HOST_64 && d_mt == MemoryType::DEVICE) ||
       (h_mt == MemoryType::HOST_32 && d_mt == MemoryType::DEVICE) ||
@@ -122,7 +111,6 @@ MemoryClass operator*(MemoryClass mc1, MemoryClass mc2)
    // Using the enumeration ordering:
    //    HOST < HOST_32 < HOST_64 < DEVICE < MANAGED,
    // the above table is simply: a*b = max(a,b).
-
    return std::max(mc1, mc2);
 }
 
@@ -184,12 +172,12 @@ class HostMemorySpace
 {
 public:
    virtual ~HostMemorySpace() { }
-   virtual void Alloc(void **ptr, size_t bytes) { *ptr = std::malloc(bytes); }
-   virtual void Dealloc(void *ptr) { std::free(ptr); }
-   virtual void Protect(const void*, size_t) { }
-   virtual void Unprotect(const void*, size_t) { }
-   virtual void AliasProtect(const void*, size_t) { }
-   virtual void AliasUnprotect(const void*, size_t) { }
+   virtual void Alloc(void **ptr, size_t bytes) const { *ptr = std::malloc(bytes); }
+   virtual void Dealloc(void *ptr) const { std::free(ptr); }
+   virtual void Protect(const void*, size_t) const { }
+   virtual void Unprotect(const void*, size_t) const { }
+   virtual void AliasProtect(const void*, size_t) const { }
+   virtual void AliasUnprotect(const void*, size_t) const { }
 };
 
 /// The device memory space base abstract class
@@ -197,23 +185,22 @@ class DeviceMemorySpace
 {
 public:
    virtual ~DeviceMemorySpace() { }
-   virtual void Alloc(Memory &base) { base.d_ptr = std::malloc(base.bytes); }
-   virtual void Dealloc(Memory &base) { std::free(base.d_ptr); }
-   virtual void Protect(const Memory&) { }
-   virtual void Unprotect(const Memory&) { }
-   virtual void AliasProtect(const void*, size_t) { }
-   virtual void AliasUnprotect(const void*, size_t) { }
-   virtual void *HtoD(void *dst, const void *src, size_t bytes)
+   virtual void Alloc(Memory &base) const { base.d_ptr = std::malloc(base.bytes); }
+   virtual void Dealloc(Memory &base) const { std::free(base.d_ptr); }
+   virtual void Protect(const Memory&) const { }
+   virtual void Unprotect(const Memory&) const { }
+   virtual void AliasProtect(const void*, size_t) const { }
+   virtual void AliasUnprotect(const void*, size_t) const { }
+   virtual void *HtoD(void *dst, const void *src, size_t bytes) const
    { return std::memcpy(dst, src, bytes); }
-   virtual void *DtoD(void *dst, const void *src, size_t bytes)
+   virtual void *DtoD(void *dst, const void *src, size_t bytes) const
    { return std::memcpy(dst, src, bytes); }
-   virtual void *DtoH(void *dst, const void *src, size_t bytes)
+   virtual void *DtoH(void *dst, const void *src, size_t bytes) const
    { return std::memcpy(dst, src, bytes); }
 };
 
-/// The memory pool manager
-template <typename RM = HostMemorySpace>
-class Pool
+/// The memory pool
+template <typename MS> class Pool
 {
    struct Blocks
    {
@@ -231,18 +218,16 @@ class Pool
       // Arena struct
       struct Arena
       {
-         /*const*/ RM &rm;
-         const bool std;
+         const MS &ms;
          const size_t size;
          std::unique_ptr<Arena> next;
          std::unique_ptr<Block[]> blocks;
 
-         Arena(/*const*/ RM &rm, const bool std, size_t sz):
-            rm(rm), std(std), size(sz), blocks(new Block[size])
+         Arena(const MS &ms, size_t sz): ms(ms), size(sz), blocks(new Block[sz])
          {
             std::memset(blocks.get(), 0, size*sizeof(Block));
             for (size_t i = 1; i < sz; i++) { blocks[i-1].next = &blocks[i]; }
-            blocks[size-1].next = nullptr; // Should not be required
+            blocks[size-1].next = nullptr;
          }
 
          ~Arena()
@@ -252,9 +237,8 @@ class Pool
                Block &block = blocks[i];
                if (block.ptr)
                {
-                  uintptr_t *ptr = block.ptr -1;
-                  (std ? std::free(ptr) : rm.Dealloc((void*)ptr/*, block.bytes*/));
-                  dbg("\033[31m [Memory] DEALLOC %p", ptr);
+                  uintptr_t *ptr = block.ptr - 1;
+                  ms.Dealloc((void*)ptr);
                   ptr = nullptr;
                }
             }
@@ -265,48 +249,30 @@ class Pool
 
          void Next(std::unique_ptr<Arena> &&n)
          {
-            assert(!next);
+            MFEM_ASSERT(!next, "");
             next.reset(n.release());
          }
+      }; // Arena
 
-         void Dump()
-         {
-            for (size_t i = size; i > 0; i--)
-            {
-               Block &block = blocks[i-1];
-               const bool used = block.bytes > 0;
-               const uintptr_t *ptr = block.ptr;
-               printf("%s\033[m",
-                      ptr ? used ? "\033[32mX" : "\033[33mx" : "\033[37m.");
-            }
-            printf(" ");
-            if (!next) { return; }
-            next->Dump();
-         }
-      };
-
-      const bool std;
-      /*const*/ RM &rm;
+      const MS &MemSpace;
       const size_t pages, size;
+      const uintptr_t PAGE_SIZE;
       std::unique_ptr<Arena> arena;
       Block *next;
 
    public:
-      Blocks(/*const*/ RM &rm, size_t pages, size_t size):
-         std(getenv("STD")), rm(rm), pages(pages), size(size),
-         arena(new Arena(rm, std, size)), next(arena->Next()) { }
+      Blocks(const MS &ms, size_t pages, size_t size, size_t PS):
+         MemSpace(ms), pages(pages), size(size), PAGE_SIZE(PS),
+         arena(new Arena(ms,size)), next(arena->Next()) { }
 
       /// Allocate bytes from these blocks
       void *alloc(size_t bytes)
       {
-         dbg("Aligning bytes: 0x%X => 0x%X", bytes, align(bytes));
          bytes = align(bytes);
          bytes += sizeof(uintptr_t);
-
          if (next == nullptr)
          {
-            dbg("new_arena");
-            std::unique_ptr<Arena> new_arena(new Arena(rm,std,size));
+            std::unique_ptr<Arena> new_arena(new Arena(MemSpace,size));
             new_arena->Next(std::move(arena));
             arena.reset(new_arena.release());
             next = arena->Next();
@@ -320,14 +286,10 @@ class Pool
             // Update metadata
             block->pages = pages;
             // Get memory from the resource manager
-            block->ptr =
-               std ? (uintptr_t*) std::malloc(bytes) :
-               (rm.Alloc((void**)&block->ptr, bytes), block->ptr);
+            const size_t allocation = pages * PAGE_SIZE;
+            MemSpace.Alloc((void**)&block->ptr, allocation);
             // Store the block pointer and increment
-            // From any pointer given back to free, the addres of the block
-            // is embedded 'before' the data
             *block->ptr++ = reinterpret_cast<uintptr_t>(block);
-            dbg("\033[32m[%p] %p, 0x%X", block, block->ptr, bytes);
          }
          block->bytes = bytes;
          return block->ptr;
@@ -336,50 +298,39 @@ class Pool
       /// Free the block
       void free(Block *block)
       {
-         dbg(" [%p] %p", block, block->ptr);
          block->bytes = 0;
          block->next = next;
          next = block;
       }
-   };
+   }; // Blocks
 
-   // The resource manager
-   RM rm;
-   const size_t ARENA_SIZE;
-   const uintptr_t PAGE_SIZE;
-   // the ordered map is useful for debug
-   using MapBlockArena = std::map<size_t, Blocks>;
-   //using MapBlockArena = std::unordered_map<size_t, Blocks>;
-   MapBlockArena BlocksMap;
+   const MS ms;
+   const size_t ARENA_SZ;
+   const uintptr_t PAGE_SZ;
+   std::unordered_map<size_t, Blocks> BlocksMap;
+   using Block = typename Pool<MS>::Blocks::Block;
 
 public:
-   Pool(size_t asize = 32): ARENA_SIZE(asize),
-      PAGE_SIZE((uintptr_t) sysconf(_SC_PAGE_SIZE))
-   {
-      //dbg("New Pool!");
-      assert(PAGE_SIZE > 0);
-      assert(ARENA_SIZE > 0);
-   }
+   Pool(size_t asize = 32): ARENA_SZ(asize),
+      PAGE_SZ((uintptr_t) sysconf(_SC_PAGE_SIZE)) { }
 
    void *alloc(size_t bytes)
    {
       // number of pages needed for this amount of bytes
-      const size_t pages = 1 + bytes / PAGE_SIZE;
-      //dbg("rm.PageSize(): %ld", rm.PageSize());
+      const size_t pages = 1 + (bytes + sizeof(uintptr_t)) / PAGE_SZ;
       auto blk_iter = BlocksMap.find(pages);
       auto end_iter = BlocksMap.end();
       if (blk_iter == end_iter)
       {
-         dbg("Creating new %d-pages Arena", pages);
-         auto res = BlocksMap.emplace(pages, Blocks(rm, pages, ARENA_SIZE));
-         assert(res.second); uses(res);
+         auto res = BlocksMap.emplace(pages, Blocks(ms,pages,ARENA_SZ,PAGE_SZ));
+         MFEM_ASSERT(res.second, "");
          blk_iter = BlocksMap.find(pages);
          end_iter = BlocksMap.end();
-         assert(blk_iter != end_iter);
+         MFEM_ASSERT(blk_iter != end_iter, "");
       }
-      // Get the bucket in which the allocation will be done
+      // Get the blocks in which the allocation will be done
       Blocks &blocks = blk_iter->second;
-      // Allocate the memory in this bucket
+      // Allocate the memory in this blocks
       return blocks.alloc(bytes);
    }
 
@@ -387,33 +338,16 @@ public:
    {
       // From the given pointer, get back the block address
       const uintptr_t *uintptr = reinterpret_cast<uintptr_t*>(ptr);
-      Pool<>::Blocks::Block *block =
-         reinterpret_cast<Pool<>::Blocks::Block*>(*(uintptr-1));
-
-      assert(uintptr == block->ptr);
-      dbg("\033[33m [%p] %p, 0x%X", block, block->ptr, block->bytes);
-
+      Block *block = reinterpret_cast<Block*>(*(uintptr-1));
+      MFEM_ASSERT(uintptr == block->ptr, "");
       // From the number of pages, get the blocks
       const size_t pages = block->pages;
-      auto blk_iter = BlocksMap.find(pages);
-      auto end_iter = BlocksMap.end();
-      assert(blk_iter != end_iter); uses(end_iter);
+      const auto blk_iter = BlocksMap.find(pages);
+      const auto end_iter = BlocksMap.end();
+      MFEM_ASSERT(blk_iter != end_iter, "");
       Blocks &blocks = blk_iter->second;
       // Free this block from the blocks
       blocks.free(block);
-   }
-
-   void Dump()
-   {
-      int k = 0;
-      for (auto &it : BlocksMap)
-      {
-         Blocks &bs = it.second;
-         printf("\033[37m[#%2d:%2dx%2d] ", k++, bs.size, bs.pages);
-         bs.arena->Dump();
-         printf("\n");
-         fflush(0);
-      }
    }
 };
 
@@ -421,20 +355,19 @@ public:
 class StdHostMemorySpace : public HostMemorySpace { };
 
 /// The arena std:: host memory space
-class ArenaStdHostMemorySpace : public HostMemorySpace
+class PoolStdHostMemorySpace : public HostMemorySpace
 {
-   Pool<> *pool;
+   mutable Pool<HostMemorySpace> pool;
 public:
-   ArenaStdHostMemorySpace(): HostMemorySpace(), pool(new Pool<>()) { }
-   void Alloc(void **ptr, size_t bytes) { *ptr = pool->alloc(bytes); }
-   void Dealloc(void *ptr) { pool->free(ptr); }
-   ~ArenaStdHostMemorySpace() { delete pool; }
+   PoolStdHostMemorySpace(): HostMemorySpace() { }
+   void Alloc(void **ptr, size_t bytes) const { *ptr = pool.alloc(bytes); }
+   void Dealloc(void *ptr) const { pool.free(ptr); }
 };
 
 /// The No host memory space
 struct NoHostMemorySpace : public HostMemorySpace
 {
-   void Alloc(void**, const size_t) { mfem_error("! Host Alloc error"); }
+   void Alloc(void**, const size_t) const { mfem_error("! Host Alloc error"); }
 };
 
 /// The aligned 32 host memory space
@@ -442,9 +375,9 @@ class Aligned32HostMemorySpace : public HostMemorySpace
 {
 public:
    Aligned32HostMemorySpace(): HostMemorySpace() { }
-   void Alloc(void **ptr, size_t bytes)
+   void Alloc(void **ptr, size_t bytes) const
    { if (mfem_memalign(ptr, 32, bytes) != 0) { throw ::std::bad_alloc(); } }
-   void Dealloc(void *ptr) { mfem_aligned_free(ptr); }
+   void Dealloc(void *ptr) const { mfem_aligned_free(ptr); }
 };
 
 /// The aligned 64 host memory space
@@ -452,9 +385,9 @@ class Aligned64HostMemorySpace : public HostMemorySpace
 {
 public:
    Aligned64HostMemorySpace(): HostMemorySpace() { }
-   void Alloc(void **ptr, size_t bytes)
+   void Alloc(void **ptr, size_t bytes) const
    { if (mfem_memalign(ptr, 64, bytes) != 0) { throw ::std::bad_alloc(); } }
-   void Dealloc(void *ptr) { mfem_aligned_free(ptr); }
+   void Dealloc(void *ptr) const { mfem_aligned_free(ptr); }
 };
 
 #ifndef _WIN32
@@ -580,15 +513,15 @@ class MmuHostMemorySpace : public HostMemorySpace
 {
 public:
    MmuHostMemorySpace(): HostMemorySpace() { MmuInit(); }
-   void Alloc(void **ptr, size_t bytes) { MmuAlloc(ptr, bytes); }
-   void Dealloc(void *ptr) { MmuDealloc(ptr, maps->memories.at(ptr).bytes); }
-   void Protect(const void *ptr, size_t bytes) { MmuProtect(ptr, bytes); }
-   void Unprotect(const void *ptr, size_t bytes) { MmuAllow(ptr, bytes); }
+   void Alloc(void **ptr, size_t bytes) const { MmuAlloc(ptr, bytes); }
+   void Dealloc(void *ptr) const { MmuDealloc(ptr, maps->memories.at(ptr).bytes); }
+   void Protect(const void *ptr, size_t bytes) const { MmuProtect(ptr, bytes); }
+   void Unprotect(const void *ptr, size_t bytes) const { MmuAllow(ptr, bytes); }
    /// Aliases need to be restricted during protection
-   void AliasProtect(const void *ptr, size_t bytes)
+   void AliasProtect(const void *ptr, size_t bytes) const
    { MmuProtect(MmuAddrR(ptr), MmuLengthR(ptr, bytes)); }
    /// Aliases need to be prolongated for un-protection
-   void AliasUnprotect(const void *ptr, size_t bytes)
+   void AliasUnprotect(const void *ptr, size_t bytes) const
    { MmuAllow(MmuAddrP(ptr), MmuLengthP(ptr, bytes)); }
 };
 
@@ -597,19 +530,20 @@ class UvmHostMemorySpace : public HostMemorySpace
 {
 public:
    UvmHostMemorySpace(): HostMemorySpace() { }
-   void Alloc(void **ptr, size_t bytes) { CuMallocManaged(ptr, bytes == 0 ? 8 : bytes); }
-   void Dealloc(void *ptr) { CuMemFree(ptr); }
+   void Alloc(void **ptr, size_t bytes) const
+   { CuMallocManaged(ptr, bytes == 0 ? 8 : bytes); }
+   void Dealloc(void *ptr) const { CuMemFree(ptr); }
 };
 
 /// The 'No' device memory space
 class NoDeviceMemorySpace: public DeviceMemorySpace
 {
 public:
-   void Alloc(internal::Memory&) { mfem_error("! Device Alloc"); }
-   void Dealloc(Memory&) { mfem_error("! Device Dealloc"); }
-   void *HtoD(void*, const void*, size_t) { mfem_error("!HtoD"); return nullptr; }
-   void *DtoD(void*, const void*, size_t) { mfem_error("!DtoD"); return nullptr; }
-   void *DtoH(void*, const void*, size_t) { mfem_error("!DtoH"); return nullptr; }
+   void Alloc(internal::Memory&) const { mfem_error("! Device Alloc"); }
+   void Dealloc(Memory&) const { mfem_error("! Device Dealloc"); }
+   void *HtoD(void*, const void*, size_t) const { mfem_error("!HtoD"); return nullptr; }
+   void *DtoD(void*, const void*, size_t) const { mfem_error("!DtoD"); return nullptr; }
+   void *DtoH(void*, const void*, size_t) const { mfem_error("!DtoH"); return nullptr; }
 };
 
 /// The std:: device memory space, used with the 'debug' device
@@ -620,13 +554,13 @@ class CudaDeviceMemorySpace: public DeviceMemorySpace
 {
 public:
    CudaDeviceMemorySpace(): DeviceMemorySpace() { }
-   void Alloc(Memory &base) { CuMemAlloc(&base.d_ptr, base.bytes); }
-   void Dealloc(Memory &base) { CuMemFree(base.d_ptr); }
-   void *HtoD(void *dst, const void *src, size_t bytes)
+   void Alloc(Memory &base) const { CuMemAlloc(&base.d_ptr, base.bytes); }
+   void Dealloc(Memory &base) const { CuMemFree(base.d_ptr); }
+   void *HtoD(void *dst, const void *src, size_t bytes) const
    { return CuMemcpyHtoD(dst, src, bytes); }
-   void *DtoD(void* dst, const void* src, size_t bytes)
+   void *DtoD(void* dst, const void* src, size_t bytes) const
    { return CuMemcpyDtoD(dst, src, bytes); }
-   void *DtoH(void *dst, const void *src, size_t bytes)
+   void *DtoH(void *dst, const void *src, size_t bytes) const
    { return CuMemcpyDtoH(dst, src, bytes); }
 };
 
@@ -635,13 +569,13 @@ class HipDeviceMemorySpace: public DeviceMemorySpace
 {
 public:
    HipDeviceMemorySpace(): DeviceMemorySpace() { }
-   void Alloc(Memory &base) { HipMemAlloc(&base.d_ptr, base.bytes); }
-   void Dealloc(Memory &base) { HipMemFree(base.d_ptr); }
-   void *HtoD(void *dst, const void *src, size_t bytes)
+   void Alloc(Memory &base) const { HipMemAlloc(&base.d_ptr, base.bytes); }
+   void Dealloc(Memory &base) const { HipMemFree(base.d_ptr); }
+   void *HtoD(void *dst, const void *src, size_t bytes) const
    { return HipMemcpyHtoD(dst, src, bytes); }
-   void *DtoD(void* dst, const void* src, size_t bytes)
+   void *DtoD(void* dst, const void* src, size_t bytes) const
    { return HipMemcpyDtoD(dst, src, bytes); }
-   void *DtoH(void *dst, const void *src, size_t bytes)
+   void *DtoH(void *dst, const void *src, size_t bytes) const
    { return HipMemcpyDtoH(dst, src, bytes); }
 };
 
@@ -649,16 +583,16 @@ public:
 class UvmCudaMemorySpace : public DeviceMemorySpace
 {
 public:
-   void Alloc(Memory &base) { base.d_ptr = base.h_ptr; }
-   void Dealloc(Memory&) { }
-   void *HtoD(void *dst, const void *src, size_t bytes)
+   void Alloc(Memory &base) const { base.d_ptr = base.h_ptr; }
+   void Dealloc(Memory&) const { }
+   void *HtoD(void *dst, const void *src, size_t bytes) const
    {
       if (dst == src) { MFEM_STREAM_SYNC; return dst; }
       return CuMemcpyHtoD(dst, src, bytes);
    }
-   void *DtoD(void* dst, const void* src, size_t bytes)
+   void *DtoD(void* dst, const void* src, size_t bytes) const
    { return CuMemcpyDtoD(dst, src, bytes); }
-   void *DtoH(void *dst, const void *src, size_t bytes)
+   void *DtoH(void *dst, const void *src, size_t bytes) const
    {
       if (dst == src) { MFEM_STREAM_SYNC; return dst; }
       return CuMemcpyDtoH(dst, src, bytes);
@@ -670,21 +604,21 @@ class MmuDeviceMemorySpace : public DeviceMemorySpace
 {
 public:
    MmuDeviceMemorySpace(): DeviceMemorySpace() { }
-   void Alloc(Memory &m) { MmuAlloc(&m.d_ptr, m.bytes); }
-   void Dealloc(Memory &m) { MmuDealloc(m.d_ptr, m.bytes); }
-   void Protect(const Memory &m) { MmuProtect(m.d_ptr, m.bytes); }
-   void Unprotect(const Memory &m) { MmuAllow(m.d_ptr, m.bytes); }
+   void Alloc(Memory &m) const { MmuAlloc(&m.d_ptr, m.bytes); }
+   void Dealloc(Memory &m) const { MmuDealloc(m.d_ptr, m.bytes); }
+   void Protect(const Memory &m) const { MmuProtect(m.d_ptr, m.bytes); }
+   void Unprotect(const Memory &m) const { MmuAllow(m.d_ptr, m.bytes); }
    /// Aliases need to be restricted during protection
-   void AliasProtect(const void *ptr, size_t bytes)
+   void AliasProtect(const void *ptr, size_t bytes) const
    { MmuProtect(MmuAddrR(ptr), MmuLengthR(ptr, bytes)); }
    /// Aliases need to be prolongated for un-protection
-   void AliasUnprotect(const void *ptr, size_t bytes)
+   void AliasUnprotect(const void *ptr, size_t bytes) const
    { MmuAllow(MmuAddrP(ptr), MmuLengthP(ptr, bytes)); }
-   void *HtoD(void *dst, const void *src, size_t bytes)
+   void *HtoD(void *dst, const void *src, size_t bytes) const
    { return std::memcpy(dst, src, bytes); }
-   void *DtoD(void *dst, const void *src, size_t bytes)
+   void *DtoD(void *dst, const void *src, size_t bytes) const
    { return std::memcpy(dst, src, bytes); }
-   void *DtoH(void *dst, const void *src, size_t bytes)
+   void *DtoH(void *dst, const void *src, size_t bytes) const
    { return std::memcpy(dst, src, bytes); }
 };
 
@@ -710,9 +644,9 @@ public:
                   rm.makeAllocator<umpire::strategy::DynamicPool>
                   (name, rm.getAllocator("HOST"))),
       strat(h_allocator.getAllocationStrategy()) { }
-   void Alloc(void **ptr, size_t bytes) { *ptr = h_allocator.allocate(bytes); }
-   void Dealloc(void *ptr) { h_allocator.deallocate(ptr); }
-   void Insert(void *ptr, size_t bytes)
+   void Alloc(void **ptr, size_t bytes) const { *ptr = h_allocator.allocate(bytes); }
+   void Dealloc(void *ptr) const { h_allocator.deallocate(ptr); }
+   void Insert(void *ptr, size_t bytes) const
    { rm.registerAllocation(ptr, {ptr, bytes, strat}); }
 };
 
@@ -733,9 +667,9 @@ public:
       d_allocator(rm.isAllocator(name)? rm.getAllocator(name):
                   rm.makeAllocator<umpire::strategy::DynamicPool>
                   (name, rm.getAllocator("DEVICE"))) { }
-   void Alloc(Memory &base) { base.d_ptr = d_allocator.allocate(base.bytes); }
-   void Dealloc(Memory &base) { d_allocator.deallocate(base.d_ptr); }
-   void *HtoD(void *dst, const void *src, size_t bytes)
+   void Alloc(Memory &base) const { base.d_ptr = d_allocator.allocate(base.bytes); }
+   void Dealloc(Memory &base) const { d_allocator.deallocate(base.d_ptr); }
+   void *HtoD(void *dst, const void *src, size_t bytes) const
    {
 #ifdef MFEM_USE_CUDA
       return CuMemcpyHtoD(dst, src, bytes);
@@ -745,7 +679,7 @@ public:
 #endif
       //rm.copy(dst, const_cast<void*>(src), bytes); return dst;
    }
-   void *DtoD(void* dst, const void* src, size_t bytes)
+   void *DtoD(void* dst, const void* src, size_t bytes) const
    {
 #ifdef MFEM_USE_CUDA
       return CuMemcpyDtoD(dst, src, bytes);
@@ -755,7 +689,7 @@ public:
 #endif
       //rm.copy(dst, const_cast<void*>(src), bytes); return dst;
    }
-   void *DtoH(void *dst, const void *src, size_t bytes)
+   void *DtoH(void *dst, const void *src, size_t bytes) const
    {
 #ifdef MFEM_USE_CUDA
       return CuMemcpyDtoH(dst, src, bytes);
@@ -796,7 +730,7 @@ public:
       host[static_cast<int>(MT::HOST)] = new StdHostMemorySpace();
       host[static_cast<int>(MT::HOST_32)] = new Aligned32HostMemorySpace();
       host[static_cast<int>(MT::HOST_64)] = new Aligned64HostMemorySpace();
-      host[static_cast<int>(MT::HOST_ARENA)] = new ArenaStdHostMemorySpace();
+      host[static_cast<int>(MT::HOST_POOL)] = new PoolStdHostMemorySpace();
       // HOST_DEBUG is delayed, as it reroutes signals
       host[static_cast<int>(MT::HOST_DEBUG)] = nullptr;
       host[static_cast<int>(MT::HOST_UMPIRE)] = new UmpireHostMemorySpace();
@@ -1621,7 +1555,7 @@ MemoryType MemoryManager::device_mem_type = MemoryType::HOST;
 
 const char *MemoryTypeName[MemoryTypeSize] =
 {
-   "host-std", "host-32", "host-64", "host-arena", "host-debug", "host-umpire",
+   "host-std", "host-32", "host-64", "host-pool", "host-debug", "host-umpire",
 #if defined(MFEM_USE_CUDA)
    "cuda-uvm",
    "cuda",

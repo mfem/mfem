@@ -80,11 +80,11 @@ Device::Device() : mode(Device::SEQUENTIAL),
          host_mem_type = MemoryType::HOST;
          device_mem_type = MemoryType::HOST;
       }
-      else if (mem_backend == "arena")
+      else if (mem_backend == "host_pool")
       {
          mem_host_env = true;
-         host_mem_type = MemoryType::HOST;
-         device_mem_type = MemoryType::HOST;
+         host_mem_type = MemoryType::HOST_POOL;
+         device_mem_type = MemoryType::HOST_POOL;
       }
       else if (mem_backend == "host32")
       {
@@ -319,11 +319,11 @@ void Device::UpdateMemoryTypeAndClass()
       device_mem_type = MemoryType::MANAGED;
    }
 
-   // Enable the Arena shortcut when requested
-   if (device_option && !strcmp(device_option, "arena"))
+   // Enable the pool shortcut when requested
+   if (device_option && !strcmp(device_option, "host_pool"))
    {
-      host_mem_type = MemoryType::HOST_ARENA;
-      device_mem_type = MemoryType::HOST_ARENA;
+      host_mem_type = MemoryType::HOST_POOL;
+      device_mem_type = MemoryType::HOST_POOL;
    }
 
    // Enable the DEBUG mode when requested

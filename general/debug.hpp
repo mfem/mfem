@@ -40,22 +40,22 @@ public:
       const char *base = Strrnchr(FILE,'/', 2);
       const char *file = base ? base + 1 : FILE;
       const uint8_t color = COLOR ? COLOR : 20 + Checksum8(FILE) % 210;
-      mfem::out << "\033[38;5;" << std::to_string(color) << "m";
-      mfem::out << mpi_rank << std::setw(30) << file << ":";
-      mfem::out << "\033[2m" << std::setw(4) << LINE << "\033[22m: ";
-      if (FUNC) { mfem::out << "[" << FUNC << "] "; }
-      mfem::out << "\033[1m";
+      std::cout << "\033[38;5;" << std::to_string(color) << "m";
+      std::cout << mpi_rank << std::setw(30) << file << ":";
+      std::cout << "\033[2m" << std::setw(4) << LINE << "\033[22m: ";
+      if (FUNC) { std::cout << "[" << FUNC << "] "; }
+      std::cout << "\033[1m";
    }
 
    ~Debug()
    {
       if (!debug) { return; }
-      mfem::out << "\033[m";
-      mfem::out << std::endl;
+      std::cout << "\033[m";
+      std::cout << std::endl;
    }
 
    template <typename T>
-   inline void operator<<(const T &arg) const noexcept { mfem::out << arg; }
+   inline void operator<<(const T &arg) const noexcept { std::cout << arg; }
 
    template<typename T, typename... Args>
    inline void operator()(const char *fmt, const T &arg,
@@ -72,10 +72,10 @@ public:
             if (c == 's' || c == 'd' || c == 'f') { operator<<(arg); }
             if (c == 'x' || c == 'X')
             {
-               mfem::out << std::hex;
-               if (c == 'X') { mfem::out << std::uppercase; }
+               std::cout << std::hex;
+               if (c == 'X') { std::cout << std::uppercase; }
                operator<<(arg);
-               mfem::out << std::nouppercase << std::dec;
+               std::cout << std::nouppercase << std::dec;
             }
             if (c == '.')
             {
@@ -89,11 +89,11 @@ public:
                   num[k] = *fmt;
                }
                const int fx = std::atoi(num);
-               if (c == 'e') { mfem::out << std::scientific; }
-               if (c == 'f') { mfem::out << std::fixed; }
-               mfem::out << std::setprecision(fx);
+               if (c == 'e') { std::cout << std::scientific; }
+               if (c == 'f') { std::cout << std::fixed; }
+               std::cout << std::setprecision(fx);
                operator<<(arg);
-               mfem::out << std::setprecision(6);
+               std::cout << std::setprecision(6);
             }
             return operator()(fmt + 1, args...);
          }
