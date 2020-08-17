@@ -34,30 +34,32 @@ namespace mfem
  *  2. FindPoints - for any given arbitrary set of points in physical space,
  *     gslib finds the element number, MPI rank, and the reference space
  *     coordinates inside the element that each point is located in. gslib also
- *     returns a code that indicates  wether the point was found inside an
+ *     returns a code that indicates whether the point was found inside an
  *     element, on element border, or not found in the domain.
  *
- *  3. Interpolate - Interpolates any gridfunction at the points found using 2.
+ *  3. Interpolate - Interpolates any grid function at the points found using 2.
  *
- *  FindPointsGSLIB provides interface to use these functions individually or using
- *  a single call.
+ *  FindPointsGSLIB provides interface to use these functions individually or
+ *  using a single call.
  */
 class FindPointsGSLIB
 {
+public:
+   enum AvgType {NONE, ARITHMETIC, HARMONIC}; // Average type for L2 functions
+
 protected:
    Mesh *mesh, *meshsplit;
-   IntegrationRule *ir_simplex; // IntegrationRule to split quads/hex -> simplex
-   struct findpts_data_2 *fdata2D; // pointer to gslib's
-   struct findpts_data_3 *fdata3D; // internal data
+   IntegrationRule *ir_simplex;    // IntegrationRule to split quads/hex -> simplex
+   struct findpts_data_2 *fdata2D; // gslib's internal data
+   struct findpts_data_3 *fdata3D; // gslib's internal data
+   struct crystal *cr;             // gslib's internal data
+   struct comm *gsl_comm;          // gslib's internal data
    int dim, points_cnt;
    Array<unsigned int> gsl_code, gsl_proc, gsl_elem, gsl_mfem_elem;
    Vector gsl_mesh, gsl_ref, gsl_dist, gsl_mfem_ref;
-   bool setupflag;
-   struct crystal *cr;
-   struct comm *gsl_comm;
-   double default_interp_value;
-
-   GridFunction::AvgType avgtype;
+   bool setupflag;              // flag to indicate whether gslib data has been setup
+   double default_interp_value; // used for points that are not found in the mesh
+   AvgType avgtype;             // average type used for L2 functions
 
    /// Get GridFunction from MFEM format to GSLIB format
    void GetNodeValues(const GridFunction &gf_in, Vector &node_vals);
@@ -77,7 +79,6 @@ protected:
    /// find the original element number (that was split into micro quads/hexes
    /// by GetSimplexNodalCoordinates())
    void MapRefPosAndElemIndices();
-
 
 public:
    FindPointsGSLIB();
@@ -104,27 +105,25 @@ public:
               const double bb_t = 0.1, const double newt_tol = 1.0e-12,
               const int npt_max = 256);
 
-   /** Searches positions given in physical space by @a point_pos. All output
-       Arrays and Vectors are expected to have the correct size.
-       @param[in]  point_pos       Positions to be found. Must by ordered by nodes
-                                   (XXX...,YYY...,ZZZ).
-       @param[out] gsl_codes       Return codes for each point: inside element (0),
-                                   element boundary (1), not found (2).
-       @param[out] gsl_proc        MPI proc ids where the points were found.
-       @param[out] gsl_elem        Element ids where the points were found.
-                                   Defaults to 0 for points that were not found.
-       @param[out] gsl_mfem_elem   Element ids corresponding to MFEM-mesh
-                                   where the points were found.
-                                   @a gsl_mfem_elem != @a gsl_elem for simplices
-                                   Defaults to 0 for points that were not found.
-       @param[out] gsl_ref         Reference coordinates of the found point.
-                                   Ordered by vdim (XYZ,XYZ,XYZ...).
-                                   Note: the gslib reference frame is [-1,1].
-                                   Defaults to -1 for points that were not found.
-       @param[out] gsl_mfem_ref    Reference coordinates @a gsl_ref mapped to [0,1].
-                                   Defaults to 0 for points that were not found.
-       @param[out] gsl_dist        Distance between the sought and the found point
-                                   in physical space. */
+   /** Searches positions given in physical space by @a point_pos. These positions
+       must by ordered by nodes: (XXX...,YYY...,ZZZ).
+       This function populates the following member variables:
+       #gsl_code        Return codes for each point: inside element (0),
+                        element boundary (1), not found (2).
+       #gsl_proc        MPI proc ids where the points were found.
+       #gsl_elem        Element ids where the points were found.
+                        Defaults to 0 for points that were not found.
+       #gsl_mfem_elem   Element ids corresponding to MFEM-mesh where the points
+                        were found. #gsl_mfem_elem != #gsl_elem for simplices
+                        Defaults to 0 for points that were not found.
+       #gsl_ref         Reference coordinates of the found point.
+                        Ordered by vdim (XYZ,XYZ,XYZ...). Defaults to -1 for
+                        points that were not found. Note: the gslib reference
+                        frame is [-1,1].
+       #gsl_mfem_ref    Reference coordinates #gsl_ref mapped to [0,1].
+                        Defaults to 0 for points that were not found.
+       #gsl_dist        Distance between the sought and the found point
+                        in physical space. */
    void FindPoints(const Vector &point_pos);
    /// Setup FindPoints and search positions
    void FindPoints(Mesh &m, const Vector &point_pos, const double bb_t = 0.1,
@@ -146,8 +145,8 @@ public:
                     const GridFunction &field_in, Vector &field_out);
 
    /// Average type to be used for L2 functions in-case a point is located at
-   /// an element boundary where the function might not have a unique value.
-   void SetL2AvgType(GridFunction::AvgType avgtype_) { avgtype = avgtype_; }
+   /// an element boundary where the function might be multi-valued.
+   void SetL2AvgType(AvgType avgtype_) { avgtype = avgtype_; }
 
    /// Set the default interpolation value for points that are not found in the
    /// mesh.
@@ -157,8 +156,8 @@ public:
    }
 
    /** Cleans up memory allocated internally by gslib.
-       Note that in parallel, this must be called before MPI_Finalize(), as
-       it calls MPI_Comm_free() for internal gslib communicators. */
+       Note that in parallel, this must be called before MPI_Finalize(), as it
+       calls MPI_Comm_free() for internal gslib communicators. */
    void FreeData();
 
    /// Return code for each point searched by FindPoints: inside element (0), on
@@ -242,6 +241,6 @@ public:
 
 } // namespace mfem
 
-#endif //MFEM_USE_GSLIB
+#endif // MFEM_USE_GSLIB
 
-#endif //MFEM_GSLIB guard
+#endif // MFEM_GSLIB

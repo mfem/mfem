@@ -9,16 +9,16 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 //
-//      --------------------------------------------------------------
-//      Field Interp Miniapp: Transfer a GridFunction from one mesh onto another
-//      --------------------------------------------------------------
+//      -------------------------------------------------------------
+//      Field Interp Miniapp: Transfer a grid function between meshes
+//      -------------------------------------------------------------
 //
-// This miniapp provides the capability to transfer a GridFunction
-// (H1, L2, H(div), and H(curl)) from one mesh onto another using FindPointsGSLIB.
-// Using FindPoints, we identify the nodal positions of the target mesh with
-// respect to the source mesh and then interpolate the source GridFunction.
-// The interpolated values are then projected onto the desired FiniteElementSpace
-// on the target mesh. Finally, the transferred solution is visualized using GLVis.
+// This miniapp provides the capability to transfer a GridFunction (H1, L2,
+// H(div), and H(curl)) from one mesh onto another using FindPointsGSLIB. Using
+// FindPoints, we identify the nodal positions of the target mesh with respect
+// to the source mesh and then interpolate the source GridFunction. The
+// interpolated values are then projected onto the desired FiniteElementSpace on
+// the target mesh. Finally, the transferred solution is visualized using GLVis.
 //
 // Compile with: make field-interp
 //
@@ -62,7 +62,7 @@ int main (int argc, char *argv[])
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of refinements of the interpolation mesh.");
    args.AddOption(&fieldtype, "-ft", "--field-type",
-                  "Target GridFunction type: -1 - source GridFunction type (default),"
+                  "Target GridFunction type: -1 - source GridFunction type (default), "
                   "0 - H1, 1 - L2, 2 - H(div), 3 - H(curl).");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -127,7 +127,7 @@ int main (int argc, char *argv[])
    MFEM_VERIFY(gt != Geometry::PRISM, "Wedge elements are not currently "
                "supported.");
 
-   // Ensure the source GridFunction can be transferred using FindPointsGSLIB.
+   // Ensure the source grid function can be transferred using FindPointsGSLIB.
    const FiniteElementCollection *fec_in = func_source.FESpace()->FEColl();
    std::cout << "Source FE collection: " << fec_in->Name() << std::endl;
    const int vdim_src   = func_source.FESpace()->GetVDim();
@@ -194,7 +194,7 @@ int main (int argc, char *argv[])
              nsp = fes->GetFE(0)->GetNodes().GetNPoints(),
              ncomp_tar = func_target.VectorDim();
 
-   // Generate list of points where the Gridfunction will be evaluated.
+   // Generate list of points where the grid function will be evaluated.
    Vector vxyz;
    if (fieldtype == 0 && order == mesh_poly_deg)
    {
@@ -225,7 +225,7 @@ int main (int argc, char *argv[])
    }
    const int nodes_cnt = vxyz.Size() / dim;
 
-   // Evaluate source gridfunction.
+   // Evaluate source grid function.
    Vector interp_vals(nodes_cnt*ncomp_tar);
    FindPointsGSLIB finder;
    finder.Setup(mesh_1);
