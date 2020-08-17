@@ -171,15 +171,15 @@ int main(int argc, char *argv[])
    //    ParMeshPartition part(pmesh,nx,ny,nz,nlayers);
 
 
-      if (visualization)
-      {
-         char vishost[] = "localhost";
-         int  visport   = 19916;
-         socketstream mesh_sock(vishost, visport);
-         mesh_sock.precision(8);
-         mesh_sock << "parallel " << num_procs << " " << myid << "\n"
-                     << "mesh\n" << *pmesh  << flush;
-      }
+      // if (visualization)
+      // {
+      //    char vishost[] = "localhost";
+      //    int  visport   = 19916;
+      //    socketstream mesh_sock(vishost, visport);
+      //    mesh_sock.precision(8);
+      //    mesh_sock << "parallel " << num_procs << " " << myid << "\n"
+      //                << "mesh\n" << *pmesh  << flush;
+      // }
 
 
 
@@ -260,15 +260,15 @@ int main(int argc, char *argv[])
       // ParMeshPartition part(pmesh,nx,ny,nz,nlayers);
       ParDST S(&a,lengths,omega, &ws,nlayers,nx,ny,nz);
 
-      ParComplexGridFunction pgf(fespace);
-      FunctionCoefficient cf_re(funccoeff_re);
-      FunctionCoefficient cf_im(funccoeff_im);
-      pgf.ProjectCoefficient(cf_re,cf_im);
+      // ParComplexGridFunction pgf(fespace);
+      // FunctionCoefficient cf_re(funccoeff_re);
+      // FunctionCoefficient cf_im(funccoeff_im);
+      // pgf.ProjectCoefficient(cf_re,cf_im);
 
 
-      Vector y1_re(fespace->GetTrueVSize());
-      Vector y1_im(fespace->GetTrueVSize());
-      const SparseMatrix * R = fespace->GetRestrictionMatrix();
+      // Vector y1_re(fespace->GetTrueVSize());
+      // Vector y1_im(fespace->GetTrueVSize());
+      // const SparseMatrix * R = fespace->GetRestrictionMatrix();
 
       // Array<int> blockoffsets(3);
       // blockoffsets[0] = 0;
@@ -278,25 +278,47 @@ int main(int argc, char *argv[])
       // BlockVector y1(blockoffsets);
 
 
-      R->Mult(pgf.real(),y1_re);
-      R->Mult(pgf.imag(),y1_im);
+      // R->Mult(pgf.real(),y1_re);
+      // R->Mult(pgf.imag(),y1_im);
 
-      Vector y1(2*fespace->GetTrueVSize());
-      y1.SetVector(y1_re,0);
-      y1.SetVector(y1_im,fespace->GetTrueVSize());
+      // Vector y1(2*fespace->GetTrueVSize());
+      // y1.SetVector(y1_re,0);
+      // y1.SetVector(y1_im,fespace->GetTrueVSize());
       
       // S.Mult(y1,X);
       S.Mult(B,X);
 
-      // if (visualization)
-      // {
-      //    char vishost[] = "localhost";
-      //    int  visport   = 19916;
-      //    socketstream mesh_sock(vishost, visport);
-      //    mesh_sock.precision(8);
-      //    mesh_sock << "parallel " << num_procs << " " << myid << "\n"
-      //                << "mesh\n" << *pmesh  << flush;
-      // }
+      a.RecoverFEMSolution(X,B,p_gf);
+
+      if (visualization)
+      {
+         char vishost[] = "localhost";
+         int  visport   = 19916;
+         string keys;
+         if (dim ==2 )
+         {
+            keys = "keys mrRljc\n";
+         }
+         else
+         {
+            keys = "keys mc\n";
+         }
+         // socketstream mesh_sock(vishost, visport);
+         // mesh_sock.precision(8);
+         // mesh_sock << "parallel " << num_procs << " " << myid << "\n"
+         //             << "mesh\n" << *pmesh  << flush;
+         socketstream sol_sock_re(vishost, visport);
+         sol_sock_re.precision(8);
+         sol_sock_re << "parallel " << num_procs << " " << myid << "\n"
+                     << "solution\n" << *pmesh << p_gf.real() << keys 
+                     << "window_title 'Numerical Pressure: Real Part' " << flush;                     
+
+         socketstream sol_sock_im(vishost, visport);
+         sol_sock_im.precision(8);
+         sol_sock_im << "parallel " << num_procs << " " << myid << "\n"
+                     << "solution\n" << *pmesh << p_gf.imag() << keys 
+                     << "window_title 'Numerical Pressure: Imag Part' " << flush;                     
+      }
 
       // cout << "myid = " << myid << endl;
       MPI_Finalize();

@@ -165,14 +165,18 @@ void ParDST::Mult(const Vector &r, Vector &z) const
    }
    int nsweeps = sweeps->nsweeps;
    // for (int l=0; l<nsweeps; l++)
+   // 1. Loop through sweeps
    for (int l=0; l<1; l++)
    {  
+      // 2. loop through diagonals/steps of each sweep   
       for (int s = 0; s<nsteps; s++)
       {
          Array2D<int> subdomains;
          GetStepSubdomains(l,s,subdomains);
          int nsubdomains = subdomains.NumRows();
-         for (int sb=0; sb< nsubdomains; sb++)
+
+         // 3. Loop through the subdomains on the diagonal
+         for (int sb=0; sb < nsubdomains; sb++)
          {
             Array<int> ijk(dim); ijk = 0;
             for (int d=0; d<dim; d++) ijk[d] = subdomains[sb][d]; 
@@ -194,20 +198,31 @@ void ParDST::Mult(const Vector &r, Vector &z) const
             Vector sol_local(2*n);
             res_local.SetVector(res_re,0);
             res_local.SetVector(res_im,n);
-            PmlMatInv[ip]->Mult(res_local, sol_local);
-            Vector sol_re;
-            double * data = sol_local.GetData();
-            sol_re.SetDataAndSize(data,n);
-            Vector sol_im;
-            sol_im.SetDataAndSize(&data[n],n);
-            {
-               socketstream sol_sock_re(vishost, visport);
-               PlotLocal(sol_re,sol_sock_re,ip);
-               socketstream sol_sock_im(vishost, visport);
-               PlotLocal(sol_im,sol_sock_im,ip);
-            }
+            PmlMatInv[ip]->Mult(res_local, *subdomain_sol[ip]);
          }
+         // 4. Transfer solutions to neighbors so that the subdomain
+         // residuals are updated
       }
+      // 5. Update the global solution 
+      Array<Vector * > sol_re(nrsubdomains);
+      Array<Vector * > sol_im(nrsubdomains);
+      for (int ip = 0; ip<nrsubdomains; ip++)
+      {
+         if (myid != SubdomainRank[ip]) continue;
+         int n = dmaps->fes[ip]->GetTrueVSize();
+         sol_re[ip] = new Vector(n);
+         sol_im[ip] = new Vector(n);
+         
+         sol_re[ip]->SetDataAndSize(subdomain_sol[ip]->GetData(),n);
+         sol_im[ip]->SetDataAndSize(&(subdomain_sol[ip]->GetData())[n],n);
+      }
+      Vector z_re;
+      int n = pfes->GetTrueVSize();
+      z_re.SetDataAndSize(z.GetData(),n);
+      Vector z_im;
+      z_im.SetDataAndSize(&(z.GetData())[n],n);
+      dmaps->SubdomainsToGlobal(sol_re,z_re);
+      dmaps->SubdomainsToGlobal(sol_im,z_im);
    }
 }
 
@@ -221,9 +236,14 @@ void ParDST::SetupSubdomainProblems()
    f_orig_im.SetSize(nrsubdomains);
    f_transf_re.SetSize(nrsubdomains);
    f_transf_im.SetSize(nrsubdomains);
+   subdomain_sol.SetSize(nrsubdomains);
    for (int ip=0; ip<nrsubdomains; ip++)
    {
+      subdomain_sol[ip] = nullptr;
+      PmlMat[ip] = nullptr;
+      PmlMatInv[ip] = nullptr;
       if (myid != SubdomainRank[ip]) continue;
+      subdomain_sol[ip] = new Vector(2*dmaps->fes[ip]->GetTrueVSize());
       if (prob_kind == 0)
       {
          SetHelmholtzPmlSystemMatrix(ip);
