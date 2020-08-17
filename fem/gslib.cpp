@@ -175,8 +175,8 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos)
       }
    }
 
-   // Map element number for simplices, and ref_pos from [-1,1] to [0,1] for both
-   // simplices and quads.
+   // Map element number for simplices, and ref_pos from [-1,1] to [0,1] for
+   // both simplices and quads.
    MapRefPosAndElemIndices();
 }
 
@@ -556,8 +556,8 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
       MFEM_ABORT("Element type not currently supported.");
    }
 
-   // Simplices are split into quads/hexes for GSLIB. For MFEM, we need to
-   // find the original element number and map the rst from micro to macro element.
+   // Simplices are split into quads/hexes for GSLIB. For MFEM, we need to find
+   // the original element number and map the rst from micro to macro element.
    for (int i = 0; i < points_cnt; i++)
    {
       if (gsl_code[i] == 2) { continue; }
@@ -607,7 +607,7 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
 
       Vector field_out_l2(field_out.Size());
       VectorGridFunctionCoefficient field_in_dg(&field_in);
-      int gf_order_h1 = std::max(gf_order, 1); // H1 should be atleast order 1
+      int gf_order_h1 = std::max(gf_order, 1); // H1 should be at least order 1
       H1_FECollection fec(gf_order_h1, dim);
       const int ncomp = field_in.FESpace()->GetVDim();
       FiniteElementSpace fes(mesh, &fec, ncomp);
@@ -746,7 +746,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
 
       if (ncomp == 1)
       {
-         // Interpolate gridfunction
+         // Interpolate the grid function
          npt = outpt->n;
          pt = (struct out_pt *)outpt->ptr;
          for (int index = 0; index < npt; index++)

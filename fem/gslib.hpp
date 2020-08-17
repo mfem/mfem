@@ -34,13 +34,13 @@ namespace mfem
  *  2. FindPoints - for any given arbitrary set of points in physical space,
  *     gslib finds the element number, MPI rank, and the reference space
  *     coordinates inside the element that each point is located in. gslib also
- *     returns a code that indicates  wether the point was found inside an
+ *     returns a code that indicates whether the point was found inside an
  *     element, on element border, or not found in the domain.
  *
- *  3. Interpolate - Interpolates any gridfunction at the points found using 2.
+ *  3. Interpolate - Interpolates any grid function at the points found using 2.
  *
- *  FindPointsGSLIB provides interface to use these functions individually or using
- *  a single call.
+ *  FindPointsGSLIB provides interface to use these functions individually or
+ *  using a single call.
  */
 class FindPointsGSLIB
 {
@@ -57,7 +57,7 @@ protected:
    int dim, points_cnt;
    Array<unsigned int> gsl_code, gsl_proc, gsl_elem, gsl_mfem_elem;
    Vector gsl_mesh, gsl_ref, gsl_dist, gsl_mfem_ref;
-   bool setupflag;              // flag to indicate wether gslib data has been setup
+   bool setupflag;              // flag to indicate whether gslib data has been setup
    double default_interp_value; // used for points that are not found in the mesh
    AvgType avgtype;             // average type used for L2 functions
 
@@ -142,7 +142,7 @@ public:
                     const GridFunction &field_in, Vector &field_out);
 
    /// Average type to be used for L2 functions in-case a point is located at
-   /// an element boundary where the function might multi-valued.
+   /// an element boundary where the function might be multi-valued.
    void SetL2AvgType(AvgType avgtype_) { avgtype = avgtype_; }
 
    /// Set the default interpolation value for points that are not found in the
@@ -153,8 +153,8 @@ public:
    }
 
    /** Cleans up memory allocated internally by gslib.
-       Note that in parallel, this must be called before MPI_Finalize(), as
-       it calls MPI_Comm_free() for internal gslib communicators. */
+       Note that in parallel, this must be called before MPI_Finalize(), as it
+       calls MPI_Comm_free() for internal gslib communicators. */
    void FreeData();
 
    /// Return code for each point searched by FindPoints: inside element (0), on
@@ -180,6 +180,6 @@ public:
 
 } // namespace mfem
 
-#endif //MFEM_USE_GSLIB
+#endif // MFEM_USE_GSLIB
 
-#endif //MFEM_GSLIB guard
+#endif // MFEM_GSLIB
