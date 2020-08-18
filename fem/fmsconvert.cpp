@@ -1460,8 +1460,9 @@ int FmsDataCollectionToDataCollection(FmsDataCollection dc,
    }
    else
    {
-      mfem::out << "FmsDataCollectionToDataCollection: mesh failed to convert. err=" << err
-           << endl;
+      mfem::out << "FmsDataCollectionToDataCollection: mesh failed to convert. err="
+                << err
+                << endl;
 
       retval = 1;
    }
