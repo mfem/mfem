@@ -369,10 +369,11 @@ void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
    const int Q = irm.GetNPoints();
    const int nelem = mesh->GetNE();
    std::string basis_key = std::to_string(reinterpret_cast<intptr_t>(&fes)) +
-      std::to_string(reinterpret_cast<intptr_t>(&irm)) + std::to_string(P) + std::to_string(Q);
+                           std::to_string(reinterpret_cast<intptr_t>(&irm)) +
+                           std::to_string(P) + std::to_string(Q);
    auto basis_itr = internal::ceed_basis_table.find(basis_key);
-   std::string restr_key = std::to_string(reinterpret_cast<intptr_t>(&fes)) + std::to_string(P) +
-      std::to_string(nelem);
+   std::string restr_key = std::to_string(reinterpret_cast<intptr_t>(&fes)) +
+                           std::to_string(P) + std::to_string(nelem);
    auto restr_itr = internal::ceed_restr_table.find(restr_key);
 
    // Init or retreive key values

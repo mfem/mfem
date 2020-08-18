@@ -159,10 +159,12 @@ Device::~Device()
       free(device_option);
 #ifdef MFEM_USE_CEED
       // Destroy FES -> CeedBasis, CeedElemRestriction hash table contents
-      for (auto entry : internal::ceed_basis_table) {
+      for (auto entry : internal::ceed_basis_table)
+      {
          CeedBasisDestroy(&entry.second);
       }
-      for (auto entry : internal::ceed_restr_table) {
+      for (auto entry : internal::ceed_restr_table)
+      {
          CeedElemRestrictionDestroy(&entry.second);
       }
       // Destroy Ceed context
