@@ -213,11 +213,8 @@ void ParDST::Mult(const Vector &r, Vector &z) const
       {
          if (myid != SubdomainRank[ip]) continue;
          int n = dmaps->fes[ip]->GetTrueVSize();
-         sol_re[ip] = new Vector(n);
-         sol_im[ip] = new Vector(n);
-         
-         sol_re[ip]->SetDataAndSize(subdomain_sol[ip]->GetData(),n);
-         sol_im[ip]->SetDataAndSize(&(subdomain_sol[ip]->GetData())[n],n);
+         sol_re[ip] = new Vector(subdomain_sol[ip]->GetData(),n);
+         sol_im[ip] = new Vector(&(subdomain_sol[ip]->GetData())[n],n);
       }
       Vector z_re;
       int n = pfes->GetTrueVSize();
@@ -226,6 +223,12 @@ void ParDST::Mult(const Vector &r, Vector &z) const
       z_im.SetDataAndSize(&(z.GetData())[n],n);
       dmaps->SubdomainsToGlobal(sol_re,z_re);
       dmaps->SubdomainsToGlobal(sol_im,z_im);
+      for (int ip = 0; ip<nrsubdomains; ip++)
+      {
+         if (myid != SubdomainRank[ip]) continue;
+         delete sol_re[ip];
+         delete sol_im[ip];
+      }
    }
 }
 
@@ -242,9 +245,14 @@ void ParDST::SetupSubdomainProblems()
    subdomain_sol.SetSize(nrsubdomains);
    for (int ip=0; ip<nrsubdomains; ip++)
    {
+      sqf[ip] = nullptr;
+      f_orig_re[ip] = nullptr;
+      f_orig_im[ip] = nullptr;
       subdomain_sol[ip] = nullptr;
       PmlMat[ip] = nullptr;
       PmlMatInv[ip] = nullptr;
+      Optr[ip] = nullptr;
+
       if (myid != SubdomainRank[ip]) continue;
       subdomain_sol[ip] = new Vector(2*dmaps->fes[ip]->GetTrueVSize());
       if (prob_kind == 0)
@@ -667,8 +675,10 @@ void ParDST::TransferSources(int sweep, const Array<int> & subdomain_ids) const
                sol.SetVector(*OvlpSol_im[ip1][dir],n);
                PmlMat[ip1]->Mult(sol,res);
                double * data = res.GetData();
-               Vector res_re(n); res_re.SetDataAndSize(data,n);
-               Vector res_im(n); res_im.SetDataAndSize(&data[n],n);
+               // Vector res_re(n); res_re.SetDataAndSize(data,n);
+               Vector * res_re = new Vector(data,n);
+               // Vector res_im(n); res_im.SetDataAndSize(&data[n],n);
+               Vector * res_im = new Vector(&data[n],n);
 
                Array2D<int> direct(dim,2); direct = 0;
                for (int d = 0; d<dim; d++)
@@ -677,17 +687,41 @@ void ParDST::TransferSources(int sweep, const Array<int> & subdomain_ids) const
                   if (directions[d]==-1) direct[d][1] = 1;
                }   
 
-               GetChiRes(res_re,ip1,direct);
-               GetChiRes(res_im,ip1,direct);
+               GetChiRes(*res_re,ip1,direct);
+               GetChiRes(*res_im,ip1,direct);
 
-               *f_transf_re[ip1][l] -= res_re;
-               *f_transf_im[ip1][l] -= res_im;
+               *f_transf_re[ip1][l] -= *res_re;
+               *f_transf_im[ip1][l] -= *res_im;
+               delete res_re;
+               delete res_im;
                // cout << "ip1 = " << ip1 << endl;
                // cout << "l = " << l << endl;
                // cout << "res_re = " ; res_re.Print();
                // cin.get();
             }
          }  
+      }
+   }
+
+
+   for (int ip = 0; ip<nrsubdomains; ip++)
+   {
+      if (myid == SubdomainRank[ip])
+      {
+
+         for (int i = 0; i<nrneighbors; i++)
+         {
+            if (OvlpSol_re[ip][i])
+            {
+               delete OvlpSol_re[ip][i];
+            }
+            if (OvlpSol_im[ip][i])
+            {
+               delete OvlpSol_im[ip][i];
+            }
+         }
+         OvlpSol_re[ip].clear();
+         OvlpSol_im[ip].clear();
       }
    }
 }
@@ -767,4 +801,28 @@ int ParDST::GetSweepToTransfer(const int s, Array<int> directions) const
 
 
 
-ParDST::~ParDST() {}
+ParDST::~ParDST()
+{
+
+   for (int ip=0; ip<nrsubdomains; ip++)
+   {
+      delete Optr[ip];
+      delete subdomain_sol[ip];
+      delete PmlMatInv[ip];
+      delete sqf[ip];
+      if (myid != SubdomainRank[ip]) continue;
+      for (int i=0;i<sweeps->nsweeps; i++)
+      {
+         delete f_transf_re[ip][i];
+         delete f_transf_im[ip][i];
+      }
+      delete f_orig_re[ip];
+      delete f_orig_im[ip];
+   }
+   f_orig_re.DeleteAll();
+   f_orig_im.DeleteAll();
+   delete dmaps;
+   delete sweeps;
+   delete part;
+
+}

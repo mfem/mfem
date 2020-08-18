@@ -35,6 +35,15 @@ Sweep::Sweep(int dim_) : dim(dim_)
    }
 }
 
+Sweep::~Sweep()
+{
+   for (int i = 0; i<nsweeps; i++)
+   {
+      sweeps[i].DeleteAll();
+   }
+}
+
+
 double CutOffFncn(const Vector &x, const Vector & pmin, const Vector & pmax, const Array2D<double> & h_)
 {
    int dim = pmin.Size();

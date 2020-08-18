@@ -155,39 +155,13 @@ int main(int argc, char *argv[])
    int nxyz[3] = {1,num_procs,1};
    int * part = mesh->CartesianPartitioning(nxyz);
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD,*mesh,part);
+   delete [] part;
    delete mesh;
+
+   for (int l = 0; l < par_ref_levels; l++)
    {
-      for (int l = 0; l < par_ref_levels; l++)
-      {
-         pmesh->UniformRefinement();
-      }
+      pmesh->UniformRefinement();
    }
-
-   // {
-   //    int nx = 2;
-   //    int ny = 2;
-   //    int nz = 2;
-   //    int nlayers = 1;
-   //    // CartesianParMeshPartition part(pmesh,nx,ny,nz,nlayers);
-   //    ParMeshPartition part(pmesh,nx,ny,nz,nlayers);
-
-
-      // if (visualization)
-      // {
-      //    char vishost[] = "localhost";
-      //    int  visport   = 19916;
-      //    socketstream mesh_sock(vishost, visport);
-      //    mesh_sock.precision(8);
-      //    mesh_sock << "parallel " << num_procs << " " << myid << "\n"
-      //                << "mesh\n" << *pmesh  << flush;
-      // }
-
-
-
-   //    // cout << "myid = " << myid << endl;
-   //    MPI_Finalize();
-   //    return 0;
-   // }
 
    // 6. Define a finite element space on the mesh.
    FiniteElementCollection *fec = new H1_FECollection(order, dim);
@@ -251,18 +225,12 @@ int main(int argc, char *argv[])
    Vector X, B;
 
    a.FormLinearSystem(ess_tdof_list, p_gf, b, Ah, X, B);
-
-
    {
-      // int nx = 4;
-      // int ny = 4;
-      // int nz = 2;
       int nlayers = 2;
-      // ParMeshPartition part(pmesh,nx,ny,nz,nlayers);
       ParDST S(&a,lengths,omega, &ws,nlayers,nx,ny,nz);
-      // StopWatch chrono;
-      // chrono.Clear();
-      // chrono.Start();
+      StopWatch chrono;
+      chrono.Clear();
+      chrono.Start();
       X = 0.0;
       GMRESSolver gmres(MPI_COMM_WORLD);
       gmres.SetPreconditioner(S);
@@ -271,86 +239,78 @@ int main(int argc, char *argv[])
       gmres.SetMaxIter(20);
       gmres.SetPrintLevel(1);
       gmres.Mult(B, X);
+      chrono.Stop();
+      cout << "GMRES time: " << chrono.RealTime() << endl; 
 
+//       a.RecoverFEMSolution(X,B,p_gf);
+//       if (visualization)
+//       {
+//          char vishost[] = "localhost";
+//          int  visport   = 19916;
+//          string keys;
+//          if (dim ==2 )
+//          {
+//             keys = "keys mrRljc\n";
+//          }
+//          else
+//          {
+//             keys = "keys mc\n";
+//          }
+//          // socketstream mesh_sock(vishost, visport);
+//          // mesh_sock.precision(8);
+//          // mesh_sock << "parallel " << num_procs << " " << myid << "\n"
+//          //             << "mesh\n" << *pmesh  << flush;
+//          socketstream sol_sock_re(vishost, visport);
+//          sol_sock_re.precision(8);
+//          sol_sock_re << "parallel " << num_procs << " " << myid << "\n"
+//                      << "solution\n" << *pmesh << p_gf.real() << keys 
+//                      << "window_title 'Numerical Pressure: Real Part' " << flush;                     
 
-
-      // chrono.Stop();
-      // cout << "GMRES time: " << chrono.RealTime() << endl; 
-      // S.Mult(B,X);
-
-      a.RecoverFEMSolution(X,B,p_gf);
-
-      if (visualization)
-      {
-         char vishost[] = "localhost";
-         int  visport   = 19916;
-         string keys;
-         if (dim ==2 )
-         {
-            keys = "keys mrRljc\n";
-         }
-         else
-         {
-            keys = "keys mc\n";
-         }
-         // socketstream mesh_sock(vishost, visport);
-         // mesh_sock.precision(8);
-         // mesh_sock << "parallel " << num_procs << " " << myid << "\n"
-         //             << "mesh\n" << *pmesh  << flush;
-         socketstream sol_sock_re(vishost, visport);
-         sol_sock_re.precision(8);
-         sol_sock_re << "parallel " << num_procs << " " << myid << "\n"
-                     << "solution\n" << *pmesh << p_gf.real() << keys 
-                     << "window_title 'Numerical Pressure: Real Part' " << flush;                     
-
-         socketstream sol_sock_im(vishost, visport);
-         sol_sock_im.precision(8);
-         sol_sock_im << "parallel " << num_procs << " " << myid << "\n"
-                     << "solution\n" << *pmesh << p_gf.imag() << keys 
-                     << "window_title 'Numerical Pressure: Imag Part' " << flush;                     
-      }
-
-      // cout << "myid = " << myid << endl;
-      MPI_Finalize();
-      return 0;
+//          socketstream sol_sock_im(vishost, visport);
+//          sol_sock_im.precision(8);
+//          sol_sock_im << "parallel " << num_procs << " " << myid << "\n"
+//                      << "solution\n" << *pmesh << p_gf.imag() << keys 
+//                      << "window_title 'Numerical Pressure: Imag Part' " << flush;                     
+      // }
    }
 
 
 
-   // solve
-{
-   HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
-   SuperLURowLocMatrix SA(*A);
-   SuperLUSolver superlu(MPI_COMM_WORLD);
-   superlu.SetPrintStatistics(false);
-   superlu.SetSymmetricPattern(false);
-   superlu.SetColumnPermutation(superlu::PARMETIS);
-   superlu.SetOperator(SA);
-   superlu.Mult(B, X);
-   delete A;
-}
-   a.RecoverFEMSolution(X,B,p_gf);
 
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      string keys;
-      if (dim ==2 )
-      {
-         keys = "keys mrRljc\n";
-      }
-      else
-      {
-         keys = "keys mc\n";
-      }
-      socketstream sol_sock_re(vishost, visport);
-      sol_sock_re.precision(8);
-      sol_sock_re << "parallel " << num_procs << " " << myid << "\n"
-                  << "solution\n" << *pmesh << p_gf.real() <<
-                  "window_title 'Numerical Pressure' "
-                  << keys << "valuerange -0.08 0.08 \n" << flush;
-   }
+//    // solve
+// // {
+// //    HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
+// //    SuperLURowLocMatrix SA(*A);
+// //    SuperLUSolver superlu(MPI_COMM_WORLD);
+// //    superlu.SetPrintStatistics(false);
+// //    superlu.SetSymmetricPattern(false);
+// //    superlu.SetColumnPermutation(superlu::PARMETIS);
+// //    superlu.SetOperator(SA);
+// //    superlu.Mult(B, X);
+// //    delete A;
+// // }
+// //    a.RecoverFEMSolution(X,B,p_gf);
+
+// //    if (visualization)
+// //    {
+// //       char vishost[] = "localhost";
+// //       int  visport   = 19916;
+// //       string keys;
+// //       if (dim ==2 )
+// //       {
+// //          keys = "keys mrRljc\n";
+// //       }
+// //       else
+// //       {
+// //          keys = "keys mc\n";
+// //       }
+// //       socketstream sol_sock_re(vishost, visport);
+// //       sol_sock_re.precision(8);
+// //       sol_sock_re << "parallel " << num_procs << " " << myid << "\n"
+// //                   << "solution\n" << *pmesh << p_gf.real() <<
+// //                   "window_title 'Numerical Pressure' "
+// //                   << keys << "valuerange -0.08 0.08 \n" << flush;
+// //    }
    delete fespace;
    delete fec;
 	delete pmesh;

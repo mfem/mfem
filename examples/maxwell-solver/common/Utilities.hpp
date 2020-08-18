@@ -44,12 +44,15 @@ private:
 public:   
    int nsweeps;
    Sweep(int dim_);
+   ~Sweep();
    void GetSweep(const int i, Array<int> & sweep)
    {
       MFEM_VERIFY(i<nsweeps, "Sweep number out of bounds");
       sweep.SetSize(dim);
       sweep = sweeps[i];
    }
+
+
 };
 
 

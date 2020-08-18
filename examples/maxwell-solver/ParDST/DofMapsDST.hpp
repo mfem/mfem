@@ -104,7 +104,6 @@ public:
    void SubdomainsToGlobal(const Array<Vector*> & x, Vector & y);
    // Restriction of global residual to subdomain residuals
    void GlobalToSubdomains(const Vector & y, Array<Vector*> & x);
-
 };
 
 

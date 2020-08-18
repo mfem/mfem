@@ -705,7 +705,8 @@ void DofMaps::GlobalToSubdomains(const Vector & y, Array<Vector*> & x)
    {
       if (myid != subdomain_rank[ip]) continue;
       int ndof = SubdomainGTrueDofs[ip].Size();
-      x[ip]= new Vector(ndof); *x[ip] = 0.0;
+      if (!x[ip]) x[ip] = new Vector(ndof); 
+      *x[ip] = 0.0;
       // extract the data from receiv buffer
       for (int i=0; i<ndof; i++)
       {
@@ -902,4 +903,13 @@ void DofMaps::TestSubdomainToGlobalMaps()
    gf_sock << "parallel " << num_procs << " " << myid << "\n"
            << "solution\n" << *pfes->GetParMesh() << pgf1 
            << keys << flush;
+}
+
+
+DofMaps::~DofMaps()
+{
+   for (int i = 0; i<nrsubdomains; i++)
+   {
+      delete fes[i];
+   }
 }
