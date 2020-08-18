@@ -46,6 +46,8 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
+   //Caliper instrumentation
+   MFEM_MARK_FUNCTION;
    // 1. Parse command-line options.
    const char *mesh_file = "../data/beam-tri.mesh";
    int order = 1;
@@ -72,6 +74,7 @@ int main(int argc, char *argv[])
 
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral or hexahedral elements with the same code.
+   MFEM_MARK_REGION_BEGIN("Read the mesh");
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
@@ -82,6 +85,7 @@ int main(int argc, char *argv[])
            << endl;
       return 3;
    }
+   MFEM_MARK_REGION_END("Read the mesh");
 
    // 3. Select the order of the finite element discretization space. For NURBS
    //    meshes, we increase the order by degree elevation.
@@ -94,6 +98,7 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 5,000
    //    elements.
+   MFEM_MARK_REGION_BEGIN("Refine the mesh");
    {
       int ref_levels =
          (int)floor(log(5000./mesh->GetNE())/log(2.)/dim);
@@ -102,12 +107,14 @@ int main(int argc, char *argv[])
          mesh->UniformRefinement();
       }
    }
+   MFEM_MARK_REGION_END("Refine the mesh");
 
    // 5. Define a finite element space on the mesh. Here we use vector finite
    //    elements, i.e. dim copies of a scalar finite element space. The vector
    //    dimension is specified by the last argument of the FiniteElementSpace
    //    constructor. For NURBS meshes, we use the (degree elevated) NURBS space
    //    associated with the mesh nodes.
+   MFEM_MARK_REGION_BEGIN("FE Space definition");
    FiniteElementCollection *fec;
    FiniteElementSpace *fespace;
    if (mesh->NURBSext)
@@ -122,15 +129,18 @@ int main(int argc, char *argv[])
    }
    cout << "Number of finite element unknowns: " << fespace->GetTrueVSize()
         << endl << "Assembling: " << flush;
+   MFEM_MARK_REGION_END("FE Space definition");
 
    // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking only
    //    boundary attribute 1 from the mesh as essential and converting it to a
    //    list of true dofs.
+   MFEM_MARK_REGION_BEGIN("Boundary DOFs");
    Array<int> ess_tdof_list, ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 0;
    ess_bdr[0] = 1;
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   MFEM_MARK_REGION_END("Boundary DOFs");
 
    // 7. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system. In this case, b_i equals the boundary integral
@@ -140,6 +150,7 @@ int main(int argc, char *argv[])
    //    which is a vector of Coefficient objects. The fact that f is non-zero
    //    on boundary attribute 2 is indicated by the use of piece-wise constants
    //    coefficient for its last component.
+   MFEM_MARK_REGION_BEGIN("Set up the linear form");
    VectorArrayCoefficient f(dim);
    for (int i = 0; i < dim-1; i++)
    {
@@ -156,6 +167,7 @@ int main(int argc, char *argv[])
    b->AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(f));
    cout << "r.h.s. ... " << flush;
    b->Assemble();
+   MFEM_MARK_REGION_END("Set up the linear form");
 
    // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
@@ -166,6 +178,7 @@ int main(int argc, char *argv[])
    // 9. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the linear elasticity integrator with piece-wise
    //    constants coefficient lambda and mu.
+   MFEM_MARK_REGION_BEGIN("Set up the bilinear form");
    Vector lambda(mesh->attributes.Max());
    lambda = 1.0;
    lambda(0) = lambda(1)*50;
@@ -185,14 +198,18 @@ int main(int argc, char *argv[])
    cout << "matrix ... " << flush;
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
+   MFEM_MARK_REGION_END("Set up the bilinear form");
 
    SparseMatrix A;
    Vector B, X;
+   MFEM_MARK_REGION_BEGIN("Form Linear System");
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+   MFEM_MARK_REGION_END("Form Linear System");
    cout << "done." << endl;
 
    cout << "Size of linear system: " << A.Height() << endl;
 
+   MFEM_MARK_REGION_BEGIN("Solve Ax=b");
 #ifndef MFEM_USE_SUITESPARSE
    // 11. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //     solve the system Ax=b with PCG.
@@ -205,6 +222,7 @@ int main(int argc, char *argv[])
    umf_solver.SetOperator(A);
    umf_solver.Mult(B, X);
 #endif
+   MFEM_MARK_REGION_END("Solve Ax=b");
 
    // 12. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
@@ -224,6 +242,7 @@ int main(int argc, char *argv[])
    // 14. Save the displaced mesh and the inverted solution (which gives the
    //     backward displacements to the original grid). This output can be
    //     viewed later using GLVis: "glvis -m displaced.mesh -g sol.gf".
+   MFEM_MARK_REGION_BEGIN("Save the results");
    {
       GridFunction *nodes = mesh->GetNodes();
       *nodes += x;
@@ -235,6 +254,7 @@ int main(int argc, char *argv[])
       sol_ofs.precision(8);
       x.Save(sol_ofs);
    }
+   MFEM_MARK_REGION_END("Save the results");
 
    // 15. Send the above data by socket to a GLVis server. Use the "n" and "b"
    //     keys in GLVis to visualize the displacements.
