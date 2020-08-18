@@ -609,6 +609,63 @@ void FiniteElementSpace
    }
 }
 
+void FiniteElementSpace
+   ::AddEdgeFaceDependencies(SparseMatrix &deps,
+                             Array<int>& master_dofs, Array<int> &slave_dofs,
+                             const FiniteElement *master_fe,
+                             const NCMesh::Slave &slave_face) const
+{
+   // In variable-order spaces in 3D, we need to only constrain interior face
+   // DOFs (this is done one level up), since edge dependencies can be more
+   // complex and are primarily handled by edge-edge dependencies. The one
+   // exception is edges of slave faces that lie in the interior of a master
+   // face, which are not covered by edge-edge relations. This function finds
+   // such edges and makes them constrained by the master face of 'slave_face'.
+
+   Array<int> V, E, Eo; // TODO: LocalArray
+   mesh->GetFaceVertices(slave_face.index, V);
+   mesh->GetFaceEdges(slave_face.index, E, Eo);
+   MFEM_ASSERT(V.Size() == E.Size(), "");
+
+   DenseMatrix I;
+   IsoparametricTransformation edge_T;
+   edge_T.SetFE(&SegmentFE);
+
+   const DenseMatrix &pm = slave_face.point_matrix;
+
+   // constrain each edge of the slave face
+   for (int i = 0; i < E.Size(); i++)
+   {
+      int a = i, b = (i+1) % V.Size();
+      if (V[a] > V[b]) { std::swap(a, b); }
+
+      DenseMatrix &edge_pm = edge_T.GetPointMat();
+      edge_pm.SetSize(2, 2);
+
+      // copy two points from the face point matrix
+      double mid[2];
+      for (int j = 0; j < 2; j++)
+      {
+         edge_pm(j, 0) = pm(j, a);
+         edge_pm(j, 1) = pm(j, b);
+         mid[j] = 0.5*(pm(j, a) + pm(j, b));
+      }
+
+      // check that the edge does not coincide with the master face's edge
+      const double eps = 1e-14;
+      if (mid[0] > eps && mid[0] < 1-eps &&
+          mid[1] > eps && mid[1] < 1-eps)
+      {
+         int order = GetEdgeDofs(E[i], slave_dofs, 0);
+
+         const auto *edge_fe = fec->GetFE(Geometry::SEGMENT, order);
+         edge_fe->GetTransferMatrix(*master_fe, edge_T, I);
+
+         AddDependencies(deps, master_dofs, slave_dofs, I, 0);
+      }
+   }
+}
+
 bool FiniteElementSpace::DofFinalizable(int dof, const Array<bool>& finalized,
                                         const SparseMatrix& deps)
 {
@@ -659,49 +716,6 @@ void FiniteElementSpace::GetDegenerateFaceDofs(int index, Array<int> &dofs,
       dofs[face_vert*nv + i] = edof[2*nv + i];
    }
 }
-
-#if 0
-void FiniteElementSpace::MaskSlaveDofs(Array<int> &dofs, const DenseMatrix &pm,
-                                       int order) const
-{
-   MFEM_ASSERT(pm.Height() == 2 && pm.Width() == 4, "");
-   double x0 = pm(0,0), x1 = pm(0,2);
-   double y0 = pm(1,0), y1 = pm(1,2);
-
-   bool bdr[4] =
-   {
-      (y0 == 0.0 || y0 == 1.0),
-      (x1 == 0.0 || x1 == 1.0),
-      (y1 == 0.0 || y1 == 1.0),
-      (x0 == 0.0 || x0 == 1.0)
-   };
-
-   int nv = fec->GetNumDof(Geometry::POINT, order);
-   int ne = fec->GetNumDof(Geometry::SEGMENT, order);
-
-   for (int i = 0, prev = 3; i < 4; prev = i, i++)
-   {
-      if (bdr[i] || bdr[prev])
-      {
-         for (int j = 0; j < nv; j++)
-         {
-            dofs[i*nv + j] = SkipDof; // mask out vertex DOFs on boundary
-         }
-      }
-   }
-
-   for (int i = 0; i < 4; i++)
-   {
-      if (bdr[i])
-      {
-         for (int j = 0; j < ne; j++)
-         {
-            dofs[4*nv + i*ne + j] = SkipDof; // mask out edge DOFs on boundary
-         }
-      }
-   }
-}
-#endif
 
 int FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs,
                                   Geometry::Type master_geom, int variant) const
@@ -792,50 +806,11 @@ void FiniteElementSpace::BuildConformingInterpolation() const
             // make each slave DOF dependent on all master DOFs
             AddDependencies(deps, master_dofs, slave_dofs, I, skipfirst);
 
-            // handle edge DOFs if they were skipped
             if (skipfirst)
             {
-               Array<int> V, E, Eo;
-               mesh->GetFaceVertices(slave.index, V);
-               mesh->GetFaceEdges(slave.index, E, Eo);
-               MFEM_ASSERT(V.Size() == E.Size(), "");
-
-               IsoparametricTransformation eT;
-               eT.SetFE(&SegmentFE);
-
-               const DenseMatrix &pm = slave.point_matrix;
-
-               // constrain each edge of the slave face
-               for (int i = 0; i < E.Size(); i++)
-               {
-                  int a = i, b = (i+1) % V.Size();
-                  if (V[a] > V[b]) { std::swap(a, b); }
-
-                  DenseMatrix &edge_pm = eT.GetPointMat();
-                  edge_pm.SetSize(2, 2);
-
-                  // copy two points from the face point matrix
-                  double mid[2];
-                  for (int j = 0; j < 2; j++)
-                  {
-                     edge_pm(j, 0) = pm(j, a);
-                     edge_pm(j, 1) = pm(j, b);
-                     mid[j] = 0.5*(pm(j, a) + pm(j, b));
-                  }
-
-                  // check that the edge does not coincide with master edge
-                  const double eps = 1e-14;
-                  if (mid[0] > eps && mid[0] < 1-eps &&
-                      mid[1] > eps && mid[1] < 1-eps)
-                  {
-                     int order = GetEdgeDofs(E[i], slave_dofs, 0);
-
-                     const auto *edge_fe = fec->GetFE(Geometry::SEGMENT, order);
-                     edge_fe->GetTransferMatrix(*master_fe, eT, I);
-
-                     AddDependencies(deps, master_dofs, slave_dofs, I, 0);
-                  }
-               }
+               // constrain internal edge DOFs if they were skipped
+               AddEdgeFaceDependencies(deps, master_dofs, slave_dofs,
+                                       master_fe, slave);
             }
          }
 
