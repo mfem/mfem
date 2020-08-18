@@ -15,7 +15,8 @@
 using std::cout;
 using std::endl;
 
-#define DEBUG_MFEM_FMS 1
+// #define DEBUG_FMS_MFEM 1
+// #define DEBUG_MFEM_FMS 1
 
 namespace mfem
 {
@@ -813,9 +814,13 @@ BasisTypeToFmsBasisType(int bt, FmsBasisType &btype)
         break;
     case mfem::BasisType::OpenUniform:
         cout << "mfem::BasisType::OpenUniform -> ?" << endl;
+        btype = FMS_NODAL_UNIFORM_OPEN;
+        retval = true;
         break;
     case mfem::BasisType::ClosedUniform:
         cout << "mfem::BasisType::ClosedUniform -> ?" << endl;
+        btype = FMS_NODAL_UNIFORM_CLOSED;
+        retval = true;
         break;
     case mfem::BasisType::OpenHalfUniform:
         cout << "mfem::BasisType::OpenHalfUniform -> ?" << endl;
@@ -832,8 +837,6 @@ BasisTypeToFmsBasisType(int bt, FmsBasisType &btype)
     Which MFEM types map to:?
        FMS_NODAL_CHEBYSHEV_OPEN,
        FMS_NODAL_CHEBYSHEV_CLOSED,
-       FMS_NODAL_UNIFORM_OPEN,
-       FMS_NODAL_UNIFORM_CLOSED
 */
 
     return retval;
@@ -860,53 +863,50 @@ GridFunctionToFmsField(FmsDataCollection dc, FmsComponent comp,
   const mfem::FiniteElementSpace *fespace = gf->FESpace();
   const mfem::FiniteElementCollection *fecoll = fespace->FEColl();
 
+#ifdef DEBUG_MFEM_FMS
+  cout << "Adding FMS field for " << field_name << "..." << endl;
+#endif
+
   /* Q: No getter for the basis, do different kinds of FECollection have implied basis?
       There are two subclasses that actually have the getter, maybe those aren't implied?
   */
   FmsInt order = 1;
   int vdim = 1;
-  FmsFieldType ftype = FMS_CONTINUOUS;;
+  FmsFieldType ftype = FMS_CONTINUOUS;
   FmsBasisType btype = FMS_NODAL_GAUSS_CLOSED;
-  switch(fecoll->GetContType())
-  {
-    case mfem::FiniteElementCollection::CONTINUOUS:
-      {
+  switch(fecoll->GetContType()) {
+    case mfem::FiniteElementCollection::CONTINUOUS: {
       ftype = FMS_CONTINUOUS;
-      cout << "FMS_CONTINUOUS" << endl;
       order = static_cast<FmsInt>(fespace->GetOrder(0));
       vdim = gf->VectorDim();
       auto fec = dynamic_cast<const mfem::H1_FECollection *>(fecoll);
-      if(fec != nullptr)
-      {
-          if(!BasisTypeToFmsBasisType(fec->GetBasisType(), btype))
-              return 6;
-      }
+      if(fec != nullptr) {
+          if(!BasisTypeToFmsBasisType(fec->GetBasisType(), btype)) {
+            mfem::err << "Error converting MFEM basis type to FMS for FMS_CONTINUOUS." << std::endl;
+            return 6;
+          }
       }
       break;
-    case mfem::FiniteElementCollection::DISCONTINUOUS:
-      {
+    }
+    case mfem::FiniteElementCollection::DISCONTINUOUS: {
       ftype = FMS_DISCONTINUOUS;
-      cout << "FMS_DISCONTINUOUS" << endl;
       order = static_cast<FmsInt>(fespace->GetOrder(0));
       vdim = gf->VectorDim();
       auto fec = dynamic_cast<const mfem::L2_FECollection *>(fecoll);
-      if(fec != nullptr)
-      {
-          if(!BasisTypeToFmsBasisType(fec->GetBasisType(), btype))
-              return 7;
-      }
-      }
-      ftype = FMS_DISCONTINUOUS;
-      break;
-    case mfem::FiniteElementCollection::TANGENTIAL:
-      {
-      mfem::out << "Warning, unsupported ContType (TANGENTIAL). Using FMS_CONTINUOUS." << std::endl;
+      if(fec != nullptr) {
+          if(!BasisTypeToFmsBasisType(fec->GetBasisType(), btype)) {
+            mfem::err << "Error converting MFEM basis type to FMS for FMS_DISCONTINUOUS." << std::endl;
+            return 7;
+          }
       }
       break;
-    case mfem::FiniteElementCollection::NORMAL:
-      {
+    }
+    case mfem::FiniteElementCollection::TANGENTIAL: {
+      mfem::out << "Warning, unsupported ContType (TANGENTIAL) for " << field_name << ". Using FMS_CONTINUOUS." << std::endl;
+      break;
+    }
+    case mfem::FiniteElementCollection::NORMAL: {
       ftype = FMS_HDIV;
-      cout << "FMS_HDIV" << endl;
       // This RT_FECollection type seems to arise from "RT" fields such as "RT_3D_P1".
       // Checking fe_coll.hpp, this contains verbiage about H_DIV so we assign it the
       // FMS type FMS_HDIV.
@@ -922,10 +922,10 @@ GridFunctionToFmsField(FmsDataCollection dc, FmsComponent comp,
       // 3 but we need it to be what was read from the file so we can pass the 
       // right vdim to the FMS field descriptor to compute the expected number of dofs.
       vdim = fespace->GetVDim();
-      }
       break;
+    }
     default:
-      mfem::out << "\tWarning, unsupported ContType. Using FMS_CONTINUOUS." << std::endl;
+      mfem::out << "Warning, unsupported ContType for field " << field_name << ". Using FMS_CONTINUOUS." << std::endl;
       ftype = FMS_CONTINUOUS;
       break;
   }
@@ -946,170 +946,29 @@ GridFunctionToFmsField(FmsDataCollection dc, FmsComponent comp,
 
   const char *name = NULL;
   FmsFieldGetName(f, &name);
+  FmsLayoutType layout = fespace->GetOrdering() == mfem::Ordering::byVDIM ? FMS_BY_VDIM : FMS_BY_NODES;
+
+#ifdef DEBUG_MFEM_FMS
+  switch(ftype){
+    case FMS_CONTINUOUS:
+      std::cout << "\tFMS_CONTINUOUS" << std::endl;
+      break;
+    case FMS_DISCONTINUOUS:
+      std::cout << "\tFMS_DISCONTINUOUS" << std::endl;
+      break;
+    case FMS_HDIV:
+      std::cout << "\tFMS_HDIV" << std::endl;
+      break;
+  }
   std::cout << "\tField is order " << order << " with vdim " << vdim << " and nDoFs " << ndofs << std::endl;
   std::cout << "\tgf->size() " << gf->Size() << " ndofs * vdim " << ndofs * vdim << std::endl;
-  FmsLayoutType layout = fespace->GetOrdering() == mfem::Ordering::byVDIM ? FMS_BY_VDIM : FMS_BY_NODES;
   std::cout << "\tlayout " << layout << " (0 = BY_NODES, 1 = BY_VDIM)" << std::endl;
-  
-#if 0
-  if(ftype == FMS_CONTINUOUS && order > 2)
-  {
-    // We will need to reorder interior cell dofs, at least for hex to be more compatible with FMS.
-
-    // Make a copy of the grid function data that we can reorder.
-    double *values = new double[s];
-    memcpy(values, c, sizeof(double) * s);
-    const int num_elements = mesh->GetNE();
-
-    // Iterate over hex cells and reorder their interior dofs.
-    int O1=order-1;
-    int O1O1 = O1*O1;
-    for(int e = 0; e < num_elements; e++)
-    {
-      auto etype = mesh->GetElementType(e);
-      switch(etype)
-      {
-      case mfem::Element::QUADRILATERAL:
-          {
-          // Get cell interior dofs for quad.
-          mfem::Array<int> dofs;
-          fespace->GetElementInteriorDofs(e, dofs);
-
-          // Reorder the interior dofs into an order that is compatible with FMS.
-          // Do it in an order-proof way.
-          for(int j = 0; j < O1; ++j)
-          for(int i = 0; i < O1; ++i)
-          {
-              int original_index = j*O1 + i;
-
-              int jp = O1-1 - j;
-              int ip = O1-1 - i;
-
-              int new_index = jp*O1 + ip;
-
-              for (int vc = 0; vc < vdim; vc++)
-              {
-                  int src = fespace->DofToVDof(dofs[original_index],vc);
-                  int dest = fespace->DofToVDof(dofs[new_index],vc);
-                  values[dest] = (*gf)(src);
-              }
-              //cout << original_index << " : " << new_index << endl;
-          }
-          }
-          break;
-      case mfem::Element::HEXAHEDRON:
-          {
-          // Get cell interior dofs for hex.
-          mfem::Array<int> dofs;
-          fespace->GetElementInteriorDofs(e, dofs);
-
-          // Reorder the interior dofs into an order that is compatible with FMS.
-          // Do it in an order-proof way.
-          for(int k = 0; k < O1; ++k)
-          for(int j = 0; j < O1; ++j)
-          for(int i = 0; i < O1; ++i)
-          {
-              int original_index = k*O1O1 + j*O1 + i;
-
-              int kp = O1-1 - i;
-              int jp = O1-1 - j;
-              int ip = O1-1 - k;
-
-              int new_index = kp*O1O1 + jp*O1 + ip;
-
-              for (int vc = 0; vc < vdim; vc++)
-              {
-                  int src = fespace->DofToVDof(dofs[original_index],vc);
-                  int dest = fespace->DofToVDof(dofs[new_index],vc);
-                  values[dest] = (*gf)(src);
-              }
-              //cout << original_index << " : " << new_index << endl;
-          }
-          break;
-          }
-      // Q: do tets need this treatment too?
-      } // switch etype
-    } // for e
-
-    FmsFieldSet(f, fd, vdim, layout, FMS_DOUBLE, values);
-    delete [] values;
-  }
-  else if(ftype == FMS_DISCONTINUOUS)
-  {
-    // Make a copy of the grid function data that we can reorder.
-    double *values = new double[s];
-    memcpy(values, c, sizeof(double) * s);
-    const int num_elements = mesh->GetNE();
-
-    // Iterate over cells and reorder data.
-    int hex_reorder[] = {7,3,5,1,6,2,4,0};
-    int cell_data_offset = 0;
-    for(int e = 0; e < num_elements; e++)
-    {
-      auto etype = mesh->GetElementType(e);
-      switch(etype)
-      {
-      case mfem::Element::QUADRILATERAL:
-          {
-          // reorder all the values along the edges.
-          int p = order;
-          int pp1 = order+1;
-          for(int j = 0; j < pp1; j++)
-          for(int i = 0; i < pp1; i++)
-          {
-              int jj = p-j;
-              int ii = p-i;
-              int src = j*pp1 + i;
-              int dest = jj*pp1 + ii;
-              for (int vc = 0; vc < vdim; vc++)
-              {
-                  int vsrc = fespace->DofToVDof(cell_data_offset + src,vc);
-                  int vdest = fespace->DofToVDof(cell_data_offset + dest,vc);
-                  values[vdest] = (*gf)(vsrc);
-              }
-          }
-          cell_data_offset += pp1*pp1;
-          }
-          break;
-      case mfem::Element::TETRAHEDRON:
-          cell_data_offset += 4;
-          break;
-      case mfem::Element::HEXAHEDRON:
-          {
-          // Reorder the values at the cell's vertices.
-          for(int i = 0; i < 8; ++i)
-          {
-              for (int vc = 0; vc < vdim; vc++)
-              {
-                  int src = fespace->DofToVDof(cell_data_offset + i,vc);
-                  int dest = fespace->DofToVDof(cell_data_offset + hex_reorder[i],vc);
-//cout << "values[" << dest << "] = gf[" << src << "]" << endl;
-                  values[dest] = (*gf)(src);
-              }
-              //cout << original_index << " : " << new_index << endl;
-          }
-
-          // Is reordering of edges, faces, interiors also needed?
-
-          cell_data_offset += 8;
-          break;
-          }
-      // Q: do tets need this treatment too?
-      } // switch etype
-    } // for e
-
-    FmsFieldSet(f, fd, vdim, layout, FMS_DOUBLE, values);
-    delete [] values;
-  }
-  else
-  {
-    // The order is such that no reordering is needed.
-    FmsFieldSet(f, fd, vdim, layout, FMS_DOUBLE, c);
-  }
-#else
-  FmsFieldSet(f, fd, vdim, layout, FMS_DOUBLE, c);
 #endif
-  cout << "Added FMS field for " << field_name << endl;
+
+  if(FmsFieldSet(f, fd, vdim, layout, FMS_DOUBLE, c)) {
+    mfem::err << "Error setting field " << field_name << " in FMS." << std::endl;
+    return 8;
+  }
   return 0;
 }
 
@@ -1462,7 +1321,7 @@ cout << "FmsDataCollectionToDataCollection: mesh failed to convert. err=" << err
       retval = 1;
   }
 
-#if 1
+#if DEBUG_FMS_MFEM
   if(*mfem_dc) {
     VisItDataCollection visit_dc(std::string("DEBUG_DC"), mesh);
     visit_dc.SetOwnData(false);
@@ -1484,8 +1343,7 @@ cout << "FmsDataCollectionToDataCollection: mesh failed to convert. err=" << err
 /* -------------------------------------------------------------------------- */
 
 int
-MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh)
-{
+MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh) {
   if(!mmesh) return 1;
   if(!fmesh) return 2;
 
@@ -1509,411 +1367,6 @@ MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh)
   FmsMeshAddDomains(*fmesh, "Domain", 1, &domains);
   FmsDomainSetNumVertices(domains[0], num_verticies);
 
-  HashTable<Hashed2> edge_ids;
-  HashTable<Hashed4> tri_ids;
-  HashTable<Hashed4> quad_ids;
-  std::vector<int> edge_verts;
-  edge_verts.reserve(num_edges * 2);
-  std::vector<int> tri_edges;
-  std::vector<int> quad_edges;
-  std::vector<int> tet_faces;
-  std::vector<int> hex_faces;
-  for(int ele_idx = 0; ele_idx < num_elements; ele_idx++) {
-    const auto &ele = mmesh->GetElement(ele_idx);
-    const auto ele_type = ele->GetType();
-    switch(ele_type) {
-      case Element::Type::TRIANGLE: {
-        Array<int> verts;
-        ele->GetVertices(verts);
-        const int e_vs[3][2] = {{verts[0],verts[1]}, {verts[1],verts[2]}, {verts[2],verts[0]}};
-        for(int ed =  0; ed < 3; ed++) {
-          const int *vs = e_vs[ed];
-          tri_edges.push_back(edge_ids.GetId(vs[0], vs[1]));
-        }
-        break;
-      }
-      case Element::Type::QUADRILATERAL: {
-        Array<int> verts;
-        ele->GetVertices(verts);
-        const int e_vs[4][2] = {{verts[1],verts[0]},{verts[2],verts[1]},{verts[3],verts[2]}, {verts[0],verts[3]}};
-        for(int ed = 0; ed < 4; ed++) {
-          const int *vs = e_vs[ed];
-          quad_edges.push_back(edge_ids.GetId(vs[0], vs[1]));
-        }
-        break;
-      }
-      case Element::Type::TETRAHEDRON: {
-        // Build the edges
-        Array<int> verts;
-        ele->GetVertices(verts);
-        // std::cout << ele_idx << ": ";
-        // for(int v = 0; v < verts.Size(); v++) {
-        //   std::cout << verts[v] << " ";
-        // }
-        // std::cout << std::endl;
-        const int e_vs[6][2] = {
-          {verts[1],verts[0]}, {verts[2], verts[0]}, {verts[3], verts[0]},
-          {verts[1],verts[2]}, {verts[1], verts[3]}, {verts[2], verts[3]}};
-        int eids[6];
-        for(int ed = 0; ed < 6; ed++) {
-          const int *vs = e_vs[ed];
-          eids[ed] = edge_ids.GetId(vs[0], vs[1]);
-        }
-        
-        // Build the faces
-        const int t_fs[4][3] = {
-          {eids[3], eids[4], eids[5]}, // 
-          {eids[1], eids[2], eids[5]}, // 
-          {eids[0], eids[4], eids[2]}, // 
-          {eids[3], eids[0], eids[1]} // 
-        };
-        int fids[4];
-        for(int f = 0; f < 4; f++) {
-          const int *f_es = t_fs[f];
-          fids[f] = tri_ids.FindId(f_es[0], f_es[1], f_es[2]);
-          if(fids[f] < 0) {
-            fids[f] = tri_ids.GetId(f_es[0], f_es[1], f_es[2]);
-            for(int e = 0; e < 3; e++) {
-              tri_edges.push_back(f_es[e]);
-            }
-            if(tri_edges.size() / 3 - 1 != fids[f]) {
-              std::cout << "Just populated index " << tri_edges.size() / 3  - 1 << " but the face id hashed to " << fids[f] << std::endl;
-            }
-          }
-        }
-
-        const int reorder[4] = {3,2,1,0};
-        for(int f = 0; f < 4; f++) {
-          tet_faces.push_back(fids[reorder[f]]);
-        }
-        break;
-      }
-      case Element::Type::HEXAHEDRON: {
-        /*
-          // MFEM vertex ordering
-            6----7
-           /    /|
-          4----5 |
-          | 2  | 3
-          |    |/
-          0----1
-
-          // FMS vertex ordering
-            7----6
-           /    /|
-          4----5 |
-          | 3  | 2
-          |    |/
-          0----1
-
-        */
-        Array<int> verts;
-        ele->GetVertices(verts);
-        const int e_vs[12][2] = {
-          {verts[1],verts[0]},{verts[2],verts[1]},{verts[3],verts[2]},{verts[3],verts[0]}, // Bottom
-          {verts[5],verts[4]},{verts[6],verts[5]},{verts[7],verts[6]},{verts[7],verts[4]}, // Top
-          {verts[4],verts[0]},{verts[5],verts[1]},{verts[6],verts[2]},{verts[7],verts[3]} // Vertical edges
-        };
-        int eids[12];
-        for(int ed = 0; ed < 12; ed++) {
-          const int *vs = e_vs[ed];
-          eids[ed] = edge_ids.GetId(vs[0], vs[1]);
-        }
-        // Build the faces
-        const int h_fs[6][4] = {
-          {eids[2], eids[1], eids[0], eids[3]}, // (3 -> 2 -> 1 -> 0)
-          {eids[0], eids[9], eids[4], eids[8]}, // (0 -> 1 -> 5 -> 4) 
-          {eids[1], eids[10], eids[5], eids[9]}, //(1 -> 2 -> 6 -> 5) 
-          {eids[2], eids[11],eids[6], eids[10]}, //(2 -> 3 -> 7 -> 6)  
-          {eids[3], eids[8], eids[7], eids[11]}, //(3 -> 0 -> 4 -> 7)
-          {eids[4], eids[5], eids[6], eids[7]} //(4 -> 5 -> 6 -> 7) */
-        };
-
-        int fids[6];
-        for(int f = 0; f < 6; f++) {
-          const int *f_es = h_fs[f];
-          fids[f] = quad_ids.FindId(f_es[0], f_es[1], f_es[2], f_es[3]);
-          // If we got -1 that means this face is new
-          if(fids[f] < 0) {
-            fids[f] = quad_ids.GetId(f_es[0], f_es[1], f_es[2], f_es[3]);
-            for(int e = 0; e < 4; e++) {
-              quad_edges.push_back(f_es[e]);
-            }
-            if(quad_edges.size() / 4 - 1 != fids[f]) {
-              std::cout << "Just populated index " << quad_edges.size() / 4  - 1 << " but the face id hashed to " << fids[f] << std::endl;
-            }
-          }
-        }
-
-        // Now build the hex
-        const int reorder[6] = {0,5,4,2,1,3};
-        for(int f = 0; f < 6; f++) {
-          hex_faces.push_back(fids[reorder[f]]);
-        }
-        break;
-      }
-      default:
-        mfem::err << "Support for element type " << ele_type << " is not implmented." << std::endl;
-        break;
-    }
-  }
-
-  edge_verts.resize(edge_ids.Size() * 2);
-  if(edge_verts.size()) {
-    const int nedges = edge_verts.size() / 2;
-#if 1
-    // For whatever reason the edges need to be flipped
-    for(int i = 0; i < nedges; i++) {
-      const auto &edge = edge_ids[i];
-      edge_verts[i*2] = edge.p2;
-      edge_verts[i*2 + 1] = edge.p1;
-    }
-#endif
-
-    FmsDomainSetNumEntities(domains[0], FMS_EDGE, FMS_INT32, nedges);
-    FmsDomainAddEntities(domains[0], FMS_EDGE, NULL, FMS_INT32, edge_verts.data(), nedges);
-#ifdef DEBUG_MFEM_FMS
-    std::cout << "EDGES: ";
-    for(int i = 0; i < edge_verts.size(); i++) {
-      if(i % 2 == 0) std::cout << std::endl << "\t" << i/2 << ": ";
-      std::cout << edge_verts[i] << " ";
-    }
-    std::cout << std::endl;
-  #endif
-  }
-  else {
-    // ERROR?
-    mfem::err << "Unable to convert mesh, no edges found." << std::endl;
-    return 4;
-  }
-
-  if(tri_edges.size()) {
-    const int ntris = tri_edges.size() / 3;
-    FmsDomainSetNumEntities(domains[0], FMS_TRIANGLE, FMS_INT32, ntris);
-    FmsDomainAddEntities(domains[0], FMS_TRIANGLE, NULL, FMS_INT32, tri_edges.data(), ntris);
-#ifdef DEBUG_MFEM_FMS
-    std::cout << "TRIS: ";
-    for(int i = 0; i < tri_edges.size(); i++) {
-      if(i % 3 == 0) std::cout << std::endl << "\t" << i/3 << ": ";
-      std::cout << tri_edges[i] << " ";
-    }
-    std::cout << std::endl;
-#endif
-  }
-
-  if(quad_edges.size()) {
-    const int nquads = quad_edges.size() / 4;
-    FmsDomainSetNumEntities(domains[0], FMS_QUADRILATERAL, FMS_INT32, nquads);
-    FmsDomainAddEntities(domains[0], FMS_QUADRILATERAL, NULL, FMS_INT32, quad_edges.data(), nquads);
-#ifdef DEBUG_MFEM_FMS
-    std::cout << "QUADS: ";
-    for(int i = 0; i < quad_edges.size(); i++) {
-      if(i % 4 == 0) std::cout << std::endl << "\t" << i/4 << ": ";
-      std::cout << quad_edges[i] << " ";
-    }
-    std::cout << std::endl;
-#endif
-  }
-
-#if 1
-  if(tet_faces.size()) {
-    const int ntets = tet_faces.size() / 4;
-    FmsDomainSetNumEntities(domains[0], FMS_TETRAHEDRON, FMS_INT32, ntets);
-    FmsDomainAddEntities(domains[0], FMS_TETRAHEDRON, NULL, FMS_INT32, tet_faces.data(), ntets);
-#ifdef DEBUG_MFEM_FMS
-    std::cout << "TETS: ";
-    for(int i = 0; i < tet_faces.size(); i++) {
-      if(i % 4 == 0) std::cout << std::endl << "\t" << i/4 << ": ";
-      std::cout << tet_faces[i] << " ";
-    }
-    std::cout << std::endl;
-#endif
-  }
-#endif
-
-#if 1
-  if(hex_faces.size()) {
-    const int nhexes = hex_faces.size() / 6;
-    FmsDomainSetNumEntities(domains[0], FMS_HEXAHEDRON, FMS_INT32, nhexes);
-    FmsDomainAddEntities(domains[0], FMS_HEXAHEDRON, NULL, FMS_INT32, hex_faces.data(), nhexes);
-#ifdef DEBUG_MFEM_FMS
-    std::cout << "HEXES: ";
-    for(int i = 0; i < hex_faces.size(); i++) {
-      if(i % 6 == 0) std::cout << std::endl << "\t" << i/6 << ": ";
-      std::cout << hex_faces[i] << " ";
-    }
-    std::cout << std::endl;
-#endif
-  }
-#endif
-  
-  
-  // TODO: Add boundaries
-
-  err = FmsMeshFinalize(*fmesh);
-  if(err) {
-    mfem::err << "FmsMeshFinalize returned error code " << err << std::endl;
-    return 40;
-  }
-
-  err = FmsMeshValidate(*fmesh);
-  if(err) {
-    mfem::err << "FmsMeshValidate returned error code " << err << std::endl;
-    return 41;
-  }
-
-  return 0;
-}
-
-// #define CDL_EXPERIMENTAL
-#ifdef CDL_EXPERIMENTAL
-int
-DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc)
-{
-  // TODO: Write me
-
-  // Convert from mfem mesh to FMS mesh
-  const Mesh *mmesh = mfem_dc->GetMesh();
-  FmsMesh fmesh = NULL;
-  MeshToFmsMesh(mmesh, &fmesh);
-
-  FmsDomain *domains = NULL;
-  FmsInt num_domains = 0;
-  FmsMeshGetDomainsByName(fmesh, "Domain", &num_domains, &domains);
-
-  FmsComponent volume;
-  FmsMeshAddComponent(fmesh, "volume", &volume);
-  FmsComponentAddDomain(volume, domains[0]);
-
-  FmsDataCollectionCreate(fmesh, mfem_dc->GetCollectionName().c_str(), dc);
-
-  // Add the coordinates field to the data collection
-  const mfem::GridFunction *mcoords = mmesh->GetNodes();
-  if(mcoords) {
-    mfem::out << "Converting mfem mesh nodes GridFunction to FMS field (this will be used as the component's coordinates.)" << std::endl;
-    FmsField fcoords;
-    GridFunctionToFmsField(*dc, volume, "CoordsDescriptor", "Coords", mmesh, mcoords, &fcoords);
-    FmsComponentSetCoordinates(volume, fcoords);
-  }
-  else {
-    // ERROR?
-  }
-
-// #define PRETEND_ONLY_ONE_HEX 1
-#if PRETEND_ONLY_ONE_HEX
-  {
-    // 24 Verticies * 1 DoF, 48 edges * 2 DoFs, 30 faces * 4 DoFs, 
-    const double *mc = mcoords->GetData();
-    double *small_coords = new double[64*3];
-    // Copy the first 8 verticies
-    for(int i = 0; i < 8; i++) {
-      small_coords[i*3 + 0] = mc[i*3+0];
-      small_coords[i*3 + 1] = mc[i*3+1];
-      small_coords[i*3 + 2] = mc[i*3+2];
-    }
-    // Copy edge dofs
-    int idx = 8;
-    for(int i = 24; i < 48; i++, idx++) {
-      small_coords[idx*3 + 0] = mc[i*3+0];
-      small_coords[idx*3 + 1] = mc[i*3+1];
-      small_coords[idx*3 + 2] = mc[i*3+2];
-    }
-    const int face_dof_start = 24 + 48 * 2;
-    for(int i = face_dof_start; i < face_dof_start + 24; i++, idx++) {
-      small_coords[idx*3 + 0] = mc[i*3+0];
-      small_coords[idx*3 + 1] = mc[i*3+1];
-      small_coords[idx*3 + 2] = mc[i*3+2];
-    }
-    const int cell_dof_start = face_dof_start + 30 * 4;
-    for(int  i = cell_dof_start; i < cell_dof_start + 8; i++, idx++) {
-      small_coords[idx*3 + 0] = mc[i*3+0];
-      small_coords[idx*3 + 1] = mc[i*3+1];
-      small_coords[idx*3 + 2] = mc[i*3+2];
-    }
-    std::cout << "Small Coords";
-    for(int i = 0; i < 64*3; i++) {
-      if(i % 3 == 0) std::cout << std::endl << "\t" << i/3 << ": ";
-      std::cout << small_coords[i];
-    }
-    std::cout << std::endl;
-
-    FmsFieldDescriptor sc_fd;
-    FmsField sc_f;
-    FmsDataCollectionAddFieldDescriptor(*dc, "SmallCoordsDescriptor", &sc_fd);
-    FmsDataCollectionAddField(*dc, "SmallCoords", &sc_f);
-    FmsFieldDescriptorSetComponent(sc_fd, volume);
-    FmsFieldDescriptorSetFixedOrder(sc_fd, FMS_CONTINUOUS, FMS_NODAL_GAUSS_CLOSED, 3);
-    FmsFieldSet(sc_f, sc_fd, 3, FMS_BY_VDIM, FMS_DOUBLE, small_coords);
-    FmsInt nDofs;
-    FmsFieldDescriptorGetNumDofs(sc_fd, &nDofs);
-    std::cout << "Fms says that SmallCoords should have " << nDofs << "nDofs." << std::endl;
-    // FmsComponentSetCoordinates(volume, sc_f);
-
-    static const double NODE_IDS[8] = {0,1,2,3,4,5,6,7};
-    FmsFieldDescriptor nid_fd = NULL;
-    FmsField nid_f = NULL;
-    FmsDataCollectionAddFieldDescriptor(*dc, "NODE IDS DESCRIPTOR", &nid_fd);
-    FmsDataCollectionAddField(*dc, "NODE IDS", &nid_f);
-    FmsFieldDescriptorSetComponent(nid_fd, volume);
-    FmsFieldDescriptorSetFixedOrder(nid_fd, FMS_CONTINUOUS, FMS_NODAL_GAUSS_CLOSED, 1);
-    FmsFieldSet(nid_f, nid_fd, 1, FMS_BY_NODES, FMS_DOUBLE, NODE_IDS);
-
-    delete[] small_coords;
-  }
-#endif
-
-  const auto &fields = mfem_dc->GetFieldMap();
-  for(const auto &pair : fields) {
-    std::string fd_name(pair.first + "Descriptor");
-    mfem::out << "Converting mfem GridFunction " << pair.first << " to FMS field..." << std::endl;
-    FmsField field;
-    GridFunctionToFmsField(*dc, volume, fd_name, pair.first.c_str(), mmesh, pair.second, &field); // TODO: Volume isn't always going to be correct
-  }
-
-  // /* TODO:
-  // const auto &qfields = mfem_dc->GetQFieldMap();
-  // for(const auto &pair : qfields) {
-  //   FmsFieldDescriptor fd = NULL;
-  //   FmsField f = NULL;
-  //   std::string fd_name(pair.first + "Descriptor");
-  //   FmsDataCollectionAddFieldDescriptor(*dc, fd_name.c_str(), &fd);
-  //   FmsDataCollectionAddField(*dc, pair.first.c_str(), &f);
-  //   GridFunctionToFmsField(*dc, fd, f, volume, pair.second); // TODO: Volume isn't always going to be correct
-  // } */
-
-  // Add the MetaData
-  if(MfemMetaDataToFmsMetaData(mfem_dc, *dc) == false)
-    return 5;
-  return 0;
-}
-
-#else
-int
-DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc)
-{
-  // TODO: Write me
-
-  const Mesh *mmesh = mfem_dc->GetMesh();
-  const int num_verticies = mmesh->GetNV();
-  const int num_edges = mmesh->GetNEdges();
-  const int num_faces = mmesh->GetNFaces();
-  const int num_elements = mmesh->GetNE();
-
-#ifdef DEBUG_MFEM_FMS
-  std::cout << "nverts: " << num_verticies << std::endl;
-  std::cout << "nedges: " << num_edges << std::endl;
-  std::cout << "nfaces: " << num_faces << std::endl;
-  std::cout << "nele: " << num_elements << std::endl;
-#endif
-
-  FmsMesh fmesh = NULL;
-  FmsMeshConstruct(&fmesh);
-  FmsMeshSetPartitionId(fmesh, 0, 1);
-
-  FmsDomain *domains = NULL;
-  FmsMeshAddDomains(fmesh, "Domain", 1, &domains);
-  FmsDomainSetNumVertices(domains[0], num_verticies);
-
   const int edge_reorder[2] = {1, 0};
   const int quad_reorder[4] = {0,1,2,3};
   const int tet_reorder[4] = {3,2,1,0};
@@ -1926,18 +1379,15 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
 
   const mfem::Table *edges = mmesh->GetEdgeVertexTable();
   if(!edges) {
-    mfem::out << "Error, mesh has no edges." << std::endl;
+    mfem::err << "Error, mesh has no edges." << std::endl;
     return 1;
   }
   mfem::Table *faces = mmesh->GetFaceEdgeTable();
   if(!faces && num_faces > 0) {
-    mfem::out << "Error, mesh contains faces but the \"GetFaceEdgeTable\" returned NULL." << std::endl;
-    return 1;
+    mfem::err << "Error, mesh contains faces but the \"GetFaceEdgeTable\" returned NULL." << std::endl;
+    return 2;
   }
 
-  // TODO: This is almost correct, need to expose edge_verts and face_edges then add them to FMS at the end
-  //  This is because it's possible for there to be top level edges that need to be added to the mesh and setting "NumEntities" 
-  //  up here messes that up.
   // Build edges
   std::vector<int> edge_verts(edges->Size() * 2);
   for(int i = 0; i < edges->Size(); i++) {
@@ -1947,6 +1397,8 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
       edge_verts[i*2 + j] = nids[j];
     }
   }
+
+  // TODO: Move this code to after the for loop so edges can be added at top level entities
   FmsDomainSetNumEntities(domains[0], FMS_EDGE, FMS_INT32, edge_verts.size() / 2);
   FmsDomainAddEntities(domains[0], FMS_EDGE, reorder, FMS_INT32, edge_verts.data(), edge_verts.size() / 2);
 #ifdef DEBUG_MFEM_FMS
@@ -1960,7 +1412,7 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
 
   // Build faces
   if(faces) {
-    // TODO: Support Triangles and Quads
+    // TODO: Support Triangles and Quads, and move this code after the for loop so these can be added as top level entities
     int rowsize = faces->RowSize(0);
     std::vector<int> face_edges(faces->Size() * rowsize);
     for(int i = 0; i < faces->Size(); i++) {
@@ -2018,25 +1470,17 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
       case mfem::Element::TETRAHEDRON: {
         mfem::Array<int> fids, oris;
         mmesh->GetElementFaces(i, fids, oris);
-        
-        std::cout << "\t";
         for(int f = 0; f < 4; f++) {
-          std::cout << oris[f] << " ";
           tets.push_back(fids[f]);
         }
-        std::cout << std::endl;
         break;
       }
       case mfem::Element::HEXAHEDRON: {
         mfem::Array<int> fids, oris;
         mmesh->GetElementFaces(i, fids, oris);
-
-        std::cout << "\t";
         for(int f = 0; f < 6; f++) {
-          std::cout << oris[f] << " ";
           hexes.push_back(fids[f]);
         }
-        std::cout << std::endl;
         break;
       }
       default:
@@ -2098,23 +1542,67 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
 #endif
   }
 
-  FmsComponent volume;
+  err = FmsMeshFinalize(*fmesh);
+  if(err) {
+    mfem::err << "FmsMeshFinalize returned error code " << err << std::endl;
+    return 4;
+  }
+
+  err = FmsMeshValidate(*fmesh);
+  if(err) {
+    mfem::err << "FmsMeshValidate returned error code " << err << std::endl;
+    return 5;
+  }
+  return 0;
+}
+
+int
+DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc)
+{
+  // TODO: Write me
+  int err = 0;
+  const Mesh *mmesh = mfem_dc->GetMesh();
+
+  FmsMesh fmesh = NULL;
+  err = MeshToFmsMesh(mmesh, &fmesh);
+  if(!fmesh || err) {
+    mfem::err << "Error converting mesh topology from MFEM to FMS" << std::endl;
+    if(fmesh)
+      FmsMeshDestroy(&fmesh);
+    return 1;
+  }
+
+  // Q: Should MeshToFmsMesh just return the volume component to avoid this?
+  FmsDomain *domains = NULL;
+  FmsInt num_domains = 0;
+  err = FmsMeshGetDomainsByName(fmesh, "Domain", &num_domains, &domains);
+  if(!domains || !num_domains || err) {
+    mfem::err << "Corrupt FMS domain data." << std::endl;
+    FmsMeshDestroy(&fmesh);
+    return 2;
+  }
+
+  FmsComponent volume = NULL;
   FmsMeshAddComponent(fmesh, "volume", &volume);
   FmsComponentAddDomain(volume, domains[0]);
 
-  // TODO: Add boundaries
+   // TODO: Add boundaries
 
-  FmsMeshFinalize(fmesh);
-  FmsMeshValidate(fmesh);
-
-  FmsDataCollectionCreate(fmesh, mfem_dc->GetCollectionName().c_str(), dc);
+  err = FmsDataCollectionCreate(fmesh, mfem_dc->GetCollectionName().c_str(), dc);
+  if(!*dc || err) {
+    mfem::err << "There was an error creating the FMS data collection." << std::endl;
+    FmsMeshDestroy(&fmesh);
+    if(*dc)
+      FmsDataCollectionDestroy(dc);
+    return 3;
+  }
 
   // Add the coordinates field to the data collection
   const mfem::GridFunction *mcoords = mmesh->GetNodes();
   if(mcoords) {
-    FmsField fcoords;
-    GridFunctionToFmsField(*dc, volume, "CoordsDescriptor", "Coords", mmesh, mcoords, &fcoords);
-    FmsComponentSetCoordinates(volume, fcoords);
+    FmsField fcoords = NULL;
+    err  = GridFunctionToFmsField(*dc, volume, "CoordsDescriptor", "Coords", mmesh, mcoords, &fcoords);
+    err |= FmsComponentSetCoordinates(volume, fcoords);
   }
   else {
     // Sometimes the nodes are stored as just a vector of vertex coordinates
@@ -2122,19 +1610,28 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
     mmesh->GetVertices(mverts);
     FmsFieldDescriptor fdcoords = NULL;
     FmsField fcoords = NULL;
-    FmsDataCollectionAddFieldDescriptor(*dc, "CoordsDescriptor", &fdcoords);
-    FmsFieldDescriptorSetComponent(fdcoords, volume);
-    FmsFieldDescriptorSetFixedOrder(fdcoords, FMS_CONTINUOUS, FMS_NODAL_GAUSS_CLOSED, 1);
-    FmsDataCollectionAddField(*dc, "Coords", &fcoords);
-    FmsFieldSet(fcoords, fdcoords, mmesh->SpaceDimension(), FMS_BY_NODES, FMS_DOUBLE, mverts);
-    FmsComponentSetCoordinates(volume, fcoords);
+    err  = FmsDataCollectionAddFieldDescriptor(*dc, "CoordsDescriptor", &fdcoords);
+    err |= FmsFieldDescriptorSetComponent(fdcoords, volume);
+    err |= FmsFieldDescriptorSetFixedOrder(fdcoords, FMS_CONTINUOUS, FMS_NODAL_GAUSS_CLOSED, 1);
+    err |= FmsDataCollectionAddField(*dc, "Coords", &fcoords);
+    err |= FmsFieldSet(fcoords, fdcoords, mmesh->SpaceDimension(), FMS_BY_NODES, FMS_DOUBLE, mverts);
+    err |= FmsComponentSetCoordinates(volume, fcoords);
+  }
+
+  if(err) {
+    mfem::err << "There was an error setting the mesh coordinates." << std::endl;
+    FmsMeshDestroy(&fmesh);
+    FmsDataCollectionDestroy(dc);
+    return 4;
   }
 
   const auto &fields = mfem_dc->GetFieldMap();
   for(const auto &pair : fields) {
     std::string fd_name(pair.first + "Descriptor");
     FmsField field;
-    GridFunctionToFmsField(*dc, volume, fd_name, pair.first.c_str(), mmesh, pair.second, &field); // TODO: Volume isn't always going to be correct
+    err = GridFunctionToFmsField(*dc, volume, fd_name, pair.first.c_str(), mmesh, pair.second, &field); 
+    if(err) 
+      mfem::err << "WARNING: There was an error adding the " << pair.first << " field. Continuing..." << std::endl;
   }
 
   // /* TODO:
@@ -2150,6 +1647,5 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc, FmsDataCollection *dc
 
   return 0;
 }
-#endif
 
 } // end namespace mfem
