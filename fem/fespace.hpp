@@ -171,17 +171,6 @@ protected:
 
    void BuildElementToDofTable();
 
-#if 0
-   /** In a variable order space, calculate the "true" (minimum) polynomial
-       order for each edge and face. */
-   void CalculateMinimumOrders(Array<int> &edge_min_order,
-                               Array<int> &face_min_order) const;
-   /** Build the table edge_dofs (or face_dofs) in a variable order space;
-       return total edge/face DOFs. */
-   int AssignVarOrderDofs(int ent_dim, const Array<int> &ent_min_order,
-                          Table &entity_dofs);
-
-#else
    typedef std::uint64_t VarOrderBits;
    enum { MaxVarOrder = 8*sizeof(VarOrderBits) - 1 };
 
@@ -197,7 +186,6 @@ protected:
        return total edge/face DOFs. */
    int MakeDofTable(int ent_dim, const Array<int> &entity_orders,
                     Table &entity_dofs);
-#endif
 
    /// Search row of a DOF table for a DOF set of size 'ndof', return first DOF.
    int FindDofs(const Table &dof_table, int row, int ndof) const;
@@ -233,16 +221,17 @@ protected:
    /// Calculate the cP and cR matrices for a nonconforming mesh.
    void BuildConformingInterpolation() const;
 
-#if 0
-   void MaskSlaveDofs(Array<int> &dofs, const DenseMatrix &pm, int order) const;
-#endif
-
    static void AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
                                Array<int>& slave_dofs, DenseMatrix& I,
                                int skipfirst = 0);
 
    static bool DofFinalizable(int dof, const Array<bool>& finalized,
                               const SparseMatrix& deps);
+
+   void AddEdgeFaceDependencies(SparseMatrix &deps,
+                                Array<int>& master_dofs, Array<int> &slave_dofs,
+                                const FiniteElement *master_fe,
+                                const NCMesh::Slave &slave_face) const;
 
    /// Replicate 'mat' in the vector dimension, according to vdim ordering mode.
    void MakeVDimMatrix(SparseMatrix &mat) const;
