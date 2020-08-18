@@ -151,7 +151,8 @@ int main(int argc, char *argv[])
    int nprocs = sqrt(num_procs);
    // MFEM_VERIFY(nprocs*nprocs == num_procs, "Check MPI partitioning");
    // int nxyz[3] = {num_procs,1,1};
-   int nxyz[3] = {nprocs,nprocs,1};
+   // int nxyz[3] = {nprocs,nprocs,1};
+   int nxyz[3] = {1,num_procs,1};
    int * part = mesh->CartesianPartitioning(nxyz);
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD,*mesh,part);
    delete mesh;
@@ -256,37 +257,26 @@ int main(int argc, char *argv[])
       // int nx = 4;
       // int ny = 4;
       // int nz = 2;
-      int nlayers = 1;
+      int nlayers = 2;
       // ParMeshPartition part(pmesh,nx,ny,nz,nlayers);
       ParDST S(&a,lengths,omega, &ws,nlayers,nx,ny,nz);
-
-      // ParComplexGridFunction pgf(fespace);
-      // FunctionCoefficient cf_re(funccoeff_re);
-      // FunctionCoefficient cf_im(funccoeff_im);
-      // pgf.ProjectCoefficient(cf_re,cf_im);
-
-
-      // Vector y1_re(fespace->GetTrueVSize());
-      // Vector y1_im(fespace->GetTrueVSize());
-      // const SparseMatrix * R = fespace->GetRestrictionMatrix();
-
-      // Array<int> blockoffsets(3);
-      // blockoffsets[0] = 0;
-      // blockoffsets[1] = fespace->GetTrueVSize();
-      // blockoffsets[2] = fespace->GetTrueVSize();
-      // blockoffsets.PartialSum();
-      // BlockVector y1(blockoffsets);
+      // StopWatch chrono;
+      // chrono.Clear();
+      // chrono.Start();
+      X = 0.0;
+      GMRESSolver gmres(MPI_COMM_WORLD);
+      gmres.SetPreconditioner(S);
+      gmres.SetOperator(*Ah);
+      gmres.SetRelTol(1e-12);
+      gmres.SetMaxIter(20);
+      gmres.SetPrintLevel(1);
+      gmres.Mult(B, X);
 
 
-      // R->Mult(pgf.real(),y1_re);
-      // R->Mult(pgf.imag(),y1_im);
 
-      // Vector y1(2*fespace->GetTrueVSize());
-      // y1.SetVector(y1_re,0);
-      // y1.SetVector(y1_im,fespace->GetTrueVSize());
-      
-      // S.Mult(y1,X);
-      S.Mult(B,X);
+      // chrono.Stop();
+      // cout << "GMRES time: " << chrono.RealTime() << endl; 
+      // S.Mult(B,X);
 
       a.RecoverFEMSolution(X,B,p_gf);
 

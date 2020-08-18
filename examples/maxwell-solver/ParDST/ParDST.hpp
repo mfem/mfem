@@ -41,7 +41,8 @@ private:
    mutable Array<Array<Vector * >> f_transf_re;
    mutable Array<Array<Vector * >> f_transf_im;
    mutable Array<Vector * > subdomain_sol;
-
+   mutable std::vector<std::vector<Vector * >> OvlpSol_re;
+   mutable std::vector<std::vector<Vector * >> OvlpSol_im;
    void SetupSubdomainProblems();
    std::vector<std::vector<Array<int>>> NovlpElems;
    std::vector<std::vector<Array<int>>> NovlpDofs;
@@ -51,6 +52,8 @@ private:
    void GetChiRes(Vector & res, int ip, Array2D<int> direct) const;
    void PlotLocal(Vector & sol, socketstream & sol_sock, int ip) const;
    void GetStepSubdomains(const int sweep, const int step, Array2D<int> & subdomains) const;
+   void TransferSources(int sweep, const Array<int> & subdomain_ids) const;
+   int GetSweepToTransfer(const int s, Array<int> directions) const;
 
 public:
    ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 

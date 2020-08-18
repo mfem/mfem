@@ -65,7 +65,6 @@ private:
                             const Array<bool> & neg, 
                             const Array<bool> & pos);
    std::vector<std::vector<Array<int>>> OvlpTDofs;
-   std::vector<std::vector<Vector * >> OvlpSol;
    void SubdomainToSubdomainMapsSetup();
    void ComputeOvlpElems();
    void ComputeOvlpTdofs();
@@ -98,7 +97,8 @@ public:
    DofMaps(ParFiniteElementSpace *fespace_, ParMeshPartition * part_);
    ~DofMaps();
    // Transfering from subdomains SubdomainIds to all their neighbors
-   void TransferToNeighbors(const Array<int> & SubdomainIds, const Array<Vector *> & x);
+   void TransferToNeighbors(const Array<int> & SubdomainIds, const Array<Vector *> & x, 
+   std::vector<std::vector<Vector * >> & OvlpSol);
 
    // Prolongation of subdomain solutions to the global solution
    void SubdomainsToGlobal(const Array<Vector*> & x, Vector & y);

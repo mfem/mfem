@@ -190,7 +190,6 @@ void DofMaps::ComputeOvlpElems()
 void DofMaps::ComputeOvlpTdofs()
 {
    OvlpTDofs.resize(nrsubdomains);
-   OvlpSol.resize(nrsubdomains);
    int nrneighbors = pow(3,dim); // including its self
 
    // loop through subdomains
@@ -200,11 +199,9 @@ void DofMaps::ComputeOvlpTdofs()
       int ntdofs = fes[l]->GetTrueVSize();
       Array<int> tdof_marker(ntdofs); 
       OvlpTDofs[l].resize(nrneighbors);
-      OvlpSol[l].resize(nrneighbors);
       // loop through neighboring directions/neighbors
       for (int d=0; d<nrneighbors; d++)
       {
-         OvlpSol[l][d] = nullptr;
          tdof_marker = 0;
          Array<int> tdoflist;
          // Get the direction
@@ -264,7 +261,8 @@ void DofMaps::PrintOvlpTdofs()
    }
 }
 
-void DofMaps::TransferToNeighbors(const Array<int> & SubdomainIds, const Array<Vector *> & x)
+void DofMaps::TransferToNeighbors(const Array<int> & SubdomainIds, const Array<Vector *> & x,
+std::vector<std::vector<Vector * >> & OvlpSol)
 {
    // 2D for now....
    MFEM_VERIFY(SubdomainIds.Size() == x.Size(), "TransferToNeighbors: Size inconsistency");
@@ -307,7 +305,11 @@ void DofMaps::TransferToNeighbors(const Array<int> & SubdomainIds, const Array<V
          {
             Array<int> tdofs0 = OvlpTDofs[i0][d]; // map of dofs in the overlap
             send_buffer[send_counter] = new Vector(tdofs0.Size());
-            x[i0]->GetSubVector(tdofs0,*send_buffer[send_counter]);
+            // cout << "i0 = " << i0 << endl;
+            // cout << "0:x size = " << x.Size() << endl;
+            x[is]->GetSubVector(tdofs0,*send_buffer[send_counter]);
+            // x[i0]->GetSubVector(tdofs0,*send_buffer[send_counter]);
+            // cout << "1:x size = " << x.Size() << endl;
             // Destination rank
             int dest = subdomain_rank[i1];
             // cout << "sending from (id,sub) = (" << myid << "," << i0 << ") to: " 
@@ -318,6 +320,8 @@ void DofMaps::TransferToNeighbors(const Array<int> & SubdomainIds, const Array<V
             MPI_Isend(send_buffer[send_counter]->GetData(),count,MPI_DOUBLE,dest,
                       tag,comm,&send_requests[send_counter]);
             send_counter++;
+            // cout << "send " << endl;
+
          }
          if (myid == subdomain_rank[i1])
          {
@@ -335,6 +339,7 @@ void DofMaps::TransferToNeighbors(const Array<int> & SubdomainIds, const Array<V
             MPI_Irecv(recv_buffer[recv_counter]->GetData(), count,MPI_DOUBLE,src,
                       tag,comm, &recv_requests[recv_counter]);
             recv_counter++;
+            // cout << "receive " << endl;
          }
       }   
    }
@@ -427,8 +432,20 @@ void DofMaps::TestSubdomainToSubdomainMaps()
       }
    }
 
-   TransferToNeighbors(subdomain_ids,x);
+   std::vector<std::vector<Vector * >> OvlpSol;
+
+   OvlpSol.resize(nrsubdomains);
    int nrneighbors = pow(3,dim);
+   for (int ip = 0; ip<nrsubdomains; ip++)
+   {
+      if (myid == subdomain_rank[ip])
+      {
+         OvlpSol[ip].resize(nrneighbors);
+      }
+   }
+
+
+   TransferToNeighbors(subdomain_ids,x,OvlpSol);
 
    string keys = "keys amrRljc\n";
    for (int i0 = 0 ; i0< nrsubdomains; i0++)

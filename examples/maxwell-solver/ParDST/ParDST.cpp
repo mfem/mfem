@@ -164,9 +164,9 @@ void ParDST::Mult(const Vector &r, Vector &z) const
       default: nsteps = nx+ny+nz-2; break;
    }
    int nsweeps = sweeps->nsweeps;
-   // for (int l=0; l<nsweeps; l++)
+   for (int l=0; l<nsweeps; l++)
    // 1. Loop through sweeps
-   for (int l=0; l<1; l++)
+   // for (int l=0; l<1; l++)
    {  
       // 2. loop through diagonals/steps of each sweep   
       for (int s = 0; s<nsteps; s++)
@@ -176,11 +176,13 @@ void ParDST::Mult(const Vector &r, Vector &z) const
          int nsubdomains = subdomains.NumRows();
 
          // 3. Loop through the subdomains on the diagonal
+         Array<int> subdomain_ids;
          for (int sb=0; sb < nsubdomains; sb++)
          {
             Array<int> ijk(dim); ijk = 0;
             for (int d=0; d<dim; d++) ijk[d] = subdomains[sb][d]; 
             int ip = GetSubdomainId(nxyz,ijk);
+            subdomain_ids.Append(ip);
             if (myid != SubdomainRank[ip]) continue;
 
             int n = dmaps->fes[ip]->GetTrueVSize();
@@ -202,6 +204,7 @@ void ParDST::Mult(const Vector &r, Vector &z) const
          }
          // 4. Transfer solutions to neighbors so that the subdomain
          // residuals are updated
+         TransferSources(l,subdomain_ids);
       }
       // 5. Update the global solution 
       Array<Vector * > sol_re(nrsubdomains);
@@ -581,5 +584,187 @@ void ParDST::GetStepSubdomains(const int sweep, const int step, Array2D<int> & s
       }
    }
 }
+
+
+void ParDST::TransferSources(int sweep, const Array<int> & subdomain_ids) const
+{
+   OvlpSol_re.resize(nrsubdomains);
+   OvlpSol_im.resize(nrsubdomains);
+   int nrneighbors = pow(3,dim);
+   for (int ip = 0; ip<nrsubdomains; ip++)
+   {
+      if (myid == SubdomainRank[ip])
+      {
+         OvlpSol_re[ip].resize(nrneighbors);
+         OvlpSol_im[ip].resize(nrneighbors);
+      }
+   }
+   int m = subdomain_ids.Size();
+   Array<Vector *> x(m);
+   for (int i = 0; i<m; i++)
+   {
+      x[i] = nullptr;
+      int ip = subdomain_ids[i];
+      if (myid != SubdomainRank[ip]) continue;
+      x[i] = new Vector(subdomain_sol[ip]->GetData(),subdomain_sol[ip]->Size());
+   }
+   dmaps->TransferToNeighbors(subdomain_ids,x,OvlpSol_re);
+   for (int i = 0; i<m; i++)
+   {
+      int ip = subdomain_ids[i];
+      if (myid != SubdomainRank[ip]) continue;
+      int n = dmaps->fes[ip]->GetTrueVSize();
+      x[i]->SetData(&(subdomain_sol[ip]->GetData())[n]);
+   }
+   dmaps->TransferToNeighbors(subdomain_ids,x,OvlpSol_im);
+   for (int i = 0; i<m; i++)
+   {
+      delete x[i]; x[i] = nullptr;
+   }
+   // Update residuals
+//   Find all neighbors of patch ip0
+   for (int is = 0; is<m; is++)
+   {
+      int ip0 = subdomain_ids[is];
+      Array<int> ijk;
+      Array<int> ijk1(3);
+      GetSubdomainijk(ip0,nxyz,ijk);
+      Array<int> directions(3);   
+      for (int i=-1; i<2; i++)
+      {
+         int i1 = ijk[0] + i;
+         if (i1 <0 || i1>=nx) continue;
+         directions[0] = i;
+         ijk1[0] = i1;
+         for (int j=-1; j<2; j++)
+         {
+            int j1 = ijk[1] + j;
+            if (j1 <0 || j1>=ny) continue;
+            directions[1] = j;
+            ijk1[1] = j1;
+            int kbeg = (dim == 2) ? 0 : -1;
+            int kend = (dim == 2) ? 1 :  2;
+            for (int k=kbeg; k<kend; k++)
+            {
+               int k1 = ijk[2] + k;
+               if (k1 <0 || k1>=nz) continue;
+               directions[2] = (dim == 3) ? k : -1 ;
+               if (i==0 && j==0 && k==0) continue;
+
+               int l = GetSweepToTransfer(sweep,directions);
+               if (l == -1) continue;
+               ijk1[2] = k1;
+               int ip1 = GetSubdomainId(nxyz,ijk1);
+
+               if (myid != SubdomainRank[ip1]) continue;
+               Array<int>directions1(3); directions1 = -1;
+               for (int i = 0; i<dim; i++) directions1[i] = -directions[i];
+               int dir = GetDirectionId(directions1);
+               int n = dmaps->fes[ip1]->GetTrueVSize();
+               Vector sol(2*n);
+               Vector res(2*n);
+               sol.SetVector(*OvlpSol_re[ip1][dir],0);
+               sol.SetVector(*OvlpSol_im[ip1][dir],n);
+               PmlMat[ip1]->Mult(sol,res);
+               double * data = res.GetData();
+               Vector res_re(n); res_re.SetDataAndSize(data,n);
+               Vector res_im(n); res_im.SetDataAndSize(&data[n],n);
+
+               Array2D<int> direct(dim,2); direct = 0;
+               for (int d = 0; d<dim; d++)
+               {
+                  if (directions[d]==1)  direct[d][0] = 1;
+                  if (directions[d]==-1) direct[d][1] = 1;
+               }   
+
+               GetChiRes(res_re,ip1,direct);
+               GetChiRes(res_im,ip1,direct);
+
+               *f_transf_re[ip1][l] -= res_re;
+               *f_transf_im[ip1][l] -= res_im;
+               // cout << "ip1 = " << ip1 << endl;
+               // cout << "l = " << l << endl;
+               // cout << "res_re = " ; res_re.Print();
+               // cin.get();
+            }
+         }  
+      }
+   }
+}
+
+int ParDST::GetSweepToTransfer(const int s, Array<int> directions) const
+{
+   int l1=-1;
+   int nsweeps = sweeps->nsweeps;
+   Array<int> sweep0;   
+   sweeps->GetSweep(s,sweep0);
+   switch (dim)
+   {
+      case 2:
+      for (int l=s; l<nsweeps; l++)
+      {
+         // Rule 1: the transfer source direction has to be similar with 
+         // the sweep direction
+         Array<int> sweep1;   
+         sweeps->GetSweep(l,sweep1);
+         int ddot = 0;
+         for (int d=0; d<dim; d++) ddot+= sweep1[d] * directions[d];
+         if (ddot <= 0) continue;
+
+         // Rule 2: The horizontal or vertical transfer source cannot be used
+         // Case of horizontal or vertical transfer source 
+         // (it can't be both 0 cause it's skipped)
+         if (directions[0]==0 || directions[1] == 0) 
+         {
+            if (sweep0[0] == -sweep1[0] && sweep0[1] == -sweep1[1]) continue;
+         }
+         l1 = l;
+         break;
+      }
+      break;
+      default:
+      for (int l=s; l<nsweeps; l++)
+      {
+         // Rule 1: (similar directions) the transfer source direction has to be similar with 
+         // the sweep direction
+         Array<int> sweep1;   
+         sweeps->GetSweep(l,sweep1);
+         int ddot = 0;
+         bool similar = true;
+         for (int d=0; d<dim; d++) 
+         {
+            if (sweep1[d] * directions[d] < 0) similar = false;
+            ddot+= sweep1[d] * directions[d];
+         }
+         if (!similar || ddot<=0) continue; // not similar
+
+         // Rule 2: (oposite directions) the transfer source direction has to be similar with 
+         // the sweep direction
+         // 
+         // check any of the projections onto the planes
+         // (xy, xz, yz)
+
+         if ( (directions[0]==0 && directions[1] != 0) || 
+              (directions[0]!=0 && directions[1] == 0) ||
+              (directions[0]==0 && directions[2] != 0) || 
+              (directions[0]!=0 && directions[2] == 0) ||
+              (directions[2]==0 && directions[1] != 0) || 
+              (directions[2]!=0 && directions[1] == 0) ) 
+         {
+            if (sweep0[0] == -sweep1[0] && 
+                sweep0[1] == -sweep1[1] && 
+                sweep0[2] == -sweep1[2]) continue;
+         }
+         l1 = l;
+         break;
+      }
+      break;
+   }
+
+   return l1;   
+}
+
+
+
 
 ParDST::~ParDST() {}
