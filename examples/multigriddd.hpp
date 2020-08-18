@@ -295,6 +295,7 @@ public:
 #define SERIAL_PROLONGATION
 #define ITERATIVE_COARSE_SOLVE
 #define SPARSE_JACOBI
+//#define SPARSE_ICHOLESKY
 //#define COARSE_PA
 
 class BlockMGPASolver : public Solver
@@ -334,6 +335,9 @@ private:
    Vector diagAc;
    Array<int> emptyEssDof;
    OperatorJacobiSmoother *JacobiAc;
+#ifdef SPARSE_ICHOLESKY
+   Solver *iCholAc;
+#endif
 
 public:
    BlockMGPASolver(MPI_Comm comm, const int height, const int width,
@@ -569,6 +573,18 @@ public:
       JacobiAc = new OperatorJacobiSmoother(diagAc, emptyEssDof);
       cg_solver->SetPreconditioner(*JacobiAc);
 #endif
+#ifdef SPARSE_ICHOLESKY
+      {
+         Vector tmpX(AcSp.Height());
+         Vector tmpY(AcSp.Height());
+         tmpX = 1.0;
+         tmpY = 0.0;
+         AcSp.Mult(tmpX, tmpY);
+      }
+      iCholAc = new IncompleteCholesky(AcSp);
+      cg_solver->SetPreconditioner(*iCholAc);
+      cg_solver->SetPrintLevel(-1);
+#endif
       invAc = cg_solver;
 #else
       UMFPackSolver *umf_solver = new UMFPackSolver();
@@ -716,6 +732,10 @@ public:
       delete BlkA[numGrids];
       delete invAc;
       A.clear();
+
+#ifdef SPARSE_ICHOLESKY
+      delete iCholAc;
+#endif
    }
 
 #ifdef MFEM_USE_STRUMPACK

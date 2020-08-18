@@ -3596,4 +3596,21 @@ void OrthominSolver::Mult(const Vector &b, Vector &x) const
    }
 }
 
+
+IncompleteCholesky::IncompleteCholesky(SparseMatrix &A_) : A(&A_)
+{
+#ifdef MFEM_USE_CUDA
+   A->IncompleteCholeskySetup();
+#endif
+}
+
+void IncompleteCholesky::Mult(const Vector &b, Vector &x) const
+{
+#ifdef MFEM_USE_CUDA
+   A->IncompleteCholeskyMult(b, x);
+#else
+   x = b;
+#endif
+}
+
 }

@@ -304,6 +304,7 @@ void SparseMatrix::SetEmpty()
       cusparseDestroySpMat(matA_descr);
       cusparseDestroyDnVec(vecX_descr);
       cusparseDestroyDnVec(vecY_descr);
+      cusparseDestroyDnVec(vecZ_descr);
       initBuffers = false;
    }
 #endif
@@ -3082,6 +3083,7 @@ void SparseMatrix::Destroy()
       cusparseDestroySpMat(matA_descr);
       cusparseDestroyDnVec(vecX_descr);
       cusparseDestroyDnVec(vecY_descr);
+      cusparseDestroyDnVec(vecZ_descr);
       initBuffers = false;
    }
 #endif
@@ -3819,5 +3821,158 @@ void SparseMatrix::Swap(SparseMatrix &other)
 
    mfem::Swap(isSorted, other.isSorted);
 }
+
+#ifdef MFEM_USE_CUDA
+void SparseMatrix::IncompleteCholeskyMult(const Vector &x, Vector &y) const
+{
+   if (!(Device::Allows(Backend::CUDA_MASK) && useCuSparse))
+   {
+      y = x;
+      return;
+   }
+
+   const double alpha = 1.;
+
+   auto d_x = x.Read();
+   auto d_y = y.ReadWrite();
+   auto d_z = vecZ.ReadWrite();
+
+   const int height = this->height;
+   const int nnz = J.Capacity();
+   int64_t m = height;
+
+   auto d_csrRowPtr = Read(I, height+1);
+   auto d_csrColInd = Read(J, nnz);
+   auto d_csrVal = Read(A, nnz);
+
+   cusparseDnVecSetValues(vecX_descr, const_cast<double *>(d_x));
+   cusparseDnVecSetValues(vecY_descr, d_y);
+   cusparseDnVecSetValues(vecZ_descr, d_z);
+
+   const cusparseOperation_t trans_L  = CUSPARSE_OPERATION_NON_TRANSPOSE;
+   const cusparseOperation_t trans_Lt = CUSPARSE_OPERATION_TRANSPOSE;
+
+   const cusparseSolvePolicy_t policy_L  = CUSPARSE_SOLVE_POLICY_NO_LEVEL;
+   const cusparseSolvePolicy_t policy_Lt = CUSPARSE_SOLVE_POLICY_USE_LEVEL;
+
+   // Solve L*z = x
+   cusparseDcsrsv2_solve(handle, trans_L, m, nnz, &alpha, descr_L,
+                         d_csrVal, d_csrRowPtr, d_csrColInd, info_L,
+                         d_x, d_z, policy_L, pBuffer);
+
+   // Solve L'*y = z
+   cusparseDcsrsv2_solve(handle, trans_Lt, m, nnz, &alpha, descr_L,
+                         d_csrVal, d_csrRowPtr, d_csrColInd, info_Lt,
+                         d_z, d_y, policy_Lt, pBuffer);
+}
+
+void SparseMatrix::IncompleteCholeskySetup()
+{
+   if (!(Device::Allows(Backend::CUDA_MASK) && useCuSparse))
+   {
+      return;
+   }
+
+   const int height = this->height;
+   const int nnz = J.Capacity();
+
+   auto d_csrRowPtr = Read(I, height+1);
+   auto d_csrColInd = Read(J, nnz);
+   auto d_csrVal = Read(A, nnz);
+
+   //MFEM_VERIFY(I[0] == 0, "cusparse thinks this is not zero based");
+
+   csric02Info_t info_M  = 0;
+   int bufferSize_M;
+   int pBufferSize_L;
+   int pBufferSize_Lt;
+   int pBufferSize;
+   int structural_zero;
+   int numerical_zero;
+   //const double alpha = 1.;
+   const cusparseSolvePolicy_t policy_M  = CUSPARSE_SOLVE_POLICY_NO_LEVEL;
+   const cusparseSolvePolicy_t policy_L  = CUSPARSE_SOLVE_POLICY_NO_LEVEL;
+   const cusparseSolvePolicy_t policy_Lt = CUSPARSE_SOLVE_POLICY_USE_LEVEL;
+   const cusparseOperation_t trans_L  = CUSPARSE_OPERATION_NON_TRANSPOSE;
+   const cusparseOperation_t trans_Lt = CUSPARSE_OPERATION_TRANSPOSE;
+
+   // step 1: create a descriptor which contains
+   // - matrix M is base-0
+   // - matrix L is base-0
+   // - matrix L is lower triangular
+   // - matrix L has non-unit diagonal
+   cusparseCreateMatDescr(&descr_M);
+   cusparseSetMatIndexBase(descr_M, CUSPARSE_INDEX_BASE_ZERO);
+   cusparseSetMatType(descr_M, CUSPARSE_MATRIX_TYPE_GENERAL);
+
+   cusparseCreateMatDescr(&descr_L);
+   cusparseSetMatIndexBase(descr_L, CUSPARSE_INDEX_BASE_ZERO);
+   cusparseSetMatType(descr_L, CUSPARSE_MATRIX_TYPE_GENERAL);
+   cusparseSetMatFillMode(descr_L, CUSPARSE_FILL_MODE_LOWER);
+   cusparseSetMatDiagType(descr_L, CUSPARSE_DIAG_TYPE_NON_UNIT);
+
+   // step 2: create a empty info structure
+   // we need one info for csric02 and two info's for csrsv2
+   cusparseCreateCsric02Info(&info_M);
+   cusparseCreateCsrsv2Info(&info_L);
+   cusparseCreateCsrsv2Info(&info_Lt);
+
+   int64_t m = height;
+
+   // step 3: query how much memory used in csric02 and csrsv2, and allocate the buffer
+   cusparseDcsric02_bufferSize(handle, m, nnz,
+                               descr_M, const_cast<double *>(d_csrVal), const_cast<int *>(d_csrRowPtr),
+                               const_cast<int *>(d_csrColInd), info_M, &bufferSize_M);
+   cusparseDcsrsv2_bufferSize(handle, trans_L, m, nnz,
+                              descr_L, const_cast<double *>(d_csrVal), const_cast<int *>(d_csrRowPtr),
+                              const_cast<int *>(d_csrColInd), info_L, &pBufferSize_L);
+   cusparseDcsrsv2_bufferSize(handle, trans_Lt, m, nnz,
+                              descr_L, const_cast<double *>(d_csrVal), const_cast<int *>(d_csrRowPtr),
+                              const_cast<int *>(d_csrColInd), info_Lt,&pBufferSize_Lt);
+
+   pBufferSize = max(bufferSize_M, max(pBufferSize_L, pBufferSize_Lt));
+
+   // pBuffer returned by cudaMalloc is automatically aligned to 128 bytes.
+   cudaMalloc((void**)&pBuffer, pBufferSize);
+
+   // step 4: perform analysis of incomplete Cholesky on M
+   //         perform analysis of triangular solve on L
+   //         perform analysis of triangular solve on L'
+   // The lower triangular part of M has the same sparsity pattern as L, so
+   // we can do analysis of csric02 and csrsv2 simultaneously.
+
+   cusparseDcsric02_analysis(handle, m, nnz, descr_M,
+                             d_csrVal, d_csrRowPtr, d_csrColInd, info_M,
+                             policy_M, pBuffer);
+   status = cusparseXcsric02_zeroPivot(handle, info_M, &structural_zero);
+   if (CUSPARSE_STATUS_ZERO_PIVOT == status)
+   {
+      printf("A(%d,%d) is missing\n", structural_zero, structural_zero);
+   }
+
+   cusparseDcsrsv2_analysis(handle, trans_L, m, nnz, descr_L,
+                            d_csrVal, d_csrRowPtr, d_csrColInd,
+                            info_L, policy_L, pBuffer);
+
+   cusparseDcsrsv2_analysis(handle, trans_Lt, m, nnz, descr_L,
+                            d_csrVal, d_csrRowPtr, d_csrColInd,
+                            info_Lt, policy_Lt, pBuffer);
+
+   // step 5: M = L * L'
+   cusparseDcsric02(handle, m, nnz, descr_M,
+                    const_cast<double *>(d_csrVal), const_cast<int *>(d_csrRowPtr),
+                    const_cast<int *>(d_csrColInd), info_M, policy_M, pBuffer);
+   status = cusparseXcsric02_zeroPivot(handle, info_M, &numerical_zero);
+   if (CUSPARSE_STATUS_ZERO_PIVOT == status)
+   {
+      printf("L(%d,%d) is zero\n", numerical_zero, numerical_zero);
+   }
+
+   vecZ.SetSize(height);
+   vecZ = 0.0;
+   auto d_z = vecZ.ReadWrite();
+   cusparseCreateDnVec(&vecZ_descr, vecZ.Size(), d_z, CUDA_R_64F);
+}
+#endif
 
 }

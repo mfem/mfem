@@ -922,6 +922,17 @@ public:
    }
 };
 
+class IncompleteCholesky : public IterativeSolver
+{
+private:
+   SparseMatrix *A;
+
+public:
+   IncompleteCholesky(SparseMatrix &A_);
+
+   virtual void Mult(const Vector &b, Vector &x) const;
+};
+
 }
 
 #endif // MFEM_SOLVERS
