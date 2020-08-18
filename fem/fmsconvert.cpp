@@ -8,9 +8,11 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
+#include "../config/config.hpp"
+
+#ifdef MFEM_USE_FMS
 
 #include "fmsconvert.hpp"
-#include <unordered_map>
 #include <climits>
 
 using std::endl;
@@ -1862,3 +1864,4 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc,
 }
 
 } // end namespace mfem
+#endif
