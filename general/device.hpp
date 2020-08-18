@@ -15,12 +15,6 @@
 #include "globals.hpp"
 #include "mem_manager.hpp"
 
-
-#ifdef MFEM_USE_CEED
-// FES -> CeedBasis, CeedElemRestriction hash tables
-#include <unordered_map>
-#endif
-
 namespace mfem
 {
 

@@ -35,8 +35,8 @@ extern Ceed ceed;
 
 std::string ceed_path;
 
-extern std::unordered_map<std::string, CeedBasis> ceed_basis_table;
-extern std::unordered_map<std::string, CeedElemRestriction> ceed_restr_table;
+extern CeedBasisMap ceed_basis_map;
+extern CeedRestrMap ceed_restr_map;
 
 }
 
@@ -368,16 +368,16 @@ void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
    const int P = fe->GetDof();
    const int Q = irm.GetNPoints();
    const int nelem = mesh->GetNE();
-   std::string basis_key = std::to_string(reinterpret_cast<intptr_t>(&fes)) +
-                           std::to_string(reinterpret_cast<intptr_t>(&irm)) +
-                           std::to_string(P) + std::to_string(Q);
-   auto basis_itr = internal::ceed_basis_table.find(basis_key);
-   std::string restr_key = std::to_string(reinterpret_cast<intptr_t>(&fes)) +
-                           std::to_string(P) + std::to_string(nelem);
-   auto restr_itr = internal::ceed_restr_table.find(restr_key);
+   CeedBasisKey basis_key (const_cast<FiniteElementSpace *>(&fes),
+                           const_cast<IntegrationRule *>(&irm),
+                           P, Q);
+   auto basis_itr = internal::ceed_basis_map.find(basis_key);
+   CeedRestrKey restr_key (const_cast<FiniteElementSpace *>(&fes),
+                           P, nelem);
+   auto restr_itr = internal::ceed_restr_map.find(restr_key);
 
    // Init or retreive key values
-   if (basis_itr == internal::ceed_basis_table.end())
+   if (basis_itr == internal::ceed_basis_map.end())
    {
       if (UsesTensorBasis(fes))
       {
@@ -388,13 +388,13 @@ void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
       {
          InitCeedNonTensorBasis(fes, irm, ceed, basis);
       }
-      internal::ceed_basis_table[basis_key] = *basis;
+      internal::ceed_basis_map[basis_key] = *basis;
    }
    else
    {
       basis = &basis_itr->second;
    }
-   if (restr_itr == internal::ceed_restr_table.end())
+   if (restr_itr == internal::ceed_restr_map.end())
    {
       if (UsesTensorBasis(fes))
       {
@@ -405,7 +405,7 @@ void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
       {
          InitCeedNonTensorRestriction(fes, irm, ceed, restr);
       }
-      internal::ceed_restr_table[restr_key] = *restr;
+      internal::ceed_restr_map[restr_key] = *restr;
    }
    else
    {
