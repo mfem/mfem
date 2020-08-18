@@ -199,6 +199,9 @@ protected:
    int FindFaceDof(int face, int ndof) const
    { return FindDofs(face_dofs, face, ndof); }
 
+   /// Return number of possible DOF variants for edge/face (var. order space).
+   int GetNVariants(int entity, int index) const;
+
    /// Helper to encode a sign flip into a DOF index (for Hcurl/Hdiv shapes).
    static inline int EncodeDof(int entity_base, int idx)
    { return (idx >= 0) ? (entity_base + idx) : (-1-(entity_base + (-1-idx))); }

@@ -752,9 +752,9 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // DOFs. Rows of independent DOFs will remain empty.
    SparseMatrix deps(ndofs);
 
-   // For the restriction matrix purposes in variable order space:
-   // For each edge with more DOF sets, the dependency matrix will contain
-   // a row that expresses the master true DOF (lowest order)
+   // Inverse dependencies for the cQ matrix in variable order spaces:
+   // For each master edge/face with more DOF sets, the inverse dependency
+   // matrix contains a row that expresses the master true DOF (lowest order)
    // as a linear combination of the highest order set of DOFs.
    SparseMatrix sped(ndofs);
 
@@ -814,28 +814,21 @@ void FiniteElementSpace::BuildConformingInterpolation() const
             }
          }
 
-         // find dependencies for the cQ matrix; if edge/face has more sets of
-         // DOFs, the lowest order (true) set interpolate the highest order set
+         // Add the inverse dependencies for the cQ matrix; if a master has
+         // more DOF sets, the lowest order set interpolates the highest one
          if (IsVariableOrder())
          {
-            int variant = 0;
-            for (int var = 1; ; var++)
+            int nvar = GetNVariants(entity, master.index);
+            if (nvar > 1)
             {
-               int o = GetEntityDofs(entity, master.index, highest_dofs, master_geom, var);
-               if (o == -1)
-               {
-                  variant = var-1;
-                  break;
-               }
-            }
-            if (variant > 0)
-            {
-               int q = GetEntityDofs(entity, master.index, highest_dofs, master_geom, variant);
+               int q = GetEntityDofs(entity, master.index, highest_dofs,
+                                     master_geom, nvar-1);
                const auto *highest_fe = fec->GetFE(master_geom, q);
                T.SetIdentityTransformation(master_geom);
                master_fe->GetTransferMatrix(*highest_fe, T, I);
-               // Add dependencies only for the edge inner dofs
+               // add dependencies only for the edge inner dofs
                AddDependencies(sped, highest_dofs, master_dofs, I, 2);
+               // FIXME: 3D
             }
          }
       }
@@ -2181,6 +2174,14 @@ int FiniteElementSpace::FindDofs(const Table &dof_table, int row, int ndof) cons
    return 0;
 }
 
+int FiniteElementSpace::GetNVariants(int entity, int index) const
+{
+   MFEM_ASSERT(IsVariableOrder(), "");
+   const Table &dof_table = (entity == 1) ? edge_dofs : face_dofs;
+
+   MFEM_ASSERT(index >= 0 && index < dof_table.Size(), "");
+   return dof_table.GetRow(index + 1) - dof_table.GetRow(index);
+}
 
 void FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs) const
 {
