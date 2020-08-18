@@ -22,26 +22,12 @@ namespace mfem
 {
 
 /** In-memory conversion of FMS data collection to an MFEM data collection.
-    @param mesh The FmsMesh to convert.
-    @param[out] mfem_mesh A pointer to a new MFEM Mesh containing the FMS data.
-    @return 0 on success; non-zero on failure.
-*/
-int FmsMeshToMesh(FmsMesh fms_mesh, Mesh **mfem_mesh);
-
-/** In-memory conversion of FMS data collection to an MFEM data collection.
     @param dc The FMS data collection to convert.
     @param[out] mfem_dc A pointer to a new MFEM DataCollection containing the FMS data.
     @return 0 on success; non-zero on failure.
 */
 int FmsDataCollectionToDataCollection(FmsDataCollection dc,
                                       DataCollection **mfem_dc);
-
-/** In-memory conversion of MFEM mesh to an FmsMesh.
-    @param mfem_mesh The MFEM mesh to convert.
-    @param[out] dc A pointer to a new FmsMesh containing the MFEM data.
-    @return 0 on success; non-zero on failure.
-*/
-int MeshToFmsMesh(const Mesh *mfem_mesh, FmsMesh *mesh);
 
 /** In-memory conversion of MFEM data collection to an FMS data collection.
     @param mfem_dc The MFEM data collection to convert.
@@ -50,10 +36,6 @@ int MeshToFmsMesh(const Mesh *mfem_mesh, FmsMesh *mesh);
 */
 int DataCollectionToFmsDataCollection(DataCollection *mfem_dc,
                                       FmsDataCollection *dc);
-
-// Question: Would it be helpful to also define an mfem::FMSDataCollection class
-//           that takes the various MFEM objects that it registers and then does
-//           I/O via FMS?
 
 }
 #endif
