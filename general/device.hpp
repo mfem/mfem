@@ -15,11 +15,10 @@
 #include "globals.hpp"
 #include "mem_manager.hpp"
 
+
 #ifdef MFEM_USE_CEED
-// Setup FES -> CeedBasis, CeedElemRestriction hash tables
-#include <ceed-hash.h>
-CeedHashIJKLInit(basis, CeedBasis)
-CeedHashIJKInit(restr, CeedElemRestriction)
+// FES -> CeedBasis, CeedElemRestriction hash tables
+#include <unordered_map>
 #endif
 
 namespace mfem
