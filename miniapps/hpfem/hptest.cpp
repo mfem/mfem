@@ -126,9 +126,17 @@ void Solve(FiniteElementSpace *fespace, GridFunction *sln, Coefficient *exsol, C
    // 17. Solve the linear system A X = B.
    if (!pa)
    {
+#ifndef MFEM_USE_SUITESPARSE
       // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
       GSSmoother M((SparseMatrix&)(*A));
       PCG(*A, M, B, X, 3, 2000, 1e-30, 0.0);
+#else
+      // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+      UMFPackSolver umf_solver;
+      umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+      umf_solver.SetOperator(*A);
+      umf_solver.Mult(B, X);
+#endif
    }
    else // No preconditioning for now in partial assembly mode.
    {
