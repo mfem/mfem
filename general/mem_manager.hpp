@@ -32,12 +32,15 @@ enum class MemoryType
    HOST_64,        ///< Host memory; aligned at 64 bytes
    HOST_POOL,      ///< Host memory; using MemoryType::HOST with a pool
    HOST_DEBUG,     ///< Host memory; allocated from a "host-debug" pool
+   HOST_DEBUG_POOL,///< Host memory; allocated from a "host-debug" pool
    HOST_UMPIRE,    ///< Host memory; using Umpire
    MANAGED,        /**< Managed memory; using CUDA or HIP *MallocManaged
                         and *Free */
    DEVICE,         ///< Device memory; using CUDA or HIP *Malloc and *Free
+   DEVICE_POOL,
    DEVICE_DEBUG,   /**< Pseudo-device memory; allocated on host from a
                         "device-debug" pool */
+   DEVICE_DEBUG_POOL,
    DEVICE_UMPIRE,  ///< Device memory; using Umpire
    SIZE            ///< Number of host and device memory types
 };

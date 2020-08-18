@@ -107,6 +107,15 @@ Device::Device() : mode(Device::SEQUENTIAL),
          // Device::UpdateMemoryTypeAndClass().
          device_mem_type = MemoryType::HOST_UMPIRE;
       }
+      else if (mem_backend == "debug_pool")
+      {
+         mem_host_env = true;
+         host_mem_type = MemoryType::HOST_DEBUG_POOL;
+         // Note: device_mem_type will be set to MemoryType::DEVICE_DEBUG_POOL
+         // only when an actual device is configured -- this is done later in
+         // Device::UpdateMemoryTypeAndClass().
+         device_mem_type = MemoryType::HOST_DEBUG_POOL;
+      }
       else if (mem_backend == "debug")
       {
          mem_host_env = true;
@@ -319,11 +328,11 @@ void Device::UpdateMemoryTypeAndClass()
       device_mem_type = MemoryType::MANAGED;
    }
 
-   // Enable the pool shortcut when requested
-   if (device_option && !strcmp(device_option, "host_pool"))
+   // Enable the DEVICE Pool shortcut when requested
+   if (device && device_option && !strcmp(device_option, "pool"))
    {
       host_mem_type = MemoryType::HOST_POOL;
-      device_mem_type = MemoryType::HOST_POOL;
+      device_mem_type = MemoryType::DEVICE_POOL;
    }
 
    // Enable the DEBUG mode when requested
@@ -331,6 +340,22 @@ void Device::UpdateMemoryTypeAndClass()
    {
       host_mem_type = MemoryType::HOST_DEBUG;
       device_mem_type = MemoryType::DEVICE_DEBUG;
+   }
+
+   // Enable the non-device pool shortcut when requested
+   if (!device && device_option && !strcmp(device_option, "pool"))
+   {
+      if (host_mem_type == MemoryType::HOST)
+      {
+         host_mem_type = MemoryType::HOST_POOL;
+         device_mem_type = MemoryType::HOST_POOL;
+      }
+
+      if (host_mem_type == MemoryType::HOST_DEBUG)
+      {
+         host_mem_type = MemoryType::HOST_DEBUG_POOL;
+         device_mem_type = MemoryType::DEVICE_DEBUG_POOL;
+      }
    }
 
    // Update the memory manager with the new settings
