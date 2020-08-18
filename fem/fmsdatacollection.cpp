@@ -45,8 +45,8 @@ FMSDataCollection::FMSDataCollection(const std::string& coll_name,
 #ifdef MFEM_USE_MPI
 //---------------------------------------------------------------------------//
 FMSDataCollection::FMSDataCollection(MPI_Comm comm,
-                                             const std::string& coll_name,
-                                             Mesh *mesh)
+                                     const std::string& coll_name,
+                                     Mesh *mesh)
    : DataCollection(coll_name, mesh),
      fms_protocol("ascii")
 {
@@ -71,19 +71,19 @@ void FMSDataCollection::Save()
 
    int err = 0;
    FmsDataCollection dc;
-   if(DataCollectionToFmsDataCollection(this, &dc) == 0)
+   if (DataCollectionToFmsDataCollection(this, &dc) == 0)
    {
-       std::string root(RootFileName());
-       int err = FmsIOWrite(root.c_str(), fms_protocol.c_str(), dc);
-       FmsDataCollectionDestroy(&dc);
-       if (err)
-       {
-           MFEM_ABORT("Error creating FMS file: " << root);
-       }
+      std::string root(RootFileName());
+      int err = FmsIOWrite(root.c_str(), fms_protocol.c_str(), dc);
+      FmsDataCollectionDestroy(&dc);
+      if (err)
+      {
+         MFEM_ABORT("Error creating FMS file: " << root);
+      }
    }
    else
    {
-       MFEM_ABORT("Error converting data collection");
+      MFEM_ABORT("Error converting data collection");
    }
 }
 
@@ -97,53 +97,57 @@ void FMSDataCollection::Load(int cycle)
    std::string root(RootFileName());
    int err = FmsIORead(root.c_str(), fms_protocol.c_str(), &dc);
 
-   if(err == 0)
+   if (err == 0)
    {
-       DataCollection *mdc = nullptr;
-       if(FmsDataCollectionToDataCollection(dc,&mdc) == 0)
-       {
-           // Tell the data collection we read that it does not own data.
-           // We will steal its data.
-           mdc->SetOwnData(false);
+      DataCollection *mdc = nullptr;
+      if (FmsDataCollectionToDataCollection(dc,&mdc) == 0)
+      {
+         // Tell the data collection we read that it does not own data.
+         // We will steal its data.
+         mdc->SetOwnData(false);
 
-           SetCycle(mdc->GetCycle());
-           SetTime(mdc->GetTime());
-           SetTimeStep(mdc->GetTimeStep());
-           name = mdc->GetCollectionName();
+         SetCycle(mdc->GetCycle());
+         SetTime(mdc->GetTime());
+         SetTimeStep(mdc->GetTimeStep());
+         name = mdc->GetCollectionName();
 
-           // Set mdc's mesh as our mesh.
-           SetMesh(mdc->GetMesh());
+         // Set mdc's mesh as our mesh.
+         SetMesh(mdc->GetMesh());
 
-           // Set mdc's fields/qfields as ours.
-           std::vector<std::string> names;
-           for(const auto &pair : mdc->GetFieldMap()) {
-              names.push_back(pair.first);
-              RegisterField(pair.first, pair.second);
-           }
-           for(const auto &name : names) {
-              mdc->DeregisterField(name);
-           }
+         // Set mdc's fields/qfields as ours.
+         std::vector<std::string> names;
+         for (const auto &pair : mdc->GetFieldMap())
+         {
+            names.push_back(pair.first);
+            RegisterField(pair.first, pair.second);
+         }
+         for (const auto &name : names)
+         {
+            mdc->DeregisterField(name);
+         }
 
-           names.clear();
-           for(const auto &pair : mdc->GetQFieldMap()) {
-              names.push_back(pair.first);
-              RegisterQField(pair.first, pair.second);
-           }
-           for(const auto &name : names) {
-              mdc->DeregisterField(name);
-           }
+         names.clear();
+         for (const auto &pair : mdc->GetQFieldMap())
+         {
+            names.push_back(pair.first);
+            RegisterQField(pair.first, pair.second);
+         }
+         for (const auto &name : names)
+         {
+            mdc->DeregisterField(name);
+         }
 
-           // Indicate that we own the data.
-           SetOwnData(true);
+         // Indicate that we own the data.
+         SetOwnData(true);
 
-           // Delete mdc. We stole its contents.
-           delete mdc;
-       }
-       FmsDataCollectionDestroy(&dc);
+         // Delete mdc. We stole its contents.
+         delete mdc;
+      }
+      FmsDataCollectionDestroy(&dc);
    }
    else
    {
-       MFEM_ABORT("Error reading data collection" << root);
+      MFEM_ABORT("Error reading data collection" << root);
    }
 }
 

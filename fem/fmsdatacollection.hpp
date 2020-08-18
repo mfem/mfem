@@ -46,11 +46,11 @@ public:
    /** If @a mesh is NULL, then the mesh can be set later by calling either
        SetMesh() or Load(). The latter works only in serial. */
    FMSDataCollection(const std::string& collection_name,
-                         Mesh *mesh = NULL);
+                     Mesh *mesh = NULL);
 #ifdef MFEM_USE_MPI
    /// Construct a parallel FMSDataCollection.
    FMSDataCollection(MPI_Comm comm, const std::string& collection_name,
-                         Mesh *mesh = NULL);
+                     Mesh *mesh = NULL);
 #endif
 
    /// We will delete the mesh and fields if we own them
