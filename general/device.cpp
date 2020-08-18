@@ -35,8 +35,8 @@ occa::device occaDevice;
 Ceed ceed = NULL;
 
 // Initalize FES -> CeedBasis, CeedElemRestriction hash tables
-khash_t(basis) *ceed_basis_from_fes = kh_init(basis);
-khash_t(restr) *ceed_restr_from_fes = kh_init(restr);
+std::unordered_map<std::string, CeedBasis> ceed_basis_table;
+std::unordered_map<std::string, CeedElemRestriction> ceed_restr_table;
 #endif
 
 // Backends listed by priority, high to low:
@@ -159,15 +159,12 @@ Device::~Device()
       free(device_option);
 #ifdef MFEM_USE_CEED
       // Destroy FES -> CeedBasis, CeedElemRestriction hash table contents
-      CeedBasis basis;
-      kh_foreach_value(internal::ceed_basis_from_fes,
-                       basis, CeedBasisDestroy(&basis));
-      kh_destroy(basis, internal::ceed_basis_from_fes);
-      CeedElemRestriction restr;
-      kh_foreach_value(internal::ceed_restr_from_fes,
-                       restr, CeedElemRestrictionDestroy(&restr));
-      kh_destroy(restr, internal::ceed_restr_from_fes);
-
+      for (auto entry : internal::ceed_basis_table) {
+         CeedBasisDestroy(&entry.second);
+      }
+      for (auto entry : internal::ceed_restr_table) {
+         CeedElemRestrictionDestroy(&entry.second);
+      }
       // Destroy Ceed context
       CeedDestroy(&internal::ceed);
 #endif
