@@ -51,7 +51,7 @@ int MeshToFmsMesh(const Mesh *mfem_mesh, FmsMesh *mesh);
 int DataCollectionToFmsDataCollection(DataCollection *mfem_dc,
                                       FmsDataCollection *dc);
 
-// Question: Would it be helpful to also define an mfem::FMSDataCollection class 
+// Question: Would it be helpful to also define an mfem::FMSDataCollection class
 //           that takes the various MFEM objects that it registers and then does
 //           I/O via FMS?
 
