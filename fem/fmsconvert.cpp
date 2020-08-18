@@ -176,9 +176,9 @@ FmsFieldToGridFunction(FmsMesh fms_mesh, FmsField f, Mesh *mesh,
    }
 
    int btype = FmsBasisTypeToMfemBasis(f_basis_type);
-   mfem::out << "\tBasisType: " << BasisType::Name(btype) << std::endl;
    if (btype < 0)
    {
+      mfem::out << "\tInvalid BasisType: " << BasisType::Name(btype) << std::endl;
       return 11;
    }
 
@@ -204,20 +204,12 @@ FmsFieldToGridFunction(FmsMesh fms_mesh, FmsField f, Mesh *mesh,
       int ordering = (f_layout == FMS_BY_VDIM) ? Ordering::byVDIM : Ordering::byNODES;
       auto fes = new FiniteElementSpace(mesh, fec, space_dim, ordering);
       func.SetSpace(fes);
-      cout << "\tFESpace=" << (void*)func.FESpace() << endl;
-      cout << "\tFECollection= " << fec->Name() << endl;
-
    }
    //------------------------------------------------------------------
    const FmsInt nstride = (f_layout == FMS_BY_VDIM) ? space_dim : 1;
    const FmsInt vstride = (f_layout == FMS_BY_VDIM) ? 1 : f_num_dofs;
 
-
    // Data reordering to store the data into func.
-   cout << "func.Size()=" << func.Size() << endl;
-   cout << "f_num_dofs=" << f_num_dofs << endl;
-   cout << "space_dim=" << space_dim << endl;
-
    if ((FmsInt)(func.Size()) != f_num_dofs*space_dim)
    {
       return 12;
@@ -455,7 +447,6 @@ FmsMeshToMesh(FmsMesh fms_mesh, Mesh **mfem_mesh)
    // mesh.
    FmsInt num_comp;
    FmsMeshGetNumComponents(fms_mesh, &num_comp);
-   cout << "FmsMeshToMesh: num_comp=" << num_comp << endl;
    FmsComponent main_comp = NULL;
    FmsField coords = NULL;
    for (FmsInt comp_id = 0; comp_id < num_comp; comp_id++)
@@ -463,7 +454,7 @@ FmsMeshToMesh(FmsMesh fms_mesh, Mesh **mfem_mesh)
       FmsComponent comp;
       FmsMeshGetComponent(fms_mesh, comp_id, &comp);
       FmsComponentGetCoordinates(comp, &coords);
-      if (coords) { cout << "comp " << comp_id << " has coordinates." << endl; main_comp = comp; break; }
+      if (coords) { main_comp = comp; break; }
    }
    if (!main_comp) { return 1; }
    FmsComponentGetDimension(main_comp, &dim);
@@ -471,7 +462,6 @@ FmsMeshToMesh(FmsMesh fms_mesh, Mesh **mfem_mesh)
    FmsInt n_ents[FMS_NUM_ENTITY_TYPES];
    FmsInt n_main_parts;
    FmsComponentGetNumParts(main_comp, &n_main_parts);
-   cout << "FmsMeshToMesh: n_main_parts=" << n_main_parts << endl;
 
 #define RENUMBER_ENTITIES
 #ifdef RENUMBER_ENTITIES
@@ -490,13 +480,11 @@ FmsMeshToMesh(FmsMesh fms_mesh, Mesh **mfem_mesh)
    for (FmsInt et = FMS_VERTEX; et < FMS_NUM_ENTITY_TYPES; et++)
    {
       n_ents[et] = 0;
-      cout << "et=" << et << endl;
       for (FmsInt part_id = 0; part_id < n_main_parts; part_id++)
       {
          FmsInt num_ents;
          FmsComponentGetPart(main_comp, part_id, (FmsEntityType)et, NULL, NULL,
                              NULL, NULL, &num_ents);
-         cout << "\t" << part_id << ": num_ents=" << num_ents << endl;
          n_ents[et] += num_ents;
 #ifdef RENUMBER_ENTITIES
          if (et == FMS_VERTEX)
@@ -515,19 +503,6 @@ FmsMeshToMesh(FmsMesh fms_mesh, Mesh **mfem_mesh)
    {
       verts_start[i] = verts_start[i-1] + verts_per_part[i-1];
    }
-
-   cout << "verts_per_part = {";
-   for (int i = 0; i < n_main_parts; ++i)
-   {
-      cout << verts_per_part[i] << ", ";
-   }
-   cout << "}" << endl;
-   cout << "verts_start = {";
-   for (int i = 0; i < n_main_parts; ++i)
-   {
-      cout << verts_start[i] << ", ";
-   }
-   cout << "}" << endl;
 #endif
 
    // The first related component of dimension dim-1 will be the boundary of the
@@ -554,17 +529,6 @@ FmsMeshToMesh(FmsMesh fms_mesh, Mesh **mfem_mesh)
    }
 
    FmsFieldGet(coords, NULL, &space_dim, NULL, NULL, NULL);
-#if 1
-   cout << "dim=" << dim << endl;
-   cout << "n_vert=" << n_vert << endl;
-   cout << "n_elem=" << n_elem << endl;
-   cout << "n_bdr_elem=" << n_bdr_elem << endl;
-   cout << "space_dim=" << space_dim << endl;
-   for (FmsInt et = FMS_VERTEX; et < FMS_NUM_ENTITY_TYPES; et++)
-   {
-      cout << "n_ents[" << et << "]=" << n_ents[et] << endl;
-   }
-#endif
    int err = 0;
    Mesh *mesh = nullptr;
    mesh = new Mesh(dim, n_vert, n_elem, n_bdr_elem, space_dim);
@@ -632,10 +596,8 @@ FmsMeshToMesh(FmsMesh fms_mesh, Mesh **mfem_mesh)
    }
 
    // Add elements
-   cout << "n_main_parts=" << n_main_parts << endl;
    for (FmsInt part_id = 0; part_id < n_main_parts; part_id++)
    {
-      cout << "part " << part_id << ":" << endl;
       for (int et = FMS_VERTEX; et < FMS_NUM_ENTITY_TYPES; et++)
       {
          if (FmsEntityDim[et] != dim) { continue; }
@@ -647,8 +609,7 @@ FmsMeshToMesh(FmsMesh fms_mesh, Mesh **mfem_mesh)
          FmsInt num_elems;
          FmsComponentGetPart(main_comp, part_id, (FmsEntityType)et, &domain,
                              &elem_id_type, &elem_ids, &elem_ori, &num_elems);
-         cout << "Getting component part " << part_id << "'s entities et=" << et <<
-              ". num_elems=" << num_elems << endl;
+
          if (num_elems == 0) { continue; }
 
          if (elem_ids != NULL &&
@@ -697,13 +658,6 @@ FmsMeshToMesh(FmsMesh fms_mesh, Mesh **mfem_mesh)
 
                for (FmsInt i = 0; i < num_elems; i++)
                {
-#if 1
-                  cout << "\tAddTriangle: {"
-                       << ents_verts[3*i+0] << ", "
-                       << ents_verts[3*i+1] << ", "
-                       << ents_verts[3*i+2] << "}, tag=" << (elem_tag ? attr[elem_offset+i] : 1) <<
-                       endl;
-#endif
                   mesh->AddTriangle(
                      &ents_verts[3*i], elem_tag ? attr[elem_offset+i] : 1);
                }
@@ -847,13 +801,8 @@ FmsMeshToMesh(FmsMesh fms_mesh, Mesh **mfem_mesh)
    delete [] verts_start;
 #endif
 
-   // Finalize the mesh topology
-   // FIXME: mfem::Mesh::FinalizeCheck() assumes all vertices are added
-   // mesh.FinalizeTopology();
-
    // Transfer coordinates
    {
-      cout << "n_vert=" << n_vert << endl;
       // Set the vertex coordinates to zero
       const double origin[3] = {0.,0.,0.};
       for (FmsInt vi = 0; vi < n_vert; vi++)
@@ -886,11 +835,6 @@ FmsMeshToMesh(FmsMesh fms_mesh, Mesh **mfem_mesh)
          goto func_exit;
       }
 
-      cout << "coords_order=" << coords_order << endl;
-      cout << "coords_layout=" << coords_layout << endl;
-      cout << "coords_continuous?=" << (coords_ftype == FMS_CONTINUOUS ? "true" :
-                                        "false") << endl;
-
       // Switch to mfem::Mesh with nodes (interpolates the linear coordinates)
       const bool discont = false;
       mesh->SetCurvature(coords_order, (coords_ftype == FMS_DISCONTINUOUS), space_dim,
@@ -903,8 +847,6 @@ FmsMeshToMesh(FmsMesh fms_mesh, Mesh **mfem_mesh)
       // Set the high-order mesh nodes
       mfem::GridFunction &nodes = *mesh->GetNodes();
       int ce = FmsFieldToGridFunction<double>(fms_mesh, coords, mesh, nodes, false);
-      cout << "FmsFieldToGridFunction (for coords) returned " << ce << endl;
-
    }
 
 func_exit:
@@ -927,38 +869,38 @@ BasisTypeToFmsBasisType(int bt, FmsBasisType &btype)
    switch (bt)
    {
       case mfem::BasisType::GaussLegendre:
-         cout << "mfem::BasisType::GaussLegendre -> FMS_NODAL_GAUSS_OPEN" << endl;
+         //cout << "mfem::BasisType::GaussLegendre -> FMS_NODAL_GAUSS_OPEN" << endl;
          btype = FMS_NODAL_GAUSS_OPEN;
          retval = true;
          break;
       case mfem::BasisType::GaussLobatto:
-         cout << "mfem::BasisType::GaussLobato -> FMS_NODAL_GAUSS_CLOSED" << endl;
+         //cout << "mfem::BasisType::GaussLobato -> FMS_NODAL_GAUSS_CLOSED" << endl;
          btype = FMS_NODAL_GAUSS_CLOSED;
          retval = true;
          break;
       case mfem::BasisType::Positive:
-         cout << "mfem::BasisType::Positive -> FMS_POSITIVE" << endl;
+         //cout << "mfem::BasisType::Positive -> FMS_POSITIVE" << endl;
          btype = FMS_POSITIVE;
          retval = true;
          break;
       case mfem::BasisType::OpenUniform:
-         cout << "mfem::BasisType::OpenUniform -> ?" << endl;
+         //cout << "mfem::BasisType::OpenUniform -> ?" << endl;
          btype = FMS_NODAL_UNIFORM_OPEN;
          retval = true;
          break;
       case mfem::BasisType::ClosedUniform:
-         cout << "mfem::BasisType::ClosedUniform -> ?" << endl;
+         //cout << "mfem::BasisType::ClosedUniform -> ?" << endl;
          btype = FMS_NODAL_UNIFORM_CLOSED;
          retval = true;
          break;
       case mfem::BasisType::OpenHalfUniform:
-         cout << "mfem::BasisType::OpenHalfUniform -> ?" << endl;
+         //cout << "mfem::BasisType::OpenHalfUniform -> ?" << endl;
          break;
       case mfem::BasisType::Serendipity:
-         cout << "mfem::BasisType::Serendipity -> ?" << endl;
+         //cout << "mfem::BasisType::Serendipity -> ?" << endl;
          break;
       case mfem::BasisType::ClosedGL:
-         cout << "mfem::BasisType::ClosedGL -> ?" << endl;
+         //cout << "mfem::BasisType::ClosedGL -> ?" << endl;
          break;
 
    }
@@ -1440,7 +1382,6 @@ int FmsDataCollectionToDataCollection(FmsDataCollection dc,
          {
             const char *name = nullptr;
             FmsFieldGetName(fields[i], &name);
-            cout << "FmsDataCollectionToDataCollection: convert " << name << endl;
 
             GridFunction *gf = new GridFunction;
 
@@ -1470,19 +1411,17 @@ int FmsDataCollectionToDataCollection(FmsDataCollection dc,
 
             if (err == 0)
             {
-               std::cout << "Added field " << name << " to data collection." << std::endl;
                mdc->RegisterField(name, gf);
             }
             else
             {
-               std::cout << "There was an error converting " << name << " code: " << err <<
+               mfem::out << "There was an error converting " << name << " code: " << err <<
                          std::endl;
                delete gf;
             }
 
             const char *fname = NULL;
             FmsFieldGetName(fields[i], &fname);
-            std::cout << fname << " gf size " << gf->Size() << std::endl;
          }
       }
 
@@ -1521,7 +1460,7 @@ int FmsDataCollectionToDataCollection(FmsDataCollection dc,
    }
    else
    {
-      cout << "FmsDataCollectionToDataCollection: mesh failed to convert. err=" << err
+      mfem::out << "FmsDataCollectionToDataCollection: mesh failed to convert. err=" << err
            << endl;
 
       retval = 1;
