@@ -211,16 +211,17 @@ public:
 };
 
 /// The memory pool
-template <typename MS> struct Pool
+template <typename MS> class Pool
 {
-   struct Blocks
+   struct Bucket
    {
       // Metadata of one block of memory
       struct alignas(uintptr_t) Block
       {
          Block *next;
          uintptr_t *ptr;
-         size_t bytes, pages;
+         size_t bytes; // used to test if the block is used and for the free
+         size_t pages; // used to find the bucket
       };
 
       inline size_t align(size_t bytes)
@@ -234,9 +235,10 @@ template <typename MS> struct Pool
          std::unique_ptr<Arena> next;
          std::unique_ptr<Block[]> blocks;
 
-         Arena(const MS &ms, size_t sz): size(sz), MemSpace(ms), blocks(new Block[sz])
+         Arena(const MS &ms, size_t sz):
+            size(sz), MemSpace(ms), blocks(new Block[size])
          {
-            std::memset(blocks.get(), 0, size*sizeof(Block));
+            memset(blocks.get(), 0, size*sizeof(Block));
             for (size_t i = 1; i < sz; i++) { blocks[i-1].next = &blocks[i]; }
             blocks[size-1].next = nullptr;
          }
@@ -246,45 +248,54 @@ template <typename MS> struct Pool
             for (size_t i = 0; i < size; i++)
             {
                Block &block = blocks[i];
-               if (block.ptr)
-               {
-                  uintptr_t *ptr = block.ptr - 1;
-                  MemSpace.Dealloc((void*)ptr, block.bytes);
-                  ptr = nullptr;
-               }
+               if (!block.ptr) { continue; }
+               MemSpace.Dealloc(block.ptr, block.bytes);
+               block.ptr = nullptr;
             }
          }
 
          // Get next block
          Block *Next() const { return blocks.get(); }
 
-         void Next(std::unique_ptr<Arena> &&n)
+         void Next(std::unique_ptr<Arena> &&n) { next.reset(n.release()); }
+
+         void Dump()
          {
-            MFEM_ASSERT(!next, "");
-            next.reset(n.release());
+            for (size_t i = size; i > 0; i--)
+            {
+               Block &block = blocks[i-1];
+               const bool used = block.bytes > 0;
+               const uintptr_t *ptr = block.ptr;
+               printf("%s\033[m",
+                      ptr ? used ? "\033[32mX" : "\033[33mx" : "\033[37m.");
+            }
+            printf(" ");
+            if (!next) { return; }
+            next->Dump();
          }
-      }; // Arena
+      };
 
       const MS &MemSpace;
-      const size_t pages, size;
+      const size_t pages, asize;
       const uintptr_t PAGE_SIZE;
       std::unique_ptr<Arena> arena;
       Block *next;
+      using ptrs_t = std::pair<Bucket*, Block*>;
+      using PointersMap = std::unordered_map<uintptr_t const*, ptrs_t>;
 
    public:
-      Blocks(const MS &ms, size_t pages, size_t size, size_t PS):
-         MemSpace(ms), pages(pages), size(size), PAGE_SIZE(PS),
-         arena(new Arena(ms,size)), next(arena->Next()) { }
+      Bucket(const MS &ms, size_t pages, size_t asize, size_t PS):
+         MemSpace(ms), pages(pages), asize(asize), PAGE_SIZE(PS),
+         arena(new Arena(ms, asize)), next(arena->Next()) { }
 
       /// Allocate bytes from these blocks
-      void *alloc(size_t bytes)
+      void *alloc(size_t bytes, PointersMap &map)
       {
          bytes = align(bytes);
-         bytes += sizeof(uintptr_t);
          if (next == nullptr)
          {
-            std::unique_ptr<Arena> new_arena(new Arena(MemSpace,size));
-            new_arena->Next(std::move(arena));
+            std::unique_ptr<Arena> new_arena(new Arena(MemSpace,asize));
+            new_arena->Next(move(arena));
             arena.reset(new_arena.release());
             next = arena->Next();
          }
@@ -296,23 +307,9 @@ template <typename MS> struct Pool
          {
             // Update metadata
             block->pages = pages;
-            // Get memory from the resource manager
-            const size_t allocation = pages * PAGE_SIZE;
-            dbg("allocation: 0x%x", allocation);
-            MemSpace.Alloc((void**)&block->ptr, allocation);
-            // Store the block pointer and increment
-#if 0
-            *block->ptr++ = reinterpret_cast<uintptr_t>(block);
-#else
-            dbg("block->ptr:%p block:%p", *block->ptr, block);
-            mfem::Memory<uintptr_t> *ptr =
-               new mfem::Memory<uintptr_t>(block->ptr, 1, MemoryType::HOST, true);
-            auto y = mfem::Write(*ptr, 1, true);
-            const uintptr_t blk = reinterpret_cast<uintptr_t>(block);
-            dbg("blk=%p", blk);
-            MFEM_FORALL(i, 1, *y = blk;);
-            block->ptr++;
-#endif
+            //block->ptr = MemSpace.Alloc(pages*PAGE_SIZE);
+            MemSpace.Alloc((void**)&block->ptr, pages*PAGE_SIZE);
+            map.emplace(block->ptr, std::make_pair(this, block));
          }
          block->bytes = bytes;
          return block->ptr;
@@ -325,62 +322,65 @@ template <typename MS> struct Pool
          block->next = next;
          next = block;
       }
-   }; // Blocks
+   };
 
    const MS ms;
-   const size_t ARENA_SZ;
-   const uintptr_t PAGE_SZ;
-   std::unordered_map<size_t, Blocks> BlocksMap;
-   using Block = typename Pool<MS>::Blocks::Block;
+   const size_t asize, psize;
+   std::unordered_map<size_t, Bucket> Buckets;
+   using Block = typename Pool<MS>::Bucket::Block;
+   using ptrs_t = std::pair<Bucket*, Block*>;
+   using PointersMap = std::unordered_map<uintptr_t const*, ptrs_t>;
+   PointersMap map;
 
 public:
-   Pool(size_t asize = 32): ARENA_SZ(asize),
-      PAGE_SZ((uintptr_t) sysconf(_SC_PAGE_SIZE)) { }
+   Pool(size_t asize = 32): asize(asize), psize(sysconf(_SC_PAGE_SIZE)) { }
+
+   uintptr_t PageSize() const { return psize; }
 
    void *alloc(size_t bytes)
    {
       // number of pages needed for this amount of bytes
-      const size_t pages = 1 + (bytes + sizeof(uintptr_t)) / PAGE_SZ;
-      auto blk_iter = BlocksMap.find(pages);
-      auto end_iter = BlocksMap.end();
-      if (blk_iter == end_iter)
+      const size_t pages = 1 + bytes / psize;
+      auto blk_i = Buckets.find(pages);
+      // If not already in the bucket map, add it
+      if (blk_i == Buckets.end())
       {
-         auto res = BlocksMap.emplace(pages, Blocks(ms,pages,ARENA_SZ,PAGE_SZ));
+         auto res = Buckets.emplace(pages,Bucket(ms, pages, asize, psize));
+         blk_i = Buckets.find(pages);
          MFEM_ASSERT(res.second, "");
-         blk_iter = BlocksMap.find(pages);
-         end_iter = BlocksMap.end();
-         MFEM_ASSERT(blk_iter != end_iter, "");
+         MFEM_ASSERT(blk_i != Buckets.end(), "");
       }
-      // Get the blocks in which the allocation will be done
-      Blocks &blocks = blk_iter->second;
-      // Allocate the memory in this blocks
-      return blocks.alloc(bytes);
+      // Get the bucket in which the allocation will be done
+      Bucket &bucket = blk_i->second;
+      // Allocate the memory in it
+      return bucket.alloc(bytes, map);
    }
 
    void free(void *ptr)
    {
-      // From the given pointer, get back the block address
-#if 0
+      // From the input pointer, get back the block & bucket addresses
       const uintptr_t *uintptr = reinterpret_cast<uintptr_t*>(ptr);
-      Block *block = reinterpret_cast<Block*>(*(uintptr-1));
-#else
-      uintptr_t *uintptr = reinterpret_cast<uintptr_t*>(ptr);
-      mfem::Memory<uintptr_t> uptr(uintptr-1, 1, MemoryType::HOST, false);
-      const auto x = mfem::Read(uptr, 1, true);
-      Block *block;
-      mfem::Memory<Block*> blk(&block, 1, MemoryType::HOST, false);
-      auto y = mfem::Write(blk, 1, true);
-      MFEM_FORALL(i, 1, y[0] = reinterpret_cast<Block*>(x[0]););
-#endif
+      const auto ptrs_i = map.find(uintptr);
+      MFEM_ASSERT(ptrs_i != map.end(), "");
+      const ptrs_t ptrs = ptrs_i->second;
+      Bucket * const bucket = ptrs.first;
+      Block * const block = ptrs.second;
       MFEM_ASSERT(uintptr == block->ptr, "");
-      // From the number of pages, get the blocks
-      const size_t pages = block->pages;
-      const auto blk_iter = BlocksMap.find(pages);
-      const auto end_iter = BlocksMap.end();
-      MFEM_ASSERT(blk_iter != end_iter, "");
-      Blocks &blocks = blk_iter->second;
       // Free this block from the blocks
-      blocks.free(block);
+      bucket->free(block);
+   }
+
+   void Dump()
+   {
+      int k = 0;
+      for (auto &it : Buckets)
+      {
+         Bucket &bs = it.second;
+         printf("\033[37m[#%2d:%2ldx%2ld] ", k++, bs.asize, bs.pages);
+         bs.arena->Dump();
+         printf("\n");
+         fflush(0);
+      }
    }
 };
 
