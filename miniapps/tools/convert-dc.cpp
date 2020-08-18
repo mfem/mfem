@@ -86,10 +86,10 @@ DataCollection *create_data_collection(const std::string &dc_name,
 #ifdef MFEM_USE_FMS
       auto fms_dc = new FMSDataCollection(dc_name);
       std::string::size_type pos = dc_type.find("_");
-      if(pos != std::string::npos)
+      if (pos != std::string::npos)
       {
-          std::string fms_protocol(dc_type.substr(pos+1, dc_type.size()-pos-1));
-          fms_dc->SetProtocol(fms_protocol);
+         std::string fms_protocol(dc_type.substr(pos+1, dc_type.size()-pos-1));
+         fms_dc->SetProtocol(fms_protocol);
       }
       dc = fms_dc;
 #else
