@@ -152,9 +152,11 @@ int main(int argc, char *argv[])
    // MFEM_VERIFY(nprocs*nprocs == num_procs, "Check MPI partitioning");
    // int nxyz[3] = {num_procs,1,1};
    // int nxyz[3] = {nprocs,nprocs,1};
-   int nxyz[3] = {1,num_procs,1};
+   // int nxyz[3] = {1,num_procs,1};
+   int nxyz[3] = {num_procs,1,1};
    int * part = mesh->CartesianPartitioning(nxyz);
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD,*mesh,part);
+   // ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD,*mesh);
    delete [] part;
    delete mesh;
 
@@ -227,51 +229,56 @@ int main(int argc, char *argv[])
    a.FormLinearSystem(ess_tdof_list, p_gf, b, Ah, X, B);
    {
       int nlayers = 2;
-      ParDST S(&a,lengths,omega, &ws,nlayers,nx,ny,nz);
       StopWatch chrono;
+      chrono.Clear();
+      chrono.Start();
+      ParDST S(&a,lengths,omega, &ws,nlayers,nx,ny,nz);
+      chrono.Stop();
+      cout << "ParDST time: " << chrono.RealTime() << endl; 
+
       chrono.Clear();
       chrono.Start();
       X = 0.0;
       GMRESSolver gmres(MPI_COMM_WORLD);
       gmres.SetPreconditioner(S);
       gmres.SetOperator(*Ah);
-      gmres.SetRelTol(1e-12);
+      gmres.SetRelTol(1e-6);
       gmres.SetMaxIter(20);
       gmres.SetPrintLevel(1);
       gmres.Mult(B, X);
       chrono.Stop();
       cout << "GMRES time: " << chrono.RealTime() << endl; 
 
-//       a.RecoverFEMSolution(X,B,p_gf);
-//       if (visualization)
-//       {
-//          char vishost[] = "localhost";
-//          int  visport   = 19916;
-//          string keys;
-//          if (dim ==2 )
-//          {
-//             keys = "keys mrRljc\n";
-//          }
-//          else
-//          {
-//             keys = "keys mc\n";
-//          }
-//          // socketstream mesh_sock(vishost, visport);
-//          // mesh_sock.precision(8);
-//          // mesh_sock << "parallel " << num_procs << " " << myid << "\n"
-//          //             << "mesh\n" << *pmesh  << flush;
-//          socketstream sol_sock_re(vishost, visport);
-//          sol_sock_re.precision(8);
-//          sol_sock_re << "parallel " << num_procs << " " << myid << "\n"
-//                      << "solution\n" << *pmesh << p_gf.real() << keys 
-//                      << "window_title 'Numerical Pressure: Real Part' " << flush;                     
+      a.RecoverFEMSolution(X,B,p_gf);
+      if (visualization)
+      {
+         char vishost[] = "localhost";
+         int  visport   = 19916;
+         string keys;
+         if (dim ==2 )
+         {
+            keys = "keys mrRljc\n";
+         }
+         else
+         {
+            keys = "keys mc\n";
+         }
+         // socketstream mesh_sock(vishost, visport);
+         // mesh_sock.precision(8);
+         // mesh_sock << "parallel " << num_procs << " " << myid << "\n"
+         //             << "mesh\n" << *pmesh  << flush;
+         socketstream sol_sock_re(vishost, visport);
+         sol_sock_re.precision(8);
+         sol_sock_re << "parallel " << num_procs << " " << myid << "\n"
+                     << "solution\n" << *pmesh << p_gf.real() << keys 
+                     << "window_title 'Numerical Pressure: Real Part' " << flush;                     
 
-//          socketstream sol_sock_im(vishost, visport);
-//          sol_sock_im.precision(8);
-//          sol_sock_im << "parallel " << num_procs << " " << myid << "\n"
-//                      << "solution\n" << *pmesh << p_gf.imag() << keys 
-//                      << "window_title 'Numerical Pressure: Imag Part' " << flush;                     
-      // }
+         socketstream sol_sock_im(vishost, visport);
+         sol_sock_im.precision(8);
+         sol_sock_im << "parallel " << num_procs << " " << myid << "\n"
+                     << "solution\n" << *pmesh << p_gf.imag() << keys 
+                     << "window_title 'Numerical Pressure: Imag Part' " << flush;                     
+      }
    }
 
 

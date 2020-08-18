@@ -1,4 +1,4 @@
-//Diagonal Source Transfer Preconditioner
+//Parallel Diagonal Source Transfer Preconditioner
 
 #include "ParDST.hpp"
 
@@ -10,7 +10,6 @@ ParDST::ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_,
    pfes = bf->ParFESpace();
    fec = pfes->FEColl();
  
-
    comm = pfes->GetComm();
    MPI_Comm_size(comm, &num_procs);
    MPI_Comm_rank(comm, &myid);
@@ -44,19 +43,16 @@ ParDST::ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_,
    {
       cout << "    Done ! " << endl;
    }
-
    //3. Setup info for sweeps
    if (myid == 0)
    {
       cout << "\n 3. Computing sweeps info ..." << endl; 
    }
    sweeps = new Sweep(dim);
-
    if (myid == 0)
    {
       cout << "    Done ! " << endl;
    }
-
    //4. Create LocalToGlobal maps 
    //   (local GridFunctions/Vector to Global ParGridFunction/Vector) 
    if (myid == 0)
@@ -64,12 +60,10 @@ ParDST::ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_,
       cout << "\n 4. Computing true dofs maps ..." << endl; 
    }
    dmaps = new DofMaps(pfes,part);
-
    if (myid == 0)
    {
       cout << "    Done ! " << endl;
    }
-
    // 4. Setting up the local problems 
    if (myid == 0)
    {
@@ -82,27 +76,20 @@ ParDST::ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_,
    {
       cout << "    Done ! " << endl;
    }
-
    if (myid == 0)
    {
       cout << "\n 6. Mark subdomain overlap truedofs ..." << endl; 
    }
-
    MarkSubdomainOverlapDofs();
-   
    if (myid == 0)
    {
       cout << "    Done ! " << endl;
    }
-
-
-
 }
 
 void ParDST::Mult(const Vector &r, Vector &z) const
 {
    // Initialize transfered residuals to 0.0;
-   // if (myid == 0) cout << "In Mult " << endl;
    for (int ip=0; ip<nrsubdomains; ip++)
    {
       if (myid != SubdomainRank[ip]) continue;
@@ -120,7 +107,6 @@ void ParDST::Mult(const Vector &r, Vector &z) const
    r_re.SetDataAndSize(data,n);
    Vector r_im;
    r_im.SetDataAndSize(&data[n],n);
-
 
    dmaps->GlobalToSubdomains(r_re,f_orig_re);
    dmaps->GlobalToSubdomains(r_im,f_orig_im);
@@ -140,21 +126,6 @@ void ParDST::Mult(const Vector &r, Vector &z) const
       GetChiRes(*f_orig_im[ip],ip,direct);
    }
 
-   char vishost[] = "localhost";
-   int  visport   = 19916;
-
-   // for (int ip = 0; ip<nrsubdomains; ip++)
-   // {
-   //    if (myid == SubdomainRank[ip])
-   //    {
-   //       socketstream sol_sock_re(vishost, visport);
-   //       PlotLocal(*f_orig_re[ip],sol_sock_re,ip);
-   //       socketstream sol_sock_im(vishost, visport);
-   //       PlotLocal(*f_orig_im[ip],sol_sock_im,ip);
-   //    }
-   // }
-
-
    z = 0.0; 
    int nsteps;
    switch(dim)
@@ -164,9 +135,8 @@ void ParDST::Mult(const Vector &r, Vector &z) const
       default: nsteps = nx+ny+nz-2; break;
    }
    int nsweeps = sweeps->nsweeps;
-   for (int l=0; l<nsweeps; l++)
    // 1. Loop through sweeps
-   // for (int l=0; l<1; l++)
+   for (int l=0; l<nsweeps; l++)
    {  
       // 2. loop through diagonals/steps of each sweep   
       for (int s = 0; s<nsteps; s++)

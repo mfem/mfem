@@ -729,6 +729,8 @@ CartesianParMeshPartition::CartesianParMeshPartition(ParMesh * pmesh_,
    MPI_Comm comm = pmesh->GetComm();
    MPI_Comm_size(comm, &num_procs);
    MPI_Comm_rank(comm, &myid);
+
+
    int dim = pmesh->Dimension();
    if (dim == 2 ) nz = 1;
    subdomains.SetSize(nx,ny,nz);
@@ -737,7 +739,7 @@ CartesianParMeshPartition::CartesianParMeshPartition(ParMesh * pmesh_,
 
    Vector pmin, pmax;
    pmesh->GetBoundingBox(pmin, pmax);
-   double h = pmesh->GetElementSize(0);
+   double h = pmesh->GetNE() ? pmesh->GetElementSize(0) : 0.0;
    MeshSize = h;
 
    // Check that ovlp_size does not exit subdomain size
@@ -861,6 +863,7 @@ ParMeshPartition::ParMeshPartition(ParMesh* pmesh_,
 
    int dim = pmesh->Dimension();
    CartesianParMeshPartition partition(pmesh,nx, ny, nz,nrlayers);
+
    local_element_map = partition.local_element_map;
    subdomains = partition.subdomains;
    nxyz[0] = partition.nxyz[0];
@@ -923,6 +926,7 @@ ParMeshPartition::ParMeshPartition(ParMesh* pmesh_,
          soffs[subdomain_rank[ip]] += 1 + 1 + local_element_map[ip].Size();
       }
    }
+
 
    Array<int> recvbuf(rbuff_size);
    MPI_Alltoallv(sendbuf, send_count, send_displ, MPI_INT, recvbuf,
