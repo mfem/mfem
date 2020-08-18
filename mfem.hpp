@@ -24,6 +24,7 @@
 #include "general/stable3d.hpp"
 #include "general/table.hpp"
 #include "general/tic_toc.hpp"
+#include "general/annotation.hpp"
 #ifdef MFEM_USE_ADIOS2
 #include "general/adios2stream.hpp"
 #endif

@@ -48,6 +48,8 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
+   //Caliper instrumentation
+   MFEM_MARK_FUNCTION;
    // 1. Initialize MPI.
    int num_procs, myid;
    MPI_Init(&argc, &argv);
@@ -93,6 +95,7 @@ int main(int argc, char *argv[])
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
+   MFEM_MARK_REGION_BEGIN("Read the serial mesh");
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
@@ -105,6 +108,7 @@ int main(int argc, char *argv[])
       MPI_Finalize();
       return 3;
    }
+   MFEM_MARK_REGION_END("Read the serial mesh");
 
    // 4. Select the order of the finite element discretization space. For NURBS
    //    meshes, we increase the order by degree elevation.
@@ -117,6 +121,7 @@ int main(int argc, char *argv[])
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 1,000 elements.
+   MFEM_MARK_REGION_BEGIN("Refine the mesh");
    {
       int ref_levels =
          (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
@@ -125,10 +130,12 @@ int main(int argc, char *argv[])
          mesh->UniformRefinement();
       }
    }
+   MFEM_MARK_REGION_END("Refine the mesh");
 
    // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
+   MFEM_MARK_REGION_BEGIN("Define the parallel mesh");
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
@@ -138,6 +145,7 @@ int main(int argc, char *argv[])
          pmesh->UniformRefinement();
       }
    }
+   MFEM_MARK_REGION_END("Define the parallel mesh");
 
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use vector finite elements, i.e. dim copies of a scalar finite element
@@ -145,6 +153,7 @@ int main(int argc, char *argv[])
    //    the FiniteElementSpace constructor) which is expected in the systems
    //    version of BoomerAMG preconditioner. For NURBS meshes, we use the
    //    (degree elevated) NURBS space associated with the mesh nodes.
+   MFEM_MARK_REGION_BEGIN("FE Space definition");
    FiniteElementCollection *fec;
    ParFiniteElementSpace *fespace;
    const bool use_nodal_fespace = pmesh->NURBSext && !amg_elast;
@@ -164,15 +173,18 @@ int main(int argc, char *argv[])
       cout << "Number of finite element unknowns: " << size << endl
            << "Assembling: " << flush;
    }
+   MFEM_MARK_REGION_END("FE Space definition");
 
    // 8. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined by
    //    marking only boundary attribute 1 from the mesh as essential and
    //    converting it to a list of true dofs.
+   MFEM_MARK_REGION_BEGIN("Boundary DOFs");
    Array<int> ess_tdof_list, ess_bdr(pmesh->bdr_attributes.Max());
    ess_bdr = 0;
    ess_bdr[0] = 1;
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   MFEM_MARK_REGION_END("Boundary DOFs");
 
    // 9. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system. In this case, b_i equals the
@@ -182,6 +194,7 @@ int main(int argc, char *argv[])
    //    is a vector of Coefficient objects. The fact that f is non-zero on
    //    boundary attribute 2 is indicated by the use of piece-wise constants
    //    coefficient for its last component.
+   MFEM_MARK_REGION_BEGIN("Set up the linear form");
    VectorArrayCoefficient f(dim);
    for (int i = 0; i < dim-1; i++)
    {
@@ -201,6 +214,7 @@ int main(int argc, char *argv[])
       cout << "r.h.s. ... " << flush;
    }
    b->Assemble();
+   MFEM_MARK_REGION_END("Set up the linear form");
 
    // 10. Define the solution vector x as a parallel finite element grid
    //     function corresponding to fespace. Initialize x with initial guess of
@@ -211,6 +225,7 @@ int main(int argc, char *argv[])
    // 11. Set up the parallel bilinear form a(.,.) on the finite element space
    //     corresponding to the linear elasticity integrator with piece-wise
    //     constants coefficient lambda and mu.
+   MFEM_MARK_REGION_BEGIN("Set up the bilinear form");
    Vector lambda(pmesh->attributes.Max());
    lambda = 1.0;
    lambda(0) = lambda(1)*50;
@@ -230,10 +245,13 @@ int main(int argc, char *argv[])
    if (myid == 0) { cout << "matrix ... " << flush; }
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
+   MFEM_MARK_REGION_END("Set up the bilinear form");
 
    HypreParMatrix A;
    Vector B, X;
+   MFEM_MARK_REGION_BEGIN("Form Linear System");
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+   MFEM_MARK_REGION_END("Form Linear System");
    if (myid == 0)
    {
       cout << "done." << endl;
@@ -242,6 +260,7 @@ int main(int argc, char *argv[])
 
    // 13. Define and apply a parallel PCG solver for A X = B with the BoomerAMG
    //     preconditioner from hypre.
+   MFEM_MARK_REGION_BEGIN("Solve Ax=b");
    HypreBoomerAMG *amg = new HypreBoomerAMG(A);
    if (amg_elast && !a->StaticCondensationIsEnabled())
    {
@@ -257,6 +276,7 @@ int main(int argc, char *argv[])
    pcg->SetPrintLevel(2);
    pcg->SetPreconditioner(*amg);
    pcg->Mult(B, X);
+   MFEM_MARK_REGION_END("Solve Ax=b");
 
    // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
@@ -277,6 +297,7 @@ int main(int argc, char *argv[])
    // 16. Save in parallel the displaced mesh and the inverted solution (which
    //     gives the backward displacements to the original grid). This output
    //     can be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
+   MFEM_MARK_REGION_BEGIN("Save the results");
    {
       GridFunction *nodes = pmesh->GetNodes();
       *nodes += x;
@@ -294,6 +315,7 @@ int main(int argc, char *argv[])
       sol_ofs.precision(8);
       x.Save(sol_ofs);
    }
+   MFEM_MARK_REGION_END("Save the results");
 
    // 17. Send the above data by socket to a GLVis server.  Use the "n" and "b"
    //     keys in GLVis to visualize the displacements.
