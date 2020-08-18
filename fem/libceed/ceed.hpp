@@ -31,18 +31,22 @@ class IntegrationRule;
 class Coefficient;
 
 // Hash table for CeedBasis
-using CeedBasisKey = std::tuple<FiniteElementSpace*, IntegrationRule*, int, int>;
+using CeedBasisKey =
+   std::tuple<FiniteElementSpace*, IntegrationRule*, int, int>;
 struct CeedBasisHash
 {
    std::size_t operator()(const CeedBasisKey& k) const
    {
-      return CeedHashCombine(CeedHashCombine(CeedHashInt(reinterpret_cast<CeedHash64_t>(std::get<0>(k))),
-                                             CeedHashInt(reinterpret_cast<CeedHash64_t>(std::get<1>(k)))),
+      return CeedHashCombine(CeedHashCombine(CeedHashInt(
+                                                reinterpret_cast<CeedHash64_t>(std::get<0>(k))),
+                                             CeedHashInt(
+                                                reinterpret_cast<CeedHash64_t>(std::get<1>(k)))),
                              CeedHashCombine(CeedHashInt(std::get<2>(k)),
                                              CeedHashInt(std::get<3>(k))));
    }
 };
-using CeedBasisMap = std::unordered_map<const CeedBasisKey, CeedBasis, CeedBasisHash>;
+using CeedBasisMap =
+   std::unordered_map<const CeedBasisKey, CeedBasis, CeedBasisHash>;
 
 // Hash table for CeedElemRestriction
 using CeedRestrKey = std::tuple<FiniteElementSpace*, int, int>;
@@ -50,17 +54,20 @@ struct CeedRestrHash
 {
    std::size_t operator()(const CeedRestrKey& k) const
    {
-      return CeedHashCombine(CeedHashCombine(CeedHashInt(reinterpret_cast<CeedHash64_t>(std::get<0>(k))),
+      return CeedHashCombine(CeedHashCombine(CeedHashInt(
+                                                reinterpret_cast<CeedHash64_t>(std::get<0>(k))),
                                              CeedHashInt(std::get<1>(k))),
                              CeedHashInt(std::get<2>(k)));
    }
 };
-using CeedRestrMap = std::unordered_map<const CeedRestrKey, CeedElemRestriction, CeedRestrHash>;
+using CeedRestrMap =
+   std::unordered_map<const CeedRestrKey, CeedElemRestriction, CeedRestrHash>;
 
-namespace internal {
-   extern Ceed ceed; // defined in device.cpp
-   extern CeedBasisMap basis_map;
-   extern CeedRestrMap restr_map;
+namespace internal
+{
+extern Ceed ceed; // defined in device.cpp
+extern CeedBasisMap basis_map;
+extern CeedRestrMap restr_map;
 }
 
 /// A structure used to pass additional data to f_build_diff and f_apply_diff
