@@ -27,3 +27,8 @@ add_mfem_miniapp(convert-dc
 
 add_mfem_miniapp(lor-transfer
   MAIN lor-transfer.cpp LIBRARIES mfem)
+
+if (MFEM_USE_MPI)
+  add_mfem_miniapp(pcheck-continuity
+    MAIN pcheck-continuity.cpp LIBRARIES mfem)
+endif()
