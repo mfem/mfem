@@ -12,7 +12,7 @@
 #include "fmsconvert.hpp"
 #include <unordered_map>
 #include <climits>
-using std::cout;
+
 using std::endl;
 
 // #define DEBUG_FMS_MFEM 1
@@ -869,38 +869,38 @@ BasisTypeToFmsBasisType(int bt, FmsBasisType &btype)
    switch (bt)
    {
       case mfem::BasisType::GaussLegendre:
-         //cout << "mfem::BasisType::GaussLegendre -> FMS_NODAL_GAUSS_OPEN" << endl;
+         //mfem::out << "mfem::BasisType::GaussLegendre -> FMS_NODAL_GAUSS_OPEN" << endl;
          btype = FMS_NODAL_GAUSS_OPEN;
          retval = true;
          break;
       case mfem::BasisType::GaussLobatto:
-         //cout << "mfem::BasisType::GaussLobato -> FMS_NODAL_GAUSS_CLOSED" << endl;
+         //mfem::out << "mfem::BasisType::GaussLobato -> FMS_NODAL_GAUSS_CLOSED" << endl;
          btype = FMS_NODAL_GAUSS_CLOSED;
          retval = true;
          break;
       case mfem::BasisType::Positive:
-         //cout << "mfem::BasisType::Positive -> FMS_POSITIVE" << endl;
+         //mfem::out << "mfem::BasisType::Positive -> FMS_POSITIVE" << endl;
          btype = FMS_POSITIVE;
          retval = true;
          break;
       case mfem::BasisType::OpenUniform:
-         //cout << "mfem::BasisType::OpenUniform -> ?" << endl;
+         //mfem::out << "mfem::BasisType::OpenUniform -> ?" << endl;
          btype = FMS_NODAL_UNIFORM_OPEN;
          retval = true;
          break;
       case mfem::BasisType::ClosedUniform:
-         //cout << "mfem::BasisType::ClosedUniform -> ?" << endl;
+         //mfem::out << "mfem::BasisType::ClosedUniform -> ?" << endl;
          btype = FMS_NODAL_UNIFORM_CLOSED;
          retval = true;
          break;
       case mfem::BasisType::OpenHalfUniform:
-         //cout << "mfem::BasisType::OpenHalfUniform -> ?" << endl;
+         //mfem::out << "mfem::BasisType::OpenHalfUniform -> ?" << endl;
          break;
       case mfem::BasisType::Serendipity:
-         //cout << "mfem::BasisType::Serendipity -> ?" << endl;
+         //mfem::out << "mfem::BasisType::Serendipity -> ?" << endl;
          break;
       case mfem::BasisType::ClosedGL:
-         //cout << "mfem::BasisType::ClosedGL -> ?" << endl;
+         //mfem::out << "mfem::BasisType::ClosedGL -> ?" << endl;
          break;
 
    }
@@ -936,7 +936,7 @@ GridFunctionToFmsField(FmsDataCollection dc, FmsComponent comp,
    const mfem::FiniteElementCollection *fecoll = fespace->FEColl();
 
 #ifdef DEBUG_MFEM_FMS
-   cout << "Adding FMS field for " << field_name << "..." << endl;
+   mfem::out << "Adding FMS field for " << field_name << "..." << endl;
 #endif
 
    /* Q: No getter for the basis, do different kinds of FECollection have implied basis?
@@ -1042,20 +1042,20 @@ GridFunctionToFmsField(FmsDataCollection dc, FmsComponent comp,
    switch (ftype)
    {
       case FMS_CONTINUOUS:
-         std::cout << "\tFMS_CONTINUOUS" << std::endl;
+         mfem::out << "\tFMS_CONTINUOUS" << std::endl;
          break;
       case FMS_DISCONTINUOUS:
-         std::cout << "\tFMS_DISCONTINUOUS" << std::endl;
+         mfem::out << "\tFMS_DISCONTINUOUS" << std::endl;
          break;
       case FMS_HDIV:
-         std::cout << "\tFMS_HDIV" << std::endl;
+         mfem::out << "\tFMS_HDIV" << std::endl;
          break;
    }
-   std::cout << "\tField is order " << order << " with vdim " << vdim <<
+   mfem::out << "\tField is order " << order << " with vdim " << vdim <<
              " and nDoFs " << ndofs << std::endl;
-   std::cout << "\tgf->size() " << gf->Size() << " ndofs * vdim " << ndofs * vdim
+   mfem::out << "\tgf->size() " << gf->Size() << " ndofs * vdim " << ndofs * vdim
              << std::endl;
-   std::cout << "\tlayout " << layout << " (0 = BY_NODES, 1 = BY_VDIM)" <<
+   mfem::out << "\tlayout " << layout << " (0 = BY_NODES, 1 = BY_VDIM)" <<
              std::endl;
 #endif
 
@@ -1502,10 +1502,10 @@ MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh)
    const int num_elements = mmesh->GetNE();
 
 #ifdef DEBUG_MFEM_FMS
-   std::cout << "nverts: " << num_verticies << std::endl;
-   std::cout << "nedges: " << num_edges << std::endl;
-   std::cout << "nfaces: " << num_faces << std::endl;
-   std::cout << "nele: " << num_elements << std::endl;
+   mfem::out << "nverts: " << num_verticies << std::endl;
+   mfem::out << "nedges: " << num_edges << std::endl;
+   mfem::out << "nfaces: " << num_faces << std::endl;
+   mfem::out << "nele: " << num_elements << std::endl;
 #endif
 
    FmsMeshConstruct(fmesh);
@@ -1557,13 +1557,13 @@ MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh)
    FmsDomainAddEntities(domains[0], FMS_EDGE, reorder, FMS_INT32,
                         edge_verts.data(), edge_verts.size() / 2);
 #ifdef DEBUG_MFEM_FMS
-   std::cout << "EDGES: ";
+   mfem::out << "EDGES: ";
    for (int i = 0; i < edge_verts.size(); i++)
    {
-      if (i % 2 == 0) { std::cout << std::endl << "\t" << i/2 << ": "; }
-      std::cout << edge_verts[i] << " ";
+      if (i % 2 == 0) { mfem::out << std::endl << "\t" << i/2 << ": "; }
+      mfem::out << edge_verts[i] << " ";
    }
-   std::cout << std::endl;
+   mfem::out << std::endl;
 #endif
 
    // Build faces
@@ -1587,14 +1587,14 @@ MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh)
       FmsDomainAddEntities(domains[0], ent_type, NULL, FMS_INT32, face_edges.data(),
                            face_edges.size() / rowsize);
 #ifdef DEBUG_MFEM_FMS
-      std::cout << "FACES: ";
+      mfem::out << "FACES: ";
       for (int i = 0; i < face_edges.size(); i++)
       {
-         if (i % rowsize == 0) { std::cout << std::endl << "\t" << i/rowsize << ": "; }
-         std::cout << "(" << edge_verts[face_edges[i]*2] << ", " <<
+         if (i % rowsize == 0) { mfem::out << std::endl << "\t" << i/rowsize << ": "; }
+         mfem::out << "(" << edge_verts[face_edges[i]*2] << ", " <<
                    edge_verts[face_edges[i]*2+1] << ") ";
       }
-      std::cout << std::endl;
+      mfem::out << std::endl;
 #endif
    }
 
@@ -1670,13 +1670,13 @@ MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh)
       FmsDomainAddEntities(domains[0], FMS_TRIANGLE, reorder, FMS_INT32, tris.data(),
                            tris.size() / 3);
 #ifdef DEBUG_MFEM_FMS
-      std::cout << "TRIS: ";
+      mfem::out << "TRIS: ";
       for (int i = 0; i < tris.size(); i++)
       {
-         if (i % 3 == 0) { std::cout << std::endl << "\t" << i/3 << ": "; }
-         std::cout << tris[i] << " ";
+         if (i % 3 == 0) { mfem::out << std::endl << "\t" << i/3 << ": "; }
+         mfem::out << tris[i] << " ";
       }
-      std::cout << std::endl;
+      mfem::out << std::endl;
 #endif
    }
 
@@ -1688,13 +1688,13 @@ MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh)
       FmsDomainAddEntities(domains[0], FMS_QUADRILATERAL, reorder, FMS_INT32,
                            quads.data(), quads.size() / 4);
 #ifdef DEBUG_MFEM_FMS
-      std::cout << "QUADS: ";
+      mfem::out << "QUADS: ";
       for (int i = 0; i < quads.size(); i++)
       {
-         if (i % 4 == 0) { std::cout << std::endl << "\t" << i/4 << ": "; }
-         std::cout << quads[i] << " ";
+         if (i % 4 == 0) { mfem::out << std::endl << "\t" << i/4 << ": "; }
+         mfem::out << quads[i] << " ";
       }
-      std::cout << std::endl;
+      mfem::out << std::endl;
 #endif
    }
 
@@ -1705,13 +1705,13 @@ MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh)
       FmsDomainAddEntities(domains[0], FMS_TETRAHEDRON, reorder, FMS_INT32,
                            tets.data(), tets.size() / 4);
 #ifdef DEBUG_MFEM_FMS
-      std::cout << "TETS: ";
+      mfem::out << "TETS: ";
       for (int i = 0; i < tets.size(); i++)
       {
-         if (i % 4 == 0) { std::cout << std::endl << "\t" << i/4 << ": "; }
-         std::cout << tets[i] << " ";
+         if (i % 4 == 0) { mfem::out << std::endl << "\t" << i/4 << ": "; }
+         mfem::out << tets[i] << " ";
       }
-      std::cout << std::endl;
+      mfem::out << std::endl;
 #endif
    }
 
@@ -1722,13 +1722,13 @@ MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh)
       FmsDomainAddEntities(domains[0], FMS_HEXAHEDRON, reorder, FMS_INT32,
                            hexes.data(), hexes.size() / 6);
 #ifdef DEBUG_MFEM_FMS
-      std::cout << "HEXES: ";
+      mfem::out << "HEXES: ";
       for (int i = 0; i < hexes.size(); i++)
       {
-         if (i % 6 == 0) { std::cout << std::endl << "\t" << i/6 << ": "; }
-         std::cout << hexes[i] << " ";
+         if (i % 6 == 0) { mfem::out << std::endl << "\t" << i/6 << ": "; }
+         mfem::out << hexes[i] << " ";
       }
-      std::cout << std::endl;
+      mfem::out << std::endl;
 #endif
    }
 
