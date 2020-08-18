@@ -191,28 +191,28 @@ TEST_CASE("Second order ODE methods",
    SECTION("Newmark")
    {
       std::cout <<"\nTesting NewmarkSolver" << std::endl;
-      int conv_rate = check.order(new NewmarkSolver);
+      double conv_rate = check.order(new NewmarkSolver);
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("LinearAcceleration")
    {
       std::cout <<"\nLinearAccelerationSolver" << std::endl;
-      int conv_rate = check.order(new LinearAccelerationSolver);
+      double conv_rate = check.order(new LinearAccelerationSolver);
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("CentralDifference")
    {
       std::cout <<"\nTesting CentralDifference" << std::endl;
-      int conv_rate = check.order(new CentralDifferenceSolver);
+      double conv_rate = check.order(new CentralDifferenceSolver);
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("FoxGoodwin")
    {
       std::cout <<"\nTesting FoxGoodwin" << std::endl;
-      int conv_rate = check.order(new FoxGoodwinSolver);
+      double conv_rate = check.order(new FoxGoodwinSolver);
       REQUIRE(conv_rate + tol > 4.0);
    }
 
@@ -220,28 +220,28 @@ TEST_CASE("Second order ODE methods",
    SECTION("GeneralizedAlpha(0.0)")
    {
       std::cout <<"\nTesting GeneralizedAlpha(0.0)" << std::endl;
-      int conv_rate = check.order(new GeneralizedAlpha2Solver(0.0));
+      double conv_rate = check.order(new GeneralizedAlpha2Solver(0.0));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("GeneralizedAlpha(0.5)")
    {
       std::cout <<"\nTesting GeneralizedAlpha(0.5)" << std::endl;
-      int conv_rate = check.order(new GeneralizedAlpha2Solver(0.5));
+      double conv_rate = check.order(new GeneralizedAlpha2Solver(0.5));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("GeneralizedAlpha(0.5) - restart")
    {
       std::cout <<"\nTesting GeneralizedAlpha(0.5) - restart" << std::endl;
-      int conv_rate = check.order(new GeneralizedAlpha2Solver(0.5),true);
+      double conv_rate = check.order(new GeneralizedAlpha2Solver(0.5),true);
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("GeneralizedAlpha(1.0)")
    {
       std::cout <<"\nTesting GeneralizedAlpha(1.0)" << std::endl;
-      int conv_rate = check.order(new GeneralizedAlpha2Solver(1.0));
+      double conv_rate = check.order(new GeneralizedAlpha2Solver(1.0));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
@@ -249,49 +249,49 @@ TEST_CASE("Second order ODE methods",
    SECTION("AverageAcceleration")
    {
       std::cout <<"\nTesting AverageAcceleration" << std::endl;
-      int conv_rate = check.order(new AverageAccelerationSolver);
+      double conv_rate = check.order(new AverageAccelerationSolver);
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("HHTAlpha(2/3)")
    {
       std::cout <<"\nTesting HHTAlpha(2/3)" << std::endl;
-      int conv_rate = check.order(new HHTAlphaSolver(2.0/3.0));
+      double conv_rate = check.order(new HHTAlphaSolver(2.0/3.0));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("HHTAlpha(0.75)")
    {
       std::cout <<"\nTesting HHTAlpha(0.75)" << std::endl;
-      int conv_rate = check.order(new HHTAlphaSolver(0.75));
+      double conv_rate = check.order(new HHTAlphaSolver(0.75));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("HHTAlpha(1.0)")
    {
       std::cout <<"\nTesting HHTAlpha(1.0)" << std::endl;
-      int conv_rate = check.order(new HHTAlphaSolver(1.0));
+      double conv_rate = check.order(new HHTAlphaSolver(1.0));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("WBZAlpha(0.0)")
    {
       std::cout <<"\nTesting WBZAlpha(0.0)" << std::endl;
-      int conv_rate = check.order(new WBZAlphaSolver(0.0));
+      double conv_rate = check.order(new WBZAlphaSolver(0.0));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("WBZAlpha(0.5)")
    {
       std::cout <<"\nTesting WBZAlpha(0.5)" << std::endl;
-      int conv_rate = check.order(new WBZAlphaSolver(0.5));
+      double conv_rate = check.order(new WBZAlphaSolver(0.5));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("WBZAlpha(1.0)")
    {
       std::cout <<"\nTesting WBZAlpha(1.0)" << std::endl;
-      int conv_rate = check.order(new WBZAlphaSolver(1.0));
+      double conv_rate = check.order(new WBZAlphaSolver(1.0));
       REQUIRE(conv_rate + tol > 2.0);
    }
 }
