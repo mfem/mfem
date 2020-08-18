@@ -12,9 +12,10 @@
 #include "forall.hpp"
 #include "occa.hpp"
 #ifdef MFEM_USE_CEED
-#include <ceed.h>
+#include "../fem/libceed/ceed.hpp"
 #endif
 
+#include <unordered_map>
 #include <string>
 #include <map>
 
@@ -34,9 +35,8 @@ occa::device occaDevice;
 #ifdef MFEM_USE_CEED
 Ceed ceed = NULL;
 
-// Initalize FES -> CeedBasis, CeedElemRestriction hash tables
-std::unordered_map<std::string, CeedBasis> ceed_basis_table;
-std::unordered_map<std::string, CeedElemRestriction> ceed_restr_table;
+CeedBasisMap ceed_basis_map;
+CeedRestrMap ceed_restr_map;
 #endif
 
 // Backends listed by priority, high to low:
@@ -159,11 +159,11 @@ Device::~Device()
       free(device_option);
 #ifdef MFEM_USE_CEED
       // Destroy FES -> CeedBasis, CeedElemRestriction hash table contents
-      for (auto entry : internal::ceed_basis_table)
+      for (auto entry : internal::ceed_basis_map)
       {
          CeedBasisDestroy(&entry.second);
       }
-      for (auto entry : internal::ceed_restr_table)
+      for (auto entry : internal::ceed_restr_map)
       {
          CeedElemRestrictionDestroy(&entry.second);
       }
@@ -183,7 +183,7 @@ Device::~Device()
 
 void Device::Configure(const std::string &device, const int dev)
 {
-   // If a device was configured via the environment, skip the configuration,
+   // If device a was configured via the environment, skip the configuration,
    // and avoid the 'singleton_device' to destroy the mm.
    if (device_env)
    {
