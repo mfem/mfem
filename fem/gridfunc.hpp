@@ -453,9 +453,12 @@ public:
                                          const IntegrationRule *irs[] = NULL)
    const;
 
-   // This methis is kept for backward compatibility
+   // This method is kept for backward compatibility
    // Returns either the H1-seminorm or the DG Face Jumps error
    // or both depending on norm_type = 1, 2, 3
+   // Additional arguments for DG Face Jumps norm:
+   // ell_coeff: mesh-depended coefficient (weight)
+   // Nu: scaler constant weight
    virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
                                  Coefficient *ell_coef, double Nu,
                                  int norm_type) const;
@@ -465,12 +468,12 @@ public:
    virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
                                  const IntegrationRule *irs[] = NULL) const;
 
-   // Returns the error measured H(div)-norm for RT elements
+   // Returns the error measured in H(div)-norm for RT elements
    virtual double ComputeHDivError(VectorCoefficient *exsol,
                                    Coefficient *exdiv,
                                    const IntegrationRule *irs[] = NULL) const;
 
-   // Returns the error measured H(curl)-norm for ND elements
+   // Returns the error measured in H(curl)-norm for ND elements
    virtual double ComputeHCurlError(VectorCoefficient *exsol,
                                     VectorCoefficient *excurl,
                                     const IntegrationRule *irs[] = NULL) const;

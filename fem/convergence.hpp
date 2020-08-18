@@ -63,7 +63,7 @@ private:
               Coefficient * ell_coeff=nullptr, double Nu=1.0);
    void AddGf(GridFunction * gf, VectorCoefficient * vector_u,
               VectorCoefficient * curl, Coefficient * div);
-   // returns the exact solution/grad/div/curl norm
+   // returns the L2-norm of scalar_u or vector_u
    double GetNorm(GridFunction * gf, Coefficient * scalar_u,
                   VectorCoefficient * vector_u);
 
@@ -79,7 +79,7 @@ public:
                           VectorCoefficient * grad=nullptr,
                           Coefficient * ell_coeff=nullptr, double Nu=1.0)
    {
-      AddGf(gf, scalar_u, grad, ell_coeff,Nu);
+      AddGf(gf, scalar_u, grad, ell_coeff, Nu);
    }
 
    // Add H1 GridFunction,
@@ -95,7 +95,7 @@ public:
    void AddHcurlGridFunction(GridFunction * gf, VectorCoefficient * vector_u,
                              VectorCoefficient * curl=nullptr)
    {
-      AddGf(gf,vector_u, curl, nullptr);
+      AddGf(gf, vector_u, curl, nullptr);
    }
 
    // Add H(div) GridFunction,
@@ -109,37 +109,37 @@ public:
    // Get L2 error at step n
    double GetL2Error(int n)
    {
-      MFEM_VERIFY(n<= counter,"Step out of bounds")
+      MFEM_VERIFY( n <= counter,"Step out of bounds")
       return L2Errors[n];
    }
 
-   // Get all L2 errors
+   // Get L2 errors
    void GetL2Errors(Array<double> & L2Errors_)
    {
       L2Errors_ = L2Errors;
    }
 
-   // Get Grad/Curl/Div Error at step n
+   // Get Grad/Curl/Div error at step n
    double GetDError(int n)
    {
-      MFEM_VERIFY(n<= dcounter,"Step out of bounds")
+      MFEM_VERIFY(n <= dcounter,"Step out of bounds")
       return DErrors[n];
    }
 
-   // Get all Grad/Curl/Div
+   // Get Grad/Curl/Div errors
    void GetDErrors(Array<double> & DErrors_)
    {
       DErrors_ = DErrors;
    }
 
-   // Get DGFaceJumps Error at step n
+   // Get DGFaceJumps error at step n
    double GetDGFaceJumpsError(int n)
    {
       MFEM_VERIFY(n<= fcounter,"Step out of bounds")
       return DGFaceErrors[n];
    }
 
-   // Get all DGFaceJumps
+   // Get DGFaceJumps errors
    void GetDGFaceJumpsErrors(Array<double> & DGFaceErrors_)
    {
       DGFaceErrors_ = DGFaceErrors;
