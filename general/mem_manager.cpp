@@ -701,6 +701,8 @@ private:
       {
          case MT::HOST_DEBUG: return new MmuHostMemorySpace();
          case MT::HOST_UMPIRE: return new UmpireHostMemorySpace();
+         case MT::HOST_PINNED: return new CudaHostMemorySpace();
+
          default: MFEM_ABORT("Unknown host memory controller!");
       }
       return nullptr;
