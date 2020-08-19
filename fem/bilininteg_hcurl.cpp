@@ -32,7 +32,10 @@ void PAHcurlSetup2D(const int Q1D,
    const bool symmetric = (coeffDim != 4);
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
-   auto coeff = Reshape(_coeff.Read(), coeffDim, NQ, NE);
+   const bool const_c = _coeff.Size()==coeffDim;
+   auto coeff = const_c ?
+                Reshape(_coeff.Read(), coeffDim, 1, 1)
+                : Reshape(_coeff.Read(), coeffDim, NQ, NE);
    auto y = Reshape(op.Write(), NQ, symmetric ? 3 : 4, NE);
 
    MFEM_FORALL(e, NE,
@@ -48,8 +51,8 @@ void PAHcurlSetup2D(const int Q1D,
          {
             // First compute entries of R = MJ^{-T}, without det J factor.
             const double M11 = coeff(0, q, e);
-            const double M12 = coeff(1, q, e);
-            const double M21 = symmetric ? M12 : coeff(2, q, e);
+            const double M21 = coeff(1, q, e);
+            const double M12 = symmetric ? M21 : coeff(2, q, e);
             const double M22 = symmetric ? coeff(2, q, e) : coeff(3, q, e);
             const double R11 = M11*J22 - M12*J12;
             const double R21 = M21*J22 - M22*J12;
@@ -69,8 +72,11 @@ void PAHcurlSetup2D(const int Q1D,
          }
          else  // Vector or scalar coefficient version
          {
-            const double c_detJ1 = W[q] * coeff(0, q, e) / ((J11*J22)-(J21*J12));
-            const double c_detJ2 = (coeffDim == 2) ? W[q] * coeff(1, q, e)
+            const double c0 = const_c ? coeff(0, 0, 0) : coeff(0, q, e);
+            const double c1 = (coeffDim == 2) ?
+                              (const_c ? coeff(1, 0, 0) : coeff(1, q, e)) : c0;
+            const double c_detJ1 = W[q] * c0 / ((J11*J22)-(J21*J12));
+            const double c_detJ2 = (coeffDim == 2) ? W[q] * c1
                                    / ((J11*J22)-(J21*J12)) : c_detJ1;
             y(q,0,e) =  (c_detJ2*J12*J12 + c_detJ1*J22*J22); // 1,1
             y(q,1,e) = -(c_detJ2*J12*J11 + c_detJ1*J22*J21); // 1,2
@@ -93,7 +99,10 @@ void PAHcurlSetup3D(const int Q1D,
    const bool symmetric = (coeffDim != 9);
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
-   auto coeff = Reshape(_coeff.Read(), coeffDim, NQ, NE);
+   const bool const_c = _coeff.Size()==coeffDim;
+   auto coeff = const_c ?
+                Reshape(_coeff.Read(), coeffDim, 1, 1)
+                : Reshape(_coeff.Read(), coeffDim, NQ, NE);
    auto y = Reshape(op.Write(), NQ, symmetric ? 6 : 9, NE);
 
    MFEM_FORALL(e, NE,
@@ -128,13 +137,13 @@ void PAHcurlSetup3D(const int Q1D,
          {
             // First compute entries of R = MJ^{-T} = M adj(J)^T, without det J factor.
             const double M11 = coeff(0, q, e);
-            const double M12 = coeff(1, q, e);
-            const double M13 = coeff(2, q, e);
-            const double M21 = (!symmetric) ? coeff(3, q, e) : M12;
+            const double M21 = coeff(1, q, e);
+            const double M31 = coeff(2, q, e);
+            const double M12 = (!symmetric) ? coeff(3, q, e) : M21;
             const double M22 = (!symmetric) ? coeff(4, q, e) : coeff(3, q, e);
-            const double M23 = (!symmetric) ? coeff(5, q, e) : coeff(4, q, e);
-            const double M31 = (!symmetric) ? coeff(6, q, e) : M13;
-            const double M32 = (!symmetric) ? coeff(7, q, e) : M23;
+            const double M32 = (!symmetric) ? coeff(5, q, e) : coeff(4, q, e);
+            const double M13 = (!symmetric) ? coeff(6, q, e) : M31;
+            const double M23 = (!symmetric) ? coeff(7, q, e) : M32;
             const double M33 = (!symmetric) ? coeff(8, q, e) : coeff(5, q, e);
 
             const double R11 = M11*A11 + M12*A12 + M13*A13;
@@ -172,9 +181,11 @@ void PAHcurlSetup3D(const int Q1D,
          }
          else  // Vector or scalar coefficient version
          {
-            const double D1 = coeff(0, q, e);
-            const double D2 = coeffDim == 3 ? coeff(1, q, e) : D1;
-            const double D3 = coeffDim == 3 ? coeff(2, q, e) : D1;
+            const double D1 = const_c ? coeff(0, 0, 0) : coeff(0, q, e);
+            const double D2 = coeffDim == 3 ?
+                              (const_c ? coeff(1, 0, 0) : coeff(1, q, e)) : D1;
+            const double D3 = coeffDim == 3 ?
+                              (const_c ? coeff(2, 0, 0) : coeff(2, q, e)) : D1;
             // detJ J^{-1} D J^{-T} = (1/detJ) adj(J) D adj(J)^T
             y(q,0,e) = w_detJ * (D1*A11*A11 + D2*A12*A12 + D3*A13*A13); // 1,1
             y(q,1,e) = w_detJ * (D1*A11*A21 + D2*A12*A22 + D3*A13*A23); // 2,1
@@ -652,7 +663,9 @@ static void PACurlCurlSetup2D(const int Q1D,
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
-   auto coeff = Reshape(_coeff.Read(), NQ, NE);
+   const bool const_c = _coeff.Size() == 1;
+   auto C =
+      const_c ? Reshape(_coeff.Read(), 1,1) : Reshape(_coeff.Read(), NQ,NE);
    auto y = Reshape(op.Write(), NQ, NE);
    MFEM_FORALL(e, NE,
    {
@@ -662,8 +675,9 @@ static void PACurlCurlSetup2D(const int Q1D,
          const double J21 = J(q,1,0,e);
          const double J12 = J(q,0,1,e);
          const double J22 = J(q,1,1,e);
+         const double coeff = const_c ? C(0,0) : C(q,e);
          const double detJ = (J11*J22)-(J21*J12);
-         y(q,e) = W[q] * coeff(q,e) / detJ;
+         y(q,e) = W[q] * coeff / detJ;
       }
    });
 }
@@ -680,7 +694,10 @@ static void PACurlCurlSetup3D(const int Q1D,
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
-   auto coeff = Reshape(_coeff.Read(), coeffDim, NQ, NE);
+   const bool const_c = _coeff.Size() == coeffDim;
+   auto coeff = const_c ?
+                Reshape(_coeff.Read(), coeffDim, 1, 1)
+                : Reshape(_coeff.Read(), coeffDim, NQ, NE);
    auto y = Reshape(op.Write(), NQ, 6, NE);
    MFEM_FORALL(e, NE,
    {
@@ -699,9 +716,11 @@ static void PACurlCurlSetup3D(const int Q1D,
          /* */               J21 * (J12 * J33 - J32 * J13) +
          /* */               J31 * (J12 * J23 - J22 * J13);
 
-         const double D1 = coeff(0, q, e);
-         const double D2 = coeffDim == 3 ? coeff(1, q, e) : D1;
-         const double D3 = coeffDim == 3 ? coeff(2, q, e) : D1;
+         const double D1 = const_c ? coeff(0,0,0) : coeff(0, q, e);
+         const double D2 = coeffDim == 3 ?
+         (const_c ? coeff(1,0,0) : coeff(1, q, e)) : D1;
+         const double D3 = coeffDim == 3 ?
+         (const_c ? coeff(2,0,0) : coeff(2, q, e)) : D1;
 
          // set y to the 6 entries of J^T D J / det^2
          const double c_detJ = W[q] / detJ;
@@ -748,18 +767,19 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const int ndata = (dim == 2) ? 1 : 6;
    pa_data.SetSize(ndata * nq * ne, Device::GetMemoryType());
 
-   Vector coeff(ne * nq);
-   coeff = 1.0;
+   Vector coeff;
    if (Q)
    {
-      for (int e=0; e<ne; ++e)
-      {
-         ElementTransformation *tr = mesh->GetElementTransformation(e);
-         for (int p=0; p<nq; ++p)
-         {
-            coeff[p + (e * nq)] = Q->Eval(*tr, ir->IntPoint(p));
-         }
-      }
+      Q->Eval(fes,*ir,coeff);
+   }
+   else if (MQ)
+   {
+      MQ->Eval(fes,*ir,coeff);
+   }
+   else
+   {
+      coeff.SetSize(1);
+      coeff(0) = 1.0;
    }
 
    if (el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3)
@@ -2019,7 +2039,10 @@ void PAHcurlL2Setup(const int NQ,
                     Vector &op)
 {
    auto W = w.Read();
-   auto coeff = Reshape(_coeff.Read(), coeffDim, NQ, NE);
+   const bool const_c = _coeff.Size()==coeffDim;
+   auto coeff = const_c ?
+                Reshape(_coeff.Read(), coeffDim, 1, 1)
+                : Reshape(_coeff.Read(), coeffDim, NQ, NE);
    auto y = Reshape(op.Write(), coeffDim, NQ, NE);
 
    MFEM_FORALL(e, NE,
@@ -2028,7 +2051,8 @@ void PAHcurlL2Setup(const int NQ,
       {
          for (int c=0; c<coeffDim; ++c)
          {
-            y(c,q,e) = W[q] * coeff(c,q,e);
+            const double C = const_c ? coeff(c,0,0) : coeff(c, q, e);
+            y(c,q,e) = W[q] * C;
          }
       }
    });
@@ -2082,37 +2106,29 @@ void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
 
    pa_data.SetSize(coeffDim * nq * ne, Device::GetMemoryType());
 
-   Vector coeff(coeffDim * nq * ne);
-   coeff = 1.0;
-   auto coeffh = Reshape(coeff.HostWrite(), coeffDim, nq, ne);
-   if (Q || DQ)
+   Vector coeff;
+   if (Q)
    {
-      Vector V(coeffDim);
-      if (DQ)
-      {
-         MFEM_VERIFY(DQ->GetVDim() == coeffDim, "");
-      }
-
-      for (int e=0; e<ne; ++e)
-      {
-         ElementTransformation *tr = mesh->GetElementTransformation(e);
-
-         for (int p=0; p<nq; ++p)
-         {
-            if (DQ)
-            {
-               DQ->Eval(V, *tr, ir->IntPoint(p));
-               for (int i=0; i<coeffDim; ++i)
-               {
-                  coeffh(i, p, e) = V[i];
-               }
-            }
-            else
-            {
-               coeffh(0, p, e) = Q->Eval(*tr, ir->IntPoint(p));
-            }
-         }
-      }
+      Q->Eval(trial_fes,*ir,coeff);
+   }
+   else if (VQ)
+   {
+      mfem_error("Not yet supported.");
+      VQ->Eval(trial_fes,*ir,coeff);
+   }
+   else if (DQ)
+   {
+      DQ->Eval(trial_fes,*ir,coeff);
+   }
+   else if (MQ)
+   {
+      mfem_error("Not yet supported.");
+      MQ->Eval(trial_fes,*ir,coeff);
+   }
+   else
+   {
+      coeff.SetSize(coeffDim);
+      coeff = 1.0;
    }
 
    if (testType == mfem::FiniteElement::CURL &&
@@ -2889,37 +2905,29 @@ void MixedVectorWeakCurlIntegrator::AssemblePA(const FiniteElementSpace
 
    pa_data.SetSize(coeffDim * nq * ne, Device::GetMemoryType());
 
-   Vector coeff(coeffDim * nq * ne);
-   coeff = 1.0;
-   auto coeffh = Reshape(coeff.HostWrite(), coeffDim, nq, ne);
-   if (Q || DQ)
+   Vector coeff;
+   if (Q)
    {
-      Vector V(coeffDim);
-      if (DQ)
-      {
-         MFEM_VERIFY(DQ->GetVDim() == coeffDim, "");
-      }
-
-      for (int e=0; e<ne; ++e)
-      {
-         ElementTransformation *tr = mesh->GetElementTransformation(e);
-
-         for (int p=0; p<nq; ++p)
-         {
-            if (DQ)
-            {
-               DQ->Eval(V, *tr, ir->IntPoint(p));
-               for (int i=0; i<coeffDim; ++i)
-               {
-                  coeffh(i, p, e) = V[i];
-               }
-            }
-            else
-            {
-               coeffh(0, p, e) = Q->Eval(*tr, ir->IntPoint(p));
-            }
-         }
-      }
+      Q->Eval(trial_fes,*ir,coeff);
+   }
+   else if (VQ)
+   {
+      mfem_error("Not yet implemented");
+      VQ->Eval(trial_fes,*ir,coeff);
+   }
+   else if (DQ)
+   {
+      DQ->Eval(trial_fes,*ir,coeff);
+   }
+   else if (MQ)
+   {
+      mfem_error("Not yet implemented");
+      MQ->Eval(trial_fes,*ir,coeff);
+   }
+   else
+   {
+      coeff.SetSize(coeffDim);
+      coeff = 1.0;
    }
 
    testType = test_el->GetDerivType();

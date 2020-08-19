@@ -15,11 +15,83 @@
 
 #include <cmath>
 #include <limits>
+#include "../linalg/dtensor.hpp"
 
 namespace mfem
 {
 
 using namespace std;
+
+void Coefficient::Eval(const FiniteElementSpace &fes, const IntegrationRule &ir,
+                       Vector &qcoeff)
+{
+   const int ne = fes.GetMesh()->GetNE();
+   const int nq = ir.GetNPoints();
+   qcoeff.SetSize(nq * ne);
+   auto C = Reshape(qcoeff.HostWrite(), nq, ne);
+   for (int e = 0; e < ne; ++e)
+   {
+      ElementTransformation& T = *fes.GetElementTransformation(e);
+      for (int q = 0; q < nq; ++q)
+      {
+         C(q,e) = this->Eval(T, ir.IntPoint(q));
+      }
+   }
+}
+
+void Coefficient::Eval(const FiniteElementSpace &fes,
+                       const IntegrationRule &ir,
+                       const FaceType type,
+                       Vector &qcoeff)
+{
+   const int nf = fes.GetNFbyType(type);
+   const int nq = ir.GetNPoints();
+   const int dim = fes.GetMesh()->Dimension();
+   const int quad1D =
+      fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0))
+      ->GetDofToQuad(ir, DofToQuad::TENSOR).nqpt;
+   qcoeff.SetSize(nq * nf);
+   auto C = Reshape(qcoeff.HostWrite(), nq, nf);
+   int f_ind = 0;
+   for (int f = 0; f < fes.GetNF(); ++f)
+   {
+      int e1, e2;
+      int inf1, inf2;
+      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
+      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
+      int face_id = inf1 / 64;
+      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
+          (type==FaceType::Boundary && e2<0 && inf2<0) )
+      {
+         ElementTransformation& T = *fes.GetMesh()->GetFaceTransformation(f);
+         for (int q = 0; q < nq; ++q)
+         {
+            // Convert to lexicographic ordering
+            int iq = ToLexOrdering(dim, face_id, quad1D, q);
+            C(iq,f_ind) = Eval(T, ir.IntPoint(q));
+         }
+         f_ind++;
+      }
+   }
+   MFEM_VERIFY(f_ind==nf, "Incorrect number of faces.");
+}
+
+void ConstantCoefficient::Eval(const FiniteElementSpace &fes,
+                               const IntegrationRule &ir,
+                               Vector &qcoeff)
+{
+   qcoeff.SetSize(1);
+   qcoeff(0) = constant;
+}
+
+void ConstantCoefficient::Eval(const FiniteElementSpace &fes,
+                               const IntegrationRule &ir,
+                               const FaceType type,
+                               Vector &qcoeff)
+{
+   qcoeff.SetSize(1);
+   qcoeff(0) = constant;
+}
 
 double PWConstCoefficient::Eval(ElementTransformation & T,
                                 const IntegrationPoint & ip)
@@ -66,6 +138,39 @@ double TransformedCoefficient::Eval(ElementTransformation &T,
    }
 }
 
+void QuadratureFunctionCoefficient::Eval(const FiniteElementSpace &fes,
+                                         const IntegrationRule &ir,
+                                         Vector &qcoeff)
+{
+   const int ne = fes.GetMesh()->GetNE();
+   const int nq = ir.GetNPoints();
+   MFEM_VERIFY(QuadF.Size() == nq * ne,
+               "Incompatible QuadratureFunction dimension \n");
+
+   MFEM_VERIFY(&ir == &QuadF.GetSpace()->GetElementIntRule(0),
+               "IntegrationRule used within integrator and in"
+               " QuadratureFunction appear to be different");
+   QuadF.Read();
+   qcoeff.MakeRef(const_cast<QuadratureFunction &>(QuadF),0);
+}
+
+void QuadratureFunctionCoefficient::Eval(const FiniteElementSpace &fes,
+                                         const IntegrationRule &ir,
+                                         const FaceType type,
+                                         Vector &qcoeff)
+{
+   const int nf = fes.GetNFbyType(type);
+   const int nq = ir.GetNPoints();
+   MFEM_VERIFY(QuadF.Size() == nq * nf,
+               "Incompatible QuadratureFunction dimension \n");
+
+   MFEM_VERIFY(&ir == &QuadF.GetSpace()->GetElementIntRule(0),
+               "IntegrationRule used within integrator and in"
+               " QuadratureFunction appear to be different");
+   QuadF.Read();
+   qcoeff.MakeRef(const_cast<QuadratureFunction &>(QuadF),0);
+}
+
 void DeltaCoefficient::SetDeltaCenter(const Vector& vcenter)
 {
    MFEM_VERIFY(vcenter.Size() <= 3,
@@ -101,6 +206,95 @@ void VectorCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
    }
 }
 
+void VectorCoefficient::Eval(const FiniteElementSpace &fes,
+                             const IntegrationRule &ir,
+                             Vector &qcoeff)
+{
+   const int ne = fes.GetMesh()->GetNE();
+   const int nq = ir.GetNPoints();
+   qcoeff.SetSize(vdim * nq * ne);
+   auto C = Reshape(qcoeff.HostWrite(), vdim, nq, ne);
+   DenseMatrix M(vdim, nq);
+   for (int e = 0; e < ne; ++e)
+   {
+      ElementTransformation& T = *fes.GetElementTransformation(e);
+      Eval(M, T, ir);
+      for (int q = 0; q < nq; ++q)
+      {
+         for (int d = 0; d < vdim; d++)
+         {
+            C(d,q,e) = M(d,q);
+         }
+      }
+   }
+}
+
+void VectorCoefficient::Eval(const FiniteElementSpace &fes,
+                             const IntegrationRule &ir,
+                             const FaceType type,
+                             Vector &qcoeff)
+{
+   const int nf = fes.GetNFbyType(type);
+   const int nq = ir.GetNPoints();
+   const int dim = fes.GetMesh()->Dimension();
+   const int quad1D =
+      fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0))
+      ->GetDofToQuad(ir, DofToQuad::TENSOR).nqpt;
+   qcoeff.SetSize(dim * nq * nf);
+   auto C = Reshape(qcoeff.HostWrite(), dim, nq, nf);
+   Vector Vq(dim);
+   int f_ind = 0;
+   for (int f = 0; f < fes.GetNF(); ++f)
+   {
+      int e1, e2;
+      int inf1, inf2;
+      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
+      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
+      int face_id = inf1 / 64;
+      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
+          (type==FaceType::Boundary && e2<0 && inf2<0) )
+      {
+         ElementTransformation& T = *fes.GetMesh()->GetFaceTransformation(f);
+         for (int q = 0; q < nq; ++q)
+         {
+            // Convert to lexicographic ordering
+            int iq = ToLexOrdering(dim, face_id, quad1D, q);
+            Eval(Vq, T, ir.IntPoint(q));
+            for (int i = 0; i < dim; ++i)
+            {
+               C(i,iq,f_ind) = Vq(i);
+            }
+         }
+         f_ind++;
+      }
+   }
+   MFEM_VERIFY(f_ind==nf, "Incorrect number of faces.");
+}
+
+void VectorConstantCoefficient::Eval(const FiniteElementSpace &fes,
+                                     const IntegrationRule &ir,
+                                     Vector &qcoeff)
+{
+   qcoeff.SetSize(vdim);
+   for (int d = 0; d < vdim; d++)
+   {
+      qcoeff(d) = vec(d);
+   }
+}
+
+
+void VectorConstantCoefficient::Eval(const FiniteElementSpace &fes,
+                                     const IntegrationRule &ir,
+                                     const FaceType type,
+                                     Vector &qcoeff)
+{
+   qcoeff.SetSize(vdim);
+   for (int d = 0; d < vdim; d++)
+   {
+      qcoeff(d) = vec(d);
+   }
+}
+
 void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
                                      const IntegrationPoint &ip)
 {
@@ -122,6 +316,43 @@ void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
    {
       V *= Q->Eval(T, ip, GetTime());
    }
+}
+
+void VectorQuadratureFunctionCoefficient::Eval(const FiniteElementSpace &fes,
+                                               const IntegrationRule &ir,
+                                               Vector &qcoeff)
+{
+   const int ne = fes.GetMesh()->GetNE();
+   const int nq = ir.GetNPoints();
+   const int dim = fes.GetMesh()->Dimension();
+   MFEM_VERIFY(QuadF.Size() == dim * nq * ne,
+               "Incompatible QuadratureFunction dimension \n");
+
+   MFEM_VERIFY(&ir == &QuadF.GetSpace()->GetElementIntRule(0),
+               "IntegrationRule used within integrator and in"
+               " QuadratureFunction appear to be different");
+
+   QuadF.Read();
+   qcoeff.MakeRef(const_cast<QuadratureFunction &>(QuadF),0);
+}
+
+void VectorQuadratureFunctionCoefficient::Eval(const FiniteElementSpace &fes,
+                                               const IntegrationRule &ir,
+                                               const FaceType type,
+                                               Vector &qcoeff)
+{
+   const int nf = fes.GetNFbyType(type);
+   const int nq = ir.GetNPoints();
+   const int dim = fes.GetMesh()->Dimension();
+   // Assumed to be in lexicographical ordering
+   MFEM_VERIFY(QuadF.Size() == dim * nq * nf,
+               "Incompatible QuadratureFunction dimension \n");
+
+   MFEM_VERIFY(&ir == &QuadF.GetSpace()->GetElementIntRule(0),
+               "IntegrationRule used within integrator and in"
+               " QuadratureFunction appear to be different");
+   qcoeff.Read();
+   qcoeff.MakeRef(const_cast<QuadratureFunction &>(QuadF),0);
 }
 
 VectorArrayCoefficient::VectorArrayCoefficient (int dim)
@@ -316,6 +547,70 @@ void MatrixFunctionCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    if (Q)
    {
       K *= Q->Eval(T, ip, GetTime());
+   }
+}
+void MatrixCoefficient::Eval(const FiniteElementSpace &fes,
+                             const IntegrationRule &ir,
+                             Vector &qcoeff)
+{
+   if (!IsSymmetric())
+   {
+      const int ne = fes.GetMesh()->GetNE();
+      const int nq = ir.GetNPoints();
+      qcoeff.SetSize(height * width * nq * ne);
+      auto C = Reshape(qcoeff.HostWrite(), height, width, nq, ne);
+      DenseMatrix K(height, width);
+      for (int e = 0; e < ne; ++e)
+      {
+         ElementTransformation& T = *fes.GetElementTransformation(e);
+         for (int q = 0; q < nq; ++q)
+         {
+            Eval(K, T, ir.IntPoint(q));
+            for (int w = 0; w < width; w++)
+            {
+               for (int h = 0; h < height; h++)
+               {
+                  C(h,w,q,e) = K(h,w);
+               }
+            }
+         }
+      }
+   }
+   else
+   {
+      const int ne = fes.GetMesh()->GetNE();
+      const int nq = ir.GetNPoints();
+      const int symmDim = width*(width+1)/2;
+      qcoeff.SetSize(symmDim * nq * ne);
+      auto C = Reshape(qcoeff.HostWrite(), symmDim, nq, ne);
+      Vector K(symmDim);
+      for (int e = 0; e < ne; ++e)
+      {
+         ElementTransformation& T = *fes.GetElementTransformation(e);
+         for (int q = 0; q < nq; ++q)
+         {
+            EvalSymmetric(K, T, ir.IntPoint(q));
+            for (int c = 0; c < symmDim; c++)
+            {
+               C(c,q,e) = K(c);
+            }
+         }
+      }
+   }
+}
+
+void MatrixConstantCoefficient::Eval(const FiniteElementSpace &fes,
+                                     const IntegrationRule &ir,
+                                     Vector &qcoeff)
+{
+   qcoeff.SetSize(height * width);
+   auto C = Reshape(qcoeff.HostWrite(), height, width);
+   for (int w = 0; w < width; w++)
+   {
+      for (int h = 0; h < height; h++)
+      {
+         C(h,w) = mat(h,w);
+      }
    }
 }
 

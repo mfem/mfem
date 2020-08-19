@@ -42,7 +42,7 @@ class GridFunction;
 struct Refinement;
 
 /** An enum type to specify if interior or boundary faces are desired. */
-enum class FaceType : bool {Interior, Boundary};
+enum class FaceType {Interior, Boundary};
 
 #ifdef MFEM_USE_MPI
 class ParMesh;

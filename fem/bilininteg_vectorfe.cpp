@@ -215,13 +215,13 @@ void PAHcurlHdivSetup3D(const int Q1D,
          {
             // First compute entries of R = MJ
             const double M11 = (!symmetric) ? coeff(i11, q, e) : coeff(0, q, e);
-            const double M12 = (!symmetric) ? coeff(i12, q, e) : coeff(1, q, e);
-            const double M13 = (!symmetric) ? coeff(i13, q, e) : coeff(2, q, e);
-            const double M21 = (!symmetric) ? coeff(i21, q, e) : M12;
+            const double M21 = (!symmetric) ? coeff(i12, q, e) : coeff(1, q, e);
+            const double M31 = (!symmetric) ? coeff(i13, q, e) : coeff(2, q, e);
+            const double M12 = (!symmetric) ? coeff(i21, q, e) : M21;
             const double M22 = (!symmetric) ? coeff(i22, q, e) : coeff(3, q, e);
-            const double M23 = (!symmetric) ? coeff(i23, q, e) : coeff(4, q, e);
-            const double M31 = (!symmetric) ? coeff(i31, q, e) : M13;
-            const double M32 = (!symmetric) ? coeff(i32, q, e) : M23;
+            const double M32 = (!symmetric) ? coeff(i23, q, e) : coeff(4, q, e);
+            const double M13 = (!symmetric) ? coeff(i31, q, e) : M31;
+            const double M23 = (!symmetric) ? coeff(i32, q, e) : M32;
             const double M33 = (!symmetric) ? coeff(i33, q, e) : coeff(5, q, e);
 
             const double R11 = M11*J11 + M12*J12 + M13*J13;
@@ -303,8 +303,8 @@ void PAHcurlHdivSetup2D(const int Q1D,
          {
             // First compute entries of R = MJ
             const double M11 = coeff(i11, q, e);
-            const double M12 = (!symmetric) ? coeff(i12, q, e) : coeff(1, q, e);
-            const double M21 = (!symmetric) ? coeff(i21, q, e) : M12;
+            const double M21 = (!symmetric) ? coeff(i12, q, e) : coeff(1, q, e);
+            const double M12 = (!symmetric) ? coeff(i21, q, e) : M21;
             const double M22 = (!symmetric) ? coeff(i22, q, e) : coeff(2, q, e);
 
             const double R11 = M11*J11 + M12*J21;
@@ -758,77 +758,23 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
       pa_data.SetSize((symmetric ? symmDims : MQfullDim) * nq * ne,
                       Device::GetMemoryType());
 
-   Vector coeff(coeffDim * ne * nq);
-   coeff = 1.0;
-   auto coeffh = Reshape(coeff.HostWrite(), coeffDim, nq, ne);
-   if (Q || VQ || MQ)
+   Vector coeff;
+   if (Q)
    {
-      Vector D(VQ ? coeffDim : 0);
-      DenseMatrix M;
-      Vector Msymm;
-      if (MQ)
-      {
-         if (symmetric)
-         {
-            Msymm.SetSize(MQsymmDim);
-         }
-         else
-         {
-            M.SetSize(dim);
-         }
-      }
-
-      if (VQ)
-      {
-         MFEM_VERIFY(coeffDim == dim, "");
-      }
-      if (MQ)
-      {
-         MFEM_VERIFY(coeffDim == MQdim, "");
-         MFEM_VERIFY(MQ->GetHeight() == dim && MQ->GetWidth() == dim, "");
-      }
-
-      for (int e=0; e<ne; ++e)
-      {
-         ElementTransformation *tr = mesh->GetElementTransformation(e);
-         for (int p=0; p<nq; ++p)
-         {
-            if (MQ)
-            {
-               if (MQ->IsSymmetric())
-               {
-                  MQ->EvalSymmetric(Msymm, *tr, ir->IntPoint(p));
-
-                  for (int i=0; i<MQsymmDim; ++i)
-                  {
-                     coeffh(i, p, e) = Msymm[i];
-                  }
-               }
-               else
-               {
-                  MQ->Eval(M, *tr, ir->IntPoint(p));
-
-                  for (int i=0; i<dim; ++i)
-                     for (int j=0; j<dim; ++j)
-                     {
-                        coeffh(j+(i*dim), p, e) = M(i,j);
-                     }
-               }
-            }
-            else if (VQ)
-            {
-               VQ->Eval(D, *tr, ir->IntPoint(p));
-               for (int i=0; i<coeffDim; ++i)
-               {
-                  coeffh(i, p, e) = D[i];
-               }
-            }
-            else
-            {
-               coeffh(0, p, e) = Q->Eval(*tr, ir->IntPoint(p));
-            }
-         }
-      }
+      Q->Eval(trial_fes,*ir,coeff);
+   }
+   else if (VQ)
+   {
+      VQ->Eval(trial_fes,*ir,coeff);
+   }
+   else if (MQ)
+   {
+      MQ->Eval(trial_fes,*ir,coeff);
+   }
+   else
+   {
+      coeff.SetSize(1);
+      coeff(0) = 1.0;
    }
 
    if (trial_curl && test_curl && dim == 3)
@@ -1020,18 +966,30 @@ void MixedVectorGradientIntegrator::AssemblePA(const FiniteElementSpace
 
    pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
 
-   Vector coeff(ne * nq);
-   coeff = 1.0;
+   Vector coeff;
    if (Q)
    {
-      for (int e=0; e<ne; ++e)
-      {
-         ElementTransformation *tr = mesh->GetElementTransformation(e);
-         for (int p=0; p<nq; ++p)
-         {
-            coeff[p + (e * nq)] = Q->Eval(*tr, ir->IntPoint(p));
-         }
-      }
+      Q->Eval(trial_fes,*ir,coeff);
+   }
+   else if (VQ)
+   {
+      mfem_error("Not yet implemented.");
+      VQ->Eval(trial_fes,*ir,coeff);
+   }
+   else if (DQ)
+   {
+      mfem_error("Not yet implemented.");
+      DQ->Eval(trial_fes,*ir,coeff);
+   }
+   else if (MQ)
+   {
+      mfem_error("Not yet implemented.");
+      MQ->Eval(trial_fes,*ir,coeff);
+   }
+   else
+   {
+      coeff.SetSize(1);
+      coeff(0) = 1.0;
    }
 
    // Use the same setup functions as VectorFEMassIntegrator.

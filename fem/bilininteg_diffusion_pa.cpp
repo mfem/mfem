@@ -97,9 +97,9 @@ void PADiffusionSetup2D<2>(const int Q1D,
                            Vector &d)
 {
    const int NQ = Q1D*Q1D;
-   const bool const_c = c.Size() == 1;
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
+   const bool const_c = c.Size() == 1;
    auto C = const_c ? Reshape(c.Read(), 1, 1) : Reshape(c.Read(), NQ, NE);
    auto D = Reshape(d.Write(), NQ, 3, NE);
 
@@ -132,10 +132,9 @@ void PADiffusionSetup2D<3>(const int Q1D,
    constexpr int DIM = 2;
    constexpr int SDIM = 3;
    const int NQ = Q1D*Q1D;
-   const bool const_c = c.Size() == 1;
-
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, SDIM, DIM, NE);
+   const bool const_c = c.Size() == 1;
    auto C = const_c ? Reshape(c.Read(), 1, 1) : Reshape(c.Read(), NQ, NE);
    auto D = Reshape(d.Write(), NQ, 3, NE);
    MFEM_FORALL(e, NE,
@@ -171,9 +170,9 @@ static void PADiffusionSetup3D(const int Q1D,
                                Vector &d)
 {
    const int NQ = Q1D*Q1D*Q1D;
-   const bool const_c = c.Size() == 1;
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
+   const bool const_c = c.Size() == 1;
    auto C = const_c ? Reshape(c.Read(), 1, 1) : Reshape(c.Read(), NQ, NE);
    auto D = Reshape(d.Write(), NQ, 6, NE);
    MFEM_FORALL(e, NE,
@@ -283,41 +282,19 @@ void DiffusionIntegrator::SetupPA(const FiniteElementSpace &fes)
    quad1D = maps->nqpt;
    pa_data.SetSize(symmDims * nq * ne, Device::GetDeviceMemoryType());
    Vector coeff;
-   if (Q == nullptr)
+   if (Q)
    {
-      coeff.SetSize(1);
-      coeff(0) = 1.0;
+      Q->Eval(fes,*ir,coeff);
    }
-   else if (ConstantCoefficient* cQ = dynamic_cast<ConstantCoefficient*>(Q))
+   else if (MQ)
    {
-      coeff.SetSize(1);
-      coeff(0) = cQ->constant;
-   }
-   else if (QuadratureFunctionCoefficient* cQ =
-               dynamic_cast<QuadratureFunctionCoefficient*>(Q))
-   {
-      const QuadratureFunction &qFun = cQ->GetQuadFunction();
-      MFEM_VERIFY(qFun.Size() == ne*nq,
-                  "Incompatible QuadratureFunction dimension \n");
-
-      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
-                  "IntegrationRule used within integrator and in"
-                  " QuadratureFunction appear to be different");
-      qFun.Read();
-      coeff.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
+      mfem_error("Not yet implemented");
+      MQ->Eval(fes,*ir,coeff);
    }
    else
    {
-      coeff.SetSize(nq * ne);
-      auto C = Reshape(coeff.HostWrite(), nq, ne);
-      for (int e = 0; e < ne; ++e)
-      {
-         ElementTransformation& T = *fes.GetElementTransformation(e);
-         for (int q = 0; q < nq; ++q)
-         {
-            C(q,e) = Q->Eval(T, ir->IntPoint(q));
-         }
-      }
+      coeff.SetSize(1);
+      coeff(0) = 1.0;
    }
    PADiffusionSetup(dim, sdim, dofs1D, quad1D, ne, ir->GetWeights(), geom->J,
                     coeff, pa_data);
