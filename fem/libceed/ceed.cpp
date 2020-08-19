@@ -251,15 +251,6 @@ static void InitCeedNonTensorRestriction(const FiniteElementSpace &fes,
                              tp_el_dof.GetData(), restr);
 }
 
-static void InitCeedNonTensorBasisAndRestriction(const FiniteElementSpace &fes,
-                                                 const IntegrationRule &ir,
-                                                 Ceed ceed, CeedBasis *basis,
-                                                 CeedElemRestriction *restr)
-{
-   InitCeedNonTensorBasis(fes, ir, ceed, basis);
-   InitCeedNonTensorRestriction(fes, ir, ceed, restr);
-}
-
 static void InitCeedTensorBasis(const FiniteElementSpace &fes,
                                 const IntegrationRule &ir,
                                 Ceed ceed, CeedBasis *basis)
@@ -346,15 +337,6 @@ static void InitCeedTensorRestriction(const FiniteElementSpace &fes,
                              compstride, (fes.GetVDim())*(fes.GetNDofs()),
                              CEED_MEM_HOST, CEED_COPY_VALUES,
                              tp_el_dof.GetData(), restr);
-}
-
-static void InitCeedTensorBasisAndRestriction(const FiniteElementSpace &fes,
-                                              const IntegrationRule &ir,
-                                              Ceed ceed, CeedBasis *basis,
-                                              CeedElemRestriction *restr)
-{
-   InitCeedTensorBasis(fes, ir, ceed, basis);
-   InitCeedTensorRestriction(fes, ir, ceed, restr);
 }
 
 void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
