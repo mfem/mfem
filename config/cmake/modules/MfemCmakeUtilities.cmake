@@ -128,7 +128,15 @@ function(add_mfem_miniapp MFEM_EXE_NAME)
   if (MFEM_USE_CUDA)
     set_property(SOURCE ${MAIN_LIST} ${EXTRA_SOURCES_LIST}
       PROPERTY LANGUAGE CUDA)
-    list(TRANSFORM EXTRA_OPTIONS_LIST PREPEND "-Xcompiler=")
+    if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.12.0)
+      list(TRANSFORM EXTRA_OPTIONS_LIST PREPEND "-Xcompiler=")
+    else()
+      set(LIST_)
+      foreach(item IN LISTS EXTRA_OPTIONS_LIST)
+        list(APPEND LIST_ "-Xcompiler=${item}")
+      endforeach()
+      set(EXTRA_OPTIONS_LIST ${LIST_})
+    endif()
   endif()
 
   # Actually add the executable
