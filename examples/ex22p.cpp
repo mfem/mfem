@@ -167,7 +167,7 @@ int main(int argc, char *argv[])
    // 3. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
-   device.Print();
+   if (myid == 0) { device.Print(); }
 
    // 4. Read the (serial) mesh from the given mesh file on all processors. We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
