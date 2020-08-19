@@ -32,7 +32,7 @@ class Coefficient;
 
 // Hash table for CeedBasis
 using CeedBasisKey =
-   std::tuple<FiniteElementSpace*, IntegrationRule*, int, int>;
+   std::tuple<const FiniteElementSpace*, const IntegrationRule*, int, int>;
 struct CeedBasisHash
 {
    std::size_t operator()(const CeedBasisKey& k) const
@@ -49,7 +49,7 @@ using CeedBasisMap =
    std::unordered_map<const CeedBasisKey, CeedBasis, CeedBasisHash>;
 
 // Hash table for CeedElemRestriction
-using CeedRestrKey = std::tuple<FiniteElementSpace*, int, int>;
+using CeedRestrKey = std::tuple<const FiniteElementSpace*, int, int>;
 struct CeedRestrHash
 {
    std::size_t operator()(const CeedRestrKey& k) const
