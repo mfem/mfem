@@ -237,7 +237,10 @@ int main(int argc, char *argv[])
                   "Use user-defined preconditioner factory (PCSHELL).");
    args.AddOption(&petscrc_file, "-petscopts", "--petscopts",
                   "PetscOptions file to use.");
+   args.AddOption(&iUpdateJ, "-updatej", "--update-j",
+                  "UpdateJ: 0 - no boundary condition used; 1 - Dirichlet used on J boundary.");
    args.Parse();
+
    if (!args.Good())
    {
       if (myid == 0)
@@ -522,8 +525,8 @@ int main(int argc, char *argv[])
    else if (icase==4)
        jptr=&jInit4;
    j.ProjectCoefficient(*jptr);
-   oper.SetInitialJ(*jptr);
    j.SetTrueVector();
+   oper.SetInitialJ(*jptr);
 
    //-----------------------------------AMR for the real computation---------------------------------
    BlockZZEstimator estimator(*integ, psi, *integ, j, flux_fespace1, flux_fespace2);
@@ -680,7 +683,7 @@ int main(int argc, char *argv[])
           psi.SetFromTrueDofs(vx.GetBlock(1));
       }
 
-      if (myid == 0 && (ti % 5)==0)
+      if (myid == 0)
       {
           global_size = fespace.GlobalTrueVSize();
           cout << "Number of total scalar unknowns: " << global_size << endl;
@@ -707,6 +710,8 @@ int main(int argc, char *argv[])
 
             //---assemble problem and update boundary condition---
             oper.UpdateProblem(ess_bdr); 
+            oper.SetInitialJ(*jptr);    //somehow I need to reset the current bounary
+
             ode_solver->Init(oper);
          }
          else //mesh is not refined or derefined
@@ -759,6 +764,7 @@ int main(int argc, char *argv[])
          AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j);
          oper.UpdateGridFunction();
 
+
          pmesh->Rebalance();
 
          //---Update problem after rebalancing---
@@ -767,6 +773,8 @@ int main(int argc, char *argv[])
 
          //---assemble problem and update boundary condition---
          oper.UpdateProblem(ess_bdr); 
+         oper.SetInitialJ(*jptr);
+
          ode_solver->Init(oper);
 
      }

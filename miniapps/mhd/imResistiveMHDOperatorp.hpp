@@ -319,6 +319,7 @@ public:
    void UpdateGridFunction()
    {
       j.Update(); 
+      gftmp.Update();
       //DSl and DRe contains ParGridFunctions that need to be updated
       DSl.Update();    
       DSl.Assemble();
@@ -553,6 +554,8 @@ void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr)
    z2.SetSize(sc);
    z3.SetSize(sc);
    J.SetSize(sc);
+   zFull.SetSize(scFull);
+
    zLF.Update();
 
    //mass matrix
@@ -717,7 +720,7 @@ void ResistiveMHDOperator::SetInitialJ(FunctionCoefficient initJ)
     j.SetTrueVector();
     j.SetFromTrueVector();
 
-    //add current to reduced_oper (this is not needed any more)
+    //add current to reduced_oper 
     if (reduced_oper!=NULL)
         reduced_oper->setCurrent(&j);
 }

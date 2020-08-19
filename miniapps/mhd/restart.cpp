@@ -553,28 +553,18 @@ int main(int argc, char *argv[])
    double end = MPI_Wtime();
 
    //++++++Save the solutions.
-   if(false)
+   if(true)
    {
       phi->SetFromTrueDofs(vx.GetBlock(0));
       psi->SetFromTrueDofs(vx.GetBlock(1));
         w->SetFromTrueDofs(vx.GetBlock(2));
       oper.UpdateJ(vx, &j);
 
-      ostringstream mesh_name, mesh_save, phi_name, psi_name, w_name,j_name;
-      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
-      mesh_save << "ncmesh." << setfill('0') << setw(6) << myid;
-      phi_name << "sol_phi." << setfill('0') << setw(6) << myid;
-      psi_name << "sol_psi." << setfill('0') << setw(6) << myid;
-      w_name << "sol_omega." << setfill('0') << setw(6) << myid;
+      ostringstream phi_name, psi_name, w_name,j_name;
+      phi_name << "sol_phirs." << setfill('0') << setw(6) << myid;
+      psi_name << "sol_psirs." << setfill('0') << setw(6) << myid;
+      w_name << "sol_omegars." << setfill('0') << setw(6) << myid;
       j_name << "sol_j." << setfill('0') << setw(6) << myid;
-
-      ofstream omesh(mesh_name.str().c_str());
-      omesh.precision(8);
-      pmesh->Print(omesh);
-
-      ofstream ncmesh(mesh_save.str().c_str());
-      ncmesh.precision(16);
-      pmesh->ParPrint(ncmesh);
 
       ofstream osol(phi_name.str().c_str());
       osol.precision(16);
@@ -591,9 +581,6 @@ int main(int argc, char *argv[])
       ofstream osol5(j_name.str().c_str());
       osol5.precision(8);
       j.Save(osol5);
-
-      //output gftmp for debugging
-      //oper.outputgf();
 
       //output v1 and v2 for a comparision
       ParGridFunction v1(&fespace), v2(&fespace);
