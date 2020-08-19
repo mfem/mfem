@@ -96,26 +96,28 @@ void PADiffusionSetup2D<2>(const int Q1D,
                            const Vector &c,
                            Vector &d)
 {
-   const int NQ = Q1D*Q1D;
    const bool const_c = c.Size() == 1;
-   auto W = w.Read();
-   auto J = Reshape(j.Read(), NQ, 2, 2, NE);
-   auto C = const_c ? Reshape(c.Read(), 1, 1) : Reshape(c.Read(), NQ, NE);
-   auto D = Reshape(d.Write(), NQ, 3, NE);
-
-   MFEM_FORALL(e, NE,
+   const auto W = Reshape(w.Read(), Q1D,Q1D);
+   const auto J = Reshape(j.Read(), Q1D,Q1D,2,2,NE);
+   const auto C = const_c ? Reshape(c.Read(), 1,1,1) :
+                  Reshape(c.Read(), Q1D,Q1D,NE);
+   auto D = Reshape(d.Write(), Q1D,Q1D, 3, NE);
+   MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
    {
-      for (int q = 0; q < NQ; ++q)
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
-         const double J11 = J(q,0,0,e);
-         const double J21 = J(q,1,0,e);
-         const double J12 = J(q,0,1,e);
-         const double J22 = J(q,1,1,e);
-         const double coeff = const_c ? C(0,0) : C(q,e);
-         const double c_detJ = W[q] * coeff / ((J11*J22)-(J21*J12));
-         D(q,0,e) =  c_detJ * (J12*J12 + J22*J22); // 1,1
-         D(q,1,e) = -c_detJ * (J12*J11 + J22*J21); // 1,2
-         D(q,2,e) =  c_detJ * (J11*J11 + J21*J21); // 2,2
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            const double J11 = J(qx,qy,0,0,e);
+            const double J21 = J(qx,qy,1,0,e);
+            const double J12 = J(qx,qy,0,1,e);
+            const double J22 = J(qx,qy,1,1,e);
+            const double coeff = const_c ? C(0,0,0) : C(qx,qy,e);
+            const double c_detJ = W(qx,qy) * coeff / ((J11*J22)-(J21*J12));
+            D(qx,qy,0,e) =  c_detJ * (J12*J12 + J22*J22); // 1,1
+            D(qx,qy,1,e) = -c_detJ * (J12*J11 + J22*J21); // 1,2
+            D(qx,qy,2,e) =  c_detJ * (J11*J11 + J21*J21); // 2,2
+         }
       }
    });
 }
@@ -131,33 +133,35 @@ void PADiffusionSetup2D<3>(const int Q1D,
 {
    constexpr int DIM = 2;
    constexpr int SDIM = 3;
-   const int NQ = Q1D*Q1D;
    const bool const_c = c.Size() == 1;
-
-   auto W = w.Read();
-   auto J = Reshape(j.Read(), NQ, SDIM, DIM, NE);
-   auto C = const_c ? Reshape(c.Read(), 1, 1) : Reshape(c.Read(), NQ, NE);
-   auto D = Reshape(d.Write(), NQ, 3, NE);
-   MFEM_FORALL(e, NE,
+   const auto W = Reshape(w.Read(), Q1D,Q1D);
+   const auto J = Reshape(j.Read(), Q1D,Q1D,SDIM,DIM,NE);
+   const auto C = const_c ? Reshape(c.Read(), 1,1,1) :
+                  Reshape(c.Read(), Q1D,Q1D,NE);
+   auto D = Reshape(d.Write(), Q1D,Q1D, 3, NE);
+   MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
    {
-      for (int q = 0; q < NQ; ++q)
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
-         const double wq = W[q];
-         const double J11 = J(q,0,0,e);
-         const double J21 = J(q,1,0,e);
-         const double J31 = J(q,2,0,e);
-         const double J12 = J(q,0,1,e);
-         const double J22 = J(q,1,1,e);
-         const double J32 = J(q,2,1,e);
-         const double E = J11*J11 + J21*J21 + J31*J31;
-         const double G = J12*J12 + J22*J22 + J32*J32;
-         const double F = J11*J12 + J21*J22 + J31*J32;
-         const double iw = 1.0 / sqrt(E*G - F*F);
-         const double coeff = const_c ? C(0,0) : C(q,e);
-         const double alpha = wq * coeff * iw;
-         D(q,0,e) =  alpha * G; // 1,1
-         D(q,1,e) = -alpha * F; // 1,2
-         D(q,2,e) =  alpha * E; // 2,2
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            const double wq = W(qx,qy);
+            const double J11 = J(qx,qy,0,0,e);
+            const double J21 = J(qx,qy,1,0,e);
+            const double J31 = J(qx,qy,2,0,e);
+            const double J12 = J(qx,qy,0,1,e);
+            const double J22 = J(qx,qy,1,1,e);
+            const double J32 = J(qx,qy,2,1,e);
+            const double E = J11*J11 + J21*J21 + J31*J31;
+            const double G = J12*J12 + J22*J22 + J32*J32;
+            const double F = J11*J12 + J21*J22 + J31*J32;
+            const double iw = 1.0 / sqrt(E*G - F*F);
+            const double coeff = const_c ? C(0,0,0) : C(qx,qy,e);
+            const double alpha = wq * coeff * iw;
+            D(qx,qy,0,e) =  alpha * G; // 1,1
+            D(qx,qy,1,e) = -alpha * F; // 1,2
+            D(qx,qy,2,e) =  alpha * E; // 2,2
+         }
       }
    });
 }

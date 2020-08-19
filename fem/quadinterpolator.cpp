@@ -66,6 +66,7 @@ void QuadratureInterpolator::Mult2D(const int NE,
    const int nq = maps.nqpt;
    const int ND = T_ND ? T_ND : nd;
    const int NQ = T_NQ ? T_NQ : nq;
+   const int NMAX = NQ > ND ? NQ : ND;
    const int VDIM = T_VDIM ? T_VDIM : vdim;
    MFEM_VERIFY(ND <= MAX_ND2D, "");
    MFEM_VERIFY(NQ <= MAX_NQ2D, "");
@@ -82,22 +83,24 @@ void QuadratureInterpolator::Mult2D(const int NE,
               Reshape(q_der.Write(), NQ, VDIM, 2, NE):
               Reshape(q_der.Write(), VDIM, 2, NQ, NE);
    auto det = Reshape(q_det.Write(), NQ, NE);
-   MFEM_FORALL(e, NE,
+   MFEM_FORALL_2D(e, NE, NMAX, 1, 1,
    {
       const int ND = T_ND ? T_ND : nd;
       const int NQ = T_NQ ? T_NQ : nq;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
       constexpr int max_ND = T_ND ? T_ND : MAX_ND2D;
       constexpr int max_VDIM = T_VDIM ? T_VDIM : MAX_VDIM2D;
-      double s_E[max_VDIM*max_ND];
-      for (int d = 0; d < ND; d++)
+      MFEM_SHARED double s_E[max_VDIM*max_ND];
+      MFEM_FOREACH_THREAD(d, x, ND)
       {
          for (int c = 0; c < VDIM; c++)
          {
             s_E[c+d*VDIM] = E(d,c,e);
          }
       }
-      for (int q = 0; q < NQ; ++q)
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD(q, x, NQ)
       {
          if (eval_flags & VALUES)
          {
@@ -202,6 +205,7 @@ void QuadratureInterpolator::Mult3D(const int NE,
    const int nq = maps.nqpt;
    const int ND = T_ND ? T_ND : nd;
    const int NQ = T_NQ ? T_NQ : nq;
+   const int NMAX = NQ > ND ? NQ : ND;
    const int VDIM = T_VDIM ? T_VDIM : vdim;
    MFEM_VERIFY(ND <= MAX_ND3D, "");
    MFEM_VERIFY(NQ <= MAX_NQ3D, "");
@@ -218,22 +222,24 @@ void QuadratureInterpolator::Mult3D(const int NE,
               Reshape(q_der.Write(), NQ, VDIM, 3, NE):
               Reshape(q_der.Write(), VDIM, 3, NQ, NE);
    auto det = Reshape(q_det.Write(), NQ, NE);
-   MFEM_FORALL(e, NE,
+   MFEM_FORALL_2D(e, NE, NMAX, 1, 1,
    {
       const int ND = T_ND ? T_ND : nd;
       const int NQ = T_NQ ? T_NQ : nq;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
       constexpr int max_ND = T_ND ? T_ND : MAX_ND3D;
       constexpr int max_VDIM = T_VDIM ? T_VDIM : MAX_VDIM3D;
-      double s_E[max_VDIM*max_ND];
-      for (int d = 0; d < ND; d++)
+      MFEM_SHARED double s_E[max_VDIM*max_ND];
+      MFEM_FOREACH_THREAD(d, x, ND)
       {
          for (int c = 0; c < VDIM; c++)
          {
             s_E[c+d*VDIM] = E(d,c,e);
          }
       }
-      for (int q = 0; q < NQ; ++q)
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD(q, x, NQ)
       {
          if (eval_flags & VALUES)
          {
