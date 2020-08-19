@@ -62,12 +62,40 @@ const Tensor<dTensor<VDIM,VDIM>,D>&& ReadMatrix(const DeviceTensor<4> &e_vec,
 {
    Tensor<dTensor<VDIM,VDIM>,D> u;
    for (int w = 0; w < VDIM; w++)
-   {   
+   {
       for (int h = 0; h < VDIM; h++)
       {
          MFEM_FOREACH_THREAD(d,x,D)
          {
             u(d)(h,w) = e_vec(d, h, w, e);
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   return std::move(u);
+}
+
+// Non-tensor and 1D read with VDIMxVDIM components
+template<int D, int VDIM> MFEM_HOST_DEVICE inline
+const Tensor<dTensor<VDIM,VDIM>,D>&& ReadSymmMatrix(const DeviceTensor<3,const double> &e_vec,
+                                                    const int e)
+{
+   Tensor<dTensor<VDIM,VDIM>,D> u;
+   for (int i = 0; i < VDIM*(VDIM+1)/2; i++)
+   {
+      const int h = i/VDIM;
+      const int w = i%VDIM;
+      MFEM_FOREACH_THREAD(d,x,D)
+      {
+         const double val = e_vec(d, i, e);
+         if (h!=w)
+         {
+            u(d)(h,w) = val;
+            u(d)(w,h) = val;
+         }
+         else
+         {
+            u(d)(h,w) = val;
          }
       }
    }
@@ -101,6 +129,40 @@ const Tensor<dTensor<VDIM,VDIM>,D1d,D1d,D1d>&& ReadMatrix(const DeviceTensor<6> 
    return std::move(u);
 }
 
+// 3D tensor read with VDIMxVDIM components
+template<int D1d, int VDIM> MFEM_HOST_DEVICE inline
+const Tensor<dTensor<VDIM,VDIM>,D1d,D1d,D1d>&& ReadSymmMatrix(const DeviceTensor<5,const double> &e_vec,
+                                                              const int e)
+{
+   Tensor<dTensor<VDIM,VDIM>,D1d,D1d,D1d> u;
+   for (int i = 0; i < VDIM*(VDIM+1)/2; i++)
+   {
+      const int h = i/VDIM;
+      const int w = i%VDIM;
+      MFEM_FOREACH_THREAD(dz,z,D1d)
+      {
+         MFEM_FOREACH_THREAD(dy,y,D1d)
+         {
+            MFEM_FOREACH_THREAD(dx,x,D1d)
+            {
+               const double val = e_vec(dx, dy, dz, i, e);
+               if (h!=w)
+               {
+                  u(dx,dy,dz)(h,w) = val;
+                  u(dx,dy,dz)(w,h) = val;
+               }
+               else
+               {
+                  u(dx,dy,dz)(h,w) = val;
+               }
+            }
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   return std::move(u);
+}
+
 // 2D tensor read with VDIMxVDIM components
 template <int D1d, int VDIM> MFEM_HOST_DEVICE inline
 const Tensor<dTensor<VDIM,VDIM>,D1d,D1d>&& ReadMatrix(const DeviceTensor<5> &e_vec,
@@ -116,6 +178,37 @@ const Tensor<dTensor<VDIM,VDIM>,D1d,D1d>&& ReadMatrix(const DeviceTensor<5> &e_v
             MFEM_FOREACH_THREAD(dx,x,D1d)
             {
                u(dx,dy)(h,w) = e_vec(dx,dy,h,w,e);
+            }
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   return std::move(u);
+}
+
+// 2D read with VDIMxVDIM components
+template<int D1d, int VDIM> MFEM_HOST_DEVICE inline
+const Tensor<dTensor<VDIM,VDIM>,D1d,D1d>&& ReadSymmMatrix(const DeviceTensor<4,const double> &e_vec,
+                                                              const int e)
+{
+   Tensor<dTensor<VDIM,VDIM>,D1d,D1d> u;
+   for (int i = 0; i < VDIM*(VDIM+1)/2; i++)
+   {
+      const int h = i/VDIM;
+      const int w = i%VDIM;
+      MFEM_FOREACH_THREAD(dy,y,D1d)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1d)
+         {
+            const double val = e_vec(dx, dy, i, e);
+            if (h!=w)
+            {
+               u(dx,dy)(h,w) = val;
+               u(dx,dy)(w,h) = val;
+            }
+            else
+            {
+               u(dx,dy)(h,w) = val;
             }
          }
       }
