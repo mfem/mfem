@@ -15,5 +15,8 @@
 #   - CALIPER_INCLUDE_DIRS
 
 include(MfemCmakeUtilities)
-mfem_find_package(Caliper CALIPER CALIPER_DIR "include" "caliper/cali.h" "lib" "caliper"
-  "Paths to headers required by Caliper." "Libraries required by Caliper.")
+mfem_find_package(Caliper CALIPER CALIPER_DIR
+       	"include" "caliper/cali.h"
+       	"lib" "caliper"
+  	"Paths to headers required by Caliper."
+       	"Libraries required by Caliper.")
