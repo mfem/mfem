@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#define MFEM_DEBUG_COLOR 46
-#include "debug.hpp"
+//#define MFEM_DEBUG_COLOR 46
+//#include "debug.hpp"
 
 #include "forall.hpp"
 #include "mem_manager.hpp"
@@ -68,9 +68,12 @@ MemoryType GetMemoryType(MemoryClass mc)
 // We want to keep this pairs, as it is checked in MFEM_VERIFY_TYPES
 MemoryType MemoryManager::GetDualMemoryType_(MemoryType mt)
 {
+   static const bool pool = device_mem_type == MemoryType::DEVICE_POOL;
    switch (mt)
    {
-      case MemoryType::HOST:           return MemoryType::DEVICE;
+      //#warning HOST / GetHostMemoryType
+      case MemoryType::HOST:
+         return pool ? MemoryType::DEVICE_POOL : MemoryType::DEVICE;
       case MemoryType::HOST_32:        return MemoryType::DEVICE;
       case MemoryType::HOST_64:        return MemoryType::DEVICE;
       case MemoryType::HOST_POOL:      return MemoryType::DEVICE_POOL;
@@ -99,6 +102,7 @@ static void MFEM_VERIFY_TYPES(const MemoryType h_mt, const MemoryType d_mt)
        d_mt == MemoryType::DEVICE_DEBUG_POOL) ||
       (h_mt == MemoryType::HOST_DEBUG && d_mt == MemoryType::DEVICE_DEBUG) ||
       (h_mt == MemoryType::HOST_POOL && d_mt == MemoryType::DEVICE_POOL) ||
+      (h_mt == MemoryType::HOST && d_mt == MemoryType::DEVICE_POOL) ||
       (h_mt == MemoryType::HOST_POOL && d_mt == MemoryType::DEVICE) ||
       (h_mt == MemoryType::MANAGED && d_mt == MemoryType::MANAGED) ||
       (h_mt == MemoryType::HOST_64 && d_mt == MemoryType::DEVICE) ||
@@ -276,16 +280,15 @@ template <typename MS> class Pool
       };
 
       const MS &MemSpace;
-      const size_t pages, asize;
-      const uintptr_t PAGE_SIZE;
+      const size_t pages, asize, psize;
       std::unique_ptr<Arena> arena;
       Block *next;
       using ptrs_t = std::pair<Bucket*, Block*>;
       using PointersMap = std::unordered_map<uintptr_t const*, ptrs_t>;
 
    public:
-      Bucket(const MS &ms, size_t pages, size_t asize, size_t PS):
-         MemSpace(ms), pages(pages), asize(asize), PAGE_SIZE(PS),
+      Bucket(const MS &ms, size_t pages, size_t asize, size_t psize):
+         MemSpace(ms), pages(pages), asize(asize), psize(psize),
          arena(new Arena(ms, asize)), next(arena->Next()) { }
 
       /// Allocate bytes from these blocks
@@ -307,8 +310,7 @@ template <typename MS> class Pool
          {
             // Update metadata
             block->pages = pages;
-            //block->ptr = MemSpace.Alloc(pages*PAGE_SIZE);
-            MemSpace.Alloc((void**)&block->ptr, pages*PAGE_SIZE);
+            MemSpace.Alloc((void**)&block->ptr, pages*psize);
             map.emplace(block->ptr, std::make_pair(this, block));
          }
          block->bytes = bytes;
@@ -333,11 +335,14 @@ template <typename MS> class Pool
    PointersMap map;
 
 public:
-   Pool(size_t asize = 32): asize(asize), psize(sysconf(_SC_PAGE_SIZE)) { }
+   Pool(size_t asize = 32): asize(asize),
+      //psize(sysconf(_SC_PAGE_SIZE))
+      psize(0x10000)
+   { }
 
    uintptr_t PageSize() const { return psize; }
 
-   void *alloc(size_t bytes)
+   inline void *alloc(size_t bytes)
    {
       // number of pages needed for this amount of bytes
       const size_t pages = 1 + bytes / psize;
@@ -345,7 +350,7 @@ public:
       // If not already in the bucket map, add it
       if (blk_i == Buckets.end())
       {
-         auto res = Buckets.emplace(pages,Bucket(ms, pages, asize, psize));
+         auto res = Buckets.emplace(pages, Bucket(ms, pages, asize, psize));
          blk_i = Buckets.find(pages);
          MFEM_ASSERT(res.second, "");
          MFEM_ASSERT(blk_i != Buckets.end(), "");
@@ -356,7 +361,7 @@ public:
       return bucket.alloc(bytes, map);
    }
 
-   void free(void *ptr)
+   inline void free(void *ptr)
    {
       // From the input pointer, get back the block & bucket addresses
       const uintptr_t *uintptr = reinterpret_cast<uintptr_t*>(ptr);
@@ -636,16 +641,16 @@ public:
    void Alloc(void **d_ptr, size_t bytes) const
    {
       CuMemAlloc(d_ptr, bytes);
-      dbg("d_ptr: %p, bytes: 0x%x", d_ptr, bytes);
    }
    void Alloc(Memory &base) const
    {
-      dbg("base.d_ptr: %p, bytes: 0x%x", base.d_ptr, base.bytes);
       CuMemAlloc(&base.d_ptr, base.bytes);
-      dbg("base.d_ptr: %p, bytes: 0x%x", base.d_ptr, base.bytes);
    }
    void Dealloc(Memory &base) const { CuMemFree(base.d_ptr); }
-   void Dealloc(void *d_ptr, size_t bytes = 0) const { MFEM_ABORT(""); }
+   void Dealloc(void *d_ptr, size_t bytes = 0) const
+   {
+      CuMemFree(d_ptr);
+   }
    void *HtoD(void *dst, const void *src, size_t bytes) const
    { return CuMemcpyHtoD(dst, src, bytes); }
    void *DtoD(void* dst, const void* src, size_t bytes) const

@@ -331,7 +331,7 @@ void Device::UpdateMemoryTypeAndClass()
    // Enable the DEVICE Pool shortcut when requested
    if (device && device_option && !strcmp(device_option, "pool"))
    {
-      host_mem_type = MemoryType::HOST_POOL;
+      //host_mem_type = MemoryType::HOST_POOL;
       device_mem_type = MemoryType::DEVICE_POOL;
    }
 
