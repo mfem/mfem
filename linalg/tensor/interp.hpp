@@ -23,8 +23,8 @@ namespace mfem
 // Functions to interpolate from degrees of freedom to quadrature points
 // Non-tensor and 1D cases
 template<int D, int Q> MFEM_HOST_DEVICE inline
-dTensor<Q>&& Interpolate(const dTensor<Q,D> &B,
-                         const dTensor<D> &u)
+dTensor<Q> Interpolate(const dTensor<Q,D> &B,
+                       const dTensor<D> &u)
 {
    dTensor<Q> u_q;
    MFEM_FOREACH_THREAD(q,x,Q)
@@ -39,13 +39,13 @@ dTensor<Q>&& Interpolate(const dTensor<Q,D> &B,
       u_q(q) = v;
    }
    MFEM_SYNC_THREAD;
-   return std::move(u_q);
+   return u_q;
 }
 
 // Non-tensor and 1D cases with VDim components
 template<int Q, int D, int VDim> MFEM_HOST_DEVICE inline
-Tensor<dTensor<VDim>,Q>&& Interpolate(const dTensor<Q,D> &B,
-                                      const Tensor<dTensor<VDim>,D> &u)
+Tensor<dTensor<VDim>,Q> Interpolate(const dTensor<Q,D> &B,
+                                    const Tensor<dTensor<VDim>,D> &u)
 {
    Tensor<dTensor<VDim>,Q> u_q;
    MFEM_FOREACH_THREAD(q,x,Q)
@@ -70,13 +70,13 @@ Tensor<dTensor<VDim>,Q>&& Interpolate(const dTensor<Q,D> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return std::move(u_q);
+   return u_q;
 }
 
 // 3D Tensor case
 template<int Q1d, int D1d> MFEM_HOST_DEVICE inline
-dTensor<Q1d,Q1d,Q1d>&& Interpolate(const dTensor<Q1d,D1d> &B,
-                                   const dTensor<D1d,D1d,D1d> &u)
+dTensor<Q1d,Q1d,Q1d> Interpolate(const dTensor<Q1d,D1d> &B,
+                                 const dTensor<D1d,D1d,D1d> &u)
 {
    dTensor<Q1d,D1d,D1d> Bu;
    MFEM_FOREACH_THREAD(dz,z,D1d)
@@ -135,13 +135,13 @@ dTensor<Q1d,Q1d,Q1d>&& Interpolate(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return std::move(u_q);
+   return u_q;
 }
 
 // 3D Tensor case with VDim components
 template<int Q1d, int D1d, int VDim> MFEM_HOST_DEVICE inline
-Tensor<dTensor<VDim>,Q1d,Q1d,Q1d>&& Interpolate(const dTensor<Q1d,D1d> &B,
-                                                const Tensor<dTensor<VDim>,D1d,D1d,D1d> &u)
+Tensor<dTensor<VDim>,Q1d,Q1d,Q1d> Interpolate(const dTensor<Q1d,D1d> &B,
+                                              const Tensor<dTensor<VDim>,D1d,D1d,D1d> &u)
 {
    Tensor<dTensor<VDim>,Q1d,D1d,D1d> Bu;
    MFEM_FOREACH_THREAD(dz,z,D1d)
@@ -230,13 +230,13 @@ Tensor<dTensor<VDim>,Q1d,Q1d,Q1d>&& Interpolate(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return std::move(u_q);
+   return u_q;
 }
 
 // 2D Tensor case
 template<int Q1d, int D1d> MFEM_HOST_DEVICE inline
-dTensor<Q1d,Q1d>&& Interpolate(const dTensor<Q1d,D1d> &B,
-                               const dTensor<D1d,D1d> &u)
+dTensor<Q1d,Q1d> Interpolate(const dTensor<Q1d,D1d> &B,
+                             const dTensor<D1d,D1d> &u)
 {
    dTensor<Q1d,D1d> Bu;
    MFEM_FOREACH_THREAD(dy,y,D1d)
@@ -270,13 +270,13 @@ dTensor<Q1d,Q1d>&& Interpolate(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return std::move(u_q);
+   return u_q;
 }
 
 // 2D Tensor case with VDim components
 template<int Q1d, int D1d, int VDim> MFEM_HOST_DEVICE inline
-Tensor<dTensor<VDim>,Q1d,Q1d>&& Interpolate(const dTensor<Q1d,D1d> &B,
-                                            const Tensor<dTensor<VDim>,D1d,D1d> &u)
+Tensor<dTensor<VDim>,Q1d,Q1d> Interpolate(const dTensor<Q1d,D1d> &B,
+                                          const Tensor<dTensor<VDim>,D1d,D1d> &u)
 {
    Tensor<dTensor<VDim>,Q1d,D1d> Bu;
    MFEM_FOREACH_THREAD(dy,y,D1d)
@@ -330,14 +330,14 @@ Tensor<dTensor<VDim>,Q1d,Q1d>&& Interpolate(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return std::move(u_q);
+   return u_q;
 }
 
 // Functions to interpolate from degrees of freedom to quadrature points
 // Non-tensor and 1D cases
 template<int P, int Q> MFEM_HOST_DEVICE inline
-dTensor<P>&& InterpolateT(const dTensor<Q,P> &B,
-                          const dTensor<Q> &u_q)
+dTensor<P> InterpolateT(const dTensor<Q,P> &B,
+                        const dTensor<Q> &u_q)
 {
    dTensor<Q> u;
    MFEM_FOREACH_THREAD(d,x,P)
@@ -352,13 +352,13 @@ dTensor<P>&& InterpolateT(const dTensor<Q,P> &B,
       u(d) = v;
    }
    MFEM_SYNC_THREAD;
-   return std::move(u);
+   return u;
 }
 
 // Non-tensor and 1D cases with VDim components
 template<int Q, int P, int VDim> MFEM_HOST_DEVICE inline
-Tensor<dTensor<VDim>,P>&& InterpolateT(const dTensor<Q,P> &B,
-                                       const Tensor<dTensor<VDim>,Q> &u_q)
+Tensor<dTensor<VDim>,P> InterpolateT(const dTensor<Q,P> &B,
+                                     const Tensor<dTensor<VDim>,Q> &u_q)
 {
    Tensor<dTensor<VDim>,P> u;
    MFEM_FOREACH_THREAD(d,x,P)
@@ -383,13 +383,13 @@ Tensor<dTensor<VDim>,P>&& InterpolateT(const dTensor<Q,P> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return std::move(u);
+   return u;
 }
 
 // 3D Tensor case
 template<int Q1d, int D1d> MFEM_HOST_DEVICE inline
-dTensor<D1d,D1d,D1d>&& InterpolateT(const dTensor<Q1d,D1d> &B,
-                                   const dTensor<Q1d,Q1d,Q1d> &u_q)
+dTensor<D1d,D1d,D1d> InterpolateT(const dTensor<Q1d,D1d> &B,
+                                  const dTensor<Q1d,Q1d,Q1d> &u_q)
 {
    dTensor<D1d,Q1d,Q1d> Bu;
    MFEM_FOREACH_THREAD(qz,z,Q1d)
@@ -448,13 +448,13 @@ dTensor<D1d,D1d,D1d>&& InterpolateT(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return std::move(u);
+   return u;
 }
 
 // 3D Tensor case with VDim components
 template<int D1d, int Q1d, int VDim> MFEM_HOST_DEVICE inline
-Tensor<dTensor<VDim>,D1d,D1d,D1d>&& InterpolateT(const dTensor<Q1d,D1d> &B,
-                                                 const Tensor<dTensor<VDim>,Q1d,Q1d,Q1d> &u_q)
+Tensor<dTensor<VDim>,D1d,D1d,D1d> InterpolateT(const dTensor<Q1d,D1d> &B,
+                                               const Tensor<dTensor<VDim>,Q1d,Q1d,Q1d> &u_q)
 {
    Tensor<dTensor<VDim>,D1d,Q1d,Q1d> Bu;
    MFEM_FOREACH_THREAD(qz,z,Q1d)
@@ -543,13 +543,13 @@ Tensor<dTensor<VDim>,D1d,D1d,D1d>&& InterpolateT(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return std::move(u);
+   return u;
 }
 
 // 2D Tensor case
 template<int D1d, int Q1d> MFEM_HOST_DEVICE inline
-dTensor<D1d,D1d>&& InterpolateT(const dTensor<Q1d,D1d> &B,
-                                const dTensor<Q1d,Q1d> &u_q)
+dTensor<D1d,D1d> InterpolateT(const dTensor<Q1d,D1d> &B,
+                              const dTensor<Q1d,Q1d> &u_q)
 {
    dTensor<D1d,Q1d> Bu;
    MFEM_FOREACH_THREAD(qy,y,Q1d)
@@ -583,13 +583,13 @@ dTensor<D1d,D1d>&& InterpolateT(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return std::move(u);
+   return u;
 }
 
 // 2D Tensor case with VDim components
 template<int D1d, int Q1d, int VDim> MFEM_HOST_DEVICE inline
-Tensor<dTensor<VDim>,D1d,D1d>&& InterpolateT(const dTensor<Q1d,D1d> &B,
-                                             const Tensor<dTensor<VDim>,Q1d,Q1d> &u_q)
+Tensor<dTensor<VDim>,D1d,D1d> InterpolateT(const dTensor<Q1d,D1d> &B,
+                                           const Tensor<dTensor<VDim>,Q1d,Q1d> &u_q)
 {
    Tensor<dTensor<VDim>,D1d,Q1d> Bu;
    MFEM_FOREACH_THREAD(qy,y,Q1d)
@@ -643,7 +643,7 @@ Tensor<dTensor<VDim>,D1d,D1d>&& InterpolateT(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return std::move(u);
+   return u;
 }
 
 } // namespace mfem

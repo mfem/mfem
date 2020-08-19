@@ -21,7 +21,7 @@ namespace mfem
 
 // Determinant
 template <typename T> MFEM_HOST_DEVICE inline
-T&& Determinant(const Tensor<T,3,3> &J)
+T Determinant(const Tensor<T,3,3> &J)
 {
    return J(0,0)*J(1,1)*J(2,2)-J(0,2)*J(1,1)*J(2,0)
          +J(0,1)*J(1,2)*J(2,0)-J(0,1)*J(1,0)*J(2,2)
@@ -29,31 +29,31 @@ T&& Determinant(const Tensor<T,3,3> &J)
 }
 
 template <typename T> MFEM_HOST_DEVICE inline
-T&& Determinant(const Tensor<T,2,2> &J)
+T Determinant(const Tensor<T,2,2> &J)
 {
    return J(0,0)*J(1,1)-J(0,1)*J(1,0);
 }
 
 template <typename T> MFEM_HOST_DEVICE inline
-T&& Determinant(const Tensor<T,1,1> &J)
+T Determinant(const Tensor<T,1,1> &J)
 {
    return J(0,0);
 }
 
 // Computes determinant for all quadrature points
 template<int Q,int Dim> MFEM_HOST_DEVICE inline
-dTensor<Q>&& Determinant(const Tensor<dTensor<Dim,Dim>,Q> &J)
+dTensor<Q> Determinant(const Tensor<dTensor<Dim,Dim>,Q> &J)
 {
    dTensor<Q> det;
    MFEM_FOREACH_THREAD(q,x,Q)
    {
       det(q) = Determinant(J(q));
    }
-   return std::move(det);
+   return det;
 }
 
 template<int Q1d> MFEM_HOST_DEVICE inline
-dTensor<Q1d,Q1d,Q1d>&& Determinant(const Tensor<dTensor<3,3>,Q1d,Q1d,Q1d> &J)
+dTensor<Q1d,Q1d,Q1d> Determinant(const Tensor<dTensor<3,3>,Q1d,Q1d,Q1d> &J)
 {
    dTensor<Q1d,Q1d,Q1d> det;
    for (int qz = 0; qz < Q1d; qz++)
@@ -66,11 +66,11 @@ dTensor<Q1d,Q1d,Q1d>&& Determinant(const Tensor<dTensor<3,3>,Q1d,Q1d,Q1d> &J)
          }
       }
    }
-   return std::move(det);
+   return det;
 }
 
 template<int Q1d> MFEM_HOST_DEVICE inline
-dTensor<Q1d,Q1d>&& Determinant(const Tensor<dTensor<2,2>,Q1d,Q1d> &J)
+dTensor<Q1d,Q1d> Determinant(const Tensor<dTensor<2,2>,Q1d,Q1d> &J)
 {
    dTensor<Q1d,Q1d> det;
    MFEM_FOREACH_THREAD(qy,y,Q1d)
@@ -80,7 +80,7 @@ dTensor<Q1d,Q1d>&& Determinant(const Tensor<dTensor<2,2>,Q1d,Q1d> &J)
          det(qx,qy) = Determinant(J(qx,qy));
       }
    }
-   return std::move(det);
+   return det;
 }
 
 } // namespace mfem

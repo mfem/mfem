@@ -13,6 +13,12 @@
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
 #include "ceed/diffusion.hpp"
+#include "../linalg/tensor/read.hpp"
+#include "../linalg/tensor/readmatrix.hpp"
+#include "../linalg/tensor/interp.hpp"
+#include "../linalg/tensor/grad.hpp"
+#include "../linalg/tensor/cwisemult.hpp"
+#include "../linalg/tensor/write.hpp"
 
 using namespace std;
 
@@ -1822,6 +1828,87 @@ static void SmemPADiffusionApply3D(const int NE,
             }
          }
       }
+   });
+}
+
+template <int Dim, typename Basis, typename BasisT, typename Dop,
+typename DofsIn, typename DofsOut> MFEM_HOST_DEVICE inline
+static void Apply(const int e,
+                  const Basis &d_B,
+                  const BasisT &d_G,
+                  const Dop &D,
+                  const DofsIn &x,
+                  DofsOut &y)
+{
+   auto u = Read<Basis::D>(x,e);
+
+   // Gu
+   auto B   = ReadMatrix(d_B);
+   auto G   = ReadMatrix(d_G);
+   auto gu  = Gradient(B,G,u);
+   // DGu
+   auto D_e = ReadSymmMatrix<Basis::Q,Dim>(D,e);
+   auto dgu = CWiseMult(D_e,gu);
+   //GtDGu
+   auto gdgu = GradientT(B,G,dgu);
+
+   WriteAdd(gdgu,e,y);
+}
+
+template <int D1D, int Q1D>
+static void Apply3D(const int NE,
+                    const Array<double> &b,
+                    const Array<double> &g,
+                    const Vector &d,
+                    const Vector &x,
+                    Vector &y)
+{
+   DeviceBasis<Q1D,D1D> B = {b.Read()};
+   DeviceBasis<Q1D,D1D> G = {g.Read()};
+   auto D = Reshape(d.Read(), Q1D, Q1D, Q1D, 6, NE);
+   auto X = Reshape(x.Read(), D1D, D1D, D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, 1,
+   {
+      Apply<3>(e,B,G,D,X,Y);
+   });
+}
+
+template <int D1D, int Q1D, int NBZ>
+static void Apply2D(const int NE,
+                    const Array<double> &b,
+                    const Array<double> &g,
+                    const Vector &d,
+                    const Vector &x,
+                    Vector &y)
+{
+   DeviceBasis<Q1D,D1D> B = {b.Read()};
+   DeviceBasis<Q1D,D1D> G = {g.Read()};
+   auto D = Reshape(d.Read(), Q1D, Q1D, 3, NE);
+   auto X = Reshape(x.Read(), D1D, D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
+   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   {
+      Apply<2>(e,B,G,D,X,Y);
+   });
+}
+
+template <int D1D, int Q1D, int NBZ>
+static void Apply1D(const int NE,
+                    const Array<double> &b,
+                    const Array<double> &g,
+                    const Vector &d,
+                    const Vector &x,
+                    Vector &y)
+{
+   DeviceBasis<Q1D,D1D> B = {b.Read()};
+   DeviceBasis<Q1D,D1D> G = {g.Read()};
+   auto D = Reshape(d.Read(), Q1D, 1, NE);
+   auto X = Reshape(x.Read(), D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), D1D, NE);
+   MFEM_FORALL_2D(e, NE, Q1D, 1, NBZ,
+   {
+      Apply<1>(e,B,G,D,X,Y);
    });
 }
 

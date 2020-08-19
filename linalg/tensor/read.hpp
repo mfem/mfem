@@ -23,7 +23,7 @@ namespace mfem
 // Functions to read values (dofs or values at quadrature point)
 // Non-tensor read and 1D
 template<int D, typename T> MFEM_HOST_DEVICE inline
-const dTensor<D>&& Read(const DeviceTensor<2,T> &e_vec, const int e)
+const dTensor<D> Read(const DeviceTensor<2,T> &e_vec, const int e)
 {
    dTensor<D> u;
    MFEM_FOREACH_THREAD(d,x,D)
@@ -31,12 +31,12 @@ const dTensor<D>&& Read(const DeviceTensor<2,T> &e_vec, const int e)
       u(d) = e_vec(d, e);
    }
    MFEM_SYNC_THREAD;
-   return std::move(u);
+   return u;
 }
 
 // 3D tensor read
 template <int D1d, typename T> MFEM_HOST_DEVICE inline
-const dTensor<D1d,D1d,D1d>&& Read(const DeviceTensor<4,T> &e_vec, const int e)
+const dTensor<D1d,D1d,D1d> Read(const DeviceTensor<4,T> &e_vec, const int e)
 {
    dTensor<D1d,D1d,D1d> u;
    for (int dz = 0; dz < D1d; dz++)
@@ -50,12 +50,12 @@ const dTensor<D1d,D1d,D1d>&& Read(const DeviceTensor<4,T> &e_vec, const int e)
       }
    }
    MFEM_SYNC_THREAD;
-   return std::move(u);
+   return u;
 }
 
 // 2D tensor read
 template <int D1d, typename T> MFEM_HOST_DEVICE inline
-const dTensor<D1d,D1d>&& Read(const DeviceTensor<3,T> &e_vec, const int e)
+const dTensor<D1d,D1d> Read(const DeviceTensor<3,T> &e_vec, const int e)
 {
    dTensor<D1d,D1d> u;
    MFEM_FOREACH_THREAD(dy,y,D1d)
@@ -66,7 +66,7 @@ const dTensor<D1d,D1d>&& Read(const DeviceTensor<3,T> &e_vec, const int e)
       }
    }
    MFEM_SYNC_THREAD;
-   return std::move(u);
+   return u;
 }
 
 } // namespace mfem

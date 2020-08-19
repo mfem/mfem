@@ -23,9 +23,9 @@ namespace mfem
 // at quadrature points.
 // Non-tensor case
 template<int D, int Q, int Dim> MFEM_HOST_DEVICE inline
-Tensor<dTensor<Dim>,Q>&& Gradient(const dTensor<Q,D> &B,
-                                  const Tensor<dTensor<Dim>,Q,D> &G,
-                                  const dTensor<D> &u)
+Tensor<dTensor<Dim>,Q> Gradient(const dTensor<Q,D> &B,
+                                const Tensor<dTensor<Dim>,Q,D> &G,
+                                const dTensor<D> &u)
 {
    Tensor<dTensor<Dim>,Q> gu_q;
    MFEM_FOREACH_THREAD(q,x,Q)
@@ -50,14 +50,14 @@ Tensor<dTensor<Dim>,Q>&& Gradient(const dTensor<Q,D> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return std::move(gu_q);
+   return gu_q;
 }
 
 // Non-tensor case with VDim components
 template<int Q, int D, int Dim, int VDim> MFEM_HOST_DEVICE inline
-Tensor<dTensor<Dim,VDim>,Q>&& Gradient(const dTensor<Q,D> &B,
-                                       const Tensor<dTensor<Dim>,Q,D> &G,
-                                       const Tensor<dTensor<VDim>,D> &u)
+Tensor<dTensor<Dim,VDim>,Q> Gradient(const dTensor<Q,D> &B,
+                                     const Tensor<dTensor<Dim>,Q,D> &G,
+                                     const Tensor<dTensor<VDim>,D> &u)
 {
    Tensor<dTensor<Dim,VDim>,Q> gu_q;
    MFEM_FOREACH_THREAD(q,x,Q)
@@ -99,14 +99,14 @@ Tensor<dTensor<Dim,VDim>,Q>&& Gradient(const dTensor<Q,D> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return std::move(gu_q);
+   return gu_q;
 }
 
 // 3D Tensor case
 template<int Q1d, int D1d> MFEM_HOST_DEVICE inline
-Tensor<dTensor<3>,Q1d,Q1d,Q1d>&& Gradient(const dTensor<Q1d,D1d> &B,
-                                          const dTensor<Q1d,D1d> &G,
-                                          const dTensor<D1d,D1d,D1d> &u)
+Tensor<dTensor<3>,Q1d,Q1d,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
+                                        const dTensor<Q1d,D1d> &G,
+                                        const dTensor<D1d,D1d,D1d> &u)
 {
    dTensor<Q1d,D1d,D1d> Bu;
    dTensor<Q1d,D1d,D1d> Gu;
@@ -189,14 +189,14 @@ Tensor<dTensor<3>,Q1d,Q1d,Q1d>&& Gradient(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return std::move(gu_q);
+   return gu_q;
 }
 
 // 3D Tensor case with VDim components
 template<int Q1d, int D1d, int VDim> MFEM_HOST_DEVICE inline
-Tensor<dTensor<VDim,3>,Q1d,Q1d,Q1d>&& Gradient(const dTensor<Q1d,D1d> &B,
-                                               const dTensor<Q1d,D1d> &G,
-                                               const dTensor<D1d,D1d,D1d> &u)
+Tensor<dTensor<VDim,3>,Q1d,Q1d,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
+                                             const dTensor<Q1d,D1d> &G,
+                                             const dTensor<D1d,D1d,D1d> &u)
 {
    Tensor<dTensor<VDim>,Q1d,D1d,D1d> Bu;
    Tensor<dTensor<VDim>,Q1d,D1d,D1d> Gu;
@@ -314,14 +314,14 @@ Tensor<dTensor<VDim,3>,Q1d,Q1d,Q1d>&& Gradient(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return std::move(gu_q);
+   return gu_q;
 }
 
 // 2D Tensor case
 template<int Q1d, int D1d> MFEM_HOST_DEVICE inline
-Tensor<dTensor<2>,Q1d,Q1d>&& Gradient(const dTensor<Q1d,D1d> &B,
-                                      const dTensor<Q1d,D1d> &G,
-                                      const dTensor<D1d,D1d> &u)
+Tensor<dTensor<2>,Q1d,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
+                                    const dTensor<Q1d,D1d> &G,
+                                    const dTensor<D1d,D1d> &u)
 {
    dTensor<Q1d,D1d> Bu;
    dTensor<Q1d,D1d> Gu;
@@ -365,14 +365,14 @@ Tensor<dTensor<2>,Q1d,Q1d>&& Gradient(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return std::move(gu_q);
+   return gu_q;
 }
 
 // 2D Tensor case with VDim components
 template<int Q1d, int D1d, int VDim> MFEM_HOST_DEVICE inline
-Tensor<dTensor<VDim,2>,Q1d,Q1d>&& Gradient(const dTensor<Q1d,D1d> &B,
-                                           const dTensor<Q1d,D1d> &G,
-                                           const Tensor<dTensor<VDim>,D1d,D1d> &u)
+Tensor<dTensor<VDim,2>,Q1d,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
+                                         const dTensor<Q1d,D1d> &G,
+                                         const Tensor<dTensor<VDim>,D1d,D1d> &u)
 {
    Tensor<dTensor<VDim>,Q1d,D1d> Bu;
    Tensor<dTensor<VDim>,Q1d,D1d> Gu;
@@ -438,14 +438,14 @@ Tensor<dTensor<VDim,2>,Q1d,Q1d>&& Gradient(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return std::move(gu_q);
+   return gu_q;
 }
 
 // 1D Tensor case
 template<int Q1d, int D1d> MFEM_HOST_DEVICE inline
-dTensor<Q1d>&& Gradient(const dTensor<Q1d,D1d> &B,
-                        const dTensor<Q1d,D1d> &G,
-                        const dTensor<D1d> &u)
+dTensor<Q1d> Gradient(const dTensor<Q1d,D1d> &B,
+                      const dTensor<Q1d,D1d> &G,
+                      const dTensor<D1d> &u)
 {
    dTensor<Q1d> gu_q;
    MFEM_FOREACH_THREAD(qx,x,Q1d)
@@ -460,14 +460,14 @@ dTensor<Q1d>&& Gradient(const dTensor<Q1d,D1d> &B,
       gu_q(qx) = gu;
    }
    MFEM_SYNC_THREAD;
-   return std::move(gu_q);
+   return gu_q;
 }
 
 // 1D Tensor case with VDim components
 template<int Q1d, int D1d, int VDim> MFEM_HOST_DEVICE inline
-Tensor<dTensor<VDim>,Q1d>&& Gradient(const dTensor<Q1d,D1d> &B,
-                                     const dTensor<Q1d,D1d> &G,
-                                     const Tensor<dTensor<VDim>,D1d> &u)
+Tensor<dTensor<VDim>,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
+                                   const dTensor<Q1d,D1d> &G,
+                                   const Tensor<dTensor<VDim>,D1d> &u)
 {
    Tensor<dTensor<VDim>,Q1d> gu_q;
    MFEM_FOREACH_THREAD(qx,x,Q1d)
@@ -492,16 +492,16 @@ Tensor<dTensor<VDim>,Q1d>&& Gradient(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return std::move(gu_q);
+   return gu_q;
 }
 
 // Functions to interpolate the gradient from degrees of freedom to derivatives
 // at quadrature points.
 // Non-tensor case
 template<int Q, int D, int Dim> MFEM_HOST_DEVICE inline
-dTensor<D>&& GradientT(const dTensor<Q,D> &B,
-                       const Tensor<dTensor<Dim>,Q,D> &G,
-                       const Tensor<dTensor<Dim>,Q> &u_q)
+dTensor<D> GradientT(const dTensor<Q,D> &B,
+                     const Tensor<dTensor<Dim>,Q,D> &G,
+                     const Tensor<dTensor<Dim>,Q> &u_q)
 {
    dTensor<D> gu;
    MFEM_FOREACH_THREAD(d,x,D)
@@ -519,14 +519,14 @@ dTensor<D>&& GradientT(const dTensor<Q,D> &B,
       gu(d) = val;
    }
    MFEM_SYNC_THREAD;
-   return std::move(gu);
+   return gu;
 }
 
 // Non-tensor case with VDim components
 template<int D, int Q, int Dim, int VDim> MFEM_HOST_DEVICE inline
-Tensor<dTensor<VDim>,D>&& GradientT(const dTensor<Q,D> &B,
-                                    const Tensor<dTensor<Dim>,Q,D> &G,
-                                    const Tensor<dTensor<VDim,Dim>,Q> &u_q)
+Tensor<dTensor<VDim>,D> GradientT(const dTensor<Q,D> &B,
+                                  const Tensor<dTensor<Dim>,Q,D> &G,
+                                  const Tensor<dTensor<VDim,Dim>,Q> &u_q)
 {
    Tensor<dTensor<VDim>,D> gu;
    MFEM_FOREACH_THREAD(d,x,D)
@@ -558,14 +558,14 @@ Tensor<dTensor<VDim>,D>&& GradientT(const dTensor<Q,D> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return std::move(gu);
+   return gu;
 }
 
 // 3D Tensor case
 template<int D1d, int Q1d> MFEM_HOST_DEVICE inline
-dTensor<D1d,D1d,D1d>&& GradientT(const dTensor<Q1d,D1d> &B,
-                                 const dTensor<Q1d,D1d> &G,
-                                 const Tensor<dTensor<3>,Q1d,Q1d,Q1d> &u_q)
+dTensor<D1d,D1d,D1d> GradientT(const dTensor<Q1d,D1d> &B,
+                               const dTensor<Q1d,D1d> &G,
+                               const Tensor<dTensor<3>,Q1d,Q1d,Q1d> &u_q)
 {
    dTensor<D1d,Q1d,Q1d> Gux;
    dTensor<D1d,Q1d,Q1d> Buy;
@@ -643,14 +643,14 @@ dTensor<D1d,D1d,D1d>&& GradientT(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return std::move(gu);
+   return gu;
 }
 
 // 3D Tensor case with VDim components
 template<int D1d, int Q1d, int VDim> MFEM_HOST_DEVICE inline
-Tensor<dTensor<VDim>,D1d,D1d,D1d>&& GradientT(const dTensor<Q1d,D1d> &B,
-                                              const dTensor<Q1d,D1d> &G,
-                                              const Tensor<dTensor<VDim,3>,Q1d,Q1d,Q1d> &u_q)
+Tensor<dTensor<VDim>,D1d,D1d,D1d> GradientT(const dTensor<Q1d,D1d> &B,
+                                            const dTensor<Q1d,D1d> &G,
+                                            const Tensor<dTensor<VDim,3>,Q1d,Q1d,Q1d> &u_q)
 {
    Tensor<dTensor<VDim>,D1d,Q1d,Q1d> Gux;
    Tensor<dTensor<VDim>,D1d,Q1d,Q1d> Buy;
@@ -762,14 +762,14 @@ Tensor<dTensor<VDim>,D1d,D1d,D1d>&& GradientT(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return std::move(gu);
+   return gu;
 }
 
 // 2D Tensor case
 template<int D1d, int Q1d> MFEM_HOST_DEVICE inline
-dTensor<D1d,D1d>&& GradientT(const dTensor<Q1d,D1d> &B,
-                             const dTensor<Q1d,D1d> &G,
-                             const Tensor<dTensor<2>,Q1d,Q1d> &u_q)
+dTensor<D1d,D1d> GradientT(const dTensor<Q1d,D1d> &B,
+                           const dTensor<Q1d,D1d> &G,
+                           const Tensor<dTensor<2>,Q1d,Q1d> &u_q)
 {
    dTensor<D1d,Q1d> Gux;
    dTensor<D1d,Q1d> Buy;
@@ -810,14 +810,14 @@ dTensor<D1d,D1d>&& GradientT(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return std::move(gu);
+   return gu;
 }
 
 // 2D Tensor case with VDim components
 template<int D1d, int Q1d, int VDim> MFEM_HOST_DEVICE inline
-Tensor<dTensor<VDim>,D1d,D1d>&& GradientT(const dTensor<Q1d,D1d> &B,
-                                              const dTensor<Q1d,D1d> &G,
-                                              const Tensor<dTensor<VDim,2>,Q1d,Q1d> &u_q)
+Tensor<dTensor<VDim>,D1d,D1d> GradientT(const dTensor<Q1d,D1d> &B,
+                                        const dTensor<Q1d,D1d> &G,
+                                        const Tensor<dTensor<VDim,2>,Q1d,Q1d> &u_q)
 {
    Tensor<dTensor<VDim>,D1d,Q1d> Gux;
    Tensor<dTensor<VDim>,D1d,Q1d> Buy;
@@ -879,7 +879,7 @@ Tensor<dTensor<VDim>,D1d,D1d>&& GradientT(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   return std::move(gu);
+   return gu;
 }
 
 } // namespace mfem

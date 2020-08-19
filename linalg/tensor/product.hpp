@@ -21,7 +21,7 @@ namespace mfem
 
 // Matrix-Vector multiplication (local to the thread)
 template <typename T, int H, int W> MFEM_HOST_DEVICE inline
-Tensor<T,H>&& operator*(const Tensor<T,H,W> &A, const Tensor<T,W> &u)
+Tensor<T,H> operator*(const Tensor<T,H,W> &A, const Tensor<T,W> &u)
 {
   Tensor<T,H> v;
   for (int h = 0; h < H; h++)
@@ -33,24 +33,24 @@ Tensor<T,H>&& operator*(const Tensor<T,H,W> &A, const Tensor<T,W> &u)
     }
     v(h) = val;
   }
-  return std::move(v);
+  return v;
 }
 
 // Multiplication of a Vector by a scalar.
 template <typename T,int H> MFEM_HOST_DEVICE inline
-Tensor<T,H>&& operator*(const T &a, const Tensor<T,H> &u)
+Tensor<T,H> operator*(const T &a, const Tensor<T,H> &u)
 {
   Tensor<T,H> v;
   for (int h = 0; h < H; h++)
   {
     v(h) = a * u(h);
   }
-  return std::move(v);
+  return v;
 }
 
 // Multiplication of a Matrix by a scalar.
 template <typename T, int H, int W> MFEM_HOST_DEVICE inline
-Tensor<T,H>&& operator*(const T &a, const Tensor<T,H,W> &U)
+Tensor<T,H> operator*(const T &a, const Tensor<T,H,W> &U)
 {
   Tensor<T,H,W> V;
   for (int h = 0; h < H; h++)
@@ -60,7 +60,7 @@ Tensor<T,H>&& operator*(const T &a, const Tensor<T,H,W> &U)
       V(h,w) = a * U(h,w);
     }
   }
-  return std::move(V);
+  return V;
 }
 
 } // namespace mfem
