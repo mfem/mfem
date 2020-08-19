@@ -355,15 +355,9 @@ public:
    void Alloc(void **ptr, size_t bytes) { MmuAlloc(ptr, bytes); }
    void Dealloc(void *ptr) { MmuDealloc(ptr, maps->memories.at(ptr).bytes); }
    void Protect(const Memory& mem, size_t bytes)
-   {
-      if (mem.h_rw) { MmuProtect(mem.h_ptr, bytes); }
-      mem.h_rw = false;
-   }
+   { if (mem.h_rw) { mem.h_rw = false; MmuProtect(mem.h_ptr, bytes); } }
    void Unprotect(const Memory &mem, size_t bytes)
-   {
-      if (!mem.h_rw) { MmuAllow(mem.h_ptr, bytes); }
-      mem.h_rw = true;
-   }
+   { if (!mem.h_rw) { mem.h_rw = true; MmuAllow(mem.h_ptr, bytes); } }
    /// Aliases need to be restricted during protection
    void AliasProtect(const void *ptr, size_t bytes)
    { MmuProtect(MmuAddrR(ptr), MmuLengthR(ptr, bytes)); }
@@ -453,15 +447,9 @@ public:
    void Alloc(Memory &m) { MmuAlloc(&m.d_ptr, m.bytes); }
    void Dealloc(Memory &m) { MmuDealloc(m.d_ptr, m.bytes); }
    void Protect(const Memory &m)
-   {
-      if (m.d_rw)  { MmuProtect(m.d_ptr, m.bytes); }
-      m.d_rw = false;
-   }
+   { if (m.d_rw) { m.d_rw = false; MmuProtect(m.d_ptr, m.bytes); } }
    void Unprotect(const Memory &m)
-   {
-      if (!m.d_rw) { MmuAllow(m.d_ptr, m.bytes); }
-      m.d_rw = true;
-   }
+   { if (!m.d_rw) { m.d_rw = true; MmuAllow(m.d_ptr, m.bytes); } }
    /// Aliases need to be restricted during protection
    void AliasProtect(const void *ptr, size_t bytes)
    { MmuProtect(MmuAddrR(ptr), MmuLengthR(ptr, bytes)); }
