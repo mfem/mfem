@@ -214,7 +214,8 @@ public:
    { return std::memcpy(dst, src, bytes); }
 };
 
-/// The memory pool
+// /////////////////////////////////////////////////////////////////////////////
+#define dbg(...)
 template <typename MS> class Pool
 {
    struct Bucket
@@ -223,39 +224,51 @@ template <typename MS> class Pool
       struct alignas(uintptr_t) Block
       {
          Block *next;
-         uintptr_t *ptr;
          size_t bytes; // used to test if the block is used and for the free
-         size_t pages; // used to find the bucket
+         uintptr_t *ptr;
       };
 
-      inline size_t align(size_t bytes)
-      { return (bytes + sizeof(uintptr_t) - 1) & ~(sizeof(uintptr_t) - 1); }
+      // Alignment: 8 @ x86, 256 @ GPU?
+      inline size_t align(const size_t bytes, const size_t N = 32)
+      {
+         const size_t mask = N * sizeof(uintptr_t) - 1;
+         return (bytes + mask) & ~(mask);
+      }
 
       // Arena struct
       struct Arena
       {
-         const size_t size;
+         uintptr_t *ptr;
          const MS &MemSpace;
+         const size_t asize, pages, psize;
          std::unique_ptr<Arena> next;
          std::unique_ptr<Block[]> blocks;
 
-         Arena(const MS &ms, size_t sz):
-            size(sz), MemSpace(ms), blocks(new Block[size])
+         Arena(const MS &ms, size_t asize, size_t pages, size_t psize):
+            MemSpace(ms), asize(asize), pages(pages), psize(psize),
+            blocks(new Block[asize])
          {
-            memset(blocks.get(), 0, size*sizeof(Block));
-            for (size_t i = 1; i < sz; i++) { blocks[i-1].next = &blocks[i]; }
-            blocks[size-1].next = nullptr;
+            dbg("New Arena [asize:%d, pages:%d of 0x%x]", asize,pages,psize);
+            // Allocate the block of memory for this arena
+            MemSpace.Alloc((void**)&ptr, asize*pages*psize);
+            // Metadata flush & setup
+            memset(blocks.get(), 0, asize*sizeof(Block));
+            const uintptr_t offset = pages*psize/sizeof(uintptr_t);
+            for (size_t i = 1; i < asize; i++)
+            {
+               blocks[i-1].next = &blocks[i];
+               blocks[i-1].ptr = ptr + (i-1)*offset;
+            }
+            blocks[asize-1].next = nullptr;
+            blocks[asize-1].ptr = ptr + (asize-1)*offset;
          }
 
          ~Arena()
          {
-            for (size_t i = 0; i < size; i++)
-            {
-               Block &block = blocks[i];
-               if (!block.ptr) { continue; }
-               MemSpace.Dealloc(block.ptr, block.bytes);
-               block.ptr = nullptr;
-            }
+            dbg("");
+            return;
+            MemSpace.Dealloc(ptr, asize*pages*psize);
+            for (size_t i = 0; i < asize; i++) { blocks[i].ptr = nullptr; }
          }
 
          // Get next block
@@ -265,7 +278,7 @@ template <typename MS> class Pool
 
          void Dump()
          {
-            for (size_t i = size; i > 0; i--)
+            for (size_t i = asize; i > 0; i--)
             {
                Block &block = blocks[i-1];
                const bool used = block.bytes > 0;
@@ -289,30 +302,28 @@ template <typename MS> class Pool
    public:
       Bucket(const MS &ms, size_t pages, size_t asize, size_t psize):
          MemSpace(ms), pages(pages), asize(asize), psize(psize),
-         arena(new Arena(ms, asize)), next(arena->Next()) { }
+         arena(new Arena(ms, asize, pages, psize)), next(arena->Next()) { }
 
       /// Allocate bytes from these blocks
       void *alloc(size_t bytes, PointersMap &map)
       {
+         static bool align_dbg = true;
+         if (align_dbg)
+         {
+            dbg("\033[37m[Align] bytes: 0x%x => 0x%x", bytes, align(bytes));
+         }
+         align_dbg = false;
          bytes = align(bytes);
          if (next == nullptr)
          {
-            std::unique_ptr<Arena> new_arena(new Arena(MemSpace,asize));
+            std::unique_ptr<Arena> new_arena(new Arena(MemSpace,asize,pages,psize));
             new_arena->Next(move(arena));
             arena.reset(new_arena.release());
             next = arena->Next();
          }
          Block *block = next;
          next = block->next;
-         const uintptr_t *ptr = block->ptr;
-         const bool used = block->bytes > 0;
-         if (!used && !ptr)
-         {
-            // Update metadata
-            block->pages = pages;
-            MemSpace.Alloc((void**)&block->ptr, pages*psize);
-            map.emplace(block->ptr, std::make_pair(this, block));
-         }
+         map.emplace(block->ptr, std::make_pair(this, block));
          block->bytes = bytes;
          return block->ptr;
       }
@@ -335,33 +346,34 @@ template <typename MS> class Pool
    PointersMap map;
 
 public:
-   Pool(size_t asize = 32): asize(asize),
-      //psize(sysconf(_SC_PAGE_SIZE))
-      psize(0x10000)
-   { }
+   Pool(size_t asize = 32, size_t psize = 0): asize(asize),
+      psize(psize == 0 ? sysconf(_SC_PAGE_SIZE) : psize) { }
 
    uintptr_t PageSize() const { return psize; }
 
-   inline void *alloc(size_t bytes)
+   void *alloc(size_t bytes)
    {
       // number of pages needed for this amount of bytes
       const size_t pages = 1 + bytes / psize;
+
       auto blk_i = Buckets.find(pages);
       // If not already in the bucket map, add it
       if (blk_i == Buckets.end())
       {
-         auto res = Buckets.emplace(pages, Bucket(ms, pages, asize, psize));
+         dbg("\033[32mNew bucket with %d pages", pages);
+         auto res = Buckets.emplace(pages,Bucket(ms, pages, asize, psize));
          blk_i = Buckets.find(pages);
          MFEM_ASSERT(res.second, "");
          MFEM_ASSERT(blk_i != Buckets.end(), "");
       }
+      dbg("0x%x bytes, #%d page(s)", bytes, pages);
       // Get the bucket in which the allocation will be done
       Bucket &bucket = blk_i->second;
       // Allocate the memory in it
       return bucket.alloc(bytes, map);
    }
 
-   inline void free(void *ptr)
+   void free(void *ptr)
    {
       // From the input pointer, get back the block & bucket addresses
       const uintptr_t *uintptr = reinterpret_cast<uintptr_t*>(ptr);
@@ -638,19 +650,10 @@ class CudaDeviceMemorySpace: public DeviceMemorySpace
 {
 public:
    CudaDeviceMemorySpace(): DeviceMemorySpace() { }
-   void Alloc(void **d_ptr, size_t bytes) const
-   {
-      CuMemAlloc(d_ptr, bytes);
-   }
-   void Alloc(Memory &base) const
-   {
-      CuMemAlloc(&base.d_ptr, base.bytes);
-   }
+   void Alloc(void **d_ptr, size_t bytes) const { CuMemAlloc(d_ptr, bytes); }
+   void Alloc(Memory &base) const { CuMemAlloc(&base.d_ptr, base.bytes); }
    void Dealloc(Memory &base) const { CuMemFree(base.d_ptr); }
-   void Dealloc(void *d_ptr, size_t bytes = 0) const
-   {
-      CuMemFree(d_ptr);
-   }
+   void Dealloc(void *d_ptr, size_t bytes = 0) const { CuMemFree(d_ptr); }
    void *HtoD(void *dst, const void *src, size_t bytes) const
    { return CuMemcpyHtoD(dst, src, bytes); }
    void *DtoD(void* dst, const void* src, size_t bytes) const
@@ -659,13 +662,13 @@ public:
    { return CuMemcpyDtoH(dst, src, bytes); }
 };
 
-/// The CUDA device pool memory space
+/// The POOL CUDA device memory space
 class PoolCudaDeviceMemorySpace: public DeviceMemorySpace
 {
    mutable Pool<CudaDeviceMemorySpace> pool;
 public:
-   PoolCudaDeviceMemorySpace(): DeviceMemorySpace() { }
-   void Alloc(void **d_ptr, size_t bytes) const { MFEM_ABORT(""); *d_ptr = pool.alloc(bytes); }
+   PoolCudaDeviceMemorySpace(): DeviceMemorySpace(), pool(32, 0x100000) { }
+   void Alloc(void **d_ptr, size_t bytes) const { MFEM_ABORT(""); }
    void Alloc(Memory &m) const { m.d_ptr = pool.alloc(m.bytes); }
    void Dealloc(Memory &m) const { pool.free(m.d_ptr); }
    void Dealloc(void *d_ptr, size_t bytes = 0) const { pool.free(d_ptr); }
@@ -744,49 +747,21 @@ public:
 /// The MMU device memory pool space
 class PoolMmuDeviceMemorySpace : public MmuDeviceMemorySpace
 {
-   const uintptr_t PAGE_SZ;
    mutable Pool<MmuDeviceMemorySpace> pool;
-   inline void *Update(const void *ptr, size_t &bytes) const
-   {
-      bytes = PAGE_SZ * (1 + (bytes + sizeof(uintptr_t)) / PAGE_SZ);
-      return (void*)(reinterpret_cast<const uintptr_t*>(ptr)-1);
-   }
 public:
-   PoolMmuDeviceMemorySpace(): MmuDeviceMemorySpace(),
-      PAGE_SZ((uintptr_t) sysconf(_SC_PAGE_SIZE)) { }
+   PoolMmuDeviceMemorySpace(): MmuDeviceMemorySpace() { }
    void Alloc(void **d_ptr, size_t bytes) const { MFEM_ABORT(""); }
    void Alloc(Memory &m) const { m.d_ptr = pool.alloc(m.bytes); }
    void Dealloc(void *ptr, size_t bytes = 0) const { MFEM_ABORT(""); }
-   void Dealloc(Memory &m) const
-   {
-      // free reads the address of the block
-      Unprotect(m);
-      pool.free(m.d_ptr);
-   }
-   void Protect(const Memory &m) const
-   {
-      size_t bytes = m.bytes;
-      MmuProtect(Update(m.d_ptr, bytes), bytes);
-   }
-   void Unprotect(const Memory &m) const
-   {
-      size_t bytes = m.bytes;
-      MmuAllow(Update(m.d_ptr, bytes), bytes);
-   }
+   void Dealloc(Memory &m) const { pool.free(m.d_ptr); }
+   void Protect(const Memory &m) const { MmuProtect(m.d_ptr, m.bytes); }
+   void Unprotect(const Memory &m) const { MmuAllow(m.d_ptr, m.bytes); }
    /// Aliases need to be restricted during protection
-   void AliasProtect(const void *ptr, size_t bytes) const
-   {
-      size_t len = bytes;
-      const void *d_ptr = Update(ptr, len);
-      MmuProtect(MmuAddrR(d_ptr), MmuLengthR(d_ptr, len));
-   }
+   void AliasProtect(const void *d_ptr, size_t bytes) const
+   { MmuProtect(MmuAddrR(d_ptr), MmuLengthR(d_ptr, bytes)); }
    /// Aliases need to be prolongated for un-protection
    void AliasUnprotect(const void *ptr, size_t bytes) const
-   {
-      size_t len = bytes;
-      const void *d_ptr = Update(ptr, len);
-      MmuAllow(MmuAddrP(d_ptr), MmuLengthP(d_ptr, len));
-   }
+   { MmuAllow(MmuAddrP(ptr), MmuLengthP(ptr, bytes)); }
    void *HtoD(void *dst, const void *src, size_t bytes) const
    { return std::memcpy(dst, src, bytes); }
    void *DtoD(void *dst, const void *src, size_t bytes) const
