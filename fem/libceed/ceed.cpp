@@ -368,12 +368,9 @@ void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
    const int P = fe->GetDof();
    const int Q = irm.GetNPoints();
    const int nelem = mesh->GetNE();
-   CeedBasisKey basis_key (const_cast<FiniteElementSpace *>(&fes),
-                           const_cast<IntegrationRule *>(&irm),
-                           P, Q);
+   CeedBasisKey basis_key (&fes, &irm, P, Q);
    auto basis_itr = internal::ceed_basis_map.find(basis_key);
-   CeedRestrKey restr_key (const_cast<FiniteElementSpace *>(&fes),
-                           P, nelem);
+   CeedRestrKey restr_key (&fes, P, nelem);
    auto restr_itr = internal::ceed_restr_map.find(restr_key);
 
    // Init or retreive key values
