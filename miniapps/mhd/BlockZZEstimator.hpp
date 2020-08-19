@@ -100,7 +100,7 @@ public:
    // Return the total error from the last error estimate.
    double GetTotalError() const { return total_error; }
 
-   void SetErrorRatio(int ra) 
+   void SetErrorRatio(double ra) 
    { 
        MFEM_ASSERT(ra > 0.0, "error ratio should be positive!");
        ratio = ra; 

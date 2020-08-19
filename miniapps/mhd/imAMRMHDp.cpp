@@ -23,6 +23,13 @@
 #ifndef MFEM_USE_PETSC
 #error This example requires that MFEM is built with MFEM_USE_PETSC=YES
 #endif
+double beta;
+double Lx;  
+double lambda;
+double resiG;
+double ep=.2;
+int icase = 1;
+
 
 //this is an AMR update function for VSize (instead of TrueVSize)
 //It is only called in the initial stage of AMR to generate an adaptive mesh
@@ -125,6 +132,7 @@ int main(int argc, char *argv[])
    int order = 2;
    int ode_solver_type = 2;
    double t_final = 5.0;
+   double t_change = 0.;
    double dt = 0.0001;
    double visc = 1e-3;
    double resi = 1e-3;
@@ -132,7 +140,9 @@ int main(int argc, char *argv[])
    bool use_petsc = false;
    bool use_factory = false;
    bool yRange = false;
+   bool useStab = false; //use a stabilized formulation (explicit case only)
    const char *petscrc_file = "";
+
    //----amr coefficients----
    int amr_levels=0;
    double ltol_amr=1e-5;
@@ -141,7 +151,7 @@ int main(int argc, char *argv[])
    int nc_limit = 1;         // maximum level of hanging nodes
    int ref_steps=4;
    //----end of amr----
-   int icase = 1;
+   
    beta = 0.001; 
    Lx=3.0;
    lambda=5.0;
@@ -165,20 +175,32 @@ int main(int argc, char *argv[])
                   "            22 - Implicit Midpoint, 23 - SDIRK23, 24 - SDIRK34.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
+   args.AddOption(&t_change, "-tchange", "--t-change",
+                  "dt change time; reduce to half.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
    args.AddOption(&icase, "-i", "--icase",
                   "Icase: 1 - wave propagation; 2 - Tearing mode.");
+   args.AddOption(&itau, "-itau", "--itau",
+                  "Itau options.");
+   args.AddOption(&ijacobi, "-ijacobi", "--ijacobi",
+                  "Number of jacobi iteration in preconditioner");
+   args.AddOption(&im_supg, "-im_supg", "--im_supg",
+                  "supg options in formulation");
+   args.AddOption(&i_supgpre, "-i_supgpre", "--i_supgpre",
+                  "supg preconditioner options in formulation");
+   args.AddOption(&ex_supg, "-ex_supg", "--ex_supg",
+                  "supg options in explicit formulation");
    args.AddOption(&visc, "-visc", "--viscosity",
                   "Viscosity coefficient.");
+   args.AddOption(&resi, "-resi", "--resistivity",
+                  "Resistivity coefficient.");
    args.AddOption(&ALPHA, "-alpha", "--hyperdiff",
                   "Numerical hyprediffusion coefficient.");
    args.AddOption(&beta, "-beta", "--perturb",
                   "Pertubation coefficient in initial conditions.");
    args.AddOption(&ltol_amr, "-ltol", "--local-tol",
                   "Local AMR tolerance.");
-   args.AddOption(&resi, "-resi", "--resistivity",
-                  "Resistivity coefficient.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -186,6 +208,18 @@ int main(int argc, char *argv[])
                   "Refine or derefine every n-th timestep.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
+   args.AddOption(&usesupg, "-supg", "--implicit-supg", "-no-supg",
+                  "--no-implicit-supg",
+                  "Use supg in the implicit solvers.");
+   args.AddOption(&useStab, "-stab", "--explicit-stab", "-no-stab","--no-explitcit-stab",
+                  "Use supg in the explicit solvers.");
+   args.AddOption(&maxtau, "-max-tau", "--max-tau", "-no-max-tau", "--no-max-tau",
+                  "Use max-tau in supg.");
+   args.AddOption(&useFull, "-useFull", "--useFull",
+                  "version of Full preconditioner");
+   args.AddOption(&usefd, "-fd", "--use-fd", "-no-fd",
+                  "--no-fd",
+                  "Use fd-fem in the implicit solvers.");
    args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
                   "--no-visit-datafiles",
                   "Save data files for VisIt (visit.llnl.gov) visualization.");
@@ -217,7 +251,7 @@ int main(int argc, char *argv[])
    {
       resiG=resi;
    }
-   else if (icase==3 || icase==4)
+   else if (icase==3 || icase==4 || icase==5 || icase==6)
    {
       lambda=.5/M_PI;
       resiG=resi;
@@ -267,11 +301,15 @@ int main(int argc, char *argv[])
    }
 
    //++++Refine the mesh to increase the resolution.    
-   mesh->EnsureNCMesh();
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
       mesh->UniformRefinement();
    }
+   Array<int> ordering;
+   mesh->GetHilbertElementOrdering(ordering);
+   mesh->ReorderElements(ordering);
+   mesh->EnsureNCMesh();
+
    amr_levels+=ser_ref_levels;
 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
@@ -386,7 +424,7 @@ int main(int argc, char *argv[])
    }
    jTmp.SetTrueVector();
 
-   for (int ref_it = 1; ; ref_it++)
+   for (int ref_it = 1; ref_it<5; ref_it++)
    {
      exOperator->UpdateJ(*vxTmp, &jTmp);
      refinerTmp.Apply(*pmesh);
