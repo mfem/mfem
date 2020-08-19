@@ -183,7 +183,7 @@ Device::~Device()
 
 void Device::Configure(const std::string &device, const int dev)
 {
-   // If device a was configured via the environment, skip the configuration,
+   // If a device was configured via the environment, skip the configuration,
    // and avoid the 'singleton_device' to destroy the mm.
    if (device_env)
    {
