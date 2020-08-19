@@ -255,7 +255,7 @@ Tensor<dTensor<VDim,3>,Q1d,Q1d,Q1d>&& Gradient(const dTensor<Q1d,D1d> &B,
             {
                const double b = B(qy,dy);
                const double g = G(qy,dy);
-               for (int c = 0; c < count; c++)
+               for (int c = 0; c < VDim; c++)
                {
                   const double bu = Bu(qx,dy,dz)(c);
                   const double gu = Gu(qx,dy,dz)(c);
@@ -264,7 +264,7 @@ Tensor<dTensor<VDim,3>,Q1d,Q1d,Q1d>&& Gradient(const dTensor<Q1d,D1d> &B,
                   bgu[c] += b * gu;
                }               
             }
-            for (int c = 0; c < count; c++)
+            for (int c = 0; c < VDim; c++)
             {
                BBu(qx,qy,dz)(c) = bbu[c];
                GBu(qx,qy,dz)(c) = gbu[c];
@@ -357,7 +357,7 @@ Tensor<dTensor<2>,Q1d,Q1d>&& Gradient(const dTensor<Q1d,D1d> &B,
             const double g = G(qy,dy);
             const double bu = Bu(qx,dy);
             const double gu = Gu(qx,dy);
-            gbu += g * bu
+            gbu += g * bu;
             bgu += b * gu;
          }
          gu_q(qx,qy)(0) = bgu;
@@ -499,31 +499,24 @@ Tensor<dTensor<VDim>,Q1d>&& Gradient(const dTensor<Q1d,D1d> &B,
 // at quadrature points.
 // Non-tensor case
 template<int Q, int D, int Dim> MFEM_HOST_DEVICE inline
-Tensor<dTensor<Dim>,D>&& GradientT(const dTensor<Q,D> &B,
-                                   const Tensor<dTensor<Dim>,Q,D> &G,
-                                   const dTensor<Q> &u_q)
+dTensor<D>&& GradientT(const dTensor<Q,D> &B,
+                       const Tensor<dTensor<Dim>,Q,D> &G,
+                       const Tensor<dTensor<Dim>,Q> &u_q)
 {
-   Tensor<dTensor<Dim>,D> gu;
+   dTensor<D> gu;
    MFEM_FOREACH_THREAD(d,x,D)
    {
-      double v[Dim];
-      for (int c = 0; c < Dim; c++)
-      {
-         v[c] = 0.0;
-      }      
+      double val = 0.0;
       for (int q = 0; q < Q; ++q)
       {
-         const double x = u_q(q);
-         for (int c = 0; c < Dim; c++)
+         for (int s = 0; s < Dim; s++)
          {
-            const double g = G(q,d)(c);
-            v[c] += g * x;
+            const double x = u_q(q)(s);
+            const double g = G(q,d)(s);
+            val += g * x;
          }
       }
-      for (int c = 0; c < Dim; c++)
-      {
-         gu(d)(c) = v[c];
-      }
+      gu(d) = val;
    }
    MFEM_SYNC_THREAD;
    return std::move(gu);
@@ -531,29 +524,21 @@ Tensor<dTensor<Dim>,D>&& GradientT(const dTensor<Q,D> &B,
 
 // Non-tensor case with VDim components
 template<int D, int Q, int Dim, int VDim> MFEM_HOST_DEVICE inline
-Tensor<dTensor<Dim,VDim>,D>&& GradientT(const dTensor<Q,D> &B,
-                                        const Tensor<dTensor<Dim>,Q,D> &G,
-                                        const Tensor<dTensor<VDim>,Q> &u_q)
+Tensor<dTensor<VDim>,D>&& GradientT(const dTensor<Q,D> &B,
+                                    const Tensor<dTensor<Dim>,Q,D> &G,
+                                    const Tensor<dTensor<VDim,Dim>,Q> &u_q)
 {
-   Tensor<dTensor<Dim,VDim>,D> gu;
+   Tensor<dTensor<VDim>,D> gu;
    MFEM_FOREACH_THREAD(d,x,D)
    {
-      double v[Dim][VDim];
-      for (int s = 0; s < Dim; s++)
+      double v[VDim];
+      double b[Dim];
+      for (int c = 0; c < VDim; c++)
       {
-         for (int c = 0; c < VDim; c++)
-         {
-            v[s][c] = 0.0;
-         }
+         v[c] = 0.0;
       }
       for (int q = 0; q < Q; ++q)
       {
-         double b[Dim];
-         double x[VDim];
-         for (int c = 0; c < VDim; c++)
-         {
-            x[c] = u_q(q)(c);
-         }
          for (int s = 0; s < Dim; s++)
          {
             b[s] = G(q,d)(s);
@@ -562,16 +547,14 @@ Tensor<dTensor<Dim,VDim>,D>&& GradientT(const dTensor<Q,D> &B,
          {
             for (int c = 0; c < VDim; c++)
             {
-               v[s][c] += b[s] * x[c];
+               const double x = u_q(q)(s,c);
+               v[c] += b[s] * x;
             }
          }
       }
-      for (int s = 0; s < Dim; s++)
+      for (int c = 0; c < VDim; c++)
       {
-         for (int c = 0; c < VDim; c++)
-         {
-            gu(d)(s,c) = v[s][c];
-         }
+         gu(d)(c) = v[c];
       }
    }
    MFEM_SYNC_THREAD;
@@ -580,87 +563,82 @@ Tensor<dTensor<Dim,VDim>,D>&& GradientT(const dTensor<Q,D> &B,
 
 // 3D Tensor case
 template<int D1d, int Q1d> MFEM_HOST_DEVICE inline
-Tensor<dTensor<3>,D1d,D1d,D1d>&& GradientT(const dTensor<Q1d,D1d> &B,
-                                          const dTensor<Q1d,D1d> &G,
-                                          const dTensor<Q1d,Q1d,Q1d> &u_q)
+dTensor<D1d,D1d,D1d>&& GradientT(const dTensor<Q1d,D1d> &B,
+                                 const dTensor<Q1d,D1d> &G,
+                                 const Tensor<dTensor<3>,Q1d,Q1d,Q1d> &u_q)
 {
-   dTensor<D1d,Q1d,Q1d> Bu;
-   dTensor<D1d,Q1d,Q1d> Gu;
-   MFEM_FOREACH_THREAD(qz,z,Q1d)
+   dTensor<D1d,Q1d,Q1d> Gux;
+   dTensor<D1d,Q1d,Q1d> Buy;
+   dTensor<D1d,Q1d,Q1d> Buz;
+   for (int qz = 0; qz < Q1d; qz++)
    {
       MFEM_FOREACH_THREAD(qy,y,Q1d)
       {
          MFEM_FOREACH_THREAD(dx,x,D1d)
          {
-            double bu = 0.0;
-            double gu = 0.0;
+            double gux = 0.0;
+            double buy = 0.0;
+            double buz = 0.0;
             for (int qx = 0; qx < Q1d; ++qx)
             {
-               const double x = u_q(qx,qy,qz);
                const double b = B(qx,dx);
                const double g = G(qx,dx);
-               bu += b * x;
-               gu += g * x;
+               gux += g * u_q(qx,qy,qz)(0);
+               buy += b * u_q(qx,qy,qz)(1);
+               buz += b * u_q(qx,qy,qz)(2);
             }
-            Bu(dx,qy,qz) = bu;
-            Gu(dx,qy,qz) = gu;
+            Gux(dx,qy,qz) = gux;
+            Buy(dx,qy,qz) = buy;
+            Buz(dx,qy,qz) = buz;
          }
       }
    }
    MFEM_SYNC_THREAD;
-   dTensor<D1d,D1d,Q1d> BBu;
-   dTensor<D1d,D1d,Q1d> GBu;
-   dTensor<D1d,D1d,Q1d> BGu;
-   MFEM_FOREACH_THREAD(qz,z,Q1d)
+   dTensor<D1d,D1d,Q1d> BGux;
+   dTensor<D1d,D1d,Q1d> GBuy;
+   dTensor<D1d,D1d,Q1d> BBuz;
+   for (int qz = 0; qz < Q1d; qz++)
    {
       MFEM_FOREACH_THREAD(dx,x,D1d)
       {
          MFEM_FOREACH_THREAD(dy,y,D1d)
          {
-            double bbu = 0.0;
-            double gbu = 0.0;
-            double bgu = 0.0;
+            double bgux = 0.0;
+            double gbuy = 0.0;
+            double bbuz = 0.0;
             for (int qy = 0; qy < Q1d; ++qy)
             {
-               const double bu = Bu(dx,qy,qz);
-               const double gu = Gu(dx,qy,qz);
                const double b = B(qy,dy);
                const double g = G(qy,dy);
-               bbu += b * bu;
-               gbu += g * bu;
-               bgu += b * gu;  
+               bgux += b * Gux(dx,qy,qz);
+               gbuy += g * Buy(dx,qy,qz);
+               bbuz += b * Buz(dx,qy,qz);
             }
-            BBu(dx,dy,qz) = bbu;
-            GBu(dx,dy,qz) = gbu;
-            BGu(dx,dy,qz) = bgu;
+            BGux(dx,dy,qz) = bgux;
+            GBuy(dx,dy,qz) = gbuy;
+            BBuz(dx,dy,qz) = bbuz;
          }
       }
    }
    MFEM_SYNC_THREAD;
-   Tensor<dTensor<3>,D1d,D1d,D1d> gu;
+   dTensor<D1d,D1d,D1d> gu;
    MFEM_FOREACH_THREAD(dx,x,D1d)
    {
       MFEM_FOREACH_THREAD(dy,y,D1d)
       {
-         MFEM_FOREACH_THREAD(dz,z,D1d)
+         for (int dz = 0; dz < D1d; dz++)
          {
-            double gbbu = 0.0;
-            double bgbu = 0.0;
-            double bbgu = 0.0;
+            double val = 0.0;
             for (int qz = 0; qz < Q1d; ++qz)
             {
                const double b = B(qz,dz);
                const double g = G(qz,dz);
-               const double bbu = BBu(dx,dy,qz);
-               const double gbu = GBu(dx,dy,qz);
-               const double bgu = BGu(dx,dy,qz);
-               gbbu += g * bbu;
-               bgbu += b * gbu;
-               bbgu += b * bgu;
+               const double bgux = BGux(dx,dy,qz);
+               const double gbuy = GBuy(dx,dy,qz);
+               const double bbuz = BBuz(dx,dy,qz);
+               val += b * bgux + b * gbuy + g * bbuz;
             }
-            gu(dx,dy,dz)(0) = bbgu;
-            gu(dx,dy,dz)(1) = bgbu;
-            gu(dx,dy,dz)(2) = gbbu;
+            gu(dx,dy,dz) = val;
          }
       }
    }
@@ -670,101 +648,99 @@ Tensor<dTensor<3>,D1d,D1d,D1d>&& GradientT(const dTensor<Q1d,D1d> &B,
 
 // 3D Tensor case with VDim components
 template<int D1d, int Q1d, int VDim> MFEM_HOST_DEVICE inline
-Tensor<dTensor<VDim,3>,D1d,D1d,D1d>&& GradientT(const dTensor<Q1d,D1d> &B,
-                                                const dTensor<Q1d,D1d> &G,
-                                                const dTensor<Q1d,Q1d,Q1d> &u_q)
+Tensor<dTensor<VDim>,D1d,D1d,D1d>&& GradientT(const dTensor<Q1d,D1d> &B,
+                                              const dTensor<Q1d,D1d> &G,
+                                              const Tensor<dTensor<VDim,3>,Q1d,Q1d,Q1d> &u_q)
 {
-   Tensor<dTensor<VDim>,D1d,Q1d,Q1d> Bu;
-   Tensor<dTensor<VDim>,D1d,Q1d,Q1d> Gu;
-   MFEM_FOREACH_THREAD(qz,z,Q1d)
+   Tensor<dTensor<VDim>,D1d,Q1d,Q1d> Gux;
+   Tensor<dTensor<VDim>,D1d,Q1d,Q1d> Buy;
+   Tensor<dTensor<VDim>,D1d,Q1d,Q1d> Buz;
+   for (int qz = 0; qz < Q1d; qz++)
    {
       MFEM_FOREACH_THREAD(qy,y,Q1d)
       {
          MFEM_FOREACH_THREAD(dx,x,D1d)
          {
-            double bu[VDim];
-            double gu[VDim];
+            double gux[VDim];
+            double buy[VDim];
+            double buz[VDim];
             for (int c = 0; c < VDim; c++)
             {
-               bu[c] = 0.0;
-               gu[c] = 0.0;
-            }
+               gux[c] = 0.0;
+               buy[c] = 0.0;
+               buz[c] = 0.0;
+            }            
             for (int qx = 0; qx < Q1d; ++qx)
             {
                const double b = B(qx,dx);
                const double g = G(qx,dx);
                for (int c = 0; c < VDim; c++)
                {
-                  const double x = u_q(qx,qy,qz);
-                  bu[c] += b * x;
-                  gu[c] += g * x;
-               }
+                  gux[c] += g * u_q(qx,qy,qz)(c,0);
+                  buy[c] += b * u_q(qx,qy,qz)(c,1);
+                  buz[c] += b * u_q(qx,qy,qz)(c,2);
+               }               
             }
             for (int c = 0; c < VDim; c++)
             {
-               Bu(dx,qy,qz)(c) = bu[c];
-               Gu(dx,qy,qz)(c) = gu[c];
+               Gux(dx,qy,qz)(c) = gux[c];
+               Buy(dx,qy,qz)(c) = buy[c];
+               Buz(dx,qy,qz)(c) = buz[c];
             }
          }
       }
    }
    MFEM_SYNC_THREAD;
-   Tensor<dTensor<VDim>,D1d,D1d,Q1d> BBu;
-   Tensor<dTensor<VDim>,D1d,D1d,Q1d> GBu;
-   Tensor<dTensor<VDim>,D1d,D1d,Q1d> BGu;
-   MFEM_FOREACH_THREAD(qz,z,Q1d)
+   Tensor<dTensor<VDim>,D1d,D1d,Q1d> BGux;
+   Tensor<dTensor<VDim>,D1d,D1d,Q1d> GBuy;
+   Tensor<dTensor<VDim>,D1d,D1d,Q1d> BBuz;
+   for (int qz = 0; qz < Q1d; qz++)
    {
       MFEM_FOREACH_THREAD(dx,x,D1d)
       {
          MFEM_FOREACH_THREAD(dy,y,D1d)
          {
-            double bbu[VDim];
-            double gbu[VDim];
-            double bgu[VDim];
+            double bgux[VDim];
+            double gbuy[VDim];
+            double bbuz[VDim];
             for (int c = 0; c < VDim; c++)
             {
-               bbu[c] = 0.0;
-               gbu[c] = 0.0;
-               bgu[c] = 0.0;
-            }
+               bgux[c] = 0.0;
+               gbuy[c] = 0.0;
+               bbuz[c] = 0.0;
+            }        
             for (int qy = 0; qy < Q1d; ++qy)
             {
                const double b = B(qy,dy);
                const double g = G(qy,dy);
-               for (int c = 0; c < count; c++)
+               for (int c = 0; c < VDim; c++)
                {
-                  const double bu = Bu(dx,qy,qz)(c);
-                  const double gu = Gu(dx,qy,qz)(c);
-                  bbu[c] += b * bu;
-                  gbu[c] += g * bu;
-                  bgu[c] += b * gu;
-               }               
+                  bgux[c] += b * Gux(dx,qy,qz)(c);
+                  gbuy[c] += g * Buy(dx,qy,qz)(c);
+                  bbuz[c] += b * Buz(dx,qy,qz)(c);
+               }
             }
-            for (int c = 0; c < count; c++)
+            for (int c = 0; c < VDim; c++)
             {
-               BBu(dx,dy,qz)(c) = bbu[c];
-               GBu(dx,dy,qz)(c) = gbu[c];
-               BGu(dx,dy,qz)(c) = bgu[c];
+               BGux(dx,dy,qz)(c) = bgux[c];
+               GBuy(dx,dy,qz)(c) = gbuy[c];
+               BBuz(dx,dy,qz)(c) = bbuz[c];
             }
          }
       }
    }
    MFEM_SYNC_THREAD;
-   Tensor<dTensor<VDim,3>,D1d,D1d,D1d> gu;
+   Tensor<dTensor<VDim>,D1d,D1d,D1d> gu;
    MFEM_FOREACH_THREAD(dx,x,D1d)
    {
       MFEM_FOREACH_THREAD(dy,y,D1d)
       {
-         MFEM_FOREACH_THREAD(dz,z,D1d)
+         for (int dz = 0; dz < D1d; dz++)
          {
-            double gbbu[VDim];
-            double bgbu[VDim];
-            double bbgu[VDim];
+            double val[VDim];
             for (int c = 0; c < VDim; c++)
             {
-               gbbu[c] = 0.0;
-               bgbu[c] = 0.0;
-               bbgu[c] = 0.0;
+               val[c] = 0.0;
             }
             for (int qz = 0; qz < Q1d; ++qz)
             {
@@ -772,19 +748,15 @@ Tensor<dTensor<VDim,3>,D1d,D1d,D1d>&& GradientT(const dTensor<Q1d,D1d> &B,
                const double g = G(qz,dz);
                for (int c = 0; c < VDim; c++)
                {
-                  const double bbu = BBu(dx,dy,qz)(c);
-                  const double gbu = GBu(dx,dy,qz)(c);
-                  const double bgu = BGu(dx,dy,qz)(c);
-                  gbbu[c] += g * bbu;
-                  bgbu[c] += b * gbu;
-                  bbgu[c] += b * bgu;
+                  const double bgux[c] = BGux(dx,dy,qz)(c);
+                  const double gbuy[c] = GBuy(dx,dy,qz)(c);
+                  const double bbuz[c] = BBuz(dx,dy,qz)(c);
+                  val[c] += b * bgux[c] + b * gbuy[c] + g * bbuz[c];
                }
             }
             for (int c = 0; c < VDim; c++)
             {
-               gu(dx,dy,dz)(c,0) = bbgu[c];
-               gu(dx,dy,dz)(c,1) = bgbu[c];
-               gu(dx,dy,dz)(c,2) = gbbu[c];
+               gu(dx,dy,dz)(c) = val[c];
             }
          }
       }
@@ -795,180 +767,119 @@ Tensor<dTensor<VDim,3>,D1d,D1d,D1d>&& GradientT(const dTensor<Q1d,D1d> &B,
 
 // 2D Tensor case
 template<int D1d, int Q1d> MFEM_HOST_DEVICE inline
-Tensor<dTensor<2>,D1d,D1d>&& GradientT(const dTensor<Q1d,D1d> &B,
-                                       const dTensor<Q1d,D1d> &G,
-                                       const dTensor<Q1d,Q1d> &u_q)
+dTensor<D1d,D1d>&& GradientT(const dTensor<Q1d,D1d> &B,
+                             const dTensor<Q1d,D1d> &G,
+                             const Tensor<dTensor<2>,Q1d,Q1d> &u_q)
 {
-   dTensor<D1d,Q1d> Bu;
-   dTensor<D1d,Q1d> Gu;
+   dTensor<D1d,Q1d> Gux;
+   dTensor<D1d,Q1d> Buy;
    MFEM_FOREACH_THREAD(qy,y,Q1d)
    {
       MFEM_FOREACH_THREAD(dx,x,D1d)
       {
-         double bu = 0.0;
-         double gu = 0.0;
+         double gux = 0.0;
+         double buy = 0.0;
          for (int qx = 0; qx < Q1d; ++qx)
          {
             const double b = B(qx,dx);
             const double g = G(qx,dx);
-            const double x = u_q(qx,qy);
-            bu += b * x;
-            gu += g * x;
+            gux += g * u_q(qx,qy)(0);
+            buy += b * u_q(qx,qy)(1);
          }
-         Bu(dx,qy) = bu;
-         Gu(dx,qy) = gu;
+         Gux(dx,qy) = gux;
+         Buy(dx,qy) = buy;
       }
    }
    MFEM_SYNC_THREAD;
-   Tensor<dTensor<2>,D1d,D1d> gu_t;
+   dTensor<D1d,D1d> gu;
    MFEM_FOREACH_THREAD(dx,x,D1d)
    {
       MFEM_FOREACH_THREAD(dy,y,D1d)
       {
-         double bgu = 0.0;
-         double gbu = 0.0;
+         double bgux = 0.0;
+         double gbuy = 0.0;
+         double bbuz = 0.0;
          for (int qy = 0; qy < Q1d; ++qy)
          {
             const double b = B(qy,dy);
             const double g = G(qy,dy);
-            const double bu = Bu(dx,qy);
-            const double gu = Gu(dx,qy);
-            gbu += g * bu;
-            bgu += b * gu;
+            bgux += b * Gux(dx,qy);
+            gbuy += g * Buy(dx,qy);
          }
-         gu_t(dx,dy)(0) = bgu;
-         gu_t(dx,dy)(1) = gbu;
+         gu(dx,dy) = bgux + gbuy;
       }
    }
    MFEM_SYNC_THREAD;
-   return std::move(gu_t);
+   return std::move(gu);
 }
 
 // 2D Tensor case with VDim components
 template<int D1d, int Q1d, int VDim> MFEM_HOST_DEVICE inline
-Tensor<dTensor<VDim,2>,D1d,D1d>&& GradientT(const dTensor<Q1d,D1d> &B,
-                                            const dTensor<Q1d,D1d> &G,
-                                            const Tensor<dTensor<VDim>,Q1d,Q1d> &u_q)
+Tensor<dTensor<VDim>,D1d,D1d>&& GradientT(const dTensor<Q1d,D1d> &B,
+                                              const dTensor<Q1d,D1d> &G,
+                                              const Tensor<dTensor<VDim,2>,Q1d,Q1d> &u_q)
 {
-   Tensor<dTensor<VDim>,D1d,Q1d> Bu;
-   Tensor<dTensor<VDim>,D1d,Q1d> Gu;
+   Tensor<dTensor<VDim>,D1d,Q1d> Gux;
+   Tensor<dTensor<VDim>,D1d,Q1d> Buy;
    MFEM_FOREACH_THREAD(qy,y,Q1d)
    {
       MFEM_FOREACH_THREAD(dx,x,D1d)
       {
-         double bu[VDim];
-         double gu[VDim];
+         double gux[VDim];
+         double buy[VDim];
          for (int c = 0; c < VDim; c++)
          {
-            bu[c] = 0.0;
-            gu[c] = 0.0;
-         }
+            gux[c] = 0.0;
+            buy[c] = 0.0;
+         }            
          for (int qx = 0; qx < Q1d; ++qx)
          {
             const double b = B(qx,dx);
             const double g = G(qx,dx);
             for (int c = 0; c < VDim; c++)
             {
-               const double x = u_q(qx,qy)(c);
-               bu[c] += b * x;
-               gu[c] += g * x;
-            }
+               gux[c] += g * u_q(qx,qy)(c,0);
+               buy[c] += b * u_q(qx,qy)(c,1);
+            }               
          }
          for (int c = 0; c < VDim; c++)
          {
-            Bu(dx,qy)(c) = bu[c];
-            Gu(dx,qy)(c) = gu[c];
+            Gux(dx,qy)(c) = gux[c];
+            Buy(dx,qy)(c) = buy[c];
          }
       }
    }
    MFEM_SYNC_THREAD;
-   Tensor<dTensor<VDim,2>,D1d,D1d> gu_t;
+   Tensor<dTensor<VDim>,D1d,D1d> gu;
    MFEM_FOREACH_THREAD(dx,x,D1d)
    {
       MFEM_FOREACH_THREAD(dy,y,D1d)
       {
-         double bgu[VDim];
-         double gbu[VDim];
+         double bgux[VDim];
+         double gbuy[VDim];
          for (int c = 0; c < VDim; c++)
          {
-            bgu[c] = 0.0;
-            gbu[c] = 0.0;
-         }
+            bgux[c] = 0.0;
+            gbuy[c] = 0.0;
+         }        
          for (int qy = 0; qy < Q1d; ++qy)
          {
             const double b = B(qy,dy);
             const double g = G(qy,dy);
             for (int c = 0; c < VDim; c++)
             {
-               const double bu = Bu(dx,qy)(c);
-               const double gu = Gu(dx,qy)(c);
-               gbu[c] += g * bu;
-               bgu[c] += b * gu;
+               bgux[c] += b * Gux(dx,qy)(c);
+               gbuy[c] += g * Buy(dx,qy)(c);
             }
          }
          for (int c = 0; c < VDim; c++)
          {
-            gu_t(dx,dy)(c,0) = bgu[c];
-            gu_t(dx,dy)(c,1) = gbu[c];
+            gu(dx,dy)(c) = bgux[c] + gbuy[c];
          }
       }
    }
    MFEM_SYNC_THREAD;
-   return std::move(gu_t);
-}
-
-// 1D Tensor case
-template<int D1d, int Q1d> MFEM_HOST_DEVICE inline
-dTensor<D1d>&& GradientT(const dTensor<Q1d,D1d> &B,
-                        const dTensor<Q1d,D1d> &G,
-                        const dTensor<Q1d> &u_q)
-{
-   dTensor<D1d> gu_t;
-   MFEM_FOREACH_THREAD(dx,x,D1d)
-   {
-      double gu = 0.0;
-      for (int qx = 0; qx < Q1d; ++qx)
-      {
-         const double g = G(qx,dx);
-         const double x = u_q(qx);
-         gu += g * x;
-      }
-      gu_t(dx) = gu;
-   }
-   MFEM_SYNC_THREAD;
-   return std::move(gu_t);
-}
-
-// 1D Tensor case with VDim components
-template<int D1d, int Q1d, int VDim> MFEM_HOST_DEVICE inline
-Tensor<dTensor<VDim>,D1d>&& GradientT(const dTensor<Q1d,D1d> &B,
-                                      const dTensor<Q1d,D1d> &G,
-                                      const Tensor<dTensor<VDim>,Q1d> &u_q)
-{
-   Tensor<dTensor<VDim>,D1d> gu_t;
-   MFEM_FOREACH_THREAD(dx,x,D1d)
-   {
-      double gu[VDim];
-      for (int c = 0; c < VDim; c++)
-      {
-         gu[c] = 0.0;
-      }
-      for (int qx = 0; qx < Q1d; ++qx)
-      {
-         const double g = G(qx,dx);
-         for (int c = 0; c < VDim; c++)
-         {
-            const double x = u_q(qx)(c);
-            gu[c] += g * x;
-         }
-      }
-      for (int c = 0; c < VDim; c++)
-      {
-         gu_t(dx)(c) = gu[c];
-      }
-   }
-   MFEM_SYNC_THREAD;
-   return std::move(gu_t);
+   return std::move(gu);
 }
 
 } // namespace mfem
