@@ -141,3 +141,7 @@ if (MFEM_USE_HIOP)
   add_subdirectory(hiop)
 endif()
 
+if(MFEM_USE_CALIPER)
+  add_subdirectory(caliper)
+endif()
+
