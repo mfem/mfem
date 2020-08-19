@@ -15,15 +15,19 @@
 #include "../config/config.hpp"
 
 #ifdef MFEM_USE_CALIPER
-#include <caliper/cali.h>
 
+#include <caliper/cali.h>
+#include <caliper/cali-manager.h>
 #define MFEM_MARK_FUNCTION CALI_CXX_MARK_FUNCTION
 #define MFEM_MARK_REGION_BEGIN(s) CALI_MARK_BEGIN(s)
 #define MFEM_MARK_REGION_END(s) CALI_MARK_END(s)
+
 #else
+
 #define MFEM_MARK_FUNCTION
 #define MFEM_MARK_REGION_BEGIN(s)
 #define MFEM_MARK_REGION_END(s)
+
 #endif
 
 #endif
