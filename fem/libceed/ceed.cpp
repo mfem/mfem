@@ -392,7 +392,7 @@ void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
    }
    else
    {
-      basis = &basis_itr->second;
+      *basis = basis_itr->second;
    }
    if (restr_itr == internal::ceed_restr_map.end())
    {
@@ -409,7 +409,7 @@ void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
    }
    else
    {
-      restr = &restr_itr->second;
+      *restr = restr_itr->second;
    }
 }
 
