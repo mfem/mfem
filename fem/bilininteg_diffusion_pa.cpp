@@ -13,6 +13,12 @@
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
 #include "libceed/diffusion.hpp"
+#include "../linalg/tensor/read.hpp"
+#include "../linalg/tensor/readmatrix.hpp"
+#include "../linalg/tensor/interp.hpp"
+#include "../linalg/tensor/grad.hpp"
+#include "../linalg/tensor/cwisemult.hpp"
+#include "../linalg/tensor/write.hpp"
 
 using namespace std;
 
@@ -1642,6 +1648,87 @@ static void SmemPADiffusionApply3D(const int NE,
    });
 }
 
+template <int Dim, typename Basis, typename BasisT, typename Dop,
+typename DofsIn, typename DofsOut> MFEM_HOST_DEVICE inline
+static void Apply(const int e,
+                  const Basis &d_B,
+                  const BasisT &d_G,
+                  const Dop &D,
+                  const DofsIn &x,
+                  DofsOut &y)
+{
+   auto u = Read<Basis::D>(x,e);
+
+   // Gu
+   auto B   = ReadMatrix(d_B);
+   auto G   = ReadMatrix(d_G);
+   auto gu  = Gradient(B,G,u);
+   // DGu
+   auto D_e = ReadSymmMatrix<Basis::Q,Dim>(D,e);
+   auto dgu = CWiseMult(D_e,gu);
+   //GtDGu
+   auto gdgu = GradientT(B,G,dgu);
+
+   WriteAdd(gdgu,e,y);
+}
+
+template <int D1D, int Q1D>
+static void Apply3D(const int NE,
+                    const Array<double> &b,
+                    const Array<double> &g,
+                    const Vector &d,
+                    const Vector &x,
+                    Vector &y)
+{
+   DeviceBasis<Q1D,D1D> B = {b.Read()};
+   DeviceBasis<Q1D,D1D> G = {g.Read()};
+   auto D = Reshape(d.Read(), Q1D, Q1D, Q1D, 6, NE);
+   auto X = Reshape(x.Read(), D1D, D1D, D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, 1,
+   {
+      Apply<3>(e,B,G,D,X,Y);
+   });
+}
+
+template <int D1D, int Q1D, int NBZ>
+static void Apply2D(const int NE,
+                    const Array<double> &b,
+                    const Array<double> &g,
+                    const Vector &d,
+                    const Vector &x,
+                    Vector &y)
+{
+   DeviceBasis<Q1D,D1D> B = {b.Read()};
+   DeviceBasis<Q1D,D1D> G = {g.Read()};
+   auto D = Reshape(d.Read(), Q1D, Q1D, 3, NE);
+   auto X = Reshape(x.Read(), D1D, D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
+   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   {
+      Apply<2>(e,B,G,D,X,Y);
+   });
+}
+
+template <int D1D, int Q1D, int NBZ>
+static void Apply1D(const int NE,
+                    const Array<double> &b,
+                    const Array<double> &g,
+                    const Vector &d,
+                    const Vector &x,
+                    Vector &y)
+{
+   DeviceBasis<Q1D,D1D> B = {b.Read()};
+   DeviceBasis<Q1D,D1D> G = {g.Read()};
+   auto D = Reshape(d.Read(), Q1D, 1, NE);
+   auto X = Reshape(x.Read(), D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), D1D, NE);
+   MFEM_FORALL_2D(e, NE, Q1D, 1, NBZ,
+   {
+      Apply<1>(e,B,G,D,X,Y);
+   });
+}
+
 static void PADiffusionApply(const int dim,
                              const int D1D,
                              const int Q1D,
@@ -1676,14 +1763,14 @@ static void PADiffusionApply(const int dim,
    {
       switch (ID)
       {
-         case 0x22: return SmemPADiffusionApply2D<2,2,16>(NE,B,G,D,X,Y);
-         case 0x33: return SmemPADiffusionApply2D<3,3,16>(NE,B,G,D,X,Y);
-         case 0x44: return SmemPADiffusionApply2D<4,4,8>(NE,B,G,D,X,Y);
-         case 0x55: return SmemPADiffusionApply2D<5,5,8>(NE,B,G,D,X,Y);
-         case 0x66: return SmemPADiffusionApply2D<6,6,4>(NE,B,G,D,X,Y);
-         case 0x77: return SmemPADiffusionApply2D<7,7,4>(NE,B,G,D,X,Y);
-         case 0x88: return SmemPADiffusionApply2D<8,8,2>(NE,B,G,D,X,Y);
-         case 0x99: return SmemPADiffusionApply2D<9,9,2>(NE,B,G,D,X,Y);
+         case 0x22: return Apply2D<2,2,16>(NE,B,G,D,X,Y);
+         case 0x33: return Apply2D<3,3,16>(NE,B,G,D,X,Y);
+         case 0x44: return Apply2D<4,4,8>(NE,B,G,D,X,Y);
+         case 0x55: return Apply2D<5,5,8>(NE,B,G,D,X,Y);
+         case 0x66: return Apply2D<6,6,4>(NE,B,G,D,X,Y);
+         case 0x77: return Apply2D<7,7,4>(NE,B,G,D,X,Y);
+         case 0x88: return Apply2D<8,8,2>(NE,B,G,D,X,Y);
+         case 0x99: return Apply2D<9,9,2>(NE,B,G,D,X,Y);
          default:   return PADiffusionApply2D(NE,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
       }
    }
@@ -1692,15 +1779,15 @@ static void PADiffusionApply(const int dim,
    {
       switch (ID)
       {
-         case 0x23: return SmemPADiffusionApply3D<2,3>(NE,B,G,D,X,Y);
-         case 0x34: return SmemPADiffusionApply3D<3,4>(NE,B,G,D,X,Y);
-         case 0x45: return SmemPADiffusionApply3D<4,5>(NE,B,G,D,X,Y);
-         case 0x46: return SmemPADiffusionApply3D<4,6>(NE,B,G,D,X,Y);
-         case 0x56: return SmemPADiffusionApply3D<5,6>(NE,B,G,D,X,Y);
-         case 0x58: return SmemPADiffusionApply3D<5,8>(NE,B,G,D,X,Y);
-         case 0x67: return SmemPADiffusionApply3D<6,7>(NE,B,G,D,X,Y);
-         case 0x78: return SmemPADiffusionApply3D<7,8>(NE,B,G,D,X,Y);
-         case 0x89: return SmemPADiffusionApply3D<8,9>(NE,B,G,D,X,Y);
+         case 0x23: return Apply3D<2,3>(NE,B,G,D,X,Y);
+         case 0x34: return Apply3D<3,4>(NE,B,G,D,X,Y);
+         case 0x45: return Apply3D<4,5>(NE,B,G,D,X,Y);
+         case 0x46: return Apply3D<4,6>(NE,B,G,D,X,Y);
+         case 0x56: return Apply3D<5,6>(NE,B,G,D,X,Y);
+         case 0x58: return Apply3D<5,8>(NE,B,G,D,X,Y);
+         case 0x67: return Apply3D<6,7>(NE,B,G,D,X,Y);
+         case 0x78: return Apply3D<7,8>(NE,B,G,D,X,Y);
+         case 0x89: return Apply3D<8,9>(NE,B,G,D,X,Y);
          default:   return PADiffusionApply3D(NE,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
       }
    }
