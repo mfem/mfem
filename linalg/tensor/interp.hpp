@@ -100,9 +100,9 @@ dTensor<Q1d,Q1d,Q1d> Interpolate(const dTensor<Q1d,D1d> &B,
    dTensor<Q1d,Q1d,D1d> BBu;
    for (int dz = 0; dz < D1d; dz++)
    {
-      MFEM_FOREACH_THREAD(qx,x,Q1d)
+      MFEM_FOREACH_THREAD(qy,y,Q1d)
       {
-         MFEM_FOREACH_THREAD(qy,y,Q1d)
+         MFEM_FOREACH_THREAD(qx,x,Q1d)
          {
             double val = 0.0;
             for (int dy = 0; dy < D1d; ++dy)
