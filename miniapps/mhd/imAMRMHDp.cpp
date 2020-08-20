@@ -150,6 +150,7 @@ int main(int argc, char *argv[])
    int precision = 8;
    int nc_limit = 1;         // maximum level of hanging nodes
    int ref_steps=4;
+   double err_ratio=.1;
    //----end of amr----
    
    beta = 0.001; 
@@ -201,6 +202,8 @@ int main(int argc, char *argv[])
                   "Pertubation coefficient in initial conditions.");
    args.AddOption(&ltol_amr, "-ltol", "--local-tol",
                   "Local AMR tolerance.");
+   args.AddOption(&err_ratio, "-err-ratio", "--err-ratio",
+                  "AMR component ratio.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -529,8 +532,8 @@ int main(int argc, char *argv[])
    oper.SetInitialJ(*jptr);
 
    //-----------------------------------AMR for the real computation---------------------------------
-   BlockZZEstimator estimator(*integ, psi, *integ, j, flux_fespace1, flux_fespace2);
-   estimator.SetErrorRatio(.1); //we define total_err = err_1 + ratio*err_2
+   BlockZZEstimator estimator(*integ, psi, *integ, phi, flux_fespace1, flux_fespace2);
+   estimator.SetErrorRatio(err_ratio); //we define total_err = err_1 + ratio*err_2
 
    ThresholdRefiner refiner(estimator);
    refiner.SetTotalErrorFraction(0.5);   // here 0.0 means we use local threshold; default is 0.5
