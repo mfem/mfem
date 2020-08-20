@@ -96,7 +96,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "icf.mesh";
    int mesh_poly_deg     = 1;
    int rs_levels         = 0;
-   int ars_levels        = 0;
+   int amr_rs_levels        = 0;
    double jitter         = 0.0;
    int metric_id         = 1;
    int target_id         = 1;
@@ -129,7 +129,7 @@ int main(int argc, char *argv[])
                   "Polynomial degree of mesh finite element space.");
    args.AddOption(&rs_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
-   args.AddOption(&ars_levels, "-ars", "--amr-refine-serial",
+   args.AddOption(&amr_rs_levels, "-ars", "--amr-refine-serial",
                   "Number of times to refine the mesh uniformly in serial using AMR.");
    args.AddOption(&jitter, "-ji", "--jitter",
                   "Random perturbation scaling factor.");
@@ -260,14 +260,15 @@ int main(int argc, char *argv[])
    GridFunction x(fespace);
    mesh->SetNodalGridFunction(&x);
 
-   for (int lev = 0; lev < ars_levels; lev++)
+   for (int lev = 0; lev < amr_rs_levels; lev++)
    {
       Array<Refinement> marked_elements;
       for (int e = 0; e < mesh->GetNE(); e++)
       {
          marked_elements.Append(e);
       }
-      mesh->GeneralRefinement(marked_elements, 1, 0);
+      //mesh->GeneralRefinement(marked_elements, 1, 0);
+      mesh->RandomRefinement(0.9, false, 1, 0);
       fespace->Update();
       x.Update();
    }
@@ -374,21 +375,16 @@ int main(int argc, char *argv[])
       case 56: amrmetric = new TMOP_Metric_056; break;
       case 58: amrmetric = new TMOP_Metric_058; break;
       case 77: amrmetric = new TMOP_Metric_077; break;
-      case 302: amrmetric = new TMOP_Metric_302; break;
       case 315: amrmetric = new TMOP_Metric_315; break;
-      default: cout << "Unknown metric_id: " << amr_metric_id << endl; return 3;
+      case 316: amrmetric = new TMOP_Metric_316; break;
+      case 321: amrmetric = new TMOP_Metric_321; break;
+      default: cout << "Metric_id not supported in AMR: " << amr_metric_id << endl; return 3;
    }
 
-   if (metric_id < 300)  {
+   if (metric_id < 300 || amr_metric_id < 300)  {
        MFEM_VERIFY(dim == 2, "Incompatible metric for 3D meshes");
    }
-   if (amr_metric_id < 300)  {
-       MFEM_VERIFY(dim == 2, "Incompatible metric for 3D meshes");
-   }
-   if (metric_id >= 300)  {
-       MFEM_VERIFY(dim == 3, "Incompatible metric for 2D meshes");
-   }
-   if (amr_metric_id >= 300)  {
+   if (metric_id >= 300 || amr_metric_id >= 300)  {
        MFEM_VERIFY(dim == 3, "Incompatible metric for 2D meshes");
    }
 
@@ -824,14 +820,13 @@ int main(int argc, char *argv[])
    solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
 
    // 20. AMR based size refinemenet if a size metric is used
-   TMOPAMR tmopamrupdate(a, *mesh, move_bnd);
-   tmopamrupdate.AddMeshNodeAr(&x);
-   tmopamrupdate.AddMeshNodeAr(&x0);
-   TMOPRefinerEstimator tmop_r_est(*mesh, *he_nlf_integ, mesh_poly_deg,
-                                   amr_metric_id);
+   TMOPAMR tmopamrupdate(*mesh, a, move_bnd);
+   tmopamrupdate.AddMeshNodesForUpdate(&x);
+   tmopamrupdate.AddMeshNodesForUpdate(&x0);
+   TMOPRefinerEstimator tmop_r_est(*mesh, a, mesh_poly_deg, amr_metric_id);
    TMOPRefiner tmop_r(tmop_r_est);
-   tmop_r_est.SetEnergyReductionFactor(8.);
-   TMOPDeRefinerEstimator tmop_dr_est(*mesh, *he_nlf_integ);
+   tmop_r_est.SetEnergyReductionFactor(1.);
+   TMOPDeRefinerEstimator tmop_dr_est(*mesh, a);
    ThresholdDerefiner tmop_dr(tmop_dr_est);
 
    int newtonstop = 0;
@@ -862,7 +857,7 @@ int main(int argc, char *argv[])
 
          std::cout << "TMOP energy after r-adaptivity: " <<
                       a.GetGridFunctionEnergy(x)/mesh->GetNE() <<
-                      ", Total elements: " << mesh->GetNE() << endl;
+                      ", Elements: " << mesh->GetNE() << endl;
          for (int i_r = 0; i_r < n_r; i_r++)
          {
             NCMesh *ncmesh = mesh->ncmesh;
@@ -875,7 +870,7 @@ int main(int argc, char *argv[])
             if (!tmop_dr.Derefined()) { amrdstop = 1; }
             std::cout << "TMOP energy after derefinement: " <<
                          a.GetGridFunctionEnergy(x)/mesh->GetNE() <<
-                         ", Total elements: " << mesh->GetNE() << endl;
+                         ", Elements: " << mesh->GetNE() << endl;
 
             // Refiner
             if (amrdstop == 0 || amrstop == 0)
@@ -886,7 +881,7 @@ int main(int argc, char *argv[])
             if (tmop_r.Stop()) { amrstop = 1; }
             std::cout << "TMOP energy after   refinement: " <<
                          a.GetGridFunctionEnergy(x)/mesh->GetNE() <<
-                         ", Total elements: " << mesh->GetNE() << endl;
+                         ", Elements: " << mesh->GetNE() << endl;
 
             if (amrstop == 1 && amrdstop == 1)
             {

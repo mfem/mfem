@@ -467,29 +467,29 @@ void DiffuseField(ParGridFunction &field, int smooth_steps)
 class TMOPAMR
 {
 protected:
+   Mesh *mesh;
    NonlinearForm *nlf;
    Array<GridFunction *> meshnodarr;
-   Mesh *mesh;
 #ifdef MFEM_USE_MPI
+   ParMesh *pmesh;
    ParNonlinearForm *pnlf;
    Array<ParGridFunction *> pmeshnodarr;
-   ParMesh *pmesh;
 #endif
 
    bool move_bnd;
 
 
 public:
-   TMOPAMR(NonlinearForm &nlf_, Mesh &mesh_, bool move_bnd_) :
-      nlf(&nlf_), meshnodarr(), mesh(&mesh_), move_bnd(move_bnd_) { }
+   TMOPAMR(Mesh &mesh_, NonlinearForm &nlf_, bool move_bnd_) :
+      mesh(&mesh_), nlf(&nlf_), meshnodarr(), move_bnd(move_bnd_) { }
 #ifdef MFEM_USE_MPI
-   TMOPAMR(ParNonlinearForm &pnlf_, ParMesh &pmesh_, bool move_bnd_) :
-      nlf(&pnlf_), pnlf(&pnlf_), pmeshnodarr(), pmesh(&pmesh_), move_bnd(move_bnd_) { }
+   TMOPAMR(ParMesh &pmesh_, ParNonlinearForm &pnlf_, bool move_bnd_) :
+      mesh(&pmesh_), nlf(&pnlf_), meshnodarr(), pmesh(&pmesh_), pnlf(&pnlf_), pmeshnodarr(), move_bnd(move_bnd_) { }
 #endif
 
-   void AddMeshNodeAr(GridFunction *gf_) { meshnodarr.Append(gf_); }
+   void AddMeshNodesForUpdate(GridFunction *gf_) { meshnodarr.Append(gf_); }
 #ifdef MFEM_USE_MPI
-   void AddMeshNodeAr(ParGridFunction *pgf_) { pmeshnodarr.Append(pgf_); }
+   void AddMeshNodesForUpdate(ParGridFunction *pgf_) { pmeshnodarr.Append(pgf_); }
 #endif
 
    void Update();
@@ -554,7 +554,6 @@ void TMOPAMR::Update()
          }
       }
    }
-   //if (tmopi->GetDiscreteAdaptTC()) { tmopi->GetDiscreteAdaptTC()->Update(); }
 
    // Update Nonlinear form and Set Essential BC
    nlf->Update();
@@ -645,7 +644,6 @@ void TMOPAMR::ParUpdate()
          }
       }
    }
-   //if (tmopi->GetDiscreteAdaptTC()) { tmopi->GetDiscreteAdaptTC()->ParUpdate(); }
 
    const FiniteElementSpace *pfespace = pmesh->GetNodalFESpace();
 
@@ -708,7 +706,7 @@ class TMOPRefinerEstimator : public AnisotropicErrorEstimator
 {
 protected:
    Mesh *mesh;
-   TMOP_Integrator *tmopi;
+   NonlinearForm *nlf;
    int order;
    int amrmetric;
    Array<IntegrationRule *> TriIntRule, QuadIntRule, TetIntRule, HexIntRule;
@@ -717,7 +715,8 @@ protected:
    Array<int> aniso_flags;
    double energy_reduction_factor; // an element is refined only if
                                    // [mean E(children)]*factor < E(parent)
-
+   GridFunction *spat_gf;          // If specified, can be used to specify the
+   double spat_gf_critical;        // the region where hr-adaptivity is done.
 
    /// Check if the mesh of the solution was modified.
    bool MeshIsModified()
@@ -730,7 +729,6 @@ protected:
    /// Compute the element error estimates.
    void ComputeEstimates();
 
-
    // Construct the integration rules for each element type - only 2D right now
    void SetQuadIntRules();
    void SetTriIntRules();
@@ -740,10 +738,11 @@ protected:
 
    IntegrationRule* SetIntRulesFromMesh(Mesh &meshsplit);
 public:
-   TMOPRefinerEstimator(Mesh &mesh_, TMOP_Integrator &tmopi_, int order_, int amrmetric_) :
-      mesh(&mesh_), tmopi(&tmopi_), order(order_), amrmetric(amrmetric_),
+   TMOPRefinerEstimator(Mesh &mesh_, NonlinearForm &nlf_, int order_, int amrmetric_) :
+      mesh(&mesh_), nlf(&nlf_), order(order_), amrmetric(amrmetric_),
       TriIntRule(0), QuadIntRule(0), TetIntRule(0), HexIntRule(0),
-      current_sequence(-1), error_estimates(), aniso_flags(), energy_reduction_factor(1.)
+      current_sequence(-1), error_estimates(), aniso_flags(),
+      energy_reduction_factor(1.), spat_gf(NULL), spat_gf_critical(0.)
    {
       if (mesh->Dimension() == 2) {
           SetQuadIntRules();
@@ -776,6 +775,9 @@ public:
 
    void SetEnergyReductionFactor(double factor_) { energy_reduction_factor = factor_; }
 
+   void SetSpatialIndicator(GridFunction &spat_gf_) { spat_gf = &spat_gf_; }
+   void SetSpatialIndicatorCritical(double val_) { spat_gf_critical = val_; }
+
    /// Reset the error estimator.
    virtual void Reset() { current_sequence = -1; }
 };
@@ -798,10 +800,7 @@ void TMOPRefinerEstimator::ComputeEstimates()
       iso = true; aniso = true;
    }
 
-   if (iso == false && aniso == false)
-   {
-      MFEM_ABORT("Metric type not supported in hr-adaptivity.");
-   }
+   MFEM_VERIFY(iso || aniso, "Metric type not supported in hr-adaptivity.");
 
    const int dim = mesh->Dimension();
    const int num_ref_types = 3 + 4*(dim-2);
@@ -834,6 +833,16 @@ void TMOPRefinerEstimator::ComputeEstimates()
    }
    error_estimates *= energy_reduction_factor;
 
+   if (spat_gf) {
+       L2_FECollection avg_fec(0, mesh->Dimension());
+       FiniteElementSpace avg_fes(spat_gf->FESpace()->GetMesh(), &avg_fec);
+       GridFunction elem_avg(&avg_fes);
+       spat_gf->GetElementAverages(elem_avg);
+       for (int i = 0; i < amr_base_energy.Size(); i++) {
+           if (elem_avg(i) < spat_gf_critical) { amr_base_energy(i) = 0.; }
+       }
+   }
+
    error_estimates -= amr_base_energy;
    error_estimates *= -1;
    current_sequence = mesh->GetSequence();
@@ -849,11 +858,12 @@ void TMOPRefinerEstimator::GetTMOPRefinementEnergy(int reftype,
    xdof->SetFromTrueVector();
 
    el_energy_vec.SetSize(NE);
+   el_energy_vec = std::numeric_limits<float>::max();
 
    for (int e = 0; e < NE; e++)
    {
       Geometry::Type gtype = fes->GetFE(e)->GetGeomType();
-      DenseMatrix tr, vals;
+      DenseMatrix tr, xsplit;
       int NEsplit = 1;
       IntegrationRule *irule = NULL;
 
@@ -861,7 +871,6 @@ void TMOPRefinerEstimator::GetTMOPRefinementEnergy(int reftype,
            (gtype == Geometry::CUBE && reftype > 0 && reftype < 7) ||
            (gtype == Geometry::TETRAHEDRON && reftype > 0 && reftype < 7) )
       {
-          el_energy_vec(e) = std::numeric_limits<float>::max();
           continue;
       }
 
@@ -871,7 +880,7 @@ void TMOPRefinerEstimator::GetTMOPRefinementEnergy(int reftype,
          {
             if (reftype != 0) { NEsplit = 4; }
             int ref_access = reftype == 0 ? 0 : 1;
-            xdof->GetVectorValues(e, *TriIntRule[ref_access], vals, tr);
+            xdof->GetVectorValues(e, *TriIntRule[ref_access], xsplit, tr);
             irule = TriIntRule[ref_access];
             break;
          }
@@ -879,14 +888,14 @@ void TMOPRefinerEstimator::GetTMOPRefinementEnergy(int reftype,
          {
             if (reftype != 0) { NEsplit = 4; }
             int ref_access = reftype == 0 ? 0 : 1;
-            xdof->GetVectorValues(e, *TetIntRule[ref_access], vals, tr);
+            xdof->GetVectorValues(e, *TetIntRule[ref_access], xsplit, tr);
             irule = TetIntRule[ref_access];
             break;
          }
          case Geometry::SQUARE:
          {
             MFEM_VERIFY(QuadIntRule[reftype], " Integration rule does not exist.");
-            xdof->GetVectorValues(e, *QuadIntRule[reftype], vals, tr);
+            xdof->GetVectorValues(e, *QuadIntRule[reftype], xsplit, tr);
             if (reftype == 0) { NEsplit = 1; }
             else if (reftype == 1 || reftype == 2) { NEsplit = 2; }
             else { NEsplit = 4; }
@@ -897,37 +906,61 @@ void TMOPRefinerEstimator::GetTMOPRefinementEnergy(int reftype,
          {
             if (reftype != 0) { NEsplit = 8; }
             int ref_access = reftype == 0 ? 0 : 1;
-            xdof->GetVectorValues(e, *HexIntRule[ref_access], vals, tr);
+            xdof->GetVectorValues(e, *HexIntRule[ref_access], xsplit, tr);
             irule = HexIntRule[ref_access];
             break;
          }
          default:
             MFEM_ABORT("Incompatible geometry type!");
       }
-      vals.Transpose();
+      xsplit.Transpose();
+
+      el_energy_vec(e) = 0.; // Re-set to 0
 
       // The data format is xe1,xe2,..xen,ye1,ye2..yen.
-      // We will reformat it inside GetAMRElementENergy
-      Vector elfun(vals.GetData(), vals.NumCols()*vals.NumRows());
+      // We will reformat it inside GetRefinementElementEnergy
+      Vector elfun(xsplit.GetData(), xsplit.NumCols()*xsplit.NumRows());
 
-      el_energy_vec(e) = tmopi->GetAMRElementEnergy(*fes->GetFE(e),
-                                                    *mesh->GetElementTransformation(e),
-                                                    elfun,
-                                                    *irule);
+      Array<NonlinearFormIntegrator*> &integs = *(nlf->GetDNFI());
+      TMOP_Integrator *ti  = NULL;
+      TMOPComboIntegrator *co = NULL;
+      for (int i = 0; i < integs.Size(); i++)
+      {
+         ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+         if (ti)
+         {
+            el_energy_vec(e) = ti->GetRefinementElementEnergy(*fes->GetFE(e),
+                                                              *mesh->GetElementTransformation(e),
+                                                              elfun,
+                                                              *irule);
+         }
+         co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+         if (co)
+         {
+            Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
+            for (int j = 0; j < ati.Size(); j++)
+            {
+               el_energy_vec(e) += ati[j]->GetRefinementElementEnergy(*fes->GetFE(e),
+                                                                      *mesh->GetElementTransformation(e),
+                                                                      elfun,
+                                                                      *irule);
+            }
+         }
+      }
    }
 }
 
 void TMOPRefinerEstimator::SetHexIntRules()
 {
-   HexIntRule.SetSize(7+1);
+   HexIntRule.SetSize(1+1);
    // Reftype = 0 // original element
    Mesh meshsplit(1, 1, 1, Element::HEXAHEDRON);
    Mesh base_mesh_copy(meshsplit);
    HexIntRule[0] = SetIntRulesFromMesh(meshsplit);
    meshsplit.Clear();
 
-   // Reftype = 1-8
-   for (int i = 1; i < 8; i++)
+   // Reftype = 7
+   for (int i = 7; i < 8; i++)
    {
        Array<Refinement> marked_elements;
        Mesh mesh_ref(base_mesh_copy);
@@ -935,7 +968,7 @@ void TMOPRefinerEstimator::SetHexIntRules()
            marked_elements.Append(Refinement(e, i));
        }
        mesh_ref.GeneralRefinement(marked_elements, 1, 0);
-       HexIntRule[i] = SetIntRulesFromMesh(mesh_ref);
+       HexIntRule[1] = SetIntRulesFromMesh(mesh_ref);
        mesh_ref.Clear();
    }
 }
@@ -1069,10 +1102,11 @@ class TMOPDeRefinerEstimator : public ErrorEstimator
 {
 protected:
    Mesh *mesh;
+   NonlinearForm *nlf;
 #ifdef MFEM_USE_MPI
    ParMesh *pmesh;
+   ParNonlinearForm *pnlf;
 #endif
-   TMOP_Integrator *tmopi;
    int order;
    int amrmetric;
    long current_sequence;
@@ -1091,24 +1125,20 @@ protected:
    void ComputeEstimates();
 
    void GetTMOPDerefinementEnergy(Mesh &cmesh,
+                                  TMOP_Integrator &tmopi,
                                   Vector &el_energy_vec,
                                   FiniteElementSpace *tcdfes = NULL);
-public:
-   TMOPDeRefinerEstimator(Mesh &mesh_, TMOP_Integrator &tmopi_) :
-      mesh(&mesh_), tmopi(&tmopi_),
-      current_sequence(-1), error_estimates(), serial(true)
-   {
-      //MFEM_VERIFY(mesh->Dimension()==2," 3D not implemented yet.");
-   }
-#ifdef MFEM_USE_MPI
-   TMOPDeRefinerEstimator(ParMesh &pmesh_, TMOP_Integrator &tmopi_) :
-      mesh(&pmesh_), pmesh(&pmesh_), tmopi(&tmopi_),
-      current_sequence(-1), error_estimates(), serial(false)
-   {
-      //MFEM_VERIFY(pmesh->Dimension()==2," 3D not implemented yet.");
-   }
-#endif
 
+   bool GetDerefineEnergyForIntegrator(TMOP_Integrator &tmopi, Vector &fine_energy);
+public:
+   TMOPDeRefinerEstimator(Mesh &mesh_, NonlinearForm &nlf_) :
+      mesh(&mesh_), nlf(&nlf_),
+      current_sequence(-1), error_estimates(), serial(true)   { }
+#ifdef MFEM_USE_MPI
+   TMOPDeRefinerEstimator(ParMesh &pmesh_, ParNonlinearForm &pnlf_) :
+      mesh(&pmesh_), nlf(&pnlf_), pmesh(&pmesh_), pnlf(&pnlf_),
+      current_sequence(-1), error_estimates(), serial(false) { }
+#endif
 
    // destructor
    ~TMOPDeRefinerEstimator()
@@ -1125,137 +1155,171 @@ public:
    virtual void Reset() { current_sequence = -1; }
 };
 
+bool TMOPDeRefinerEstimator::GetDerefineEnergyForIntegrator(TMOP_Integrator &tmopi,
+                                                            Vector &fine_energy)
+{
+    DiscreteAdaptTC *tcd = NULL;
+    tcd = tmopi.GetDiscreteAdaptTC();
+    const Operator *c_op = NULL;
+    fine_energy.SetSize(mesh->GetNE());
+
+    if (serial)
+    {
+       Mesh meshcopy(*mesh);
+       FiniteElementSpace *tcdfes = NULL;
+       if (tcd)
+       {
+          tcdfes = new FiniteElementSpace(*tcd->GetTSpecFESpace(), &meshcopy);
+       }
+
+       Vector local_err(meshcopy.GetNE());
+       local_err = 0.;
+       double threshold = std::numeric_limits<float>::max();
+       meshcopy.DerefineByError(local_err, threshold, 0, 1);
+
+       if (meshcopy.GetGlobalNE() == mesh->GetGlobalNE())
+       {
+          delete tcdfes;
+          return false;
+       }
+
+       if (tcd)
+       {
+          tcdfes->Update();
+          c_op = tcdfes->GetUpdateOperator();
+          Vector tcd_data = *(tcd->GetTSpecVec());
+          Vector amr_tspec_vals(c_op->Height());
+          c_op->Mult(tcd_data, amr_tspec_vals);
+          tcd->SetTspecForDerefinement(amr_tspec_vals);
+       }
+
+       Vector coarse_energy(meshcopy.GetNE());
+       GetTMOPDerefinementEnergy(meshcopy, tmopi, coarse_energy, tcdfes);
+       if (tcd) { tcd->ResetDerefinementTspecData(); }
+       GetTMOPDerefinementEnergy(*mesh, tmopi, fine_energy);
+
+       const CoarseFineTransformations &dtrans =
+            meshcopy.ncmesh->GetDerefinementTransforms();
+       Table coarse_to_fine;
+       dtrans.GetCoarseToFineMapFast(meshcopy, coarse_to_fine);
+
+       for (int pe = 0; pe < coarse_to_fine.Size(); pe++)
+       {
+          Array<int> tabrow;
+          coarse_to_fine.GetRow(pe, tabrow);
+          int nchild = tabrow.Size();
+          double parent_energy = coarse_energy(pe);
+          for (int fe = 0; fe < nchild; fe++)
+          {
+             int child = tabrow[fe];
+             MFEM_VERIFY(child < mesh->GetNE(), " invalid coarse to fine mapping");
+             fine_energy(child) -= parent_energy*nchild;
+          }
+       }
+       delete tcdfes;
+    }
+    else
+    {
+ #ifdef MFEM_USE_MPI
+       ParMesh meshcopy(*pmesh);
+       ParFiniteElementSpace *tcdfes = NULL;
+       if (tcd)
+       {
+          tcdfes = new ParFiniteElementSpace(*tcd->GetTSpecParFESpace(), meshcopy);
+       }
+
+       Vector local_err(meshcopy.GetNE());
+       local_err = 0.;
+       double threshold = std::numeric_limits<float>::max();
+       meshcopy.DerefineByError(local_err, threshold, 0, 1);
+
+       if (meshcopy.GetGlobalNE() == pmesh->GetGlobalNE())
+       {
+          delete tcdfes;
+          return false;
+       }
+
+       if (tcd)
+       {
+          tcdfes->Update();
+          c_op = tcdfes->GetUpdateOperator();
+          Vector tcd_data = *(tcd->GetTSpecVec());
+          Vector amr_tspec_vals(c_op->Height());
+          c_op->Mult(tcd_data, amr_tspec_vals);
+          tcd->SetTspecForDerefinement(amr_tspec_vals);
+       }
+
+       Vector coarse_energy(meshcopy.GetNE());
+       GetTMOPDerefinementEnergy(meshcopy, tmopi, coarse_energy, tcdfes);
+       if (tcd) { tcd->ResetDerefinementTspecData(); }
+       MPI_Barrier(MPI_COMM_WORLD);
+       GetTMOPDerefinementEnergy(*pmesh, tmopi, fine_energy);
+       MPI_Barrier(MPI_COMM_WORLD);
+
+       const CoarseFineTransformations &dtrans =
+                meshcopy.pncmesh->GetDerefinementTransforms();
+       Table coarse_to_fine;
+       MPI_Barrier(MPI_COMM_WORLD);
+       dtrans.GetCoarseToFineMapFast(meshcopy, coarse_to_fine,
+                                     pmesh->pncmesh->GetNGhostElements());
+       MPI_Barrier(MPI_COMM_WORLD);
+
+       for (int pe = 0; pe < meshcopy.GetNE(); pe++)
+       {
+           Array<int> tabrow;
+           coarse_to_fine.GetRow(pe, tabrow);
+           int nchild = tabrow.Size();
+           double parent_energy = coarse_energy(pe);
+           for (int fe = 0; fe < nchild; fe++)
+           {
+               int child = tabrow[fe];
+               MFEM_VERIFY(child < pmesh->GetNE(), " invalid coarse to fine mapping");
+               fine_energy(child) -= parent_energy*nchild;
+           }
+       }
+       delete tcdfes;
+ #endif
+    }
+
+    fine_energy *= -1; // error_estimate(e) = energy(parent_of_e)-energy(e)
+                       // -ve energy means derefinement is desirable
+    return true;
+}
+
 void TMOPDeRefinerEstimator::ComputeEstimates()
 {
-   DiscreteAdaptTC *tcd = tmopi->GetDiscreteAdaptTC();
-   const Operator *c_op = NULL;
+   Array<NonlinearFormIntegrator*> &integs = *(nlf->GetDNFI());
+   TMOP_Integrator *ti  = NULL;
+   TMOPComboIntegrator *co = NULL;
+   error_estimates.SetSize(mesh->GetNE());
+   error_estimates = 0.;
+   Vector fine_energy(mesh->GetNE());
 
-   if (serial)
+   for (int i = 0; i < integs.Size(); i++)
    {
-      Mesh meshcopy(*mesh);
-
-      FiniteElementSpace *tcdfes = NULL;
-      if (tcd)
+      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+      if (ti)
       {
-         tcdfes = new FiniteElementSpace(*tcd->GetTSpecFESpace(), &meshcopy);
+         bool deref = GetDerefineEnergyForIntegrator(*ti, fine_energy);
+         if (!deref) { error_estimates = 1; return; }
+         error_estimates += fine_energy;
       }
-
-      Vector local_err(meshcopy.GetNE());
-      local_err = 0.;
-      double threshold = std::numeric_limits<float>::max();
-      meshcopy.DerefineByError(local_err, threshold, 0, 1);
-
-      if (meshcopy.GetGlobalNE() == mesh->GetGlobalNE())
+      co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+      if (co)
       {
-         error_estimates = 1;
-         delete tcdfes;
-         return;
-      }
-
-      if (tcd)
-      {
-         tcdfes->Update();
-         c_op = tcdfes->GetUpdateOperator();
-         Vector tcd_data = *(tcd->GetTSpecVec());
-         Vector amr_tspec_vals(c_op->Height());
-         c_op->Mult(tcd_data, amr_tspec_vals);
-         tcd->SetTspecFromVec(amr_tspec_vals);
-      }
-
-      Vector coarse_el_energy(meshcopy.GetNE());
-      GetTMOPDerefinementEnergy(meshcopy, coarse_el_energy, tcdfes);
-      if (tcd) { tcd->ResetAMRTspecVec(); }
-      GetTMOPDerefinementEnergy(*mesh, error_estimates);
-
-      const CoarseFineTransformations &dtrans =
-         meshcopy.ncmesh->GetDerefinementTransforms();
-      Table coarse_to_fine;
-      dtrans.GetCoarseToFineMapFast(meshcopy, coarse_to_fine);
-
-      for (int pe = 0; pe < coarse_to_fine.Size(); pe++)
-      {
-         Array<int> tabrow;
-         coarse_to_fine.GetRow(pe, tabrow);
-         int nchild = tabrow.Size();
-         double parent_energy = coarse_el_energy(pe);
-         for (int fe = 0; fe < nchild; fe++)
+         Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
+         for (int j = 0; j < ati.Size(); j++)
          {
-            int child = tabrow[fe];
-            MFEM_VERIFY(child < mesh->GetNE(), " invalid coarse to fine mapping");
-            error_estimates(child) -= parent_energy*nchild;
+            bool deref = GetDerefineEnergyForIntegrator(*ati[j], fine_energy);
+            if (!deref) { error_estimates = 1; return; }
+            error_estimates += fine_energy;
          }
       }
-      delete tcdfes;
    }
-   else
-   {
-#ifdef MFEM_USE_MPI
-      ParMesh meshcopy(*pmesh);
-      ParFiniteElementSpace *tcdfes = NULL;
-      if (tcd)
-      {
-         tcdfes = new ParFiniteElementSpace(*tcd->GetTSpecParFESpace(), meshcopy);
-      }
-
-      Vector local_err(meshcopy.GetNE());
-      local_err = 0.;
-      double threshold = std::numeric_limits<float>::max();
-      meshcopy.DerefineByError(local_err, threshold, 0, 1);
-
-      if (meshcopy.GetGlobalNE() == pmesh->GetGlobalNE())
-      {
-         error_estimates = 1;
-         delete tcdfes;
-         return;
-      }
-
-      if (tcd)
-      {
-         tcdfes->Update();
-         c_op = tcdfes->GetUpdateOperator();
-         Vector tcd_data = *(tcd->GetTSpecVec());
-         Vector amr_tspec_vals(c_op->Height());
-         c_op->Mult(tcd_data, amr_tspec_vals);
-         tcd->SetTspecFromVec(amr_tspec_vals);
-      }
-
-      Vector coarse_el_energy(meshcopy.GetNE());
-      GetTMOPDerefinementEnergy(meshcopy, coarse_el_energy, tcdfes);
-      if (tcd) { tcd->ResetAMRTspecVec(); }
-      MPI_Barrier(MPI_COMM_WORLD);
-
-      GetTMOPDerefinementEnergy(*pmesh, error_estimates);
-      MPI_Barrier(MPI_COMM_WORLD);
-
-      const CoarseFineTransformations &dtrans =
-         meshcopy.pncmesh->GetDerefinementTransforms();
-      Table coarse_to_fine;
-      MPI_Barrier(MPI_COMM_WORLD);
-      dtrans.GetCoarseToFineMapFast(meshcopy, coarse_to_fine,
-                                    pmesh->pncmesh->GetNGhostElements());
-      MPI_Barrier(MPI_COMM_WORLD);
-
-      for (int pe = 0; pe < meshcopy.GetNE(); pe++)
-      {
-         Array<int> tabrow;
-         coarse_to_fine.GetRow(pe, tabrow);
-         int nchild = tabrow.Size();
-         double parent_energy = coarse_el_energy(pe);
-         for (int fe = 0; fe < nchild; fe++)
-         {
-            int child = tabrow[fe];
-            MFEM_VERIFY(child < pmesh->GetNE(), " invalid coarse to fine mapping");
-            error_estimates(child) -= parent_energy*nchild;
-         }
-      }
-      delete tcdfes;
-#endif
-   }
-   error_estimates *= -1.; // error_estimate(e) = energy(parent_of_e)-energy(e)
-   // -ve energy means derefinement is desirable
 }
 
 void TMOPDeRefinerEstimator::GetTMOPDerefinementEnergy(Mesh &cmesh,
+                                                       TMOP_Integrator &tmopi,
                                                        Vector &el_energy_vec,
                                                        FiniteElementSpace *tcdfes)
 {
@@ -1276,6 +1340,6 @@ void TMOPDeRefinerEstimator::GetTMOPDerefinementEnergy(Mesh &cmesh,
       fespace->GetElementVDofs(j, vdofs);
       T = cmesh.GetElementTransformation(j);
       cxdof->GetSubVector(vdofs, el_x);
-      el_energy_vec(j) = tmopi->GetDeRefinementElementEnergy(*fe, *T, el_x, tcdfes);
+      el_energy_vec(j) = tmopi.GetDeRefinementElementEnergy(*fe, *T, el_x, tcdfes);
    }
 }
