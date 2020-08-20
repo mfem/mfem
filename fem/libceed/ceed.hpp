@@ -56,7 +56,8 @@ struct CeedData
    CeedVector node_coords, rho;
    CeedCoeff coeff_type;
    void* coeff;
-   BuildContext build_ctx;
+   CeedQFunctionContext build_ctx;
+   BuildContext build_ctx_data;
 
    CeedVector u, v;
 
