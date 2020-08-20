@@ -913,8 +913,8 @@ int main(int argc, char *argv[])
    }
 
    // 19. Free the used memory.
-   Solver *S = NULL, *S_prec = NULL;
    delete S;
+   delete S_prec;
    delete target_c2;
    delete metric2;
    delete coeff1;
