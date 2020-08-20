@@ -2034,14 +2034,14 @@ void FiniteElementSpace
    Array<int> E, F, ori;
    for (int i = 0; i < mesh->GetNE(); i++)
    {
-      int o = elem_order[i];
-      MFEM_ASSERT(o <= MaxVarOrder, "");
-      VarOrderBits order = (VarOrderBits(1) << o);
+      int order = elem_order[i];
+      MFEM_ASSERT(order <= MaxVarOrder, "");
+      VarOrderBits mask = (VarOrderBits(1) << order);
 
       mesh->GetElementEdges(i, E, ori);
       for (int j = 0; j < E.Size(); j++)
       {
-         edge_orders[E[j]] |= order;
+         edge_orders[E[j]] |= mask;
       }
 
       if (mesh->Dimension() > 2)
@@ -2049,7 +2049,7 @@ void FiniteElementSpace
          mesh->GetElementFaces(i, F, ori);
          for (int j = 0; j < F.Size(); j++)
          {
-            face_orders[F[j]] |= order;
+            face_orders[F[j]] |= mask;
          }
       }
    }
@@ -2061,8 +2061,8 @@ void FiniteElementSpace
       return;
    }
 
-   // iterate while minimum orders propagate by master/slave relations, and
-   // general orders from faces to incident edges
+   // iterate while minimum orders propagate by master/slave relations
+   // (and new orders also propagate from faces to incident edges)
    bool done;
    do
    {
@@ -2111,7 +2111,7 @@ void FiniteElementSpace
          }
       }
 
-      // make sure edges support orders required by incident faces
+      // make sure edges support (new) orders required by incident faces
       for (int i = 0; i < mesh->GetNFaces(); i++)
       {
          mesh->GetFaceEdges(i, E, ori);
@@ -2131,8 +2131,10 @@ int FiniteElementSpace::MakeDofTable(int ent_dim,
    int num_ent = entity_orders.Size();
    int total_dofs = 0;
 
-   // assign DOFs according to order bit masks
    Array<Connection> list;
+   list.Reserve(2*num_ent);
+
+   // assign DOFs according to order bit masks
    for (int i = 0; i < num_ent; i++)
    {
       auto geom = (ent_dim == 1) ? Geometry::SEGMENT : mesh->GetFaceGeometry(i);
