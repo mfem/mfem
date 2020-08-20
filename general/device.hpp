@@ -61,11 +61,15 @@ struct Backend
           backend. Enabled when MFEM_USE_CEED = YES and MFEM_USE_CUDA = YES.
           NOTE: The current default libCEED GPU backend is non-deterministic! */
       CEED_CUDA = 1 << 11,
+      /** @brief [device] CEED HIP backend working together with the HIP 
+          backend. Enabled when MFEM_USE_CEED = YES and MFEM_USE_HIP = YES.
+          NOTE: The current default libCEED HIP backend is non-deterministic! */
+      CEED_HIP = 1 << 12,
       /** @brief [device] Debug backend: host memory is READ/WRITE protected
           while a device is in use. It allows to test the "device" code-path
           (using separate host/device memory pools and host <-> device
           transfers) without any GPU hardware. */
-      DEBUG = 1 << 12
+      DEBUG = 1 << 13
    };
 
    /** @brief Additional useful constants. For example, the *_MASK constants can
@@ -73,18 +77,18 @@ struct Backend
    enum
    {
       /// Number of backends: from (1 << 0) to (1 << (NUM_BACKENDS-1)).
-      NUM_BACKENDS = 13,
+      NUM_BACKENDS = 14,
 
       /// Biwise-OR of all CPU backends
       CPU_MASK = CPU | RAJA_CPU | OCCA_CPU | CEED_CPU,
       /// Biwise-OR of all CUDA backends
       CUDA_MASK = CUDA | RAJA_CUDA | OCCA_CUDA | CEED_CUDA,
       /// Biwise-OR of all HIP backends
-      HIP_MASK = HIP,
+      HIP_MASK = HIP | CEED_HIP,
       /// Biwise-OR of all OpenMP backends
       OMP_MASK = OMP | RAJA_OMP | OCCA_OMP,
       /// Bitwise-OR of all CEED backends
-      CEED_MASK = CEED_CPU | CEED_CUDA,
+      CEED_MASK = CEED_CPU | CEED_CUDA | CEED_HIP,
       /// Biwise-OR of all device backends
       DEVICE_MASK = CUDA_MASK | HIP_MASK | DEBUG,
 
