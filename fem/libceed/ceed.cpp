@@ -231,10 +231,11 @@ static void InitCeedTensorBasisAndRestriction(const FiniteElementSpace &fes,
    CeedInt compstride = fes.GetOrdering()==Ordering::byVDIM ? 1 : fes.GetNDofs();
    const Table &el_dof = fes.GetElementToDofTable();
    Array<int> tp_el_dof(el_dof.Size_of_connections());
+   const int dof = fe->GetDof();
    for (int i = 0; i < mesh->GetNE(); i++)
    {
-      const int el_offset = fe->GetDof() * i;
-      for (int j = 0; j < fe->GetDof(); j++)
+      const int el_offset = dof * i;
+      for (int j = 0; j < dof; j++)
       {
          if (compstride == 1)
          {
@@ -247,7 +248,7 @@ static void InitCeedTensorBasisAndRestriction(const FiniteElementSpace &fes,
          }
       }
    }
-   CeedElemRestrictionCreate(ceed, mesh->GetNE(), fe->GetDof(), fes.GetVDim(),
+   CeedElemRestrictionCreate(ceed, mesh->GetNE(), dof, fes.GetVDim(),
                              compstride, (fes.GetVDim())*(fes.GetNDofs()),
                              CEED_MEM_HOST, CEED_COPY_VALUES,
                              tp_el_dof.GetData(), restr);
@@ -329,6 +330,7 @@ void CeedPAAssemble(const CeedPAOperator& op,
    // Context data to be passed to the 'f_build_diff' Q-function.
    ceedData.build_ctx.dim = mesh->Dimension();
    ceedData.build_ctx.space_dim = mesh->SpaceDimension();
+   ceedData.build_ctx.vdim = fes.GetVDim();
 
    std::string qf_file = GetCeedPath() + op.header;
    std::string qf;
@@ -389,7 +391,7 @@ void CeedPAAssemble(const CeedPAOperator& op,
                      CEED_REQUEST_IMMEDIATE);
 
    // Create the Q-function that defines the action of the operator.
-   qf = qf_file + op.apply_func;//":f_apply_diff";
+   qf = qf_file + op.apply_func;
    CeedQFunctionCreateInterior(ceed, 1, op.apply_qf,
                                qf.c_str(),
                                &ceedData.apply_qfunc);
@@ -411,8 +413,8 @@ void CeedPAAssemble(const CeedPAOperator& op,
    CeedOperatorSetField(ceedData.oper, "v", ceedData.restr, ceedData.basis,
                         CEED_VECTOR_ACTIVE);
 
-   CeedVectorCreate(ceed, fes.GetNDofs(), &ceedData.u);
-   CeedVectorCreate(ceed, fes.GetNDofs(), &ceedData.v);
+   CeedVectorCreate(ceed, vdim*fes.GetNDofs(), &ceedData.u);
+   CeedVectorCreate(ceed, vdim*fes.GetNDofs(), &ceedData.v);
 }
 
 void CeedAddMultPA(const CeedData *ceedDataPtr,
