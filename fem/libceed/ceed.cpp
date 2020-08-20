@@ -39,7 +39,13 @@ std::string ceed_path;
 
 void InitCeedCoeff(Coefficient* Q, CeedData* ptr)
 {
-   if (ConstantCoefficient* coeff = dynamic_cast<ConstantCoefficient*>(Q))
+   if (Q==nullptr)
+   {
+      CeedConstCoeff* ceedCoeff = new CeedConstCoeff{1.0};
+      ptr->coeff_type = CeedCoeff::Const;
+      ptr->coeff = (void*)ceedCoeff;
+   }
+   else if (ConstantCoefficient* coeff = dynamic_cast<ConstantCoefficient*>(Q))
    {
       CeedConstCoeff* ceedCoeff = new CeedConstCoeff{coeff->constant};
       ptr->coeff_type = CeedCoeff::Const;
