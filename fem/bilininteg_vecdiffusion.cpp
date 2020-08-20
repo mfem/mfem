@@ -755,13 +755,13 @@ void VectorDiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 #endif
    {
       PAVectorDiffusionAssembleDiagonal(dim,
-                                       dofs1D,
-                                       quad1D,
-                                       ne,
-                                       maps->B,
-                                       maps->G,
-                                       pa_data,
-                                       diag);
+                                        dofs1D,
+                                        quad1D,
+                                        ne,
+                                        maps->B,
+                                        maps->G,
+                                        pa_data,
+                                        diag);
    }
 }
 

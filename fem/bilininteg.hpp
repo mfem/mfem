@@ -2576,13 +2576,15 @@ private:
    DenseMatrix Jinv, gshape;
 
 public:
-   VectorDiffusionIntegrator() {
+   VectorDiffusionIntegrator()
+   {
       Q = NULL;
 #ifdef MFEM_USE_CEED
       ceedDataPtr = NULL;
 #endif
    }
-   VectorDiffusionIntegrator(Coefficient &q) {
+   VectorDiffusionIntegrator(Coefficient &q)
+   {
       Q = &q;
 #ifdef MFEM_USE_CEED
       ceedDataPtr = NULL;
