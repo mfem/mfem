@@ -127,7 +127,7 @@ dTensor<Q1d,Q1d,Q1d> Interpolate(const dTensor<Q1d,D1d> &B,
             for (int dz = 0; dz < D1d; ++dz)
             {
                const double b = B(qz,dz);
-               const double x = Bu(qx,qy,dz);
+               const double x = BBu(qx,qy,dz);
                val += b * x;
             }
             u_q(qx,qy,qz) = val;
@@ -218,7 +218,7 @@ Tensor<dTensor<VDim>,Q1d,Q1d,Q1d> Interpolate(const dTensor<Q1d,D1d> &B,
                const double b = B(qz,dz);
                for (int c = 0; c < VDim; c++)
                {
-                  const double x = Bu(qx,qy,dz)(c);
+                  const double x = BBu(qx,qy,dz)(c);
                   val[c] += b * x;
                }
             }
@@ -440,7 +440,7 @@ dTensor<D1d,D1d,D1d> InterpolateT(const dTensor<Q1d,D1d> &B,
             for (int qz = 0; qz < Q1d; ++qz)
             {
                const double b = B(qz,dz);
-               const double x = Bu(dx,dy,qz);
+               const double x = BBu(dx,dy,qz);
                val += b * x;
             }
             u(dx,dy,dz) = val;
@@ -531,7 +531,7 @@ Tensor<dTensor<VDim>,D1d,D1d,D1d> InterpolateT(const dTensor<Q1d,D1d> &B,
                const double b = B(qz,dz);
                for (int c = 0; c < VDim; c++)
                {
-                  const double x = Bu(dx,dy,qz)(c);
+                  const double x = BBu(dx,dy,qz)(c);
                   val[c] += b * x;
                }
             }
