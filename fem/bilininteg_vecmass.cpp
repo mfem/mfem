@@ -543,13 +543,13 @@ void VectorMassIntegrator::AssembleDiagonalPA(Vector &diag)
 #endif
    {
       PAVectorMassAssembleDiagonal(dim,
-                                 dofs1D,
-                                 quad1D,
-                                 ne,
-                                 maps->B,
-                                 maps->Bt,
-                                 pa_data,
-                                 diag);
+                                   dofs1D,
+                                   quad1D,
+                                   ne,
+                                   maps->B,
+                                   maps->Bt,
+                                   pa_data,
+                                   diag);
    }
 }
 
