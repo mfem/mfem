@@ -39,7 +39,7 @@ Ceed ceed = NULL;
 static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
 {
    Backend::CEED_CUDA, Backend::OCCA_CUDA, Backend::RAJA_CUDA, Backend::CUDA,
-   Backend::HIP, Backend::DEBUG,
+   Backend::CEED_HIP, Backend::HIP, Backend::DEBUG,
    Backend::OCCA_OMP, Backend::RAJA_OMP, Backend::OMP,
    Backend::CEED_CPU, Backend::OCCA_CPU, Backend::RAJA_CPU, Backend::CPU
 };
@@ -48,7 +48,7 @@ static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
 static const char *backend_name[Backend::NUM_BACKENDS] =
 {
    "ceed-cuda", "occa-cuda", "raja-cuda", "cuda",
-   "hip", "debug",
+   "ceed-hip", "hip", "debug",
    "occa-omp", "raja-omp", "omp",
    "ceed-cpu", "occa-cpu", "raja-cpu", "cpu"
 };
@@ -218,6 +218,10 @@ void Device::Configure(const std::string &device, const int dev)
    if (Allows(Backend::CEED_CUDA))
    {
       Get().MarkBackend(Backend::CUDA);
+   }
+   if (Allows(Backend::CEED_HIP))
+   {
+      Get().MarkBackend(Backend::HIP);
    }
 
    // Perform setup.
@@ -498,6 +502,18 @@ void Device::Setup(const int device)
       {
          // NOTE: libCEED's /gpu/cuda/gen backend is non-deterministic!
          CeedDeviceSetup("/gpu/cuda/gen");
+      }
+      else
+      {
+         CeedDeviceSetup(device_option);
+      }
+   }
+   if (Allows(Backend::CEED_HIP))
+   {
+      if (!device_option)
+      {
+         // NOTE: libCEED's /gpu/hip/ref backend is non-deterministic!
+         CeedDeviceSetup("/gpu/hip/ref");
       }
       else
       {
