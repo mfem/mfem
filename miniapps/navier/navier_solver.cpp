@@ -44,6 +44,9 @@ NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
       pres_ess_attr = 0;
    }
 
+   vfes->GetRestrictionMatrix()->BuildTranspose();
+   pfes->GetRestrictionMatrix()->BuildTranspose();
+
    int vfes_truevsize = vfes->GetTrueVSize();
    int pfes_truevsize = pfes->GetTrueVSize();
 
