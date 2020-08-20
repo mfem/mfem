@@ -37,9 +37,9 @@ auto CWiseMult(const Tensor<T1,Q> &D, const Tensor<T2,Q> &u)
 // 3D tensor coefficient-wise multiplication
 template <typename T1, typename T2, int Q1d> MFEM_HOST_DEVICE inline
 auto CWiseMult(const Tensor<T1,Q1d,Q1d,Q1d> &D, const Tensor<T2,Q1d,Q1d,Q1d> &u)
--> Tensor<decltype(D(0)*u(0)),Q1d,Q1d,Q1d>
+-> Tensor<decltype(D(0,0,0)*u(0,0,0)),Q1d,Q1d,Q1d>
 {
-   Tensor<decltype(D(0)*u(0)),Q1d,Q1d,Q1d> Du;
+   Tensor<decltype(D(0,0,0)*u(0,0,0)),Q1d,Q1d,Q1d> Du;
    for (int qz = 0; qz < Q1d; qz++)
    {
       MFEM_FOREACH_THREAD(qy,y,Q1d)
@@ -56,9 +56,9 @@ auto CWiseMult(const Tensor<T1,Q1d,Q1d,Q1d> &D, const Tensor<T2,Q1d,Q1d,Q1d> &u)
 // 2D tensor coefficient-wise multiplication
 template <typename T1, typename T2, int Q1d> MFEM_HOST_DEVICE inline
 auto CWiseMult(const Tensor<T1,Q1d,Q1d> &D, const Tensor<T2,Q1d,Q1d> &u)
--> Tensor<decltype(D(0)*u(0)),Q1d,Q1d>
+-> Tensor<decltype(D(0,0)*u(0,0)),Q1d,Q1d>
 {
-   Tensor<decltype(D(0)*u(0)),Q1d,Q1d> Du;
+   Tensor<decltype(D(0,0)*u(0,0)),Q1d,Q1d> Du;
    MFEM_FOREACH_THREAD(qy,y,Q1d)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1d)
