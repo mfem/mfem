@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 /// A structure used to pass additional data to f_build_diff and f_apply_diff
-struct BuildContext { CeedInt dim, space_dim; CeedScalar coeff; };
+struct BuildContext { CeedInt dim, space_dim, vdim; CeedScalar coeff; };
 
 /// libCEED Q-function for building quadrature data for a mass operator with a
 /// constant coefficient
@@ -105,7 +105,7 @@ CEED_QFUNCTION(f_apply_mass)(void *ctx, CeedInt Q,
    BuildContext *bc = (BuildContext *)ctx;
    const CeedScalar *u = in[0], *w = in[1];
    CeedScalar *v = out[0];
-   switch (bc->space_dim)
+   switch (bc->dim)
    {
       case 1:
          for (CeedInt i=0; i<Q; i++)
