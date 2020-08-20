@@ -87,6 +87,9 @@ int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
 
+   Device device("ceed-cpu");
+   if (mpi.Root() == 0) { device.Print(); }
+
    OptionsParser args(argc, argv);
    args.AddOption(&ctx.ser_ref_levels,
                   "-rs",
