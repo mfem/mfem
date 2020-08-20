@@ -944,25 +944,25 @@ public:
                             const FiniteElement &fe,
                             const IntegrationRule &intrule);
 
-   void SetTspecFromVec(Vector &amr_vec_vals_)
+   void SetTspecForDerefinement(Vector &amr_vec_vals_)
    {
       tspec_amr_vec_vals = amr_vec_vals_;
    }
-   void SetCoarseTspecFESpace(FiniteElementSpace *fes)
+   void SetTspecFESpaceForDerefinement(FiniteElementSpace *fes)
    {
       c_tspec_fesv = fes;
    }
 
-   void ResetAMRTspecData()
+   void ResetRefinementTspecData()
    {
       tspec_amr_mat_vals.Clear();
       amr_el = -1;
-      c_tspec_fesv = NULL;
    }
 
-   void ResetAMRTspecVec()
+   void ResetDerefinementTspecData()
    {
       tspec_amr_vec_vals.Destroy();
+      c_tspec_fesv = NULL;
    }
 
    void SetAMRSubElement(int amr_el_) { amr_el = amr_el_; }
@@ -1175,10 +1175,10 @@ public:
                                    ElementTransformation &T,
                                    const Vector &elfun);
 
-   virtual double GetAMRElementEnergy(const FiniteElement &el,
-                                      ElementTransformation &T,
-                                      const Vector &elfun,
-                                      const IntegrationRule &irule);
+   virtual double GetRefinementElementEnergy(const FiniteElement &el,
+                                             ElementTransformation &T,
+                                             const Vector &elfun,
+                                             const IntegrationRule &irule);
 
    virtual double GetDeRefinementElementEnergy(const FiniteElement &el,
                                                ElementTransformation &T,
@@ -1264,6 +1264,16 @@ public:
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &T,
                                     const Vector &elfun, DenseMatrix &elmat);
+
+   virtual double GetRefinementElementEnergy(const FiniteElement &el,
+                                             ElementTransformation &T,
+                                             const Vector &elfun,
+                                             const IntegrationRule &irule);
+
+   virtual double GetDeRefinementElementEnergy(const FiniteElement &el,
+                                               ElementTransformation &T,
+                                               const Vector &elfun,
+                                               FiniteElementSpace *c_fes);
 
    /// Normalization factor that considers all integrators in the combination.
    void EnableNormalization(const GridFunction &x);

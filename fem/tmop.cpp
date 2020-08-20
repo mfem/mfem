@@ -1463,7 +1463,7 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
          DenseMatrix D_rho(dim), Q_phi(dim), R_theta(dim);
          tspec_fesv->GetElementVDofs(e_id, dofs);
          tspec.GetSubVector(dofs, tspec_vals);
-         if (tspec_amr_mat_vals.NumCols() > 0)
+         if (tspec_amr_mat_vals.NumCols() > 0) // Refinement
          {
             MFEM_VERIFY(amr_el >= 0, " Target being constructed for an AMR element.");
             for (int i = 0; i < ncomp; i++)
@@ -1474,7 +1474,7 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                }
             }
          }
-         else if ( tspec_amr_vec_vals.Size() > 0 )
+         else if ( tspec_amr_vec_vals.Size() > 0 ) // Derefinement
          {
             dofs.SetSize(0);
             c_tspec_fesv->GetElementVDofs(e_id, dofs);
@@ -1496,7 +1496,7 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
             if (sizeidx != -1) // Set size
             {
                par_vals.SetDataAndSize(tspec_vals.GetData()+sizeidx*ndofs, ndofs);
-               const double min_size = 0.001; //par_vals.Min();
+               const double min_size = par_vals.Min();//0.001; //
                MFEM_VERIFY(min_size > 0.0,
                            "Non-positive size propagated in the target definition.");
                const double size = std::max(shape * par_vals, min_size);
@@ -1519,8 +1519,8 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                               "Non-positive aspect-ratio propagated in the target definition.");
 
                   double val= std::max(shape * par_vals, min_size);
-                  //const double aspectratio = std::min(val, max_size);
-                  const double aspectratio = shape * par_vals;
+                  const double aspectratio = std::min(val, max_size);
+                  //const double aspectratio = shape * par_vals;
                   D_rho = 0.;
                   D_rho(0,0) = 1./pow(aspectratio,0.5);
                   D_rho(1,1) = pow(aspectratio,0.5);
@@ -2296,10 +2296,10 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
    return energy;
 }
 
-double TMOP_Integrator::GetAMRElementEnergy(const FiniteElement &el,
-                                            ElementTransformation &T,
-                                            const Vector &elfun,
-                                            const IntegrationRule &irule)
+double TMOP_Integrator::GetRefinementElementEnergy(const FiniteElement &el,
+                                                   ElementTransformation &T,
+                                                   const Vector &elfun,
+                                                   const IntegrationRule &irule)
 {
    int dof = el.GetDof(), dim = el.GetDim(),
        NEsplit = elfun.Size() / (dof*dim), el_id = T.ElementNo;
@@ -2315,16 +2315,16 @@ double TMOP_Integrator::GetAMRElementEnergy(const FiniteElement &el,
       Jrt.SetSize(dim);
       Jpr.SetSize(dim);
       Jpt.SetSize(dim);
-      Vector elfune(dof*dim);
+      Vector elfun_split(dof*dim);
       for (int i = 0; i < dof; i++)
       {
          for (int d = 0; d < dim; d++)
          {
-            elfune(i + d*dof) = elfun(i + e*dof + d*dof*NEsplit);
+            elfun_split(i + d*dof) = elfun(i + e*dof + d*dof*NEsplit);
          }
       }
-      //Vector elfune(elfun.GetData()+e*dof*dim, dof*dim);
-      PMatI.UseExternalData(elfune.GetData(), dof, dim);
+      //Vector elfun_split(elfun.GetData()+e*dof*dim, dof*dim);
+      PMatI.UseExternalData(elfun_split.GetData(), dof, dim);
 
       const IntegrationRule *ir = IntRule;
       if (!ir)
@@ -2338,7 +2338,7 @@ double TMOP_Integrator::GetAMRElementEnergy(const FiniteElement &el,
       {
          dtc->SetAMRSubElement(e);
       }
-      targetC->ComputeElementTargets(el_id, el, *ir, elfune, Jtr);
+      targetC->ComputeElementTargets(el_id, el, *ir, elfun_split, Jtr);
 
       // Define ref->physical transformation, wn a Coefficient is specified.
       IsoparametricTransformation *Tpr = NULL;
@@ -2374,7 +2374,7 @@ double TMOP_Integrator::GetAMRElementEnergy(const FiniteElement &el,
    }
    energy /= NEsplit;
 
-   if (dtc) { dtc->ResetAMRTspecData(); }
+   if (dtc) { dtc->ResetRefinementTspecData(); }
 
    return energy;
 }
@@ -2392,7 +2392,7 @@ double TMOP_Integrator::GetDeRefinementElementEnergy(const FiniteElement &el,
    DiscreteAdaptTC *dtc = dynamic_cast<DiscreteAdaptTC *>(tc);
    if (dtc && c_fes)
    {
-      dtc->SetCoarseTspecFESpace(c_fes);
+      dtc->SetTspecFESpaceForDerefinement(c_fes);
    }
 
    DSh.SetSize(dof, dim);
@@ -2438,7 +2438,6 @@ double TMOP_Integrator::GetDeRefinementElementEnergy(const FiniteElement &el,
    }
 
    delete Tpr;
-   if (dtc) { dtc->ResetAMRTspecData(); }
    return energy;
 }
 
@@ -3227,6 +3226,32 @@ void TMOPComboIntegrator::AssembleElementGrad(const FiniteElement &el,
       tmopi[i]->AssembleElementGrad(el, T, elfun, elmat_i);
       elmat += elmat_i;
    }
+}
+
+double TMOPComboIntegrator::GetRefinementElementEnergy(const FiniteElement &el,
+                                                       ElementTransformation &T,
+                                                       const Vector &elfun,
+                                                       const IntegrationRule &irule)
+{
+    double energy= 0.0;
+    for (int i = 0; i < tmopi.Size(); i++)
+    {
+       energy += tmopi[i]->GetRefinementElementEnergy(el, T, elfun, irule);
+    }
+    return energy;
+}
+
+double TMOPComboIntegrator::GetDeRefinementElementEnergy(const FiniteElement &el,
+                                            ElementTransformation &T,
+                                            const Vector &elfun,
+                                            FiniteElementSpace *c_fes)
+{
+    double energy= 0.0;
+    for (int i = 0; i < tmopi.Size(); i++)
+    {
+       energy += tmopi[i]->GetDeRefinementElementEnergy(el, T, elfun, c_fes);
+    }
+    return energy;
 }
 
 void TMOPComboIntegrator::EnableNormalization(const GridFunction &x)

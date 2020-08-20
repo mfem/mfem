@@ -404,21 +404,16 @@ int main (int argc, char *argv[])
       case 56: amrmetric = new TMOP_Metric_056; break;
       case 58: amrmetric = new TMOP_Metric_058; break;
       case 77: amrmetric = new TMOP_Metric_077; break;
-      case 302: amrmetric = new TMOP_Metric_302; break;
       case 315: amrmetric = new TMOP_Metric_315; break;
-      default: cout << "Unknown metric_id: " << amr_metric_id << endl; return 3;
+      case 316: amrmetric = new TMOP_Metric_316; break;
+      case 321: amrmetric = new TMOP_Metric_321; break;
+      default: cout << "Metric_id not supported in AMR: " << amr_metric_id << endl; return 3;
    }
 
-   if (metric_id < 300)  {
+   if (metric_id < 300 || amr_metric_id < 300)  {
        MFEM_VERIFY(dim == 2, "Incompatible metric for 3D meshes");
    }
-   if (amr_metric_id < 300)  {
-       MFEM_VERIFY(dim == 2, "Incompatible metric for 3D meshes");
-   }
-   if (metric_id >= 300)  {
-       MFEM_VERIFY(dim == 3, "Incompatible metric for 2D meshes");
-   }
-   if (amr_metric_id >= 300)  {
+   if (metric_id >= 300 || amr_metric_id >= 300)  {
        MFEM_VERIFY(dim == 3, "Incompatible metric for 2D meshes");
    }
 
@@ -870,14 +865,13 @@ int main (int argc, char *argv[])
    solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
 
    // 20. AMR based size refinemenet if a size metric is used
-   TMOPAMR tmopamrupdate(a, *pmesh, move_bnd);
-   tmopamrupdate.AddMeshNodeAr(&x);
-   tmopamrupdate.AddMeshNodeAr(&x0);
-   TMOPRefinerEstimator tmop_r_est(*pmesh, *he_nlf_integ, mesh_poly_deg,
-                                   amr_metric_id);
+   TMOPAMR tmopamrupdate(*pmesh, a, move_bnd);
+   tmopamrupdate.AddMeshNodesForUpdate(&x);
+   tmopamrupdate.AddMeshNodesForUpdate(&x0);
+   TMOPRefinerEstimator tmop_r_est(*pmesh, a, mesh_poly_deg, amr_metric_id);
    TMOPRefiner tmop_r(tmop_r_est);
-   tmop_r_est.SetEnergyReductionFactor(4.);
-   TMOPDeRefinerEstimator tmop_dr_est(*pmesh, *he_nlf_integ);
+   tmop_r_est.SetEnergyReductionFactor(1.);
+   TMOPDeRefinerEstimator tmop_dr_est(*pmesh, a);
    ThresholdDerefiner tmop_dr(tmop_dr_est);
 
    int newtonstop = 0;
@@ -911,7 +905,7 @@ int main (int argc, char *argv[])
          tmopenergy = a.GetParGridFunctionEnergy(x);
          if (myid == 0) {
              std::cout << "TMOP energy after r-adaptivity: " << tmopenergy/NEGlob <<
-                           ", Total elements: " << NEGlob << endl;
+                           ", Elements: " << NEGlob << endl;
          }
 
          for (int i_hr = 0; i_hr < n_r; i_hr++)
@@ -932,7 +926,7 @@ int main (int argc, char *argv[])
             tmopenergy = a.GetParGridFunctionEnergy(x);
             if (myid == 0) {
                 std::cout << "TMOP energy after derefinement: " << tmopenergy/NEGlob <<
-                              ", Total elements: " << NEGlob << endl;
+                              ", Elements: " << NEGlob << endl;
             }
 
             if (amrdstop == 0 || amrstop == 0)
@@ -945,7 +939,7 @@ int main (int argc, char *argv[])
             tmopenergy = a.GetParGridFunctionEnergy(x);
             if (myid == 0) {
                 std::cout << "TMOP energy after   refinement: " << tmopenergy/NEGlob <<
-                              ", Total elements: " << NEGlob << endl;
+                              ", Elements: " << NEGlob << endl;
             }
 
             if (amrstop == 1 && amrdstop == 1)
@@ -953,7 +947,7 @@ int main (int argc, char *argv[])
                 newtonstop = 1;
                 if (myid == 0)
                 {
-                   cout << " AMR stopping criterion satisfied. Stop." << endl;
+                   cout << "AMR stopping criterion satisfied. Stop." << endl;
                 }
             }
             else
