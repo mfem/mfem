@@ -196,7 +196,7 @@ CEED_QFUNCTION(f_apply_diff)(void *ctx, CeedInt Q,
             const CeedScalar qd01 = qd[i + Q * 1];
             const CeedScalar qd10 = qd01;
             const CeedScalar qd11 = qd[i + Q * 2];
-            for (size_t c = 0; c < 2; c++)
+            for (CeedInt c = 0; c < 2; c++)
             {
                const CeedScalar ug0 = ug[i + Q * (c+2*0)];
                const CeedScalar ug1 = ug[i + Q * (c+2*1)];
