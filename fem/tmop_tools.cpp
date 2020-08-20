@@ -420,38 +420,28 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    double min_detJ = infinity();
    if (dim == 1)
    {
-/*<<<<<<< HEAD
       for (int i = 0; i < NE; i++)
       {
+         const int dof = fes->GetFE(i)->GetDof();
+         DenseMatrix dshape(dof, dim), pos(dof, dim);
+         Vector posV(pos.Data(), dof * dim);
+
          fes->GetElementVDofs(i, xdofs);
          x_out_loc.GetSubVector(xdofs, posV);
 
+         const IntegrationRule &irule = GetIntegrationRule(*fes->GetFE(i));
+         const int nsp = irule.GetNPoints();
          for (int j = 0; j < nsp; j++)
          {
-            fes->GetFE(i)->CalcDShape(ir.IntPoint(j), dshape);
+            fes->GetFE(i)->CalcDShape(irule.IntPoint(j), dshape);
             MultAtB(pos, dshape, Jpr);
-            min_detJ = std::min(min_detJ, Jpr.Det());
-         }
-         =======*/
-      const int dof = fes->GetFE(i)->GetDof();
-      DenseMatrix dshape(dof, dim), pos(dof, dim);
-      Vector posV(pos.Data(), dof * dim);
-
-      fes->GetElementVDofs(i, xdofs);
-      x_out_loc.GetSubVector(xdofs, posV);
-
-      const IntegrationRule &irule = GetIntegrationRule(*fes->GetFE(i));
-      const int nsp = irule.GetNPoints();
-      for (int j = 0; j < nsp; j++)
-      {
-         fes->GetFE(i)->CalcDShape(irule.IntPoint(j), dshape);
-         MultAtB(pos, dshape, Jpr);
          min_detJ = std::min(min_detJ, Jpr.Det());
-//>>>>>>> master
+         }
       }
    }
    else
    {
+#warning Not ready for mixed meshes
       min_detJ = dim == 2 ? MinDetJpr_2D(fes, x_out_loc) :
                  dim == 3 ? MinDetJpr_3D(fes, x_out_loc) : 0.0;
    }
@@ -498,40 +488,31 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          int jac_ok = 1;
          if (dim == 1)
          {
-/*<<<<<<< HEAD
             for (int i = 0; i < NE; i++)
             {
+               const int dof = fes->GetFE(i)->GetDof();
+               DenseMatrix dshape(dof, dim), pos(dof, dim);
+               Vector posV(pos.Data(), dof * dim);
+
                fes->GetElementVDofs(i, xdofs);
                x_out_loc.GetSubVector(xdofs, posV);
+
+               const IntegrationRule &irule = GetIntegrationRule(*fes->GetFE(i));
+               const int nsp = irule.GetNPoints();
                for (int j = 0; j < nsp; j++)
                {
-                  fes->GetFE(i)->CalcDShape(ir.IntPoint(j), dshape);
+                  fes->GetFE(i)->CalcDShape(irule.IntPoint(j), dshape);
                   MultAtB(pos, dshape, Jpr);
                   if (Jpr.Det() <= 0.0) { jac_ok = 0; goto break2; }
                }
-               =======*/
-            const int dof = fes->GetFE(i)->GetDof();
-            DenseMatrix dshape(dof, dim), pos(dof, dim);
-            Vector posV(pos.Data(), dof * dim);
-
-            fes->GetElementVDofs(i, xdofs);
-            x_out_loc.GetSubVector(xdofs, posV);
-
-            const IntegrationRule &irule = GetIntegrationRule(*fes->GetFE(i));
-            const int nsp = irule.GetNPoints();
-            for (int j = 0; j < nsp; j++)
-            {
-               fes->GetFE(i)->CalcDShape(irule.IntPoint(j), dshape);
-               MultAtB(pos, dshape, Jpr);
-               if (Jpr.Det() <= 0.0) { jac_ok = 0; goto break2; }
-//>>>>>>> master
             }
          break2:;
          }
          else
          {
+#warning Not ready for mixed meshes
             jac_ok = dim == 2 ? CheckDetJpr_2D(fes, x_out_loc) :
-                     dim == 3 ? CheckDetJpr_3D(fes, x_out_loc) : 0;
+               dim == 3 ? CheckDetJpr_3D(fes, x_out_loc) : 0;
          }
          int jac_ok_all = jac_ok;
 #ifdef MFEM_USE_MPI

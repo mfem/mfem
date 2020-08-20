@@ -88,11 +88,11 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &xe) const
 {
    PA.setup_Jtr = false;
    const FiniteElementSpace *fes = PA.fes;
-   const IntegrationRule *ir = EnergyIntegrationRule(*fes->GetFE(0));
+   const IntegrationRule &ir = EnergyIntegrationRule(*fes->GetFE(0));
 
    {
       // Try to use the TargetConstructor ComputeElementTargetsPA
-      PA.setup_Jtr = targetC->ComputeElementTargetsPA(ir,PA.Jtr);
+      PA.setup_Jtr = targetC->ComputeElementTargetsPA(&ir,PA.Jtr);
       if (PA.setup_Jtr) { return; }
    }
 
@@ -140,7 +140,7 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &xe) const
          x.GetSubVector(vdofs, elfun);
       }
       J.UseExternalData(Jtr(e*NQ).Data(), dim, dim, NQ);
-      targetC->ComputeElementTargets(e, fe, *ir, elfun, J);
+      targetC->ComputeElementTargets(e, fe, ir, elfun, J);
    }
    PA.setup_Jtr = true;
 }
@@ -148,20 +148,20 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &xe) const
 void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 {
    PA.enabled = true;
-   const IntegrationRule *ir = EnergyIntegrationRule(*fes.GetFE(0));
+   const IntegrationRule &ir = EnergyIntegrationRule(*fes.GetFE(0));
    MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES,
                "PA Only supports Ordering::byNODES!");
 
    PA.fes = &fes;
    Mesh *mesh = fes.GetMesh();
-   const int nq = PA.nq = ir->GetNPoints();
+   const int nq = PA.nq = ir.GetNPoints();
    const int ne = PA.ne = fes.GetMesh()->GetNE();
    const int dim = PA.dim = mesh->Dimension();
    MFEM_VERIFY(PA.dim == 2 || PA.dim == 3, "Not yet implemented!");
 
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
-   PA.maps = &fes.GetFE(0)->GetDofToQuad(*ir, mode);
-   PA.geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mode);
+   PA.maps = &fes.GetFE(0)->GetDofToQuad(ir, mode);
+   PA.geom = mesh->GetGeometricFactors(ir, GeometricFactors::JACOBIANS, mode);
 
    // Energy vector
    PA.E.UseDevice(true);
@@ -223,7 +223,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
          ElementTransformation& T = *fes.GetElementTransformation(e);
          for (int q = 0; q < nq; ++q)
          {
-            C0(q,e) = coeff0->Eval(T, ir->IntPoint(q));
+            C0(q,e) = coeff0->Eval(T, ir.IntPoint(q));
          }
       }
    }
