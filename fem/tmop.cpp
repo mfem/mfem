@@ -3233,25 +3233,26 @@ double TMOPComboIntegrator::GetRefinementElementEnergy(const FiniteElement &el,
                                                        const Vector &elfun,
                                                        const IntegrationRule &irule)
 {
-    double energy= 0.0;
-    for (int i = 0; i < tmopi.Size(); i++)
-    {
-       energy += tmopi[i]->GetRefinementElementEnergy(el, T, elfun, irule);
-    }
-    return energy;
+   double energy= 0.0;
+   for (int i = 0; i < tmopi.Size(); i++)
+   {
+      energy += tmopi[i]->GetRefinementElementEnergy(el, T, elfun, irule);
+   }
+   return energy;
 }
 
-double TMOPComboIntegrator::GetDeRefinementElementEnergy(const FiniteElement &el,
-                                            ElementTransformation &T,
-                                            const Vector &elfun,
-                                            FiniteElementSpace *c_fes)
+double TMOPComboIntegrator::GetDeRefinementElementEnergy(
+   const FiniteElement &el,
+   ElementTransformation &T,
+   const Vector &elfun,
+   FiniteElementSpace *c_fes)
 {
-    double energy= 0.0;
-    for (int i = 0; i < tmopi.Size(); i++)
-    {
-       energy += tmopi[i]->GetDeRefinementElementEnergy(el, T, elfun, c_fes);
-    }
-    return energy;
+   double energy= 0.0;
+   for (int i = 0; i < tmopi.Size(); i++)
+   {
+      energy += tmopi[i]->GetDeRefinementElementEnergy(el, T, elfun, c_fes);
+   }
+   return energy;
 }
 
 void TMOPComboIntegrator::EnableNormalization(const GridFunction &x)

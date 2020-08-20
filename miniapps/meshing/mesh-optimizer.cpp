@@ -378,14 +378,17 @@ int main(int argc, char *argv[])
       case 315: amrmetric = new TMOP_Metric_315; break;
       case 316: amrmetric = new TMOP_Metric_316; break;
       case 321: amrmetric = new TMOP_Metric_321; break;
-      default: cout << "Metric_id not supported in AMR: " << amr_metric_id << endl; return 3;
+      default: cout << "Metric_id not supported in AMR: " << amr_metric_id << endl;
+         return 3;
    }
 
-   if (metric_id < 300 || amr_metric_id < 300)  {
-       MFEM_VERIFY(dim == 2, "Incompatible metric for 3D meshes");
+   if (metric_id < 300 || amr_metric_id < 300)
+   {
+      MFEM_VERIFY(dim == 2, "Incompatible metric for 3D meshes");
    }
-   if (metric_id >= 300 || amr_metric_id >= 300)  {
-       MFEM_VERIFY(dim == 3, "Incompatible metric for 2D meshes");
+   if (metric_id >= 300 || amr_metric_id >= 300)
+   {
+      MFEM_VERIFY(dim == 3, "Incompatible metric for 2D meshes");
    }
 
    TargetConstructor::TargetType target_t;
@@ -856,8 +859,8 @@ int main(int argc, char *argv[])
          }
 
          std::cout << "TMOP energy after r-adaptivity: " <<
-                      a.GetGridFunctionEnergy(x)/mesh->GetNE() <<
-                      ", Elements: " << mesh->GetNE() << endl;
+                   a.GetGridFunctionEnergy(x)/mesh->GetNE() <<
+                   ", Elements: " << mesh->GetNE() << endl;
          for (int i_r = 0; i_r < n_r; i_r++)
          {
             NCMesh *ncmesh = mesh->ncmesh;
@@ -869,8 +872,8 @@ int main(int argc, char *argv[])
 
             if (!tmop_dr.Derefined()) { amrdstop = 1; }
             std::cout << "TMOP energy after derefinement: " <<
-                         a.GetGridFunctionEnergy(x)/mesh->GetNE() <<
-                         ", Elements: " << mesh->GetNE() << endl;
+                      a.GetGridFunctionEnergy(x)/mesh->GetNE() <<
+                      ", Elements: " << mesh->GetNE() << endl;
 
             // Refiner
             if (amrdstop == 0 || amrstop == 0)
@@ -880,8 +883,8 @@ int main(int argc, char *argv[])
             }
             if (tmop_r.Stop()) { amrstop = 1; }
             std::cout << "TMOP energy after   refinement: " <<
-                         a.GetGridFunctionEnergy(x)/mesh->GetNE() <<
-                         ", Elements: " << mesh->GetNE() << endl;
+                      a.GetGridFunctionEnergy(x)/mesh->GetNE() <<
+                      ", Elements: " << mesh->GetNE() << endl;
 
             if (amrstop == 1 && amrdstop == 1)
             {
@@ -890,7 +893,7 @@ int main(int argc, char *argv[])
             }
             else
             {
-                amrstop = 0; amrdstop = 0;
+               amrstop = 0; amrdstop = 0;
             }
          } //n_r
       } //n_hr
