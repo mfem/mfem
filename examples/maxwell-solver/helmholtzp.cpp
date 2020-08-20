@@ -238,7 +238,7 @@ int main(int argc, char *argv[])
 
       chrono.Clear();
       chrono.Start();
-      X = 0.0;
+      // X = 0.0;
       GMRESSolver gmres(MPI_COMM_WORLD);
       gmres.SetPreconditioner(S);
       gmres.SetOperator(*Ah);

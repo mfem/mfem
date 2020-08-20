@@ -834,6 +834,17 @@ CartesianParMeshPartition::CartesianParMeshPartition(ParMesh * pmesh_,
       }
    }
 
+   int mynrsubdomains = 0;
+   for (int i=0; i<nrsubdomains; i++)
+   {
+      if (myid == subdomain_rank[i])
+      {
+         mynrsubdomains++;
+      }
+   }
+   cout << "myid = " << myid <<", mynrsubdomains = " << mynrsubdomains << endl;
+
+
    // for (int ip = 0; ip<nrsubdomains; ip++)
    // {
    //    cout << "myid: " << myid << ", subdomain: " << ip 

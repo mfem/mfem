@@ -59,7 +59,11 @@ ParDST::ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_,
    {
       cout << "\n 4. Computing true dofs maps ..." << endl; 
    }
-   dmaps = new DofMaps(pfes,part);
+
+
+   bool comp = true;
+
+   dmaps = new DofMaps(pfes,part, comp);
    if (myid == 0)
    {
       cout << "    Done ! " << endl;
@@ -80,7 +84,7 @@ ParDST::ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_,
    {
       cout << "\n 6. Mark subdomain overlap truedofs ..." << endl; 
    }
-   MarkSubdomainOverlapDofs();
+   MarkSubdomainOverlapDofs(comp);
    if (myid == 0)
    {
       cout << "    Done ! " << endl;
@@ -95,21 +99,12 @@ void ParDST::Mult(const Vector &r, Vector &z) const
       if (myid != SubdomainRank[ip]) continue;
       for (int i=0;i<sweeps->nsweeps; i++)
       {
-         *f_transf_re[ip][i] = 0.0;
-         *f_transf_im[ip][i] = 0.0;
+         *f_transf[ip][i] = 0.0;
       }
    }
 
    // restrict given residual to subdomains
-   Vector r_re;
-   double * data = r.GetData();
-   int n = pfes->GetTrueVSize();
-   r_re.SetDataAndSize(data,n);
-   Vector r_im;
-   r_im.SetDataAndSize(&data[n],n);
-
-   dmaps->GlobalToSubdomains(r_re,f_orig_re);
-   dmaps->GlobalToSubdomains(r_im,f_orig_im);
+   dmaps->GlobalToSubdomains(r,f_orig);
 
    for (int ip=0; ip<nrsubdomains; ip++)
    {
@@ -122,8 +117,7 @@ void ParDST::Mult(const Vector &r, Vector &z) const
          if (ijk[d] > 0) direct[d][0] = 1; 
          if (ijk[d] < part->nxyz[d]-1) direct[d][1] = 1; 
       }
-      GetChiRes(*f_orig_re[ip],ip,direct);
-      GetChiRes(*f_orig_im[ip],ip,direct);
+      GetChiRes(*f_orig[ip],ip,direct);
    }
 
    z = 0.0; 
@@ -156,49 +150,24 @@ void ParDST::Mult(const Vector &r, Vector &z) const
             if (myid != SubdomainRank[ip]) continue;
 
             int n = dmaps->fes[ip]->GetTrueVSize();
-            Vector res_re(n); res_re = 0.0;
-            Vector res_im(n); res_im = 0.0;
-            if (l==0) 
-            {
-               res_re += *f_orig_re[ip];
-               res_im += *f_orig_im[ip];
-            }
-            res_re += *f_transf_re[ip][l];
-            res_im += *f_transf_im[ip][l];
+            Vector res_local(2*n); res_local = 0.0;
 
-            Vector res_local(2*n);
-            Vector sol_local(2*n);
-            res_local.SetVector(res_re,0);
-            res_local.SetVector(res_im,n);
+            if (l==0)  { res_local += *f_orig[ip]; }
+            res_local += *f_transf[ip][l];
+
             PmlMatInv[ip]->Mult(res_local, *subdomain_sol[ip]);
+            // cout << res_local.Norml1() << endl;
+            // cout << PmlMat[ip]->real().GetRowNorml1(6) << endl;
+            // cout << subdomain_sol[ip]->Norml1() << endl;
+            // cin.get();
          }
          // 4. Transfer solutions to neighbors so that the subdomain
          // residuals are updated
          TransferSources(l,subdomain_ids);
       }
       // 5. Update the global solution 
-      Array<Vector * > sol_re(nrsubdomains);
-      Array<Vector * > sol_im(nrsubdomains);
-      for (int ip = 0; ip<nrsubdomains; ip++)
-      {
-         if (myid != SubdomainRank[ip]) continue;
-         int n = dmaps->fes[ip]->GetTrueVSize();
-         sol_re[ip] = new Vector(subdomain_sol[ip]->GetData(),n);
-         sol_im[ip] = new Vector(&(subdomain_sol[ip]->GetData())[n],n);
-      }
-      Vector z_re;
-      int n = pfes->GetTrueVSize();
-      z_re.SetDataAndSize(z.GetData(),n);
-      Vector z_im;
-      z_im.SetDataAndSize(&(z.GetData())[n],n);
-      dmaps->SubdomainsToGlobal(sol_re,z_re);
-      dmaps->SubdomainsToGlobal(sol_im,z_im);
-      for (int ip = 0; ip<nrsubdomains; ip++)
-      {
-         if (myid != SubdomainRank[ip]) continue;
-         delete sol_re[ip];
-         delete sol_im[ip];
-      }
+      dmaps->SubdomainsToGlobal(subdomain_sol,z);
+   
    }
 }
 
@@ -208,16 +177,19 @@ void ParDST::SetupSubdomainProblems()
    Optr.SetSize(nrsubdomains);
    PmlMat.SetSize(nrsubdomains);
    PmlMatInv.SetSize(nrsubdomains);
-   f_orig_re.SetSize(nrsubdomains);
-   f_orig_im.SetSize(nrsubdomains);
-   f_transf_re.SetSize(nrsubdomains);
-   f_transf_im.SetSize(nrsubdomains);
+   f_orig.SetSize(nrsubdomains);
+   // f_orig_re.SetSize(nrsubdomains);
+   // f_orig_im.SetSize(nrsubdomains);
+   // f_transf_re.SetSize(nrsubdomains);
+   // f_transf_im.SetSize(nrsubdomains);
+   f_transf.SetSize(nrsubdomains);
    subdomain_sol.SetSize(nrsubdomains);
    for (int ip=0; ip<nrsubdomains; ip++)
    {
       sqf[ip] = nullptr;
-      f_orig_re[ip] = nullptr;
-      f_orig_im[ip] = nullptr;
+      f_orig[ip] = nullptr;
+      // f_orig_re[ip] = nullptr;
+      // f_orig_im[ip] = nullptr;
       subdomain_sol[ip] = nullptr;
       PmlMat[ip] = nullptr;
       PmlMatInv[ip] = nullptr;
@@ -239,12 +211,14 @@ void ParDST::SetupSubdomainProblems()
       PmlMatInv[ip]->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
       PmlMatInv[ip]->SetOperator(*PmlMat[ip]);
       int ndofs = dmaps->fes[ip]->GetTrueVSize();
-      f_transf_re[ip].SetSize(sweeps->nsweeps);
-      f_transf_im[ip].SetSize(sweeps->nsweeps);
+      // f_transf_re[ip].SetSize(sweeps->nsweeps);
+      // f_transf_im[ip].SetSize(sweeps->nsweeps);
+      f_transf[ip].SetSize(sweeps->nsweeps);
       for (int i=0;i<sweeps->nsweeps; i++)
       {
-         f_transf_re[ip][i] = new Vector(ndofs);
-         f_transf_im[ip][i] = new Vector(ndofs);
+         // f_transf_re[ip][i] = new Vector(ndofs);
+         // f_transf_im[ip][i] = new Vector(ndofs);
+         f_transf[ip][i] = new Vector(2*ndofs);
       }
    }
 }
@@ -374,7 +348,7 @@ void ParDST::SetMaxwellPmlSystemMatrix(int ip)
 }
 
 
-void ParDST::MarkSubdomainOverlapDofs()
+void ParDST::MarkSubdomainOverlapDofs(const bool comp)
 {
    // First mark the elements
          // cout<< "Compute Overlap Elements (in each possible direction) " << endl;
@@ -435,6 +409,7 @@ void ParDST::MarkSubdomainOverlapDofs()
 
       // mark dofs
    NovlpDofs.resize(nrsubdomains);
+   int mm = (comp) ? 2 : 1; // complex or real valued
    for (int ip = 0; ip<nrsubdomains; ip++)
    {
       if (myid != SubdomainRank[ip]) continue;
@@ -463,7 +438,7 @@ void ParDST::MarkSubdomainOverlapDofs()
                m++;
             }
          }
-         int k = n-m;
+         int k = mm*(n-m);
          NovlpDofs[ip][d].SetSize(k);
          int l = 0;
          for (int i = 0; i<n; i++)
@@ -471,6 +446,10 @@ void ParDST::MarkSubdomainOverlapDofs()
             if (marker[i]==0) 
             {
                NovlpDofs[ip][d][l] = i;  // real dofs
+               if (comp) 
+               {
+                  NovlpDofs[ip][d][l+k/2] = i+fes->GetTrueVSize();
+               }
                l++;
             }
          }
@@ -566,15 +545,13 @@ void ParDST::GetStepSubdomains(const int sweep, const int step, Array2D<int> & s
 
 void ParDST::TransferSources(int sweep, const Array<int> & subdomain_ids) const
 {
-   OvlpSol_re.resize(nrsubdomains);
-   OvlpSol_im.resize(nrsubdomains);
+   OvlpSol.resize(nrsubdomains);
    int nrneighbors = pow(3,dim);
    for (int ip = 0; ip<nrsubdomains; ip++)
    {
       if (myid == SubdomainRank[ip])
       {
-         OvlpSol_re[ip].resize(nrneighbors);
-         OvlpSol_im[ip].resize(nrneighbors);
+         OvlpSol[ip].resize(nrneighbors);
       }
    }
    int m = subdomain_ids.Size();
@@ -586,15 +563,7 @@ void ParDST::TransferSources(int sweep, const Array<int> & subdomain_ids) const
       if (myid != SubdomainRank[ip]) continue;
       x[i] = new Vector(subdomain_sol[ip]->GetData(),subdomain_sol[ip]->Size());
    }
-   dmaps->TransferToNeighbors(subdomain_ids,x,OvlpSol_re);
-   for (int i = 0; i<m; i++)
-   {
-      int ip = subdomain_ids[i];
-      if (myid != SubdomainRank[ip]) continue;
-      int n = dmaps->fes[ip]->GetTrueVSize();
-      x[i]->SetData(&(subdomain_sol[ip]->GetData())[n]);
-   }
-   dmaps->TransferToNeighbors(subdomain_ids,x,OvlpSol_im);
+   dmaps->TransferToNeighbors(subdomain_ids,x,OvlpSol);
    for (int i = 0; i<m; i++)
    {
       delete x[i]; x[i] = nullptr;
@@ -639,16 +608,11 @@ void ParDST::TransferSources(int sweep, const Array<int> & subdomain_ids) const
                for (int i = 0; i<dim; i++) directions1[i] = -directions[i];
                int dir = GetDirectionId(directions1);
                int n = dmaps->fes[ip1]->GetTrueVSize();
-               Vector sol(2*n);
                Vector res(2*n);
-               sol.SetVector(*OvlpSol_re[ip1][dir],0);
-               sol.SetVector(*OvlpSol_im[ip1][dir],n);
-               PmlMat[ip1]->Mult(sol,res);
-               double * data = res.GetData();
-               // Vector res_re(n); res_re.SetDataAndSize(data,n);
-               Vector * res_re = new Vector(data,n);
-               // Vector res_im(n); res_im.SetDataAndSize(&data[n],n);
-               Vector * res_im = new Vector(&data[n],n);
+               PmlMat[ip1]->Mult(*OvlpSol[ip1][dir],res);
+               // double * data = res.GetData();
+               // Vector * res_re = new Vector(data,n);
+//                Vector * res_im = new Vector(&data[n],n);
 
                Array2D<int> direct(dim,2); direct = 0;
                for (int d = 0; d<dim; d++)
@@ -657,41 +621,36 @@ void ParDST::TransferSources(int sweep, const Array<int> & subdomain_ids) const
                   if (directions[d]==-1) direct[d][1] = 1;
                }   
 
-               GetChiRes(*res_re,ip1,direct);
-               GetChiRes(*res_im,ip1,direct);
+               GetChiRes(res,ip1,direct);
+//                GetChiRes(*res_re,ip1,direct);
+//                GetChiRes(*res_im,ip1,direct);
 
-               *f_transf_re[ip1][l] -= *res_re;
-               *f_transf_im[ip1][l] -= *res_im;
-               delete res_re;
-               delete res_im;
-               // cout << "ip1 = " << ip1 << endl;
-               // cout << "l = " << l << endl;
-               // cout << "res_re = " ; res_re.Print();
-               // cin.get();
+               *f_transf[ip1][l] -= res;
+//                *f_transf_re[ip1][l] -= *res_re;
+//                *f_transf_im[ip1][l] -= *res_im;
+//                delete res_re;
+//                delete res_im;
+//                // cout << "ip1 = " << ip1 << endl;
+//                // cout << "l = " << l << endl;
+//                // cout << "res_re = " ; res_re.Print();
+//                // cin.get();
             }
          }  
       }
    }
 
-
    for (int ip = 0; ip<nrsubdomains; ip++)
    {
       if (myid == SubdomainRank[ip])
       {
-
          for (int i = 0; i<nrneighbors; i++)
          {
-            if (OvlpSol_re[ip][i])
+            if (OvlpSol[ip][i])
             {
-               delete OvlpSol_re[ip][i];
-            }
-            if (OvlpSol_im[ip][i])
-            {
-               delete OvlpSol_im[ip][i];
+               delete OvlpSol[ip][i];
             }
          }
-         OvlpSol_re[ip].clear();
-         OvlpSol_im[ip].clear();
+         OvlpSol[ip].clear();
       }
    }
 }
@@ -783,11 +742,13 @@ ParDST::~ParDST()
       if (myid != SubdomainRank[ip]) continue;
       for (int i=0;i<sweeps->nsweeps; i++)
       {
-         delete f_transf_re[ip][i];
-         delete f_transf_im[ip][i];
+         // delete f_transf_re[ip][i];
+         // delete f_transf_im[ip][i];
+         delete f_transf[ip][i];
       }
-      delete f_orig_re[ip];
-      delete f_orig_im[ip];
+      delete f_orig[ip];
+      // delete f_orig_re[ip];
+      // delete f_orig_im[ip];
    }
    f_orig_re.DeleteAll();
    f_orig_im.DeleteAll();

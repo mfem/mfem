@@ -229,11 +229,8 @@ int main(int argc, char *argv[])
    ComplexSparseMatrix * AZ = Ah.As<ComplexSparseMatrix>();
    SparseMatrix * A = AZ->GetSystemMatrix();
 
-
    cout << "Size of fine grid system: "
          << A->Height() << " x " << A->Width() << endl;
-
-
 
    StopWatch chrono;
    chrono.Clear();
@@ -250,7 +247,7 @@ int main(int argc, char *argv[])
 	// gmres.iterative_mode = true;
    gmres.SetPreconditioner(S);
 	gmres.SetOperator(*AZ);
-	gmres.SetRelTol(1e-12);
+	gmres.SetRelTol(1e-6);
 	gmres.SetMaxIter(20);
 	gmres.SetPrintLevel(1);
 	gmres.Mult(B, X);
