@@ -294,9 +294,11 @@ public:
 #define SWTIMING
 #define SERIAL_PROLONGATION
 #define ITERATIVE_COARSE_SOLVE
-#define SPARSE_JACOBI
+//#define SPARSE_JACOBI
 //#define SPARSE_ICHOLESKY
+//#define SPARSE_ILU
 //#define COARSE_PA
+//#define BLOCK_DIAG
 
 class BlockMGPASolver : public Solver
 {
@@ -337,6 +339,14 @@ private:
    OperatorJacobiSmoother *JacobiAc;
 #ifdef SPARSE_ICHOLESKY
    Solver *iCholAc;
+#endif
+#ifdef SPARSE_ILU
+   Solver *iluAc;
+#endif
+
+#ifdef BLOCK_DIAG
+   HypreParMatrix *AcDiag;
+   SparseMatrix AcDiagSp;
 #endif
 
 public:
@@ -518,8 +528,9 @@ public:
          MPI_Comm_size(comm, &nprocs);
 
          std::vector<int> allnumrows(nprocs);
-         const int blockNumRows = BlkAc(0,
-                                        0)->Height();  // TODO: Not valid if blocks are of different size
+         // TODO: Not valid if blocks are of different size
+         const int blockNumRows = BlkAc(0,0)->Height();
+
          MPI_Allgather(&blockNumRows, 1, MPI_INT, allnumrows.data(), 1, MPI_INT, comm);
 
          for (int b=0; b<numBlocks; ++b)
@@ -551,6 +562,29 @@ public:
       Ac = CreateHypreParMatrixFromBlocks2(comm, offsets, BlkAc, Asp,
                                            Acoef, blockProcOffsets, all_block_num_loc_rows);
 
+#ifdef BLOCK_DIAG
+      {
+         Array2D<HypreParMatrix*> BlkAcDiag(numBlocks, numBlocks);
+         Array2D<double> DiagCoef(numBlocks, numBlocks);
+         DiagCoef = 0.0;
+         for (int i=0; i<numBlocks; ++i)
+         {
+            DiagCoef(i,i) = Acoef(i,i);
+            for (int j=0; j<numBlocks; ++j)
+            {
+               BlkAcDiag(i,j) = NULL;
+            }
+
+            BlkAcDiag(i,i) = BlkAc(i,i);
+         }
+
+         AcDiag = CreateHypreParMatrixFromBlocks2(comm, offsets, BlkAcDiag, Asp,
+                                                  DiagCoef, blockProcOffsets, all_block_num_loc_rows);
+
+         AcDiag->GetDiag(AcDiagSp);
+         //delete AcDiag;
+      }
+#endif
 
 #ifdef MFEM_USE_STRUMPACK
       invAc = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*Ac), comm);
@@ -579,12 +613,54 @@ public:
          Vector tmpY(AcSp.Height());
          tmpX = 1.0;
          tmpY = 0.0;
+#ifdef BLOCK_DIAG
+         AcDiagSp.Finalize();
+         AcDiagSp.SortColumnIndices();
+
+         AcDiagSp.Mult(tmpX, tmpY);
+#else
+         AcSp.Finalize();
+         AcSp.SortColumnIndices();
+
          AcSp.Mult(tmpX, tmpY);
+#endif
       }
+#ifdef BLOCK_DIAG
+      iCholAc = new IncompleteCholesky(AcDiagSp);
+#else
       iCholAc = new IncompleteCholesky(AcSp);
+#endif
       cg_solver->SetPreconditioner(*iCholAc);
       cg_solver->SetPrintLevel(-1);
 #endif
+
+#ifdef SPARSE_ILU
+      {
+         Vector tmpX(AcSp.Height());
+         Vector tmpY(AcSp.Height());
+         tmpX = 1.0;
+         tmpY = 0.0;
+#ifdef BLOCK_DIAG
+         AcDiagSp.Finalize();
+         AcDiagSp.SortColumnIndices();
+
+         AcDiagSp.Mult(tmpX, tmpY);
+#else
+         AcSp.Finalize();
+         AcSp.SortColumnIndices();
+
+         AcSp.Mult(tmpX, tmpY);
+#endif
+      }
+#ifdef BLOCK_DIAG
+      iluAc = new ILUcusparse(AcDiagSp);
+#else
+      iluAc = new ILUcusparse(AcSp);
+#endif
+      cg_solver->SetPreconditioner(*iluAc);
+      cg_solver->SetPrintLevel(0);
+#endif
+
       invAc = cg_solver;
 #else
       UMFPackSolver *umf_solver = new UMFPackSolver();
@@ -735,6 +811,9 @@ public:
 
 #ifdef SPARSE_ICHOLESKY
       delete iCholAc;
+#endif
+#ifdef SPARSE_ILU
+      delete iluAc;
 #endif
    }
 

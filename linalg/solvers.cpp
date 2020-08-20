@@ -3613,4 +3613,20 @@ void IncompleteCholesky::Mult(const Vector &b, Vector &x) const
 #endif
 }
 
+ILUcusparse::ILUcusparse(SparseMatrix &A_) : A(&A_)
+{
+#ifdef MFEM_USE_CUDA
+   A->ILUSetup();
+#endif
+}
+
+void ILUcusparse::Mult(const Vector &b, Vector &x) const
+{
+#ifdef MFEM_USE_CUDA
+   A->ILUMult(b, x);
+#else
+   x = b;
+#endif
+}
+
 }
