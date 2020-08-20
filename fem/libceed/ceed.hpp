@@ -30,7 +30,7 @@ class Coefficient;
 namespace internal { extern Ceed ceed; } // defined in device.cpp
 
 /// A structure used to pass additional data to f_build_diff and f_apply_diff
-struct BuildContext { CeedInt dim, space_dim; CeedScalar coeff; };
+struct BuildContext { CeedInt dim, space_dim, vdim; CeedScalar coeff; };
 
 enum class CeedCoeff { Const, Grid };
 

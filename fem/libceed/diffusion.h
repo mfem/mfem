@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 /// A structure used to pass additional data to f_build_diff and f_apply_diff
-struct BuildContext { CeedInt dim, space_dim; CeedScalar coeff; };
+struct BuildContext { CeedInt dim, space_dim, vdim; CeedScalar coeff; };
 
 /// libCEED Q-function for building quadrature data for a diffusion operator
 /// with a constant coefficient
@@ -172,7 +172,7 @@ CEED_QFUNCTION(f_apply_diff)(void *ctx, CeedInt Q,
    // in[0], out[0] have shape [dim, nc=1, Q]
    const CeedScalar *ug = in[0], *qd = in[1];
    CeedScalar *vg = out[0];
-   switch (10*bc->dim + bc->space_dim)
+   switch (10*bc->dim + bc->vdim)
    {
       case 11:
          for (CeedInt i = 0; i < Q; i++)
