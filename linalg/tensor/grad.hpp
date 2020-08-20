@@ -798,7 +798,6 @@ dTensor<D1d,D1d> GradientT(const dTensor<Q1d,D1d> &B,
       {
          double bgux = 0.0;
          double gbuy = 0.0;
-         double bbuz = 0.0;
          for (int qy = 0; qy < Q1d; ++qy)
          {
             const double b = B(qy,dy);

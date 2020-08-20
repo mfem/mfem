@@ -79,7 +79,7 @@ dTensor<Q1d,Q1d,Q1d> Interpolate(const dTensor<Q1d,D1d> &B,
                                  const dTensor<D1d,D1d,D1d> &u)
 {
    dTensor<Q1d,D1d,D1d> Bu;
-   MFEM_FOREACH_THREAD(dz,z,D1d)
+   for (int dz = 0; dz < D1d; dz++)
    {
       MFEM_FOREACH_THREAD(dy,y,D1d)
       {
@@ -98,7 +98,7 @@ dTensor<Q1d,Q1d,Q1d> Interpolate(const dTensor<Q1d,D1d> &B,
    }
    MFEM_SYNC_THREAD;
    dTensor<Q1d,Q1d,D1d> BBu;
-   MFEM_FOREACH_THREAD(dz,z,D1d)
+   for (int dz = 0; dz < D1d; dz++)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1d)
       {
@@ -121,7 +121,7 @@ dTensor<Q1d,Q1d,Q1d> Interpolate(const dTensor<Q1d,D1d> &B,
    {
       MFEM_FOREACH_THREAD(qy,y,Q1d)
       {
-         MFEM_FOREACH_THREAD(qz,z,D1d)
+         for (int qz = 0; qz < Q1d; qz++)
          {
             double val = 0.0;
             for (int dz = 0; dz < D1d; ++dz)
@@ -144,7 +144,7 @@ Tensor<dTensor<VDim>,Q1d,Q1d,Q1d> Interpolate(const dTensor<Q1d,D1d> &B,
                                               const Tensor<dTensor<VDim>,D1d,D1d,D1d> &u)
 {
    Tensor<dTensor<VDim>,Q1d,D1d,D1d> Bu;
-   MFEM_FOREACH_THREAD(dz,z,D1d)
+   for (int dz = 0; dz < D1d; dz++)
    {
       MFEM_FOREACH_THREAD(dy,y,D1d)
       {
@@ -173,7 +173,7 @@ Tensor<dTensor<VDim>,Q1d,Q1d,Q1d> Interpolate(const dTensor<Q1d,D1d> &B,
    }
    MFEM_SYNC_THREAD;
    Tensor<dTensor<VDim>,Q1d,Q1d,D1d> BBu;
-   MFEM_FOREACH_THREAD(dz,z,D1d)
+   for (int dz = 0; dz < D1d; dz++)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1d)
       {
@@ -206,7 +206,7 @@ Tensor<dTensor<VDim>,Q1d,Q1d,Q1d> Interpolate(const dTensor<Q1d,D1d> &B,
    {
       MFEM_FOREACH_THREAD(qy,y,Q1d)
       {
-         MFEM_FOREACH_THREAD(qz,z,D1d)
+         for (int qz = 0; qz < Q1d; qz++)
          {
             double val[VDim];
             for (int c = 0; c < VDim; c++)
