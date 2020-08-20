@@ -427,7 +427,7 @@ void CeedAddMultPA(const CeedData *ceedDataPtr,
    CeedMemType mem;
    CeedGetPreferredMemType(internal::ceed, &mem);
    if ( (Device::Allows(Backend::CUDA) || Device::Allows(Backend::HIP))
-         && mem==CEED_MEM_DEVICE )
+        && mem==CEED_MEM_DEVICE )
    {
       x_ptr = x.Read();
       y_ptr = y.ReadWrite();
@@ -456,7 +456,7 @@ void CeedAssembleDiagonalPA(const CeedData *ceedDataPtr,
    CeedMemType mem;
    CeedGetPreferredMemType(internal::ceed, &mem);
    if ( (Device::Allows(Backend::CUDA) || Device::Allows(Backend::HIP))
-         && mem==CEED_MEM_DEVICE )
+        && mem==CEED_MEM_DEVICE )
    {
       d_ptr = diag.ReadWrite();
    }

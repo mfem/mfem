@@ -159,7 +159,7 @@ void CeedAssembleDiagonalPA(const CeedData *ceedDataPtr,
     the current mfem::Device configuration. */
 inline bool DeviceCanUseCeed()
 {
-   return Device::Allows(Backend::CEED_CUDA) || 
+   return Device::Allows(Backend::CEED_CUDA) ||
           Device::Allows(Backend::CEED_HIP) ||
           (Device::Allows(Backend::CEED_CPU) &&
            !Device::Allows(Backend::DEVICE_MASK|Backend::OMP_MASK));

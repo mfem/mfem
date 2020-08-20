@@ -61,7 +61,7 @@ struct Backend
           backend. Enabled when MFEM_USE_CEED = YES and MFEM_USE_CUDA = YES.
           NOTE: The current default libCEED GPU backend is non-deterministic! */
       CEED_CUDA = 1 << 11,
-      /** @brief [device] CEED HIP backend working together with the HIP 
+      /** @brief [device] CEED HIP backend working together with the HIP
           backend. Enabled when MFEM_USE_CEED = YES and MFEM_USE_HIP = YES.
           NOTE: The current default libCEED HIP backend is non-deterministic! */
       CEED_HIP = 1 << 12,
