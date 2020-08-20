@@ -91,6 +91,7 @@ NCMesh::NCMesh(const Mesh *mesh)
 {
    Dim = mesh->Dimension();
    spaceDim = mesh->SpaceDimension();
+   MyRank = 0;
    Iso = true;
 
    // create the NCMesh::Element struct for each Mesh element
@@ -178,6 +179,7 @@ NCMesh::NCMesh(const Mesh *mesh)
 NCMesh::NCMesh(const NCMesh &other)
    : Dim(other.Dim)
    , spaceDim(other.spaceDim)
+   , MyRank(other.MyRank)
    , Iso(other.Iso)
    , Geoms(other.Geoms)
    , nodes(other.nodes)
@@ -1887,13 +1889,11 @@ void NCMesh::CollectLeafElements(int elem, int state)
             }
          }
       }
+
       // in non-leaf elements, the 'rank' member has no meaning; clear it now
-#ifdef MFEM_USE_MPI
-      el.rank = -1; // "invalid" rank, this is technically the correct value
-#else
-      el.rank = 0; // in serial, this looks less confusing in the mesh files
-#endif
+      el.rank = -1;
    }
+
    el.index = -1;
 }
 
@@ -5022,6 +5022,13 @@ void NCMesh::Print(std::ostream &out) const
 
    out << "\ndimension\n" << Dim << "\n";
 
+#ifndef MFEM_USE_MPI
+   if (MyRank != 0) // don't print this section in serial: default rank is 0
+#endif
+   {
+      out << "\nrank\n" << MyRank << "\n";
+   }
+
    out << "\n# rank attr geom ref_type nodes/children";
    out << "\nelements\n" << elements.Size() << "\n";
 
@@ -5132,7 +5139,7 @@ int NCMesh::CountTopLevelNodes() const
 }
 
 NCMesh::NCMesh(std::istream &input, int version, int &curved)
-   : spaceDim(0), Iso(true)
+   : spaceDim(0), MyRank(0), Iso(true)
 {
    if (version == 1) // old MFEM mesh v1.1 format
    {
@@ -5150,11 +5157,20 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
    MFEM_VERIFY(ident == "dimension", "invalid mesh file: " << ident);
    input >> Dim;
 
-   // load elements
+   // load rank, if present
    skip_comment_lines(input, '#');
    input >> ident;
-   MFEM_VERIFY(ident == "elements", "invalid mesh file: " << ident);
+   if (ident == "rank")
+   {
+      input >> MyRank;
+      MFEM_VERIFY(MyRank >= 0, "invalid rank");
 
+      skip_comment_lines(input, '#');
+      input >> ident;
+   }
+
+   // load elements
+   MFEM_VERIFY(ident == "elements", "invalid mesh file: " << ident);
    input >> count;
    for (int i = 0; i < count; i++)
    {

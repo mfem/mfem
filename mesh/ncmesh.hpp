@@ -369,6 +369,7 @@ protected: // interface for Mesh to be able to construct itself from NCMesh
 protected: // implementation
 
    int Dim, spaceDim; ///< dimensions of the elements and the vertex coordinates
+   int MyRank; ///< used in parallel, or when loading a parallel file in serial
    bool Iso; ///< true if the mesh only contains isotropic refinements
    int Geoms; ///< bit mask of element geometries present, see InitGeomFlags()
 

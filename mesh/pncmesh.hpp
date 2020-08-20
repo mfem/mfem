@@ -259,7 +259,7 @@ protected: // interface for ParMesh
 protected: // implementation
 
    MPI_Comm MyComm;
-   int NRanks, MyRank;
+   int NRanks;
 
    int NGhostVertices, NGhostEdges, NGhostFaces;
    int NElements, NGhostElements;
