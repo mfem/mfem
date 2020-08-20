@@ -151,6 +151,11 @@ void mfem_warning(const char *msg = NULL);
       printf(msg);             \
       asm("trap;");            \
    }
+#elif defined(MFEM_USE_HIP)
+#define MFEM_ABORT_KERNEL(msg) \
+   {                           \
+      printf(msg);             \
+   }
 #else
 #define MFEM_ABORT_KERNEL(msg) MFEM_ABORT(msg)
 #endif
