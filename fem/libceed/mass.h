@@ -102,11 +102,37 @@ CEED_QFUNCTION(f_apply_mass)(void *ctx, CeedInt Q,
                              const CeedScalar *const *in,
                              CeedScalar *const *out)
 {
+   BuildContext *bc = (BuildContext *)ctx;
    const CeedScalar *u = in[0], *w = in[1];
    CeedScalar *v = out[0];
-   for (CeedInt i=0; i<Q; i++)
+   switch (bc->space_dim)
    {
-      v[i] = w[i] * u[i];
+      case 1:
+         for (CeedInt i=0; i<Q; i++)
+         {
+            v[i] = w[i] * u[i];
+         }
+         break;
+      case 2:
+         for (CeedInt i=0; i<Q; i++)
+         {
+            const CeedScalar W = w[i];
+            for (CeedInt c = 0; c < 2; c++)
+            {
+               v[i+c*Q] = W * u[i+c*Q];
+            }
+         }
+         break;
+      case 3:
+         for (CeedInt i=0; i<Q; i++)
+         {
+            const CeedScalar W = w[i];
+            for (CeedInt c = 0; c < 3; c++)
+            {
+               v[i+c*Q] = W * u[i+c*Q];
+            }
+         }
+         break;
    }
    return 0;
 }
