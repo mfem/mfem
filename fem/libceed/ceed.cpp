@@ -59,9 +59,9 @@ void InitCeedCoeff(Coefficient* Q, Mesh &mesh,
       CeedGridCoeff *ceedCoeff = new CeedGridCoeff;
       ceedCoeff->coeff = coeff->GetGridFunction();
       CeedVectorCreate(internal::ceed, ceedCoeff->coeff->FESpace()->GetNDofs(),
-                     &ceedCoeff->coeffVector);
+                       &ceedCoeff->coeffVector);
       CeedVectorSetArray(ceedCoeff->coeffVector, CEED_MEM_HOST, CEED_USE_POINTER,
-                        ceedCoeff->coeff->GetData());
+                         ceedCoeff->coeff->GetData());
       ptr->coeff_type = CeedCoeff::Grid;
       ptr->coeff = static_cast<void*>(ceedCoeff);
    }
@@ -448,27 +448,27 @@ void CeedPAAssemble(const CeedPAOperator& op,
       case CeedCoeff::Const:
          break;
       case CeedCoeff::Grid:
-         {
-            CeedGridCoeff* gridCoeff = (CeedGridCoeff*)ceedData.coeff;
-            InitCeedBasisAndRestriction(*gridCoeff->coeff->FESpace(), irm, ceed,
-                                       &gridCoeff->basis,
-                                       &gridCoeff->restr);
-            CeedOperatorSetField(ceedData.build_oper, "coeff", gridCoeff->restr,
-                                 gridCoeff->basis, gridCoeff->coeffVector);
-         }
-         break;
+      {
+         CeedGridCoeff* gridCoeff = (CeedGridCoeff*)ceedData.coeff;
+         InitCeedBasisAndRestriction(*gridCoeff->coeff->FESpace(), irm, ceed,
+                                    &gridCoeff->basis,
+                                    &gridCoeff->restr);
+         CeedOperatorSetField(ceedData.build_oper, "coeff", gridCoeff->restr,
+                              gridCoeff->basis, gridCoeff->coeffVector);
+      }
+      break;
       case CeedCoeff::Quad:
-         {
-            CeedQuadCoeff* quadCoeff = (CeedQuadCoeff*)ceedData.coeff;
-            const int ncomp = 1;
-            CeedInt strides[3] = {1, nqpts, ncomp*nqpts};
-            CeedElemRestrictionCreateStrided(ceed, nelem, nqpts, ncomp,
-                                             nelem*nqpts, strides,
-                                             &quadCoeff->restr);
-            CeedOperatorSetField(ceedData.build_oper, "coeff", quadCoeff->restr,
-                                 CEED_BASIS_COLLOCATED, quadCoeff->coeffVector);
-         }
-         break;
+      {
+         CeedQuadCoeff* quadCoeff = (CeedQuadCoeff*)ceedData.coeff;
+         const int ncomp = 1;
+         CeedInt strides[3] = {1, nqpts, ncomp*nqpts};
+         CeedElemRestrictionCreateStrided(ceed, nelem, nqpts, ncomp,
+                                          nelem*nqpts, strides,
+                                          &quadCoeff->restr);
+         CeedOperatorSetField(ceedData.build_oper, "coeff", quadCoeff->restr,
+                              CEED_BASIS_COLLOCATED, quadCoeff->coeffVector);
+      }  
+      break;
    }
    CeedOperatorSetField(ceedData.build_oper, "dx", ceedData.mesh_restr,
                         ceedData.mesh_basis, CEED_VECTOR_ACTIVE);

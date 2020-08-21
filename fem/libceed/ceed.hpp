@@ -22,6 +22,7 @@
 namespace mfem
 {
 
+class Mesh;
 class FiniteElementSpace;
 class GridFunction;
 class IntegrationRule;
