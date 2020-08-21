@@ -21,8 +21,22 @@ double GetUniformMeshElementSize(Mesh * mesh)
       hmin = min(hmin, attr(iel));
       hmax = max(hmax, attr(iel));
    }
-   MFEM_VERIFY(abs(hmin-hmax) < 1e-12, "Case not supported yet")
+   // cout << "hmin , hmax = " << hmin << ", " << hmax << endl;
+   if (nrelem)
+   {
+      MFEM_VERIFY(abs(hmin-hmax) < 1e-12, "Case not supported yet")
+   }   
+   else
+   {
+      hmin = hmax = 0.0;
+   }
 
+#ifdef MFEM_USE_MPI
+   ParMesh * pmesh = dynamic_cast<ParMesh *>(mesh);
+   if (pmesh)
+      MPI_Allreduce(&hmax, &hmax,1,MPI_DOUBLE,MPI_MAX,pmesh->GetComm());
+
+#endif
    return hmax;
 }
 
@@ -833,23 +847,7 @@ CartesianParMeshPartition::CartesianParMeshPartition(ParMesh * pmesh_,
          }
       }
    }
-
-   int mynrsubdomains = 0;
-   for (int i=0; i<nrsubdomains; i++)
-   {
-      if (myid == subdomain_rank[i])
-      {
-         mynrsubdomains++;
-      }
-   }
-   cout << "myid = " << myid <<", mynrsubdomains = " << mynrsubdomains << endl;
-
-
-   // for (int ip = 0; ip<nrsubdomains; ip++)
-   // {
-   //    cout << "myid: " << myid << ", subdomain: " << ip 
-   //          << ", rank " << subdomain_rank[ip] << endl;
-   // }
+   
    subdomains.SetSize(nx,ny,nz);
    for (int k = 0; k<nz; k++)
    {

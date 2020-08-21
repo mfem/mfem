@@ -12,11 +12,11 @@ void CartesianPML::SetBoundaries()
 {
    comp_dom_bdr.SetSize(dim, 2);
    dom_bdr.SetSize(dim, 2);
-   // initialize with any vertex
+   // initialize
    for (int i = 0; i < dim; i++)
    {
-      dom_bdr(i, 0) = mesh->GetVertex(0)[i];
-      dom_bdr(i, 1) = mesh->GetVertex(0)[i];
+      dom_bdr(i, 0) = infinity();
+      dom_bdr(i, 1) = -infinity();
    }
 
    for (int i = 0; i < mesh->GetNBE(); i++)
@@ -32,6 +32,18 @@ void CartesianPML::SetBoundaries()
          }
       }
    }
+
+#ifdef MFEM_USE_MPI
+   ParMesh * pmesh = dynamic_cast<ParMesh *>(mesh);
+   if (pmesh)
+   {
+      for (int d=0; d<dim; d++)
+      {
+         MPI_Allreduce(&dom_bdr(d,0),&dom_bdr(d,0),1,MPI_DOUBLE,MPI_MIN,pmesh->GetComm());
+         MPI_Allreduce(&dom_bdr(d,1),&dom_bdr(d,1),1,MPI_DOUBLE,MPI_MAX,pmesh->GetComm());
+      }
+   }
+#endif
 
    for (int i = 0; i < dim; i++)
    {

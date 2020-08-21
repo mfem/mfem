@@ -19,6 +19,7 @@ private:
    ParMesh * pmesh = nullptr;
    ParMeshPartition * part = nullptr;
    Array<int> SubdomainRank;
+   Array<int> RankSubdomains;
    const FiniteElementCollection * fec = nullptr;
    Array2D<double> Pmllength;
    int dim = 2;
@@ -29,18 +30,13 @@ private:
    int nrsubdomains = 0;
    int nx,ny,nz;
    Array<int> nxyz;
-
    Sweep * sweeps = nullptr;
    DofMaps * dmaps = nullptr;
    Array< SesquilinearForm * > sqf;
    Array< OperatorPtr * > Optr;
    Array<ComplexSparseMatrix *> PmlMat;
    Array<ComplexUMFPackSolver *> PmlMatInv;
-   mutable Array<Vector *> f_orig_re;
-   mutable Array<Vector *> f_orig_im;
    mutable Array<Vector *> f_orig;
-   mutable Array<Array<Vector * >> f_transf_re;
-   mutable Array<Array<Vector * >> f_transf_im;
    mutable Array<Array<Vector * >> f_transf;
    mutable Array<Vector * > subdomain_sol;
    mutable std::vector<std::vector<Vector * >> OvlpSol;

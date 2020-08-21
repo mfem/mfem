@@ -132,23 +132,11 @@ int main(int argc, char *argv[])
    }
    dim = mesh->Dimension();
 
-   double hl = GetUniformMeshElementSize(mesh);
-   int nrlayers = 1;
 
-   Array2D<double> lengths(dim,2);
-   lengths = hl*nrlayers;
-   // lengths[0][1] = 0.0;
-   // lengths[1][1] = 0.0;
-   // lengths[1][0] = 0.0;
-   // lengths[0][0] = 0.0;
-   CartesianPML pml(mesh,lengths);
-   pml.SetOmega(omega);
-   comp_bdr.SetSize(dim,2);
-   comp_bdr = pml.GetCompDomainBdr(); 
 
       // 4. Define a parallel mesh by a partitioning of the serial mesh.
    // ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-   int nprocs = sqrt(num_procs);
+   // int nprocs = sqrt(num_procs);
    // MFEM_VERIFY(nprocs*nprocs == num_procs, "Check MPI partitioning");
    // int nxyz[3] = {num_procs,1,1};
    // int nxyz[3] = {nprocs,nprocs,1};
@@ -164,6 +152,22 @@ int main(int argc, char *argv[])
    {
       pmesh->UniformRefinement();
    }
+
+
+   double hl = GetUniformMeshElementSize(pmesh);
+   int nrlayers = 2;
+
+   Array2D<double> lengths(dim,2);
+   lengths = hl*nrlayers;
+   // lengths[0][1] = 0.0;
+   // lengths[1][1] = 0.0;
+   // lengths[1][0] = 0.0;
+   // lengths[0][0] = 0.0;
+   // CartesianPML pml(mesh,lengths);
+   CartesianPML pml(pmesh,lengths);
+   pml.SetOmega(omega);
+   comp_bdr.SetSize(dim,2);
+   comp_bdr = pml.GetCompDomainBdr(); 
 
    // 6. Define a finite element space on the mesh.
    FiniteElementCollection *fec = new H1_FECollection(order, dim);
@@ -228,13 +232,12 @@ int main(int argc, char *argv[])
 
    a.FormLinearSystem(ess_tdof_list, p_gf, b, Ah, X, B);
    {
-      int nlayers = 2;
       StopWatch chrono;
       chrono.Clear();
       chrono.Start();
-      ParDST S(&a,lengths,omega, &ws,nlayers,nx,ny,nz);
+      ParDST S(&a,lengths,omega, &ws,nrlayers,nx,ny,nz);
       chrono.Stop();
-      cout << "ParDST time: " << chrono.RealTime() << endl; 
+      double t1 = chrono.RealTime();
 
       chrono.Clear();
       chrono.Start();
@@ -247,7 +250,15 @@ int main(int argc, char *argv[])
       gmres.SetPrintLevel(1);
       gmres.Mult(B, X);
       chrono.Stop();
-      cout << "GMRES time: " << chrono.RealTime() << endl; 
+
+      double t2 = chrono.RealTime();
+      
+      MPI_Barrier(MPI_COMM_WORLD);
+
+
+      cout << " myid: " << myid 
+           << ", setup time: " << t1
+           << ", solution time: " << t2 << endl; 
 
       a.RecoverFEMSolution(X,B,p_gf);
       if (visualization)
@@ -285,39 +296,40 @@ int main(int argc, char *argv[])
 
 
 //    // solve
-// // {
-// //    HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
-// //    SuperLURowLocMatrix SA(*A);
-// //    SuperLUSolver superlu(MPI_COMM_WORLD);
-// //    superlu.SetPrintStatistics(false);
-// //    superlu.SetSymmetricPattern(false);
-// //    superlu.SetColumnPermutation(superlu::PARMETIS);
-// //    superlu.SetOperator(SA);
-// //    superlu.Mult(B, X);
-// //    delete A;
-// // }
-// //    a.RecoverFEMSolution(X,B,p_gf);
+// {
+//    HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
+//    SuperLURowLocMatrix SA(*A);
+//    SuperLUSolver superlu(MPI_COMM_WORLD);
+//    superlu.SetPrintStatistics(false);
+//    superlu.SetSymmetricPattern(false);
+//    superlu.SetColumnPermutation(superlu::PARMETIS);
+//    superlu.SetOperator(SA);
+//    superlu.Mult(B, X);
+//    delete A;
+// }
+//    a.RecoverFEMSolution(X,B,p_gf);
 
-// //    if (visualization)
-// //    {
-// //       char vishost[] = "localhost";
-// //       int  visport   = 19916;
-// //       string keys;
-// //       if (dim ==2 )
-// //       {
-// //          keys = "keys mrRljc\n";
-// //       }
-// //       else
-// //       {
-// //          keys = "keys mc\n";
-// //       }
-// //       socketstream sol_sock_re(vishost, visport);
-// //       sol_sock_re.precision(8);
-// //       sol_sock_re << "parallel " << num_procs << " " << myid << "\n"
-// //                   << "solution\n" << *pmesh << p_gf.real() <<
-// //                   "window_title 'Numerical Pressure' "
-// //                   << keys << "valuerange -0.08 0.08 \n" << flush;
-// //    }
+//    if (visualization)
+//    {
+//       char vishost[] = "localhost";
+//       int  visport   = 19916;
+//       string keys;
+//       if (dim ==2 )
+//       {
+//          keys = "keys mrRljc\n";
+//       }
+//       else
+//       {
+//          keys = "keys mc\n";
+//       }
+//       socketstream sol_sock_re(vishost, visport);
+//       sol_sock_re.precision(8);
+//       sol_sock_re << "parallel " << num_procs << " " << myid << "\n"
+//                   << "solution\n" << *pmesh << p_gf.real() <<
+//                   "window_title 'Numerical Pressure' "
+//                   // << keys << "valuerange -0.08 0.08 \n" << flush;
+//                   << keys << flush;
+//    }
    delete fespace;
    delete fec;
 	delete pmesh;
