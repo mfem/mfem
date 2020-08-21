@@ -16,7 +16,12 @@ Meshing improvements
 - The graph linear ordering library Gecko, previously an external dependency, is
   now included directly in MFEM. As a result, Mesh::GetGeckoElementOrdering is
   always available. The interface has also been improved, see for example the
-  mesh-explorer miniapp.
+  Mesh Explorer miniapp.
+
+- Improved Gmsh reader (version 2.2), which now supports both high-order and
+  periodic meshes. Segments, triangles, quadrilaterals, and tetrahedra are
+  supported up to order 10. Wedges and hexahedra are supported up to order 9.
+  For sample periodic meshes, see the periodic*.msh files in the data directory.
 
 - Added support for finite difference-based gradient and Hessian approximation
   in the TMOP mesh optimization algorithms. This improves the accuracy of the
@@ -27,11 +32,8 @@ Meshing improvements
   the user to specify different discrete functions for controlling the
   size, aspect-ratio, orientation, and skew of elements in the mesh.
 
-- Added TMOP capability for approximate tangential mesh relaxation.
-
-- Added support for reading periodic meshes in Gmsh format (version 2.2). See
-  for example the periodic-annulus-sector and periodic-torus-sector files in
-  the data directory.
+- Added TMOP capability for approximate tangential mesh relaxation. Added
+  support and examples for using TMOP on mixed meshes.
 
 - Added complete action of the TMOP Integrator to account for the spatial
   derivatives of discrete and analytic targets.
@@ -57,6 +59,8 @@ Improved GPU capabilities
   assembly level builds on top of the current Element Assembly kernels to
   compute a global sparse matrix. All integrators supported by element assembly
   are also supported by full assembly. See the '-fa' option in Example 9.
+
+- Added CUDA support for sparse matrix-vector multiplication with cuSPARSE.
 
 - Added support for BlockOperator on GPU. See the updated Example 5.
 
@@ -171,6 +175,8 @@ New and updated examples and miniapps
 
 - Added partial assembly and device support to Example 22/22p, with diagonal
   preconditioning.
+
+- Added the option to plot a function in Mesh Explorer.
 
 Improved testing
 ----------------
