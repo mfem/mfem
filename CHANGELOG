@@ -124,6 +124,9 @@ Linear and nonlinear solvers
 
 - Added support for the SLEPc eigensolver package.
 
+- Added partially assembled convergent diagonal preconditioner for adaptively
+  refined meshes (i.e. non-conforming finite element spaces), see Example 6/6p.
+
 New and updated examples and miniapps
 -------------------------------------
 - Added a new example, Example 25/25p, to demonstrate the use of a Perfectly
@@ -179,6 +182,8 @@ New and updated examples and miniapps
 
 - Added a new miniapp (field-interp) that demonstrates transfer of solution
   between different meshes using FindPointsGSLIB.
+
+- Added diagonal preconditioner in Example 6/6p for partial assembly with AMR.
 
 - Added device support in Example 5/5p.
 
