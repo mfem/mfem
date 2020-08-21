@@ -16,6 +16,7 @@
 
 #include "mfem.hpp"
 #include "ortho_solver.hpp"
+#include "ceed_algebraic.hpp"
 
 namespace mfem
 {

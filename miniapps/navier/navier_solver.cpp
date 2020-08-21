@@ -239,6 +239,7 @@ void NavierSolver::Setup(double dt)
 
    if (partial_assembly)
    {
+      /// ATB first steps here-ish
       Sp_form_lor = new ParBilinearForm(pfes_lor);
       Sp_form_lor->UseExternalIntegrators();
       CopyDBFIntegrators(Sp_form, Sp_form_lor);
