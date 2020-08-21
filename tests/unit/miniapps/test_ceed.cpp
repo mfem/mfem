@@ -48,7 +48,7 @@ void test_assembly_level(Mesh &&mesh, int order, const CeedCoeff coeff_type,
          break;
       case CeedCoeff::Grid:
          gf.ProjectCoefficient(f_coeff);
-         coeff = new GridFunctionCoefficient(&gf);;
+         coeff = new GridFunctionCoefficient(&gf);
          break;
       case CeedCoeff::Quad:
          coeff = &f_coeff;
@@ -164,8 +164,6 @@ TEST_CASE("CEED", "[CEED]")
          }
       }
    }
-   device.~Device();
-   Device fake_device("cpu");
 } // test case
 
 } // namespace ceed_test
