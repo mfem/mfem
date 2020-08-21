@@ -39,23 +39,23 @@ void test_assembly_level(Mesh &&mesh, int order, const CeedCoeff coeff_type,
 
    GridFunction gf(&fespace);
    FunctionCoefficient f_coeff(coeff_function);
-   
+
    Coefficient *coeff = nullptr;
    switch (coeff_type)
    {
-   case CeedCoeff::Const:
-      coeff = new ConstantCoefficient(1.0);
-      break;
-   case CeedCoeff::Grid:
-      gf.ProjectCoefficient(f_coeff);
-      coeff = new GridFunctionCoefficient(&gf);;
-      break;
-   case CeedCoeff::Quad:
-      coeff = &f_coeff;
-      break;
-   default:
-      mfem_error("Unexpected coefficient type.");
-      break;
+      case CeedCoeff::Const:
+         coeff = new ConstantCoefficient(1.0);
+         break;
+      case CeedCoeff::Grid:
+         gf.ProjectCoefficient(f_coeff);
+         coeff = new GridFunctionCoefficient(&gf);;
+         break;
+      case CeedCoeff::Quad:
+         coeff = &f_coeff;
+         break;
+      default:
+         mfem_error("Unexpected coefficient type.");
+         break;
    }
    
    if (pb==0) // Mass
@@ -123,9 +123,9 @@ TEST_CASE("CEED", "[CEED]")
                {
                   int order = 2;
                   test_assembly_level(Mesh("../../data/inline-hex.mesh", 1, 1),
-                                    order, coeff_type, pb, assembly);
+                                      order, coeff_type, pb, assembly);
                   test_assembly_level(Mesh("../../data/fichera-q3.mesh", 1, 1),
-                                    order, coeff_type, pb, assembly);
+                                      order, coeff_type, pb, assembly);
                }
             }
          }
@@ -141,7 +141,7 @@ TEST_CASE("CEED", "[CEED]")
                   for (int order : {2, 3, 4})
                   {
                      test_assembly_level(Mesh("../../data/amr-quad.mesh", 1, 1),
-                                       order, coeff_type, 0, assembly);
+                                         order, coeff_type, 0, assembly);
                   }
                }
             }
@@ -157,7 +157,7 @@ TEST_CASE("CEED", "[CEED]")
                {
                   int order = 2;
                   test_assembly_level(Mesh("../../data/fichera-amr.mesh", 1, 1),
-                                    order, coeff_type, 0, assembly);
+                                      order, coeff_type, 0, assembly);
                }
             }
          }
