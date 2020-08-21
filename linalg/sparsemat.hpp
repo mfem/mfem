@@ -103,6 +103,21 @@ protected:
    mutable cusparseSpMatDescr_t matA_descr;
    mutable cusparseDnVecDescr_t vecX_descr;
    mutable cusparseDnVecDescr_t vecY_descr;
+   mutable cusparseDnVecDescr_t vecZ_descr;
+   mutable Vector vecZ;
+
+   cusparseMatDescr_t descr_M = 0;
+   cusparseMatDescr_t descr_L = 0;
+   cusparseMatDescr_t descr_U = 0;
+
+   csrsv2Info_t  info_L  = 0;
+   csrsv2Info_t  info_Lt = 0;
+   csrsv2Info_t  info_U  = 0;
+
+   void *pBuffer = 0;
+
+   bool initILU = false;
+   bool initCholesky = false;
 #endif
 
 public:
@@ -609,6 +624,14 @@ public:
    void LoseData() { SetGraphOwner(false); SetDataOwner(false); }
 
    void Swap(SparseMatrix &other);
+
+#ifdef MFEM_USE_CUDA
+   void IncompleteCholeskySetup();
+   void IncompleteCholeskyMult(const Vector &x, Vector &y) const;
+
+   void ILUSetup();
+   void ILUMult(const Vector &x, Vector &y) const;
+#endif
 
    /// Destroys sparse matrix.
    virtual ~SparseMatrix()

@@ -175,7 +175,8 @@ int main(int argc, char *argv[])
    //    domain integrator.
    BilinearForm a(&fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   a.AddDomainIntegrator(new DiffusionIntegrator(one));
+   //a.AddDomainIntegrator(new DiffusionIntegrator(one));
+   a.AddDomainIntegrator(new MassIntegrator(one));
 
    // 10. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary
@@ -184,19 +185,40 @@ int main(int argc, char *argv[])
    if (static_cond) { a.EnableStaticCondensation(); }
    a.Assemble();
 
-   OperatorPtr A;
+   OperatorPtr A, As;
    Vector B, X;
-   a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+   Array<int> empty_list;
+   a.FormSystemMatrix(empty_list, As);
+   //a.FormLinearSystem(empty_list, x, b, A, X, B);
+   //a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-   cout << "Size of linear system: " << A->Height() << endl;
+   //cout << "Size of linear system: " << A->Height() << endl;
 
    // 11. Solve the linear system A X = B.
    if (!pa)
    {
 #ifndef MFEM_USE_SUITESPARSE
       // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-      GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
+      //GSSmoother M((SparseMatrix&)(*A));
+
+      //SparseMatrix &Asp = *As.As<SparseMatrix>();
+      SparseMatrix &Asp = a.SpMat();
+
+      Asp.Finalize();
+      Asp.SortColumnIndices();
+
+      Vector tmpx(B.Size());
+      Vector tmpy(B.Size());
+      tmpx = 1.0;
+      tmpy = 0.0;
+
+      //As.As<SparseMatrix>()->Mult(tmpx, tmpy);
+      Asp.Mult(tmpx, tmpy);
+
+      //IncompleteCholesky M(*As.As<SparseMatrix>());
+      IncompleteCholesky M(Asp);
+      //ILUcusparse M(*A.As<SparseMatrix>());
+      PCG(*As, M, B, X, 1, 200, 1e-12, 0.0);
 #else
       // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
       UMFPackSolver umf_solver;

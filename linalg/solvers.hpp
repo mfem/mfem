@@ -799,6 +799,28 @@ public:
 
 #endif // MFEM_USE_SUITESPARSE
 
+class IncompleteCholesky : public IterativeSolver
+{
+private:
+   SparseMatrix *A;
+
+public:
+   IncompleteCholesky(SparseMatrix &A_);
+
+   virtual void Mult(const Vector &b, Vector &x) const;
+};
+
+class ILUcusparse : public IterativeSolver
+{
+private:
+   SparseMatrix *A;
+
+public:
+   ILUcusparse(SparseMatrix &A_);
+
+   virtual void Mult(const Vector &b, Vector &x) const;
+};
+
 }
 
 #endif // MFEM_SOLVERS

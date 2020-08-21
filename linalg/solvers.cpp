@@ -2972,4 +2972,36 @@ KLUSolver::~KLUSolver()
 
 #endif // MFEM_USE_SUITESPARSE
 
+IncompleteCholesky::IncompleteCholesky(SparseMatrix &A_) : A(&A_)
+{
+#ifdef MFEM_USE_CUDA
+   A->IncompleteCholeskySetup();
+#endif
+}
+
+void IncompleteCholesky::Mult(const Vector &b, Vector &x) const
+{
+#ifdef MFEM_USE_CUDA
+   A->IncompleteCholeskyMult(b, x);
+#else
+   x = b;
+#endif
+}
+
+ILUcusparse::ILUcusparse(SparseMatrix &A_) : A(&A_)
+{
+#ifdef MFEM_USE_CUDA
+   A->ILUSetup();
+#endif
+}
+
+void ILUcusparse::Mult(const Vector &b, Vector &x) const
+{
+#ifdef MFEM_USE_CUDA
+   A->ILUMult(b, x);
+#else
+   x = b;
+#endif
+}
+
 }

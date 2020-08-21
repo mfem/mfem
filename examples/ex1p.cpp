@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
    {
       int ref_levels =
          (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
-      for (int l = 0; l < ref_levels; l++)
+      for (int l = 0; l < ref_levels-1; l++)
       {
          mesh.UniformRefinement();
       }
@@ -134,7 +134,7 @@ int main(int argc, char *argv[])
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
    {
-      int par_ref_levels = 2;
+      int par_ref_levels = 1;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh.UniformRefinement();
@@ -216,6 +216,13 @@ int main(int argc, char *argv[])
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
+   SparseMatrix Asp;
+   A.As<HypreParMatrix>()->GetDiag(Asp);
+   Vector diag;
+
+   StopWatch sw;
+   sw.Start();
+
    // 13. Solve the linear system A X = B.
    //     * With full assembly, use the BoomerAMG preconditioner from hypre.
    //     * With partial assembly, use Jacobi smoothing, for now.
@@ -229,7 +236,14 @@ int main(int argc, char *argv[])
    }
    else
    {
-      prec = new HypreBoomerAMG;
+      //prec = new HypreBoomerAMG;
+      Asp.Finalize();
+      Asp.SortColumnIndices();
+
+      Asp.GetDiag(diag);
+      prec = new OperatorJacobiSmoother(diag, ess_tdof_list);
+      //prec = new IncompleteCholesky(Asp);
+      //prec = new ILUcusparse(Asp);
    }
    CGSolver cg(MPI_COMM_WORLD);
    cg.SetRelTol(1e-12);
@@ -239,6 +253,9 @@ int main(int argc, char *argv[])
    cg.SetOperator(*A);
    cg.Mult(B, X);
    delete prec;
+
+   sw.Stop();
+   cout << "Step 13 solve time " << sw.RealTime() << endl;
 
    // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
