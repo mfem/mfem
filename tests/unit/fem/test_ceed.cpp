@@ -57,7 +57,7 @@ void test_assembly_level(Mesh &&mesh, int order, const CeedCoeff coeff_type,
          mfem_error("Unexpected coefficient type.");
          break;
    }
-   
+
    if (pb==0) // Mass
    {
       k_ref.AddDomainIntegrator(new MassIntegrator(*coeff));
