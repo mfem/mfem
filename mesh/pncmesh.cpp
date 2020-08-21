@@ -105,6 +105,7 @@ void ParNCMesh::Update()
    boundary_layer.SetSize(0);
 }
 
+#if 0
 void ParNCMesh::AssignLeafIndices()
 {
    // This is an override of NCMesh::AssignLeafIndices(). The difference is
@@ -198,6 +199,7 @@ void ParNCMesh::UpdateVertices()
       }
    }
 }
+#endif
 
 void ParNCMesh::OnMeshUpdated(Mesh *mesh)
 {

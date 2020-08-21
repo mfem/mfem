@@ -1830,44 +1830,50 @@ void NCMesh::SetDerefMatrixCodes(int parent, Array<int> &fine_coarse)
 
 //// Mesh Interface ////////////////////////////////////////////////////////////
 
-void NCMesh::UpdateVertices()
-{
-   // (overridden in ParNCMesh to assign special indices to ghost vertices)
-   NVertices = 0;
-   for (auto node = nodes.begin(); node != nodes.end(); ++node)
-   {
-      if (node->HasVertex()) { node->vert_index = NVertices++; }
-   }
-
-   vertex_nodeId.SetSize(NVertices);
-
-   NVertices = 0;
-   for (auto node = nodes.begin(); node != nodes.end(); ++node)
-   {
-      if (node->HasVertex()) { vertex_nodeId[NVertices++] = node.index(); }
-   }
-}
-
-void NCMesh::CollectLeafElements(int elem, int state)
+void NCMesh::CollectLeafElements(int elem, int state, Array<int> &ghosts,
+                                 int &counter)
 {
    Element &el = elements[elem];
    if (!el.ref_type)
    {
-      if (el.rank >= 0) // skip elements beyond ghost layer in parallel
+      if (el.rank >= 0) // skip elements beyond the ghost layer in parallel
       {
-         leaf_elements.Append(elem);
+         if (el.rank == MyRank)
+         {
+            leaf_elements.Append(elem);
+         }
+         else
+         {
+            // in parallel (or in serial loading a parallel file), collect
+            // elements of neighboring ranks in a separate array
+            ghosts.Append(elem);
+         }
+
+         // assign the SFC index (temporarily, will be replaced by Mesh index)
+         el.index = counter++;
+      }
+      else
+      {
+         // elements beyond the ghost layer are invalid and don't exist in
+         // 'leaf_elements' (also for performance reasons)
+         el.index = -1;
       }
    }
    else
    {
-      // try to order elements along a space-filling curve
+      // in non-leaf elements, the 'rank' and 'index' members have no meaning
+      el.rank = -1;
+      el.index = -1;
+
+      // recurse to subtrees; try to order leaf elements along a space-filling
+      // curve by changing the order the children are visited at each level
       if (el.Geom() == Geometry::SQUARE && el.ref_type == 3)
       {
          for (int i = 0; i < 4; i++)
          {
             int ch = quad_hilbert_child_order[state][i];
             int st = quad_hilbert_child_state[state][i];
-            CollectLeafElements(el.child[ch], st);
+            CollectLeafElements(el.child[ch], st, ghosts, counter);
          }
       }
       else if (el.Geom() == Geometry::CUBE && el.ref_type == 7)
@@ -1876,44 +1882,99 @@ void NCMesh::CollectLeafElements(int elem, int state)
          {
             int ch = hex_hilbert_child_order[state][i];
             int st = hex_hilbert_child_state[state][i];
-            CollectLeafElements(el.child[ch], st);
+            CollectLeafElements(el.child[ch], st, ghosts, counter);
          }
       }
-      else
+      else // no SFC tables yet for remaining cases
       {
          for (int i = 0; i < 8; i++)
          {
             if (el.child[i] >= 0)
             {
-               CollectLeafElements(el.child[i], state);
+               CollectLeafElements(el.child[i], state, ghosts, counter);
             }
          }
       }
-
-      // in non-leaf elements, the 'rank' member has no meaning; clear it now
-      el.rank = -1;
    }
-
-   el.index = -1;
 }
 
 void NCMesh::UpdateLeafElements()
 {
+   Array<int> ghosts;
+
    // collect leaf elements from all roots
    leaf_elements.SetSize(0);
-   for (int i = 0; i < root_state.Size(); i++)
+   for (int i = 0, counter = 0; i < root_state.Size(); i++)
    {
-      CollectLeafElements(i, root_state[i]);
+      CollectLeafElements(i, root_state[i], ghosts, counter);
    }
-   AssignLeafIndices();
-}
 
-void NCMesh::AssignLeafIndices()
-{
-   // (overridden in ParNCMesh to handle ghost elements)
+   NElements = leaf_elements.Size();
+   NGhostElements = ghosts.Size();
+
+   // append ghost elements at the end of 'leaf_element' (if any)
+   // and assign the final (Mesh) indices of leaves
+   leaf_elements.Append(ghosts);
+   leaf_sfc_index.SetSize(leaf_elements.Size());
+
    for (int i = 0; i < leaf_elements.Size(); i++)
    {
-      elements[leaf_elements[i]].index = i;
+      Element &el = elements[leaf_elements[i]];
+      leaf_sfc_index[i] = el.index;
+      el.index = i;
+   }
+}
+
+void NCMesh::UpdateVertices()
+{
+   for (auto node = nodes.begin(); node != nodes.end(); ++node)
+   {
+      node->vert_index = -1;
+   }
+
+   // assign vertex indices by iterating over elements in the linear order
+   // determined by 'leaf_elements', i.e., elements we own first (in SFC order)
+   // then any ghost elements (in SFC order again)
+
+   // it is important that this process is the same both in serial and in
+   // parallel so that we can correctly load parallel partial solutions in
+   // serial code (e.g., in GLVis)
+
+   NVertices = 0;
+   for (int i = 0; i < NElements; i++)
+   {
+      Element &el = elements[leaf_elements[i]];
+      MFEM_ASSERT(el.rank == MyRank, "");
+
+      for (int j = 0; j < GI[el.Geom()].nv; j++)
+      {
+         int &vindex = nodes[el.node[j]].vert_index;
+         if (vindex < 0) { vindex = NVertices++; }
+      }
+   }
+
+   NGhostVertices = 0;
+   for (int i = NElements; i < leaf_elements.Size(); i++)
+   {
+      Element &el = elements[leaf_elements[i]];
+      MFEM_ASSERT(el.rank != MyRank, "");
+
+      for (int j = 0; j < GI[el.Geom()].nv; j++)
+      {
+         int &vindex = nodes[el.node[j]].vert_index;
+         if (vindex < 0) { vindex = NGhostVertices++; }
+      }
+   }
+
+   // create the mapping from vertex index to node index
+   vertex_nodeId.SetSize(NVertices + NGhostVertices);
+   for (auto node = nodes.begin(); node != nodes.end(); ++node)
+   {
+      if (node->HasVertex() && node->vert_index >= 0)
+      {
+         MFEM_ASSERT(node->vert_index < vertex_nodeId.Size(), "");
+         vertex_nodeId[node->vert_index] = node.index();
+      }
    }
 }
 
