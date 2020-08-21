@@ -38,7 +38,7 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes)
       if (ceedDataPtr) { delete ceedDataPtr; }
       CeedData* ptr = new CeedData();
       ceedDataPtr = ptr;
-      InitCeedCoeff(Q, ptr);
+      InitCeedCoeff(Q, *mesh, *ir, ptr);
       return CeedPAMassAssemble(fes, *ir, *ptr);
    }
 #endif

@@ -32,7 +32,7 @@ namespace internal { extern Ceed ceed; } // defined in device.cpp
 /// A structure used to pass additional data to f_build_diff and f_apply_diff
 struct BuildContext { CeedInt dim, space_dim; CeedScalar coeff; };
 
-enum class CeedCoeff { Const, Grid };
+enum class CeedCoeff { Const, Grid, Quad };
 
 struct CeedConstCoeff
 {
@@ -43,6 +43,13 @@ struct CeedGridCoeff
 {
    const GridFunction* coeff;
    CeedBasis basis;
+   CeedElemRestriction restr;
+   CeedVector coeffVector;
+};
+
+struct CeedQuadCoeff
+{
+   Vector coeff;
    CeedElemRestriction restr;
    CeedVector coeffVector;
 };
@@ -109,11 +116,11 @@ struct CeedPAOperator
    std::string const_func;
    /** The Qfunction to build the quadrature data with constant coefficient. */
    CeedQFunctionUser const_qf;
-   /** The name of the Qfunction to build the quadrature data with grid function
-       coefficient. */
-   std::string grid_func;
-   /** The Qfunction to build the quad. data with grid function coefficient. */
-   CeedQFunctionUser grid_qf;
+   /** The name of the Qfunction to build the quadrature data with a coefficient
+       evaluated at quadrature points. */
+   std::string quad_func;
+   /** The Qfunction to build the quad. data with a coefficient. */
+   CeedQFunctionUser quad_qf;
    /** The name of the Qfunction to apply the operator. */
    std::string apply_func;
    /** The Qfunction to apply the operator. */
@@ -128,7 +135,8 @@ struct CeedPAOperator
 
 /** @brief Identifies the type of coefficient of the Integrator to initialize
     accordingly the CeedData. */
-void InitCeedCoeff(Coefficient* Q, CeedData* ptr);
+void InitCeedCoeff(Coefficient* Q, Mesh &mesh, const IntegrationRule &ir,
+                   CeedData* ptr);
 
 /// Initialize a CeedBasis and a CeedElemRestriction
 void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
