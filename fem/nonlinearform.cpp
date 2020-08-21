@@ -598,8 +598,6 @@ double BlockNonlinearForm::GetEnergyBlocked(const BlockVector &bx) const
       MFEM_ABORT("TODO: add energy contribution from boundary face terms");
    }
 
-
-
    return energy;
 }
 
