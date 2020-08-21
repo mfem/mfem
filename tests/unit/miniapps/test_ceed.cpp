@@ -28,7 +28,6 @@ double coeff_function(const Vector &x)
 void test_assembly_level(Mesh &&mesh, int order, const CeedCoeff coeff_type,
                          const int pb, const AssemblyLevel assembly)
 {
-   Device device("ceed-cpu");
    mesh.EnsureNodes();
    int dim = mesh.Dimension();
 
@@ -90,6 +89,7 @@ void test_assembly_level(Mesh &&mesh, int order, const CeedCoeff coeff_type,
 
 TEST_CASE("CEED", "[CEED]")
 {
+   Device device("ceed-cpu");
    SECTION("Continuous Galerkin")
    {
       const bool dg = false;
@@ -164,6 +164,8 @@ TEST_CASE("CEED", "[CEED]")
          }
       }
    }
+   device.~Device();
+   Device fake_device("cpu");
 } // test case
 
 } // namespace ceed_test
