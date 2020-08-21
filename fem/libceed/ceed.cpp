@@ -451,8 +451,8 @@ void CeedPAAssemble(const CeedPAOperator& op,
       {
          CeedGridCoeff* gridCoeff = (CeedGridCoeff*)ceedData.coeff;
          InitCeedBasisAndRestriction(*gridCoeff->coeff->FESpace(), irm, ceed,
-                                    &gridCoeff->basis,
-                                    &gridCoeff->restr);
+                                     &gridCoeff->basis,
+                                     &gridCoeff->restr);
          CeedOperatorSetField(ceedData.build_oper, "coeff", gridCoeff->restr,
                               gridCoeff->basis, gridCoeff->coeffVector);
       }
@@ -467,7 +467,7 @@ void CeedPAAssemble(const CeedPAOperator& op,
                                           &quadCoeff->restr);
          CeedOperatorSetField(ceedData.build_oper, "coeff", quadCoeff->restr,
                               CEED_BASIS_COLLOCATED, quadCoeff->coeffVector);
-      }  
+      }
       break;
    }
    CeedOperatorSetField(ceedData.build_oper, "dx", ceedData.mesh_restr,
