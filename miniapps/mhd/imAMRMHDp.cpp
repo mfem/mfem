@@ -151,6 +151,8 @@ int main(int argc, char *argv[])
    int nc_limit = 1;         // maximum level of hanging nodes
    int ref_steps=4;
    double err_ratio=.1;
+   double err_fraction=.5;
+   double derefine_ratio=.2;
    //----end of amr----
    
    beta = 0.001; 
@@ -204,6 +206,10 @@ int main(int argc, char *argv[])
                   "Local AMR tolerance.");
    args.AddOption(&err_ratio, "-err-ratio", "--err-ratio",
                   "AMR component ratio.");
+   args.AddOption(&err_fraction, "-err-fraction", "--err-fraction",
+                  "AMR error fraction in estimator.");
+   args.AddOption(&derefine_ratio, "-derefine-ratio", "--derefine-ratio",
+                  "AMR derefine error ratio.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -532,11 +538,11 @@ int main(int argc, char *argv[])
    oper.SetInitialJ(*jptr);
 
    //-----------------------------------AMR for the real computation---------------------------------
-   BlockZZEstimator estimator(*integ, psi, *integ, phi, flux_fespace1, flux_fespace2);
+   BlockZZEstimator estimator(*integ, psi, *integ, j, flux_fespace1, flux_fespace2);
    estimator.SetErrorRatio(err_ratio); //we define total_err = err_1 + ratio*err_2
 
    ThresholdRefiner refiner(estimator);
-   refiner.SetTotalErrorFraction(0.5);   // here 0.0 means we use local threshold; default is 0.5
+   refiner.SetTotalErrorFraction(err_fraction);   // here 0.0 means we use local threshold; default is 0.5
    refiner.SetTotalErrorGoal(ltol_amr);  // total error goal (stop criterion)
    refiner.SetLocalErrorGoal(0.0);  // local error goal (stop criterion)
    refiner.SetMaxElements(5000000);
@@ -546,7 +552,7 @@ int main(int argc, char *argv[])
        refiner.SetYRange(-.6, .6);
 
    ThresholdDerefiner derefiner(estimator);
-   derefiner.SetThreshold(.2*ltol_amr);
+   derefiner.SetThreshold(derefine_ratio*ltol_amr);
    derefiner.SetNCLimit(nc_limit);
 
    bool derefineMesh = false;
