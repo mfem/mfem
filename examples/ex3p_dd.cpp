@@ -1333,6 +1333,10 @@ int main(int argc, char *argv[])
 #endif
 #endif
 
+#ifdef COARSE_AMS
+   ParFiniteElementSpace** coarseFespace = NULL;
+#endif
+
    {
       int par_ref_levels = 1;
 
@@ -1412,6 +1416,9 @@ int main(int argc, char *argv[])
 #ifdef SDFOSLS_PA
                                                                &dummyCoarseFOSLS,  // not used here
 #endif
+#ifdef COARSE_AMS
+                                                               NULL,  // not used here
+#endif
                                                                1.0, true);  // hmin value not relevant here
 
 #ifdef SDFOSLS_PA
@@ -1436,14 +1443,20 @@ int main(int argc, char *argv[])
 #endif
 
 #ifndef COARSE_PA
+#ifdef COARSE_AMS
+         coarseFespace = ddiC->GetFespaces();
+#else
          for (int sd=0; sd<numSubdomains; ++sd)
          {
             delete pmeshSD_C[sd];
          }
+#endif
 
          delete pmeshSD_C;
          delete fespace_C;
+#ifndef COARSE_AMS
          delete ddiC;
+#endif
 #endif
       }
 #endif
@@ -2179,6 +2192,9 @@ int main(int argc, char *argv[])
 #endif
 #ifdef SDFOSLS_PA
                             &coarseFOSLS,
+#endif
+#ifdef COARSE_AMS
+                            coarseFespace,
 #endif
                             hmin);
 

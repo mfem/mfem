@@ -5359,6 +5359,9 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_,
                                            std::vector<Array2D<HypreParMatrix*> > *coarseFOSLS,
 #endif
 #endif
+#ifdef COARSE_AMS
+                                           ParFiniteElementSpace** coarseFespace,
+#endif
                                            const double h_, const bool partialConstructor) :
    numSubdomains(numSubdomains_), numInterfaces(numInterfaces_), orderND(orderND_),
    pmeshSD(pmeshSD_),
@@ -8020,6 +8023,9 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_,
                                                  sdP[m],
 #ifdef SDFOSLS_PA
                                                  (*coarseFOSLS)[m], partialConstructor,
+#endif
+#ifdef COARSE_AMS
+                                                 partialConstructor ? NULL : coarseFespace[m],
 #endif
                                                  sqrt(k2));
 #endif

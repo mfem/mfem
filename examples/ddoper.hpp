@@ -750,8 +750,10 @@ public:
                         std::vector<Array2D<HypreParMatrix*> > *coarseFOSLS,
 #endif
 #endif
+#ifdef COARSE_AMS
+                        ParFiniteElementSpace** coarseFespace,
+#endif
                         const double h_, const bool partialConstructor=false);
-
 
    virtual void Mult(const Vector & x, Vector & y) const
    {
@@ -1431,6 +1433,8 @@ public:
    void PrintFOSLSTiming(const int myid) const;
 #endif
 
+   ParFiniteElementSpace** GetFespaces() { return fespace; }
+
 private:
 
    int m_rank;
@@ -2014,6 +2018,9 @@ public:
                Array2D<HypreParMatrix*> const& blockCoarseA,
 #endif
                const bool fullAssembly,
+#endif
+#ifdef COARSE_AMS
+               ParFiniteElementSpace* coarseFespace,
 #endif
                const double omega_)
       : Solver(4 * fespace_->GetTrueVSize()), M_inv(comm), fespace(fespace_),
@@ -2664,7 +2671,11 @@ public:
       {
          blockgmg::BlockMGPASolver *precMG = new blockgmg::BlockMGPASolver(comm,
                                                                            LS_Maxwellop->Height(), LS_Maxwellop->Width(), blockA, blockAcoef,
-                                                                           blockCoarseA, P, diag_pa, ess_tdof_list_empty);
+                                                                           blockCoarseA,
+#ifdef COARSE_AMS
+                                                                           coarseFespace,
+#endif
+                                                                           P, diag_pa, ess_tdof_list_empty);
          precMG->SetTheta(0.5);
          LSpcg.SetPreconditioner(*precMG);
          LSpcg.iterative_mode = false;

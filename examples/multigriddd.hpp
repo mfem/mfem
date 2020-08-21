@@ -300,6 +300,8 @@ public:
 //#define COARSE_PA
 //#define BLOCK_DIAG
 
+//#define COARSE_AMS
+
 class BlockMGPASolver : public Solver
 {
 private:
@@ -311,6 +313,8 @@ private:
    vector<Array<int>> Aoffsets;
    vector<Array<int>> Poffsets_i;
    vector<Array<int>> Poffsets_j;
+   Array<int> Coffsets;
+
    std::vector<Array2D<Operator*>> A;
 #ifdef SERIAL_PROLONGATION
    std::vector<SparseMatrix *> P;
@@ -356,6 +360,9 @@ public:
                    BlockOperator *BlkAc,
 #else
                    Array2D<HypreParMatrix*> const& BlkAc,
+#endif
+#ifdef COARSE_AMS
+                   ParFiniteElementSpace* coarseFespace,
 #endif
                    std::vector<HypreParMatrix *> const& P_, std::vector<Vector*> const& diag_,
                    Array<int>& ess_tdof_list)
@@ -466,22 +473,22 @@ public:
       }
       // Set up coarse solve operator
       // Convert the coarse grid blockmatrix to a HypreParMatrix
-      Array<int> offsets(numBlocks+1);
-      offsets[0]=0;
+      Coffsets.SetSize(numBlocks+1);
+      Coffsets[0]=0;
       for (int i=0; i<numBlocks; i++)
       {
-         offsets[i+1]=A[0](i,i)->Height();
+         Coffsets[i+1]=A[0](i,i)->Height();
 #ifndef COARSE_PA
          MFEM_VERIFY(BlkAc(i,i)->Height() == A[0](i,i)->Height(), "");
          MFEM_VERIFY(BlkAc(i,i)->Width() == A[0](i,i)->Width(), "");
 #endif
       }
-      offsets.PartialSum();
+      Coffsets.PartialSum();
 
 #ifdef COARSE_PA
       BlkA[0] = BlkAc;
 #else
-      BlkA[0] = new BlockOperator(offsets);
+      BlkA[0] = new BlockOperator(Coffsets);
 #endif
 
       Array2D<SparseMatrix*> Asp;
@@ -559,7 +566,7 @@ public:
          }
       }
 
-      Ac = CreateHypreParMatrixFromBlocks2(comm, offsets, BlkAc, Asp,
+      Ac = CreateHypreParMatrixFromBlocks2(comm, Coffsets, BlkAc, Asp,
                                            Acoef, blockProcOffsets, all_block_num_loc_rows);
 
 #ifdef BLOCK_DIAG
@@ -578,7 +585,7 @@ public:
             BlkAcDiag(i,i) = BlkAc(i,i);
          }
 
-         AcDiag = CreateHypreParMatrixFromBlocks2(comm, offsets, BlkAcDiag, Asp,
+         AcDiag = CreateHypreParMatrixFromBlocks2(comm, Coffsets, BlkAcDiag, Asp,
                                                   DiagCoef, blockProcOffsets, all_block_num_loc_rows);
 
          AcDiag->GetDiag(AcDiagSp);
@@ -632,7 +639,7 @@ public:
 #endif
       cg_solver->SetPreconditioner(*iCholAc);
       cg_solver->SetPrintLevel(-1);
-#endif
+#endif // SPARSE_ICHOLESKY
 
 #ifdef SPARSE_ILU
       {
@@ -659,6 +666,26 @@ public:
 #endif
       cg_solver->SetPreconditioner(*iluAc);
       cg_solver->SetPrintLevel(0);
+#endif // SPARSE_ILU
+
+#ifdef COARSE_AMS
+#ifndef COARSE_PA
+      MFEM_VERIFY(numBlocks == 4, "");
+      // TODO: just set 2 AMS solvers for E and H.
+
+      if (coarseFespace != NULL)
+      {
+         BlockDiagonalPreconditioner *blkAMS = new BlockDiagonalPreconditioner(Coffsets);
+
+         for (int i=0; i<numBlocks; ++i)
+         {
+            HypreAMS *ams = new HypreAMS(*BlkAc(i,i), coarseFespace);
+            blkAMS->SetDiagonalBlock(i, ams);
+         }
+
+         cg_solver->SetPreconditioner(*blkAMS);
+      }
+#endif
 #endif
 
       invAc = cg_solver;
