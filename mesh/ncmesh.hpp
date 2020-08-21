@@ -472,10 +472,12 @@ protected: // implementation
        derefinement. */
    virtual void Update();
 
-   int NVertices; // set by UpdateVertices
+   int NElements, NGhostElements; // set by UpdateLeafElements
+   int NVertices, NGhostVertices; // set by UpdateVertices
    int NEdges, NFaces; // set by OnMeshUpdated
 
-   Array<int> leaf_elements; // finest level, calculated by UpdateLeafElements
+   Array<int> leaf_elements; // finest level elements in Mesh ordering (+ghosts)
+   Array<int> leaf_sfc_index; // original tree ordering of leaf elements
    Array<int> vertex_nodeId; // vertex-index to node-id map, see UpdateVertices
 
    NCList face_list; ///< lazy-initialized list of faces, see GetFaceList
@@ -488,12 +490,10 @@ protected: // implementation
    Table element_vertex; ///< leaf-element to vertex table, see FindSetNeighbors
 
 
-   virtual void UpdateVertices(); ///< update Vertex::index and vertex_nodeId
-
-   void CollectLeafElements(int elem, int state);
    void UpdateLeafElements();
-
-   virtual void AssignLeafIndices();
+   void UpdateVertices(); ///< update Vertex::index and vertex_nodeId
+   void CollectLeafElements(int elem, int state, Array<int> &ghosts,
+                            int &counter);
 
    /** Try to find a space-filling curve friendly orientation of the root
        elements: set 'root_state' based on the ordering of coarse elements.

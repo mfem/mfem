@@ -261,8 +261,7 @@ protected: // implementation
    MPI_Comm MyComm;
    int NRanks;
 
-   int NGhostVertices, NGhostEdges, NGhostFaces;
-   int NElements, NGhostElements;
+   int NGhostEdges, NGhostFaces;
 
    typedef std::vector<CommGroup> GroupList;
    typedef std::map<CommGroup, GroupId> GroupMap;
@@ -316,8 +315,6 @@ protected: // implementation
    long PartitionFirstIndex(int rank, long total_elements) const
    { return (rank * total_elements + NRanks-1) / NRanks; }
 
-   virtual void UpdateVertices();
-   virtual void AssignLeafIndices();
    virtual void OnMeshUpdated(Mesh *mesh);
 
    virtual void BuildFaceList();
