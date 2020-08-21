@@ -320,9 +320,9 @@ int main(int argc, char *argv[])
    Array<int> ordering;
    mesh->GetHilbertElementOrdering(ordering);
    mesh->ReorderElements(ordering);
-   mesh->EnsureNCMesh();
+   mesh->EnsureNCMesh();    //note after this call all the mesh_level=0!!
 
-   amr_levels+=ser_ref_levels;
+   //amr_levels+=ser_ref_levels; this is not needed any more
 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
@@ -384,7 +384,7 @@ int main(int argc, char *argv[])
    refinerTmp.SetTotalErrorGoal(1e-7);    // total error goal (stop criterion)
    refinerTmp.SetLocalErrorGoal(1e-7);    // local error goal (stop criterion)
    refinerTmp.SetMaxElements(500000);
-   refinerTmp.SetMaximumRefinementLevel(ser_ref_levels+par_ref_levels+1);
+   refinerTmp.SetMaximumRefinementLevel(par_ref_levels+1);
    refinerTmp.SetNCLimit(nc_limit);
 
    AMRResistiveMHDOperator *exOperator = new AMRResistiveMHDOperator(fespace, ess_bdr, visc, resi);

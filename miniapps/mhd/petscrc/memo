@@ -37,6 +37,61 @@ glvis -np 72 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 glvis -np 512 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 glvis -np 4096 -m mesh -g sol_omega -k "mmc" -ww 1000 -wh 1000
 
+8/20
+something wrong with amrl?? is that effective?
+
+8/19
+this works well but need to make derefine more aggresively:
+srun -n 256 imAMRMHDp -m ../Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -no-vis -vs 2 -tf 6. -dt .1 -usepetsc --petscopts rc_debug -s 3 -shell -amrl 3 -ltol 1e-4 -derefine -resi 1e-4 -visc 1e-4 -refs 4 -im_supg 1 -no-supg -i_supgpre 3 -no-fd -yrange -err-ratio 0.1 -derefine-ratio 0.5 -err-fraction 0.2 > log-amr6-2.out
+
+this only have a small impact:
+srun -n 256 imAMRMHDp -m ../Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -no-vis -vs 2 -tf 6. -dt .1 -usepetsc --petscopts rc_debug -s 3 -shell -amrl 3 -ltol 1e-4 -derefine -resi 1e-4 -visc 1e-4 -refs 4 -im_supg 1 -no-supg -i_supgpre 3 -no-fd -yrange -err-ratio 0.1 -derefine-ratio 1 -err-fraction 0.2 > log-amr6-2.out
+
+this is better:
+srun -n 256 imAMRMHDp -m ../Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -no-vis -vs 2 -tf 6. -dt .1 -usepetsc --petscopts rc_debug -s 3 -shell -amrl 3 -ltol 1e-2 -derefine -resi 1e-4 -visc 1e-4 -refs 4 -im_supg 1 -no-supg -i_supgpre 3 -no-fd -yrange -err-ratio 0.1 -derefine-ratio .5 -err-fraction 0.2 > log-amr6-4.out
+
+this is the best now:
+srun -n 256 imAMRMHDp -m ../Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -no-vis -vs 2 -tf 8. -dt .1 -usepetsc --petscopts rc_debug -s 3 -shell -amrl 3 -ltol 1e-2 -derefine -resi 1e-4 -visc 1e-4 -refs 4 -im_supg 1 -no-supg -i_supgpre 3 -no-fd -yrange -err-ratio 0.1 -derefine-ratio .5 -err-fraction 0.2 > log-amr6-6.out
+
+this is also good:
+srun -n 256 imAMRMHDp -m ../Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -no-vis -tf 8. -dt .1 -usepetsc --petscopts rc_debug -s 3 -shell -amrl 4 -ltol 1e-2 -derefine -resi 1e-4 -visc 1e-4 -refs 4 -im_supg 1 -no-supg -i_supgpre 3 -no-fd -yrange -err-ratio 0.1 -derefine-ratio .5 -err-fraction 0.1
+
+8/18
+amr for 1e-5
+
+rs=4 lr=5 is necessary for 1e-5
+srun -N 15 -n 540  --ntasks-per-node=36 ./imMHDp -m ./Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -no-vis -vs 1 -tf 8. -dt .05 -usepetsc --petscopts rc_debug4 -s 3 -shell -resi 1e-5 -visc 1e-5 -im_supg 1 -supg -i_supgpre 3 -no-fd -local -lr 5 -visit
+
+this is the base line:
+mpirun -n 6 imMHDp -m ./Meshes/xperiodic-new.mesh -rs 3 -rp 0 -o 3 -i 3 -no-vis -vs 1 -tf .2 -dt .05 -usepetsc --petscopts petscrc/rc_debug4 -s 3 -shell -resi 1e-5 -visc 1e-5 -im_supg 1 -supg -i_supgpre 3 -no-fd -local -lr 3 
+
+mpirun -n 42 imAMRMHDp -m Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -vs 2 -tf 8 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 3 -ltol 1e-3 -derefine -resi 1e-4 -visc 1e-4 -refs 10 -im_supg 1 -supg -i_supgpre 3 -no-fd -yrange
+
+with supg the preconditioner seems not working with AMR
+
+0. add supg options into it
+1. first reproduce old result
+2. fix the initial local refinement (todo)
+3. change refinement criterion (maybe use a new way to do refinement?)
+
+smaller ltol is needed for psi and phi estimator (it works):
+srun -n 144 imAMRMHDp -m Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -no-vis -vs 2 -tf 6 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 3 -ltol 1e-8 -derefine -resi 1e-4 -visc 1e-4 -refs 4 -im_supg 1 -supg -i_supgpre 3 -no-fd -yrange
+
+
+larger ltol is needed for psi and j estimator (it works):
+srun -n 256 imAMRMHDp -m Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -no-vis -vs 2 -tf 3 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 3 -ltol 1e-4 -derefine -resi 1e-4 -visc 1e-4 -refs 4 -im_supg 1 -supg -i_supgpre 3 -no-fd -yrange
+
+this may be okay:
+imAMRMHDp -m Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -no-vis -vs 2 -tf 6 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 3 -ltol 1e-9 -derefine -resi 1e-4 -visc 1e-4 -refs 4 -im_supg 1 -supg -i_supgpre 3 -no-fd -yrange --err-ratio 0.5
+
+vs
+imAMRMHDp -m Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -no-vis -vs 2 -tf 6 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 3 -ltol 1e-9 -derefine -resi 1e-4 -visc 1e-4 -refs 4 -im_supg 1 -supg -i_supgpre 3 -no-fd -yrange --err-ratio 0.5 -err-fraction 0.01
+
+this is better:
+imAMRMHDp -m ./Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -no-vis -vs 2 -tf 6 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 3 -ltol 1e-4 -derefine -resi 1e-4 -visc 1e-4 -refs 4 -im_supg 1 -supg -i_supgpre 3 -no-fd -yrange -err-ratio 0.1 -derefine-ratio 0.5 -err-fraction 0.05
+
+it is doing something reasonable but not put mesh at the location we really want to
+
 8/13
 too many technique issues:
 1. simulation takes too long (3600+16hours and it find the stiff spot, nersc can run longer but it takes forever to schedule)
