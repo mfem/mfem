@@ -12,7 +12,6 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-// #include "DST/DST.hpp"
 #include "ParDST/ParDST.hpp"
 #include "common/PML.hpp"
 
@@ -36,9 +35,9 @@ double length = 1.0;
 double pml_length = 0.25;
 Array2D<double>comp_bdr;
 
-#ifndef MFEM_USE_SUPERLU
-#error This example requires that MFEM is built with MFEM_USE_PETSC=YES
-#endif
+// #ifndef MFEM_USE_SUPERLU
+// #error This example requires that MFEM is built with MFEM_USE_PETSC=YES
+// #endif
 
 int main(int argc, char *argv[])
 {
@@ -126,15 +125,15 @@ int main(int argc, char *argv[])
    }
 
    // 3. Executing uniform h-refinement
+   dim = mesh->Dimension();
    for (int i = 0; i < ser_ref_levels; i++ )
    {
       mesh->UniformRefinement();
    }
-   dim = mesh->Dimension();
 
 
 
-      // 4. Define a parallel mesh by a partitioning of the serial mesh.
+   // 4. Define a parallel mesh by a partitioning of the serial mesh.
    // ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    // int nprocs = sqrt(num_procs);
    // MFEM_VERIFY(nprocs*nprocs == num_procs, "Check MPI partitioning");
@@ -143,8 +142,8 @@ int main(int argc, char *argv[])
    // int nxyz[3] = {1,num_procs,1};
    int nxyz[3] = {num_procs,1,1};
    int * part = mesh->CartesianPartitioning(nxyz);
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD,*mesh,part);
-   // ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD,*mesh);
+   // ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD,*mesh,part);
+   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD,*mesh);
    delete [] part;
    delete mesh;
 

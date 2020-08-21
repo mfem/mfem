@@ -44,12 +44,12 @@ ParDST::ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_,
    {
       if (myid == SubdomainRank[ip])
       {
-         SubdomainRank.Append(ip);
+         RankSubdomains.Append(ip);
       }
    }
 
    cout << " myid: " << myid 
-        << ", nrsubdomains: " << SubdomainRank.Size() << endl;
+        << ", nrsubdomains: " << RankSubdomains.Size() << endl;
 
    MPI_Barrier(comm);
 

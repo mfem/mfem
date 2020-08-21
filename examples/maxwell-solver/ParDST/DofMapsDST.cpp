@@ -327,9 +327,9 @@ std::vector<std::vector<Vector * >> & OvlpSol)
          if (myid == subdomain_rank[i1])
          {
             Array<int> direction1(3); direction1 = -1;
-            for (int d=0;d<dim;d++) 
+            for (int dd=0;dd<dim;dd++) 
             { 
-               direction1[d] = -directions[d];
+               direction1[dd] = -directions[dd];
             }
             int d1 = GetDirectionId(direction1);
 

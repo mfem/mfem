@@ -1,13 +1,14 @@
 //
-// Compile with: make maxwell
+// Compile with: make maxwellp
 //
-//               maxwell -o 2 -f 8.0 -ref 3 -prob 4 -m ../data/inline-quad.mesh
+//               mpirun maxwell -o 2 -f 8.0 -ref 3 -prob 4 -m ../data/inline-quad.mesh
 //
 
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "DST/DST.hpp"
+#include "ParDST/ParDST.hpp"
+#include "common/PML.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -29,9 +30,16 @@ Array2D<double> domain_bdr;
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
+   int num_procs, myid;
+   MPI_Init(&argc, &argv);
+   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
+   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
    const char *mesh_file = "../../data/inline-quad.mesh";
    int order = 1;
-   int ref_levels = 3;
+   // number of serial refinements
+   int ser_ref_levels = 1;
+   // number of parallel refinements
+   int par_ref_levels = 2;
    double freq = 5.0;
    bool herm_conv = true;
    bool visualization = 1;
@@ -48,8 +56,10 @@ int main(int argc, char *argv[])
    args.AddOption(&nx, "-nx", "--nx","Number of subdomains in x direction");
    args.AddOption(&ny, "-ny", "--ny","Number of subdomains in y direction");
    args.AddOption(&nz, "-nz", "--nz","Number of subdomains in z direction");               
-   args.AddOption(&ref_levels, "-ref", "--refinements",
-                  "Number of refinements");
+   args.AddOption(&ser_ref_levels, "-sr", "--ser_ref_levels",
+                  "Number of Serial Refinements.");
+   args.AddOption(&par_ref_levels, "-pr", "--par_ref_levels",
+                  "Number of Parallel Refinements."); 
    args.AddOption(&mu, "-mu", "--permeability",
                   "Permeability of free space (or 1/(spring constant)).");
    args.AddOption(&epsilon, "-eps", "--permittivity",
@@ -63,14 +73,23 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.Parse();
 
-
+   // check if the inputs are correct
    if (!args.Good())
    {
-      args.PrintUsage(cout);
+      if (myid == 0)
+      {
+         args.PrintUsage(cout);
+      }
+      MPI_Finalize();
       return 1;
    }
-   args.PrintOptions(cout);
+   if (myid == 0)
+   {
+      args.PrintOptions(cout);
+   }
 
+   // Angular frequency
+   omega = 2.0 * M_PI * freq;
 
    Mesh *mesh;
 
@@ -85,43 +104,67 @@ int main(int argc, char *argv[])
 
    dim = mesh->Dimension();
 
-   // Angular frequency
-   omega = 2.0 * M_PI * freq;
 
    // 4. Refine the mesh to increase the resolution.
-   for (int l = 0; l < ref_levels; l++)
+   for (int l = 0; l < ser_ref_levels; l++)
    {
       mesh->UniformRefinement();
    }
 
-   // Setup PML length
-   int nrlayers = 2;
-   double hl = GetUniformMeshElementSize(mesh);
-   Array2D<double> lengths(dim, 2); 
-   lengths = hl*nrlayers;
 
-   CartesianPML * pml = new CartesianPML(mesh,lengths);
-   pml->SetOmega(omega);
+   // 4. Define a parallel mesh by a partitioning of the serial mesh.
+   // ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   // int nprocs = sqrt(num_procs);
+   // MFEM_VERIFY(nprocs*nprocs == num_procs, "Check MPI partitioning");
+   // int nxyz[3] = {num_procs,1,1};
+   // int nxyz[3] = {nprocs,nprocs,1};
+   // int nxyz[3] = {1,num_procs,1};
+   int nxyz[3] = {num_procs,1,1};
+   int * part = mesh->CartesianPartitioning(nxyz);
+   // ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD,*mesh,part);
+   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD,*mesh);
+   delete [] part;
+   delete mesh;
+
+   for (int l = 0; l < par_ref_levels; l++)
+   {
+      pmesh->UniformRefinement();
+   }
+
+   double hl = GetUniformMeshElementSize(pmesh);
+   int nrlayers = 2;
+
+   Array2D<double> lengths(dim,2);
+   lengths = hl*nrlayers;
+   // lengths[0][1] = 0.0;
+   // lengths[1][1] = 0.0;
+   // lengths[1][0] = 0.0;
+   // lengths[0][0] = 0.0;
+   // CartesianPML pml(mesh,lengths);
+   CartesianPML pml(pmesh,lengths);
+   pml.SetOmega(omega);
    comp_bdr.SetSize(dim,2);
-   comp_bdr = pml->GetCompDomainBdr(); 
-   domain_bdr = pml->GetDomainBdr();
+   comp_bdr = pml.GetCompDomainBdr(); 
 
 
    // 6. Define a finite element space on the mesh. Here we use the Nedelec
    //    finite elements of the specified order.
    FiniteElementCollection *fec = new ND_FECollection(order, dim);
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
-   int size = fespace->GetTrueVSize();
+   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
+   HYPRE_Int size = fespace->GlobalTrueVSize();
 
-   cout << "Number of finite element unknowns: " << size << endl;
+   if (myid == 0)
+   {
+      cout << "Number of finite element unknowns: " << size << endl;
+   }
 
    // 7. Determine the list of true essential boundary dofs. In this example,
    //    the boundary conditions are defined based on the specific mesh and the
    //    problem type.
    Array<int> ess_tdof_list;
-   if (mesh->bdr_attributes.Size())
+   if (pmesh->bdr_attributes.Size())
    {
-      Array<int> ess_bdr(mesh->bdr_attributes.Max());
+      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
       ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
@@ -134,15 +177,16 @@ int main(int argc, char *argv[])
    //    the FEM linear system.
    VectorFunctionCoefficient f_re(dim, source_re);
    VectorFunctionCoefficient f_im(dim, source_re);
-   ComplexLinearForm b(fespace, conv);
+   ParComplexLinearForm b(fespace, conv);
    b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(f_re),
                          new VectorFEDomainLFIntegrator(f_im));
-   b.Vector::operator=(0.0);
+   b.real().Vector::operator=(0.0);
+   b.imag().Vector::operator=(0.0);
    b.Assemble();
 
    // 10. Define the solution vector x as a complex finite element grid function
    //     corresponding to fespace.
-   ComplexGridFunction x(fespace);
+   ParComplexGridFunction x(fespace);
    x = 0.0;
    // 11. Set up the sesquilinear form a(.,.)
    //
@@ -152,17 +196,17 @@ int main(int argc, char *argv[])
    FunctionCoefficient ws(wavespeed);
    ConstantCoefficient omeg(-pow(omega, 2));
    int cdim = (dim == 2) ? 1 : dim;
-   PmlMatrixCoefficient pml_c1_Re(cdim,detJ_inv_JT_J_Re, pml);
-   PmlMatrixCoefficient pml_c1_Im(cdim,detJ_inv_JT_J_Im, pml);
+   PmlMatrixCoefficient pml_c1_Re(cdim,detJ_inv_JT_J_Re, &pml);
+   PmlMatrixCoefficient pml_c1_Im(cdim,detJ_inv_JT_J_Im, &pml);
 
-   PmlMatrixCoefficient pml_c2_Re(dim, detJ_JT_J_inv_Re,pml);
-   PmlMatrixCoefficient pml_c2_Im(dim, detJ_JT_J_inv_Im,pml);
+   PmlMatrixCoefficient pml_c2_Re(dim, detJ_JT_J_inv_Re,&pml);
+   PmlMatrixCoefficient pml_c2_Im(dim, detJ_JT_J_inv_Im,&pml);
    ScalarMatrixProductCoefficient c2_Re0(omeg,pml_c2_Re);
    ScalarMatrixProductCoefficient c2_Im0(omeg,pml_c2_Im);
    ScalarMatrixProductCoefficient c2_Re(ws,c2_Re0);
    ScalarMatrixProductCoefficient c2_Im(ws,c2_Im0);
 
-   SesquilinearForm a(fespace, conv);
+   ParSesquilinearForm a(fespace, conv);
    a.AddDomainIntegrator(new CurlCurlIntegrator(pml_c1_Re),
                          new CurlCurlIntegrator(pml_c1_Im));
    a.AddDomainIntegrator(new VectorFEMassIntegrator(c2_Re),
@@ -174,53 +218,36 @@ int main(int argc, char *argv[])
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, Ah, X, B);
 
-   ComplexSparseMatrix * Ac = Ah.As<ComplexSparseMatrix>();
+   // ComplexSparseMatrix * Ac = Ah.As<ComplexSparseMatrix>();
    StopWatch chrono;
-   // chrono.Clear();
-   // chrono.Start();
-   // {
-   //    ComplexUMFPackSolver csolver;
-   //    csolver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-   //    csolver.SetOperator(*Ac);
-   //    // csolver.SetPrintLevel(2);
-   //    csolver.Mult(B,X);
-   // }
-   // chrono.Stop();
-   // cout << "Time 1 = " << chrono.RealTime() << endl;
 
 
    chrono.Clear();
    chrono.Start();
-   DST S(&a,lengths, omega, &ws, nrlayers, nx, ny, nz);
+   ParDST S(&a,lengths, omega, &ws, nrlayers, nx, ny, nz);
    chrono.Stop();
-   cout << "Time 2 = " << chrono.RealTime() << endl;
+   double t1 = chrono.RealTime();
+
    chrono.Clear();
    chrono.Start();
    X = 0.0;
 	GMRESSolver gmres;
 	// gmres.iterative_mode = true;
    gmres.SetPreconditioner(S);
-	gmres.SetOperator(*Ac);
+	gmres.SetOperator(*Ah);
 	gmres.SetRelTol(1e-8);
 	gmres.SetMaxIter(50);
 	gmres.SetPrintLevel(1);
 	gmres.Mult(B, X);
    chrono.Stop();
-   cout << "Time 3 = " << chrono.RealTime() << endl;
-   // 14. Solve using a direct or an iterative solver
-   // Vector Y(X);
+   double t2 = chrono.RealTime();
 
-   // chrono.Stop();
-   // cout << "Time 3 = " << chrono.RealTime() << endl;
-
-   // cout << endl;
-
-   // cout << "X norm = " << X.Norml2() << endl;
-   // cout << "Y norm = " << Y.Norml2() << endl;
-   // Y-=X;
-   // cout << "diff norm = " << Y.Norml2() << endl;
+   MPI_Barrier(MPI_COMM_WORLD);
 
 
+   cout << " myid: " << myid 
+         << ", setup time: " << t1
+         << ", solution time: " << t2 << endl; 
 
    a.RecoverFEMSolution(X, b, x);
 
@@ -274,10 +301,10 @@ int main(int argc, char *argv[])
    }
 
    // 18. Free the used memory.
-   delete pml;
    delete fespace;
    delete fec;
-   delete mesh;
+   delete pmesh;
+   MPI_Finalize();
    return 0;
 }
 
