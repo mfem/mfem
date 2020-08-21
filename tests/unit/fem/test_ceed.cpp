@@ -13,6 +13,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include "../../../fem/libceed/ceed.hpp"
 
 using namespace mfem;
 
@@ -98,7 +99,7 @@ TEST_CASE("CEED", "[CEED]")
          {
             for (AssemblyLevel assembly : {AssemblyLevel::PARTIAL})
             {
-               for (int pb : {0, 1, 2})
+               for (int pb : {0, 2})
                {
                   for (int order : {2, 3, 4})
                   {
@@ -119,7 +120,7 @@ TEST_CASE("CEED", "[CEED]")
          {
             for (AssemblyLevel assembly : {AssemblyLevel::PARTIAL})
             {
-               for (int pb : {0, 1, 2})
+               for (int pb : {0, 2})
                {
                   int order = 2;
                   test_assembly_level(Mesh("../../data/inline-hex.mesh", 1, 1),
@@ -136,7 +137,7 @@ TEST_CASE("CEED", "[CEED]")
          {
             for (AssemblyLevel assembly : {AssemblyLevel::PARTIAL})
             {
-               for (int pb : {0, 1, 2})
+               for (int pb : {0, 2})
                {
                   for (int order : {2, 3, 4})
                   {
@@ -153,7 +154,7 @@ TEST_CASE("CEED", "[CEED]")
          {
             for (AssemblyLevel assembly : {AssemblyLevel::PARTIAL})
             {
-               for (int pb : {0, 1, 2})
+               for (int pb : {0, 2})
                {
                   int order = 2;
                   test_assembly_level(Mesh("../../data/fichera-amr.mesh", 1, 1),
