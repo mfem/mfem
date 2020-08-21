@@ -460,8 +460,9 @@ void CeedPAAssemble(const CeedPAOperator& op,
       case CeedCoeff::Quad:
          {
             CeedQuadCoeff* quadCoeff = (CeedQuadCoeff*)ceedData.coeff;
-            CeedInt strides[3] = {1, 1, nqpts};
-            CeedElemRestrictionCreateStrided(ceed, nelem, nqpts, 1,
+            const int ncomp = 1;
+            CeedInt strides[3] = {1, nqpts, ncomp*nqpts};
+            CeedElemRestrictionCreateStrided(ceed, nelem, nqpts, ncomp,
                                              nelem*nqpts, strides,
                                              &quadCoeff->restr);
             CeedOperatorSetField(ceedData.build_oper, "coeff", quadCoeff->restr,
