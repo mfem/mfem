@@ -74,13 +74,18 @@ ParDST::ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_,
       cout << "\n 4. Computing true dofs maps ..." << endl; 
    }
 
-   // char vishost[] = "localhost";
-   // int visport = 19916;
-   // socketstream mesh_sock1(vishost, visport);
-   // mesh_sock1.precision(8);
-   // mesh_sock1 << "mesh\n"
-   //           << *part->subdomain_mesh[0] << "window_title 'Subdomain'" << flush;
-
+   // if (myid == SubdomainRank[0])
+   // {
+   //    cout << "myid = " << myid << endl;
+   //    char vishost[] = "localhost";
+   //    int visport = 19916;
+   //    socketstream mesh_sock1(vishost, visport);
+   //    mesh_sock1.precision(8);
+   //    mesh_sock1 << "mesh\n"
+   //               << *part->subdomain_mesh[0] << "window_title 'Subdomain'" << flush;
+   //    part->subdomain_mesh[0]->Print();
+   
+   // }
    bool comp = true;
 
    dmaps = new DofMaps(pfes,part, comp);
@@ -175,8 +180,14 @@ void ParDST::Mult(const Vector &r, Vector &z) const
 
             if (l==0)  { res_local += *f_orig[ip]; }
             res_local += *f_transf[ip][l];
+
+            // cout << res_local.Norml2() << endl;
             PmlMatInv[ip]->Mult(res_local, *subdomain_sol[ip]);
+            // cout << subdomain_sol[ip]->Norml2() << endl;
+
          }
+            // cin.get();
+
          // 4. Transfer solutions to neighbors so that the subdomain
          // residuals are updated
          TransferSources(l,subdomain_ids);

@@ -91,23 +91,25 @@ int main(int argc, char *argv[])
 
    Mesh *mesh;
 
+
+   int nel = pow(2,ser_ref_levels);
+
    if (nd == 2)
    {
-      mesh = new Mesh(4, 4, Element::QUADRILATERAL, true, length, length, false);
+      mesh = new Mesh(nel, nel, Element::QUADRILATERAL, true, length, length, false);
    }
    else
    {
-      mesh = new Mesh(1, 1, 1, Element::HEXAHEDRON, true, length, length, length,false);
+      mesh = new Mesh(nel, nel, nel, Element::HEXAHEDRON, true, length, length, length,false);
    }
 
    dim = mesh->Dimension();
 
-
    // 4. Refine the mesh to increase the resolution.
-   for (int l = 0; l < ser_ref_levels; l++)
-   {
-      mesh->UniformRefinement();
-   }
+   // for (int l = 0; l < ser_ref_levels; l++)
+   // {
+      // mesh->UniformRefinement();
+   // }
 
 
    // 4. Define a parallel mesh by a partitioning of the serial mesh.
@@ -123,26 +125,24 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD,*mesh);
    delete [] part;
 
-   // char vishost[] = "localhost";
-   // int visport = 19916;
-   // socketstream mesh_sock1(vishost, visport);
-   // mesh_sock1.precision(8);
-   // mesh_sock1 << "mesh\n"
-   //           << *mesh << "window_title 'Global mesh'" << flush;
-
-
+   
    delete mesh;
-
-
-
 
    for (int l = 0; l < par_ref_levels; l++)
    {
       pmesh->UniformRefinement();
    }
 
+   //    char vishost[] = "localhost";
+   // int visport = 19916;
+   // socketstream mesh_sock1(vishost, visport);
+   // mesh_sock1.precision(8);
+   // mesh_sock1 << "parallel " << num_procs << " " << myid << "\n"
+   //            << "mesh\n"
+   //            << *pmesh << "window_title 'Global mesh'" << flush;
+
    double hl = GetUniformMeshElementSize(pmesh);
-   int nrlayers = 1;
+   int nrlayers = 2;
 
    Array2D<double> lengths(dim,2);
    lengths = hl*nrlayers;

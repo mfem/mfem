@@ -102,7 +102,7 @@ int main(int argc, char *argv[])
    //           << *mesh << "window_title 'Global mesh'" << flush;
 
    // Setup PML length
-   int nrlayers = 1;
+   int nrlayers = 2;
    double hl = GetUniformMeshElementSize(mesh);
    Array2D<double> lengths(dim, 2); 
    lengths = hl*nrlayers;

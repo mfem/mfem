@@ -628,7 +628,7 @@ MeshPartition::MeshPartition(Mesh* mesh_, int part,int nx, int ny, int nz, int n
          int vert_idx = patch_vertices[iv];
          patch_mesh[ip]->AddVertex(mesh->GetVertex(vert_idx));
       }
-
+   
       // Add the elements (for now search through all the vertices in the patch is needed)
       for (int iel=0; iel<patch_nrelems; ++iel)
       {
@@ -1126,6 +1126,9 @@ ParMeshPartition::ParMeshPartition(ParMesh* pmesh_,
          // loop through the patch vertices;
          UniqueIndexGenerator gen;
          gen.Reset();
+         Array<int> sorted_vertices = subdomain_vertices[ip];
+         sorted_vertices.Sort();
+         sorted_vertices.Unique();
          for (int iv = 0; iv< subdomain_vertices[ip].Size(); ++iv)
          {
             int global_idx = subdomain_vertices[ip][iv];
@@ -1137,23 +1140,36 @@ ParMeshPartition::ParMeshPartition(ParMesh* pmesh_,
          subdomain_mesh[ip] = new Mesh(dim,subdomain_nrvertices,subdomain_nrelems);
          // Add the vertices
          int k = -1;
-         for (int iv = 0; iv<subdomain_vertices[ip].Size(); ++iv)
+         // for (int iv = 0; iv<subdomain_vertices[ip].Size(); ++iv)
+         // {
+         //    int vert_local_idx = vertices_local_id[iv];
+         //    if (vert_local_idx > k)
+         //    {
+         //       double vert[dim];
+         //       vert[0] = subdomain_vertex_xcoord[ip][iv];
+         //       vert[1] = subdomain_vertex_ycoord[ip][iv];
+         //       if (dim == 3) { vert[2] = subdomain_vertex_zcoord[ip][iv]; }
+         //       subdomain_mesh[ip]->AddVertex(vert);
+         //       k++;
+         //    }
+         // }
+         for (int iv = 0; iv<sorted_vertices.Size(); ++iv)
          {
-            int vert_local_idx = vertices_local_id[iv];
-            if (vert_local_idx > k)
-            {
-               double vert[dim];
-               vert[0] = subdomain_vertex_xcoord[ip][iv];
-               vert[1] = subdomain_vertex_ycoord[ip][iv];
-               if (dim == 3) { vert[2] = subdomain_vertex_zcoord[ip][iv]; }
-               subdomain_mesh[ip]->AddVertex(vert);
-               k++;
-            }
+            int vert_idx = sorted_vertices[iv];
+            int jv = subdomain_vertices[ip].Find(vert_idx);
+            double vert[dim];
+            vert[0] = subdomain_vertex_xcoord[ip][jv];
+            vert[1] = subdomain_vertex_ycoord[ip][jv];
+            if (dim == 3) { vert[2] = subdomain_vertex_zcoord[ip][jv]; }
+            subdomain_mesh[ip]->AddVertex(vert);
          }
 
          int l = 0;
-         for (int iel=0; iel<subdomain_nrelems; ++iel)
+         Array<int> sorted_elements = subdomain_elements[ip];
+         sorted_elements.Sort();
+         for (int jel=0; jel<subdomain_nrelems; ++jel)
          {
+            int iel = subdomain_elements[ip].Find(sorted_elements[jel]);
             mfem::Element::Type elem_type;
             int type = subdomain_elements_type[ip][iel];
             int nrvert;
@@ -1162,7 +1178,9 @@ ParMeshPartition::ParMeshPartition(ParMesh* pmesh_,
             int ind[nrvert];
             for (int iv = 0; iv<nrvert; ++iv)
             {
-               ind[iv] = vertices_local_id[iv+l];
+               int jv = subdomain_vertices[ip][iv+l];
+               // ind[iv] = vertices_local_id[iv+l];
+               ind[iv] = sorted_vertices.FindSorted(jv);
             }
             l += nrvert;
             AddElementToMesh(subdomain_mesh[ip],elem_type,ind);
