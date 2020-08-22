@@ -51,6 +51,7 @@ private:
    void GetStepSubdomains(const int sweep, const int step, Array2D<int> & subdomains) const;
    void TransferSources(int sweep, const Array<int> & subdomain_ids) const;
    int GetSweepToTransfer(const int s, Array<int> directions) const;
+   void CorrectOrientation(int ip, Vector & x) const;
 
 public:
    ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 

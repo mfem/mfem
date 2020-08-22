@@ -74,10 +74,17 @@ ParDST::ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_,
       cout << "\n 4. Computing true dofs maps ..." << endl; 
    }
 
+   // char vishost[] = "localhost";
+   // int visport = 19916;
+   // socketstream mesh_sock1(vishost, visport);
+   // mesh_sock1.precision(8);
+   // mesh_sock1 << "mesh\n"
+   //           << *part->subdomain_mesh[0] << "window_title 'Subdomain'" << flush;
 
    bool comp = true;
 
    dmaps = new DofMaps(pfes,part, comp);
+   
    if (myid == 0)
    {
       cout << "    Done ! " << endl;
@@ -168,12 +175,7 @@ void ParDST::Mult(const Vector &r, Vector &z) const
 
             if (l==0)  { res_local += *f_orig[ip]; }
             res_local += *f_transf[ip][l];
-
             PmlMatInv[ip]->Mult(res_local, *subdomain_sol[ip]);
-            // cout << res_local.Norml1() << endl;
-            // cout << PmlMat[ip]->real().GetRowNorml1(6) << endl;
-            // cout << subdomain_sol[ip]->Norml1() << endl;
-            // cin.get();
          }
          // 4. Transfer solutions to neighbors so that the subdomain
          // residuals are updated
@@ -716,7 +718,44 @@ int ParDST::GetSweepToTransfer(const int s, Array<int> directions) const
    return l1;   
 }
 
+void ParDST::CorrectOrientation(int ip,Vector &x) const
+{
+   FiniteElementSpace * fespace = dmaps->fes[ip];
+   Mesh * mesh = fespace->GetMesh();
+   int nrelems = mesh->GetNE();
+   // GridFunction test; 
+   // test.SetFromTrueDofs(x)
+   Array<int> signs(fespace->GetTrueVSize()); signs = 0;
+   for (int iel=0; iel<nrelems; iel++)
+   {
+      Array<int> ElemDofs;
+      fespace->GetElementDofs(iel,ElemDofs);
+      int ndofs = ElemDofs.Size();
+      ElemDofs.Print();
+      for (int i = 0; i< ndofs; i++)
+      {
+         int pdof_ = ElemDofs[i];
+         if (pdof_ < 0) 
+         {
+            signs[abs(pdof_)-1] += 1.0 ; 
+         }
+         else
+         {
+            signs[pdof_] -= 1.0 ; 
+         }
+      }
+   }
 
+   cout << "signs = " ; signs.Print();
+   for (int i = 0; i<fespace->GetTrueVSize(); i++)
+   {
+      if (signs[i]<0) 
+      {
+         x(i) *= -1.0;
+         x(i+fespace->GetTrueVSize()) *= -1.0;
+      }
+   }
+}
 
 
 ParDST::~ParDST()

@@ -93,6 +93,14 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
         << chrono.RealTime() <<" s" << endl; 
 
    zaux.SetSize(2*bf->FESpace()->GetTrueVSize());
+
+   // char vishost[] = "localhost";
+   // int visport = 19916;
+   // socketstream mesh_sock1(vishost, visport);
+   // mesh_sock1.precision(8);
+   // mesh_sock1 << "mesh\n"
+   //           << *part->patch_mesh[0] << "window_title 'Subdomain'" << flush;
+
 }
 
 void DST::Mult(const Vector &r, Vector &z) const

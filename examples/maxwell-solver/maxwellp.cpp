@@ -17,8 +17,6 @@ void source_re(const Vector &x, Vector & f);
 void source_im(const Vector &x, Vector & f);
 double wavespeed(const Vector &x);
 
-
-
 double mu = 1.0;
 double epsilon = 1.0;
 double omega;
@@ -95,7 +93,7 @@ int main(int argc, char *argv[])
 
    if (nd == 2)
    {
-      mesh = new Mesh(1, 1, Element::QUADRILATERAL, true, length, length, false);
+      mesh = new Mesh(4, 4, Element::QUADRILATERAL, true, length, length, false);
    }
    else
    {
@@ -124,7 +122,19 @@ int main(int argc, char *argv[])
    // ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD,*mesh,part);
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD,*mesh);
    delete [] part;
+
+   // char vishost[] = "localhost";
+   // int visport = 19916;
+   // socketstream mesh_sock1(vishost, visport);
+   // mesh_sock1.precision(8);
+   // mesh_sock1 << "mesh\n"
+   //           << *mesh << "window_title 'Global mesh'" << flush;
+
+
    delete mesh;
+
+
+
 
    for (int l = 0; l < par_ref_levels; l++)
    {
@@ -132,7 +142,7 @@ int main(int argc, char *argv[])
    }
 
    double hl = GetUniformMeshElementSize(pmesh);
-   int nrlayers = 2;
+   int nrlayers = 1;
 
    Array2D<double> lengths(dim,2);
    lengths = hl*nrlayers;
@@ -180,8 +190,7 @@ int main(int argc, char *argv[])
    ParComplexLinearForm b(fespace, conv);
    b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(f_re),
                          new VectorFEDomainLFIntegrator(f_im));
-   b.real().Vector::operator=(0.0);
-   b.imag().Vector::operator=(0.0);
+   b.Vector::operator=(0.0);
    b.Assemble();
 
    // 10. Define the solution vector x as a complex finite element grid function
@@ -218,7 +227,7 @@ int main(int argc, char *argv[])
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, Ah, X, B);
 
-   // ComplexSparseMatrix * Ac = Ah.As<ComplexSparseMatrix>();
+   ComplexSparseMatrix * Ac = Ah.As<ComplexSparseMatrix>();
    StopWatch chrono;
 
 
@@ -231,14 +240,15 @@ int main(int argc, char *argv[])
    chrono.Clear();
    chrono.Start();
    X = 0.0;
-	GMRESSolver gmres;
+	GMRESSolver gmres(MPI_COMM_WORLD);
 	// gmres.iterative_mode = true;
    gmres.SetPreconditioner(S);
-	gmres.SetOperator(*Ah);
+	gmres.SetOperator(*Ac);
 	gmres.SetRelTol(1e-8);
-	gmres.SetMaxIter(50);
+	gmres.SetMaxIter(10);
 	gmres.SetPrintLevel(1);
 	gmres.Mult(B, X);
+   
    chrono.Stop();
    double t2 = chrono.RealTime();
 
@@ -251,53 +261,38 @@ int main(int argc, char *argv[])
 
    a.RecoverFEMSolution(X, b, x);
 
-   // 17. Send the solution by socket to a GLVis server.
+
+
+
+
    if (visualization)
    {
-      // Define visualization keys for GLVis (see GLVis documentation)
-      string keys;
-      keys = (dim == 3) ? "keys acF\n" : keys = "keys amrRljcUUuu\n";
-
       char vishost[] = "localhost";
-      int visport = 19916;
-
+      int  visport   = 19916;
+      string keys;
+      if (dim ==2 )
+      {
+         keys = "keys mrRljc\n";
+      }
+      else
+      {
+         keys = "keys mc\n";
+      }
+      // socketstream mesh_sock(vishost, visport);
+      // mesh_sock.precision(8);
+      // mesh_sock << "parallel " << num_procs << " " << myid << "\n"
+      //             << "mesh\n" << *pmesh  << flush;
       socketstream sol_sock_re(vishost, visport);
       sol_sock_re.precision(8);
-      sol_sock_re << "solution\n"
-                  << *mesh << x.real() << keys
-                  << "window_title 'Solution real part'" << flush;
+      sol_sock_re << "parallel " << num_procs << " " << myid << "\n"
+                  << "solution\n" << *pmesh << x.real() << keys 
+                  << "window_title 'E: Real Part' " << flush;                     
 
       socketstream sol_sock_im(vishost, visport);
       sol_sock_im.precision(8);
-      sol_sock_im << "solution\n"
-                  << *mesh << x.imag() << keys
-                  << "window_title 'Solution imag part'" << flush;
-
-      GridFunction x_t(fespace);
-      x_t = x.real();
-      socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      sol_sock << "solution\n"
-               << *mesh << x_t << keys << "autoscale off\n"
-               << "window_title 'Harmonic Solution (t = 0.0 T)'"
-               << "pause\n" << flush;
-      cout << "GLVis visualization paused."
-           << " Press space (in the GLVis window) to resume it.\n";
-      int num_frames = 32;
-      int i = 0;
-      while (sol_sock)
-      {
-         double t = (double)(i % num_frames) / num_frames;
-         ostringstream oss;
-         oss << "Harmonic Solution (t = " << t << " T)";
-
-         add(cos(2.0 * M_PI * t), x.real(),
-             sin(2.0 * M_PI * t), x.imag(), x_t);
-         sol_sock << "solution\n"
-                  << *mesh << x_t
-                  << "window_title '" << oss.str() << "'" << flush;
-         i++;
-      }
+      sol_sock_im << "parallel " << num_procs << " " << myid << "\n"
+                  << "solution\n" << *pmesh << x.imag() << keys 
+                  << "window_title 'E: Imag Part' " << flush;                     
    }
 
    // 18. Free the used memory.
