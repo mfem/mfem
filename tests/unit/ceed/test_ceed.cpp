@@ -8,7 +8,7 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-
+#define CATCH_CONFIG_RUNNER
 #include "catch.hpp"
 #include "mfem.hpp"
 #include <fstream>
@@ -89,7 +89,6 @@ void test_assembly_level(Mesh &&mesh, int order, const CeedCoeff coeff_type,
 
 TEST_CASE("CEED", "[CEED]")
 {
-   Device device("ceed-cpu");
    SECTION("Continuous Galerkin")
    {
       const bool dg = false;
@@ -167,3 +166,24 @@ TEST_CASE("CEED", "[CEED]")
 } // test case
 
 } // namespace ceed_test
+
+int main(int argc, char *argv[])
+{
+   // There must be exactly one instance.
+   Catch::Session session;
+
+   const char *device_str = (argc == 1) ? "ceed-cpu" : argv[argc-1];
+
+   // Apply provided command line arguments.
+   int r = session.applyCommandLine((argc == 1) ? argc : argc - 1, argv);
+   if (r != 0)
+   {
+      return r;
+   }
+
+   Device device(device_str);
+
+   int result = session.run();
+
+   return result;
+}
