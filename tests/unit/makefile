@@ -24,7 +24,8 @@ CCC = $(CC) $(CCOPTS)
 # -I$(MFEM_DIR) is needed by some tests, e.g. to #include "general/text.hpp"
 INCLUDES = -I$(or $(SRC:%/=%),.) -I$(MFEM_DIR)
 
-SOURCE_FILES = $(sort $(wildcard $(SRC)*/*.cpp))
+SOURCE_FILES := $(sort $(wildcard $(SRC)*/*.cpp))
+SOURCE_FILES := $(filter-out ceed/test_ceed.cpp, $(SOURCE_FILES))
 HEADER_FILES = $(SRC)catch.hpp
 OBJECT_FILES = $(SOURCE_FILES:$(SRC)%.cpp=%.o)
 DATA_DIR = data
@@ -54,6 +55,12 @@ PAR_SEDOV_CUDA_UVM_OBJ_FILES = $(if $(USE_CUDA),$(SEDOV_FILES:$(SRC)%.cpp=%.pcud
 SEQ_UNIT_TESTS = unit_tests $(SEQ_SEDOV_TESTS)
 PAR_UNIT_TESTS = punit_tests $(PAR_SEDOV_TESTS)
 
+# Ceed tests
+USE_CEED := $(MFEM_USE_CEED:NO=)
+CEED_FILES = $(SRC)ceed/test_ceed.cpp
+CEED_MAIN_OBJ = $(SRC)ceed/test_ceed.o
+SEQ_UNIT_TESTS += $(if $(USE_CEED),ceed_tests)
+
 ifeq ($(MFEM_USE_MPI),NO)
    UNIT_TESTS = $(SEQ_UNIT_TESTS)
 else
@@ -72,11 +79,17 @@ unit_tests: $(SEQ_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA
 punit_tests: $(PAR_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
 	$(CCC) $(PAR_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
+ceed_tests: $(CEED_MAIN_OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(CEED_MAIN_OBJ) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+
 # Note: in this rule, we always use the full path to the source file as a
 # workaround for an issue with coveralls.
 $(OBJECT_FILES) $(SEQ_MAIN_OBJ) $(PAR_MAIN_OBJ): %.o: $(SRC)%.cpp \
  $(HEADER_FILES) $(CONFIG_MK)
 	@mkdir -p $(@D)
+	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
+
+$(CEED_MAIN_OBJ): $(CEED_FILES) $(HEADER_FILES) $(CONFIG_MK)
 	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
 
 # Template rule for devices
