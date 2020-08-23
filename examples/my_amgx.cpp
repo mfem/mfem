@@ -52,12 +52,8 @@
 //               of essential boundary conditions, static condensation, and the
 //               optional connection to the GLVis tool for visualization.
 
-/*
-TODO: Delete
-
-*/
-
 #include "mfem.hpp"
+#include "amgx_c.h"
 #include <fstream>
 #include <iostream>
 
@@ -66,7 +62,6 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-
    // 1. Parse command-line options.
    //const char *mesh_file = "../data/beam-hex.mesh";
    const char *mesh_file = "../data/star.mesh";
@@ -90,7 +85,7 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&amgx_json_file, "-c", "--c",
+   args.AddOption(&amgx_json_file, "--amgx-file", "--amgx-file",
                   "AMGX solver config file (overrides --amgx-solver, --amgx-verbose)");
    args.AddOption(&amgx_parameter, "--amgx-config", "--amgx-config",
                   "AMGX solver config as string (overrides --amgx-solver, --amgx-verbose)");
@@ -190,35 +185,35 @@ int main(int argc, char *argv[])
    //    domain integrator.
    BilinearForm *a = new BilinearForm(fespace);
    if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   a->AddDomainIntegrator(new MassIntegrator(one));
    a->Assemble();
    a->Finalize();
-
 
    // 10. Solve the linear system A X = B.
    if (!pa)
    {
+     //NvidiaAMGX amgx;
       AmgXSolver amgx;
-      if (amgx_solver)
+      if (strcmp(amgx_json_file, "") != 0 || strcmp(amgx_parameter, "") != 0)
       {
-        printf("using as solver \n");
-         std::string amgx_str;
-         amgx_str = amgx_json_file;
-         amgx.initialize("dDDI",amgx_str);
-         amgx.SetOperator(a->SpMat());
-         amgx.Mult(*b, x);
+        //amgx.Configure(amgx_json_file, amgx_parameter);
+      }
+      else if (amgx_solver)
+      {
+        //amgx.ConfigureAsSolver(amgx_verbose);
+        //amgx.SetOperator(a->SpMat());
+        //amgx.Mult(*b, x);
       }
       else
       {
-        printf("using as preconditioner \n");
-         amgx.InitializeAsPreconditioner(amgx_verbose,"dDDI");
+        //amgx.ConfigureAsPreconditioner(amgx_verbose);
+        amgx.InitializeAsPreconditioner(true,"dDDI");
          SparseMatrix A;
          Vector B, X;
          Array<int> ess_tdof_list(0);
          a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
          amgx.SetOperator(A);
          X = 0.0;
-         //PCG(A, amgx, B, X, 1, 400, 1e-12, 0.0);
          PCG(A, amgx, B, X, 1, 40, 1e-12, 0.0);
       }
    }

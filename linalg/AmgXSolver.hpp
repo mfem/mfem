@@ -60,11 +60,13 @@ public:
 
    void finalize();
 
-   void setA(const mfem::HypreParMatrix &A);
+   void SetA(const mfem::HypreParMatrix &A);
+
+   void SetA(const mfem::SparseMatrix &A);
 
    virtual void SetOperator(const Operator &op);
 
-   virtual void SetOperator(const SparseMatrix &in_A);
+  //virtual void SetOperator(const SparseMatrix &in_A);
 
    void InitializeAsPreconditioner(bool verbose, const std::string &modeStr);
 
