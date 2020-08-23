@@ -160,7 +160,6 @@ void PADiffusionSetup2D<3>(const int Q1D,
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, SDIM, DIM, NE);
    auto C = const_c ? Reshape(c.Read(), 1, 1) : Reshape(c.Read(), NQ, NE);
-
    auto D = Reshape(d.Write(), NQ, 3, NE);
    MFEM_FORALL(e, NE,
    {
