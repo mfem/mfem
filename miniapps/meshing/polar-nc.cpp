@@ -9,9 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-//       --------------------------------------------------------------
-//       Polar NC: polar non-conforming mesh generator
-//       --------------------------------------------------------------
+//             ----------------------------------------------
+//             Polar NC: Generate polar non-conforming meshes
+//             ----------------------------------------------
 //
 // This miniapp generates a circular sector mesh that consist of quadrilaterals
 // and triangles of similar sizes. The 3D version of the mesh is made of prisms

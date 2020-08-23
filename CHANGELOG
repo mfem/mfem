@@ -36,9 +36,9 @@ Meshing improvements
 - Added complete action of the TMOP Integrator to account for the spatial
   derivatives of discrete and analytic targets.
 
-- Added support for initialization of non-conforming meshes. Hanging nodes can
-  now be marked with Mesh::AddVertexParents when building the mesh with the
-  "init" constructor. The usage is demonstrated in a new meshing miniapp
+- Added support for initialization of (serial) non-conforming meshes. Hanging
+  nodes can be marked with Mesh::AddVertexParents when building the mesh with
+  the "init" constructor. The usage is demonstrated in a new meshing miniapp
   (polar-nc) which generates meshes that are non-conforming from the start.
 
 Performance improvements
@@ -153,6 +153,9 @@ New and updated examples and miniapps
 
 - Added a new meshing miniapp, Minimal Surface, which solves Plateau's problem:
   the Dirichlet problem for the minimal surface equation.
+
+- Added a new meshing miniapp, Polar NC, which demonstrates the construction of
+  polar non-conforming meshes.
 
 - Added partial assembly support to Example 4/4p and Example 5/5p, with diagonal
   preconditioning.
