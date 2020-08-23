@@ -24,15 +24,8 @@
 namespace mfem
 {
 
-//---------------------------------------------------------------------------//
 // class FMSDataCollection implementation
-//---------------------------------------------------------------------------//
 
-//------------------------------
-// begin public methods
-//------------------------------
-
-//---------------------------------------------------------------------------//
 FMSDataCollection::FMSDataCollection(const std::string& coll_name,
                                      Mesh *mesh)
    : DataCollection(coll_name, mesh),
@@ -43,7 +36,7 @@ FMSDataCollection::FMSDataCollection(const std::string& coll_name,
 }
 
 #ifdef MFEM_USE_MPI
-//---------------------------------------------------------------------------//
+
 FMSDataCollection::FMSDataCollection(MPI_Comm comm,
                                      const std::string& coll_name,
                                      Mesh *mesh)
@@ -56,15 +49,14 @@ FMSDataCollection::FMSDataCollection(MPI_Comm comm,
    appendRankToFileName = true; // always include rank in file names
    cycle = 0;                   // always include cycle in directory names
 }
+
 #endif
 
-//---------------------------------------------------------------------------//
 FMSDataCollection::~FMSDataCollection()
 {
    // empty
 }
 
-//---------------------------------------------------------------------------//
 void FMSDataCollection::Save()
 {
    // Convert this to FmsDataCollection.
@@ -87,7 +79,6 @@ void FMSDataCollection::Save()
    }
 }
 
-//---------------------------------------------------------------------------//
 void FMSDataCollection::Load(int cycle)
 {
    DeleteAll();
@@ -151,16 +142,12 @@ void FMSDataCollection::Load(int cycle)
    }
 }
 
-//---------------------------------------------------------------------------//
-void
-FMSDataCollection::SetProtocol(const std::string &protocol)
+void FMSDataCollection::SetProtocol(const std::string &protocol)
 {
    fms_protocol = protocol;
 }
 
-//---------------------------------------------------------------------------//
-std::string
-FMSDataCollection::RootFileName()
+std::string FMSDataCollection::RootFileName()
 {
    std::string res = prefix_path + name + "_" +
                      to_padded_string(cycle, pad_digits_cycle) +
@@ -168,6 +155,6 @@ FMSDataCollection::RootFileName()
    return res;
 }
 
-} // end namespace mfem
+} // namespace mfem
 
 #endif

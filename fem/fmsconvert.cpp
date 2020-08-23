@@ -8,6 +8,7 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
+
 #include "../config/config.hpp"
 
 #ifdef MFEM_USE_FMS
@@ -468,9 +469,9 @@ FmsMeshToMesh(FmsMesh fms_mesh, Mesh **mfem_mesh)
 #define RENUMBER_ENTITIES
 #ifdef RENUMBER_ENTITIES
    // I noticed that to get domains working right, since they appear to be
-   // defined in a local vertex numbering scheme, we have to offset the
-   // vertex ids that MFEM makes for shapes to move them to the coordinates
-   // in the current domain.
+   // defined in a local vertex numbering scheme, we have to offset the vertex
+   // ids that MFEM makes for shapes to move them to the coordinates in the
+   // current domain.
 
    // However, parts would just be a set of element ids in the current domain
    // and it does not seem appropriate to offset the points in that case.
@@ -649,9 +650,9 @@ FmsMeshToMesh(FmsMesh fms_mesh, Mesh **mfem_mesh)
                break;
             case FMS_TRIANGLE:
 #ifdef RENUMBER_ENTITIES
-               // The domain vertices/edges were defined in local ordering. We now
-               // have a set of triangle vertices defined in terms of local vertex
-               // numbers. Renumber them to a global numbering.
+               // The domain vertices/edges were defined in local ordering. We
+               // now have a set of triangle vertices defined in terms of local
+               // vertex numbers. Renumber them to a global numbering.
                for (FmsInt i = 0; i < num_elems*3; i++)
                {
                   ents_verts[i] += verts_start[part_id];
@@ -829,7 +830,8 @@ FmsMeshToMesh(FmsMesh fms_mesh, Mesh **mfem_mesh)
       FmsFieldType coords_ftype = FMS_CONTINUOUS;
       FmsFieldDescriptorGetFixedOrder(coords_fd, &coords_ftype, &coords_btype,
                                       &coords_order);
-      // Maybe this is extra but it seems mesh->SetCurvature assumes btype=1. Maybe protects us against corrupt data.
+      // Maybe this is extra but it seems mesh->SetCurvature assumes
+      // btype=1. Maybe protects us against corrupt data.
       if (coords_btype != FMS_NODAL_GAUSS_CLOSED)
       {
          mfem::err << "Error reading FMS mesh coords." << std::endl;
@@ -917,7 +919,8 @@ BasisTypeToFmsBasisType(int bt, FmsBasisType &btype)
 
 /**
 @note We add the FMS field descriptor and field in here so we can only do it
-      after successfully validating the inputs (handling certain grid function types, etc.)
+      after successfully validating the inputs (handling certain grid function
+      types, etc.)
 */
 int
 GridFunctionToFmsField(FmsDataCollection dc, FmsComponent comp,
@@ -941,9 +944,9 @@ GridFunctionToFmsField(FmsDataCollection dc, FmsComponent comp,
    mfem::out << "Adding FMS field for " << field_name << "..." << endl;
 #endif
 
-   /* Q: No getter for the basis, do different kinds of FECollection have implied basis?
-       There are two subclasses that actually have the getter, maybe those aren't implied?
-   */
+   /* Q: No getter for the basis, do different kinds of FECollection have
+         implied basis? There are two subclasses that actually have the getter,
+         maybe those aren't implied? */
    FmsInt order = 1;
    int vdim = 1;
    FmsFieldType ftype = FMS_CONTINUOUS;
@@ -1572,7 +1575,8 @@ MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh)
    // Build faces
    if (faces)
    {
-      // TODO: Support Triangles and Quads, and move this code after the for loop so these can be added as top level entities
+      // TODO: Support Triangles and Quads, and move this code after the for
+      // loop so these can be added as top level entities
       int rowsize = faces->RowSize(0);
       std::vector<int> face_edges(faces->Size() * rowsize);
       for (int i = 0; i < faces->Size(); i++)
@@ -1685,7 +1689,8 @@ MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh)
 
    if (quads.size())
    {
-      // TODO: Not quite right either, if there are hexes and quads then this will overwrite the faces that made up the hexes
+      // TODO: Not quite right either, if there are hexes and quads then this
+      // will overwrite the faces that made up the hexes
       FmsDomainSetNumEntities(domains[0], FMS_QUADRILATERAL, FMS_INT32,
                               quads.size() / 4);
       FmsDomainAddEntities(domains[0], FMS_QUADRILATERAL, reorder, FMS_INT32,
@@ -1863,5 +1868,5 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc,
    return 0;
 }
 
-} // end namespace mfem
+} // namespace mfem
 #endif
