@@ -23,7 +23,7 @@ namespace mfem
 // initialize AmgXSolver::count to 0
 int AmgXSolver::count = 0;
 
-  //int AmgXSolver::count2 = 0;
+//int AmgXSolver::count2 = 0;
 
 // initialize AmgXSolver::rsrc to nullptr;
 AMGX_resources_handle AmgXSolver::rsrc = nullptr;
@@ -64,7 +64,7 @@ int AmgXSolver::getNumIterations()
 
 // \implements AmgXSolver::initialize
 void AmgXSolver::initialize(const MPI_Comm &comm,
-                            const std::string &modeStr, const std::string &cfgFile, int &nDevs)
+                            const std::string &modeStr, const std::string &cfgFile, const int nDevs)
 {
 
    // if this instance has already been initialized, skip
@@ -160,66 +160,8 @@ void AmgXSolver::initAmgX(const std::string &cfgFile)
    AMGX_config_get_default_number_of_rings(cfg, &ring);
 }
 
-void AmgXSolver::InitializeAsPreconditioner(bool verbose,
-                                            const std::string &modeStr)
-{
-   setMode(modeStr);
-
-   // initialize AmgX
-   AMGX_SAFE_CALL(AMGX_initialize());
-   // intialize AmgX plugings
-   AMGX_SAFE_CALL(AMGX_initialize_plugins());
-   // let AmgX to handle errors returned
-   AMGX_SAFE_CALL(AMGX_install_signal_handler());
-
-   std::string configs = "{\n"
-                         "    \"config_version\": 2, \n"
-                         "    \"solver\": {\n"
-                         "        \"max_uncolored_percentage\": 0.15, \n"
-                         "        \"algorithm\": \"AGGREGATION\", \n"
-                         "        \"solver\": \"AMG\", \n"
-                         "        \"smoother\": \"MULTICOLOR_GS\", \n"
-                         "        \"presweeps\": 1, \n"
-                         "        \"symmetric_GS\": 1, \n"
-                         "        \"selector\": \"SIZE_2\", \n"
-                         "        \"coarsest_sweeps\": 10, \n"
-                         "        \"max_iters\": 2, \n"
-                         "        \"postsweeps\": 1, \n"
-                         "        \"scope\": \"main\", \n"
-                         "        \"max_levels\": 1000, \n"
-                         "        \"matrix_coloring_scheme\": \"MIN_MAX\", \n"
-                         "        \"tolerance\": 0.0, \n"
-                         "        \"norm\": \"L2\", \n"
-                         "        \"cycle\": \"V\"";
-
-   if (verbose)
-   {
-      configs = configs + ",\n"
-                "        \"obtain_timings\": 1, \n"
-                "        \"monitor_residual\": 1, \n"
-                "        \"print_grid_stats\": 1, \n"
-                "        \"print_solve_stats\": 1 \n";
-   }
-   else
-   {
-      configs = configs + "\n";
-   }
-   configs = configs + "    }\n" + "}\n";
-
-   AMGX_SAFE_CALL(AMGX_config_create(&cfg, configs.c_str()));
-
-   AMGX_resources_create_simple(&rsrc, cfg);
-   AMGX_solver_create(&solver, rsrc, mode, cfg);
-   AMGX_matrix_create(&AmgXA, rsrc, mode);
-   AMGX_vector_create(&AmgXP, rsrc, mode);
-   AMGX_vector_create(&AmgXRHS, rsrc, mode);
-
-   isInitialized = true;
-}
-
-
 // \implements AmgXSolver::initMPIcomms
-void AmgXSolver::initMPIcomms(const MPI_Comm &comm, int &nDevs)
+void AmgXSolver::initMPIcomms(const MPI_Comm &comm, const int nDevs)
 {
    // duplicate the global communicator
    MPI_Comm_dup(comm, &globalCpuWorld);
@@ -302,7 +244,7 @@ void AmgXSolver::setDeviceCount()
 }
 
 // \implements AmgXSolver::setDeviceIDs
-void AmgXSolver::setDeviceIDs(int &nDevs)
+void AmgXSolver::setDeviceIDs(const int nDevs)
 {
 
    // set the ID of device that each local process will use
@@ -681,15 +623,18 @@ void AmgXSolver::SetA(const HypreParMatrix &A)
 
 void AmgXSolver::SetOperator(const Operator& op)
 {
-  if (const mfem::HypreParMatrix* Aptr = dynamic_cast<const mfem::HypreParMatrix*>(&op))
-  {
-    printf("Setting as Hypre Matrix \n"); 
-    SetA(*Aptr);
-  }else if (const mfem::SparseMatrix* Aptr = dynamic_cast<const mfem::SparseMatrix*>(&op))
-  {
-    printf("Setting as Sparse Matrix \n"); 
-    SetA(*Aptr);
-  }
+   if (const mfem::HypreParMatrix* Aptr =
+          dynamic_cast<const mfem::HypreParMatrix*>(&op))
+   {
+      printf("Setting as Hypre Matrix \n");
+      SetA(*Aptr);
+   }
+   else if (const mfem::SparseMatrix* Aptr =
+               dynamic_cast<const mfem::SparseMatrix*>(&op))
+   {
+      printf("Setting as Sparse Matrix \n");
+      SetA(*Aptr);
+   }
 }
 
 void AmgXSolver::SetA(const SparseMatrix &in_A)
