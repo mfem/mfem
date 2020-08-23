@@ -64,8 +64,9 @@ struct Backend
       /** @brief [device] Debug backend: host memory is READ/WRITE protected
           while a device is in use. It allows to test the "device" code-path
           (using separate host/device memory pools and host <-> device
-          transfers) without any GPU hardware. */
-      DEBUG = 1 << 12
+          transfers) without any GPU hardware. As 'DEBUG' is sometimes used
+          as a macro, `_DEVICE` has been added to avoid conflicts. */
+      DEBUG_DEVICE = 1 << 12
    };
 
    /** @brief Additional useful constants. For example, the *_MASK constants can
@@ -86,7 +87,7 @@ struct Backend
       /// Bitwise-OR of all CEED backends
       CEED_MASK = CEED_CPU | CEED_CUDA,
       /// Biwise-OR of all device backends
-      DEVICE_MASK = CUDA_MASK | HIP_MASK | DEBUG,
+      DEVICE_MASK = CUDA_MASK | HIP_MASK | DEBUG_DEVICE,
 
       /// Biwise-OR of all RAJA backends
       RAJA_MASK = RAJA_CPU | RAJA_OMP | RAJA_CUDA,

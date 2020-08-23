@@ -39,7 +39,7 @@ Ceed ceed = NULL;
 static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
 {
    Backend::CEED_CUDA, Backend::OCCA_CUDA, Backend::RAJA_CUDA, Backend::CUDA,
-   Backend::HIP, Backend::DEBUG,
+   Backend::HIP, Backend::DEBUG_DEVICE,
    Backend::OCCA_OMP, Backend::RAJA_OMP, Backend::OMP,
    Backend::CEED_CPU, Backend::OCCA_CPU, Backend::RAJA_CPU, Backend::CPU
 };
@@ -266,7 +266,7 @@ void Device::Print(std::ostream &out)
 
 void Device::UpdateMemoryTypeAndClass()
 {
-   const bool debug = Device::Allows(Backend::DEBUG);
+   const bool debug = Device::Allows(Backend::DEBUG_DEVICE);
 
    const bool device = Device::Allows(Backend::DEVICE_MASK);
 
@@ -504,7 +504,7 @@ void Device::Setup(const int device)
          CeedDeviceSetup(device_option);
       }
    }
-   if (Allows(Backend::DEBUG)) { ngpu = 1; }
+   if (Allows(Backend::DEBUG_DEVICE)) { ngpu = 1; }
 }
 
 } // mfem
