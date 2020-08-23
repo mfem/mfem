@@ -301,9 +301,7 @@ MPFR_LIB = -lmpfr
 # FMS and required libraries configuration
 FMS_DIR = $(MFEM_DIR)/../fms
 FMS_OPT = -I$(FMS_DIR)/include
-FMS_LIB = \
-   -Wl,-rpath,$(FMS_DIR)/lib -L$(FMS_DIR)/lib \
-   -lfms
+FMS_LIB = -Wl,-rpath,$(FMS_DIR)/lib -L$(FMS_DIR)/lib -lfms
 
 # Conduit and required libraries configuration
 CONDUIT_DIR = @MFEM_DIR@/../conduit

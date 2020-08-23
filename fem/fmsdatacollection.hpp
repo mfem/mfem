@@ -67,7 +67,7 @@ public:
    virtual void Load(int cycle = 0);
 };
 
-} // end namespace mfem
+} // namespace mfem
 
 #endif
 

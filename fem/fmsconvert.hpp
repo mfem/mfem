@@ -37,7 +37,8 @@ int FmsDataCollectionToDataCollection(FmsDataCollection dc,
 int DataCollectionToFmsDataCollection(DataCollection *mfem_dc,
                                       FmsDataCollection *dc);
 
-}
+} // namespace mfem
+
 #endif
 
 #endif
