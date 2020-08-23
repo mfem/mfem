@@ -126,7 +126,7 @@ int main(int argc, char *argv[])
    //    elements.
    {
       int ref_levels =
-        (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -192,29 +192,29 @@ int main(int argc, char *argv[])
    // 10. Solve the linear system A X = B.
    if (!pa)
    {
-     //NvidiaAMGX amgx;
+      //NvidiaAMGX amgx;
+      printf("Not using PA \n");
       AmgXSolver amgx;
-      if (strcmp(amgx_json_file, "") != 0 || strcmp(amgx_parameter, "") != 0)
       {
-        //amgx.Configure(amgx_json_file, amgx_parameter);
-      }
-      else if (amgx_solver)
-      {
-        //amgx.ConfigureAsSolver(amgx_verbose);
-        //amgx.SetOperator(a->SpMat());
-        //amgx.Mult(*b, x);
-      }
-      else
-      {
-        //amgx.ConfigureAsPreconditioner(amgx_verbose);
-        amgx.InitializeAsPreconditioner(true,"dDDI");
+         printf("Applying AmgX as preconditioner \n");
+         std::string amgx_str;
+         amgx_str = amgx_json_file;
+         amgx.initialize("dDDI", amgx_str);
          SparseMatrix A;
          Vector B, X;
          Array<int> ess_tdof_list(0);
          a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
          amgx.SetOperator(A);
+
          X = 0.0;
-         PCG(A, amgx, B, X, 1, 40, 1e-12, 0.0);
+         if (amgx_solver)
+         {
+            amgx.Mult(B,X);
+         }
+         else
+         {
+            PCG(A, amgx, B, X, 1, 40, 1e-12, 0.0);
+         }
       }
    }
    else // Jacobi preconditioning in partial assembly mode

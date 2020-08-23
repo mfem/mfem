@@ -131,7 +131,7 @@ int main(int argc, char *argv[])
    //    elements.
    {
       int ref_levels =
-        (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -201,7 +201,7 @@ int main(int argc, char *argv[])
       AmgXSolver amgx;
       if (amgx_solver)
       {
-        printf("using as solver \n");
+         printf("using as solver \n");
          std::string amgx_str;
          amgx_str = amgx_json_file;
          amgx.initialize("dDDI",amgx_str);
@@ -210,7 +210,7 @@ int main(int argc, char *argv[])
       }
       else
       {
-        printf("using as preconditioner \n");
+         printf("using as preconditioner \n");
          amgx.InitializeAsPreconditioner(amgx_verbose,"dDDI");
          SparseMatrix A;
          Vector B, X;

@@ -53,8 +53,11 @@ public:
 
    ~AmgXSolver();
 
+   /*
+    * nDevs - number of devices visible to MPI ranks on a given node
+    */
    void initialize(const MPI_Comm &comm,
-                   const std::string &modeStr, const std::string &cfgFile, int &nDevs);
+                   const std::string &modeStr, const std::string &cfgFile, const int nDevs=1);
 
    void initialize(const std::string &modeStr, const std::string &cfgFile);
 
@@ -65,10 +68,6 @@ public:
    void SetA(const mfem::SparseMatrix &A);
 
    virtual void SetOperator(const Operator &op);
-
-  //virtual void SetOperator(const SparseMatrix &in_A);
-
-   void InitializeAsPreconditioner(bool verbose, const std::string &modeStr);
 
    void GetLocalA(const HypreParMatrix &A, Array<HYPRE_Int> &I,
                   Array<int64_t> &J, Array<double> &Data);
@@ -192,10 +191,10 @@ private:
    void setDeviceCount();
 
    // \brief Set the ID of the corresponding GPU used by this process.
-   void setDeviceIDs(int &nDevs);
+   void setDeviceIDs(const int nDevs);
 
    // \brief Initialize all MPI communicators.
-   void initMPIcomms(const MPI_Comm &comm, int &nDevs);
+   void initMPIcomms(const MPI_Comm &comm, const int nDevs);
 
    void initAmgX(const std::string &cfgFile);
 
