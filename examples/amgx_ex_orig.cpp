@@ -267,15 +267,15 @@ int main(int argc, char *argv[])
    AMGX_initialize_plugins();
 
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/beam-hex.mesh";
-   //const char *mesh_file = "../data/star.mesh";
+   //const char *mesh_file = "../data/beam-hex.mesh";
+   const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool static_cond = false;
    bool pa = false;
-   const char *device_config = "cuda";
+   const char *device_config = "cpu";
    bool visualization = true;
    bool amgx_solver = false;
-   bool amgx_verbose = false;
+   bool amgx_verbose = true;
    const char* amgx_json_file = ""; // jason file for amgx
    const char* amgx_parameter = ""; // command line config for amgx
 
@@ -330,7 +330,7 @@ int main(int argc, char *argv[])
    //    elements.
    {
       int ref_levels =
-         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+        (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();

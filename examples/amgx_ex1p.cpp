@@ -261,7 +261,9 @@ int main(int argc, char *argv[])
       AmgXSolver amgx;
       amgx.initialize(MPI_COMM_WORLD, "dDDI", amgx_str, ndevices);
 
-      amgx.setA(A);
+      //amgx.setA(A);
+      printf("Operator type %d \n", A.GetType()); 
+      amgx.SetOperator(A);
 
       for (int i = 0; i < nsolves; i++)
       {

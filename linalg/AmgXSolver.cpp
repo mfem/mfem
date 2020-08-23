@@ -23,7 +23,7 @@ namespace mfem
 // initialize AmgXSolver::count to 0
 int AmgXSolver::count = 0;
 
-int AmgXSolver::count2 = 0;
+  //int AmgXSolver::count2 = 0;
 
 // initialize AmgXSolver::rsrc to nullptr;
 AMGX_resources_handle AmgXSolver::rsrc = nullptr;
@@ -183,7 +183,7 @@ void AmgXSolver::InitializeAsPreconditioner(bool verbose,
                          "        \"symmetric_GS\": 1, \n"
                          "        \"selector\": \"SIZE_2\", \n"
                          "        \"coarsest_sweeps\": 10, \n"
-                         "        \"max_iters\": 200, \n"
+                         "        \"max_iters\": 2, \n"
                          "        \"postsweeps\": 1, \n"
                          "        \"scope\": \"main\", \n"
                          "        \"max_levels\": 1000, \n"
@@ -516,7 +516,7 @@ void AmgXSolver::GatherArray(Array<int64_t> &inArr, Array<int64_t> &outArr,
 }
 
 
-void AmgXSolver::setA(const HypreParMatrix &A)
+void AmgXSolver::SetA(const HypreParMatrix &A)
 {
    //Want to work in devWorld, rank 0 is team leader
    //and will talk to the gpu
@@ -681,25 +681,20 @@ void AmgXSolver::setA(const HypreParMatrix &A)
 
 void AmgXSolver::SetOperator(const Operator& op)
 {
-   spop = const_cast<SparseMatrix*>(dynamic_cast<const SparseMatrix*>(&op));
-   MFEM_VERIFY(spop, "Operator is not of correct type!");
-
-   AMGX_matrix_upload_all(AmgXA, spop->Height(),
-                          spop->NumNonZeroElems(),
-                          1, 1,
-                          spop->ReadWriteI(),
-                          spop->ReadWriteJ(),
-                          spop->ReadWriteData(), NULL);
-
-   AMGX_solver_setup(solver, AmgXA);
-   AMGX_vector_bind(AmgXP, AmgXA);
-   AMGX_vector_bind(AmgXRHS, AmgXA);
+  if (const mfem::HypreParMatrix* Aptr = dynamic_cast<const mfem::HypreParMatrix*>(&op))
+  {
+    printf("Setting as Hypre Matrix \n"); 
+    SetA(*Aptr);
+  }else if (const mfem::SparseMatrix* Aptr = dynamic_cast<const mfem::SparseMatrix*>(&op))
+  {
+    printf("Setting as Sparse Matrix \n"); 
+    SetA(*Aptr);
+  }
 }
 
-void AmgXSolver::SetOperator(const SparseMatrix &in_A)
+void AmgXSolver::SetA(const SparseMatrix &in_A)
 {
-
-   AMGX_matrix_upload_all(AmgXA, in_A.Size(),
+   AMGX_matrix_upload_all(AmgXA, in_A.Height(),
                           in_A.NumNonZeroElems(),
                           1, 1,
                           in_A.GetI(),
