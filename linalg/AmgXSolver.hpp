@@ -57,9 +57,13 @@ public:
     * nDevs - number of devices visible to MPI ranks on a given node
     */
    void initialize(const MPI_Comm &comm,
-                   const std::string &modeStr, const std::string &cfgFile, const int nDevs=1);
+                   const std::string &modeStr, const std::string &cfgFile, const int nDevs);
 
    void initialize(const std::string &modeStr, const std::string &cfgFile);
+
+   void basic_initialize(const MPI_Comm &comm, const std::string &modeStr,
+                         const std::string &cfgFile);
+
 
    void finalize();
 
@@ -69,8 +73,8 @@ public:
 
    virtual void SetOperator(const Operator &op);
 
-   void GetLocalA(const HypreParMatrix &A, Array<HYPRE_Int> &I,
-                  Array<int64_t> &J, Array<double> &Data);
+   //void GetLocalA(const HypreParMatrix &A, Array<HYPRE_Int> &I,
+   //Array<int64_t> &J, Array<double> &Data);
 
    void GatherArray(Array<double> &inArr, Array<double> &outArr,
                     int MPI_SZ, MPI_Comm &mpiTeam);
@@ -92,7 +96,8 @@ public:
    void ScatterArray(Vector &inArr, Vector &outArr,
                      int MPI_SZ, MPI_Comm &mpi_comm, Array<int> &Apart, Array<int> &Adisp);
 
-   void updateA(const HypreParMatrix &A);
+   //To be refactored
+   //void updateA(const HypreParMatrix &A);
 
    void solve(mfem::Vector &p, mfem::Vector &b);
 
@@ -105,7 +110,7 @@ private:
 
    static int              count;
 
-   static int              count2;
+   //static int              count2;
 
    // \brief A flag indicating if this instance has been initialized.
    bool                    isInitialized = false;
@@ -201,6 +206,8 @@ private:
    void getLocalA(const HypreParMatrix &A);
 
    int64_t m_local_rows;  //mlocal rows for ranks that talk to the gpu
+
+   std::string mpi_mode;
 
 };
 

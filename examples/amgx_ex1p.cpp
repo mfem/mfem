@@ -67,8 +67,8 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // 2. Parse command-line options.
-   //const char *mesh_file = "../data/star.mesh";
-   const char *mesh_file = "../data/beam-hex.mesh";
+   const char *mesh_file = "../data/star.mesh";
+   //const char *mesh_file = "../data/beam-hex.mesh";
 
    int order = 1;
    bool static_cond = false;
@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    const char *amgx_cfg = 0;
    int nsolves = 1;
-   int ser_ref_levels = 4;
+   int ser_ref_levels = 2;
    int par_ref_levels = 2;
    int ndevices = 1;
 
@@ -259,11 +259,15 @@ int main(int argc, char *argv[])
       std::string amgx_str;
       amgx_str = amgx_cfg;
       AmgXSolver amgx;
+
+      //Allows MPI > NDEVS, requires mpiexec
       amgx.initialize(MPI_COMM_WORLD, "dDDI", amgx_str, ndevices);
 
-      //amgx.setA(A);
-      printf("Operator type %d \n", A.GetType());
+      //Assumes MPI == NDEVS
+      //amgx.basic_initialize(MPI_COMM_WORLD, "dDDI", amgx_str);
+
       amgx.SetOperator(A);
+      //amgx.SetA(A);
 
       for (int i = 0; i < nsolves; i++)
       {
