@@ -1040,6 +1040,13 @@ void Mesh::GetFaceInfos(int Face, int *Inf1, int *Inf2) const
    *Inf2 = faces_info[Face].Elem2Inf;
 }
 
+void Mesh::GetFaceInfos(int Face, int *Inf1, int *Inf2, int *NCFace) const
+{
+   *Inf1   = faces_info[Face].Elem1Inf;
+   *Inf2   = faces_info[Face].Elem2Inf;
+   *NCFace = faces_info[Face].NCFace;
+}
+
 Geometry::Type Mesh::GetFaceGeometryType(int Face) const
 {
    switch (Dim)
