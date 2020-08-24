@@ -130,7 +130,7 @@ TEST_CASE("TADVector Tests", "[TADVector]")
 {
    double tol = 1e-12;
 
-   TADVector<double> a(3),b(3);
+   TADVector<double> a(3), b(3);
    Vector bm(3);
    bm(0) = 2.0;
    bm(1) = 1.0;
@@ -168,9 +168,9 @@ TEST_CASE("TADVector Tests", "[TADVector]")
 
    SECTION("Dot product")
    {
-      REQUIRE(a*b  - 25.0 < tol);
-      REQUIRE(a*bp - 25.0 < tol);
-      REQUIRE(a*bm - 25.0 < tol);
+      REQUIRE(a * b - 25.0 < tol);
+      REQUIRE(a * bp - 25.0 < tol);
+      REQUIRE(a * bm - 25.0 < tol);
    }
 
    SECTION("Multiply and divide")
@@ -178,9 +178,9 @@ TEST_CASE("TADVector Tests", "[TADVector]")
       a *= 3.0;
       b /= -4.0;
 
-      REQUIRE(a*b  + 3.0*25.0/4.0 < tol);
-      REQUIRE(a*bp - 3.0*25.0     < tol);
-      REQUIRE(a*bm - 3.0*25.0     < tol);
+      REQUIRE(a * b + 3.0 * 25.0 / 4.0 < tol);
+      REQUIRE(a * bp - 3.0 * 25.0 < tol);
+      REQUIRE(a * bm - 3.0 * 25.0 < tol);
    }
 
    SECTION("Minus scalar")
@@ -196,13 +196,12 @@ TEST_CASE("TADVector Tests", "[TADVector]")
       REQUIRE(diff.Norml2() < tol);
       subtract(a, amm, diff);
       REQUIRE(diff.Norml2() < tol);
-
    }
 
    SECTION("Subtract vector")
    {
       subtract(0.5, a, b, tmp);
-      tmp*= 2.0;
+      tmp *= 2.0;
       subtract(tmp, amb, diff);
       REQUIRE(diff.Norml2() < tol);
       subtract(tmp, amm, diff);
@@ -251,6 +250,4 @@ TEST_CASE("TADVector Tests", "[TADVector]")
       subtract(tmp, apb, diff);
       REQUIRE(diff.Norml2() < tol);
    }
-
-
 }

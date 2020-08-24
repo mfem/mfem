@@ -9,10 +9,8 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-
 #ifndef TADDENSEMATRIX_H
 #define TADDENSEMATRIX_H
-
 
 #include "../config/config.hpp"
 #include "../general/globals.hpp"
@@ -20,11 +18,8 @@
 #include "tadvector.hpp"
 #include "densemat.hpp"
 
-
-
 namespace mfem
 {
-
 template<typename dtype>
 class TADDenseMatrix
 {
@@ -33,7 +28,6 @@ private:
    int width;  ///< Dimension of the input / number of columns in the matrix.
    dtype *data;
    int capacity; // zero or negative capacity means we do not own the data.
-
 
 public:
    /// Get the height (size of output) of the Operator. Synonym with NumRows().
@@ -52,72 +46,71 @@ public:
       Sets data = NULL and height = width = 0. */
    TADDenseMatrix()
    {
-      data=nullptr;
-      capacity=0;
-      height=0;
-      width=0;
+      data = nullptr;
+      capacity = 0;
+      height = 0;
+      width = 0;
    }
 
    /// Copy constructor
    template<typename idtype>
    TADDenseMatrix(const TADDenseMatrix<idtype> &m)
    {
-      height=m.GetHeight();
-      width=m.GetWidth();
+      height = m.GetHeight();
+      width = m.GetWidth();
       const int hw = height * width;
       if (hw > 0)
       {
-         idtype* mdata=m.Data();
+         idtype *mdata = m.Data();
          MFEM_ASSERT(mdata, "invalid source matrix");
          data = new dtype[hw];
          capacity = hw;
-         for (int i=0; i<hw; i++)
+         for (int i = 0; i < hw; i++)
          {
-            data[i]=mdata[i];
+            data[i] = mdata[i];
          }
       }
       else
       {
          data = nullptr;
          capacity = 0;
-         width=0;
-         height=0;
+         width = 0;
+         height = 0;
       }
    }
 
    TADDenseMatrix(const DenseMatrix &m)
    {
-      height=m.Height();
-      width=m.Width();
+      height = m.Height();
+      width = m.Width();
       const int hw = height * width;
       if (hw > 0)
       {
-         double* mdata=m.Data();
+         double *mdata = m.Data();
          MFEM_ASSERT(mdata, "invalid source matrix");
          data = new dtype[hw];
          capacity = hw;
-         for (int i=0; i<hw; i++)
+         for (int i = 0; i < hw; i++)
          {
-            data[i]=mdata[i];
+            data[i] = mdata[i];
          }
       }
       else
       {
          data = nullptr;
          capacity = 0;
-         width=0;
-         height=0;
+         width = 0;
+         height = 0;
       }
    }
-
 
    /// Creates square matrix of size s.
    explicit TADDenseMatrix(int s)
    {
       MFEM_ASSERT(s >= 0, "invalid DenseMatrix size: " << s);
-      height=s;
-      width=s;
-      capacity = s*s;
+      height = s;
+      width = s;
+      capacity = s * s;
       if (capacity > 0)
       {
          data = new dtype[capacity](); // init with zeroes
@@ -133,9 +126,9 @@ public:
    {
       MFEM_ASSERT(m >= 0 && n >= 0,
                   "invalid DenseMatrix size: " << m << " x " << n);
-      height=m;
-      width=n;
-      capacity = m*n;
+      height = m;
+      width = n;
+      capacity = m * n;
       if (capacity > 0)
       {
          data = new dtype[capacity](); // init with zeroes
@@ -148,9 +141,9 @@ public:
 
    TADDenseMatrix(const TADDenseMatrix<dtype> &mat, char ch)
    {
-      height=mat.Width();
-      width=mat.Height();
-      capacity = height*width;
+      height = mat.Width();
+      width = mat.Height();
+      capacity = height * width;
       if (capacity > 0)
       {
          data = new dtype[capacity];
@@ -159,7 +152,7 @@ public:
          {
             for (int j = 0; j < width; j++)
             {
-               (*this)(i,j) = mat(j,i);
+               (*this)(i, j) = mat(j, i);
             }
          }
       }
@@ -168,7 +161,6 @@ public:
          data = NULL;
       }
    }
-
 
    /// Change the size of the DenseMatrix to s x s.
    void SetSize(int s) { SetSize(s, s); }
@@ -184,12 +176,12 @@ public:
       }
       height = h;
       width = w;
-      const int hw = h*w;
+      const int hw = h * w;
       if (hw > std::abs(capacity))
       {
          if (capacity > 0)
          {
-            delete [] data;
+            delete[] data;
          }
          capacity = hw;
          data = new dtype[hw](); // init with zeroes
@@ -204,28 +196,21 @@ public:
    inline bool OwnsData() const { return (capacity > 0); }
 
    /// Returns reference to a_{ij}.
-   dtype& operator()(int i, int j)
+   dtype &operator()(int i, int j)
    {
       MFEM_ASSERT(data && i >= 0 && i < height && j >= 0 && j < width, "");
-      return data[i+j*height];
+      return data[i + j * height];
    }
 
-   const dtype& operator()(int i, int j) const
+   const dtype &operator()(int i, int j) const
    {
       MFEM_ASSERT(data && i >= 0 && i < height && j >= 0 && j < width, "");
-      return data[i+j*height];
+      return data[i + j * height];
    }
 
+   dtype &Elem(int i, int j) { return (*this)(i, j); }
 
-   dtype& Elem(int i, int j)
-   {
-      return (*this)(i,j);
-   }
-
-   const dtype& Elem(int i, int j) const
-   {
-      return (*this)(i,j);
-   }
+   const dtype &Elem(int i, int j) const { return (*this)(i, j); }
 
    void Mult(const dtype *x, dtype *y) const
    {
@@ -241,7 +226,7 @@ public:
       dtype x_col = x[0];
       for (int row = 0; row < height; row++)
       {
-         y[row] = x_col*d_col[row];
+         y[row] = x_col * d_col[row];
       }
       d_col += height;
       for (int col = 1; col < width; col++)
@@ -249,7 +234,7 @@ public:
          x_col = x[col];
          for (int row = 0; row < height; row++)
          {
-            y[row] += x_col*d_col[row];
+            y[row] += x_col * d_col[row];
          }
          d_col += height;
       }
@@ -260,10 +245,10 @@ public:
       MFEM_ASSERT(height == y.Size() && width == x.Size(),
                   "incompatible dimensions");
 
-      Mult((const dtype *)x, (dtype *)y);
+      Mult((const dtype *) x, (dtype *) y);
    }
 
-   dtype operator *(const TADDenseMatrix<dtype> &m) const
+   dtype operator*(const TADDenseMatrix<dtype> &m) const
    {
       MFEM_ASSERT(Height() == m.Height() && Width() == m.Width(),
                   "incompatible dimensions");
@@ -286,74 +271,72 @@ public:
          double y_col = 0.0;
          for (int row = 0; row < height; row++)
          {
-            y_col += x[row]*d_col[row];
+            y_col += x[row] * d_col[row];
          }
          y[col] = y_col;
          d_col += height;
       }
    }
 
-   void MultTranspose(const  TADVector<dtype> &x,  TADVector<dtype> &y) const
+   void MultTranspose(const TADVector<dtype> &x, TADVector<dtype> &y) const
    {
       MFEM_ASSERT(height == x.Size() && width == y.Size(),
                   "incompatible dimensions");
 
-      MultTranspose((const dtype *)x, (dtype *)y);
+      MultTranspose((const dtype *) x, (dtype *) y);
    }
-
 
    void Randomize(int seed)
    {
       // static unsigned int seed = time(0);
-      const double max = (double)(RAND_MAX) + 1.;
+      const double max = (double) (RAND_MAX) + 1.;
 
       if (seed == 0)
       {
-         seed = (int)time(0);
+         seed = (int) time(0);
       }
 
       // srand(seed++);
-      srand((unsigned)seed);
+      srand((unsigned) seed);
 
       for (int i = 0; i < capacity; i++)
       {
-         data[i] = (dtype)(std::abs(rand()/max));
+         data[i] = (dtype)(std::abs(rand() / max));
       }
    }
 
    void RandomizeDiag(int seed)
    {
       // static unsigned int seed = time(0);
-      const double max = (double)(RAND_MAX) + 1.;
+      const double max = (double) (RAND_MAX) + 1.;
 
       if (seed == 0)
       {
-         seed = (int)time(0);
+         seed = (int) time(0);
       }
 
       // srand(seed++);
-      srand((unsigned)seed);
+      srand((unsigned) seed);
 
-      for (int i = 0; i < std::min(height,width); i++)
+      for (int i = 0; i < std::min(height, width); i++)
       {
-         Elem(i,i) = (dtype)(std::abs(rand()/max));
+         Elem(i, i) = (dtype)(std::abs(rand() / max));
       }
    }
-
 
    /// Creates n x n diagonal matrix with diagonal elements c
    void Diag(dtype c, int n)
    {
       SetSize(n);
 
-      const int N = n*n;
+      const int N = n * n;
       for (int i = 0; i < N; i++)
       {
-         data[i] = (dtype)0.0;
+         data[i] = (dtype) 0.0;
       }
       for (int i = 0; i < n; i++)
       {
-         data[i*(n+1)] = c;
+         data[i * (n + 1)] = c;
       }
    }
    /// Creates n x n diagonal matrix with diagonal given by diag
@@ -362,14 +345,14 @@ public:
    {
       SetSize(n);
 
-      int i, N = n*n;
+      int i, N = n * n;
       for (i = 0; i < N; i++)
       {
          data[i] = 0.0;
       }
       for (i = 0; i < n; i++)
       {
-         data[i*(n+1)] = (dtype) diag[i];
+         data[i * (n + 1)] = (dtype) diag[i];
       }
    }
 
@@ -382,16 +365,16 @@ public:
       if (Width() == Height())
       {
          for (i = 0; i < Height(); i++)
-            for (j = i+1; j < Width(); j++)
+            for (j = i + 1; j < Width(); j++)
             {
-               t = (*this)(i,j);
-               (*this)(i,j) = (*this)(j,i);
-               (*this)(j,i) = t;
+               t = (*this)(i, j);
+               (*this)(i, j) = (*this)(j, i);
+               (*this)(j, i) = t;
             }
       }
       else
       {
-         TADDenseMatrix<dtype> T(*this,'t');
+         TADDenseMatrix<dtype> T(*this, 't');
          (*this) = T;
       }
    }
@@ -399,15 +382,14 @@ public:
    template<typename itype>
    void Transpose(const TADDenseMatrix<itype> &A)
    {
-      SetSize(A.Width(),A.Height());
+      SetSize(A.Width(), A.Height());
 
       for (int i = 0; i < Height(); i++)
          for (int j = 0; j < Width(); j++)
          {
-            (*this)(i,j) = (dtype) A(j,i);
+            (*this)(i, j) = (dtype) A(j, i);
          }
    }
-
 
    /// (*this) = 1/2 ((*this) + (*this)^t)
    void Symmetrize()
@@ -422,8 +404,8 @@ public:
       for (int i = 0; i < Height(); i++)
          for (int j = 0; j < i; j++)
          {
-            dtype a = 0.5 * ((*this)(i,j) + (*this)(j,i));
-            (*this)(j,i) = (*this)(i,j) = a;
+            dtype a = 0.5 * ((*this)(i, j) + (*this)(j, i));
+            (*this)(j, i) = (*this)(i, j) = a;
          }
    }
 
@@ -440,13 +422,7 @@ public:
          (*this)(i, i) = L;
       }
    }
-
-
-
-
 };
-
-
 
 template<typename dtype>
 void CalcAdjugate(const TADDenseMatrix<dtype> &a, TADDenseMatrix<dtype> &adja)
@@ -480,53 +456,47 @@ void CalcAdjugate(const TADDenseMatrix<dtype> &a, TADDenseMatrix<dtype> &adja)
       {
          // 3 x 2
          double e, g, f;
-         e = d[0]*d[0] + d[1]*d[1] + d[2]*d[2];
-         g = d[3]*d[3] + d[4]*d[4] + d[5]*d[5];
-         f = d[0]*d[3] + d[1]*d[4] + d[2]*d[5];
+         e = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+         g = d[3] * d[3] + d[4] * d[4] + d[5] * d[5];
+         f = d[0] * d[3] + d[1] * d[4] + d[2] * d[5];
 
-         ad[0] = d[0]*g - d[3]*f;
-         ad[1] = d[3]*e - d[0]*f;
-         ad[2] = d[1]*g - d[4]*f;
-         ad[3] = d[4]*e - d[1]*f;
-         ad[4] = d[2]*g - d[5]*f;
-         ad[5] = d[5]*e - d[2]*f;
+         ad[0] = d[0] * g - d[3] * f;
+         ad[1] = d[3] * e - d[0] * f;
+         ad[2] = d[1] * g - d[4] * f;
+         ad[3] = d[4] * e - d[1] * f;
+         ad[4] = d[2] * g - d[5] * f;
+         ad[5] = d[5] * e - d[2] * f;
       }
       return;
    }
 
    if (a.Width() == 1)
    {
-      adja(0,0) = (dtype)1.0;
+      adja(0, 0) = (dtype) 1.0;
    }
    else if (a.Width() == 2)
    {
-      adja(0,0) =  a(1,1);
-      adja(0,1) = -a(0,1);
-      adja(1,0) = -a(1,0);
-      adja(1,1) =  a(0,0);
+      adja(0, 0) = a(1, 1);
+      adja(0, 1) = -a(0, 1);
+      adja(1, 0) = -a(1, 0);
+      adja(1, 1) = a(0, 0);
    }
    else
    {
-      adja(0,0) = a(1,1)*a(2,2)-a(1,2)*a(2,1);
-      adja(0,1) = a(0,2)*a(2,1)-a(0,1)*a(2,2);
-      adja(0,2) = a(0,1)*a(1,2)-a(0,2)*a(1,1);
+      adja(0, 0) = a(1, 1) * a(2, 2) - a(1, 2) * a(2, 1);
+      adja(0, 1) = a(0, 2) * a(2, 1) - a(0, 1) * a(2, 2);
+      adja(0, 2) = a(0, 1) * a(1, 2) - a(0, 2) * a(1, 1);
 
-      adja(1,0) = a(1,2)*a(2,0)-a(1,0)*a(2,2);
-      adja(1,1) = a(0,0)*a(2,2)-a(0,2)*a(2,0);
-      adja(1,2) = a(0,2)*a(1,0)-a(0,0)*a(1,2);
+      adja(1, 0) = a(1, 2) * a(2, 0) - a(1, 0) * a(2, 2);
+      adja(1, 1) = a(0, 0) * a(2, 2) - a(0, 2) * a(2, 0);
+      adja(1, 2) = a(0, 2) * a(1, 0) - a(0, 0) * a(1, 2);
 
-      adja(2,0) = a(1,0)*a(2,1)-a(1,1)*a(2,0);
-      adja(2,1) = a(0,1)*a(2,0)-a(0,0)*a(2,1);
-      adja(2,2) = a(0,0)*a(1,1)-a(0,1)*a(1,0);
+      adja(2, 0) = a(1, 0) * a(2, 1) - a(1, 1) * a(2, 0);
+      adja(2, 1) = a(0, 1) * a(2, 0) - a(0, 0) * a(2, 1);
+      adja(2, 2) = a(0, 0) * a(1, 1) - a(0, 1) * a(1, 0);
    }
 }
 
-
-
-
-
-
-
-}
+} // namespace mfem
 
 #endif

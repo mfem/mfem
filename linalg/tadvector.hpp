@@ -23,27 +23,22 @@
 #define isfinite _finite
 #endif
 
-
 namespace mfem
 {
-
-
 /// Vector data type.
 template<typename dtype>
 class TADVector
 {
 protected:
-
-   dtype* data;
+   dtype *data;
    int size;
    int capacity;
 
 public:
-
    /// Default constructor for Vector. Sets size = 0 and data = NULL.
    TADVector()
    {
-      data=nullptr;
+      data = nullptr;
       size = 0;
       capacity = 0;
    }
@@ -55,39 +50,39 @@ public:
       if (s > 0)
       {
          size = s;
-         data=new dtype[s];
+         data = new dtype[s];
          capacity = s;
-         for (int i=0; i<s; i++)
+         for (int i = 0; i < s; i++)
          {
-            data[i]=v[i];
+            data[i] = v[i];
          }
       }
       else
       {
          size = 0;
          capacity = 0;
-         data=nullptr;
+         data = nullptr;
       }
    }
 
-   TADVector(const mfem::Vector &v)
+   TADVector(const Vector &v)
    {
       const int s = v.Size();
       if (s > 0)
       {
          size = s;
          capacity = s;
-         data=new dtype[s];
-         for (int i=0; i<s; i++)
+         data = new dtype[s];
+         for (int i = 0; i < s; i++)
          {
-            data[i]=v[i];
+            data[i] = v[i];
          }
       }
       else
       {
          size = 0;
          capacity = 0;
-         data=nullptr;
+         data = nullptr;
       }
    }
 
@@ -99,13 +94,13 @@ public:
       {
          size = s;
          capacity = s;
-         data=new dtype[size];
+         data = new dtype[size];
       }
       else
       {
          size = 0;
          capacity = 0;
-         data=nullptr;
+         data = nullptr;
       }
    }
 
@@ -116,7 +111,7 @@ public:
    {
       if (capacity > 0)
       {
-         delete [] data;
+         delete[] data;
          capacity = 0;
       }
       size = _size;
@@ -124,7 +119,7 @@ public:
    }
 
    /// Reads a vector from multiple files
-   void Load(std::istream ** in, int np, int * dim)
+   void Load(std::istream **in, int np, int *dim)
    {
       int i, j, s;
 
@@ -142,7 +137,7 @@ public:
          for (j = 0; j < dim[i]; j++)
          {
             *in[i] >> tmpd;
-            data[p++]=dtype(tmpd);
+            data[p++] = dtype(tmpd);
          }
       }
    }
@@ -155,12 +150,17 @@ public:
       for (int i = 0; i < size; i++)
       {
          in >> tmpd;
-         data[i]=dtype(tmpd);
+         data[i] = dtype(tmpd);
       }
    }
 
    /// Load a vector from an input stream, reading the size from the stream.
-   void Load(std::istream &in) { int s; in >> s; Load(in, s); }
+   void Load(std::istream &in)
+   {
+      int s;
+      in >> s;
+      Load(in, s);
+   }
 
    /// @brief Resize the vector to size @a s.
    /** If the new size is less than or equal to Capacity() then the internal
@@ -183,8 +183,8 @@ public:
          return;
       }
 
-      delete [] data;
-      data=new dtype[s];
+      delete[] data;
+      data = new dtype[s];
       size = s;
       capacity = s;
    }
@@ -197,7 +197,7 @@ public:
    {
       if (OwnsData())
       {
-         delete [] data;
+         delete[] data;
          capacity = 0;
       }
       data = d;
@@ -208,23 +208,20 @@ public:
    /** The Vector does not assume ownership of the new data. The new size is
        also used as the new Capacity().
        @sa SetDataAndSize(). */
-   void NewDataAndSize(dtype *d, int s)
-   {
-      SetDataAndSize(d,s);
-   }
+   void NewDataAndSize(dtype *d, int s) { SetDataAndSize(d, s); }
 
    /// Reset the Vector to be a reference to a sub-vector of @a base.
    inline void MakeRef(TADVector<dtype> &base, int offset, int size_)
    {
-      NewDataAndSize(base.GetData()+offset,size_);
+      NewDataAndSize(base.GetData() + offset, size_);
    }
 
    /** @brief Reset the Vector to be a reference to a sub-vector of @a base
        without changing its current size. */
    inline void MakeRef(TADVector<dtype> &base, int offset)
    {
-      int tsiz=size;
-      NewDataAndSize(base.GetData()+offset,tsiz);
+      int tsiz = size;
+      NewDataAndSize(base.GetData() + offset, tsiz);
    }
 
    /// Destroy a vector
@@ -232,7 +229,7 @@ public:
    {
       size = 0;
       capacity = 0;
-      delete [] data;
+      delete[] data;
    }
 
    /// Returns the size of the vector.
@@ -246,7 +243,9 @@ public:
    /** @warning This method should be used with caution as it gives write access
        to the data of const-qualified Vector%s. */
    inline dtype *GetData() const
-   { return const_cast<dtype*>((const dtype*)data); }
+   {
+      return const_cast<dtype *>((const dtype *) data);
+   }
 
    /// Conversion to `double *`.
    /** @note This conversion function makes it possible to use [] for indexing
@@ -259,13 +258,13 @@ public:
    inline operator const dtype *() const { return data; }
 
    /// Read the Vector data (host pointer) ownership flag.
-   inline bool OwnsData() const { return (capacity>0); }
+   inline bool OwnsData() const { return (capacity > 0); }
 
    /// Changes the ownership of the data; after the call the Vector is empty
    inline void StealData(dtype **p)
    {
       *p = data;
-      delete [] data;
+      delete[] data;
       size = 0;
       capacity = 0;
    }
@@ -279,15 +278,9 @@ public:
    }
 
    /// Access Vector entries. Index i = 0 .. size-1.
-   dtype &Elem(int i)
-   {
-      return operator()(i);
-   }
+   dtype &Elem(int i) { return operator()(i); }
    /// Read only access to Vector entries. Index i = 0 .. size-1.
-   const dtype &Elem(int i) const
-   {
-      return operator()(i);
-   }
+   const dtype &Elem(int i) const { return operator()(i); }
 
    /// Access Vector entries using () for 0-based indexing.
    /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
@@ -314,7 +307,7 @@ public:
    {
       dtype dot = 0.0;
 #ifdef MFEM_USE_LEGACY_OPENMP
-      #pragma omp parallel for reduction(+:dot)
+      #pragma omp parallel for reduction(+ : dot)
 #endif
       for (int i = 0; i < size; i++)
       {
@@ -322,7 +315,6 @@ public:
       }
       return dot;
    }
-
 
    /// Return the inner-product.
    dtype operator*(const TADVector<dtype> &v) const
@@ -350,9 +342,9 @@ public:
    /// Copy Size() entries from @a v.
    TADVector<dtype> &operator=(const dtype *v)
    {
-      for (int i=0; i<size; i++)
+      for (int i = 0; i < size; i++)
       {
-         data[i]=v[i];
+         data[i] = v[i];
       }
       return *this;
    }
@@ -363,9 +355,9 @@ public:
    TADVector<dtype> &operator=(const TADVector<dtype> &v)
    {
       SetSize(v.Size());
-      for (int i=0; i<size; i++)
+      for (int i = 0; i < size; i++)
       {
-         data[i]=v[i];
+         data[i] = v[i];
       }
       return *this;
    }
@@ -373,9 +365,9 @@ public:
    TADVector<dtype> &operator=(const Vector &v)
    {
       SetSize(v.Size());
-      for (int i=0; i<size; i++)
+      for (int i = 0; i < size; i++)
       {
-         data[i]=v[i];
+         data[i] = v[i];
       }
       return *this;
    }
@@ -384,9 +376,9 @@ public:
    template<typename ivtype>
    TADVector &operator=(ivtype value)
    {
-      for (int i=0; i<size; i++)
+      for (int i = 0; i < size; i++)
       {
-         data[i]=(dtype)value;
+         data[i] = (dtype) value;
       }
       return *this;
    }
@@ -394,9 +386,9 @@ public:
    template<typename ivtype>
    TADVector &operator*=(ivtype c)
    {
-      for (int i=0; i<size; i++)
+      for (int i = 0; i < size; i++)
       {
-         data[i]=data[i]*c;
+         data[i] = data[i] * c;
       }
       return *this;
    }
@@ -404,20 +396,19 @@ public:
    template<typename ivtype>
    TADVector &operator/=(ivtype c)
    {
-      for (int i=0; i<size; i++)
+      for (int i = 0; i < size; i++)
       {
-         data[i]=data[i]/c;
+         data[i] = data[i] / c;
       }
       return *this;
    }
 
-
    TADVector &operator-=(const TADVector<dtype> &v)
    {
       MFEM_ASSERT(size == v.Size(), "incompatible Vectors!");
-      for (int i=0; i<size; i++)
+      for (int i = 0; i < size; i++)
       {
-         data[i]=data[i]-v[i];
+         data[i] = data[i] - v[i];
       }
       return *this;
    }
@@ -425,9 +416,9 @@ public:
    template<typename ivtype>
    TADVector &operator-=(ivtype v)
    {
-      for (int i=0; i<size; i++)
+      for (int i = 0; i < size; i++)
       {
-         data[i]=data[i]-v;
+         data[i] = data[i] - v;
       }
       return *this;
    }
@@ -435,9 +426,9 @@ public:
    TADVector &operator+=(const TADVector<dtype> &v)
    {
       MFEM_ASSERT(size == v.Size(), "incompatible Vectors!");
-      for (int i=0; i<size; i++)
+      for (int i = 0; i < size; i++)
       {
-         data[i]=data[i]+v[i];
+         data[i] = data[i] + v[i];
       }
       return *this;
    }
@@ -445,9 +436,9 @@ public:
    template<typename ivtype>
    TADVector &operator+=(ivtype v)
    {
-      for (int i=0; i<size; i++)
+      for (int i = 0; i < size; i++)
       {
-         data[i]=data[i]+v;
+         data[i] = data[i] + v;
       }
       return *this;
    }
@@ -457,9 +448,9 @@ public:
    TADVector &Add(const ivtype a, const vtype &v)
    {
       MFEM_ASSERT(size == v.Size(), "incompatible Vectors!");
-      for (int i=0; i<size; i++)
+      for (int i = 0; i < size; i++)
       {
-         data[i]=data[i]+a*v[i];
+         data[i] = data[i] + a * v[i];
       }
       return *this;
    }
@@ -469,9 +460,9 @@ public:
    TADVector &Set(const ivtype a, const vtype &v)
    {
       MFEM_ASSERT(size == v.Size(), "incompatible Vectors!");
-      for (int i=0; i<size; i++)
+      for (int i = 0; i < size; i++)
       {
-         data[i]=a*v[i];
+         data[i] = a * v[i];
       }
       return *this;
    }
@@ -482,7 +473,7 @@ public:
       MFEM_ASSERT(v.Size() + offset <= size, "invalid sub-vector");
       for (int i = 0; i < size; i++)
       {
-         data[i+offset] = v[i];
+         data[i + offset] = v[i];
       }
    }
 
@@ -491,7 +482,7 @@ public:
    {
       for (int i = 0; i < size; i++)
       {
-         data[i]=-data[i];
+         data[i] = -data[i];
       }
    }
 
@@ -500,7 +491,7 @@ public:
    {
       Swap(data, other.data);
       Swap(size, other.size);
-      Swap(capacity,other.capacity);
+      Swap(capacity, other.capacity);
    }
 
    /// Set v = v1 + v2.
@@ -509,28 +500,33 @@ public:
    {
       MFEM_ASSERT(v1.Size() == v.Size(), "incompatible Vectors!");
       MFEM_ASSERT(v2.Size() == v.Size(), "incompatible Vectors!");
-      for (int i=0; i<v.Size(); i++)
+      for (int i = 0; i < v.Size(); i++)
       {
-         v[i]=v1[i]+v2[i];
+         v[i] = v1[i] + v2[i];
       }
    }
 
    /// Set v = v1 + alpha * v2.
    template<typename vtype1, typename vtype2>
-   friend void add(const vtype1 &v1, dtype alpha, const vtype2 &v2,
+   friend void add(const vtype1 &v1,
+                   dtype alpha,
+                   const vtype2 &v2,
                    TADVector<dtype> &v)
    {
       MFEM_ASSERT(v1.Size() == v.Size(), "incompatible Vectors!");
       MFEM_ASSERT(v2.Size() == v.Size(), "incompatible Vectors!");
-      for (int i=0; i<v.Size(); i++)
+      for (int i = 0; i < v.Size(); i++)
       {
-         v[i]=v1[i]+alpha*v2[i];
+         v[i] = v1[i] + alpha * v2[i];
       }
    }
 
    template<typename vtype1, typename vtype2>
-   friend void add(const dtype a, const vtype1 &x,
-                   const dtype b, const vtype2 &y, TADVector<dtype> &z)
+   friend void add(const dtype a,
+                   const vtype1 &x,
+                   const dtype b,
+                   const vtype2 &y,
+                   TADVector<dtype> &z)
    {
       MFEM_ASSERT(x.Size() == y.Size() && x.Size() == z.Size(),
                   "incompatible Vectors!");
@@ -539,26 +535,25 @@ public:
       {
          z[i] = a * x[i] + b * y[i];
       }
-
    }
 
    template<typename vtype1, typename vtype2>
-   friend void add(const dtype a, const vtype1 &x,
-                   const vtype2 &y, TADVector<dtype> &z)
+   friend void add(const dtype a,
+                   const vtype1 &x,
+                   const vtype2 &y,
+                   TADVector<dtype> &z)
    {
       MFEM_ASSERT(x.Size() == y.Size() && x.Size() == z.Size(),
                   "incompatible Vectors!");
 
       for (int i = 0; i < z.Size(); i++)
       {
-         z[i] = a * x[i] +  y[i];
+         z[i] = a * x[i] + y[i];
       }
-
    }
 
-
    template<typename vtype1, typename vtype2>
-   friend void subtract(const vtype1 &x, const vtype2 &y,TADVector<dtype>  &z)
+   friend void subtract(const vtype1 &x, const vtype2 &y, TADVector<dtype> &z)
    {
       MFEM_ASSERT(x.Size() == y.Size() && x.Size() == z.Size(),
                   "incompatible Vectors!");
@@ -566,11 +561,12 @@ public:
       {
          z[i] = x[i] - y[i];
       }
-
    }
 
    template<typename ivtype, typename vtype1, typename vtype2>
-   friend void subtract(const ivtype a, const vtype1 &x, const vtype2 &y,
+   friend void subtract(const ivtype a,
+                        const vtype1 &x,
+                        const vtype2 &y,
                         TADVector<dtype> &z)
    {
       MFEM_ASSERT(x.Size() == y.Size() && x.Size() == z.Size(),
@@ -579,22 +575,19 @@ public:
       {
          z[i] = a * (x[i] - y[i]);
       }
-
    }
-
 
    /// Destroys vector.
-   ~TADVector()
-   {
-      delete [] data;
-   }
-
+   ~TADVector() { delete[] data; }
 
    /// Prints vector to stream out.
    void Print(std::ostream &out = mfem::out, int width = 8) const
    {
-      if (!size) { return; }
-      for (int i = 0; 1; )
+      if (!size)
+      {
+         return;
+      }
+      for (int i = 0; 1;)
       {
          out << data[i];
          i++;
@@ -602,7 +595,7 @@ public:
          {
             break;
          }
-         if ( i % width == 0 )
+         if (i % width == 0)
          {
             out << '\n';
          }
@@ -618,19 +611,19 @@ public:
    void Randomize(int seed = 0)
    {
       // static unsigned int seed = time(0);
-      const double max = (double)(RAND_MAX) + 1.;
+      const double max = (double) (RAND_MAX) + 1.;
 
       if (seed == 0)
       {
-         seed = (int)time(0);
+         seed = (int) time(0);
       }
 
       // srand(seed++);
-      srand((unsigned)seed);
+      srand((unsigned) seed);
 
       for (int i = 0; i < size; i++)
       {
-         data[i] = std::abs(rand()/max);
+         data[i] = std::abs(rand() / max);
       }
    }
    /// Returns the l2 norm of the vector.
@@ -666,7 +659,7 @@ public:
             } // end if scale <= absdata
             const dtype sqr_arg = absdata / scale;
             sum += (sqr_arg * sqr_arg); // else scale > absdata
-         } // end if data[i] != 0
+         }                              // end if data[i] != 0
       }
       return scale * sqrt(sum);
    }
@@ -691,13 +684,8 @@ public:
       }
       return sum;
    }
-
-
 };
-
-
 
 } // namespace mfem
 
 #endif
-
