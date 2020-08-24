@@ -87,6 +87,7 @@ int main(int argc, char *argv[])
    int nc_limit = 3;         // maximum level of hanging nodes
    bool visualization = true;
    bool visit = false;
+   int which_estimator = 0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -107,6 +108,8 @@ int main(int argc, char *argv[])
                   "Maximum level of hanging nodes.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
+   args.AddOption(&which_estimator, "-est", "--estimator",
+                  "Which estmator to use: 0 = L2ZZ, 1 = Kelly.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -217,14 +220,30 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace flux_fes(&pmesh, &flux_fec, sdim);
    RT_FECollection smooth_flux_fec(order-1, dim);
    ParFiniteElementSpace smooth_flux_fes(&pmesh, &smooth_flux_fec);
-   L2ZienkiewiczZhuEstimator estimator(*integ, x, flux_fes, smooth_flux_fes);
+   ErrorEstimator* estimator;
+   switch(which_estimator){
+      case 0:
+         estimator = new L2ZienkiewiczZhuEstimator(*integ, x, flux_fes, smooth_flux_fes);
+         break;
+      case 1:
+         estimator = new KellyErrorEstimator(*integ, x, flux_fes);
+         break;
+
+      default:
+         if (myid == 0)
+         {
+            std::cout << "Unkown estimator. Falling back to L2ZZ." << std::endl;
+         }
+         estimator = new L2ZienkiewiczZhuEstimator(*integ, x, flux_fes, smooth_flux_fes);
+         break;
+   }
 
    // 11. As in Example 6p, we also need a refiner. This time the refinement
    //     strategy is based on a fixed threshold that is applied locally to each
    //     element. The global threshold is turned off by setting the total error
    //     fraction to zero. We also enforce a maximum refinement ratio between
    //     adjacent elements.
-   ThresholdRefiner refiner(estimator);
+   ThresholdRefiner refiner(*estimator);
    refiner.SetTotalErrorFraction(0.0); // use purely local threshold
    refiner.SetLocalErrorGoal(max_elem_error);
    refiner.PreferConformingRefinement();
@@ -233,7 +252,7 @@ int main(int argc, char *argv[])
    // 12. A derefiner selects groups of elements that can be coarsened to form
    //     a larger element. A conservative enough threshold needs to be set to
    //     prevent derefining elements that would immediately be refined again.
-   ThresholdDerefiner derefiner(estimator);
+   ThresholdDerefiner derefiner(*estimator);
    derefiner.SetThreshold(hysteresis * max_elem_error);
    derefiner.SetNCLimit(nc_limit);
 
@@ -316,7 +335,8 @@ int main(int argc, char *argv[])
          refiner.Apply(pmesh);
          if (myid == 0)
          {
-            cout << ", total error: " << estimator.GetTotalError() << endl;
+            ///@TODO how to handle this?
+            //cout << ", total error: " << estimator->GetTotalError() << endl;
          }
 
          // 21. Quit the AMR loop if the termination criterion has been met
