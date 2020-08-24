@@ -811,6 +811,7 @@ protected:
 #endif
 
    int amr_el;
+   double lim_min_size;
 
    // These flags can be used by outside functions to avoid recomputing the
    // tspec and tspec_perth fields again on the same mesh.
@@ -839,7 +840,7 @@ public:
 #ifdef MFEM_USE_MPI
         ptspec_fes(NULL), ptspec_fesv(NULL), pgfall(NULL),
 #endif
-        amr_el(-1),
+        amr_el(-1), lim_min_size(-0.1),
         good_tspec(false), good_tspec_grad(false), good_tspec_hess(false),
         adapt_eval(NULL) { }
 
@@ -944,6 +945,8 @@ public:
                             const FiniteElement &fe,
                             const IntegrationRule &intrule);
 
+   void SetMinSizeForTargets(double min_size_) { lim_min_size = min_size_; }
+
    void SetTspecForDerefinement(Vector &amr_vec_vals_)
    {
       tspec_amr_vec_vals = amr_vec_vals_;
@@ -988,6 +991,10 @@ protected:
    TMOP_QualityMetric *metric;        // not owned
    const TargetConstructor *targetC;  // not owned
 
+   // Custom integration rules.
+   IntegrationRules *IntegRules;
+   int integ_order;
+
    // Weight Coefficient multiplying the quality metric term.
    Coefficient *coeff1; // not owned, if NULL -> coeff1 is 1.
    // Normalization factor for the metric term.
@@ -1007,6 +1014,9 @@ protected:
 
    // Adaptive limiting.
    const GridFunction *zeta_0;       // Not owned.
+#ifdef MFEM_USE_MPI
+   const ParGridFunction *pzeta_0;
+#endif
    GridFunction *zeta;               // Owned. Updated by adapt_eval.
    Coefficient *coeff_zeta;          // Not owned.
    AdaptivityEvaluator *adapt_eval;  // Not owned.
@@ -1086,17 +1096,21 @@ protected:
       nodes0 = NULL; coeff0 = NULL; lim_dist = NULL; lim_func = NULL;
    }
 
-   const IntegrationRule *EnergyIntegrationRule(const FiniteElement &el) const
+   const IntegrationRule &EnergyIntegrationRule(const FiniteElement &el) const
    {
-      return (IntRule) ? IntRule
-             /*     */ : &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3));
+      if (IntegRules)
+      {
+         return IntegRules->Get(el.GetGeomType(), integ_order);
+      }
+      return (IntRule) ? *IntRule
+             /*     */ : IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3);
    }
-   const IntegrationRule *ActionIntegrationRule(const FiniteElement &el) const
+   const IntegrationRule &ActionIntegrationRule(const FiniteElement &el) const
    {
       // TODO the energy most likely needs less integration points.
       return EnergyIntegrationRule(el);
    }
-   const IntegrationRule *GradientIntegrationRule(const FiniteElement &el) const
+   const IntegrationRule &GradientIntegrationRule(const FiniteElement &el) const
    {
       // TODO the action and energy most likely need less integration points.
       return EnergyIntegrationRule(el);
@@ -1107,8 +1121,8 @@ public:
        @param[in] tc Target-matrix construction algorithm to use (not owned). */
    TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc,
                    TMOP_QualityMetric *amrm)
-      : amrmetric(amrm), metric(m), targetC(tc),
-        coeff1(NULL), metric_normal(1.0),
+      : amrmetric(amrm), metric(m), targetC(tc), IntegRules(NULL),
+        integ_order(-1), coeff1(NULL), metric_normal(1.0),
         nodes0(NULL), coeff0(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
         zeta_0(NULL), zeta(NULL), coeff_zeta(NULL), adapt_eval(NULL),
@@ -1117,6 +1131,14 @@ public:
    { }
 
    ~TMOP_Integrator();
+
+   /// Prescribe a set of integration rules; relevant for mixed meshes.
+   /** This function has priority over SetIntRule(), if both are called. */
+   void SetIntegrationRules(IntegrationRules &irules, int order)
+   {
+      IntegRules = &irules;
+      integ_order = order;
+   }
 
    /// Sets a scaling Coefficient for the quality metric term of the integrator.
    /** With this addition, the integrator becomes
@@ -1200,6 +1222,11 @@ public:
       targetC=tc;
       discr_tc = dynamic_cast<DiscreteAdaptTC *>(tc);
    };
+
+   void Update();
+#ifdef MFEM_USE_MPI
+   void ParUpdate();
+#endif
 
    DiscreteAdaptTC *GetDiscreteAdaptTC() const { return discr_tc; }
 
