@@ -13,28 +13,29 @@
 //               p-Laplacian problem with zero Dirichlet boundary
 //               conditions applied on all defined boundaries
 //
-//           The example demonstrates the use of nonlinear operators
-//           combined with automatic differentiation (AD). The definitions
-//           of the integrators are written in the ex71.hpp.
-//           Selecting integrator=0 will use the handcoded integrator.
-//           Selecting integrator=1 will utilize the AD integrator.
-//           The AD integrator can be modifief to use ADQFunctionTJ.
+//           The example demonstrates the use of nonlinear operators combined
+//           with automatic differentiation (AD). The definitions of the
+//           integrators are written in the ex71.hpp. Selecting integrator=0
+//           will use the manually implemented integrator. Selecting
+//           integrator=1 will utilize the AD integrator. The AD integrator can
+//           be modifier to use ADQFunctionTJ.
 //
-//           qint (the integrand) is a function which is evaluated
-//           at every integration point. For implementations utilizing
-//           ADQFunctionTJ, the user has to implement the function and the
-//           residual evaluation. The Jacobian of the residual is evaluated
-//           using AD
+//           qint (the integrand) is a function which is evaluated at every
+//           integration point. For implementations utilizing ADQFunctionTJ,
+//           the user has to implement the function and the residual
+//           evaluation. The Jacobian of the residual is evaluated using AD
 //
-//           For implementations utilizing ADQFunctionTH, the user has
-//           to implement only the function evaluation (as
-//           a template) and the first derivative (the residual) and the
-//           second derivatives (the Hessian) are evaluated using AD.
+//           For implementations utilizing ADQFunctionTH, the user has to
+//           implement only the function evaluation (as a template) and the
+//           first derivative (the residual) and the second derivatives (the
+//           Hessian) are evaluated using AD.
 //
 //           We recommend viewing examples 1 and 19, before viewing this
 //           example.
 
 #include "ex71.hpp"
+
+using namespace mfem;
 
 #undef MFEM_USE_SUITESPARSE
 
@@ -50,30 +51,45 @@ int main(int argc, char *argv[])
    int newton_iter = 500;
    int print_level = 0;
    double pp = 2.0;
-   int integrator=1; //use AD
-   mfem::StopWatch* timer=new mfem::StopWatch();
+   int integrator = 1; // use AD
+   StopWatch *timer = new StopWatch();
 
-   mfem::OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file, "-m", "--mesh",
-                  "Mesh file to use.");
-   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
+   OptionsParser args(argc, argv);
+   args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
+   args.AddOption(&ser_ref_levels,
+                  "-rs",
+                  "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
-   args.AddOption(&order, "-o", "--order",
+   args.AddOption(&order,
+                  "-o",
+                  "--order",
                   "Order (degree) of the finite elements.");
-   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+   args.AddOption(&visualization,
+                  "-vis",
+                  "--visualization",
+                  "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&newton_rel_tol, "-rel", "--relative-tolerance",
+   args.AddOption(&newton_rel_tol,
+                  "-rel",
+                  "--relative-tolerance",
                   "Relative tolerance for the Newton solve.");
-   args.AddOption(&newton_abs_tol, "-abs", "--absolute-tolerance",
+   args.AddOption(&newton_abs_tol,
+                  "-abs",
+                  "--absolute-tolerance",
                   "Absolute tolerance for the Newton solve.");
-   args.AddOption(&newton_iter, "-it", "--newton-iterations",
+   args.AddOption(&newton_iter,
+                  "-it",
+                  "--newton-iterations",
                   "Maximum iterations for the Newton solve.");
-   args.AddOption(&pp, "-pp", "--power-parameter",
+   args.AddOption(&pp,
+                  "-pp",
+                  "--power-parameter",
                   "Power parameter (>=2.0) for the p-Laplacian.");
-   args.AddOption((&print_level),"-prt","--print-level",
-                  "Print level.");
-   args.AddOption(&integrator, "-int","--integrator",
+   args.AddOption((&print_level), "-prt", "--print-level", "Print level.");
+   args.AddOption(&integrator,
+                  "-int",
+                  "--integrator",
                   "Integrator 0: standard; 1: AD;");
 
    args.Parse();
@@ -84,9 +100,8 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(std::cout);
 
-
    // 2. Read the (serial) mesh from the given mesh file.
-   mfem::Mesh *mesh = new mfem::Mesh(mesh_file, 1, 1);
+   Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
    // 3. Refine the mesh in serial to increase the resolution. In this example
@@ -99,75 +114,79 @@ int main(int argc, char *argv[])
 
    // 4. Define the power parameter for the p-Laplacian and all other
    //    coefficients
-   mfem::ConstantCoefficient c_pp(pp);
-   mfem::ConstantCoefficient load(1.000000000);
-   mfem::ConstantCoefficient c_ee(0.000000001);
+   ConstantCoefficient c_pp(pp);
+   ConstantCoefficient load(1.000000000);
+   ConstantCoefficient c_ee(0.000000001);
 
    // 5. Define the finite element spaces for the solution
-   mfem::H1_FECollection fec(order,dim);
-   mfem::FiniteElementSpace fespace(mesh,&fec,1,mfem::Ordering::byVDIM);
-   int glob_size=fespace.GetTrueVSize();
+   H1_FECollection fec(order, dim);
+   FiniteElementSpace fespace(mesh, &fec, 1, Ordering::byVDIM);
+   int glob_size = fespace.GetTrueVSize();
+
    std::cout << "Number of finite element unknowns: " << glob_size << std::endl;
 
-   // 6. Define the Dirichlet conditions
-   mfem::Array<int> ess_bdr(mesh->bdr_attributes.Max());
+   // 6. Define the essential boundary attributes
+   Array<int> ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 1;
 
    // 7. Define the nonlinear form
-   mfem::NonlinearForm* nf=new mfem::NonlinearForm(&fespace);
+   NonlinearForm *nf = new NonlinearForm(&fespace);
 
    // 8. Define the solution vector x
-   mfem::GridFunction x(&fespace);
+   GridFunction x(&fespace);
    x = 0.0;
-   mfem::Vector tv(fespace.GetTrueVSize());
-   mfem::Vector sv(fespace.GetTrueVSize());
-   tv=0.0;
-   sv=0.0;
+   Vector tv(fespace.GetTrueVSize());
+   Vector sv(fespace.GetTrueVSize());
+   tv = 0.0;
+   sv = 0.0;
 
    // 9. Define ParaView DataCollection
-   mfem::ParaViewDataCollection *dacol=new
-   mfem::ParaViewDataCollection("Example71",
-                                mesh);
+   ParaViewDataCollection *dacol = new ParaViewDataCollection("Example71", mesh);
    dacol->SetLevelsOfDetail(order);
-   dacol->RegisterField("sol",&x);
+   dacol->RegisterField("sol", &x);
 
    // 11. Set domain integrators - start with linear diffusion
    {
-      // the default power coefficient is 2.0
-      mfem::ConstantCoefficient lpp(2.0);
-      if (integrator==0)
+      // The default power coefficient is 2.0
+      ConstantCoefficient lpp(2.0);
+      if (integrator == 0)
       {
-         nf->AddDomainIntegrator(new mfem::pLaplace(lpp,c_ee,load));
+         nf->AddDomainIntegrator(new pLaplace(lpp, c_ee, load));
       }
-      else if (integrator==1)
+      else if (integrator == 1)
       {
-         nf->AddDomainIntegrator(new mfem::pLaplaceAD(lpp,c_ee,load));
+         nf->AddDomainIntegrator(new pLaplaceAD(lpp, c_ee, load));
       }
       nf->SetEssentialBC(ess_bdr);
-      // compute the energy
-      double energy=nf->GetEnergy(tv);
-      std::cout<<"[2] The total energy of the system is E="<<energy<<std::endl;
-      // time the assembly
+
+      // Compute the energy
+      double energy = nf->GetEnergy(tv);
+      std::cout << "[2] The total energy of the system is E=" << energy
+                << std::endl;
+
+      // Time the assembly
       timer->Clear();
       timer->Start();
       nf->GetGradient(sv);
       timer->Stop();
-      std::cout<<"[2] The assembly time is: "<<timer->RealTime()<<std::endl;
-      mfem::Solver *prec;
+      std::cout << "[2] The assembly time is: " << timer->RealTime()
+                << std::endl;
+
+      Solver *prec;
 #ifdef MFEM_USE_SUITESPARSE
-      prec=new mfem::UMFPackSolver();
+      prec = new UMFPackSolver();
 #else
-      prec=new mfem::GSSmoother();
+      prec = new GSSmoother();
 #endif
-      mfem::CGSolver *j_pcg = new mfem::CGSolver();
+      CGSolver *j_pcg = new CGSolver();
       j_pcg->SetRelTol(1e-7);
       j_pcg->SetAbsTol(1e-15);
       j_pcg->SetMaxIter(500);
       j_pcg->SetPrintLevel(print_level);
       j_pcg->SetPreconditioner(*prec);
 
-      mfem::NewtonSolver* ns;
-      ns=new mfem::NewtonSolver();
+      NewtonSolver *ns;
+      ns = new NewtonSolver();
       ns->iterative_mode = true;
       ns->SetSolver(*j_pcg);
       ns->SetOperator(*nf);
@@ -175,15 +194,18 @@ int main(int argc, char *argv[])
       ns->SetRelTol(1e-6);
       ns->SetAbsTol(1e-12);
       ns->SetMaxIter(10);
-      //solve the problem
+
+      // Solve the problem
       timer->Clear();
       timer->Start();
       ns->Mult(tv, sv);
       timer->Stop();
-      std::cout<<"Time for the NewtonSolver: "<<timer->RealTime()<<std::endl;
+      std::cout << "Time for the NewtonSolver: " << timer->RealTime()
+                << std::endl;
 
-      energy=nf->GetEnergy(sv);
-      std::cout<<"[pp=2] The total energy of the system is E="<<energy<<std::endl;
+      energy = nf->GetEnergy(sv);
+      std::cout << "[pp=2] The total energy of the system is E=" << energy
+                << std::endl;
 
       delete ns;
       delete j_pcg;
@@ -196,44 +218,50 @@ int main(int argc, char *argv[])
    }
 
    // 12. Continue with powers higher than 2
-   for (int i=3; i<pp; i++)
+   for (int i = 3; i < pp; i++)
    {
       delete nf;
-      nf=new mfem::NonlinearForm(&fespace);
-      mfem::ConstantCoefficient lpp((double)i);
-      if (integrator==0)
+      nf = new NonlinearForm(&fespace);
+      ConstantCoefficient lpp((double) i);
+      if (integrator == 0)
       {
-         nf->AddDomainIntegrator(new mfem::pLaplace(lpp,c_ee,load));
+         nf->AddDomainIntegrator(new pLaplace(lpp, c_ee, load));
       }
-      else if (integrator==1)
+      else if (integrator == 1)
       {
-         nf->AddDomainIntegrator(new mfem::pLaplaceAD(lpp,c_ee,load));
+         nf->AddDomainIntegrator(new pLaplaceAD(lpp, c_ee, load));
       }
       nf->SetEssentialBC(ess_bdr);
-      // compute the energy
-      double energy=nf->GetEnergy(sv);
-      std::cout<<"[pp="<<i<<"] The total energy of the system is E="<<energy<<std::endl;
-      // time the assembly
+
+      // Compute the energy
+      double energy = nf->GetEnergy(sv);
+      std::cout << "[pp=" << i
+                << "] The total energy of the system is E=" << energy
+                << std::endl;
+
+      // Time the assembly
       timer->Clear();
       timer->Start();
       nf->GetGradient(sv);
       timer->Stop();
-      std::cout<<"[pp="<<i<<"] The assembly time is: "<<timer->RealTime()<<std::endl;
-      mfem::Solver *prec;
+      std::cout << "[pp=" << i
+                << "] The assembly time is: " << timer->RealTime() << std::endl;
+
+      Solver *prec;
 #ifdef MFEM_USE_SUITESPARSE
-      prec=new mfem::UMFPackSolver();
+      prec = new UMFPackSolver();
 #else
-      prec=new mfem::GSSmoother();
+      prec = new GSSmoother();
 #endif
-      mfem::CGSolver *j_pcg = new mfem::CGSolver();
+      CGSolver *j_pcg = new CGSolver();
       j_pcg->SetRelTol(1e-7);
       j_pcg->SetAbsTol(1e-15);
       j_pcg->SetMaxIter(500);
       j_pcg->SetPrintLevel(print_level);
       j_pcg->SetPreconditioner(*prec);
 
-      mfem::NewtonSolver* ns;
-      ns=new mfem::NewtonSolver();
+      NewtonSolver *ns;
+      ns = new NewtonSolver();
       ns->iterative_mode = true;
       ns->SetSolver(*j_pcg);
       ns->SetOperator(*nf);
@@ -241,15 +269,19 @@ int main(int argc, char *argv[])
       ns->SetRelTol(1e-6);
       ns->SetAbsTol(1e-12);
       ns->SetMaxIter(10);
-      //solve the problem
+
+      // Solve the problem
       timer->Clear();
       timer->Start();
       ns->Mult(tv, sv);
       timer->Stop();
-      std::cout<<"Time for the NewtonSolver: "<<timer->RealTime()<<std::endl;
+      std::cout << "Time for the NewtonSolver: " << timer->RealTime()
+                << std::endl;
 
-      energy=nf->GetEnergy(sv);
-      std::cout<<"[pp="<<i<<"] The total energy of the system is E="<<energy<<std::endl;
+      energy = nf->GetEnergy(sv);
+      std::cout << "[pp=" << i
+                << "] The total energy of the system is E=" << energy
+                << std::endl;
 
       delete ns;
       delete j_pcg;
@@ -262,43 +294,49 @@ int main(int argc, char *argv[])
    }
 
    // 13. Continue with the final power
-   if ( std::abs(pp-2.0) > std::numeric_limits<double>::epsilon())
+   if (std::abs(pp - 2.0) > std::numeric_limits<double>::epsilon())
    {
       delete nf;
-      nf=new mfem::NonlinearForm(&fespace);
-      if (integrator==0)
+      nf = new NonlinearForm(&fespace);
+      if (integrator == 0)
       {
-         nf->AddDomainIntegrator(new mfem::pLaplace(c_pp,c_ee,load));
+         nf->AddDomainIntegrator(new pLaplace(c_pp, c_ee, load));
       }
-      else if (integrator==1)
+      else if (integrator == 1)
       {
-         nf->AddDomainIntegrator(new mfem::pLaplaceAD(c_pp,c_ee,load));
+         nf->AddDomainIntegrator(new pLaplaceAD(c_pp, c_ee, load));
       }
       nf->SetEssentialBC(ess_bdr);
-      // compute the energy
-      double energy=nf->GetEnergy(sv);
-      std::cout<<"[pp="<<pp<<"] The total energy of the system is E="<<energy<<std::endl;
-      // time the assembly
+
+      // Compute the energy
+      double energy = nf->GetEnergy(sv);
+      std::cout << "[pp=" << pp
+                << "] The total energy of the system is E=" << energy
+                << std::endl;
+
+      // Time the assembly
       timer->Clear();
       timer->Start();
       nf->GetGradient(sv);
       timer->Stop();
-      std::cout<<"[pp="<<pp<<"] The assembly time is: "<<timer->RealTime()<<std::endl;
-      mfem::Solver *prec;
+      std::cout << "[pp=" << pp
+                << "] The assembly time is: " << timer->RealTime() << std::endl;
+
+      Solver *prec;
 #ifdef MFEM_USE_SUITESPARSE
-      prec=new mfem::UMFPackSolver();
+      prec = new UMFPackSolver();
 #else
-      prec=new mfem::GSSmoother();
+      prec = new GSSmoother();
 #endif
-      mfem::CGSolver *j_pcg = new mfem::CGSolver();
+      CGSolver *j_pcg = new CGSolver();
       j_pcg->SetRelTol(1e-7);
       j_pcg->SetAbsTol(1e-15);
       j_pcg->SetMaxIter(500);
       j_pcg->SetPrintLevel(print_level);
       j_pcg->SetPreconditioner(*prec);
 
-      mfem::NewtonSolver* ns;
-      ns=new mfem::NewtonSolver();
+      NewtonSolver *ns;
+      ns = new NewtonSolver();
       ns->iterative_mode = true;
       ns->SetSolver(*j_pcg);
       ns->SetOperator(*nf);
@@ -306,15 +344,19 @@ int main(int argc, char *argv[])
       ns->SetRelTol(1e-6);
       ns->SetAbsTol(1e-12);
       ns->SetMaxIter(10);
-      //solve the problem
+
+      // Solve the problem
       timer->Clear();
       timer->Start();
       ns->Mult(tv, sv);
       timer->Stop();
-      std::cout<<"Time for the NewtonSolver: "<<timer->RealTime()<<std::endl;
+      std::cout << "Time for the NewtonSolver: " << timer->RealTime()
+                << std::endl;
 
-      energy=nf->GetEnergy(sv);
-      std::cout<<"[pp="<<pp<<"] The total energy of the system is E="<<energy<<std::endl;
+      energy = nf->GetEnergy(sv);
+      std::cout << "[pp=" << pp
+                << "] The total energy of the system is E=" << energy
+                << std::endl;
 
       delete ns;
       delete j_pcg;
@@ -322,7 +364,7 @@ int main(int argc, char *argv[])
 
       x.SetFromTrueDofs(sv);
       dacol->SetTime(pp);
-      if (pp<2.0)
+      if (pp < 2.0)
       {
          dacol->SetCycle(std::floor(pp));
       }
@@ -333,16 +375,11 @@ int main(int argc, char *argv[])
       dacol->Save();
    }
 
-
-
    // 19. Free the used memory
    delete dacol;
    delete nf;
    delete mesh;
    delete timer;
 
-
    return 0;
 }
-
-
