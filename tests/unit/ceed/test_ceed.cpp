@@ -91,7 +91,6 @@ TEST_CASE("CEED", "[CEED]")
 {
    SECTION("Continuous Galerkin")
    {
-      const bool dg = false;
       SECTION("2D")
       {
          for (CeedCoeff coeff_type : {CeedCoeff::Const,CeedCoeff::Grid,CeedCoeff::Quad})
