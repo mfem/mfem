@@ -34,13 +34,19 @@ class TADVector
 {
 protected:
 
-   Memory<dtype> data;
+   dtype* data;
    int size;
+   int capacity;
 
 public:
 
    /// Default constructor for Vector. Sets size = 0 and data = NULL.
-   TADVector() { data.Reset(); size = 0; }
+   TADVector()
+   {
+       data=nullptr;
+       size = 0;
+       capacity = 0;
+   }
 
    /// Copy constructor. Allocates a new data array and copies the data.
    TADVector(const TADVector<dtype> &v)
@@ -49,7 +55,8 @@ public:
       if (s > 0)
       {
          size = s;
-         data.New(s);
+         data=new dtype[s];
+         capacity = s;
          for (int i=0; i<s; i++)
          {
             data[i]=v[i];
@@ -58,17 +65,19 @@ public:
       else
       {
          size = 0;
-         data.Reset();
+         capacity = 0;
+         data=nullptr;
       }
    }
 
-   TADVector(const Vector &v)
+   TADVector(const mfem::Vector &v)
    {
       const int s = v.Size();
       if (s > 0)
       {
          size = s;
-         data.New(s);
+         capacity = s;
+         data=new dtype[s];
          for (int i=0; i<s; i++)
          {
             data[i]=v[i];
@@ -77,7 +86,8 @@ public:
       else
       {
          size = 0;
-         data.Reset();
+         capacity = 0;
+         data=nullptr;
       }
    }
 
@@ -88,12 +98,14 @@ public:
       if (s > 0)
       {
          size = s;
-         data.New(size);
+         capacity = s;
+         data=new dtype[size];
       }
       else
       {
          size = 0;
-         data.Reset();
+         capacity = 0;
+         data=nullptr;
       }
    }
 
@@ -101,25 +113,14 @@ public:
    /** The pointer @a _data can be NULL. The data array can be replaced later
        with SetData(). */
    TADVector(dtype *_data, int _size)
-   { data.Wrap(_data, _size, false); size = _size; }
-
-   /// Create a Vector of size @a size_ using MemoryType @a mt.
-   TADVector(int size_, MemoryType mt)
-      : data(size_, mt), size(size_) { }
-
-   /// Enable execution of Vector operations using the mfem::Device.
-   /** The default is to use Backend::CPU (serial execution on each MPI rank),
-       regardless of the mfem::Device configuration.
-
-       When appropriate, MFEM functions and class methods will enable the use
-       of the mfem::Device for their Vector parameters.
-
-       Some derived classes, e.g. GridFunction, enable the use of the
-       mfem::Device by default. */
-   void UseDevice(bool use_dev) const { data.UseDevice(use_dev); }
-
-   /// Return the device flag of the Memory object used by the Vector
-   bool UseDevice() const { return data.UseDevice(); }
+   {
+       if(capacity > 0){
+           delete [] data;
+           capacity = 0;
+       }
+       size = _size;
+       data = _data;
+   }
 
    /// Reads a vector from multiple files
    void Load(std::istream ** in, int np, int * dim)
@@ -174,61 +175,33 @@ public:
       {
          return;
       }
-      if (s <= data.Capacity())
+
+      if (s <= capacity)
       {
          size = s;
          return;
       }
-      // preserve a valid MemoryType and device flag
-      const MemoryType mt = data.GetMemoryType();
-      const bool use_dev = data.UseDevice();
-      data.Delete();
+
+      delete [] data;
+      data=new dtype[s];
       size = s;
-      data.New(s, mt);
-      data.UseDevice(use_dev);
+      capacity = s;
    }
-
-   /// Resize the vector to size @a s using MemoryType @a mt.
-   void SetSize(int s, MemoryType mt)
-   {
-      if (mt == data.GetMemoryType())
-      {
-         if (s == size)
-         {
-            return;
-         }
-         if (s <= data.Capacity())
-         {
-            size = s;
-            return;
-         }
-      }
-      const bool use_dev = data.UseDevice();
-      data.Delete();
-      if (s > 0)
-      {
-         data.New(s, mt);
-         size = s;
-      }
-      else
-      {
-         data.Reset();
-         size = 0;
-      }
-      data.UseDevice(use_dev);
-   }
-
-   /// Set the Vector data.
-   /// @warning This method should be called only when OwnsData() is false.
-   void SetData(dtype *d) { data.Wrap(d, data.Capacity(), false); }
 
    /// Set the Vector data and size.
    /** The Vector does not assume ownership of the new data. The new size is
-       also used as the new Capacity().
        @warning This method should be called only when OwnsData() is false.
        @sa NewDataAndSize(). */
    void SetDataAndSize(dtype *d, int s)
-   { data.Wrap(d, s, false); size = s; }
+   {
+       if(OwnsData())
+       {
+           delete [] data;
+           capacity = 0;
+       }
+       data = d;
+       size = s;
+   }
 
    /// Set the Vector data and size, deleting the old data, if owned.
    /** The Vector does not assume ownership of the new data. The new size is
@@ -236,48 +209,29 @@ public:
        @sa SetDataAndSize(). */
    void NewDataAndSize(dtype *d, int s)
    {
-      data.Delete();
-      SetDataAndSize(d, s);
-   }
-
-   /// Reset the Vector to use the given external Memory @a mem and size @a s.
-   /** If @a own_mem is false, the Vector will not own any of the pointers of
-       @a mem.
-       @sa NewDataAndSize(). */
-   void NewMemoryAndSize(const Memory<dtype> &mem, int s, bool own_mem)
-   {
-      data.Delete();
-      size = s;
-      data = mem;
-      if (!own_mem) { data.ClearOwnerFlags(); }
-
+       SetDataAndSize(d,s);
    }
 
    /// Reset the Vector to be a reference to a sub-vector of @a base.
    inline void MakeRef(TADVector<dtype> &base, int offset, int size_)
    {
-      data.Delete();
-      size = size_;
-      data.MakeAlias(base.GetMemory(), offset, size_);
+      NewDataAndSize(base.GetData()+offset,size_);
    }
 
    /** @brief Reset the Vector to be a reference to a sub-vector of @a base
        without changing its current size. */
    inline void MakeRef(TADVector<dtype> &base, int offset)
    {
-      data.Delete();
-      data.MakeAlias(base.GetMemory(), offset, size);
+      int tsiz=size;
+      NewDataAndSize(base.GetData()+offset,tsiz);
    }
-
-   /// Set the Vector data (host pointer) ownership flag.
-   inline void MakeDataOwner() const { data.SetHostPtrOwner(true); }
 
    /// Destroy a vector
    void Destroy()
    {
-      data.Delete();
       size = 0;
-      data.Reset();
+      capacity = 0;
+      delete [] data;
    }
 
    /// Returns the size of the vector.
@@ -285,7 +239,7 @@ public:
 
    /// Return the size of the currently allocated data array.
    /** It is always true that Capacity() >= Size(). */
-   inline int Capacity() const { return data.Capacity(); }
+   inline int Capacity() const { return capacity; }
 
    /// Return a pointer to the beginning of the Vector data.
    /** @warning This method should be used with caution as it gives write access
@@ -303,29 +257,24 @@ public:
        in addition to the overloaded operator()(int). */
    inline operator const dtype *() const { return data; }
 
-   /// Return a reference to the Memory object used by the Vector.
-   Memory<dtype> &GetMemory() { return data; }
-
-   /** @brief Return a reference to the Memory object used by the Vector, const
-       version. */
-   const Memory<dtype> &GetMemory() const { return data; }
-
-   /// Update the memory location of the vector to match @a v.
-   void SyncMemory(const TADVector<dtype> &v) { GetMemory().Sync(v.GetMemory()); }
-
-   /// Update the alias memory location of the vector to match @a v.
-   void SyncAliasMemory(const TADVector<dtype> &v)
-   { GetMemory().SyncAlias(v.GetMemory(),Size()); }
-
    /// Read the Vector data (host pointer) ownership flag.
-   inline bool OwnsData() const { return data.OwnsHostPtr(); }
+   inline bool OwnsData() const { return (capacity>0); }
 
    /// Changes the ownership of the data; after the call the Vector is empty
    inline void StealData(dtype **p)
-   { *p = data; data.Reset(); size = 0; }
+   {
+       *p = data;
+       delete [] data;
+       size = 0;
+       capacity = 0;
+   }
 
    /// Changes the ownership of the data; after the call the Vector is empty
-   inline dtype *StealData() { dtype *p; StealData(&p); return p; }
+   inline dtype *StealData() {
+       dtype *p;
+       StealData(&p);
+       return p;
+   }
 
    /// Access Vector entries. Index i = 0 .. size-1.
    dtype &Elem(int i)
@@ -435,7 +384,7 @@ public:
    {
       for (int i=0; i<size; i++)
       {
-         data[i]=value;
+         data[i]=(dtype)value;
       }
       return *this;
    }
@@ -460,15 +409,6 @@ public:
       return *this;
    }
 
-   template<typename ivtype>
-   TADVector &operator-=(ivtype c)
-   {
-      for (int i=0; i<size; i++)
-      {
-         data[i]=data[i]-c;
-      }
-      return *this;
-   }
 
    TADVector &operator-=(const TADVector<dtype> &v)
    {
@@ -480,12 +420,32 @@ public:
       return *this;
    }
 
+   template<typename ivtype>
+   TADVector &operator-=(ivtype v)
+   {
+      for (int i=0; i<size; i++)
+      {
+         data[i]=data[i]-v;
+      }
+      return *this;
+   }
+
    TADVector &operator+=(const TADVector<dtype> &v)
    {
       MFEM_ASSERT(size == v.Size(), "incompatible Vectors!");
       for (int i=0; i<size; i++)
       {
          data[i]=data[i]+v[i];
+      }
+      return *this;
+   }
+
+   template<typename ivtype>
+   TADVector &operator+=(ivtype v)
+   {
+      for (int i=0; i<size; i++)
+      {
+         data[i]=data[i]+v;
       }
       return *this;
    }
@@ -534,10 +494,11 @@ public:
    }
 
    /// Swap the contents of two Vectors
-   inline void Swap(TADVector &other)
+   inline void Swap(TADVector<dtype> &other)
    {
       Swap(data, other.data);
       Swap(size, other.size);
+      Swap(capacity,other.capacity);
    }
 
    /// Set v = v1 + v2.
@@ -553,8 +514,8 @@ public:
    }
 
    /// Set v = v1 + alpha * v2.
-   template<typename vtype1, typename ivtype, typename vtype2>
-   friend void add(const vtype1 &v1, ivtype alpha, const vtype2 &v2,
+   template<typename vtype1, typename vtype2>
+   friend void add(const vtype1 &v1, dtype alpha, const vtype2 &v2,
                    TADVector<dtype> &v)
    {
       MFEM_ASSERT(v1.Size() == v.Size(), "incompatible Vectors!");
@@ -565,11 +526,64 @@ public:
       }
    }
 
+   template<typename vtype1, typename vtype2>
+   friend void add(const dtype a, const vtype1 &x,
+            const dtype b, const vtype2 &y, TADVector<dtype> &z)
+   {
+      MFEM_ASSERT(x.Size() == y.Size() && x.Size() == z.Size(),
+                  "incompatible Vectors!");
+
+      for (int i = 0; i < z.Size(); i++)
+      {
+         z[i] = a * x[i] + b * y[i];
+      }
+
+   }
+
+   template<typename vtype1, typename vtype2>
+   friend void add(const dtype a, const vtype1 &x,
+                           const vtype2 &y, TADVector<dtype> &z)
+   {
+      MFEM_ASSERT(x.Size() == y.Size() && x.Size() == z.Size(),
+                  "incompatible Vectors!");
+
+      for (int i = 0; i < z.Size(); i++)
+      {
+         z[i] = a * x[i] +  y[i];
+      }
+
+   }
+
+
+   template<typename vtype1, typename vtype2>
+   friend void subtract(const vtype1 &x, const vtype2 &y,TADVector<dtype>  &z)
+   {
+      MFEM_ASSERT(x.Size() == y.Size() && x.Size() == z.Size(),
+                  "incompatible Vectors!");
+      for (int i = 0; i < z.Size(); i++)
+      {
+         z[i] = x[i] - y[i];
+      }
+
+   }
+
+   template<typename ivtype, typename vtype1, typename vtype2>
+   friend void subtract(const ivtype a, const vtype1 &x, const vtype2 &y,TADVector<dtype> &z)
+   {
+      MFEM_ASSERT(x.Size() == y.Size() && x.Size() == z.Size(),
+                  "incompatible Vectors!");
+      for (int i = 0; i < z.Size(); i++)
+      {
+         z[i] = a * (x[i] - y[i]);
+      }
+
+   }
+
 
    /// Destroys vector.
    ~TADVector()
    {
-      data.Delete();
+      delete [] data;
    }
 
 
@@ -577,7 +591,6 @@ public:
    void Print(std::ostream &out = mfem::out, int width = 8) const
    {
       if (!size) { return; }
-      data.Read(MemoryClass::HOST, size);
       for (int i = 0; 1; )
       {
          out << data[i];
@@ -630,7 +643,7 @@ public:
 
       if (1 == size)
       {
-         return std::abs(data[0]);
+         return abs(data[0]);
       } // end if 1 == size
 
       dtype scale = 0.0;
