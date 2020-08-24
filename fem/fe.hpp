@@ -450,7 +450,7 @@ public:
    /** Each row of the result DenseMatrix @a Hessian contains upper triangular
        part of the Hessian of one shape function.
        The order in 2D is {u_xx, u_xy, u_yy}.
-       The size (#dof x (#dim (#dim-1)/2) of @a Hessian must be set in advance.*/
+       The size (#dof x (#dim (#dim+1)/2) of @a Hessian must be set in advance.*/
    virtual void CalcHessian (const IntegrationPoint &ip,
                              DenseMatrix &Hessian) const;
 
@@ -1854,6 +1854,7 @@ public:
       Basis(const int p, const double *nodes, EvalType etype = Barycentric);
       void Eval(const double x, Vector &u) const;
       void Eval(const double x, Vector &u, Vector &d) const;
+      void Eval(const double x, Vector &u, Vector &d, Vector &d2) const;
    };
 
 private:
@@ -2104,7 +2105,7 @@ class H1_SegmentElement : public NodalTensorFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
-   mutable Vector shape_x, dshape_x;
+   mutable Vector shape_x, dshape_x, d2shape_x;
 #endif
 
 public:
@@ -2113,6 +2114,8 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   virtual void CalcHessian(const IntegrationPoint &ip,
+                            DenseMatrix &Hessian) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
 };
 
@@ -2122,7 +2125,7 @@ class H1_QuadrilateralElement : public NodalTensorFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
-   mutable Vector shape_x, shape_y, dshape_x, dshape_y;
+   mutable Vector shape_x, shape_y, dshape_x, dshape_y, d2shape_x, d2shape_y;
 #endif
 
 public:
@@ -2132,6 +2135,8 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   virtual void CalcHessian(const IntegrationPoint &ip,
+                            DenseMatrix &Hessian) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
 };
 
@@ -2141,7 +2146,8 @@ class H1_HexahedronElement : public NodalTensorFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
-   mutable Vector shape_x, shape_y, shape_z, dshape_x, dshape_y, dshape_z;
+   mutable Vector shape_x, shape_y, shape_z, dshape_x, dshape_y, dshape_z,
+           d2shape_x, d2shape_y, d2shape_z;
 #endif
 
 public:
@@ -2150,6 +2156,8 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   virtual void CalcHessian(const IntegrationPoint &ip,
+                            DenseMatrix &Hessian) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
 };
 
