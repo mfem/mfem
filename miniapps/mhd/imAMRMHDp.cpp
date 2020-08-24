@@ -686,10 +686,10 @@ int main(int argc, char *argv[])
       //update J and psi as it is needed in the refine or derefine step
       if (refineMesh || derefineMesh)
       {
-          w.SetFromTrueDofs(vx.GetBlock(2));
-          oper.UpdateJ(vx, &j);
           phi.SetFromTrueDofs(vx.GetBlock(0));
           psi.SetFromTrueDofs(vx.GetBlock(1));
+          w.SetFromTrueDofs(vx.GetBlock(2));
+          oper.UpdateJ(vx, &j);
       }
 
       if (myid == 0)
@@ -773,7 +773,6 @@ int main(int argc, char *argv[])
          AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j);
          oper.UpdateGridFunction();
 
-
          pmesh->Rebalance();
 
          //---Update problem after rebalancing---
@@ -786,15 +785,15 @@ int main(int argc, char *argv[])
 
          ode_solver->Init(oper);
 
-     }
+      }
       //----------------------------AMR---------------------------------
 
       //++++always plot solutions when mesh is refined/derefined
       if (visualization || visit)
       {
-         //J need to be updated again just for plotting
-         //this may affect AMR??? no, the nc_limit was the issue
-         //we cannot do nc_limit>1 with h dependent diffusion
+         phi.SetFromTrueDofs(vx.GetBlock(0));
+         psi.SetFromTrueDofs(vx.GetBlock(1));
+         w.SetFromTrueDofs(vx.GetBlock(2));
          oper.UpdateJ(vx, &j);
       }
 
@@ -832,8 +831,9 @@ int main(int argc, char *argv[])
       w.SetFromTrueDofs(vx.GetBlock(2));
       oper.UpdateJ(vx, &j);
 
-      ostringstream mesh_name, phi_name, psi_name, w_name, j_name;
+      ostringstream mesh_name, mesh_save, phi_name, psi_name, w_name, j_name;
       mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+      mesh_save << "ncmesh." << setfill('0') << setw(6) << myid;
       phi_name << "sol_phi." << setfill('0') << setw(6) << myid;
       psi_name << "sol_psi." << setfill('0') << setw(6) << myid;
       w_name << "sol_omega." << setfill('0') << setw(6) << myid;
@@ -843,16 +843,20 @@ int main(int argc, char *argv[])
       omesh.precision(8);
       pmesh->Print(omesh);
 
+      ofstream ncmesh(mesh_save.str().c_str());
+      ncmesh.precision(16);
+      pmesh->ParPrint(ncmesh);
+
       ofstream osol(phi_name.str().c_str());
-      osol.precision(8);
+      osol.precision(16);
       phi.Save(osol);
 
       ofstream osol3(psi_name.str().c_str());
-      osol3.precision(8);
+      osol3.precision(16);
       psi.Save(osol3);
 
       ofstream osol4(w_name.str().c_str());
-      osol4.precision(8);
+      osol4.precision(16);
       w.Save(osol4);
 
       ofstream osol5(j_name.str().c_str());
