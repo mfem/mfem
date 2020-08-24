@@ -172,5 +172,4 @@
 // use forward mode for automatic differentiation
 // #define MFEM_USE_ADFORWARD
 
-
 #endif // MFEM_CONFIG_HEADER
