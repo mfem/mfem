@@ -89,8 +89,38 @@ enable_language(CXX)
 if (MFEM_USE_CUDA)
    # MFEM_USE_CUDA requires CMake 3.8 or newer (for direct CUDA support)
    cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
+   # Use ${CMAKE_CXX_COMPILER} as the cuda host compiler.
+   if (NOT CMAKE_CUDA_HOST_COMPILER)
+      set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
+   endif()
    enable_language(CUDA)
+   set(CMAKE_CUDA_STANDARD 11)
+   set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+   set(CMAKE_CUDA_EXTENSIONS OFF)
+   set(CUDA_FLAGS "--expt-extended-lambda")
+   if (CMAKE_VERSION VERSION_LESS 3.18.0)
+      set(CUDA_FLAGS "-arch=${CUDA_ARCH} ${CUDA_FLAGS}")
+   elseif (NOT CMAKE_CUDA_ARCHITECTURES)
+      string(REGEX REPLACE "^sm_" "" ARCH_NUMBER "${CUDA_ARCH}")
+      if ("${CUDA_ARCH}" STREQUAL "sm_${ARCH_NUMBER}")
+         set(CMAKE_CUDA_ARCHITECTURES "${ARCH_NUMBER}")
+      else()
+         message(FATAL_ERROR "Unknown CUDA_ARCH: ${CUDA_ARCH}")
+      endif()
+   else()
+      set(CUDA_ARCH "CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
+   endif()
    message(STATUS "Using CUDA architecture: ${CUDA_ARCH}")
+   if (CMAKE_VERSION VERSION_LESS 3.12.0)
+      # CMake versions 3.8 and 3.9 require this to work; 3.10 and 3.11 are not
+      # tested and may not actually need this (but should be ok to keep).
+      set(CUDA_FLAGS "-ccbin=${CMAKE_CXX_COMPILER} ${CUDA_FLAGS}")
+      set(CMAKE_CUDA_HOST_LINK_LAUNCHER ${CMAKE_CXX_COMPILER})
+   endif()
+   set(CMAKE_CUDA_FLAGS "${CUDA_FLAGS}" CACHE STRING
+       "CUDA flags set for MFEM" FORCE)
+   set(CUSPARSE_FOUND TRUE)
+   set(CUSPARSE_LIBRARIES "cusparse")
 endif()
 
 if (XSDK_ENABLE_C)
@@ -369,8 +399,8 @@ endif()
 #    be before SuiteSparse.
 set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
     SLEPC MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT Ginkgo GNUTLS GSLIB NETCDF
-    ADEPT FADBADPP MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA 
-    UMPIRE ADIOS2)
+    MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE ADIOS2
+    CUSPARSE ADEPT FADBADPP)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
 set(TPL_INCLUDE_DIRS "")
