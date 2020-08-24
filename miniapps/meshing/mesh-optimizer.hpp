@@ -469,11 +469,13 @@ class TMOPAMR
 protected:
    Mesh *mesh;
    NonlinearForm *nlf;
-   Array<GridFunction *> meshnodarr;
+   Array<GridFunction *> gridfuncarr;
+   Array<FiniteElementSpace *> fespacearr;
 #ifdef MFEM_USE_MPI
    ParMesh *pmesh;
    ParNonlinearForm *pnlf;
-   Array<ParGridFunction *> pmeshnodarr;
+   Array<ParGridFunction *> pgridfuncarr;
+   Array<ParFiniteElementSpace *> pfespacearr;
 #endif
 
    bool move_bnd;
@@ -481,16 +483,21 @@ protected:
 
 public:
    TMOPAMR(Mesh &mesh_, NonlinearForm &nlf_, bool move_bnd_) :
-      mesh(&mesh_), nlf(&nlf_), meshnodarr(), move_bnd(move_bnd_) { }
+      mesh(&mesh_), nlf(&nlf_), gridfuncarr(), fespacearr(), move_bnd(move_bnd_) { }
 #ifdef MFEM_USE_MPI
    TMOPAMR(ParMesh &pmesh_, ParNonlinearForm &pnlf_, bool move_bnd_) :
-      mesh(&pmesh_), nlf(&pnlf_), meshnodarr(), pmesh(&pmesh_), pnlf(&pnlf_),
-      pmeshnodarr(), move_bnd(move_bnd_) { }
+      mesh(&pmesh_), nlf(&pnlf_), gridfuncarr(), fespacearr(),
+      pmesh(&pmesh_), pnlf(&pnlf_), pgridfuncarr(), pfespacearr(),
+      move_bnd(move_bnd_) { }
 #endif
 
-   void AddMeshNodesForUpdate(GridFunction *gf_) { meshnodarr.Append(gf_); }
+   void AddGridFunctionForUpdate(GridFunction *gf_) { gridfuncarr.Append(gf_); }
 #ifdef MFEM_USE_MPI
-   void AddMeshNodesForUpdate(ParGridFunction *pgf_) { pmeshnodarr.Append(pgf_); }
+   void AddGridFunctionForUpdate(ParGridFunction *pgf_) { pgridfuncarr.Append(pgf_); }
+#endif
+   void AddFESpaceForUpdate(FiniteElementSpace *fes_) { fespacearr.Append(fes_); }
+#ifdef MFEM_USE_MPI
+   void AddFESpaceForUpdate(ParFiniteElementSpace *pfes_) { pfespacearr.Append(pfes_); }
 #endif
 
    void Update();
@@ -521,12 +528,17 @@ void TMOPAMR::RebalanceParNCMesh()
 
 void TMOPAMR::Update()
 {
-   // Update nodal GF
-   for (int i = 0; i < meshnodarr.Size(); i++)
+   // Update FESpace
+   for (int i = 0; i < fespacearr.Size(); i++)
    {
-      meshnodarr[i]->Update();
-      meshnodarr[i]->SetTrueVector();
-      meshnodarr[i]->SetFromTrueVector();
+      fespacearr[i]->Update();
+   }
+   // Update nodal GF
+   for (int i = 0; i < gridfuncarr.Size(); i++)
+   {
+      gridfuncarr[i]->Update();
+      gridfuncarr[i]->SetTrueVector();
+      gridfuncarr[i]->SetFromTrueVector();
    }
 
    const FiniteElementSpace *fespace = mesh->GetNodalFESpace();
@@ -541,6 +553,7 @@ void TMOPAMR::Update()
       ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
       if (ti)
       {
+         ti->Update();
          dtc = ti->GetDiscreteAdaptTC();
          if (dtc) { dtc->Update(); }
       }
@@ -550,6 +563,7 @@ void TMOPAMR::Update()
          Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
          for (int j = 0; j < ati.Size(); j++)
          {
+            ati[j]->Update();
             dtc = ati[j]->GetDiscreteAdaptTC();
             if (dtc) { dtc->Update(); }
          }
@@ -613,12 +627,17 @@ void TMOPAMR::Update()
 #ifdef MFEM_USE_MPI
 void TMOPAMR::ParUpdate()
 {
-   // Update nodal GF
-   for (int i = 0; i < pmeshnodarr.Size(); i++)
+   // Update FESpace
+   for (int i = 0; i < pfespacearr.Size(); i++)
    {
-      pmeshnodarr[i]->Update();
-      pmeshnodarr[i]->SetTrueVector();
-      pmeshnodarr[i]->SetFromTrueVector();
+      pfespacearr[i]->Update();
+   }
+   // Update nodal GF
+   for (int i = 0; i < pgridfuncarr.Size(); i++)
+   {
+      pgridfuncarr[i]->Update();
+      pgridfuncarr[i]->SetTrueVector();
+      pgridfuncarr[i]->SetFromTrueVector();
    }
 
    // Update Discrete Indicator
@@ -631,6 +650,7 @@ void TMOPAMR::ParUpdate()
       ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
       if (ti)
       {
+         ti->ParUpdate();
          dtc = ti->GetDiscreteAdaptTC();
          if (dtc) { dtc->ParUpdate(); }
       }
@@ -640,6 +660,7 @@ void TMOPAMR::ParUpdate()
          Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
          for (int j = 0; j < ati.Size(); j++)
          {
+            ati[j]->ParUpdate();
             dtc = ati[j]->GetDiscreteAdaptTC();
             if (dtc) { dtc->ParUpdate(); }
          }
@@ -1010,7 +1031,25 @@ void TMOPRefinerEstimator::SetTriIntRules()
    TriIntRule.SetSize(1+1);
 
    // Reftype = 0 // original element
-   Mesh meshsplit(1, 1, Element::TRIANGLE);
+   const int Nvert = 3, NEsplit = 1;
+   Mesh meshsplit(2, Nvert, NEsplit, 0 ,2);
+   const double tri_v[3][2] =
+   {
+      {0, 0}, {1, 0}, {0, 1}
+   };
+   const int tri_e[1][3] =
+   {
+      {0, 1, 2}
+   };
+
+   for (int j = 0; j < Nvert; j++)
+   {
+      meshsplit.AddVertex(tri_v[j]);
+   }
+   meshsplit.AddTriangle(tri_e[0], 1);
+   meshsplit.FinalizeTriMesh(1, 1, true);
+
+   //Mesh meshsplit(1, 1, Element::TRIANGLE);
    Mesh base_mesh_copy(meshsplit);
    TriIntRule[0] = SetIntRulesFromMesh(meshsplit);
    meshsplit.Clear();
@@ -1036,7 +1075,25 @@ void TMOPRefinerEstimator::SetTetIntRules()
    TetIntRule.SetSize(1+1);
 
    // Reftype = 0 // original element
-   Mesh meshsplit(1, 1, 1, Element::TETRAHEDRON);
+   const int Nvert = 4, NEsplit = 1;
+   Mesh meshsplit(3, Nvert, NEsplit, 0, 3);
+   const double tet_v[4][3] =
+   {
+      {0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {0, 0, 1}
+   };
+   const int tet_e[1][4] =
+   {
+      {0, 1, 2, 3}
+   };
+
+   for (int j = 0; j < Nvert; j++)
+   {
+      meshsplit.AddVertex(tet_v[j]);
+   }
+   meshsplit.AddTet(tet_e[0], 1);
+   meshsplit.FinalizeTetMesh(1, 1, true);
+
+   //Mesh meshsplit(1, 1, 1, Element::TETRAHEDRON);
    Mesh base_mesh_copy(meshsplit);
    TetIntRule[0] = SetIntRulesFromMesh(meshsplit);
    meshsplit.Clear();

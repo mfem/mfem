@@ -20,6 +20,13 @@
 namespace mfem
 {
 
+// Local maximum size of dofs and quads in 1D
+constexpr int HCURL_MAX_D1D = 5;
+constexpr int HCURL_MAX_Q1D = 6;
+
+constexpr int HDIV_MAX_D1D = 5;
+constexpr int HDIV_MAX_Q1D = 6;
+
 /// Abstract base class BilinearFormIntegrator
 class BilinearFormIntegrator : public NonlinearFormIntegrator
 {
@@ -1954,7 +1961,7 @@ public:
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe);
 
-   void SetupPA(const FiniteElementSpace &fes, const bool force = false);
+   void SetupPA(const FiniteElementSpace &fes);
 };
 
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */
@@ -2030,7 +2037,7 @@ public:
                                          const FiniteElement &test_fe,
                                          ElementTransformation &Trans);
 
-   void SetupPA(const FiniteElementSpace &fes, const bool force = false);
+   void SetupPA(const FiniteElementSpace &fes);
 };
 
 /** Mass integrator (u, v) restricted to the boundary of a domain */
@@ -2390,8 +2397,11 @@ protected:
    Vector pa_data;
    const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
    const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
+   const DofToQuad *mapsOtest;     ///< Not owned. DOF-to-quad map, open.
+   const DofToQuad *mapsCtest;     ///< Not owned. DOF-to-quad map, closed.
    const GeometricFactors *geom;   ///< Not owned
-   int dim, ne, nq, dofs1D, quad1D, fetype;
+   int dim, ne, nq, dofs1D, dofs1Dtest, quad1D, trial_fetype, test_fetype;
+   bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
 public:
    VectorFEMassIntegrator() { Init(NULL, NULL, NULL); }
@@ -2412,6 +2422,8 @@ public:
 
    using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
    virtual void AddMultPA(const Vector &x, Vector &y) const;
    virtual void AssembleDiagonalPA(Vector& diag);
 };
