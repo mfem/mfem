@@ -194,7 +194,8 @@ public:
        * The available backends are described by the Backend class.
        * The string name of a backend is the lowercase version of the
          Backend::Id enumeration constant with '_' replaced by '-', e.g. the
-         string name of 'RAJA_CPU' is 'raja-cpu'.
+         string name of 'RAJA_CPU' is 'raja-cpu'. The string name of the debug
+         backend (Backend::Id 'DEBUG_DEVICE') is exceptionally set to 'debug'.
        * The 'cpu' backend is always enabled with lowest priority.
        * The current backend priority from highest to lowest is:
          'ceed-cuda', 'occa-cuda', 'raja-cuda', 'cuda', 'hip', 'debug',
