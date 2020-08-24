@@ -69,6 +69,17 @@ void DofMaps::Init()
    nrsubdomains = part->nrsubdomains;
    nxyz.SetSize(3);
    for (int i = 0; i<3; i++) { nxyz[i] = part->nxyz[i]; }
+
+   //compute sign factors for tdofs
+   int lsize = pfes->GetVSize();
+   int tsize = pfes->GetTrueVSize();
+   tdof_sign.SetSize(tsize); 
+   for (int i = 0; i<lsize; i++)
+   {
+      int j = pfes->GetGlobalTDofNumber(i);
+      if (j<mytoffset || j>=mytoffset+tsize) continue;
+      tdof_sign[j-mytoffset] = pfes->GetDofSign(i);
+   }
 }
 
 DofMaps::DofMaps(ParFiniteElementSpace *pfes_, ParMeshPartition * part_, bool CompFlag_)
@@ -691,11 +702,13 @@ void DofMaps::GlobalToSubdomains(const Vector & y, Array<Vector*> & x)
          int j = send_displ[subdomain_rank[ip]] + soffs[subdomain_rank[ip]];
          soffs[subdomain_rank[ip]] +=m;
          int k = tdof - mytoffset;
-         sendbuf[j] = y[k];
+         // sendbuf[j] = y[k];
+         sendbuf[j] = tdof_sign[k]*y[k];
          if (CompFlag)
          {  // if complex valued 
             int tsize = pfes->GetTrueVSize();
-            sendbuf[j+1] = y[k+tsize];
+            // sendbuf[j+1] = y[k+tsize];
+            sendbuf[j+1] = tdof_sign[k]*y[k+tsize];
          }
       }
    }
@@ -733,11 +746,12 @@ void DofMaps::GlobalToSubdomains(const Vector & y, Array<Vector*> & x)
          else
          {
             int k = tdof - mytoffset;
-            (*x[ip])[i] = y[k];
+            // (*x[ip])[i] = y[k];
+            (*x[ip])[i] = tdof_sign[k]*y[k];
             if (CompFlag)
             {  
                int gtsize = pfes->GetTrueVSize();
-               (*x[ip])[i+ndof] = y[k+gtsize];
+               (*x[ip])[i+ndof] = tdof_sign[k]*y[k+gtsize];
             }
          }
       }
@@ -816,11 +830,11 @@ void DofMaps::SubdomainsToGlobal(const Array<Vector*> & x, Vector & y)
             int tdof = SubdomainGTrueDofs[ip][i];
             int k = tdof - mytoffset;
             if (k<0 || k>=pfes->GetTrueVSize()) continue;
-            y[k] += (*x[ip])[i];
+            y[k] += tdof_sign[k] * (*x[ip])[i];
             if (CompFlag)
             {  
                int gtsize = pfes->GetTrueVSize();
-               y[k+gtsize] += (*x[ip])[i+ndofs];
+               y[k+gtsize] += tdof_sign[k]*(*x[ip])[i+ndofs];
             }
          }
       }
@@ -833,11 +847,11 @@ void DofMaps::SubdomainsToGlobal(const Array<Vector*> & x, Vector & y)
             int k = tdof - mytoffset;
             int j = recv_displ[subdomain_rank[ip]] + roffs[subdomain_rank[ip]];
             roffs[subdomain_rank[ip]] +=m;
-            y[k] += recvbuf[j];
+            y[k] += tdof_sign[k] * recvbuf[j];
             if (CompFlag)
             {
                int tsize = pfes->GetTrueVSize();
-               y[k+tsize] += recvbuf[j+1];
+               y[k+tsize] += tdof_sign[k]*recvbuf[j+1];
             }
          }
       }

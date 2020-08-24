@@ -92,7 +92,7 @@ int main(int argc, char *argv[])
    Mesh *mesh;
 
 
-   int nel = pow(2,ser_ref_levels);
+   int nel = 1;
 
    if (nd == 2)
    {
@@ -106,11 +106,10 @@ int main(int argc, char *argv[])
    dim = mesh->Dimension();
 
    // 4. Refine the mesh to increase the resolution.
-   // for (int l = 0; l < ser_ref_levels; l++)
-   // {
-      // mesh->UniformRefinement();
-   // }
-
+   for (int l = 0; l < ser_ref_levels; l++)
+   {
+      mesh->UniformRefinement();
+   }
 
    // 4. Define a parallel mesh by a partitioning of the serial mesh.
    // ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
@@ -121,8 +120,8 @@ int main(int argc, char *argv[])
    // int nxyz[3] = {1,num_procs,1};
    int nxyz[3] = {num_procs,1,1};
    int * part = mesh->CartesianPartitioning(nxyz);
-   // ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD,*mesh,part);
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD,*mesh);
+   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD,*mesh,part);
+   // ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD,*mesh);
    delete [] part;
 
    
@@ -167,6 +166,26 @@ int main(int argc, char *argv[])
    {
       cout << "Number of finite element unknowns: " << size << endl;
    }
+
+   // ConstantCoefficient one(0.0);
+   // Vector vec(dim); vec = 0.0;
+   // VectorConstantCoefficient vecc(vec);
+   // ParGridFunction tone(fespace); tone = 0.0;
+   // tone.ProjectCoefficient(vecc);
+   // tone.Print();
+   // if (myid == 0)
+   // {
+   //    for (int i = 0; i<fespace->GetVSize(); i++)
+   //    {
+   //       if (fespace->GetDofSign(i) < 0)
+   //          cout << fespace->GetGlobalTDofNumber(i) << ", " << fespace->GetDofSign(i) << endl;
+   //    }   
+   //    cout << "myid = " <<  myid <<  " no neg dofs" << endl;
+   // }
+   
+   // MPI_Finalize();
+   // return 0;
+   
 
    // 7. Determine the list of true essential boundary dofs. In this example,
    //    the boundary conditions are defined based on the specific mesh and the

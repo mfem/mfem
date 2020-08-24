@@ -1122,24 +1122,25 @@ ParMeshPartition::ParMeshPartition(ParMesh* pmesh_,
       subdomain_mesh[ip] = nullptr;
       if (myid == subdomain_rank[ip])
       {
-         Array<int> vertices_local_id(subdomain_vertices[ip].Size());
+         // Array<int> vertices_local_id(subdomain_vertices[ip].Size());
          // loop through the patch vertices;
-         UniqueIndexGenerator gen;
-         gen.Reset();
+         // UniqueIndexGenerator gen;
+         // gen.Reset();
          Array<int> sorted_vertices = subdomain_vertices[ip];
          sorted_vertices.Sort();
          sorted_vertices.Unique();
-         for (int iv = 0; iv< subdomain_vertices[ip].Size(); ++iv)
-         {
-            int global_idx = subdomain_vertices[ip][iv];
-            int local_idx = gen.Get(global_idx);
-            vertices_local_id[iv] = local_idx;
-         }
-         int subdomain_nrvertices = gen.counter;
+         // for (int iv = 0; iv< subdomain_vertices[ip].Size(); ++iv)
+         // {
+         //    int global_idx = subdomain_vertices[ip][iv];
+         //    int local_idx = gen.Get(global_idx);
+         //    vertices_local_id[iv] = local_idx;
+         // }
+         // int subdomain_nrvertices = gen.counter;
+         int subdomain_nrvertices = sorted_vertices.Size();
          int subdomain_nrelems = subdomain_elements[ip].Size();
          subdomain_mesh[ip] = new Mesh(dim,subdomain_nrvertices,subdomain_nrelems);
          // Add the vertices
-         int k = -1;
+         // int k = -1;
          // for (int iv = 0; iv<subdomain_vertices[ip].Size(); ++iv)
          // {
          //    int vert_local_idx = vertices_local_id[iv];
@@ -1165,11 +1166,12 @@ ParMeshPartition::ParMeshPartition(ParMesh* pmesh_,
          }
 
          int l = 0;
-         Array<int> sorted_elements = subdomain_elements[ip];
-         sorted_elements.Sort();
-         for (int jel=0; jel<subdomain_nrelems; ++jel)
+         // Array<int> sorted_elements = subdomain_elements[ip];
+         // sorted_elements.Sort();
+         for (int iel=0; iel<subdomain_nrelems; ++iel)
          {
-            int iel = subdomain_elements[ip].Find(sorted_elements[jel]);
+            // int iel = subdomain_elements[ip].Find(sorted_elements[jel]);
+            // int iel = jel;
             mfem::Element::Type elem_type;
             int type = subdomain_elements_type[ip][iel];
             int nrvert;

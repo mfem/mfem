@@ -51,6 +51,8 @@ private:
    // Complex flag
    bool CompFlag;
 
+   // sign factors
+   Array<int> tdof_sign;
    // Initializing mpi and helper parameters
    void Init();
 
