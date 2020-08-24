@@ -396,6 +396,86 @@ public:
    virtual ~LpErrorEstimator() {}
 };
 
+#ifdef MFEM_USE_MPI
+//! A very simple error *indicator* based on the following papers.
+//! Kelly, D. W., et al. "A posteriori error analysis and adaptive processes in
+//! the finite element method: Part I—Error analysis." International journal for
+//! numerical methods in engineering 19.11 (1983): 1593-1619.
+//! De SR Gago, J. P., et al. "A posteriori error analysis and adaptive
+//! processes in the finite element method: Part II—Adaptive mesh refinement."
+//! International journal for numerical methods in engineering 19.11 (1983):
+//! 1621-1656.
+//!
+//! It can be roughly described by:
+//!     ||∇(u-uₕ)||ₑ ≦ √( C ∑ₖ (hₖ ∫ |J[∇uₕ]|²) dS )
+//! where "e" denotes an element, ||⋅||ₑ the corresponding local norm and k the
+//! corresponding faces. u is the analytic solution and uₕ the discretized solution. 
+//! hₖ is a factor dependend on the element geometry. J is the jump function, i.e. 
+//! the difference between the limits at each point for each side of the face.
+//!
+//! @Note This algorithm is only for Poisson problems a proper error esimator.
+//! The current implementation does not reflect this, because the factor "C" is not
+//! included.
+class KellyErrorEstimator final : public ErrorEstimator
+{
+private:
+    int current_sequence = -1;
+
+    Vector error_estimates;
+
+    double total_error = 0.0;
+
+    Array<int> attributes;
+
+    BilinearFormIntegrator* flux_integrator; ///< Not owned.
+    ParGridFunction* solution;               ///< Not owned.
+
+    ParFiniteElementSpace* flux_space; ///< Not owned.
+
+    bool MeshIsModified()
+    {
+        long mesh_sequence = solution->FESpace()->GetMesh()->GetSequence();
+        MFEM_ASSERT(mesh_sequence >= current_sequence, "");
+        return (mesh_sequence > current_sequence);
+    }
+
+    //! Algorithm outline:
+    //! 1. Compute flux field for each element
+    //! 2. Add error contribution from local interior faces
+    //! 3. Add error contribution from shared interior faces
+    //! 4. Finalize by computomg hₖ.
+    //! For the basic idea for the estimator I refer to the FEM lecture by
+    //! Wolfang Bangerth (MATH 676: Finite element methods in scientific
+    //! computing)
+    //! https://www.math.colostate.edu/~bangerth/videos/676/slides.17.25.pdf
+    void ComputeEstimates();
+
+public:
+    KellyErrorEstimator(BilinearFormIntegrator& di_, ParGridFunction& sol_,
+                        ParFiniteElementSpace& flux_fespace_, 
+                        Array<int> attributes_ = Array<int>())
+        : attributes(attributes_)
+        , flux_integrator(&di_)
+        , solution(&sol_)
+        , flux_space(&flux_fespace_) 
+    {}
+
+    const Vector& GetLocalErrors() override
+    {
+        if (MeshIsModified())
+        {
+            ComputeEstimates();
+        }
+        return error_estimates;
+    }
+
+    void Reset() override { current_sequence = -1; };
+
+    double GetTotalError() const { return total_error; }
+};
+
+#endif // MFEM_USE_MPI
+
 } // namespace mfem
 
 #endif // MFEM_ERROR_ESTIMATORS
