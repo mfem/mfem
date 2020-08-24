@@ -62,7 +62,53 @@ int AmgXSolver::getNumIterations()
    return getIters;
 }
 
-// \implements AmgXSolver::initialize
+//Basic initialization for when MPI procs == GPUs
+//Each MPI rank is assumed to see a different GPU
+void AmgXSolver::basic_initialize(const MPI_Comm &comm,
+                                  const std::string &modeStr, const std::string &cfgFile)
+{
+   if (modeStr == "dDDI") { mode = AMGX_mode_dDDI;}
+   else { mfem_error("dDDI only supported \n");}
+
+   mpi_mode = "mpi==gpu";
+   gpuProc = 0;
+   count++;
+   MPI_Comm_dup(comm, &gpuWorld);
+   MPI_Comm_size(gpuWorld, &gpuWorldSize);
+   MPI_Comm_rank(gpuWorld, &myGpuWorldRank);
+
+   int nDevs{1}, deviceId{0};
+   printf("nDevs = %d deviceId %d \n", nDevs, deviceId);
+
+   if (count == 1)
+   {
+      AMGX_SAFE_CALL(AMGX_initialize());
+
+      AMGX_SAFE_CALL(AMGX_initialize_plugins());
+
+      AMGX_SAFE_CALL(AMGX_install_signal_handler());
+   }
+
+   AMGX_SAFE_CALL(AMGX_config_create_from_file(&cfg, cfgFile.c_str()));
+
+   //Create a resource object
+   if (count == 1) { AMGX_resources_create(&rsrc, cfg, &gpuWorld, 1, &deviceId); }
+
+   //Create vector objects
+   AMGX_vector_create(&AmgXP, rsrc, mode);
+   AMGX_vector_create(&AmgXRHS, rsrc, mode);
+
+   AMGX_matrix_create(&AmgXA, rsrc, mode);
+
+   AMGX_solver_create(&solver, rsrc, mode, cfg);
+
+   // obtain the default number of rings based on current configuration
+   AMGX_config_get_default_number_of_rings(cfg, &ring);
+
+   isInitialized = true;
+}
+
+// \implements AmgXSolver::initialize for the case of MPI procs > GPU
 void AmgXSolver::initialize(const MPI_Comm &comm,
                             const std::string &modeStr, const std::string &cfgFile, const int nDevs)
 {
@@ -215,7 +261,8 @@ void AmgXSolver::initMPIcomms(const MPI_Comm &comm, const int nDevs)
 // \implements AmgXSolver::setDeviceCount
 void AmgXSolver::setDeviceCount()
 {
-
+   printf("Something went wrong, should not be calling setDeviceCount \n");
+   exit(-1);
    // get the number of devices that AmgX solvers can use
    switch (mode)
    {
@@ -281,7 +328,8 @@ void AmgXSolver::setDeviceIDs(const int nDevs)
 
 }
 
-  //TO BE DELETED
+//TO BE DELETED
+/*
 void AmgXSolver::GetLocalA(const HypreParMatrix &in_A, Array<HYPRE_Int> &I,
                            Array<int64_t> &J, Array<double> &Data)
 {
@@ -355,7 +403,7 @@ void AmgXSolver::GetLocalA(const HypreParMatrix &in_A, Array<HYPRE_Int> &I,
    }
 
 }
-
+*/
 
 void AmgXSolver::GatherArray(Array<double> &inArr, Array<double> &outArr,
                              int MPI_SZ, MPI_Comm &mpiTeam)
@@ -463,17 +511,17 @@ void AmgXSolver::SetA(const HypreParMatrix &A)
    //and will talk to the gpu
 
    //Local processor data
-  /*
-   Array<int> loc_I;
-   Array<int64_t> loc_J;
-   Array<double> loc_A;
+   /*
+    Array<int> loc_I;
+    Array<int64_t> loc_J;
+    Array<double> loc_A;
 
-   // create an AmgX solver object
-   GetLocalA(A, loc_I, loc_J, loc_A);
-  */
+    // create an AmgX solver object
+    GetLocalA(A, loc_I, loc_J, loc_A);
+   */
 
    hypre_ParCSRMatrix * A_ptr =
-     (hypre_ParCSRMatrix *)const_cast<HypreParMatrix&>(A);
+      (hypre_ParCSRMatrix *)const_cast<HypreParMatrix&>(A);
 
    hypre_CSRMatrix *A_csr = hypre_MergeDiagAndOffd(A_ptr);
 
@@ -485,10 +533,11 @@ void AmgXSolver::SetA(const HypreParMatrix &A)
 
    //int64_t * A_csrBigJ = (int64_t*)(A_csr->big_j);
    //Array<int64_t> myloc_J((int64_t*)(A_csr->big_j), (int)A_csr->num_nonzeros);
-   //Promote array to int64_t 
+   //Promote array to int64_t
    Array<int64_t> loc_J((int)A_csr->num_nonzeros);
-   for(int i=0; i<A_csr->num_nonzeros; ++i){
-     loc_J[i] = A_csr->big_j[i];
+   for (int i=0; i<A_csr->num_nonzeros; ++i)
+   {
+      loc_J[i] = A_csr->big_j[i];
    }
 
    Array<double> loc_A(A_csr->data, (int)A_csr->num_nonzeros);
@@ -523,6 +572,48 @@ void AmgXSolver::SetA(const HypreParMatrix &A)
    }
    */
 
+   if (mpi_mode=="mpi==gpu")
+   {
+      printf("Same number of mpi ranks to gpus \n");
+
+      //Create a vector of offsets describing matrix row partitions
+      mfem::Array<int64_t> rowPart(gpuWorldSize+1); rowPart = 0.0;
+
+      int64_t myStart = A.GetRowStarts()[0];
+
+      MPI_Allgather(&myStart, 1, MPI_INT64_T,
+                    rowPart.GetData(),1, MPI_INT64_T
+                    ,gpuWorld);
+      MPI_Barrier(gpuWorld);
+
+      rowPart[gpuWorldSize] = A.M();
+
+      AMGX_distribution_handle dist;
+      AMGX_distribution_create(&dist, cfg);
+      AMGX_distribution_set_partition_data(dist, AMGX_DIST_PARTITION_OFFSETS,
+                                           rowPart.GetData());
+
+
+      const int nGlobalRows = A.M();
+      const int local_rows = loc_I.Size()-1;
+      const int num_nnz = loc_I[local_rows];
+
+      AMGX_matrix_upload_distributed(AmgXA, nGlobalRows, local_rows,
+                                     num_nnz, 1, 1, loc_I.HostReadWrite(),
+                                     loc_J.HostReadWrite(), loc_A.HostReadWrite(),
+                                     nullptr, dist);
+
+      AMGX_distribution_destroy(dist);
+
+      MPI_Barrier(gpuWorld);
+
+      AMGX_solver_setup(solver, AmgXA);
+
+      AMGX_vector_bind(AmgXP, AmgXA);
+      AMGX_vector_bind(AmgXRHS, AmgXA);
+      return;
+   }
+
 
    Array<int> all_I;
    Array<int64_t> all_J;
@@ -536,10 +627,9 @@ void AmgXSolver::SetA(const HypreParMatrix &A)
    const int loc_Jz_sz = loc_J.Size();
    const int loc_A_sz = loc_A.Size();
 
-
-   MPI_Allreduce(&loc_row_len, &nDevRows, 1, MPI_INT, MPI_SUM, devWorld);
-   MPI_Allreduce(&loc_Jz_sz, &J_allsz, 1, MPI_INT, MPI_SUM, devWorld);
-   MPI_Allreduce(&loc_A_sz, &all_NNZ, 1, MPI_INT, MPI_SUM, devWorld);
+   MPI_Reduce(&loc_row_len, &nDevRows, 1, MPI_INT, MPI_SUM, 0, devWorld);
+   MPI_Reduce(&loc_Jz_sz, &J_allsz, 1, MPI_INT, MPI_SUM, 0, devWorld);
+   MPI_Reduce(&loc_A_sz, &all_NNZ, 1, MPI_INT, MPI_SUM, 0, devWorld);
 
    MPI_Barrier(devWorld);
 
@@ -703,6 +793,7 @@ void AmgXSolver::SetA(const SparseMatrix &in_A)
    AMGX_vector_bind(AmgXRHS, AmgXA);
 }
 
+/* Update A
 void AmgXSolver::updateA(const HypreParMatrix &A)
 {
    //Want to work in devWorld, rank 0 is team leader
@@ -830,6 +921,7 @@ void AmgXSolver::updateA(const HypreParMatrix &A)
    }
 
 }
+*/
 
 void AmgXSolver::GatherArray(Vector &inArr, Vector &outArr,
                              int MPI_SZ, MPI_Comm &mpi_comm, Array<int> &Apart, Array<int> &Adisp)
@@ -864,6 +956,27 @@ void AmgXSolver::ScatterArray(Vector &inArr, Vector &outArr,
 
 void AmgXSolver::solve(mfem::Vector &X, mfem::Vector &B)
 {
+
+   if (mpi_mode == "mpi==gpu")
+   {
+      std::cout<<"MPI mode "<<mpi_mode<<std::endl;
+      AMGX_vector_upload(AmgXP, X.Size(), 1, X.HostReadWrite());
+      AMGX_vector_upload(AmgXRHS, B.Size(), 1, B.HostReadWrite());
+
+      MPI_Barrier(gpuWorld);
+
+      AMGX_solver_solve(solver,AmgXRHS, AmgXP);
+
+      AMGX_SOLVE_STATUS   status;
+      AMGX_solver_get_status(solver, &status);
+      if (status != AMGX_SOLVE_SUCCESS)
+      {
+         printf("Amgx failed to solve system, error code %d. \n", status);
+      }
+
+      AMGX_vector_download(AmgXP, X.HostWrite());
+      return;
+   }
 
    Vector all_X(m_local_rows);
    Vector all_B(m_local_rows);
