@@ -43,9 +43,9 @@ public:
    /// Default constructor for Vector. Sets size = 0 and data = NULL.
    TADVector()
    {
-       data=nullptr;
-       size = 0;
-       capacity = 0;
+      data=nullptr;
+      size = 0;
+      capacity = 0;
    }
 
    /// Copy constructor. Allocates a new data array and copies the data.
@@ -114,12 +114,13 @@ public:
        with SetData(). */
    TADVector(dtype *_data, int _size)
    {
-       if(capacity > 0){
-           delete [] data;
-           capacity = 0;
-       }
-       size = _size;
-       data = _data;
+      if (capacity > 0)
+      {
+         delete [] data;
+         capacity = 0;
+      }
+      size = _size;
+      data = _data;
    }
 
    /// Reads a vector from multiple files
@@ -194,13 +195,13 @@ public:
        @sa NewDataAndSize(). */
    void SetDataAndSize(dtype *d, int s)
    {
-       if(OwnsData())
-       {
-           delete [] data;
-           capacity = 0;
-       }
-       data = d;
-       size = s;
+      if (OwnsData())
+      {
+         delete [] data;
+         capacity = 0;
+      }
+      data = d;
+      size = s;
    }
 
    /// Set the Vector data and size, deleting the old data, if owned.
@@ -209,7 +210,7 @@ public:
        @sa SetDataAndSize(). */
    void NewDataAndSize(dtype *d, int s)
    {
-       SetDataAndSize(d,s);
+      SetDataAndSize(d,s);
    }
 
    /// Reset the Vector to be a reference to a sub-vector of @a base.
@@ -263,17 +264,18 @@ public:
    /// Changes the ownership of the data; after the call the Vector is empty
    inline void StealData(dtype **p)
    {
-       *p = data;
-       delete [] data;
-       size = 0;
-       capacity = 0;
+      *p = data;
+      delete [] data;
+      size = 0;
+      capacity = 0;
    }
 
    /// Changes the ownership of the data; after the call the Vector is empty
-   inline dtype *StealData() {
-       dtype *p;
-       StealData(&p);
-       return p;
+   inline dtype *StealData()
+   {
+      dtype *p;
+      StealData(&p);
+      return p;
    }
 
    /// Access Vector entries. Index i = 0 .. size-1.
@@ -528,7 +530,7 @@ public:
 
    template<typename vtype1, typename vtype2>
    friend void add(const dtype a, const vtype1 &x,
-            const dtype b, const vtype2 &y, TADVector<dtype> &z)
+                   const dtype b, const vtype2 &y, TADVector<dtype> &z)
    {
       MFEM_ASSERT(x.Size() == y.Size() && x.Size() == z.Size(),
                   "incompatible Vectors!");
@@ -542,7 +544,7 @@ public:
 
    template<typename vtype1, typename vtype2>
    friend void add(const dtype a, const vtype1 &x,
-                           const vtype2 &y, TADVector<dtype> &z)
+                   const vtype2 &y, TADVector<dtype> &z)
    {
       MFEM_ASSERT(x.Size() == y.Size() && x.Size() == z.Size(),
                   "incompatible Vectors!");
@@ -568,7 +570,8 @@ public:
    }
 
    template<typename ivtype, typename vtype1, typename vtype2>
-   friend void subtract(const ivtype a, const vtype1 &x, const vtype2 &y,TADVector<dtype> &z)
+   friend void subtract(const ivtype a, const vtype1 &x, const vtype2 &y,
+                        TADVector<dtype> &z)
    {
       MFEM_ASSERT(x.Size() == y.Size() && x.Size() == z.Size(),
                   "incompatible Vectors!");
