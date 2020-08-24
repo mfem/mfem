@@ -281,7 +281,7 @@ void AmgXSolver::setDeviceIDs(const int nDevs)
 
 }
 
-
+  //TO BE DELETED
 void AmgXSolver::GetLocalA(const HypreParMatrix &in_A, Array<HYPRE_Int> &I,
                            Array<int64_t> &J, Array<double> &Data)
 {
@@ -355,7 +355,6 @@ void AmgXSolver::GetLocalA(const HypreParMatrix &in_A, Array<HYPRE_Int> &I,
    }
 
 }
-
 
 
 void AmgXSolver::GatherArray(Array<double> &inArr, Array<double> &outArr,
@@ -462,14 +461,67 @@ void AmgXSolver::SetA(const HypreParMatrix &A)
 {
    //Want to work in devWorld, rank 0 is team leader
    //and will talk to the gpu
+
    //Local processor data
+  /*
    Array<int> loc_I;
    Array<int64_t> loc_J;
    Array<double> loc_A;
 
-
    // create an AmgX solver object
    GetLocalA(A, loc_I, loc_J, loc_A);
+  */
+
+   hypre_ParCSRMatrix * A_ptr =
+     (hypre_ParCSRMatrix *)const_cast<HypreParMatrix&>(A);
+
+   hypre_CSRMatrix *A_csr = hypre_MergeDiagAndOffd(A_ptr);
+
+   //int *A_csr_i = hypre_CSRMatrixI(A_csr);
+   //HYPRE_Int *A_csr_j = hypre_CSRMatrixJ(A_csr);
+   //double *A_csr_data = hypre_CSRMatrixData(A_csr);
+
+   Array<int> loc_I(A_csr->i, (int)A_csr->num_rows+1);
+
+   //int64_t * A_csrBigJ = (int64_t*)(A_csr->big_j);
+   //Array<int64_t> myloc_J((int64_t*)(A_csr->big_j), (int)A_csr->num_nonzeros);
+   //Promote array to int64_t 
+   Array<int64_t> loc_J((int)A_csr->num_nonzeros);
+   for(int i=0; i<A_csr->num_nonzeros; ++i){
+     loc_J[i] = A_csr->big_j[i];
+   }
+
+   Array<double> loc_A(A_csr->data, (int)A_csr->num_nonzeros);
+
+   /*
+   double errorI(0), errorJ(0), errorData(0);
+   for(int i=0; i<loc_I.Size(); ++i){
+     errorI += (myloc_I[i] - loc_I[i]);
+   }
+
+   //Debugging
+   //printf("num_rows %d num_cols %d num_nnz %d \n",A_csr->num_rows, A_csr->num_cols, A_csr->num_nonzeros);
+   //printf("A_csr_i[end]  %d \n", A_csr_i[loc_I.Size()-1]);
+   printf("loc_J.size() %d \n", loc_J.Size());
+   for(HYPRE_Int i=0; i<loc_J.Size(); ++i){
+     errorJ += (myloc_J[i] - loc_J[i]);
+     //printf("i %d \n", i);
+     //errorJ += A_csr->big_j[i];
+   }
+
+   printf("%d loc_A.Size() \n",loc_A.Size());
+   for(int i=0; i<loc_A.Size(); ++i){
+     errorData += (myloc_A[i] - loc_A[i]);
+   }
+   errorI = sqrt(errorI);
+   errorJ = sqrt(errorJ);
+   errorData = sqrt(errorData);
+   printf("%g %g %g \n", errorI, errorJ, errorData);
+   if(errorI > 1e-12 || errorJ > 1e-12 || errorData > 1e-12){
+     printf("Error too high \n");
+     exit(-1);
+   }
+   */
 
 
    Array<int> all_I;
