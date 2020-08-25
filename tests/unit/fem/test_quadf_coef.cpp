@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include "catch.hpp"
+#include "unit_tests.hpp"
 
 using namespace mfem;
 
@@ -159,4 +159,3 @@ TEST_CASE("Quadrature Function Coefficients",
 }
 
 } // namespace qf_coeff
-
