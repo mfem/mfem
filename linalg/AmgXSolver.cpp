@@ -980,7 +980,7 @@ void AmgXSolver::solve(mfem::Vector &X, mfem::Vector &B)
 
    if (mpi_gpu_mode == "mpi-gpu-exclusive")
    {
-      std::cout<<"MPI mode "<<mpi_gpu_mode<<std::endl;
+      //mfem::out<<"MPI mode "<<mpi_gpu_mode<<mfem::endl;
       AMGX_vector_upload(AmgXP, X.Size(), 1, X.HostReadWrite());
       AMGX_vector_upload(AmgXRHS, B.Size(), 1, B.HostReadWrite());
 
