@@ -54,9 +54,12 @@ void TMOP_Integrator::EnableLimitingPA(const GridFunction &n0)
 
    // lim_dist & lim_func checks
    MFEM_VERIFY(lim_dist, "No lim_dist!")
-   PA.LD.SetSize(PA.R->Height(), Device::GetMemoryType());
+   const FiniteElementSpace *ld_fes = lim_dist->FESpace();
+   const Operator *ld_R = ld_fes->GetElementRestriction(ordering);
+   MFEM_VERIFY(ld_R, "No lim_dist restriction operator found!");
+   PA.LD.SetSize(ld_R->Height(), Device::GetMemoryType());
    PA.LD.UseDevice(true);
-   PA.R->Mult(*lim_dist, PA.LD);
+   ld_R->Mult(*lim_dist, PA.LD);
 
    // Only TMOP_QuadraticLimiter is supported
    MFEM_VERIFY(lim_func, "No lim_func!")
