@@ -20,13 +20,13 @@
 
 namespace mfem
 {
-// initialize AmgXSolver::count to 0
+// Initialize AmgXSolver::count to 0
 int AmgXSolver::count = 0;
 
-// initialize AmgXSolver::rsrc to nullptr;
+// Initialize AmgXSolver::rsrc to nullptr;
 AMGX_resources_handle AmgXSolver::rsrc = nullptr;
 
-// \implements AmgXSolver::AmgXSolver
+// Implements AmgXSolver::AmgXSolver
 AmgXSolver::AmgXSolver(const std::string &modeStr, const std::string &cfgFile)
 {
    Initialize_Serial(modeStr, cfgFile);
@@ -52,6 +52,7 @@ AmgXSolver::~AmgXSolver()
 void AmgXSolver::Initialize_Serial(const std::string &modeStr,
                                    const std::string &cfgFile)
 {
+   count++;
 
    setMode(modeStr);
 
@@ -72,31 +73,37 @@ void AmgXSolver::Initialize_Serial(const std::string &modeStr,
    isInitialized = true;
 }
 
-//Basic initialization for when MPI procs == GPUs
-//Each MPI rank is assumed to see a different GPU
+//Basic initialization for when each MPI rank may communicate with a GPU
 void AmgXSolver::Initialize_ExclusiveGPU(const MPI_Comm &comm,
                                          const std::string &modeStr,
                                          const std::string &cfgFile)
 {
-   if (modeStr == "dDDI") { mode = AMGX_mode_dDDI;}
-   else { mfem_error("dDDI only supported \n");}
+   // Set AmgX floating point mode
+   setMode(modeStr);
 
-   // if this instance has already been initialized, skip
+   // If this instance has already been initialized, skip
    if (isInitialized)
    {
       mfem_error("This AmgXSolver instance has been initialized on this process.");
    }
 
-   mpi_gpu_mode = "mpi==gpu";
+   //Note that every MPI rank may talk to a GPU
+   mpi_gpu_mode = "mpi-gpu-exclusive";
    gpuProc = 0;
-   count++;
+
+   //Increment number of AmgX instances
+   count += 1;
+
    MPI_Comm_dup(comm, &gpuWorld);
    MPI_Comm_size(gpuWorld, &gpuWorldSize);
    MPI_Comm_rank(gpuWorld, &myGpuWorldRank);
 
-   int nDevs{1}, deviceId{0};
-   printf("nDevs = %d deviceId %d \n", nDevs, deviceId);
+   //int nDevs(1), deviceId(0);
+   nDevs = 1, devID = 0;
 
+   initAmgX(cfgFile);
+
+   /*
    if (count == 1)
    {
       AMGX_SAFE_CALL(AMGX_initialize());
@@ -119,28 +126,30 @@ void AmgXSolver::Initialize_ExclusiveGPU(const MPI_Comm &comm,
 
    AMGX_solver_create(&solver, rsrc, mode, cfg);
 
-   // obtain the default number of rings based on current configuration
+   // Obtain the default number of rings based on current configuration
    AMGX_config_get_default_number_of_rings(cfg, &ring);
-
+   */
    isInitialized = true;
 }
 
-// \implements AmgXSolver::initialize for the case of MPI procs > GPU
+// Initialize for when all MPI ranks can see all GPUs
 void AmgXSolver::Initialize_MPITeams(const MPI_Comm &comm,
                                      const std::string &modeStr,
                                      const std::string &cfgFile, const int nDevs)
 {
 
-   // if this instance has already been initialized, skip
+   // If this instance has already been initialized, skip
    if (isInitialized)
    {
       mfem_error("This AmgXSolver instance has been initialized on this process.");
    }
 
-   // increase the number of AmgXSolver instances
+   mpi_gpu_mode = "mpi-teams";
+
+   //Increment number of AmgX instances
    count += 1;
 
-   // get the name of this node
+   // Get the name of this node
    int     len;
    char    name[MPI_MAX_PROCESSOR_NAME];
    MPI_Get_processor_name(name, &len);
@@ -149,19 +158,18 @@ void AmgXSolver::Initialize_MPITeams(const MPI_Comm &comm,
 
    MPI_Comm_rank(comm, &globalcommrank);
 
-   // get the mode of AmgX solver
+   // Set the mode of AmgX solver
    setMode(modeStr);
 
-   // initialize communicators and corresponding information
+   // Initialize communicators and corresponding information
    initMPIcomms(comm, nDevs);
 
-   // only processes in gpuWorld are required to initialize AmgX
+   // Only processes in gpuWorld are required to initialize AmgX
    if (gpuProc == 0)
    {
       initAmgX(cfgFile);
    }
 
-   // a bool indicating if this instance is initialized
    isInitialized = true;
 }
 
@@ -181,11 +189,11 @@ int AmgXSolver::getNumIterations()
    return getIters;
 }
 
-// \implements AmgXSolver::initAmgX
+// Sets up AmgX library
 void AmgXSolver::initAmgX(const std::string &cfgFile)
 {
 
-   // only the first instance (AmgX solver) is in charge of initializing AmgX
+   // Set up once
    if (count == 1)
    {
       AMGX_SAFE_CALL(AMGX_initialize());
@@ -197,32 +205,34 @@ void AmgXSolver::initAmgX(const std::string &cfgFile)
 
    AMGX_SAFE_CALL(AMGX_config_create_from_file(&cfg, cfgFile.c_str()));
 
-   // let AmgX handle returned error codes internally
+   // Let AmgX handle returned error codes internally
    AMGX_SAFE_CALL(AMGX_config_add_parameters(&cfg, "exception_handling=1"));
 
-   // create an AmgX resource object, only the first instance is in charge
+   // Create an AmgX resource object, only the first instance is in charge
    if (count == 1) { AMGX_resources_create(&rsrc, cfg, &gpuWorld, 1, &devID); }
 
-   // create AmgX vector object for unknowns and RHS
+   // Create AmgX vector object for unknowns and RHS
    AMGX_vector_create(&AmgXP, rsrc, mode);
    AMGX_vector_create(&AmgXRHS, rsrc, mode);
-   // create AmgX matrix object for unknowns and RHS
+
+   // Create AmgX matrix object for unknowns and RHS
    AMGX_matrix_create(&AmgXA, rsrc, mode);
 
-   // create an AmgX solver object
+   // Create an AmgX solver object
    AMGX_solver_create(&solver, rsrc, mode, cfg);
-   // obtain the default number of rings based on current configuration
+
+   // Obtain the default number of rings based on current configuration
    AMGX_config_get_default_number_of_rings(cfg, &ring);
 }
 
-// \implements AmgXSolver::initMPIcomms
+// Groups MPI ranks into teams and assigns a lead to talk to GPUs
 void AmgXSolver::initMPIcomms(const MPI_Comm &comm, const int nDevs)
 {
-   // duplicate the global communicator
+   // Duplicate the global communicator
    MPI_Comm_dup(comm, &globalCpuWorld);
    MPI_Comm_set_name(globalCpuWorld, "globalCpuWorld");
 
-   // get size and rank for global communicator
+   // Get size and rank for global communicator
    MPI_Comm_size(globalCpuWorld, &globalSize);
    MPI_Comm_rank(globalCpuWorld, &myGlobalRank);
 
@@ -231,19 +241,19 @@ void AmgXSolver::initMPIcomms(const MPI_Comm &comm, const int nDevs)
                        MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, &localCpuWorld);
    MPI_Comm_set_name(localCpuWorld, "localCpuWorld");
 
-   // get size and rank for local communicator
+   // Get size and rank for local communicator
    MPI_Comm_size(localCpuWorld, &localSize);
    MPI_Comm_rank(localCpuWorld, &myLocalRank);
 
-   // set up corresponding ID of the device used by each local process
+   // Set up corresponding ID of the device used by each local process
    setDeviceIDs(nDevs);
 
    MPI_Barrier(globalCpuWorld);
 
-   // split the global world into a world involved in AmgX and a null world
+   // Split the global world into a world involved in AmgX and a null world
    MPI_Comm_split(globalCpuWorld, gpuProc, 0, &gpuWorld);
 
-   // get size and rank for the communicator corresponding to gpuWorld
+   // Get size and rank for the communicator corresponding to gpuWorld
    if (gpuWorld != MPI_COMM_NULL)
    {
       MPI_Comm_set_name(gpuWorld, "gpuWorld");
@@ -256,11 +266,11 @@ void AmgXSolver::initMPIcomms(const MPI_Comm &comm, const int nDevs)
       myGpuWorldRank = MPI_UNDEFINED;
    }
 
-   // split local world into worlds corresponding to each CUDA device
+   // Split local world into worlds corresponding to each CUDA device
    MPI_Comm_split(localCpuWorld, devID, 0, &devWorld);
    MPI_Comm_set_name(devWorld, "devWorld");
 
-   // get size and rank for the communicator corresponding to myWorld
+   // Get size and rank for the communicator corresponding to myWorld
    MPI_Comm_size(devWorld, &devWorldSize);
    MPI_Comm_rank(devWorld, &myDevWorldRank);
 
@@ -268,6 +278,7 @@ void AmgXSolver::initMPIcomms(const MPI_Comm &comm, const int nDevs)
 }
 
 // \implements AmgXSolver::setDeviceCount
+/*
 void AmgXSolver::setDeviceCount()
 {
    printf("Something went wrong, should not be calling setDeviceCount \n");
@@ -298,12 +309,13 @@ void AmgXSolver::setDeviceCount()
    }
 
 }
+*/
 
-// \implements AmgXSolver::setDeviceIDs
+// Determine MPI team sizes based on available devices
 void AmgXSolver::setDeviceIDs(const int nDevs)
 {
 
-   // set the ID of device that each local process will use
+   // Set the ID of device that each local process will use
    if (nDevs == localSize) // # of the devices and local precosses are the same
    {
       devID = myLocalRank;
@@ -581,7 +593,7 @@ void AmgXSolver::SetA(const HypreParMatrix &A)
    }
    */
 
-   if (mpi_gpu_mode=="mpi==gpu")
+   if (mpi_gpu_mode=="mpi-gpu-exclusive")
    {
       printf("Same number of mpi ranks to gpus \n");
 
@@ -966,7 +978,7 @@ void AmgXSolver::ScatterArray(Vector &inArr, Vector &outArr,
 void AmgXSolver::solve(mfem::Vector &X, mfem::Vector &B)
 {
 
-   if (mpi_gpu_mode == "mpi==gpu")
+   if (mpi_gpu_mode == "mpi-gpu-exclusive")
    {
       std::cout<<"MPI mode "<<mpi_gpu_mode<<std::endl;
       AMGX_vector_upload(AmgXP, X.Size(), 1, X.HostReadWrite());
@@ -1048,24 +1060,24 @@ void AmgXSolver::finalize()
    // skip if this instance has not been initialized
    if (! isInitialized)
    {
-      printf("This AmgXWrapper has not been initialized. "
-             "Please initialize it before finalization.\n");
+      mfem_error("This AmgXWrapper has not been initialized. "
+                 "Please initialize it before finalization.\n");
    }
 
-   // only processes using GPU are required to destroy AmgX content
+   // Only processes using GPU are required to destroy AmgX content
    if (gpuProc == 0)
    {
-      // destroy solver instance
+      // Destroy solver instance
       AMGX_solver_destroy(solver);
 
-      // destroy matrix instance
+      // Destroy matrix instance
       AMGX_matrix_destroy(AmgXA);
 
-      // destroy RHS and unknown vectors
+      // Destroy RHS and unknown vectors
       AMGX_vector_destroy(AmgXP);
       AMGX_vector_destroy(AmgXRHS);
 
-      // only the last instance need to destroy resource and finalizing AmgX
+      // Only the last instance need to destroy resource and finalizing AmgX
       if (count == 1)
       {
          AMGX_resources_destroy(rsrc);
@@ -1080,7 +1092,7 @@ void AmgXSolver::finalize()
       }
 
       // destroy gpuWorld
-      //MPI_Comm_free(&gpuWorld);
+      MPI_Comm_free(&gpuWorld);
    }
 
    // re-set necessary variables in case users want to reuse
