@@ -29,6 +29,8 @@ void CopyDBFIntegrators(ParBilinearForm *src, ParBilinearForm *dst)
 NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
    : pmesh(mesh), order(order), kin_vis(kin_vis)
 {
+   ceed_solver_spinv = false; // ATB try new Ceed solvers
+
    vfec = new H1_FECollection(order, pmesh->Dimension());
    pfec = new H1_FECollection(order);
    vfes = new ParFiniteElementSpace(pmesh, vfec, pmesh->Dimension());
@@ -112,9 +114,18 @@ void NavierSolver::Setup(double dt)
 
    sw_setup.Start();
 
-   pmesh_lor = new ParMesh(pmesh, order, BasisType::GaussLobatto);
-   pfec_lor = new H1_FECollection(1);
-   pfes_lor = new ParFiniteElementSpace(pmesh_lor, pfec_lor);
+   if (ceed_solver_spinv)
+   {
+      pmesh_lor = NULL;
+      pfec_lor = NULL;
+      pfes_lor = NULL;
+   }
+   else
+   {
+      pmesh_lor = new ParMesh(pmesh, order, BasisType::GaussLobatto);
+      pfec_lor = new H1_FECollection(1);
+      pfes_lor = new ParFiniteElementSpace(pmesh_lor, pfec_lor);
+   }
 
    vfes->GetEssentialTrueDofs(vel_ess_attr, vel_ess_tdof);
    pfes->GetEssentialTrueDofs(pres_ess_attr, pres_ess_tdof);
@@ -239,22 +250,31 @@ void NavierSolver::Setup(double dt)
 
    if (partial_assembly)
    {
-      /// ATB first steps here-ish
-      Sp_form_lor = new ParBilinearForm(pfes_lor);
-      Sp_form_lor->UseExternalIntegrators();
-      CopyDBFIntegrators(Sp_form, Sp_form_lor);
-      Sp_form_lor->Assemble();
-      Sp_form_lor->FormSystemMatrix(pres_ess_tdof, Sp_lor);
-      SpInvPC = new HypreBoomerAMG(*Sp_lor.As<HypreParMatrix>());
-      SpInvPC->SetPrintLevel(pl_amg);
+      // ATB first steps here-ish
+      if (ceed_solver_spinv)
+      {
+         // SpInvPC = new TryCeedSolver(*Sp_form); // ideally...
+      }
+      else
+      {
+         Sp_form_lor = new ParBilinearForm(pfes_lor);
+         Sp_form_lor->UseExternalIntegrators();
+         CopyDBFIntegrators(Sp_form, Sp_form_lor);
+         Sp_form_lor->Assemble();
+         Sp_form_lor->FormSystemMatrix(pres_ess_tdof, Sp_lor);
+         auto h_SpInvPC = new HypreBoomerAMG(*Sp_lor.As<HypreParMatrix>());
+         h_SpInvPC->SetPrintLevel(pl_amg);
+         SpInvPC = h_SpInvPC;
+      }
       SpInvPC->Mult(resp, pn);
       SpInvOrthoPC = new OrthoSolver();
       SpInvOrthoPC->SetOperator(*SpInvPC);
    }
    else
    {
-      SpInvPC = new HypreBoomerAMG(*Sp.As<HypreParMatrix>());
-      SpInvPC->SetPrintLevel(0);
+      auto h_SpInvPC = new HypreBoomerAMG(*Sp.As<HypreParMatrix>());
+      h_SpInvPC->SetPrintLevel(0);
+      SpInvPC = h_SpInvPC;
       SpInvOrthoPC = new OrthoSolver();
       SpInvOrthoPC->SetOperator(*SpInvPC);
    }

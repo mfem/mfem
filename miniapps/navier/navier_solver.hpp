@@ -337,7 +337,10 @@ protected:
    Solver *MvInvPC = nullptr;
    CGSolver *MvInv = nullptr;
 
-   HypreBoomerAMG *SpInvPC = nullptr;
+   bool ceed_solver_spinv;
+
+   // HypreBoomerAMG *SpInvPC = nullptr;
+   Solver *SpInvPC = nullptr;
    OrthoSolver *SpInvOrthoPC = nullptr;
    CGSolver *SpInv = nullptr;
 
