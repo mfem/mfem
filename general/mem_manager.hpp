@@ -287,22 +287,18 @@ public:
    /** Wrap an externally pair of allocated pointers, @a h_ptr and @ d_ptr,
        of the given host MemoryType @a h_mt. */
    /** The new memory object will have the device MemoryType set as valid.
-
        The given @a h_ptr and @a d_ptr must be allocated appropriately for the
        given host MemoryType and its associated device MemoryType:
           - MANAGED => MANAGED,
           - HOST_DEBUG => DEVICE_DEBUG,
           - HOST_UMPIRE => DEVICE_UMPIRE,
           - HOST, HOST_32, HOST_64 => DEVICE.
-
        The parameter @a own determines whether both @a h_ptr and @a d_ptr will
        be deleted when the method Delete() is called.
-
        @note Ownership can also be controled by using the folowing methods:
          - ClearOwnerFlags,
          - SetHostPtrOwner,
          - SetDevicePtrOwner.
-
        @note The current memory is NOT deleted by this method. */
    inline void Wrap(T *h_ptr, T *d_ptr, int size, MemoryType h_mt, bool own);
 
@@ -502,7 +498,6 @@ private:
 #endif
 
 private: // Static methods used by the Memory<T> class
-
    /// Allocate and register a new pointer. Return the host pointer.
    /// h_tmp must be already allocated using new T[] if mt is a pure device
    /// memory type, e.g. CUDA (mt will not be HOST).

@@ -15,9 +15,15 @@
 #include "vector.hpp"
 #include "../general/forall.hpp"
 
-#if defined(MFEM_USE_SUNDIALS) && defined(MFEM_USE_MPI)
+#if defined(MFEM_USE_SUNDIALS)
+#include "sundials.hpp"
+#if defined(MFEM_USE_MPI)
+#include <nvector/nvector_mpiplusx.h>
 #include <nvector/nvector_parallel.h>
-#include <nvector/nvector_parhyp.h>
+#endif
+#if defined(MFEM_USE_CUDA)
+#include <nvector/nvector_cuda.h>
+#endif
 #endif
 
 #include <iostream>
@@ -1159,9 +1165,14 @@ vector_min_cpu:
 
 #ifdef MFEM_USE_SUNDIALS
 
+//
+// TODO: recommend that these are removed, or at least deprecated.
+//
+
 Vector::Vector(N_Vector nv)
 {
    N_Vector_ID nvid = N_VGetVectorID(nv);
+
    switch (nvid)
    {
       case SUNDIALS_NVEC_SERIAL:
@@ -1181,6 +1192,7 @@ void Vector::ToNVector(N_Vector &nv, long global_length)
 {
    MFEM_ASSERT(nv, "N_Vector handle is NULL");
    N_Vector_ID nvid = N_VGetVectorID(nv);
+
    switch (nvid)
    {
       case SUNDIALS_NVEC_SERIAL:
