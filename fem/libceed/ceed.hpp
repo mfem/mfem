@@ -82,17 +82,23 @@ struct CeedData
       CeedQFunctionDestroy(&build_qfunc);
       CeedVectorDestroy(&node_coords);
       CeedVectorDestroy(&rho);
-      if (coeff_type==CeedCoeff::Grid)
+      if (coeff_type==CeedCoeff::Const)
       {
-         CeedGridCoeff* c = (CeedGridCoeff*)coeff;
+         delete static_cast<CeedConstCoeff*>(coeff);
+      }
+      else if (coeff_type==CeedCoeff::Grid)
+      {
+         CeedGridCoeff* c = static_cast<CeedGridCoeff*>(coeff);
          CeedBasisDestroy(&c->basis);
          CeedElemRestrictionDestroy(&c->restr);
          CeedVectorDestroy(&c->coeffVector);
          delete c;
       }
-      else
+      else if (coeff_type==CeedCoeff::Quad)
       {
-         delete (CeedConstCoeff*)coeff;
+         CeedQuadCoeff* c = static_cast<CeedQuadCoeff*>(coeff);
+         CeedVectorDestroy(&c->coeffVector);
+         delete c;
       }
       CeedVectorDestroy(&u);
       CeedVectorDestroy(&v);
