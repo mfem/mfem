@@ -20,9 +20,8 @@ using namespace navier;
 class TryCeedSolver : public mfem::Solver
 {
 public:
-   TryCeedSolver(Operator& fine_mfem_op,
-                 BilinearForm& form, Array<int>& ess_dofs, int order_reduction,
-                 bool ortho_);
+   TryCeedSolver(Operator& fine_mfem_op, BilinearForm& form, 
+                 Array<int>& ess_dofs, int num_levels, bool ortho_);
    ~TryCeedSolver();
 
    void SetOperator(const Operator& op) { operators[0] = const_cast<Operator*>(&op); }
@@ -40,9 +39,9 @@ private:
 
 TryCeedSolver::TryCeedSolver(Operator& fine_mfem_op,
                              BilinearForm& form, Array<int>& ess_dofs,
-                             int order_reduction, bool ortho_)
+                             int num_levels_, bool ortho_)
    :
-   ortho(ortho_)
+   ortho(ortho_), num_levels(num_levels_)
 {
    auto *bffis = form.GetDBFI();
    MFEM_VERIFY(bffis->Size() == 1,
@@ -52,7 +51,7 @@ TryCeedSolver::TryCeedSolver(Operator& fine_mfem_op,
    MFEM_VERIFY(dintegrator, "Not a diffusion integrator!");
    CeedOperator current_op = dintegrator->GetCeedData()->oper;
 
-   num_levels = 2;
+   const int order_reduction = 1;
    operators = new Operator*[num_levels];
    operators[0] = &fine_mfem_op;
    levels = new CeedMultigridLevel*[num_levels - 1];
@@ -82,7 +81,6 @@ TryCeedSolver::TryCeedSolver(Operator& fine_mfem_op,
    /* } */
 
    // loop up from coarsest to build V-cycle solvers
-   // mfem::Solver * solvers[num_levels];
    solvers = new Solver*[num_levels];
    solvers[num_levels - 1] = coarsest_solver;
    if (ortho)
@@ -369,7 +367,8 @@ void NavierSolver::Setup(double dt)
    {
       if (ceed_solver_spinv)
       {
-         SpInvPC = new TryCeedSolver(*Sp, *Sp_form, pres_ess_tdof, 1, pres_dbcs.empty());
+         SpInvPC = new TryCeedSolver(*Sp, *Sp_form, pres_ess_tdof, order,
+                                     pres_dbcs.empty());
       }
       else
       {

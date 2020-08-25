@@ -258,13 +258,16 @@ void CoarsenEssentialDofs(const mfem::Operator& mfem_interp,
 {
    mfem::Vector ho_boundary_ones(mfem_interp.Height());
    ho_boundary_ones = 0.0;
-   for (int k : ho_ess_tdof_list) {
+   for (int k : ho_ess_tdof_list)
+   {
       ho_boundary_ones(k) = 1.0;
    }
    mfem::Vector lo_boundary_ones(mfem_interp.Width());
    mfem_interp.MultTranspose(ho_boundary_ones, lo_boundary_ones);
-   for (int i = 0; i < lo_boundary_ones.Size(); ++i) {
-      if (lo_boundary_ones(i) > 0.9) {
+   for (int i = 0; i < lo_boundary_ones.Size(); ++i)
+   {
+      if (lo_boundary_ones(i) > 0.9)
+      {
          alg_lo_ess_tdof_list.Append(i);
       }
    }
