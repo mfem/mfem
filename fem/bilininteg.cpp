@@ -52,7 +52,8 @@ void BilinearFormIntegrator::AssembleDiagonalPA(Vector &)
 }
 
 void BilinearFormIntegrator::AssembleEA(const FiniteElementSpace &fes,
-                                        Vector &emat)
+                                        Vector &emat,
+                                        const bool add)
 {
    mfem_error ("BilinearFormIntegrator::AssembleEA(...)\n"
                "   is not implemented for this class.");
@@ -61,7 +62,8 @@ void BilinearFormIntegrator::AssembleEA(const FiniteElementSpace &fes,
 void BilinearFormIntegrator::AssembleEAInteriorFaces(const FiniteElementSpace
                                                      &fes,
                                                      Vector &ea_data_int,
-                                                     Vector &ea_data_ext)
+                                                     Vector &ea_data_ext,
+                                                     const bool add)
 {
    mfem_error ("BilinearFormIntegrator::AssembleEAInteriorFaces(...)\n"
                "   is not implemented for this class.");
@@ -69,7 +71,8 @@ void BilinearFormIntegrator::AssembleEAInteriorFaces(const FiniteElementSpace
 
 void BilinearFormIntegrator::AssembleEABoundaryFaces(const FiniteElementSpace
                                                      &fes,
-                                                     Vector &ea_data_bdr)
+                                                     Vector &ea_data_bdr,
+                                                     const bool add)
 {
    mfem_error ("BilinearFormIntegrator::AssembleEABoundaryFaces(...)\n"
                "   is not implemented for this class.");
