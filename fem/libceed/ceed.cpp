@@ -41,8 +41,8 @@ extern CeedRestrMap ceed_restr_map;
 
 }
 
-void InitCeedCoeff(Coefficient* Q, Mesh &mesh,
-                   const IntegrationRule &ir, CeedData* ptr)
+void InitCeedCoeff(Coefficient *Q, Mesh &mesh,
+                   const IntegrationRule &ir, CeedData *ptr)
 {
    if ( Q == nullptr )
    {
@@ -63,8 +63,20 @@ void InitCeedCoeff(Coefficient* Q, Mesh &mesh,
       ceedCoeff->coeff = coeff->GetGridFunction();
       CeedVectorCreate(internal::ceed, ceedCoeff->coeff->FESpace()->GetNDofs(),
                        &ceedCoeff->coeffVector);
-      CeedVectorSetArray(ceedCoeff->coeffVector, CEED_MEM_HOST, CEED_USE_POINTER,
-                         ceedCoeff->coeff->GetData());
+      CeedScalar *d_ptr;
+      CeedMemType mem;
+      CeedGetPreferredMemType(internal::ceed, &mem);
+      if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
+      {
+         d_ptr = const_cast<CeedScalar*>(ceedCoeff->coeff->Read());
+      }
+      else
+      {
+         d_ptr = const_cast<CeedScalar*>(ceedCoeff->coeff->HostRead());
+         mem = CEED_MEM_HOST;
+      }
+      CeedVectorSetArray(ceedCoeff->coeffVector, mem, CEED_USE_POINTER,
+                         d_ptr);
       ptr->coeff_type = CeedCoeff::Grid;
       ptr->coeff = static_cast<void*>(ceedCoeff);
    }
@@ -590,7 +602,7 @@ void CeedPAAssemble(const CeedPAOperator& op,
          const int ncomp = 1;
          CeedInt strides[3] = {1, nqpts, ncomp*nqpts};
          CeedElemRestrictionCreateStrided(ceed, nelem, nqpts, ncomp,
-                                          nelem*nqpts, strides,
+                                          nelem*ncomp*nqpts, strides,
                                           &quadCoeff->restr);
          CeedOperatorSetField(ceedData.build_oper, "coeff", quadCoeff->restr,
                               CEED_BASIS_COLLOCATED, quadCoeff->coeffVector);
