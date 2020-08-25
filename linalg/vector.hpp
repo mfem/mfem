@@ -393,6 +393,9 @@ public:
    { return mfem::ReadWrite(data, size, false); }
 
 #ifdef MFEM_USE_SUNDIALS
+   // TODO: I think this should be removed, but not sure if it might break old code.
+
+
    /// Construct a wrapper Vector from SUNDIALS N_Vector.
    explicit Vector(N_Vector nv);
 

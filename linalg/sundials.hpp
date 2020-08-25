@@ -18,6 +18,7 @@
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
+#include "hypre.hpp"
 #endif
 
 #include "ode.hpp"
@@ -30,9 +31,13 @@
 #endif
 #include <sundials/sundials_matrix.h>
 #include <sundials/sundials_linearsolver.h>
-#include <cvodes/cvodes.h>
 #include <arkode/arkode_arkstep.h>
+#include <cvodes/cvodes.h>
 #include <kinsol/kinsol.h>
+#ifdef MFEM_USE_CUDA
+#include <nvector/nvector_cuda.h>
+#endif
+
 
 #include <functional>
 
@@ -43,25 +48,165 @@ namespace mfem
 // Base class for interfacing with SUNDIALS packages
 // ---------------------------------------------------------------------------
 
+/// Vector interface for SUNDIALS N_Vectors.
+class SundialsNVector : public Vector
+{
+protected:
+   int own_NVector;
+
+   /// The actual SUNDIALS object
+   N_Vector x;
+
+   friend class SundialsSolver;
+
+   /// Set data and length of internal N_Vector x from 'this'.
+   void _SetNvecDataAndSize_(long glob_size = 0);
+
+   /// Set data and length from the internal N_Vector x.
+   void _SetDataAndSize_();
+
+public:
+   /// Creates an empty SundialsNVector.
+   SundialsNVector();
+
+   /// Creates a SundialsNVector referencing an array of doubles, owned by someone else.
+   /** The pointer @a _data can be NULL. The data array can be replaced later
+       with SetData(). */
+   SundialsNVector(double *_data, int _size);
+
+   /// Creates a SundialsNVector out of a SUNDIALS N_Vector object.
+   /** The N_Vector @nv must be destroyed outside. */
+   SundialsNVector(N_Vector nv);
+
+#ifdef MFEM_USE_MPI
+   /// Creates an empty SundialsNVector.
+   SundialsNVector(MPI_Comm comm);
+
+   /// Creates a SundialsNVector with the given local and global sizes.
+   SundialsNVector(MPI_Comm comm, int loc_size, long glob_size);
+
+   /// Creates a SundialsNVector referencing an array of doubles, owned by someone else.
+   /** The pointer @a _data can be NULL. The data array can be replaced later
+       with SetData(). */
+   SundialsNVector(MPI_Comm comm, double *_data, int _size, long glob_size);
+
+   /// Creates a SundialsNVector from a HypreParVector.
+   /** Ownership of the data will not change. */
+   SundialsNVector(HypreParVector& vec);
+#endif
+
+   /// Calls SUNDIALS N_VDestroy function if the N_Vector is owned by 'this'.
+   ~SundialsNVector();
+
+   /// Returns the N_Vector_ID for the internal N_Vector.
+   inline N_Vector_ID GetNVectorID() const { return N_VGetVectorID(x); }
+
+   /// Returns the N_Vector_ID for the N_Vector @a _x.
+   inline N_Vector_ID GetNVectorID(N_Vector _x) const { return N_VGetVectorID(_x); }
+
+#ifdef MFEM_USE_MPI
+   /// Returns the MPI commmunicator for the internal N_Vector x.
+   inline MPI_Comm GetComm() const { return *static_cast<MPI_Comm*>(N_VGetCommunicator(x)); }
+
+   /// Returns the MPI global length for the internal N_Vector x.
+   inline long GlobalSize() const { return N_VGetLength(x); }
+#endif
+
+   /// Resize the vector to size @a s.
+   void SetSize(int s, long glob_size = 0);
+
+   /// Set the vector data.
+   /// @warning This method should be called only when OwnsData() is false.
+   void SetData(double *d);
+
+   /// Set the vector data and size.
+   /** The Vector does not assume ownership of the new data. The new size is
+       also used as the new Capacity().
+       @warning This method should be called only when OwnsData() is false. */
+   void SetDataAndSize(double *d, int s, long glob_size = 0);
+
+   /// Reset the Vector to be a reference to a sub-vector of @a base.
+   inline void MakeRef(Vector &base, int offset, int s)
+   {
+      // Ensure that the base mem is registered before an alias is made
+      if (!mm.IsKnown(base.GetMemory()))
+      {
+         base.Read();
+      }
+      Vector::MakeRef(base, offset, s);
+      _SetNvecDataAndSize_();
+   }
+
+   /** @brief Reset the Vector to be a reference to a sub-vector of @a base
+       without changing its current size. */
+   inline void MakeRef(Vector &base, int offset)
+   {
+      // Ensure that the base mem is registered before an alias is made
+      if (!mm.IsKnown(base.GetMemory()))
+      {
+         base.Read();
+      }
+      Vector::MakeRef(base, offset);
+      _SetNvecDataAndSize_();
+   }
+
+   /// Typecasting to SUNDIALS' N_Vector type
+   operator N_Vector() const { return x; }
+
+   /// Changes the ownership of the the vector
+   N_Vector StealNVector() { own_NVector = 0; return x; }
+
+   /// Sets ownership of the internal N_Vector
+   void SetOwnership(int own) { own_NVector = own; }
+
+   /// Gets ownership of the internal N_Vector
+   int GetOwnership() const { return own_NVector; }
+
+   /// Create a N_Vector.
+   /** @param[in] use_device  If true, use the SUNDIALS CUDA N_Vector. */
+   static N_Vector MakeNVector(bool use_device);
+
+   /// Copy assignment.
+   /** @note Defining this method overwrites the implicitly defined copy
+       assignment operator. */
+   using Vector::operator=;
+
+#ifdef MFEM_USE_MPI
+   /// Create a parallel N_Vector.
+   /** @param[in] comm  The MPI communicator to use.
+       @param[in] use_device  If true, use the SUNDIALS CUDA N_Vector. */
+   static N_Vector MakeNVector(MPI_Comm comm, bool use_device);
+#endif
+
+#ifdef MFEM_USE_MPI
+   bool MPIPlusX() const
+   { return (GetNVectorID() == SUNDIALS_NVEC_MPIPLUSX); }
+#else
+   bool MPIPlusX() const { return false; }
+#endif
+
+};
+
 /// Base class for interfacing with SUNDIALS packages.
 class SundialsSolver
 {
 protected:
-   void *sundials_mem;     ///< SUNDIALS mem structure.
-   mutable int flag;       ///< Last flag returned from a call to SUNDIALS.
-   bool reinit;            ///< Flag to signal memory reinitialization is need.
-   long saved_global_size; ///< Global vector length on last initialization.
+   void *sundials_mem;        ///< SUNDIALS mem structure.
+   mutable int flag;          ///< Last flag returned from a call to SUNDIALS.
+   bool reinit;               ///< Flag to signal memory reinitialization is need.
+   long saved_global_size;    ///< Global vector length on last initialization.
 
-   N_Vector           y;   ///< State vector.
-   SUNMatrix          A;   ///< Linear system A = I - gamma J, M - gamma J, or J.
-   SUNMatrix          M;   ///< Mass matrix M.
-   SUNLinearSolver    LSA; ///< Linear solver for A.
-   SUNLinearSolver    LSM; ///< Linear solver for M.
-   SUNNonlinearSolver NLS; ///< Nonlinear solver.
+   SundialsNVector*   Y;      ///< State vector.
+   SUNMatrix
+   A;      ///< Linear system A = I - gamma J, M - gamma J, or J.
+   SUNMatrix          M;      ///< Mass matrix M.
+   SUNLinearSolver    LSA;    ///< Linear solver for A.
+   SUNLinearSolver    LSM;    ///< Linear solver for M.
+   SUNNonlinearSolver NLS;    ///< Nonlinear solver.
 
 #ifdef MFEM_USE_MPI
    bool Parallel() const
-   { return (N_VGetVectorID(y) != SUNDIALS_NVEC_SERIAL); }
+   { return (Y->MPIPlusX() || Y->GetNVectorID() == SUNDIALS_NVEC_PARALLEL); }
 #else
    bool Parallel() const { return false; }
 #endif
@@ -74,7 +219,7 @@ protected:
    /** @brief Protected constructor: objects of this type should be constructed
        only as part of a derived class. */
    SundialsSolver() : sundials_mem(NULL), flag(0), reinit(false),
-      saved_global_size(0), y(NULL), A(NULL), M(NULL),
+      saved_global_size(0), Y(NULL), A(NULL), M(NULL),
       LSA(NULL), LSM(NULL), NLS(NULL) { }
 
    // Helper functions
@@ -225,6 +370,7 @@ public:
 
    /// Destroy the associated CVODE memory and SUNDIALS objects.
    virtual ~CVODESolver();
+
 };
 
 // ---------------------------------------------------------------------------
@@ -256,10 +402,10 @@ protected:
 
    SUNMatrix          AB;   ///< Linear system A = I - gamma J, M - gamma J, or J.
    SUNLinearSolver    LSB;  ///< Linear solver for A.
-   N_Vector           q;    ///< Quadrature vector.
-   N_Vector           yB;   ///< State vector.
-   N_Vector           yy;   ///< State vector.
-   N_Vector           qB;   ///< State vector.
+   SundialsNVector*   q;    ///< Quadrature vector.
+   SundialsNVector*   yB;   ///< State vector.
+   SundialsNVector*   yy;   ///< State vector.
+   SundialsNVector*   qB;   ///< State vector.
 
    /// Default scalar backward relative tolerance
    static constexpr double default_rel_tolB = 1e-4;
@@ -547,6 +693,10 @@ public:
 
    /// Destroy the associated ARKode memory and SUNDIALS objects.
    virtual ~ARKStepSolver();
+
+   virtual MemoryClass GetMemoryClass() const
+   { return Device::GetMemoryClass(); }
+
 };
 
 
@@ -560,7 +710,7 @@ class KINSolver : public NewtonSolver, public SundialsSolver
 protected:
    int global_strategy;               ///< KINSOL solution strategy
    bool use_oper_grad;                ///< use the Jv prod function
-   mutable N_Vector y_scale, f_scale; ///< scaling vectors
+   mutable SundialsNVector *y_scale, *f_scale; ///< scaling vectors
    const Operator *jacobian;          ///< stores oper->GetGradient()
    int maa;                           ///< number of acceleration vectors
 

@@ -135,6 +135,8 @@ public:
    virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
 
    virtual ~FE_Evolution();
+
+   MemoryClass GetMemoryClass() const { return Device::GetMemoryClass(); }
 };
 
 
