@@ -253,6 +253,7 @@ int main(int argc, char *argv[])
    bool vis_u = false;
    bool visualization = true;
    bool visit = true;
+   bool convergence_test = false;
 
    double freq = 1.0e9;
    const char * wave_type = "R";
@@ -395,6 +396,8 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+    args.AddOption(&convergence_test, "-ctest", "--convergence-test", "-no-ctest",
+                   "--no-ctest", "Enable convergence test.");
    args.Parse();
    if (!args.Good())
    {
@@ -1003,6 +1006,13 @@ int main(int argc, char *argv[])
       if (mpi.Root())
       {
          cout << "Global L2 Error " << glb_error << endl;
+          if ( convergence_test == true)
+          {
+              ofstream file;
+              file.open ("glb_error_"+std::to_string(order)+"_"+std::to_string(num_elements)+".txt");
+              file << glb_error;
+              file.close();
+          }
       }
 
       // Determine the current size of the linear system
