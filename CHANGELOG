@@ -32,7 +32,8 @@ Meshing improvements
   the user to specify different discrete functions for controlling the
   size, aspect-ratio, orientation, and skew of elements in the mesh.
 
-- Added TMOP capability for approximate tangential mesh relaxation.
+- Added TMOP capability for approximate tangential mesh relaxation. Added
+  support and examples for using TMOP on mixed meshes.
 
 - Added complete action of the TMOP Integrator to account for the spatial
   derivatives of discrete and analytic targets.
@@ -172,6 +173,7 @@ New and updated examples and miniapps
 
 Improved testing
 ----------------
+- Upgraded the Catch unit test framework from version 1.6.1 to version 2.13.0.
 - Added a GitLab pipeline that automates PR testing on supercomputing systems
   and Linux clusters at Lawrence Livermore National Lab (LLNL). This can be
   triggered only by LLNL developers, see .gitlab-ci.yml, the .gitlab directory
