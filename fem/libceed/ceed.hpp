@@ -33,7 +33,7 @@ class Coefficient;
 
 // Hash table for CeedBasis
 using CeedBasisKey =
-   std::tuple<const FiniteElementSpace*, const IntegrationRule*, int, int>;
+   std::tuple<const FiniteElementSpace*, const IntegrationRule*, int, int, int>;
 struct CeedBasisHash
 {
    std::size_t operator()(const CeedBasisKey& k) const
@@ -42,15 +42,16 @@ struct CeedBasisHash
                                                 reinterpret_cast<CeedHash64_t>(std::get<0>(k))),
                                              CeedHashInt(
                                                 reinterpret_cast<CeedHash64_t>(std::get<1>(k)))),
-                             CeedHashCombine(CeedHashInt(std::get<2>(k)),
-                                             CeedHashInt(std::get<3>(k))));
+                             CeedHashCombine(CeedHashCombine(CeedHashInt(std::get<2>(k)),
+                                                             CeedHashInt(std::get<3>(k))),
+                                             CeedHashInt(std::get<4>(k))));
    }
 };
 using CeedBasisMap =
    std::unordered_map<const CeedBasisKey, CeedBasis, CeedBasisHash>;
 
 // Hash table for CeedElemRestriction
-using CeedRestrKey = std::tuple<const FiniteElementSpace*, int, int>;
+using CeedRestrKey = std::tuple<const FiniteElementSpace*, int, int, int>;
 struct CeedRestrHash
 {
    std::size_t operator()(const CeedRestrKey& k) const
@@ -58,7 +59,8 @@ struct CeedRestrHash
       return CeedHashCombine(CeedHashCombine(CeedHashInt(
                                                 reinterpret_cast<CeedHash64_t>(std::get<0>(k))),
                                              CeedHashInt(std::get<1>(k))),
-                             CeedHashInt(std::get<2>(k)));
+                             CeedHashCombine(CeedHashInt(std::get<2>(k)),
+                                             CeedHashInt(std::get<3>(k))));
    }
 };
 using CeedRestrMap =
