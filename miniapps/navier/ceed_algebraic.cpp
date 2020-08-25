@@ -58,25 +58,27 @@ MFEMCeedJacobi::MFEMCeedJacobi(Ceed ceed,
                                int size,
                                CeedVector diagonal,
                                const mfem::Array<int>& ess_tdof_list,
-                               double scale) :
-  mfem::Operator(size, size),
-  ess_tdof_list_(ess_tdof_list) {
-  int ierr = 0;
-  ierr += CeedVectorCreate(ceed, height, &v_);
-  ierr += CeedVectorCreate(ceed, width, &u_);
-  ierr += CeedVectorCreate(ceed, size, &inv_diag_);
-  const CeedScalar *diag_data;
-  CeedScalar *inv_diag_data;
-  ierr += CeedVectorGetArrayRead(diagonal, CEED_MEM_HOST, &diag_data);
-  ierr += CeedVectorGetArray(inv_diag_, CEED_MEM_HOST, &inv_diag_data);
-  for (int i = 0; i < size; ++i) {
-    MFEM_ASSERT(diag_data[i] > 0.0, "Not positive definite!");
-    inv_diag_data[i] = scale / diag_data[i];
-  }
-  ierr += CeedVectorRestoreArray(inv_diag_, &inv_diag_data);
-  ierr += CeedVectorRestoreArrayRead(diagonal, &diag_data);
+                               double scale)
+   :
+   mfem::Operator(size, size),
+   ess_tdof_list_(ess_tdof_list) {
+   int ierr = 0;
+   ierr += CeedVectorCreate(ceed, height, &v_);
+   ierr += CeedVectorCreate(ceed, width, &u_);
+   ierr += CeedVectorCreate(ceed, size, &inv_diag_);
+   const CeedScalar *diag_data;
+   CeedScalar *inv_diag_data;
+   ierr += CeedVectorGetArrayRead(diagonal, CEED_MEM_HOST, &diag_data);
+   ierr += CeedVectorGetArray(inv_diag_, CEED_MEM_HOST, &inv_diag_data);
+   for (int i = 0; i < size; ++i)
+   {
+      MFEM_ASSERT(diag_data[i] > 0.0, "Not positive definite!");
+      inv_diag_data[i] = scale / diag_data[i];
+   }
+   ierr += CeedVectorRestoreArray(inv_diag_, &inv_diag_data);
+   ierr += CeedVectorRestoreArrayRead(diagonal, &diag_data);
 
-  MFEM_ASSERT(ierr == 0, "CEED error");
+   MFEM_ASSERT(ierr == 0, "CEED error");
 }
 
 MFEMCeedJacobi::~MFEMCeedJacobi() {
@@ -101,8 +103,9 @@ void MFEMCeedJacobi::Mult(const mfem::Vector& x, mfem::Vector& y) const {
   MFEM_ASSERT(ierr == 0, "CEED error");
 }
 
-void MFEMCeedJacobi::MultTranspose(const mfem::Vector& x, mfem::Vector& y) const {
-  Mult(x, y);
+void MFEMCeedJacobi::MultTranspose(const mfem::Vector& x, mfem::Vector& y) const
+{
+   Mult(x, y);
 }
 
 MFEMCeedVCycle::MFEMCeedVCycle(const mfem::Operator& fine_operator,
@@ -114,13 +117,13 @@ MFEMCeedVCycle::MFEMCeedVCycle(const mfem::Operator& fine_operator,
   fine_smoother_(fine_smoother),
   interp_(interp)
 {
-  MFEM_VERIFY(fine_operator_.Height() == interp_.Height(), "Sizes don't match!");
-  MFEM_VERIFY(coarse_solver_.Height() == interp_.Width(), "Sizes don't match!");
+   MFEM_VERIFY(fine_operator_.Height() == interp_.Height(), "Sizes don't match!");
+   MFEM_VERIFY(coarse_solver_.Height() == interp_.Width(), "Sizes don't match!");
 
-  residual_.SetSize(fine_operator_.Height());
-  correction_.SetSize(fine_operator_.Height());
-  coarse_residual_.SetSize(coarse_solver_.Height());
-  coarse_correction_.SetSize(coarse_solver_.Height());
+   residual_.SetSize(fine_operator_.Height());
+   correction_.SetSize(fine_operator_.Height());
+   coarse_residual_.SetSize(coarse_solver_.Height());
+   coarse_correction_.SetSize(coarse_solver_.Height());
 }
 
 void MFEMCeedVCycle::FormResidual(const mfem::Vector& b,
@@ -151,12 +154,12 @@ void MFEMCeedVCycle::Mult(const mfem::Vector& b, mfem::Vector& x) const
 }
 
 int MFEMCeedInterpolation::Initialize(
-  Ceed ceed, int dim, CeedBasis basisctof,
+  Ceed ceed, CeedBasis basisctof,
   CeedElemRestriction erestrictu_coarse, CeedElemRestriction erestrictu_fine)
 {
    int ierr = 0;
 
-   ierr = CeedInterpolationCreate(ceed, dim, basisctof, erestrictu_coarse,
+   ierr = CeedInterpolationCreate(ceed, basisctof, erestrictu_coarse,
                                   erestrictu_fine, &ceed_interp_); CeedChk(ierr);
 
    ierr = CeedVectorCreate(ceed, height, &v_); CeedChk(ierr);
@@ -166,8 +169,7 @@ int MFEMCeedInterpolation::Initialize(
 }
 
 MFEMCeedInterpolation::MFEMCeedInterpolation(
-   Ceed ceed, int dim,
-   CeedBasis basisctof,
+   Ceed ceed, CeedBasis basisctof,
    CeedElemRestriction erestrictu_coarse,
    CeedElemRestriction erestrictu_fine)
 {
@@ -177,7 +179,7 @@ MFEMCeedInterpolation::MFEMCeedInterpolation(
    height = ho_nldofs;
    width = lo_nldofs;
    owns_basis_ = false;
-   Initialize(ceed, dim, basisctof, erestrictu_coarse, erestrictu_fine);
+   Initialize(ceed, basisctof, erestrictu_coarse, erestrictu_fine);
 }
   
 
@@ -190,34 +192,35 @@ MFEMCeedInterpolation::MFEMCeedInterpolation(
    :
    mfem::Operator(ho_fespace.GetNDofs(), lo_fespace.GetNDofs())
 {
+   const int dim = ho_fespace.GetMesh()->Dimension();
+   const int order = ho_fespace.GetOrder(0);
+   const int low_order = lo_fespace.GetOrder(0);
+   const int bp3_ncompu = 1;
 
-  const int dim = ho_fespace.GetMesh()->Dimension();
-  const int order = ho_fespace.GetOrder(0);
-  const int low_order = lo_fespace.GetOrder(0);
-  const int bp3_ncompu = 1;
+   // P coarse and P fine (P is number of nodal points = degree + 1)
+   CeedInt Pc = low_order + 1;
+   CeedInt Pf = order + 1;
 
-  // P coarse and P fine (P is number of nodal points = degree + 1)
-  CeedInt Pc = low_order + 1;
-  CeedInt Pf = order + 1;
-
-  // Basis
-  // TODO: would like to use CeedBasisCreateTensorH1 (general)
-  // without Lagrange assumption
-  CeedBasis basisctof;
-  CeedBasisCreateTensorH1Lagrange(ceed, dim, bp3_ncompu, Pc, Pf,
-                                  CEED_GAUSS_LOBATTO, &basisctof);
-  owns_basis_ = true;
-  Initialize(ceed, dim, basisctof, erestrictu_coarse, erestrictu_fine);
-  basisctof_ = basisctof;
+   // Basis
+   // TODO: would like to use CeedBasisCreateTensorH1 (general)
+   // without Lagrange assumption
+   CeedBasis basisctof;
+   CeedBasisCreateTensorH1Lagrange(ceed, dim, bp3_ncompu, Pc, Pf,
+                                   CEED_GAUSS_LOBATTO, &basisctof);
+   owns_basis_ = true;
+   Initialize(ceed, basisctof, erestrictu_coarse, erestrictu_fine);
+   basisctof_ = basisctof;
 }
 
-MFEMCeedInterpolation::~MFEMCeedInterpolation() {
-  CeedVectorDestroy(&v_);
-  CeedVectorDestroy(&u_);
-  if (owns_basis_) {
-    CeedBasisDestroy(&basisctof_);
-  }
-  CeedInterpolationDestroy(&ceed_interp_);
+MFEMCeedInterpolation::~MFEMCeedInterpolation()
+{
+   CeedVectorDestroy(&v_);
+   CeedVectorDestroy(&u_);
+   if (owns_basis_)
+   {
+      CeedBasisDestroy(&basisctof_);
+   }
+   CeedInterpolationDestroy(&ceed_interp_);
 }
 
 void MFEMCeedInterpolation::Mult(const mfem::Vector& x, mfem::Vector& y) const
@@ -279,16 +282,8 @@ CeedMultigridLevel::CeedMultigridLevel(CeedOperator oper,
    const double jacobi_scale = 0.65; // TODO: separate construction?
    Ceed ceed;
    CeedOperatorGetCeed(oper, &ceed);
-   int order;
-   CeedOperatorGetOrder(oper, &order);
-   CeedOperatorGetActiveElemRestriction(oper, &ho_er_);
-   int elemsize;
-   CeedElemRestrictionGetElementSize(ho_er_, &elemsize);
-   const int P1d = order + 1;
-   int dim = (log((double) elemsize) / log((double) P1d)) + 1.e-3;
-   CeedATPMGElemRestriction(order, order_reduction, ho_er_, &lo_er_);
-   CeedATPMGOperator(oper, order_reduction, lo_er_,
-                     &coarse_basis_, &coarse_oper_);
+   CeedATPMGBundle(oper, order_reduction, &coarse_basis_, &basisctof_,
+                   &lo_er_, &coarse_oper_);
 
    // this is a local diagonal, in the sense of l-vector
    CeedVector diagceed;
@@ -302,12 +297,8 @@ CeedMultigridLevel::CeedMultigridLevel(CeedOperator oper,
    nobc_smoother_->FormSystemOperator(ho_ess_tdof_list, smoother_);
    CeedVectorDestroy(&diagceed);
 
-   // the following line duplicates a line in CeedBasisATPMGCoarsen() which
-   // is called above in CeedATPMGOperator() [it's not an expensive line, but still]
-   CeedBasisCreateTensorH1Lagrange(
-      ceed, dim, 1, order + 1 - order_reduction, order + 1,
-      CEED_GAUSS_LOBATTO, &basisctof_);
-   mfem_interp_ = new MFEMCeedInterpolation(ceed, dim, basisctof_, lo_er_, ho_er_);
+   CeedOperatorGetActiveElemRestriction(oper, &ho_er_);
+   mfem_interp_ = new MFEMCeedInterpolation(ceed, basisctof_, lo_er_, ho_er_);
 
    CoarsenEssentialDofs(*mfem_interp_, ho_ess_tdof_list, lo_ess_tdof_list_);
 }
@@ -400,6 +391,7 @@ CeedCGWithAMG::~CeedCGWithAMG()
    delete hypre_assembled_;
    delete inner_prec_;
 }
+*/
 
 CeedPlainCG::CeedPlainCG(CeedOperator oper,
                          mfem::Array<int>& ess_tdof_list)
@@ -417,7 +409,6 @@ CeedPlainCG::~CeedPlainCG()
 {
    delete mfem_ceed_;
 }
-*/
 
 } // namespace navier
 } // namespace mfem

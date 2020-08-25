@@ -39,6 +39,7 @@ struct s_NavierContext
    bool ni = false;
    bool visualization = false;
    bool checkres = false;
+   bool ceed_spinv = false;
 } ctx;
 
 void vel(const Vector &x, double t, Vector &u)
@@ -125,6 +126,9 @@ int main(int argc, char *argv[])
       "-no-cr",
       "--no-checkresult",
       "Enable or disable checking of the result. Returns -1 on failure.");
+   args.AddOption(&ctx.ceed_spinv, "--ceed-spinv", "--ceed-spinv",
+                  "--no-ceed-spinv", "--no-ceed-spinv",
+                  "Use algebraic Ceed solvers for pressure Poisson solve.");
    args.Parse();
    if (!args.Good())
    {
@@ -160,7 +164,7 @@ int main(int argc, char *argv[])
    delete mesh;
 
    // Create the flow solver.
-   NavierSolver naviersolver(pmesh, ctx.order, ctx.kinvis);
+   NavierSolver naviersolver(pmesh, ctx.order, ctx.kinvis, ctx.ceed_spinv);
    naviersolver.EnablePA(ctx.pa);
    naviersolver.EnableNI(ctx.ni);
 

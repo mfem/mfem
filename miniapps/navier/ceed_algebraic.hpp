@@ -41,7 +41,8 @@ private:
    CeedVector u_, v_;   // mutable?
 };
 
-class MFEMCeedOperator : public mfem::Operator {
+class MFEMCeedOperator : public mfem::Operator
+{
 public:
    MFEMCeedOperator(CeedOperator oper, mfem::Array<int>& ess_tdofs) 
       :
@@ -138,7 +139,7 @@ public:
                          CeedElemRestriction erestrictu_fine);
 
    MFEMCeedInterpolation(
-      Ceed ceed, int dim, CeedBasis basisctof,
+      Ceed ceed, CeedBasis basisctof,
       CeedElemRestriction erestrictu_coarse,
       CeedElemRestriction erestrictu_fine);
 
@@ -148,9 +149,8 @@ public:
 
    virtual void MultTranspose(const mfem::Vector& x, mfem::Vector& y) const;
 
- private:
-   int Initialize(Ceed ceed, int dim,
-                  CeedBasis basisctof,
+private:
+   int Initialize(Ceed ceed, CeedBasis basisctof,
                   CeedElemRestriction erestrictu_coarse,
                   CeedElemRestriction erestrictu_fine);
 
@@ -241,7 +241,8 @@ public:
    ~CeedCGWithAMG();
 
    void SetOperator(const mfem::Operator& op) { }
-   void Mult(const mfem::Vector& x, mfem::Vector& y) const {
+   void Mult(const mfem::Vector& x, mfem::Vector& y) const
+   {
       solver_->Mult(x, y);
    }
 

@@ -17,6 +17,97 @@
 using namespace mfem;
 using namespace navier;
 
+class TryCeedSolver : public mfem::Solver
+{
+public:
+   TryCeedSolver(Operator& fine_mfem_op,
+                 BilinearForm& form, Array<int>& ess_dofs, int order_reduction);
+   ~TryCeedSolver();
+
+   void SetOperator(const Operator& op) { operators[0] = const_cast<Operator*>(&op); }
+
+   void Mult(const Vector& x, Vector& y) const;
+
+private:
+   int num_levels;
+   Operator ** operators;
+   CeedMultigridLevel ** levels;
+   Solver ** solvers;
+};
+
+TryCeedSolver::TryCeedSolver(Operator& fine_mfem_op,
+                             BilinearForm& form, Array<int>& ess_dofs,
+                             int order_reduction)
+{
+   auto *bffis = form.GetDBFI();
+   MFEM_VERIFY(bffis->Size() == 1,
+               "Only implemented for one integrator!");
+   DiffusionIntegrator * dintegrator =
+      dynamic_cast<DiffusionIntegrator*>((*bffis)[0]);
+   MFEM_VERIFY(dintegrator, "Not a diffusion integrator!");
+   CeedOperator current_op = dintegrator->GetCeedData()->oper;
+
+   num_levels = 2;
+   operators = new Operator*[num_levels];
+   operators[0] = &fine_mfem_op;
+   levels = new CeedMultigridLevel*[num_levels - 1];
+   mfem::Array<int> * current_ess_dofs = &ess_dofs;
+   for (int i = 0; i < num_levels - 1; ++i)
+   {
+      levels[i] = new CeedMultigridLevel(current_op, *current_ess_dofs, order_reduction);
+      current_op = levels[i]->GetCoarseCeed();
+      current_ess_dofs = &levels[i]->GetCoarseEssentialDofList();
+      operators[i + 1] = new MFEMCeedOperator(current_op, *current_ess_dofs);
+   }
+
+   mfem::Solver * coarsest_solver;
+   CeedMultigridLevel * coarsest = levels[num_levels - 2];
+   /*
+   if (amg)
+   {
+      bool use_amgx = (ceed_spec[1] == 'g'); // TODO very crude
+      coarsest_solver = new CeedCGWithAMG(coarsest->GetCoarseCeed(),
+                                          coarsest->GetCoarseEssentialDofList(),
+                                          sparse_solver_type,
+                                          use_amgx);
+   } else {
+   */
+   coarsest_solver = new CeedPlainCG(coarsest->GetCoarseCeed(),
+                                     coarsest->GetCoarseEssentialDofList());
+   /* } */
+
+   // loop up from coarsest to build V-cycle solvers
+   // mfem::Solver * solvers[num_levels];
+   solvers = new Solver*[num_levels];
+   solvers[num_levels - 1] = coarsest_solver;
+   for (int i = 0; i < num_levels - 1; ++i)
+   {
+      int index = num_levels - 2 - i;
+      solvers[index] = new CeedMultigridVCycle(*levels[index], *operators[index],
+                                               *solvers[index + 1]);
+   }
+}
+
+TryCeedSolver::~TryCeedSolver()
+{
+   for (int i = 0; i < num_levels - 1; ++i)
+   {
+      delete solvers[i];
+      delete operators[i + 1];
+      delete levels[i];
+   }
+   delete solvers[num_levels - 1];
+  
+   delete [] solvers;
+   delete [] operators;
+   delete [] levels;
+}
+
+void TryCeedSolver::Mult(const Vector& x, Vector& y) const
+{
+   solvers[0]->Mult(x, y);
+}
+
 void CopyDBFIntegrators(ParBilinearForm *src, ParBilinearForm *dst)
 {
    Array<BilinearFormIntegrator *> *bffis = src->GetDBFI();
@@ -26,11 +117,9 @@ void CopyDBFIntegrators(ParBilinearForm *src, ParBilinearForm *dst)
    }
 }
 
-NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
-   : pmesh(mesh), order(order), kin_vis(kin_vis)
+NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis, bool ceed_solver_spinv_)
+   : pmesh(mesh), order(order), kin_vis(kin_vis), ceed_solver_spinv(ceed_solver_spinv_)
 {
-   ceed_solver_spinv = false; // ATB try new Ceed solvers
-
    vfec = new H1_FECollection(order, pmesh->Dimension());
    pfec = new H1_FECollection(order);
    vfes = new ParFiniteElementSpace(pmesh, vfec, pmesh->Dimension());
@@ -253,7 +342,7 @@ void NavierSolver::Setup(double dt)
       // ATB first steps here-ish
       if (ceed_solver_spinv)
       {
-         // SpInvPC = new TryCeedSolver(*Sp_form); // ideally...
+         SpInvPC = new TryCeedSolver(*Sp, *Sp_form, pres_ess_tdof, 1);
       }
       else
       {
