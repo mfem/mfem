@@ -25,9 +25,10 @@ double coeff_function(const Vector &x)
    return 1 + x[0]*x[0];
 }
 
-void test_assembly_level(Mesh &&mesh, int order, const CeedCoeff coeff_type,
-                         const int pb, const AssemblyLevel assembly)
+void test_ceed_operator(const char* input, int order, const CeedCoeff coeff_type,
+                        const int pb, const AssemblyLevel assembly)
 {
+   Mesh mesh(input, 1, 1);
    mesh.EnsureNodes();
    int dim = mesh.Dimension();
 
@@ -87,76 +88,80 @@ void test_assembly_level(Mesh &&mesh, int order, const CeedCoeff coeff_type,
    REQUIRE(y_test.Norml2() < 1.e-12);
 }
 
+static std::string getString(AssemblyLevel assembly)
+{
+   switch (assembly)
+   {
+   case AssemblyLevel::NONE:
+      return "NONE";
+      break;
+   case AssemblyLevel::PARTIAL:
+      return "PARTIAL";
+      break;
+   case AssemblyLevel::ELEMENT:
+      return "ELEMENT";
+      break;
+   case AssemblyLevel::FULL:
+      return "FULL";
+      break;
+   case AssemblyLevel::LEGACYFULL:
+      return "LEGACYFULL";
+      break;
+   }
+}
+
+static std::string getString(CeedCoeff coeff_type)
+{
+   switch (coeff_type)
+   {
+   case CeedCoeff::Const:
+      return "Const";
+      break;
+   case CeedCoeff::Grid:
+      return "Grid";
+      break;
+   case CeedCoeff::Quad:
+      return "Quad";
+      break;
+   }
+}
+
+static std::string getPbString(int pb)
+{
+   switch (pb)
+   {
+   case 0:
+      return "Mass";
+      break;
+   case 1:
+      return "Convection";
+      break;
+   case 2:
+      return "Diffusion";
+      break;
+   default:
+      return "Unknown problem";
+      break;
+   }
+}
+
 TEST_CASE("CEED", "[CEED]")
 {
-   SECTION("Continuous Galerkin")
+   auto assembly = GENERATE(AssemblyLevel::PARTIAL);
+   auto coeff_type = GENERATE(CeedCoeff::Const,CeedCoeff::Grid,CeedCoeff::Quad);
+   auto pb = GENERATE(0,2);
+   auto order = GENERATE(3);
+   auto mesh = GENERATE("../../data/inline-quad.mesh","../../data/star-q3.mesh",
+                        "../../data/inline-hex.mesh","../../data/fichera-q3.mesh",
+                        "../../data/amr-quad.mesh","../../data/fichera-amr.mesh");
+   std::string section = "assembly: " + getString(assembly) +
+                         ", coeff_type: " + getString(coeff_type) +
+                         ", pb: " + getPbString(pb) +
+                         ", order: " + std::to_string(order) +
+                         ", mesh: " + mesh;
+   SECTION(section)
    {
-      SECTION("2D")
-      {
-         for (CeedCoeff coeff_type : {CeedCoeff::Const,CeedCoeff::Grid,CeedCoeff::Quad})
-         {
-            for (AssemblyLevel assembly : {AssemblyLevel::PARTIAL})
-            {
-               for (int pb : {0, 2})
-               {
-                  const int order = 3;
-                  test_assembly_level(Mesh("../../data/inline-quad.mesh", 1, 1),
-                                      order, coeff_type, pb, assembly);
-                  // test_assembly_level(Mesh("../../data/periodic-hexagon.mesh", 1, 1),
-                  //                     order, coeff_type, pb, assembly);
-                  test_assembly_level(Mesh("../../data/star-q3.mesh", 1, 1),
-                                      order, coeff_type, pb, assembly);
-               }
-            }
-         }
-      }
-      SECTION("3D")
-      {
-         for (CeedCoeff coeff_type : {CeedCoeff::Const,CeedCoeff::Grid,CeedCoeff::Quad})
-         {
-            for (AssemblyLevel assembly : {AssemblyLevel::PARTIAL})
-            {
-               for (int pb : {0, 2})
-               {
-                  const int order = 3;
-                  test_assembly_level(Mesh("../../data/inline-hex.mesh", 1, 1),
-                                      order, coeff_type, pb, assembly);
-                  test_assembly_level(Mesh("../../data/fichera-q3.mesh", 1, 1),
-                                      order, coeff_type, pb, assembly);
-               }
-            }
-         }
-      }
-      SECTION("AMR 2D")
-      {
-         for (CeedCoeff coeff_type : {CeedCoeff::Const,CeedCoeff::Grid,CeedCoeff::Quad})
-         {
-            for (AssemblyLevel assembly : {AssemblyLevel::PARTIAL})
-            {
-               for (int pb : {0, 2})
-               {
-                  const int order = 3;
-                  test_assembly_level(Mesh("../../data/amr-quad.mesh", 1, 1),
-                                      order, coeff_type, pb, assembly);
-               }
-            }
-         }
-      }
-      SECTION("AMR 3D")
-      {
-         for (CeedCoeff coeff_type : {CeedCoeff::Const,CeedCoeff::Grid,CeedCoeff::Quad})
-         {
-            for (AssemblyLevel assembly : {AssemblyLevel::PARTIAL})
-            {
-               for (int pb : {0, 2})
-               {
-                  int order = 3;
-                  test_assembly_level(Mesh("../../data/fichera-amr.mesh", 1, 1),
-                                      order, coeff_type, pb, assembly);
-               }
-            }
-         }
-      }
+      test_ceed_operator(mesh, order, coeff_type, pb, assembly);
    }
 } // test case
 
