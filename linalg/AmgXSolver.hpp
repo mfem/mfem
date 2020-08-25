@@ -46,23 +46,26 @@ public:
 
    AmgXSolver() = default;
 
+   AmgXSolver(const std::string &modeStr, const std::string &cfgFile);
+
    AmgXSolver(const MPI_Comm &comm,
               const std::string &modeStr, const std::string &cfgFile, int &nDevs);
 
-   AmgXSolver(const std::string &modeStr, const std::string &cfgFile);
+   AmgXSolver(const MPI_Comm &comm,
+              const std::string &modeStr, const std::string &cfgFile);
 
    ~AmgXSolver();
 
    /*
     * nDevs - number of devices visible to MPI ranks on a given node
     */
-   void initialize(const MPI_Comm &comm,
-                   const std::string &modeStr, const std::string &cfgFile, const int nDevs);
+   void Initialize_Serial(const std::string &modeStr, const std::string &cfgFile);
 
-   void initialize(const std::string &modeStr, const std::string &cfgFile);
+   void Initialize_MPITeams(const MPI_Comm &comm,
+                            const std::string &modeStr, const std::string &cfgFile, const int nDevs);
 
-   void basic_initialize(const MPI_Comm &comm, const std::string &modeStr,
-                         const std::string &cfgFile);
+   void Initialize_ExclusiveGPU(const MPI_Comm &comm, const std::string &modeStr,
+                                const std::string &cfgFile);
 
 
    void finalize();

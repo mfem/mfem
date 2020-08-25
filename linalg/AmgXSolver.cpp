@@ -29,15 +29,21 @@ int AmgXSolver::count = 0;
 AMGX_resources_handle AmgXSolver::rsrc = nullptr;
 
 // \implements AmgXSolver::AmgXSolver
+AmgXSolver::AmgXSolver(const std::string &modeStr, const std::string &cfgFile)
+{
+   Initialize_Serial(modeStr, cfgFile);
+}
+
 AmgXSolver::AmgXSolver(const MPI_Comm &comm,
                        const std::string &modeStr, const std::string &cfgFile, int &nDevs)
 {
-   initialize(comm, modeStr, cfgFile, nDevs);
+   Initialize_MPITeams(comm, modeStr, cfgFile, nDevs);
 }
 
-AmgXSolver::AmgXSolver(const std::string &modeStr, const std::string &cfgFile)
+AmgXSolver::AmgXSolver(const MPI_Comm &comm,
+                       const std::string &modeStr, const std::string &cfgFile)
 {
-   initialize(modeStr, cfgFile);
+   Initialize_ExclusiveGPU(comm, modeStr, cfgFile);
 }
 
 // \implements AmgXSolver::~AmgXSolver
@@ -64,8 +70,9 @@ int AmgXSolver::getNumIterations()
 
 //Basic initialization for when MPI procs == GPUs
 //Each MPI rank is assumed to see a different GPU
-void AmgXSolver::basic_initialize(const MPI_Comm &comm,
-                                  const std::string &modeStr, const std::string &cfgFile)
+void AmgXSolver::Initialize_ExclusiveGPU(const MPI_Comm &comm,
+                                         const std::string &modeStr,
+                                         const std::string &cfgFile)
 {
    if (modeStr == "dDDI") { mode = AMGX_mode_dDDI;}
    else { mfem_error("dDDI only supported \n");}
@@ -109,8 +116,9 @@ void AmgXSolver::basic_initialize(const MPI_Comm &comm,
 }
 
 // \implements AmgXSolver::initialize for the case of MPI procs > GPU
-void AmgXSolver::initialize(const MPI_Comm &comm,
-                            const std::string &modeStr, const std::string &cfgFile, const int nDevs)
+void AmgXSolver::Initialize_MPITeams(const MPI_Comm &comm,
+                                     const std::string &modeStr,
+                                     const std::string &cfgFile, const int nDevs)
 {
 
    // if this instance has already been initialized, skip
@@ -148,8 +156,8 @@ void AmgXSolver::initialize(const MPI_Comm &comm,
 }
 
 // \implements AmgXSolver::initialize  for serial runs
-void AmgXSolver::initialize(const std::string &modeStr,
-                            const std::string &cfgFile)
+void AmgXSolver::Initialize_Serial(const std::string &modeStr,
+                                   const std::string &cfgFile)
 {
 
    setMode(modeStr);
