@@ -1212,7 +1212,7 @@ void *MemoryManager::GetAliasDevicePtr(const void *alias_ptr, size_t bytes,
    void *alias_d_ptr = static_cast<char*>(mem.d_ptr) + offset;
    MFEM_ASSERT(alias_h_ptr == alias_ptr, "internal error");
    MFEM_ASSERT(bytes <= alias.bytes, "internal error");
-   mem.d_rw = false;
+   mem.d_rw = mem.h_rw = false;
    ctrl->Device(d_mt)->AliasUnprotect(alias_d_ptr, bytes);
    ctrl->Host(h_mt)->AliasUnprotect(alias_ptr, bytes);
    if (copy) { ctrl->Device(d_mt)->HtoD(alias_d_ptr, alias_h_ptr, bytes); }
