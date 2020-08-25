@@ -112,8 +112,6 @@ private:
 
    static int              count;
 
-   //static int              count2;
-
    // \brief A flag indicating if this instance has been initialized.
    bool                    isInitialized = false;
 
@@ -195,7 +193,7 @@ private:
    void setMode(const std::string &modeStr);
 
    // \brief Get the number of GPU devices on this computing node.
-   void setDeviceCount();
+   //void setDeviceCount();
 
    // \brief Set the ID of the corresponding GPU used by this process.
    void setDeviceIDs(const int nDevs);
