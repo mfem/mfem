@@ -9,7 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "catch.hpp"
+#include "unit_tests.hpp"
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -44,9 +44,12 @@ void AddConvectionIntegrators(BilinearForm &k, VectorCoefficient &velocity,
    }
 }
 
-void test_assembly_level(Mesh &&mesh, int order, bool dg, const int pb,
+void test_assembly_level(const char *meshname, int order, bool dg, const int pb,
                          const AssemblyLevel assembly)
 {
+   INFO("mesh=" << meshname << ", order=" << order << ", DG=" << dg
+        << ", pb=" << pb << ", assembly=" << int(assembly));
+   Mesh mesh(meshname, 1, 1);
    mesh.EnsureNodes();
    int dim = mesh.Dimension();
 
@@ -104,109 +107,43 @@ void test_assembly_level(Mesh &&mesh, int order, bool dg, const int pb,
    delete fec;
 }
 
-TEST_CASE("Assembly Levels", "[AssemblyLevel]")
+TEST_CASE("Assembly Levels", "[AssemblyLevel], [PartialAssembly]")
 {
-   SECTION("Continuous Galerkin")
+   auto assembly = GENERATE(AssemblyLevel::PARTIAL, AssemblyLevel::ELEMENT,
+                            AssemblyLevel::FULL);
+   auto pb = GENERATE(0, 1, 2);
+   auto dg = GENERATE(true, false);
+   auto order_2d = GENERATE(2, 3, 4);
+   auto order_3d = GENERATE(2);
+
+   SECTION("2D")
    {
-      const bool dg = false;
-      SECTION("2D")
-      {
-         for (AssemblyLevel assembly : {AssemblyLevel::PARTIAL,AssemblyLevel::ELEMENT,AssemblyLevel::FULL})
-         {
-            for (int pb : {0, 1, 2})
-            {
-               for (int order : {2, 3, 4})
-               {
-                  test_assembly_level(Mesh("../../data/inline-quad.mesh", 1, 1),
-                                      order, dg, pb, assembly);
-                  test_assembly_level(Mesh("../../data/periodic-hexagon.mesh", 1, 1),
-                                      order, dg, pb, assembly);
-                  test_assembly_level(Mesh("../../data/star-q3.mesh", 1, 1),
-                                      order, dg, pb, assembly);
-               }
-            }
-         }
-      }
-      SECTION("3D")
-      {
-         for (AssemblyLevel assembly : {AssemblyLevel::PARTIAL,AssemblyLevel::ELEMENT,AssemblyLevel::FULL})
-         {
-            for (int pb : {0, 1, 2})
-            {
-               int order = 2;
-               test_assembly_level(Mesh("../../data/inline-hex.mesh", 1, 1),
-                                   order, dg, pb, assembly);
-               test_assembly_level(Mesh("../../data/fichera-q3.mesh", 1, 1),
-                                   order, dg, pb, assembly);
-            }
-         }
-      }
-      SECTION("AMR 2D")
-      {
-         for (AssemblyLevel assembly : {AssemblyLevel::PARTIAL,AssemblyLevel::ELEMENT,AssemblyLevel::FULL})
-         {
-            for (int pb : {0, 1, 2})
-            {
-               for (int order : {2, 3, 4})
-               {
-                  test_assembly_level(Mesh("../../data/amr-quad.mesh", 1, 1),
-                                      order, false, 0, assembly);
-               }
-            }
-         }
-      }
-      SECTION("AMR 3D")
-      {
-         for (AssemblyLevel assembly : {AssemblyLevel::PARTIAL,AssemblyLevel::ELEMENT,AssemblyLevel::FULL})
-         {
-            for (int pb : {0, 1, 2})
-            {
-               int order = 2;
-               test_assembly_level(Mesh("../../data/fichera-amr.mesh", 1, 1),
-                                   order, false, 0, assembly);
-            }
-         }
-      }
+      test_assembly_level("../../data/periodic-square.mesh",
+                          order_2d, dg, pb, assembly);
+      test_assembly_level("../../data/periodic-hexagon.mesh",
+                          order_2d, dg, pb, assembly);
+      test_assembly_level("../../data/star-q3.mesh",
+                          order_2d, dg, pb, assembly);
    }
 
-   SECTION("Discontinuous Galerkin")
+   SECTION("3D")
    {
-      const bool dg = true;
-      SECTION("2D")
-      {
-         for (AssemblyLevel assembly : {AssemblyLevel::PARTIAL,AssemblyLevel::ELEMENT,AssemblyLevel::FULL})
-         {
-            for (int pb : {0, 1, 2})
-            {
-               for (int order : {2, 3, 4})
-               {
-                  test_assembly_level(Mesh("../../data/periodic-square.mesh", 1, 1),
-                                      order, dg, pb, assembly);
-                  test_assembly_level(Mesh("../../data/periodic-hexagon.mesh", 1, 1),
-                                      order, dg, pb, assembly);
-                  test_assembly_level(Mesh("../../data/star-q3.mesh", 1, 1),
-                                      order, dg, pb, assembly);
-               }
-            }
-         }
-      }
-      SECTION("3D")
-      {
-         for (AssemblyLevel assembly : {AssemblyLevel::PARTIAL,AssemblyLevel::ELEMENT,AssemblyLevel::FULL})
-         {
-            for (int pb : {0, 1, 2})
-            {
-               for (bool dg : {true, false})
-               {
-                  int order = 2;
-                  test_assembly_level(Mesh("../../data/periodic-cube.mesh", 1, 1),
-                                      order, dg, pb, assembly);
-                  test_assembly_level(Mesh("../../data/fichera-q3.mesh", 1, 1),
-                                      order, dg, pb, assembly);
-               }
-            }
-         }
-      }
+      test_assembly_level("../../data/periodic-cube.mesh",
+                          order_3d, dg, pb, assembly);
+      test_assembly_level("../../data/fichera-q3.mesh",
+                          order_3d, dg, pb, assembly);
+   }
+
+   // Test AMR cases (DG not implemented)
+   SECTION("AMR 2D")
+   {
+      test_assembly_level("../../data/amr-quad.mesh",
+                          order_2d, false, 0, assembly);
+   }
+   SECTION("AMR 3D")
+   {
+      test_assembly_level("../../data/fichera-amr.mesh",
+                          order_3d, false, 0, assembly);
    }
 } // test case
 
