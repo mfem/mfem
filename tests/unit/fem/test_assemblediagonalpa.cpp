@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include "catch.hpp"
+#include "unit_tests.hpp"
 
 using namespace mfem;
 
@@ -256,19 +256,19 @@ TEST_CASE("Vector Mass Diagonal PA", "[PartialAssembly], [AssembleDiagonal]")
    SECTION("2D")
    {
       REQUIRE(test_vdiagpa<VectorMassIntegrator>(2,
-                                                 2) == Approx(0.0));
+                                                 2) == MFEM_Approx(0.0));
 
       REQUIRE(test_vdiagpa<VectorMassIntegrator>(2,
-                                                 3) == Approx(0.0));
+                                                 3) == MFEM_Approx(0.0));
    }
 
    SECTION("3D")
    {
       REQUIRE(test_vdiagpa<VectorMassIntegrator>(3,
-                                                 2) == Approx(0.0));
+                                                 2) == MFEM_Approx(0.0));
 
       REQUIRE(test_vdiagpa<VectorMassIntegrator>(3,
-                                                 3) == Approx(0.0));
+                                                 3) == MFEM_Approx(0.0));
    }
 }
 
@@ -279,19 +279,19 @@ TEST_CASE("Vector Diffusion Diagonal PA",
    {
       REQUIRE(
          test_vdiagpa<VectorDiffusionIntegrator>(2,
-                                                 2) == Approx(0.0));
+                                                 2) == MFEM_Approx(0.0));
 
       REQUIRE(test_vdiagpa<VectorDiffusionIntegrator>(2,
-                                                      3) == Approx(0.0));
+                                                      3) == MFEM_Approx(0.0));
    }
 
    SECTION("3D")
    {
       REQUIRE(test_vdiagpa<VectorDiffusionIntegrator>(3,
-                                                      2) == Approx(0.0));
+                                                      2) == MFEM_Approx(0.0));
 
       REQUIRE(test_vdiagpa<VectorDiffusionIntegrator>(3,
-                                                      3) == Approx(0.0));
+                                                      3) == MFEM_Approx(0.0));
    }
 }
 
