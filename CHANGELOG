@@ -199,6 +199,9 @@ Miscellaneous
 
 - Various other simplifications, extensions, and bugfixes in the code.
 
+- Renamed "Backend::DEBUG" to "Backend::DEBUG_DEVICE" to avoid conflicts,
+  as DEBUG is sometimes used as a macro.
+
 
 Version 4.1, released on March 10, 2020
 =======================================
