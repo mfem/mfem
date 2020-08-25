@@ -99,15 +99,13 @@ TEST_CASE("CEED", "[CEED]")
             {
                for (int pb : {0, 2})
                {
-                  for (int order : {3, 4})
-                  {
-                     test_assembly_level(Mesh("../../data/inline-quad.mesh", 1, 1),
-                                         order, coeff_type, pb, assembly);
-                     // test_assembly_level(Mesh("../../data/periodic-hexagon.mesh", 1, 1),
-                     //                     order, coeff_type, pb, assembly);
-                     test_assembly_level(Mesh("../../data/star-q3.mesh", 1, 1),
-                                         order, coeff_type, pb, assembly);
-                  }
+                  const int order = 3;
+                  test_assembly_level(Mesh("../../data/inline-quad.mesh", 1, 1),
+                                      order, coeff_type, pb, assembly);
+                  // test_assembly_level(Mesh("../../data/periodic-hexagon.mesh", 1, 1),
+                  //                     order, coeff_type, pb, assembly);
+                  test_assembly_level(Mesh("../../data/star-q3.mesh", 1, 1),
+                                      order, coeff_type, pb, assembly);
                }
             }
          }
@@ -120,7 +118,7 @@ TEST_CASE("CEED", "[CEED]")
             {
                for (int pb : {0, 2})
                {
-                  int order = 3;
+                  const int order = 3;
                   test_assembly_level(Mesh("../../data/inline-hex.mesh", 1, 1),
                                       order, coeff_type, pb, assembly);
                   test_assembly_level(Mesh("../../data/fichera-q3.mesh", 1, 1),
@@ -137,11 +135,9 @@ TEST_CASE("CEED", "[CEED]")
             {
                for (int pb : {0, 2})
                {
-                  for (int order : {2, 3, 4})
-                  {
-                     test_assembly_level(Mesh("../../data/amr-quad.mesh", 1, 1),
-                                         order, coeff_type, 0, assembly);
-                  }
+                  const int order = 3;
+                  test_assembly_level(Mesh("../../data/amr-quad.mesh", 1, 1),
+                                      order, coeff_type, pb, assembly);
                }
             }
          }
@@ -154,9 +150,9 @@ TEST_CASE("CEED", "[CEED]")
             {
                for (int pb : {0, 2})
                {
-                  int order = 2;
+                  int order = 3;
                   test_assembly_level(Mesh("../../data/fichera-amr.mesh", 1, 1),
-                                      order, coeff_type, 0, assembly);
+                                      order, coeff_type, pb, assembly);
                }
             }
          }
