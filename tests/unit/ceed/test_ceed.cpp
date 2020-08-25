@@ -25,9 +25,72 @@ double coeff_function(const Vector &x)
    return 1 + x[0]*x[0];
 }
 
+static std::string getString(AssemblyLevel assembly)
+{
+   switch (assembly)
+   {
+   case AssemblyLevel::NONE:
+      return "NONE";
+      break;
+   case AssemblyLevel::PARTIAL:
+      return "PARTIAL";
+      break;
+   case AssemblyLevel::ELEMENT:
+      return "ELEMENT";
+      break;
+   case AssemblyLevel::FULL:
+      return "FULL";
+      break;
+   case AssemblyLevel::LEGACYFULL:
+      return "LEGACYFULL";
+      break;
+   }
+}
+
+static std::string getString(CeedCoeff coeff_type)
+{
+   switch (coeff_type)
+   {
+   case CeedCoeff::Const:
+      return "Const";
+      break;
+   case CeedCoeff::Grid:
+      return "Grid";
+      break;
+   case CeedCoeff::Quad:
+      return "Quad";
+      break;
+   }
+}
+
+static std::string getPbString(int pb)
+{
+   switch (pb)
+   {
+   case 0:
+      return "Mass";
+      break;
+   case 1:
+      return "Convection";
+      break;
+   case 2:
+      return "Diffusion";
+      break;
+   default:
+      return "Unknown problem";
+      break;
+   }
+}
+
 void test_ceed_operator(const char* input, int order, const CeedCoeff coeff_type,
                         const int pb, const AssemblyLevel assembly)
 {
+   std::string section = "assembly: " + getString(assembly) + "\n" +
+                         "coeff_type: " + getString(coeff_type) + "\n" +
+                         "pb: " + getPbString(pb) + "\n" +
+                         "order: " + std::to_string(order) + "\n" +
+                         "mesh: " + input;
+   INFO(section);
    Mesh mesh(input, 1, 1);
    mesh.EnsureNodes();
    int dim = mesh.Dimension();
@@ -88,63 +151,6 @@ void test_ceed_operator(const char* input, int order, const CeedCoeff coeff_type
    REQUIRE(y_test.Norml2() < 1.e-12);
 }
 
-static std::string getString(AssemblyLevel assembly)
-{
-   switch (assembly)
-   {
-   case AssemblyLevel::NONE:
-      return "NONE";
-      break;
-   case AssemblyLevel::PARTIAL:
-      return "PARTIAL";
-      break;
-   case AssemblyLevel::ELEMENT:
-      return "ELEMENT";
-      break;
-   case AssemblyLevel::FULL:
-      return "FULL";
-      break;
-   case AssemblyLevel::LEGACYFULL:
-      return "LEGACYFULL";
-      break;
-   }
-}
-
-static std::string getString(CeedCoeff coeff_type)
-{
-   switch (coeff_type)
-   {
-   case CeedCoeff::Const:
-      return "Const";
-      break;
-   case CeedCoeff::Grid:
-      return "Grid";
-      break;
-   case CeedCoeff::Quad:
-      return "Quad";
-      break;
-   }
-}
-
-static std::string getPbString(int pb)
-{
-   switch (pb)
-   {
-   case 0:
-      return "Mass";
-      break;
-   case 1:
-      return "Convection";
-      break;
-   case 2:
-      return "Diffusion";
-      break;
-   default:
-      return "Unknown problem";
-      break;
-   }
-}
-
 TEST_CASE("CEED", "[CEED]")
 {
    auto assembly = GENERATE(AssemblyLevel::PARTIAL);
@@ -154,15 +160,7 @@ TEST_CASE("CEED", "[CEED]")
    auto mesh = GENERATE("../../data/inline-quad.mesh","../../data/star-q3.mesh",
                         "../../data/inline-hex.mesh","../../data/fichera-q3.mesh",
                         "../../data/amr-quad.mesh","../../data/fichera-amr.mesh");
-   std::string section = "assembly: " + getString(assembly) +
-                         ", coeff_type: " + getString(coeff_type) +
-                         ", pb: " + getPbString(pb) +
-                         ", order: " + std::to_string(order) +
-                         ", mesh: " + mesh;
-   SECTION(section)
-   {
-      test_ceed_operator(mesh, order, coeff_type, pb, assembly);
-   }
+   test_ceed_operator(mesh, order, coeff_type, pb, assembly);
 } // test case
 
 } // namespace ceed_test
