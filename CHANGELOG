@@ -64,6 +64,10 @@ Improved GPU capabilities
 
 - Added support for BlockOperator on GPU. See the updated Example 5.
 
+- Added partial assembly and GPU support for complex operators, including the
+  classes ComplexOperator, [Par]ComplexGridFunction, [Par]ComplexLinearForm, and
+  [Par]SesquilinearForm. See the updated Example 22.
+
 Discretization improvements
 ---------------------------
 - Added support for matrix-free interpolation and restriction operators between
@@ -168,6 +172,9 @@ New and updated examples and miniapps
   assigned attribute numbers related to the trimmed element attributes.
 
 - Added device support in Example 5/5p.
+
+- Added partial assembly and device support to Example 22/22p, with diagonal
+  preconditioning.
 
 - Added the option to plot a function in Mesh Explorer.
 
