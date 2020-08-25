@@ -9,24 +9,16 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "mfem.hpp"
-using namespace mfem;
+#ifndef MFEM_UNIT_TEST
+#define MFEM_UNIT_TEST
 
-#include "unit_tests.hpp"
-#include "general/text.hpp"
+#include "catch.hpp"
 
-TEST_CASE("String Manipulation", "[General]")
+/// MFEM_Approx can be used to compare floating point values within an absolute
+/// tolerance of `margin` (default value 1e-12).
+inline Approx MFEM_Approx(double val, double margin = 1e-12)
 {
-   SECTION("String Conversion")
-   {
-      SECTION("Integer")
-      {
-         // Catch workaround for nvcc compiler: see issue
-         // https://github.com/catchorg/Catch2/issues/2005
-         int i = to_int(to_string(12));
-         REQUIRE(i == 12);
-         int j = to_int(to_string(-1234));
-         REQUIRE(j == -1234);
-      }
-   }
+   return Approx(val).margin(margin);
 }
+
+#endif
