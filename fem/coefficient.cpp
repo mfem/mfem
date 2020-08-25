@@ -325,7 +325,7 @@ void MatrixFunctionCoefficient::EvalSymmetric(Vector &K,
                                               ElementTransformation &T,
                                               const IntegrationPoint &ip)
 {
-   MFEM_VERIFY(symmetric && height == width && height < 4 && SymmFunction,
+   MFEM_VERIFY(symmetric && height == width && SymmFunction,
                "MatrixFunctionCoefficient is not symmetric");
 
    double x[3];
