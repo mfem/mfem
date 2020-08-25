@@ -21,7 +21,8 @@ class TryCeedSolver : public mfem::Solver
 {
 public:
    TryCeedSolver(Operator& fine_mfem_op,
-                 BilinearForm& form, Array<int>& ess_dofs, int order_reduction);
+                 BilinearForm& form, Array<int>& ess_dofs, int order_reduction,
+                 bool ortho_);
    ~TryCeedSolver();
 
    void SetOperator(const Operator& op) { operators[0] = const_cast<Operator*>(&op); }
@@ -29,15 +30,19 @@ public:
    void Mult(const Vector& x, Vector& y) const;
 
 private:
+   bool ortho;
    int num_levels;
    Operator ** operators;
    CeedMultigridLevel ** levels;
    Solver ** solvers;
+   Solver ** nonortho_solvers;
 };
 
 TryCeedSolver::TryCeedSolver(Operator& fine_mfem_op,
                              BilinearForm& form, Array<int>& ess_dofs,
-                             int order_reduction)
+                             int order_reduction, bool ortho_)
+   :
+   ortho(ortho_)
 {
    auto *bffis = form.GetDBFI();
    MFEM_VERIFY(bffis->Size() == 1,
@@ -80,11 +85,26 @@ TryCeedSolver::TryCeedSolver(Operator& fine_mfem_op,
    // mfem::Solver * solvers[num_levels];
    solvers = new Solver*[num_levels];
    solvers[num_levels - 1] = coarsest_solver;
+   if (ortho)
+   {
+      nonortho_solvers = new Solver*[num_levels];
+      nonortho_solvers[num_levels - 1] = solvers[num_levels - 1];
+      auto osolver = new OrthoSolver();
+      osolver->SetOperator(*nonortho_solvers[num_levels - 1]);
+      solvers[num_levels - 1] = osolver;
+   }
    for (int i = 0; i < num_levels - 1; ++i)
    {
       int index = num_levels - 2 - i;
       solvers[index] = new CeedMultigridVCycle(*levels[index], *operators[index],
                                                *solvers[index + 1]);
+      if (ortho)
+      {
+         nonortho_solvers[index] = solvers[index];
+         auto osolver = new OrthoSolver();
+         osolver->SetOperator(*nonortho_solvers[index]);
+         solvers[index] = osolver;
+      }
    }
 }
 
@@ -97,10 +117,18 @@ TryCeedSolver::~TryCeedSolver()
       delete levels[i];
    }
    delete solvers[num_levels - 1];
-  
    delete [] solvers;
    delete [] operators;
    delete [] levels;
+
+   if (ortho)
+   {
+      for (int i = 0; i < num_levels; ++i)
+      {
+         delete nonortho_solvers[i];
+      }
+      delete [] nonortho_solvers;
+   }
 }
 
 void TryCeedSolver::Mult(const Vector& x, Vector& y) const
@@ -339,10 +367,9 @@ void NavierSolver::Setup(double dt)
 
    if (partial_assembly)
    {
-      // ATB first steps here-ish
       if (ceed_solver_spinv)
       {
-         SpInvPC = new TryCeedSolver(*Sp, *Sp_form, pres_ess_tdof, 1);
+         SpInvPC = new TryCeedSolver(*Sp, *Sp_form, pres_ess_tdof, 1, pres_dbcs.empty());
       }
       else
       {

@@ -19,6 +19,8 @@ OrthoSolver::OrthoSolver() : Solver(0, true) {}
 void OrthoSolver::SetOperator(const Operator &op)
 {
    oper = &op;
+   height = op.Height();
+   width = op.Width();
 }
 
 void OrthoSolver::Mult(const Vector &b, Vector &x) const
