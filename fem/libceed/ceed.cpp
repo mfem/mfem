@@ -99,7 +99,6 @@ static void InitCeedNonTensorBasis(const FiniteElementSpace &fes,
    Vector qweight(Q);
    Vector shape_i(P);
    DenseMatrix grad_i(P, dim);
-   CeedInt compstride = fes.GetOrdering()==Ordering::byVDIM ? 1 : fes.GetNDofs();
    const Table &el_dof = fes.GetElementToDofTable();
    Array<int> tp_el_dof(el_dof.Size_of_connections());
    const TensorBasisElement * tfe =
@@ -261,7 +260,6 @@ static void InitCeedTensorBasis(const FiniteElementSpace &fes,
    const TensorBasisElement * tfe =
       dynamic_cast<const TensorBasisElement *>(fe);
    MFEM_VERIFY(tfe, "invalid FE");
-   const Array<int>& dof_map = tfe->GetDofMap();
    const FiniteElement *fe1d =
       fes.FEColl()->FiniteElementForGeometry(Geometry::SEGMENT);
    DenseMatrix shape1d(fe1d->GetDof(), ir.GetNPoints());
@@ -298,7 +296,6 @@ static void InitCeedTensorRestriction(const FiniteElementSpace &fes,
 {
    Mesh *mesh = fes.GetMesh();
    const FiniteElement *fe = fes.GetFE(0);
-   const int order = fes.GetOrder(0);
    const TensorBasisElement * tfe =
       dynamic_cast<const TensorBasisElement *>(fe);
    MFEM_VERIFY(tfe, "invalid FE");
