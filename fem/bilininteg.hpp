@@ -2200,6 +2200,13 @@ public:
 #endif
    }
 
+   ~VectorMassIntegrator()
+   {
+#ifdef MFEM_USE_CEED
+      delete ceedDataPtr;
+#endif
+   }
+
    int GetVDim() const { return vdim; }
    void SetVDim(int vdim) { this->vdim = vdim; }
 
@@ -2592,6 +2599,13 @@ public:
       Q = &q;
 #ifdef MFEM_USE_CEED
       ceedDataPtr = NULL;
+#endif
+   }
+
+   ~VectorDiffusionIntegrator()
+   {
+#ifdef MFEM_USE_CEED
+      delete ceedDataPtr;
 #endif
    }
 
