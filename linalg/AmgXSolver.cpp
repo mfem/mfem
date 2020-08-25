@@ -23,8 +23,6 @@ namespace mfem
 // initialize AmgXSolver::count to 0
 int AmgXSolver::count = 0;
 
-//int AmgXSolver::count2 = 0;
-
 // initialize AmgXSolver::rsrc to nullptr;
 AMGX_resources_handle AmgXSolver::rsrc = nullptr;
 
@@ -46,26 +44,32 @@ AmgXSolver::AmgXSolver(const MPI_Comm &comm,
    Initialize_ExclusiveGPU(comm, modeStr, cfgFile);
 }
 
-// \implements AmgXSolver::~AmgXSolver
 AmgXSolver::~AmgXSolver()
 {
    if (isInitialized) { finalize(); }
 }
 
-void AmgXSolver::setMode(const std::string &modeStr)
+void AmgXSolver::Initialize_Serial(const std::string &modeStr,
+                                   const std::string &cfgFile)
 {
-   if (modeStr == "dDDI")
-   {
-      mode = AMGX_mode_dDDI;
-   }
-   else { mfem_error("Mode not supported \n"); }
-}
 
-int AmgXSolver::getNumIterations()
-{
-   int getIters;
-   AMGX_solver_get_iterations_number(solver, &getIters);
-   return getIters;
+   setMode(modeStr);
+
+   AMGX_SAFE_CALL(AMGX_initialize());
+
+   AMGX_SAFE_CALL(AMGX_initialize_plugins());
+
+   AMGX_SAFE_CALL(AMGX_install_signal_handler());
+
+   AMGX_SAFE_CALL(AMGX_config_create_from_file(&cfg, cfgFile.c_str()));
+
+   AMGX_resources_create_simple(&rsrc, cfg);
+   AMGX_solver_create(&solver, rsrc, mode, cfg);
+   AMGX_matrix_create(&AmgXA, rsrc, mode);
+   AMGX_vector_create(&AmgXP, rsrc, mode);
+   AMGX_vector_create(&AmgXRHS, rsrc, mode);
+
+   isInitialized = true;
 }
 
 //Basic initialization for when MPI procs == GPUs
@@ -77,7 +81,13 @@ void AmgXSolver::Initialize_ExclusiveGPU(const MPI_Comm &comm,
    if (modeStr == "dDDI") { mode = AMGX_mode_dDDI;}
    else { mfem_error("dDDI only supported \n");}
 
-   mpi_mode = "mpi==gpu";
+   // if this instance has already been initialized, skip
+   if (isInitialized)
+   {
+      mfem_error("This AmgXSolver instance has been initialized on this process.");
+   }
+
+   mpi_gpu_mode = "mpi==gpu";
    gpuProc = 0;
    count++;
    MPI_Comm_dup(comm, &gpuWorld);
@@ -155,30 +165,21 @@ void AmgXSolver::Initialize_MPITeams(const MPI_Comm &comm,
    isInitialized = true;
 }
 
-// \implements AmgXSolver::initialize  for serial runs
-void AmgXSolver::Initialize_Serial(const std::string &modeStr,
-                                   const std::string &cfgFile)
+void AmgXSolver::setMode(const std::string &modeStr)
 {
-
-   setMode(modeStr);
-
-   AMGX_SAFE_CALL(AMGX_initialize());
-
-   AMGX_SAFE_CALL(AMGX_initialize_plugins());
-
-   AMGX_SAFE_CALL(AMGX_install_signal_handler());
-
-   AMGX_SAFE_CALL(AMGX_config_create_from_file(&cfg, cfgFile.c_str()));
-
-   AMGX_resources_create_simple(&rsrc, cfg);
-   AMGX_solver_create(&solver, rsrc, mode, cfg);
-   AMGX_matrix_create(&AmgXA, rsrc, mode);
-   AMGX_vector_create(&AmgXP, rsrc, mode);
-   AMGX_vector_create(&AmgXRHS, rsrc, mode);
-
-   isInitialized = true;
+   if (modeStr == "dDDI")
+   {
+      mode = AMGX_mode_dDDI;
+   }
+   else { mfem_error("Mode not supported \n"); }
 }
 
+int AmgXSolver::getNumIterations()
+{
+   int getIters;
+   AMGX_solver_get_iterations_number(solver, &getIters);
+   return getIters;
+}
 
 // \implements AmgXSolver::initAmgX
 void AmgXSolver::initAmgX(const std::string &cfgFile)
@@ -580,7 +581,7 @@ void AmgXSolver::SetA(const HypreParMatrix &A)
    }
    */
 
-   if (mpi_mode=="mpi==gpu")
+   if (mpi_gpu_mode=="mpi==gpu")
    {
       printf("Same number of mpi ranks to gpus \n");
 
@@ -965,9 +966,9 @@ void AmgXSolver::ScatterArray(Vector &inArr, Vector &outArr,
 void AmgXSolver::solve(mfem::Vector &X, mfem::Vector &B)
 {
 
-   if (mpi_mode == "mpi==gpu")
+   if (mpi_gpu_mode == "mpi==gpu")
    {
-      std::cout<<"MPI mode "<<mpi_mode<<std::endl;
+      std::cout<<"MPI mode "<<mpi_gpu_mode<<std::endl;
       AMGX_vector_upload(AmgXP, X.Size(), 1, X.HostReadWrite());
       AMGX_vector_upload(AmgXRHS, B.Size(), 1, B.HostReadWrite());
 

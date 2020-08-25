@@ -43,30 +43,29 @@ class AmgXSolver : public Solver
 
 public:
 
-
    AmgXSolver() = default;
 
+   /* Constructor for serial builds - Should be supported without Hypre and MPI */
    AmgXSolver(const std::string &modeStr, const std::string &cfgFile);
 
-   AmgXSolver(const MPI_Comm &comm,
-              const std::string &modeStr, const std::string &cfgFile, int &nDevs);
-
+   /* Constructor for mpi exclusive - Needs Hypre and MPI */
    AmgXSolver(const MPI_Comm &comm,
               const std::string &modeStr, const std::string &cfgFile);
 
+   /* Constructor for mpi teams - Needs Hypre and MPI */
+   AmgXSolver(const MPI_Comm &comm,
+              const std::string &modeStr, const std::string &cfgFile, int &nDevs);
+
    ~AmgXSolver();
 
-   /*
-    * nDevs - number of devices visible to MPI ranks on a given node
-    */
    void Initialize_Serial(const std::string &modeStr, const std::string &cfgFile);
-
-   void Initialize_MPITeams(const MPI_Comm &comm,
-                            const std::string &modeStr, const std::string &cfgFile, const int nDevs);
 
    void Initialize_ExclusiveGPU(const MPI_Comm &comm, const std::string &modeStr,
                                 const std::string &cfgFile);
 
+   void Initialize_MPITeams(const MPI_Comm &comm,
+                            const std::string &modeStr, const std::string &cfgFile,
+                            const int nDevs);
 
    void finalize();
 
@@ -75,6 +74,14 @@ public:
    void SetA(const mfem::SparseMatrix &A);
 
    virtual void SetOperator(const Operator &op);
+
+   void solve(mfem::Vector &p, mfem::Vector &b);
+
+   virtual void Mult(const Vector& b, Vector& x) const;
+
+   int getNumIterations();
+
+private:
 
    //void GetLocalA(const HypreParMatrix &A, Array<HYPRE_Int> &I,
    //Array<int64_t> &J, Array<double> &Data);
@@ -101,14 +108,6 @@ public:
 
    //To be refactored
    //void updateA(const HypreParMatrix &A);
-
-   void solve(mfem::Vector &p, mfem::Vector &b);
-
-   virtual void Mult(const Vector& b, Vector& x) const;
-
-   int getNumIterations();
-
-
 private:
 
    static int              count;
@@ -210,7 +209,7 @@ private:
 
    int64_t m_local_rows;  //mlocal rows for ranks that talk to the gpu
 
-   std::string mpi_mode;
+   std::string mpi_gpu_mode;
 
 };
 
