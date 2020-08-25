@@ -12,10 +12,13 @@
 
 using namespace std;
 using namespace mfem;
-
+  
 void source_re(const Vector &x, Vector & f);
 void source_im(const Vector &x, Vector & f);
+
 double wavespeed(const Vector &x);
+
+void Mwavespeed(const Vector & x, DenseMatrix & M);
 
 double mu = 1.0;
 double epsilon = 1.0;
@@ -222,6 +225,16 @@ int main(int argc, char *argv[])
    //        - omega^2 * epsilon (det(J) * (J^T J)^-1 * E, F)
    //
    FunctionCoefficient ws(wavespeed);
+
+   // MatrixFunctionCoefficient Mws(dim,Mwavespeed);
+
+   // DenseMatrix M(dim); M = 0.0;
+   // M(0,0) = -pow(omega, 2);
+   // M(1,1) = -pow(omega, 2);
+   // M(2,2) = -pow(omega, 2);
+   // MatrixConstantCoefficient Momeg(M);
+
+
    ConstantCoefficient omeg(-pow(omega, 2));
    int cdim = (dim == 2) ? 1 : dim;
    PmlMatrixCoefficient pml_c1_Re(cdim,detJ_inv_JT_J_Re, &pml);
@@ -233,6 +246,12 @@ int main(int argc, char *argv[])
    ScalarMatrixProductCoefficient c2_Im0(omeg,pml_c2_Im);
    ScalarMatrixProductCoefficient c2_Re(ws,c2_Re0);
    ScalarMatrixProductCoefficient c2_Im(ws,c2_Im0);
+
+   // MatrixMatrixProductCoefficient c2_Re0(Momeg,pml_c2_Re);
+   // MatrixMatrixProductCoefficient c2_Im0(Momeg,pml_c2_Im);
+   // MatrixMatrixProductCoefficient c2_Re(Mws,c2_Re0);
+   // MatrixMatrixProductCoefficient c2_Im(Mws,c2_Im0);
+
 
    ParSesquilinearForm a(fespace, conv);
    a.AddDomainIntegrator(new CurlCurlIntegrator(pml_c1_Re),
@@ -279,9 +298,6 @@ int main(int argc, char *argv[])
          << ", solution time: " << t2 << endl; 
 
    a.RecoverFEMSolution(X, b, x);
-
-
-
 
 
    if (visualization)
@@ -372,4 +388,12 @@ double wavespeed(const Vector &x)
    double ws;
    ws = 1.0;
    return ws;
+}
+
+void Mwavespeed(const Vector & x, DenseMatrix & M)
+{
+   M = 0.0;
+   M(0,0) = 1.0;
+   M(1,1) = 1.0;
+   M(2,2) = 1.0;
 }

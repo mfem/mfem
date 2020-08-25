@@ -1320,6 +1320,40 @@ public:
 /// Convenient alias for the MatrixVectorProductCoefficient
 typedef MatrixVectorProductCoefficient MatVecCoefficient;
 
+
+/** @brief Vector coefficient defined as a product of a matrix coefficient and
+    a vector coefficient. */
+class MatrixMatrixProductCoefficient : public MatrixCoefficient
+{
+private:
+   MatrixCoefficient * a;
+   MatrixCoefficient * b;
+
+   mutable DenseMatrix ma;
+   mutable DenseMatrix mb;
+
+public:
+   /// Constructor with two coefficients.  Result is A*B.
+   MatrixMatrixProductCoefficient(MatrixCoefficient &A, MatrixCoefficient &B);
+
+   /// Reset the matrix coefficient
+   void SetACoef(MatrixCoefficient &A) { a = &A; }
+   /// Return the matrix coefficient
+   MatrixCoefficient * GetACoef() const { return a; }
+
+   /// Reset the vector coefficient
+   void SetBCoef(MatrixCoefficient &B) { b = &B; }
+   /// Return the vector coefficient
+   MatrixCoefficient * GetBCoef() const { return b; }
+
+   /// Evaluate the vector coefficient at @a ip.
+   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+};
+
+/// Convenient alias for the MatrixVectorProductCoefficient
+typedef MatrixMatrixProductCoefficient MatMatCoefficient;
+
 /// Constant matrix coefficient defined as the identity of dimension d
 class IdentityMatrixCoefficient : public MatrixCoefficient
 {

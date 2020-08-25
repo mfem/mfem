@@ -3,9 +3,34 @@
 #include "ParDST.hpp"
 
 ParDST::ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
-         double omega_, Coefficient * ws_,  int nrlayers_ , int nx_, int ny_, int nz_)
+         double omega_, Coefficient * Q_,  int nrlayers_ , int nx_, int ny_, int nz_)
    : Solver(2*bf_->ParFESpace()->GetTrueVSize(), 2*bf_->ParFESpace()->GetTrueVSize()), 
-     bf(bf_), Pmllength(Pmllength_), omega(omega_), ws(ws_), nrlayers(nrlayers_)
+     bf(bf_), Pmllength(Pmllength_), omega(omega_), 
+     Q(Q_), nrlayers(nrlayers_)
+{
+   nx = nx_; ny = ny_; nz = nz_;
+   Init();
+}
+ParDST::ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
+         double omega_, VectorCoefficient * VQ_,  int nrlayers_ , int nx_, int ny_, int nz_)
+   : Solver(2*bf_->ParFESpace()->GetTrueVSize(), 2*bf_->ParFESpace()->GetTrueVSize()), 
+     bf(bf_), Pmllength(Pmllength_), omega(omega_), 
+     VQ(VQ_), nrlayers(nrlayers_)
+{
+   nx = nx_; ny = ny_; nz = nz_;
+   Init();
+}
+ParDST::ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
+         double omega_, MatrixCoefficient * MQ_,  int nrlayers_ , int nx_, int ny_, int nz_)
+   : Solver(2*bf_->ParFESpace()->GetTrueVSize(), 2*bf_->ParFESpace()->GetTrueVSize()), 
+     bf(bf_), Pmllength(Pmllength_), omega(omega_), 
+     MQ(MQ_), nrlayers(nrlayers_)
+{
+   nx = nx_; ny = ny_; nz = nz_;
+   Init();
+}
+
+void ParDST::Init()
 {
    pfes = bf->ParFESpace();
    fec = pfes->FEColl();
@@ -31,7 +56,7 @@ ParDST::ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_,
       cout << "\n 2. Generating ParMesh partitioning ... " << endl;
    }
    ovlpnrlayers = nrlayers+1;
-   part = new ParMeshPartition(pmesh,nx_,ny_,nz_,ovlpnrlayers);
+   part = new ParMeshPartition(pmesh,nx,ny,nz,ovlpnrlayers);
    nxyz.SetSize(3);
    nxyz[0] = nx = part->nxyz[0]; 
    nxyz[1] = ny = part->nxyz[1];  
@@ -288,8 +313,8 @@ void ParDST::SetHelmholtzPmlSystemMatrix(int ip)
    PmlCoefficient detJ_im(pml_detJ_Im,&pml);
    ProductCoefficient c2_re0(sigma, detJ_re);
    ProductCoefficient c2_im0(sigma, detJ_im);
-   ProductCoefficient c2_re(c2_re0, *ws);
-   ProductCoefficient c2_im(c2_im0, *ws);
+   ProductCoefficient c2_re(c2_re0, *Q);
+   ProductCoefficient c2_im(c2_im0, *Q);
    sqf[ip] = new SesquilinearForm (dmaps->fes[ip],bf->GetConvention());
 
    sqf[ip]->AddDomainIntegrator(new DiffusionIntegrator(c1_re),
@@ -349,19 +374,37 @@ void ParDST::SetMaxwellPmlSystemMatrix(int ip)
    PmlMatrixCoefficient pml_c2_Im(dim, detJ_JT_J_inv_Im,&pml);
    ScalarMatrixProductCoefficient c2_Re0(omeg,pml_c2_Re);
    ScalarMatrixProductCoefficient c2_Im0(omeg,pml_c2_Im);
-   ScalarMatrixProductCoefficient c2_Re(*ws,c2_Re0);
-   ScalarMatrixProductCoefficient c2_Im(*ws,c2_Im0);
 
+   MatrixCoefficient * c2_Re=nullptr;
+   MatrixCoefficient * c2_Im=nullptr;
+
+   if (Q)
+   {
+      c2_Re = new ScalarMatrixProductCoefficient(*Q,c2_Re0);
+      c2_Im = new ScalarMatrixProductCoefficient(*Q,c2_Im0);
+   }
+   else if (VQ)
+   {
+      MFEM_ABORT("Vector Coeffiecient not supported yet");
+   }
+   else if (MQ)
+   {
+      c2_Re = new MatrixMatrixProductCoefficient(*MQ,c2_Re0);
+      c2_Im = new MatrixMatrixProductCoefficient(*MQ,c2_Im0);
+   }
+   
    sqf[ip] = new SesquilinearForm(dmaps->fes[ip],bf->GetConvention());
 
    sqf[ip]->AddDomainIntegrator(new CurlCurlIntegrator(pml_c1_Re),
                          new CurlCurlIntegrator(pml_c1_Im));
-   sqf[ip]->AddDomainIntegrator(new VectorFEMassIntegrator(c2_Re),
-                         new VectorFEMassIntegrator(c2_Im));
+   sqf[ip]->AddDomainIntegrator(new VectorFEMassIntegrator(*c2_Re),
+                         new VectorFEMassIntegrator(*c2_Im));
    sqf[ip]->Assemble();
 
    Optr[ip] = new OperatorPtr;
    sqf[ip]->FormSystemMatrix(ess_tdof_list,*Optr[ip]);
+   delete c2_Re;
+   delete c2_Im;
 }
 
 

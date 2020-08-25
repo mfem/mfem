@@ -750,7 +750,7 @@ CartesianParMeshPartition::CartesianParMeshPartition(ParMesh * pmesh_,
    subdomains.SetSize(nx,ny,nz);
    nxyz[0] = nx; nxyz[1]=ny; nxyz[2] = nz;
    nrsubdomains = nx*ny*nz;
-
+   cout << "nrsubdomains = " << nrsubdomains << endl;
    Vector pmin, pmax;
    pmesh->GetBoundingBox(pmin, pmax);
    double h = pmesh->GetNE() ? pmesh->GetElementSize(0) : 0.0;

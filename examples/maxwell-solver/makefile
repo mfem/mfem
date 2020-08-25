@@ -19,7 +19,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_EXAMPLES = helmholtz maxwell
-PAR_EXAMPLES = helmholtzp maxwellp
+PAR_EXAMPLES = helmholtzp maxwellp maxwellp_airy
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else

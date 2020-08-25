@@ -24,7 +24,9 @@ private:
    Array2D<double> Pmllength;
    int dim = 2;
    double omega = 0.5;
-   Coefficient * ws;
+   Coefficient * Q=nullptr;
+   VectorCoefficient * VQ=nullptr;
+   MatrixCoefficient * MQ=nullptr;
    int nrlayers;
    int ovlpnrlayers;
    int nrsubdomains = 0;
@@ -52,10 +54,14 @@ private:
    void TransferSources(int sweep, const Array<int> & subdomain_ids) const;
    int GetSweepToTransfer(const int s, Array<int> directions) const;
    void CorrectOrientation(int ip, Vector & x) const;
-
+   void Init();
 public:
    ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
-       double omega_, Coefficient * ws_, int nrlayers_, int nx_=2, int ny_=2, int nz_=2);
+       double omega_, Coefficient * Q_, int nrlayers_, int nx_=2, int ny_=2, int nz_=2);
+   ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
+       double omega_, VectorCoefficient * VQ_, int nrlayers_, int nx_=2, int ny_=2, int nz_=2);
+   ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
+       double omega_, MatrixCoefficient * MQ_, int nrlayers_, int nx_=2, int ny_=2, int nz_=2);              
    virtual void SetOperator(const Operator &op) {}
    virtual void Mult(const Vector &r, Vector &z) const;
    virtual ~ParDST();

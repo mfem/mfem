@@ -546,6 +546,27 @@ void MatrixVectorProductCoefficient::Eval(Vector &V, ElementTransformation &T,
    ma.Mult(vb, V);
 }
 
+
+MatrixMatrixProductCoefficient::MatrixMatrixProductCoefficient(MatrixCoefficient &A,
+                                           MatrixCoefficient &B)
+   : MatrixCoefficient(A.GetHeight(), A.GetWidth()),
+     a(&A), b(&B),
+     ma(A.GetHeight(), A.GetWidth()), 
+     mb(B.GetHeight(), B.GetWidth())
+{
+   MFEM_ASSERT(A.GetWidth() == B.GetHeight(),
+               "MatrixMatrixProductCoefficient:  "
+               "Arguments must have the same dimensions.");
+}
+
+void MatrixMatrixProductCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
+                                          const IntegrationPoint &ip)
+{
+   a->Eval(ma, T, ip);
+   b->Eval(mb, T, ip);
+   Mult(ma, mb, M);
+}
+
 void IdentityMatrixCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
                                      const IntegrationPoint &ip)
 {
