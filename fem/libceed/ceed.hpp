@@ -125,8 +125,6 @@ struct CeedData
       if (coeff_type==CeedCoeff::Grid)
       {
          CeedGridCoeff* c = (CeedGridCoeff*)coeff;
-         CeedBasisDestroy(&c->basis);
-         CeedElemRestrictionDestroy(&c->restr);
          CeedVectorDestroy(&c->coeffVector);
          delete c;
       }
