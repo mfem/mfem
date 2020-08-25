@@ -18,9 +18,8 @@
 #include <fstream>
 #include <iostream>
 
-#include "catch.hpp"
-
 #include "mfem.hpp"
+#include "unit_tests.hpp"
 #include "miniapps/meshing/mesh-optimizer.hpp"
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
@@ -565,11 +564,11 @@ static void tmop_require(int myid, const char *args[])
    Req res[2];
    (args[ALV] = "-pa", dump_args(args), req_tmop(myid, args, res[0]));
    (args[ALV] = "-no-pa", dump_args(args), req_tmop(myid, args, res[1]));
-   REQUIRE(res[0].dot == Approx(res[1].dot));
-   REQUIRE(res[0].tauval == Approx(res[1].tauval));
-   REQUIRE(res[0].init_energy == Approx(res[1].init_energy));
-   REQUIRE(res[0].final_energy == Approx(res[1].final_energy));
-   REQUIRE(res[0].diag == Approx(res[1].diag));
+   REQUIRE(res[0].dot == MFEM_Approx(res[1].dot));
+   REQUIRE(res[0].tauval == MFEM_Approx(res[1].tauval));
+   REQUIRE(res[0].init_energy == MFEM_Approx(res[1].init_energy));
+   REQUIRE(res[0].final_energy == MFEM_Approx(res[1].final_energy));
+   REQUIRE(res[0].diag == MFEM_Approx(res[1].diag));
 }
 
 static inline const char *itoa(const int i, char *buf)
