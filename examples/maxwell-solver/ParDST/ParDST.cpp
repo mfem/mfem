@@ -205,21 +205,15 @@ void ParDST::Mult(const Vector &r, Vector &z) const
 
             if (l==0)  { res_local += *f_orig[ip]; }
             res_local += *f_transf[ip][l];
-
-            // cout << res_local.Norml2() << endl;
             PmlMatInv[ip]->Mult(res_local, *subdomain_sol[ip]);
-            // cout << subdomain_sol[ip]->Norml2() << endl;
 
          }
-            // cin.get();
-
          // 4. Transfer solutions to neighbors so that the subdomain
          // residuals are updated
          TransferSources(l,subdomain_ids);
       }
       // 5. Update the global solution 
       dmaps->SubdomainsToGlobal(subdomain_sol,z);
-   
    }
 }
 
@@ -385,12 +379,12 @@ void ParDST::SetMaxwellPmlSystemMatrix(int ip)
    }
    else if (VQ)
    {
-      MFEM_ABORT("Vector Coeffiecient not supported yet");
+      MFEM_ABORT("Vector Coeffiecient not supported ");
    }
    else if (MQ)
    {
-      c2_Re = new MatrixMatrixProductCoefficient(*MQ,c2_Re0);
-      c2_Im = new MatrixMatrixProductCoefficient(*MQ,c2_Im0);
+      c2_Re = new MatrixMatrixProductCoefficient(c2_Re0,*MQ);
+      c2_Im = new MatrixMatrixProductCoefficient(c2_Im0,*MQ);
    }
    
    sqf[ip] = new SesquilinearForm(dmaps->fes[ip],bf->GetConvention());

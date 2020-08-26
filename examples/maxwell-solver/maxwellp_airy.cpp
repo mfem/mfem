@@ -121,15 +121,12 @@ int main(int argc, char *argv[])
    // ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD,*mesh,part);
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD,*mesh);
    delete [] part;
-
-   
    delete mesh;
 
    for (int l = 0; l < par_ref_levels; l++)
    {
       pmesh->UniformRefinement();
    }
-
 
    // 6. Define a finite element space on the mesh. Here we use the Nedelec
    //    finite elements of the specified order.

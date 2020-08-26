@@ -15,10 +15,14 @@ using namespace mfem;
   
 void source_re(const Vector &x, Vector & f);
 void source_im(const Vector &x, Vector & f);
-
+void exact_re(const Vector & x, Vector & E);
+void exact_im(const Vector & x, Vector & E);
+void maxwell_solution(const Vector & x, double E[], double curl2E[]);
 double wavespeed(const Vector &x);
-
 void Mwavespeed(const Vector & x, DenseMatrix & M);
+
+void ess_data_func(const Vector & x, Vector & E);
+
 
 double mu = 1.0;
 double epsilon = 1.0;
@@ -27,6 +31,7 @@ int dim;
 double length = 1.0;
 Array2D<double> comp_bdr;
 Array2D<double> domain_bdr;
+bool exact_known = false;
 
 int main(int argc, char *argv[])
 {
@@ -96,7 +101,6 @@ int main(int argc, char *argv[])
 
 
    int nel = 1;
-
    if (nd == 2)
    {
       mesh = new Mesh(nel, nel, Element::QUADRILATERAL, true, length, length, false);
@@ -145,13 +149,13 @@ int main(int argc, char *argv[])
 
    double hl = GetUniformMeshElementSize(pmesh);
    int nrlayers = 2;
-
    Array2D<double> lengths(dim,2);
    lengths = hl*nrlayers;
    // lengths[0][1] = 0.0;
    // lengths[1][1] = 0.0;
    // lengths[1][0] = 0.0;
    // lengths[0][0] = 0.0;
+   if (exact_known) lengths = 0.0;
    // CartesianPML pml(mesh,lengths);
    CartesianPML pml(pmesh,lengths);
    pml.SetOmega(omega);
@@ -219,6 +223,14 @@ int main(int argc, char *argv[])
    //     corresponding to fespace.
    ParComplexGridFunction x(fespace);
    x = 0.0;
+   // VectorFunctionCoefficient done(dim,ess_data_func);
+   // x.ProjectCoefficient(done,done);
+   VectorFunctionCoefficient E_re(dim,exact_re);
+   VectorFunctionCoefficient E_im(dim,exact_re);
+   if (exact_known)
+   {
+      x.ProjectCoefficient(E_re,E_re);
+   }
    // 11. Set up the sesquilinear form a(.,.)
    //
    //       1/mu (1/det(J) J^T J Curl E, Curl F)
@@ -233,7 +245,7 @@ int main(int argc, char *argv[])
    // M(1,1) = -pow(omega, 2);
    // M(2,2) = -pow(omega, 2);
    // MatrixConstantCoefficient Momeg(M);
-
+   MatrixFunctionCoefficient eps_func(dim,Mwavespeed);
 
    ConstantCoefficient omeg(-pow(omega, 2));
    int cdim = (dim == 2) ? 1 : dim;
@@ -244,8 +256,11 @@ int main(int argc, char *argv[])
    PmlMatrixCoefficient pml_c2_Im(dim, detJ_JT_J_inv_Im,&pml);
    ScalarMatrixProductCoefficient c2_Re0(omeg,pml_c2_Re);
    ScalarMatrixProductCoefficient c2_Im0(omeg,pml_c2_Im);
-   ScalarMatrixProductCoefficient c2_Re(ws,c2_Re0);
-   ScalarMatrixProductCoefficient c2_Im(ws,c2_Im0);
+   // ScalarMatrixProductCoefficient c2_Re(ws,c2_Re0);
+   // ScalarMatrixProductCoefficient c2_Im(ws,c2_Im0);
+
+   MatrixMatrixProductCoefficient c2_Re(c2_Re0,eps_func);
+   MatrixMatrixProductCoefficient c2_Im(c2_Im0,eps_func);
 
    // MatrixMatrixProductCoefficient c2_Re0(Momeg,pml_c2_Re);
    // MatrixMatrixProductCoefficient c2_Im0(Momeg,pml_c2_Im);
@@ -277,7 +292,7 @@ int main(int argc, char *argv[])
 
    chrono.Clear();
    chrono.Start();
-   X = 0.0;
+   // X = 0.0;
 	GMRESSolver gmres(MPI_COMM_WORLD);
 	// gmres.iterative_mode = true;
    gmres.SetPreconditioner(S);
@@ -296,6 +311,18 @@ int main(int argc, char *argv[])
    cout << " myid: " << myid 
          << ", setup time: " << t1
          << ", solution time: " << t2 << endl; 
+
+   // {
+   //    HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
+   //    SuperLURowLocMatrix SA(*A);
+   //    SuperLUSolver superlu(MPI_COMM_WORLD);
+   //    superlu.SetPrintStatistics(false);
+   //    superlu.SetSymmetricPattern(false);
+   //    superlu.SetColumnPermutation(superlu::PARMETIS);
+   //    superlu.SetOperator(SA);
+   //    superlu.Mult(B, X);
+   //    delete A;
+   // }
 
    a.RecoverFEMSolution(X, b, x);
 
@@ -341,41 +368,58 @@ int main(int argc, char *argv[])
 void source_re(const Vector &x, Vector &f)
 {
    f = 0.0;
-   double x0 = length/2.0;
-   double x1 = length/2.0;
-   double x2 = length/2.0;
-   x0 = 0.45;
-   x1 = 0.35;
-   x2 = 0.25;
-   double alpha,beta;
-   double n = 4.0*omega/M_PI;
-   beta = pow(x0-x(0),2) + pow(x1-x(1),2);
-   if (dim == 3) { beta += pow(x2-x(2),2); }
-   double coeff = 16.0*omega*omega/M_PI/M_PI/M_PI;
-   alpha = -pow(n,2) * beta;
-   f[0] = coeff*exp(alpha);
-   // f[1] = coeff*exp(alpha);
-
-
-
-   x0 = 0.8;
-   x1 = 0.8;
-   beta = pow(x0-x(0),2) + pow(x1-x(1),2);
-   if (dim == 3) { beta += pow(x2-x(2),2); }
-   alpha = -pow(n,2) * beta;
-   // f[0] += coeff*exp(alpha);
-
-
-   bool in_pml = false;
-   for (int i = 0; i<dim; i++)
+   if (exact_known)
    {
-      if (x(i)<=comp_bdr(i,0) || x(i)>=comp_bdr(i,1))
+      double E[3], curl2E[3];
+      maxwell_solution(x, E, curl2E);
+      // curl ( curl E) +/- omega^2 E = f
+      double coeff = -omega * omega;
+      f(0) = curl2E[0] + coeff * E[0];
+      f(1) = curl2E[1] + coeff * E[1];
+      if (dim == 2)
       {
-         in_pml = true;
-         break;
+         if (x.Size() == 3) {f(2)=0.0;}
+      }
+      else
+      {
+         f(2) = curl2E[2] + coeff * E[2];
       }
    }
-   if (in_pml) f = 0.0;
+   else
+   {
+      double x0 = length/2.0;
+      double x1 = length/2.0;
+      double x2 = length/2.0;
+      x0 = 0.5;
+      x1 = 0.5;
+      x2 = 0.25;
+      double alpha,beta;
+      double n = 4.0*omega/M_PI;
+      beta = pow(x0-x(0),2) + pow(x1-x(1),2);
+      if (dim == 3) { beta += pow(x2-x(2),2); }
+      double coeff = 16.0*omega*omega/M_PI/M_PI/M_PI;
+      alpha = -pow(n,2) * beta;
+      f[0] = coeff*exp(alpha);
+      // f[1] = coeff*exp(alpha);
+      x0 = 0.8;
+      x1 = 0.8;
+      beta = pow(x0-x(0),2) + pow(x1-x(1),2);
+      if (dim == 3) { beta += pow(x2-x(2),2); }
+      alpha = -pow(n,2) * beta;
+      // f[0] += coeff*exp(alpha);
+
+
+      bool in_pml = false;
+      for (int i = 0; i<dim; i++)
+      {
+         if (x(i)<=comp_bdr(i,0) || x(i)>=comp_bdr(i,1))
+         {
+            in_pml = true;
+            break;
+         }
+      }
+      if (in_pml) f = 0.0;
+   }
 }
 
 void source_im(const Vector &x, Vector &f)
@@ -395,5 +439,93 @@ void Mwavespeed(const Vector & x, DenseMatrix & M)
    M = 0.0;
    M(0,0) = 1.0;
    M(1,1) = 1.0;
-   M(2,2) = 1.0;
+   // M(2,2) = 4.0*x(0)-1.0;
+   if (dim == 3) M(2,2) = 1.0;
+}
+
+
+void exact_re(const Vector & x, Vector & E)
+{
+   double curl2E[3];
+   maxwell_solution(x, E, curl2E);
+}
+void exact_im(const Vector & x, Vector & E)
+{
+   // double curl2E[3];
+   // maxwell_solution(x, E, curl2E);
+   E = 0.0;
+}
+void maxwell_solution(const Vector & x, double E[], double curl2E[])
+{
+   // point source
+   if (dim == 2)
+   {
+      // shift to avoid singularity
+      double x0 = x(0) + 0.1;
+      double x1 = x(1) + 0.1;
+      //
+      double r = sqrt(x0 * x0 + x1 * x1);
+
+      E[0] = cos(omega * r);
+      E[1] = 0.0;
+
+      double r_x = x0 / r;
+      double r_y = x1 / r;
+      double r_xy = -(r_x / r) * r_y;
+      double r_yx = r_xy;
+      double r_yy = (1.0 / r) * (1.0 - r_y * r_y);
+
+      curl2E[0] = omega * ((r_yy ) * sin(omega * r) + (omega * r_y * r_y) * cos(omega * r));
+      curl2E[1] = -omega * (r_yx * sin(omega * r) + omega * r_y * r_x * cos(omega * r));
+      curl2E[2] = 0.0;
+   }
+   else
+   {
+   // shift to avoid singularity
+      double x0 = x(0) + 0.1;
+      double x1 = x(1) + 0.1;
+      double x2 = x(2) + 0.1;
+      //
+      double r = sqrt(x0 * x0 + x1 * x1 + x2 * x2);
+
+      E[0] = cos(omega * r);
+      E[1] = 0.0;
+      E[2] = 0.0;
+
+      double r_x = x0 / r;
+      double r_y = x1 / r;
+      double r_z = x2 / r;
+      double r_xy = -(r_x / r) * r_y;
+      double r_xz = -(r_x / r) * r_z;
+      double r_yx = r_xy;
+      double r_yy = (1.0 / r) * (1.0 - r_y * r_y);
+      double r_zx = r_xz;
+      double r_zz = (1.0 / r) * (1.0 - r_z * r_z);
+
+      curl2E[0] = omega * ((r_yy + r_zz) * sin(omega * r) +
+                           (omega * r_y * r_y + omega * r_z * r_z) * cos(omega * r));
+      curl2E[1] = -omega * (r_yx * sin(omega * r) + omega * r_y * r_x * cos(omega * r));
+      curl2E[2] = -omega * (r_zx * sin(omega * r) + omega * r_z * r_x * cos(omega * r));
+   }
+}
+
+
+void ess_data_func(const Vector & x, Vector & E)
+{
+   E = 0.0;
+   // if (x(0)==0.0) E[0] = sin(x(0)+x(1));
+   if (x(1)==0.0) E[0] = sin(x(0)+x(1));
+
+
+   bool in_pml = false;
+   for (int i = 0; i<dim; i++)
+   {
+      if (x(i)<comp_bdr(i,0) || x(i)>comp_bdr(i,1))
+      {
+         in_pml = true;
+         break;
+      }
+   }
+   if (in_pml) E = 0.0;
+
 }
