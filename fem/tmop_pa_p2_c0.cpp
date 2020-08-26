@@ -132,7 +132,7 @@ void TMOP_Integrator::AddMultPA_C0_2D(const Vector &X, Vector &Y) const
    const double ln = lim_normal;
    const Vector &LD = PA.LD;
    const DenseTensor &J = PA.Jtr;
-   const Array<double> &W = IntRule->GetWeights();
+   const Array<double> &W = PA.ir->GetWeights();
    const Array<double> &B = PA.maps->B;
    const Vector &X0 = PA.X0;
    const Vector &C0 = PA.C0;

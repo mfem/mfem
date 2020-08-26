@@ -996,6 +996,7 @@ protected:
       const GeometricFactors *geom;
       const FiniteElementSpace *fes;
       const Operator *R;
+      const IntegrationRule *ir;
    } PA;
 
    void ComputeNormalizationEnergies(const GridFunction &x,

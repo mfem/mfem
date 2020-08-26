@@ -270,8 +270,7 @@ void TMOP_Integrator::AssembleGradPA_3D(const Vector &X) const
    const int id = (D1D << 4 ) | Q1D;
    const double mn = metric_normal;
    const DenseTensor &J = PA.Jtr;
-   const IntegrationRule *ir = IntRule;
-   const Array<double> &W = ir->GetWeights();
+   const Array<double> &W = PA.ir->GetWeights();
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
    Vector &H = PA.H;

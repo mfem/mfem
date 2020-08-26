@@ -45,12 +45,13 @@ void TMOP_Integrator::EnableLimitingPA(const GridFunction &n0)
 {
    MFEM_ASSERT(PA.enabled, "EnableLimitingPA but PA is not enabled!");
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   PA.R = n0.FESpace()->GetElementRestriction(ordering);
 
    // Nodes0
-   PA.X0.SetSize(PA.R->Height(), Device::GetMemoryType());
+   const FiniteElementSpace *n0_fes = n0.FESpace();
+   const Operator *n0_R = n0_fes->GetElementRestriction(ordering);
+   PA.X0.SetSize(n0_R->Height(), Device::GetMemoryType());
    PA.X0.UseDevice(true);
-   PA.R->Mult(n0, PA.X0);
+   n0_R->Mult(n0, PA.X0);
 
    // lim_dist & lim_func checks
    MFEM_VERIFY(lim_dist, "No lim_dist!")
@@ -151,7 +152,9 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &xe) const
 void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 {
    PA.enabled = true;
-   const IntegrationRule &ir = EnergyIntegrationRule(*fes.GetFE(0));
+   MFEM_ASSERT(fes.GetMesh()->GetNE() > 0, "");
+   PA.ir = &EnergyIntegrationRule(*fes.GetFE(0));
+   const IntegrationRule &ir = *PA.ir;
    MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES,
                "PA Only supports Ordering::byNODES!");
 
