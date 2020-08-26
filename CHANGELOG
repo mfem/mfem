@@ -68,6 +68,9 @@ Improved GPU capabilities
   classes ComplexOperator, [Par]ComplexGridFunction, [Par]ComplexLinearForm, and
   [Par]SesquilinearForm. See the updated Example 22.
 
+- Added CUDA support for SUNDIALS ODE integrators. See the updated SUNDIALS
+  modification of Example 9/9p.
+
 Discretization improvements
 ---------------------------
 - Added support for matrix-free interpolation and restriction operators between
