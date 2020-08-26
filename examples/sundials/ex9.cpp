@@ -4,19 +4,14 @@
 // Compile with: make ex9
 //
 // Sample runs:
-//    ex9 -m ../../data/periodic-segment.mesh -p 0 -r 2 -dt 0.005
-//    ex9 -m ../../data/periodic-square.mesh -p 0 -r 2 -dt 0.01 -tf 10
-//    ex9 -m ../../data/periodic-hexagon.mesh -p 0 -r 2 -dt 0.01 -tf 10
-//    ex9 -m ../../data/periodic-square.mesh -p 1 -r 2 -dt 0.005 -tf 9
-//    ex9 -m ../../data/periodic-hexagon.mesh -p 1 -r 2 -dt 0.005 -tf 9
-//    ex9 -m ../../data/amr-quad.mesh -p 1 -r 2 -dt 0.002 -tf 9
-//    ex9 -m ../../data/amr-quad.mesh -p 1 -r 2 -dt 0.02 -s 9 -tf 9
-//    ex9 -m ../../data/star-q3.mesh -p 1 -r 2 -dt 0.005 -tf 9
-//    ex9 -m ../../data/star-mixed.mesh -p 1 -r 2 -dt 0.005 -tf 9
-//    ex9 -m ../../data/disc-nurbs.mesh -p 1 -r 3 -dt 0.005 -tf 9
-//    ex9 -m ../../data/disc-nurbs.mesh -p 2 -r 3 -dt 0.005 -tf 9
-//    ex9 -m ../../data/periodic-square.mesh -p 3 -r 4 -dt 0.0025 -tf 9 -vs 20
-//    ex9 -m ../../data/periodic-cube.mesh -p 0 -r 2 -o 2 -dt 0.02 -tf 8
+//    ex9 -m ../../data/periodic-segment.mesh -p 0 -r 2 -s 7 -dt 0.005
+//    ex9 -m ../../data/periodic-square.mesh  -p 1 -r 2 -s 8 -dt 0.005 -tf 9
+//    ex9 -m ../../data/periodic-hexagon.mesh -p 0 -r 2 -s 7 -dt 0.0018 -vs 25
+//    ex9 -m ../../data/periodic-hexagon.mesh -p 0 -r 2 -s 9 -dt 0.01 -vs 15
+//    ex9 -m ../../data/amr-quad.mesh         -p 1 -r 2 -s 9 -dt 0.002 -tf 9
+//    ex9 -m ../../data/star-q3.mesh          -p 1 -r 2 -s 9 -dt 0.005 -tf 9
+//    ex9 -m ../../data/disc-nurbs.mesh       -p 1 -r 3 -s 7 -dt 0.005 -tf 9
+//    ex9 -m ../../data/periodic-cube.mesh    -p 0 -r 2 -s 8 -dt 0.02 -tf 8 -o 2
 //
 // Device sample runs:
 //    ex9 -pa
