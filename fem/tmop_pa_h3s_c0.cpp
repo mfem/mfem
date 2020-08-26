@@ -38,7 +38,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Kernel_C0_3D,
    const auto C0 = const_c0 ?
                    Reshape(c0_.Read(), 1, 1, 1, 1) :
                    Reshape(c0_.Read(), Q1D, Q1D, Q1D, NE);
-   const auto LD = Reshape(lim_dist.Read(), D1D, D1D, D1D, DIM, NE);
+   const auto LD = Reshape(lim_dist.Read(), D1D, D1D, D1D, NE);
    const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
    const auto W = Reshape(w_.Read(), Q1D, Q1D, Q1D);
    const auto b = Reshape(b_.Read(), Q1D, D1D);
@@ -54,10 +54,10 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Kernel_C0_3D,
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
       MFEM_SHARED double B[MQ1*MD1];
-      MFEM_SHARED double DDD[3][MD1*MD1*MD1];
-      MFEM_SHARED double DDQ[3][MD1*MD1*MQ1];
-      MFEM_SHARED double DQQ[3][MD1*MQ1*MQ1];
-      MFEM_SHARED double QQQ[3][MQ1*MQ1*MQ1];
+      MFEM_SHARED double DDD[MD1*MD1*MD1];
+      MFEM_SHARED double DDQ[MD1*MD1*MQ1];
+      MFEM_SHARED double DQQ[MD1*MQ1*MQ1];
+      MFEM_SHARED double QQQ[MQ1*MQ1*MQ1];
 
       kernels::LoadX<MD1>(e,D1D,LD,DDD);
       kernels::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
@@ -77,9 +77,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Kernel_C0_3D,
                const double coeff0 = const_c0 ? C0(0,0,0,0) : C0(qx,qy,qz,e);
                const double weight_m = weight * lim_normal * coeff0;
 
-               double D[3];
+               double D;
                kernels::PullEval<MQ1>(qx,qy,qz,QQQ,D);
-               const double dist = D[0]; // GetValues, default comp set to 0
+               const double dist = D; // GetValues, default comp set to 0
 
                // lim_func->Eval_d2(p1, p0, d_vals(q), grad_grad);
                // d2.Diag(1.0 / (dist * dist), x.Size());
