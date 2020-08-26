@@ -105,7 +105,7 @@ CEED_QFUNCTION(f_apply_mass)(void *ctx, CeedInt Q,
    BuildContext *bc = (BuildContext *)ctx;
    const CeedScalar *u = in[0], *w = in[1];
    CeedScalar *v = out[0];
-   switch (bc->dim)
+   switch (bc->vdim)
    {
       case 1:
          for (CeedInt i=0; i<Q; i++)

@@ -327,7 +327,7 @@ void CeedPAAssemble(const CeedPAOperator& op,
 
    CeedVectorCreate(ceed, nelem * nqpts * qdatasize, &ceedData.rho);
 
-   // Context data to be passed to the 'f_build_diff' Q-function.
+   // Context data to be passed to the Q-function.
    ceedData.build_ctx.dim = mesh->Dimension();
    ceedData.build_ctx.space_dim = mesh->SpaceDimension();
    ceedData.build_ctx.vdim = fes.GetVDim();
@@ -404,7 +404,7 @@ void CeedPAAssemble(const CeedPAOperator& op,
    CeedQFunctionSetContext(ceedData.apply_qfunc, &ceedData.build_ctx,
                            sizeof(ceedData.build_ctx));
 
-   // Create the diff operator.
+   // Create the operator.
    CeedOperatorCreate(ceed, ceedData.apply_qfunc, NULL, NULL, &ceedData.oper);
    CeedOperatorSetField(ceedData.oper, "u", ceedData.restr, ceedData.basis,
                         CEED_VECTOR_ACTIVE);
