@@ -32,9 +32,6 @@
 // SUNDIALS linear solvers
 #include <sunlinsol/sunlinsol_spgmr.h>
 
-// SUNDIALS memory interface
-#include <sundials/sundials_memory.h>
-
 // Access SUNDIALS object's content pointer
 #define GET_CONTENT(X) ( X->content )
 
@@ -208,7 +205,7 @@ void SundialsNVector::_SetNvecDataAndSize_(long glob_size)
                           MPI_SUM, GetComm());
          }
       }
-      static_cast<N_VectorContent_MPIPlusX>(GET_CONTENT(x))->global_length =
+      static_cast<N_VectorContent_MPIManyVector>(GET_CONTENT(x))->global_length =
          glob_size;
    }
 #endif

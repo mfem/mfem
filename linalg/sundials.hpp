@@ -29,15 +29,14 @@
 #if !defined(SUNDIALS_VERSION_MAJOR) || (SUNDIALS_VERSION_MAJOR < 5)
 #error MFEM requires SUNDIALS version 5.0.0 or newer!
 #endif
+#if defined(MFEM_USE_CUDA) && ((SUNDIALS_VERSION_MAJOR == 5) && (SUNDIALS_VERSION_MINOR < 4))
+#error MFEM requires SUNDIALS version 5.4.0 or newer when MFEM_USE_CUDA=TRUE!
+#endif
 #include <sundials/sundials_matrix.h>
 #include <sundials/sundials_linearsolver.h>
 #include <arkode/arkode_arkstep.h>
 #include <cvodes/cvodes.h>
 #include <kinsol/kinsol.h>
-#ifdef MFEM_USE_CUDA
-#include <nvector/nvector_cuda.h>
-#endif
-
 
 #include <functional>
 
