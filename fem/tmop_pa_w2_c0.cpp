@@ -44,7 +44,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
    const auto C0 = const_c0 ?
                    Reshape(c0_.Read(), 1, 1, 1) :
                    Reshape(c0_.Read(), Q1D, Q1D, NE);
-   const auto LD = Reshape(lim_dist.Read(), D1D, D1D, 1, NE);
+   const auto LD = Reshape(lim_dist.Read(), D1D, D1D, NE);
    const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, NE);
    const auto b = Reshape(b_.Read(), Q1D, D1D);
    const auto W = Reshape(w_.Read(), Q1D, Q1D);
@@ -63,9 +63,9 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
 
       MFEM_SHARED double B[MQ1*MD1];
 
-      MFEM_SHARED double XY[2][NBZ][MD1*MD1];
-      MFEM_SHARED double DQ[2][NBZ][MD1*MQ1];
-      MFEM_SHARED double QQ[2][NBZ][MQ1*MQ1];
+      MFEM_SHARED double XY[NBZ][MD1*MD1];
+      MFEM_SHARED double DQ[NBZ][MD1*MQ1];
+      MFEM_SHARED double QQ[NBZ][MQ1*MQ1];
 
       MFEM_SHARED double XY0[2][NBZ][MD1*MD1];
       MFEM_SHARED double DQ0[2][NBZ][MD1*MQ1];
@@ -75,7 +75,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
       MFEM_SHARED double DQ1[2][NBZ][MD1*MQ1];
       MFEM_SHARED double QQ1[2][NBZ][MQ1*MQ1];
 
-      kernels::LoadX<MD1,NBZ>(e,D1D,0,LD,XY[0]);
+      kernels::LoadX<MD1,NBZ>(e,D1D,LD,XY);
       kernels::LoadX<MD1,NBZ>(e,D1D,X0,XY0);
       kernels::LoadX<MD1,NBZ>(e,D1D,X1,XY1);
 
@@ -94,7 +94,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double ld[2], p0[2], p1[2];
+            double ld, p0[2], p1[2];
             const double *Jtr = &J(0,0,qx,qy,e);
             const double detJtr = kernels::Det<2>(Jtr);
             const double weight = W(qx,qy) * detJtr;
@@ -102,7 +102,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
             kernels::PullEval<MQ1,NBZ>(qx,qy,QQ,ld);
             kernels::PullEval<MQ1,NBZ>(qx,qy,QQ0,p0);
             kernels::PullEval<MQ1,NBZ>(qx,qy,QQ1,p1);
-            const double dist = ld[0]; // GetValues, default comp set to 0
+            const double dist = ld; // GetValues, default comp set to 0
             const double id2 = 0.5 / (dist*dist);
             const double dsq = kernels::DistanceSquared<2>(p1,p0) * id2;
             E(qx,qy,e) = weight * lim_normal * dsq * coeff0;
@@ -121,8 +121,7 @@ double TMOP_Integrator::GetGridFunctionEnergyPA_C0_2D(const Vector &X) const
    const double ln = lim_normal;
    const Vector &LD = PA.LD;
    const DenseTensor &J = PA.Jtr;
-   const IntegrationRule *ir = IntRule;
-   const Array<double> &W = ir->GetWeights();
+   const Array<double> &W = PA.ir->GetWeights();
    const Array<double> &B = PA.maps->B;
    const Vector &X0 = PA.X0;
    const Vector &C0 = PA.C0;
