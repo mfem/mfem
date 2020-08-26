@@ -43,7 +43,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
    const auto C0 = const_c0 ?
                    Reshape(c0_.Read(), 1, 1, 1) :
                    Reshape(c0_.Read(), Q1D, Q1D, NE);
-   const auto LD = Reshape(lim_dist.Read(), D1D, D1D, DIM, NE);
+   const auto LD = Reshape(lim_dist.Read(), D1D, D1D, NE);
    const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, NE);
    const auto b = Reshape(b_.Read(), Q1D, D1D);
    const auto W = Reshape(w_.Read(), Q1D, Q1D);
@@ -62,9 +62,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
 
       MFEM_SHARED double B[MQ1*MD1];
 
-      MFEM_SHARED double XY[2][NBZ][MD1*MD1];
-      MFEM_SHARED double DQ[2][NBZ][MD1*MQ1];
-      MFEM_SHARED double QQ[2][NBZ][MQ1*MQ1];
+      MFEM_SHARED double XY[NBZ][MD1*MD1];
+      MFEM_SHARED double DQ[NBZ][MD1*MQ1];
+      MFEM_SHARED double QQ[NBZ][MQ1*MQ1];
 
       MFEM_SHARED double XY0[2][NBZ][MD1*MD1];
       MFEM_SHARED double DQ0[2][NBZ][MD1*MQ1];
@@ -97,13 +97,13 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
             const double detJtr = kernels::Det<2>(Jtr);
             const double weight = W(qx,qy) * detJtr;
 
-            double ld[2], p0[2], p1[2];
+            double ld, p0[2], p1[2];
             const double coeff0 = const_c0 ? C0(0,0,0) : C0(qx,qy,e);
             kernels::PullEval<MQ1,NBZ>(qx,qy,QQ,ld);
             kernels::PullEval<MQ1,NBZ>(qx,qy,QQ0,p0);
             kernels::PullEval<MQ1,NBZ>(qx,qy,QQ1,p1);
 
-            const double dist = ld[0]; // GetValues, default comp set to 0
+            const double dist = ld; // GetValues, default comp set to 0
 
             double d1[2];
             // Eval_d1

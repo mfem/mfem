@@ -117,7 +117,7 @@ MFEM_HOST_DEVICE inline void LoadBGt(const int D1D, const int Q1D,
 
 /// Load 2D input scalar into shared memory
 template<int MD1, int NBZ>
-MFEM_HOST_DEVICE inline void LoadS(const int e, const int D1D,
+MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
                                    const DeviceTensor<3, const double> x,
                                    double sX[NBZ][MD1*MD1])
 {
@@ -592,6 +592,27 @@ MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
 }
 
 /// Load 3D scalar input vector into shared memory
+template<int MD1>
+MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
+                                   const DeviceTensor<4, const double> x,
+                                   double sm[MD1*MD1*MD1])
+{
+   DeviceCube X(sm, MD1, MD1, MD1);
+
+   MFEM_FOREACH_THREAD(dz,z,D1D)
+   {
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            X(dx,dy,dz) = x(dx,dy,dz,e);
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// Load 3D scalar input vector into shared memory, with comp
 template<int MD1>
 MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D, const int c,
                                    const DeviceTensor<5, const double> x,
