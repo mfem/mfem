@@ -144,7 +144,8 @@ int main(int argc, char *argv[])
    //    coefficients
    ConstantCoefficient c_pp(pp);
    ConstantCoefficient load(1.000000000);
-   ConstantCoefficient c_ee(0.000000001);
+   //ConstantCoefficient c_ee(0.000000001);
+   ConstantCoefficient c_ee(0.01);
 
    // 7. Define the finite element spaces for the solution
    H1_FECollection fec(order, dim);

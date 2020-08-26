@@ -108,7 +108,7 @@ public:
       int spaceDim = trans.GetSpaceDim();
       bool square = (ndim == spaceDim);
       const IntegrationRule *ir = NULL;
-      int order = 2 * trans.OrderGrad(&el) - 1; // correct order?
+      int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
       ir = &IntRules.Get(el.GetGeomType(), order);
 
       Vector shapef(ndof);
@@ -181,7 +181,7 @@ public:
       int ndim = el.GetDim();
       int spaceDim = trans.GetSpaceDim();
       const IntegrationRule *ir = NULL;
-      int order = 2 * trans.OrderGrad(&el) - 1; // correct order?
+      int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
       ir = &IntRules.Get(el.GetGeomType(), order);
 
       Vector shapef(ndof);
@@ -259,7 +259,7 @@ public:
       int ndim = el.GetDim();
       int spaceDim = trans.GetSpaceDim();
       const IntegrationRule *ir = NULL;
-      int order = 2 * trans.OrderGrad(&el) - 1; // correct order?
+      int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
       ir = &IntRules.Get(el.GetGeomType(), order);
 
       Vector shapef(ndof);
@@ -361,7 +361,7 @@ public:
       int spaceDim = trans.GetSpaceDim();
       bool square = (ndim == spaceDim);
       const IntegrationRule *ir = NULL;
-      int order = 2 * trans.OrderGrad(&el) - 1; // correct order?
+      int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
       ir = &IntRules.Get(el.GetGeomType(), order);
 
       Vector shapef(ndof);
@@ -426,7 +426,7 @@ public:
       int spaceDim = trans.GetSpaceDim();
       bool square = (ndim == spaceDim);
       const IntegrationRule *ir = NULL;
-      int order = 2 * trans.OrderGrad(&el) - 1; // correct order?
+      int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
       ir = &IntRules.Get(el.GetGeomType(), order);
 
       Vector shapef(ndof);
@@ -499,7 +499,7 @@ public:
       int spaceDim = trans.GetSpaceDim();
       bool square = (ndim == spaceDim);
       const IntegrationRule *ir = NULL;
-      int order = 2 * trans.OrderGrad(&el) - 1; // correct order?
+      int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
       ir = &IntRules.Get(el.GetGeomType(), order);
 
       DenseMatrix dshape_iso(ndof, ndim);
