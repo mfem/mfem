@@ -74,7 +74,7 @@ public:
    SundialsNVector(double *_data, int _size);
 
    /// Creates a SundialsNVector out of a SUNDIALS N_Vector object.
-   /** The N_Vector @nv must be destroyed outside. */
+   /** The N_Vector @a nv must be destroyed outside. */
    SundialsNVector(N_Vector nv);
 
 #ifdef MFEM_USE_MPI
