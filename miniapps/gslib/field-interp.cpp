@@ -19,17 +19,13 @@
 // to the source mesh and then interpolate the source grid function. The
 // interpolated values are then projected onto the desired finite element space
 // on the target mesh. Finally, the transferred solution is visualized using GLVis.
-//
-// The source grid function can be provided as a file (must be compatible with
-// the input mesh file) or using a custom vector function that is projected on
-// the desired finite element space. By default, the sample H(div) function file
-// provided in this directory is used for the sample run.
+// Note that the source grid function can be a user-defined vector function or
+// a grid function file that is compatible with the source mesh.
 //
 // Compile with: make field-interp
 //
 // Sample runs:
 //   field-interp
-//   field-interp -ft 3
 //   field-interp -fts 3 -ft 0
 //   field-interp -m1 triple-pt-1.mesh -s1 triple-pt-1.gf -m2 triple-pt-2.mesh -ft 1
 //   field-interp -m2 ../meshing/amr-quad-q2.mesh -ft 0 -r 1
@@ -60,8 +56,8 @@ int main (int argc, char *argv[])
    // Set the method's default parameters.
    const char *src_mesh_file = "../meshing/square01.mesh";
    const char *tar_mesh_file = "../../data/inline-tri.mesh";
-   const char *src_sltn_file = "square01_hdiv.gf";
-   int src_fieldtype  = -1;
+   const char *src_sltn_file = "must_be_provided_by_the_user.gf";
+   int src_fieldtype  = 0;
    int src_ncomp      = 1;
    int ref_levels     = 0;
    int fieldtype      = -1;
@@ -75,15 +71,13 @@ int main (int argc, char *argv[])
    args.AddOption(&tar_mesh_file, "-m2", "--mesh2",
                   "Mesh file for interpolation.");
    args.AddOption(&src_sltn_file, "-s1", "--solution1",
-                  "GridFunction defined on the src_mesh_file. Alternatively use"
-                  "src_fieldtype to specify a user-defined function.");
+                  "(optional) GridFunction file compatible with src_mesh_file."
+                  "Set src_fieldtype to -1 if this option is used.");
    args.AddOption(&src_fieldtype, "-fts", "--field-type-src",
-                  "Source GridFunction type. Optional argument required if a"
-                  "src_sltn_file is not provided:"
-                  "0 - H1, 1 - L2, 2 - H(div), 3 - H(curl).");
+                  "Source GridFunction type:"
+                  "0 - H1 (default), 1 - L2, 2 - H(div), 3 - H(curl).");
    args.AddOption(&src_ncomp, "-nc", "--ncomp",
-                  "Number of components for H1 or L2 GridFunctions. Optional argument"
-                  "required if the user specified src_fieldtype > -1.");
+                  "Number of components for H1 or L2 GridFunctions.");
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of refinements of the interpolation mesh.");
    args.AddOption(&fieldtype, "-ft", "--field-type",
@@ -127,7 +121,7 @@ int main (int argc, char *argv[])
    FiniteElementCollection *src_fec = NULL;
    FiniteElementSpace *src_fes = NULL;
    GridFunction *func_source = NULL;
-   if (src_fieldtype == -1) // use src_sltn_file
+   if (src_fieldtype < 0) // use src_sltn_file
    {
       ifstream mat_stream_1(src_sltn_file);
       func_source = new GridFunction(&mesh_1, mat_stream_1);
@@ -201,7 +195,7 @@ int main (int argc, char *argv[])
    const FiniteElementCollection *fec_in = func_source->FESpace()->FEColl();
    std::cout << "Source FE collection: " << fec_in->Name() << std::endl;
 
-   if (src_fieldtype == -1)
+   if (src_fieldtype < 0)
    {
       const H1_FECollection *fec_h1 = dynamic_cast<const H1_FECollection *>(fec_in);
       const L2_FECollection *fec_l2 = dynamic_cast<const L2_FECollection *>(fec_in);
@@ -213,7 +207,7 @@ int main (int argc, char *argv[])
       else if (fec_nd) { src_fieldtype = 3; }
       else { MFEM_ABORT("GridFunction type not supported yet."); }
    }
-   if (fieldtype == -1) { fieldtype = src_fieldtype; }
+   if (fieldtype < 0) { fieldtype = src_fieldtype; }
 
    // Setup the FiniteElementSpace and GridFunction on the target mesh.
    FiniteElementCollection *tar_fec = NULL;
