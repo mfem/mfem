@@ -18,11 +18,7 @@
 #if defined(MFEM_USE_SUNDIALS)
 #include "sundials.hpp"
 #if defined(MFEM_USE_MPI)
-#include <nvector/nvector_mpiplusx.h>
 #include <nvector/nvector_parallel.h>
-#endif
-#if defined(MFEM_USE_CUDA)
-#include <nvector/nvector_cuda.h>
 #endif
 #endif
 
@@ -1165,9 +1161,7 @@ vector_min_cpu:
 
 #ifdef MFEM_USE_SUNDIALS
 
-//
-// TODO: recommend that these are removed, or at least deprecated.
-//
+// TODO: These could probably be removed, unless they are needed for backwards compatibility.
 
 Vector::Vector(N_Vector nv)
 {
