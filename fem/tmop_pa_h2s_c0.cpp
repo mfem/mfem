@@ -107,8 +107,7 @@ void TMOP_Integrator::AssembleGradPA_C0_2D(const Vector &X) const
    const double ln = lim_normal;
    const Vector &LD = PA.LD;
    const DenseTensor &J = PA.Jtr;
-   const IntegrationRule *ir = IntRule;
-   const Array<double> &W = ir->GetWeights();
+   const Array<double> &W = PA.ir->GetWeights();
    const Array<double> &B = PA.maps->B;
    const Vector &C0 = PA.C0;
    Vector &H0 = PA.H0;
