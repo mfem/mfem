@@ -44,7 +44,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
    const auto C0 = const_c0 ?
                    Reshape(c0_.Read(), 1, 1, 1) :
                    Reshape(c0_.Read(), Q1D, Q1D, NE);
-   const auto LD = Reshape(lim_dist.Read(), D1D, D1D, DIM, NE);
+   const auto LD = Reshape(lim_dist.Read(), D1D, D1D, 1, NE);
    const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, NE);
    const auto b = Reshape(b_.Read(), Q1D, D1D);
    const auto W = Reshape(w_.Read(), Q1D, Q1D);
@@ -75,7 +75,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
       MFEM_SHARED double DQ1[2][NBZ][MD1*MQ1];
       MFEM_SHARED double QQ1[2][NBZ][MQ1*MQ1];
 
-      kernels::LoadX<MD1,NBZ>(e,D1D,LD,XY);
+      kernels::LoadX<MD1,NBZ>(e,D1D,0,LD,XY[0]);
       kernels::LoadX<MD1,NBZ>(e,D1D,X0,XY0);
       kernels::LoadX<MD1,NBZ>(e,D1D,X1,XY1);
 
