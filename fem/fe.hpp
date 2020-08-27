@@ -1865,9 +1865,6 @@ private:
 
    static Array2D<int> binom;
 
-   static void CalcLegendre(const int p, const double x, double *u);
-   static void CalcLegendre(const int p, const double x, double *u, double *d);
-
    static void CalcChebyshev(const int p, const double x, double *u);
    static void CalcChebyshev(const int p, const double x, double *u, double *d);
    static void CalcChebyshev(const int p, const double x, double *u, double *d,
@@ -1973,10 +1970,11 @@ public:
    static void CalcBernstein(const int p, const double x, double *u, double *d)
    { CalcBinomTerms(p, x, 1. - x, u, d); }
 
-   /// Compute the standard polynomials
-   static void CalcMono(const int p, const double x, double *u);
-   static void CalcMono(const int p, const double x, double *u, double *d);
+   // Compute the Legendre polynomials
+   static void CalcLegendre(const int p, const double x, double *u);
+   static void CalcLegendre(const int p, const double x, double *u, double *d);
 
+   /// Compute the standard polynomials
    static void CalcMono(const int p, const double x, double *u);
    static void CalcMono(const int p, const double x, double *u, double *d);
 
@@ -3522,12 +3520,12 @@ public:
 class DistanceMetric
 {
 protected:
-   int Dim;
+   int dim;
 public:
-   DistanceMetric(int D) { Dim = D; }
+   DistanceMetric(int D) { dim = D; }
    virtual ~DistanceMetric() { }
 
-   virtual void SetDim(int D) { Dim = D; }
+   virtual void SetDim(int D) { dim = D; }
    
    virtual void Distance(const Vector &x,
                          double &r) const = 0;

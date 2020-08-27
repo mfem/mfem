@@ -1059,6 +1059,7 @@ public:
    virtual const int * DofOrderForOrientation(Geometry::Type GeomType, int Or) const;
 
    virtual const char * Name() const { return d_name; }
+   virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
 } // namespace mfem
