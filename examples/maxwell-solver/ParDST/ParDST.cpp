@@ -205,8 +205,12 @@ void ParDST::Mult(const Vector &r, Vector &z) const
 
             if (l==0)  { res_local += *f_orig[ip]; }
             res_local += *f_transf[ip][l];
+            if (res_local.Norml2() < 1e-12) 
+            {
+               *subdomain_sol[ip] = 0.0;
+               continue;
+            }
             PmlMatInv[ip]->Mult(res_local, *subdomain_sol[ip]);
-
          }
          // 4. Transfer solutions to neighbors so that the subdomain
          // residuals are updated

@@ -135,15 +135,33 @@ int main(int argc, char *argv[])
 
    // 4. Define a parallel mesh by a partitioning of the serial mesh.
    // ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-   // int nprocs = sqrt(num_procs);
+   int nprocs;
+   int nprocsx;
+   int nprocsy;
+   int nprocsz;
+   if (dim == 2)
+   {
+      nprocs = sqrt(num_procs); 
+      nprocsx = nprocs;
+      nprocsy = nprocs;
+      nprocsz = 1;
+   }    
+   else
+   {
+      nprocs = cbrt(num_procs); 
+      nprocsx = nprocs;
+      nprocsy = nprocs;
+      nprocsz = nprocs;
+   }
    // MFEM_VERIFY(nprocs*nprocs == num_procs, "Check MPI partitioning");
    // int nxyz[3] = {num_procs,1,1};
    // int nxyz[3] = {nprocs,nprocs,1};
    // int nxyz[3] = {1,num_procs,1};
-   int nxyz[3] = {num_procs,1,1};
+   int nxyz[3] = {nprocsx,nprocsy,nprocsz};
+   // int nxyz[3] = {num_procs,1,1};
    int * part = mesh->CartesianPartitioning(nxyz);
-   // ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD,*mesh,part);
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD,*mesh);
+   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD,*mesh,part);
+   // ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD,*mesh);
    delete [] part;
    delete mesh;
 
@@ -259,6 +277,26 @@ int main(int argc, char *argv[])
            << ", setup time: " << t1
            << ", solution time: " << t2 << endl; 
 
+
+      chrono.Clear();
+      chrono.Start();
+      X = 0.0;
+      SLISolver sli(MPI_COMM_WORLD);
+      sli.iterative_mode = true;
+      sli.SetPreconditioner(S);
+      sli.SetOperator(*Ah);
+      sli.SetRelTol(1e-6);
+      sli.SetMaxIter(20);
+      sli.SetPrintLevel(1);
+      sli.Mult(B,X);
+
+
+      chrono.Stop();
+      double t3 = chrono.RealTime();
+
+      cout << " myid: " << myid 
+           << ", SLI solution time: " << t3 << endl; 
+
       a.RecoverFEMSolution(X,B,p_gf);
       if (visualization)
       {
@@ -339,43 +377,35 @@ int main(int argc, char *argv[])
 
 double f_exact_Re(const Vector &x)
 {
-   double f_re = 0.0;
-   double x0 = length/2.0;
-   double x1 = length/2.0;
-   double x2 = length/2.0;
-   // x0 = 0.59;
-   // x0 = 0.19;
-   x0 = 0.25;
-   // x1 = 0.768;
-   // x1 = 0.168;
-   x1 = 0.25;
-   x2 = 0.25;
-   double alpha,beta;
-   // double n = 5.0*omega/M_PI;
+   
+   int nrsources = (dim == 2) ? 4 : 8;
+   Vector x0(nrsources);
+   Vector y0(nrsources);
+   Vector z0(nrsources);
+   x0(0) = 0.25; y0(0) = 0.25; z0(0) = 0.25;
+   x0(1) = 0.75; y0(1) = 0.25; z0(1) = 0.25;
+   x0(2) = 0.25; y0(2) = 0.75; z0(2) = 0.25;
+   x0(3) = 0.75; y0(3) = 0.75; z0(3) = 0.25;
+   if (dim == 3)
+   {
+      x0(4) = 0.25; y0(4) = 0.25; z0(4) = 0.75;
+      x0(5) = 0.75; y0(5) = 0.25; z0(5) = 0.75;
+      x0(6) = 0.25; y0(6) = 0.75; z0(6) = 0.75;
+      x0(7) = 0.75; y0(7) = 0.75; z0(7) = 0.75;
+   }
+  
    double n = 4.0*omega/M_PI;
-   // double n = 1.0;
-   // double coeff = pow(n,2)/M_PI;
-   beta = pow(x0-x(0),2) + pow(x1-x(1),2);
-   if (dim == 3) { beta += pow(x2-x(2),2); }
-   // alpha = -pow(n,2) * beta;
-   // double coeff = pow(n,2)/M_PI;
    double coeff = 16.0*omega*omega/M_PI/M_PI/M_PI;
-   alpha = -pow(n,2) * beta;
-   f_re = coeff*exp(alpha);
 
-   // x0 = 0.85;
-   // x1 = 0.15;
-   // beta = pow(x0-x(0),2) + pow(x1-x(1),2);
-   // if (dim == 3) { beta += pow(x2-x(2),2); }
-   // alpha = -pow(n,2) * beta;
-   // f_re += coeff*exp(alpha);
-
-   x0 = 0.8;
-   x1 = 0.4;
-   beta = pow(x0-x(0),2) + pow(x1-x(1),2);
-   if (dim == 3) { beta += pow(x2-x(2),2); }
-   alpha = -pow(n,2) * beta;
-   // f_re += coeff*exp(alpha);
+   double f_re = 0.0;
+   // for (int i = 0; i<1; i++)
+   for (int i = 0; i<nrsources; i++)
+   {
+      double beta = pow(x0(i)-x(0),2) + pow(y0(i)-x(1),2);
+      if (dim == 3) { beta += pow(z0(i)-x(2),2); }
+      double alpha = -pow(n,2) * beta;
+      f_re += coeff*exp(alpha);
+   }
 
    bool in_pml = false;
    for (int i = 0; i<dim; i++)

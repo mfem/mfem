@@ -120,12 +120,25 @@ int main(int argc, char *argv[])
 
    // 4. Define a parallel mesh by a partitioning of the serial mesh.
    // ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-   // int nprocs = sqrt(num_procs);
-   // MFEM_VERIFY(nprocs*nprocs == num_procs, "Check MPI partitioning");
-   // int nxyz[3] = {num_procs,1,1};
-   // int nxyz[3] = {nprocs,nprocs,1};
-   // int nxyz[3] = {1,num_procs,1};
-   int nxyz[3] = {num_procs,1,1};
+   int nprocs;
+   int nprocsx;
+   int nprocsy;
+   int nprocsz;
+   if (dim == 2)
+   {
+      nprocs = sqrt(num_procs); 
+      nprocsx = nprocs;
+      nprocsy = nprocs;
+      nprocsz = 1;
+   }    
+   else
+   {
+      nprocs = cbrt(num_procs); 
+      nprocsx = nprocs;
+      nprocsy = nprocs;
+      nprocsz = nprocs;
+   }
+   int nxyz[3] = {nprocsx,nprocsy,nprocsz};
    int * part = mesh->CartesianPartitioning(nxyz);
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD,*mesh,part);
    // ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD,*mesh);
@@ -148,7 +161,7 @@ int main(int argc, char *argv[])
    //            << *pmesh << "window_title 'Global mesh'" << flush;
 
    double hl = GetUniformMeshElementSize(pmesh);
-   int nrlayers = 2;
+   int nrlayers = 3;
    Array2D<double> lengths(dim,2);
    lengths = hl*nrlayers;
    // lengths[0][1] = 0.0;
@@ -298,7 +311,7 @@ int main(int argc, char *argv[])
    gmres.SetPreconditioner(S);
 	gmres.SetOperator(*Ac);
 	gmres.SetRelTol(1e-8);
-	gmres.SetMaxIter(10);
+	gmres.SetMaxIter(100);
 	gmres.SetPrintLevel(1);
 	gmres.Mult(B, X);
    
@@ -387,27 +400,32 @@ void source_re(const Vector &x, Vector &f)
    }
    else
    {
-      double x0 = length/2.0;
-      double x1 = length/2.0;
-      double x2 = length/2.0;
-      x0 = 0.5;
-      x1 = 0.5;
-      x2 = 0.25;
-      double alpha,beta;
+      int nrsources = (dim == 2) ? 4 : 8;
+      Vector x0(nrsources);
+      Vector y0(nrsources);
+      Vector z0(nrsources);
+      x0(0) = 0.25; y0(0) = 0.25; z0(0) = 0.25;
+      x0(1) = 0.75; y0(1) = 0.25; z0(1) = 0.25;
+      x0(2) = 0.25; y0(2) = 0.75; z0(2) = 0.25;
+      x0(3) = 0.75; y0(3) = 0.75; z0(3) = 0.25;
+      if (dim == 3)
+      {
+         x0(4) = 0.25; y0(4) = 0.25; z0(4) = 0.75;
+         x0(5) = 0.75; y0(5) = 0.25; z0(5) = 0.75;
+         x0(6) = 0.25; y0(6) = 0.75; z0(6) = 0.75;
+         x0(7) = 0.75; y0(7) = 0.75; z0(7) = 0.75;
+      }
+  
       double n = 4.0*omega/M_PI;
-      beta = pow(x0-x(0),2) + pow(x1-x(1),2);
-      if (dim == 3) { beta += pow(x2-x(2),2); }
       double coeff = 16.0*omega*omega/M_PI/M_PI/M_PI;
-      alpha = -pow(n,2) * beta;
-      f[0] = coeff*exp(alpha);
-      // f[1] = coeff*exp(alpha);
-      x0 = 0.8;
-      x1 = 0.8;
-      beta = pow(x0-x(0),2) + pow(x1-x(1),2);
-      if (dim == 3) { beta += pow(x2-x(2),2); }
-      alpha = -pow(n,2) * beta;
-      // f[0] += coeff*exp(alpha);
 
+      for (int i = 0; i<nrsources; i++)
+      {
+         double beta = pow(x0(i)-x(0),2) + pow(y0(i)-x(1),2);
+         if (dim == 3) { beta += pow(z0(i)-x(2),2); }
+         double alpha = -pow(n,2) * beta;
+         f[0] += coeff*exp(alpha);
+      }
 
       bool in_pml = false;
       for (int i = 0; i<dim; i++)

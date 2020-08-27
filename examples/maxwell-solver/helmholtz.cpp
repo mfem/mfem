@@ -32,10 +32,6 @@ double length = 1.0;
 double pml_length = 0.25;
 Array2D<double>comp_bdr;
 
-#ifndef MFEM_USE_SUPERLU
-#error This example requires that MFEM is built with MFEM_USE_PETSC=YES
-#endif
-
 int main(int argc, char *argv[])
 {
 
