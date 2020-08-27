@@ -141,6 +141,7 @@ int main(int argc, char *argv[])
    bool use_factory = false;
    bool yRange = false;
    bool useStab = false; //use a stabilized formulation (explicit case only)
+   bool initial_refine = false;
    const char *petscrc_file = "";
 
    //----amr coefficients----
@@ -227,8 +228,9 @@ int main(int argc, char *argv[])
    args.AddOption(&useFull, "-useFull", "--useFull",
                   "version of Full preconditioner");
    args.AddOption(&usefd, "-fd", "--use-fd", "-no-fd",
-                  "--no-fd",
-                  "Use fd-fem in the implicit solvers.");
+                  "--no-fd","Use fd-fem in the implicit solvers.");
+   args.AddOption(&initial_refine, "-init-refine", "--init-refine", "-no-init-refine",
+                  "--no-init-refine","Use initial refine before time stepping.");
    args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
                   "--no-visit-datafiles",
                   "Save data files for VisIt (visit.llnl.gov) visualization.");
@@ -353,115 +355,118 @@ int main(int argc, char *argv[])
     return 2;
    }
 
-   //-----------------------------------Generate adaptive grid---------------------------------
-   //the first part of the code is copied from an explicit code to have a good initial adapative mesh
-   //If there is a simple way to initialize the mesh, then we can drop this part.
-   //But last time I tried, the solver has some issue in terms of wrong ordering and refined levels 
-   //after an adaptive mesh is saved and loaded. This is a simple work around for now.
-   int fe_size = fespace.GetVSize();
-   Array<int> fe_offset(5);
-   fe_offset[0] = 0;
-   fe_offset[1] = fe_size;
-   fe_offset[2] = 2*fe_size;
-   fe_offset[3] = 3*fe_size;
-   fe_offset[4] = 4*fe_size;
-
-   BlockVector *vxTmp = new BlockVector(fe_offset);
-   ParGridFunction psiTmp, phiTmp, wTmp, jTmp;
-   phiTmp.MakeRef(&fespace, vxTmp->GetBlock(0), 0);
-   psiTmp.MakeRef(&fespace, vxTmp->GetBlock(1), 0);
-     wTmp.MakeRef(&fespace, vxTmp->GetBlock(2), 0);
-     jTmp.MakeRef(&fespace, vxTmp->GetBlock(3), 0);
-   phiTmp=0.0;
-     wTmp=0.0;
-
-   int sdim = pmesh->SpaceDimension();
    BilinearFormIntegrator *integ = new DiffusionIntegrator;
-   ParFiniteElementSpace flux_fespace1(pmesh, &fe_coll, sdim), flux_fespace2(pmesh, &fe_coll, sdim);
-   BlockZZEstimator estimatorTmp(*integ, psiTmp, *integ, phiTmp, flux_fespace1, flux_fespace2);
+   int fe_size, sdim = pmesh->SpaceDimension();
+   //-----------------------------------Generate adaptive grid---------------------------------
+   if (initial_refine)
+   {
+      //the first part of the code is copied from an explicit code to have a good initial adapative mesh
+      //If there is a simple way to initialize the mesh, then we can drop this part.
+      //But last time I tried, the solver has some issue in terms of wrong ordering and refined levels 
+      //after an adaptive mesh is saved and loaded. This is a simple work around for now.
+      fe_size = fespace.GetVSize();
+      Array<int> fe_offset(5);
+      fe_offset[0] = 0;
+      fe_offset[1] = fe_size;
+      fe_offset[2] = 2*fe_size;
+      fe_offset[3] = 3*fe_size;
+      fe_offset[4] = 4*fe_size;
 
-   ThresholdRefiner refinerTmp(estimatorTmp);
-   refinerTmp.SetTotalErrorGoal(1e-7);    // total error goal (stop criterion)
-   refinerTmp.SetLocalErrorGoal(1e-7);    // local error goal (stop criterion)
-   refinerTmp.SetMaxElements(500000);
-   refinerTmp.SetMaximumRefinementLevel(par_ref_levels+1);
-   refinerTmp.SetNCLimit(nc_limit);
+      BlockVector *vxTmp = new BlockVector(fe_offset);
+      ParGridFunction psiTmp, phiTmp, wTmp, jTmp;
+      phiTmp.MakeRef(&fespace, vxTmp->GetBlock(0), 0);
+      psiTmp.MakeRef(&fespace, vxTmp->GetBlock(1), 0);
+        wTmp.MakeRef(&fespace, vxTmp->GetBlock(2), 0);
+        jTmp.MakeRef(&fespace, vxTmp->GetBlock(3), 0);
+      phiTmp=0.0;
+        wTmp=0.0;
 
-   AMRResistiveMHDOperator *exOperator = new AMRResistiveMHDOperator(fespace, ess_bdr, visc, resi);
-   BlockVector *vxTmp_old = new BlockVector(*vxTmp);
-   exOperator->assembleProblem(ess_bdr); 
+      ParFiniteElementSpace flux_fespace1(pmesh, &fe_coll, sdim), flux_fespace2(pmesh, &fe_coll, sdim);
+      BlockZZEstimator estimatorTmp(*integ, psiTmp, *integ, phiTmp, flux_fespace1, flux_fespace2);
 
-   //psi is needed to get solution started
-   if (icase==1)
-   {
-        FunctionCoefficient psiInit(InitialPsi);
-        psiTmp.ProjectCoefficient(psiInit);
-   }
-   else if (icase==2)
-   {
-        FunctionCoefficient psiInit2(InitialPsi2);
-        psiTmp.ProjectCoefficient(psiInit2);
-   }
-   else if (icase==3)
-   {
-        FunctionCoefficient psiInit3(InitialPsi3);
-        psiTmp.ProjectCoefficient(psiInit3);
-   }
-   else if (icase==4)
-   {
-        FunctionCoefficient psiInit4(InitialPsi4);
-        psiTmp.ProjectCoefficient(psiInit4);
-   }
-   psiTmp.SetTrueVector();
+      ThresholdRefiner refinerTmp(estimatorTmp);
+      refinerTmp.SetTotalErrorGoal(1e-7);    // total error goal (stop criterion)
+      refinerTmp.SetLocalErrorGoal(1e-7);    // local error goal (stop criterion)
+      refinerTmp.SetMaxElements(500000);
+      refinerTmp.SetMaximumRefinementLevel(par_ref_levels+1);
+      refinerTmp.SetNCLimit(nc_limit);
 
-   if (icase==1)
-   {
-        FunctionCoefficient jInit(InitialJ);
-        jTmp.ProjectCoefficient(jInit);
-   }
-   else if (icase==2)
-   {
-        FunctionCoefficient jInit2(InitialJ2);
-        jTmp.ProjectCoefficient(jInit2);
-   }
-   else if (icase==3)
-   {
-        FunctionCoefficient jInit3(InitialJ3);
-        jTmp.ProjectCoefficient(jInit3);
-   }
-   else if (icase==4)
-   {
-        FunctionCoefficient jInit4(InitialJ4);
-        jTmp.ProjectCoefficient(jInit4);
-   }
-   jTmp.SetTrueVector();
+      AMRResistiveMHDOperator *exOperator = new AMRResistiveMHDOperator(fespace, ess_bdr, visc, resi);
+      BlockVector *vxTmp_old = new BlockVector(*vxTmp);
+      exOperator->assembleProblem(ess_bdr); 
 
-   for (int ref_it = 1; ref_it<5; ref_it++)
-   {
-     exOperator->UpdateJ(*vxTmp, &jTmp);
-     refinerTmp.Apply(*pmesh);
-     if (refinerTmp.Refined()==false)
-     {
-         break;
-     }
-     else
-     {
-         if (myid == 0) cout<<"Initial mesh refine..."<<endl;
-         AMRUpdate(*vxTmp, *vxTmp_old, fe_offset, phiTmp, psiTmp, wTmp, jTmp);
-         pmesh->Rebalance();
-         //---Update problem---
-         AMRUpdate(*vxTmp, *vxTmp_old, fe_offset, phiTmp, psiTmp, wTmp, jTmp);
-         exOperator->UpdateProblem();
-         exOperator->assembleProblem(ess_bdr); 
-     }
+      //psi is needed to get solution started
+      if (icase==1)
+      {
+           FunctionCoefficient psiInit(InitialPsi);
+           psiTmp.ProjectCoefficient(psiInit);
+      }
+      else if (icase==2)
+      {
+           FunctionCoefficient psiInit2(InitialPsi2);
+           psiTmp.ProjectCoefficient(psiInit2);
+      }
+      else if (icase==3)
+      {
+           FunctionCoefficient psiInit3(InitialPsi3);
+           psiTmp.ProjectCoefficient(psiInit3);
+      }
+      else if (icase==4)
+      {
+           FunctionCoefficient psiInit4(InitialPsi4);
+           psiTmp.ProjectCoefficient(psiInit4);
+      }
+      psiTmp.SetTrueVector();
+
+      if (icase==1)
+      {
+           FunctionCoefficient jInit(InitialJ);
+           jTmp.ProjectCoefficient(jInit);
+      }
+      else if (icase==2)
+      {
+           FunctionCoefficient jInit2(InitialJ2);
+           jTmp.ProjectCoefficient(jInit2);
+      }
+      else if (icase==3)
+      {
+           FunctionCoefficient jInit3(InitialJ3);
+           jTmp.ProjectCoefficient(jInit3);
+      }
+      else if (icase==4)
+      {
+           FunctionCoefficient jInit4(InitialJ4);
+           jTmp.ProjectCoefficient(jInit4);
+      }
+      jTmp.SetTrueVector();
+
+      for (int ref_it = 1; ref_it<5; ref_it++)
+      {
+        exOperator->UpdateJ(*vxTmp, &jTmp);
+        refinerTmp.Apply(*pmesh);
+        if (refinerTmp.Refined()==false)
+        {
+            break;
+        }
+        else
+        {
+            if (myid == 0) cout<<"Initial mesh refine..."<<endl;
+            AMRUpdate(*vxTmp, *vxTmp_old, fe_offset, phiTmp, psiTmp, wTmp, jTmp);
+            pmesh->Rebalance();
+            //---Update problem---
+            AMRUpdate(*vxTmp, *vxTmp_old, fe_offset, phiTmp, psiTmp, wTmp, jTmp);
+            exOperator->UpdateProblem();
+            exOperator->assembleProblem(ess_bdr); 
+        }
+      }
+      if (myid == 0) cout<<"Finish initial mesh refine..."<<endl;
+      global_size = fespace.GlobalTrueVSize();
+      if (myid == 0)
+         cout << "Number of total scalar unknowns becomes: " << global_size << endl;
+      delete vxTmp_old;
+      delete vxTmp;
+      delete exOperator;
    }
-   if (myid == 0) cout<<"Finish initial mesh refine..."<<endl;
-   global_size = fespace.GlobalTrueVSize();
-   if (myid == 0)
-      cout << "Number of total scalar unknowns becomes: " << global_size << endl;
-   delete vxTmp_old;
-   delete vxTmp;
-   delete exOperator;
    //-----------------------------------End of generating adaptive grid---------------------------------
 
    //-----------------------------------Initial solution on adaptive grid---------------------------------
@@ -538,6 +543,7 @@ int main(int argc, char *argv[])
    oper.SetInitialJ(*jptr);
 
    //-----------------------------------AMR for the real computation---------------------------------
+   ParFiniteElementSpace flux_fespace1(pmesh, &fe_coll, sdim), flux_fespace2(pmesh, &fe_coll, sdim);
    BlockZZEstimator estimator(*integ, psi, *integ, j, flux_fespace1, flux_fespace2);
    estimator.SetErrorRatio(err_ratio); //we define total_err = err_1 + ratio*err_2
 
