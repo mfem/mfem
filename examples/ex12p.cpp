@@ -2,14 +2,16 @@
 //
 // Compile with: make ex12p
 //
-// Sample runs:  mpirun -np 4 ex12p -m ../data/beam-tri.mesh
-//               mpirun -np 4 ex12p -m ../data/beam-quad.mesh
-//               mpirun -np 4 ex12p -m ../data/beam-tet.mesh -n 10 -o 2 -elast
-//               mpirun -np 4 ex12p -m ../data/beam-hex.mesh
-//               mpirun -np 4 ex12p -m ../data/beam-tri.mesh -o 2 -sys
-//               mpirun -np 4 ex12p -m ../data/beam-quad.mesh -n 6 -o 3 -elast
-//               mpirun -np 4 ex12p -m ../data/beam-quad-nurbs.mesh
-//               mpirun -np 4 ex12p -m ../data/beam-hex-nurbs.mesh
+// Sample runs:
+//    mpirun -np 4 ex12p -m ../data/beam-tri.mesh
+//    mpirun -np 4 ex12p -m ../data/beam-quad.mesh
+//    mpirun -np 4 ex12p -m ../data/beam-tet.mesh -s 462 -n 10 -o 2 -elast
+//    mpirun -np 4 ex12p -m ../data/beam-hex.mesh -s 3878
+//    mpirun -np 4 ex12p -m ../data/beam-wedge.mesh -s 81
+//    mpirun -np 4 ex12p -m ../data/beam-tri.mesh -s 3877 -o 2 -sys
+//    mpirun -np 4 ex12p -m ../data/beam-quad.mesh -s 4544 -n 6 -o 3 -elast
+//    mpirun -np 4 ex12p -m ../data/beam-quad-nurbs.mesh
+//    mpirun -np 4 ex12p -m ../data/beam-hex-nurbs.mesh
 //
 // Description:  This example code solves the linear elasticity eigenvalue
 //               problem for a multi-material cantilever beam.
@@ -31,7 +33,8 @@
 //               The example highlights the use of the LOBPCG eigenvalue solver
 //               together with the BoomerAMG preconditioner in HYPRE. Reusing a
 //               single GLVis visualization window for multiple eigenfunctions
-//               is also illustrated.
+//               and optional saving with ADIOS2 (adios2.readthedocs.io) streams
+//               are also illustrated.
 //
 //               We recommend viewing examples 2 and 11 before viewing this
 //               example.
@@ -55,8 +58,10 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/beam-tri.mesh";
    int order = 1;
    int nev = 5;
+   int seed = 66;
    bool visualization = 1;
    bool amg_elast = 0;
+   bool adios2 = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -65,6 +70,8 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&nev, "-n", "--num-eigs",
                   "Number of desired eigenmodes.");
+   args.AddOption(&seed, "-s", "--seed",
+                  "Random seed used to initialize LOBPCG.");
    args.AddOption(&amg_elast, "-elast", "--amg-for-elasticity", "-sys",
                   "--amg-for-systems",
                   "Use the special AMG elasticity solver (GM/LN approaches), "
@@ -72,6 +79,9 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&adios2, "-adios2", "--adios2-streams", "-no-adios2",
+                  "--no-adios2-streams",
+                  "Save data using adios2 streams.");
    args.Parse();
    if (!args.Good())
    {
@@ -105,9 +115,9 @@ int main(int argc, char *argv[])
 
    // 4. Select the order of the finite element discretization space. For NURBS
    //    meshes, we increase the order by degree elevation.
-   if (mesh->NURBSext && order > mesh->NURBSext->GetOrder())
+   if (mesh->NURBSext)
    {
-      mesh->DegreeElevate(order - mesh->NURBSext->GetOrder());
+      mesh->DegreeElevate(order, order);
    }
 
    // 5. Refine the serial mesh on all processors to increase the resolution. In
@@ -227,6 +237,7 @@ int main(int argc, char *argv[])
 
    HypreLOBPCG * lobpcg = new HypreLOBPCG(MPI_COMM_WORLD);
    lobpcg->SetNumModes(nev);
+   lobpcg->SetRandomSeed(seed);
    lobpcg->SetPreconditioner(*amg);
    lobpcg->SetMaxIter(100);
    lobpcg->SetTol(1e-8);
@@ -280,7 +291,28 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 13. Send the above data by socket to a GLVis server. Use the "n" and "b"
+   // 13. Optionally output a BP (binary pack) file using ADIOS2. This can be
+   //     visualized with the ParaView VTX reader.
+#ifdef MFEM_USE_ADIOS2
+   if (adios2)
+   {
+      std::string postfix(mesh_file);
+      postfix.erase(0, std::string("../data/").size() );
+      postfix += "_o" + std::to_string(order);
+
+      adios2stream adios2output("ex12-p-" + postfix + ".bp",
+                                adios2stream::openmode::out, MPI_COMM_WORLD);
+      pmesh->Print(adios2output);
+      for (int i=0; i<nev; i++)
+      {
+         x = lobpcg->GetEigenvector(i);
+         // x is a temporary that must be saved immediately
+         x.Save(adios2output, "mode_" + std::to_string(i));
+      }
+   }
+#endif
+
+   // 14. Send the above data by socket to a GLVis server. Use the "n" and "b"
    //     keys in GLVis to visualize the displacements.
    if (visualization)
    {
@@ -320,7 +352,7 @@ int main(int argc, char *argv[])
       mode_sock.close();
    }
 
-   // 14. Free the used memory.
+   // 15. Free the used memory.
    delete lobpcg;
    delete amg;
    delete M;

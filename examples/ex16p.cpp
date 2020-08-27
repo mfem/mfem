@@ -1,4 +1,4 @@
-//                                MFEM Example 16 - Parallel Version
+//                       MFEM Example 16 - Parallel Version
 //
 // Compile with: make ex16p
 //
@@ -10,6 +10,7 @@
 //               mpirun -np 8 ex16p -s 3 -a 0.5 -k 0.5 -o 4
 //               mpirun -np 4 ex16p -s 14 -dt 1.0e-4 -tf 4.0e-2 -vs 40
 //               mpirun -np 16 ex16p -m ../data/fichera-q2.mesh
+//               mpirun -np 16 ex16p -m ../data/fichera-mixed.mesh
 //               mpirun -np 16 ex16p -m ../data/escher-p2.mesh
 //               mpirun -np 8 ex16p -m ../data/beam-tet.mesh -tf 10 -dt 0.1
 //               mpirun -np 4 ex16p -m ../data/amr-quad.mesh -o 4 -rs 0 -rp 0
@@ -23,7 +24,8 @@
 //               class ConductionOperator defining C(u)), as well as their
 //               implicit time integration. Note that implementing the method
 //               ConductionOperator::ImplicitSolve is the only requirement for
-//               high-order implicit (SDIRK) time integration.
+//               high-order implicit (SDIRK) time integration. Optional saving
+//               with ADIOS2 (adios2.readthedocs.io) is also illustrated.
 //
 //               We recommend viewing examples 2, 9 and 10 before viewing this
 //               example.
@@ -107,6 +109,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool visit = false;
    int vis_steps = 5;
+   bool adios2 = false;
 
    int precision = 8;
    cout.precision(precision);
@@ -139,6 +142,9 @@ int main(int argc, char *argv[])
                   "Save data files for VisIt (visit.llnl.gov) visualization.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
+   args.AddOption(&adios2, "-adios2", "--adios2-streams", "-no-adios2",
+                  "--no-adios2-streams",
+                  "Save data using adios2 streams.");
    args.Parse();
    if (!args.Good())
    {
@@ -173,12 +179,14 @@ int main(int argc, char *argv[])
       case 12: ode_solver = new RK2Solver(0.5); break; // midpoint method
       case 13: ode_solver = new RK3SSPSolver; break;
       case 14: ode_solver = new RK4Solver; break;
+      case 15: ode_solver = new GeneralizedAlphaSolver(0.5); break;
       // Implicit A-stable methods (not L-stable)
       case 22: ode_solver = new ImplicitMidpointSolver; break;
       case 23: ode_solver = new SDIRK23Solver; break;
       case 24: ode_solver = new SDIRK34Solver; break;
       default:
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+         delete mesh;
          return 3;
    }
 
@@ -244,6 +252,27 @@ int main(int argc, char *argv[])
       visit_dc.SetTime(0.0);
       visit_dc.Save();
    }
+
+   // Optionally output a BP (binary pack) file using ADIOS2. This can be
+   // visualized with the ParaView VTX reader.
+#ifdef MFEM_USE_ADIOS2
+   ADIOS2DataCollection* adios2_dc = NULL;
+   if (adios2)
+   {
+      std::string postfix(mesh_file);
+      postfix.erase(0, std::string("../data/").size() );
+      postfix += "_o" + std::to_string(order);
+      postfix += "_solver" + std::to_string(ode_solver_type);
+      const std::string collection_name = "ex16-p-" + postfix + ".bp";
+
+      adios2_dc = new ADIOS2DataCollection(MPI_COMM_WORLD, collection_name, pmesh);
+      adios2_dc->SetParameter("SubStreams", std::to_string(num_procs/2) );
+      adios2_dc->RegisterField("temperature", &u_gf);
+      adios2_dc->SetCycle(0);
+      adios2_dc->SetTime(0.0);
+      adios2_dc->Save();
+   }
+#endif
 
    socketstream sout;
    if (visualization)
@@ -314,9 +343,25 @@ int main(int argc, char *argv[])
             visit_dc.SetTime(t);
             visit_dc.Save();
          }
+
+#ifdef MFEM_USE_ADIOS2
+         if (adios2)
+         {
+            adios2_dc->SetCycle(ti);
+            adios2_dc->SetTime(t);
+            adios2_dc->Save();
+         }
+#endif
       }
       oper.SetParameters(u);
    }
+
+#ifdef MFEM_USE_ADIOS2
+   if (adios2)
+   {
+      delete adios2_dc;
+   }
+#endif
 
    // 11. Save the final solution in parallel. This output can be viewed later
    //     using GLVis: "glvis -np <np> -m ex16-mesh -g ex16-final".

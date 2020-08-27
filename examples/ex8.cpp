@@ -4,8 +4,10 @@
 //
 // Sample runs:  ex8 -m ../data/square-disc.mesh
 //               ex8 -m ../data/star.mesh
+//               ex8 -m ../data/star-mixed.mesh
 //               ex8 -m ../data/escher.mesh
 //               ex8 -m ../data/fichera.mesh
+//               ex8 -m ../data/fichera-mixed.mesh
 //               ex8 -m ../data/square-disc-p2.vtk
 //               ex8 -m ../data/square-disc-p3.mesh
 //               ex8 -m ../data/star-surf.mesh -o 2
@@ -86,9 +88,10 @@ int main(int argc, char *argv[])
    //    - The test space, test_space, is an enriched space where the enrichment
    //      degree may depend on the spatial dimension of the domain, the type of
    //      the mesh and the trial space order.
-   int trial_order = order;
-   int trace_order = order - 1;
-   int test_order  = order; // reduced order, full order is (order + dim - 1)
+   unsigned int trial_order = order;
+   unsigned int trace_order = order - 1;
+   unsigned int test_order  = order; /* reduced order, full order is
+                                        (order + dim - 1) */
    if (dim == 2 && (order%2 == 0 || (mesh->MeshGenerator() & 2 && order > 1)))
    {
       test_order++;

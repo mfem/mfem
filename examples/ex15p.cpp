@@ -16,9 +16,6 @@
 //               mpirun -np 4 ex15p -m ../data/ball-nurbs.mesh -tf 0.5
 //               mpirun -np 4 ex15p -m ../data/mobius-strip.mesh
 //               mpirun -np 4 ex15p -m ../data/amr-quad.mesh
-//
-//               Conforming meshes (no load balancing and derefinement):
-//
 //               mpirun -np 4 ex15p -m ../data/square-disc.mesh
 //               mpirun -np 4 ex15p -m ../data/escher.mesh -r 2 -tf 0.3
 //
@@ -146,11 +143,13 @@ int main(int argc, char *argv[])
       if (ref_levels > 0) { ref_levels--; }
       mesh->SetCurvature(2);
    }
-   mesh->EnsureNCMesh();
+   mesh->EnsureNCMesh(true);
    for (int l = 0; l < ref_levels; l++)
    {
       mesh->UniformRefinement();
    }
+   // Make sure tet-only meshes are marked for local refinement.
+   mesh->Finalize(true);
 
    // 5. Define a parallel mesh by partitioning the serial mesh.  Once the
    //    parallel mesh is defined, the serial mesh can be deleted.

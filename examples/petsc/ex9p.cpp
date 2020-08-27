@@ -248,7 +248,7 @@ int main(int argc, char *argv[])
    {
       // When using PETSc, we just create the ODE solver. We use command line
       // customization to select a specific solver.
-      PetscInitialize(NULL, NULL, petscrc_file, NULL);
+      MFEMInitializePetsc(NULL, NULL, petscrc_file, NULL);
       ode_solver = pode_solver = new PetscODESolver(MPI_COMM_WORLD);
    }
 
@@ -403,7 +403,14 @@ int main(int argc, char *argv[])
 
    double t = 0.0;
    adv->SetTime(t);
-   ode_solver->Init(*adv);
+   if (use_petsc)
+   {
+      pode_solver->Init(*adv,PetscODESolver::ODE_SOLVER_LINEAR);
+   }
+   else
+   {
+      ode_solver->Init(*adv);
+   }
 
    // Explicitly perform time-integration (looping over the time iterations, ti,
    // with a time-step dt), or use the Run method of the ODE solver class.
@@ -424,7 +431,6 @@ int main(int argc, char *argv[])
             {
                cout << "time step: " << ti << ", time: " << t << endl;
             }
-
             // 11. Extract the parallel grid function corresponding to the finite
             //     element approximation U (the local solution on each processor).
             *u = *U;
@@ -475,7 +481,7 @@ int main(int argc, char *argv[])
    delete pmon;
 
    // We finalize PETSc
-   if (use_petsc) { PetscFinalize(); }
+   if (use_petsc) { MFEMFinalizePetsc(); }
 
    MPI_Finalize();
    return 0;

@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_HANDLE_HPP
 #define MFEM_HANDLE_HPP
@@ -16,7 +16,6 @@
 #include "operator.hpp"
 #ifdef MFEM_USE_MPI
 #include "hypre.hpp"
-#include "petsc.hpp"
 #endif
 
 namespace mfem
@@ -26,7 +25,7 @@ namespace mfem
 /** This class provides a common interface for global, matrix-type operators to
     be used in bilinear forms, gradients of nonlinear forms, static condensation,
     hybridization, etc. The following backends are currently supported:
-      - HYPRE parallel sparse matrix (HYPRE_PARCSR)
+      - HYPRE parallel sparse matrix (Hypre_ParCSR)
       - PETSC globally assembled parallel sparse matrix (PETSC_MATAIJ)
       - PETSC parallel matrix assembled on each processor (PETSC_MATIS)
     See also Operator::Type.
@@ -58,7 +57,7 @@ public:
 
    /** @brief Create a OperatorHandle with a specified type id, @a tid, without
        allocating the actual matrix. */
-   OperatorHandle(Operator::Type tid)
+   explicit OperatorHandle(Operator::Type tid)
       : oper(NULL), type_id(CheckType(tid)), own_oper(false) { }
 
    /// Create an OperatorHandle for the given OpType pointer, @a A.
@@ -81,6 +80,12 @@ public:
 
    /// Access the underlying Operator pointer.
    Operator *Ptr() const { return oper; }
+
+   /// Support the use of -> to call methods of the underlying Operator.
+   Operator *operator->() const { return oper; }
+
+   /// Access the underlying Operator.
+   Operator &operator*() { return *oper; }
 
    /// Get the currently set operator type id.
    Operator::Type Type() const { return type_id; }
@@ -155,15 +160,16 @@ public:
        operator ownership flag is set to true. */
    void MakePtAP(OperatorHandle &A, OperatorHandle &P);
 
-   /** @brief Reset the OperatorHandle to hold the product @a R @a A @a P, where
+   /** @brief Reset the OperatorHandle to hold the product R @a A @a P, where
        R = @a Rt^t. */
    /** The type id of the result is determined by that of @a Rt, @a A, and @a P.
        The operator ownership flag is set to true. */
    void MakeRAP(OperatorHandle &Rt, OperatorHandle &A, OperatorHandle &P);
 
    /// Convert the given OperatorHandle @a A to the currently set type id.
-   /** The operator ownership flag is set to false if the target type id is the
-       same as the input; otherwise it is set to true. */
+   /** The operator ownership flag is set to false if the object held by @a A
+       will be held by this object as well, e.g. when the source and destination
+       types are the same; otherwise it is set to true. */
    void ConvertFrom(OperatorHandle &A);
 
    /// Convert the given OpType pointer, @a A, to the currently set type id.
@@ -186,6 +192,10 @@ public:
    void EliminateBC(const OperatorHandle &A_e, const Array<int> &ess_dof_list,
                     const Vector &X, Vector &B) const;
 };
+
+
+/// Add an alternative name for OperatorHandle -- OperatorPtr.
+typedef OperatorHandle OperatorPtr;
 
 } // namespace mfem
 

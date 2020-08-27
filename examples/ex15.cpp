@@ -16,9 +16,6 @@
 //               ex15 -m ../data/ball-nurbs.mesh -tf 0.3
 //               ex15 -m ../data/mobius-strip.mesh
 //               ex15 -m ../data/amr-quad.mesh
-//
-//               Conforming meshes (no derefinement):
-//
 //               ex15 -m ../data/square-disc.mesh
 //               ex15 -m ../data/escher.mesh -r 2 -tf 0.3
 //
@@ -130,11 +127,13 @@ int main(int argc, char *argv[])
       if (ref_levels > 0) { ref_levels--; }
       mesh.SetCurvature(2);
    }
-   mesh.EnsureNCMesh();
+   mesh.EnsureNCMesh(true);
    for (int l = 0; l < ref_levels; l++)
    {
       mesh.UniformRefinement();
    }
+   // Make sure tet-only meshes are marked for local refinement.
+   mesh.Finalize(true);
 
    // 4. All boundary attributes will be used for essential (Dirichlet) BC.
    MFEM_VERIFY(mesh.bdr_attributes.Size() > 0,

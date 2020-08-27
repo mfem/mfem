@@ -101,7 +101,7 @@ int main(int argc, char *argv[])
    }
 
    // 2b. We initialize PETSc
-   if (use_petsc) { PetscInitialize(NULL,NULL,petscrc_file,NULL); }
+   if (use_petsc) { MFEMInitializePetsc(NULL,NULL,petscrc_file,NULL); }
 
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
@@ -121,9 +121,9 @@ int main(int argc, char *argv[])
 
    // 4. Select the order of the finite element discretization space. For NURBS
    //    meshes, we increase the order by degree elevation.
-   if (mesh->NURBSext && order > mesh->NURBSext->GetOrder())
+   if (mesh->NURBSext)
    {
-      mesh->DegreeElevate(order - mesh->NURBSext->GetOrder());
+      mesh->DegreeElevate(order, order);
    }
 
    // 5. Refine the serial mesh on all processors to increase the resolution. In
@@ -359,7 +359,7 @@ int main(int argc, char *argv[])
    delete pmesh;
 
    // We finalize PETSc
-   if (use_petsc) { PetscFinalize(); }
+   if (use_petsc) { MFEMFinalizePetsc(); }
 
    MPI_Finalize();
 

@@ -6,6 +6,7 @@
 //               mpirun -np 4 ex2p -m ../data/beam-quad.mesh
 //               mpirun -np 4 ex2p -m ../data/beam-tet.mesh
 //               mpirun -np 4 ex2p -m ../data/beam-hex.mesh
+//               mpirun -np 4 ex2p -m ../data/beam-wedge.mesh
 //               mpirun -np 4 ex2p -m ../data/beam-tri.mesh -o 2 -sys
 //               mpirun -np 4 ex2p -m ../data/beam-quad.mesh -o 3 -elast
 //               mpirun -np 4 ex2p -m ../data/beam-quad.mesh -o 3 -sc
@@ -59,6 +60,7 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    bool visualization = 1;
    bool amg_elast = 0;
+   bool reorder_space = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -74,6 +76,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&reorder_space, "-nodes", "--by-nodes", "-vdim", "--by-vdim",
+                  "Use byNODES ordering of vector space instead of byVDIM");
    args.Parse();
    if (!args.Good())
    {
@@ -107,9 +111,9 @@ int main(int argc, char *argv[])
 
    // 4. Select the order of the finite element discretization space. For NURBS
    //    meshes, we increase the order by degree elevation.
-   if (mesh->NURBSext && order > mesh->NURBSext->GetOrder())
+   if (mesh->NURBSext)
    {
-      mesh->DegreeElevate(order - mesh->NURBSext->GetOrder());
+      mesh->DegreeElevate(order, order);
    }
 
    // 5. Refine the serial mesh on all processors to increase the resolution. In
@@ -155,7 +159,14 @@ int main(int argc, char *argv[])
    else
    {
       fec = new H1_FECollection(order, dim);
-      fespace = new ParFiniteElementSpace(pmesh, fec, dim, Ordering::byVDIM);
+      if (reorder_space)
+      {
+         fespace = new ParFiniteElementSpace(pmesh, fec, dim, Ordering::byNODES);
+      }
+      else
+      {
+         fespace = new ParFiniteElementSpace(pmesh, fec, dim, Ordering::byVDIM);
+      }
    }
    HYPRE_Int size = fespace->GlobalTrueVSize();
    if (myid == 0)
@@ -248,7 +259,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      amg->SetSystemsOptions(dim);
+      amg->SetSystemsOptions(dim, reorder_space);
    }
    HyprePCG *pcg = new HyprePCG(A);
    pcg->SetTol(1e-8);

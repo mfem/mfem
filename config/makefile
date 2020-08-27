@@ -1,13 +1,13 @@
-# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
-# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
-# See file COPYRIGHT for details.
+# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
 # This file is part of the MFEM library. For more information and source code
-# availability see http://mfem.org.
+# availability visit https://mfem.org.
 #
 # MFEM is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free
-# Software Foundation) version 2.1 dated February 1999.
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
 
 SRC = $(if $(MFEM_DIR),$(MFEM_DIR)/config/,)
 
@@ -31,17 +31,45 @@ CONFIG_HPP = _config.hpp
 CONFIG_MK = config.mk
 
 .SUFFIXES:
-.PHONY: all header config-mk
+.PHONY: all get-hypre-version header config-mk
 
 all: header config-mk
 
-header:
+MPI = $(MFEM_USE_MPI:NO=)
+GHV_CXX ?= $(MFEM_CXX)
+GHV = get_hypre_version
+GHV_FLAGS = $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(HYPRE_OPT))
+SMX = $(if $(MFEM_USE_PUMI:NO=),MFEM_USE_SIMMETRIX)
+SMX_PATH = $(PUMI_DIR)/include/gmi_sim.h
+SMX_FILE = $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(SMX_PATH))
+
+$(GHV): $(SRC)$(GHV).cpp
+	$(call mfem-info, Determining HYPRE version ...)
+	$(GHV_CXX) ${GHV_FLAGS} $(SRC)$(GHV).cpp -o $(GHV)
+$(GHV).out: $(GHV)
+	./$(GHV) > $(GHV).out
+.INTERMEDIATE: $(GHV) $(GHV).out
+
+get-hypre-version: $(GHV).out
+	$(eval MFEM_HYPRE_VERSION:=$(shell cat $(GHV).out))
+	$(if $(MFEM_HYPRE_VERSION),$(eval export MFEM_HYPRE_VERSION)\
+	$(info HYPRE version: $(MFEM_HYPRE_VERSION)),\
+	$(error Unable to determine HYPRE version))
+
+check-smx:
+	$(call mfem-info, Checking for Simmetrix header [$(SMX_FILE)] ...)
+	$(eval MFEM_USE_SIMMETRIX:=$(if $(wildcard $(SMX_FILE)),YES,NO))
+	$(call mfem-info, MFEM_USE_SIMMETRIX = $(MFEM_USE_SIMMETRIX))
+	$(eval export MFEM_USE_SIMMETRIX)
+
+header: $(if $(MPI),get-hypre-version,) $(if $(SMX),check-smx)
 	$(call mfem-info, Writing $(CONFIG_HPP) ...)
 	@set -- && \
-	for def in $${MFEM_DEFINES}; do \
+	for def in $${MFEM_DEFINES} $(if $(MPI),MFEM_HYPRE_VERSION) $(SMX); do \
 	   eval var=\$$$$def && \
 	   if [ "NO" != "$${var}" ]; then \
-	      set -- "$$@" -e "s|// \(#define $${def}\)|\1|" && \
+	      set -- "$$@" -e "s|// \(#define $${def} \)|\1|" && \
+	      set -- "$$@" -e "s|// \(#define $${def}\)$$|\1|" && \
 	      set -- "$$@" -e "s#@$${def}@#$${var}#g"; \
 	   fi; \
 	done && \
@@ -62,4 +90,4 @@ config-mk:
 	sed "$$@" $(SRC)config.mk.in > $(CONFIG_MK)
 
 clean:
-	rm -f $(CONFIG_HPP) $(CONFIG_MK)
+	rm -f $(CONFIG_HPP) $(CONFIG_MK) sample-runs-build.log

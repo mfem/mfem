@@ -1,0 +1,292 @@
+# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+# General GitLab pipelines configurations for supercomputers and Linux clusters
+# at Lawrence Livermore National Laboratory (LLNL). This entire pipeline is
+# LLNL-specific!
+
+# We define the following GitLab pipeline variables:
+#
+# BUILD_ROOT:
+# The path to the shared resources between all jobs. For example, external
+# repositories like 'tests' and 'tpls' are cloned here. Also, 'tpls' is built
+# once for all targets, so that build happen here. The BUILD_ROOT is unique to
+# the pipeline, preventing any form of concurrency with other pipelines. This
+# also means that the BUILD_ROOT directory will never be cleaned.
+# TODO: add a clean-up mechanism
+#
+# BUILD_PATH:
+# In BUILD_ROOT, we want to separate builds depending on the machine used,
+# typically because we build on a set of dependencies per machine.
+#
+# REBASELINE:
+# Defines the default choice for updating the saved baseline results. By default
+# the baseline can only be updated from the master branch. This variable offers
+# the option to manually ask for rebaselining from another branch if necessary.
+#
+# MFEM_ALLOC_NAME:
+# On LLNL's quartz, there is only one allocation shared among jobs in order to
+# save time and resources. This allocation has to be uniquely named so that we
+# are sure to retrieve it.
+#
+# TPLS_REPO & TESTS_REPO:
+# Git repositories used in the pipeline
+#
+# ARTIFACTS_DIR:
+# Directory used to place artifacts.
+
+variables:
+  BUILD_ROOT: ${CI_BUILDS_DIR}/${CI_PROJECT_NAME}_${CI_COMMIT_REF_SLUG}_${CI_PIPELINE_ID}
+  BUILD_PATH: ${CI_BUILDS_DIR}/${CI_PROJECT_NAME}_${CI_COMMIT_REF_SLUG}_${CI_PIPELINE_ID}/${PLAT}/${TOOLCHAIN}
+  REBASELINE: "NO"
+  MFEM_ALLOC_NAME: ${CI_PROJECT_NAME}_ci_${CI_PIPELINE_ID}
+  TPLS_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/tpls.git
+  TESTS_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/tests.git
+  ARTIFACTS_DIR: artifacts
+
+# The pipeline is divided into stages. Usually, these are also synchronization
+# points, however, we use "needs" keyword to express the DAG of jobs for more
+# efficiency.
+# - We use setup phase to download content outside of mfem directory.
+# - Allocate is where quartz resources are allocated once for all.
+# - Libs is where dependencies are built.
+# - Build is where we build MFEM for multiple toolchains.
+# - Test is where we perform a first set of tests on MFEM build.
+# - Baseline_checks gathers baseline-type test suites execution
+# - Baseline_publish, only available on master, allows to update baseline
+#   results
+# - Deallocate releases quartz resources
+stages:
+  - setup
+  - allocate
+  - libs
+  - build
+  - test
+  - deallocate
+  - baseline_check
+  - baseline_publish
+
+# The setup job in setup stage don’t rely on MFEM git repo. It prepares a
+# pipeline-wide working directory downloading/updating external repos.
+# TODO: updating tests and tpls is not necessary anymore since pipelines are
+# now using unique directories so repo are never shared with another pipeline.
+# This is not memory efficient (we keep a lot of data), hence this reminder.
+.setup:
+  stage: setup
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - mkdir -p ${BUILD_ROOT} && cd ${BUILD_ROOT}
+    - if [ ! -d "tpls" ]; then git clone ${TPLS_REPO}; fi
+    - if [ ! -d "tests" ]; then git clone ${TESTS_REPO}; fi
+    - cd tpls && git pull && cd ..
+    - cd tests && git pull && cd ..
+
+# Share configurations (templates) for toolchain configuration.
+# Note: Any job using this template shouldn't redefine "before_script" key.
+.with_gcc_6_1_0:
+  variables:
+    TOOLCHAIN: gcc_6_1_0
+    CXX: g++
+    CC: gcc
+  before_script:
+    - module load gcc/6.1.0
+
+.with_gcc_4_9_3:
+  variables:
+    TOOLCHAIN: gcc_4_9_3
+    CXX: g++
+    CC: gcc
+  before_script:
+    - module load gcc/4.9.3
+
+.if_srun_alloc_for_make: &if_srun_alloc_for_make |
+  if [[ "${MPIEXEC}" == "srun" ]]
+  then
+    export JOB_ID=$(squeue -h --name=${MFEM_ALLOC_NAME} --format=%A)
+    [[ -n "JOB_ID" ]] && export JOB_ID="--jobid=${JOB_ID}"
+    RESOURCES="--extra-node-info=1:${MAKE_PAR}:1 --cpus-per-task=${MAKE_PAR} --ntasks=1"
+    # Allocation prefix:
+    export EXEC_PREFIX="srun ${JOB_ID} ${RESOURCES}"
+  fi
+
+# Build of dependencies and mfem:
+# if on quartz, uses a part of preallocated resources
+# Note: Those jobs don't rely on MFEM repository, hence the use of
+# "GIT_STRATEGY: none" preventing its clone.
+.build_hypre:
+  variables:
+    EXEC_PREFIX: ""
+    GIT_STRATEGY: none
+  stage: libs
+  script:
+    - cd ${BUILD_ROOT}/tpls
+    - mkdir -p ${BUILD_PATH}
+    - make clean
+    - *if_srun_alloc_for_make
+    - ${EXEC_PREFIX} make -j ${MAKE_PAR} hypre PREFIX=${BUILD_PATH}/hypre/src/ BUILD_DIR=${BUILD_PATH} LOG_DIR=${BUILD_PATH}
+
+.build_metis:
+  variables:
+    EXEC_PREFIX: ""
+    GIT_STRATEGY: none
+  stage: libs
+  script:
+    - cd ${BUILD_ROOT}/tpls
+    - mkdir -p ${BUILD_PATH}
+    - *if_srun_alloc_for_make
+    - ${EXEC_PREFIX} make -j ${MAKE_PAR} ${METIS} PREFIX=${BUILD_PATH}/ BUILD_DIR=${BUILD_PATH} LOG_DIR=${BUILD_PATH} CC=${CC} CXX=${CXX}
+
+# Building MFEM
+.build_mfem:
+  variables:
+    EXEC_PREFIX: ""
+  stage: build
+  script:
+    - mkdir -p ${BUILD_PATH}
+    - cp -r ${CI_PROJECT_DIR} ${BUILD_PATH}/${CI_PROJECT_NAME}_${MFEM_USE_MPI}_${MFEM_DEBUG}
+    - cd ${BUILD_PATH}/${CI_PROJECT_NAME}_${MFEM_USE_MPI}_${MFEM_DEBUG}
+    - *if_srun_alloc_for_make
+    - make config CXX=${CXX} MPICXX=mpicxx MFEM_USE_MPI=${MFEM_USE_MPI} MFEM_DEBUG=${MFEM_DEBUG} MFEM_MPIEXEC="${EXEC_PREFIX}" MFEM_MPIEXEC_NP=${MPIEXEC_NP}
+    - ${EXEC_PREFIX} make -j ${MAKE_PAR} all
+
+# TODO: Could this phase use a parallel run?
+.sanitycheck_mfem:
+  stage: test
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - cd ${BUILD_PATH}/${CI_PROJECT_NAME}_${MFEM_USE_MPI}_${MFEM_DEBUG}
+    - make test
+
+# Shared script for baseline and sample-run-baseline, the value of BASELINE_TEST
+# differentiates between the two tests.
+.baseline_script: &baseline_script |
+  # locals
+  _glob_out=${BASELINE_TEST}.out
+  _glob_err=${BASELINE_TEST}.err
+  _base_diff=${BASELINE_TEST}-${SYS_TYPE}.diff
+  _base_patch=${BASELINE_TEST}-${SYS_TYPE}.patch
+  _base_out=${BASELINE_TEST}-${SYS_TYPE}.out
+
+  _out=${BASELINE_TEST}-${SYS_TYPE}.out
+  _ref=../${BASELINE_TEST}-${SYS_TYPE}.saved
+  _out_txt=${BASELINE_TEST}.txt
+  _diff=${BASELINE_TEST}-diff.txt
+  # prepare
+  cd ${BUILD_ROOT}
+  ln -snf ${CI_PROJECT_DIR} mfem
+  cd tests
+  mkdir _${BASELINE_TEST} && cd _${BASELINE_TEST}
+  # run
+  salloc --nodes=1 -p pdebug ../runtest ../../mfem "${BASELINE_TEST} ${ADDITIONAL_DIR}"
+  # post
+  mkdir ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}
+  if [[ -s ${_glob_err} ]]
+  then
+    echo "ERROR during ${BASELINE_TEST} execution";
+    echo "Here is the ${_glob_err} file content";
+    cat ${_glob_err}
+    cp ${_glob_err} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_glob_err}.txt
+    exit 1;
+  elif [[ ! -f ${_base_patch} && ! -f ${_base_out} ]]
+  then
+    echo "Something went WRONG in ${BASELINE_TEST}:";
+    echo "Either ${_base_patch} or ${_base_out} should exists";
+    exit 1;
+  elif [[ -f ${_base_patch} ]]
+  then
+    echo "${BASELINE_TEST}: Differences found, patch generated"
+    cp ${_base_patch} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_patch}.txt
+  elif [[ -f ${_base_out} ]]
+  then
+    echo "${BASELINE_TEST}: Differences found, replacement file generated"
+    cp ${_base_out} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_out}.txt
+  fi
+  # _base_diff won’t even exist if there is no difference.
+  if [[ -f ${_base_diff} ]]
+  then
+    echo "${BASELINE_TEST}: Relevant differences (filtered diff) ..."
+    cat ${_base_diff}
+    cp ${_base_diff} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_diff}.txt
+  fi
+  if [[ ! -s ${_base_diff} ]]
+  then
+    echo "${BASELINE_TEST}: PASSED"
+    true
+  else
+    echo "${BASELINE_TEST}: FAILED"
+    false
+  fi
+
+# Actual templates for baseline checks
+.baselinecheck_mfem:
+  stage: baseline_check
+  variables:
+    BASELINE_TEST: baseline
+    ADDITIONAL_DIR: ${BUILD_ROOT}/tpls
+  script:
+    - *baseline_script
+  artifacts:
+    when: always
+    paths:
+      - ${ARTIFACTS_DIR}
+  allow_failure: true
+
+.samplebaselinecheck_mfem:
+  stage: baseline_check
+  variables:
+    BASELINE_TEST: sample-runs-baseline
+    ADDITIONAL_DIR: ""
+  script:
+    - *baseline_script
+  timeout: 4h
+  artifacts:
+    when: always
+    paths:
+      - ${ARTIFACTS_DIR}
+  allow_failure: true
+
+# This job can only be manually triggers on a pipeline for master branch, or if
+# the pipeline was triggered with REBASELINE="YES"
+.rebaseline_mfem:
+  stage: baseline_publish
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master" || $REBASELINE == "YES"'
+      when: manual
+  script:
+    - export PATCH_FILE=${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/baseline-${SYS_TYPE}.patch
+    - export FULL_FILE=${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/baseline-${SYS_TYPE}.out
+    - export DIFF_FILE=${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/baseline-${SYS_TYPE}.diff
+    - cd ${BUILD_ROOT}/tests
+    - |
+      if [[ ! -f "${DIFF_FILE}.txt" ]]
+      then
+          echo "Nothing to be done: no relevant change in baseline"
+          exit 0
+      elif [[ -f "${PATCH_FILE}.txt" ]]
+      then
+          mv ${PATCH_FILE}.txt ${PATCH_FILE}
+          patch "./baseline-${SYS_TYPE}.saved" < "${PATCH_FILE}"
+      elif [[ -f "${FULL_FILE}.txt" ]]
+      then
+          cp "${FULL_FILE}.txt" "./baseline-${SYS_TYPE}.saved"
+      else
+          echo "File missing: expected ${PATCH_FILE}.txt or ${FULL_FILE}.txt"
+          exit 1
+      fi
+    - git add baseline-${SYS_TYPE}.saved
+    - git commit -m "${SYS_TYPE} rebaselined in GitLab pipeline ${CI_PIPELINE_ID}"
+    - git push origin master
+
+# The list on jobs is defined in machine-specific files.
+include:
+  - local: .gitlab/quartz.yml
