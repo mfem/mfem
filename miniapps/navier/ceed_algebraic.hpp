@@ -262,7 +262,8 @@ class CeedPlainCG : public mfem::Solver
 {
 public:
    CeedPlainCG(CeedOperator oper,
-               mfem::Array<int>& ess_tdof_list);
+               mfem::Array<int>& ess_tdof_list,
+               int max_its=500);
 
    ~CeedPlainCG();
 

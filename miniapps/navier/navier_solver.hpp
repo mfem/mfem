@@ -155,7 +155,8 @@ public:
     * automatically converted to the Reynolds number. If you want to set the
     * Reynolds number directly, you can provide the inverse.
     */
-   NavierSolver(ParMesh *mesh, int order, double kin_vis, bool ceed_solver_spinv=false);
+   NavierSolver(ParMesh *mesh, int order, double kin_vis, bool ceed_solver_spinv=false,
+                bool ceed_amg=true, int refine_schedule=1, int num_levels=-1);
 
    /// Initialize forms, solvers and preconditioners.
    void Setup(double dt);
@@ -338,6 +339,9 @@ protected:
    CGSolver *MvInv = nullptr;
 
    bool ceed_solver_spinv;
+   bool ceed_amg;
+   int refine_schedule;
+   int num_levels;
 
    // HypreBoomerAMG *SpInvPC = nullptr;
    Solver *SpInvPC = nullptr;

@@ -14,6 +14,20 @@
 #include <fstream>
 #include <iomanip>
 
+/*
+  Next steps here:
+
+  - optimize a bit for speed; you're killing LOR amg on iteration count, why is it slow?
+  - (use optimized ceed library)
+  - work on the Helmholtz velocity solve
+  - try in the other contexts, not just navier_mms
+  - experiment with coarse solver
+  - try on GPUs (Lassen)
+  - scale to higher order than 6
+  - different refinement schedules
+  - show to others, make PR, something
+*/
+
 using namespace mfem;
 using namespace navier;
 
@@ -21,7 +35,8 @@ class TryCeedSolver : public mfem::Solver
 {
 public:
    TryCeedSolver(Operator& fine_mfem_op, BilinearForm& form, 
-                 Array<int>& ess_dofs, int num_levels, bool ortho_);
+                 Array<int>& ess_dofs, bool ceed_amg, int refine_schedule,
+                 int num_levels, bool ortho_);
    ~TryCeedSolver();
 
    void SetOperator(const Operator& op) { operators[0] = const_cast<Operator*>(&op); }
@@ -29,8 +44,8 @@ public:
    void Mult(const Vector& x, Vector& y) const;
 
 private:
+   int num_levels;  /// actually needed in object
    bool ortho;
-   int num_levels;
    Operator ** operators;
    CeedMultigridLevel ** levels;
    Solver ** solvers;
@@ -39,9 +54,10 @@ private:
 
 TryCeedSolver::TryCeedSolver(Operator& fine_mfem_op,
                              BilinearForm& form, Array<int>& ess_dofs,
+                             bool ceed_amg, int refine_schedule,
                              int num_levels_, bool ortho_)
    :
-   ortho(ortho_), num_levels(num_levels_)
+   num_levels(num_levels_), ortho(ortho_)
 {
    auto *bffis = form.GetDBFI();
    MFEM_VERIFY(bffis->Size() == 1,
@@ -51,14 +67,14 @@ TryCeedSolver::TryCeedSolver(Operator& fine_mfem_op,
    MFEM_VERIFY(dintegrator, "Not a diffusion integrator!");
    CeedOperator current_op = dintegrator->GetCeedData()->oper;
 
-   const int order_reduction = 1;
+   MFEM_VERIFY(refine_schedule > 0, "Not implemented! (eventually we divide)");
    operators = new Operator*[num_levels];
    operators[0] = &fine_mfem_op;
    levels = new CeedMultigridLevel*[num_levels - 1];
    mfem::Array<int> * current_ess_dofs = &ess_dofs;
    for (int i = 0; i < num_levels - 1; ++i)
    {
-      levels[i] = new CeedMultigridLevel(current_op, *current_ess_dofs, order_reduction);
+      levels[i] = new CeedMultigridLevel(current_op, *current_ess_dofs, refine_schedule);
       current_op = levels[i]->GetCoarseCeed();
       current_ess_dofs = &levels[i]->GetCoarseEssentialDofList();
       operators[i + 1] = new MFEMCeedOperator(current_op, *current_ess_dofs);
@@ -66,19 +82,22 @@ TryCeedSolver::TryCeedSolver(Operator& fine_mfem_op,
 
    mfem::Solver * coarsest_solver;
    CeedMultigridLevel * coarsest = levels[num_levels - 2];
-   /*
-   if (amg)
+
+   if (ceed_amg)
    {
-      bool use_amgx = (ceed_spec[1] == 'g'); // TODO very crude
+      // bool use_amgx = (ceed_spec[1] == 'g'); // TODO very crude
+      bool use_amgx = false;
+      const int sparse_solver_type = 1; // single v-cycle
       coarsest_solver = new CeedCGWithAMG(coarsest->GetCoarseCeed(),
                                           coarsest->GetCoarseEssentialDofList(),
                                           sparse_solver_type,
                                           use_amgx);
    } else {
-   */
-   coarsest_solver = new CeedPlainCG(coarsest->GetCoarseCeed(),
-                                     coarsest->GetCoarseEssentialDofList());
-   /* } */
+      int coarse_cg_iterations = 10;
+      coarsest_solver = new CeedPlainCG(coarsest->GetCoarseCeed(),
+                                        coarsest->GetCoarseEssentialDofList(),
+                                        coarse_cg_iterations);
+   }
 
    // loop up from coarsest to build V-cycle solvers
    solvers = new Solver*[num_levels];
@@ -143,8 +162,10 @@ void CopyDBFIntegrators(ParBilinearForm *src, ParBilinearForm *dst)
    }
 }
 
-NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis, bool ceed_solver_spinv_)
-   : pmesh(mesh), order(order), kin_vis(kin_vis), ceed_solver_spinv(ceed_solver_spinv_)
+NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis, bool ceed_solver_spinv_,
+                           bool ceed_amg_, int refine_schedule_, int num_levels_)
+   : pmesh(mesh), order(order), kin_vis(kin_vis), ceed_solver_spinv(ceed_solver_spinv_), ceed_amg(ceed_amg_), refine_schedule(refine_schedule_), num_levels(num_levels_)
+     
 {
    vfec = new H1_FECollection(order, pmesh->Dimension());
    pfec = new H1_FECollection(order);
@@ -367,8 +388,9 @@ void NavierSolver::Setup(double dt)
    {
       if (ceed_solver_spinv)
       {
-         SpInvPC = new TryCeedSolver(*Sp, *Sp_form, pres_ess_tdof, order,
-                                     pres_dbcs.empty());
+         int nl = (num_levels > 0) ? num_levels : order / refine_schedule;
+         SpInvPC = new TryCeedSolver(*Sp, *Sp_form, pres_ess_tdof, ceed_amg,
+                                     refine_schedule, nl, pres_dbcs.empty());
       }
       else
       {
