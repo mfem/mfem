@@ -5231,20 +5231,20 @@ bool GetNormalVector(FiniteElementSpace *fespace, Vector& n)
       }
       else
       {
-	Vector diff(3);
-	diff = ni;
-	diff -= n;
-	if (!(diff.Norml2() < 1.0e-4))
-	  {
-	    diff = ni;
-	    diff += n;
+         Vector diff(3);
+         diff = ni;
+         diff -= n;
+         if (!(diff.Norml2() < 1.0e-4))
+         {
+            diff = ni;
+            diff += n;
 
-	    if (!(diff.Norml2() < 1.0e-4))
-	      {
-		cout << "bug" << endl;
-		MFEM_VERIFY(diff.Norml2() < 1.0e-4, "");
-	      }
-	  }
+            if (!(diff.Norml2() < 1.0e-4))
+            {
+               cout << "bug" << endl;
+               MFEM_VERIFY(diff.Norml2() < 1.0e-4, "");
+            }
+         }
       }
    }
 
@@ -6704,22 +6704,22 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_,
                      }
                   }
 
-		  if (otherSubdomainRoot >= 0)
-		    {
-		      MFEM_VERIFY(ifNDtrue[i] > 0, "");
-		      MFEM_VERIFY(ili >= 0, "");
+                  if (otherSubdomainRoot >= 0)
+                  {
+                     MFEM_VERIFY(ifNDtrue[i] > 0, "");
+                     MFEM_VERIFY(ili >= 0, "");
 
-		      if (isOwner)
-			{
-			  (*localInterfaces)[ili].OverwriteOwningRank(m_rank);
-			  (*localInterfaces)[ili].OverwriteSharingRank(otherSubdomainRoot);
-			}
-		      else
-			{
-			  (*localInterfaces)[ili].OverwriteOwningRank(otherSubdomainRoot);
-			  (*localInterfaces)[ili].OverwriteSharingRank(m_rank);
-			}
-		    }
+                     if (isOwner)
+                     {
+                        (*localInterfaces)[ili].OverwriteOwningRank(m_rank);
+                        (*localInterfaces)[ili].OverwriteSharingRank(otherSubdomainRoot);
+                     }
+                     else
+                     {
+                        (*localInterfaces)[ili].OverwriteOwningRank(otherSubdomainRoot);
+                        (*localInterfaces)[ili].OverwriteSharingRank(m_rank);
+                     }
+                  }
                }
             }
          }
@@ -6882,7 +6882,8 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_,
             if (if_root)
             {
                MFEM_VERIFY(outwardFromSD[i][0] + outwardFromSD[i][1] == 1, "");
-               if ((*localInterfaces)[ili].GetSharingRank() != m_rank && (*localInterfaces)[ili].GetSharingRank() >= 0)
+               if ((*localInterfaces)[ili].GetSharingRank() != m_rank &&
+                   (*localInterfaces)[ili].GetSharingRank() >= 0)
                {
                   MPI_Send(outwardFromSD[i].data(), 2, MPI_INT,
                            (*localInterfaces)[ili].GetSharingRank(), 9000 + i, MPI_COMM_WORLD);
