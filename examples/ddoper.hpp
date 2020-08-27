@@ -88,6 +88,9 @@ using namespace std;
 
 // For FOSLS-DD, define SDFOSLS, IFFOSLS, IFFOSLS_H, SD_ITERATIVE_GMG, and do not define ZERO_IFND_BC. With PA, define SDFOSLS_PA and SD_ITERATIVE_GMG_PA, undefine FOSLS_DIRECT_SOLVER.
 
+#define BLOCK_PREC
+//#define BLOCK_AMS_PREC
+
 void test1_E_exact(const Vector &x, Vector &E);
 void test1_RHS_exact(const Vector &x, Vector &f);
 void test1_f_exact_0(const Vector &x, Vector &f);
@@ -2669,6 +2672,35 @@ public:
 #ifdef SDFOSLS_PA
       if (!fullAssembly)
       {
+#ifdef BLOCK_PREC
+         {
+            BlockDiagonalPreconditioner *bdp = new BlockDiagonalPreconditioner(block_trueOffsets);
+
+#ifdef BLOCK_AMS_PREC
+            /*
+            for (int i=0; i<numBlocks; ++i)
+              {
+                HypreAMS *ams = new HypreAMS((HypreParMatrix&) LS_Maxwellop->GetBlock(i,i), fespace);
+                bdp->SetDiagonalBlock(i, ams);
+              }
+            */
+
+            HypreAMS *prec_E = new HypreAMS((HypreParMatrix&) LS_Maxwellop->GetBlock(0,0), fespace);
+            HypreAMS *prec_H = new HypreAMS((HypreParMatrix&) LS_Maxwellop->GetBlock(1,1), fespace);
+#else // use block Jacobi
+            Solver *prec_E = new OperatorJacobiSmoother(diag_PA_EE, ess_tdof_list_E, 1.0);
+            Solver *prec_H = new OperatorJacobiSmoother(diag_PA_HH, ess_tdof_list_empty, 1.0);
+#endif // BLOCK_AMS_PREC
+
+            bdp->SetDiagonalBlock(0, prec_E);
+            bdp->SetDiagonalBlock(1, prec_H);
+            bdp->SetDiagonalBlock(2, prec_E);
+            bdp->SetDiagonalBlock(3, prec_H);
+
+            precLS = bdp;
+            LSpcg.SetPreconditioner(*precLS);
+         }
+#else
          blockgmg::BlockMGPASolver *precMG = new blockgmg::BlockMGPASolver(comm,
                                                                            LS_Maxwellop->Height(), LS_Maxwellop->Width(), blockA, blockAcoef,
                                                                            blockCoarseA,
@@ -2684,13 +2716,14 @@ public:
          initialGuess = 0.0;
 #endif
          precLS = precMG;
+#endif // BLOCK_PREC
       }
-#else
+#else // not SDFOSLS_PA
       blockgmg::BlockMGSolver *precMG = new blockgmg::BlockMGSolver(comm,
                                                                     LS_Maxwellop->Height(), LS_Maxwellop->Width(), blockA, blockAcoef, P);
       LSpcg.SetPreconditioner(*precMG);
       precLS = precMG;
-#endif
+#endif // SDFOSLS_PA
 #endif
 
       pmesh->DeleteGeometricFactors();
@@ -3016,6 +3049,7 @@ public:
       StopWatch sw;
       sw.Start();
 
+      ySD = 0.0; // necessary, since sdInv uses CGSolver in iterative mode
       sdInv->Mult(xSD, ySD);  // Solve (0,0) block
 
       sw.Stop();
