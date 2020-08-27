@@ -137,6 +137,7 @@ int main(int argc, char *argv[])
    double visc = 1e-3;
    double resi = 1e-3;
    bool visit = false;
+   bool paraview = false;
    bool use_petsc = false;
    bool use_factory = false;
    bool yRange = false;
@@ -232,8 +233,9 @@ int main(int argc, char *argv[])
    args.AddOption(&initial_refine, "-init-refine", "--init-refine", "-no-init-refine",
                   "--no-init-refine","Use initial refine before time stepping.");
    args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
-                  "--no-visit-datafiles",
-                  "Save data files for VisIt (visit.llnl.gov) visualization.");
+                  "--no-visit-datafiles", "Save data files for VisIt (visit.llnl.gov) visualization.");
+   args.AddOption(&paraview, "-paraview", "--paraview-datafiles", "-no-paraivew",
+                  "--no-paraview-datafiles", "Save data files for paraview visualization.");
    args.AddOption(&derefine, "-derefine", "--derefine-mesh", "-no-derefine",
                   "--no-derefine-mesh",
                   "Derefine the mesh in AMR.");
@@ -647,6 +649,23 @@ int main(int argc, char *argv[])
       dc->Save();
    }
 
+   ParaViewDataCollection *pd = NULL;
+   if (paraview)
+   {
+      pd = new ParaViewDataCollection("case3amr", pmesh);
+      pd->SetPrefixPath("ParaView");
+      pd->RegisterField("psi", &psi);
+      pd->RegisterField("phi", &phi);
+      pd->RegisterField("omega", &w);
+      pd->RegisterField("current", &j);
+      pd->SetLevelsOfDetail(order);
+      pd->SetDataFormat(VTKFormat::BINARY);
+      pd->SetHighOrderOutput(true);
+      pd->SetCycle(0);
+      pd->SetTime(0.0);
+      pd->Save();
+   }
+
    MPI_Barrier(MPI_COMM_WORLD); 
    double start = MPI_Wtime();
 
@@ -733,7 +752,7 @@ int main(int argc, char *argv[])
          {
             if ( (last_step || (ti % vis_steps) == 0) )
             {
-               if (visualization || visit)
+               if (visualization || visit || paraview)
                {
                   //for the plotting purpose we have to reset those solutions
                   phi.SetFromTrueDofs(vx.GetBlock(0));
@@ -762,6 +781,13 @@ int main(int argc, char *argv[])
                   dc->SetCycle(ti);
                   dc->SetTime(t);
                   dc->Save();
+               }
+
+               if (paraview)
+               {
+                  pd->SetCycle(ti);
+                  pd->SetTime(t);
+                  pd->Save();
                }
             }
 
@@ -795,7 +821,7 @@ int main(int argc, char *argv[])
       //----------------------------AMR---------------------------------
 
       //++++always plot solutions when mesh is refined/derefined
-      if (visualization || visit)
+      if (visualization || visit || paraview)
       {
          phi.SetFromTrueDofs(vx.GetBlock(0));
          psi.SetFromTrueDofs(vx.GetBlock(1));
@@ -823,6 +849,13 @@ int main(int argc, char *argv[])
          dc->SetCycle(ti);
          dc->SetTime(t);
          dc->Save();
+      }
+
+      if (paraview)
+      {
+         pd->SetCycle(ti);
+         pd->SetTime(t);
+         pd->Save();
       }
 
    }

@@ -38,7 +38,18 @@ glvis -np 512 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 glvis -np 4096 -m mesh -g sol_omega -k "mmc" -ww 1000 -wh 1000
 
 8/20
-something wrong with amrl?? is that effective?
+something wrong with amrl?? is that effective? fixed. ensurencmesh call will set everything to 0 level
+
+this works very well (err-fraction 0.2 to 0.4):
+srun -n 256 imAMRMHDp -m ../Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -no-vis -tf 8. -dt .1 -usepetsc --petscopts rc_debug -s 3 -shell -amrl 4 -ltol 1e-3 -derefine -resi 1e-4 -visc 1e-4 -refs 4 -im_supg 1 -no-supg -i_supgpre 3 -no-fd -yrange -err-ratio 0.1 -derefine-ratio .1 -err-fraction 0.2 > log-amrl4-3.out
+
+srun -n 256 imAMRMHDp -m ../Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -no-vis -tf 8. -dt .1 -usepetsc --petscopts rc_debug -s 3 -shell -amrl 4 -ltol 1e-3 -derefine -resi 1e-4 -visc 1e-4 -refs 4 -im_supg 1 -no-supg -i_supgpre 3 -no-fd -yrange -err-ratio 0.1 -derefine-ratio .1 -err-fraction 0.3 > log-amrl4-3.out
+
+res=1e-5 (this seems good)
+srun -n 256 imAMRMHDp -m ../Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -no-vis -tf 4. -dt .05 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 4 -ltol 1e-3 -derefine -resi 1e-5 -visc 1e-5 -refs 8 -im_supg 1 -supg -i_supgpre 3 -no-fd -yrange -err-ratio 0.1 -derefine-ratio .3 -err-fraction 0.2 > log-amrl4-5.out
+
+this also works fine:
+srun -n 256 imAMRMHDp -m ../Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -no-vis -tf 4. -dt .05 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 5 -ltol 1e-3 -derefine -resi 1e-5 -visc 1e-5 -refs 8 -im_supg 1 -supg -i_supgpre 3 -no-fd -yrange -err-ratio 0.1 -derefine-ratio .3 -err-fraction 0.2
 
 8/19
 this works well but need to make derefine more aggresively:
