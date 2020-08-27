@@ -210,15 +210,19 @@ int main(int argc, char *argv[])
 }
 double u_exact(const Vector &x)
 {
+   return 2.0;
    //return exp(x(0));
    //return (x(0) * x(0) ) + (x(1) * x(1));
    //return x(0)*x(0);
-   return sin(M_PI* x(0))*sin(M_PI*x(1));
+  // return exp(x(0)+x(1)); 
+   //return sin(M_PI* x(0))*sin(M_PI*x(1));
    //return (2*x(0)) - (2*x(1));
 }
 double f_exact(const Vector &x)
 {
+   return 0.0;
    //return -exp(x(0));
    //return -4.0;
-   return 2*M_PI * M_PI* sin(M_PI*x(0)) * sin(M_PI* x(1));
+   //return -2*exp(x(0)+x(1)); 
+   //return 2*M_PI * M_PI* sin(M_PI*x(0)) * sin(M_PI* x(1));
 }

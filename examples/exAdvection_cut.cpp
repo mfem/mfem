@@ -15,7 +15,7 @@ int main(int argc, char *argv[])
    //const char *mesh_file = "../data/periodic-segment.mesh";
    int ref_levels = -1;
    int order = 1;
-   int cutsize = 1;
+   double cutsize = 1.0;
    int N = 20;
    bool visualization = 1;
    double scale;
@@ -37,80 +37,93 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
-   Mesh *mesh = new Mesh(N, 1);
-   int dim = mesh->Dimension();
-   cout << "number of elements " << mesh->GetNE() << endl;
-   ofstream sol_ofv("square_disc_mesh.vtk");
-   sol_ofv.precision(14);
-   mesh->PrintVTK(sol_ofv, 1);
-   // 4. Define a finite element space on the mesh. Here we use discontinuous
-   //    finite elements of the specified order >= 0.
-   FiniteElementCollection *fec = new DG_FECollection(order, dim);
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
-   cout << "Number of unknowns: " << fespace->GetTrueVSize() << endl;
-   // 5. Set up the linear form b(.) which corresponds to the right-hand side of
-   //    the FEM linear system.
-   int nels = mesh->GetNE();
-   scale = 1.0 / nels;
-   scale = scale / cutsize;
-   LinearForm *b = new LinearForm(fespace);
-   ConstantCoefficient one(1.0);
-   ConstantCoefficient zero(0.0);
-   FunctionCoefficient f(f_exact);
-   FunctionCoefficient u(u_exact);
-   ConstantCoefficient left(1.0);
-   ConstantCoefficient right(exp(1.0));
-   VectorFunctionCoefficient velocity(dim, velocity_function);
-   b->AddDomainIntegrator(new CutDomainLFIntegrator(f, scale, nels));
-   b->AddBdrFaceIntegrator(new BoundaryAdvectIntegrator(u, velocity, nels, scale));
-   b->Assemble();
-   BilinearForm *a = new BilinearForm(fespace);
-   a->AddDomainIntegrator(new TransposeIntegrator(new AdvectionIntegrator(velocity, scale, nels, -1.0)));
-   //a->AddDomainIntegrator(new AdvectionIntegrator(velocity, -1.0));
-   a->AddInteriorFaceIntegrator(new TransposeIntegrator(new DGFaceIntegrator(velocity, scale, nels)));
-   a->AddBdrFaceIntegrator(new TransposeIntegrator(new DGFaceIntegrator(velocity, scale, nels)));
-   // a->AddInteriorFaceIntegrator(new  DGFaceIntegrator(velocity));
-   // a->AddBdrFaceIntegrator(new DGFaceIntegrator(velocity));
-   a->Assemble();
-   a->Finalize();
-   SparseMatrix &A = a->SpMat();
-   ofstream write("stiffmat_cut.txt");
-   A.PrintMatlab(write);
-   write.close();
-   GridFunction x(fespace);
-   x.ProjectCoefficient(u);
+   int deg = 4;
+   int np[5] = {20, 50, 100, 200, 300};
+   DenseMatrix Norm_err(5, 4);
+   for (int p = 0; p < deg; ++p)
+   {
+      order = p + 1;
+      for (int n = 0; n < 5; ++n)
+      {
+         N = np[n];
+         Mesh *mesh = new Mesh(N, 1);
+         int dim = mesh->Dimension();
+         cout << "number of elements " << mesh->GetNE() << endl;
+         ofstream sol_ofv("square_disc_mesh.vtk");
+         sol_ofv.precision(14);
+         mesh->PrintVTK(sol_ofv, 1);
+         // 4. Define a finite element space on the mesh. Here we use discontinuous
+         //    finite elements of the specified order >= 0.
+         FiniteElementCollection *fec = new DG_FECollection(order, dim);
+         FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
+         cout << "Number of unknowns: " << fespace->GetTrueVSize() << endl;
+         // 5. Set up the linear form b(.) which corresponds to the right-hand side of
+         //    the FEM linear system.
+         int nels = mesh->GetNE();
+         scale = 1.0 / nels;
+         scale = scale * cutsize;
+         LinearForm *b = new LinearForm(fespace);
+         ConstantCoefficient one(1.0);
+         ConstantCoefficient zero(0.0);
+         FunctionCoefficient f(f_exact);
+         FunctionCoefficient u(u_exact);
+         ConstantCoefficient left(1.0);
+         ConstantCoefficient right(exp(1.0));
+         VectorFunctionCoefficient velocity(dim, velocity_function);
+         b->AddDomainIntegrator(new CutDomainLFIntegrator(f, scale, nels));
+         b->AddBdrFaceIntegrator(new BoundaryAdvectIntegrator(u, velocity, nels, scale));
+         b->Assemble();
+         BilinearForm *a = new BilinearForm(fespace);
+         a->AddDomainIntegrator(new TransposeIntegrator(new AdvectionIntegrator(velocity, scale, nels, -1.0)));
+         //a->AddDomainIntegrator(new AdvectionIntegrator(velocity, -1.0));
+         a->AddInteriorFaceIntegrator(new TransposeIntegrator(new DGFaceIntegrator(velocity, scale, nels)));
+         a->AddBdrFaceIntegrator(new TransposeIntegrator(new DGFaceIntegrator(velocity, scale, nels)));
+         // a->AddInteriorFaceIntegrator(new  DGFaceIntegrator(velocity));
+         // a->AddBdrFaceIntegrator(new DGFaceIntegrator(velocity));
+         a->Assemble();
+         a->Finalize();
+         SparseMatrix &A = a->SpMat();
+         ofstream write("stiffmat_cut.txt");
+         A.PrintMatlab(write);
+         write.close();
+         GridFunction x(fespace);
+         x.ProjectCoefficient(u);
 #ifndef MFEM_USE_SUITESPARSE
-   // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
-   //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
-   //    non-symmetric one.
-   GSSmoother M(A);
-   GMRES(A, M, *b, x, 1, 1000, 200, 1e-60, 1e-60);
+         // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
+         //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
+         //    non-symmetric one.
+         GSSmoother M(A);
+         GMRES(A, M, *b, x, 1, 1000, 200, 1e-60, 1e-60);
 #else
-   // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-   UMFPackSolver umf_solver;
-   umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-   umf_solver.SetOperator(A);
-   umf_solver.Mult(*b, x);
+         // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+         UMFPackSolver umf_solver;
+         umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+         umf_solver.SetOperator(A);
+         umf_solver.Mult(*b, x);
 #endif
-   ofstream adj_ofs("dgAdvection.vtk");
-   adj_ofs.precision(14);
-   mesh->PrintVTK(adj_ofs, 1);
-   x.SaveVTK(adj_ofs, "dgAdvSolution", 1);
-   adj_ofs.close();
-   //cout << x.ComputeL2Error(u) << endl;
-   double norm = CutComputeL2Error(x, fespace, u, scale);
-   cout << "solution at nodes is: " << endl;
-   x.Print();
-   cout << "########################################## " << endl;
-   cout << "mesh size, h = " << 1.0 / mesh->GetNE() << endl;
-   cout << "solution norm: " << norm << endl;
-   cout << "########################################## " << endl;
-   // 11. Free the used memory.
-   delete a;
-   delete b;
-   delete fespace;
-   delete fec;
-   delete mesh;
+         ofstream adj_ofs("dgAdvection.vtk");
+         adj_ofs.precision(14);
+         mesh->PrintVTK(adj_ofs, 1);
+         x.SaveVTK(adj_ofs, "dgAdvSolution", 1);
+         adj_ofs.close();
+         //cout << x.ComputeL2Error(u) << endl;
+         double norm = CutComputeL2Error(x, fespace, u, scale);
+         cout << "solution at nodes is: " << endl;
+         x.Print();
+         cout << "########################################## " << endl;
+         cout << "mesh size, h = " << 1.0 / mesh->GetNE() << endl;
+         cout << "solution norm: " << norm << endl;
+         cout << "########################################## " << endl;
+         Norm_err(n, p) = norm;
+         // 11. Free the used memory.
+         delete a;
+         delete b;
+         delete fespace;
+         delete fec;
+         delete mesh;
+      }
+   }
+   Norm_err.PrintMatlab();
    return 0;
 }
 

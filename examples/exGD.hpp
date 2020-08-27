@@ -1,13 +1,24 @@
 #include "mfem.hpp"
 using namespace mfem;
 extern "C" void
+dgecon_(char *, int *, double *,  int *, double *,
+        double *, double *,  int *,  int *);
+
+extern "C" void
 dgelss_(int *, int *, int *, double *, int *, double *, int *, double *,
         double *, int *, double *, int *, int *);
 extern "C" void
 dgels_(char *, int *, int *, int *, double *, int *, double *, int *, double *,
        int *, int *);
+
+extern "C" void
+dgelsy_(int *, int *, int *, double *, int *, double *, int *, int *, double *,
+       int *, double *, int *, int *);
 void buildLSInterpolation(int dim, int degree, const DenseMatrix &x_center,
                           const DenseMatrix &x_quad, DenseMatrix &interp);
+void buildInterpolation(int dim, int degree, int output,
+                        const DenseMatrix &x_center, const DenseMatrix &x_quad,
+                        DenseMatrix &interp);
 /// Abstract class for Galerkin difference method using patch construction
 class GalerkinDifference : public FiniteElementSpace
 {

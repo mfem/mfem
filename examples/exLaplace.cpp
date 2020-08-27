@@ -43,7 +43,7 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = true;
    double sigma = -1.0;
-   double kappa = 50.0;
+   double kappa = 100.0;
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
@@ -200,7 +200,7 @@ int main(int argc, char *argv[])
    GSSmoother M(A);
    if (sigma == -1.0)
    {
-      PCG(A, M, *b, x, 1, 1000, 1e-20, 0.0);
+      PCG(A, M, *b, x, 1, 10000, 1e-40, 0.0);
    }
    else
    {

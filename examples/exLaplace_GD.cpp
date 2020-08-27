@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = true;
    double sigma = -1.0;
-   double kappa = 50.0;
+   double kappa = 100.0;
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
@@ -213,7 +213,7 @@ int main(int argc, char *argv[])
    GSSmoother M(A);
    if (sigma == -1.0)
    {
-      PCG(A, M, bnew, y, 1, 1000, 1e-20, 0.0);
+      PCG(A, M, bnew, y, 1, 10000, 1e-40, 0.0);
    }
    else
    {
@@ -229,10 +229,10 @@ int main(int argc, char *argv[])
 
    fes->GetProlongationMatrix()->Mult(y, x);
 
-   ofstream adj_ofs("dgSolcirclelap.vtk");
+   ofstream adj_ofs("dgSolcirclelap_gd.vtk");
    adj_ofs.precision(14);
    mesh->PrintVTK(adj_ofs, 1);
-   x.SaveVTK(adj_ofs, "dgSolution", 1);
+   x.SaveVTK(adj_ofs, "Solution", 1);
    adj_ofs.close();
 
    double norm = CutComputeL2Error(x, fespace, u, EmbeddedElems, CutSquareIntRules);
@@ -1319,6 +1319,8 @@ void CutDGNeumannLFIntegrator::AssembleRHSElementVect(
 
 /// functions for `GalerkinDifference` class
 
+/// functions for `GalerkinDifference` class
+
 void GalerkinDifference::BuildNeighbourMat(const mfem::Array<int> &elmt_id,
                                            mfem::DenseMatrix &mat_cent,
                                            mfem::DenseMatrix &mat_quad) const
@@ -1450,6 +1452,7 @@ void GalerkinDifference::BuildGDProlongation() const
       break;
    case 2:
       nelmt = (degree + 1) * (degree + 2) / 2;
+      //nelmt = nelmt + 1;
       break;
    default:;
    }
@@ -1468,10 +1471,10 @@ void GalerkinDifference::BuildGDProlongation() const
    {
 
       GetNeighbourSet(i, nelmt, elmt_id);
-     // cout << "element " << "( " << i  << ") " << " neighbours are " << elmt_id.Size() << endl;
+      //cout << "element " << "( " << i  << ") " << " #neighbours = " << elmt_id.Size() << endl;
       // cout << "Elements id(s) in patch: ";
-      // elmt_id.Print(cout, elmt_id.Size());
-      // cout << " ----------------------- "  << endl;
+      //elmt_id.Print(cout, elmt_id.Size());
+      //cout << " ----------------------- "  << endl;
       // 2. build the quadrature and barycenter coordinate matrices
       BuildNeighbourMat(elmt_id, cent_mat, quad_mat);
       // cout << "The element center matrix:\n";
@@ -1482,7 +1485,9 @@ void GalerkinDifference::BuildGDProlongation() const
       // cout << endl;
 
       // 3. buil the loacl reconstruction matrix
+     // cout << "element is " << i << endl;
       buildLSInterpolation(dim, degree, cent_mat, quad_mat, local_mat);
+      //cout << " ######################### " << endl;
       // cout << "Local reconstruction matrix R:\n";
       // local_mat.Print(cout, local_mat.Width());
 
@@ -1496,6 +1501,7 @@ void GalerkinDifference::BuildGDProlongation() const
    // cP->PrintMatlab(cp_save);
    // cp_save.close();
 }
+
 void GalerkinDifference::AssembleProlongationMatrix(const mfem::Array<int> &id,
                                                     const DenseMatrix &local_mat) const
 {
@@ -1564,6 +1570,7 @@ void buildLSInterpolation(int dim, int degree, const DenseMatrix &x_center,
 
    // Construct the generalized Vandermonde matrix
    mfem::DenseMatrix V(num_elem, num_basis);
+   //cout << num_elem << " x " << num_basis << endl;
    if (1 == dim)
    {
       for (int i = 0; i < num_elem; ++i)
@@ -1623,16 +1630,55 @@ void buildLSInterpolation(int dim, int degree, const DenseMatrix &x_center,
    {
       coeff(i, i) = 1.0;
    }
-
+   mfem::DenseMatrix rhs(num_elem, num_elem);
+   rhs = coeff;
    // Set-up and solve the least-squares problem using LAPACK's dgels
    char TRANS = 'N';
    int info;
-   int lwork = 2 * num_elem * num_basis;
+   //int lwork = 2 * num_elem * num_basis;
+   int lwork = (num_elem * num_basis) + (3* num_basis) + 1; 
    double work[lwork];
-   dgels_(&TRANS, &num_elem, &num_basis, &num_elem, V.GetData(), &num_elem,
-          coeff.GetData(), &num_elem, work, &lwork, &info);
+   int rank;
+   Array<int> jpvt;
+   jpvt.SetSize(num_basis);
+   jpvt = 0;
+   // for (int k=0; k<jpvt.Size();++k)
+   // {
+   //    jpvt[k] = 0;
+   // }
+   double rcond= 1e-16;
+   // cout << "right hand side " << endl;
+   // coeff.PrintMatlab();
+  // cout << "A is  " << endl;
+   ofstream write("V_mat.txt");
+   write.precision(16);
+   V.PrintMatlab(write);
+   write.close();
+   //V.PrintMatlab();
+  // cout << "rank is " << V.Rank(1e-12) << endl;
+   // dgels_(&TRANS, &num_elem, &num_basis, &num_elem, V.GetData(), &num_elem,
+   //        coeff.GetData(), &num_elem, work, &lwork, &info);
+   dgelsy_(&num_elem, &num_basis, &num_elem,  V.GetData(), &num_elem, coeff.GetData(),
+         &num_elem, jpvt.GetData(),  &rcond , &rank,  work, &lwork, &info);
+   //cout<< "info is " << info << endl;
+
    MFEM_ASSERT(info == 0, "Fail to solve the underdetermined system.\n");
 
+   // mfem::DenseMatrix res(num_elem, num_elem);
+   // for (int i = 0; i < num_elem; ++i)
+   // {
+   //    int coln = 0;
+   //    for (int k = 0; k < num_elem; ++k)
+   //    {
+   //       for (int p = 0; p <= num_basis; ++p)
+   //       {
+   //          res(i, k) += V(i, p ) * coeff(coln, i);
+   //          ++ coln;
+   //       }
+   //    }
+   // }
+   // res -=rhs;
+   // res.Print();
    // Perform matrix-matrix multiplication between basis functions evalauted at
    // quadrature nodes and basis function coefficients.
    interp.SetSize(num_quad, num_elem);
@@ -1672,6 +1718,34 @@ void buildLSInterpolation(int dim, int degree, const DenseMatrix &x_center,
                   ++col;
                }
             }
+         }
+      }
+      // loop over quadrature points
+      for (int j = 0; j < num_quad; ++j)
+      {
+         for (int p = 0; p <= degree; ++p)
+         {
+            for (int q = 0; q <= p; ++q)
+            {
+         // int p = 0;
+         // int q = 0;
+         // loop over the element centers
+         double poly_at_quad = 0.0;
+         for (int i = 0; i < num_elem; ++i)
+         {
+            double dx = x_quad(0, j) - x_center(0, i);
+            double dy = x_quad(1, j) - x_center(1, i);
+            poly_at_quad += interp(j, i) * pow(dx, p - q) * pow(dy, q);
+         }
+         double exact = ((p == 0) && (q == 0)) ? 1.0 : 0.0;
+         // mfem::out << "polynomial interpolation error (" << p - q << ","
+         //           << q << ") = " << fabs(exact - poly_at_quad) << endl;
+         // if ((p == 0) && (q == 0))
+         // {
+            MFEM_ASSERT(fabs(exact - poly_at_quad) <= 1e-12,
+                        "Interpolation operator does not interpolate exactly!\n");
+         //}
+         }
          }
       }
    }
