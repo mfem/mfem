@@ -41,7 +41,7 @@ struct s_NavierContext
    bool checkres = false;
    bool ceed_spinv = false;
    bool ceed_amg = true;
-   int refine_schedule = 1;
+   int coarsen_strategy = 1;
    int num_levels = -1;
 } ctx;
 
@@ -135,8 +135,8 @@ int main(int argc, char *argv[])
    args.AddOption(&ctx.ceed_amg, "--ceed-amg", "--ceed-amg",
                   "--no-ceed-amg", "--no-ceed-amg",
                   "Assemble coarsest and use AMG on coarsest level.");
-   args.AddOption(&ctx.refine_schedule, "--refine-schedule", "--refine-schedule",
-                  "How many orders to reduce each time");
+   args.AddOption(&ctx.coarsen_strategy, "--coarsen-strategy", "--coarsen-strategy",
+                  "How many orders to reduce each time, negative divides.");
    args.AddOption(&ctx.num_levels, "--num-levels", "--num-levels",
                   "Number of multigrid levels, -1 means same as order");
 
@@ -176,7 +176,7 @@ int main(int argc, char *argv[])
 
    // Create the flow solver.
    NavierSolver naviersolver(pmesh, ctx.order, ctx.kinvis, ctx.ceed_spinv,
-                             ctx.ceed_amg, ctx.refine_schedule, ctx.num_levels);
+                             ctx.ceed_amg, ctx.coarsen_strategy, ctx.num_levels);
    naviersolver.EnablePA(ctx.pa);
    naviersolver.EnableNI(ctx.ni);
 

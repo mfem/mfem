@@ -17,14 +17,14 @@
 /*
   Next steps here:
 
-  - optimize a bit for speed; you're killing LOR amg on iteration count, why is it slow [progress made, mostly refinement schedule]
+  - optimize a bit for speed; you're killing LOR amg on iteration count, why is it slow [progress made, mostly coarsening strategy]
   - (use optimized ceed library) [naturally optimized]
   - work on the Helmholtz velocity solve
   - try in the other contexts, not just navier_mms
   - experiment with coarse solver [some done, AMG is good, 10 cycles of CG not too terrible]
   - try on GPUs (Lassen)
   - scale to higher order than 6 [now 8]
-  - different refinement schedules
+  - different coarsening strategies [in progress]
   - show to others, make PR, something
 */
 
@@ -35,7 +35,7 @@ class TryCeedSolver : public mfem::Solver
 {
 public:
    TryCeedSolver(Operator& fine_mfem_op, BilinearForm& form, 
-                 Array<int>& ess_dofs, bool ceed_amg, int refine_schedule,
+                 Array<int>& ess_dofs, bool ceed_amg, int coarsen_strategy,
                  int num_levels, bool ortho_);
    ~TryCeedSolver();
 
@@ -54,7 +54,7 @@ private:
 
 TryCeedSolver::TryCeedSolver(Operator& fine_mfem_op,
                              BilinearForm& form, Array<int>& ess_dofs,
-                             bool ceed_amg, int refine_schedule,
+                             bool ceed_amg, int coarsen_strategy,
                              int num_levels_, bool ortho_)
    :
    num_levels(num_levels_), ortho(ortho_)
@@ -69,7 +69,7 @@ TryCeedSolver::TryCeedSolver(Operator& fine_mfem_op,
    MFEM_VERIFY(dintegrator, "Not a diffusion integrator!");
    CeedOperator current_op = dintegrator->GetCeedData()->oper;
 
-   MFEM_VERIFY(refine_schedule != 0 && refine_schedule != -1, "Bad refine schedule!");
+   MFEM_VERIFY(coarsen_strategy != 0 && coarsen_strategy != -1, "Bad coarsen strategy!");
    operators = new Operator*[num_levels];
    operators[0] = &fine_mfem_op;
    levels = new CeedMultigridLevel*[num_levels - 1];
@@ -77,20 +77,20 @@ TryCeedSolver::TryCeedSolver(Operator& fine_mfem_op,
    int current_order = order;
    for (int i = 0; i < num_levels - 1; ++i)
    {
-      if (refine_schedule < 0)
+      if (coarsen_strategy < 0)
       {
-         const int order_reduction = current_order - (current_order / -refine_schedule);
-         std::cout << "  order " << current_order << " reduced to " << current_order / -refine_schedule
+         const int order_reduction = current_order - (current_order / -coarsen_strategy);
+         std::cout << "  order " << current_order << " reduced to " << current_order / -coarsen_strategy
                    << ", step " << order_reduction << std::endl;
-         current_order = current_order / -refine_schedule;
+         current_order = current_order / -coarsen_strategy;
          levels[i] = new CeedMultigridLevel(current_op, *current_ess_dofs, order_reduction);
       }
       else
       {
-         std::cout << "  order " << current_order << " reduced to " << current_order - refine_schedule
-                   << ", step " << refine_schedule << std::endl;
-         current_order -= refine_schedule;
-         levels[i] = new CeedMultigridLevel(current_op, *current_ess_dofs, refine_schedule);
+         std::cout << "  order " << current_order << " reduced to " << current_order - coarsen_strategy
+                   << ", step " << coarsen_strategy << std::endl;
+         current_order -= coarsen_strategy;
+         levels[i] = new CeedMultigridLevel(current_op, *current_ess_dofs, coarsen_strategy);
       }
       current_op = levels[i]->GetCoarseCeed();
       current_ess_dofs = &levels[i]->GetCoarseEssentialDofList();
@@ -110,7 +110,7 @@ TryCeedSolver::TryCeedSolver(Operator& fine_mfem_op,
                                           sparse_solver_type,
                                           use_amgx);
    } else {
-      int coarse_cg_iterations = 10;
+      int coarse_cg_iterations = 10;  /// even less might be good
       coarsest_solver = new CeedPlainCG(coarsest->GetCoarseCeed(),
                                         coarsest->GetCoarseEssentialDofList(),
                                         coarse_cg_iterations);
@@ -180,8 +180,8 @@ void CopyDBFIntegrators(ParBilinearForm *src, ParBilinearForm *dst)
 }
 
 NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis, bool ceed_solver_spinv_,
-                           bool ceed_amg_, int refine_schedule_, int num_levels_)
-   : pmesh(mesh), order(order), kin_vis(kin_vis), ceed_solver_spinv(ceed_solver_spinv_), ceed_amg(ceed_amg_), refine_schedule(refine_schedule_), num_levels(num_levels_)
+                           bool ceed_amg_, int coarsen_strategy_, int num_levels_)
+   : pmesh(mesh), order(order), kin_vis(kin_vis), ceed_solver_spinv(ceed_solver_spinv_), ceed_amg(ceed_amg_), coarsen_strategy(coarsen_strategy_), num_levels(num_levels_)
      
 {
    vfec = new H1_FECollection(order, pmesh->Dimension());
@@ -408,19 +408,28 @@ void NavierSolver::Setup(double dt)
          int nl = num_levels;
          if (num_levels <= 0)
          {
-            if (refine_schedule > 0)
+            MFEM_VERIFY(coarsen_strategy != 0 && coarsen_strategy != -1, "Bad coarsen strategy!");
+            nl = 0;
+            int current_order = order;
+            if (coarsen_strategy > 0)
             {
-               nl = order / refine_schedule;
+               while (current_order > 0)
+               {
+                  nl++;
+                  current_order -= coarsen_strategy;
+               }
             }
             else
             {
-               // could do a log, or a pseudo loop
-               mfem_error("Explicit levels please!");
+               while (current_order > 0)
+               {
+                  nl++;
+                  current_order = current_order / (-coarsen_strategy);
+               }
             }
          }
-         std::cout << "nl = " << nl << std::endl;
          SpInvPC = new TryCeedSolver(*Sp, *Sp_form, pres_ess_tdof, ceed_amg,
-                                     refine_schedule, nl, pres_dbcs.empty());
+                                     coarsen_strategy, nl, pres_dbcs.empty());
       }
       else
       {
