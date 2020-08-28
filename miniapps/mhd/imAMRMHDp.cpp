@@ -155,6 +155,7 @@ int main(int argc, char *argv[])
    double err_ratio=.1;
    double err_fraction=.5;
    double derefine_ratio=.2;
+   double t_refs=1e10;
    //----end of amr----
    
    beta = 0.001; 
@@ -182,6 +183,8 @@ int main(int argc, char *argv[])
                   "Final time; start time is 0.");
    args.AddOption(&t_change, "-tchange", "--t-change",
                   "dt change time; reduce to half.");
+   args.AddOption(&t_refs, "-t-refs", "--t-refs",
+                  "Time a quick refine/derefine is turned on.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
    args.AddOption(&icase, "-i", "--icase",
@@ -677,6 +680,12 @@ int main(int argc, char *argv[])
    {
       double dt_real = min(dt, t_final - t);
 
+      if (t>t_refs)
+      {
+          ref_steps=2;
+      }
+
+
       if ((ti % ref_steps) == 0)
       {
           refineMesh=true;
@@ -863,7 +872,8 @@ int main(int argc, char *argv[])
    MPI_Barrier(MPI_COMM_WORLD); 
    double end = MPI_Wtime();
 
-   //++++++Save the solutions.
+   //++++++Save the solutions (only if paraview or visit is not turned on).
+   if (!paraview && !visit)
    {
       phi.SetFromTrueDofs(vx.GetBlock(0));
       psi.SetFromTrueDofs(vx.GetBlock(1));
@@ -941,6 +951,7 @@ int main(int argc, char *argv[])
    delete pmesh;
    delete integ;
    delete dc;
+   delete pd;
 
    oper.DestroyHypre();
 
