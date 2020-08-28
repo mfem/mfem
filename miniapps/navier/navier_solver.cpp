@@ -17,13 +17,13 @@
 /*
   Next steps here:
 
-  - optimize a bit for speed; you're killing LOR amg on iteration count, why is it slow?
-  - (use optimized ceed library)
+  - optimize a bit for speed; you're killing LOR amg on iteration count, why is it slow [progress made, mostly refinement schedule]
+  - (use optimized ceed library) [naturally optimized]
   - work on the Helmholtz velocity solve
   - try in the other contexts, not just navier_mms
-  - experiment with coarse solver
+  - experiment with coarse solver [some done, AMG is good, 10 cycles of CG not too terrible]
   - try on GPUs (Lassen)
-  - scale to higher order than 6
+  - scale to higher order than 6 [now 8]
   - different refinement schedules
   - show to others, make PR, something
 */
@@ -59,6 +59,8 @@ TryCeedSolver::TryCeedSolver(Operator& fine_mfem_op,
    :
    num_levels(num_levels_), ortho(ortho_)
 {
+   int order = form.FESpace()->GetOrder(0);
+
    auto *bffis = form.GetDBFI();
    MFEM_VERIFY(bffis->Size() == 1,
                "Only implemented for one integrator!");
@@ -67,14 +69,29 @@ TryCeedSolver::TryCeedSolver(Operator& fine_mfem_op,
    MFEM_VERIFY(dintegrator, "Not a diffusion integrator!");
    CeedOperator current_op = dintegrator->GetCeedData()->oper;
 
-   MFEM_VERIFY(refine_schedule > 0, "Not implemented! (eventually we divide)");
+   MFEM_VERIFY(refine_schedule != 0 && refine_schedule != -1, "Bad refine schedule!");
    operators = new Operator*[num_levels];
    operators[0] = &fine_mfem_op;
    levels = new CeedMultigridLevel*[num_levels - 1];
    mfem::Array<int> * current_ess_dofs = &ess_dofs;
+   int current_order = order;
    for (int i = 0; i < num_levels - 1; ++i)
    {
-      levels[i] = new CeedMultigridLevel(current_op, *current_ess_dofs, refine_schedule);
+      if (refine_schedule < 0)
+      {
+         const int order_reduction = current_order - (current_order / -refine_schedule);
+         std::cout << "  order " << current_order << " reduced to " << current_order / -refine_schedule
+                   << ", step " << order_reduction << std::endl;
+         current_order = current_order / -refine_schedule;
+         levels[i] = new CeedMultigridLevel(current_op, *current_ess_dofs, order_reduction);
+      }
+      else
+      {
+         std::cout << "  order " << current_order << " reduced to " << current_order - refine_schedule
+                   << ", step " << refine_schedule << std::endl;
+         current_order -= refine_schedule;
+         levels[i] = new CeedMultigridLevel(current_op, *current_ess_dofs, refine_schedule);
+      }
       current_op = levels[i]->GetCoarseCeed();
       current_ess_dofs = &levels[i]->GetCoarseEssentialDofList();
       operators[i + 1] = new MFEMCeedOperator(current_op, *current_ess_dofs);
@@ -388,7 +405,20 @@ void NavierSolver::Setup(double dt)
    {
       if (ceed_solver_spinv)
       {
-         int nl = (num_levels > 0) ? num_levels : order / refine_schedule;
+         int nl = num_levels;
+         if (num_levels <= 0)
+         {
+            if (refine_schedule > 0)
+            {
+               nl = order / refine_schedule;
+            }
+            else
+            {
+               // could do a log, or a pseudo loop
+               mfem_error("Explicit levels please!");
+            }
+         }
+         std::cout << "nl = " << nl << std::endl;
          SpInvPC = new TryCeedSolver(*Sp, *Sp_form, pres_ess_tdof, ceed_amg,
                                      refine_schedule, nl, pres_dbcs.empty());
       }
