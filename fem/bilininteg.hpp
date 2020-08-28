@@ -86,9 +86,10 @@ public:
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
    /// Method defining element assembly.
-   /** The result of the element assembly is added and stored in the @a emat
-       Vector. */
-   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
+   /** The result of the element assembly is added to the @a emat Vector if
+       @a add is true. Otherwise, if @a add is false, we set @a emat. */
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                           const bool add = true);
    /** Used with BilinearFormIntegrators that have different spaces. */
    // virtual void AssembleEA(const FiniteElementSpace &trial_fes,
    //                         const FiniteElementSpace &test_fes,
@@ -96,10 +97,12 @@ public:
 
    virtual void AssembleEAInteriorFaces(const FiniteElementSpace &fes,
                                         Vector &ea_data_int,
-                                        Vector &ea_data_ext);
+                                        Vector &ea_data_ext,
+                                        const bool add = true);
 
    virtual void AssembleEABoundaryFaces(const FiniteElementSpace &fes,
-                                        Vector &ea_data_bdr);
+                                        Vector &ea_data_bdr,
+                                        const bool add = true);
 
    /// Given a particular Finite Element computes the element matrix elmat.
    virtual void AssembleElementMatrix(const FiniteElement &el,
@@ -262,14 +265,17 @@ public:
       bfi->AddMultTransposePA(x, y);
    }
 
-   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                           const bool add);
 
    virtual void AssembleEAInteriorFaces(const FiniteElementSpace &fes,
                                         Vector &ea_data_int,
-                                        Vector &ea_data_ext);
+                                        Vector &ea_data_ext,
+                                        const bool add);
 
    virtual void AssembleEABoundaryFaces(const FiniteElementSpace &fes,
-                                        Vector &ea_data_bdr);
+                                        Vector &ea_data_bdr,
+                                        const bool add);
 
    virtual ~TransposeIntegrator() { if (own_bfi) { delete bfi; } }
 };
@@ -1952,7 +1958,8 @@ public:
 
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
-   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                           const bool add);
 
    virtual void AssembleDiagonalPA(Vector &diag);
 
@@ -2027,7 +2034,8 @@ public:
 
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
-   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                           const bool add);
 
    virtual void AssembleDiagonalPA(Vector &diag);
 
@@ -2083,7 +2091,8 @@ public:
 
    virtual void AssemblePA(const FiniteElementSpace&);
 
-   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                           const bool add);
 
    virtual void AddMultPA(const Vector&, Vector&) const;
 
@@ -2653,10 +2662,12 @@ public:
 
    virtual void AssembleEAInteriorFaces(const FiniteElementSpace& fes,
                                         Vector &ea_data_int,
-                                        Vector &ea_data_ext);
+                                        Vector &ea_data_ext,
+                                        const bool add);
 
    virtual void AssembleEABoundaryFaces(const FiniteElementSpace& fes,
-                                        Vector &ea_data_bdr);
+                                        Vector &ea_data_bdr,
+                                        const bool add);
 
    static const IntegrationRule &GetRule(Geometry::Type geom, int order,
                                          FaceElementTransformations &T);
