@@ -156,7 +156,7 @@ public:
     * Reynolds number directly, you can provide the inverse.
     */
    NavierSolver(ParMesh *mesh, int order, double kin_vis, bool ceed_solver_spinv=false,
-                bool ceed_amg=true, int coarsen_strategy=1, int num_levels=-1);
+                bool ceed_amg=true, int coarsen_strategy=-2, int num_levels=-1);
 
    /// Initialize forms, solvers and preconditioners.
    void Setup(double dt);

@@ -41,7 +41,7 @@ struct s_NavierContext
    bool checkres = false;
    bool ceed_spinv = false;
    bool ceed_amg = true;
-   int coarsen_strategy = 1;
+   int coarsen_strategy = -2;
    int num_levels = -1;
 } ctx;
 

@@ -21,8 +21,10 @@ struct s_NavierContext
 {
    int order = 4;
    double kin_vis = 0.001;
-   double t_final = 8.0;
+   // double t_final = 8.0;
+   double t_final = 0.03;
    double dt = 1e-3;
+   bool ceed_spinv = true;
 } ctx;
 
 void vel(const Vector &x, double t, Vector &u)
@@ -50,6 +52,8 @@ int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
 
+   Device device("ceed-cpu");
+
    int serial_refinements = 0;
 
    Mesh *mesh = new Mesh("box-cylinder.mesh");
@@ -68,7 +72,7 @@ int main(int argc, char *argv[])
    delete mesh;
 
    // Create the flow solver.
-   NavierSolver flowsolver(pmesh, ctx.order, ctx.kin_vis);
+   NavierSolver flowsolver(pmesh, ctx.order, ctx.kin_vis, ctx.ceed_spinv);
    flowsolver.EnablePA(true);
 
    // Set the initial condition.
