@@ -26,10 +26,10 @@ struct Dim<0, Dim0, Dims...>
 {
    static constexpr int val = Dim0;
 };
-template <int N, int Dim0, int... T>
-struct Dim<N, Dim0, T...>
+template <int N, int Dim0, int... Dims>
+struct Dim<N, Dim0, Dims...>
 {
-   static constexpr int val = Dim0;
+   static constexpr int val = Dim<N-1,Dims...>::val;
 };
 
 // Compute the product of the dimensions
@@ -101,6 +101,11 @@ public:
       {
          data[i] = rhs[i];
       }
+   }
+
+   const int size() const
+   {
+      return Size<Dims...>::val;
    }
 
    template<typename... Idx> MFEM_HOST_DEVICE inline
