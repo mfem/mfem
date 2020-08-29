@@ -110,7 +110,7 @@ Tensor<dTensor<3>,Q1d,Q1d,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
 {
    dTensor<Q1d,D1d,D1d> Bu;
    dTensor<Q1d,D1d,D1d> Gu;
-   MFEM_FOREACH_THREAD(dz,z,D1d)
+   for (int dz = 0; dz < D1d; dz++)
    {
       MFEM_FOREACH_THREAD(dy,y,D1d)
       {
@@ -135,7 +135,7 @@ Tensor<dTensor<3>,Q1d,Q1d,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
    dTensor<Q1d,Q1d,D1d> BBu;
    dTensor<Q1d,Q1d,D1d> GBu;
    dTensor<Q1d,Q1d,D1d> BGu;
-   MFEM_FOREACH_THREAD(dz,z,D1d)
+   for (int dz = 0; dz < D1d; dz++)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1d)
       {
@@ -166,7 +166,7 @@ Tensor<dTensor<3>,Q1d,Q1d,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
    {
       MFEM_FOREACH_THREAD(qy,y,Q1d)
       {
-         MFEM_FOREACH_THREAD(qz,z,D1d)
+         for (int qz = 0; qz < Q1d; qz++)
          {
             double gbbu = 0.0;
             double bgbu = 0.0;
@@ -200,7 +200,7 @@ Tensor<dTensor<VDim,3>,Q1d,Q1d,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
 {
    Tensor<dTensor<VDim>,Q1d,D1d,D1d> Bu;
    Tensor<dTensor<VDim>,Q1d,D1d,D1d> Gu;
-   MFEM_FOREACH_THREAD(dz,z,D1d)
+   for (int dz = 0; dz < D1d; dz++)
    {
       MFEM_FOREACH_THREAD(dy,y,D1d)
       {
@@ -236,7 +236,7 @@ Tensor<dTensor<VDim,3>,Q1d,Q1d,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
    Tensor<dTensor<VDim>,Q1d,Q1d,D1d> BBu;
    Tensor<dTensor<VDim>,Q1d,Q1d,D1d> GBu;
    Tensor<dTensor<VDim>,Q1d,Q1d,D1d> BGu;
-   MFEM_FOREACH_THREAD(dz,z,D1d)
+   for (int dz = 0; dz < D1d; dz++)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1d)
       {
@@ -279,7 +279,7 @@ Tensor<dTensor<VDim,3>,Q1d,Q1d,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
    {
       MFEM_FOREACH_THREAD(qy,y,Q1d)
       {
-         MFEM_FOREACH_THREAD(qz,z,D1d)
+         for (int qz = 0; qz < Q1d; qz++)
          {
             double gbbu[VDim];
             double bgbu[VDim];
