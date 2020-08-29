@@ -117,8 +117,10 @@ int main(int argc, char *argv[])
    cout << "dimension is " << dim << endl;
    std::cout << "Number of elements: " << mesh->GetNE() << '\n';
    // define map for integration rule for cut elements
-   GetCutElementIntRule<2>(mesh, cutelems, CutSquareIntRules);
-   GetCutSegmentIntRule<2>(mesh, cutelems, cutinteriorFaces, cutSegmentIntRules,
+   //int deg= (order+4)*(order+4);
+   int deg = order+1;
+   GetCutElementIntRule<2>(mesh, cutelems, deg, CutSquareIntRules);
+   GetCutSegmentIntRule<2>(mesh, cutelems, cutinteriorFaces, deg, cutSegmentIntRules,
                            cutInteriorFaceIntRules);
    std::vector<bool> EmbeddedElems;
    for (int i = 0; i < mesh->GetNE(); ++i)
@@ -193,6 +195,17 @@ int main(int argc, char *argv[])
    ofstream write("stiffmat_lap_cut_dg.txt");
    A.PrintMatlab(write);
    write.close();
+   // calculate condition number
+   DenseMatrix Ad;
+   A.ToDenseMatrix(Ad);
+   Vector si;
+   Ad.SingularValues(si);
+   // cout << "singular values " << endl;
+   // si.Print();
+   double cond;
+   cond = si(0) / si(si.Size() - 1);
+   cout << "cond# " << endl;
+   cout << cond << endl;
 //#ifndef MFEM_USE_SUITESPARSE
    // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
@@ -200,7 +213,7 @@ int main(int argc, char *argv[])
    GSSmoother M(A);
    if (sigma == -1.0)
    {
-      PCG(A, M, *b, x, 1, 10000, 1e-40, 0.0);
+      PCG(A, M, *b, x, 1, 5000, 1e-12, 0.0);
    }
    else
    {
@@ -245,16 +258,21 @@ double u_exact(const Vector &x)
 {
    return sin(M_PI* x(0))*sin(M_PI*x(1));
    //return (2*x(0)) - (2*x(1));
+   //return 2.0;
+   // return x(0);
 }
 double f_exact(const Vector &x)
 {
    return 2*M_PI * M_PI* sin(M_PI*x(0)) * sin(M_PI* x(1));
+   //return 0.0;
 }
 
 void u_neumann(const Vector &x, Vector &u)
 {
    u(0) = M_PI * cos(M_PI* x(0))*sin(M_PI*x(1));
    u(1) = M_PI * sin(M_PI* x(0))*cos(M_PI*x(1));
+   // u(0) = 1.0;
+   // u(1) = 0.0;
 }
 
 double CutComputeL2Error(GridFunction &x, FiniteElementSpace *fes,
@@ -316,9 +334,10 @@ double CutComputeL2Error(GridFunction &x, FiniteElementSpace *fes,
    return error;
 }
 template <int N>
-void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems,
+void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems, int order, 
                           std::map<int, IntegrationRule *> &CutSquareIntRules)
 {
+   double tol = 1e-16;
    for (int k = 0; k < cutelems.size(); ++k)
    {
       IntegrationRule *ir;
@@ -331,7 +350,6 @@ void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems,
       xupper = {1, 1};
       int dir = -1;
       int side = -1;
-      int order = 4;
       int elemid = cutelems.at(k);
       findBoundingBox<N>(mesh, elemid, xmin, xmax);
       circle<N> phi;
@@ -350,7 +368,7 @@ void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems,
          ip.weight = pt.w;
          i = i + 1;
          MFEM_ASSERT(ip.weight > 0, "integration point weight is negative in domain integration from Saye's method");
-         MFEM_ASSERT(!(phi(pt.x) > 0), "levelset function positive at the quadrature point domain integration (Saye's method)");
+         MFEM_ASSERT((phi(pt.x) < tol), " phi = " <<  phi(pt.x) << " : " << " levelset function positive at the quadrature point domain integration (Saye's method)");
       }
       CutSquareIntRules[elemid] = ir;
    }
@@ -358,7 +376,7 @@ void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems,
 
 template <int N>
 void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinteriorFaces,
-                          std::map<int, IntegrationRule *> &cutSegmentIntRules,
+                          int order, std::map<int, IntegrationRule *> &cutSegmentIntRules,
                           std::map<int, IntegrationRule *> &cutInteriorFaceIntRules)
 {
    for (int k = 0; k < cutelems.size(); ++k)
@@ -370,8 +388,7 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
       blitz::TinyVector<double, N> xlower;
       int side;
       int dir;
-      int order;
-      order = 4;
+      double tol = 1e-16;
       // standard reference element
       xlower = {0, 0};
       xupper = {1, 1};
@@ -475,7 +492,7 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
                   double xq = (pt.x[0] * phi.xscale) + phi.xmin;
                   double yq = (pt.x[1] * phi.yscale) + phi.ymin;
                   MFEM_ASSERT(ip.weight > 0, "integration point weight is negative from Saye's method");
-                  MFEM_ASSERT(!(phi(pt.x) > 0), "levelset function positive at the quadrature point (Saye's method)");
+                  MFEM_ASSERT((phi(pt.x) < tol ), " phi = " <<  phi(pt.x) << " : " << "levelset function positive at the quadrature point (Saye's method)");
                   MFEM_ASSERT((xq <= (max(v1coord[0], v2coord[0]))) && (xq >= (min(v1coord[0], v2coord[0]))),
                               "integration point (xcoord) not on element face (Saye's rule)");
                   MFEM_ASSERT((yq <= (max(v1coord[1], v2coord[1]))) && (yq >= (min(v1coord[1], v2coord[1]))),
@@ -1281,18 +1298,21 @@ void CutDGNeumannLFIntegrator::AssembleRHSElementVect(
          const IntegrationPoint &ip = ir->IntPoint(p);
          el.CalcShape(ip, shape);
          Trans.SetIntPoint(&ip);
-         // this evaluates the coefficient for the 
+         // this evaluates the coefficient for the
          // integration points in physical space
          QN.Eval(Qvec, Trans, ip);
          Vector v(dim);
-         // transform the integration point to original element 
+         // cout << "Qn " << endl;
+         // Qvec.Print();
+         // transform the integration point to original element
          Trans.Transform(ip, v);
-         double nx = 2*(v(0) - 0.5);
-         double ny = 2*(v(1) - 0.5);
-         double ds = sqrt((nx*nx) + (ny*ny));
-         nor(0) = -nx/ds;
-         nor(1) = -ny/ds;
-         elvect.Add(ip.weight*sqrt(Trans.Weight())*(Qvec*nor), shape);
+         double nx = 2 * (v(0) - 0.5);
+         double ny = 2 * (v(1) - 0.5);
+         double ds = sqrt((nx * nx) + (ny * ny));
+         nor(0) = -nx / ds;
+         nor(1) = -ny / ds;
+         w = ip.weight * sqrt(Trans.Weight());
+         elvect.Add(w * (Qvec * nor), shape);
       }
    }
 }

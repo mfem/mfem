@@ -40,15 +40,15 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
-   int deg = 4;
+   int deg = 1;
    int np[5] = {20, 50, 100, 200, 300};
    DenseMatrix Norm_err(5, 4);
    for (int d = 0; d < deg; ++d)
    {
-      order = d + 1;
-      for (int n = 0; n < 5; ++n)
+      //order = d + 1;
+      for (int n = 0; n < 1; ++n)
       {
-         N = np[n];
+        // N = np[n];
          Mesh *mesh = new Mesh(N, 1);
          int dim = mesh->Dimension();
          cout << "number of elements " << mesh->GetNE() << endl;
@@ -110,6 +110,17 @@ int main(int argc, char *argv[])
          ofstream write("stiffmat_cutGD.txt");
          A.PrintMatlab(write);
          write.close();
+         DenseMatrix Ad;
+         A.ToDenseMatrix(Ad);
+         // Ad.PrintMatlab();
+         Vector si;
+         Ad.SingularValues(si);
+         cout << "singular values " << endl;
+         si.Print();
+         double cond;
+         cond = si(0)/si(si.Size() - 1);
+         cout << "cond# " << endl;
+         cout << cond << endl;
          // char NORM = '1';
          // double rcond;
          // double ANORM=1.0;
@@ -129,6 +140,7 @@ int main(int argc, char *argv[])
          // dgecon_(&NORM, &No, X.GetData(), &LDA, &ANORM, &rcond, work, lwork, &info);
          // cout << "rcond " << rcond << endl;
          // get P^T b
+      
          Vector bnew(A.Width());
          fes->GetProlongationMatrix()->MultTranspose(*b, bnew);
 
@@ -176,7 +188,7 @@ int main(int argc, char *argv[])
          delete mesh;
       }
    }
-   Norm_err.PrintMatlab();
+   //Norm_err.PrintMatlab();
    return 0;
 }
 

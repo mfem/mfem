@@ -41,9 +41,8 @@ list(APPEND ALL_EXE_SRCS
   exAdvection.cpp
   exAdvection_cut.cpp
   exAdvection_cutGD.cpp
-  exAdvection_cellMerging.cpp
+  exAdvection_CM.cpp
   ex_testGD.cpp
-  ex_cellMerging.cpp
   )
 
 if (MFEM_USE_MPI)

@@ -17,17 +17,17 @@ template <int N>
 void findBoundingBox(Mesh *mesh, int id, blitz::TinyVector<double,N> &xmin, blitz::TinyVector<double,N> &xmax);
 // get integration rule for cut elements
 template <int N>
-void GetCutElementIntRule(Mesh* mesh, vector<int> cutelems, 
-                              std::map<int, IntegrationRule *> &cutSquareIntRules);
+void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems, int order,
+                          std::map<int, IntegrationRule *> &cutSquareIntRules);
 // get integration rule for cut segments
 template <int N>
-void GetCutSegmentIntRule(Mesh* mesh, vector<int> cutelems, vector<int> cutinteriorFaces,
-                              std::map<int, IntegrationRule *> &cutSegmentIntRules, 
-                              std::map<int, IntegrationRule *> &cutInteriorFaceIntRules);
+void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinteriorFaces,
+                          int order, std::map<int, IntegrationRule *> &cutSegmentIntRules,
+                          std::map<int, IntegrationRule *> &cutInteriorFaceIntRules);
 // this is required for parameter verification test problem                        
 // get integration rule for cut elements
 template <int N>
-void GetCutSegIntRule(Mesh* mesh, vector<int> cutelems, 
+void GetCutSegIntRule(Mesh* mesh, vector<int> cutelems, int order, 
                               std::map<int, IntegrationRule *> &cutSegIntRules);
 class CutMesh: public Mesh
 {

@@ -38,12 +38,15 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool pa = false;
+   int N =10;
    const char *device_config = "cpu";
    bool visualization = true;
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&N, "-n", "--#elements",
+                  "number of mesh elements.");
    args.Parse();
    if (!args.Good())
    {
@@ -52,7 +55,7 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   Mesh *mesh = new Mesh(5, 5, Element::QUADRILATERAL, true,
+   Mesh *mesh = new Mesh(N, N, Element::QUADRILATERAL, true,
                          1, 1, true);
    ofstream sol_ofv("square_mesh_new.vtk");
    sol_ofv.precision(14);
@@ -96,9 +99,9 @@ int main(int argc, char *argv[])
    NonlinearForm *a = new NonlinearForm(fespace);
    //ConstantCoefficient one(1.0);
    // define map for integration rule for cut elements
-
-   GetCutElementIntRule<2>(mesh, cutelems, CutSquareIntRules);
-   GetCutSegIntRule<2>(mesh, cutelems, CutSegIntRules);
+   int deg= (order + 1) * (order + 1);
+   GetCutElementIntRule<2>(mesh, cutelems, deg, CutSquareIntRules);
+   GetCutSegIntRule<2>(mesh, cutelems, deg, CutSegIntRules);
    std::vector<bool> EmbeddedElems;
    for (int i = 0; i < mesh->GetNE(); ++i)
    {
@@ -116,15 +119,20 @@ int main(int argc, char *argv[])
    a->AddDomainIntegrator(new CutDomainNLFIntegrator(CutSquareIntRules, EmbeddedElems));
    double area;
    area = a->GetEnergy(x);
-   double parameter;
-   parameter = b->GetEnergy(x);
+   double perimeter;
+   perimeter = b->GetEnergy(x);
    cout << "area of desired domain is " << area << endl;
-   cout << "parameter of desired domain is " << parameter << endl;
-   //b->Assemble();
+   cout << "perimeter of desired domain is " << perimeter << endl;
+   double ar = 1.0 - (M_PI * 0.2 * 0.2);
+   double per = 4.0 - (2 * M_PI * 0.2);
+   cout << "area err " << endl;
+   cout << abs(area - ar) << endl;
+   cout << "perimeter err " << endl;
+   cout << abs(perimeter - per) << endl;
 }
 
 template <int N>
-void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems,
+void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems, int order, 
                           std::map<int, IntegrationRule *> &CutSquareIntRules)
 {
    for (int k = 0; k < cutelems.size(); ++k)
@@ -144,7 +152,7 @@ void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems,
       phi.yscale = xmax[1] - xmin[1];
       phi.xmin = xmin[0];
       phi.ymin = xmin[1];
-      auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double, N>(xlower, xupper), -1, -1, 4);
+      auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double, N>(xlower, xupper), -1, -1, order);
       //auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double,N>(xmin, xmax), -1, -1, 1);
       //cout << "number of quadrature nodes: " << q.nodes.size() << endl;
       int i = 0;
@@ -166,7 +174,7 @@ void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems,
    }
 }
 template <int N>
-void GetCutSegIntRule(Mesh *mesh, vector<int> cutelems,
+void GetCutSegIntRule(Mesh *mesh, vector<int> cutelems, int order,
                       std::map<int, IntegrationRule *> &CutSegIntRules)
 {
    for (int k = 0; k < cutelems.size(); ++k)
@@ -186,7 +194,7 @@ void GetCutSegIntRule(Mesh *mesh, vector<int> cutelems,
       phi.yscale = xmax[1] - xmin[1];
       phi.xmin = xmin[0];
       phi.ymin = xmin[1];
-      auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double, N>(xlower, xupper), N, -1, 4);
+      auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double, N>(xlower, xupper), N, -1, order);
       //auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double,N>(xmin, xmax), -1, -1, 1);
       //cout << "number of quadrature nodes: " << q.nodes.size() << endl;
       int i = 0;

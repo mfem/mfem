@@ -1,5 +1,5 @@
 #include "exCircle.hpp"
-#include "exGD.hpp"
+#include "exGD_cut.hpp"
 #include "centgridfunc.hpp"
 using namespace std;
 using namespace mfem;
@@ -67,6 +67,7 @@ int main(int argc, char *argv[])
 
    Mesh *mesh = new Mesh(N, N, Element::QUADRILATERAL, true,
                          1, 1, true);
+
    ofstream sol_ofv("square_mesh.vtk");
    sol_ofv.precision(14);
    mesh->PrintVTK(sol_ofv, 0);
@@ -119,9 +120,10 @@ int main(int argc, char *argv[])
    }
    cout << "dimension is " << dim << endl;
    std::cout << "Number of elements: " << mesh->GetNE() << '\n';
+   int deg = order + 1;
    // define map for integration rule for cut elements
-   GetCutElementIntRule<2>(mesh, cutelems, CutSquareIntRules);
-   GetCutSegmentIntRule<2>(mesh, cutelems, cutinteriorFaces, cutSegmentIntRules,
+   GetCutElementIntRule<2>(mesh, cutelems, deg, CutSquareIntRules);
+   GetCutSegmentIntRule<2>(mesh, cutelems, cutinteriorFaces, deg, cutSegmentIntRules,
                            cutInteriorFaceIntRules);
    std::vector<bool> EmbeddedElems;
    for (int i = 0; i < mesh->GetNE(); ++i)
@@ -157,7 +159,7 @@ int main(int argc, char *argv[])
    FiniteElementCollection *fec = new DG_FECollection(order, dim);
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec, 1);
    /// GD finite element space
-   FiniteElementSpace *fes = new GalerkinDifference(mesh, dim, mesh->GetNE(), fec,  1, Ordering::byVDIM, order);
+   FiniteElementSpace *fes = new GalerkinDifference(mesh, dim, mesh->GetNE(), fec, EmbeddedElems, 1, Ordering::byVDIM, order);
    cout << "fes created " << endl;
    cout << "Number of unknowns in GD: " << fes->GetTrueVSize() << endl;
    cout << "Number of unknowns: " << fespace->GetVSize() << endl;
@@ -171,6 +173,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient two(2.0);
    ConstantCoefficient zerop(0.01);
    VectorFunctionCoefficient uN(dim, u_neumann);
+   //linear form
    b->AddDomainIntegrator(new CutDomainLFIntegrator(f, CutSquareIntRules, EmbeddedElems));
    // b->AddDomainIntegrator(new CutDGDirichletLFIntegrator(u, one, sigma, kappa,
    //                                                       cutSegmentIntRules));
@@ -184,9 +187,17 @@ int main(int argc, char *argv[])
    GridFunction x(fespace);
    CentGridFunction y(fes);
    VectorFunctionCoefficient exact(1, exact_function);
-   cout << "exact sol created " << endl;
+   GridFunction xexact(fespace);
+   xexact.ProjectCoefficient(exact);
+   // cout << "exact sol created " << endl;
+   // xexact.Print();
+   // cout << "prolongated sol " << endl;
    y.ProjectCoefficient(exact);
-
+   fes->GetProlongationMatrix()->Mult(y, x);
+   // x.Print();
+   // cout << "check prolongation operator " << endl;
+   // cout << x.ComputeL2Error(u) << endl;
+   // bilinear form
    BilinearForm *a = new BilinearForm(fespace);
    a->AddDomainIntegrator(new CutDiffusionIntegrator(one, CutSquareIntRules, EmbeddedElems));
    //a->AddDomainIntegrator(new CutBoundaryFaceIntegrator(one, sigma, kappa, cutSegmentIntRules));
@@ -196,7 +207,7 @@ int main(int argc, char *argv[])
    a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
    a->Assemble();
    a->Finalize();
-   // const SparseMatrix &A = a->SpMat();
+   //const SparseMatrix &A = a->SpMat();
    SparseMatrix &Aold = a->SpMat();
    SparseMatrix *cp = dynamic_cast<GalerkinDifference *>(fes)->GetCP();
    SparseMatrix *p = RAP(*cp, Aold, *cp);
@@ -204,10 +215,20 @@ int main(int argc, char *argv[])
    ofstream write("stiffmat_lap_cut_gd.txt");
    A.PrintMatlab(write);
    write.close();
+   // calculate condition number
+   DenseMatrix Ad;
+   A.ToDenseMatrix(Ad);
+   Vector si;
+   Ad.SingularValues(si);
+   // cout << "singular values " << endl;
+   // si.Print();
+   double cond;
+   cond = si(0) / si(si.Size() - 1);
+   cout << "cond# " << endl;
+   cout << cond << endl;
    Vector bnew(A.Width());
    fes->GetProlongationMatrix()->MultTranspose(*b, bnew);
-   //#ifndef MFEM_USE_SUITESPARSE
-   // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
+   // Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
    //    non-symmetric one.
    GSSmoother M(A);
@@ -219,6 +240,7 @@ int main(int argc, char *argv[])
    {
       GMRES(A, M, bnew, y, 1, 1000, 10, 1e-12, 0.0);
    }
+   //x.Print();
    // #else
    //    // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
    //    UMFPackSolver umf_solver;
@@ -234,11 +256,12 @@ int main(int argc, char *argv[])
    mesh->PrintVTK(adj_ofs, 1);
    x.SaveVTK(adj_ofs, "Solution", 1);
    adj_ofs.close();
-
+   //double norm = x.ComputeL2Error(u);
    double norm = CutComputeL2Error(x, fespace, u, EmbeddedElems, CutSquareIntRules);
    cout << "----------------------------- " << endl;
    cout << "mesh size, h = " << 1.0 / N << endl;
    cout << "solution norm: " << norm << endl;
+   // x.Print();
    // 11. Free the used memory.
    delete a;
    delete b;
@@ -254,24 +277,30 @@ void exact_function(const Vector &x, Vector &v)
    // v(0) = x(0)*x(0);
    //v(0) = exp(x(0));
    // v(0) = sin(M_PI*x(0));
+   //v(0) = 2.0;
    v(0) = sin(M_PI * x(0)) * sin(M_PI * x(1));
-   //v(0) = x(0);
+   // v(0) = x(0);
 }
 
 double u_exact(const Vector &x)
 {
    return sin(M_PI * x(0)) * sin(M_PI * x(1));
+   //return 2.0;
+   // return x(0);
    //return (2*x(0)) - (2*x(1));
 }
 double f_exact(const Vector &x)
 {
    return 2 * M_PI * M_PI * sin(M_PI * x(0)) * sin(M_PI * x(1));
+   //return 0.0;
 }
 
 void u_neumann(const Vector &x, Vector &u)
 {
    u(0) = M_PI * cos(M_PI * x(0)) * sin(M_PI * x(1));
    u(1) = M_PI * sin(M_PI * x(0)) * cos(M_PI * x(1));
+   // u(0) = 0.0;
+   // u(1) = 0.0;
 }
 
 double CutComputeL2Error(GridFunction &x, FiniteElementSpace *fes,
@@ -333,9 +362,10 @@ double CutComputeL2Error(GridFunction &x, FiniteElementSpace *fes,
    return error;
 }
 template <int N>
-void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems,
+void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems, int order,
                           std::map<int, IntegrationRule *> &CutSquareIntRules)
 {
+   double tol = 1e-16;
    for (int k = 0; k < cutelems.size(); ++k)
    {
       IntegrationRule *ir;
@@ -348,7 +378,6 @@ void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems,
       xupper = {1, 1};
       int dir = -1;
       int side = -1;
-      int order = 4;
       int elemid = cutelems.at(k);
       findBoundingBox<N>(mesh, elemid, xmin, xmax);
       circle<N> phi;
@@ -367,15 +396,16 @@ void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems,
          ip.weight = pt.w;
          i = i + 1;
          MFEM_ASSERT(ip.weight > 0, "integration point weight is negative in domain integration from Saye's method");
-         MFEM_ASSERT(!(phi(pt.x) > 0), "levelset function positive at the quadrature point domain integration (Saye's method)");
+         MFEM_ASSERT((phi(pt.x) < tol), " phi = " <<  phi(pt.x) << " : " << " levelset function positive at the quadrature point domain integration (Saye's method)");
       }
       CutSquareIntRules[elemid] = ir;
+      cout << "int size for element " << elemid << "   " << ir->Size() << endl;
    }
 }
 
 template <int N>
 void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinteriorFaces,
-                          std::map<int, IntegrationRule *> &cutSegmentIntRules,
+                          int order, std::map<int, IntegrationRule *> &cutSegmentIntRules,
                           std::map<int, IntegrationRule *> &cutInteriorFaceIntRules)
 {
    for (int k = 0; k < cutelems.size(); ++k)
@@ -387,8 +417,7 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
       blitz::TinyVector<double, N> xlower;
       int side;
       int dir;
-      int order;
-      order = 4;
+      double tol = 1e-16;
       // standard reference element
       xlower = {0, 0};
       xupper = {1, 1};
@@ -488,11 +517,12 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
                   }
                   ip.weight = pt.w;
                   i = i + 1;
+                  
                   // scaled to original element space
                   double xq = (pt.x[0] * phi.xscale) + phi.xmin;
                   double yq = (pt.x[1] * phi.yscale) + phi.ymin;
                   MFEM_ASSERT(ip.weight > 0, "integration point weight is negative from Saye's method");
-                  MFEM_ASSERT(!(phi(pt.x) > 0), "levelset function positive at the quadrature point (Saye's method)");
+                  MFEM_ASSERT((phi(pt.x) < tol ), " phi = " <<  phi(pt.x) << " : " << "levelset function positive at the quadrature point (Saye's method)");
                   MFEM_ASSERT((xq <= (max(v1coord[0], v2coord[0]))) && (xq >= (min(v1coord[0], v2coord[0]))),
                               "integration point (xcoord) not on element face (Saye's rule)");
                   MFEM_ASSERT((yq <= (max(v1coord[1], v2coord[1]))) && (yq >= (min(v1coord[1], v2coord[1]))),
@@ -1319,8 +1349,6 @@ void CutDGNeumannLFIntegrator::AssembleRHSElementVect(
 
 /// functions for `GalerkinDifference` class
 
-/// functions for `GalerkinDifference` class
-
 void GalerkinDifference::BuildNeighbourMat(const mfem::Array<int> &elmt_id,
                                            mfem::DenseMatrix &mat_cent,
                                            mfem::DenseMatrix &mat_quad) const
@@ -1353,6 +1381,8 @@ void GalerkinDifference::BuildNeighbourMat(const mfem::Array<int> &elmt_id,
       for (int k = 0; k < num_dofs; k++)
       {
          eltransf->Transform(fe->GetNodes().IntPoint(k), quad_coord);
+         // cout << "int rule for element " << elmt_id[j] << endl;
+         // quad_coord.Print();
          for (int di = 0; di < dim; di++)
          {
             quad_data.push_back(quad_coord(di));
@@ -1384,17 +1414,20 @@ void GalerkinDifference::GetNeighbourSet(int id, int req_n,
    Array<int> adj, cand, cand_adj, cand_next;
    mesh->ElementToElementTable().GetRow(id, adj);
    cand.Append(adj);
-   //cout << "List is initialized as: ";
-   //nels.Print(cout, nels.Size());
-   //cout << "Initial candidates: ";
-   //cand.Print(cout, cand.Size());
+   // cout << "List is initialized as: ";
+   // nels.Print(cout, nels.Size());
+   // cout << "Initial candidates: ";
+   // cand.Print(cout, cand.Size());
    while (nels.Size() < req_n)
    {
       for (int i = 0; i < adj.Size(); i++)
       {
          if (-1 == nels.Find(adj[i]))
          {
-            nels.Append(adj[i]);
+            if (EmbeddedElements.at(adj[i]) == false)
+            {
+               nels.Append(adj[i]);
+            }
          }
       }
       //cout << "List now is: ";
@@ -1469,30 +1502,30 @@ void GalerkinDifference::BuildGDProlongation() const
    //int degree_actual;
    for (int i = 0; i < nEle; i++)
    {
+      if (EmbeddedElements.at(i) == false)
+      {
+         // 1. get the elements in patch
+         // cout << "element "
+         //      << "( " << i << ") "
+         //      << " #neighbours = " << elmt_id.Size() << endl;
+         GetNeighbourSet(i, nelmt, elmt_id);
+         // cout << "Elements id(s) in patch: ";
+         // elmt_id.Print(cout, elmt_id.Size());
+         // cout << " ----------------------- " << endl;
 
-      GetNeighbourSet(i, nelmt, elmt_id);
-      //cout << "element " << "( " << i  << ") " << " #neighbours = " << elmt_id.Size() << endl;
-      // cout << "Elements id(s) in patch: ";
-      //elmt_id.Print(cout, elmt_id.Size());
-      //cout << " ----------------------- "  << endl;
-      // 2. build the quadrature and barycenter coordinate matrices
-      BuildNeighbourMat(elmt_id, cent_mat, quad_mat);
-      // cout << "The element center matrix:\n";
-      // cent_mat.Print(cout, cent_mat.Width());
-      // cout << endl;
-      // cout << "Quadrature points id matrix:\n";
-      // quad_mat.Print(cout, quad_mat.Width());
-      // cout << endl;
+         // 2. build the quadrature and barycenter coordinate matrices
+         BuildNeighbourMat(elmt_id, cent_mat, quad_mat);
 
-      // 3. buil the loacl reconstruction matrix
-     // cout << "element is " << i << endl;
-      buildLSInterpolation(dim, degree, cent_mat, quad_mat, local_mat);
-      //cout << " ######################### " << endl;
-      // cout << "Local reconstruction matrix R:\n";
-      // local_mat.Print(cout, local_mat.Width());
+         // 3. buil the local reconstruction matrix
+         //cout << "element is " << i << endl;
+         buildLSInterpolation(dim, degree, cent_mat, quad_mat, local_mat);
+         //cout << " ######################### " << endl;
+         // cout << "Local reconstruction matrix R:\n";
+         // local_mat.Print(cout, local_mat.Width());
 
-      // 4. assemble them back to prolongation matrix
-      AssembleProlongationMatrix(elmt_id, local_mat);
+         // 4. assemble them back to prolongation matrix
+         AssembleProlongationMatrix(elmt_id, local_mat);
+      }
    }
    cP->Finalize();
    cP_is_set = true;
@@ -1636,49 +1669,26 @@ void buildLSInterpolation(int dim, int degree, const DenseMatrix &x_center,
    char TRANS = 'N';
    int info;
    //int lwork = 2 * num_elem * num_basis;
-   int lwork = (num_elem * num_basis) + (3* num_basis) + 1; 
+   int lwork = (num_elem * num_basis) + (3 * num_basis) + 1;
    double work[lwork];
    int rank;
    Array<int> jpvt;
    jpvt.SetSize(num_basis);
    jpvt = 0;
-   // for (int k=0; k<jpvt.Size();++k)
-   // {
-   //    jpvt[k] = 0;
-   // }
-   double rcond= 1e-16;
-   // cout << "right hand side " << endl;
-   // coeff.PrintMatlab();
-  // cout << "A is  " << endl;
+   double rcond = 1e-16;
    ofstream write("V_mat.txt");
    write.precision(16);
    V.PrintMatlab(write);
    write.close();
    //V.PrintMatlab();
-  // cout << "rank is " << V.Rank(1e-12) << endl;
+   // cout << "rank is " << V.Rank(1e-12) << endl;
    // dgels_(&TRANS, &num_elem, &num_basis, &num_elem, V.GetData(), &num_elem,
    //        coeff.GetData(), &num_elem, work, &lwork, &info);
-   dgelsy_(&num_elem, &num_basis, &num_elem,  V.GetData(), &num_elem, coeff.GetData(),
-         &num_elem, jpvt.GetData(),  &rcond , &rank,  work, &lwork, &info);
+   dgelsy_(&num_elem, &num_basis, &num_elem, V.GetData(), &num_elem, coeff.GetData(),
+           &num_elem, jpvt.GetData(), &rcond, &rank, work, &lwork, &info);
    //cout<< "info is " << info << endl;
 
    MFEM_ASSERT(info == 0, "Fail to solve the underdetermined system.\n");
-
-   // mfem::DenseMatrix res(num_elem, num_elem);
-   // for (int i = 0; i < num_elem; ++i)
-   // {
-   //    int coln = 0;
-   //    for (int k = 0; k < num_elem; ++k)
-   //    {
-   //       for (int p = 0; p <= num_basis; ++p)
-   //       {
-   //          res(i, k) += V(i, p ) * coeff(coln, i);
-   //          ++ coln;
-   //       }
-   //    }
-   // }
-   // res -=rhs;
-   // res.Print();
    // Perform matrix-matrix multiplication between basis functions evalauted at
    // quadrature nodes and basis function coefficients.
    interp.SetSize(num_quad, num_elem);
@@ -1727,25 +1737,25 @@ void buildLSInterpolation(int dim, int degree, const DenseMatrix &x_center,
          {
             for (int q = 0; q <= p; ++q)
             {
-         // int p = 0;
-         // int q = 0;
-         // loop over the element centers
-         double poly_at_quad = 0.0;
-         for (int i = 0; i < num_elem; ++i)
-         {
-            double dx = x_quad(0, j) - x_center(0, i);
-            double dy = x_quad(1, j) - x_center(1, i);
-            poly_at_quad += interp(j, i) * pow(dx, p - q) * pow(dy, q);
-         }
-         double exact = ((p == 0) && (q == 0)) ? 1.0 : 0.0;
-         // mfem::out << "polynomial interpolation error (" << p - q << ","
-         //           << q << ") = " << fabs(exact - poly_at_quad) << endl;
-         // if ((p == 0) && (q == 0))
-         // {
-            MFEM_ASSERT(fabs(exact - poly_at_quad) <= 1e-12,
-                        "Interpolation operator does not interpolate exactly!\n");
-         //}
-         }
+               // int p = 0;
+               // int q = 0;
+               // loop over the element centers
+               double poly_at_quad = 0.0;
+               for (int i = 0; i < num_elem; ++i)
+               {
+                  double dx = x_quad(0, j) - x_center(0, i);
+                  double dy = x_quad(1, j) - x_center(1, i);
+                  poly_at_quad += interp(j, i) * pow(dx, p - q) * pow(dy, q);
+               }
+               double exact = ((p == 0) && (q == 0)) ? 1.0 : 0.0;
+               // mfem::out << "polynomial interpolation error (" << p - q << ","
+               //           << q << ") = " << fabs(exact - poly_at_quad) << endl;
+               if ((p == 0) && (q == 0))
+               {
+               MFEM_ASSERT(fabs(exact - poly_at_quad) <= 1e-12, " p = " << p << " , q = " << q << " : "
+                                                                        << "Interpolation operator does not interpolate exactly!\n");
+               }
+            }
          }
       }
    }
