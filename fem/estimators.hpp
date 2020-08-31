@@ -411,8 +411,8 @@ public:
 //! It can be roughly described by:
 //!     ||∇(u-uₕ)||ₑ ≦ √( C ∑ₖ (hₖ ∫ |J[∇uₕ]|²) dS )
 //! where "e" denotes an element, ||⋅||ₑ the corresponding local norm and k the
-//! corresponding faces. u is the analytic solution and uₕ the discretized solution. 
-//! hₖ is a factor dependend on the element geometry. J is the jump function, i.e. 
+//! corresponding faces. u is the analytic solution and uₕ the discretized solution.
+//! hₖ is a factor dependend on the element geometry. J is the jump function, i.e.
 //! the difference between the limits at each point for each side of the face.
 //!
 //! @Note This algorithm is only for Poisson problems a proper error esimator.
@@ -421,16 +421,18 @@ public:
 class KellyErrorEstimator final : public ErrorEstimator
 {
 private:
-    int current_sequence = -1;
+   int current_sequence = -1;
 
-    Vector error_estimates;
+   Vector error_estimates;
 
-    double total_error = 0.0;
+   double total_error = 0.0;
 
-    Array<int> attributes;
+   Array<int> attributes;
 
-    std::function<double(ParMesh*, const int)> compute_element_coefficient = [](ParMesh* pmesh, const int e){
-       // Obtain jacobian of the transformation.
+   std::function<double(ParMesh*, const int)> compute_element_coefficient = [](
+                                                                               const ParMesh* pmesh, const int e)
+   {
+      // Obtain jacobian of the transformation.
       DenseMatrix J;
       // pmesh->GetElementJacobian(e, J); //..protected....
       Geometry::Type geom      = pmesh->GetElementBaseGeometry(e);
@@ -440,58 +442,59 @@ private:
 
       // Intuitively we must scale the error with the "element size" and polynomial degree.
       return pow(abs(J.Weight()), 1.0 / double(pmesh->Dimension())) / (2*T->Order());
-    };
+   };
 
-    BilinearFormIntegrator* flux_integrator; ///< Not owned.
-    ParGridFunction* solution;               ///< Not owned.
+   BilinearFormIntegrator* flux_integrator; ///< Not owned.
+   ParGridFunction* solution;               ///< Not owned.
 
-    ParFiniteElementSpace* flux_space; ///< Not owned.
+   ParFiniteElementSpace* flux_space; ///< Not owned.
 
-    bool MeshIsModified()
-    {
-        long mesh_sequence = solution->FESpace()->GetMesh()->GetSequence();
-        MFEM_ASSERT(mesh_sequence >= current_sequence, "");
-        return (mesh_sequence > current_sequence);
-    }
+   bool MeshIsModified()
+   {
+      long mesh_sequence = solution->FESpace()->GetMesh()->GetSequence();
+      MFEM_ASSERT(mesh_sequence >= current_sequence, "");
+      return (mesh_sequence > current_sequence);
+   }
 
-    //! Algorithm outline:
-    //! 1. Compute flux field for each element
-    //! 2. Add error contribution from local interior faces
-    //! 3. Add error contribution from shared interior faces
-    //! 4. Finalize by computomg hₖ.
-    //! For the basic idea for the estimator I refer to the FEM lecture by
-    //! Wolfang Bangerth (MATH 676: Finite element methods in scientific
-    //! computing)
-    //! https://www.math.colostate.edu/~bangerth/videos/676/slides.17.25.pdf
-    void ComputeEstimates();
+   //! Algorithm outline:
+   //! 1. Compute flux field for each element
+   //! 2. Add error contribution from local interior faces
+   //! 3. Add error contribution from shared interior faces
+   //! 4. Finalize by computomg hₖ.
+   //! For the basic idea for the estimator I refer to the FEM lecture by
+   //! Wolfang Bangerth (MATH 676: Finite element methods in scientific
+   //! computing)
+   //! https://www.math.colostate.edu/~bangerth/videos/676/slides.17.25.pdf
+   void ComputeEstimates();
 
 public:
-    KellyErrorEstimator(BilinearFormIntegrator& di_, ParGridFunction& sol_,
-                        ParFiniteElementSpace& flux_fespace_, 
-                        Array<int> attributes_ = Array<int>())
-        : attributes(attributes_)
-        , flux_integrator(&di_)
-        , solution(&sol_)
-        , flux_space(&flux_fespace_) 
-    {}
+   KellyErrorEstimator(BilinearFormIntegrator& di_, ParGridFunction& sol_,
+                       ParFiniteElementSpace& flux_fespace_,
+                       Array<int> attributes_ = Array<int>())
+      : attributes(attributes_)
+      , flux_integrator(&di_)
+      , solution(&sol_)
+      , flux_space(&flux_fespace_)
+   {}
 
-    const Vector& GetLocalErrors() override
-    {
-        if (MeshIsModified())
-        {
-            ComputeEstimates();
-        }
-        return error_estimates;
-    }
+   const Vector& GetLocalErrors() override
+   {
+      if (MeshIsModified())
+      {
+         ComputeEstimates();
+      }
+      return error_estimates;
+   }
 
-    void Reset() override { current_sequence = -1; };
+   void Reset() override { current_sequence = -1; };
 
-    double GetTotalError() const { return total_error; }
+   double GetTotalError() const { return total_error; }
 
-    void ChangeCoefficientFunction(std::function<double(ParMesh*, const int)> compute_element_coefficient_)
-    {
-       compute_element_coefficient = compute_element_coefficient_;
-    }
+   void ChangeCoefficientFunction(std::function<double(ParMesh*, const int)>
+                                  compute_element_coefficient_)
+   {
+      compute_element_coefficient = compute_element_coefficient_;
+   }
 };
 
 #endif // MFEM_USE_MPI

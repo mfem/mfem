@@ -221,7 +221,8 @@ int main(int argc, char *argv[])
    RT_FECollection smooth_flux_fec(order-1, dim);
    ParFiniteElementSpace smooth_flux_fes(&pmesh, &smooth_flux_fec);
    ErrorEstimator* estimator;
-   switch(which_estimator){
+   switch (which_estimator)
+   {
       case 0:
          estimator = new L2ZienkiewiczZhuEstimator(*integ, x, flux_fes, smooth_flux_fes);
          break;
@@ -337,6 +338,7 @@ int main(int argc, char *argv[])
          {
             ///@TODO how to handle this?
             //cout << ", total error: " << estimator->GetTotalError() << endl;
+            cout << endl;
          }
 
          // 21. Quit the AMR loop if the termination criterion has been met
