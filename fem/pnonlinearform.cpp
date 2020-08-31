@@ -14,6 +14,7 @@
 #ifdef MFEM_USE_MPI
 
 #include "fem.hpp"
+#include "../general/forall.hpp"
 
 namespace mfem
 {
@@ -49,6 +50,7 @@ void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
 
    if (fnfi.Size())
    {
+      MFEM_VERIFY(!NonlinearForm::ext, "Not implemented (extensions + faces");
       // Terms over shared interior faces in parallel.
       ParFiniteElementSpace *pfes = ParFESpace();
       ParMesh *pmesh = pfes->GetParMesh();
@@ -86,15 +88,16 @@ void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
 
    P->MultTranspose(aux2, y);
 
-   y.HostReadWrite();
-   for (int i = 0; i < ess_tdof_list.Size(); i++)
-   {
-      y(ess_tdof_list[i]) = 0.0;
-   }
+   const int N = ess_tdof_list.Size();
+   const auto idx = ess_tdof_list.Read();
+   auto Y = y.ReadWrite();
+   MFEM_FORALL(i, N, Y[idx[i]] = 0.0; );
 }
 
 const SparseMatrix &ParNonlinearForm::GetLocalGradient(const Vector &x) const
 {
+   if (NonlinearForm::ext) { MFEM_ABORT("Not yet implemented!"); }
+
    NonlinearForm::GetGradient(x); // (re)assemble Grad, no b.c.
 
    return *Grad;
@@ -104,16 +107,20 @@ Operator &ParNonlinearForm::GetGradient(const Vector &x) const
 {
    ParFiniteElementSpace *pfes = ParFESpace();
 
-   pGrad.Clear();
+   Operator &grad = NonlinearForm::GetGradient(x); // (re)assemble Grad, no b.c.
 
-   NonlinearForm::GetGradient(x); // (re)assemble Grad, no b.c.
+   pGrad.Clear();
 
    OperatorHandle dA(pGrad.Type()), Ph(pGrad.Type());
 
    if (fnfi.Size() == 0)
    {
-      dA.MakeSquareBlockDiag(pfes->GetComm(), pfes->GlobalVSize(),
-                             pfes->GetDofOffsets(), Grad);
+      if (NonlinearForm::ext) { dA.Reset(&grad, false); }
+      else
+      {
+         dA.MakeSquareBlockDiag(pfes->GetComm(), pfes->GlobalVSize(),
+                                pfes->GetDofOffsets(), Grad);
+      }
    }
    else
    {

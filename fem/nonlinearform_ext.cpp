@@ -13,62 +13,102 @@
 // PABilinearFormExtension and MFBilinearFormExtension.
 
 #include "nonlinearform.hpp"
+#include "../general/forall.hpp"
 
 namespace mfem
 {
 
-NonlinearFormExtension::NonlinearFormExtension(NonlinearForm *form)
-   : Operator(form->FESpace()->GetTrueVSize()), n(form)
+NonlinearFormExtension::NonlinearFormExtension(const NonlinearForm *nlf)
+   : Operator(nlf->FESpace()->GetTrueVSize()), nlf(nlf) { }
+
+PANonlinearFormExtension::PANonlinearFormExtension(NonlinearForm *nlf):
+   NonlinearFormExtension(nlf),
+   x_grad(NULL),
+   fes(*nlf->FESpace()),
+   dnfi(*nlf->GetDNFI()),
+   R(fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC))
 {
-   // empty
+   MFEM_VERIFY(R, "Not yet implemented!");
+   xe.SetSize(R->Height(), Device::GetMemoryType());
+   ye.SetSize(R->Height(), Device::GetMemoryType());
+   ye.UseDevice(true);
 }
 
-PANonlinearFormExtension::PANonlinearFormExtension(NonlinearForm *form):
-   NonlinearFormExtension(form), fes(*form->FESpace())
+double PANonlinearFormExtension::GetGridFunctionEnergy(const Vector &x) const
 {
-   const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   elem_restrict_lex = fes.GetElementRestriction(ordering);
-   if (elem_restrict_lex)
+   double energy = 0.0;
+
+   R->Mult(x, xe);
+   for (int i = 0; i < dnfi.Size(); i++)
    {
-      localX.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
-      localY.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
-      localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
+      energy += dnfi[i]->GetGridFunctionEnergyPA(xe);
    }
+   return energy;
 }
 
-void PANonlinearFormExtension::AssemblePA()
+void PANonlinearFormExtension::Setup()
 {
-   Array<NonlinearFormIntegrator*> &integrators = *n->GetDNFI();
-   const int Ni = integrators.Size();
-   for (int i = 0; i < Ni; ++i)
-   {
-      integrators[i]->AssemblePA(*n->FESpace());
-   }
+   for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AssemblePA(fes); }
 }
 
 void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
-   Array<NonlinearFormIntegrator*> &integrators = *n->GetDNFI();
-   const int iSz = integrators.Size();
-   if (elem_restrict_lex)
-   {
-      elem_restrict_lex->Mult(x, localX);
-      localY = 0.0;
-      for (int i = 0; i < iSz; ++i)
-      {
-         integrators[i]->AddMultPA(localX, localY);
-      }
-      elem_restrict_lex->MultTranspose(localY, y);
-   }
-   else
-   {
-      y.UseDevice(true); // typically this is a large vector, so store on device
-      y = 0.0;
-      for (int i = 0; i < iSz; ++i)
-      {
-         integrators[i]->AddMultPA(x, y);
-      }
-   }
+   ye = 0.0;
+   R->Mult(x, xe);
+   for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AddMultPA(xe, ye); }
+   R->MultTranspose(ye, y);
 }
 
+void PANonlinearFormExtension::AssembleGradientDiagonal(Vector &diag) const
+{
+   MFEM_VERIFY(x_grad, "GetGradient() has not been called");
+   R->Mult(*x_grad, xe);
+
+   ye = 0.0;
+   for (int i = 0; i < dnfi.Size(); ++i)
+   {
+      dnfi[i]->AssembleGradientDiagonalPA(xe, ye);
+   }
+   R->MultTranspose(ye, diag);
 }
+
+Operator &PANonlinearFormExtension::GetGradient(const Vector &x) const
+{
+   // Store the last x that was used to compute the gradient.
+   x_grad = &x;
+
+   Grad.Reset(new PANonlinearFormExtension::Gradient(x, *this));
+   return *Grad.Ptr();
+}
+
+PANonlinearFormExtension::Gradient::Gradient(const Vector &x,
+                                             const PANonlinearFormExtension &e):
+   Operator(e.fes.GetVSize()), R(e.R), dnfi(e.dnfi)
+{
+   ge.UseDevice(true);
+   ge.SetSize(R->Height(), Device::GetMemoryType());
+   R->Mult(x, ge);
+
+   xe.UseDevice(true);
+   xe.SetSize(R->Height(), Device::GetMemoryType());
+
+   ye.UseDevice(true);
+   ye.SetSize(R->Height(), Device::GetMemoryType());
+
+   ze.UseDevice(true);
+   ze.SetSize(R->Height(), Device::GetMemoryType());
+
+   // Do we still need to do this?
+   for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AssemblePA(e.fes); }
+}
+
+void PANonlinearFormExtension::Gradient::Mult(const Vector &x, Vector &y) const
+{
+   ze = x;
+   ye = 0.0;
+   R->Mult(ze, xe);
+   for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AddMultGradPA(ge, xe, ye); }
+   R->MultTranspose(ye, y);
+}
+
+} // namespace mfem

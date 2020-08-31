@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "fem.hpp"
+#include "../general/forall.hpp"
 
 namespace mfem
 {
@@ -80,6 +81,13 @@ void NonlinearForm::SetEssentialVDofs(const Array<int> &ess_vdofs_list)
 
 double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
 {
+   if (ext)
+   {
+      MFEM_VERIFY(!fnfi.Size(), "Interior faces terms not yet implemented!");
+      MFEM_VERIFY(!bfnfi.Size(), "Boundary face terms not yet implemented!");
+      return ext->GetGridFunctionEnergy(x);
+   }
+
    Array<int> vdofs;
    Vector el_x;
    const FiniteElement *fe;
@@ -138,6 +146,14 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
    if (ext)
    {
       ext->Mult(px, py);
+      if (Serial())
+      {
+         if (cP) { cP->MultTranspose(py, y); }
+         const int N = ess_tdof_list.Size();
+         const auto tdof = ess_tdof_list.Read();
+         auto Y = y.ReadWrite();
+         MFEM_FORALL(i, N, Y[tdof[i]] = 0.0; );
+      }
       return;
    }
 
@@ -264,7 +280,16 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
 {
    if (ext)
    {
-      MFEM_ABORT("Not yet implemented!");
+      Operator &grad = ext->GetGradient(Prolongate(x));
+      hGrad.Reset(&grad, false);
+      if (Serial())
+      {
+         Operator *Gop;
+         if (cP) { hGrad.Reset(new RAPOperator(*cP, grad, *cP)); }
+         hGrad.Ptr()->Operator::FormSystemOperator(ess_tdof_list, Gop);
+         hGrad.Reset(Gop);
+      }
+      return *hGrad.Ptr();
    }
 
    const int skip_zeros = 0;
@@ -426,7 +451,31 @@ void NonlinearForm::Update()
 
 void NonlinearForm::Setup()
 {
-   if (ext) { return ext->AssemblePA(); }
+   if (ext) { return ext->Setup(); }
+}
+
+void NonlinearForm::AssembleGradientDiagonal(Vector &diag) const
+{
+   if (ext)
+   {
+      MFEM_ASSERT(diag.Size() == fes->GetTrueVSize(),
+                  "Vector for holding diagonal has wrong size!");
+      const Operator *P = fes->GetProlongationMatrix();
+      if (!IsIdentityProlongation(P))
+      {
+         Vector local_diag(P->Height());
+         ext->AssembleGradientDiagonal(local_diag);
+         P->MultTranspose(local_diag, diag);
+      }
+      else
+      {
+         ext->AssembleGradientDiagonal(diag);
+      }
+   }
+   else
+   {
+      MFEM_ABORT("Not implemented. Can be obtained through GetGradient().");
+   }
 }
 
 NonlinearForm::~NonlinearForm()
