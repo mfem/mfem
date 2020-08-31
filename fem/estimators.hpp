@@ -444,7 +444,7 @@ private:
        description by Bangerth.
    */
    std::function<double(ParMesh*, const int)> compute_element_coefficient = [](
-                                                                               const ParMesh* pmesh, const int e)
+                                                                               ParMesh* pmesh, const int e)
    {
       // Obtain jacobian of the transformation.
       DenseMatrix J;
