@@ -564,8 +564,8 @@ void CeedMFAssemble(const CeedMFOperator& op,
                       mesh->GetNodes()->GetData());
 
    // Context data to be passed to the 'f_build_diff' Q-function.
-   ceedData.build_ctx.dim = mesh->Dimension();
-   ceedData.build_ctx.space_dim = mesh->SpaceDimension();
+   ceedData.build_ctx_data.dim = mesh->Dimension();
+   ceedData.build_ctx_data.space_dim = mesh->SpaceDimension();
 
    std::string qf_file = GetCeedPath() + op.header;
    std::string qf;
@@ -581,7 +581,7 @@ void CeedMFAssemble(const CeedMFOperator& op,
          CeedQFunctionCreateInterior(ceed, 1, op.const_qf,
                                      qf.c_str(),
                                      &ceedData.apply_qfunc);
-         ceedData.build_ctx.coeff = ((CeedConstCoeff*)ceedData.coeff)->val;
+         ceedData.build_ctx_data.coeff = ((CeedConstCoeff*)ceedData.coeff)->val;
          break;
       case CeedCoeff::Grid:
          qf = qf_file + op.grid_func;
@@ -597,8 +597,11 @@ void CeedMFAssemble(const CeedMFOperator& op,
    CeedQFunctionAddInput(ceedData.apply_qfunc, "dx", dim * dim, CEED_EVAL_GRAD);
    CeedQFunctionAddInput(ceedData.apply_qfunc, "weights", 1, CEED_EVAL_WEIGHT);
    CeedQFunctionAddOutput(ceedData.apply_qfunc, "v", dimV, op.test_op);
-   CeedQFunctionSetContext(ceedData.apply_qfunc, &ceedData.build_ctx,
-                           sizeof(ceedData.build_ctx));
+   CeedQFunctionContextCreate(ceed, &ceedData.build_ctx);
+   CeedQFunctionContextSetData(ceedData.build_ctx, CEED_MEM_HOST, CEED_USE_POINTER,
+                               sizeof(ceedData.build_ctx_data),
+                               &ceedData.build_ctx_data);
+   CeedQFunctionSetContext(ceedData.build_qfunc, ceedData.build_ctx);
 
    // Create the operator.
    CeedOperatorCreate(ceed, ceedData.apply_qfunc, NULL, NULL, &ceedData.oper);
