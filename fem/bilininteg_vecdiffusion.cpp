@@ -133,7 +133,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 #ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
-      if (ceedDataPtr) { delete ceedDataPtr; }
+      delete ceedDataPtr;
       ceedDataPtr = new CeedData;
       InitCeedCoeff(Q, ceedDataPtr);
       return CeedPADiffusionAssemble(fes, *ir, * ceedDataPtr);
