@@ -175,21 +175,9 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph,
       }
 
       // We probably do not need to set the ownership flags here.
-      if (mt != MemoryType::SIZE)
-      {
-         I.Reset(mt);
-         J.Reset(mt);
-         A.Reset(mt);
-      }
-      else
-      {
-         I.Reset();
-         J.Reset();
-         A.Reset();
-      }
-      I.SetHostPtrOwner(true);
-      J.SetHostPtrOwner(true);
-      A.SetHostPtrOwner(true);
+      I.Reset(); I.SetHostPtrOwner(true);
+      J.Reset(); J.SetHostPtrOwner(true);
+      A.Reset(); A.SetHostPtrOwner(true);
    }
 
    current_row = -1;
