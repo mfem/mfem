@@ -401,7 +401,7 @@ public:
 #ifdef MFEM_USE_MPI
 /** @brief The KellyErrorEstimator class provides a fast error indication
     for smooth scalar parallel problems.
-   
+
     A very simple error *indicator* based on the following papers.
 
     Kelly, D. W., et al. "A posteriori error analysis and adaptive processes in
@@ -412,7 +412,7 @@ public:
     processes in the finite element method: Part II—Adaptive mesh refinement."
     International journal for numerical methods in engineering 19.11 (1983):
     1621-1656.
-   
+
     It can be roughly described by:
         ||∇(u-uₕ)||ₑ ≦ √( C ∑ₖ (hₖ ∫ |J[∇uₕ]|²) dS )
     where "e" denotes an element, ||⋅||ₑ the corresponding local norm and k the
@@ -422,7 +422,7 @@ public:
     A custom method to compute hₖ can be provided. It is also possible to estimate
     the error only on a subspace by feeding this class an attribute array describing
     the subspace. The error on boundary faces is ignored.
-   
+
     @note This algorithm is only for Poisson problems a proper error esimator.
     The current implementation does not reflect this, because the factor "C" is not
     included.
@@ -438,9 +438,9 @@ private:
 
    Array<int> attributes;
 
-   /** @brief The method to compute hₖ. 
-    
-       Defaults to hₖ=det(J)^(-dim)/2p. This is a slight variation of the 
+   /** @brief The method to compute hₖ.
+
+       Defaults to hₖ=det(J)^(-dim)/2p. This is a slight variation of the
        description by Bangerth.
    */
    std::function<double(ParMesh*, const int)> compute_element_coefficient = [](
@@ -472,7 +472,7 @@ private:
    }
 
    /** @brief Compute the element error estimates.
-       
+
        Algorithm outline:
        1. Compute flux field for each element
        2. Add error contribution from local interior faces
@@ -486,8 +486,8 @@ public:
        @param di_         The bilinearform to compute the interface flux.
        @param sol_        The solution field whose error is to be estimated.
        @param flux_fes_   The finite element space for the interface flux.
-       @param attributes_ The attributes of the subdomain(s) for which the 
-                          error should be estimated. An empty array results in 
+       @param attributes_ The attributes of the subdomain(s) for which the
+                          error should be estimated. An empty array results in
                           estimating the error over the complete domain.
    */
    KellyErrorEstimator(BilinearFormIntegrator& di_, ParGridFunction& sol_,
@@ -516,7 +516,7 @@ public:
 
    /** @brief Change the method to compute hₖ.
        @param compute_element_coefficient_
-                        A function taking a mesh and an element index to 
+                        A function taking a mesh and an element index to
                         compute the local hₖ for the element.
    */
    void ChangeCoefficientFunction(std::function<double(ParMesh*, const int)>
