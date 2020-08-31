@@ -34,11 +34,10 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 #ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
-      if (ceedDataPtr) { delete ceedDataPtr; }
-      CeedData* ptr = new CeedData();
-      ceedDataPtr = ptr;
-      InitCeedCoeff(Q, ptr);
-      return CeedPAMassAssemble(fes, *ir, *ptr);
+      delete ceedDataPtr;
+      ceedDataPtr = new CeedData;
+      InitCeedCoeff(Q, ceedDataPtr);
+      return CeedPAMassAssemble(fes, *ir, *ceedDataPtr);
    }
 #endif
    dim = mesh->Dimension();
