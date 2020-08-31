@@ -12,6 +12,8 @@
 #ifndef MFEM_ERROR_ESTIMATORS
 #define MFEM_ERROR_ESTIMATORS
 
+#include <functional>
+
 #include "../config/config.hpp"
 #include "../linalg/vector.hpp"
 #include "bilinearform.hpp"
@@ -427,6 +429,19 @@ private:
 
     Array<int> attributes;
 
+    std::function<double(ParMesh*, const int)> compute_element_coefficient = [](ParMesh* pmesh, const int e){
+       // Obtain jacobian of the transformation.
+      DenseMatrix J;
+      // pmesh->GetElementJacobian(e, J); //..protected....
+      Geometry::Type geom      = pmesh->GetElementBaseGeometry(e);
+      ElementTransformation* T = pmesh->GetElementTransformation(e);
+      T->SetIntPoint(&Geometries.GetCenter(geom));
+      Geometries.JacToPerfJac(geom, T->Jacobian(), J);
+
+      // Intuitively we must scale the error with the "element size" and polynomial degree.
+      return pow(abs(J.Weight()), 1.0 / double(pmesh->Dimension())) / (2*T->Order());
+    };
+
     BilinearFormIntegrator* flux_integrator; ///< Not owned.
     ParGridFunction* solution;               ///< Not owned.
 
@@ -472,6 +487,11 @@ public:
     void Reset() override { current_sequence = -1; };
 
     double GetTotalError() const { return total_error; }
+
+    void ChangeCoefficientFunction(std::function<double(ParMesh*, const int)> compute_element_coefficient_)
+    {
+       compute_element_coefficient = compute_element_coefficient_;
+    }
 };
 
 #endif // MFEM_USE_MPI

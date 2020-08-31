@@ -265,19 +265,9 @@ void KellyErrorEstimator::ComputeEstimates()
    // Finalize element errors
    for (int e = 0; e < xfes->GetNE(); e++)
    {
-         // Obtain jacobian of the transformation.
-         DenseMatrix J;
-         // pmesh->GetElementJacobian(e, J); //..protected....
-         Geometry::Type geom      = pmesh->GetElementBaseGeometry(e);
-         ElementTransformation* T = pmesh->GetElementTransformation(e);
-         T->SetIntPoint(&Geometries.GetCenter(geom));
-         Geometries.JacToPerfJac(geom, T->Jacobian(), J);
-
-         // Intuitively we must scale the error with the "element size".
-         // hₑ is also denoted by hₖ in some papers.
-         auto hₑ = pow(abs(J.Weight()), 1.0 / double(pmesh->Dimension()));
+         auto factor = compute_element_coefficient(pmesh, e);
          // The sqrt belongs to the norm and hₑ to the indicator.
-         error_estimates(e) = sqrt(hₑ * error_estimates(e) / (2*T->Order()));
+         error_estimates(e) = sqrt(factor * error_estimates(e));
    }
 
    current_sequence = solution->FESpace()->GetMesh()->GetSequence();
