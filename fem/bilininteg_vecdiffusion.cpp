@@ -134,10 +134,9 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    if (DeviceCanUseCeed())
    {
       if (ceedDataPtr) { delete ceedDataPtr; }
-      CeedData* ptr = new CeedData();
-      ceedDataPtr = ptr;
-      InitCeedCoeff(Q, ptr);
-      return CeedPADiffusionAssemble(fes, *ir, *ptr);
+      ceedDataPtr = new CeedData;
+      InitCeedCoeff(Q, ceedDataPtr);
+      return CeedPADiffusionAssemble(fes, *ir, * ceedDataPtr);
    }
 #endif
    const int dims = el.GetDim();
