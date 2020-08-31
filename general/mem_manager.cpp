@@ -1281,7 +1281,7 @@ void MemoryManager::UpdateMemoryType(void *h_ptr, const MemoryType mt)
    if (mem.d_mt == d_mt) { return; }
    MFEM_VERIFY(mem.d_ptr == nullptr,
                "Cannot change the memory type if d_ptr != nullptr");
-   auto old = maps->memories.erase(mem_map_iter);
+   maps->memories.erase(mem_map_iter);
    maps->memories.emplace(h_ptr, internal::Memory(h_ptr, mem.bytes, h_mt, d_mt));
 }
 
