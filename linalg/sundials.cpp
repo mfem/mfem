@@ -358,7 +358,7 @@ N_Vector SundialsNVector::MakeNVector(bool use_device)
 #ifdef MFEM_USE_CUDA
    if (use_device)
    {
-      x = N_VNewCustom_Cuda(0, SundialsMemHelper());
+      x = N_VNewWithMemHelp_Cuda(0, SundialsMemHelper());
    }
    else
    {
@@ -387,7 +387,7 @@ N_Vector SundialsNVector::MakeNVector(MPI_Comm comm, bool use_device)
 #ifdef MFEM_USE_CUDA
       if (use_device)
       {
-         x = N_VMake_MPIPlusX(comm, N_VNewCustom_Cuda(0, SundialsMemHelper()));
+         x = N_VMake_MPIPlusX(comm, N_VNewWithMemHelp_Cuda(0, SundialsMemHelper()));
       }
       else
       {
