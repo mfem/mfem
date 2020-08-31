@@ -336,7 +336,7 @@ int main(int argc, char *argv[])
          refiner.Apply(pmesh);
          if (myid == 0)
          {
-            ///@TODO how to handle this?
+            //TODO how to handle this?
             //cout << ", total error: " << estimator->GetTotalError() << endl;
             cout << endl;
          }
