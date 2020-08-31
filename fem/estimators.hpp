@@ -399,25 +399,34 @@ public:
 };
 
 #ifdef MFEM_USE_MPI
-//! A very simple error *indicator* based on the following papers.
-//! Kelly, D. W., et al. "A posteriori error analysis and adaptive processes in
-//! the finite element method: Part I—Error analysis." International journal for
-//! numerical methods in engineering 19.11 (1983): 1593-1619.
-//! De SR Gago, J. P., et al. "A posteriori error analysis and adaptive
-//! processes in the finite element method: Part II—Adaptive mesh refinement."
-//! International journal for numerical methods in engineering 19.11 (1983):
-//! 1621-1656.
-//!
-//! It can be roughly described by:
-//!     ||∇(u-uₕ)||ₑ ≦ √( C ∑ₖ (hₖ ∫ |J[∇uₕ]|²) dS )
-//! where "e" denotes an element, ||⋅||ₑ the corresponding local norm and k the
-//! corresponding faces. u is the analytic solution and uₕ the discretized solution.
-//! hₖ is a factor dependend on the element geometry. J is the jump function, i.e.
-//! the difference between the limits at each point for each side of the face.
-//!
-//! @Note This algorithm is only for Poisson problems a proper error esimator.
-//! The current implementation does not reflect this, because the factor "C" is not
-//! included.
+/** @brief The KellyErrorEstimator class provides a fast error indication
+    for smooth scalar parallel problems.
+   
+    A very simple error *indicator* based on the following papers.
+
+    Kelly, D. W., et al. "A posteriori error analysis and adaptive processes in
+    the finite element method: Part I—Error analysis." International journal for
+    numerical methods in engineering 19.11 (1983): 1593-1619.
+
+    De SR Gago, J. P., et al. "A posteriori error analysis and adaptive
+    processes in the finite element method: Part II—Adaptive mesh refinement."
+    International journal for numerical methods in engineering 19.11 (1983):
+    1621-1656.
+   
+    It can be roughly described by:
+        ||∇(u-uₕ)||ₑ ≦ √( C ∑ₖ (hₖ ∫ |J[∇uₕ]|²) dS )
+    where "e" denotes an element, ||⋅||ₑ the corresponding local norm and k the
+    corresponding faces. u is the analytic solution and uₕ the discretized solution.
+    hₖ is a factor dependend on the element geometry. J is the jump function, i.e.
+    the difference between the limits at each point for each side of the face.
+    A custom method to compute hₖ can be provided. It is also possible to estimate
+    the error only on a subspace by feeding this class an attribute array describing
+    the subspace. The error on boundary faces is ignored.
+   
+    @note This algorithm is only for Poisson problems a proper error esimator.
+    The current implementation does not reflect this, because the factor "C" is not
+    included.
+*/
 class KellyErrorEstimator final : public ErrorEstimator
 {
 private:
@@ -429,6 +438,11 @@ private:
 
    Array<int> attributes;
 
+   /** @brief The method to compute hₖ. 
+    
+       Defaults to hₖ=det(J)^(-dim)/2p. This is a slight variation of the 
+       description by Bangerth.
+   */
    std::function<double(ParMesh*, const int)> compute_element_coefficient = [](
                                                                                const ParMesh* pmesh, const int e)
    {
@@ -449,6 +463,7 @@ private:
 
    ParFiniteElementSpace* flux_space; ///< Not owned.
 
+   /// Check if the mesh of the solution was modified.
    bool MeshIsModified()
    {
       long mesh_sequence = solution->FESpace()->GetMesh()->GetSequence();
@@ -456,27 +471,35 @@ private:
       return (mesh_sequence > current_sequence);
    }
 
-   //! Algorithm outline:
-   //! 1. Compute flux field for each element
-   //! 2. Add error contribution from local interior faces
-   //! 3. Add error contribution from shared interior faces
-   //! 4. Finalize by computomg hₖ.
-   //! For the basic idea for the estimator I refer to the FEM lecture by
-   //! Wolfang Bangerth (MATH 676: Finite element methods in scientific
-   //! computing)
-   //! https://www.math.colostate.edu/~bangerth/videos/676/slides.17.25.pdf
+   /** @brief Compute the element error estimates.
+       
+       Algorithm outline:
+       1. Compute flux field for each element
+       2. Add error contribution from local interior faces
+       3. Add error contribution from shared interior faces
+       4. Finalize by computing hₖ and scale errors.
+   */
    void ComputeEstimates();
 
 public:
+   /** @brief Construct a new KellyErrorEstimator object for a scalar field.
+       @param di_         The bilinearform to compute the interface flux.
+       @param sol_        The solution field whose error is to be estimated.
+       @param flux_fes_   The finite element space for the interface flux.
+       @param attributes_ The attributes of the subdomain(s) for which the 
+                          error should be estimated. An empty array results in 
+                          estimating the error over the complete domain.
+   */
    KellyErrorEstimator(BilinearFormIntegrator& di_, ParGridFunction& sol_,
-                       ParFiniteElementSpace& flux_fespace_,
+                       ParFiniteElementSpace& flux_fes_,
                        Array<int> attributes_ = Array<int>())
       : attributes(attributes_)
       , flux_integrator(&di_)
       , solution(&sol_)
-      , flux_space(&flux_fespace_)
+      , flux_space(&flux_fes_)
    {}
 
+   /// Get a Vector with all element errors.
    const Vector& GetLocalErrors() override
    {
       if (MeshIsModified())
@@ -486,10 +509,16 @@ public:
       return error_estimates;
    }
 
+   /// Reset the error estimator.
    void Reset() override { current_sequence = -1; };
 
    double GetTotalError() const { return total_error; }
 
+   /** @brief Change the method to compute hₖ.
+       @param compute_element_coefficient_
+                        A function taking a mesh and an element index to 
+                        compute the local hₖ for the element.
+   */
    void ChangeCoefficientFunction(std::function<double(ParMesh*, const int)>
                                   compute_element_coefficient_)
    {
