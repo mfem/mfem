@@ -30,11 +30,10 @@ void DiffusionIntegrator::AssembleMF(const FiniteElementSpace &fes)
 #ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
-      if (ceedDataPtr) { delete ceedDataPtr; }
-      CeedData* ptr = new CeedData();
-      ceedDataPtr = ptr;
-      InitCeedCoeff(Q, ptr);
-      return CeedMFDiffusionAssemble(fes, *ir, *ptr);
+      delete ceedDataPtr;
+      ceedDataPtr = new CeedData;
+      InitCeedCoeff(Q, ceedDataPtr);
+      return CeedMFDiffusionAssemble(fes, *ir, *ceedDataPtr);
    }
 #endif
    mfem_error("Not yet implemented");
