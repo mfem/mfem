@@ -261,10 +261,10 @@ int main(int argc, char *argv[])
       AmgXSolver amgx;
 
       //Allows MPI > NDEVS, requires mpiexec
-      //amgx.Initialize_MPITeams(MPI_COMM_WORLD, "dDDI", amgx_str, ndevices);
+      amgx.Initialize_MPITeams(MPI_COMM_WORLD, "dDDI", amgx_str, ndevices);
 
       //Assumes MPI == NDEVS
-      amgx.Initialize_ExclusiveGPU(MPI_COMM_WORLD, "dDDI", amgx_str);
+      //amgx.Initialize_ExclusiveGPU(MPI_COMM_WORLD, "dDDI", amgx_str);
 
       amgx.SetOperator(A);
       //amgx.SetA(A);

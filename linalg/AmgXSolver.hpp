@@ -83,28 +83,28 @@ public:
 
 private:
 
-   //void GetLocalA(const HypreParMatrix &A, Array<HYPRE_Int> &I,
-   //Array<int64_t> &J, Array<double> &Data);
+   //The following methods send vectors to root node in a MPI-Team
+   void GatherArray(const Array<double> &inArr, Array<double> &outArr,
+                    const int mpiTeamSz, MPI_Comm &mpiTeam);
 
-   void GatherArray(Array<double> &inArr, Array<double> &outArr,
-                    int MPI_SZ, MPI_Comm &mpiTeam);
+   void GatherArray(const Vector &inArr, Vector &outArr,
+                    const int mpiTeamSz, MPI_Comm &mpiTeam);
 
-   void GatherArray(Vector &inArr, Vector &outArr,
-                    int MPI_SZ, MPI_Comm &mpiTeam);
+   void GatherArray(const Array<int> &inArr, Array<int> &outArr,
+                    const int mpiTeamSz, MPI_Comm &mpiTeam);
 
-   void GatherArray(Array<int> &Apart,
-                    Array<int> &inArr, Array<int> &outArr,
-                    int MPI_SZ, MPI_Comm &mpiTeam);
+   void GatherArray(const Array<int64_t> &inArr, Array<int64_t> &outArr,
+                    const int mpiTeamSz, MPI_Comm &mpiTeam);
 
-   void GatherArray(Array<int64_t> &inArr, Array<int64_t> &outArr,
-                    int MPI_SZ, MPI_Comm &mpiTeam);
+   //The following methods send vectors to root node in a MPI-Team
+   // partitions and displacements are also stored.
+   void GatherArray(const Vector &inArr, Vector &outArr,
+                    const int mpiTeamSz, MPI_Comm &mpiTeamComm,
+                    Array<int> &Apart, Array<int> &Adisp);
 
-
-   void GatherArray(Vector &inArr, Vector &outArr,
-                    int MPI_SZ, MPI_Comm &mpi_comm, Array<int> &Apart, Array<int> &Adisp);
-
-   void ScatterArray(Vector &inArr, Vector &outArr,
-                     int MPI_SZ, MPI_Comm &mpi_comm, Array<int> &Apart, Array<int> &Adisp);
+   void ScatterArray(const Vector &inArr, Vector &outArr,
+                     const int mpiTeamSz, MPI_Comm &mpi_comm,
+                     Array<int> &Apart, Array<int> &Adisp);
 
    //To be refactored
    //void updateA(const HypreParMatrix &A);

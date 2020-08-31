@@ -349,256 +349,190 @@ void AmgXSolver::setDeviceIDs(const int nDevs)
 
 }
 
-//TO BE DELETED
-/*
-void AmgXSolver::GetLocalA(const HypreParMatrix &in_A, Array<HYPRE_Int> &I,
-                           Array<int64_t> &J, Array<double> &Data)
+void AmgXSolver::GatherArray(const Array<double> &inArr, Array<double> &outArr,
+                             const int mpiTeamSz, MPI_Comm &mpiTeamComm)
 {
+   //Calculate number of elements to be collected from each process
+   Array<int> Apart(mpiTeamSz);
+   int locAsz = inArr.Size();
+   MPI_Gather(&locAsz, 1, MPI_INT,
+              Apart.HostWrite(),1, MPI_INT,0,mpiTeamComm);
 
-   mfem::SparseMatrix Diag, Offd;
-   HYPRE_Int* cmap; //column map
+   MPI_Barrier(mpiTeamComm);
 
-   in_A.GetDiag(Diag); Diag.SortColumnIndices();
-   in_A.GetOffd(Offd, cmap); Offd.SortColumnIndices();
-
-   //Number of rows in this partition
-   int row_len = std::abs(in_A.RowPart()[1] -
-                          in_A.RowPart()[0]);
-   //end of row partition
-
-   //Note Amgx requires 64 bit integers for column array
-   //So we promote in this routine
-   int *DiagI = Diag.GetI();
-   int *DiagJ = Diag.GetJ();
-   double *DiagA = Diag.GetData();
-
-   int *OffI = Offd.GetI();
-   int *OffJ = Offd.GetJ();
-   double *OffA = Offd.GetData();
-
-   I.SetSize(row_len+1);
-
-   //Enumerate the local rows [0, num rows in proc)
-   I[0]=0;
-   for (int i=0; i<row_len; i++)
+   //Determine stride for process (to be used by root)
+   Array<int> Adisp(mpiTeamSz);
+   int myid; MPI_Comm_rank(mpiTeamComm, &myid);
+   if (myid == 0)
    {
-      I[i+1] = I[i] + (DiagI[i+1] - DiagI[i]) + (OffI[i+1] - OffI[i]);
-   }
-
-   const HYPRE_Int *colPart = in_A.ColPart();
-   J.SetSize(I[row_len]);
-   Data.SetSize(I[row_len]);
-
-   int cstart = colPart[0];
-
-   int k    = 0;
-   for (int i=0; i<row_len; i++)
-   {
-
-      int jo, icol;
-      int ncols_o = OffI[i+1] - OffI[i];
-      int ncols_d = DiagI[i+1] - DiagI[i];
-
-      //OffDiagonal
-      for (jo=0; jo<ncols_o; jo++)
+      Adisp[0] = 0;
+      for (int i=1; i<mpiTeamSz; ++i)
       {
-         icol = cmap[*OffJ];
-         if (icol >= cstart) { break; }
-         J[k]   = icol; OffJ++;
-         Data[k++] = *OffA++;
-      }
-
-      //Diagonal matrix
-      for (int j=0; j<ncols_d; j++)
-      {
-         J[k]   = cstart + *DiagJ++;
-         Data[k++] = *DiagA++;
-      }
-
-      //OffDiagonal
-      for (int j=jo; j<ncols_o; j++)
-      {
-         J[k]   = cmap[*OffJ++];
-         Data[k++] = *OffA++;
+         Adisp[i] = Adisp[i-1] + Apart[i-1];
       }
    }
 
+   MPI_Gatherv(inArr.HostRead(), inArr.Size(), MPI_DOUBLE,
+               outArr.HostWrite(), Apart.HostRead(), Adisp.HostRead(),
+               MPI_DOUBLE, 0, mpiTeamComm);
 }
-*/
 
-void AmgXSolver::GatherArray(Array<double> &inArr, Array<double> &outArr,
-                             int MPI_SZ, MPI_Comm &mpiTeam)
+void AmgXSolver::GatherArray(const Vector &inArr, Vector &outArr,
+                             const int mpiTeamSz, MPI_Comm &mpiTeamComm)
 {
    //Calculate number of elements to be collected from each process
-   mfem::Array<int> Apart(MPI_SZ);
+   Array<int> Apart(mpiTeamSz);
+   int locAsz = inArr.Size();
+   MPI_Gather(&locAsz, 1, MPI_INT,
+              Apart.HostWrite(),1, MPI_INT,0,mpiTeamComm);
+
+   MPI_Barrier(mpiTeamComm);
+
+   //Determine stride for process (to be used by root)
+   Array<int> Adisp(mpiTeamSz);
+   int myid; MPI_Comm_rank(mpiTeamComm, &myid);
+   if (myid == 0)
+   {
+      Adisp[0] = 0;
+      for (int i=1; i<mpiTeamSz; ++i)
+      {
+         Adisp[i] = Adisp[i-1] + Apart[i-1];
+      }
+   }
+
+   MPI_Gatherv(inArr.HostRead(), inArr.Size(), MPI_DOUBLE,
+               outArr.HostWrite(), Apart.HostRead(), Adisp.HostRead(),
+               MPI_DOUBLE, 0, mpiTeamComm);
+}
+
+
+void AmgXSolver::GatherArray(const Array<int> &inArr, Array<int> &outArr,
+                             const int mpiTeamSz, MPI_Comm &mpiTeamComm)
+{
+   //Calculate number of elements to be collected from each process
+   Array<int> Apart(mpiTeamSz);
    int locAsz = inArr.Size();
    MPI_Allgather(&locAsz, 1, MPI_INT,
-                 Apart.GetData(),1, MPI_INT,mpiTeam);
+                 Apart.GetData(),1, MPI_INT,mpiTeamComm);
 
-   MPI_Barrier(mpiTeam);
+   MPI_Barrier(mpiTeamComm);
+
+   //Determine stride for process (to be used by root)
+   Array<int> Adisp(mpiTeamSz);
+   int myid; MPI_Comm_rank(mpiTeamComm, &myid);
+   if (myid == 0)
+   {
+      Adisp[0] = 0;
+      for (int i=1; i<mpiTeamSz; ++i)
+      {
+         Adisp[i] = Adisp[i-1] + Apart[i-1];
+      }
+   }
+
+   MPI_Gatherv(inArr.HostRead(), inArr.Size(), MPI_INT,
+               outArr.HostWrite(), Apart.HostRead(), Adisp.HostRead(),
+               MPI_INT, 0, mpiTeamComm);
+}
+
+
+void AmgXSolver::GatherArray(const Array<int64_t> &inArr,
+                             Array<int64_t> &outArr,
+                             const int mpiTeamSz, MPI_Comm &mpiTeamComm)
+{
+   //Calculate number of elements to be collected from each process
+   Array<int> Apart(mpiTeamSz);
+   int locAsz = inArr.Size();
+   MPI_Allgather(&locAsz, 1, MPI_INT,
+                 Apart.GetData(),1, MPI_INT,mpiTeamComm);
+
+   MPI_Barrier(mpiTeamComm);
 
    //Determine stride for process
-   mfem::Array<int> Adisp(MPI_SZ);
+   Array<int> Adisp(mpiTeamSz);
    Adisp[0] = 0;
-   for (int i=1; i<MPI_SZ; ++i)
+   for (int i=1; i<mpiTeamSz; ++i)
    {
       Adisp[i] = Adisp[i-1] + Apart[i-1];
    }
 
-   MPI_Gatherv(inArr.HostReadWrite(), inArr.Size(), MPI_DOUBLE,
+   MPI_Gatherv(inArr.HostRead(), inArr.Size(), MPI_INT64_T,
                outArr.HostWrite(), Apart.HostRead(), Adisp.HostRead(),
-               MPI_DOUBLE, 0, mpiTeam);
+               MPI_INT64_T, 0, mpiTeamComm);
+
+   MPI_Barrier(mpiTeamComm);
 }
 
-void AmgXSolver::GatherArray(Vector &inArr, Vector &outArr,
-                             int MPI_SZ, MPI_Comm &mpiTeam)
+void AmgXSolver::GatherArray(const Vector &inArr, Vector &outArr,
+                             const int mpiTeamSz, MPI_Comm &mpiTeamComm,
+                             Array<int> &Apart, Array<int> &Adisp)
 {
    //Calculate number of elements to be collected from each process
-   mfem::Array<int> Apart(MPI_SZ);
    int locAsz = inArr.Size();
    MPI_Allgather(&locAsz, 1, MPI_INT,
-                 Apart.GetData(),1, MPI_INT,mpiTeam);
+                 Apart.HostWrite(),1, MPI_INT, mpiTeamComm);
 
-   MPI_Barrier(mpiTeam);
+   MPI_Barrier(mpiTeamComm);
 
    //Determine stride for process
-   mfem::Array<int> Adisp(MPI_SZ);
    Adisp[0] = 0;
-   for (int i=1; i<MPI_SZ; ++i)
+   for (int i=1; i<mpiTeamSz; ++i)
    {
       Adisp[i] = Adisp[i-1] + Apart[i-1];
    }
 
-   MPI_Gatherv(inArr.HostReadWrite(), inArr.Size(), MPI_DOUBLE,
+   MPI_Gatherv(inArr.HostRead(), inArr.Size(), MPI_DOUBLE,
                outArr.HostWrite(), Apart.HostRead(), Adisp.HostRead(),
-               MPI_DOUBLE, 0, mpiTeam);
+               MPI_DOUBLE, 0, mpiTeamComm);
 }
 
-void AmgXSolver::GatherArray(Array<int>&Apart, Array<int> &inArr,
-                             Array<int> &outArr,
-                             int MPI_SZ, MPI_Comm &mpiTeam)
+void AmgXSolver::ScatterArray(const Vector &inArr, Vector &outArr,
+                              const int mpiTeamSz, MPI_Comm &mpiTeamComm,
+                              Array<int> &Apart, Array<int> &Adisp)
 {
-   //Calculate number of elements to be collected from each process
-   Apart.SetSize(MPI_SZ);
-   int locAsz = inArr.Size();
-   MPI_Allgather(&locAsz, 1, MPI_INT,
-                 Apart.GetData(),1, MPI_INT,mpiTeam);
 
-   MPI_Barrier(mpiTeam);
-
-   //Determine stride for process
-   mfem::Array<int> Adisp(MPI_SZ);
-   Adisp[0] = 0;
-   for (int i=1; i<MPI_SZ; ++i)
-   {
-      Adisp[i] = Adisp[i-1] + Apart[i-1];
-   }
-
-   MPI_Gatherv(inArr.HostReadWrite(), inArr.Size(), MPI_INT,
-               outArr.HostWrite(), Apart.HostRead(), Adisp.HostRead(),
-               MPI_INT, 0, mpiTeam);
+   MPI_Scatterv(inArr.HostRead(),Apart.HostRead(),Adisp.HostRead(),
+                MPI_DOUBLE,outArr.HostWrite(),outArr.Size(),
+                MPI_DOUBLE, 0, mpiTeamComm);
 }
 
-void AmgXSolver::GatherArray(Array<int64_t> &inArr, Array<int64_t> &outArr,
-                             int MPI_SZ, MPI_Comm &mpiTeam)
+
+void AmgXSolver::SetA(const SparseMatrix &in_A)
 {
-   //Calculate number of elements to be collected from each process
-   mfem::Array<int> Apart(MPI_SZ);
-   int locAsz = inArr.Size();
-   MPI_Allgather(&locAsz, 1, MPI_INT,
-                 Apart.GetData(),1, MPI_INT,mpiTeam);
+   AMGX_matrix_upload_all(AmgXA, in_A.Height(),
+                          in_A.NumNonZeroElems(),
+                          1, 1,
+                          in_A.GetI(),
+                          in_A.GetJ(),
+                          in_A.GetData(), NULL);
 
-   MPI_Barrier(mpiTeam);
-
-   //Determine stride for process
-   mfem::Array<int> Adisp(MPI_SZ);
-   Adisp[0] = 0;
-   for (int i=1; i<MPI_SZ; ++i)
-   {
-      Adisp[i] = Adisp[i-1] + Apart[i-1];
-   }
-
-   MPI_Gatherv(inArr.HostReadWrite(), inArr.Size(), MPI_INT64_T,
-               outArr.HostWrite(), Apart.HostRead(), Adisp.HostRead(),
-               MPI_INT64_T, 0, mpiTeam);
-
-   MPI_Barrier(mpiTeam);
+   AMGX_solver_setup(solver, AmgXA);
+   AMGX_vector_bind(AmgXP, AmgXA);
+   AMGX_vector_bind(AmgXRHS, AmgXA);
 }
-
 
 void AmgXSolver::SetA(const HypreParMatrix &A)
 {
-   //Want to work in devWorld, rank 0 is team leader
-   //and will talk to the gpu
-
-   //Local processor data
-   /*
-    Array<int> loc_I;
-    Array<int64_t> loc_J;
-    Array<double> loc_A;
-
-    // create an AmgX solver object
-    GetLocalA(A, loc_I, loc_J, loc_A);
-   */
 
    hypre_ParCSRMatrix * A_ptr =
       (hypre_ParCSRMatrix *)const_cast<HypreParMatrix&>(A);
 
    hypre_CSRMatrix *A_csr = hypre_MergeDiagAndOffd(A_ptr);
 
-   //int *A_csr_i = hypre_CSRMatrixI(A_csr);
-   //HYPRE_Int *A_csr_j = hypre_CSRMatrixJ(A_csr);
-   //double *A_csr_data = hypre_CSRMatrixData(A_csr);
+   Array<double> loc_A(A_csr->data, (int)A_csr->num_nonzeros);
+   const Array<int> loc_I(A_csr->i, (int)A_csr->num_rows+1);
 
-   Array<int> loc_I(A_csr->i, (int)A_csr->num_rows+1);
-
-   //int64_t * A_csrBigJ = (int64_t*)(A_csr->big_j);
-   //Array<int64_t> myloc_J((int64_t*)(A_csr->big_j), (int)A_csr->num_nonzeros);
-   //Promote array to int64_t
+   //Column index must be int64_t so we must promote here
    Array<int64_t> loc_J((int)A_csr->num_nonzeros);
    for (int i=0; i<A_csr->num_nonzeros; ++i)
    {
       loc_J[i] = A_csr->big_j[i];
    }
 
-   Array<double> loc_A(A_csr->data, (int)A_csr->num_nonzeros);
-
-   /*
-   double errorI(0), errorJ(0), errorData(0);
-   for(int i=0; i<loc_I.Size(); ++i){
-     errorI += (myloc_I[i] - loc_I[i]);
-   }
-
-   //Debugging
-   //printf("num_rows %d num_cols %d num_nnz %d \n",A_csr->num_rows, A_csr->num_cols, A_csr->num_nonzeros);
-   //printf("A_csr_i[end]  %d \n", A_csr_i[loc_I.Size()-1]);
-   printf("loc_J.size() %d \n", loc_J.Size());
-   for(HYPRE_Int i=0; i<loc_J.Size(); ++i){
-     errorJ += (myloc_J[i] - loc_J[i]);
-     //printf("i %d \n", i);
-     //errorJ += A_csr->big_j[i];
-   }
-
-   printf("%d loc_A.Size() \n",loc_A.Size());
-   for(int i=0; i<loc_A.Size(); ++i){
-     errorData += (myloc_A[i] - loc_A[i]);
-   }
-   errorI = sqrt(errorI);
-   errorJ = sqrt(errorJ);
-   errorData = sqrt(errorData);
-   printf("%g %g %g \n", errorI, errorJ, errorData);
-   if(errorI > 1e-12 || errorJ > 1e-12 || errorData > 1e-12){
-     printf("Error too high \n");
-     exit(-1);
-   }
-   */
-
+   //1 GPU per MPI rank
    if (mpi_gpu_mode=="mpi-gpu-exclusive")
    {
-      printf("Same number of mpi ranks to gpus \n");
-
       //Create a vector of offsets describing matrix row partitions
-      mfem::Array<int64_t> rowPart(gpuWorldSize+1); rowPart = 0.0;
+      Array<int64_t> rowPart(gpuWorldSize+1); rowPart = 0.0;
 
       int64_t myStart = A.GetRowStarts()[0];
 
@@ -620,7 +554,7 @@ void AmgXSolver::SetA(const HypreParMatrix &A)
       const int num_nnz = loc_I[local_rows];
 
       AMGX_matrix_upload_distributed(AmgXA, nGlobalRows, local_rows,
-                                     num_nnz, 1, 1, loc_I.HostReadWrite(),
+                                     num_nnz, 1, 1, loc_I.HostRead(),
                                      loc_J.HostReadWrite(), loc_A.HostReadWrite(),
                                      nullptr, dist);
 
@@ -636,52 +570,85 @@ void AmgXSolver::SetA(const HypreParMatrix &A)
    }
 
 
-   Array<int> all_I;
-   Array<int64_t> all_J;
-   Array<double> all_A;
-
-
-   //Determine array sizes
-   int J_allsz(0), all_NNZ(0), nDevRows(0);
-   const int loc_row_len = std::abs(A.RowPart()[1] -
-                                    A.RowPart()[0]); //end of row partition
-   const int loc_Jz_sz = loc_J.Size();
-   const int loc_A_sz = loc_A.Size();
-
-   MPI_Reduce(&loc_row_len, &nDevRows, 1, MPI_INT, MPI_SUM, 0, devWorld);
-   MPI_Reduce(&loc_Jz_sz, &J_allsz, 1, MPI_INT, MPI_SUM, 0, devWorld);
-   MPI_Reduce(&loc_A_sz, &all_NNZ, 1, MPI_INT, MPI_SUM, 0, devWorld);
-
-   MPI_Barrier(devWorld);
-
-   if (myDevWorldRank == 0)
+   if (mpi_gpu_mode == "mpi-teams")
    {
-      all_I.SetSize(nDevRows+devWorldSize);
-      all_J.SetSize(J_allsz); all_J = 0.0;
-      all_A.SetSize(all_NNZ);
-   }
-
-   mfem::Array<int> I_rowInfo;
+      Array<int> all_I;
+      Array<int64_t> all_J;
+      Array<double> all_A;
 
 
-   GatherArray(I_rowInfo, loc_I, all_I, devWorldSize, devWorld);
-   GatherArray(loc_J, all_J, devWorldSize, devWorld);
-   GatherArray(loc_A, all_A, devWorldSize, devWorld);
+      //Determine array sizes
+      int J_allsz(0), all_NNZ(0), nDevRows(0);
+      const int loc_row_len = std::abs(A.RowPart()[1] -
+                                       A.RowPart()[0]); //end of row partition
+      const int loc_Jz_sz = loc_J.Size();
+      const int loc_A_sz = loc_A.Size();
 
-   MPI_Barrier(devWorld);
+      MPI_Reduce(&loc_row_len, &nDevRows, 1, MPI_INT, MPI_SUM, 0, devWorld);
+      MPI_Reduce(&loc_Jz_sz, &J_allsz, 1, MPI_INT, MPI_SUM, 0, devWorld);
+      MPI_Reduce(&loc_A_sz, &all_NNZ, 1, MPI_INT, MPI_SUM, 0, devWorld);
 
-   int local_nnz(0);
-   int64_t local_rows(0);
+      MPI_Barrier(devWorld);
 
-   if (myDevWorldRank == 0)
-   {
+      if (myDevWorldRank == 0)
+      {
+         all_I.SetSize(nDevRows+devWorldSize);
+         all_J.SetSize(J_allsz); all_J = 0.0;
+         all_A.SetSize(all_NNZ);
+      }
 
-      Array<int> z_ind(devWorldSize+1);
-      int iter = 1;
-      while (iter < devWorldSize-1)
+      //Array<int> I_rowInfo;
+
+
+      //GatherArray(I_rowInfo, loc_I, all_I, devWorldSize, devWorld);
+      GatherArray(loc_I, all_I, devWorldSize, devWorld);
+      GatherArray(loc_J, all_J, devWorldSize, devWorld);
+      GatherArray(loc_A, all_A, devWorldSize, devWorld);
+
+      MPI_Barrier(devWorld);
+
+      int local_nnz(0);
+      int64_t local_rows(0);
+
+      if (myDevWorldRank == 0)
       {
 
-         //Determine the indices of zeros in global all_I array
+         Array<int> z_ind(devWorldSize+1);
+         int iter = 1;
+         while (iter < devWorldSize-1)
+         {
+
+            //Determine the indices of zeros in global all_I array
+            int counter = 0;
+            z_ind[counter] = counter;
+            counter++;
+            for (int idx=1; idx<all_I.Size()-1; idx++)
+            {
+               if (all_I[idx]==0)
+               {
+                  z_ind[counter] = idx-1;
+                  counter++;
+               }
+            }
+            z_ind[devWorldSize] = all_I.Size()-1;
+            //End of determining indices of zeros in global all_I Array
+
+            //Bump all_I
+            for (int idx=z_ind[1]+1; idx < z_ind[2]; idx++)
+            {
+               all_I[idx] = all_I[idx-1] + (all_I[idx+1] - all_I[idx]);
+            }
+
+            //Shift array after bump to remove uncesssary values in middle of array
+            for (int idx=z_ind[2]; idx < all_I.Size()-1; ++idx)
+            {
+               all_I[idx] = all_I[idx+1];
+            }
+            iter++;
+         }
+
+         // LAST TIME THROUGH ARRAY
+         //Determine the indices of zeros in global row_ptr array
          int counter = 0;
          z_ind[counter] = counter;
          counter++;
@@ -695,124 +662,85 @@ void AmgXSolver::SetA(const HypreParMatrix &A)
          }
          z_ind[devWorldSize] = all_I.Size()-1;
          //End of determining indices of zeros in global all_I Array
-
-         //Bump all_I
-         for (int idx=z_ind[1]+1; idx < z_ind[2]; idx++)
+         //BUMP all_I one last time
+         for (int idx=z_ind[1]+1; idx < all_I.Size()-1; idx++)
          {
             all_I[idx] = all_I[idx-1] + (all_I[idx+1] - all_I[idx]);
          }
+         local_nnz = all_I[all_I.Size()-devWorldSize];
+         local_rows = nDevRows;
 
-         //Shift array after bump to remove uncesssary values in middle of array
-         for (int idx=z_ind[2]; idx < all_I.Size()-1; ++idx)
+      }
+
+      //Create row partition
+      m_local_rows = local_rows; //class copy
+      Array<int64_t> rowPart;
+
+
+      if (gpuProc == 0)
+      {
+         rowPart.SetSize(gpuWorldSize+1); rowPart=0;
+
+         MPI_Allgather(&local_rows, 1, MPI_INT64_T,
+                       &rowPart.GetData()[1], 1, MPI_INT64_T,
+                       gpuWorld);
+         MPI_Barrier(gpuWorld);
+         //rowPart[gpuWorldSize] = A.M();
+         //Fixup step
+         for (int i=1; i<rowPart.Size(); ++i)
          {
-            all_I[idx] = all_I[idx+1];
+            rowPart[i] += rowPart[i-1];
          }
-         iter++;
+
+         //upload A matrix to AmgX
+         MPI_Barrier(gpuWorld);
+         AMGX_distribution_handle dist;
+         AMGX_distribution_create(&dist, cfg);
+         AMGX_distribution_set_partition_data(dist, AMGX_DIST_PARTITION_OFFSETS,
+                                              rowPart.GetData());
+
+
+         int nGlobalRows = A.M();
+         AMGX_matrix_upload_distributed(AmgXA, nGlobalRows, local_rows,
+                                        local_nnz,
+                                        1, 1, all_I.HostReadWrite(),
+                                        all_J.HostReadWrite(),
+                                        all_A.HostReadWrite(),
+                                        nullptr, dist);
+
+         AMGX_distribution_destroy(dist);
+         MPI_Barrier(gpuWorld);
+
+         AMGX_solver_setup(solver, AmgXA);
+
+
+         //Bind vectors to A
+         AMGX_vector_bind(AmgXP, AmgXA);
+         AMGX_vector_bind(AmgXRHS, AmgXA);
       }
+      return;
+   }//IF a team of mpi ranks are sharing a GPU
 
-      // LAST TIME THROUGH ARRAY
-      //Determine the indices of zeros in global row_ptr array
-      int counter = 0;
-      z_ind[counter] = counter;
-      counter++;
-      for (int idx=1; idx<all_I.Size()-1; idx++)
-      {
-         if (all_I[idx]==0)
-         {
-            z_ind[counter] = idx-1;
-            counter++;
-         }
-      }
-      z_ind[devWorldSize] = all_I.Size()-1;
-      //End of determining indices of zeros in global all_I Array
-      //BUMP all_I one last time
-      for (int idx=z_ind[1]+1; idx < all_I.Size()-1; idx++)
-      {
-         all_I[idx] = all_I[idx-1] + (all_I[idx+1] - all_I[idx]);
-      }
-      local_nnz = all_I[all_I.Size()-devWorldSize];
-      local_rows = nDevRows;
-
-   }
-
-   //Create row partition
-   m_local_rows = local_rows; //class copy
-   mfem::Array<int64_t> rowPart;
-
-
-   if (gpuProc == 0)
-   {
-      rowPart.SetSize(gpuWorldSize+1); rowPart=0;
-
-      MPI_Allgather(&local_rows, 1, MPI_INT64_T,
-                    &rowPart.GetData()[1], 1, MPI_INT64_T,
-                    gpuWorld);
-      MPI_Barrier(gpuWorld);
-      //rowPart[gpuWorldSize] = A.M();
-      //Fixup step
-      for (int i=1; i<rowPart.Size(); ++i)
-      {
-         rowPart[i] += rowPart[i-1];
-      }
-
-      //upload A matrix to AmgX
-      MPI_Barrier(gpuWorld);
-      AMGX_distribution_handle dist;
-      AMGX_distribution_create(&dist, cfg);
-      AMGX_distribution_set_partition_data(dist, AMGX_DIST_PARTITION_OFFSETS,
-                                           rowPart.GetData());
-
-
-      int nGlobalRows = A.M();
-      AMGX_matrix_upload_distributed(AmgXA, nGlobalRows, local_rows,
-                                     local_nnz,
-                                     1, 1, all_I.HostReadWrite(),
-                                     all_J.HostReadWrite(),
-                                     all_A.HostReadWrite(),
-                                     nullptr, dist);
-
-      AMGX_distribution_destroy(dist);
-      MPI_Barrier(gpuWorld);
-
-      AMGX_solver_setup(solver, AmgXA);
-
-
-      //Bind vectors to A
-      AMGX_vector_bind(AmgXP, AmgXA);
-      AMGX_vector_bind(AmgXRHS, AmgXA);
-   }
-
+   mfem_error("Unsupported MPI_GPU combination \n");
 }
 
 void AmgXSolver::SetOperator(const Operator& op)
 {
-   if (const mfem::HypreParMatrix* Aptr =
-          dynamic_cast<const mfem::HypreParMatrix*>(&op))
+   if (const HypreParMatrix* Aptr =
+          dynamic_cast<const HypreParMatrix*>(&op))
    {
       printf("Setting as Hypre Matrix \n");
       SetA(*Aptr);
    }
-   else if (const mfem::SparseMatrix* Aptr =
-               dynamic_cast<const mfem::SparseMatrix*>(&op))
+   else if (const SparseMatrix* Aptr =
+               dynamic_cast<const SparseMatrix*>(&op))
    {
       printf("Setting as Sparse Matrix \n");
       SetA(*Aptr);
    }
 }
 
-void AmgXSolver::SetA(const SparseMatrix &in_A)
-{
-   AMGX_matrix_upload_all(AmgXA, in_A.Height(),
-                          in_A.NumNonZeroElems(),
-                          1, 1,
-                          in_A.GetI(),
-                          in_A.GetJ(),
-                          in_A.GetData(), NULL);
 
-   AMGX_solver_setup(solver, AmgXA);
-   AMGX_vector_bind(AmgXP, AmgXA);
-   AMGX_vector_bind(AmgXRHS, AmgXA);
-}
 
 /* Update A
 void AmgXSolver::updateA(const HypreParMatrix &A)
@@ -857,7 +785,7 @@ void AmgXSolver::updateA(const HypreParMatrix &A)
       all_A.SetSize(all_NNZ);
    }
 
-   mfem::Array<int> I_rowInfo;
+   Array<int> I_rowInfo;
 
 
    GatherArray(I_rowInfo, loc_I, all_I, devWorldSize, devWorld);
@@ -933,7 +861,7 @@ void AmgXSolver::updateA(const HypreParMatrix &A)
 
    //Create row partition
    m_local_rows = local_rows; //class copy
-   mfem::Array<int64_t> rowPart;
+   Array<int64_t> rowPart;
 
 
    if (gpuProc == 0)
@@ -944,43 +872,13 @@ void AmgXSolver::updateA(const HypreParMatrix &A)
 }
 */
 
-void AmgXSolver::GatherArray(Vector &inArr, Vector &outArr,
-                             int MPI_SZ, MPI_Comm &mpi_comm, Array<int> &Apart, Array<int> &Adisp)
-{
-   //Calculate number of elements to be collected from each process
-   int locAsz = inArr.Size();
-   MPI_Allgather(&locAsz, 1, MPI_INT,
-                 Apart.GetData(),1, MPI_INT,mpi_comm);
 
-   MPI_Barrier(mpi_comm);
-
-   //Determine stride for process
-   Adisp[0] = 0;
-   for (int i=1; i<MPI_SZ; ++i)
-   {
-      Adisp[i] = Adisp[i-1] + Apart[i-1];
-   }
-
-   MPI_Gatherv(inArr.HostReadWrite(), inArr.Size(), MPI_DOUBLE,
-               outArr.HostWrite(), Apart.HostRead(), Adisp.HostRead(),
-               MPI_DOUBLE, 0, mpi_comm);
-}
-
-void AmgXSolver::ScatterArray(Vector &inArr, Vector &outArr,
-                              int MPI_SZ, MPI_Comm &mpi_comm, Array<int> &Apart, Array<int> &Adisp)
-{
-
-   MPI_Scatterv(inArr.HostReadWrite(),Apart.HostRead(),Adisp.HostRead(),
-                MPI_DOUBLE,outArr.HostWrite(),outArr.Size(),
-                MPI_DOUBLE, 0, mpi_comm);
-}
-
-void AmgXSolver::solve(mfem::Vector &X, mfem::Vector &B)
+void AmgXSolver::solve(Vector &X, Vector &B)
 {
 
    if (mpi_gpu_mode == "mpi-gpu-exclusive")
    {
-      //mfem::out<<"MPI mode "<<mpi_gpu_mode<<mfem::endl;
+      //out<<"MPI mode "<<mpi_gpu_mode<<endl;
       AMGX_vector_upload(AmgXP, X.Size(), 1, X.HostReadWrite());
       AMGX_vector_upload(AmgXRHS, B.Size(), 1, B.HostReadWrite());
 
@@ -1033,8 +931,6 @@ void AmgXSolver::solve(mfem::Vector &X, mfem::Vector &B)
    }
 
    ScatterArray(all_X, X, devWorldSize, devWorld, Apart_X, Adisp_X);
-
-
 
 }
 
