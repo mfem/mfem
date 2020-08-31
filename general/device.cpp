@@ -66,7 +66,8 @@ bool Device::device_env = false;
 bool Device::mem_host_env = false;
 bool Device::mem_device_env = false;
 #ifdef MFEM_USE_UMPIRE
-bool Device::use_umpire = true;
+bool Device::use_host_umpire = true;
+bool Device::use_device_umpire = true;
 #endif
 
 Device::Device()
@@ -288,7 +289,7 @@ void Device::UpdateMemoryTypeAndClass()
 
 #ifdef MFEM_USE_UMPIRE
    // If MFEM has been compiled with Umpire support, use it as the default
-   if (!mem_host_env && use_umpire) { host_mem_type = MemoryType::HOST_UMPIRE; }
+   if (!mem_host_env && use_host_umpire) { host_mem_type = MemoryType::HOST_UMPIRE; }
 #endif
 
    // Enable the device memory type
@@ -313,7 +314,7 @@ void Device::UpdateMemoryTypeAndClass()
          else
          {
 #ifdef MFEM_USE_UMPIRE
-            if (use_umpire)
+            if (use_device_umpire)
             {
                device_mem_type = MemoryType::DEVICE_UMPIRE;
             }

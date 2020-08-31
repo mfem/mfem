@@ -32,6 +32,7 @@ enum class MemoryType
    HOST_64,             ///< Host memory; aligned at 64 bytes
    HOST_DEBUG,          ///< Host memory; allocated from a "host-debug" pool
    HOST_UMPIRE,         ///< Host memory; using Umpire
+   HOST_PINNED,         ///< Host memory: pinned (page-locked)
    MANAGED,             /**< Managed memory; using CUDA or HIP *MallocManaged
                              and *Free */
    DEVICE,              ///< Device memory; using CUDA or HIP *Malloc and *Free
@@ -317,6 +318,11 @@ public:
        i.e. it will, generally, not be Empty() after this call. */
    inline void Delete();
 
+   /** @brief Delete the owned device pointer. */
+   inline void DeleteDevice();
+
+   inline void UpdateMemoryType(const MemoryType mt);
+
    /// Array subscript operator for host memory.
    inline T &operator[](int idx);
 
@@ -526,6 +532,12 @@ private: // Static methods used by the Memory<T> class
    /// memory type of the host pointer.
    static MemoryType Delete_(void *h_ptr, MemoryType mt, unsigned flags);
 
+   /// Free device memory identified by its host pointer
+   static void DeleteDevice_(void *h_ptr, unsigned & flags);
+
+   static void UpdateMemoryType_(void *h_ptr, unsigned & flags,
+                                 const MemoryType mt);
+
    /// Check if the memory types given the memory class are valid
    static bool MemoryClassCheck_(MemoryClass mc, void *h_ptr,
                                  MemoryType h_mt, size_t bytes, unsigned flags);
@@ -600,8 +612,13 @@ private:
    /// Erase an address from the memory map, as well as all its aliases
    void Erase(void *h_ptr, bool free_dev_ptr = true);
 
+   /// Erase device memory for a given host address
+   void EraseDevice(void *h_ptr);
+
    /// Erase an alias from the aliases map
    void EraseAlias(void *alias_ptr);
+
+   void UpdateMemoryType(void *h_ptr, const MemoryType mt);
 
    /// Return the corresponding device pointer of h_ptr,
    /// allocating and moving the data if needed
@@ -793,6 +810,37 @@ inline void Memory<T>::Delete()
        MemoryManager::Delete_((void*)h_ptr, h_mt, flags) == MemoryType::HOST)
    {
       if (flags & OWNS_HOST) { delete [] h_ptr; }
+   }
+}
+
+template <typename T>
+inline void Memory<T>::DeleteDevice()
+{
+   const bool registered = flags & REGISTERED;
+
+   if (registered)
+   {
+      MemoryManager::DeleteDevice_((void*)h_ptr, flags);
+   }
+}
+
+template <typename T>
+inline void Memory<T>::UpdateMemoryType(const MemoryType mt)
+{
+   if (flags & REGISTERED)
+   {
+      MFEM_VERIFY(!(flags & VALID_DEVICE),
+                  "cannot update MemoryType when data is on the device");
+      MemoryManager::UpdateMemoryType_((void*)h_ptr, flags, mt);
+   }
+   else
+   {
+      MFEM_VERIFY(flags & OWNS_HOST, "UpdateMemoryType: must own host");
+      if (mt != MemoryType::HOST)
+      {
+         MemoryManager::Register_(nullptr, h_ptr, capacity*sizeof(T), mt, true, false,
+                                  flags);
+      }
    }
 }
 
