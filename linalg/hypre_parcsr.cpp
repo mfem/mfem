@@ -16,6 +16,7 @@
 
 #include "hypre_parcsr.hpp"
 #include <limits>
+#include <cmath>
 
 namespace mfem
 {
@@ -978,6 +979,196 @@ void hypre_ParCSRMatrixSplit(hypre_ParCSRMatrix *A,
 }
 
 /* Based on hypre_CSRMatrixMatvec in hypre's csr_matvec.c */
+void hypre_CSRMatrixAbsMatvec(hypre_CSRMatrix *A,
+                              HYPRE_Real alpha,
+                              HYPRE_Real *x,
+                              HYPRE_Real beta,
+                              HYPRE_Real *y)
+{
+   HYPRE_Real       *A_data   = hypre_CSRMatrixData(A);
+   HYPRE_Int        *A_i      = hypre_CSRMatrixI(A);
+   HYPRE_Int        *A_j      = hypre_CSRMatrixJ(A);
+   HYPRE_Int         num_rows = hypre_CSRMatrixNumRows(A);
+
+   HYPRE_Int        *A_rownnz = hypre_CSRMatrixRownnz(A);
+   HYPRE_Int         num_rownnz = hypre_CSRMatrixNumRownnz(A);
+
+   HYPRE_Real       *x_data = x;
+   HYPRE_Real       *y_data = y;
+
+   HYPRE_Real        temp, tempx;
+
+   HYPRE_Int         i, jj;
+
+   HYPRE_Int         m;
+
+   HYPRE_Real        xpar=0.7;
+
+   /*-----------------------------------------------------------------------
+    * Do (alpha == 0.0) computation - RDF: USE MACHINE EPS
+    *-----------------------------------------------------------------------*/
+
+   if (alpha == 0.0)
+   {
+      for (i = 0; i < num_rows; i++)
+      {
+         y_data[i] *= beta;
+      }
+      return;
+   }
+
+   /*-----------------------------------------------------------------------
+    * y = (beta/alpha)*y
+    *-----------------------------------------------------------------------*/
+
+   temp = beta / alpha;
+
+   if (temp != 1.0)
+   {
+      if (temp == 0.0)
+      {
+         for (i = 0; i < num_rows; i++)
+         {
+            y_data[i] = 0.0;
+         }
+      }
+      else
+      {
+         for (i = 0; i < num_rows; i++)
+         {
+            y_data[i] *= temp;
+         }
+      }
+   }
+
+   /*-----------------------------------------------------------------
+    * y += abs(A)*x
+    *-----------------------------------------------------------------*/
+
+   /* use rownnz pointer to do the abs(A)*x multiplication
+      when num_rownnz is smaller than num_rows */
+
+   if (num_rownnz < xpar*(num_rows))
+   {
+      for (i = 0; i < num_rownnz; i++)
+      {
+         m = A_rownnz[i];
+
+         tempx = 0;
+         for (jj = A_i[m]; jj < A_i[m+1]; jj++)
+         {
+            tempx += std::abs(A_data[jj])*x_data[A_j[jj]];
+         }
+         y_data[m] += tempx;
+      }
+   }
+   else
+   {
+      for (i = 0; i < num_rows; i++)
+      {
+         tempx = 0;
+         for (jj = A_i[i]; jj < A_i[i+1]; jj++)
+         {
+            tempx += std::abs(A_data[jj])*x_data[A_j[jj]];
+         }
+         y_data[i] += tempx;
+      }
+   }
+
+   /*-----------------------------------------------------------------
+    * y = alpha*y
+    *-----------------------------------------------------------------*/
+
+   if (alpha != 1.0)
+   {
+      for (i = 0; i < num_rows; i++)
+      {
+         y_data[i] *= alpha;
+      }
+   }
+
+}
+
+/* Based on hypre_CSRMatrixMatvecT in hypre's csr_matvec.c */
+void hypre_CSRMatrixAbsMatvecT(hypre_CSRMatrix *A,
+                               HYPRE_Real alpha,
+                               HYPRE_Real *x,
+                               HYPRE_Real beta,
+                               HYPRE_Real *y)
+{
+   HYPRE_Real       *A_data   = hypre_CSRMatrixData(A);
+   HYPRE_Int        *A_i      = hypre_CSRMatrixI(A);
+   HYPRE_Int        *A_j      = hypre_CSRMatrixJ(A);
+   HYPRE_Int         num_rows = hypre_CSRMatrixNumRows(A);
+   HYPRE_Int         num_cols = hypre_CSRMatrixNumCols(A);
+
+   HYPRE_Real       *x_data = x;
+   HYPRE_Real       *y_data = y;
+
+   HYPRE_Int         i, j, jj;
+
+   HYPRE_Real        temp;
+
+   if (alpha == 0.0)
+   {
+      for (i = 0; i < num_cols; i++)
+      {
+         y_data[i] *= beta;
+      }
+      return;
+   }
+
+   /*-----------------------------------------------------------------------
+    * y = (beta/alpha)*y
+    *-----------------------------------------------------------------------*/
+
+   temp = beta / alpha;
+
+   if (temp != 1.0)
+   {
+      if (temp == 0.0)
+      {
+         for (i = 0; i < num_cols; i++)
+         {
+            y_data[i] = 0.0;
+         }
+      }
+      else
+      {
+         for (i = 0; i < num_cols; i++)
+         {
+            y_data[i] *= temp;
+         }
+      }
+   }
+
+   /*-----------------------------------------------------------------
+    * y += abs(A)^T*x
+    *-----------------------------------------------------------------*/
+
+   for (i = 0; i < num_rows; i++)
+   {
+      for (jj = A_i[i]; jj < A_i[i+1]; jj++)
+      {
+         j = A_j[jj];
+         y_data[j] += std::abs(A_data[jj]) * x_data[i];
+      }
+   }
+
+   /*-----------------------------------------------------------------
+    * y = alpha*y
+    *-----------------------------------------------------------------*/
+
+   if (alpha != 1.0)
+   {
+      for (i = 0; i < num_cols; i++)
+      {
+         y_data[i] *= alpha;
+      }
+   }
+}
+
+/* Based on hypre_CSRMatrixMatvec in hypre's csr_matvec.c */
 void hypre_CSRMatrixBooleanMatvec(hypre_CSRMatrix *A,
                                   HYPRE_Bool alpha,
                                   HYPRE_Bool *x,
@@ -1234,6 +1425,143 @@ hypre_ParCSRCommHandleCreate_bool(HYPRE_Int            job,
    hypre_ParCSRCommHandleRequests(comm_handle)    = requests;
 
    return comm_handle;
+}
+
+/* Based on hypre_ParCSRMatrixMatvec in par_csr_matvec.c */
+void hypre_ParCSRMatrixAbsMatvec(hypre_ParCSRMatrix *A,
+                                 HYPRE_Real alpha,
+                                 HYPRE_Real *x,
+                                 HYPRE_Real beta,
+                                 HYPRE_Real *y)
+{
+   hypre_ParCSRCommHandle *comm_handle;
+   hypre_ParCSRCommPkg *comm_pkg = hypre_ParCSRMatrixCommPkg(A);
+   hypre_CSRMatrix   *diag   = hypre_ParCSRMatrixDiag(A);
+   hypre_CSRMatrix   *offd   = hypre_ParCSRMatrixOffd(A);
+
+   HYPRE_Int          num_cols_offd = hypre_CSRMatrixNumCols(offd);
+   HYPRE_Int          num_sends, i, j, index;
+
+   HYPRE_Real        *x_tmp, *x_buf;
+
+   x_tmp = mfem_hypre_CTAlloc(HYPRE_Real, num_cols_offd);
+
+   /*---------------------------------------------------------------------
+    * If there exists no CommPkg for A, a CommPkg is generated using
+    * equally load balanced partitionings
+    *--------------------------------------------------------------------*/
+   if (!comm_pkg)
+   {
+      hypre_MatvecCommPkgCreate(A);
+      comm_pkg = hypre_ParCSRMatrixCommPkg(A);
+   }
+
+   num_sends = hypre_ParCSRCommPkgNumSends(comm_pkg);
+   x_buf = mfem_hypre_CTAlloc(
+              HYPRE_Real, hypre_ParCSRCommPkgSendMapStart(comm_pkg, num_sends));
+
+   index = 0;
+   for (i = 0; i < num_sends; i++)
+   {
+      j = hypre_ParCSRCommPkgSendMapStart(comm_pkg, i);
+      for ( ; j < hypre_ParCSRCommPkgSendMapStart(comm_pkg, i+1); j++)
+      {
+         x_buf[index++] = x[hypre_ParCSRCommPkgSendMapElmt(comm_pkg, j)];
+      }
+   }
+
+   comm_handle = hypre_ParCSRCommHandleCreate(1, comm_pkg, x_buf, x_tmp);
+
+   hypre_CSRMatrixAbsMatvec(diag, alpha, x, beta, y);
+
+   hypre_ParCSRCommHandleDestroy(comm_handle);
+
+   if (num_cols_offd)
+   {
+      hypre_CSRMatrixAbsMatvec(offd, alpha, x_tmp, 1.0, y);
+   }
+
+   mfem_hypre_TFree(x_buf);
+   mfem_hypre_TFree(x_tmp);
+}
+
+/* Based on hypre_ParCSRMatrixMatvecT in par_csr_matvec.c */
+void hypre_ParCSRMatrixAbsMatvecT(hypre_ParCSRMatrix *A,
+                                  HYPRE_Real alpha,
+                                  HYPRE_Real *x,
+                                  HYPRE_Real beta,
+                                  HYPRE_Real *y)
+{
+   hypre_ParCSRCommHandle *comm_handle;
+   hypre_ParCSRCommPkg    *comm_pkg = hypre_ParCSRMatrixCommPkg(A);
+   hypre_CSRMatrix        *diag = hypre_ParCSRMatrixDiag(A);
+   hypre_CSRMatrix        *offd = hypre_ParCSRMatrixOffd(A);
+   HYPRE_Real             *y_tmp;
+   HYPRE_Real             *y_buf;
+
+   HYPRE_Int               num_cols_offd = hypre_CSRMatrixNumCols(offd);
+
+   HYPRE_Int               i, j, jj, end, num_sends;
+
+   y_tmp = mfem_hypre_TAlloc(HYPRE_Real, num_cols_offd);
+
+   /*---------------------------------------------------------------------
+    * If there exists no CommPkg for A, a CommPkg is generated using
+    * equally load balanced partitionings
+    *--------------------------------------------------------------------*/
+   if (!comm_pkg)
+   {
+      hypre_MatvecCommPkgCreate(A);
+      comm_pkg = hypre_ParCSRMatrixCommPkg(A);
+   }
+
+   num_sends = hypre_ParCSRCommPkgNumSends(comm_pkg);
+   y_buf = mfem_hypre_CTAlloc(
+              HYPRE_Real, hypre_ParCSRCommPkgSendMapStart(comm_pkg, num_sends));
+
+   if (num_cols_offd)
+   {
+#if MFEM_HYPRE_VERSION >= 21100
+      if (A->offdT)
+      {
+         // offdT is optional. Used only if it's present.
+         hypre_CSRMatrixAbsMatvec(A->offdT, alpha, x, 0., y_tmp);
+      }
+      else
+#endif
+      {
+         hypre_CSRMatrixAbsMatvecT(offd, alpha, x, 0., y_tmp);
+      }
+   }
+
+   comm_handle = hypre_ParCSRCommHandleCreate(2, comm_pkg, y_tmp, y_buf);
+
+#if MFEM_HYPRE_VERSION >= 21100
+   if (A->diagT)
+   {
+      // diagT is optional. Used only if it's present.
+      hypre_CSRMatrixAbsMatvec(A->diagT, alpha, x, beta, y);
+   }
+   else
+#endif
+   {
+      hypre_CSRMatrixAbsMatvecT(diag, alpha, x, beta, y);
+   }
+
+   hypre_ParCSRCommHandleDestroy(comm_handle);
+
+   for (i = 0; i < num_sends; i++)
+   {
+      end = hypre_ParCSRCommPkgSendMapStart(comm_pkg, i+1);
+      for (j = hypre_ParCSRCommPkgSendMapStart(comm_pkg, i); j < end; j++)
+      {
+         jj = hypre_ParCSRCommPkgSendMapElmt(comm_pkg, j);
+         y[jj] += y_buf[j];
+      }
+   }
+
+   mfem_hypre_TFree(y_buf);
+   mfem_hypre_TFree(y_tmp);
 }
 
 /* Based on hypre_ParCSRMatrixMatvec in par_csr_matvec.c */
