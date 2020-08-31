@@ -79,7 +79,7 @@ void KellyErrorEstimator::ComputeEstimates()
    for (int e = 0; e < xfes->GetNE(); e++)
    {
       auto attr = xfes->GetAttribute(e);
-      if(attributes.Size() && attributes.Find(attr) == -1)
+      if (attributes.Size() && attributes.Find(attr) == -1)
       {
          continue;
       }
@@ -100,92 +100,92 @@ void KellyErrorEstimator::ComputeEstimates()
    auto int_rules = IntegrationRules();
    for (int f = 0; f < pmesh->GetNumFaces(); f++)
    {
-         auto FT = pmesh->GetFaceElementTransformations(f);
+      auto FT = pmesh->GetFaceElementTransformations(f);
 
-         ///@TODO how to obtain the "correct" rule?
-         const auto int_rule =
-            int_rules.Get(FT->FaceGeom, 2 * FT->Face->Order() - 1);
-         const auto nip = int_rule.GetNPoints();
+      ///@TODO how to obtain the "correct" rule?
+      const auto int_rule =
+         int_rules.Get(FT->FaceGeom, 2 * FT->Face->Order() - 1);
+      const auto nip = int_rule.GetNPoints();
 
-         if (pmesh->FaceIsInterior(f))
+      if (pmesh->FaceIsInterior(f))
+      {
+         int Inf1, Inf2, NCFace;
+         pmesh->GetFaceInfos(f, &Inf1, &Inf2, &NCFace);
+
+         // Convention
+         // * Conforming face: Face side with smaller element id handles
+         // the integration
+         // * Non-conforming face: The slave handles the integration.
+         // See FaceInfo documentation for details.
+         bool isNCSlave    = FT->Elem2No >= 0 && NCFace >= 0;
+         bool isConforming = FT->Elem2No >= 0 && NCFace == -1;
+         if ((FT->Elem1No < FT->Elem2No && isConforming) || isNCSlave)
          {
-            int Inf1, Inf2, NCFace;
-            pmesh->GetFaceInfos(f, &Inf1, &Inf2, &NCFace);
-
-            // Convention
-            // * Conforming face: Face side with smaller element id handles
-            // the integration
-            // * Non-conforming face: The slave handles the integration.
-            // See FaceInfo documentation for details.
-            bool isNCSlave    = FT->Elem2No >= 0 && NCFace >= 0;
-            bool isConforming = FT->Elem2No >= 0 && NCFace == -1;
-            if ((FT->Elem1No < FT->Elem2No && isConforming) || isNCSlave)
-            { 
-               if(attributes.Size() && 
-                     (attributes.Find(FT->Elem1->Attribute) == -1 
-                     || attributes.Find(FT->Elem2->Attribute) == -1))
-               {
-                     continue;
-               }
-
-               IntegrationRule eir;
-               Vector jumps(nip);
-
-               // Integral over local half face on the side of e₁
-               // i.e. the numerical integration of ∫ flux ⋅ n dS₁
-               for (int i = 0; i < nip; i++)
-               {
-                     // Evaluate flux at IP
-                     auto fip = int_rule.IntPoint(i);
-                     IntegrationPoint ip;
-                     FT->Loc1.Transform(fip, ip);
-
-                     Vector val(flux_space->GetVDim());
-                     flux.GetVectorValue(FT->Elem1No, ip, val);
-
-                     // And build scalar product with normal
-                     Vector normal(pmesh->Dimension());
-                     FT->Face->SetIntPoint(&fip);
-                     CalcOrtho(FT->Face->Jacobian(), normal);
-
-                     jumps(i) = val * normal * fip.weight;
-               }
-
-               // Substract integral over half face of e₂
-               // i.e. the numerical integration of ∫ flux ⋅ n dS₂
-               for (int i = 0; i < nip; i++)
-               {
-                     // Evaluate flux vector at IP
-                     auto fip = int_rule.IntPoint(i);
-                     IntegrationPoint ip;
-                     FT->Loc2.Transform(fip, ip);
-
-                     Vector val(flux_space->GetVDim());
-                     flux.GetVectorValue(FT->Elem2No, ip, val);
-
-                     // And build scalar product with normal
-                     Vector normal(pmesh->Dimension());
-                     FT->Face->SetIntPoint(&fip);
-                     CalcOrtho(FT->Face->Jacobian(), normal);
-
-                     jumps(i) -= val * normal * fip.weight;
-               }
-
-               // Finalize "local" L₂ contribution
-               for (int i = 0; i < nip; i++)
-               {
-                     jumps(i) *= jumps(i);
-               }
-               double jump_integral = jumps.Sum();
-
-               // A local face is shared between two local elements, so we
-               // can get away with integrating the jump only once and add
-               // it to both elements. To minimize communication, the jump
-               // of shared faces is computed locally by each process.
-               error_estimates(FT->Elem1No) += jump_integral;
-               error_estimates(FT->Elem2No) += jump_integral;
+            if (attributes.Size() &&
+                (attributes.Find(FT->Elem1->Attribute) == -1
+                 || attributes.Find(FT->Elem2->Attribute) == -1))
+            {
+               continue;
             }
+
+            IntegrationRule eir;
+            Vector jumps(nip);
+
+            // Integral over local half face on the side of e₁
+            // i.e. the numerical integration of ∫ flux ⋅ n dS₁
+            for (int i = 0; i < nip; i++)
+            {
+               // Evaluate flux at IP
+               auto fip = int_rule.IntPoint(i);
+               IntegrationPoint ip;
+               FT->Loc1.Transform(fip, ip);
+
+               Vector val(flux_space->GetVDim());
+               flux.GetVectorValue(FT->Elem1No, ip, val);
+
+               // And build scalar product with normal
+               Vector normal(pmesh->Dimension());
+               FT->Face->SetIntPoint(&fip);
+               CalcOrtho(FT->Face->Jacobian(), normal);
+
+               jumps(i) = val * normal * fip.weight;
+            }
+
+            // Substract integral over half face of e₂
+            // i.e. the numerical integration of ∫ flux ⋅ n dS₂
+            for (int i = 0; i < nip; i++)
+            {
+               // Evaluate flux vector at IP
+               auto fip = int_rule.IntPoint(i);
+               IntegrationPoint ip;
+               FT->Loc2.Transform(fip, ip);
+
+               Vector val(flux_space->GetVDim());
+               flux.GetVectorValue(FT->Elem2No, ip, val);
+
+               // And build scalar product with normal
+               Vector normal(pmesh->Dimension());
+               FT->Face->SetIntPoint(&fip);
+               CalcOrtho(FT->Face->Jacobian(), normal);
+
+               jumps(i) -= val * normal * fip.weight;
+            }
+
+            // Finalize "local" L₂ contribution
+            for (int i = 0; i < nip; i++)
+            {
+               jumps(i) *= jumps(i);
+            }
+            double jump_integral = jumps.Sum();
+
+            // A local face is shared between two local elements, so we
+            // can get away with integrating the jump only once and add
+            // it to both elements. To minimize communication, the jump
+            // of shared faces is computed locally by each process.
+            error_estimates(FT->Elem1No) += jump_integral;
+            error_estimates(FT->Elem2No) += jump_integral;
          }
+      }
    }
 
    // 3. Add error contribution from shared interior faces
@@ -194,80 +194,80 @@ void KellyErrorEstimator::ComputeEstimates()
 
    for (int sf = 0; sf < pmesh->GetNSharedFaces(); sf++)
    {
-         auto FT = pmesh->GetSharedFaceTransformations(sf, true);
-         if(attributes.Size() && 
-            (attributes.Find(FT->Elem1->Attribute) == -1 
-            || attributes.Find(FT->Elem2->Attribute) == -1))
-         {
-            continue;
-         }
+      auto FT = pmesh->GetSharedFaceTransformations(sf, true);
+      if (attributes.Size() &&
+          (attributes.Find(FT->Elem1->Attribute) == -1
+           || attributes.Find(FT->Elem2->Attribute) == -1))
+      {
+         continue;
+      }
 
-         ///@TODO how to obtain the "correct" rule?
-         const auto int_rule =
-            int_rules.Get(FT->FaceGeom, 2 * FT->Face->Order() - 1);
-         const auto nip = int_rule.GetNPoints();
+      ///@TODO how to obtain the "correct" rule?
+      const auto int_rule =
+         int_rules.Get(FT->FaceGeom, 2 * FT->Face->Order() - 1);
+      const auto nip = int_rule.GetNPoints();
 
-         IntegrationRule eir;
-         Vector jumps(nip);
+      IntegrationRule eir;
+      Vector jumps(nip);
 
-         // Integral over local half face on the side of e₁
-         // i.e. the numerical integration of ∫ flux ⋅ n dS₁
-         for (int i = 0; i < nip; i++)
-         {
-            // Evaluate flux vector at integration point
-            auto fip = int_rule.IntPoint(i);
-            IntegrationPoint ip;
-            FT->Loc1.Transform(fip, ip);
+      // Integral over local half face on the side of e₁
+      // i.e. the numerical integration of ∫ flux ⋅ n dS₁
+      for (int i = 0; i < nip; i++)
+      {
+         // Evaluate flux vector at integration point
+         auto fip = int_rule.IntPoint(i);
+         IntegrationPoint ip;
+         FT->Loc1.Transform(fip, ip);
 
-            Vector val(flux_space->GetVDim());
-            flux.GetVectorValue(FT->Elem1No, ip, val);
+         Vector val(flux_space->GetVDim());
+         flux.GetVectorValue(FT->Elem1No, ip, val);
 
-            Vector normal(pmesh->Dimension());
-            FT->Face->SetIntPoint(&fip);
-            CalcOrtho(FT->Face->Jacobian(), normal);
+         Vector normal(pmesh->Dimension());
+         FT->Face->SetIntPoint(&fip);
+         CalcOrtho(FT->Face->Jacobian(), normal);
 
-            jumps(i) = val * normal * fip.weight;
-         }
+         jumps(i) = val * normal * fip.weight;
+      }
 
-         // Substract integral over non-local half face of e₂
-         // i.e. the numerical integration of ∫ flux ⋅ n dS₂
-         for (int i = 0; i < nip; i++)
-         {
-            // Evaluate flux vector at integration point
-            auto fip = int_rule.IntPoint(i);
-            IntegrationPoint ip;
-            FT->Loc2.Transform(fip, ip);
+      // Substract integral over non-local half face of e₂
+      // i.e. the numerical integration of ∫ flux ⋅ n dS₂
+      for (int i = 0; i < nip; i++)
+      {
+         // Evaluate flux vector at integration point
+         auto fip = int_rule.IntPoint(i);
+         IntegrationPoint ip;
+         FT->Loc2.Transform(fip, ip);
 
-            Vector val(flux_space->GetVDim());
-            flux.GetVectorValue(FT->Elem2No, ip, val);
+         Vector val(flux_space->GetVDim());
+         flux.GetVectorValue(FT->Elem2No, ip, val);
 
-            // Evaluate gauss point
-            Vector normal(pmesh->Dimension());
-            FT->Face->SetIntPoint(&fip);
-            CalcOrtho(FT->Face->Jacobian(), normal);
+         // Evaluate gauss point
+         Vector normal(pmesh->Dimension());
+         FT->Face->SetIntPoint(&fip);
+         CalcOrtho(FT->Face->Jacobian(), normal);
 
-            jumps(i) -= val * normal * fip.weight;
-         }
+         jumps(i) -= val * normal * fip.weight;
+      }
 
-         // Finalize "local" L₂ contribution
-         for (int i = 0; i < nip; i++)
-         {
-            jumps(i) *= jumps(i);
-         }
-         double jump_integral = jumps.Sum();
+      // Finalize "local" L₂ contribution
+      for (int i = 0; i < nip; i++)
+      {
+         jumps(i) *= jumps(i);
+      }
+      double jump_integral = jumps.Sum();
 
-         error_estimates(FT->Elem1No) += jump_integral;
-         // We skip "error_estimates(FT->Elem2No) += jump_integral"
-         // because the error is stored on the remote process and
-         // recomputed there.
+      error_estimates(FT->Elem1No) += jump_integral;
+      // We skip "error_estimates(FT->Elem2No) += jump_integral"
+      // because the error is stored on the remote process and
+      // recomputed there.
    }
 
    // Finalize element errors
    for (int e = 0; e < xfes->GetNE(); e++)
    {
-         auto factor = compute_element_coefficient(pmesh, e);
-         // The sqrt belongs to the norm and hₑ to the indicator.
-         error_estimates(e) = sqrt(factor * error_estimates(e));
+      auto factor = compute_element_coefficient(pmesh, e);
+      // The sqrt belongs to the norm and hₑ to the indicator.
+      error_estimates(e) = sqrt(factor * error_estimates(e));
    }
 
    current_sequence = solution->FESpace()->GetMesh()->GetSequence();
@@ -275,7 +275,7 @@ void KellyErrorEstimator::ComputeEstimates()
    // Finish by computing the global error.
    double process_local_error = error_estimates.Sum();
    MPI_Allreduce(&process_local_error, &total_error, 1, MPI_DOUBLE,
-                  MPI_SUM, xfes->GetComm());
+                 MPI_SUM, xfes->GetComm());
 }
 
 #endif // MFEM_USE_MPI
