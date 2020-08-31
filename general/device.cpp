@@ -12,9 +12,10 @@
 #include "forall.hpp"
 #include "occa.hpp"
 #ifdef MFEM_USE_CEED
-#include <ceed.h>
+#include "../fem/libceed/ceed.hpp"
 #endif
 
+#include <unordered_map>
 #include <string>
 #include <map>
 
@@ -33,6 +34,9 @@ occa::device occaDevice;
 
 #ifdef MFEM_USE_CEED
 Ceed ceed = NULL;
+
+CeedBasisMap ceed_basis_map;
+CeedRestrMap ceed_restr_map;
 #endif
 
 // Backends listed by priority, high to low:
@@ -154,6 +158,16 @@ Device::~Device()
    {
       free(device_option);
 #ifdef MFEM_USE_CEED
+      // Destroy FES -> CeedBasis, CeedElemRestriction hash table contents
+      for (auto entry : internal::ceed_basis_map)
+      {
+         CeedBasisDestroy(&entry.second);
+      }
+      for (auto entry : internal::ceed_restr_map)
+      {
+         CeedElemRestrictionDestroy(&entry.second);
+      }
+      // Destroy Ceed context
       CeedDestroy(&internal::ceed);
 #endif
       mm.Destroy();
