@@ -274,11 +274,10 @@ void DiffusionIntegrator::SetupPA(const FiniteElementSpace &fes)
 #ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
-      if (ceedDataPtr) { delete ceedDataPtr; }
-      CeedData* ptr = new CeedData();
-      ceedDataPtr = ptr;
-      InitCeedCoeff(Q, ptr);
-      return CeedPADiffusionAssemble(fes, *ir, *ptr);
+      delete ceedDataPtr;
+      ceedDataPtr = new CeedData;
+      InitCeedCoeff(Q, ceedDataPtr);
+      return CeedPADiffusionAssemble(fes, *ir, *ceedDataPtr);
    }
 #endif
    const int dims = el.GetDim();
