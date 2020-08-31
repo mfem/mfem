@@ -90,6 +90,9 @@ static void MFEM_VERIFY_TYPES(const MemoryType h_mt, const MemoryType d_mt)
    const bool sync =
       (h_mt == MemoryType::HOST_UMPIRE && d_mt == MemoryType::DEVICE_UMPIRE) ||
       (h_mt == MemoryType::HOST_UMPIRE && d_mt == MemoryType::DEVICE_TEMP_UMPIRE) ||
+      (h_mt == MemoryType::HOST && d_mt == MemoryType::DEVICE_UMPIRE) ||
+      (h_mt == MemoryType::HOST && d_mt == MemoryType::DEVICE_TEMP_UMPIRE) ||
+      (h_mt == MemoryType::HOST_PINNED && d_mt == MemoryType::DEVICE_TEMP_UMPIRE) ||
       (h_mt == MemoryType::HOST_DEBUG && d_mt == MemoryType::DEVICE_DEBUG) ||
       (h_mt == MemoryType::MANAGED && d_mt == MemoryType::MANAGED) ||
       (h_mt == MemoryType::HOST_64 && d_mt == MemoryType::DEVICE) ||
@@ -406,6 +409,15 @@ public:
    { return CuMemcpyDtoH(dst, src, bytes); }
 };
 
+/// The CUDA page-locked host memory space
+class CudaHostMemorySpace: public HostMemorySpace
+{
+public:
+   CudaHostMemorySpace(): HostMemorySpace() { }
+   void Alloc(void ** ptr, size_t bytes) override { CuMemAllocHost(ptr, bytes); }
+   void Dealloc(void *ptr) override { CuMemFreeHost(ptr); }
+};
+
 /// The HIP device memory space
 class HipDeviceMemorySpace: public DeviceMemorySpace
 {
@@ -505,8 +517,8 @@ public:
       }
       MemoryManager::SetUmpireHostAllocatorId(id);
    }
-   void Alloc(void **ptr, size_t bytes) { *ptr = h_allocator.allocate(bytes); }
-   void Dealloc(void *ptr) { h_allocator.deallocate(ptr); }
+   void Alloc(void **ptr, size_t bytes) override { *ptr = h_allocator.allocate(bytes); }
+   void Dealloc(void *ptr) override { h_allocator.deallocate(ptr); }
    void Insert(void *ptr, size_t bytes)
    { mfem_error("UmpireHostMemorySpace::Insert is unsupported"); }
 };
@@ -559,9 +571,9 @@ public:
             mfem_error("Unknown Umpire AllocatorType");
       }
    }
-   void Alloc(Memory &base) { base.d_ptr = d_allocator.allocate(base.bytes); }
-   void Dealloc(Memory &base) { d_allocator.deallocate(base.d_ptr); }
-   void *HtoD(void *dst, const void *src, size_t bytes)
+   void Alloc(Memory &base) override { base.d_ptr = d_allocator.allocate(base.bytes); }
+   void Dealloc(Memory &base) override { d_allocator.deallocate(base.d_ptr); }
+   void *HtoD(void *dst, const void *src, size_t bytes) override
    {
 #ifdef MFEM_USE_CUDA
       return CuMemcpyHtoD(dst, src, bytes);
@@ -571,7 +583,7 @@ public:
 #endif
       //rm.copy(dst, const_cast<void*>(src), bytes); return dst;
    }
-   void *DtoD(void* dst, const void* src, size_t bytes)
+   void *DtoD(void* dst, const void* src, size_t bytes) override
    {
 #ifdef MFEM_USE_CUDA
       return CuMemcpyDtoD(dst, src, bytes);
@@ -581,7 +593,7 @@ public:
 #endif
       //rm.copy(dst, const_cast<void*>(src), bytes); return dst;
    }
-   void *DtoH(void *dst, const void *src, size_t bytes)
+   void *DtoH(void *dst, const void *src, size_t bytes) override
    {
 #ifdef MFEM_USE_CUDA
       return CuMemcpyDtoH(dst, src, bytes);
@@ -685,6 +697,7 @@ private:
       {
          case MT::HOST_DEBUG: return new MmuHostMemorySpace();
          case MT::HOST_UMPIRE: return new UmpireHostMemorySpace();
+         case MT::HOST_PINNED: return new CudaHostMemorySpace();
          default: MFEM_ABORT("Unknown host memory controller!");
       }
       return nullptr;
@@ -823,6 +836,23 @@ MemoryType MemoryManager::Delete_(void *h_ptr, MemoryType mt, unsigned flags)
    return mt;
 }
 
+void MemoryManager::DeleteDevice_(void *h_ptr, unsigned & flags)
+{
+   const bool owns_device = flags & Mem::OWNS_DEVICE;
+   if (owns_device)
+   {
+      mm.EraseDevice(h_ptr);
+      flags = (flags | Mem::VALID_HOST) & ~Mem::VALID_DEVICE;
+   }
+}
+
+void MemoryManager::UpdateMemoryType_(void *h_ptr, unsigned & flags,
+                                      const MemoryType mt)
+{
+   // TODO tms: not safe if we change the memory type on the host or device
+   // and the new type's move/erase is different
+   mm.UpdateMemoryType(h_ptr, mt);
+}
 bool MemoryManager::MemoryClassCheck_(MemoryClass mc, void *h_ptr,
                                       MemoryType h_mt, size_t bytes,
                                       unsigned flags)
@@ -1225,6 +1255,36 @@ void MemoryManager::Erase(void *h_ptr, bool free_dev_ptr)
    maps->memories.erase(mem_map_iter);
 }
 
+void MemoryManager::EraseDevice(void *h_ptr)
+{
+   if (!h_ptr) { return; }
+   auto mem_map_iter = maps->memories.find(h_ptr);
+   if (mem_map_iter == maps->memories.end()) { mfem_error("Unknown pointer!"); }
+   internal::Memory &mem = mem_map_iter->second;
+   if (mem.d_ptr) { ctrl->Device(mem.d_mt)->Dealloc(mem);}
+   mem.d_ptr = nullptr;
+}
+
+void MemoryManager::UpdateMemoryType(void *h_ptr, const MemoryType mt)
+{
+   if (!h_ptr) { return; }
+
+   const bool is_host_mem = IsHostMemory(mt);
+   const MemType dual_mt = GetDualMemoryType_(mt);
+   const MemType h_mt = is_host_mem ? mt : dual_mt;
+   const MemType d_mt = is_host_mem ? dual_mt : mt;
+
+   auto mem_map_iter = maps->memories.find(h_ptr);
+   if (mem_map_iter == maps->memories.end()) { mfem_error("Unknown pointer!"); }
+   internal::Memory &mem = mem_map_iter->second;
+   MFEM_VERIFY(mem.h_mt == h_mt, "Canont change the host memory type");
+   if (mem.d_mt == d_mt) { return; }
+   MFEM_VERIFY(mem.d_ptr == nullptr,
+               "Cannot change the memory type if d_ptr != nullptr");
+   auto old = maps->memories.erase(mem_map_iter);
+   maps->memories.emplace(h_ptr, internal::Memory(h_ptr, mem.bytes, h_mt, d_mt));
+}
+
 void MemoryManager::EraseAlias(void *alias_ptr)
 {
    if (!alias_ptr) { return; }
@@ -1462,7 +1522,7 @@ MemoryType MemoryManager::device_temp_mem_type = MemoryType::HOST;
 
 const char *MemoryTypeName[MemoryTypeSize] =
 {
-   "host-std", "host-32", "host-64", "host-debug", "host-umpire",
+   "host-std", "host-32", "host-64", "host-debug", "host-umpire", "host-pinned",
 #if defined(MFEM_USE_CUDA)
    "cuda-uvm",
    "cuda",

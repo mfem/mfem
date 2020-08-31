@@ -746,6 +746,13 @@ public:
       tdata.New(i*j*k);
    }
 
+   DenseTensor(int i, int j, int k, MemoryType mt)
+      : Mk(NULL, i, j)
+   {
+      nk = k;
+      tdata.New(i*j*k, mt);
+   }
+
    /// Copy constructor: deep copy
    DenseTensor(const DenseTensor &other)
       : Mk(NULL, other.Mk.height, other.Mk.width), nk(other.nk)
@@ -768,9 +775,9 @@ public:
 
    int TotalSize() const { return SizeI()*SizeJ()*SizeK(); }
 
-   void SetSize(int i, int j, int k)
+   void SetSize(int i, int j, int k, MemoryType mt_ = MemoryType::SIZE)
    {
-      const MemoryType mt = tdata.GetMemoryType();
+      const MemoryType mt = mt_ == MemoryType::SIZE ? tdata.GetMemoryType() : mt_;
       tdata.Delete();
       Mk.UseExternalData(NULL, i, j);
       nk = k;

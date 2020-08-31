@@ -121,7 +121,8 @@ private:
    static bool device_env, mem_host_env, mem_device_env;
    static Device device_singleton;
 #ifdef MFEM_USE_UMPIRE
-   static bool use_umpire;
+   static bool use_host_umpire;
+   static bool use_device_umpire;
 #endif
 
    MODES mode{Device::SEQUENTIAL};
@@ -275,8 +276,10 @@ public:
    static bool GetGPUAwareMPI() { return Get().mpi_gpu_aware; }
 
 #ifdef MFEM_USE_UMPIRE
-   static bool UseUmpire() { return Get().use_umpire; }
-   static void UseUmpire(bool use) { Get().use_umpire = use; }
+   static bool UseHostUmpire() { return Get().use_host_umpire; }
+   static void UseHostUmpire(bool use) { Get().use_host_umpire = use; }
+   static bool UseDeviceUmpire() { return Get().use_device_umpire; }
+   static void UseDeviceUmpire(bool use) { Get().use_device_umpire = use; }
 #endif
 };
 
