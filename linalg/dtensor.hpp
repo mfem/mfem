@@ -116,28 +116,14 @@ public:
 
    /// Const accessor for the data
    template <typename... Args> MFEM_HOST_DEVICE inline
-   const Scalar& operator()(Args... args) const
-   {
-      static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
-      return data[ TensorInd<1, Dim, Args...>::result(sizes, args...) ];
-   }
-
-   /// Accessor for the data
-   template <typename... Args> MFEM_HOST_DEVICE inline
-   Scalar& operator()(Args... args)
+   Scalar& operator()(Args... args) const
    {
       static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
       return data[ TensorInd<1, Dim, Args...>::result(sizes, args...) ];
    }
 
    /// Subscript operator where the tensor is viewed as a 1D array.
-   MFEM_HOST_DEVICE inline const Scalar& operator[](int i) const
-   {
-      return data[i];
-   }
-
-   /// Subscript operator where the tensor is viewed as a 1D array.
-   MFEM_HOST_DEVICE inline Scalar& operator[](int i)
+   MFEM_HOST_DEVICE inline Scalar& operator[](int i) const
    {
       return data[i];
    }
@@ -152,7 +138,8 @@ inline DeviceTensor<sizeof...(Dims),T> Reshape(T *ptr, Dims... dims)
    return DeviceTensor<sizeof...(Dims),T>(ptr, dims...);
 }
 
-/** Vector interface */
+/** Vector interface, Reshape calls ReadWrite() on non-const Vector, and Read()
+    const Vector. */
 template <typename... Dims>
 inline DeviceTensor<sizeof...(Dims),double> Reshape(Vector &v, Dims... dims)
 {
@@ -166,7 +153,8 @@ inline const DeviceTensor<sizeof...(Dims),const double> Reshape(const Vector &v,
    return Reshape(v.Read(), dims...);
 }
 
-/** Array interface */
+/** Array interface, Reshape calls ReadWrite() on non-const Array, and Read()
+    const Array. */
 template <typename T, typename... Dims>
 inline DeviceTensor<sizeof...(Dims),T> Reshape(Array<T> &v, Dims... dims)
 {
