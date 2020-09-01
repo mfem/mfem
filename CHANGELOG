@@ -69,6 +69,10 @@ Improved GPU capabilities
 
 - Added support for BlockOperator on GPU. See the updated Example 5.
 
+- Added partial assembly and GPU support for complex operators, including the
+  classes ComplexOperator, [Par]ComplexGridFunction, [Par]ComplexLinearForm, and
+  [Par]SesquilinearForm. See the updated Example 22.
+
 Discretization improvements
 ---------------------------
 - Added support for matrix-free interpolation and restriction operators between
@@ -96,6 +100,9 @@ Discretization improvements
   these new QuadratureFunction coefficient classes.
 
 - Added support face integrals on the boundaries of NURBS meshes.
+
+- Added support for interpolation of functions in L2, H(div) and H(curl)
+  spaces using GSLIB-FindPoints.
 
 Linear and nonlinear solvers
 ----------------------------
@@ -172,7 +179,13 @@ New and updated examples and miniapps
   mesh based on element attributes. Any newly exposed boundary elements are
   assigned attribute numbers related to the trimmed element attributes.
 
+- Added a new miniapp (field-interp) that demonstrates transfer of grid function
+  between different meshes using GSLIB-FindPoints.
+
 - Added device support in Example 5/5p.
+
+- Added partial assembly and device support to Example 22/22p, with diagonal
+  preconditioning.
 
 - Added the option to plot a function in Mesh Explorer.
 
@@ -196,6 +209,9 @@ Miscellaneous
   methods of class GridFunction has been increased.
 
 - Various other simplifications, extensions, and bugfixes in the code.
+
+- Renamed "Backend::DEBUG" to "Backend::DEBUG_DEVICE" to avoid conflicts,
+  as DEBUG is sometimes used as a macro.
 
 
 Version 4.1, released on March 10, 2020
