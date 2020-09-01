@@ -34,6 +34,8 @@ public:
                        Array<int>& ess_dofs);
    ~AlgebraicCeedSolver();
 
+   /// Note that this does not rebuild the hierarchy or smoothers,
+   /// just changes the finest level operator for residual computations
    void SetOperator(const Operator& op) { operators[0] = const_cast<Operator*>(&op); }
 
    void Mult(const Vector& x, Vector& y) const;
