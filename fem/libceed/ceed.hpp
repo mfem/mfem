@@ -66,6 +66,12 @@ struct CeedData
 
    CeedVector u, v;
 
+   CeedData()
+      : build_oper(nullptr), oper(nullptr), basis(nullptr), mesh_basis(nullptr),
+        restr(nullptr), mesh_restr(nullptr), mesh_restr_i(nullptr),
+        apply_qfunc(nullptr), build_qfunc(nullptr), node_coords(nullptr),
+        rho(nullptr), coeff(nullptr), build_ctx(nullptr) { }
+
    ~CeedData()
    {
       CeedOperatorDestroy(&build_oper);
