@@ -139,7 +139,7 @@ inline DeviceTensor<sizeof...(Dims),T> Reshape(T *ptr, Dims... dims)
 }
 
 /** Vector interface, Reshape calls ReadWrite() on non-const Vector, and Read()
-    const Vector. */
+    on const Vector. */
 template <typename... Dims>
 inline DeviceTensor<sizeof...(Dims),double> Reshape(Vector &v, Dims... dims)
 {
@@ -154,7 +154,7 @@ inline const DeviceTensor<sizeof...(Dims),const double> Reshape(const Vector &v,
 }
 
 /** Array interface, Reshape calls ReadWrite() on non-const Array, and Read()
-    const Array. */
+    on const Array. */
 template <typename T, typename... Dims>
 inline DeviceTensor<sizeof...(Dims),T> Reshape(Array<T> &v, Dims... dims)
 {
