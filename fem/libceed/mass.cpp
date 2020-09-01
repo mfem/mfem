@@ -11,9 +11,10 @@
 
 #include "mass.hpp"
 
-#ifdef MFEM_USE_CEED
 #include "ceed.hpp"
+#ifdef MFEM_USE_CEED
 #include "mass.h"
+#endif
 
 namespace mfem
 {
@@ -21,6 +22,7 @@ namespace mfem
 void CeedPAMassAssemble(const FiniteElementSpace &fes,
                         const mfem::IntegrationRule &irm, CeedData& ceedData)
 {
+#ifdef MFEM_USE_CEED
    CeedPAOperator massOp = {fes, irm,
                             1, "/mass.h",
                             ":f_build_mass_const", f_build_mass_const,
@@ -30,8 +32,10 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
                             CEED_EVAL_INTERP
                            };
    CeedPAAssemble(massOp, ceedData);
+#else
+   mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+#endif
 }
 
 } // namespace mfem
 
-#endif // MFEM_USE_CEED

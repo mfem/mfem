@@ -1879,10 +1879,8 @@ private:
    int dim, ne, dofs1D, quad1D;
    Vector pa_data;
 
-#ifdef MFEM_USE_CEED
    // CEED extension
    CeedData* ceedDataPtr;
-#endif
 
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
@@ -1892,9 +1890,7 @@ public:
       MQ = NULL;
       maps = NULL;
       geom = NULL;
-#ifdef MFEM_USE_CEED
       ceedDataPtr = NULL;
-#endif
    }
 
    /// Construct a diffusion integrator with a scalar coefficient q
@@ -1904,9 +1900,7 @@ public:
       MQ = NULL;
       maps = NULL;
       geom = NULL;
-#ifdef MFEM_USE_CEED
       ceedDataPtr = NULL;
-#endif
    }
 
    /// Construct a diffusion integrator with a matrix coefficient q
@@ -1916,16 +1910,12 @@ public:
       Q = NULL;
       maps = NULL;
       geom = NULL;
-#ifdef MFEM_USE_CEED
       ceedDataPtr = NULL;
-#endif
    }
 
    virtual ~DiffusionIntegrator()
    {
-#ifdef MFEM_USE_CEED
       delete ceedDataPtr;
-#endif
    }
 
    /** Given a particular Finite Element computes the element stiffness matrix
@@ -1986,10 +1976,8 @@ protected:
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
 
-#ifdef MFEM_USE_CEED
    // CEED extension
    CeedData* ceedDataPtr;
-#endif
 
 public:
    MassIntegrator(const IntegrationRule *ir = NULL)
@@ -1998,9 +1986,7 @@ public:
       Q = NULL;
       maps = NULL;
       geom = NULL;
-#ifdef MFEM_USE_CEED
       ceedDataPtr = NULL;
-#endif
    }
 
    /// Construct a mass integrator with coefficient q
@@ -2009,16 +1995,12 @@ public:
    {
       maps = NULL;
       geom = NULL;
-#ifdef MFEM_USE_CEED
       ceedDataPtr = NULL;
-#endif
    }
 
    virtual ~MassIntegrator()
    {
-#ifdef MFEM_USE_CEED
       delete ceedDataPtr;
-#endif
    }
    /** Given a particular Finite Element computes the element mass matrix
        elmat. */
@@ -2145,19 +2127,15 @@ protected:
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
 
-#ifdef MFEM_USE_CEED
    // CEED extension
    CeedData* ceedDataPtr;
-#endif
 
 public:
    /// Construct an integrator with coefficient 1.0
    VectorMassIntegrator()
       : vdim(-1), Q_order(0), Q(NULL), VQ(NULL), MQ(NULL)
    {
-#ifdef MFEM_USE_CEED
       ceedDataPtr = NULL;
-#endif
    }
    /** Construct an integrator with scalar coefficient q.  If possible, save
        memory by using a scalar integrator since the resulting matrix is block
@@ -2168,9 +2146,7 @@ public:
       VQ = NULL;
       MQ = NULL;
       Q_order = qo;
-#ifdef MFEM_USE_CEED
       ceedDataPtr = NULL;
-#endif
    }
    VectorMassIntegrator(Coefficient &q, const IntegrationRule *ir)
       : BilinearFormIntegrator(ir), vdim(-1), Q(&q)
@@ -2178,9 +2154,7 @@ public:
       VQ = NULL;
       MQ = NULL;
       Q_order = 0;
-#ifdef MFEM_USE_CEED
       ceedDataPtr = NULL;
-#endif
    }
    /// Construct an integrator with diagonal coefficient q
    VectorMassIntegrator(VectorCoefficient &q, int qo = 0)
@@ -2189,9 +2163,7 @@ public:
       Q = NULL;
       MQ = NULL;
       Q_order = qo;
-#ifdef MFEM_USE_CEED
       ceedDataPtr = NULL;
-#endif
    }
    /// Construct an integrator with matrix coefficient q
    VectorMassIntegrator(MatrixCoefficient &q, int qo = 0)
@@ -2200,16 +2172,12 @@ public:
       Q = NULL;
       VQ = NULL;
       Q_order = qo;
-#ifdef MFEM_USE_CEED
       ceedDataPtr = NULL;
-#endif
    }
 
    virtual ~VectorMassIntegrator()
    {
-#ifdef MFEM_USE_CEED
       delete ceedDataPtr;
-#endif
    }
 
    int GetVDim() const { return vdim; }
@@ -2582,10 +2550,8 @@ protected:
    int dim, sdim, ne, dofs1D, quad1D;
    Vector pa_data;
 
-#ifdef MFEM_USE_CEED
    // CEED extension
    CeedData* ceedDataPtr;
-#endif
 
 private:
    DenseMatrix dshape, dshapedxt, pelmat;
@@ -2595,23 +2561,17 @@ public:
    VectorDiffusionIntegrator()
    {
       Q = NULL;
-#ifdef MFEM_USE_CEED
       ceedDataPtr = NULL;
-#endif
    }
    VectorDiffusionIntegrator(Coefficient &q)
    {
       Q = &q;
-#ifdef MFEM_USE_CEED
       ceedDataPtr = NULL;
-#endif
    }
 
    virtual ~VectorDiffusionIntegrator()
    {
-#ifdef MFEM_USE_CEED
       delete ceedDataPtr;
-#endif
    }
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
