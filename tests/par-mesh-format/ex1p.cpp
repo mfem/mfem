@@ -28,10 +28,6 @@
 //       mpirun -np 4 ex1p
 //       mpirun -np 4 ex1p -m ../../data/fichera-mixed.mesh
 //       mpirun -np 4 ex1p
-//
-//
-// Description:  TODO
-//
 
 #include "mfem.hpp"
 #include <fstream>
@@ -247,7 +243,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 15. Send the solution by socket to a GLVis server.
+   // 7. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -258,7 +254,7 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *pmesh << x << flush;
    }
 
-   // 16. Free the used memory.
+   // 8. Free the used memory.
    delete pcg;
    delete amg;
    delete a;
