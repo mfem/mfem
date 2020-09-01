@@ -9,7 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "catch.hpp"
+#include "unit_tests.hpp"
 #include "mfem.hpp"
 
 namespace mfem
@@ -63,18 +63,17 @@ TEST_CASE("FormLinearSystem", "[FormLinearSystem]")
 
             x1 = 0.0;
             b = 1.0;
-            fa.SetAssemblyLevel(AssemblyLevel::FULL);
             fa.AddDomainIntegrator(new DiffusionIntegrator(one));
             fa.Assemble();
             fa.FormLinearSystem(ess_tdof_list, x1, b, A_fa, X[1], B[1]);
-            GSSmoother M_fa((SparseMatrix&)(*A_fa));
+            DSmoother M_fa((SparseMatrix&)(*A_fa));
             PCG(*A_fa, M_fa, B[1], X[1], 0, 1000, EPS*EPS, 0.0);
             fa.RecoverFEMSolution(X[1], b, x1);
 
             x0 -= x1;
             double error = x0.Norml2();
             std::cout << "    order: " << order << ", error norm: " << error << std::endl;
-            REQUIRE(x0.Norml2() == Approx(EPS));
+            REQUIRE(x0.Norml2() == MFEM_Approx(0.0, 1e2*EPS));
 
             delete mesh;
             delete fec;
@@ -141,26 +140,24 @@ TEST_CASE("ParallelFormLinearSystem", "[Parallel], [ParallelFormLinearSystem]")
 
             x1 = 0.0;
             b = 1.0;
-            fa.SetAssemblyLevel(AssemblyLevel::FULL);
             fa.AddDomainIntegrator(new DiffusionIntegrator(one));
             fa.Assemble();
             fa.FormLinearSystem(ess_tdof_list, x1, b, A_fa, X[1], B[1]);
-            HypreBoomerAMG *M_fa = new HypreBoomerAMG();
+            HypreSmoother M_fa;
+            M_fa.SetType(HypreSmoother::Jacobi);
             CGSolver cg_fa(MPI_COMM_WORLD);
             cg_fa.SetRelTol(EPS);
             cg_fa.SetMaxIter(1000);
             cg_fa.SetPrintLevel(0);
-            M_fa->SetPrintLevel(0);
-            cg_fa.SetPreconditioner(*M_fa);
+            cg_fa.SetPreconditioner(M_fa);
             cg_fa.SetOperator(*A_fa);
             cg_fa.Mult(B[1], X[1]);
-            delete M_fa;
             fa.RecoverFEMSolution(X[1], b, x1);
 
             x0 -= x1;
             double error = x0.Norml2();
             std::cout << "    order: " << order << ", error norm: " << error << std::endl;
-            REQUIRE(x0.Norml2() == Approx(EPS));
+            REQUIRE(x0.Norml2() == MFEM_Approx(0.0, 1e2*EPS));
 
             delete pmesh;
             delete fec;
