@@ -716,6 +716,65 @@ void FABilinearFormExtension::Assemble()
    }
 }
 
+void GetFullAssemblySparseMatrix(BilinearForm *a, SparseMatrix &A)
+{
+   EABilinearFormExtension ea(a);
+   ea.Assemble();
+   FiniteElementSpace &fes = *a->FESpace();
+   if (fes.IsDGSpace())
+   {
+#ifdef MFEM_USE_MPI
+      if ( ParFiniteElementSpace* pfes =
+            dynamic_cast<ParFiniteElementSpace*>(a->FESpace()) )
+      {
+         pfes->ExchangeFaceNbrData();
+      }
+#endif
+      const L2ElementRestriction *restE =
+         static_cast<const L2ElementRestriction*>(ea.elem_restrict);
+      const L2FaceRestriction *restF =
+         static_cast<const L2FaceRestriction*>(ea.int_face_restrict_lex);
+      // 1. Fill I
+      //  1.1 Increment with restE
+      restE->FillI(A);
+      //  1.2 Increment with restF
+      if (restF) { restF->FillI(A); }
+      //  1.3 Sum the non-zeros in I
+      auto h_I = A.HostReadWriteI();
+      int cpt = 0;
+      const int vd = fes.GetVDim();
+      const int ndofs = ea.ne * ea.elemDofs * vd;
+      for (int i = 0; i < ndofs; i++)
+      {
+         const int nnz = h_I[i];
+         h_I[i] = cpt;
+         cpt += nnz;
+      }
+      const int nnz = cpt;
+      h_I[ndofs] = nnz;
+      A.GetMemoryJ().New(nnz, A.GetMemoryJ().GetMemoryType());
+      A.GetMemoryData().New(nnz, A.GetMemoryData().GetMemoryType());
+      // 2. Fill J and Data
+      // 2.1 Fill J and Data with Elem ea_data
+      restE->FillJAndData(ea.ea_data, A);
+      // 2.2 Fill J and Data with Face ea_data_ext
+      if (restF) { restF->FillJAndData(ea. ea_data_ext, A); }
+      // 2.3 Shift indirections in I back to original
+      auto I = A.HostReadWriteI();
+      for (int i = ndofs; i > 0; i--)
+      {
+         I[i] = I[i-1];
+      }
+      I[0] = 0;
+   }
+   else // continuous Galerkin case
+   {
+      const ElementRestriction &rest =
+         static_cast<const ElementRestriction&>(*ea.elem_restrict);
+      rest.FillSparseMatrix(ea.ea_data, A);
+   }
+}
+
 void FABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
    mat.Mult(x, y);

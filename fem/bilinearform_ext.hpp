@@ -111,6 +111,9 @@ public:
    void Assemble();
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
+   /// Assemble the Full Assembly operator in a single SparseMatrix.
+   /** Warning: Does not include the boundary conditions. */
+   friend void GetFullAssemblySparseMatrix(BilinearForm *a, SparseMatrix &A);
 };
 
 /// Data and methods for fully-assembled bilinear forms

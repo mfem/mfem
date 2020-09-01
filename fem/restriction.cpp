@@ -1296,8 +1296,7 @@ void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
    }
 }
 
-void L2FaceRestriction::FillI(SparseMatrix &mat,
-                              SparseMatrix &face_mat) const
+void L2FaceRestriction::FillI(SparseMatrix &mat) const
 {
    const int face_dofs = dof;
    auto d_indices1 = scatter_indices1.Read();
@@ -1312,9 +1311,14 @@ void L2FaceRestriction::FillI(SparseMatrix &mat,
    });
 }
 
+void L2FaceRestriction::FillI(SparseMatrix &mat,
+                              SparseMatrix &face_mat) const
+{
+   FillI(mat);
+}
+
 void L2FaceRestriction::FillJAndData(const Vector &ea_data,
-                                     SparseMatrix &mat,
-                                     SparseMatrix &face_mat) const
+                                     SparseMatrix &mat) const
 {
    const int face_dofs = dof;
    auto d_indices1 = scatter_indices1.Read();
@@ -1341,6 +1345,13 @@ void L2FaceRestriction::FillJAndData(const Vector &ea_data,
          Data[offset1+jF] = mat_fea(jF,iF,1,f);
       }
    });
+}
+
+void L2FaceRestriction::FillJAndData(const Vector &ea_data,
+                                     SparseMatrix &mat,
+                                     SparseMatrix &face_mat) const
+{
+   FillJAndData(ea_data, mat);
 }
 
 void L2FaceRestriction::AddFaceMatricesToElementMatrices(Vector &fea_data,
