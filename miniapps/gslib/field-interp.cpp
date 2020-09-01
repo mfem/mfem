@@ -14,13 +14,13 @@
 //      -------------------------------------------------------------
 //
 // This miniapp provides the capability to transfer a grid function (H1, L2,
-// H(div), and H(curl)) from one mesh onto another using FindPointsGSLIB. Using
+// H(div), and H(curl)) from one mesh onto another using GSLIB-FindPoints. Using
 // FindPoints, we identify the nodal positions of the target mesh with respect
 // to the source mesh and then interpolate the source grid function. The
 // interpolated values are then projected onto the desired finite element space
-// on the target mesh. Finally, the transferred solution is visualized using GLVis.
-// Note that the source grid function can be a user-defined vector function or
-// a grid function file that is compatible with the source mesh.
+// on the target mesh. Finally, the transferred solution is visualized using
+// GLVis. Note that the source grid function can be a user-defined vector
+// function or a grid function file that is compatible with the source mesh.
 //
 // Compile with: make field-interp
 //
@@ -191,7 +191,7 @@ int main (int argc, char *argv[])
    MFEM_VERIFY(mesh_2.GetNumGeometries(mesh_2.Dimension()) == 1, "Mixed meshes"
                "are not currently supported.");
 
-   // Ensure the source grid function can be transferred using FindPointsGSLIB.
+   // Ensure the source grid function can be transferred using GSLIB-FindPoints.
    const FiniteElementCollection *fec_in = func_source->FESpace()->FEColl();
    std::cout << "Source FE collection: " << fec_in->Name() << std::endl;
 
@@ -377,7 +377,7 @@ int main (int argc, char *argv[])
    // Free the internal gslib data.
    finder.FreeData();
 
-   // Delete
+   // Delete remaining memory.
    delete func_source;
    delete src_fes;
    delete src_fec;
