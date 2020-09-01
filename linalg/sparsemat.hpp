@@ -115,7 +115,7 @@ public:
        ownership.
        If @a mt is MemoryType::SIZE the memory type of the resulting
        SparseMatrix's #I, #J, and #A arrays will be the same as @a mat,
-       otherwise the type with be @a mt for those arrays that are deep
+       otherwise the type will be @a mt for those arrays that are deep
        copied. */
    SparseMatrix(const SparseMatrix &mat, bool copy_graph = true,
                 MemoryType mt = MemoryType::SIZE);
