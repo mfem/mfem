@@ -247,7 +247,7 @@ int main(int argc, char *argv[])
       superlu->SetOperator(*Arow);
 
       solver  = use_arpack?superlu:NULL;
-      precond = use_arpack?NULL:suprelu;
+      precond = use_arpack?NULL:superlu;
    }
 #endif
 
@@ -309,7 +309,7 @@ int main(int argc, char *argv[])
       for (int i=0; i<nev; i++)
       {
          // convert eigenvector from HypreParVector to ParGridFunction
-         x = esolver->GetEigenvector(i);
+         x.Distribute(esolver->GetEigenvector(i));
 
          mode_name << "mode_" << setfill('0') << setw(2) << i << "."
                    << setfill('0') << setw(6) << myid;
@@ -338,7 +338,7 @@ int main(int argc, char *argv[])
          }
 
          // convert eigenvector from HypreParVector to ParGridFunction
-         x = esolver->GetEigenvector(i);
+         x.Distribute(esolver->GetEigenvector(i));
 
          mode_sock << "parallel " << num_procs << " " << myid << "\n"
                    << "solution\n" << *pmesh << x << flush
