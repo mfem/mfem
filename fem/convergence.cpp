@@ -24,8 +24,8 @@ void ConvergenceStudy::Reset()
    ndofs.SetSize(0);
 }
 
-double ConvergenceStudy::GetNorm(GridFunction * gf, Coefficient * scalar_u,
-                                 VectorCoefficient * vector_u)
+double ConvergenceStudy::GetNorm(GridFunction *gf, Coefficient *scalar_u,
+                                 VectorCoefficient *vector_u)
 {
    bool norm_set = false;
    double norm=0.0;
@@ -37,10 +37,10 @@ double ConvergenceStudy::GetNorm(GridFunction * gf, Coefficient * scalar_u,
       irs[i] = &(IntRules.Get(i, order_quad));
    }
 #ifdef MFEM_USE_MPI
-   ParGridFunction * pgf = dynamic_cast<ParGridFunction *>(gf);
+   ParGridFunction *pgf = dynamic_cast<ParGridFunction *>(gf);
    if (pgf)
    {
-      ParMesh * pmesh = pgf->ParFESpace()->GetParMesh();
+      ParMesh *pmesh = pgf->ParFESpace()->GetParMesh();
       if (scalar_u)
       {
          norm = ComputeGlobalLpNorm(2.0,*scalar_u,*pmesh,irs);
@@ -54,7 +54,7 @@ double ConvergenceStudy::GetNorm(GridFunction * gf, Coefficient * scalar_u,
 #endif
    if (!norm_set)
    {
-      Mesh * mesh = gf->FESpace()->GetMesh();
+      Mesh *mesh = gf->FESpace()->GetMesh();
       if (scalar_u)
       {
          norm = ComputeLpNorm(2.0,*scalar_u,*mesh,irs);
@@ -67,12 +67,12 @@ double ConvergenceStudy::GetNorm(GridFunction * gf, Coefficient * scalar_u,
    return norm;
 }
 
-void ConvergenceStudy::AddL2Error(GridFunction * gf,
-                                  Coefficient * scalar_u, VectorCoefficient * vector_u)
+void ConvergenceStudy::AddL2Error(GridFunction *gf,
+                                  Coefficient *scalar_u, VectorCoefficient *vector_u)
 {
    int tdofs=0;
 #ifdef MFEM_USE_MPI
-   ParGridFunction * pgf = dynamic_cast<ParGridFunction *>(gf);
+   ParGridFunction *pgf = dynamic_cast<ParGridFunction *>(gf);
    if (pgf)
    {
       MPI_Comm comm = pgf->ParFESpace()->GetComm();
@@ -108,15 +108,15 @@ void ConvergenceStudy::AddL2Error(GridFunction * gf,
    counter++;
 }
 
-void ConvergenceStudy::AddGf(GridFunction * gf, Coefficient * scalar_u,
-                             VectorCoefficient * grad,
-                             Coefficient * ell_coeff, double Nu)
+void ConvergenceStudy::AddGf(GridFunction *gf, Coefficient *scalar_u,
+                             VectorCoefficient *grad,
+                             Coefficient *ell_coeff, double Nu)
 {
    cont_type = gf->FESpace()->FEColl()->GetContType();
 
    MFEM_VERIFY((cont_type == mfem::FiniteElementCollection::CONTINUOUS) ||
                (cont_type == mfem::FiniteElementCollection::DISCONTINUOUS),
-               "This constructor is intented for H1 or L2 Elements")
+               "This constructor is intended for H1 or L2 Elements")
 
    AddL2Error(gf,scalar_u, nullptr);
 
@@ -147,12 +147,12 @@ void ConvergenceStudy::AddGf(GridFunction * gf, Coefficient * scalar_u,
       double val=(fcounter) ? log(DGFaceErrors[fcounter-1]/DGErr)/log(2.0):0.;
       DGFaceRates.Append(val);
       fcounter++;
-      MFEM_VERIFY(fcounter == counter, "Number of added solutions missmatch");
+      MFEM_VERIFY(fcounter == counter, "Number of added solutions mismatch");
    }
 }
 
-void ConvergenceStudy::AddGf(GridFunction * gf, VectorCoefficient * vector_u,
-                             VectorCoefficient * curl, Coefficient * div)
+void ConvergenceStudy::AddGf(GridFunction *gf, VectorCoefficient *vector_u,
+                             VectorCoefficient *curl, Coefficient *div)
 {
    cont_type = gf->FESpace()->FEColl()->GetContType();
 
