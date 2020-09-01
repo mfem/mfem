@@ -601,7 +601,7 @@ void CeedMFAssemble(const CeedMFOperator& op,
    CeedQFunctionContextSetData(ceedData.build_ctx, CEED_MEM_HOST, CEED_USE_POINTER,
                                sizeof(ceedData.build_ctx_data),
                                &ceedData.build_ctx_data);
-   CeedQFunctionSetContext(ceedData.build_qfunc, ceedData.build_ctx);
+   CeedQFunctionSetContext(ceedData.apply_qfunc, ceedData.build_ctx);
 
    // Create the operator.
    CeedOperatorCreate(ceed, ceedData.apply_qfunc, NULL, NULL, &ceedData.oper);
