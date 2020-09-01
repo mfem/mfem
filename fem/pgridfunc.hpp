@@ -314,8 +314,8 @@ public:
                                          const IntegrationRule *irs[]=NULL)
    const;
 
-   // Returns either the H1-seminorm or the DG Face Jumps error
-   // or both depending on norm_type = 1, 2, 3
+   // Returns either the H1-seminorm or the DG Face Jumps error or both
+   // depending on norm_type = 1, 2, 3
    virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
                                  Coefficient *ell_coef, double Nu,
                                  int norm_type) const
@@ -326,8 +326,8 @@ public:
                           pfes->GetComm());
    }
 
-   // Returns the error measured in H1-norm for H1 elements or
-   // in "broken" H1-norm for L2 elements
+   // Returns the error measured in H1-norm for H1 elements or in "broken"
+   // H1-norm for L2 elements
    virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
                                  const IntegrationRule *irs[] = NULL) const
    {
@@ -391,7 +391,7 @@ public:
                                  const IntegrationRule *irs[] = NULL) const
    {
       return GlobalLpNorm(p, GridFunction::ComputeLpError(
-                             p, exsol, weight, v_weight, irs),pfes->GetComm());
+                             p, exsol, weight, v_weight, irs), pfes->GetComm());
    }
 
    virtual void ComputeFlux(BilinearFormIntegrator &blfi,
