@@ -1879,53 +1879,25 @@ private:
    int dim, ne, dofs1D, quad1D;
    Vector pa_data;
 
-#ifdef MFEM_USE_CEED
    // CEED extension
    CeedData* ceedDataPtr;
-#endif
 
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
    DiffusionIntegrator()
-   {
-      Q = NULL;
-      MQ = NULL;
-      maps = NULL;
-      geom = NULL;
-#ifdef MFEM_USE_CEED
-      ceedDataPtr = NULL;
-#endif
-   }
+      : Q(NULL), MQ(NULL), maps(NULL), geom(NULL), ceedDataPtr(NULL) { }
 
    /// Construct a diffusion integrator with a scalar coefficient q
    DiffusionIntegrator(Coefficient &q)
-      : Q(&q)
-   {
-      MQ = NULL;
-      maps = NULL;
-      geom = NULL;
-#ifdef MFEM_USE_CEED
-      ceedDataPtr = NULL;
-#endif
-   }
+      : Q(&q), MQ(NULL), maps(NULL), geom(NULL), ceedDataPtr(NULL) { }
 
    /// Construct a diffusion integrator with a matrix coefficient q
    DiffusionIntegrator(MatrixCoefficient &q)
-      : MQ(&q)
-   {
-      Q = NULL;
-      maps = NULL;
-      geom = NULL;
-#ifdef MFEM_USE_CEED
-      ceedDataPtr = NULL;
-#endif
-   }
+      : Q(NULL), MQ(&q), maps(NULL), geom(NULL), ceedDataPtr(NULL) { }
 
    virtual ~DiffusionIntegrator()
    {
-#ifdef MFEM_USE_CEED
       delete ceedDataPtr;
-#endif
    }
 
    /** Given a particular Finite Element computes the element stiffness matrix
@@ -1986,39 +1958,22 @@ protected:
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
 
-#ifdef MFEM_USE_CEED
    // CEED extension
    CeedData* ceedDataPtr;
-#endif
 
 public:
    MassIntegrator(const IntegrationRule *ir = NULL)
-      : BilinearFormIntegrator(ir)
-   {
-      Q = NULL;
-      maps = NULL;
-      geom = NULL;
-#ifdef MFEM_USE_CEED
-      ceedDataPtr = NULL;
-#endif
-   }
+      : BilinearFormIntegrator(ir), Q(NULL), maps(NULL), geom(NULL),
+        ceedDataPtr(NULL) { }
 
    /// Construct a mass integrator with coefficient q
    MassIntegrator(Coefficient &q, const IntegrationRule *ir = NULL)
-      : BilinearFormIntegrator(ir), Q(&q)
-   {
-      maps = NULL;
-      geom = NULL;
-#ifdef MFEM_USE_CEED
-      ceedDataPtr = NULL;
-#endif
-   }
+      : BilinearFormIntegrator(ir), Q(&q), maps(NULL), geom(NULL),
+        ceedDataPtr(NULL) { }
 
    virtual ~MassIntegrator()
    {
-#ifdef MFEM_USE_CEED
       delete ceedDataPtr;
-#endif
    }
    /** Given a particular Finite Element computes the element mass matrix
        elmat. */
@@ -2145,24 +2100,34 @@ protected:
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
 
+   // CEED extension
+   CeedData* ceedDataPtr;
+
 public:
    /// Construct an integrator with coefficient 1.0
    VectorMassIntegrator()
-      : vdim(-1), Q_order(0), Q(NULL), VQ(NULL), MQ(NULL) { }
+      : vdim(-1), Q_order(0), Q(NULL), VQ(NULL), MQ(NULL), ceedDataPtr(NULL) { }
    /** Construct an integrator with scalar coefficient q.  If possible, save
        memory by using a scalar integrator since the resulting matrix is block
        diagonal with the same diagonal block repeated. */
    VectorMassIntegrator(Coefficient &q, int qo = 0)
-      : vdim(-1), Q(&q) { VQ = NULL; MQ = NULL; Q_order = qo; }
+      : vdim(-1), Q(&q), VQ(NULL), MQ(NULL), Q_order(qo), ceedDataPtr(NULL) { }
    VectorMassIntegrator(Coefficient &q, const IntegrationRule *ir)
-      : BilinearFormIntegrator(ir), vdim(-1), Q(&q)
-   { VQ = NULL; MQ = NULL; Q_order = 0; }
+      : BilinearFormIntegrator(ir), vdim(-1), Q(&q), VQ(NULL), MQ(NULL),
+        Q_order(0), ceedDataPtr(NULL) { }
    /// Construct an integrator with diagonal coefficient q
    VectorMassIntegrator(VectorCoefficient &q, int qo = 0)
-      : vdim(q.GetVDim()), VQ(&q) { Q = NULL; MQ = NULL; Q_order = qo; }
+      : vdim(q.GetVDim()), Q(NULL), VQ(&q), MQ(NULL), Q_order(qo),
+        ceedDataPtr(NULL) { }
    /// Construct an integrator with matrix coefficient q
    VectorMassIntegrator(MatrixCoefficient &q, int qo = 0)
-      : vdim(q.GetVDim()), MQ(&q) { Q = NULL; VQ = NULL; Q_order = qo; }
+      : vdim(q.GetVDim()), Q(NULL), VQ(NULL), MQ(&q), Q_order(qo),
+        ceedDataPtr(NULL) { }
+
+   virtual ~VectorMassIntegrator()
+   {
+      delete ceedDataPtr;
+   }
 
    int GetVDim() const { return vdim; }
    void SetVDim(int vdim) { this->vdim = vdim; }
@@ -2534,13 +2499,23 @@ protected:
    int dim, sdim, ne, dofs1D, quad1D;
    Vector pa_data;
 
+   // CEED extension
+   CeedData* ceedDataPtr;
+
 private:
    DenseMatrix dshape, dshapedxt, pelmat;
    DenseMatrix Jinv, gshape;
 
 public:
-   VectorDiffusionIntegrator() { Q = NULL; }
-   VectorDiffusionIntegrator(Coefficient &q) { Q = &q; }
+   VectorDiffusionIntegrator()
+      : Q(NULL), ceedDataPtr(NULL) { }
+   VectorDiffusionIntegrator(Coefficient &q)
+      : Q(&q), ceedDataPtr(NULL) { }
+
+   virtual ~VectorDiffusionIntegrator()
+   {
+      delete ceedDataPtr;
+   }
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,

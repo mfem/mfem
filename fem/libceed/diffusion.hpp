@@ -14,7 +14,6 @@
 
 #include "ceed.hpp"
 
-#ifdef MFEM_USE_CEED
 #include "../fespace.hpp"
 
 namespace mfem
@@ -26,7 +25,5 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
                              CeedData& ceedData);
 
 }
-
-#endif // MFEM_USE_CEED
 
 #endif // MFEM_LIBCEED_DIFF_HPP
