@@ -12,6 +12,8 @@
 #ifndef MFEM_CEEDSOLVERS_ATPMG_H
 #define MFEM_CEEDSOLVERS_ATPMG_H
 
+#include "../../config/config.hpp"
+
 #ifdef MFEM_USE_CEED
 
 #include <ceed.h>

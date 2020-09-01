@@ -12,6 +12,8 @@
 #ifndef MFEM_CEEDSOLVERS_INTERPOLATION_H
 #define MFEM_CEEDSOLVERS_INTERPOLATION_H
 
+#include "../../config/config.hpp"
+
 #ifdef MFEM_USE_CEED
 #include <ceed.h>
 
