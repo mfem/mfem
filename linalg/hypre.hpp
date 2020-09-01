@@ -992,16 +992,15 @@ public:
 
    virtual void SetOperator(const Operator &op);
 
-   /** More robust options for systems, such as elasticity. Note that BoomerAMG
-       assumes Ordering::byVDIM in the finite element space used to generate the
-       matrix A. */
-   void SetSystemsOptions(int dim);
+   /** More robust options for systems, such as elasticity. */
+   void SetSystemsOptions(int dim, bool order_bynodes=false);
 
    /** A special elasticity version of BoomerAMG that takes advantage of
        geometric rigid body modes and could perform better on some problems, see
        "Improving algebraic multigrid interpolation operators for linear
        elasticity problems", Baker, Kolev, Yang, NLAA 2009, DOI:10.1002/nla.688.
-       As with SetSystemsOptions(), this solver assumes Ordering::byVDIM. */
+       This solver assumes Ordering::byVDIM in the FiniteElementSpace used to
+       construct A. */
    void SetElasticityOptions(ParFiniteElementSpace *fespace);
 
    void SetPrintLevel(int print_level)
