@@ -818,9 +818,7 @@ static void QEvalVGF2D(const int NE,
          {
             MFEM_FOREACH_THREAD(qy,y,Q1D)
             {
-               double G;
-               mfem::kernels::PullEval<MQ1,NBZ>(qx,qy,QQ,G);
-               C(c,qx,qy,e) = G;
+               C(c,qx,qy,e) = kernels::PullEval<MQ1,NBZ>(qx,qy,QQ);
             }
          }
          MFEM_SYNC_THREAD;
@@ -874,9 +872,7 @@ static void QEvalVGF3D(const int NE,
             {
                MFEM_FOREACH_THREAD(qz,z,Q1D)
                {
-                  double G;
-                  mfem::kernels::PullEval<MQ1>(qx,qy,qz,QQQ,G);
-                  C(c,qx,qy,qz,e) = G;
+                  C(c,qx,qy,qz,e) = mfem::kernels::PullEval<MQ1>(qx,qy,qz,QQQ);
                }
             }
          }
