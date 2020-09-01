@@ -15,6 +15,7 @@ list(APPEND SRCS
   blockvector.cpp
   complex_operator.cpp
   densemat.cpp
+  eigensolvers.cpp
   handle.cpp
   matrix.cpp
   ode.cpp
@@ -32,6 +33,7 @@ list(APPEND HDRS
   complex_operator.hpp
   densemat.hpp
   dtensor.hpp
+  eigensolvers.hpp
   handle.hpp
   invariants.hpp
   kernels.hpp
@@ -69,6 +71,11 @@ if (MFEM_USE_MPI)
         slepc.hpp)
     endif()
   endif()
+endif()
+
+if (MFEM_USE_ARPACK)
+  list(APPEND SRCS arpack.cpp)
+  list(APPEND HDRS arpack.hpp)
 endif()
 
 if (MFEM_USE_GINKGO)
