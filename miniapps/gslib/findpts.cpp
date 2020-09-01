@@ -36,7 +36,7 @@
 //    findpts -m ../../data/amr-quad.mesh -o 2
 //    findpts -m ../../data/rt-2d-q3.mesh -o 3 -mo 4 -ft 2
 
-#include "../../mfem.hpp"
+#include "mfem.hpp"
 
 using namespace mfem;
 using namespace std;
@@ -208,11 +208,6 @@ int main (int argc, char *argv[])
          vxyz(2*pts_cnt + i) = pos_min(2) + ip.z * (pos_max(2)-pos_min(2));
       }
    }
-
-   //   std::cout << field_vals.Size() << " " << mesh.GetNE() << " k10check\n";
-   //   for (int i = 0; i < mesh.GetNE(); i++) {
-   //       field_vals(i) = i;
-   //   }
 
    // Find and Interpolate FE function values on the desired points.
    Vector interp_vals(pts_cnt*vec_dim);

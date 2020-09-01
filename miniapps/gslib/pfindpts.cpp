@@ -236,8 +236,6 @@ int main (int argc, char *argv[])
          vxyz(2*pts_cnt + i) = pos_min(2) + ip.z * (pos_max(2)-pos_min(2));
       }
    }
-   //vxyz(1) = -100;
-   //vxyz(pts_cnt+1) = -100;
 
    // Find and Interpolate FE function values on the desired points.
    Vector interp_vals(pts_cnt*vec_dim);
