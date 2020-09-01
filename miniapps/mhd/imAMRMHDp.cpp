@@ -552,12 +552,16 @@ int main(int argc, char *argv[])
    BlockZZEstimator estimator(*integ, psi, *integ, j, flux_fespace1, flux_fespace2);
    estimator.SetErrorRatio(err_ratio); //we define total_err = err_1 + ratio*err_2
 
+   int levels3=par_ref_levels+3, levels4=par_ref_levels+4;
    ThresholdRefiner refiner(estimator);
    refiner.SetTotalErrorFraction(err_fraction);   // here 0.0 means we use local threshold; default is 0.5
    refiner.SetTotalErrorGoal(ltol_amr);  // total error goal (stop criterion)
    refiner.SetLocalErrorGoal(0.0);  // local error goal (stop criterion)
-   refiner.SetMaxElements(5000000);
-   refiner.SetMaximumRefinementLevel(amr_levels);
+   refiner.SetMaxElements(10000000);
+   if (levels3<amr_levels)
+      refiner.SetMaximumRefinementLevel(levels3);
+   else
+      refiner.SetMaximumRefinementLevel(amr_levels);
    refiner.SetNCLimit(nc_limit);
    if (yRange)
        refiner.SetYRange(-.6, .6);
@@ -676,6 +680,7 @@ int main(int argc, char *argv[])
 
    //++++Perform time-integration (looping over the time iterations, ti, with a time-step dt).
    bool last_step = false;
+   int ref_its=1;
    for (int ti = 1; !last_step; ti++)
    {
       double dt_real = min(dt, t_final - t);
@@ -683,8 +688,13 @@ int main(int argc, char *argv[])
       if (t>t_refs)
       {
           ref_steps=2;
+          ref_its=2;
       }
 
+      if (t>4. && levels3<amr_levels)
+      {
+          refiner.SetMaximumRefinementLevel(amr_levels);
+      }
 
       if ((ti % ref_steps) == 0)
       {
@@ -695,17 +705,19 @@ int main(int argc, char *argv[])
           refineMesh=false;
 
       /* 
-       * here we derefine every 2*ref_steps but it is lagged by a step of 1.5*ref_steps
+       * here we derefine every ref_steps but it is lagged by a step of .5*ref_steps
        * sometimes derefine could break down the preconditioner (maybe solutions are 
        * not so nice after a derefining projection?)
        */
-      if ( derefine && (ti-ref_steps/2)%(2*ref_steps) ==0 ) //&& ti >  ref_steps ) //&& t<5.0) 
+      if ( derefine && (ti-ref_steps/2)%ref_steps ==0 ) //&& ti >  ref_steps ) //&& t<5.0) 
       {
           derefineMesh=true;
           derefiner.Reset();
       }
       else
+      {
           derefineMesh=false;
+      }
 
       //---the main solve step---
       ode_solver->Step(vx, t, dt_real);
@@ -723,7 +735,6 @@ int main(int argc, char *argv[])
           phi.SetFromTrueDofs(vx.GetBlock(0));
           psi.SetFromTrueDofs(vx.GetBlock(1));
           w.SetFromTrueDofs(vx.GetBlock(2));
-          oper.UpdateJ(vx, &j);
       }
 
       if (myid == 0)
@@ -734,139 +745,136 @@ int main(int argc, char *argv[])
       }
 
       //----------------------------AMR---------------------------------
-      if (refineMesh)  refiner.Apply(*pmesh);
-      if (refiner.Refined()==false || (!refineMesh))
+      
+      //++++++Refine step++++++
+      if (refineMesh)  
       {
-         if (derefine && derefineMesh && derefiner.Apply(*pmesh))
+         if (myid == 0) cout<<"Refine mesh iterations..."<<endl;
+
+         int its;
+         //here can we skip replacing??
+         for (its=0; its<ref_its; its++)
          {
-            if (myid == 0) cout << "Derefined mesh..." << endl;
+           oper.UpdateJ(vx, &j);
+           if (refiner.Apply(*pmesh)==false)
+           {
+               if (myid == 0) cout<<"No refined element found. Skip..."<<endl;
+               break;
+           }
 
-            //---Update solutions first---
-            AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j);
-            oper.UpdateGridFunction();
+           AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j);
+           oper.UpdateGridFunction();
 
-            pmesh->Rebalance();
+           pmesh->Rebalance();
 
-            //---Update solutions after rebalancing---
-            AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j);
-            oper.UpdateGridFunction();
+           //---Update solutions after rebalancing---
+           AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j);
+           oper.UpdateGridFunction();
+           oper.UpdateProblem(ess_bdr); 
+           oper.SetInitialJ(*jptr);      //need to reset the current bounary
 
-            //---assemble problem and update boundary condition---
-            oper.UpdateProblem(ess_bdr); 
-            oper.SetInitialJ(*jptr);    //somehow I need to reset the current bounary
+           if (myid == 0)
+           {
+             global_size = fespace.GlobalTrueVSize();
+             cout << "Number of total scalar unknowns: " << global_size <<"; amr it= "<<its<<endl;
+           }
+         }
 
+         //upate ode_solver for the next time step
+         if (its>0 || refiner.Refined())
+         {
+            if (myid == 0) cout<<"Refined mesh; initialize ode_solver"<<endl;
             ode_solver->Init(oper);
          }
-         else //mesh is not refined or derefined
-         {
-            if ( (last_step || (ti % vis_steps) == 0) )
-            {
-               if (visualization || visit || paraview)
-               {
-                  //for the plotting purpose we have to reset those solutions
-                  phi.SetFromTrueDofs(vx.GetBlock(0));
-                  psi.SetFromTrueDofs(vx.GetBlock(1));
-                  w.SetFromTrueDofs(vx.GetBlock(2));
-                  oper.UpdateJ(vx, &j);
-               }
-
-               if (visualization)
-               {
-                  vis_phi << "parallel " << num_procs << " " << myid << "\n";
-                  vis_phi << "solution\n" << *pmesh << phi;
-                  if (icase==1) 
-                      vis_phi << "valuerange -.001 .001\n" << flush;
-                  else
-                      vis_phi << flush;
-
-                  vis_j << "parallel " << num_procs << " " << myid << "\n";
-                  vis_j << "solution\n" << *pmesh << j << flush;
-                  vis_w << "parallel " << num_procs << " " << myid << "\n";
-                  vis_w << "solution\n" << *pmesh << w << flush;
-               }
-
-               if (visit)
-               {
-                  dc->SetCycle(ti);
-                  dc->SetTime(t);
-                  dc->Save();
-               }
-
-               if (paraview)
-               {
-                  pd->SetCycle(ti);
-                  pd->SetTime(t);
-                  pd->Save();
-               }
-            }
-
-            if (last_step)
-                break;
-            else
-                continue;
-         }
       }
-      else
+
+      //++++++Derefine step++++++
+      if (derefineMesh)
       {
-         if (myid == 0) cout<<"Mesh refine..."<<endl;
+         if (myid == 0) cout << "Derefined mesh..." << endl;
 
-         //---Update solutions first---
-         AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j);
-         oper.UpdateGridFunction();
+         int its;
+         for (its=0; its<ref_its; its++)
+         {
+             if (!derefiner.Apply(*pmesh))
+             {
+                 if (myid == 0) cout << "No derefine elements found, skip..." << endl;
+                 break;
+             }
 
-         pmesh->Rebalance();
+             //---Update solutions first---
+             AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j);
+             oper.UpdateGridFunction();
 
-         //---Update problem after rebalancing---
-         AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j);
-         oper.UpdateGridFunction();
+             pmesh->Rebalance();
 
-         //---assemble problem and update boundary condition---
-         oper.UpdateProblem(ess_bdr); 
-         oper.SetInitialJ(*jptr);
+             //---Update solutions after rebalancing---
+             AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j);
+             oper.UpdateGridFunction();
 
-         ode_solver->Init(oper);
+             //---assemble problem and update boundary condition---
+             oper.UpdateProblem(ess_bdr); 
+             oper.SetInitialJ(*jptr);    //somehow I need to reset the current bounary
 
+             if (myid == 0)
+             {
+               global_size = fespace.GlobalTrueVSize();
+               cout << "Number of total scalar unknowns: " << global_size <<"; amr it= "<<its<<endl;
+             }
+         }
+
+         if (its>0 || derefiner.Derefined())
+         {
+            if (myid == 0) cout<<"Derefined mesh; initialize ode_solver"<<endl;
+            ode_solver->Init(oper);
+         }
       }
       //----------------------------AMR---------------------------------
 
-      //++++always plot solutions when mesh is refined/derefined
-      if (visualization || visit || paraview)
+      if ( (last_step || (ti % vis_steps) == 0) )
       {
-         phi.SetFromTrueDofs(vx.GetBlock(0));
-         psi.SetFromTrueDofs(vx.GetBlock(1));
-         w.SetFromTrueDofs(vx.GetBlock(2));
-         oper.UpdateJ(vx, &j);
+        if (visualization || visit || paraview)
+        {
+           phi.SetFromTrueDofs(vx.GetBlock(0));
+           psi.SetFromTrueDofs(vx.GetBlock(1));
+           w.SetFromTrueDofs(vx.GetBlock(2));
+           oper.UpdateJ(vx, &j);
+        }
+
+        if (visualization)
+        {
+           vis_phi << "parallel " << num_procs << " " << myid << "\n";
+           vis_phi << "solution\n" << *pmesh << phi;
+           if (icase==1) 
+               vis_phi << "valuerange -.001 .001\n" << flush;
+           else
+               vis_phi << flush;
+
+           vis_j << "parallel " << num_procs << " " << myid << "\n";
+           vis_j << "solution\n" << *pmesh << j << flush;
+           vis_w << "parallel " << num_procs << " " << myid << "\n";
+           vis_w << "solution\n" << *pmesh << w << flush;
+        }
+
+        if (visit)
+        {
+           dc->SetCycle(ti);
+           dc->SetTime(t);
+           dc->Save();
+        }
+
+        if (paraview)
+        {
+           pd->SetCycle(ti);
+           pd->SetTime(t);
+           pd->Save();
+        }
       }
 
-      if (visualization)
-      {
-         vis_phi << "parallel " << num_procs << " " << myid << "\n";
-         vis_phi << "solution\n" << *pmesh << phi;
-         if (icase==1) 
-             vis_phi << "valuerange -.001 .001\n" << flush;
-         else
-             vis_phi << flush;
-
-         vis_j << "parallel " << num_procs << " " << myid << "\n";
-         vis_j << "solution\n" << *pmesh << j << flush;
-         vis_w << "parallel " << num_procs << " " << myid << "\n";
-         vis_w << "solution\n" << *pmesh << w << flush;
-      }
-
-      if (visit)
-      {
-         dc->SetCycle(ti);
-         dc->SetTime(t);
-         dc->Save();
-      }
-
-      if (paraview)
-      {
-         pd->SetCycle(ti);
-         pd->SetTime(t);
-         pd->Save();
-      }
-
+      if (last_step)
+          break;
+      else
+          continue;
    }
 
    MPI_Barrier(MPI_COMM_WORLD); 

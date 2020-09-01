@@ -303,7 +303,7 @@ public:
    virtual void ImplicitSolve(const double dt, const Vector &vx, Vector &k);
 
    //Update problem in AMR case
-   void UpdateProblem(Array<int> &ess_bdr);
+   void UpdateProblem(Array<int> &ess_bdr, bool PartialUpdate=false);
 
    //link gftmp with psi; this is an old way and not needed any more
    void BindingGF(Vector &vx)
@@ -539,7 +539,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    }
 }
 
-void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr)
+void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr, bool PartialUpdate)
 {
    //update ess_tdof_list
    fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
@@ -591,111 +591,114 @@ void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr)
    M_solver2.SetPreconditioner(*M_prec2);
    M_solver2.SetOperator(*MfullMat);
 
-   //stiffness matrix
-   K->Update();
-   K->Assemble();
-   K->FormSystemMatrix(ess_tdof_list, Kmat);
-
-   if (useAMG)
-   {
-      delete K_amg;
-      delete K_pcg;
-      K_amg = new HypreBoomerAMG(Kmat);
-      K_pcg = new HyprePCG(Kmat);
-      K_pcg->iterative_mode = false;
-      K_pcg->SetTol(1e-7);
-      K_pcg->SetMaxIter(200);
-      K_pcg->SetPrintLevel(0);
-      K_pcg->SetPreconditioner(*K_amg);
-   }
-   else
-   {
-      K_solver.iterative_mode = true;
-      K_solver.SetRelTol(1e-7);
-      K_solver.SetAbsTol(0.0);
-      K_solver.SetMaxIter(2000);
-      K_solver.SetPrintLevel(3);
-      delete K_prec;
-      K_prec = new HypreSmoother;
-      K_prec->SetType(HypreSmoother::Chebyshev);
-      K_solver.SetPreconditioner(*K_prec);
-      K_solver.SetOperator(Kmat);
-   }
-
    KB->Update(); 
    KB->Assemble();
    KB->Finalize();
    delete KBMat;
    KBMat=KB->ParallelAssemble();
-  
-   if (use_petsc)
+
+   if (!PartialUpdate)
    {
-      ParBilinearForm *DRepr=NULL, *DSlpr=NULL;
-      HypreParMatrix *DRematpr=NULL, *DSlmatpr=NULL;
-      if (viscosity != 0.0)
-      {   
-          //assemble diffusion matrices (cannot delete DRetmp if ParAdd is used later)
-          DRetmp->Update();
-          DRetmp->Assemble();
-          DRetmp->FormSystemMatrix(ess_tdof_list, DRemat);
+      //stiffness matrix
+      K->Update();
+      K->Assemble();
+      K->FormSystemMatrix(ess_tdof_list, Kmat);
 
-          DRematpr = &DRemat;
-          DRepr = &DRe;
-      }
-
-      if (resistivity != 0.0)
+      if (useAMG)
       {
-          DSltmp->Update();
-          DSltmp->Assemble();
-          DSltmp->FormSystemMatrix(ess_tdof_list, DSlmat);
-
-          DSlmatpr = &DSlmat;
-          DSlpr = &DSl;
+         delete K_amg;
+         delete K_pcg;
+         K_amg = new HypreBoomerAMG(Kmat);
+         K_pcg = new HyprePCG(Kmat);
+         K_pcg->iterative_mode = false;
+         K_pcg->SetTol(1e-7);
+         K_pcg->SetMaxIter(200);
+         K_pcg->SetPrintLevel(0);
+         K_pcg->SetPreconditioner(*K_amg);
       }
-
-      delete reduced_oper;
-      //if needed, we can replace new with another update function for AMR
-      reduced_oper  = new ReducedSystemOperator(fespace, M, Mmat, K, Kmat,
-                         KB, *KBMat, DRepr, DRematpr, DSlpr, DSlmatpr, &M_solver, &M_solver2,
-                         viscosity, resistivity, ess_tdof_list, ess_bdr);
-
-      const double rel_tol=1e-4;
-      delete pnewton_solver;
-      pnewton_solver = new PetscNonlinearSolver(fespace.GetComm(),*reduced_oper);
-      if (use_factory)
+      else
       {
-         SNES snes=SNES(*pnewton_solver);
-
-         delete J_factory;
-         if (useFull>0)
-            J_factory = new FullPreconditionerFactory(*reduced_oper, "JFNK Full preconditioner");
-         else
-            J_factory = new PreconditionerFactory(*reduced_oper, "JFNK preconditioner");
-         pnewton_solver->SetPreconditionerFactory(J_factory);
+         K_solver.iterative_mode = true;
+         K_solver.SetRelTol(1e-7);
+         K_solver.SetAbsTol(0.0);
+         K_solver.SetMaxIter(2000);
+         K_solver.SetPrintLevel(3);
+         delete K_prec;
+         K_prec = new HypreSmoother;
+         K_prec->SetType(HypreSmoother::Chebyshev);
+         K_solver.SetPreconditioner(*K_prec);
+         K_solver.SetOperator(Kmat);
       }
-      pnewton_solver->SetPrintLevel(0); // print Newton iterations
-      pnewton_solver->SetRelTol(rel_tol);
-      pnewton_solver->SetAbsTol(0.0);
-      pnewton_solver->SetMaxIter(20);
-      pnewton_solver->iterative_mode=true;
+  
+      if (use_petsc)
+      {
+         ParBilinearForm *DRepr=NULL, *DSlpr=NULL;
+         HypreParMatrix *DRematpr=NULL, *DSlmatpr=NULL;
+         if (viscosity != 0.0)
+         {   
+             //assemble diffusion matrices (cannot delete DRetmp if ParAdd is used later)
+             DRetmp->Update();
+             DRetmp->Assemble();
+             DRetmp->FormSystemMatrix(ess_tdof_list, DRemat);
 
-      delete bchandler;
-      bchandler = new myBCHandler(ess_tdof_list, PetscBCHandler::CONSTANT, 3, height/3);
-      pnewton_solver->SetBCHandler(bchandler);
+             DRematpr = &DRemat;
+             DRepr = &DRe;
+         }
+
+         if (resistivity != 0.0)
+         {
+             DSltmp->Update();
+             DSltmp->Assemble();
+             DSltmp->FormSystemMatrix(ess_tdof_list, DSlmat);
+
+             DSlmatpr = &DSlmat;
+             DSlpr = &DSl;
+         }
+
+         delete reduced_oper;
+         //if needed, we can replace new with another update function for AMR
+         reduced_oper  = new ReducedSystemOperator(fespace, M, Mmat, K, Kmat,
+                            KB, *KBMat, DRepr, DRematpr, DSlpr, DSlmatpr, &M_solver, &M_solver2,
+                            viscosity, resistivity, ess_tdof_list, ess_bdr);
+
+         const double rel_tol=1e-4;
+         delete pnewton_solver;
+         pnewton_solver = new PetscNonlinearSolver(fespace.GetComm(),*reduced_oper);
+         if (use_factory)
+         {
+            SNES snes=SNES(*pnewton_solver);
+
+            delete J_factory;
+            if (useFull>0)
+               J_factory = new FullPreconditionerFactory(*reduced_oper, "JFNK Full preconditioner");
+            else
+               J_factory = new PreconditionerFactory(*reduced_oper, "JFNK preconditioner");
+            pnewton_solver->SetPreconditionerFactory(J_factory);
+         }
+         pnewton_solver->SetPrintLevel(0); // print Newton iterations
+         pnewton_solver->SetRelTol(rel_tol);
+         pnewton_solver->SetAbsTol(0.0);
+         pnewton_solver->SetMaxIter(20);
+         pnewton_solver->iterative_mode=true;
+
+         delete bchandler;
+         bchandler = new myBCHandler(ess_tdof_list, PetscBCHandler::CONSTANT, 3, height/3);
+         pnewton_solver->SetBCHandler(bchandler);
+      }
+
+      E0->Update();
+      E0->Assemble();
+      delete E0Vec;
+      E0Vec=E0->ParallelAssemble();
+
+      //update E0 
+      if (reduced_oper!=NULL)
+         reduced_oper->setE0(E0Vec, E0rhs);
+
+      //add current to reduced_oper
+      if (reduced_oper!=NULL)
+           reduced_oper->setCurrent(&j);
    }
-
-   E0->Update();
-   E0->Assemble();
-   delete E0Vec;
-   E0Vec=E0->ParallelAssemble();
-
-   //update E0 
-   if (reduced_oper!=NULL)
-      reduced_oper->setE0(E0Vec, E0rhs);
-
-   //add current to reduced_oper
-   if (reduced_oper!=NULL)
-        reduced_oper->setCurrent(&j);
 
 }
 
