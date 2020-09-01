@@ -20,6 +20,8 @@ list(APPEND ALL_EXE_SRCS
   ex8.cpp
   ex9.cpp
   ex10.cpp
+  ex11.cpp
+  ex13.cpp
   ex14.cpp
   ex15.cpp
   ex16.cpp
