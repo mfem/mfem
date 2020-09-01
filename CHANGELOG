@@ -96,6 +96,9 @@ Discretization improvements
 
 - Added support face integrals on the boundaries of NURBS meshes.
 
+- Added support for interpolation of functions in L2, H(div) and H(curl)
+  spaces using GSLIB-FindPoints.
+
 Linear and nonlinear solvers
 ----------------------------
 - Added power method to iteratively estimate the largest eigenvalue and the
@@ -170,6 +173,9 @@ New and updated examples and miniapps
 - Added a simple mesh editing miniapp, Trimmer, which trims away portions of a
   mesh based on element attributes. Any newly exposed boundary elements are
   assigned attribute numbers related to the trimmed element attributes.
+
+- Added a new miniapp (field-interp) that demonstrates transfer of grid function
+  between different meshes using GSLIB-FindPoints.
 
 - Added device support in Example 5/5p.
 
