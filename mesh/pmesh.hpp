@@ -106,6 +106,9 @@ protected:
    bool DecodeFaceSplittings(HashTable<Hashed2> &v_to_v, const int *v,
                              const Array<unsigned> &codes, int &pos);
 
+   void GetFaceNbrElementTransformation(
+      int i, IsoparametricTransformation *ElTr);
+
    void GetGhostFaceTransformation(
       FaceElementTransformations* FETr, Element::Type face_type,
       Geometry::Type face_geom);
@@ -284,9 +287,6 @@ public:
    int GetNFaceNeighborElements() const { return face_nbr_elements.Size(); }
    int GetFaceNbrGroup(int fn) const { return face_nbr_group[fn]; }
    int GetFaceNbrRank(int fn) const;
-
-   void GetFaceNbrElementTransformation(
-      int i, IsoparametricTransformation *ElTr);
 
    /** Similar to Mesh::GetFaceToElementTable with added face-neighbor elements
        with indices offset by the local number of elements. */
