@@ -120,10 +120,12 @@ void AMRUpdateTrue(BlockVector &S,
 
 int main(int argc, char *argv[])
 {
-   int num_procs, myid;
+   int num_procs, myid, myid_rand;
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+
+   myid_rand=rand();
 
    //++++Parse command-line options.
    const char *mesh_file = "./Meshes/xperiodic-square.mesh";
@@ -656,15 +658,22 @@ int main(int argc, char *argv[])
       dc->Save();
    }
 
+   //save domain decompositino explicitly
+   L2_FECollection pw_const_fec(0, dim);
+   ParFiniteElementSpace pw_const_fes(pmesh, &pw_const_fec);
+   ParGridFunction mpi_rank_gf(&pw_const_fes);
+   mpi_rank_gf = myid_rand;
+
    ParaViewDataCollection *pd = NULL;
    if (paraview)
    {
-      pd = new ParaViewDataCollection("case3amr", pmesh);
+      pd = new ParaViewDataCollection("case3amr-derefine", pmesh);
       pd->SetPrefixPath("ParaView");
       pd->RegisterField("psi", &psi);
       pd->RegisterField("phi", &phi);
       pd->RegisterField("omega", &w);
       pd->RegisterField("current", &j);
+      pd->RegisterField("MPI rank", &mpi_rank_gf);
       pd->SetLevelsOfDetail(order);
       pd->SetDataFormat(VTKFormat::BINARY);
       pd->SetHighOrderOutput(true);
@@ -681,6 +690,7 @@ int main(int argc, char *argv[])
    //++++Perform time-integration (looping over the time iterations, ti, with a time-step dt).
    bool last_step = false;
    int ref_its=1;
+   int deref_its=1;
    for (int ti = 1; !last_step; ti++)
    {
       double dt_real = min(dt, t_final - t);
@@ -688,7 +698,8 @@ int main(int argc, char *argv[])
       if (t>t_refs)
       {
           ref_steps=2;
-          ref_its=2;
+          ref_its=1;
+          deref_its=3;
       }
 
       if (t>4. && levels3<amr_levels)
@@ -764,8 +775,19 @@ int main(int argc, char *argv[])
 
            AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j);
            oper.UpdateGridFunction();
+           if (paraview) 
+           {
+               pw_const_fes.Update();
+               mpi_rank_gf.Update();
+           }
 
            pmesh->Rebalance();
+
+           if (paraview) 
+           {
+               pw_const_fes.Update();
+               mpi_rank_gf.Update();
+           }
 
            //---Update solutions after rebalancing---
            AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j);
@@ -794,7 +816,7 @@ int main(int argc, char *argv[])
          if (myid == 0) cout << "Derefined mesh..." << endl;
 
          int its;
-         for (its=0; its<ref_its; its++)
+         for (its=0; its<deref_its; its++)
          {
              if (!derefiner.Apply(*pmesh))
              {
@@ -806,7 +828,19 @@ int main(int argc, char *argv[])
              AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j);
              oper.UpdateGridFunction();
 
+             if (paraview) 
+             {
+                 pw_const_fes.Update();
+                 mpi_rank_gf.Update();
+             }
+
              pmesh->Rebalance();
+
+             if (paraview) 
+             {
+                 pw_const_fes.Update();
+                 mpi_rank_gf.Update();
+             }
 
              //---Update solutions after rebalancing---
              AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j);
@@ -865,6 +899,7 @@ int main(int argc, char *argv[])
 
         if (paraview)
         {
+           mpi_rank_gf = myid_rand;
            pd->SetCycle(ti);
            pd->SetTime(t);
            pd->Save();
