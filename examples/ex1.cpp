@@ -207,6 +207,14 @@ int main(int argc, char *argv[])
    }
    else // Jacobi preconditioning in partial assembly mode
    {
+#ifdef MFEM_USE_CEED
+      if (DeviceCanUseCeed())
+      {
+         AlgebraicCeedSolver M(*A, a, ess_tdof_list);
+         PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
+      }
+      else
+#endif      
       if (UsesTensorBasis(fespace))
       {
          OperatorJacobiSmoother M(a, ess_tdof_list);
