@@ -25,17 +25,13 @@ namespace mfem
 
 ArPackSym::ArPackSym()
    : myid_(0),
-     // max_iter_(100),
-     // logging_(0),
      nloc_(-1),
-     // nev_(10),
      ncv_(20),
      rvec_(0),
      mode_(1),
      lworkl_(-1),
      bmat_('I'),
      hwmny_('A'),
-     // tol_(1e-4),
      sigma_(0.0),
      select_(NULL),
      dv_(NULL),
