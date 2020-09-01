@@ -80,6 +80,7 @@ struct CeedData
       CeedElemRestrictionDestroy(&mesh_restr_i);
       CeedQFunctionDestroy(&apply_qfunc);
       CeedQFunctionDestroy(&build_qfunc);
+      CeedQFunctionContextDestroy(&build_ctx);
       CeedVectorDestroy(&node_coords);
       CeedVectorDestroy(&rho);
       if (coeff_type==CeedCoeff::Grid)
