@@ -563,8 +563,6 @@ void CeedPAAssemble(const CeedPAOperator& op,
                                      &ceedData.build_qfunc);
          CeedQFunctionAddInput(ceedData.build_qfunc, "coeff", 1, CEED_EVAL_NONE);
          break;
-      default:
-         MFEM_ABORT("This coeff_type is not handled");
    }
    CeedQFunctionAddInput(ceedData.build_qfunc, "dx", dim * dim, CEED_EVAL_GRAD);
    CeedQFunctionAddInput(ceedData.build_qfunc, "weights", 1, CEED_EVAL_WEIGHT);
