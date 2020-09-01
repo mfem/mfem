@@ -34,6 +34,7 @@
 
 #include "sparsemat.hpp"
 #include "hypre_parcsr.hpp"
+#include "eigensolvers.hpp"
 
 namespace mfem
 {
@@ -1301,7 +1302,9 @@ public:
 
    // The following four methods support operators of type HypreParMatrix.
    void SetPreconditioner(HypreSolver & precond);
+   void SetOperator(Operator & A);
    void SetOperator(HypreParMatrix & A);
+   void SetMassMatrix(Operator & M);
    void SetMassMatrix(HypreParMatrix & M);
 
    /// Solve the eigenproblem

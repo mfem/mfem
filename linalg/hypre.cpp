@@ -4331,6 +4331,15 @@ HypreAME::SetPreconditioner(HypreSolver & precond)
 }
 
 void
+HypreAME::SetOperator(Operator & op)
+{
+   HypreParMatrix *hyp_mat = dynamic_cast<HypreParMatrix *>(&op);
+   MFEM_VERIFY(hyp_mat, "new Operator must be a HypreParMatrix!");
+
+   this->SetOperator(*hyp_mat);
+}
+
+void
 HypreAME::SetOperator(HypreParMatrix & A)
 {
    if ( !setT )
@@ -4343,6 +4352,15 @@ HypreAME::SetOperator(HypreParMatrix & A)
    }
 
    HYPRE_AMESetup(ame_solver);
+}
+
+void
+HypreAME::SetMassMatrix(Operator & op)
+{
+   HypreParMatrix *hyp_mat = dynamic_cast<HypreParMatrix *>(&op);
+   MFEM_VERIFY(hyp_mat, "new Mass Matrix must be a HypreParMatrix!");
+
+   this->SetMassMatrix(*hyp_mat);
 }
 
 void
