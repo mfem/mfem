@@ -42,6 +42,10 @@
 #include "ginkgo.hpp"
 #endif
 
+#ifdef MFEM_USE_ARPACK
+#include "arpack.hpp"
+#endif
+
 #ifdef MFEM_USE_MPI
 #include "hypre_parcsr.hpp"
 #include "hypre.hpp"
@@ -60,10 +64,6 @@
 
 #ifdef MFEM_USE_STRUMPACK
 #include "strumpack.hpp"
-#endif
-
-#ifdef MFEM_USE_ARPACK
-#include "arpack.hpp"
 #endif
 
 #endif // MFEM_USE_MPI
