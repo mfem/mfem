@@ -31,7 +31,6 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    ElementTransformation *T = mesh->GetElementTransformation(0);
    const IntegrationRule *ir
       = IntRule ? IntRule : &MassIntegrator::GetRule(el, el, *T);
-#ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
       delete ceedDataPtr;
@@ -39,7 +38,6 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       InitCeedCoeff(Q, ceedDataPtr);
       return CeedPAMassAssemble(fes, *ir, *ceedDataPtr);
    }
-#endif
    dim = mesh->Dimension();
    ne = fes.GetMesh()->GetNE();
    nq = ir->GetNPoints();
@@ -371,13 +369,11 @@ static void PAVectorMassApply(const int dim,
 
 void VectorMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-#ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
       CeedAddMultPA(ceedDataPtr, x, y);
    }
    else
-#endif
    {
       PAVectorMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, pa_data, x, y);
    }
@@ -533,13 +529,11 @@ static void PAVectorMassAssembleDiagonal(const int dim,
 
 void VectorMassIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-#ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
       CeedAssembleDiagonalPA(ceedDataPtr, diag);
    }
    else
-#endif
    {
       PAVectorMassAssembleDiagonal(dim,
                                    dofs1D,
