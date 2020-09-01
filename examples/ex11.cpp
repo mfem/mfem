@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
                   "Number of desired eigenmodes.");
    args.AddOption(&dbc_eig, "-d", "--dbc-eig",
                   "Eigenvalues associated with Dirichlet BC "
-		  "(should be larger than the maximum desired eigenvalue).");
+                  "(should be larger than the maximum desired eigenvalue).");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -146,7 +146,7 @@ int main(int argc, char *argv[])
    a->Assemble();
    if (mesh->bdr_attributes.Size() != 0)
    {
-     a->EliminateEssentialBCDiag(ess_bdr, dbc_eig);
+      a->EliminateEssentialBCDiag(ess_bdr, dbc_eig);
    }
    a->Finalize();
 
@@ -155,8 +155,8 @@ int main(int argc, char *argv[])
    m->Assemble();
    if (mesh->bdr_attributes.Size() != 0)
    {
-     // shift the eigenvalue corresponding to eliminated dofs to a large value
-     m->EliminateEssentialBCDiag(ess_bdr, 1.0);
+      // shift the eigenvalue corresponding to eliminated dofs to a large value
+      m->EliminateEssentialBCDiag(ess_bdr, 1.0);
    }
    m->Finalize();
 

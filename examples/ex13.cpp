@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
       }
    }
    mesh->ReorientTetMesh();
-   
+
    // 4. Define a finite element space on the mesh. Here we use the lowest
    //    order Nedelec finite elements, but we can easily switch
    //    to higher-order spaces by changing the value of p.
