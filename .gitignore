@@ -233,6 +233,7 @@ miniapps/nurbs/mode_*
 miniapps/nurbs/Example1*
 
 miniapps/gslib/field-diff
+miniapps/gslib/field-interp
 miniapps/gslib/findpts
 miniapps/gslib/pfindpts
 
