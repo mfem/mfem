@@ -1964,12 +1964,12 @@ protected:
 public:
    MassIntegrator(const IntegrationRule *ir = NULL)
       : BilinearFormIntegrator(ir), Q(NULL), maps(NULL), geom(NULL),
-      ceedDataPtr(NULL) { }
+        ceedDataPtr(NULL) { }
 
    /// Construct a mass integrator with coefficient q
    MassIntegrator(Coefficient &q, const IntegrationRule *ir = NULL)
       : BilinearFormIntegrator(ir), Q(&q), maps(NULL), geom(NULL),
-      ceedDataPtr(NULL) { }
+        ceedDataPtr(NULL) { }
 
    virtual ~MassIntegrator()
    {
@@ -2114,15 +2114,15 @@ public:
       : vdim(-1), Q(&q), VQ(NULL), MQ(NULL), Q_order(qo), ceedDataPtr(NULL) { }
    VectorMassIntegrator(Coefficient &q, const IntegrationRule *ir)
       : BilinearFormIntegrator(ir), vdim(-1), Q(&q), VQ(NULL), MQ(NULL),
-      Q_order(0), ceedDataPtr(NULL) { }
+        Q_order(0), ceedDataPtr(NULL) { }
    /// Construct an integrator with diagonal coefficient q
    VectorMassIntegrator(VectorCoefficient &q, int qo = 0)
       : vdim(q.GetVDim()), Q(NULL), VQ(&q), MQ(NULL), Q_order(qo),
-      ceedDataPtr(NULL) { }
+        ceedDataPtr(NULL) { }
    /// Construct an integrator with matrix coefficient q
    VectorMassIntegrator(MatrixCoefficient &q, int qo = 0)
       : vdim(q.GetVDim()), Q(NULL), VQ(NULL), MQ(&q), Q_order(qo),
-      ceedDataPtr(NULL) { }
+        ceedDataPtr(NULL) { }
 
    virtual ~VectorMassIntegrator()
    {
