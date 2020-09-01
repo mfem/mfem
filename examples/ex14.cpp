@@ -128,14 +128,12 @@ int main(int argc, char *argv[])
    //    Note that boundary conditions are imposed weakly in the form, so there
    //    is no need for dof elimination. After assembly and finalizing we
    //    extract the corresponding sparse matrix A.
-
    BilinearForm *a = new BilinearForm(fespace);
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
    a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
    a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
    a->AddInteriorFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
    a->AddBdrFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
-
    a->Assemble();
    a->Finalize();
    const SparseMatrix &A = a->SpMat();
