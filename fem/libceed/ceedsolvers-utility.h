@@ -16,6 +16,8 @@
 #ifndef __CEEDUTILITY_H
 #define __CEEDUTILITY_H
 
+#include "../../config/config.hpp"
+
 #ifdef MFEM_USE_CEED
 
 #include <ceed.h>
