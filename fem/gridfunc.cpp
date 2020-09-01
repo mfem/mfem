@@ -199,8 +199,7 @@ void GridFunction::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
    if (f != fes) { Destroy(); }
    fes = f;
    v.UseDevice(true);
-   NewMemoryAndSize(Memory<double>(v.GetMemory(), v_offset, fes->GetVSize()),
-                    fes->GetVSize(), true);
+   this->Vector::MakeRef(v, v_offset, fes->GetVSize());
    sequence = fes->GetSequence();
 }
 
