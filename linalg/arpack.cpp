@@ -138,7 +138,7 @@ ArPackSym::reverseCommMode1()
 
    if ( myid_ == 0 && logging_ >= 1 )
    {
-      cout << "  Starting mode 1 main loop." << endl << flush;
+      mfem::out << "  Starting mode 1 main loop." << endl << flush;
    }
 
    // the main loop
@@ -156,9 +156,9 @@ ArPackSym::reverseCommMode1()
       {
          if ( myid_ == 0 && logging_ >= 2 )
          {
-            cout << "  ido = " << ido
-                 << ", computing y = A x"
-                 << endl << flush;
+            mfem::out << "  ido = " << ido
+                      << ", computing y = A x"
+                      << endl << flush;
          }
 
          // we have to compute y = A x;
@@ -175,8 +175,8 @@ ArPackSym::reverseCommMode1()
       {
          if ( myid_ == 0 && logging_ >= 2 )
          {
-            cout << "  ido = " << ido << ", computing y = x"
-                 << endl << flush;
+            mfem::out << "  ido = " << ido << ", computing y = x"
+                      << endl << flush;
          }
 
          // we have to compute y = x.
@@ -208,7 +208,7 @@ ArPackSym::reverseCommMode2()
 
    if ( myid_ == 0 && logging_ >= 1 )
    {
-      cout << "  Starting mode 2 main loop." << endl << flush;
+      mfem::out << "  Starting mode 2 main loop." << endl << flush;
    }
 
    // the main loop
@@ -226,9 +226,9 @@ ArPackSym::reverseCommMode2()
       {
          if ( myid_ == 0 && logging_ >= 2 )
          {
-            cout << "  ido = " << ido
-                 << ", computing w = M^-1 y, where y = A v"
-                 << endl << flush;
+            mfem::out << "  ido = " << ido
+                      << ", computing w = M^-1 y, where y = A v"
+                      << endl << flush;
          }
 
          // we have to compute y = A v, then solve M w = y;
@@ -251,8 +251,8 @@ ArPackSym::reverseCommMode2()
       {
          if ( myid_ == 0 && logging_ >= 2 )
          {
-            cout << "  ido = " << ido << ", computing w = M v"
-                 << endl << flush;
+            mfem::out << "  ido = " << ido << ", computing w = M v"
+                      << endl << flush;
          }
 
          // we have to compute w = M v. (w is b, v is x)
@@ -284,7 +284,7 @@ ArPackSym::reverseCommMode3()
 
    if ( myid_ == 0 && logging_ >= 1 )
    {
-      cout << "  Starting mode 3 main loop." << endl << flush;
+      mfem::out << "  Starting mode 3 main loop." << endl << flush;
    }
 
    // the main loop
@@ -302,9 +302,9 @@ ArPackSym::reverseCommMode3()
       {
          if ( myid_ == 0 && logging_ >= 2 )
          {
-            cout << "  ido = " << ido
-                 << ", computing w = (A - sigma M)^-1 y, where y = M v"
-                 << endl << flush;
+            mfem::out << "  ido = " << ido
+                      << ", computing w = (A - sigma M)^-1 y, where y = M v"
+                      << endl << flush;
          }
 
          // we have to compute y = M v, then solve (A - sigma M) w = y;
@@ -325,9 +325,9 @@ ArPackSym::reverseCommMode3()
       {
          if ( myid_ == 0 && logging_ >= 2 )
          {
-            cout << "  ido = " << ido
-                 << ", computing w = (A - sigma M)^-1 v"
-                 << endl << flush;
+            mfem::out << "  ido = " << ido
+                      << ", computing w = (A - sigma M)^-1 v"
+                      << endl << flush;
          }
 
          // we have to solve (A - sigma M)w = v
@@ -344,8 +344,8 @@ ArPackSym::reverseCommMode3()
       {
          if ( myid_ == 0 && logging_ >= 2 )
          {
-            cout << "  ido = " << ido << ", computing w = M v"
-                 << endl << flush;
+            mfem::out << "  ido = " << ido << ", computing w = M v"
+                      << endl << flush;
          }
 
          // we have to compute w = M v. (w is b, v is x)
@@ -378,7 +378,7 @@ ArPackSym::reverseCommMode4()
 
    if ( myid_ == 0 && logging_ >= 1 )
    {
-      cout << "  Starting mode 4 main loop." << endl << flush;
+      mfem::out << "  Starting mode 4 main loop." << endl << flush;
    }
 
    // the main loop
@@ -396,9 +396,9 @@ ArPackSym::reverseCommMode4()
       {
          if ( myid_ == 0 && logging_ >= 2 )
          {
-            cout << "  ido = " << ido
-                 << ", computing w = (K - sigma KG)^-1 y, where y = K v"
-                 << endl << flush;
+            mfem::out << "  ido = " << ido
+                      << ", computing w = (K - sigma KG)^-1 y, where y = K v"
+                      << endl << flush;
          }
 
          // we have to compute y = K v, then solve (K - sigma KG) w = y;
@@ -419,9 +419,9 @@ ArPackSym::reverseCommMode4()
       {
          if ( myid_ == 0 && logging_ >= 2 )
          {
-            cout << "  ido = " << ido
-                 << ", computing w = (K - sigma KG)^-1 v"
-                 << endl << flush;
+            mfem::out << "  ido = " << ido
+                      << ", computing w = (K - sigma KG)^-1 v"
+                      << endl << flush;
          }
 
          // we have to solve (K - sigma KG)w = v
@@ -438,8 +438,8 @@ ArPackSym::reverseCommMode4()
       {
          if ( myid_ == 0 && logging_ >= 2 )
          {
-            cout << "  ido = " << ido << ", computing w = K v"
-                 << endl << flush;
+            mfem::out << "  ido = " << ido << ", computing w = K v"
+                      << endl << flush;
          }
 
          // we have to compute y = K x.
@@ -471,7 +471,7 @@ ArPackSym::reverseCommMode5()
 
    if ( myid_ == 0 && logging_ >= 1 )
    {
-      cout << "  Starting mode 5 main loop." << endl << flush;
+      mfem::out << "  Starting mode 5 main loop." << endl << flush;
    }
 
    // the main loop
@@ -489,10 +489,10 @@ ArPackSym::reverseCommMode5()
       {
          if ( myid_ == 0 && logging_ >= 2 )
          {
-            cout << "  ido = " << ido
-                 << ", computing w = (A - sigma M)^-1 y, "
-                 << "where y = (A + sigma M) v"
-                 << endl << flush;
+            mfem::out << "  ido = " << ido
+                      << ", computing w = (A - sigma M)^-1 y, "
+                      << "where y = (A + sigma M) v"
+                      << endl << flush;
          }
 
          // we have to compute y = (A + sigma M) v,
@@ -520,9 +520,9 @@ ArPackSym::reverseCommMode5()
       {
          if ( myid_ == 0 && logging_ >= 2 )
          {
-            cout << "  ido = " << ido
-                 << ", computing w = (A - sigma M)^-1 (A + sigma M) v"
-                 << endl << flush;
+            mfem::out << "  ido = " << ido
+                      << ", computing w = (A - sigma M)^-1 (A + sigma M) v"
+                      << endl << flush;
          }
 
          // we have to solve (A - sigma M)w = v with v partially formed
@@ -546,8 +546,8 @@ ArPackSym::reverseCommMode5()
       {
          if ( myid_ == 0 && logging_ >= 2 )
          {
-            cout << "  ido = " << ido << ", computing w = M v"
-                 << endl << flush;
+            mfem::out << "  ido = " << ido << ", computing w = M v"
+                      << endl << flush;
          }
 
          // we have to compute w = M v.
@@ -638,21 +638,22 @@ ArPackSym::reverseComm()
 
    if ( myid_ == 0 && logging_ >= 0 )
    {
-      cout << "ArPack::reverseComm() - " << solverName_ << " Parameters" << endl
-           << "  BMAT:    " << bmat_      << endl
-           << "  N:       " << nloc_      << endl
-           << "  WHICH:   " << which_[0] << which_[1] << endl
-           << "  NEV:     " << nev_      << endl
-           << "  TOL:     " << tol_      << endl
-           << "  NCV:     " << ncv_       << endl
-           << "  LDV:     " << nloc_      << endl
-           << "  ISHIFT:  " << iparam_[0] << endl
-           << "  MXITER:  " << iparam_[2] << endl
-           << "  NB:      " << iparam_[3] << endl
-           << "  MODE:    " << iparam_[6] << endl
-           << "  LWORKL:  " << lworkl_    << endl
-           << "  INFO:    " << info      << endl
-           << endl << flush;
+      mfem::out << "ArPack::reverseComm() - " << solverName_
+                << " Parameters" << endl
+                << "  BMAT:    " << bmat_      << endl
+                << "  N:       " << nloc_      << endl
+                << "  WHICH:   " << which_[0] << which_[1] << endl
+                << "  NEV:     " << nev_      << endl
+                << "  TOL:     " << tol_      << endl
+                << "  NCV:     " << ncv_       << endl
+                << "  LDV:     " << nloc_      << endl
+                << "  ISHIFT:  " << iparam_[0] << endl
+                << "  MXITER:  " << iparam_[2] << endl
+                << "  NB:      " << iparam_[3] << endl
+                << "  MODE:    " << iparam_[6] << endl
+                << "  LWORKL:  " << lworkl_    << endl
+                << "  INFO:    " << info      << endl
+                << endl << flush;
    }
 
    switch (mode_)
@@ -682,9 +683,10 @@ ArPackSym::reverseComm()
    {
       if ( myid_ == 0 )
       {
-         cout << endl << "error with PDSAUPD, info = " << info
-              << endl << flush;
-         cout << "check the documentation of PDSAUPD" << endl << endl << flush;
+         mfem::out << endl << "error with PDSAUPD, info = " << info
+                   << endl << flush;
+         mfem::out << "check the documentation of PDSAUPD" << endl
+                   << endl << flush;
       }
       exit(1);
    }
@@ -695,14 +697,14 @@ ArPackSym::Solve()
 {
    if ( myid_ == 0 && logging_ >= 3 )
    {
-      cout<<"Running reverse communication loop ..."<<endl;
+      mfem::out << "Running reverse communication loop ..." << endl;
    }
 
    this->reverseComm();
 
    if ( myid_ == 0 && logging_ >= 3 )
    {
-      cout<<"Computing eigenvalues and eigenvectors ..."<<endl;
+      mfem::out << "Computing eigenvalues and eigenvectors ..." << endl;
    }
 
    rvec_ = 1; // do compute eigenvectors
@@ -716,7 +718,7 @@ ArPackSym::Solve()
 
    if ( myid_ == 0 && logging_ >= 3 )
    {
-      cout<<"Done computing eigenvalues and eigenvectors ..."<<endl;
+      mfem::out << "Done computing eigenvalues and eigenvectors ..." << endl;
    }
 }
 
@@ -736,7 +738,7 @@ ArPackSym::prepareEigenvectors()
 {
    if ( myid_ == 0 && logging_ >= 3 )
    {
-      cout<<"Entering ArPAckSym::prepareEigenvectors ..."<<endl;
+      mfem::out << "Entering ArPAckSym::prepareEigenvectors ..." << endl;
    }
 
    if ( eigenvectors_ )
@@ -768,7 +770,7 @@ ArPackSym::prepareEigenvectors()
 
    if ( myid_ == 0 && logging_ >= 3 )
    {
-      cout<<"Leaving ArPAckSym::prepareEigenvectors ..."<<endl;
+      mfem::out << "Leaving ArPAckSym::prepareEigenvectors ..." << endl;
    }
 }
 
@@ -830,86 +832,87 @@ ArPackSym::printErrors(const int & info, const int iparam[],
    switch (info)
    {
       case -1:
-         cout << solverName_ << " Reports:  "
-              << "N must be positive.  "
-              << "N = " << n << endl << flush;
+         mfem::out << solverName_ << " Reports:  "
+                   << "N must be positive. "
+                   << "N = " << n << endl << flush;
          break;
       case -2:
-         cout << solverName_ << " Reports:  "
-              << "NEV must be positive.  "
-              << "NEV = " << nev << endl << flush;
+         mfem::out << solverName_ << " Reports:  "
+                   << "NEV must be positive. "
+                   << "NEV = " << nev << endl << flush;
          break;
       case -3:
-         cout << solverName_ << " Reports:  "
-              << "NCV must be greater than NEV and less than or equal to N.  "
-              << "NEV/NCV/N = " << nev << "/" << ncv << "/" << n
-              << endl << flush;
+         mfem::out << solverName_ << " Reports:  "
+                   << "NCV must be greater than NEV and "
+                   << "less than or equal to N. "
+                   << "NEV/NCV/N = " << nev << "/" << ncv << "/" << n
+                   << endl << flush;
          break;
       case -4:
-         cout << solverName_ << " Reports:  "
-              << "The maximum number of Arnoldi update iterations allowed "
-              << "must be greater than zero.  "
-              << "IPARAM(3) = " << iparam[2] << endl << flush;
+         mfem::out << solverName_ << " Reports:  "
+                   << "The maximum number of Arnoldi update iterations allowed "
+                   << "must be greater than zero. "
+                   << "IPARAM(3) = " << iparam[2] << endl << flush;
          break;
       case -5:
-         cout << solverName_ << " Reports:  "
-              << "WHICH must be one of 'LM', 'SM', 'LA', 'SA' or 'BE'.  "
-              << "WHICH = " << which[0] << which[1] << endl << flush;
+         mfem::out << solverName_ << " Reports:  "
+                   << "WHICH must be one of 'LM', 'SM', 'LA', 'SA' or 'BE'. "
+                   << "WHICH = " << which[0] << which[1] << endl << flush;
          break;
       case -6:
-         cout << solverName_ << " Reports:  "
-              << "BMAT must be one of 'I' or 'G'.  "
-              << "BMAT = " << bmat << endl << flush;
+         mfem::out << solverName_ << " Reports:  "
+                   << "BMAT must be one of 'I' or 'G'. "
+                   << "BMAT = " << bmat << endl << flush;
          break;
       case -7:
-         cout << solverName_ << " Reports:  "
-              << "Length of private work array WORKL is not sufficient.  "
-              << "LWORKL = " << lworkl << endl << flush;
+         mfem::out << solverName_ << " Reports:  "
+                   << "Length of private work array WORKL is not sufficient. "
+                   << "LWORKL = " << lworkl << endl << flush;
          break;
       case -8:
-         cout << solverName_ << " Reports:  "
-              << "Error return from trid. eigenvalue calculation; "
-              << "Informatinal error from LAPACK routine dsteqr."
-              << endl << flush;
+         mfem::out << solverName_ << " Reports:  "
+                   << "Error return from trid. eigenvalue calculation; "
+                   << "Informatinal error from LAPACK routine dsteqr."
+                   << endl << flush;
          break;
       case -9:
-         cout << solverName_ << " Reports:  "
-              << "Starting vector is zero." << endl << flush;
+         mfem::out << solverName_ << " Reports:  "
+                   << "Starting vector is zero." << endl << flush;
          break;
       case -10:
-         cout << solverName_ << " Reports:  "
-              << "IPARAM(7) must be 1,2,3,4,5.  "
-              << "IPARAM(7) = " << iparam[6] << endl << flush;
+         mfem::out << solverName_ << " Reports:  "
+                   << "IPARAM(7) must be 1,2,3,4,5. "
+                   << "IPARAM(7) = " << iparam[6] << endl << flush;
          break;
       case -11:
-         cout << solverName_ << " Reports:  "
-              << "IPARAM(7) = 1 and BMAT = 'G' "
-              << "are incompatable." << endl << flush;
+         mfem::out << solverName_ << " Reports:  "
+                   << "IPARAM(7) = 1 and BMAT = 'G' "
+                   << "are incompatable." << endl << flush;
          break;
       case -12:
-         cout << solverName_ << " Reports:  "
-              << "IPARAM(1) must be equal to 0 or 1.  "
-              << "IPARAM(7) = " << iparam[6] << endl << flush;
+         mfem::out << solverName_ << " Reports:  "
+                   << "IPARAM(1) must be equal to 0 or 1. "
+                   << "IPARAM(7) = " << iparam[6] << endl << flush;
          break;
       case -13:
-         cout << solverName_ << " Reports:  "
-              << "NEV and WHICH = 'BE' are incompatable.  "
-              << "NEV/WHICH = " << nev << "/" << which[0] << which[1]
-              << endl << flush;
+         mfem::out << solverName_ << " Reports:  "
+                   << "NEV and WHICH = 'BE' are incompatable. "
+                   << "NEV/WHICH = " << nev << "/" << which[0] << which[1]
+                   << endl << flush;
          break;
       case -9999:
-         cout << solverName_ << " Reports:  "
-              << "Could not build an Arnoldi factorization. "
-              << "IPARAM(5) returns the size of the current Arnoldi "
-              << "factorization. The user is advised to check that "
-              << "enough workspace and array storage has been allocated.  "
-              << endl << flush
-              << "IPARAM(5) = " << iparam[4] << endl << flush;
+         mfem::out << solverName_ << " Reports:  "
+                   << "Could not build an Arnoldi factorization. "
+                   << "IPARAM(5) returns the size of the current Arnoldi "
+                   << "factorization. The user is advised to check that "
+                   << "enough workspace and array storage has been allocated. "
+                   << endl << flush
+                   << "IPARAM(5) = " << iparam[4] << endl << flush;
          break;
       default:
-         cout << solverName_ << " Reports "
-              << "an unrecognized Info Value:  info = " << info << endl
-              << flush;
+         mfem::out << solverName_ << " Reports "
+                   << "an unrecognized Info Value:  info = " << info << endl
+                   << flush;
    }
 
 }
@@ -975,7 +978,7 @@ ParArPackSym::prepareEigenvectors()
 {
    if ( myid_ == 0 && logging_ >= 3 )
    {
-      cout<<"Entering ParArPAckSym::prepareEigenvectors ..."<<endl;
+      mfem::out << "Entering ParArPAckSym::prepareEigenvectors ..." << endl;
    }
 
    if ( eigenvectors_ )
@@ -1037,7 +1040,7 @@ ParArPackSym::prepareEigenvectors()
 
    if ( myid_ == 0 && logging_ >= 3 )
    {
-      cout<<"Leaving ParArPAckSym::prepareEigenvectors ..."<<endl;
+      mfem::out << "Leaving ParArPAckSym::prepareEigenvectors ..." << endl;
    }
 }
 
@@ -1046,7 +1049,7 @@ Vector & ParArPackSym::GetEigenvector(unsigned int i)
 {
    if ( myid_ == 0 && logging_ >= 3 )
    {
-      cout << "Entering ParArPackSym::GetEigenvector" << endl;
+      mfem::out << "Entering ParArPackSym::GetEigenvector" << endl;
    }
 
    if ( !eigenvectors_ )
@@ -1058,7 +1061,7 @@ Vector & ParArPackSym::GetEigenvector(unsigned int i)
 
    if ( myid_ == 0 && logging_ >= 3 )
    {
-      cout << "Leaving ParArPackSym::GetEigenvector" << endl;
+      mfem::out << "Leaving ParArPackSym::GetEigenvector" << endl;
    }
    return *vec;
 }
