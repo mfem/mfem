@@ -117,8 +117,8 @@ void DGDiffusionBR2Integrator::AssembleFaceMatrix(
       R21 = 0.0;
       R22 = 0.0;
 
-      factor = std::max(factor,
-         double(Geometries.NumBdr(Trans.Elem2->GetGeometryType())));
+      Geometry::Type geom2 = Trans.Elem2->GetGeometryType();
+      factor = std::max(factor, double(Geometries.NumBdr(geom2)));
    }
    else
    {
