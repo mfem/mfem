@@ -199,6 +199,12 @@ Improved testing
 
 Miscellaneous
 -------------
+- Added support for computing asymptotic error estimates and rates of
+  convergence for all energy spaces. The new interface introduces the class
+  ConvergenceStudy and new member methods in GridFunction and ParGridFunction
+  classes. Two new examples are added, rates.cpp/ratesp.cpp, in 
+  tests/convergence which demonstrate the usage. 
+
 - Added support for ADIOS2 for parallel I/O with ParaView visualization. The
   classes adios2stream and ADIOS2DataCollection are introduced in mfem as the
   interfaces to generate ADIOS2 Binary Pack (BP4) directory datasets for the
