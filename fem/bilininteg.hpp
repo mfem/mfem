@@ -1885,33 +1885,15 @@ private:
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
    DiffusionIntegrator()
-   {
-      Q = NULL;
-      MQ = NULL;
-      maps = NULL;
-      geom = NULL;
-      ceedDataPtr = NULL;
-   }
+      : Q(NULL), MQ(NULL), maps(NULL), geom(NULL), ceedDataPtr(NULL) { }
 
    /// Construct a diffusion integrator with a scalar coefficient q
    DiffusionIntegrator(Coefficient &q)
-      : Q(&q)
-   {
-      MQ = NULL;
-      maps = NULL;
-      geom = NULL;
-      ceedDataPtr = NULL;
-   }
+      : Q(&q), MQ(NULL), maps(NULL), geom(NULL), ceedDataPtr(NULL) { }
 
    /// Construct a diffusion integrator with a matrix coefficient q
    DiffusionIntegrator(MatrixCoefficient &q)
-      : MQ(&q)
-   {
-      Q = NULL;
-      maps = NULL;
-      geom = NULL;
-      ceedDataPtr = NULL;
-   }
+      : Q(NULL), MQ(&q), maps(NULL), geom(NULL), ceedDataPtr(NULL) { }
 
    virtual ~DiffusionIntegrator()
    {
@@ -1981,22 +1963,13 @@ protected:
 
 public:
    MassIntegrator(const IntegrationRule *ir = NULL)
-      : BilinearFormIntegrator(ir)
-   {
-      Q = NULL;
-      maps = NULL;
-      geom = NULL;
-      ceedDataPtr = NULL;
-   }
+      : BilinearFormIntegrator(ir), Q(NULL), maps(NULL), geom(NULL),
+      ceedDataPtr(NULL) { }
 
    /// Construct a mass integrator with coefficient q
    MassIntegrator(Coefficient &q, const IntegrationRule *ir = NULL)
-      : BilinearFormIntegrator(ir), Q(&q)
-   {
-      maps = NULL;
-      geom = NULL;
-      ceedDataPtr = NULL;
-   }
+      : BilinearFormIntegrator(ir), Q(&q), maps(NULL), geom(NULL),
+      ceedDataPtr(NULL) { }
 
    virtual ~MassIntegrator()
    {
@@ -2133,47 +2106,23 @@ protected:
 public:
    /// Construct an integrator with coefficient 1.0
    VectorMassIntegrator()
-      : vdim(-1), Q_order(0), Q(NULL), VQ(NULL), MQ(NULL)
-   {
-      ceedDataPtr = NULL;
-   }
+      : vdim(-1), Q_order(0), Q(NULL), VQ(NULL), MQ(NULL), ceedDataPtr(NULL) { }
    /** Construct an integrator with scalar coefficient q.  If possible, save
        memory by using a scalar integrator since the resulting matrix is block
        diagonal with the same diagonal block repeated. */
    VectorMassIntegrator(Coefficient &q, int qo = 0)
-      : vdim(-1), Q(&q)
-   {
-      VQ = NULL;
-      MQ = NULL;
-      Q_order = qo;
-      ceedDataPtr = NULL;
-   }
+      : vdim(-1), Q(&q), VQ(NULL), MQ(NULL), Q_order(qo), ceedDataPtr(NULL) { }
    VectorMassIntegrator(Coefficient &q, const IntegrationRule *ir)
-      : BilinearFormIntegrator(ir), vdim(-1), Q(&q)
-   {
-      VQ = NULL;
-      MQ = NULL;
-      Q_order = 0;
-      ceedDataPtr = NULL;
-   }
+      : BilinearFormIntegrator(ir), vdim(-1), Q(&q), VQ(NULL), MQ(NULL),
+      Q_order(0), ceedDataPtr(NULL) { }
    /// Construct an integrator with diagonal coefficient q
    VectorMassIntegrator(VectorCoefficient &q, int qo = 0)
-      : vdim(q.GetVDim()), VQ(&q)
-   {
-      Q = NULL;
-      MQ = NULL;
-      Q_order = qo;
-      ceedDataPtr = NULL;
-   }
+      : vdim(q.GetVDim()), Q(NULL), VQ(&q), MQ(NULL), Q_order(qo),
+      ceedDataPtr(NULL) { }
    /// Construct an integrator with matrix coefficient q
    VectorMassIntegrator(MatrixCoefficient &q, int qo = 0)
-      : vdim(q.GetVDim()), MQ(&q)
-   {
-      Q = NULL;
-      VQ = NULL;
-      Q_order = qo;
-      ceedDataPtr = NULL;
-   }
+      : vdim(q.GetVDim()), Q(NULL), VQ(NULL), MQ(&q), Q_order(qo),
+      ceedDataPtr(NULL) { }
 
    virtual ~VectorMassIntegrator()
    {
@@ -2559,15 +2508,9 @@ private:
 
 public:
    VectorDiffusionIntegrator()
-   {
-      Q = NULL;
-      ceedDataPtr = NULL;
-   }
+      : Q(NULL), ceedDataPtr(NULL) { }
    VectorDiffusionIntegrator(Coefficient &q)
-   {
-      Q = &q;
-      ceedDataPtr = NULL;
-   }
+      : Q(&q), ceedDataPtr(NULL) { }
 
    virtual ~VectorDiffusionIntegrator()
    {
