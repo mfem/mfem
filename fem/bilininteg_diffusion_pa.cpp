@@ -271,16 +271,13 @@ void DiffusionIntegrator::SetupPA(const FiniteElementSpace &fes)
    if (mesh->GetNE() == 0) { return; }
    const FiniteElement &el = *fes.GetFE(0);
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
-#ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
-      if (ceedDataPtr) { delete ceedDataPtr; }
-      CeedData* ptr = new CeedData();
-      ceedDataPtr = ptr;
-      InitCeedCoeff(Q, *mesh, *ir, ptr);
-      return CeedPADiffusionAssemble(fes, *ir, *ptr);
+      delete ceedDataPtr;
+      ceedDataPtr = new CeedData;
+      InitCeedCoeff(Q, *mesh, *ir, ceedDataPtr);
+      return CeedPADiffusionAssemble(fes, *ir, *ceedDataPtr);
    }
-#endif
    const int dims = el.GetDim();
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
    const int nq = ir->GetNPoints();
@@ -756,13 +753,11 @@ static void PADiffusionAssembleDiagonal(const int dim,
 
 void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-#ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
       CeedAssembleDiagonalPA(ceedDataPtr, diag);
    }
    else
-#endif
    {
       PADiffusionAssembleDiagonal(dim, dofs1D, quad1D, ne,
                                   maps->B, maps->G, pa_data, diag);
@@ -1720,13 +1715,11 @@ static void PADiffusionApply(const int dim,
 // PA Diffusion Apply kernel
 void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-#ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
       CeedAddMultPA(ceedDataPtr, x, y);
    }
    else
-#endif
    {
       PADiffusionApply(dim, dofs1D, quad1D, ne,
                        maps->B, maps->G, maps->Bt, maps->Gt,

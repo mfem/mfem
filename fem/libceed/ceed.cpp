@@ -11,7 +11,6 @@
 
 #include "ceed.hpp"
 
-#ifdef MFEM_USE_CEED
 #include "../../general/device.hpp"
 #include "../../fem/gridfunc.hpp"
 #include "../../linalg/dtensor.hpp"
@@ -32,18 +31,21 @@ namespace mfem
 namespace internal
 {
 
+#ifdef MFEM_USE_CEED
 extern Ceed ceed;
 
 std::string ceed_path;
 
 extern CeedBasisMap ceed_basis_map;
 extern CeedRestrMap ceed_restr_map;
+#endif
 
 }
 
 void InitCeedCoeff(Coefficient *Q, Mesh &mesh,
                    const IntegrationRule &ir, CeedData *ptr)
 {
+#ifdef MFEM_USE_CEED
    if ( Q == nullptr )
    {
       CeedConstCoeff *ceedCoeff = new CeedConstCoeff{1.0};
@@ -144,8 +146,220 @@ void InitCeedCoeff(Coefficient *Q, Mesh &mesh,
       ptr->coeff_type = CeedCoeff::Quad;
       ptr->coeff = static_cast<void*>(ceedCoeff);
    }
+#else
+   mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+#endif
 }
 
+void CeedPAAssemble(const CeedPAOperator& op,
+                    CeedData& ceedData)
+{
+#ifdef MFEM_USE_CEED
+   const FiniteElementSpace &fes = op.fes;
+   const mfem::IntegrationRule &irm = op.ir;
+   Ceed ceed(internal::ceed);
+   mfem::Mesh *mesh = fes.GetMesh();
+   CeedInt nqpts, nelem = mesh->GetNE();
+   CeedInt dim = mesh->SpaceDimension(), vdim = fes.GetVDim();
+
+   mesh->EnsureNodes();
+   InitCeedBasisAndRestriction(fes, irm, ceed, &ceedData.basis, &ceedData.restr);
+
+   const mfem::FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
+   MFEM_VERIFY(mesh_fes, "the Mesh has no nodal FE space");
+   InitCeedBasisAndRestriction(*mesh_fes, irm, ceed, &ceedData.mesh_basis,
+                               &ceedData.mesh_restr);
+
+   CeedBasisGetNumQuadraturePoints(ceedData.basis, &nqpts);
+
+   const int qdatasize = op.qdatasize;
+   CeedElemRestrictionCreateStrided(ceed, nelem, nqpts, qdatasize,
+                                    nelem*nqpts*qdatasize, CEED_STRIDES_BACKEND,
+                                    &ceedData.restr_i);
+
+   CeedVectorCreate(ceed, mesh->GetNodes()->Size(), &ceedData.node_coords);
+   CeedVectorSetArray(ceedData.node_coords, CEED_MEM_HOST, CEED_USE_POINTER,
+                      mesh->GetNodes()->GetData());
+
+   CeedVectorCreate(ceed, nelem * nqpts * qdatasize, &ceedData.rho);
+
+   // Context data to be passed to the 'f_build_diff' Q-function.
+   ceedData.build_ctx_data.dim = mesh->Dimension();
+   ceedData.build_ctx_data.space_dim = mesh->SpaceDimension();
+   ceedData.build_ctx_data.vdim = fes.GetVDim();
+
+   std::string qf_file = GetCeedPath() + op.header;
+   std::string qf;
+
+   // Create the Q-function that builds the operator (i.e. computes its
+   // quadrature data) and set its context data.
+   switch (ceedData.coeff_type)
+   {
+      case CeedCoeff::Const:
+         qf = qf_file + op.const_func;
+         CeedQFunctionCreateInterior(ceed, 1, op.const_qf,
+                                     qf.c_str(),
+                                     &ceedData.build_qfunc);
+         ceedData.build_ctx_data.coeff = ((CeedConstCoeff*)ceedData.coeff)->val;
+         break;
+      case CeedCoeff::Grid:
+         qf = qf_file + op.quad_func;
+         CeedQFunctionCreateInterior(ceed, 1, op.quad_qf,
+                                     qf.c_str(),
+                                     &ceedData.build_qfunc);
+         CeedQFunctionAddInput(ceedData.build_qfunc, "coeff", 1, CEED_EVAL_INTERP);
+         break;
+      case CeedCoeff::Quad:
+         qf = qf_file + op.quad_func;
+         CeedQFunctionCreateInterior(ceed, 1, op.quad_qf,
+                                     qf.c_str(),
+                                     &ceedData.build_qfunc);
+         CeedQFunctionAddInput(ceedData.build_qfunc, "coeff", 1, CEED_EVAL_NONE);
+         break;
+   }
+   CeedQFunctionAddInput(ceedData.build_qfunc, "dx", dim * dim, CEED_EVAL_GRAD);
+   CeedQFunctionAddInput(ceedData.build_qfunc, "weights", 1, CEED_EVAL_WEIGHT);
+   CeedQFunctionAddOutput(ceedData.build_qfunc, "qdata", qdatasize,
+                          CEED_EVAL_NONE);
+
+   CeedQFunctionContextCreate(ceed, &ceedData.build_ctx);
+   CeedQFunctionContextSetData(ceedData.build_ctx, CEED_MEM_HOST, CEED_USE_POINTER,
+                               sizeof(ceedData.build_ctx_data),
+                               &ceedData.build_ctx_data);
+   CeedQFunctionSetContext(ceedData.build_qfunc, ceedData.build_ctx);
+
+   // Create the operator that builds the quadrature data for the operator.
+   CeedOperatorCreate(ceed, ceedData.build_qfunc, NULL, NULL,
+                      &ceedData.build_oper);
+   switch (ceedData.coeff_type)
+   {
+      case CeedCoeff::Const:
+         break;
+      case CeedCoeff::Grid:
+      {
+         CeedGridCoeff* gridCoeff = (CeedGridCoeff*)ceedData.coeff;
+         InitCeedBasisAndRestriction(*gridCoeff->coeff->FESpace(), irm, ceed,
+                                     &gridCoeff->basis,
+                                     &gridCoeff->restr);
+         CeedOperatorSetField(ceedData.build_oper, "coeff", gridCoeff->restr,
+                              gridCoeff->basis, gridCoeff->coeffVector);
+      }
+      break;
+      case CeedCoeff::Quad:
+      {
+         CeedQuadCoeff* quadCoeff = (CeedQuadCoeff*)ceedData.coeff;
+         const int ncomp = 1;
+         CeedInt strides[3] = {1, nqpts, ncomp*nqpts};
+         CeedElemRestrictionCreateStrided(ceed, nelem, nqpts, ncomp,
+                                          nelem*ncomp*nqpts, strides,
+                                          &quadCoeff->restr);
+         CeedOperatorSetField(ceedData.build_oper, "coeff", quadCoeff->restr,
+                              CEED_BASIS_COLLOCATED, quadCoeff->coeffVector);
+      }
+      break;
+   }
+   CeedOperatorSetField(ceedData.build_oper, "dx", ceedData.mesh_restr,
+                        ceedData.mesh_basis, CEED_VECTOR_ACTIVE);
+   CeedOperatorSetField(ceedData.build_oper, "weights", CEED_ELEMRESTRICTION_NONE,
+                        ceedData.mesh_basis, CEED_VECTOR_NONE);
+   CeedOperatorSetField(ceedData.build_oper, "qdata", ceedData.restr_i,
+                        CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE);
+
+   // Compute the quadrature data for the operator.
+   CeedOperatorApply(ceedData.build_oper, ceedData.node_coords, ceedData.rho,
+                     CEED_REQUEST_IMMEDIATE);
+
+   // Create the Q-function that defines the action of the operator.
+   qf = qf_file + op.apply_func;
+   CeedQFunctionCreateInterior(ceed, 1, op.apply_qf,
+                               qf.c_str(),
+                               &ceedData.apply_qfunc);
+   CeedInt dimU = vdim*(op.trial_op==CEED_EVAL_GRAD ? dim : 1);
+   CeedInt dimV = vdim*(op.test_op==CEED_EVAL_GRAD ? dim : 1);
+   CeedQFunctionAddInput(ceedData.apply_qfunc, "u", dimU, op.trial_op);
+   CeedQFunctionAddInput(ceedData.apply_qfunc, "qdata", qdatasize,
+                         CEED_EVAL_NONE);
+   CeedQFunctionAddOutput(ceedData.apply_qfunc, "v", dimV, op.test_op);
+   CeedQFunctionSetContext(ceedData.apply_qfunc, ceedData.build_ctx);
+
+   // Create the operator.
+   CeedOperatorCreate(ceed, ceedData.apply_qfunc, NULL, NULL, &ceedData.oper);
+   CeedOperatorSetField(ceedData.oper, "u", ceedData.restr, ceedData.basis,
+                        CEED_VECTOR_ACTIVE);
+   CeedOperatorSetField(ceedData.oper, "qdata", ceedData.restr_i,
+                        CEED_BASIS_COLLOCATED, ceedData.rho);
+   CeedOperatorSetField(ceedData.oper, "v", ceedData.restr, ceedData.basis,
+                        CEED_VECTOR_ACTIVE);
+
+   CeedVectorCreate(ceed, vdim*fes.GetNDofs(), &ceedData.u);
+   CeedVectorCreate(ceed, vdim*fes.GetNDofs(), &ceedData.v);
+#else
+   mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+#endif
+}
+
+void CeedAddMultPA(const CeedData *ceedDataPtr,
+                   const Vector &x,
+                   Vector &y)
+{
+#ifdef MFEM_USE_CEED
+   const CeedScalar *x_ptr;
+   CeedScalar *y_ptr;
+   CeedMemType mem;
+   CeedGetPreferredMemType(internal::ceed, &mem);
+   if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
+   {
+      x_ptr = x.Read();
+      y_ptr = y.ReadWrite();
+   }
+   else
+   {
+      x_ptr = x.HostRead();
+      y_ptr = y.HostReadWrite();
+      mem = CEED_MEM_HOST;
+   }
+   CeedVectorSetArray(ceedDataPtr->u, mem, CEED_USE_POINTER,
+                      const_cast<CeedScalar*>(x_ptr));
+   CeedVectorSetArray(ceedDataPtr->v, mem, CEED_USE_POINTER, y_ptr);
+
+   CeedOperatorApplyAdd(ceedDataPtr->oper, ceedDataPtr->u, ceedDataPtr->v,
+                        CEED_REQUEST_IMMEDIATE);
+
+   CeedVectorTakeArray(ceedDataPtr->u, mem, const_cast<CeedScalar**>(&x_ptr));
+   CeedVectorTakeArray(ceedDataPtr->v, mem, &y_ptr);
+#else
+   mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+#endif
+}
+
+void CeedAssembleDiagonalPA(const CeedData *ceedDataPtr,
+                            Vector &diag)
+{
+#ifdef MFEM_USE_CEED
+   CeedScalar *d_ptr;
+   CeedMemType mem;
+   CeedGetPreferredMemType(internal::ceed, &mem);
+   if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
+   {
+      d_ptr = diag.ReadWrite();
+   }
+   else
+   {
+      d_ptr = diag.HostReadWrite();
+      mem = CEED_MEM_HOST;
+   }
+   CeedVectorSetArray(ceedDataPtr->v, mem, CEED_USE_POINTER, d_ptr);
+
+   CeedOperatorLinearAssembleAddDiagonal(ceedDataPtr->oper, ceedDataPtr->v,
+                                         CEED_REQUEST_IMMEDIATE);
+
+   CeedVectorTakeArray(ceedDataPtr->v, mem, &d_ptr);
+#else
+   mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+#endif
+}
+
+#ifdef MFEM_USE_CEED
 static CeedElemTopology GetCeedTopology(Geometry::Type geom)
 {
    switch (geom)
@@ -398,10 +612,11 @@ static void InitCeedTensorRestriction(const FiniteElementSpace &fes,
    CeedInt compstride = fes.GetOrdering()==Ordering::byVDIM ? 1 : fes.GetNDofs();
    const Table &el_dof = fes.GetElementToDofTable();
    Array<int> tp_el_dof(el_dof.Size_of_connections());
+   const int dof = fe->GetDof();
    for (int i = 0; i < mesh->GetNE(); i++)
    {
-      const int el_offset = fe->GetDof() * i;
-      for (int j = 0; j < fe->GetDof(); j++)
+      const int el_offset = dof * i;
+      for (int j = 0; j < dof; j++)
       {
          if (compstride == 1)
          {
@@ -414,7 +629,7 @@ static void InitCeedTensorRestriction(const FiniteElementSpace &fes,
          }
       }
    }
-   CeedElemRestrictionCreate(ceed, mesh->GetNE(), fe->GetDof(), fes.GetVDim(),
+   CeedElemRestrictionCreate(ceed, mesh->GetNE(), dof, fes.GetVDim(),
                              compstride, (fes.GetVDim())*(fes.GetNDofs()),
                              CEED_MEM_HOST, CEED_COPY_VALUES,
                              tp_el_dof.GetData(), restr);
@@ -500,201 +715,6 @@ const std::string &GetCeedPath()
    return internal::ceed_path;
 }
 
-void CeedPAAssemble(const CeedPAOperator& op,
-                    CeedData& ceedData)
-{
-   const FiniteElementSpace &fes = op.fes;
-   const mfem::IntegrationRule &irm = op.ir;
-   Ceed ceed(internal::ceed);
-   mfem::Mesh *mesh = fes.GetMesh();
-   CeedInt nqpts, nelem = mesh->GetNE();
-   CeedInt dim = mesh->SpaceDimension(), vdim = fes.GetVDim();
-
-   mesh->EnsureNodes();
-   InitCeedBasisAndRestriction(fes, irm, ceed, &ceedData.basis, &ceedData.restr);
-
-   const mfem::FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
-   MFEM_VERIFY(mesh_fes, "the Mesh has no nodal FE space");
-   InitCeedBasisAndRestriction(*mesh_fes, irm, ceed, &ceedData.mesh_basis,
-                               &ceedData.mesh_restr);
-
-   CeedBasisGetNumQuadraturePoints(ceedData.basis, &nqpts);
-
-   const int qdatasize = op.qdatasize;
-   CeedElemRestrictionCreateStrided(ceed, nelem, nqpts, qdatasize,
-                                    nelem*nqpts*qdatasize, CEED_STRIDES_BACKEND,
-                                    &ceedData.restr_i);
-
-   CeedVectorCreate(ceed, mesh->GetNodes()->Size(), &ceedData.node_coords);
-   CeedVectorSetArray(ceedData.node_coords, CEED_MEM_HOST, CEED_USE_POINTER,
-                      mesh->GetNodes()->GetData());
-
-   CeedVectorCreate(ceed, nelem * nqpts * qdatasize, &ceedData.rho);
-
-   // Context data to be passed to the 'f_build_diff' Q-function.
-   ceedData.build_ctx_data.dim = mesh->Dimension();
-   ceedData.build_ctx_data.space_dim = mesh->SpaceDimension();
-
-   std::string qf_file = GetCeedPath() + op.header;
-   std::string qf;
-
-   // Create the Q-function that builds the operator (i.e. computes its
-   // quadrature data) and set its context data.
-   switch (ceedData.coeff_type)
-   {
-      case CeedCoeff::Const:
-         qf = qf_file + op.const_func;
-         CeedQFunctionCreateInterior(ceed, 1, op.const_qf,
-                                     qf.c_str(),
-                                     &ceedData.build_qfunc);
-         ceedData.build_ctx_data.coeff = ((CeedConstCoeff*)ceedData.coeff)->val;
-         break;
-      case CeedCoeff::Grid:
-         qf = qf_file + op.quad_func;
-         CeedQFunctionCreateInterior(ceed, 1, op.quad_qf,
-                                     qf.c_str(),
-                                     &ceedData.build_qfunc);
-         CeedQFunctionAddInput(ceedData.build_qfunc, "coeff", 1, CEED_EVAL_INTERP);
-         break;
-      case CeedCoeff::Quad:
-         qf = qf_file + op.quad_func;
-         CeedQFunctionCreateInterior(ceed, 1, op.quad_qf,
-                                     qf.c_str(),
-                                     &ceedData.build_qfunc);
-         CeedQFunctionAddInput(ceedData.build_qfunc, "coeff", 1, CEED_EVAL_NONE);
-         break;
-   }
-   CeedQFunctionAddInput(ceedData.build_qfunc, "dx", dim * dim, CEED_EVAL_GRAD);
-   CeedQFunctionAddInput(ceedData.build_qfunc, "weights", 1, CEED_EVAL_WEIGHT);
-   CeedQFunctionAddOutput(ceedData.build_qfunc, "qdata", qdatasize,
-                          CEED_EVAL_NONE);
-
-   CeedQFunctionContextCreate(ceed, &ceedData.build_ctx);
-   CeedQFunctionContextSetData(ceedData.build_ctx, CEED_MEM_HOST, CEED_USE_POINTER,
-                               sizeof(ceedData.build_ctx_data),
-                               &ceedData.build_ctx_data);
-   CeedQFunctionSetContext(ceedData.build_qfunc, ceedData.build_ctx);
-
-   // Create the operator that builds the quadrature data for the operator.
-   CeedOperatorCreate(ceed, ceedData.build_qfunc, NULL, NULL,
-                      &ceedData.build_oper);
-   switch (ceedData.coeff_type)
-   {
-      case CeedCoeff::Const:
-         break;
-      case CeedCoeff::Grid:
-      {
-         CeedGridCoeff* gridCoeff = (CeedGridCoeff*)ceedData.coeff;
-         InitCeedBasisAndRestriction(*gridCoeff->coeff->FESpace(), irm, ceed,
-                                     &gridCoeff->basis,
-                                     &gridCoeff->restr);
-         CeedOperatorSetField(ceedData.build_oper, "coeff", gridCoeff->restr,
-                              gridCoeff->basis, gridCoeff->coeffVector);
-      }
-      break;
-      case CeedCoeff::Quad:
-      {
-         CeedQuadCoeff* quadCoeff = (CeedQuadCoeff*)ceedData.coeff;
-         const int ncomp = 1;
-         CeedInt strides[3] = {1, nqpts, ncomp*nqpts};
-         CeedElemRestrictionCreateStrided(ceed, nelem, nqpts, ncomp,
-                                          nelem*ncomp*nqpts, strides,
-                                          &quadCoeff->restr);
-         CeedOperatorSetField(ceedData.build_oper, "coeff", quadCoeff->restr,
-                              CEED_BASIS_COLLOCATED, quadCoeff->coeffVector);
-      }
-      break;
-   }
-   CeedOperatorSetField(ceedData.build_oper, "dx", ceedData.mesh_restr,
-                        ceedData.mesh_basis, CEED_VECTOR_ACTIVE);
-   CeedOperatorSetField(ceedData.build_oper, "weights", CEED_ELEMRESTRICTION_NONE,
-                        ceedData.mesh_basis, CEED_VECTOR_NONE);
-   CeedOperatorSetField(ceedData.build_oper, "qdata", ceedData.restr_i,
-                        CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE);
-
-   // Compute the quadrature data for the operator.
-   CeedOperatorApply(ceedData.build_oper, ceedData.node_coords, ceedData.rho,
-                     CEED_REQUEST_IMMEDIATE);
-
-   // Create the Q-function that defines the action of the operator.
-   qf = qf_file + op.apply_func;//":f_apply_diff";
-   CeedQFunctionCreateInterior(ceed, 1, op.apply_qf,
-                               qf.c_str(),
-                               &ceedData.apply_qfunc);
-   CeedInt dimU = vdim*(op.trial_op==CEED_EVAL_GRAD ? dim : 1);
-   CeedInt dimV = vdim*(op.test_op==CEED_EVAL_GRAD ? dim : 1);
-   CeedQFunctionAddInput(ceedData.apply_qfunc, "u", dimU, op.trial_op);
-   CeedQFunctionAddInput(ceedData.apply_qfunc, "qdata", qdatasize,
-                         CEED_EVAL_NONE);
-   CeedQFunctionAddOutput(ceedData.apply_qfunc, "v", dimV, op.test_op);
-   CeedQFunctionSetContext(ceedData.apply_qfunc, ceedData.build_ctx);
-
-   // Create the diff operator.
-   CeedOperatorCreate(ceed, ceedData.apply_qfunc, NULL, NULL, &ceedData.oper);
-   CeedOperatorSetField(ceedData.oper, "u", ceedData.restr, ceedData.basis,
-                        CEED_VECTOR_ACTIVE);
-   CeedOperatorSetField(ceedData.oper, "qdata", ceedData.restr_i,
-                        CEED_BASIS_COLLOCATED, ceedData.rho);
-   CeedOperatorSetField(ceedData.oper, "v", ceedData.restr, ceedData.basis,
-                        CEED_VECTOR_ACTIVE);
-
-   CeedVectorCreate(ceed, fes.GetNDofs(), &ceedData.u);
-   CeedVectorCreate(ceed, fes.GetNDofs(), &ceedData.v);
-}
-
-void CeedAddMultPA(const CeedData *ceedDataPtr,
-                   const Vector &x,
-                   Vector &y)
-{
-   const CeedScalar *x_ptr;
-   CeedScalar *y_ptr;
-   CeedMemType mem;
-   CeedGetPreferredMemType(internal::ceed, &mem);
-   if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
-   {
-      x_ptr = x.Read();
-      y_ptr = y.ReadWrite();
-   }
-   else
-   {
-      x_ptr = x.HostRead();
-      y_ptr = y.HostReadWrite();
-      mem = CEED_MEM_HOST;
-   }
-   CeedVectorSetArray(ceedDataPtr->u, mem, CEED_USE_POINTER,
-                      const_cast<CeedScalar*>(x_ptr));
-   CeedVectorSetArray(ceedDataPtr->v, mem, CEED_USE_POINTER, y_ptr);
-
-   CeedOperatorApplyAdd(ceedDataPtr->oper, ceedDataPtr->u, ceedDataPtr->v,
-                        CEED_REQUEST_IMMEDIATE);
-
-   CeedVectorTakeArray(ceedDataPtr->u, mem, const_cast<CeedScalar**>(&x_ptr));
-   CeedVectorTakeArray(ceedDataPtr->v, mem, &y_ptr);
-}
-
-void CeedAssembleDiagonalPA(const CeedData *ceedDataPtr,
-                            Vector &diag)
-{
-   CeedScalar *d_ptr;
-   CeedMemType mem;
-   CeedGetPreferredMemType(internal::ceed, &mem);
-   if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
-   {
-      d_ptr = diag.ReadWrite();
-   }
-   else
-   {
-      d_ptr = diag.HostReadWrite();
-      mem = CEED_MEM_HOST;
-   }
-   CeedVectorSetArray(ceedDataPtr->v, mem, CEED_USE_POINTER, d_ptr);
-
-   CeedOperatorLinearAssembleAddDiagonal(ceedDataPtr->oper, ceedDataPtr->v,
-                                         CEED_REQUEST_IMMEDIATE);
-
-   CeedVectorTakeArray(ceedDataPtr->v, mem, &d_ptr);
-}
+#endif // MFEM_USE_CEED
 
 } // namespace mfem
-
-#endif // MFEM_USE_CEED

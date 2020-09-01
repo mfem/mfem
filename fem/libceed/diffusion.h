@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 /// A structure used to pass additional data to f_build_diff and f_apply_diff
-struct BuildContext { CeedInt dim, space_dim; CeedScalar coeff; };
+struct BuildContext { CeedInt dim, space_dim, vdim; CeedScalar coeff; };
 
 /// libCEED Q-function for building quadrature data for a diffusion operator
 /// with a constant coefficient
@@ -172,15 +172,15 @@ CEED_QFUNCTION(f_apply_diff)(void *ctx, CeedInt Q,
    // in[0], out[0] have shape [dim, nc=1, Q]
    const CeedScalar *ug = in[0], *qd = in[1];
    CeedScalar *vg = out[0];
-   switch (bc->dim)
+   switch (10*bc->dim + bc->vdim)
    {
-      case 1:
+      case 11:
          for (CeedInt i = 0; i < Q; i++)
          {
             vg[i] = ug[i] * qd[i];
          }
          break;
-      case 2:
+      case 21:
          for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar ug0 = ug[i + Q * 0];
@@ -189,7 +189,23 @@ CEED_QFUNCTION(f_apply_diff)(void *ctx, CeedInt Q,
             vg[i + Q * 1] = qd[i + Q * 1] * ug0 + qd[i + Q * 2] * ug1;
          }
          break;
-      case 3:
+      case 22:
+         for (CeedInt i = 0; i < Q; i++)
+         {
+            const CeedScalar qd00 = qd[i + Q * 0];
+            const CeedScalar qd01 = qd[i + Q * 1];
+            const CeedScalar qd10 = qd01;
+            const CeedScalar qd11 = qd[i + Q * 2];
+            for (CeedInt c = 0; c < 2; c++)
+            {
+               const CeedScalar ug0 = ug[i + Q * (c+2*0)];
+               const CeedScalar ug1 = ug[i + Q * (c+2*1)];
+               vg[i + Q * (c+2*0)] = qd00 * ug0 + qd01 * ug1;
+               vg[i + Q * (c+2*1)] = qd10 * ug0 + qd11 * ug1;
+            }
+         }
+         break;
+      case 31:
          for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar ug0 = ug[i + Q * 0];
@@ -198,6 +214,29 @@ CEED_QFUNCTION(f_apply_diff)(void *ctx, CeedInt Q,
             vg[i + Q * 0] = qd[i + Q * 0] * ug0 + qd[i + Q * 1] * ug1 + qd[i + Q * 2] * ug2;
             vg[i + Q * 1] = qd[i + Q * 1] * ug0 + qd[i + Q * 3] * ug1 + qd[i + Q * 4] * ug2;
             vg[i + Q * 2] = qd[i + Q * 2] * ug0 + qd[i + Q * 4] * ug1 + qd[i + Q * 5] * ug2;
+         }
+         break;
+      case 33:
+         for (CeedInt i = 0; i < Q; i++)
+         {
+            const CeedScalar qd00 = qd[i + Q * 0];
+            const CeedScalar qd01 = qd[i + Q * 1];
+            const CeedScalar qd02 = qd[i + Q * 2];
+            const CeedScalar qd10 = qd01;
+            const CeedScalar qd11 = qd[i + Q * 3];
+            const CeedScalar qd12 = qd[i + Q * 4];
+            const CeedScalar qd20 = qd02;
+            const CeedScalar qd21 = qd12;
+            const CeedScalar qd22 = qd[i + Q * 5];
+            for (CeedInt c = 0; c < 3; c++)
+            {
+               const CeedScalar ug0 = ug[i + Q * (c+3*0)];
+               const CeedScalar ug1 = ug[i + Q * (c+3*1)];
+               const CeedScalar ug2 = ug[i + Q * (c+3*2)];
+               vg[i + Q * (c+3*0)] = qd00 * ug0 + qd01 * ug1 + qd02 * ug2;
+               vg[i + Q * (c+3*1)] = qd10 * ug0 + qd11 * ug1 + qd12 * ug2;
+               vg[i + Q * (c+3*2)] = qd20 * ug0 + qd21 * ug1 + qd22 * ug2;
+            }
          }
          break;
    }

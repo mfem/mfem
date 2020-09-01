@@ -11,9 +11,10 @@
 
 #include "diffusion.hpp"
 
-#ifdef MFEM_USE_CEED
 #include "ceed.hpp"
+#ifdef MFEM_USE_CEED
 #include "diffusion.h"
+#endif
 
 namespace mfem
 {
@@ -21,6 +22,7 @@ namespace mfem
 void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
                              const mfem::IntegrationRule &irm, CeedData& ceedData)
 {
+#ifdef MFEM_USE_CEED
    CeedInt dim = fes.GetMesh()->SpaceDimension();
    CeedPAOperator diffOp = {fes, irm,
                             dim * (dim + 1) / 2, "/diffusion.h",
@@ -31,8 +33,9 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
                             CEED_EVAL_GRAD
                            };
    CeedPAAssemble(diffOp, ceedData);
+#else
+   mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+#endif
 }
 
 } // namespace mfem
-
-#endif // MFEM_USE_CEED
