@@ -45,9 +45,11 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes)
    dim = mesh->Dimension();
    ne = fes.GetMesh()->GetNE();
    nq = ir->GetNPoints();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::COORDINATES |
-                                    GeometricFactors::JACOBIANS);
-   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   const DofToQuad::Mode mode = DofToQuad::TENSOR;
+   const int flags = GeometricFactors::JACOBIANS |
+                     GeometricFactors::COORDINATES;
+   geom = mesh->GetGeometricFactors(*ir, flags, mode);
+   maps = &el.GetDofToQuad(*ir, mode);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(ne*nq, Device::GetDeviceMemoryType());
