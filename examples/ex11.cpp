@@ -4,21 +4,20 @@
 //
 // Sample runs:  ex11 -m ../data/square-disc.mesh
 //               ex11 -m ../data/star.mesh
-//               ex11 -m ../data/escher.mesh
-//               ex11 -m ../data/fichera.mesh
+//               ex11 -m ../data/star-mixed.mesh
+//               ex11 -m ../data/periodic-annulus-sector.msh
 //               ex11 -m ../data/square-disc-p2.vtk -o 2
 //               ex11 -m ../data/square-disc-p3.mesh -o 3
 //               ex11 -m ../data/square-disc-nurbs.mesh -o -1
 //               ex11 -m ../data/disc-nurbs.mesh -o -1 -n 20
-//               ex11 -m ../data/pipe-nurbs.mesh -o -1
-//               ex11 -m ../data/ball-nurbs.mesh -o 2
 //               ex11 -m ../data/star-surf.mesh
 //               ex11 -m ../data/square-disc-surf.mesh
 //               ex11 -m ../data/inline-segment.mesh
+//               ex11 -m ../data/inline-quad.mesh
+//               ex11 -m ../data/inline-tri.mesh
 //               ex11 -m ../data/amr-quad.mesh
 //               ex11 -m ../data/amr-hex.mesh
 //               ex11 -m ../data/mobius-strip.mesh -n 8
-//               ex11 -m ../data/klein-bottle.mesh -n 10
 //
 // Description:  This example code demonstrates the use of MFEM to solve the
 //               eigenvalue problem -Delta u = lambda u with homogeneous
@@ -30,9 +29,9 @@
 //               order < 1 (quadratic for quadratic curvilinear mesh, NURBS for
 //               NURBS mesh, etc.)
 //
-//               The example highlights the use of the ARPACK eigenvalue solver.
-//               Reusing a single GLVis visualization window for multiple
-//               eigenfunctions is also illustrated.
+//               The example highlights the use of the ARPACK eigenvalue solver
+//               (regular inverse mode). Reusing a single GLVis visualization
+//               window for multiple eigenfunctions is also illustrated.
 //
 //               We recommend viewing Example 1 before viewing this example.
 
@@ -50,6 +49,7 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 3;
    int order = 1;
    int nev = 5;
+   double dbc_eig = 1e3;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -62,6 +62,9 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&nev, "-n", "--num-eigs",
                   "Number of desired eigenmodes.");
+   args.AddOption(&dbc_eig, "-d", "--dbc-eig",
+                  "Eigenvalues associated with Dirichlet BC "
+		  "(should be larger than the maximum desired eigenvalue).");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -141,14 +144,20 @@ int main(int argc, char *argv[])
       a->AddDomainIntegrator(new MassIntegrator(one));
    }
    a->Assemble();
-   a->EliminateEssentialBCDiag(ess_bdr, 1.0);
+   if (mesh->bdr_attributes.Size() != 0)
+   {
+     a->EliminateEssentialBCDiag(ess_bdr, dbc_eig);
+   }
    a->Finalize();
 
    BilinearForm *m = new BilinearForm(fespace);
    m->AddDomainIntegrator(new MassIntegrator(one));
    m->Assemble();
-   // shift the eigenvalue corresponding to eliminated dofs to a large value
-   m->EliminateEssentialBCDiag(ess_bdr, numeric_limits<double>::min());
+   if (mesh->bdr_attributes.Size() != 0)
+   {
+     // shift the eigenvalue corresponding to eliminated dofs to a large value
+     m->EliminateEssentialBCDiag(ess_bdr, 1.0);
+   }
    m->Finalize();
 
    // 6. Define and configure the ARPACK eigensolver
@@ -159,7 +168,7 @@ int main(int argc, char *argv[])
    // 7. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //    solve the system A X = B with PCG.
    cout << "Building CGSolver" << endl;
-   GSSmoother M(a->SpMat());
+   GSSmoother M(m->SpMat());
    CGSolver * cg_solver = new CGSolver;
    cg_solver->SetPreconditioner(M);
    cg_solver->SetRelTol(1.0e-12);
@@ -171,12 +180,12 @@ int main(int argc, char *argv[])
    umf_solver->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
    solver = umf_solver;
 #endif
-   solver->SetOperator(a->SpMat());
+   solver->SetOperator(m->SpMat());
 
    arpack->SetNumModes(nev);
    arpack->SetMaxIter(400);
    arpack->SetTol(1e-8);
-   arpack->SetMode(3);
+   arpack->SetMode(2);
    arpack->SetPrintLevel(2);
 
    arpack->SetOperator(*a);

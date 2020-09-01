@@ -2,13 +2,12 @@
 //
 // Compile with: make ex3p
 //
-// Sample runs:  ex13 -m ../data/beam-tet.mesh
+// Sample runs:  ex13 -m ../data/star.mesh
+//               ex13 -m ../data/square-disc.mesh -o 2 -n 4
 //               ex13 -m ../data/beam-hex.mesh
-//               ex13 -m ../data/escher.mesh
-//               ex13 -m ../data/fichera.mesh
-//               ex13 -m ../data/fichera-q2.vtk
-//               ex13 -m ../data/fichera-q3.mesh
-//               ex13 -m ../data/beam-hex-nurbs.mesh
+//               ex13 -m ../data/square-disc-nurbs.mesh -rs 3 -s 26
+//               ex13 -m ../data/amr-quad.mesh -o 2 // minres fails to conv.
+//               ex13 -m ../data/mobius-strip.mesh -n 8
 //
 // Description:  This example code solves a simple 3D electromagnetic
 //               eigenmode problem corresponding to the second order
@@ -35,7 +34,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/beam-tet.mesh";
    int order = 1;
    int nev = 5;
-   int sr = 3;
+   int sr = 2;
    double sigma = 11.0;
    bool visualization = 1;
 
@@ -84,7 +83,8 @@ int main(int argc, char *argv[])
          mesh->UniformRefinement();
       }
    }
-
+   mesh->ReorientTetMesh();
+   
    // 4. Define a finite element space on the mesh. Here we use the lowest
    //    order Nedelec finite elements, but we can easily switch
    //    to higher-order spaces by changing the value of p.
@@ -118,7 +118,7 @@ int main(int argc, char *argv[])
    BilinearForm *m = new BilinearForm(fespace);
    m->AddDomainIntegrator(new VectorFEMassIntegrator());
    m->Assemble();
-   m->EliminateEssentialBCDiag(ess_bdr, numeric_limits<double>::min());
+   m->EliminateEssentialBCDiag(ess_bdr, sqrt(numeric_limits<double>::min()));
    m->Finalize();
 
    // 6. Define a parallel grid function to approximate each of the
