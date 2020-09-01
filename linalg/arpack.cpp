@@ -1094,7 +1094,7 @@ ParArPackSym::computeNlocf()
 {
    int nlocf = 0;
 
-   MPI_Allreduce((void*) &nloc_,(void*) &nlocf,1,MPI_INT,MPI_MAX,comm_);
+   MPI_Allreduce((void*) &nloc_,(void*) &nlocf, 1, MPI_INT, MPI_MAX, comm_);
 
    return nlocf;
 }
