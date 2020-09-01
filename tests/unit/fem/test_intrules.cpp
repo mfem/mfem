@@ -12,7 +12,7 @@
 #include "mfem.hpp"
 using namespace mfem;
 
-#include "catch.hpp"
+#include "unit_tests.hpp"
 
 //You typically want to start by testing things one object at a time.
 TEST_CASE("Integration rule container with no refinement", "[IntegrationRules]")
