@@ -624,9 +624,9 @@ void MFEMCeedJacobi::MultTranspose(const mfem::Vector& x, mfem::Vector& y) const
 }
 
 MFEMCeedVCycle::MFEMCeedVCycle(const mfem::Operator& fine_operator,
-               const mfem::Solver& coarse_solver,
-               const mfem::Operator& fine_smoother,
-               const mfem::Operator& interp) :
+                               const mfem::Solver& coarse_solver,
+                               const mfem::Operator& fine_smoother,
+                               const mfem::Operator& interp) :
   fine_operator_(fine_operator),
   coarse_solver_(coarse_solver),
   fine_smoother_(fine_smoother),
@@ -960,7 +960,11 @@ AlgebraicCeedSolver::AlgebraicCeedSolver(Operator& fine_mfem_op,
       operators[i + 1] = new MFEMCeedOperator(current_op, *current_ess_dofs);
    }
    mfem::Solver * coarsest_solver;
-   CeedMultigridLevel * coarsest = levels[num_levels - 2];
+   CeedMultigridLevel * coarsest = NULL;
+   if (num_levels > 1)
+   {
+      coarsest = levels[num_levels - 2];
+   }
 
    /*
    if (ceed_amg)
@@ -975,9 +979,16 @@ AlgebraicCeedSolver::AlgebraicCeedSolver(Operator& fine_mfem_op,
    } else {
    */
    int coarse_cg_iterations = 10; // even less might be good
-   coarsest_solver = new CeedPlainCG(coarsest->GetCoarseCeed(),
-                                     coarsest->GetCoarseEssentialDofList(),
-                                     coarse_cg_iterations);
+   if (num_levels > 1)
+   {
+      coarsest_solver = new CeedPlainCG(coarsest->GetCoarseCeed(),
+                                        coarsest->GetCoarseEssentialDofList(),
+                                        coarse_cg_iterations);
+   }
+   else
+   {
+      coarsest_solver = new CeedPlainCG(current_op, *current_ess_dofs, coarse_cg_iterations);
+   }
 
    // loop up from coarsest to build V-cycle solvers
    solvers = new Solver*[num_levels];
