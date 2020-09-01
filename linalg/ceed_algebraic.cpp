@@ -39,28 +39,6 @@ int CeedHackFree(void *p) {
   return 0;
 }
 
-/// Do you want to wrap this in a ConstrainedOperator or do
-/// you want to do the ess_tdof stuff here?
-class MFEMCeedJacobi : public mfem::Operator
-{
-public:
-   MFEMCeedJacobi(Ceed ceed,
-                  int size,
-                  CeedVector diagonal,
-                  const mfem::Array<int>& ess_tdof_list,
-                  double scale=1.0);
-   ~MFEMCeedJacobi();
-
-   virtual void Mult(const mfem::Vector& x, mfem::Vector& y) const;
-
-   virtual void MultTranspose(const mfem::Vector& x, mfem::Vector& y) const;
-
-private:
-   const mfem::Array<int>& ess_tdof_list_;
-   CeedVector inv_diag_;
-   CeedVector u_, v_;
-};
-
 /**
    Wrap CeedInterpolation object in an mfem::Operator
 */
@@ -138,7 +116,6 @@ private:
    CeedBasis basisctof_;
    CeedElemRestriction lo_er_;
 
-   MFEMCeedJacobi * nobc_smoother_;
    mfem::Operator * smoother_;
    MFEMCeedInterpolation * mfem_interp_;
 
@@ -569,60 +546,6 @@ void UnconstrainedMFEMCeedOperator::Mult(const mfem::Vector& x, mfem::Vector& y)
    MFEM_ASSERT(ierr == 0, "CEED error");
 }
 
-MFEMCeedJacobi::MFEMCeedJacobi(Ceed ceed,
-                               int size,
-                               CeedVector diagonal,
-                               const mfem::Array<int>& ess_tdof_list,
-                               double scale)
-   :
-   mfem::Operator(size, size),
-   ess_tdof_list_(ess_tdof_list) {
-   int ierr = 0;
-   ierr += CeedVectorCreate(ceed, height, &v_);
-   ierr += CeedVectorCreate(ceed, width, &u_);
-   ierr += CeedVectorCreate(ceed, size, &inv_diag_);
-   const CeedScalar *diag_data;
-   CeedScalar *inv_diag_data;
-   ierr += CeedVectorGetArrayRead(diagonal, CEED_MEM_HOST, &diag_data);
-   ierr += CeedVectorGetArray(inv_diag_, CEED_MEM_HOST, &inv_diag_data);
-   for (int i = 0; i < size; ++i)
-   {
-      MFEM_ASSERT(diag_data[i] > 0.0, "Not positive definite!");
-      inv_diag_data[i] = scale / diag_data[i];
-   }
-   ierr += CeedVectorRestoreArray(inv_diag_, &inv_diag_data);
-   ierr += CeedVectorRestoreArrayRead(diagonal, &diag_data);
-
-   MFEM_ASSERT(ierr == 0, "CEED error");
-}
-
-MFEMCeedJacobi::~MFEMCeedJacobi() {
-  CeedVectorDestroy(&v_);
-  CeedVectorDestroy(&u_);
-  CeedVectorDestroy(&inv_diag_);
-}
-
-void MFEMCeedJacobi::Mult(const mfem::Vector& x, mfem::Vector& y) const {
-  int ierr = 0;
-
-  // TODO: following line should be done in CEED / on GPU?
-  y = x;
-
-  ierr += CeedVectorSetArray(u_, CEED_MEM_HOST, CEED_USE_POINTER, x.GetData());
-  ierr += CeedVectorSetArray(v_, CEED_MEM_HOST, CEED_USE_POINTER, y.GetData());
-
-  ierr += CeedVectorPointwiseMult(v_, inv_diag_);
-
-  ierr += CeedVectorSyncArray(v_, CEED_MEM_HOST);
-
-  MFEM_ASSERT(ierr == 0, "CEED error");
-}
-
-void MFEMCeedJacobi::MultTranspose(const mfem::Vector& x, mfem::Vector& y) const
-{
-   Mult(x, y);
-}
-
 MFEMCeedVCycle::MFEMCeedVCycle(const mfem::Operator& fine_operator,
                                const mfem::Solver& coarse_solver,
                                const mfem::Operator& fine_smoother,
@@ -810,9 +733,11 @@ CeedMultigridLevel::CeedMultigridLevel(CeedOperator oper,
    CeedVectorCreate(ceed, length, &diagceed);
    CeedVectorSetValue(diagceed, 0.0);
    CeedOperatorLinearAssembleDiagonal(oper, diagceed, CEED_REQUEST_IMMEDIATE);
-   nobc_smoother_ = new MFEMCeedJacobi(ceed, length, diagceed,
-                                       ho_ess_tdof_list, jacobi_scale);
-   nobc_smoother_->FormSystemOperator(ho_ess_tdof_list, smoother_);
+   const CeedScalar * diagvals;
+   CeedVectorGetArrayRead(diagceed, CEED_MEM_HOST, &diagvals);
+   mfem::Vector mfem_diag(const_cast<CeedScalar*>(diagvals), length);
+   smoother_ = new OperatorJacobiSmoother(mfem_diag, ho_ess_tdof_list, jacobi_scale);
+   CeedVectorRestoreArrayRead(diagceed, &diagvals);
    CeedVectorDestroy(&diagceed);
 
    CeedOperatorGetActiveElemRestriction(oper, &ho_er_);
@@ -828,7 +753,6 @@ CeedMultigridLevel::~CeedMultigridLevel()
    CeedBasisDestroy(&basisctof_);
    CeedElemRestrictionDestroy(&lo_er_);
 
-   delete nobc_smoother_;
    delete smoother_;
    delete mfem_interp_;
 }
