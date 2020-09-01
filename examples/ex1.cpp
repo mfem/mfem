@@ -214,7 +214,7 @@ int main(int argc, char *argv[])
          PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
       }
       else
-#endif      
+#endif
       if (UsesTensorBasis(fespace))
       {
          OperatorJacobiSmoother M(a, ess_tdof_list);

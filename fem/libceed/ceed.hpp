@@ -94,7 +94,7 @@ struct CeedData
 {
    CeedOperator build_oper, oper;
    CeedBasis basis, mesh_basis;
-   CeedElemRestriction restr, mesh_restr, restr_i, mesh_restr_i;
+   CeedElemRestriction restr, mesh_restr, restr_i;
    CeedQFunction apply_qfunc, build_qfunc;
    CeedVector node_coords, rho;
    CeedCoeff coeff_type;
@@ -109,7 +109,6 @@ struct CeedData
       CeedOperatorDestroy(&build_oper);
       CeedOperatorDestroy(&oper);
       CeedElemRestrictionDestroy(&restr_i);
-      CeedElemRestrictionDestroy(&mesh_restr_i);
       CeedQFunctionDestroy(&apply_qfunc);
       CeedQFunctionDestroy(&build_qfunc);
       CeedVectorDestroy(&node_coords);
