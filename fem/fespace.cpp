@@ -947,7 +947,7 @@ const Operator *FiniteElementSpace::GetFaceRestriction(
 }
 
 const QuadratureInterpolator *FiniteElementSpace::GetQuadratureInterpolator(
-   const IntegrationRule &ir) const
+   const IntegrationRule &ir, const DofToQuad::Mode mode) const
 {
    for (int i = 0; i < E2Q_array.Size(); i++)
    {
@@ -955,13 +955,13 @@ const QuadratureInterpolator *FiniteElementSpace::GetQuadratureInterpolator(
       if (qi->IntRule == &ir) { return qi; }
    }
 
-   QuadratureInterpolator *qi = new QuadratureInterpolator(*this, ir);
+   QuadratureInterpolator *qi = new QuadratureInterpolator(*this, ir, mode);
    E2Q_array.Append(qi);
    return qi;
 }
 
 const QuadratureInterpolator *FiniteElementSpace::GetQuadratureInterpolator(
-   const QuadratureSpace &qs) const
+   const QuadratureSpace &qs, const DofToQuad::Mode mode) const
 {
    for (int i = 0; i < E2Q_array.Size(); i++)
    {
@@ -969,7 +969,7 @@ const QuadratureInterpolator *FiniteElementSpace::GetQuadratureInterpolator(
       if (qi->qspace == &qs) { return qi; }
    }
 
-   QuadratureInterpolator *qi = new QuadratureInterpolator(*this, qs);
+   QuadratureInterpolator *qi = new QuadratureInterpolator(*this, qs, mode);
    E2Q_array.Append(qi);
    return qi;
 }
@@ -986,8 +986,8 @@ const FaceQuadratureInterpolator
          if (qi->IntRule == &ir) { return qi; }
       }
 
-      FaceQuadratureInterpolator *qi = new FaceQuadratureInterpolator(*this, ir,
-                                                                      type);
+      FaceQuadratureInterpolator *qi =
+         new FaceQuadratureInterpolator(*this, ir, type);
       E2IFQ_array.Append(qi);
       return qi;
    }
