@@ -40,7 +40,7 @@ static void PADGTraceSetup2D(const int Q1D,
    const bool const_v = vel.Size() == 2;
    auto V =
       const_v ? Reshape(vel, 2,1,1) : Reshape(vel, 2,Q1D,NF);
-   auto W = w.Read();
+   auto W = Reshape(w,Q1D);
    auto qd = Reshape(op.Write(), Q1D, 2, 2, NF);
 
    MFEM_FORALL(f, NF,//can be optimized with Q1D thread for NF blocks
@@ -52,7 +52,7 @@ static void PADGTraceSetup2D(const int Q1D,
          const double v1 = const_v ? V(1,0,0) : V(1,q,f);
          const double dot = n(q,0,f) * v0 + n(q,1,f) * v1;
          const double abs = dot > 0.0 ? dot : -dot;
-         const double w = W[q]*r*d(q,f);
+         const double w = W(q)*r*d(q,f);
          qd(q,0,0,f) = w*( alpha/2 * dot + beta * abs );
          qd(q,1,0,f) = w*( alpha/2 * dot - beta * abs );
          qd(q,0,1,f) = w*(-alpha/2 * dot - beta * abs );
@@ -82,7 +82,7 @@ static void PADGTraceSetup3D(const int Q1D,
    const bool const_v = vel.Size() == 3;
    auto V =
       const_v ? Reshape(vel, 3,1,1,1) : Reshape(vel, 3,Q1D,Q1D,NF);
-   auto W = w.Read();
+   auto W = Reshape(w, Q1D, Q1D);
    auto qd = Reshape(op.Write(), Q1D, Q1D, 2, 2, NF);
 
    MFEM_FORALL(f, NF,//can be optimized with Q1D*Q1D threads for NF blocks
@@ -98,7 +98,7 @@ static void PADGTraceSetup3D(const int Q1D,
             const double dot = n(q1,q2,0,f) * v0 + n(q1,q2,1,f) * v1 +
             /* */              n(q1,q2,2,f) * v2;
             const double abs = dot > 0.0 ? dot : -dot;
-            const double w = W[q1+q2*Q1D]*r*d(q1,q2,f);
+            const double w = W(q1,q2)*r*d(q1,q2,f);
             qd(q1,q2,0,0,f) = w*( alpha/2 * dot + beta * abs );
             qd(q1,q2,1,0,f) = w*( alpha/2 * dot - beta * abs );
             qd(q1,q2,0,1,f) = w*(-alpha/2 * dot - beta * abs );

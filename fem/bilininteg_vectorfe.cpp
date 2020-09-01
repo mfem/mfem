@@ -20,7 +20,7 @@ void PAHcurlSetup2D(const int Q1D,
                     const int NE,
                     const Array<double> &w,
                     const Vector &j,
-                    Vector &_coeff,
+                    const Vector &_coeff,
                     Vector &op);
 
 void PAHcurlSetup3D(const int Q1D,
@@ -28,7 +28,7 @@ void PAHcurlSetup3D(const int Q1D,
                     const int NE,
                     const Array<double> &w,
                     const Vector &j,
-                    Vector &_coeff,
+                    const Vector &_coeff,
                     Vector &op);
 
 void PAHcurlMassAssembleDiagonal2D(const int D1D,
@@ -77,14 +77,14 @@ void PAHdivSetup2D(const int Q1D,
                    const int NE,
                    const Array<double> &w,
                    const Vector &j,
-                   Vector &_coeff,
+                   const Vector &_coeff,
                    Vector &op);
 
 void PAHdivSetup3D(const int Q1D,
                    const int NE,
                    const Array<double> &w,
                    const Vector &j,
-                   Vector &_coeff,
+                   const Vector &_coeff,
                    Vector &op);
 
 void PAHcurlH1Apply2D(const int D1D,
@@ -151,7 +151,7 @@ void PAHcurlL2Setup(const int NQ,
                     const int coeffDim,
                     const int NE,
                     const Array<double> &w,
-                    Vector &_coeff,
+                    const Vector &_coeff,
                     Vector &op);
 
 // PA H(curl) x H(div) mass assemble 3D kernel, with factor
@@ -161,14 +161,14 @@ void PAHcurlHdivSetup3D(const int Q1D,
                         const int coeffDim,
                         const int NE,
                         const bool transpose,
-                        const Array<double> &_w,
+                        const Array<double> &w,
                         const Vector &j,
-                        Vector &_coeff,
+                        const Vector &_coeff,
                         Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
    const bool symmetric = (coeffDim != 9);
-   auto W = _w;
+   auto W = Reshape(w, NQ);
    auto J = Reshape(j, NQ, 3, 3, NE);
    auto coeff = Reshape(_coeff, coeffDim, NQ, NE);
    auto y = Reshape(op.Write(), 9, NQ, NE);
@@ -199,7 +199,7 @@ void PAHcurlHdivSetup3D(const int Q1D,
          const double detJ = J11 * (J22 * J33 - J32 * J23) -
          /* */               J21 * (J12 * J33 - J32 * J13) +
          /* */               J31 * (J12 * J23 - J22 * J13);
-         const double w_detJ = W[q] / detJ;
+         const double w_detJ = W(q) / detJ;
          // adj(J)
          const double A11 = (J22 * J33) - (J23 * J32);
          const double A12 = (J32 * J13) - (J12 * J33);
@@ -272,14 +272,14 @@ void PAHcurlHdivSetup2D(const int Q1D,
                         const int coeffDim,
                         const int NE,
                         const bool transpose,
-                        const Array<double> &_w,
+                        const Array<double> &w,
                         const Vector &j,
-                        Vector &_coeff,
+                        const Vector &_coeff,
                         Vector &op)
 {
    const int NQ = Q1D*Q1D;
    const bool symmetric = (coeffDim != 4);
-   auto W = _w;
+   auto W = Reshape(w, NQ);
    auto J = Reshape(j, NQ, 2, 2, NE);
    auto coeff = Reshape(_coeff, coeffDim, NQ, NE);
    auto y = Reshape(op.Write(), 4, NQ, NE);
@@ -297,7 +297,7 @@ void PAHcurlHdivSetup2D(const int Q1D,
          const double J21 = J(q,1,0,e);
          const double J12 = J(q,0,1,e);
          const double J22 = J(q,1,1,e);
-         const double w_detJ = W[q] / (J11*J22) - (J21*J12);
+         const double w_detJ = W(q) / (J11*J22) - (J21*J12);
 
          if (coeffDim == 3 || coeffDim == 4) // Matrix coefficient version
          {

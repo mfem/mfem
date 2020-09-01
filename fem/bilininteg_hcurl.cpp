@@ -25,12 +25,12 @@ void PAHcurlSetup2D(const int Q1D,
                     const int NE,
                     const Array<double> &w,
                     const Vector &j,
-                    Vector &_coeff,
+                    const Vector &_coeff,
                     Vector &op)
 {
    const int NQ = Q1D*Q1D;
    const bool symmetric = (coeffDim != 4);
-   auto W = w.Read();
+   auto W = Reshape(w, NQ);
    auto J = Reshape(j, NQ, 2, 2, NE);
    auto coeff = Reshape(_coeff, coeffDim, NQ, NE);
    auto y = Reshape(op.Write(), NQ, symmetric ? 3 : 4, NE);
@@ -57,7 +57,7 @@ void PAHcurlSetup2D(const int Q1D,
             const double R22 = -M21*J21 + M22*J11;
 
             // Now set y to J^{-1}R.
-            const double w_detJ = W[q] / ((J11*J22)-(J21*J12));
+            const double w_detJ = W(q) / ((J11*J22)-(J21*J12));
             y(q,0,e) = w_detJ * ( J22*R11 - J12*R21); // 1,1
             y(q,1,e) = w_detJ * (-J21*R11 + J11*R21); // 2,1
             y(q,2,e) = w_detJ * (symmetric ? (-J21*R12 + J11*R22) :
@@ -69,8 +69,8 @@ void PAHcurlSetup2D(const int Q1D,
          }
          else  // Vector or scalar coefficient version
          {
-            const double c_detJ1 = W[q] * coeff(0, q, e) / ((J11*J22)-(J21*J12));
-            const double c_detJ2 = (coeffDim == 2) ? W[q] * coeff(1, q, e)
+            const double c_detJ1 = W(q) * coeff(0, q, e) / ((J11*J22)-(J21*J12));
+            const double c_detJ2 = (coeffDim == 2) ? W(q) * coeff(1, q, e)
                                    / ((J11*J22)-(J21*J12)) : c_detJ1;
             y(q,0,e) =  (c_detJ2*J12*J12 + c_detJ1*J22*J22); // 1,1
             y(q,1,e) = -(c_detJ2*J12*J11 + c_detJ1*J22*J21); // 1,2
@@ -86,12 +86,12 @@ void PAHcurlSetup3D(const int Q1D,
                     const int NE,
                     const Array<double> &w,
                     const Vector &j,
-                    Vector &_coeff,
+                    const Vector &_coeff,
                     Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
    const bool symmetric = (coeffDim != 9);
-   auto W = w.Read();
+   auto W = Reshape(w, NQ);
    auto J = Reshape(j, NQ, 3, 3, NE);
    auto coeff = Reshape(_coeff, coeffDim, NQ, NE);
    auto y = Reshape(op.Write(), NQ, symmetric ? 6 : 9, NE);
@@ -112,7 +112,7 @@ void PAHcurlSetup3D(const int Q1D,
          const double detJ = J11 * (J22 * J33 - J32 * J23) -
          /* */               J21 * (J12 * J33 - J32 * J13) +
          /* */               J31 * (J12 * J23 - J22 * J13);
-         const double w_detJ = W[q] / detJ;
+         const double w_detJ = W(q) / detJ;
          // adj(J)
          const double A11 = (J22 * J33) - (J23 * J32);
          const double A12 = (J32 * J13) - (J12 * J33);
@@ -646,11 +646,11 @@ static void PACurlCurlSetup2D(const int Q1D,
                               const int NE,
                               const Array<double> &w,
                               const Vector &j,
-                              Vector &_coeff,
+                              const Vector &_coeff,
                               Vector &op)
 {
    const int NQ = Q1D*Q1D;
-   auto W = w.Read();
+   auto W = Reshape(w, NQ);
    auto J = Reshape(j, NQ, 2, 2, NE);
    auto coeff = Reshape(_coeff, NQ, NE);
    auto y = Reshape(op.Write(), NQ, NE);
@@ -663,7 +663,7 @@ static void PACurlCurlSetup2D(const int Q1D,
          const double J12 = J(q,0,1,e);
          const double J22 = J(q,1,1,e);
          const double detJ = (J11*J22)-(J21*J12);
-         y(q,e) = W[q] * coeff(q,e) / detJ;
+         y(q,e) = W(q) * coeff(q,e) / detJ;
       }
    });
 }
@@ -674,11 +674,11 @@ static void PACurlCurlSetup3D(const int Q1D,
                               const int NE,
                               const Array<double> &w,
                               const Vector &j,
-                              Vector &_coeff,
+                              const Vector &_coeff,
                               Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
-   auto W = w.Read();
+   auto W = Reshape(w, NQ);
    auto J = Reshape(j, NQ, 3, 3, NE);
    auto coeff = Reshape(_coeff, coeffDim, NQ, NE);
    auto y = Reshape(op.Write(), NQ, 6, NE);
@@ -704,7 +704,7 @@ static void PACurlCurlSetup3D(const int Q1D,
          const double D3 = coeffDim == 3 ? coeff(2, q, e) : D1;
 
          // set y to the 6 entries of J^T D J / det^2
-         const double c_detJ = W[q] / detJ;
+         const double c_detJ = W(q) / detJ;
 
          y(q,0,e) = c_detJ * (D1*J11*J11 + D2*J21*J21 + D3*J31*J31); // 1,1
          y(q,1,e) = c_detJ * (D1*J11*J12 + D2*J21*J22 + D3*J31*J32); // 1,2
@@ -2015,10 +2015,10 @@ void PAHcurlL2Setup(const int NQ,
                     const int coeffDim,
                     const int NE,
                     const Array<double> &w,
-                    Vector &_coeff,
+                    const Vector &_coeff,
                     Vector &op)
 {
-   auto W = w.Read();
+   auto W = Reshape(w, NQ);
    auto coeff = Reshape(_coeff, coeffDim, NQ, NE);
    auto y = Reshape(op.Write(), coeffDim, NQ, NE);
 
@@ -2028,7 +2028,7 @@ void PAHcurlL2Setup(const int NQ,
       {
          for (int c=0; c<coeffDim; ++c)
          {
-            y(c,q,e) = W[q] * coeff(c,q,e);
+            y(c,q,e) = W(q) * coeff(c,q,e);
          }
       }
    });

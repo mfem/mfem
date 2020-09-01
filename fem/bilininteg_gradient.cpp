@@ -78,7 +78,7 @@ static void PAGradientSetup2D(const int Q1D,
                               Vector &op)
 {
    const int NQ = Q1D*Q1D;
-   auto W = w.Read();
+   auto W = Reshape(w, NQ);
    auto J = Reshape(j, NQ, 2, 2, NE);
    auto y = Reshape(op.Write(), NQ, 2, 2, NE);
 
@@ -91,10 +91,10 @@ static void PAGradientSetup2D(const int Q1D,
          const double J21 = J(q,1,0,e);
          const double J22 = J(q,1,1,e);
          // Store wq * Q * adj(J)
-         y(q,0,0,e) = W[q] * COEFF *  J22; // 1,1
-         y(q,0,1,e) = W[q] * COEFF * -J12; // 1,2
-         y(q,1,0,e) = W[q] * COEFF * -J21; // 2,1
-         y(q,1,1,e) = W[q] * COEFF *  J11; // 2,2
+         y(q,0,0,e) = W(q) * COEFF *  J22; // 1,1
+         y(q,0,1,e) = W(q) * COEFF * -J12; // 1,2
+         y(q,1,0,e) = W(q) * COEFF * -J21; // 2,1
+         y(q,1,1,e) = W(q) * COEFF *  J11; // 2,2
       }
    });
 }
@@ -108,7 +108,7 @@ static void PAGradientSetup3D(const int Q1D,
                               Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
-   auto W = w.Read();
+   auto W = Reshape(w, NQ);
    auto J = Reshape(j, NQ, 3, 3, NE);
    auto y = Reshape(op.Write(), NQ, 3, 3, NE);
    MFEM_FORALL(e, NE,
@@ -124,7 +124,7 @@ static void PAGradientSetup3D(const int Q1D,
          const double J13 = J(q,0,2,e);
          const double J23 = J(q,1,2,e);
          const double J33 = J(q,2,2,e);
-         const double cw  = W[q] * COEFF;
+         const double cw  = W(q) * COEFF;
          // adj(J)
          const double A11 = (J22 * J33) - (J23 * J32);
          const double A12 = (J32 * J13) - (J12 * J33);

@@ -55,8 +55,8 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const double constant = coeff;
       const int NE = ne;
       const int NQ = nq;
-      auto w = ir->GetWeights().Read();
-      auto J = Reshape(geom->J.Read(), NQ,2,2,NE);
+      auto w = Reshape(ir->GetWeights(), NQ);
+      auto J = Reshape(geom->J, NQ,2,2,NE);
       auto v = Reshape(pa_data.Write(), NQ, NE);
       MFEM_FORALL(e, NE,
       {
@@ -67,7 +67,7 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
             const double J21 = J(q,0,1,e);
             const double J22 = J(q,1,1,e);
             const double detJ = (J11*J22)-(J21*J12);
-            v(q,e) =  w[q] * constant * detJ;
+            v(q,e) =  w(q) * constant * detJ;
          }
       });
    }
@@ -76,8 +76,8 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const double constant = coeff;
       const int NE = ne;
       const int NQ = nq;
-      auto W = ir->GetWeights().Read();
-      auto J = Reshape(geom->J.Read(), NQ,3,3,NE);
+      auto W = Reshape(ir->GetWeights(), NQ);
+      auto J = Reshape(geom->J, NQ,3,3,NE);
       auto v = Reshape(pa_data.Write(), NQ,NE);
       MFEM_FORALL(e, NE,
       {
@@ -89,7 +89,7 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
             const double detJ = J11 * (J22 * J33 - J32 * J23) -
             /* */               J21 * (J12 * J33 - J32 * J13) +
             /* */               J31 * (J12 * J23 - J22 * J13);
-            v(q,e) = W[q] * constant * detJ;
+            v(q,e) = W(q) * constant * detJ;
          }
       });
    }

@@ -31,8 +31,7 @@ static void PAConvectionSetup2D(const int Q1D,
 {
    const int NE = ne;
    const int NQ = Q1D*Q1D;
-   auto W = w.Read();
-
+   auto W = Reshape(w, NQ);
    auto J = Reshape(j, NQ, 2, 2, NE);
    const bool const_v = vel.Size() == 2;
    auto V =
@@ -47,7 +46,7 @@ static void PAConvectionSetup2D(const int Q1D,
          const double J21 = J(q,1,0,e);
          const double J12 = J(q,0,1,e);
          const double J22 = J(q,1,1,e);
-         const double w = alpha * W[q];
+         const double w = alpha * W(q);
          const double v0 = const_v ? V(0,0,0) : V(0,q,e);
          const double v1 = const_v ? V(1,0,0) : V(1,q,e);
          const double wx = w * v0;
@@ -69,7 +68,7 @@ static void PAConvectionSetup3D(const int Q1D,
                                 Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
-   auto W = w;
+   auto W = Reshape(w, NQ);
    auto J = Reshape(j, NQ, 3, 3, NE);
    const bool const_v = vel.Size() == 3;
    auto V =
@@ -88,7 +87,7 @@ static void PAConvectionSetup3D(const int Q1D,
          const double J13 = J(q,0,2,e);
          const double J23 = J(q,1,2,e);
          const double J33 = J(q,2,2,e);
-         const double w = alpha * W[q];
+         const double w = alpha * W(q);
          const double v0 = const_v ? V(0,0,0) : V(0,q,e);
          const double v1 = const_v ? V(1,0,0) : V(1,q,e);
          const double v2 = const_v ? V(2,0,0) : V(2,q,e);

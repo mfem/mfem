@@ -29,8 +29,7 @@ static void PAVectorDiffusionSetup2D(const int Q1D,
                                      Vector &op)
 {
    const int NQ = Q1D*Q1D;
-   auto W = w.Read();
-
+   auto W = Reshape(w, NQ);
    auto J = Reshape(j, NQ, 2, 2, NE);
    auto y = Reshape(op.Write(), NQ, 3, NE);
 
@@ -42,7 +41,7 @@ static void PAVectorDiffusionSetup2D(const int Q1D,
          const double J21 = J(q,1,0,e);
          const double J12 = J(q,0,1,e);
          const double J22 = J(q,1,1,e);
-         const double c_detJ = W[q] * COEFF / ((J11*J22)-(J21*J12));
+         const double c_detJ = W(q) * COEFF / ((J11*J22)-(J21*J12));
          y(q,0,e) =  c_detJ * (J12*J12 + J22*J22); // 1,1
          y(q,1,e) = -c_detJ * (J12*J11 + J22*J21); // 1,2
          y(q,2,e) =  c_detJ * (J11*J11 + J21*J21); // 2,2
@@ -59,7 +58,7 @@ static void PAVectorDiffusionSetup3D(const int Q1D,
                                      Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
-   auto W = w.Read();
+   auto W = Reshape(w, NQ);
    auto J = Reshape(j, NQ, 3, 3, NE);
    auto y = Reshape(op.Write(), NQ, 6, NE);
    MFEM_FORALL(e, NE,
@@ -78,7 +77,7 @@ static void PAVectorDiffusionSetup3D(const int Q1D,
          const double detJ = J11 * (J22 * J33 - J32 * J23) -
          /* */               J21 * (J12 * J33 - J32 * J13) +
          /* */               J31 * (J12 * J23 - J22 * J13);
-         const double c_detJ = W[q] * COEFF / detJ;
+         const double c_detJ = W(q) * COEFF / detJ;
          // adj(J)
          const double A11 = (J22 * J33) - (J23 * J32);
          const double A12 = (J32 * J13) - (J12 * J33);
@@ -156,14 +155,14 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       constexpr int DIM = 2;
       constexpr int SDIM = 3;
       const int NQ = quad1D*quad1D;
-      auto W = w.Read();
+      auto W = Reshape(w, NQ);
       auto J = Reshape(j, NQ, SDIM, DIM, ne);
       auto D = Reshape(d.Write(), NQ, SDIM, ne);
       MFEM_FORALL(e, ne,
       {
          for (int q = 0; q < NQ; ++q)
          {
-            const double wq = W[q];
+            const double wq = W(q);
             const double J11 = J(q,0,0,e);
             const double J21 = J(q,1,0,e);
             const double J31 = J(q,2,0,e);
