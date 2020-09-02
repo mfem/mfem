@@ -137,7 +137,7 @@ void RajaCudaWrap3D(const int N, DBODY &&d_body,
         RAJA::statement::Lambda<0, Segs<0>>>>>>>>>
         (RAJA::make_tuple(RAJA::RangeSegment(0,N), RAJA::RangeSegment(0,X),
                           RAJA::RangeSegment(0,Y), RAJA::RangeSegment(0,Z)),
-   [=] RAJA_DEVICE (const int k) mutable { d_body(k); });
+         [=] RAJA_DEVICE (const int k) mutable { d_body(k); });
    MFEM_GPU_CHECK(cudaGetLastError());
 }
 
