@@ -63,31 +63,33 @@ static std::string getString(CeedCoeff coeff_type)
    }
 }
 
-static std::string getPbString(int pb)
+enum class Problem {Mass, Diffusion, VectorMass, VectorDiffusion};
+
+static std::string getString(Problem pb)
 {
    switch (pb)
    {
-   case 0:
+   case Problem::Mass:
       return "Mass";
       break;
-   case 1:
-      return "Convection";
-      break;
-   case 2:
+   case Problem::Diffusion:
       return "Diffusion";
       break;
-   default:
-      return "Unknown problem";
+   case Problem::VectorMass:
+      return "VectorMass";
+      break;
+   case Problem::VectorDiffusion:
+      return "VectorDiffusion";
       break;
    }
 }
 
 void test_ceed_operator(const char* input, int order, const CeedCoeff coeff_type,
-                        const int pb, const AssemblyLevel assembly)
+                        const Problem pb, const AssemblyLevel assembly)
 {
    std::string section = "assembly: " + getString(assembly) + "\n" +
                          "coeff_type: " + getString(coeff_type) + "\n" +
-                         "pb: " + getPbString(pb) + "\n" +
+                         "pb: " + getString(pb) + "\n" +
                          "order: " + std::to_string(order) + "\n" +
                          "mesh: " + input;
    INFO(section);
@@ -96,7 +98,9 @@ void test_ceed_operator(const char* input, int order, const CeedCoeff coeff_type
    int dim = mesh.Dimension();
 
    H1_FECollection fec(order, dim);
-   FiniteElementSpace fespace(&mesh, &fec);
+   bool vecOp = pb == Problem::VectorMass || pb == Problem::VectorDiffusion;
+   const int vdim = vecOp ? dim : 1;
+   FiniteElementSpace fespace(&mesh, &fec, vdim);
 
    BilinearForm k_test(&fespace);
    BilinearForm k_ref(&fespace);
@@ -122,15 +126,24 @@ void test_ceed_operator(const char* input, int order, const CeedCoeff coeff_type
          break;
    }
 
-   if (pb==0) // Mass
+   switch (pb)
    {
+   case Problem::Mass:
       k_ref.AddDomainIntegrator(new MassIntegrator(*coeff));
       k_test.AddDomainIntegrator(new MassIntegrator(*coeff));
-   }
-   else if (pb==2) // Diffusion
-   {
+      break;
+   case Problem::Diffusion:
       k_ref.AddDomainIntegrator(new DiffusionIntegrator(*coeff));
       k_test.AddDomainIntegrator(new DiffusionIntegrator(*coeff));
+      break;
+   case Problem::VectorMass:
+      k_ref.AddDomainIntegrator(new VectorMassIntegrator(*coeff));
+      k_test.AddDomainIntegrator(new VectorMassIntegrator(*coeff));
+      break;
+   case Problem::VectorDiffusion:
+      k_ref.AddDomainIntegrator(new VectorDiffusionIntegrator(*coeff));
+      k_test.AddDomainIntegrator(new VectorDiffusionIntegrator(*coeff));
+      break;
    }
 
    k_ref.Assemble();
@@ -155,8 +168,9 @@ TEST_CASE("CEED", "[CEED]")
 {
    auto assembly = GENERATE(AssemblyLevel::PARTIAL);
    auto coeff_type = GENERATE(CeedCoeff::Const,CeedCoeff::Grid,CeedCoeff::Quad);
-   auto pb = GENERATE(0,2);
-   auto order = GENERATE(3);
+   auto pb = GENERATE(Problem::Mass,Problem::Diffusion,
+                      Problem::VectorMass,Problem::VectorDiffusion);
+   auto order = GENERATE(4);
    auto mesh = GENERATE("../../data/inline-quad.mesh","../../data/star-q3.mesh",
                         "../../data/inline-hex.mesh","../../data/fichera-q3.mesh",
                         "../../data/amr-quad.mesh","../../data/fichera-amr.mesh");
