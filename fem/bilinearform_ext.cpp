@@ -716,16 +716,16 @@ void FABilinearFormExtension::Assemble()
    }
 }
 
-void GetFullAssemblySparseMatrix(BilinearForm *a, SparseMatrix &A)
+void GetFullAssemblySparseMatrix(BilinearForm &a, SparseMatrix &A)
 {
-   EABilinearFormExtension ea(a);
+   EABilinearFormExtension ea(&a);
    ea.Assemble();
-   FiniteElementSpace &fes = *a->FESpace();
+   FiniteElementSpace &fes = *a.FESpace();
    if (fes.IsDGSpace())
    {
 #ifdef MFEM_USE_MPI
       if ( ParFiniteElementSpace* pfes =
-              dynamic_cast<ParFiniteElementSpace*>(a->FESpace()) )
+              dynamic_cast<ParFiniteElementSpace*>(a.FESpace()) )
       {
          pfes->ExchangeFaceNbrData();
       }
