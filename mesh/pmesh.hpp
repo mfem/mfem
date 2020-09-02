@@ -277,14 +277,22 @@ public:
    void GenerateOffsets(int N, HYPRE_Int loc_sizes[],
                         Array<HYPRE_Int> *offsets[]) const;
 
+   /** Communicate face-neighbor mesh information. Also calls
+       ExchangeFaceNbrNodes. */
    void ExchangeFaceNbrData();
+   /** Communicate the nodal gridfunction associated with face-neighbor
+       elements. Calls ExchangeFaceNbrData if it has not been called before. */
    void ExchangeFaceNbrNodes();
 
    virtual void SetCurvature(int order, bool discont = false, int space_dim = -1,
                              int ordering = 1);
 
+   /** Returns the number of MPI ranks that are face-neighbors of the current
+       rank. */
    int GetNFaceNeighbors() const { return face_nbr_group.Size(); }
+   /// Get the group index of the face-neighbor @a fn
    int GetFaceNbrGroup(int fn) const { return face_nbr_group[fn]; }
+   /// Get the MPI rank of the face-neighbor @a fn
    int GetFaceNbrRank(int fn) const;
 
    /** Similar to Mesh::GetFaceToElementTable with added face-neighbor elements
@@ -297,6 +305,7 @@ public:
    FaceElementTransformations *
    GetSharedFaceTransformations(int sf, bool fill2 = true);
 
+   /// Get the ElementTransformation of the @a ith face-neighbor element
    ElementTransformation *
    GetFaceNbrElementTransformation(int i)
    {

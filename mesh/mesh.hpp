@@ -1002,7 +1002,9 @@ public:
 
    FaceElementTransformations *GetBdrFaceTransformations (int BdrElemNo);
 
-   /// Return true if the given face is interior. @sa FaceIsTrueInterior().
+   /// Return true if the given face is interior. Returns false if the face
+   /// is on the domain boundary or is a shared face of a parallel mesh.
+   /// @sa FaceIsTrueInterior().
    bool FaceIsInterior(int FaceNo) const
    {
       return (faces_info[FaceNo].Elem2No >= 0);
