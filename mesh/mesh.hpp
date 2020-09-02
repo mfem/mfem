@@ -406,13 +406,6 @@ protected:
 
    void AddQuadFaceElement (int lf, int gf, int el,
                             int v0, int v1, int v2, int v3);
-   /** For a serial Mesh, return true if the face is interior. For a parallel
-       ParMesh return true if the face is interior or shared. In parallel, this
-       method only works if the face neighbor data is exchanged. */
-   bool FaceIsTrueInterior(int FaceNo) const
-   {
-      return FaceIsInterior(FaceNo) || (faces_info[FaceNo].Elem2Inf >= 0);
-   }
 
    void FreeElement(Element *E);
 
@@ -1009,6 +1002,29 @@ public:
    {
       return (faces_info[FaceNo].Elem2No >= 0);
    }
+
+   /** For a serial Mesh, return true if the face is interior. For a parallel
+       ParMesh return true if the face is interior or shared. In parallel, this
+       method only works if the face neighbor data is exchanged. */
+   bool FaceIsTrueInterior(int FaceNo) const
+   {
+      return FaceIsInterior(FaceNo) || (faces_info[FaceNo].Elem2Inf >= 0);
+   }
+
+   /// Returns true if the face is shared (i.e. lies in the interior of the
+   /// domain, and one neighboring element belongs to a different MPI rank)
+   bool FaceIsShared(int FaceNo) const
+   {
+       return !FaceIsInterior(FaceNo) && FaceIsTrueInterior(FaceNo);
+   }
+
+   /** Get the indices of the elements containing the given face. @a *Elem1 will
+       always be the index of a valid element. @a *Elem2 will be negative if the
+       given face either lies on the domain boundary or is a shared face of a
+       parallel mesh, or if the face is a master face in a nonconforming mesh.
+       The case of boundary or shared faces can be distinguished using
+       Mesh::FaceIsTrueInterior. If the face is a shared face, the shared face
+       index is given by -1 - *Elem2. */
    void GetFaceElements (int Face, int *Elem1, int *Elem2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2) const;
 
