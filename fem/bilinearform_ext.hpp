@@ -113,10 +113,10 @@ public:
    void MultTranspose(const Vector &x, Vector &y) const;
    /// Assemble the Full Assembly operator in a single SparseMatrix.
    /** Warning: Does not include the boundary conditions. */
-   friend void GetFullAssemblySparseMatrix(BilinearForm &a, SparseMatrix &A);
+   friend SparseMatrix GetFullAssemblySparseMatrix(BilinearForm &a);
 };
 
-void GetFullAssemblySparseMatrix(BilinearForm &a, SparseMatrix &A);
+SparseMatrix GetFullAssemblySparseMatrix(BilinearForm &a);
 
 /// Data and methods for fully-assembled bilinear forms
 class FABilinearFormExtension : public EABilinearFormExtension
