@@ -66,7 +66,6 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
-   int ref_levels = -1;
    int order = 1;
    bool static_cond = false;
    bool pa = false;
@@ -76,9 +75,6 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
-   args.AddOption(&ref_levels, "-r", "--refine",
-                  "Number of times to refine the mesh uniformly;"
-                  " -1 = auto: <= 50,000 elements.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
@@ -115,9 +111,9 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int rs = (ref_levels != -1) ? ref_levels :
-               (int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
-      for (int l = 0; l < rs; l++)
+      int ref_levels =
+         (int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
+      for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();
       }

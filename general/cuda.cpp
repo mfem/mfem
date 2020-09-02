@@ -17,8 +17,8 @@ namespace mfem
 
 // Internal debug option, useful for tracking CUDA allocations, deallocations
 // and transfers.
-//#define MFEM_TRACK_CUDA_MEM
-//#define MFEM_TRACK_CUDA_CPY
+// #define MFEM_TRACK_CUDA_MEM
+// #define MFEM_TRACK_CUDA_CPY
 
 #ifdef MFEM_USE_CUDA
 void mfem_cuda_error(cudaError_t err, const char *expr, const char *func,

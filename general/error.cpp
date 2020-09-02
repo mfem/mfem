@@ -160,7 +160,6 @@ void mfem_error(const char *msg)
       // very bad thing if all your processors try to do it at the same time.
       merr << "\n\n" << msg << "\n";
    }
-   fflush(0);
 
 #ifdef MFEM_USE_LIBUNWIND
    merr << "Backtrace:" << std::endl;
