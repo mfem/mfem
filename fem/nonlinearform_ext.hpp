@@ -26,10 +26,14 @@ class NonlinearFormIntegrator;
 class NonlinearFormExtension : public Operator
 {
 protected:
-   const NonlinearForm *nlf;
+   const NonlinearForm *nlf; ///< Not owned
+
 public:
    NonlinearFormExtension(const NonlinearForm*);
-   virtual void Setup() = 0;
+
+   /// Assemble at the level given for the BilinearFormExtension subclass
+   virtual void Assemble() = 0;
+
    virtual Operator &GetGradient(const Vector&) const = 0;
    virtual double GetGridFunctionEnergy(const Vector &x) const = 0;
    virtual void AssembleGradientDiagonal(Vector &diag) const
@@ -66,7 +70,7 @@ protected:
 
 public:
    PANonlinearFormExtension(NonlinearForm *nlf);
-   void Setup();
+   void Assemble();
    void Mult(const Vector &x, Vector &y) const;
    Operator &GetGradient(const Vector &x) const;
    double GetGridFunctionEnergy(const Vector &x) const;

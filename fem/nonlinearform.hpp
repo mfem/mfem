@@ -27,9 +27,8 @@ protected:
    /// The assembly level.
    AssemblyLevel assembly;
 
-   /** Extension for supporting Partial Assembly (PA) or
-       Matrix Free assembly (MF). */
-   NonlinearFormExtension *ext;
+   /// Extension for supporting different AssemblyLevels.
+   NonlinearFormExtension *ext; // owned
 
    /// FE space on which the form lives.
    FiniteElementSpace *fes; // not owned
