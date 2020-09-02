@@ -113,8 +113,8 @@ void GetCollocatedGrad(const int D1D, const int Q1D,
                        DeviceTensor<2,const T> g,
                        DeviceTensor<2,T> CoG)
 {
-   MFEM_ASSERT(D1D <= MD1, "");
-   MFEM_ASSERT(Q1D <= MQ1, "");
+   MFEM_VERIFY(D1D <= MD1, "");
+   MFEM_VERIFY(Q1D <= MQ1, "");
    T tau[MQ1];
    T B1d[MQ1*MD1];
    T G1d[MQ1*MD1];

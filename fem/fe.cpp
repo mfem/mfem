@@ -552,11 +552,16 @@ const DofToQuad &ScalarFiniteElement::GetTensorDofToQuad(
          d2q->G[i+nqpt*j] = d2q->Gt[j+ndof*i] = grad(j);
       }
    }
-   // Compute the collocated gradient d2q->CoG
-   kernels::GetCollocatedGrad(ndof, nqpt,
-                              ConstDeviceMatrix(d2q->B.HostRead(),nqpt,ndof),
-                              ConstDeviceMatrix(d2q->G.HostRead(),nqpt,ndof),
-                              DeviceMatrix(d2q->CoG.HostReadWrite(),nqpt,nqpt));
+
+   static bool need_collocated_grad = getenv("REG");
+   if (need_collocated_grad)
+   {
+      // Compute the collocated gradient d2q->CoG
+      kernels::GetCollocatedGrad(ndof, nqpt,
+                                 ConstDeviceMatrix(d2q->B.HostRead(),nqpt,ndof),
+                                 ConstDeviceMatrix(d2q->G.HostRead(),nqpt,ndof),
+                                 DeviceMatrix(d2q->CoG.HostReadWrite(),nqpt,nqpt));
+   }
    dof2quad_array.Append(d2q);
    return *d2q;
 }
