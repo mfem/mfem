@@ -21,13 +21,13 @@ namespace mfem
 
 void DiffusionIntegrator::AssembleMF(const FiniteElementSpace &fes)
 {
+#ifdef MFEM_USE_CEED
    // Assuming the same element type
    fespace = &fes;
    Mesh *mesh = fes.GetMesh();
    if (mesh->GetNE() == 0) { return; }
    const FiniteElement &el = *fes.GetFE(0);
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
-#ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
       delete ceedDataPtr;
