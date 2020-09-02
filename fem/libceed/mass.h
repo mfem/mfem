@@ -56,8 +56,8 @@ CEED_QFUNCTION(f_build_mass_const)(void *ctx, CeedInt Q,
 }
 
 /// libCEED Q-function for building quadrature data for a mass operator with a
-/// grid function coefficient
-CEED_QFUNCTION(f_build_mass_grid)(void *ctx, CeedInt Q,
+/// coefficient evaluated at quadrature points.
+CEED_QFUNCTION(f_build_mass_quad)(void *ctx, CeedInt Q,
                                   const CeedScalar *const *in,
                                   CeedScalar *const *out)
 {

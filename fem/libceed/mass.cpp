@@ -26,7 +26,7 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
    CeedPAOperator massOp = {fes, irm,
                             1, "/mass.h",
                             ":f_build_mass_const", f_build_mass_const,
-                            ":f_build_mass_grid", f_build_mass_grid,
+                            ":f_build_mass_quad", f_build_mass_quad,
                             ":f_apply_mass", f_apply_mass,
                             CEED_EVAL_INTERP,
                             CEED_EVAL_INTERP
