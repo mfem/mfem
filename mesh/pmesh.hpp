@@ -321,8 +321,12 @@ public:
    /// Return the shared face index of a given local face
    int GetSharedFaceIndexOfLocalFace(int face_idx) const;
 
-   /// Return the shared face index of a given local face
+   /// Return the local face index for the given shared face.
    int GetLocalFaceIndexOfSharedFace(int s) const { return GetSharedFace(s); }
+
+   /// Return the local face index for the given shared face. This performs the
+   /// same function as GetLocalFaceIndexOfSharedFace.
+   int GetSharedFace(int sface) const;
 
    /// Return the index of the face-neighbor element containing the given
    /// shared face.
@@ -331,8 +335,6 @@ public:
    /// Return the number of shared faces (3D), edges (2D), vertices (1D)
    int GetNSharedFaces() const;
 
-   /// Return the local face index for the given shared face.
-   int GetSharedFace(int sface) const;
 
    /// See the remarks for the serial version in mesh.hpp
    virtual void ReorientTetMesh();
