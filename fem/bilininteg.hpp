@@ -2892,6 +2892,25 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat)
    { ran_fe.Project(dom_fe, Trans, elmat); }
+
+   using BilinearFormIntegrator::AssemblePA;
+
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
+
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
+
+private:
+   /// 1D finit element that generates and owns the 1D DofToQuad maps below
+   FiniteElement * fake_fe;
+
+   const DofToQuad *maps_C_C; // one-d map with Lobatto rows, Lobatto columns
+   const DofToQuad *maps_O_C; // one-d map with Legendre rows, Lobatto columns
+   const GeometricFactors *geom;   ///< Not owned
+   // TODO: do you need geom? Is it needed in GradientInterpolator?
+   int dim, ne, o_dofs1D, c_dofs1D;
+
+   Vector pa_data;
 };
 
 
