@@ -50,7 +50,6 @@ struct CeedGridCoeff
    CeedElemRestriction restr;
    CeedVector coeffVector;
 };
-#endif
 
 struct CeedQuadCoeff
 {
@@ -58,6 +57,7 @@ struct CeedQuadCoeff
    CeedElemRestriction restr;
    CeedVector coeffVector;
 };
+#endif
 
 struct CeedData
 {
