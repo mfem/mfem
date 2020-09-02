@@ -2509,9 +2509,7 @@ int ParMesh::GetFaceNbrElementOfSharedFace(int sf) const
 {
    int face_idx = GetSharedFace(sf);
    const FaceInfo &face_info = faces_info[face_idx];
-   int shifted_index = -1 - face_info.Elem2No;
-   // Return the face-neighbor element index
-   return shifted_index - GetNE();
+   return -1 - face_info.Elem2No;
 }
 
 int ParMesh::GetSharedFaceIndexOfLocalFace(int face_idx) const
