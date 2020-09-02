@@ -2147,23 +2147,15 @@ static void PAHcurlApplyGradientTranspose3D(
    auto x = Reshape(_x.Read(), (3 * c_dofs1D * c_dofs1D * o_dofs1D), NE);
    auto y = Reshape(_y.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D, NE);
 
-   Vector pxwork1(o_dofs1D * c_dofs1D * c_dofs1D);
-   auto pxw1 = Reshape(pxwork1.ReadWrite(), o_dofs1D, c_dofs1D, c_dofs1D);
-   Vector pxwork2(o_dofs1D * c_dofs1D * c_dofs1D);
-   auto pxw2 = Reshape(pxwork2.ReadWrite(), o_dofs1D, c_dofs1D, c_dofs1D);
-
-   Vector pywork1(c_dofs1D * o_dofs1D * c_dofs1D);
-   auto pyw1 = Reshape(pywork1.ReadWrite(), c_dofs1D, o_dofs1D, c_dofs1D);
-   Vector pywork2(c_dofs1D * c_dofs1D * c_dofs1D);
-   auto pyw2 = Reshape(pywork2.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D);
-
-   Vector pzwork1(c_dofs1D * c_dofs1D * c_dofs1D);
-   auto pzw1 = Reshape(pzwork1.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D);
-   Vector pzwork2(c_dofs1D * c_dofs1D * c_dofs1D);
-   auto pzw2 = Reshape(pzwork2.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D);
-
    MFEM_FORALL(e, NE,
    {
+      double pxw1[o_dofs1D][c_dofs1D][c_dofs1D];
+      double pxw2[o_dofs1D][c_dofs1D][c_dofs1D];
+      double pyw1[c_dofs1D][o_dofs1D][c_dofs1D];
+      double pyw2[c_dofs1D][c_dofs1D][c_dofs1D];
+      double pzw1[c_dofs1D][c_dofs1D][c_dofs1D];
+      double pzw2[c_dofs1D][c_dofs1D][c_dofs1D];
+
       // ---
       // dofs that point parallel to x-axis (open in x, closed in y, z)
       // ---
@@ -2175,11 +2167,11 @@ static void PAHcurlApplyGradientTranspose3D(
          {
             for (int ey = 0; ey < c_dofs1D; ++ey)
             {
-               pxw1(ex, ey, dz) = 0.0;
+               pxw1[ex][ey][dz] = 0.0;
                for (int ez = 0; ez < c_dofs1D; ++ez)
                {
                   const int local_index = ez*c_dofs1D*o_dofs1D + ey*o_dofs1D + ex;
-                  pxw1(ex, ey, dz) += B(ez, dz) * x(local_index, e);
+                  pxw1[ex][ey][dz] += B(ez, dz) * x(local_index, e);
                }
             }
          }
@@ -2192,10 +2184,10 @@ static void PAHcurlApplyGradientTranspose3D(
          {
             for (int ex = 0; ex < o_dofs1D; ++ex)
             {
-               pxw2(ex, dy, dz) = 0.0;
+               pxw2[ex][dy][dz] = 0.0;
                for (int ey = 0; ey < c_dofs1D; ++ey)
                {
-                  pxw2(ex, dy, dz) += B(ey, dy) * pxw1(ex, ey, dz);
+                  pxw2[ex][dy][dz] += B(ey, dy) * pxw1[ex][ey][dz];
                }
             }
          }
@@ -2210,7 +2202,7 @@ static void PAHcurlApplyGradientTranspose3D(
             {
                for (int ex = 0; ex < o_dofs1D; ++ex)
                {
-                  y(dx, dy, dz, e) += G(ex, dx) * pxw2(ex, dy, dz);
+                  y(dx, dy, dz, e) += G(ex, dx) * pxw2[ex][dy][dz];
                }
             }
          }
@@ -2227,12 +2219,12 @@ static void PAHcurlApplyGradientTranspose3D(
          {
             for (int ey = 0; ey < o_dofs1D; ++ey)
             {
-               pyw1(ex, ey, dz) = 0.0;
+               pyw1[ex][ey][dz] = 0.0;
                for (int ez = 0; ez < c_dofs1D; ++ez)
                {
                   const int local_index = c_dofs1D*c_dofs1D*o_dofs1D +
                                           ez*c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
-                  pyw1(ex, ey, dz) += B(ez, dz) * x(local_index, e);
+                  pyw1[ex][ey][dz] += B(ez, dz) * x(local_index, e);
                }
             }
          }
@@ -2245,10 +2237,10 @@ static void PAHcurlApplyGradientTranspose3D(
          {
             for (int ex = 0; ex < c_dofs1D; ++ex)
             {
-               pyw2(ex, dy, dz) = 0.0;
+               pyw2[ex][dy][dz] = 0.0;
                for (int ey = 0; ey < o_dofs1D; ++ey)
                {
-                  pyw2(ex, dy, dz) += G(ey, dy) * pyw1(ex, ey, dz);
+                  pyw2[ex][dy][dz] += G(ey, dy) * pyw1[ex][ey][dz];
                }
             }
          }
@@ -2263,7 +2255,7 @@ static void PAHcurlApplyGradientTranspose3D(
             {
                for (int ex = 0; ex < c_dofs1D; ++ex)
                {
-                  y(dx, dy, dz, e) += B(ex, dx) * pyw2(ex, dy, dz);
+                  y(dx, dy, dz, e) += B(ex, dx) * pyw2[ex][dy][dz];
                }
             }
          }
@@ -2280,12 +2272,12 @@ static void PAHcurlApplyGradientTranspose3D(
          {
             for (int ey = 0; ey < c_dofs1D; ++ey)
             {
-               pzw1(ex, ey, dz) = 0.0;
+               pzw1[ex][ey][dz] = 0.0;
                for (int ez = 0; ez < o_dofs1D; ++ez)
                {
                   const int local_index = 2*c_dofs1D*c_dofs1D*o_dofs1D +
                                           ez*c_dofs1D*c_dofs1D + ey*c_dofs1D + ex;
-                  pzw1(ex, ey, dz) += G(ez, dz) * x(local_index, e);
+                  pzw1[ex][ey][dz] += G(ez, dz) * x(local_index, e);
                }
             }
          }
@@ -2298,10 +2290,10 @@ static void PAHcurlApplyGradientTranspose3D(
          {
             for (int ex = 0; ex < c_dofs1D; ++ex)
             {
-               pzw2(ex, dy, dz) = 0.0;
+               pzw2[ex][dy][dz] = 0.0;
                for (int ey = 0; ey < c_dofs1D; ++ey)
                {
-                  pzw2(ex, dy, dz) += B(ey, dy) * pzw1(ex, ey, dz);
+                  pzw2[ex][dy][dz] += B(ey, dy) * pzw1[ex][ey][dz];
                }
             }
          }
@@ -2316,7 +2308,7 @@ static void PAHcurlApplyGradientTranspose3D(
             {
                for (int ex = 0; ex < c_dofs1D; ++ex)
                {
-                  y(dx, dy, dz, e) += B(ex, dx) * pzw2(ex, dy, dz);
+                  y(dx, dy, dz, e) += B(ex, dx) * pzw2[ex][dy][dz];
                }
             }
          }
