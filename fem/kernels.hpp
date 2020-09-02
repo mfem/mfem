@@ -119,7 +119,7 @@ MFEM_HOST_DEVICE inline void EvalY(const int D1D, const int Q1D,
 /// Pull 2D Scalar Evaluation
 template<int MQ1, int NBZ>
 MFEM_HOST_DEVICE inline double PullEval(const int qx, const int qy,
-                                      const double sQQ[NBZ][MQ1*MQ1])
+                                        const double sQQ[NBZ][MQ1*MQ1])
 {
    const int tidz = MFEM_THREAD_ID(z);
    ConstDeviceMatrix QQ(sQQ[tidz], MQ1, MQ1);
@@ -241,7 +241,7 @@ MFEM_HOST_DEVICE inline void EvalZ(const int D1D, const int Q1D,
 /// Pull 3D Scalar Evaluation
 template<int MQ1>
 MFEM_HOST_DEVICE inline double PullEval(const int x, const int y, const int z,
-                                      const double sQQQ[MQ1*MQ1*MQ1])
+                                        const double sQQQ[MQ1*MQ1*MQ1])
 {
    ConstDeviceCube XxBBB(sQQQ, MQ1, MQ1, MQ1);
    return XxBBB(x,y,z);
