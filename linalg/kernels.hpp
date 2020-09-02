@@ -56,13 +56,14 @@ void HouseholderReflect(T *A, const T *v,
    }
 }
 
-template<typename T>
+constexpr const int MCOG = 8;
+template<typename T, int MQ1 = MCOG>
 MFEM_HOST_DEVICE inline
 void HouseholderApplyQ(T *A, const T *Q, const T *tau,
                        const int m, const int n, const int k,
                        const int row, const int col)
 {
-   T v[m];
+   T v[MQ1];
    for (int ii=0; ii<k; ii++)
    {
       const int i = k-1-ii;
@@ -72,11 +73,11 @@ void HouseholderApplyQ(T *A, const T *Q, const T *tau,
    }
 }
 
-template<typename T>
+template<typename T, int MQ1 = MCOG>
 MFEM_HOST_DEVICE inline
 void QRFactorization(T *mat, T *tau,  const int Q1D, const  int D1D)
 {
-   T v[Q1D];
+   T v[MQ1];
    DeviceMatrix B(mat, D1D, Q1D);
    for (int i = 0; i < D1D; i++)
    {
@@ -105,16 +106,18 @@ void QRFactorization(T *mat, T *tau,  const int Q1D, const  int D1D)
    }
 }
 
-template<typename T>
+template<typename T, int MQ1 = MCOG, int MD1 = MCOG>
 MFEM_HOST_DEVICE inline
 void GetCollocatedGrad(const int D1D, const int Q1D,
                        DeviceTensor<2,const T> b,
                        DeviceTensor<2,const T> g,
                        DeviceTensor<2,T> CoG)
 {
-   T tau[Q1D];
-   T B1d[Q1D*D1D];
-   T G1d[Q1D*D1D];
+   MFEM_ASSERT(D1D <= MD1, "");
+   MFEM_ASSERT(Q1D <= MQ1, "");
+   T tau[MQ1];
+   T B1d[MQ1*MD1];
+   T G1d[MQ1*MD1];
    DeviceMatrix B(B1d, D1D, Q1D);
    DeviceMatrix G(G1d, D1D, Q1D);
 
