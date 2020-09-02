@@ -130,7 +130,7 @@ public:
    void MultTranspose(const Vector &x, Vector &y) const;
 };
 
-/// Data and methods for matrix-free bilinear forms NOT YET IMPLEMENTED.
+/// Data and methods for matrix-free bilinear forms
 class MFBilinearFormExtension : public BilinearFormExtension
 {
 protected:
