@@ -458,12 +458,6 @@ static void InitCeedNonTensorRestriction(const FiniteElementSpace &fes,
    const int dim = mesh->Dimension();
    const int P = fe->GetDof();
    const int Q = ir.GetNPoints();
-   DenseMatrix shape(P, Q);
-   Vector grad(P*dim*Q);
-   DenseMatrix qref(dim, Q);
-   Vector qweight(Q);
-   Vector shape_i(P);
-   DenseMatrix grad_i(P, dim);
    CeedInt compstride = fes.GetOrdering()==Ordering::byVDIM ? 1 : fes.GetNDofs();
    const Table &el_dof = fes.GetElementToDofTable();
    Array<int> tp_el_dof(el_dof.Size_of_connections());
@@ -472,24 +466,6 @@ static void InitCeedNonTensorRestriction(const FiniteElementSpace &fes,
    if (tfe) // Lexicographic ordering using dof_map
    {
       const Array<int>& dof_map = tfe->GetDofMap();
-      for (int i = 0; i < Q; i++)
-      {
-         const IntegrationPoint &ip = ir.IntPoint(i);
-         qref(0,i) = ip.x;
-         if (dim>1) { qref(1,i) = ip.y; }
-         if (dim>2) { qref(2,i) = ip.z; }
-         qweight(i) = ip.weight;
-         fe->CalcShape(ip, shape_i);
-         fe->CalcDShape(ip, grad_i);
-         for (int j = 0; j < P; j++)
-         {
-            shape(j, i) = shape_i(dof_map[j]);
-            for (int d = 0; d < dim; ++d)
-            {
-               grad(j+i*P+d*Q*P) = grad_i(dof_map[j], d);
-            }
-         }
-      }
       for (int i = 0; i < mesh->GetNE(); i++)
       {
          const int el_offset = fe->GetDof() * i;
@@ -509,24 +485,6 @@ static void InitCeedNonTensorRestriction(const FiniteElementSpace &fes,
    }
    else  // Native ordering
    {
-      for (int i = 0; i < Q; i++)
-      {
-         const IntegrationPoint &ip = ir.IntPoint(i);
-         qref(0,i) = ip.x;
-         if (dim>1) { qref(1,i) = ip.y; }
-         if (dim>2) { qref(2,i) = ip.z; }
-         qweight(i) = ip.weight;
-         fe->CalcShape(ip, shape_i);
-         fe->CalcDShape(ip, grad_i);
-         for (int j = 0; j < P; j++)
-         {
-            shape(j, i) = shape_i(j);
-            for (int d = 0; d < dim; ++d)
-            {
-               grad(j+i*P+d*Q*P) = grad_i(j, d);
-            }
-         }
-      }
       for (int e = 0; e < mesh->GetNE(); e++)
       {
          for (int i = 0; i < P; i++)
@@ -600,11 +558,6 @@ static void InitCeedTensorRestriction(const FiniteElementSpace &fes,
    const Array<int>& dof_map = tfe->GetDofMap();
    const FiniteElement *fe1d =
       fes.FEColl()->FiniteElementForGeometry(Geometry::SEGMENT);
-   DenseMatrix shape1d(fe1d->GetDof(), ir.GetNPoints());
-   DenseMatrix grad1d(fe1d->GetDof(), ir.GetNPoints());
-   Vector qref1d(ir.GetNPoints()), qweight1d(ir.GetNPoints());
-   Vector shape_i(shape1d.Height());
-   DenseMatrix grad_i(grad1d.Height(), 1);
    const H1_SegmentElement *h1_fe1d =
       dynamic_cast<const H1_SegmentElement *>(fe1d);
    MFEM_VERIFY(h1_fe1d, "invalid FE");
