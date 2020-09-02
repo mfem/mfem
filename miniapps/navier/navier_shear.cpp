@@ -40,6 +40,7 @@ struct s_NavierContext
    double kinvis = 1.0 / 100000.0;
    double t_final = 10 * 1e-3;
    double dt = 1e-3;
+   bool ceed_spinv = false;
 } ctx;
 
 void vel_shear_ic(const Vector &x, double t, Vector &u)
@@ -66,6 +67,8 @@ int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
 
+   // Device device("ceed-cpu");  // segfault; doesn't work on periodic mesh? (ex1 with --device ceed-cpu works fine?)
+
    int serial_refinements = 2;
 
    Mesh *mesh = new Mesh("../../data/periodic-square.mesh");
@@ -88,7 +91,7 @@ int main(int argc, char *argv[])
    delete mesh;
 
    // Create the flow solver.
-   NavierSolver flowsolver(pmesh, ctx.order, ctx.kinvis);
+   NavierSolver flowsolver(pmesh, ctx.order, ctx.kinvis, ctx.ceed_spinv);
    flowsolver.EnablePA(true);
 
    // Set the initial condition.
