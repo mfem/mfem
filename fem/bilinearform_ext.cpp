@@ -725,7 +725,7 @@ void GetFullAssemblySparseMatrix(BilinearForm *a, SparseMatrix &A)
    {
 #ifdef MFEM_USE_MPI
       if ( ParFiniteElementSpace* pfes =
-            dynamic_cast<ParFiniteElementSpace*>(a->FESpace()) )
+              dynamic_cast<ParFiniteElementSpace*>(a->FESpace()) )
       {
          pfes->ExchangeFaceNbrData();
       }
