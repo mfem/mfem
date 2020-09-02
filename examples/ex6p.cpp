@@ -224,7 +224,7 @@ int main(int argc, char *argv[])
 
       // 17. Solve the linear system A X = B.
       //     * With full assembly, use the BoomerAMG preconditioner from hypre.
-      //     * With partial assembly, use the diagonal preconditioner.
+      //     * With partial assembly, use a diagonal preconditioner.
       Solver *M = NULL;
       if (pa)
       {

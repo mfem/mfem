@@ -99,6 +99,11 @@ Discretization improvements
 - Added support for interpolation of functions in L2, H(div) and H(curl)
   spaces using GSLIB-FindPoints.
 
+- Added support for computing asymptotic error estimates and convergence rates
+  for the whole de Rham sequence based on the new class ConvergenceStudy and new
+  member methods in GridFunction and ParGridFunction. See the rates.cpp file in
+  the tests/convergence directory for sample usage.
+
 Linear and nonlinear solvers
 ----------------------------
 - Added power method to iteratively estimate the largest eigenvalue and the
@@ -192,10 +197,13 @@ New and updated examples and miniapps
 Improved testing
 ----------------
 - Upgraded the Catch unit test framework from version 1.6.1 to version 2.13.0.
+
 - Added a GitLab pipeline that automates PR testing on supercomputing systems
   and Linux clusters at Lawrence Livermore National Lab (LLNL). This can be
   triggered only by LLNL developers, see .gitlab-ci.yml, the .gitlab directory
   and the updated CONTRIBUTING.md file.
+
+- Added testing of the parallel mesh format in tests/par-mesh-format.
 
 Miscellaneous
 -------------

@@ -78,6 +78,14 @@ groups_parallel=(
    "miniapps/electromagnetics"
    "joule.cpp"'
 #   "{volta,tesla,joule}.cpp"' # todo: multiline sample runs
+'"convergence"
+   "Convergence tests:"
+   "tests/convergence"
+   "diffusion.cpp"'
+'"par-mesh-format"
+   "Parallel mesh tests:"
+   "tests/par-mesh-format"
+   "ex1p.cpp"'
 )
 # All groups serial + parallel runs mixed in the same group:
 groups_all=(
@@ -107,6 +115,14 @@ groups_all=(
    "miniapps/electromagnetics"
    "joule.cpp"'
 #   "{volta,tesla,joule}.cpp"' # todo: multiline sample runs
+'"convergence"
+   "Convergence tests:"
+   "tests/convergence"
+   "diffusion.cpp"'
+'"par-mesh-format"
+   "Parallel mesh tests:"
+   "tests/par-mesh-format"
+   "ex1p.cpp"'
 )
 make_all="all"
 base_timeformat=$'real: %3Rs  user: %3Us  sys: %3Ss  %%cpu: %P'
@@ -380,10 +396,15 @@ function timed_run()
 # This function is used to execute the sample runs
 function go()
 {
-   local cmd=("$@")
+   # Strip leading and trailing spaces from $1 and store the result in cmd_line
+   shopt -s extglob
+   local cmd_line="${1##+( )}"
+   cmd_line="${cmd_line%%+( )}"
+   shopt -u extglob
+   eval local cmd=(${cmd_line})
    local res=""
    echo $sep
-   echo "<${group}>" "${cmd[@]}"
+   echo "<${group}>" "${cmd_line}"
    echo $sep
    if [ "${timing}" == "yes" ]; then
       timed_run "${cmd[@]}"
@@ -395,15 +416,15 @@ function go()
    else
       res="${red}FAILED${none}"
    fi
-   printf "[${res}] <${group}> ${cmd[*]}\n"
+   printf "[${res}] <${group}> ${cmd_line}\n"
    if [ "${timing}" == "yes" ]; then
       printf "Run time: %s\n" "${timer}"
       timer=(${timer})
       timer="${timer[1]}"
-      printf -v line "[$res](%8s) ${cmd[*]}" "$timer"
+      printf -v line "[$res](%8s) ${cmd_line}" "$timer"
       summary=("${summary[@]}" "$line")
    else
-      summary=("${summary[@]}" "[${res}] ${cmd[*]}")
+      summary=("${summary[@]}" "[${res}] ${cmd_line}")
    fi
    echo $sep
 }
@@ -438,7 +459,7 @@ function go_group()
       fi
       for run in "${runs[@]}"; do
          if [ "${run}" == "" ]; then continue; fi
-         eval go \${run_prefix} \${run} \${run_suffix} $output
+         eval go \"\${run_prefix} \${run} \${run_suffix}\" $output
       done
    done
    ${make} clean-exec
@@ -504,7 +525,7 @@ function echo_run()
 {
    echo "   $@"
    { echo "   $@"; echo "$sep";
-     "$@"
+     eval "$@"
      echo "$sep"; } >> "$echo_log" 2>&1
 }
 
@@ -524,6 +545,28 @@ function build_all()
    echo_run ${make} config ${mfem_config} || exit 1
    echo_run ${make} ${make_j} || exit 1
    echo_run ${make} ${make_all} ${make_j} || exit 1
+   # Build groups in directories other than the directories built by 'make all':
+   for group_params in "${groups[@]}"; do
+      eval params=(${group_params})
+      group_dir="${params[2]}"
+      case "$group_dir" in
+         (examples*|miniapps*)
+            # Built by 'make all'
+            ;;
+         (*)
+            if [ "${mfem_dir}" != "${mfem_build_dir}" ]; then
+               echo_run mkdir -p "${group_dir}" || exit 1
+               echo_run cd "${group_dir}" || exit 1
+               echo_run cp -af "${mfem_dir}/${group_dir}/makefile" . || exit 1
+            else
+               echo_run cd "${group_dir}" || exit 1
+            fi
+            echo_run ${make} clean || exit 1
+            echo_run ${make} MFEM_DIR="${mfem_dir}" ${make_j} || exit 1
+            echo_run cd "${mfem_build_dir}" || exit 1
+            ;;
+      esac
+   done
 }
 
 # Function that runs all sample runs, given by the array variable "groups".
