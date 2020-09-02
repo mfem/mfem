@@ -205,7 +205,7 @@ int main(int argc, char *argv[])
       umf_solver.Mult(B, X);
 #endif
    }
-   else // Jacobi preconditioning in partial assembly mode
+   else
    {
 #ifdef MFEM_USE_CEED
       if (DeviceCanUseCeed())
