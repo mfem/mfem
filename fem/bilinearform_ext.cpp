@@ -716,8 +716,9 @@ void FABilinearFormExtension::Assemble()
    }
 }
 
-void GetFullAssemblySparseMatrix(BilinearForm &a, SparseMatrix &A)
+SparseMatrix GetFullAssemblySparseMatrix(BilinearForm &a)
 {
+   int size = a.FESpace()->GetVSize();
    EABilinearFormExtension ea(&a);
    ea.Assemble();
    FiniteElementSpace &fes = *a.FESpace();
@@ -728,8 +729,11 @@ void GetFullAssemblySparseMatrix(BilinearForm &a, SparseMatrix &A)
               dynamic_cast<ParFiniteElementSpace*>(a.FESpace()) )
       {
          pfes->ExchangeFaceNbrData();
+         size += pfes->GetFaceNbrVSize();
       }
 #endif
+      SparseMatrix A(size,size);
+      A.GetMemoryI().New(size, A.GetMemoryI().GetMemoryType());
       const L2ElementRestriction *restE =
          static_cast<const L2ElementRestriction*>(ea.elem_restrict);
       const L2FaceRestriction *restF =
@@ -766,12 +770,15 @@ void GetFullAssemblySparseMatrix(BilinearForm &a, SparseMatrix &A)
          I[i] = I[i-1];
       }
       I[0] = 0;
+      return A;
    }
    else // continuous Galerkin case
    {
+      SparseMatrix A(size,size);
       const ElementRestriction &rest =
          static_cast<const ElementRestriction&>(*ea.elem_restrict);
       rest.FillSparseMatrix(ea.ea_data, A);
+      return A;
    }
 }
 
