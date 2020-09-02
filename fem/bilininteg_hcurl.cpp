@@ -1820,22 +1820,20 @@ static void PAHcurlApplyGradient2D(const int c_dofs1D,
    auto x = Reshape(_x.Read(), c_dofs1D, c_dofs1D, NE);
    auto y = Reshape(_y.ReadWrite(), 2 * c_dofs1D * o_dofs1D, NE);
 
-   Vector hwork(c_dofs1D * c_dofs1D);
-   auto hw = Reshape(hwork.ReadWrite(), c_dofs1D, c_dofs1D);
-
-   Vector vwork(c_dofs1D * o_dofs1D);
-   auto vw = Reshape(vwork.ReadWrite(), c_dofs1D, o_dofs1D);
    MFEM_FORALL(e, NE,
    {
+      double hw[c_dofs1D][c_dofs1D];
+      double vw[c_dofs1D][o_dofs1D];
+
       // horizontal part
       for (int dx = 0; dx < c_dofs1D; ++dx)
       {
          for (int ey = 0; ey < c_dofs1D; ++ey)
          {
-            hw(dx, ey) = 0.0;
+            hw[dx][ey] = 0.0;
             for (int dy = 0; dy < c_dofs1D; ++dy)
             {
-               hw(dx, ey) += B(ey, dy) * x(dx, dy, e);
+               hw[dx][ey] += B(ey, dy) * x(dx, dy, e);
             }
          }
       }
@@ -1847,7 +1845,7 @@ static void PAHcurlApplyGradient2D(const int c_dofs1D,
             for (int dx = 0; dx < c_dofs1D; ++dx)
             {
                const int local_index = ey*o_dofs1D + ex;
-               y(local_index, e) += G(ex, dx) * hw(dx, ey);
+               y(local_index, e) += G(ex, dx) * hw[dx][ey];
             }
          }
       }
@@ -1857,10 +1855,10 @@ static void PAHcurlApplyGradient2D(const int c_dofs1D,
       {
          for (int ey = 0; ey < o_dofs1D; ++ey)
          {
-            vw(dx, ey) = 0.0;
+            vw[dx][ey] = 0.0;
             for (int dy = 0; dy < c_dofs1D; ++dy)
             {
-               vw(dx, ey) += G(ey, dy) * x(dx, dy, e);
+               vw[dx][ey] += G(ey, dy) * x(dx, dy, e);
             }
          }
       }
@@ -1872,7 +1870,7 @@ static void PAHcurlApplyGradient2D(const int c_dofs1D,
             for (int dx = 0; dx < c_dofs1D; ++dx)
             {
                const int local_index = c_dofs1D * o_dofs1D + ey*c_dofs1D + ex;
-               y(local_index, e) += B(ex, dx) * vw(dx, ey);
+               y(local_index, e) += B(ex, dx) * vw[dx][ey];
             }
          }
       }
@@ -1891,24 +1889,21 @@ static void PAHcurlApplyGradientTranspose2D(
    auto x = Reshape(_x.Read(), 2 * c_dofs1D * o_dofs1D, NE);
    auto y = Reshape(_y.ReadWrite(), c_dofs1D, c_dofs1D, NE);
 
-   Vector hwork(c_dofs1D * o_dofs1D);
-   auto hw = Reshape(hwork.ReadWrite(), c_dofs1D, o_dofs1D);
-
-   Vector vwork(c_dofs1D * c_dofs1D);
-   auto vw = Reshape(vwork.ReadWrite(), c_dofs1D, c_dofs1D);
-
    MFEM_FORALL(e, NE,
    {
+      double hw[c_dofs1D][o_dofs1D];
+      double vw[c_dofs1D][c_dofs1D];
+
       // horizontal part (open x, closed y)
       for (int dy = 0; dy < c_dofs1D; ++dy)
       {
          for (int ex = 0; ex < o_dofs1D; ++ex)
          {
-            hw(dy, ex) = 0.0;
+            hw[dy][ex] = 0.0;
             for (int ey = 0; ey < c_dofs1D; ++ey)
             {
                const int local_index = ey*o_dofs1D + ex;
-               hw(dy, ex) += B(ey, dy) * x(local_index, e);
+               hw[dy][ex] += B(ey, dy) * x(local_index, e);
             }
          }
       }
@@ -1919,7 +1914,7 @@ static void PAHcurlApplyGradientTranspose2D(
          {
             for (int ex = 0; ex < o_dofs1D; ++ex)
             {
-               y(dx, dy, e) += G(ex, dx) * hw(dy, ex);
+               y(dx, dy, e) += G(ex, dx) * hw[dy][ex];
             }
          }
       }
@@ -1929,11 +1924,11 @@ static void PAHcurlApplyGradientTranspose2D(
       {
          for (int ex = 0; ex < c_dofs1D; ++ex)
          {
-            vw(dy, ex) = 0.0;
+            vw[dy][ex] = 0.0;
             for (int ey = 0; ey < o_dofs1D; ++ey)
             {
                const int local_index = c_dofs1D * o_dofs1D + ey*c_dofs1D + ex;
-               vw(dy, ex) += G(ey, dy) * x(local_index, e);
+               vw[dy][ex] += G(ey, dy) * x(local_index, e);
             }
          }
       }
@@ -1944,7 +1939,7 @@ static void PAHcurlApplyGradientTranspose2D(
          {
             for (int ex = 0; ex < c_dofs1D; ++ex)
             {
-               y(dx, dy, e) += B(ex, dx) * vw(dy, ex);
+               y(dx, dy, e) += B(ex, dx) * vw[dy][ex];
             }
          }
       }
