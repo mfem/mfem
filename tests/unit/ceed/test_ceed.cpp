@@ -170,8 +170,7 @@ TEST_CASE("CEED", "[CEED]")
                       Problem::VectorMass,Problem::VectorDiffusion);
    auto order = GENERATE(1,2,4);
    auto mesh = GENERATE("../../data/inline-quad.mesh","../../data/inline-hex.mesh",
-                        "../../data/star.mesh","../../data/fichera.mesh",
-                        // "../../data/star-q3.mesh","../../data/fichera-q3.mesh",
+                        "../../data/star-q3.mesh","../../data/fichera-q3.mesh",
                         "../../data/amr-quad.mesh","../../data/fichera-amr.mesh");
    test_ceed_operator(mesh, order, coeff_type, pb, assembly);
 } // test case
