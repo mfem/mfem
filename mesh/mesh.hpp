@@ -1015,7 +1015,7 @@ public:
    /// domain, and one neighboring element belongs to a different MPI rank)
    bool FaceIsShared(int FaceNo) const
    {
-       return !FaceIsInterior(FaceNo) && FaceIsTrueInterior(FaceNo);
+      return !FaceIsInterior(FaceNo) && FaceIsTrueInterior(FaceNo);
    }
 
    /** Get the indices of the elements containing the given face. @a *Elem1 will
