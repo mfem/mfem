@@ -1965,23 +1965,15 @@ static void PAHcurlApplyGradient3D(const int c_dofs1D,
    auto x = Reshape(_x.Read(), c_dofs1D, c_dofs1D, c_dofs1D, NE);
    auto y = Reshape(_y.ReadWrite(), (3 * c_dofs1D * c_dofs1D * o_dofs1D), NE);
 
-   Vector pxwork1(c_dofs1D * c_dofs1D * c_dofs1D);
-   auto pxw1 = Reshape(pxwork1.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D);
-   Vector pxwork2(c_dofs1D * c_dofs1D * c_dofs1D);
-   auto pxw2 = Reshape(pxwork2.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D);
-
-   Vector pywork1(c_dofs1D * c_dofs1D * c_dofs1D);
-   auto pyw1 = Reshape(pywork1.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D);
-   Vector pywork2(c_dofs1D * o_dofs1D * c_dofs1D);
-   auto pyw2 = Reshape(pywork2.ReadWrite(), c_dofs1D, o_dofs1D, c_dofs1D);
-
-   Vector pzwork1(c_dofs1D * c_dofs1D * o_dofs1D);
-   auto pzw1 = Reshape(pzwork1.ReadWrite(), c_dofs1D, c_dofs1D, o_dofs1D);
-   Vector pzwork2(c_dofs1D * c_dofs1D * o_dofs1D);
-   auto pzw2 = Reshape(pzwork2.ReadWrite(), c_dofs1D, c_dofs1D, o_dofs1D);
-
    MFEM_FORALL(e, NE,
    {
+      double pxw1[c_dofs1D][c_dofs1D][c_dofs1D];
+      double pxw2[c_dofs1D][c_dofs1D][c_dofs1D];
+      double pyw1[c_dofs1D][c_dofs1D][c_dofs1D];
+      double pyw2[c_dofs1D][o_dofs1D][c_dofs1D];
+      double pzw1[c_dofs1D][c_dofs1D][o_dofs1D];
+      double pzw2[c_dofs1D][c_dofs1D][o_dofs1D];
+
       // ---
       // dofs that point parallel to x-axis (open in x, closed in y, z)
       // ---
@@ -1993,10 +1985,10 @@ static void PAHcurlApplyGradient3D(const int c_dofs1D,
          {
             for (int dy = 0; dy < c_dofs1D; ++dy)
             {
-               pxw1(dx, dy, ez) = 0.0;
+               pxw1[dx][dy][ez] = 0.0;
                for (int dz = 0; dz < c_dofs1D; ++dz)
                {
-                  pxw1(dx, dy, ez) += B(ez, dz) * x(dx, dy, dz, e);
+                  pxw1[dx][dy][ez] += B(ez, dz) * x(dx, dy, dz, e);
                }
             }
          }
@@ -2009,10 +2001,10 @@ static void PAHcurlApplyGradient3D(const int c_dofs1D,
          {
             for (int dx = 0; dx < c_dofs1D; ++dx)
             {
-               pxw2(dx, ey, ez) = 0.0;
+               pxw2[dx][ey][ez] = 0.0;
                for (int dy = 0; dy < c_dofs1D; ++dy)
                {
-                  pxw2(dx, ey, ez) += B(ey, dy) * pxw1(dx, dy, ez);
+                  pxw2[dx][ey][ez] += B(ey, dy) * pxw1[dx][dy][ez];
                }
             }
          }
@@ -2028,7 +2020,7 @@ static void PAHcurlApplyGradient3D(const int c_dofs1D,
                for (int dx = 0; dx < c_dofs1D; ++dx)
                {
                   const int local_index = ez*c_dofs1D*o_dofs1D + ey*o_dofs1D + ex;
-                  y(local_index, e) += G(ex, dx) * pxw2(dx, ey, ez);
+                  y(local_index, e) += G(ex, dx) * pxw2[dx][ey][ez];
                }
             }
          }
@@ -2046,10 +2038,10 @@ static void PAHcurlApplyGradient3D(const int c_dofs1D,
          {
             for (int dy = 0; dy < c_dofs1D; ++dy)
             {
-               pyw1(dx, dy, ez) = 0.0;
+               pyw1[dx][dy][ez] = 0.0;
                for (int dz = 0; dz < c_dofs1D; ++dz)
                {
-                  pyw1(dx, dy, ez) += B(ez, dz) * x(dx, dy, dz, e);
+                  pyw1[dx][dy][ez] += B(ez, dz) * x(dx, dy, dz, e);
                }
             }
          }
@@ -2062,10 +2054,10 @@ static void PAHcurlApplyGradient3D(const int c_dofs1D,
          {
             for (int dx = 0; dx < c_dofs1D; ++dx)
             {
-               pyw2(dx, ey, ez) = 0.0;
+               pyw2[dx][ey][ez] = 0.0;
                for (int dy = 0; dy < c_dofs1D; ++dy)
                {
-                  pyw2(dx, ey, ez) += G(ey, dy) * pyw1(dx, dy, ez);
+                  pyw2[dx][ey][ez] += G(ey, dy) * pyw1[dx][dy][ez];
                }
             }
          }
@@ -2082,7 +2074,7 @@ static void PAHcurlApplyGradient3D(const int c_dofs1D,
                {
                   const int local_index = c_dofs1D*c_dofs1D*o_dofs1D +
                                           ez*c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
-                  y(local_index, e) += B(ex, dx) * pyw2(dx, ey, ez);
+                  y(local_index, e) += B(ex, dx) * pyw2[dx][ey][ez];
                }
             }
          }
@@ -2099,10 +2091,10 @@ static void PAHcurlApplyGradient3D(const int c_dofs1D,
          {
             for (int dy = 0; dy < c_dofs1D; ++dy)
             {
-               pzw1(dx, dy, ez) = 0.0;
+               pzw1[dx][dy][ez] = 0.0;
                for (int dz = 0; dz < c_dofs1D; ++dz)
                {
-                  pzw1(dx, dy, ez) += G(ez, dz) * x(dx, dy, dz, e);
+                  pzw1[dx][dy][ez] += G(ez, dz) * x(dx, dy, dz, e);
                }
             }
          }
@@ -2115,10 +2107,10 @@ static void PAHcurlApplyGradient3D(const int c_dofs1D,
          {
             for (int dx = 0; dx < c_dofs1D; ++dx)
             {
-               pzw2(dx, ey, ez) = 0.0;
+               pzw2[dx][ey][ez] = 0.0;
                for (int dy = 0; dy < c_dofs1D; ++dy)
                {
-                  pzw2(dx, ey, ez) += B(ey, dy) * pzw1(dx, dy, ez);
+                  pzw2[dx][ey][ez] += B(ey, dy) * pzw1[dx][dy][ez];
                }
             }
          }
@@ -2135,7 +2127,7 @@ static void PAHcurlApplyGradient3D(const int c_dofs1D,
                {
                   const int local_index = 2*c_dofs1D*c_dofs1D*o_dofs1D +
                                           ez*c_dofs1D*c_dofs1D + ey*c_dofs1D + ex;
-                  y(local_index, e) += B(ex, dx) * pzw2(dx, ey, ez);
+                  y(local_index, e) += B(ex, dx) * pzw2[dx][ey][ez];
                }
             }
          }
