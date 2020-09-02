@@ -78,6 +78,10 @@ protected:
    // sface ids: all triangles first, then all quads
    Array<int> sface_lface;
 
+   /// Local to shared face mapping (vertex in 1D, edge in 2D, face in 3D).
+   /// Generated on first call to GetSharedFaceIndexOfLocalFace.
+   mutable std::map<int,int> lface_sface;
+
    IsoparametricTransformation FaceNbrTransformation;
 
    // glob_elem_offset + local element number defines a global element numbering
@@ -313,6 +317,16 @@ public:
 
       return &FaceNbrTransformation;
    }
+
+   /// Return the shared face index of a given local face
+   int GetSharedFaceIndexOfLocalFace(int face_idx) const;
+
+   /// Return the shared face index of a given local face
+   int GetLocalFaceIndexOfSharedFace(int s) const { return GetSharedFace(s); }
+
+   /// Return the index of the face-neighbor element containing the given
+   /// shared face.
+   int GetFaceNbrElementOfSharedFace(int sf) const;
 
    /// Return the number of shared faces (3D), edges (2D), vertices (1D)
    int GetNSharedFaces() const;

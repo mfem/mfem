@@ -2505,6 +2505,32 @@ GetSharedFaceTransformations(int sf, bool fill2)
    return &FaceElemTr;
 }
 
+int ParMesh::GetFaceNbrElementOfSharedFace(int sf) const
+{
+   int face_idx = GetSharedFace(sf);
+   const FaceInfo &face_info = faces_info[face_idx];
+   int shifted_index = -1 - face_info.Elem2No;
+   // Return the face-neighbor element index
+   return shifted_index - GetNE();
+}
+
+int ParMesh::GetSharedFaceIndexOfLocalFace(int face_idx) const
+{
+   if (lface_sface.empty())
+   {
+      const Array<int> *mapping;
+      if (Dim == 1) { mapping = &svert_lvert; }
+      else if (Dim == 2) { mapping = &sedge_ledge; }
+      else { mapping = &sface_lface; }
+
+      for (int i=0; i<mapping->Size(); ++i)
+      {
+         lface_sface[(*mapping)[i]] = i;
+      }
+   }
+   return lface_sface[face_idx];
+}
+
 int ParMesh::GetNSharedFaces() const
 {
    if (Conforming())
