@@ -120,7 +120,7 @@ struct CeedPAOperator
 #ifdef MFEM_USE_CEED
    /** The finite element space for the trial and test functions. */
    const FiniteElementSpace &fes;
-   /** The Integration Rule to use to compote the operator. */
+   /** The Integration Rule to use to compute the operator. */
    const IntegrationRule &ir;
    /** The number of quadrature data at each quadrature point. */
    int qdatasize;
