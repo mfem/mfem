@@ -102,7 +102,7 @@ Discretization improvements
 - Added support for computing asymptotic error estimates and convergence rates
   for the whole de Rham sequence based on the new class ConvergenceStudy and new
   member methods in GridFunction and ParGridFunction. See the rates.cpp file in
-  in tests/convergence for sample usage.
+  the tests/convergence directory for sample usage.
 
 Linear and nonlinear solvers
 ----------------------------
