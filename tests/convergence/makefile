@@ -19,7 +19,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_TESTS = rates
-PAR_TESTS = ratesp
+PAR_TESTS = prates
 ifeq ($(MFEM_USE_MPI),NO)
    TESTS = $(SEQ_TESTS)
 else
@@ -51,8 +51,12 @@ $($(TESTS)): \
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
 
-clean:
+clean: clean-build clean-exec
+
+clean-build:
 	rm -f *.o *~ $(SEQ_TESTS) $(PAR_TESTS)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
+clean-exec:
+	@rm -f refined.mesh sol.gf
 

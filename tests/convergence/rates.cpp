@@ -8,7 +8,11 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-
+//
+//                      -------------------------------
+//                      Convergence Rates Test (Serial)
+//                      -------------------------------
+//
 // Compile with: make rates
 //
 // Sample runs:  rates -m ../../data/inline-segment.mesh -sr 4 -prob 0 -o 1
@@ -24,9 +28,9 @@
 //               rates -m ../../data/star.mesh -sr 2 -prob 3 -o 2
 //               rates -m ../../data/inline-hex.mesh -sr 1 -prob 3 -o 1
 //
-// Description:  This example code demonstrates the use of MFEM to define
-//               and solve finite element problem for various discretizations
-//               and provide convergence rates
+// Description:  This example code demonstrates the use of MFEM to define and
+//               solve finite element problem for various discretizations and
+//               provide convergence rates in serial.
 //
 //               prob 0: H1 projection:
 //                       (grad u, grad v) + (u,v) = (grad u_exact, grad v) + (u_exact, v)
@@ -34,7 +38,7 @@
 //                       (curl u, curl v) + (u,v) = (curl u_exact, curl v) + (u_exact, v)
 //               prob 2: H(div) projection
 //                       (div  u, div  v) + (u,v) = (div  u_exact, div  v) + (u_exact, v)
-//               prob 3: DG discretization for the Poisson problem 
+//               prob 3: DG discretization for the Poisson problem
 //                       -Delta u = f
 
 #include "mfem.hpp"
@@ -43,8 +47,7 @@
 using namespace std;
 using namespace mfem;
 
-
-// Exact solution parameters: 
+// Exact solution parameters:
 double sol_s[3] = { -0.32, 0.15, 0.24 };
 double sol_k[3] = { 1.21, 1.45, 1.37 };
 
@@ -56,7 +59,7 @@ void gradu_exact(const Vector &x, Vector &gradu);
 // Vector FE
 void vector_u_exact(const Vector &x, Vector & vector_u);
 // H(curl)
-void curlu_exact(const Vector &x, Vector &curlU);
+void curlu_exact(const Vector &x, Vector &curlu);
 // H(div)
 double divu_exact(const Vector &x);
 
@@ -84,7 +87,7 @@ int main(int argc, char *argv[])
                   " See the documentation of class DGDiffusionIntegrator.");
    args.AddOption(&kappa, "-k", "--kappa",
                   "One of the two DG penalty parameters, should be positive."
-                  " Negative values are replaced with (order+1)^2.");               
+                  " Negative values are replaced with (order+1)^2.");
    args.AddOption(&sr, "-sr", "--serial_ref",
                   "Number of serial refinements.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -96,7 +99,7 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
-   if (prob >3 || prob <0) prob = 0; //default problem = H1
+   if (prob >3 || prob <0) prob = 0; // default problem = H1
    if (prob == 3)
    {
       if (kappa < 0)
@@ -106,14 +109,14 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // 2. Read the (serial) mesh from the given mesh file. 
+   // 2. Read the (serial) mesh from the given mesh file.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   dim = mesh->Dimension();  
+   dim = mesh->Dimension();
 
-   // 4. Refine the serial mesh on all processors to increase the resolution.
+   // 3. Refine the serial mesh on all processors to increase the resolution.
    mesh->UniformRefinement();
 
-   // 7. Define a finite element space on the parallel mesh.
+   // 4. Define a finite element space on the parallel mesh.
    FiniteElementCollection *fec=nullptr;
    switch (prob)
    {
@@ -125,11 +128,12 @@ int main(int argc, char *argv[])
    }
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
 
-   // 8. Define the solution vector x as a parallel finite element grid function
-   //     corresponding to fespace.
+   // 5. Define the solution vector x as a parallel finite element grid function
+   //    corresponding to fespace.
    GridFunction x(fespace);
    x = 0.0;
-   // 9. Set up the linear form b(.) and the bilinear form a(.,.).
+
+   // 6. Set up the linear form b(.) and the bilinear form a(.,.).
    FunctionCoefficient *f=nullptr;
    FunctionCoefficient *scalar_u=nullptr;
    FunctionCoefficient *divu=nullptr;
@@ -158,7 +162,7 @@ int main(int argc, char *argv[])
       case 1:
          //(curl u_ex, curl v) + (u_ex,v)
          vector_u = new VectorFunctionCoefficient(dim,vector_u_exact);
-         curlu = new VectorFunctionCoefficient((dim ==3)?dim:1,curlu_exact);
+         curlu = new VectorFunctionCoefficient((dim==3)?dim:1,curlu_exact);
          b.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(*curlu));
          b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(*vector_u));
 
@@ -189,13 +193,14 @@ int main(int argc, char *argv[])
          a.AddDomainIntegrator(new DiffusionIntegrator(one));
          a.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
          a.AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
-         break;   
+         break;
 
       default:
          break;
    }
-   // 10. Perform successive refinements, compute the errors and the
-   //     corresponding rates of convergence
+
+   // 7. Perform successive refinements, compute the errors and the
+   //    corresponding rates of convergence.
    ConvergenceStudy rates;
    for (int l = 0; l <= sr; l++)
    {
@@ -229,10 +234,9 @@ int main(int argc, char *argv[])
       b.Update();
       x.Update();
    }
-
    rates.Print();
 
-   // 11. Send the solution by socket to a GLVis server.
+   // 8. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -244,7 +248,7 @@ int main(int argc, char *argv[])
                << flush;
    }
 
-   // 12. Free the used memory.
+   // 9. Free the used memory.
    delete f;
    delete scalar_u;
    delete divu;
@@ -310,14 +314,14 @@ void curlu_exact(const Vector &x, Vector &curlu)
    curlu.SetSize(n);
    if (x.Size()==3)
    {
-      curlu[0] = 0.0; 
+      curlu[0] = 0.0;
       curlu[1] = grad[2];
       curlu[2] = -grad[1];
    }
    else if (x.Size()==2)
    {
       curlu[0] = -grad[1];
-   }   
+   }
 }
 
 // H(div)
