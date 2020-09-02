@@ -22,7 +22,7 @@ namespace ceed_test
 
 double coeff_function(const Vector &x)
 {
-   return 1 + x[0]*x[0];
+   return 1.0 + x[0]*x[0];
 }
 
 static std::string getString(AssemblyLevel assembly)
@@ -100,12 +100,13 @@ void test_ceed_operator(const char* input, int order, const CeedCoeff coeff_type
    H1_FECollection fec(order, dim);
    bool vecOp = pb == Problem::VectorMass || pb == Problem::VectorDiffusion;
    const int vdim = vecOp ? dim : 1;
-   FiniteElementSpace fespace(&mesh, &fec, vdim);
+   FiniteElementSpace fes(&mesh, &fec, vdim);
 
-   BilinearForm k_test(&fespace);
-   BilinearForm k_ref(&fespace);
+   BilinearForm k_test(&fes);
+   BilinearForm k_ref(&fes);
 
-   GridFunction gf(&fespace);
+   FiniteElementSpace coeff_fes(&mesh, &fec);
+   GridFunction gf(&coeff_fes);
    FunctionCoefficient f_coeff(coeff_function);
 
    Coefficient *coeff = nullptr;
@@ -120,9 +121,6 @@ void test_ceed_operator(const char* input, int order, const CeedCoeff coeff_type
          break;
       case CeedCoeff::Quad:
          coeff = &f_coeff;
-         break;
-      default:
-         mfem_error("Unexpected coefficient type.");
          break;
    }
 
@@ -152,7 +150,7 @@ void test_ceed_operator(const char* input, int order, const CeedCoeff coeff_type
    k_test.SetAssemblyLevel(assembly);
    k_test.Assemble();
 
-   GridFunction x(&fespace), y_ref(&fespace), y_test(&fespace);
+   GridFunction x(&fes), y_ref(&fes), y_test(&fes);
 
    x.Randomize(1);
 
@@ -170,9 +168,10 @@ TEST_CASE("CEED", "[CEED]")
    auto coeff_type = GENERATE(CeedCoeff::Const,CeedCoeff::Grid,CeedCoeff::Quad);
    auto pb = GENERATE(Problem::Mass,Problem::Diffusion,
                       Problem::VectorMass,Problem::VectorDiffusion);
-   auto order = GENERATE(4);
-   auto mesh = GENERATE("../../data/inline-quad.mesh","../../data/star-q3.mesh",
-                        "../../data/inline-hex.mesh","../../data/fichera-q3.mesh",
+   auto order = GENERATE(1,2,4);
+   auto mesh = GENERATE("../../data/inline-quad.mesh","../../data/inline-hex.mesh",
+                        "../../data/star.mesh","../../data/fichera.mesh",
+                        // "../../data/star-q3.mesh","../../data/fichera-q3.mesh",
                         "../../data/amr-quad.mesh","../../data/fichera-amr.mesh");
    test_ceed_operator(mesh, order, coeff_type, pb, assembly);
 } // test case
