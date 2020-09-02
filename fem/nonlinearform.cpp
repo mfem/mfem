@@ -458,9 +458,9 @@ void BlockNonlinearForm::SetSpaces(Array<FiniteElementSpace *> &f)
          delete Grads(i,j);
       }
    }
-   for (int i = 0; i < ess_vdofs.Size(); ++i)
+   for (int i = 0; i < ess_tdofs.Size(); ++i)
    {
-      delete ess_vdofs[i];
+      delete ess_tdofs[i];
    }
 
    height = 0;
@@ -486,10 +486,10 @@ void BlockNonlinearForm::SetSpaces(Array<FiniteElementSpace *> &f)
    Grads.SetSize(fes.Size(), fes.Size());
    Grads = NULL;
 
-   ess_vdofs.SetSize(fes.Size());
+   ess_tdofs.SetSize(fes.Size());
    for (int s = 0; s < fes.Size(); ++s)
    {
-      ess_vdofs[s] = new Array<int>;
+      ess_tdofs[s] = new Array<int>;
    }
 }
 
@@ -506,45 +506,18 @@ void BlockNonlinearForm::AddBdrFaceIntegrator(BlockNonlinearFormIntegrator *nfi,
    bfnfi_marker.Append(&bdr_attr_marker);
 }
 
-void BlockNonlinearForm::SetEssentialBC(const
-                                        Array<Array<int> *>&bdr_attr_is_ess,
-                                        Array<Vector *> &rhs)
+void BlockNonlinearForm::SetEssentialBC(
+   const Array<Array<int> *> &bdr_attr_is_ess, Array<Vector *> &rhs)
 {
-   int i, j, vsize, nv;
-
-   for (int s=0; s<fes.Size(); ++s)
+   for (int s = 0; s < fes.Size(); ++s)
    {
-      // First, set u variables
-      vsize = fes[s]->GetVSize();
-      Array<int> vdof_marker(vsize);
+      ess_tdofs[s]->SetSize(ess_tdofs.Size());
 
-      // virtual call, works in parallel too
-      fes[s]->GetEssentialVDofs(*(bdr_attr_is_ess[s]), vdof_marker);
-      nv = 0;
-      for (i = 0; i < vsize; ++i)
-      {
-         if (vdof_marker[i])
-         {
-            nv++;
-         }
-      }
-
-      ess_vdofs[s]->SetSize(nv);
-
-      for (i = j = 0; i < vsize; ++i)
-      {
-         if (vdof_marker[i])
-         {
-            (*ess_vdofs[s])[j++] = i;
-         }
-      }
+      fes[s]->GetEssentialTrueDofs(*bdr_attr_is_ess[s], *ess_tdofs[s]);
 
       if (rhs[s])
       {
-         for (i = 0; i < nv; ++i)
-         {
-            (*rhs[s])[(*ess_vdofs[s])[i]] = 0.0;
-         }
+         rhs[s]->SetSubVector(*ess_tdofs[s], 0.0);
       }
    }
 }
@@ -750,7 +723,7 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
       delete vdofs[s];
       delete el_y[s];
       delete el_x[s];
-      by.GetBlock(s).SetSubVector(*ess_vdofs[s], 0.0);
+      // by.GetBlock(s).SetSubVector(*ess_tdofs[s], 0.0);
    }
 }
 
@@ -944,24 +917,24 @@ Operator &BlockNonlinearForm::GetGradientBlocked(const BlockVector &bx) const
       }
    }
 
-   for (int s=0; s<fes.Size(); ++s)
-   {
-      for (int i = 0; i < ess_vdofs[s]->Size(); ++i)
-      {
-         for (int j=0; j<fes.Size(); ++j)
-         {
-            if (s==j)
-            {
-               Grads(s,s)->EliminateRowCol((*ess_vdofs[s])[i], Matrix::DIAG_ONE);
-            }
-            else
-            {
-               Grads(s,j)->EliminateRow((*ess_vdofs[s])[i]);
-               Grads(j,s)->EliminateCol((*ess_vdofs[s])[i]);
-            }
-         }
-      }
-   }
+   // for (int s=0; s<fes.Size(); ++s)
+   // {
+   //    for (int i = 0; i < ess_tdofs[s]->Size(); ++i)
+   //    {
+   //       for (int j=0; j<fes.Size(); ++j)
+   //       {
+   //          if (s==j)
+   //          {
+   //             Grads(s,s)->EliminateRowCol((*ess_tdofs[s])[i], Matrix::DIAG_ONE);
+   //          }
+   //          else
+   //          {
+   //             Grads(s,j)->EliminateRow((*ess_tdofs[s])[i]);
+   //             Grads(j,s)->EliminateCol((*ess_tdofs[s])[i]);
+   //          }
+   //       }
+   //    }
+   // }
 
    for (int i=0; i<fes.Size(); ++i)
    {
@@ -993,7 +966,7 @@ BlockNonlinearForm::~BlockNonlinearForm()
       {
          delete Grads(i,j);
       }
-      delete ess_vdofs[i];
+      delete ess_tdofs[i];
    }
 
    for (int i = 0; i < dnfi.Size(); ++i)

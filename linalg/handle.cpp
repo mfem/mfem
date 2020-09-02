@@ -300,6 +300,33 @@ void OperatorHandle::EliminateRowsCols(OperatorHandle &A,
    }
 }
 
+void OperatorHandle::EliminateRows(const Array<int> &ess_dof_list)
+{
+   switch (Type())
+   {
+   case Operator::Hypre_ParCSR: {
+      this->As<HypreParMatrix>()->EliminateRows(ess_dof_list);
+      break;
+   }
+   default:
+      MFEM_ABORT(not_supported_msg << Type());
+   }
+}
+
+void OperatorHandle::EliminateCols(const Array<int> &ess_dof_list)
+{
+   switch (Type())
+   {
+   case Operator::Hypre_ParCSR: {
+      auto Ae = this->As<HypreParMatrix>()->EliminateCols(ess_dof_list);
+      delete Ae;
+      break;
+   }
+   default:
+      MFEM_ABORT(not_supported_msg << Type());
+   }
+}
+
 void OperatorHandle::EliminateBC(const OperatorHandle &A_e,
                                  const Array<int> &ess_dof_list,
                                  const Vector &X, Vector &B) const

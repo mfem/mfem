@@ -206,8 +206,9 @@ protected:
    Array<int> block_offsets;
    Array<int> block_trueOffsets;
 
-   // Essential vdofs: one list of vdofs for each space in 'fes'
-   Array<Array<int> *> ess_vdofs;
+   // Array of Arrays of tdofs for each space in 'fes'
+   Array<Array<int> *> ess_tdofs;
+
 
    /// Specialized version of GetEnergy() for BlockVectors
    double GetEnergyBlocked(const BlockVector &bx) const;
