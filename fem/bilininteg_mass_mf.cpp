@@ -21,6 +21,7 @@ namespace mfem
 
 void MassIntegrator::AssembleMF(const FiniteElementSpace &fes)
 {
+#ifdef MFEM_USE_CEED
    // Assuming the same element type
    fespace = &fes;
    Mesh *mesh = fes.GetMesh();
@@ -28,7 +29,6 @@ void MassIntegrator::AssembleMF(const FiniteElementSpace &fes)
    const FiniteElement &el = *fes.GetFE(0);
    ElementTransformation *T = mesh->GetElementTransformation(0);
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T);
-#ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
       delete ceedDataPtr;
