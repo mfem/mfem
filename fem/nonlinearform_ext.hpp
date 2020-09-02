@@ -31,8 +31,10 @@ protected:
 public:
    NonlinearFormExtension(const NonlinearForm*);
 
-   /// Assemble at the level given for the BilinearFormExtension subclass
+   /// Assemble at the AssemblyLevel of the subclass.
    virtual void Assemble() = 0;
+   /// Assemble gradient data at the AssemblyLevel of the subclass.
+   virtual void AssembleGradient() = 0;
 
    virtual Operator &GetGradient(const Vector&) const = 0;
    virtual double GetGridFunctionEnergy(const Vector &x) const = 0;
@@ -53,8 +55,8 @@ private:
    {
    protected:
       const Operator *R;
-      mutable Vector ge, xe, ye, ze;
       const Array<NonlinearFormIntegrator*> &dnfi;
+      mutable Vector ge, xe, ye, ze;
    public:
       Gradient(const Vector &x, const PANonlinearFormExtension &ext);
       virtual void Mult(const Vector &x, Vector &y) const;
@@ -70,7 +72,10 @@ protected:
 
 public:
    PANonlinearFormExtension(NonlinearForm *nlf);
+
    void Assemble();
+   void AssembleGradient();
+
    void Mult(const Vector &x, Vector &y) const;
    Operator &GetGradient(const Vector &x) const;
    double GetGridFunctionEnergy(const Vector &x) const;

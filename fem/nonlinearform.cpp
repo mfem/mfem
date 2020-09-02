@@ -451,7 +451,12 @@ void NonlinearForm::Update()
 
 void NonlinearForm::Setup()
 {
-   if (ext) { return ext->Assemble(); }
+   if (ext) { ext->Assemble(); }
+}
+
+void NonlinearForm::SetupGradient()
+{
+   if (ext) { ext->AssembleGradient(); }
 }
 
 void NonlinearForm::AssembleGradientDiagonal(Vector &diag) const

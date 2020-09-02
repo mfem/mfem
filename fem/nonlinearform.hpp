@@ -163,8 +163,11 @@ public:
        set again. */
    virtual void Update();
 
-   /// Setup the NonlinearForm
+   /// Setup the NonlinearForm.
    virtual void Setup();
+
+   /// Setup the gradient of the NonlinearForm.
+   virtual void SetupGradient();
 
    /** @brief Assemble the diagonal of the gradient into diag
 

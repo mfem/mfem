@@ -51,6 +51,11 @@ void PANonlinearFormExtension::Assemble()
    for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AssemblePA(fes); }
 }
 
+void PANonlinearFormExtension::AssembleGradient()
+{
+   for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AssembleGradPA(fes); }
+}
+
 void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
    ye = 0.0;
@@ -67,7 +72,7 @@ void PANonlinearFormExtension::AssembleGradientDiagonal(Vector &diag) const
    ye = 0.0;
    for (int i = 0; i < dnfi.Size(); ++i)
    {
-      dnfi[i]->AssembleGradientDiagonalPA(xe, ye);
+      dnfi[i]->AssembleGradDiagonalPA(xe, ye);
    }
    R->MultTranspose(ye, diag);
 }
@@ -97,9 +102,6 @@ PANonlinearFormExtension::Gradient::Gradient(const Vector &x,
 
    ze.UseDevice(true);
    ze.SetSize(R->Height(), Device::GetMemoryType());
-
-   // Do we still need to do this?
-   for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AssemblePA(e.fes); }
 }
 
 void PANonlinearFormExtension::Gradient::Mult(const Vector &x, Vector &y) const
