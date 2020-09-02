@@ -27,7 +27,7 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
    CeedPAOperator diffOp = {fes, irm,
                             dim * (dim + 1) / 2, "/diffusion.h",
                             ":f_build_diff_const", f_build_diff_const,
-                            ":f_build_diff_grid", f_build_diff_grid,
+                            ":f_build_diff_quad", f_build_diff_quad,
                             ":f_apply_diff", f_apply_diff,
                             CEED_EVAL_GRAD,
                             CEED_EVAL_GRAD
