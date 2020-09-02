@@ -82,6 +82,10 @@ public:
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
 
+   /// The result of the partial assembly is stored internally so that it can be
+   /// used later in the methods AddMultGradPA() and AssembleGradDiagonalPA().
+   virtual void AssembleGradPA(const FiniteElementSpace &fes);
+
    /// Method for partially assembled action.
    /** Perform the action of integrator on the input @a x and add the result to
        the output @a y. Both @a x and @a y are E-vectors, i.e. they represent
@@ -95,7 +99,7 @@ public:
    virtual void AddMultGradPA(const Vector &g,
                               const Vector &x, Vector &y) const;
 
-   virtual void AssembleGradientDiagonalPA(const Vector &x, Vector &diag) const;
+   virtual void AssembleGradDiagonalPA(const Vector &x, Vector &diag) const;
 
    virtual ~NonlinearFormIntegrator() { }
 };
