@@ -356,6 +356,13 @@ void Device::UpdateMemoryTypeAndClass()
       device_mem_type = MemoryType::DEVICE_DEBUG;
    }
 
+   // Enable the DEBUG pool mode when requested
+   if (debug && device_option && !strcmp(device_option, "pool"))
+   {
+      host_mem_type = MemoryType::HOST_DEBUG_POOL;
+      device_mem_type = MemoryType::DEVICE_DEBUG_POOL;
+   }
+
    // Enable the non-device pool shortcut when requested
    if (!device && device_option && !strcmp(device_option, "pool"))
    {
@@ -363,12 +370,6 @@ void Device::UpdateMemoryTypeAndClass()
       {
          host_mem_type = MemoryType::HOST_POOL;
          device_mem_type = MemoryType::HOST_POOL;
-      }
-
-      if (host_mem_type == MemoryType::HOST_DEBUG)
-      {
-         host_mem_type = MemoryType::HOST_DEBUG_POOL;
-         device_mem_type = MemoryType::DEVICE_DEBUG_POOL;
       }
    }
 

@@ -121,6 +121,7 @@ MemoryClass operator*(MemoryClass mc1, MemoryClass mc2)
    // Using the enumeration ordering:
    //    HOST < HOST_32 < HOST_64 < DEVICE < MANAGED,
    // the above table is simply: a*b = max(a,b).
+
    return std::max(mc1, mc2);
 }
 
@@ -184,12 +185,12 @@ class HostMemorySpace
 {
 public:
    virtual ~HostMemorySpace() { }
-   virtual void Alloc(void **ptr, size_t bytes) const { *ptr = std::malloc(bytes); }
-   virtual void Dealloc(void *ptr, size_t bytes = 0) const { std::free(ptr); }
-   virtual void Protect(const Memory&, size_t) const { }
-   virtual void Unprotect(const Memory&, size_t) const { }
-   virtual void AliasProtect(const void*, size_t) const { }
-   virtual void AliasUnprotect(const void*, size_t) const { }
+   virtual void Alloc(void **ptr, size_t bytes) { *ptr = std::malloc(bytes); }
+   virtual void Dealloc(void *ptr) { std::free(ptr); }
+   virtual void Protect(const Memory&, size_t) { }
+   virtual void Unprotect(const Memory&, size_t) { }
+   virtual void AliasProtect(const void*, size_t) { }
+   virtual void AliasUnprotect(const void*, size_t) { }
 };
 
 /// The device memory space base abstract class
@@ -197,24 +198,22 @@ class DeviceMemorySpace
 {
 public:
    virtual ~DeviceMemorySpace() { }
-   virtual void Alloc(void **ptr, size_t bytes) const { *ptr = std::malloc(bytes); }
-   virtual void Alloc(Memory &base) const { base.d_ptr = std::malloc(base.bytes); }
-   virtual void Dealloc(Memory &base) const { std::free(base.d_ptr); }
-   virtual void Dealloc(void *d_ptr, size_t bytes = 0) const { std::free(d_ptr); }
-   virtual void Protect(const Memory&) const { }
-   virtual void Unprotect(const Memory&) const { }
-   virtual void AliasProtect(const void*, size_t) const { }
-   virtual void AliasUnprotect(const void*, size_t) const { }
-   virtual void *HtoD(void *dst, const void *src, size_t bytes) const
+   virtual void Alloc(Memory &base) { base.d_ptr = std::malloc(base.bytes); }
+   virtual void Dealloc(Memory &base) { std::free(base.d_ptr); }
+   virtual void Protect(const Memory&) { }
+   virtual void Unprotect(const Memory&) { }
+   virtual void AliasProtect(const void*, size_t) { }
+   virtual void AliasUnprotect(const void*, size_t) { }
+   virtual void *HtoD(void *dst, const void *src, size_t bytes)
    { return std::memcpy(dst, src, bytes); }
-   virtual void *DtoD(void *dst, const void *src, size_t bytes) const
+   virtual void *DtoD(void *dst, const void *src, size_t bytes)
    { return std::memcpy(dst, src, bytes); }
-   virtual void *DtoH(void *dst, const void *src, size_t bytes) const
+   virtual void *DtoH(void *dst, const void *src, size_t bytes)
    { return std::memcpy(dst, src, bytes); }
 };
 
 // /////////////////////////////////////////////////////////////////////////////
-template <typename MS> class Pool
+template <typename MemorySpace> class Pool
 {
    struct Bucket
    {
@@ -226,48 +225,42 @@ template <typename MS> class Pool
          uintptr_t *ptr;
       };
 
-      // Alignment: 8 @ x86, 256 @ GPU?
-      inline size_t align(const size_t bytes, const size_t N = 32)
-      {
-         const size_t mask = N * sizeof(uintptr_t) - 1;
-         return (bytes + mask) & ~(mask);
-      }
-
       // Arena struct
       struct Arena
       {
          uintptr_t *ptr;
-         const MS &MemSpace;
+         MemorySpace &MemSpace;
          const size_t asize, pages, psize;
          std::unique_ptr<Arena> next;
          std::unique_ptr<Block[]> blocks;
 
-         Arena(const MS &ms, size_t asize, size_t pages, size_t psize):
+         Arena(MemorySpace &ms, size_t asize, size_t pages, size_t psize):
             MemSpace(ms), asize(asize), pages(pages), psize(psize),
             blocks(new Block[asize])
          {
             // Allocate the block of memory for this arena
             MemSpace.Alloc((void**)&ptr, asize*pages*psize);
             // Metadata flush & setup
-            memset(blocks.get(), 0, asize*sizeof(Block));
+            //memset(blocks.get(), 0, asize*sizeof(Block));
             const uintptr_t offset = pages*psize/sizeof(uintptr_t);
             for (size_t i = 1; i < asize; i++)
             {
+               blocks[i-1].bytes = 0;
                blocks[i-1].next = &blocks[i];
                blocks[i-1].ptr = ptr + (i-1)*offset;
             }
+            blocks[asize-1].bytes = 0;
             blocks[asize-1].next = nullptr;
             blocks[asize-1].ptr = ptr + (asize-1)*offset;
          }
 
          ~Arena()
          {
-            return;
-            MemSpace.Dealloc(ptr, asize*pages*psize);
+            MemSpace.Dealloc(ptr);
             for (size_t i = 0; i < asize; i++) { blocks[i].ptr = nullptr; }
          }
 
-         // Get next block
+         // Get/Set next block
          Block *Next() const { return blocks.get(); }
 
          void Next(std::unique_ptr<Arena> &&n) { next.reset(n.release()); }
@@ -288,25 +281,32 @@ template <typename MS> class Pool
          }
       };
 
-      const MS &MemSpace;
-      const size_t pages, asize, psize;
+      inline size_t Align(const size_t bytes, const size_t N = 1)
+      {
+         const size_t mask = N * sizeof(uintptr_t) - 1;
+         return (bytes + mask) & ~(mask);
+      }
+
+      MemorySpace &ms;
+      const size_t pages, asize, psize, align;
       std::unique_ptr<Arena> arena;
       Block *next;
       using ptrs_t = std::pair<Bucket*, Block*>;
       using PointersMap = std::unordered_map<uintptr_t const*, ptrs_t>;
 
    public:
-      Bucket(const MS &ms, size_t pages, size_t asize, size_t psize):
-         MemSpace(ms), pages(pages), asize(asize), psize(psize),
+      Bucket(MemorySpace &ms,
+             size_t pages, size_t asize, size_t psize, size_t align):
+         ms(ms), pages(pages), asize(asize), psize(psize), align(align),
          arena(new Arena(ms, asize, pages, psize)), next(arena->Next()) { }
 
-      /// Allocate bytes from these blocks
+      /// Allocate bytes from the arena of this bucket
       void *alloc(size_t bytes, PointersMap &map)
       {
-         bytes = align(bytes);
+         bytes = Align(bytes, align);
          if (next == nullptr)
          {
-            std::unique_ptr<Arena> new_arena(new Arena(MemSpace,asize,pages,psize));
+            std::unique_ptr<Arena> new_arena(new Arena(ms,asize,pages,psize));
             new_arena->Next(move(arena));
             arena.reset(new_arena.release());
             next = arena->Next();
@@ -327,42 +327,41 @@ template <typename MS> class Pool
       }
    };
 
-   const MS ms;
-   const size_t asize, psize;
+   MemorySpace ms;
+   const size_t asize, psize, align;
    std::unordered_map<size_t, Bucket> Buckets;
-   using Block = typename Pool<MS>::Bucket::Block;
+   using Block = typename Pool<MemorySpace>::Bucket::Block;
    using ptrs_t = std::pair<Bucket*, Block*>;
    using PointersMap = std::unordered_map<uintptr_t const*, ptrs_t>;
    PointersMap map;
 
 public:
-   Pool(size_t asize = 32, size_t psize = 0): asize(asize),
-      psize(psize == 0 ? sysconf(_SC_PAGE_SIZE) : psize) { }
+   Pool(size_t asize = 32, size_t psize = 0, size_t align = 8): asize(asize),
+      psize(psize == 0 ? sysconf(_SC_PAGE_SIZE) : psize), align(align) { }
 
    uintptr_t PageSize() const { return psize; }
 
    void *alloc(size_t bytes)
    {
       // number of pages needed for this amount of bytes
-      const size_t pages = 1 + bytes / psize;
+      const size_t pages = bytes > 0 ? (psize + bytes - 1) / psize : 1;
 
-      auto blk_i = Buckets.find(pages);
+      auto bucket_i = Buckets.find(pages);
       // If not already in the bucket map, add it
-      if (blk_i == Buckets.end())
+      if (bucket_i == Buckets.end())
       {
-         auto res = Buckets.emplace(pages,Bucket(ms, pages, asize, psize));
-         blk_i = Buckets.find(pages);
-         MFEM_ASSERT(res.second, "");
-         MFEM_ASSERT(blk_i != Buckets.end(), "");
+         auto res = Buckets.emplace(pages,Bucket(ms,pages,asize,psize,align));
+         bucket_i = Buckets.find(pages);
+         MFEM_ASSERT(res.second, ""); MFEM_CONTRACT_VAR(res);
+         MFEM_ASSERT(bucket_i != Buckets.end(), "");
       }
-      // Get the bucket in which the allocation will be done
-      Bucket &bucket = blk_i->second;
-      // Allocate the memory in it
-      return bucket.alloc(bytes, map);
+      // Allocate from the bucket
+      return bucket_i->second.alloc(bytes, map);
    }
 
    void free(void *ptr)
    {
+      MFEM_ASSERT(ptr, "");
       // From the input pointer, get back the block & bucket addresses
       const uintptr_t *uintptr = reinterpret_cast<uintptr_t*>(ptr);
       const auto ptrs_i = map.find(uintptr);
@@ -371,7 +370,7 @@ public:
       Bucket * const bucket = ptrs.first;
       Block * const block = ptrs.second;
       MFEM_ASSERT(uintptr == block->ptr, "");
-      // Free this block from the blocks
+      // Free the block of this bucket
       bucket->free(block);
    }
 
@@ -389,23 +388,24 @@ public:
    }
 };
 
+
 /// The default std:: host memory space
 class StdHostMemorySpace : public HostMemorySpace { };
 
 /// The arena std:: host memory space
 class PoolStdHostMemorySpace : public HostMemorySpace
 {
-   mutable Pool<HostMemorySpace> pool;
+   Pool<HostMemorySpace> pool;
 public:
    PoolStdHostMemorySpace(): HostMemorySpace() { }
-   void Alloc(void **ptr, size_t bytes) const { *ptr = pool.alloc(bytes); }
-   void Dealloc(void *ptr, size_t bytes = 0) const { pool.free(ptr); }
+   void Alloc(void **ptr, size_t bytes) { *ptr = pool.alloc(bytes); }
+   void Dealloc(void *ptr) { pool.free(ptr); }
 };
 
 /// The No host memory space
 struct NoHostMemorySpace : public HostMemorySpace
 {
-   void Alloc(void**, const size_t) const { mfem_error("! Host Alloc error"); }
+   void Alloc(void**, const size_t) { mfem_error("! Host Alloc error"); }
 };
 
 /// The aligned 32 host memory space
@@ -413,9 +413,9 @@ class Aligned32HostMemorySpace : public HostMemorySpace
 {
 public:
    Aligned32HostMemorySpace(): HostMemorySpace() { }
-   void Alloc(void **ptr, size_t bytes) const
+   void Alloc(void **ptr, size_t bytes)
    { if (mfem_memalign(ptr, 32, bytes) != 0) { throw ::std::bad_alloc(); } }
-   void Dealloc(void *ptr, size_t bytes = 0) const { mfem_aligned_free(ptr); }
+   void Dealloc(void *ptr) { mfem_aligned_free(ptr); }
 };
 
 /// The aligned 64 host memory space
@@ -423,9 +423,9 @@ class Aligned64HostMemorySpace : public HostMemorySpace
 {
 public:
    Aligned64HostMemorySpace(): HostMemorySpace() { }
-   void Alloc(void **ptr, size_t bytes) const
+   void Alloc(void **ptr, size_t bytes)
    { if (mfem_memalign(ptr, 64, bytes) != 0) { throw ::std::bad_alloc(); } }
-   void Dealloc(void *ptr, size_t bytes = 0) const { mfem_aligned_free(ptr); }
+   void Dealloc(void *ptr) { mfem_aligned_free(ptr); }
 };
 
 #ifndef _WIN32
@@ -551,62 +551,28 @@ class MmuHostMemorySpace : public HostMemorySpace
 {
 public:
    MmuHostMemorySpace(): HostMemorySpace() { MmuInit(); }
-   void Alloc(void **ptr, size_t bytes) const { MmuAlloc(ptr, bytes); }
-   void Dealloc(void *ptr, size_t bytes = 0) const { MmuDealloc(ptr, maps->memories.at(ptr).bytes); }
-   void Protect(const Memory& mem, size_t bytes) const
+   virtual void Alloc(void **ptr, size_t bytes) { MmuAlloc(ptr, bytes); }
+   virtual void Dealloc(void *ptr) { MmuDealloc(ptr, maps ? maps->memories.at(ptr).bytes : 0); }
+   virtual void Protect(const Memory& mem, size_t bytes)
    { if (mem.h_rw) { mem.h_rw = false; MmuProtect(mem.h_ptr, bytes); } }
-   void Unprotect(const Memory &mem, size_t bytes) const
+   virtual void Unprotect(const Memory &mem, size_t bytes)
    { if (!mem.h_rw) { mem.h_rw = true; MmuAllow(mem.h_ptr, bytes); } }
    /// Aliases need to be restricted during protection
-   void AliasProtect(const void *ptr, size_t bytes) const
+   virtual void AliasProtect(const void *ptr, size_t bytes)
    { MmuProtect(MmuAddrR(ptr), MmuLengthR(ptr, bytes)); }
    /// Aliases need to be prolongated for un-protection
-   void AliasUnprotect(const void *ptr, size_t bytes) const
+   virtual void AliasUnprotect(const void *ptr, size_t bytes)
    { MmuAllow(MmuAddrP(ptr), MmuLengthP(ptr, bytes)); }
 };
 
 /// The MMU host host memory pool space
-class PoolMmuHostMemorySpace : public HostMemorySpace
+class PoolMmuHostMemorySpace : public MmuHostMemorySpace
 {
-   const uintptr_t PAGE_SZ;
-   mutable Pool<MmuHostMemorySpace> pool;
-   inline void *Update(const void *ptr, size_t &bytes) const
-   {
-      bytes = PAGE_SZ * (1 + (bytes + sizeof(uintptr_t)) / PAGE_SZ);
-      return (void*)(reinterpret_cast<const uintptr_t*>(ptr)-1);
-   }
+   Pool<MmuHostMemorySpace> pool;
 public:
-   PoolMmuHostMemorySpace(): HostMemorySpace(),
-      PAGE_SZ((uintptr_t) sysconf(_SC_PAGE_SIZE)) { }
-   void Alloc(void **ptr, size_t bytes) const { *ptr = pool.alloc(bytes); }
-   void Dealloc(void *ptr, size_t bytes = 0) const
-   {
-      // free reads the address of the block
-      Unprotect(ptr, bytes > 0 ? bytes : PAGE_SZ);
-      pool.free(ptr);
-   }
-   void Protect(const void *ptr, size_t bytes) const
-   {
-      MmuProtect(Update(ptr,bytes), bytes);
-   }
-   void Unprotect(const void *ptr, size_t bytes) const
-   {
-      MmuAllow(Update(ptr,bytes), bytes);
-   }
-   /// Aliases need to be restricted during protection
-   void AliasProtect(const void *ptr, size_t bytes) const
-   {
-      size_t len = bytes;
-      const void *h_ptr = Update(ptr, len);
-      MmuProtect(MmuAddrR(h_ptr), MmuLengthR(h_ptr, len));
-   }
-   /// Aliases need to be prolongated for un-protection
-   void AliasUnprotect(const void *ptr, size_t bytes) const
-   {
-      size_t len = bytes;
-      const void *h_ptr = Update(ptr, len);
-      MmuAllow(MmuAddrP(h_ptr), MmuLengthP(h_ptr, len));
-   }
+   PoolMmuHostMemorySpace(): MmuHostMemorySpace() { }
+   void Alloc(void **ptr, size_t bytes) override { *ptr = pool.alloc(bytes); }
+   void Dealloc(void *ptr) override { pool.free(ptr); }
 };
 
 /// The UVM host memory space
@@ -614,22 +580,19 @@ class UvmHostMemorySpace : public HostMemorySpace
 {
 public:
    UvmHostMemorySpace(): HostMemorySpace() { }
-   void Alloc(void **ptr, size_t bytes) const
-   { CuMallocManaged(ptr, bytes == 0 ? 8 : bytes); }
-   void Dealloc(void *ptr, size_t bytes = 0) const { CuMemFree(ptr); }
+   void Alloc(void **ptr, size_t bytes) { CuMallocManaged(ptr, bytes == 0 ? 8 : bytes); }
+   void Dealloc(void *ptr) { CuMemFree(ptr); }
 };
 
 /// The 'No' device memory space
 class NoDeviceMemorySpace: public DeviceMemorySpace
 {
 public:
-   void Alloc(void**, size_t) const { mfem_error("! Device Alloc"); }
-   void Alloc(internal::Memory&) const { mfem_error("! Device Alloc"); }
-   void Dealloc(Memory&) const { mfem_error("! Device Dealloc"); }
-   void Dealloc(void*, size_t = 0) const { mfem_error("! Device Dealloc"); }
-   void *HtoD(void*, const void*, size_t) const { mfem_error("!HtoD"); return nullptr; }
-   void *DtoD(void*, const void*, size_t) const { mfem_error("!DtoD"); return nullptr; }
-   void *DtoH(void*, const void*, size_t) const { mfem_error("!DtoH"); return nullptr; }
+   void Alloc(internal::Memory&) { mfem_error("! Device Alloc"); }
+   void Dealloc(Memory&) { mfem_error("! Device Dealloc"); }
+   void *HtoD(void*, const void*, size_t) { mfem_error("!HtoD"); return nullptr; }
+   void *DtoD(void*, const void*, size_t) { mfem_error("!DtoD"); return nullptr; }
+   void *DtoH(void*, const void*, size_t) { mfem_error("!DtoH"); return nullptr; }
 };
 
 /// The std:: device memory space, used with the 'debug' device
@@ -640,34 +603,26 @@ class CudaDeviceMemorySpace: public DeviceMemorySpace
 {
 public:
    CudaDeviceMemorySpace(): DeviceMemorySpace() { }
-   void Alloc(void **d_ptr, size_t bytes) const { CuMemAlloc(d_ptr, bytes); }
-   void Alloc(Memory &base) const { CuMemAlloc(&base.d_ptr, base.bytes); }
-   void Dealloc(Memory &base) const { CuMemFree(base.d_ptr); }
-   void Dealloc(void *d_ptr, size_t bytes = 0) const { CuMemFree(d_ptr); }
-   void *HtoD(void *dst, const void *src, size_t bytes) const
+   void Alloc(void **ptr, size_t bytes) { MFEM_ABORT(""); }
+   void Dealloc(void *ptr) { MFEM_ABORT("");  }
+   virtual void Alloc(Memory &base) { CuMemAlloc(&base.d_ptr, base.bytes); }
+   virtual void Dealloc(Memory &base) { CuMemFree(base.d_ptr); }
+   virtual void *HtoD(void *dst, const void *src, size_t bytes)
    { return CuMemcpyHtoD(dst, src, bytes); }
-   void *DtoD(void* dst, const void* src, size_t bytes) const
+   virtual void *DtoD(void* dst, const void* src, size_t bytes)
    { return CuMemcpyDtoD(dst, src, bytes); }
-   void *DtoH(void *dst, const void *src, size_t bytes) const
+   virtual void *DtoH(void *dst, const void *src, size_t bytes)
    { return CuMemcpyDtoH(dst, src, bytes); }
 };
 
 /// The POOL CUDA device memory space
-class PoolCudaDeviceMemorySpace: public DeviceMemorySpace
+class PoolCudaDeviceMemorySpace: public CudaDeviceMemorySpace
 {
    mutable Pool<CudaDeviceMemorySpace> pool;
 public:
-   PoolCudaDeviceMemorySpace(): DeviceMemorySpace(), pool(32, 0x100000) { }
-   void Alloc(void **d_ptr, size_t bytes) const { MFEM_ABORT(""); }
-   void Alloc(Memory &m) const { m.d_ptr = pool.alloc(m.bytes); }
-   void Dealloc(Memory &m) const { pool.free(m.d_ptr); }
-   void Dealloc(void *d_ptr, size_t bytes = 0) const { pool.free(d_ptr); }
-   void *HtoD(void *dst, const void *src, size_t bytes) const
-   { return CuMemcpyHtoD(dst, src, bytes); }
-   void *DtoD(void* dst, const void* src, size_t bytes) const
-   { return CuMemcpyDtoD(dst, src, bytes); }
-   void *DtoH(void *dst, const void *src, size_t bytes) const
-   { return CuMemcpyDtoH(dst, src, bytes); }
+   PoolCudaDeviceMemorySpace(): CudaDeviceMemorySpace(), pool(32, 0x100000) { }
+   void Alloc(Memory &m) override { m.d_ptr = pool.alloc(m.bytes); }
+   void Dealloc(Memory &m) override { pool.free(m.d_ptr); }
 };
 
 /// The HIP device memory space
@@ -675,15 +630,13 @@ class HipDeviceMemorySpace: public DeviceMemorySpace
 {
 public:
    HipDeviceMemorySpace(): DeviceMemorySpace() { }
-   void Alloc(void **d_ptr, size_t bytes) const { HipMemAlloc(d_ptr, bytes); }
-   void Alloc(Memory &base) const { HipMemAlloc(&base.d_ptr, base.bytes); }
-   void Dealloc(Memory &base) const { HipMemFree(base.d_ptr); }
-   void Dealloc(void*, size_t = 0) const { MFEM_ABORT(""); }
-   void *HtoD(void *dst, const void *src, size_t bytes) const
+   void Alloc(Memory &base) { HipMemAlloc(&base.d_ptr, base.bytes); }
+   void Dealloc(Memory &base) { HipMemFree(base.d_ptr); }
+   void *HtoD(void *dst, const void *src, size_t bytes)
    { return HipMemcpyHtoD(dst, src, bytes); }
-   void *DtoD(void* dst, const void* src, size_t bytes) const
+   void *DtoD(void* dst, const void* src, size_t bytes)
    { return HipMemcpyDtoD(dst, src, bytes); }
-   void *DtoH(void *dst, const void *src, size_t bytes) const
+   void *DtoH(void *dst, const void *src, size_t bytes)
    { return HipMemcpyDtoH(dst, src, bytes); }
 };
 
@@ -691,18 +644,16 @@ public:
 class UvmCudaMemorySpace : public DeviceMemorySpace
 {
 public:
-   void Alloc(void **d_ptr, size_t bytes) const { MFEM_ABORT(""); }
-   void Alloc(Memory &base) const { base.d_ptr = base.h_ptr; }
-   void Dealloc(Memory&) const { }
-   void Dealloc(void*, size_t = 0) const { MFEM_ABORT(""); }
-   void *HtoD(void *dst, const void *src, size_t bytes) const
+   void Alloc(Memory &base) { base.d_ptr = base.h_ptr; }
+   void Dealloc(Memory&) { }
+   void *HtoD(void *dst, const void *src, size_t bytes)
    {
       if (dst == src) { MFEM_STREAM_SYNC; return dst; }
       return CuMemcpyHtoD(dst, src, bytes);
    }
-   void *DtoD(void* dst, const void* src, size_t bytes) const
+   void *DtoD(void* dst, const void* src, size_t bytes)
    { return CuMemcpyDtoD(dst, src, bytes); }
-   void *DtoH(void *dst, const void *src, size_t bytes) const
+   void *DtoH(void *dst, const void *src, size_t bytes)
    {
       if (dst == src) { MFEM_STREAM_SYNC; return dst; }
       return CuMemcpyDtoH(dst, src, bytes);
@@ -714,25 +665,26 @@ class MmuDeviceMemorySpace : public DeviceMemorySpace
 {
 public:
    MmuDeviceMemorySpace(): DeviceMemorySpace() { }
-   void Alloc(void **d_ptr, size_t bytes) const { MmuAlloc(d_ptr, bytes); }
-   void Alloc(Memory &m) const { MmuAlloc(&m.d_ptr, m.bytes); }
-   void Dealloc(void *ptr, size_t bytes) const { MmuDealloc(ptr, bytes); }
-   void Dealloc(Memory &m) const { MmuDealloc(m.d_ptr, m.bytes); }
-   void Protect(const Memory &m) const
+   void Alloc(void **ptr, size_t bytes) { MmuAlloc(ptr, bytes); }
+   void Dealloc(void *ptr)
+   { MmuDealloc(ptr, maps ? maps->memories.at(ptr).bytes : 0); }
+   virtual void Alloc(Memory &m) { MmuAlloc(&m.d_ptr, m.bytes); }
+   virtual void Dealloc(Memory &m) { MmuDealloc(m.d_ptr, m.bytes); }
+   virtual void Protect(const Memory &m)
    { if (m.d_rw) { m.d_rw = false; MmuProtect(m.d_ptr, m.bytes); } }
-   void Unprotect(const Memory &m) const
+   virtual void Unprotect(const Memory &m)
    { if (!m.d_rw) { m.d_rw = true; MmuAllow(m.d_ptr, m.bytes); } }
    /// Aliases need to be restricted during protection
-   void AliasProtect(const void *ptr, size_t bytes) const
+   virtual void AliasProtect(const void *ptr, size_t bytes)
    { MmuProtect(MmuAddrR(ptr), MmuLengthR(ptr, bytes)); }
    /// Aliases need to be prolongated for un-protection
-   void AliasUnprotect(const void *ptr, size_t bytes) const
+   virtual void AliasUnprotect(const void *ptr, size_t bytes)
    { MmuAllow(MmuAddrP(ptr), MmuLengthP(ptr, bytes)); }
-   void *HtoD(void *dst, const void *src, size_t bytes) const
+   virtual void *HtoD(void *dst, const void *src, size_t bytes)
    { return std::memcpy(dst, src, bytes); }
-   void *DtoD(void *dst, const void *src, size_t bytes) const
+   virtual void *DtoD(void *dst, const void *src, size_t bytes)
    { return std::memcpy(dst, src, bytes); }
-   void *DtoH(void *dst, const void *src, size_t bytes) const
+   virtual void *DtoH(void *dst, const void *src, size_t bytes)
    { return std::memcpy(dst, src, bytes); }
 };
 
@@ -742,24 +694,9 @@ class PoolMmuDeviceMemorySpace : public MmuDeviceMemorySpace
    mutable Pool<MmuDeviceMemorySpace> pool;
 public:
    PoolMmuDeviceMemorySpace(): MmuDeviceMemorySpace() { }
-   void Alloc(void **d_ptr, size_t bytes) const { MFEM_ABORT(""); }
-   void Alloc(Memory &m) const { m.d_ptr = pool.alloc(m.bytes); }
-   void Dealloc(void *ptr, size_t bytes = 0) const { MFEM_ABORT(""); }
-   void Dealloc(Memory &m) const { pool.free(m.d_ptr); }
-   void Protect(const Memory &m) const { MmuProtect(m.d_ptr, m.bytes); }
-   void Unprotect(const Memory &m) const { MmuAllow(m.d_ptr, m.bytes); }
-   /// Aliases need to be restricted during protection
-   void AliasProtect(const void *d_ptr, size_t bytes) const
-   { MmuProtect(MmuAddrR(d_ptr), MmuLengthR(d_ptr, bytes)); }
-   /// Aliases need to be prolongated for un-protection
-   void AliasUnprotect(const void *ptr, size_t bytes) const
-   { MmuAllow(MmuAddrP(ptr), MmuLengthP(ptr, bytes)); }
-   void *HtoD(void *dst, const void *src, size_t bytes) const
-   { return std::memcpy(dst, src, bytes); }
-   void *DtoD(void *dst, const void *src, size_t bytes) const
-   { return std::memcpy(dst, src, bytes); }
-   void *DtoH(void *dst, const void *src, size_t bytes) const
-   { return std::memcpy(dst, src, bytes); }
+   void Alloc(Memory &m) override { m.d_ptr = pool.alloc(m.bytes); }
+   void Dealloc(Memory &m) override { pool.free(m.d_ptr); }
+   void Unprotect(const Memory &m) override { MmuAllow(m.d_ptr, m.bytes); }
 };
 
 #ifndef MFEM_USE_UMPIRE
@@ -784,9 +721,9 @@ public:
                   rm.makeAllocator<umpire::strategy::DynamicPool>
                   (name, rm.getAllocator("HOST"))),
       strat(h_allocator.getAllocationStrategy()) { }
-   void Alloc(void **ptr, size_t bytes) const { *ptr = h_allocator.allocate(bytes); }
-   void Dealloc(void *ptr) const { h_allocator.deallocate(ptr); }
-   void Insert(void *ptr, size_t bytes) const
+   void Alloc(void **ptr, size_t bytes) { *ptr = h_allocator.allocate(bytes); }
+   void Dealloc(void *ptr) { h_allocator.deallocate(ptr); }
+   void Insert(void *ptr, size_t bytes)
    { rm.registerAllocation(ptr, {ptr, bytes, strat}); }
 };
 
@@ -807,9 +744,9 @@ public:
       d_allocator(rm.isAllocator(name)? rm.getAllocator(name):
                   rm.makeAllocator<umpire::strategy::DynamicPool>
                   (name, rm.getAllocator("DEVICE"))) { }
-   void Alloc(Memory &base) const { base.d_ptr = d_allocator.allocate(base.bytes); }
-   void Dealloc(Memory &base) const { d_allocator.deallocate(base.d_ptr); }
-   void *HtoD(void *dst, const void *src, size_t bytes) const
+   void Alloc(Memory &base) { base.d_ptr = d_allocator.allocate(base.bytes); }
+   void Dealloc(Memory &base) { d_allocator.deallocate(base.d_ptr); }
+   void *HtoD(void *dst, const void *src, size_t bytes)
    {
 #ifdef MFEM_USE_CUDA
       return CuMemcpyHtoD(dst, src, bytes);
@@ -819,7 +756,7 @@ public:
 #endif
       //rm.copy(dst, const_cast<void*>(src), bytes); return dst;
    }
-   void *DtoD(void* dst, const void* src, size_t bytes) const
+   void *DtoD(void* dst, const void* src, size_t bytes)
    {
 #ifdef MFEM_USE_CUDA
       return CuMemcpyDtoD(dst, src, bytes);
@@ -829,7 +766,7 @@ public:
 #endif
       //rm.copy(dst, const_cast<void*>(src), bytes); return dst;
    }
-   void *DtoH(void *dst, const void *src, size_t bytes) const
+   void *DtoH(void *dst, const void *src, size_t bytes)
    {
 #ifdef MFEM_USE_CUDA
       return CuMemcpyDtoH(dst, src, bytes);
