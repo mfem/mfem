@@ -9,9 +9,6 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-//#define MFEM_DEBUG_COLOR 46
-//#include "debug.hpp"
-
 #include "forall.hpp"
 #include "mem_manager.hpp"
 
@@ -217,7 +214,6 @@ public:
 };
 
 // /////////////////////////////////////////////////////////////////////////////
-#define dbg(...)
 template <typename MS> class Pool
 {
    struct Bucket
@@ -250,7 +246,6 @@ template <typename MS> class Pool
             MemSpace(ms), asize(asize), pages(pages), psize(psize),
             blocks(new Block[asize])
          {
-            dbg("New Arena [asize:%d, pages:%d of 0x%x]", asize,pages,psize);
             // Allocate the block of memory for this arena
             MemSpace.Alloc((void**)&ptr, asize*pages*psize);
             // Metadata flush & setup
@@ -267,7 +262,6 @@ template <typename MS> class Pool
 
          ~Arena()
          {
-            dbg("");
             return;
             MemSpace.Dealloc(ptr, asize*pages*psize);
             for (size_t i = 0; i < asize; i++) { blocks[i].ptr = nullptr; }
@@ -309,12 +303,6 @@ template <typename MS> class Pool
       /// Allocate bytes from these blocks
       void *alloc(size_t bytes, PointersMap &map)
       {
-         static bool align_dbg = true;
-         if (align_dbg)
-         {
-            dbg("\033[37m[Align] bytes: 0x%x => 0x%x", bytes, align(bytes));
-         }
-         align_dbg = false;
          bytes = align(bytes);
          if (next == nullptr)
          {
@@ -362,13 +350,11 @@ public:
       // If not already in the bucket map, add it
       if (blk_i == Buckets.end())
       {
-         dbg("\033[32mNew bucket with %d pages", pages);
          auto res = Buckets.emplace(pages,Bucket(ms, pages, asize, psize));
          blk_i = Buckets.find(pages);
          MFEM_ASSERT(res.second, "");
          MFEM_ASSERT(blk_i != Buckets.end(), "");
       }
-      dbg("0x%x bytes, #%d page(s)", bytes, pages);
       // Get the bucket in which the allocation will be done
       Bucket &bucket = blk_i->second;
       // Allocate the memory in it
