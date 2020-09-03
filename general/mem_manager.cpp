@@ -603,8 +603,8 @@ class CudaDeviceMemorySpace: public DeviceMemorySpace
 {
 public:
    CudaDeviceMemorySpace(): DeviceMemorySpace() { }
-   void Alloc(void **ptr, size_t bytes) { MFEM_ABORT(""); }
-   void Dealloc(void *ptr) { MFEM_ABORT("");  }
+   void Alloc(void **ptr, size_t bytes) { CuMemAlloc(ptr, bytes); }
+   void Dealloc(void *ptr) { CuMemFree(ptr);  }
    virtual void Alloc(Memory &base) { CuMemAlloc(&base.d_ptr, base.bytes); }
    virtual void Dealloc(Memory &base) { CuMemFree(base.d_ptr); }
    virtual void *HtoD(void *dst, const void *src, size_t bytes)
