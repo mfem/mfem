@@ -1776,8 +1776,8 @@ void NCMesh::CheckDerefinementNCLevel(const Table &deref_table,
 
 void NCMesh::Derefine(const Array<int> &derefs)
 {
-   //MFEM_VERIFY(Dim < 3 || Iso,
-   //            "derefinement of 3D anisotropic meshes not implemented yet.");
+   MFEM_VERIFY(Dim < 3 || Iso,
+               "derefinement of 3D anisotropic meshes not implemented yet.");
 
    InitDerefTransforms();
 
@@ -3948,7 +3948,6 @@ const CoarseFineTransformations& NCMesh::GetRefinementTransforms()
          }
       }
    }
-
    return transforms;
 }
 
@@ -4125,8 +4124,9 @@ void CoarseFineTransformations::GetCoarseToFineMap(
    ref_type_to_matrix.ShiftUpI();
 }
 
-void CoarseFineTransformations::GetCoarseToFineMapFast(
-   const mfem::Mesh &fine_mesh, Table &coarse_to_fine, int NGhost) const
+void CoarseFineTransformations::GetCoarseToFineMap(const mfem::Mesh &fine_mesh,
+                                                   Table &coarse_to_fine,
+                                                   int NGhost) const
 {
    int fine_ne = embeddings.Size()-NGhost;
    int coarse_ne = -1;

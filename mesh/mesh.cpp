@@ -114,39 +114,6 @@ double Mesh::GetElementVolume(int i)
    return volume;
 }
 
-double Mesh::GetElementAspectRatio(int i, int idir)
-{
-   DenseMatrix J(Dim);
-   GetElementJacobian(i, J);
-   Vector col1, col2;
-   J.GetColumn(0, col1);
-   J.GetColumn(1, col2);
-   double l1 = col1.Norml2(),
-          l2 = col2.Norml2();
-   if ( Dim == 2 )
-   {
-      return l2 / l1;
-   }
-   else
-   {
-      Vector col3;
-      J.GetColumn(2, col3);
-      double l3 = col3.Norml2();
-      if ( idir == 1 )
-      {
-         return l1 / pow(l2*l3, 0.5);
-      }
-      else if ( idir == 2 )
-      {
-         return l2 / pow(l1*l3, 0.5);
-      }
-      else
-      {
-         return l3 / pow(l1*l2, 0.5);
-      }
-   }
-}
-
 // Similar to VisualizationSceneSolution3d::FindNewBox in GLVis
 void Mesh::GetBoundingBox(Vector &min, Vector &max, int ref)
 {

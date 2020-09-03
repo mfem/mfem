@@ -96,12 +96,10 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
          x.GetSubVector(vdofs, el_x);
          for (int k = 0; k < dnfi.Size(); k++)
          {
-            double elenergy = dnfi[k]->GetElementEnergy(*fe, *T, el_x);
-            energy += elenergy;
+            energy += dnfi[k]->GetElementEnergy(*fe, *T, el_x);
          }
       }
    }
-
 
    if (fnfi.Size())
    {
@@ -131,7 +129,6 @@ const Vector &NonlinearForm::Prolongate(const Vector &x) const
 void NonlinearForm::Mult(const Vector &x, Vector &y) const
 {
    const Vector &px = Prolongate(x);
-
    if (P) { aux2.SetSize(P->Height()); }
 
    // If we are in parallel, ParNonLinearForm::Mult uses the aux2 vector.

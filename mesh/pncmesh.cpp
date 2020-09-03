@@ -1541,15 +1541,12 @@ void ParNCMesh::Derefine(const Array<int> &derefs)
    // *** STEP 1: redistribute elements to avoid complex derefinements ***
 
    Array<int> new_ranks(leaf_elements.Size());
-   //int target_elements = 0;
    for (int i = 0; i < leaf_elements.Size(); i++)
    {
       new_ranks[i] = elements[leaf_elements[i]].rank;
-      //target_elements++;
    }
 
    // make the lowest rank get all the fine elements for each derefinement
-   // /*
    for (int i = 0; i < derefs.Size(); i++)
    {
       int row = derefs[i];
@@ -1580,7 +1577,6 @@ void ParNCMesh::Derefine(const Array<int> &derefs)
    // redistribute elements slightly to get rid of complex derefinements
    // straddling processor boundaries *and* update the ghost layer
    RedistributeElements(new_ranks, target_elements, false);
-   // */ //k10
 
    // *** STEP 2: derefine now, communication similar to Refine() ***
 
