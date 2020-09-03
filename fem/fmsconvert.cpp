@@ -548,10 +548,20 @@ FmsMeshToMesh(FmsMesh fms_mesh, Mesh **mfem_mesh)
       FmsTagGetComponent(tag, &comp);
       if (!elem_tag && comp == main_comp)
       {
+#if DEBUG_FMS_MFEM
+         const char *tn = NULL;
+         FmsTagGetName(tag, &tn);
+         std::cout << "Found element tag " << tn << std::endl;
+#endif
          elem_tag = tag;
       }
       else if (!bdr_tag && comp == bdr_comp)
       {
+#if DEBUG_FMS_MFEM
+         const char *tn = NULL;
+         FmsTagGetName(tag, &tn);
+         std::cout << "Found boundary tag " << tn << std::endl;
+#endif
          bdr_tag = tag;
       }
    }
@@ -1367,7 +1377,7 @@ int FmsDataCollectionToDataCollection(FmsDataCollection dc,
    if (err == 0)
    {
       std::string collection_name("collection");
-      char *cn = nullptr;
+      const char *cn = nullptr;
       FmsDataCollectionGetName(dc, &cn);
       if (cn != nullptr)
       {
@@ -1496,10 +1506,11 @@ int FmsDataCollectionToDataCollection(FmsDataCollection dc,
 /* -------------------------------------------------------------------------- */
 
 int
-MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh)
+MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh, FmsComponent *volume)
 {
    if (!mmesh) { return 1; }
    if (!fmesh) { return 2; }
+   if (!volume) { return 3; }
 
    int err = 0;
    const int num_verticies = mmesh->GetNV();
@@ -1606,6 +1617,7 @@ MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh)
    }
 
    // Add top level elements
+   std::vector<int> tags;
    std::vector<int> tris;
    std::vector<int> quads;
    std::vector<int> tets;
@@ -1613,6 +1625,7 @@ MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh)
    for (int i = 0; i < num_elements; i++)
    {
       auto etype = mmesh->GetElementType(i);
+      tags.push_back(mmesh->GetAttribute(i));
       switch (etype)
       {
          case mfem::Element::POINT:
@@ -1666,7 +1679,7 @@ MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh)
             break;
          }
          default:
-            mfem::out << "Error, element not implemented." << std::endl;
+            mfem::err << "Error, element not implemented." << std::endl;
             return 3;
       }
    }
@@ -1753,6 +1766,68 @@ MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh)
       mfem::err << "FmsMeshValidate returned error code " << err << std::endl;
       return 5;
    }
+
+   FmsComponent v = NULL;
+   FmsMeshAddComponent(*fmesh, "volume", &v);
+   FmsComponentAddDomain(v, domains[0]);
+
+   FmsTag tag;
+   FmsMeshAddTag(*fmesh, "element_attribute", &tag);
+   FmsTagSetComponent(tag, v);
+   FmsTagSet(tag, FMS_INT32, FMS_INT32, tags.data(), tags.size());
+
+   // Add boundary component
+   std::vector<int> bdr_eles[FMS_NUM_ENTITY_TYPES];
+   std::vector<int> bdr_attributes;
+   const int NBE = mmesh->GetNBE();
+   for(int i = 0; i < NBE; i++) {
+      const Element::Type betype = mmesh->GetBdrElementType(i);
+      bdr_attributes.push_back(mmesh->GetBdrAttribute(i));
+      switch (betype) {
+         case Element::POINT:
+            bdr_eles[FMS_VERTEX].push_back(mmesh->GetBdrElementEdgeIndex(i));
+            break;
+         case Element::SEGMENT: 
+            bdr_eles[FMS_EDGE].push_back(mmesh->GetBdrElementEdgeIndex(i));
+            break;
+         case Element::TRIANGLE:
+            bdr_eles[FMS_TRIANGLE].push_back(mmesh->GetBdrElementEdgeIndex(i));
+            break;
+         case Element::QUADRILATERAL:
+            bdr_eles[FMS_QUADRILATERAL].push_back(mmesh->GetBdrElementEdgeIndex(i));
+            break;
+         case Element::TETRAHEDRON:
+            bdr_eles[FMS_TETRAHEDRON].push_back(mmesh->GetBdrElementEdgeIndex(i));
+            break;
+         case Element::HEXAHEDRON:
+            bdr_eles[FMS_HEXAHEDRON].push_back(mmesh->GetBdrElementEdgeIndex(i));
+            break;
+         default:
+            MFEM_WARNING("Unsupported boundary element " << betype << " at boundary index " << i);
+            break;
+      }
+   }
+
+   if(NBE) {
+      FmsComponent boundary = NULL;
+      FmsMeshAddComponent(*fmesh, "boundary", &boundary);
+      FmsInt part_id;
+      FmsComponentAddPart(boundary, domains[0], &part_id);
+      for(int i = FMS_NUM_ENTITY_TYPES - 1; i > 0; i--) {
+         if(bdr_eles[i].size()) {
+            FmsComponentAddPartEntities(boundary, part_id, (FmsEntityType)i, FMS_INT32, FMS_INT32,
+               FMS_INT32, NULL, bdr_eles[i].data(), NULL, bdr_eles[i].size());
+            break;
+         }
+      }
+      FmsComponentAddRelation(v, 1);
+      FmsTag boundary_tag = NULL;
+      FmsMeshAddTag(*fmesh, "boundary_attribute", &boundary_tag);
+      FmsTagSetComponent(boundary_tag, boundary);
+      FmsTagSet(boundary_tag, FMS_INT32, FMS_INT32, bdr_attributes.data(), bdr_attributes.size());
+
+   }
+   *volume = v;
    return 0;
 }
 
@@ -1765,8 +1840,9 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc,
    const Mesh *mmesh = mfem_dc->GetMesh();
 
    FmsMesh fmesh = NULL;
-   err = MeshToFmsMesh(mmesh, &fmesh);
-   if (!fmesh || err)
+   FmsComponent volume = NULL;
+   err = MeshToFmsMesh(mmesh, &fmesh, &volume);
+   if (!fmesh || !volume || err)
    {
       mfem::err << "Error converting mesh topology from MFEM to FMS" << std::endl;
       if (fmesh)
@@ -1775,23 +1851,6 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc,
       }
       return 1;
    }
-
-   // Q: Should MeshToFmsMesh just return the volume component to avoid this?
-   FmsDomain *domains = NULL;
-   FmsInt num_domains = 0;
-   err = FmsMeshGetDomainsByName(fmesh, "Domain", &num_domains, &domains);
-   if (!domains || !num_domains || err)
-   {
-      mfem::err << "Corrupt FMS domain data." << std::endl;
-      FmsMeshDestroy(&fmesh);
-      return 2;
-   }
-
-   FmsComponent volume = NULL;
-   FmsMeshAddComponent(fmesh, "volume", &volume);
-   FmsComponentAddDomain(volume, domains[0]);
-
-   // TODO: Add boundaries
 
    err = FmsDataCollectionCreate(fmesh, mfem_dc->GetCollectionName().c_str(), dc);
    if (!*dc || err)
