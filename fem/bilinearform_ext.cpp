@@ -733,7 +733,7 @@ SparseMatrix GetFullAssemblySparseMatrix(BilinearForm &a)
       }
 #endif
       SparseMatrix A(size,size);
-      A.GetMemoryI().New(size, A.GetMemoryI().GetMemoryType());
+      A.GetMemoryI().New(size+1, A.GetMemoryI().GetMemoryType());
       const L2ElementRestriction *restE =
          static_cast<const L2ElementRestriction*>(ea.elem_restrict);
       const L2FaceRestriction *restF =
