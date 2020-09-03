@@ -37,6 +37,21 @@ glvis -np 72 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 glvis -np 512 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 glvis -np 4096 -m mesh -g sol_omega -k "mmc" -ww 1000 -wh 1000
 
+9/2
+try L2 version of error estimator!!
+
+9/1
+currently derefine and refine are staggered. So maybe I can try merge them together
+
+8/28
+this is working very well:
+srun -n 720 imAMRMHDp -m ../Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -no-vis -tf 8. -dt .05 -vs 1 -usepetsc --petscopts rc_debug2 -s 3 -shell -amrl 4 -ltol 2e-3 -derefine -t-refs 5.6 -resi 1e-5 -visc 1e-5 -refs 6 -im_supg 1 -supg -i_supgpre 3 -no-fd -yrange -err-ratio 0.1 -derefine-ratio .8 -err-fraction 0.25 -paraview
+
+things to improve: derefine
+1e-5: maybe start from t=5
+1e-6: maybe change amrl with time
+
+
 8/20
 something wrong with amrl?? is that effective? fixed. ensurencmesh call will set everything to 0 level
 

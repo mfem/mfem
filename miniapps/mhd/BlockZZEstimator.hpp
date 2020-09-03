@@ -19,7 +19,7 @@ class BlockZZEstimator : public ErrorEstimator
 {
 protected:
    long current_sequence;
-   Vector error_estimates;
+   Vector error_estimates, error_estimates2;
    double total_error;
    /* ratio of errors between two solutions
     * ratio should be positive but does not have to be between 0 and 1*/
@@ -143,12 +143,153 @@ void BlockZZEstimator::ComputeEstimates()
                                   NULL,
                                   flux_averaging);
 
-       err_tmp = ZZErrorEstimator(*integ2, *solution2, flux2, estimates_tmp,
+       err_tmp = ZZErrorEstimator(*integ2, *solution2, flux2, error_estimates2,
                                   NULL,
                                   flux_averaging);
 
    //cout <<"size1="<<error_estimates.Size()<<" size2="<<estimates_tmp.Size()<<endl;
-   error_estimates.Add(ratio, estimates_tmp);
+   error_estimates.Add(ratio, error_estimates2);
+   total_error+=(ratio*err_tmp);
+
+   current_sequence = solution1->FESpace()->GetMesh()->GetSequence();
+   long mesh_tmp = solution2->FESpace()->GetMesh()->GetSequence();
+   MFEM_ASSERT(current_sequence == mesh_tmp, "different meshes in solutions!!");
+}
+
+/** @brief The BlockL2ZZEstimator class implements the L2 version of 
+    Zienkiewicz-Zhu error estimation procedure for two blocks of the solution.
+
+    The required BilinearFormIntegrator must implement the methods
+    ComputeElementFlux() and ComputeFluxEnergy().
+ */
+class BlockL2ZZEstimator : public ErrorEstimator
+{
+protected:
+   long current_sequence;
+   Vector error_estimates, error_estimates2;
+   double total_error;
+   /* ratio of errors between two solutions
+    * ratio should be positive but does not have to be between 0 and 1*/
+   double ratio; 
+   double solver_tol=1e-2;
+   int solver_max_it=200;
+
+   BilinearFormIntegrator *integ1; //< Not owned.
+   ParGridFunction *solution1; //< Not owned.
+   BilinearFormIntegrator *integ2; ///< Not owned.
+   ParGridFunction *solution2; //< Not owned.
+
+   ParFiniteElementSpace *flux_space1, *flux_space2; 
+   ParFiniteElementSpace *smooth_flux_space1, *smooth_flux_space2; 
+   bool own_flux_fes; //< Ownership flag for flux_space.
+
+   // Check if the mesh of the solution was modified.
+   // Mesh of two solutions should be identical
+   bool MeshIsModified()
+   {
+      long mesh_sequence = solution1->FESpace()->GetMesh()->GetSequence();
+      long mesh_tmp = solution2->FESpace()->GetMesh()->GetSequence();
+      MFEM_ASSERT(mesh_sequence >= current_sequence, "");
+      MFEM_ASSERT(mesh_sequence == mesh_tmp, "inconsistent meshes in solutions");
+      return (mesh_sequence > current_sequence);
+   }
+
+   // Compute the element error estimates.
+   void ComputeEstimates();
+
+public:
+   /** @brief Construct a new BlockZZEstimator object.
+       @param integ    This BilinearFormIntegrator must implement the methods
+                       ComputeElementFlux() and ComputeFluxEnergy().
+       @param sol      The solution field whose error is to be estimated.
+       @param flux_fes The BlockZZEstimator assumes ownership of this
+                       FiniteElementSpace and will call its Update() method when
+                       needed. */
+   BlockL2ZZEstimator(BilinearFormIntegrator &integ1, ParGridFunction &sol1,
+                    BilinearFormIntegrator &integ2, ParGridFunction &sol2,
+                    ParFiniteElementSpace *flux_fes1, ParFiniteElementSpace *flux_fes2,
+                    ParFiniteElementSpace *sf_fes1,   ParFiniteElementSpace *sf_fes2)
+      : current_sequence(-1),
+        total_error(),
+        ratio(1.),
+        integ1(&integ1),solution1(&sol1),
+        integ2(&integ2),solution2(&sol2),
+        flux_space1(flux_fes1),flux_space2(flux_fes2),
+        smooth_flux_space1(sf_fes1),smooth_flux_space2(sf_fes2),
+        own_flux_fes(true)
+   { }
+
+   /** @brief Construct a new BlockZZEstimator object.
+       @param integ    This BilinearFormIntegrator must implement the methods
+                       ComputeElementFlux() and ComputeFluxEnergy().
+       @param sol      The solution field whose error is to be estimated.
+       @param flux_fes The BlockZZEstimator does NOT assume ownership of
+                       this FiniteElementSpace; will call its Update() method
+                       when needed. */
+   BlockL2ZZEstimator(BilinearFormIntegrator &integ1, ParGridFunction &sol1,
+                    BilinearFormIntegrator &integ2, ParGridFunction &sol2,
+                    ParFiniteElementSpace &flux_fes1, ParFiniteElementSpace &flux_fes2,
+                    ParFiniteElementSpace &sf_fes1,   ParFiniteElementSpace &sf_fes2)
+      : current_sequence(-1),
+        total_error(),
+        ratio(1.),
+        integ1(&integ1),solution1(&sol1),
+        integ2(&integ2),solution2(&sol2),
+        flux_space1(&flux_fes1),flux_space2(&flux_fes2),
+        smooth_flux_space1(&sf_fes1),smooth_flux_space2(&sf_fes2),
+        own_flux_fes(false)
+   { }
+
+   // Return the total error from the last error estimate.
+   double GetTotalError() const { return total_error; }
+
+   void SetErrorRatio(double ra) 
+   { 
+       MFEM_ASSERT(ra > 0.0, "error ratio should be positive!");
+       ratio = ra; 
+   }
+
+   // Get a Vector with all element errors.
+   virtual const Vector &GetLocalErrors()
+   {
+      if (MeshIsModified()) { ComputeEstimates(); }
+      return error_estimates;
+   }
+
+   /// Reset the error estimator.
+   virtual void Reset() { current_sequence = -1; }
+
+   /** @brief Destroy a BlockZZEstimator object. Destroys, if owned, the
+       FiniteElementSpace, flux_space. */
+   virtual ~BlockL2ZZEstimator()
+   {
+      if (own_flux_fes) 
+      { 
+          delete flux_space1; 
+          delete flux_space2; 
+      }
+   }
+};
+
+void BlockL2ZZEstimator::ComputeEstimates()
+{
+   flux_space1->Update(false);
+   flux_space2->Update(false);
+   smooth_flux_space1->Update(false);
+   smooth_flux_space2->Update(false);
+
+   int local_norm_p=1;
+   double err_tmp;
+
+   total_error = L2ZZErrorEstimator(*integ1, *solution1, *smooth_flux_space1,
+                                    *flux_space1, error_estimates,
+                                    local_norm_p, solver_tol, solver_max_it);
+
+       err_tmp = L2ZZErrorEstimator(*integ2, *solution2, *smooth_flux_space2,
+                                    *flux_space2, error_estimates2,
+                                    local_norm_p, solver_tol, solver_max_it);
+
+   error_estimates.Add(ratio, error_estimates2);
    total_error+=(ratio*err_tmp);
 
    current_sequence = solution1->FESpace()->GetMesh()->GetSequence();

@@ -550,12 +550,29 @@ int main(int argc, char *argv[])
    oper.SetInitialJ(*jptr);
 
    //-----------------------------------AMR for the real computation---------------------------------
+
+   ErrorEstimator *estimator_used;
+   BlockZZEstimator *estimator=NULL;
+   BlockL2ZZEstimator *L2estimator=NULL;
    ParFiniteElementSpace flux_fespace1(pmesh, &fe_coll, sdim), flux_fespace2(pmesh, &fe_coll, sdim);
-   BlockZZEstimator estimator(*integ, psi, *integ, j, flux_fespace1, flux_fespace2);
-   estimator.SetErrorRatio(err_ratio); //we define total_err = err_1 + ratio*err_2
+   RT_FECollection smooth_flux_fec(order-1, dim);
+   ParFiniteElementSpace smooth_flux_fes1(pmesh, &smooth_flux_fec), smooth_flux_fes2(pmesh, &smooth_flux_fec);
+
+   bool regularZZ=true;
+   if (regularZZ)
+   {
+     estimator=new BlockZZEstimator(*integ, psi, *integ, j, flux_fespace1, flux_fespace2);
+     estimator->SetErrorRatio(err_ratio); 
+     estimator_used=estimator;
+   }
+   else{
+     L2estimator=new BlockL2ZZEstimator(*integ, psi, *integ, j, flux_fespace1, flux_fespace2, smooth_flux_fes1,smooth_flux_fes2);
+     L2estimator->SetErrorRatio(err_ratio); 
+     estimator_used=L2estimator;
+   }
 
    int levels3=par_ref_levels+3, levels4=par_ref_levels+4;
-   ThresholdRefiner refiner(estimator);
+   ThresholdRefiner refiner(*estimator_used);
    refiner.SetTotalErrorFraction(err_fraction);   // here 0.0 means we use local threshold; default is 0.5
    refiner.SetTotalErrorGoal(ltol_amr);  // total error goal (stop criterion)
    refiner.SetLocalErrorGoal(0.0);  // local error goal (stop criterion)
@@ -568,7 +585,7 @@ int main(int argc, char *argv[])
    if (yRange)
        refiner.SetYRange(-.6, .6);
 
-   ThresholdDerefiner derefiner(estimator);
+   ThresholdDerefiner derefiner(*estimator_used);
    derefiner.SetThreshold(derefine_ratio*ltol_amr);
    derefiner.SetNCLimit(nc_limit);
 
@@ -995,6 +1012,7 @@ int main(int argc, char *argv[])
    delete integ;
    delete dc;
    delete pd;
+   delete estimator_used;
 
    oper.DestroyHypre();
 
