@@ -393,15 +393,15 @@ public:
    { return mfem::ReadWrite(data, size, false); }
 
 #ifdef MFEM_USE_SUNDIALS
-   /// Construct a wrapper Vector from SUNDIALS N_Vector.
-   explicit Vector(N_Vector nv);
+   /// (DEPRECATED) Construct a wrapper Vector from SUNDIALS N_Vector.
+   MFEM_DEPRECATED explicit Vector(N_Vector nv);
 
-   /// Return a new wrapper SUNDIALS N_Vector of type SUNDIALS_NVEC_SERIAL.
-   /** The returned N_Vector must be destroyed by the caller. */
+   /// (DEPRECATED) Return a new wrapper SUNDIALS N_Vector of type SUNDIALS_NVEC_SERIAL.
+   /** @deprecated The returned N_Vector must be destroyed by the caller. */
    MFEM_DEPRECATED virtual N_Vector ToNVector()
    { return N_VMake_Serial(Size(), GetData()); }
 
-   /** @brief Update an existing wrapper SUNDIALS N_Vector to point to this
+   /** @deprecated @brief Update an existing wrapper SUNDIALS N_Vector to point to this
        Vector.
 
        \param[in] nv N_Vector to assign this vector's data to
