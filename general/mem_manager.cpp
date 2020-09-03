@@ -409,13 +409,29 @@ public:
    { return CuMemcpyDtoH(dst, src, bytes); }
 };
 
-/// The CUDA page-locked host memory space
-class CudaHostMemorySpace: public HostMemorySpace
+/// The CUDA/HIP page-locked host memory space
+class HostPinnedMemorySpace: public HostMemorySpace
 {
 public:
-   CudaHostMemorySpace(): HostMemorySpace() { }
-   void Alloc(void ** ptr, size_t bytes) override { CuMemAllocHost(ptr, bytes); }
-   void Dealloc(void *ptr) override { CuMemFreeHost(ptr); }
+   HostPinnedMemorySpace(): HostMemorySpace() { }
+   void Alloc(void ** ptr, size_t bytes) override
+   {
+#ifdef MFEM_USE_CUDA
+      CuMemAllocHostPinned(ptr, bytes);
+#endif
+#ifdef MFEM_USE_HIP
+      MFEM_ABORT("HostPinnedMemorySpace unimplemented for HIP");
+#endif
+   }
+   void Dealloc(void *ptr) override
+   {
+#ifdef MFEM_USE_CUDA
+      CuMemFreeHostPinned(ptr);
+#endif
+#ifdef MFEM_USE_HIP
+      MFEM_ABORT("HostPinnedMemorySpace unimplemented for HIP");
+#endif
+   }
 };
 
 /// The HIP device memory space
@@ -524,7 +540,7 @@ public:
 };
 
 /// The Umpire device memory space
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
 class UmpireDeviceMemorySpaceImpl : public DeviceMemorySpace
 {
 public:
@@ -621,7 +637,7 @@ public:
 #else
 class UmpireDeviceMemorySpace : public NoDeviceMemorySpace { };
 class UmpireDeviceTempMemorySpace : public NoDeviceMemorySpace { };
-#endif // MFEM_USE_CUDA
+#endif // MFEM_USE_CUDA || MFEM_USE_HIP
 #endif // MFEM_USE_UMPIRE
 
 /// Memory space controller class
@@ -697,7 +713,7 @@ private:
       {
          case MT::HOST_DEBUG: return new MmuHostMemorySpace();
          case MT::HOST_UMPIRE: return new UmpireHostMemorySpace();
-         case MT::HOST_PINNED: return new CudaHostMemorySpace();
+         case MT::HOST_PINNED: return new HostPinnedMemorySpace();
          default: MFEM_ABORT("Unknown host memory controller!");
       }
       return nullptr;

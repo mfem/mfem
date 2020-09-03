@@ -61,7 +61,7 @@ void* CuMallocManaged(void** dptr, size_t bytes)
    return *dptr;
 }
 
-void* CuMemAllocHost(void** ptr, size_t bytes)
+void* CuMemAllocHostPinned(void** ptr, size_t bytes)
 {
 #ifdef MFEM_USE_CUDA
 #ifdef MFEM_TRACK_CUDA_MEM
@@ -91,7 +91,7 @@ void* CuMemFree(void *dptr)
    return dptr;
 }
 
-void* CuMemFreeHost(void *ptr)
+void* CuMemFreeHostPinned(void *ptr)
 {
 #ifdef MFEM_USE_CUDA
 #ifdef MFEM_TRACK_CUDA_MEM

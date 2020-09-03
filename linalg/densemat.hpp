@@ -775,9 +775,9 @@ public:
 
    int TotalSize() const { return SizeI()*SizeJ()*SizeK(); }
 
-   void SetSize(int i, int j, int k, MemoryType mt_ = MemoryType::SIZE)
+   void SetSize(int i, int j, int k, MemoryType mt_ = MemoryType::PRESERVE)
    {
-      const MemoryType mt = mt_ == MemoryType::SIZE ? tdata.GetMemoryType() : mt_;
+      const MemoryType mt = mt_ == MemoryType::PRESERVE ? tdata.GetMemoryType() : mt_;
       tdata.Delete();
       Mk.UseExternalData(NULL, i, j);
       nk = k;
