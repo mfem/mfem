@@ -687,9 +687,6 @@ public:
    /// Destroy the associated ARKode memory and SUNDIALS objects.
    virtual ~ARKStepSolver();
 
-   virtual MemoryClass GetMemoryClass() const
-   { return Device::GetMemoryClass(); }
-
 };
 
 
