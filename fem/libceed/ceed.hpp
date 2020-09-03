@@ -215,12 +215,12 @@ void CeedPAAssemble(const CeedPAOperator& op,
 void CeedMFAssemble(const CeedMFOperator& op,
                     CeedData& ceedData);
 
-/** @brief Function that applies a libCEED PA operator. */
+/** @brief Function that applies a libCEED operator. */
 void CeedAddMult(const CeedData *ceedDataPtr,
                  const Vector &x,
                  Vector &y);
 
-/** @brief Function that assembles a libCEED PA operator diagonal. */
+/** @brief Function that assembles a libCEED operator diagonal. */
 void CeedAssembleDiagonal(const CeedData *ceedDataPtr,
                           Vector &diag);
 
