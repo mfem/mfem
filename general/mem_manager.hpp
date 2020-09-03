@@ -40,7 +40,8 @@ enum class MemoryType
                              "device-debug" pool */
    DEVICE_UMPIRE,       ///< Device memory; using Umpire
    DEVICE_TEMP_UMPIRE,  ///< Temporary Device memory; using Umpire
-   SIZE                 ///< Number of host and device memory types
+   SIZE,                ///< Number of host and device memory types
+   PRESERVE             ///< Default parameter type; preserves existing behavior
 };
 
 /// Static casts to 'int' and sizes of some useful memory types.
