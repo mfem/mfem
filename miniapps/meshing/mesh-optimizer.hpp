@@ -1265,7 +1265,7 @@ bool TMOPDeRefinerEstimator::GetDerefineEnergyForIntegrator(
       const CoarseFineTransformations &dtrans =
          meshcopy.ncmesh->GetDerefinementTransforms();
       Table coarse_to_fine;
-      dtrans.GetCoarseToFineMapFast(meshcopy, coarse_to_fine);
+      dtrans.GetCoarseToFineMap(meshcopy, coarse_to_fine);
 
       for (int pe = 0; pe < coarse_to_fine.Size(); pe++)
       {
@@ -1324,8 +1324,8 @@ bool TMOPDeRefinerEstimator::GetDerefineEnergyForIntegrator(
          meshcopy.pncmesh->GetDerefinementTransforms();
       Table coarse_to_fine;
       MPI_Barrier(MPI_COMM_WORLD);
-      dtrans.GetCoarseToFineMapFast(meshcopy, coarse_to_fine,
-                                    pmesh->pncmesh->GetNGhostElements());
+      dtrans.GetCoarseToFineMap(meshcopy, coarse_to_fine,
+                                pmesh->pncmesh->GetNGhostElements());
       MPI_Barrier(MPI_COMM_WORLD);
 
       for (int pe = 0; pe < meshcopy.GetNE(); pe++)

@@ -70,8 +70,8 @@ struct CoarseFineTransformations
                            Table &ref_type_to_matrix,
                            Array<Geometry::Type> &ref_type_to_geom) const;
 
-   void GetCoarseToFineMapFast(const Mesh &fine_mesh,
-                               Table &coarse_to_fine, int NGhost=0) const;
+   void GetCoarseToFineMap(const Mesh &fine_mesh,
+                           Table &coarse_to_fine, int NGhost=0) const;
 
    void Clear();
    bool IsInitialized() const;
@@ -337,8 +337,11 @@ public:
        stretching and curvature). */
    int GetElementSizeReduction(int i) const;
 
+   /** Return the refinement type used on the parent element
+       that generated leaf 'i'. */
    int GetElementParentRefType(int i) const;
 
+   /** Return the parent element number for leaf 'i'. */
    int GetElementParent(int i) const;
 
    /// Return the faces and face attributes of leaf element 'i'.

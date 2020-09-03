@@ -162,21 +162,6 @@ public:
    { MFEM_ABORT("Not implemented"); }
 };
 
-/// Shape+Size metric, 2D.
-class TMOP_Metric_SS2D : public TMOP_QualityMetric
-{
-public:
-   // W = 0.5 (1 - cos(theta_Jpr - theta_Jtr)).
-   virtual double EvalW(const DenseMatrix &Jpt) const;
-
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
-   { MFEM_ABORT("Not implemented"); }
-
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const
-   { MFEM_ABORT("Not implemented"); }
-};
-
 /// Shape, ideal barrier metric, 2D
 class TMOP_Metric_002 : public TMOP_QualityMetric
 {
@@ -207,7 +192,6 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
-
 };
 
 /// Shape & area metric, 2D
@@ -235,6 +219,7 @@ protected:
 
 public:
    TMOP_Metric_022(double &t0): tau0(t0) {}
+
    // W = 0.5(|J|^2 - 2det(J)) / (det(J) - tau0).
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
@@ -355,6 +340,7 @@ protected:
 
 public:
    TMOP_Metric_211(double epsilon = 1e-4) : eps(epsilon) { }
+
    // W = (det(J) - 1)^2 - det(J) + sqrt(det(J)^2 + eps).
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
@@ -603,11 +589,6 @@ public:
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
                                      Vector &new_field) = 0;
-
-   virtual void Update()
-   {
-      fes->Update();
-   };
 };
 
 /** @brief Base class representing target-matrix construction algorithms for
@@ -961,8 +942,6 @@ class TMOPNewtonSolver;
     defined by the TargetConstructor. */
 class TMOP_Integrator : public NonlinearFormIntegrator
 {
-private:
-
 protected:
    friend class TMOPNewtonSolver;
    friend class TMOPComboIntegrator;

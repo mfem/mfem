@@ -85,6 +85,9 @@ public:
    /** Parallel reimplementation of NCMesh::Derefine, keeps ghost layers
        in sync. The interface is identical. */
    virtual void Derefine(const Array<int> &derefs);
+
+   /** Gets partitioning for the coarse mesh if the current fine mesh were to
+       be derefine. */
    virtual void GetFineToCoarsePartitioning(const Array<int> &derefs,
                                             Array<int> &new_ranks);
 
