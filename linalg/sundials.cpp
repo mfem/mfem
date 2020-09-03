@@ -392,11 +392,9 @@ N_Vector SundialsNVector::MakeNVector(MPI_Comm comm, bool use_device)
       else
       {
          x = N_VNewEmpty_Parallel(comm, 0, 0);
-         // x = N_VMake_MPIPlusX(comm, N_VNewEmpty_Serial(0));
       }
 #else
       x = N_VNewEmpty_Parallel(comm, 0, 0);
-      // x = N_VMake_MPIPlusX(comm, N_VNewEmpty_Serial(0));
 #endif // MFEM_USE_CUDA
    }
 

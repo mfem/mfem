@@ -393,15 +393,13 @@ public:
    { return mfem::ReadWrite(data, size, false); }
 
 #ifdef MFEM_USE_SUNDIALS
-   // TODO: I think this should be removed, but not sure if it might break old code.
-
-
    /// Construct a wrapper Vector from SUNDIALS N_Vector.
    explicit Vector(N_Vector nv);
 
    /// Return a new wrapper SUNDIALS N_Vector of type SUNDIALS_NVEC_SERIAL.
    /** The returned N_Vector must be destroyed by the caller. */
-   virtual N_Vector ToNVector() { return N_VMake_Serial(Size(), GetData()); }
+   MFEM_DEPRECATED virtual N_Vector ToNVector()
+   { return N_VMake_Serial(Size(), GetData()); }
 
    /** @brief Update an existing wrapper SUNDIALS N_Vector to point to this
        Vector.
@@ -411,7 +409,7 @@ public:
         length. If nv is a parallel vector and global_length == 0 then this
         method will perform a global reduction and calculate the global length
    */
-   virtual void ToNVector(N_Vector &nv, long global_length = 0);
+   MFEM_DEPRECATED virtual void ToNVector(N_Vector &nv, long global_length = 0);
 #endif
 };
 
