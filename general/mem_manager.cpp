@@ -337,7 +337,13 @@ template <typename MemorySpace> class Pool
 
 public:
    Pool(size_t asize = 32, size_t psize = 0, size_t align = 8): asize(asize),
-      psize(psize == 0 ? sysconf(_SC_PAGE_SIZE) : psize), align(align) { }
+      psize(psize > 0 ? psize :
+#ifdef _WIN32
+            0x1000
+#else
+            sysconf(_SC_PAGE_SIZE)
+#endif
+           ), align(align) { }
 
    uintptr_t PageSize() const { return psize; }
 
