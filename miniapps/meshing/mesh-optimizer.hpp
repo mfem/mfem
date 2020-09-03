@@ -480,7 +480,6 @@ protected:
 
    bool move_bnd;
 
-
 public:
    TMOPAMR(Mesh &mesh_, NonlinearForm &nlf_, bool move_bnd_) :
       mesh(&mesh_), nlf(&nlf_), gridfuncarr(), fespacearr(), move_bnd(move_bnd_) { }
@@ -505,9 +504,12 @@ public:
    void ParUpdate();
 #endif
 
+#ifdef MFEM_USE_MPI
    void RebalanceParNCMesh();
+#endif
 };
 
+#ifdef MFEM_USE_MPI
 void TMOPAMR::RebalanceParNCMesh()
 {
    ParNCMesh *pncmesh = pmesh->pncmesh;
@@ -524,7 +526,7 @@ void TMOPAMR::RebalanceParNCMesh()
       pmesh->Rebalance(new_ranks);
    }
 }
-
+#endif
 
 void TMOPAMR::Update()
 {
@@ -891,7 +893,6 @@ void TMOPRefinerEstimator::GetTMOPRefinementEnergy(int reftype,
    {
       Geometry::Type gtype = fes->GetFE(e)->GetGeomType();
       DenseMatrix tr, xsplit;
-      int NEsplit = 1;
       IntegrationRule *irule = NULL;
 
       if ( (gtype == Geometry::TRIANGLE && reftype > 0 && reftype < 3) ||
@@ -905,7 +906,6 @@ void TMOPRefinerEstimator::GetTMOPRefinementEnergy(int reftype,
       {
          case Geometry::TRIANGLE:
          {
-            if (reftype != 0) { NEsplit = 4; }
             int ref_access = reftype == 0 ? 0 : 1;
             xdof->GetVectorValues(e, *TriIntRule[ref_access], xsplit, tr);
             irule = TriIntRule[ref_access];
@@ -913,7 +913,6 @@ void TMOPRefinerEstimator::GetTMOPRefinementEnergy(int reftype,
          }
          case Geometry::TETRAHEDRON:
          {
-            if (reftype != 0) { NEsplit = 4; }
             int ref_access = reftype == 0 ? 0 : 1;
             xdof->GetVectorValues(e, *TetIntRule[ref_access], xsplit, tr);
             irule = TetIntRule[ref_access];
@@ -923,15 +922,11 @@ void TMOPRefinerEstimator::GetTMOPRefinementEnergy(int reftype,
          {
             MFEM_VERIFY(QuadIntRule[reftype], " Integration rule does not exist.");
             xdof->GetVectorValues(e, *QuadIntRule[reftype], xsplit, tr);
-            if (reftype == 0) { NEsplit = 1; }
-            else if (reftype == 1 || reftype == 2) { NEsplit = 2; }
-            else { NEsplit = 4; }
             irule = QuadIntRule[reftype];
             break;
          }
          case Geometry::CUBE:
          {
-            if (reftype != 0) { NEsplit = 8; }
             int ref_access = reftype == 0 ? 0 : 1;
             xdof->GetVectorValues(e, *HexIntRule[ref_access], xsplit, tr);
             irule = HexIntRule[ref_access];
