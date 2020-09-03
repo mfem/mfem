@@ -52,7 +52,9 @@ SEQ_SEDOV_CUDA_UVM_OBJ_FILES = $(if $(USE_CUDA),$(SEDOV_FILES:$(SRC)%.cpp=%.cuda
 SEQ_SEDOV_CUDA_POOL_OBJ_FILES = $(if $(USE_CUDA),$(SEDOV_FILES:$(SRC)%.cpp=%.cuda_pool.o))
 
 PAR_SEDOV_CPU_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.pcpu.o)
+PAR_SEDOV_CPU_POOL_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.pcpu_pool.o)
 PAR_SEDOV_DEBUG_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.pdebug.o)
+PAR_SEDOV_DEBUG_POOL_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.pdebug_pool.o)
 PAR_SEDOV_CUDA_OBJ_FILES = $(if $(USE_CUDA),$(SEDOV_FILES:$(SRC)%.cpp=%.pcuda.o))
 PAR_SEDOV_CUDA_UVM_OBJ_FILES = $(if $(USE_CUDA),$(SEDOV_FILES:$(SRC)%.cpp=%.pcuda_uvm.o))
 PAR_SEDOV_CUDA_POOL_OBJ_FILES = $(if $(USE_CUDA),$(SEDOV_FILES:$(SRC)%.cpp=%.pcuda_pool.o))
@@ -121,7 +123,9 @@ $$(PAR_SEDOV_$(2)_OBJ_FILES): %.p$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG
 	   $$(SEDOV_TESTS_FLAGS) -o $$(@)
 endef
 $(eval $(call psedov_tests,cpu,CPU,cpu))
+$(eval $(call psedov_tests,cpu_pool,CPU_POOL,cpu))
 $(eval $(call psedov_tests,debug,DEBUG,debug))
+$(eval $(call psedov_tests,debug_pool,DEBUG_POOL,debug:pool))
 $(eval $(call psedov_tests,cuda,CUDA,cuda))
 $(eval $(call psedov_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
 $(eval $(call psedov_tests,cuda_pool,CUDA_POOL,cuda:pool))
