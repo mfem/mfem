@@ -1066,9 +1066,9 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       for (int j = mf.slaves_begin; j < mf.slaves_end; j++)
       {
          const Slave &sf = full_list.slaves[j];
-         if (sf.index < 0) { continue; }
+         if (sf.element < 0) { continue; }
 
-         MFEM_ASSERT(mf.element >= 0 && sf.element >= 0, "");
+         MFEM_ASSERT(mf.element >= 0, "");
          Element* e[2] = { &elements[mf.element], &elements[sf.element] };
 
          bool loc0 = (e[0]->rank == MyRank);
@@ -1224,9 +1224,9 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
          for (int j = mf.slaves_begin; j < mf.slaves_end; j++)
          {
             const Slave &sf = full_list.slaves[j];
-            if (sf.index < 0) { continue; }
+            if (sf.element < 0) { continue; }
 
-            MFEM_ASSERT(sf.element >= 0 && mf.element >= 0, "");
+            MFEM_ASSERT(mf.element >= 0, "");
             Element &sfe = elements[sf.element];
             Element &mfe = elements[mf.element];
 

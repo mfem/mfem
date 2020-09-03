@@ -422,6 +422,7 @@ public:
    virtual void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
                                              Array<int> &bdr_attr);
 
+
    virtual double ComputeL2Error(Coefficient &exsol,
                                  const IntegrationRule *irs[] = NULL) const
    { return ComputeLpError(2.0, exsol, NULL, irs); }
@@ -433,9 +434,49 @@ public:
                                  const IntegrationRule *irs[] = NULL,
                                  Array<int> *elems = NULL) const;
 
+   /// Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
+   virtual double ComputeGradError(VectorCoefficient *exgrad,
+                                   const IntegrationRule *irs[] = NULL) const;
+
+   /// Returns ||curl u_ex - curl u_h||_L2 for ND elements
+   virtual double ComputeCurlError(VectorCoefficient *excurl,
+                                   const IntegrationRule *irs[] = NULL) const;
+
+   /// Returns ||div u_ex - div u_h||_L2 for RT elements
+   virtual double ComputeDivError(Coefficient *exdiv,
+                                  const IntegrationRule *irs[] = NULL) const;
+
+   /// Returns the Face Jumps error for L2 elements
+   virtual double ComputeDGFaceJumpError(Coefficient *exsol,
+                                         Coefficient *ell_coeff,
+                                         double Nu,
+                                         const IntegrationRule *irs[] = NULL)
+   const;
+
+   /** This method is kept for backward compatibility.
+
+       Returns either the H1-seminorm, or the DG face jumps error, or both
+       depending on norm_type = 1, 2, 3. Additional arguments for the DG face
+       jumps norm: ell_coeff: mesh-depended coefficient (weight) Nu: scalar
+       constant weight */
    virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
                                  Coefficient *ell_coef, double Nu,
                                  int norm_type) const;
+
+   /// Returns the error measured in H1-norm for H1 elements or in "broken"
+   /// H1-norm for L2 elements
+   virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
+                                 const IntegrationRule *irs[] = NULL) const;
+
+   /// Returns the error measured in H(div)-norm for RT elements
+   virtual double ComputeHDivError(VectorCoefficient *exsol,
+                                   Coefficient *exdiv,
+                                   const IntegrationRule *irs[] = NULL) const;
+
+   /// Returns the error measured in H(curl)-norm for ND elements
+   virtual double ComputeHCurlError(VectorCoefficient *exsol,
+                                    VectorCoefficient *excurl,
+                                    const IntegrationRule *irs[] = NULL) const;
 
    virtual double ComputeMaxError(Coefficient &exsol,
                                   const IntegrationRule *irs[] = NULL) const
