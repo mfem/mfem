@@ -353,7 +353,7 @@ int main(int argc, char *argv[])
    b->AddBdrFaceIntegrator(
       new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
 
-   int skip_zeros = 0;
+   int skip_zeros = 1;
    m->Assemble();
    k->Assemble(skip_zeros);
    b->Assemble();
