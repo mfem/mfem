@@ -183,7 +183,6 @@ HypreParVector::~HypreParVector()
 
 #ifdef MFEM_USE_SUNDIALS
 
-// TODO: I think this should be removed, but not sure if it might break old code.
 N_Vector HypreParVector::ToNVector()
 {
    return N_VMake_Parallel(GetComm(), Size(), GlobalSize(), GetData());
