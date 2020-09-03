@@ -89,7 +89,7 @@ void OmpWrap(const int N, HBODY &&h_body)
 /// RAJA Cuda backend
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
 
-using RAJA::statement::Segs;
+using RAJA::Segs;
 
 template <const int BLOCKS = MFEM_CUDA_BLOCKS, typename DBODY>
 void RajaCudaWrap1D(const int N, DBODY &&d_body)
