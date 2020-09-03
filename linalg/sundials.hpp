@@ -190,8 +190,8 @@ protected:
    long saved_global_size;    ///< Global vector length on last initialization.
 
    SundialsNVector*   Y;      ///< State vector.
-   SUNMatrix
-   A;      ///< Linear system A = I - gamma J, M - gamma J, or J.
+   SUNMatrix          A;      /**< Linear system A = I - gamma J,
+                                   M - gamma J, or J. */
    SUNMatrix          M;      ///< Mass matrix M.
    SUNLinearSolver    LSA;    ///< Linear solver for A.
    SUNLinearSolver    LSM;    ///< Linear solver for M.
@@ -701,11 +701,11 @@ public:
 class KINSolver : public NewtonSolver, public SundialsSolver
 {
 protected:
-   int global_strategy;               ///< KINSOL solution strategy
-   bool use_oper_grad;                ///< use the Jv prod function
+   int global_strategy;                        ///< KINSOL solution strategy
+   bool use_oper_grad;                         ///< use the Jv prod function
    mutable SundialsNVector *y_scale, *f_scale; ///< scaling vectors
-   const Operator *jacobian;          ///< stores oper->GetGradient()
-   int maa;                           ///< number of acceleration vectors
+   const Operator *jacobian;                   ///< stores oper->GetGradient()
+   int maa;                                    ///< number of acceleration vectors
 
    /// Wrapper to compute the nonlinear residual \f$ F(u) = 0 \f$.
    static int Mult(const N_Vector u, N_Vector fu, void *user_data);
