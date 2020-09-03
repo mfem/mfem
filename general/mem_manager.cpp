@@ -571,7 +571,8 @@ class PoolMmuHostMemorySpace : public MmuHostMemorySpace
    Pool<MmuHostMemorySpace> pool;
 public:
    PoolMmuHostMemorySpace(): MmuHostMemorySpace() { }
-   void Alloc(void **ptr, size_t bytes) override { *ptr = pool.alloc(bytes); }
+   void Alloc(void **ptr, size_t bytes) override
+   { MmuAllow(*ptr = pool.alloc(bytes), bytes); }
    void Dealloc(void *ptr) override { pool.free(ptr); }
 };
 
@@ -694,9 +695,9 @@ class PoolMmuDeviceMemorySpace : public MmuDeviceMemorySpace
    mutable Pool<MmuDeviceMemorySpace> pool;
 public:
    PoolMmuDeviceMemorySpace(): MmuDeviceMemorySpace() { }
-   void Alloc(Memory &m) override { m.d_ptr = pool.alloc(m.bytes); }
+   void Alloc(Memory &m) override
+   { MmuAllow(m.d_ptr = pool.alloc(m.bytes), m.bytes); }
    void Dealloc(Memory &m) override { pool.free(m.d_ptr); }
-   void Unprotect(const Memory &m) override { MmuAllow(m.d_ptr, m.bytes); }
 };
 
 #ifndef MFEM_USE_UMPIRE
