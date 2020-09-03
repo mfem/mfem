@@ -138,7 +138,7 @@ MFEM_USE_RAJA          = NO
 MFEM_USE_OCCA          = NO
 MFEM_USE_CEED          = NO
 MFEM_USE_UMPIRE        = NO
-MFEM_USE_SIMD          = YES
+MFEM_USE_SIMD          = NO
 MFEM_USE_ADIOS2        = NO
 
 # Compile and link options for zlib.
@@ -341,9 +341,9 @@ GSLIB_DIR = @MFEM_DIR@/../gslib/build
 GSLIB_OPT = -I$(GSLIB_DIR)/include
 GSLIB_LIB = -L$(GSLIB_DIR)/lib -lgs
 
-# CUDA library configuration (currently not needed)
+# CUDA library configuration
 CUDA_OPT =
-CUDA_LIB =
+CUDA_LIB = -lcusparse
 
 # HIP library configuration (currently not needed)
 HIP_OPT =

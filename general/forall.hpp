@@ -343,7 +343,7 @@ inline void ForallWrap(const bool use_dev, const int N,
    { return HipWrap3D(N, d_body, X, Y, Z); }
 #endif
 
-   if (Device::Allows(Backend::DEBUG)) { goto backend_cpu; }
+   if (Device::Allows(Backend::DEBUG_DEVICE)) { goto backend_cpu; }
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)
    // Handle all allowed OpenMP backends except Backend::OMP

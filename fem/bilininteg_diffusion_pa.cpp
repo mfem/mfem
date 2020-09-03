@@ -96,26 +96,28 @@ void PADiffusionSetup2D<2>(const int Q1D,
                            const Vector &c,
                            Vector &d)
 {
-   const int NQ = Q1D*Q1D;
    const bool const_c = c.Size() == 1;
-   auto W = w.Read();
-   auto J = Reshape(j.Read(), NQ, 2, 2, NE);
-   auto C = const_c ? Reshape(c.Read(), 1, 1) : Reshape(c.Read(), NQ, NE);
-   auto D = Reshape(d.Write(), NQ, 3, NE);
-
-   MFEM_FORALL(e, NE,
+   const auto W = Reshape(w.Read(), Q1D,Q1D);
+   const auto J = Reshape(j.Read(), Q1D,Q1D,2,2,NE);
+   const auto C = const_c ? Reshape(c.Read(), 1,1,1) :
+                  Reshape(c.Read(), Q1D,Q1D,NE);
+   auto D = Reshape(d.Write(), Q1D,Q1D, 3, NE);
+   MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
    {
-      for (int q = 0; q < NQ; ++q)
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
-         const double J11 = J(q,0,0,e);
-         const double J21 = J(q,1,0,e);
-         const double J12 = J(q,0,1,e);
-         const double J22 = J(q,1,1,e);
-         const double coeff = const_c ? C(0,0) : C(q,e);
-         const double c_detJ = W[q] * coeff / ((J11*J22)-(J21*J12));
-         D(q,0,e) =  c_detJ * (J12*J12 + J22*J22); // 1,1
-         D(q,1,e) = -c_detJ * (J12*J11 + J22*J21); // 1,2
-         D(q,2,e) =  c_detJ * (J11*J11 + J21*J21); // 2,2
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            const double J11 = J(qx,qy,0,0,e);
+            const double J21 = J(qx,qy,1,0,e);
+            const double J12 = J(qx,qy,0,1,e);
+            const double J22 = J(qx,qy,1,1,e);
+            const double coeff = const_c ? C(0,0,0) : C(qx,qy,e);
+            const double c_detJ = W(qx,qy) * coeff / ((J11*J22)-(J21*J12));
+            D(qx,qy,0,e) =  c_detJ * (J12*J12 + J22*J22); // 1,1
+            D(qx,qy,1,e) = -c_detJ * (J12*J11 + J22*J21); // 1,2
+            D(qx,qy,2,e) =  c_detJ * (J11*J11 + J21*J21); // 2,2
+         }
       }
    });
 }
@@ -131,33 +133,35 @@ void PADiffusionSetup2D<3>(const int Q1D,
 {
    constexpr int DIM = 2;
    constexpr int SDIM = 3;
-   const int NQ = Q1D*Q1D;
    const bool const_c = c.Size() == 1;
-
-   auto W = w.Read();
-   auto J = Reshape(j.Read(), NQ, SDIM, DIM, NE);
-   auto C = const_c ? Reshape(c.Read(), 1, 1) : Reshape(c.Read(), NQ, NE);
-   auto D = Reshape(d.Write(), NQ, 3, NE);
-   MFEM_FORALL(e, NE,
+   const auto W = Reshape(w.Read(), Q1D,Q1D);
+   const auto J = Reshape(j.Read(), Q1D,Q1D,SDIM,DIM,NE);
+   const auto C = const_c ? Reshape(c.Read(), 1,1,1) :
+                  Reshape(c.Read(), Q1D,Q1D,NE);
+   auto D = Reshape(d.Write(), Q1D,Q1D, 3, NE);
+   MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
    {
-      for (int q = 0; q < NQ; ++q)
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
-         const double wq = W[q];
-         const double J11 = J(q,0,0,e);
-         const double J21 = J(q,1,0,e);
-         const double J31 = J(q,2,0,e);
-         const double J12 = J(q,0,1,e);
-         const double J22 = J(q,1,1,e);
-         const double J32 = J(q,2,1,e);
-         const double E = J11*J11 + J21*J21 + J31*J31;
-         const double G = J12*J12 + J22*J22 + J32*J32;
-         const double F = J11*J12 + J21*J22 + J31*J32;
-         const double iw = 1.0 / sqrt(E*G - F*F);
-         const double coeff = const_c ? C(0,0) : C(q,e);
-         const double alpha = wq * coeff * iw;
-         D(q,0,e) =  alpha * G; // 1,1
-         D(q,1,e) = -alpha * F; // 1,2
-         D(q,2,e) =  alpha * E; // 2,2
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            const double wq = W(qx,qy);
+            const double J11 = J(qx,qy,0,0,e);
+            const double J21 = J(qx,qy,1,0,e);
+            const double J31 = J(qx,qy,2,0,e);
+            const double J12 = J(qx,qy,0,1,e);
+            const double J22 = J(qx,qy,1,1,e);
+            const double J32 = J(qx,qy,2,1,e);
+            const double E = J11*J11 + J21*J21 + J31*J31;
+            const double G = J12*J12 + J22*J22 + J32*J32;
+            const double F = J11*J12 + J21*J22 + J31*J32;
+            const double iw = 1.0 / sqrt(E*G - F*F);
+            const double coeff = const_c ? C(0,0,0) : C(qx,qy,e);
+            const double alpha = wq * coeff * iw;
+            D(qx,qy,0,e) =  alpha * G; // 1,1
+            D(qx,qy,1,e) = -alpha * F; // 1,2
+            D(qx,qy,2,e) =  alpha * E; // 2,2
+         }
       }
    });
 }
@@ -170,47 +174,53 @@ static void PADiffusionSetup3D(const int Q1D,
                                const Vector &c,
                                Vector &d)
 {
-   const int NQ = Q1D*Q1D*Q1D;
    const bool const_c = c.Size() == 1;
-   auto W = w.Read();
-   auto J = Reshape(j.Read(), NQ, 3, 3, NE);
-   auto C = const_c ? Reshape(c.Read(), 1, 1) : Reshape(c.Read(), NQ, NE);
-   auto D = Reshape(d.Write(), NQ, 6, NE);
-   MFEM_FORALL(e, NE,
+   const auto W = Reshape(w.Read(), Q1D,Q1D,Q1D);
+   const auto J = Reshape(j.Read(), Q1D,Q1D,Q1D,3,3,NE);
+   const auto C = const_c ? Reshape(c.Read(), 1,1,1,1) :
+                  Reshape(c.Read(), Q1D,Q1D,Q1D,NE);
+   auto D = Reshape(d.Write(), Q1D,Q1D,Q1D, 6, NE);
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
-      for (int q = 0; q < NQ; ++q)
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
-         const double J11 = J(q,0,0,e);
-         const double J21 = J(q,1,0,e);
-         const double J31 = J(q,2,0,e);
-         const double J12 = J(q,0,1,e);
-         const double J22 = J(q,1,1,e);
-         const double J32 = J(q,2,1,e);
-         const double J13 = J(q,0,2,e);
-         const double J23 = J(q,1,2,e);
-         const double J33 = J(q,2,2,e);
-         const double detJ = J11 * (J22 * J33 - J32 * J23) -
-         /* */               J21 * (J12 * J33 - J32 * J13) +
-         /* */               J31 * (J12 * J23 - J22 * J13);
-         const double coeff = const_c ? C(0,0) : C(q,e);
-         const double c_detJ = W[q] * coeff / detJ;
-         // adj(J)
-         const double A11 = (J22 * J33) - (J23 * J32);
-         const double A12 = (J32 * J13) - (J12 * J33);
-         const double A13 = (J12 * J23) - (J22 * J13);
-         const double A21 = (J31 * J23) - (J21 * J33);
-         const double A22 = (J11 * J33) - (J13 * J31);
-         const double A23 = (J21 * J13) - (J11 * J23);
-         const double A31 = (J21 * J32) - (J31 * J22);
-         const double A32 = (J31 * J12) - (J11 * J32);
-         const double A33 = (J11 * J22) - (J12 * J21);
-         // detJ J^{-1} J^{-T} = (1/detJ) adj(J) adj(J)^T
-         D(q,0,e) = c_detJ * (A11*A11 + A12*A12 + A13*A13); // 1,1
-         D(q,1,e) = c_detJ * (A11*A21 + A12*A22 + A13*A23); // 2,1
-         D(q,2,e) = c_detJ * (A11*A31 + A12*A32 + A13*A33); // 3,1
-         D(q,3,e) = c_detJ * (A21*A21 + A22*A22 + A23*A23); // 2,2
-         D(q,4,e) = c_detJ * (A21*A31 + A22*A32 + A23*A33); // 3,2
-         D(q,5,e) = c_detJ * (A31*A31 + A32*A32 + A33*A33); // 3,3
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qz,z,Q1D)
+            {
+               const double J11 = J(qx,qy,qz,0,0,e);
+               const double J21 = J(qx,qy,qz,1,0,e);
+               const double J31 = J(qx,qy,qz,2,0,e);
+               const double J12 = J(qx,qy,qz,0,1,e);
+               const double J22 = J(qx,qy,qz,1,1,e);
+               const double J32 = J(qx,qy,qz,2,1,e);
+               const double J13 = J(qx,qy,qz,0,2,e);
+               const double J23 = J(qx,qy,qz,1,2,e);
+               const double J33 = J(qx,qy,qz,2,2,e);
+               const double detJ = J11 * (J22 * J33 - J32 * J23) -
+               /* */               J21 * (J12 * J33 - J32 * J13) +
+               /* */               J31 * (J12 * J23 - J22 * J13);
+               const double coeff = const_c ? C(0,0,0,0) : C(qx,qy,qz,e);
+               const double c_detJ = W(qx,qy,qz) * coeff / detJ;
+               // adj(J)
+               const double A11 = (J22 * J33) - (J23 * J32);
+               const double A12 = (J32 * J13) - (J12 * J33);
+               const double A13 = (J12 * J23) - (J22 * J13);
+               const double A21 = (J31 * J23) - (J21 * J33);
+               const double A22 = (J11 * J33) - (J13 * J31);
+               const double A23 = (J21 * J13) - (J11 * J23);
+               const double A31 = (J21 * J32) - (J31 * J22);
+               const double A32 = (J31 * J12) - (J11 * J32);
+               const double A33 = (J11 * J22) - (J12 * J21);
+               // detJ J^{-1} J^{-T} = (1/detJ) adj(J) adj(J)^T
+               D(qx,qy,qz,0,e) = c_detJ * (A11*A11 + A12*A12 + A13*A13); // 1,1
+               D(qx,qy,qz,1,e) = c_detJ * (A11*A21 + A12*A22 + A13*A23); // 2,1
+               D(qx,qy,qz,2,e) = c_detJ * (A11*A31 + A12*A32 + A13*A33); // 3,1
+               D(qx,qy,qz,3,e) = c_detJ * (A21*A21 + A22*A22 + A23*A23); // 2,2
+               D(qx,qy,qz,4,e) = c_detJ * (A21*A31 + A22*A32 + A23*A33); // 3,2
+               D(qx,qy,qz,5,e) = c_detJ * (A31*A31 + A32*A32 + A33*A33); // 3,3
+            }
+         }
       }
    });
 }
@@ -253,8 +263,7 @@ static void PADiffusionSetup(const int dim,
    }
 }
 
-void DiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
-                                  const bool force)
+void DiffusionIntegrator::SetupPA(const FiniteElementSpace &fes)
 {
    // Assuming the same element type
    fespace = &fes;
@@ -263,7 +272,7 @@ void DiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
    const FiniteElement &el = *fes.GetFE(0);
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
 #ifdef MFEM_USE_CEED
-   if (DeviceCanUseCeed() && !force)
+   if (DeviceCanUseCeed())
    {
       if (ceedDataPtr) { delete ceedDataPtr; }
       CeedData* ptr = new CeedData();
@@ -271,8 +280,6 @@ void DiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
       InitCeedCoeff(Q, ptr);
       return CeedPADiffusionAssemble(fes, *ir, *ptr);
    }
-#else
-   MFEM_CONTRACT_VAR(force);
 #endif
    const int dims = el.GetDim();
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
@@ -295,6 +302,19 @@ void DiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
    {
       coeff.SetSize(1);
       coeff(0) = cQ->constant;
+   }
+   else if (QuadratureFunctionCoefficient* cQ =
+               dynamic_cast<QuadratureFunctionCoefficient*>(Q))
+   {
+      const QuadratureFunction &qFun = cQ->GetQuadFunction();
+      MFEM_VERIFY(qFun.Size() == ne*nq,
+                  "Incompatible QuadratureFunction dimension \n");
+
+      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
+                  "IntegrationRule used within integrator and in"
+                  " QuadratureFunction appear to be different");
+      qFun.Read();
+      coeff.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
    }
    else
    {
@@ -736,9 +756,17 @@ static void PADiffusionAssembleDiagonal(const int dim,
 
 void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   if (pa_data.Size()==0) { SetupPA(*fespace, true); }
-   PADiffusionAssembleDiagonal(dim, dofs1D, quad1D, ne,
-                               maps->B, maps->G, pa_data, diag);
+#ifdef MFEM_USE_CEED
+   if (DeviceCanUseCeed())
+   {
+      CeedAssembleDiagonalPA(ceedDataPtr, diag);
+   }
+   else
+#endif
+   {
+      PADiffusionAssembleDiagonal(dim, dofs1D, quad1D, ne,
+                                  maps->B, maps->G, pa_data, diag);
+   }
 }
 
 
@@ -1695,29 +1723,7 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 #ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
-      const CeedScalar *x_ptr;
-      CeedScalar *y_ptr;
-      CeedMemType mem;
-      CeedGetPreferredMemType(internal::ceed, &mem);
-      if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
-      {
-         x_ptr = x.Read();
-         y_ptr = y.ReadWrite();
-      }
-      else
-      {
-         x_ptr = x.HostRead();
-         y_ptr = y.HostReadWrite();
-         mem = CEED_MEM_HOST;
-      }
-      CeedVectorSetArray(ceedDataPtr->u, mem, CEED_USE_POINTER,
-                         const_cast<CeedScalar*>(x_ptr));
-      CeedVectorSetArray(ceedDataPtr->v, mem, CEED_USE_POINTER, y_ptr);
-
-      CeedOperatorApplyAdd(ceedDataPtr->oper, ceedDataPtr->u, ceedDataPtr->v,
-                           CEED_REQUEST_IMMEDIATE);
-
-      CeedVectorSyncArray(ceedDataPtr->v, mem);
+      CeedAddMultPA(ceedDataPtr, x, y);
    }
    else
 #endif
