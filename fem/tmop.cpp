@@ -1128,9 +1128,9 @@ void DiscreteAdaptTC::SetParDiscreteTargetSize(const ParGridFunction &tspec_)
       return;
    }
    sizeidx = ncomp;
-   pgfarr.Append(const_cast<ParGridFunction *>(&tspec_));
    SetDiscreteTargetBase(tspec_);
    FinalizeParDiscreteTargetSpec(tspec_);
+   if (!dtcupdate) { pgfarr.Append(const_cast<ParGridFunction *>(&tspec_)); }
 }
 
 void DiscreteAdaptTC::SetParDiscreteTargetSkew(const ParGridFunction &tspec_)
@@ -1142,9 +1142,9 @@ void DiscreteAdaptTC::SetParDiscreteTargetSkew(const ParGridFunction &tspec_)
       return;
    }
    skewidx = ncomp;
-   pgfarr.Append(const_cast<ParGridFunction *>(&tspec_));
    SetDiscreteTargetBase(tspec_);
    FinalizeParDiscreteTargetSpec(tspec_);
+   if (!dtcupdate) { pgfarr.Append(const_cast<ParGridFunction *>(&tspec_)); }
 }
 
 void DiscreteAdaptTC::SetParDiscreteTargetAspectRatio(const ParGridFunction
@@ -1157,9 +1157,9 @@ void DiscreteAdaptTC::SetParDiscreteTargetAspectRatio(const ParGridFunction
       return;
    }
    aspectratioidx = ncomp;
-   pgfarr.Append(const_cast<ParGridFunction *>(&tspec_));
    SetDiscreteTargetBase(tspec_);
    FinalizeParDiscreteTargetSpec(tspec_);
+   if (!dtcupdate) { pgfarr.Append(const_cast<ParGridFunction *>(&tspec_)); }
 }
 
 void DiscreteAdaptTC::SetParDiscreteTargetOrientation(const ParGridFunction
@@ -1172,9 +1172,9 @@ void DiscreteAdaptTC::SetParDiscreteTargetOrientation(const ParGridFunction
       return;
    }
    orientationidx = ncomp;
-   pgfarr.Append(const_cast<ParGridFunction *>(&tspec_));
    SetDiscreteTargetBase(tspec_);
    FinalizeParDiscreteTargetSpec(tspec_);
+   if (!dtcupdate) { pgfarr.Append(const_cast<ParGridFunction *>(&tspec_)); }
 }
 
 void DiscreteAdaptTC::SetParDiscreteTargetSpec(const ParGridFunction &tspec_)
@@ -1230,17 +1230,16 @@ void DiscreteAdaptTC::SetTspecAtIndex(int idx, const GridFunction &tspec_)
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetSize(const GridFunction &tspec_)
 {
-
    if (sizeidx > -1)
    {
       SetTspecAtIndex(sizeidx, tspec_);
       gfarr[sizeidx] = const_cast<GridFunction *>(&tspec_);
       return;
    }
-   gfarr.Append(const_cast<GridFunction *>(&tspec_));
    sizeidx = ncomp;
    SetDiscreteTargetBase(tspec_);
    FinalizeSerialDiscreteTargetSpec();
+   if (!dtcupdate) { gfarr.Append(const_cast<GridFunction *>(&tspec_)); }
 }
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetSkew(const GridFunction &tspec_)
@@ -1251,10 +1250,10 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetSkew(const GridFunction &tspec_)
       gfarr[skewidx] = const_cast<GridFunction *>(&tspec_);
       return;
    }
-   gfarr.Append(const_cast<GridFunction *>(&tspec_));
    skewidx = ncomp;
    SetDiscreteTargetBase(tspec_);
    FinalizeSerialDiscreteTargetSpec();
+   if (!dtcupdate) { gfarr.Append(const_cast<GridFunction *>(&tspec_)); }
 }
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetAspectRatio(
@@ -1266,10 +1265,10 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetAspectRatio(
       gfarr[aspectratioidx] = const_cast<GridFunction *>(&tspec_);
       return;
    }
-   gfarr.Append(const_cast<GridFunction *>(&tspec_));
    aspectratioidx = ncomp;
    SetDiscreteTargetBase(tspec_);
    FinalizeSerialDiscreteTargetSpec();
+   if (!dtcupdate) { gfarr.Append(const_cast<GridFunction *>(&tspec_)); }
 }
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetOrientation(
@@ -1281,10 +1280,10 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetOrientation(
       gfarr[orientationidx] = const_cast<GridFunction *>(&tspec_);
       return;
    }
-   gfarr.Append(const_cast<GridFunction *>(&tspec_));
    orientationidx = ncomp;
    SetDiscreteTargetBase(tspec_);
    FinalizeSerialDiscreteTargetSpec();
+   if (!dtcupdate) { gfarr.Append(const_cast<GridFunction *>(&tspec_)); }
 }
 
 void DiscreteAdaptTC::FinalizeSerialDiscreteTargetSpec()
@@ -1337,10 +1336,12 @@ void DiscreteAdaptTC::Update()
 
    ResetDiscreteFields();
 
+   dtcupdate = true;
    if (sz_idx > -1) { SetSerialDiscreteTargetSize(*gfarr[sz_idx]); }
    if (sk_idx > -1) { SetSerialDiscreteTargetSkew(*gfarr[sk_idx]); }
    if (ar_idx > -1) { SetSerialDiscreteTargetAspectRatio(*gfarr[ar_idx]); }
    if (or_idx > -1) { SetSerialDiscreteTargetOrientation(*gfarr[or_idx]); }
+   dtcupdate = false;
 }
 
 void DiscreteAdaptTC::ResetDiscreteFields()
@@ -1424,8 +1425,8 @@ void DiscreteAdaptTC::SetTspecFromIntRule(const int e_id,
          tspec_fesv->GetElementVDofs(e_id, dofs);
          tspec.GetSubVector(dofs, tspec_vals);
          DenseMatrix tr;
-         gfall->GetVectorValues(e_id, intrule, tspec_amr_mat_vals, tr);
-         tspec_amr_mat_vals.Transpose();
+         gfall->GetVectorValues(e_id, intrule, tspec_refine, tr);
+         tspec_refine.Transpose();
          break;
       }
       default:
@@ -1463,22 +1464,22 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
          DenseMatrix D_rho(dim), Q_phi(dim), R_theta(dim);
          tspec_fesv->GetElementVDofs(e_id, dofs);
          tspec.GetSubVector(dofs, tspec_vals);
-         if (tspec_amr_mat_vals.NumCols() > 0) // Refinement
+         if (tspec_refine.NumCols() > 0) // Refinement
          {
             MFEM_VERIFY(amr_el >= 0, " Target being constructed for an AMR element.");
             for (int i = 0; i < ncomp; i++)
             {
                for (int j = 0; j < ndofs; j++)
                {
-                  tspec_vals(j + i*ndofs) = tspec_amr_mat_vals(j + amr_el*ndofs,i);
+                  tspec_vals(j + i*ndofs) = tspec_refine(j + amr_el*ndofs,i);
                }
             }
          }
-         else if ( tspec_amr_vec_vals.Size() > 0 ) // Derefinement
+         else if ( tspec_derefine.Size() > 0 ) // Derefinement
          {
             dofs.SetSize(0);
             c_tspec_fesv->GetElementVDofs(e_id, dofs);
-            tspec_amr_vec_vals.GetSubVector(dofs, tspec_vals);
+            tspec_derefine.GetSubVector(dofs, tspec_vals);
             src_fes = c_tspec_fesv;
          }
 
@@ -1497,12 +1498,14 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
             {
                par_vals.SetDataAndSize(tspec_vals.GetData()+sizeidx*ndofs, ndofs);
                double min_size = par_vals.Min();//0.001; //
-               if (lim_min_size > 0.) {
-                   min_size = lim_min_size;
+               if (lim_min_size > 0.)
+               {
+                  min_size = lim_min_size;
                }
-               else {
-                   MFEM_VERIFY(min_size > 0.0,
-                               "Non-positive size propagated in the target definition.");
+               else
+               {
+                  MFEM_VERIFY(min_size > 0.0,
+                              "Non-positive size propagated in the target definition.");
                }
                const double size = std::max(shape * par_vals, min_size);
                Jtr(q).Set(std::pow(size, 1.0/dim), Jtr(q));
@@ -2080,10 +2083,13 @@ DiscreteAdaptTC::~DiscreteAdaptTC()
 {
    if (gfall) { delete gfall; }
    if (adapt_eval) { delete adapt_eval; }
+   if (tspec_fes) { delete tspec_fes; }
    if (tspec_fesv) { delete tspec_fesv; }
+   gfarr.DeleteAll();
 #ifdef MFEM_USE_MPI
    if (pgfall) {delete pgfall; }
    if (ptspec_fesv) {delete ptspec_fesv; }
+   pgfarr.DeleteAll();
 #endif
 };
 

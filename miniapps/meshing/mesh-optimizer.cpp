@@ -866,8 +866,8 @@ int main(int argc, char *argv[])
 
    if (hr)
    {
-      int n_hr = 5;         //Newton + AMR iterations
-      int n_r = 1;          //AMR iterations per Newton iteration
+      int n_hr = 2;         //Newton + AMR iterations
+      int n_h = 1;          //AMR iterations per Newton iteration
       int amrstop = 0;
       int amrdstop = 0;
 
@@ -881,17 +881,18 @@ int main(int argc, char *argv[])
          solver.Mult(b, x.GetTrueVector());
          x.SetFromTrueVector();
 
-         if (amrstop==1 && amrdstop == 1)
-         {
-            newtonstop = 1;
-            cout << " Newton and AMR have converged." << endl;
-            break;
-         }
-
          std::cout << "TMOP energy after r-adaptivity: " <<
                    a.GetGridFunctionEnergy(x)/mesh->GetNE() <<
                    ", Elements: " << mesh->GetNE() << endl;
-         for (int i_r = 0; i_r < n_r; i_r++)
+
+         if (amrstop == 1 && amrdstop == 1)
+         {
+            newtonstop = 1;
+            cout << "Newton and AMR have converged." << endl;
+            break;
+         }
+
+         for (int i_r = 0; i_r < n_h; i_r++)
          {
             NCMesh *ncmesh = mesh->ncmesh;
             if (ncmesh && (amrdstop == 0 || amrstop == 0))   //derefinement
@@ -919,25 +920,26 @@ int main(int argc, char *argv[])
             if (amrstop == 1 && amrdstop == 1)
             {
                newtonstop = 1;
-               cout << " AMR stopping criterion satisfied. Stop." << endl;
+               cout << "AMR stopping criterion satisfied. Stop h-refinement." << endl;
             }
             else
             {
                amrstop = 0; amrdstop = 0;
             }
-         } //n_r
+         } //n_h
       } //n_hr
    } //hr
+
+   solver.SetOperator(a);
    if (newtonstop == 0)
    {
-      solver.SetOperator(a);
       solver.Mult(b, x.GetTrueVector());
-      x.SetFromTrueVector();
       if (solver.GetConverged() == false)
       {
          cout << "Nonlinear solver: rtol = " << solver_rtol << " not achieved.\n";
       }
    }
+   x.SetFromTrueVector();
 
    // 15. Save the optimized mesh to a file. This output can be viewed later
    //     using GLVis: "glvis -m optimized.mesh".
@@ -1004,11 +1006,17 @@ int main(int argc, char *argv[])
 
    // 19. Free the used memory.
    delete S;
+   delete target_c2;
+   delete metric2;
    delete coeff1;
    delete adapt_evaluator;
    delete target_c;
    delete adapt_coeff;
+   delete amrmetric;
    delete metric;
+   delete fespace;
+   delete fec;
+   delete mesh;
 
    return 0;
 }

@@ -26,20 +26,12 @@ protected:
    const DenseMatrix *Jtr; /**< Jacobian of the reference-element to
                                 target-element transformation. */
 
-
-   int metrictype = 0;// represented with 4 bits as
-   // 0 0 0 0 starting from left for V (size) O (orientation) Q (skew) A(aspect-ratio)
-   // Shape metrics are QA = 0011 = 3
-   // Size metrics are 1000 = 8
-   // Shape + size are 1011 = 11
-
    /** @brief The method SetTransformation() is hidden for TMOP_QualityMetric%s,
        because it is not used. */
    void SetTransformation(ElementTransformation &) { }
 
 public:
-   TMOP_QualityMetric() : Jtr(NULL), metrictype(0) { }
-   TMOP_QualityMetric( int mt ) : Jtr(NULL), metrictype(mt) { }
+   TMOP_QualityMetric() : Jtr(NULL) { }
    virtual ~TMOP_QualityMetric() { }
 
    /** @brief Specify the reference-element -> target-element Jacobian matrix
@@ -76,10 +68,6 @@ public:
    */
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const = 0;
-
-   int GetMetricType() { return metrictype; }
-
-   void SetMetricType(int metrictype_) {metrictype = metrictype_;}
 };
 
 
@@ -90,7 +78,6 @@ protected:
    mutable InvariantsEvaluator2D<double> ie;
 
 public:
-   TMOP_Metric_001() : TMOP_QualityMetric(3) {}
    // W = |J|^2.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
@@ -104,7 +91,6 @@ public:
 class TMOP_Metric_skew2D : public TMOP_QualityMetric
 {
 public:
-   TMOP_Metric_skew2D() : TMOP_QualityMetric(2) {}
    // W = 0.5 (1 - cos(angle_Jpr - angle_Jtr)).
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
@@ -135,7 +121,6 @@ public:
 class TMOP_Metric_aspratio2D : public TMOP_QualityMetric
 {
 public:
-   TMOP_Metric_aspratio2D() : TMOP_QualityMetric(1) {}
    // W = 0.5 (ar_Jpr/ar_Jtr + ar_Jtr/ar_Jpr) - 1.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
@@ -181,7 +166,6 @@ public:
 class TMOP_Metric_SS2D : public TMOP_QualityMetric
 {
 public:
-   TMOP_Metric_SS2D() : TMOP_QualityMetric(11) {}
    // W = 0.5 (1 - cos(theta_Jpr - theta_Jtr)).
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
@@ -198,8 +182,8 @@ class TMOP_Metric_002 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator2D<double> ie;
+
 public:
-   TMOP_Metric_002() : TMOP_QualityMetric(3) {}
    // W = 0.5|J|^2 / det(J) - 1.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
@@ -214,8 +198,8 @@ class TMOP_Metric_007 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator2D<double> ie;
+
 public:
-   TMOP_Metric_007() : TMOP_QualityMetric(11) {}
    // W = |J - J^-t|^2.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
@@ -231,8 +215,8 @@ class TMOP_Metric_009 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator2D<double> ie;
+
 public:
-   TMOP_Metric_009() : TMOP_QualityMetric(11) {}
    // W = det(J) * |J - J^-t|^2.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
@@ -250,7 +234,7 @@ protected:
    mutable InvariantsEvaluator2D<double> ie;
 
 public:
-   TMOP_Metric_022(double &t0): TMOP_QualityMetric(11), tau0(t0) {}
+   TMOP_Metric_022(double &t0): tau0(t0) {}
    // W = 0.5(|J|^2 - 2det(J)) / (det(J) - tau0).
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
@@ -281,9 +265,8 @@ class TMOP_Metric_055 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator2D<double> ie;
-public:
-   TMOP_Metric_055(): TMOP_QualityMetric(8) {}
 
+public:
    // W = (det(J) - 1)^2.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
@@ -301,7 +284,6 @@ protected:
    mutable InvariantsEvaluator2D<double> ie;
 
 public:
-   TMOP_Metric_056(): TMOP_QualityMetric(8) {}
    // W = 0.5( sqrt(det(J)) - 1 / sqrt(det(J)) )^2
    //   = 0.5( det(J) - 1 )^2 / det(J)
    //   = 0.5( det(J) + 1/det(J) ) - 1.
@@ -339,7 +321,6 @@ protected:
    mutable InvariantsEvaluator2D<double> ie;
 
 public:
-   TMOP_Metric_077(): TMOP_QualityMetric(8) {}
    // W = 0.5(det(J) - 1 / det(J))^2.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
@@ -373,7 +354,7 @@ protected:
    mutable InvariantsEvaluator2D<double> ie;
 
 public:
-   TMOP_Metric_211(double epsilon = 1e-4) : TMOP_QualityMetric(0), eps(epsilon) { }
+   TMOP_Metric_211(double epsilon = 1e-4) : eps(epsilon) { }
    // W = (det(J) - 1)^2 - det(J) + sqrt(det(J)^2 + eps).
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
@@ -392,7 +373,7 @@ protected:
 
 public:
    /// Note that @a t0 is stored by reference
-   TMOP_Metric_252(double &t0): TMOP_QualityMetric(0), tau0(t0) {}
+   TMOP_Metric_252(double &t0): tau0(t0) {}
 
    // W = 0.5(det(J) - 1)^2 / (det(J) - tau0).
    virtual double EvalW(const DenseMatrix &Jpt) const;
@@ -426,7 +407,6 @@ protected:
    mutable InvariantsEvaluator3D<double> ie;
 
 public:
-   TMOP_Metric_302(): TMOP_QualityMetric(3) {}
    // W = |J|^2 |J^-1|^2 / 9 - 1.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
@@ -459,7 +439,6 @@ protected:
    mutable InvariantsEvaluator3D<double> ie;
 
 public:
-   TMOP_Metric_315(): TMOP_QualityMetric(8) {}
    // W = (det(J) - 1)^2.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
@@ -511,7 +490,7 @@ protected:
    mutable InvariantsEvaluator3D<double> ie;
 
 public:
-   TMOP_Metric_352(double &t0): TMOP_QualityMetric(0), tau0(t0) {}
+   TMOP_Metric_352(double &t0): tau0(t0) {}
 
    // W = 0.5(det(J) - 1)^2 / (det(J) - tau0).
    virtual double EvalW(const DenseMatrix &Jpt) const;
@@ -784,15 +763,11 @@ protected:
    Vector tspec_pert1h;      //eta(x+h)
    Vector tspec_pert2h;      //eta(x+2*h)
    Vector tspec_pertmix;     //eta(x+h,y+h)
-   DenseMatrix tspec_amr_mat_vals;
-   Vector tspec_amr_vec_vals;
    // The order inside these perturbation vectors (e.g. in 2D) is
    // eta1(x+h,y), eta2(x+h,y) ... etan(x+h,y), eta1(x,y+h), eta2(x,y+h) ...
    // same for tspec_pert2h and tspec_pertmix.
-   Array<GridFunction *> gfarr;
-#ifdef MFEM_USE_MPI
-   Array<ParGridFunction *> pgfarr;
-#endif
+   DenseMatrix tspec_refine;
+   Vector tspec_derefine;
 
    // Components of Target Jacobian at each quadrature point of an element. This
    // is required for computation of the derivative using chain rule.
@@ -800,14 +775,16 @@ protected:
 
    // Note: do not use the Nodes of this space as they may not be on the
    // positions corresponding to the values of tspec.
-   FiniteElementSpace *tspec_fes;
-   FiniteElementSpace *tspec_fesv;
+   FiniteElementSpace *tspec_fes; //owned
+   FiniteElementSpace *tspec_fesv; //owned
    FiniteElementSpace *c_tspec_fesv;
-   GridFunction *gfall;
+   GridFunction *gfall; //owned
+   Array<GridFunction *> gfarr;
 #ifdef MFEM_USE_MPI
-   ParFiniteElementSpace *ptspec_fes;
-   ParFiniteElementSpace *ptspec_fesv;
+   ParFiniteElementSpace *ptspec_fes; // not-owned
+   ParFiniteElementSpace *ptspec_fesv; //owned
    ParGridFunction *pgfall;
+   Array<ParGridFunction *> pgfarr;
 #endif
 
    int amr_el;
@@ -816,6 +793,7 @@ protected:
    // These flags can be used by outside functions to avoid recomputing the
    // tspec and tspec_perth fields again on the same mesh.
    bool good_tspec, good_tspec_grad, good_tspec_hess;
+   bool dtcupdate;
 
    // Evaluation of the discrete target specification on different meshes.
    // Owned.
@@ -835,13 +813,14 @@ public:
         ncomp(0),
         sizeidx(-1), skewidx(-1), aspectratioidx(-1), orientationidx(-1),
         tspec(), tspec_sav(), tspec_pert1h(), tspec_pert2h(), tspec_pertmix(),
-        tspec_amr_mat_vals(), tspec_amr_vec_vals(),
+        tspec_refine(), tspec_derefine(),
         tspec_fes(NULL), tspec_fesv(NULL), c_tspec_fesv(NULL), gfall(NULL),
 #ifdef MFEM_USE_MPI
         ptspec_fes(NULL), ptspec_fesv(NULL), pgfall(NULL),
 #endif
         amr_el(-1), lim_min_size(-0.1),
         good_tspec(false), good_tspec_grad(false), good_tspec_hess(false),
+        dtcupdate(false),
         adapt_eval(NULL) { }
 
    virtual ~DiscreteAdaptTC();
@@ -949,7 +928,7 @@ public:
 
    void SetTspecForDerefinement(Vector &amr_vec_vals_)
    {
-      tspec_amr_vec_vals = amr_vec_vals_;
+      tspec_derefine = amr_vec_vals_;
    }
    void SetTspecFESpaceForDerefinement(FiniteElementSpace *fes)
    {
@@ -958,13 +937,13 @@ public:
 
    void ResetRefinementTspecData()
    {
-      tspec_amr_mat_vals.Clear();
+      tspec_refine.Clear();
       amr_el = -1;
    }
 
    void ResetDerefinementTspecData()
    {
-      tspec_amr_vec_vals.Destroy();
+      tspec_derefine.Destroy();
       c_tspec_fesv = NULL;
    }
 
@@ -983,11 +962,12 @@ class TMOPNewtonSolver;
 class TMOP_Integrator : public NonlinearFormIntegrator
 {
 private:
-   TMOP_QualityMetric *amrmetric;
+
 protected:
    friend class TMOPNewtonSolver;
    friend class TMOPComboIntegrator;
 
+   TMOP_QualityMetric *amrmetric;
    TMOP_QualityMetric *metric;        // not owned
    const TargetConstructor *targetC;  // not owned
 
