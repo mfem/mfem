@@ -372,11 +372,27 @@ int main(int argc, char *argv[])
    k_ref->AddInteriorFaceIntegrator(
       new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
    
+   k_ref->Assemble(skip_zeros);
    k_ref->Finalize(skip_zeros);
    k_ref->KeepNbrBlock();
 
-   double iError(0), jError(0), dataError(0);
-   
+   printf("size of I k_ref %d A %d \n",
+          k_ref->SpMat().GetMemoryI().Capacity(),
+          A.GetMemoryI().Capacity());
+
+   printf("size of J k_ref %d A %d \n",
+          k_ref->SpMat().GetMemoryJ().Capacity(),
+          A.GetMemoryJ().Capacity());
+
+   printf("size of Data k_ref %d A %d \n",
+          k_ref->SpMat().GetMemoryData().Capacity(),
+          A.GetMemoryData().Capacity());
+
+   fflush(stdout); //force print!
+
+
+
+   double iError(0), jError(0), dataError(0);   
    for(int i=0; i<k_ref->SpMat().GetMemoryI().Capacity(); ++i){
      iError += (k_ref->SpMat().HostReadI()[i] - A.HostReadI()[i])*
                (k_ref->SpMat().HostReadI()[i] - A.HostReadI()[i]);
