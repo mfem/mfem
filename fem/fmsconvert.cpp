@@ -1924,6 +1924,8 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc,
    //   GridFunctionToFmsField(*dc, fd, f, volume, pair.second); // TODO: Volume isn't always going to be correct
    // } */
 
+   MfemMetaDataToFmsMetaData(mfem_dc, *dc);
+
    return 0;
 }
 
