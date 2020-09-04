@@ -968,7 +968,7 @@ ParComplexLinearForm::ParallelAssemble()
                                            2*(pfes->GlobalTrueVSize()),
                                            tdof_offsets);
 
-   tv->Write();
+   ((Vector*) tv)->Write(true);
    Vector tvr; tvr.MakeRef(*tv, 0, tvsize);
    Vector tvi; tvi.MakeRef(*tv, tvsize, tvsize);
 
