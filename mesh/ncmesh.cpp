@@ -2339,8 +2339,15 @@ struct MatrixMap
       return index - 1;
    }
 
-   void ExportMatrices(DenseTensor &point_matrices)
+   void ExportMatrices(Array<DenseMatrix*> &point_matrices)
    {
+      point_matrices.SetSize(map.size());
+      for (const auto &pair : map)
+      {
+         DenseMatrix* mat = new DenseMatrix();
+         pair.first.GetMatrix(*mat);
+         point_matrices[pair.second - 1] = mat;
+      }
    }
 
 private:
@@ -2604,6 +2611,8 @@ void NCMesh::BuildFaceList()
    Array<char> processed_faces(faces.NumIds());
    processed_faces = 0;
 
+   MatrixMap matrix_maps[Geometry::NumGeom];
+
    // visit faces of leaf elements
    for (int i = 0; i < leaf_elements.Size(); i++)
    {
@@ -2631,7 +2640,7 @@ void NCMesh::BuildFaceList()
          if (processed_faces[face]) { continue; }
          processed_faces[face] = 1;
 
-         char fgeom = (node[3] >= 0) ? Geometry::SQUARE : Geometry::TRIANGLE;
+         int fgeom = (node[3] >= 0) ? Geometry::SQUARE : Geometry::TRIANGLE;
 
          Face &fa = faces[face];
          if (fa.elem[0] >= 0 && fa.elem[1] >= 0)
@@ -2673,6 +2682,12 @@ void NCMesh::BuildFaceList()
 
          if (fa.Boundary()) { boundary_faces.Append(face); }
       }
+   }
+
+   // export unique point matrices
+   for (int i = 0; i < Geometry::NumGeom; i++)
+   {
+      matrix_maps[i].ExportMatrices(face_list.point_matrices[i]);
    }
 }
 
@@ -2718,6 +2733,8 @@ void NCMesh::BuildEdgeList()
    Array<int> edge_element(nodes.NumIds());
    Array<signed char> edge_local(nodes.NumIds());
    edge_local = -1;
+
+   MatrixMap matrix_map;
 
    // visit edges of leaf elements
    for (int i = 0; i < leaf_elements.Size(); i++)
@@ -2803,6 +2820,9 @@ void NCMesh::BuildEdgeList()
          sl.element = edge_element[sl.index];
       }
    }
+
+   // export unique point matrices
+   matrix_map.ExportMatrices(edge_list.point_matrices[Geometry::SEGMENT]);
 }
 
 void NCMesh::BuildVertexList()
@@ -2861,21 +2881,20 @@ void NCMesh::Slave::OrientedPointMatrix(DenseMatrix &oriented_matrix) const
    }
 }
 
-void NCMesh::NCList::Clear(bool hard)
+void NCMesh::NCList::Clear()
 {
-   if (!hard)
+   conforming.clear();
+   masters.clear();
+   slaves.clear();
+
+   for (int i = 0; i < Geometry::NumGeom; i++)
    {
-      conforming.clear();
-      masters.clear();
-      slaves.clear();
+      for (int j = 0; j < point_matrices[i].Size(); j++)
+      {
+         delete point_matrices[i][j];
+      }
    }
-   else
-   {
-      NCList empty;
-      conforming.swap(empty.conforming);
-      masters.swap(empty.masters);
-      slaves.swap(empty.slaves);
-   }
+
    inv_index.DeleteAll();
 }
 
@@ -5142,9 +5161,9 @@ void NCMesh::LoadCoarseElements(std::istream &input)
 
 void NCMesh::Trim()
 {
-   vertex_list.Clear(true);
-   face_list.Clear(true);
-   edge_list.Clear(true);
+   vertex_list.Clear();
+   face_list.Clear();
+   edge_list.Clear();
 
    boundary_faces.DeleteAll();
    element_vertex.Clear();

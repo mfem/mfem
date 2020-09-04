@@ -158,8 +158,7 @@ public:
       signed char geom;  /**< Geometry::Type (faces only) (char storage to save
                               RAM) */
 
-      MeshId(int index = -1, int element = -1, signed char local = -1,
-             signed char geom = -1)
+      MeshId(int index = -1, int element = -1, int local = -1, int geom = -1)
          : index(index), element(element), local(local), geom(geom) {}
 
       Geometry::Type Geom() const { return Geometry::Type(geom); }
@@ -171,7 +170,7 @@ public:
    {
       int slaves_begin, slaves_end; ///< slave faces
 
-      Master(int index, int element, char local, char geom, int sb, int se)
+      Master(int index, int element, int local, int geom, int sb, int se)
          : MeshId(index, element, local, geom)
          , slaves_begin(sb), slaves_end(se) {}
    };
@@ -183,7 +182,7 @@ public:
       unsigned point_matrix : 24; ///< index into NCList::point_matrices
       unsigned edge_flags : 8; ///< edge orientation flags
 
-      Slave(int index, int element, signed char local, signed char geom)
+      Slave(int index, int element, int local, int geom)
          : MeshId(index, element, local, geom)
          , master(-1), point_matrix(0), edge_flags(0) {}
 
@@ -199,14 +198,17 @@ public:
       std::vector<Slave> slaves;
       // TODO: switch to Arrays when fixed for non-POD types
 
+      /// List of unique point matrices for each slave geometry.
       Array<DenseMatrix*> point_matrices[Geometry::NumGeom];
 
-      void Clear(bool hard = false);
+      void Clear();
       bool Empty() const { return !conforming.size() && !masters.size(); }
       long TotalSize() const;
       long MemoryUsage() const;
 
       const MeshId& LookUp(int index, int *type = NULL) const;
+
+      ~NCList() { Clear(); }
    private:
       mutable Array<int> inv_index;
    };
