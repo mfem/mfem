@@ -75,6 +75,7 @@ struct CoarseFineTransformations
    long MemoryUsage() const;
 };
 
+struct MatrixMap;
 
 /** \brief A class for non-conforming AMR on higher-order hexahedral, prismatic,
  *  quadrilateral or triangular meshes.
@@ -178,12 +179,12 @@ public:
    struct Slave : public MeshId
    {
       int master; ///< master number (in Mesh numbering)
-      int edge_flags; ///< edge orientation flags
-      DenseMatrix point_matrix; ///< position within the master edge/face
+      unsigned point_matrix : 24; ///< index into NCList::point_matrices
+      unsigned edge_flags : 8; ///< edge orientation flags
 
       Slave(int index, int element, signed char local, signed char geom)
          : MeshId(index, element, local, geom)
-         , master(-1), edge_flags(0) {}
+         , master(-1), point_matrix(0), edge_flags(0) {}
 
       /// Return the point matrix oriented according to the master and slave edges
       void OrientedPointMatrix(DenseMatrix &oriented_matrix) const;
@@ -196,7 +197,8 @@ public:
       std::vector<Master> masters;
       std::vector<Slave> slaves;
       // TODO: switch to Arrays when fixed for non-POD types
-      // TODO: make a list of unique slave matrices to save memory (+ time later)
+
+      DenseTensor point_matrices[Geometry::NumGeom];
 
       void Clear(bool hard = false);
       bool Empty() const { return !conforming.size() && !masters.size(); }
@@ -628,9 +630,11 @@ protected: // implementation
    struct Point;
    struct PointMatrix;
    void TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
-                         const PointMatrix& pm, int level, Face* eface[4]);
+                         const PointMatrix& pm, int level, Face* eface[4],
+                         MatrixMap &matrix_map);
    bool TraverseTriFace(int vn0, int vn1, int vn2,
-                        const PointMatrix& pm, int level);
+                        const PointMatrix& pm, int level,
+                        MatrixMap &matrix_map);
    void TraverseTetEdge(int vn0, int vn1, const Point &p0, const Point &p1);
    void TraverseEdge(int vn0, int vn1, double t0, double t1, int flags,
                      int level);
@@ -767,6 +771,8 @@ protected: // implementation
       Point& operator()(int i) { return points[i]; }
       const Point& operator()(int i) const { return points[i]; }
 
+      bool operator==(const PointMatrix &pm) const;
+
       void GetMatrix(DenseMatrix& point_matrix) const;
    };
 
@@ -853,7 +859,8 @@ public:
 #endif
 
    friend class ParNCMesh; // for ParNCMesh::ElementSet
-   friend struct CompareRanks;
+   friend struct MatrixMap;
+   friend struct PointMatrixHash;
 };
 
 }
