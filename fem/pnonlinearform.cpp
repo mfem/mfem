@@ -251,8 +251,18 @@ const BlockOperator & ParBlockNonlinearForm::GetLocalGradient(
          xs_true.GetBlock(s), xs.GetBlock(s));
    }
 
-   BlockNonlinearForm::GetGradientBlocked(xs); // (re)assemble Grad with b.c.
+   BlockNonlinearForm::ComputeGradientBlocked(xs); // (re)assemble Grad with b.c.
 
+   delete BlockGrad;
+   BlockGrad = new BlockOperator(block_offsets);
+
+   for (int i = 0; i < fes.Size(); ++i)
+   {
+      for (int j = 0; j < fes.Size(); ++j)
+      {
+         BlockGrad->SetBlock(i, j, Grads(i, j));
+      }
+   }
    return *BlockGrad;
 }
 
