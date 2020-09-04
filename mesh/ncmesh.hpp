@@ -77,6 +77,7 @@ struct CoarseFineTransformations
 
 struct MatrixMap;
 
+
 /** \brief A class for non-conforming AMR on higher-order hexahedral, prismatic,
  *  quadrilateral or triangular meshes.
  *
@@ -198,7 +199,7 @@ public:
       std::vector<Slave> slaves;
       // TODO: switch to Arrays when fixed for non-POD types
 
-      DenseTensor point_matrices[Geometry::NumGeom];
+      Array<DenseMatrix*> point_matrices[Geometry::NumGeom];
 
       void Clear(bool hard = false);
       bool Empty() const { return !conforming.size() && !masters.size(); }
@@ -625,19 +626,23 @@ protected: // implementation
                                 bool abort = true);
    static int find_local_face(int geom, int a, int b, int c);
 
-   int ReorderFacePointMat(int v0, int v1, int v2, int v3,
-                           int elem, DenseMatrix& mat) const;
    struct Point;
    struct PointMatrix;
+
+   int ReorderFacePointMat(int v0, int v1, int v2, int v3,
+                           int elem, const PointMatrix &pm,
+                           PointMatrix &reordered) const;
+
    void TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
                          const PointMatrix& pm, int level, Face* eface[4],
                          MatrixMap &matrix_map);
    bool TraverseTriFace(int vn0, int vn1, int vn2,
                         const PointMatrix& pm, int level,
                         MatrixMap &matrix_map);
-   void TraverseTetEdge(int vn0, int vn1, const Point &p0, const Point &p1);
+   void TraverseTetEdge(int vn0, int vn1, const Point &p0, const Point &p1,
+                        MatrixMap &matrix_map);
    void TraverseEdge(int vn0, int vn1, double t0, double t1, int flags,
-                     int level);
+                     int level, MatrixMap &matrix_map);
 
    virtual void BuildFaceList();
    virtual void BuildEdgeList();
@@ -707,6 +712,9 @@ protected: // implementation
 
       Point() { dim = 0; }
 
+      Point(double x)
+      { dim = 1; coord[0] = x; }
+
       Point(double x, double y)
       { dim = 2; coord[0] = x; coord[1] = y; }
 
@@ -745,6 +753,11 @@ protected: // implementation
    {
       int np;
       Point points[8];
+
+      PointMatrix() : np(0) {}
+
+      PointMatrix(const Point& p0, const Point& p1)
+      { np = 2; points[0] = p0; points[1] = p1; }
 
       PointMatrix(const Point& p0, const Point& p1, const Point& p2)
       { np = 3; points[0] = p0; points[1] = p1; points[2] = p2; }
