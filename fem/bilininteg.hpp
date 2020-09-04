@@ -20,6 +20,13 @@
 namespace mfem
 {
 
+// Local maximum size of dofs and quads in 1D
+constexpr int HCURL_MAX_D1D = 5;
+constexpr int HCURL_MAX_Q1D = 6;
+
+constexpr int HDIV_MAX_D1D = 5;
+constexpr int HDIV_MAX_Q1D = 6;
+
 /// Abstract base class BilinearFormIntegrator
 class BilinearFormIntegrator : public NonlinearFormIntegrator
 {
@@ -79,9 +86,10 @@ public:
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
    /// Method defining element assembly.
-   /** The result of the element assembly is added and stored in the @a emat
-       Vector. */
-   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
+   /** The result of the element assembly is added to the @a emat Vector if
+       @a add is true. Otherwise, if @a add is false, we set @a emat. */
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                           const bool add = true);
    /** Used with BilinearFormIntegrators that have different spaces. */
    // virtual void AssembleEA(const FiniteElementSpace &trial_fes,
    //                         const FiniteElementSpace &test_fes,
@@ -89,10 +97,12 @@ public:
 
    virtual void AssembleEAInteriorFaces(const FiniteElementSpace &fes,
                                         Vector &ea_data_int,
-                                        Vector &ea_data_ext);
+                                        Vector &ea_data_ext,
+                                        const bool add = true);
 
    virtual void AssembleEABoundaryFaces(const FiniteElementSpace &fes,
-                                        Vector &ea_data_bdr);
+                                        Vector &ea_data_bdr,
+                                        const bool add = true);
 
    /// Given a particular Finite Element computes the element matrix elmat.
    virtual void AssembleElementMatrix(const FiniteElement &el,
@@ -199,6 +209,8 @@ public:
    virtual ~BilinearFormIntegrator() { }
 };
 
+/** Wraps a given @a BilinearFormIntegrator and transposes the resulting element
+    matrices. See for example ex9, ex9p. */
 class TransposeIntegrator : public BilinearFormIntegrator
 {
 private:
@@ -253,14 +265,17 @@ public:
       bfi->AddMultTransposePA(x, y);
    }
 
-   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                           const bool add);
 
    virtual void AssembleEAInteriorFaces(const FiniteElementSpace &fes,
                                         Vector &ea_data_int,
-                                        Vector &ea_data_ext);
+                                        Vector &ea_data_ext,
+                                        const bool add);
 
    virtual void AssembleEABoundaryFaces(const FiniteElementSpace &fes,
-                                        Vector &ea_data_bdr);
+                                        Vector &ea_data_bdr,
+                                        const bool add);
 
    virtual ~TransposeIntegrator() { if (own_bfi) { delete bfi; } }
 };
@@ -1563,7 +1578,7 @@ public:
 };
 
 /** Class for integrating the bilinear form a(u,v) := (-V u, Grad v) in 2D or 3D
-    and where V is a vector coefficient, u is in H1 and v is in H1. */
+    and where V is a vector coefficient, u is in H1 or L2 and v is in H1. */
 class MixedScalarWeakDivergenceIntegrator : public MixedScalarVectorIntegrator
 {
 public:
@@ -1683,6 +1698,22 @@ protected:
    {
       trial_fe.CalcPhysCurlShape(Trans, shape);
    }
+
+   using BilinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
+
+   virtual void AddMultPA(const Vector&, Vector&) const;
+
+private:
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
+   const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
+   const DofToQuad *mapsOtest;     ///< Not owned. DOF-to-quad map, open.
+   const DofToQuad *mapsCtest;     ///< Not owned. DOF-to-quad map, closed.
+   const GeometricFactors *geom;   ///< Not owned
+   int dim, ne, dofs1D, dofs1Dtest,quad1D, testType, trialType, coeffDim;
 };
 
 /** Class for integrating the bilinear form a(u,v) := (Q u, curl v) in 3D and
@@ -1722,6 +1753,20 @@ protected:
    {
       test_fe.CalcPhysCurlShape(Trans, shape);
    }
+
+   using BilinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
+
+   virtual void AddMultPA(const Vector&, Vector&) const;
+
+private:
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
+   const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
+   const GeometricFactors *geom;   ///< Not owned
+   int dim, ne, dofs1D, quad1D, testType, trialType, coeffDim;
 };
 
 /** Class for integrating the bilinear form a(u,v) := - (Q u, grad v) in either
@@ -1913,7 +1958,8 @@ public:
 
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
-   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                           const bool add);
 
    virtual void AssembleDiagonalPA(Vector &diag);
 
@@ -1922,7 +1968,7 @@ public:
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe);
 
-   void SetupPA(const FiniteElementSpace &fes, const bool force = false);
+   void SetupPA(const FiniteElementSpace &fes);
 };
 
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */
@@ -1988,7 +2034,8 @@ public:
 
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
-   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                           const bool add);
 
    virtual void AssembleDiagonalPA(Vector &diag);
 
@@ -1998,9 +2045,10 @@ public:
                                          const FiniteElement &test_fe,
                                          ElementTransformation &Trans);
 
-   void SetupPA(const FiniteElementSpace &fes, const bool force = false);
+   void SetupPA(const FiniteElementSpace &fes);
 };
 
+/** Mass integrator (u, v) restricted to the boundary of a domain */
 class BoundaryMassIntegrator : public MassIntegrator
 {
 public:
@@ -2043,7 +2091,8 @@ public:
 
    virtual void AssemblePA(const FiniteElementSpace&);
 
-   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                           const bool add);
 
    virtual void AddMultPA(const Vector&, Vector&) const;
 
@@ -2357,8 +2406,11 @@ protected:
    Vector pa_data;
    const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
    const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
+   const DofToQuad *mapsOtest;     ///< Not owned. DOF-to-quad map, open.
+   const DofToQuad *mapsCtest;     ///< Not owned. DOF-to-quad map, closed.
    const GeometricFactors *geom;   ///< Not owned
-   int dim, ne, nq, dofs1D, quad1D, fetype;
+   int dim, ne, nq, dofs1D, dofs1Dtest, quad1D, trial_fetype, test_fetype;
+   bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
 public:
    VectorFEMassIntegrator() { Init(NULL, NULL, NULL); }
@@ -2379,6 +2431,8 @@ public:
 
    using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
    virtual void AddMultPA(const Vector &x, Vector &y) const;
    virtual void AssembleDiagonalPA(Vector& diag);
 };
@@ -2608,10 +2662,12 @@ public:
 
    virtual void AssembleEAInteriorFaces(const FiniteElementSpace& fes,
                                         Vector &ea_data_int,
-                                        Vector &ea_data_ext);
+                                        Vector &ea_data_ext,
+                                        const bool add);
 
    virtual void AssembleEABoundaryFaces(const FiniteElementSpace& fes,
-                                        Vector &ea_data_bdr);
+                                        Vector &ea_data_bdr,
+                                        const bool add);
 
    static const IntegrationRule &GetRule(Geometry::Type geom, int order,
                                          FaceElementTransformations &T);

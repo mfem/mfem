@@ -14,7 +14,7 @@
 #include <cmath>
 #endif
 
-#include "catch.hpp"
+#include "unit_tests.hpp"
 #include <unordered_map>
 
 #include "mfem.hpp"
@@ -26,7 +26,7 @@ extern mfem::MPI_Session *GlobalMPISession;
 #define PFesGetParMeshGetComm(pfes) pfes.GetParMesh()->GetComm()
 #define PFesGetParMeshGetComm0(pfes) pfes.GetParMesh()->GetComm()
 #else
-typedef int HYPRE_Int;
+#define HYPRE_Int int
 typedef int MPI_Session;
 #define ParMesh Mesh
 #define GetParMesh GetMesh
@@ -1970,7 +1970,6 @@ int sedov(int myid, int argc, char *argv[])
    }
    dim = mesh->Dimension();
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
-   const int mesh_NE = mesh->GetNE();
    ParMesh *pmesh = NULL;
 #if defined(MFEM_USE_MPI) && defined(MFEM_SEDOV_MPI)
    pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
@@ -2123,9 +2122,9 @@ int sedov(int myid, int argc, char *argv[])
       REQUIRE(order_v==2);
       REQUIRE(order_e==1);
       REQUIRE(ode_solver_type==4);
-      REQUIRE(t_final==Approx(0.6));
-      REQUIRE(cfl==Approx(0.5));
-      REQUIRE(cg_tol==Approx(1.e-14));
+      REQUIRE(t_final==MFEM_Approx(0.6));
+      REQUIRE(cfl==MFEM_Approx(0.5));
+      REQUIRE(cg_tol==MFEM_Approx(1.e-14));
       if (dim==2)
       {
          const double p1_05[2] = {3.508254945225794e+00,
@@ -2134,8 +2133,8 @@ int sedov(int myid, int argc, char *argv[])
          const double p1_15[2] = {2.756444596823211e+00,
                                   1.104093401469385e+01
                                  };
-         if (ti==05) {checks++; REQUIRE(stm==Approx(p1_05[rs_levels]));}
-         if (ti==15) {checks++; REQUIRE(stm==Approx(p1_15[rs_levels]));}
+         if (ti==05) {checks++; REQUIRE(stm==MFEM_Approx(p1_05[rs_levels]));}
+         if (ti==15) {checks++; REQUIRE(stm==MFEM_Approx(p1_15[rs_levels]));}
       }
       if (dim==3)
       {
@@ -2145,8 +2144,8 @@ int sedov(int myid, int argc, char *argv[])
          const double p1_28[2] = {7.521073677398005e+00,
                                   5.985720905709158e+01
                                  };
-         if (ti==05) {checks++; REQUIRE(stm==Approx(p1_05[rs_levels]));}
-         if (ti==28) {checks++; REQUIRE(stm==Approx(p1_28[rs_levels]));}
+         if (ti==05) {checks++; REQUIRE(stm==MFEM_Approx(p1_05[rs_levels]));}
+         if (ti==28) {checks++; REQUIRE(stm==MFEM_Approx(p1_28[rs_levels]));}
       }
    }
    REQUIRE(checks==2);

@@ -1641,6 +1641,138 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    final_norm = norm;
 }
 
+void LBFGSSolver::Mult(const Vector &b, Vector &x) const
+{
+   MFEM_VERIFY(oper != NULL, "the Operator is not set (use SetOperator).");
+
+   // Quadrature points that are checked for negative Jacobians etc.
+   Vector sk, rk, yk, rho, alpha;
+   DenseMatrix skM(width, m), ykM(width, m);
+
+   //r - r_{k+1}, c - descent direction
+   sk.SetSize(width);    //x_{k+1}-x_k
+   rk.SetSize(width);    //nabla(f(x_{k}))
+   yk.SetSize(width);    //r_{k+1}-r_{k}
+   rho.SetSize(m);       //1/(dot(yk,sk)
+   alpha.SetSize(m);    //rhok*sk'*c
+   int last_saved_id = -1;
+
+   int it;
+   double norm0, norm, norm_goal;
+   const bool have_b = (b.Size() == Height());
+
+   if (!iterative_mode)
+   {
+      x = 0.0;
+   }
+
+   // r = F(x)-b
+   oper->Mult(x, r);
+   if (have_b) { r -= b; }
+
+   c = r;           // initial descent direction
+
+   norm0 = norm = Norm(r);
+   norm_goal = std::max(rel_tol*norm, abs_tol);
+   for (it = 0; true; it++)
+   {
+      MFEM_ASSERT(IsFinite(norm), "norm = " << norm);
+      if (print_level >= 0)
+      {
+         mfem::out << "LBFGS iteration " <<  it
+                   << " : ||r|| = " << norm;
+         if (it > 0)
+         {
+            mfem::out << ", ||r||/||r_0|| = " << norm/norm0;
+         }
+         mfem::out << '\n';
+      }
+
+      if (norm <= norm_goal)
+      {
+         converged = 1;
+         break;
+      }
+
+      if (it >= max_iter)
+      {
+         converged = 0;
+         break;
+      }
+
+      rk = r;
+      const double c_scale = ComputeScalingFactor(x, b);
+      if (c_scale == 0.0)
+      {
+         converged = 0;
+         break;
+      }
+      add(x, -c_scale, c, x); //x_{k+1} = x_k - c_scale*c
+
+      ProcessNewState(x);
+
+      oper->Mult(x, r);
+      if (have_b)
+      {
+         r -= b;
+      }
+
+      //    LBFGS - construct descent direction
+      subtract(r, rk, yk);   // yk = r_{k+1} - r_{k}
+      sk = c; sk *= -c_scale; //sk = x_{k+1} - x_{k} = -c_scale*c
+      const double gamma = Dot(sk, yk)/Dot(yk, yk);
+
+      //  Save last m vectors
+      last_saved_id = (last_saved_id == m-1) ? 0 : last_saved_id+1;
+      skM.SetCol(last_saved_id, sk);
+      ykM.SetCol(last_saved_id, yk);
+
+      c = r;
+      for (int i = last_saved_id; i > -1; i--)
+      {
+         skM.GetColumn(i, sk);
+         ykM.GetColumn(i, yk);
+         rho(i) = 1./Dot(sk, yk);
+         alpha(i) = rho(i)*Dot(sk,c);
+         add(c, -alpha(i), yk, c);
+      }
+      if (it > m-1)
+      {
+         for (int i = m-1; i > last_saved_id; i--)
+         {
+            skM.GetColumn(i, sk);
+            ykM.GetColumn(i, yk);
+            rho(i) = 1./Dot(sk, yk);
+            alpha(i) = rho(i)*Dot(sk,c);
+            add(c, -alpha(i), yk, c);
+         }
+      }
+
+      c *= gamma;   // scale search direction
+      if (it > m-1)
+      {
+         for (int i = last_saved_id+1; i < m ; i++)
+         {
+            skM.GetColumn(i,sk);
+            ykM.GetColumn(i,yk);
+            double betai = rho(i)*Dot(yk, c);
+            add(c, alpha(i)-betai, sk, c);
+         }
+      }
+      for (int i = 0; i < last_saved_id+1 ; i++)
+      {
+         skM.GetColumn(i,sk);
+         ykM.GetColumn(i,yk);
+         double betai = rho(i)*Dot(yk, c);
+         add(c, alpha(i)-betai, sk, c);
+      }
+
+      norm = Norm(r);
+   }
+
+   final_iter = it;
+   final_norm = norm;
+}
 
 int aGMRES(const Operator &A, Vector &x, const Vector &b,
            const Operator &M, int &max_iter,
@@ -2152,7 +2284,7 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
       {
          int i = J[ii];
          // Find value of (i,k)
-         double C_ik;
+         double C_ik = 0.0;
          for (int kk=I[i]; kk<I[i+1]; ++kk)
          {
             if (J[kk] == k)
@@ -2202,7 +2334,7 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
             int i = J[ii2];
             if (w_heap.picked(i)) { continue; }
             // Find value of (i,k)
-            double C_ik;
+            double C_ik = 0.0;
             for (int kk2=I[i]; kk2<I[i+1]; ++kk2)
             {
                if (J[kk2] == k)
@@ -2532,6 +2664,42 @@ void BlockILU::Mult(const Vector &b, Vector &x) const
       A_ii_inv.Solve(block_size, 1, xi);
    }
 }
+
+
+void ResidualBCMonitor::MonitorResidual(
+   int it, double norm, const Vector &r, bool final)
+{
+   if (!ess_dofs_list) { return; }
+
+   double bc_norm_squared = 0.0;
+   r.HostRead();
+   ess_dofs_list->HostRead();
+   for (int i = 0; i < ess_dofs_list->Size(); i++)
+   {
+      const double r_entry = r((*ess_dofs_list)[i]);
+      bc_norm_squared += r_entry*r_entry;
+   }
+   bool print = true;
+#ifdef MFEM_USE_MPI
+   MPI_Comm comm = iter_solver->GetComm();
+   if (comm != MPI_COMM_NULL)
+   {
+      double glob_bc_norm_squared = 0.0;
+      MPI_Reduce(&bc_norm_squared, &glob_bc_norm_squared, 1, MPI_DOUBLE,
+                 MPI_SUM, 0, comm);
+      bc_norm_squared = glob_bc_norm_squared;
+      int rank;
+      MPI_Comm_rank(comm, &rank);
+      print = (rank == 0);
+   }
+#endif
+   if ((it == 0 || final || bc_norm_squared > 0.0) && print)
+   {
+      mfem::out << "      ResidualBCMonitor : b.c. residual norm = "
+                << sqrt(bc_norm_squared) << endl;
+   }
+}
+
 
 #ifdef MFEM_USE_SUITESPARSE
 
