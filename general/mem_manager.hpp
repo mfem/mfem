@@ -882,8 +882,7 @@ inline void Memory<T>::CopyFrom(const Memory &src, int size)
    }
    else
    {
-      MemoryManager::Copy_(h_ptr, src.h_ptr, size*sizeof(T), src.flags,
-                           flags);
+      MemoryManager::Copy_(h_ptr, src.h_ptr, size*sizeof(T), src.flags, flags);
    }
 }
 
