@@ -89,8 +89,38 @@ enable_language(CXX)
 if (MFEM_USE_CUDA)
    # MFEM_USE_CUDA requires CMake 3.8 or newer (for direct CUDA support)
    cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
+   # Use ${CMAKE_CXX_COMPILER} as the cuda host compiler.
+   if (NOT CMAKE_CUDA_HOST_COMPILER)
+      set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
+   endif()
    enable_language(CUDA)
+   set(CMAKE_CUDA_STANDARD 11)
+   set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+   set(CMAKE_CUDA_EXTENSIONS OFF)
+   set(CUDA_FLAGS "--expt-extended-lambda")
+   if (CMAKE_VERSION VERSION_LESS 3.18.0)
+      set(CUDA_FLAGS "-arch=${CUDA_ARCH} ${CUDA_FLAGS}")
+   elseif (NOT CMAKE_CUDA_ARCHITECTURES)
+      string(REGEX REPLACE "^sm_" "" ARCH_NUMBER "${CUDA_ARCH}")
+      if ("${CUDA_ARCH}" STREQUAL "sm_${ARCH_NUMBER}")
+         set(CMAKE_CUDA_ARCHITECTURES "${ARCH_NUMBER}")
+      else()
+         message(FATAL_ERROR "Unknown CUDA_ARCH: ${CUDA_ARCH}")
+      endif()
+   else()
+      set(CUDA_ARCH "CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
+   endif()
    message(STATUS "Using CUDA architecture: ${CUDA_ARCH}")
+   if (CMAKE_VERSION VERSION_LESS 3.12.0)
+      # CMake versions 3.8 and 3.9 require this to work; 3.10 and 3.11 are not
+      # tested and may not actually need this (but should be ok to keep).
+      set(CUDA_FLAGS "-ccbin=${CMAKE_CXX_COMPILER} ${CUDA_FLAGS}")
+      set(CMAKE_CUDA_HOST_LINK_LAUNCHER ${CMAKE_CXX_COMPILER})
+   endif()
+   set(CMAKE_CUDA_FLAGS "${CUDA_FLAGS}" CACHE STRING
+       "CUDA flags set for MFEM" FORCE)
+   set(CUSPARSE_FOUND TRUE)
+   set(CUSPARSE_LIBRARIES "cusparse")
 endif()
 
 if (XSDK_ENABLE_C)
@@ -149,9 +179,13 @@ if (MFEM_USE_MPI)
       message(FATAL_ERROR "PETSc version >= 3.8.0 is required")
     endif()
     set(PETSC_INCLUDE_DIRS ${PETSC_INCLUDES})
+    if (MFEM_USE_SLEPC)
+      find_package(SLEPc REQUIRED config)
+      message(STATUS "Found SLEPc version ${SLEPC_VERSION}")
+    endif()
   endif()
 else()
-  set(PKGS_NEED_MPI SUPERLU PETSC STRUMPACK PUMI)
+  set(PKGS_NEED_MPI SUPERLU PETSC SLEPC STRUMPACK PUMI)
   foreach(PKG IN LISTS PKGS_NEED_MPI)
     if (MFEM_USE_${PKG})
       message(STATUS "Disabling package ${PKG} - requires MPI")
@@ -207,10 +241,10 @@ endif()
 # SUNDIALS
 if (MFEM_USE_SUNDIALS)
   if (NOT MFEM_USE_MPI)
-    find_package(SUNDIALS REQUIRED NVector_Serial CVODE ARKODE KINSOL)
+    find_package(SUNDIALS REQUIRED NVector_Serial CVODES ARKODE KINSOL)
   else()
     find_package(SUNDIALS REQUIRED
-      NVector_Serial NVector_Parallel NVector_ParHyp CVODE ARKODE KINSOL)
+      NVector_Serial NVector_Parallel NVector_ParHyp CVODES ARKODE KINSOL)
   endif()
 endif()
 
@@ -292,22 +326,6 @@ if (MFEM_USE_HIOP)
   # find_package updates HIOP_FOUND, HIOP_INCLUDE_DIRS, HIOP_LIBRARIES
 endif()
 
-# CUDA
-if (MFEM_USE_CUDA)
-   set(CMAKE_CUDA_STANDARD 11)
-   set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-   set(CMAKE_CUDA_EXTENSIONS OFF)
-   set(CMAKE_CUDA_FLAGS "-arch=${CUDA_ARCH} --expt-extended-lambda"
-       CACHE STRING "CUDA flags set for MFEM" FORCE)
-   if (MFEM_USE_MPI)
-      set(CUDA_CCBIN_COMPILER ${MPI_CXX_COMPILER})
-   else()
-      set(CUDA_CCBIN_COMPILER ${CMAKE_CXX_COMPILER})
-   endif()
-   string(APPEND CMAKE_CUDA_FLAGS " -ccbin ${CUDA_CCBIN_COMPILER}")
-   set(CMAKE_CUDA_HOST_LINK_LAUNCHER ${CUDA_CCBIN_COMPILER})
-endif()
-
 # OCCA
 if (MFEM_USE_OCCA)
    find_package(OCCA REQUIRED)
@@ -352,8 +370,9 @@ endif()
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
 set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
-    MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT Ginkgo GNUTLS GSLIB NETCDF
-    MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE ADIOS2)
+    SLEPC MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT Ginkgo GNUTLS GSLIB NETCDF
+    MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE ADIOS2
+    CUSPARSE)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
 set(TPL_INCLUDE_DIRS "")

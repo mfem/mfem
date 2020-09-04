@@ -419,21 +419,15 @@ int main(int argc, char *argv[])
    //     constraints for non-conforming AMR, etc.
    a.Assemble();
 
-   OperatorHandle Ah;
+   OperatorPtr Ah;
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, Ah, X, B);
 
-   // 15. Transform to monolithic HypreParMatrix
-   HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
-
-   if (myid == 0)
-   {
-      cout << "Size of linear system: " << A->GetGlobalNumRows() << endl;
-   }
-
-   // 16. Solve using a direct or an iterative solver
+   // 15. Solve using a direct or an iterative solver
 #ifdef MFEM_USE_SUPERLU
    {
+      // Transform to monolithic HypreParMatrix
+      HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
       SuperLURowLocMatrix SA(*A);
       SuperLUSolver superlu(MPI_COMM_WORLD);
       superlu.SetPrintStatistics(false);
@@ -441,9 +435,9 @@ int main(int argc, char *argv[])
       superlu.SetColumnPermutation(superlu::PARMETIS);
       superlu.SetOperator(SA);
       superlu.Mult(B, X);
+      delete A;
    }
 #else
-
    // 16a. Set up the parallel Bilinear form a(.,.) for the preconditioner
    //
    //    In Comp
@@ -472,7 +466,7 @@ int main(int argc, char *argv[])
 
       prec.Assemble();
 
-      OperatorHandle PCOpAh;
+      OperatorPtr PCOpAh;
       prec.FormSystemMatrix(ess_tdof_list, PCOpAh);
 
       // 16b. Define and apply a parallel GMRES solver for AU=B with a block
@@ -496,7 +490,7 @@ int main(int argc, char *argv[])
       gmres.SetMaxIter(2000);
       gmres.SetRelTol(1e-5);
       gmres.SetAbsTol(0.0);
-      gmres.SetOperator(*A);
+      gmres.SetOperator(*Ah);
       gmres.SetPreconditioner(BlockAMS);
       gmres.Mult(B, X);
    }
@@ -509,10 +503,8 @@ int main(int argc, char *argv[])
    // If exact is known compute the error
    if (exact_known)
    {
-      ParComplexGridFunction x_gf(fespace);
       VectorFunctionCoefficient E_ex_Re(dim, E_exact_Re);
       VectorFunctionCoefficient E_ex_Im(dim, E_exact_Im);
-      x_gf.ProjectCoefficient(E_ex_Re, E_ex_Im);
       int order_quad = max(2, 2 * order + 1);
       const IntegrationRule *irs[Geometry::NumGeom];
       for (int i = 0; i < Geometry::NumGeom; ++i)
@@ -629,7 +621,6 @@ int main(int argc, char *argv[])
    }
 
    // 20. Free the used memory.
-   delete A;
    delete pml;
    delete fespace;
    delete fec;

@@ -105,7 +105,7 @@ public:
        have the same size.
 
        @note Defining this method overwrites the implicitly defined copy
-       assignemnt operator. */
+       assignment operator. */
    GridFunction &operator=(const GridFunction &rhs)
    { return operator=((const Vector &)rhs); }
 
@@ -162,7 +162,8 @@ public:
                            int vdim = 1) const;
 
    /** Return a vector value from within the given element. */
-   void GetVectorValue(int i, const IntegrationPoint &ip, Vector &val) const;
+   virtual void GetVectorValue(int i, const IntegrationPoint &ip,
+                               Vector &val) const;
    ///@}
 
    /** @name Element Index Get Values Methods
@@ -208,13 +209,14 @@ public:
    ///@{
    /** Return a scalar value from within the element indicated by the
        ElementTransformation Object. */
-   double GetValue(ElementTransformation &T, const IntegrationPoint &ip,
-                   int comp = 0, Vector *tr = NULL) const;
+   virtual double GetValue(ElementTransformation &T, const IntegrationPoint &ip,
+                           int comp = 0, Vector *tr = NULL) const;
 
    /** Return a vector value from within the element indicated by the
        ElementTransformation Object. */
-   void GetVectorValue(ElementTransformation &T, const IntegrationPoint &ip,
-                       Vector &val, Vector *tr = NULL) const;
+   virtual void GetVectorValue(ElementTransformation &T,
+                               const IntegrationPoint &ip,
+                               Vector &val, Vector *tr = NULL) const;
    ///@}
 
    /** @name ElementTransformation Get Values Methods
@@ -340,12 +342,10 @@ public:
 
    virtual void ProjectCoefficient(Coefficient &coeff);
 
-   // call fes -> BuildDofToArrays() before using this projection
    void ProjectCoefficient(Coefficient &coeff, Array<int> &dofs, int vd = 0);
 
    void ProjectCoefficient(VectorCoefficient &vcoeff);
 
-   // call fes -> BuildDofToArrays() before using this projection
    void ProjectCoefficient(VectorCoefficient &vcoeff, Array<int> &dofs);
 
    void ProjectCoefficient(Coefficient *coeff[]);
@@ -422,6 +422,7 @@ public:
    virtual void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
                                              Array<int> &bdr_attr);
 
+
    virtual double ComputeL2Error(Coefficient &exsol,
                                  const IntegrationRule *irs[] = NULL) const
    { return ComputeLpError(2.0, exsol, NULL, irs); }
@@ -433,9 +434,49 @@ public:
                                  const IntegrationRule *irs[] = NULL,
                                  Array<int> *elems = NULL) const;
 
+   /// Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
+   virtual double ComputeGradError(VectorCoefficient *exgrad,
+                                   const IntegrationRule *irs[] = NULL) const;
+
+   /// Returns ||curl u_ex - curl u_h||_L2 for ND elements
+   virtual double ComputeCurlError(VectorCoefficient *excurl,
+                                   const IntegrationRule *irs[] = NULL) const;
+
+   /// Returns ||div u_ex - div u_h||_L2 for RT elements
+   virtual double ComputeDivError(Coefficient *exdiv,
+                                  const IntegrationRule *irs[] = NULL) const;
+
+   /// Returns the Face Jumps error for L2 elements
+   virtual double ComputeDGFaceJumpError(Coefficient *exsol,
+                                         Coefficient *ell_coeff,
+                                         double Nu,
+                                         const IntegrationRule *irs[] = NULL)
+   const;
+
+   /** This method is kept for backward compatibility.
+
+       Returns either the H1-seminorm, or the DG face jumps error, or both
+       depending on norm_type = 1, 2, 3. Additional arguments for the DG face
+       jumps norm: ell_coeff: mesh-depended coefficient (weight) Nu: scalar
+       constant weight */
    virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
                                  Coefficient *ell_coef, double Nu,
                                  int norm_type) const;
+
+   /// Returns the error measured in H1-norm for H1 elements or in "broken"
+   /// H1-norm for L2 elements
+   virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
+                                 const IntegrationRule *irs[] = NULL) const;
+
+   /// Returns the error measured in H(div)-norm for RT elements
+   virtual double ComputeHDivError(VectorCoefficient *exsol,
+                                   Coefficient *exdiv,
+                                   const IntegrationRule *irs[] = NULL) const;
+
+   /// Returns the error measured in H(curl)-norm for ND elements
+   virtual double ComputeHCurlError(VectorCoefficient *exsol,
+                                    VectorCoefficient *excurl,
+                                    const IntegrationRule *irs[] = NULL) const;
 
    virtual double ComputeMaxError(Coefficient &exsol,
                                   const IntegrationRule *irs[] = NULL) const
@@ -600,11 +641,13 @@ public:
                      type = adios2stream::data_type::point_data) const;
 #endif
 
-   /** Write the GridFunction in VTK format. Note that Mesh::PrintVTK must be
-       called first. The parameter ref > 0 must match the one used in
+   /** @brief Write the GridFunction in VTK format. Note that Mesh::PrintVTK
+       must be called first. The parameter ref > 0 must match the one used in
        Mesh::PrintVTK. */
    void SaveVTK(std::ostream &out, const std::string &field_name, int ref);
 
+   /** @brief Write the GridFunction in STL format. Note that the mesh dimension
+       must be 2 and that quad elements will be broken into two triangles.*/
    void SaveSTL(std::ostream &out, int TimesToRefine = 1);
 
    /// Destroys grid function.
@@ -712,7 +755,7 @@ public:
        the same size.
 
        @note Defining this method overwrites the implicitly defined copy
-       assignemnt operator. */
+       assignment operator. */
    QuadratureFunction &operator=(const QuadratureFunction &v);
 
    /// Get the IntegrationRule associated with mesh element @a idx.
@@ -736,6 +779,16 @@ public:
        `i`-th vector component at the `j`-th quadrature point.
     */
    inline void GetElementValues(int idx, Vector &values) const;
+
+   /// Return the quadrature function values at an integration point.
+   /** The result is stored in the Vector @a values as a reference to the
+       global values. */
+   inline void GetElementValues(int idx, const int ip_num, Vector &values);
+
+   /// Return the quadrature function values at an integration point.
+   /** The result is stored in the Vector @a values as a copy to the
+       global values. */
+   inline void GetElementValues(int idx, const int ip_num, Vector &values) const;
 
    /// Return all values associated with mesh element @a idx in a DenseMatrix.
    /** The result is stored in the DenseMatrix @a values as a reference to the
@@ -836,6 +889,25 @@ inline void QuadratureFunction::GetElementValues(int idx, Vector &values) const
    values.SetSize(vdim*sl_size);
    const double *q = data + vdim*s_offset;
    for (int i = 0; i<values.Size(); i++)
+   {
+      values(i) = *(q++);
+   }
+}
+
+inline void QuadratureFunction::GetElementValues(int idx, const int ip_num,
+                                                 Vector &values)
+{
+   const int s_offset = qspace->element_offsets[idx] * vdim + ip_num * vdim;
+   values.NewDataAndSize(data + s_offset, vdim);
+}
+
+inline void QuadratureFunction::GetElementValues(int idx, const int ip_num,
+                                                 Vector &values) const
+{
+   const int s_offset = qspace->element_offsets[idx] * vdim + ip_num * vdim;
+   values.SetSize(vdim);
+   const double *q = data + s_offset;
+   for (int i = 0; i < values.Size(); i++)
    {
       values(i) = *(q++);
    }
