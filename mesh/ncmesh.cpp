@@ -2311,6 +2311,39 @@ int NCMesh::find_local_face(int geom, int a, int b, int c)
    return -1;
 }
 
+
+struct PointMatrixHash
+{
+   std::size_t operator()(const NCMesh::PointMatrix &pm) const
+   {
+      MFEM_ASSERT(sizeof(double) == sizeof(std::uint64_t), "");
+      std::uint64_t hash = 0xf9ca9ba106acbba9;
+      for (int i = 0; i < pm.np; i++)
+      {
+         for (int j = 0; j < pm.points[i].dim; j++)
+         {
+            double coord = pm.points[i].coord[j];
+            hash = 31*hash + *((std::uint64_t*) &coord);
+         }
+      }
+      return hash;
+   }
+};
+
+struct MatrixMap
+{
+   int GetIndex(const NCMesh::PointMatrix &pm)
+   {
+      int &index = map[pm];
+      if (!index) { index = map.size(); }
+      return index - 1;
+   }
+
+private:
+   std::unordered_map<NCMesh::PointMatrix, int, PointMatrixHash> map;
+};
+
+
 int NCMesh::ReorderFacePointMat(int v0, int v1, int v2, int v3,
                                 int elem, DenseMatrix& mat) const
 {
@@ -2347,7 +2380,7 @@ int NCMesh::ReorderFacePointMat(int v0, int v1, int v2, int v3,
 
 void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
                               const PointMatrix& pm, int level,
-                              Face* eface[4])
+                              Face* eface[4], MatrixMap &matrix_map)
 {
    if (level > 0)
    {
@@ -2360,12 +2393,12 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
          face_list.slaves.push_back(
             Slave(fa->index, elem, -1, Geometry::SQUARE));
 
-         DenseMatrix &mat = face_list.slaves.back().point_matrix;
-         pm.GetMatrix(mat);
+         // get and reorder the point matrix according to slave face orientation
+         int local = ReorderFacePointMat(vn0, vn1, vn2, vn3, elem, pm);
 
-         // reorder the point matrix according to slave face orientation
-         int local = ReorderFacePointMat(vn0, vn1, vn2, vn3, elem, mat);
-         face_list.slaves.back().local = local;
+         Slave &sl = face_list.slaves.back();
+         sl.local = local;
+         sl.point_matrix = matrix_map.GetIndex(pm);
 
          eface[0] = eface[2] = fa;
          eface[1] = eface[3] = fa;
@@ -2494,7 +2527,8 @@ void NCMesh::TraverseTetEdge(int vn0, int vn1, const Point &p0, const Point &p1)
 }
 
 bool NCMesh::TraverseTriFace(int vn0, int vn1, int vn2,
-                             const PointMatrix& pm, int level)
+                             const PointMatrix& pm, int level,
+                             MatrixMap &matrix_map)
 {
    if (level > 0)
    {
@@ -3397,6 +3431,20 @@ void NCMesh::FindVertexCousins(int elem, int local, Array<int> &cousins) const
 
 
 //// Coarse/fine transformations ///////////////////////////////////////////////
+
+bool NCMesh::PointMatrix::operator==(const PointMatrix &pm) const
+{
+   MFEM_ASSERT(np == pm.np, "");
+   for (int i = 0; i < np; i++)
+   {
+      MFEM_ASSERT(points[i].dim == pm.points[i].dim, "");
+      for (int j = 0; j < points[i].dim; j++)
+      {
+         if (points[i].coord[j] != pm.points[i].coord[j]) { return false; }
+      }
+   }
+   return true;
+}
 
 void NCMesh::PointMatrix::GetMatrix(DenseMatrix& point_matrix) const
 {
