@@ -143,7 +143,7 @@ public:
    /** If @a mat is finalized and @a copy_graph is false, the #I and #J arrays
        will use a shallow copy (copy the pointers only) without transferring
        ownership.
-       If @a mt is MemoryType::PERSERVE the memory type of the resulting
+       If @a mt is MemoryType::PRESERVE the memory type of the resulting
        SparseMatrix's #I, #J, and #A arrays will be the same as @a mat,
        otherwise the type will be @a mt for those arrays that are deep
        copied. */
