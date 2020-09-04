@@ -411,6 +411,9 @@ public:
    inline void operator=(const T &a)
    { array1d = a; }
 
+   inline Array2D& operator=(const Array2D &a)
+   { array1d = a.array1d; return *this; }
+
    /// Make this Array a reference to 'master'
    inline void MakeRef(const Array2D &master)
    { M = master.M; N = master.N; array1d.MakeRef(master.array1d); }
