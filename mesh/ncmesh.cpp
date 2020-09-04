@@ -2339,13 +2339,18 @@ struct MatrixMap
       return index - 1;
    }
 
+   void ExportMatrices(DenseTensor &point_matrices)
+   {
+   }
+
 private:
    std::unordered_map<NCMesh::PointMatrix, int, PointMatrixHash> map;
 };
 
 
 int NCMesh::ReorderFacePointMat(int v0, int v1, int v2, int v3,
-                                int elem, DenseMatrix& mat) const
+                                int elem, const PointMatrix &pm,
+                                PointMatrix &reordered) const
 {
    const Element &el = elements[elem];
    int master[4] =
@@ -2358,18 +2363,14 @@ int NCMesh::ReorderFacePointMat(int v0, int v1, int v2, int v3,
    int local = find_local_face(el.Geom(), master[0], master[1], master[2]);
    const int* fv = GI[el.Geom()].faces[local];
 
-   DenseMatrix tmp(mat);
+   reordered.np = pm.np;
    for (int i = 0, j; i < nfv; i++)
    {
       for (j = 0; j < nfv; j++)
       {
          if (fv[i] == master[j])
          {
-            // "pm.column(i) = tmp.column(j)"
-            for (int k = 0; k < mat.Height(); k++)
-            {
-               mat(k,i) = tmp(k,j);
-            }
+            reordered.points[i] = pm.points[j];
             break;
          }
       }
@@ -2392,13 +2393,12 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
          int elem = fa->GetSingleElement();
          face_list.slaves.push_back(
             Slave(fa->index, elem, -1, Geometry::SQUARE));
-
-         // get and reorder the point matrix according to slave face orientation
-         int local = ReorderFacePointMat(vn0, vn1, vn2, vn3, elem, pm);
-
          Slave &sl = face_list.slaves.back();
-         sl.local = local;
-         sl.point_matrix = matrix_map.GetIndex(pm);
+
+         // reorder the point matrix according to slave face orientation
+         PointMatrix pm_r;
+         sl.local = ReorderFacePointMat(vn0, vn1, vn2, vn3, elem, pm, pm_r);;
+         sl.point_matrix = matrix_map.GetIndex(pm_r);
 
          eface[0] = eface[2] = fa;
          eface[1] = eface[3] = fa;
@@ -2417,10 +2417,12 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
       Point pmid0(pm(0), pm(1)), pmid2(pm(2), pm(3));
 
       TraverseQuadFace(vn0, mid[0], mid[2], vn3,
-                       PointMatrix(pm(0), pmid0, pmid2, pm(3)), level+1, ef[0]);
+                       PointMatrix(pm(0), pmid0, pmid2, pm(3)),
+                       level+1, ef[0], matrix_map);
 
       TraverseQuadFace(mid[0], vn1, vn2, mid[2],
-                       PointMatrix(pmid0, pm(1), pm(2), pmid2), level+1, ef[1]);
+                       PointMatrix(pmid0, pm(1), pm(2), pmid2),
+                       level+1, ef[1], matrix_map);
 
       eface[1] = ef[1][1];
       eface[3] = ef[0][3];
@@ -2431,10 +2433,12 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
       Point pmid1(pm(1), pm(2)), pmid3(pm(3), pm(0));
 
       TraverseQuadFace(vn0, vn1, mid[1], mid[3],
-                       PointMatrix(pm(0), pm(1), pmid1, pmid3), level+1, ef[0]);
+                       PointMatrix(pm(0), pm(1), pmid1, pmid3),
+                       level+1, ef[0], matrix_map);
 
       TraverseQuadFace(mid[3], mid[1], vn2, vn3,
-                       PointMatrix(pmid3, pmid1, pm(2), pm(3)), level+1, ef[1]);
+                       PointMatrix(pmid3, pmid1, pm(2), pm(3)),
+                       level+1, ef[1], matrix_map);
 
       eface[0] = ef[0][0];
       eface[2] = ef[1][2];
@@ -2467,30 +2471,33 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
             face_list.slaves.push_back(
                Slave(-1 - enode.edge_index,
                      eid[0].element, eid[0].local, eid[0].geom));
+            Slave &sl = face_list.slaves.back();
 
-            DenseMatrix &mat = face_list.slaves.back().point_matrix;
             if (split == 1)
             {
                Point mid0(pm(0), pm(1)), mid2(pm(2), pm(3));
                int v1 = nodes[mid[0]].vert_index;
                int v2 = nodes[mid[2]].vert_index;
-               ((v1 < v2) ? PointMatrix(mid0, mid2, mid2, mid0) :
-                /*       */ PointMatrix(mid2, mid0, mid0, mid2)).GetMatrix(mat);
+               sl.point_matrix = matrix_map.GetIndex(
+                  (v1 < v2) ? PointMatrix(mid0, mid2, mid2, mid0) :
+                  /*       */ PointMatrix(mid2, mid0, mid0, mid2));
             }
             else
             {
                Point mid1(pm(1), pm(2)), mid3(pm(3), pm(0));
                int v1 = nodes[mid[1]].vert_index;
                int v2 = nodes[mid[3]].vert_index;
-               ((v1 < v2) ? PointMatrix(mid1, mid3, mid3, mid1) :
-                /*       */ PointMatrix(mid3, mid1, mid1, mid3)).GetMatrix(mat);
+               sl.point_matrix = matrix_map.GetIndex(
+                  (v1 < v2) ? PointMatrix(mid1, mid3, mid3, mid1) :
+                  /*       */ PointMatrix(mid3, mid1, mid1, mid3));
             }
          }
       }
    }
 }
 
-void NCMesh::TraverseTetEdge(int vn0, int vn1, const Point &p0, const Point &p1)
+void NCMesh::TraverseTetEdge(int vn0, int vn1, const Point &p0, const Point &p1,
+                             MatrixMap &matrix_map)
 {
    int mid = nodes.FindId(vn0, vn1);
    if (mid < 0) { return; }
@@ -2509,12 +2516,12 @@ void NCMesh::TraverseTetEdge(int vn0, int vn1, const Point &p0, const Point &p1)
          face_list.slaves.push_back(
             Slave(-1 - eid.index, eid.element, eid.local, eid.geom));
 
-         DenseMatrix &mat = face_list.slaves.back().point_matrix;
-
          int v0index = nodes[vn0].vert_index;
          int v1index = nodes[vn1].vert_index;
-         ((v0index < v1index) ? PointMatrix(p0, p1, p0)
-          /*               */ : PointMatrix(p1, p0, p1)).GetMatrix(mat);
+
+         face_list.slaves.back().point_matrix =
+            matrix_map.GetIndex((v0index < v1index) ? PointMatrix(p0, p1, p0)
+                                /*               */ : PointMatrix(p1, p0, p1));
 
          return; // no need to continue deeper
       }
@@ -2522,8 +2529,8 @@ void NCMesh::TraverseTetEdge(int vn0, int vn1, const Point &p0, const Point &p1)
 
    // recurse deeper
    Point pmid(p0, p1);
-   TraverseTetEdge(vn0, mid, p0, pmid);
-   TraverseTetEdge(mid, vn1, pmid, p1);
+   TraverseTetEdge(vn0, mid, p0, pmid, matrix_map);
+   TraverseTetEdge(mid, vn1, pmid, p1, matrix_map);
 }
 
 bool NCMesh::TraverseTriFace(int vn0, int vn1, int vn2,
@@ -2540,13 +2547,12 @@ bool NCMesh::TraverseTriFace(int vn0, int vn1, int vn2,
          int elem = fa->GetSingleElement();
          face_list.slaves.push_back(
             Slave(fa->index, elem, -1, Geometry::TRIANGLE));
-
-         DenseMatrix &mat = face_list.slaves.back().point_matrix;
-         pm.GetMatrix(mat);
+         Slave &sl = face_list.slaves.back();
 
          // reorder the point matrix according to slave face orientation
-         int local = ReorderFacePointMat(vn0, vn1, vn2, -1, elem, mat);
-         face_list.slaves.back().local = local;
+         PointMatrix pm_r;
+         sl.local = ReorderFacePointMat(vn0, vn1, vn2, -1, elem, pm, pm_r);
+         sl.point_matrix = matrix_map.GetIndex(pm_r);
 
          return true;
       }
@@ -2559,23 +2565,27 @@ bool NCMesh::TraverseTriFace(int vn0, int vn1, int vn2,
       bool b[4];
 
       b[0] = TraverseTriFace(vn0, mid[0], mid[2],
-                             PointMatrix(pm(0), pmid0, pmid2), level+1);
+                             PointMatrix(pm(0), pmid0, pmid2),
+                             level+1, matrix_map);
 
       b[1] = TraverseTriFace(mid[0], vn1, mid[1],
-                             PointMatrix(pmid0, pm(1), pmid1), level+1);
+                             PointMatrix(pmid0, pm(1), pmid1),
+                             level+1, matrix_map);
 
       b[2] = TraverseTriFace(mid[2], mid[1], vn2,
-                             PointMatrix(pmid2, pmid1, pm(2)), level+1);
+                             PointMatrix(pmid2, pmid1, pm(2)),
+                             level+1, matrix_map);
 
       b[3] = TraverseTriFace(mid[1], mid[2], mid[0],
-                             PointMatrix(pmid1, pmid2, pmid0), level+1);
+                             PointMatrix(pmid1, pmid2, pmid0),
+                             level+1, matrix_map);
 
       // traverse possible tet edges constrained by the master face
       if (HaveTets() && !b[3])
       {
-         if (!b[1]) { TraverseTetEdge(mid[0], mid[1], pmid0, pmid1); }
-         if (!b[2]) { TraverseTetEdge(mid[1], mid[2], pmid1, pmid2); }
-         if (!b[0]) { TraverseTetEdge(mid[2], mid[0], pmid2, pmid0); }
+         if (!b[1]) { TraverseTetEdge(mid[0],mid[1], pmid0,pmid1, matrix_map); }
+         if (!b[2]) { TraverseTetEdge(mid[1],mid[2], pmid1,pmid2, matrix_map); }
+         if (!b[0]) { TraverseTetEdge(mid[2],mid[0], pmid2,pmid0, matrix_map); }
       }
    }
 
@@ -2638,12 +2648,12 @@ void NCMesh::BuildFaceList()
             {
                Face* dummy[4];
                TraverseQuadFace(node[0], node[1], node[2], node[3],
-                                pm_quad_identity, 0, dummy);
+                                pm_quad_identity, 0, dummy, matrix_maps[fgeom]);
             }
             else
             {
                TraverseTriFace(node[0], node[1], node[2],
-                               pm_tri_identity, 0);
+                               pm_tri_identity, 0, matrix_maps[fgeom]);
             }
 
             int se = face_list.slaves.size();
@@ -2667,7 +2677,7 @@ void NCMesh::BuildFaceList()
 }
 
 void NCMesh::TraverseEdge(int vn0, int vn1, double t0, double t1, int flags,
-                          int level)
+                          int level, MatrixMap &matrix_map)
 {
    int mid = nodes.FindId(vn0, vn1);
    if (mid < 0) { return; }
@@ -2677,11 +2687,9 @@ void NCMesh::TraverseEdge(int vn0, int vn1, double t0, double t1, int flags,
    {
       // we have a slave edge, add it to the list
       edge_list.slaves.push_back(Slave(nd.edge_index, -1, -1, Geometry::SEGMENT));
-      Slave &sl = edge_list.slaves.back();
 
-      sl.point_matrix.SetSize(1, 2);
-      sl.point_matrix(0,0) = t0;
-      sl.point_matrix(0,1) = t1;
+      Slave &sl = edge_list.slaves.back();
+      sl.point_matrix = matrix_map.GetIndex(PointMatrix(Point(t0), Point(t1)));
 
       // handle slave edge orientation
       sl.edge_flags = flags;
@@ -2692,8 +2700,8 @@ void NCMesh::TraverseEdge(int vn0, int vn1, double t0, double t1, int flags,
 
    // recurse deeper
    double tmid = (t0 + t1) / 2;
-   TraverseEdge(vn0, mid, t0, tmid, flags, level+1);
-   TraverseEdge(mid, vn1, tmid, t1, flags, level+1);
+   TraverseEdge(vn0, mid, t0, tmid, flags, level+1, matrix_map);
+   TraverseEdge(mid, vn1, tmid, t1, flags, level+1, matrix_map);
 }
 
 void NCMesh::BuildEdgeList()
@@ -2761,7 +2769,7 @@ void NCMesh::BuildEdgeList()
 
          // try traversing the edge to find slave edges
          int sb = edge_list.slaves.size();
-         TraverseEdge(node[0], node[1], t0, t1, flags, 0);
+         TraverseEdge(node[0], node[1], t0, t1, flags, 0, matrix_map);
 
          int se = edge_list.slaves.size();
          if (sb < se)
@@ -5146,16 +5154,19 @@ void NCMesh::Trim()
 
 long NCMesh::NCList::MemoryUsage() const
 {
-   int pmsize = 0;
-   if (slaves.size())
+   int pm_size = 0;
+   for (int i = 0; i < Geometry::NumGeom; i++)
    {
-      pmsize = slaves[0].point_matrix.MemoryUsage();
+      for (int j = 0; j < point_matrices[i].Size(); i++)
+      {
+         pm_size += point_matrices[i][j]->MemoryUsage();
+      }
    }
 
    return conforming.capacity() * sizeof(MeshId) +
           masters.capacity() * sizeof(Master) +
           slaves.capacity() * sizeof(Slave) +
-          slaves.size() * pmsize;
+          pm_size;
 }
 
 long CoarseFineTransformations::MemoryUsage() const
