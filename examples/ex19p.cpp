@@ -8,6 +8,7 @@
 //    mpirun -np 2 ex19p -m ../data/beam-hex.mesh
 //    mpirun -np 2 ex19p -m ../data/beam-tet.mesh
 //    mpirun -np 2 ex19p -m ../data/beam-wedge.mesh
+//    mpirun -np 2 ex19p -m ../data/beam-quad-amr.mesh
 //
 // Description:  This examples solves a quasi-static incompressible nonlinear
 //               elasticity problem of the form 0 = H(x), where H is an
@@ -474,7 +475,11 @@ void JacobianPreconditioner::SetOperator(const Operator &op)
    {
       HypreBoomerAMG *stiff_prec_amg = new HypreBoomerAMG();
       stiff_prec_amg->SetPrintLevel(0);
-      stiff_prec_amg->SetElasticityOptions(spaces[0]);
+
+      if (!spaces[0]->GetParMesh()->Nonconforming())
+      {
+         stiff_prec_amg->SetElasticityOptions(spaces[0]);
+      }
 
       stiff_prec = stiff_prec_amg;
 
