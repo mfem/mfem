@@ -1033,17 +1033,17 @@ void MemoryManager::CopyToHost_(void *dest_h_ptr, const void *src_h_ptr,
 }
 
 void MemoryManager::CopyFromHost_(void *dest_h_ptr, const void *src_h_ptr,
-                                  size_t bytes, unsigned &dest_flags, int offset)
+                                  size_t bytes, unsigned &dest_flags)
 {
    const bool dest_on_host = dest_flags & Mem::VALID_HOST;
    if (dest_on_host)
    {
       if (dest_h_ptr != src_h_ptr && bytes != 0)
       {
-         MFEM_ASSERT((char*)dest_h_ptr + bytes <= (const char*)src_h_ptr + offset ||
-                     (const char*)src_h_ptr + offset + bytes <= dest_h_ptr,
+         MFEM_ASSERT((char*)dest_h_ptr + bytes <= (const char*)src_h_ptr ||
+                     (const char*)src_h_ptr + bytes <= dest_h_ptr,
                      "data overlaps!");
-         std::memcpy(dest_h_ptr, (const char*)src_h_ptr + offset, bytes);
+         std::memcpy(dest_h_ptr, (const char*)src_h_ptr, bytes);
       }
    }
    else
@@ -1053,7 +1053,7 @@ void MemoryManager::CopyFromHost_(void *dest_h_ptr, const void *src_h_ptr,
                          mm.GetDevicePtr(dest_h_ptr, bytes, false);
       const internal::Memory &base = maps->memories.at(dest_h_ptr);
       const MemoryType d_mt = base.d_mt;
-      ctrl->Device(d_mt)->HtoD(dest_d_ptr, (const char*)src_h_ptr + offset, bytes);
+      ctrl->Device(d_mt)->HtoD(dest_d_ptr, (const char*)src_h_ptr, bytes);
    }
    dest_flags = dest_flags &
                 ~(dest_on_host ? Mem::VALID_DEVICE : Mem::VALID_HOST);

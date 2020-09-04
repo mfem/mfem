@@ -410,11 +410,11 @@ public:
    /// Copy @a size entries from @a src to @a *this.
    /** The given @a size should not exceed the Capacity() of the source @a src
        and the destination, @a *this. */
-   inline void CopyFrom(const Memory &src, int size, int offset=0);
+   inline void CopyFrom(const Memory &src, int size);
 
    /// Copy @a size entries from the host pointer @a src to @a *this.
    /** The given @a size should not exceed the Capacity() of @a *this. */
-   inline void CopyFromHost(const T *src, int size, int offset=0);
+   inline void CopyFromHost(const T *src, int size);
 
    /// Copy @a size entries from @a *this to @a dest.
    /** The given @a size should not exceed the Capacity() of @a *this and the
@@ -531,7 +531,7 @@ private: // Static methods used by the Memory<T> class
    /// Copy entries from host memory to valid memory type, where dest_h_ptr is a
    /// registered host pointer and src_h_ptr is not a registered host pointer.
    static void CopyFromHost_(void *dest_h_ptr, const void *src_h_ptr,
-                             size_t bytes, unsigned &dest_flags, int offset=0);
+                             size_t bytes, unsigned &dest_flags);
 
    /// Check if the host pointer has been registered in the memory manager.
    static bool IsKnown_(const void *h_ptr);
@@ -868,41 +868,41 @@ inline MemoryType Memory<T>::GetMemoryType() const
 }
 
 template <typename T>
-inline void Memory<T>::CopyFrom(const Memory &src, int size, int offset)
+inline void Memory<T>::CopyFrom(const Memory &src, int size)
 {
    if (!(flags & REGISTERED) && !(src.flags & REGISTERED))
    {
       if (h_ptr != src.h_ptr && size != 0)
       {
-         MFEM_ASSERT(h_ptr + size <= src || src + offset + size <= h_ptr,
+         MFEM_ASSERT(h_ptr + size <= src || src + size <= h_ptr,
                      "data overlaps!");
-         std::memcpy(h_ptr, src + offset, size*sizeof(T));
+         std::memcpy(h_ptr, src, size*sizeof(T));
       }
       // *this is not registered, so (flags & VALID_HOST) must be true
    }
    else
    {
-      MemoryManager::Copy_(h_ptr, src.h_ptr + offset, size*sizeof(T), src.flags,
+      MemoryManager::Copy_(h_ptr, src.h_ptr, size*sizeof(T), src.flags,
                            flags);
    }
 }
 
 template <typename T>
-inline void Memory<T>::CopyFromHost(const T *src, int size, int offset)
+inline void Memory<T>::CopyFromHost(const T *src, int size)
 {
    if (!(flags & REGISTERED))
    {
       if (h_ptr != src && size != 0)
       {
-         MFEM_ASSERT(h_ptr + size <= src || src + offset + size <= h_ptr,
+         MFEM_ASSERT(h_ptr + size <= src || src + size <= h_ptr,
                      "data overlaps!");
-         std::memcpy(h_ptr, src + offset, size*sizeof(T));
+         std::memcpy(h_ptr, src, size*sizeof(T));
       }
       // *this is not registered, so (flags & VALID_HOST) must be true
    }
    else
    {
-      MemoryManager::CopyFromHost_(h_ptr, src + offset, size*sizeof(T), flags);
+      MemoryManager::CopyFromHost_(h_ptr, src, size*sizeof(T), flags);
    }
 }
 
