@@ -156,57 +156,6 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(symmDims * nq * nf, Device::GetMemoryType());
-   Vector r;
-   if (rho==nullptr)
-   {
-      r.SetSize(1);
-      r(0) = 1.0;
-   }
-   else if (ConstantCoefficient *c_rho = dynamic_cast<ConstantCoefficient*>(rho))
-   {
-      r.SetSize(1);
-      r(0) = c_rho->constant;
-   }
-   else if (QuadratureFunctionCoefficient* c_rho =
-               dynamic_cast<QuadratureFunctionCoefficient*>(rho))
-   {
-      const QuadratureFunction &qFun = c_rho->GetQuadFunction();
-      MFEM_VERIFY(qFun.Size() == nq * nf,
-                  "Incompatible QuadratureFunction dimension \n");
-
-      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
-                  "IntegrationRule used within integrator and in"
-                  " QuadratureFunction appear to be different");
-      qFun.Read();
-      r.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
-   }
-   else
-   {
-      r.SetSize(nq * nf);
-      auto C = Reshape(r.HostWrite(), nq, nf);
-      int f_ind = 0;
-      for (int f = 0; f < fes.GetNF(); ++f)
-      {
-         int e1, e2;
-         int inf1, inf2;
-         fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-         fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-         int face_id = inf1 / 64;
-         if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-             (type==FaceType::Boundary && e2<0 && inf2<0) )
-         {
-            ElementTransformation& T = *fes.GetMesh()->GetFaceTransformation(f);
-            for (int q = 0; q < nq; ++q)
-            {
-               // Convert to lexicographic ordering
-               int iq = ToLexOrdering(dim, face_id, quad1D, q);
-               C(iq,f_ind) = rho->Eval(T, ir->IntPoint(q));
-            }
-            f_ind++;
-         }
-      }
-      MFEM_VERIFY(f_ind==nf, "Incorrect number of faces.");
-   }
    Vector vel;
    if (VectorConstantCoefficient *c_u = dynamic_cast<VectorConstantCoefficient*>
                                         (u))
@@ -243,8 +192,8 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
          if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
              (type==FaceType::Boundary && e2<0 && inf2<0) )
          {
-            FaceElementTransformations &T = *fes.GetMesh()->GetFaceElementTransformations(
-                                               f);
+            FaceElementTransformations &T =
+               *fes.GetMesh()->GetFaceElementTransformations(f);
             for (int q = 0; q < nq; ++q)
             {
                // Convert to lexicographic ordering
@@ -256,6 +205,80 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
                {
                   C(i,iq,f_ind) = Vq(i);
                }
+            }
+            f_ind++;
+         }
+      }
+      MFEM_VERIFY(f_ind==nf, "Incorrect number of faces.");
+   }
+   Vector r;
+   if (rho==nullptr)
+   {
+      r.SetSize(1);
+      r(0) = 1.0;
+   }
+   else if (ConstantCoefficient *c_rho = dynamic_cast<ConstantCoefficient*>(rho))
+   {
+      r.SetSize(1);
+      r(0) = c_rho->constant;
+   }
+   else if (QuadratureFunctionCoefficient* c_rho =
+               dynamic_cast<QuadratureFunctionCoefficient*>(rho))
+   {
+      const QuadratureFunction &qFun = c_rho->GetQuadFunction();
+      MFEM_VERIFY(qFun.Size() == nq * nf,
+                  "Incompatible QuadratureFunction dimension \n");
+
+      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
+                  "IntegrationRule used within integrator and in"
+                  " QuadratureFunction appear to be different");
+      qFun.Read();
+      r.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
+   }
+   else
+   {
+      r.SetSize(nq * nf);
+      auto C_vel = Reshape(vel.HostRead(), dim, nq, nf);
+      auto n = Reshape(geom->normal.HostRead(), nq, dim, nf);
+      auto C = Reshape(r.HostWrite(), nq, nf);
+      int f_ind = 0;
+      for (int f = 0; f < fes.GetNF(); ++f)
+      {
+         int e1, e2;
+         int inf1, inf2;
+         fes.GetMesh()->GetFaceElements(f, &e1, &e2);
+         fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
+         int face_id = inf1 / 64;
+         if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
+             (type==FaceType::Boundary && e2<0 && inf2<0) )
+         {
+            FaceElementTransformations &T =
+               *fes.GetMesh()->GetFaceElementTransformations(f);
+            for (int q = 0; q < nq; ++q)
+            {
+               // Convert to lexicographic ordering
+               int iq = ToLexOrdering(dim, face_id, quad1D, q);
+
+               T.SetAllIntPoints(&ir->IntPoint(q));
+               const IntegrationPoint &eip1 = T.GetElement1IntPoint();
+               const IntegrationPoint &eip2 = T.GetElement2IntPoint();
+               double r;
+
+               if (inf2 < 0)
+               {
+                  r = rho->Eval(*T.Elem1, eip1);
+               }
+               else
+               {
+                  double udotn = 0.0;
+                  for (int d=0; d<dim; ++d)
+                  {
+                     udotn += C_vel(d,iq,f_ind)*n(iq,d,f_ind);
+                  }
+                  if (udotn >= 0.0) { r = rho->Eval(*T.Elem2, eip2); }
+                  else { r = rho->Eval(*T.Elem1, eip1); }
+               }
+               C(iq,f_ind) = r;
             }
             f_ind++;
          }
