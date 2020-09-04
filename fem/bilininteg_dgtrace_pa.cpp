@@ -243,12 +243,15 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
          if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
              (type==FaceType::Boundary && e2<0 && inf2<0) )
          {
-            ElementTransformation& T = *fes.GetMesh()->GetFaceTransformation(f);
+            FaceElementTransformations &T = *fes.GetMesh()->GetFaceElementTransformations(
+                                               f);
             for (int q = 0; q < nq; ++q)
             {
                // Convert to lexicographic ordering
                int iq = ToLexOrdering(dim, face_id, quad1D, q);
-               u->Eval(Vq, T, ir->IntPoint(q));
+               T.SetAllIntPoints(&ir->IntPoint(q));
+               const IntegrationPoint &eip1 = T.GetElement1IntPoint();
+               u->Eval(Vq, *T.Elem1, eip1);
                for (int i = 0; i < dim; ++i)
                {
                   C(i,iq,f_ind) = Vq(i);
