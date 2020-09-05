@@ -73,6 +73,13 @@ public:
 
    void SetA(const mfem::SparseMatrix &A);
 
+   //Setup AMGX
+   void SetA_MPI_GPU_Exclusive(const HypreParMatrix &A, const Array<double> &loc_A,
+                               const Array<int> &loc_I, const Array<int64_t> &loc_J);
+
+   void SetA_MPI_Teams(const HypreParMatrix &A, const Array<double> &loc_A,
+                       const Array<int> &loc_I, const Array<int64_t> &loc_J);
+
    virtual void SetOperator(const Operator &op);
 
    void solve(mfem::Vector &p, mfem::Vector &b);
@@ -97,7 +104,7 @@ private:
                     const int mpiTeamSz, MPI_Comm &mpiTeam);
 
    //The following methods send vectors to root node in a MPI-Team
-   // partitions and displacements are also stored.
+   // partitions and displacements are reused.
    void GatherArray(const Vector &inArr, Vector &outArr,
                     const int mpiTeamSz, MPI_Comm &mpiTeamComm,
                     Array<int> &Apart, Array<int> &Adisp);
@@ -203,7 +210,7 @@ private:
 
    void initAmgX(const std::string &cfgFile);
 
-   void getLocalA(const HypreParMatrix &A);
+   //void getLocalA(const HypreParMatrix &A);
 
    int64_t m_local_rows;  //mlocal rows for ranks that talk to the gpu
 
