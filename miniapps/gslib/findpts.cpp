@@ -27,7 +27,6 @@
 // Compile with: make findpts
 //
 // Sample runs:
-//    findpts -m ../../data/rt-2d-q3.mesh -o 3
 //    findpts -m ../../data/rt-2d-p4-tri.mesh -o 4
 //    findpts -m ../../data/inline-tri.mesh -o 3
 //    findpts -m ../../data/inline-quad.mesh -o 3
@@ -35,6 +34,7 @@
 //    findpts -m ../../data/inline-hex.mesh -o 3
 //    findpts -m ../../data/inline-wedge.mesh -o 3
 //    findpts -m ../../data/amr-quad.mesh -o 2
+//    findpts -m ../../data/rt-2d-q3.mesh -o 3 -mo 4 -ft 2
 
 #include "mfem.hpp"
 
@@ -50,22 +50,37 @@ double field_func(const Vector &x)
    return res;
 }
 
+void F_exact(const Vector &p, Vector &F)
+{
+   F(0) = field_func(p);
+   for (int i = 1; i < F.Size(); i++) { F(i) = (i+1)*F(0); }
+}
+
 int main (int argc, char *argv[])
 {
    // Set the method's default parameters.
    const char *mesh_file = "../../data/rt-2d-q3.mesh";
+   int order             = 3;
    int mesh_poly_deg     = 3;
    int rs_levels         = 0;
    bool visualization    = true;
+   int fieldtype         = 0;
+   int ncomp             = 1;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
-   args.AddOption(&mesh_poly_deg, "-o", "--mesh-order",
+   args.AddOption(&order, "-o", "--order",
+                  "Finite element order (polynomial degree).");
+   args.AddOption(&mesh_poly_deg, "-mo", "--mesh-order",
                   "Polynomial degree of mesh finite element space.");
    args.AddOption(&rs_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
+   args.AddOption(&fieldtype, "-ft", "--field-type",
+                  "Field type: 0 - H1, 1 - L2, 2 - H(div), 3 - H(curl).");
+   args.AddOption(&ncomp, "-nc", "--ncomp",
+                  "Number of components for H1 or L2 GridFunctions");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -99,16 +114,48 @@ int main (int argc, char *argv[])
    }
 
    // Curve the mesh based on the chosen polynomial degree.
-   H1_FECollection fec(mesh_poly_deg, dim);
-   FiniteElementSpace fespace(&mesh, &fec, dim);
+   H1_FECollection fecm(mesh_poly_deg, dim);
+   FiniteElementSpace fespace(&mesh, &fecm, dim);
    mesh.SetNodalFESpace(&fespace);
-   cout << "Mesh curvature of the curved mesh: " << fec.Name() << endl;
+   cout << "Mesh curvature of the curved mesh: " << fecm.Name() << endl;
 
-   // Define a scalar function on the mesh.
-   FiniteElementSpace sc_fes(&mesh, &fec, 1);
+   MFEM_VERIFY(ncomp > 0, "Invalid number of components.");
+   int vec_dim = ncomp;
+   FiniteElementCollection *fec = NULL;
+   if (fieldtype == 0)
+   {
+      fec = new H1_FECollection(order, dim);
+      cout << "H1-GridFunction\n";
+   }
+   else if (fieldtype == 1)
+   {
+      fec = new L2_FECollection(order, dim);
+      cout << "L2-GridFunction\n";
+   }
+   else if (fieldtype == 2)
+   {
+      fec = new RT_FECollection(order, dim);
+      ncomp = 1;
+      vec_dim = dim;
+      cout << "H(div)-GridFunction\n";
+   }
+   else if (fieldtype == 3)
+   {
+      fec = new ND_FECollection(order, dim);
+      ncomp = 1;
+      vec_dim = dim;
+      cout << "H(curl)-GridFunction\n";
+   }
+   else
+   {
+      MFEM_ABORT("Invalid field type.");
+   }
+   FiniteElementSpace sc_fes(&mesh, fec, ncomp);
    GridFunction field_vals(&sc_fes);
-   FunctionCoefficient fc(field_func);
-   field_vals.ProjectCoefficient(fc);
+
+   // Project the GridFunction using VectorFunctionCoefficient.
+   VectorFunctionCoefficient F(vec_dim, F_exact);
+   field_vals.ProjectCoefficient(F);
 
    // Display the mesh and the field through glvis.
    if (visualization)
@@ -135,8 +182,8 @@ int main (int argc, char *argv[])
    // Generate equidistant points in physical coordinates over the whole mesh.
    // Note that some points might be outside, if the mesh is not a box. Note
    // also that all tasks search the same points (not mandatory).
-   const int pts_cnt_1D = 5;
-   const int pts_cnt = pow(pts_cnt_1D, dim);
+   const int pts_cnt_1D = 25;
+   int pts_cnt = pow(pts_cnt_1D, dim);
    Vector vxyz(pts_cnt * dim);
    if (dim == 2)
    {
@@ -145,8 +192,8 @@ int main (int argc, char *argv[])
       for (int i = 0; i < ir.GetNPoints(); i++)
       {
          const IntegrationPoint &ip = ir.IntPoint(i);
-         vxyz(i)           = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
-         vxyz(pts_cnt + i) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
+         vxyz(i)           = 100*pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
+         vxyz(pts_cnt + i) = 100*pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
       }
    }
    else
@@ -163,32 +210,35 @@ int main (int argc, char *argv[])
    }
 
    // Find and Interpolate FE function values on the desired points.
-   Vector interp_vals(pts_cnt);
-   // FindPoints using GSLIB and interpolate
+   Vector interp_vals(pts_cnt*vec_dim);
    FindPointsGSLIB finder;
-   finder.Interpolate(mesh, vxyz, field_vals, interp_vals);
-   Array<unsigned int> code_out = finder.GetCode();
+   finder.Setup(mesh);
+   finder.SetL2AvgType(FindPointsGSLIB::NONE);
+   finder.Interpolate(vxyz, field_vals, interp_vals);
+   Array<unsigned int> code_out    = finder.GetCode();
    Vector dist_p_out = finder.GetDist();
-
-   // Free the internal gslib data.
-   finder.FreeData();
 
    int face_pts = 0, not_found = 0, found = 0;
    double max_err = 0.0, max_dist = 0.0;
    Vector pos(dim);
-   for (int i = 0; i < pts_cnt; i++)
+   int npt = 0;
+   for (int j = 0; j < vec_dim; j++)
    {
-      if (code_out[i] < 2)
+      for (int i = 0; i < pts_cnt; i++)
       {
-         found++;
-         for (int d = 0; d < dim; d++) { pos(d) = vxyz(d * pts_cnt + i); }
-         const double exact_val = field_func(pos);
-
-         max_err  = std::max(max_err, fabs(exact_val - interp_vals[i]));
-         max_dist = std::max(max_dist, dist_p_out(i));
-         if (code_out[i] == 1) { face_pts++; }
+         if (code_out[i] < 2)
+         {
+            if (j == 0) { found++; }
+            for (int d = 0; d < dim; d++) { pos(d) = vxyz(d * pts_cnt + i); }
+            Vector exact_val(vec_dim);
+            F_exact(pos, exact_val);
+            max_err  = std::max(max_err, fabs(exact_val(j) - interp_vals[npt]));
+            max_dist = std::max(max_dist, dist_p_out(i));
+            if (code_out[i] == 1 && j == 0) { face_pts++; }
+         }
+         else { if (j == 0) { not_found++; } }
+         npt++;
       }
-      else { not_found++; }
    }
 
    cout << setprecision(16)
@@ -198,6 +248,11 @@ int main (int argc, char *argv[])
         << "\nMax dist (of found): " << max_dist
         << "\nPoints not found:    " << not_found
         << "\nPoints on faces:     " << face_pts << endl;
+
+   // Free the internal gslib data.
+   finder.FreeData();
+
+   delete fec;
 
    return 0;
 }
