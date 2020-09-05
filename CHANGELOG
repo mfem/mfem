@@ -96,6 +96,14 @@ Discretization improvements
 
 - Added support face integrals on the boundaries of NURBS meshes.
 
+- Added support for interpolation of functions in L2, H(div) and H(curl)
+  spaces using GSLIB-FindPoints.
+
+- Added support for computing asymptotic error estimates and convergence rates
+  for the whole de Rham sequence based on the new class ConvergenceStudy and new
+  member methods in GridFunction and ParGridFunction. See the rates.cpp file in
+  the tests/convergence directory for sample usage.
+
 Linear and nonlinear solvers
 ----------------------------
 - Added power method to iteratively estimate the largest eigenvalue and the
@@ -120,6 +128,9 @@ Linear and nonlinear solvers
   solver can work with non-SPD preconditioner B.
 
 - Added support for the SLEPc eigensolver package.
+
+- Added partially assembled convergent diagonal preconditioner for adaptively
+  refined meshes (i.e. non-conforming finite element spaces), see Example 6/6p.
 
 New and updated examples and miniapps
 -------------------------------------
@@ -171,6 +182,11 @@ New and updated examples and miniapps
   mesh based on element attributes. Any newly exposed boundary elements are
   assigned attribute numbers related to the trimmed element attributes.
 
+- Added a new miniapp (field-interp) that demonstrates transfer of grid function
+  between different meshes using GSLIB-FindPoints.
+
+- Added diagonal preconditioner in Example 6/6p for partial assembly with AMR.
+
 - Added device support in Example 5/5p.
 
 - Added partial assembly and device support to Example 22/22p, with diagonal
@@ -181,10 +197,13 @@ New and updated examples and miniapps
 Improved testing
 ----------------
 - Upgraded the Catch unit test framework from version 1.6.1 to version 2.13.0.
+
 - Added a GitLab pipeline that automates PR testing on supercomputing systems
   and Linux clusters at Lawrence Livermore National Lab (LLNL). This can be
   triggered only by LLNL developers, see .gitlab-ci.yml, the .gitlab directory
   and the updated CONTRIBUTING.md file.
+
+- Added testing of the parallel mesh format in tests/par-mesh-format.
 
 Miscellaneous
 -------------

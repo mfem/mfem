@@ -139,6 +139,12 @@ void FiniteElement::Project (
    mfem_error ("FiniteElement::Project (...) (vector) is not overloaded !");
 }
 
+void FiniteElement::ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
+                                     Vector &dofs) const
+{
+   mfem_error ("FiniteElement::ProjectFromNodes() (vector) is not overloaded!");
+}
+
 void FiniteElement::ProjectMatrixCoefficient(
    MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
 {
@@ -925,6 +931,23 @@ void VectorFiniteElement::Project_RT(
    }
 }
 
+void VectorFiniteElement::Project_RT(
+   const double *nk, const Array<int> &d2n,
+   Vector &vc, ElementTransformation &Trans, Vector &dofs) const
+{
+   const int sdim = Trans.GetSpaceDim();
+   const bool square_J = (dim == sdim);
+
+   for (int k = 0; k < dof; k++)
+   {
+      Trans.SetIntPoint(&Nodes.IntPoint(k));
+      // dof_k = nk^t adj(J) xk
+      Vector vk(vc.GetData()+k*sdim, sdim);
+      dofs(k) = Trans.AdjugateJacobian().InnerProduct(vk, nk + d2n[k]*dim);
+      if (!square_J) { dofs(k) /= Trans.Weight(); }
+   }
+}
+
 void VectorFiniteElement::ProjectMatrixCoefficient_RT(
    const double *nk, const Array<int> &d2n,
    MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
@@ -1096,6 +1119,19 @@ void VectorFiniteElement::Project_ND(
       Trans.SetIntPoint(&Nodes.IntPoint(k));
 
       vc.Eval(xk, Trans, Nodes.IntPoint(k));
+      // dof_k = xk^t J tk
+      dofs(k) = Trans.Jacobian().InnerProduct(tk + d2t[k]*dim, vk);
+   }
+}
+
+void VectorFiniteElement::Project_ND(
+   const double *tk, const Array<int> &d2t,
+   Vector &vc, ElementTransformation &Trans, Vector &dofs) const
+{
+   for (int k = 0; k < dof; k++)
+   {
+      Trans.SetIntPoint(&Nodes.IntPoint(k));
+      Vector vk(vc.GetData()+k*dim, dim);
       // dof_k = xk^t J tk
       dofs(k) = Trans.Jacobian().InnerProduct(tk + d2t[k]*dim, vk);
    }
