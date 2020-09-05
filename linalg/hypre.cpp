@@ -1132,20 +1132,18 @@ void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
                                 GetRowStarts());
       }
    }
-   else
+   else if (GetHypreMemoryClass() == MemoryClass::HOST)
    {
-      if (GetHypreMemoryClass() == MemoryClass::HOST)
+      X->SetData(const_cast<double*>(x_data));
+      Y->SetData(y_data);
+   }
+
+   if (GetHypreMemoryClass() != MemoryClass::HOST)
+   {
+      hypre_mem_x.CopyFromHost(x_data, x.Size());
+      if (b != 0.0)
       {
-         X->SetData(const_cast<double*>(x_data));
-         Y->SetData(y_data);
-      }
-      else
-      {
-         hypre_mem_x.CopyFromHost(x_data, x.Size());
-         if (b != 0.0)
-         {
-            hypre_mem_y.CopyFromHost(y_data, y.Size());
-         }
+         hypre_mem_y.CopyFromHost(y_data, y.Size());
       }
    }
 
