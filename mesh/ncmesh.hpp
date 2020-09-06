@@ -155,13 +155,12 @@ public:
       int index;   ///< Mesh number
       int element; ///< NCMesh::Element containing this vertex/edge/face
       signed char local; ///< local number within 'element'
-      signed char geom;  /**< Geometry::Type (faces only) (char storage to save
-                              RAM) */
+      signed char geom;  ///< Geometry::Type (faces only) (char to save RAM)
+
+      Geometry::Type Geom() const { return Geometry::Type(geom); }
 
       MeshId(int index = -1, int element = -1, int local = -1, int geom = -1)
          : index(index), element(element), local(local), geom(geom) {}
-
-      Geometry::Type Geom() const { return Geometry::Type(geom); }
    };
 
    /** Nonconforming edge/face that has more than one neighbor. The neighbors
@@ -179,15 +178,12 @@ public:
    struct Slave : public MeshId
    {
       int master; ///< master number (in Mesh numbering)
-      unsigned point_matrix : 24; ///< index into NCList::point_matrices
+      unsigned matrix : 24;    ///< index into NCList::point_matrices
       unsigned edge_flags : 8; ///< edge orientation flags
 
       Slave(int index, int element, int local, int geom)
          : MeshId(index, element, local, geom)
-         , master(-1), point_matrix(0), edge_flags(0) {}
-
-      /// Return the point matrix oriented according to the master and slave edges
-      void OrientedPointMatrix(DenseMatrix &oriented_matrix) const;
+         , master(-1), matrix(0), edge_flags(0) {}
    };
 
    /// Lists all edges/faces in the nonconforming mesh.
@@ -200,6 +196,10 @@ public:
 
       /// List of unique point matrices for each slave geometry.
       Array<DenseMatrix*> point_matrices[Geometry::NumGeom];
+
+      /// Return the point matrix oriented according to the master and slave edges
+      void OrientedPointMatrix(const Slave &slave,
+                               DenseMatrix &oriented_matrix) const;
 
       void Clear();
       bool Empty() const { return !conforming.size() && !masters.size(); }

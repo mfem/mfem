@@ -1260,7 +1260,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
             MFEM_ASSERT(fi.Elem2No >= NElements, "");
             fi.Elem2No = -1 - fnbr_index[fi.Elem2No - NElements];
 
-            const DenseMatrix* pm = &sf.point_matrix;
+            const DenseMatrix* pm = &sf.matrix;
             if (!sloc && Dim == 3)
             {
                // TODO: does this handle triangle faces correctly?

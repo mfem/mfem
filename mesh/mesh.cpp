@@ -5450,7 +5450,7 @@ void Mesh::GenerateNCFaceInfo()
 
       nc_faces_info.Append(
          NCFaceInfo(true, slave.master,
-                    list.point_matrices[slave.geom][slave.point_matrix]));
+                    list.point_matrices[slave.geom][slave.matrix]));
    }
 }
 

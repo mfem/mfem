@@ -727,7 +727,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
             GetEntityDofs(entity, slave.index, slave_dofs, master.Geom());
             if (!slave_dofs.Size()) { continue; }
 
-            slave.OrientedPointMatrix(T.GetPointMat());
+            list.OrientedPointMatrix(slave, T.GetPointMat());
             fe->GetLocalInterpolation(T, I);
 
             // make each slave DOF dependent on all master DOFs
