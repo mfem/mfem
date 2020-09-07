@@ -306,7 +306,11 @@ void OperatorHandle::EliminateRows(const Array<int> &ess_dof_list)
    {
       case Operator::Hypre_ParCSR:
       {
+#ifdef MFEM_USE_MPI
          this->As<HypreParMatrix>()->EliminateRows(ess_dof_list);
+#else
+         MFEM_ABORT("type id = Hypre_ParCSR requires MFEM_USE_MPI");
+#endif
          break;
       }
       default:
@@ -320,8 +324,12 @@ void OperatorHandle::EliminateCols(const Array<int> &ess_dof_list)
    {
       case Operator::Hypre_ParCSR:
       {
+#ifdef MFEM_USE_MPI
          auto Ae = this->As<HypreParMatrix>()->EliminateCols(ess_dof_list);
          delete Ae;
+#else
+         MFEM_ABORT("type id = Hypre_ParCSR requires MFEM_USE_MPI");
+#endif
          break;
       }
       default:
