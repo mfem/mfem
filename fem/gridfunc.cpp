@@ -1833,6 +1833,19 @@ void GridFunction::ImposeBounds(int i, const Vector &weights,
    ImposeBounds(i, weights, minv, maxv);
 }
 
+void GridFunction::RestrictConforming()
+{
+   const SparseMatrix *R = fes->GetRestrictionMatrix();
+   const Operator *P = fes->GetProlongationMatrix();
+
+   if (P && R)
+   {
+      Vector tmp(R->Height());
+      R->Mult(*this, tmp);
+      P->Mult(tmp, *this);
+   }
+}
+
 void GridFunction::GetNodalValues(Vector &nval, int vdim) const
 {
    int i, j;
