@@ -47,11 +47,11 @@ CUDA_XCOMPILER = -Xcompiler=
 CUDA_XLINKER   = -Xlinker=
 
 # HIP configuration options
-HIP_CXX = /opt/rocm-3.6.0/hip/bin/hipcc
+HIP_CXX = hipcc
 # The HIP_ARCH option specifies the AMD GPU processor, similar to CUDA_ARCH. For
 # example: gfx600 (tahiti), gfx700 (kaveri), gfx701 (hawaii), gfx801 (carrizo),
 # gfx900, gfx1010, etc.
-HIP_ARCH = gfx906
+HIP_ARCH = gfx900
 HIP_FLAGS = --amdgpu-target=$(HIP_ARCH)
 
 ifneq ($(NOTMAC),)
@@ -365,8 +365,12 @@ RAJA_OPT = -I$(RAJA_DIR)/include
 ifdef CUB_DIR
    RAJA_OPT += -I$(CUB_DIR)
 endif
-#RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
-RAJA_LIB = -L$(RAJA_DIR)/lib -lRAJA
+ifeq ($(MFEM_USE_HIP),YES)
+RAJA_LIB = -L$(RAJA_DIR)/lib -lRAJA -ldl
+else
+RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
+endif
+
 
 
 # UMPIRE library configuration
