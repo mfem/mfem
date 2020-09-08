@@ -16,12 +16,11 @@
 
 #include "../config/config.hpp"
 #include "AmgXSolver.hpp"
-#include <chrono>
-#ifdef MFEM_USE_MPI
 #ifdef MFEM_USE_AMGX
 
 namespace mfem
 {
+
 // Initialize AmgXSolver::count to 0
 int AmgXSolver::count = 0;
 
@@ -34,6 +33,7 @@ AmgXSolver::AmgXSolver(const std::string &modeStr, const std::string &cfgFile)
    Initialize_Serial(modeStr, cfgFile);
 }
 
+#ifdef MFEM_USE_MPI
 AmgXSolver::AmgXSolver(const MPI_Comm &comm,
                        const std::string &modeStr, const std::string &cfgFile, int &nDevs)
 {
@@ -45,6 +45,7 @@ AmgXSolver::AmgXSolver(const MPI_Comm &comm,
 {
    Initialize_ExclusiveGPU(comm, modeStr, cfgFile);
 }
+#endif
 
 AmgXSolver::~AmgXSolver()
 {
@@ -77,6 +78,7 @@ void AmgXSolver::Initialize_Serial(const std::string &modeStr,
    isInitialized = true;
 }
 
+#ifdef MFEM_USE_MPI
 //Basic initialization for when each MPI rank may communicate with a GPU
 void AmgXSolver::Initialize_ExclusiveGPU(const MPI_Comm &comm,
                                          const std::string &modeStr,
@@ -150,6 +152,7 @@ void AmgXSolver::Initialize_MPITeams(const MPI_Comm &comm,
 
    isInitialized = true;
 }
+#endif
 
 void AmgXSolver::setMode(const std::string &modeStr)
 {
@@ -167,7 +170,8 @@ int AmgXSolver::getNumIterations()
    return getIters;
 }
 
-// Sets up AmgX library
+// Sets up AmgX library for  MPI builds
+#ifdef MFEM_USE_MPI
 void AmgXSolver::initAmgX(const std::string &cfgFile)
 {
 
@@ -442,7 +446,7 @@ void AmgXSolver::ScatterArray(const Vector &inArr, Vector &outArr,
                 MPI_DOUBLE,outArr.HostWrite(),outArr.Size(),
                 MPI_DOUBLE, 0, mpiTeamComm);
 }
-
+#endif
 
 void AmgXSolver::SetA(const SparseMatrix &in_A)
 {
@@ -454,10 +458,11 @@ void AmgXSolver::SetA(const SparseMatrix &in_A)
                           in_A.GetData(), NULL);
 
    AMGX_solver_setup(solver, AmgXA);
-   AMGX_vector_bind(AmgXP, AmgXA);
-   AMGX_vector_bind(AmgXRHS, AmgXA);
+   //AMGX_vector_bind(AmgXP, AmgXA);
+   //AMGX_vector_bind(AmgXRHS, AmgXA);
 }
 
+#ifdef MFEM_USE_MPI
 void AmgXSolver::SetA(const HypreParMatrix &A)
 {
 
@@ -681,19 +686,23 @@ void AmgXSolver::SetA_MPI_Teams(const HypreParMatrix &A,
    }
 
 }
+#endif
 
 void AmgXSolver::SetOperator(const Operator& op)
 {
-   if (const HypreParMatrix* Aptr =
-          dynamic_cast<const HypreParMatrix*>(&op))
+
+   if (const SparseMatrix* Aptr =
+          dynamic_cast<const SparseMatrix*>(&op))
    {
       SetA(*Aptr);
    }
-   else if (const SparseMatrix* Aptr =
-               dynamic_cast<const SparseMatrix*>(&op))
+#ifdef MFEM_USE_MPI
+   else if (const HypreParMatrix* Aptr =
+               dynamic_cast<const HypreParMatrix*>(&op))
    {
       SetA(*Aptr);
    }
+#endif
 }
 
 void AmgXSolver::Mult(const Vector& B, Vector& X) const
@@ -713,15 +722,21 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
    if (mpi_gpu_mode != "mpi-teams")
    {
       AMGX_vector_upload(AmgXP, X.Size(), 1, X.HostReadWrite());
+      //AMGX_vector_set_zero(AmgXP, X.Size(), 1);
       AMGX_vector_upload(AmgXRHS, B.Size(), 1, B.HostRead());
 
-      MPI_Barrier(gpuWorld);
+      if (mpi_gpu_mode != "serial")
+      {
+#ifdef MFEM_USE_MPI
+         MPI_Barrier(gpuWorld);
+#endif
+      }
 
       AMGX_solver_solve(solver,AmgXRHS, AmgXP);
 
       AMGX_SOLVE_STATUS   status;
       AMGX_solver_get_status(solver, &status);
-      if (status != AMGX_SOLVE_SUCCESS)
+      if (status != AMGX_SOLVE_SUCCESS && m_AmgxMode == SOLVER)
       {
          printf("Amgx failed to solve system, error code %d. \n", status);
       }
@@ -730,7 +745,7 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
       return;
    }
 
-
+#ifdef MFEM_USE_MPI
    Vector all_X(m_local_rows);
    Vector all_B(m_local_rows);
    Array<int> Apart_X(devWorldSize);
@@ -765,6 +780,7 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
    }
 
    ScatterArray(all_X, X, devWorldSize, devWorld, Apart_X, Adisp_X);
+#endif
 }
 
 
@@ -779,7 +795,9 @@ void AmgXSolver::finalize()
    }
 
    // Only processes using GPU are required to destroy AmgX content
-   if (gpuProc == 0)
+#ifdef MFEM_USE_MPI
+   if (gpuProc == 0 || mpi_gpu_mode == "serial")
+#endif
    {
       // Destroy solver instance
       AMGX_solver_destroy(solver);
@@ -804,13 +822,18 @@ void AmgXSolver::finalize()
       {
          AMGX_config_destroy(cfg);
       }
-
+#ifdef MFEM_USE_MPI
       // destroy gpuWorld
-      MPI_Comm_free(&gpuWorld);
+      if (mpi_gpu_mode != "serial")
+      {
+         MPI_Comm_free(&gpuWorld);
+      }
+#endif
    }
 
    // re-set necessary variables in case users want to reuse
    // the variable of this instance for a new instance
+#ifdef MFEM_USE_MPI
    gpuProc = MPI_UNDEFINED;
    if (globalCpuWorld != MPI_COMM_NULL)
    {
@@ -818,6 +841,7 @@ void AmgXSolver::finalize()
       MPI_Comm_free(&localCpuWorld);
       MPI_Comm_free(&devWorld);
    }
+#endif
    // decrease the number of instances
    count -= 1;
 
@@ -827,5 +851,4 @@ void AmgXSolver::finalize()
 
 }//mfem namespace
 
-#endif
 #endif

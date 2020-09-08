@@ -18,11 +18,16 @@
 #include "../config/config.hpp"
 
 #ifdef MFEM_USE_AMGX
-#ifdef MFEM_USE_MPI
+
 
 #include <amgx_c.h>
+#ifdef MFEM_USE_MPI
 #include <mpi.h>
 #include "hypre.hpp"
+#else
+#include "operator.hpp"
+#include "sparsemat.hpp"
+#endif
 
 # define CHECK(call)                                                        \
   {                                                                           \
@@ -48,6 +53,7 @@ public:
    /* Constructor for serial builds - Should be supported without Hypre and MPI */
    AmgXSolver(const std::string &modeStr, const std::string &cfgFile);
 
+#ifdef MFEM_USE_MPI
    /* Constructor for mpi exclusive - Needs Hypre and MPI */
    AmgXSolver(const MPI_Comm &comm,
               const std::string &modeStr, const std::string &cfgFile);
@@ -55,30 +61,37 @@ public:
    /* Constructor for mpi teams - Needs Hypre and MPI */
    AmgXSolver(const MPI_Comm &comm,
               const std::string &modeStr, const std::string &cfgFile, int &nDevs);
+#endif
 
    ~AmgXSolver();
 
    void Initialize_Serial(const std::string &modeStr, const std::string &cfgFile);
 
+#ifdef MFEM_USE_MPI
    void Initialize_ExclusiveGPU(const MPI_Comm &comm, const std::string &modeStr,
                                 const std::string &cfgFile);
 
    void Initialize_MPITeams(const MPI_Comm &comm,
                             const std::string &modeStr, const std::string &cfgFile,
                             const int nDevs);
+#endif
 
    void finalize();
 
+#ifdef MFEM_USE_MPI
    void SetA(const HypreParMatrix &A);
+#endif
 
    void SetA(const SparseMatrix &A);
 
    //Setup AMGX
+#ifdef MFEM_USE_MPI
    void SetA_MPI_GPU_Exclusive(const HypreParMatrix &A, const Array<double> &loc_A,
                                const Array<int> &loc_I, const Array<int64_t> &loc_J);
 
    void SetA_MPI_Teams(const HypreParMatrix &A, const Array<double> &loc_A,
                        const Array<int> &loc_I, const Array<int64_t> &loc_J);
+#endif
 
    virtual void SetOperator(const Operator &op);
 
@@ -86,8 +99,15 @@ public:
 
    int getNumIterations();
 
+   enum AMGX_MODE {SOLVER, PRECONDITIONER};
+
+   void SetMode(AMGX_MODE mode) {m_AmgxMode = mode;}
+
 private:
 
+   AMGX_MODE m_AmgxMode = SOLVER;
+
+#ifdef MFEM_USE_MPI
    //The following methods send vectors to root node in a MPI-Team
    void GatherArray(const Array<double> &inArr, Array<double> &outArr,
                     const int mpiTeamSz, MPI_Comm &mpiTeam);
@@ -110,14 +130,14 @@ private:
    void ScatterArray(const Vector &inArr, Vector &outArr,
                      const int mpiTeamSz, const MPI_Comm &mpi_comm,
                      Array<int> &Apart, Array<int> &Adisp) const;
-
-private:
+#endif
 
    static int              count;
 
    // \brief A flag indicating if this instance has been initialized.
    bool                    isInitialized = false;
 
+#ifdef MFEM_USE_MPI
    // \brief The name of the node that this MPI process belongs to.
    std::string             nodeName;
 
@@ -165,6 +185,7 @@ private:
 
    // \brief Rank in \ref AmgXSolver::devWorld "devWorld".
    int                     myDevWorldRank;
+#endif
 
    // \brief A parameter used by AmgX.
    int                     ring;
@@ -197,7 +218,9 @@ private:
    void setDeviceIDs(const int nDevs);
 
    // \brief Initialize all MPI communicators.
+#ifdef MFEM_USE_MPI
    void initMPIcomms(const MPI_Comm &comm, const int nDevs);
+#endif
 
    void initAmgX(const std::string &cfgFile);
 
@@ -209,7 +232,5 @@ private:
 
 }
 
-#endif
-
-#endif
-#endif
+#endif //MFEM_USE_AMGX
+#endif //MFEM_AMGX_SOLVER

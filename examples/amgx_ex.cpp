@@ -52,12 +52,8 @@
 //               of essential boundary conditions, static condensation, and the
 //               optional connection to the GLVis tool for visualization.
 
-/*
-TODO: Delete
-
-*/
-
 #include "mfem.hpp"
+#include "amgx_c.h"
 #include <fstream>
 #include <iostream>
 
@@ -66,7 +62,6 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-
    // 1. Parse command-line options.
    //const char *mesh_file = "../data/beam-hex.mesh";
    const char *mesh_file = "../data/star.mesh";
@@ -78,7 +73,6 @@ int main(int argc, char *argv[])
    bool amgx_solver = false;
    bool amgx_verbose = true;
    const char* amgx_json_file = ""; // jason file for amgx
-   const char* amgx_parameter = ""; // command line config for amgx
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -90,10 +84,8 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&amgx_json_file, "-c", "--c",
+   args.AddOption(&amgx_json_file, "--amgx-file", "--amgx-file",
                   "AMGX solver config file (overrides --amgx-solver, --amgx-verbose)");
-   args.AddOption(&amgx_parameter, "--amgx-config", "--amgx-config",
-                  "AMGX solver config as string (overrides --amgx-solver, --amgx-verbose)");
    args.AddOption(&amgx_solver, "--amgx-solver", "--amgx-solver",
                   "--amgx-preconditioner",
                   "--amgx-preconditioner",
@@ -190,36 +182,38 @@ int main(int argc, char *argv[])
    //    domain integrator.
    BilinearForm *a = new BilinearForm(fespace);
    if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   a->AddDomainIntegrator(new MassIntegrator(one));
    a->Assemble();
    a->Finalize();
-
 
    // 10. Solve the linear system A X = B.
    if (!pa)
    {
+      //NvidiaAMGX amgx;
+      printf("Not using PA \n");
       AmgXSolver amgx;
-      if (amgx_solver)
       {
-         printf("using as solver \n");
+
          std::string amgx_str;
          amgx_str = amgx_json_file;
-         amgx.initialize("dDDI",amgx_str);
-         amgx.SetOperator(a->SpMat());
-         amgx.Mult(*b, x);
-      }
-      else
-      {
-         printf("using as preconditioner \n");
-         amgx.InitializeAsPreconditioner(amgx_verbose,"dDDI");
+         amgx.Initialize_Serial("dDDI", amgx_str);
          SparseMatrix A;
          Vector B, X;
          Array<int> ess_tdof_list(0);
          a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
          amgx.SetOperator(A);
+
          X = 0.0;
-         //PCG(A, amgx, B, X, 1, 400, 1e-12, 0.0);
-         PCG(A, amgx, B, X, 1, 40, 1e-12, 0.0);
+         if (amgx_solver)
+         {
+            amgx.Mult(B,X);
+         }
+         else
+         {
+            printf("Applying AmgX as preconditioner \n");
+            amgx.SetMode(AmgXSolver::PRECONDITIONER);
+            PCG(A, amgx, B, X, 3, 40, 1e-12, 0.0);
+         }
       }
    }
    else // Jacobi preconditioning in partial assembly mode
