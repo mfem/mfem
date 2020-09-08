@@ -298,7 +298,7 @@ void AmgXSolver::setDeviceIDs(const int nDevs)
 }
 
 void AmgXSolver::GatherArray(const Array<double> &inArr, Array<double> &outArr,
-                             const int mpiTeamSz, MPI_Comm &mpiTeamComm)
+                             const int mpiTeamSz, const MPI_Comm &mpiTeamComm) const
 {
    //Calculate number of elements to be collected from each process
    Array<int> Apart(mpiTeamSz);
@@ -326,7 +326,7 @@ void AmgXSolver::GatherArray(const Array<double> &inArr, Array<double> &outArr,
 }
 
 void AmgXSolver::GatherArray(const Vector &inArr, Vector &outArr,
-                             const int mpiTeamSz, MPI_Comm &mpiTeamComm)
+                             const int mpiTeamSz, const MPI_Comm &mpiTeamComm) const
 {
    //Calculate number of elements to be collected from each process
    Array<int> Apart(mpiTeamSz);
@@ -355,7 +355,7 @@ void AmgXSolver::GatherArray(const Vector &inArr, Vector &outArr,
 
 
 void AmgXSolver::GatherArray(const Array<int> &inArr, Array<int> &outArr,
-                             const int mpiTeamSz, MPI_Comm &mpiTeamComm)
+                             const int mpiTeamSz, const MPI_Comm &mpiTeamComm) const
 {
    //Calculate number of elements to be collected from each process
    Array<int> Apart(mpiTeamSz);
@@ -385,7 +385,7 @@ void AmgXSolver::GatherArray(const Array<int> &inArr, Array<int> &outArr,
 
 void AmgXSolver::GatherArray(const Array<int64_t> &inArr,
                              Array<int64_t> &outArr,
-                             const int mpiTeamSz, MPI_Comm &mpiTeamComm)
+                             const int mpiTeamSz, const MPI_Comm &mpiTeamComm) const
 {
    //Calculate number of elements to be collected from each process
    Array<int> Apart(mpiTeamSz);
@@ -453,13 +453,13 @@ void AmgXSolver::SetA(const SparseMatrix &in_A)
    AMGX_matrix_upload_all(AmgXA, in_A.Height(),
                           in_A.NumNonZeroElems(),
                           1, 1,
-                          in_A.GetI(),
-                          in_A.GetJ(),
-                          in_A.GetData(), NULL);
+                          in_A.ReadI(),
+                          in_A.ReadJ(),
+                          in_A.ReadData(), NULL);
 
    AMGX_solver_setup(solver, AmgXA);
-   //AMGX_vector_bind(AmgXP, AmgXA);
-   //AMGX_vector_bind(AmgXRHS, AmgXA);
+   AMGX_vector_bind(AmgXP, AmgXA);
+   AMGX_vector_bind(AmgXRHS, AmgXA);
 }
 
 #ifdef MFEM_USE_MPI
@@ -487,7 +487,7 @@ void AmgXSolver::SetA(const HypreParMatrix &A)
       return SetA_MPI_GPU_Exclusive(A, loc_A, loc_I, loc_J);
    }
 
-   // Team of mpi ranks sharing a gpu
+   // Team of MPI ranks sharing a gpu
    if (mpi_gpu_mode == "mpi-teams")
    {
       return SetA_MPI_Teams(A, loc_A, loc_I, loc_J);
@@ -707,22 +707,11 @@ void AmgXSolver::SetOperator(const Operator& op)
 
 void AmgXSolver::Mult(const Vector& B, Vector& X) const
 {
-#if 0 //Serial Mode
-   AMGX_vector_upload(AmgXRHS, b.Size(), 1, b.Read());
 
-   AMGX_vector_set_zero(AmgXP, x.Size(), 1);
-   // AMGX_vector_upload(amgx_x, x.Size(), 1, x.Read());
-
-   AMGX_solver_solve(solver, AmgXRHS, AmgXP);
-
-   AMGX_vector_download(AmgXP, x.HostWrite());
-#endif
-
-   //Should work for serial, and mpi-eclusive modes
+   //Mult for serial, and mpi-exclusive modes
    if (mpi_gpu_mode != "mpi-teams")
    {
       AMGX_vector_upload(AmgXP, X.Size(), 1, X.HostReadWrite());
-      //AMGX_vector_set_zero(AmgXP, X.Size(), 1);
       AMGX_vector_upload(AmgXRHS, B.Size(), 1, B.HostRead());
 
       if (mpi_gpu_mode != "serial")
@@ -769,14 +758,12 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
 
       AMGX_SOLVE_STATUS   status;
       AMGX_solver_get_status(solver, &status);
-      if (status != AMGX_SOLVE_SUCCESS)
+      if (status != AMGX_SOLVE_SUCCESS && m_AmgxMode == SOLVER)
       {
          printf("Amgx failed to solve system, error code %d. \n", status);
       }
 
       AMGX_vector_download(AmgXP, all_X.HostWrite());
-
-
    }
 
    ScatterArray(all_X, X, devWorldSize, devWorld, Apart_X, Adisp_X);

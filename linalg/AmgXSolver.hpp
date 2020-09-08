@@ -50,42 +50,31 @@ public:
 
    AmgXSolver() = default;
 
-   /* Constructor for serial builds - Should be supported without Hypre and MPI */
+   /* Constructor for serial builds - supported without Hypre and MPI */
    AmgXSolver(const std::string &modeStr, const std::string &cfgFile);
-
-#ifdef MFEM_USE_MPI
-   /* Constructor for mpi exclusive - Needs Hypre and MPI */
-   AmgXSolver(const MPI_Comm &comm,
-              const std::string &modeStr, const std::string &cfgFile);
-
-   /* Constructor for mpi teams - Needs Hypre and MPI */
-   AmgXSolver(const MPI_Comm &comm,
-              const std::string &modeStr, const std::string &cfgFile, int &nDevs);
-#endif
-
-   ~AmgXSolver();
 
    void Initialize_Serial(const std::string &modeStr, const std::string &cfgFile);
 
+   void SetA(const SparseMatrix &A);
+
 #ifdef MFEM_USE_MPI
+   /* Constructor for MPI-GPU exclusive (1 MPI per GPU) */
+   AmgXSolver(const MPI_Comm &comm,
+              const std::string &modeStr, const std::string &cfgFile);
+
+   /* Constructor for MPI teams (MPI procs share a GPU) */
+   AmgXSolver(const MPI_Comm &comm,
+              const std::string &modeStr, const std::string &cfgFile, int &nDevs);
+
    void Initialize_ExclusiveGPU(const MPI_Comm &comm, const std::string &modeStr,
                                 const std::string &cfgFile);
 
    void Initialize_MPITeams(const MPI_Comm &comm,
                             const std::string &modeStr, const std::string &cfgFile,
                             const int nDevs);
-#endif
 
-   void finalize();
-
-#ifdef MFEM_USE_MPI
    void SetA(const HypreParMatrix &A);
-#endif
 
-   void SetA(const SparseMatrix &A);
-
-   //Setup AMGX
-#ifdef MFEM_USE_MPI
    void SetA_MPI_GPU_Exclusive(const HypreParMatrix &A, const Array<double> &loc_A,
                                const Array<int> &loc_I, const Array<int64_t> &loc_J);
 
@@ -103,26 +92,30 @@ public:
 
    void SetMode(AMGX_MODE mode) {m_AmgxMode = mode;}
 
+   ~AmgXSolver();
+
+   void finalize();
+
 private:
 
    AMGX_MODE m_AmgxMode = SOLVER;
 
 #ifdef MFEM_USE_MPI
-   //The following methods send vectors to root node in a MPI-Team
+   //The following methods send vectors to the root node in a MPI team
    void GatherArray(const Array<double> &inArr, Array<double> &outArr,
-                    const int mpiTeamSz, MPI_Comm &mpiTeam);
+                    const int mpiTeamSz, const MPI_Comm &mpiTeam) const;
 
    void GatherArray(const Vector &inArr, Vector &outArr,
-                    const int mpiTeamSz, MPI_Comm &mpiTeam);
+                    const int mpiTeamSz, const MPI_Comm &mpiTeam) const;
 
    void GatherArray(const Array<int> &inArr, Array<int> &outArr,
-                    const int mpiTeamSz, MPI_Comm &mpiTeam);
+                    const int mpiTeamSz, const MPI_Comm &mpiTeam) const;
 
    void GatherArray(const Array<int64_t> &inArr, Array<int64_t> &outArr,
-                    const int mpiTeamSz, MPI_Comm &mpiTeam);
+                    const int mpiTeamSz, const MPI_Comm &mpiTeam) const;
 
-   //The following methods send vectors to root node in a MPI-Team
-   // partitions and displacements are reused.
+   //The following methods send vectors to the root node in a MPI team
+   //and store array partitions and displacements
    void GatherArray(const Vector &inArr, Vector &outArr,
                     const int mpiTeamSz, const MPI_Comm &mpiTeamComm,
                     Array<int> &Apart, Array<int> &Adisp) const;
@@ -134,57 +127,56 @@ private:
 
    static int              count;
 
-   // \brief A flag indicating if this instance has been initialized.
+   // Indicate if this instance has been initialized.
    bool                    isInitialized = false;
 
 #ifdef MFEM_USE_MPI
-   // \brief The name of the node that this MPI process belongs to.
+   // The name of the node that this MPI process belongs to.
    std::string             nodeName;
 
-   // \brief Number of local GPU devices used by AmgX.
+   // Number of local GPU devices used by AmgX.
    int                     nDevs;
 
-   // \brief The ID of corresponding GPU device used by this MPI process.
+   // The ID of corresponding GPU device used by this MPI process.
    int                     devID;
 
-   // \brief A flag indicating if this process will talk to GPU.
+   // A flag indicating if this process will invoke AmgX
    int                     gpuProc = MPI_UNDEFINED;
 
-   // \brief A communicator for global world.
+   // Communicator for all MPI ranks
    MPI_Comm                globalCpuWorld = MPI_COMM_NULL;
 
-   // \brief A communicator for local world (i.e., in-node).
+   // Communicator for ranks in same node
    MPI_Comm                localCpuWorld;
 
-   // \brief A communicator for processes sharing the same devices.
+   // Communicator for ranks sharing a device
    MPI_Comm                devWorld;
 
-   // \brief A communicator for MPI processes that can talk to GPUs.
+   // A communicator for MPI processes that will launch AmgX (root of devWorld)
    MPI_Comm                gpuWorld;
 
-   // \brief Size of \ref AmgXSolver::globalCpuWorld "globalCpuWorld".
+   // Global number of MPI procs + rank id
    int                     globalSize;
 
-   // \brief Size of \ref AmgXSolver::localCpuWorld "localCpuWorld".
-   int                     localSize;
-
-   // \brief Size of \ref AmgXSolver::gpuWorld "gpuWorld".
-   int                     gpuWorldSize;
-
-   // \brief Size of \ref AmgXSolver::devWorld "devWorld".
-   int                     devWorldSize;
-
-   // \brief Rank in \ref AmgXSolver::globalCpuWorld "globalCpuWorld".
    int                     myGlobalRank;
 
-   // \brief Rank in \ref AmgXSolver::localCpuWorld "localCpuWorld".
+   // Total number of MPI procs in a node
+   // + rank id
+   int                     localSize;
+
    int                     myLocalRank;
 
-   // \brief Rank in \ref AmgXSolver::gpuWorld "gpuWorld".
-   int                     myGpuWorldRank;
+   // Total number of MPI ranks sharing a device
+   // + rank id
+   int                     devWorldSize;
 
-   // \brief Rank in \ref AmgXSolver::devWorld "devWorld".
    int                     myDevWorldRank;
+
+   // Total number of MPI procs calling AmgX
+   // + rank id
+   int                     gpuWorldSize;
+
+   int                     myGpuWorldRank;
 #endif
 
    // \brief A parameter used by AmgX.
