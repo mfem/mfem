@@ -2080,6 +2080,7 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
       }
 
       // create boundary elements
+      // TODO: use boundary_faces?
       for (int k = 0; k < gi.nf; k++)
       {
          const int* fv = gi.faces[k];
@@ -5182,11 +5183,12 @@ long NCMesh::NCList::MemoryUsage() const
       {
          pm_size += point_matrices[i][j]->MemoryUsage();
       }
+      pm_size += point_matrices[i].MemoryUsage();
    }
 
-   return conforming.Capacity() * sizeof(MeshId) +
-          masters.Capacity() * sizeof(Master) +
-          slaves.Capacity() * sizeof(Slave) +
+   return conforming.MemoryUsage() +
+          masters.MemoryUsage() +
+          slaves.MemoryUsage() +
           pm_size;
 }
 

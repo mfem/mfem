@@ -179,7 +179,7 @@ public:
    struct Slave : public MeshId
    {
       int master; ///< master number (in Mesh numbering)
-      unsigned matrix : 24;    ///< index into NCList::point_matrices
+      unsigned matrix : 24;    ///< index into NCList::point_matrices[geom]
       unsigned edge_flags : 8; ///< edge orientation flags
 
       Slave() = default;
