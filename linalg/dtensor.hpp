@@ -110,33 +110,18 @@ public:
    }
 
    /// Conversion to `Scalar *`.
-   explicit inline operator const Scalar *() const { return data; }
-   explicit inline operator Scalar *() { return data; }
+   inline operator Scalar *() const { return data; }
 
    /// Const accessor for the data
    template <typename... Args> MFEM_HOST_DEVICE inline
-   const Scalar& operator()(Args... args) const
-   {
-      static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
-      return data[ TensorInd<1, Dim, Args...>::result(sizes, args...) ];
-   }
-
-   /// Accessor for the data
-   template <typename... Args> MFEM_HOST_DEVICE inline
-   Scalar& operator()(Args... args)
+   Scalar& operator()(Args... args) const
    {
       static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
       return data[ TensorInd<1, Dim, Args...>::result(sizes, args...) ];
    }
 
    /// Subscript operator where the tensor is viewed as a 1D array.
-   MFEM_HOST_DEVICE inline const Scalar& operator[](int i) const
-   {
-      return data[i];
-   }
-
-   /// Subscript operator where the tensor is viewed as a 1D array.
-   MFEM_HOST_DEVICE inline Scalar& operator[](int i)
+   MFEM_HOST_DEVICE inline Scalar& operator[](int i) const
    {
       return data[i];
    }
@@ -150,6 +135,7 @@ inline DeviceTensor<sizeof...(Dims),T> Reshape(T *ptr, Dims... dims)
 {
    return DeviceTensor<sizeof...(Dims),T>(ptr, dims...);
 }
+
 
 typedef DeviceTensor<1,int> DeviceArray;
 typedef DeviceTensor<1,double> DeviceVector;
