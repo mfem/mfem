@@ -169,6 +169,7 @@ public:
    {
       int slaves_begin, slaves_end; ///< slave faces
 
+      Master() = default;
       Master(int index, int element, int local, int geom, int sb, int se)
          : MeshId(index, element, local, geom)
          , slaves_begin(sb), slaves_end(se) {}
@@ -181,6 +182,7 @@ public:
       unsigned matrix : 24;    ///< index into NCList::point_matrices
       unsigned edge_flags : 8; ///< edge orientation flags
 
+      Slave() = default;
       Slave(int index, int element, int local, int geom)
          : MeshId(index, element, local, geom)
          , master(-1), matrix(0), edge_flags(0) {}
@@ -189,10 +191,9 @@ public:
    /// Lists all edges/faces in the nonconforming mesh.
    struct NCList
    {
-      std::vector<MeshId> conforming;
-      std::vector<Master> masters;
-      std::vector<Slave> slaves;
-      // TODO: switch to Arrays when fixed for non-POD types
+      Array<MeshId> conforming;
+      Array<Master> masters;
+      Array<Slave> slaves;
 
       /// List of unique point matrices for each slave geometry.
       Array<DenseMatrix*> point_matrices[Geometry::NumGeom];
@@ -202,7 +203,7 @@ public:
                                DenseMatrix &oriented_matrix) const;
 
       void Clear();
-      bool Empty() const { return !conforming.size() && !masters.size(); }
+      bool Empty() const { return !conforming.Size() && !masters.Size(); }
       long TotalSize() const;
       long MemoryUsage() const;
 

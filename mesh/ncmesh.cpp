@@ -2398,9 +2398,9 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
       {
          // we have a slave face, add it to the list
          int elem = fa->GetSingleElement();
-         face_list.slaves.push_back(
+         face_list.slaves.Append(
             Slave(fa->index, elem, -1, Geometry::SQUARE));
-         Slave &sl = face_list.slaves.back();
+         Slave &sl = face_list.slaves.Last();
 
          // reorder the point matrix according to slave face orientation
          PointMatrix pm_r;
@@ -2475,10 +2475,10 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
             MFEM_ASSERT(eid.Size() < 2, "non-unique edge prism");
 
             // create a slave face record with a degenerate point matrix
-            face_list.slaves.push_back(
+            face_list.slaves.Append(
                Slave(-1 - enode.edge_index,
                      eid[0].element, eid[0].local, eid[0].geom));
-            Slave &sl = face_list.slaves.back();
+            Slave &sl = face_list.slaves.Last();
 
             if (split == 1)
             {
@@ -2520,13 +2520,13 @@ void NCMesh::TraverseTetEdge(int vn0, int vn1, const Point &p0, const Point &p1,
          // in this case we need to add an edge-face constraint, because the
          // master edge is really a (face-)slave itself
 
-         face_list.slaves.push_back(
+         face_list.slaves.Append(
             Slave(-1 - eid.index, eid.element, eid.local, eid.geom));
 
          int v0index = nodes[vn0].vert_index;
          int v1index = nodes[vn1].vert_index;
 
-         face_list.slaves.back().matrix =
+         face_list.slaves.Last().matrix =
             matrix_map.GetIndex((v0index < v1index) ? PointMatrix(p0, p1, p0)
                                 /*               */ : PointMatrix(p1, p0, p1));
 
@@ -2552,9 +2552,9 @@ bool NCMesh::TraverseTriFace(int vn0, int vn1, int vn2,
       {
          // we have a slave face, add it to the list
          int elem = fa->GetSingleElement();
-         face_list.slaves.push_back(
+         face_list.slaves.Append(
             Slave(fa->index, elem, -1, Geometry::TRIANGLE));
-         Slave &sl = face_list.slaves.back();
+         Slave &sl = face_list.slaves.Last();
 
          // reorder the point matrix according to slave face orientation
          PointMatrix pm_r;
@@ -2646,13 +2646,13 @@ void NCMesh::BuildFaceList()
          if (fa.elem[0] >= 0 && fa.elem[1] >= 0)
          {
             // this is a conforming face, add it to the list
-            face_list.conforming.push_back(MeshId(fa.index, elem, j, fgeom));
+            face_list.conforming.Append(MeshId(fa.index, elem, j, fgeom));
          }
          else
          {
             // this is either a master face or a slave face, but we can't
             // tell until we traverse the face refinement 'tree'...
-            int sb = face_list.slaves.size();
+            int sb = face_list.slaves.Size();
             if (fgeom == Geometry::SQUARE)
             {
                Face* dummy[4];
@@ -2665,11 +2665,11 @@ void NCMesh::BuildFaceList()
                                pm_tri_identity, 0, matrix_maps[fgeom]);
             }
 
-            int se = face_list.slaves.size();
+            int se = face_list.slaves.Size();
             if (sb < se)
             {
                // found slaves, so this is a master face; add it to the list
-               face_list.masters.push_back(
+               face_list.masters.Append(
                   Master(fa.index, elem, j, fgeom, sb, se));
 
                // also, set the master index for the slaves
@@ -2701,9 +2701,9 @@ void NCMesh::TraverseEdge(int vn0, int vn1, double t0, double t1, int flags,
    if (nd.HasEdge() && level > 0)
    {
       // we have a slave edge, add it to the list
-      edge_list.slaves.push_back(Slave(nd.edge_index, -1, -1, Geometry::SEGMENT));
+      edge_list.slaves.Append(Slave(nd.edge_index, -1, -1, Geometry::SEGMENT));
 
-      Slave &sl = edge_list.slaves.back();
+      Slave &sl = edge_list.slaves.Last();
       sl.matrix = matrix_map.GetIndex(PointMatrix(Point(t0), Point(t1)));
 
       // handle slave edge orientation
@@ -2785,14 +2785,14 @@ void NCMesh::BuildEdgeList()
          int flags = (v0index > v1index) ? 1 : 0;
 
          // try traversing the edge to find slave edges
-         int sb = edge_list.slaves.size();
+         int sb = edge_list.slaves.Size();
          TraverseEdge(node[0], node[1], t0, t1, flags, 0, matrix_map);
 
-         int se = edge_list.slaves.size();
+         int se = edge_list.slaves.Size();
          if (sb < se)
          {
             // found slaves, this is a master face; add it to the list
-            edge_list.masters.push_back(
+            edge_list.masters.Append(
                Master(nd.edge_index, elem, j, Geometry::SEGMENT, sb, se));
 
             // also, set the master index for the slaves
@@ -2804,13 +2804,13 @@ void NCMesh::BuildEdgeList()
          else
          {
             // no slaves, this is a conforming edge
-            edge_list.conforming.push_back(MeshId(nd.edge_index, elem, j));
+            edge_list.conforming.Append(MeshId(nd.edge_index, elem, j));
          }
       }
    }
 
    // fix up slave edge element/local
-   for (unsigned i = 0; i < edge_list.slaves.size(); i++)
+   for (int i = 0; i < edge_list.slaves.Size(); i++)
    {
       Slave &sl = edge_list.slaves[i];
       int local = edge_local[sl.index];
@@ -2830,7 +2830,7 @@ void NCMesh::BuildVertexList()
    int total = NVertices + GetNumGhostVertices();
 
    vertex_list.Clear();
-   vertex_list.conforming.reserve(total);
+   vertex_list.conforming.Reserve(total);
 
    Array<char> processed_vertices(total);
    processed_vertices = 0;
@@ -2854,7 +2854,7 @@ void NCMesh::BuildVertexList()
             if (processed_vertices[index]) { continue; }
             processed_vertices[index] = 1;
 
-            vertex_list.conforming.push_back(MeshId(index, elem, j));
+            vertex_list.conforming.Append(MeshId(index, elem, j));
          }
       }
    }
@@ -2884,9 +2884,9 @@ void NCMesh::NCList::OrientedPointMatrix(const Slave &slave,
 
 void NCMesh::NCList::Clear()
 {
-   conforming.clear();
-   masters.clear();
-   slaves.clear();
+   conforming.DeleteAll();
+   masters.DeleteAll();
+   slaves.DeleteAll();
 
    for (int i = 0; i < Geometry::NumGeom; i++)
    {
@@ -2902,7 +2902,7 @@ void NCMesh::NCList::Clear()
 
 long NCMesh::NCList::TotalSize() const
 {
-   return conforming.size() + masters.size() + slaves.size();
+   return conforming.Size() + masters.Size() + slaves.Size();
 }
 
 const NCMesh::MeshId& NCMesh::NCList::LookUp(int index, int *type) const
@@ -2910,15 +2910,15 @@ const NCMesh::MeshId& NCMesh::NCList::LookUp(int index, int *type) const
    if (!inv_index.Size())
    {
       int max_index = -1;
-      for (unsigned i = 0; i < conforming.size(); i++)
+      for (int i = 0; i < conforming.Size(); i++)
       {
          max_index = std::max(conforming[i].index, max_index);
       }
-      for (unsigned i = 0; i < masters.size(); i++)
+      for (int i = 0; i < masters.Size(); i++)
       {
          max_index = std::max(masters[i].index, max_index);
       }
-      for (unsigned i = 0; i < slaves.size(); i++)
+      for (int i = 0; i < slaves.Size(); i++)
       {
          if (slaves[i].index < 0) { continue; }
          max_index = std::max(slaves[i].index, max_index);
@@ -2927,15 +2927,15 @@ const NCMesh::MeshId& NCMesh::NCList::LookUp(int index, int *type) const
       inv_index.SetSize(max_index + 1);
       inv_index = -1;
 
-      for (unsigned i = 0; i < conforming.size(); i++)
+      for (int i = 0; i < conforming.Size(); i++)
       {
          inv_index[conforming[i].index] = (i << 2);
       }
-      for (unsigned i = 0; i < masters.size(); i++)
+      for (int i = 0; i < masters.Size(); i++)
       {
          inv_index[masters[i].index] = (i << 2) + 1;
       }
-      for (unsigned i = 0; i < slaves.size(); i++)
+      for (int i = 0; i < slaves.Size(); i++)
       {
          if (slaves[i].index < 0) { continue; }
          inv_index[slaves[i].index] = (i << 2) + 2;
@@ -5184,9 +5184,9 @@ long NCMesh::NCList::MemoryUsage() const
       }
    }
 
-   return conforming.capacity() * sizeof(MeshId) +
-          masters.capacity() * sizeof(Master) +
-          slaves.capacity() * sizeof(Slave) +
+   return conforming.Capacity() * sizeof(MeshId) +
+          masters.Capacity() * sizeof(Master) +
+          slaves.Capacity() * sizeof(Slave) +
           pm_size;
 }
 
@@ -5282,20 +5282,20 @@ void NCMesh::PrintStats(std::ostream &out) const
        << face_list.TotalSize() << " =    [ " << std::setw(9)
        << face_list.MemoryUsage()/MiB << " MiB ]\n"
        "      conforming               " << std::setw(9)
-       << face_list.conforming.size() << " +\n"
+       << face_list.conforming.Size() << " +\n"
        "      master                   " << std::setw(9)
-       << face_list.masters.size() << " +\n"
+       << face_list.masters.Size() << " +\n"
        "      slave                    " << std::setw(9)
-       << face_list.slaves.size() << "\n"
+       << face_list.slaves.Size() << "\n"
        "   number of edges           : " << std::setw(9)
        << edge_list.TotalSize() << " =    [ " << std::setw(9)
        << edge_list.MemoryUsage()/MiB << " MiB ]\n"
        "      conforming               " << std::setw(9)
-       << edge_list.conforming.size() << " +\n"
+       << edge_list.conforming.Size() << " +\n"
        "      master                   " << std::setw(9)
-       << edge_list.masters.size() << " +\n"
+       << edge_list.masters.Size() << " +\n"
        "      slave                    " << std::setw(9)
-       << edge_list.slaves.size() << "\n"
+       << edge_list.slaves.Size() << "\n"
        "   total memory              : " << std::setw(17)
        << "[ " << std::setw(9) << MemoryUsage()/MiB << " MiB ]\n"
        ;
