@@ -411,8 +411,7 @@ public:
    inline void operator=(const T &a)
    { array1d = a; }
 
-   inline Array2D& operator=(const Array2D &a)
-   { M = a.M; N = a.N; array1d = a.array1d; return *this; }
+   inline Array2D& operator=(const Array2D &a) = default;
 
    /// Make this Array a reference to 'master'
    inline void MakeRef(const Array2D &master)
