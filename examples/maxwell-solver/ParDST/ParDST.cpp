@@ -181,6 +181,7 @@ void ParDST::Mult(const Vector &r, Vector &z) const
    }
    int nsweeps = sweeps->nsweeps;
    // 1. Loop through sweeps
+   if (dim == 3 && nz == 1) { nsweeps = 4; } // x-y partition only;
    for (int l=0; l<nsweeps; l++)
    {  
       // 2. loop through diagonals/steps of each sweep   

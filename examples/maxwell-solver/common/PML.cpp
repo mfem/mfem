@@ -97,7 +97,8 @@ void CartesianPML::StretchFunction(const Vector &x,
    complex<double> zi = complex<double>(0., 1.);
 
    double n = 2.0;
-   double c = 5.0;
+   // double c = 5.0;
+   double c = log(omega);
    double coeff;
    // Stretch in each direction independently
    for (int i = 0; i < dim; ++i)

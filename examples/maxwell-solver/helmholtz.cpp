@@ -32,6 +32,10 @@ double length = 1.0;
 double pml_length = 0.25;
 Array2D<double>comp_bdr;
 
+#ifndef MFEM_USE_SUPERLU
+#error This example requires that MFEM is built with MFEM_USE_PETSC=YES
+#endif
+
 int main(int argc, char *argv[])
 {
 
@@ -317,11 +321,15 @@ int main(int argc, char *argv[])
 
    a.RecoverFEMSolution(X,B,p_gf);
 
-   // ComplexUMFPackSolver csolver;
-   // csolver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-   // csolver.SetOperator(*AZ);
-   // Vector X1(X.Size());
-   // csolver.Mult(B,X1);
+   chrono.Clear();
+   chrono.Start();
+   ComplexUMFPackSolver csolver;
+   csolver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+   csolver.SetOperator(*AZ);
+   Vector X1(X.Size());
+   csolver.Mult(B,X1);
+   chrono.Stop();
+   cout << "UMFPack time: " << chrono.RealTime() << endl; 
    // X1-= X;
 
    // ComplexGridFunction error_gf(fespace);

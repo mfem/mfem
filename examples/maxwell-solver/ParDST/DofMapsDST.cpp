@@ -369,7 +369,7 @@ std::vector<std::vector<Vector * >> & OvlpSol)
    send_buffer.DeleteAll();
 
 
-   // Extruct the transfered solutions
+   // Extract the transfered solutions
    recv_counter = 0;
    for (int is = 0; is<nrsendIds; is++)
    {

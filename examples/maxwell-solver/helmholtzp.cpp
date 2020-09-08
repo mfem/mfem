@@ -142,21 +142,35 @@ int main(int argc, char *argv[])
    if (dim == 2)
    {
       nprocs = sqrt(num_procs); 
-      nprocsx = nprocs;
-      nprocsy = nprocs;
+      // nprocsx = nprocs;
+      // nprocsy = nprocs;
+      nprocsx = 1;
+      nprocsy = num_procs;
       nprocsz = 1;
    }    
    else
    {
       nprocs = cbrt(num_procs); 
-      nprocsx = nprocs;
-      nprocsy = nprocs;
-      nprocsz = nprocs;
+      // nprocsx = nprocs;
+      // nprocsy = nprocs;
+      // nprocsz = nprocs;
+      nprocsx = 1;
+      if (nz != 1)
+      {
+         nprocsy = sqrt(num_procs);
+         nprocsz = nprocsy;
+      }
+      else
+      {
+         nprocsy = num_procs;
+         nprocsz = 1;
+      }
    }
    // MFEM_VERIFY(nprocs*nprocs == num_procs, "Check MPI partitioning");
    // int nxyz[3] = {num_procs,1,1};
    // int nxyz[3] = {nprocs,nprocs,1};
    // int nxyz[3] = {1,num_procs,1};
+   
    int nxyz[3] = {nprocsx,nprocsy,nprocsz};
    // int nxyz[3] = {num_procs,1,1};
    int * part = mesh->CartesianPartitioning(nxyz);
@@ -172,7 +186,7 @@ int main(int argc, char *argv[])
 
 
    double hl = GetUniformMeshElementSize(pmesh);
-   int nrlayers = 2;
+   int nrlayers = 3;
 
    Array2D<double> lengths(dim,2);
    lengths = hl*nrlayers;
@@ -278,24 +292,29 @@ int main(int argc, char *argv[])
            << ", solution time: " << t2 << endl; 
 
 
-      chrono.Clear();
-      chrono.Start();
-      X = 0.0;
-      SLISolver sli(MPI_COMM_WORLD);
-      sli.iterative_mode = true;
-      sli.SetPreconditioner(S);
-      sli.SetOperator(*Ah);
-      sli.SetRelTol(1e-6);
-      sli.SetMaxIter(20);
-      sli.SetPrintLevel(1);
-      sli.Mult(B,X);
+      // chrono.Clear();
+      // chrono.Start();
+      // X = 0.0;
+      // SLISolver sli(MPI_COMM_WORLD);
+      // sli.iterative_mode = true;
+      // sli.SetPreconditioner(S);
+      // sli.SetOperator(*Ah);
+      // sli.SetRelTol(1e-6);
+      // sli.SetMaxIter(20);
+      // sli.SetPrintLevel(1);
+      // sli.Mult(B,X);
 
 
-      chrono.Stop();
-      double t3 = chrono.RealTime();
+      // chrono.Stop();
+      // double t3 = chrono.RealTime();
 
-      cout << " myid: " << myid 
-           << ", SLI solution time: " << t3 << endl; 
+      // cout << " myid: " << myid 
+      //      << ", SLI solution time: " << t3 << endl; 
+
+         //    cout << " myid: " << myid 
+         //   << ", setup time: " << t1
+         //   << ", SLI solution time: " << t3 << endl; 
+         //   << ", solution time: " << t2 << endl; 
 
       a.RecoverFEMSolution(X,B,p_gf);
       if (visualization)
