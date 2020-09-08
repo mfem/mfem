@@ -272,7 +272,8 @@ int main(int argc, char *argv[])
       for (int i = 0; i < nsolves; i++)
       {
          X = 0.0; //set to zero
-         amgx.solve(X, B);
+         //amgx.solve(X, B);
+         amgx.Mult(B, X);
       }
 #endif
    }

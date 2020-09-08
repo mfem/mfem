@@ -467,8 +467,8 @@ void AmgXSolver::GatherArray(const Array<int64_t> &inArr,
 }
 
 void AmgXSolver::GatherArray(const Vector &inArr, Vector &outArr,
-                             const int mpiTeamSz, MPI_Comm &mpiTeamComm,
-                             Array<int> &Apart, Array<int> &Adisp)
+                             const int mpiTeamSz, const MPI_Comm &mpiTeamComm,
+                             Array<int> &Apart, Array<int> &Adisp) const
 {
    //Calculate number of elements to be collected from each process
    int locAsz = inArr.Size();
@@ -490,8 +490,8 @@ void AmgXSolver::GatherArray(const Vector &inArr, Vector &outArr,
 }
 
 void AmgXSolver::ScatterArray(const Vector &inArr, Vector &outArr,
-                              const int mpiTeamSz, MPI_Comm &mpiTeamComm,
-                              Array<int> &Apart, Array<int> &Adisp)
+                              const int mpiTeamSz, const MPI_Comm &mpiTeamComm,
+                              Array<int> &Apart, Array<int> &Adisp) const
 {
 
    MPI_Scatterv(inArr.HostRead(),Apart.HostRead(),Adisp.HostRead(),
@@ -927,7 +927,7 @@ void AmgXSolver::updateA(const HypreParMatrix &A)
 }
 */
 
-
+/* TODO delete
 void AmgXSolver::solve(Vector &X, Vector &B)
 {
 
@@ -986,11 +986,12 @@ void AmgXSolver::solve(Vector &X, Vector &B)
    }
 
    ScatterArray(all_X, X, devWorldSize, devWorld, Apart_X, Adisp_X);
-
 }
+*/
 
-void AmgXSolver::Mult(const Vector& b, Vector& x) const
+void AmgXSolver::Mult(const Vector& B, Vector& X) const
 {
+#if 0 //Serial Mode
    AMGX_vector_upload(AmgXRHS, b.Size(), 1, b.Read());
 
    AMGX_vector_set_zero(AmgXP, x.Size(), 1);
@@ -999,6 +1000,66 @@ void AmgXSolver::Mult(const Vector& b, Vector& x) const
    AMGX_solver_solve(solver, AmgXRHS, AmgXP);
 
    AMGX_vector_download(AmgXP, x.HostWrite());
+#endif
+
+   //Should work for serial, and mpi-eclusive modes
+   if (mpi_gpu_mode != "mpi-teams")
+   {
+      AMGX_vector_upload(AmgXP, X.Size(), 1, X.HostReadWrite());
+      AMGX_vector_upload(AmgXRHS, B.Size(), 1, B.HostRead());
+
+      MPI_Barrier(gpuWorld);
+
+      AMGX_solver_solve(solver,AmgXRHS, AmgXP);
+
+      AMGX_SOLVE_STATUS   status;
+      AMGX_solver_get_status(solver, &status);
+      if (status != AMGX_SOLVE_SUCCESS)
+      {
+         printf("Amgx failed to solve system, error code %d. \n", status);
+      }
+
+      AMGX_vector_download(AmgXP, X.HostWrite());
+      return;
+   }
+
+
+   Vector all_X(m_local_rows);
+   Vector all_B(m_local_rows);
+   Array<int> Apart_X(devWorldSize);
+   Array<int> Adisp_X(devWorldSize);
+   Array<int> Apart_B(devWorldSize);
+   Array<int> Adisp_B(devWorldSize);
+
+   GatherArray(X, all_X, devWorldSize, devWorld, Apart_X, Adisp_X);
+   GatherArray(B, all_B, devWorldSize, devWorld, Apart_B, Adisp_B);
+   MPI_Barrier(devWorld);
+
+#if 1
+   if (gpuWorld != MPI_COMM_NULL)
+   {
+
+      AMGX_vector_upload(AmgXP, all_X.Size(), 1, all_X.HostReadWrite());
+      AMGX_vector_upload(AmgXRHS, all_B.Size(), 1, all_B.HostReadWrite());
+
+      MPI_Barrier(gpuWorld);
+
+      AMGX_solver_solve(solver,AmgXRHS, AmgXP);
+
+      AMGX_SOLVE_STATUS   status;
+      AMGX_solver_get_status(solver, &status);
+      if (status != AMGX_SOLVE_SUCCESS)
+      {
+         printf("Amgx failed to solve system, error code %d. \n", status);
+      }
+
+      AMGX_vector_download(AmgXP, all_X.HostWrite());
+
+
+   }
+
+   ScatterArray(all_X, X, devWorldSize, devWorld, Apart_X, Adisp_X);
+#endif
 }
 
 
