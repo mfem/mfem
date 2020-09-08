@@ -5409,12 +5409,12 @@ void Mesh::GenerateNCFaceInfo()
       (Dim == 2) ? ncmesh->GetEdgeList() : ncmesh->GetFaceList();
 
    nc_faces_info.SetSize(0);
-   nc_faces_info.Reserve(list.masters.size() + list.slaves.size());
+   nc_faces_info.Reserve(list.masters.Size() + list.slaves.Size());
 
    int nfaces = GetNumFaces();
 
    // add records for master faces
-   for (unsigned i = 0; i < list.masters.size(); i++)
+   for (int i = 0; i < list.masters.Size(); i++)
    {
       const NCMesh::Master &master = list.masters[i];
       if (master.index >= nfaces) { continue; }
@@ -5425,7 +5425,7 @@ void Mesh::GenerateNCFaceInfo()
    }
 
    // add records for slave faces
-   for (unsigned i = 0; i < list.slaves.size(); i++)
+   for (int i = 0; i < list.slaves.Size(); i++)
    {
       const NCMesh::Slave &slave = list.slaves[i];
 

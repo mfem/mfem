@@ -2518,7 +2518,7 @@ int ParMesh::GetNSharedFaces() const
    {
       MFEM_ASSERT(Dim > 1, "");
       const NCMesh::NCList &shared = pncmesh->GetSharedList(Dim-1);
-      return shared.conforming.size() + shared.slaves.size();
+      return shared.conforming.Size() + shared.slaves.Size();
    }
 }
 
@@ -2537,7 +2537,7 @@ int ParMesh::GetSharedFace(int sface) const
    {
       MFEM_ASSERT(Dim > 1, "");
       const NCMesh::NCList &shared = pncmesh->GetSharedList(Dim-1);
-      int csize = (int) shared.conforming.size();
+      int csize = (int) shared.conforming.Size();
       return sface < csize
              ? shared.conforming[sface].index
              : shared.slaves[sface - csize].index;
@@ -4191,18 +4191,18 @@ void ParMesh::Print(std::ostream &out) const
          const NCMesh::NCList& sfaces =
             (Dim == 3) ? pncmesh->GetSharedFaces() : pncmesh->GetSharedEdges();
          const int nfaces = GetNumFaces();
-         for (unsigned i = 0; i < sfaces.conforming.size(); i++)
+         for (int i = 0; i < sfaces.conforming.Size(); i++)
          {
             int index = sfaces.conforming[i].index;
             if (index < nfaces) { nc_shared_faces.Append(index); }
          }
-         for (unsigned i = 0; i < sfaces.masters.size(); i++)
+         for (int i = 0; i < sfaces.masters.Size(); i++)
          {
             if (Dim == 2 && WantSkipSharedMaster(sfaces.masters[i])) { continue; }
             int index = sfaces.masters[i].index;
             if (index < nfaces) { nc_shared_faces.Append(index); }
          }
-         for (unsigned i = 0; i < sfaces.slaves.size(); i++)
+         for (int i = 0; i < sfaces.slaves.Size(); i++)
          {
             int index = sfaces.slaves[i].index;
             if (index < nfaces) { nc_shared_faces.Append(index); }
@@ -4402,7 +4402,7 @@ void ParMesh::PrintAsOne(std::ostream &out)
    else if (Dim > 1)
    {
       const NCMesh::NCList &list = pncmesh->GetSharedList(Dim - 1);
-      ne += list.conforming.size() + list.masters.size() + list.slaves.size();
+      ne += list.conforming.Size() + list.masters.Size() + list.slaves.Size();
       // In addition to the number returned by GetNSharedFaces(), include the
       // the master shared faces as well.
    }
@@ -4459,17 +4459,17 @@ void ParMesh::PrintAsOne(std::ostream &out)
    {
       const NCMesh::NCList &list = pncmesh->GetSharedList(Dim - 1);
       const int nfaces = GetNumFaces();
-      for (i = 0; i < (int) list.conforming.size(); i++)
+      for (i = 0; i < list.conforming.Size(); i++)
       {
          int index = list.conforming[i].index;
          if (index < nfaces) { dump_element(faces[index], ints); ne++; }
       }
-      for (i = 0; i < (int) list.masters.size(); i++)
+      for (i = 0; i < list.masters.Size(); i++)
       {
          int index = list.masters[i].index;
          if (index < nfaces) { dump_element(faces[index], ints); ne++; }
       }
-      for (i = 0; i < (int) list.slaves.size(); i++)
+      for (i = 0; i < list.slaves.Size(); i++)
       {
          int index = list.slaves[i].index;
          if (index < nfaces) { dump_element(faces[index], ints); ne++; }

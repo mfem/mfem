@@ -695,7 +695,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    for (int entity = 1; entity <= 2; entity++)
    {
       const NCMesh::NCList &list = mesh->ncmesh->GetNCList(entity);
-      if (!list.masters.size()) { continue; }
+      if (!list.masters.Size()) { continue; }
 
       Array<int> master_dofs, slave_dofs;
 
@@ -703,7 +703,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       DenseMatrix I;
 
       // loop through all master edges/faces, constrain their slave edges/faces
-      for (unsigned mi = 0; mi < list.masters.size(); mi++)
+      for (int mi = 0; mi < list.masters.Size(); mi++)
       {
          const NCMesh::Master &master = list.masters[mi];
 
