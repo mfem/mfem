@@ -8,9 +8,11 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-//Reference:
+
+//Based on the work of:
 //Pi-Yueh Chuang, & Lorena A. Barba (2017).
-//AmgXWrapper: An interface between PETSc and the NVIDIA AmgX library. J. Open Source Software, 2(16):280, doi:10.21105/joss.00280
+//AmgXWrapper: An interface between PETSc and the NVIDIA AmgX library. J.
+//Open Source Software, 2(16):280, doi:10.21105/joss.00280
 
 #include "../config/config.hpp"
 #include "AmgXSolver.hpp"
@@ -54,6 +56,8 @@ void AmgXSolver::Initialize_Serial(const std::string &modeStr,
 {
    count++;
 
+   mpi_gpu_mode = "serial";
+
    setMode(modeStr);
 
    AMGX_SAFE_CALL(AMGX_initialize());
@@ -92,7 +96,7 @@ void AmgXSolver::Initialize_ExclusiveGPU(const MPI_Comm &comm,
    gpuProc = 0;
 
    //Increment number of AmgX instances
-   count += 1;
+   count++;
 
    MPI_Comm_dup(comm, &gpuWorld);
    MPI_Comm_size(gpuWorld, &gpuWorldSize);
@@ -103,32 +107,6 @@ void AmgXSolver::Initialize_ExclusiveGPU(const MPI_Comm &comm,
 
    initAmgX(cfgFile);
 
-   /*
-   if (count == 1)
-   {
-      AMGX_SAFE_CALL(AMGX_initialize());
-
-      AMGX_SAFE_CALL(AMGX_initialize_plugins());
-
-      AMGX_SAFE_CALL(AMGX_install_signal_handler());
-   }
-
-   AMGX_SAFE_CALL(AMGX_config_create_from_file(&cfg, cfgFile.c_str()));
-
-   //Create a resource object
-   if (count == 1) { AMGX_resources_create(&rsrc, cfg, &gpuWorld, 1, &deviceId); }
-
-   //Create vector objects
-   AMGX_vector_create(&AmgXP, rsrc, mode);
-   AMGX_vector_create(&AmgXRHS, rsrc, mode);
-
-   AMGX_matrix_create(&AmgXA, rsrc, mode);
-
-   AMGX_solver_create(&solver, rsrc, mode, cfg);
-
-   // Obtain the default number of rings based on current configuration
-   AMGX_config_get_default_number_of_rings(cfg, &ring);
-   */
    isInitialized = true;
 }
 
@@ -147,7 +125,7 @@ void AmgXSolver::Initialize_MPITeams(const MPI_Comm &comm,
    mpi_gpu_mode = "mpi-teams";
 
    //Increment number of AmgX instances
-   count += 1;
+   count++;
 
    // Get the name of this node
    int     len;
@@ -276,40 +254,6 @@ void AmgXSolver::initMPIcomms(const MPI_Comm &comm, const int nDevs)
 
    MPI_Barrier(globalCpuWorld);
 }
-
-// \implements AmgXSolver::setDeviceCount
-/*
-void AmgXSolver::setDeviceCount()
-{
-   printf("Something went wrong, should not be calling setDeviceCount \n");
-   exit(-1);
-   // get the number of devices that AmgX solvers can use
-   switch (mode)
-   {
-      case AMGX_mode_dDDI: // for GPU cases, nDevs is the # of local GPUs
-      case AMGX_mode_dDFI: // for GPU cases, nDevs is the # of local GPUs
-      case AMGX_mode_dFFI: // for GPU cases, nDevs is the # of local GPUs
-         // get the number of total cuda devices
-         CHECK(cudaGetDeviceCount(&nDevs));
-
-         // Check whether there is at least one CUDA device on this node
-         if (nDevs == 0)
-         {
-            printf("There is no CUDA device on the node %s !\n", nodeName.c_str());
-            mfem_error("No CUDA devices found \n");
-         }
-
-         break;
-      case AMGX_mode_hDDI: // for CPU cases, nDevs is the # of local processes
-      case AMGX_mode_hDFI: // for CPU cases, nDevs is the # of local processes
-      case AMGX_mode_hFFI: // for CPU cases, nDevs is the # of local processes
-      default:
-         nDevs = localSize;
-         break;
-   }
-
-}
-*/
 
 // Determine MPI team sizes based on available devices
 void AmgXSolver::setDeviceIDs(const int nDevs)
@@ -535,58 +479,22 @@ void AmgXSolver::SetA(const HypreParMatrix &A)
    //1 GPU per MPI rank
    if (mpi_gpu_mode=="mpi-gpu-exclusive")
    {
-      /*
-       //Create a vector of offsets describing matrix row partitions
-       Array<int64_t> rowPart(gpuWorldSize+1); rowPart = 0.0;
-
-       int64_t myStart = A.GetRowStarts()[0];
-
-       MPI_Allgather(&myStart, 1, MPI_INT64_T,
-                     rowPart.GetData(),1, MPI_INT64_T
-                     ,gpuWorld);
-       MPI_Barrier(gpuWorld);
-
-       rowPart[gpuWorldSize] = A.M();
-
-       AMGX_distribution_handle dist;
-       AMGX_distribution_create(&dist, cfg);
-       AMGX_distribution_set_partition_data(dist, AMGX_DIST_PARTITION_OFFSETS,
-                                            rowPart.GetData());
-
-
-       const int nGlobalRows = A.M();
-       const int local_rows = loc_I.Size()-1;
-       const int num_nnz = loc_I[local_rows];
-
-       AMGX_matrix_upload_distributed(AmgXA, nGlobalRows, local_rows,
-                                      num_nnz, 1, 1, loc_I.HostRead(),
-                                      loc_J.HostReadWrite(), loc_A.HostReadWrite(),
-                                      nullptr, dist);
-
-       AMGX_distribution_destroy(dist);
-
-       MPI_Barrier(gpuWorld);
-
-       AMGX_solver_setup(solver, AmgXA);
-
-       AMGX_vector_bind(AmgXP, AmgXA);
-       AMGX_vector_bind(AmgXRHS, AmgXA);
-      */
       return SetA_MPI_GPU_Exclusive(A, loc_A, loc_I, loc_J);
    }
 
-
+   // Team of mpi ranks sharing a gpu
    if (mpi_gpu_mode == "mpi-teams")
    {
       return SetA_MPI_Teams(A, loc_A, loc_I, loc_J);
-   }//IF a team of mpi ranks are sharing a GPU
+   }
 
    mfem_error("Unsupported MPI_GPU combination \n");
 }
 
 void AmgXSolver::SetA_MPI_GPU_Exclusive(const HypreParMatrix &A,
                                         const Array<double> &loc_A,
-                                        const Array<int> &loc_I, const Array<int64_t> &loc_J)
+                                        const Array<int> &loc_I,
+                                        const Array<int64_t> &loc_J)
 {
    //Create a vector of offsets describing matrix row partitions
    Array<int64_t> rowPart(gpuWorldSize+1); rowPart = 0.0;
@@ -655,10 +563,6 @@ void AmgXSolver::SetA_MPI_Teams(const HypreParMatrix &A,
       all_A.SetSize(all_NNZ);
    }
 
-   //Array<int> I_rowInfo;
-
-
-   //GatherArray(I_rowInfo, loc_I, all_I, devWorldSize, devWorld);
    GatherArray(loc_I, all_I, devWorldSize, devWorld);
    GatherArray(loc_J, all_J, devWorldSize, devWorld);
    GatherArray(loc_A, all_A, devWorldSize, devWorld);
@@ -743,7 +647,7 @@ void AmgXSolver::SetA_MPI_Teams(const HypreParMatrix &A,
                     &rowPart.GetData()[1], 1, MPI_INT64_T,
                     gpuWorld);
       MPI_Barrier(gpuWorld);
-      //rowPart[gpuWorldSize] = A.M();
+
       //Fixup step
       for (int i=1; i<rowPart.Size(); ++i)
       {
@@ -771,7 +675,6 @@ void AmgXSolver::SetA_MPI_Teams(const HypreParMatrix &A,
 
       AMGX_solver_setup(solver, AmgXA);
 
-
       //Bind vectors to A
       AMGX_vector_bind(AmgXP, AmgXA);
       AMGX_vector_bind(AmgXRHS, AmgXA);
@@ -784,210 +687,14 @@ void AmgXSolver::SetOperator(const Operator& op)
    if (const HypreParMatrix* Aptr =
           dynamic_cast<const HypreParMatrix*>(&op))
    {
-      printf("Setting as Hypre Matrix \n");
       SetA(*Aptr);
    }
    else if (const SparseMatrix* Aptr =
                dynamic_cast<const SparseMatrix*>(&op))
    {
-      printf("Setting as Sparse Matrix \n");
       SetA(*Aptr);
    }
 }
-
-
-
-/* Update A
-void AmgXSolver::updateA(const HypreParMatrix &A)
-{
-   //Want to work in devWorld, rank 0 is team leader
-   //and will talk to the gpu
-
-   //Local processor data
-   Array<int> loc_I;
-   Array<int64_t> loc_J;
-   Array<double> loc_A;
-
-
-   // create an AmgX solver object
-   GetLocalA(A, loc_I, loc_J, loc_A);
-
-
-   //Send data to devWorld team lead
-
-   Array<int> all_I;
-   Array<int64_t> all_J;
-   Array<double> all_A;
-
-
-   //Determine array sizes
-   int J_allsz(0), all_NNZ(0), nDevRows(0);
-   const int loc_row_len = std::abs(A.RowPart()[1] -
-                                    A.RowPart()[0]); //end of row partition
-   const int loc_Jz_sz = loc_J.Size();
-   const int loc_A_sz = loc_A.Size();
-
-   MPI_Allreduce(&loc_row_len, &nDevRows, 1, MPI_INT, MPI_SUM, devWorld);
-   MPI_Allreduce(&loc_Jz_sz, &J_allsz, 1, MPI_INT, MPI_SUM, devWorld);
-   MPI_Allreduce(&loc_A_sz, &all_NNZ, 1, MPI_INT, MPI_SUM, devWorld);
-
-   MPI_Barrier(devWorld);
-
-   if (myDevWorldRank == 0)
-   {
-      all_I.SetSize(nDevRows+devWorldSize);
-      all_J.SetSize(J_allsz); all_J = 0.0;
-      all_A.SetSize(all_NNZ);
-   }
-
-   Array<int> I_rowInfo;
-
-
-   GatherArray(I_rowInfo, loc_I, all_I, devWorldSize, devWorld);
-   GatherArray(loc_J, all_J, devWorldSize, devWorld);
-   GatherArray(loc_A, all_A, devWorldSize, devWorld);
-
-   MPI_Barrier(devWorld);
-
-   int local_nnz(0);
-   int64_t local_rows(0);
-
-   if (myDevWorldRank == 0)
-   {
-
-      Array<int> z_ind(devWorldSize+1);
-      int iter = 1;
-      while (iter < devWorldSize-1)
-      {
-
-         //Determine the indices of zeros in global all_I array
-         int counter = 0;
-         z_ind[counter] = counter;
-         counter++;
-         for (int idx=1; idx<all_I.Size()-1; idx++)
-         {
-            if (all_I[idx]==0)
-            {
-               z_ind[counter] = idx-1;
-               counter++;
-            }
-         }
-         z_ind[devWorldSize] = all_I.Size()-1;
-         //End of determining indices of zeros in global all_I Array
-
-         //Bump all_I
-         for (int idx=z_ind[1]+1; idx < z_ind[2]; idx++)
-         {
-            all_I[idx] = all_I[idx-1] + (all_I[idx+1] - all_I[idx]);
-         }
-
-         //Shift array after bump to remove uncesssary values in middle of array
-         for (int idx=z_ind[2]; idx < all_I.Size()-1; ++idx)
-         {
-            all_I[idx] = all_I[idx+1];
-         }
-         iter++;
-      }
-
-      // LAST TIME THROUGH ARRAY
-      //Determine the indices of zeros in global row_ptr array
-      int counter = 0;
-      z_ind[counter] = counter;
-      counter++;
-      for (int idx=1; idx<all_I.Size()-1; idx++)
-      {
-         if (all_I[idx]==0)
-         {
-            z_ind[counter] = idx-1;
-            counter++;
-         }
-      }
-      z_ind[devWorldSize] = all_I.Size()-1;
-      //End of determining indices of zeros in global all_I Array
-      //BUMP all_I one last time
-      for (int idx=z_ind[1]+1; idx < all_I.Size()-1; idx++)
-      {
-         all_I[idx] = all_I[idx-1] + (all_I[idx+1] - all_I[idx]);
-      }
-      local_nnz = all_I[all_I.Size()-devWorldSize];
-      local_rows = nDevRows;
-
-   }
-
-   //Create row partition
-   m_local_rows = local_rows; //class copy
-   Array<int64_t> rowPart;
-
-
-   if (gpuProc == 0)
-   {
-      AMGX_matrix_replace_coefficients(AmgXA,A.M(),local_nnz,all_A,0);
-   }
-
-}
-*/
-
-/* TODO delete
-void AmgXSolver::solve(Vector &X, Vector &B)
-{
-
-   if (mpi_gpu_mode == "mpi-gpu-exclusive")
-   {
-      //out<<"MPI mode "<<mpi_gpu_mode<<endl;
-      AMGX_vector_upload(AmgXP, X.Size(), 1, X.HostReadWrite());
-      AMGX_vector_upload(AmgXRHS, B.Size(), 1, B.HostReadWrite());
-
-      MPI_Barrier(gpuWorld);
-
-      AMGX_solver_solve(solver,AmgXRHS, AmgXP);
-
-      AMGX_SOLVE_STATUS   status;
-      AMGX_solver_get_status(solver, &status);
-      if (status != AMGX_SOLVE_SUCCESS)
-      {
-         printf("Amgx failed to solve system, error code %d. \n", status);
-      }
-
-      AMGX_vector_download(AmgXP, X.HostWrite());
-      return;
-   }
-
-   Vector all_X(m_local_rows);
-   Vector all_B(m_local_rows);
-   Array<int> Apart_X(devWorldSize);
-   Array<int> Adisp_X(devWorldSize);
-   Array<int> Apart_B(devWorldSize);
-   Array<int> Adisp_B(devWorldSize);
-
-   GatherArray(X, all_X, devWorldSize, devWorld, Apart_X, Adisp_X);
-   GatherArray(B, all_B, devWorldSize, devWorld, Apart_B, Adisp_B);
-   MPI_Barrier(devWorld);
-
-   if (gpuWorld != MPI_COMM_NULL)
-   {
-
-      AMGX_vector_upload(AmgXP, all_X.Size(), 1, all_X.HostReadWrite());
-      AMGX_vector_upload(AmgXRHS, all_B.Size(), 1, all_B.HostReadWrite());
-
-      MPI_Barrier(gpuWorld);
-
-      AMGX_solver_solve(solver,AmgXRHS, AmgXP);
-
-      AMGX_SOLVE_STATUS   status;
-      AMGX_solver_get_status(solver, &status);
-      if (status != AMGX_SOLVE_SUCCESS)
-      {
-         printf("Amgx failed to solve system, error code %d. \n", status);
-      }
-
-      AMGX_vector_download(AmgXP, all_X.HostWrite());
-
-
-   }
-
-   ScatterArray(all_X, X, devWorldSize, devWorld, Apart_X, Adisp_X);
-}
-*/
 
 void AmgXSolver::Mult(const Vector& B, Vector& X) const
 {
@@ -1035,7 +742,6 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
    GatherArray(B, all_B, devWorldSize, devWorld, Apart_B, Adisp_B);
    MPI_Barrier(devWorld);
 
-#if 1
    if (gpuWorld != MPI_COMM_NULL)
    {
 
@@ -1059,11 +765,7 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
    }
 
    ScatterArray(all_X, X, devWorldSize, devWorld, Apart_X, Adisp_X);
-#endif
 }
-
-
-
 
 
 // \implements AmgXSolver::finalize
@@ -1109,7 +811,6 @@ void AmgXSolver::finalize()
 
    // re-set necessary variables in case users want to reuse
    // the variable of this instance for a new instance
-
    gpuProc = MPI_UNDEFINED;
    if (globalCpuWorld != MPI_COMM_NULL)
    {

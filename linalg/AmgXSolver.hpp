@@ -82,8 +82,6 @@ public:
 
    virtual void SetOperator(const Operator &op);
 
-   //void solve(Vector &p, Vector &b);
-
    virtual void Mult(const Vector& b, Vector& x) const;
 
    int getNumIterations();
@@ -113,8 +111,6 @@ private:
                      const int mpiTeamSz, const MPI_Comm &mpi_comm,
                      Array<int> &Apart, Array<int> &Adisp) const;
 
-   //To be refactored
-   //void updateA(const HypreParMatrix &A);
 private:
 
    static int              count;
@@ -191,16 +187,11 @@ private:
    // \brief AmgX solver object.
    AMGX_solver_handle      solver = nullptr;
 
-   SparseMatrix * spop;
-
    // \brief AmgX resource object.
    static AMGX_resources_handle   rsrc;
 
    // \brief Set AmgX solver mode based on the user-provided string.
    void setMode(const std::string &modeStr);
-
-   // \brief Get the number of GPU devices on this computing node.
-   //void setDeviceCount();
 
    // \brief Set the ID of the corresponding GPU used by this process.
    void setDeviceIDs(const int nDevs);
@@ -209,8 +200,6 @@ private:
    void initMPIcomms(const MPI_Comm &comm, const int nDevs);
 
    void initAmgX(const std::string &cfgFile);
-
-   //void getLocalA(const HypreParMatrix &A);
 
    int64_t m_local_rows;  //mlocal rows for ranks that talk to the gpu
 
