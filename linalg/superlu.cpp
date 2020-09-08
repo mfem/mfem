@@ -539,7 +539,7 @@ void SuperLUSolver::Mult( const Vector & x, Vector & y ) const
    {
       if ( info < 0 )
       {
-         switch (-info) 
+         switch (-info)
          {
             case 1:
                MFEM_ABORT("SuperLU:  SuperLU options are invalid.");
