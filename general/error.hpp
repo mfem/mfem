@@ -152,7 +152,11 @@ void mfem_warning(const char *msg = NULL);
       asm("trap;");            \
    }
 #else
-#define MFEM_ABORT_KERNEL(msg) MFEM_ABORT(msg)
+#define MFEM_ABORT_KERNEL(msg) \
+   {                           \
+      printf(msg);             \
+      abort();            \
+   }
 #endif
 
 #endif
