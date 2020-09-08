@@ -1780,14 +1780,16 @@ MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh, FmsComponent *volume)
    std::vector<int> bdr_eles[FMS_NUM_ENTITY_TYPES];
    std::vector<int> bdr_attributes;
    const int NBE = mmesh->GetNBE();
-   for(int i = 0; i < NBE; i++) {
+   for (int i = 0; i < NBE; i++)
+   {
       const Element::Type betype = mmesh->GetBdrElementType(i);
       bdr_attributes.push_back(mmesh->GetBdrAttribute(i));
-      switch (betype) {
+      switch (betype)
+      {
          case Element::POINT:
             bdr_eles[FMS_VERTEX].push_back(mmesh->GetBdrElementEdgeIndex(i));
             break;
-         case Element::SEGMENT: 
+         case Element::SEGMENT:
             bdr_eles[FMS_EDGE].push_back(mmesh->GetBdrElementEdgeIndex(i));
             break;
          case Element::TRIANGLE:
@@ -1803,20 +1805,25 @@ MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh, FmsComponent *volume)
             bdr_eles[FMS_HEXAHEDRON].push_back(mmesh->GetBdrElementEdgeIndex(i));
             break;
          default:
-            MFEM_WARNING("Unsupported boundary element " << betype << " at boundary index " << i);
+            MFEM_WARNING("Unsupported boundary element " << betype << " at boundary index "
+                         << i);
             break;
       }
    }
 
-   if(NBE) {
+   if(NBE)
+   {
       FmsComponent boundary = NULL;
       FmsMeshAddComponent(*fmesh, "boundary", &boundary);
       FmsInt part_id;
       FmsComponentAddPart(boundary, domains[0], &part_id);
-      for(int i = FMS_NUM_ENTITY_TYPES - 1; i > 0; i--) {
-         if(bdr_eles[i].size()) {
-            FmsComponentAddPartEntities(boundary, part_id, (FmsEntityType)i, FMS_INT32, FMS_INT32,
-               FMS_INT32, NULL, bdr_eles[i].data(), NULL, bdr_eles[i].size());
+      for (int i = FMS_NUM_ENTITY_TYPES - 1; i > 0; i--)
+      {
+         if(bdr_eles[i].size())
+         {
+            FmsComponentAddPartEntities(boundary, part_id, (FmsEntityType)i,
+               FMS_INT32, FMS_INT32, FMS_INT32, NULL, bdr_eles[i].data(),
+               NULL, bdr_eles[i].size());
             break;
          }
       }
@@ -1824,8 +1831,8 @@ MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh, FmsComponent *volume)
       FmsTag boundary_tag = NULL;
       FmsMeshAddTag(*fmesh, "boundary_attribute", &boundary_tag);
       FmsTagSetComponent(boundary_tag, boundary);
-      FmsTagSet(boundary_tag, FMS_INT32, FMS_INT32, bdr_attributes.data(), bdr_attributes.size());
-
+      FmsTagSet(boundary_tag, FMS_INT32, FMS_INT32, bdr_attributes.data(),
+                bdr_attributes.size());
    }
    *volume = v;
    return 0;
