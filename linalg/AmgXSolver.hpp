@@ -69,9 +69,9 @@ public:
 
    void finalize();
 
-   void SetA(const mfem::HypreParMatrix &A);
+   void SetA(const HypreParMatrix &A);
 
-   void SetA(const mfem::SparseMatrix &A);
+   void SetA(const SparseMatrix &A);
 
    //Setup AMGX
    void SetA_MPI_GPU_Exclusive(const HypreParMatrix &A, const Array<double> &loc_A,
@@ -82,7 +82,7 @@ public:
 
    virtual void SetOperator(const Operator &op);
 
-   void solve(mfem::Vector &p, mfem::Vector &b);
+   //void solve(Vector &p, Vector &b);
 
    virtual void Mult(const Vector& b, Vector& x) const;
 
@@ -106,12 +106,12 @@ private:
    //The following methods send vectors to root node in a MPI-Team
    // partitions and displacements are reused.
    void GatherArray(const Vector &inArr, Vector &outArr,
-                    const int mpiTeamSz, MPI_Comm &mpiTeamComm,
-                    Array<int> &Apart, Array<int> &Adisp);
+                    const int mpiTeamSz, const MPI_Comm &mpiTeamComm,
+                    Array<int> &Apart, Array<int> &Adisp) const;
 
    void ScatterArray(const Vector &inArr, Vector &outArr,
-                     const int mpiTeamSz, MPI_Comm &mpi_comm,
-                     Array<int> &Apart, Array<int> &Adisp);
+                     const int mpiTeamSz, const MPI_Comm &mpi_comm,
+                     Array<int> &Apart, Array<int> &Adisp) const;
 
    //To be refactored
    //void updateA(const HypreParMatrix &A);
