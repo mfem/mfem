@@ -1260,7 +1260,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
             MFEM_ASSERT(fi.Elem2No >= NElements, "");
             fi.Elem2No = -1 - fnbr_index[fi.Elem2No - NElements];
 
-            const DenseMatrix* pm = &sf.matrix;
+            const DenseMatrix* pm = full_list.point_matrices[sf.geom][sf.matrix];
             if (!sloc && Dim == 3)
             {
                // TODO: does this handle triangle faces correctly?
@@ -2850,9 +2850,9 @@ void ParNCMesh::Trim()
 {
    NCMesh::Trim();
 
-   shared_vertices.Clear(true);
-   shared_edges.Clear(true);
-   shared_faces.Clear(true);
+   shared_vertices.Clear();
+   shared_edges.Clear();
+   shared_faces.Clear();
 
    for (int i = 0; i < 3; i++)
    {
