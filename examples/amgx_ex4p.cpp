@@ -244,14 +244,11 @@ int main(int argc, char *argv[])
       amgx_str = amgx_cfg;
       AmgXSolver amgx;
 
-      amgx.initialize(MPI_COMM_WORLD, "dDDI", amgx_str, ndevices);
-      amgx.setA(*A.As<HypreParMatrix>());
+      amgx.Initialize_MPITeams(MPI_COMM_WORLD, "dDDI", amgx_str, ndevices);
+      amgx.SetOperator(*A.As<HypreParMatrix>());
 
-      for (int i = 0; i < nsolves; i++)
-      {
-         X = 0.0; //set to zero
-         amgx.solve(X, B);
-      }
+      X = 0.0; //set to zero
+      amgx.Mult(B, X);
 #endif
    }
    else
