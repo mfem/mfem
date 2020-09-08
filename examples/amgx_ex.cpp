@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
-   bool amgx_solver = false;
+   bool amgx_solver = true;
    bool amgx_verbose = true;
    const char* amgx_json_file = ""; // jason file for amgx
 
@@ -190,7 +190,6 @@ int main(int argc, char *argv[])
    if (!pa)
    {
       //NvidiaAMGX amgx;
-      printf("Not using PA \n");
       AmgXSolver amgx;
       {
 
@@ -206,6 +205,8 @@ int main(int argc, char *argv[])
          X = 0.0;
          if (amgx_solver)
          {
+            printf("Applying AmgX as solver \n");
+            amgx.SetMode(AmgXSolver::SOLVER); //Default.
             amgx.Mult(B,X);
          }
          else
