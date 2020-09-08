@@ -861,7 +861,7 @@ private:
    using EnableIfCallableSymmF =
       typename std::enable_if<std::is_convertible<Callable,
       std::function<void(const Vector &, Vector &)>>::value, int>::type;
-   
+
    /// Enables compile-time check if `Callable` is convertable to
    /// std::function<void(const Vector &, double, DenseMatrix &)>
    template <typename Callable>
@@ -930,23 +930,21 @@ public:
       : MatrixCoefficient(dim, true), SymmFunction(F), Q(q), mat(0)
    { }
 
-   /// Define a time-dependent square matrix coefficient from any callable
-   /// type
+   /// Define a time-independent symmetric square matrix coefficient from any
+   /// callable type
    /// \tparam Callable - Any callable type (e.g. std::function, lambda)
    /// \tparam EnableIfCallableSymmF - compile-time check to enable this
    /// constructor if SymmF is callable with signature:
    /// (const Vector &, double, DenseMatrix &) -> void
    /// \param dim - the size of the matrix
-   /// \param SymmF - time-dependent callable object
+   /// \param SymmF - time-independent callable object used by EvalSymmetric
    /// \param q - optional scalar Coefficient to scale the matrix coefficient
    template <typename Callable, EnableIfCallableSymmF<Callable> = 0>
-   MatrixFunctionCoefficient(int dim, 
+   MatrixFunctionCoefficient(int dim,
                              Callable SymmF,
                              Coefficient *q = NULL)
       : MatrixCoefficient(dim, true), SymmFunction(std::move(SymmF)), Q(q), mat(0)
    { }
-
-   
 
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
