@@ -284,7 +284,6 @@ class VectorFEDomainLFCurlIntegrator : public DeltaLFIntegrator
 {
 private:
    VectorCoefficient *QF=nullptr;
-   Coefficient *Q=nullptr;
    DenseMatrix curlshape;
    Vector vec;
 
@@ -292,8 +291,6 @@ public:
    /// Constructs the domain integrator (Q, curl v)
    VectorFEDomainLFCurlIntegrator(VectorCoefficient &F)
       : DeltaLFIntegrator(F), QF(&F) { }
-   VectorFEDomainLFCurlIntegrator(Coefficient &F)
-      : DeltaLFIntegrator(F), Q(&F) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
