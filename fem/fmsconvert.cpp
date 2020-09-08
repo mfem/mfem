@@ -551,7 +551,7 @@ FmsMeshToMesh(FmsMesh fms_mesh, Mesh **mfem_mesh)
 #if DEBUG_FMS_MFEM
          const char *tn = NULL;
          FmsTagGetName(tag, &tn);
-         std::cout << "Found element tag " << tn << std::endl;
+         mfem::out << "Found element tag " << tn << std::endl;
 #endif
          elem_tag = tag;
       }
@@ -560,7 +560,7 @@ FmsMeshToMesh(FmsMesh fms_mesh, Mesh **mfem_mesh)
 #if DEBUG_FMS_MFEM
          const char *tn = NULL;
          FmsTagGetName(tag, &tn);
-         std::cout << "Found boundary tag " << tn << std::endl;
+         mfem::out << "Found boundary tag " << tn << std::endl;
 #endif
          bdr_tag = tag;
       }
@@ -1811,7 +1811,7 @@ MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh, FmsComponent *volume)
       }
    }
 
-   if(NBE)
+   if (NBE)
    {
       FmsComponent boundary = NULL;
       FmsMeshAddComponent(*fmesh, "boundary", &boundary);
@@ -1819,11 +1819,12 @@ MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh, FmsComponent *volume)
       FmsComponentAddPart(boundary, domains[0], &part_id);
       for (int i = FMS_NUM_ENTITY_TYPES - 1; i > 0; i--)
       {
-         if(bdr_eles[i].size())
+         if (bdr_eles[i].size())
          {
             FmsComponentAddPartEntities(boundary, part_id, (FmsEntityType)i,
-               FMS_INT32, FMS_INT32, FMS_INT32, NULL, bdr_eles[i].data(),
-               NULL, bdr_eles[i].size());
+                                        FMS_INT32, FMS_INT32, FMS_INT32, NULL,
+                                        bdr_eles[i].data(),
+                                        NULL, bdr_eles[i].size());
             break;
          }
       }
