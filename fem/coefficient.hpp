@@ -935,7 +935,7 @@ public:
    /// \tparam Callable - Any callable type (e.g. std::function, lambda)
    /// \tparam EnableIfCallableSymmF - compile-time check to enable this
    /// constructor if SymmF is callable with signature:
-   /// (const Vector &, double, DenseMatrix &) -> void
+   /// (const Vector &, Vector &) -> void
    /// \param dim - the size of the matrix
    /// \param SymmF - time-independent callable object used by EvalSymmetric
    /// \param q - optional scalar Coefficient to scale the matrix coefficient
