@@ -2036,7 +2036,7 @@ int ParFiniteElementSpace
                GetEntityDofs(entity, sf.index, slave_dofs, mf.Geom());
                if (!slave_dofs.Size()) { continue; }
 
-               sf.OrientedPointMatrix(T.GetPointMat());
+               list.OrientedPointMatrix(sf, T.GetPointMat());
                fe->GetLocalInterpolation(T, I);
 
                // make each slave DOF dependent on all master DOFs

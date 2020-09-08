@@ -75,7 +75,7 @@ struct CoarseFineTransformations
    long MemoryUsage() const;
 };
 
-struct MatrixMap;
+struct MatrixMap; // for internal use
 
 
 /** \brief A class for non-conforming AMR on higher-order hexahedral, prismatic,
