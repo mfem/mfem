@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = 1;
    bool amgx = true;
-   const char *amgx_cfg = 0;
+   const char *amgx_json_file = 0;
    int ser_ref_levels = 2;
    int par_ref_levels = 2;
    int ndevices = 4;
@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&amgx_cfg, "-c","--c","AMGX solver file");
+   args.AddOption(&amgx_json_file, "-amgx-file","--amgx-file","AMGX solver file");
    args.AddOption(&amgx, "-amgx","--amgx","-no-amgx",
                   "--no-amgx","Use AMGX");
    args.AddOption(&ser_ref_levels, "-nr","--nr","Number of Serial Refinements");
@@ -241,7 +241,7 @@ int main(int argc, char *argv[])
    {
 #ifdef MFEM_USE_AMGX
       std::string amgx_str;
-      amgx_str = amgx_cfg;
+      amgx_str = amgx_json_file;
       AmgXSolver amgx;
 
       amgx.Initialize_MPITeams(MPI_COMM_WORLD, "dDDI", amgx_str, ndevices);

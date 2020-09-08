@@ -67,8 +67,8 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // 2. Parse command-line options.
-   const char *mesh_file = "../data/star.mesh";
-   //const char *mesh_file = "../data/beam-hex.mesh";
+   //const char *mesh_file = "../data/star.mesh";
+   const char *mesh_file = "../data/beam-hex.mesh";
 
    int order = 1;
    bool static_cond = false;
@@ -76,11 +76,11 @@ int main(int argc, char *argv[])
    bool amgx = true;
    const char *device_config = "cpu";
    bool visualization = true;
-   const char *amgx_cfg = 0;
+   const char *amgx_json_file = 0;
    int nsolves = 1;
    int ser_ref_levels = 2;
    int par_ref_levels = 2;
-   int ndevices = 1;
+   int ndevices = 4;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -97,7 +97,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&amgx_cfg, "-c","--c","AMGX solver file");
+   args.AddOption(&amgx_json_file, "-amgx-file","--amgx-file","AMGX solver file");
    args.AddOption(&amgx, "-amgx","--amgx","-no-amgx",
                   "--no-amgx","Use AMGX");
    args.AddOption(&nsolves, "-nsolves","--nsolves","Number of Solves");
@@ -234,45 +234,23 @@ int main(int argc, char *argv[])
    // 13. Solve the linear system A X = B.
    //     * With full assembly, use the BoomerAMG preconditioner from hypre.
    //     * With partial assembly, use Jacobi smoothing, for now.
-#if 0
-   Solver *prec = NULL;
-   if (pa)
-   {
-      if (UsesTensorBasis(*fespace))
-      {
-         prec = new OperatorJacobiSmoother(*a, ess_tdof_list);
-      }
-   }
-   else
-   {
-      l
-      prec = new HypreBoomerAMG;
-   }
-#endif
-
-
    if (amgx)
    {
 
 #ifdef MFEM_USE_AMGX
       //AMGX
       std::string amgx_str;
-      amgx_str = amgx_cfg;
+      amgx_str = amgx_json_file;
       AmgXSolver amgx;
 
-      //Allows MPI > NDEVS, requires mpiexec
+      //Forms MPI teams around devices
       amgx.Initialize_MPITeams(MPI_COMM_WORLD, "dDDI", amgx_str, ndevices);
 
-      //Assumes MPI == NDEVS
-      //amgx.Initialize_ExclusiveGPU(MPI_COMM_WORLD, "dDDI", amgx_str);
-
       amgx.SetOperator(A);
-      //amgx.SetA(A);
 
       for (int i = 0; i < nsolves; i++)
       {
          X = 0.0; //set to zero
-         //amgx.solve(X, B);
          amgx.Mult(B, X);
       }
 #endif
