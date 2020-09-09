@@ -1106,52 +1106,22 @@ void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
    auto y_data = (b == 0.0) ? y.HostWrite() : y.HostReadWrite();
    if (X == NULL)
    {
-      if (GetHypreMemoryClass() == MemoryClass::HOST)
-      {
-         X = new HypreParVector(A->comm,
-                                GetGlobalNumCols(),
-                                const_cast<double*>(x_data),
-                                GetColStarts());
-         Y = new HypreParVector(A->comm,
-                                GetGlobalNumRows(),
-                                y_data,
-                                GetRowStarts());
-      }
-      else
-      {
-         hypre_mem_x.New(x.Size(), GetHypreMemoryType());
-         hypre_mem_y.New(y.Size(), GetHypreMemoryType());
-
-         X = new HypreParVector(A->comm,
-                                GetGlobalNumCols(),
-                                hypre_mem_x,
-                                GetColStarts());
-         Y = new HypreParVector(A->comm,
-                                GetGlobalNumRows(),
-                                hypre_mem_y,
-                                GetRowStarts());
-      }
+      X = new HypreParVector(A->comm,
+                             GetGlobalNumCols(),
+                             const_cast<double*>(x_data),
+                             GetColStarts());
+      Y = new HypreParVector(A->comm,
+                             GetGlobalNumRows(),
+                             y_data,
+                             GetRowStarts());
    }
-   else if (GetHypreMemoryClass() == MemoryClass::HOST)
+   else
    {
       X->SetData(const_cast<double*>(x_data));
       Y->SetData(y_data);
    }
 
-   if (GetHypreMemoryClass() != MemoryClass::HOST)
-   {
-      hypre_mem_x.CopyFromHost(x_data, x.Size());
-      if (b != 0.0)
-      {
-         hypre_mem_y.CopyFromHost(y_data, y.Size());
-      }
-   }
-
    hypre_ParCSRMatrixMatvec(a, A, *X, b, *Y);
-   if (GetHypreMemoryClass() != MemoryClass::HOST)
-   {
-      hypre_mem_y.CopyToHost(y_data, y.Size());
-   }
 }
 
 void HypreParMatrix::MultTranspose(double a, const Vector &x,
