@@ -317,7 +317,6 @@ private:
    static void CopyCSR_J(hypre_CSRMatrix *hypre_csr, int *J);
 
    Memory<HYPRE_Int> hypre_mem_row, hypre_mem_col, hypre_mem_cmap;
-   mutable Memory<double> hypre_mem_x, hypre_mem_y;
 
 public:
    /// An empty matrix to be used as a reference to an existing matrix
@@ -642,6 +641,8 @@ public:
    virtual ~HypreParMatrix() { Destroy(); }
 
    Type GetType() const { return Hypre_ParCSR; }
+
+   virtual MemoryClass GetMemoryClass() const { return GetHypreMemoryClass(); }
 };
 
 /** @brief Return a new matrix `C = alpha*A + beta*B`, assuming that both `A`
