@@ -55,7 +55,7 @@ private:
 };
 
 // forward declaration
-class CeedMultigridVCycle;
+class MFEMCeedVCycle;
 
 /**
    This takes a CeedOperator with essential dofs 
@@ -81,7 +81,7 @@ public:
 
    mfem::Array<int>& GetCoarseEssentialDofList() { return lo_ess_tdof_list_; }
 
-   friend class CeedMultigridVCycle;
+   friend class MFEMCeedVCycle;
 
 private:
    CeedElemRestriction ho_er_; // not owned
@@ -156,10 +156,9 @@ private:
 class MFEMCeedVCycle : public mfem::Solver
 {
 public:
-   MFEMCeedVCycle(const mfem::Operator& fine_operator,
-                  const mfem::Solver& coarse_solver,
-                  const mfem::Operator& fine_smoother,
-                  const mfem::Operator& interp);
+   MFEMCeedVCycle(const CeedMultigridLevel& level,
+                  const mfem::Operator& fine_operator,
+                  const mfem::Solver& coarse_solver);
 
    void Mult(const mfem::Vector& x, mfem::Vector& y) const;
    void SetOperator(const Operator &op) { }
@@ -179,25 +178,6 @@ private:
    mutable mfem::Vector correction_;
    mutable mfem::Vector coarse_residual_;
    mutable mfem::Vector coarse_correction_;
-};
-
-/**
-   The basic idea is that we loop from fine to coarse
-   making CeedMultigridLevel objects, make a coarsest solver, and then
-   loop back up to the fine level making CeedMultigridVCyle objects
-*/
-class CeedMultigridVCycle : public mfem::Solver
-{
-public:
-   CeedMultigridVCycle(const CeedMultigridLevel& level,
-                       const mfem::Operator& fine_operator,
-                       const mfem::Solver& coarse_solver);
-
-   void SetOperator(const mfem::Operator& op) {}
-   void Mult(const mfem::Vector& x, mfem::Vector& y) const;
-
-private:
-   MFEMCeedVCycle cycle_;
 };
 
 /**
@@ -264,14 +244,16 @@ void UnconstrainedMFEMCeedOperator::Mult(const mfem::Vector& x, mfem::Vector& y)
    MFEM_ASSERT(ierr == 0, "CEED error");
 }
 
-MFEMCeedVCycle::MFEMCeedVCycle(const mfem::Operator& fine_operator,
-                               const mfem::Solver& coarse_solver,
-                               const mfem::Operator& fine_smoother,
-                               const mfem::Operator& interp) :
-  fine_operator_(fine_operator),
-  coarse_solver_(coarse_solver),
-  fine_smoother_(fine_smoother),
-  interp_(interp)
+MFEMCeedVCycle::MFEMCeedVCycle(
+   const CeedMultigridLevel& level,
+   const mfem::Operator& fine_operator,
+   const mfem::Solver& coarse_solver)
+   :
+   mfem::Solver(fine_operator.Height()),
+   fine_operator_(fine_operator),
+   coarse_solver_(coarse_solver),
+   fine_smoother_(*level.smoother_),
+   interp_(*level.mfem_interp_)
 {
    MFEM_VERIFY(fine_operator_.Height() == interp_.Height(), "Sizes don't match!");
    MFEM_VERIFY(coarse_solver_.Height() == interp_.Width(), "Sizes don't match!");
@@ -474,21 +456,6 @@ CeedMultigridLevel::~CeedMultigridLevel()
    delete mfem_interp_;
 }
 
-CeedMultigridVCycle::CeedMultigridVCycle(
-   const CeedMultigridLevel& level,
-   const mfem::Operator& fine_operator,
-   const mfem::Solver& coarse_solver)
-   :
-   mfem::Solver(fine_operator.Height()),
-   cycle_(fine_operator, coarse_solver, *level.smoother_, *level.mfem_interp_)
-{
-}
-
-void CeedMultigridVCycle::Mult(const mfem::Vector& x, mfem::Vector& y) const
-{
-   cycle_.Mult(x, y);
-}
-
 CeedPlainCG::CeedPlainCG(CeedOperator oper,
                          mfem::Array<int>& ess_tdof_list,
                          int max_iter)
@@ -566,8 +533,8 @@ AlgebraicCeedSolver::AlgebraicCeedSolver(Operator& fine_mfem_op,
    for (int i = 0; i < num_levels - 1; ++i)
    {
       int index = num_levels - 2 - i;
-      solvers[index] = new CeedMultigridVCycle(*levels[index], *operators[index],
-                                               *solvers[index + 1]);
+      solvers[index] = new MFEMCeedVCycle(*levels[index], *operators[index],
+                                          *solvers[index + 1]);
    }
 }
 
