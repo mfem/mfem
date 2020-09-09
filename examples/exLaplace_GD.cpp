@@ -1,4 +1,4 @@
-#include "exCircle.hpp"
+#include "exLaplace.hpp"
 #include "exGD_cut.hpp"
 #include "centgridfunc.hpp"
 using namespace std;
@@ -17,6 +17,7 @@ struct circle
    double yscale;
    double xmin;
    double ymin;
+   double radius;
    template <typename T>
    T operator()(const blitz::TinyVector<T, N> &x) const
    {
@@ -25,7 +26,7 @@ struct circle
       //               ((x[1]- 5) * (x[1] - 5)) - (0.5 * 0.5));
       // level-set function for reference elements
       return -1 * ((((x[0] * xscale) + xmin - 0.5) * ((x[0] * xscale) + xmin - 0.5)) +
-                   (((x[1] * yscale) + ymin - 0.5) * ((x[1] * yscale) + ymin - 0.5)) - (0.04));
+                   (((x[1] * yscale) + ymin - 0.5) * ((x[1] * yscale) + ymin - 0.5)) - (radius * radius));
    }
    template <typename T>
    blitz::TinyVector<T, N> grad(const blitz::TinyVector<T, N> &x) const
@@ -47,12 +48,16 @@ int main(int argc, char *argv[])
    bool visualization = true;
    double sigma = -1.0;
    double kappa = 100.0;
+   double cutsize;
+   double radius = 0.1;
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
    args.AddOption(&N, "-n", "--#elements",
                   "number of mesh elements.");
+   args.AddOption(&radius, "-r", "--radius",
+                  "radius of circle.");
    args.Parse();
    if (!args.Good())
    {
@@ -67,7 +72,9 @@ int main(int argc, char *argv[])
 
    Mesh *mesh = new Mesh(N, N, Element::QUADRILATERAL, true,
                          1, 1, true);
-
+   
+   // Mesh *mesh = new Mesh(N, N, Element::TRIANGLE, true,
+   //                       1, 1, true);
    ofstream sol_ofv("square_mesh.vtk");
    sol_ofv.precision(14);
    mesh->PrintVTK(sol_ofv, 0);
@@ -80,11 +87,11 @@ int main(int argc, char *argv[])
    vector<int> cutinteriorFaces;
    for (int i = 0; i < mesh->GetNE(); ++i)
    {
-      if (cutByCircle(mesh, i) == true)
+      if (cutByCircle(mesh, radius, i) == true)
       {
          cutelems.push_back(i);
       }
-      if (insideBoundary(mesh, i) == true)
+      if (insideBoundary(mesh, radius, i) == true)
       {
          innerelems.push_back(i);
       }
@@ -122,13 +129,14 @@ int main(int argc, char *argv[])
    std::cout << "Number of elements: " << mesh->GetNE() << '\n';
    int deg = order + 1;
    // define map for integration rule for cut elements
-   GetCutElementIntRule<2>(mesh, cutelems, deg, CutSquareIntRules);
-   GetCutSegmentIntRule<2>(mesh, cutelems, cutinteriorFaces, deg, cutSegmentIntRules,
+   GetCutElementIntRule<2>(mesh, cutelems, deg, radius, CutSquareIntRules);
+   GetCutSegmentIntRule<2>(mesh, cutelems, cutinteriorFaces, deg, radius, cutSegmentIntRules,
                            cutInteriorFaceIntRules);
+   GetCutsize(mesh, cutelems, CutSquareIntRules, cutsize);
    std::vector<bool> EmbeddedElems;
    for (int i = 0; i < mesh->GetNE(); ++i)
    {
-      if (insideBoundary(mesh, i) == true)
+      if (insideBoundary(mesh, radius, i) == true)
       {
          EmbeddedElems.push_back(true);
       }
@@ -226,45 +234,45 @@ int main(int argc, char *argv[])
    cond = si(0) / si(si.Size() - 1);
    cout << "cond# " << endl;
    cout << cond << endl;
-   Vector bnew(A.Width());
-   fes->GetProlongationMatrix()->MultTranspose(*b, bnew);
-   // Define a simple symmetric Gauss-Seidel preconditioner and use it to
-   //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
-   //    non-symmetric one.
-   GSSmoother M(A);
-   if (sigma == -1.0)
-   {
-      PCG(A, M, bnew, y, 1, 10000, 1e-40, 0.0);
-   }
-   else
-   {
-      GMRES(A, M, bnew, y, 1, 1000, 10, 1e-12, 0.0);
-   }
-   //x.Print();
-   // #else
-   //    // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-   //    UMFPackSolver umf_solver;
-   //    umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-   //    umf_solver.SetOperator(A);
-   //    umf_solver.Mult(bnew, y);
-   // #endif
+   // Vector bnew(A.Width());
+   // fes->GetProlongationMatrix()->MultTranspose(*b, bnew);
+   // // Define a simple symmetric Gauss-Seidel preconditioner and use it to
+   // //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
+   // //    non-symmetric one.
+   // GSSmoother M(A);
+   // if (sigma == -1.0)
+   // {
+   //    PCG(A, M, bnew, y, 1, 10000, 1e-40, 0.0);
+   // }
+   // else
+   // {
+   //    GMRES(A, M, bnew, y, 1, 1000, 10, 1e-12, 0.0);
+   // }
+   // //x.Print();
+   // // #else
+   // //    // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+   // //    UMFPackSolver umf_solver;
+   // //    umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+   // //    umf_solver.SetOperator(A);
+   // //    umf_solver.Mult(bnew, y);
+   // // #endif
 
-   fes->GetProlongationMatrix()->Mult(y, x);
+   // fes->GetProlongationMatrix()->Mult(y, x);
 
-   ofstream adj_ofs("dgSolcirclelap_gd.vtk");
-   adj_ofs.precision(14);
-   mesh->PrintVTK(adj_ofs, 1);
-   x.SaveVTK(adj_ofs, "Solution", 1);
-   adj_ofs.close();
-   //double norm = x.ComputeL2Error(u);
-   double norm = CutComputeL2Error(x, fespace, u, EmbeddedElems, CutSquareIntRules);
-   cout << "----------------------------- " << endl;
-   cout << "mesh size, h = " << 1.0 / N << endl;
-   cout << "solution norm: " << norm << endl;
-   // x.Print();
-   // 11. Free the used memory.
-   delete a;
-   delete b;
+   // ofstream adj_ofs("dgSolcirclelap_gd.vtk");
+   // adj_ofs.precision(14);
+   // mesh->PrintVTK(adj_ofs, 1);
+   // x.SaveVTK(adj_ofs, "Solution", 1);
+   // adj_ofs.close();
+   // //double norm = x.ComputeL2Error(u);
+   // double norm = CutComputeL2Error(x, fespace, u, EmbeddedElems, CutSquareIntRules);
+   // cout << "----------------------------- " << endl;
+   // cout << "mesh size, h = " << 1.0 / N << endl;
+   // cout << "solution norm: " << norm << endl;
+   // // x.Print();
+   // // 11. Free the used memory.
+   // delete a;
+   // delete b;
    delete fespace;
    delete fec;
    delete mesh;
@@ -361,8 +369,38 @@ double CutComputeL2Error(GridFunction &x, FiniteElementSpace *fes,
    }
    return error;
 }
+
+void GetCutsize(Mesh *mesh, vector<int> cutelems, std::map<int, IntegrationRule *> &CutSquareIntRules,
+                double &cutsize)
+{
+   cutsize = 1.0;
+   for (int k = 0; k<cutelems.size(); ++k )
+   {
+      int id = cutelems.at(k);
+      ElementTransformation *Trans = mesh->GetElementTransformation(id);
+      const IntegrationRule *ir;
+      ir = CutSquareIntRules[Trans->ElementNo];
+      double area = 0.0;
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+         Trans->SetIntPoint(&ip);
+         area += ip.weight * Trans->Weight();
+      }
+      cout << "normal element area is " << Trans->Weight() << endl;
+      cout << "area of cut element " << id << " : " <<  area << endl;
+      double cs = area/Trans->Weight();
+      cout << "ratio: " << cs << endl;
+      if (cs < cutsize)
+      {
+         cutsize = cs;
+      }
+   }
+   cout << "cutsize is " << cutsize << endl; 
+}
+
 template <int N>
-void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems, int order,
+void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems, int order, double r,
                           std::map<int, IntegrationRule *> &CutSquareIntRules)
 {
    double tol = 1e-16;
@@ -385,6 +423,7 @@ void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems, int order,
       phi.yscale = xmax[1] - xmin[1];
       phi.xmin = xmin[0];
       phi.ymin = xmin[1];
+      phi.radius = r;
       auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double, N>(xlower, xupper), dir, side, order);
       int i = 0;
       ir = new IntegrationRule(q.nodes.size());
@@ -405,7 +444,7 @@ void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems, int order,
 
 template <int N>
 void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinteriorFaces,
-                          int order, std::map<int, IntegrationRule *> &cutSegmentIntRules,
+                          int order,  double r, std::map<int, IntegrationRule *> &cutSegmentIntRules,
                           std::map<int, IntegrationRule *> &cutInteriorFaceIntRules)
 {
    for (int k = 0; k < cutelems.size(); ++k)
@@ -428,6 +467,7 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
       phi.yscale = xmax[1] - xmin[1];
       phi.xmin = xmin[0];
       phi.ymin = xmin[1];
+      phi.radius = r;
       dir = N;
       side = -1;
       auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double, N>(xlower, xupper), dir, side, order);
@@ -535,7 +575,7 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
    }
 }
 
-bool insideBoundary(Mesh *mesh, int &elemid)
+bool insideBoundary(Mesh *mesh, double r, int &elemid)
 {
    Element *el = mesh->GetElement(elemid);
    Array<int> v;
@@ -544,7 +584,6 @@ bool insideBoundary(Mesh *mesh, int &elemid)
    k = 0;
    double xc = 0.5;
    double yc = 0.5;
-   double r = 0.2;
    for (int i = 0; i < v.Size(); ++i)
    {
       double *coord = mesh->GetVertex(v[i]);
@@ -682,7 +721,7 @@ void CutDomainIntegrator::AssembleDeltaElementVect(
 }
 
 // function to see if an element is cut-element
-bool cutByCircle(Mesh *mesh, int &elemid)
+bool cutByCircle(Mesh *mesh, double r, int &elemid)
 {
    Element *el = mesh->GetElement(elemid);
    Array<int> v;
@@ -693,7 +732,6 @@ bool cutByCircle(Mesh *mesh, int &elemid)
    n = 0;
    double xc = 0.5;
    double yc = 0.5;
-   double r = 0.2;
    for (int i = 0; i < v.Size(); ++i)
    {
       double *coord = mesh->GetVertex(v[i]);
@@ -1035,10 +1073,10 @@ void CutDGDiffusionIntegrator::AssembleFaceMatrix(
       }
       // assemble: < {(Q \nabla u).n},[v] >      --> elmat
       //           kappa < {h^{-1} Q} [u],[v] >  --> jmat
-      if (find(cutinteriorFaces.begin(), cutinteriorFaces.end(), Trans.Face->ElementNo) != cutinteriorFaces.end())
-      {
-         std::cout << "face is " << Trans.Face->ElementNo << " elements are " << Trans.Elem1No << " , " << Trans.Elem2No << std::endl;
-      }
+      // if (find(cutinteriorFaces.begin(), cutinteriorFaces.end(), Trans.Face->ElementNo) != cutinteriorFaces.end())
+      // {
+      //    std::cout << "face is " << Trans.Face->ElementNo << " elements are " << Trans.Elem1No << " , " << Trans.Elem2No << std::endl;
+      // }
       for (int p = 0; p < ir->GetNPoints(); p++)
       {
          const IntegrationPoint &ip = ir->IntPoint(p);
@@ -1504,6 +1542,7 @@ void GalerkinDifference::BuildGDProlongation() const
    {
       if (EmbeddedElements.at(i) == false)
       {
+         // cout << " element is " << i << endl;
          // 1. get the elements in patch
          // cout << "element "
          //      << "( " << i << ") "
@@ -1526,13 +1565,27 @@ void GalerkinDifference::BuildGDProlongation() const
          // 4. assemble them back to prolongation matrix
          AssembleProlongationMatrix(elmt_id, local_mat);
       }
+      else
+      {
+         elmt_id.LoseData();
+         elmt_id.Append(i);
+
+         local_mat.SetSize(num_dofs, 1);
+
+         for (int k = 0; k < num_dofs; ++k)
+         {
+            local_mat(k, 0) = 1.0;
+         }
+
+         AssembleProlongationMatrix(elmt_id, local_mat);
+      }
    }
    cP->Finalize();
    cP_is_set = true;
    cout << "Check cP size: " << cP->Height() << " x " << cP->Width() << '\n';
-   // ofstream cp_save("cP.txt");
-   // cP->PrintMatlab(cp_save);
-   // cp_save.close();
+   ofstream cp_save("cp.txt");
+   cP->PrintMatlab(cp_save);
+   cp_save.close();
 }
 
 void GalerkinDifference::AssembleProlongationMatrix(const mfem::Array<int> &id,
@@ -1754,7 +1807,7 @@ void buildLSInterpolation(int dim, int degree, const DenseMatrix &x_center,
                {
                MFEM_ASSERT(fabs(exact - poly_at_quad) <= 1e-12, " p = " << p << " , q = " << q << " : "
                                                                         << "Interpolation operator does not interpolate exactly!\n");
-               }
+              }
             }
          }
       }

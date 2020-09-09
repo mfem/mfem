@@ -1,4 +1,4 @@
-#include "exCircle.hpp"
+#include "exLaplace.hpp"
 using namespace std;
 using namespace mfem;
 double u_exact(const Vector &);
@@ -14,6 +14,7 @@ struct circle
    double yscale;
    double xmin;
    double ymin;
+   double radius;
    template <typename T>
    T operator()(const blitz::TinyVector<T, N> &x) const
    {
@@ -22,7 +23,7 @@ struct circle
       //               ((x[1]- 5) * (x[1] - 5)) - (0.5 * 0.5));
       // level-set function for reference elements
       return -1 * ((((x[0] * xscale) + xmin - 0.5) * ((x[0] * xscale) + xmin - 0.5)) +
-                   (((x[1] * yscale) + ymin - 0.5) * ((x[1] * yscale) + ymin - 0.5)) - (0.04));
+                   (((x[1] * yscale) + ymin - 0.5) * ((x[1] * yscale) + ymin - 0.5)) - (radius * radius));
    }
    template <typename T>
    blitz::TinyVector<T, N> grad(const blitz::TinyVector<T, N> &x) const
@@ -44,12 +45,16 @@ int main(int argc, char *argv[])
    bool visualization = true;
    double sigma = -1.0;
    double kappa = 100.0;
+   double cutsize;
+   double radius = 0.1;
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
    args.AddOption(&N, "-n", "--#elements",
                   "number of mesh elements.");
+   args.AddOption(&radius, "-r", "--radius",
+                  "radius of circle.");              
    args.Parse();
    if (!args.Good())
    {
@@ -76,11 +81,11 @@ int main(int argc, char *argv[])
    vector<int> cutinteriorFaces;
    for (int i = 0; i < mesh->GetNE(); ++i)
    {
-      if (cutByCircle(mesh, i) == true)
+      if (cutByCircle(mesh, radius, i) == true)
       {
          cutelems.push_back(i);
       }
-      if (insideBoundary(mesh, i) == true)
+      if (insideBoundary(mesh, radius, i) == true)
       {
          innerelems.push_back(i);
       }
@@ -118,14 +123,15 @@ int main(int argc, char *argv[])
    std::cout << "Number of elements: " << mesh->GetNE() << '\n';
    // define map for integration rule for cut elements
    //int deg= (order+4)*(order+4);
-   int deg = order+1;
-   GetCutElementIntRule<2>(mesh, cutelems, deg, CutSquareIntRules);
-   GetCutSegmentIntRule<2>(mesh, cutelems, cutinteriorFaces, deg, cutSegmentIntRules,
+   int deg = order + 1;
+   GetCutElementIntRule<2>(mesh, cutelems, deg, radius, CutSquareIntRules);
+   GetCutSegmentIntRule<2>(mesh, cutelems, cutinteriorFaces, deg, radius, cutSegmentIntRules,
                            cutInteriorFaceIntRules);
+   GetCutsize(mesh, cutelems, CutSquareIntRules, cutsize);
    std::vector<bool> EmbeddedElems;
    for (int i = 0; i < mesh->GetNE(); ++i)
    {
-      if (insideBoundary(mesh, i) == true)
+      if (insideBoundary(mesh, radius, i) == true)
       {
          EmbeddedElems.push_back(true);
       }
@@ -210,45 +216,45 @@ int main(int argc, char *argv[])
    // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
    //    non-symmetric one.
-   GSSmoother M(A);
-   if (sigma == -1.0)
-   {
-      PCG(A, M, *b, x, 1, 5000, 1e-12, 0.0);
-   }
-   else
-   {
-      GMRES(A, M, *b, x, 1, 1000, 10, 1e-12, 0.0);
-   }
-// #else
-//    // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-//    UMFPackSolver umf_solver;
-//    umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-//    umf_solver.SetOperator(A);
-//    umf_solver.Mult(*b, x);
-// #endif
+//    GSSmoother M(A);
+//    if (sigma == -1.0)
+//    {
+//       PCG(A, M, *b, x, 1, 5000, 1e-30, 0.0);
+//    }
+//    else
+//    {
+//       GMRES(A, M, *b, x, 1, 1000, 10, 1e-12, 0.0);
+//    }
+// // #else
+// //    // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+// //    UMFPackSolver umf_solver;
+// //    umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+// //    umf_solver.SetOperator(A);
+// //    umf_solver.Mult(*b, x);
+// // #endif
 
-   ofstream adj_ofs("dgSolcirclelap.vtk");
-   adj_ofs.precision(14);
-   mesh->PrintVTK(adj_ofs, 1);
-   x.SaveVTK(adj_ofs, "dgSolution", 1);
-   adj_ofs.close();
-   // 10. Send the solution by socket to a GLVis server.
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int visport = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      sol_sock << "solution\n"
-               << *mesh << x << flush;
-   }
-   double norm = CutComputeL2Error(x, fespace, u, EmbeddedElems, CutSquareIntRules) ;
-   cout << "----------------------------- "<< endl;
-   cout << "mesh size, h = " << 1.0 /N << endl;
-   cout << "solution norm: " << norm << endl; 
-   // 11. Free the used memory.
-   delete a;
-   delete b;
+//    ofstream adj_ofs("dgSolcirclelap.vtk");
+//    adj_ofs.precision(14);
+//    mesh->PrintVTK(adj_ofs, 1);
+//    x.SaveVTK(adj_ofs, "dgSolution", 1);
+//    adj_ofs.close();
+//    // 10. Send the solution by socket to a GLVis server.
+//    if (visualization)
+//    {
+//       char vishost[] = "localhost";
+//       int visport = 19916;
+//       socketstream sol_sock(vishost, visport);
+//       sol_sock.precision(8);
+//       sol_sock << "solution\n"
+//                << *mesh << x << flush;
+//    }
+//    double norm = CutComputeL2Error(x, fespace, u, EmbeddedElems, CutSquareIntRules) ;
+//    cout << "----------------------------- "<< endl;
+//    cout << "mesh size, h = " << 1.0 /N << endl;
+//    cout << "solution norm: " << norm << endl; 
+//    // 11. Free the used memory.
+//    delete a;
+//    delete b;
    delete fespace;
    delete fec;
    delete mesh;
@@ -333,8 +339,38 @@ double CutComputeL2Error(GridFunction &x, FiniteElementSpace *fes,
    }
    return error;
 }
+
+void GetCutsize(Mesh *mesh, vector<int> cutelems, std::map<int, IntegrationRule *> &CutSquareIntRules,
+                double &cutsize)
+{
+   cutsize = 1.0;
+   for (int k = 0; k<cutelems.size(); ++k )
+   {
+      int id = cutelems.at(k);
+      ElementTransformation *Trans = mesh->GetElementTransformation(id);
+      const IntegrationRule *ir;
+      ir = CutSquareIntRules[Trans->ElementNo];
+      double area = 0.0;
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+         Trans->SetIntPoint(&ip);
+         area += ip.weight * Trans->Weight();
+      }
+      cout << "normal element area is " << Trans->Weight() << endl;
+      cout << "area of cut element " << id << " : " <<  area << endl;
+      double cs = area/Trans->Weight();
+      cout << "ratio: " << cs << endl;
+      if (cs < cutsize)
+      {
+         cutsize = cs;
+      }
+   }
+   cout << "cutsize is " << cutsize << endl; 
+}
+
 template <int N>
-void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems, int order, 
+void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems, int order, double r,
                           std::map<int, IntegrationRule *> &CutSquareIntRules)
 {
    double tol = 1e-16;
@@ -357,6 +393,7 @@ void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems, int order,
       phi.yscale = xmax[1] - xmin[1];
       phi.xmin = xmin[0];
       phi.ymin = xmin[1];
+      phi.radius = r;
       auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double, N>(xlower, xupper), dir, side, order);
       int i = 0;
       ir = new IntegrationRule(q.nodes.size());
@@ -376,7 +413,7 @@ void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems, int order,
 
 template <int N>
 void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinteriorFaces,
-                          int order, std::map<int, IntegrationRule *> &cutSegmentIntRules,
+                          int order, double r, std::map<int, IntegrationRule *> &cutSegmentIntRules,
                           std::map<int, IntegrationRule *> &cutInteriorFaceIntRules)
 {
    for (int k = 0; k < cutelems.size(); ++k)
@@ -399,6 +436,7 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
       phi.yscale = xmax[1] - xmin[1];
       phi.xmin = xmin[0];
       phi.ymin = xmin[1];
+      phi.radius = r;
       dir = N;
       side = -1;
       auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double, N>(xlower, xupper), dir, side, order);
@@ -505,7 +543,7 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
    }
 }
 
-bool insideBoundary(Mesh *mesh, int &elemid)
+bool insideBoundary(Mesh *mesh, double r, int &elemid)
 {
    Element *el = mesh->GetElement(elemid);
    Array<int> v;
@@ -514,7 +552,6 @@ bool insideBoundary(Mesh *mesh, int &elemid)
    k = 0;
    double xc = 0.5;
    double yc = 0.5;
-   double r = 0.2;
    for (int i = 0; i < v.Size(); ++i)
    {
       double *coord = mesh->GetVertex(v[i]);
@@ -650,7 +687,7 @@ void CutDomainIntegrator::AssembleDeltaElementVect(
 }
 
 // function to see if an element is cut-element
-bool cutByCircle(Mesh *mesh, int &elemid)
+bool cutByCircle(Mesh *mesh, double r, int &elemid)
 {
    Element *el = mesh->GetElement(elemid);
    Array<int> v;
@@ -661,7 +698,6 @@ bool cutByCircle(Mesh *mesh, int &elemid)
    n = 0;
    double xc = 0.5;
    double yc = 0.5;
-   double r = 0.2;
    for (int i = 0; i < v.Size(); ++i)
    {
       double *coord = mesh->GetVertex(v[i]);

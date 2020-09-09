@@ -91,124 +91,124 @@ int main(int argc, char *argv[])
    FiniteElementSpace *fes = new GalerkinDifference(mesh, dim, mesh->GetNE(), fec, 1, Ordering::byVDIM, order);
    cout << "Number of GD unknowns: " << fes->GetTrueVSize() << endl;
    cout << "#dofs " << fes->GetNDofs() << endl;
-   // 5. Set up the linear form b(.) which corresponds to the right-hand side of
-   //    the FEM linear system.
-   LinearForm *b = new LinearForm(fespace);
-   ConstantCoefficient one(1.0);
-   ConstantCoefficient zero(0.0);
-   FunctionCoefficient f(f_exact);
-   FunctionCoefficient u(u_exact);
-   VectorFunctionCoefficient exact(1, exact_function);
-   b->AddDomainIntegrator(new DomainLFIntegrator(f));
-   b->AddBdrFaceIntegrator(
-      new DGDirichletLFIntegrator(u, one, sigma, kappa));
-   b->Assemble();
-   // GD grid function
-   CentGridFunction y(fes);
-   y.ProjectCoefficient(exact);
-   // cout << "exact solution " << endl;
-   // y.Print();
-   // cout << "center grid function created " << endl;
-   // VectorFunctionCoefficient exact(dim, exact_function);
-   // y.ProjectCoefficient(exact);
-   // cout << "solution at center is " << endl;
-   // y.Print();
-   // cout << "check if the prolongation matrix is correct " << endl;
-   // GridFunction x(fespace);
-   // fes->GetProlongationMatrix()->Mult(y, x);
-   // x.Print();
-//    cout << "rhs is " << endl;
-//   b->Print();
-   // 6. Define the solution vector x as a finite element grid function
-   //    corresponding to fespace. Initialize x with initial guess of zero.
-   GridFunction x(fespace);
-   // 7. Set up the bilinear form a(.,.) on the finite element space
-   //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
-   //    domain integrator and the interior and boundary DG face integrators.
-   //    Note that boundary conditions are imposed weakly in the form, so there
-   //    is no need for dof elimination. After assembly and finalizing we
-   //    extract the corresponding sparse matrix A.
-   BilinearForm *a = new BilinearForm(fespace);
-   a->AddDomainIntegrator(new DiffusionIntegrator(one));
-   a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
-   a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
-   a->Assemble();
-   a->Finalize();
-    // stiffness matrix
-   SparseMatrix &Aold = a->SpMat();
-   SparseMatrix *cp = dynamic_cast<GalerkinDifference *>(fes)->GetCP();
-   SparseMatrix *p = RAP(*cp, Aold, *cp);
-   SparseMatrix &A = *p;
-   ofstream write("stiffmat_ex14GD.txt");
-   A.PrintMatlab(write);
-   write.close();
-   // get P^T b
-   Vector bnew(A.Width());
-   fes->GetProlongationMatrix()->MultTranspose(*b, bnew);
-   // write stiffness matrix to file
-   //cout << "bilinear form size " << a->Size() << endl;
-   //A.Print();
-   //cout << x.Size() << endl;
-//#ifndef MFEM_USE_SUITESPARSE
-   // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
-   //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
-   //    non-symmetric one.
-   GSSmoother M(A);
-   if (sigma == -1.0)
-   {
-      PCG(A, M, bnew, y, 1, 2000, 1e-40, 0.0);
-   }
-   else
-   {
-      GMRES(A, M, bnew, y, 1, 500, 10, 1e-16, 0.0);
-   }
-// #else
-//    // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-//    UMFPackSolver umf_solver;
-//    umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-//    umf_solver.SetOperator(A);
-//    umf_solver.Mult(*b, x);
-// #endif
+//    // 5. Set up the linear form b(.) which corresponds to the right-hand side of
+//    //    the FEM linear system.
+//    LinearForm *b = new LinearForm(fespace);
+//    ConstantCoefficient one(1.0);
+//    ConstantCoefficient zero(0.0);
+//    FunctionCoefficient f(f_exact);
+//    FunctionCoefficient u(u_exact);
+//    VectorFunctionCoefficient exact(1, exact_function);
+//    b->AddDomainIntegrator(new DomainLFIntegrator(f));
+//    b->AddBdrFaceIntegrator(
+//       new DGDirichletLFIntegrator(u, one, sigma, kappa));
+//    b->Assemble();
+//    // GD grid function
+//    CentGridFunction y(fes);
+//    y.ProjectCoefficient(exact);
+//    // cout << "exact solution " << endl;
+//    // y.Print();
+//    // cout << "center grid function created " << endl;
+//    // VectorFunctionCoefficient exact(dim, exact_function);
+//    // y.ProjectCoefficient(exact);
+//    // cout << "solution at center is " << endl;
+//    // y.Print();
+//    // cout << "check if the prolongation matrix is correct " << endl;
+//    // GridFunction x(fespace);
+//    // fes->GetProlongationMatrix()->Mult(y, x);
+//    // x.Print();
+// //    cout << "rhs is " << endl;
+// //   b->Print();
+//    // 6. Define the solution vector x as a finite element grid function
+//    //    corresponding to fespace. Initialize x with initial guess of zero.
+//    GridFunction x(fespace);
+//    // 7. Set up the bilinear form a(.,.) on the finite element space
+//    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
+//    //    domain integrator and the interior and boundary DG face integrators.
+//    //    Note that boundary conditions are imposed weakly in the form, so there
+//    //    is no need for dof elimination. After assembly and finalizing we
+//    //    extract the corresponding sparse matrix A.
+//    BilinearForm *a = new BilinearForm(fespace);
+//    a->AddDomainIntegrator(new DiffusionIntegrator(one));
+//    a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
+//    a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
+//    a->Assemble();
+//    a->Finalize();
+//     // stiffness matrix
+//    SparseMatrix &Aold = a->SpMat();
+//    SparseMatrix *cp = dynamic_cast<GalerkinDifference *>(fes)->GetCP();
+//    SparseMatrix *p = RAP(*cp, Aold, *cp);
+//    SparseMatrix &A = *p;
+//    ofstream write("stiffmat_ex14GD.txt");
+//    A.PrintMatlab(write);
+//    write.close();
+//    // get P^T b
+//    Vector bnew(A.Width());
+//    fes->GetProlongationMatrix()->MultTranspose(*b, bnew);
+//    // write stiffness matrix to file
+//    //cout << "bilinear form size " << a->Size() << endl;
+//    //A.Print();
+//    //cout << x.Size() << endl;
+// //#ifndef MFEM_USE_SUITESPARSE
+//    // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
+//    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
+//    //    non-symmetric one.
+//    GSSmoother M(A);
+//    if (sigma == -1.0)
+//    {
+//       PCG(A, M, bnew, y, 1, 2000, 1e-40, 0.0);
+//    }
+//    else
+//    {
+//       GMRES(A, M, bnew, y, 1, 500, 10, 1e-16, 0.0);
+//    }
+// // #else
+// //    // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+// //    UMFPackSolver umf_solver;
+// //    umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+// //    umf_solver.SetOperator(A);
+// //    umf_solver.Mult(*b, x);
+// // #endif
 
-   // 9. Save the refined mesh and the solution. This output can be viewed later
-   //    using GLVis: "glvis -m refined.mesh -g sol.gf".
-   // cout << "----------------------------- "<< endl;
-   // cout << "solution at center obtained: "<< endl;
-   // y.Print();
-   // cout << "----------------------------- "<< endl;
-   // get x = P y
-   fes->GetProlongationMatrix()->Mult(y, x);
-   // cout << "solution at nodes " << endl;
-   // x.Print();
-   // cout << "************************" << endl;
-   ofstream mesh_ofs("refined.mesh");
-   mesh_ofs.precision(8);
-   mesh->Print(mesh_ofs);
-   ofstream sol_ofs("sol.gf");
-   sol_ofs.precision(8);
-   x.Save(sol_ofs);
+//    // 9. Save the refined mesh and the solution. This output can be viewed later
+//    //    using GLVis: "glvis -m refined.mesh -g sol.gf".
+//    // cout << "----------------------------- "<< endl;
+//    // cout << "solution at center obtained: "<< endl;
+//    // y.Print();
+//    // cout << "----------------------------- "<< endl;
+//    // get x = P y
+//    fes->GetProlongationMatrix()->Mult(y, x);
+//    // cout << "solution at nodes " << endl;
+//    // x.Print();
+//    // cout << "************************" << endl;
+//    ofstream mesh_ofs("refined.mesh");
+//    mesh_ofs.precision(8);
+//    mesh->Print(mesh_ofs);
+//    ofstream sol_ofs("sol.gf");
+//    sol_ofs.precision(8);
+//    x.Save(sol_ofs);
 
-   // ofstream adj_ofs("dgsoldisc.vtk");
-   // adj_ofs.precision(14);
-   // mesh->PrintVTK(adj_ofs, 1);
-   // x.SaveVTK(adj_ofs, "dgSolution", 1);
-   // adj_ofs.close();
-   // 10. Send the solution by socket to a GLVis server.
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      sol_sock << "solution\n" << *mesh << x << flush;
-   }
-  double norm = x.ComputeL2Error(u);
-  cout << "----------------------------- " << endl;
-  cout << "mesh size, h = " << 1.0 / N << endl;
-  cout << "solution norm: " << norm << endl;
-  // 11. Free the used memory.
-  delete a;
-  delete b;
+//    // ofstream adj_ofs("dgsoldisc.vtk");
+//    // adj_ofs.precision(14);
+//    // mesh->PrintVTK(adj_ofs, 1);
+//    // x.SaveVTK(adj_ofs, "dgSolution", 1);
+//    // adj_ofs.close();
+//    // 10. Send the solution by socket to a GLVis server.
+//    if (visualization)
+//    {
+//       char vishost[] = "localhost";
+//       int  visport   = 19916;
+//       socketstream sol_sock(vishost, visport);
+//       sol_sock.precision(8);
+//       sol_sock << "solution\n" << *mesh << x << flush;
+//    }
+//   double norm = x.ComputeL2Error(u);
+//   cout << "----------------------------- " << endl;
+//   cout << "mesh size, h = " << 1.0 / N << endl;
+//   cout << "solution norm: " << norm << endl;
+//   // 11. Free the used memory.
+//   delete a;
+//   delete b;
   delete fespace;
   delete fec;
   delete mesh;
@@ -566,10 +566,6 @@ void buildLSInterpolation(int dim, int degree, const DenseMatrix &x_center,
    Array<int> jpvt;
    jpvt.SetSize(num_basis);
    jpvt = 0;
-   // for (int k=0; k<jpvt.Size();++k)
-   // {
-   //    jpvt[k] = 0;
-   // }
    double rcond= 1e-16;
    // cout << "right hand side " << endl;
    // coeff.PrintMatlab();
@@ -580,10 +576,10 @@ void buildLSInterpolation(int dim, int degree, const DenseMatrix &x_center,
    write.close();
    //V.PrintMatlab();
   // cout << "rank is " << V.Rank(1e-12) << endl;
-   // dgels_(&TRANS, &num_elem, &num_basis, &num_elem, V.GetData(), &num_elem,
-   //        coeff.GetData(), &num_elem, work, &lwork, &info);
-   dgelsy_(&num_elem, &num_basis, &num_elem,  V.GetData(), &num_elem, coeff.GetData(),
-         &num_elem, jpvt.GetData(),  &rcond , &rank,  work, &lwork, &info);
+   dgels_(&TRANS, &num_elem, &num_basis, &num_elem, V.GetData(), &num_elem,
+          coeff.GetData(), &num_elem, work, &lwork, &info);
+   // dgelsy_(&num_elem, &num_basis, &num_elem,  V.GetData(), &num_elem, coeff.GetData(),
+   //       &num_elem, jpvt.GetData(),  &rcond , &rank,  work, &lwork, &info);
    //cout<< "info is " << info << endl;
 
    MFEM_ASSERT(info == 0, "Fail to solve the underdetermined system.\n");

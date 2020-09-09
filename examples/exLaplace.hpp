@@ -8,8 +8,12 @@ using namespace mfem;
 using namespace std;
 ///function that checks if an element is `cut` by `embedded circle` or  not
 bool cutByCircle(Mesh *mesh, int &elemid);
+///function that checks if an element is `cut` by `embedded circle` or  not
+bool cutByCircle(Mesh *mesh, double rad, int &elemid);
 ///function that checks if an element is inside the `embedded circle` or  not
 bool insideBoundary(Mesh *mesh, int &elemid);
+///function that checks if an element is inside the `embedded circle` or  not
+bool insideBoundary(Mesh *mesh, double rad, int &elemid);
 /// function to get element center
 void GetElementCenter(Mesh *mesh, int id, mfem::Vector &cent);
 /// find bounding box for a given cut element
@@ -21,12 +25,12 @@ void GetCutsize(Mesh *mesh, vector<int> cutelems, std::map<int, IntegrationRule 
 
 /// get integration rule for cut elements
 template <int N>
-void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems, int order,
+void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems, int order, double radius,
                           std::map<int, IntegrationRule *> &cutSquareIntRules);
 /// get integration rule for cut segments
 template <int N>
 void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinteriorFaces,
-                          int order, std::map<int, IntegrationRule *> &cutSegmentIntRules,
+                          int order, double radius, std::map<int, IntegrationRule *> &cutSegmentIntRules,
                           std::map<int, IntegrationRule *> &cutInteriorFaceIntRules);
 // this is required for parameter verification test problem                        
 // get integration rule for cut elements
