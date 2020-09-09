@@ -16,6 +16,7 @@
 
 #ifdef MFEM_USE_CEED
 #include "operator.hpp"
+#include "../fem/libceed/ceedsolvers-utility.h"
 
 namespace mfem
 {
@@ -42,6 +43,7 @@ private:
    Operator ** operators;
    CeedMultigridLevel ** levels;
    Solver ** solvers;
+   CeedOperator fine_composite_op;
 };
 
 } // namespace mfem
