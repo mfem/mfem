@@ -533,6 +533,7 @@ void CeedPAAssemble(const CeedPAOperator& op,
                          CEED_EVAL_NONE);
    CeedQFunctionAddOutput(ceedData.apply_qfunc, "v", dimV, op.test_op);
    CeedQFunctionSetContext(ceedData.apply_qfunc, ceedData.build_ctx);
+   CeedQFunctionContextDestroy(&ceedData.build_ctx);
 
    // Create the operator.
    CeedOperatorCreate(ceed, ceedData.apply_qfunc, NULL, NULL, &ceedData.oper);
