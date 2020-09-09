@@ -25,7 +25,7 @@ CCC = $(CC) $(CCOPTS)
 INCLUDES = -I$(or $(SRC:%/=%),.) -I$(MFEM_DIR)
 
 SOURCE_FILES = $(sort $(wildcard $(SRC)*/*.cpp))
-HEADER_FILES = $(SRC)catch.hpp
+HEADER_FILES = $(SRC)catch.hpp $(SRC)unit_tests.hpp
 OBJECT_FILES = $(SOURCE_FILES:$(SRC)%.cpp=%.o)
 DATA_DIR = data
 
