@@ -371,7 +371,7 @@ void VectorMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (DeviceCanUseCeed())
    {
-      CeedAddMultPA(ceedDataPtr, x, y);
+      CeedAddMult(ceedDataPtr, x, y);
    }
    else
    {
@@ -531,7 +531,7 @@ void VectorMassIntegrator::AssembleDiagonalPA(Vector &diag)
 {
    if (DeviceCanUseCeed())
    {
-      CeedAssembleDiagonalPA(ceedDataPtr, diag);
+      CeedAssembleDiagonal(ceedDataPtr, diag);
    }
    else
    {

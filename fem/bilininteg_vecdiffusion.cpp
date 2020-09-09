@@ -516,7 +516,7 @@ void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (DeviceCanUseCeed())
    {
-      CeedAddMultPA(ceedDataPtr, x, y);
+      CeedAddMult(ceedDataPtr, x, y);
    }
    else
    {
@@ -743,7 +743,7 @@ void VectorDiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 {
    if (DeviceCanUseCeed())
    {
-      CeedAssembleDiagonalPA(ceedDataPtr, diag);
+      CeedAssembleDiagonal(ceedDataPtr, diag);
    }
    else
    {

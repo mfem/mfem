@@ -17,6 +17,7 @@ set(SRCS
   bilininteg_convection_ea.cpp
   bilininteg_dgtrace_pa.cpp
   bilininteg_dgtrace_ea.cpp
+  bilininteg_diffusion_mf.cpp
   bilininteg_diffusion_pa.cpp
   bilininteg_diffusion_ea.cpp
   bilininteg_divergence.cpp
@@ -24,6 +25,7 @@ set(SRCS
   bilininteg_hdiv.cpp
   bilininteg_vectorfe.cpp
   bilininteg_gradient.cpp
+  bilininteg_mass_mf.cpp
   bilininteg_mass_pa.cpp
   bilininteg_mass_ea.cpp
   bilininteg_transpose_ea.cpp

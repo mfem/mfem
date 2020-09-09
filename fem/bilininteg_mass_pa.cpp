@@ -23,7 +23,7 @@ namespace mfem
 
 // PA Mass Assemble kernel
 
-void MassIntegrator::SetupPA(const FiniteElementSpace &fes)
+void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    // Assuming the same element type
    fespace = &fes;
@@ -151,12 +151,6 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes)
       });
    }
 }
-
-void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
-{
-   SetupPA(fes);
-}
-
 
 template<int T_D1D = 0, int T_Q1D = 0>
 static void PAMassAssembleDiagonal2D(const int NE,
@@ -467,7 +461,7 @@ void MassIntegrator::AssembleDiagonalPA(Vector &diag)
 {
    if (DeviceCanUseCeed())
    {
-      CeedAssembleDiagonalPA(ceedDataPtr, diag);
+      CeedAssembleDiagonal(ceedDataPtr, diag);
    }
    else
    {
@@ -1224,7 +1218,7 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (DeviceCanUseCeed())
    {
-      CeedAddMultPA(ceedDataPtr, x, y);
+      CeedAddMult(ceedDataPtr, x, y);
    }
    else
    {

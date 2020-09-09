@@ -24,6 +24,10 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
                              const mfem::IntegrationRule &ir,
                              CeedData& ceedData);
 
+void CeedMFDiffusionAssemble(const FiniteElementSpace &fes,
+                             const mfem::IntegrationRule &ir,
+                             CeedData& ceedData);
+
 }
 
 #endif // MFEM_LIBCEED_DIFF_HPP
