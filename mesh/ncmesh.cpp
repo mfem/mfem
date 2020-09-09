@@ -2486,18 +2486,20 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
                Point mid0(pm(0), pm(1)), mid2(pm(2), pm(3));
                int v1 = nodes[mid[0]].vert_index;
                int v2 = nodes[mid[2]].vert_index;
-               sl.matrix = matrix_map.GetIndex(
-                  (v1 < v2) ? PointMatrix(mid0, mid2, mid2, mid0) :
-                  /*       */ PointMatrix(mid2, mid0, mid0, mid2));
+               sl.matrix =
+                  matrix_map.GetIndex(
+                     (v1 < v2) ? PointMatrix(mid0, mid2, mid2, mid0) :
+                     /*       */ PointMatrix(mid2, mid0, mid0, mid2));
             }
             else
             {
                Point mid1(pm(1), pm(2)), mid3(pm(3), pm(0));
                int v1 = nodes[mid[1]].vert_index;
                int v2 = nodes[mid[3]].vert_index;
-               sl.matrix = matrix_map.GetIndex(
-                  (v1 < v2) ? PointMatrix(mid1, mid3, mid3, mid1) :
-                  /*       */ PointMatrix(mid3, mid1, mid1, mid3));
+               sl.matrix =
+                  matrix_map.GetIndex(
+                     (v1 < v2) ? PointMatrix(mid1, mid3, mid3, mid1) :
+                     /*       */ PointMatrix(mid3, mid1, mid1, mid3));
             }
          }
       }
