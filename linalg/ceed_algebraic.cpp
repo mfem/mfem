@@ -500,10 +500,19 @@ AlgebraicCeedSolver::AlgebraicCeedSolver(Operator& fine_mfem_op,
 
    auto *bffis = form.GetDBFI();
    MFEM_VERIFY(bffis->Size() == 1, "Only implemented for one integrator!");
+   CeedOperator current_op;
    DiffusionIntegrator * dintegrator =
       dynamic_cast<DiffusionIntegrator*>((*bffis)[0]);
-   MFEM_VERIFY(dintegrator, "Not a diffusion integrator!");
-   CeedOperator current_op = dintegrator->GetCeedData()->oper;
+   if (dintegrator)
+   {
+      current_op = dintegrator->GetCeedData()->oper;
+   }
+   else
+   {
+      MassIntegrator * mintegrator = dynamic_cast<MassIntegrator*>((*bffis)[0]);
+      MFEM_VERIFY(mintegrator, "Integrator not supported in AlgebraicCeedSolver!");
+      current_op = mintegrator->GetCeedData()->oper;
+   }
 
    operators = new Operator*[num_levels];
    operators[0] = &fine_mfem_op;

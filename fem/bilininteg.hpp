@@ -2050,6 +2050,10 @@ public:
                                          ElementTransformation &Trans);
 
    void SetupPA(const FiniteElementSpace &fes);
+
+#ifdef MFEM_USE_CEED
+   CeedData * GetCeedData() { return ceedDataPtr; }
+#endif
 };
 
 /** Mass integrator (u, v) restricted to the boundary of a domain */
