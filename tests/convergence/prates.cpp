@@ -8,25 +8,29 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-
-// Compile with: make ratesp
 //
-// Sample runs:  mpirun -np 4 ratesp -m ../../data/inline-segment.mesh -sr 1 -pr 4 -prob 0 -o 1
-//               mpirun -np 4 ratesp -m ../../data/inline-quad.mesh -sr 1 -pr 3 -prob 0 -o 2
-//               mpirun -np 4 ratesp -m ../../data/inline-quad.mesh -sr 1 -pr 3 -prob 1 -o 2
-//               mpirun -np 4 ratesp -m ../../data/inline-quad.mesh -sr 1 -pr 3 -prob 2 -o 2
-//               mpirun -np 4 ratesp -m ../../data/inline-tri.mesh -sr 1 -pr 3 -prob 2 -o 3
-//               mpirun -np 4 ratesp -m ../../data/star.mesh -sr 1 -pr 2 -prob 1 -o 4
-//               mpirun -np 4 ratesp -m ../../data/fichera.mesh -sr 1 -pr 2 -prob 2 -o 2
-//               mpirun -np 4 ratesp -m ../../data/inline-wedge.mesh -sr 0 -pr 2 -prob 0 -o 2
-//               mpirun -np 4 ratesp -m ../../data/inline-hex.mesh -sr 0 -pr 1 -prob 1 -o 3
-//               mpirun -np 4 ratesp -m ../../data/square-disc.mesh -sr 1 -pr 2 -prob 1 -o 2
-//               mpirun -np 4 ratesp -m ../../data/star.mesh -sr 1 -pr 2 -prob 3 -o 2
-//               mpirun -np 4 ratesp -m ../../data/inline-hex.mesh -sr 1 -pr 1 -prob 3 -o 2
+//                     ---------------------------------
+//                     Convergence Rates Test (Parallel)
+//                     ---------------------------------
 //
-// Description:  This example code demonstrates the use of MFEM to define
-//               and solve finite element problem for various discretizations
-//               and provide convergence rates
+// Compile with: make prates
+//
+// Sample runs:  mpirun -np 4 prates -m ../../data/inline-segment.mesh -sr 1 -pr 4 -prob 0 -o 1
+//               mpirun -np 4 prates -m ../../data/inline-quad.mesh -sr 1 -pr 3 -prob 0 -o 2
+//               mpirun -np 4 prates -m ../../data/inline-quad.mesh -sr 1 -pr 3 -prob 1 -o 2
+//               mpirun -np 4 prates -m ../../data/inline-quad.mesh -sr 1 -pr 3 -prob 2 -o 2
+//               mpirun -np 4 prates -m ../../data/inline-tri.mesh -sr 1 -pr 3 -prob 2 -o 3
+//               mpirun -np 4 prates -m ../../data/star.mesh -sr 1 -pr 2 -prob 1 -o 4
+//               mpirun -np 4 prates -m ../../data/fichera.mesh -sr 1 -pr 2 -prob 2 -o 2
+//               mpirun -np 4 prates -m ../../data/inline-wedge.mesh -sr 0 -pr 2 -prob 0 -o 2
+//               mpirun -np 4 prates -m ../../data/inline-hex.mesh -sr 0 -pr 1 -prob 1 -o 3
+//               mpirun -np 4 prates -m ../../data/square-disc.mesh -sr 1 -pr 2 -prob 1 -o 2
+//               mpirun -np 4 prates -m ../../data/star.mesh -sr 1 -pr 2 -prob 3 -o 2
+//               mpirun -np 4 prates -m ../../data/inline-hex.mesh -sr 1 -pr 1 -prob 3 -o 2
+//
+// Description:  This example code demonstrates the use of MFEM to define and
+//               solve finite element problem for various discretizations and
+//               provide convergence rates in parallel.
 //
 //               prob 0: H1 projection:
 //                       (grad u, grad v) + (u,v) = (grad u_exact, grad v) + (u_exact, v)
@@ -34,15 +38,16 @@
 //                       (curl u, curl v) + (u,v) = (curl u_exact, curl v) + (u_exact, v)
 //               prob 2: H(div) projection
 //                       (div  u, div  v) + (u,v) = (div  u_exact, div  v) + (u_exact, v)
-//               prob 3: DG discretization for the Poisson problem 
+//               prob 3: DG discretization for the Poisson problem
 //                       -Delta u = f
+
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
 using namespace std;
 using namespace mfem;
 
-// Exact solution parameters: 
+// Exact solution parameters:
 double sol_s[3] = { -0.32, 0.15, 0.24 };
 double sol_k[3] = { 1.21, 1.45, 1.37 };
 
@@ -89,7 +94,7 @@ int main(int argc, char *argv[])
                   " See the documentation of class DGDiffusionIntegrator.");
    args.AddOption(&kappa, "-k", "--kappa",
                   "One of the two DG penalty parameters, should be positive."
-                  " Negative values are replaced with (order+1)^2.");                     
+                  " Negative values are replaced with (order+1)^2.");
    args.AddOption(&sr, "-sr", "--serial_ref",
                   "Number of serial refinements.");
    args.AddOption(&pr, "-pr", "--parallel_ref",
@@ -107,7 +112,7 @@ int main(int argc, char *argv[])
       MPI_Finalize();
       return 1;
    }
-   if (prob >3 || prob <0) prob = 0; //default problem = H1
+   if (prob >3 || prob <0) prob = 0; // default problem = H1
    if (prob == 3)
    {
       if (kappa < 0)
@@ -125,18 +130,19 @@ int main(int argc, char *argv[])
    //    and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    dim = mesh->Dimension();
-   // 5. Refine the serial mesh on all processors to increase the resolution.
+
+   // 4. Refine the serial mesh on all processors to increase the resolution.
    for (int i = 0; i < sr; i++ )
    {
       mesh->UniformRefinement();
    }
 
-   // 6. Define a parallel mesh by a partitioning of the serial mesh. Once the
+   // 5. Define a parallel mesh by a partitioning of the serial mesh. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
 
-   // 7. Define a parallel finite element space on the parallel mesh.
+   // 6. Define a parallel finite element space on the parallel mesh.
    FiniteElementCollection *fec=nullptr;
    switch (prob)
    {
@@ -148,11 +154,12 @@ int main(int argc, char *argv[])
    }
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
 
-   // 8. Define the solution vector x as a parallel finite element grid function
+   // 7. Define the solution vector x as a parallel finite element grid function
    //     corresponding to fespace.
    ParGridFunction x(fespace);
    x = 0.0;
-   // 9. Set up the parallel linear form b(.) and the parallel bilinear form
+
+   // 8. Set up the parallel linear form b(.) and the parallel bilinear form
    //    a(.,.).
    FunctionCoefficient *f=nullptr;
    FunctionCoefficient *scalar_u=nullptr;
@@ -213,14 +220,14 @@ int main(int argc, char *argv[])
          a.AddDomainIntegrator(new DiffusionIntegrator(one));
          a.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
          a.AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
-         break;   
+         break;
 
       default:
          break;
    }
 
-   // 10. Perform successive parallel refinements, compute the L2 error and the
-   //     corresponding rate of convergence
+   // 9. Perform successive parallel refinements, compute the L2 error and the
+   //    corresponding rate of convergence.
    ConvergenceStudy rates;
    for (int l = 0; l <= pr; l++)
    {
@@ -271,7 +278,7 @@ int main(int argc, char *argv[])
       solver->SetRelTol(1e-12);
       solver->SetMaxIter(2000);
       solver->SetPrintLevel(0);
-      solver->SetPreconditioner(*prec); 
+      solver->SetPreconditioner(*prec);
       solver->SetOperator(*A);
       solver->Mult(*B, *X);
       delete prec;
@@ -298,10 +305,9 @@ int main(int argc, char *argv[])
       b.Update();
       x.Update();
    }
-
    rates.Print();
 
-   // 11. Send the solution by socket to a GLVis server.
+   // 10. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -314,7 +320,7 @@ int main(int argc, char *argv[])
                << flush;
    }
 
-   // 12. Free the used memory.
+   // 10. Free the used memory.
    delete scalar_u;
    delete divu;
    delete vector_u;
@@ -382,14 +388,14 @@ void curlu_exact(const Vector &x, Vector &curlu)
    curlu.SetSize(n);
    if (x.Size()==3)
    {
-      curlu[0] = 0.0; 
+      curlu[0] = 0.0;
       curlu[1] = grad[2];
       curlu[2] = -grad[1];
    }
    else if (x.Size()==2)
    {
       curlu[0] = -grad[1];
-   }   
+   }
 }
 
 // H(div)

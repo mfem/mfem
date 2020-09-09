@@ -210,7 +210,7 @@ int main (int argc, char *argv[])
    // Generate equidistant points in physical coordinates over the whole mesh.
    // Note that some points might be outside, if the mesh is not a box. Note
    // also that all tasks search the same points (not mandatory).
-   const int pts_cnt_1D = 5;
+   const int pts_cnt_1D = 10;
    const int pts_cnt = pow(pts_cnt_1D, dim);
    Vector vxyz(pts_cnt * dim);
    if (dim == 2)
@@ -264,7 +264,7 @@ int main (int argc, char *argv[])
             for (int d = 0; d < dim; d++) { pos(d) = vxyz(d * pts_cnt + i); }
             Vector exact_val(vec_dim);
             F_exact(pos, exact_val);
-            max_err  = std::max(max_err, fabs(exact_val(j) - interp_vals[npt]));
+            max_err  = std::max(max_err, fabs(exact_val(j) - interp_vals(npt)));
             max_dist = std::max(max_dist, dist_p_out(i));
             if (code_out[i] == 1 && j == 0) { face_pts++; }
          }

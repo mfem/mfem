@@ -199,8 +199,6 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
       mfem::Swap(params, new_params);
    }
 
-   mesh->FinalizeMesh();
-
    // create high-order curvature
    if (order > 1)
    {
@@ -241,6 +239,8 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
 
       nodes->RestrictConforming();
    }
+
+   mesh->FinalizeMesh();
 
    return mesh;
 }
@@ -519,6 +519,8 @@ int main(int argc, char *argv[])
    args.PrintOptions(cout);
 
    // validate options
+   MFEM_VERIFY(radius > 0, "");
+   MFEM_VERIFY(aspect > 0, "");
    MFEM_VERIFY(dim >= 2 && dim <= 3, "");
    MFEM_VERIFY(angle > 0 && angle < 360, "");
    MFEM_VERIFY(nsteps > 0, "");

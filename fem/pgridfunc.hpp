@@ -283,7 +283,7 @@ public:
                           pfes->GetComm());
    }
 
-   // Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
+   /// Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
    virtual double ComputeGradError(VectorCoefficient *exgrad,
                                    const IntegrationRule *irs[] = NULL) const
    {
@@ -291,7 +291,7 @@ public:
                           pfes->GetComm());
    }
 
-   // Returns ||curl u_ex - curl u_h||_L2 for ND elements
+   /// Returns ||curl u_ex - curl u_h||_L2 for ND elements
    virtual double ComputeCurlError(VectorCoefficient *excurl,
                                    const IntegrationRule *irs[] = NULL) const
    {
@@ -299,7 +299,7 @@ public:
                           pfes->GetComm());
    }
 
-   // Returns ||div u_ex - div u_h||_L2 for RT elements
+   /// Returns ||div u_ex - div u_h||_L2 for RT elements
    virtual double ComputeDivError(Coefficient *exdiv,
                                   const IntegrationRule *irs[] = NULL) const
    {
@@ -307,15 +307,15 @@ public:
                           pfes->GetComm());
    }
 
-   // Returns the Face Jumps error for L2 elements
+   /// Returns the Face Jumps error for L2 elements
    virtual double ComputeDGFaceJumpError(Coefficient *exsol,
                                          Coefficient *ell_coeff,
                                          double Nu,
                                          const IntegrationRule *irs[]=NULL)
    const;
 
-   // Returns either the H1-seminorm or the DG Face Jumps error
-   // or both depending on norm_type = 1, 2, 3
+   /// Returns either the H1-seminorm or the DG Face Jumps error or both
+   /// depending on norm_type = 1, 2, 3
    virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
                                  Coefficient *ell_coef, double Nu,
                                  int norm_type) const
@@ -326,8 +326,8 @@ public:
                           pfes->GetComm());
    }
 
-   // Returns the error measured in H1-norm for H1 elements or
-   // in "broken" H1-norm for L2 elements
+   /// Returns the error measured in H1-norm for H1 elements or in "broken"
+   /// H1-norm for L2 elements
    virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
                                  const IntegrationRule *irs[] = NULL) const
    {
@@ -335,7 +335,7 @@ public:
                           pfes->GetComm());
    }
 
-   // Returns the error measured H(div)-norm for RT elements
+   /// Returns the error measured H(div)-norm for RT elements
    virtual double ComputeHDivError(VectorCoefficient *exsol,
                                    Coefficient *exdiv,
                                    const IntegrationRule *irs[] = NULL) const
@@ -344,7 +344,7 @@ public:
                           pfes->GetComm());
    }
 
-   // Returns the error measured H(curl)-norm for ND elements
+   /// Returns the error measured H(curl)-norm for ND elements
    virtual double ComputeHCurlError(VectorCoefficient *exsol,
                                     VectorCoefficient *excurl,
                                     const IntegrationRule *irs[] = NULL) const
@@ -391,7 +391,7 @@ public:
                                  const IntegrationRule *irs[] = NULL) const
    {
       return GlobalLpNorm(p, GridFunction::ComputeLpError(
-                             p, exsol, weight, v_weight, irs),pfes->GetComm());
+                             p, exsol, weight, v_weight, irs), pfes->GetComm());
    }
 
    virtual void ComputeFlux(BilinearFormIntegrator &blfi,

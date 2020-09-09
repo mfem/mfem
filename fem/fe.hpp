@@ -504,14 +504,14 @@ public:
    /** @brief Given a coefficient and a transformation, compute its projection
        (approximation) in the local finite dimensional space in terms
        of the degrees of freedom. */
-   virtual void Project (Coefficient &coeff,
-                         ElementTransformation &Trans, Vector &dofs) const;
+   virtual void Project(Coefficient &coeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
 
    /** @brief Given a vector coefficient and a transformation, compute its
        projection (approximation) in the local finite dimensional space
        in terms of the degrees of freedom. (VectorFiniteElements) */
-   virtual void Project (VectorCoefficient &vc,
-                         ElementTransformation &Trans, Vector &dofs) const;
+   virtual void Project(VectorCoefficient &vc,
+                        ElementTransformation &Trans, Vector &dofs) const;
 
    /** @brief Given a vector of values at the finite element nodes and a
        transformation, compute its projection (approximation) in the local

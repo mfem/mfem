@@ -24,13 +24,12 @@ namespace mfem
 /** @brief Class to compute error and convergence rates.
     It supports H1, H(curl) (ND elements), H(div) (RT elements) and L2 (DG).
 
-    For "smooth enough" solutions the Galerkin error
-    measured in the appropriate norm satisfies
-    || u - u_h || ~  h^k
+    For "smooth enough" solutions the Galerkin error measured in the appropriate
+    norm satisfies || u - u_h || ~ h^k
 
-    Here, k is called the assymptotic rate of convergence
+    Here, k is called the asymptotic rate of convergence
 
-    For succesive uniform h-refinements the rate can be estimated by
+    For successive uniform h-refinements the rate can be estimated by
     k = log(||u - u_h|| / ||u - u_{h/2}||)/log(2)
 */
 class ConvergenceStudy
@@ -56,96 +55,92 @@ private:
    Array<double> L2Rates, DGFaceRates, DRates, EnRates;
    Array<int> ndofs;
 
-   void AddL2Error(GridFunction * gf, Coefficient * scalar_u,
-                   VectorCoefficient * vector_u);
-   void AddGf(GridFunction * gf, Coefficient * scalar_u,
-              VectorCoefficient * grad=nullptr,
-              Coefficient * ell_coeff=nullptr, double Nu=1.0);
-   void AddGf(GridFunction * gf, VectorCoefficient * vector_u,
-              VectorCoefficient * curl, Coefficient * div);
-   // returns the exact solution/grad/div/curl norm
-   double GetNorm(GridFunction * gf, Coefficient * scalar_u,
-                  VectorCoefficient * vector_u);
+   void AddL2Error(GridFunction *gf, Coefficient *scalar_u,
+                   VectorCoefficient *vector_u);
+   void AddGf(GridFunction *gf, Coefficient *scalar_u,
+              VectorCoefficient *grad=nullptr,
+              Coefficient *ell_coeff=nullptr, double Nu=1.0);
+   void AddGf(GridFunction *gf, VectorCoefficient *vector_u,
+              VectorCoefficient *curl, Coefficient *div);
+   // returns the L2-norm of scalar_u or vector_u
+   double GetNorm(GridFunction *gf, Coefficient *scalar_u,
+                  VectorCoefficient *vector_u);
 
 public:
 
-   // Clear any internal data
+   /// Clear any internal data
    void Reset();
 
-   // Add L2 GridFunction,
-   // the exact solution and possibly
-   // its gradient and/or DG face jumps parameters
-   void AddL2GridFunction(GridFunction * gf, Coefficient * scalar_u,
-                          VectorCoefficient * grad=nullptr,
-                          Coefficient * ell_coeff=nullptr, double Nu=1.0)
+   /// Add L2 GridFunction, the exact solution and possibly its gradient and/or
+   /// DG face jumps parameters
+   void AddL2GridFunction(GridFunction *gf, Coefficient *scalar_u,
+                          VectorCoefficient *grad=nullptr,
+                          Coefficient *ell_coeff=nullptr, double Nu=1.0)
    {
-      AddGf(gf, scalar_u, grad, ell_coeff,Nu);
+      AddGf(gf, scalar_u, grad, ell_coeff, Nu);
    }
 
-   // Add H1 GridFunction,
-   // the exact solution and possibly its gradient
-   void AddH1GridFunction(GridFunction * gf, Coefficient * scalar_u,
-                          VectorCoefficient * grad=nullptr)
+   /// Add H1 GridFunction, the exact solution and possibly its gradient
+   void AddH1GridFunction(GridFunction *gf, Coefficient *scalar_u,
+                          VectorCoefficient *grad=nullptr)
    {
       AddGf(gf, scalar_u, grad);
    }
 
-   // Add H(curl) GridFunction,
-   // the exact solution and possibly its curl
-   void AddHcurlGridFunction(GridFunction * gf, VectorCoefficient * vector_u,
-                             VectorCoefficient * curl=nullptr)
+   /// Add H(curl) GridFunction, the exact solution and possibly its curl
+   void AddHcurlGridFunction(GridFunction *gf, VectorCoefficient *vector_u,
+                             VectorCoefficient *curl=nullptr)
    {
-      AddGf(gf,vector_u, curl, nullptr);
+      AddGf(gf, vector_u, curl, nullptr);
    }
 
-   // Add H(div) GridFunction,
-   // the exact solution and possibly its div
-   void AddHdivGridFunction(GridFunction * gf, VectorCoefficient * vector_u,
-                            Coefficient * div=nullptr)
+   /// Add H(div) GridFunction, the exact solution and possibly its div
+   void AddHdivGridFunction(GridFunction *gf, VectorCoefficient *vector_u,
+                            Coefficient *div=nullptr)
    {
       AddGf(gf,vector_u, nullptr, div);
    }
 
-   // Get L2 error at step n
+   /// Get the L2 error at step n
    double GetL2Error(int n)
    {
-      MFEM_VERIFY(n<= counter,"Step out of bounds")
+      MFEM_VERIFY( n <= counter,"Step out of bounds")
       return L2Errors[n];
    }
 
-   // Get all L2 errors
+   /// Get all L2 errors
    void GetL2Errors(Array<double> & L2Errors_)
    {
       L2Errors_ = L2Errors;
    }
 
-   // Get Grad/Curl/Div Error at step n
+   /// Get the Grad/Curl/Div error at step n
    double GetDError(int n)
    {
-      MFEM_VERIFY(n<= dcounter,"Step out of bounds")
+      MFEM_VERIFY(n <= dcounter,"Step out of bounds")
       return DErrors[n];
    }
 
-   // Get all Grad/Curl/Div
+   /// Get all Grad/Curl/Div errors
    void GetDErrors(Array<double> & DErrors_)
    {
       DErrors_ = DErrors;
    }
 
-   // Get DGFaceJumps Error at step n
+   /// Get the DGFaceJumps error at step n
    double GetDGFaceJumpsError(int n)
    {
       MFEM_VERIFY(n<= fcounter,"Step out of bounds")
       return DGFaceErrors[n];
    }
 
-   // Get all DGFaceJumps
+   /// Get all DGFaceJumps errors
    void GetDGFaceJumpsErrors(Array<double> & DGFaceErrors_)
    {
       DGFaceErrors_ = DGFaceErrors;
    }
 
-   // Print rates and errors
+   /// Print rates and errors
    void Print(bool relative = false, std::ostream &out = mfem::out);
 };
 
