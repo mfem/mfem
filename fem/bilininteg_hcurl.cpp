@@ -1606,6 +1606,7 @@ static void PACurlCurlAssembleDiagonal2D(const int D1D,
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 static void PACurlCurlAssembleDiagonal3D(const int D1D,
                                          const int Q1D,
+                                         const bool symmetric,
                                          const int NE,
                                          const Array<double> &_Bo,
                                          const Array<double> &_Bc,
@@ -1622,8 +1623,19 @@ static void PACurlCurlAssembleDiagonal3D(const int D1D,
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
    auto Go = Reshape(_Go.Read(), Q1D, D1D-1);
    auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 6, NE);
+   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, (symmetric ? 6 : 9), NE);
    auto diag = Reshape(_diag.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
+
+   const int s = symmetric ? 6 : 9;
+   const int i11 = 0;
+   const int i12 = 1;
+   const int i13 = 2;
+   const int i21 = symmetric ? i12 : 3;
+   const int i22 = symmetric ? 3 : 4;
+   const int i23 = symmetric ? 4 : 5;
+   const int i31 = symmetric ? i13 : 6;
+   const int i32 = symmetric ? i23 : 7;
+   const int i33 = symmetric ? 5 : 8;
 
    MFEM_FORALL(e, NE,
    {
@@ -1633,7 +1645,8 @@ static void PACurlCurlAssembleDiagonal3D(const int D1D,
       // If c = 1, \hat{\nabla}\times\hat{u} reduces to [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
       // If c = 2, \hat{\nabla}\times\hat{u} reduces to [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
 
-      // For each c, we will keep 6 arrays for derivatives multiplied by the 6 entries of the symmetric 3x3 matrix (dF^T dF).
+      // For each c, we will keep 9 arrays for derivatives multiplied by the 9 entries of the 3x3 matrix (dF^T C dF),
+      // which may be non-symmetric depending on a possibly non-symmetric matrix coefficient.
 
       int osc = 0;
 
@@ -1643,7 +1656,7 @@ static void PACurlCurlAssembleDiagonal3D(const int D1D,
          const int D1Dy = (c == 1) ? D1D - 1 : D1D;
          const int D1Dx = (c == 0) ? D1D - 1 : D1D;
 
-         double zt[MAX_Q1D][MAX_Q1D][MAX_D1D][6][3];
+         double zt[MAX_Q1D][MAX_Q1D][MAX_D1D][9][3];
 
          // z contraction
          for (int qx = 0; qx < Q1D; ++qx)
@@ -1652,7 +1665,7 @@ static void PACurlCurlAssembleDiagonal3D(const int D1D,
             {
                for (int dz = 0; dz < D1Dz; ++dz)
                {
-                  for (int i=0; i<6; ++i)
+                  for (int i=0; i<s; ++i)
                   {
                      for (int d=0; d<3; ++d)
                      {
@@ -1665,7 +1678,7 @@ static void PACurlCurlAssembleDiagonal3D(const int D1D,
                      const double wz = ((c == 2) ? Bo(qz,dz) : Bc(qz,dz));
                      const double wDz = ((c == 2) ? Go(qz,dz) : Gc(qz,dz));
 
-                     for (int i=0; i<6; ++i)
+                     for (int i=0; i<s; ++i)
                      {
                         zt[qx][qy][dz][i][0] += wz * wz * op(qx,qy,qz,i,e);
                         zt[qx][qy][dz][i][1] += wDz * wz * op(qx,qy,qz,i,e);
@@ -1676,7 +1689,7 @@ static void PACurlCurlAssembleDiagonal3D(const int D1D,
             }
          }  // end of z contraction
 
-         double yt[MAX_Q1D][MAX_D1D][MAX_D1D][6][3][3];
+         double yt[MAX_Q1D][MAX_D1D][MAX_D1D][9][3][3];
 
          // y contraction
          for (int qx = 0; qx < Q1D; ++qx)
@@ -1685,7 +1698,7 @@ static void PACurlCurlAssembleDiagonal3D(const int D1D,
             {
                for (int dy = 0; dy < D1Dy; ++dy)
                {
-                  for (int i=0; i<6; ++i)
+                  for (int i=0; i<s; ++i)
                   {
                      for (int d=0; d<3; ++d)
                         for (int j=0; j<3; ++j)
@@ -1699,7 +1712,7 @@ static void PACurlCurlAssembleDiagonal3D(const int D1D,
                      const double wy = ((c == 1) ? Bo(qy,dy) : Bc(qy,dy));
                      const double wDy = ((c == 1) ? Go(qy,dy) : Gc(qy,dy));
 
-                     for (int i=0; i<6; ++i)
+                     for (int i=0; i<s; ++i)
                      {
                         for (int d=0; d<3; ++d)
                         {
@@ -1744,49 +1757,30 @@ static void PACurlCurlAssembleDiagonal3D(const int D1D,
                      {
                         // (u_0)_{x_2} (O22 (u_0)_{x_2} - O23 (u_0)_{x_1}) - (u_0)_{x_1} (O32 (u_0)_{x_2} - O33 (u_0)_{x_1})
 
-                        // (u_0)_{x_2} O22 (u_0)_{x_2}
-                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                             e) += yt[qx][dy][dz][3][2][0] * wx * wx;
+                        const double sumy = yt[qx][dy][dz][i22][2][0] - yt[qx][dy][dz][i23][1][1]
+                                            - yt[qx][dy][dz][i32][1][1] + yt[qx][dy][dz][i33][0][2];
 
-                        // -(u_0)_{x_2} O23 (u_0)_{x_1} - (u_0)_{x_1} O32 (u_0)_{x_2}
-                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                             e) += -2.0 * yt[qx][dy][dz][4][1][1] * wx * wx;
-
-                        // (u_0)_{x_1} O33 (u_0)_{x_1}
-                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                             e) += yt[qx][dy][dz][5][0][2] * wx * wx;
+                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += sumy * wx * wx;
                      }
                      else if (c == 1)
                      {
                         // (u_1)_{x_2} (O11 (u_1)_{x_2} - O13 (u_1)_{x_0}) + (u_1)_{x_0} (-O31 (u_1)_{x_2} + O33 (u_1)_{x_0})
 
-                        // (u_1)_{x_2} O11 (u_1)_{x_2}
-                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                             e) += yt[qx][dy][dz][0][2][0] * wx * wx;
+                        const double d = (yt[qx][dy][dz][i11][2][0] * wx * wx)
+                                         - ((yt[qx][dy][dz][i13][1][0] + yt[qx][dy][dz][i31][1][0]) * wDx * wx)
+                                         + (yt[qx][dy][dz][i33][0][0] * wDx * wDx);
 
-                        // -(u_1)_{x_2} O13 (u_1)_{x_0} - (u_1)_{x_0} O31 (u_1)_{x_2}
-                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                             e) += -2.0 * yt[qx][dy][dz][2][1][0] * wDx * wx;
-
-                        // (u_1)_{x_0} O33 (u_1)_{x_0})
-                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                             e) += yt[qx][dy][dz][5][0][0] * wDx * wDx;
+                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += d;
                      }
                      else
                      {
                         // (u_2)_{x_1} (O11 (u_2)_{x_1} - O12 (u_2)_{x_0}) - (u_2)_{x_0} (O21 (u_2)_{x_1} - O22 (u_2)_{x_0})
 
-                        // (u_2)_{x_1} O11 (u_2)_{x_1}
-                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                             e) += yt[qx][dy][dz][0][0][2] * wx * wx;
+                        const double d = (yt[qx][dy][dz][i11][0][2] * wx * wx)
+                                         - ((yt[qx][dy][dz][i12][0][1] + yt[qx][dy][dz][i21][0][1]) * wDx * wx)
+                                         + (yt[qx][dy][dz][i22][0][0] * wDx * wDx);
 
-                        // -(u_2)_{x_1} O12 (u_2)_{x_0} - (u_2)_{x_0} O21 (u_2)_{x_1}
-                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                             e) += -2.0 * yt[qx][dy][dz][1][0][1] * wDx * wx;
-
-                        // (u_2)_{x_0} O22 (u_2)_{x_0}
-                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                             e) += yt[qx][dy][dz][3][0][0] * wDx * wDx;
+                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += d;
                      }
                   }
                }
@@ -1805,8 +1799,8 @@ void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
       // Reduce HCURL_MAX_D1D/Q1D to avoid using too much memory
       constexpr int MAX_D1D = 4;
       constexpr int MAX_Q1D = 5;
-      PACurlCurlAssembleDiagonal3D<MAX_D1D,MAX_Q1D>(dofs1D, quad1D, ne,
-                                                    mapsO->B, mapsC->B,
+      PACurlCurlAssembleDiagonal3D<MAX_D1D,MAX_Q1D>(dofs1D, quad1D, symmetric,
+                                                    ne, mapsO->B, mapsC->B,
                                                     mapsO->G, mapsC->G,
                                                     pa_data, diag);
    }
