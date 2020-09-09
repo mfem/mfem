@@ -16,9 +16,6 @@
 
 #ifdef MFEM_USE_CEED
 #include "operator.hpp"
-#include "../fem/libceed/ceedsolvers-utility.h"
-#include "../fem/libceed/ceedsolvers-atpmg.h"
-#include "../fem/libceed/ceedsolvers-interpolation.h"
 
 namespace mfem
 {
