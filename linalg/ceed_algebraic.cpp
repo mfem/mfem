@@ -14,9 +14,13 @@
 #ifdef MFEM_USE_CEED
 #include "../fem/bilinearform.hpp"
 #include "../fem/fespace.hpp"
-#include "../fem/libceed/ceedsolvers-utility.h"
 #include "../fem/libceed/ceedsolvers-atpmg.h"
 #include "../fem/libceed/ceedsolvers-interpolation.h"
+
+// do not want the following here, needed for composite operator numsub, suboperator
+// (somehow encapsulate this in fem/libceed/ceedsolvers-*)
+// (also, the C++ compiler does not like repeated names in prototype?)
+#include <ceed-impl.h>
 
 namespace mfem
 {
@@ -90,16 +94,16 @@ private:
 
    CeedOperator oper_; // not owned
    CeedOperator coarse_oper_;
-   CeedBasis coarse_basis_;
-   CeedBasis basisctof_;
-   CeedElemRestriction lo_er_;
+   CeedBasis * coarse_basis_;
+   CeedBasis * basisctof_;
+   CeedElemRestriction * lo_er_;
 
    MFEMCeedInterpolation * mfem_interp_;
 
    const mfem::Array<int>& ho_ess_tdof_list_;
    mfem::Array<int> lo_ess_tdof_list_;
+   int numsub_;
 };
-
 
 /**
    Just wrap a Ceed operator in the mfem::Operator interface
@@ -448,11 +452,38 @@ CeedMultigridLevel::CeedMultigridLevel(CeedOperator oper,
 {
    Ceed ceed;
    CeedOperatorGetCeed(oper, &ceed);
-   CeedATPMGBundle(oper, order_reduction, &coarse_basis_, &basisctof_,
-                   &lo_er_, &coarse_oper_);
 
-   CeedOperatorGetActiveElemRestriction(oper, &ho_er_);
-   mfem_interp_ = new MFEMCeedInterpolation(ceed, basisctof_, lo_er_, ho_er_);
+   bool isComposite;
+   CeedOperatorIsComposite(oper, &isComposite);
+   if (isComposite)
+   {
+      numsub_ = oper->numsub;
+   }
+   else
+   {
+      numsub_ = 1;
+   }
+   coarse_basis_ = new CeedBasis[numsub_];
+   basisctof_ = new CeedBasis[numsub_];
+   lo_er_ = new CeedElemRestriction[numsub_];
+
+   if (isComposite)
+   {
+      for (int i = 0; i < numsub_; ++i)
+      {
+         CeedOperator suboper = oper->suboperators[i];
+         CeedATPMGBundle(suboper, order_reduction, &coarse_basis_[i], &basisctof_[i],
+                         &lo_er_[i], &coarse_oper_);
+      }
+      CeedOperatorGetActiveElemRestriction(oper->suboperators[0], &ho_er_);
+   }
+   else
+   {
+      CeedATPMGBundle(oper, order_reduction, &coarse_basis_[0], &basisctof_[0],
+                      &lo_er_[0], &coarse_oper_);
+      CeedOperatorGetActiveElemRestriction(oper, &ho_er_);
+   }
+   mfem_interp_ = new MFEMCeedInterpolation(ceed, basisctof_[0], lo_er_[0], ho_er_);
 
    CoarsenEssentialDofs(*mfem_interp_, ho_ess_tdof_list, lo_ess_tdof_list_);
 }
@@ -460,9 +491,16 @@ CeedMultigridLevel::CeedMultigridLevel(CeedOperator oper,
 CeedMultigridLevel::~CeedMultigridLevel()
 {
    CeedOperatorDestroy(&coarse_oper_);
-   CeedBasisDestroy(&coarse_basis_);
-   CeedBasisDestroy(&basisctof_);
-   CeedElemRestrictionDestroy(&lo_er_);
+
+   for (int i = 0; i < numsub_; ++i)
+   {
+      CeedBasisDestroy(&coarse_basis_[i]);
+      CeedBasisDestroy(&basisctof_[i]);
+      CeedElemRestrictionDestroy(&lo_er_[i]);
+   }
+   delete [] coarse_basis_;
+   delete [] basisctof_;
+   delete [] lo_er_;
 
    delete mfem_interp_;
 }
@@ -499,20 +537,24 @@ AlgebraicCeedSolver::AlgebraicCeedSolver(Operator& fine_mfem_op,
    }
 
    auto *bffis = form.GetDBFI();
-   MFEM_VERIFY(bffis->Size() == 1, "Only implemented for one integrator!");
-   CeedOperator current_op;
-   DiffusionIntegrator * dintegrator =
-      dynamic_cast<DiffusionIntegrator*>((*bffis)[0]);
-   if (dintegrator)
+   int num_integrators = bffis->Size();
+   CeedCompositeOperatorCreate(internal::ceed, &fine_composite_op);
+   for (int i = 0; i < num_integrators; ++i)
    {
-      current_op = dintegrator->GetCeedData()->oper;
+      DiffusionIntegrator * dintegrator =
+         dynamic_cast<DiffusionIntegrator*>((*bffis)[i]);
+      if (dintegrator)
+      {
+         CeedCompositeOperatorAddSub(fine_composite_op, dintegrator->GetCeedData()->oper);
+      }
+      else
+      {
+         MassIntegrator * mintegrator = dynamic_cast<MassIntegrator*>((*bffis)[i]);
+         MFEM_VERIFY(mintegrator, "Integrator not supported in AlgebraicCeedSolver!");
+         CeedCompositeOperatorAddSub(fine_composite_op, mintegrator->GetCeedData()->oper);
+      }
    }
-   else
-   {
-      MassIntegrator * mintegrator = dynamic_cast<MassIntegrator*>((*bffis)[0]);
-      MFEM_VERIFY(mintegrator, "Integrator not supported in AlgebraicCeedSolver!");
-      current_op = mintegrator->GetCeedData()->oper;
-   }
+   CeedOperator current_op = fine_composite_op;
 
    operators = new Operator*[num_levels];
    operators[0] = &fine_mfem_op;
@@ -570,6 +612,8 @@ AlgebraicCeedSolver::~AlgebraicCeedSolver()
    delete [] solvers;
    delete [] operators;
    delete [] levels;
+
+   CeedOperatorDestroy(&fine_composite_op);
 }
 
 void AlgebraicCeedSolver::Mult(const Vector& x, Vector& y) const
