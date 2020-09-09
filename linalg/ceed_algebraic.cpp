@@ -14,6 +14,9 @@
 #ifdef MFEM_USE_CEED
 #include "../fem/bilinearform.hpp"
 #include "../fem/fespace.hpp"
+#include "../fem/libceed/ceedsolvers-utility.h"
+#include "../fem/libceed/ceedsolvers-atpmg.h"
+#include "../fem/libceed/ceedsolvers-interpolation.h"
 
 namespace mfem
 {
