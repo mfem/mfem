@@ -37,7 +37,7 @@ class ReducedSystemOperator : public Operator
 {
 private:
    ParFiniteElementSpace &fespace;
-   ParBilinearForm *M, *Mfull, *K, *KB, *DRe, *DSl; 
+   ParBilinearForm *M, *Mlumped, *K, *KB, *DRe, *DSl; 
    HypreParMatrix &Mmat, &Kmat, *DRematpr, *DSlmatpr, &KBMat;
    //own by this:
    HypreParMatrix *Mdtpr, *ARe, *ASl, *MinvKB;
@@ -49,9 +49,8 @@ private:
    FunctionCoefficient *E0rhs;
    ParGridFunction *j0;
    Array<int> block_trueOffsets;
-   ParBilinearForm *Mlp; 
 
-   CGSolver *M_solver, *M_solver2;
+   CGSolver *M_solver, *M_solver2, *M_solver3;
 
    int myid;
    double dt, dtOld, viscosity, resistivity;
@@ -72,7 +71,8 @@ public:
                          ParBilinearForm *K_, HypreParMatrix &Kmat_,
                          ParBilinearForm *KB_, HypreParMatrix &KBMat_,
                          ParBilinearForm *DRe_, ParBilinearForm *DSl_,
-                         CGSolver *M_solver_, CGSolver *M_solver2_, 
+                         ParBilinearForm *Mlumped_, HypreParMatrix &MlumpedMat,
+                         CGSolver *M_solver_, CGSolver *M_solver2_, CGSolver *M_solver3_,
                          const double visc, const double resi,
                          const Array<int> &ess_tdof_list_,const Array<int> &ess_bdr_);
 
@@ -83,7 +83,8 @@ public:
                          ParBilinearForm *KB_, HypreParMatrix &KBMat_,
                          ParBilinearForm *DRe_, HypreParMatrix *DRemat_,
                          ParBilinearForm *DSl_, HypreParMatrix *DSlmat_,
-                         CGSolver *M_solver_, CGSolver *M_solver2_, 
+                         ParBilinearForm *Mlumped_, HypreParMatrix &MlumpedMat,
+                         CGSolver *M_solver_, CGSolver *M_solver2_, CGSolver *M_solver3_,
                          const double visc, const double resi,
                          const Array<int> &ess_tdof_list_, const Array<int> &ess_bdr_);
 
@@ -255,12 +256,12 @@ protected:
    ParFiniteElementSpace &fespace;
    Array<int> ess_tdof_list;
 
-   ParBilinearForm *M, *Mfull, *K, *KB, DSl, DRe; //mass, stiffness, diffusion with SL and Re
+   ParBilinearForm *M, *Mfull, *Mlumped, *K, *KB, DSl, DRe; //mass, stiffness, diffusion with SL and Re
    ParBilinearForm *Nv, *Nb;
    mutable ParBilinearForm *StabMass, *StabNb, *StabNv; 
    ParLinearForm *E0, *StabE0; //source terms
    mutable ParLinearForm zLF; //LinearForm holder for updating J
-   HypreParMatrix Kmat, Mmat, *MfullMat, DSlmat, DRemat, *KBMat;
+   HypreParMatrix Kmat, Mmat, *MfullMat, MlumpedMat, DSlmat, DRemat, *KBMat;
    HypreParVector *E0Vec;
    FunctionCoefficient *E0rhs;
    double viscosity, resistivity;
@@ -280,6 +281,9 @@ protected:
 
    CGSolver M_solver2; // Krylov solver for inverting the mass matrix M
    HypreSmoother *M_prec2;  // Preconditioner for the mass matrix M
+
+   CGSolver M_solver3; // Krylov solver for inverting the mass matrix M (lumped)
+   HypreSmoother *M_prec3;  // Preconditioner for the mass matrix M
 
    CGSolver K_solver; // Krylov solver for inverting the stiffness matrix K
    HypreSmoother *K_prec;  // Preconditioner for the stiffness matrix K
@@ -358,14 +362,14 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
                                          Array<int> &ess_bdr, double visc, double resi, 
                                          bool use_petsc_ = false, bool use_factory_=false)
    : TimeDependentOperator(3*f.TrueVSize(), 0.0), fespace(f),
-     M(NULL), Mfull(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace),
+     M(NULL), Mfull(NULL), Mlumped(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace),
      Nv(NULL), Nb(NULL), StabMass(NULL), StabNb(NULL), StabNv(NULL),  
      E0(NULL), StabE0(NULL), zLF(&fespace), MfullMat(NULL), E0Vec(NULL), E0rhs(NULL),
      viscosity(visc),  resistivity(resi), useAMG(false), use_petsc(use_petsc_), use_factory(use_factory_),
      convergedSolver(true),
      visc_coeff(visc),  resi_coeff(resi),  visc_vari(resiVari),  resi_vari(resiVari),  
      reduced_oper(NULL), pnewton_solver(NULL), bchandler(NULL), J_factory(NULL),
-     M_solver(f.GetComm()), M_prec(NULL), M_solver2(f.GetComm()), M_prec2(NULL),
+     M_solver(f.GetComm()), M_prec(NULL), M_solver2(f.GetComm()), M_prec2(NULL), M_solver3(f.GetComm()), M_prec3(NULL),
      K_solver(f.GetComm()),  K_prec(NULL),
      K_amg(NULL), K_pcg(NULL), z(height/3), 
      J(height/3), z2(height/3), z3(height/3), zFull(f.GetVSize()),
@@ -400,6 +404,12 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
      MfullMat=Mfull->ParallelAssemble();
    }
 
+   MassIntegrator *mass2 = new MassIntegrator;
+   Mlumped = new ParBilinearForm(&fespace);
+   Mlumped->AddDomainIntegrator(new LumpedIntegrator(mass2));
+   Mlumped->Assemble();
+   Mlumped->FormSystemMatrix(ess_tdof_list, MlumpedMat);
+
    M_solver.iterative_mode = true;
    M_solver.SetRelTol(1e-7);
    M_solver.SetAbsTol(0.0);
@@ -419,6 +429,16 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    M_prec2->SetType(HypreSmoother::Jacobi);
    M_solver2.SetPreconditioner(*M_prec2);
    M_solver2.SetOperator(*MfullMat);
+
+   M_solver3.iterative_mode = false;
+   M_solver3.SetRelTol(1e-7);
+   M_solver3.SetAbsTol(0.0);
+   M_solver3.SetMaxIter(2000);
+   M_solver3.SetPrintLevel(0);
+   M_prec3 = new HypreSmoother;
+   M_prec3->SetType(HypreSmoother::Jacobi);
+   M_solver3.SetPreconditioner(*M_prec3);
+   M_solver3.SetOperator(MlumpedMat);
 
    //stiffness matrix
    K = new ParBilinearForm(&fespace);
@@ -503,7 +523,8 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
       }
 
       reduced_oper  = new ReducedSystemOperator(fespace, M, Mmat, K, Kmat,
-                         KB, *KBMat, DRepr, DRematpr, DSlpr, DSlmatpr, &M_solver, &M_solver2,
+                         KB, *KBMat, DRepr, DRematpr, DSlpr, DSlmatpr, Mlumped, MlumpedMat,
+                         &M_solver, &M_solver2, &M_solver3,
                          viscosity, resistivity, ess_tdof_list, ess_bdr);
 
 
@@ -568,6 +589,10 @@ void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr, bool PartialUpdate
    Mfull->Finalize();
    MfullMat=Mfull->ParallelAssemble();
 
+   Mlumped->Update();
+   Mlumped->Assemble();
+   Mlumped->FormSystemMatrix(ess_tdof_list, MlumpedMat);
+
    //update M_solvers
    M_solver.iterative_mode = true;
    M_solver.SetRelTol(1e-7);
@@ -590,6 +615,17 @@ void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr, bool PartialUpdate
    M_prec2->SetType(HypreSmoother::Jacobi);
    M_solver2.SetPreconditioner(*M_prec2);
    M_solver2.SetOperator(*MfullMat);
+
+   M_solver3.iterative_mode = false;
+   M_solver3.SetRelTol(1e-7);
+   M_solver3.SetAbsTol(0.0);
+   M_solver3.SetMaxIter(2000);
+   M_solver3.SetPrintLevel(0);
+   delete M_prec3;
+   M_prec3 = new HypreSmoother;
+   M_prec3->SetType(HypreSmoother::Jacobi);
+   M_solver3.SetPreconditioner(*M_prec3);
+   M_solver3.SetOperator(MlumpedMat);
 
    KB->Update(); 
    KB->Assemble();
@@ -658,7 +694,8 @@ void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr, bool PartialUpdate
          delete reduced_oper;
          //if needed, we can replace new with another update function for AMR
          reduced_oper  = new ReducedSystemOperator(fespace, M, Mmat, K, Kmat,
-                            KB, *KBMat, DRepr, DRematpr, DSlpr, DSlmatpr, &M_solver, &M_solver2,
+                            KB, *KBMat, DRepr, DRematpr, DSlpr, DSlmatpr, Mlumped, MlumpedMat,
+                            &M_solver, &M_solver2, &M_solver3,
                             viscosity, resistivity, ess_tdof_list, ess_bdr);
 
          const double rel_tol=1e-4;
@@ -796,6 +833,18 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
       zFull.Neg(); // z = -z
       M->FormLinearSystem(ess_tdof_list, j, zFull, A, J, Z); //apply Dirichelt boundary 
       M_solver.Mult(Z, J); 
+   }
+   else if (iUpdateJ==2)
+   {
+      Vector &k_ = const_cast<Vector &>(vx);
+      gftmp.MakeTRef(&fespace, k_, sc);
+      gftmp.SetFromTrueVector();
+      Vector J, Z;
+      HypreParMatrix A;
+      KB->Mult(gftmp, zFull);
+      zFull.Neg(); // z = -z
+      Mlumped->FormLinearSystem(ess_tdof_list, j, zFull, A, J, Z); //apply Dirichelt boundary 
+      M_solver3.Mult(Z, J); 
    }
    else
       MFEM_ABORT("Error: wrong option of iUpdateJ"); 
@@ -1119,6 +1168,16 @@ void ResistiveMHDOperator::UpdateJ(Vector &k, ParGridFunction *jout)
       M->FormLinearSystem(ess_tdof_list, j, zFull, A, J, Z); //apply Dirichelt boundary 
       M_solver.Mult(Z, J); 
    }
+   else if (iUpdateJ==2)
+   {
+      gftmp.SetFromTrueDofs(psi);
+      Vector Z;
+      HypreParMatrix A;
+      KB->Mult(gftmp, zFull);
+      zFull.Neg(); // z = -z
+      Mlumped->FormLinearSystem(ess_tdof_list, j, zFull, A, J, Z); //apply Dirichelt boundary 
+      M_solver3.Mult(Z, J); 
+   }
    else
       MFEM_ABORT("Error: wrong option of iUpdateJ"); 
    
@@ -1131,6 +1190,7 @@ void ResistiveMHDOperator::DestroyHypre()
     delete K_amg;
     delete M_prec;
     delete M_prec2;
+    delete M_prec3;
     delete K_prec;
     delete reduced_oper;
     delete J_factory;
@@ -1144,6 +1204,7 @@ ResistiveMHDOperator::~ResistiveMHDOperator()
     delete M;
     delete Mfull;
     delete MfullMat;
+    delete Mlumped;
     delete K;
     delete KBMat;
     delete E0;
@@ -1166,12 +1227,14 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
    ParBilinearForm *K_, HypreParMatrix &Kmat_,
    ParBilinearForm *KB_, HypreParMatrix &KBMat_,
    ParBilinearForm *DRe_, ParBilinearForm *DSl_,
-   CGSolver *M_solver_, CGSolver *M_solver2_,
+   ParBilinearForm *Mlumped_, HypreParMatrix &MlumpedMat,
+   CGSolver *M_solver_, CGSolver *M_solver2_,CGSolver *M_solver3_,
    const double visc, const double resi,
    const Array<int> &ess_tdof_list_, const Array<int> &ess_bdr_)
    : Operator(3*f.TrueVSize()), fespace(f), 
      M(M_), K(K_), KB(KB_), DRe(DRe_), DSl(DSl_), Mmat(Mmat_), Kmat(Kmat_), KBMat(KBMat_),
-     initialMdt(false), E0Vec(NULL), StabE0(NULL), E0rhs(NULL), M_solver(M_solver_), M_solver2(M_solver2_),
+     initialMdt(false), E0Vec(NULL), StabE0(NULL), E0rhs(NULL), Mlumped(Mlumped_), Mmatlp(MlumpedMat),
+     M_solver(M_solver_), M_solver2(M_solver2_),M_solver3(M_solver3_),
      dt(0.0), dtOld(0.0), viscosity(visc), resistivity(resi), 
      phi(NULL), psi(NULL), w(NULL), 
      ess_tdof_list(ess_tdof_list_),ess_bdr(ess_bdr_), gftmp(&fespace),
@@ -1205,13 +1268,15 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
    ParBilinearForm *KB_,HypreParMatrix &KBMat_, 
    ParBilinearForm *DRe_, HypreParMatrix *DRemat_,
    ParBilinearForm *DSl_, HypreParMatrix *DSlmat_,
-   CGSolver *M_solver_, CGSolver *M_solver2_,
+   ParBilinearForm *Mlumped_, HypreParMatrix &MlumpedMat,
+   CGSolver *M_solver_, CGSolver *M_solver2_,CGSolver *M_solver3_,
    const double visc, const double resi,
    const Array<int> &ess_tdof_list_, const Array<int> &ess_bdr_)
    : Operator(3*f.TrueVSize()), fespace(f), 
      M(M_), K(K_), KB(KB_), DRe(DRe_), DSl(DSl_), Mmat(Mmat_), Kmat(Kmat_), KBMat(KBMat_),
      initialMdt(false),E0Vec(NULL), StabE0(NULL), E0rhs(NULL),
-     M_solver(M_solver_), M_solver2(M_solver2_), 
+     Mlumped(Mlumped_), Mmatlp(MlumpedMat),
+     M_solver(M_solver_), M_solver2(M_solver2_), M_solver3(M_solver3_), 
      dt(0.0), dtOld(0.0), viscosity(visc), resistivity(resi),
      phi(NULL), psi(NULL), w(NULL), 
      ess_tdof_list(ess_tdof_list_), ess_bdr(ess_bdr_), gftmp(&fespace),
@@ -1231,12 +1296,6 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
 
     AReFull=NULL; ScFull=NULL; NbFull=NULL; PwMat=NULL; NbMat=NULL; MinvKB=NULL;
     tmp1=NULL; tmp2=NULL;
-
-    MassIntegrator *mass = new MassIntegrator;
-    Mlp = new ParBilinearForm(&fespace);
-    Mlp->AddDomainIntegrator(new LumpedIntegrator(mass));
-    Mlp->Assemble();
-    Mlp->FormSystemMatrix(ess_tdof_list, Mmatlp);
 
     if (usefd || usesupg)
     {
@@ -1364,7 +1423,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
                   }
                   delete MatStabNv;
              }
-             else if (usesupg)
+             else if (usesupg && i_supgpre>0)
              {
                   delete StabMass;
                   StabMass = new ParBilinearForm(&fespace);
@@ -1643,7 +1702,6 @@ ReducedSystemOperator::~ReducedSystemOperator()
    delete PB_VPsi; 
    delete PB_VOmega;
    delete PB_BJ;
-   delete Mlp;
 }
 
 void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
@@ -1715,6 +1773,17 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
       zFull.Neg(); // z = -z
       M->FormLinearSystem(ess_tdof_list, *j0, zFull, A, J, Z); //apply Dirichelt boundary 
       M_solver->Mult(Z, J); 
+   }
+   else if (iUpdateJ==2)
+   {
+   //------compute the current as an auxilary variable (Dirichelt boundary condition)------
+      gftmp.SetFromTrueDofs(psiNew);
+      Vector Z;
+      HypreParMatrix A;
+      KB->Mult(gftmp, zFull);
+      zFull.Neg(); // z = -z
+      Mlumped->FormLinearSystem(ess_tdof_list, *j0, zFull, A, J, Z); //apply Dirichelt boundary 
+      M_solver3->Mult(Z, J); 
    }
    else
       MFEM_ABORT("ERROR in ReducedSystemOperator::Mult: wrong option for iUpdateJ"); 
@@ -1835,7 +1904,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
      StabNv->Assemble(); 
      StabNv->TrueAddMult(wNew, y3);
 
-     /*
+     /* turn this off for now
      delete StabNb;
      StabNb = new ParBilinearForm(&fespace);
      StabNb->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, Bfield, velocity));
@@ -1935,6 +2004,24 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
      StabE0->Assemble(); 
      StabE0->ParallelAssemble(z);
      y2+=z;
+   }
+   else if(usesupg && im_supg==5)
+   {
+     //this only add (v.grad)^2 w
+     delete StabNv;
+     StabNv = new ParBilinearForm(&fespace);
+     StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, velocity));
+     StabNv->Assemble(); 
+     StabNv->TrueAddMult(wNew, y3);
+   }
+   else if(usesupg && im_supg==6)
+   {
+     //this only add (v.grad)^2 psi
+     delete StabNv;
+     StabNv = new ParBilinearForm(&fespace);
+     StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, velocity));
+     StabNv->Assemble(); 
+     StabNv->TrueAddMult(psiNew, y2);
    }
 
    y2.SetSubVector(ess_tdof_list, 0.0);

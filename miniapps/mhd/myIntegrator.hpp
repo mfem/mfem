@@ -7,6 +7,8 @@ int itau=2;
 bool maxtau=true;   //take a maximum on each element
 double vA = 1.0;    
 double ALPHA = 0.1; //the parameter in stabilization B terms
+bool dtfloor=false;
+double dtmin = 0.025;
 
 // Integrator for the boundary gradient integral from the Laplacian operator
 // this is used in the auxiliary variable where the boundary condition is not needed
@@ -220,6 +222,9 @@ void StabConvectionIntegrator::AssembleElementMatrix(const FiniteElement &el,
     V->Eval(V_ir, Tr, ir);
     if(Q!=NULL) Q->Eval(Q_ir, Tr, ir);
 
+    if (dtfloor && dt<dtmin)
+        dt=dtmin;
+
     //compare maximum tau
     double tauMax=0.0;
     if (maxtau)
@@ -346,6 +351,9 @@ void StabMassIntegrator::AssembleElementMatrix(const FiniteElement &el,
     dshape.SetSize(nd, dim);
     gshape.SetSize(nd, dim);
     Jinv  .SetSize(dim);
+
+    if (dtfloor && dt<dtmin)
+        dt=dtmin;
 
     //here we assume 2d quad
     double eleLength = sqrt( Geometry::Volume[el.GetGeomType()] * Tr.Weight() );   
@@ -476,6 +484,9 @@ void StabDomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
     const IntegrationRule &ir = IntRules.Get(el.GetGeomType(), intorder);
 
     V->Eval(V_ir, Tr, ir);
+
+    if (dtfloor && dt<dtmin)
+        dt=dtmin;
 
     //compare maximum tau
     double tauMax=0.0;
