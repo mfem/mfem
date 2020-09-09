@@ -63,9 +63,8 @@ class MFEMCeedVCycle;
 /**
    This takes a CeedOperator with essential dofs 
    and produces a coarser / lower-order operator, an interpolation
-   operator between fine/coarse levels, and a smoother.
-
-   todo: not clear the smoother belongs in this object
+   operator between fine/coarse levels, and a list of coarse
+   essential dofs.
 */
 class CeedMultigridLevel
 {
@@ -95,9 +94,9 @@ private:
    CeedBasis basisctof_;
    CeedElemRestriction lo_er_;
 
-   mfem::Operator * smoother_;
    MFEMCeedInterpolation * mfem_interp_;
 
+   const mfem::Array<int>& ho_ess_tdof_list_;
    mfem::Array<int> lo_ess_tdof_list_;
 };
 
@@ -162,6 +161,7 @@ public:
    MFEMCeedVCycle(const CeedMultigridLevel& level,
                   const mfem::Operator& fine_operator,
                   const mfem::Solver& coarse_solver);
+   ~MFEMCeedVCycle();
 
    void Mult(const mfem::Vector& x, mfem::Vector& y) const;
    void SetOperator(const Operator &op) { }
@@ -173,7 +173,7 @@ private:
 
    const mfem::Operator& fine_operator_;
    const mfem::Solver& coarse_solver_;
-   const mfem::Operator& fine_smoother_;
+   const mfem::Operator* fine_smoother_;
    const mfem::Operator& interp_;
 
    /// work vectors (too many of them, can be economized)
@@ -255,7 +255,6 @@ MFEMCeedVCycle::MFEMCeedVCycle(
    mfem::Solver(fine_operator.Height()),
    fine_operator_(fine_operator),
    coarse_solver_(coarse_solver),
-   fine_smoother_(*level.smoother_),
    interp_(*level.mfem_interp_)
 {
    MFEM_VERIFY(fine_operator_.Height() == interp_.Height(), "Sizes don't match!");
@@ -265,6 +264,30 @@ MFEMCeedVCycle::MFEMCeedVCycle(
    correction_.SetSize(fine_operator_.Height());
    coarse_residual_.SetSize(coarse_solver_.Height());
    coarse_correction_.SetSize(coarse_solver_.Height());
+
+   // this is a local diagonal, in the sense of l-vector
+   const double jacobi_scale = 0.65;
+   CeedVector diagceed;
+   CeedInt length;
+   Ceed ceed;
+   CeedOperatorGetCeed(level.oper_, &ceed);
+   CeedOperatorGetSize(level.oper_, &length);
+   CeedVectorCreate(ceed, length, &diagceed);
+   CeedVectorSetValue(diagceed, 0.0);
+   CeedOperatorLinearAssembleDiagonal(level.oper_, diagceed, CEED_REQUEST_IMMEDIATE);
+   const CeedScalar * diagvals;
+   CeedVectorGetArrayRead(diagceed, CEED_MEM_HOST, &diagvals);
+   mfem::Vector mfem_diag(const_cast<CeedScalar*>(diagvals), length);
+   fine_smoother_ = new OperatorJacobiSmoother(mfem_diag, level.ho_ess_tdof_list_, jacobi_scale);
+   // need an mfem::Operator to do Chebyshev, would be possible but needs a little work
+   // smoother_ = new OperatorChebyshevSmoother(mfem_diag, ho_ess_tdof_list, cheb_order, MPI_COMM_WORLD);
+   CeedVectorRestoreArrayRead(diagceed, &diagvals);
+   CeedVectorDestroy(&diagceed);
+}
+
+MFEMCeedVCycle::~MFEMCeedVCycle()
+{
+   delete fine_smoother_;
 }
 
 void MFEMCeedVCycle::FormResidual(const mfem::Vector& b,
@@ -279,7 +302,7 @@ void MFEMCeedVCycle::FormResidual(const mfem::Vector& b,
 void MFEMCeedVCycle::Mult(const mfem::Vector& b, mfem::Vector& x) const
 {
    x = 0.0;
-   fine_smoother_.Mult(b, correction_);
+   fine_smoother_->Mult(b, correction_);
    x += correction_;
 
    FormResidual(b, x, residual_);
@@ -290,7 +313,7 @@ void MFEMCeedVCycle::Mult(const mfem::Vector& b, mfem::Vector& x) const
    x += correction_;
 
    FormResidual(b, x, residual_);
-   fine_smoother_.Mult(residual_, correction_);
+   fine_smoother_->Mult(residual_, correction_);
    x += correction_;
 }
 
@@ -418,29 +441,13 @@ CeedMultigridLevel::CeedMultigridLevel(CeedOperator oper,
                                        const mfem::Array<int>& ho_ess_tdof_list,
                                        int order_reduction)
    :
-   oper_(oper)
+   oper_(oper),
+   ho_ess_tdof_list_(ho_ess_tdof_list)
 {
-   const double jacobi_scale = 0.65;
    Ceed ceed;
    CeedOperatorGetCeed(oper, &ceed);
    CeedATPMGBundle(oper, order_reduction, &coarse_basis_, &basisctof_,
                    &lo_er_, &coarse_oper_);
-
-   // this is a local diagonal, in the sense of l-vector
-   CeedVector diagceed;
-   int length;
-   CeedOperatorGetSize(oper, &length);
-   CeedVectorCreate(ceed, length, &diagceed);
-   CeedVectorSetValue(diagceed, 0.0);
-   CeedOperatorLinearAssembleDiagonal(oper, diagceed, CEED_REQUEST_IMMEDIATE);
-   const CeedScalar * diagvals;
-   CeedVectorGetArrayRead(diagceed, CEED_MEM_HOST, &diagvals);
-   mfem::Vector mfem_diag(const_cast<CeedScalar*>(diagvals), length);
-   smoother_ = new OperatorJacobiSmoother(mfem_diag, ho_ess_tdof_list, jacobi_scale);
-   // need an mfem::Operator to do Chebyshev, would be possible but needs a little work
-   // smoother_ = new OperatorChebyshevSmoother(mfem_diag, ho_ess_tdof_list, cheb_order, MPI_COMM_WORLD);
-   CeedVectorRestoreArrayRead(diagceed, &diagvals);
-   CeedVectorDestroy(&diagceed);
 
    CeedOperatorGetActiveElemRestriction(oper, &ho_er_);
    mfem_interp_ = new MFEMCeedInterpolation(ceed, basisctof_, lo_er_, ho_er_);
@@ -455,7 +462,6 @@ CeedMultigridLevel::~CeedMultigridLevel()
    CeedBasisDestroy(&basisctof_);
    CeedElemRestrictionDestroy(&lo_er_);
 
-   delete smoother_;
    delete mfem_interp_;
 }
 
