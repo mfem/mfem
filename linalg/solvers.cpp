@@ -133,18 +133,10 @@ OperatorJacobiSmoother::OperatorJacobiSmoother(const BilinearForm &a,
    Setup(diag);
 }
 
-// In this case oper and will be set by SetOperator().
-OperatorJacobiSmoother::OperatorJacobiSmoother(const NonlinearForm &nlform,
-                                               const Array<int> &ess_tdofs,
+OperatorJacobiSmoother::OperatorJacobiSmoother(const Array<int> &ess_tdofs,
                                                const double dmpng)
-   :
-   Solver(nlform.FESpace()->GetTrueVSize()),
-   N(height),
-   dinv(N),
-   damping(dmpng),
-   ess_tdof_list(ess_tdofs),
-   residual(N),
-   dynamic(true), oper(NULL), nlf(&nlform) { }
+   : Solver(), N(0), dinv(N), damping(dmpng),
+     ess_tdof_list(ess_tdofs), residual(N) { }
 
 OperatorJacobiSmoother::OperatorJacobiSmoother(const Vector &d,
                                                const Array<int> &ess_tdofs,
@@ -155,7 +147,8 @@ OperatorJacobiSmoother::OperatorJacobiSmoother(const Vector &d,
    dinv(N),
    damping(dmpng),
    ess_tdof_list(ess_tdofs),
-   residual(N)
+   residual(N),
+   oper(NULL)
 {
    Setup(d);
 }
@@ -163,13 +156,13 @@ OperatorJacobiSmoother::OperatorJacobiSmoother(const Vector &d,
 void OperatorJacobiSmoother::SetOperator(const Operator &op)
 {
    oper = &op;
+   N = oper->Height();
+   dinv.SetSize(N);
+   residual.SetSize(N);
 
-   if (dynamic)
-   {
-      Vector diag(N);
-      nlf->AssembleGradientDiagonal(diag);
-      Setup(diag);
-   }
+   Vector diag(N);
+   oper->AssembleDiagonal(diag);
+   Setup(diag);
 }
 
 void OperatorJacobiSmoother::Setup(const Vector &diag)
@@ -185,13 +178,14 @@ void OperatorJacobiSmoother::Setup(const Vector &diag)
 
 void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
 {
+   MFEM_VERIFY(N > 0, "The diagonal hasn't been computed.");
    MFEM_ASSERT(x.Size() == N, "invalid input vector");
    MFEM_ASSERT(y.Size() == N, "invalid output vector");
 
    if (iterative_mode && oper)
    {
-      oper->Mult(y, residual);  // r = A x
-      subtract(x, residual, residual); // r = b - A x
+      oper->Mult(y, residual);  // r = A y
+      subtract(x, residual, residual); // r = x - A y
    }
    else
    {

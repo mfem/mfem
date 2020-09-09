@@ -64,19 +64,6 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
    R->MultTranspose(ye, y);
 }
 
-void PANonlinearFormExtension::AssembleGradientDiagonal(Vector &diag) const
-{
-   MFEM_VERIFY(x_grad, "GetGradient() has not been called");
-   R->Mult(*x_grad, xe);
-
-   ye = 0.0;
-   for (int i = 0; i < dnfi.Size(); ++i)
-   {
-      dnfi[i]->AssembleGradDiagonalPA(xe, ye);
-   }
-   R->MultTranspose(ye, diag);
-}
-
 Operator &PANonlinearFormExtension::GetGradient(const Vector &x) const
 {
    // Store the last x that was used to compute the gradient.
@@ -111,6 +98,16 @@ void PANonlinearFormExtension::Gradient::Mult(const Vector &x, Vector &y) const
    R->Mult(ze, xe);
    for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AddMultGradPA(ge, xe, ye); }
    R->MultTranspose(ye, y);
+}
+
+void PANonlinearFormExtension::Gradient::AssembleDiagonal(Vector &diag) const
+{
+   ye = 0.0;
+   for (int i = 0; i < dnfi.Size(); ++i)
+   {
+      dnfi[i]->AssembleGradDiagonalPA(ge, ye);
+   }
+   R->MultTranspose(ye, diag);
 }
 
 } // namespace mfem
