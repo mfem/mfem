@@ -266,7 +266,6 @@ MFEMCeedVCycle::MFEMCeedVCycle(
    coarse_correction_.SetSize(coarse_solver_.Height());
 
    // this is a local diagonal, in the sense of l-vector
-   const double jacobi_scale = 0.65;
    CeedVector diagceed;
    CeedInt length;
    Ceed ceed;
@@ -278,9 +277,12 @@ MFEMCeedVCycle::MFEMCeedVCycle(
    const CeedScalar * diagvals;
    CeedVectorGetArrayRead(diagceed, CEED_MEM_HOST, &diagvals);
    mfem::Vector mfem_diag(const_cast<CeedScalar*>(diagvals), length);
-   fine_smoother_ = new OperatorJacobiSmoother(mfem_diag, level.ho_ess_tdof_list_, jacobi_scale);
-   // need an mfem::Operator to do Chebyshev, would be possible but needs a little work
-   // smoother_ = new OperatorChebyshevSmoother(mfem_diag, ho_ess_tdof_list, cheb_order, MPI_COMM_WORLD);
+   // const double jacobi_scale = 0.65;
+   // fine_smoother_ = new OperatorJacobiSmoother(mfem_diag, level.ho_ess_tdof_list_, jacobi_scale);
+   const int cheb_order = 3;
+   fine_smoother_ = new OperatorChebyshevSmoother(const_cast<Operator*>(&fine_operator),
+                                                  mfem_diag, level.ho_ess_tdof_list_,
+                                                  cheb_order);
    CeedVectorRestoreArrayRead(diagceed, &diagvals);
    CeedVectorDestroy(&diagceed);
 }
@@ -524,7 +526,7 @@ AlgebraicCeedSolver::AlgebraicCeedSolver(Operator& fine_mfem_op,
       coarsest = levels[num_levels - 2];
    }
 
-   int coarse_cg_iterations = 10; // even less might be good
+   int coarse_cg_iterations = 10; // fewer might be better?
    if (num_levels > 1)
    {
       coarsest_solver = new CeedPlainCG(coarsest->GetCoarseCeed(),
