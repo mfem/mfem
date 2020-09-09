@@ -263,7 +263,7 @@ static void PADiffusionSetup(const int dim,
    }
 }
 
-void DiffusionIntegrator::SetupPA(const FiniteElementSpace &fes)
+void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    // Assuming the same element type
    fespace = &fes;
@@ -329,12 +329,6 @@ void DiffusionIntegrator::SetupPA(const FiniteElementSpace &fes)
    PADiffusionSetup(dim, sdim, dofs1D, quad1D, ne, ir->GetWeights(), geom->J,
                     coeff, pa_data);
 }
-
-void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
-{
-   SetupPA(fes);
-}
-
 
 template<int T_D1D = 0, int T_Q1D = 0>
 static void PADiffusionDiagonal2D(const int NE,
@@ -755,7 +749,7 @@ void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 {
    if (DeviceCanUseCeed())
    {
-      CeedAssembleDiagonalPA(ceedDataPtr, diag);
+      CeedAssembleDiagonal(ceedDataPtr, diag);
    }
    else
    {
@@ -1717,7 +1711,7 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (DeviceCanUseCeed())
    {
-      CeedAddMultPA(ceedDataPtr, x, y);
+      CeedAddMult(ceedDataPtr, x, y);
    }
    else
    {

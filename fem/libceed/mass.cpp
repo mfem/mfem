@@ -37,5 +37,22 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
 #endif
 }
 
+void CeedMFMassAssemble(const FiniteElementSpace &fes,
+                        const mfem::IntegrationRule &irm, CeedData& ceedData)
+{
+#ifdef MFEM_USE_CEED
+   CeedMFOperator massOp = {fes, irm,
+                            "/mass.h",
+                            ":f_apply_mass_mf_const", f_apply_mass_mf_const,
+                            ":f_apply_mass_mf_quad", f_apply_mass_mf_quad,
+                            CEED_EVAL_INTERP,
+                            CEED_EVAL_INTERP
+                           };
+   CeedMFAssemble(massOp, ceedData);
+#else
+   mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+#endif
+}
+
 } // namespace mfem
 

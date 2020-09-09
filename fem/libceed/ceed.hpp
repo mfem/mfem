@@ -76,7 +76,7 @@ struct CeedData
 
    CeedData()
       : build_oper(nullptr), oper(nullptr), basis(nullptr), mesh_basis(nullptr),
-        restr(nullptr), mesh_restr(nullptr), mesh_restr_i(nullptr),
+        restr(nullptr), mesh_restr(nullptr), restr_i(nullptr), mesh_restr_i(nullptr),
         apply_qfunc(nullptr), build_qfunc(nullptr), node_coords(nullptr),
         rho(nullptr), coeff(nullptr), build_ctx(nullptr) { }
 
@@ -149,6 +149,35 @@ struct CeedPAOperator
 #endif
 };
 
+struct CeedMFOperator
+{
+#ifdef MFEM_USE_CEED
+   /** The finite element space for the trial and test functions. */
+   const FiniteElementSpace &fes;
+   /** The Integration Rule to use to compote the operator. */
+   const IntegrationRule &ir;
+   /** The path to the header containing the functions for libCEED. */
+   std::string header;
+   /** The name of the Qfunction to apply the quadrature data with a constant
+       coefficient.*/
+   std::string const_func;
+   /** The Qfunction to apply the quadrature data with constant coefficient. */
+   CeedQFunctionUser const_qf;
+   /** The name of the Qfunction to apply the quadrature data with a coefficient
+       evaluated at quadrature point. */
+   std::string quad_func;
+   /** The Qfunction to apply the quad. data with a coefficient evaluated at
+       quadrature point. */
+   CeedQFunctionUser quad_qf;
+   /** The evaluation mode to apply to the trial function (CEED_EVAL_INTERP,
+       CEED_EVAL_GRAD, etc.) */
+   CeedEvalMode trial_op;
+   /** The evaluation mode to apply to the test function ( CEED_EVAL_INTERP,
+       CEED_EVAL_GRAD, etc.)*/
+   CeedEvalMode test_op;
+#endif
+};
+
 /** @brief Identifies the type of coefficient of the Integrator to initialize
     accordingly the CeedData. */
 void InitCeedCoeff(Coefficient* Q, Mesh &mesh, const IntegrationRule &ir,
@@ -160,14 +189,20 @@ void InitCeedCoeff(Coefficient* Q, Mesh &mesh, const IntegrationRule &ir,
 void CeedPAAssemble(const CeedPAOperator& op,
                     CeedData& ceedData);
 
-/** @brief Function that applies a libCEED PA operator. */
-void CeedAddMultPA(const CeedData *ceedDataPtr,
-                   const Vector &x,
-                   Vector &y);
+/** This function initializes an arbitrary linear operator using a fully matrix
+    free decomposition. The operator details are described by the
+    struct CEEDPAOperator input. */
+void CeedMFAssemble(const CeedMFOperator& op,
+                    CeedData& ceedData);
 
-/** @brief Function that assembles a libCEED PA operator diagonal. */
-void CeedAssembleDiagonalPA(const CeedData *ceedDataPtr,
-                            Vector &diag);
+/** @brief Function that applies a libCEED operator. */
+void CeedAddMult(const CeedData *ceedDataPtr,
+                 const Vector &x,
+                 Vector &y);
+
+/** @brief Function that assembles a libCEED operator diagonal. */
+void CeedAssembleDiagonal(const CeedData *ceedDataPtr,
+                          Vector &diag);
 
 /** @brief Function that determines if a CEED kernel should be used, based on
     the current mfem::Device configuration. */

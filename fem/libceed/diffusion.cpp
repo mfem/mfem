@@ -38,4 +38,21 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
 #endif
 }
 
+void CeedMFDiffusionAssemble(const FiniteElementSpace &fes,
+                             const mfem::IntegrationRule &irm, CeedData& ceedData)
+{
+#ifdef MFEM_USE_CEED
+   CeedMFOperator diffOp = {fes, irm,
+                            "/diffusion.h",
+                            ":f_apply_diff_mf_const", f_apply_diff_mf_const,
+                            ":f_apply_diff_mf_quad", f_apply_diff_mf_quad,
+                            CEED_EVAL_GRAD,
+                            CEED_EVAL_GRAD
+                           };
+   CeedMFAssemble(diffOp, ceedData);
+#else
+   mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+#endif
+}
+
 } // namespace mfem
