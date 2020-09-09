@@ -62,8 +62,10 @@ SlepcEigenSolver::SlepcEigenSolver(MPI_Comm comm, const std::string &prefix)
 
 SlepcEigenSolver::~SlepcEigenSolver()
 {
-   if (VR) { delete VR; }
-   if (VC) { delete VC; }
+   delete VR;
+   delete VC;
+   VR = VC = NULL;
+
    MPI_Comm comm;
    ierr = PetscObjectGetComm((PetscObject)eps,&comm); PCHKERRQ(eps,ierr);
    ierr = EPSDestroy(&eps); CCHKERRQ(comm,ierr);
