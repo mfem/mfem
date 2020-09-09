@@ -319,6 +319,31 @@ void MatrixFunctionCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    }
 }
 
+void MatrixFunctionCoefficient::EvalSymmetric(Vector &K,
+                                              ElementTransformation &T,
+                                              const IntegrationPoint &ip)
+{
+   MFEM_VERIFY(symmetric && height == width && height < 4 && SymmFunction,
+               "MatrixFunctionCoefficient is not symmetric");
+
+   double x[3];
+   Vector transip(x, 3);
+
+   T.Transform(ip, transip);
+
+   K.SetSize((width * (width + 1)) / 2); // 1x1: 1, 2x2: 3, 3x3: 6
+
+   if (SymmFunction)
+   {
+      (*SymmFunction)(transip, K);
+   }
+
+   if (Q)
+   {
+      K *= Q->Eval(T, ip, GetTime());
+   }
+}
+
 MatrixArrayCoefficient::MatrixArrayCoefficient (int dim)
    : MatrixCoefficient (dim)
 {

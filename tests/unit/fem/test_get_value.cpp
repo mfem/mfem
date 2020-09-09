@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include "catch.hpp"
+#include "unit_tests.hpp"
 
 using namespace mfem;
 
@@ -257,13 +257,13 @@ TEST_CASE("1D GetValue",
                dgv_gv_err /= ir.GetNPoints();
                dgi_gv_err /= ir.GetNPoints();
 
-               REQUIRE(h1_gfc_err == Approx(0.0));
-               REQUIRE(dgv_gfc_err == Approx(0.0));
-               REQUIRE(dgi_gfc_err == Approx(0.0));
+               REQUIRE(h1_gfc_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_gfc_err == MFEM_Approx(0.0));
+               REQUIRE(dgi_gfc_err == MFEM_Approx(0.0));
 
-               REQUIRE(h1_gv_err == Approx(0.0));
-               REQUIRE(dgv_gv_err == Approx(0.0));
-               REQUIRE(dgi_gv_err == Approx(0.0));
+               REQUIRE(h1_gv_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_gv_err == MFEM_Approx(0.0));
+               REQUIRE(dgi_gv_err == MFEM_Approx(0.0));
             }
          }
 
@@ -322,9 +322,9 @@ TEST_CASE("1D GetValue",
                dgv_err /= ir.GetNPoints();
                dgi_err /= ir.GetNPoints();
 
-               REQUIRE(h1_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
-               REQUIRE(dgi_err == Approx(0.0));
+               REQUIRE(h1_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_err == MFEM_Approx(0.0));
+               REQUIRE(dgi_err == MFEM_Approx(0.0));
             }
          }
 
@@ -384,9 +384,9 @@ TEST_CASE("1D GetValue",
                dgv_err /= ir.GetNPoints();
                dgi_err /= ir.GetNPoints();
 
-               REQUIRE(h1_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
-               REQUIRE(dgi_err == Approx(0.0));
+               REQUIRE(h1_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_err == MFEM_Approx(0.0));
+               REQUIRE(dgi_err == MFEM_Approx(0.0));
             }
          }
       }
@@ -552,13 +552,13 @@ TEST_CASE("1D GetValue in Parallel",
                dgv_gv_err /= ir.GetNPoints();
                dgi_gv_err /= ir.GetNPoints();
 
-               REQUIRE(h1_gfc_err == Approx(0.0));
-               REQUIRE(dgv_gfc_err == Approx(0.0));
-               REQUIRE(dgi_gfc_err == Approx(0.0));
+               REQUIRE(h1_gfc_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_gfc_err == MFEM_Approx(0.0));
+               REQUIRE(dgi_gfc_err == MFEM_Approx(0.0));
 
-               REQUIRE(h1_gv_err == Approx(0.0));
-               REQUIRE(dgv_gv_err == Approx(0.0));
-               REQUIRE(dgi_gv_err == Approx(0.0));
+               REQUIRE(h1_gv_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_gv_err == MFEM_Approx(0.0));
+               REQUIRE(dgi_gv_err == MFEM_Approx(0.0));
             }
          }
       }
@@ -704,13 +704,13 @@ TEST_CASE("2D GetValue",
                dgv_gv_err /= ir.GetNPoints();
                dgi_gv_err /= ir.GetNPoints();
 
-               REQUIRE(h1_gfc_err == Approx(0.0));
-               REQUIRE(dgv_gfc_err == Approx(0.0));
-               REQUIRE(dgi_gfc_err == Approx(0.0));
+               REQUIRE(h1_gfc_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_gfc_err == MFEM_Approx(0.0));
+               REQUIRE(dgi_gfc_err == MFEM_Approx(0.0));
 
-               REQUIRE(h1_gv_err == Approx(0.0));
-               REQUIRE(dgv_gv_err == Approx(0.0));
-               REQUIRE(dgi_gv_err == Approx(0.0));
+               REQUIRE(h1_gv_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_gv_err == MFEM_Approx(0.0));
+               REQUIRE(dgi_gv_err == MFEM_Approx(0.0));
             }
          }
 
@@ -769,9 +769,9 @@ TEST_CASE("2D GetValue",
                dgv_err /= ir.GetNPoints();
                dgi_err /= ir.GetNPoints();
 
-               REQUIRE(h1_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
-               REQUIRE(dgi_err == Approx(0.0));
+               REQUIRE(h1_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_err == MFEM_Approx(0.0));
+               REQUIRE(dgi_err == MFEM_Approx(0.0));
             }
          }
 
@@ -831,9 +831,9 @@ TEST_CASE("2D GetValue",
                dgv_err /= ir.GetNPoints();
                dgi_err /= ir.GetNPoints();
 
-               REQUIRE(h1_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
-               REQUIRE(dgi_err == Approx(0.0));
+               REQUIRE(h1_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_err == MFEM_Approx(0.0));
+               REQUIRE(dgi_err == MFEM_Approx(0.0));
             }
          }
 
@@ -869,7 +869,7 @@ TEST_CASE("2D GetValue",
                }
                h1_err /= ir.GetNPoints();
 
-               REQUIRE(h1_err == Approx(0.0));
+               REQUIRE(h1_err == MFEM_Approx(0.0));
             }
          }
       }
@@ -1034,13 +1034,13 @@ TEST_CASE("2D GetValue in Parallel",
                dgv_gv_err /= ir.GetNPoints();
                dgi_gv_err /= ir.GetNPoints();
 
-               REQUIRE(h1_gfc_err == Approx(0.0));
-               REQUIRE(dgv_gfc_err == Approx(0.0));
-               REQUIRE(dgi_gfc_err == Approx(0.0));
+               REQUIRE(h1_gfc_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_gfc_err == MFEM_Approx(0.0));
+               REQUIRE(dgi_gfc_err == MFEM_Approx(0.0));
 
-               REQUIRE(h1_gv_err == Approx(0.0));
-               REQUIRE(dgv_gv_err == Approx(0.0));
-               REQUIRE(dgi_gv_err == Approx(0.0));
+               REQUIRE(h1_gv_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_gv_err == MFEM_Approx(0.0));
+               REQUIRE(dgi_gv_err == MFEM_Approx(0.0));
             }
          }
       }
@@ -1186,13 +1186,13 @@ TEST_CASE("3D GetValue",
                dgv_gv_err /= ir.GetNPoints();
                dgi_gv_err /= ir.GetNPoints();
 
-               REQUIRE(h1_gfc_err == Approx(0.0));
-               REQUIRE(dgv_gfc_err == Approx(0.0));
-               REQUIRE(dgi_gfc_err == Approx(0.0));
+               REQUIRE(h1_gfc_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_gfc_err == MFEM_Approx(0.0));
+               REQUIRE(dgi_gfc_err == MFEM_Approx(0.0));
 
-               REQUIRE(h1_gv_err == Approx(0.0));
-               REQUIRE(dgv_gv_err == Approx(0.0));
-               REQUIRE(dgi_gv_err == Approx(0.0));
+               REQUIRE(h1_gv_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_gv_err == MFEM_Approx(0.0));
+               REQUIRE(dgi_gv_err == MFEM_Approx(0.0));
             }
          }
 
@@ -1251,9 +1251,9 @@ TEST_CASE("3D GetValue",
                dgv_err /= ir.GetNPoints();
                dgi_err /= ir.GetNPoints();
 
-               REQUIRE(h1_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
-               REQUIRE(dgi_err == Approx(0.0));
+               REQUIRE(h1_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_err == MFEM_Approx(0.0));
+               REQUIRE(dgi_err == MFEM_Approx(0.0));
             }
          }
 
@@ -1313,9 +1313,9 @@ TEST_CASE("3D GetValue",
                dgv_err /= ir.GetNPoints();
                dgi_err /= ir.GetNPoints();
 
-               REQUIRE(h1_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
-               REQUIRE(dgi_err == Approx(0.0));
+               REQUIRE(h1_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_err == MFEM_Approx(0.0));
+               REQUIRE(dgi_err == MFEM_Approx(0.0));
             }
          }
 
@@ -1351,7 +1351,7 @@ TEST_CASE("3D GetValue",
                }
                h1_err /= ir.GetNPoints();
 
-               REQUIRE(h1_err == Approx(0.0));
+               REQUIRE(h1_err == MFEM_Approx(0.0));
             }
          }
 
@@ -1387,7 +1387,7 @@ TEST_CASE("3D GetValue",
                }
                h1_err /= ir.GetNPoints();
 
-               REQUIRE(h1_err == Approx(0.0));
+               REQUIRE(h1_err == MFEM_Approx(0.0));
             }
          }
       }
@@ -1559,13 +1559,13 @@ TEST_CASE("3D GetValue in Parallel",
                dgv_gv_err /= ir.GetNPoints();
                dgi_gv_err /= ir.GetNPoints();
 
-               REQUIRE(h1_gfc_err == Approx(0.0));
-               REQUIRE(dgv_gfc_err == Approx(0.0));
-               REQUIRE(dgi_gfc_err == Approx(0.0));
+               REQUIRE(h1_gfc_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_gfc_err == MFEM_Approx(0.0));
+               REQUIRE(dgi_gfc_err == MFEM_Approx(0.0));
 
-               REQUIRE(h1_gv_err == Approx(0.0));
-               REQUIRE(dgv_gv_err == Approx(0.0));
-               REQUIRE(dgi_gv_err == Approx(0.0));
+               REQUIRE(h1_gv_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_gv_err == MFEM_Approx(0.0));
+               REQUIRE(dgi_gv_err == MFEM_Approx(0.0));
             }
          }
       }
@@ -1829,19 +1829,19 @@ TEST_CASE("2D GetVectorValue",
                dgv_gvv_err /= ir.GetNPoints();
                dgi_gvv_err /= ir.GetNPoints();
 
-               REQUIRE( h1_gfc_err == Approx(0.0));
-               REQUIRE( nd_gfc_err == Approx(0.0));
-               REQUIRE( rt_gfc_err == Approx(0.0));
-               REQUIRE( l2_gfc_err == Approx(0.0));
-               REQUIRE(dgv_gfc_err == Approx(0.0));
-               REQUIRE(dgi_gfc_err == Approx(0.0));
+               REQUIRE( h1_gfc_err == MFEM_Approx(0.0));
+               REQUIRE( nd_gfc_err == MFEM_Approx(0.0));
+               REQUIRE( rt_gfc_err == MFEM_Approx(0.0));
+               REQUIRE( l2_gfc_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_gfc_err == MFEM_Approx(0.0));
+               REQUIRE(dgi_gfc_err == MFEM_Approx(0.0));
 
-               REQUIRE( h1_gvv_err == Approx(0.0));
-               REQUIRE( nd_gvv_err == Approx(0.0));
-               REQUIRE( rt_gvv_err == Approx(0.0));
-               REQUIRE( l2_gvv_err == Approx(0.0));
-               REQUIRE(dgv_gvv_err == Approx(0.0));
-               REQUIRE(dgi_gvv_err == Approx(0.0));
+               REQUIRE( h1_gvv_err == MFEM_Approx(0.0));
+               REQUIRE( nd_gvv_err == MFEM_Approx(0.0));
+               REQUIRE( rt_gvv_err == MFEM_Approx(0.0));
+               REQUIRE( l2_gvv_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_gvv_err == MFEM_Approx(0.0));
+               REQUIRE(dgi_gvv_err == MFEM_Approx(0.0));
             }
          }
 
@@ -1942,12 +1942,12 @@ TEST_CASE("2D GetVectorValue",
                dgv_err /= ir.GetNPoints();
                dgi_err /= ir.GetNPoints();
 
-               REQUIRE( h1_err == Approx(0.0));
-               REQUIRE( nd_err == Approx(0.0));
-               REQUIRE( rt_err == Approx(0.0));
-               REQUIRE( l2_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
-               REQUIRE(dgi_err == Approx(0.0));
+               REQUIRE( h1_err == MFEM_Approx(0.0));
+               REQUIRE( nd_err == MFEM_Approx(0.0));
+               REQUIRE( rt_err == MFEM_Approx(0.0));
+               REQUIRE( l2_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_err == MFEM_Approx(0.0));
+               REQUIRE(dgi_err == MFEM_Approx(0.0));
             }
          }
 
@@ -2053,12 +2053,12 @@ TEST_CASE("2D GetVectorValue",
                dgv_err /= ir.GetNPoints();
                dgi_err /= ir.GetNPoints();
 
-               REQUIRE( h1_err == Approx(0.0));
-               REQUIRE( nd_err == Approx(0.0));
-               REQUIRE( rt_err == Approx(0.0));
-               REQUIRE( l2_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
-               REQUIRE(dgi_err == Approx(0.0));
+               REQUIRE( h1_err == MFEM_Approx(0.0));
+               REQUIRE( nd_err == MFEM_Approx(0.0));
+               REQUIRE( rt_err == MFEM_Approx(0.0));
+               REQUIRE( l2_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_err == MFEM_Approx(0.0));
+               REQUIRE(dgi_err == MFEM_Approx(0.0));
             }
          }
 
@@ -2097,7 +2097,7 @@ TEST_CASE("2D GetVectorValue",
                }
                h1_err  /= ir.GetNPoints();
 
-               REQUIRE( h1_err == Approx(0.0));
+               REQUIRE( h1_err == MFEM_Approx(0.0));
             }
          }
       }
@@ -2394,19 +2394,19 @@ TEST_CASE("2D GetVectorValue in Parallel",
                dgv_gvv_err /= ir.GetNPoints();
                dgi_gvv_err /= ir.GetNPoints();
 
-               REQUIRE( h1_gfc_err == Approx(0.0));
-               REQUIRE( nd_gfc_err == Approx(0.0));
-               REQUIRE( rt_gfc_err == Approx(0.0));
-               REQUIRE( l2_gfc_err == Approx(0.0));
-               REQUIRE(dgv_gfc_err == Approx(0.0));
-               REQUIRE(dgi_gfc_err == Approx(0.0));
+               REQUIRE( h1_gfc_err == MFEM_Approx(0.0));
+               REQUIRE( nd_gfc_err == MFEM_Approx(0.0));
+               REQUIRE( rt_gfc_err == MFEM_Approx(0.0));
+               REQUIRE( l2_gfc_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_gfc_err == MFEM_Approx(0.0));
+               REQUIRE(dgi_gfc_err == MFEM_Approx(0.0));
 
-               REQUIRE( h1_gvv_err == Approx(0.0));
-               REQUIRE( nd_gvv_err == Approx(0.0));
-               REQUIRE( rt_gvv_err == Approx(0.0));
-               REQUIRE( l2_gvv_err == Approx(0.0));
-               REQUIRE(dgv_gvv_err == Approx(0.0));
-               REQUIRE(dgi_gvv_err == Approx(0.0));
+               REQUIRE( h1_gvv_err == MFEM_Approx(0.0));
+               REQUIRE( nd_gvv_err == MFEM_Approx(0.0));
+               REQUIRE( rt_gvv_err == MFEM_Approx(0.0));
+               REQUIRE( l2_gvv_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_gvv_err == MFEM_Approx(0.0));
+               REQUIRE(dgi_gvv_err == MFEM_Approx(0.0));
             }
          }
       }
@@ -2694,19 +2694,19 @@ TEST_CASE("3D GetVectorValue",
                dgv_gvv_err /= ir.GetNPoints();
                dgi_gvv_err /= ir.GetNPoints();
 
-               REQUIRE( h1_gfc_err == Approx(0.0));
-               REQUIRE( nd_gfc_err == Approx(0.0));
-               REQUIRE( rt_gfc_err == Approx(0.0));
-               REQUIRE( l2_gfc_err == Approx(0.0));
-               REQUIRE(dgv_gfc_err == Approx(0.0));
-               REQUIRE(dgi_gfc_err == Approx(0.0));
+               REQUIRE( h1_gfc_err == MFEM_Approx(0.0));
+               REQUIRE( nd_gfc_err == MFEM_Approx(0.0));
+               REQUIRE( rt_gfc_err == MFEM_Approx(0.0));
+               REQUIRE( l2_gfc_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_gfc_err == MFEM_Approx(0.0));
+               REQUIRE(dgi_gfc_err == MFEM_Approx(0.0));
 
-               REQUIRE( h1_gvv_err == Approx(0.0));
-               REQUIRE( nd_gvv_err == Approx(0.0));
-               REQUIRE( rt_gvv_err == Approx(0.0));
-               REQUIRE( l2_gvv_err == Approx(0.0));
-               REQUIRE(dgv_gvv_err == Approx(0.0));
-               REQUIRE(dgi_gvv_err == Approx(0.0));
+               REQUIRE( h1_gvv_err == MFEM_Approx(0.0));
+               REQUIRE( nd_gvv_err == MFEM_Approx(0.0));
+               REQUIRE( rt_gvv_err == MFEM_Approx(0.0));
+               REQUIRE( l2_gvv_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_gvv_err == MFEM_Approx(0.0));
+               REQUIRE(dgi_gvv_err == MFEM_Approx(0.0));
             }
          }
 
@@ -2817,12 +2817,12 @@ TEST_CASE("3D GetVectorValue",
                dgv_err /= ir.GetNPoints();
                dgi_err /= ir.GetNPoints();
 
-               REQUIRE( h1_err == Approx(0.0));
-               REQUIRE( nd_err == Approx(0.0));
-               REQUIRE( rt_err == Approx(0.0));
-               REQUIRE( l2_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
-               REQUIRE(dgi_err == Approx(0.0));
+               REQUIRE( h1_err == MFEM_Approx(0.0));
+               REQUIRE( nd_err == MFEM_Approx(0.0));
+               REQUIRE( rt_err == MFEM_Approx(0.0));
+               REQUIRE( l2_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_err == MFEM_Approx(0.0));
+               REQUIRE(dgi_err == MFEM_Approx(0.0));
             }
          }
 
@@ -2934,12 +2934,12 @@ TEST_CASE("3D GetVectorValue",
                dgv_err /= ir.GetNPoints();
                dgi_err /= ir.GetNPoints();
 
-               REQUIRE( h1_err == Approx(0.0));
-               REQUIRE( nd_err == Approx(0.0));
-               REQUIRE( rt_err == Approx(0.0));
-               REQUIRE( l2_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
-               REQUIRE(dgi_err == Approx(0.0));
+               REQUIRE( h1_err == MFEM_Approx(0.0));
+               REQUIRE( nd_err == MFEM_Approx(0.0));
+               REQUIRE( rt_err == MFEM_Approx(0.0));
+               REQUIRE( l2_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_err == MFEM_Approx(0.0));
+               REQUIRE(dgi_err == MFEM_Approx(0.0));
             }
          }
 
@@ -2980,7 +2980,7 @@ TEST_CASE("3D GetVectorValue",
                }
                h1_err  /= ir.GetNPoints();
 
-               REQUIRE( h1_err == Approx(0.0));
+               REQUIRE( h1_err == MFEM_Approx(0.0));
             }
          }
 
@@ -3021,7 +3021,7 @@ TEST_CASE("3D GetVectorValue",
                }
                h1_err  /= ir.GetNPoints();
 
-               REQUIRE( h1_err == Approx(0.0));
+               REQUIRE( h1_err == MFEM_Approx(0.0));
             }
          }
       }
@@ -3336,19 +3336,19 @@ TEST_CASE("3D GetVectorValue in Parallel",
                dgv_gvv_err /= ir.GetNPoints();
                dgi_gvv_err /= ir.GetNPoints();
 
-               REQUIRE( h1_gfc_err == Approx(0.0));
-               REQUIRE( nd_gfc_err == Approx(0.0));
-               REQUIRE( rt_gfc_err == Approx(0.0));
-               REQUIRE( l2_gfc_err == Approx(0.0));
-               REQUIRE(dgv_gfc_err == Approx(0.0));
-               REQUIRE(dgi_gfc_err == Approx(0.0));
+               REQUIRE( h1_gfc_err == MFEM_Approx(0.0));
+               REQUIRE( nd_gfc_err == MFEM_Approx(0.0));
+               REQUIRE( rt_gfc_err == MFEM_Approx(0.0));
+               REQUIRE( l2_gfc_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_gfc_err == MFEM_Approx(0.0));
+               REQUIRE(dgi_gfc_err == MFEM_Approx(0.0));
 
-               REQUIRE( h1_gvv_err == Approx(0.0));
-               REQUIRE( nd_gvv_err == Approx(0.0));
-               REQUIRE( rt_gvv_err == Approx(0.0));
-               REQUIRE( l2_gvv_err == Approx(0.0));
-               REQUIRE(dgv_gvv_err == Approx(0.0));
-               REQUIRE(dgi_gvv_err == Approx(0.0));
+               REQUIRE( h1_gvv_err == MFEM_Approx(0.0));
+               REQUIRE( nd_gvv_err == MFEM_Approx(0.0));
+               REQUIRE( rt_gvv_err == MFEM_Approx(0.0));
+               REQUIRE( l2_gvv_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_gvv_err == MFEM_Approx(0.0));
+               REQUIRE(dgi_gvv_err == MFEM_Approx(0.0));
             }
          }
       }
@@ -3448,8 +3448,8 @@ TEST_CASE("1D GetGradient",
                h1_err /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
 
-               REQUIRE(h1_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
+               REQUIRE(h1_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_err == MFEM_Approx(0.0));
             }
          }
 
@@ -3500,8 +3500,8 @@ TEST_CASE("1D GetGradient",
                h1_err /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
 
-               REQUIRE(h1_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
+               REQUIRE(h1_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_err == MFEM_Approx(0.0));
             }
          }
 
@@ -3553,8 +3553,8 @@ TEST_CASE("1D GetGradient",
                h1_err /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
 
-               REQUIRE(h1_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
+               REQUIRE(h1_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_err == MFEM_Approx(0.0));
             }
          }
       }
@@ -3654,8 +3654,8 @@ TEST_CASE("2D GetGradient",
                h1_err /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
 
-               REQUIRE(h1_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
+               REQUIRE(h1_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_err == MFEM_Approx(0.0));
             }
          }
 
@@ -3708,8 +3708,8 @@ TEST_CASE("2D GetGradient",
                h1_err /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
 
-               REQUIRE(h1_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
+               REQUIRE(h1_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_err == MFEM_Approx(0.0));
             }
          }
 
@@ -3763,8 +3763,8 @@ TEST_CASE("2D GetGradient",
                h1_err /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
 
-               REQUIRE(h1_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
+               REQUIRE(h1_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_err == MFEM_Approx(0.0));
             }
          }
       }
@@ -3866,8 +3866,8 @@ TEST_CASE("3D GetGradient",
                h1_err /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
 
-               REQUIRE(h1_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
+               REQUIRE(h1_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_err == MFEM_Approx(0.0));
             }
          }
 
@@ -3922,8 +3922,8 @@ TEST_CASE("3D GetGradient",
                h1_err /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
 
-               REQUIRE(h1_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
+               REQUIRE(h1_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_err == MFEM_Approx(0.0));
             }
          }
 
@@ -3979,8 +3979,8 @@ TEST_CASE("3D GetGradient",
                h1_err /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
 
-               REQUIRE(h1_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
+               REQUIRE(h1_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_err == MFEM_Approx(0.0));
             }
          }
       }
@@ -4097,9 +4097,9 @@ TEST_CASE("2D GetCurl",
                nd_err  /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
 
-               REQUIRE( h1_err == Approx(0.0));
-               REQUIRE( nd_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
+               REQUIRE( h1_err == MFEM_Approx(0.0));
+               REQUIRE( nd_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_err == MFEM_Approx(0.0));
             }
          }
 
@@ -4162,9 +4162,9 @@ TEST_CASE("2D GetCurl",
                nd_err  /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
 
-               REQUIRE( h1_err == Approx(0.0));
-               REQUIRE( nd_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
+               REQUIRE( h1_err == MFEM_Approx(0.0));
+               REQUIRE( nd_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_err == MFEM_Approx(0.0));
             }
          }
 
@@ -4228,9 +4228,9 @@ TEST_CASE("2D GetCurl",
                nd_err  /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
 
-               REQUIRE( h1_err == Approx(0.0));
-               REQUIRE( nd_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
+               REQUIRE( h1_err == MFEM_Approx(0.0));
+               REQUIRE( nd_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_err == MFEM_Approx(0.0));
             }
          }
       }
@@ -4353,9 +4353,9 @@ TEST_CASE("3D GetCurl",
                nd_err  /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
 
-               REQUIRE( h1_err == Approx(0.0));
-               REQUIRE( nd_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
+               REQUIRE( h1_err == MFEM_Approx(0.0));
+               REQUIRE( nd_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_err == MFEM_Approx(0.0));
             }
          }
 
@@ -4424,9 +4424,9 @@ TEST_CASE("3D GetCurl",
                nd_err  /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
 
-               REQUIRE( h1_err == Approx(0.0));
-               REQUIRE( nd_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
+               REQUIRE( h1_err == MFEM_Approx(0.0));
+               REQUIRE( nd_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_err == MFEM_Approx(0.0));
             }
          }
 
@@ -4496,9 +4496,9 @@ TEST_CASE("3D GetCurl",
                nd_err  /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
 
-               REQUIRE( h1_err == Approx(0.0));
-               REQUIRE( nd_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
+               REQUIRE( h1_err == MFEM_Approx(0.0));
+               REQUIRE( nd_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_err == MFEM_Approx(0.0));
             }
          }
       }
@@ -4605,9 +4605,9 @@ TEST_CASE("2D GetDivergence",
                rt_err /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
 
-               REQUIRE(h1_err == Approx(0.0));
-               REQUIRE(rt_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
+               REQUIRE(h1_err == MFEM_Approx(0.0));
+               REQUIRE(rt_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_err == MFEM_Approx(0.0));
             }
          }
 
@@ -4666,9 +4666,9 @@ TEST_CASE("2D GetDivergence",
                rt_err /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
 
-               REQUIRE(h1_err == Approx(0.0));
-               REQUIRE(rt_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
+               REQUIRE(h1_err == MFEM_Approx(0.0));
+               REQUIRE(rt_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_err == MFEM_Approx(0.0));
             }
          }
 
@@ -4728,9 +4728,9 @@ TEST_CASE("2D GetDivergence",
                rt_err /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
 
-               REQUIRE(h1_err == Approx(0.0));
-               REQUIRE(rt_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
+               REQUIRE(h1_err == MFEM_Approx(0.0));
+               REQUIRE(rt_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_err == MFEM_Approx(0.0));
             }
          }
       }
@@ -4837,9 +4837,9 @@ TEST_CASE("3D GetDivergence",
                rt_err /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
 
-               REQUIRE(h1_err == Approx(0.0));
-               REQUIRE(rt_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
+               REQUIRE(h1_err == MFEM_Approx(0.0));
+               REQUIRE(rt_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_err == MFEM_Approx(0.0));
             }
          }
 
@@ -4898,9 +4898,9 @@ TEST_CASE("3D GetDivergence",
                rt_err /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
 
-               REQUIRE(h1_err == Approx(0.0));
-               REQUIRE(rt_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
+               REQUIRE(h1_err == MFEM_Approx(0.0));
+               REQUIRE(rt_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_err == MFEM_Approx(0.0));
             }
          }
 
@@ -4960,9 +4960,9 @@ TEST_CASE("3D GetDivergence",
                rt_err /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
 
-               REQUIRE(h1_err == Approx(0.0));
-               REQUIRE(rt_err == Approx(0.0));
-               REQUIRE(dgv_err == Approx(0.0));
+               REQUIRE(h1_err == MFEM_Approx(0.0));
+               REQUIRE(rt_err == MFEM_Approx(0.0));
+               REQUIRE(dgv_err == MFEM_Approx(0.0));
             }
          }
       }
