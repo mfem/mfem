@@ -100,6 +100,11 @@ public:
       return const_cast<Operator &>(*this);
    }
 
+   virtual void AssembleDiagonal(Vector &diag) const
+   {
+      MFEM_ABORT("Not relevant or not implemented for this Operator.");
+   }
+
    /** @brief Prolongation operator from linear algebra (linear system) vectors,
        to input vectors for the operator. `NULL` means identity. */
    virtual const Operator *GetProlongation() const { return NULL; }

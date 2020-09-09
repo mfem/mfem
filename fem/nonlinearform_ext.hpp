@@ -36,12 +36,8 @@ public:
    /// Assemble gradient data at the AssemblyLevel of the subclass.
    virtual void AssembleGradient() = 0;
 
-   virtual Operator &GetGradient(const Vector&) const = 0;
+   virtual Operator &GetGradient(const Vector &) const = 0;
    virtual double GetGridFunctionEnergy(const Vector &x) const = 0;
-   virtual void AssembleGradientDiagonal(Vector &diag) const
-   {
-      MFEM_ABORT("Not implemented for this assembly level!");
-   }
 };
 
 class PANonlinearForm;
@@ -60,6 +56,7 @@ private:
    public:
       Gradient(const Vector &x, const PANonlinearFormExtension &ext);
       virtual void Mult(const Vector &x, Vector &y) const;
+      virtual void AssembleDiagonal(Vector &diag) const;
    };
 
 protected:
@@ -79,7 +76,6 @@ public:
    void Mult(const Vector &x, Vector &y) const;
    Operator &GetGradient(const Vector &x) const;
    double GetGridFunctionEnergy(const Vector &x) const;
-   void AssembleGradientDiagonal(Vector &diag) const;
 };
 }
 #endif // NONLINEARFORM_EXT_HPP
