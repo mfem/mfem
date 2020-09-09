@@ -2177,8 +2177,11 @@ public:
                                        DenseMatrix &elmat);
    using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
+   virtual void AssembleMF(const FiniteElementSpace &fes);
    virtual void AssembleDiagonalPA(Vector &diag);
+   virtual void AssembleDiagonalMF(Vector &diag);
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AddMultMF(const Vector &x, Vector &y) const;
 };
 
 
@@ -2561,8 +2564,11 @@ public:
                                       const Vector &elfun, Vector &elvect);
    using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
+   virtual void AssembleMF(const FiniteElementSpace &fes);
    virtual void AssembleDiagonalPA(Vector &diag);
+   virtual void AssembleDiagonalMF(Vector &diag);
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AddMultMF(const Vector &x, Vector &y) const;
 };
 
 /** Integrator for the linear elasticity form:

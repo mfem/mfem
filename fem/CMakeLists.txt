@@ -30,7 +30,9 @@ set(SRCS
   bilininteg_mass_ea.cpp
   bilininteg_transpose_ea.cpp
   bilininteg_vecdiffusion.cpp
+  bilininteg_vecdiffusion_mf.cpp
   bilininteg_vecmass.cpp
+  bilininteg_vecmass_mf.cpp
   coefficient.cpp
   complex_fem.cpp
   datacollection.cpp

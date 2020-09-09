@@ -161,6 +161,18 @@ CEED_QFUNCTION(f_apply_mass_mf_const)(void *ctx, CeedInt Q,
             v[i] = rho * u[i];
          }
          break;
+      case 22:
+         for (CeedInt i=0; i<Q; i++)
+         {
+            // 0 2
+            // 1 3
+            const CeedScalar rho = coeff * (J[i+Q*0]*J[i+Q*3] - J[i+Q*1]*J[i+Q*2]) * qw[i];
+            for (CeedInt c = 0; c < 2; c++)
+            {
+               v[i+c*Q] = rho * u[i+c*Q];
+            }
+         }
+         break;
       case 31:
          for (CeedInt i = 0; i < Q; i++)
          {
@@ -168,6 +180,21 @@ CEED_QFUNCTION(f_apply_mass_mf_const)(void *ctx, CeedInt Q,
                                     J[i+Q*1]*(J[i+Q*3]*J[i+Q*8] - J[i+Q*5]*J[i+Q*6]) +
                                     J[i+Q*2]*(J[i+Q*3]*J[i+Q*7] - J[i+Q*4]*J[i+Q*6])) * coeff * qw[i];
             v[i] = rho * u[i];
+         }
+         break;
+      case 33:
+         for (CeedInt i=0; i<Q; i++)
+         {
+            // 0 3 6
+            // 1 4 7
+            // 2 5 8
+            const CeedScalar rho = (J[i+Q*0]*(J[i+Q*4]*J[i+Q*8] - J[i+Q*5]*J[i+Q*7]) -
+                                    J[i+Q*1]*(J[i+Q*3]*J[i+Q*8] - J[i+Q*5]*J[i+Q*6]) +
+                                    J[i+Q*2]*(J[i+Q*3]*J[i+Q*7] - J[i+Q*4]*J[i+Q*6])) * coeff * qw[i];
+            for (CeedInt c = 0; c < 3; c++)
+            {
+               v[i+c*Q] = rho * u[i+c*Q];
+            }
          }
          break;
    }
@@ -178,7 +205,7 @@ CEED_QFUNCTION(f_apply_mass_mf_quad)(void *ctx, CeedInt Q,
                                      const CeedScalar *const *in, CeedScalar *const *out)
 {
    BuildContext *bc = (BuildContext*)ctx;
-   const CeedScalar *u = in[0], *c = in[1], *J = in[2], *qw = in[3];
+   const CeedScalar *c = in[0], *u = in[1], *J = in[2], *qw = in[3];
    CeedScalar *v = out[0];
    switch (10 * bc->dim + bc->vdim)
    {
@@ -198,6 +225,18 @@ CEED_QFUNCTION(f_apply_mass_mf_quad)(void *ctx, CeedInt Q,
             v[i] = rho * u[i];
          }
          break;
+      case 22:
+         for (CeedInt i=0; i<Q; i++)
+         {
+            // 0 2
+            // 1 3
+            const CeedScalar rho = c[i] * (J[i+Q*0]*J[i+Q*3] - J[i+Q*1]*J[i+Q*2]) * qw[i];
+            for (CeedInt c = 0; c < 2; c++)
+            {
+               v[i+c*Q] = rho * u[i+c*Q];
+            }
+         }
+         break;
       case 31:
          for (CeedInt i=0; i<Q; i++)
          {
@@ -208,6 +247,21 @@ CEED_QFUNCTION(f_apply_mass_mf_quad)(void *ctx, CeedInt Q,
                                     J[i+Q*1]*(J[i+Q*3]*J[i+Q*8] - J[i+Q*5]*J[i+Q*6]) +
                                     J[i+Q*2]*(J[i+Q*3]*J[i+Q*7] - J[i+Q*4]*J[i+Q*6])) * c[i] * qw[i];
             v[i] = rho * u[i];
+         }
+         break;
+      case 33:
+         for (CeedInt i=0; i<Q; i++)
+         {
+            // 0 3 6
+            // 1 4 7
+            // 2 5 8
+            const CeedScalar rho = (J[i+Q*0]*(J[i+Q*4]*J[i+Q*8] - J[i+Q*5]*J[i+Q*7]) -
+                                    J[i+Q*1]*(J[i+Q*3]*J[i+Q*8] - J[i+Q*5]*J[i+Q*6]) +
+                                    J[i+Q*2]*(J[i+Q*3]*J[i+Q*7] - J[i+Q*4]*J[i+Q*6])) * c[i] * qw[i];
+            for (CeedInt c = 0; c < 3; c++)
+            {
+               v[i+c*Q] = rho * u[i+c*Q];
+            }
          }
          break;
    }

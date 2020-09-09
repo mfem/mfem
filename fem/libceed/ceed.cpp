@@ -732,7 +732,7 @@ void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
       {
          InitCeedNonTensorBasis(fes, irm, ceed, basis);
       }
-      // internal::ceed_basis_map[basis_key] = *basis;
+      internal::ceed_basis_map[basis_key] = *basis;
    }
    else
    {
