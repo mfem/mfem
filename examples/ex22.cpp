@@ -6,11 +6,13 @@
 //               ex22 -m ../data/inline-tri.mesh -o 3
 //               ex22 -m ../data/inline-quad.mesh -o 3
 //               ex22 -m ../data/inline-quad.mesh -o 3 -p 1
+//               ex22 -m ../data/inline-quad.mesh -o 3 -p 1 -pa
 //               ex22 -m ../data/inline-quad.mesh -o 3 -p 2
 //               ex22 -m ../data/inline-tet.mesh -o 2
 //               ex22 -m ../data/inline-hex.mesh -o 2
 //               ex22 -m ../data/inline-hex.mesh -o 2 -p 1
 //               ex22 -m ../data/inline-hex.mesh -o 2 -p 2
+//               ex22 -m ../data/inline-hex.mesh -o 2 -p 2 -pa
 //               ex22 -m ../data/star.mesh -r 1 -o 2 -sigma 10.0
 //
 // Device sample runs:
@@ -429,8 +431,6 @@ int main(int argc, char *argv[])
    // 12. Recover the solution as a finite element grid function and compute the
    //     errors if the exact solution is known.
    a->RecoverFEMSolution(U, b, u);
-   u.real().SyncMemory(u);
-   u.imag().SyncMemory(u);
 
    if (exact_sol)
    {
