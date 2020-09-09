@@ -2340,7 +2340,7 @@ struct MatrixMap
       return index - 1;
    }
 
-   void ExportMatrices(Array<DenseMatrix*> &point_matrices)
+   void ExportMatrices(Array<DenseMatrix*> &point_matrices) const
    {
       point_matrices.SetSize(map.size());
       for (const auto &pair : map)
@@ -2348,6 +2348,14 @@ struct MatrixMap
          DenseMatrix* mat = new DenseMatrix();
          pair.first.GetMatrix(*mat);
          point_matrices[pair.second - 1] = mat;
+      }
+   }
+
+   void DumpBucketSizes() const
+   {
+      for (unsigned i = 0; i < map.bucket_count(); i++)
+      {
+         mfem::out << map.bucket_size(i) << " ";
       }
    }
 
