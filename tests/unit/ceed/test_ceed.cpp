@@ -164,7 +164,7 @@ void test_ceed_operator(const char* input, int order, const CeedCoeff coeff_type
 
 TEST_CASE("CEED", "[CEED]")
 {
-   auto assembly = GENERATE(AssemblyLevel::PARTIAL);
+   auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::NONE);
    auto coeff_type = GENERATE(CeedCoeff::Const,CeedCoeff::Grid,CeedCoeff::Quad);
    auto pb = GENERATE(Problem::Mass,Problem::Diffusion,
                       Problem::VectorMass,Problem::VectorDiffusion);
