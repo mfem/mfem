@@ -17,11 +17,6 @@
 #include "../fem/libceed/ceedsolvers-atpmg.h"
 #include "../fem/libceed/ceedsolvers-interpolation.h"
 
-// do not want the following here, needed for composite operator numsub, suboperator
-// (somehow encapsulate this in fem/libceed/ceedsolvers-*)
-// (also, the C++ compiler does not like repeated names in prototype?)
-#include <ceed-impl.h>
-
 namespace mfem
 {
 
@@ -457,7 +452,7 @@ CeedMultigridLevel::CeedMultigridLevel(CeedOperator oper,
    CeedOperatorIsComposite(oper, &isComposite);
    if (isComposite)
    {
-      numsub_ = oper->numsub;
+      CeedOperatorGetNumSub(oper, &numsub_);
    }
    else
    {
@@ -469,13 +464,18 @@ CeedMultigridLevel::CeedMultigridLevel(CeedOperator oper,
 
    if (isComposite)
    {
+      CeedOperator *subops;
+      CeedOperatorGetSubList(oper, &subops);
+      CeedCompositeOperatorCreate(ceed, &coarse_oper_);
       for (int i = 0; i < numsub_; ++i)
       {
-         CeedOperator suboper = oper->suboperators[i];
-         CeedATPMGBundle(suboper, order_reduction, &coarse_basis_[i], &basisctof_[i],
-                         &lo_er_[i], &coarse_oper_);
+         CeedOperator subcoarse;
+         CeedATPMGBundle(subops[i], order_reduction, &coarse_basis_[i], &basisctof_[i],
+                         &lo_er_[i], &subcoarse);
+         CeedCompositeOperatorAddSub(coarse_oper_, subcoarse);
+         CeedOperatorDestroy(&subcoarse); // give ownership to composite operator
       }
-      CeedOperatorGetActiveElemRestriction(oper->suboperators[0], &ho_er_);
+      CeedOperatorGetActiveElemRestriction(subops[0], &ho_er_);
    }
    else
    {

@@ -11,9 +11,6 @@
 
 #include "ceedsolvers-utility.h"
 
-// don't like the following
-#include <ceed-impl.h>
-
 #ifdef MFEM_USE_CEED
 
 /// a = a (pointwise*) b
@@ -53,8 +50,10 @@ int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field) {
   CeedQFunction qf;
   bool isComposite;
   ierr = CeedOperatorIsComposite(oper, &isComposite); CeedChk(ierr);
+  CeedOperator *subops;
   if (isComposite) {
-    ierr = CeedOperatorGetQFunction(oper->suboperators[0], &qf); CeedChk(ierr);
+    ierr = CeedOperatorGetSubList(oper, &subops); CeedChk(ierr);
+    ierr = CeedOperatorGetQFunction(subops[0], &qf); CeedChk(ierr);
   } else {
     ierr = CeedOperatorGetQFunction(oper, &qf); CeedChk(ierr);
   }
@@ -62,7 +61,7 @@ int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field) {
   ierr = CeedQFunctionGetNumArgs(qf, &numinputfields, &numoutputfields);
   CeedOperatorField *inputfields;
   if (isComposite) {
-    ierr = CeedOperatorGetFields(oper->suboperators[0], &inputfields, NULL); CeedChk(ierr);
+    ierr = CeedOperatorGetFields(subops[0], &inputfields, NULL); CeedChk(ierr);
   } else {
     ierr = CeedOperatorGetFields(oper, &inputfields, NULL); CeedChk(ierr);
   }
