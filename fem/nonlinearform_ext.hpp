@@ -50,12 +50,20 @@ private:
    class Gradient : public Operator
    {
    protected:
-      const Operator *R;
+      const Operator *elemR;
+      const FiniteElementSpace &fes;
       const Array<NonlinearFormIntegrator*> &dnfi;
       mutable Vector ge, xe, ye, ze;
    public:
       Gradient(const Vector &x, const PANonlinearFormExtension &ext);
       virtual void Mult(const Vector &x, Vector &y) const;
+
+      /** @brief Assemble the diagonal of the gradient into diag
+
+          For adaptively refined meshes, this returns P^T d_e, where d_e is the
+          locally assembled diagonal on each element and P^T is the transpose of
+          the conforming prolongation. In general this is not the correct
+          diagonal for an AMR mesh. */
       virtual void AssembleDiagonal(Vector &diag) const;
    };
 

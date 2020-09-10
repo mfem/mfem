@@ -764,6 +764,13 @@ public:
    virtual void Mult(const Vector & x, Vector & y) const
    { P.Mult(x, Px); A.Mult(Px, APx); Rt.MultTranspose(APx, y); }
 
+   virtual void AssembleDiagonal(Vector &diag) const
+   {
+      // Assumes that A works on ldofs.
+      A.AssembleDiagonal(APx);
+      Rt.MultTranspose(APx, diag);
+   }
+
    /// Application of the transpose.
    virtual void MultTranspose(const Vector & x, Vector & y) const
    { Rt.Mult(x, APx); A.MultTranspose(APx, Px); P.MultTranspose(Px, y); }
@@ -830,6 +837,8 @@ public:
    /// Set the diagonal policy for the constrained operator.
    void SetDiagonalPolicy(const DiagonalPolicy _diag_policy)
    { diag_policy = _diag_policy; }
+
+   virtual void AssembleDiagonal(Vector &diag) const;
 
    /** @brief Eliminate "essential boundary condition" values specified in @a x
        from the given right-hand side @a b.
