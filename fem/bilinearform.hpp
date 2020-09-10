@@ -358,7 +358,8 @@ public:
    /// Assembles the form i.e. sums over all domain/bdr integrators.
    void Assemble(int skip_zeros = 1);
 
-   /** @brief Assemble the diagonal of the bilinear form into diag
+   /** @brief Assemble the diagonal of the bilinear form into @a diag. Note that
+       @a diag is a tdof Vector.
 
        For adaptively refined meshes, this returns P^T d_e, where d_e is the
        locally assembled diagonal on each element and P^T is the transpose of
