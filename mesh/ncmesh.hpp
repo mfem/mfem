@@ -349,8 +349,6 @@ public:
 
    int PrintMemoryDetail() const;
 
-   void PrintStats(std::ostream &out = mfem::out) const;
-
    typedef int64_t RefCoord;
 
 
