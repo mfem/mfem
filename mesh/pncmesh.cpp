@@ -67,7 +67,6 @@ ParNCMesh::ParNCMesh(const ParNCMesh &other)
    : NCMesh(other)
    , MyComm(other.MyComm)
    , NRanks(other.NRanks)
-   , MyRank(other.MyRank)
 {
    Update(); // mark all secondary stuff for recalculation
 }
@@ -304,7 +303,7 @@ void ParNCMesh::ElementSharesFace(int elem, int local, int face)
 
    // derive globally consistent face ID from the global element sequence
    int &el_loc = entity_elem_local[2][f_index];
-   if (el_loc < 0 || leaf_glob_order[el.index] < leaf_glob_order[(el_loc >> 4)])
+   if (el_loc < 0 || leaf_sfc_index[el.index] < leaf_sfc_index[(el_loc >> 4)])
    {
       el_loc = (el.index << 4) | local;
    }
@@ -369,7 +368,7 @@ void ParNCMesh::ElementSharesEdge(int elem, int local, int enode)
 
    // derive globally consistent edge ID from the global element sequence
    int &el_loc = entity_elem_local[1][e_index];
-   if (el_loc < 0 || leaf_glob_order[el.index] < leaf_glob_order[(el_loc >> 4)])
+   if (el_loc < 0 || leaf_sfc_index[el.index] < leaf_sfc_index[(el_loc >> 4)])
    {
       el_loc = (el.index << 4) | local;
    }
@@ -430,7 +429,7 @@ void ParNCMesh::ElementSharesVertex(int elem, int local, int vnode)
 
    // derive globally consistent vertex ID from the global element sequence
    int &el_loc = entity_elem_local[0][v_index];
-   if (el_loc < 0 || leaf_glob_order[el.index] < leaf_glob_order[(el_loc >> 4)])
+   if (el_loc < 0 || leaf_sfc_index[el.index] < leaf_sfc_index[(el_loc >> 4)])
    {
       el_loc = (el.index << 4) | local;
    }
@@ -944,10 +943,10 @@ void ParNCMesh::MakeSharedTable(int ngroups, int ent, Array<int> &shared_local,
          int el_loc_a = entity_elem_local[ent][shared_local[a]];
          int el_loc_b = entity_elem_local[ent][shared_local[b]];
 
-         int lgo_a = leaf_glob_order[el_loc_a >> 4];
-         int lgo_b = leaf_glob_order[el_loc_b >> 4];
+         int lsi_a = leaf_sfc_index[el_loc_a >> 4];
+         int lsi_b = leaf_sfc_index[el_loc_b >> 4];
 
-         if (lgo_a != lgo_b) { return lgo_a < lgo_b; }
+         if (lsi_a != lsi_b) { return lsi_a < lsi_b; }
 
          return (el_loc_a & 0xf) < (el_loc_b & 0xf);
       });
@@ -965,7 +964,6 @@ void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
          MFEM_VERIFY(entity_conf_group[ent].Size(), "internal error");
          MFEM_VERIFY(entity_elem_local[ent].Size(), "internal error");
       }
-      MFEM_VERIFY(leaf_glob_order.Size(), "internal error");
    }
 
    // create ParMesh groups, and the map (ncmesh_group -> pmesh_group)
@@ -1052,7 +1050,6 @@ void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
       entity_conf_group[ent].DeleteAll();
       entity_elem_local[ent].DeleteAll();
    }
-   leaf_glob_order.DeleteAll();
 }
 
 void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
@@ -2953,7 +2950,6 @@ long ParNCMesh::MemoryUsage(bool with_base) const
           arrays_memory_usage(entity_owner) +
           arrays_memory_usage(entity_pmat_group) +
           arrays_memory_usage(entity_conf_group) +
-          leaf_glob_order.MemoryUsage() +
           arrays_memory_usage(entity_elem_local) +
           shared_vertices.MemoryUsage() +
           shared_edges.MemoryUsage() +
@@ -2981,7 +2977,6 @@ int ParNCMesh::PrintMemoryDetail(bool with_base) const
              << arrays_memory_usage(entity_owner) << " entity_owner\n"
              << arrays_memory_usage(entity_pmat_group) << " entity_pmat_group\n"
              << arrays_memory_usage(entity_conf_group) << " entity_conf_group\n"
-             << leaf_glob_order.MemoryUsage() << " leaf_glob_order\n"
              << arrays_memory_usage(entity_elem_local) << " entity_elem_local\n"
              << shared_vertices.MemoryUsage() << " shared_vertices\n"
              << shared_edges.MemoryUsage() << " shared_edges\n"

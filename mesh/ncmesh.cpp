@@ -5639,6 +5639,7 @@ long NCMesh::MemoryUsage() const
           root_state.MemoryUsage() +
           coordinates.MemoryUsage() +
           leaf_elements.MemoryUsage() +
+          leaf_sfc_index.MemoryUsage() +
           vertex_nodeId.MemoryUsage() +
           face_list.MemoryUsage() +
           edge_list.MemoryUsage() +
@@ -5662,6 +5663,7 @@ int NCMesh::PrintMemoryDetail() const
              << root_state.MemoryUsage() << " root_state\n"
              << coordinates.MemoryUsage() << " top_vertex_pos\n"
              << leaf_elements.MemoryUsage() << " leaf_elements\n"
+             << leaf_sfc_index.MemoryUsage() << " leaf_sfc_index\n"
              << vertex_nodeId.MemoryUsage() << " vertex_nodeId\n"
              << face_list.MemoryUsage() << " face_list\n"
              << edge_list.MemoryUsage() << " edge_list\n"
@@ -5676,59 +5678,6 @@ int NCMesh::PrintMemoryDetail() const
              << std::endl;
 
    return elements.Size() - free_element_ids.Size();
-}
-
-void NCMesh::PrintStats(std::ostream &out) const
-{
-   static const double MiB = 1024.*1024.;
-   out <<
-       "NCMesh statistics:\n"
-       "------------------\n"
-       "   mesh and space dimensions : " << Dim << ", " << spaceDim << "\n"
-       "   isotropic only            : " << (Iso ? "yes" : "no") << "\n"
-       "   number of Nodes           : " << std::setw(9)
-       << nodes.Size() << " +    [ " << std::setw(9)
-       << nodes.MemoryUsage()/MiB << " MiB ]\n"
-       "      free                     " << std::setw(9)
-       << nodes.NumFreeIds() << "\n"
-       "   number of Faces           : " << std::setw(9)
-       << faces.Size() << " +    [ " << std::setw(9)
-       << faces.MemoryUsage()/MiB << " MiB ]\n"
-       "      free                     " << std::setw(9)
-       << faces.NumFreeIds() << "\n"
-       "   number of Elements        : " << std::setw(9)
-       << elements.Size()-free_element_ids.Size() << " +    [ " << std::setw(9)
-       << (elements.MemoryUsage() +
-           free_element_ids.MemoryUsage())/MiB << " MiB ]\n"
-       "      free                     " << std::setw(9)
-       << free_element_ids.Size() << "\n"
-       "   number of root elements   : " << std::setw(9)
-       << root_state.Size() << "\n"
-       "   number of leaf elements   : " << std::setw(9)
-       << leaf_elements.Size() << "\n"
-       "   number of vertices        : " << std::setw(9)
-       << vertex_nodeId.Size() << "\n"
-       "   number of faces           : " << std::setw(9)
-       << face_list.TotalSize() << " =    [ " << std::setw(9)
-       << face_list.MemoryUsage()/MiB << " MiB ]\n"
-       "      conforming               " << std::setw(9)
-       << face_list.conforming.size() << " +\n"
-       "      master                   " << std::setw(9)
-       << face_list.masters.size() << " +\n"
-       "      slave                    " << std::setw(9)
-       << face_list.slaves.size() << "\n"
-       "   number of edges           : " << std::setw(9)
-       << edge_list.TotalSize() << " =    [ " << std::setw(9)
-       << edge_list.MemoryUsage()/MiB << " MiB ]\n"
-       "      conforming               " << std::setw(9)
-       << edge_list.conforming.size() << " +\n"
-       "      master                   " << std::setw(9)
-       << edge_list.masters.size() << " +\n"
-       "      slave                    " << std::setw(9)
-       << edge_list.slaves.size() << "\n"
-       "   total memory              : " << std::setw(17)
-       << "[ " << std::setw(9) << MemoryUsage()/MiB << " MiB ]\n"
-       ;
 }
 
 #ifdef MFEM_DEBUG
