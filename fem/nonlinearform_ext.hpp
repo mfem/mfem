@@ -36,7 +36,9 @@ public:
    /// Assemble gradient data at the AssemblyLevel of the subclass.
    virtual void AssembleGradient() = 0;
 
-   virtual Operator &GetGradient(const Vector &) const = 0;
+   /// Assumes that @a x is a ldof Vector.
+   virtual Operator &GetGradient(const Vector &x) const = 0;
+
    virtual double GetGridFunctionEnergy(const Vector &x) const = 0;
 };
 
@@ -55,10 +57,14 @@ private:
       const Array<NonlinearFormIntegrator*> &dnfi;
       mutable Vector ge, xe, ye, ze;
    public:
+      /// Assumes that @a x is a ldof Vector.
       Gradient(const Vector &x, const PANonlinearFormExtension &ext);
+
+      /// Assumes that @a x and @a y are ldof Vector%s.
       virtual void Mult(const Vector &x, Vector &y) const;
 
-      /** @brief Assemble the diagonal of the gradient into diag
+      /** @brief Assemble the diagonal of the gradient into the
+          tdof Vector @a diag.
 
           For adaptively refined meshes, this returns P^T d_e, where d_e is the
           locally assembled diagonal on each element and P^T is the transpose of

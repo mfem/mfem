@@ -285,7 +285,6 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
       if (Serial())
       {
          Operator *Gop;
-         if (cP) { hGrad.Reset(new RAPOperator(*cP, grad, *cP)); }
          hGrad.Ptr()->Operator::FormSystemOperator(ess_tdof_list, Gop);
          hGrad.Reset(Gop);
       }
