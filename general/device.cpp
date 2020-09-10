@@ -373,6 +373,17 @@ void Device::UpdateMemoryTypeAndClass()
       }
    }
 
+   // Enable the non-device arena shortcut when requested
+   if (!device && device_option && !strcmp(device_option, "arena"))
+   {
+      printf("\033[31m[Device::ARENA]\033[m\n"); fflush(0);
+      if (host_mem_type == MemoryType::HOST)
+      {
+         host_mem_type = MemoryType::HOST_ARENA;
+         device_mem_type = MemoryType::HOST_ARENA;
+      }
+   }
+
    // Update the memory manager with the new settings
    mm.Configure(host_mem_type, device_mem_type);
 }

@@ -31,6 +31,7 @@ enum class MemoryType
    HOST_32,        ///< Host memory; aligned at 32 bytes
    HOST_64,        ///< Host memory; aligned at 64 bytes
    HOST_POOL,      ///< Host memory; using MemoryType::HOST with a pool
+   HOST_ARENA,     ///< Host memory; using MemoryType::HOST with an arena
    HOST_DEBUG,     ///< Host memory; allocated from a "host-debug" pool
    HOST_DEBUG_POOL,///< Host memory; allocated from a "host-debug" pool
    HOST_UMPIRE,    ///< Host memory; using Umpire
@@ -555,7 +556,7 @@ private: // Static methods used by the Memory<T> class
    static MemoryType GetHostMemoryType_(void *h_ptr);
 
    /// Verify that h_mt and h_ptr's h_mt (memory or alias) are equal.
-   static void CheckHostMemoryType_(MemoryType h_mt, void *h_ptr);
+   static bool CheckHostMemoryType_(MemoryType h_mt, void *h_ptr);
 
    /// Copy entries from valid memory type to valid memory type.
    ///  Both dest_h_ptr and src_h_ptr are registered host pointers.
@@ -660,6 +661,240 @@ public:
    static MemoryType GetDeviceMemoryType() { return device_mem_type; }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+#define MAX_FOREACH 30
+#define FOREACH(def)\
+    def(0) \
+    def(1) \
+    def(2) \
+    def(3) \
+    def(4) \
+    def(5) \
+    def(6) \
+    def(7) \
+    def(8) \
+    def(9) \
+    def(10) \
+    def(11) \
+    def(12) \
+    def(13) \
+    def(14) \
+    def(15) \
+    def(16) \
+    def(17) \
+    def(18) \
+    def(19) \
+    def(20) \
+    def(21) \
+    def(22) \
+    def(23) \
+    def(24) \
+    def(25) \
+    def(26) \
+    def(27) \
+    def(28) \
+    def(29) \
+    def(MAX_FOREACH)
+
+////////////////////////////////////////////////////////////////////////////////
+/// http://graphics.stanford.edu/~seander/bithacks.html#ZerosOnRightMultLookup
+inline uint32_t ctz(const uint32_t v)
+{
+   static constexpr int MultiplyDeBruijnBitPosition[32] =
+   {
+      0, 1, 28, 2, 29, 14, 24, 3, 30, 22, 20, 15, 25, 17, 4, 8,
+      31, 27, 13, 23, 21, 19, 16, 7, 26, 12, 18, 6, 11, 5, 10, 9
+   };
+   return MultiplyDeBruijnBitPosition[((uint32_t)((v & -v) * 0x077CB531U)) >> 27];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+inline size_t next_pow2(size_t value)
+{
+   --value;
+   value |= value >> 1;
+   value |= value >> 2;
+   value |= value >> 4;
+   value |= value >> 8;
+   value |= value >> 16;
+   value |= value >> 32;
+   ++value;
+   return value;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+#define NDEBUG
+#ifndef NDEBUG
+#define WITH_DEBUG
+#warning WITH_DEBUG
+#define dbg(...) {printf("\033[33m");printf(__VA_ARGS__);printf("\033[m\n");}
+#else
+#define dbg(...)
+#endif
+class PoolArena
+{
+   template<size_t N> union TBlock
+   {
+      TBlock<N> *next;
+#ifndef WITH_DEBUG
+      char data[1<<N];
+#else
+      struct { char data[1<<N]; char pad[16]; bool used; } data;
+#endif
+   };
+
+   template <size_t N> struct Bucket
+   {
+      // Arena struct
+      struct Arena
+      {
+         const size_t asize;
+         std::unique_ptr<Arena> next;
+         std::unique_ptr<TBlock<N>[]> blocks;
+         ///////////////////////////////////////////////////////////////////////
+         Arena(size_t asize): asize(asize), blocks(new TBlock<N>[asize])
+         {
+            dbg("New Arena<%d>(%d)", N, asize);
+            for (size_t i = 1; i < asize; i++)
+            {
+               blocks[i-1].next = &blocks[i];
+#ifdef WITH_DEBUG
+               blocks[i-1].data.used = false;
+#endif
+            }
+            blocks[asize-1].next = nullptr;
+#ifdef WITH_DEBUG
+            blocks[asize-1].data.used = false;
+#endif
+         }
+
+         // Get / Set
+         TBlock<N> *Get() const { return blocks.get(); }
+         void Set(std::unique_ptr<Arena> &&n) { next.reset(n.release()); }
+
+         int Dump(int n = 1)
+         {
+#ifdef WITH_DEBUG
+            /*for (size_t i = asize; i > 0; i--)
+            {
+               TBlock<N> &block = blocks[i-1];
+               const bool used = block.data.used;
+               printf("%s\033[m", used ? "\033[32mX" : "\033[33mx");
+            }
+            printf(" ");*/
+            if (!next) { return n; }
+            n += next->Dump(n);
+            return n;
+#else
+            return n;
+#endif
+         }
+      }; // struct arena
+
+      const size_t asize;
+      std::unique_ptr<Arena> arena;
+      TBlock<N> *next;
+
+   public:
+      Bucket(size_t asize):
+         asize(asize),
+         arena(new Arena(asize)),
+         next(arena->Get()) { }
+
+      /// Allocate bytes from the arena of this bucket
+      /// without filling any map
+      void *alloc(size_t bytes)
+      {
+         if (next == nullptr)
+         {
+            std::unique_ptr<Arena> new_arena(new Arena(asize));
+            new_arena->Set(move(arena));
+            arena.reset(new_arena.release());
+            next = arena->Get();
+         }
+         TBlock<N> *block = next;
+         next = block->next;
+#ifdef WITH_DEBUG
+         block->data.used = true;
+#endif
+         return (void*) block;
+      }
+
+      /// Free the pointer
+      void free(void *ptr)
+      {
+         // Get back the block from ptr
+         TBlock<N> *block = (TBlock<N>*) ptr;
+         block->next = next;
+#ifdef WITH_DEBUG
+         block->data.used = false;
+#endif
+         next = block;
+      }
+   };
+
+   const size_t asize;
+#define DEFINE_PTR(N) std::unique_ptr<Bucket<N>> b##N;
+   FOREACH(DEFINE_PTR)
+#undef DEFINE_PTR
+public:
+   PoolArena(size_t asize = 8192): asize(asize) { }
+
+   ~PoolArena ()
+   {
+#ifdef WITH_DEBUG
+      Dump();
+#endif
+   }
+
+   void *alloc(size_t bytes)
+   {
+      // number of pages needed for this amount of bytes
+      const size_t key = next_pow2(bytes);
+      const int n = ctz(key);
+      MFEM_ASSERT(n <= MAX_FOREACH,"");
+#define ALLOC_KEY(N){\
+      if (n == N){\
+         if (!b##N) { b##N.reset(new Bucket<N>(asize)); }\
+         return b##N->alloc(bytes);}}
+      FOREACH(ALLOC_KEY);
+#undef ALLOC_KEY
+      MFEM_ASSERT(false,"");
+      return nullptr;
+   }
+
+   void free(void *ptr, size_t bytes)
+   {
+      const size_t key = next_pow2(bytes);
+      const int n = ctz(key);
+#define FREE_KEY(N) {\
+        MFEM_ASSERT(n!=N || b##N,""); \
+        if (n == N) { return b##N->free(ptr); }}
+      FOREACH(FREE_KEY);
+#undef FREE_KEY
+      MFEM_ASSERT(false,"");
+   }
+
+   void Dump()
+   {
+#ifdef WITH_DEBUG
+#define DUMP_KEY(N){\
+   if (b##N) {\
+        printf("\033[37m<%d> ",N);\
+        const int n = b##N->arena->Dump();\
+        printf("(%d)\n",n);\
+        fflush(0);\
+   }}
+      FOREACH(DUMP_KEY);
+#undef DUMP_KEY
+#endif
+   }
+};
+#undef dbg
+
+static PoolArena arena;
+void *AAlloc(size_t bytes);
+void ADealloc(void *ptr);
 
 // Inline methods
 
@@ -688,6 +923,7 @@ inline void Memory<T>::New(int size)
    flags = OWNS_HOST | VALID_HOST;
    h_mt = MemoryManager::host_mem_type;
    h_ptr = (h_mt == MemoryType::HOST) ? Alloc<new_align_bytes>::New(size) :
+           (h_mt == MemoryType::HOST_ARENA) ? (T*)AAlloc(size*sizeof(T)) :
            (T*)MemoryManager::New_(nullptr, size*sizeof(T), h_mt, flags);
 }
 
@@ -696,11 +932,11 @@ inline void Memory<T>::New(int size, MemoryType mt)
 {
    capacity = size;
    const size_t bytes = size*sizeof(T);
-   const bool mt_host = mt == MemoryType::HOST;
+   const bool mt_host = mt == MemoryType::HOST || mt == MemoryType::HOST_ARENA;
    if (mt_host) { flags = OWNS_HOST | VALID_HOST; }
    h_mt = IsHostMemory(mt) ? mt : MemoryManager::GetDualMemoryType_(mt);
-   T *h_tmp = (h_mt == MemoryType::HOST) ?
-              Alloc<new_align_bytes>::New(size) : nullptr;
+   T *h_tmp = (h_mt == MemoryType::HOST) ? Alloc<new_align_bytes>::New(size) :
+              (h_mt == MemoryType::HOST_ARENA) ? (T*) AAlloc(bytes) : nullptr;
    h_ptr = (mt_host) ? h_tmp : (T*)MemoryManager::New_(h_tmp, bytes, mt, flags);
 }
 
@@ -716,7 +952,7 @@ inline void Memory<T>::Wrap(T *ptr, int size, bool own)
    if (own && MemoryManager::Exists())
    { MFEM_VERIFY(h_mt == MemoryManager::GetHostMemoryType_(h_ptr),""); }
 #endif
-   if (own && h_mt != MemoryType::HOST)
+   if (own && h_mt != MemoryType::HOST && h_mt != MemoryType::HOST_ARENA)
    { MemoryManager::Register_(ptr, ptr, bytes, h_mt, own, false, flags); }
 }
 
@@ -728,7 +964,7 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
    {
       h_mt = mt;
       h_ptr = ptr;
-      if (mt == MemoryType::HOST || !own)
+      if ((mt == MemoryType::HOST || mt == MemoryType::HOST_ARENA) || !own)
       {
          // Skip restration
          flags = (own ? OWNS_HOST : 0) | VALID_HOST;
@@ -738,7 +974,8 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
    else
    {
       h_mt = MemoryManager::GetDualMemoryType_(mt);
-      h_ptr = (h_mt == MemoryType::HOST) ? new T[size] : nullptr;
+      h_ptr = (h_mt == MemoryType::HOST) ? new T[size] :
+              (h_mt == MemoryType::HOST_ARENA) ? AAlloc(size) : nullptr;
    }
    flags = 0;
    h_ptr = (T*)MemoryManager::Register_(ptr, h_ptr, size*sizeof(T), mt,
@@ -782,7 +1019,7 @@ inline void Memory<T>::Delete()
    const bool std_delete = !registered && mt_host;
 
    if (std_delete ||
-       MemoryManager::Delete_((void*)h_ptr, h_mt, flags) == MemoryType::HOST)
+       (MemoryManager::Delete_((void*)h_ptr, h_mt, flags) == MemoryType::HOST) )
    {
       if (flags & OWNS_HOST) { delete [] h_ptr; }
    }

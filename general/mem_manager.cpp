@@ -66,14 +66,18 @@ MemoryType GetMemoryType(MemoryClass mc)
 MemoryType MemoryManager::GetDualMemoryType_(MemoryType mt)
 {
    static const bool pool = device_mem_type == MemoryType::DEVICE_POOL;
+   //static const bool arena = device_mem_type == MemoryType::DEVICE_ARENA;
    switch (mt)
    {
       //#warning HOST / GetHostMemoryType
       case MemoryType::HOST:
-         return pool ? MemoryType::DEVICE_POOL : MemoryType::DEVICE;
+         return pool ? MemoryType::DEVICE_POOL :
+                //arena ? MemoryType::DEVICE_ARENA :
+                MemoryType::DEVICE;
       case MemoryType::HOST_32:        return MemoryType::DEVICE;
       case MemoryType::HOST_64:        return MemoryType::DEVICE;
       case MemoryType::HOST_POOL:      return MemoryType::DEVICE_POOL;
+      case MemoryType::HOST_ARENA:     return MemoryType::DEVICE;
       case MemoryType::HOST_DEBUG:     return MemoryType::DEVICE_DEBUG;
       case MemoryType::HOST_DEBUG_POOL: return MemoryType::DEVICE_DEBUG_POOL;
       case MemoryType::HOST_UMPIRE:    return MemoryType::DEVICE_UMPIRE;
@@ -101,6 +105,7 @@ static void MFEM_VERIFY_TYPES(const MemoryType h_mt, const MemoryType d_mt)
       (h_mt == MemoryType::HOST_POOL && d_mt == MemoryType::DEVICE_POOL) ||
       (h_mt == MemoryType::HOST && d_mt == MemoryType::DEVICE_POOL) ||
       (h_mt == MemoryType::HOST_POOL && d_mt == MemoryType::DEVICE) ||
+      (h_mt == MemoryType::HOST_ARENA && d_mt == MemoryType::DEVICE) ||
       (h_mt == MemoryType::MANAGED && d_mt == MemoryType::MANAGED) ||
       (h_mt == MemoryType::HOST_64 && d_mt == MemoryType::DEVICE) ||
       (h_mt == MemoryType::HOST_32 && d_mt == MemoryType::DEVICE) ||
@@ -212,7 +217,7 @@ public:
    { return std::memcpy(dst, src, bytes); }
 };
 
-// /////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 template <typename MemorySpace> class Pool
 {
    struct Bucket
@@ -394,7 +399,7 @@ public:
    }
 };
 
-
+///////////////////////////////////////////////////////////////////////////////
 /// The default std:: host memory space
 class StdHostMemorySpace : public HostMemorySpace { };
 
@@ -406,6 +411,20 @@ public:
    PoolStdHostMemorySpace(): HostMemorySpace() { }
    void Alloc(void **ptr, size_t bytes) { *ptr = pool.alloc(bytes); }
    void Dealloc(void *ptr) { pool.free(ptr); }
+};
+
+class ArenaStdHostMemorySpace : public HostMemorySpace
+{
+   PoolArena pool;
+public:
+   ArenaStdHostMemorySpace(): HostMemorySpace() { }
+   void Alloc(void **ptr, size_t bytes) override { *ptr = pool.alloc(bytes); }
+   void Dealloc(void *ptr) override
+   {
+      MFEM_ASSERT(false,"");
+      MFEM_ASSERT(maps,"");
+      pool.free(ptr, maps->memories.at(ptr).bytes);
+   }
 };
 
 /// The No host memory space
@@ -705,6 +724,15 @@ public:
    { MmuAllow(m.d_ptr = pool.alloc(m.bytes), m.bytes); }
    void Dealloc(Memory &m) override { pool.free(m.d_ptr); }
 };
+class ArenaMmuDeviceMemorySpace : public MmuDeviceMemorySpace
+{
+   mutable PoolArena pool;
+public:
+   ArenaMmuDeviceMemorySpace(): MmuDeviceMemorySpace() { }
+   void Alloc(Memory &m) override
+   { MmuAllow(m.d_ptr = pool.alloc(m.bytes), m.bytes); }
+   void Dealloc(Memory &m) override { pool.free(m.d_ptr, m.bytes); }
+};
 
 #ifndef MFEM_USE_UMPIRE
 class UmpireHostMemorySpace : public NoHostMemorySpace { };
@@ -815,6 +843,7 @@ public:
       host[static_cast<int>(MT::HOST_32)] = new Aligned32HostMemorySpace();
       host[static_cast<int>(MT::HOST_64)] = new Aligned64HostMemorySpace();
       host[static_cast<int>(MT::HOST_POOL)] = new PoolStdHostMemorySpace();
+      host[static_cast<int>(MT::HOST_ARENA)] = new ArenaStdHostMemorySpace();
       // HOST_DEBUG is delayed, as it reroutes signals
       host[static_cast<int>(MT::HOST_DEBUG)] = nullptr;
       host[static_cast<int>(MT::HOST_DEBUG_POOL)] = nullptr;
@@ -869,11 +898,22 @@ private:
 
    DeviceMemorySpace* NewDeviceCtrl(const MemoryType mt)
    {
+      static const bool ARENA = getenv("ARENA");
       switch (mt)
       {
          case MT::DEVICE_UMPIRE: return new UmpireDeviceMemorySpace();
          case MT::DEVICE_DEBUG: return new MmuDeviceMemorySpace();
-         case MT::DEVICE_DEBUG_POOL: return new PoolMmuDeviceMemorySpace();
+         case MT::DEVICE_DEBUG_POOL:
+         {
+            printf("\033[33m[DEVICE_DEBUG_POOL]\033[m\n"); fflush(0);
+            if (ARENA)
+            {
+               printf("\033[33m[ARENA]\033[m\n"); fflush(0);
+               return new ArenaMmuDeviceMemorySpace();
+            }
+            printf("\033[33m[POOL]\033[m\n"); fflush(0);
+            return new PoolMmuDeviceMemorySpace();
+         }
          case MT::DEVICE_POOL: return new PoolCudaDeviceMemorySpace();
          case MT::DEVICE:
          {
@@ -894,6 +934,18 @@ private:
 
 } // namespace mfem::internal
 
+///////////////////////////////////////////////////////////////////////////////
+void *AAlloc(size_t bytes)
+{
+   return arena.alloc(bytes);
+}
+
+void ADealloc(void *ptr)
+{
+   arena.free(ptr, maps->memories.at(ptr).bytes);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 static internal::Ctrl *ctrl;
 
 void *MemoryManager::New_(void *h_tmp, size_t bytes, MemoryType mt,
@@ -913,7 +965,7 @@ void *MemoryManager::New_(void *h_tmp, size_t bytes, MemoryType mt,
    flags |= is_host_mem ? Mem::VALID_HOST : Mem::VALID_DEVICE;
    if (is_host_mem) { mm.Insert(h_ptr, bytes, h_mt, d_mt); }
    else { mm.InsertDevice(nullptr, h_ptr, bytes, h_mt, d_mt); }
-   CheckHostMemoryType_(h_mt, h_ptr);
+   MFEM_ASSERT(CheckHostMemoryType_(h_mt, h_ptr), "");
    return h_ptr;
 }
 
@@ -955,7 +1007,7 @@ void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
       flags = own ? flags | Mem::OWNS_HOST   : flags & ~Mem::OWNS_HOST;
       flags |= Mem::VALID_DEVICE;
    }
-   CheckHostMemoryType_(h_mt, h_ptr);
+   MFEM_ASSERT(CheckHostMemoryType_(h_mt, h_ptr),"");
    return h_ptr;
 }
 
@@ -978,6 +1030,13 @@ MemoryType MemoryManager::Delete_(void *h_ptr, MemoryType mt, unsigned flags)
    MFEM_ASSERT(registered || IsHostMemory(mt),"");
    MFEM_ASSERT(!owns_device || owns_internal, "invalid Memory state");
    if (!mm.exists || !registered) { return mt; }
+
+   if (owns_host && (mt == MemoryType::HOST_ARENA))
+   {
+      ADealloc(h_ptr);
+      return mt;
+   }
+
    if (alias)
    {
       if (owns_internal)
@@ -993,9 +1052,11 @@ MemoryType MemoryManager::Delete_(void *h_ptr, MemoryType mt, unsigned flags)
       const MemoryType h_mt = mt;
       MFEM_ASSERT(!owns_internal ||
                   mt == maps->memories.at(h_ptr).h_mt,"");
-      if (owns_host && (h_mt != MemoryType::HOST))
+      if (owns_host
+          && (h_mt != MemoryType::HOST) && (h_mt != MemoryType::HOST_ARENA))
       { ctrl->Host(h_mt)->Dealloc(h_ptr); }
       if (owns_internal) { mm.Erase(h_ptr, owns_device); }
+      //if (owns_host && (h_mt == MemoryType::HOST_ARENA)) { ADealloc(h_ptr); }
       return h_mt;
    }
    return mt;
@@ -1056,7 +1117,7 @@ bool MemoryManager::MemoryClassCheck_(MemoryClass mc, void *h_ptr,
 void *MemoryManager::ReadWrite_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
                                 size_t bytes, unsigned &flags)
 {
-   MemoryManager::CheckHostMemoryType_(h_mt, h_ptr);
+   MFEM_ASSERT(MemoryManager::CheckHostMemoryType_(h_mt, h_ptr),"");
    if (bytes > 0) { MFEM_VERIFY(flags & Mem::REGISTERED,""); }
    MFEM_ASSERT(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),"");
    if (IsHostMemory(GetMemoryType(mc)) && mc < MemoryClass::DEVICE)
@@ -1080,7 +1141,7 @@ void *MemoryManager::ReadWrite_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
 const void *MemoryManager::Read_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
                                  size_t bytes, unsigned &flags)
 {
-   CheckHostMemoryType_(h_mt, h_ptr);
+   MFEM_ASSERT(CheckHostMemoryType_(h_mt, h_ptr),"");
    if (bytes > 0) { MFEM_VERIFY(flags & Mem::REGISTERED,""); }
    MFEM_ASSERT(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),"");
    if (IsHostMemory(GetMemoryType(mc)) && mc < MemoryClass::DEVICE)
@@ -1104,7 +1165,7 @@ const void *MemoryManager::Read_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
 void *MemoryManager::Write_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
                             size_t bytes, unsigned &flags)
 {
-   CheckHostMemoryType_(h_mt, h_ptr);
+   MFEM_ASSERT(CheckHostMemoryType_(h_mt, h_ptr),"");
    if (bytes > 0) { MFEM_VERIFY(flags & Mem::REGISTERED,""); }
    MFEM_ASSERT(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),"");
    if (IsHostMemory(GetMemoryType(mc)) && mc < MemoryClass::DEVICE)
@@ -1623,13 +1684,14 @@ void MemoryPrintFlags(unsigned flags)
          << std::endl;
 }
 
-void MemoryManager::CheckHostMemoryType_(MemoryType h_mt, void *h_ptr)
+bool MemoryManager::CheckHostMemoryType_(MemoryType h_mt, void *h_ptr)
 {
-   if (!mm.exists) {return;}
+   if (!mm.exists) { return true; }
    const bool known = mm.IsKnown(h_ptr);
    const bool alias = mm.IsAlias(h_ptr);
    if (known) { MFEM_VERIFY(h_mt == maps->memories.at(h_ptr).h_mt,""); }
    if (alias) { MFEM_VERIFY(h_mt == maps->aliases.at(h_ptr).mem->h_mt,""); }
+   return true;
 }
 
 MemoryManager mm;
@@ -1646,7 +1708,7 @@ MemoryType MemoryManager::device_mem_type = MemoryType::HOST;
 
 const char *MemoryTypeName[MemoryTypeSize] =
 {
-   "host-std", "host-32", "host-64", "host-pool",
+   "host-std", "host-32", "host-64", "host-pool", "host-arena",
    "host-debug", "host-debug-pool", "host-umpire",
 #if defined(MFEM_USE_CUDA)
    "cuda-uvm",
