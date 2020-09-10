@@ -57,7 +57,7 @@ PARALLEL_NAME := Parallel SuperLU example
 	@$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_NAME))
 
 # Testing: Specific execution options:
-# Example 1: test SuperLU and the simple poisson problem
+# Example 1: Test SuperLU on the simple poisson problem
 EX1_COMMON_ARGS := -m ../../data/star.mesh
 EX1P_ARGS := $(EX1_COMMON_ARGS) -p 2
 ex1p-test-par: ex1p
