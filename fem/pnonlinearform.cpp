@@ -127,8 +127,8 @@ Operator &ParNonlinearForm::GetGradient(const Vector &x) const
       MFEM_ABORT("TODO: assemble contributions from shared face terms");
    }
 
-   // TODO - construct Dof_TrueDof_Matrix directly in the pGrad format
-   Ph.ConvertFrom(pfes->Dof_TrueDof_Matrix());
+   // RAP the local gradient dA.
+   Ph.ConvertFrom(pfes->GetProlongationMatrix());
    pGrad.MakePtAP(dA, Ph);
 
    // Impose b.c. on pGrad
