@@ -216,9 +216,10 @@ SUITESPARSE_LIB = -Wl,-rpath,$(SUITESPARSE_DIR)/lib -L$(SUITESPARSE_DIR)/lib\
  -lsuitesparseconfig $(LIB_RT) $(METIS_LIB) $(LAPACK_LIB)
 
 # SuperLU library configuration
-SUPERLU_DIR = @MFEM_DIR@/../SuperLU_DIST_5.1.0
-SUPERLU_OPT = -I$(SUPERLU_DIR)/SRC
-SUPERLU_LIB = -Wl,-rpath,$(SUPERLU_DIR)/lib -L$(SUPERLU_DIR)/lib -lsuperlu_dist_5.1.0
+SUPERLU_DIR = @MFEM_DIR@/../SuperLU_DIST_6.3.1
+SUPERLU_OPT = -I$(SUPERLU_DIR)/include
+SUPERLU_LIB = -Wl,-rpath,$(SUPERLU_DIR)/lib64 -L$(SUPERLU_DIR)/lib64 -lsuperlu_dist -lblas
+#SUPERLU_LIB = -Wl,-rpath,$(SUPERLU_DIR)/lib -L$(SUPERLU_DIR)/lib -lsuperlu_dist_5.1.0
 
 # SCOTCH library configuration (required by STRUMPACK <= v2.1.0, optional in
 # STRUMPACK >= v2.2.0)

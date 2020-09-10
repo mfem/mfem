@@ -48,6 +48,9 @@ endif
 ifeq ($(MFEM_USE_GINKGO),YES)
    SUBDIRS += ginkgo
 endif
+ifeq ($(MFEM_USE_SUPERLU),YES)
+   SUBDIRS += superlu
+endif
 
 SUBDIRS_ALL = $(addsuffix /all,$(SUBDIRS))
 SUBDIRS_TEST = $(addsuffix /test,$(SUBDIRS))
