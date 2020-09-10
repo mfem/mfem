@@ -1,34 +1,32 @@
-﻿// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+﻿// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 //
 //      -------------------------------------------------------------
 //      Field Interp Miniapp: Transfer a grid function between meshes
 //      -------------------------------------------------------------
 //
-// This miniapp provides the capability to transfer a GridFunction (H1, L2,
-// H(div), and H(curl)) from one mesh onto another using FindPointsGSLIB. Using
+// This miniapp provides the capability to transfer a grid function (H1, L2,
+// H(div), and H(curl)) from one mesh onto another using GSLIB-FindPoints. Using
 // FindPoints, we identify the nodal positions of the target mesh with respect
-// to the source mesh and then interpolate the source GridFunction. The
-// interpolated values are then projected onto the desired FiniteElementSpace on
-// the target mesh. Finally, the transferred solution is visualized using GLVis.
+// to the source mesh and then interpolate the source grid function. The
+// interpolated values are then projected onto the desired finite element space
+// on the target mesh. Finally, the transferred solution is visualized using
+// GLVis. Note that the source grid function can be a user-defined vector
+// function or a grid function file that is compatible with the source mesh.
 //
 // Compile with: make field-interp
 //
-// An H(div) function file is provided in this directory for a sample run.
-// Other functions [H1, H(curl), and L2] can be generated using existing MFEM
-// example codes in the "../../examples/" directory.
-//
 // Sample runs:
 //   field-interp
-//   field-interp -ft 3
+//   field-interp -fts 3 -ft 0
 //   field-interp -m1 triple-pt-1.mesh -s1 triple-pt-1.gf -m2 triple-pt-2.mesh -ft 1
 //   field-interp -m2 ../meshing/amr-quad-q2.mesh -ft 0 -r 1
 
@@ -38,32 +36,55 @@
 using namespace mfem;
 using namespace std;
 
+// Scalar function to project
+double scalar_func(const Vector &x)
+{
+   const int dim = x.Size();
+   double res = 0.0;
+   for (int d = 0; d < dim; d++) { res += x(d) * x(d); }
+   return res;
+}
+
+void vector_func(const Vector &p, Vector &F)
+{
+   F(0) = scalar_func(p);
+   for (int i = 1; i < F.Size(); i++) { F(i) = (i+1)*pow(-1, i)*F(0); }
+}
+
 int main (int argc, char *argv[])
 {
    // Set the method's default parameters.
    const char *src_mesh_file = "../meshing/square01.mesh";
    const char *tar_mesh_file = "../../data/inline-tri.mesh";
-   const char *src_sltn_file = "square01_hdiv.gf";
-   int order      = 3;
-   int ref_levels = 0;
-   int fieldtype  = -1;
+   const char *src_sltn_file = "must_be_provided_by_the_user.gf";
+   int src_fieldtype  = 0;
+   int src_ncomp      = 1;
+   int ref_levels     = 0;
+   int fieldtype      = -1;
+   int order          = 3;
    bool visualization = true;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
    args.AddOption(&src_mesh_file, "-m1", "--mesh1",
                   "Mesh file for the starting solution.");
-   args.AddOption(&src_sltn_file, "-s1", "--solution1",
-                  "Grid function for the starting solution.");
    args.AddOption(&tar_mesh_file, "-m2", "--mesh2",
                   "Mesh file for interpolation.");
-   args.AddOption(&order, "-o", "--order",
-                  "Order of the interpolated solution.");
+   args.AddOption(&src_sltn_file, "-s1", "--solution1",
+                  "(optional) GridFunction file compatible with src_mesh_file."
+                  "Set src_fieldtype to -1 if this option is used.");
+   args.AddOption(&src_fieldtype, "-fts", "--field-type-src",
+                  "Source GridFunction type:"
+                  "0 - H1 (default), 1 - L2, 2 - H(div), 3 - H(curl).");
+   args.AddOption(&src_ncomp, "-nc", "--ncomp",
+                  "Number of components for H1 or L2 GridFunctions.");
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of refinements of the interpolation mesh.");
    args.AddOption(&fieldtype, "-ft", "--field-type",
-                  "Target GridFunction type: -1 - source GridFunction type (default), "
+                  "Target GridFunction type: -1 - source GridFunction type (default),"
                   "0 - H1, 1 - L2, 2 - H(div), 3 - H(curl).");
+   args.AddOption(&order, "-o", "--order",
+                  "Order of the interpolated solution.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -96,8 +117,49 @@ int main (int argc, char *argv[])
         << "Target mesh curvature: "
         << mesh_2.GetNodes()->OwnFEC()->Name() << endl;
 
-   ifstream mat_stream_1(src_sltn_file);
-   GridFunction func_source(&mesh_1, mat_stream_1);
+   int src_vdim = src_ncomp;
+   FiniteElementCollection *src_fec = NULL;
+   FiniteElementSpace *src_fes = NULL;
+   GridFunction *func_source = NULL;
+   if (src_fieldtype < 0) // use src_sltn_file
+   {
+      ifstream mat_stream_1(src_sltn_file);
+      func_source = new GridFunction(&mesh_1, mat_stream_1);
+      src_vdim = func_source->FESpace()->GetVDim();
+   }
+   else if (src_fieldtype == 0)
+   {
+      src_fec = new H1_FECollection(order, dim);
+   }
+   else if (src_fieldtype == 1)
+   {
+      src_fec = new L2_FECollection(order, dim);
+   }
+   else if (src_fieldtype == 2)
+   {
+      src_fec = new RT_FECollection(order, dim);
+      src_ncomp = 1;
+      src_vdim = dim;
+   }
+   else if (src_fieldtype == 3)
+   {
+      src_fec = new ND_FECollection(order, dim);
+      src_ncomp = 1;
+      src_vdim = dim;
+   }
+   else
+   {
+      MFEM_ABORT("Invalid FECollection type.");
+   }
+
+   if (src_fieldtype > -1)
+   {
+      src_fes = new FiniteElementSpace(&mesh_1, src_fec, src_ncomp);
+      func_source = new GridFunction(src_fes);
+      // Project the grid function using VectorFunctionCoefficient.
+      VectorFunctionCoefficient F(src_vdim, vector_func);
+      func_source->ProjectCoefficient(F);
+   }
 
    // Display the starting mesh and the field.
    if (visualization)
@@ -114,7 +176,7 @@ int main (int argc, char *argv[])
       else
       {
          sout1.precision(8);
-         sout1 << "solution\n" << mesh_1 << func_source
+         sout1 << "solution\n" << mesh_1 << *func_source
                << "window_title 'Source mesh and solution'"
                << "window_geometry 0 0 600 600";
          if (dim == 2) { sout1 << "keys RmjAc"; }
@@ -126,73 +188,68 @@ int main (int argc, char *argv[])
    const Geometry::Type gt = mesh_2.GetNodalFESpace()->GetFE(0)->GetGeomType();
    MFEM_VERIFY(gt != Geometry::PRISM, "Wedge elements are not currently "
                "supported.");
+   MFEM_VERIFY(mesh_2.GetNumGeometries(mesh_2.Dimension()) == 1, "Mixed meshes"
+               "are not currently supported.");
 
-   // Ensure the source grid function can be transferred using FindPointsGSLIB.
-   const FiniteElementCollection *fec_in = func_source.FESpace()->FEColl();
+   // Ensure the source grid function can be transferred using GSLIB-FindPoints.
+   const FiniteElementCollection *fec_in = func_source->FESpace()->FEColl();
    std::cout << "Source FE collection: " << fec_in->Name() << std::endl;
-   const int vdim_src   = func_source.FESpace()->GetVDim();
-   int fieldtype_src = -1;
+
+   if (src_fieldtype < 0)
    {
       const H1_FECollection *fec_h1 = dynamic_cast<const H1_FECollection *>(fec_in);
       const L2_FECollection *fec_l2 = dynamic_cast<const L2_FECollection *>(fec_in);
       const RT_FECollection *fec_rt = dynamic_cast<const RT_FECollection *>(fec_in);
       const ND_FECollection *fec_nd = dynamic_cast<const ND_FECollection *>(fec_in);
-      if (fec_h1)      { fieldtype_src = 0; }
-      else if (fec_l2) { fieldtype_src = 1; }
-      else if (fec_rt) { fieldtype_src = 2; }
-      else if (fec_nd) { fieldtype_src = 3; }
+      if (fec_h1)      { src_fieldtype = 0; }
+      else if (fec_l2) { src_fieldtype = 1; }
+      else if (fec_rt) { src_fieldtype = 2; }
+      else if (fec_nd) { src_fieldtype = 3; }
       else { MFEM_ABORT("GridFunction type not supported yet."); }
-
-      if (fieldtype_src <= 1 &&
-          fec_h1->GetBasisType() != BasisType::GaussLobatto &&
-          fec_h1->GetBasisType() != BasisType::GaussLegendre)
-      {
-         MFEM_ABORT("Only nodal basis are currently supported in this miniapp.");
-      }
    }
-   if (fieldtype == -1) { fieldtype = fieldtype_src; }
+   if (fieldtype < 0) { fieldtype = src_fieldtype; }
 
    // Setup the FiniteElementSpace and GridFunction on the target mesh.
-   FiniteElementCollection *fec = NULL;
-   FiniteElementSpace *fes = NULL;
+   FiniteElementCollection *tar_fec = NULL;
+   FiniteElementSpace *tar_fes = NULL;
 
-   int vdim_tar = vdim_src;
+   int tar_vdim = src_vdim;
    if (fieldtype == 0)
    {
-      fec = new H1_FECollection(order, dim);
-      vdim_tar = (fieldtype_src > 1) ? dim : vdim_src;
+      tar_fec = new H1_FECollection(order, dim);
+      tar_vdim = (src_fieldtype > 1) ? dim : src_vdim;
    }
    else if (fieldtype == 1)
    {
-      fec = new L2_FECollection(order, dim);
-      vdim_tar = (fieldtype_src > 1) ? dim : vdim_src;
+      tar_fec = new L2_FECollection(order, dim);
+      tar_vdim = (src_fieldtype > 1) ? dim : src_vdim;
    }
    else if (fieldtype == 2)
    {
-      fec = new RT_FECollection(order, dim);
-      vdim_tar = 1;
-      MFEM_VERIFY(fieldtype_src > 1, "Cannot interpolate a scalar "
-                  "GridFunction to a vector");
+      tar_fec = new RT_FECollection(order, dim);
+      tar_vdim = 1;
+      MFEM_VERIFY(src_fieldtype > 1, "Cannot interpolate a scalar "
+                  "grid function to a vector");
 
    }
    else if (fieldtype == 3)
    {
-      fec = new ND_FECollection(order, dim);
-      vdim_tar = 1;
-      MFEM_VERIFY(fieldtype_src > 1, "Cannot interpolate a scalar "
-                  "GridFunction to a vector");
+      tar_fec = new ND_FECollection(order, dim);
+      tar_vdim = 1;
+      MFEM_VERIFY(src_fieldtype > 1, "Cannot interpolate a scalar "
+                  "grid function to a vector");
    }
    else
    {
       MFEM_ABORT("GridFunction type not supported.");
    }
-   std::cout << "Target FE collection: " << fec->Name() << std::endl;
-   fes = new FiniteElementSpace(&mesh_2, fec, vdim_tar);
-   GridFunction func_target(fes);
+   std::cout << "Target FE collection: " << tar_fec->Name() << std::endl;
+   tar_fes = new FiniteElementSpace(&mesh_2, tar_fec, tar_vdim);
+   GridFunction func_target(tar_fes);
 
    const int NE = mesh_2.GetNE(),
-             nsp = fes->GetFE(0)->GetNodes().GetNPoints(),
-             ncomp_tar = func_target.VectorDim();
+             nsp = tar_fes->GetFE(0)->GetNodes().GetNPoints(),
+             tar_ncomp = func_target.VectorDim();
 
    // Generate list of points where the grid function will be evaluated.
    Vector vxyz;
@@ -205,9 +262,9 @@ int main (int argc, char *argv[])
       vxyz.SetSize(nsp*NE*dim);
       for (int i = 0; i < NE; i++)
       {
-         const FiniteElement *fe = fes->GetFE(i);
+         const FiniteElement *fe = tar_fes->GetFE(i);
          const IntegrationRule ir = fe->GetNodes();
-         ElementTransformation *et = fes->GetElementTransformation(i);
+         ElementTransformation *et = tar_fes->GetElementTransformation(i);
 
          DenseMatrix pos;
          et->Transform(ir, pos);
@@ -226,10 +283,10 @@ int main (int argc, char *argv[])
    const int nodes_cnt = vxyz.Size() / dim;
 
    // Evaluate source grid function.
-   Vector interp_vals(nodes_cnt*ncomp_tar);
+   Vector interp_vals(nodes_cnt*tar_ncomp);
    FindPointsGSLIB finder;
    finder.Setup(mesh_1);
-   finder.Interpolate(vxyz, func_source, interp_vals);
+   finder.Interpolate(vxyz, *func_source, interp_vals);
 
    // Project the interpolated values to the target FiniteElementSpace.
    if (fieldtype <= 1) // H1 or L2
@@ -242,17 +299,15 @@ int main (int argc, char *argv[])
       {
          Array<int> vdofs;
          Vector vals;
-         const int nsp = func_target.FESpace()->GetFE(0)->GetNodes().GetNPoints(),
-                   NE  = mesh_2.GetNE();
-         Vector elem_dof_vals(nsp*dim);
+         Vector elem_dof_vals(nsp*tar_ncomp);
 
          for (int i = 0; i < mesh_2.GetNE(); i++)
          {
-            fes->GetElementVDofs(i, vdofs);
+            tar_fes->GetElementVDofs(i, vdofs);
             vals.SetSize(vdofs.Size());
             for (int j = 0; j < nsp; j++)
             {
-               for (int d = 0; d < ncomp_tar; d++)
+               for (int d = 0; d < tar_ncomp; d++)
                {
                   // Arrange values byNodes
                   elem_dof_vals(j+d*nsp) = interp_vals(d*nsp*NE + i*nsp + j);
@@ -266,25 +321,23 @@ int main (int argc, char *argv[])
    {
       Array<int> vdofs;
       Vector vals;
-      const int nsp = func_target.FESpace()->GetFE(0)->GetNodes().GetNPoints(),
-                NE  = mesh_2.GetNE();
-      Vector elem_dof_vals(nsp*dim);
+      Vector elem_dof_vals(nsp*tar_ncomp);
 
       for (int i = 0; i < mesh_2.GetNE(); i++)
       {
-         fes->GetElementVDofs(i, vdofs);
+         tar_fes->GetElementVDofs(i, vdofs);
          vals.SetSize(vdofs.Size());
          for (int j = 0; j < nsp; j++)
          {
-            for (int d = 0; d < ncomp_tar; d++)
+            for (int d = 0; d < tar_ncomp; d++)
             {
                // Arrange values byVDim
-               elem_dof_vals(j*ncomp_tar+d) = interp_vals(d*nsp*NE + i*nsp + j);
+               elem_dof_vals(j*tar_ncomp+d) = interp_vals(d*nsp*NE + i*nsp + j);
             }
          }
-         fes->GetFE(i)->ProjectFromNodes(elem_dof_vals,
-                                         *fes->GetElementTransformation(i),
-                                         vals);
+         tar_fes->GetFE(i)->ProjectFromNodes(elem_dof_vals,
+                                             *tar_fes->GetElementTransformation(i),
+                                             vals);
          func_target.SetSubVector(vdofs, vals);
       }
    }
@@ -324,9 +377,12 @@ int main (int argc, char *argv[])
    // Free the internal gslib data.
    finder.FreeData();
 
-   // Delete
-   delete fes;
-   delete fec;
+   // Delete remaining memory.
+   delete func_source;
+   delete src_fes;
+   delete src_fec;
+   delete tar_fes;
+   delete tar_fec;
 
    return 0;
 }

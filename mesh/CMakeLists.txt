@@ -11,6 +11,7 @@
 
 set(SRCS
   element.cpp
+  gmsh.cpp
   hexahedron.cpp
   mesh.cpp
   mesh_operators.cpp
@@ -29,6 +30,7 @@ set(SRCS
 
 set(HDRS
   element.hpp
+  gmsh.hpp
   hexahedron.hpp
   mesh.hpp
   mesh_headers.hpp

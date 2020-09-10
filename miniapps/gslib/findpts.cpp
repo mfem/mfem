@@ -182,8 +182,8 @@ int main (int argc, char *argv[])
    // Generate equidistant points in physical coordinates over the whole mesh.
    // Note that some points might be outside, if the mesh is not a box. Note
    // also that all tasks search the same points (not mandatory).
-   const int pts_cnt_1D = 5;
-   const int pts_cnt = pow(pts_cnt_1D, dim);
+   const int pts_cnt_1D = 25;
+   int pts_cnt = pow(pts_cnt_1D, dim);
    Vector vxyz(pts_cnt * dim);
    if (dim == 2)
    {
@@ -192,8 +192,8 @@ int main (int argc, char *argv[])
       for (int i = 0; i < ir.GetNPoints(); i++)
       {
          const IntegrationPoint &ip = ir.IntPoint(i);
-         vxyz(i)           = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
-         vxyz(pts_cnt + i) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
+         vxyz(i)           = 100*pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
+         vxyz(pts_cnt + i) = 100*pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
       }
    }
    else
@@ -213,6 +213,7 @@ int main (int argc, char *argv[])
    Vector interp_vals(pts_cnt*vec_dim);
    FindPointsGSLIB finder;
    finder.Setup(mesh);
+   finder.SetL2AvgType(FindPointsGSLIB::NONE);
    finder.Interpolate(vxyz, field_vals, interp_vals);
    Array<unsigned int> code_out    = finder.GetCode();
    Vector dist_p_out = finder.GetDist();
