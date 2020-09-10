@@ -556,7 +556,7 @@ The specific libraries and their options are:
   same location.
   URL: http://crd-legacy.lbl.gov/~xiaoye/SuperLU
   Options: SUPERLU_OPT, SUPERLU_LIB.
-  Versions: SuperLU_DIST >= 5.1.0.
+  Versions: SuperLU_DIST >= 6.3.0.
 
 - STRUMPACK (optional), used when MFEM_USE_STRUMPACK = YES. Note that STRUMPACK
   requires the PT-Scotch and Scalapack libraries as well as ParMETIS, which
