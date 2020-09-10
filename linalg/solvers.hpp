@@ -29,7 +29,6 @@ namespace mfem
 {
 
 class BilinearForm;
-class NonlinearForm;
 
 /// Abstract base class for an iterative solver monitor
 class IterativeSolverMonitor

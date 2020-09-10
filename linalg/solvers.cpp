@@ -13,7 +13,6 @@
 #include "../general/forall.hpp"
 #include "../general/globals.hpp"
 #include "../fem/bilinearform.hpp"
-#include "../fem/nonlinearform.hpp"
 #include <iostream>
 #include <iomanip>
 #include <algorithm>
@@ -155,12 +154,15 @@ OperatorJacobiSmoother::OperatorJacobiSmoother(const Vector &d,
 
 void OperatorJacobiSmoother::SetOperator(const Operator &op)
 {
+   height = op.Height();
+   width = op.Width();
    oper = &op;
    N = oper->Height();
    dinv.SetSize(N);
    residual.SetSize(N);
 
    Vector diag(N);
+   // Assumes that the result is on the tdofs, e.g., oper is a RAP Operator.
    oper->AssembleDiagonal(diag);
    Setup(diag);
 }
