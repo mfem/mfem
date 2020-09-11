@@ -175,13 +175,14 @@ struct CeedBasisHash
 {
    std::size_t operator()(const CeedBasisKey& k) const
    {
-      return CeedHashCombine(CeedHashCombine(CeedHashInt(
-                                                reinterpret_cast<CeedHash64_t>(std::get<0>(k))),
-                                             CeedHashInt(
-                                                reinterpret_cast<CeedHash64_t>(std::get<1>(k)))),
-                             CeedHashCombine(CeedHashCombine(CeedHashInt(std::get<2>(k)),
-                                                             CeedHashInt(std::get<3>(k))),
-                                             CeedHashInt(std::get<4>(k))));
+      return CeedHashCombine(
+                CeedHashCombine(
+                   CeedHashInt(reinterpret_cast<CeedHash64_t>(std::get<0>(k))),
+                   CeedHashInt(reinterpret_cast<CeedHash64_t>(std::get<1>(k)))),
+                CeedHashCombine(
+                   CeedHashCombine(CeedHashInt(std::get<2>(k)),
+                                   CeedHashInt(std::get<3>(k))),
+                   CeedHashInt(std::get<4>(k))));
    }
 };
 using CeedBasisMap =
@@ -193,11 +194,12 @@ struct CeedRestrHash
 {
    std::size_t operator()(const CeedRestrKey& k) const
    {
-      return CeedHashCombine(CeedHashCombine(CeedHashInt(
-                                                reinterpret_cast<CeedHash64_t>(std::get<0>(k))),
-                                             CeedHashInt(std::get<1>(k))),
-                             CeedHashCombine(CeedHashInt(std::get<2>(k)),
-                                             CeedHashInt(std::get<3>(k))));
+      return CeedHashCombine(
+                CeedHashCombine(
+                   CeedHashInt(reinterpret_cast<CeedHash64_t>(std::get<0>(k))),
+                   CeedHashInt(std::get<1>(k))),
+                CeedHashCombine(CeedHashInt(std::get<2>(k)),
+                                CeedHashInt(std::get<3>(k))));
    }
 };
 using CeedRestrMap =
