@@ -363,7 +363,7 @@ int main(int argc, char *argv[])
    k->KeepNbrBlock();
 
    SparseMatrix A = GetFullAssemblySparseMatrix(*k);
-   
+
    //GetFullAssemblySparseMatrix(k, A);
 
    //Reference code -- legacy assembly 
@@ -390,7 +390,15 @@ int main(int argc, char *argv[])
 
    fflush(stdout); //force print!
 
+   GridFunction x(fes), y_fa(fes), y_ref(fes);
+   x.Randomize(1);
 
+   A.Mult(x,y_fa);
+   k_ref->Mult(x,y_ref);
+
+   y_fa -= y_ref;
+
+   std::cout << "Apply error = " << y_fa.Norml2() << std::endl;
 
    double iError(0), jError(0), dataError(0);   
    for(int i=0; i<k_ref->SpMat().GetMemoryI().Capacity(); ++i){
