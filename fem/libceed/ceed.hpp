@@ -84,8 +84,6 @@ struct CeedData
    {
       CeedOperatorDestroy(&build_oper);
       CeedOperatorDestroy(&oper);
-      CeedElemRestrictionDestroy(&restr_i);
-      CeedElemRestrictionDestroy(&mesh_restr_i);
       CeedQFunctionDestroy(&apply_qfunc);
       CeedQFunctionDestroy(&build_qfunc);
       CeedQFunctionContextDestroy(&build_ctx);
@@ -216,6 +214,10 @@ inline bool DeviceCanUseCeed()
    return false;
 #endif
 }
+
+/** @brief Remove from ceed_basis_map and ceed_restr_map the entries associated
+    with the given @a fes. */
+void RemoveCeedBasisAndRestriction(const FiniteElementSpace *fes);
 
 #ifdef MFEM_USE_CEED
 
