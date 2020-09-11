@@ -267,6 +267,28 @@ void CeedAssembleDiagonalPA(const CeedData *ceedDataPtr,
 #endif
 }
 
+void RemoveCeedBasisAndRestriction(const FiniteElementSpace *fes)
+{
+#ifdef MFEM_USE_CEED
+   for (auto entry : internal::ceed_basis_map)
+   {
+      if (std::get<0>(entry.first)==fes)
+      {
+         CeedBasisDestroy(&entry.second);
+         internal::ceed_basis_map.erase(entry.first);
+      }
+   }
+   for (auto entry : internal::ceed_restr_map)
+   {
+      if (std::get<0>(entry.first)==fes)
+      {
+         CeedElemRestrictionDestroy(&entry.second);
+         internal::ceed_restr_map.erase(entry.first);
+      }
+   }
+#endif
+}
+
 #ifdef MFEM_USE_CEED
 static CeedElemTopology GetCeedTopology(Geometry::Type geom)
 {
