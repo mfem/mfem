@@ -161,6 +161,8 @@ void CeedPAAssemble(const CeedPAOperator& op,
    mfem::Mesh *mesh = fes.GetMesh();
    CeedInt nqpts, nelem = mesh->GetNE();
    CeedInt dim = mesh->SpaceDimension(), vdim = fes.GetVDim();
+   CeedMemType mem;
+   CeedGetPreferredMemType(ceed, &mem);
 
    mesh->EnsureNodes();
    InitCeedBasisAndRestriction(fes, irm, ceed, &ceedData.basis, &ceedData.restr);
@@ -178,8 +180,18 @@ void CeedPAAssemble(const CeedPAOperator& op,
                                     &ceedData.restr_i);
 
    CeedVectorCreate(ceed, mesh->GetNodes()->Size(), &ceedData.node_coords);
-   CeedVectorSetArray(ceedData.node_coords, CEED_MEM_HOST, CEED_USE_POINTER,
-                      mesh->GetNodes()->GetData());
+   CeedScalar *nodes_ptr;
+   CeedGetPreferredMemType(ceed, &mem);
+   if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
+   {
+      nodes_ptr = const_cast<CeedScalar*>(mesh->GetNodes()->Read());
+   }
+   else
+   {
+      nodes_ptr = const_cast<CeedScalar*>(mesh->GetNodes()->HostRead());
+      mem = CEED_MEM_HOST;
+   }
+   CeedVectorSetArray(ceedData.node_coords, mem, CEED_USE_POINTER, nodes_ptr);
 
    CeedVectorCreate(ceed, nelem * nqpts * qdatasize, &ceedData.rho);
 
@@ -424,7 +436,7 @@ void CeedAddMult(const CeedData *ceedDataPtr,
    CeedScalar *y_ptr;
    CeedMemType mem;
    CeedGetPreferredMemType(internal::ceed, &mem);
-   if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
+   if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
    {
       x_ptr = x.Read();
       y_ptr = y.ReadWrite();
@@ -456,7 +468,7 @@ void CeedAssembleDiagonal(const CeedData *ceedDataPtr,
    CeedScalar *d_ptr;
    CeedMemType mem;
    CeedGetPreferredMemType(internal::ceed, &mem);
-   if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
+   if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
    {
       d_ptr = diag.ReadWrite();
    }
