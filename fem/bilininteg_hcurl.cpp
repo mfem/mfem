@@ -3846,22 +3846,14 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    //constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
 
-   MFEM_VERIFY(c_dofs1D <= MAX_D1D, "");
+   MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
 
    MFEM_FORALL(e, NE,
    {
-      double pxw1[MAX_D1D][MAX_D1D][MAX_D1D];
-      double pxw2[MAX_D1D][MAX_D1D][MAX_D1D];
+      double w1[MAX_D1D][MAX_D1D][MAX_D1D];
+      double w2[MAX_D1D][MAX_D1D][MAX_D1D];
 
-      double pyw1[MAX_D1D][MAX_D1D][MAX_D1D];
-      double pyw2[MAX_D1D][MAX_D1D][MAX_D1D];
-
-      double pzw1[MAX_D1D][MAX_D1D][MAX_D1D];
-      double pzw2[MAX_D1D][MAX_D1D][MAX_D1D];
-
-      // ---
       // dofs that point parallel to x-axis (open in x, closed in y, z)
-      // ---
 
       // contract in z
       for (int ez = 0; ez < c_dofs1D; ++ez)
@@ -3870,10 +3862,10 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
          {
             for (int dy = 0; dy < c_dofs1D; ++dy)
             {
-               pxw1[dx][dy][ez] = 0.0;
+               w1[dx][dy][ez] = 0.0;
                for (int dz = 0; dz < c_dofs1D; ++dz)
                {
-                  pxw1[dx][dy][ez] += Bc(ez, dz) * x(dx, dy, dz, 0, e);
+                  w1[dx][dy][ez] += Bc(ez, dz) * x(dx, dy, dz, 0, e);
                }
             }
          }
@@ -3886,10 +3878,10 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
          {
             for (int dx = 0; dx < c_dofs1D; ++dx)
             {
-               pxw2[dx][ey][ez] = 0.0;
+               w2[dx][ey][ez] = 0.0;
                for (int dy = 0; dy < c_dofs1D; ++dy)
                {
-                  pxw2[dx][ey][ez] += Bc(ey, dy) * pxw1[dx][dy][ez];
+                  w2[dx][ey][ez] += Bc(ey, dy) * w1[dx][dy][ez];
                }
             }
          }
@@ -3905,15 +3897,13 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
                for (int dx = 0; dx < c_dofs1D; ++dx)
                {
                   const int local_index = ez*c_dofs1D*o_dofs1D + ey*o_dofs1D + ex;
-                  y(local_index, e) += vk(0, local_index, e) * Bo(ex, dx) * pxw2[dx][ey][ez];
+                  y(local_index, e) += vk(0, local_index, e) * Bo(ex, dx) * w2[dx][ey][ez];
                }
             }
          }
       }
 
-      // ---
       // dofs that point parallel to y-axis (open in y, closed in x, z)
-      // ---
 
       // contract in z
       for (int ez = 0; ez < c_dofs1D; ++ez)
@@ -3922,10 +3912,10 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
          {
             for (int dy = 0; dy < c_dofs1D; ++dy)
             {
-               pyw1[dx][dy][ez] = 0.0;
+               w1[dx][dy][ez] = 0.0;
                for (int dz = 0; dz < c_dofs1D; ++dz)
                {
-                  pyw1[dx][dy][ez] += Bc(ez, dz) * x(dx, dy, dz, 1, e);
+                  w1[dx][dy][ez] += Bc(ez, dz) * x(dx, dy, dz, 1, e);
                }
             }
          }
@@ -3938,10 +3928,10 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
          {
             for (int dx = 0; dx < c_dofs1D; ++dx)
             {
-               pyw2[dx][ey][ez] = 0.0;
+               w2[dx][ey][ez] = 0.0;
                for (int dy = 0; dy < c_dofs1D; ++dy)
                {
-                  pyw2[dx][ey][ez] += Bo(ey, dy) * pyw1[dx][dy][ez];
+                  w2[dx][ey][ez] += Bo(ey, dy) * w1[dx][dy][ez];
                }
             }
          }
@@ -3958,15 +3948,13 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
                {
                   const int local_index = c_dofs1D*c_dofs1D*o_dofs1D +
                                           ez*c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
-                  y(local_index, e) += vk(1, local_index, e) * Bc(ex, dx) * pyw2[dx][ey][ez];
+                  y(local_index, e) += vk(1, local_index, e) * Bc(ex, dx) * w2[dx][ey][ez];
                }
             }
          }
       }
 
-      // ---
       // dofs that point parallel to z-axis (open in z, closed in x, y)
-      // ---
 
       // contract in z
       for (int ez = 0; ez < o_dofs1D; ++ez)
@@ -3975,10 +3963,10 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
          {
             for (int dy = 0; dy < c_dofs1D; ++dy)
             {
-               pzw1[dx][dy][ez] = 0.0;
+               w1[dx][dy][ez] = 0.0;
                for (int dz = 0; dz < c_dofs1D; ++dz)
                {
-                  pzw1[dx][dy][ez] += Bo(ez, dz) * x(dx, dy, dz, 2, e);
+                  w1[dx][dy][ez] += Bo(ez, dz) * x(dx, dy, dz, 2, e);
                }
             }
          }
@@ -3991,10 +3979,10 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
          {
             for (int dx = 0; dx < c_dofs1D; ++dx)
             {
-               pzw2[dx][ey][ez] = 0.0;
+               w2[dx][ey][ez] = 0.0;
                for (int dy = 0; dy < c_dofs1D; ++dy)
                {
-                  pzw2[dx][ey][ez] += Bc(ey, dy) * pzw1[dx][dy][ez];
+                  w2[dx][ey][ez] += Bc(ey, dy) * w1[dx][dy][ez];
                }
             }
          }
@@ -4011,12 +3999,11 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
                {
                   const int local_index = 2*c_dofs1D*c_dofs1D*o_dofs1D +
                                           ez*c_dofs1D*c_dofs1D + ey*c_dofs1D + ex;
-                  y(local_index, e) += vk(2, local_index, e) * Bc(ex, dx) * pzw2[dx][ey][ez];
+                  y(local_index, e) += vk(2, local_index, e) * Bc(ex, dx) * w2[dx][ey][ez];
                }
             }
          }
       }
-
    });
 }
 
@@ -4058,10 +4045,7 @@ void IdentityInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
 
    MFEM_VERIFY(trial_el->GetOrder() == test_el->GetOrder(), "");
 
-   // TODO: GetGeom... seems to corrupt pa_data memory?
-
    ne = trial_fes.GetNE();
-   //geom = mesh->GetGeometricFactors(*old_ir, GeometricFactors::JACOBIANS);
 
    const int order = trial_el->GetOrder();
    fake_fe = new H1_SegmentElement(order);
@@ -4078,39 +4062,32 @@ void IdentityInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
 
    o_dofs1D = maps_O_C->nqpt;
    c_dofs1D = maps_C_C->nqpt;
-   MFEM_VERIFY(maps_O_C->ndof == c_dofs1D, "Bad programming!");
-   MFEM_VERIFY(maps_C_C->ndof == c_dofs1D, "Bad programming!");
+   MFEM_VERIFY(maps_O_C->ndof == c_dofs1D &&
+               maps_C_C->ndof == c_dofs1D, "Discrepancy in the number of DOFs");
 
-
-   // TODO: put this in a separate function?
    MFEM_VERIFY(dim == 3, "");
 
-   const Array<int> & test_dofmap = test_el->GetDofMap();
-   const double tk[18] =
-   { 1.,0.,0.,  0.,1.,0.,  0.,0.,1., -1.,0.,0.,  0.,-1.,0.,  0.,0.,-1. }; // Copied from ND_HexahedronElement
-
    const int ndof_test = 3 * c_dofs1D * c_dofs1D * o_dofs1D;
-   pa_data.SetSize(ndof_test * dim * ne, Device::GetMemoryType());
-   //pa_data.SetSize(ndof_test * dim * ne);
 
-   //const int NQ = ;
+   // Note that ND_HexahedronElement uses 6 vectors in tk rather than 3, with
+   // the last 3 having negative signs. Here the signs are all positive, as
+   // signs are applied in ElementRestriction.
+
+   const double tk[9] = { 1.,0.,0.,  0.,1.,0.,  0.,0.,1. };
 
    const IntegrationRule & Nodes = test_el->GetNodes();
 
+   pa_data.SetSize(ndof_test * dim * ne, Device::GetMemoryType());
    auto op = Reshape(pa_data.HostWrite(), 3, ndof_test, ne);
-   //auto J = Reshape(geom->J.Read(), NQ, 3, 3, NE);
 
    for (int c=0; c<3; ++c)
    {
       for (int i=0; i<ndof_test/3; ++i)
       {
-         //double crd[3];
-         //Nodes.IntPoint(i).Get(crd, dim);
-
          const int d = (c*ndof_test/3) + i;
-
-         const int dofmap = test_dofmap[d];
-         const int dof2tk = (dofmap < 0) ? 3+c : c;
+         // ND_HexahedronElement sets dof2tk = (dofmap < 0) ? 3+c : c, but here
+         // no signs should be applied due to ElementRestriction.
+         const int dof2tk = c;
 
          for (int e=0; e<ne; ++e)
          {
@@ -4123,11 +4100,9 @@ void IdentityInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
             {
                op(j,d,e) = v[j];
             }
-            //pa_data[(3*ndof_test*e) + 3*i + j] = v[j];
          }
       }
    }
-
 }
 
 void IdentityInterpolator::AddMultPA(const Vector &x, Vector &y) const
