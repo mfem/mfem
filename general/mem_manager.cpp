@@ -9,6 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#define MFEM_DEBUG_COLOR 79
+#include "debug.hpp"
+
 #include "forall.hpp"
 #include "mem_manager.hpp"
 
@@ -408,22 +411,28 @@ class PoolStdHostMemorySpace : public HostMemorySpace
 {
    Pool<HostMemorySpace> pool;
 public:
-   PoolStdHostMemorySpace(): HostMemorySpace() { }
+   PoolStdHostMemorySpace(): HostMemorySpace()
+   {
+      MFEM_ABORT("Should not be used");
+   }
    void Alloc(void **ptr, size_t bytes) { *ptr = pool.alloc(bytes); }
    void Dealloc(void *ptr) { pool.free(ptr); }
 };
 
 class ArenaStdHostMemorySpace : public HostMemorySpace
 {
-   PoolArena pool;
+   //ArenaMemorySpace pool;
 public:
-   ArenaStdHostMemorySpace(): HostMemorySpace() { }
-   void Alloc(void **ptr, size_t bytes) override { *ptr = pool.alloc(bytes); }
+   ArenaStdHostMemorySpace(): HostMemorySpace()
+   {
+      MFEM_ABORT("Should not be used");
+   }
+   void Alloc(void **ptr, size_t bytes) override { /**ptr = pool.alloc(bytes); */}
    void Dealloc(void *ptr) override
    {
-      MFEM_ASSERT(false,"");
+      MFEM_ASSERT(false,"");/*
       MFEM_ASSERT(maps,"");
-      pool.free(ptr, maps->memories.at(ptr).bytes);
+      pool.free(ptr, maps->memories.at(ptr).bytes);*/
    }
 };
 
@@ -726,7 +735,7 @@ public:
 };
 class ArenaMmuDeviceMemorySpace : public MmuDeviceMemorySpace
 {
-   mutable PoolArena pool;
+   mutable ArenaMemorySpace pool;
 public:
    ArenaMmuDeviceMemorySpace(): MmuDeviceMemorySpace() { }
    void Alloc(Memory &m) override
@@ -842,8 +851,8 @@ public:
       host[static_cast<int>(MT::HOST)] = new StdHostMemorySpace();
       host[static_cast<int>(MT::HOST_32)] = new Aligned32HostMemorySpace();
       host[static_cast<int>(MT::HOST_64)] = new Aligned64HostMemorySpace();
-      host[static_cast<int>(MT::HOST_POOL)] = new PoolStdHostMemorySpace();
-      host[static_cast<int>(MT::HOST_ARENA)] = new ArenaStdHostMemorySpace();
+      //host[static_cast<int>(MT::HOST_POOL)] = new PoolStdHostMemorySpace();
+      //host[static_cast<int>(MT::HOST_ARENA)] = new ArenaStdHostMemorySpace();
       // HOST_DEBUG is delayed, as it reroutes signals
       host[static_cast<int>(MT::HOST_DEBUG)] = nullptr;
       host[static_cast<int>(MT::HOST_DEBUG_POOL)] = nullptr;
@@ -934,12 +943,220 @@ private:
 
 } // namespace mfem::internal
 
+////////////////////////////////////////////////////////////////////////////////
+#define MAX_FOREACH 26
+#define FOREACH(def)\
+    def(0) \
+    def(1) \
+    def(2) \
+    def(3) \
+    def(4) \
+    def(5) \
+    def(6) \
+    def(7) \
+    def(8) \
+    def(9) \
+    def(10) \
+    def(11) \
+    def(12) \
+    def(13) \
+    def(14) \
+    def(15) \
+    def(16) \
+    def(17) \
+    def(18) \
+    def(19) \
+    def(20) \
+    def(21) \
+    def(22) \
+    def(23) \
+    def(24) \
+    def(25) \
+    def(MAX_FOREACH)
+
+////////////////////////////////////////////////////////////////////////////////
+/// http://graphics.stanford.edu/~seander/bithacks.html#ZerosOnRightMultLookup
+inline uint32_t ctz(const uint32_t v)
+{
+   static constexpr int MultiplyDeBruijnBitPosition[32] =
+   {
+      0, 1, 28, 2, 29, 14, 24, 3, 30, 22, 20, 15, 25, 17, 4, 8,
+      31, 27, 13, 23, 21, 19, 16, 7, 26, 12, 18, 6, 11, 5, 10, 9
+   };
+   return MultiplyDeBruijnBitPosition[((uint32_t)((v & -v) * 0x077CB531U)) >> 27];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+inline size_t next_pow2(size_t value)
+{
+   --value;
+   value |= value >> 1;
+   value |= value >> 2;
+   value |= value >> 4;
+   value |= value >> 8;
+   value |= value >> 16;
+   value |= value >> 32;
+   ++value;
+   return value;
+}
+
+/// Block //////////////////////////////////////////////////////////////////////
+template<size_t N> union alignas(16) Block
+{
+   Block<N> *next;
+   char data[1<<N];
+};
+
+/// Arena //////////////////////////////////////////////////////////////////////
+template<size_t N> struct alignas(16) Arena
+{
+   const size_t asize;
+   Arena *next;
+   Block<N> *blocks;
+
+   Arena(uintptr_t *host, size_t asize):
+   asize(asize),
+   blocks(new (host) Block<N>[asize])
+{
+   if (N==4) { dbg("<%d> blocks:%p", N, blocks); }
+   for (size_t i = 1; i < asize; i++) { blocks[i-1].next = &blocks[i]; }
+   blocks[asize-1].next = nullptr;
+}
+inline Block<N> *Get() const { return blocks; }
+inline void Set(Arena *n) { next = n; }
+};
+
+/// Bucket /////////////////////////////////////////////////////////////////////
+template <size_t N> struct Bucket
+{
+   static const int MAX_SHIFT = 8192;
+   static const size_t SIZEOF_BLOCK = sizeof(Block<N>);
+   static const size_t SIZEOF_ARENA = sizeof(Arena<N>);
+
+   const size_t asize;
+   uintptr_t *base_blocks, *host_blocks, num_shift;
+   uintptr_t *base_arena, *host_arena;
+   Arena<N> *arena;
+   Block<N> *next;
+
+public:
+   Bucket(size_t asize):
+      asize(asize),
+      base_blocks((uintptr_t*)std::malloc(MAX_SHIFT*asize*SIZEOF_BLOCK)),
+      host_blocks(base_blocks),
+      num_shift(0),
+      base_arena((uintptr_t*)std::malloc(MAX_SHIFT*SIZEOF_ARENA)),
+      host_arena(base_arena),
+      arena(new (host_arena) Arena<N>(host_blocks, asize)),
+      next(arena->Get())
+   {
+      if (N==4)
+      {
+         dbg("Bucket<%d>(%d): base_blocks:%p base_arena:%p, arena:%p, next:%p",
+             N, asize, base_blocks, base_arena, arena, next);
+      }
+      MFEM_VERIFY(base_blocks,"!base_blocks");
+      MFEM_VERIFY(base_arena,"!base_arena");
+   }
+
+   ~Bucket()
+   {
+      std::free(base_blocks);
+      std::free(base_arena);
+   }
+
+   /// Allocate bytes from the arena of this bucket
+   void *alloc(size_t bytes)
+   {
+      if (N==4) { dbg("<%d> alloc bytes:0x%x next:%p", N, bytes, next); }
+      if (next == nullptr)
+      {
+         num_shift += 1;
+         if (N==4) { dbg("<%d> num_shift:%d", N, num_shift); }
+         const uintptr_t delta_blocks = (asize*SIZEOF_BLOCK) >> 3;
+         host_blocks += delta_blocks;
+         if (N==4) { dbg("<%d> delta_blocks:%d, SIZEOF_BLOCK:%d", N, delta_blocks, SIZEOF_BLOCK); }
+         const uintptr_t delta_arena = SIZEOF_ARENA >> 3;
+         host_arena += delta_arena;
+         if (N==4) { dbg("<%d> delta_arena:%d, SIZEOF_ARENA:%d", N, delta_arena, SIZEOF_ARENA); }
+         MFEM_VERIFY(num_shift < MAX_SHIFT,"");
+         Arena<N> *new_arena = new (host_arena) Arena<N>(host_blocks, asize);
+         if (N==4) { dbg("<%d> arena: %p, new_arena: %p", N, arena, new_arena); }
+         new_arena->Set(arena);
+         arena = new_arena;
+         next = arena->Get();
+      }
+      Block<N> *block = next;
+      next = block->next;
+      return (void*) block;
+   }
+
+   /// Free the pointer
+   void free(void *ptr)
+   {
+      // Get back the block from ptr
+      Block<N> *block = (Block<N>*) ptr;
+      block->next = next;
+      next = block;
+   }
+};
+
+/// MemorySpace/////////////////////////////////////////////////////////////////
+struct Buckets
+{
+#define DEFINE_PTR(N) Bucket<N> b##N;
+   FOREACH(DEFINE_PTR)
+   const int last;
+   Buckets(size_t asize):
+#define CONSTRUCTOR(N) b##N(asize),
+      FOREACH(CONSTRUCTOR)
+      last()
+   {}
+};
+
+ArenaMemorySpace::ArenaMemorySpace(size_t asz):
+   asize(getenv("ASZ") ? (dbg("ASZ=%s",getenv("ASZ")),
+                          atoll(getenv("ASZ"))) : asz),
+   buckets(new Buckets(asize))
+{
+   dbg("asize: %d", asize);
+}
+
+ArenaMemorySpace::~ArenaMemorySpace() { delete buckets; }
+
+void *ArenaMemorySpace::alloc(size_t bytes)
+{
+   // number of pages needed for this amount of bytes
+   const size_t key = next_pow2(bytes);
+   const int n = ctz(key);
+   MFEM_VERIFY(n <= MAX_FOREACH, "");
+#define ALLOC_KEY(N){\
+      if (n == N){ return buckets->b##N.alloc(bytes);}}
+   FOREACH(ALLOC_KEY);
+   MFEM_VERIFY(false,"");
+   return nullptr;
+}
+
+void ArenaMemorySpace::free(void *ptr, size_t bytes)
+{
+   const size_t key = next_pow2(bytes);
+   const int n = ctz(key);
+#define FREE_KEY(N) {\
+        if (n == N) {return buckets->b##N.free(ptr);}}
+   FOREACH(FREE_KEY);
+   MFEM_VERIFY(false, "");
+}
+
+///////////////////////////////////////////////////////////////////////////////
+static ArenaMemorySpace arena(32);
+
 ///////////////////////////////////////////////////////////////////////////////
 void *AAlloc(size_t bytes)
 {
    return arena.alloc(bytes);
 }
 
+///////////////////////////////////////////////////////////////////////////////
 void ADealloc(void *ptr)
 {
    arena.free(ptr, maps->memories.at(ptr).bytes);
