@@ -68,8 +68,8 @@ double compare_pa_id_assembly(int dim, int num_elements, int order,
    }
    else
    {
-      assembled_id_mat.Mult(xv, assembled_y);
-      //assembled_id.Mult(xv, assembled_y);
+      //assembled_id_mat.Mult(xv, assembled_y);
+      assembled_id.Mult(xv, assembled_y);
       pa_id.Mult(xv, pa_y);
    }
 
@@ -108,7 +108,7 @@ TEST_CASE("PAIdentityInterp", "[PAIdentityInterp]")
       {
          for (int num_elements = 1; num_elements < 5; ++num_elements)
          {
-            for (int order = 2; order < 5; ++order)
+            for (int order = 1; order < 5; ++order)
             {
                double error = compare_pa_id_assembly(dim, num_elements, order, transpose);
                REQUIRE(error < 1.e-14);
