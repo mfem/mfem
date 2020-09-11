@@ -155,14 +155,21 @@ public:
    /// Gets ownership of the internal N_Vector
    int GetOwnership() const { return own_NVector; }
 
-   /// Create a N_Vector.
-   /** @param[in] use_device  If true, use the SUNDIALS CUDA N_Vector. */
-   static N_Vector MakeNVector(bool use_device);
-
    /// Copy assignment.
    /** @note Defining this method overwrites the implicitly defined copy
        assignment operator. */
    using Vector::operator=;
+
+#ifdef MFEM_USE_MPI
+   bool MPIPlusX() const
+   { return (GetNVectorID() == SUNDIALS_NVEC_MPIPLUSX); }
+#else
+   bool MPIPlusX() const { return false; }
+#endif
+
+   /// Create a N_Vector.
+   /** @param[in] use_device  If true, use the SUNDIALS CUDA N_Vector. */
+   static N_Vector MakeNVector(bool use_device);
 
 #ifdef MFEM_USE_MPI
    /// Create a parallel N_Vector.
@@ -171,11 +178,16 @@ public:
    static N_Vector MakeNVector(MPI_Comm comm, bool use_device);
 #endif
 
-#ifdef MFEM_USE_MPI
-   bool MPIPlusX() const
-   { return (GetNVectorID() == SUNDIALS_NVEC_MPIPLUSX); }
+#ifdef MFEM_USE_CUDA
+   static bool UseManagedMemory()
+   {
+      return Device::GetDeviceMemoryType() == MemoryType::MANAGED;
+   }
 #else
-   bool MPIPlusX() const { return false; }
+   static bool UseManagedMemory()
+   {
+      return false;
+   }
 #endif
 
 };
