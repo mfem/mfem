@@ -1700,6 +1700,7 @@ static void PADiffusionApply(const int dim,
       switch (ID)
       {
          case 0x23: return SmemPADiffusionApply3D<2,3>(NE,B,G,D,X,Y);
+         case 0x24: return SmemPADiffusionApply3D<2,4>(NE,B,G,D,X,Y);
          case 0x34: return SmemPADiffusionApply3D<3,4>(NE,B,G,D,X,Y);
          case 0x45: return SmemPADiffusionApply3D<4,5>(NE,B,G,D,X,Y);
          case 0x46: return SmemPADiffusionApply3D<4,6>(NE,B,G,D,X,Y);
