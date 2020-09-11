@@ -71,6 +71,7 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
+   bool algebraic_ceed = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -84,6 +85,8 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+   args.AddOption(&algebraic_ceed, "-a", "--algebraic", "-no-a", "--no-algebraic",
+                  "Use algebraic Ceed solver");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -208,7 +211,7 @@ int main(int argc, char *argv[])
    else
    {
 #ifdef MFEM_USE_CEED
-      if (DeviceCanUseCeed())
+      if (DeviceCanUseCeed() && algebraic_ceed)
       {
          AlgebraicCeedSolver M(*A, a, ess_tdof_list);
          PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);

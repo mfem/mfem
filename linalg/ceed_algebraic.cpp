@@ -237,13 +237,72 @@ void UnconstrainedMFEMCeedOperator::Mult(const mfem::Vector& x, mfem::Vector& y)
 {
    int ierr = 0;
 
-   ierr += CeedVectorSetArray(u_, CEED_MEM_HOST, CEED_USE_POINTER, x.GetData());
-   ierr += CeedVectorSetArray(v_, CEED_MEM_HOST, CEED_USE_POINTER, y.GetData());
+   const CeedScalar *x_ptr;
+   CeedScalar *y_ptr;
+   CeedMemType mem;
+   CeedGetPreferredMemType(internal::ceed, &mem);
+   if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
+   {
+      x_ptr = x.Read();
+      y_ptr = y.ReadWrite();
+   }
+   else
+   {
+      x_ptr = x.HostRead();
+      y_ptr = y.HostReadWrite();
+      mem = CEED_MEM_HOST;
+   }
+
+   ierr += CeedVectorSetArray(u_, mem, CEED_USE_POINTER, const_cast<CeedScalar*>(x_ptr));
+   ierr += CeedVectorSetArray(v_, mem, CEED_USE_POINTER, y_ptr);
 
    ierr += CeedOperatorApply(oper_, u_, v_, CEED_REQUEST_IMMEDIATE);
-   ierr += CeedVectorSyncArray(v_, CEED_MEM_HOST);
+
+   ierr += CeedVectorTakeArray(u_, mem, const_cast<CeedScalar**>(&x_ptr));
+   ierr += CeedVectorTakeArray(v_, mem, &y_ptr);
 
    MFEM_ASSERT(ierr == 0, "CEED error");
+}
+
+mfem::Solver * BuildSmootherFromCeed(Operator * mfem_op, CeedOperator ceed_op,
+                                     const Array<int>& ess_tdofs, bool chebyshev)
+{
+   // this is a local diagonal, in the sense of l-vector
+   CeedVector diagceed;
+   CeedInt length;
+   Ceed ceed;
+   CeedOperatorGetCeed(ceed_op, &ceed);
+   CeedOperatorGetSize(ceed_op, &length);
+   CeedVectorCreate(ceed, length, &diagceed);
+   CeedVectorSetValue(diagceed, 0.0);
+   CeedOperatorLinearAssembleDiagonal(ceed_op, diagceed, CEED_REQUEST_IMMEDIATE);
+   const CeedScalar * diagvals;
+   CeedMemType mem;
+   CeedGetPreferredMemType(ceed, &mem);
+   if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
+   {
+      // intentional no-op
+   }
+   else
+   {
+      mem = CEED_MEM_HOST;
+   }
+   CeedVectorGetArrayRead(diagceed, mem, &diagvals);
+   mfem::Vector mfem_diag(const_cast<CeedScalar*>(diagvals), length);
+   mfem::Solver * out = NULL;
+   if (chebyshev)
+   {
+      const int cheb_order = 3;
+      out = new OperatorChebyshevSmoother(mfem_op, mfem_diag, ess_tdofs, cheb_order);
+   }
+   else
+   {
+      const double jacobi_scale = 0.65;
+      out = new OperatorJacobiSmoother(mfem_diag, ess_tdofs, jacobi_scale);
+   }
+   CeedVectorRestoreArrayRead(diagceed, &diagvals);
+   CeedVectorDestroy(&diagceed);
+   return out;
 }
 
 MFEMCeedVCycle::MFEMCeedVCycle(
@@ -264,26 +323,9 @@ MFEMCeedVCycle::MFEMCeedVCycle(
    coarse_residual_.SetSize(coarse_solver_.Height());
    coarse_correction_.SetSize(coarse_solver_.Height());
 
-   // this is a local diagonal, in the sense of l-vector
-   CeedVector diagceed;
-   CeedInt length;
-   Ceed ceed;
-   CeedOperatorGetCeed(level.oper_, &ceed);
-   CeedOperatorGetSize(level.oper_, &length);
-   CeedVectorCreate(ceed, length, &diagceed);
-   CeedVectorSetValue(diagceed, 0.0);
-   CeedOperatorLinearAssembleDiagonal(level.oper_, diagceed, CEED_REQUEST_IMMEDIATE);
-   const CeedScalar * diagvals;
-   CeedVectorGetArrayRead(diagceed, CEED_MEM_HOST, &diagvals);
-   mfem::Vector mfem_diag(const_cast<CeedScalar*>(diagvals), length);
-   // const double jacobi_scale = 0.65;
-   // fine_smoother_ = new OperatorJacobiSmoother(mfem_diag, level.ho_ess_tdof_list_, jacobi_scale);
-   const int cheb_order = 3;
-   fine_smoother_ = new OperatorChebyshevSmoother(const_cast<Operator*>(&fine_operator),
-                                                  mfem_diag, level.ho_ess_tdof_list_,
-                                                  cheb_order);
-   CeedVectorRestoreArrayRead(diagceed, &diagvals);
-   CeedVectorDestroy(&diagceed);
+   fine_smoother_ = BuildSmootherFromCeed(const_cast<Operator*>(&fine_operator),
+                                          level.oper_,
+                                          level.ho_ess_tdof_list_, true);
 }
 
 MFEMCeedVCycle::~MFEMCeedVCycle()
@@ -392,12 +434,29 @@ void MFEMCeedInterpolation::Mult(const mfem::Vector& x, mfem::Vector& y) const
 {
    int ierr = 0;
 
-   ierr += CeedVectorSetArray(u_, CEED_MEM_HOST, CEED_USE_POINTER, x.GetData());
-   ierr += CeedVectorSetArray(v_, CEED_MEM_HOST, CEED_USE_POINTER, y.GetData());
+   const CeedScalar *x_ptr;
+   CeedScalar *y_ptr;
+   CeedMemType mem;
+   CeedGetPreferredMemType(internal::ceed, &mem);
+   if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
+   {
+      x_ptr = x.Read();
+      y_ptr = y.ReadWrite();
+   }
+   else
+   {
+      x_ptr = x.HostRead();
+      y_ptr = y.HostReadWrite();
+      mem = CEED_MEM_HOST;
+   }
+
+   ierr += CeedVectorSetArray(u_, mem, CEED_USE_POINTER, const_cast<CeedScalar*>(x_ptr));
+   ierr += CeedVectorSetArray(v_, mem, CEED_USE_POINTER, y_ptr);
 
    ierr += CeedInterpolationInterpolate(ceed_interp_, u_, v_);
 
-   ierr += CeedVectorSyncArray(v_, CEED_MEM_HOST);
+   ierr += CeedVectorTakeArray(u_, mem, const_cast<CeedScalar**>(&x_ptr));
+   ierr += CeedVectorTakeArray(v_, mem, &y_ptr);
 
    MFEM_ASSERT(ierr == 0, "CEED error");
 }
@@ -407,12 +466,29 @@ void MFEMCeedInterpolation::MultTranspose(const mfem::Vector& x,
 {
    int ierr = 0;
 
-   ierr += CeedVectorSetArray(v_, CEED_MEM_HOST, CEED_USE_POINTER, x.GetData());
-   ierr += CeedVectorSetArray(u_, CEED_MEM_HOST, CEED_USE_POINTER, y.GetData());
+   const CeedScalar *x_ptr;
+   CeedScalar *y_ptr;
+   CeedMemType mem;
+   CeedGetPreferredMemType(internal::ceed, &mem);
+   if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
+   {
+      x_ptr = x.Read();
+      y_ptr = y.ReadWrite();
+   }
+   else
+   {
+      x_ptr = x.HostRead();
+      y_ptr = y.HostReadWrite();
+      mem = CEED_MEM_HOST;
+   }
+
+   ierr += CeedVectorSetArray(v_, mem, CEED_USE_POINTER, const_cast<CeedScalar*>(x_ptr));
+   ierr += CeedVectorSetArray(u_, mem, CEED_USE_POINTER, y_ptr);
 
    ierr += CeedInterpolationRestrict(ceed_interp_, v_, u_);
 
-   ierr += CeedVectorSyncArray(u_, CEED_MEM_HOST);
+   ierr += CeedVectorTakeArray(v_, mem, const_cast<CeedScalar**>(&x_ptr));
+   ierr += CeedVectorTakeArray(u_, mem, &y_ptr);
 
    MFEM_ASSERT(ierr == 0, "CEED error");
 }
@@ -429,9 +505,10 @@ void CoarsenEssentialDofs(const mfem::Operator& mfem_interp,
    }
    mfem::Vector lo_boundary_ones(mfem_interp.Width());
    mfem_interp.MultTranspose(ho_boundary_ones, lo_boundary_ones);
+   auto lobo = lo_boundary_ones.HostRead();
    for (int i = 0; i < lo_boundary_ones.Size(); ++i)
    {
-      if (lo_boundary_ones(i) > 0.9)
+      if (lobo[i] > 0.9)
       {
          alg_lo_ess_tdof_list.Append(i);
       }
@@ -580,9 +657,14 @@ AlgebraicCeedSolver::AlgebraicCeedSolver(Operator& fine_mfem_op,
    int coarse_cg_iterations = 10; // fewer might be better?
    if (num_levels > 1)
    {
+      /*
       coarsest_solver = new CeedPlainCG(coarsest->GetCoarseCeed(),
                                         coarsest->GetCoarseEssentialDofList(),
                                         coarse_cg_iterations);
+      */
+      coarsest_solver = BuildSmootherFromCeed(NULL, coarsest->GetCoarseCeed(),
+                                              coarsest->GetCoarseEssentialDofList(),
+                                              false);
    }
    else
    {

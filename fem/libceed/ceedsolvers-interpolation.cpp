@@ -121,6 +121,7 @@ int CeedInterpolationInterpolate(CeedInterpolation interp,
 
 /// @todo could use a CEED_REQUEST here
 /// @todo this implementation is ugly and inefficient
+/// @todo find a way to do this on GPU!
 int CeedInterpolationRestrict(CeedInterpolation interp,
                               CeedVector in, CeedVector out)
 {
@@ -131,10 +132,12 @@ int CeedInterpolationRestrict(CeedInterpolation interp,
 
   const CeedScalar *multiplicitydata, *indata;
   CeedScalar *workdata;
-  ierr = CeedVectorGetArrayRead(in, CEED_MEM_HOST, &indata); CeedChk(ierr);
-  ierr = CeedVectorGetArrayRead(interp->fine_multiplicity_r, CEED_MEM_HOST,
+  CeedMemType mem = CEED_MEM_HOST;
+  // CeedGetPreferredMemType(interp->ceed, &mem);
+  ierr = CeedVectorGetArrayRead(in, mem, &indata); CeedChk(ierr);
+  ierr = CeedVectorGetArrayRead(interp->fine_multiplicity_r, mem,
                                 &multiplicitydata); CeedChk(ierr);
-  ierr = CeedVectorGetArray(interp->fine_work, CEED_MEM_HOST, &workdata); CeedChk(ierr);
+  ierr = CeedVectorGetArray(interp->fine_work, mem, &workdata); CeedChk(ierr);
   for (int i = 0; i < length; ++i) {
     workdata[i] = indata[i] * multiplicitydata[i];
   }

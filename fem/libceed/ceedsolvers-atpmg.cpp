@@ -56,6 +56,8 @@ int min4(int a, int b, int c, int d) {
    CeedElemRestriction, which corresponds to a lower-order problem.
 
    This assumes a Gauss-Lobatto basis and tensor product elements.
+
+   This is a setup routine that operates on the host?
 */
 int CeedATPMGElemRestriction(int order,
                              int order_reduction,
