@@ -218,6 +218,16 @@ inline bool DeviceCanUseCeed()
 }
 
 #ifdef MFEM_USE_CEED
+
+/// Initialize a CeedBasis and a CeedElemRestriction
+void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
+                                 const IntegrationRule &ir,
+                                 Ceed ceed, CeedBasis *basis,
+                                 CeedElemRestriction *restr);
+
+/// Return the path to the libCEED q-function headers.
+const std::string &GetCeedPath();
+
 // Hash table for CeedBasis
 using CeedBasisKey =
    std::tuple<const FiniteElementSpace*, const IntegrationRule*, int, int, int>;
@@ -261,15 +271,6 @@ extern Ceed ceed; // defined in device.cpp
 extern CeedBasisMap basis_map;
 extern CeedRestrMap restr_map;
 }
-
-/// Initialize a CeedBasis and a CeedElemRestriction
-void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
-                                 const IntegrationRule &ir,
-                                 Ceed ceed, CeedBasis *basis,
-                                 CeedElemRestriction *restr);
-
-/// Return the path to the libCEED q-function headers.
-const std::string &GetCeedPath();
 
 #endif // MFEM_USE_CEED
 
