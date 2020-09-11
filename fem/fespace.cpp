@@ -2115,6 +2115,14 @@ FiniteElementSpace::~FiniteElementSpace()
    Destroy();
 }
 
+namespace internal
+{
+#ifdef MFEM_USE_CEED
+extern CeedBasisMap ceed_basis_map;
+extern CeedRestrMap ceed_restr_map;
+#endif
+}
+
 void FiniteElementSpace::Destroy()
 {
    delete cR;
@@ -2160,6 +2168,22 @@ void FiniteElementSpace::Destroy()
       delete [] bdofs;
       delete [] fdofs;
    }
+#ifdef MFEM_USE_CEED
+   for(auto entry : internal::ceed_basis_map)
+   {
+      if (std::get<0>(entry.first)==this)
+      {
+         internal::ceed_basis_map.erase(entry.first);
+      }      
+   }
+   for(auto entry : internal::ceed_restr_map)
+   {
+      if (std::get<0>(entry.first)==this)
+      {
+         internal::ceed_restr_map.erase(entry.first);
+      }      
+   }
+#endif
 }
 
 void FiniteElementSpace::GetTransferOperator(
