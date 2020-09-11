@@ -27,7 +27,7 @@ protected:
    /// The assembly level.
    AssemblyLevel assembly;
 
-   /// Extension for supporting different AssemblyLevels.
+   /// Extension for supporting different AssemblyLevel%s
    NonlinearFormExtension *ext; // owned
 
    /// FE space on which the form lives.

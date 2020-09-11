@@ -288,6 +288,8 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
          hGrad.Ptr()->Operator::FormSystemOperator(ess_tdof_list, Gop);
          hGrad.Reset(Gop);
       }
+      // In parallel, the rest of the construction (RAP+constraints) is done
+      // by ParNonlinearForm::GetGradient.
       return *hGrad.Ptr();
    }
 

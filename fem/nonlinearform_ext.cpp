@@ -23,14 +23,13 @@ NonlinearFormExtension::NonlinearFormExtension(const NonlinearForm *nlf)
 
 PANonlinearFormExtension::PANonlinearFormExtension(NonlinearForm *nlf):
    NonlinearFormExtension(nlf),
-   x_grad(NULL),
    fes(*nlf->FESpace()),
    dnfi(*nlf->GetDNFI()),
-   R(fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC))
+   elemR(fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC))
 {
-   MFEM_VERIFY(R, "Not yet implemented!");
-   xe.SetSize(R->Height(), Device::GetMemoryType());
-   ye.SetSize(R->Height(), Device::GetMemoryType());
+   MFEM_VERIFY(elemR, "Not yet implemented!");
+   xe.SetSize(elemR->Height(), Device::GetMemoryType());
+   ye.SetSize(elemR->Height(), Device::GetMemoryType());
    ye.UseDevice(true);
 }
 
@@ -38,7 +37,7 @@ double PANonlinearFormExtension::GetGridFunctionEnergy(const Vector &x) const
 {
    double energy = 0.0;
 
-   R->Mult(x, xe);
+   elemR->Mult(x, xe);
    for (int i = 0; i < dnfi.Size(); i++)
    {
       energy += dnfi[i]->GetGridFunctionEnergyPA(xe);
@@ -59,23 +58,20 @@ void PANonlinearFormExtension::AssembleGradient()
 void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
    ye = 0.0;
-   R->Mult(x, xe);
+   elemR->Mult(x, xe);
    for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AddMultPA(xe, ye); }
-   R->MultTranspose(ye, y);
+   elemR->MultTranspose(ye, y);
 }
 
 Operator &PANonlinearFormExtension::GetGradient(const Vector &x) const
 {
-   // Store the last x that was used to compute the gradient.
-   x_grad = &x;
-
    Grad.Reset(new PANonlinearFormExtension::Gradient(x, *this));
    return *Grad.Ptr();
 }
 
 PANonlinearFormExtension::Gradient::Gradient(const Vector &x,
                                              const PANonlinearFormExtension &e):
-   Operator(e.fes.GetVSize()), elemR(e.R), fes(e.fes), dnfi(e.dnfi)
+   Operator(e.fes.GetVSize()), elemR(e.elemR), fes(e.fes), dnfi(e.dnfi)
 {
    ge.UseDevice(true);
    ge.SetSize(elemR->Height(), Device::GetMemoryType());
