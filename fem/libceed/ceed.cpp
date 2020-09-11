@@ -331,8 +331,19 @@ void CeedMFAssemble(const CeedMFOperator& op,
    CeedBasisGetNumQuadraturePoints(ceedData.basis, &nqpts);
 
    CeedVectorCreate(ceed, mesh->GetNodes()->Size(), &ceedData.node_coords);
-   CeedVectorSetArray(ceedData.node_coords, CEED_MEM_HOST, CEED_USE_POINTER,
-                      mesh->GetNodes()->GetData());
+   CeedScalar *nodes_ptr;
+   CeedMemType mem;
+   CeedGetPreferredMemType(ceed, &mem);
+   if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
+   {
+      nodes_ptr = const_cast<CeedScalar*>(mesh->GetNodes()->Read());
+   }
+   else
+   {
+      nodes_ptr = const_cast<CeedScalar*>(mesh->GetNodes()->HostRead());
+      mem = CEED_MEM_HOST;
+   }
+   CeedVectorSetArray(ceedData.node_coords, mem, CEED_USE_POINTER, nodes_ptr);
 
    // Context data to be passed to the Q-function.
    ceedData.build_ctx_data.dim = mesh->Dimension();
