@@ -771,7 +771,7 @@ void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
       {
          InitCeedNonTensorRestriction(fes, irm, ceed, restr);
       }
-      // internal::ceed_restr_map[restr_key] = *restr;
+      internal::ceed_restr_map[restr_key] = *restr;
    }
    else
    {
