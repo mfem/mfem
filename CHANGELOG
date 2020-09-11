@@ -221,8 +221,10 @@ Miscellaneous
 - Added support for ADIOS2 for parallel I/O with ParaView visualization. The
   classes adios2stream and ADIOS2DataCollection are introduced in mfem as the
   interfaces to generate ADIOS2 Binary Pack (BP4) directory datasets for the
-  entire spatial and temporal data. In addition, ADIOS2 allows for setting a
-  user-defined number of data substreams/subfiles. See examples 5, 9, 12, 16.
+  entire spatial and temporal node data. Cell centered data is accessible by
+  ADIOS2 data readers (e.g. Python), but currently not yet implement as of
+  ParaView v5.8.1. In addition, ADIOS2 allows for setting a user-defined number
+  of data substreams/subfiles at scale. See examples 5, 9, 12, 16.
 
 - The integration order used in the ComputeLpError and ComputeElementLpError
   methods of class GridFunction has been increased.
