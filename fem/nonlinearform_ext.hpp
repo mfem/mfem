@@ -39,11 +39,9 @@ public:
    /// Assumes that @a x is a ldof Vector.
    virtual Operator &GetGradient(const Vector &x) const = 0;
 
+   /// Assumes that @a x is a ldof Vector.
    virtual double GetGridFunctionEnergy(const Vector &x) const = 0;
 };
-
-class PANonlinearForm;
-
 
 /// Data and methods for partially-assembled nonlinear forms
 class PANonlinearFormExtension : public NonlinearFormExtension
@@ -75,11 +73,10 @@ private:
 
 protected:
    mutable Vector xe, ye;
-   mutable const Vector *x_grad;
    mutable OperatorHandle Grad;
    const FiniteElementSpace &fes;
    const Array<NonlinearFormIntegrator*> &dnfi;
-   const Operator *R;
+   const Operator *elemR;
 
 public:
    PANonlinearFormExtension(NonlinearForm *nlf);

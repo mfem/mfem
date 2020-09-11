@@ -128,7 +128,8 @@ Operator &ParNonlinearForm::GetGradient(const Vector &x) const
    }
 
    // RAP the local gradient dA.
-   Ph.ConvertFrom(pfes->GetProlongationMatrix());
+   // TODO use pfes->GetProlongationMatrix(); but there is a const issue.
+   Ph.ConvertFrom(pfes->Dof_TrueDof_Matrix());
    pGrad.MakePtAP(dA, Ph);
 
    // Impose b.c. on pGrad
