@@ -161,8 +161,6 @@ void CeedPAAssemble(const CeedPAOperator& op,
    mfem::Mesh *mesh = fes.GetMesh();
    CeedInt nqpts, nelem = mesh->GetNE();
    CeedInt dim = mesh->SpaceDimension(), vdim = fes.GetVDim();
-   CeedMemType mem;
-   CeedGetPreferredMemType(ceed, &mem);
 
    mesh->EnsureNodes();
    InitCeedBasisAndRestriction(fes, irm, ceed, &ceedData.basis, &ceedData.restr);
@@ -181,6 +179,7 @@ void CeedPAAssemble(const CeedPAOperator& op,
 
    CeedVectorCreate(ceed, mesh->GetNodes()->Size(), &ceedData.node_coords);
    CeedScalar *nodes_ptr;
+   CeedMemType mem;
    CeedGetPreferredMemType(ceed, &mem);
    if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
    {
