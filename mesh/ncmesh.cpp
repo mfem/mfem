@@ -1927,11 +1927,87 @@ void NCMesh::UpdateLeafElements()
 
 void NCMesh::UpdateVertices()
 {
+   // DESCRIBE: why we must be careful
+
+   // DESCRIBE: begin by splitting vertices into 4 classes
+
    for (auto node = nodes.begin(); node != nodes.end(); ++node)
    {
-      node->vert_index = -1;
+      node->vert_index = -4; // beyond ghost layer: code -4
    }
 
+   for (int i = 0; i < leaf_elements.Size(); i++)
+   {
+      Element &el = elements[leaf_elements[i]];
+      for (int j = 0; j < GI[el.Geom()].nv; j++)
+      {
+         Node &nd = nodes[el.node[j]];
+         if (el.rank == MyRank)
+         {
+            if (nd.p1 == nd.p2) // owned top-level vertex: code -1
+            {
+               if (nd.vert_index < -1) { nd.vert_index = -1; }
+            }
+            else // owned non-top-level vertex: code -2
+            {
+               if (nd.vert_index < -2) { nd.vert_index = -2; }
+            }
+         }
+         else // ghost vertex: code -3
+         {
+            if (nd.vert_index < -3) { nd.vert_index = -3; }
+         }
+      }
+   }
+
+   // STEP 2: assign indices of top-level owned vertices, in original order
+
+   NVertices = 0;
+   for (auto node = nodes.begin();
+        node != nodes.end() && node->p1 == node->p2;
+        ++node)
+   {
+      if (node->vert_index == -1)
+      {
+         node->vert_index = NVertices++;
+      }
+   }
+
+   // STEP 3: go over all elements (owned and ghost) in SFC order and assign
+
+   Array<int> sfc_order(leaf_elements.Size());
+   for (int i = 0; i < sfc_order.Size(); i++)
+   {
+      sfc_order[leaf_sfc_index[i]] = leaf_elements[i];
+   }
+
+   for (int i = 0; i < sfc_order.Size(); i++)
+   {
+      const Element &el = elements[sfc_order[i]];
+      for (int j = 0; j < GI[el.Geom()].nv; j++)
+      {
+         Node &nd = nodes[el.node[j]];
+         if (nd.vert_index == -2) { nd.vert_index = NVertices++; }
+      }
+   }
+
+   // STEP 4: assign remaining ghost vertices, ignore vertices beyond ghost layer
+
+   NGhostVertices = 0;
+   for (int i = 0; i < sfc_order.Size(); i++)
+   {
+      const Element &el = elements[sfc_order[i]];
+      for (int j = 0; j < GI[el.Geom()].nv; j++)
+      {
+         Node &nd = nodes[el.node[j]];
+         if (nd.vert_index == -3)
+         {
+            nd.vert_index = NVertices + NGhostVertices++;
+         }
+      }
+   }
+
+#if 0
    // assign vertex indices by iterating over elements in the linear order
    // determined by 'leaf_elements', i.e., elements we own first (in SFC order)
    // then any ghost elements (in SFC order again)
@@ -1965,6 +2041,7 @@ void NCMesh::UpdateVertices()
          if (vindex < 0) { vindex = NGhostVertices++; }
       }
    }
+#endif
 
    // create the mapping from vertex index to node index
    vertex_nodeId.SetSize(NVertices + NGhostVertices);
