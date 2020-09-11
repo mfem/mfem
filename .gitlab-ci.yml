@@ -71,6 +71,8 @@ stages:
   - build
   - test
   - deallocate
+  - lassen_build
+  - lassen_test
   - baseline_check
   - baseline_publish
 
@@ -79,7 +81,11 @@ stages:
 # TODO: updating tests and tpls is not necessary anymore since pipelines are
 # now using unique directories so repo are never shared with another pipeline.
 # This is not memory efficient (we keep a lot of data), hence this reminder.
-.setup:
+# Setup
+setup:
+  tags:
+    - shell
+    - quartz
   stage: setup
   variables:
     GIT_STRATEGY: none
@@ -99,6 +105,15 @@ stages:
     CC: gcc
   before_script:
     - module load gcc/6.1.0
+
+# On lassen
+.with_gcc_8_3_1:
+  variables:
+    TOOLCHAIN: gcc_8_3_1
+    CXX: g++
+    CC: gcc
+  before_script:
+    - module load gcc/8.3.1
 
 .with_gcc_4_9_3:
   variables:
@@ -290,3 +305,4 @@ stages:
 # The list on jobs is defined in machine-specific files.
 include:
   - local: .gitlab/quartz.yml
+  - local: .gitlab/lassen.yml
