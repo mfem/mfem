@@ -400,30 +400,34 @@ int main(int argc, char *argv[])
 
    std::cout << "Apply error = " << y_fa.Norml2() << std::endl;
 
-   double iError(0), jError(0), dataError(0);   
-   for(int i=0; i<k_ref->SpMat().GetMemoryI().Capacity(); ++i){
-     iError += (k_ref->SpMat().HostReadI()[i] - A.HostReadI()[i])*
-               (k_ref->SpMat().HostReadI()[i] - A.HostReadI()[i]);
+   double iError(0), jError(0), dataError(0);
+   for (int i=0; i<k_ref->SpMat().GetMemoryI().Capacity(); ++i)
+   {
+      iError += (k_ref->SpMat().HostReadI()[i] - A.HostReadI()[i])*
+                (k_ref->SpMat().HostReadI()[i] - A.HostReadI()[i]);
    }
    iError = sqrt(iError);
    printf("iError %g \n",iError);
 
-   for(int j=0; j<k_ref->SpMat().GetMemoryJ().Capacity(); ++j){
-     jError += (k_ref->SpMat().HostReadJ()[j] - A.HostReadJ()[j])*
-               (k_ref->SpMat().HostReadJ()[j] - A.HostReadJ()[j]);
+   for (int j=0; j<k_ref->SpMat().GetMemoryJ().Capacity(); ++j)
+   {
+      jError += (k_ref->SpMat().HostReadJ()[j] - A.HostReadJ()[j])*
+                (k_ref->SpMat().HostReadJ()[j] - A.HostReadJ()[j]);
    }
    jError = sqrt(jError);
    printf("jError %g \n",jError);
 
-   for(int i=0; i<k_ref->SpMat().GetMemoryData().Capacity(); ++i){
-     dataError += (k_ref->SpMat().HostReadData()[i] - A.HostReadData()[i])*
-                  (k_ref->SpMat().HostReadData()[i] - A.HostReadData()[i]);
+   for (int i=0; i<k_ref->SpMat().GetMemoryData().Capacity(); ++i)
+   {
+      dataError += (k_ref->SpMat().HostReadData()[i] - A.HostReadData()[i])*
+                   (k_ref->SpMat().HostReadData()[i] - A.HostReadData()[i]);
    } 
    dataError = sqrt(dataError);
    printf("dataError %g \n",dataError);
 
-   if(iError > 1e-12 || jError > 1e-12 || dataError > 1e-12){
-     printf("error too high \n"); exit(-1);
+   if (iError > 1e-12 || jError > 1e-12 || dataError > 1e-12)
+   {
+      printf("error too high \n"); exit(-1);
    }
 
 
