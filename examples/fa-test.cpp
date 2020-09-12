@@ -366,12 +366,12 @@ int main(int argc, char *argv[])
 
    //GetFullAssemblySparseMatrix(k, A);
 
-   //Reference code -- legacy assembly 
+   //Reference code -- legacy assembly
    ParBilinearForm *k_ref = new ParBilinearForm(fes);
    k_ref->AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
    k_ref->AddInteriorFaceIntegrator(
       new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
-   
+
    k_ref->Assemble(skip_zeros);
    k_ref->Finalize(skip_zeros);
    k_ref->KeepNbrBlock();
@@ -421,7 +421,7 @@ int main(int argc, char *argv[])
    {
       dataError += (k_ref->SpMat().HostReadData()[i] - A.HostReadData()[i])*
                    (k_ref->SpMat().HostReadData()[i] - A.HostReadData()[i]);
-   } 
+   }
    dataError = sqrt(dataError);
    printf("dataError %g \n",dataError);
 
