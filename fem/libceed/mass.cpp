@@ -23,6 +23,10 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
                         const mfem::IntegrationRule &irm, CeedData& ceedData)
 {
 #ifdef MFEM_USE_CEED
+   Mesh &mesh = *fes.GetMesh();
+   // Perform checks for some assumptions made in the Q-functions.
+   MFEM_VERIFY(mesh.Dimension() == mesh.SpaceDimension(), "case not supported");
+   MFEM_VERIFY(1 <= fes.GetVDim() && fes.GetVDim() <= 3, "case not supported");
    CeedPAOperator massOp = {fes, irm,
                             1, "/mass.h",
                             ":f_build_mass_const", f_build_mass_const,
