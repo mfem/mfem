@@ -14,6 +14,7 @@
 #include "../general/text.hpp"
 #include "../general/forall.hpp"
 #include "../mesh/mesh_headers.hpp"
+#include "../fem/libceed/ceed.hpp"
 #include "fem.hpp"
 
 #include <cmath>
