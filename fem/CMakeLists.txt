@@ -46,6 +46,7 @@ set(SRCS
   gridfunc.cpp
   hybridization.cpp
   intrules.cpp
+  libceed/ceed.cpp
   linearform.cpp
   lininteg.cpp
   multigrid.cpp
@@ -82,6 +83,7 @@ set(HDRS
   gridfunc.hpp
   hybridization.hpp
   intrules.hpp
+  libceed/ceed.hpp
   linearform.hpp
   lininteg.hpp
   multigrid.hpp
@@ -143,11 +145,9 @@ endif()
 
 if (MFEM_USE_CEED)
    list(APPEND SRCS
-     libceed/ceed.cpp
      libceed/diffusion.cpp
      libceed/mass.cpp)
    list(APPEND HDRS
-     libceed/ceed.hpp
      libceed/diffusion.hpp
      libceed/mass.hpp)
 endif()
