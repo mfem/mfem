@@ -63,22 +63,7 @@ void InitCeedCoeff(Coefficient *Q, Mesh &mesh,
    {
       CeedGridCoeff *ceedCoeff = new CeedGridCoeff;
       ceedCoeff->coeff = coeff->GetGridFunction();
-      CeedVectorCreate(internal::ceed, ceedCoeff->coeff->FESpace()->GetNDofs(),
-                       &ceedCoeff->coeffVector);
-      CeedScalar *d_ptr;
-      CeedMemType mem;
-      CeedGetPreferredMemType(internal::ceed, &mem);
-      if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
-      {
-         d_ptr = const_cast<CeedScalar*>(ceedCoeff->coeff->Read());
-      }
-      else
-      {
-         d_ptr = const_cast<CeedScalar*>(ceedCoeff->coeff->HostRead());
-         mem = CEED_MEM_HOST;
-      }
-      CeedVectorSetArray(ceedCoeff->coeffVector, mem, CEED_USE_POINTER,
-                         d_ptr);
+      InitCeedVector(*ceedCoeff->coeff, ceedCoeff->coeffVector);
       ptr->coeff_type = CeedCoeff::Grid;
       ptr->coeff = static_cast<void*>(ceedCoeff);
    }
@@ -97,20 +82,7 @@ void InitCeedCoeff(Coefficient *Q, Mesh &mesh,
                   " QuadratureFunction appear to be different");
       qFun.Read();
       ceedCoeff->coeff.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
-      CeedVectorCreate(internal::ceed, ne * nq, &ceedCoeff->coeffVector);
-      CeedScalar *d_ptr;
-      CeedMemType mem;
-      CeedGetPreferredMemType(internal::ceed, &mem);
-      if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
-      {
-         d_ptr = ceedCoeff->coeff.ReadWrite();
-      }
-      else
-      {
-         d_ptr = ceedCoeff->coeff.HostReadWrite();
-         mem = CEED_MEM_HOST;
-      }
-      CeedVectorSetArray(ceedCoeff->coeffVector, mem, CEED_USE_POINTER, d_ptr);
+      InitCeedVector(ceedCoeff->coeff, ceedCoeff->coeffVector);
       ptr->coeff_type = CeedCoeff::Quad;
       ptr->coeff = static_cast<void*>(ceedCoeff);
    }
@@ -129,20 +101,7 @@ void InitCeedCoeff(Coefficient *Q, Mesh &mesh,
             C(q,e) = Q->Eval(T, ir.IntPoint(q));
          }
       }
-      CeedVectorCreate(internal::ceed, ne * nq, &ceedCoeff->coeffVector);
-      CeedScalar *d_ptr;
-      CeedMemType mem;
-      CeedGetPreferredMemType(internal::ceed, &mem);
-      if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
-      {
-         d_ptr = ceedCoeff->coeff.ReadWrite();
-      }
-      else
-      {
-         d_ptr = ceedCoeff->coeff.HostReadWrite();
-         mem = CEED_MEM_HOST;
-      }
-      CeedVectorSetArray(ceedCoeff->coeffVector, mem, CEED_USE_POINTER, d_ptr);
+      InitCeedVector(ceedCoeff->coeff, ceedCoeff->coeffVector);
       ptr->coeff_type = CeedCoeff::Quad;
       ptr->coeff = static_cast<void*>(ceedCoeff);
    }
@@ -177,20 +136,7 @@ void CeedPAAssemble(const CeedPAOperator& op,
                                     nelem*nqpts*qdatasize, CEED_STRIDES_BACKEND,
                                     &ceedData.restr_i);
 
-   CeedVectorCreate(ceed, mesh->GetNodes()->Size(), &ceedData.node_coords);
-   CeedScalar *nodes_ptr;
-   CeedMemType mem;
-   CeedGetPreferredMemType(ceed, &mem);
-   if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
-   {
-      nodes_ptr = const_cast<CeedScalar*>(mesh->GetNodes()->Read());
-   }
-   else
-   {
-      nodes_ptr = const_cast<CeedScalar*>(mesh->GetNodes()->HostRead());
-      mem = CEED_MEM_HOST;
-   }
-   CeedVectorSetArray(ceedData.node_coords, mem, CEED_USE_POINTER, nodes_ptr);
+   InitCeedVector(*mesh->GetNodes(), ceedData.node_coords);
 
    CeedVectorCreate(ceed, nelem * nqpts * qdatasize, &ceedData.rho);
 
@@ -330,20 +276,7 @@ void CeedMFAssemble(const CeedMFOperator& op,
 
    CeedBasisGetNumQuadraturePoints(ceedData.basis, &nqpts);
 
-   CeedVectorCreate(ceed, mesh->GetNodes()->Size(), &ceedData.node_coords);
-   CeedScalar *nodes_ptr;
-   CeedMemType mem;
-   CeedGetPreferredMemType(ceed, &mem);
-   if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
-   {
-      nodes_ptr = const_cast<CeedScalar*>(mesh->GetNodes()->Read());
-   }
-   else
-   {
-      nodes_ptr = const_cast<CeedScalar*>(mesh->GetNodes()->HostRead());
-      mem = CEED_MEM_HOST;
-   }
-   CeedVectorSetArray(ceedData.node_coords, mem, CEED_USE_POINTER, nodes_ptr);
+   InitCeedVector(*mesh->GetNodes(), ceedData.node_coords);
 
    // Context data to be passed to the Q-function.
    ceedData.build_ctx_data.dim = mesh->Dimension();
@@ -521,6 +454,24 @@ void RemoveCeedBasisAndRestriction(const FiniteElementSpace *fes)
 }
 
 #ifdef MFEM_USE_CEED
+void InitCeedVector(const Vector &v, CeedVector &cv)
+{
+   CeedVectorCreate(internal::ceed, v.Size(), &cv);
+   CeedScalar *cv_ptr;
+   CeedMemType mem;
+   CeedGetPreferredMemType(internal::ceed, &mem);
+   if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
+   {
+      cv_ptr = const_cast<CeedScalar*>(v.Read());
+   }
+   else
+   {
+      cv_ptr = const_cast<CeedScalar*>(v.HostRead());
+      mem = CEED_MEM_HOST;
+   }
+   CeedVectorSetArray(cv, mem, CEED_USE_POINTER, cv_ptr);
+}
+
 static CeedElemTopology GetCeedTopology(Geometry::Type geom)
 {
    switch (geom)

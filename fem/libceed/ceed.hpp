@@ -220,6 +220,8 @@ inline bool DeviceCanUseCeed()
 void RemoveCeedBasisAndRestriction(const FiniteElementSpace *fes);
 
 #ifdef MFEM_USE_CEED
+/// Initialize a CeedVector from a Vector
+void InitCeedVector(const Vector &v, CeedVector &cv);
 
 /// Initialize a CeedBasis and a CeedElemRestriction
 void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
