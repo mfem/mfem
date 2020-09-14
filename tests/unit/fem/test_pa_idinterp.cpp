@@ -101,9 +101,8 @@ double compare_pa_id_assembly(int dim, int num_elements, int order,
 
 TEST_CASE("PAIdentityInterp", "[PAIdentityInterp]")
 {
-   //for (bool transpose : {false, true})
+   for (bool transpose : {false, true})
    {
-      bool transpose = false;
       for (int dim = 3; dim < 4; ++dim)
       {
          for (int num_elements = 1; num_elements < 5; ++num_elements)

@@ -2899,6 +2899,7 @@ public:
                            const FiniteElementSpace &test_fes);
 
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
 private:
    /// 1D finit element that generates and owns the 1D DofToQuad maps below

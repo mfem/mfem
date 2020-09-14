@@ -3832,15 +3832,13 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
                                         const Vector &_x,
                                         Vector &_y)
 {
-   constexpr int VDIM = 3;
-
    auto Bc = Reshape(Bclosed.Read(), c_dofs1D, c_dofs1D);
    auto Bo = Reshape(Bopen.Read(), o_dofs1D, c_dofs1D);
 
-   auto x = Reshape(_x.Read(), c_dofs1D, c_dofs1D, c_dofs1D, VDIM, NE);
+   auto x = Reshape(_x.Read(), c_dofs1D, c_dofs1D, c_dofs1D, 3, NE);
    auto y = Reshape(_y.ReadWrite(), (3 * c_dofs1D * c_dofs1D * o_dofs1D), NE);
 
-   auto vk = Reshape(pa_data.Read(), VDIM, (3 * c_dofs1D * c_dofs1D * o_dofs1D),
+   auto vk = Reshape(pa_data.Read(), (3 * c_dofs1D * c_dofs1D * o_dofs1D),
                      NE);
 
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
@@ -3894,11 +3892,13 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
          {
             for (int ex = 0; ex < o_dofs1D; ++ex)
             {
+               double s = 0.0;
                for (int dx = 0; dx < c_dofs1D; ++dx)
                {
-                  const int local_index = ez*c_dofs1D*o_dofs1D + ey*o_dofs1D + ex;
-                  y(local_index, e) += vk(0, local_index, e) * Bo(ex, dx) * w2[dx][ey][ez];
+                  s += Bo(ex, dx) * w2[dx][ey][ez];
                }
+               const int local_index = ez*c_dofs1D*o_dofs1D + ey*o_dofs1D + ex;
+               y(local_index, e) += s * vk(local_index, e);
             }
          }
       }
@@ -3944,12 +3944,14 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
          {
             for (int ex = 0; ex < c_dofs1D; ++ex)
             {
+               double s = 0.0;
                for (int dx = 0; dx < c_dofs1D; ++dx)
                {
-                  const int local_index = c_dofs1D*c_dofs1D*o_dofs1D +
-                                          ez*c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
-                  y(local_index, e) += vk(1, local_index, e) * Bc(ex, dx) * w2[dx][ey][ez];
+                  s += Bc(ex, dx) * w2[dx][ey][ez];
                }
+               const int local_index = c_dofs1D*c_dofs1D*o_dofs1D +
+                                       ez*c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
+               y(local_index, e) += s * vk(local_index, e);
             }
          }
       }
@@ -3995,12 +3997,214 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
          {
             for (int ex = 0; ex < c_dofs1D; ++ex)
             {
+               double s = 0.0;
                for (int dx = 0; dx < c_dofs1D; ++dx)
                {
-                  const int local_index = 2*c_dofs1D*c_dofs1D*o_dofs1D +
-                                          ez*c_dofs1D*c_dofs1D + ey*c_dofs1D + ex;
-                  y(local_index, e) += vk(2, local_index, e) * Bc(ex, dx) * w2[dx][ey][ez];
+                  s += Bc(ex, dx) * w2[dx][ey][ez];
                }
+               const int local_index = 2*c_dofs1D*c_dofs1D*o_dofs1D +
+                                       ez*c_dofs1D*c_dofs1D + ey*c_dofs1D + ex;
+               y(local_index, e) += s * vk(local_index, e);
+            }
+         }
+      }
+   });
+}
+
+static void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
+                                                 const int o_dofs1D,
+                                                 const int NE,
+                                                 const Array<double> &Bclosed,
+                                                 const Array<double> &Bopen,
+                                                 const Vector &pa_data,
+                                                 const Vector &_x,
+                                                 Vector &_y)
+{
+   auto Bc = Reshape(Bclosed.Read(), c_dofs1D, c_dofs1D);
+   auto Bo = Reshape(Bopen.Read(), o_dofs1D, c_dofs1D);
+
+   auto x = Reshape(_x.Read(), (3 * c_dofs1D * c_dofs1D * o_dofs1D), NE);
+   auto y = Reshape(_y.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D, 3, NE);
+
+   auto vk = Reshape(pa_data.Read(), (3 * c_dofs1D * c_dofs1D * o_dofs1D),
+                     NE);
+
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   //constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
+
+   MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
+
+   MFEM_FORALL(e, NE,
+   {
+      double w1[MAX_D1D][MAX_D1D][MAX_D1D];
+      double w2[MAX_D1D][MAX_D1D][MAX_D1D];
+
+      // dofs that point parallel to x-axis (open in x, closed in y, z)
+
+      // contract in x
+      for (int ez = 0; ez < c_dofs1D; ++ez)
+      {
+         for (int ey = 0; ey < c_dofs1D; ++ey)
+         {
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               w2[dx][ey][ez] = 0.0;
+            }
+            for (int ex = 0; ex < o_dofs1D; ++ex)
+            {
+               const int local_index = ez*c_dofs1D*o_dofs1D + ey*o_dofs1D + ex;
+               const double xv = x(local_index, e) * vk(local_index, e);
+               for (int dx = 0; dx < c_dofs1D; ++dx)
+               {
+                  w2[dx][ey][ez] += xv * Bo(ex, dx);
+               }
+            }
+         }
+      }
+
+      // contract in y
+      for (int ez = 0; ez < c_dofs1D; ++ez)
+      {
+         for (int dx = 0; dx < c_dofs1D; ++dx)
+         {
+            for (int dy = 0; dy < c_dofs1D; ++dy)
+            {
+               w1[dx][dy][ez] = 0.0;
+               for (int ey = 0; ey < c_dofs1D; ++ey)
+               {
+                  w1[dx][dy][ez] += w2[dx][ey][ez] * Bc(ey, dy);
+               }
+            }
+         }
+      }
+
+      // contract in z
+      for (int dx = 0; dx < c_dofs1D; ++dx)
+      {
+         for (int dy = 0; dy < c_dofs1D; ++dy)
+         {
+            for (int dz = 0; dz < c_dofs1D; ++dz)
+            {
+               double s = 0.0;
+               for (int ez = 0; ez < c_dofs1D; ++ez)
+               {
+                  s += w1[dx][dy][ez] * Bc(ez, dz);
+               }
+               y(dx, dy, dz, 0, e) += s;
+            }
+         }
+      }
+
+      // dofs that point parallel to y-axis (open in y, closed in x, z)
+
+      // contract in x
+      for (int ez = 0; ez < c_dofs1D; ++ez)
+      {
+         for (int ey = 0; ey < o_dofs1D; ++ey)
+         {
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               w2[dx][ey][ez] = 0.0;
+            }
+            for (int ex = 0; ex < c_dofs1D; ++ex)
+            {
+               const int local_index = c_dofs1D*c_dofs1D*o_dofs1D +
+                                       ez*c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
+               const double xv = x(local_index, e) * vk(local_index, e);
+               for (int dx = 0; dx < c_dofs1D; ++dx)
+               {
+                  w2[dx][ey][ez] += xv * Bc(ex, dx);
+               }
+            }
+         }
+      }
+
+      // contract in y
+      for (int ez = 0; ez < c_dofs1D; ++ez)
+      {
+         for (int dx = 0; dx < c_dofs1D; ++dx)
+         {
+            for (int dy = 0; dy < c_dofs1D; ++dy)
+            {
+               w1[dx][dy][ez] = 0.0;
+               for (int ey = 0; ey < o_dofs1D; ++ey)
+               {
+                  w1[dx][dy][ez] += w2[dx][ey][ez] * Bo(ey, dy);
+               }
+            }
+         }
+      }
+
+      // contract in z
+      for (int dx = 0; dx < c_dofs1D; ++dx)
+      {
+         for (int dy = 0; dy < c_dofs1D; ++dy)
+         {
+            for (int dz = 0; dz < c_dofs1D; ++dz)
+            {
+               double s = 0.0;
+               for (int ez = 0; ez < c_dofs1D; ++ez)
+               {
+                  s += w1[dx][dy][ez] * Bc(ez, dz);
+               }
+               y(dx, dy, dz, 1, e) += s;
+            }
+         }
+      }
+
+      // dofs that point parallel to z-axis (open in z, closed in x, y)
+
+      // contract in x
+      for (int ez = 0; ez < o_dofs1D; ++ez)
+      {
+         for (int ey = 0; ey < c_dofs1D; ++ey)
+         {
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               w2[dx][ey][ez] = 0.0;
+            }
+            for (int ex = 0; ex < c_dofs1D; ++ex)
+            {
+               const int local_index = 2*c_dofs1D*c_dofs1D*o_dofs1D +
+                                       ez*c_dofs1D*c_dofs1D + ey*c_dofs1D + ex;
+               const double xv = x(local_index, e) * vk(local_index, e);
+               for (int dx = 0; dx < c_dofs1D; ++dx)
+               {
+                  w2[dx][ey][ez] += xv * Bc(ex, dx);
+               }
+            }
+         }
+      }
+
+      // contract in y
+      for (int ez = 0; ez < o_dofs1D; ++ez)
+      {
+         for (int dx = 0; dx < c_dofs1D; ++dx)
+         {
+            for (int dy = 0; dy < c_dofs1D; ++dy)
+            {
+               w1[dx][dy][ez] = 0.0;
+               for (int ey = 0; ey < c_dofs1D; ++ey)
+               {
+                  w1[dx][dy][ez] += w2[dx][ey][ez] * Bc(ey, dy);
+               }
+            }
+         }
+      }
+
+      // contract in z
+      for (int dx = 0; dx < c_dofs1D; ++dx)
+      {
+         for (int dy = 0; dy < c_dofs1D; ++dy)
+         {
+            for (int dz = 0; dz < c_dofs1D; ++dz)
+            {
+               double s = 0.0;
+               for (int ez = 0; ez < o_dofs1D; ++ez)
+               {
+                  s += w1[dx][dy][ez] * Bo(ez, dz);
+               }
+               y(dx, dy, dz, 2, e) += s;
             }
          }
       }
@@ -4014,6 +4218,17 @@ static void PAHcurlVecH1IdentityApply2D(const int c_dofs1D,
                                         const Array<double> &_G,
                                         const Vector &_x,
                                         Vector &_y)
+{
+   mfem_error("TODO");
+}
+
+static void PAHcurlVecH1IdentityApplyTranspose2D(const int c_dofs1D,
+                                                 const int o_dofs1D,
+                                                 const int NE,
+                                                 const Array<double> &_B,
+                                                 const Array<double> &_G,
+                                                 const Vector &_x,
+                                                 Vector &_y)
 {
    mfem_error("TODO");
 }
@@ -4077,8 +4292,8 @@ void IdentityInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
 
    const IntegrationRule & Nodes = test_el->GetNodes();
 
-   pa_data.SetSize(ndof_test * dim * ne, Device::GetMemoryType());
-   auto op = Reshape(pa_data.HostWrite(), 3, ndof_test, ne);
+   pa_data.SetSize(ndof_test * ne, Device::GetMemoryType());
+   auto op = Reshape(pa_data.HostWrite(), ndof_test, ne);
 
    for (int c=0; c<3; ++c)
    {
@@ -4096,10 +4311,7 @@ void IdentityInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
             tr->SetIntPoint(&Nodes.IntPoint(d));
             tr->Jacobian().Mult(tk + dof2tk*dim, v);
 
-            for (int j=0; j<3; ++j)
-            {
-               op(j,d,e) = v[j];
-            }
+            op(d,e) = v[c];
          }
       }
    }
@@ -4116,6 +4328,24 @@ void IdentityInterpolator::AddMultPA(const Vector &x, Vector &y) const
    {
       PAHcurlVecH1IdentityApply2D(c_dofs1D, o_dofs1D, ne, maps_C_C->B, maps_O_C->G,
                                   x, y);
+   }
+   else
+   {
+      mfem_error("Bad dimension!");
+   }
+}
+
+void IdentityInterpolator::AddMultTransposePA(const Vector &x, Vector &y) const
+{
+   if (dim == 3)
+   {
+      PAHcurlVecH1IdentityApplyTranspose3D(c_dofs1D, o_dofs1D, ne, maps_C_C->B,
+                                           maps_O_C->B, pa_data, x, y);
+   }
+   else if (dim == 2)
+   {
+      PAHcurlVecH1IdentityApplyTranspose2D(c_dofs1D, o_dofs1D, ne, maps_C_C->B,
+                                           maps_O_C->G, x, y);
    }
    else
    {
