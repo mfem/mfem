@@ -64,7 +64,6 @@ SlepcEigenSolver::~SlepcEigenSolver()
 {
    delete VR;
    delete VC;
-   VR = VC = NULL;
 
    MPI_Comm comm;
    ierr = PetscObjectGetComm((PetscObject)eps,&comm); PCHKERRQ(eps,ierr);
