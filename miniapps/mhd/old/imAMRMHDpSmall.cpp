@@ -698,7 +698,8 @@ int main(int argc, char *argv[])
       //visualize Tau value
       MyCoefficient velocity(&phi, 2);
       computeTau = new ParLinearForm(&pw_const_fes);
-      computeTau->AddDomainIntegrator(new CheckTauIntegrator(dt, resi, velocity));
+      //need to multiply a time-step factor for SDIRK(2)
+      computeTau->AddDomainIntegrator(new CheckTauIntegrator(0.29289321881*dt, resi, velocity));
       computeTau->Assemble(); 
       tauv=computeTau->ParallelAssemble();
       tau_value.SetFromTrueDofs(*tauv);
@@ -826,6 +827,7 @@ int main(int argc, char *argv[])
            {
                pw_const_fes.Update();
                mpi_rank_gf.Update();
+               tau_value.Update();
            }
 
            pmesh->Rebalance();
@@ -834,6 +836,7 @@ int main(int argc, char *argv[])
            {
                pw_const_fes.Update();
                mpi_rank_gf.Update();
+               tau_value.Update();
            }
 
            //---Update solutions after rebalancing---
@@ -879,6 +882,7 @@ int main(int argc, char *argv[])
              {
                  pw_const_fes.Update();
                  mpi_rank_gf.Update();
+                 tau_value.Update();
              }
 
              pmesh->Rebalance();
@@ -887,6 +891,7 @@ int main(int argc, char *argv[])
              {
                  pw_const_fes.Update();
                  mpi_rank_gf.Update();
+                 tau_value.Update();
              }
 
              //---Update solutions after rebalancing---
@@ -951,7 +956,7 @@ int main(int argc, char *argv[])
            delete tauv;
 
            computeTau = new ParLinearForm(&pw_const_fes);
-           computeTau->AddDomainIntegrator(new CheckTauIntegrator(dt_real, resi, velocity));
+           computeTau->AddDomainIntegrator(new CheckTauIntegrator(0.29289321881*dt_real, resi, velocity));
            computeTau->Assemble(); 
            tauv=computeTau->ParallelAssemble();
            tau_value.SetFromTrueDofs(*tauv);

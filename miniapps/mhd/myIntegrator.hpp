@@ -243,13 +243,14 @@ void StabConvectionIntegrator::AssembleElementMatrix(const FiniteElement &el,
                V_ir.GetColumnReference(i, vec1);
                Unorm = vec1.Norml2();
                if (itau==1)
-                   invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
+               {
+                   invtau = sqrt( pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+               }
                else if (itau==2)
                    invtau = sqrt( pow(2./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
                else if (itau==3)
                {
-                   invtau = sqrt( pow(2./.03,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
-                   //cout <<"invtau="<<invtau<<" ";
+                   invtau = sqrt( pow(4./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
                }
                else
                    invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
@@ -281,13 +282,16 @@ void StabConvectionIntegrator::AssembleElementMatrix(const FiniteElement &el,
             double nu = nuCoef->Eval (Tr, ip);
             Unorm = vec1.Norml2();
             if (itau==1)
-                invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
+            {
+                invtau = sqrt( pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+                //invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
+            }
             else if (itau==2)
                 //fix dt=0.1 so that it is comparable to an implicit scheme
                 //invtau = sqrt( pow(2./.1,2) +  pow(2.0 * Unorm / eleLength, 2) );
                 invtau = sqrt( pow(2./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
             else if (itau==3)
-                invtau = sqrt( pow(2./.03,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+                invtau = sqrt( pow(4./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
             else
                 invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
             //cout <<"invtau ="<<invtau<<" length="<<eleLength<<" ";
@@ -368,12 +372,13 @@ void StabMassIntegrator::AssembleElementMatrix(const FiniteElement &el,
     V->Eval(V_ir, Tr, ir);
     //compare maximum tau
     double tauMax=0.0;
+    double nu=0.;
     if (maxtau)
     {
         for (int i = 0; i < ir.GetNPoints(); i++)
         {
             const IntegrationPoint &ip = ir.IntPoint(i);
-            double nu = nuCoef->Eval (Tr, ip);
+            nu = nuCoef->Eval (Tr, ip);
 
             if (FieldDiff){
                invtau = sqrt( pow(2./dt,2) + pow(2.0*vA/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2) );
@@ -384,11 +389,14 @@ void StabMassIntegrator::AssembleElementMatrix(const FiniteElement &el,
                V_ir.GetColumnReference(i, vec1);
                Unorm = vec1.Norml2();
                if (itau==1)
-                   invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
+               {
+                   invtau = sqrt( pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+                   //invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
+               }
                else if (itau==2)
                    invtau = sqrt( pow(2./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
                else if (itau==3)
-                   invtau = sqrt( pow(2./.03,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+                   invtau = sqrt( pow(4./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
                else
                    invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
                tau = 1.0/invtau;
@@ -396,7 +404,7 @@ void StabMassIntegrator::AssembleElementMatrix(const FiniteElement &el,
             tauMax = max(tauMax, tau);
         }
     }
-    //cout <<"tauMax ="<<tauMax<<" length="<<eleLength<<" ";
+    //cout <<"tauMax ="<<tauMax<<" length="<<eleLength<<" h^2/nu="<<(eleLength*eleLength)/nu<<" dt="<<dt<<" ";
   
     for (int i = 0; i < ir.GetNPoints(); i++)
     {
@@ -420,11 +428,14 @@ void StabMassIntegrator::AssembleElementMatrix(const FiniteElement &el,
             double nu = nuCoef->Eval (Tr, ip);
             Unorm = vec1.Norml2();
             if (itau==1)
-                invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
+            {
+                invtau = sqrt( pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+                //invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
+            }
             else if (itau==2)
                 invtau = sqrt( pow(2./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
             else if (itau==3)
-                invtau = sqrt( pow(2./0.03,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+                invtau = sqrt( pow(4./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
             else
                 invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
             tau = 1.0/invtau;
@@ -503,11 +514,14 @@ void CheckTauIntegrator::AssembleRHSElementVect(const FiniteElement &el,
             V_ir.GetColumnReference(i, vec1);
             Unorm = vec1.Norml2();
             if (itau==1)
-                invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
+            {
+                invtau = sqrt( pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+                //invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
+            }
             else if (itau==2)
                 invtau = sqrt( pow(2./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
             else if (itau==3)
-                invtau = sqrt( pow(2./.03,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+                invtau = sqrt( pow(4./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
             else
                 invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
             tau = 1.0/invtau;
@@ -582,11 +596,14 @@ void StabDomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
             V_ir.GetColumnReference(i, vec1);
             Unorm = vec1.Norml2();
             if (itau==1)
-                invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
+            {
+                invtau = sqrt( pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+                //invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
+            }
             else if (itau==2)
                 invtau = sqrt( pow(2./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
             else if (itau==3)
-                invtau = sqrt( pow(2./.03,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+                invtau = sqrt( pow(4./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
             else
                 invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
             tau = 1.0/invtau;
@@ -616,11 +633,14 @@ void StabDomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
             double nu = nuCoef->Eval (Tr, ip);
             Unorm = vec1.Norml2();
             if (itau==1)
-                invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
+            {
+                invtau = sqrt( pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+                //invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
+            }
             else if (itau==2)
                 invtau = sqrt( pow(2./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
             else if (itau==3)
-                invtau = sqrt( pow(2./.03,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+                invtau = sqrt( pow(4./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
             else
                 invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
             tau = 1.0/invtau;
