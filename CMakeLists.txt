@@ -16,7 +16,7 @@ set(USER_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/config/user.cmake" CACHE PATH
 
 # Require C++11 and disable compiler-specific extensions
 set(CMAKE_CXX_STANDARD 11)
-if (MFEM_USE_GINKGO) 
+if (MFEM_USE_GINKGO)
   set(CMAKE_CXX_STANDARD 14)
 endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -102,7 +102,7 @@ if (MFEM_USE_CUDA)
    endif()
    enable_language(CUDA)
    set(CMAKE_CUDA_STANDARD 11)
-   if (MFEM_USE_GINKGO) 
+   if (MFEM_USE_GINKGO)
      set(CMAKE_CUDA_STANDARD 14)
    endif()
    set(CMAKE_CUDA_STANDARD_REQUIRED ON)
@@ -266,6 +266,15 @@ if (MFEM_USE_SUNDIALS)
   find_package(SUNDIALS REQUIRED ${SUNDIALS_COMPONENTS})
 endif()
 
+# EPIC
+if (MFEM_USE_EPIC)
+  if (NOT (MFEM_USE_MPI AND MFEM_USE_SUNDIALS AND MFEM_USE_LAPACK) )
+    message(FATAL_ERROR " *** EPIC requires that MPI, SUNDIALS and LAPACK be enabled.")
+  else()
+    find_package(EPIC REQUIRED SUNDIALS NVector_Serial NVector_Parallel BLAS LAPACK)
+  endif()
+endif()
+
 # Mesquite
 if (MFEM_USE_MESQUITE)
   find_package(Mesquite REQUIRED)
@@ -423,7 +432,7 @@ endif()
 #    With newer versions of SuiteSparse which include METIS header using 64-bit
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
-set(MFEM_TPLS MPI_CXX OPENMP HYPRE BLAS LAPACK SuperLUDist METIS SuiteSparse SUNDIALS PETSC
+set(MFEM_TPLS MPI_CXX OPENMP HYPRE BLAS LAPACK SuperLUDist METIS SuiteSparse SUNDIALS EPIC PETSC
     SLEPC MESQUITE MUMPS STRUMPACK AXOM CONDUIT Ginkgo GNUTLS GSLIB NETCDF
     MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE ADIOS2
     CUSPARSE MKL_CPARDISO AMGX CALIPER)

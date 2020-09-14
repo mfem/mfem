@@ -83,6 +83,11 @@ if (MFEM_USE_SUNDIALS)
   list(APPEND HDRS sundials.hpp)
 endif()
 
+if (MFEM_USE_EPIC)
+  list(APPEND SRCS epic.cpp)
+  list(APPEND HDRS epic.hpp)
+endif()
+
 if (MFEM_USE_SUPERLU)
   list(APPEND SRCS superlu.cpp)
   # If this list (HDRS -> HEADERS) is used for install, we probably want the

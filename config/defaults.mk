@@ -119,6 +119,7 @@ MFEM_USE_LEGACY_OPENMP = NO
 MFEM_USE_MEMALLOC      = YES
 MFEM_TIMER_TYPE        = $(if $(NOTMAC),2,4)
 MFEM_USE_SUNDIALS      = NO
+MFEM_USE_EPIC          = NO
 MFEM_USE_MESQUITE      = NO
 MFEM_USE_SUITESPARSE   = NO
 MFEM_USE_SUPERLU       = NO
@@ -222,6 +223,11 @@ ifeq ($(MFEM_USE_CUDA),YES)
 endif
 # If SUNDIALS was built with KLU:
 # MFEM_USE_SUITESPARSE = YES
+
+# EPIC library configuration
+MESQUITE_DIR = @MFEM_DIR@/../epic-cpp/instdir
+MESQUITE_OPT = -I$(EPIC_DIR)/include
+MESQUITE_LIB = -L$(EPIC_DIR)/lib -lepic1.0.0
 
 # MESQUITE library configuration
 MESQUITE_DIR = @MFEM_DIR@/../mesquite-2.99

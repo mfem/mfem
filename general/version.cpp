@@ -82,6 +82,9 @@ const char *GetConfigStr()
 #ifdef MFEM_USE_CUDA
       "MFEM_USE_CUDA\n"
 #endif
+#ifdef MFEM_USE_EPIC
+      "MFEM_USE_EPIC\n"
+#endif
 #ifdef MFEM_USE_EXCEPTIONS
       "MFEM_USE_EXCEPTIONS\n"
 #endif

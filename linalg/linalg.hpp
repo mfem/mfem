@@ -40,6 +40,10 @@
 #include "sundials.hpp"
 #endif
 
+#ifdef MFEM_USE_EPIC
+#include "epic.hpp"
+#endif
+
 #ifdef MFEM_USE_HIOP
 #include "hiop.hpp"
 #endif

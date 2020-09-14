@@ -162,6 +162,9 @@
 // Enable MFEM functionality based on the SUNDIALS libraries.
 #cmakedefine MFEM_USE_SUNDIALS
 
+// Enable MFEM functionality based on the EPIC libraries.
+#cmakedefine MFEM_USE_EPIC
+
 // Version of HYPRE used for building MFEM.
 #cmakedefine MFEM_HYPRE_VERSION @MFEM_HYPRE_VERSION@
 
