@@ -15,6 +15,9 @@
 #include "../config/config.hpp"
 #include <iomanip>
 #include <sstream>
+#ifdef MFEM_USE_HIP
+#include <hip/hip_runtime.h>
+#endif
 
 namespace mfem
 {
@@ -144,6 +147,22 @@ void mfem_warning(const char *msg = NULL);
    "invalid index " #i << " = " << (i) << \
    ", valid range is [" << (imin) << ',' << (imax) << ')')
 
+
+// Additional abort functions for HIP
+#if defined(MFEM_USE_HIP)
+template<typename T>
+__host__ void abort_msg(T & msg)
+{
+   MFEM_ABORT(msg);
+}
+
+template<typename T>
+__device__ void abort_msg(T & msg)
+{
+   abort();
+}
+#endif
+
 // Abort inside a device kernel
 #if defined(__CUDA_ARCH__)
 #define MFEM_ABORT_KERNEL(msg) \
@@ -154,7 +173,7 @@ void mfem_warning(const char *msg = NULL);
 #elif defined(MFEM_USE_HIP)
 #define MFEM_ABORT_KERNEL(msg) \
    {                           \
-      printf(msg);             \
+      abort_msg(msg);          \
    }
 #else
 #define MFEM_ABORT_KERNEL(msg) MFEM_ABORT(msg)
