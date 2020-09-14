@@ -131,7 +131,7 @@ public:
    SheathImpedance(const ParGridFunction & B,
                    const BlockVector & density,
                    const BlockVector & temp,
-                   const BlockVector & potential,
+                   const ParComplexGridFunction & potential,
                    const ParFiniteElementSpace & L2FESpace,
                    const ParFiniteElementSpace & H1FESpace,
                    double omega,
@@ -149,7 +149,7 @@ private:
    const ParGridFunction & B_;
    const BlockVector & density_;
    const BlockVector & temp_;
-   const BlockVector & potential_;
+   const ParComplexGridFunction & potential_;
    const ParFiniteElementSpace & L2FESpace_;
    const ParFiniteElementSpace & H1FESpace_;
 
@@ -158,11 +158,9 @@ private:
 
    ParGridFunction density_gf_;
    ParGridFunction temperature_gf_;
-   ParGridFunction potential_gf_;
 
    Vector density_vals_;
    Vector temp_vals_;
-   Vector potential_vals_;
    const Vector & charges_;
    const Vector & masses_;
 };
