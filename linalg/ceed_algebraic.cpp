@@ -20,6 +20,27 @@
 namespace mfem
 {
 
+/// copy/paste hack used in CeedOperatorFullAssemble
+int CeedHackReallocArray(size_t n, size_t unit, void *p) {
+  *(void **)p = realloc(*(void **)p, n*unit);
+  if (n && unit && !*(void **)p)
+    // LCOV_EXCL_START
+    return CeedError(NULL, 1, "realloc failed to allocate %zd members of size "
+                     "%zd\n", n, unit);
+  // LCOV_EXCL_STOP
+
+  return 0;
+}
+
+#define CeedHackRealloc(n, p) CeedHackReallocArray((n), sizeof(**(p)), p)
+
+/// copy/paste hack used in CeedOperatorFullAssemble
+int CeedHackFree(void *p) {
+  free(*(void **)p);
+  *(void **)p = NULL;
+  return 0;
+}
+
 /**
    Wrap CeedInterpolation object in an mfem::Operator
 */
@@ -182,6 +203,34 @@ private:
    mutable mfem::Vector coarse_correction_;
 };
 
+class CeedCGWithAMG : public mfem::Solver
+{
+public:
+   CeedCGWithAMG(CeedOperator oper,
+                 mfem::Array<int>& ess_tdof_list,
+                 int sparse_solver_type,
+                 bool use_amgx);
+
+   ~CeedCGWithAMG();
+
+   void SetOperator(const mfem::Operator& op) { }
+   void Mult(const mfem::Vector& x, mfem::Vector& y) const
+   {
+      solver_->Mult(x, y);
+   }
+
+private:
+   mfem::CGSolver innercg_;
+
+   MFEMCeedOperator * mfem_ceed_;
+
+   mfem::SparseMatrix * mat_assembled_;
+   mfem::HypreParMatrix * hypre_assembled_;
+   // mfem::HypreBoomerAMG * hypre_inner_prec_;
+   mfem::Solver * inner_prec_;
+   mfem::Solver * solver_;
+};
+
 /**
    Do a fixed number of CG iterations on the coarsest level.
 
@@ -208,6 +257,239 @@ private:
 
    MFEMCeedOperator * mfem_ceed_;
 };
+
+/**
+   todo: think of ways to make this faster when we know a sparsity structure (?)
+   (ie, for low-order refined or algebraic sparsification)
+*/
+int CeedOperatorFullAssemble(CeedOperator op,
+                             mfem::SparseMatrix ** mat)
+{
+   int ierr;
+   Ceed ceed;
+   ierr = CeedOperatorGetCeed(op, &ceed); CeedChk(ierr);
+
+   // Assemble QFunction
+   CeedQFunction qf;
+   ierr = CeedOperatorGetQFunction(op, &qf); CeedChk(ierr);
+   CeedInt numinputfields, numoutputfields;
+   ierr= CeedQFunctionGetNumArgs(qf, &numinputfields, &numoutputfields);
+   CeedChk(ierr);
+   CeedVector assembledqf;
+   CeedElemRestriction rstr_q;
+   ierr = CeedOperatorLinearAssembleQFunction(
+      op, &assembledqf, &rstr_q, CEED_REQUEST_IMMEDIATE); CeedChk(ierr);
+
+   CeedInt qflength;
+   ierr = CeedVectorGetLength(assembledqf, &qflength); CeedChk(ierr);
+
+   CeedOperatorField * input_fields;
+   CeedOperatorField * output_fields;
+   ierr = CeedOperatorGetFields(op, &input_fields, &output_fields); CeedChk(ierr);
+
+   // Determine active input basis
+   CeedQFunctionField *qffields;
+   ierr = CeedQFunctionGetFields(qf, &qffields, NULL); CeedChk(ierr);
+   CeedInt numemodein = 0, ncomp, dim = 1;
+   CeedEvalMode *emodein = NULL;
+   CeedBasis basisin = NULL;
+   CeedElemRestriction rstrin = NULL;
+   for (CeedInt i=0; i<numinputfields; i++)
+   {
+      CeedVector vec;
+      ierr = CeedOperatorFieldGetVector(input_fields[i], &vec); CeedChk(ierr);
+      if (vec == CEED_VECTOR_ACTIVE)
+      {
+         ierr = CeedOperatorFieldGetBasis(input_fields[i], &basisin);
+         CeedChk(ierr);
+         ierr = CeedBasisGetNumComponents(basisin, &ncomp); CeedChk(ierr);
+         ierr = CeedBasisGetDimension(basisin, &dim); CeedChk(ierr);
+         ierr = CeedOperatorFieldGetElemRestriction(input_fields[i], &rstrin);
+         CeedChk(ierr);
+         CeedEvalMode emode;
+         ierr = CeedQFunctionFieldGetEvalMode(qffields[i], &emode);
+         CeedChk(ierr);
+         switch (emode)
+         {
+         case CEED_EVAL_NONE:
+         case CEED_EVAL_INTERP:
+            ierr = CeedHackRealloc(numemodein + 1, &emodein); CeedChk(ierr);
+            emodein[numemodein] = emode;
+            numemodein += 1;
+            break;
+         case CEED_EVAL_GRAD:
+            ierr = CeedHackRealloc(numemodein + dim, &emodein); CeedChk(ierr);
+            for (CeedInt d=0; d<dim; d++)
+               emodein[numemodein+d] = emode;
+            numemodein += dim;
+            break;
+         case CEED_EVAL_WEIGHT:
+         case CEED_EVAL_DIV:
+         case CEED_EVAL_CURL:
+            break; // Caught by QF Assembly
+         }
+      }
+   }
+
+   // Determine active output basis
+   ierr = CeedQFunctionGetFields(qf, NULL, &qffields); CeedChk(ierr);
+   CeedInt numemodeout = 0;
+   CeedEvalMode *emodeout = NULL;
+   CeedBasis basisout = NULL;
+   CeedElemRestriction rstrout = NULL;
+   for (CeedInt i=0; i<numoutputfields; i++)
+   {
+      CeedVector vec;
+      ierr = CeedOperatorFieldGetVector(output_fields[i], &vec); CeedChk(ierr);
+      if (vec == CEED_VECTOR_ACTIVE)
+      {
+         ierr = CeedOperatorFieldGetBasis(output_fields[i], &basisout);
+         CeedChk(ierr);
+         ierr = CeedOperatorFieldGetElemRestriction(output_fields[i], &rstrout);
+         CeedChk(ierr);
+         CeedChk(ierr);
+         CeedEvalMode emode;
+         ierr = CeedQFunctionFieldGetEvalMode(qffields[i], &emode);
+         CeedChk(ierr);
+         switch (emode)
+         {
+         case CEED_EVAL_NONE:
+         case CEED_EVAL_INTERP:
+            ierr = CeedHackRealloc(numemodeout + 1, &emodeout); CeedChk(ierr);
+            emodeout[numemodeout] = emode;
+            numemodeout += 1;
+            break;
+         case CEED_EVAL_GRAD:
+            ierr = CeedHackRealloc(numemodeout + dim, &emodeout); CeedChk(ierr);
+            for (CeedInt d=0; d<dim; d++)
+               emodeout[numemodeout+d] = emode;
+            numemodeout += dim;
+            break;
+         case CEED_EVAL_WEIGHT:
+         case CEED_EVAL_DIV:
+         case CEED_EVAL_CURL:
+            break; // Caught by QF Assembly
+         }
+      }
+   }
+
+   CeedInt nnodes, nelem, elemsize, nqpts;
+   ierr = CeedElemRestrictionGetNumElements(rstrin, &nelem); CeedChk(ierr);
+   ierr = CeedElemRestrictionGetElementSize(rstrin, &elemsize); CeedChk(ierr);
+   ierr = CeedElemRestrictionGetLVectorSize(rstrin, &nnodes); CeedChk(ierr);
+   ierr = CeedBasisGetNumQuadraturePoints(basisin, &nqpts); CeedChk(ierr);
+
+   // Determine elem_dof relation
+   CeedVector index_vec;
+   ierr = CeedVectorCreate(ceed, nnodes, &index_vec); CeedChk(ierr);
+   CeedScalar * array;
+   ierr = CeedVectorGetArray(index_vec, CEED_MEM_HOST, &array); CeedChk(ierr);
+   for (CeedInt i = 0; i < nnodes; ++i)
+   {
+      array[i] = i;
+   }
+   ierr = CeedVectorRestoreArray(index_vec, &array); CeedChk(ierr);
+   CeedVector elem_dof;
+   ierr = CeedVectorCreate(ceed, nelem * elemsize, &elem_dof); CeedChk(ierr);
+   ierr = CeedVectorSetValue(elem_dof, 0.0); CeedChk(ierr);
+   CeedElemRestrictionApply(rstrin, CEED_NOTRANSPOSE, index_vec,
+                            elem_dof, CEED_REQUEST_IMMEDIATE); CeedChk(ierr);
+   const CeedScalar * elem_dof_a;
+   ierr = CeedVectorGetArrayRead(elem_dof, CEED_MEM_HOST, &elem_dof_a);
+   CeedChk(ierr);
+   ierr = CeedVectorDestroy(&index_vec); CeedChk(ierr);
+
+   /// loop over elements and put in mfem::SparseMatrix
+   mfem::SparseMatrix * out = new mfem::SparseMatrix(nnodes, nnodes);
+   const CeedScalar *interpin, *gradin;
+   ierr = CeedBasisGetInterp(basisin, &interpin); CeedChk(ierr);
+   ierr = CeedBasisGetGrad(basisin, &gradin); CeedChk(ierr);
+
+   const CeedScalar * assembledqfarray;
+   ierr = CeedVectorGetArrayRead(assembledqf, CEED_MEM_HOST, &assembledqfarray);
+   CeedChk(ierr);
+
+   CeedInt layout[3];
+   ierr = CeedElemRestrictionGetELayout(rstr_q, &layout); CeedChk(ierr);
+   ierr = CeedElemRestrictionDestroy(&rstr_q); CeedChk(ierr);
+
+   // numinputfields is 2 in both 2D and 3D...
+   // elemsize and nqpts are total, not 1D
+   const int skip_zeros = 0; // enforce structurally symmetric for later elimination
+   MFEM_ASSERT(numemodein == numemodeout, "My undestanding fails in this case.");
+   for (int e = 0; e < nelem; ++e)
+   {
+      /// get mfem::Array<int> for use in SparseMatrix::AddSubMatrix()
+      mfem::Array<int> rows(elemsize);
+      for (int i = 0; i < elemsize; ++i)
+      {
+         rows[i] = elem_dof_a[e * elemsize + i];
+      }
+
+      // form element matrix itself
+      mfem::DenseMatrix Bmat(nqpts * numemodein, elemsize);
+      Bmat = 0.0;
+      mfem::DenseMatrix Dmat(nqpts * numemodeout,
+                             nqpts * numemodein);
+      Dmat = 0.0;
+      mfem::DenseMatrix elem_mat(elemsize, elemsize);
+      elem_mat = 0.0;
+      for (int q = 0; q < nqpts; ++q)
+      {
+         for (int n = 0; n < elemsize; ++n)
+         {
+            CeedInt din = -1;
+            for (int ein = 0; ein < numemodein; ++ein)
+            {
+               if (emodein[ein] == CEED_EVAL_GRAD)
+               {
+                  din += 1;
+               }
+               if (emodein[ein] == CEED_EVAL_INTERP)
+               {
+                  Bmat(numemodein * q + ein, n) += interpin[q * elemsize + n];
+               }
+               else if (emodein[ein] == CEED_EVAL_GRAD)
+               {
+                  Bmat(numemodein * q + ein, n) += gradin[(din*nqpts+q) * elemsize + n];
+               }
+               else
+               {
+                  MFEM_ASSERT(false, "Not implemented!");
+               }
+            }
+         }
+         for (int ei = 0; ei < numemodein; ++ei)
+         {
+            for (int ej = 0; ej < numemodein; ++ej)
+            {
+               const int comp = ei * numemodein + ej;
+               const int index = q*layout[0] + comp*layout[1] + e*layout[2];
+               Dmat(numemodein * q + ei, numemodein * q + ej) +=
+                  assembledqfarray[index];
+            }
+         }
+      }
+      mfem::DenseMatrix BTD(Bmat.Width(), Dmat.Width());
+      mfem::MultAtB(Bmat, Dmat, BTD);
+      mfem::Mult(BTD, Bmat, elem_mat);
+
+      /// put element matrix in sparsemat
+      out->AddSubMatrix(rows, rows, elem_mat, skip_zeros);
+   }
+
+   ierr = CeedVectorRestoreArrayRead(elem_dof, &elem_dof_a); CeedChk(ierr);
+   ierr = CeedVectorDestroy(&elem_dof); CeedChk(ierr);
+   ierr = CeedVectorRestoreArrayRead(assembledqf, &assembledqfarray); CeedChk(ierr);
+   ierr = CeedVectorDestroy(&assembledqf); CeedChk(ierr);
+   ierr = CeedHackFree(&emodein); CeedChk(ierr);
+   ierr = CeedHackFree(&emodeout); CeedChk(ierr);
+
+   out->Finalize(skip_zeros);
+   *mat = out;
+
+   return 0;
+}
 
 UnconstrainedMFEMCeedOperator::UnconstrainedMFEMCeedOperator(CeedOperator oper) :
    oper_(oper)
@@ -582,6 +864,82 @@ CeedMultigridLevel::~CeedMultigridLevel()
    delete mfem_interp_;
 }
 
+/// convenience function, ugly hack
+mfem::HypreParMatrix* SerialHypreMatrix(mfem::SparseMatrix& mat)
+{
+   HYPRE_Int row_starts[3];
+   row_starts[0] = 0;
+   row_starts[1] = mat.Height();
+   row_starts[2] = mat.Height();
+   mfem::HypreParMatrix * out = new mfem::HypreParMatrix(
+      MPI_COMM_WORLD, mat.Height(), row_starts, &mat);
+   out->CopyRowStarts();
+   out->CopyColStarts();
+
+   /// 3 gives MFEM full ownership of i, j, data
+   // out->SetOwnerFlags(3, out->OwnsOffd(), out->OwnsColMap());
+   // mat.LoseData();
+
+   return out;
+}
+
+CeedCGWithAMG::CeedCGWithAMG(CeedOperator oper,
+                             mfem::Array<int>& ess_tdof_list,
+                             int sparse_solver_type,
+                             bool use_amgx)
+{
+   mfem_ceed_ = new MFEMCeedOperator(oper, ess_tdof_list);
+   height = width = mfem_ceed_->Height();
+
+   CeedOperatorFullAssemble(oper, &mat_assembled_);
+
+   for (int i = 0; i < ess_tdof_list.Size(); ++i)
+   {
+      mat_assembled_->EliminateRowCol(ess_tdof_list[i], mfem::Matrix::DIAG_ONE);
+   }
+   innercg_.SetOperator(*mfem_ceed_);
+  
+#ifdef CEED_USE_AMGX
+   if (use_amgx)
+   {
+      NvidiaAMGX * amgx = new NvidiaAMGX();
+      const bool amgx_verbose = false;
+      amgx->ConfigureAsPreconditioner(amgx_verbose);
+      amgx->SetOperator(*mat_assembled_);
+      hypre_assembled_ = NULL;
+      inner_prec_ = amgx;
+   } else
+#endif
+   {
+      hypre_assembled_ = SerialHypreMatrix(*mat_assembled_);
+      mfem::HypreBoomerAMG * amg = new mfem::HypreBoomerAMG(*hypre_assembled_);
+      amg->SetPrintLevel(0);
+      inner_prec_ = amg;
+   }
+   innercg_.SetPreconditioner(*inner_prec_);
+   innercg_.SetPrintLevel(-1);
+   innercg_.SetMaxIter(500);
+   innercg_.SetRelTol(1.e-16);
+
+   if (sparse_solver_type == 0)
+   {
+      solver_ = &innercg_;
+   }
+   else
+   {
+      solver_ = inner_prec_;
+   }
+}
+
+CeedCGWithAMG::~CeedCGWithAMG()
+{
+   delete mfem_ceed_;
+
+   delete mat_assembled_;
+   delete hypre_assembled_;
+   delete inner_prec_;
+}
+
 CeedPlainCG::CeedPlainCG(CeedOperator oper,
                          mfem::Array<int>& ess_tdof_list,
                          int max_iter)
@@ -657,6 +1015,18 @@ AlgebraicCeedSolver::AlgebraicCeedSolver(Operator& fine_mfem_op,
    int coarse_cg_iterations = 10; // fewer might be better?
    if (num_levels > 1)
    {
+/*
+   if (ceed_amg)
+   {
+      // bool use_amgx = (ceed_spec[1] == 'g'); // TODO very crude
+      bool use_amgx = false;
+      const int sparse_solver_type = 1; // single v-cycle
+      coarsest_solver = new CeedCGWithAMG(coarsest->GetCoarseCeed(),
+                                          coarsest->GetCoarseEssentialDofList(),
+                                          sparse_solver_type,
+                                          use_amgx);
+   } else {
+*/
       /*
       coarsest_solver = new CeedPlainCG(coarsest->GetCoarseCeed(),
                                         coarsest->GetCoarseEssentialDofList(),
