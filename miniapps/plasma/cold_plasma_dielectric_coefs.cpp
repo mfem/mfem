@@ -473,10 +473,8 @@ double SheathImpedance::Eval(ElementTransformation &T,
    B_.GetVectorValue(T, ip, B);
    double Bmag = B.Norml2();
     
-   double phir;
-   double phii;
-   potential_.real().GetValue(T, ip, phir);
-   potential_.imag().GetValue(T, ip, phii);
+   double phir = potential_.real().GetValue(T, ip);
+   double phii = potential_.imag().GetValue(T, ip);
 
    for (int i=0; i<density_vals_.Size(); i++)
    {
@@ -512,7 +510,7 @@ double SheathImpedance::Eval(ElementTransformation &T,
 
    complex<double> zsheath_norm = 1.0 / ytot(w_norm, wci_norm, bn, volt_norm,
                                              masses_[0], masses_[1]);
-
+    
    if (realPart_)
    {
       return (zsheath_norm.real()*9.0*1e11*1e-4*
