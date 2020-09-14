@@ -2234,6 +2234,10 @@ public:
    virtual void AssemblePA(const FiniteElementSpace &fes);
    virtual void AssembleDiagonalPA(Vector &diag);
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+
+#ifdef MFEM_USE_CEED
+   CeedData * GetCeedData() { return ceedDataPtr; }
+#endif
 };
 
 
@@ -2632,6 +2636,10 @@ public:
    virtual void AssemblePA(const FiniteElementSpace &fes);
    virtual void AssembleDiagonalPA(Vector &diag);
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+
+#ifdef MFEM_USE_CEED
+   CeedData * GetCeedData() { return ceedDataPtr; }
+#endif
 };
 
 /** Integrator for the linear elasticity form:
