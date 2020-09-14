@@ -1010,18 +1010,35 @@ AlgebraicCeedSolver::AlgebraicCeedSolver(Operator& fine_mfem_op,
    CeedCompositeOperatorCreate(internal::ceed, &fine_composite_op);
    for (int i = 0; i < num_integrators; ++i)
    {
-      DiffusionIntegrator * dintegrator =
-         dynamic_cast<DiffusionIntegrator*>((*bffis)[i]);
+      bool casted = false;
+      DiffusionIntegrator * dintegrator = dynamic_cast<DiffusionIntegrator*>((*bffis)[i]);
       if (dintegrator)
       {
          CeedCompositeOperatorAddSub(fine_composite_op, dintegrator->GetCeedData()->oper);
+         casted = true;
       }
-      else
+      MassIntegrator * mintegrator = dynamic_cast<MassIntegrator*>((*bffis)[i]);
+      if (mintegrator)
       {
-         MassIntegrator * mintegrator = dynamic_cast<MassIntegrator*>((*bffis)[i]);
-         MFEM_VERIFY(mintegrator, "Integrator not supported in AlgebraicCeedSolver!");
+         MFEM_ASSERT(!casted, "Integrator already used (programmer error)!");
          CeedCompositeOperatorAddSub(fine_composite_op, mintegrator->GetCeedData()->oper);
+         casted = true;
       }
+      VectorDiffusionIntegrator * vdintegrator = dynamic_cast<VectorDiffusionIntegrator*>((*bffis)[i]);
+      if (vdintegrator)
+      {
+         MFEM_ASSERT(!casted, "Integrator already used (programmer error)!");
+         CeedCompositeOperatorAddSub(fine_composite_op, vdintegrator->GetCeedData()->oper);
+         casted = true;
+      }
+      VectorMassIntegrator * vmintegrator = dynamic_cast<VectorMassIntegrator*>((*bffis)[i]);
+      if (vmintegrator)
+      {
+         MFEM_ASSERT(!casted, "Integrator already used (programmer error)!");
+         CeedCompositeOperatorAddSub(fine_composite_op, vmintegrator->GetCeedData()->oper);
+         casted = true;
+      }
+      MFEM_VERIFY(casted, "Integrator not supported in AlgebraicCeedSolver!");
    }
    CeedOperator current_op = fine_composite_op;
 
