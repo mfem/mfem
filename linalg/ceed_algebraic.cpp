@@ -226,7 +226,6 @@ private:
 
    mfem::SparseMatrix * mat_assembled_;
    mfem::HypreParMatrix * hypre_assembled_;
-   // mfem::HypreBoomerAMG * hypre_inner_prec_;
    mfem::Solver * inner_prec_;
    mfem::Solver * solver_;
 };
@@ -1012,32 +1011,32 @@ AlgebraicCeedSolver::AlgebraicCeedSolver(Operator& fine_mfem_op,
       coarsest = levels[num_levels - 2];
    }
 
-   int coarse_cg_iterations = 10; // fewer might be better?
    if (num_levels > 1)
    {
-/*
-   if (ceed_amg)
-   {
-      // bool use_amgx = (ceed_spec[1] == 'g'); // TODO very crude
-      bool use_amgx = false;
-      const int sparse_solver_type = 1; // single v-cycle
-      coarsest_solver = new CeedCGWithAMG(coarsest->GetCoarseCeed(),
-                                          coarsest->GetCoarseEssentialDofList(),
-                                          sparse_solver_type,
-                                          use_amgx);
-   } else {
-*/
-      /*
-      coarsest_solver = new CeedPlainCG(coarsest->GetCoarseCeed(),
-                                        coarsest->GetCoarseEssentialDofList(),
-                                        coarse_cg_iterations);
-      */
-      coarsest_solver = BuildSmootherFromCeed(NULL, coarsest->GetCoarseCeed(),
-                                              coarsest->GetCoarseEssentialDofList(),
-                                              false);
+      if ( Device::Allows(Backend::CUDA) )
+      {
+         coarsest_solver = BuildSmootherFromCeed(NULL, coarsest->GetCoarseCeed(),
+                                                 coarsest->GetCoarseEssentialDofList(),
+                                                 false);
+      }
+      else
+      {
+         /*
+           coarsest_solver = new CeedPlainCG(coarsest->GetCoarseCeed(),
+             coarsest->GetCoarseEssentialDofList(),
+             coarse_cg_iterations);
+         */
+         bool use_amgx = false;
+         const int sparse_solver_type = 1; // single v-cycle
+         coarsest_solver = new CeedCGWithAMG(coarsest->GetCoarseCeed(),
+                                             coarsest->GetCoarseEssentialDofList(),
+                                             sparse_solver_type,
+                                             use_amgx);
+      }
    }
    else
    {
+      int coarse_cg_iterations = 10; // fewer might be better?
       coarsest_solver = new CeedPlainCG(current_op, *current_ess_dofs, coarse_cg_iterations);
    }
 
