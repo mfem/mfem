@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include "catch.hpp"
+#include "unit_tests.hpp"
 
 using namespace mfem;
 
@@ -256,19 +256,19 @@ TEST_CASE("Vector Mass Diagonal PA", "[PartialAssembly], [AssembleDiagonal]")
    SECTION("2D")
    {
       REQUIRE(test_vdiagpa<VectorMassIntegrator>(2,
-                                                 2) == Approx(0.0));
+                                                 2) == MFEM_Approx(0.0));
 
       REQUIRE(test_vdiagpa<VectorMassIntegrator>(2,
-                                                 3) == Approx(0.0));
+                                                 3) == MFEM_Approx(0.0));
    }
 
    SECTION("3D")
    {
       REQUIRE(test_vdiagpa<VectorMassIntegrator>(3,
-                                                 2) == Approx(0.0));
+                                                 2) == MFEM_Approx(0.0));
 
       REQUIRE(test_vdiagpa<VectorMassIntegrator>(3,
-                                                 3) == Approx(0.0));
+                                                 3) == MFEM_Approx(0.0));
    }
 }
 
@@ -279,19 +279,19 @@ TEST_CASE("Vector Diffusion Diagonal PA",
    {
       REQUIRE(
          test_vdiagpa<VectorDiffusionIntegrator>(2,
-                                                 2) == Approx(0.0));
+                                                 2) == MFEM_Approx(0.0));
 
       REQUIRE(test_vdiagpa<VectorDiffusionIntegrator>(2,
-                                                      3) == Approx(0.0));
+                                                      3) == MFEM_Approx(0.0));
    }
 
    SECTION("3D")
    {
       REQUIRE(test_vdiagpa<VectorDiffusionIntegrator>(3,
-                                                      2) == Approx(0.0));
+                                                      2) == MFEM_Approx(0.0));
 
       REQUIRE(test_vdiagpa<VectorDiffusionIntegrator>(3,
-                                                      3) == Approx(0.0));
+                                                      3) == MFEM_Approx(0.0));
    }
 }
 
@@ -302,7 +302,6 @@ TEST_CASE("Hcurl/Hdiv diagonal PA")
       for (int coeffType = 0; coeffType < 5; ++coeffType)
       {
          const int numSpaces = (coeffType == 0) ? 2 : 1;
-         const int numIntegrators = (coeffType == 0) ? 2 : 1;
 
          Coefficient* coeff = nullptr;
          VectorCoefficient* vcoeff = nullptr;
@@ -335,13 +334,16 @@ TEST_CASE("Hcurl/Hdiv diagonal PA")
                                                     &asymmetricMatrixCoeffFunction);
          }
 
+         enum Spaces {Hcurl, Hdiv};
+
          for (int spaceType = 0; spaceType < numSpaces; ++spaceType)
          {
+            const int numIntegrators = (dimension == 3 || coeffType < 2) ? 2 : 1;
             for (int integrator = 0; integrator < numIntegrators; ++integrator)
             {
                for (int ne = 1; ne < 3; ++ne)
                {
-                  if (spaceType == 0)
+                  if (spaceType == Hcurl)
                      std::cout << "Testing " << dimension <<
                                "D partial assembly H(curl) diagonal for integrator " << integrator
                                << " and coeffType " << coeffType << ": "
@@ -364,7 +366,7 @@ TEST_CASE("Hcurl/Hdiv diagonal PA")
                         mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
                      }
 
-                     FiniteElementCollection* fec = (spaceType == 0) ?
+                     FiniteElementCollection* fec = (spaceType == Hcurl) ?
                                                     (FiniteElementCollection*) new ND_FECollection(order, dimension) :
                                                     (FiniteElementCollection*) new RT_FECollection(order, dimension);
 
@@ -392,10 +394,27 @@ TEST_CASE("Hcurl/Hdiv diagonal PA")
                      }
                      else
                      {
-                        if (spaceType == 0)
+                        if (spaceType == Hcurl)
                         {
-                           paform.AddDomainIntegrator(new CurlCurlIntegrator(*coeff));
-                           faform.AddDomainIntegrator(new CurlCurlIntegrator(*coeff));
+                           const FiniteElement *fel = fespace.GetFE(0);
+                           const IntegrationRule *intRule = &MassIntegrator::GetRule(*fel, *fel,
+                                                                                     *mesh->GetElementTransformation(0));
+
+                           if (coeffType >= 3)
+                           {
+                              paform.AddDomainIntegrator(new CurlCurlIntegrator(*smcoeff, intRule));
+                              faform.AddDomainIntegrator(new CurlCurlIntegrator(*mcoeff, intRule));
+                           }
+                           else if (coeffType == 2)
+                           {
+                              paform.AddDomainIntegrator(new CurlCurlIntegrator(*vcoeff, intRule));
+                              faform.AddDomainIntegrator(new CurlCurlIntegrator(*vcoeff, intRule));
+                           }
+                           else
+                           {
+                              paform.AddDomainIntegrator(new CurlCurlIntegrator(*coeff, intRule));
+                              faform.AddDomainIntegrator(new CurlCurlIntegrator(*coeff, intRule));
+                           }
                         }
                         else
                         {
