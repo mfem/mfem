@@ -453,7 +453,8 @@ static void CeedDeviceSetup(const char* ceed_spec)
    CeedInit(ceed_spec, &internal::ceed);
    const char *ceed_backend;
    CeedGetResource(internal::ceed, &ceed_backend);
-   if (strcmp(ceed_spec, ceed_backend) && strcmp(ceed_spec, "/cpu/self"))
+   if (strcmp(ceed_spec, ceed_backend) && strcmp(ceed_spec, "/cpu/self") &&
+       strcmp(ceed_spec, "/gpu/hip"))
    {
       mfem::out << std::endl << "WARNING!!!\n"
                 "libCEED is not using the requested backend!!!\n"
