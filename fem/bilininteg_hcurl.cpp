@@ -2659,14 +2659,13 @@ void PAHcurlH1Apply2D(const int D1D,
 }
 
 // PA H(curl) Mass Assemble 3D kernel
-static void PAHcurlL2Setup3D(const int Q1D,
-                             const int coeffDim,
-                             const int NE,
-                             const Array<double> &w,
-                             Vector &_coeff,
-                             Vector &op)
+void PAHcurlL2Setup(const int NQ,
+                    const int coeffDim,
+                    const int NE,
+                    const Array<double> &w,
+                    Vector &_coeff,
+                    Vector &op)
 {
-   const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
    auto coeff = Reshape(_coeff.Read(), coeffDim, NQ, NE);
    auto y = Reshape(op.Write(), coeffDim, NQ, NE);
@@ -2767,7 +2766,7 @@ void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    if (testType == mfem::FiniteElement::CURL &&
        trialType == mfem::FiniteElement::CURL && dim == 3)
    {
-      PAHcurlL2Setup3D(quad1D, coeffDim, ne, ir->GetWeights(), coeff, pa_data);
+      PAHcurlL2Setup(nq, coeffDim, ne, ir->GetWeights(), coeff, pa_data);
    }
    else if (testType == mfem::FiniteElement::DIV &&
             trialType == mfem::FiniteElement::CURL && dim == 3 &&
@@ -3577,7 +3576,7 @@ void MixedVectorWeakCurlIntegrator::AssemblePA(const FiniteElementSpace
 
    if (trialType == mfem::FiniteElement::CURL && dim == 3)
    {
-      PAHcurlL2Setup3D(quad1D, coeffDim, ne, ir->GetWeights(), coeff, pa_data);
+      PAHcurlL2Setup(nq, coeffDim, ne, ir->GetWeights(), coeff, pa_data);
    }
    else
    {
