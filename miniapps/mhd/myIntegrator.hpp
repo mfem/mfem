@@ -438,6 +438,88 @@ void StabMassIntegrator::AssembleElementMatrix(const FiniteElement &el,
     }
 }
 
+// Integrator to check Tau values
+class CheckTauIntegrator : public LinearFormIntegrator
+{
+private:
+   DenseMatrix V_ir;
+   MyCoefficient *V; 
+   Coefficient *nuCoef;
+   double dt;
+
+public:
+   CheckTauIntegrator (double dt_, double visc, MyCoefficient &q) : 
+       V(&q),  dt(dt_)
+   { nuCoef = new ConstantCoefficient(visc); }
+
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                        ElementTransformation &Tr,
+                                        Vector &elvect);
+
+   virtual ~CheckTauIntegrator()
+   { delete nuCoef; }
+};
+
+void CheckTauIntegrator::AssembleRHSElementVect(const FiniteElement &el,
+                                        ElementTransformation &Tr,
+                                        Vector &elvect)
+{
+    double norm, tau;
+    double Unorm, invtau;
+    int dim = 2;
+    int nd = el.GetDof();
+    Vector vec1(dim);
+
+    //here we assume 2d quad
+    double eleLength = sqrt( Geometry::Volume[el.GetGeomType()] * Tr.Weight() );   
+
+    //here we only supports the max tau, so it needs to be DG of order 0
+    if(nd>1) 
+    {
+        cout <<"nd = "<<nd<<endl;
+        MFEM_ABORT("Error in checktauintegrator: only support DG of order=0"); 
+    }
+
+    elvect.SetSize(nd);
+    elvect=0.;
+    
+    int intorder = 2*el.GetOrder() + Tr.OrderGrad(&el)-1;
+    const IntegrationRule &ir = IntRules.Get(el.GetGeomType(), intorder);
+
+    V->Eval(V_ir, Tr, ir);
+
+    if (dtfloor && dt<dtmin)
+        dt=dtmin;
+
+    //compare maximum tau
+    double tauMax=0.0;
+    if (maxtau)
+    {
+        for (int i = 0; i < ir.GetNPoints(); i++)
+        {
+            const IntegrationPoint &ip = ir.IntPoint(i);
+            double nu = nuCoef->Eval (Tr, ip);
+
+            V_ir.GetColumnReference(i, vec1);
+            Unorm = vec1.Norml2();
+            if (itau==1)
+                invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
+            else if (itau==2)
+                invtau = sqrt( pow(2./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+            else if (itau==3)
+                invtau = sqrt( pow(2./.03,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+            else
+                invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
+            tau = 1.0/invtau;
+            tauMax = max(tauMax, tau);
+        }
+    }
+    else
+        MFEM_ABORT("Error in checktauintegrator: only support maxtau"); 
+
+    elvect=tauMax;
+}
+
 // Integrator for (tau * rhs , V.grad v)
 class StabDomainLFIntegrator : public LinearFormIntegrator
 {

@@ -256,7 +256,7 @@ int main(int argc, char *argv[])
    args.AddOption(&petscrc_file, "-petscopts", "--petscopts",
                   "PetscOptions file to use.");
    args.AddOption(&iUpdateJ, "-updatej", "--update-j",
-                  "UpdateJ: 0 - no boundary condition used; 1 - Dirichlet used on J boundary.");
+                  "UpdateJ: 0 - no boundary condition used; 1/2 - Dirichlet used on J boundary (2: lumped mass matrix).");
    args.AddOption(&BgradJ, "-BgradJ", "--BgradJ",
                   "BgradJ: 1 - (B.grad J, phi); 2 - (-J, B.grad phi); 3 - (-B J, grad phi).");
    args.Parse();
@@ -552,7 +552,6 @@ int main(int argc, char *argv[])
    oper.SetInitialJ(*jptr);
 
    //-----------------------------------AMR for the real computation---------------------------------
-
    ErrorEstimator *estimator_used;
    BlockZZEstimator *estimator=NULL;
    BlockL2ZZEstimator *L2estimator=NULL;
@@ -680,19 +679,32 @@ int main(int argc, char *argv[])
    //save domain decompositino explicitly
    L2_FECollection pw_const_fec(0, dim);
    ParFiniteElementSpace pw_const_fes(pmesh, &pw_const_fec);
-   ParGridFunction mpi_rank_gf(&pw_const_fes);
+   ParGridFunction mpi_rank_gf(&pw_const_fes), tau_value(&pw_const_fes);
+   ParLinearForm *computeTau=NULL;
+   HypreParVector *tauv=NULL;
    mpi_rank_gf = myid_rand;
 
    ParaViewDataCollection *pd = NULL;
    if (paraview)
    {
-      pd = new ParaViewDataCollection("case3amr-derefine", pmesh);
+      pd = new ParaViewDataCollection("case3amr-small", pmesh);
       pd->SetPrefixPath("ParaView");
       pd->RegisterField("psi", &psi);
       pd->RegisterField("phi", &phi);
       pd->RegisterField("omega", &w);
       pd->RegisterField("current", &j);
       pd->RegisterField("MPI rank", &mpi_rank_gf);
+
+      //visualize Tau value
+      MyCoefficient velocity(&phi, 2);
+      computeTau = new ParLinearForm(&pw_const_fes);
+      computeTau->AddDomainIntegrator(new CheckTauIntegrator(dt, resi, velocity));
+      computeTau->Assemble(); 
+      tauv=computeTau->ParallelAssemble();
+      tau_value.SetFromTrueDofs(*tauv);
+ 
+      pd->RegisterField("Tau", &tau_value);
+
       pd->SetLevelsOfDetail(order);
       pd->SetDataFormat(VTKFormat::BINARY);
       pd->SetHighOrderOutput(true);
@@ -710,6 +722,7 @@ int main(int argc, char *argv[])
    bool last_step = false;
    int ref_its=1;
    int deref_its=1;
+   int current_amr_level=levels3;
    for (int ti = 1; !last_step; ti++)
    {
       double dt_real = min(dt, t_final - t);
@@ -721,13 +734,18 @@ int main(int argc, char *argv[])
           deref_its=3;
       }
 
-      if (t>4. && levels3<amr_levels)
+      if (t>4. && t<5.00001 && current_amr_level<levels4)
       {
-          refiner.SetMaximumRefinementLevel(amr_levels);
+          current_amr_level=levels4;
+      }
+      else if (t>=5.00001 && current_amr_level<amr_levels)
+      {
+          current_amr_level=amr_levels;
       }
 
       if ((ti % ref_steps) == 0)
       {
+          refiner.SetMaximumRefinementLevel(current_amr_level);
           refineMesh=true;
           refiner.Reset();
       }
@@ -739,13 +757,23 @@ int main(int argc, char *argv[])
        * sometimes derefine could break down the preconditioner (maybe solutions are 
        * not so nice after a derefining projection?)
        */
-      if ( derefine && (ti-ref_steps/2)%ref_steps ==0 ) //&& ti >  ref_steps ) //&& t<5.0) 
+      /*
+      if ( derefine && (ti-ref_steps/2)%ref_steps ==0 && (t<2.001 || t>3.) ) //&& ti >  ref_steps ) //&& t<5.0) 
       {
           derefineMesh=true;
           derefiner.Reset();
       }
       else
       {
+          derefineMesh=false;
+      }
+      */
+      if (refineMesh)
+      {
+          derefineMesh=true;
+          derefiner.Reset();
+      }
+      else{
           derefineMesh=false;
       }
 
@@ -918,6 +946,16 @@ int main(int argc, char *argv[])
 
         if (paraview)
         {
+           MyCoefficient velocity(&phi, 2);
+           delete computeTau;
+           delete tauv;
+
+           computeTau = new ParLinearForm(&pw_const_fes);
+           computeTau->AddDomainIntegrator(new CheckTauIntegrator(dt_real, resi, velocity));
+           computeTau->Assemble(); 
+           tauv=computeTau->ParallelAssemble();
+           tau_value.SetFromTrueDofs(*tauv);
+ 
            mpi_rank_gf = myid_rand;
            pd->SetCycle(ti);
            pd->SetTime(t);
@@ -1015,6 +1053,8 @@ int main(int argc, char *argv[])
    delete dc;
    delete pd;
    delete estimator_used;
+   delete tauv;
+   delete computeTau;
 
    oper.DestroyHypre();
 

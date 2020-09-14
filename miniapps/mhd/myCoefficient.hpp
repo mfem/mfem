@@ -31,7 +31,7 @@ namespace mfem
     void MyCoefficient::Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip)
     {
-        cout << "check me in MyCoefficient::Eval"<<endl;
+        //cout << "check me in MyCoefficient::Eval"<<endl;
         V.SetSize(vdim);
         Vector grad;
         T.SetIntPoint (&ip);

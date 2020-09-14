@@ -15,19 +15,25 @@ int ex_supg=2;  //1: test supg with v term only (it assumes viscosity==resistivi
 //------------this is for implicit solver only------------
 bool usesupg=true;  //add supg in both psi and omega
 int im_supg=1;
-int i_supgpre=3;    //3 - full supg terms on both psi and phi
 bool usefd=false;   //add field-line diffusion for psi in implicit solvers
 
 int iUpdateJ=1; //control how J is computed (whether or not Dirichelt boundary condition
                 //is forced at physical boundary, preconditioner prefers enforcing boundary)
+                //2 - using a lumped mass matrix for iupdateJ=1
+bool lumpedMass = false;    //use lumped mass matrix in M_solver2
+int BgradJ=1;    // B.gradJ operator: 1 (B.grad J, phi)
+                //                    2 (-J, B.grad phi)
+                //                    3 (-BJ, grad phi)
+                // 2 and 3 should be equivalent 
                 
-int iSc=0;      //the parameter to control precondtioner
-bool lumpedMass = false;
 
+//------------this is for preconditioner------------
+int iSc=0;      //the parameter to control precondtioner
 int useFull=1; // control version of preconditioner 
                // 0: a simple block preconditioner
                // 1: physics-based preconditioner
                // 2: physics-based but supg more complicated version
+int i_supgpre=3;    //3 - full supg terms on both psi and phi
 
 
 extern int icase;
@@ -1810,17 +1816,30 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    {      
       delete Nb;
       Nb = new ParBilinearForm(&fespace);
-      Nb->AddDomainIntegrator(new ConvectionIntegrator(Bfield));
-      Nb->Assemble();
-      if (true)
+      if (BgradJ==1)
+      {
+         Nb->AddDomainIntegrator(new ConvectionIntegrator(Bfield));
+         Nb->Assemble();
          Nb->TrueAddMult(J, y3, -1.); 
+      }
+      else if (BgradJ==2)
+      {
+         /* old way:
+         delete NbMat;
+         Nb->Finalize();
+         NbMat=Nb->ParallelAssemble();
+         //NbMat->Mult(-1., J, 1., y3);
+         NbMat->MultTranspose(1., J, 1., y3);
+         */
+         Nb->AddDomainIntegrator(new TransposeIntegrator(new ConvectionIntegrator(Bfield)));
+         Nb->Assemble();
+         Nb->TrueAddMult(J, y3, 1.); 
+      }
       else
       {
-          delete NbMat;
-          Nb->Finalize();
-          NbMat=Nb->ParallelAssemble();
-          //NbMat->Mult(-1., J, 1., y3);
-          NbMat->MultTranspose(1., J, 1., y3);
+         Nb->AddDomainIntegrator(new MixedScalarWeakDivergenceIntegrator(Bfield));
+         Nb->Assemble();
+         Nb->TrueAddMult(J, y3,-1.); 
       }
    }
    else
