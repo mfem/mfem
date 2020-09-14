@@ -175,6 +175,7 @@ miniapps/meshing/mesh-optimizer
 miniapps/meshing/pmesh-optimizer
 miniapps/meshing/minimal-surface
 miniapps/meshing/pminimal-surface
+miniapps/meshing/polar-nc
 
 miniapps/meshing/mobius-strip.mesh
 miniapps/meshing/klein-bottle.mesh
@@ -187,6 +188,7 @@ miniapps/meshing/extruder.mesh
 miniapps/meshing/trimmer.mesh
 miniapps/meshing/optimized*
 miniapps/meshing/perturbed*
+miniapps/meshing/polar-nc.mesh
 
 miniapps/performance/ex1
 miniapps/performance/ex1p
@@ -233,6 +235,7 @@ miniapps/nurbs/mode_*
 miniapps/nurbs/Example1*
 
 miniapps/gslib/field-diff
+miniapps/gslib/field-interp
 miniapps/gslib/findpts
 miniapps/gslib/pfindpts
 
@@ -258,6 +261,11 @@ tests/unit/psedov_tests_*
 tests/scripts/*.err
 tests/scripts/*.out
 tests/scripts/*.msg
+
+# Other tests
+tests/convergence/rates
+tests/convergence/prates
+tests/par-mesh-format/ex1p
 
 # VPATH builds
 build-*/*
