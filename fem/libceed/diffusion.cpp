@@ -23,7 +23,12 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
                              const mfem::IntegrationRule &irm, CeedData& ceedData)
 {
 #ifdef MFEM_USE_CEED
-   CeedInt dim = fes.GetMesh()->SpaceDimension();
+   Mesh &mesh = *fes.GetMesh();
+   // Perform checks for some assumptions made in the Q-functions.
+   MFEM_VERIFY(mesh.Dimension() == mesh.SpaceDimension(), "case not supported");
+   MFEM_VERIFY(fes.GetVDim() == 1 || fes.GetVDim() == mesh.Dimension(),
+               "case not supported");
+   int dim = mesh.Dimension();
    CeedPAOperator diffOp = {fes, irm,
                             dim * (dim + 1) / 2, "/diffusion.h",
                             ":f_build_diff_const", f_build_diff_const,
