@@ -443,7 +443,7 @@ double debye(double Te, double n0_cm)
 SheathImpedance::SheathImpedance(const ParGridFunction & B,
                                  const BlockVector & density,
                                  const BlockVector & temp,
-                                 const BlockVector & potential,
+                                 const ParComplexGridFunction & potential,
                                  const ParFiniteElementSpace & L2FESpace,
                                  const ParFiniteElementSpace & H1FESpace,
                                  double omega,
@@ -457,13 +457,12 @@ SheathImpedance::SheathImpedance(const ParGridFunction & B,
      L2FESpace_(L2FESpace),
      H1FESpace_(H1FESpace),
      omega_(omega),
-     realPart_(realPart),
      charges_(charges),
-     masses_(masses)
+     masses_(masses),
+     realPart_(realPart)
 {
    density_vals_.SetSize(charges_.Size());
    temp_vals_.SetSize(charges_.Size());
-   potential_vals_.SetSize(2);
 }
 
 double SheathImpedance::Eval(ElementTransformation &T,
@@ -473,6 +472,11 @@ double SheathImpedance::Eval(ElementTransformation &T,
    Vector B(3);
    B_.GetVectorValue(T, ip, B);
    double Bmag = B.Norml2();
+    
+   double phir;
+   double phii;
+   potential_.real().GetValue(T, ip, phir);
+   potential_.imag().GetValue(T, ip, phii);
 
    for (int i=0; i<density_vals_.Size(); i++)
    {
@@ -488,14 +492,6 @@ double SheathImpedance::Eval(ElementTransformation &T,
       temp_vals_[i] = temperature_gf_.GetValue(T, ip);
    }
 
-   for (int i=0; i<potential_vals_.Size(); i++)
-   {
-      potential_gf_.MakeRef(const_cast<ParFiniteElementSpace*>(&H1FESpace_),
-                            const_cast<Vector&>(potential_.GetBlock(i)));
-      potential_vals_[i] = potential_gf_.GetValue(T, ip);
-   }
-
-
    double Te = temp_vals_[0] * q_; // Electron temperature, Units: J
    double wci = (charges_[1] * q_ * Bmag) / (masses_[1] * amu_);
    double wpi = fabs(charges_[1] * q_) * 1.0 * sqrt(density_vals_[1] /
@@ -504,8 +500,8 @@ double SheathImpedance::Eval(ElementTransformation &T,
 
    double w_norm = omega_ / wpi;
    double wci_norm = wci / wpi;
-   complex<double> volt_norm(potential_vals_[0]/vnorm, potential_vals_[1]/vnorm);
-
+   complex<double> volt_norm(phir/vnorm, phii/vnorm);
+    
    double debye_length = debye(temp_vals_[0],
                                density_vals_[1]*1e-6); // Input temp needs to be in eV, Units: cm
 
@@ -745,7 +741,6 @@ void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
 PlasmaProfile::PlasmaProfile(Type type, const Vector & params)
    : type_(type), p_(params), x_(3)
 {
-   MFEM_CONTRACT_VAR(np_); // added so that private field np_ is not unused
    MFEM_ASSERT(params.Size() == np_[type],
                "Incorrect number of parameters, " << params.Size()
                << ", for profile of type: " << type << ".");
