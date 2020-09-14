@@ -627,6 +627,33 @@ void BilinearForm::AssembleDiagonal(Vector &diag) const
       MFEM_ASSERT(diag.Size() == fes->GetTrueVSize(),
                   "Vector for holding diagonal has wrong size!");
       const Operator *P = fes->GetProlongationMatrix();
+      // For an AMR mesh, a convergent diagonal is assembled with |P^T| d_e,
+      // where |P^T| has the entry-wise absolute values of the conforming
+      // prolongation transpose operator.
+      if (P && !fes->Conforming())
+      {
+         Vector local_diag(P->Height());
+         ext->AssembleDiagonal(local_diag);
+         const SparseMatrix *SP = dynamic_cast<const SparseMatrix*>(P);
+#ifdef MFEM_USE_MPI
+         const HypreParMatrix *HP = dynamic_cast<const HypreParMatrix*>(P);
+#endif
+         if (SP)
+         {
+            SP->AbsMultTranspose(local_diag, diag);
+         }
+#ifdef MFEM_USE_MPI
+         else if (HP)
+         {
+            HP->AbsMultTranspose(1.0, local_diag, 0.0, diag);
+         }
+#endif
+         else
+         {
+            MFEM_ABORT("Prolongation matrix has unexpected type.");
+         }
+         return;
+      }
       if (!IsIdentityProlongation(P))
       {
          Vector local_diag(P->Height());
