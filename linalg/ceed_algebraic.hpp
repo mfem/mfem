@@ -29,7 +29,7 @@ class AlgebraicCeedSolver : public mfem::Solver
 {
 public:
    AlgebraicCeedSolver(Operator& fine_mfem_op, BilinearForm& form, 
-                       Array<int>& ess_dofs);
+                       Array<int>& ess_dofs, bool use_amg=false);
    ~AlgebraicCeedSolver();
 
    /// Note that this does not rebuild the hierarchy or smoothers,

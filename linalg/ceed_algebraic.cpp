@@ -257,12 +257,7 @@ private:
    MFEMCeedOperator * mfem_ceed_;
 };
 
-/**
-   todo: think of ways to make this faster when we know a sparsity structure (?)
-   (ie, for low-order refined or algebraic sparsification)
-*/
-int CeedOperatorFullAssemble(CeedOperator op,
-                             mfem::SparseMatrix ** mat)
+int CeedSingleOperatorFullAssemble(CeedOperator op, mfem::SparseMatrix * out)
 {
    int ierr;
    Ceed ceed;
@@ -399,7 +394,9 @@ int CeedOperatorFullAssemble(CeedOperator op,
    ierr = CeedVectorDestroy(&index_vec); CeedChk(ierr);
 
    /// loop over elements and put in mfem::SparseMatrix
-   mfem::SparseMatrix * out = new mfem::SparseMatrix(nnodes, nnodes);
+   // mfem::SparseMatrix * out = new mfem::SparseMatrix(nnodes, nnodes);
+   MFEM_ASSERT(out->Height() == nnodes, "Sizes don't match!");
+   MFEM_ASSERT(out->Width() == nnodes, "Sizes don't match!");
    const CeedScalar *interpin, *gradin;
    ierr = CeedBasisGetInterp(basisin, &interpin); CeedChk(ierr);
    ierr = CeedBasisGetGrad(basisin, &gradin); CeedChk(ierr);
@@ -484,6 +481,43 @@ int CeedOperatorFullAssemble(CeedOperator op,
    ierr = CeedHackFree(&emodein); CeedChk(ierr);
    ierr = CeedHackFree(&emodeout); CeedChk(ierr);
 
+   return 0;
+}
+
+/**
+   todo: think of ways to make this faster when we know a sparsity structure (?)
+   (ie, for low-order refined or algebraic sparsification?)
+*/
+int CeedOperatorFullAssemble(CeedOperator op,
+                             mfem::SparseMatrix ** mat)
+{
+   int ierr;
+
+   CeedElemRestriction er;
+   ierr = CeedOperatorGetActiveElemRestriction(op, &er); CeedChk(ierr);
+   CeedInt nnodes;
+   ierr = CeedElemRestrictionGetLVectorSize(er, &nnodes); CeedChk(ierr);
+
+   mfem::SparseMatrix * out = new mfem::SparseMatrix(nnodes, nnodes);
+
+   bool isComposite;
+   ierr = CeedOperatorIsComposite(op, &isComposite); CeedChk(ierr);
+   if (isComposite)
+   {
+      CeedInt numsub;
+      CeedOperator *subops;
+      CeedOperatorGetNumSub(op, &numsub);
+      ierr = CeedOperatorGetSubList(op, &subops); CeedChk(ierr);
+      for (int i = 0; i < numsub; ++i)
+      {
+         ierr = CeedSingleOperatorFullAssemble(subops[i], out); CeedChk(ierr);
+      }
+   }
+   else
+   {
+      ierr = CeedSingleOperatorFullAssemble(op, out); CeedChk(ierr);
+   }
+   const int skip_zeros = 0; // enforce structurally symmetric for later elimination
    out->Finalize(skip_zeros);
    *mat = out;
 
@@ -959,7 +993,8 @@ CeedPlainCG::~CeedPlainCG()
 }
 
 AlgebraicCeedSolver::AlgebraicCeedSolver(Operator& fine_mfem_op,
-                                         BilinearForm& form, Array<int>& ess_dofs)
+                                         BilinearForm& form, Array<int>& ess_dofs,
+                                         bool use_amg)
 {
    int order = form.FESpace()->GetOrder(0);
    num_levels = 0;
@@ -1013,7 +1048,7 @@ AlgebraicCeedSolver::AlgebraicCeedSolver(Operator& fine_mfem_op,
 
    if (num_levels > 1)
    {
-      if ( Device::Allows(Backend::CUDA) )
+      if (Device::Allows(Backend::CUDA) || !use_amg)
       {
          coarsest_solver = BuildSmootherFromCeed(NULL, coarsest->GetCoarseCeed(),
                                                  coarsest->GetCoarseEssentialDofList(),
