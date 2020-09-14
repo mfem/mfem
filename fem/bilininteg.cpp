@@ -637,7 +637,7 @@ void DiffusionIntegrator::AssembleElementVector(
 
    if (VQ)
    {
-      MFEM_VERIFY(VQ->GetVDim() == dim, "");
+      MFEM_VERIFY(VQ->GetVDim() == dim, "Unexpected dimension for VectorCoefficient");
    }
 
 #ifdef MFEM_THREAD_SAFE
