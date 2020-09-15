@@ -2005,535 +2005,6 @@ void PAHcurlH1Apply3D(const int D1D,
    }); // end of element loop
 }
 
-// Apply to x corresponding to DOFs in H^1 (domain) the (topological) gradient
-// to get a dof in H(curl) (range). You can think of the range as the "test" space
-// and the domain as the "trial" space, but there's no integration.
-static void PAHcurlApplyGradient2D(const int c_dofs1D,
-                                   const int o_dofs1D,
-                                   const int NE,
-                                   const Array<double> &_B,
-                                   const Array<double> &_G,
-                                   const Vector &_x,
-                                   Vector &_y)
-{
-   auto B = Reshape(_B.Read(), c_dofs1D, c_dofs1D);
-   auto G = Reshape(_G.Read(), o_dofs1D, c_dofs1D);
-   // const int ned_dofs_per_elem = (2 * o_dofs1D * c_dofs1D);
-
-   auto x = Reshape(_x.Read(), c_dofs1D, c_dofs1D, NE);
-   auto y = Reshape(_y.ReadWrite(), 2 * c_dofs1D * o_dofs1D, NE);
-
-   Vector hwork(c_dofs1D * c_dofs1D);
-   auto hw = Reshape(hwork.ReadWrite(), c_dofs1D, c_dofs1D);
-
-   Vector vwork(c_dofs1D * o_dofs1D);
-   auto vw = Reshape(vwork.ReadWrite(), c_dofs1D, o_dofs1D);
-   MFEM_FORALL(e, NE,
-   {
-      // horizontal part
-      for (int dx = 0; dx < c_dofs1D; ++dx)
-      {
-         for (int ey = 0; ey < c_dofs1D; ++ey)
-         {
-            hw(dx, ey) = 0.0;
-            for (int dy = 0; dy < c_dofs1D; ++dy)
-            {
-               hw(dx, ey) += B(ey, dy) * x(dx, dy, e);
-            }
-         }
-      }
-
-      for (int ey = 0; ey < c_dofs1D; ++ey)
-      {
-         for (int ex = 0; ex < o_dofs1D; ++ex)
-         {
-            for (int dx = 0; dx < c_dofs1D; ++dx)
-            {
-               const int local_index = ey*o_dofs1D + ex;
-               y(local_index, e) += G(ex, dx) * hw(dx, ey);
-            }
-         }
-      }
-
-      // vertical part
-      for (int dx = 0; dx < c_dofs1D; ++dx)
-      {
-         for (int ey = 0; ey < o_dofs1D; ++ey)
-         {
-            vw(dx, ey) = 0.0;
-            for (int dy = 0; dy < c_dofs1D; ++dy)
-            {
-               vw(dx, ey) += G(ey, dy) * x(dx, dy, e);
-            }
-         }
-      }
-
-      for (int ey = 0; ey < o_dofs1D; ++ey)
-      {
-         for (int ex = 0; ex < c_dofs1D; ++ex)
-         {
-            for (int dx = 0; dx < c_dofs1D; ++dx)
-            {
-               const int local_index = c_dofs1D * o_dofs1D + ey*c_dofs1D + ex;
-               y(local_index, e) += B(ex, dx) * vw(dx, ey);
-            }
-         }
-      }
-   });
-
-}
-
-static void PAHcurlApplyGradientTranspose2D(
-   const int c_dofs1D, const int o_dofs1D, const int NE,
-   const Array<double> &_B, const Array<double> &_G,
-   const Vector &_x, Vector &_y)
-{
-   auto B = Reshape(_B.Read(), c_dofs1D, c_dofs1D);
-   auto G = Reshape(_G.Read(), o_dofs1D, c_dofs1D);
-
-   auto x = Reshape(_x.Read(), 2 * c_dofs1D * o_dofs1D, NE);
-   auto y = Reshape(_y.ReadWrite(), c_dofs1D, c_dofs1D, NE);
-
-   Vector hwork(c_dofs1D * o_dofs1D);
-   auto hw = Reshape(hwork.ReadWrite(), c_dofs1D, o_dofs1D);
-
-   Vector vwork(c_dofs1D * c_dofs1D);
-   auto vw = Reshape(vwork.ReadWrite(), c_dofs1D, c_dofs1D);
-
-   MFEM_FORALL(e, NE,
-   {
-      // horizontal part (open x, closed y)
-      for (int dy = 0; dy < c_dofs1D; ++dy)
-      {
-         for (int ex = 0; ex < o_dofs1D; ++ex)
-         {
-            hw(dy, ex) = 0.0;
-            for (int ey = 0; ey < c_dofs1D; ++ey)
-            {
-               const int local_index = ey*o_dofs1D + ex;
-               hw(dy, ex) += B(ey, dy) * x(local_index, e);
-            }
-         }
-      }
-
-      for (int dy = 0; dy < c_dofs1D; ++dy)
-      {
-         for (int dx = 0; dx < c_dofs1D; ++dx)
-         {
-            for (int ex = 0; ex < o_dofs1D; ++ex)
-            {
-               y(dx, dy, e) += G(ex, dx) * hw(dy, ex);
-            }
-         }
-      }
-
-      // vertical part (open y, closed x)
-      for (int dy = 0; dy < c_dofs1D; ++dy)
-      {
-         for (int ex = 0; ex < c_dofs1D; ++ex)
-         {
-            vw(dy, ex) = 0.0;
-            for (int ey = 0; ey < o_dofs1D; ++ey)
-            {
-               const int local_index = c_dofs1D * o_dofs1D + ey*c_dofs1D + ex;
-               vw(dy, ex) += G(ey, dy) * x(local_index, e);
-            }
-         }
-      }
-
-      for (int dy = 0; dy < c_dofs1D; ++dy)
-      {
-         for (int dx = 0; dx < c_dofs1D; ++dx)
-         {
-            for (int ex = 0; ex < c_dofs1D; ++ex)
-            {
-               y(dx, dy, e) += B(ex, dx) * vw(dy, ex);
-            }
-         }
-      }
-   });
-}
-
-static void PAHcurlApplyGradient3D(const int c_dofs1D,
-                                   const int o_dofs1D,
-                                   const int NE,
-                                   const Array<double> &_B,
-                                   const Array<double> &_G,
-                                   const Vector &_x,
-                                   Vector &_y)
-{
-   auto B = Reshape(_B.Read(), c_dofs1D, c_dofs1D);
-   auto G = Reshape(_G.Read(), o_dofs1D, c_dofs1D);
-
-   auto x = Reshape(_x.Read(), c_dofs1D, c_dofs1D, c_dofs1D, NE);
-   auto y = Reshape(_y.ReadWrite(), (3 * c_dofs1D * c_dofs1D * o_dofs1D), NE);
-
-   Vector pxwork1(c_dofs1D * c_dofs1D * c_dofs1D);
-   auto pxw1 = Reshape(pxwork1.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D);
-   Vector pxwork2(c_dofs1D * c_dofs1D * c_dofs1D);
-   auto pxw2 = Reshape(pxwork2.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D);
-
-   Vector pywork1(c_dofs1D * c_dofs1D * c_dofs1D);
-   auto pyw1 = Reshape(pywork1.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D);
-   Vector pywork2(c_dofs1D * o_dofs1D * c_dofs1D);
-   auto pyw2 = Reshape(pywork2.ReadWrite(), c_dofs1D, o_dofs1D, c_dofs1D);
-
-   Vector pzwork1(c_dofs1D * c_dofs1D * o_dofs1D);
-   auto pzw1 = Reshape(pzwork1.ReadWrite(), c_dofs1D, c_dofs1D, o_dofs1D);
-   Vector pzwork2(c_dofs1D * c_dofs1D * o_dofs1D);
-   auto pzw2 = Reshape(pzwork2.ReadWrite(), c_dofs1D, c_dofs1D, o_dofs1D);
-
-   MFEM_FORALL(e, NE,
-   {
-      // ---
-      // dofs that point parallel to x-axis (open in x, closed in y, z)
-      // ---
-
-      // contract in z
-      for (int ez = 0; ez < c_dofs1D; ++ez)
-      {
-         for (int dx = 0; dx < c_dofs1D; ++dx)
-         {
-            for (int dy = 0; dy < c_dofs1D; ++dy)
-            {
-               pxw1(dx, dy, ez) = 0.0;
-               for (int dz = 0; dz < c_dofs1D; ++dz)
-               {
-                  pxw1(dx, dy, ez) += B(ez, dz) * x(dx, dy, dz, e);
-               }
-            }
-         }
-      }
-
-      // contract in y
-      for (int ez = 0; ez < c_dofs1D; ++ez)
-      {
-         for (int ey = 0; ey < c_dofs1D; ++ey)
-         {
-            for (int dx = 0; dx < c_dofs1D; ++dx)
-            {
-               pxw2(dx, ey, ez) = 0.0;
-               for (int dy = 0; dy < c_dofs1D; ++dy)
-               {
-                  pxw2(dx, ey, ez) += B(ey, dy) * pxw1(dx, dy, ez);
-               }
-            }
-         }
-      }
-
-      // contract in x
-      for (int ez = 0; ez < c_dofs1D; ++ez)
-      {
-         for (int ey = 0; ey < c_dofs1D; ++ey)
-         {
-            for (int ex = 0; ex < o_dofs1D; ++ex)
-            {
-               for (int dx = 0; dx < c_dofs1D; ++dx)
-               {
-                  const int local_index = ez*c_dofs1D*o_dofs1D + ey*o_dofs1D + ex;
-                  y(local_index, e) += G(ex, dx) * pxw2(dx, ey, ez);
-               }
-            }
-         }
-      }
-
-
-      // ---
-      // dofs that point parallel to y-axis (open in y, closed in x, z)
-      // ---
-
-      // contract in z
-      for (int ez = 0; ez < c_dofs1D; ++ez)
-      {
-         for (int dx = 0; dx < c_dofs1D; ++dx)
-         {
-            for (int dy = 0; dy < c_dofs1D; ++dy)
-            {
-               pyw1(dx, dy, ez) = 0.0;
-               for (int dz = 0; dz < c_dofs1D; ++dz)
-               {
-                  pyw1(dx, dy, ez) += B(ez, dz) * x(dx, dy, dz, e);
-               }
-            }
-         }
-      }
-
-      // contract in y
-      for (int ez = 0; ez < c_dofs1D; ++ez)
-      {
-         for (int ey = 0; ey < o_dofs1D; ++ey)
-         {
-            for (int dx = 0; dx < c_dofs1D; ++dx)
-            {
-               pyw2(dx, ey, ez) = 0.0;
-               for (int dy = 0; dy < c_dofs1D; ++dy)
-               {
-                  pyw2(dx, ey, ez) += G(ey, dy) * pyw1(dx, dy, ez);
-               }
-            }
-         }
-      }
-
-      // contract in x
-      for (int ez = 0; ez < c_dofs1D; ++ez)
-      {
-         for (int ey = 0; ey < o_dofs1D; ++ey)
-         {
-            for (int ex = 0; ex < c_dofs1D; ++ex)
-            {
-               for (int dx = 0; dx < c_dofs1D; ++dx)
-               {
-                  const int local_index = c_dofs1D*c_dofs1D*o_dofs1D +
-                                          ez*c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
-                  y(local_index, e) += B(ex, dx) * pyw2(dx, ey, ez);
-               }
-            }
-         }
-      }
-
-      // ---
-      // dofs that point parallel to z-axis (open in z, closed in x, y)
-      // ---
-
-      // contract in z
-      for (int ez = 0; ez < o_dofs1D; ++ez)
-      {
-         for (int dx = 0; dx < c_dofs1D; ++dx)
-         {
-            for (int dy = 0; dy < c_dofs1D; ++dy)
-            {
-               pzw1(dx, dy, ez) = 0.0;
-               for (int dz = 0; dz < c_dofs1D; ++dz)
-               {
-                  pzw1(dx, dy, ez) += G(ez, dz) * x(dx, dy, dz, e);
-               }
-            }
-         }
-      }
-
-      // contract in y
-      for (int ez = 0; ez < o_dofs1D; ++ez)
-      {
-         for (int ey = 0; ey < c_dofs1D; ++ey)
-         {
-            for (int dx = 0; dx < c_dofs1D; ++dx)
-            {
-               pzw2(dx, ey, ez) = 0.0;
-               for (int dy = 0; dy < c_dofs1D; ++dy)
-               {
-                  pzw2(dx, ey, ez) += B(ey, dy) * pzw1(dx, dy, ez);
-               }
-            }
-         }
-      }
-
-      // contract in x
-      for (int ez = 0; ez < o_dofs1D; ++ez)
-      {
-         for (int ey = 0; ey < c_dofs1D; ++ey)
-         {
-            for (int ex = 0; ex < c_dofs1D; ++ex)
-            {
-               for (int dx = 0; dx < c_dofs1D; ++dx)
-               {
-                  const int local_index = 2*c_dofs1D*c_dofs1D*o_dofs1D +
-                                          ez*c_dofs1D*c_dofs1D + ey*c_dofs1D + ex;
-                  y(local_index, e) += B(ex, dx) * pzw2(dx, ey, ez);
-               }
-            }
-         }
-      }
-   });
-}
-
-static void PAHcurlApplyGradientTranspose3D(
-   const int c_dofs1D, const int o_dofs1D, const int NE,
-   const Array<double> &_B, const Array<double> &_G,
-   const Vector &_x, Vector &_y)
-{
-   auto B = Reshape(_B.Read(), c_dofs1D, c_dofs1D);
-   auto G = Reshape(_G.Read(), o_dofs1D, c_dofs1D);
-
-   auto x = Reshape(_x.Read(), (3 * c_dofs1D * c_dofs1D * o_dofs1D), NE);
-   auto y = Reshape(_y.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D, NE);
-
-   Vector pxwork1(o_dofs1D * c_dofs1D * c_dofs1D);
-   auto pxw1 = Reshape(pxwork1.ReadWrite(), o_dofs1D, c_dofs1D, c_dofs1D);
-   Vector pxwork2(o_dofs1D * c_dofs1D * c_dofs1D);
-   auto pxw2 = Reshape(pxwork2.ReadWrite(), o_dofs1D, c_dofs1D, c_dofs1D);
-
-   Vector pywork1(c_dofs1D * o_dofs1D * c_dofs1D);
-   auto pyw1 = Reshape(pywork1.ReadWrite(), c_dofs1D, o_dofs1D, c_dofs1D);
-   Vector pywork2(c_dofs1D * c_dofs1D * c_dofs1D);
-   auto pyw2 = Reshape(pywork2.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D);
-
-   Vector pzwork1(c_dofs1D * c_dofs1D * c_dofs1D);
-   auto pzw1 = Reshape(pzwork1.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D);
-   Vector pzwork2(c_dofs1D * c_dofs1D * c_dofs1D);
-   auto pzw2 = Reshape(pzwork2.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D);
-
-   MFEM_FORALL(e, NE,
-   {
-      // ---
-      // dofs that point parallel to x-axis (open in x, closed in y, z)
-      // ---
-
-      // contract in z
-      for (int dz = 0; dz < c_dofs1D; ++dz)
-      {
-         for (int ex = 0; ex < o_dofs1D; ++ex)
-         {
-            for (int ey = 0; ey < c_dofs1D; ++ey)
-            {
-               pxw1(ex, ey, dz) = 0.0;
-               for (int ez = 0; ez < c_dofs1D; ++ez)
-               {
-                  const int local_index = ez*c_dofs1D*o_dofs1D + ey*o_dofs1D + ex;
-                  pxw1(ex, ey, dz) += B(ez, dz) * x(local_index, e);
-               }
-            }
-         }
-      }
-
-      // contract in y
-      for (int dz = 0; dz < c_dofs1D; ++dz)
-      {
-         for (int dy = 0; dy < c_dofs1D; ++dy)
-         {
-            for (int ex = 0; ex < o_dofs1D; ++ex)
-            {
-               pxw2(ex, dy, dz) = 0.0;
-               for (int ey = 0; ey < c_dofs1D; ++ey)
-               {
-                  pxw2(ex, dy, dz) += B(ey, dy) * pxw1(ex, ey, dz);
-               }
-            }
-         }
-      }
-
-      // contract in x
-      for (int dz = 0; dz < c_dofs1D; ++dz)
-      {
-         for (int dy = 0; dy < c_dofs1D; ++dy)
-         {
-            for (int dx = 0; dx < c_dofs1D; ++dx)
-            {
-               for (int ex = 0; ex < o_dofs1D; ++ex)
-               {
-                  y(dx, dy, dz, e) += G(ex, dx) * pxw2(ex, dy, dz);
-               }
-            }
-         }
-      }
-
-      // ---
-      // dofs that point parallel to y-axis (open in y, closed in x, z)
-      // ---
-
-      // contract in z
-      for (int dz = 0; dz < c_dofs1D; ++dz)
-      {
-         for (int ex = 0; ex < c_dofs1D; ++ex)
-         {
-            for (int ey = 0; ey < o_dofs1D; ++ey)
-            {
-               pyw1(ex, ey, dz) = 0.0;
-               for (int ez = 0; ez < c_dofs1D; ++ez)
-               {
-                  const int local_index = c_dofs1D*c_dofs1D*o_dofs1D +
-                                          ez*c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
-                  pyw1(ex, ey, dz) += B(ez, dz) * x(local_index, e);
-               }
-            }
-         }
-      }
-
-      // contract in y
-      for (int dz = 0; dz < c_dofs1D; ++dz)
-      {
-         for (int dy = 0; dy < c_dofs1D; ++dy)
-         {
-            for (int ex = 0; ex < c_dofs1D; ++ex)
-            {
-               pyw2(ex, dy, dz) = 0.0;
-               for (int ey = 0; ey < o_dofs1D; ++ey)
-               {
-                  pyw2(ex, dy, dz) += G(ey, dy) * pyw1(ex, ey, dz);
-               }
-            }
-         }
-      }
-
-      // contract in x
-      for (int dz = 0; dz < c_dofs1D; ++dz)
-      {
-         for (int dy = 0; dy < c_dofs1D; ++dy)
-         {
-            for (int dx = 0; dx < c_dofs1D; ++dx)
-            {
-               for (int ex = 0; ex < c_dofs1D; ++ex)
-               {
-                  y(dx, dy, dz, e) += B(ex, dx) * pyw2(ex, dy, dz);
-               }
-            }
-         }
-      }
-
-      // ---
-      // dofs that point parallel to z-axis (open in z, closed in x, y)
-      // ---
-
-      // contract in z
-      for (int dz = 0; dz < c_dofs1D; ++dz)
-      {
-         for (int ex = 0; ex < c_dofs1D; ++ex)
-         {
-            for (int ey = 0; ey < c_dofs1D; ++ey)
-            {
-               pzw1(ex, ey, dz) = 0.0;
-               for (int ez = 0; ez < o_dofs1D; ++ez)
-               {
-                  const int local_index = 2*c_dofs1D*c_dofs1D*o_dofs1D +
-                                          ez*c_dofs1D*c_dofs1D + ey*c_dofs1D + ex;
-                  pzw1(ex, ey, dz) += G(ez, dz) * x(local_index, e);
-               }
-            }
-         }
-      }
-
-      // contract in y
-      for (int dz = 0; dz < c_dofs1D; ++dz)
-      {
-         for (int dy = 0; dy < c_dofs1D; ++dy)
-         {
-            for (int ex = 0; ex < c_dofs1D; ++ex)
-            {
-               pzw2(ex, dy, dz) = 0.0;
-               for (int ey = 0; ey < c_dofs1D; ++ey)
-               {
-                  pzw2(ex, dy, dz) += B(ey, dy) * pzw1(ex, ey, dz);
-               }
-            }
-         }
-      }
-
-      // contract in x
-      for (int dz = 0; dz < c_dofs1D; ++dz)
-      {
-         for (int dy = 0; dy < c_dofs1D; ++dy)
-         {
-            for (int dx = 0; dx < c_dofs1D; ++dx)
-            {
-               for (int ex = 0; ex < c_dofs1D; ++ex)
-               {
-                  y(dx, dy, dz, e) += B(ex, dx) * pzw2(ex, dy, dz);
-               }
-            }
-         }
-      }
-   });
-}
-
 // Apply to x corresponding to DOF's in H^1 (trial), whose gradients are
 // integrated against H(curl) test functions corresponding to y.
 void PAHcurlH1Apply2D(const int D1D,
@@ -3938,6 +3409,534 @@ void MixedVectorWeakCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
    {
       MFEM_ABORT("Unsupported dimension or space!");
    }
+}
+
+// Apply to x corresponding to DOFs in H^1 (domain) the (topological) gradient
+// to get a dof in H(curl) (range). You can think of the range as the "test" space
+// and the domain as the "trial" space, but there's no integration.
+static void PAHcurlApplyGradient2D(const int c_dofs1D,
+                                   const int o_dofs1D,
+                                   const int NE,
+                                   const Array<double> &_B,
+                                   const Array<double> &_G,
+                                   const Vector &_x,
+                                   Vector &_y)
+{
+   auto B = Reshape(_B.Read(), c_dofs1D, c_dofs1D);
+   auto G = Reshape(_G.Read(), o_dofs1D, c_dofs1D);
+
+   auto x = Reshape(_x.Read(), c_dofs1D, c_dofs1D, NE);
+   auto y = Reshape(_y.ReadWrite(), 2 * c_dofs1D * o_dofs1D, NE);
+
+   Vector hwork(c_dofs1D * c_dofs1D);
+   auto hw = Reshape(hwork.ReadWrite(), c_dofs1D, c_dofs1D);
+
+   Vector vwork(c_dofs1D * o_dofs1D);
+   auto vw = Reshape(vwork.ReadWrite(), c_dofs1D, o_dofs1D);
+   MFEM_FORALL(e, NE,
+   {
+      // horizontal part
+      for (int dx = 0; dx < c_dofs1D; ++dx)
+      {
+         for (int ey = 0; ey < c_dofs1D; ++ey)
+         {
+            hw(dx, ey) = 0.0;
+            for (int dy = 0; dy < c_dofs1D; ++dy)
+            {
+               hw(dx, ey) += B(ey, dy) * x(dx, dy, e);
+            }
+         }
+      }
+
+      for (int ey = 0; ey < c_dofs1D; ++ey)
+      {
+         for (int ex = 0; ex < o_dofs1D; ++ex)
+         {
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               const int local_index = ey*o_dofs1D + ex;
+               y(local_index, e) += G(ex, dx) * hw(dx, ey);
+            }
+         }
+      }
+
+      // vertical part
+      for (int dx = 0; dx < c_dofs1D; ++dx)
+      {
+         for (int ey = 0; ey < o_dofs1D; ++ey)
+         {
+            vw(dx, ey) = 0.0;
+            for (int dy = 0; dy < c_dofs1D; ++dy)
+            {
+               vw(dx, ey) += G(ey, dy) * x(dx, dy, e);
+            }
+         }
+      }
+
+      for (int ey = 0; ey < o_dofs1D; ++ey)
+      {
+         for (int ex = 0; ex < c_dofs1D; ++ex)
+         {
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               const int local_index = c_dofs1D * o_dofs1D + ey*c_dofs1D + ex;
+               y(local_index, e) += B(ex, dx) * vw(dx, ey);
+            }
+         }
+      }
+   });
+
+}
+
+static void PAHcurlApplyGradientTranspose2D(
+   const int c_dofs1D, const int o_dofs1D, const int NE,
+   const Array<double> &_B, const Array<double> &_G,
+   const Vector &_x, Vector &_y)
+{
+   auto B = Reshape(_B.Read(), c_dofs1D, c_dofs1D);
+   auto G = Reshape(_G.Read(), o_dofs1D, c_dofs1D);
+
+   auto x = Reshape(_x.Read(), 2 * c_dofs1D * o_dofs1D, NE);
+   auto y = Reshape(_y.ReadWrite(), c_dofs1D, c_dofs1D, NE);
+
+   Vector hwork(c_dofs1D * o_dofs1D);
+   auto hw = Reshape(hwork.ReadWrite(), c_dofs1D, o_dofs1D);
+
+   Vector vwork(c_dofs1D * c_dofs1D);
+   auto vw = Reshape(vwork.ReadWrite(), c_dofs1D, c_dofs1D);
+
+   MFEM_FORALL(e, NE,
+   {
+      // horizontal part (open x, closed y)
+      for (int dy = 0; dy < c_dofs1D; ++dy)
+      {
+         for (int ex = 0; ex < o_dofs1D; ++ex)
+         {
+            hw(dy, ex) = 0.0;
+            for (int ey = 0; ey < c_dofs1D; ++ey)
+            {
+               const int local_index = ey*o_dofs1D + ex;
+               hw(dy, ex) += B(ey, dy) * x(local_index, e);
+            }
+         }
+      }
+
+      for (int dy = 0; dy < c_dofs1D; ++dy)
+      {
+         for (int dx = 0; dx < c_dofs1D; ++dx)
+         {
+            for (int ex = 0; ex < o_dofs1D; ++ex)
+            {
+               y(dx, dy, e) += G(ex, dx) * hw(dy, ex);
+            }
+         }
+      }
+
+      // vertical part (open y, closed x)
+      for (int dy = 0; dy < c_dofs1D; ++dy)
+      {
+         for (int ex = 0; ex < c_dofs1D; ++ex)
+         {
+            vw(dy, ex) = 0.0;
+            for (int ey = 0; ey < o_dofs1D; ++ey)
+            {
+               const int local_index = c_dofs1D * o_dofs1D + ey*c_dofs1D + ex;
+               vw(dy, ex) += G(ey, dy) * x(local_index, e);
+            }
+         }
+      }
+
+      for (int dy = 0; dy < c_dofs1D; ++dy)
+      {
+         for (int dx = 0; dx < c_dofs1D; ++dx)
+         {
+            for (int ex = 0; ex < c_dofs1D; ++ex)
+            {
+               y(dx, dy, e) += B(ex, dx) * vw(dy, ex);
+            }
+         }
+      }
+   });
+}
+
+static void PAHcurlApplyGradient3D(const int c_dofs1D,
+                                   const int o_dofs1D,
+                                   const int NE,
+                                   const Array<double> &_B,
+                                   const Array<double> &_G,
+                                   const Vector &_x,
+                                   Vector &_y)
+{
+   auto B = Reshape(_B.Read(), c_dofs1D, c_dofs1D);
+   auto G = Reshape(_G.Read(), o_dofs1D, c_dofs1D);
+
+   auto x = Reshape(_x.Read(), c_dofs1D, c_dofs1D, c_dofs1D, NE);
+   auto y = Reshape(_y.ReadWrite(), (3 * c_dofs1D * c_dofs1D * o_dofs1D), NE);
+
+   Vector pxwork1(c_dofs1D * c_dofs1D * c_dofs1D);
+   auto pxw1 = Reshape(pxwork1.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D);
+   Vector pxwork2(c_dofs1D * c_dofs1D * c_dofs1D);
+   auto pxw2 = Reshape(pxwork2.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D);
+
+   Vector pywork1(c_dofs1D * c_dofs1D * c_dofs1D);
+   auto pyw1 = Reshape(pywork1.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D);
+   Vector pywork2(c_dofs1D * o_dofs1D * c_dofs1D);
+   auto pyw2 = Reshape(pywork2.ReadWrite(), c_dofs1D, o_dofs1D, c_dofs1D);
+
+   Vector pzwork1(c_dofs1D * c_dofs1D * o_dofs1D);
+   auto pzw1 = Reshape(pzwork1.ReadWrite(), c_dofs1D, c_dofs1D, o_dofs1D);
+   Vector pzwork2(c_dofs1D * c_dofs1D * o_dofs1D);
+   auto pzw2 = Reshape(pzwork2.ReadWrite(), c_dofs1D, c_dofs1D, o_dofs1D);
+
+   MFEM_FORALL(e, NE,
+   {
+      // ---
+      // dofs that point parallel to x-axis (open in x, closed in y, z)
+      // ---
+
+      // contract in z
+      for (int ez = 0; ez < c_dofs1D; ++ez)
+      {
+         for (int dx = 0; dx < c_dofs1D; ++dx)
+         {
+            for (int dy = 0; dy < c_dofs1D; ++dy)
+            {
+               pxw1(dx, dy, ez) = 0.0;
+               for (int dz = 0; dz < c_dofs1D; ++dz)
+               {
+                  pxw1(dx, dy, ez) += B(ez, dz) * x(dx, dy, dz, e);
+               }
+            }
+         }
+      }
+
+      // contract in y
+      for (int ez = 0; ez < c_dofs1D; ++ez)
+      {
+         for (int ey = 0; ey < c_dofs1D; ++ey)
+         {
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               pxw2(dx, ey, ez) = 0.0;
+               for (int dy = 0; dy < c_dofs1D; ++dy)
+               {
+                  pxw2(dx, ey, ez) += B(ey, dy) * pxw1(dx, dy, ez);
+               }
+            }
+         }
+      }
+
+      // contract in x
+      for (int ez = 0; ez < c_dofs1D; ++ez)
+      {
+         for (int ey = 0; ey < c_dofs1D; ++ey)
+         {
+            for (int ex = 0; ex < o_dofs1D; ++ex)
+            {
+               for (int dx = 0; dx < c_dofs1D; ++dx)
+               {
+                  const int local_index = ez*c_dofs1D*o_dofs1D + ey*o_dofs1D + ex;
+                  y(local_index, e) += G(ex, dx) * pxw2(dx, ey, ez);
+               }
+            }
+         }
+      }
+
+
+      // ---
+      // dofs that point parallel to y-axis (open in y, closed in x, z)
+      // ---
+
+      // contract in z
+      for (int ez = 0; ez < c_dofs1D; ++ez)
+      {
+         for (int dx = 0; dx < c_dofs1D; ++dx)
+         {
+            for (int dy = 0; dy < c_dofs1D; ++dy)
+            {
+               pyw1(dx, dy, ez) = 0.0;
+               for (int dz = 0; dz < c_dofs1D; ++dz)
+               {
+                  pyw1(dx, dy, ez) += B(ez, dz) * x(dx, dy, dz, e);
+               }
+            }
+         }
+      }
+
+      // contract in y
+      for (int ez = 0; ez < c_dofs1D; ++ez)
+      {
+         for (int ey = 0; ey < o_dofs1D; ++ey)
+         {
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               pyw2(dx, ey, ez) = 0.0;
+               for (int dy = 0; dy < c_dofs1D; ++dy)
+               {
+                  pyw2(dx, ey, ez) += G(ey, dy) * pyw1(dx, dy, ez);
+               }
+            }
+         }
+      }
+
+      // contract in x
+      for (int ez = 0; ez < c_dofs1D; ++ez)
+      {
+         for (int ey = 0; ey < o_dofs1D; ++ey)
+         {
+            for (int ex = 0; ex < c_dofs1D; ++ex)
+            {
+               for (int dx = 0; dx < c_dofs1D; ++dx)
+               {
+                  const int local_index = c_dofs1D*c_dofs1D*o_dofs1D +
+                                          ez*c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
+                  y(local_index, e) += B(ex, dx) * pyw2(dx, ey, ez);
+               }
+            }
+         }
+      }
+
+      // ---
+      // dofs that point parallel to z-axis (open in z, closed in x, y)
+      // ---
+
+      // contract in z
+      for (int ez = 0; ez < o_dofs1D; ++ez)
+      {
+         for (int dx = 0; dx < c_dofs1D; ++dx)
+         {
+            for (int dy = 0; dy < c_dofs1D; ++dy)
+            {
+               pzw1(dx, dy, ez) = 0.0;
+               for (int dz = 0; dz < c_dofs1D; ++dz)
+               {
+                  pzw1(dx, dy, ez) += G(ez, dz) * x(dx, dy, dz, e);
+               }
+            }
+         }
+      }
+
+      // contract in y
+      for (int ez = 0; ez < o_dofs1D; ++ez)
+      {
+         for (int ey = 0; ey < c_dofs1D; ++ey)
+         {
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               pzw2(dx, ey, ez) = 0.0;
+               for (int dy = 0; dy < c_dofs1D; ++dy)
+               {
+                  pzw2(dx, ey, ez) += B(ey, dy) * pzw1(dx, dy, ez);
+               }
+            }
+         }
+      }
+
+      // contract in x
+      for (int ez = 0; ez < o_dofs1D; ++ez)
+      {
+         for (int ey = 0; ey < c_dofs1D; ++ey)
+         {
+            for (int ex = 0; ex < c_dofs1D; ++ex)
+            {
+               for (int dx = 0; dx < c_dofs1D; ++dx)
+               {
+                  const int local_index = 2*c_dofs1D*c_dofs1D*o_dofs1D +
+                                          ez*c_dofs1D*c_dofs1D + ey*c_dofs1D + ex;
+                  y(local_index, e) += B(ex, dx) * pzw2(dx, ey, ez);
+               }
+            }
+         }
+      }
+   });
+}
+
+static void PAHcurlApplyGradientTranspose3D(
+   const int c_dofs1D, const int o_dofs1D, const int NE,
+   const Array<double> &_B, const Array<double> &_G,
+   const Vector &_x, Vector &_y)
+{
+   auto B = Reshape(_B.Read(), c_dofs1D, c_dofs1D);
+   auto G = Reshape(_G.Read(), o_dofs1D, c_dofs1D);
+
+   auto x = Reshape(_x.Read(), (3 * c_dofs1D * c_dofs1D * o_dofs1D), NE);
+   auto y = Reshape(_y.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D, NE);
+
+   Vector pxwork1(o_dofs1D * c_dofs1D * c_dofs1D);
+   auto pxw1 = Reshape(pxwork1.ReadWrite(), o_dofs1D, c_dofs1D, c_dofs1D);
+   Vector pxwork2(o_dofs1D * c_dofs1D * c_dofs1D);
+   auto pxw2 = Reshape(pxwork2.ReadWrite(), o_dofs1D, c_dofs1D, c_dofs1D);
+
+   Vector pywork1(c_dofs1D * o_dofs1D * c_dofs1D);
+   auto pyw1 = Reshape(pywork1.ReadWrite(), c_dofs1D, o_dofs1D, c_dofs1D);
+   Vector pywork2(c_dofs1D * c_dofs1D * c_dofs1D);
+   auto pyw2 = Reshape(pywork2.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D);
+
+   Vector pzwork1(c_dofs1D * c_dofs1D * c_dofs1D);
+   auto pzw1 = Reshape(pzwork1.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D);
+   Vector pzwork2(c_dofs1D * c_dofs1D * c_dofs1D);
+   auto pzw2 = Reshape(pzwork2.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D);
+
+   MFEM_FORALL(e, NE,
+   {
+      // ---
+      // dofs that point parallel to x-axis (open in x, closed in y, z)
+      // ---
+
+      // contract in z
+      for (int dz = 0; dz < c_dofs1D; ++dz)
+      {
+         for (int ex = 0; ex < o_dofs1D; ++ex)
+         {
+            for (int ey = 0; ey < c_dofs1D; ++ey)
+            {
+               pxw1(ex, ey, dz) = 0.0;
+               for (int ez = 0; ez < c_dofs1D; ++ez)
+               {
+                  const int local_index = ez*c_dofs1D*o_dofs1D + ey*o_dofs1D + ex;
+                  pxw1(ex, ey, dz) += B(ez, dz) * x(local_index, e);
+               }
+            }
+         }
+      }
+
+      // contract in y
+      for (int dz = 0; dz < c_dofs1D; ++dz)
+      {
+         for (int dy = 0; dy < c_dofs1D; ++dy)
+         {
+            for (int ex = 0; ex < o_dofs1D; ++ex)
+            {
+               pxw2(ex, dy, dz) = 0.0;
+               for (int ey = 0; ey < c_dofs1D; ++ey)
+               {
+                  pxw2(ex, dy, dz) += B(ey, dy) * pxw1(ex, ey, dz);
+               }
+            }
+         }
+      }
+
+      // contract in x
+      for (int dz = 0; dz < c_dofs1D; ++dz)
+      {
+         for (int dy = 0; dy < c_dofs1D; ++dy)
+         {
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               for (int ex = 0; ex < o_dofs1D; ++ex)
+               {
+                  y(dx, dy, dz, e) += G(ex, dx) * pxw2(ex, dy, dz);
+               }
+            }
+         }
+      }
+
+      // ---
+      // dofs that point parallel to y-axis (open in y, closed in x, z)
+      // ---
+
+      // contract in z
+      for (int dz = 0; dz < c_dofs1D; ++dz)
+      {
+         for (int ex = 0; ex < c_dofs1D; ++ex)
+         {
+            for (int ey = 0; ey < o_dofs1D; ++ey)
+            {
+               pyw1(ex, ey, dz) = 0.0;
+               for (int ez = 0; ez < c_dofs1D; ++ez)
+               {
+                  const int local_index = c_dofs1D*c_dofs1D*o_dofs1D +
+                                          ez*c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
+                  pyw1(ex, ey, dz) += B(ez, dz) * x(local_index, e);
+               }
+            }
+         }
+      }
+
+      // contract in y
+      for (int dz = 0; dz < c_dofs1D; ++dz)
+      {
+         for (int dy = 0; dy < c_dofs1D; ++dy)
+         {
+            for (int ex = 0; ex < c_dofs1D; ++ex)
+            {
+               pyw2(ex, dy, dz) = 0.0;
+               for (int ey = 0; ey < o_dofs1D; ++ey)
+               {
+                  pyw2(ex, dy, dz) += G(ey, dy) * pyw1(ex, ey, dz);
+               }
+            }
+         }
+      }
+
+      // contract in x
+      for (int dz = 0; dz < c_dofs1D; ++dz)
+      {
+         for (int dy = 0; dy < c_dofs1D; ++dy)
+         {
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               for (int ex = 0; ex < c_dofs1D; ++ex)
+               {
+                  y(dx, dy, dz, e) += B(ex, dx) * pyw2(ex, dy, dz);
+               }
+            }
+         }
+      }
+
+      // ---
+      // dofs that point parallel to z-axis (open in z, closed in x, y)
+      // ---
+
+      // contract in z
+      for (int dz = 0; dz < c_dofs1D; ++dz)
+      {
+         for (int ex = 0; ex < c_dofs1D; ++ex)
+         {
+            for (int ey = 0; ey < c_dofs1D; ++ey)
+            {
+               pzw1(ex, ey, dz) = 0.0;
+               for (int ez = 0; ez < o_dofs1D; ++ez)
+               {
+                  const int local_index = 2*c_dofs1D*c_dofs1D*o_dofs1D +
+                                          ez*c_dofs1D*c_dofs1D + ey*c_dofs1D + ex;
+                  pzw1(ex, ey, dz) += G(ez, dz) * x(local_index, e);
+               }
+            }
+         }
+      }
+
+      // contract in y
+      for (int dz = 0; dz < c_dofs1D; ++dz)
+      {
+         for (int dy = 0; dy < c_dofs1D; ++dy)
+         {
+            for (int ex = 0; ex < c_dofs1D; ++ex)
+            {
+               pzw2(ex, dy, dz) = 0.0;
+               for (int ey = 0; ey < c_dofs1D; ++ey)
+               {
+                  pzw2(ex, dy, dz) += B(ey, dy) * pzw1(ex, ey, dz);
+               }
+            }
+         }
+      }
+
+      // contract in x
+      for (int dz = 0; dz < c_dofs1D; ++dz)
+      {
+         for (int dy = 0; dy < c_dofs1D; ++dy)
+         {
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               for (int ex = 0; ex < c_dofs1D; ++ex)
+               {
+                  y(dx, dy, dz, e) += B(ex, dx) * pzw2(ex, dy, dz);
+               }
+            }
+         }
+      }
+   });
 }
 
 void GradientInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
