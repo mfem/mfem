@@ -37,7 +37,6 @@ double compare_pa_id_assembly(int dim, int num_elements, int order,
    const int skip_zeros = 1;
    assembled_id.Assemble(skip_zeros);
    assembled_id.Finalize(skip_zeros);
-   const SparseMatrix& assembled_id_mat = assembled_id.SpMat();
 
    DiscreteLinearOperator pa_id(&h1_fespace, &nd_fespace);
    pa_id.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -56,21 +55,20 @@ double compare_pa_id_assembly(int dim, int num_elements, int order,
       insize = h1_fespace.GetVSize();
       outsize = nd_fespace.GetVSize();
    }
-   Vector xv(insize);
+   Vector x(insize);
    Vector assembled_y(outsize);
    Vector pa_y(outsize);
 
-   xv.Randomize();
+   x.Randomize();
    if (transpose)
    {
-      assembled_id_mat.MultTranspose(xv, assembled_y);
-      pa_id.MultTranspose(xv, pa_y);
+      assembled_id.MultTranspose(x, assembled_y);
+      pa_id.MultTranspose(x, pa_y);
    }
    else
    {
-      //assembled_id_mat.Mult(xv, assembled_y);
-      assembled_id.Mult(xv, assembled_y);
-      pa_id.Mult(xv, pa_y);
+      assembled_id.Mult(x, assembled_y);
+      pa_id.Mult(x, pa_y);
    }
 
    if (false)
@@ -103,7 +101,7 @@ TEST_CASE("PAIdentityInterp", "[PAIdentityInterp]")
 {
    for (bool transpose : {false, true})
    {
-      for (int dim = 3; dim < 4; ++dim)
+      for (int dim = 2; dim < 4; ++dim)
       {
          for (int num_elements = 1; num_elements < 5; ++num_elements)
          {

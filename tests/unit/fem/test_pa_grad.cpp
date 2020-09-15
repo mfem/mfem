@@ -105,7 +105,7 @@ TEST_CASE("PAGradient", "[PAGradient]")
       {
          for (int num_elements = 1; num_elements < 5; ++num_elements)
          {
-            for (int order = 2; order < 5; ++order)
+            for (int order = 1; order < 5; ++order)
             {
                double error = compare_pa_assembly(dim, num_elements, order, transpose);
                REQUIRE(error < 1.e-14);
