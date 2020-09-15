@@ -39,6 +39,7 @@ enum class MemoryType
                         and *Free */
    DEVICE,         ///< Device memory; using CUDA or HIP *Malloc and *Free
    DEVICE_POOL,
+   DEVICE_ARENA,
    DEVICE_DEBUG,   /**< Pseudo-device memory; allocated on host from a
                         "device-debug" pool */
    DEVICE_DEBUG_POOL,
@@ -664,13 +665,16 @@ public:
 ///////////////////////////////////////////////////////////////////////////////
 class ArenaMemorySpace
 {
-   const size_t asize;
-   class Buckets *buckets;
+   uintptr_t *mem, *dev, shift;
+   struct Buckets *buckets;
 public:
-   ArenaMemorySpace(size_t asize = 8);
+   static constexpr uintptr_t MEM_SIZE = 1ul << 30ul; // 1 Go
+   static constexpr uintptr_t ARN_SIZE = 16ul << 20ul; // 16 Mo per FOREACH
+   ArenaMemorySpace();
    ~ArenaMemorySpace();
    void *alloc(size_t bytes);
    void free(void *ptr, size_t bytes);
+   uintptr_t Shift() const { return shift; }
 };
 
 void *AAlloc(size_t bytes);

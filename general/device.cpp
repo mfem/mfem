@@ -349,6 +349,13 @@ void Device::UpdateMemoryTypeAndClass()
       device_mem_type = MemoryType::DEVICE_POOL;
    }
 
+   // Enable the DEVICE Arena shortcut when requested
+   if (device && device_option && !strcmp(device_option, "arena"))
+   {
+      host_mem_type = MemoryType::HOST_ARENA;
+      device_mem_type = MemoryType::DEVICE_ARENA;
+   }
+
    // Enable the DEBUG mode when requested
    if (debug)
    {
