@@ -34,6 +34,7 @@
 #define ScalePermstruct_t dScalePermstruct_t
 #define LUstruct_t dLUstruct_t
 #define SOLVEstruct_t dSOLVEstruct_t
+#define ScalePermstructInit dScalePermstructInit
 #define ScalePermstructFree dScalePermstructFree
 #define Destroy_LU dDestroy_LU
 #define LUstructFree dLUstructFree
@@ -158,10 +159,13 @@ SuperLURowLocMatrix::SuperLURowLocMatrix( const HypreParMatrix & hypParMat )
    // necessary in HYPRE_MIXEDINT mode which is not supported at the moment.
    hypre_CSRMatrixBigJtoJ(csr_op);
 #endif
+   int my_id;
+   MPI_Comm_rank(comm_, &my_id);
 
    int m         = parcsr_op->global_num_rows;
    int n         = parcsr_op->global_num_cols;
-   int fst_row   = parcsr_op->first_row_index;
+   // Local index of first row
+   int fst_row = parcsr_op->row_starts[my_id];
    int nnz_loc   = csr_op->num_nonzeros;
    int m_loc     = csr_op->num_rows;
 
@@ -257,10 +261,10 @@ SuperLUSolver::~SuperLUSolver()
    gridinfo_t        * grid         = (gridinfo_t*)gridPtr_;
 
    SUPERLU_FREE(berr_);
-   PStatFree(stat);
 
    if ( LUStructInitialized_ )
    {
+      PStatFree(stat);
       ScalePermstructFree(SPstruct);
       Destroy_LU(width, grid, LUstruct);
       LUstructFree(LUstruct);
@@ -301,10 +305,17 @@ void SuperLUSolver::Init()
    }
 
    // Set default options
+   // options.Fact = DOFACT;
+   // options.Equil = YES;
+   // options.ColPerm = METIS_AT_PLUS_A;
+   // options.RowPerm = LargeDiag_MC64;
+   // options.ReplaceTinyPivot = NO;
+   // options.Trans = NOTRANS;
+   // options.IterRefine = DOUBLE;
+   // options.SolveInitialized = NO;
+   // options.RefineInitialized = NO;
+   // options.PrintStat = YES;
    set_default_options_dist(options);
-
-   options->ParSymbFact = YES;
-   options->ColPerm     = NATURAL;
 
    // Choose nprow and npcol so that the process grid is as square as possible.
    // If the processes cannot be divided evenly, keep the row dimension smaller
@@ -318,8 +329,6 @@ void SuperLUSolver::Init()
 
    npcol_ = (int)(numProcs_ / nprow_);
    MFEM_ASSERT(nprow_ * npcol_ == numProcs_, "");
-
-   PStatInit(stat); // Initialize the statistics variables.
 }
 
 void SuperLUSolver::SetPrintStatistics( bool print_stat )
@@ -493,33 +502,36 @@ void SuperLUSolver::Mult( const Vector & x, Vector & y ) const
    else // This is the first solve with this A
    {
       firstSolveWithThisA_ = false;
+      MFEM_WARNING("FIRST SOLVE WITH THIS A");
+      options->Fact = DOFACT;
+
+      // If this is the first solve with this A, and the SuperLU structures have 
+      // already been initialized, their memory needs to be cleaned up first
+      if ( LUStructInitialized_ )
+      {
+         ScalePermstructFree(SPstruct);
+         Destroy_LU(width, grid, LUstruct);
+         LUstructFree(LUstruct);
+         PStatFree(stat);
+      }
 
       // Make sure that the parameters have been initialized The only parameter
       // we might have to worry about is ScalePermstruct, if the user is
       // supplying a row or column permutation.
 
       // Initialize ScalePermstruct and LUstruct.
-      SPstruct->DiagScale = NOEQUIL;
+      ScalePermstructInit(width, height, SPstruct);
 
       // Transfer ownership of the row permutations if available
       if ( perm_r_ != NULL )
       {
+         SUPERLU_FREE(SPstruct->perm_r);
          SPstruct->perm_r = perm_r_;
          perm_r_ = NULL;
       }
-      else
-      {
-         if ( !(SPstruct->perm_r = intMalloc_dist(A->nrow)) )
-         {
-            ABORT("Malloc fails for perm_r[].");
-         }
-      }
-      if ( !(SPstruct->perm_c = intMalloc_dist(A->ncol)) )
-      {
-         ABORT("Malloc fails for perm_c[].");
-      }
 
-      LUstructInit(A->ncol, LUstruct);
+      LUstructInit(width, LUstruct);
+      PStatInit(stat); // Initialize the statistics variables.
       LUStructInitialized_ = true;
    }
 
