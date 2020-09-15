@@ -270,7 +270,7 @@ void CeedAssembleDiagonalPA(const CeedData *ceedDataPtr,
 void RemoveCeedBasisAndRestriction(const FiniteElementSpace *fes)
 {
 #ifdef MFEM_USE_CEED
-   for (auto entry : internal::ceed_basis_map)
+   for (auto &entry : internal::ceed_basis_map)
    {
       if (std::get<0>(entry.first)==fes)
       {
@@ -278,7 +278,7 @@ void RemoveCeedBasisAndRestriction(const FiniteElementSpace *fes)
          internal::ceed_basis_map.erase(entry.first);
       }
    }
-   for (auto entry : internal::ceed_restr_map)
+   for (auto &entry : internal::ceed_restr_map)
    {
       if (std::get<0>(entry.first)==fes)
       {
