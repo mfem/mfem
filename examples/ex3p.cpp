@@ -135,7 +135,8 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
-      int par_ref_levels = 2;
+      // int par_ref_levels = 2;
+      int par_ref_levels = 0;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();
@@ -158,9 +159,9 @@ int main(int argc, char *argv[])
    //    by marking all the boundary attributes from the mesh as essential
    //    (Dirichlet) and converting them to a list of true dofs.
    Array<int> ess_tdof_list;
+   Array<int> ess_bdr(pmesh->bdr_attributes.Max());
    if (pmesh->bdr_attributes.Size())
    {
-      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
       ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
@@ -210,14 +211,16 @@ int main(int argc, char *argv[])
 
    if (pa) // Jacobi preconditioning in partial assembly mode
    {
-      OperatorJacobiSmoother Jacobi(*a, ess_tdof_list);
+      // OperatorJacobiSmoother Jacobi(*a, ess_tdof_list);
+      MatrixFreeAMS ams(*a, *A, *fespace, muinv, sigma, ess_bdr);
 
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-12);
       cg.SetMaxIter(1000);
       cg.SetPrintLevel(1);
       cg.SetOperator(*A);
-      cg.SetPreconditioner(Jacobi);
+      // cg.SetPreconditioner(Jacobi);
+      cg.SetPreconditioner(ams);
       cg.Mult(B, X);
    }
    else
