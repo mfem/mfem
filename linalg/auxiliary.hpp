@@ -14,13 +14,17 @@
 
 #include "../config/config.hpp"
 #include "../general/tic_toc.hpp"
-#include "../mesh/pmesh.hpp"
-#include "../fem/pbilinearform.hpp"
 
 #include "solvers.hpp"
 
 namespace mfem
 {
+
+// forward declarations (can probably be reduced/simplified
+class Coefficient;
+class ParMesh;
+class ParBilinearForm;
+class ParDiscreteLinearOperator;
 
 /**
    The basic idea is that given an operator A and a transfer

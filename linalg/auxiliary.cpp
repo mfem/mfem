@@ -10,6 +10,8 @@
 // CONTRIBUTING.md for details.
 
 #include "linalg.hpp"
+#include "../fem/pfespace.hpp"
+#include "../fem/pbilinearform.hpp"
 
 namespace mfem
 {
@@ -256,8 +258,8 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
       a_space.AddDomainIntegrator(new VectorFEMassIntegrator(*beta_coeff));
       a_space.UsePrecomputedSparsity();
       a_space.Assemble();
-      const Matrix::DiagonalPolicy policy = Matrix::DIAG_ZERO;
-      // const Matrix::DiagonalPolicy policy = Matrix::DIAG_ONE;
+      // const Matrix::DiagonalPolicy policy = Matrix::DIAG_ZERO;
+      const Matrix::DiagonalPolicy policy = Matrix::DIAG_ONE;
       a_space.EliminateEssentialBC(ess_bdr, policy);
       a_space.Finalize();
       a_space.SpMat().SortColumnIndices();
