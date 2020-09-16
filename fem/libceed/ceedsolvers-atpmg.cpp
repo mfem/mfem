@@ -73,8 +73,10 @@ int CeedATPMGElemRestriction(int order,
   ierr = CeedElemRestrictionGetElementSize(er_in, &elemsize); CeedChk(ierr);
   ierr = CeedElemRestrictionGetNumComponents(er_in, &numcomp); CeedChk(ierr);
   if (numcomp != 1) {
+    // todo: this will require more thought
     return CeedError(ceed, 1, "Not implemented!");
   }
+
   int P1d = order + 1;
   int coarse_P1d = P1d - order_reduction;
   int dim = (log((double) elemsize) / log((double) P1d)) + 1.e-3;
