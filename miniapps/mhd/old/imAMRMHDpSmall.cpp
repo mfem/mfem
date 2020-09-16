@@ -191,7 +191,7 @@ int main(int argc, char *argv[])
                   "Time step.");
    args.AddOption(&icase, "-i", "--icase",
                   "Icase: 1 - wave propagation; 2 - Tearing mode.");
-   args.AddOption(&itau, "-itau", "--itau",
+   args.AddOption(&itau_, "-itau", "--itau",
                   "Itau options.");
    args.AddOption(&ijacobi, "-ijacobi", "--ijacobi",
                   "Number of jacobi iteration in preconditioner");
@@ -231,6 +231,8 @@ int main(int argc, char *argv[])
                   "Use supg in the explicit solvers.");
    args.AddOption(&maxtau, "-max-tau", "--max-tau", "-no-max-tau", "--no-max-tau",
                   "Use max-tau in supg.");
+   args.AddOption(&dtfactor, "-dtfactor", "--dt-factor",
+                  "Tau supg scales like dt/dtfactor.");
    args.AddOption(&useFull, "-useFull", "--useFull",
                   "version of Full preconditioner");
    args.AddOption(&usefd, "-fd", "--use-fd", "-no-fd",
@@ -698,8 +700,8 @@ int main(int argc, char *argv[])
       //visualize Tau value
       MyCoefficient velocity(&phi, 2);
       computeTau = new ParLinearForm(&pw_const_fes);
-      //need to multiply a time-step factor for SDIRK(2)
-      computeTau->AddDomainIntegrator(new CheckTauIntegrator(0.29289321881*dt, resi, velocity));
+      //need to multiply a time-step factor for SDIRK(2)!!
+      computeTau->AddDomainIntegrator(new CheckTauIntegrator(0.29289321881*dt, resi, velocity, itau_));
       computeTau->Assemble(); 
       tauv=computeTau->ParallelAssemble();
       tau_value.SetFromTrueDofs(*tauv);
@@ -956,7 +958,7 @@ int main(int argc, char *argv[])
            delete tauv;
 
            computeTau = new ParLinearForm(&pw_const_fes);
-           computeTau->AddDomainIntegrator(new CheckTauIntegrator(0.29289321881*dt_real, resi, velocity));
+           computeTau->AddDomainIntegrator(new CheckTauIntegrator(0.29289321881*dt_real, resi, velocity, itau_));
            computeTau->Assemble(); 
            tauv=computeTau->ParallelAssemble();
            tau_value.SetFromTrueDofs(*tauv);

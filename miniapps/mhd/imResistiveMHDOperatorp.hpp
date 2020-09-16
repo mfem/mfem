@@ -25,6 +25,7 @@ int BgradJ=1;    // B.gradJ operator: 1 (B.grad J, phi)
                 //                    2 (-J, B.grad phi)
                 //                    3 (-BJ, grad phi)
                 // 2 and 3 should be equivalent 
+int itau_=2;    //how to evaluate supg coefficient
                 
 
 //------------this is for preconditioner------------
@@ -33,7 +34,8 @@ int useFull=1; // control version of preconditioner
                // 0: a simple block preconditioner
                // 1: physics-based preconditioner
                // 2: physics-based but supg more complicated version
-int i_supgpre=3;    //3 - full supg terms on both psi and phi
+int i_supgpre=3;    //3 - full diagonal supg terms on psi and phi
+                    //0 - only (v.grad) in the preconditioner on psi and phi
 
 
 extern int icase;
@@ -1399,7 +1401,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
              {
                   delete StabNv;
                   StabNv = new ParBilinearForm(&fespace);
-                  StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, resistivity, velocity));
+                  StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, resistivity, velocity,itau_));
                   StabNv->Assemble(); 
                   StabNv->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
                   StabNv->Finalize();
@@ -1411,7 +1413,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
 
                   if ( im_supg==1 || im_supg==3 )
                   {
-                      if (resistivity!=viscosity)
+                      if (resistivity!=viscosity || itau_!=2)
                       {
                           delete StabNv;
                           StabNv = new ParBilinearForm(&fespace);
@@ -1433,7 +1435,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
              {
                   delete StabMass;
                   StabMass = new ParBilinearForm(&fespace);
-                  StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, resistivity, velocity));
+                  StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, resistivity, velocity, itau_));
                   StabMass->Assemble(); 
                   StabMass->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
                   StabMass->Finalize();
@@ -1441,14 +1443,14 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
 
                   delete StabNv;
                   StabNv = new ParBilinearForm(&fespace);
-                  StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, resistivity, velocity));
+                  StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, resistivity, velocity, itau_));
                   StabNv->Assemble(); 
                   StabNv->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
                   StabNv->Finalize();
                   HypreParMatrix *MatStabNv=StabNv->ParallelAssemble();
 
                   S = ParMult(MatStabMass, MinvKB);
-                  *S *= viscosity;
+                  *S *= resistivity;
                   HypreParMatrix *tmp=Add(1./dt, *MatStabMass, 1., *MatStabNv);
                   HypreParMatrix *MatStabSum=ParAdd(tmp, S);
 
@@ -1460,9 +1462,37 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
 
                   if (i_supgpre>2 && ( im_supg==1 || im_supg==3 ) )
                   {
-                      if (resistivity!=viscosity)
+                      if (resistivity!=viscosity || itau_!=2)
                       {
-                          MFEM_ABORT("Error in preconditioner. Need to assemble another MinvKB"); 
+                          if (myid==0) 
+                            cout <<"======WARNING: assemble different supg diagonal operators in psi and phi======"<<endl;
+
+                          delete StabMass;
+                          StabMass = new ParBilinearForm(&fespace);
+                          StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, viscosity, velocity));
+                          StabMass->Assemble(); 
+                          StabMass->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
+                          StabMass->Finalize();
+                          delete MatStabMass;
+                          MatStabMass=StabMass->ParallelAssemble();
+
+                          delete StabNv;
+                          StabNv = new ParBilinearForm(&fespace);
+                          StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, velocity));
+                          StabNv->Assemble(); 
+                          StabNv->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
+                          StabNv->Finalize();
+                          delete MatStabNv;
+                          MatStabNv=StabNv->ParallelAssemble();
+
+                          S = ParMult(MatStabMass, MinvKB);
+                          *S *= viscosity;
+                          tmp=Add(1./dt, *MatStabMass, 1., *MatStabNv);
+                          delete MatStabSum;
+                          MatStabSum=ParAdd(tmp, S);
+
+                          delete S;
+                          delete tmp;
                       }
                       tmp=ParAdd(AReFull, MatStabSum);
                       delete AReFull;
@@ -1470,14 +1500,18 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
                   }
                   else if (i_supgpre==2 && ( im_supg==1 || im_supg==3 ) )
                   {
-                      if (resistivity!=viscosity)
+                      if (resistivity!=viscosity || itau_!=2)
                       {
-                          MFEM_ABORT("Error in preconditioner. Need to assemble another MinvKB"); 
+                          if (myid==0) 
+                            cout <<"======WARNING: assemble different supg diagonal operators for psi and phi======"<<endl;
+
+                          MFEM_ABORT("Error in preconditioner: I will not support this option for now"); 
                       }
                       tmp=ParAdd(AReFull, MatStabNv);
                       delete AReFull;
                       AReFull=tmp;
                   }
+
                   delete MatStabMass;
                   delete MatStabNv;
                   delete MatStabSum;
@@ -1936,17 +1970,18 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
      add(z, resistivity, z3, z2);
 
      //---add supg to y2---
-     if(viscosity!=resistivity)
+     if(viscosity!=resistivity || itau_!=2)
      {
-        if (myid==0) 
+        if (myid==0 && viscosity!=resistivity ) 
             cout <<"======WARNING: viscosity and resistivity are not identical======"<<endl;
         delete StabMass;
         StabMass = new ParBilinearForm(&fespace);
-        StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, resistivity, velocity));
+        StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, resistivity, velocity, itau_));
         StabMass->Assemble(); 
 
         delete StabNv;
-        StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, resistivity, velocity));
+        StabNv = new ParBilinearForm(&fespace);
+        StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, resistivity, velocity, itau_));
         StabNv->Assemble(); 
      }
      StabMass->TrueAddMult(z2, y2);
@@ -1954,7 +1989,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
 
      delete StabE0;
      StabE0 = new ParLinearForm(&fespace);
-     StabE0->AddDomainIntegrator(new StabDomainLFIntegrator(dt, resistivity, velocity, *E0rhs));
+     StabE0->AddDomainIntegrator(new StabDomainLFIntegrator(dt, resistivity, velocity, *E0rhs, itau_));
      StabE0->Assemble(); 
      StabE0->ParallelAssemble(z);
      y2+=z;

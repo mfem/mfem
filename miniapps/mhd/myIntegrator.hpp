@@ -3,12 +3,12 @@
 using namespace std;
 using namespace mfem;
 
-int itau=2; 
 bool maxtau=true;   //take a maximum on each element
 double vA = 1.0;    
 double ALPHA = 0.1; //the parameter in stabilization B terms
 bool dtfloor=false;
 double dtmin = 0.025;
+double dtfactor=10.;    //a scale factor in tau of dt/dtfactor
 
 // Integrator for the boundary gradient integral from the Laplacian operator
 // this is used in the auxiliary variable where the boundary condition is not needed
@@ -166,14 +166,15 @@ private:
    MyCoefficient *V, *Q; 
    double dt;
    bool FieldDiff; //field line diffusion along magnetic field
+   int itau;
 
 public:
-   StabConvectionIntegrator (double dt_, double visc, MyCoefficient &q) : 
-       V(&q), Q(NULL), dt(dt_), FieldDiff(false)
+   StabConvectionIntegrator (double dt_, double visc, MyCoefficient &q, int itau_=2) : 
+       V(&q), Q(NULL), dt(dt_), FieldDiff(false), itau(itau_)
    { nuCoef = new ConstantCoefficient(visc); }
 
-   StabConvectionIntegrator (double dt_, double visc, MyCoefficient &q, MyCoefficient &v) : 
-       V(&v), Q(&q), dt(dt_), FieldDiff(false)
+   StabConvectionIntegrator (double dt_, double visc, MyCoefficient &q, MyCoefficient &v, int itau_=2) : 
+       V(&v), Q(&q), dt(dt_), FieldDiff(false), itau(itau_)
    { nuCoef = new ConstantCoefficient(visc); }
 
    //Field line diffusion
@@ -247,10 +248,16 @@ void StabConvectionIntegrator::AssembleElementMatrix(const FiniteElement &el,
                    invtau = sqrt( pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
                }
                else if (itau==2)
+               {
                    invtau = sqrt( pow(2./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+               }
                else if (itau==3)
                {
-                   invtau = sqrt( pow(4./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+                   invtau = sqrt( pow(dtfactor/dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+               }
+               else if (itau==4)
+               {
+                   invtau = 2./dt;
                }
                else
                    invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
@@ -287,11 +294,19 @@ void StabConvectionIntegrator::AssembleElementMatrix(const FiniteElement &el,
                 //invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
             }
             else if (itau==2)
+            {
                 //fix dt=0.1 so that it is comparable to an implicit scheme
                 //invtau = sqrt( pow(2./.1,2) +  pow(2.0 * Unorm / eleLength, 2) );
                 invtau = sqrt( pow(2./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+            }
             else if (itau==3)
-                invtau = sqrt( pow(4./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+            {
+                invtau = sqrt( pow(dtfactor/dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+            }
+            else if (itau==4)
+            {
+                   invtau = 2./dt;
+            }
             else
                 invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
             //cout <<"invtau ="<<invtau<<" length="<<eleLength<<" ";
@@ -323,14 +338,15 @@ private:
    MyCoefficient *V; 
    double dt;
    bool FieldDiff; //field line diffusion along magnetic field
+   int itau;
 
 public:
-   StabMassIntegrator (double dt_, double visc, MyCoefficient &q) : 
-       V(&q), dt(dt_), FieldDiff(false)
+   StabMassIntegrator (double dt_, double visc, MyCoefficient &q, int itau_=2) : 
+       V(&q), dt(dt_), FieldDiff(false), itau(itau_)
    { nuCoef = new ConstantCoefficient(visc); }
 
-   StabMassIntegrator (double dt_, double visc, MyCoefficient &q, bool FieldDiff_) : 
-       V(&q), dt(dt_), FieldDiff(FieldDiff_)
+   StabMassIntegrator (double dt_, double visc, MyCoefficient &q, bool FieldDiff_, int itau_=2) : 
+       V(&q), dt(dt_), FieldDiff(FieldDiff_), itau(itau_)
    { nuCoef = new ConstantCoefficient(visc); }
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
@@ -396,7 +412,11 @@ void StabMassIntegrator::AssembleElementMatrix(const FiniteElement &el,
                else if (itau==2)
                    invtau = sqrt( pow(2./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
                else if (itau==3)
-                   invtau = sqrt( pow(4./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+                   invtau = sqrt( pow(dtfactor/dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+               else if (itau==4)
+               {
+                   invtau = 2./dt;
+               }
                else
                    invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
                tau = 1.0/invtau;
@@ -435,7 +455,11 @@ void StabMassIntegrator::AssembleElementMatrix(const FiniteElement &el,
             else if (itau==2)
                 invtau = sqrt( pow(2./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
             else if (itau==3)
-                invtau = sqrt( pow(4./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+                invtau = sqrt( pow(dtfactor/dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+            else if (itau==4)
+            {
+                invtau = 2./dt;
+            }
             else
                 invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
             tau = 1.0/invtau;
@@ -457,10 +481,11 @@ private:
    MyCoefficient *V; 
    Coefficient *nuCoef;
    double dt;
+   int itau;
 
 public:
-   CheckTauIntegrator (double dt_, double visc, MyCoefficient &q) : 
-       V(&q),  dt(dt_)
+   CheckTauIntegrator (double dt_, double visc, MyCoefficient &q, int itau_=2) : 
+       V(&q),  dt(dt_), itau(itau_)
    { nuCoef = new ConstantCoefficient(visc); }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
@@ -521,7 +546,9 @@ void CheckTauIntegrator::AssembleRHSElementVect(const FiniteElement &el,
             else if (itau==2)
                 invtau = sqrt( pow(2./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
             else if (itau==3)
-                invtau = sqrt( pow(4./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+                invtau = sqrt( pow(dtfactor/dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+            else if (itau==4)
+                invtau = 2./dt;
             else
                 invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
             tau = 1.0/invtau;
@@ -542,10 +569,11 @@ private:
    MyCoefficient *V; 
    Coefficient *nuCoef, &Q;
    double dt;
+   int itau;
 
 public:
-   StabDomainLFIntegrator (double dt_, double visc, MyCoefficient &q, Coefficient &QF) : 
-       V(&q),  Q(QF), dt(dt_)
+   StabDomainLFIntegrator (double dt_, double visc, MyCoefficient &q, Coefficient &QF, int itau_=2) : 
+       V(&q),  Q(QF), dt(dt_), itau(itau_)
    { nuCoef = new ConstantCoefficient(visc); }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
@@ -603,7 +631,9 @@ void StabDomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
             else if (itau==2)
                 invtau = sqrt( pow(2./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
             else if (itau==3)
-                invtau = sqrt( pow(4./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+                invtau = sqrt( pow(dtfactor/dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+            else if (itau==4)
+                invtau = 2./dt;
             else
                 invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
             tau = 1.0/invtau;
@@ -640,7 +670,9 @@ void StabDomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
             else if (itau==2)
                 invtau = sqrt( pow(2./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
             else if (itau==3)
-                invtau = sqrt( pow(4./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+                invtau = sqrt( pow(dtfactor/dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+            else if (itau==4)
+                invtau = 2./dt;
             else
                 invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
             tau = 1.0/invtau;

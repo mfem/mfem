@@ -81,6 +81,7 @@ int main(int argc, char *argv[])
    double visc = 1e-3;
    double resi = 1e-3;
    bool visit = false;
+   bool paraview = false;
    bool use_petsc = false;
    bool use_factory = false;
    bool local_refine = false;
@@ -116,8 +117,6 @@ int main(int argc, char *argv[])
                   "Time step.");
    args.AddOption(&icase, "-i", "--icase",
                   "Icase: 1 - wave propagation; 2 - Tearing mode.");
-   args.AddOption(&itau, "-itau", "--itau",
-                  "Itau options.");
    args.AddOption(&ijacobi, "-ijacobi", "--ijacobi",
                   "Number of jacobi iteration in preconditioner");
    args.AddOption(&im_supg, "-im_supg", "--im_supg",
@@ -126,6 +125,8 @@ int main(int argc, char *argv[])
                   "supg preconditioner options in formulation");
    args.AddOption(&ex_supg, "-ex_supg", "--ex_supg",
                   "supg options in explicit formulation");
+   args.AddOption(&itau_, "-itau", "--itau",
+                  "tau options in supg.");
    args.AddOption(&visc, "-visc", "--viscosity",
                   "Viscosity coefficient.");
    args.AddOption(&resi, "-resi", "--resistivity",
@@ -167,6 +168,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
                   "--no-visit-datafiles",
                   "Save data files for VisIt (visit.llnl.gov) visualization.");
+   args.AddOption(&paraview, "-paraview", "--paraview-datafiles", "-no-paraivew",
+                  "--no-paraview-datafiles", "Save data files for paraview visualization.");
    args.AddOption(&use_petsc, "-usepetsc", "--usepetsc", "-no-petsc",
                   "--no-petsc",
                   "Use or not PETSc to solve the nonlinear system.");
@@ -596,6 +599,23 @@ int main(int argc, char *argv[])
       dc->Save();
    }
 
+   ParaViewDataCollection *pd = NULL;
+   if (paraview)
+   {
+      pd = new ParaViewDataCollection("case3amr-derefine", pmesh);
+      pd->SetPrefixPath("ParaView");
+      pd->RegisterField("psi", &psi);
+      pd->RegisterField("phi", &phi);
+      pd->RegisterField("omega", &w);
+      pd->RegisterField("current", &j);
+      pd->SetLevelsOfDetail(order);
+      pd->SetDataFormat(VTKFormat::BINARY);
+      pd->SetHighOrderOutput(true);
+      pd->SetCycle(0);
+      pd->SetTime(0.0);
+      pd->Save();
+   }
+
    MPI_Barrier(MPI_COMM_WORLD); 
    double start = MPI_Wtime();
 
@@ -667,16 +687,20 @@ int main(int argc, char *argv[])
       if (last_step || (ti % vis_steps) == 0)
       {
          if (myid==0) cout << "step " << ti << ", t = " << t <<endl;
-         psi.SetFromTrueVector();
-         phi.SetFromTrueVector();
-         w.SetFromTrueVector();
 
-         if (icase!=3)
-            subtract(psi,psiBack,psiPer);
+         if (visualization || visit || paraview){
+            psi.SetFromTrueVector();
+            phi.SetFromTrueVector();
+            w.SetFromTrueVector();
+            oper.UpdateJ(vx, &j);
+
+            if (icase!=3)
+               subtract(psi,psiBack,psiPer);
+         }
+
 
          if (visualization)
          {
-             oper.UpdateJ(vx, &j);
              vis_phi << "parallel " << num_procs << " " << myid << "\n";
              vis_phi << "solution\n" << *pmesh << phi;
              if (icase==1) 
@@ -715,12 +739,16 @@ int main(int argc, char *argv[])
 
          if (visit)
          {
-            if(!visualization)
-              oper.UpdateJ(vx, &j);
-            
             dc->SetCycle(ti);
             dc->SetTime(t);
             dc->Save();
+         }
+
+         if (paraview)
+         {
+            pd->SetCycle(ti);
+            pd->SetTime(t);
+            pd->Save();
          }
       }
 
@@ -811,6 +839,7 @@ int main(int argc, char *argv[])
    delete ode_solver2;
    delete pmesh;
    delete dc;
+   delete pd;
 
    oper.DestroyHypre();
 
