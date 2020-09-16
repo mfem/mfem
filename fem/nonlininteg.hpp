@@ -113,7 +113,7 @@ public:
 
        @param[in]  g     The gradient Operator is defined at the state @a g.
        @param[out] diag  The diagonal of the @f$ grad(g) @f$ Operator. */
-   virtual void AssembleGradDiagonalPA(const Vector &x, Vector &diag) const;
+   virtual void AssembleGradDiagonalPA(const Vector &g, Vector &diag) const;
 
    virtual ~NonlinearFormIntegrator() { }
 };
