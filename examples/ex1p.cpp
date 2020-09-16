@@ -58,6 +58,16 @@
 using namespace std;
 using namespace mfem;
 
+double fcoeff(const Vector& x)
+{
+   double out = sin(x[0]);
+   if (x.Size() > 1)
+      out *= sin(x[1]);
+   if (x.Size() > 2)
+      out *= sin(x[2]);
+   return 2.0 + out;
+}
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
@@ -206,8 +216,16 @@ int main(int argc, char *argv[])
    //     domain integrator.
    ParBilinearForm a(&fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   a.AddDomainIntegrator(new DiffusionIntegrator(one));
-   // a.AddDomainIntegrator(new MassIntegrator(one));
+   FunctionCoefficient varying(fcoeff);
+   GridFunction gf(&fespace);
+   gf.ProjectCoefficient(varying);
+   GridFunctionCoefficient gfc_varying(&gf);
+
+   a.AddDomainIntegrator(new DiffusionIntegrator(gfc_varying));
+   // a.AddDomainIntegrator(new DiffusionIntegrator(one));
+   a.AddDomainIntegrator(new MassIntegrator(one));
+
+   // ceed implementations for the following work, but our ceed coarsening does not
    // a.AddDomainIntegrator(new VectorDiffusionIntegrator);
    // a.AddDomainIntegrator(new VectorMassIntegrator);
 
