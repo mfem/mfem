@@ -1964,7 +1964,7 @@ void NCMesh::UpdateVertices()
 
    NVertices = 0;
    for (auto node = nodes.begin();
-        node != nodes.end() && node->p1 == node->p2;
+        (node != nodes.end()) && (node->p1 == node->p2);
         ++node)
    {
       if (node->vert_index == -1)
@@ -1991,8 +1991,18 @@ void NCMesh::UpdateVertices()
       }
    }
 
-   // STEP 4: assign remaining ghost vertices, ignore vertices beyond ghost layer
+   // STEP 4: create the mapping from vertex index to node index
+   vertex_nodeId.SetSize(NVertices);
+   for (auto node = nodes.begin(); node != nodes.end(); ++node)
+   {
+      if (node->HasVertex() && node->vert_index >= 0)
+      {
+         MFEM_ASSERT(node->vert_index < vertex_nodeId.Size(), "");
+         vertex_nodeId[node->vert_index] = node.index();
+      }
+   }
 
+   // STEP 5: assign remaining ghost vertices, ignore vertices beyond ghost layer
    NGhostVertices = 0;
    for (int i = 0; i < sfc_order.Size(); i++)
    {
@@ -2043,16 +2053,6 @@ void NCMesh::UpdateVertices()
    }
 #endif
 
-   // create the mapping from vertex index to node index
-   vertex_nodeId.SetSize(NVertices + NGhostVertices);
-   for (auto node = nodes.begin(); node != nodes.end(); ++node)
-   {
-      if (node->HasVertex() && node->vert_index >= 0)
-      {
-         MFEM_ASSERT(node->vert_index < vertex_nodeId.Size(), "");
-         vertex_nodeId[node->vert_index] = node.index();
-      }
-   }
 }
 
 void NCMesh::InitRootState(int root_count)
