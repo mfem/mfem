@@ -36,7 +36,7 @@ if (MFEM_USE_MPI)
 
   add_mfem_miniapp(transport2d
     MAIN transport2d.cpp
-    EXTRA_SOURCES transport_solver.cpp
+    EXTRA_SOURCES transport_solver.cpp plasma.cpp
     EXTRA_HEADERS transport_solver.hpp plasma.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
     LIBRARIES mfem mfem-common)
 
