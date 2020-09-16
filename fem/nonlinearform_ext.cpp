@@ -65,17 +65,24 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
 
 Operator &PANonlinearFormExtension::GetGradient(const Vector &x) const
 {
-   Grad.Reset(new PANonlinearFormExtension::Gradient(x, *this));
+   if (Grad.Ptr() == nullptr)
+   {
+      Grad.Reset(new PANonlinearFormExtension::Gradient(x, *this));
+   }
+   else
+   {
+      dynamic_cast<PANonlinearFormExtension::Gradient *>(Grad.Ptr())->ReInit(x);
+   }
    return *Grad.Ptr();
 }
 
-PANonlinearFormExtension::Gradient::Gradient(const Vector &x,
+PANonlinearFormExtension::Gradient::Gradient(const Vector &g,
                                              const PANonlinearFormExtension &e):
    Operator(e.fes.GetVSize()), elemR(e.elemR), fes(e.fes), dnfi(e.dnfi)
 {
    ge.UseDevice(true);
    ge.SetSize(elemR->Height(), Device::GetMemoryType());
-   elemR->Mult(x, ge);
+   elemR->Mult(g, ge);
 
    xe.UseDevice(true);
    xe.SetSize(elemR->Height(), Device::GetMemoryType());

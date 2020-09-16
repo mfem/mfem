@@ -54,12 +54,15 @@ private:
       const FiniteElementSpace &fes;
       const Array<NonlinearFormIntegrator*> &dnfi;
       mutable Vector ge, xe, ye, ze;
+
    public:
-      /// Assumes that @a x is a ldof Vector.
-      Gradient(const Vector &x, const PANonlinearFormExtension &ext);
+      /// Assumes that @a g is a ldof Vector.
+      Gradient(const Vector &g, const PANonlinearFormExtension &ext);
 
       /// Assumes that @a x and @a y are ldof Vector%s.
       virtual void Mult(const Vector &x, Vector &y) const;
+
+      void ReInit(const Vector &g) { elemR->Mult(g, ge); }
 
       /** @brief Assemble the diagonal of the gradient into the
           tdof Vector @a diag.
