@@ -179,6 +179,7 @@ int main(int argc, char *argv[])
    bool adios2 = false;
    bool binary = false;
    int vis_steps = 5;
+   bool print = false;
 
    int precision = 8;
    cout.precision(precision);
@@ -230,6 +231,9 @@ int main(int argc, char *argv[])
                   "Use binary (Sidre) or ascii format for VisIt data files.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
+   args.AddOption(&print, "-print", "--print-spmat", "-no-print",
+                  "--no-print-spmat",
+                  "Print the Sparse matrices");
    args.Parse();
    if (!args.Good())
    {
@@ -288,7 +292,7 @@ int main(int argc, char *argv[])
    //    to a (piecewise-polynomial) high-order mesh.
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
-      mesh->UniformRefinement();
+      // mesh->UniformRefinement();
    }
    if (mesh->NURBSext)
    {
@@ -303,7 +307,7 @@ int main(int argc, char *argv[])
    delete mesh;
    for (int lev = 0; lev < par_ref_levels; lev++)
    {
-      pmesh->UniformRefinement();
+      // pmesh->UniformRefinement();
    }
 
    // 7. Define the parallel discontinuous DG finite element space on the
@@ -364,8 +368,6 @@ int main(int argc, char *argv[])
 
    SparseMatrix A = GetFullAssemblySparseMatrix(*k);
 
-   //GetFullAssemblySparseMatrix(k, A);
-
    //Reference code -- legacy assembly
    ParBilinearForm *k_ref = new ParBilinearForm(fes);
    k_ref->AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
@@ -390,15 +392,21 @@ int main(int argc, char *argv[])
 
    fflush(stdout); //force print!
 
-   GridFunction x(fes), y_fa(fes), y_ref(fes);
-   x.Randomize(1);
+   if (print)
+   {
+      std::cout << "A_fa=\n" << A << std::endl;
+      std::cout << "A_ref=\n" << k_ref->SpMat() << std::endl;
+   }   
 
-   A.Mult(x,y_fa);
-   k_ref->Mult(x,y_ref);
+   // GridFunction x(fes), y_fa(fes), y_ref(fes);
+   // x.Randomize(1);
 
-   y_fa -= y_ref;
+   // A.Mult(x,y_fa);
+   // k_ref->Mult(x,y_ref);
 
-   std::cout << "Apply error = " << y_fa.Norml2() << std::endl;
+   // y_fa -= y_ref;
+
+   // std::cout << "Apply error = " << y_fa.Norml2() << std::endl;
 
    double iError(0), jError(0), dataError(0);
    for (int i=0; i<k_ref->SpMat().GetMemoryI().Capacity(); ++i)
