@@ -500,9 +500,11 @@ void L2ElementRestriction::FillI(SparseMatrix &mat) const
    const int elem_dofs = ndof;
    const int vd = vdim;
    auto I = mat.WriteI();
-   MFEM_FORALL(dof, ne*elem_dofs*vd,
+   const int isize = mat.Height() + 1;
+   const int interior_dofs = ne*elem_dofs*vd;
+   MFEM_FORALL(dof, isize,
    {
-      I[dof] = elem_dofs;
+      I[dof] = dof<interior_dofs ? elem_dofs : 0;
    });
 }
 
