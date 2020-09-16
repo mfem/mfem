@@ -38,7 +38,6 @@ protected:
       RectangularConstrainedOperator* &Aout);
 
    /** @brief Returns RAP Operator of this, using input/output Prolongation matrices
-
        @a Pi corresponds to "P", @a Po corresponds to "Rt" */
    Operator *SetupRAP(const Operator *Pi, const Operator *Po);
 
