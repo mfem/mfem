@@ -746,16 +746,14 @@ SparseMatrix GetFullAssemblySparseMatrix(BilinearForm &a)
       //  1.3 Sum the non-zeros in I
       auto h_I = A.HostReadWriteI();
       int cpt = 0;
-      const int vd = fes.GetVDim();
-      const int ndofs = ea.ne * ea.elemDofs * vd;
-      for (int i = 0; i < ndofs; i++)
+      for (int i = 0; i < size+1; i++)
       {
          const int nnz = h_I[i];
          h_I[i] = cpt;
          cpt += nnz;
       }
       const int nnz = cpt;
-      h_I[ndofs] = nnz;
+      h_I[size+1] = nnz;
       A.GetMemoryJ().New(nnz, A.GetMemoryJ().GetMemoryType());
       A.GetMemoryData().New(nnz, A.GetMemoryData().GetMemoryType());
       // 2. Fill J and Data
@@ -765,7 +763,7 @@ SparseMatrix GetFullAssemblySparseMatrix(BilinearForm &a)
       if (restF) { restF->FillJAndData(ea. ea_data_ext, A); }
       // 2.3 Shift indirections in I back to original
       auto I = A.HostReadWriteI();
-      for (int i = ndofs; i > 0; i--)
+      for (int i = size+1; i > 0; i--)
       {
          I[i] = I[i-1];
       }
