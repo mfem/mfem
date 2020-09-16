@@ -3953,9 +3953,6 @@ void GradientInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
       dynamic_cast<const VectorTensorFiniteElement*>(test_fel);
    MFEM_VERIFY(test_el != NULL, "Only VectorTensorFiniteElement is supported!");
 
-   const IntegrationRule *old_ir
-      = IntRule ? IntRule : &MassIntegrator::GetRule(*trial_el, *trial_el,
-                                                     *mesh->GetElementTransformation(0));
    const int dims = trial_el->GetDim();
    MFEM_VERIFY(dims == 2 || dims == 3, "");
 
