@@ -84,7 +84,8 @@ private:
 
    mfem::Array<int> ess_tdof_list_;
    mfem::HypreParMatrix * aspacematrix_;
-   mfem::HypreBoomerAMG * aspacepc_;
+   // mfem::HypreBoomerAMG * aspacepc_;
+   Solver * aspacepc_;
    mfem::Operator* matfree_;
    mfem::CGSolver* cg_;
    mfem::Operator* aspacewrapper_;

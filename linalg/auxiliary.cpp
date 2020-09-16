@@ -341,6 +341,7 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    delete fec_lor;
 }
 
+/// G-space constructor
 MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    mfem::ParMesh& mesh_lor,
    mfem::Coefficient* beta_coeff, Array<int>& ess_bdr,
@@ -358,10 +359,10 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    // build LOR AMG v-cycle
    ParBilinearForm a_space(&fespace_lor);
 
-   // on this project, DIAG_ZERO appears to be best for unconstrained CG
-   // (but that is kind of a hack) default is DIAG_KEEP
-   const Matrix::DiagonalPolicy policy = Matrix::DIAG_ZERO;
-   // const Matrix::DiagonalPolicy policy = Matrix::DIAG_ONE;
+   /// our experience is that for the G operator, we need DIAG_ZERO, but then
+   /// boomeramg's setup complains
+   // const Matrix::DiagonalPolicy policy = Matrix::DIAG_ZERO;
+   const Matrix::DiagonalPolicy policy = Matrix::DIAG_ONE;
 
    // following line doesn't do anything, other use of policy is effective
    a_space.SetDiagonalPolicy(policy);
@@ -440,12 +441,43 @@ void MatrixFreeAuxiliarySpace::SetupVCycle()
    aspacewrapper_ = aspacepc_;
 }
 
+class ZeroWrap : public Solver
+{
+public:
+   ZeroWrap(HypreParMatrix& mat, Array<int>& ess_tdof_list) :
+      Solver(mat.Height()), amg_(mat), ess_tdof_list_(ess_tdof_list)
+   {
+      amg_.SetPrintLevel(0);
+   }
+
+   void Mult(const Vector& x, Vector& y) const
+   {
+      amg_.Mult(x, y);
+      for (int k : ess_tdof_list_)
+      {
+         y(k) = 0.0;
+      }
+   }
+
+   void SetOperator(const Operator&) { }
+
+private:
+   HypreBoomerAMG amg_;
+   Array<int>& ess_tdof_list_;
+};
+
 void MatrixFreeAuxiliarySpace::SetupBoomerAMG(int system_dimension)
 {
-   aspacepc_ = new HypreBoomerAMG(*aspacematrix_);
-   if (system_dimension > 0)
+   if (system_dimension == 0)
    {
-      aspacepc_->SetSystemsOptions(system_dimension);
+      aspacepc_ = new ZeroWrap(*aspacematrix_, ess_tdof_list_);
+   }
+   else // if (system_dimension > 0)
+   {
+      HypreBoomerAMG* hpc = new HypreBoomerAMG(*aspacematrix_);
+      hpc->SetSystemsOptions(system_dimension);
+      hpc->SetPrintLevel(0);
+      aspacepc_ = hpc;
 
       /*
       int amg_coarsen_type = 10;
@@ -471,7 +503,7 @@ void MatrixFreeAuxiliarySpace::SetupBoomerAMG(int system_dimension)
       HYPRE_BoomerAMGSetCycleRelaxType(*aspacepc_, amg_rlx_type, 3);
       */
    }
-   aspacepc_->SetPrintLevel(0);
+
 }
 
 void MatrixFreeAuxiliarySpace::Mult(const mfem::Vector& x, mfem::Vector& y) const
