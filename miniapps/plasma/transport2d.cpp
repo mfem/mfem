@@ -371,6 +371,26 @@ void TotBFunc(const Vector &x, Vector &B)
    B[2] = sqrt(Tot_B_max_ * Tot_B_max_ - (polB * polB));
 }
 
+class B3Coefficient : public VectorCoefficient
+{
+private:
+   VectorCoefficient &B2D;
+
+public:
+   B3Coefficient(VectorCoefficient &B2) : VectorCoefficient(3), B2D(B2) {}
+
+   void Eval(Vector &B, ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      B.SetSize(3);
+
+      Vector polB(B.GetData(), 2);
+
+      B2D.Eval(polB, T, ip);
+
+      B[2] = sqrt(Tot_B_max_ * Tot_B_max_ - (polB * polB));
+   }
+};
+
 void paraFunc(const Vector &x, DenseMatrix &M)
 {
    M.SetSize(2);
@@ -858,6 +878,7 @@ int main(int argc, char *argv[])
    // problem_ = 1;
    const char *mesh_file = "ellipse_origin_h0pt0625_o3.mesh";
    const char *bc_file = "";
+   const char *eqdsk_file = "";
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
    int nc_limit = 3;         // maximum level of hanging nodes
@@ -926,6 +947,8 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&bc_file, "-bc", "--bc-file",
                   "Boundary condition input file.");
+   args.AddOption(&eqdsk_file, "-eqdsk", "--eqdsk-file",
+                  "G EQDSK input file.");
    args.AddOption(&logging, "-l", "--logging",
                   "Set the logging level.");
    args.AddOption(&op_flag, "-op", "--operator-test",
@@ -1138,6 +1161,19 @@ int main(int argc, char *argv[])
    Device device(device_config);
    if (mpi.Root()) { device.Print(); }
 
+   G_EQDSK_Data *eqdsk = NULL;
+   {
+      named_ifgzstream ieqdsk(eqdsk_file);
+      if (ieqdsk)
+      {
+         eqdsk = new G_EQDSK_Data(ieqdsk);
+         if (mpi.Root() )
+         {
+            eqdsk->PrintInfo();
+         }
+      }
+   }
+
    // 3. Read the mesh from the given mesh file. This example requires a 2D
    //    periodic mesh, such as ../data/periodic-square.mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
@@ -1329,7 +1365,16 @@ int main(int argc, char *argv[])
                                        (M_PI * plasma.m_n * amu_)));
    GridFunctionCoefficient veCoef(&para_velocity); // TODO: define as vi - J/q
 
-   VectorFunctionCoefficient B3Coef(3, TotBFunc);
+
+   VectorCoefficient *B3Coef = NULL;
+   if (eqdsk)
+   {
+      B3Coef = new B3Coefficient(*nxGradPsiCoef);
+   }
+   else
+   {
+      B3Coef = new VectorFunctionCoefficient(3, TotBFunc);
+   }
 
    // Intermediate Coefficients
    VectorFunctionCoefficient bHatCoef(2, bHatFunc);
@@ -1353,7 +1398,7 @@ int main(int argc, char *argv[])
 
    // Diffusion Coefficients
    NeutralDiffusionCoef     DnCoef(neCoef, vnCoef, izCoef);
-   IonDiffusionCoef         DiCoef(DiPerpCoef, B3Coef);
+   IonDiffusionCoef         DiCoef(DiPerpCoef, *B3Coef);
    MomentumDiffusionCoef   EtaCoef(dim, plasma.z_i, plasma.m_i,
                                    DiPerpCoef, niCoef, TiCoef);
    ScalarMatrixProductCoefficient nXiCoef(niCoef, XiCoef);
@@ -1520,7 +1565,7 @@ int main(int argc, char *argv[])
 
    DGTransportTDO oper(mpi, dg, plasma, eqn_weights, fes, vfes, ffes,
                        offsets, yGF, kGF,
-                       bcs, Di_perp, Xi_perp, Xe_perp, B3Coef,
+                       bcs, Di_perp, Xi_perp, Xe_perp, *B3Coef,
                        term_flags, vis_flags, imex, op_flag, logging);
 
    oper.SetLogging(max(0, logging - (mpi.Root()? 0 : 1)));
@@ -1955,6 +2000,7 @@ int main(int argc, char *argv[])
    // Free the used memory.
    delete ode_solver;
    delete dc;
+   delete B3Coef;
 
    return 0;
 }
