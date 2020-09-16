@@ -2331,6 +2331,9 @@ struct PointMatrixHash
    }
 };
 
+/** Helper container to keep track of point matrices encountered during
+ *  face/edge traversal and to assign unique indices to them.
+ */
 struct MatrixMap
 {
    int GetIndex(const NCMesh::PointMatrix &pm)
