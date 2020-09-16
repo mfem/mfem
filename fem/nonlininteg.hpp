@@ -98,14 +98,21 @@ public:
    virtual void AddMultPA(const Vector &x, Vector &y) const;
 
    /// Method for partially assembled gradient action.
-   /** All arguments are E-vector. This method can be called only after the
-       method AssembleGradPA() has been called. */
+   /** All arguments are E-vectors. This method can be called only after the
+       method AssembleGradPA() has been called.
+
+       @param[in]  g  The gradient Operator is defined at the state @a g.
+       @param[in]  x  The gradient Operator is applied to the Vector @a x.
+       @param[out] y  The RHS of @f$ grad(g) x = y @f$. */
    virtual void AddMultGradPA(const Vector &g,
                               const Vector &x, Vector &y) const;
 
    /// Method for computing the diagonal of the gradient with partial assmebly.
-   /** All arguments are E-vector. This method can be called only after the
-       method AssembleGradPA() has been called. */
+   /** All arguments are E-vectors. This method can be called only after the
+       method AssembleGradPA() has been called.
+
+       @param[in]  g     The gradient Operator is defined at the state @a g.
+       @param[out] diag  The diagonal of the @f$ grad(g) @f$ Operator. */
    virtual void AssembleGradDiagonalPA(const Vector &x, Vector &diag) const;
 
    virtual ~NonlinearFormIntegrator() { }
