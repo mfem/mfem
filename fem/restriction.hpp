@@ -158,11 +158,18 @@ public:
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
        given by this L2FaceRestriction. */
    virtual void FillI(SparseMatrix &mat) const;
+   /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
+       given by this L2FaceRestriction. @a mat contains the interior dofs
+       contribution, the @a face_mat contains the shared dofs contribution.*/
    virtual void FillI(SparseMatrix &mat, SparseMatrix &face_mat) const;
    /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
        pattern given by this L2FaceRestriction, and the values of ea_data. */
    virtual void FillJAndData(const Vector &ea_data,
                              SparseMatrix &mat) const;
+   /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
+       pattern given by this L2FaceRestriction, and the values of ea_data.
+       @a mat contains the interior dofs contribution, the @a face_mat contains
+       the shared dofs contribution.*/
    virtual void FillJAndData(const Vector &ea_data,
                              SparseMatrix &mat,
                              SparseMatrix &face_mat) const;
