@@ -88,7 +88,7 @@ int main(int argc, char *argv[])
                   "Initial Time (for restart).");
    args.AddOption(&icase, "-i", "--icase",
                   "Icase: 1 - wave propagation; 2 - Tearing mode.");
-   args.AddOption(&itau, "-itau", "--itau",
+   args.AddOption(&itau_, "-itau", "--itau",
                   "Itau options.");
    args.AddOption(&ijacobi, "-ijacobi", "--ijacobi",
                   "Number of jacobi iteration in preconditioner");

@@ -142,9 +142,9 @@ int main(int argc, char *argv[])
    bool paraview = false;
    bool use_petsc = false;
    bool use_factory = false;
-   bool yRange = false;
    bool useStab = false; //use a stabilized formulation (explicit case only)
    bool initial_refine = false;
+   bool yRange = false; //fix a refinement region along y direction
    const char *petscrc_file = "";
 
    //----amr coefficients----
@@ -191,8 +191,6 @@ int main(int argc, char *argv[])
                   "Time step.");
    args.AddOption(&icase, "-i", "--icase",
                   "Icase: 1 - wave propagation; 2 - Tearing mode.");
-   args.AddOption(&itau_, "-itau", "--itau",
-                  "Itau options.");
    args.AddOption(&ijacobi, "-ijacobi", "--ijacobi",
                   "Number of jacobi iteration in preconditioner");
    args.AddOption(&im_supg, "-im_supg", "--im_supg",
@@ -201,6 +199,8 @@ int main(int argc, char *argv[])
                   "supg preconditioner options in formulation");
    args.AddOption(&ex_supg, "-ex_supg", "--ex_supg",
                   "supg options in explicit formulation");
+   args.AddOption(&itau_, "-itau", "--itau",
+                  "tau options in supg.");
    args.AddOption(&visc, "-visc", "--viscosity",
                   "Viscosity coefficient.");
    args.AddOption(&resi, "-resi", "--resistivity",

@@ -15,6 +15,7 @@
 #include "imResistiveMHDOperatorp.hpp"
 #include "PCSolver.hpp"
 #include "InitialConditions.hpp"
+#include "localrefine.hpp"
 #include <memory>
 #include <iostream>
 #include <fstream>
@@ -28,39 +29,7 @@ double Lx;
 double lambda;
 double resiG;
 double ep=.2;
-double yrefine=0.2;
 int icase = 1;
-
-bool region(const Vector &p, const int lev)
-{
-   const double region_eps = 1e-8;
-   const double x = p(0), y = p(1);
-   //return std::max(std::max(std::max(x - yrefine, -y-yrefine), y - yrefine), -x-yrefine);
-   if(lev==0)
-      return std::max(-y-yrefine, y - yrefine)<region_eps;
-   else
-   {
-      double ynew=0.8*yrefine;
-      double xcenter=0.2, xedge=0.9;
-      return (fabs(y)<ynew+region_eps && (fabs(x)<xcenter+region_eps || fabs(x)>xedge-region_eps) );
-   }
-}
-
-bool yregion(const Vector &x, const double y0)
-{
-   return std::max(-x(1)-y0, x(1) - y0)<1e-8;
-}
-
-bool xyregion(const Vector &x, const double x0, const double y0)
-{
-   return std::max(-x(1)-y0, x(1) - y0)<1e-8 && 
-         (std::max(-x(0)-x0, x(0) - x0)<1e-8 || (1.-x0-x(0))<1e-8 || (-1+x0-x(0))>1e-8) ;
-}
-
-bool center_region(const Vector &x, const double x0, const double y0)
-{
-   return std::max(-x(1)-y0, x(1) - y0)<1e-8 && std::max(-x(0)-x0, x(0) - x0)<1e-8;
-}
 
 int main(int argc, char *argv[])
 {
@@ -84,8 +53,8 @@ int main(int argc, char *argv[])
    bool paraview = false;
    bool use_petsc = false;
    bool use_factory = false;
-   bool local_refine = false;
    bool useStab = false; //use a stabilized formulation (explicit case only)
+   bool local_refine = false;
    int local_refine_levels = 2;
    const char *petscrc_file = "";
    int part_method=1;   //part_method 0 or 1 gives good results for a static adaptive mesh
@@ -149,8 +118,6 @@ int main(int argc, char *argv[])
                   "Visualize every n-th timestep.");
    args.AddOption(&part_method, "-part_method", "--partition-method",
                   "Partitioning method: 0-5 (see mfem on partitioning choices).");
-   args.AddOption(&iUpdateJ, "-updatej", "--update-j",
-                  "UpdateJ: 0 - no boundary condition used; 1 - Dirichlet used on J boundary.");
    args.AddOption(&smoothOmega, "-smooth", "--smooth-omega", "-no-smooth", "--no-smooth-omega",
                   "Smooth omega in preconditioner.");
    args.AddOption(&usesupg, "-supg", "--implicit-supg", "-no-supg",
@@ -178,7 +145,10 @@ int main(int argc, char *argv[])
                   "Use user-defined preconditioner factory (PCSHELL).");
    args.AddOption(&petscrc_file, "-petscopts", "--petscopts",
                   "PetscOptions file to use.");
-
+   args.AddOption(&iUpdateJ, "-updatej", "--update-j",
+                  "UpdateJ: 0 - no boundary condition used; 1 - Dirichlet used on J boundary.");
+   args.AddOption(&BgradJ, "-BgradJ", "--BgradJ",
+                  "BgradJ: 1 - (B.grad J, phi); 2 - (-J, B.grad phi); 3 - (-B J, grad phi).");
    args.Parse();
    if (!args.Good())
    {
@@ -593,7 +563,7 @@ int main(int argc, char *argv[])
       dc->SetFormat(!par_format ?
                       DataCollection::SERIAL_FORMAT :
                       DataCollection::PARALLEL_FORMAT);
-      dc->SetPrecision(8);
+      dc->SetPrecision(5);
       dc->SetCycle(0);
       dc->SetTime(t);
       dc->Save();
@@ -772,10 +742,6 @@ int main(int argc, char *argv[])
       w_name << "sol_omega." << setfill('0') << setw(6) << myid;
       j_name << "sol_j." << setfill('0') << setw(6) << myid;
 
-      ofstream omesh(mesh_name.str().c_str());
-      omesh.precision(8);
-      pmesh->Print(omesh);
-
       ofstream ncmesh(mesh_save.str().c_str());
       ncmesh.precision(16);
       pmesh->ParPrint(ncmesh);
@@ -799,33 +765,41 @@ int main(int argc, char *argv[])
       //output gftmp for debugging
       //oper.outputgf();
 
-      //output v1 and v2 for a comparision
-      ParGridFunction v1(&fespace), v2(&fespace);
-      oper.computeV(&phi, &v1, &v2);
+      //those values can be generated in post-processing
+      if (!paraview || !visit)
+      {
+        ofstream omesh(mesh_name.str().c_str());
+        omesh.precision(8);
+        pmesh->Print(omesh);
+
+        //output v1 and v2 for a comparision
+        ParGridFunction v1(&fespace), v2(&fespace);
+        oper.computeV(&phi, &v1, &v2);
     
-      ostringstream v1_name, v2_name;
-      v1_name << "sol_v1." << setfill('0') << setw(6) << myid;
-      v2_name << "sol_v2." << setfill('0') << setw(6) << myid;
-      ofstream osol6(v1_name.str().c_str());
-      osol6.precision(8);
-      v1.Save(osol6);
+        ostringstream v1_name, v2_name;
+        v1_name << "sol_v1." << setfill('0') << setw(6) << myid;
+        v2_name << "sol_v2." << setfill('0') << setw(6) << myid;
+        ofstream osol6(v1_name.str().c_str());
+        osol6.precision(8);
+        v1.Save(osol6);
 
-      ofstream osol7(v2_name.str().c_str());
-      osol7.precision(8);
-      v2.Save(osol7);
+        ofstream osol7(v2_name.str().c_str());
+        osol7.precision(8);
+        v2.Save(osol7);
 
-      ParGridFunction b1(&fespace), b2(&fespace);
-      oper.computeV(&psi, &b1, &b2);
-      ostringstream b1_name, b2_name;
-      b1_name << "sol_b1." << setfill('0') << setw(6) << myid;
-      b2_name << "sol_b2." << setfill('0') << setw(6) << myid;
-      ofstream osol8(b1_name.str().c_str());
-      osol8.precision(8);
-      b1.Save(osol8);
+        ParGridFunction b1(&fespace), b2(&fespace);
+        oper.computeV(&psi, &b1, &b2);
+        ostringstream b1_name, b2_name;
+        b1_name << "sol_b1." << setfill('0') << setw(6) << myid;
+        b2_name << "sol_b2." << setfill('0') << setw(6) << myid;
+        ofstream osol8(b1_name.str().c_str());
+        osol8.precision(8);
+        b1.Save(osol8);
 
-      ofstream osol9(b2_name.str().c_str());
-      osol9.precision(8);
-      b2.Save(osol9);
+        ofstream osol9(b2_name.str().c_str());
+        osol9.precision(8);
+        b2.Save(osol9);
+      }
  
    }
 

@@ -142,9 +142,9 @@ int main(int argc, char *argv[])
    bool paraview = false;
    bool use_petsc = false;
    bool use_factory = false;
-   bool yRange = false;
    bool useStab = false; //use a stabilized formulation (explicit case only)
    bool initial_refine = false;
+   bool yRange = false; //fix a refinement region along y direction
    const char *petscrc_file = "";
 
    //----amr coefficients----
@@ -191,8 +191,6 @@ int main(int argc, char *argv[])
                   "Time step.");
    args.AddOption(&icase, "-i", "--icase",
                   "Icase: 1 - wave propagation; 2 - Tearing mode.");
-   args.AddOption(&itau_, "-itau", "--itau",
-                  "Itau options.");
    args.AddOption(&ijacobi, "-ijacobi", "--ijacobi",
                   "Number of jacobi iteration in preconditioner");
    args.AddOption(&im_supg, "-im_supg", "--im_supg",
@@ -201,6 +199,8 @@ int main(int argc, char *argv[])
                   "supg preconditioner options in formulation");
    args.AddOption(&ex_supg, "-ex_supg", "--ex_supg",
                   "supg options in explicit formulation");
+   args.AddOption(&itau_, "-itau", "--itau",
+                  "tau options in supg.");
    args.AddOption(&visc, "-visc", "--viscosity",
                   "Viscosity coefficient.");
    args.AddOption(&resi, "-resi", "--resistivity",
@@ -231,6 +231,8 @@ int main(int argc, char *argv[])
                   "Use supg in the explicit solvers.");
    args.AddOption(&maxtau, "-max-tau", "--max-tau", "-no-max-tau", "--no-max-tau",
                   "Use max-tau in supg.");
+   args.AddOption(&dtfactor, "-dtfactor", "--dt-factor",
+                  "Tau supg scales like dt/dtfactor.");
    args.AddOption(&useFull, "-useFull", "--useFull",
                   "version of Full preconditioner");
    args.AddOption(&usefd, "-fd", "--use-fd", "-no-fd",
@@ -256,7 +258,7 @@ int main(int argc, char *argv[])
    args.AddOption(&petscrc_file, "-petscopts", "--petscopts",
                   "PetscOptions file to use.");
    args.AddOption(&iUpdateJ, "-updatej", "--update-j",
-                  "UpdateJ: 0 - no boundary condition used; 1 - Dirichlet used on J boundary.");
+                  "UpdateJ: 0 - no boundary condition used; 1/2 - Dirichlet used on J boundary (2: lumped mass matrix).");
    args.AddOption(&BgradJ, "-BgradJ", "--BgradJ",
                   "BgradJ: 1 - (B.grad J, phi); 2 - (-J, B.grad phi); 3 - (-B J, grad phi).");
    args.Parse();
@@ -686,7 +688,7 @@ int main(int argc, char *argv[])
    ParaViewDataCollection *pd = NULL;
    if (paraview)
    {
-      pd = new ParaViewDataCollection("case3amr-derefine", pmesh);
+      pd = new ParaViewDataCollection("imAMRMHD", pmesh);
       pd->SetPrefixPath("ParaView");
       pd->RegisterField("psi", &psi);
       pd->RegisterField("phi", &phi);
