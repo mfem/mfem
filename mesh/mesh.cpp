@@ -1394,6 +1394,7 @@ void Mesh::AddHexAsWedges(const int *vi, int attr)
 
 int Mesh::AddElement(Element *elem)
 {
+   CheckEnlarge(elements, NumOfElements);
    elements[NumOfElements] = elem;
    return NumOfElements++;
 }
