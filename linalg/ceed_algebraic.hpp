@@ -21,6 +21,8 @@
 namespace mfem
 {
 
+int CeedOperatorFullAssemble(CeedOperator op, mfem::SparseMatrix ** mat);
+
 // forward declarations
 class BilinearForm;
 class MFEMCeedVCycle;

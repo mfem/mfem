@@ -76,28 +76,6 @@ private:
    mfem::Operator * constrained_op_;
 };
 
-/// Do you want to wrap this in a ConstrainedOperator or do
-/// you want to do the ess_tdof stuff here?
-class MFEMCeedJacobi : public mfem::Operator
-{
-public:
-   MFEMCeedJacobi(Ceed ceed,
-                  int size,
-                  CeedVector diagonal,
-                  const mfem::Array<int>& ess_tdof_list,
-                  double scale=1.0);
-   ~MFEMCeedJacobi();
-
-   virtual void Mult(const mfem::Vector& x, mfem::Vector& y) const;
-
-   virtual void MultTranspose(const mfem::Vector& x, mfem::Vector& y) const;
-
-private:
-   const mfem::Array<int>& ess_tdof_list_;
-   CeedVector inv_diag_;
-   CeedVector u_, v_;
-};
-
 /**
    wrap CeedInterpolation object in an mfem::Operator
 */
