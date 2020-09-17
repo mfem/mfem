@@ -56,6 +56,11 @@
 //   Adapted discrete aspect ratio (3D):
 //     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 7 -ni 20  -ls 2 -li 100 -bnd -qt 1 -qo 8
 //
+//   Adapted discrete size (3D):
+//     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ni 20  -ls 2 -li 100 -bnd -qt 1 -qo 8 -nor
+//   Adapted discrete shape+size explicit combo (3D):
+//     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 5 -ni 20  -ls 2 -li 100 -bnd -qt 1 -qo 8 -cmb 2 -nor
+//
 //   Adaptive limiting:
 //     mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5
 //   Adaptive limiting through the L-BFGS solver:
@@ -411,7 +416,7 @@ int main (int argc, char *argv[])
          target_c = tc;
          break;
       }
-      case 5:
+      case 5: // Discrete size 2D or 3D
       {
          target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
          DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
@@ -427,13 +432,21 @@ int main (int argc, char *argv[])
             MFEM_ABORT("MFEM is not built with GSLIB.");
 #endif
          }
-         FunctionCoefficient ind_coeff(discrete_size_2d);
-         size.ProjectCoefficient(ind_coeff);
+         if (dim == 2)
+         {
+            FunctionCoefficient ind_coeff(discrete_size_2d);
+            size.ProjectCoefficient(ind_coeff);
+         }
+         else if (dim == 3)
+         {
+            FunctionCoefficient ind_coeff(discrete_size_3d);
+            size.ProjectCoefficient(ind_coeff);
+         }
          tc->SetParDiscreteTargetSize(size);
          target_c = tc;
          break;
       }
-      case 6: //material indicator 2D
+      case 6: // Discrete size + aspect ratio - 2D
       {
          ParGridFunction d_x(&ind_fes), d_y(&ind_fes);
 
@@ -453,6 +466,7 @@ int main (int argc, char *argv[])
             MFEM_ABORT("MFEM is not built with GSLIB.");
 #endif
          }
+
          //Diffuse the interface
          DiffuseField(disc,2);
 
@@ -534,7 +548,7 @@ int main (int argc, char *argv[])
          target_c = tc;
          break;
       }
-      case 7: // aspect-ratio 3D
+      case 7: // Discrete aspect ratio 3D
       {
          target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE;
          DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);

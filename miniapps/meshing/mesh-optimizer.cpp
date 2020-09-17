@@ -61,7 +61,6 @@
 //   Adapted discrete shape+size explicit combo (3D):
 //     mesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 5 -ni 20  -ls 2 -li 100 -bnd -qt 1 -qo 8 -cmb 2 -nor
 //
-//
 //   Adaptive limiting:
 //     mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5
 //   Adaptive limiting through the L-BFGS solver:
