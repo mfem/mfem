@@ -107,7 +107,7 @@ CEED_QFUNCTION(f_build_conv_quad)(void *ctx, CeedInt Q,
       case 11:
          for (CeedInt i = 0; i < Q; i++)
          {
-            const coeff = c[i];
+            const CeedScalar coeff = c[i];
             qd[i] = coeff * qw[i] * J[i];
          }
          break;
@@ -116,7 +116,7 @@ CEED_QFUNCTION(f_build_conv_quad)(void *ctx, CeedInt Q,
          {
             // J: 0 2   qd: 0 1   adj(J):  J22 -J12
             //    1 3       1 2           -J21  J11
-            const coeff = c[i];
+            const CeedScalar coeff = c[i];
             const CeedScalar J11 = J[i + Q * 0];
             const CeedScalar J21 = J[i + Q * 1];
             const CeedScalar J12 = J[i + Q * 2];
@@ -134,7 +134,7 @@ CEED_QFUNCTION(f_build_conv_quad)(void *ctx, CeedInt Q,
             // J: 0 3 6   qd: 0 1 2
             //    1 4 7       1 3 4
             //    2 5 8       2 4 5
-            const coeff = c[i];
+            const CeedScalar coeff = c[i];
             const CeedScalar J11 = J[i + Q * 0];
             const CeedScalar J21 = J[i + Q * 1];
             const CeedScalar J31 = J[i + Q * 2];
