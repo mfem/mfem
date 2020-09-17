@@ -433,22 +433,26 @@ void CeedAssembleDiagonal(const CeedData *ceedDataPtr,
 
 void RemoveCeedBasisAndRestriction(const FiniteElementSpace *fes)
 {
-#ifdef MFEM_USE_CEED
-   for (auto &entry : internal::ceed_basis_map)
-   {
-      if (std::get<0>(entry.first)==fes)
+#ifdef MFEM_USE_CEEDit = mymap.begin();
+   auto itb = internal::ceed_basis_map.begin();
+   while (itb != internal::ceed_basis_map.end()) {
+      if (std::get<0>(itb->first)==fes)
       {
-         CeedBasisDestroy(&entry.second);
-         internal::ceed_basis_map.erase(entry.first);
+         CeedBasisDestroy(&itb->second);
+         itb = internal::ceed_basis_map.erase(it);
       }
+      else
+         itb++;
    }
-   for (auto &entry : internal::ceed_restr_map)
-   {
-      if (std::get<0>(entry.first)==fes)
+   auto itr = internal::ceed_restr_map.begin();
+   while (itr != internal::ceed_restr_map.end()) {
+      if (std::get<0>(itr->first)==fes)
       {
-         CeedElemRestrictionDestroy(&entry.second);
-         internal::ceed_restr_map.erase(entry.first);
+         CeedBasisDestroy(&itr->second);
+         itr = internal::ceed_restr_map.erase(it);
       }
+      else
+         itr++;
    }
 #endif
 }
