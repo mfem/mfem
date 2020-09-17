@@ -56,11 +56,11 @@ static void Grad2D(const int NE,
       DeviceTensor<2> G(s_G, Q1D, D1D);
 
       MFEM_SHARED double s_X[NBZ][MD1*MD1];
-      DeviceTensor<2> X(s_X[tidz], MD1, MD1);
+      DeviceTensor<2> X((double*)(s_X+tidz), MD1, MD1);
 
       MFEM_SHARED double s_DQ[2][NBZ][MD1*MQ1];
-      DeviceTensor<2> DQ0(s_DQ[0][tidz], MD1, MQ1);
-      DeviceTensor<2> DQ1(s_DQ[1][tidz], MD1, MQ1);
+      DeviceTensor<2> DQ0((double*)(s_DQ[0]+tidz), MD1, MQ1);
+      DeviceTensor<2> DQ1((double*)(s_DQ[1]+tidz), MD1, MQ1);
 
       if (tidz == 0)
       {
@@ -169,12 +169,12 @@ static void Grad3D(const int NE,
 
       MFEM_SHARED double sm0[3][MQ1*MQ1*MQ1];
       MFEM_SHARED double sm1[3][MQ1*MQ1*MQ1];
-      DeviceTensor<3> X(sm0[2], MD1, MD1, MD1);
-      DeviceTensor<3> DDQ0(sm0[0], MD1, MD1, MQ1);
-      DeviceTensor<3> DDQ1(sm0[1], MD1, MD1, MQ1);
-      DeviceTensor<3> DQQ0(sm1[0], MD1, MQ1, MQ1);
-      DeviceTensor<3> DQQ1(sm1[1], MD1, MQ1, MQ1);
-      DeviceTensor<3> DQQ2(sm1[2], MD1, MQ1, MQ1);
+      DeviceTensor<3> X((double*)(sm0+2), MD1, MD1, MD1);
+      DeviceTensor<3> DDQ0((double*)(sm0+0), MD1, MD1, MQ1);
+      DeviceTensor<3> DDQ1((double*)(sm0+1), MD1, MD1, MQ1);
+      DeviceTensor<3> DQQ0((double*)(sm1+0), MD1, MQ1, MQ1);
+      DeviceTensor<3> DQQ1((double*)(sm1+1), MD1, MQ1, MQ1);
+      DeviceTensor<3> DQQ2((double*)(sm1+2), MD1, MQ1, MQ1);
 
       if (tidz == 0)
       {
