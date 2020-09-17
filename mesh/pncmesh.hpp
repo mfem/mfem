@@ -297,10 +297,6 @@ protected: // implementation
 
    virtual void Update();
 
-   // TODO: remove
-   virtual bool IsGhost(const Element& el) const
-   { return el.rank != MyRank; }
-
    virtual int GetNumGhostElements() const { return NGhostElements; }
    virtual int GetNumGhostVertices() const { return NGhostVertices; }
 
