@@ -711,6 +711,9 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
    //Mult for serial, and mpi-exclusive modes
    if (mpi_gpu_mode != "mpi-teams")
    {
+      //Seems to be necessary for convergence
+      if (m_AmgxMode == PRECONDITIONER) { X = 0.0; };
+
       AMGX_vector_upload(AmgXP, X.Size(), 1, X.HostReadWrite());
       AMGX_vector_upload(AmgXRHS, B.Size(), 1, B.HostRead());
 
