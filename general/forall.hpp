@@ -151,7 +151,12 @@ void RajaCudaWrap3D(const int N, DBODY &&d_body,
 /// RAJA OpenMP backend
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)
 
-using RAJA::statement::Segs;
+#if RAJA_VERSION_MAJOR == 0 && RAJA_VERSION_MINOR < 12
+  using RAJA::statement::Segs;
+#else
+  using RAJA::Segs;
+#endif
+
 
 template <typename HBODY>
 void RajaOmpWrap(const int N, HBODY &&h_body)
