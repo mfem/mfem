@@ -752,6 +752,8 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
    if (gpuWorld != MPI_COMM_NULL)
    {
 
+      if (m_AmgxMode == PRECONDITIONER) { X = 0.0; };
+
       AMGX_vector_upload(AmgXP, all_X.Size(), 1, all_X.HostReadWrite());
       AMGX_vector_upload(AmgXRHS, all_B.Size(), 1, all_B.HostReadWrite());
 
