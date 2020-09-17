@@ -17,14 +17,16 @@
 /*
   Next steps here:
 
-  - optimize a bit for speed; you're killing LOR amg on iteration count, why is it slow [progress made, mostly coarsening strategy]
+  - merge barker29/libceed-solvers in here? It has the most advanced stuff (including multiple integrators) but is not a clean merge
+
+  - optimize a bit for speed; you're killing LOR amg on iteration count, why is it slow [beating LOR by 20-40 percent at high order]
   - (use optimized ceed library) [naturally optimized]
-  - work on the Helmholtz velocity solve
+  - work on the Helmholtz velocity solve (all they do here is Jacobi even when assembled, maybe don't do this?)
   - try in the other contexts, not just navier_mms
   - experiment with coarse solver [some done, AMG is good, 10 cycles of CG not too terrible]
   - try on GPUs (Lassen)
   - scale to higher order than 6 [now 8]
-  - different coarsening strategies [in progress]
+  - different coarsening strategies [done]
   - show to others, make PR, something
 */
 
