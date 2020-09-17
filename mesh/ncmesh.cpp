@@ -2313,21 +2313,27 @@ int NCMesh::find_local_face(int geom, int a, int b, int c)
 }
 
 
+/// Hash function for a PointMatrix, used in MatrixMap::map.
 struct PointMatrixHash
 {
    std::size_t operator()(const NCMesh::PointMatrix &pm) const
    {
       MFEM_ASSERT(sizeof(double) == sizeof(std::uint64_t), "");
-      std::uint64_t hash = 0xf9ca9ba106acbba9;
+
+      // This is a variation on "Hashing an array of floats" from here:
+      // https://cs.stackexchange.com/questions/37952
+      std::uint64_t hash = 0xf9ca9ba106acbba9; // random initial value
       for (int i = 0; i < pm.np; i++)
       {
          for (int j = 0; j < pm.points[i].dim; j++)
          {
+            // mix the doubles by adding their binary representations
+            // many times over (note: 31 is 11111 in binary)
             double coord = pm.points[i].coord[j];
             hash = 31*hash + *((std::uint64_t*) &coord);
          }
       }
-      return hash;
+      return hash; // return the lowest bits of the huge sum
    }
 };
 
