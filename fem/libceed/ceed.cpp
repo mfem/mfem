@@ -435,24 +435,30 @@ void RemoveCeedBasisAndRestriction(const FiniteElementSpace *fes)
 {
 #ifdef MFEM_USE_CEED
    auto itb = internal::ceed_basis_map.begin();
-   while (itb != internal::ceed_basis_map.end()) {
+   while (itb != internal::ceed_basis_map.end())
+   {
       if (std::get<0>(itb->first)==fes)
       {
          CeedBasisDestroy(&itb->second);
          itb = internal::ceed_basis_map.erase(itb);
       }
       else
+      {
          itb++;
+      }
    }
    auto itr = internal::ceed_restr_map.begin();
-   while (itr != internal::ceed_restr_map.end()) {
+   while (itr != internal::ceed_restr_map.end())
+   {
       if (std::get<0>(itr->first)==fes)
       {
          CeedElemRestrictionDestroy(&itr->second);
          itr = internal::ceed_restr_map.erase(itr);
       }
       else
+      {
          itr++;
+      }
    }
 #endif
 }
