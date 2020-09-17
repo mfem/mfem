@@ -362,51 +362,6 @@ void MFEMCeedJacobi::MultTranspose(const mfem::Vector& x, mfem::Vector& y) const
    Mult(x, y);
 }
 
-MFEMCeedVCycle::MFEMCeedVCycle(const mfem::Operator& fine_operator,
-               const mfem::Solver& coarse_solver,
-               const mfem::Operator& fine_smoother,
-               const mfem::Operator& interp) :
-  fine_operator_(fine_operator),
-  coarse_solver_(coarse_solver),
-  fine_smoother_(fine_smoother),
-  interp_(interp)
-{
-   MFEM_VERIFY(fine_operator_.Height() == interp_.Height(), "Sizes don't match!");
-   MFEM_VERIFY(coarse_solver_.Height() == interp_.Width(), "Sizes don't match!");
-
-   residual_.SetSize(fine_operator_.Height());
-   correction_.SetSize(fine_operator_.Height());
-   coarse_residual_.SetSize(coarse_solver_.Height());
-   coarse_correction_.SetSize(coarse_solver_.Height());
-}
-
-void MFEMCeedVCycle::FormResidual(const mfem::Vector& b,
-                                  const mfem::Vector& x,
-                                  mfem::Vector& r) const
-{
-   fine_operator_.Mult(x, r);
-   r *= -1.0;
-   r += b;
-}
-
-void MFEMCeedVCycle::Mult(const mfem::Vector& b, mfem::Vector& x) const
-{
-   x = 0.0;
-   fine_smoother_.Mult(b, correction_);
-   x += correction_;
-
-   FormResidual(b, x, residual_);
-   interp_.MultTranspose(residual_, coarse_residual_);
-   coarse_correction_ = 0.0;
-   coarse_solver_.Mult(coarse_residual_, coarse_correction_);
-   interp_.Mult(coarse_correction_, correction_);
-   x += correction_;
-
-   FormResidual(b, x, residual_);
-   fine_smoother_.Mult(residual_, correction_);
-   x += correction_;
-}
-
 int MFEMCeedInterpolation::Initialize(
   Ceed ceed, CeedBasis basisctof,
   CeedElemRestriction erestrictu_coarse, CeedElemRestriction erestrictu_fine)
@@ -525,66 +480,6 @@ void CoarsenEssentialDofs(const mfem::Operator& mfem_interp,
          alg_lo_ess_tdof_list.Append(i);
       }
    }
-}
-
-/// probably don't need both order and dim
-/// (probably don't need either; infer order from size of B1d,
-/// infer dim from that and er->elemsize)
-CeedMultigridLevel::CeedMultigridLevel(CeedOperator oper,
-                                       const mfem::Array<int>& ho_ess_tdof_list,
-                                       int order_reduction)
-   :
-   oper_(oper)
-{
-   const double jacobi_scale = 0.65; // TODO: separate construction?
-   Ceed ceed;
-   CeedOperatorGetCeed(oper, &ceed);
-   CeedATPMGBundle(oper, order_reduction, &coarse_basis_, &basisctof_,
-                   &lo_er_, &coarse_oper_);
-
-   // this is a local diagonal, in the sense of l-vector
-   CeedVector diagceed;
-   int length;
-   CeedOperatorGetSize(oper, &length);
-   CeedVectorCreate(ceed, length, &diagceed);
-   CeedVectorSetValue(diagceed, 0.0);
-   CeedOperatorLinearAssembleDiagonal(oper, diagceed, CEED_REQUEST_IMMEDIATE);
-   nobc_smoother_ = new MFEMCeedJacobi(ceed, length, diagceed,
-                                       ho_ess_tdof_list, jacobi_scale);
-   nobc_smoother_->FormSystemOperator(ho_ess_tdof_list, smoother_);
-   CeedVectorDestroy(&diagceed);
-
-   CeedOperatorGetActiveElemRestriction(oper, &ho_er_);
-   mfem_interp_ = new MFEMCeedInterpolation(ceed, basisctof_, lo_er_, ho_er_);
-
-   CoarsenEssentialDofs(*mfem_interp_, ho_ess_tdof_list, lo_ess_tdof_list_);
-}
-
-CeedMultigridLevel::~CeedMultigridLevel()
-{
-   CeedOperatorDestroy(&coarse_oper_);
-   CeedBasisDestroy(&coarse_basis_);
-   CeedBasisDestroy(&basisctof_);
-   CeedElemRestrictionDestroy(&lo_er_);
-
-   delete nobc_smoother_;
-   delete smoother_;
-   delete mfem_interp_;
-}
-
-CeedMultigridVCycle::CeedMultigridVCycle(
-   const CeedMultigridLevel& level,
-   const mfem::Operator& fine_operator,
-   const mfem::Solver& coarse_solver)
-   :
-   mfem::Solver(fine_operator.Height()),
-   cycle_(fine_operator, coarse_solver, *level.smoother_, *level.mfem_interp_)
-{
-}
-
-void CeedMultigridVCycle::Mult(const mfem::Vector& x, mfem::Vector& y) const
-{
-   cycle_.Mult(x, y);
 }
 
 CeedCGWithAMG::CeedCGWithAMG(CeedOperator oper,

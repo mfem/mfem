@@ -98,34 +98,6 @@ private:
    CeedVector u_, v_;
 };
 
-class MFEMCeedVCycle : public mfem::Solver
-{
-public:
-   MFEMCeedVCycle(const mfem::Operator& fine_operator,
-                  const mfem::Solver& coarse_solver,
-                  const mfem::Operator& fine_smoother,
-                  const mfem::Operator& interp);
-
-   void Mult(const mfem::Vector& x, mfem::Vector& y) const;
-   void SetOperator(const Operator &op) { }
-
-private:
-   void FormResidual(const mfem::Vector& b,
-                     const mfem::Vector& x,
-                     mfem::Vector& r) const;
-
-   const mfem::Operator& fine_operator_;
-   const mfem::Solver& coarse_solver_;
-   const mfem::Operator& fine_smoother_;
-   const mfem::Operator& interp_;
-
-   /// work vectors (too many of them, can be economized)
-   mutable mfem::Vector residual_;
-   mutable mfem::Vector correction_;
-   mutable mfem::Vector coarse_residual_;
-   mutable mfem::Vector coarse_correction_;
-};
-
 /**
    wrap CeedInterpolation object in an mfem::Operator
 */
@@ -160,74 +132,6 @@ private:
    CeedInterpolation ceed_interp_;
 
    bool owns_basis_;
-};
-
-// forward declaration
-class CeedMultigridVCycle;
-
-/**
-   This takes a CeedOperator with essential dofs 
-   and produces a coarser / lower-order operator, an interpolation
-   operator between fine/coarse levels, and a smoother.
-
-   Long term, this becomes more of a Ceed object and less of an
-   MFEM object
-
-   todo: not clear the smoother belongs in this object
-*/
-class CeedMultigridLevel
-{
-public:
-   /// The constructor builds the coarse *operator*, a smoother
-   /// for the fine level, and an interpolation between them.
-   /// It does *not* build a coarse *solver*.
-   /// (smoother construction should also be separate?)
-   CeedMultigridLevel(CeedOperator oper,
-                      const mfem::Array<int>& ess_dofs,
-                      int order_reduction);
-   ~CeedMultigridLevel();
-
-   /// return coarse operator as CeedOperator (no boundary conditions)
-   CeedOperator GetCoarseCeed() { return coarse_oper_; }
-
-   mfem::Array<int>& GetCoarseEssentialDofList() { return lo_ess_tdof_list_; }
-
-   friend class CeedMultigridVCycle;
-
-private:
-   CeedElemRestriction ho_er_; // not owned
-
-   CeedOperator oper_; // not owned
-   CeedOperator coarse_oper_;
-   CeedBasis coarse_basis_;
-   CeedBasis basisctof_;
-   CeedElemRestriction lo_er_;
-
-   MFEMCeedJacobi * nobc_smoother_;
-   mfem::Operator * smoother_;
-   MFEMCeedInterpolation * mfem_interp_;
-
-   mfem::Array<int> lo_ess_tdof_list_;
-};
-
-
-/**
-   I think the basic idea is that we loop from fine to coarse
-   making CeedMultigridLevel objects, make a coarsest solver, and then
-   loop back up to the fine level making CeedMultigridVCyle objects?
-*/
-class CeedMultigridVCycle : public mfem::Solver
-{
-public:
-   CeedMultigridVCycle(const CeedMultigridLevel& level,
-                       const mfem::Operator& fine_operator,
-                       const mfem::Solver& coarse_solver);
-
-   void SetOperator(const mfem::Operator& op) {}
-   void Mult(const mfem::Vector& x, mfem::Vector& y) const;
-
-private:
-   MFEMCeedVCycle cycle_;
 };
 
 class CeedCGWithAMG : public mfem::Solver

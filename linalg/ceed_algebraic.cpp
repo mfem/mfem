@@ -77,50 +77,6 @@ private:
    bool owns_basis_;
 };
 
-// forward declaration
-class MFEMCeedVCycle;
-
-/**
-   This takes a CeedOperator with essential dofs 
-   and produces a coarser / lower-order operator, an interpolation
-   operator between fine/coarse levels, and a list of coarse
-   essential dofs.
-*/
-class CeedMultigridLevel
-{
-public:
-   /// The constructor builds the coarse *operator*, a smoother
-   /// for the fine level, and an interpolation between them.
-   /// It does *not* build a coarse *solver*.
-   /// (smoother construction should also be separate?)
-   CeedMultigridLevel(CeedOperator oper,
-                      const mfem::Array<int>& ess_dofs,
-                      int order_reduction);
-   ~CeedMultigridLevel();
-
-   /// return coarse operator as CeedOperator (no boundary conditions)
-   CeedOperator GetCoarseCeed() { return coarse_oper_; }
-
-   mfem::Array<int>& GetCoarseEssentialDofList() { return lo_ess_tdof_list_; }
-
-   friend class MFEMCeedVCycle;
-
-private:
-   CeedElemRestriction ho_er_; // not owned
-
-   CeedOperator oper_; // not owned
-   CeedOperator coarse_oper_;
-   CeedBasis * coarse_basis_;
-   CeedBasis * basisctof_;
-   CeedElemRestriction * lo_er_;
-
-   MFEMCeedInterpolation * mfem_interp_;
-
-   const mfem::Array<int>& ho_ess_tdof_list_;
-   mfem::Array<int> lo_ess_tdof_list_;
-   int numsub_;
-};
-
 /**
    Just wrap a Ceed operator in the mfem::Operator interface
 
@@ -173,34 +129,6 @@ public:
 private:
    UnconstrainedMFEMCeedOperator unconstrained_op_;
    mfem::Operator * constrained_op_;
-};
-
-class MFEMCeedVCycle : public mfem::Solver
-{
-public:
-   MFEMCeedVCycle(const CeedMultigridLevel& level,
-                  const mfem::Operator& fine_operator,
-                  const mfem::Solver& coarse_solver);
-   ~MFEMCeedVCycle();
-
-   void Mult(const mfem::Vector& x, mfem::Vector& y) const;
-   void SetOperator(const Operator &op) { }
-
-private:
-   void FormResidual(const mfem::Vector& b,
-                     const mfem::Vector& x,
-                     mfem::Vector& r) const;
-
-   const mfem::Operator& fine_operator_;
-   const mfem::Solver& coarse_solver_;
-   const mfem::Operator* fine_smoother_;
-   const mfem::Operator& interp_;
-
-   /// work vectors (too many of them, can be economized)
-   mutable mfem::Vector residual_;
-   mutable mfem::Vector correction_;
-   mutable mfem::Vector coarse_residual_;
-   mutable mfem::Vector coarse_correction_;
 };
 
 class CeedCGWithAMG : public mfem::Solver
