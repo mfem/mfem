@@ -101,7 +101,7 @@ int TMOPNewtonSolver::CheckDetJpr_2D(const FiniteElementSpace *fes,
                                      const Vector &X) const
 {
    double DetJMin = MinDetJpr_2D(fes, X);
-   return (DetJMin <= 0.) ? 0 : 1;
+   return DetJMin > 0;
 }
 
 } // namespace mfem
