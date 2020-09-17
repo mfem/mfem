@@ -1927,13 +1927,34 @@ void NCMesh::UpdateLeafElements()
 
 void NCMesh::UpdateVertices()
 {
-   // DESCRIBE: why we must be careful
+   // This method assigns indices to vertices (Node::vert_index) that will
+   // be seen by the Mesh class and the rest of MFEM. We must be careful to:
+   //
+   //   1. Stay compatible with the conforming code, which expects top-level
+   //      (original) vertices to be indexed first, otherwise GridFunctions
+   //      defined on a conforming mesh would no longer be valid when the
+   //      mesh is converted to an NC mesh.
+   //
+   //   2. Make sure serial NCMesh is compatible with the parallel ParNCMesh,
+   //      so it is possible to read parallel partial solutions in serial code
+   //      (e.g., serial GLVis). This means handling ghost elements, if present.
+   //
+   //   3. Assign vertices in a globally consistent order for parallel meshes:
+   //      if two vertices i,j are shared by two ranks r1,r2, and i<j on r1,
+   //      then i<j on r2 as well. This is true for top-level vertices but also
+   //      for the remaining non-ghost ones thanks to the globally consistent
+   //      SFC ordering of the leaf elements. This property reduces communication
+   //      and simplifies ParNCMesh.
 
-   // DESCRIBE: begin by splitting vertices into 4 classes
+   // STEP 1: begin by splitting vertices into 4 classes:
+   //   - owned top-level vertices (code -1)
+   //   - owned non-top level vertices (code -2)
+   //   - ghost (non-owned) vertices (code -3)
+   //   - vertices beyond the ghost layer (code -4)
 
    for (auto node = nodes.begin(); node != nodes.end(); ++node)
    {
-      node->vert_index = -4; // beyond ghost layer: code -4
+      node->vert_index = -4; // assume beyond ghost layer
    }
 
    for (int i = 0; i < leaf_elements.Size(); i++)
@@ -1944,16 +1965,16 @@ void NCMesh::UpdateVertices()
          Node &nd = nodes[el.node[j]];
          if (el.rank == MyRank)
          {
-            if (nd.p1 == nd.p2) // owned top-level vertex: code -1
+            if (nd.p1 == nd.p2) // owned top-level vertex
             {
                if (nd.vert_index < -1) { nd.vert_index = -1; }
             }
-            else // owned non-top-level vertex: code -2
+            else // owned non-top-level vertex
             {
                if (nd.vert_index < -2) { nd.vert_index = -2; }
             }
          }
-         else // ghost vertex: code -3
+         else // ghost vertex
          {
             if (nd.vert_index < -3) { nd.vert_index = -3; }
          }
@@ -1961,6 +1982,7 @@ void NCMesh::UpdateVertices()
    }
 
    // STEP 2: assign indices of top-level owned vertices, in original order
+   // (note that they are at the beginning of the 'nodes' array, and p1 == p2).
 
    NVertices = 0;
    for (auto node = nodes.begin();
@@ -1974,6 +1996,7 @@ void NCMesh::UpdateVertices()
    }
 
    // STEP 3: go over all elements (owned and ghost) in SFC order and assign
+   // remaining owned vertices in that order.
 
    Array<int> sfc_order(leaf_elements.Size());
    for (int i = 0; i < sfc_order.Size(); i++)
@@ -1991,7 +2014,8 @@ void NCMesh::UpdateVertices()
       }
    }
 
-   // STEP 4: create the mapping from vertex index to node index
+   // STEP 4: create the mapping from Mesh vertex index to NCMesh node index
+
    vertex_nodeId.SetSize(NVertices);
    for (auto node = nodes.begin(); node != nodes.end(); ++node)
    {
@@ -2002,7 +2026,9 @@ void NCMesh::UpdateVertices()
       }
    }
 
-   // STEP 5: assign remaining ghost vertices, ignore vertices beyond ghost layer
+   // STEP 5: assign remaining ghost vertices, ignore vertices beyond the
+   // ghost layer
+
    NGhostVertices = 0;
    for (int i = 0; i < sfc_order.Size(); i++)
    {
@@ -2016,43 +2042,6 @@ void NCMesh::UpdateVertices()
          }
       }
    }
-
-#if 0
-   // assign vertex indices by iterating over elements in the linear order
-   // determined by 'leaf_elements', i.e., elements we own first (in SFC order)
-   // then any ghost elements (in SFC order again)
-
-   // it is important that this process is the same both in serial and in
-   // parallel so that we can correctly load parallel partial solutions in
-   // serial code (e.g., in GLVis)
-
-   NVertices = 0;
-   for (int i = 0; i < NElements; i++)
-   {
-      Element &el = elements[leaf_elements[i]];
-      MFEM_ASSERT(el.rank == MyRank, "");
-
-      for (int j = 0; j < GI[el.Geom()].nv; j++)
-      {
-         int &vindex = nodes[el.node[j]].vert_index;
-         if (vindex < 0) { vindex = NVertices++; }
-      }
-   }
-
-   NGhostVertices = 0;
-   for (int i = NElements; i < leaf_elements.Size(); i++)
-   {
-      Element &el = elements[leaf_elements[i]];
-      MFEM_ASSERT(el.rank != MyRank, "");
-
-      for (int j = 0; j < GI[el.Geom()].nv; j++)
-      {
-         int &vindex = nodes[el.node[j]].vert_index;
-         if (vindex < 0) { vindex = NGhostVertices++; }
-      }
-   }
-#endif
-
 }
 
 void NCMesh::InitRootState(int root_count)
