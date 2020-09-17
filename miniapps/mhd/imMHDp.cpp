@@ -132,6 +132,8 @@ int main(int argc, char *argv[])
    args.AddOption(&usefd, "-fd", "--use-fd", "-no-fd",
                   "--no-fd",
                   "Use fd-fem in the implicit solvers.");
+   args.AddOption(&pa, "-pa", "--parallel-assembly", "-no-pa",
+                  "--no-parallel-assembly", "Parallel assembly.");
    args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
                   "--no-visit-datafiles",
                   "Save data files for VisIt (visit.llnl.gov) visualization.");

@@ -237,6 +237,8 @@ int main(int argc, char *argv[])
                   "version of Full preconditioner");
    args.AddOption(&usefd, "-fd", "--use-fd", "-no-fd",
                   "--no-fd","Use fd-fem in the implicit solvers.");
+   args.AddOption(&pa, "-pa", "--parallel-assembly", "-no-pa",
+                  "--no-parallel-assembly", "Parallel assembly.");
    args.AddOption(&initial_refine, "-init-refine", "--init-refine", "-no-init-refine",
                   "--no-init-refine","Use initial refine before time stepping.");
    args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",

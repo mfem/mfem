@@ -15,6 +15,8 @@ mpirun -n 8 exMHDp -m Meshes/xperiodic.mesh -rs 3 -o 4 -tf 8 -vs 100 -dt .001 -i
 mpirun -n 8 exAMRMHDp -m Meshes/xperiodicR1.mesh -rs 0 -rp 2 -o 4 -tf 8 -vs 200 -dt .0001 -i 3 -amrl 3 -ltol 2e-3 -derefine
 srun -n 72 imMHDp -m ./Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -no-vis -vs 1 -tf .2 -dt .1 -usepetsc --petscopts ./petscrc/rc_debug -s 3 -shell -resi 1e-4 -visc 1e-4 -im_supg 1 -no-supg -i_supgpre 3 -no-fd -local -lr 3
 
+srun -n 144 imAMRMHDpSmall -m ./Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -no-vis -vs 2 -tf 2. -dt .025 -usepetsc --petscopts ./rc_debug -s 3 -shell -amrl 4 -ltol 1e-2 -derefine -resi 1e-6 -visc 1e-6 -refs 8 -im_supg 1 -supg -i_supgpre 3 -no-fd -yrange -err-ratio 0.1 -derefine-ratio 1. -err-fraction 0.2 -paraview -updatej 1 -BgradJ 2
+
 
 serial AMR quick test:
 ./exAMRMHD -m xperiodicR3.mesh -r 0 -o 4 -tf .025 -vs 10 -dt .0001 -i 3 -amrl 3 -ltol 1e-3
@@ -37,8 +39,78 @@ glvis -np 72 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 glvis -np 512 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 glvis -np 4096 -m mesh -g sol_omega -k "mmc" -ww 1000 -wh 1000
 
+9/17
+partial assembly; any other ways to accelerate it?
+
+9/14
+hypre preconditioner fails on ARe again: try only reduce dtfactor in psi function!
+
+Question for John:
+will choose a high-order integrator be problematic?
+why those 2/dt terms are there? I know they would be exposed in Fourier analysis, but are they there just for accuracy?
+
+o verifty the operators
+o weak form not helping
+o fix tau: bad
+o it seems a good idea to reduce diffusion in psi!
+o p=2 is very bad
+
+let's put tau in numbers:
+dt=0.00732-> 2/dt=273
+if v=1 and h=1/2^7 then 2*v/h=256
+if v=1 and h=1/2^8 then 2*v/h=512
+so in summary most of the diffusion is controled by 2/dt
+
+so if we increase the factor to 5/dt, 2/dt becomes 683
+so if we increase the factor to 10/dt, 2/dt becomes 1200, which could be too large
+
+* slow start?
+
+9/13
+use lumped matrix: it may fail at a later time
+use more refined mesh, it is better but the oscillation appears at a late time
+what about weak form of the B.grad J? not doing better
+
+
+9/8
+1. find the same oscillations in the problem of a fixed mesh (when there are some isolated finer meshes)
+2. identify the source is [(v.grad)^2 psi] term; impossible to fix since we need that term
+    not working: fix a small dt in supg tau (worse) and fd (fails in some cases)
+    working:  lumped mass matrix to invert J (lower order)
+3. possible solution: use supg on omega (necessary since we need to invert ARe but this is a good term) but use fd on psi (maybe good enough to invert Schur complement)
+
+try weak form
+
+ask John the question
+
+tau value is about dt/2=gamma*.1/2=0.014644
+
 9/2
 try L2 version of error estimator!!
+anti-diffusion? 
+visualize tau!!
+
+something is wrong with supg formulation
+
+only diffusion term: it fails badly
+maybe it is simply underresolved??
+meshing screw it up or dt is too small?
+
+dt floor makes it worse
+
+what if I just have the formulation no supg in preconditioner?
+
+no supg? works
+with fd? works (but fewer grids)
+larger floor dt? worse
+fewer mpi? bad
+
+which term is the problematic?
+the term associated with supg term of psi
+
+two choices: 
+1. add hyperdiffusion (only or with supg) 
+2. lump the mass matrix when updating J
 
 9/1
 currently derefine and refine are staggered. So maybe I can try merge them together

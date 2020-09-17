@@ -26,6 +26,8 @@ int BgradJ=1;    // B.gradJ operator: 1 (B.grad J, phi)
                 //                    3 (-BJ, grad phi)
                 // 2 and 3 should be equivalent 
 int itau_=2;    //how to evaluate supg coefficient
+
+bool pa=false;  //partial assembly in some operators (need to find a way to accelerate supg operators)
                 
 
 //------------this is for preconditioner------------
@@ -1774,11 +1776,16 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
       //------assemble Nv and Nb (operators are assembled locally)------
       delete Nv;
       Nv = new ParBilinearForm(&fespace);
+      if (pa)
+      {
+          Nv->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      }
       Nv->AddDomainIntegrator(new ConvectionIntegrator(velocity));
       Nv->Assemble(); 
    }
    else
    {
+      //this is not optimized yet
       wGf.MakeTRef(&fespace, k_, 2*sc);
       wGf.SetFromTrueVector();
       //FIXME ParallelAssemble is needed (a possible bug)
@@ -1805,7 +1812,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    }
    else if (iUpdateJ==1)
    {
-   //------compute the current as an auxilary variable (Dirichelt boundary condition)------
+      //------compute the current as an auxilary variable (Dirichelt boundary condition)------
       gftmp.SetFromTrueDofs(psiNew);
       Vector Z;
       HypreParMatrix A;
@@ -1816,7 +1823,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    }
    else if (iUpdateJ==2)
    {
-   //------compute the current as an auxilary variable (Dirichelt boundary condition)------
+      //------compute the current as an auxilary variable (Dirichelt boundary condition)------
       gftmp.SetFromTrueDofs(psiNew);
       Vector Z;
       HypreParMatrix A;
@@ -1838,6 +1845,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    add(wNew, -1., *w, zdiff);
    zdiff/=dt;
    Mmat.Mult(zdiff,y3);
+
    if (bilinearPB)
       Nv->TrueAddMult(wNew,y3);
    else
@@ -1850,6 +1858,11 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    {      
       delete Nb;
       Nb = new ParBilinearForm(&fespace);
+      if (pa)
+      {
+          Nb->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      }
+
       if (BgradJ==1)
       {
          Nb->AddDomainIntegrator(new ConvectionIntegrator(Bfield));
