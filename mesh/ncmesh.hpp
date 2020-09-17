@@ -499,14 +499,12 @@ protected: // implementation
        Mesh::GetGeckoElementOrdering. */
    void InitRootState(int root_count);
 
-   virtual bool IsGhost(const Element &el) const { return false; }
-   virtual int GetNumGhostElements() const { return 0; }
-   virtual int GetNumGhostVertices() const { return 0; }
-
    void InitGeomFlags();
 
    bool HavePrisms() const { return Geoms & (1 << Geometry::PRISM); }
    bool HaveTets() const   { return Geoms & (1 << Geometry::TETRAHEDRON); }
+
+   bool IsGhost(const Element &el) const { return el.rank != MyRank; }
 
 
    // refinement/derefinement

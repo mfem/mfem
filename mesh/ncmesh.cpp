@@ -2167,16 +2167,15 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
    // left uninitialized here; they will be initialized later by the Mesh from
    // Nodes -- here we just make sure mesh.vertices has the correct size.
 
-   mesh.elements.SetSize(leaf_elements.Size() - GetNumGhostElements());
+   mesh.elements.SetSize(NElements);
    mesh.elements.SetSize(0);
 
    mesh.boundary.SetSize(0);
 
    // create an mfem::Element for each leaf Element
-   for (int i = 0; i < leaf_elements.Size(); i++)
+   for (int i = 0; i < NElements; i++)
    {
       const Element &nc_elem = elements[leaf_elements[i]];
-      if (IsGhost(nc_elem)) { continue; } // ParNCMesh
 
       const int* node = nc_elem.node;
       GeomInfo& gi = GI[(int) nc_elem.geom];
@@ -2817,8 +2816,11 @@ void NCMesh::BuildEdgeList()
          }
 
          // store element/local for later
-         edge_element[nd.edge_index] = elem;
-         edge_local[nd.edge_index] = j;
+         if (nd.edge_index >= 0)
+         {
+            edge_element[nd.edge_index] = elem;
+            edge_local[nd.edge_index] = j;
+         }
 
          // skip slave edges here, they will be reached from their masters
          if (GetEdgeMaster(enode) >= 0) { continue; }
@@ -2873,7 +2875,7 @@ void NCMesh::BuildEdgeList()
 
 void NCMesh::BuildVertexList()
 {
-   int total = NVertices + GetNumGhostVertices();
+   int total = NVertices + NGhostVertices;
 
    vertex_list.Clear();
    vertex_list.conforming.reserve(total);
@@ -4920,7 +4922,7 @@ void NCMesh::GetLimitRefinements(Array<Refinement> &refinements, int max_level)
 {
    for (int i = 0; i < leaf_elements.Size(); i++)
    {
-      if (IsGhost(elements[leaf_elements[i]])) { break; }
+      if (IsGhost(elements[leaf_elements[i]])) { break; } // TODO: NElements
 
       int splits[3];
       CountSplits(leaf_elements[i], splits);
