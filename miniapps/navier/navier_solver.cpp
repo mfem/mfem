@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "ceed_algebraic_navier.hpp"
 #include "navier_solver.hpp"
 #include "../../general/forall.hpp"
 #include <fstream>
@@ -49,7 +50,7 @@ private:
    int num_levels;  /// actually needed in object
    bool ortho;
    Operator ** operators;
-   CeedMultigridLevel ** levels;
+   navier::CeedMultigridLevel ** levels;
    Solver ** solvers;
    Solver ** nonortho_solvers;
 };
@@ -74,7 +75,7 @@ TryCeedSolver::TryCeedSolver(Operator& fine_mfem_op,
    MFEM_VERIFY(coarsen_strategy != 0 && coarsen_strategy != -1, "Bad coarsen strategy!");
    operators = new Operator*[num_levels];
    operators[0] = &fine_mfem_op;
-   levels = new CeedMultigridLevel*[num_levels - 1];
+   levels = new navier::CeedMultigridLevel*[num_levels - 1];
    mfem::Array<int> * current_ess_dofs = &ess_dofs;
    int current_order = order;
    for (int i = 0; i < num_levels - 1; ++i)
@@ -85,37 +86,37 @@ TryCeedSolver::TryCeedSolver(Operator& fine_mfem_op,
          std::cout << "  order " << current_order << " reduced to " << current_order / -coarsen_strategy
                    << ", step " << order_reduction << std::endl;
          current_order = current_order / -coarsen_strategy;
-         levels[i] = new CeedMultigridLevel(current_op, *current_ess_dofs, order_reduction);
+         levels[i] = new navier::CeedMultigridLevel(current_op, *current_ess_dofs, order_reduction);
       }
       else
       {
          std::cout << "  order " << current_order << " reduced to " << current_order - coarsen_strategy
                    << ", step " << coarsen_strategy << std::endl;
          current_order -= coarsen_strategy;
-         levels[i] = new CeedMultigridLevel(current_op, *current_ess_dofs, coarsen_strategy);
+         levels[i] = new navier::CeedMultigridLevel(current_op, *current_ess_dofs, coarsen_strategy);
       }
       current_op = levels[i]->GetCoarseCeed();
       current_ess_dofs = &levels[i]->GetCoarseEssentialDofList();
-      operators[i + 1] = new MFEMCeedOperator(current_op, *current_ess_dofs);
+      operators[i + 1] = new navier::MFEMCeedOperator(current_op, *current_ess_dofs);
    }
 
    mfem::Solver * coarsest_solver;
-   CeedMultigridLevel * coarsest = levels[num_levels - 2];
+   navier::CeedMultigridLevel * coarsest = levels[num_levels - 2];
 
    if (ceed_amg)
    {
       // bool use_amgx = (ceed_spec[1] == 'g'); // TODO very crude
       bool use_amgx = false;
       const int sparse_solver_type = 1; // single v-cycle
-      coarsest_solver = new CeedCGWithAMG(coarsest->GetCoarseCeed(),
-                                          coarsest->GetCoarseEssentialDofList(),
-                                          sparse_solver_type,
-                                          use_amgx);
+      coarsest_solver = new navier::CeedCGWithAMG(coarsest->GetCoarseCeed(),
+                                                  coarsest->GetCoarseEssentialDofList(),
+                                                  sparse_solver_type,
+                                                  use_amgx);
    } else {
       int coarse_cg_iterations = 10;  /// even less might be good
-      coarsest_solver = new CeedPlainCG(coarsest->GetCoarseCeed(),
-                                        coarsest->GetCoarseEssentialDofList(),
-                                        coarse_cg_iterations);
+      coarsest_solver = new navier::CeedPlainCG(coarsest->GetCoarseCeed(),
+                                                coarsest->GetCoarseEssentialDofList(),
+                                                coarse_cg_iterations);
    }
 
    // loop up from coarsest to build V-cycle solvers

@@ -9,13 +9,13 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_CEED_ALGEBRAIC_HPP
-#define MFEM_CEED_ALGEBRAIC_HPP
+#ifndef MFEM_CEED_ALGEBRAIC_NAVIER_HPP
+#define MFEM_CEED_ALGEBRAIC_NAVIER_HPP
 
 #include "mfem.hpp"
-#include "ceedsolvers-utility.h"
-#include "ceedsolvers-atpmg.h"
-#include "ceedsolvers-interpolation.h"
+#include "../../fem/libceed/ceedsolvers-utility.h"
+#include "../../fem/libceed/ceedsolvers-atpmg.h"
+#include "../../fem/libceed/ceedsolvers-interpolation.h"
 
 namespace mfem
 {

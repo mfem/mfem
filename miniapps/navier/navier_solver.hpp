@@ -14,9 +14,9 @@
 
 #define NAVIER_VERSION 0.1
 
+#include "ceed_algebraic_navier.hpp"
 #include "mfem.hpp"
 #include "ortho_solver.hpp"
-#include "ceed_algebraic.hpp"
 
 namespace mfem
 {

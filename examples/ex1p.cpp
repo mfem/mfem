@@ -58,6 +58,16 @@
 using namespace std;
 using namespace mfem;
 
+double fcoeff(const Vector& x)
+{
+   double out = sin(x[0]);
+   if (x.Size() > 1)
+      out *= sin(x[1]);
+   if (x.Size() > 2)
+      out *= sin(x[2]);
+   return 2.0 + out;
+}
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
@@ -73,6 +83,7 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
+   bool algebraic_ceed = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -86,6 +97,8 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+   args.AddOption(&algebraic_ceed, "-a", "--algebraic", "-no-a", "--no-algebraic",
+                  "Use algebraic Ceed solver");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -203,7 +216,18 @@ int main(int argc, char *argv[])
    //     domain integrator.
    ParBilinearForm a(&fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   a.AddDomainIntegrator(new DiffusionIntegrator(one));
+   FunctionCoefficient varying(fcoeff);
+   GridFunction gf(&fespace);
+   gf.ProjectCoefficient(varying);
+   GridFunctionCoefficient gfc_varying(&gf);
+
+   a.AddDomainIntegrator(new DiffusionIntegrator(gfc_varying));
+   // a.AddDomainIntegrator(new DiffusionIntegrator(one));
+   a.AddDomainIntegrator(new MassIntegrator(one));
+
+   // ceed implementations for the following work, but our ceed coarsening does not
+   // a.AddDomainIntegrator(new VectorDiffusionIntegrator);
+   // a.AddDomainIntegrator(new VectorMassIntegrator);
 
    // 12. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
@@ -224,7 +248,16 @@ int main(int argc, char *argv[])
    {
       if (UsesTensorBasis(fespace))
       {
-         prec = new OperatorJacobiSmoother(a, ess_tdof_list);
+#ifdef MFEM_USE_CEED         
+         if (DeviceCanUseCeed() && algebraic_ceed)
+         {
+            prec = new AlgebraicCeedSolver(*A, a, ess_tdof_list, true);
+         }
+         else
+#endif
+         {
+            prec = new OperatorJacobiSmoother(a, ess_tdof_list);
+         }
       }
    }
    else
