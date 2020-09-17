@@ -17,62 +17,6 @@ namespace mfem
 namespace navier
 {
 
-/// convenience function, ugly hack
-mfem::HypreParMatrix* SerialHypreMatrix(mfem::SparseMatrix& mat)
-{
-   HYPRE_Int row_starts[3];
-   row_starts[0] = 0;
-   row_starts[1] = mat.Height();
-   row_starts[2] = mat.Height();
-   mfem::HypreParMatrix * out = new mfem::HypreParMatrix(
-      MPI_COMM_WORLD, mat.Height(), row_starts, &mat);
-   out->CopyRowStarts();
-   out->CopyColStarts();
-
-   /// 3 gives MFEM full ownership of i, j, data
-   // out->SetOwnerFlags(3, out->OwnsOffd(), out->OwnsColMap());
-   // mat.LoseData();
-
-   return out;
-}
-
-UnconstrainedMFEMCeedOperator::UnconstrainedMFEMCeedOperator(CeedOperator oper) :
-   oper_(oper)
-{
-   int ierr = 0;
-   Ceed ceed;
-   ierr += CeedOperatorGetCeed(oper, &ceed);
-   CeedElemRestriction er;
-   ierr += CeedOperatorGetActiveElemRestriction(oper, &er);
-   int s;
-   ierr += CeedElemRestrictionGetLVectorSize(er, &s);
-   height = width = s;
-   ierr += CeedVectorCreate(ceed, height, &v_);
-   ierr += CeedVectorCreate(ceed, width, &u_);
-   MFEM_ASSERT(ierr == 0, "CEED error");
-}
-
-UnconstrainedMFEMCeedOperator::~UnconstrainedMFEMCeedOperator()
-{
-   int ierr = 0;
-   ierr += CeedVectorDestroy(&v_);
-   ierr += CeedVectorDestroy(&u_);
-   MFEM_ASSERT(ierr == 0, "CEED error");
-}
-
-void UnconstrainedMFEMCeedOperator::Mult(const mfem::Vector& x, mfem::Vector& y) const
-{
-   int ierr = 0;
-
-   ierr += CeedVectorSetArray(u_, CEED_MEM_HOST, CEED_USE_POINTER, x.GetData());
-   ierr += CeedVectorSetArray(v_, CEED_MEM_HOST, CEED_USE_POINTER, y.GetData());
-
-   ierr += CeedOperatorApply(oper_, u_, v_, CEED_REQUEST_IMMEDIATE);
-   ierr += CeedVectorSyncArray(v_, CEED_MEM_HOST);
-
-   MFEM_ASSERT(ierr == 0, "CEED error");
-}
-
 int MFEMCeedInterpolation::Initialize(
   Ceed ceed, CeedBasis basisctof,
   CeedElemRestriction erestrictu_coarse, CeedElemRestriction erestrictu_fine)
@@ -191,6 +135,25 @@ void CoarsenEssentialDofs(const mfem::Operator& mfem_interp,
          alg_lo_ess_tdof_list.Append(i);
       }
    }
+}
+
+/// convenience function, ugly hack
+mfem::HypreParMatrix* SerialHypreMatrix(mfem::SparseMatrix& mat)
+{
+   HYPRE_Int row_starts[3];
+   row_starts[0] = 0;
+   row_starts[1] = mat.Height();
+   row_starts[2] = mat.Height();
+   mfem::HypreParMatrix * out = new mfem::HypreParMatrix(
+      MPI_COMM_WORLD, mat.Height(), row_starts, &mat);
+   out->CopyRowStarts();
+   out->CopyColStarts();
+
+   /// 3 gives MFEM full ownership of i, j, data
+   // out->SetOwnerFlags(3, out->OwnsOffd(), out->OwnsColMap());
+   // mat.LoseData();
+
+   return out;
 }
 
 CeedCGWithAMG::CeedCGWithAMG(CeedOperator oper,

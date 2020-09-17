@@ -77,59 +77,6 @@ private:
    bool owns_basis_;
 };
 
-/**
-   Just wrap a Ceed operator in the mfem::Operator interface
-
-   This has no boundary conditions, I expect "users" (as if I had
-   any) to use MFEMCeedOperator (which defaults to this if you don't
-   give it essential dofs)
-*/
-class UnconstrainedMFEMCeedOperator : public mfem::Operator
-{
-public:
-   UnconstrainedMFEMCeedOperator(CeedOperator oper);
-   ~UnconstrainedMFEMCeedOperator();
-
-   virtual void Mult(const mfem::Vector& x, mfem::Vector& y) const;
-private:
-   CeedOperator oper_;
-   CeedVector u_, v_;   // mutable?
-};
-
-class MFEMCeedOperator : public mfem::Operator
-{
-public:
-   MFEMCeedOperator(CeedOperator oper, mfem::Array<int>& ess_tdofs) 
-      :
-      unconstrained_op_(oper)
-   {
-      unconstrained_op_.FormSystemOperator(ess_tdofs, constrained_op_);
-      height = width = unconstrained_op_.Height();
-   }
-
-   MFEMCeedOperator(CeedOperator oper)
-      :
-      unconstrained_op_(oper)
-   {
-      mfem::Array<int> empty;
-      unconstrained_op_.FormSystemOperator(empty, constrained_op_);
-      height = width = unconstrained_op_.Height();
-   }
-
-   ~MFEMCeedOperator()
-   {
-      delete constrained_op_;
-   }
-
-   void Mult(const mfem::Vector& x, mfem::Vector& y) const
-   {
-      constrained_op_->Mult(x, y);
-   }
-
-private:
-   UnconstrainedMFEMCeedOperator unconstrained_op_;
-   mfem::Operator * constrained_op_;
-};
 
 class CeedCGWithAMG : public mfem::Solver
 {
@@ -505,6 +452,26 @@ void UnconstrainedMFEMCeedOperator::Mult(const mfem::Vector& x, mfem::Vector& y)
    ierr += CeedVectorTakeArray(v_, mem, &y_ptr);
 
    MFEM_ASSERT(ierr == 0, "CEED error");
+}
+
+MFEMCeedOperator::MFEMCeedOperator(CeedOperator oper, mfem::Array<int>& ess_tdofs) 
+   :
+   unconstrained_op_(oper)
+{
+   unconstrained_op_.FormSystemOperator(ess_tdofs, constrained_op_);
+   height = width = unconstrained_op_.Height();
+}
+
+MFEMCeedOperator::MFEMCeedOperator(CeedOperator oper) : unconstrained_op_(oper)
+{
+   mfem::Array<int> empty;
+   unconstrained_op_.FormSystemOperator(empty, constrained_op_);
+   height = width = unconstrained_op_.Height();
+}
+
+void MFEMCeedOperator::Mult(const mfem::Vector& x, mfem::Vector& y) const
+{
+   constrained_op_->Mult(x, y);
 }
 
 mfem::Solver * BuildSmootherFromCeed(Operator * mfem_op, CeedOperator ceed_op,

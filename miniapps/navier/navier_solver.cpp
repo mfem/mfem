@@ -75,8 +75,8 @@ TryCeedSolver::TryCeedSolver(Operator& fine_mfem_op,
    MFEM_VERIFY(coarsen_strategy != 0 && coarsen_strategy != -1, "Bad coarsen strategy!");
    operators = new Operator*[num_levels];
    operators[0] = &fine_mfem_op;
-   levels = new mfem::CeedMultigridLevel*[num_levels - 1];
-   mfem::Array<int> * current_ess_dofs = &ess_dofs;
+   levels = new CeedMultigridLevel*[num_levels - 1];
+   Array<int> * current_ess_dofs = &ess_dofs;
    int current_order = order;
    for (int i = 0; i < num_levels - 1; ++i)
    {
@@ -86,22 +86,22 @@ TryCeedSolver::TryCeedSolver(Operator& fine_mfem_op,
          std::cout << "  order " << current_order << " reduced to " << current_order / -coarsen_strategy
                    << ", step " << order_reduction << std::endl;
          current_order = current_order / -coarsen_strategy;
-         levels[i] = new mfem::CeedMultigridLevel(current_op, *current_ess_dofs, order_reduction);
+         levels[i] = new CeedMultigridLevel(current_op, *current_ess_dofs, order_reduction);
       }
       else
       {
          std::cout << "  order " << current_order << " reduced to " << current_order - coarsen_strategy
                    << ", step " << coarsen_strategy << std::endl;
          current_order -= coarsen_strategy;
-         levels[i] = new mfem::CeedMultigridLevel(current_op, *current_ess_dofs, coarsen_strategy);
+         levels[i] = new CeedMultigridLevel(current_op, *current_ess_dofs, coarsen_strategy);
       }
       current_op = levels[i]->GetCoarseCeed();
       current_ess_dofs = &levels[i]->GetCoarseEssentialDofList();
-      operators[i + 1] = new navier::MFEMCeedOperator(current_op, *current_ess_dofs);
+      operators[i + 1] = new MFEMCeedOperator(current_op, *current_ess_dofs);
    }
 
-   mfem::Solver * coarsest_solver;
-   mfem::CeedMultigridLevel * coarsest = levels[num_levels - 2];
+   Solver * coarsest_solver;
+   CeedMultigridLevel * coarsest = levels[num_levels - 2];
 
    if (ceed_amg)
    {
@@ -133,8 +133,8 @@ TryCeedSolver::TryCeedSolver(Operator& fine_mfem_op,
    for (int i = 0; i < num_levels - 1; ++i)
    {
       int index = num_levels - 2 - i;
-      solvers[index] = new mfem::MFEMCeedVCycle(*levels[index], *operators[index],
-                                                *solvers[index + 1]);
+      solvers[index] = new MFEMCeedVCycle(*levels[index], *operators[index],
+                                          *solvers[index + 1]);
       if (ortho)
       {
          nonortho_solvers[index] = solvers[index];

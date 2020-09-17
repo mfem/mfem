@@ -21,12 +21,47 @@
 namespace mfem
 {
 
-int CeedOperatorFullAssemble(CeedOperator op, mfem::SparseMatrix ** mat);
-
-// forward declarations
+// forward declarations (too many?)
 class BilinearForm;
 class MFEMCeedVCycle;
 class MFEMCeedInterpolation;
+class SparseMatrix;
+
+int CeedOperatorFullAssemble(CeedOperator op, SparseMatrix ** mat);
+
+/**
+   Just wrap a Ceed operator in the mfem::Operator interface
+
+   This has no boundary conditions, I expect "users" (as if I had
+   any) to use MFEMCeedOperator (which defaults to this if you don't
+   give it essential dofs)
+*/
+class UnconstrainedMFEMCeedOperator : public mfem::Operator
+{
+public:
+   UnconstrainedMFEMCeedOperator(CeedOperator oper);
+   ~UnconstrainedMFEMCeedOperator();
+
+   virtual void Mult(const mfem::Vector& x, mfem::Vector& y) const;
+private:
+   CeedOperator oper_;
+   CeedVector u_, v_;   // mutable?
+};
+
+class MFEMCeedOperator : public mfem::Operator
+{
+public:
+   MFEMCeedOperator(CeedOperator oper, mfem::Array<int>& ess_tdofs) ;
+   MFEMCeedOperator(CeedOperator oper);
+
+   ~MFEMCeedOperator() { delete constrained_op_; }
+
+   void Mult(const mfem::Vector& x, mfem::Vector& y) const;
+
+private:
+   UnconstrainedMFEMCeedOperator unconstrained_op_;
+   mfem::Operator * constrained_op_;
+};
 
 /**
    This takes a CeedOperator with essential dofs 
