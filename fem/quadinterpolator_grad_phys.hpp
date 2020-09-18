@@ -33,7 +33,7 @@ static void PhysGrad2D(const int NE,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    const int VDIM = T_VDIM ? T_VDIM : vdim;
-   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+   static constexpr int NBZ = T_NBZ ? T_NBZ : 1;
 
    const auto b = Reshape(b_, Q1D, D1D);
    const auto g = Reshape(g_, Q1D, D1D);
@@ -48,7 +48,6 @@ static void PhysGrad2D(const int NE,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
-      constexpr int NBZ = T_NBZ ? T_NBZ : 1;
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
       const int tidz = MFEM_THREAD_ID(z);

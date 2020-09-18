@@ -31,7 +31,7 @@ static void Det2D(const int NE,
                   const int q1d = 0)
 {
    constexpr int DIM = 2;
-   constexpr int NBZ = 1;
+   static constexpr int NBZ = 1;
 
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -43,7 +43,6 @@ static void Det2D(const int NE,
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
-      constexpr int NBZ = 1;
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
       const int D1D = T_D1D ? T_D1D : d1d;
