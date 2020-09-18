@@ -5,6 +5,7 @@
 // Sample runs:  ex14 -m ../data/inline-quad.mesh -o 0
 //               ex14 -m ../data/star.mesh -r 4 -o 2
 //               ex14 -m ../data/star-mixed.mesh -r 4 -o 2
+//               ex14 -m ../data/star-mixed.mesh -r 2 -o 2 -k 0 -e 1
 //               ex14 -m ../data/escher.mesh -s 1
 //               ex14 -m ../data/fichera.mesh -s 1 -k 1
 //               ex14 -m ../data/fichera-mixed.mesh -s 1 -k 1
@@ -44,7 +45,7 @@ int main(int argc, char *argv[])
    int order = 1;
    double sigma = -1.0;
    double kappa = -1.0;
-   double eta = 1.0;
+   double eta = 0.0;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -132,8 +133,11 @@ int main(int argc, char *argv[])
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
    a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
    a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
-   a->AddInteriorFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
-   a->AddBdrFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
+   if (eta > 0)
+   {
+      a->AddInteriorFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
+      a->AddBdrFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
+   }
    a->Assemble();
    a->Finalize();
    const SparseMatrix &A = a->SpMat();
