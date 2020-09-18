@@ -148,10 +148,12 @@ if (MFEM_USE_CEED)
    list(APPEND SRCS
      libceed/diffusion.cpp
      libceed/convection.cpp
+     libceed/nlconvection.cpp
      libceed/mass.cpp)
    list(APPEND HDRS
      libceed/diffusion.hpp
      libceed/convection.hpp
+     libceed/nlconvection.hpp
      libceed/mass.hpp)
 endif()
 
