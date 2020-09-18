@@ -99,6 +99,9 @@ Discretization improvements
 - Added support for interpolation of functions in L2, H(div) and H(curl)
   spaces using GSLIB-FindPoints.
 
+- Added support for the "BR2" discontinuous Galerkin discretization for
+  diffusion via DGDiffusionBR2Integrator (see Example 14/14p).
+
 Linear and nonlinear solvers
 ----------------------------
 - Added power method to iteratively estimate the largest eigenvalue and the
