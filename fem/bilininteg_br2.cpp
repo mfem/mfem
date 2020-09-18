@@ -167,7 +167,6 @@ void DGDiffusionBR2Integrator::AssembleFaceMatrix(
          w /= 2;
       }
 
-      // Create matrices corresponding to term <[u]{v}>
       for (int i = 0; i < ndof1; i++)
       {
          const double wsi = w*shape1(i);
