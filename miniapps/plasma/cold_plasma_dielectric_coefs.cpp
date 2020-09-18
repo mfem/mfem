@@ -507,6 +507,10 @@ void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
    epsilon *= epsilon0_;
 }
 
+PlasmaProfile::PlasmaProfile()
+   : type_(CONSTANT)
+{}
+
 PlasmaProfile::PlasmaProfile(Type type, const Vector & params)
    : type_(type), p_(params), x_(3)
 {
@@ -514,6 +518,8 @@ PlasmaProfile::PlasmaProfile(Type type, const Vector & params)
                "Incorrect number of parameters, " << params.Size()
                << ", for profile of type: " << type << ".");
 }
+
+const int PlasmaProfile::np_[4] = {1, 7, 9, 7};
 
 double PlasmaProfile::Eval(ElementTransformation &T,
                            const IntegrationPoint &ip)
