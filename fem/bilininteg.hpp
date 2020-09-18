@@ -2065,6 +2065,9 @@ protected:
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
 
+   // CEED extension
+   CeedData* ceedDataPtr;
+
 private:
 #ifndef MFEM_THREAD_SAFE
    DenseMatrix dshape, adjJ, Q_ir;
@@ -2074,16 +2077,30 @@ private:
 public:
    ConvectionIntegrator(VectorCoefficient &q, double a = 1.0)
       : Q(&q) { alpha = a; }
+
+   ~ConvectionIntegrator()
+   {
+      delete ceedDataPtr;
+   }
+
    virtual void AssembleElementMatrix(const FiniteElement &,
                                       ElementTransformation &,
                                       DenseMatrix &);
 
    using BilinearFormIntegrator::AssemblePA;
 
+   virtual void AssembleMF(const FiniteElementSpace &fes);
+
    virtual void AssemblePA(const FiniteElementSpace&);
 
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
                            const bool add);
+
+   virtual void AssembleDiagonalPA(Vector &diag);
+
+   virtual void AssembleDiagonalMF(Vector &diag);
+
+   virtual void AddMultMF(const Vector&, Vector&) const;
 
    virtual void AddMultPA(const Vector&, Vector&) const;
 

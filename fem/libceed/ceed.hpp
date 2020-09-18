@@ -31,12 +31,13 @@ class FiniteElementSpace;
 class GridFunction;
 class IntegrationRule;
 class Coefficient;
+class VectorCoefficient;
 
 #ifdef MFEM_USE_CEED
 /// A structure used to pass additional data to f_build_diff and f_apply_diff
-struct BuildContext { CeedInt dim, space_dim, vdim; CeedScalar coeff; };
+struct BuildContext { CeedInt dim, space_dim, vdim; CeedScalar coeff[3]; };
 
-enum class CeedCoeff { Const, Grid, Quad };
+enum class CeedCoeff { Const, Grid, Quad, VecConst, VecGrid, VecQuad };
 
 struct CeedConstCoeff
 {
@@ -52,6 +53,26 @@ struct CeedGridCoeff
 };
 
 struct CeedQuadCoeff
+{
+   Vector coeff;
+   CeedElemRestriction restr;
+   CeedVector coeffVector;
+};
+
+struct CeedVecConstCoeff
+{
+   double val[3];
+};
+
+struct CeedVecGridCoeff
+{
+   const GridFunction* coeff;
+   CeedBasis basis;
+   CeedElemRestriction restr;
+   CeedVector coeffVector;
+};
+
+struct CeedVecQuadCoeff
 {
    Vector coeff;
    CeedElemRestriction restr;
@@ -134,6 +155,17 @@ struct CeedPAOperator
    std::string quad_func;
    /** The Qfunction to build the quad. data with a coefficient. */
    CeedQFunctionUser quad_qf;
+   /** The name of the Qfunction to build the quadrature data with a constant
+       vector coefficient.*/
+   std::string vec_const_func;
+   /** The Qfunction to build the quadrature data with constant vector 
+       coefficient. */
+   CeedQFunctionUser vec_const_qf;
+   /** The name of the Qfunction to build the quadrature data with a vector 
+       coefficient evaluated at quadrature points. */
+   std::string vec_quad_func;
+   /** The Qfunction to build the quad. data with a vector coefficient. */
+   CeedQFunctionUser vec_quad_qf;
    /** The name of the Qfunction to apply the operator. */
    std::string apply_func;
    /** The Qfunction to apply the operator. */
@@ -167,6 +199,18 @@ struct CeedMFOperator
    /** The Qfunction to apply the quad. data with a coefficient evaluated at
        quadrature point. */
    CeedQFunctionUser quad_qf;
+   /** The name of the Qfunction to apply the quadrature data with a constant
+       vector coefficient.*/
+   std::string vec_const_func;
+   /** The Qfunction to apply the quadrature data with constant vector 
+       coefficient. */
+   CeedQFunctionUser vec_const_qf;
+   /** The name of the Qfunction to apply the quadrature data with a vector 
+       coefficient evaluated at quadrature point. */
+   std::string vec_quad_func;
+   /** The Qfunction to apply the quad. data with a vector coefficient evaluated
+       at quadrature point. */
+   CeedQFunctionUser vec_quad_qf;
    /** The evaluation mode to apply to the trial function (CEED_EVAL_INTERP,
        CEED_EVAL_GRAD, etc.) */
    CeedEvalMode trial_op;
@@ -178,20 +222,25 @@ struct CeedMFOperator
 
 /** @brief Identifies the type of coefficient of the Integrator to initialize
     accordingly the CeedData. */
-void InitCeedCoeff(Coefficient* Q, Mesh &mesh, const IntegrationRule &ir,
-                   CeedData* ptr);
+void InitCeedCoeff(Coefficient *Q, Mesh &mesh, const IntegrationRule &ir,
+                   CeedData *ptr);
+
+/** @brief Identifies the type of vector coefficient of the Integrator to
+    initialize accordingly the CeedData. */
+void InitCeedVecCoeff(VectorCoefficient *VQ, Mesh &mesh,
+                      const IntegrationRule &ir, CeedData *ptr);
 
 /** This function initializes an arbitrary linear operator using the partial
     assembly decomposition in libCEED. The operator details are described by the
     struct CEEDPAOperator input. */
 void CeedPAAssemble(const CeedPAOperator& op,
-                    CeedData& ceedData);
+                    CeedData &ceedData);
 
 /** This function initializes an arbitrary linear operator using a fully matrix
     free decomposition. The operator details are described by the
     struct CEEDPAOperator input. */
 void CeedMFAssemble(const CeedMFOperator& op,
-                    CeedData& ceedData);
+                    CeedData &ceedData);
 
 /** @brief Function that applies a libCEED operator. */
 void CeedAddMult(const CeedData *ceedDataPtr,

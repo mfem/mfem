@@ -60,6 +60,15 @@ static std::string getString(CeedCoeff coeff_type)
    case CeedCoeff::Quad:
       return "Quad";
       break;
+   case CeedCoeff::VecConst:
+      return "VecConst";
+      break;
+   case CeedCoeff::VecGrid:
+      return "VecGrid";
+      break;
+   case CeedCoeff::VecQuad:
+      return "VecQuad";
+      break;
    }
 }
 
