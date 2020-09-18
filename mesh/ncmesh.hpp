@@ -349,7 +349,7 @@ public:
 
    int PrintMemoryDetail() const;
 
-   typedef int64_t RefCoord;
+   typedef std::int64_t RefCoord;
 
 
 protected: // interface for Mesh to be able to construct itself from NCMesh
@@ -361,7 +361,7 @@ protected: // interface for Mesh to be able to construct itself from NCMesh
 
    /** Get edge and face numbering from 'mesh' (i.e., set all Edge::index and
        Face::index) after a new mesh was created from us. */
-   virtual void OnMeshUpdated(Mesh *mesh);
+   void OnMeshUpdated(Mesh *mesh);
 
 
 protected: // implementation
@@ -443,6 +443,7 @@ protected: // implementation
       bool IsLeaf() const { return !ref_type && (parent != -2); }
    };
 
+
    // primary data
 
    HashTable<Node> nodes; // associative container holding all Nodes
@@ -466,17 +467,20 @@ protected: // implementation
    /** Apart from the primary data structure, which is the element/node/face
        hierarchy, there is secondary data that is derived from the primary
        data and needs to be updated when the primary data changes. Update()
-       takes care of that and needs to be called after refinement and
+       takes care of that and needs to be called after each refinement and
        derefinement. */
    virtual void Update();
 
-   int NElements, NGhostElements; // set by UpdateLeafElements
-   int NVertices, NGhostVertices; // set by UpdateVertices
-   int NEdges, NFaces; // set by OnMeshUpdated
+   // set by UpdateLeafElements, UpdateVertices and OnMeshUpdated
+   int NElements, NVertices, NEdges, NFaces;
 
-   Array<int> leaf_elements; // finest level elements in Mesh ordering (+ghosts)
-   Array<int> leaf_sfc_index; // original tree ordering of leaf elements
-   Array<int> vertex_nodeId; // vertex-index to node-id map, see UpdateVertices
+   // NOTE: the serial code understands the bare minimum about ghost elements and
+   // other ghost entities in order to be able to load parallel partial meshes
+   int NGhostElements, NGhostVertices, NGhostEdges, NGhostFaces;
+
+   Array<int> leaf_elements; ///< finest elements, in Mesh ordering (+ ghosts)
+   Array<int> leaf_sfc_index; ///< natural tree ordering of leaf elements
+   Array<int> vertex_nodeId; ///< vertex-index to node-id map, see UpdateVertices
 
    NCList face_list; ///< lazy-initialized list of faces, see GetFaceList
    NCList edge_list; ///< lazy-initialized list of edges, see GetEdgeList

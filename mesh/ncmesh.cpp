@@ -1854,7 +1854,7 @@ void NCMesh::CollectLeafElements(int elem, int state, Array<int> &ghosts,
       }
       else
       {
-         // elements beyond the ghost layer are invalid and don't exist in
+         // elements beyond the ghost layer are invalid and don't appear in
          // 'leaf_elements' (also for performance reasons)
          el.index = -1;
       }
@@ -1942,7 +1942,7 @@ void NCMesh::UpdateVertices()
    //   3. Assign vertices in a globally consistent order for parallel meshes:
    //      if two vertices i,j are shared by two ranks r1,r2, and i<j on r1,
    //      then i<j on r2 as well. This is true for top-level vertices but also
-   //      for the remaining non-ghost ones thanks to the globally consistent
+   //      for the remaining shared vertices thanks to the globally consistent
    //      SFC ordering of the leaf elements. This property reduces communication
    //      and simplifies ParNCMesh.
 
@@ -2238,12 +2238,23 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
 
 void NCMesh::OnMeshUpdated(Mesh *mesh)
 {
+   //// PART 1: pull indices of regular edges/faces from the Mesh
+
    NEdges = mesh->GetNEdges();
    NFaces = mesh->GetNumFaces();
 
-   Table *edge_vertex = mesh->GetEdgeVertexTable();
+   // clear Node::edge_index and Face::index
+   for (auto node = nodes.begin(); node != nodes.end(); ++node)
+   {
+      if (node->HasEdge()) { node->edge_index = -1; }
+   }
+   for (auto face = faces.begin(); face != faces.end(); ++face)
+   {
+      face->index = -1;
+   }
 
    // get edge enumeration from the Mesh
+   Table *edge_vertex = mesh->GetEdgeVertexTable();
    for (int i = 0; i < edge_vertex->Size(); i++)
    {
       const int *ev = edge_vertex->GetRow(i);
@@ -2294,9 +2305,76 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
                      (ev[1] == fv[0] && ev[0] == fv[1]), "");
 #endif
       }
+
       MFEM_VERIFY(face, "face not found.");
       face->index = i;
    }
+
+   //// PART 2: assign indices of ghost edges/faces, if any
+
+   // count ghost edges and assign their indices
+   NGhostEdges = 0;
+   for (auto node = nodes.begin(); node != nodes.end(); ++node)
+   {
+      if (node->HasEdge() && node->edge_index < 0)
+      {
+         node->edge_index = NEdges + (NGhostEdges++);
+      }
+   }
+
+   // count ghost faces
+   NGhostFaces = 0;
+   for (auto face = faces.begin(); face != faces.end(); ++face)
+   {
+      if (face->index < 0) { NGhostFaces++; }
+   }
+
+   if (Dim == 2)
+   {
+      // in 2D we have fake faces because of DG
+      MFEM_ASSERT(NFaces == NEdges, "");
+      MFEM_ASSERT(NGhostFaces == NGhostEdges, "");
+   }
+
+   // resize face_geom (default_geom is for slave faces beyond the ghost layer)
+   Geometry::Type default_geom = Geometry::SQUARE;
+   face_geom.SetSize(NFaces + NGhostFaces, default_geom);
+
+   // update 'face_geom' for ghost faces, assign ghost face indices
+   int nghosts = 0;
+   for (int i = 0; i < NGhostElements; i++)
+   {
+      Element &el = elements[leaf_elements[NElements + i]]; // ghost element
+      GeomInfo &gi = GI[el.Geom()];
+
+      for (int j = 0; j < gi.nf; j++)
+      {
+         const int *fv = gi.faces[j];
+         Face* face = faces.Find(el.node[fv[0]], el.node[fv[1]],
+                                 el.node[fv[2]], el.node[fv[3]]);
+         MFEM_ASSERT(face, "face not found!");
+
+         if (face->index < 0)
+         {
+            face->index = NFaces + (nghosts++);
+
+            // store the face geometry
+            static const Geometry::Type types[5] =
+            {
+               Geometry::INVALID, Geometry::INVALID,
+               Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::SQUARE
+            };
+            face_geom[face->index] = types[gi.nfv[j]];
+         }
+      }
+   }
+
+   // assign valid indices also to faces beyond the ghost layer
+   for (auto face = faces.begin(); face != faces.end(); ++face)
+   {
+      if (face->index < 0) { face->index = NFaces + (nghosts++); }
+   }
+   MFEM_ASSERT(nghosts == NGhostFaces, "");
 }
 
 
@@ -2816,11 +2894,8 @@ void NCMesh::BuildEdgeList()
          }
 
          // store element/local for later
-         if (nd.edge_index >= 0)
-         {
-            edge_element[nd.edge_index] = elem;
-            edge_local[nd.edge_index] = j;
-         }
+         edge_element[nd.edge_index] = elem;
+         edge_local[nd.edge_index] = j;
 
          // skip slave edges here, they will be reached from their masters
          if (GetEdgeMaster(enode) >= 0) { continue; }
