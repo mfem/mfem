@@ -320,7 +320,7 @@ void CeedPAAssemble(const CeedPAOperator& op,
          break;
       case CeedCoeff::VecGrid:
       {
-         CeedGridCoeff* gridCoeff = (CeedGridCoeff*)ceedData.coeff;
+         CeedVecGridCoeff* gridCoeff = (CeedVecGridCoeff*)ceedData.coeff;
          InitCeedBasisAndRestriction(*gridCoeff->coeff->FESpace(), irm, ceed,
                                      &gridCoeff->basis,
                                      &gridCoeff->restr);
@@ -330,7 +330,7 @@ void CeedPAAssemble(const CeedPAOperator& op,
       break;
       case CeedCoeff::VecQuad:
       {
-         CeedQuadCoeff* quadCoeff = (CeedQuadCoeff*)ceedData.coeff;
+         CeedVecQuadCoeff* quadCoeff = (CeedVecQuadCoeff*)ceedData.coeff;
          const int ncomp = dim;
          CeedInt strides[3] = {1, nqpts, ncomp*nqpts};
          CeedElemRestrictionCreateStrided(ceed, nelem, nqpts, ncomp,
@@ -444,7 +444,7 @@ void CeedMFAssemble(const CeedMFOperator& op,
             qf = qf_file + op.vec_const_func;
             CeedQFunctionCreateInterior(ceed, 1, op.vec_const_qf,
                                        qf.c_str(),
-                                       &ceedData.build_qfunc);
+                                       &ceedData.apply_qfunc);
             CeedVecConstCoeff *coeff = static_cast<CeedVecConstCoeff*>(ceedData.coeff);
             for (size_t i = 0; i < dim; i++)
             {
@@ -456,15 +456,15 @@ void CeedMFAssemble(const CeedMFOperator& op,
          qf = qf_file + op.vec_quad_func;
          CeedQFunctionCreateInterior(ceed, 1, op.vec_quad_qf,
                                      qf.c_str(),
-                                     &ceedData.build_qfunc);
-         CeedQFunctionAddInput(ceedData.build_qfunc, "coeff", dim, CEED_EVAL_INTERP);
+                                     &ceedData.apply_qfunc);
+         CeedQFunctionAddInput(ceedData.apply_qfunc, "coeff", dim, CEED_EVAL_INTERP);
          break;
       case CeedCoeff::VecQuad:
          qf = qf_file + op.vec_quad_func;
          CeedQFunctionCreateInterior(ceed, 1, op.vec_quad_qf,
                                      qf.c_str(),
-                                     &ceedData.build_qfunc);
-         CeedQFunctionAddInput(ceedData.build_qfunc, "coeff", dim, CEED_EVAL_NONE);
+                                     &ceedData.apply_qfunc);
+         CeedQFunctionAddInput(ceedData.apply_qfunc, "coeff", dim, CEED_EVAL_NONE);
          break;
    }
    CeedQFunctionAddInput(ceedData.apply_qfunc, "u", dimU, op.trial_op);
@@ -512,23 +512,23 @@ void CeedMFAssemble(const CeedMFOperator& op,
          break;
       case CeedCoeff::VecGrid:
       {
-         CeedGridCoeff* gridCoeff = (CeedGridCoeff*)ceedData.coeff;
+         CeedVecGridCoeff* gridCoeff = (CeedVecGridCoeff*)ceedData.coeff;
          InitCeedBasisAndRestriction(*gridCoeff->coeff->FESpace(), irm, ceed,
                                      &gridCoeff->basis,
                                      &gridCoeff->restr);
-         CeedOperatorSetField(ceedData.build_oper, "coeff", gridCoeff->restr,
+         CeedOperatorSetField(ceedData.oper, "coeff", gridCoeff->restr,
                               gridCoeff->basis, gridCoeff->coeffVector);
       }
       break;
       case CeedCoeff::VecQuad:
       {
-         CeedQuadCoeff* quadCoeff = (CeedQuadCoeff*)ceedData.coeff;
+         CeedVecQuadCoeff* quadCoeff = (CeedVecQuadCoeff*)ceedData.coeff;
          const int ncomp = dim;
          CeedInt strides[3] = {1, nqpts, ncomp*nqpts};
          CeedElemRestrictionCreateStrided(ceed, nelem, nqpts, ncomp,
                                           nelem*ncomp*nqpts, strides,
                                           &quadCoeff->restr);
-         CeedOperatorSetField(ceedData.build_oper, "coeff", quadCoeff->restr,
+         CeedOperatorSetField(ceedData.oper, "coeff", quadCoeff->restr,
                               CEED_BASIS_COLLOCATED, quadCoeff->coeffVector);
       }
       break;
