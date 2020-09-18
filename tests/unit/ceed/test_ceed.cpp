@@ -32,8 +32,8 @@ void velocity_function(const Vector &x, Vector &v)
    switch (dim)
    {
       case 1: v(0) = 1.0; break;
-      case 2: v(0) = sqrt(2./3.); v(1) = sqrt(1./3.); break;
-      case 3: v(0) = sqrt(3./6.); v(1) = sqrt(2./6.); v(2) = sqrt(1./6.); break;
+      case 2: v(0) = 1.0; v(1) = 1.0; break;
+      case 3: v(0) = 1.0; v(1) = 1.0; v(2) = 1.0; break;
    }
 }
 
