@@ -261,8 +261,6 @@ protected: // implementation
    MPI_Comm MyComm;
    int NRanks;
 
-   int NGhostEdges, NGhostFaces;
-
    typedef std::vector<CommGroup> GroupList;
    typedef std::map<CommGroup, GroupId> GroupMap;
 
@@ -311,8 +309,6 @@ protected: // implementation
    /// Return the global index of the first element owned by processor 'rank'.
    long PartitionFirstIndex(int rank, long total_elements) const
    { return (rank * total_elements + NRanks-1) / NRanks; }
-
-   virtual void OnMeshUpdated(Mesh *mesh);
 
    virtual void BuildFaceList();
    virtual void BuildEdgeList();

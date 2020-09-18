@@ -52,9 +52,14 @@ ParNCMesh::ParNCMesh(MPI_Comm comm, std::istream &input, int version,
 {
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
-   MPI_Comm_rank(MyComm, &MyRank);
 
-   // TODO? Check that the NCMeshes loaded above are compatible across ranks?
+   int myrank;
+   MPI_Comm_rank(MyComm, &myrank);
+
+   MFEM_VERIFY(myrank == MyRank,
+               "Current MPI rank is not equal to the rank in the mesh file. "
+               "Loading a parallel NC mesh with a non-matching communicator "
+               "size is not supported.");
 
    bool iso = Iso;
    MPI_Allreduce(&iso, &Iso, 1, MPI_C_BOOL, MPI_LAND, MyComm);
@@ -104,6 +109,7 @@ void ParNCMesh::Update()
    boundary_layer.SetSize(0);
 }
 
+#if 0
 void ParNCMesh::OnMeshUpdated(Mesh *mesh)
 {
    // This is an override (or extension of) NCMesh::OnMeshUpdated().
@@ -189,6 +195,7 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
    }
    MFEM_ASSERT(nghosts == NGhostFaces, "");
 }
+#endif
 
 void ParNCMesh::ElementSharesFace(int elem, int local, int face)
 {
