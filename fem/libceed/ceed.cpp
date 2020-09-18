@@ -357,22 +357,94 @@ void CeedPAAssemble(const CeedPAOperator& op,
    CeedQFunctionCreateInterior(ceed, 1, op.apply_qf,
                                qf.c_str(),
                                &ceedData.apply_qfunc);
-   CeedInt dimU = vdim*(op.trial_op==CEED_EVAL_GRAD ? dim : 1);
-   CeedInt dimV = vdim*(op.test_op==CEED_EVAL_GRAD ? dim : 1);
-   CeedQFunctionAddInput(ceedData.apply_qfunc, "u", dimU, op.trial_op);
+   // input
+   switch (op.trial_op)
+   {
+   case EvalMode::None:
+      CeedQFunctionAddInput(ceedData.apply_qfunc, "u", vdim, CEED_EVAL_NONE);
+      break;
+   case EvalMode::Interp:
+      CeedQFunctionAddInput(ceedData.apply_qfunc, "u", vdim, CEED_EVAL_INTERP);
+      break;
+   case EvalMode::Grad:
+      CeedQFunctionAddInput(ceedData.apply_qfunc, "gu", vdim*dim, CEED_EVAL_GRAD);
+      break;
+   case EvalMode::InterAndGrad:
+      CeedQFunctionAddInput(ceedData.apply_qfunc, "u", vdim, CEED_EVAL_INTERP);
+      CeedQFunctionAddInput(ceedData.apply_qfunc, "gu", vdim*dim, CEED_EVAL_GRAD);
+      break;
+   }
+   // qdata
    CeedQFunctionAddInput(ceedData.apply_qfunc, "qdata", qdatasize,
                          CEED_EVAL_NONE);
-   CeedQFunctionAddOutput(ceedData.apply_qfunc, "v", dimV, op.test_op);
+   // output
+   switch (op.test_op)
+   {
+   case EvalMode::None:
+      CeedQFunctionAddInput(ceedData.apply_qfunc, "v", vdim, CEED_EVAL_NONE);
+      break;
+   case EvalMode::Interp:
+      CeedQFunctionAddInput(ceedData.apply_qfunc, "v", vdim, CEED_EVAL_INTERP);
+      break;
+   case EvalMode::Grad:
+      CeedQFunctionAddInput(ceedData.apply_qfunc, "gv", vdim*dim, CEED_EVAL_GRAD);
+      break;
+   case EvalMode::InterAndGrad:
+      CeedQFunctionAddInput(ceedData.apply_qfunc, "v", vdim, CEED_EVAL_INTERP);
+      CeedQFunctionAddInput(ceedData.apply_qfunc, "gv", vdim*dim, CEED_EVAL_GRAD);
+      break;
+   }
    CeedQFunctionSetContext(ceedData.apply_qfunc, ceedData.build_ctx);
 
    // Create the operator.
    CeedOperatorCreate(ceed, ceedData.apply_qfunc, NULL, NULL, &ceedData.oper);
-   CeedOperatorSetField(ceedData.oper, "u", ceedData.restr, ceedData.basis,
-                        CEED_VECTOR_ACTIVE);
+   // input
+   switch (op.trial_op)
+   {
+   case EvalMode::None:
+      CeedOperatorSetField(ceedData.oper, "u", ceedData.restr,
+                           CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE);
+      break;
+   case EvalMode::Interp:
+      CeedOperatorSetField(ceedData.oper, "u", ceedData.restr, ceedData.basis,
+                           CEED_VECTOR_ACTIVE);
+      break;
+   case EvalMode::Grad:
+      CeedOperatorSetField(ceedData.oper, "gu", ceedData.restr, ceedData.basis,
+                           CEED_VECTOR_ACTIVE);
+      break;
+   case EvalMode::InterAndGrad:
+      CeedOperatorSetField(ceedData.oper, "u", ceedData.restr, ceedData.basis,
+                           CEED_VECTOR_ACTIVE);
+      CeedOperatorSetField(ceedData.oper, "gu", ceedData.restr, ceedData.basis,
+                           CEED_VECTOR_ACTIVE);
+      break;
+   }
+   // qdata
    CeedOperatorSetField(ceedData.oper, "qdata", ceedData.restr_i,
                         CEED_BASIS_COLLOCATED, ceedData.rho);
-   CeedOperatorSetField(ceedData.oper, "v", ceedData.restr, ceedData.basis,
-                        CEED_VECTOR_ACTIVE);
+   // output
+   switch (op.test_op)
+   {
+   case EvalMode::None:
+      CeedOperatorSetField(ceedData.oper, "v", ceedData.restr,
+                           CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE);
+      break;
+   case EvalMode::Interp:
+      CeedOperatorSetField(ceedData.oper, "v", ceedData.restr, ceedData.basis,
+                           CEED_VECTOR_ACTIVE);
+      break;
+   case EvalMode::Grad:
+      CeedOperatorSetField(ceedData.oper, "gv", ceedData.restr, ceedData.basis,
+                           CEED_VECTOR_ACTIVE);
+      break;
+   case EvalMode::InterAndGrad:
+      CeedOperatorSetField(ceedData.oper, "v", ceedData.restr, ceedData.basis,
+                           CEED_VECTOR_ACTIVE);
+      CeedOperatorSetField(ceedData.oper, "gv", ceedData.restr, ceedData.basis,
+                           CEED_VECTOR_ACTIVE);
+      break;
+   }
 
    CeedVectorCreate(ceed, vdim*fes.GetNDofs(), &ceedData.u);
    CeedVectorCreate(ceed, vdim*fes.GetNDofs(), &ceedData.v);
@@ -414,8 +486,6 @@ void CeedMFAssemble(const CeedMFOperator& op,
 
    // Create the Q-function that builds the operator (i.e. computes its
    // quadrature data) and set its context data.
-   CeedInt dimU = vdim*(op.trial_op==CEED_EVAL_GRAD ? dim : 1);
-   CeedInt dimV = vdim*(op.test_op==CEED_EVAL_GRAD ? dim : 1);
    switch (ceedData.coeff_type)
    {
       case CeedCoeff::Const:
@@ -467,10 +537,42 @@ void CeedMFAssemble(const CeedMFOperator& op,
          CeedQFunctionAddInput(ceedData.apply_qfunc, "coeff", dim, CEED_EVAL_NONE);
          break;
    }
-   CeedQFunctionAddInput(ceedData.apply_qfunc, "u", dimU, op.trial_op);
+   // input
+   switch (op.trial_op)
+   {
+   case EvalMode::None:
+      CeedQFunctionAddInput(ceedData.apply_qfunc, "u", vdim, CEED_EVAL_NONE);
+      break;
+   case EvalMode::Interp:
+      CeedQFunctionAddInput(ceedData.apply_qfunc, "u", vdim, CEED_EVAL_INTERP);
+      break;
+   case EvalMode::Grad:
+      CeedQFunctionAddInput(ceedData.apply_qfunc, "gu", vdim*dim, CEED_EVAL_GRAD);
+      break;
+   case EvalMode::InterAndGrad:
+      CeedQFunctionAddInput(ceedData.apply_qfunc, "u", vdim, CEED_EVAL_INTERP);
+      CeedQFunctionAddInput(ceedData.apply_qfunc, "gu", vdim*dim, CEED_EVAL_GRAD);
+      break;
+   }
    CeedQFunctionAddInput(ceedData.apply_qfunc, "dx", dim * dim, CEED_EVAL_GRAD);
    CeedQFunctionAddInput(ceedData.apply_qfunc, "weights", 1, CEED_EVAL_WEIGHT);
-   CeedQFunctionAddOutput(ceedData.apply_qfunc, "v", dimV, op.test_op);
+   // output
+   switch (op.test_op)
+   {
+   case EvalMode::None:
+      CeedQFunctionAddInput(ceedData.apply_qfunc, "v", vdim, CEED_EVAL_NONE);
+      break;
+   case EvalMode::Interp:
+      CeedQFunctionAddInput(ceedData.apply_qfunc, "v", vdim, CEED_EVAL_INTERP);
+      break;
+   case EvalMode::Grad:
+      CeedQFunctionAddInput(ceedData.apply_qfunc, "gv", vdim*dim, CEED_EVAL_GRAD);
+      break;
+   case EvalMode::InterAndGrad:
+      CeedQFunctionAddInput(ceedData.apply_qfunc, "v", vdim, CEED_EVAL_INTERP);
+      CeedQFunctionAddInput(ceedData.apply_qfunc, "gv", vdim*dim, CEED_EVAL_GRAD);
+      break;
+   }
 
    CeedQFunctionContextCreate(ceed, &ceedData.build_ctx);
    CeedQFunctionContextSetData(ceedData.build_ctx, CEED_MEM_HOST, CEED_USE_POINTER,
@@ -480,8 +582,7 @@ void CeedMFAssemble(const CeedMFOperator& op,
 
    // Create the operator.
    CeedOperatorCreate(ceed, ceedData.apply_qfunc, NULL, NULL, &ceedData.oper);
-   CeedOperatorSetField(ceedData.oper, "u", ceedData.restr, ceedData.basis,
-                        CEED_VECTOR_ACTIVE);
+   // coefficient
    switch (ceedData.coeff_type)
    {
       case CeedCoeff::Const:
@@ -533,12 +634,54 @@ void CeedMFAssemble(const CeedMFOperator& op,
       }
       break;
    }
+   // input
+   switch (op.trial_op)
+   {
+   case EvalMode::None:
+      CeedOperatorSetField(ceedData.oper, "u", ceedData.restr,
+                           CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE);
+      break;
+   case EvalMode::Interp:
+      CeedOperatorSetField(ceedData.oper, "u", ceedData.restr, ceedData.basis,
+                           CEED_VECTOR_ACTIVE);
+      break;
+   case EvalMode::Grad:
+      CeedOperatorSetField(ceedData.oper, "gu", ceedData.restr, ceedData.basis,
+                           CEED_VECTOR_ACTIVE);
+      break;
+   case EvalMode::InterAndGrad:
+      CeedOperatorSetField(ceedData.oper, "u", ceedData.restr, ceedData.basis,
+                           CEED_VECTOR_ACTIVE);
+      CeedOperatorSetField(ceedData.oper, "gu", ceedData.restr, ceedData.basis,
+                           CEED_VECTOR_ACTIVE);
+      break;
+   }
    CeedOperatorSetField(ceedData.oper, "dx", ceedData.mesh_restr,
                         ceedData.mesh_basis, ceedData.node_coords);
    CeedOperatorSetField(ceedData.oper, "weights", CEED_ELEMRESTRICTION_NONE,
                         ceedData.mesh_basis, CEED_VECTOR_NONE);
-   CeedOperatorSetField(ceedData.oper, "v", ceedData.restr, ceedData.basis,
-                        CEED_VECTOR_ACTIVE);
+   // output
+   switch (op.test_op)
+   {
+   case EvalMode::None:
+      CeedOperatorSetField(ceedData.oper, "v", ceedData.restr,
+                           CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE);
+      break;
+   case EvalMode::Interp:
+      CeedOperatorSetField(ceedData.oper, "v", ceedData.restr, ceedData.basis,
+                           CEED_VECTOR_ACTIVE);
+      break;
+   case EvalMode::Grad:
+      CeedOperatorSetField(ceedData.oper, "gv", ceedData.restr, ceedData.basis,
+                           CEED_VECTOR_ACTIVE);
+      break;
+   case EvalMode::InterAndGrad:
+      CeedOperatorSetField(ceedData.oper, "v", ceedData.restr, ceedData.basis,
+                           CEED_VECTOR_ACTIVE);
+      CeedOperatorSetField(ceedData.oper, "gv", ceedData.restr, ceedData.basis,
+                           CEED_VECTOR_ACTIVE);
+      break;
+   }
 
    CeedVectorCreate(ceed, vdim*fes.GetNDofs(), &ceedData.u);
    CeedVectorCreate(ceed, vdim*fes.GetNDofs(), &ceedData.v);

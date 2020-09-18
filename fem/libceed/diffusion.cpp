@@ -36,8 +36,8 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
                             "", nullptr,
                             "", nullptr,
                             ":f_apply_diff", f_apply_diff,
-                            CEED_EVAL_GRAD,
-                            CEED_EVAL_GRAD
+                            EvalMode::Grad,
+                            EvalMode::Grad
                            };
    CeedPAAssemble(diffOp, ceedData);
 #else
@@ -55,8 +55,8 @@ void CeedMFDiffusionAssemble(const FiniteElementSpace &fes,
                             ":f_apply_diff_mf_quad", f_apply_diff_mf_quad,
                             "", nullptr,
                             "", nullptr,
-                            CEED_EVAL_GRAD,
-                            CEED_EVAL_GRAD
+                            EvalMode::Grad,
+                            EvalMode::Grad
                            };
    CeedMFAssemble(diffOp, ceedData);
 #else

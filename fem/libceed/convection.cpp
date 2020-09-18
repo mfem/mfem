@@ -36,8 +36,8 @@ void CeedPAConvectionAssemble(const FiniteElementSpace &fes,
                             ":f_build_conv_const", f_build_conv_const,
                             ":f_build_conv_quad", f_build_conv_quad,
                             ":f_apply_conv", f_apply_conv,
-                            CEED_EVAL_GRAD,
-                            CEED_EVAL_INTERP
+                            EvalMode::Grad,
+                            EvalMode::Interp
                            };
    CeedPAAssemble(convOp, ceedData);
 #else
@@ -55,8 +55,8 @@ void CeedMFConvectionAssemble(const FiniteElementSpace &fes,
                             "", nullptr,
                             ":f_apply_conv_mf_const", f_apply_conv_mf_const,
                             ":f_apply_conv_mf_quad", f_apply_conv_mf_quad,
-                            CEED_EVAL_GRAD,
-                            CEED_EVAL_INTERP
+                            EvalMode::Grad,
+                            EvalMode::Interp
                            };
    CeedMFAssemble(convOp, ceedData);
 #else
