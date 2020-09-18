@@ -125,48 +125,7 @@ void B_func(const Vector &x, Vector &E);
 // any function could be used.
 void e_bc_r(const Vector &x, Vector &E);
 void e_bc_i(const Vector &x, Vector &E);
-/*
-class StixLCoefficient : public Coefficient
-{
-private:
-   double   omega_;
-   VectorCoefficient & B_;
-   const Vector & number_;
-   const Vector & charge_;
-   const Vector & mass_;
-   const Vector & temp_;
-   mutable Vector BVec_;
 
-  bool realPart_;
-
-public:
-   StixLCoefficient(double omega, VectorCoefficient &B,
-                    const Vector & number,
-                    const Vector & charge,
-                    const Vector & mass,
-                    const Vector & temp,
-          bool realPart = true)
-      : omega_(omega),
-        B_(B),
-        number_(number),
-        charge_(charge),
-        mass_(mass),
-        temp_(temp),
-        BVec_(3),
-   realPart_(realPart)
-   {}
-
-   double Eval(ElementTransformation &T,
-               const IntegrationPoint &ip)
-   {
-      B_.Eval(BVec_, T, ip);
-      double BMag = BVec_.Norml2();
-      complex<double> L = L_cold_plasma(omega_, BMag, number_, charge_,
-               mass_, temp_);
-      return realPart_ ? L.real() : L.imag();
-   }
-};
-*/
 class ColdPlasmaPlaneWave: public VectorCoefficient
 {
 public:
@@ -198,7 +157,7 @@ private:
    double Lx_;
    Vector k_;
 
-   const Vector & B_;
+   // const Vector & B_;
    const Vector & numbers_;
    const Vector & charges_;
    const Vector & masses_;
@@ -226,8 +185,6 @@ void Update(ParFiniteElementSpace & H1FESpace,
             ParGridFunction & density_gf,
             ParGridFunction & temperature_gf);
 
-//static double freq_ = 1.0e9;
-
 // Mesh Size
 static Vector mesh_dim_(0); // x, y, z dimensions of mesh
 
@@ -245,11 +202,8 @@ int main(int argc, char *argv[])
    // Parse command-line options.
    int order = 1;
    int maxit = 1;
-   // int serial_ref_levels = 0;
-   // int parallel_ref_levels = 0;
    int sol = 2;
    int prec = 1;
-   // int nspecies = 2;
    bool herm_conv = false;
    bool vis_u = false;
    bool visualization = true;
@@ -293,8 +247,6 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   // args.AddOption(&nspecies, "-ns", "--num-species",
-   //               "Number of ion species.");
    args.AddOption(&freq, "-f", "--frequency",
                   "Frequency in Hertz (of course...)");
    args.AddOption((int*)&dpt, "-dp", "--density-profile",
@@ -612,13 +564,6 @@ int main(int argc, char *argv[])
    Mesh * mesh = new Mesh(num_elements, 3, 3, Element::HEXAHEDRON, 1,
                           mesh_dim_(0), mesh_dim_(1), mesh_dim_(2));
    {
-      /*
-      vector<Vector> trans(2);
-      trans[0].SetSize(3);
-      trans[1].SetSize(3);
-      trans[0] = 0.0; trans[0][1] = mesh_dim_[1];
-      trans[1] = 0.0; trans[1][2] = mesh_dim_[2];
-      */
       Array<int> v2v(mesh->GetNV());
       for (int i=0; i<v2v.Size(); i++) { v2v[i] = i; }
       for (int i=0; i<=num_elements; i++)
@@ -645,29 +590,6 @@ int main(int argc, char *argv[])
       }
 
       Mesh * per_mesh = MakePeriodicMesh(mesh, v2v);
-      /*
-      ofstream ofs("per_mesh.mesh");
-      per_mesh->Print(ofs);
-      ofs.close();
-      cout << "Chekcing eltrans from mesh" << endl;
-      for (int i=0; i<mesh->GetNBE(); i++)
-      {
-        ElementTransformation * eltrans = mesh->GetBdrElementTransformation(i);
-        cout << i
-        << '\t' << eltrans->ElementNo
-        << '\t' << eltrans->Attribute
-        << endl;
-      }
-      cout << "Chekcing eltrans from per_mesh" << endl;
-      for (int i=0; i<per_mesh->GetNBE(); i++)
-      {
-        ElementTransformation * eltrans = per_mesh->GetBdrElementTransformation(i);
-        cout << i
-        << '\t' << eltrans->ElementNo
-        << '\t' << eltrans->Attribute
-        << endl;
-      }
-      */
       delete mesh;
       mesh = per_mesh;
    }
@@ -688,32 +610,6 @@ int main(int argc, char *argv[])
       cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
    }
 
-   /*
-   {
-     for (int i=0; i<pmesh.GetNBE(); i++)
-       {
-    cout << i << '\t' << pmesh.GetBdrElementBaseGeometry(i)
-         << '\t' << pmesh.GetBdrAttribute(i) << endl;
-       }
-   }
-   */
-   // If values for Voltage BCs were not set issue a warning and exit
-   /*
-   if ( ( vbcs.Size() > 0 && kbcs.Size() == 0 ) ||
-        ( kbcs.Size() > 0 && vbcs.Size() == 0 ) ||
-        ( vbcv.Size() < vbcs.Size() ) )
-   {
-      if ( mpi.Root() )
-      {
-         cout << "The surface current (K) boundary condition requires "
-              << "surface current boundary condition surfaces (with -kbcs), "
-              << "voltage boundary condition surface (with -vbcs), "
-              << "and voltage boundary condition values (with -vbcv)."
-              << endl;
-      }
-      return 3;
-   }
-   */
    if (mpi.Root() && logging > 0)
    {
       cout << "Initializing coefficients..." << endl;
@@ -732,14 +628,6 @@ int main(int argc, char *argv[])
    }
    VectorConstantCoefficient kCoef(kVec);
 
-   // StixLCoefficient LCoef(omega, *BCoef, numbers, charges, masses);
-   /*
-   double ion_frac = 0.0;
-   ConstantCoefficient rhoCoef1(rho1);
-   ConstantCoefficient rhoCoef2(rhoCoef1.constant * (1.0 - ion_frac));
-   ConstantCoefficient rhoCoef3(rhoCoef1.constant * ion_frac);
-   ConstantCoefficient tempCoef(10.0 * q_);
-   */
    if (mpi.Root() && logging > 0)
    {
       cout << "Building Finite Element Spaces..." << endl;
@@ -750,12 +638,10 @@ int main(int argc, char *argv[])
    L2_ParFESpace L2FESpace(&pmesh, order, pmesh.Dimension());
 
    ParGridFunction BField(&HDivFESpace);
-   // ParGridFunction LField(&L2FESpace);
    ParGridFunction temperature_gf;
    ParGridFunction density_gf;
 
    BField.ProjectCoefficient(*BCoef);
-   // LField.ProjectCoefficient(LCoef);
 
    if (mpi.Root() && logging > 0)
    {
@@ -878,7 +764,6 @@ int main(int argc, char *argv[])
       sock_Er.precision(8);
       sock_Ei.precision(8);
       sock_B.precision(8);
-      // sock_L.precision(8);
 
       Wx += 2 * offx;
       VisualizeField(sock_Er, vishost, visport,
@@ -895,9 +780,6 @@ int main(int argc, char *argv[])
 
       VisualizeField(sock_B, vishost, visport,
                      BField, "Background Magnetic Field", Wx, Wy, Ww, Wh);
-
-      // VisualizeField(sock_L, vishost, visport,
-      //                LField, "L", Wx, Wy, Ww, Wh);
    }
 
    // Setup coefficients for Dirichlet BC
@@ -923,8 +805,6 @@ int main(int argc, char *argv[])
                  muInvCoef, etaInvCoef, etaInvReCoef, etaInvImCoef,
                  (phase_shift) ? &kCoef : NULL,
                  abcs, sbcs, dbcs, nbcs,
-                 // e_bc_r, e_bc_i,
-                 // EReCoef, EImCoef,
                  (slab_params_.Size() > 0) ? j_src : NULL, NULL, vis_u, pa);
 
    // Initialize GLVis visualization
@@ -939,7 +819,6 @@ int main(int argc, char *argv[])
    if ( visit )
    {
       CPD.RegisterVisItFields(visit_dc);
-      // visit_dc.RegisterField("L", &LField);
    }
    if (mpi.Root()) { cout << "Initialization done." << endl; }
 
@@ -1036,25 +915,11 @@ int main(int argc, char *argv[])
       if (mpi.Root()) { cout << "Refining ..." << endl; }
       {
          pmesh.RefineByError(errors, threshold);
-         /*
-              Array<Refinement> refs;
-              for (int i=0; i<pmesh.GetNE(); i++)
-              {
-                 if (errors[i] > threshold)
-                 {
-                    refs.Append(Refinement(i, 1));
-                 }
-              }
-              if (refs.Size() > 0)
-              {
-                 pmesh.GeneralRefinement(refs);
-              }
-         */
       }
 
       // Update the magnetostatic solver to reflect the new state of the mesh.
       Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace, BField, *BCoef,
-             rhoCoef, tempCoef, size_h1, size_l2, density_offsets,
+             rhoCoefs, tempCoefs, size_h1, size_l2, density_offsets,
              temperature_offsets, density, temperature, density_gf,
              temperature_gf);
       CPD.Update();
@@ -1078,10 +943,6 @@ int main(int argc, char *argv[])
    {
       CPD.DisplayAnimationToGLVis();
    }
-
-   // delete epsCoef;
-   // delete muInvCoef;
-   // delete sigmaCoef;
 
    return 0;
 }
@@ -1243,7 +1104,6 @@ void slab_current_source(const Vector &x, Vector &j)
    j = 0.0;
 
    double width = slab_params_(4);
-   // double height = 1.0 / width;
    double half_x_l = slab_params_(3) - 0.5 * width;
    double half_x_r = slab_params_(3) + 0.5 * width;
 
@@ -1253,7 +1113,6 @@ void slab_current_source(const Vector &x, Vector &j)
       j(1) = slab_params_(1);
       j(2) = slab_params_(2);
    }
-   // j *= height;
 }
 
 void e_bc_r(const Vector &x, Vector &E)
