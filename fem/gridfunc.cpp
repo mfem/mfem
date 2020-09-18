@@ -199,8 +199,7 @@ void GridFunction::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
    if (f != fes) { Destroy(); }
    fes = f;
    v.UseDevice(true);
-   NewMemoryAndSize(Memory<double>(v.GetMemory(), v_offset, fes->GetVSize()),
-                    fes->GetVSize(), true);
+   this->Vector::MakeRef(v, v_offset, fes->GetVSize());
    sequence = fes->GetSequence();
 }
 
@@ -1834,6 +1833,19 @@ void GridFunction::ImposeBounds(int i, const Vector &weights,
    ImposeBounds(i, weights, minv, maxv);
 }
 
+void GridFunction::RestrictConforming()
+{
+   const SparseMatrix *R = fes->GetRestrictionMatrix();
+   const Operator *P = fes->GetProlongationMatrix();
+
+   if (P && R)
+   {
+      Vector tmp(R->Height());
+      R->Mult(*this, tmp);
+      P->Mult(tmp, *this);
+   }
+}
+
 void GridFunction::GetNodalValues(Vector &nval, int vdim) const
 {
    int i, j;
@@ -2602,11 +2614,7 @@ double GridFunction::ComputeL2Error(
       }
    }
 
-   if (error < 0.0)
-   {
-      return -sqrt(-error);
-   }
-   return sqrt(error);
+   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
 }
 
 double GridFunction::ComputeL2Error(
@@ -2647,94 +2655,199 @@ double GridFunction::ComputeL2Error(
       }
    }
 
-   if (error < 0.0)
-   {
-      return -sqrt(-error);
-   }
-   return sqrt(error);
+   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
 }
 
-double GridFunction::ComputeH1Error(
-   Coefficient *exsol, VectorCoefficient *exgrad,
-   Coefficient *ell_coeff, double Nu, int norm_type) const
+double GridFunction::ComputeGradError(VectorCoefficient *exgrad,
+                                      const IntegrationRule *irs[]) const
 {
-   // assuming vdim is 1
-   int i, fdof, dim, intorder, j, k;
+   double error = 0.0;
+   const FiniteElement *fe;
+   ElementTransformation *Tr;
+   Array<int> dofs;
+   Vector grad;
+   int intorder;
+   int dim = fes->GetMesh()->SpaceDimension();
+   Vector vec(dim);
+
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      fe = fes->GetFE(i);
+      Tr = fes->GetElementTransformation(i);
+      intorder = 2*fe->GetOrder() + 3; // <--------
+      const IntegrationRule *ir;
+      if (irs)
+      {
+         ir = irs[fe->GetGeomType()];
+      }
+      else
+      {
+         ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+      }
+      fes->GetElementDofs(i, dofs);
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         Tr->SetIntPoint(&ip);
+         GetGradient(*Tr,grad);
+         exgrad->Eval(vec,*Tr,ip);
+         vec-=grad;
+         error += ip.weight * Tr->Weight() * (vec * vec);
+      }
+   }
+   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
+}
+
+double GridFunction::ComputeCurlError(VectorCoefficient *excurl,
+                                      const IntegrationRule *irs[]) const
+{
+   double error = 0.0;
+   const FiniteElement *fe;
+   ElementTransformation *Tr;
+   Array<int> dofs;
+   Vector curl;
+   int intorder;
+   int dim = fes->GetMesh()->SpaceDimension();
+   int n = (dim == 3) ? dim : 1;
+   Vector vec(n);
+
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      fe = fes->GetFE(i);
+      Tr = fes->GetElementTransformation(i);
+      intorder = 2*fe->GetOrder() + 3;
+      const IntegrationRule *ir;
+      if (irs)
+      {
+         ir = irs[fe->GetGeomType()];
+      }
+      else
+      {
+         ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+      }
+      fes->GetElementDofs(i, dofs);
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         Tr->SetIntPoint(&ip);
+         GetCurl(*Tr,curl);
+         excurl->Eval(vec,*Tr,ip);
+         vec-=curl;
+         error += ip.weight * Tr->Weight() * ( vec * vec );
+      }
+   }
+
+   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
+}
+
+double GridFunction::ComputeDivError(
+   Coefficient *exdiv, const IntegrationRule *irs[]) const
+{
+   double error = 0.0, a;
+   const FiniteElement *fe;
+   ElementTransformation *Tr;
+   Array<int> dofs;
+   int intorder;
+
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      fe = fes->GetFE(i);
+      Tr = fes->GetElementTransformation(i);
+      intorder = 2*fe->GetOrder() + 3;
+      const IntegrationRule *ir;
+      if (irs)
+      {
+         ir = irs[fe->GetGeomType()];
+      }
+      else
+      {
+         ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+      }
+      fes->GetElementDofs(i, dofs);
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         Tr->SetIntPoint (&ip);
+         a = GetDivergence(*Tr) - exdiv->Eval(*Tr, ip);
+         error += ip.weight * Tr->Weight() * a * a;
+      }
+   }
+
+   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
+}
+
+double GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
+                                            Coefficient *ell_coeff, double Nu,
+                                            const IntegrationRule *irs[])  const
+{
+   int fdof, dim, intorder, k;
    Mesh *mesh;
    const FiniteElement *fe;
    ElementTransformation *transf;
    FaceElementTransformations *face_elem_transf;
-   Vector e_grad, a_grad, shape, el_dofs, err_val, ell_coeff_val;
-   DenseMatrix dshape, dshapet, Jinv;
+   Vector shape, el_dofs, err_val, ell_coeff_val;
    Array<int> vdofs;
    IntegrationPoint eip;
    double error = 0.0;
 
    mesh = fes->GetMesh();
    dim = mesh->Dimension();
-   e_grad.SetSize(dim);
-   a_grad.SetSize(dim);
-   Jinv.SetSize(dim);
 
-   if (norm_type & 1)
-      for (i = 0; i < mesh->GetNE(); i++)
-      {
-         fe = fes->GetFE(i);
-         fdof = fe->GetDof();
-         transf = mesh->GetElementTransformation(i);
-         el_dofs.SetSize(fdof);
-         dshape.SetSize(fdof, dim);
-         dshapet.SetSize(fdof, dim);
-         intorder = 2 * fe->GetOrder(); // <----------
-         const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(), intorder);
-         fes->GetElementVDofs(i, vdofs);
-         for (k = 0; k < fdof; k++)
-            if (vdofs[k] >= 0)
-            {
-               el_dofs(k) =   (*this)(vdofs[k]);
-            }
-            else
-            {
-               el_dofs(k) = - (*this)(-1-vdofs[k]);
-            }
-         for (j = 0; j < ir.GetNPoints(); j++)
+   for (int i = 0; i < mesh->GetNumFaces(); i++)
+   {
+      face_elem_transf = mesh->GetFaceElementTransformations(i, 5);
+      int i1 = face_elem_transf->Elem1No;
+      int i2 = face_elem_transf->Elem2No;
+      intorder = fes->GetFE(i1)->GetOrder();
+      if (i2 >= 0)
+         if ( (k = fes->GetFE(i2)->GetOrder()) > intorder )
          {
-            const IntegrationPoint &ip = ir.IntPoint(j);
-            fe->CalcDShape(ip, dshape);
-            transf->SetIntPoint(&ip);
-            exgrad->Eval(e_grad, *transf, ip);
-            CalcInverse(transf->Jacobian(), Jinv);
-            Mult(dshape, Jinv, dshapet);
-            dshapet.MultTranspose(el_dofs, a_grad);
-            e_grad -= a_grad;
-            error += (ip.weight * transf->Weight() *
-                      ell_coeff->Eval(*transf, ip) *
-                      (e_grad * e_grad));
+            intorder = k;
          }
-      }
-
-   if (norm_type & 2)
-      for (i = 0; i < mesh->GetNFaces(); i++)
+      intorder = 2 * intorder;  // <-------------
+      const IntegrationRule *ir;
+      if (irs)
       {
-         face_elem_transf = mesh->GetFaceElementTransformations(i, 5);
-         int i1 = face_elem_transf->Elem1No;
-         int i2 = face_elem_transf->Elem2No;
-         intorder = fes->GetFE(i1)->GetOrder();
-         if (i2 >= 0)
-            if ( (k = fes->GetFE(i2)->GetOrder()) > intorder )
-            {
-               intorder = k;
-            }
-         intorder = 2 * intorder;  // <-------------
-         const IntegrationRule &ir =
-            IntRules.Get(face_elem_transf->GetGeometryType(), intorder);
-         err_val.SetSize(ir.GetNPoints());
-         ell_coeff_val.SetSize(ir.GetNPoints());
-         // side 1
-         transf = face_elem_transf->Elem1;
-         fe = fes->GetFE(i1);
+         ir = irs[face_elem_transf->GetGeometryType()];
+      }
+      else
+      {
+         ir = &(IntRules.Get(face_elem_transf->GetGeometryType(), intorder));
+      }
+      err_val.SetSize(ir->GetNPoints());
+      ell_coeff_val.SetSize(ir->GetNPoints());
+      // side 1
+      transf = face_elem_transf->Elem1;
+      fe = fes->GetFE(i1);
+      fdof = fe->GetDof();
+      fes->GetElementVDofs(i1, vdofs);
+      shape.SetSize(fdof);
+      el_dofs.SetSize(fdof);
+      for (k = 0; k < fdof; k++)
+         if (vdofs[k] >= 0)
+         {
+            el_dofs(k) =   (*this)(vdofs[k]);
+         }
+         else
+         {
+            el_dofs(k) = - (*this)(-1-vdofs[k]);
+         }
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         face_elem_transf->Loc1.Transform(ir->IntPoint(j), eip);
+         fe->CalcShape(eip, shape);
+         transf->SetIntPoint(&eip);
+         ell_coeff_val(j) = ell_coeff->Eval(*transf, eip);
+         err_val(j) = exsol->Eval(*transf, eip) - (shape * el_dofs);
+      }
+      if (i2 >= 0)
+      {
+         // side 2
+         face_elem_transf = mesh->GetFaceElementTransformations(i, 10);
+         transf = face_elem_transf->Elem2;
+         fe = fes->GetFE(i2);
          fdof = fe->GetDof();
-         fes->GetElementVDofs(i1, vdofs);
+         fes->GetElementVDofs(i2, vdofs);
          shape.SetSize(fdof);
          el_dofs.SetSize(fdof);
          for (k = 0; k < fdof; k++)
@@ -2746,60 +2859,69 @@ double GridFunction::ComputeH1Error(
             {
                el_dofs(k) = - (*this)(-1-vdofs[k]);
             }
-         for (j = 0; j < ir.GetNPoints(); j++)
+         for (int j = 0; j < ir->GetNPoints(); j++)
          {
-            face_elem_transf->Loc1.Transform(ir.IntPoint(j), eip);
+            face_elem_transf->Loc2.Transform(ir->IntPoint(j), eip);
             fe->CalcShape(eip, shape);
             transf->SetIntPoint(&eip);
-            ell_coeff_val(j) = ell_coeff->Eval(*transf, eip);
-            err_val(j) = exsol->Eval(*transf, eip) - (shape * el_dofs);
-         }
-         if (i2 >= 0)
-         {
-            // side 2
-            face_elem_transf = mesh->GetFaceElementTransformations(i, 10);
-            transf = face_elem_transf->Elem2;
-            fe = fes->GetFE(i2);
-            fdof = fe->GetDof();
-            fes->GetElementVDofs(i2, vdofs);
-            shape.SetSize(fdof);
-            el_dofs.SetSize(fdof);
-            for (k = 0; k < fdof; k++)
-               if (vdofs[k] >= 0)
-               {
-                  el_dofs(k) =   (*this)(vdofs[k]);
-               }
-               else
-               {
-                  el_dofs(k) = - (*this)(-1-vdofs[k]);
-               }
-            for (j = 0; j < ir.GetNPoints(); j++)
-            {
-               face_elem_transf->Loc2.Transform(ir.IntPoint(j), eip);
-               fe->CalcShape(eip, shape);
-               transf->SetIntPoint(&eip);
-               ell_coeff_val(j) += ell_coeff->Eval(*transf, eip);
-               ell_coeff_val(j) *= 0.5;
-               err_val(j) -= (exsol->Eval(*transf, eip) - (shape * el_dofs));
-            }
-         }
-         face_elem_transf = mesh->GetFaceElementTransformations(i, 16);
-         transf = face_elem_transf;
-         for (j = 0; j < ir.GetNPoints(); j++)
-         {
-            const IntegrationPoint &ip = ir.IntPoint(j);
-            transf->SetIntPoint(&ip);
-            error += (ip.weight * Nu * ell_coeff_val(j) *
-                      pow(transf->Weight(), 1.0-1.0/(dim-1)) *
-                      err_val(j) * err_val(j));
+            ell_coeff_val(j) += ell_coeff->Eval(*transf, eip);
+            ell_coeff_val(j) *= 0.5;
+            err_val(j) -= (exsol->Eval(*transf, eip) - (shape * el_dofs));
          }
       }
-
-   if (error < 0.0)
-   {
-      return -sqrt(-error);
+      face_elem_transf = mesh->GetFaceElementTransformations(i, 16);
+      transf = face_elem_transf;
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         transf->SetIntPoint(&ip);
+         error += (ip.weight * Nu * ell_coeff_val(j) *
+                   pow(transf->Weight(), 1.0-1.0/(dim-1)) *
+                   err_val(j) * err_val(j));
+      }
    }
-   return sqrt(error);
+
+   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
+}
+
+double GridFunction::ComputeH1Error(Coefficient *exsol,
+                                    VectorCoefficient *exgrad,
+                                    Coefficient *ell_coef, double Nu,
+                                    int norm_type) const
+{
+   double error1 = 0.0;
+   double error2 = 0.0;
+   if (norm_type & 1) { error1 = GridFunction::ComputeGradError(exgrad); }
+   if (norm_type & 2) { error2 = GridFunction::ComputeDGFaceJumpError(exsol,ell_coef,Nu); }
+
+   return sqrt(error1 * error1 + error2 * error2);
+}
+
+double GridFunction::ComputeH1Error(Coefficient *exsol,
+                                    VectorCoefficient *exgrad,
+                                    const IntegrationRule *irs[]) const
+{
+   double L2error = GridFunction::ComputeLpError(2.0,*exsol,NULL,irs);
+   double GradError = ComputeGradError(exgrad,irs);
+   return sqrt(L2error*L2error + GradError*GradError);
+}
+
+double GridFunction::ComputeHDivError(VectorCoefficient *exsol,
+                                      Coefficient *exdiv,
+                                      const IntegrationRule *irs[]) const
+{
+   double L2error = GridFunction::ComputeLpError(2.0,*exsol,NULL,NULL,irs);
+   double DivError = ComputeDivError(exdiv,irs);
+   return sqrt(L2error*L2error + DivError*DivError);
+}
+
+double GridFunction::ComputeHCurlError(VectorCoefficient *exsol,
+                                       VectorCoefficient *excurl,
+                                       const IntegrationRule *irs[]) const
+{
+   double L2error = GridFunction::ComputeLpError(2.0,*exsol,NULL,NULL,irs);
+   double CurlError = ComputeCurlError(excurl,irs);
+   return sqrt(L2error*L2error + CurlError*CurlError);
 }
 
 double GridFunction::ComputeMaxError(
@@ -2855,7 +2977,6 @@ double GridFunction::ComputeMaxError(
          }
       }
    }
-
    return error;
 }
 
