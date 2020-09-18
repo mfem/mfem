@@ -28,7 +28,13 @@ namespace mfem
 
 class PastixSparseMatrix : public Operator
 {
+  public:
+    PastixSparseMatrix(const HypreParMatrix & hypParMat);
+    ~PastixSparseMatrix();
 
+    void Mult(const Vector &x, Vector &y) const override;
+  private:
+    spmatrix_t matrix_;
 };
 
 class PastixSolver : public Solver

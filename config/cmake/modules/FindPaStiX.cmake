@@ -15,8 +15,21 @@ find_path(PASTIX_INCLUDE_DIRS
 )
 
 find_library(PASTIX_LIBRARIES pastix PATHS ${PASTIX_DIR}/lib ${LIB_INSTALL_DIR})
+find_library(PASTIX_SPM_LIBRARIES spm PATHS ${PASTIX_DIR}/lib ${LIB_INSTALL_DIR})
+list(APPEND PASTIX_LIBRARIES ${PASTIX_SPM_LIBRARIES})
 
+if(EXISTS ${PASTIX_DIR}/examples/Makefile)
+  file(STRINGS ${PASTIX_DIR}/examples/Makefile
+    PASTIX_VARIABLES NEWLINE_CONSUME)
+else()
+  message(SEND_ERROR "PaStiX examples not found - needed to determine its TPLs")
+endif()
 
+string(REGEX MATCH "EXTRALIBS= [^\n\r]*" PASTIX_EXTRALIBS ${PASTIX_VARIABLES})
+string(REPLACE "EXTRALIBS= " "" PASTIX_EXTRALIBS ${PASTIX_EXTRALIBS})
+string(STRIP ${PASTIX_EXTRALIBS} PASTIX_EXTRALIBS)
+
+list(APPEND PASTIX_LIBRARIES ${PASTIX_EXTRALIBS})
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(PASTIX DEFAULT_MSG

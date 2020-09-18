@@ -61,6 +61,10 @@
 #include "strumpack.hpp"
 #endif
 
+#ifdef MFEM_USE_PASTIX
+#include "pastix.hpp"
+#endif
+
 #endif // MFEM_USE_MPI
 
 #endif
