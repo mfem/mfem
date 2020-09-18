@@ -1176,149 +1176,151 @@ void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,
    Vector x(x_data, 3);
    T.Transform(ip, x);
 
-   /// For now we'll assume S, P, and D are real-valued. Fix this
-   double S = S_.real();
-   double D = D_.real();
-   double P = P_.real();
+   complex<double> i = complex<double>(0.0,1.0);
 
    switch (type_)
    {
-      case 'L':
+      case 'L': // Left Circularly Polarized, propagating along B
       {
-         bool osc = S - D > 0.0;
-         double kL = omega_ * sqrt(fabs(S-D)) / c0_;
+         complex<double> kL = omega_ * sqrt(S_ - D_) / c0_;
+         if (kL.imag() > 0.0) { kL *= -1.0; }
+
+         complex<double> Ez = exp(-i * kL * x[0]);
+         complex<double> Ey = i * Ez;
 
          if (realPart_)
          {
             V[0] = 0.0;
-            V[1] = osc ?  sin(kL * x[0]) : 0.0;
-            V[2] = osc ?  cos(kL * x[0]) : exp(-kL * x[0]);
+            V[1] = Ey.real();
+            V[2] = Ez.real();
          }
          else
          {
             V[0] = 0.0;
-            V[1] = osc ?  cos(kL * x[0]) : exp(-kL * x[0]);
-            V[2] = osc ? -sin(kL * x[0]) : 0.0;
+            V[1] = Ey.imag();
+            V[2] = Ez.imag();
          }
       }
       break;
-      case 'R':
+      case 'R': // Right Circularly Polarized, propagating along B
       {
-         bool osc = S + D > 0.0;
-         double kR = omega_ * sqrt(fabs(S+D)) / c0_;
+         complex<double> kR = omega_ * sqrt(S_ + D_) / c0_;
+         if (kR.imag() > 0.0) { kR *= -1.0; }
+
+         complex<double> Ez = exp(-i * kR * x[0]);
+         complex<double> Ey = -i * Ez;
 
          if (realPart_)
          {
             V[0] = 0.0;
-            V[1] = osc ? -sin(kR * x[0]) : 0.0;
-            V[2] = osc ?  cos(kR * x[0]) : exp(-kR * x[0]);
+            V[1] = Ey.real();
+            V[2] = Ez.real();
          }
          else
          {
             V[0] = 0.0;
-            V[1] = osc ? -cos(kR * x[0]) : -exp(-kR * x[0]);
-            V[2] = osc ? -sin(kR * x[0]) : 0.0;
+            V[1] = Ey.imag();
+            V[2] = Ez.imag();
          }
       }
       break;
-      case 'O':
+      case 'O': // Ordinary wave propagating perpendicular to B
       {
-         bool osc = P > 0.0;
-         double kO = omega_ * sqrt(fabs(P)) / c0_;
+         complex<double> kO = omega_ * sqrt(P_) / c0_;
+         if (kO.imag() > 0.0) { kO *= -1.0; }
+
+         complex<double> Ey = exp(-i * kO * x[0]);
 
          if (realPart_)
          {
             V[0] = 0.0;
-            V[1] = osc ? cos(kO * x[0]) : exp(-kO * x[0]);
+            V[1] = Ey.real();
             V[2] = 0.0;
          }
          else
          {
             V[0] = 0.0;
-            V[1] = osc ? -sin(kO * x[0]) : 0.0;
+            V[1] = Ey.imag();
             V[2] = 0.0;
          }
       }
       break;
-      case 'X':
+      case 'X': // eXtraordinary wave propagating perpendicular to B
       {
-         bool osc = (S * S - D * D) / S > 0.0;
-         double kE = omega_ * sqrt(fabs((S * S - D * D) / S)) / c0_;
+         complex<double> kX = omega_ * sqrt(S_ - D_ * D_ / S_) / c0_;
+         if (kX.imag() > 0.0) { kX *= -1.0; }
+
+         complex<double> Ez = exp(-i * kX * x[0]);
+         complex<double> Ex = -i * D_ * Ez / S_;
 
          if (realPart_)
          {
-            V[0] = osc ? -D * sin(kE * x[0]) : 0.0;
+            V[0] = Ex.real();
             V[1] = 0.0;
-            V[2] = osc ?  S * cos(kE * x[0]) : S * exp(-kE * x[0]);
+            V[2] = Ez.real();
          }
          else
          {
-            V[0] = osc ? -D * cos(kE * x[0]) : -D * exp(-kE * x[0]);
+            V[0] = Ex.imag();
             V[1] = 0.0;
-            V[2] = osc ? -S * sin(kE * x[0]) : 0.0;
+            V[2] = Ez.imag();
          }
-         V /= sqrt(S * S + D * D);
       }
       break;
-      case 'J':
+      case 'J':  // Slab of current density perpendicular to propagation
       {
          if (k_.Size() == 0)
          {
-            bool osc = (S * S - D * D) / S > 0.0;
-            double kE = omega_ * sqrt(fabs((S * S - D * D) / S)) / c0_;
+            complex<double> kE = omega_ * sqrt(S_ - D_ * D_ / S_) / c0_;
 
-            double (*sfunc)(double) = osc ?
-                                      static_cast<double (*)(double)>(&sin) :
-                                      static_cast<double (*)(double)>(&sinh);
-            double (*cfunc)(double) = osc ?
-                                      static_cast<double (*)(double)>(&cos) :
-                                      static_cast<double (*)(double)>(&cosh);
+            complex<double> skL = sin(kE * Lx_);
+            complex<double> E0 = i * Jy_ /
+                                 (omega_ * epsilon0_ * skL *
+                                  (S_ * S_ - D_ * D_));
 
-            double skL   = (*sfunc)(kE * Lx_);
-            double csckL = 1.0 / skL;
-
-            if (realPart_)
-            {
-               V[0] = D / S;
-               V[1] = 0.0;
-               V[2] = 0.0;
-            }
-            else
-            {
-               V[0] = 0.0;
-               V[1] = -1.0;
-               V[2] = 0.0;
-            }
+            complex<double> Ex = i * D_ * E0;
+            complex<double> Ey = S_ * E0;
 
             if (x[0] <= xJ_ - 0.5 * dx_)
             {
-               double skx    = (*sfunc)(kE * x[0]);
-               double skLxJ  = (*sfunc)(kE * (Lx_ - xJ_));
-               double skd    = (*sfunc)(kE * 0.5 * dx_);
-               double a = skx * skLxJ * skd;
+               complex<double> skLJ = sin(kE * (Lx_ - xJ_));
+               complex<double> skd  = sin(kE * 0.5 * dx_);
+               complex<double> skx  = sin(kE * x[0]);
 
-               V *= 2.0 * omega_ * mu0_ * Jy_ * a * csckL / (kE * kE);
-               if (!osc) { V *= -1.0; }
+               Ex *= -2.0 * skLJ * skd * skx;
+               Ey *= -2.0 * skLJ * skd * skx;
             }
             else if (x[0] <= xJ_ + 0.5 * dx_)
             {
-               double skx      = (*sfunc)(kE * x[0]);
-               double skLx     = (*sfunc)(kE * (Lx_ - x[0]));
-               double ckxJmd   = (*cfunc)(kE * (xJ_ - 0.5 * dx_));
-               double ckLxJmd  = (*cfunc)(kE * (Lx_ - xJ_ - 0.5 * dx_));
-               double a = skx * ckLxJmd + skLx * ckxJmd - skL;
+               complex<double> ck1  = cos(kE * (Lx_ - xJ_ - 0.5 * dx_));
+               complex<double> ck2  = cos(kE * (xJ_ - 0.5 * dx_));
+               complex<double> skx  = sin(kE * x[0]);
+               complex<double> skLx = sin(kE * (Lx_ - x[0]));
 
-               V *= omega_ * mu0_ * Jy_ * a * csckL / (kE * kE);
+               Ex *= skL - ck1 * skx - ck2 * skLx;
+               Ey *= skL - ck1 * skx - ck2 * skLx;
             }
             else
             {
-               double skLx = (*sfunc)(kE * (Lx_ - x[0]));
-               double skxJ = (*sfunc)(kE * xJ_);
-               double skd  = (*sfunc)(kE * 0.5 * dx_);
-               double a = skLx * skxJ * skd;
+               complex<double> skJ  = sin(kE * xJ_);
+               complex<double> skd  = sin(kE * 0.5 * dx_);
+               complex<double> skLx = sin(kE * (Lx_ - x[0]));
 
-               V *= 2.0 * omega_ * mu0_ * Jy_ * a * csckL / (kE * kE);
-               if (!osc) { V *= -1.0; }
+               Ex *= -2.0 * skJ * skd * skLx;
+               Ey *= -2.0 * skJ * skd * skLx;
+            }
+
+            if (realPart_)
+            {
+               V[0] = Ex.real();
+               V[1] = Ey.real();
+               V[2] = 0.0;
+            }
+            else
+            {
+               V[0] = Ex.imag();
+               V[1] = Ey.imag();
+               V[2] = 0.0;
             }
          }
          else
