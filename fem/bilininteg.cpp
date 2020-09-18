@@ -2905,6 +2905,7 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
    }
 }
 
+
 // static method
 void DGElasticityIntegrator::AssembleBlock(
    const int dim, const int row_ndofs, const int col_ndofs,
