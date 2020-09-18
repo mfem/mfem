@@ -50,6 +50,10 @@ add_mfem_miniapp(twist
   MAIN twist.cpp
   LIBRARIES mfem)
 
+add_mfem_miniapp(polar-nc
+  MAIN polar-nc.cpp
+  LIBRARIES mfem)
+
 # Add serial tests.
 add_test(NAME mesh-optimizer
   COMMAND mesh-optimizer -no-vis -m ${CMAKE_CURRENT_SOURCE_DIR}/icf.mesh)
