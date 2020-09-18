@@ -21,18 +21,20 @@
 
 #include <mpi.h>
 
+#include "pastix.h"
+
 namespace mfem
 {
 
 class PastixSparseMatrix : public Operator
 {
 
-}
+};
 
 class PastixSolver : public Solver
 {
 
-}
+};
 
 } // namespace mfem
 
