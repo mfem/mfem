@@ -110,21 +110,42 @@ struct CeedData
       CeedQFunctionContextDestroy(&build_ctx);
       CeedVectorDestroy(&node_coords);
       CeedVectorDestroy(&rho);
-      if (coeff_type==CeedCoeff::Const)
+      switch (coeff_type)
       {
+      case CeedCoeff::Const:
          delete static_cast<CeedConstCoeff*>(coeff);
-      }
-      else if (coeff_type==CeedCoeff::Grid)
-      {
-         CeedGridCoeff* c = static_cast<CeedGridCoeff*>(coeff);
-         CeedVectorDestroy(&c->coeffVector);
-         delete c;
-      }
-      else if (coeff_type==CeedCoeff::Quad)
-      {
-         CeedQuadCoeff* c = static_cast<CeedQuadCoeff*>(coeff);
-         CeedVectorDestroy(&c->coeffVector);
-         delete c;
+         break;
+      case CeedCoeff::Grid:
+         {
+            CeedGridCoeff* c = static_cast<CeedGridCoeff*>(coeff);
+            CeedVectorDestroy(&c->coeffVector);
+            delete c;
+         }
+         break;
+      case CeedCoeff::Quad:
+         {
+            CeedQuadCoeff* c = static_cast<CeedQuadCoeff*>(coeff);
+            CeedVectorDestroy(&c->coeffVector);
+            delete c;
+         }
+         break;
+      case CeedCoeff::VecConst:
+         delete static_cast<CeedVecConstCoeff*>(coeff);
+         break;
+      case CeedCoeff::VecGrid:
+         {
+            CeedVecGridCoeff* c = static_cast<CeedVecGridCoeff*>(coeff);
+            CeedVectorDestroy(&c->coeffVector);
+            delete c;
+         }
+         break;
+      case CeedCoeff::VecQuad:
+         {
+            CeedVecQuadCoeff* c = static_cast<CeedVecQuadCoeff*>(coeff);
+            CeedVectorDestroy(&c->coeffVector);
+            delete c;
+         }
+         break;
       }
       CeedVectorDestroy(&u);
       CeedVectorDestroy(&v);
@@ -179,6 +200,8 @@ struct CeedPAOperator
 #endif
 };
 
+/** This structure contains the data to assemble a MF operator with libCEED.
+    See libceed/mass.cpp or libceed/diffusion.cpp for examples. */
 struct CeedMFOperator
 {
 #ifdef MFEM_USE_CEED
