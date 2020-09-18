@@ -654,7 +654,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    // solNorm_ = e_->ComputeL2Error(const_cast<VectorCoefficient&>(erCoef_),
    //                               const_cast<VectorCoefficient&>(eiCoef_));
 
-   j_ = new ParComplexGridFunction(HCurlFESpace_);
+   j_ = new ParComplexGridFunction(HDivFESpace_);
    j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
 
    rhs_ = new ParComplexLinearForm(HCurlFESpace_, conv_);
