@@ -66,9 +66,9 @@
 -s2_ksp_rtol 5e-4
 -s2_ksp_type gmres
 -s2_ksp_converged_reason
+-s2_pc_type hypre
 #-s2_ksp_monitor_true_residual
 #-s2_ksp_view_final_residual
-#-s2_pc_type hypre
 #-s2_pc_hypre_boomeramg_smooth_type ParaSails
 #-s2_pc_hypre_parasails_nlevels 1
 #-s2_pc_hypre_parasails_thresh 0.1

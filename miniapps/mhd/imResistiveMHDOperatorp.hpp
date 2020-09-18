@@ -17,21 +17,22 @@ bool usesupg=true;  //add supg in both psi and omega
 int im_supg=1;
 bool usefd=false;   //add field-line diffusion for psi in implicit solvers
 
-int iUpdateJ=1; //control how J is computed (whether or not Dirichelt boundary condition
-                //is forced at physical boundary, preconditioner prefers enforcing boundary)
-                //2 - using a lumped mass matrix for iupdateJ=1
+int iUpdateJ=1;         //control how J is computed (whether or not Dirichelt boundary condition
+                        //is forced at physical boundary, preconditioner prefers enforcing boundary)
+                        //2 - using a lumped mass matrix for iupdateJ=1
 bool lumpedMass = false;    //use lumped mass matrix in M_solver2
-int BgradJ=1;    // B.gradJ operator: 1 (B.grad J, phi)
+int BgradJ=1;   // B.gradJ operator: 1 (B.grad J, phi)
                 //                    2 (-J, B.grad phi)
                 //                    3 (-BJ, grad phi)
                 // 2 and 3 should be equivalent 
+                
 int itau_=2;    //how to evaluate supg coefficient
 
 bool pa=false;  //partial assembly in some operators (need to find a way to accelerate supg operators)
                 
 
 //------------this is for preconditioner------------
-int iSc=0;      //the parameter to control precondtioner
+int iSc=0;     //the parameter to control precondtioner
 int useFull=1; // control version of preconditioner 
                // 0: a simple block preconditioner
                // 1: physics-based preconditioner
@@ -650,31 +651,7 @@ void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr, bool PartialUpdate
       K->Assemble();
       K->FormSystemMatrix(ess_tdof_list, Kmat);
 
-      if (useAMG)
-      {
-         delete K_amg;
-         delete K_pcg;
-         K_amg = new HypreBoomerAMG(Kmat);
-         K_pcg = new HyprePCG(Kmat);
-         K_pcg->iterative_mode = false;
-         K_pcg->SetTol(1e-7);
-         K_pcg->SetMaxIter(200);
-         K_pcg->SetPrintLevel(0);
-         K_pcg->SetPreconditioner(*K_amg);
-      }
-      else
-      {
-         K_solver.iterative_mode = true;
-         K_solver.SetRelTol(1e-7);
-         K_solver.SetAbsTol(0.0);
-         K_solver.SetMaxIter(2000);
-         K_solver.SetPrintLevel(3);
-         delete K_prec;
-         K_prec = new HypreSmoother;
-         K_prec->SetType(HypreSmoother::Chebyshev);
-         K_solver.SetPreconditioner(*K_prec);
-         K_solver.SetOperator(Kmat);
-      }
+      //here we do not update K_solve since it is not used in implicit AMR solvers
   
       if (use_petsc)
       {
