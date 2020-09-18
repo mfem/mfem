@@ -34,8 +34,8 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
                             "", nullptr,
                             "", nullptr,
                             ":f_apply_mass", f_apply_mass,
-                            CEED_EVAL_INTERP,
-                            CEED_EVAL_INTERP
+                            EvalMode::Interp,
+                            EvalMode::Interp
                            };
    CeedPAAssemble(massOp, ceedData);
 #else
@@ -53,8 +53,8 @@ void CeedMFMassAssemble(const FiniteElementSpace &fes,
                             ":f_apply_mass_mf_quad", f_apply_mass_mf_quad,
                             "", nullptr,
                             "", nullptr,
-                            CEED_EVAL_INTERP,
-                            CEED_EVAL_INTERP
+                            EvalMode::Interp,
+                            EvalMode::Interp
                            };
    CeedMFAssemble(massOp, ceedData);
 #else

@@ -39,6 +39,8 @@ struct BuildContext { CeedInt dim, space_dim, vdim; CeedScalar coeff[3]; };
 
 enum class CeedCoeff { Const, Grid, Quad, VecConst, VecGrid, VecQuad };
 
+enum class EvalMode { None, Interp, Grad, InterAndGrad };
+
 struct CeedConstCoeff
 {
    double val;
@@ -193,10 +195,10 @@ struct CeedPAOperator
    CeedQFunctionUser apply_qf;
    /** The evaluation mode to apply to the trial function (CEED_EVAL_INTERP,
        CEED_EVAL_GRAD, etc.) */
-   CeedEvalMode trial_op;
+   EvalMode trial_op;
    /** The evaluation mode to apply to the test function ( CEED_EVAL_INTERP,
        CEED_EVAL_GRAD, etc.)*/
-   CeedEvalMode test_op;
+   EvalMode test_op;
 #endif
 };
 
@@ -236,10 +238,10 @@ struct CeedMFOperator
    CeedQFunctionUser vec_quad_qf;
    /** The evaluation mode to apply to the trial function (CEED_EVAL_INTERP,
        CEED_EVAL_GRAD, etc.) */
-   CeedEvalMode trial_op;
+   EvalMode trial_op;
    /** The evaluation mode to apply to the test function ( CEED_EVAL_INTERP,
        CEED_EVAL_GRAD, etc.)*/
-   CeedEvalMode test_op;
+   EvalMode test_op;
 #endif
 };
 
