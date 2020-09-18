@@ -409,7 +409,7 @@ void MatrixFunctionCoefficient::EvalSymmetric(Vector &K,
 
    if (SymmFunction)
    {
-      (*SymmFunction)(transip, K);
+      SymmFunction(transip, K);
    }
 
    if (Q)
