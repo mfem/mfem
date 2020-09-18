@@ -118,14 +118,13 @@ CEED_QFUNCTION(f_build_conv_quad)(void *ctx, CeedInt Q,
          {
             // J: 0 2   qd: 0 1   adj(J):  J22 -J12
             //    1 3       1 2           -J21  J11
-            const CeedScalar coeff = c[i];
             const CeedScalar J11 = J[i + Q * 0];
             const CeedScalar J21 = J[i + Q * 1];
             const CeedScalar J12 = J[i + Q * 2];
             const CeedScalar J22 = J[i + Q * 3];
             const CeedScalar w = qw[i];
-            const CeedScalar wx = w * coeff;
-            const CeedScalar wy = w * coeff;
+            const CeedScalar wx = w * c[i + Q * 0];
+            const CeedScalar wy = w * c[i + Q * 1];
             qd[i + Q * 0] =  wx * J22 - wy * J12;
             qd[i + Q * 1] = -wy * J21 + wx * J11;
          }
@@ -136,7 +135,6 @@ CEED_QFUNCTION(f_build_conv_quad)(void *ctx, CeedInt Q,
             // J: 0 3 6   qd: 0 1 2
             //    1 4 7       1 3 4
             //    2 5 8       2 4 5
-            const CeedScalar coeff = c[i];
             const CeedScalar J11 = J[i + Q * 0];
             const CeedScalar J21 = J[i + Q * 1];
             const CeedScalar J31 = J[i + Q * 2];
@@ -156,9 +154,9 @@ CEED_QFUNCTION(f_build_conv_quad)(void *ctx, CeedInt Q,
             const CeedScalar A32 = J12 * J31 - J11 * J32;
             const CeedScalar A33 = J11 * J22 - J12 * J21;
             const CeedScalar w = qw[i];
-            const CeedScalar wx = w * coeff;
-            const CeedScalar wy = w * coeff;
-            const CeedScalar wz = w * coeff;
+            const CeedScalar wx = w * c[i + Q * 0];
+            const CeedScalar wy = w * c[i + Q * 1];
+            const CeedScalar wz = w * c[i + Q * 2];
             qd[i + Q * 0] = wx * A11 + wy * A12 + wz * A13;
             qd[i + Q * 1] = wx * A21 + wy * A22 + wz * A23;
             qd[i + Q * 2] = wx * A31 + wy * A32 + wz * A33;
@@ -269,8 +267,8 @@ CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
             const CeedScalar J12 = J[i + Q * 2];
             const CeedScalar J22 = J[i + Q * 3];
             const CeedScalar w = qw[i];
-            const CeedScalar wx = w * coeff1;
-            const CeedScalar wy = w * coeff2;
+            const CeedScalar wx = w * coeff0;
+            const CeedScalar wy = w * coeff1;
             const CeedScalar qd0 =  wx * J22 - wy * J12;
             const CeedScalar qd1 = -wy * J21 + wx * J11;
             const CeedScalar ug0 = ug[i + Q * 0];
@@ -407,14 +405,13 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
          {
             // J: 0 2   qd: 0 1   adj(J):  J22 -J12
             //    1 3       1 2           -J21  J11
-            const CeedScalar coeff = c[i];
             const CeedScalar J11 = J[i + Q * 0];
             const CeedScalar J21 = J[i + Q * 1];
             const CeedScalar J12 = J[i + Q * 2];
             const CeedScalar J22 = J[i + Q * 3];
             const CeedScalar w = qw[i];
-            const CeedScalar wx = w * coeff;
-            const CeedScalar wy = w * coeff;
+            const CeedScalar wx = w * c[i + Q * 0];
+            const CeedScalar wy = w * c[i + Q * 1];
             const CeedScalar qd0 =  wx * J22 - wy * J12;
             const CeedScalar qd1 = -wy * J21 + wx * J11;
             const CeedScalar ug0 = ug[i + Q * 0];
@@ -427,14 +424,13 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
          {
             // J: 0 2   qd: 0 1   adj(J):  J22 -J12
             //    1 3       1 2           -J21  J11
-            const CeedScalar coeff = c[i];
             const CeedScalar J11 = J[i + Q * 0];
             const CeedScalar J21 = J[i + Q * 1];
             const CeedScalar J12 = J[i + Q * 2];
             const CeedScalar J22 = J[i + Q * 3];
             const CeedScalar w = qw[i];
-            const CeedScalar wx = w * coeff;
-            const CeedScalar wy = w * coeff;
+            const CeedScalar wx = w * c[i + Q * 0];
+            const CeedScalar wy = w * c[i + Q * 1];
             const CeedScalar qd0 =  wx * J22 - wy * J12;
             const CeedScalar qd1 = -wy * J21 + wx * J11;
             for (CeedInt c = 0; c < 2; c++)
@@ -451,7 +447,6 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
             // J: 0 3 6   qd: 0 1 2
             //    1 4 7       1 3 4
             //    2 5 8       2 4 5
-            const CeedScalar coeff = c[i];
             const CeedScalar J11 = J[i + Q * 0];
             const CeedScalar J21 = J[i + Q * 1];
             const CeedScalar J31 = J[i + Q * 2];
@@ -471,9 +466,9 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
             const CeedScalar A32 = J12 * J31 - J11 * J32;
             const CeedScalar A33 = J11 * J22 - J12 * J21;
             const CeedScalar w = qw[i];
-            const CeedScalar wx = w * coeff;
-            const CeedScalar wy = w * coeff;
-            const CeedScalar wz = w * coeff;
+            const CeedScalar wx = w * c[i + Q * 0];
+            const CeedScalar wy = w * c[i + Q * 1];
+            const CeedScalar wz = w * c[i + Q * 2];
             const CeedScalar qd0 = wx * A11 + wy * A12 + wz * A13;
             const CeedScalar qd1 = wx * A21 + wy * A22 + wz * A23;
             const CeedScalar qd2 = wx * A31 + wy * A32 + wz * A33;
@@ -489,7 +484,6 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
             // J: 0 3 6   qd: 0 1 2
             //    1 4 7       1 3 4
             //    2 5 8       2 4 5
-            const CeedScalar coeff = c[i];
             const CeedScalar J11 = J[i + Q * 0];
             const CeedScalar J21 = J[i + Q * 1];
             const CeedScalar J31 = J[i + Q * 2];
@@ -509,9 +503,9 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
             const CeedScalar A32 = J12 * J31 - J11 * J32;
             const CeedScalar A33 = J11 * J22 - J12 * J21;
             const CeedScalar w = qw[i];
-            const CeedScalar wx = w * coeff;
-            const CeedScalar wy = w * coeff;
-            const CeedScalar wz = w * coeff;
+            const CeedScalar wx = w * c[i + Q * 0];
+            const CeedScalar wy = w * c[i + Q * 1];
+            const CeedScalar wz = w * c[i + Q * 2];
             const CeedScalar qd0 = wx * A11 + wy * A12 + wz * A13;
             const CeedScalar qd1 = wx * A21 + wy * A22 + wz * A23;
             const CeedScalar qd2 = wx * A31 + wy * A32 + wz * A33;
