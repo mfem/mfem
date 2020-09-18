@@ -31,7 +31,7 @@ static void Grad2D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+   static constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    const int VDIM = T_VDIM ? T_VDIM : vdim;
 
    const auto b = Reshape(b_, Q1D, D1D);
@@ -48,7 +48,6 @@ static void Grad2D(const int NE,
       const int VDIM = T_VDIM ? T_VDIM : vdim;
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int NBZ = T_NBZ ? T_NBZ : 1;
       const int tidz = MFEM_THREAD_ID(z);
       MFEM_SHARED double s_B[MQ1*MD1];
       MFEM_SHARED double s_G[MQ1*MD1];
