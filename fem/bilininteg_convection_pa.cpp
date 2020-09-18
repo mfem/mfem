@@ -12,6 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
+#include "libceed/convection.hpp"
 
 using namespace std;
 
@@ -773,6 +774,13 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const FiniteElement &el = *fes.GetFE(0);
    ElementTransformation &Trans = *fes.GetElementTransformation(0);
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, Trans);
+   if (DeviceCanUseCeed())
+   {
+      delete ceedDataPtr;
+      ceedDataPtr = new CeedData;
+      InitCeedVecCoeff(Q, *mesh, *ir, ceedDataPtr);
+      return CeedPAConvectionAssemble(fes, *ir, *ceedDataPtr);
+   }
    const int dims = el.GetDim();
    const int symmDims = dims;
    const int nq = ir->GetNPoints();
@@ -871,9 +879,28 @@ static void PAConvectionApply(const int dim,
 // PA Convection Apply kernel
 void ConvectionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   PAConvectionApply(dim, dofs1D, quad1D, ne,
-                     maps->B, maps->G, maps->Bt, maps->Gt,
-                     pa_data, x, y);
+   if (DeviceCanUseCeed())
+   {
+      return CeedAddMult(ceedDataPtr, x, y);
+   }
+   else
+   {
+      PAConvectionApply(dim, dofs1D, quad1D, ne,
+                        maps->B, maps->G, maps->Bt, maps->Gt,
+                        pa_data, x, y);
+   }
+}
+
+void ConvectionIntegrator::AssembleDiagonalPA(Vector &diag)
+{
+   if (DeviceCanUseCeed())
+   {
+      CeedAssembleDiagonal(ceedDataPtr, diag);
+   }
+   else
+   {
+      mfem_error("AssembleDiagonalPa not yet implemented for ConvectionIntegrator.");
+   }
 }
 
 } // namespace mfem

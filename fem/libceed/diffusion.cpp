@@ -33,6 +33,8 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
                             dim * (dim + 1) / 2, "/diffusion.h",
                             ":f_build_diff_const", f_build_diff_const,
                             ":f_build_diff_quad", f_build_diff_quad,
+                            "", nullptr,
+                            "", nullptr,
                             ":f_apply_diff", f_apply_diff,
                             CEED_EVAL_GRAD,
                             CEED_EVAL_GRAD
@@ -51,6 +53,8 @@ void CeedMFDiffusionAssemble(const FiniteElementSpace &fes,
                             "/diffusion.h",
                             ":f_apply_diff_mf_const", f_apply_diff_mf_const,
                             ":f_apply_diff_mf_quad", f_apply_diff_mf_quad,
+                            "", nullptr,
+                            "", nullptr,
                             CEED_EVAL_GRAD,
                             CEED_EVAL_GRAD
                            };
