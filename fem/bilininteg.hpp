@@ -2076,7 +2076,7 @@ private:
 
 public:
    ConvectionIntegrator(VectorCoefficient &q, double a = 1.0)
-      : Q(&q) { alpha = a; }
+      : Q(&q), ceedDataPtr(NULL) { alpha = a; }
 
    ~ConvectionIntegrator()
    {
