@@ -350,6 +350,9 @@ MFEM_USE_STRUMPACK = YES/NO
    classes. When enabled, this option uses the STRUMPACK_* library options, see
    below.
 
+MFEM_USE_PASTIX = YES/NO
+   Enable MFEM functionality based on the PASTIX library. 
+
 MFEM_USE_GINKGO = YES/NO
    Enable MFEM functionality based on the Ginkgo library, which provides
    iterative linear solvers and preconditioners with OpenMP, CUDA backends, see
@@ -567,6 +570,8 @@ The specific libraries and their options are:
   URL: http://portal.nersc.gov/project/sparse/strumpack
   Options: STRUMPACK_OPT, STRUMPACK_LIB.
   Versions: STRUMPACK >= 3.0.0, requires HYPRE < 2.16.0.
+
+- PASTIX (optional), used when MFEM_USE_PASTIX = YES.
 
 - Ginkgo (optional), used when MFEM_USE_GINKGO = YES. Note that Ginkgo needs a
   C++ compiler that supports the C++-11 standard. For additional requirements

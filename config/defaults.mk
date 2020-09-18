@@ -106,7 +106,7 @@ MFEM_MPI_NP = 4
 MFEM_USE_MPI           = NO
 MFEM_USE_METIS         = $(MFEM_USE_MPI)
 MFEM_USE_METIS_5       = NO
-MFEM_DEBUG             = NO
+MFEM_DEBUG             = YES
 MFEM_USE_EXCEPTIONS    = NO
 MFEM_USE_ZLIB          = NO
 MFEM_USE_LIBUNWIND     = NO
@@ -121,6 +121,7 @@ MFEM_USE_MESQUITE      = NO
 MFEM_USE_SUITESPARSE   = NO
 MFEM_USE_SUPERLU       = NO
 MFEM_USE_STRUMPACK     = NO
+MFEM_USE_PASTIX        = NO
 MFEM_USE_GINKGO        = NO
 MFEM_USE_GNUTLS        = NO
 MFEM_USE_NETCDF        = NO
@@ -247,6 +248,11 @@ STRUMPACK_OPT = -I$(STRUMPACK_DIR)/include $(SCOTCH_OPT)
 # STRUMPACK_OPT += $(OPENMP_OPT)
 STRUMPACK_LIB = -L$(STRUMPACK_DIR)/lib -lstrumpack $(MPI_FORTRAN_LIB)\
  $(SCOTCH_LIB) $(SCALAPACK_LIB)
+
+# PASTIX library configuration
+PASTIX_DIR = @MFEM_DIR@/../pastix
+PASTIX_OPT = -I$(PASTIX_DIR)/include
+PASTIX_LIB = -L$(PASTIX_DIR)/lib -lpastix
 
 # Ginkgo library configuration (currently not needed)
 GINKGO_DIR = @MFEM_DIR@/../ginkgo/install

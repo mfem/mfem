@@ -97,6 +97,9 @@
 // Enable MFEM functionality based on the STRUMPACK library.
 // #define MFEM_USE_STRUMPACK
 
+// Enable MFEM functionality based on the PASTIX library.
+// #define MFEM_USE_PASTIX
+
 // Enable MFEM features based on the Ginkgo library
 // #define MFEM_USE_GINKGO
 

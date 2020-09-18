@@ -185,7 +185,7 @@ if (MFEM_USE_MPI)
     endif()
   endif()
 else()
-  set(PKGS_NEED_MPI SUPERLU PETSC SLEPC STRUMPACK PUMI)
+  set(PKGS_NEED_MPI SUPERLU PETSC SLEPC STRUMPACK PASTIX PUMI)
   foreach(PKG IN LISTS PKGS_NEED_MPI)
     if (MFEM_USE_${PKG})
       message(STATUS "Disabling package ${PKG} - requires MPI")
@@ -269,6 +269,11 @@ if (MFEM_USE_STRUMPACK)
   else()
     message(FATAL_ERROR " *** STRUMPACK requires that MPI be enabled.")
   endif()
+endif()
+
+# INRIA PaStiX
+if (MFEM_USE_PASTIX)
+  find_package(PaStiX REQUIRED)
 endif()
 
 # GnuTLS
@@ -370,7 +375,7 @@ endif()
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
 set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
-    SLEPC MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT Ginkgo GNUTLS GSLIB NETCDF
+    SLEPC MESQUITE SuperLUDist STRUMPACK PASTIX AXOM CONDUIT Ginkgo GNUTLS GSLIB NETCDF
     MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE ADIOS2
     CUSPARSE)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.

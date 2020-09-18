@@ -93,6 +93,11 @@ if (MFEM_USE_STRUMPACK)
   list(APPEND HDRS strumpack.hpp)
 endif()
 
+if (MFEM_USE_PASTIX)
+  list(APPEND SRCS pastix.cpp)
+  list(APPEND HDRS pastix.hpp)
+endif()
+
 if (MFEM_USE_HIOP)
   list(APPEND SRCS hiop.cpp)
   list(APPEND HDRS hiop.hpp)
