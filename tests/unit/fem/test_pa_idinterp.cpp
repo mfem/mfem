@@ -18,14 +18,28 @@ double compare_pa_id_assembly(int dim, int num_elements, int order,
                               bool transpose)
 {
    Mesh * mesh;
-   if (dim == 2)
+   if (num_elements == 0)
    {
-      mesh = new Mesh(num_elements, num_elements, Element::QUADRILATERAL, true);
+      if (dim == 2)
+      {
+         mesh = new Mesh("../../data/star.mesh", order);
+      }
+      else
+      {
+         mesh = new Mesh("../../data/beam-hex.mesh", order);
+      }
    }
    else
    {
-      mesh = new Mesh(num_elements, num_elements, num_elements,
-                      Element::HEXAHEDRON, true);
+      if (dim == 2)
+      {
+         mesh = new Mesh(num_elements, num_elements, Element::QUADRILATERAL, true);
+      }
+      else
+      {
+         mesh = new Mesh(num_elements, num_elements, num_elements,
+                         Element::HEXAHEDRON, true);
+      }
    }
    FiniteElementCollection *h1_fec = new H1_FECollection(order, dim);
    FiniteElementCollection *nd_fec = new ND_FECollection(order, dim);
@@ -103,7 +117,7 @@ TEST_CASE("PAIdentityInterp", "[PAIdentityInterp]")
    {
       for (int dim = 2; dim < 4; ++dim)
       {
-         for (int num_elements = 1; num_elements < 5; ++num_elements)
+         for (int num_elements = 0; num_elements < 5; ++num_elements)
          {
             for (int order = 1; order < 5; ++order)
             {
