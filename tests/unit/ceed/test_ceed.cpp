@@ -164,8 +164,8 @@ void test_ceed_operator(const char* input, int order, const CeedCoeff coeff_type
       break;
       case CeedCoeff::VecGrid:
       {
-         gf.ProjectCoefficient(f_coeff);
-         vcoeff = new VectorGridFunctionCoefficient(&gf);
+         vgf.ProjectCoefficient(f_vcoeff);
+         vcoeff = new VectorGridFunctionCoefficient(&vgf);
       }
       break;
       case CeedCoeff::VecQuad:
