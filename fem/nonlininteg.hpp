@@ -16,6 +16,7 @@
 #include "fe.hpp"
 #include "coefficient.hpp"
 #include "fespace.hpp"
+#include "libceed/ceed.hpp"
 
 namespace mfem
 {
@@ -316,6 +317,10 @@ private:
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, nq;
+  
+   // CEED extension
+   CeedData* ceedDataPtr;
+ 
 public:
    VectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { }
 

@@ -39,7 +39,7 @@ struct BuildContext { CeedInt dim, space_dim, vdim; CeedScalar coeff[3]; };
 
 enum class CeedCoeff { Const, Grid, Quad, VecConst, VecGrid, VecQuad };
 
-enum class EvalMode { None, Interp, Grad, InterAndGrad };
+enum class EvalMode { None, Interp, Grad, InterpAndGrad };
 
 struct CeedConstCoeff
 {
