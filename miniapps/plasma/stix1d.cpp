@@ -532,7 +532,7 @@ int main(int argc, char *argv[])
 
    if (mpi.Root())
    {
-      // double lam0 = c0_ / freq;
+      double lam0 = c0_ / freq;
       double Bmag = BVec.Norml2();
       std::complex<double> S = S_cold_plasma(omega, Bmag, numbers,
                                              charges, masses, temps);
@@ -561,44 +561,43 @@ int main(int argc, char *argv[])
               << '\t'
               << omega_c(Bmag, charges[i], masses[i]) / (2.0e9 * M_PI) << '\n';
       }
-      /*
+
       cout << "\nWavelengths (meters):\n";
       cout << "   Free Space Wavelength: " << lam0 << '\n';
-      if (S < D)
+      if (real(sqrt(S-D)) != 0.0 )
       {
-         cout << "   Decaying L mode:       " << lam0 / sqrt(D-S) << '\n';
+         cout << "   L mode:    " << lam0 / real(sqrt(S-D)) << '\n';
       }
-      else
+      if (real(sqrt(S+D)) != 0.0 )
       {
-         cout << "   Oscillating L mode:    " << lam0 / sqrt(S-D) << '\n';
+         cout << "   R mode:    " << lam0 / real(sqrt(S+D)) << '\n';
       }
-      if (S < - D)
+      if (real(sqrt(P)) != 0.0 )
       {
-         cout << "   Decaying R mode:       " << lam0 / sqrt(-S-D) << '\n';
+         cout << "   O mode:    " << lam0 / real(sqrt(P)) << '\n';
       }
-      else
+      if (real(sqrt(S-D*D/S)) != 0.0 )
       {
-         cout << "   Oscillating R mode:    " << lam0 / sqrt(S+D) << '\n';
+         cout << "   X mode:    " << lam0 * real(sqrt(S/(S*S-D*D))) << '\n';
       }
-      if (P < 0)
+
+      cout << "\nSkin Depth (meters):\n";
+      if (imag(sqrt(S-D)) != 0.0 )
       {
-         cout << "   Decaying O mode:       " << lam0 / sqrt(-P) << '\n';
+         cout << "   L mode:    " << lam0 / imag(sqrt(S-D)) << '\n';
       }
-      else
+      if (imag(sqrt(S+D)) != 0.0 )
       {
-         cout << "   Oscillating O mode:    " << lam0 / sqrt(P) << '\n';
+         cout << "   R mode:    " << lam0 / imag(sqrt(S+D)) << '\n';
       }
-      if ((S * S - D * D) / S < 0)
+      if (imag(sqrt(P)) != 0.0 )
       {
-         cout << "   Decaying X mode:       " << lam0 * sqrt(-S/(S*S-D*D))
-              << '\n';
+         cout << "   O mode:    " << lam0 / imag(sqrt(P)) << '\n';
       }
-      else
+      if (imag(sqrt(S-D*D/S)) != 0.0 )
       {
-         cout << "   Oscillating X mode:    " << lam0 * sqrt(S/(S*S-D*D))
-              << '\n';
+         cout << "   X mode:    " << lam0 * imag(sqrt(S/(S*S-D*D))) << '\n';
       }
-      */
       cout << endl;
    }
 
