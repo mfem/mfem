@@ -235,7 +235,7 @@ void DGDiffusionBR2Integrator::AssembleFaceMatrix(
 
    // Compute the matrix associated with (r_e([u]), r_e([u])).
    // The matrix for r_e([u]) is `MinvRe`, and so we need to form the product
-   // `MinvRe^T M MinvRe`. Cancelling Minv and M, we obtain `Re^T M MinvRe`.
+   // `MinvRe^T M MinvRe`. Canceling Minv and M, we obtain `Re^T M MinvRe`.
    MultAtB(Re, MinvRe, elmat);
 }
 
