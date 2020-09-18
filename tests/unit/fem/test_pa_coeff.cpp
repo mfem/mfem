@@ -197,7 +197,7 @@ TEST_CASE("H1 pa_coeff")
                {
                   assemblyform.AddDomainIntegrator(new MassIntegrator(*coeff));
                }
-               assemblyform.SetDiagonalPolicy(Matrix::DIAG_ONE);
+               assemblyform.SetDiagonalPolicy(Operator::DIAG_ONE);
                assemblyform.Assemble();
                assemblyform.Finalize();
                const SparseMatrix& A_explicit = assemblyform.SpMat();
@@ -238,7 +238,8 @@ TEST_CASE("H1 pa_coeff")
    }
 }
 
-TEST_CASE("Hcurl/Hdiv pa_coeff")
+TEST_CASE("Hcurl/Hdiv pa_coeff",
+          "[CUDA]")
 {
    for (dimension = 2; dimension < 4; ++dimension)
    {
@@ -399,9 +400,9 @@ TEST_CASE("Hcurl/Hdiv pa_coeff")
 
                      FiniteElementSpace fespaceTest(mesh, fecTest);
 
-                     MixedBilinearForm paform(&fespace, &fespaceTest);
-                     paform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-                     MixedBilinearForm assemblyform(&fespace, &fespaceTest);
+                     MixedBilinearForm *paform = new MixedBilinearForm(&fespace, &fespaceTest);
+                     paform->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+                     MixedBilinearForm *assemblyform = new MixedBilinearForm(&fespace, &fespaceTest);
 
                      const int testSize = fespaceTest.GetTrueVSize();
                      y_mat.SetSize(testSize);
@@ -413,41 +414,43 @@ TEST_CASE("Hcurl/Hdiv pa_coeff")
 
                      if (coeffType >= 3)
                      {
-                        paform.AddDomainIntegrator(new VectorFEMassIntegrator(*smcoeff));
-                        assemblyform.AddDomainIntegrator(new VectorFEMassIntegrator(*mcoeff));
+                        paform->AddDomainIntegrator(new VectorFEMassIntegrator(*smcoeff));
+                        assemblyform->AddDomainIntegrator(new VectorFEMassIntegrator(*mcoeff));
                      }
                      else if (coeffType == 2)
                      {
-                        paform.AddDomainIntegrator(new VectorFEMassIntegrator(*vcoeff));
-                        assemblyform.AddDomainIntegrator(new VectorFEMassIntegrator(*vcoeff));
+                        paform->AddDomainIntegrator(new VectorFEMassIntegrator(*vcoeff));
+                        assemblyform->AddDomainIntegrator(new VectorFEMassIntegrator(*vcoeff));
                      }
                      else
                      {
-                        paform.AddDomainIntegrator(new VectorFEMassIntegrator(*coeff));
-                        assemblyform.AddDomainIntegrator(new VectorFEMassIntegrator(*coeff));
+                        paform->AddDomainIntegrator(new VectorFEMassIntegrator(*coeff));
+                        assemblyform->AddDomainIntegrator(new VectorFEMassIntegrator(*coeff));
                      }
 
                      Array<int> empty_ess; // empty
 
-                     paform.Assemble();
+                     paform->Assemble();
                      OperatorHandle paopr;
-                     paform.FormRectangularSystemMatrix(ess_tdof_list, empty_ess, paopr);
+                     paform->FormRectangularSystemMatrix(ess_tdof_list, empty_ess, paopr);
 
-                     assemblyform.Assemble();
-                     SparseMatrix A_explicit;
-                     assemblyform.FormRectangularSystemMatrix(ess_tdof_list, empty_ess, A_explicit);
+                     assemblyform->Assemble();
+                     OperatorPtr A_explicit;
+                     assemblyform->FormRectangularSystemMatrix(ess_tdof_list, empty_ess, A_explicit);
 
                      paopr->Mult(xin, y_pa);
-                     assemblyform.Mult(xin, y_assembly);
-                     A_explicit.Mult(xin, y_mat);
+                     assemblyform->Mult(xin, y_assembly);
+                     A_explicit->Mult(xin, y_mat);
 
+                     delete paform;
+                     delete assemblyform;
                      delete fecTest;
                   }
                   else
                   {
-                     BilinearForm paform(&fespace);
-                     paform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-                     BilinearForm assemblyform(&fespace);
+                     BilinearForm *paform = new BilinearForm(&fespace);
+                     paform->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+                     BilinearForm *assemblyform = new BilinearForm(&fespace);
 
                      y_mat.SetSize(xin.Size());
                      y_mat = 0.0;
@@ -460,46 +463,66 @@ TEST_CASE("Hcurl/Hdiv pa_coeff")
                      {
                         if (coeffType >= 3)
                         {
-                           paform.AddDomainIntegrator(new VectorFEMassIntegrator(*smcoeff));
-                           assemblyform.AddDomainIntegrator(new VectorFEMassIntegrator(*mcoeff));
+                           paform->AddDomainIntegrator(new VectorFEMassIntegrator(*smcoeff));
+                           assemblyform->AddDomainIntegrator(new VectorFEMassIntegrator(*mcoeff));
                         }
                         else if (coeffType == 2)
                         {
-                           paform.AddDomainIntegrator(new VectorFEMassIntegrator(*vcoeff));
-                           assemblyform.AddDomainIntegrator(new VectorFEMassIntegrator(*vcoeff));
+                           paform->AddDomainIntegrator(new VectorFEMassIntegrator(*vcoeff));
+                           assemblyform->AddDomainIntegrator(new VectorFEMassIntegrator(*vcoeff));
 
                         }
                         else
                         {
-                           paform.AddDomainIntegrator(new VectorFEMassIntegrator(*coeff));
-                           assemblyform.AddDomainIntegrator(new VectorFEMassIntegrator(*coeff));
+                           paform->AddDomainIntegrator(new VectorFEMassIntegrator(*coeff));
+                           assemblyform->AddDomainIntegrator(new VectorFEMassIntegrator(*coeff));
                         }
                      }
                      if (integrator > 0)
                      {
                         if (spaceType == Hcurl)
                         {
-                           paform.AddDomainIntegrator(new CurlCurlIntegrator(*coeff2));
-                           assemblyform.AddDomainIntegrator(new CurlCurlIntegrator(*coeff2));
+                           const FiniteElement *fel = fespace.GetFE(0);
+                           const IntegrationRule *intRule = &MassIntegrator::GetRule(*fel, *fel,
+                                                                                     *mesh->GetElementTransformation(0));
+
+                           if (coeffType >= 3 && dimension == 3)
+                           {
+                              paform->AddDomainIntegrator(new CurlCurlIntegrator(*smcoeff, intRule));
+                              assemblyform->AddDomainIntegrator(new CurlCurlIntegrator(*mcoeff, intRule));
+                           }
+                           else if (coeffType == 2 && dimension == 3)
+                           {
+                              paform->AddDomainIntegrator(new CurlCurlIntegrator(*vcoeff, intRule));
+                              assemblyform->AddDomainIntegrator(new CurlCurlIntegrator(*vcoeff, intRule));
+                           }
+                           else
+                           {
+                              paform->AddDomainIntegrator(new CurlCurlIntegrator(*coeff2));
+                              assemblyform->AddDomainIntegrator(new CurlCurlIntegrator(*coeff2));
+                           }
                         }
                         else
                         {
-                           paform.AddDomainIntegrator(new DivDivIntegrator(*coeff2));
-                           assemblyform.AddDomainIntegrator(new DivDivIntegrator(*coeff2));
+                           paform->AddDomainIntegrator(new DivDivIntegrator(*coeff2));
+                           assemblyform->AddDomainIntegrator(new DivDivIntegrator(*coeff2));
                         }
                      }
-                     paform.Assemble();
+                     paform->Assemble();
                      OperatorHandle paopr;
-                     paform.FormSystemMatrix(ess_tdof_list, paopr);
+                     paform->FormSystemMatrix(ess_tdof_list, paopr);
 
-                     assemblyform.SetDiagonalPolicy(Matrix::DIAG_ONE);
-                     assemblyform.Assemble();
-                     SparseMatrix A_explicit;
-                     assemblyform.FormSystemMatrix(ess_tdof_list, A_explicit);
+                     assemblyform->SetDiagonalPolicy(Matrix::DIAG_ONE);
+                     assemblyform->Assemble();
+                     OperatorPtr A_explicit;
+                     assemblyform->FormSystemMatrix(ess_tdof_list, A_explicit);
 
                      paopr->Mult(xin, y_pa);
-                     assemblyform.Mult(xin, y_assembly);
-                     A_explicit.Mult(xin, y_mat);
+                     assemblyform->Mult(xin, y_assembly);
+                     A_explicit->Mult(xin, y_mat);
+
+                     delete paform;
+                     delete assemblyform;
                   }
 
                   y_pa -= y_mat;
@@ -531,7 +554,8 @@ TEST_CASE("Hcurl/Hdiv pa_coeff")
    }
 }
 
-TEST_CASE("Hcurl/Hdiv mixed pa_coeff")
+TEST_CASE("Hcurl/Hdiv mixed pa_coeff",
+          "[CUDA]")
 {
    for (dimension = 2; dimension < 4; ++dimension)
    {
@@ -671,9 +695,9 @@ TEST_CASE("Hcurl/Hdiv mixed pa_coeff")
 
                   const SparseMatrix& A_explicit = assemblyform->SpMat();
 
-                  Vector xin((spaceType == 0) ? s_fespace.GetTrueVSize() :
-                             v_fespace.GetTrueVSize());
-                  xin.Randomize();
+                  Vector *xin = new Vector((spaceType == 0) ? s_fespace.GetTrueVSize() :
+                                           v_fespace.GetTrueVSize());
+                  xin->Randomize();
                   Vector y_mat((spaceType == HdivL2) ? s_fespace.GetTrueVSize() :
                                v_fespace.GetTrueVSize());
                   y_mat = 0.0;
@@ -682,9 +706,9 @@ TEST_CASE("Hcurl/Hdiv mixed pa_coeff")
                   Vector y_pa(y_mat.Size());
                   y_pa = 0.0;
 
-                  paform->Mult(xin, y_pa);
-                  assemblyform->Mult(xin, y_assembly);
-                  A_explicit.Mult(xin, y_mat);
+                  paform->Mult(*xin, y_pa);
+                  assemblyform->Mult(*xin, y_assembly);
+                  A_explicit.Mult(*xin, y_mat);
 
                   y_pa -= y_mat;
                   double pa_error = y_pa.Norml2();
@@ -699,21 +723,25 @@ TEST_CASE("Hcurl/Hdiv mixed pa_coeff")
                             << std::endl;
                   REQUIRE(assembly_error < 1.e-12);
 
+                  delete xin;
                   if (spaceType == HdivL2)
                   {
                      // Test the transpose.
-                     xin.SetSize((spaceType == 0) ? v_fespace.GetTrueVSize() :
-                                 s_fespace.GetTrueVSize());
-                     xin.Randomize();
+                     xin = new Vector((spaceType == 0) ? v_fespace.GetTrueVSize() :
+                                      s_fespace.GetTrueVSize());
+                     xin->Randomize();
 
                      y_mat.SetSize((spaceType == 0) ? s_fespace.GetTrueVSize() :
                                    v_fespace.GetTrueVSize());
                      y_assembly.SetSize(y_mat.Size());
                      y_pa.SetSize(y_mat.Size());
 
-                     paform->MultTranspose(xin, y_pa);
-                     assemblyform->MultTranspose(xin, y_assembly);
-                     A_explicit.MultTranspose(xin, y_mat);
+                     A_explicit.BuildTranspose();
+                     paform->MultTranspose(*xin, y_pa);
+                     assemblyform->MultTranspose(*xin, y_assembly);
+                     A_explicit.MultTranspose(*xin, y_mat);
+
+                     delete xin;
 
                      y_pa -= y_mat;
                      pa_error = y_pa.Norml2();
