@@ -37,7 +37,7 @@ static void Grad2D(const int NE,
    const auto b = Reshape(b_, Q1D, D1D);
    const auto g = Reshape(g_, Q1D, D1D);
    const auto x = Reshape(x_, D1D, D1D, VDIM, NE);
-   auto y = Q_LAYOUT ==QVectorLayout:: byNODES ?
+   auto y = Q_LAYOUT == QVectorLayout:: byNODES ?
             Reshape(y_, Q1D, Q1D, VDIM, 2, NE):
             Reshape(y_, VDIM, 2, Q1D, Q1D, NE);
 
@@ -149,7 +149,7 @@ static void Grad3D(const int NE,
    const auto b = Reshape(b_, Q1D, D1D);
    const auto g = Reshape(g_, Q1D, D1D);
    const auto x = Reshape(x_, D1D, D1D, D1D, VDIM, NE);
-   auto y = Q_LAYOUT ==QVectorLayout:: byNODES ?
+   auto y = Q_LAYOUT == QVectorLayout:: byNODES ?
             Reshape(y_, Q1D, Q1D, Q1D, VDIM, 3, NE):
             Reshape(y_, VDIM, 3, Q1D, Q1D, Q1D, NE);
 
