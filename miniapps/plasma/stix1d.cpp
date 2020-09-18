@@ -174,8 +174,8 @@ void Update(ParFiniteElementSpace & H1FESpace,
             ParFiniteElementSpace & L2FESpace,
             ParGridFunction & BField,
             VectorCoefficient & BCoef,
-            Coefficient & rhoCoef,
-            Coefficient & TCoef,
+            vector<Coefficient*> & rhoCoefs,
+            vector<Coefficient*> & TCoefs,
             int & size_h1,
             int & size_l2,
             Array<int> & density_offsets,
@@ -224,8 +224,11 @@ int main(int argc, char *argv[])
    Vector masses;
    Vector temps;
 
-   PlasmaProfile::Type dpt = PlasmaProfile::CONSTANT;
-   PlasmaProfile::Type tpt = PlasmaProfile::CONSTANT;
+   Vector char_arg;
+   Vector mass_arg;
+
+   Array<int> dpt;
+   Array<int> tpt;
    Vector dpp;
    Vector tpp;
 
@@ -249,8 +252,8 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&freq, "-f", "--frequency",
                   "Frequency in Hertz (of course...)");
-   args.AddOption((int*)&dpt, "-dp", "--density-profile",
-                  "Density Profile Type (for ions): \n"
+   args.AddOption(&dpt, "-dp", "--density-profile",
+                  "Density Profile Type (for each ion species): \n"
                   "0 - Constant, 1 - Constant Gradient, "
                   "2 - Hyperbolic Tangent.");
    args.AddOption(&dpp, "-dpp", "--density-profile-params",
@@ -259,8 +262,9 @@ int main(int argc, char *argv[])
                   "   GRADIENT: value, location, gradient (7 params)\n"
                   "   TANH:     value at 0, value at 1, skin depth, "
                   "location of 0 point, unit vector along gradient.");
-   args.AddOption((int*)&tpt, "-tp", "--temperature-profile",
-                  "Temperature Profile Type: \n"
+   args.AddOption(&tpt, "-tp", "--temperature-profile",
+                  "Temperature Profile Type "
+                  "(for electrons and each ion species): \n"
                   "0 - Constant, 1 - Constant Gradient, "
                   "2 - Hyperbolic Tangent.");
    args.AddOption(&tpp, "-tpp", "--temperature-profile-params",
@@ -283,13 +287,11 @@ int main(int argc, char *argv[])
                   "y-Component of wave vector.");
    args.AddOption(&kVec[2], "-kz", "--wave-vector-z",
                   "z-Component of wave vector.");
-   args.AddOption(&numbers, "-num", "--number-densites",
-                  "Number densities of the various species");
-   args.AddOption(&charges, "-q", "--charges",
-                  "Charges of the various species "
+   args.AddOption(&char_arg, "-q", "--charges",
+                  "Charges of the various ion species "
                   "(in units of electron charge)");
-   args.AddOption(&masses, "-m", "--masses",
-                  "Masses of the various species (in amu)");
+   args.AddOption(&mass_arg, "-m", "--masses",
+                  "Masses of the various ion species (in amu)");
    args.AddOption(&prec, "-pc", "--precond",
                   "Preconditioner: 1 - Diagonal Scaling, 2 - ParaSails, "
                   "3 - Euclid, 4 - AMS");
@@ -362,41 +364,12 @@ int main(int argc, char *argv[])
    {
       device.Print();
    }
-   if (numbers.Size() == 0)
+
+   if (char_arg.Size() != 0)
    {
-      numbers.SetSize(2);
-      if (dpp.Size() == 0)
-      {
-         numbers[0] = 1.0e19;
-         numbers[1] = 1.0e19;
-      }
-      else
-      {
-         switch (dpt)
-         {
-            case PlasmaProfile::CONSTANT:
-               numbers[0] = dpp[0];
-               numbers[1] = dpp[0];
-               break;
-            case PlasmaProfile::GRADIENT:
-               numbers[0] = dpp[0];
-               numbers[1] = dpp[0];
-               break;
-            case PlasmaProfile::TANH:
-               numbers[0] = dpp[1];
-               numbers[1] = dpp[1];
-               break;
-            default:
-               numbers[0] = 1.0e19;
-               numbers[1] = 1.0e19;
-               break;
-         }
-      }
-   }
-   if (dpp.Size() == 0)
-   {
-      dpp.SetSize(1);
-      dpp[0] = 1.0e19;
+      charges.SetSize(char_arg.Size() + 1);
+      charges[0] = -1.0;
+      for (int i=0; i<char_arg.Size(); i++) { charges[i+1] = char_arg[i]; }
    }
    if (charges.Size() == 0)
    {
@@ -404,45 +377,121 @@ int main(int argc, char *argv[])
       charges[0] = -1.0;
       charges[1] =  1.0;
    }
+
+   if (mass_arg.Size() != 0)
+   {
+      masses.SetSize(mass_arg.Size() + 1);
+      masses[0] = me_u_;
+      for (int i=0; i<mass_arg.Size(); i++) { masses[i+1] = mass_arg[i]; }
+   }
    if (masses.Size() == 0)
    {
       masses.SetSize(2);
       masses[0] = me_u_;
       masses[1] = 2.01410178;
    }
-   if (temps.Size() == 0)
+
+   if (dpt.Size() == 0)
    {
-      temps.SetSize(2);
-      if (tpp.Size() == 0)
+      // Specify density profiles for ion species only
+      dpt.SetSize(charges.Size()-1);
+      dpp.SetSize(charges.Size()-1);
+      for (int i=0; i<charges.Size()-1; i++)
       {
-         tpp.SetSize(1);
-         tpp[0] = 1.0e3;
-         temps[0] = tpp[0];
-         temps[1] = tpp[0];
+         dpt[i] = PlasmaProfile::CONSTANT;
+         dpp[i] = 1.0e19;
       }
-      else
+   }
+   {
+      // Specify densities for each ion species and set electron
+      // density to enforce quasineutrality.
+      //
+      // Note that these numbers only give crude values for non-constant
+      // profiles.
+      int o = 0;
+      numbers.SetSize(dpt.Size()+1);
+      numbers[0] = 0.0;
+      for (int i=0; i<dpt.Size(); i++)
       {
-         switch (tpt)
+         numbers[i+1] = dpp[o];
+         if (dpt[i] == PlasmaProfile::CONSTANT)
          {
-            case PlasmaProfile::CONSTANT:
-               temps[0] = tpp[0];
-               temps[1] = tpp[0];
-               break;
-            case PlasmaProfile::GRADIENT:
-               temps[0] = tpp[0];
-               temps[1] = tpp[0];
-               break;
-            case PlasmaProfile::TANH:
-               temps[0] = tpp[1];
-               temps[1] = tpp[1];
-               break;
-            default:
-               temps[0] = 1.0e3;
-               temps[1] = 1.0e3;
-               break;
+            o++;
+         }
+         else if (dpt[i] == PlasmaProfile::GRADIENT)
+         {
+            o += 7;
+         }
+         else if (dpt[i] == PlasmaProfile::TANH)
+         {
+            o += 9;
+         }
+         else if (dpt[i] == PlasmaProfile::ELLIPTIC_COS)
+         {
+            o += 7;
+         }
+         else
+         {
+            o++;
+         }
+         numbers[0] += charges[i+1] * numbers[i+1];
+      }
+   }
+
+   if (tpt.Size() == 0)
+   {
+      // Specify temperature profiles for electrons and all ion species
+      tpt.SetSize(charges.Size());
+      tpp.SetSize(charges.Size());
+      tpt[0] = PlasmaProfile::CONSTANT;
+      tpp[0] = 1.0e2;
+      for (int i=1; i<charges.Size(); i++)
+      {
+         tpt[i] = PlasmaProfile::CONSTANT;
+         tpp[i] = 1.0e1;
+      }
+   }
+   {
+      //
+      // Note that these temperature only give crude values for non-constant
+      // profiles.
+      int o = 0;
+      temps.SetSize(tpt.Size());
+      for (int i=0; i<temps.Size(); i++)
+      {
+         temps[i] = tpp[o];
+         if (tpt[i] == PlasmaProfile::CONSTANT)
+         {
+            o++;
+         }
+         else if (tpt[i] == PlasmaProfile::GRADIENT)
+         {
+            o += 7;
+         }
+         else if (tpt[i] == PlasmaProfile::TANH)
+         {
+            o += 9;
+         }
+         else if (tpt[i] == PlasmaProfile::ELLIPTIC_COS)
+         {
+            o += 7;
+         }
+         else
+         {
+            o++;
          }
       }
    }
+
+   // Verify compatibility of the sizes of the species parameters
+   MFEM_VERIFY(charges.Size() == masses.Size(),
+               "Mismatch in number of charges and masses.");
+   MFEM_VERIFY(charges.Size() == numbers.Size(),
+               "Mismatch in number of charges and densities.");
+   MFEM_VERIFY(charges.Size() == temps.Size(),
+               "Mismatch in number of charges and temperatures.");
+
+   // Prepare the computational mesh
    if (num_elements <= 0)
    {
       num_elements = 10;
@@ -651,51 +700,56 @@ int main(int argc, char *argv[])
    int size_l2 = L2FESpace.GetVSize();
 
    Array<int> density_offsets(numbers.Size() + 1);
-   Array<int> temperature_offsets(numbers.Size() + 2);
+   Array<int> temperature_offsets(numbers.Size() + 1);
 
    density_offsets[0] = 0;
    temperature_offsets[0] = 0;
-   temperature_offsets[1] = size_h1;
    for (int i=1; i<=numbers.Size(); i++)
    {
       density_offsets[i]     = density_offsets[i - 1] + size_l2;
-      temperature_offsets[i + 1] = temperature_offsets[i] + size_h1;
+      temperature_offsets[i] = temperature_offsets[i - 1] + size_h1;
    }
 
    BlockVector density(density_offsets);
    BlockVector temperature(temperature_offsets);
 
-   PlasmaProfile rhoCoef(dpt, dpp);
-   PlasmaProfile tempCoef(tpt, tpp);
+   vector<Coefficient*> rhoCoefs(dpt.Size());
+   vector<Coefficient*> tempCoefs(tpt.Size());
 
-   for (int i=0; i<numbers.Size(); i++)
    {
-      density_gf.MakeRef(&L2FESpace, density.GetBlock(i));
-      density_gf.ProjectCoefficient(rhoCoef);
+      int offset = 0;
+
+      ParGridFunction el_density_gf;
+      el_density_gf.MakeRef(&L2FESpace, density.GetBlock(0));
+      el_density_gf = 0.0;
+      for (int i=0; i<dpt.Size(); i++)
+      {
+         int np = PlasmaProfile::GetNumParams((PlasmaProfile::Type)dpt[i]);
+         Vector params(&dpp[offset], np);
+         PlasmaProfile * pp = new PlasmaProfile((PlasmaProfile::Type)dpt[i],
+                                                params);
+         rhoCoefs[i] = pp;
+         density_gf.MakeRef(&L2FESpace, density.GetBlock(i+1));
+         density_gf.ProjectCoefficient(*rhoCoefs[i]);
+         el_density_gf.Add(charges[i+1], density_gf);
+         offset += np;
+      }
    }
 
-   for (int i=0; i<=numbers.Size(); i++)
    {
-      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i));
-      temperature_gf.ProjectCoefficient(tempCoef);
+      int offset = 0;
+      for (int i=0; i<tpt.Size(); i++)
+      {
+         int np = PlasmaProfile::GetNumParams((PlasmaProfile::Type)tpt[i]);
+         Vector params(&tpp[offset], np);
+         PlasmaProfile * pp = new PlasmaProfile((PlasmaProfile::Type)tpt[i],
+                                                params);
+         tempCoefs[i] = pp;
+         temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i));
+         temperature_gf.ProjectCoefficient(*tempCoefs[i]);
+         offset += np;
+      }
    }
-   /*
-   for (int i=0; i<=nspecies; i++)
-   {
-      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i));
-      temperature_gf.ProjectCoefficient(tempCoef);
-   }
-   */
-   /*
-   density_gf.MakeRef(&L2FESpace, density.GetBlock(0));
-   density_gf.ProjectCoefficient(rhoCoef1);
-
-   density_gf.MakeRef(&L2FESpace, density.GetBlock(1));
-   density_gf.ProjectCoefficient(rhoCoef2);
-
-   density_gf.MakeRef(&L2FESpace, density.GetBlock(2));
-   density_gf.ProjectCoefficient(rhoCoef3);
-   */
 
    if (mpi.Root() && logging > 0)
    {
@@ -931,7 +985,7 @@ int main(int argc, char *argv[])
 
          // Update again after rebalancing
          Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace, BField, *BCoef,
-                rhoCoef, tempCoef, size_h1, size_l2, density_offsets,
+                rhoCoefs, tempCoefs, size_h1, size_l2, density_offsets,
                 temperature_offsets, density, temperature, density_gf,
                 temperature_gf);
          CPD.Update();
@@ -953,8 +1007,8 @@ void Update(ParFiniteElementSpace & H1FESpace,
             ParFiniteElementSpace & L2FESpace,
             ParGridFunction & BField,
             VectorCoefficient & BCoef,
-            Coefficient & rhoCoef,
-            Coefficient & TCoef,
+            vector<Coefficient*> & rhoCoef,
+            vector<Coefficient*> & TCoef,
             int & size_h1,
             int & size_l2,
             Array<int> & density_offsets,
@@ -981,7 +1035,7 @@ void Update(ParFiniteElementSpace & H1FESpace,
    for (int i=0; i<density_offsets.Size()-1; i++)
    {
       density_gf.MakeRef(&L2FESpace, density.GetBlock(i));
-      density_gf.ProjectCoefficient(rhoCoef);
+      density_gf.ProjectCoefficient(*rhoCoef[i]);
    }
 
    size_h1 = H1FESpace.GetVSize();
@@ -993,7 +1047,7 @@ void Update(ParFiniteElementSpace & H1FESpace,
    for (int i=0; i<temperature_offsets.Size()-1; i++)
    {
       temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i));
-      temperature_gf.ProjectCoefficient(TCoef);
+      temperature_gf.ProjectCoefficient(*TCoef[i]);
    }
 }
 
