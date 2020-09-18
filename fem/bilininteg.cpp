@@ -12,7 +12,6 @@
 // Implementation of Bilinear Form Integrators
 
 #include "fem.hpp"
-#include "fespace.hpp"
 #include <cmath>
 #include <algorithm>
 
