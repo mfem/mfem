@@ -5466,7 +5466,7 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
    auto x = Reshape(_x.Read(), c_dofs1D, c_dofs1D, c_dofs1D, 3, NE);
    auto y = Reshape(_y.ReadWrite(), (3 * c_dofs1D * c_dofs1D * o_dofs1D), NE);
 
-   auto vk = Reshape(pa_data.Read(), (3 * c_dofs1D * c_dofs1D * o_dofs1D),
+   auto vk = Reshape(pa_data.Read(), 3, (3 * c_dofs1D * c_dofs1D * o_dofs1D),
                      NE);
 
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
@@ -5524,7 +5524,7 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
                   s += Bo(ex, dx) * w2[dx][ey][ez];
                }
                const int local_index = ez*c_dofs1D*o_dofs1D + ey*o_dofs1D + ex;
-               y(local_index, e) += s * vk(local_index, e);
+               y(local_index, e) += s * vk(0, local_index, e);
             }
          }
       }
@@ -5577,7 +5577,7 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
                }
                const int local_index = c_dofs1D*c_dofs1D*o_dofs1D +
                                        ez*c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
-               y(local_index, e) += s * vk(local_index, e);
+               y(local_index, e) += s * vk(1, local_index, e);
             }
          }
       }
@@ -5630,7 +5630,7 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
                }
                const int local_index = 2*c_dofs1D*c_dofs1D*o_dofs1D +
                                        ez*c_dofs1D*c_dofs1D + ey*c_dofs1D + ex;
-               y(local_index, e) += s * vk(local_index, e);
+               y(local_index, e) += s * vk(2, local_index, e);
             }
          }
       }
@@ -5652,7 +5652,7 @@ static void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
    auto x = Reshape(_x.Read(), (3 * c_dofs1D * c_dofs1D * o_dofs1D), NE);
    auto y = Reshape(_y.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D, 3, NE);
 
-   auto vk = Reshape(pa_data.Read(), (3 * c_dofs1D * c_dofs1D * o_dofs1D),
+   auto vk = Reshape(pa_data.Read(), 3, (3 * c_dofs1D * c_dofs1D * o_dofs1D),
                      NE);
 
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
@@ -5679,7 +5679,7 @@ static void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
             for (int ex = 0; ex < o_dofs1D; ++ex)
             {
                const int local_index = ez*c_dofs1D*o_dofs1D + ey*o_dofs1D + ex;
-               const double xv = x(local_index, e) * vk(local_index, e);
+               const double xv = x(local_index, e) * vk(0, local_index, e);
                for (int dx = 0; dx < c_dofs1D; ++dx)
                {
                   w2[dx][ey][ez] += xv * Bo(ex, dx);
@@ -5736,7 +5736,7 @@ static void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
             {
                const int local_index = c_dofs1D*c_dofs1D*o_dofs1D +
                                        ez*c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
-               const double xv = x(local_index, e) * vk(local_index, e);
+               const double xv = x(local_index, e) * vk(1, local_index, e);
                for (int dx = 0; dx < c_dofs1D; ++dx)
                {
                   w2[dx][ey][ez] += xv * Bc(ex, dx);
@@ -5793,7 +5793,7 @@ static void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
             {
                const int local_index = 2*c_dofs1D*c_dofs1D*o_dofs1D +
                                        ez*c_dofs1D*c_dofs1D + ey*c_dofs1D + ex;
-               const double xv = x(local_index, e) * vk(local_index, e);
+               const double xv = x(local_index, e) * vk(2, local_index, e);
                for (int dx = 0; dx < c_dofs1D; ++dx)
                {
                   w2[dx][ey][ez] += xv * Bc(ex, dx);
@@ -5852,7 +5852,7 @@ static void PAHcurlVecH1IdentityApply2D(const int c_dofs1D,
    auto x = Reshape(_x.Read(), c_dofs1D, c_dofs1D, 2, NE);
    auto y = Reshape(_y.ReadWrite(), (2 * c_dofs1D * o_dofs1D), NE);
 
-   auto vk = Reshape(pa_data.Read(), (2 * c_dofs1D * o_dofs1D), NE);
+   auto vk = Reshape(pa_data.Read(), 2, (2 * c_dofs1D * o_dofs1D), NE);
 
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    //constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
@@ -5861,7 +5861,7 @@ static void PAHcurlVecH1IdentityApply2D(const int c_dofs1D,
 
    MFEM_FORALL(e, NE,
    {
-      double w[MAX_D1D][MAX_D1D];
+      double w[2][MAX_D1D][MAX_D1D];
 
       // dofs that point parallel to x-axis (open in x, closed in y)
 
@@ -5870,10 +5870,13 @@ static void PAHcurlVecH1IdentityApply2D(const int c_dofs1D,
       {
          for (int dx = 0; dx < c_dofs1D; ++dx)
          {
-            w[dx][ey] = 0.0;
-            for (int dy = 0; dy < c_dofs1D; ++dy)
+            for (int j=0; j<2; ++j)
             {
-               w[dx][ey] += Bc(ey, dy) * x(dx, dy, 0, e);
+               w[j][dx][ey] = 0.0;
+               for (int dy = 0; dy < c_dofs1D; ++dy)
+               {
+                  w[j][dx][ey] += Bc(ey, dy) * x(dx, dy, j, e);
+               }
             }
          }
       }
@@ -5883,13 +5886,16 @@ static void PAHcurlVecH1IdentityApply2D(const int c_dofs1D,
       {
          for (int ex = 0; ex < o_dofs1D; ++ex)
          {
-            double s = 0.0;
-            for (int dx = 0; dx < c_dofs1D; ++dx)
+            for (int j=0; j<2; ++j)
             {
-               s += Bo(ex, dx) * w[dx][ey];
+               double s = 0.0;
+               for (int dx = 0; dx < c_dofs1D; ++dx)
+               {
+                  s += Bo(ex, dx) * w[j][dx][ey];
+               }
+               const int local_index = ey*o_dofs1D + ex;
+               y(local_index, e) += s * vk(j, local_index, e);
             }
-            const int local_index = ey*o_dofs1D + ex;
-            y(local_index, e) += s * vk(local_index, e);
          }
       }
 
@@ -5900,10 +5906,13 @@ static void PAHcurlVecH1IdentityApply2D(const int c_dofs1D,
       {
          for (int dx = 0; dx < c_dofs1D; ++dx)
          {
-            w[dx][ey] = 0.0;
-            for (int dy = 0; dy < c_dofs1D; ++dy)
+            for (int j=0; j<2; ++j)
             {
-               w[dx][ey] += Bo(ey, dy) * x(dx, dy, 1, e);
+               w[j][dx][ey] = 0.0;
+               for (int dy = 0; dy < c_dofs1D; ++dy)
+               {
+                  w[j][dx][ey] += Bo(ey, dy) * x(dx, dy, j, e);
+               }
             }
          }
       }
@@ -5913,13 +5922,16 @@ static void PAHcurlVecH1IdentityApply2D(const int c_dofs1D,
       {
          for (int ex = 0; ex < c_dofs1D; ++ex)
          {
-            double s = 0.0;
-            for (int dx = 0; dx < c_dofs1D; ++dx)
+            for (int j=0; j<2; ++j)
             {
-               s += Bc(ex, dx) * w[dx][ey];
+               double s = 0.0;
+               for (int dx = 0; dx < c_dofs1D; ++dx)
+               {
+                  s += Bc(ex, dx) * w[j][dx][ey];
+               }
+               const int local_index = c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
+               y(local_index, e) += s * vk(j, local_index, e);
             }
-            const int local_index = c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
-            y(local_index, e) += s * vk(local_index, e);
          }
       }
    });
@@ -5940,7 +5952,7 @@ static void PAHcurlVecH1IdentityApplyTranspose2D(const int c_dofs1D,
    auto x = Reshape(_x.Read(), (2 * c_dofs1D * o_dofs1D), NE);
    auto y = Reshape(_y.ReadWrite(), c_dofs1D, c_dofs1D, 2, NE);
 
-   auto vk = Reshape(pa_data.Read(), (2 * c_dofs1D * o_dofs1D), NE);
+   auto vk = Reshape(pa_data.Read(), 2, (2 * c_dofs1D * o_dofs1D), NE);
 
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    //constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
@@ -5949,7 +5961,7 @@ static void PAHcurlVecH1IdentityApplyTranspose2D(const int c_dofs1D,
 
    MFEM_FORALL(e, NE,
    {
-      double w[MAX_D1D][MAX_D1D];
+      double w[2][MAX_D1D][MAX_D1D];
 
       // dofs that point parallel to x-axis (open in x, closed in y)
 
@@ -5958,15 +5970,19 @@ static void PAHcurlVecH1IdentityApplyTranspose2D(const int c_dofs1D,
       {
          for (int dx = 0; dx < c_dofs1D; ++dx)
          {
-            w[dx][ey] = 0.0;
+            for (int j=0; j<2; ++j) { w[j][dx][ey] = 0.0; }
          }
          for (int ex = 0; ex < o_dofs1D; ++ex)
          {
             const int local_index = ey*o_dofs1D + ex;
-            const double xv = x(local_index, e) * vk(local_index, e);
+            const double xd = x(local_index, e);
+
             for (int dx = 0; dx < c_dofs1D; ++dx)
             {
-               w[dx][ey] += xv * Bo(ex, dx);
+               for (int j=0; j<2; ++j)
+               {
+                  w[j][dx][ey] += Bo(ex, dx) * xd * vk(j, local_index, e);
+               }
             }
          }
       }
@@ -5976,12 +5992,15 @@ static void PAHcurlVecH1IdentityApplyTranspose2D(const int c_dofs1D,
       {
          for (int dy = 0; dy < c_dofs1D; ++dy)
          {
-            double s = 0.0;
-            for (int ey = 0; ey < c_dofs1D; ++ey)
+            for (int j=0; j<2; ++j)
             {
-               s += w[dx][ey] * Bc(ey, dy);
+               double s = 0.0;
+               for (int ey = 0; ey < c_dofs1D; ++ey)
+               {
+                  s += w[j][dx][ey] * Bc(ey, dy);
+               }
+               y(dx, dy, j, e) += s;
             }
-            y(dx, dy, 0, e) += s;
          }
       }
 
@@ -5992,16 +6011,18 @@ static void PAHcurlVecH1IdentityApplyTranspose2D(const int c_dofs1D,
       {
          for (int dx = 0; dx < c_dofs1D; ++dx)
          {
-            w[dx][ey] = 0.0;
+            for (int j=0; j<2; ++j) { w[j][dx][ey] = 0.0; }
          }
          for (int ex = 0; ex < c_dofs1D; ++ex)
          {
             const int local_index = c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
-
-            const double xv = x(local_index, e) * vk(local_index, e);
+            const double xd = x(local_index, e);
             for (int dx = 0; dx < c_dofs1D; ++dx)
             {
-               w[dx][ey] += xv * Bc(ex, dx);
+               for (int j=0; j<2; ++j)
+               {
+                  w[j][dx][ey] += Bc(ex, dx) * xd * vk(j, local_index, e);
+               }
             }
          }
       }
@@ -6011,12 +6032,15 @@ static void PAHcurlVecH1IdentityApplyTranspose2D(const int c_dofs1D,
       {
          for (int dy = 0; dy < c_dofs1D; ++dy)
          {
-            double s = 0.0;
-            for (int ey = 0; ey < o_dofs1D; ++ey)
+            for (int j=0; j<2; ++j)
             {
-               s += w[dx][ey] * Bo(ey, dy);
+               double s = 0.0;
+               for (int ey = 0; ey < o_dofs1D; ++ey)
+               {
+                  s += w[j][dx][ey] * Bo(ey, dy);
+               }
+               y(dx, dy, j, e) += s;
             }
-            y(dx, dy, 1, e) += s;
          }
       }
    });
@@ -6071,8 +6095,8 @@ void IdentityInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
 
    const IntegrationRule & Nodes = test_el->GetNodes();
 
-   pa_data.SetSize(ndof_test * ne, Device::GetMemoryType());
-   auto op = Reshape(pa_data.HostWrite(), ndof_test, ne);
+   pa_data.SetSize(dim * ndof_test * ne, Device::GetMemoryType());
+   auto op = Reshape(pa_data.HostWrite(), dim, ndof_test, ne);
 
    if (dim == 3)
    {
@@ -6098,14 +6122,17 @@ void IdentityInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
                tr->SetIntPoint(&Nodes.IntPoint(d));
                tr->Jacobian().Mult(tk + dof2tk*dim, v);
 
-               op(d,e) = v[c];
+               for (int j=0; j<3; ++j)
+               {
+                  op(j,d,e) = v[j];
+               }
             }
          }
       }
    }
    else // 2D case
    {
-      const double tk[8] = { 1.,0.,  0.,1. , -1.,0., 0.,-1. };
+      const double tk[4] = { 1.,0.,  0.,1. };
       for (int c=0; c<2; ++c)
       {
          for (int i=0; i<ndof_test/2; ++i)
@@ -6122,7 +6149,10 @@ void IdentityInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
                tr->SetIntPoint(&Nodes.IntPoint(d));
                tr->Jacobian().Mult(tk + dof2tk*dim, v);
 
-               op(d,e) = v[c];
+               for (int j=0; j<2; ++j)
+               {
+                  op(j,d,e) = v[j];
+               }
             }
          }
       }

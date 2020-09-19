@@ -821,7 +821,6 @@ void PAMixedBilinearFormExtension::Update()
       localTrial.UseDevice(true);
       localTrial.SetSize(elem_restrict_trial->Height(),
                          Device::GetMemoryType());
-
    }
    if (elem_restrict_test)
    {
@@ -1124,6 +1123,10 @@ void PADiscreteLinearOperatorExtension::AddMultTranspose(
       tempY.SetSize(y.Size());
       elem_restrict_trial->MultTranspose(localTrial, tempY);
       y += tempY;
+   }
+   else
+   {
+      mfem_error("Trial ElementRestriction not defined");
    }
 }
 
