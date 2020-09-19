@@ -181,7 +181,7 @@ struct CeedPAOperator
    /** The name of the Qfunction to build the quadrature data with a constant
        vector coefficient.*/
    std::string vec_const_func;
-   /** The Qfunction to build the quadrature data with constant vector 
+   /** The Qfunction to build the quadrature data with constant vector
        coefficient. */
    CeedQFunctionUser vec_const_qf;
    /** The name of the Qfunction to build the quadrature data with a vector 
@@ -230,7 +230,7 @@ struct CeedMFOperator
    /** The Qfunction to apply the quadrature data with constant vector 
        coefficient. */
    CeedQFunctionUser vec_const_qf;
-   /** The name of the Qfunction to apply the quadrature data with a vector 
+   /** The name of the Qfunction to apply the quadrature data with a vector
        coefficient evaluated at quadrature point. */
    std::string vec_quad_func;
    /** The Qfunction to apply the quad. data with a vector coefficient evaluated
@@ -240,7 +240,7 @@ struct CeedMFOperator
        CEED_EVAL_GRAD, etc.) */
    EvalMode trial_op;
    /** The evaluation mode to apply to the test function ( CEED_EVAL_INTERP,
-       CEED_EVAL_GRAD, etc.)*/
+       CEED_EVAL_GRAD, etc.) */
    EvalMode test_op;
 #endif
 };
