@@ -21,12 +21,12 @@ namespace mfem
 
 /// Initialize a Convection Integrator using libCEED
 void CeedPAConvectionAssemble(const FiniteElementSpace &fes,
-                             const mfem::IntegrationRule &ir,
-                             CeedData& ceedData);
+                              const mfem::IntegrationRule &ir,
+                              CeedData& ceedData);
 
 void CeedMFConvectionAssemble(const FiniteElementSpace &fes,
-                             const mfem::IntegrationRule &ir,
-                             CeedData& ceedData);
+                              const mfem::IntegrationRule &ir,
+                              CeedData& ceedData);
 
 }
 

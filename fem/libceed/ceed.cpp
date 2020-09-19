@@ -115,7 +115,7 @@ void InitCeedVecCoeff(VectorCoefficient *VQ, Mesh &mesh,
 {
 #ifdef MFEM_USE_CEED
    if (VectorConstantCoefficient *coeff =
-         dynamic_cast<VectorConstantCoefficient*>(VQ))
+          dynamic_cast<VectorConstantCoefficient*>(VQ))
    {
       const int vdim = coeff->GetVDim();
       const Vector &val = coeff->GetVec();
@@ -253,15 +253,15 @@ void CeedPAAssemble(const CeedPAOperator& op,
       {
          qf = qf_file + op.vec_const_func;
          CeedQFunctionCreateInterior(ceed, 1, op.vec_const_qf,
-                                    qf.c_str(),
-                                    &ceedData.build_qfunc);
+                                     qf.c_str(),
+                                     &ceedData.build_qfunc);
          CeedVecConstCoeff *coeff = static_cast<CeedVecConstCoeff*>(ceedData.coeff);
          for (size_t i = 0; i < dim; i++)
          {
             ceedData.build_ctx_data.coeff[i] = coeff->val[i];
          }
       }
-         break;
+      break;
       case CeedCoeff::VecGrid:
          qf = qf_file + op.vec_quad_func;
          CeedQFunctionCreateInterior(ceed, 1, op.vec_quad_qf,
@@ -304,7 +304,7 @@ void CeedPAAssemble(const CeedPAOperator& op,
          CeedOperatorSetField(ceedData.build_oper, "coeff", gridCoeff->restr,
                               gridCoeff->basis, gridCoeff->coeffVector);
       }
-         break;
+      break;
       case CeedCoeff::Quad:
       {
          CeedQuadCoeff* quadCoeff = (CeedQuadCoeff*)ceedData.coeff;
@@ -316,7 +316,7 @@ void CeedPAAssemble(const CeedPAOperator& op,
          CeedOperatorSetField(ceedData.build_oper, "coeff", quadCoeff->restr,
                               CEED_BASIS_COLLOCATED, quadCoeff->coeffVector);
       }
-         break;
+      break;
       case CeedCoeff::VecConst:
          break;
       case CeedCoeff::VecGrid:
@@ -328,7 +328,7 @@ void CeedPAAssemble(const CeedPAOperator& op,
          CeedOperatorSetField(ceedData.build_oper, "coeff", gridCoeff->restr,
                               gridCoeff->basis, gridCoeff->coeffVector);
       }
-         break;
+      break;
       case CeedCoeff::VecQuad:
       {
          CeedVecQuadCoeff* quadCoeff = (CeedVecQuadCoeff*)ceedData.coeff;
@@ -340,7 +340,7 @@ void CeedPAAssemble(const CeedPAOperator& op,
          CeedOperatorSetField(ceedData.build_oper, "coeff", quadCoeff->restr,
                               CEED_BASIS_COLLOCATED, quadCoeff->coeffVector);
       }
-         break;
+      break;
    }
    CeedOperatorSetField(ceedData.build_oper, "dx", ceedData.mesh_restr,
                         ceedData.mesh_basis, CEED_VECTOR_ACTIVE);
@@ -511,18 +511,18 @@ void CeedMFAssemble(const CeedMFOperator& op,
          CeedQFunctionAddInput(ceedData.apply_qfunc, "coeff", 1, CEED_EVAL_NONE);
          break;
       case CeedCoeff::VecConst:
+      {
+         qf = qf_file + op.vec_const_func;
+         CeedQFunctionCreateInterior(ceed, 1, op.vec_const_qf,
+                                     qf.c_str(),
+                                     &ceedData.apply_qfunc);
+         CeedVecConstCoeff *coeff = static_cast<CeedVecConstCoeff*>(ceedData.coeff);
+         for (size_t i = 0; i < dim; i++)
          {
-            qf = qf_file + op.vec_const_func;
-            CeedQFunctionCreateInterior(ceed, 1, op.vec_const_qf,
-                                       qf.c_str(),
-                                       &ceedData.apply_qfunc);
-            CeedVecConstCoeff *coeff = static_cast<CeedVecConstCoeff*>(ceedData.coeff);
-            for (size_t i = 0; i < dim; i++)
-            {
-               ceedData.build_ctx_data.coeff[i] = coeff->val[i];
-            }
+            ceedData.build_ctx_data.coeff[i] = coeff->val[i];
          }
-         break;
+      }
+      break;
       case CeedCoeff::VecGrid:
          qf = qf_file + op.vec_quad_func;
          CeedQFunctionCreateInterior(ceed, 1, op.vec_quad_qf,

@@ -317,10 +317,10 @@ private:
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, nq;
-  
+
    // CEED extension
    CeedData* ceedDataPtr;
- 
+
 public:
    VectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { }
 
