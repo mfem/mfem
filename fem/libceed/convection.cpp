@@ -20,7 +20,7 @@ namespace mfem
 {
 
 void CeedPAConvectionAssemble(const FiniteElementSpace &fes,
-                             const mfem::IntegrationRule &irm, CeedData& ceedData)
+                              const mfem::IntegrationRule &irm, CeedData& ceedData)
 {
 #ifdef MFEM_USE_CEED
    Mesh &mesh = *fes.GetMesh();
@@ -46,7 +46,7 @@ void CeedPAConvectionAssemble(const FiniteElementSpace &fes,
 }
 
 void CeedMFConvectionAssemble(const FiniteElementSpace &fes,
-                             const mfem::IntegrationRule &irm, CeedData& ceedData)
+                              const mfem::IntegrationRule &irm, CeedData& ceedData)
 {
 #ifdef MFEM_USE_CEED
    CeedMFOperator convOp = {fes, irm,

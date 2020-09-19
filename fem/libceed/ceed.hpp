@@ -114,34 +114,34 @@ struct CeedData
       CeedVectorDestroy(&rho);
       switch (coeff_type)
       {
-      case CeedCoeff::Const:
-         delete static_cast<CeedConstCoeff*>(coeff);
-         break;
-      case CeedCoeff::Grid:
+         case CeedCoeff::Const:
+            delete static_cast<CeedConstCoeff*>(coeff);
+            break;
+         case CeedCoeff::Grid:
          {
             CeedGridCoeff* c = static_cast<CeedGridCoeff*>(coeff);
             CeedVectorDestroy(&c->coeffVector);
             delete c;
          }
          break;
-      case CeedCoeff::Quad:
+         case CeedCoeff::Quad:
          {
             CeedQuadCoeff* c = static_cast<CeedQuadCoeff*>(coeff);
             CeedVectorDestroy(&c->coeffVector);
             delete c;
          }
          break;
-      case CeedCoeff::VecConst:
-         delete static_cast<CeedVecConstCoeff*>(coeff);
-         break;
-      case CeedCoeff::VecGrid:
+         case CeedCoeff::VecConst:
+            delete static_cast<CeedVecConstCoeff*>(coeff);
+            break;
+         case CeedCoeff::VecGrid:
          {
             CeedVecGridCoeff* c = static_cast<CeedVecGridCoeff*>(coeff);
             CeedVectorDestroy(&c->coeffVector);
             delete c;
          }
          break;
-      case CeedCoeff::VecQuad:
+         case CeedCoeff::VecQuad:
          {
             CeedVecQuadCoeff* c = static_cast<CeedVecQuadCoeff*>(coeff);
             CeedVectorDestroy(&c->coeffVector);

@@ -822,7 +822,7 @@ void VectorConvectionNLFIntegrator::AddMultPA(const Vector &x, Vector &y) const
          constexpr int T_MAX_Q1D = 8;
          MFEM_VERIFY(D1D <= T_MAX_D1D && Q1D <= T_MAX_Q1D, "Not yet implemented!");
          return SmemPAConvectionNLApply3D<0, 0, T_MAX_D1D, T_MAX_Q1D>
-               (NE, B, G, Q, x, y, D1D, Q1D);
+                (NE, B, G, Q, x, y, D1D, Q1D);
       }
       MFEM_ABORT("Not yet implemented!");
    }
