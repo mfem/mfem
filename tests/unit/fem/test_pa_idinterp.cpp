@@ -119,10 +119,12 @@ TEST_CASE("PAIdentityInterp", "[PAIdentityInterp]")
       {
          for (int num_elements = 0; num_elements < 5; ++num_elements)
          {
+            const double tol = (num_elements == 0) ? 1e-5 : 1e-14;
+
             for (int order = 1; order < 5; ++order)
             {
                double error = compare_pa_id_assembly(dim, num_elements, order, transpose);
-               REQUIRE(error < 1.e-14);
+               REQUIRE(error < tol);
             }
          }
       }
