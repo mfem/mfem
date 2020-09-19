@@ -357,8 +357,7 @@ int main(int argc, char *argv[])
 
    //cout << "TrueVSize is: " << fe_size<<" id = "<<myid << endl;
 
-   BlockVector vx(fe_offset);
-   BlockVector vxold(fe_offset);
+   BlockVector vx(fe_offset), vxold(fe_offset);
    ParGridFunction psi, phi, w, psiBack(&fespace), psiPer(&fespace);
    phi.MakeTRef(&fespace, vx, fe_offset[0]);
    psi.MakeTRef(&fespace, vx, fe_offset[1]);
