@@ -3,8 +3,6 @@
 #include <iostream>
 #include "exGD.hpp"
 #include "centgridfunc.hpp"
-#include <chrono> 
-using namespace std::chrono; 
 using namespace std;
 using namespace mfem;
 double u_exact(const Vector &);
@@ -48,14 +46,14 @@ int main(int argc, char *argv[])
    }
    if (kappa < 0)
    {
-      kappa = (order+1)*(order+1);
+      kappa = (order + 1) * (order + 1);
    }
    args.PrintOptions(cout);
 
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
    //    NURBS meshes are projected to second order meshes.
-  // Mesh *mesh = new Mesh(mesh_file, 1, 1);
+   // Mesh *mesh = new Mesh(mesh_file, 1, 1);
    // Mesh *mesh = new Mesh(N, N, Element::TRIANGLE, true,
    //                       1, 1, true);
    Mesh *mesh = new Mesh(N, N, Element::QUADRILATERAL, true,
@@ -90,161 +88,156 @@ int main(int argc, char *argv[])
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    cout << "Number of unknowns: " << fespace->GetVSize() << endl;
    /// GD finite element space
-   auto start = high_resolution_clock::now(); 
    FiniteElementSpace *fes = new GalerkinDifference(mesh, dim, mesh->GetNE(), fec, 1, Ordering::byVDIM, order);
-   auto stop = high_resolution_clock::now(); 
-   auto duration = duration_cast<microseconds>(stop - start); 
-   cout << "time taken for prolongation: " << duration.count()*1e-06 << endl;
    cout << "Number of GD unknowns: " << fes->GetTrueVSize() << endl;
    cout << "#dofs " << fes->GetNDofs() << endl;
-//    // 5. Set up the linear form b(.) which corresponds to the right-hand side of
-//    //    the FEM linear system.
-//    LinearForm *b = new LinearForm(fespace);
-//    ConstantCoefficient one(1.0);
-//    ConstantCoefficient zero(0.0);
-//    FunctionCoefficient f(f_exact);
-//    FunctionCoefficient u(u_exact);
-//    VectorFunctionCoefficient exact(1, exact_function);
-//    b->AddDomainIntegrator(new DomainLFIntegrator(f));
-//    b->AddBdrFaceIntegrator(
-//       new DGDirichletLFIntegrator(u, one, sigma, kappa));
-//    b->Assemble();
-//    // GD grid function
-//    CentGridFunction y(fes);
-//    y.ProjectCoefficient(exact);
-//    // cout << "exact solution " << endl;
-//    // y.Print();
-//    // cout << "center grid function created " << endl;
-//    // VectorFunctionCoefficient exact(dim, exact_function);
-//    // y.ProjectCoefficient(exact);
-//    // cout << "solution at center is " << endl;
-//    // y.Print();
-//    // cout << "check if the prolongation matrix is correct " << endl;
-//    // GridFunction x(fespace);
-//    // fes->GetProlongationMatrix()->Mult(y, x);
-//    // x.Print();
-// //    cout << "rhs is " << endl;
-// //   b->Print();
-//    // 6. Define the solution vector x as a finite element grid function
-//    //    corresponding to fespace. Initialize x with initial guess of zero.
-//    GridFunction x(fespace);
-//    // 7. Set up the bilinear form a(.,.) on the finite element space
-//    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
-//    //    domain integrator and the interior and boundary DG face integrators.
-//    //    Note that boundary conditions are imposed weakly in the form, so there
-//    //    is no need for dof elimination. After assembly and finalizing we
-//    //    extract the corresponding sparse matrix A.
-//    BilinearForm *a = new BilinearForm(fespace);
-//    a->AddDomainIntegrator(new DiffusionIntegrator(one));
-//    a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
-//    a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
-//    a->Assemble();
-//    a->Finalize();
-//     // stiffness matrix
-//    SparseMatrix &Aold = a->SpMat();
-//    SparseMatrix *cp = dynamic_cast<GalerkinDifference *>(fes)->GetCP();
-//    SparseMatrix *p = RAP(*cp, Aold, *cp);
-//    SparseMatrix &A = *p;
-//    ofstream write("stiffmat_ex14GD.txt");
-//    A.PrintMatlab(write);
-//    write.close();
-//    // get P^T b
-//    Vector bnew(A.Width());
-//    fes->GetProlongationMatrix()->MultTranspose(*b, bnew);
-//    // write stiffness matrix to file
-//    //cout << "bilinear form size " << a->Size() << endl;
-//    //A.Print();
-//    //cout << x.Size() << endl;
-// //#ifndef MFEM_USE_SUITESPARSE
-//    // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
-//    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
-//    //    non-symmetric one.
-//    GSSmoother M(A);
-//    if (sigma == -1.0)
-//    {
-//       PCG(A, M, bnew, y, 1, 2000, 1e-40, 0.0);
-//    }
-//    else
-//    {
-//       GMRES(A, M, bnew, y, 1, 500, 10, 1e-16, 0.0);
-//    }
-// // #else
-// //    // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-// //    UMFPackSolver umf_solver;
-// //    umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-// //    umf_solver.SetOperator(A);
-// //    umf_solver.Mult(*b, x);
-// // #endif
+   //    // 5. Set up the linear form b(.) which corresponds to the right-hand side of
+   //    //    the FEM linear system.
+   //    LinearForm *b = new LinearForm(fespace);
+   //    ConstantCoefficient one(1.0);
+   //    ConstantCoefficient zero(0.0);
+   //    FunctionCoefficient f(f_exact);
+   //    FunctionCoefficient u(u_exact);
+   //    VectorFunctionCoefficient exact(1, exact_function);
+   //    b->AddDomainIntegrator(new DomainLFIntegrator(f));
+   //    b->AddBdrFaceIntegrator(
+   //       new DGDirichletLFIntegrator(u, one, sigma, kappa));
+   //    b->Assemble();
+   //    // GD grid function
+   //    CentGridFunction y(fes);
+   //    y.ProjectCoefficient(exact);
+   //    // cout << "exact solution " << endl;
+   //    // y.Print();
+   //    // cout << "center grid function created " << endl;
+   //    // VectorFunctionCoefficient exact(dim, exact_function);
+   //    // y.ProjectCoefficient(exact);
+   //    // cout << "solution at center is " << endl;
+   //    // y.Print();
+   //    // cout << "check if the prolongation matrix is correct " << endl;
+   //    // GridFunction x(fespace);
+   //    // fes->GetProlongationMatrix()->Mult(y, x);
+   //    // x.Print();
+   // //    cout << "rhs is " << endl;
+   // //   b->Print();
+   //    // 6. Define the solution vector x as a finite element grid function
+   //    //    corresponding to fespace. Initialize x with initial guess of zero.
+   //    GridFunction x(fespace);
+   //    // 7. Set up the bilinear form a(.,.) on the finite element space
+   //    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
+   //    //    domain integrator and the interior and boundary DG face integrators.
+   //    //    Note that boundary conditions are imposed weakly in the form, so there
+   //    //    is no need for dof elimination. After assembly and finalizing we
+   //    //    extract the corresponding sparse matrix A.
+   //    BilinearForm *a = new BilinearForm(fespace);
+   //    a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   //    a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
+   //    a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
+   //    a->Assemble();
+   //    a->Finalize();
+   //     // stiffness matrix
+   //    SparseMatrix &Aold = a->SpMat();
+   //    SparseMatrix *cp = dynamic_cast<GalerkinDifference *>(fes)->GetCP();
+   //    SparseMatrix *p = RAP(*cp, Aold, *cp);
+   //    SparseMatrix &A = *p;
+   //    ofstream write("stiffmat_ex14GD.txt");
+   //    A.PrintMatlab(write);
+   //    write.close();
+   //    // get P^T b
+   //    Vector bnew(A.Width());
+   //    fes->GetProlongationMatrix()->MultTranspose(*b, bnew);
+   //    // write stiffness matrix to file
+   //    //cout << "bilinear form size " << a->Size() << endl;
+   //    //A.Print();
+   //    //cout << x.Size() << endl;
+   // //#ifndef MFEM_USE_SUITESPARSE
+   //    // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
+   //    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
+   //    //    non-symmetric one.
+   //    GSSmoother M(A);
+   //    if (sigma == -1.0)
+   //    {
+   //       PCG(A, M, bnew, y, 1, 2000, 1e-40, 0.0);
+   //    }
+   //    else
+   //    {
+   //       GMRES(A, M, bnew, y, 1, 500, 10, 1e-16, 0.0);
+   //    }
+   // // #else
+   // //    // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+   // //    UMFPackSolver umf_solver;
+   // //    umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+   // //    umf_solver.SetOperator(A);
+   // //    umf_solver.Mult(*b, x);
+   // // #endif
 
-//    // 9. Save the refined mesh and the solution. This output can be viewed later
-//    //    using GLVis: "glvis -m refined.mesh -g sol.gf".
-//    // cout << "----------------------------- "<< endl;
-//    // cout << "solution at center obtained: "<< endl;
-//    // y.Print();
-//    // cout << "----------------------------- "<< endl;
-//    // get x = P y
-//    fes->GetProlongationMatrix()->Mult(y, x);
-//    // cout << "solution at nodes " << endl;
-//    // x.Print();
-//    // cout << "************************" << endl;
-//    ofstream mesh_ofs("refined.mesh");
-//    mesh_ofs.precision(8);
-//    mesh->Print(mesh_ofs);
-//    ofstream sol_ofs("sol.gf");
-//    sol_ofs.precision(8);
-//    x.Save(sol_ofs);
+   //    // 9. Save the refined mesh and the solution. This output can be viewed later
+   //    //    using GLVis: "glvis -m refined.mesh -g sol.gf".
+   //    // cout << "----------------------------- "<< endl;
+   //    // cout << "solution at center obtained: "<< endl;
+   //    // y.Print();
+   //    // cout << "----------------------------- "<< endl;
+   //    // get x = P y
+   //    fes->GetProlongationMatrix()->Mult(y, x);
+   //    // cout << "solution at nodes " << endl;
+   //    // x.Print();
+   //    // cout << "************************" << endl;
+   //    ofstream mesh_ofs("refined.mesh");
+   //    mesh_ofs.precision(8);
+   //    mesh->Print(mesh_ofs);
+   //    ofstream sol_ofs("sol.gf");
+   //    sol_ofs.precision(8);
+   //    x.Save(sol_ofs);
 
-//    // ofstream adj_ofs("dgsoldisc.vtk");
-//    // adj_ofs.precision(14);
-//    // mesh->PrintVTK(adj_ofs, 1);
-//    // x.SaveVTK(adj_ofs, "dgSolution", 1);
-//    // adj_ofs.close();
-//    // 10. Send the solution by socket to a GLVis server.
-//    if (visualization)
-//    {
-//       char vishost[] = "localhost";
-//       int  visport   = 19916;
-//       socketstream sol_sock(vishost, visport);
-//       sol_sock.precision(8);
-//       sol_sock << "solution\n" << *mesh << x << flush;
-//    }
-//   double norm = x.ComputeL2Error(u);
-//   cout << "----------------------------- " << endl;
-//   cout << "mesh size, h = " << 1.0 / N << endl;
-//   cout << "solution norm: " << norm << endl;
-//   // 11. Free the used memory.
-//   delete a;
-//   delete b;
-  delete fespace;
-  delete fec;
-  delete mesh;
-  return 0;
+   //    // ofstream adj_ofs("dgsoldisc.vtk");
+   //    // adj_ofs.precision(14);
+   //    // mesh->PrintVTK(adj_ofs, 1);
+   //    // x.SaveVTK(adj_ofs, "dgSolution", 1);
+   //    // adj_ofs.close();
+   //    // 10. Send the solution by socket to a GLVis server.
+   //    if (visualization)
+   //    {
+   //       char vishost[] = "localhost";
+   //       int  visport   = 19916;
+   //       socketstream sol_sock(vishost, visport);
+   //       sol_sock.precision(8);
+   //       sol_sock << "solution\n" << *mesh << x << flush;
+   //    }
+   //   double norm = x.ComputeL2Error(u);
+   //   cout << "----------------------------- " << endl;
+   //   cout << "mesh size, h = " << 1.0 / N << endl;
+   //   cout << "solution norm: " << norm << endl;
+   //   // 11. Free the used memory.
+   //   delete a;
+   //   delete b;
+   delete fespace;
+   delete fec;
+   delete mesh;
+   return 0;
 }
 double u_exact(const Vector &x)
 {
    //return 2.0;
    //return exp(x(0));
-   //return exp(x(0)+x(1)); 
+   //return exp(x(0)+x(1));
    //return (x(0) * x(0) ) + (x(1) * x(1));
    //return x(0)*x(0);
-   return sin(M_PI* x(0))*sin(M_PI*x(1));
+   return sin(M_PI * x(0)) * sin(M_PI * x(1));
    //return (2*x(0)) - (2*x(1));
 }
 double f_exact(const Vector &x)
 {
    //return 0.0;
-   //return -2*exp(x(0)+x(1)); 
+   //return -2*exp(x(0)+x(1));
    //return -exp(x(0));
    //return -4.0;
-   return 2*M_PI * M_PI* sin(M_PI*x(0)) * sin(M_PI* x(1));
+   return 2 * M_PI * M_PI * sin(M_PI * x(0)) * sin(M_PI * x(1));
 }
-
 
 void exact_function(const Vector &x, Vector &v)
 {
    //v(0) = 2.0;
    // v(0) = sin(M_PI* x(0));
-   //v(0) = exp(x(0)+x(1)); 
+   //v(0) = exp(x(0)+x(1));
    //v(0) = x(0)+ x(1);
    v(0) = sin(M_PI * x(0)) * sin(M_PI * x(1));
 }
@@ -381,7 +374,8 @@ void GalerkinDifference::BuildGDProlongation() const
       nelmt = degree + 1;
       break;
    case 2:
-      nelmt = (degree + 1) * (degree + 2) / 2;
+      //nelmt = (degree + 1) * (degree + 2) / 2;
+      nelmt = (2 * degree) + 1;
       //nelmt = nelmt + 1;
       break;
    default:;
@@ -401,10 +395,12 @@ void GalerkinDifference::BuildGDProlongation() const
    {
 
       GetNeighbourSet(i, nelmt, elmt_id);
-      //cout << "element " << "( " << i  << ") " << " #neighbours = " << elmt_id.Size() << endl;
-      // cout << "Elements id(s) in patch: ";
-      //elmt_id.Print(cout, elmt_id.Size());
-      //cout << " ----------------------- "  << endl;
+      cout << "element "
+           << "( " << i << ") "
+           << " #neighbours = " << elmt_id.Size() << endl;
+      cout << "Elements id(s) in patch: ";
+      elmt_id.Print(cout, elmt_id.Size());
+      cout << " ----------------------- " << endl;
       // 2. build the quadrature and barycenter coordinate matrices
       BuildNeighbourMat(elmt_id, cent_mat, quad_mat);
       // cout << "The element center matrix:\n";
@@ -415,7 +411,7 @@ void GalerkinDifference::BuildGDProlongation() const
       // cout << endl;
 
       // 3. buil the loacl reconstruction matrix
-     // cout << "element is " << i << endl;
+      // cout << "element is " << i << endl;
       buildLSInterpolation(dim, degree, cent_mat, quad_mat, local_mat);
       //cout << " ######################### " << endl;
       // cout << "Local reconstruction matrix R:\n";
@@ -554,38 +550,43 @@ void buildLSInterpolation(int dim, int degree, const DenseMatrix &x_center,
    // Set the RHS for the LS problem (it's the identity matrix)
    // This will store the solution, that is, the basis coefficients, hence
    // the name `coeff`
-   mfem::DenseMatrix coeff(num_elem, num_elem);
+   int LDB = max(num_elem, num_basis);
+   // mfem::DenseMatrix coeff(num_elem, num_elem);
+   mfem::DenseMatrix coeff(LDB, LDB);
    coeff = 0.0;
-   for (int i = 0; i < num_elem; ++i)
+   for (int i = 0; i < LDB; ++i)
    {
       coeff(i, i) = 1.0;
    }
-   mfem::DenseMatrix rhs(num_elem, num_elem);
-   rhs = coeff;
+   // mfem::DenseMatrix rhs(num_elem, num_elem);
+   // rhs = coeff;
    // Set-up and solve the least-squares problem using LAPACK's dgels
    char TRANS = 'N';
    int info;
    //int lwork = 2 * num_elem * num_basis;
-   int lwork = (num_elem * num_basis) + (3* num_basis) + 1; 
+   int lwork = (num_elem * num_basis) + (3 * num_basis) + 1;
    double work[lwork];
    int rank;
    Array<int> jpvt;
    jpvt.SetSize(num_basis);
    jpvt = 0;
-   double rcond= 1e-16;
+   double rcond = 1e-16;
    // cout << "right hand side " << endl;
    // coeff.PrintMatlab();
-  // cout << "A is  " << endl;
+   // cout << "A is  " << endl;
    ofstream write("V_mat.txt");
    write.precision(16);
    V.PrintMatlab(write);
    write.close();
+
    //V.PrintMatlab();
-  // cout << "rank is " << V.Rank(1e-12) << endl;
-   // dgels_(&TRANS, &num_elem, &num_basis, &num_elem, V.GetData(), &num_elem,
-   //        coeff.GetData(), &num_elem, work, &lwork, &info);
-   dgelsy_(&num_elem, &num_basis, &num_elem,  V.GetData(), &num_elem, coeff.GetData(),
-         &num_elem, jpvt.GetData(),  &rcond , &rank,  work, &lwork, &info);
+   // cout << "rank is " << V.Rank(1e-12) << endl;
+   dgels_(&TRANS, &num_elem, &num_basis, &num_elem, V.GetData(), &num_elem,
+          coeff.GetData(), &LDB, work, &lwork, &info);
+   // dgelsy_(&num_elem, &num_basis, &num_elem,  V.GetData(), &num_elem, coeff.GetData(),
+   //       &num_elem, jpvt.GetData(),  &rcond , &rank,  work, &lwork, &info);
+   dgelsy_(&num_elem, &num_basis, &num_elem, V.GetData(), &num_elem, coeff.GetData(),
+           &num_elem, jpvt.GetData(), &rcond, &rank, work, &lwork, &info);
    //cout<< "info is " << info << endl;
 
    MFEM_ASSERT(info == 0, "Fail to solve the underdetermined system.\n");
@@ -646,6 +647,7 @@ void buildLSInterpolation(int dim, int degree, const DenseMatrix &x_center,
             }
          }
       }
+      // coeff.PrintMatlab();
       // loop over quadrature points
       for (int j = 0; j < num_quad; ++j)
       {
@@ -653,25 +655,25 @@ void buildLSInterpolation(int dim, int degree, const DenseMatrix &x_center,
          {
             for (int q = 0; q <= p; ++q)
             {
-         // int p = 0;
-         // int q = 0;
-         // loop over the element centers
-         double poly_at_quad = 0.0;
-         for (int i = 0; i < num_elem; ++i)
-         {
-            double dx = x_quad(0, j) - x_center(0, i);
-            double dy = x_quad(1, j) - x_center(1, i);
-            poly_at_quad += interp(j, i) * pow(dx, p - q) * pow(dy, q);
-         }
-         double exact = ((p == 0) && (q == 0)) ? 1.0 : 0.0;
-         // mfem::out << "polynomial interpolation error (" << p - q << ","
-         //           << q << ") = " << fabs(exact - poly_at_quad) << endl;
-         if ((p == 0) && (q == 0))
-         {
-         MFEM_ASSERT(fabs(exact - poly_at_quad) <= 1e-12,
-                     "Interpolation operator does not interpolate exactly!\n");
-         }
-         }
+               // int p = 0;
+               // int q = 0;
+               // loop over the element centers
+               double poly_at_quad = 0.0;
+               for (int i = 0; i < num_elem; ++i)
+               {
+                  double dx = x_quad(0, j) - x_center(0, i);
+                  double dy = x_quad(1, j) - x_center(1, i);
+                  poly_at_quad += interp(j, i) * pow(dx, p - q) * pow(dy, q);
+               }
+               double exact = ((p == 0) && (q == 0)) ? 1.0 : 0.0;
+               // mfem::out << "polynomial interpolation error (" << p - q << ","
+               //           << q << ") = " << fabs(exact - poly_at_quad) << endl;
+               if ((p == 0) && (q == 0))
+               {
+                  MFEM_ASSERT(fabs(exact - poly_at_quad) <= 1e-12, " p = " << p << " , q = " << q << " : "
+                                                                                                     "Interpolation operator does not interpolate exactly!\n");
+               }
+            }
          }
       }
    }

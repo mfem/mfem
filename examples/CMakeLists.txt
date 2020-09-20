@@ -32,6 +32,7 @@ list(APPEND ALL_EXE_SRCS
   ex23.cpp
   ex24.cpp
   ex25.cpp
+  exPoisson_GD.cpp
   exCircle.cpp
   exArea.cpp
   exMesh.cpp
@@ -43,6 +44,7 @@ list(APPEND ALL_EXE_SRCS
   exAdvection_cutGD.cpp
   exAdvection_CM.cpp
   ex_testGD.cpp
+  poissonPrimal.cpp
   )
 
 if (MFEM_USE_MPI)

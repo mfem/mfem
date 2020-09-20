@@ -1,6 +1,8 @@
 #include "exLaplace.hpp"
 #include "exGD_cut.hpp"
 #include "centgridfunc.hpp"
+#include <chrono> 
+using namespace std::chrono; 
 using namespace std;
 using namespace mfem;
 double u_exact(const Vector &);
@@ -72,7 +74,7 @@ int main(int argc, char *argv[])
 
    Mesh *mesh = new Mesh(N, N, Element::QUADRILATERAL, true,
                          1, 1, true);
-   
+
    // Mesh *mesh = new Mesh(N, N, Element::TRIANGLE, true,
    //                       1, 1, true);
    ofstream sol_ofv("square_mesh.vtk");
@@ -106,6 +108,7 @@ int main(int argc, char *argv[])
    {
       cout << innerelems.at(i) << endl;
    }
+   cout << "#elements completely inside circle:  " << innerelems.size() <<  endl;
    int dim = mesh->Dimension();
    for (int i = 0; i < mesh->GetNumFaces(); ++i)
    {
@@ -167,73 +170,77 @@ int main(int argc, char *argv[])
    FiniteElementCollection *fec = new DG_FECollection(order, dim);
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec, 1);
    /// GD finite element space
+   auto start = high_resolution_clock::now(); 
    FiniteElementSpace *fes = new GalerkinDifference(mesh, dim, mesh->GetNE(), fec, EmbeddedElems, 1, Ordering::byVDIM, order);
-   cout << "fes created " << endl;
-   cout << "Number of unknowns in GD: " << fes->GetTrueVSize() << endl;
-   cout << "Number of unknowns: " << fespace->GetVSize() << endl;
-   cout << "Number of finite element unknowns: "
-        << fespace->GetTrueVSize() << endl;
-   LinearForm *b = new LinearForm(fespace);
-   FunctionCoefficient f(f_exact);
-   FunctionCoefficient u(u_exact);
-   ConstantCoefficient one(1.0);
-   ConstantCoefficient zero(0.0);
-   ConstantCoefficient two(2.0);
-   ConstantCoefficient zerop(0.01);
-   VectorFunctionCoefficient uN(dim, u_neumann);
-   //linear form
-   b->AddDomainIntegrator(new CutDomainLFIntegrator(f, CutSquareIntRules, EmbeddedElems));
-   // b->AddDomainIntegrator(new CutDGDirichletLFIntegrator(u, one, sigma, kappa,
-   //                                                       cutSegmentIntRules));
-   b->AddDomainIntegrator(new CutDGNeumannLFIntegrator(uN,
-                                                       cutSegmentIntRules));
-   b->AddBdrFaceIntegrator(
-       new DGDirichletLFIntegrator(u, one, sigma, kappa));
-   b->Assemble();
-   // cout << "RHS: " << endl;
-   // b->Print();
-   GridFunction x(fespace);
-   CentGridFunction y(fes);
-   VectorFunctionCoefficient exact(1, exact_function);
-   GridFunction xexact(fespace);
-   xexact.ProjectCoefficient(exact);
-   // cout << "exact sol created " << endl;
-   // xexact.Print();
-   // cout << "prolongated sol " << endl;
-   y.ProjectCoefficient(exact);
-   fes->GetProlongationMatrix()->Mult(y, x);
-   // x.Print();
-   // cout << "check prolongation operator " << endl;
-   // cout << x.ComputeL2Error(u) << endl;
-   // bilinear form
-   BilinearForm *a = new BilinearForm(fespace);
-   a->AddDomainIntegrator(new CutDiffusionIntegrator(one, CutSquareIntRules, EmbeddedElems));
-   //a->AddDomainIntegrator(new CutBoundaryFaceIntegrator(one, sigma, kappa, cutSegmentIntRules));
-   a->AddInteriorFaceIntegrator(new CutDGDiffusionIntegrator(one, sigma, kappa,
-                                                             immersedFaces, cutinteriorFaces,
-                                                             cutInteriorFaceIntRules));
-   a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
-   a->Assemble();
-   a->Finalize();
-   //const SparseMatrix &A = a->SpMat();
-   SparseMatrix &Aold = a->SpMat();
-   SparseMatrix *cp = dynamic_cast<GalerkinDifference *>(fes)->GetCP();
-   SparseMatrix *p = RAP(*cp, Aold, *cp);
-   SparseMatrix &A = *p;
-   ofstream write("stiffmat_lap_cut_gd.txt");
-   A.PrintMatlab(write);
-   write.close();
-   // calculate condition number
-   DenseMatrix Ad;
-   A.ToDenseMatrix(Ad);
-   Vector si;
-   Ad.SingularValues(si);
-   // cout << "singular values " << endl;
-   // si.Print();
-   double cond;
-   cond = si(0) / si(si.Size() - 1);
-   cout << "cond# " << endl;
-   cout << cond << endl;
+   auto stop = high_resolution_clock::now(); 
+   auto duration = duration_cast<microseconds>(stop - start); 
+   cout << "time taken for prolongation: " << duration.count()*1e-06 << endl;
+   // cout << "fes created " << endl;
+   // cout << "Number of unknowns in GD: " << fes->GetTrueVSize() << endl;
+   // cout << "Number of unknowns: " << fespace->GetVSize() << endl;
+   // cout << "Number of finite element unknowns: "
+   //      << fespace->GetTrueVSize() << endl;
+   // LinearForm *b = new LinearForm(fespace);
+   // FunctionCoefficient f(f_exact);
+   // FunctionCoefficient u(u_exact);
+   // ConstantCoefficient one(1.0);
+   // ConstantCoefficient zero(0.0);
+   // ConstantCoefficient two(2.0);
+   // ConstantCoefficient zerop(0.01);
+   // VectorFunctionCoefficient uN(dim, u_neumann);
+   // //linear form
+   // b->AddDomainIntegrator(new CutDomainLFIntegrator(f, CutSquareIntRules, EmbeddedElems));
+   // // b->AddDomainIntegrator(new CutDGDirichletLFIntegrator(u, one, sigma, kappa,
+   // //                                                       cutSegmentIntRules));
+   // b->AddDomainIntegrator(new CutDGNeumannLFIntegrator(uN,
+   //                                                     cutSegmentIntRules));
+   // b->AddBdrFaceIntegrator(
+   //     new DGDirichletLFIntegrator(u, one, sigma, kappa));
+   // b->Assemble();
+   // // cout << "RHS: " << endl;
+   // // b->Print();
+   // GridFunction x(fespace);
+   // CentGridFunction y(fes);
+   // VectorFunctionCoefficient exact(1, exact_function);
+   // GridFunction xexact(fespace);
+   // xexact.ProjectCoefficient(exact);
+   // // cout << "exact sol created " << endl;
+   // // xexact.Print();
+   // // cout << "prolongated sol " << endl;
+   // y.ProjectCoefficient(exact);
+   // fes->GetProlongationMatrix()->Mult(y, x);
+   // // x.Print();
+   // // cout << "check prolongation operator " << endl;
+   // // cout << x.ComputeL2Error(u) << endl;
+   // // bilinear form
+   // BilinearForm *a = new BilinearForm(fespace);
+   // a->AddDomainIntegrator(new CutDiffusionIntegrator(one, CutSquareIntRules, EmbeddedElems));
+   // //a->AddDomainIntegrator(new CutBoundaryFaceIntegrator(one, sigma, kappa, cutSegmentIntRules));
+   // a->AddInteriorFaceIntegrator(new CutDGDiffusionIntegrator(one, sigma, kappa,
+   //                                                           immersedFaces, cutinteriorFaces,
+   //                                                           cutInteriorFaceIntRules));
+   // a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
+   // a->Assemble();
+   // a->Finalize();
+   // //const SparseMatrix &A = a->SpMat();
+   // SparseMatrix &Aold = a->SpMat();
+   // SparseMatrix *cp = dynamic_cast<GalerkinDifference *>(fes)->GetCP();
+   // SparseMatrix *p = RAP(*cp, Aold, *cp);
+   // SparseMatrix &A = *p;
+   // ofstream write("stiffmat_lap_cut_gd.txt");
+   // A.PrintMatlab(write);
+   // write.close();
+   // // calculate condition number
+   // // DenseMatrix Ad;
+   // // A.ToDenseMatrix(Ad);
+   // // Vector si;
+   // // Ad.SingularValues(si);
+   // // // cout << "singular values " << endl;
+   // // // si.Print();
+   // // double cond;
+   // // cond = si(0) / si(si.Size() - 1);
+   // // cout << "cond# " << endl;
+   // // cout << cond << endl;
    // Vector bnew(A.Width());
    // fes->GetProlongationMatrix()->MultTranspose(*b, bnew);
    // // Define a simple symmetric Gauss-Seidel preconditioner and use it to
@@ -374,7 +381,7 @@ void GetCutsize(Mesh *mesh, vector<int> cutelems, std::map<int, IntegrationRule 
                 double &cutsize)
 {
    cutsize = 1.0;
-   for (int k = 0; k<cutelems.size(); ++k )
+   for (int k = 0; k < cutelems.size(); ++k)
    {
       int id = cutelems.at(k);
       ElementTransformation *Trans = mesh->GetElementTransformation(id);
@@ -387,16 +394,16 @@ void GetCutsize(Mesh *mesh, vector<int> cutelems, std::map<int, IntegrationRule 
          Trans->SetIntPoint(&ip);
          area += ip.weight * Trans->Weight();
       }
-      cout << "normal element area is " << Trans->Weight() << endl;
-      cout << "area of cut element " << id << " : " <<  area << endl;
-      double cs = area/Trans->Weight();
-      cout << "ratio: " << cs << endl;
+      // cout << "normal element area is " << Trans->Weight() << endl;
+      // cout << "area of cut element " << id << " : " << area << endl;
+      double cs = area / Trans->Weight();
+      //cout << "ratio: " << cs << endl;
       if (cs < cutsize)
       {
          cutsize = cs;
       }
    }
-   cout << "cutsize is " << cutsize << endl; 
+  // cout << "cutsize is " << cutsize << endl;
 }
 
 template <int N>
@@ -435,16 +442,17 @@ void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems, int order, double r,
          ip.weight = pt.w;
          i = i + 1;
          MFEM_ASSERT(ip.weight > 0, "integration point weight is negative in domain integration from Saye's method");
-         MFEM_ASSERT((phi(pt.x) < tol), " phi = " <<  phi(pt.x) << " : " << " levelset function positive at the quadrature point domain integration (Saye's method)");
+         MFEM_ASSERT((phi(pt.x) < tol), " phi = " << phi(pt.x) << " : "
+                                                  << " levelset function positive at the quadrature point domain integration (Saye's method)");
       }
       CutSquareIntRules[elemid] = ir;
-      cout << "int size for element " << elemid << "   " << ir->Size() << endl;
+    //  cout << "int size for element " << elemid << "   " << ir->Size() << endl;
    }
 }
 
 template <int N>
 void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinteriorFaces,
-                          int order,  double r, std::map<int, IntegrationRule *> &cutSegmentIntRules,
+                          int order, double r, std::map<int, IntegrationRule *> &cutSegmentIntRules,
                           std::map<int, IntegrationRule *> &cutInteriorFaceIntRules)
 {
    for (int k = 0; k < cutelems.size(); ++k)
@@ -557,12 +565,13 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
                   }
                   ip.weight = pt.w;
                   i = i + 1;
-                  
+
                   // scaled to original element space
                   double xq = (pt.x[0] * phi.xscale) + phi.xmin;
                   double yq = (pt.x[1] * phi.yscale) + phi.ymin;
                   MFEM_ASSERT(ip.weight > 0, "integration point weight is negative from Saye's method");
-                  MFEM_ASSERT((phi(pt.x) < tol ), " phi = " <<  phi(pt.x) << " : " << "levelset function positive at the quadrature point (Saye's method)");
+                  MFEM_ASSERT((phi(pt.x) < tol), " phi = " << phi(pt.x) << " : "
+                                                           << "levelset function positive at the quadrature point (Saye's method)");
                   MFEM_ASSERT((xq <= (max(v1coord[0], v2coord[0]))) && (xq >= (min(v1coord[0], v2coord[0]))),
                               "integration point (xcoord) not on element face (Saye's rule)");
                   MFEM_ASSERT((yq <= (max(v1coord[1], v2coord[1]))) && (yq >= (min(v1coord[1], v2coord[1]))),
@@ -1790,8 +1799,6 @@ void buildLSInterpolation(int dim, int degree, const DenseMatrix &x_center,
          {
             for (int q = 0; q <= p; ++q)
             {
-               // int p = 0;
-               // int q = 0;
                // loop over the element centers
                double poly_at_quad = 0.0;
                for (int i = 0; i < num_elem; ++i)
@@ -1803,11 +1810,11 @@ void buildLSInterpolation(int dim, int degree, const DenseMatrix &x_center,
                double exact = ((p == 0) && (q == 0)) ? 1.0 : 0.0;
                // mfem::out << "polynomial interpolation error (" << p - q << ","
                //           << q << ") = " << fabs(exact - poly_at_quad) << endl;
-               if ((p == 0) && (q == 0))
-               {
-               MFEM_ASSERT(fabs(exact - poly_at_quad) <= 1e-12, " p = " << p << " , q = " << q << " : "
-                                                                        << "Interpolation operator does not interpolate exactly!\n");
-              }
+               // if ((p == 0) && (q == 0))
+               // {
+                  MFEM_ASSERT(fabs(exact - poly_at_quad) <= 1e-12, " p = " << p << " , q = " << q << " : "
+                                                                           << "Interpolation operator does not interpolate exactly!\n");
+               //}
             }
          }
       }
