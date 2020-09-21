@@ -25,6 +25,11 @@ namespace plasma
 {
 
 // Cyclotron frequency
+inline double omega_c(double Bmag, double charge,
+                      double mass)
+{
+   return (charge * q_ * Bmag) / (mass * amu_);
+}
 inline std::complex<double> omega_c(double Bmag, double charge,
                                     std::complex<double> mass)
 {
@@ -32,6 +37,11 @@ inline std::complex<double> omega_c(double Bmag, double charge,
 }
 
 // Plasma frequency
+inline double omega_p(double number, double charge,
+                      double mass)
+{
+   return fabs(charge * q_) * 1.0 * sqrt(number / (epsilon0_ * mass * amu_));
+}
 inline std::complex<double> omega_p(double number, double charge,
                                     std::complex<double> mass)
 {
@@ -125,28 +135,33 @@ std::complex<double> ytot(double w, double wci,
 
 double debye(double Te, double n0_cm);
 
-class SheathImpedance: public Coefficient
+class SheathBase: public Coefficient
 {
 public:
-   SheathImpedance(const ParGridFunction & B,
-                   const BlockVector & density,
-                   const BlockVector & temp,
-                   const ParFiniteElementSpace & L2FESpace,
-                   const ParFiniteElementSpace & H1FESpace,
-                   double omega,
-                   const Vector & charges,
-                   const Vector & masses,
-                   bool realPart = true);
+   SheathBase(const BlockVector & density,
+              const BlockVector & temp,
+              const ParFiniteElementSpace & L2FESpace,
+              const ParFiniteElementSpace & H1FESpace,
+              double omega,
+              const Vector & charges,
+              const Vector & masses,
+              bool realPart = true);
 
-   void SetRealPart() { realPart_ = true; }
-   void SetImaginaryPart() { realPart_ = false; }
-   void SetPotential(ParComplexGridFunction & potential){ potential_ = &potential; }
+   virtual void SetRealPart() { realPart_ = true; }
+   virtual void SetImaginaryPart() { realPart_ = false; }
 
-   double Eval(ElementTransformation &T,
-               const IntegrationPoint &ip);
+   virtual void SetPotential(ParComplexGridFunction & potential)
+   { potential_ = &potential; }
 
-private:
-   const ParGridFunction & B_;
+   double               EvalIonDensity(ElementTransformation &T,
+                                       const IntegrationPoint &ip);
+   double               EvalElectronTemp(ElementTransformation &T,
+                                         const IntegrationPoint &ip);
+   std::complex<double> EvalSheathPotential(ElementTransformation &T,
+                                            const IntegrationPoint &ip);
+
+protected:
+
    const BlockVector & density_;
    const BlockVector & temp_;
    ParComplexGridFunction * potential_;
@@ -159,10 +174,45 @@ private:
    ParGridFunction density_gf_;
    ParGridFunction temperature_gf_;
 
-   double density_val_;
-   double temp_val_;
    const Vector & charges_;
    const Vector & masses_;
+};
+
+class RectifiedSheathPotential : public SheathBase
+{
+public:
+   RectifiedSheathPotential(const BlockVector & density,
+                            const BlockVector & temp,
+                            const ParFiniteElementSpace & L2FESpace,
+                            const ParFiniteElementSpace & H1FESpace,
+                            double omega,
+                            const Vector & charges,
+                            const Vector & masses,
+                            bool realPart = true);
+
+   double Eval(ElementTransformation &T,
+               const IntegrationPoint &ip);
+private:
+};
+
+class SheathImpedance: public SheathBase
+{
+public:
+   SheathImpedance(const ParGridFunction & B,
+                   const BlockVector & density,
+                   const BlockVector & temp,
+                   const ParFiniteElementSpace & L2FESpace,
+                   const ParFiniteElementSpace & H1FESpace,
+                   double omega,
+                   const Vector & charges,
+                   const Vector & masses,
+                   bool realPart = true);
+
+   double Eval(ElementTransformation &T,
+               const IntegrationPoint &ip);
+
+private:
+   const ParGridFunction & B_;
 };
 
 class DielectricTensor: public MatrixCoefficient
