@@ -131,7 +131,6 @@ public:
    SheathImpedance(const ParGridFunction & B,
                    const BlockVector & density,
                    const BlockVector & temp,
-                   const ParComplexGridFunction & potential,
                    const ParFiniteElementSpace & L2FESpace,
                    const ParFiniteElementSpace & H1FESpace,
                    double omega,
@@ -141,6 +140,7 @@ public:
 
    void SetRealPart() { realPart_ = true; }
    void SetImaginaryPart() { realPart_ = false; }
+   void SetPotential(ParComplexGridFunction & potential){ potential_ = &potential; }
 
    double Eval(ElementTransformation &T,
                const IntegrationPoint &ip);
@@ -149,7 +149,7 @@ private:
    const ParGridFunction & B_;
    const BlockVector & density_;
    const BlockVector & temp_;
-   const ParComplexGridFunction & potential_;
+   ParComplexGridFunction * potential_;
    const ParFiniteElementSpace & L2FESpace_;
    const ParFiniteElementSpace & H1FESpace_;
 
@@ -159,8 +159,8 @@ private:
    ParGridFunction density_gf_;
    ParGridFunction temperature_gf_;
 
-   Vector density_vals_;
-   Vector temp_vals_;
+   double density_val_;
+   double temp_val_;
    const Vector & charges_;
    const Vector & masses_;
 };
