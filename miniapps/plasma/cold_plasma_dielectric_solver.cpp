@@ -286,10 +286,12 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      n20ZRe_(NULL),
      n20ZIm_(NULL),
      e_(NULL),
+     e_tmp_(NULL),
      d_(NULL),
      temp_(NULL),
      grad_(NULL),
      phi_(NULL),
+     phi_tmp_(NULL),
      j_(NULL),
      rhs_(NULL),
      e_t_(NULL),
@@ -693,6 +695,16 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
       PlasmaProfile rhoCoef(dpt, dpp);
       phi_->ProjectCoefficient(rhoCoef, rhoCoef);
        */
+       
+       for (int i=0; i<sbcs_->Size(); i++)
+       {
+           ComplexCoefficientByAttr & sbc = (*sbcs_)[i];
+           SheathImpedance * z_r = dynamic_cast<SheathImpedance*>(sbc.real);
+           SheathImpedance * z_i = dynamic_cast<SheathImpedance*>(sbc.imag);
+           
+           if (z_r){ z_r->SetPotential(*phi_); }
+           if (z_i){ z_i->SetPotential(*phi_); }
+       }
 
       grad_ = new ParDiscreteGradOperator(H1FESpace_, HCurlFESpace_);
    }
@@ -942,8 +954,8 @@ CPDSolver::Assemble()
       tic_toc.Clear();
       tic_toc.Start();
 
-      n20ZRe_->Assemble();
-      n20ZRe_->Finalize();
+      // n20ZRe_->Assemble();
+      // n20ZRe_->Finalize();
       //if (!pa_) n20ZRe_->Finalize();
 
       n20ZIm_->Assemble();
@@ -1085,7 +1097,25 @@ void
 CPDSolver::Solve()
 {
    if ( myid_ == 0 && logging_ > 0 ) { cout << "Running solver ... " << endl; }
-
+    
+   float E_err = 1.0;
+    
+   VectorGridFunctionCoefficient e_r_(&e_->real());
+   VectorGridFunctionCoefficient e_i_(&e_->imag());
+    
+   e_tmp_ = new ParComplexGridFunction(HCurlFESpace_);
+   e_tmp_->ProjectCoefficient(e_r_, e_i_);
+    
+   VectorGridFunctionCoefficient e_tmp_r_(&e_tmp_->real());
+   VectorGridFunctionCoefficient e_tmp_i_(&e_tmp_->imag());
+    
+   Vector zeroVec(3); zeroVec = 0.0;
+   VectorConstantCoefficient zeroVecCoef(zeroVec);
+    
+   int E_iter = 0;
+    
+  while ( E_err > 1e-3 )
+  {
    OperatorHandle A1;
    Vector E, RHS;
    // cout << "Norm of jd (pre-fls): " << jd_->Norml2() << endl;
@@ -1128,8 +1158,11 @@ CPDSolver::Solve()
           e_->ProjectCoefficient(*(*dbcs_)[i].real,
                                  *(*dbcs_)[i].imag);
          */
+          
       }
    }
+    
+   if (e_ == e_tmp_ ){ break; } // L2 norm errors, these are only the boundary values at this point
 
    a1_->FormLinearSystem(ess_bdr_tdofs_, *e_, *rhs_, A1, E, RHS);
 
@@ -1403,20 +1436,43 @@ CPDSolver::Solve()
    // Update phi = z n.D on the boundary
    if (sbcs_->Size() > 0)
    {
+      float Phi_err = 1.0;
+       
+      GridFunctionCoefficient phi_r_(&phi_->real());
+      GridFunctionCoefficient phi_i_(&phi_->imag());
+       
+      phi_tmp_ = new ParComplexGridFunction(H1FESpace_);
+      phi_tmp_->ProjectCoefficient(phi_r_, phi_i_);
+       
+      GridFunctionCoefficient phi_tmp_r_(&phi_tmp_->real());
+      GridFunctionCoefficient phi_tmp_i_(&phi_tmp_->imag());
+       
+      ConstantCoefficient zeroScalarCoef(0.0);
+       
+      int Phi_iter = 0;
+       
+      while ( Phi_err > 1e-3 )
+      {
       HypreParMatrix M0;
       Vector Phi, RHS0;
 
       ParComplexLinearForm rhs(H1FESpace_);
       ParComplexLinearForm tmp(H1FESpace_);
+       
+      n20ZRe_->Assemble();
+      n20ZRe_->Finalize();
 
-      n20ZRe_->Mult(d_->real(), rhs.real());
-      n20ZIm_->Mult(d_->imag(), tmp.real());
+      n20ZRe_->Mult(d_->imag(), rhs.real());
+      n20ZIm_->Mult(d_->real(), tmp.real());
 
-      n20ZRe_->Mult(d_->imag(), rhs.imag());
-      n20ZIm_->Mult(d_->real(), tmp.imag());
+      n20ZRe_->Mult(d_->real(), tmp.imag());
+      n20ZIm_->Mult(d_->imag(), rhs.imag());
 
-      rhs.real() -= tmp.real();
-      rhs.imag() += tmp.imag();
+      rhs.real() += tmp.real();
+      rhs.imag() -= tmp.imag();
+       
+      rhs.real() *= omega_;
+      rhs.imag() *= omega_;
 
       if (conv_ == ComplexOperator::Convention::BLOCK_SYMMETRIC)
       {
@@ -1473,6 +1529,20 @@ CPDSolver::Solve()
       pcg.Mult(RHS0, Phi);
 
       phi_->imag().Distribute(Phi);
+          
+      double PhisolNorm = phi_tmp_->ComputeL2Error(zeroScalarCoef, zeroScalarCoef);
+      double PhisolErr = phi_->ComputeL2Error(phi_tmp_r_, phi_tmp_i_);
+      
+      Phi_err = PhisolErr;
+      if ( PhisolNorm != 0 ) { Phi_err = PhisolErr / PhisolNorm; }
+    
+      cout << "Phi pass: " << Phi_iter << " Error: " << Phi_err << endl;
+      Phi_iter++;
+        
+      phi_tmp_->ProjectCoefficient(phi_r_, phi_i_);
+          
+      }
+       cout << " Inner potential calculation done in " << Phi_iter << " iteration(s)." << endl;
    }
 
    delete BDP;
@@ -1483,6 +1553,18 @@ CPDSolver::Solve()
    {
       cout << " Solver done in " << tic_toc.RealTime() << " seconds." << endl;
    }
+      double EsolNorm = e_tmp_->ComputeL2Error(zeroVecCoef, zeroVecCoef);
+      double EsolErr = e_->ComputeL2Error(e_tmp_r_, e_tmp_i_);
+      
+      E_err = EsolErr;
+      if ( EsolNorm != 0 ) { E_err = EsolErr / EsolNorm; }
+      
+      cout << "Efield pass: " << E_iter << " Error: " << E_err << endl;
+      
+      e_tmp_->ProjectCoefficient(e_r_, e_i_);
+      E_iter++;
+}
+    cout << " Outer E field calculation done in " << E_iter << " iteration(s)." << endl;
 }
 
 double
@@ -1763,7 +1845,7 @@ CPDSolver::DisplayToGLVis()
 
       e_b_->ProjectCoefficient(ebrCoef, ebiCoef);
 
-      /*
+      
       VisualizeField(*socks_["EBr"], vishost, visport,
                     e_b_->real(), "Parallel Electric Field, Re(E.B)",
                     Wx, Wy, Ww, Wh);
@@ -1773,7 +1855,7 @@ CPDSolver::DisplayToGLVis()
                     e_b_->imag(), "Parallel Electric Field, Im(E.B)",
                     Wx, Wy, Ww, Wh);
       Wx += offx;
-       */
+    
    }
    /*
    Wx += offx;
