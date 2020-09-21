@@ -2,9 +2,16 @@
 //
 
 /*
-  square-disc attributes:
+  square-disc attributes (not indices):
 
-  
+  1: south external
+  2: east external
+  3: north external
+  4: west external
+  5: southeast internal
+  6: northeast internal
+  7: northwest internal
+  8: southwest internal
 */
 
 #include "mfem.hpp"
@@ -13,6 +20,58 @@
 
 using namespace std;
 using namespace mfem;
+
+SparseMatrix * BuildConstraints(FiniteElementSpace& fespace, Array<int> constrained_att)
+{
+   int dim = fespace.GetVDim();
+
+   std::set<int> constrained_dofs;
+   for (int i = 0; i < fespace.GetNBE(); ++i)
+   {
+      int att = fespace.GetBdrAttribute(i);
+      if (constrained_att.FindSorted(att) != -1)
+      {
+         Array<int> dofs;
+         fespace.GetBdrElementDofs(i, dofs);
+         for (auto k : dofs)
+         {
+            constrained_dofs.insert(k);
+         }
+      }
+   }
+
+   std::map<int, int> dof_constraint;
+   int n_constraints = 0;
+   for (auto k : constrained_dofs)
+   {
+      dof_constraint[k] = n_constraints++;
+   }
+   SparseMatrix * out = new SparseMatrix(n_constraints, fespace.GetVSize());
+
+   for (int i = 0; i < fespace.GetNBE(); ++i)
+   {
+      // todo: get normal!
+      int att = fespace.GetBdrAttribute(i);
+      if (constrained_att.FindSorted(att) != -1)
+      {
+         Array<int> dofs;
+         fespace.GetBdrElementDofs(i, dofs);
+         for (auto k : dofs)
+         {
+            int constraint = dof_constraint[k];
+            for (int d = 0; d < dim; ++d)
+            {
+               int vdof = fespace.DofToVDof(k, d);
+               double value = 1.0;
+               out->Set(constraint, vdof, value);
+            }
+         }
+      }
+   }
+
+   out->Finalize();
+   return out;
+}
 
 int main(int argc, char *argv[])
 {
@@ -131,6 +190,18 @@ int main(int argc, char *argv[])
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
+   {
+      Array<int> circle_atts(4);
+      circle_atts[0] = 5;
+      circle_atts[1] = 6;
+      circle_atts[2] = 7;
+      circle_atts[3] = 8;
+      SparseMatrix * B = BuildConstraints(fespace, circle_atts);
+      std::ofstream out("constraint.sparsematrix");
+      B->Print(out, 1);
+   }
+
+
    ParLinearForm b(&fespace);
    // ConstantCoefficient one(1.0);
    Vector rhs_direction(dim);
@@ -201,6 +272,7 @@ int main(int argc, char *argv[])
    // 15. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
+      // todo: might make more sense to .SetCycle() than to append boundary_attribute to name
       std::stringstream visitname;
       visitname << "normal" << boundary_attribute;
       VisItDataCollection visit_dc(MPI_COMM_WORLD, visitname.str(), &pmesh);
