@@ -490,7 +490,7 @@ int main(int argc, char *argv[])
    fe_offset3[2] = 2*fe_size;
    fe_offset3[3] = 3*fe_size;
 
-   BlockVector vx(fe_offset3);
+   BlockVector vx(fe_offset3), vxold(fe_offset3);
    ParGridFunction phi, psi, w, j(&fespace); 
    phi.MakeTRef(&fespace, vx, fe_offset3[0]);
    psi.MakeTRef(&fespace, vx, fe_offset3[1]);
@@ -556,7 +556,6 @@ int main(int argc, char *argv[])
    oper.SetInitialJ(*jptr);
 
    //-----------------------------------AMR for the real computation---------------------------------
-
    ErrorEstimator *estimator_used;
    BlockZZEstimator *estimator=NULL;
    BlockL2ZZEstimator *L2estimator=NULL;
@@ -579,7 +578,7 @@ int main(int argc, char *argv[])
 
    int levels3=par_ref_levels+3, levels4=par_ref_levels+4;
    ThresholdRefiner refiner(*estimator_used);
-   refiner.SetTotalErrorFraction(err_fraction);   // here default is 0.5, mean refine error >0.5*total_error
+   refiner.SetTotalErrorFraction(err_fraction);   // here 0.0 means we use local threshold; default is 0.5
    refiner.SetTotalErrorGoal(ltol_amr);  // total error goal (stop criterion)
    refiner.SetLocalErrorGoal(0.0);  // local error goal (stop criterion)
    refiner.SetMaxElements(10000000);
@@ -641,7 +640,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   double t = 0.0;
+   double t = 0.0, told=0.;
    oper.SetTime(t);
    ode_solver->Init(oper);
 
@@ -684,19 +683,33 @@ int main(int argc, char *argv[])
    //save domain decompositino explicitly
    L2_FECollection pw_const_fec(0, dim);
    ParFiniteElementSpace pw_const_fes(pmesh, &pw_const_fec);
-   ParGridFunction mpi_rank_gf(&pw_const_fes);
+   ParGridFunction mpi_rank_gf(&pw_const_fes), tau_value(&pw_const_fes);
+   ParLinearForm *computeTau=NULL;
+   HypreParVector *tauv=NULL;
    mpi_rank_gf = myid_rand;
 
    ParaViewDataCollection *pd = NULL;
    if (paraview)
    {
-      pd = new ParaViewDataCollection("imAMRMHD", pmesh);
+      pd = new ParaViewDataCollection("case3amr-small", pmesh);
       pd->SetPrefixPath("ParaView");
       pd->RegisterField("psi", &psi);
       pd->RegisterField("phi", &phi);
       pd->RegisterField("omega", &w);
       pd->RegisterField("current", &j);
       pd->RegisterField("MPI rank", &mpi_rank_gf);
+
+      //visualize Tau value
+      MyCoefficient velocity(&phi, 2);
+      computeTau = new ParLinearForm(&pw_const_fes);
+      //need to multiply a time-step factor for SDIRK(2)!!
+      computeTau->AddDomainIntegrator(new CheckTauIntegrator(0.29289321881*dt, resi, velocity, itau_));
+      computeTau->Assemble(); 
+      tauv=computeTau->ParallelAssemble();
+      tau_value.SetFromTrueDofs(*tauv);
+ 
+      pd->RegisterField("Tau", &tau_value);
+
       pd->SetLevelsOfDetail(order);
       pd->SetDataFormat(VTKFormat::BINARY);
       pd->SetHighOrderOutput(true);
@@ -714,6 +727,7 @@ int main(int argc, char *argv[])
    bool last_step = false;
    int ref_its=1;
    int deref_its=1;
+   int current_amr_level=levels3;
    for (int ti = 1; !last_step; ti++)
    {
       if (t_change>0. && t>=t_change)
@@ -722,7 +736,6 @@ int main(int argc, char *argv[])
         if (myid==0) cout << "change time step to "<<dt<<endl;
         t_change=0.;
       }
-
       double dt_real = min(dt, t_final - t);
 
       if (t>t_refs)
@@ -732,36 +745,50 @@ int main(int argc, char *argv[])
           deref_its=3;
       }
 
-      if (t>4. && levels3<amr_levels)
+      if (t>4. && t<5.00001 && current_amr_level<levels4)
       {
-          refiner.SetMaximumRefinementLevel(amr_levels);
+          current_amr_level=levels4;
+      }
+      else if (t>=5.00001 && current_amr_level<amr_levels)
+      {
+          current_amr_level=amr_levels;
       }
 
       if ((ti % ref_steps) == 0)
       {
+          refiner.SetMaximumRefinementLevel(current_amr_level);
           refineMesh=true;
           refiner.Reset();
-      }
-      else
-          refineMesh=false;
-
-      /* 
-       * here we derefine every ref_steps but it is lagged by a step of .5*ref_steps
-       * sometimes derefine could break down the preconditioner (maybe solutions are 
-       * not so nice after a derefining projection?)
-       */
-      if ( derefine && (ti-ref_steps/2)%ref_steps ==0 ) //&& ti >  ref_steps ) //&& t<5.0) 
-      {
           derefineMesh=true;
           derefiner.Reset();
       }
       else
       {
+          refineMesh=false;
           derefineMesh=false;
       }
 
+      vxold=vx;
+      told=t;
+ 
       //---the main solve step---
       ode_solver->Step(vx, t, dt_real);
+
+      //reduce time step by half if problem is too stiff
+      if (!oper.getConverged())
+      {
+         t=told;
+         dt=dt/2.;
+         dt_real = min(dt, t_final - t);
+         oper.resetConverged();
+         if (myid==0) cout << "====== reduced dt: new dt = "<<dt<<" ======"<<endl;
+
+         vx=vxold;
+         ode_solver->Step(vx, t, dt_real);
+
+         if (!oper.getConverged())
+             MFEM_ABORT("======ERROR: reduced time step once still failed; checkme!======");
+      }
 
       last_step = (t >= t_final - 1e-8*dt);
       if (last_step)
@@ -809,6 +836,7 @@ int main(int argc, char *argv[])
            {
                pw_const_fes.Update();
                mpi_rank_gf.Update();
+               tau_value.Update();
            }
 
            pmesh->Rebalance();
@@ -817,6 +845,7 @@ int main(int argc, char *argv[])
            {
                pw_const_fes.Update();
                mpi_rank_gf.Update();
+               tau_value.Update();
            }
 
            //---Update solutions after rebalancing---
@@ -848,6 +877,10 @@ int main(int argc, char *argv[])
          int its;
          for (its=0; its<deref_its; its++)
          {
+             //only call this at its=0
+             if (its==0)
+                oper.UpdateJ(vx, &j);
+
              if (!derefiner.Apply(*pmesh))
              {
                  if (myid == 0) cout << "No derefine elements found, skip..." << endl;
@@ -862,6 +895,7 @@ int main(int argc, char *argv[])
              {
                  pw_const_fes.Update();
                  mpi_rank_gf.Update();
+                 tau_value.Update();
              }
 
              pmesh->Rebalance();
@@ -870,6 +904,7 @@ int main(int argc, char *argv[])
              {
                  pw_const_fes.Update();
                  mpi_rank_gf.Update();
+                 tau_value.Update();
              }
 
              //---Update solutions after rebalancing---
@@ -929,6 +964,16 @@ int main(int argc, char *argv[])
 
         if (paraview)
         {
+           MyCoefficient velocity(&phi, 2);
+           delete computeTau;
+           delete tauv;
+
+           computeTau = new ParLinearForm(&pw_const_fes);
+           computeTau->AddDomainIntegrator(new CheckTauIntegrator(0.29289321881*dt_real, resi, velocity, itau_));
+           computeTau->Assemble(); 
+           tauv=computeTau->ParallelAssemble();
+           tau_value.SetFromTrueDofs(*tauv);
+ 
            mpi_rank_gf = myid_rand;
            pd->SetCycle(ti);
            pd->SetTime(t);
@@ -946,24 +991,16 @@ int main(int argc, char *argv[])
    double end = MPI_Wtime();
 
    //++++++Save the solutions (only if paraview or visit is not turned on).
-   if (!paraview && !visit)
    {
       phi.SetFromTrueDofs(vx.GetBlock(0));
       psi.SetFromTrueDofs(vx.GetBlock(1));
       w.SetFromTrueDofs(vx.GetBlock(2));
-      oper.UpdateJ(vx, &j);
 
-      ostringstream mesh_name, mesh_save, phi_name, psi_name, w_name, j_name;
-      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+      ostringstream mesh_save, phi_name, psi_name, w_name;
       mesh_save << "ncmesh." << setfill('0') << setw(6) << myid;
       phi_name << "sol_phi." << setfill('0') << setw(6) << myid;
       psi_name << "sol_psi." << setfill('0') << setw(6) << myid;
       w_name << "sol_omega." << setfill('0') << setw(6) << myid;
-      j_name << "sol_j." << setfill('0') << setw(6) << myid;
-
-      ofstream omesh(mesh_name.str().c_str());
-      omesh.precision(8);
-      pmesh->Print(omesh);
 
       ofstream ncmesh(mesh_save.str().c_str());
       ncmesh.precision(16);
@@ -981,37 +1018,50 @@ int main(int argc, char *argv[])
       osol4.precision(16);
       w.Save(osol4);
 
-      ofstream osol5(j_name.str().c_str());
-      osol5.precision(8);
-      j.Save(osol5);
+      //this is only saved if we do not do paraview or visit
+      if (!paraview && !visit)
+      {
+         ostringstream mesh_name, j_name;
+         mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+         j_name << "sol_j." << setfill('0') << setw(6) << myid;
 
-      //output v1 and v2 for a comparision
-      ParGridFunction v1(&fespace), v2(&fespace);
-      oper.computeV(&phi, &v1, &v2);
+         ofstream omesh(mesh_name.str().c_str());
+         omesh.precision(8);
+         pmesh->Print(omesh);
 
-      ostringstream v1_name, v2_name;
-      v1_name << "sol_v1." << setfill('0') << setw(6) << myid;
-      v2_name << "sol_v2." << setfill('0') << setw(6) << myid;
-      ofstream osol6(v1_name.str().c_str());
-      osol6.precision(8);
-      v1.Save(osol6);
+         oper.UpdateJ(vx, &j);
+         ofstream osol5(j_name.str().c_str());
+         osol5.precision(8);
+         j.Save(osol5);
 
-      ofstream osol7(v2_name.str().c_str());
-      osol7.precision(8);
-      v2.Save(osol7);
+         //output v1 and v2 for a comparision
+         ParGridFunction v1(&fespace), v2(&fespace);
+         oper.computeV(&phi, &v1, &v2);
 
-      ParGridFunction b1(&fespace), b2(&fespace);
-      oper.computeV(&psi, &b1, &b2);
-      ostringstream b1_name, b2_name;
-      b1_name << "sol_b1." << setfill('0') << setw(6) << myid;
-      b2_name << "sol_b2." << setfill('0') << setw(6) << myid;
-      ofstream osol8(b1_name.str().c_str());
-      osol8.precision(8);
-      b1.Save(osol8);
+         ostringstream v1_name, v2_name;
+         v1_name << "sol_v1." << setfill('0') << setw(6) << myid;
+         v2_name << "sol_v2." << setfill('0') << setw(6) << myid;
+         ofstream osol6(v1_name.str().c_str());
+         osol6.precision(8);
+         v1.Save(osol6);
 
-      ofstream osol9(b2_name.str().c_str());
-      osol9.precision(8);
-      b2.Save(osol9);
+         ofstream osol7(v2_name.str().c_str());
+         osol7.precision(8);
+         v2.Save(osol7);
+
+         ParGridFunction b1(&fespace), b2(&fespace);
+         oper.computeV(&psi, &b1, &b2);
+         ostringstream b1_name, b2_name;
+         b1_name << "sol_b1." << setfill('0') << setw(6) << myid;
+         b2_name << "sol_b2." << setfill('0') << setw(6) << myid;
+         ofstream osol8(b1_name.str().c_str());
+         osol8.precision(8);
+         b1.Save(osol8);
+
+         ofstream osol9(b2_name.str().c_str());
+         osol9.precision(8);
+         b2.Save(osol9);
+      }
    }
 
    if (myid == 0) 
@@ -1026,6 +1076,8 @@ int main(int argc, char *argv[])
    delete dc;
    delete pd;
    delete estimator_used;
+   delete tauv;
+   delete computeTau;
 
    oper.DestroyHypre();
 
