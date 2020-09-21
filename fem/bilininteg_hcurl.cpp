@@ -5474,8 +5474,8 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
 
    MFEM_FORALL(e, NE,
    {
-      double w1[MAX_D1D][MAX_D1D][MAX_D1D];
-      double w2[MAX_D1D][MAX_D1D][MAX_D1D];
+      double w1[3][MAX_D1D][MAX_D1D][MAX_D1D];
+      double w2[3][MAX_D1D][MAX_D1D][MAX_D1D];
 
       // dofs that point parallel to x-axis (open in x, closed in y, z)
 
@@ -5486,10 +5486,13 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
          {
             for (int dy = 0; dy < c_dofs1D; ++dy)
             {
-               w1[dx][dy][ez] = 0.0;
-               for (int dz = 0; dz < c_dofs1D; ++dz)
+               for (int j=0; j<3; ++j)
                {
-                  w1[dx][dy][ez] += Bc(ez, dz) * x(dx, dy, dz, 0, e);
+                  w1[j][dx][dy][ez] = 0.0;
+                  for (int dz = 0; dz < c_dofs1D; ++dz)
+                  {
+                     w1[j][dx][dy][ez] += Bc(ez, dz) * x(dx, dy, dz, j, e);
+                  }
                }
             }
          }
@@ -5502,10 +5505,13 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
          {
             for (int dx = 0; dx < c_dofs1D; ++dx)
             {
-               w2[dx][ey][ez] = 0.0;
-               for (int dy = 0; dy < c_dofs1D; ++dy)
+               for (int j=0; j<3; ++j)
                {
-                  w2[dx][ey][ez] += Bc(ey, dy) * w1[dx][dy][ez];
+                  w2[j][dx][ey][ez] = 0.0;
+                  for (int dy = 0; dy < c_dofs1D; ++dy)
+                  {
+                     w2[j][dx][ey][ez] += Bc(ey, dy) * w1[j][dx][dy][ez];
+                  }
                }
             }
          }
@@ -5518,13 +5524,16 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
          {
             for (int ex = 0; ex < o_dofs1D; ++ex)
             {
-               double s = 0.0;
-               for (int dx = 0; dx < c_dofs1D; ++dx)
+               for (int j=0; j<3; ++j)
                {
-                  s += Bo(ex, dx) * w2[dx][ey][ez];
+                  double s = 0.0;
+                  for (int dx = 0; dx < c_dofs1D; ++dx)
+                  {
+                     s += Bo(ex, dx) * w2[j][dx][ey][ez];
+                  }
+                  const int local_index = ez*c_dofs1D*o_dofs1D + ey*o_dofs1D + ex;
+                  y(local_index, e) += s * vk(j, local_index, e);
                }
-               const int local_index = ez*c_dofs1D*o_dofs1D + ey*o_dofs1D + ex;
-               y(local_index, e) += s * vk(0, local_index, e);
             }
          }
       }
@@ -5538,10 +5547,13 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
          {
             for (int dy = 0; dy < c_dofs1D; ++dy)
             {
-               w1[dx][dy][ez] = 0.0;
-               for (int dz = 0; dz < c_dofs1D; ++dz)
+               for (int j=0; j<3; ++j)
                {
-                  w1[dx][dy][ez] += Bc(ez, dz) * x(dx, dy, dz, 1, e);
+                  w1[j][dx][dy][ez] = 0.0;
+                  for (int dz = 0; dz < c_dofs1D; ++dz)
+                  {
+                     w1[j][dx][dy][ez] += Bc(ez, dz) * x(dx, dy, dz, j, e);
+                  }
                }
             }
          }
@@ -5554,10 +5566,13 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
          {
             for (int dx = 0; dx < c_dofs1D; ++dx)
             {
-               w2[dx][ey][ez] = 0.0;
-               for (int dy = 0; dy < c_dofs1D; ++dy)
+               for (int j=0; j<3; ++j)
                {
-                  w2[dx][ey][ez] += Bo(ey, dy) * w1[dx][dy][ez];
+                  w2[j][dx][ey][ez] = 0.0;
+                  for (int dy = 0; dy < c_dofs1D; ++dy)
+                  {
+                     w2[j][dx][ey][ez] += Bo(ey, dy) * w1[j][dx][dy][ez];
+                  }
                }
             }
          }
@@ -5570,14 +5585,17 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
          {
             for (int ex = 0; ex < c_dofs1D; ++ex)
             {
-               double s = 0.0;
-               for (int dx = 0; dx < c_dofs1D; ++dx)
+               for (int j=0; j<3; ++j)
                {
-                  s += Bc(ex, dx) * w2[dx][ey][ez];
+                  double s = 0.0;
+                  for (int dx = 0; dx < c_dofs1D; ++dx)
+                  {
+                     s += Bc(ex, dx) * w2[j][dx][ey][ez];
+                  }
+                  const int local_index = c_dofs1D*c_dofs1D*o_dofs1D +
+                                          ez*c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
+                  y(local_index, e) += s * vk(j, local_index, e);
                }
-               const int local_index = c_dofs1D*c_dofs1D*o_dofs1D +
-                                       ez*c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
-               y(local_index, e) += s * vk(1, local_index, e);
             }
          }
       }
@@ -5591,10 +5609,13 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
          {
             for (int dy = 0; dy < c_dofs1D; ++dy)
             {
-               w1[dx][dy][ez] = 0.0;
-               for (int dz = 0; dz < c_dofs1D; ++dz)
+               for (int j=0; j<3; ++j)
                {
-                  w1[dx][dy][ez] += Bo(ez, dz) * x(dx, dy, dz, 2, e);
+                  w1[j][dx][dy][ez] = 0.0;
+                  for (int dz = 0; dz < c_dofs1D; ++dz)
+                  {
+                     w1[j][dx][dy][ez] += Bo(ez, dz) * x(dx, dy, dz, j, e);
+                  }
                }
             }
          }
@@ -5607,10 +5628,13 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
          {
             for (int dx = 0; dx < c_dofs1D; ++dx)
             {
-               w2[dx][ey][ez] = 0.0;
-               for (int dy = 0; dy < c_dofs1D; ++dy)
+               for (int j=0; j<3; ++j)
                {
-                  w2[dx][ey][ez] += Bc(ey, dy) * w1[dx][dy][ez];
+                  w2[j][dx][ey][ez] = 0.0;
+                  for (int dy = 0; dy < c_dofs1D; ++dy)
+                  {
+                     w2[j][dx][ey][ez] += Bc(ey, dy) * w1[j][dx][dy][ez];
+                  }
                }
             }
          }
@@ -5623,14 +5647,17 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
          {
             for (int ex = 0; ex < c_dofs1D; ++ex)
             {
-               double s = 0.0;
-               for (int dx = 0; dx < c_dofs1D; ++dx)
+               for (int j=0; j<3; ++j)
                {
-                  s += Bc(ex, dx) * w2[dx][ey][ez];
+                  double s = 0.0;
+                  for (int dx = 0; dx < c_dofs1D; ++dx)
+                  {
+                     s += Bc(ex, dx) * w2[j][dx][ey][ez];
+                  }
+                  const int local_index = 2*c_dofs1D*c_dofs1D*o_dofs1D +
+                                          ez*c_dofs1D*c_dofs1D + ey*c_dofs1D + ex;
+                  y(local_index, e) += s * vk(j, local_index, e);
                }
-               const int local_index = 2*c_dofs1D*c_dofs1D*o_dofs1D +
-                                       ez*c_dofs1D*c_dofs1D + ey*c_dofs1D + ex;
-               y(local_index, e) += s * vk(2, local_index, e);
             }
          }
       }
@@ -5662,8 +5689,8 @@ static void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
 
    MFEM_FORALL(e, NE,
    {
-      double w1[MAX_D1D][MAX_D1D][MAX_D1D];
-      double w2[MAX_D1D][MAX_D1D][MAX_D1D];
+      double w1[3][MAX_D1D][MAX_D1D][MAX_D1D];
+      double w2[3][MAX_D1D][MAX_D1D][MAX_D1D];
 
       // dofs that point parallel to x-axis (open in x, closed in y, z)
 
@@ -5672,17 +5699,20 @@ static void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
       {
          for (int ey = 0; ey < c_dofs1D; ++ey)
          {
-            for (int dx = 0; dx < c_dofs1D; ++dx)
+            for (int j=0; j<3; ++j)
             {
-               w2[dx][ey][ez] = 0.0;
-            }
-            for (int ex = 0; ex < o_dofs1D; ++ex)
-            {
-               const int local_index = ez*c_dofs1D*o_dofs1D + ey*o_dofs1D + ex;
-               const double xv = x(local_index, e) * vk(0, local_index, e);
                for (int dx = 0; dx < c_dofs1D; ++dx)
                {
-                  w2[dx][ey][ez] += xv * Bo(ex, dx);
+                  w2[j][dx][ey][ez] = 0.0;
+               }
+               for (int ex = 0; ex < o_dofs1D; ++ex)
+               {
+                  const int local_index = ez*c_dofs1D*o_dofs1D + ey*o_dofs1D + ex;
+                  const double xv = x(local_index, e) * vk(j, local_index, e);
+                  for (int dx = 0; dx < c_dofs1D; ++dx)
+                  {
+                     w2[j][dx][ey][ez] += xv * Bo(ex, dx);
+                  }
                }
             }
          }
@@ -5695,10 +5725,13 @@ static void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
          {
             for (int dy = 0; dy < c_dofs1D; ++dy)
             {
-               w1[dx][dy][ez] = 0.0;
-               for (int ey = 0; ey < c_dofs1D; ++ey)
+               for (int j=0; j<3; ++j)
                {
-                  w1[dx][dy][ez] += w2[dx][ey][ez] * Bc(ey, dy);
+                  w1[j][dx][dy][ez] = 0.0;
+                  for (int ey = 0; ey < c_dofs1D; ++ey)
+                  {
+                     w1[j][dx][dy][ez] += w2[j][dx][ey][ez] * Bc(ey, dy);
+                  }
                }
             }
          }
@@ -5711,12 +5744,15 @@ static void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
          {
             for (int dz = 0; dz < c_dofs1D; ++dz)
             {
-               double s = 0.0;
-               for (int ez = 0; ez < c_dofs1D; ++ez)
+               for (int j=0; j<3; ++j)
                {
-                  s += w1[dx][dy][ez] * Bc(ez, dz);
+                  double s = 0.0;
+                  for (int ez = 0; ez < c_dofs1D; ++ez)
+                  {
+                     s += w1[j][dx][dy][ez] * Bc(ez, dz);
+                  }
+                  y(dx, dy, dz, j, e) += s;
                }
-               y(dx, dy, dz, 0, e) += s;
             }
          }
       }
@@ -5728,18 +5764,21 @@ static void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
       {
          for (int ey = 0; ey < o_dofs1D; ++ey)
          {
-            for (int dx = 0; dx < c_dofs1D; ++dx)
+            for (int j=0; j<3; ++j)
             {
-               w2[dx][ey][ez] = 0.0;
-            }
-            for (int ex = 0; ex < c_dofs1D; ++ex)
-            {
-               const int local_index = c_dofs1D*c_dofs1D*o_dofs1D +
-                                       ez*c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
-               const double xv = x(local_index, e) * vk(1, local_index, e);
                for (int dx = 0; dx < c_dofs1D; ++dx)
                {
-                  w2[dx][ey][ez] += xv * Bc(ex, dx);
+                  w2[j][dx][ey][ez] = 0.0;
+               }
+               for (int ex = 0; ex < c_dofs1D; ++ex)
+               {
+                  const int local_index = c_dofs1D*c_dofs1D*o_dofs1D +
+                                          ez*c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
+                  const double xv = x(local_index, e) * vk(j, local_index, e);
+                  for (int dx = 0; dx < c_dofs1D; ++dx)
+                  {
+                     w2[j][dx][ey][ez] += xv * Bc(ex, dx);
+                  }
                }
             }
          }
@@ -5752,10 +5791,13 @@ static void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
          {
             for (int dy = 0; dy < c_dofs1D; ++dy)
             {
-               w1[dx][dy][ez] = 0.0;
-               for (int ey = 0; ey < o_dofs1D; ++ey)
+               for (int j=0; j<3; ++j)
                {
-                  w1[dx][dy][ez] += w2[dx][ey][ez] * Bo(ey, dy);
+                  w1[j][dx][dy][ez] = 0.0;
+                  for (int ey = 0; ey < o_dofs1D; ++ey)
+                  {
+                     w1[j][dx][dy][ez] += w2[j][dx][ey][ez] * Bo(ey, dy);
+                  }
                }
             }
          }
@@ -5768,12 +5810,15 @@ static void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
          {
             for (int dz = 0; dz < c_dofs1D; ++dz)
             {
-               double s = 0.0;
-               for (int ez = 0; ez < c_dofs1D; ++ez)
+               for (int j=0; j<3; ++j)
                {
-                  s += w1[dx][dy][ez] * Bc(ez, dz);
+                  double s = 0.0;
+                  for (int ez = 0; ez < c_dofs1D; ++ez)
+                  {
+                     s += w1[j][dx][dy][ez] * Bc(ez, dz);
+                  }
+                  y(dx, dy, dz, j, e) += s;
                }
-               y(dx, dy, dz, 1, e) += s;
             }
          }
       }
@@ -5785,18 +5830,21 @@ static void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
       {
          for (int ey = 0; ey < c_dofs1D; ++ey)
          {
-            for (int dx = 0; dx < c_dofs1D; ++dx)
+            for (int j=0; j<3; ++j)
             {
-               w2[dx][ey][ez] = 0.0;
-            }
-            for (int ex = 0; ex < c_dofs1D; ++ex)
-            {
-               const int local_index = 2*c_dofs1D*c_dofs1D*o_dofs1D +
-                                       ez*c_dofs1D*c_dofs1D + ey*c_dofs1D + ex;
-               const double xv = x(local_index, e) * vk(2, local_index, e);
                for (int dx = 0; dx < c_dofs1D; ++dx)
                {
-                  w2[dx][ey][ez] += xv * Bc(ex, dx);
+                  w2[j][dx][ey][ez] = 0.0;
+               }
+               for (int ex = 0; ex < c_dofs1D; ++ex)
+               {
+                  const int local_index = 2*c_dofs1D*c_dofs1D*o_dofs1D +
+                                          ez*c_dofs1D*c_dofs1D + ey*c_dofs1D + ex;
+                  const double xv = x(local_index, e) * vk(j, local_index, e);
+                  for (int dx = 0; dx < c_dofs1D; ++dx)
+                  {
+                     w2[j][dx][ey][ez] += xv * Bc(ex, dx);
+                  }
                }
             }
          }
@@ -5809,10 +5857,13 @@ static void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
          {
             for (int dy = 0; dy < c_dofs1D; ++dy)
             {
-               w1[dx][dy][ez] = 0.0;
-               for (int ey = 0; ey < c_dofs1D; ++ey)
+               for (int j=0; j<3; ++j)
                {
-                  w1[dx][dy][ez] += w2[dx][ey][ez] * Bc(ey, dy);
+                  w1[j][dx][dy][ez] = 0.0;
+                  for (int ey = 0; ey < c_dofs1D; ++ey)
+                  {
+                     w1[j][dx][dy][ez] += w2[j][dx][ey][ez] * Bc(ey, dy);
+                  }
                }
             }
          }
@@ -5825,12 +5876,15 @@ static void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
          {
             for (int dz = 0; dz < c_dofs1D; ++dz)
             {
-               double s = 0.0;
-               for (int ez = 0; ez < o_dofs1D; ++ez)
+               for (int j=0; j<3; ++j)
                {
-                  s += w1[dx][dy][ez] * Bo(ez, dz);
+                  double s = 0.0;
+                  for (int ez = 0; ez < o_dofs1D; ++ez)
+                  {
+                     s += w1[j][dx][dy][ez] * Bo(ez, dz);
+                  }
+                  y(dx, dy, dz, j, e) += s;
                }
-               y(dx, dy, dz, 2, e) += s;
             }
          }
       }
@@ -6098,6 +6152,8 @@ void IdentityInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
    pa_data.SetSize(dim * ndof_test * ne, Device::GetMemoryType());
    auto op = Reshape(pa_data.HostWrite(), dim, ndof_test, ne);
 
+   const Array<int> &dofmap = test_el->GetDofMap();
+
    if (dim == 3)
    {
       // Note that ND_HexahedronElement uses 6 vectors in tk rather than 3, with
@@ -6114,12 +6170,13 @@ void IdentityInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
             // ND_HexahedronElement sets dof2tk = (dofmap < 0) ? 3+c : c, but here
             // no signs should be applied due to ElementRestriction.
             const int dof2tk = c;
+            const int id = (dofmap[d] >= 0) ? dofmap[d] : -1 - dofmap[d];
 
             for (int e=0; e<ne; ++e)
             {
                double v[3];
                ElementTransformation *tr = mesh->GetElementTransformation(e);
-               tr->SetIntPoint(&Nodes.IntPoint(d));
+               tr->SetIntPoint(&Nodes.IntPoint(id));
                tr->Jacobian().Mult(tk + dof2tk*dim, v);
 
                for (int j=0; j<3; ++j)
@@ -6141,12 +6198,13 @@ void IdentityInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
             // ND_QuadrilateralElement sets dof2tk = (dofmap < 0) ? 2+c : c, but here
             // no signs should be applied due to ElementRestriction.
             const int dof2tk = c;
+            const int id = (dofmap[d] >= 0) ? dofmap[d] : -1 - dofmap[d];
 
             for (int e=0; e<ne; ++e)
             {
                double v[2];
                ElementTransformation *tr = mesh->GetElementTransformation(e);
-               tr->SetIntPoint(&Nodes.IntPoint(d));
+               tr->SetIntPoint(&Nodes.IntPoint(id));
                tr->Jacobian().Mult(tk + dof2tk*dim, v);
 
                for (int j=0; j<2; ++j)
