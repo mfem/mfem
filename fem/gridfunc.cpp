@@ -2777,7 +2777,8 @@ double GridFunction::ComputeDivError(
 }
 
 double GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
-                                            Coefficient *ell_coeff, double Nu,
+                                            Coefficient *ell_coeff,
+                                            class JumpScaling jump_scaling,
                                             const IntegrationRule *irs[])  const
 {
    int fdof, dim, intorder, k;
@@ -2795,16 +2796,21 @@ double GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
 
    for (int i = 0; i < mesh->GetNumFaces(); i++)
    {
-      face_elem_transf = mesh->GetFaceElementTransformations(i, 5);
-      int i1 = face_elem_transf->Elem1No;
-      int i2 = face_elem_transf->Elem2No;
+      int i1, i2;
+      mesh->GetFaceElements(i, &i1, &i2);
+      double h = mesh->GetElementSize(i1);
       intorder = fes->GetFE(i1)->GetOrder();
       if (i2 >= 0)
+      {
          if ( (k = fes->GetFE(i2)->GetOrder()) > intorder )
          {
             intorder = k;
          }
+         h = std::min(h, mesh->GetElementSize(i2));
+      }
+      int p = intorder;
       intorder = 2 * intorder;  // <-------------
+      face_elem_transf = mesh->GetFaceElementTransformations(i, 5);
       const IntegrationRule *ir;
       if (irs)
       {
@@ -2875,13 +2881,25 @@ double GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
          transf->SetIntPoint(&ip);
-         error += (ip.weight * Nu * ell_coeff_val(j) *
-                   pow(transf->Weight(), 1.0-1.0/(dim-1)) *
+         double nu = jump_scaling.Eval(h, p);
+         error += (ip.weight * nu * ell_coeff_val(j) *
+                   transf->Weight() *
                    err_val(j) * err_val(j));
       }
    }
 
    return (error < 0.0) ? -sqrt(-error) : sqrt(error);
+}
+
+double GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
+                                            Coefficient *ell_coeff,
+                                            double Nu,
+                                            const IntegrationRule *irs[])  const
+{
+   return ComputeDGFaceJumpError(exsol,
+                                 ell_coeff,
+                                 JumpScaling(Nu, JumpScaling::ONE_OVER_H),
+                                 irs);
 }
 
 double GridFunction::ComputeH1Error(Coefficient *exsol,
