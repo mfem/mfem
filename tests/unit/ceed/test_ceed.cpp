@@ -108,6 +108,18 @@ static std::string getString(Problem pb)
    }
 }
 
+enum class NLProblem {Convection};
+
+static std::string getString(NLProblem pb)
+{
+   switch (pb)
+   {
+   case NLProblem::Convection:
+      return "Convection";
+      break;
+   }
+}
+
 void test_ceed_operator(const char* input, int order, const CeedCoeff coeff_type,
                         const Problem pb, const AssemblyLevel assembly)
 {
@@ -216,6 +228,94 @@ void test_ceed_operator(const char* input, int order, const CeedCoeff coeff_type
    REQUIRE(y_test.Norml2() < 1.e-12);
 }
 
+void test_ceed_nloperator(const char* input, int order, const CeedCoeff coeff_type,
+                          const NLProblem pb, const AssemblyLevel assembly)
+{
+   std::string section = "assembly: " + getString(assembly) + "\n" +
+                         "coeff_type: " + getString(coeff_type) + "\n" +
+                         "pb: " + getString(pb) + "\n" +
+                         "order: " + std::to_string(order) + "\n" +
+                         "mesh: " + input;
+   INFO(section);
+   Mesh mesh(input, 1, 1);
+   mesh.EnsureNodes();
+   int dim = mesh.Dimension();
+
+   H1_FECollection fec(order, dim);
+   bool vecOp = pb == NLProblem::Convection;
+   const int vdim = vecOp ? dim : 1;
+   FiniteElementSpace fes(&mesh, &fec, vdim);
+
+   NonlinearForm k_test(&fes);
+   NonlinearForm k_ref(&fes);
+
+   // Coefficient Initialization
+   // Scalar coefficient
+   FiniteElementSpace coeff_fes(&mesh, &fec);
+   GridFunction gf(&coeff_fes);
+   FunctionCoefficient f_coeff(coeff_function);
+   Coefficient *coeff = nullptr;
+   // Vector Coefficient
+   FiniteElementSpace vcoeff_fes(&mesh, &fec, dim);
+   GridFunction vgf(&vcoeff_fes);
+   VectorFunctionCoefficient f_vcoeff(dim, velocity_function);
+   VectorCoefficient *vcoeff = nullptr;
+   switch (coeff_type)
+   {
+      case CeedCoeff::Const:
+         coeff = new ConstantCoefficient(1.0);
+         break;
+      case CeedCoeff::Grid:
+         gf.ProjectCoefficient(f_coeff);
+         coeff = new GridFunctionCoefficient(&gf);
+         break;
+      case CeedCoeff::Quad:
+         coeff = &f_coeff;
+         break;
+      case CeedCoeff::VecConst:
+      {
+         Vector val(dim);
+         for (size_t i = 0; i < dim; i++)
+         {
+            val(i) = 1.0;
+         }         
+         vcoeff = new VectorConstantCoefficient(val);
+      }
+      break;
+      case CeedCoeff::VecGrid:
+      {
+         vgf.ProjectCoefficient(f_vcoeff);
+         vcoeff = new VectorGridFunctionCoefficient(&vgf);
+      }
+      break;
+      case CeedCoeff::VecQuad:
+         vcoeff = &f_vcoeff;
+         break;
+   }
+
+   // Build the BilinearForm
+   switch (pb)
+   {
+   case NLProblem::Convection:
+      k_ref.AddDomainIntegrator(new VectorConvectionNLFIntegrator(*coeff));
+      k_test.AddDomainIntegrator(new VectorConvectionNLFIntegrator(*coeff));
+   }
+
+   k_test.SetAssemblyLevel(assembly);
+
+   // Compare ceed with mfem.
+   GridFunction x(&fes), y_ref(&fes), y_test(&fes);
+
+   x.Randomize(1);
+
+   k_ref.Mult(x,y_ref);
+   k_test.Mult(x,y_test);
+
+   y_test -= y_ref;
+
+   REQUIRE(y_test.Norml2() < 1.e-12);
+}
+
 TEST_CASE("CEED mass & diffusion", "[CEED mass & diffusion]")
 {
    auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::NONE);
@@ -240,6 +340,18 @@ TEST_CASE("CEED convection", "[CEED convection]")
                         "../../data/star-q3.mesh","../../data/fichera-q3.mesh",
                         "../../data/amr-quad.mesh","../../data/fichera-amr.mesh");
    test_ceed_operator(mesh, order, coeff_type, pb, assembly);
+} // test case
+
+TEST_CASE("CEED non-linear convection", "[CEED nlconvection]")
+{
+   auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::NONE);
+   auto coeff_type = GENERATE(CeedCoeff::Const,CeedCoeff::Grid,CeedCoeff::Quad);
+   auto pb = GENERATE(NLProblem::Convection);
+   auto order = GENERATE(1,2,4);
+   auto mesh = GENERATE("../../data/inline-quad.mesh","../../data/inline-hex.mesh",
+                        "../../data/star-q3.mesh","../../data/fichera-q3.mesh",
+                        "../../data/amr-quad.mesh","../../data/fichera-amr.mesh");
+   test_ceed_nloperator(mesh, order, coeff_type, pb, assembly);
 } // test case
 
 } // namespace ceed_test
