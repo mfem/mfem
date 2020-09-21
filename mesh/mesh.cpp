@@ -71,10 +71,14 @@ void Mesh::GetElementCenter(int i, Vector &center)
    eltransf->Transform(Geometries.GetCenter(geom), center);
 }
 
-double Mesh::GetElementSize(int i, int type)
+double Mesh::GetElementSize(ElementTransformation *T, int type)
 {
    DenseMatrix J(Dim);
-   GetElementJacobian(i, J);
+
+   Geometry::Type geom = T->GetGeometryType();
+   T->SetIntPoint(&Geometries.GetCenter(geom));
+   Geometries.JacToPerfJac(geom, T->Jacobian(), J);
+
    if (type == 0)
    {
       return pow(fabs(J.Det()), 1./Dim);
@@ -87,6 +91,11 @@ double Mesh::GetElementSize(int i, int type)
    {
       return J.CalcSingularvalue(0);   // h_max
    }
+}
+
+double Mesh::GetElementSize(int i, int type)
+{
+   return GetElementSize(GetElementTransformation(i), type);
 }
 
 double Mesh::GetElementSize(int i, const Vector &dir)
