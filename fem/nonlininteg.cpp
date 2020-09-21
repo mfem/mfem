@@ -40,13 +40,6 @@ void NonlinearFormIntegrator::AssembleMF(const FiniteElementSpace &fes)
                "   is not implemented for this class.");
 }
 
-void NonlinearFormIntegrator::AssembleMF(const FiniteElementSpace &,
-                                         const FiniteElementSpace &)
-{
-   mfem_error ("NonlinearFormIntegrator::AssembleMF(...)\n"
-               "   is not implemented for this class.");
-}
-
 void NonlinearFormIntegrator::AddMultMF(const Vector &, Vector &) const
 {
    mfem_error ("NonlinearFormIntegrator::AddMultMF(...)\n"
