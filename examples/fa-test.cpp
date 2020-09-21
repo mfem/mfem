@@ -396,7 +396,7 @@ int main(int argc, char *argv[])
    {
       std::cout << "A_fa=\n" << A << std::endl;
       std::cout << "A_ref=\n" << k_ref->SpMat() << std::endl;
-   }   
+   }
 
    const int sizeIn  = fes->GetVSize() + fes->GetFaceNbrVSize();
    const int sizeOut = fes->GetVSize();
