@@ -27,6 +27,17 @@ double compare_pa_id_assembly(int dim, int num_elements, int order,
       else
       {
          mesh = new Mesh("../../data/beam-hex.mesh", order);
+
+         // Transform mesh vertices to test without alignment with coordinate axes.
+         for (int i=0; i<mesh->GetNV(); ++i)
+         {
+            double *v = mesh->GetVertex(i);
+            const double yscale = 1.0 + v[1];
+            const double zscale = 1.0 + v[2];
+            v[0] *= zscale;
+            v[1] *= zscale;
+            v[2] *= yscale;
+         }
       }
    }
    else
@@ -85,15 +96,6 @@ double compare_pa_id_assembly(int dim, int num_elements, int order,
       pa_id.Mult(x, pa_y);
    }
 
-   if (false)
-   {
-      std::cout << "true   \tpa\n";
-      for (int i = 0; i < assembled_y.Size(); ++i)
-      {
-         std::cout << i << " : " << assembled_y(i) << "\t" << pa_y(i) << std::endl;
-      }
-   }
-
    pa_y -= assembled_y;
    double error = pa_y.Norml2() / assembled_y.Norml2();
    std::cout << "dim " << dim << " ne " << num_elements << " order "
@@ -119,12 +121,10 @@ TEST_CASE("PAIdentityInterp", "[PAIdentityInterp]")
       {
          for (int num_elements = 0; num_elements < 5; ++num_elements)
          {
-            const double tol = (num_elements == 0) ? 1e-5 : 1e-14;
-
             for (int order = 1; order < 5; ++order)
             {
                double error = compare_pa_id_assembly(dim, num_elements, order, transpose);
-               REQUIRE(error < tol);
+               REQUIRE(error < 1.0e-14);
             }
          }
       }
