@@ -34,6 +34,25 @@ void NonlinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
                "   is not implemented for this class.");
 }
 
+void NonlinearFormIntegrator::AssembleMF(const FiniteElementSpace &fes)
+{
+   mfem_error ("NonlinearFormIntegrator::AssembleMF(...)\n"
+               "   is not implemented for this class.");
+}
+
+void NonlinearFormIntegrator::AssembleMF(const FiniteElementSpace &,
+                                         const FiniteElementSpace &)
+{
+   mfem_error ("NonlinearFormIntegrator::AssembleMF(...)\n"
+               "   is not implemented for this class.");
+}
+
+void NonlinearFormIntegrator::AddMultMF(const Vector &, Vector &) const
+{
+   mfem_error ("NonlinearFormIntegrator::AddMultMF(...)\n"
+               "   is not implemented for this class.");
+}
+
 void NonlinearFormIntegrator::AssembleElementVector(
    const FiniteElement &el, ElementTransformation &Tr,
    const Vector &elfun, Vector &elvect)
