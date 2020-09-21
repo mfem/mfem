@@ -398,15 +398,17 @@ int main(int argc, char *argv[])
       std::cout << "A_ref=\n" << k_ref->SpMat() << std::endl;
    }   
 
-   // GridFunction x(fes), y_fa(fes), y_ref(fes);
-   // x.Randomize(1);
+   const int sizeIn  = fes->GetVSize() + fes->GetFaceNbrVSize();
+   const int sizeOut = fes->GetVSize();
+   Vector x(sizeIn), y_fa(sizeOut), y_ref(sizeOut);
+   x.Randomize(1);
 
-   // A.Mult(x,y_fa);
-   // k_ref->Mult(x,y_ref);
+   A.Mult(x,y_fa);
+   k_ref->Mult(x,y_ref);
 
-   // y_fa -= y_ref;
+   y_fa -= y_ref;
 
-   // std::cout << "Apply error = " << y_fa.Norml2() << std::endl;
+   std::cout << "Apply error = " << y_fa.Norml2() << std::endl;
 
    double iError(0), jError(0), dataError(0);
    for (int i=0; i<k_ref->SpMat().GetMemoryI().Capacity(); ++i)
