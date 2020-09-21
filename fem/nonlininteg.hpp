@@ -92,9 +92,6 @@ public:
    /// Method defining fully unassembled operator.
    virtual void AssembleMF(const FiniteElementSpace &fes);
 
-   virtual void AssembleMF(const FiniteElementSpace &trial_fes,
-                           const FiniteElementSpace &test_fes);
-
    /** Perform the action of integrator on the input @a x and add the result to
        the output @a y. Both @a x and @a y are E-vectors, i.e. they represent
        the element-wise discontinuous version of the FE space.
