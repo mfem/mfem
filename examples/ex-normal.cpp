@@ -48,14 +48,38 @@ SparseMatrix * BuildConstraints(FiniteElementSpace& fespace, Array<int> constrai
    }
    SparseMatrix * out = new SparseMatrix(n_constraints, fespace.GetVSize());
 
+   Vector nor(dim);
    for (int i = 0; i < fespace.GetNBE(); ++i)
    {
-      // todo: get normal!
       int att = fespace.GetBdrAttribute(i);
       if (constrained_att.FindSorted(att) != -1)
       {
+         // todo: get normal!
+         ElementTransformation * Tr = fespace.GetBdrElementTransformation(i);
+         // const Element * el = fespace.GetMesh()->GetBdrElement(i);
+         const FiniteElement * fe = fespace.GetBE(i);
+         const IntegrationRule& nodes = fe->GetNodes();
+
          Array<int> dofs;
          fespace.GetBdrElementDofs(i, dofs);
+         MFEM_VERIFY(dofs.Size() == nodes.Size(),
+                     "Something wrong in finite element space!");
+
+         for (int j = 0; j < dofs.Size(); ++j)
+         {
+            Tr->SetIntPoint(&nodes[j]);
+            CalcOrtho(Tr->Jacobian(), nor); // this normal is scaled by h or something
+
+            int k = dofs[j]; // are we sure nodes and dofs are ordered the same?
+            int constraint = dof_constraint[k];
+            for (int d = 0; d < dim; ++d)
+            {
+               int vdof = fespace.DofToVDof(k, d);
+               out->Set(constraint, vdof, nor[d]);
+            }
+         }
+
+         /*
          for (auto k : dofs)
          {
             int constraint = dof_constraint[k];
@@ -66,6 +90,7 @@ SparseMatrix * BuildConstraints(FiniteElementSpace& fespace, Array<int> constrai
                out->Set(constraint, vdof, value);
             }
          }
+         */
       }
    }
 
@@ -127,6 +152,7 @@ int main(int argc, char *argv[])
    if (myid == 0) { device.Print(); }
 
    Mesh mesh(mesh_file, 1, 1);
+   // mesh.EnsureNodes(); // ???
    int dim = mesh.Dimension();
 
    {
