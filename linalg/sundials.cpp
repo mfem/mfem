@@ -66,9 +66,6 @@ public:
       h->ops->copy      = SUNMemoryHelper_Copy_Cuda;
       h->ops->copyasync = SUNMemoryHelper_CopyAsync_Cuda;
 #endif
-
-      /* Set content (user data) to NULL */
-      h->content = NULL;
    }
 
    ~SundialsMemHelper()
@@ -76,7 +73,7 @@ public:
       SUNMemoryHelper_Destroy(h);
    }
 
-   /// Typecasting to SUNDIALS' N_Vector type
+   /// Typecasting to SUNDIALS' SUNMemoryHelper type
    operator SUNMemoryHelper() const { return h; }
 
    static int SundialsMemHelper_Alloc(SUNMemoryHelper helper,
@@ -310,8 +307,8 @@ SundialsNVector::SundialsNVector(MPI_Comm comm)
    own_NVector = 1;
 }
 
-SundialsNVector::SundialsNVector(MPI_Comm comm, int s, long glob_size)
-   : Vector(glob_size) // size is uninitialized when used here
+SundialsNVector::SundialsNVector(MPI_Comm comm, int loc_size, long glob_size)
+   : Vector(loc_size)
 {
    UseDevice(Device::IsAvailable());
    x = MakeNVector(comm, UseDevice());
@@ -319,9 +316,9 @@ SundialsNVector::SundialsNVector(MPI_Comm comm, int s, long glob_size)
    _SetNvecDataAndSize_(glob_size);
 }
 
-SundialsNVector::SundialsNVector(MPI_Comm comm, double *_data, int _size,
+SundialsNVector::SundialsNVector(MPI_Comm comm, double *_data, int loc_size,
                                  long glob_size)
-   : Vector(_data, _size)
+   : Vector(_data, loc_size)
 {
    UseDevice(Device::IsAvailable());
    x = MakeNVector(comm, UseDevice());
@@ -600,6 +597,7 @@ void CVODESolver::Init(TimeDependentOperator &f_)
 
       // Create CVODE
       sundials_mem = CVodeCreate(lmm_type);
+      MFEM_VERIFY(sundials_mem, "error in CVodeCreate()");
 
       // Initialize CVODE
       flag = CVodeInit(sundials_mem, CVODESolver::RHS, t, *Y);

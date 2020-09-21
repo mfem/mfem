@@ -87,7 +87,7 @@ public:
    /// Creates a SundialsNVector referencing an array of doubles, owned by someone else.
    /** The pointer @a _data can be NULL. The data array can be replaced later
        with SetData(). */
-   SundialsNVector(MPI_Comm comm, double *_data, int _size, long glob_size);
+   SundialsNVector(MPI_Comm comm, double *_data, int loc_size, long glob_size);
 
    /// Creates a SundialsNVector from a HypreParVector.
    /** Ownership of the data will not change. */
