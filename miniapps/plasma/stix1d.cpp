@@ -852,10 +852,10 @@ int main(int argc, char *argv[])
                                    omega, charges, masses);
 
    SheathImpedance z_r(BField, density, temperature,
-                       potential, L2FESpace, H1FESpace,
+                       L2FESpace, H1FESpace,
                        omega, charges, masses, true);
    SheathImpedance z_i(BField, density, temperature,
-                       potential, L2FESpace, H1FESpace,
+                       L2FESpace, H1FESpace,
                        omega, charges, masses, false);
 
    ColdPlasmaPlaneWave EReCoef(wave_type[0], omega, BVec,
