@@ -443,7 +443,6 @@ double debye(double Te, double n0_cm)
 SheathImpedance::SheathImpedance(const ParGridFunction & B,
                                  const BlockVector & density,
                                  const BlockVector & temp,
-                                 const ParComplexGridFunction & potential,
                                  const ParFiniteElementSpace & L2FESpace,
                                  const ParFiniteElementSpace & H1FESpace,
                                  double omega,
@@ -453,7 +452,7 @@ SheathImpedance::SheathImpedance(const ParGridFunction & B,
    : B_(B),
      density_(density),
      temp_(temp),
-     potential_(potential),
+     potential_(NULL),
      L2FESpace_(L2FESpace),
      H1FESpace_(H1FESpace),
      omega_(omega),
@@ -461,8 +460,7 @@ SheathImpedance::SheathImpedance(const ParGridFunction & B,
      masses_(masses),
      realPart_(realPart)
 {
-   density_vals_.SetSize(charges_.Size());
-   temp_vals_.SetSize(charges_.Size());
+
 }
 
 double SheathImpedance::Eval(ElementTransformation &T,
@@ -473,26 +471,21 @@ double SheathImpedance::Eval(ElementTransformation &T,
    B_.GetVectorValue(T, ip, B);
    double Bmag = B.Norml2();
     
-   double phir = potential_.real().GetValue(T, ip);
-   double phii = potential_.imag().GetValue(T, ip);
+   double phir = (potential_) ? potential_->real().GetValue(T, ip) : 0.0 ;
+   double phii = (potential_) ? potential_->imag().GetValue(T, ip) : 0.0 ;
 
-   for (int i=0; i<density_vals_.Size(); i++)
-   {
-      density_gf_.MakeRef(const_cast<ParFiniteElementSpace*>(&L2FESpace_),
-                          const_cast<Vector&>(density_.GetBlock(i)));
-      density_vals_[i] = density_gf_.GetValue(T, ip);
-   }
 
-   for (int i=0; i<temp_vals_.Size(); i++)
-   {
-      temperature_gf_.MakeRef(const_cast<ParFiniteElementSpace*>(&H1FESpace_),
-                              const_cast<Vector&>(temp_.GetBlock(i)));
-      temp_vals_[i] = temperature_gf_.GetValue(T, ip);
-   }
+   density_gf_.MakeRef(const_cast<ParFiniteElementSpace*>(&L2FESpace_),
+                          const_cast<Vector&>(density_.GetBlock(1)));
+   density_val_ = density_gf_.GetValue(T, ip);
 
-   double Te = temp_vals_[0] * q_; // Electron temperature, Units: J
+   temperature_gf_.MakeRef(const_cast<ParFiniteElementSpace*>(&H1FESpace_),
+                              const_cast<Vector&>(temp_.GetBlock(0)));
+   temp_val_ = temperature_gf_.GetValue(T, ip);
+
+   double Te = temp_val_ * q_; // Electron temperature, Units: J
    double wci = (charges_[1] * q_ * Bmag) / (masses_[1] * amu_);
-   double wpi = fabs(charges_[1] * q_) * 1.0 * sqrt(density_vals_[1] /
+   double wpi = fabs(charges_[1] * q_) * 1.0 * sqrt(density_val_ /
                                                     (epsilon0_ * masses_[1] * amu_));
    double vnorm = Te / (charges_[1] * q_);
 
@@ -500,9 +493,8 @@ double SheathImpedance::Eval(ElementTransformation &T,
    double wci_norm = wci / wpi;
    complex<double> volt_norm(phir/vnorm, phii/vnorm);
     
-   double debye_length = debye(temp_vals_[0],
-                               density_vals_[1]*1e-6); // Input temp needs to be in eV, Units: cm
-
+   double debye_length = debye(temp_val_,
+                               density_val_*1e-6); // Input temp needs to be in eV, Units: cm
    Vector nor(T.GetSpaceDim());
    CalcOrtho(T.Jacobian(), nor);
    double normag = nor.Norml2();
@@ -510,6 +502,8 @@ double SheathImpedance::Eval(ElementTransformation &T,
 
    complex<double> zsheath_norm = 1.0 / ytot(w_norm, wci_norm, bn, volt_norm,
                                              masses_[0], masses_[1]);
+    
+   complex<double> phiRec = phi0avg(w_norm, volt_norm);
     
    if (realPart_)
    {
