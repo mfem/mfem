@@ -14,9 +14,12 @@ find_path(PASTIX_INCLUDE_DIRS
   ${INCLUDE_INSTALL_DIR}
 )
 
+# Three separate libraries - pastix, spm, pastix_kernels
 find_library(PASTIX_LIBRARIES pastix PATHS ${PASTIX_DIR}/lib ${LIB_INSTALL_DIR})
 find_library(PASTIX_SPM_LIBRARIES spm PATHS ${PASTIX_DIR}/lib ${LIB_INSTALL_DIR})
+find_library(PASTIX_KERNEL_LIBRARIES pastix_kernels PATHS ${PASTIX_DIR}/lib ${LIB_INSTALL_DIR})
 list(APPEND PASTIX_LIBRARIES ${PASTIX_SPM_LIBRARIES})
+list(APPEND PASTIX_LIBRARIES ${PASTIX_KERNEL_LIBRARIES})
 
 if(EXISTS ${PASTIX_DIR}/examples/Makefile)
   file(STRINGS ${PASTIX_DIR}/examples/Makefile
@@ -30,6 +33,7 @@ string(REPLACE "EXTRALIBS= " "" PASTIX_EXTRALIBS ${PASTIX_EXTRALIBS})
 string(STRIP ${PASTIX_EXTRALIBS} PASTIX_EXTRALIBS)
 
 list(APPEND PASTIX_LIBRARIES ${PASTIX_EXTRALIBS})
+list(APPEND PASTIX_LIBRARIES "-lpthread")
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(PASTIX DEFAULT_MSG

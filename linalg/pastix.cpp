@@ -22,15 +22,13 @@ namespace mfem {
 
 PastixSparseMatrix::PastixSparseMatrix(const HypreParMatrix & hypParMat)
 {
-  hypre_ParCSRMatrix* const par_csr = hypParMat;
-  hypre_CSRMatrix * const csr = hypre_MergeDiagAndOffd(par_csr);
+  const hypre_ParCSRMatrix* par_csr = hypParMat;
 
-  // int m         = parcsr_op->global_num_rows;
-  //  int n         = parcsr_op->global_num_cols;
-  //  int fst_row   = parcsr_op->first_row_index;
-  //  int nnz_loc   = csr_op->num_nonzeros;
-  //  int m_loc     = csr_op->num_rows;
+  // This is a non-modifying operation
+  hypre_CSRMatrix* csr = hypre_MergeDiagAndOffd(const_cast<hypre_ParCSRMatrix*>(par_csr));
 
+  width = par_csr->global_num_cols;
+  height = par_csr->global_num_rows;
 
   spmInit(&matrix_);
 
@@ -62,10 +60,12 @@ PastixSparseMatrix::PastixSparseMatrix(const HypreParMatrix & hypParMat)
    // is of type HYPRE_Int, so if we want to check for big indices in
    // csr_op->big_j, we'll have to check all entries and that check will only be
    // necessary in HYPRE_MIXEDINT mode which is not supported at the moment.
-   hypre_CSRMatrixBigJtoJ(csr);
+  int* jptr = csr->big_j;
+  #else
+  int* jptr = csr->j;
   #endif
   for (int i = 0; i < csr->num_nonzeros; i++) {
-    matrix_.colptr[i] = (csr->j)[i];
+    matrix_.colptr[i] = static_cast<int>(jptr[i]);
     (static_cast<double*>(matrix_.values))[i] = (csr->data)[i];
   }
 
@@ -73,38 +73,14 @@ PastixSparseMatrix::PastixSparseMatrix(const HypreParMatrix & hypParMat)
   MPI_Comm_size( MPI_COMM_WORLD, &matrix_.clustnbr ); // Number of MPI nodes
   MPI_Comm_rank( MPI_COMM_WORLD, &matrix_.clustnum ); // Rank of MPI node
 
-  // {
-  //   volatile int i = 0;
-  //   printf("sudo gdb -p %d <- RUN THIS\n", getpid());
-  //   fflush(stdout);
-  //   while (0 == i)
-  //       sleep(5);
-  // }
   matrix_.loc2glob = (spm_int_t*)malloc( matrix_.n * sizeof(spm_int_t) );
   const int start = par_csr->row_starts[matrix_.clustnum];
   for (int i = 0; i < matrix_.n; i++)
   {
-    printf("Setting loc2glob[%d] to %d on rank %d\n", i, i + start, matrix_.clustnum);
     matrix_.loc2glob[i] = start + i;
   }
 
-  spmatrix_t* spmg = spmGather( &matrix_, 0 );
-
-  // if (matrix_.clustnum == 0)
-  // {
-  //   printf("Attempting to open file\n");
-  //   FILE* fp = fopen("test.matrix", "w");
-  //   printf("Could open file\n");
-  //   spmPrint(&matrix_, fp);
-  //   fclose(fp);
-  // }
-
-  if (matrix_.clustnum == 0 && spmg)
-  {
-    spmExit(spmg);
-    free(spmg);
-  }
-  const_cast<HypreParMatrix*>(&hypParMat)->Print("hp.matrix");
+  hypre_CSRMatrixDestroy(csr);
 }
 
 PastixSparseMatrix::~PastixSparseMatrix()
@@ -115,6 +91,50 @@ PastixSparseMatrix::~PastixSparseMatrix()
 void PastixSparseMatrix::Mult(const Vector &x, Vector &y) const
 {
   spmMatVec(SpmNoTrans, 1.0, &matrix_, static_cast<const double*>(x), 0.0, static_cast<double*>(y));
+}
+
+PastixSolver::PastixSolver(MPI_Comm comm) : comm_(comm)
+{
+  pastixInitParam(integer_params_, double_params_);
+  // Hold off on initializing until parameters have been set by the user
+}
+
+PastixSolver::~PastixSolver()
+{
+  if(pastix_data_ != nullptr) {
+    pastixFinalize( &pastix_data_ );
+  }
+}
+
+void PastixSolver::Mult( const Vector& x, Vector& y) const
+{
+  MFEM_ASSERT(matrix_ != nullptr,
+               "PastixSolver Error: The operator must be set before"
+               " the system can be solved.");
+  const spmatrix_t& spm = matrix_->InternalData();
+  // Only solving for one RHS vector
+  const int nrhs = 1;
+  // The solution is stored in place of the right-hand-side vector
+  y = x;
+  pastix_task_solve(pastix_data_, nrhs, y, spm.n);
+}
+
+void PastixSolver::SetOperator(const Operator& op)
+{
+  // We assume the options have been set, so now we can initialize
+  pastixInit( &pastix_data_, comm_, integer_params_, double_params_);
+
+  matrix_ = dynamic_cast<const PastixSparseMatrix*>(&op);
+  if (matrix_ == nullptr)
+  {
+    MFEM_ABORT("PastixSolver::SetOperator: Must be PastixSparseMatrix");
+  }
+  width = op.Width();
+  height = op.Height();
+  const spmatrix_t& spm = matrix_->InternalData();
+  pastix_task_analyze(pastix_data_, &spm);
+  // Non-modifying
+  pastix_task_numfact(pastix_data_, const_cast<spmatrix_t*>(&spm));
 }
 
 } // namespace mfem

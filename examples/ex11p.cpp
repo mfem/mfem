@@ -72,6 +72,7 @@ int main(int argc, char *argv[])
    int seed = 75;
    bool slu_solver  = false;
    bool sp_solver = false;
+   bool psx_solver = false;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -95,6 +96,10 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_STRUMPACK
    args.AddOption(&sp_solver, "-sp", "--strumpack", "-no-sp",
                   "--no-strumpack", "Use the STRUMPACK Solver.");
+#endif
+#ifdef MFEM_USE_PASTIX
+   args.AddOption(&psx_solver, "-psx", "--pastix", "-no-psx",
+                  "--no-pastix", "Use the PaStiX Solver.");
 #endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -227,6 +232,12 @@ int main(int argc, char *argv[])
       Arow = new STRUMPACKRowLocMatrix(*A);
    }
 #endif
+#ifdef MFEM_USE_PASTIX
+   if (psx_solver)
+   {
+      Arow = new PastixSparseMatrix(*A);
+   }
+#endif
 #endif
 
    delete a;
@@ -236,7 +247,7 @@ int main(int argc, char *argv[])
    //    preconditioner for A to be used within the solver. Set the matrices
    //    which define the generalized eigenproblem A x = lambda M x.
    Solver * precond = NULL;
-   if (!slu_solver && !sp_solver)
+   if (!slu_solver && !sp_solver && !psx_solver)
    {
       HypreBoomerAMG * amg = new HypreBoomerAMG(*A);
       amg->SetPrintLevel(0);
@@ -267,6 +278,14 @@ int main(int argc, char *argv[])
          strumpack->SetOperator(*Arow);
          strumpack->SetFromCommandLine();
          precond = strumpack;
+      }
+#endif
+#ifdef MFEM_USE_PASTIX
+      if (psx_solver)
+      {
+         PastixSolver * pastix = new PastixSolver(MPI_COMM_WORLD);
+         pastix->SetOperator(*Arow);
+         precond = pastix;
       }
 #endif
    }

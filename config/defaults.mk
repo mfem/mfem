@@ -252,7 +252,7 @@ STRUMPACK_LIB = -L$(STRUMPACK_DIR)/lib -lstrumpack $(MPI_FORTRAN_LIB)\
 # PASTIX library configuration
 PASTIX_DIR = @MFEM_DIR@/../pastix
 PASTIX_OPT = -I$(PASTIX_DIR)/include
-PASTIX_LIB = -L$(PASTIX_DIR)/lib -lpastix
+PASTIX_LIB = -L$(PASTIX_DIR)/lib -lpastix -lpthread
 
 # Ginkgo library configuration (currently not needed)
 GINKGO_DIR = @MFEM_DIR@/../ginkgo/install

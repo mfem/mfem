@@ -33,13 +33,30 @@ class PastixSparseMatrix : public Operator
     ~PastixSparseMatrix();
 
     void Mult(const Vector &x, Vector &y) const override;
+
+    spmatrix_t& InternalData() {return matrix_;}
+    const spmatrix_t& InternalData() const {return matrix_;}
   private:
     spmatrix_t matrix_;
 };
 
 class PastixSolver : public Solver
 {
+  public:
+    PastixSolver(MPI_Comm comm);
 
+    ~PastixSolver();
+
+    void Mult( const Vector& x, Vector& y) const override;
+
+    void SetOperator(const Operator& op) override;
+
+  private:
+    MPI_Comm      comm_;
+    pastix_int_t    integer_params_[IPARM_SIZE];
+    double          double_params_[DPARM_SIZE];
+    pastix_data_t  *pastix_data_ = nullptr;
+    const PastixSparseMatrix* matrix_ = nullptr;
 };
 
 } // namespace mfem
