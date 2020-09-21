@@ -1,6 +1,12 @@
 //                       MFEM Example normal-bc - Parallel Version
 //
 
+/*
+  square-disc attributes:
+
+  
+*/
+
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -17,12 +23,13 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // 2. Parse command-line options.
-   const char *mesh_file = "../data/star.mesh";
+   const char *mesh_file = "../data/square-disc.mesh";
    int order = 1;
    bool static_cond = false;
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
+   int boundary_attribute = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -39,6 +46,9 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&boundary_attribute, "--boundary-attribute", "--boundary-attribute",
+                  "Which attribute to apply essential conditions on.");
+                  
    args.Parse();
    if (!args.Good())
    {
@@ -115,7 +125,9 @@ int main(int argc, char *argv[])
    if (pmesh.bdr_attributes.Size())
    {
       Array<int> ess_bdr(pmesh.bdr_attributes.Max());
-      ess_bdr = 1;
+      // ess_bdr = 1;
+      ess_bdr = 0;
+      ess_bdr[boundary_attribute - 1] = 1;
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
@@ -189,17 +201,11 @@ int main(int argc, char *argv[])
    // 15. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
-      ostringstream mesh_name, sol_name;
-      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
-      sol_name << "sol." << setfill('0') << setw(6) << myid;
-
-      ofstream mesh_ofs(mesh_name.str().c_str());
-      mesh_ofs.precision(8);
-      pmesh.Print(mesh_ofs);
-
-      ofstream sol_ofs(sol_name.str().c_str());
-      sol_ofs.precision(8);
-      x.Save(sol_ofs);
+      std::stringstream visitname;
+      visitname << "normal" << boundary_attribute;
+      VisItDataCollection visit_dc(MPI_COMM_WORLD, visitname.str(), &pmesh);
+      visit_dc.RegisterField("sol", &x);
+      visit_dc.Save();
    }
 
    // 16. Send the solution by socket to a GLVis server.
