@@ -349,19 +349,11 @@ void ParL2FaceRestriction::FillI(SparseMatrix &mat) const
       if (iE1 < Ndofs)
       {
          AddNnz(iE1,I,face_dofs);
-         for (int jF = 0; jF < face_dofs; jF++)
-         {
-            const int jE2 = d_indices2[f*face_dofs+jF];
-         }
       }
       const int iE2 = d_indices2[f*face_dofs+iF];
       if (iE2 < Ndofs)
       {
          AddNnz(iE2,I,face_dofs);
-         for (int jF = 0; jF < face_dofs; jF++)
-         {
-            const int jE1 = d_indices1[f*face_dofs+jF];
-         }
       }
    });
 }
