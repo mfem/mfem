@@ -1845,7 +1845,7 @@ CPDSolver::DisplayToGLVis()
 
       e_b_->ProjectCoefficient(ebrCoef, ebiCoef);
 
-      
+      /*
       VisualizeField(*socks_["EBr"], vishost, visport,
                     e_b_->real(), "Parallel Electric Field, Re(E.B)",
                     Wx, Wy, Ww, Wh);
@@ -1855,6 +1855,7 @@ CPDSolver::DisplayToGLVis()
                     e_b_->imag(), "Parallel Electric Field, Im(E.B)",
                     Wx, Wy, Ww, Wh);
       Wx += offx;
+       */
     
    }
    /*
