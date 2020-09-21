@@ -54,9 +54,7 @@ SparseMatrix * BuildConstraints(FiniteElementSpace& fespace, Array<int> constrai
       int att = fespace.GetBdrAttribute(i);
       if (constrained_att.FindSorted(att) != -1)
       {
-         // todo: get normal!
          ElementTransformation * Tr = fespace.GetBdrElementTransformation(i);
-         // const Element * el = fespace.GetMesh()->GetBdrElement(i);
          const FiniteElement * fe = fespace.GetBE(i);
          const IntegrationRule& nodes = fe->GetNodes();
 
@@ -78,24 +76,82 @@ SparseMatrix * BuildConstraints(FiniteElementSpace& fespace, Array<int> constrai
                out->Set(constraint, vdof, nor[d]);
             }
          }
-
-         /*
-         for (auto k : dofs)
-         {
-            int constraint = dof_constraint[k];
-            for (int d = 0; d < dim; ++d)
-            {
-               int vdof = fespace.DofToVDof(k, d);
-               double value = 1.0;
-               out->Set(constraint, vdof, value);
-            }
-         }
-         */
       }
    }
 
    out->Finalize();
    return out;
+}
+
+class ConstrainedSolver : public Solver
+{
+public:
+   ConstrainedSolver(HypreParMatrix& A, SparseMatrix& B);
+   ~ConstrainedSolver();
+
+   void SetOperator(const Operator& op) { }
+
+   void Mult(const Vector& b, Vector& x) const;
+
+private:
+   Array<int> offsets;
+   BlockOperator * block_op;
+   GMRESSolver gmres;
+   TransposeOperator * tr_B;
+
+   mutable Vector workb;
+   mutable Vector workx;
+};
+
+ConstrainedSolver::ConstrainedSolver(HypreParMatrix& A, SparseMatrix& B)
+   :
+   // Solver(A.Height() + B.Height()),
+   Solver(A.Height()),  // not sure conceptually what the size should be!
+   offsets(3),
+   gmres(A.GetComm())
+{
+   offsets[0] = 0;
+   offsets[1] = A.Height();
+   offsets[2] = A.Height() + B.Height();
+
+   block_op = new BlockOperator(offsets);
+   block_op->SetBlock(0, 0, &A);
+   block_op->SetBlock(1, 0, &B);
+   tr_B = new TransposeOperator(&B);
+   block_op->SetBlock(0, 1, tr_B);
+
+   gmres.SetOperator(*block_op);
+   gmres.SetRelTol(1.e-6);
+   gmres.SetAbsTol(1.e-12);
+   gmres.SetMaxIter(500);
+   gmres.SetPrintLevel(1);
+
+   workb.SetSize(A.Height() + B.Height());
+   workx.SetSize(A.Height() + B.Height());
+}
+
+ConstrainedSolver::~ConstrainedSolver()
+{
+   delete block_op;
+   delete tr_B;
+}
+
+void ConstrainedSolver::Mult(const Vector& b, Vector& x) const
+{
+   workb = 0.0;
+   workx = 0.0;
+   for (int i = 0; i < b.Size(); ++i)
+   {
+      workb(i) = b(i);
+      workx(i) = x(i);
+   }
+
+   gmres.Mult(workb, workx);
+
+   for (int i = 0; i < b.Size(); ++i)
+   {
+      x(i) = workx(i);
+   }
 }
 
 int main(int argc, char *argv[])
@@ -216,15 +272,15 @@ int main(int argc, char *argv[])
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
+   Array<int> circle_atts(4);
+   circle_atts[0] = 5;
+   circle_atts[1] = 6;
+   circle_atts[2] = 7;
+   circle_atts[3] = 8;
+   SparseMatrix * constraint_mat = BuildConstraints(fespace, circle_atts);
    {
-      Array<int> circle_atts(4);
-      circle_atts[0] = 5;
-      circle_atts[1] = 6;
-      circle_atts[2] = 7;
-      circle_atts[3] = 8;
-      SparseMatrix * B = BuildConstraints(fespace, circle_atts);
       std::ofstream out("constraint.sparsematrix");
-      B->Print(out, 1);
+      constraint_mat->Print(out, 1);
    }
 
 
@@ -265,6 +321,10 @@ int main(int argc, char *argv[])
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
+   ConstrainedSolver constrained(*A.As<HypreParMatrix>(), *constraint_mat);
+   constrained.Mult(B, X);
+
+/*
    // 13. Solve the linear system A X = B.
    //     * With full assembly, use the BoomerAMG preconditioner from hypre.
    //     * With partial assembly, use Jacobi smoothing, for now.
@@ -290,6 +350,7 @@ int main(int argc, char *argv[])
    cg.SetOperator(*A);
    cg.Mult(B, X);
    delete prec;
+*/
 
    // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
@@ -322,6 +383,7 @@ int main(int argc, char *argv[])
    {
       delete fec;
    }
+   delete constraint_mat;
    MPI_Finalize();
 
    return 0;
