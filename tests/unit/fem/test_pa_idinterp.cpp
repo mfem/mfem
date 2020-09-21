@@ -62,6 +62,7 @@ double compare_pa_id_assembly(int dim, int num_elements, int order,
    const int skip_zeros = 1;
    assembled_id.Assemble(skip_zeros);
    assembled_id.Finalize(skip_zeros);
+   const SparseMatrix& assembled_id_mat = assembled_id.SpMat();
 
    DiscreteLinearOperator pa_id(&h1_fespace, &nd_fespace);
    pa_id.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -87,7 +88,8 @@ double compare_pa_id_assembly(int dim, int num_elements, int order,
    x.Randomize();
    if (transpose)
    {
-      assembled_id.MultTranspose(x, assembled_y);
+      assembled_id_mat.BuildTranspose();
+      assembled_id_mat.MultTranspose(x, assembled_y);
       pa_id.MultTranspose(x, pa_y);
    }
    else
@@ -113,7 +115,7 @@ double compare_pa_id_assembly(int dim, int num_elements, int order,
    return error;
 }
 
-TEST_CASE("PAIdentityInterp", "[PAIdentityInterp]")
+TEST_CASE("PAIdentityInterp", "[CUDA]")
 {
    for (bool transpose : {false, true})
    {

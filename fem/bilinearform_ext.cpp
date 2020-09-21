@@ -1041,6 +1041,7 @@ void PADiscreteLinearOperatorExtension::Assemble()
       integrators[i]->AssemblePA(*trialFes, *testFes);
    }
 
+   test_multiplicity.UseDevice(true);
    test_multiplicity.SetSize(elem_restrict_test->Width()); // l-vector
    Vector ones(elem_restrict_test->Height()); // e-vector
    ones = 1.0;
@@ -1055,10 +1056,12 @@ void PADiscreteLinearOperatorExtension::Assemble()
    {
       mfem_error("A real ElementRestriction is required in this setting!");
    }
-   for (int i = 0; i < test_multiplicity.Size(); ++i)
+
+   auto tm = test_multiplicity.ReadWrite();
+   MFEM_FORALL(i, test_multiplicity.Size(),
    {
-      test_multiplicity(i) = 1.0 / test_multiplicity(i);
-   }
+      tm[i] = 1.0 / tm[i];
+   });
 }
 
 void PADiscreteLinearOperatorExtension::AddMult(
@@ -1104,10 +1107,13 @@ void PADiscreteLinearOperatorExtension::AddMultTranspose(
    // operation as compared to the BilinearForm case
    // * G operation (kinda)
    Vector xscaled(x);
-   for (int i = 0; i < x.Size(); ++i)
+   MFEM_VERIFY(x.Size() == test_multiplicity.Size(), "Input vector of wrong size");
+   auto xs = xscaled.ReadWrite();
+   auto tm = test_multiplicity.Read();
+   MFEM_FORALL(i, x.Size(),
    {
-      xscaled(i) *= test_multiplicity(i);
-   }
+      xs[i] *= tm[i];
+   });
    SetupMultInputs(elem_restrict_test, xscaled, localTest,
                    elem_restrict_trial, y, localTrial, c);
 
