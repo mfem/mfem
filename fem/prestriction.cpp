@@ -334,6 +334,38 @@ static MFEM_HOST_DEVICE int AddNnz(const int iE, int *I, const int dofs)
    return val;
 }
 
+void ParL2FaceRestriction::FillI(SparseMatrix &mat) const
+{
+   const int face_dofs = dof;
+   const int Ndofs = ndofs;
+   auto d_indices1 = scatter_indices1.Read();
+   auto d_indices2 = scatter_indices2.Read();
+   auto I = mat.ReadWriteI();
+   MFEM_FORALL(fdof, nf*face_dofs,
+   {
+      const int f  = fdof/face_dofs;
+      const int iF = fdof%face_dofs;
+      const int iE1 = d_indices1[f*face_dofs+iF];
+      if (iE1 < Ndofs)
+      {
+         AddNnz(iE1,I,face_dofs);
+         for (int jF = 0; jF < face_dofs; jF++)
+         {
+            const int jE2 = d_indices2[f*face_dofs+jF];
+         }
+      }
+      const int iE2 = d_indices2[f*face_dofs+iF];
+      if (iE2 < Ndofs)
+      {
+         AddNnz(iE2,I,face_dofs);
+         for (int jF = 0; jF < face_dofs; jF++)
+         {
+            const int jE1 = d_indices1[f*face_dofs+jF];
+         }
+      }
+   });
+}
+
 void ParL2FaceRestriction::FillI(SparseMatrix &mat,
                                  SparseMatrix &face_mat) const
 {
@@ -381,6 +413,46 @@ void ParL2FaceRestriction::FillI(SparseMatrix &mat,
             {
                AddNnz(iE2,I_face,1);
             }
+         }
+      }
+   });
+}
+
+void ParL2FaceRestriction::FillJAndData(const Vector &ea_data,
+                                        SparseMatrix &mat) const
+{
+   const int face_dofs = dof;
+   const int Ndofs = ndofs;
+   auto d_indices1 = scatter_indices1.Read();
+   auto d_indices2 = scatter_indices2.Read();
+   auto mat_fea = Reshape(ea_data.Read(), face_dofs, face_dofs, 2, nf);
+   auto I = mat.ReadWriteI();
+   auto J = mat.WriteJ();
+   auto Data = mat.WriteData();
+   MFEM_FORALL(fdof, nf*face_dofs,
+   {
+      const int f  = fdof/face_dofs;
+      const int iF = fdof%face_dofs;
+      const int iE1 = d_indices1[f*face_dofs+iF];
+      if (iE1 < Ndofs)
+      {
+         const int offset = AddNnz(iE1,I,face_dofs);
+         for (int jF = 0; jF < face_dofs; jF++)
+         {
+            const int jE2 = d_indices2[f*face_dofs+jF];
+            J[offset+jF] = jE2;
+            Data[offset+jF] = mat_fea(jF,iF,1,f);
+         }
+      }
+      const int iE2 = d_indices2[f*face_dofs+iF];
+      if (iE2 < Ndofs)
+      {
+         const int offset = AddNnz(iE2,I,face_dofs);
+         for (int jF = 0; jF < face_dofs; jF++)
+         {
+            const int jE1 = d_indices1[f*face_dofs+jF];
+            J[offset+jF] = jE1;
+            Data[offset+jF] = mat_fea(jF,iF,0,f);
          }
       }
    });
