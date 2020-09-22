@@ -439,6 +439,92 @@ double debye(double Te, double n0_cm)
    return (7.43e2*pow((Te/n0_cm),0.5));
 }
 
+SheathBase::SheathBase(const BlockVector & density,
+                       const BlockVector & temp,
+                       const ParFiniteElementSpace & L2FESpace,
+                       const ParFiniteElementSpace & H1FESpace,
+                       double omega,
+                       const Vector & charges,
+                       const Vector & masses,
+                       bool realPart)
+   : density_(density),
+     temp_(temp),
+     potential_(NULL),
+     L2FESpace_(L2FESpace),
+     H1FESpace_(H1FESpace),
+     omega_(omega),
+     realPart_(realPart),
+     charges_(charges),
+     masses_(masses)
+{
+}
+
+double SheathBase::EvalIonDensity(ElementTransformation &T,
+                                  const IntegrationPoint &ip)
+{
+   density_gf_.MakeRef(const_cast<ParFiniteElementSpace*>(&L2FESpace_),
+                       const_cast<Vector&>(density_.GetBlock(1)));
+   return density_gf_.GetValue(T, ip);
+}
+
+double SheathBase::EvalElectronTemp(ElementTransformation &T,
+                                    const IntegrationPoint &ip)
+{
+   temperature_gf_.MakeRef(const_cast<ParFiniteElementSpace*>(&H1FESpace_),
+                           const_cast<Vector&>(temp_.GetBlock(0)));
+   return temperature_gf_.GetValue(T, ip);
+}
+
+complex<double> SheathBase::EvalSheathPotential(ElementTransformation &T,
+                                                const IntegrationPoint &ip)
+{
+   double phir = (potential_) ? potential_->real().GetValue(T, ip) : 0.0 ;
+   double phii = (potential_) ? potential_->imag().GetValue(T, ip) : 0.0 ;
+   return complex<double>(phir, phii);
+}
+
+RectifiedSheathPotential::RectifiedSheathPotential(
+   const BlockVector & density,
+   const BlockVector & temp,
+   const ParFiniteElementSpace & L2FESpace,
+   const ParFiniteElementSpace & H1FESpace,
+   double omega,
+   const Vector & charges,
+   const Vector & masses,
+   bool realPart)
+   : SheathBase(density, temp, L2FESpace, H1FESpace,
+                omega, charges, masses, realPart)
+{}
+
+double RectifiedSheathPotential::Eval(ElementTransformation &T,
+                                      const IntegrationPoint &ip)
+{
+   double density_val = EvalIonDensity(T, ip);
+   double temp_val = EvalElectronTemp(T, ip);
+
+   double Te = temp_val * q_; // Electron temperature, Units: J
+
+   double wpi = omega_p(density_val, charges_[1], masses_[1]);
+
+   double vnorm = Te / (charges_[1] * q_);
+   double w_norm = omega_ / wpi;
+
+   complex<double> phi = EvalSheathPotential(T, ip);
+
+   complex<double> volt_norm(phi.real()/vnorm, phi.imag()/vnorm);
+
+   complex<double> phiRec = phi0avg(w_norm, volt_norm);
+
+   if (realPart_)
+   {
+      return phiRec.real();
+   }
+   else
+   {
+      return phiRec.imag();
+   }
+
+}
 
 SheathImpedance::SheathImpedance(const ParGridFunction & B,
                                  const BlockVector & density,
@@ -449,19 +535,10 @@ SheathImpedance::SheathImpedance(const ParGridFunction & B,
                                  const Vector & charges,
                                  const Vector & masses,
                                  bool realPart)
-   : B_(B),
-     density_(density),
-     temp_(temp),
-     potential_(NULL),
-     L2FESpace_(L2FESpace),
-     H1FESpace_(H1FESpace),
-     omega_(omega),
-     charges_(charges),
-     masses_(masses),
-     realPart_(realPart)
-{
-
-}
+   : SheathBase(density, temp, L2FESpace, H1FESpace,
+                omega, charges, masses, realPart),
+     B_(B)
+{}
 
 double SheathImpedance::Eval(ElementTransformation &T,
                              const IntegrationPoint &ip)
@@ -470,31 +547,24 @@ double SheathImpedance::Eval(ElementTransformation &T,
    Vector B(3);
    B_.GetVectorValue(T, ip, B);
    double Bmag = B.Norml2();
-    
-   double phir = (potential_) ? potential_->real().GetValue(T, ip) : 0.0 ;
-   double phii = (potential_) ? potential_->imag().GetValue(T, ip) : 0.0 ;
 
+   complex<double> phi = EvalSheathPotential(T, ip);
 
-   density_gf_.MakeRef(const_cast<ParFiniteElementSpace*>(&L2FESpace_),
-                          const_cast<Vector&>(density_.GetBlock(1)));
-   density_val_ = density_gf_.GetValue(T, ip);
+   double density_val = EvalIonDensity(T, ip);
+   double temp_val = EvalElectronTemp(T, ip);
 
-   temperature_gf_.MakeRef(const_cast<ParFiniteElementSpace*>(&H1FESpace_),
-                              const_cast<Vector&>(temp_.GetBlock(0)));
-   temp_val_ = temperature_gf_.GetValue(T, ip);
+   double Te = temp_val * q_; // Electron temperature, Units: J
+   double wci = omega_c(Bmag, charges_[1], masses_[1]);
+   double wpi = omega_p(density_val, charges_[1], masses_[1]);
 
-   double Te = temp_val_ * q_; // Electron temperature, Units: J
-   double wci = (charges_[1] * q_ * Bmag) / (masses_[1] * amu_);
-   double wpi = fabs(charges_[1] * q_) * 1.0 * sqrt(density_val_ /
-                                                    (epsilon0_ * masses_[1] * amu_));
    double vnorm = Te / (charges_[1] * q_);
 
    double w_norm = omega_ / wpi;
    double wci_norm = wci / wpi;
-   complex<double> volt_norm(phir/vnorm, phii/vnorm);
-    
-   double debye_length = debye(temp_val_,
-                               density_val_*1e-6); // Input temp needs to be in eV, Units: cm
+   complex<double> volt_norm(phi.real()/vnorm, phi.imag()/vnorm);
+
+   double debye_length = debye(temp_val,
+                               density_val*1e-6); // Input temp needs to be in eV, Units: cm
    Vector nor(T.GetSpaceDim());
    CalcOrtho(T.Jacobian(), nor);
    double normag = nor.Norml2();
@@ -502,9 +572,7 @@ double SheathImpedance::Eval(ElementTransformation &T,
 
    complex<double> zsheath_norm = 1.0 / ytot(w_norm, wci_norm, bn, volt_norm,
                                              masses_[0], masses_[1]);
-    
-   complex<double> phiRec = phi0avg(w_norm, volt_norm);
-    
+
    if (realPart_)
    {
       return (zsheath_norm.real()*9.0*1e11*1e-4*
@@ -733,7 +801,7 @@ void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
 PlasmaProfile::PlasmaProfile(Type type, const Vector & params)
    : type_(type), p_(params), x_(3)
 {
-   MFEM_ASSERT(params.Size() == np_[type],
+   MFEM_VERIFY(params.Size() == np_[type],
                "Incorrect number of parameters, " << params.Size()
                << ", for profile of type: " << type << ".");
 }

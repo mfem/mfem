@@ -396,8 +396,8 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
-    args.AddOption(&convergence_test, "-ctest", "--convergence-test", "-no-ctest",
-                   "--no-ctest", "Enable convergence test.");
+   args.AddOption(&convergence_test, "-ctest", "--convergence-test", "-no-ctest",
+                  "--no-ctest", "Enable convergence test.");
    args.Parse();
    if (!args.Good())
    {
@@ -852,10 +852,10 @@ int main(int argc, char *argv[])
                                    omega, charges, masses);
 
    SheathImpedance z_r(BField, density, temperature,
-                       potential, L2FESpace, H1FESpace,
+                       L2FESpace, H1FESpace,
                        omega, charges, masses, true);
    SheathImpedance z_i(BField, density, temperature,
-                       potential, L2FESpace, H1FESpace,
+                       L2FESpace, H1FESpace,
                        omega, charges, masses, false);
 
    ColdPlasmaPlaneWave EReCoef(wave_type[0], omega, BVec,
@@ -971,7 +971,7 @@ int main(int argc, char *argv[])
    {
       ExactReEField.ProjectCoefficient(EReCoef);
       ExactImEField.ProjectCoefficient(EImCoef);
-       
+
       CPD.RegisterVisItFields(visit_dc);
       // visit_dc.RegisterField("L", &LField);
       visit_dc.RegisterField("Exact_Re_E", &ExactReEField);
@@ -1006,13 +1006,14 @@ int main(int argc, char *argv[])
       if (mpi.Root())
       {
          cout << "Global L2 Error " << glb_error << endl;
-          if ( convergence_test == true)
-          {
-              ofstream file;
-              file.open ("glb_error_"+std::to_string(order)+"_"+std::to_string(num_elements)+".txt");
-              file << glb_error;
-              file.close();
-          }
+         if ( convergence_test == true)
+         {
+            ofstream file;
+            file.open ("glb_error_"+std::to_string(order)+"_"+std::to_string(
+                          num_elements)+".txt");
+            file << glb_error;
+            file.close();
+         }
       }
 
       // Determine the current size of the linear system

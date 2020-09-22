@@ -695,16 +695,16 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
       PlasmaProfile rhoCoef(dpt, dpp);
       phi_->ProjectCoefficient(rhoCoef, rhoCoef);
        */
-       
-       for (int i=0; i<sbcs_->Size(); i++)
-       {
-           ComplexCoefficientByAttr & sbc = (*sbcs_)[i];
-           SheathImpedance * z_r = dynamic_cast<SheathImpedance*>(sbc.real);
-           SheathImpedance * z_i = dynamic_cast<SheathImpedance*>(sbc.imag);
-           
-           if (z_r){ z_r->SetPotential(*phi_); }
-           if (z_i){ z_i->SetPotential(*phi_); }
-       }
+
+      for (int i=0; i<sbcs_->Size(); i++)
+      {
+         ComplexCoefficientByAttr & sbc = (*sbcs_)[i];
+         SheathImpedance * z_r = dynamic_cast<SheathImpedance*>(sbc.real);
+         SheathImpedance * z_i = dynamic_cast<SheathImpedance*>(sbc.imag);
+
+         if (z_r) { z_r->SetPotential(*phi_); }
+         if (z_i) { z_i->SetPotential(*phi_); }
+      }
 
       grad_ = new ParDiscreteGradOperator(H1FESpace_, HCurlFESpace_);
    }
@@ -1097,474 +1097,476 @@ void
 CPDSolver::Solve()
 {
    if ( myid_ == 0 && logging_ > 0 ) { cout << "Running solver ... " << endl; }
-    
+
    float E_err = 1.0;
-    
+
    VectorGridFunctionCoefficient e_r_(&e_->real());
    VectorGridFunctionCoefficient e_i_(&e_->imag());
-    
+
    e_tmp_ = new ParComplexGridFunction(HCurlFESpace_);
    e_tmp_->ProjectCoefficient(e_r_, e_i_);
-    
+
    VectorGridFunctionCoefficient e_tmp_r_(&e_tmp_->real());
    VectorGridFunctionCoefficient e_tmp_i_(&e_tmp_->imag());
-    
+
    Vector zeroVec(3); zeroVec = 0.0;
    VectorConstantCoefficient zeroVecCoef(zeroVec);
-    
+
    int E_iter = 0;
-    
-  while ( E_err > 1e-3 )
-  {
-   OperatorHandle A1;
-   Vector E, RHS;
-   // cout << "Norm of jd (pre-fls): " << jd_->Norml2() << endl;
-   if ( grad_ && phi_ != NULL)
+
+   while ( E_err > 1e-3 )
    {
-      grad_->Mult(phi_->real(), e_->real());
-      grad_->Mult(phi_->imag(), e_->imag());
-   }
-   if (dbcs_->Size() > 0)
-   {
-      Array<int> attr_marker(pmesh_->bdr_attributes.Max());
-      Array<int> ess_bdr_vdofs;
-      for (int i = 0; i<dbcs_->Size(); i++)
+      OperatorHandle A1;
+      Vector E, RHS;
+      // cout << "Norm of jd (pre-fls): " << jd_->Norml2() << endl;
+      if ( grad_ && phi_ != NULL)
       {
-         attr_marker = 0;
-         for (int j=0; j<(*dbcs_)[i].attr.Size(); j++)
+         grad_->Mult(phi_->real(), e_->real());
+         grad_->Mult(phi_->imag(), e_->imag());
+      }
+      if (dbcs_->Size() > 0)
+      {
+         Array<int> attr_marker(pmesh_->bdr_attributes.Max());
+         Array<int> ess_bdr_vdofs;
+         for (int i = 0; i<dbcs_->Size(); i++)
          {
-            attr_marker[(*dbcs_)[i].attr[j] - 1] = 1;
-         }
-         // Determine marker array in vDoF space
-         HCurlFESpace_->GetEssentialVDofs(attr_marker, ess_bdr_vdofs);
-
-         temp_->ProjectCoefficient(*(*dbcs_)[i].real);
-         for (int j=0; j<ess_bdr_vdofs.Size(); j++)
-         {
-            if (ess_bdr_vdofs[j]) { e_->real()[j] = (*temp_)[j]; }
-         }
-
-         temp_->ProjectCoefficient(*(*dbcs_)[i].imag);
-         for (int j=0; j<ess_bdr_vdofs.Size(); j++)
-         {
-            if (ess_bdr_vdofs[j]) { e_->imag()[j] = (*temp_)[j]; }
-         }
-
-         /*
-               e_->ProjectBdrCoefficientTangent(*(*dbcs_)[i].real,
-                                                *(*dbcs_)[i].imag,
-                                                attr_marker);
-
-          e_->ProjectCoefficient(*(*dbcs_)[i].real,
-                                 *(*dbcs_)[i].imag);
-         */
-          
-      }
-   }
-    
-   if (e_ == e_tmp_ ){ break; } // L2 norm errors, these are only the boundary values at this point
-
-   a1_->FormLinearSystem(ess_bdr_tdofs_, *e_, *rhs_, A1, E, RHS);
-
-   // cout << "Norm of jd (post-fls): " << jd_->Norml2() << endl;
-   // cout << "Norm of RHS: " << RHS.Norml2() << endl;
-
-   tic_toc.Clear();
-   tic_toc.Start();
-
-   Operator * pcr = NULL;
-   Operator * pci = NULL;
-   BlockDiagonalPreconditioner * BDP = NULL;
-
-   if (pa_)
-   {
-      switch (prec_)
-      {
-         case INVALID_PC:
-            if ( myid_ == 0 && logging_ > 0 )
+            attr_marker = 0;
+            for (int j=0; j<(*dbcs_)[i].attr.Size(); j++)
             {
-               cout << "No Preconditioner Requested (PA)" << endl;
+               attr_marker[(*dbcs_)[i].attr[j] - 1] = 1;
             }
-            break;
-         case DIAG_SCALE:
-            if ( myid_ == 0 && logging_ > 0 )
-            {
-               cout << "Diagonal Scaling Preconditioner Requested (PA)" << endl;
-            }
-            pcr = new OperatorJacobiSmoother(*b1_, ess_bdr_tdofs_);
-            break;
-         default:
-            MFEM_ABORT("Requested preconditioner is not available with PA.");
-            break;
-      }
-   }
-   else if (sol_ == GMRES || sol_ == FGMRES || sol_ == MINRES)
-   {
-      OperatorHandle PCOp;
-      b1_->FormSystemMatrix(ess_bdr_tdofs_, PCOp);
-      switch (prec_)
-      {
-         case INVALID_PC:
-            if ( myid_ == 0 && logging_ > 0 )
-            {
-               cout << "No Preconditioner Requested" << endl;
-            }
-            break;
-         case DIAG_SCALE:
-            if ( myid_ == 0 && logging_ > 0 )
-            {
-               cout << "Diagonal Scaling Preconditioner Requested" << endl;
-            }
-            pcr = new HypreDiagScale(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()));
-            break;
-         case PARASAILS:
-            if ( myid_ == 0 && logging_ > 0 )
-            {
-               cout << "ParaSails Preconditioner Requested" << endl;
-            }
-            pcr = new HypreParaSails(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()));
-            dynamic_cast<HypreParaSails*>(pcr)->SetSymmetry(1);
-            break;
-         case EUCLID:
-            if ( myid_ == 0 && logging_ > 0 )
-            {
-               cout << "Euclid Preconditioner Requested" << endl;
-            }
-            pcr = new HypreEuclid(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()));
-            if (solOpts_.euLvl != 1)
-            {
-               HypreSolver * pc = dynamic_cast<HypreSolver*>(pcr);
-               HYPRE_EuclidSetLevel(*pc, solOpts_.euLvl);
-            }
-            break;
-         case AMS:
-            if ( myid_ == 0 && logging_ > 0 )
-            {
-               cout << "AMS Preconditioner Requested" << endl;
-            }
-            pcr = new HypreAMS(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()),
-                               HCurlFESpace_);
-            break;
-         default:
-            MFEM_ABORT("Requested preconditioner is not available.");
-            break;
-      }
-   }
+            // Determine marker array in vDoF space
+            HCurlFESpace_->GetEssentialVDofs(attr_marker, ess_bdr_vdofs);
 
-   if (pcr && conv_ != ComplexOperator::HERMITIAN)
-   {
-      pci = new ScaledOperator(pcr, -1.0);
-   }
-   else
-   {
-      pci = pcr;
-   }
-   if (pcr)
-   {
-      BDP = new BlockDiagonalPreconditioner(blockTrueOffsets_);
-      BDP->SetDiagonalBlock(0, pcr);
-      BDP->SetDiagonalBlock(1, pci);
-      BDP->owns_blocks = 0;
-   }
+            temp_->ProjectCoefficient(*(*dbcs_)[i].real);
+            for (int j=0; j<ess_bdr_vdofs.Size(); j++)
+            {
+               if (ess_bdr_vdofs[j]) { e_->real()[j] = (*temp_)[j]; }
+            }
 
-   switch (sol_)
-   {
-      case GMRES:
-      {
-         if ( myid_ == 0 && logging_ > 0 )
-         {
-            cout << "GMRES Solver Requested" << endl;
+            temp_->ProjectCoefficient(*(*dbcs_)[i].imag);
+            for (int j=0; j<ess_bdr_vdofs.Size(); j++)
+            {
+               if (ess_bdr_vdofs[j]) { e_->imag()[j] = (*temp_)[j]; }
+            }
+
+            /*
+                  e_->ProjectBdrCoefficientTangent(*(*dbcs_)[i].real,
+                                                   *(*dbcs_)[i].imag,
+                                                   attr_marker);
+
+             e_->ProjectCoefficient(*(*dbcs_)[i].real,
+                                    *(*dbcs_)[i].imag);
+            */
+
          }
-         GMRESSolver gmres(HCurlFESpace_->GetComm());
-         if (BDP) { gmres.SetPreconditioner(*BDP); }
-         gmres.SetOperator(*A1.Ptr());
-         gmres.SetRelTol(solOpts_.relTol);
-         gmres.SetMaxIter(solOpts_.maxIter);
-         gmres.SetKDim(solOpts_.kDim);
-         gmres.SetPrintLevel(solOpts_.printLvl);
-
-         gmres.Mult(RHS, E);
       }
-      break;
-      case FGMRES:
-      {
-         if ( myid_ == 0 && logging_ > 0 )
-         {
-            cout << "FGMRES Solver Requested" << endl;
-         }
-         FGMRESSolver fgmres(HCurlFESpace_->GetComm());
-         if (BDP) { fgmres.SetPreconditioner(*BDP); }
-         fgmres.SetOperator(*A1.Ptr());
-         fgmres.SetRelTol(solOpts_.relTol);
-         fgmres.SetMaxIter(solOpts_.maxIter);
-         fgmres.SetKDim(solOpts_.kDim);
-         fgmres.SetPrintLevel(solOpts_.printLvl);
 
-         fgmres.Mult(RHS, E);
-      }
-      break;
-      case MINRES:
-      {
-         if ( myid_ == 0 && logging_ > 0 )
-         {
-            cout << "MINRES Solver Requested" << endl;
-         }
-         MINRESSolver minres(HCurlFESpace_->GetComm());
-         if (BDP) { minres.SetPreconditioner(*BDP); }
-         minres.SetOperator(*A1.Ptr());
-         minres.SetRelTol(solOpts_.relTol);
-         minres.SetMaxIter(solOpts_.maxIter);
-         minres.SetPrintLevel(solOpts_.printLvl);
+      if (e_ == e_tmp_ ) { break; } // L2 norm errors, these are only the boundary values at this point
 
-         minres.Mult(RHS, E);
-      }
-      break;
-#ifdef MFEM_USE_SUPERLU
-      case SUPERLU:
-      {
-         if ( myid_ == 0 && logging_ > 0 )
-         {
-            cout << "SuperLU Solver Requested" << endl;
-         }
-         ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
-         HypreParMatrix * A1C = A1Z->GetSystemMatrix();
-         SuperLURowLocMatrix A_SuperLU(*A1C);
-         SuperLUSolver solver(MPI_COMM_WORLD);
-         solver.SetOperator(A_SuperLU);
-         solver.Mult(RHS, E);
-         delete A1C;
-         // delete A1Z;
-      }
-      break;
-#endif
-#ifdef MFEM_USE_STRUMPACK
-      case STRUMPACK:
-      {
-         if ( myid_ == 0 && logging_ > 0 )
-         {
-            cout << "STRUMPACK Solver Requested" << endl;
-         }
-         //A1.SetOperatorOwner(false);
-         ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
-         HypreParMatrix * A1C = A1Z->GetSystemMatrix();
-         STRUMPACKRowLocMatrix A_STRUMPACK(*A1C);
-         STRUMPACKSolver solver(0, NULL, MPI_COMM_WORLD);
-         solver.SetPrintFactorStatistics(true);
-         solver.SetPrintSolveStatistics(false);
-         solver.SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
-         solver.SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
-         solver.DisableMatching();
-         solver.SetOperator(A_STRUMPACK);
-         solver.SetFromCommandLine();
-         solver.Mult(RHS, E);
-         delete A1C;
-         // delete A1Z;
-      }
-      break;
-#endif
-      default:
-         MFEM_ABORT("Requested solver is not available.");
-         break;
-   };
+      a1_->FormLinearSystem(ess_bdr_tdofs_, *e_, *rhs_, A1, E, RHS);
 
-   tic_toc.Stop();
+      // cout << "Norm of jd (post-fls): " << jd_->Norml2() << endl;
+      // cout << "Norm of RHS: " << RHS.Norml2() << endl;
 
-   a1_->RecoverFEMSolution(E, *rhs_, *e_);
+      tic_toc.Clear();
+      tic_toc.Start();
 
-   // Update D = epsilon E
-   {
-      OperatorPtr M2;
-      Vector D, RHS2;
+      Operator * pcr = NULL;
+      Operator * pci = NULL;
+      BlockDiagonalPreconditioner * BDP = NULL;
 
-      ParComplexLinearForm rhs(HDivFESpace_);
-      ParComplexLinearForm tmp(HDivFESpace_);
-
-      m12EpsRe_->Mult(e_->real(), rhs.real());
-      m12EpsIm_->Mult(e_->imag(), tmp.real());
-
-      m12EpsRe_->Mult(e_->imag(), rhs.imag());
-      m12EpsIm_->Mult(e_->real(), tmp.imag());
-
-      rhs.real() -= tmp.real();
-      rhs.imag() += tmp.imag();
-
-      if (conv_ == ComplexOperator::Convention::BLOCK_SYMMETRIC)
-      {
-         rhs.imag() *= -1.0;
-      }
-      rhs.SyncAlias();
-      tmp.SyncAlias();
-
-      Array<int> ess_tdof;
-      m2_->FormSystemMatrix(ess_tdof, M2);
-
-      D.SetSize(HDivFESpace_->TrueVSize());
-      RHS2.SetSize(HDivFESpace_->TrueVSize());
-
-      Operator *diag = NULL;
-      Operator *pcg = NULL;
       if (pa_)
       {
-         diag = new OperatorJacobiSmoother(*m2_, ess_tdof);
-         CGSolver *cg = new CGSolver(MPI_COMM_WORLD);
-         cg->SetOperator(*M2);
-         cg->SetPreconditioner(static_cast<OperatorJacobiSmoother&>(*diag));
-         cg->SetRelTol(1e-12);
-         cg->SetMaxIter(1000);
-         pcg = cg;
+         switch (prec_)
+         {
+            case INVALID_PC:
+               if ( myid_ == 0 && logging_ > 0 )
+               {
+                  cout << "No Preconditioner Requested (PA)" << endl;
+               }
+               break;
+            case DIAG_SCALE:
+               if ( myid_ == 0 && logging_ > 0 )
+               {
+                  cout << "Diagonal Scaling Preconditioner Requested (PA)" << endl;
+               }
+               pcr = new OperatorJacobiSmoother(*b1_, ess_bdr_tdofs_);
+               break;
+            default:
+               MFEM_ABORT("Requested preconditioner is not available with PA.");
+               break;
+         }
+      }
+      else if (sol_ == GMRES || sol_ == FGMRES || sol_ == MINRES)
+      {
+         OperatorHandle PCOp;
+         b1_->FormSystemMatrix(ess_bdr_tdofs_, PCOp);
+         switch (prec_)
+         {
+            case INVALID_PC:
+               if ( myid_ == 0 && logging_ > 0 )
+               {
+                  cout << "No Preconditioner Requested" << endl;
+               }
+               break;
+            case DIAG_SCALE:
+               if ( myid_ == 0 && logging_ > 0 )
+               {
+                  cout << "Diagonal Scaling Preconditioner Requested" << endl;
+               }
+               pcr = new HypreDiagScale(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()));
+               break;
+            case PARASAILS:
+               if ( myid_ == 0 && logging_ > 0 )
+               {
+                  cout << "ParaSails Preconditioner Requested" << endl;
+               }
+               pcr = new HypreParaSails(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()));
+               dynamic_cast<HypreParaSails*>(pcr)->SetSymmetry(1);
+               break;
+            case EUCLID:
+               if ( myid_ == 0 && logging_ > 0 )
+               {
+                  cout << "Euclid Preconditioner Requested" << endl;
+               }
+               pcr = new HypreEuclid(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()));
+               if (solOpts_.euLvl != 1)
+               {
+                  HypreSolver * pc = dynamic_cast<HypreSolver*>(pcr);
+                  HYPRE_EuclidSetLevel(*pc, solOpts_.euLvl);
+               }
+               break;
+            case AMS:
+               if ( myid_ == 0 && logging_ > 0 )
+               {
+                  cout << "AMS Preconditioner Requested" << endl;
+               }
+               pcr = new HypreAMS(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()),
+                                  HCurlFESpace_);
+               break;
+            default:
+               MFEM_ABORT("Requested preconditioner is not available.");
+               break;
+         }
+      }
+
+      if (pcr && conv_ != ComplexOperator::HERMITIAN)
+      {
+         pci = new ScaledOperator(pcr, -1.0);
       }
       else
       {
-         diag = new HypreDiagScale(*M2.As<HypreParMatrix>());
-         HyprePCG *cg = new HyprePCG(*M2.As<HypreParMatrix>());
-         cg->SetPreconditioner(static_cast<HypreDiagScale&>(*diag));
-         cg->SetTol(1e-12);
-         cg->SetMaxIter(1000);
-         pcg = cg;
+         pci = pcr;
       }
-      rhs.real().ParallelAssemble(RHS2);
-      pcg->Mult(RHS2, D);
-      d_->real().Distribute(D);
-      rhs.imag().ParallelAssemble(RHS2);
-      pcg->Mult(RHS2, D);
-      d_->imag().Distribute(D);
-
-      delete diag;
-      delete pcg;
-   }
-
-   // Update phi = z n.D on the boundary
-   if (sbcs_->Size() > 0)
-   {
-      float Phi_err = 1.0;
-       
-      GridFunctionCoefficient phi_r_(&phi_->real());
-      GridFunctionCoefficient phi_i_(&phi_->imag());
-       
-      phi_tmp_ = new ParComplexGridFunction(H1FESpace_);
-      phi_tmp_->ProjectCoefficient(phi_r_, phi_i_);
-       
-      GridFunctionCoefficient phi_tmp_r_(&phi_tmp_->real());
-      GridFunctionCoefficient phi_tmp_i_(&phi_tmp_->imag());
-       
-      ConstantCoefficient zeroScalarCoef(0.0);
-       
-      int Phi_iter = 0;
-       
-      while ( Phi_err > 1e-3 )
+      if (pcr)
       {
-      HypreParMatrix M0;
-      Vector Phi, RHS0;
-
-      ParComplexLinearForm rhs(H1FESpace_);
-      ParComplexLinearForm tmp(H1FESpace_);
-       
-      n20ZRe_->Assemble();
-      n20ZRe_->Finalize();
-
-      n20ZRe_->Mult(d_->imag(), rhs.real());
-      n20ZIm_->Mult(d_->real(), tmp.real());
-
-      n20ZRe_->Mult(d_->real(), tmp.imag());
-      n20ZIm_->Mult(d_->imag(), rhs.imag());
-
-      rhs.real() += tmp.real();
-      rhs.imag() -= tmp.imag();
-       
-      rhs.real() *= omega_;
-      rhs.imag() *= omega_;
-
-      if (conv_ == ComplexOperator::Convention::BLOCK_SYMMETRIC)
-      {
-         rhs.imag() *= -1.0;
+         BDP = new BlockDiagonalPreconditioner(blockTrueOffsets_);
+         BDP->SetDiagonalBlock(0, pcr);
+         BDP->SetDiagonalBlock(1, pci);
+         BDP->owns_blocks = 0;
       }
 
-      Array<int> sbc_marker(pmesh_->bdr_attributes.Max());
-      sbc_marker = 0;
-      for (int i=0; i<sbcs_->Size(); i++)
+      switch (sol_)
       {
-         ComplexCoefficientByAttr & sbc = (*sbcs_)[i];
-         for (int j=0; j<sbc.attr_marker.Size(); j++)
+         case GMRES:
          {
-            sbc_marker[j] |= sbc.attr_marker[j];
+            if ( myid_ == 0 && logging_ > 0 )
+            {
+               cout << "GMRES Solver Requested" << endl;
+            }
+            GMRESSolver gmres(HCurlFESpace_->GetComm());
+            if (BDP) { gmres.SetPreconditioner(*BDP); }
+            gmres.SetOperator(*A1.Ptr());
+            gmres.SetRelTol(solOpts_.relTol);
+            gmres.SetMaxIter(solOpts_.maxIter);
+            gmres.SetKDim(solOpts_.kDim);
+            gmres.SetPrintLevel(solOpts_.printLvl);
+
+            gmres.Mult(RHS, E);
          }
-      }
+         break;
+         case FGMRES:
+         {
+            if ( myid_ == 0 && logging_ > 0 )
+            {
+               cout << "FGMRES Solver Requested" << endl;
+            }
+            FGMRESSolver fgmres(HCurlFESpace_->GetComm());
+            if (BDP) { fgmres.SetPreconditioner(*BDP); }
+            fgmres.SetOperator(*A1.Ptr());
+            fgmres.SetRelTol(solOpts_.relTol);
+            fgmres.SetMaxIter(solOpts_.maxIter);
+            fgmres.SetKDim(solOpts_.kDim);
+            fgmres.SetPrintLevel(solOpts_.printLvl);
 
-      Array<int> sbc_tdof;
-      H1FESpace_->GetEssentialTrueDofs(sbc_marker, sbc_tdof);
+            fgmres.Mult(RHS, E);
+         }
+         break;
+         case MINRES:
+         {
+            if ( myid_ == 0 && logging_ > 0 )
+            {
+               cout << "MINRES Solver Requested" << endl;
+            }
+            MINRESSolver minres(HCurlFESpace_->GetComm());
+            if (BDP) { minres.SetPreconditioner(*BDP); }
+            minres.SetOperator(*A1.Ptr());
+            minres.SetRelTol(solOpts_.relTol);
+            minres.SetMaxIter(solOpts_.maxIter);
+            minres.SetPrintLevel(solOpts_.printLvl);
 
-      Array<int> sbc_tdof_marker;
-      H1FESpace_->ListToMarker(sbc_tdof, H1FESpace_->GetTrueVSize(),
-                               sbc_tdof_marker);
+            minres.Mult(RHS, E);
+         }
+         break;
+#ifdef MFEM_USE_SUPERLU
+         case SUPERLU:
+         {
+            if ( myid_ == 0 && logging_ > 0 )
+            {
+               cout << "SuperLU Solver Requested" << endl;
+            }
+            ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
+            HypreParMatrix * A1C = A1Z->GetSystemMatrix();
+            SuperLURowLocMatrix A_SuperLU(*A1C);
+            SuperLUSolver solver(MPI_COMM_WORLD);
+            solver.SetOperator(A_SuperLU);
+            solver.Mult(RHS, E);
+            delete A1C;
+            // delete A1Z;
+         }
+         break;
+#endif
+#ifdef MFEM_USE_STRUMPACK
+         case STRUMPACK:
+         {
+            if ( myid_ == 0 && logging_ > 0 )
+            {
+               cout << "STRUMPACK Solver Requested" << endl;
+            }
+            //A1.SetOperatorOwner(false);
+            ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
+            HypreParMatrix * A1C = A1Z->GetSystemMatrix();
+            STRUMPACKRowLocMatrix A_STRUMPACK(*A1C);
+            STRUMPACKSolver solver(0, NULL, MPI_COMM_WORLD);
+            solver.SetPrintFactorStatistics(true);
+            solver.SetPrintSolveStatistics(false);
+            solver.SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+            solver.SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+            solver.DisableMatching();
+            solver.SetOperator(A_STRUMPACK);
+            solver.SetFromCommandLine();
+            solver.Mult(RHS, E);
+            delete A1C;
+            // delete A1Z;
+         }
+         break;
+#endif
+         default:
+            MFEM_ABORT("Requested solver is not available.");
+            break;
+      };
 
-      // Invert marker
-      for (int i=0; i<sbc_tdof_marker.Size(); i++)
+      tic_toc.Stop();
+
+      a1_->RecoverFEMSolution(E, *rhs_, *e_);
+
+      // Update D = epsilon E
       {
-         sbc_tdof_marker[i] = 1 - sbc_tdof_marker[i];
+         OperatorPtr M2;
+         Vector D, RHS2;
+
+         ParComplexLinearForm rhs(HDivFESpace_);
+         ParComplexLinearForm tmp(HDivFESpace_);
+
+         m12EpsRe_->Mult(e_->real(), rhs.real());
+         m12EpsIm_->Mult(e_->imag(), tmp.real());
+
+         m12EpsRe_->Mult(e_->imag(), rhs.imag());
+         m12EpsIm_->Mult(e_->real(), tmp.imag());
+
+         rhs.real() -= tmp.real();
+         rhs.imag() += tmp.imag();
+
+         if (conv_ == ComplexOperator::Convention::BLOCK_SYMMETRIC)
+         {
+            rhs.imag() *= -1.0;
+         }
+         rhs.SyncAlias();
+         tmp.SyncAlias();
+
+         Array<int> ess_tdof;
+         m2_->FormSystemMatrix(ess_tdof, M2);
+
+         D.SetSize(HDivFESpace_->TrueVSize());
+         RHS2.SetSize(HDivFESpace_->TrueVSize());
+
+         Operator *diag = NULL;
+         Operator *pcg = NULL;
+         if (pa_)
+         {
+            diag = new OperatorJacobiSmoother(*m2_, ess_tdof);
+            CGSolver *cg = new CGSolver(MPI_COMM_WORLD);
+            cg->SetOperator(*M2);
+            cg->SetPreconditioner(static_cast<OperatorJacobiSmoother&>(*diag));
+            cg->SetRelTol(1e-12);
+            cg->SetMaxIter(1000);
+            pcg = cg;
+         }
+         else
+         {
+            diag = new HypreDiagScale(*M2.As<HypreParMatrix>());
+            HyprePCG *cg = new HyprePCG(*M2.As<HypreParMatrix>());
+            cg->SetPreconditioner(static_cast<HypreDiagScale&>(*diag));
+            cg->SetTol(1e-12);
+            cg->SetMaxIter(1000);
+            pcg = cg;
+         }
+         rhs.real().ParallelAssemble(RHS2);
+         pcg->Mult(RHS2, D);
+         d_->real().Distribute(D);
+         rhs.imag().ParallelAssemble(RHS2);
+         pcg->Mult(RHS2, D);
+         d_->imag().Distribute(D);
+
+         delete diag;
+         delete pcg;
       }
 
-      Array<int> ess_tdof;
-      H1FESpace_->MarkerToList(sbc_tdof_marker, ess_tdof);
+      // Update phi = z n.D on the boundary
+      if (sbcs_->Size() > 0)
+      {
+         float Phi_err = 1.0;
 
-      m0_->FormSystemMatrix(ess_tdof, M0);
+         GridFunctionCoefficient phi_r_(&phi_->real());
+         GridFunctionCoefficient phi_i_(&phi_->imag());
 
-      Phi.SetSize(H1FESpace_->TrueVSize());
-      RHS0.SetSize(H1FESpace_->TrueVSize());
+         phi_tmp_ = new ParComplexGridFunction(H1FESpace_);
+         phi_tmp_->ProjectCoefficient(phi_r_, phi_i_);
 
-      HypreDiagScale diag(M0);
+         GridFunctionCoefficient phi_tmp_r_(&phi_tmp_->real());
+         GridFunctionCoefficient phi_tmp_i_(&phi_tmp_->imag());
 
-      HyprePCG pcg(M0);
-      pcg.SetPreconditioner(diag);
-      pcg.SetTol(1e-12);
-      pcg.SetMaxIter(1000);
+         ConstantCoefficient zeroScalarCoef(0.0);
 
-      rhs.real().ParallelAssemble(RHS0);
+         int Phi_iter = 0;
 
-      pcg.Mult(RHS0, Phi);
+         while ( Phi_err > 1e-3 )
+         {
+            HypreParMatrix M0;
+            Vector Phi, RHS0;
 
-      phi_->real().Distribute(Phi);
+            ParComplexLinearForm rhs(H1FESpace_);
+            ParComplexLinearForm tmp(H1FESpace_);
 
-      rhs.imag().ParallelAssemble(RHS0);
+            n20ZRe_->Assemble();
+            n20ZRe_->Finalize();
 
-      pcg.Mult(RHS0, Phi);
+            n20ZRe_->Mult(d_->imag(), rhs.real());
+            n20ZIm_->Mult(d_->real(), tmp.real());
 
-      phi_->imag().Distribute(Phi);
-          
-      double PhisolNorm = phi_tmp_->ComputeL2Error(zeroScalarCoef, zeroScalarCoef);
-      double PhisolErr = phi_->ComputeL2Error(phi_tmp_r_, phi_tmp_i_);
-      
-      Phi_err = PhisolErr;
-      if ( PhisolNorm != 0 ) { Phi_err = PhisolErr / PhisolNorm; }
-    
-      cout << "Phi pass: " << Phi_iter << " Error: " << Phi_err << endl;
-      Phi_iter++;
-        
-      phi_tmp_->ProjectCoefficient(phi_r_, phi_i_);
-          
+            n20ZRe_->Mult(d_->real(), tmp.imag());
+            n20ZIm_->Mult(d_->imag(), rhs.imag());
+
+            rhs.real() += tmp.real();
+            rhs.imag() -= tmp.imag();
+
+            rhs.real() *= omega_;
+            rhs.imag() *= omega_;
+
+            if (conv_ == ComplexOperator::Convention::BLOCK_SYMMETRIC)
+            {
+               rhs.imag() *= -1.0;
+            }
+
+            Array<int> sbc_marker(pmesh_->bdr_attributes.Max());
+            sbc_marker = 0;
+            for (int i=0; i<sbcs_->Size(); i++)
+            {
+               ComplexCoefficientByAttr & sbc = (*sbcs_)[i];
+               for (int j=0; j<sbc.attr_marker.Size(); j++)
+               {
+                  sbc_marker[j] |= sbc.attr_marker[j];
+               }
+            }
+
+            Array<int> sbc_tdof;
+            H1FESpace_->GetEssentialTrueDofs(sbc_marker, sbc_tdof);
+
+            Array<int> sbc_tdof_marker;
+            H1FESpace_->ListToMarker(sbc_tdof, H1FESpace_->GetTrueVSize(),
+                                     sbc_tdof_marker);
+
+            // Invert marker
+            for (int i=0; i<sbc_tdof_marker.Size(); i++)
+            {
+               sbc_tdof_marker[i] = 1 - sbc_tdof_marker[i];
+            }
+
+            Array<int> ess_tdof;
+            H1FESpace_->MarkerToList(sbc_tdof_marker, ess_tdof);
+
+            m0_->FormSystemMatrix(ess_tdof, M0);
+
+            Phi.SetSize(H1FESpace_->TrueVSize());
+            RHS0.SetSize(H1FESpace_->TrueVSize());
+
+            HypreDiagScale diag(M0);
+
+            HyprePCG pcg(M0);
+            pcg.SetPreconditioner(diag);
+            pcg.SetTol(1e-12);
+            pcg.SetMaxIter(1000);
+
+            rhs.real().ParallelAssemble(RHS0);
+
+            pcg.Mult(RHS0, Phi);
+
+            phi_->real().Distribute(Phi);
+
+            rhs.imag().ParallelAssemble(RHS0);
+
+            pcg.Mult(RHS0, Phi);
+
+            phi_->imag().Distribute(Phi);
+
+            double PhisolNorm = phi_tmp_->ComputeL2Error(zeroScalarCoef, zeroScalarCoef);
+            double PhisolErr = phi_->ComputeL2Error(phi_tmp_r_, phi_tmp_i_);
+
+            Phi_err = PhisolErr;
+            if ( PhisolNorm != 0 ) { Phi_err = PhisolErr / PhisolNorm; }
+
+            cout << "Phi pass: " << Phi_iter << " Error: " << Phi_err << endl;
+            Phi_iter++;
+
+            phi_tmp_->ProjectCoefficient(phi_r_, phi_i_);
+
+         }
+         cout << " Inner potential calculation done in " << Phi_iter << " iteration(s)."
+              << endl;
       }
-       cout << " Inner potential calculation done in " << Phi_iter << " iteration(s)." << endl;
-   }
 
-   delete BDP;
-   if (pci != pcr) { delete pci; }
-   delete pcr;
+      delete BDP;
+      if (pci != pcr) { delete pci; }
+      delete pcr;
 
-   if ( myid_ == 0 && logging_ > 0 )
-   {
-      cout << " Solver done in " << tic_toc.RealTime() << " seconds." << endl;
-   }
+      if ( myid_ == 0 && logging_ > 0 )
+      {
+         cout << " Solver done in " << tic_toc.RealTime() << " seconds." << endl;
+      }
       double EsolNorm = e_tmp_->ComputeL2Error(zeroVecCoef, zeroVecCoef);
       double EsolErr = e_->ComputeL2Error(e_tmp_r_, e_tmp_i_);
-      
+
       E_err = EsolErr;
       if ( EsolNorm != 0 ) { E_err = EsolErr / EsolNorm; }
-      
+
       cout << "Efield pass: " << E_iter << " Error: " << E_err << endl;
-      
+
       e_tmp_->ProjectCoefficient(e_r_, e_i_);
       E_iter++;
-}
-    cout << " Outer E field calculation done in " << E_iter << " iteration(s)." << endl;
+   }
+   cout << " Outer E field calculation done in " << E_iter << " iteration(s)." <<
+        endl;
 }
 
 double
@@ -1856,7 +1858,7 @@ CPDSolver::DisplayToGLVis()
                     Wx, Wy, Ww, Wh);
       Wx += offx;
        */
-    
+
    }
    /*
    Wx += offx;
