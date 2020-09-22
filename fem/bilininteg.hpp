@@ -2906,7 +2906,6 @@ private:
 
    const DofToQuad *maps_C_C; // one-d map with Lobatto rows, Lobatto columns
    const DofToQuad *maps_O_C; // one-d map with Legendre rows, Lobatto columns
-   const GeometricFactors *geom;   ///< Not owned
    int dim, ne, o_dofs1D, c_dofs1D;
 };
 

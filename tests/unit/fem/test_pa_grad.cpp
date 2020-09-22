@@ -17,14 +17,28 @@ using namespace mfem;
 double compare_pa_assembly(int dim, int num_elements, int order, bool transpose)
 {
    Mesh * mesh;
-   if (dim == 2)
+   if (num_elements == 0)
    {
-      mesh = new Mesh(num_elements, num_elements, Element::QUADRILATERAL, true);
+      if (dim == 2)
+      {
+         mesh = new Mesh("../../data/star.mesh", order);
+      }
+      else
+      {
+         mesh = new Mesh("../../data/beam-hex.mesh", order);
+      }
    }
    else
    {
-      mesh = new Mesh(num_elements, num_elements, num_elements,
-                      Element::HEXAHEDRON, true);
+      if (dim == 2)
+      {
+         mesh = new Mesh(num_elements, num_elements, Element::QUADRILATERAL, true);
+      }
+      else
+      {
+         mesh = new Mesh(num_elements, num_elements, num_elements,
+                         Element::HEXAHEDRON, true);
+      }
    }
    FiniteElementCollection *h1_fec = new H1_FECollection(order, dim);
    FiniteElementCollection *nd_fec = new ND_FECollection(order, dim);
@@ -62,6 +76,7 @@ double compare_pa_assembly(int dim, int num_elements, int order, bool transpose)
    xv.Randomize();
    if (transpose)
    {
+      assembled_grad_mat.BuildTranspose();
       assembled_grad_mat.MultTranspose(xv, assembled_y);
       pa_grad.MultTranspose(xv, pa_y);
    }
@@ -97,13 +112,13 @@ double compare_pa_assembly(int dim, int num_elements, int order, bool transpose)
    return error;
 }
 
-TEST_CASE("PAGradient", "[PAGradient]")
+TEST_CASE("PAGradient", "[CUDA]")
 {
    for (bool transpose : {false, true})
    {
       for (int dim = 2; dim < 4; ++dim)
       {
-         for (int num_elements = 1; num_elements < 5; ++num_elements)
+         for (int num_elements = 0; num_elements < 5; ++num_elements)
          {
             for (int order = 1; order < 5; ++order)
             {
@@ -226,7 +241,7 @@ TEST_CASE("ParallelPAGradient", "[Parallel], [ParallelPAGradient]")
       {
          for (int num_elements = 4; num_elements < 6; ++num_elements)
          {
-            for (int order = 2; order < 5; ++order)
+            for (int order = 1; order < 5; ++order)
             {
                double error = par_compare_pa_assembly(dim, num_elements, order, transpose);
                REQUIRE(error < 1.e-14);

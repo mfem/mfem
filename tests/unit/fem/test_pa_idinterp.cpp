@@ -18,14 +18,39 @@ double compare_pa_id_assembly(int dim, int num_elements, int order,
                               bool transpose)
 {
    Mesh * mesh;
-   if (dim == 2)
+   if (num_elements == 0)
    {
-      mesh = new Mesh(num_elements, num_elements, Element::QUADRILATERAL, true);
+      if (dim == 2)
+      {
+         mesh = new Mesh("../../data/star.mesh", order);
+      }
+      else
+      {
+         mesh = new Mesh("../../data/beam-hex.mesh", order);
+
+         // Transform mesh vertices to test without alignment with coordinate axes.
+         for (int i=0; i<mesh->GetNV(); ++i)
+         {
+            double *v = mesh->GetVertex(i);
+            const double yscale = 1.0 + v[1];
+            const double zscale = 1.0 + v[2];
+            v[0] *= zscale;
+            v[1] *= zscale;
+            v[2] *= yscale;
+         }
+      }
    }
    else
    {
-      mesh = new Mesh(num_elements, num_elements, num_elements,
-                      Element::HEXAHEDRON, true);
+      if (dim == 2)
+      {
+         mesh = new Mesh(num_elements, num_elements, Element::QUADRILATERAL, true);
+      }
+      else
+      {
+         mesh = new Mesh(num_elements, num_elements, num_elements,
+                         Element::HEXAHEDRON, true);
+      }
    }
    FiniteElementCollection *h1_fec = new H1_FECollection(order, dim);
    FiniteElementCollection *nd_fec = new ND_FECollection(order, dim);
@@ -37,6 +62,7 @@ double compare_pa_id_assembly(int dim, int num_elements, int order,
    const int skip_zeros = 1;
    assembled_id.Assemble(skip_zeros);
    assembled_id.Finalize(skip_zeros);
+   const SparseMatrix& assembled_id_mat = assembled_id.SpMat();
 
    DiscreteLinearOperator pa_id(&h1_fespace, &nd_fespace);
    pa_id.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -62,22 +88,14 @@ double compare_pa_id_assembly(int dim, int num_elements, int order,
    x.Randomize();
    if (transpose)
    {
-      assembled_id.MultTranspose(x, assembled_y);
+      assembled_id_mat.BuildTranspose();
+      assembled_id_mat.MultTranspose(x, assembled_y);
       pa_id.MultTranspose(x, pa_y);
    }
    else
    {
       assembled_id.Mult(x, assembled_y);
       pa_id.Mult(x, pa_y);
-   }
-
-   if (false)
-   {
-      std::cout << "true   \tpa\n";
-      for (int i = 0; i < assembled_y.Size(); ++i)
-      {
-         std::cout << i << " : " << assembled_y(i) << "\t" << pa_y(i) << std::endl;
-      }
    }
 
    pa_y -= assembled_y;
@@ -97,18 +115,18 @@ double compare_pa_id_assembly(int dim, int num_elements, int order,
    return error;
 }
 
-TEST_CASE("PAIdentityInterp", "[PAIdentityInterp]")
+TEST_CASE("PAIdentityInterp", "[CUDA]")
 {
    for (bool transpose : {false, true})
    {
       for (int dim = 2; dim < 4; ++dim)
       {
-         for (int num_elements = 1; num_elements < 5; ++num_elements)
+         for (int num_elements = 0; num_elements < 5; ++num_elements)
          {
             for (int order = 1; order < 5; ++order)
             {
                double error = compare_pa_id_assembly(dim, num_elements, order, transpose);
-               REQUIRE(error < 1.e-14);
+               REQUIRE(error < 1.0e-14);
             }
          }
       }
