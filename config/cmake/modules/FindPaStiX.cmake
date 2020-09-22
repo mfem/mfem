@@ -1,3 +1,20 @@
+# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+# Find PASTIX.
+# Defines the following variables:
+#   - PASTIX_FOUND
+#   - PASTIX_LIBRARIES
+#   - PASTIX_INCLUDE_DIRS
+
 # Pastix lib requires linking to a blas library.
 # It is up to the user of this module to find a BLAS and link to it.
 # Pastix requires SCOTCH or METIS (partitioning and reordering tools) as well
@@ -33,7 +50,20 @@ string(REPLACE "EXTRALIBS= " "" PASTIX_EXTRALIBS ${PASTIX_EXTRALIBS})
 string(STRIP ${PASTIX_EXTRALIBS} PASTIX_EXTRALIBS)
 
 list(APPEND PASTIX_LIBRARIES ${PASTIX_EXTRALIBS})
-list(APPEND PASTIX_LIBRARIES "-lpthread")
+
+find_package(PkgConfig REQUIRED)
+set(OLD_PREFIX_PATH ${CMAKE_PREFIX_PATH})
+set(CMAKE_PREFIX_PATH "${PASTIX_DIR}/lib/pkgconfig")
+set(PKG_CONFIG_USE_CMAKE_PREFIX_PATH TRUE)
+pkg_check_modules(PASTIX_PC REQUIRED pastix)
+list(APPEND PASTIX_LIBRARIES ${PASTIX_PC_LDFLAGS})
+set(CMAKE_PREFIX_PATH ${OLD_PREFIX_PATH})
+
+
+if(UNIX AND NOT APPLE)
+  find_package(Threads)
+  list(APPEND PASTIX_LIBRARIES ${CMAKE_THREAD_LIBS_INIT})
+endif()
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(PASTIX DEFAULT_MSG

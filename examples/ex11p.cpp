@@ -283,7 +283,8 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_PASTIX
       if (psx_solver)
       {
-         PastixSolver * pastix = new PastixSolver(MPI_COMM_WORLD);
+         PastixSolver * pastix = new PastixSolver;
+         pastix->SetVerbosity(PastixVerboseYes);
          pastix->SetOperator(*Arow);
          precond = pastix;
       }
