@@ -2994,34 +2994,6 @@ void ParFiniteElementSpace::Update(bool want_transform)
    }
 }
 
-/*
-  the stack that needs to be created / edited:
-
-PADiscreteLinearOperatorExtension::FormRectangularSystemOperator() calls
-Operator::SetupRAP() with Po = this(PADiscreteLinearOperatorExtension)->GetLocalOutputProlongation()
-  which calls
-BilinearForm::GetLocalOutputProlongation() which is reimplemented by
-DiscreteLinearOperator::GetLocalOutputProlongation() calls
-test_fes(FiniteElementSpace)->GetLocalProlongationMatrix() is reimplemented by
-ParFiniteElementSpace::GetLocalProlongationMatrix() returns
-ConformingProlongationOperator(true) [which I still need to understand]
-
-(first we should understand the PAMixedBilinearFormExtension stack, then think about the above)
-
-PAMixedBilinearFormExtension::FormRectangularSystemOperator() calls
-Operator::FormRectangularSystemOperator() calls
-Operator::FormRectangularConstrainedSystemOperator() calls
-Operator::SetupRAP(Pi, Po) with Po from this(Operator)->GetOutputProlongation()
-  by default calls Operator::GetProlongation(), but this case is reimplemented by
-MixedBilinearFormExtension::GetOutputProlongation() calls
-BilinearForm::GetOutputProlongation()
-  by default calls BilinearForm::GetProlongation() but this case is reimplemented by
-MixedBilinearForm::GetOutputProlongation() calls
-test_fes(FiniteElementSpace)->GetProlongationMatrix() is reimplemented by
-ParFiniteElementSpace::GetProlongationMatrix() returns
-ConformingProlongationOperator() [which I still need to understand]
-*/
-
 ConformingProlongationOperator::ConformingProlongationOperator(
    const ParFiniteElementSpace &pfes, bool local_)
    : Operator(pfes.GetVSize(), pfes.GetTrueVSize()),
@@ -3029,9 +3001,6 @@ ConformingProlongationOperator::ConformingProlongationOperator(
      gc(pfes.GroupComm()),
      local(local_)
 {
-   /// TODO TODO ATB unfortunately I am going to need to understand this,
-   /// see notebook 22 July 2020
-
    MFEM_VERIFY(pfes.Conforming(), "");
    const Table &group_ldof = gc.GroupLDofTable();
    external_ldofs.Reserve(Height()-Width());
