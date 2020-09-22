@@ -327,9 +327,13 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
    // Collect density, temperature, and magnetic field values
    Vector B(3);
    B_.GetVectorValue(T.ElementNo, ip, B);
+
+   // Compute spherical polar coordinates of the vector B
+   //   th is the polar angle
+   //   ph is the azimuthal angle
    double Bmag = B.Norml2();
-   double th = atan2(B(2), B(0));
-   double ph = atan2(B(0) * cos(th) + B(2) * sin(th), -B(1));
+   double th = atan2(sqrt(B(0) * B(0) + B(1) * B(1)), B(2));
+   double ph = (sin(th) > 1e-12) ? atan2(B(1), B(0)) : 0.0;
 
    for (int i=0; i<density_vals_.Size(); i++)
    {
@@ -345,75 +349,54 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
       temp_vals_[i] = temperature_gf_.GetValue(T.ElementNo, ip);
    }
 
+   complex<double> S = S_cold_plasma(omega_, Bmag, density_vals_,
+                                     charges_, masses_, temp_vals_);
+   complex<double> P = P_cold_plasma(omega_, density_vals_,
+                                     charges_, masses_, temp_vals_);
+   complex<double> D = D_cold_plasma(omega_, Bmag, density_vals_,
+                                     charges_, masses_, temp_vals_);
+
    if (realPart_)
    {
-      complex<double> S = S_cold_plasma(omega_, Bmag, density_vals_,
-                                        charges_, masses_, temp_vals_);
-      complex<double> P = P_cold_plasma(omega_, density_vals_,
-                                        charges_, masses_, temp_vals_);
-      complex<double> D = D_cold_plasma(omega_, Bmag, density_vals_,
-                                        charges_, masses_, temp_vals_);
-
-      epsilon(0,0) =  (real(P) - real(S)) *
-                      pow(sin(ph), 2) * pow(cos(th), 2) + real(S);
-      epsilon(1,1) =  (real(P) - real(S)) * pow(cos(ph), 2) + real(S);
-      epsilon(2,2) =  (real(P) - real(S)) *
-                      pow(sin(ph), 2) * pow(sin(th), 2) + real(S);
-      epsilon(0,1) = (real(P) - real(S)) * cos(ph) * cos(th) * sin(ph) +
-                     imag(D) * sin(th) * sin(ph);
-      epsilon(0,2) =  (real(P) - real(S)) *
-                      pow(sin(ph), 2) * sin(th) * cos(th) + imag(D) * cos(ph);
-      epsilon(1,2) = (real(P) - real(S)) * sin(th) * cos(ph) * sin(ph) -
-                     imag(D) * cos(th) * sin(ph);
-      epsilon(1,0) = (real(P) - real(S)) * cos(ph) * cos(th) * sin(ph) -
-                     imag(D) * sin(th) * sin(ph);
-      epsilon(2,1) = (real(P) - real(S)) * sin(th) * cos(ph) * sin(ph) +
-                     imag(D) * cos(th) * sin(ph);
-      epsilon(2,0) = (real(P) - real(S)) *
-                     pow(sin(ph),2) * sin(th) * cos(th) - imag(D) * cos(ph);
+      epsilon(0,0) = (real(P) - real(S)) *
+                     pow(sin(th), 2) * pow(cos(ph), 2) + real(S);
+      epsilon(1,1) = (real(P) - real(S)) *
+                     pow(sin(th), 2) * pow(sin(ph), 2) + real(S);
+      epsilon(2,2) = (real(P) - real(S)) * pow(cos(th), 2) + real(S);
+      epsilon(0,1) = (real(P) - real(S)) * sin(ph) * cos(ph) *
+                     pow(sin(th), 2) + imag(D) * cos(th);
+      epsilon(1,0) = (real(P) - real(S)) * sin(ph) * cos(ph) *
+                     pow(sin(th), 2) - imag(D) * cos(th);
+      epsilon(0,2) = (real(P) - real(S)) * cos(ph) * cos(th) * sin(th) -
+                     imag(D) * sin(ph) * sin(th);
+      epsilon(2,0) = (real(P) - real(S)) * cos(ph) * cos(th) * sin(th) +
+                     imag(D) * sin(ph) * sin(th);
+      epsilon(1,2) = (real(P) - real(S)) * sin(ph) * cos(th) * sin(th) +
+                     imag(D) * cos(ph) * sin(th);
+      epsilon(2,1) = (real(P) - real(S)) * sin(ph) * cos(th) * sin(th) -
+                     imag(D) * cos(ph) * sin(th);
    }
    else
    {
-      complex<double> S = S_cold_plasma(omega_, Bmag, density_vals_,
-                                        charges_, masses_, temp_);
-      complex<double> P = P_cold_plasma(omega_, density_vals_,
-                                        charges_, masses_, temp_);
-      complex<double> D = D_cold_plasma(omega_, Bmag, density_vals_,
-                                        charges_, masses_, temp_);
-
       epsilon(0,0) = (imag(P) - imag(S)) *
-                     pow(sin(ph), 2) * pow(cos(th), 2) + imag(S);
-      epsilon(1,1) = (imag(P) - imag(S)) * pow(cos(ph), 2) + imag(S);
-      epsilon(2,2) = (imag(P) - imag(S)) *
-                     pow(sin(ph), 2) * pow(sin(th), 2) + imag(S);
-      epsilon(0,1) = (imag(P) - imag(S)) * cos(ph) * cos(th) * sin(ph) -
-                     real(D) * sin(th) * sin(ph);
-      epsilon(0,2) = (imag(P) - imag(S)) *
-                     pow(sin(ph), 2) * sin(th) * cos(th) - real(D) * cos(ph);
-      epsilon(1,2) = (imag(P) - imag(S)) * sin(th) * cos(ph) * sin(ph) +
-                     real(D) * cos(th) * sin(ph);
-      epsilon(1,0) = (imag(P) - imag(S)) * cos(ph) * cos(th) * sin(ph) +
-                     real(D) * sin(th) * sin(ph);
-      epsilon(2,1) = (imag(P) - imag(S)) * sin(th) * cos(ph) * sin(ph) -
-                     real(D) * cos(th) * sin(ph);
-      epsilon(2,0) = (imag(P) - imag(S)) *
-                     pow(sin(ph), 2) * sin(th) * cos(th) + real(D) * cos(ph);
+                     pow(sin(th), 2) * pow(cos(ph), 2) + imag(S);
+      epsilon(1,1) = (imag(P) - imag(S)) *
+                     pow(sin(th), 2) * pow(sin(ph), 2) + imag(S);
+      epsilon(2,2) = (imag(P) - imag(S)) * pow(cos(th), 2) + imag(S);
+      epsilon(0,1) = (imag(P) - imag(S)) * sin(ph) * cos(ph) *
+                     pow(sin(th), 2) - real(D) * cos(th);
+      epsilon(1,0) = (imag(P) - imag(S)) * sin(ph) * cos(ph) *
+                     pow(sin(th), 2) + real(D) * cos(th);
+      epsilon(0,2) = (imag(P) - imag(S)) * cos(ph) * cos(th) * sin(th) +
+                     real(D) * sin(ph) * sin(th);
+      epsilon(2,0) = (imag(P) - imag(S)) * cos(ph) * cos(th) * sin(th) -
+                     real(D) * sin(ph) * sin(th);
+      epsilon(1,2) = (imag(P) - imag(S)) * sin(ph) * cos(th) * sin(th) -
+                     real(D) * cos(ph) * sin(th);
+      epsilon(2,1) = (imag(P) - imag(S)) * sin(ph) * cos(th) * sin(th) +
+                     real(D) * cos(ph) * sin(th);
    }
    epsilon *= epsilon0_;
-   /*
-   Vector lambda(3);
-   epsilon.Eigenvalues(lambda);
-   if (realPart_)
-      cout << "Dielectric tensor eigenvalues: "
-           << lambda[0] << " " << lambda[1] << " " << lambda[2]
-      << " for B " << B[0] << " " << B[1] << " " << B[2]
-      << " and rho " << density_vals_[0]
-      << " " << density_vals_[1] << " " << density_vals_[2]
-      << endl;
-   else
-      cout << "Conductivity tensor eigenvalues: "
-           << lambda[0] << " " << lambda[1] << " " << lambda[2] << endl;
-   */
 }
 
 SPDDielectricTensor::SPDDielectricTensor(
@@ -507,6 +490,10 @@ void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
    epsilon *= epsilon0_;
 }
 
+PlasmaProfile::PlasmaProfile()
+   : type_(CONSTANT)
+{}
+
 PlasmaProfile::PlasmaProfile(Type type, const Vector & params)
    : type_(type), p_(params), x_(3)
 {
@@ -514,6 +501,8 @@ PlasmaProfile::PlasmaProfile(Type type, const Vector & params)
                "Incorrect number of parameters, " << params.Size()
                << ", for profile of type: " << type << ".");
 }
+
+const int PlasmaProfile::np_[4] = {1, 7, 9, 7};
 
 double PlasmaProfile::Eval(ElementTransformation &T,
                            const IntegrationPoint &ip)

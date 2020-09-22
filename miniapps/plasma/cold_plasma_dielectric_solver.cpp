@@ -25,13 +25,11 @@ namespace plasma
 // Used for combining scalar coefficients
 double prodFunc(double a, double b) { return a * b; }
 
-ElectricEnergyDensityCoef::ElectricEnergyDensityCoef(double omega,
-                                                     VectorCoefficient &Er,
+ElectricEnergyDensityCoef::ElectricEnergyDensityCoef(VectorCoefficient &Er,
                                                      VectorCoefficient &Ei,
                                                      MatrixCoefficient &epsr,
                                                      MatrixCoefficient &epsi)
-   : omega_(omega),
-     ErCoef_(Er),
+   : ErCoef_(Er),
      EiCoef_(Ei),
      epsrCoef_(epsr),
      epsiCoef_(epsi),
@@ -333,7 +331,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      deiCoef_(NULL),
      uCoef_(omega_, erCoef_, eiCoef_, derCoef_, deiCoef_,
             *epsReCoef_, *epsImCoef_, *muInvCoef_),
-     uECoef_(omega_, erCoef_, eiCoef_, *epsReCoef_, *epsImCoef_),
+     uECoef_(erCoef_, eiCoef_, *epsReCoef_, *epsImCoef_),
      uBCoef_(omega_, derCoef_, deiCoef_, *muInvCoef_),
      SrCoef_(omega_, erCoef_, eiCoef_, derCoef_, deiCoef_, *muInvCoef_),
      SiCoef_(omega_, erCoef_, eiCoef_, derCoef_, deiCoef_, *muInvCoef_),
@@ -654,7 +652,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    // solNorm_ = e_->ComputeL2Error(const_cast<VectorCoefficient&>(erCoef_),
    //                               const_cast<VectorCoefficient&>(eiCoef_));
 
-   j_ = new ParComplexGridFunction(HCurlFESpace_);
+   j_ = new ParComplexGridFunction(HDivFESpace_);
    j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
 
    rhs_ = new ParComplexLinearForm(HCurlFESpace_, conv_);

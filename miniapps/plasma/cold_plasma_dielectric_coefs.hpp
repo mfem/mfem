@@ -197,12 +197,18 @@ private:
    Type type_;
    Vector p_;
 
-   const int np_[4] = {1, 7, 9, 7};
+   static const int np_[4];
 
    mutable Vector x_;
 
 public:
+   PlasmaProfile();
    PlasmaProfile(Type type, const Vector & params);
+
+   void SetType(Type type) { type_ = type; }
+   void SetParams(const Vector & params) { p_ = params; }
+
+   static int GetNumParams(Type type) { return np_[type]; }
 
    double Eval(ElementTransformation &T,
                const IntegrationPoint &ip);
