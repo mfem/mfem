@@ -2898,7 +2898,7 @@ double GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
 {
    return ComputeDGFaceJumpError(exsol,
                                  ell_coeff,
-                                 JumpScaling(Nu, JumpScaling::ONE_OVER_H),
+                                 {Nu, JumpScaling::ONE_OVER_H},
                                  irs);
 }
 
@@ -2910,7 +2910,11 @@ double GridFunction::ComputeH1Error(Coefficient *exsol,
    double error1 = 0.0;
    double error2 = 0.0;
    if (norm_type & 1) { error1 = GridFunction::ComputeGradError(exgrad); }
-   if (norm_type & 2) { error2 = GridFunction::ComputeDGFaceJumpError(exsol,ell_coef,Nu); }
+   if (norm_type & 2)
+   {
+      error2 = GridFunction::ComputeDGFaceJumpError(
+                  exsol, ell_coef, {Nu, JumpScaling::ONE_OVER_H});
+   }
 
    return sqrt(error1 * error1 + error2 * error2);
 }
