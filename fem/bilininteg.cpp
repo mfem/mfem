@@ -135,6 +135,7 @@ void BilinearFormIntegrator::AssembleElementVector(
 {
    DenseMatrix elmat;
    AssembleElementMatrix(el, Tr, elmat);
+   elvect.SetSize(elmat.Height());
    elmat.Mult(elfun, elvect);
 }
 
@@ -144,6 +145,7 @@ void BilinearFormIntegrator::AssembleFaceVector(
 {
    DenseMatrix elmat;
    AssembleFaceMatrix(el1, el2, Tr, elmat);
+   elvect.SetSize(elmat.Height());
    elmat.Mult(elfun, elvect);
 }
 
