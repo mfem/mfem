@@ -294,8 +294,6 @@ void VectorRestrictedCoefficient::Eval(
 void MatrixFunctionCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
                                      const IntegrationPoint &ip)
 {
-   MFEM_VERIFY(!symmetric, "MatrixFunctionCoefficient is symmetric");
-
    double x[3];
    Vector transip(x, 3);
 
