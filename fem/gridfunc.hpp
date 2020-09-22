@@ -674,6 +674,8 @@ public:
     derived class ParGridFunction */
 std::ostream &operator<<(std::ostream &out, const GridFunction &sol);
 
+/// Class used to specify how the jump terms in
+/// GridFunction::ComputeDGFaceJumpError are scaled.
 class JumpScaling
 {
 public:
