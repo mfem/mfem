@@ -110,6 +110,7 @@ int main (int argc, char *argv[])
    int target_id         = 1;
    double lim_const      = 0.0;
    double adapt_lim_const = 0.0;
+   double surface_const   = 0.0;
    int quad_type         = 1;
    int quad_order        = 8;
    int solver_type       = 0;
@@ -169,6 +170,8 @@ int main (int argc, char *argv[])
    args.AddOption(&lim_const, "-lc", "--limit-const", "Limiting constant.");
    args.AddOption(&adapt_lim_const, "-alc", "--adapt-limit-const",
                   "Adaptive limiting coefficient constant.");
+   args.AddOption(&surface_const, "-sc", "--surface-const",
+                  "Surface preservation constant.");
    args.AddOption(&quad_type, "-qt", "--quad-type",
                   "Quadrature rule type:\n\t"
                   "1: Gauss-Lobatto\n\t"
@@ -371,11 +374,11 @@ int main (int argc, char *argv[])
    TargetConstructor::TargetType target_t;
    TargetConstructor *target_c = NULL;
    HessianCoefficient *adapt_coeff = NULL;
-   H1_FECollection ind_fec(mesh_poly_deg, dim);
+   H1_FECollection ind_fec(mesh_poly_deg, dim, BasisType::Positive);
    ParFiniteElementSpace ind_fes(pmesh, &ind_fec);
    ParFiniteElementSpace ind_fesv(pmesh, &ind_fec, dim);
    ParGridFunction size(&ind_fes), aspr(&ind_fes), disc(&ind_fes), ori(&ind_fes);
-   ParGridFunction aspr3d(&ind_fesv), size3d(&ind_fesv);
+   ParGridFunction aspr3d(&ind_fesv);
 
    switch (target_id)
    {
@@ -656,6 +659,57 @@ int main (int argc, char *argv[])
                                 300, 600, 300, 300);
       }
    }
+
+   // Surface alignment.
+   L2_FECollection mat_coll(0, dim);
+   ParFiniteElementSpace mat_fes(pmesh, &mat_coll);
+   ParGridFunction mat(&mat_fes);
+   ParGridFunction ls_0(&ind_fes), marker(&ind_fes);
+   ConstantCoefficient coef_ls(surface_const);
+   AdaptivityEvaluator *adapt_surface = NULL;
+   if (surface_const > 0.0)
+   {
+      FunctionCoefficient ls_coeff(surface_level_set);
+      ls_0.ProjectCoefficient(ls_coeff);
+
+      for (int i = 0; i < pmesh->GetNE(); i++)
+      {
+         mat(i) = material_id(i, ls_0);
+      }
+
+      GridFunctionCoefficient coeff_mat(&mat);
+      marker.ProjectDiscCoefficient(coeff_mat, GridFunction::ARITHMETIC);
+      for (int j = 0; j < marker.Size(); j++)
+      {
+         if (marker(j) > 0.1 && marker(j) < 0.9) { marker(j) = 1.0; }
+         else { marker(j) = 0.0; }
+      }
+
+      if (adapt_eval == 0) { adapt_surface = new AdvectorCG; }
+      else if (adapt_eval == 1)
+      {
+#ifdef MFEM_USE_GSLIB
+         adapt_surface = new InterpolatorFP;
+#else
+         MFEM_ABORT("MFEM is not built with GSLIB support!");
+#endif
+      }
+      else { MFEM_ABORT("Bad interpolation option."); }
+
+      he_nlf_integ->EnableSurfaceFitting(ls_0, marker, coef_ls, *adapt_surface);
+      if (visualization)
+      {
+         socketstream vis1, vis2, vis3;
+         common::VisualizeField(vis1, "localhost", 19916, ls_0, "Level Set 0",
+                                300, 600, 300, 300);
+         common::VisualizeField(vis2, "localhost", 19916, mat, "Materials",
+                                600, 600, 300, 300);
+         common::VisualizeField(vis3, "localhost", 19916, marker, "Dofs to Move",
+                                900, 600, 300, 300);
+      }
+   }
+
+   MFEM_ABORT("test");
 
    // 13. Setup the final NonlinearForm (which defines the integral of interest,
    //     its first and second derivatives). Here we can use a combination of
