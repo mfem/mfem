@@ -459,6 +459,18 @@ SheathBase::SheathBase(const BlockVector & density,
 {
 }
 
+SheathBase::SheathBase(const SheathBase &sb, bool realPart)
+   : density_(sb.density_),
+     temp_(sb.temp_),
+     potential_(sb.potential_),
+     L2FESpace_(sb.L2FESpace_),
+     H1FESpace_(sb.H1FESpace_),
+     omega_(sb.omega_),
+     realPart_(realPart),
+     charges_(sb.charges_),
+     masses_(sb.masses_)
+{}
+
 double SheathBase::EvalIonDensity(ElementTransformation &T,
                                   const IntegrationPoint &ip)
 {

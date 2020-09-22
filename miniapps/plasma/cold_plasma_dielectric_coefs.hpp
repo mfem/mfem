@@ -147,6 +147,8 @@ public:
               const Vector & masses,
               bool realPart = true);
 
+   SheathBase(const SheathBase &sb, bool realPart = true);
+
    virtual void SetRealPart() { realPart_ = true; }
    virtual void SetImaginaryPart() { realPart_ = false; }
 
@@ -190,6 +192,11 @@ public:
                             const Vector & masses,
                             bool realPart = true);
 
+   RectifiedSheathPotential(const SheathBase &sb,
+                            bool realPart = true)
+      : SheathBase(sb, realPart)
+   {}
+
    double Eval(ElementTransformation &T,
                const IntegrationPoint &ip);
 private:
@@ -207,6 +214,11 @@ public:
                    const Vector & charges,
                    const Vector & masses,
                    bool realPart = true);
+
+   SheathImpedance(const SheathBase &sb,
+                   const ParGridFunction & B,
+                   bool realPart = true)
+      : SheathBase(sb, realPart), B_(B) {}
 
    double Eval(ElementTransformation &T,
                const IntegrationPoint &ip);
