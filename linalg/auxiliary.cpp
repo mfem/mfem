@@ -310,8 +310,8 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
      solver it does not seem to matter that much.
    */
    // const Matrix::DiagonalPolicy policy = Matrix::DIAG_ZERO;
-   const Matrix::DiagonalPolicy policy = Matrix::DIAG_ONE;
-   // const Matrix::DiagonalPolicy policy = Matrix::DIAG_KEEP;
+   // const Matrix::DiagonalPolicy policy = Matrix::DIAG_ONE;
+   const Matrix::DiagonalPolicy policy = Matrix::DIAG_KEEP;
    a_space.SetDiagonalPolicy(policy); // doesn't do anything, see Eliminate() below
    a_space.AddDomainIntegrator(new VectorDiffusionIntegrator(*alpha_coeff));
    a_space.AddDomainIntegrator(new VectorMassIntegrator(*beta_coeff));
