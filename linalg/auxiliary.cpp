@@ -224,6 +224,7 @@ void GeneralAMS::Mult(const Vector& x, Vector& y) const
       DebugVector(y, "yout");
 }
 
+// Pi-space constructor
 MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    mfem::ParMesh& mesh_lor,
    mfem::Coefficient* alpha_coeff,
@@ -237,62 +238,6 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    cg_(NULL),
    inner_aux_iterations_(0)
 {
-   // idea here would be to RAP in the LOR space instead of
-   // rediscretize; so far it sometimes gives us minor iteration gains but
-   // overall does not seem very different and sometimes much worse
-   const bool use_rap_lor = false;
-   if (use_rap_lor)
-   {
-      H1_FECollection * fec_lor = new H1_FECollection(1, mesh_lor.Dimension());
-      ParFiniteElementSpace fespace_lor_d(&mesh_lor, fec_lor, mesh_lor.Dimension(),
-                                          Ordering::byVDIM);
-
-      ND_FECollection * lor_nd_fec = new ND_FECollection(1, mesh_lor.Dimension());
-      ParFiniteElementSpace lor_nd_fespace(&mesh_lor, lor_nd_fec);
-      if (ess_bdr.Size())
-      {
-         lor_nd_fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list_);
-      }
-      ParBilinearForm a_space(&lor_nd_fespace);
-      a_space.AddDomainIntegrator(new CurlCurlIntegrator(*alpha_coeff));
-      a_space.AddDomainIntegrator(new VectorFEMassIntegrator(*beta_coeff));
-      a_space.UsePrecomputedSparsity();
-      a_space.Assemble();
-      // const Matrix::DiagonalPolicy policy = Matrix::DIAG_ZERO;
-      const Matrix::DiagonalPolicy policy = Matrix::DIAG_ONE;
-      a_space.EliminateEssentialBC(ess_bdr, policy);
-      a_space.Finalize();
-      a_space.SpMat().SortColumnIndices();
-
-      HypreParMatrix * lor_nedelec = a_space.ParallelAssemble();
-      ParDiscreteLinearOperator lor_interp(&fespace_lor_d, &lor_nd_fespace);
-      lor_interp.AddDomainInterpolator(new IdentityInterpolator);
-      const int skip_zeros = 1;
-      lor_interp.Assemble(skip_zeros);
-      lor_interp.Finalize(skip_zeros);
-      HypreParMatrix * h_lor_interp = lor_interp.ParallelAssemble();
-      aspacematrix_ = RAP(lor_nedelec, h_lor_interp);
-      aspacematrix_->CopyRowStarts();
-      aspacematrix_->CopyColStarts();
-
-      SetupBoomerAMG(fespace_lor_d.GetMesh()->Dimension());
-
-      if (cg_iterations > 0)
-      {
-         SetupCG(curlcurl_oper, pi, cg_iterations); // what we have to use
-      }
-      else
-      {
-         SetupVCycle(); // what we want to use
-      }
-      delete fec_lor;
-      delete h_lor_interp;
-      delete lor_nedelec;
-      delete lor_nd_fec;
-
-      return;
-   }
-
    H1_FECollection * fec_lor = new H1_FECollection(1, mesh_lor.Dimension());
    ParFiniteElementSpace fespace_lor_d(&mesh_lor, fec_lor, mesh_lor.Dimension(),
                                        Ordering::byVDIM);
@@ -303,14 +248,9 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
       fespace_lor_d.GetEssentialTrueDofs(ess_bdr, ess_tdof_list_);
    }
    ParBilinearForm a_space(&fespace_lor_d);
-   /*
-     For policy, DIAG_ZERO matches G-space (seems important there),
-     while DIAG_KEEP is what we have mostly done (and matches most of
-     our existing numerical results in the paper). Here for the Pi-space
-     solver it does not seem to matter that much.
-   */
-   // const Matrix::DiagonalPolicy policy = Matrix::DIAG_ZERO;
-   // const Matrix::DiagonalPolicy policy = Matrix::DIAG_ONE;
+
+   // this choice of policy is super-important for the G-space solver, but
+   // also can make some difference here
    const Matrix::DiagonalPolicy policy = Matrix::DIAG_KEEP;
    a_space.SetDiagonalPolicy(policy); // doesn't do anything, see Eliminate() below
    a_space.AddDomainIntegrator(new VectorDiffusionIntegrator(*alpha_coeff));
@@ -323,10 +263,6 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    aspacematrix_->CopyRowStarts();
    aspacematrix_->CopyColStarts();
 
-   {
-      aspacematrix_->Print("piaux.hyprematrix");
-   }
-
    SetupBoomerAMG(fespace_lor_d.GetMesh()->Dimension());
 
    if (cg_iterations > 0)
@@ -336,12 +272,12 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    }
    else
    {
-      SetupVCycle(); // what we want to use, ideally
+      SetupVCycle();
    }
    delete fec_lor;
 }
 
-/// G-space constructor
+// G-space constructor
 MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    mfem::ParMesh& mesh_lor,
    mfem::Coefficient* beta_coeff, Array<int>& ess_bdr,
@@ -359,12 +295,11 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    // build LOR AMG v-cycle
    ParBilinearForm a_space(&fespace_lor);
 
-   /// our experience is that for the G operator, we need DIAG_ZERO, but then
-   /// boomeramg's setup complains
-   // const Matrix::DiagonalPolicy policy = Matrix::DIAG_ZERO;
+   // we need something like DIAG_ZERO in the solver, but explicitly doing
+   // that makes BoomerAMG setup complain, so instead we constrain the boundary
+   // in the CG solver
    const Matrix::DiagonalPolicy policy = Matrix::DIAG_ONE;
 
-   // following line doesn't do anything, other use of policy is effective
    a_space.SetDiagonalPolicy(policy);
    a_space.AddDomainIntegrator(new DiffusionIntegrator(*beta_coeff));
 
@@ -372,7 +307,7 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    a_space.Assemble();
    if (ess_bdr.Size())
    {
-      fespace_lor.GetEssentialTrueDofs(ess_bdr, ess_tdof_list_); // what do we do with this?
+      fespace_lor.GetEssentialTrueDofs(ess_bdr, ess_tdof_list_);
    }
 
    // you have to use (serial) BilinearForm eliminate routines to get
@@ -385,19 +320,17 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    aspacematrix_->CopyRowStarts();
    aspacematrix_->CopyColStarts();
 
-   {
-      aspacematrix_->Print("gaux.hyprematrix");
-   }
-
    SetupBoomerAMG(0);
 
    if (cg_iterations > 0)
    {
-      SetupCG(curlcurl_oper, g, cg_iterations); // what we have to use
+      // inner CG seems necessary in G-space solver
+      SetupCG(curlcurl_oper, g, cg_iterations);
    }
    else
    {
-      SetupVCycle(); // what we want to use
+      // this would probably be more efficient, but there are boundary condition issues?
+      SetupVCycle();
    }
 
    delete fec_lor;
@@ -432,7 +365,6 @@ void MatrixFreeAuxiliarySpace::SetupCG(
    else
       cg_->SetPrintLevel(-1);
 
-   // key issue write here is we need DIAG_ZERO policy
    aspacewrapper_ = cg_;
 }
 
@@ -470,6 +402,7 @@ void MatrixFreeAuxiliarySpace::SetupBoomerAMG(int system_dimension)
 {
    if (system_dimension == 0)
    {
+      // boundary condition tweak for G-space solver
       aspacepc_ = new ZeroWrap(*aspacematrix_, ess_tdof_list_);
    }
    else // if (system_dimension > 0)
@@ -478,32 +411,7 @@ void MatrixFreeAuxiliarySpace::SetupBoomerAMG(int system_dimension)
       hpc->SetSystemsOptions(system_dimension);
       hpc->SetPrintLevel(0);
       aspacepc_ = hpc;
-
-      /*
-      int amg_coarsen_type = 10;
-      int amg_agg_levels   = 1;
-      int amg_rlx_type     = 8;
-      double theta         = 0.25;
-      int amg_interp_type  = 6;
-      int amg_Pmax         = 4;
-
-      HYPRE_BoomerAMGSetCoarsenType(*aspacepc_, amg_coarsen_type);
-      // HYPRE_BoomerAMGSetAggNumLevels(*aspacepc_, amg_agg_levels);
-      HYPRE_BoomerAMGSetRelaxType(*aspacepc_, amg_rlx_type);
-      HYPRE_BoomerAMGSetNumSweeps(*aspacepc_, 1);
-      HYPRE_BoomerAMGSetMaxLevels(*aspacepc_, 25);
-      HYPRE_BoomerAMGSetTol(*aspacepc_, 0.0);
-      HYPRE_BoomerAMGSetMaxIter(*aspacepc_, 1);
-      // HYPRE_BoomerAMGSetStrongThreshold(*aspacepc_, theta);
-      HYPRE_BoomerAMGSetInterpType(*aspacepc_, amg_interp_type);
-      HYPRE_BoomerAMGSetPMaxElmts(*aspacepc_, amg_Pmax);
-      HYPRE_BoomerAMGSetMinCoarseSize(*aspacepc_, 2); // don't coarsen to 0
-
-      // Generally, don't use exact solve on the coarsest level (matrix may be singular)
-      HYPRE_BoomerAMGSetCycleRelaxType(*aspacepc_, amg_rlx_type, 3);
-      */
    }
-
 }
 
 void MatrixFreeAuxiliarySpace::Mult(const mfem::Vector& x, mfem::Vector& y) const
@@ -516,8 +424,8 @@ void MatrixFreeAuxiliarySpace::Mult(const mfem::Vector& x, mfem::Vector& y) cons
    if (cg_ && rank == 0)
    {
       int q = cg_->GetNumIterations();
-      std::cout << "        inner aux iterations: " << q << ", final norm: "
-                << cg_->GetFinalNorm() << std::endl;
+      // std::cout << "        inner aux iterations: " << q << ", final norm: "
+      //    << cg_->GetFinalNorm() << std::endl;
       inner_aux_iterations_ += q;
    }
 }
@@ -539,43 +447,6 @@ MatrixFreeAuxiliarySpace::~MatrixFreeAuxiliarySpace()
    if (cg_ != aspacewrapper_) delete cg_;
 }
 
-VectorSmoother::VectorSmoother(Vector d, Array<int>& ess_tdof_list, double damping)
-   :
-   Solver(d.Size()),
-   damping_(damping),
-   dinv_(d.Size()),
-   r_(d.Size())
-{
-   for (int i = 0; i < d.Size(); ++i)
-   {
-      dinv_(i) = 1.0 / d(i);
-   }
-   for (int k = 0; k < ess_tdof_list.Size(); ++k)
-   {
-      dinv_(ess_tdof_list[k]) = 1.0;
-   }
-}
-
-void VectorSmoother::Mult(const Vector& x, Vector &y) const
-{
-   if (iterative_mode && oper_)
-   {
-      // calculate residual...
-      oper_->Mult(y, r_);  // r = A x
-      subtract(x, r_, r_); // r = b - A x
-   }
-   else
-   {
-      r_ = x;
-      y = 0.0;
-   }
-
-   for (int i = 0; i < dinv_.Size(); ++i)
-   {
-      y(i) += damping_ * dinv_(i) * r_(i);
-   }
-}
-
 MatrixFreeAMS::MatrixFreeAMS(
    ParBilinearForm& aform, Operator& oper, ParFiniteElementSpace& nd_fespace,
    Coefficient* alpha_coeff,
@@ -589,15 +460,6 @@ MatrixFreeAMS::MatrixFreeAMS(
    int dim = mesh->Dimension();
 
    // smoother
-   /*
-   TensorNedelecMassDiagonal diag_mass_builder(nd_fespace, *beta_coeff);
-   TensorNedelecStiffnessDiagonal diag_stiffness_builder(nd_fespace, *alpha_coeff);
-   mfem::Vector diag_tensor(nd_fespace.GetTrueVSize());
-   diag_tensor = 0.0;
-   diag_mass_builder.BuildDiagonal(diag_tensor);
-   diag_stiffness_builder.BuildDiagonal(diag_tensor);
-   smoother_ = new VectorSmoother(diag_tensor, ess_tdof_list, scale);
-   */
    const double scale = 0.25; // not so clear what exactly to put here...
    Array<int> ess_tdof_list;
    nd_fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
@@ -622,21 +484,13 @@ MatrixFreeAMS::MatrixFreeAMS(
    pa_interp_->Assemble();
    pa_interp_->FormRectangularSystemMatrix(Pi_);
 
-/*
-   // build G operator
-   serialG_ = new TensorNedelecGrad(*h1_fespace_, nd_fespace);
-   serialG_->FormParallelOperator(G_);
-
-   // build Pi operator
-   serialPi_ = new TensorNedelecPi(*h1_fespace_d_, nd_fespace);
-   serialPi_->FormParallelOperator(Pi_);
-*/
-
    // build LOR space
    ParMesh mesh_lor(mesh, order, BasisType::GaussLobatto);
 
    /* A lot depends on the quality of the auxiliary space solves.
-      For high-contrast coefficients, LOR is not always great.
+      For high-contrast coefficients, and other difficult problems,
+      inner iteration counts may need to be increased.
+      
       Boundary conditions can matter as well (see DIAG_ZERO policy) */
 
    // build G space solver

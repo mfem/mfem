@@ -93,6 +93,11 @@ private:
    mutable int inner_aux_iterations_;
 };
 
+/**
+   Perform AMS cycle with generic Operator objects.
+
+   Most users should use MatrixFreeAMS, which wraps this.
+*/
 class GeneralAMS : public mfem::Solver
 {
 public:
@@ -137,39 +142,13 @@ private:
                      mfem::Vector& residual) const;
 };
 
-/// TODO: replace this with OperatorJacobiSmoother or OperatorChebyshevSmoother
-class VectorSmoother : public mfem::Solver
-{
-public:
-   /// application is by *inverse* of the given vector
-   /// entries in ess_tdof_list get assumed to be 1 (ie, DIAG_ONE policy)
-   VectorSmoother(mfem::Vector d, mfem::Array<int>& ess_tdof_list,
-                  double damping);
-   ~VectorSmoother() {}
-
-   void Mult(const mfem::Vector&x, mfem::Vector &y) const;
-
-   void SetOperator(const mfem::Operator &op)
-   {
-      oper_ = &op;
-   }
-
-   void SetDamping(double damping)
-   {
-      damping_ = damping;
-   }
-
-private:
-   double damping_;
-   mfem::Vector dinv_;
-   mutable mfem::Vector r_;
-
-   /// could use mfem::IterativeSolver as base class to get this
-   const mfem::Operator* oper_;
-};
-
 /**
-   The crown jewel of this whole project.
+   An auxiliary Maxwell solver for high-order finite element operators without
+   high-order assembly.
+
+   The auxiliary space solves are done using a low-order refined approach, but
+   all the interpolation operators, residuals, etc. are done in a matrix-free
+   manner.
 */
 class MatrixFreeAMS : public mfem::Solver
 {
@@ -188,12 +167,9 @@ public:
 private:
    GeneralAMS * general_ams_;
 
-   // VectorSmoother * smoother_;
    Solver * smoother_;
-   // TensorNedelecGrad * serialG_;
    ParDiscreteLinearOperator * pa_grad_;
    OperatorPtr G_;
-   // TensorNedelecPi * serialPi_;
    ParDiscreteLinearOperator * pa_interp_;
    OperatorPtr Pi_;
 
