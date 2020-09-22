@@ -56,16 +56,13 @@ struct ComplexVectorCoefficientByAttr
 class ElectricEnergyDensityCoef : public Coefficient
 {
 public:
-   ElectricEnergyDensityCoef(double omega,
-                             VectorCoefficient &Er, VectorCoefficient &Ei,
+   ElectricEnergyDensityCoef(VectorCoefficient &Er, VectorCoefficient &Ei,
                              MatrixCoefficient &epsr, MatrixCoefficient &epsi);
 
    double Eval(ElementTransformation &T,
                const IntegrationPoint &ip);
 
 private:
-   double omega_;
-
    VectorCoefficient &ErCoef_;
    VectorCoefficient &EiCoef_;
    MatrixCoefficient &epsrCoef_;
