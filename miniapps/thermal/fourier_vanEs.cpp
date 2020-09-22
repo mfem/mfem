@@ -23,6 +23,7 @@
 
 using namespace std;
 using namespace mfem;
+using namespace mfem::common;
 using namespace mfem::thermal;
 
 void display_banner(ostream & os);
@@ -33,8 +34,8 @@ static bool   non_linear_    = false;
 static double alpha_         = NAN;
 static double theta_         = NAN;
 static double gamma_         = 10.0;
-static double nl_perp_exp_   = -0.5;
-static double nl_para_exp_   = 2.5;
+//static double nl_perp_exp_   = -0.5;
+//static double nl_para_exp_   = 2.5;
 static double chi_perp_      = 1.0;
 static double chi_para_      = 1.0;
 static double a_             = 0.15;
@@ -261,7 +262,7 @@ int main(int argc, char *argv[])
    //    can handle triangular and quadrilateral surface meshes with the
    //    same code.
    Mesh *mesh = (n > 0) ?
-                new Mesh(n, n, (Element::Type)el_type, 1) :
+                new Mesh(n, n, (Element::Type)el_type, true) :
                 new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
@@ -409,15 +410,15 @@ int main(int argc, char *argv[])
       int Ww = 350, Wh = 350; // window size
       int offx = Ww+10;//, offy = Wh+45; // window offsets
 
-      miniapps::VisualizeField(vis_Q, vishost, visport,
+      VisualizeField(vis_Q, vishost, visport,
                                Qs_gf, "Heat Soruce", Wx, Wy, Ww, Wh);
 
       Wx += offx;
-      miniapps::VisualizeField(vis_T, vishost, visport,
+      VisualizeField(vis_T, vishost, visport,
                                T_gf, "Temperature", Wx, Wy, Ww, Wh);
 
       Wx += offx;
-      miniapps::VisualizeField(vis_errT, vishost, visport,
+      VisualizeField(vis_errT, vishost, visport,
                                errorT, "Error in T", Wx, Wy, Ww, Wh);
    }
    // VisIt visualization
@@ -558,11 +559,11 @@ int main(int argc, char *argv[])
             int offx = Ww+10;//, offy = Wh+45; // window offsets
 
             Wx += offx;
-            miniapps::VisualizeField(vis_T, vishost, visport,
+            VisualizeField(vis_T, vishost, visport,
                                      T_gf, "Temperature", Wx, Wy, Ww, Wh);
 
             Wx += offx;
-            miniapps::VisualizeField(vis_errT, vishost, visport,
+            VisualizeField(vis_errT, vishost, visport,
                                      errorT, "Error in T", Wx, Wy, Ww, Wh);
          }
 

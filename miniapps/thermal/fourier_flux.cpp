@@ -24,7 +24,7 @@
 
 using namespace std;
 using namespace mfem;
-using namespace mfem::miniapps;
+using namespace mfem::common;
 using namespace mfem::thermal;
 
 void display_banner(ostream & os);
@@ -83,7 +83,8 @@ double QFunc(const Vector &x, double t)
                               c2x + c2y + 2.0);
          return ccg * (1.0 * perp + (chi_max_ratio_ - 1.0) * para);
       }
-
+   default:
+     return 0.0;
    }
 }
 
@@ -117,6 +118,8 @@ double TFunc(const Vector &x, double t)
          double rs = pow(x[0] - 0.5 * a, 2) + pow(x[1] - 0.5 * b, 2);
          return cos(0.5 * M_PI * sqrt(r)) + 0.5 * exp(-400.0 * rs);
       }
+   default:
+     return 0.0;
    }
 }
 
@@ -355,6 +358,8 @@ double TNorm()
       case 2:
          return (gamma1_2((unsigned int)gamma_) /
                  gamma((unsigned int)gamma_+1)) / sqrt(M_PI);
+   default:
+     return 0.0;
    }
 }
 
@@ -369,6 +374,8 @@ double qPerpNorm()
                 sqrt(gamma1_2((unsigned int)gamma_-1) *
                      gamma1_2((unsigned int)gamma_)) /
                 sqrt(gamma((unsigned int)gamma_) * gamma((unsigned int)gamma_+1));
+   default:
+     return 0.0;
    }
 }
 
@@ -380,6 +387,8 @@ double qParaNorm()
          return 0.0;
       case 3:
          return chi_max_ratio_ * qPerpNorm();
+   default:
+     return 0.0;
    }
 }
 
@@ -496,7 +505,7 @@ int main(int argc, char *argv[])
    //    can handle triangular and quadrilateral surface meshes with the
    //    same code.
    Mesh *mesh = (n > 0) ?
-                new Mesh(n, n, (Element::Type)el_type, 1) :
+                new Mesh(n, n, (Element::Type)el_type, true) :
                 new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
@@ -581,7 +590,7 @@ int main(int argc, char *argv[])
    // The terminology is TrueVSize is the unique (non-redundant) number of dofs
    HYPRE_Int glob_size_l2 = L2FESpace.GlobalTrueVSize();
    HYPRE_Int glob_size_rt = HDivFESpace.GlobalTrueVSize();
-   HYPRE_Int glob_size_nd = HCurlFESpace.GlobalTrueVSize();
+   // HYPRE_Int glob_size_nd = HCurlFESpace.GlobalTrueVSize();
    HYPRE_Int glob_size_h1 = HGradFESpace.GlobalTrueVSize();
 
    if (mpi.Root())
@@ -736,47 +745,47 @@ int main(int argc, char *argv[])
       int Ww = 280, Wh = 280; // window size
       int offx = Ww+10, offy = Wh+45; // window offsets
 
-      miniapps::VisualizeField(vis_Q, vishost, visport,
+      VisualizeField(vis_Q, vishost, visport,
                                Q, "Heat Source", Wx, Wy, Ww, Wh);
 
       Wy += offy;
-      miniapps::VisualizeField(vis_U, vishost, visport,
+      VisualizeField(vis_U, vishost, visport,
                                U1, "Energy", Wx, Wy, Ww, Wh);
 
       Wx += offx;
       Wy -= offy;
-      miniapps::VisualizeField(vis_T, vishost, visport,
+      VisualizeField(vis_T, vishost, visport,
                                T, "Temperature", Wx, Wy, Ww, Wh);
 
       Wy += offy;
-      miniapps::VisualizeField(vis_errT, vishost, visport,
+      VisualizeField(vis_errT, vishost, visport,
                                errorT, "Error in T", Wx, Wy, Ww, Wh);
 
       Wx += offx;
       Wy -= offy;
-      miniapps::VisualizeField(vis_q, vishost, visport,
+      VisualizeField(vis_q, vishost, visport,
                                q, "Heat Flux", Wx, Wy, Ww, Wh);
 
       Wy += offy;
-      miniapps::VisualizeField(vis_errq, vishost, visport,
+      VisualizeField(vis_errq, vishost, visport,
                                errorq, "Error in q", Wx, Wy, Ww, Wh);
 
       Wx += offx;
       Wy -= offy;
-      miniapps::VisualizeField(vis_qPara, vishost, visport,
+      VisualizeField(vis_qPara, vishost, visport,
                                qPara, "Parallel Heat Flux", Wx, Wy, Ww, Wh);
 
       Wy += offy;
-      miniapps::VisualizeField(vis_errqPara, vishost, visport,
+      VisualizeField(vis_errqPara, vishost, visport,
                                errorqPara, "Error in q para", Wx, Wy, Ww, Wh);
 
       Wx += offx;
       Wy -= offy;
-      miniapps::VisualizeField(vis_qPerp, vishost, visport,
+      VisualizeField(vis_qPerp, vishost, visport,
                                qPerp, "Perpendicular Heat Flux", Wx, Wy, Ww, Wh);
 
       Wy += offy;
-      miniapps::VisualizeField(vis_errqPerp, vishost, visport,
+      VisualizeField(vis_errqPerp, vishost, visport,
                                errorqPerp, "Error in q perp", Wx, Wy, Ww, Wh);
    }
    // VisIt visualization
@@ -935,39 +944,39 @@ int main(int argc, char *argv[])
             int Ww = 350, Wh = 350; // window size
             int offx = Ww+10, offy = Wh+45; // window offsets
 
-            miniapps::VisualizeField(vis_q, vishost, visport,
+            VisualizeField(vis_q, vishost, visport,
                                      q, "Heat Flux", Wx, Wy, Ww, Wh);
 
-            miniapps::VisualizeField(vis_qPara, vishost, visport,
+            VisualizeField(vis_qPara, vishost, visport,
                                      qPara, "Parallel Heat Flux",
                                      Wx, Wy, Ww, Wh);
 
-            miniapps::VisualizeField(vis_qPerp, vishost, visport,
+            VisualizeField(vis_qPerp, vishost, visport,
                                      qPerp, "Perpendicular Heat Flux",
                                      Wx, Wy, Ww, Wh);
 
             // Wx += offx;
-            miniapps::VisualizeField(vis_U, vishost, visport,
+            VisualizeField(vis_U, vishost, visport,
                                      U1, "Energy", Wx, Wy, Ww, Wh);
 
             // Wx -= offx;
             // Wy += offy;
-            miniapps::VisualizeField(vis_T, vishost, visport,
+            VisualizeField(vis_T, vishost, visport,
                                      T, "Temperature", Wx, Wy, Ww, Wh);
 
             // Wx += offx;
-            miniapps::VisualizeField(vis_errT, vishost, visport,
+            VisualizeField(vis_errT, vishost, visport,
                                      errorT, "Error in T", Wx, Wy, Ww, Wh);
 
             // Wx += offx;
-            miniapps::VisualizeField(vis_errq, vishost, visport,
+            VisualizeField(vis_errq, vishost, visport,
                                      errorq, "Error in q", Wx, Wy, Ww, Wh);
 
-            miniapps::VisualizeField(vis_errqPara, vishost, visport,
+            VisualizeField(vis_errqPara, vishost, visport,
                                      errorqPara, "Error in q para",
                                      Wx, Wy, Ww, Wh);
 
-            miniapps::VisualizeField(vis_errqPerp, vishost, visport,
+            VisualizeField(vis_errqPerp, vishost, visport,
                                      errorqPerp, "Error in q perp",
                                      Wx, Wy, Ww, Wh);
          }

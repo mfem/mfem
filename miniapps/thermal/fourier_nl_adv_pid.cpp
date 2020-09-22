@@ -24,6 +24,7 @@
 
 using namespace std;
 using namespace mfem;
+using namespace mfem::common;
 using namespace mfem::thermal;
 
 void display_banner(ostream & os);
@@ -44,7 +45,7 @@ static double TWPara_  = 0.125;
 static double TWPerp_  = 0.125;
 
 static vector<Vector> aVec_;
-
+/*
 class NormedDifferenceMeasure : public ODEDifferenceMeasure
 {
 private:
@@ -68,7 +69,7 @@ public:
       return sqrt(InnerProduct(comm_, du_, Mu_) / nrm0);
    }
 };
-
+*/
 /*
 double QFunc(const Vector &x, double t)
 {
@@ -1033,46 +1034,46 @@ int main(int argc, char *argv[])
       vis_qPerp.precision(8);
       vis_errqPerp.precision(8);
       */
-      miniapps::VisualizeField(vis_T, vishost, visport,
+      VisualizeField(vis_T, vishost, visport,
                                T1, "Temperature", Wx, Wy, Ww, Wh, h1_keys);
 
       Wx += offx;
-      miniapps::VisualizeField(vis_ExactT, vishost, visport,
+      VisualizeField(vis_ExactT, vishost, visport,
                                ExactT, "Exact Temperature",
                                Wx, Wy, Ww, Wh, h1_keys);
 
       Wx += offx;
-      miniapps::VisualizeField(vis_errT, vishost, visport,
+      VisualizeField(vis_errT, vishost, visport,
                                errorT, "Error in T", Wx, Wy, Ww, Wh, l2_keys);
       /*
       Wx += offx;
       Wy -= offy;
-      miniapps::VisualizeField(vis_q, vishost, visport,
+      VisualizeField(vis_q, vishost, visport,
                                q, "Heat Flux", Wx, Wy, Ww, Wh, NULL, true);
 
       Wy += offy;
-      miniapps::VisualizeField(vis_errq, vishost, visport,
+      VisualizeField(vis_errq, vishost, visport,
                                errorq, "Error in q", Wx, Wy, Ww, Wh, l2_keys);
 
       Wx += offx;
       Wy -= offy;
-      miniapps::VisualizeField(vis_qPara, vishost, visport,
+      VisualizeField(vis_qPara, vishost, visport,
                                qPara, "Parallel Heat Flux",
                                Wx, Wy, Ww, Wh);
 
       Wy += offy;
-      miniapps::VisualizeField(vis_errqPara, vishost, visport,
+      VisualizeField(vis_errqPara, vishost, visport,
                                errorqPara, "Error in q para",
                                Wx, Wy, Ww, Wh, l2_keys);
 
       Wx += offx;
       Wy -= offy;
-      miniapps::VisualizeField(vis_qPerp, vishost, visport,
+      VisualizeField(vis_qPerp, vishost, visport,
                                qPerp, "Perpendicular Heat Flux",
                                Wx, Wy, Ww, Wh);
 
       Wy += offy;
-      miniapps::VisualizeField(vis_errqPerp, vishost, visport,
+      VisualizeField(vis_errqPerp, vishost, visport,
                                errorqPerp, "Error in q perp",
                                Wx, Wy, Ww, Wh, l2_keys);
       */
@@ -1262,11 +1263,11 @@ int main(int argc, char *argv[])
          }
          if (visualization)
          {
-            miniapps::VisualizeField(vis_T, vishost, visport,
+            VisualizeField(vis_T, vishost, visport,
                                      T1, "Temperature",
                                      Wx, Wy, Ww, Wh, h1_keys);
 
-            miniapps::VisualizeField(vis_errT, vishost, visport,
+            VisualizeField(vis_errT, vishost, visport,
                                      errorT, "Error in T",
                                      Wx, Wy, Ww, Wh, l2_keys);
          }
@@ -1328,15 +1329,15 @@ int main(int argc, char *argv[])
          T1.GridFunction::ComputeElementL2Errors(TCoef, errorT);
          ExactT.ProjectCoefficient(TCoef);
 
-         miniapps::VisualizeField(vis_T, vishost, visport,
+         VisualizeField(vis_T, vishost, visport,
                                   T1, "Temperature",
                                   Wx, Wy, Ww, Wh, h1_keys);
 
-         miniapps::VisualizeField(vis_ExactT, vishost, visport,
+         VisualizeField(vis_ExactT, vishost, visport,
                                   ExactT, "Exact Temperature",
                                   Wx, Wy, Ww, Wh, h1_keys);
 
-         miniapps::VisualizeField(vis_errT, vishost, visport,
+         VisualizeField(vis_errT, vishost, visport,
                                   errorT, "Error in T",
                                   Wx, Wy, Ww, Wh, l2_keys);
       }

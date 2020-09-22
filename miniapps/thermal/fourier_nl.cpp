@@ -23,6 +23,7 @@
 
 using namespace std;
 using namespace mfem;
+using namespace mfem::common;
 using namespace mfem::thermal;
 
 void display_banner(ostream & os);
@@ -67,6 +68,8 @@ double TFunc(const Vector &x, double t)
          double rs = pow(x[0] - 0.5 * a, 2) + pow(x[1] - 0.5 * b, 2);
          return cos(0.5 * M_PI * sqrt(r)) + 0.5 * exp(-400.0 * rs);
       }
+   default:
+     return 0.0;
    }
    /*
    if ( prob_ % 2 == 1)
@@ -264,7 +267,7 @@ int main(int argc, char *argv[])
    //    can handle triangular and quadrilateral surface meshes with the
    //    same code.
    Mesh *mesh = (n > 0) ?
-                new Mesh(n, n, (Element::Type)el_type, 1) :
+                new Mesh(n, n, (Element::Type)el_type, true) :
                 new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
@@ -408,15 +411,15 @@ int main(int argc, char *argv[])
       int Ww = 350, Wh = 350; // window size
       int offx = Ww+10;//, offy = Wh+45; // window offsets
 
-      miniapps::VisualizeField(vis_Q, vishost, visport,
+      VisualizeField(vis_Q, vishost, visport,
                                Qs_gf, "Heat Soruce", Wx, Wy, Ww, Wh);
 
       Wx += offx;
-      miniapps::VisualizeField(vis_T, vishost, visport,
+      VisualizeField(vis_T, vishost, visport,
                                T_gf, "Temperature", Wx, Wy, Ww, Wh);
 
       Wx += offx;
-      miniapps::VisualizeField(vis_errT, vishost, visport,
+      VisualizeField(vis_errT, vishost, visport,
                                errorT, "Error in T", Wx, Wy, Ww, Wh);
    }
    // VisIt visualization
@@ -557,12 +560,12 @@ int main(int argc, char *argv[])
             int offx = Ww+10;//, offy = Wh+45; // window offsets
 
             Wx += offx;
-            miniapps::VisualizeField(vis_T, vishost, visport,
+            VisualizeField(vis_T, vishost, visport,
                                      T_gf, "Temperature", Wx, Wy, Ww, Wh);
 
             Wx += offx;
-            miniapps::VisualizeField(vis_errT, vishost, visport,
-                                     errorT, "Error in T", Wx, Wy, Ww, Wh);
+            VisualizeField(vis_errT, vishost, visport,
+			   errorT, "Error in T", Wx, Wy, Ww, Wh);
          }
 
          if (visit)

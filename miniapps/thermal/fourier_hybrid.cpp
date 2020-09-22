@@ -23,6 +23,7 @@
 
 using namespace std;
 using namespace mfem;
+using namespace mfem::common;
 using namespace mfem::thermal;
 
 void display_banner(ostream & os);
@@ -347,7 +348,7 @@ int main(int argc, char *argv[])
    //    can handle triangular and quadrilateral surface meshes with the
    //    same code.
    Mesh *mesh = (n > 0) ?
-                new Mesh(n, n, (Element::Type)el_type, 1) :
+                new Mesh(n, n, (Element::Type)el_type, true) :
                 new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
@@ -540,29 +541,29 @@ int main(int argc, char *argv[])
       int Ww = 350, Wh = 350; // window size
       int offx = Ww+10, offy = Wh+45; // window offsets
 
-      miniapps::VisualizeField(vis_Q, vishost, visport,
+      VisualizeField(vis_Q, vishost, visport,
                                Qs_gf, "Heat Source", Wx, Wy, Ww, Wh);
 
       Wy += offy;
-      miniapps::VisualizeField(vis_b, vishost, visport,
+      VisualizeField(vis_b, vishost, visport,
                                b_gf, "Unit B Field",
                                Wx, Wy, Ww, Wh, NULL, true);
 
       Wx += offx; Wy -= offy;
-      miniapps::VisualizeField(vis_T, vishost, visport,
+      VisualizeField(vis_T, vishost, visport,
                                T_gf, "Temperature", Wx, Wy, Ww, Wh);
 
       Wy += offy;
-      miniapps::VisualizeField(vis_errT, vishost, visport,
+      VisualizeField(vis_errT, vishost, visport,
                                errorT, "Error in T", Wx, Wy, Ww, Wh);
 
       Wx += offx; Wy -= offy;
-      miniapps::VisualizeField(vis_q, vishost, visport,
+      VisualizeField(vis_q, vishost, visport,
                                q_gf, "Heat Flux",
                                Wx, Wy, Ww, Wh, NULL, true);
 
       Wy += offy;
-      miniapps::VisualizeField(vis_errq, vishost, visport,
+      VisualizeField(vis_errq, vishost, visport,
                                errorq, "Error in q", Wx, Wy, Ww, Wh);
    }
    // VisIt visualization
@@ -724,16 +725,16 @@ int main(int argc, char *argv[])
             int Wx = 0, Wy = 0; // window position
             int Ww = 350, Wh = 350; // window size
 
-            miniapps::VisualizeField(vis_T, vishost, visport,
+            VisualizeField(vis_T, vishost, visport,
                                      T_gf, "Temperature", Wx, Wy, Ww, Wh);
 
-            miniapps::VisualizeField(vis_q, vishost, visport,
+            VisualizeField(vis_q, vishost, visport,
                                      q_gf, "Heat Flux", Wx, Wy, Ww, Wh);
 
-            miniapps::VisualizeField(vis_errT, vishost, visport,
+            VisualizeField(vis_errT, vishost, visport,
                                      errorT, "Error in T", Wx, Wy, Ww, Wh);
 
-            miniapps::VisualizeField(vis_errq, vishost, visport,
+            VisualizeField(vis_errq, vishost, visport,
                                      errorq, "Error in q", Wx, Wy, Ww, Wh);
          }
 

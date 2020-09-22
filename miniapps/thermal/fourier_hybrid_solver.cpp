@@ -18,7 +18,7 @@ using namespace std;
 namespace mfem
 {
 
-using namespace miniapps;
+using namespace common;
 
 void ChiPerpCoef::Eval(DenseMatrix &K, ElementTransformation &T,
                        const IntegrationPoint &ip)
