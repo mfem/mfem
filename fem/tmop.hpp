@@ -917,6 +917,12 @@ protected:
    Coefficient *coeff_zeta;          // Not owned.
    AdaptivityEvaluator *adapt_eval;  // Not owned.
 
+   // Surface fitting.
+   GridFunction *sigma;              // Owned. Updated by sigma_eval.
+   const GridFunction *sigma_marker;       // Not owned.
+   Coefficient *coeff_sigma;         // Not owned.
+   AdaptivityEvaluator *sigma_eval;  // Not owned.
+
    DiscreteAdaptTC *discr_tc;
 
    // Parameters for FD-based Gradient & Hessian calculation.
@@ -966,10 +972,14 @@ protected:
                               ElementTransformation &T,
                               const Vector &elfun, DenseMatrix &elmat);
 
-   void AssembleElemVecAdaptLim(const FiniteElement &el, const Vector &weights,
+   void AssembleElemVecAdaptLim(const GridFunction &g, const GridFunction &g0,
+                                Coefficient &coeff,
+                                const FiniteElement &el, const Vector &weights,
                                 IsoparametricTransformation &Tpr,
                                 const IntegrationRule &ir, DenseMatrix &m);
-   void AssembleElemGradAdaptLim(const FiniteElement &el, const Vector &weights,
+   void AssembleElemGradAdaptLim(const GridFunction &g, const GridFunction &g0,
+                                 Coefficient &coeff,
+                                 const FiniteElement &el, const Vector &weights,
                                  IsoparametricTransformation &Tpr,
                                  const IntegrationRule &ir, DenseMatrix &m);
 
@@ -1021,6 +1031,7 @@ public:
         nodes0(NULL), coeff0(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
         zeta_0(NULL), zeta(NULL), coeff_zeta(NULL), adapt_eval(NULL),
+        sigma(NULL), sigma_marker(NULL), coeff_sigma(NULL), sigma_eval(NULL),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
         fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
    { }
@@ -1079,6 +1090,12 @@ public:
    /// Parallel support for adaptive limiting.
    void EnableAdaptiveLimiting(const ParGridFunction &z0, Coefficient &coeff,
                                AdaptivityEvaluator &ae);
+#endif
+
+#ifdef MFEM_USE_MPI
+   void EnableSurfaceFitting(const ParGridFunction &s0,
+                             const ParGridFunction &smarker, Coefficient &coeff,
+                             AdaptivityEvaluator &ae);
 #endif
 
    /// Update the original/reference nodes used for limiting.

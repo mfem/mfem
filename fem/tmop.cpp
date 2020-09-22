@@ -1886,6 +1886,7 @@ TMOP_Integrator::~TMOP_Integrator()
 {
    delete lim_func;
    delete zeta;
+   delete sigma;
    for (int i = 0; i < ElemDer.Size(); i++)
    {
       delete ElemDer[i];
@@ -1952,6 +1953,24 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const ParGridFunction &z0,
 }
 #endif
 
+#ifdef MFEM_USE_MPI
+void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
+                                           const ParGridFunction &smarker,
+                                           Coefficient &coeff,
+                                           AdaptivityEvaluator &ae)
+{
+   sigma = new GridFunction(s0);
+   sigma_marker = &smarker;
+   coeff_sigma = &coeff;
+   sigma_eval = &ae;
+
+   sigma_eval->SetParMetaInfo(*s0.ParFESpace()->GetParMesh(),
+                              *s0.ParFESpace()->FEColl(), 1);
+   sigma_eval->SetInitialField
+   (*sigma->FESpace()->GetMesh()->GetNodes(), *sigma);
+}
+#endif
+
 double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
                                          ElementTransformation &T,
                                          const Vector &elfun)
@@ -1959,8 +1978,11 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
    const int dof = el.GetDof(), dim = el.GetDim();
    double energy;
 
-   // No adaptive limiting terms if this is a FD computation.
+   // No adaptive limiting / surface fitting terms if the function is called
+   // as part of a FD derivative computation (because we include the exact
+   // derivatives of these terms in FD computations).
    const bool adaptive_limiting = (zeta && fd_call_flag == false);
+   const bool surface_fitting = (sigma && fd_call_flag == false);
 
    DSh.SetSize(dof, dim);
    Jrt.SetSize(dim);
@@ -1999,7 +2021,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
 
    // Define ref->physical transformation, when a Coefficient is specified.
    IsoparametricTransformation *Tpr = NULL;
-   if (coeff1 || coeff0 || adaptive_limiting)
+   if (coeff1 || coeff0 || adaptive_limiting || surface_fitting)
    {
       Tpr = new IsoparametricTransformation;
       Tpr->SetFE(&el);
@@ -2021,6 +2043,12 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
    {
       zeta->GetValues(T.ElementNo, ir, zeta_q);
       zeta_0->GetValues(T.ElementNo, ir, zeta0_q);
+   }
+   Vector sigma_q, sigma_marker_q;
+   if (surface_fitting)
+   {
+      sigma->GetValues(T.ElementNo, ir, sigma_q);
+      sigma_marker->GetValues(T.ElementNo, ir, sigma_marker_q);
    }
 
    for (int i = 0; i < ir.GetNPoints(); i++)
@@ -2051,6 +2079,15 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       {
          const double diff = zeta_q(i) - zeta0_q(i);
          val += coeff_zeta->Eval(*Tpr, ip) * lim_normal * diff * diff;
+      }
+
+      if (surface_fitting)
+      {
+         // TODO this is incorrect.
+         // The below is correct, if I know all values.
+         // The others should not matter -- how to do it???
+         const double diff = sigma_marker_q(i) * (sigma_q(i) - 0.0);
+         val += coeff_sigma->Eval(*Tpr, ip) * lim_normal * diff * diff;
       }
 
       energy += weight * val;
@@ -2139,7 +2176,7 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
 
    // Define ref->physical transformation, when a Coefficient is specified.
    IsoparametricTransformation *Tpr = NULL;
-   if (coeff1 || coeff0 || zeta || exact_action)
+   if (coeff1 || coeff0 || zeta || sigma || exact_action)
    {
       Tpr = new IsoparametricTransformation;
       Tpr->SetFE(&el);
@@ -2221,7 +2258,17 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
       }
    }
 
-   if (zeta) { AssembleElemVecAdaptLim(el, weights, *Tpr, ir, PMatO); }
+   if (zeta)
+   {
+      AssembleElemVecAdaptLim(*zeta, *zeta_0, *coeff_zeta,
+                              el, weights, *Tpr, ir, PMatO);
+   }
+   if (sigma)
+   {
+      AssembleElemVecAdaptLim(*sigma, *sigma_marker, *coeff_sigma,
+                              el, weights, *Tpr, ir, PMatO);
+   }
+
 
    delete Tpr;
 }
@@ -2327,12 +2374,24 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       }
    }
 
-   if (zeta) { AssembleElemGradAdaptLim(el, weights, *Tpr, ir, elmat); }
+   if (zeta)
+   {
+      AssembleElemGradAdaptLim(*zeta, *zeta_0, *coeff_zeta,
+                               el, weights, *Tpr, ir, elmat);
+   }
+   if (sigma)
+   {
+      AssembleElemGradAdaptLim(*sigma, *sigma_marker, *coeff_sigma,
+                               el, weights, *Tpr, ir, elmat);
+   }
 
    delete Tpr;
 }
 
-void TMOP_Integrator::AssembleElemVecAdaptLim(const FiniteElement &el,
+void TMOP_Integrator::AssembleElemVecAdaptLim(const GridFunction &g,
+                                              const GridFunction &g0,
+                                              Coefficient &coeff,
+                                              const FiniteElement &el,
                                               const Vector &weights,
                                               IsoparametricTransformation &Tpr,
                                               const IntegrationRule &ir,
@@ -2344,10 +2403,10 @@ void TMOP_Integrator::AssembleElemVecAdaptLim(const FiniteElement &el,
    Vector shape(dof), zeta_e, zeta_q, zeta0_q;
 
    Array<int> dofs;
-   zeta->FESpace()->GetElementDofs(Tpr.ElementNo, dofs);
-   zeta->GetSubVector(dofs, zeta_e);
-   zeta->GetValues(Tpr.ElementNo, ir, zeta_q);
-   zeta_0->GetValues(Tpr.ElementNo, ir, zeta0_q);
+   g.FESpace()->GetElementDofs(Tpr.ElementNo, dofs);
+   g.GetSubVector(dofs, zeta_e);
+   g.GetValues(Tpr.ElementNo, ir, zeta_q);
+   g0.GetValues(Tpr.ElementNo, ir, zeta0_q);
 
    // Project the gradient of zeta in the same space.
    // The FE coefficients of the gradient go in zeta_grad_e.
@@ -2366,12 +2425,15 @@ void TMOP_Integrator::AssembleElemVecAdaptLim(const FiniteElement &el,
       el.CalcShape(ip, shape);
       zeta_grad_e.MultTranspose(shape, zeta_grad_q);
       zeta_grad_q *= 2.0 * (zeta_q(q) - zeta0_q(q));
-      zeta_grad_q *= weights(q) * lim_normal * coeff_zeta->Eval(Tpr, ip);
+      zeta_grad_q *= weights(q) * lim_normal * coeff.Eval(Tpr, ip);
       AddMultVWt(shape, zeta_grad_q, mat);
    }
 }
 
-void TMOP_Integrator::AssembleElemGradAdaptLim(const FiniteElement &el,
+void TMOP_Integrator::AssembleElemGradAdaptLim(const GridFunction &g,
+                                               const GridFunction &g0,
+                                               Coefficient &coeff,
+                                               const FiniteElement &el,
                                                const Vector &weights,
                                                IsoparametricTransformation &Tpr,
                                                const IntegrationRule &ir,
@@ -2383,10 +2445,10 @@ void TMOP_Integrator::AssembleElemGradAdaptLim(const FiniteElement &el,
    Vector shape(dof), zeta_e, zeta_q, zeta0_q;
 
    Array<int> dofs;
-   zeta->FESpace()->GetElementDofs(Tpr.ElementNo, dofs);
-   zeta->GetSubVector(dofs, zeta_e);
-   zeta->GetValues(Tpr.ElementNo, ir, zeta_q);
-   zeta_0->GetValues(Tpr.ElementNo, ir, zeta0_q);
+   g.FESpace()->GetElementDofs(Tpr.ElementNo, dofs);
+   g.GetSubVector(dofs, zeta_e);
+   g.GetValues(Tpr.ElementNo, ir, zeta_q);
+   g0.GetValues(Tpr.ElementNo, ir, zeta0_q);
 
    // Project the gradient of zeta in the same space.
    // The FE coefficients of the gradient go in zeta_grad_e.
@@ -2416,7 +2478,7 @@ void TMOP_Integrator::AssembleElemGradAdaptLim(const FiniteElement &el,
       Vector gg_ptr(zeta_grad_grad_q.GetData(), dim*dim);
       zeta_grad_grad_e.MultTranspose(shape, gg_ptr);
 
-      const double w = weights(q) * lim_normal * coeff_zeta->Eval(Tpr, ip);
+      const double w = weights(q) * lim_normal * coeff.Eval(Tpr, ip);
       for (int i = 0; i < dof * dim; i++)
       {
          const int idof = i % dof, idim = i / dof;
@@ -2517,7 +2579,7 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
       }
 
       PMatO.UseExternalData(elvect.GetData(), dof, dim);
-      AssembleElemVecAdaptLim(el, weights, Tpr, ir, PMatO);
+      AssembleElemVecAdaptLim(*zeta, *zeta_0, *coeff_zeta, el, weights, Tpr, ir, PMatO);
    }
 }
 
@@ -2612,7 +2674,7 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
          weights(q) = ir.IntPoint(q).weight * Jtr(q).Det();
       }
 
-      AssembleElemGradAdaptLim(el, weights, Tpr, ir, elmat);
+      AssembleElemGradAdaptLim(*zeta, *zeta_0, *coeff_zeta, el, weights, Tpr, ir, elmat);
    }
 }
 
@@ -2724,6 +2786,7 @@ void TMOP_Integrator::UpdateAfterMeshChange(const Vector &new_x)
 {
    // Update zeta if adaptive limiting is enabled.
    if (zeta) { adapt_eval->ComputeAtNewPosition(new_x, *zeta); }
+   if (sigma) { sigma_eval->ComputeAtNewPosition(new_x, *sigma); }
 }
 
 void TMOP_Integrator::ComputeFDh(const Vector &x, const FiniteElementSpace &fes)
