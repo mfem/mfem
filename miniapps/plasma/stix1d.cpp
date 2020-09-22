@@ -157,7 +157,7 @@ private:
    double Lx_;
    Vector k_;
 
-   // const Vector & B_;
+   const Vector & B_;
    const Vector & numbers_;
    const Vector & charges_;
    const Vector & masses_;
@@ -1215,6 +1215,30 @@ ColdPlasmaPlaneWave::ColdPlasmaPlaneWave(char type,
      masses_(mass),
      temps_(temp)
 {
+   switch (type_)
+   {
+      case 'L':
+         MFEM_VERIFY(fabs(B_[0]) == Bmag_,
+                     "L waves require a magnetic field in the x-direction.");
+         break;
+      case 'R':
+         MFEM_VERIFY(fabs(B_[0]) == Bmag_,
+                     "R waves require a magnetic field in the x-direction.");
+         break;
+      case 'O':
+         MFEM_VERIFY(fabs(B_[1]) == Bmag_,
+                     "O waves require a magnetic field in the y-direction.");
+         break;
+      case 'X':
+         MFEM_VERIFY(fabs(B_[1]) == Bmag_,
+                     "X waves require a magnetic field in the y-direction.");
+         break;
+      case 'J':
+         MFEM_VERIFY(fabs(B_[2]) == Bmag_,
+                     "Current slab require a magnetic field in the z-direction.");
+         break;
+   }
+
    S_ = S_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_);
    D_ = D_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_);
    P_ = P_cold_plasma(omega_, numbers_, charges_, masses_, temps_);
