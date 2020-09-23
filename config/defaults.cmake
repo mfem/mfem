@@ -88,7 +88,7 @@ set(METIS_DIR "${MFEM_DIR}/../metis-4.0" CACHE PATH "Path to the METIS library."
 
 set(LIBUNWIND_DIR "" CACHE PATH "Path to Libunwind.")
 
-# For sundials_nvecparhyp and nvecparallel remember to build with MPI_ENABLED=ON
+# For sundials_nvecmpiplusx and nvecparallel remember to build with MPI_ENABLED=ON
 # and modify cmake variables for hypre for sundials
 set(SUNDIALS_DIR "${MFEM_DIR}/../sundials-5.0.0/instdir" CACHE PATH
     "Path to the SUNDIALS library.")
