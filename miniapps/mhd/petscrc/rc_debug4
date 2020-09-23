@@ -4,6 +4,7 @@
 -snes_max_it 20
 -snes_rtol 1e-4
 -snes_stol 1e-9
+-snes_atol 1e-9
 -snes_converged_reason 
 -snes_linesearch_type l2
 -snes_view
@@ -18,7 +19,7 @@
 ## SNESKSPSetParametersEW(snes,3,tolgm,0.9,0.9,1.5,1.5,0.1)
 -snes_ksp_ew
 -snes_ksp_ew_version 3
--snes_ksp_ew_rtol0 0.4
+-snes_ksp_ew_rtol0 0.2
 -snes_ksp_ew_rtolmax 0.9
 -snes_ksp_ew_gamma 0.9
 -snes_ksp_ew_alpha 1.5
@@ -26,7 +27,7 @@
 -snes_ksp_ew_threshold 0.1
 #======matrix free parameters for default
 -mat_mffd_type wp
--mat_mffd_err 5e-2
+-mat_mffd_err 1e-1
 
 #======matrix free parameters for ds
 #-mat_mffd_err 1e-1
@@ -63,7 +64,7 @@
 #-s1_ksp_monitor
 #
 #======Schur matrix======
--s2_ksp_rtol 5e-4
+-s2_ksp_rtol 1e-4
 -s2_ksp_type gmres
 -s2_ksp_converged_reason
 -s2_pc_type hypre
@@ -84,7 +85,7 @@
 #-s3_ksp_view
 #
 #======ARe matrix======
--s4_ksp_rtol 5e-4
+-s4_ksp_rtol 1e-4
 -s4_ksp_type gmres
 -s4_pc_type hypre
 #-s4_ksp_monitor_true_residual

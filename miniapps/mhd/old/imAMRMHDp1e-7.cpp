@@ -158,7 +158,10 @@ int main(int argc, char *argv[])
    double derefine_ratio=.2;
    double t_refs=1e10;
    bool yRange = false; //fix a refinement region along y direction
-   double ytop =.16;    //top of the fixed yrange
+   double ytop =.5;    //top of the fixed yrange
+   bool xRange = false; //fix a refinement region along x direction
+   double xright =.5;   //right of the fixed xrange
+   int xlevels=0;
    //----end of amr----
    
    beta = 0.001; 
@@ -253,6 +256,12 @@ int main(int argc, char *argv[])
                   "Refine only in the y range of [-ytop, ytop] in AMR.");
    args.AddOption(&ytop, "-ytop", "--y-top",
                   "The top of yrange for AMR refinement.");
+   args.AddOption(&xRange, "-xrange", "--x-refine-range", "-no-xrange", "--no-x-refine-range",
+                  "Refine only in the x range of [-xright, xright] in AMR.");
+   args.AddOption(&xright, "-xright", "--x-right",
+                  "The right of xrange for AMR refinement.");
+   args.AddOption(&xlevels, "-xlevels", "--x-levels",
+                  "The minimal level for xRange being effective. Default is 0");
    args.AddOption(&use_petsc, "-usepetsc", "--usepetsc", "-no-petsc",
                   "--no-petsc",
                   "Use or not PETSc to solve the nonlinear system.");
@@ -348,6 +357,8 @@ int main(int argc, char *argv[])
       pmesh->UniformRefinement();
    }
    amr_levels+=par_ref_levels;
+   if (xlevels>0)
+       xlevels+=par_ref_levels;
 
    H1_FECollection fe_coll(order, dim);
    ParFiniteElementSpace fespace(pmesh, &fe_coll); 
@@ -590,7 +601,9 @@ int main(int argc, char *argv[])
       refiner.SetMaximumRefinementLevel(amr_levels);
    refiner.SetNCLimit(nc_limit);
    if (yRange)
-       refiner.SetYRange(-.6, .6);
+       refiner.SetYRange(-ytop, ytop);
+   if (xRange)
+       refiner.SetXRange(-xright, xright, xlevels);
 
    ThresholdDerefiner derefiner(*estimator_used);
    derefiner.SetThreshold(derefine_ratio*ltol_amr);
