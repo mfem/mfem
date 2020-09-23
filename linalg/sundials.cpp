@@ -152,11 +152,10 @@ void SundialsNVector::_SetNvecDataAndSize_(long glob_size)
 {
 #ifdef MFEM_USE_MPI
    N_Vector local_x = MPIPlusX() ? N_VGetLocalVector_MPIPlusX(x) : x;
-   N_Vector_ID id = MPIPlusX() ? N_VGetVectorID(local_x) : N_VGetVectorID(x);
 #else
    N_Vector local_x = x;
-   N_Vector_ID id = N_VGetVectorID(x);
 #endif
+   N_Vector_ID id = N_VGetVectorID(local_x);
 
    // Set the N_Vector data and length from the Vector data and size.
    switch (id)
@@ -226,12 +225,10 @@ void SundialsNVector::_SetDataAndSize_()
 {
 #ifdef MFEM_USE_MPI
    N_Vector local_x = MPIPlusX() ? N_VGetLocalVector_MPIPlusX(x) : x;
-   N_Vector_ID id = MPIPlusX() ? N_VGetVectorID(local_x) : N_VGetVectorID(x);
 #else
    N_Vector local_x = x;
-   N_Vector_ID id = N_VGetVectorID(x);
 #endif
-
+   N_Vector_ID id = N_VGetVectorID(local_x);
 
    // The SUNDIALS NVector owns the data if it created it.
    switch (id)
@@ -637,6 +634,9 @@ void CVODESolver::Step(Vector &x, double &t, double &dt)
    double tout = t + dt;
    flag = CVode(sundials_mem, tout, *Y, &t, step_mode);
    MFEM_VERIFY(flag >= 0, "error in CVode()");
+
+   // Make sure host is up to date
+   Y->HostRead();
 
    // Return the last incremental step size
    flag = CVodeGetLastStep(sundials_mem, &dt);
@@ -1106,6 +1106,9 @@ void CVODESSolver::Step(Vector &x, double &t, double &dt)
    flag = CVodeF(sundials_mem, tout, *Y, &t, step_mode, &ncheck);
    MFEM_VERIFY(flag >= 0, "error in CVodeF()");
 
+   // Make sure host is up to date
+   Y->HostRead();
+
    // Return the last incremental step size
    flag = CVodeGetLastStep(sundials_mem, &dt);
    MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeGetLastStep()");
@@ -1134,6 +1137,9 @@ void CVODESSolver::StepB(Vector &xB, double &tB, double &dtB)
    // Call CVodeGetB to get yB of the backward ODE problem.
    flag = CVodeGetB(sundials_mem, indexB, &tB, *yB);
    MFEM_VERIFY(flag >= 0, "error in CVodeGetB()");
+
+   // Make sure host is up to date
+   yB->HostRead();
 }
 
 CVODESSolver::~CVODESSolver()
@@ -1406,6 +1412,9 @@ void ARKStepSolver::Step(Vector &x, double &t, double &dt)
    double tout = t + dt;
    flag = ARKStepEvolve(sundials_mem, tout, *Y, &t, step_mode);
    MFEM_VERIFY(flag >= 0, "error in ARKStepEvolve()");
+
+   // Make sure host is up to date
+   Y->HostRead();
 
    // Return the last incremental step size
    flag = ARKStepGetLastStep(sundials_mem, &dt);
@@ -1973,6 +1982,9 @@ void KINSolver::Mult(Vector &x,
    // Solve the nonlinear system
    flag = KINSol(sundials_mem, *Y, global_strategy, *y_scale, *f_scale);
    converged = (flag >= 0);
+
+   // Make sure host is up to date
+   Y->HostRead();
 
    // Get number of nonlinear iterations
    long int tmp_nni;
