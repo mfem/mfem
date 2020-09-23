@@ -204,6 +204,8 @@ protected:
 
    void LoadSharedEntities(std::istream &input);
 
+   void Destroy();
+
 public:
    /** Copy constructor. Performs a deep copy of (almost) all data, so that the
        source mesh can be modified (e.g. deleted, refined) without affecting the
@@ -354,6 +356,10 @@ public:
    /// Old mesh format (Netgen/Truegrid) version of 'PrintAsOne'
    void PrintAsOneXG(std::ostream &out = mfem::out);
 
+   /// Parallel version of Mesh::Load().
+   virtual void Load(std::istream &input, int generate_edges = 0,
+                     int refine = 1, bool fix_orientation = true);
+
    /// Returns the minimum and maximum corners of the mesh bounding box. For
    /// high-order meshes, the geometry is refined first "ref" times.
    void GetBoundingBox(Vector &p_min, Vector &p_max, int ref = 2);
@@ -377,7 +383,6 @@ public:
 #ifdef MFEM_USE_PUMI
    friend class ParPumiMesh;
 #endif
-
 #ifdef MFEM_USE_ADIOS2
    friend class adios2stream;
 #endif

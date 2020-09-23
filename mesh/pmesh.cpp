@@ -914,13 +914,20 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
    have_face_nbr_data = false;
    pncmesh = NULL;
 
-   // read the serial part of the mesh
    const int gen_edges = 1;
+
+   Load(input, gen_edges, refine, true);
+}
+
+void ParMesh::Load(istream &input, int generate_edges, int refine,
+                   bool fix_orientation)
+{
+   ParMesh::Destroy();
 
    // Tell Loader() to read up to 'mfem_serial_mesh_end' instead of
    // 'mfem_mesh_end', as we have additional parallel mesh data to load in from
    // the stream.
-   Loader(input, gen_edges, "mfem_serial_mesh_end");
+   Loader(input, generate_edges, "mfem_serial_mesh_end");
 
    ReduceMeshGen(); // determine the global 'meshgen'
 
@@ -939,7 +946,6 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
       pncmesh->GetConformingSharedStructures(*this);
    }
 
-   const bool fix_orientation = false;
    Finalize(refine, fix_orientation);
 
    // If the mesh has Nodes, convert them from GridFunction to ParGridFunction?
@@ -5313,7 +5319,7 @@ void ParMesh::ParPrint(ostream &out) const
 
    if (Nonconforming())
    {
-      // the NC mesh format works for both serial and parallel
+      // the NC mesh format works both in serial and in parallel
       Printer(out);
       return;
    }
@@ -5521,7 +5527,7 @@ void ParMesh::PrintSharedEntities(const char *fname_prefix) const
    }
 }
 
-ParMesh::~ParMesh()
+void ParMesh::Destroy()
 {
    delete pncmesh;
    ncmesh = pncmesh = NULL;
@@ -5532,6 +5538,12 @@ ParMesh::~ParMesh()
    {
       FreeElement(shared_edges[i]);
    }
+   shared_edges.DeleteAll();
+}
+
+ParMesh::~ParMesh()
+{
+   ParMesh::Destroy();
 
    // The Mesh destructor is called automatically
 }
