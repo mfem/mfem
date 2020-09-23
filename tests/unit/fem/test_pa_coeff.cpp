@@ -432,13 +432,13 @@ TEST_CASE("Hcurl/Hdiv pa_coeff",
                      {
                         if (coeffType == 2)
                         {
-                           paform.AddDomainIntegrator(new MixedVectorCurlIntegrator(*vcoeff));
-                           assemblyform.AddDomainIntegrator(new MixedVectorCurlIntegrator(*vcoeff));
+                           paform->AddDomainIntegrator(new MixedVectorCurlIntegrator(*vcoeff));
+                           assemblyform->AddDomainIntegrator(new MixedVectorCurlIntegrator(*vcoeff));
                         }
                         else if (coeffType < 2)
                         {
-                           paform.AddDomainIntegrator(new MixedVectorCurlIntegrator(*coeff));
-                           assemblyform.AddDomainIntegrator(new MixedVectorCurlIntegrator(*coeff));
+                           paform->AddDomainIntegrator(new MixedVectorCurlIntegrator(*coeff));
+                           assemblyform->AddDomainIntegrator(new MixedVectorCurlIntegrator(*coeff));
                         }
                      }
 
