@@ -421,7 +421,6 @@ int main(int argc, char *argv[])
       adios2_dc = new ADIOS2DataCollection(MPI_COMM_WORLD, collection_name, pmesh);
       // output data substreams are half the number of mpi processes
       adios2_dc->SetParameter("SubStreams", std::to_string(num_procs/2) );
-      // adios2_dc->SetLevelsOfDetail(2);
       adios2_dc->RegisterField("solution", u);
       adios2_dc->SetCycle(0);
       adios2_dc->SetTime(0.0);

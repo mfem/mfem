@@ -619,7 +619,7 @@ void CVODESolver::Init(TimeDependentOperator &f_)
 void CVODESolver::Step(Vector &x, double &t, double &dt)
 {
    Y->MakeRef(x, 0, x.Size());
-   MFEM_VERIFY(Y->Size() == x.Size(), "");
+   MFEM_VERIFY(Y->Size() == x.Size(), "size mismatch");
 
    // Reinitialize CVODE memory if needed
    if (reinit)
@@ -1089,7 +1089,7 @@ int CVODESSolver::ewt(N_Vector y, N_Vector w, void *user_data)
 void CVODESSolver::Step(Vector &x, double &t, double &dt)
 {
    Y->MakeRef(x, 0, x.Size());
-   MFEM_VERIFY(Y->Size() == x.Size(), "");
+   MFEM_VERIFY(Y->Size() == x.Size(), "size mismatch");
 
    // Reinitialize CVODE memory if needed, initializes the N_Vector y with x
    if (reinit)
@@ -1384,7 +1384,7 @@ void ARKStepSolver::Init(TimeDependentOperator &f_)
 void ARKStepSolver::Step(Vector &x, double &t, double &dt)
 {
    Y->MakeRef(x, 0, x.Size());
-   MFEM_VERIFY(Y->Size() == x.Size(), "");
+   MFEM_VERIFY(Y->Size() == x.Size(), "size mismatch");
 
    // Reinitialize ARKStep memory if needed
    if (reinit)
