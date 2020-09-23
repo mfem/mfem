@@ -151,6 +151,15 @@ void ParBilinearForm::ParallelRAP(SparseMatrix &loc_A, OperatorHandle &A,
    }
 }
 
+HypreParMatrix *ParBilinearForm::ParallelAssembleInternal()
+{
+   if (p_mat.Ptr() == NULL)
+   {
+      ParallelAssemble(p_mat, mat);
+   }
+   return p_mat.As<HypreParMatrix>();
+}
+
 void ParBilinearForm::ParallelAssemble(OperatorHandle &A, SparseMatrix *A_local)
 {
    A.Clear();
