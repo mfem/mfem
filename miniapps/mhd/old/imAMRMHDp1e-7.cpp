@@ -144,7 +144,6 @@ int main(int argc, char *argv[])
    bool use_factory = false;
    bool useStab = false; //use a stabilized formulation (explicit case only)
    bool initial_refine = false;
-   bool yRange = false; //fix a refinement region along y direction
    const char *petscrc_file = "";
 
    //----amr coefficients----
@@ -158,6 +157,8 @@ int main(int argc, char *argv[])
    double err_fraction=.5;
    double derefine_ratio=.2;
    double t_refs=1e10;
+   bool yRange = false; //fix a refinement region along y direction
+   double ytop =.16;    //top of the fixed yrange
    //----end of amr----
    
    beta = 0.001; 
@@ -248,9 +249,10 @@ int main(int argc, char *argv[])
    args.AddOption(&derefine, "-derefine", "--derefine-mesh", "-no-derefine",
                   "--no-derefine-mesh",
                   "Derefine the mesh in AMR.");
-   args.AddOption(&yRange, "-yrange", "--y-refine-range", "-no-yrange",
-                  "--no-y-refine-range",
-                  "Refine only in the y range of [-.6, .6] in AMR.");
+   args.AddOption(&yRange, "-yrange", "--y-refine-range", "-no-yrange", "--no-y-refine-range",
+                  "Refine only in the y range of [-ytop, ytop] in AMR.");
+   args.AddOption(&ytop, "-ytop", "--y-top",
+                  "The top of yrange for AMR refinement.");
    args.AddOption(&use_petsc, "-usepetsc", "--usepetsc", "-no-petsc",
                   "--no-petsc",
                   "Use or not PETSc to solve the nonlinear system.");
@@ -824,7 +826,6 @@ int main(int argc, char *argv[])
          if (myid == 0) cout<<"Refine mesh iterations..."<<endl;
 
          int its;
-         //here can we skip replacing??
          for (its=0; its<ref_its; its++)
          {
            oper.UpdateJ(vx, &j);
@@ -994,6 +995,7 @@ int main(int argc, char *argv[])
    double end = MPI_Wtime();
 
    //++++++Save the solutions (only if paraview or visit is not turned on).
+   if (false)
    {
       phi.SetFromTrueDofs(vx.GetBlock(0));
       psi.SetFromTrueDofs(vx.GetBlock(1));

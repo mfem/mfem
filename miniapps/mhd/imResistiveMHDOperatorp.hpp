@@ -2008,7 +2008,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
 
      delete StabNv;
      StabNv = new ParBilinearForm(&fespace);
-     StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, velosity));
+     StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, velocity));
      StabNv->Assemble(); 
      StabNv->TrueAddMult(wNew, y3);
 
