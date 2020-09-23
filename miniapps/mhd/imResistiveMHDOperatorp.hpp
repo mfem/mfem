@@ -69,7 +69,8 @@ private:
    const Array<int> &ess_tdof_list;
    const Array<int> &ess_bdr;
 
-   mutable ParGridFunction phiGf, psiGf, wGf, gftmp;
+   mutable ParGridFunction phiGf, psiGf, wGf, gftmp, phiOld;
+   mutable MyCoefficient *vOld;
    mutable ParBilinearForm *Nv, *Nb, *Pw;
    mutable ParBilinearForm *StabMass, *StabNb, *StabNv; //for stablize B term
    mutable ParLinearForm *PB_VPsi, *PB_VOmega, *PB_BJ;
@@ -103,6 +104,17 @@ public:
    void SetParameters(double dt_, const Vector *phi_, const Vector *psi_, const Vector *w_)
    {   
        dtOld=dt; dt=dt_; phi=phi_; psi=psi_; w=w_;
+
+       if (vOld==NULL && false)
+       {
+         Vector &k = const_cast<Vector &>(*phi);
+         phiOld.MakeTRef(&fespace, k, 0);
+         phiOld.SetFromTrueVector();
+         delete vOld;
+         vOld = new MyCoefficient(&phiGf, 2);
+         if (myid==0) cout <<"------update vOld------"<<endl;
+       }
+
        if (dtOld!=dt && initialMdt)
        {
            if (myid==0) cout <<"------update Mdt------"<<endl;
@@ -1223,7 +1235,7 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
      initialMdt(false), E0Vec(NULL), StabE0(NULL), E0rhs(NULL), Mlumped(Mlumped_), Mmatlp(MlumpedMat),
      M_solver(M_solver_), M_solver2(M_solver2_),M_solver3(M_solver3_),
      dt(0.0), dtOld(0.0), viscosity(visc), resistivity(resi), 
-     phi(NULL), psi(NULL), w(NULL), 
+     phi(NULL), psi(NULL), w(NULL), vOld(NULL),
      ess_tdof_list(ess_tdof_list_),ess_bdr(ess_bdr_), gftmp(&fespace),
      Nv(NULL), Nb(NULL), Pw(NULL), 
      StabMass(NULL), StabNb(NULL), StabNv(NULL),
@@ -1265,7 +1277,7 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
      Mlumped(Mlumped_), Mmatlp(MlumpedMat),
      M_solver(M_solver_), M_solver2(M_solver2_), M_solver3(M_solver3_), 
      dt(0.0), dtOld(0.0), viscosity(visc), resistivity(resi),
-     phi(NULL), psi(NULL), w(NULL), 
+     phi(NULL), psi(NULL), w(NULL), vOld(NULL),
      ess_tdof_list(ess_tdof_list_), ess_bdr(ess_bdr_), gftmp(&fespace),
      Nv(NULL), Nb(NULL), Pw(NULL),  
      StabMass(NULL), StabNb(NULL), StabNv(NULL),
@@ -1390,7 +1402,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
                   delete ASltmp;
                   ASltmp=tmp;
 
-                  if ( im_supg==1 || im_supg==3 )
+                  if ( im_supg>0 && im_supg<4 )
                   {
                       if (resistivity!=viscosity || itau_!=2)
                       {
@@ -1714,6 +1726,7 @@ ReducedSystemOperator::~ReducedSystemOperator()
    delete Nv;
    delete Nb;
    delete Pw;
+   delete vOld;
    delete StabNv;
    delete StabNb;
    delete StabMass;
@@ -1995,15 +2008,30 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
 
      delete StabNv;
      StabNv = new ParBilinearForm(&fespace);
-     StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, velocity));
+     StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, velosity));
      StabNv->Assemble(); 
      StabNv->TrueAddMult(wNew, y3);
 
+     /*
      delete StabNb;
      StabNb = new ParBilinearForm(&fespace);
      StabNb->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, Bfield, velocity));
      StabNb->Assemble(); 
      StabNb->TrueAddMult(J, y3, -1.);
+     */
+
+     //---add supg to y2---
+     if(viscosity!=resistivity || itau_!=2)
+     {
+        if (myid==0 && viscosity!=resistivity ) 
+            cout <<"======WARNING: viscosity and resistivity are not identical======"<<endl;
+        delete StabNv;
+        StabNv = new ParBilinearForm(&fespace);
+        StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, resistivity, velocity, itau_));
+        StabNv->Assemble(); 
+     }
+     StabNv->TrueAddMult(psiNew, y2);
+
    }
    else if(usesupg && im_supg==3)
    {
