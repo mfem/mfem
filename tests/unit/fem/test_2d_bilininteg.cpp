@@ -11,6 +11,7 @@
 
 #include "mfem.hpp"
 #include "catch.hpp"
+#include "myIntegrator.hpp"
 
 using namespace mfem;
 
@@ -18,6 +19,38 @@ namespace bilininteg_2d
 {
 
 double f2(const Vector & x) { return 2.345 * x[0] + 3.579 * x[1]; }
+void f2square(const Vector & x, DenseMatrix & m)
+{
+   m.SetSize(2);
+   m(0,0) =  3.579*3.579;
+   m(0,1) = -3.579*2.345;
+
+   m(1,0) = m(0,1);
+   m(1,1) = 2.345*2.345;
+}
+
+double ff2(const Vector & x) { 
+    //return x[0]*x[0]/2.; 
+    //return 2.345 * x[0]*x[0]/2. + 3.579 * x[1]*x[1]/2.; 
+    return x[0]*x[0]/2. + x[1]*x[1]/2.; 
+}
+void ff2square(const Vector & x, DenseMatrix & m)
+{
+   m.SetSize(2);
+   m(0,0) =  x[1]*x[1];
+   m(0,1) = -x[0]*x[1];
+
+   m(1,0) = m(0,1);
+   m(1,1) = x[0]*x[0];
+   /*
+   m(0,0) =  3.579*3.579*x[1]*x[1];
+   m(0,1) = -3.579*2.345*x[0]*x[1];
+
+   m(1,0) = m(0,1);
+   m(1,1) = 2.345*.2345*x[0]*x[0];
+   */
+}
+
 void F2(const Vector & x, Vector & v)
 {
    v.SetSize(2);
@@ -32,6 +65,9 @@ void V2(const Vector & x, Vector & v)
    v[0] = 2.234 * x[0] + 1.357 * x[1];
    v[1] = 4.572 * x[0] + 3.321 * x[1];
 }
+
+
+
 void M2(const Vector & x, DenseMatrix & m)
 {
    m.SetSize(2);
@@ -2412,6 +2448,55 @@ TEST_CASE("2D Bilinear Directional Derivative Integrators",
          }
       }
    }
+}
+
+TEST_CASE("my Integrator", "[myIntegrator]")
+{
+   int order = 2, n = 1, dim = 2;
+   double tol = 1e-9;
+
+   Mesh mesh(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
+
+   SECTION("Operators on H1")
+   {
+      H1_FECollection    fec_h1(order, dim);
+      FiniteElementSpace fespace_h1(&mesh, &fec_h1);
+
+      FunctionCoefficient  f2_coef(ff2);
+      GridFunction f_nd(&fespace_h1); f_nd.ProjectCoefficient(f2_coef);
+      MatrixFunctionCoefficient  M2_coef(dim, ff2square);
+      MyCoefficient velocity(&f_nd, 2);
+
+      BilinearForm blf(&fespace_h1);
+      blf.AddDomainIntegrator(new StabConvectionIntegrator(2.0, 1e10, velocity));
+      blf.Assemble();
+      blf.Finalize();
+      BilinearForm blfw(&fespace_h1);
+
+      blfw.AddDomainIntegrator(new DiffusionIntegrator(M2_coef));
+      blfw.Assemble();
+      blfw.Finalize();
+
+      ofstream myf ("trueOperator.m");
+      blfw.PrintMatlab(myf);
+
+      ofstream myf2 ("myOperator.m");
+      blf.PrintMatlab(myf2);
+
+      SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,blfw.SpMat());
+
+      /*
+      const char mesh_file[] = "test.mesh";
+      ofstream omesh(mesh_file);
+      omesh.precision(8);
+      mesh.Print(omesh);
+      */
+
+      REQUIRE( diff->MaxNorm() < tol );
+
+      delete diff;
+
+  }
 }
 
 

@@ -180,9 +180,9 @@ protected:
    double total_fraction;
    double local_err_goal;
    long   max_elements;
-   long   amr_levels;
-   bool   yRange;
-   double ymin, ymax;
+   long   amr_levels, xRange_levels, yRange_levels;
+   bool   yRange, xRange;
+   double xmin, xmax, ymin, ymax;
 
    double threshold;
    long num_marked_elements;
@@ -232,7 +232,11 @@ public:
        LONG_MAX. */
    void SetMaxElements(long max_elem) { max_elements = max_elem; }
 
-   void SetYRange(double ymin_, double ymax_) { yRange=true; ymin=ymin_; ymax=ymax_; }
+   void SetXRange(double xmin_, double xmax_, int levels=0) 
+   { xRange=true; xmin=xmin_; xmax=xmax_; xRange_levels=levels;}
+
+   void SetYRange(double ymin_, double ymax_, int levels=0) 
+   { yRange=true; ymin=ymin_; ymax=ymax_; yRange_levels=levels; }
 
    void SetMaximumRefinementLevel(long levels) { amr_levels = levels; }
 

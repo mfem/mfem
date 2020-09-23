@@ -61,6 +61,9 @@ ThresholdRefiner::ThresholdRefiner(ErrorEstimator &est)
    local_err_goal = 0.0;
    max_elements = std::numeric_limits<long>::max();
    amr_levels=max_elements;
+   xRange_levels=0; //if xRange_levels is trun on, it will ignore xRang if levels<xRange_levels
+   xRange=false;
+   yRange_levels=0;
    yRange=false;
 
    threshold = 0.0;
@@ -98,10 +101,12 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
    MFEM_ASSERT(local_err.Size() == NE, "invalid size of local_err");
 
    double vert[3];
-   double yMean;
+   double yMean, xMean;
+   long elementLevel;
+
+   //Turn this off for now (it was not working anyway)
    //a different way to implement yrange (we can modify the local_err vector)
-   //maybe a better way is to modify estimator?
-   if (yRange && mesh.Nonconforming())
+   if (false && yRange && mesh.Nonconforming())
    {
       Vector &local_err_ = const_cast<Vector &>(local_err);
       FiniteElementSpace * fes = mesh.GetNodes()->FESpace();
@@ -119,7 +124,7 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
         yMean=yMean/ndof;
         //std::cout <<"el yMean="<<el<<' '<<yMean << '\n';
         
-        if (yMean<=ymin && yMean>=ymax)
+        if (yMean<=ymin || yMean>=ymax)
            local_err_(el) =0.;
       }
    }
@@ -141,25 +146,29 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
 
    for (int el = 0; el < NE; el++)
    { 
-      //it does not hurt to leave it there in case local_err is not communicated
-      if (yRange && mesh.Nonconforming())
+      if ((yRange || xRange) && mesh.Nonconforming())
       {
         FiniteElementSpace * fes = mesh.GetNodes()->FESpace();
         Array<int> dofs;
         fes->GetElementDofs(el, dofs);
         int ndof=dofs.Size();
         yMean=0.0;
+        xMean=0.0;
         for (int j = 0; j < ndof; j++)
         {
            mesh.GetNode(dofs[j], vert);
            yMean+=vert[1];
+           xMean+=vert[0];
         }
         yMean=yMean/ndof;
-        //std::cout <<"el yMean="<<el<<' '<<yMean << '\n';
+        xMean=xMean/ndof;
+
+        elementLevel=mesh.ncmesh->GetElementDepth(el);
         
-        if (local_err(el) > threshold && 
-            mesh.ncmesh->GetElementDepth(el) < amr_levels &&
-            yMean>ymin && yMean<ymax
+        if (local_err(el) > threshold && elementLevel < amr_levels &&
+            mesh.ncmesh->GetElementDepth(el) < amr_levels && 
+            ((yMean>ymin && yMean<ymax) || elementLevel<yRange_levels) &&
+            ((xMean>xmin && xMean<xmax) || elementLevel<xRange_levels)
             )
         {
            marked_elements.Append(Refinement(el));
@@ -168,6 +177,7 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
       }
       else if (mesh.Nonconforming())
       {
+        //std::cout <<"el="<<el<<" level="<<mesh.ncmesh->GetElementDepth(el)<< '\n';
         if (local_err(el) > threshold && 
             mesh.ncmesh->GetElementDepth(el) < amr_levels)
         {
