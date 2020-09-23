@@ -360,19 +360,19 @@ int main(int argc, char *argv[])
 {
    // There must be exactly one instance.
    Catch::Session session;
-
-   const char *device_str = (argc == 1) ? "ceed-cpu" : argv[argc-1];
-
-   // Apply provided command line arguments.
-   int r = session.applyCommandLine((argc == 1) ? argc : argc - 1, argv);
-   if (r != 0)
+   std::string device_str("ceed-cpu");
+   using namespace Catch::clara;
+   auto cli = session.cli()
+      | Opt(device_str, "device_string")
+        ["--device"]
+        ("CEED device string (default: ceed-cpu)");
+   session.cli(cli);
+   int result = session.applyCommandLine( argc, argv );
+   if (result != 0)
    {
-      return r;
+      return result;
    }
-
-   Device device(device_str);
-
-   int result = session.run();
-
+   Device device(device_str.c_str());
+   result = session.run();
    return result;
 }

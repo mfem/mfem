@@ -84,8 +84,8 @@ punit_tests: $(PAR_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DAT
 cunit_tests: $(CUDA_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
 	$(CCC) $(CUDA_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
-ceed_tests: $(CEED_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
-	$(CCC) $(CEED_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+ceed_tests: $(CEED_MAIN_OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(CEED_MAIN_OBJ) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
 # Note: in this rule, we always use the full path to the source file as a
 # workaround for an issue with coveralls.
@@ -145,11 +145,11 @@ include $(MFEM_TEST_MK)
 	@$(call mfem-test,$<,, Unit tests,,SKIP-NO-VIS)
 
 ceed_tests-test-seq: ceed_tests
-	@$(call mfem-test,$<,, CEED Unit tests (cpu),ceed-cpu,SKIP-NO-VIS)
+	@$(call mfem-test,$<,, CEED Unit tests (cpu),--device ceed-cpu,SKIP-NO-VIS)
 ifeq ($(MFEM_USE_CUDA),YES)
-	@$(call mfem-test,$<,, CEED Unit tests (cuda-ref),ceed-cuda:/gpu/cuda/ref,SKIP-NO-VIS)
-	@$(call mfem-test,$<,, CEED Unit tests (cuda-shared),ceed-cuda:/gpu/cuda/shared,SKIP-NO-VIS)
-	@$(call mfem-test,$<,, CEED Unit tests (cuda-gen),ceed-cuda:/gpu/cuda/gen,SKIP-NO-VIS)
+	@$(call mfem-test,$<,, CEED Unit tests (cuda-ref),--device ceed-cuda:/gpu/cuda/ref,SKIP-NO-VIS)
+	@$(call mfem-test,$<,, CEED Unit tests (cuda-shared),--device ceed-cuda:/gpu/cuda/shared,SKIP-NO-VIS)
+	@$(call mfem-test,$<,, CEED Unit tests (cuda-gen),--device ceed-cuda:/gpu/cuda/gen,SKIP-NO-VIS)
 endif
 
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP)
