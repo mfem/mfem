@@ -382,17 +382,17 @@ void CeedPAAssemble(const CeedPAOperator& op,
    switch (op.test_op)
    {
       case EvalMode::None:
-         CeedQFunctionAddInput(ceedData.apply_qfunc, "v", vdim, CEED_EVAL_NONE);
+         CeedQFunctionAddOutput(ceedData.apply_qfunc, "v", vdim, CEED_EVAL_NONE);
          break;
       case EvalMode::Interp:
-         CeedQFunctionAddInput(ceedData.apply_qfunc, "v", vdim, CEED_EVAL_INTERP);
+         CeedQFunctionAddOutput(ceedData.apply_qfunc, "v", vdim, CEED_EVAL_INTERP);
          break;
       case EvalMode::Grad:
-         CeedQFunctionAddInput(ceedData.apply_qfunc, "gv", vdim*dim, CEED_EVAL_GRAD);
+         CeedQFunctionAddOutput(ceedData.apply_qfunc, "gv", vdim*dim, CEED_EVAL_GRAD);
          break;
       case EvalMode::InterpAndGrad:
-         CeedQFunctionAddInput(ceedData.apply_qfunc, "v", vdim, CEED_EVAL_INTERP);
-         CeedQFunctionAddInput(ceedData.apply_qfunc, "gv", vdim*dim, CEED_EVAL_GRAD);
+         CeedQFunctionAddOutput(ceedData.apply_qfunc, "v", vdim, CEED_EVAL_INTERP);
+         CeedQFunctionAddOutput(ceedData.apply_qfunc, "gv", vdim*dim, CEED_EVAL_GRAD);
          break;
    }
    CeedQFunctionSetContext(ceedData.apply_qfunc, ceedData.build_ctx);
@@ -561,17 +561,17 @@ void CeedMFAssemble(const CeedMFOperator& op,
    switch (op.test_op)
    {
       case EvalMode::None:
-         CeedQFunctionAddInput(ceedData.apply_qfunc, "v", vdim, CEED_EVAL_NONE);
+         CeedQFunctionAddOutput(ceedData.apply_qfunc, "v", vdim, CEED_EVAL_NONE);
          break;
       case EvalMode::Interp:
-         CeedQFunctionAddInput(ceedData.apply_qfunc, "v", vdim, CEED_EVAL_INTERP);
+         CeedQFunctionAddOutput(ceedData.apply_qfunc, "v", vdim, CEED_EVAL_INTERP);
          break;
       case EvalMode::Grad:
-         CeedQFunctionAddInput(ceedData.apply_qfunc, "gv", vdim*dim, CEED_EVAL_GRAD);
+         CeedQFunctionAddOutput(ceedData.apply_qfunc, "gv", vdim*dim, CEED_EVAL_GRAD);
          break;
       case EvalMode::InterpAndGrad:
-         CeedQFunctionAddInput(ceedData.apply_qfunc, "v", vdim, CEED_EVAL_INTERP);
-         CeedQFunctionAddInput(ceedData.apply_qfunc, "gv", vdim*dim, CEED_EVAL_GRAD);
+         CeedQFunctionAddOutput(ceedData.apply_qfunc, "v", vdim, CEED_EVAL_INTERP);
+         CeedQFunctionAddOutput(ceedData.apply_qfunc, "gv", vdim*dim, CEED_EVAL_GRAD);
          break;
    }
 
