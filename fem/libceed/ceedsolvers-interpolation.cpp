@@ -124,9 +124,7 @@ int CeedInterpolationInterpolate(CeedInterpolation interp,
 }
 
 /// @todo could use a CEED_REQUEST here
-/// @todo this implementation is ugly and inefficient
-/// @todo based on structure etc, we should find a Ceed-y way to do
-///       MFEM_FORALL...
+/// @todo using MFEM_FORALL in this Ceed-like function is ugly
 int CeedInterpolationRestrict(CeedInterpolation interp,
                               CeedVector in, CeedVector out)
 {
@@ -137,14 +135,12 @@ int CeedInterpolationRestrict(CeedInterpolation interp,
 
   const CeedScalar *multiplicitydata, *indata;
   CeedScalar *workdata;
-  // CeedMemType mem = CEED_MEM_HOST;
   CeedMemType mem;
   CeedGetPreferredMemType(interp->ceed, &mem);
   ierr = CeedVectorGetArrayRead(in, mem, &indata); CeedChk(ierr);
   ierr = CeedVectorGetArrayRead(interp->fine_multiplicity_r, mem,
                                 &multiplicitydata); CeedChk(ierr);
   ierr = CeedVectorGetArray(interp->fine_work, mem, &workdata); CeedChk(ierr);
-  int i;
   MFEM_FORALL(i, length,
               {workdata[i] = indata[i] * multiplicitydata[i];});
   ierr = CeedVectorRestoreArrayRead(in, &indata); CeedChk(ierr);

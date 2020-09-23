@@ -17,7 +17,7 @@ using namespace mfem;
 #ifdef MFEM_USE_CEED
 
 /// a = a (pointwise*) b
-/// @todo: figure out how to do on GPU?
+/// @todo: using MPI_FORALL in this Ceed-like function is ugly
 int CeedVectorPointwiseMult(CeedVector a, const CeedVector b) {
   int ierr;
   Ceed ceed;
