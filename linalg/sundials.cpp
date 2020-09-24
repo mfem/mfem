@@ -26,6 +26,7 @@
 
 // SUNDIALS linear solvers
 #include <sunlinsol/sunlinsol_spgmr.h>
+#include <sunlinsol/sunlinsol_spfgmr.h>
 
 // Access SUNDIALS object's content pointer
 #define GET_CONTENT(X) ( X->content )
@@ -1405,6 +1406,44 @@ int KINSolver::LinSysSolve(SUNLinearSolver LS, SUNMatrix J, N_Vector u,
    return (0);
 }
 
+int KINSolver::PrecSetup(N_Vector uu,
+                         N_Vector uscale,
+                         N_Vector fval,
+                         N_Vector fscale,
+                         void *user_data)
+{
+   Vector mfem_u(uu);
+   KINSolver *self = static_cast<KINSolver *>(user_data);
+
+   // Update the Jacobian
+   self->jacobian = &self->oper->GetGradient(mfem_u);
+
+   // Set the Jacobian solve operator
+   self->prec->SetOperator(*self->jacobian);
+
+   return 0;
+}
+
+int KINSolver::PrecSolve(N_Vector uu,
+                         N_Vector uscale,
+                         N_Vector fval,
+                         N_Vector fscale,
+                         N_Vector vv,
+                         void *user_data)
+{
+   KINSolver *self = static_cast<KINSolver *>(user_data);
+   Vector mfem_v(vv);
+
+   self->wrk = 0.0;
+
+   // Solve for u = P^{-1} v
+   self->prec->Mult(mfem_v, self->wrk);
+
+   mfem_v = self->wrk;
+
+   return 0;
+}
+
 KINSolver::KINSolver(int strategy, bool oper_grad)
    : global_strategy(strategy), use_oper_grad(oper_grad), y_scale(NULL),
      f_scale(NULL), jacobian(NULL), maa(0)
@@ -1529,7 +1568,11 @@ void KINSolver::SetOperator(const Operator &op)
       MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetUserData()");
 
       // Set the linear solver
-      if (prec)
+      if (jfnk)
+      {
+         SetJFNKSolver(*prec);
+      }
+      else if (prec)
       {
          KINSolver::SetSolver(*prec);
       }
@@ -1571,36 +1614,73 @@ void KINSolver::SetOperator(const Operator &op)
 
 void KINSolver::SetSolver(Solver &solver)
 {
+   if (jfnk)
+   {
+      SetJFNKSolver(solver);
+   }
+   else
+   {
+      // Store the solver
+      prec = &solver;
+
+      // Free any existing linear solver
+      if (A != NULL) { SUNMatDestroy(A); A = NULL; }
+      if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
+
+      // Wrap KINSolver as SUNLinearSolver and SUNMatrix
+      LSA = SUNLinSolNewEmpty();
+      MFEM_VERIFY(LSA, "error in SUNLinSolNewEmpty()");
+
+      LSA->content      = this;
+      LSA->ops->gettype = LSGetType;
+      LSA->ops->solve   = KINSolver::LinSysSolve;
+      LSA->ops->free    = LSFree;
+
+      A = SUNMatNewEmpty();
+      MFEM_VERIFY(A, "error in SUNMatNewEmpty()");
+
+      A->content      = this;
+      A->ops->getid   = MatGetID;
+      A->ops->destroy = MatDestroy;
+
+      // Attach the linear solver and matrix
+      flag = KINSetLinearSolver(sundials_mem, LSA, A);
+      MFEM_VERIFY(flag == KIN_SUCCESS, "error in KINSetLinearSolver()");
+
+      // Set the Jacobian evaluation function
+      flag = KINSetJacFn(sundials_mem, KINSolver::LinSysSetup);
+      MFEM_VERIFY(flag == KIN_SUCCESS, "error in KINSetJacFn()");
+   }
+}
+
+void KINSolver::SetJFNKSolver(Solver &solver)
+{
    // Store the solver
    prec = &solver;
+
+   wrk.SetSize(height);
 
    // Free any existing linear solver
    if (A != NULL) { SUNMatDestroy(A); A = NULL; }
    if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
 
-   // Wrap KINSolver as SUNLinearSolver and SUNMatrix
-   LSA = SUNLinSolNewEmpty();
-   MFEM_VERIFY(LSA, "error in SUNLinSolNewEmpty()");
+   // Setup FGMRES
+   LSA = SUNLinSol_SPFGMR(y, prec ? PREC_RIGHT : PREC_NONE, maxli);
+   MFEM_VERIFY(LSA, "error in SUNLinSol_SPFGMR()");
 
-   LSA->content      = this;
-   LSA->ops->gettype = LSGetType;
-   LSA->ops->solve   = KINSolver::LinSysSolve;
-   LSA->ops->free    = LSFree;
+   flag = SUNLinSol_SPFGMRSetMaxRestarts(LSA, maxlrs);
+   MFEM_VERIFY(flag == SUNLS_SUCCESS, "error in SUNLinSol_SPFGMR()");
 
-   A = SUNMatNewEmpty();
-   MFEM_VERIFY(A, "error in SUNMatNewEmpty()");
+   flag = KINSetLinearSolver(sundials_mem, LSA, NULL);
+   MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetLinearSolver()");
 
-   A->content      = this;
-   A->ops->getid   = MatGetID;
-   A->ops->destroy = MatDestroy;
-
-   // Attach the linear solver and matrix
-   flag = KINSetLinearSolver(sundials_mem, LSA, A);
-   MFEM_VERIFY(flag == KIN_SUCCESS, "error in KINSetLinearSolver()");
-
-   // Set the Jacobian evaluation function
-   flag = KINSetJacFn(sundials_mem, KINSolver::LinSysSetup);
-   MFEM_VERIFY(flag == KIN_SUCCESS, "error in KINSetJacFn()");
+   if (prec)
+   {
+      flag = KINSetPreconditioner(sundials_mem,
+                                  KINSolver::PrecSetup,
+                                  KINSolver::PrecSolve);
+      MFEM_VERIFY(flag == KIN_SUCCESS, "error in KINSetPreconditioner()");
+   }
 }
 
 void KINSolver::SetScaledStepTol(double sstol)
@@ -1695,6 +1775,17 @@ void KINSolver::Mult(Vector &x,
 
       flag = KINSetPrintLevel(sundials_mem, print_level);
       MFEM_VERIFY(flag == KIN_SUCCESS, "KINSetPrintLevel() failed!");
+
+      if (jfnk && print_level)
+      {
+         flag = SUNLinSolSetInfoFile_SPFGMR(LSA, stdout);
+         MFEM_VERIFY(flag == SUNLS_SUCCESS,
+                     "error in SUNLinSolSetInfoFile_SPFGMR()");
+
+         flag = SUNLinSolSetPrintLevel_SPFGMR(LSA, 1);
+         MFEM_VERIFY(flag == SUNLS_SUCCESS,
+                     "error in SUNLinSolSetPrintLevel_SPFGMR()");
+      }
    }
    else
    {
@@ -1711,6 +1802,17 @@ void KINSolver::Mult(Vector &x,
       {
          flag = KINSetPrintLevel(sundials_mem, print_level);
          MFEM_VERIFY(flag == KIN_SUCCESS, "KINSetPrintLevel() failed!");
+
+         if (jfnk && print_level)
+         {
+            flag = SUNLinSolSetInfoFile_SPFGMR(LSA, stdout);
+            MFEM_VERIFY(flag == SUNLS_SUCCESS,
+                        "error in SUNLinSolSetInfoFile_SPFGMR()");
+
+            flag = SUNLinSolSetPrintLevel_SPFGMR(LSA, 1);
+            MFEM_VERIFY(flag == SUNLS_SUCCESS,
+                        "error in SUNLinSolSetPrintLevel_SPFGMR()");
+         }
       }
 #endif
 
