@@ -101,7 +101,7 @@ int main(int argc, char *argv[])
    {
       //cout << innerelems.at(i) << endl;
    }
-   GetCutElementIntRule<2>(mesh, cutelems, CutSquareIntRules);
+   GetCutElementIntRule<2>(mesh, cutelems, order, CutSquareIntRules);
    b->AddDomainIntegrator(new CutDomainIntegrator(one, CutSquareIntRules));
    b->Assemble();
    // cout << "element geometry type for cut element is " << endl;                                                 
@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
 }
 
 template <int N>
-void GetCutElementIntRule(Mesh* mesh, vector<int> cutelems, 
+void GetCutElementIntRule(Mesh* mesh, vector<int> cutelems, int order,
                               std::map<int, IntegrationRule *> &CutSquareIntRules )
 {
    for (int k=0; k<cutelems.size(); ++k)
@@ -142,7 +142,7 @@ void GetCutElementIntRule(Mesh* mesh, vector<int> cutelems,
       phi.yscale = xmax[1]- xmin[1];
       phi.xmin=xmin[0];
       phi.ymin=xmin[1];
-      auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double,N>(xlower, xupper), -1, -1, 1);
+      auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double,N>(xlower, xupper), -1, -1, order);
       //auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double,N>(xmin, xmax), -1, -1, 1);
       //cout << "number of quadrature nodes: " << q.nodes.size() << endl;
       int i=0;
