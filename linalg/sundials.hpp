@@ -563,6 +563,10 @@ protected:
    mutable N_Vector y_scale, f_scale; ///< scaling vectors
    const Operator *jacobian;          ///< stores oper->GetGradient()
    int maa;                           ///< number of acceleration vectors
+   bool jfnk = false;                 ///< enable JFNK
+   Vector wrk;                        ///< Work vector needed for the JFNK PC
+   int maxli = 5;                     ///< Maximum linear iterations
+   int maxlrs = 0;                    ///< Maximum linear iterations
 
    /// Wrapper to compute the nonlinear residual \f$ F(u) = 0 \f$.
    static int Mult(const N_Vector u, N_Vector fu, void *user_data);
@@ -578,6 +582,23 @@ protected:
    /// Solve the linear system \f$ J u = b \f$.
    static int LinSysSolve(SUNLinearSolver LS, SUNMatrix J, N_Vector u,
                           N_Vector b, realtype tol);
+
+   /// Setup the preconditioner.
+   static int PrecSetup(N_Vector uu,
+                        N_Vector uscale,
+                        N_Vector fval,
+                        N_Vector fscale,
+                        void *user_data);
+
+   /// Solve the preconditioner equation \f$ Pz = v \f$.
+   static int PrecSolve(N_Vector uu,
+                        N_Vector uscale,
+                        N_Vector fval,
+                        N_Vector fscale,
+                        N_Vector vv,
+                        void *user_data);
+
+   void SetJFNKSolver(Solver &solver);
 
 public:
 
@@ -638,6 +659,24 @@ public:
        altered after SetOperator() is called but it can't be higher than initial
        maximum. */
    void SetMAA(int maa);
+
+   /// Set the Jacobian Free Newton Krylov flag. The default is false.
+   /** This flag indicates to use JFNK as the linear solver for KINSOL. This
+       means the Solver object set in SetSolver() or SetPreconditioner() is used
+       as a Preconditioner for an FGMRES algorithm provided by SpFGMR from
+       Sundials. Furthermore all Jacobian vector products in the outer Krylov
+       method are approximated by a difference quotient and the relative
+       tolerance for the outer Krylov method is adaptive. See the KINSOL User
+       Manual for details. */
+   void SetJFNK(bool use_jfnk) { jfnk = use_jfnk; }
+
+   /// Set the maximum number of linear solver iterations
+   /** @note Only valid in combination with JFNK */
+   void SetLSMaxIter(int m) { maxli = m; }
+
+   /// Set the maximum number of linear solver restarts
+   /** @note Only valid in combination with JFNK */
+   void SetLSMaxRestarts(int m) { maxlrs = m; }
 
    /// Solve the nonlinear system \f$ F(x) = 0 \f$.
    /** This method computes the x_scale and fx_scale vectors and calls the
