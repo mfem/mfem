@@ -56,6 +56,7 @@ set(SRCS
   nonlininteg.cpp
   fespacehierarchy.cpp
   nonlininteg_vectorconvection.cpp
+  nonlininteg_vectorconvection_mf.cpp
   quadinterpolator.cpp
   quadinterpolator_face.cpp
   restriction.cpp
