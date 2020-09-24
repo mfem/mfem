@@ -294,7 +294,7 @@ public:
 #define SWTIMING
 #define SERIAL_PROLONGATION
 #define ITERATIVE_COARSE_SOLVE
-//#define SPARSE_JACOBI
+#define SPARSE_JACOBI
 //#define SPARSE_ICHOLESKY
 //#define SPARSE_ILU
 //#define COARSE_PA

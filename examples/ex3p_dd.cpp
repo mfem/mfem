@@ -974,6 +974,7 @@ int main(int argc, char *argv[])
    bool use_strumpack = true;
 #endif
    const char *device_config = "cpu";
+   int parallel_refinements = 0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -994,6 +995,8 @@ int main(int argc, char *argv[])
                   "-no-strumpack", "--no-strumpack-solver",
                   "Use STRUMPACK's double complex linear solver.");
 #endif
+   args.AddOption(&parallel_refinements, "-rp", "--parref",
+                  "Number of parallel refinements");
 
    args.Parse();
    if (!args.Good())
@@ -1029,14 +1032,49 @@ int main(int argc, char *argv[])
    dim = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
 
+   const bool attributesInFile = true;
 #ifdef SUBDOMAIN_MESH
-   for (int i=0; i<mesh->GetNE();
-        ++i)  // Loop over all elements, to set the attribute as the subdomain index.
-   {
-      mesh->SetAttribute(i, i+1);  // Set each element to be a subdomain.
-   }
+   int numSubdomains = 0;
 
-   const int numSubdomains = mesh->GetNE();
+   if (attributesInFile)
+   {
+      // Verify that attributes are consecutive from 1 to number of attributes
+      for (int i=0; i<mesh->GetNE(); ++i)
+      {
+         const int a = mesh->GetAttribute(i);
+         MFEM_VERIFY(a > 0, "");
+         numSubdomains = std::max(numSubdomains, a);
+      }
+
+      std::vector<bool> sdExists;
+      sdExists.assign(numSubdomains, false);
+      for (int i=0; i<mesh->GetNE(); ++i)
+      {
+         sdExists[mesh->GetAttribute(i)-1] = true;
+      }
+
+      bool missingOne = false;
+      for (int i=0; i<numSubdomains; ++i)
+      {
+         if (!sdExists[i])
+         {
+            missingOne = true;
+         }
+      }
+
+      MFEM_VERIFY(!missingOne,
+                  "Attributes are not consecutive from 1 to number of subdomains.");
+   }
+   else
+   {
+      for (int i=0; i<mesh->GetNE();
+           ++i)  // Loop over all elements, to set the attribute as the subdomain index.
+      {
+         mesh->SetAttribute(i, i+1);  // Set each element to be a subdomain.
+      }
+
+      numSubdomains = mesh->GetNE();
+   }
 #endif
 
    // 4. Refine the serial mesh on all processors to increase the resolution. In
@@ -1054,6 +1092,13 @@ int main(int argc, char *argv[])
       // Note: with nx=6 in inline-tetHalf2.mesh, 1/64 becomes 1/96; 1/128 becomes 1/192.
 
       cout << myid << ": Serial mesh ref levels " << ref_levels << endl;
+
+#ifdef SUBDOMAIN_MESH
+      if (attributesInFile)
+      {
+         ref_levels = 0;
+      }
+#endif
 
       //(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
@@ -1289,7 +1334,22 @@ int main(int argc, char *argv[])
    }
    else
    {
-      pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+      if (attributesInFile)
+      {
+         std::vector<int> partition(mesh->GetNE());
+
+         for (int i=0; i<mesh->GetNE(); ++i)
+         {
+            partition[i] = mesh->GetAttribute(i)
+                           -1;   // One-to-one mapping between subdomains and processes.
+         }
+
+         pmesh = new ParMesh(MPI_COMM_WORLD, *mesh, partition.data());
+      }
+      else
+      {
+         pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+      }
    }
 
    delete mesh;
@@ -1338,7 +1398,7 @@ int main(int argc, char *argv[])
 #endif
 
    {
-      int par_ref_levels = 1;
+      int par_ref_levels = parallel_refinements;
 
       if (myid == 0)
       {

@@ -335,6 +335,8 @@ public:
 
       std::vector<int> fos(num_procs);
 
+      const double markerTol = 0.0001;
+
       {
          HYPRE_Int* ftdofos = face_fes.GetTrueDofOffsets();
          const int fstart = ftdofos[0];
@@ -365,7 +367,7 @@ public:
          // If elem_marker(j) > 0.0, then j is a neighbor of an element marked above, or j was marked above.
          for (int i=0; i<pmesh->GetNE(); ++i)
          {
-            if (pmesh->GetAttribute(i) != s+1 && elem_marker[i] > 0.1)
+            if (pmesh->GetAttribute(i) != s+1 && elem_marker[i] > markerTol)
             {
                // Element i is in a subdomain with index other than s.
                const int neighborSD = pmesh->GetAttribute(i) - 1;
@@ -398,7 +400,7 @@ public:
 
                for (int j = 0; j < v.Size(); j++)
                {
-                  if (vert_marker_gf_host[v[j]] > 0.1)
+                  if (vert_marker_gf_host[v[j]] > markerTol)
                   {
                      interfaces[interfaceIndex].InsertVertexIndex(v[j]);
                   }
@@ -411,7 +413,7 @@ public:
                   bool edgeOn = true;
                   for (int j=0; j<ev.Size(); ++j)
                   {
-                     if (vert_marker_gf_host[ev[j]] < 0.1)
+                     if (vert_marker_gf_host[ev[j]] < markerTol)
                      {
                         edgeOn = false;
                      }
@@ -433,7 +435,7 @@ public:
                   //bool yhalf = true;
                   for (int j=0; j<fv.Size(); ++j)
                   {
-                     if (vert_marker_gf_host[fv[j]] < 0.1)
+                     if (vert_marker_gf_host[fv[j]] < markerTol)
                      {
                         faceOn = false;
                      }
@@ -486,6 +488,8 @@ public:
                }
             }
          }
+
+         MPI_Barrier(MPI_COMM_WORLD);
       }
 
       delete vert_elem;

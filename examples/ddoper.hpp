@@ -2158,7 +2158,11 @@ public:
 #ifdef COARSE_PA
       const bool pa = true;
 #else
+#ifdef BLOCK_AMS_PREC
+      const bool pa = false;
+#else
       const bool pa = !fullAssembly;
+#endif
 #endif
 
       if (pa)
@@ -2615,7 +2619,7 @@ public:
       LSpcg.SetRelTol(1.0e-8);
       LSpcg.SetMaxIter(2000);
       LSpcg.SetOperator(*LS_Maxwellop);
-      LSpcg.SetPrintLevel(0);
+      LSpcg.SetPrintLevel(1);
 
 #ifdef FOSLS_DIRECT_SOLVER
       std::vector<std::vector<int> > blockProcOffsets(numBlocks);
@@ -2906,6 +2910,7 @@ private:
    mutable Vector z, Minv_x;
 
    CGSolver LSpcg;
+   //MINRESSolver LSpcg;
    mutable Vector initialGuess;
 
    STRUMPACKSolver *invLSH;
