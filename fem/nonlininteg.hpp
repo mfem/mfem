@@ -354,7 +354,11 @@ public:
 
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
+   virtual void AssembleMF(const FiniteElementSpace &fes);
+
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+
+   virtual void AddMultMF(const Vector &x, Vector &y) const;
 };
 
 }
