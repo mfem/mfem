@@ -18,6 +18,9 @@
 #include "../../general/device.hpp"
 #include "../../linalg/vector.hpp"
 #include <ceed.h>
+#include <ceed-hash.h>
+#include <tuple>
+#include <unordered_map>
 
 namespace mfem
 {
@@ -27,7 +30,47 @@ class GridFunction;
 class IntegrationRule;
 class Coefficient;
 
-namespace internal { extern Ceed ceed; } // defined in device.cpp
+// Hash table for CeedBasis
+using CeedBasisKey =
+   std::tuple<const FiniteElementSpace*, const IntegrationRule*, int, int, int>;
+struct CeedBasisHash
+{
+   std::size_t operator()(const CeedBasisKey& k) const
+   {
+      return CeedHashCombine(CeedHashCombine(CeedHashInt(
+                                                reinterpret_cast<CeedHash64_t>(std::get<0>(k))),
+                                             CeedHashInt(
+                                                reinterpret_cast<CeedHash64_t>(std::get<1>(k)))),
+                             CeedHashCombine(CeedHashCombine(CeedHashInt(std::get<2>(k)),
+                                                             CeedHashInt(std::get<3>(k))),
+                                             CeedHashInt(std::get<4>(k))));
+   }
+};
+using CeedBasisMap =
+   std::unordered_map<const CeedBasisKey, CeedBasis, CeedBasisHash>;
+
+// Hash table for CeedElemRestriction
+using CeedRestrKey = std::tuple<const FiniteElementSpace*, int, int, int>;
+struct CeedRestrHash
+{
+   std::size_t operator()(const CeedRestrKey& k) const
+   {
+      return CeedHashCombine(CeedHashCombine(CeedHashInt(
+                                                reinterpret_cast<CeedHash64_t>(std::get<0>(k))),
+                                             CeedHashInt(std::get<1>(k))),
+                             CeedHashCombine(CeedHashInt(std::get<2>(k)),
+                                             CeedHashInt(std::get<3>(k))));
+   }
+};
+using CeedRestrMap =
+   std::unordered_map<const CeedRestrKey, CeedElemRestriction, CeedRestrHash>;
+
+namespace internal
+{
+extern Ceed ceed; // defined in device.cpp
+extern CeedBasisMap basis_map;
+extern CeedRestrMap restr_map;
+}
 
 /// A structure used to pass additional data to f_build_diff and f_apply_diff
 struct BuildContext { CeedInt dim, space_dim; CeedScalar coeff; };
@@ -56,7 +99,8 @@ struct CeedData
    CeedVector node_coords, rho;
    CeedCoeff coeff_type;
    void* coeff;
-   BuildContext build_ctx;
+   CeedQFunctionContext build_ctx;
+   BuildContext build_ctx_data;
 
    CeedVector u, v;
 
@@ -64,10 +108,6 @@ struct CeedData
    {
       CeedOperatorDestroy(&build_oper);
       CeedOperatorDestroy(&oper);
-      CeedBasisDestroy(&basis);
-      CeedBasisDestroy(&mesh_basis);
-      CeedElemRestrictionDestroy(&restr);
-      CeedElemRestrictionDestroy(&mesh_restr);
       CeedElemRestrictionDestroy(&restr_i);
       CeedElemRestrictionDestroy(&mesh_restr_i);
       CeedQFunctionDestroy(&apply_qfunc);
@@ -77,8 +117,6 @@ struct CeedData
       if (coeff_type==CeedCoeff::Grid)
       {
          CeedGridCoeff* c = (CeedGridCoeff*)coeff;
-         CeedBasisDestroy(&c->basis);
-         CeedElemRestrictionDestroy(&c->restr);
          CeedVectorDestroy(&c->coeffVector);
          delete c;
       }

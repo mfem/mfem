@@ -160,6 +160,16 @@ NCMesh::NCMesh(const Mesh *mesh)
       }
    }
 
+   // if the user initialized any hanging nodes with Mesh::AddVertexParents,
+   // copy the hierarchy now
+   if (mesh->tmp_vertex_parents.Size())
+   {
+      for (const auto &triple : mesh->tmp_vertex_parents)
+      {
+         nodes.Reparent(triple.one, triple.two, triple.three);
+      }
+   }
+
    // copy top-level vertex coordinates (leave empty if the mesh is curved)
    if (!mesh->Nodes)
    {
