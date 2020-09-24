@@ -333,7 +333,7 @@ private:
    CeedData* ceedDataPtr;
 
 public:
-   VectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { }
+   VectorConvectionNLFIntegrator(Coefficient &q): Q(&q), ceedDataPtr(NULL) { }
 
    VectorConvectionNLFIntegrator() = default;
 
