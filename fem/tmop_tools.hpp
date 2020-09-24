@@ -180,6 +180,14 @@ public:
       else { MFEM_ABORT("Invalid type"); }
    }
    virtual void SetPreconditioner(Solver &pr) { SetSolver(pr); }
+
+   virtual double GetNorm(Vector &x)
+   {
+      Vector dx(oper->Width());
+      ProcessNewState(x);
+      oper->Mult(x, dx);
+      return Norm(dx);
+   }
 };
 
 void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,
