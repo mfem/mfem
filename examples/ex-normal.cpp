@@ -2,6 +2,12 @@
 //
 
 /*
+  higher order seems to work fine?
+  3D also looks fine
+  curved mesh does *not* seem to be working
+  (not even for the mesh itself, but this may be VisIt and not MFEM)
+  solver obviously still needs some serious work
+
   square-disc attributes (not indices):
 
   1: south external
@@ -12,6 +18,18 @@
   6: northeast internal
   7: northwest internal
   8: southwest internal
+
+  icf attributes (not indices):
+
+  1: west side
+  2: south side
+  3: ???
+  4: outer edge (circle constraint)
+  5: some internal boundaries??
+
+  sphere_hex27.mesh
+
+  1: external boundary
 */
 
 #include "mfem.hpp"
@@ -163,13 +181,13 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // 2. Parse command-line options.
-   const char *mesh_file = "../data/square-disc.mesh";
+   const char *mesh_file = "../data/square-disc-p3.mesh";
    int order = 1;
    bool static_cond = false;
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
-   int boundary_attribute = 1;
+   int boundary_attribute = 0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -188,7 +206,7 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&boundary_attribute, "--boundary-attribute", "--boundary-attribute",
                   "Which attribute to apply essential conditions on.");
-                  
+
    args.Parse();
    if (!args.Good())
    {
@@ -219,6 +237,7 @@ int main(int argc, char *argv[])
          mesh.UniformRefinement();
       }
    }
+   mesh.SetCurvature(order); // ??? try to get curved mesh
 
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
@@ -268,21 +287,36 @@ int main(int argc, char *argv[])
       Array<int> ess_bdr(pmesh.bdr_attributes.Max());
       // ess_bdr = 1;
       ess_bdr = 0;
-      ess_bdr[boundary_attribute - 1] = 1;
+      if (boundary_attribute > 0)
+      {
+         ess_bdr[boundary_attribute - 1] = 1;
+      }
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
+/*
    Array<int> circle_atts(4);
    circle_atts[0] = 5;
    circle_atts[1] = 6;
    circle_atts[2] = 7;
    circle_atts[3] = 8;
    SparseMatrix * constraint_mat = BuildConstraints(fespace, circle_atts);
+*/
+
+/*
+   Array<int> icf_atts(1);
+   icf_atts[0] = 4;
+   SparseMatrix * constraint_mat = BuildConstraints(fespace, icf_atts);
+*/
+
+   Array<int> sphere_atts(1);
+   sphere_atts[0] = 1;
+   SparseMatrix * constraint_mat = BuildConstraints(fespace, sphere_atts);
+
    {
       std::ofstream out("constraint.sparsematrix");
       constraint_mat->Print(out, 1);
    }
-
 
    ParLinearForm b(&fespace);
    // ConstantCoefficient one(1.0);
@@ -324,34 +358,6 @@ int main(int argc, char *argv[])
    ConstrainedSolver constrained(*A.As<HypreParMatrix>(), *constraint_mat);
    constrained.Mult(B, X);
 
-/*
-   // 13. Solve the linear system A X = B.
-   //     * With full assembly, use the BoomerAMG preconditioner from hypre.
-   //     * With partial assembly, use Jacobi smoothing, for now.
-   Solver *prec = NULL;
-   if (pa)
-   {
-      if (UsesTensorBasis(fespace))
-      {
-         prec = new OperatorJacobiSmoother(a, ess_tdof_list);
-      }
-   }
-   else
-   {
-      auto h_prec = new HypreBoomerAMG;
-      h_prec->SetPrintLevel(0);
-      prec = h_prec;
-   }
-   CGSolver cg(MPI_COMM_WORLD);
-   cg.SetRelTol(1e-12);
-   cg.SetMaxIter(2000);
-   cg.SetPrintLevel(1);
-   if (prec) { cg.SetPreconditioner(*prec); }
-   cg.SetOperator(*A);
-   cg.Mult(B, X);
-   delete prec;
-*/
-
    // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
    a.RecoverFEMSolution(X, b, x);
@@ -362,8 +368,11 @@ int main(int argc, char *argv[])
       // todo: might make more sense to .SetCycle() than to append boundary_attribute to name
       std::stringstream visitname;
       visitname << "normal" << boundary_attribute;
+      // visitname << "icf";
       VisItDataCollection visit_dc(MPI_COMM_WORLD, visitname.str(), &pmesh);
+      visit_dc.SetLevelsOfDetail(4);
       visit_dc.RegisterField("sol", &x);
+      // visit_dc.SetCycle(boundary_attribute);
       visit_dc.Save();
    }
 
