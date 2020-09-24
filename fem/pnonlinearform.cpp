@@ -219,7 +219,6 @@ void ParBlockNonlinearForm::SetEssentialBC(const
 
 double ParBlockNonlinearForm::GetEnergy(const Vector &x) const
 {
-
    xs_true.Update(x.GetData(), block_trueOffsets);
    xs.Update(block_offsets);
 
