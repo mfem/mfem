@@ -26,8 +26,7 @@ void CeedPANLConvectionAssemble(const FiniteElementSpace &fes,
    Mesh &mesh = *fes.GetMesh();
    // Perform checks for some assumptions made in the Q-functions.
    MFEM_VERIFY(mesh.Dimension() == mesh.SpaceDimension(), "case not supported");
-   MFEM_VERIFY(fes.GetVDim() == mesh.Dimension(),
-               "case not supported");
+   MFEM_VERIFY(fes.GetVDim() == mesh.Dimension(), "case not supported");
    int dim = mesh.Dimension();
    CeedPAOperator convOp = {fes, irm,
                             dim * dim, "/nlconvection.h",
