@@ -38,8 +38,8 @@ CEED_QFUNCTION(f_build_conv_const)(void *ctx, CeedInt Q,
       case 22:
          for (CeedInt i = 0; i < Q; i++)
          {
-            // J: 0 2   qd: 0 1   adj(J):  J22 -J12
-            //    1 3       1 2           -J21  J11
+            // J: 0 2   qd: 0 2   adj(J):  J22 -J12
+            //    1 3       1 3           -J21  J11
             const CeedScalar J11 = J[i + Q * 0];
             const CeedScalar J21 = J[i + Q * 1];
             const CeedScalar J12 = J[i + Q * 2];
@@ -47,16 +47,16 @@ CEED_QFUNCTION(f_build_conv_const)(void *ctx, CeedInt Q,
             const CeedScalar w = qw[i] * coeff;
             qd[i + Q * 0] =  w * J22;
             qd[i + Q * 1] = -w * J21;
-            qd[i + Q * 2] =  w * J22;
-            qd[i + Q * 3] = -w * J21;
+            qd[i + Q * 2] = -w * J12;
+            qd[i + Q * 3] =  w * J11;
          }
          break;
       case 33:
          for (CeedInt i = 0; i < Q; i++)
          {
-            // J: 0 3 6   qd: 0 1 2
-            //    1 4 7       1 3 4
-            //    2 5 8       2 4 5
+            // J: 0 3 6   qd: 0 3 6
+            //    1 4 7       1 4 7
+            //    2 5 8       2 5 8
             const CeedScalar J11 = J[i + Q * 0];
             const CeedScalar J21 = J[i + Q * 1];
             const CeedScalar J31 = J[i + Q * 2];
@@ -117,8 +117,8 @@ CEED_QFUNCTION(f_build_conv_quad)(void *ctx, CeedInt Q,
       case 22:
          for (CeedInt i = 0; i < Q; i++)
          {
-            // J: 0 2   qd: 0 1   adj(J):  J22 -J12
-            //    1 3       1 2           -J21  J11
+            // J: 0 2   qd: 0 2   adj(J):  J22 -J12
+            //    1 3       1 3           -J21  J11
             const CeedScalar J11 = J[i + Q * 0];
             const CeedScalar J21 = J[i + Q * 1];
             const CeedScalar J12 = J[i + Q * 2];
@@ -127,16 +127,16 @@ CEED_QFUNCTION(f_build_conv_quad)(void *ctx, CeedInt Q,
             const CeedScalar w = qw[i] * coeff;
             qd[i + Q * 0] =  w * J22;
             qd[i + Q * 1] = -w * J21;
-            qd[i + Q * 2] =  w * J22;
-            qd[i + Q * 3] = -w * J21;
+            qd[i + Q * 2] = -w * J12;
+            qd[i + Q * 3] =  w * J11;
          }
          break;
       case 33:
          for (CeedInt i = 0; i < Q; i++)
          {
-            // J: 0 3 6   qd: 0 1 2
-            //    1 4 7       1 3 4
-            //    2 5 8       2 4 5
+            // J: 0 3 6   qd: 0 3 6
+            //    1 4 7       1 4 7
+            //    2 5 8       2 5 8
             const CeedScalar J11 = J[i + Q * 0];
             const CeedScalar J21 = J[i + Q * 1];
             const CeedScalar J31 = J[i + Q * 2];
@@ -278,8 +278,8 @@ CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
       case 22:
          for (CeedInt i = 0; i < Q; i++)
          {
-            // J: 0 2   qd: 0 1   adj(J):  J22 -J12
-            //    1 3       1 2           -J21  J11
+            // J: 0 2   qd: 0 2   adj(J):  J22 -J12
+            //    1 3       1 3           -J21  J11
             const CeedScalar J11 = J[i + Q * 0];
             const CeedScalar J21 = J[i + Q * 1];
             const CeedScalar J12 = J[i + Q * 2];
@@ -287,8 +287,8 @@ CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
             const CeedScalar w = qw[i] * coeff;
             const CeedScalar qd00 =  w * J22;
             const CeedScalar qd10 = -w * J21;
-            const CeedScalar qd01 =  w * J22;
-            const CeedScalar qd11 = -w * J21;
+            const CeedScalar qd01 = -w * J12;
+            const CeedScalar qd11 =  w * J11;
             const CeedScalar u0   = u[i + Q * 0];
             const CeedScalar u1   = u[i + Q * 1];
             const CeedScalar ug00 = ug[i + Q * 0];
@@ -306,9 +306,9 @@ CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
       case 33:
          for (CeedInt i = 0; i < Q; i++)
          {
-            // J: 0 3 6   qd: 0 1 2
-            //    1 4 7       1 3 4
-            //    2 5 8       2 4 5
+            // J: 0 3 6   qd: 0 3 6
+            //    1 4 7       1 4 7
+            //    2 5 8       2 5 8
             const CeedScalar J11 = J[i + Q * 0];
             const CeedScalar J21 = J[i + Q * 1];
             const CeedScalar J31 = J[i + Q * 2];
@@ -391,8 +391,8 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
       case 22:
          for (CeedInt i = 0; i < Q; i++)
          {
-            // J: 0 2   qd: 0 1   adj(J):  J22 -J12
-            //    1 3       1 2           -J21  J11
+            // J: 0 2   qd: 0 2   adj(J):  J22 -J12
+            //    1 3       1 3           -J21  J11
             const CeedScalar J11 = J[i + Q * 0];
             const CeedScalar J21 = J[i + Q * 1];
             const CeedScalar J12 = J[i + Q * 2];
@@ -400,8 +400,8 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
             const CeedScalar w = qw[i] * c[i];
             const CeedScalar qd00 =  w * J22;
             const CeedScalar qd10 = -w * J21;
-            const CeedScalar qd01 =  w * J22;
-            const CeedScalar qd11 = -w * J21;
+            const CeedScalar qd01 = -w * J12;
+            const CeedScalar qd11 =  w * J11;
             const CeedScalar u0   = u[i + Q * 0];
             const CeedScalar u1   = u[i + Q * 1];
             const CeedScalar ug00 = ug[i + Q * 0];
@@ -419,9 +419,9 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
       case 33:
          for (CeedInt i = 0; i < Q; i++)
          {
-            // J: 0 3 6   qd: 0 1 2
-            //    1 4 7       1 3 4
-            //    2 5 8       2 4 5
+            // J: 0 3 6   qd: 0 3 6
+            //    1 4 7       1 4 7
+            //    2 5 8       2 5 8
             const CeedScalar J11 = J[i + Q * 0];
             const CeedScalar J21 = J[i + Q * 1];
             const CeedScalar J31 = J[i + Q * 2];
