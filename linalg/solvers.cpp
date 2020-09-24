@@ -178,7 +178,11 @@ void OperatorJacobiSmoother::Setup(const Vector &diag)
    const double delta = damping;
    auto D = diag.Read();
    auto DI = dinv.Write();
-   MFEM_FORALL(i, N, DI[i] = delta / D[i]; );
+   MFEM_FORALL(i, N,
+   {
+      const double d_i = (D[i] < 0.0 && abs_values) ? -D[i] : D[i];
+      DI[i] = delta / d_i;
+   });
    auto I = ess_tdof_list.Read();
    MFEM_FORALL(i, ess_tdof_list.Size(), DI[I[i]] = delta; );
 }
