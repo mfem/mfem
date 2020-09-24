@@ -13,13 +13,15 @@ Version 4.1.1 (development)
 
 libCEED integration improvements
 --------------------------------
-- Add support for all types of (scalar) Coefficient.
+- Add support for all types of (scalar) Coefficient, and VectorCoefficient.
 
-- Add support for VectorMassIntegrator and VectorDiffusionIntegrator.
+- Add support for ConvectionIntegrator, VectorMassIntegrator,
+  VectorDiffusionIntegrator, and VectorConvectionNLFIntegrator.
 
 - Add support for AssemblyLevel::NONE for MassIntegrator, DiffusionIntegrator,
-  VectorMassIntegrator, and VectorDiffusionIntegrator. This level of assembly
-  fully applies on the fly the finite element operator.
+  ConvectionIntegrator, VectorMassIntegrator, VectorDiffusionIntegrator, and
+  VectorConvectionNLFIntegrator. This level of assembly fully applies on the fly
+  the finite element operator.
 
 Meshing improvements
 --------------------
