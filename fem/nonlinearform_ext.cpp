@@ -50,7 +50,7 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
    Array<NonlinearFormIntegrator*> &integrators = *n->GetDNFI();
    const int iSz = integrators.Size();
-   if (elem_restrict_lex)
+   if (elem_restrict_lex && !DeviceCanUseCeed())
    {
       elem_restrict_lex->Mult(x, localX);
       localY = 0.0;
@@ -98,7 +98,7 @@ void MFNonlinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
    Array<NonlinearFormIntegrator*> &integrators = *n->GetDNFI();
    const int iSz = integrators.Size();
-   if (elem_restrict_lex)
+   if (elem_restrict_lex && !DeviceCanUseCeed())
    {
       elem_restrict_lex->Mult(x, localX);
       localY = 0.0;
