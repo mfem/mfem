@@ -139,6 +139,7 @@ public:
 
    void SetOperator(const Operator &op);
    void Setup(const Vector &diag);
+   void SetAbsValues(bool use_abs_values) { abs_values = use_abs_values; }
 
 private:
    const int N;
@@ -147,6 +148,7 @@ private:
    const Array<int> &ess_tdof_list;
    mutable Vector residual;
    const bool dynamic = false;
+   bool abs_values = false;
 
    const Operator *oper;
    const NonlinearForm *nlf = NULL;
