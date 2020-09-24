@@ -156,4 +156,6 @@
 // library.
 #cmakedefine MFEM_USE_SIMMETRIX
 
+#cmakedefine MFEM_USE_MKLCPARDISO
+
 #endif // MFEM_CONFIG_HEADER

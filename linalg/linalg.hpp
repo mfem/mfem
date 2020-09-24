@@ -61,6 +61,10 @@
 #include "strumpack.hpp"
 #endif
 
+#ifdef MFEM_USE_MKLCPARDISO
+#include "cpardiso.hpp"
+#endif
+
 #endif // MFEM_USE_MPI
 
 #endif
