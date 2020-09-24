@@ -122,12 +122,12 @@ int main(int argc, char *argv[])
    //    more than 10,000 elements.
    {
       srand(1);
-      int ref_levels = 3;
+      int ref_levels = 1;
          //(int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
-         //mesh.UniformRefinement();
-         mesh.RandomRefinement(0.5);
+         mesh.UniformRefinement();
+         //mesh.RandomRefinement(0.5);
       }
    }
 
@@ -138,7 +138,7 @@ int main(int argc, char *argv[])
    mesh.Clear();
    {
       srand(myid + 1);
-      int par_ref_levels = 2;
+      int par_ref_levels = 0;
       for (int l = 0; l < par_ref_levels; l++)
       {
          //pmesh.UniformRefinement();
