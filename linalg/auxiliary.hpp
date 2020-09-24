@@ -136,8 +136,6 @@ private:
    mutable double gspacesolver_time_;
    mutable double pispacesolver_time_;
 
-   void DebugVector(const mfem::Vector& vec, const std::string& tag) const;
-
    void FormResidual(const mfem::Vector& rhs, const mfem::Vector& x,
                      mfem::Vector& residual) const;
 };
