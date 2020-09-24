@@ -1712,6 +1712,7 @@ void ParMesh::GetFaceNbrElementTransformation(
    ElTr->Attribute = elem->GetAttribute();
    ElTr->ElementNo = NumOfElements + i;
    ElTr->ElementType = ElementTransformation::ELEMENT;
+   ElTr->Reset();
 
    if (Nodes == NULL)
    {
@@ -2391,6 +2392,7 @@ void ParMesh::GetGhostFaceTransformation(
 {
    // calculate composition of FETr->Loc1 and FETr->Elem1
    DenseMatrix &face_pm = FETr->GetPointMat();
+   FETr->Reset();
    if (Nodes == NULL)
    {
       FETr->Elem1->Transform(FETr->Loc1.Transf.GetPointMat(), face_pm);
