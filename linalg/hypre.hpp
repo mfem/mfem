@@ -967,7 +967,15 @@ public:
 
    virtual void SetOperator(const Operator &op);
 
+   /// Set symmetry parameter
+   /** The recognized options are:
+    *  0 = nonsymmetric and/or indefinite problem, and nonsymmetric preconditioner
+    *  1 = SPD problem, and SPD (factored) preconditioner
+    *  2 = nonsymmetric, definite problem, and SPD (factored) preconditioner
+    */
    void SetSymmetry(int sym);
+   /// Set the logging parameter
+   void SetLogging(int logging);
 
    /// The typecast to HYPRE_Solver returns the internal sai_precond
    virtual operator HYPRE_Solver() const { return sai_precond; }

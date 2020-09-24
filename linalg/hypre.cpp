@@ -3178,6 +3178,11 @@ void HypreParaSails::SetSymmetry(int sym)
    HYPRE_ParaSailsSetSym(sai_precond, sym);
 }
 
+void HypreParaSails::SetLogging(int logging)
+{
+   HYPRE_ParaSailsSetLogging(sai_precond, logging);
+}
+
 HypreParaSails::~HypreParaSails()
 {
    HYPRE_ParaSailsDestroy(sai_precond);
