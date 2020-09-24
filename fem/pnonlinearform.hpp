@@ -82,6 +82,7 @@ protected:
    mutable BlockOperator *pBlockGrad;
 
 public:
+   /// Computes the energy of the system
    virtual double GetEnergy(const Vector &x) const;
 
    /// Construct an empty ParBlockNonlinearForm. Initialize with SetParSpaces().
