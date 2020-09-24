@@ -7,6 +7,7 @@
   curved mesh does *not* seem to be working
   (not even for the mesh itself, but this may be VisIt and not MFEM)
   solver obviously still needs some serious work
+  also, parallel should be tested at some point
 
   square-disc attributes (not indices):
 
@@ -124,7 +125,7 @@ public:
 class ConstrainedSolver : public Solver
 {
 public:
-   ConstrainedSolver(Operator& A, SparseMatrix& B);
+   ConstrainedSolver(Operator& A, Operator& B);
    ~ConstrainedSolver();
 
    void SetOperator(const Operator& op) { }
@@ -153,7 +154,7 @@ private:
    mutable Vector workx;
 };
 
-ConstrainedSolver::ConstrainedSolver(Operator& A, SparseMatrix& B)
+ConstrainedSolver::ConstrainedSolver(Operator& A, Operator& B)
    :
    // Solver(A.Height() + B.Height()),
    Solver(A.Height()),  // not sure conceptually what the size should be!
@@ -236,6 +237,7 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = true;
    int boundary_attribute = 0;
+   int refine = -1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -254,6 +256,8 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&boundary_attribute, "--boundary-attribute", "--boundary-attribute",
                   "Which attribute to apply essential conditions on.");
+   args.AddOption(&refine, "--refine", "--refine",
+                  "Levels of serial refinement (-1 for automatic)");
 
    args.Parse();
    if (!args.Good())
@@ -278,8 +282,16 @@ int main(int argc, char *argv[])
    int dim = mesh.Dimension();
 
    {
-      int ref_levels =
-         (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
+      int ref_levels;
+      if (refine == -1)
+      {
+         ref_levels =
+            (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
+      }
+      else
+      {
+         ref_levels = refine;
+      }
       for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();
@@ -360,6 +372,10 @@ int main(int argc, char *argv[])
    {
       constraint_atts.SetSize(1);
       constraint_atts[0] = 1;
+   }
+   else
+   {
+      mfem_error("Unrecognized mesh!");
    }
    SparseMatrix * constraint_mat = BuildConstraints(fespace, constraint_atts);
    {
