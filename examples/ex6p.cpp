@@ -308,8 +308,9 @@ int main(int argc, char *argv[])
       b.Update();
 
       // 25. Save the current state of the mesh every 5 iterations. The
-      //     computation can be restarted from this point. Note that we need to
-      //     use the 'ParPrint' method to save the mesh in parallel.
+      //     computation can be restarted from this point. Note that unlike in
+      //     visualization, we need to use the 'ParPrint' method to save all
+      //     internal parallel data structures.
       if (it % 5 == 0)
       {
          ofstream ofs(MakeParFilename("ex6p-checkpoint.", myid));
