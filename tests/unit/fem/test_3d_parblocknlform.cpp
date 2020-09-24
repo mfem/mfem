@@ -89,9 +89,11 @@ public:
 
 #ifdef MFEM_USE_MPI
 
+//"[GetEnergy method]"
+//"[Mixed Scalar Integrator]"
+
+
 TEST_CASE("3D ParBlockNonlinearForm",
-          "[GetEnergy method]"
-          "[Mixed Scalar Integrator]"
           "[Parallel]")
 {
    int num_procs;
