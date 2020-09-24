@@ -9,7 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "catch.hpp"
+#include "unit_tests.hpp"
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -43,32 +43,21 @@ double div_non_solenoidal_field2d(const Vector &x)
 
 void solenoidal_field3d(const Vector &x, Vector &u)
 {
-   double xi = x(0);
-   double yi = x(1);
-   double zi = x(2);
-
-   u(0) = -cos(zi) * sin(xi);
-   u(1) = -cos(xi) * cos(zi);
-   u(2) = cos(xi) * sin(yi) + cos(xi) * sin(zi);
+   u(0) = -x(0)*x(0);
+   u(1) = x(0)*x(1);
+   u(2) = x(0)*x(2);
 }
 
 void non_solenoidal_field3d(const Vector &x, Vector &u)
 {
-   double xi = x(0);
-   double yi = x(1);
-   double zi = x(2);
-
-   u(0) = cos(xi) * cos(yi);
-   u(1) = sin(xi) * sin(zi);
-   u(2) = cos(zi) * sin(xi);
+   u(0) = x(0)*x(0);
+   u(1) = x(1)*x(1);
+   u(2) = x(2)*x(2);
 }
 
 double div_non_solenoidal_field3d(const Vector &x)
 {
-   double xi = x(0);
-   double yi = x(1);
-   double zi = x(2);
-   return -cos(yi) * sin(xi) - sin(xi) * sin(zi);
+   return 2*(x(0) + x(1) + x(2));
 }
 
 double pa_divergence_testnd(int dim,
@@ -125,53 +114,44 @@ TEST_CASE("PA VectorDivergence", "[PartialAssembly]")
    {
       // Check if div([y, -x]) == 0
       REQUIRE(pa_divergence_testnd(2, solenoidal_field2d, zero_field)
-              == Approx(0.0));
+              == MFEM_Approx(0.0));
 
       // Check if div([x*y, -x+y]) == 1 + y
       REQUIRE(pa_divergence_testnd(2,
                                    non_solenoidal_field2d,
                                    div_non_solenoidal_field2d)
-              == Approx(0.0));
+              == MFEM_Approx(0.0));
    }
 
    SECTION("3D")
    {
       // Check if
-      // div([-Cos[z] Sin[x],
-      //      -Cos[x] Cos[z],
-      //       Cos[x] Sin[y] + Cos[x] Sin[z]) == 0
+      // div([-x^2, xy, xz]) == 0
       REQUIRE(pa_divergence_testnd(3, solenoidal_field3d, zero_field)
-              == Approx(0.0));
+              == MFEM_Approx(0.0));
 
       // Check if
-      // div([Cos[x] Cos[y],
-      //      Sin[x] Sin[z],
-      //      Cos[z] Sin[x]]) == -Cos[y] Sin[x] - Sin[x] Sin[z]
+      // div([x^2, y^2, z^2]) == 2(x + y + z)
       REQUIRE(pa_divergence_testnd(3,
                                    non_solenoidal_field3d,
                                    div_non_solenoidal_field3d)
-              == Approx(0.0));
+              == MFEM_Approx(0.0));
    }
 }
 
-double testfunc(const Vector &x)
+double f1(const Vector &x)
 {
-   double r = cos(x(0)) + sin(x(1));
-   if (x.Size() == 3)
-   {
-      r += cos(x(2));
-   }
+   double r = pow(x(0),2);
+   if (x.Size() >= 2) { r += pow(x(1), 3); }
+   if (x.Size() >= 3) { r += pow(x(2), 4); }
    return r;
 }
 
-void grad_testfunc(const Vector &x, Vector &u)
+void gradf1(const Vector &x, Vector &u)
 {
-   u(0) = -sin(x(0));
-   u(1) = cos(x(1));
-   if (x.Size() == 3)
-   {
-      u(2) = -sin(x(2));
-   }
+   u(0) = 2*x(0);
+   if (x.Size() >= 2) { u(1) = 3*pow(x(1), 2); }
+   if (x.Size() >= 3) { u(2) = 4*pow(x(2), 3); }
 }
 
 double pa_gradient_testnd(int dim,
@@ -226,14 +206,14 @@ TEST_CASE("PA Gradient", "[PartialAssembly]")
 {
    SECTION("2D")
    {
-      // Check if grad(Cos[x] + Sin[y]) == [-Sin[x], Cos[y]]
-      REQUIRE(pa_gradient_testnd(2, testfunc, grad_testfunc) == Approx(0.0));
+      // Check if grad(x^2 + y^3) == [2x, 3y^2]
+      REQUIRE(pa_gradient_testnd(2, f1, gradf1) == MFEM_Approx(0.0));
    }
 
    SECTION("3D")
    {
-      // Check if grad(Cos[x] + Sin[y] + Cos[z]) == [-Sin[x], Cos[y], -Sin[z]]
-      REQUIRE(pa_gradient_testnd(3, testfunc, grad_testfunc) == Approx(0.0));
+      // Check if grad(x^2 + y^3 + z^4) == [2x, 3y^2, 4z^3]
+      REQUIRE(pa_gradient_testnd(3, f1, gradf1) == MFEM_Approx(0.0));
    }
 }
 
@@ -279,12 +259,12 @@ TEST_CASE("Nonlinear Convection", "[PartialAssembly], [NonlinearPA]")
 {
    SECTION("2D")
    {
-      REQUIRE(test_nl_convection_nd(2) == Approx(0.0));
+      REQUIRE(test_nl_convection_nd(2) == MFEM_Approx(0.0));
    }
 
    SECTION("3D")
    {
-      REQUIRE(test_nl_convection_nd(3) == Approx(0.0));
+      REQUIRE(test_nl_convection_nd(3) == MFEM_Approx(0.0));
    }
 }
 
@@ -326,12 +306,12 @@ TEST_CASE("PA Vector Mass", "[PartialAssembly], [VectorPA]")
 {
    SECTION("2D")
    {
-      REQUIRE(test_vector_pa_integrator<VectorMassIntegrator>(2) == Approx(0.0));
+      REQUIRE(test_vector_pa_integrator<VectorMassIntegrator>(2) == MFEM_Approx(0.0));
    }
 
    SECTION("3D")
    {
-      REQUIRE(test_vector_pa_integrator<VectorMassIntegrator>(3) == Approx(0.0));
+      REQUIRE(test_vector_pa_integrator<VectorMassIntegrator>(3) == MFEM_Approx(0.0));
    }
 }
 
@@ -339,12 +319,14 @@ TEST_CASE("PA Vector Diffusion", "[PartialAssembly], [VectorPA]")
 {
    SECTION("2D")
    {
-      REQUIRE(test_vector_pa_integrator<VectorDiffusionIntegrator>(2) == Approx(0.0));
+      REQUIRE(test_vector_pa_integrator<VectorDiffusionIntegrator>(2)
+              == MFEM_Approx(0.0));
    }
 
    SECTION("3D")
    {
-      REQUIRE(test_vector_pa_integrator<VectorDiffusionIntegrator>(3) == Approx(0.0));
+      REQUIRE(test_vector_pa_integrator<VectorDiffusionIntegrator>(3)
+              == MFEM_Approx(0.0));
    }
 }
 
@@ -373,8 +355,10 @@ void AddConvectionIntegrators(BilinearForm &k, VectorCoefficient &velocity,
    }
 }
 
-void test_pa_convection(Mesh &&mesh, int order, bool dg)
+void test_pa_convection(const char *meshname, int order, bool dg)
 {
+   INFO("mesh=" << meshname << ", order=" << order << ", DG=" << dg);
+   Mesh mesh(meshname, 1, 1);
    mesh.EnsureNodes();
    mesh.SetCurvature(mesh.GetNodalFESpace()->GetOrder(0));
    int dim = mesh.Dimension();
@@ -422,38 +406,32 @@ void test_pa_convection(Mesh &&mesh, int order, bool dg)
 //Basic unit test for convection
 TEST_CASE("PA Convection", "[PartialAssembly]")
 {
-   for (bool dg : {true, false})
-   {
-      SECTION("2D")
-      {
-         for (int order : {2, 3, 4})
-         {
-            test_pa_convection(Mesh("../../data/periodic-square.mesh", 1, 1), order, dg);
-            test_pa_convection(Mesh("../../data/periodic-hexagon.mesh", 1, 1), order, dg);
-            test_pa_convection(Mesh("../../data/star-q3.mesh", 1, 1), order, dg);
-         }
-      }
+   auto dg = GENERATE(true, false);
+   auto order_2d = GENERATE(2, 3, 4);
+   auto order_3d = GENERATE(2);
 
-      SECTION("3D")
-      {
-         int order = 2;
-         test_pa_convection(Mesh("../../data/periodic-cube.mesh", 1, 1), order, dg);
-         test_pa_convection(Mesh("../../data/fichera-q3.mesh", 1, 1), order, dg);
-      }
-   }
-   // Test AMR cases (DG not implemented)
-   for (int order : {2, 3, 4})
+   SECTION("2D")
    {
-      SECTION("AMR 2D")
-      {
-         test_pa_convection(Mesh("../../data/amr-quad.mesh", 1, 1), order, false);
-      }
+      test_pa_convection("../../data/periodic-square.mesh", order_2d, dg);
+      test_pa_convection("../../data/periodic-hexagon.mesh", order_2d, dg);
+      test_pa_convection("../../data/star-q3.mesh", order_2d, dg);
+   }
+
+   SECTION("3D")
+   {
+      test_pa_convection("../../data/periodic-cube.mesh", order_3d, dg);
+      test_pa_convection("../../data/fichera-q3.mesh", order_3d, dg);
+   }
+
+   // Test AMR cases (DG not implemented)
+   SECTION("AMR 2D")
+   {
+      test_pa_convection("../../data/amr-quad.mesh", order_2d, false);
    }
 
    SECTION("AMR 3D")
    {
-      int order = 2;
-      test_pa_convection(Mesh("../../data/fichera-amr.mesh", 1, 1), order, false);
+      test_pa_convection("../../data/fichera-amr.mesh", order_3d, false);
    }
 }//test case
 
