@@ -954,6 +954,7 @@ void AnalyticAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
 {
    DenseMatrix point_mat;
    point_mat.UseExternalData(elfun.GetData(), fe.GetDof(), fe.GetDim());
+
    switch (target_type)
    {
       case GIVEN_FULL:
@@ -963,7 +964,7 @@ void AnalyticAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
 
          IsoparametricTransformation Tpr;
          Tpr.SetFE(&fe);
-         Tpr.ElementNo   = e_id;
+         Tpr.ElementNo = e_id;
          Tpr.ElementType = ElementTransformation::ELEMENT;
          Tpr.GetPointMat().Transpose(point_mat);
 
@@ -1020,7 +1021,7 @@ void DiscreteAdaptTC::FinalizeParDiscreteTargetSpec(const ParGridFunction
    MFEM_VERIFY(adapt_eval, "SetAdaptivityEvaluator() has not been called!")
    MFEM_VERIFY(ncomp > 0, "No target specifications have been set!");
 
-   ptspec_fes = tspec_.ParFESpace();
+   ParFiniteElementSpace *ptspec_fes = tspec_.ParFESpace();
 
    adapt_eval->SetParMetaInfo(*ptspec_fes->GetParMesh(),
                               *ptspec_fes->FEColl(), ncomp);
@@ -1034,13 +1035,10 @@ void DiscreteAdaptTC::FinalizeParDiscreteTargetSpec(const ParGridFunction
 
    delete ptspec_fesv;
    ptspec_fesv = new ParFiniteElementSpace(ptspec_fes->GetParMesh(),
-                                           tspec_fes->FEColl(), ncomp);
+                                           ptspec_fes->FEColl(), ncomp);
 
    delete gfall;
    gfall = new GridFunction(tspec_fesv, tspec);
-
-   delete pgfall;
-   pgfall = new ParGridFunction(ptspec_fesv, tspec);
 }
 
 void DiscreteAdaptTC::GetParDiscreteTargetSpec(ParGridFunction &tspec_, int idx)
@@ -1075,7 +1073,7 @@ void DiscreteAdaptTC::ParUpdate()
 
    for (int i = 0; i < pgfarr.Size(); i++)
    {
-      pgfarr[i]->FESpace()->Update();
+      pgfarr[i]->ParFESpace()->Update();
       pgfarr[i]->Update();
    }
    const int sz_idx = sizeidx,
@@ -1085,6 +1083,7 @@ void DiscreteAdaptTC::ParUpdate()
 
    ResetDiscreteFields();
 
+   gf_arr_update = false;
    if (sz_idx > -1)
    {
       SetParDiscreteTargetSize(*pgfarr[sz_idx]);
@@ -1101,6 +1100,7 @@ void DiscreteAdaptTC::ParUpdate()
    {
       SetParDiscreteTargetOrientation(*pgfarr[or_idx]);
    }
+   gf_arr_update = true;
 }
 
 void DiscreteAdaptTC::SetTspecAtIndex(int idx, const ParGridFunction &tspec_)
@@ -1130,7 +1130,7 @@ void DiscreteAdaptTC::SetParDiscreteTargetSize(const ParGridFunction &tspec_)
    sizeidx = ncomp;
    SetDiscreteTargetBase(tspec_);
    FinalizeParDiscreteTargetSpec(tspec_);
-   if (!dtcupdate) { pgfarr.Append(const_cast<ParGridFunction *>(&tspec_)); }
+   if (gf_arr_update) { pgfarr.Append(const_cast<ParGridFunction *>(&tspec_)); }
 }
 
 void DiscreteAdaptTC::SetParDiscreteTargetSkew(const ParGridFunction &tspec_)
@@ -1144,7 +1144,7 @@ void DiscreteAdaptTC::SetParDiscreteTargetSkew(const ParGridFunction &tspec_)
    skewidx = ncomp;
    SetDiscreteTargetBase(tspec_);
    FinalizeParDiscreteTargetSpec(tspec_);
-   if (!dtcupdate) { pgfarr.Append(const_cast<ParGridFunction *>(&tspec_)); }
+   if (gf_arr_update) { pgfarr.Append(const_cast<ParGridFunction *>(&tspec_)); }
 }
 
 void DiscreteAdaptTC::SetParDiscreteTargetAspectRatio(const ParGridFunction
@@ -1159,7 +1159,7 @@ void DiscreteAdaptTC::SetParDiscreteTargetAspectRatio(const ParGridFunction
    aspectratioidx = ncomp;
    SetDiscreteTargetBase(tspec_);
    FinalizeParDiscreteTargetSpec(tspec_);
-   if (!dtcupdate) { pgfarr.Append(const_cast<ParGridFunction *>(&tspec_)); }
+   if (gf_arr_update) { pgfarr.Append(const_cast<ParGridFunction *>(&tspec_)); }
 }
 
 void DiscreteAdaptTC::SetParDiscreteTargetOrientation(const ParGridFunction
@@ -1174,7 +1174,7 @@ void DiscreteAdaptTC::SetParDiscreteTargetOrientation(const ParGridFunction
    orientationidx = ncomp;
    SetDiscreteTargetBase(tspec_);
    FinalizeParDiscreteTargetSpec(tspec_);
-   if (!dtcupdate) { pgfarr.Append(const_cast<ParGridFunction *>(&tspec_)); }
+   if (gf_arr_update) { pgfarr.Append(const_cast<ParGridFunction *>(&tspec_)); }
 }
 
 void DiscreteAdaptTC::SetParDiscreteTargetSpec(const ParGridFunction &tspec_)
@@ -1239,7 +1239,7 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetSize(const GridFunction &tspec_)
    sizeidx = ncomp;
    SetDiscreteTargetBase(tspec_);
    FinalizeSerialDiscreteTargetSpec();
-   if (!dtcupdate) { gfarr.Append(const_cast<GridFunction *>(&tspec_)); }
+   if (gf_arr_update) { gfarr.Append(const_cast<GridFunction *>(&tspec_)); }
 }
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetSkew(const GridFunction &tspec_)
@@ -1253,7 +1253,7 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetSkew(const GridFunction &tspec_)
    skewidx = ncomp;
    SetDiscreteTargetBase(tspec_);
    FinalizeSerialDiscreteTargetSpec();
-   if (!dtcupdate) { gfarr.Append(const_cast<GridFunction *>(&tspec_)); }
+   if (gf_arr_update) { gfarr.Append(const_cast<GridFunction *>(&tspec_)); }
 }
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetAspectRatio(
@@ -1268,7 +1268,7 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetAspectRatio(
    aspectratioidx = ncomp;
    SetDiscreteTargetBase(tspec_);
    FinalizeSerialDiscreteTargetSpec();
-   if (!dtcupdate) { gfarr.Append(const_cast<GridFunction *>(&tspec_)); }
+   if (gf_arr_update) { gfarr.Append(const_cast<GridFunction *>(&tspec_)); }
 }
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetOrientation(
@@ -1283,7 +1283,7 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetOrientation(
    orientationidx = ncomp;
    SetDiscreteTargetBase(tspec_);
    FinalizeSerialDiscreteTargetSpec();
-   if (!dtcupdate) { gfarr.Append(const_cast<GridFunction *>(&tspec_)); }
+   if (gf_arr_update) { gfarr.Append(const_cast<GridFunction *>(&tspec_)); }
 }
 
 void DiscreteAdaptTC::FinalizeSerialDiscreteTargetSpec()
@@ -1336,12 +1336,12 @@ void DiscreteAdaptTC::Update()
 
    ResetDiscreteFields();
 
-   dtcupdate = true;
+   gf_arr_update = false;
    if (sz_idx > -1) { SetSerialDiscreteTargetSize(*gfarr[sz_idx]); }
    if (sk_idx > -1) { SetSerialDiscreteTargetSkew(*gfarr[sk_idx]); }
    if (ar_idx > -1) { SetSerialDiscreteTargetAspectRatio(*gfarr[ar_idx]); }
    if (or_idx > -1) { SetSerialDiscreteTargetOrientation(*gfarr[or_idx]); }
-   dtcupdate = false;
+   gf_arr_update = true;
 }
 
 void DiscreteAdaptTC::ResetDiscreteFields()
@@ -1434,6 +1434,14 @@ void DiscreteAdaptTC::SetTspecFromIntRule(const int e_id,
    }
 }
 
+void DiscreteAdaptTC::SetTspecDataForDerefinement(FiniteElementSpace *fes)
+{
+   c_tspec_fesv = fes;
+   const Operator *c_op = fes->GetUpdateOperator();
+   tspec_derefine.SetSize(c_op->Height());
+   c_op->Mult(tspec, tspec_derefine);
+}
+
 void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                                             const IntegrationRule &ir,
                                             const Vector &elfun,
@@ -1471,7 +1479,7 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
             {
                for (int j = 0; j < ndofs; j++)
                {
-                  tspec_vals(j + i*ndofs) = tspec_refine(j + amr_el*ndofs,i);
+                  tspec_vals(j + i*ndofs) = tspec_refine(j + amr_el*ndofs, i);
                }
             }
          }
@@ -2087,7 +2095,6 @@ DiscreteAdaptTC::~DiscreteAdaptTC()
    if (tspec_fesv) { delete tspec_fesv; }
    gfarr.DeleteAll();
 #ifdef MFEM_USE_MPI
-   if (pgfall) {delete pgfall; }
    if (ptspec_fesv) {delete ptspec_fesv; }
    pgfarr.DeleteAll();
 #endif
@@ -2274,7 +2281,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       }
    }
 
-   // Define ref->physical transformation, wn a Coefficient is specified.
+   // Define ref->physical transformation, when a Coefficient is specified.
    IsoparametricTransformation *Tpr = NULL;
    if (coeff1 || coeff0 || adaptive_limiting)
    {
@@ -2285,7 +2292,6 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       Tpr->Attribute = T.Attribute;
       Tpr->GetPointMat().Transpose(PMatI); // PointMat = PMatI^T
    }
-
    // TODO: computing the coefficients 'coeff1' and 'coeff0' in physical
    //       coordinates means that, generally, the gradient and Hessian of the
    //       TMOP_Integrator will depend on the derivatives of the coefficients.
@@ -2374,7 +2380,7 @@ double TMOP_Integrator::GetRefinementElementEnergy(const FiniteElement &el,
       DenseTensor Jtr(dim, dim, ir.GetNPoints());
       if (dtc)
       {
-         dtc->SetAMRSubElement(e);
+         dtc->SetRefinementSubElement(e);
       }
       targetC->ComputeElementTargets(el_id, el, ir, elfun_split, Jtr);
 
@@ -2417,21 +2423,12 @@ double TMOP_Integrator::GetRefinementElementEnergy(const FiniteElement &el,
    return energy;
 }
 
-
-double TMOP_Integrator::GetDeRefinementElementEnergy(const FiniteElement &el,
+double TMOP_Integrator::GetDerefinementElementEnergy(const FiniteElement &el,
                                                      ElementTransformation &T,
-                                                     const Vector &elfun,
-                                                     FiniteElementSpace *c_fes)
+                                                     const Vector &elfun)
 {
    int dof = el.GetDof(), dim = el.GetDim();
    double energy = 0.;
-
-   TargetConstructor *tc = const_cast<TargetConstructor *>(targetC);
-   DiscreteAdaptTC *dtc = dynamic_cast<DiscreteAdaptTC *>(tc);
-   if (dtc && c_fes)
-   {
-      dtc->SetTspecFESpaceForDerefinement(c_fes);
-   }
 
    DSh.SetSize(dof, dim);
    Jrt.SetSize(dim);
@@ -2447,7 +2444,7 @@ double TMOP_Integrator::GetDeRefinementElementEnergy(const FiniteElement &el,
 
    // Define ref->physical transformation, wn a Coefficient is specified.
    IsoparametricTransformation *Tpr = NULL;
-   if (coeff1 || coeff0)
+   if (coeff1)
    {
       Tpr = new IsoparametricTransformation;
       Tpr->SetFE(&el);
@@ -3278,16 +3275,15 @@ double TMOPComboIntegrator::GetRefinementElementEnergy(const FiniteElement &el,
    return energy;
 }
 
-double TMOPComboIntegrator::GetDeRefinementElementEnergy(
+double TMOPComboIntegrator::GetDerefinementElementEnergy(
    const FiniteElement &el,
    ElementTransformation &T,
-   const Vector &elfun,
-   FiniteElementSpace *c_fes)
+   const Vector &elfun)
 {
    double energy= 0.0;
    for (int i = 0; i < tmopi.Size(); i++)
    {
-      energy += tmopi[i]->GetDeRefinementElementEnergy(el, T, elfun, c_fes);
+      energy += tmopi[i]->GetDerefinementElementEnergy(el, T, elfun);
    }
    return energy;
 }

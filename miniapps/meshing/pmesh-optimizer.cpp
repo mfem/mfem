@@ -921,6 +921,11 @@ int main (int argc, char *argv[])
 
       for (int i_hr = 0; i_hr < n_hr; i_hr++)
       {
+         if (amrstop == 1 && amrdstop == 1)
+         {
+            newtonstop = 1;
+            break;
+         }
          if (myid == 0) { std::cout << i_hr << " r-adaptivity iteration.\n"; }
          solver.SetOperator(a);
          solver.Mult(b, x.GetTrueVector());
@@ -983,6 +988,7 @@ int main (int argc, char *argv[])
                if (myid == 0)
                {
                   cout << "AMR stopping criterion satisfied. Stop." << endl;
+                  break;
                }
             }
             else
@@ -992,16 +998,16 @@ int main (int argc, char *argv[])
          } //n_r limit
       } //n_hr
    } //hr
-   if (newtonstop == 0)
+   solver.SetOperator(a);
+   if (newtonstop == 0 && !hr)
    {
-      solver.SetOperator(a);
       solver.Mult(b, x.GetTrueVector());
-      x.SetFromTrueVector();
       if (solver.GetConverged() == false)
       {
          if (myid == 0) { cout << "Nonlinear solver: rtol = " << solver_rtol << " not achieved.\n"; }
       }
    }
+   x.SetFromTrueVector();
 
    // 16. Save the optimized mesh to a file. This output can be viewed later
    //     using GLVis: "glvis -m optimized -np num_mpi_tasks".

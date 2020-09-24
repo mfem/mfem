@@ -758,14 +758,13 @@ protected:
    // positions corresponding to the values of tspec.
    FiniteElementSpace *tspec_fes; //owned
    FiniteElementSpace *tspec_fesv; //owned
-   FiniteElementSpace *c_tspec_fesv;
-   GridFunction *gfall; //owned
-   Array<GridFunction *> gfarr;
+   FiniteElementSpace *c_tspec_fesv; //not owned, derefinement FESpace
+   GridFunction *gfall; //owned, constructed using tspec & tspec_fes
+   Array<GridFunction *> gfarr; // pointer to all discrete adaptivity functions
 #ifdef MFEM_USE_MPI
-   ParFiniteElementSpace *ptspec_fes; // not-owned
-   ParFiniteElementSpace *ptspec_fesv; //owned
-   ParGridFunction *pgfall;
-   Array<ParGridFunction *> pgfarr;
+   ParFiniteElementSpace *ptspec_fesv; //owned, needed for derefinement to get
+   //update operator.
+   Array<ParGridFunction *> pgfarr; // similar to gfarr
 #endif
 
    int amr_el;
@@ -774,7 +773,7 @@ protected:
    // These flags can be used by outside functions to avoid recomputing the
    // tspec and tspec_perth fields again on the same mesh.
    bool good_tspec, good_tspec_grad, good_tspec_hess;
-   bool dtcupdate;
+   bool gf_arr_update;
 
    // Evaluation of the discrete target specification on different meshes.
    // Owned.
@@ -788,6 +787,9 @@ protected:
    void FinalizeParDiscreteTargetSpec(const ParGridFunction &tspec_);
 #endif
 
+   // Reset tspec to prepare for discrete fields to be re-set.
+   virtual void ResetDiscreteFields();
+
 public:
    DiscreteAdaptTC(TargetType ttype)
       : TargetConstructor(ttype),
@@ -797,12 +799,11 @@ public:
         tspec_refine(), tspec_derefine(),
         tspec_fes(NULL), tspec_fesv(NULL), c_tspec_fesv(NULL), gfall(NULL),
 #ifdef MFEM_USE_MPI
-        ptspec_fes(NULL), ptspec_fesv(NULL), pgfall(NULL),
+        ptspec_fesv(NULL),// pgfall(NULL),
 #endif
         amr_el(-1), lim_min_size(-0.1),
         good_tspec(false), good_tspec_grad(false), good_tspec_hess(false),
-        dtcupdate(false),
-        adapt_eval(NULL) { }
+        gf_arr_update(true), adapt_eval(NULL) { }
 
    virtual ~DiscreteAdaptTC();
 
@@ -835,17 +836,19 @@ public:
    void ResetUpdateFlags()
    { good_tspec = good_tspec_grad = good_tspec_hess = false; }
 
-
-   virtual void ResetDiscreteFields();
-
+   /// Get one of the discrete fields from tspec.
    virtual void GetSerialDiscreteTargetSpec(GridFunction &tspec_, int idx);
-   void Update();
+   /// Get the FESpace associated with tspec.
    FiniteElementSpace *GetTSpecFESpace() { return tspec_fesv; }
-   GridFunction *GetTSpecVec() { return gfall; }
+   /// Get the entire tspec.
+   GridFunction *GetTSpecData() { return gfall; }
+   /// Update all discrete fields based on tspec and update for AMR
+   void Update();
+
 #ifdef MFEM_USE_MPI
    virtual void GetParDiscreteTargetSpec(ParGridFunction &tspec_, int idx);
-   void ParUpdate();
    ParFiniteElementSpace *GetTSpecParFESpace() { return ptspec_fesv; }
+   void ParUpdate();
 #endif
 
    /** Used to update the target specification after the mesh has changed. The
@@ -900,35 +903,34 @@ public:
                                               IsoparametricTransformation &Tpr,
                                               DenseTensor &dJtr) const;
 
-   // Generates tspec_vals for target construction using intrule (hr-adaptivity)
+   // Generates tspec_vals for target construction using intrule
+   // Used for the refinement component in hr-adaptivity.
    void SetTspecFromIntRule(const int e_id,
                             const FiniteElement &fe,
                             const IntegrationRule &intrule);
 
    void SetMinSizeForTargets(double min_size_) { lim_min_size = min_size_; }
 
-   void SetTspecForDerefinement(Vector &amr_vec_vals_)
-   {
-      tspec_derefine = amr_vec_vals_;
-   }
-   void SetTspecFESpaceForDerefinement(FiniteElementSpace *fes)
-   {
-      c_tspec_fesv = fes;
-   }
+   // Set tspec data using the coarse FESpace.
+   void SetTspecDataForDerefinement(FiniteElementSpace *fes);
 
+   // Reset refinement data associated with h-adaptivity component.
    void ResetRefinementTspecData()
    {
       tspec_refine.Clear();
       amr_el = -1;
    }
 
+   // Reset derefinement data associated with h-adaptivity component.
    void ResetDerefinementTspecData()
    {
       tspec_derefine.Destroy();
       c_tspec_fesv = NULL;
    }
 
-   void SetAMRSubElement(int amr_el_) { amr_el = amr_el_; }
+   // Used to specify the fine element for determining energy of children of a
+   // parent element.
+   void SetRefinementSubElement(int amr_el_) { amr_el = amr_el_; }
 };
 
 class TMOPNewtonSolver;
@@ -1156,15 +1158,19 @@ public:
                                    ElementTransformation &T,
                                    const Vector &elfun);
 
+   // In addition to the inputs for GetElementEnergy, this function also requires
+   // an integration rule to be specified that will give the decomposition of
+   // this element based on the refinement type being considered.
    virtual double GetRefinementElementEnergy(const FiniteElement &el,
                                              ElementTransformation &T,
                                              const Vector &elfun,
                                              const IntegrationRule &irule);
 
-   virtual double GetDeRefinementElementEnergy(const FiniteElement &el,
+   // This function is similar to GetElementEnergy, but ignores components such
+   // as limiting etc. to compute the element energy.
+   virtual double GetDerefinementElementEnergy(const FiniteElement &el,
                                                ElementTransformation &T,
-                                               const Vector &elfun,
-                                               FiniteElementSpace *c_fes);
+                                               const Vector &elfun);
 
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &T,
@@ -1256,10 +1262,9 @@ public:
                                              const Vector &elfun,
                                              const IntegrationRule &irule);
 
-   virtual double GetDeRefinementElementEnergy(const FiniteElement &el,
+   virtual double GetDerefinementElementEnergy(const FiniteElement &el,
                                                ElementTransformation &T,
-                                               const Vector &elfun,
-                                               FiniteElementSpace *c_fes);
+                                               const Vector &elfun);
 
    /// Normalization factor that considers all integrators in the combination.
    void EnableNormalization(const GridFunction &x);

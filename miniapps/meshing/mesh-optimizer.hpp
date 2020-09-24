@@ -1188,8 +1188,7 @@ protected:
 
    void GetTMOPDerefinementEnergy(Mesh &cmesh,
                                   TMOP_Integrator &tmopi,
-                                  Vector &el_energy_vec,
-                                  FiniteElementSpace *tcdfes = NULL);
+                                  Vector &el_energy_vec);
 
    bool GetDerefineEnergyForIntegrator(TMOP_Integrator &tmopi,
                                        Vector &fine_energy);
@@ -1224,7 +1223,6 @@ bool TMOPDeRefinerEstimator::GetDerefineEnergyForIntegrator(
 {
    DiscreteAdaptTC *tcd = NULL;
    tcd = tmopi.GetDiscreteAdaptTC();
-   const Operator *c_op = NULL;
    fine_energy.SetSize(mesh->GetNE());
 
    if (serial)
@@ -1250,15 +1248,11 @@ bool TMOPDeRefinerEstimator::GetDerefineEnergyForIntegrator(
       if (tcd)
       {
          tcdfes->Update();
-         c_op = tcdfes->GetUpdateOperator();
-         Vector tcd_data = *(tcd->GetTSpecVec());
-         Vector amr_tspec_vals(c_op->Height());
-         c_op->Mult(tcd_data, amr_tspec_vals);
-         tcd->SetTspecForDerefinement(amr_tspec_vals);
+         tcd->SetTspecDataForDerefinement(tcdfes);
       }
 
       Vector coarse_energy(meshcopy.GetNE());
-      GetTMOPDerefinementEnergy(meshcopy, tmopi, coarse_energy, tcdfes);
+      GetTMOPDerefinementEnergy(meshcopy, tmopi, coarse_energy);
       if (tcd) { tcd->ResetDerefinementTspecData(); }
       GetTMOPDerefinementEnergy(*mesh, tmopi, fine_energy);
 
@@ -1277,7 +1271,7 @@ bool TMOPDeRefinerEstimator::GetDerefineEnergyForIntegrator(
          {
             int child = tabrow[fe];
             MFEM_VERIFY(child < mesh->GetNE(), " invalid coarse to fine mapping");
-            fine_energy(child) -= parent_energy*nchild;
+            fine_energy(child) -= parent_energy;
          }
       }
       delete tcdfes;
@@ -1306,15 +1300,11 @@ bool TMOPDeRefinerEstimator::GetDerefineEnergyForIntegrator(
       if (tcd)
       {
          tcdfes->Update();
-         c_op = tcdfes->GetUpdateOperator();
-         Vector tcd_data = *(tcd->GetTSpecVec());
-         Vector amr_tspec_vals(c_op->Height());
-         c_op->Mult(tcd_data, amr_tspec_vals);
-         tcd->SetTspecForDerefinement(amr_tspec_vals);
+         tcd->SetTspecDataForDerefinement(tcdfes);
       }
 
       Vector coarse_energy(meshcopy.GetNE());
-      GetTMOPDerefinementEnergy(meshcopy, tmopi, coarse_energy, tcdfes);
+      GetTMOPDerefinementEnergy(meshcopy, tmopi, coarse_energy);
       if (tcd) { tcd->ResetDerefinementTspecData(); }
       MPI_Barrier(MPI_COMM_WORLD);
       GetTMOPDerefinementEnergy(*pmesh, tmopi, fine_energy);
@@ -1338,7 +1328,7 @@ bool TMOPDeRefinerEstimator::GetDerefineEnergyForIntegrator(
          {
             int child = tabrow[fe];
             MFEM_VERIFY(child < pmesh->GetNE(), " invalid coarse to fine mapping");
-            fine_energy(child) -= parent_energy*nchild;
+            fine_energy(child) -= parent_energy;
          }
       }
       delete tcdfes;
@@ -1384,8 +1374,7 @@ void TMOPDeRefinerEstimator::ComputeEstimates()
 
 void TMOPDeRefinerEstimator::GetTMOPDerefinementEnergy(Mesh &cmesh,
                                                        TMOP_Integrator &tmopi,
-                                                       Vector &el_energy_vec,
-                                                       FiniteElementSpace *tcdfes)
+                                                       Vector &el_energy_vec)
 {
    const int cNE = cmesh.GetNE();
    el_energy_vec.SetSize(cNE);
@@ -1404,6 +1393,6 @@ void TMOPDeRefinerEstimator::GetTMOPDerefinementEnergy(Mesh &cmesh,
       fespace->GetElementVDofs(j, vdofs);
       T = cmesh.GetElementTransformation(j);
       cxdof->GetSubVector(vdofs, el_x);
-      el_energy_vec(j) = tmopi.GetDeRefinementElementEnergy(*fe, *T, el_x, tcdfes);
+      el_energy_vec(j) = tmopi.GetDerefinementElementEnergy(*fe, *T, el_x);
    }
 }

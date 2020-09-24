@@ -271,7 +271,7 @@ int main(int argc, char *argv[])
          marked_elements.Append(e);
       }
       //mesh->GeneralRefinement(marked_elements, 1, 0);
-      mesh->RandomRefinement(0.9, false, 1, 0);
+      mesh->RandomRefinement(0.99, false, 1, 0);
       fespace->Update();
       x.Update();
    }
@@ -866,7 +866,7 @@ int main(int argc, char *argv[])
 
    if (hr)
    {
-      int n_hr = 2;         //Newton + AMR iterations
+      int n_hr = 5;         //Newton + AMR iterations
       int n_h = 1;          //AMR iterations per Newton iteration
       int amrstop = 0;
       int amrdstop = 0;
@@ -876,7 +876,14 @@ int main(int argc, char *argv[])
 
       for (int i_hr = 0; i_hr < n_hr; i_hr++)
       {
+
+         if (amrstop == 1 && amrdstop == 1)
+         {
+            newtonstop = 1;
+            break;
+         }
          std::cout << i_hr << " r-adaptivity iteration.\n";
+
          solver.SetOperator(a);
          solver.Mult(b, x.GetTrueVector());
          x.SetFromTrueVector();
@@ -884,13 +891,6 @@ int main(int argc, char *argv[])
          std::cout << "TMOP energy after r-adaptivity: " <<
                    a.GetGridFunctionEnergy(x)/mesh->GetNE() <<
                    ", Elements: " << mesh->GetNE() << endl;
-
-         if (amrstop == 1 && amrdstop == 1)
-         {
-            newtonstop = 1;
-            cout << "Newton and AMR have converged." << endl;
-            break;
-         }
 
          for (int i_r = 0; i_r < n_h; i_r++)
          {
@@ -921,6 +921,7 @@ int main(int argc, char *argv[])
             {
                newtonstop = 1;
                cout << "AMR stopping criterion satisfied. Stop h-refinement." << endl;
+               break;
             }
             else
             {
@@ -931,7 +932,7 @@ int main(int argc, char *argv[])
    } //hr
 
    solver.SetOperator(a);
-   if (newtonstop == 0)
+   if (newtonstop == 0 && !hr)
    {
       solver.Mult(b, x.GetTrueVector());
       if (solver.GetConverged() == false)
