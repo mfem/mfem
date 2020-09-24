@@ -302,6 +302,8 @@ void test_ceed_nloperator(const char* input, int order, const CeedCoeff coeff_ty
    }
 
    k_test.SetAssemblyLevel(assembly);
+   k_test.Setup();
+   k_ref.Setup();
 
    // Compare ceed with mfem.
    GridFunction x(&fes), y_ref(&fes), y_test(&fes);
