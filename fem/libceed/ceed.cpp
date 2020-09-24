@@ -216,7 +216,7 @@ void CeedPAAssemble(const CeedPAOperator& op,
 
    CeedVectorCreate(ceed, nelem * nqpts * qdatasize, &ceedData.rho);
 
-   // Context data to be passed to the 'f_build_diff' Q-function.
+   // Context data to be passed to the Q-function.
    ceedData.build_ctx_data.dim = mesh->Dimension();
    ceedData.build_ctx_data.space_dim = mesh->SpaceDimension();
    ceedData.build_ctx_data.vdim = fes.GetVDim();
