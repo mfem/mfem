@@ -101,13 +101,41 @@ SparseMatrix * BuildConstraints(FiniteElementSpace& fespace, Array<int> constrai
    return out;
 }
 
+/// because IdentityOperator isn't a Solver
+class IdentitySolver : public Solver
+{
+public:
+   IdentitySolver(int size) : Solver(size) { }
+   void Mult(const Vector& x, Vector& y) const { y = x; }
+   void SetOperator(const Operator& op) { }
+};
+
+/**
+   A class to solve the constrained system
+
+     A x = f
+
+   subject to the constraint
+
+     B x = r
+
+   abstractly.
+*/
 class ConstrainedSolver : public Solver
 {
 public:
-   ConstrainedSolver(HypreParMatrix& A, SparseMatrix& B);
+   ConstrainedSolver(Operator& A, SparseMatrix& B);
    ~ConstrainedSolver();
 
    void SetOperator(const Operator& op) { }
+
+   /**
+      This is a preconditioner that is expected to be effective
+      for the unconstrained system A. Internally, this object
+      may use the preconditioner for related or modified
+      systems.
+   */
+   void SetPrimalPreconditioner(Solver& pc);
 
    void Mult(const Vector& b, Vector& x) const;
 
@@ -117,16 +145,23 @@ private:
    GMRESSolver gmres;
    TransposeOperator * tr_B;
 
+   Solver * primal_pc;  // not owned
+   Solver * dual_pc;  // owned
+   BlockDiagonalPreconditioner * block_pc;  // owned
+
    mutable Vector workb;
    mutable Vector workx;
 };
 
-ConstrainedSolver::ConstrainedSolver(HypreParMatrix& A, SparseMatrix& B)
+ConstrainedSolver::ConstrainedSolver(Operator& A, SparseMatrix& B)
    :
    // Solver(A.Height() + B.Height()),
    Solver(A.Height()),  // not sure conceptually what the size should be!
    offsets(3),
-   gmres(A.GetComm())
+   gmres(MPI_COMM_WORLD),
+   primal_pc(NULL),
+   dual_pc(NULL),
+   block_pc(NULL)
 {
    offsets[0] = 0;
    offsets[1] = A.Height();
@@ -152,6 +187,19 @@ ConstrainedSolver::~ConstrainedSolver()
 {
    delete block_op;
    delete tr_B;
+   delete dual_pc;
+   delete block_pc;
+}
+
+void ConstrainedSolver::SetPrimalPreconditioner(Solver& pc)
+{
+   primal_pc = &pc;
+   block_pc = new BlockDiagonalPreconditioner(offsets);
+   primal_pc->SetOperator(block_op->GetBlock(0, 0));
+   block_pc->SetDiagonalBlock(0, primal_pc);
+   dual_pc = new IdentitySolver(offsets[2] - offsets[1]);
+   block_pc->SetDiagonalBlock(1, dual_pc);
+   gmres.SetPreconditioner(*block_pc);
 }
 
 void ConstrainedSolver::Mult(const Vector& b, Vector& x) const
@@ -294,25 +342,26 @@ int main(int argc, char *argv[])
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-/*
-   Array<int> circle_atts(4);
-   circle_atts[0] = 5;
-   circle_atts[1] = 6;
-   circle_atts[2] = 7;
-   circle_atts[3] = 8;
-   SparseMatrix * constraint_mat = BuildConstraints(fespace, circle_atts);
-*/
-
-/*
-   Array<int> icf_atts(1);
-   icf_atts[0] = 4;
-   SparseMatrix * constraint_mat = BuildConstraints(fespace, icf_atts);
-*/
-
-   Array<int> sphere_atts(1);
-   sphere_atts[0] = 1;
-   SparseMatrix * constraint_mat = BuildConstraints(fespace, sphere_atts);
-
+   Array<int> constraint_atts;
+   if (!strcmp(mesh_file, "../data/square-disc-p3.mesh"))
+   {
+      constraint_atts.SetSize(4);
+      constraint_atts[0] = 5;
+      constraint_atts[1] = 6;
+      constraint_atts[2] = 7;
+      constraint_atts[3] = 8;
+   }
+   else if (!strcmp(mesh_file, "icf.mesh"))
+   {
+      constraint_atts.SetSize(1);
+      constraint_atts[0] = 4;
+   }
+   else if (!strcmp(mesh_file, "sphere_hex27.mesh"))
+   {
+      constraint_atts.SetSize(1);
+      constraint_atts[0] = 1;
+   }
+   SparseMatrix * constraint_mat = BuildConstraints(fespace, constraint_atts);
    {
       std::ofstream out("constraint.sparsematrix");
       constraint_mat->Print(out, 1);
@@ -355,7 +404,10 @@ int main(int argc, char *argv[])
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-   ConstrainedSolver constrained(*A.As<HypreParMatrix>(), *constraint_mat);
+   ConstrainedSolver constrained(*A, *constraint_mat);
+   HypreBoomerAMG prec;
+   prec.SetPrintLevel(0);
+   constrained.SetPrimalPreconditioner(prec);
    constrained.Mult(B, X);
 
    // 14. Recover the parallel grid function corresponding to X. This is the
