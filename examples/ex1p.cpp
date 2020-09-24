@@ -114,7 +114,6 @@ int main(int argc, char *argv[])
    //    and volume meshes with the same code.
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
-   mesh.EnsureNCMesh();
 
    // 5. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
@@ -135,12 +134,10 @@ int main(int argc, char *argv[])
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
    {
-      srand(myid + 1);
       int par_ref_levels = 2;
       for (int l = 0; l < par_ref_levels; l++)
       {
-         //pmesh.UniformRefinement();
-         pmesh.RandomRefinement(0.5);
+         pmesh.UniformRefinement();
       }
    }
 
@@ -256,7 +253,7 @@ int main(int argc, char *argv[])
 
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh.ParPrint(mesh_ofs);
+      pmesh.Print(mesh_ofs);
 
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(8);
