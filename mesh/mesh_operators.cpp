@@ -104,9 +104,9 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
    double yMean, xMean;
    long elementLevel;
 
-   //Turn this off for now (it was not working anyway)
+   //it was not working at all in 1e-6
    //a different way to implement yrange (we can modify the local_err vector)
-   if (false && yRange && mesh.Nonconforming())
+   if (xRange && mesh.Nonconforming())
    {
       Vector &local_err_ = const_cast<Vector &>(local_err);
       FiniteElementSpace * fes = mesh.GetNodes()->FESpace();
@@ -115,16 +115,17 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
       {
         fes->GetElementDofs(el, dofs);
         int ndof=dofs.Size();
-        yMean=0.0;
+        xMean=0.0;
+        elementLevel=mesh.ncmesh->GetElementDepth(el);
         for (int j = 0; j < ndof; j++)
         {
            mesh.GetNode(dofs[j], vert);
-           yMean+=vert[1];
+           xMean+=vert[0];
         }
-        yMean=yMean/ndof;
-        //std::cout <<"el yMean="<<el<<' '<<yMean << '\n';
+        xMean=xMean/ndof;
         
-        if (yMean<=ymin || yMean>=ymax)
+        //this may be a better way to add constraint?
+        if ((xMean<=xmin || xMean>=xmax) && elementLevel==xRange_levels)
            local_err_(el) =0.;
       }
    }
