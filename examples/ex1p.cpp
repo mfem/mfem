@@ -121,13 +121,11 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
-      srand(1);
-      int ref_levels = 3;
-         //(int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
+      int ref_levels =
+         (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
-         //mesh.UniformRefinement();
-         mesh.RandomRefinement(0.5);
+         mesh.UniformRefinement();
       }
    }
 
