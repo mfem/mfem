@@ -1230,8 +1230,12 @@ int main(int argc, char *argv[])
 
    // 7. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
+   H1_FECollection fec_h1(order, dim);
+   RT_FECollection fec_rt(order-1, dim);
    DG_FECollection fec(order, dim);
    // Finite element space for a scalar (thermodynamic quantity)
+   ParFiniteElementSpace fes_h1(&pmesh, &fec_h1);
+   ParFiniteElementSpace fes_rt(&pmesh, &fec_rt);
    ParFiniteElementSpace fes(&pmesh, &fec);
    ParFiniteElementSpace vfes(&pmesh, &fec, 2);
 
@@ -1333,6 +1337,11 @@ int main(int argc, char *argv[])
    ParGridFunction  ion_energy  (&fes, u.GetData() + offsets[3]);
    ParGridFunction elec_energy  (&fes, u.GetData() + offsets[4]);
 
+   fes_h1.Update();
+   fes_rt.Update();
+   ParGridFunction psi(&fes_h1);
+   ParGridFunction nxGradPsi_rt(&fes_rt);
+
    ParGridFunctionArray yGF;
    yGF.Append(&neu_density);
    yGF.Append(&ion_density);
@@ -1351,6 +1360,29 @@ int main(int argc, char *argv[])
    para_velocity = 0.0;
 
    VectorRelativeErrorMeasure ode_diff_msr(MPI_COMM_WORLD, ode_weights);
+
+   Coefficient *psiCoef = NULL;
+   VectorCoefficient *nxGradPsiCoef = NULL;
+   if (eqdsk)
+   {
+      psiCoef = new G_EQDSK_Psi_Coefficient(*eqdsk);
+      nxGradPsiCoef = new G_EQDSK_NxGradPsi_Coefficient(*eqdsk);
+      psi.ProjectCoefficient(*psiCoef);
+      nxGradPsi_rt.ProjectCoefficient(*nxGradPsiCoef);
+
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      int Wx = 0, Wy = 0; // window position
+      int Ww = 275, Wh = 250; // window size
+      int Dx = 3, Dy = 25;
+      socketstream psi_sock;//(vishost, visport);
+      VisualizeField(psi_sock, vishost, visport, psi, "Psi",
+                     Wx, Wy + Wh + Dy, Ww, Wh);
+
+      socketstream b_sock_rt;//(vishost, visport);
+      VisualizeField(b_sock_rt, vishost, visport, nxGradPsi_rt, "nxGradPsi RT",
+                     Wx, Wy + Wh + Dy, Ww, Wh);
+   }
 
    // Coefficients representing primary fields
    GridFunctionCoefficient nnCoef(&neu_density);
