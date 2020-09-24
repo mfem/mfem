@@ -42,43 +42,6 @@ GeneralAMS::GeneralAMS(const mfem::Operator& A,
 
 GeneralAMS::~GeneralAMS()
 {
-   int rank;
-   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-   if (rank == 0)
-   {
-      std::cout << "  [GeneralAMS] residual_time : " << residual_time_ << std::endl;
-      std::cout << "  [GeneralAMS] smooth_time : " << smooth_time_ << std::endl;
-      std::cout << "  [GeneralAMS] gspacesolver_time : " << gspacesolver_time_ << std::endl;
-      std::cout << "  [GeneralAMS] pispacesolver_time : " << pispacesolver_time_ << std::endl;
-   }
-}
-
-void GeneralAMS::DebugVector(const mfem::Vector& vec, const std::string& tag) const
-{
-   mfem::Vector boundary_vec(ess_tdof_list_.Size());
-   mfem::Vector interior_vec(vec.Size() - ess_tdof_list_.Size());
-
-   vec.GetSubVector(ess_tdof_list_, boundary_vec);
-   int k = 0;
-   for (int i = 0; i < vec.Size(); ++i)
-   {
-      if (ess_tdof_list_.Find(i) == -1)
-      {
-         interior_vec(k++) = vec(i);
-      }
-   }
-   MFEM_ASSERT(k == interior_vec.Size(), "Something not right!");
-
-   double boundary_norm = ParNormlp(boundary_vec, 2, MPI_COMM_WORLD);
-   double interior_norm = ParNormlp(interior_vec, 2, MPI_COMM_WORLD);
-
-   int rank;
-   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-   if (rank == 0)
-   {
-      std::cout << "  vec " << tag << " interior norm: " << interior_norm
-                << ", boundary norm: " << boundary_norm << std::endl;
-   }
 }
 
 void GeneralAMS::FormResidual(const mfem::Vector& rhs, const mfem::Vector& x,
@@ -114,15 +77,10 @@ void GeneralAMS::Mult(const Vector& x, Vector& y) const
 
    // maybe we should do Pi-G-Pi instead of G-Pi-G (doesn't seem to make much difference)
 
-   const bool verbose = false;
-
    // cycle would be more like 0102010 if below is true
    const bool extra_smoothing = false;
 
    mfem::StopWatch chrono;
-
-   // look at boundary conditions, look at matrix differences (can you cheat somehow?),
-   //   look at AMG setup / application (what exactly is so slow here?)
 
    MFEM_ASSERT(x.Size() == y.Size(), "Sizes don't match!");
    MFEM_ASSERT(A_.Height() == x.Size(), "Sizes don't match!");
@@ -132,8 +90,6 @@ void GeneralAMS::Mult(const Vector& x, Vector& y) const
    y = 0.0;
 
    // smooth (exactly what smoother is HypreAMS using?)
-   if (verbose)
-      DebugVector(x, "xin");
    chrono.Clear();
    chrono.Start();
    smoother_.Mult(x, y);
@@ -142,12 +98,8 @@ void GeneralAMS::Mult(const Vector& x, Vector& y) const
 
    // g-space correction
    FormResidual(x, y, residual);
-   if (verbose)
-      DebugVector(residual, "presmooth-residual");
    Vector gspacetemp(g_.Width());
    g_.MultTranspose(residual, gspacetemp);
-   // if (verbose)
-   //   DebugVector(gspacetemp, "gspacetemp");
    Vector gspacecorrection(g_.Width());
    gspacecorrection = 0.0;
    chrono.Clear();
@@ -155,11 +107,7 @@ void GeneralAMS::Mult(const Vector& x, Vector& y) const
    gspacesolver_.Mult(gspacetemp, gspacecorrection);
    chrono.Stop();
    gspacesolver_time_ += chrono.RealTime();
-   // if (verbose)
-   //   DebugVector(gspacecorrection, "gspacecorrection");
    g_.Mult(gspacecorrection, residual);
-   if (verbose)
-      DebugVector(residual, "gspacecorrection");
    y += residual;
 
    Vector temp(x.Size());
@@ -172,8 +120,6 @@ void GeneralAMS::Mult(const Vector& x, Vector& y) const
 
    // pi-space correction
    FormResidual(x, y, residual);
-   if (verbose)
-      DebugVector(residual, "g1");
    Vector pispacetemp(pi_.Width());
 
    pi_.MultTranspose(residual, pispacetemp);
@@ -197,8 +143,6 @@ void GeneralAMS::Mult(const Vector& x, Vector& y) const
 
    // g-space correction
    FormResidual(x, y, residual);
-   if (verbose)
-      DebugVector(residual, "pi-residual");
    g_.MultTranspose(residual, gspacetemp);
    gspacecorrection = 0.0;
    chrono.Clear();
@@ -211,17 +155,12 @@ void GeneralAMS::Mult(const Vector& x, Vector& y) const
 
    // smooth (don't need the residual if smoother_ has iterative_mode ?)
    FormResidual(x, y, residual);
-   if (verbose)
-      DebugVector(residual, "g2-residual");
    chrono.Clear();
    chrono.Start();
    smoother_.Mult(residual, temp);
    y += temp;
    chrono.Stop();
    smooth_time_ += chrono.RealTime();
-
-   if (verbose)
-      DebugVector(y, "yout");
 }
 
 // Pi-space constructor
@@ -352,7 +291,6 @@ void MatrixFreeAuxiliarySpace::SetupCG(
    if (inner_cg_iterations > 99)
    {
       cg_->SetRelTol(1.e-14);
-      // cg_->SetMaxIter(500);
       cg_->SetMaxIter(100);
    }
    else
@@ -407,6 +345,7 @@ void MatrixFreeAuxiliarySpace::SetupBoomerAMG(int system_dimension)
    }
    else // if (system_dimension > 0)
    {
+      // Pi-space solver is a vector space
       HypreBoomerAMG* hpc = new HypreBoomerAMG(*aspacematrix_);
       hpc->SetSystemsOptions(system_dimension);
       hpc->SetPrintLevel(0);
@@ -424,8 +363,6 @@ void MatrixFreeAuxiliarySpace::Mult(const mfem::Vector& x, mfem::Vector& y) cons
    if (cg_ && rank == 0)
    {
       int q = cg_->GetNumIterations();
-      // std::cout << "        inner aux iterations: " << q << ", final norm: "
-      //    << cg_->GetFinalNorm() << std::endl;
       inner_aux_iterations_ += q;
    }
 }
@@ -438,11 +375,6 @@ MatrixFreeAuxiliarySpace::~MatrixFreeAuxiliarySpace()
    delete aspacematrix_;
    delete aspacepc_;
    delete matfree_;
-   if (cg_ && rank == 0)
-   {
-      std::cout << "      auxiliary space solve total inner iterations: "
-                << inner_aux_iterations_ << std::endl;
-   }
    if (aspacepc_ != aspacewrapper_) delete aspacewrapper_;
    if (cg_ != aspacewrapper_) delete cg_;
 }

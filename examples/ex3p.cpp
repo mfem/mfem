@@ -207,10 +207,8 @@ int main(int argc, char *argv[])
    // 13. Solve the system AX=B using PCG with the AMS preconditioner from hypre
    //     (in the full assembly case) or CG with Jacobi preconditioner (in the
    //     partial assembly case).
-
-   if (pa) // Jacobi preconditioning in partial assembly mode
+   if (pa) // matrix-free auxiliary space solver with PA
    {
-      // OperatorJacobiSmoother Jacobi(*a, ess_tdof_list);
       MatrixFreeAMS ams(*a, *A, *fespace, muinv, sigma, ess_bdr);
 
       CGSolver cg(MPI_COMM_WORLD);
@@ -218,7 +216,6 @@ int main(int argc, char *argv[])
       cg.SetMaxIter(1000);
       cg.SetPrintLevel(1);
       cg.SetOperator(*A);
-      // cg.SetPreconditioner(Jacobi);
       cg.SetPreconditioner(ams);
       cg.Mult(B, X);
    }
