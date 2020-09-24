@@ -38,6 +38,7 @@ private:
 
 public:
    StopWatch();
+   StopWatch(const StopWatch &);
 
    /// Clear the elapsed time on the stopwatch and restart it if it's running.
    void Clear();
