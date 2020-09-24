@@ -18,70 +18,72 @@ namespace blocknonlinearform_3d
 {
 
 
-double rf0(const mfem::Vector &coords) {
-    double x = coords(0);
-    double y = coords(1);
-    double z = coords(2);
+double rf0(const mfem::Vector &coords)
+{
+   double x = coords(0);
+   double y = coords(1);
+   double z = coords(2);
 
-    double p=std::sqrt(x*x+y*y+z*z);
-    double rez=0.0;
-    if(p<1.0) { rez=1.0; }
-    return rez;
+   double p=std::sqrt(x*x+y*y+z*z);
+   double rez=0.0;
+   if (p<1.0) { rez=1.0; }
+   return rez;
 }
 
 
-double uf0(const mfem::Vector &coords) {
-    double x = coords(0);
-    double y = coords(1);
-    double z = coords(2);
+double uf0(const mfem::Vector &coords)
+{
+   double x = coords(0);
+   double y = coords(1);
+   double z = coords(2);
 
-    double p=std::sqrt(x*x+y*y+z*z);
-    double rez=0.0;
-    if(p<1.5) { rez=1; }
-    return rez;
+   double p=std::sqrt(x*x+y*y+z*z);
+   double rez=0.0;
+   if (p<1.5) { rez=1; }
+   return rez;
 }
 
 class CExample: public BlockNonlinearFormIntegrator
 {
 private:
 public:
-    CExample(){}
-    virtual ~CExample(){}
+   CExample() {}
+   virtual ~CExample() {}
 
-    virtual double GetElementEnergy(const mfem::Array<const FiniteElement *> &el,
-                                    mfem::ElementTransformation &trans,
-                                    const mfem::Array<const Vector *> &elfun)
-    {
-        double energy=0;
-        int dof_u = el[0]->GetDof();
-        int dof_r = el[1]->GetDof();
-        int dim = el[0]->GetDim();
+   virtual double GetElementEnergy(const mfem::Array<const FiniteElement *> &el,
+                                   mfem::ElementTransformation &trans,
+                                   const mfem::Array<const Vector *> &elfun)
+   {
+      double energy=0;
+      int dof_u = el[0]->GetDof();
+      int dof_r = el[1]->GetDof();
+      int dim = el[0]->GetDim();
 
-        const mfem::IntegrationRule *ir = NULL;
-        int order = el[0]->GetOrder() + el[1]->GetOrder() + 1;
-        ir = &mfem::IntRules.Get(el[0]->GetGeomType(), order);
-        mfem::Vector shaperr(dof_r); //densities
-        mfem::Vector shaperu(dof_u); //prime field
+      const mfem::IntegrationRule *ir = NULL;
+      int order = el[0]->GetOrder() + el[1]->GetOrder() + 1;
+      ir = &mfem::IntRules.Get(el[0]->GetGeomType(), order);
+      mfem::Vector shaperr(dof_r); //densities
+      mfem::Vector shaperu(dof_u); //prime field
 
-        double w;
-        double c1,c2;
-        for (int i = 0; i < ir -> GetNPoints(); i++)
-        {
-                const mfem::IntegrationPoint &ip = ir->IntPoint(i);
-                trans.SetIntPoint(&ip);
-                w = trans.Weight();
-                w = ip.weight *w;
-                el[0]->CalcPhysShape(trans,shaperu);
-                el[1]->CalcPhysShape(trans,shaperr);
+      double w;
+      double c1,c2;
+      for (int i = 0; i < ir -> GetNPoints(); i++)
+      {
+         const mfem::IntegrationPoint &ip = ir->IntPoint(i);
+         trans.SetIntPoint(&ip);
+         w = trans.Weight();
+         w = ip.weight *w;
+         el[0]->CalcPhysShape(trans,shaperu);
+         el[1]->CalcPhysShape(trans,shaperr);
 
-                c1=shaperr*(*elfun[1]);
-                c2=shaperu*(*elfun[0]);
+         c1=shaperr*(*elfun[1]);
+         c2=shaperu*(*elfun[0]);
 
-                energy=energy+w*c1*c2;
-        }
+         energy=energy+w*c1*c2;
+      }
 
-        return energy;
-    }
+      return energy;
+   }
 
 };
 
@@ -154,9 +156,11 @@ TEST_CASE("3D ParBlockNonlinearForm",
       //integral over 1/8 sphere
       //i.e. Pi*1*1*1/6
       double A4=nf->GetEnergy(x);
-      if(my_rank==0){
-      std::cout << my_rank << ": Checked ParBlockNonlinearForm::GetEnergy = "
-                << A4 << " Expected" << M_PI/6.0 <<" diff="<<  (A4-M_PI/6.0) <<std::endl;}
+      if (my_rank==0)
+      {
+         std::cout << my_rank << ": Checked ParBlockNonlinearForm::GetEnergy = "
+                   << A4 << " Expected" << M_PI/6.0 <<" diff="<<  (A4-M_PI/6.0) <<std::endl;
+      }
       REQUIRE((A4-M_PI/6.0)<1e-3);
 
       delete nf;
