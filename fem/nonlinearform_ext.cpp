@@ -36,7 +36,7 @@ PANonlinearFormExtension::PANonlinearFormExtension(NonlinearForm *form):
    }
 }
 
-void PANonlinearFormExtension::Assemble()
+void PANonlinearFormExtension::Setup()
 {
    Array<NonlinearFormIntegrator*> &integrators = *n->GetDNFI();
    const int Ni = integrators.Size();
@@ -84,7 +84,7 @@ MFNonlinearFormExtension::MFNonlinearFormExtension(NonlinearForm *form):
    }
 }
 
-void MFNonlinearFormExtension::Assemble()
+void MFNonlinearFormExtension::Setup()
 {
    Array<NonlinearFormIntegrator*> &integrators = *n->GetDNFI();
    const int Ni = integrators.Size();
