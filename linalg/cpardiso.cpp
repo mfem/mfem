@@ -73,9 +73,9 @@ void CPardisoSolver::SetOperator(const Operator &op)
    double *csr_nzval = csr_op->data;
    int *csr_colind = csr_op->j;
 
-   delete csr_rowptr;
-   delete reordered_csr_colind;
-   delete reordered_csr_nzval;
+   delete[] csr_rowptr;
+   delete[] reordered_csr_colind;
+   delete[] reordered_csr_nzval;
    csr_rowptr = new int[m_loc + 1];
    reordered_csr_colind = new int[nnz_loc];
    reordered_csr_nzval = new double[nnz_loc];
@@ -103,6 +103,8 @@ void CPardisoSolver::SetOperator(const Operator &op)
       reordered_csr_colind[i] = csr_colind[permutation_idx[i]];
       reordered_csr_nzval[i] = csr_nzval[permutation_idx[i]];
    }
+
+   hypre_CSRMatrixDestroy(csr_op);
 
    // The number of row in global matrix, rhs element and solution vector that
    // begins the input domain belonging to this MPI process
@@ -155,8 +157,6 @@ void CPardisoSolver::SetOperator(const Operator &op)
                          &error);
 
    MFEM_ASSERT(error == 0, "Pardiso factorization input error");
-
-   hypre_CSRMatrixDestroy(csr_op);
 }
 
 void CPardisoSolver::Mult(const Vector &b, Vector &x) const
@@ -218,9 +218,9 @@ CPardisoSolver::~CPardisoSolver()
 
    MFEM_ASSERT(error == 0, "Pardiso free error");
 
-   delete csr_rowptr;
-   delete reordered_csr_colind;
-   delete reordered_csr_nzval;
+   delete[] csr_rowptr;
+   delete[] reordered_csr_colind;
+   delete[] reordered_csr_nzval;
 }
 
 } // namespace mfem
