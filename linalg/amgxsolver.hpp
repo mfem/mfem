@@ -29,17 +29,6 @@
 #include "sparsemat.hpp"
 #endif
 
-# define CHECK(call)                                                        \
-  {                                                                           \
-  const cudaError_t       error = call;                                   \
-  if (error != cudaSuccess)                                               \
-    {                                                                       \
-  printf("Error: %s:%d, code:%d, reason: %s\n",                         \
-         __FILE__, __LINE__, error, cudaGetErrorString(error));          \
-    }                                                                       \
-  }
-
-
 namespace mfem
 {
 
@@ -54,8 +43,6 @@ public:
    AmgXSolver(const std::string &modeStr, const std::string &cfgFile);
 
    void Initialize_Serial(const std::string &modeStr, const std::string &cfgFile);
-
-   void SetA(const SparseMatrix &A);
 
 #ifdef MFEM_USE_MPI
    /* Constructor for MPI-GPU exclusive (1 MPI per GPU) */
@@ -73,8 +60,6 @@ public:
                             const std::string &modeStr, const std::string &cfgFile,
                             const int nDevs);
 
-   void SetA(const HypreParMatrix &A);
-
    void SetA_MPI_GPU_Exclusive(const HypreParMatrix &A, const Array<double> &loc_A,
                                const Array<int> &loc_I, const Array<int64_t> &loc_J);
 
@@ -86,7 +71,7 @@ public:
 
    virtual void Mult(const Vector& b, Vector& x) const;
 
-   int getNumIterations();
+   int GetNumIterations();
 
    enum AMGX_MODE {SOLVER, PRECONDITIONER};
 
@@ -94,7 +79,7 @@ public:
 
    ~AmgXSolver();
 
-   void finalize();
+   void Finalize();
 
 private:
 
@@ -123,7 +108,11 @@ private:
    void ScatterArray(const Vector &inArr, Vector &outArr,
                      const int mpiTeamSz, const MPI_Comm &mpi_comm,
                      Array<int> &Apart, Array<int> &Adisp) const;
+
+   void SetMatrix(const HypreParMatrix &A);
 #endif
+
+   void SetMatrix(const SparseMatrix &A);
 
    static int              count;
 
@@ -204,17 +193,17 @@ private:
    static AMGX_resources_handle   rsrc;
 
    // \brief Set AmgX solver mode based on the user-provided string.
-   void setMode(const std::string &modeStr);
+   void SetMode(const std::string &modeStr);
 
    // \brief Set the ID of the corresponding GPU used by this process.
-   void setDeviceIDs(const int nDevs);
+   void SetDeviceIDs(const int nDevs);
 
    // \brief Initialize all MPI communicators.
 #ifdef MFEM_USE_MPI
-   void initMPIcomms(const MPI_Comm &comm, const int nDevs);
+   void InitMPIcomms(const MPI_Comm &comm, const int nDevs);
 #endif
 
-   void initAmgX(const std::string &cfgFile);
+   void InitAmgX(const std::string &cfgFile);
 
    int64_t m_local_rows;  //mlocal rows for ranks that talk to the gpu
 

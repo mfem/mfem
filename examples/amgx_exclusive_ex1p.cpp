@@ -68,7 +68,6 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
-   //const char *mesh_file = "../data/beam-hex.mesh";
 
    int order = 1;
    bool static_cond = false;
@@ -129,17 +128,10 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
-   // 5. Refine the serial mesh on all processors to increase the resolution. In
-   //    this example we do 'ref_levels' of uniform refinement. We choose
-   //    'ref_levels' to be the largest number that gives a final mesh with no
-   //    more than 10,000 elements.
+   // 5. Refine the serial mesh on all processors to increase the resolution.
+   for (int l = 0; l < ser_ref_levels; l++)
    {
-
-
-      for (int l = 0; l < ser_ref_levels; l++)
-      {
-         mesh->UniformRefinement();
-      }
+      mesh->UniformRefinement();
    }
 
    // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
