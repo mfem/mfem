@@ -104,7 +104,16 @@ NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
    {
       LoadVertexParents(*vertex_parents);
    }
-   else
+   // alternatively, the user might have initialized hanging nodes with
+   // Mesh::AddVertexParents; copy the hierarchy now
+   else if (mesh->tmp_vertex_parents.Size())
+   {
+      for (const auto &triple : mesh->tmp_vertex_parents)
+      {
+         nodes.Reparent(triple.one, triple.two, triple.three);
+      }
+   }
+   else // otherwise we just assume a standard conforming coarse mesh
    {
       top_vertex_pos.SetSize(3*mesh->GetNV());
       for (int i = 0; i < mesh->GetNV(); i++)
