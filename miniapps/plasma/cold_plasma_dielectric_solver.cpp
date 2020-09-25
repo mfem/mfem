@@ -696,9 +696,9 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
       PlasmaProfile rhoCoef(dpt, dpp);
       phi_->ProjectCoefficient(rhoCoef, rhoCoef);
        */
-       
-       rectPot_ = new ParComplexGridFunction(H1FESpace_);
-       *rectPot_ = 0.0;
+
+      rectPot_ = new ParComplexGridFunction(H1FESpace_);
+      *rectPot_ = 0.0;
 
       for (int i=0; i<sbcs_->Size(); i++)
       {
@@ -1106,7 +1106,7 @@ CPDSolver::Solve()
 
    if (e_tmp_ == NULL)
    {
-       e_tmp_ = new ParComplexGridFunction(HCurlFESpace_);
+      e_tmp_ = new ParComplexGridFunction(HCurlFESpace_);
    }
     *e_tmp_->real() = *e_->real();
     *e_tmp_->imag() = *e_->imag();
@@ -1445,7 +1445,7 @@ CPDSolver::Solve()
 
          if (phi_tmp_ == NULL)
          {
-             phi_tmp_ = new ParComplexGridFunction(H1FESpace_);
+            phi_tmp_ = new ParComplexGridFunction(H1FESpace_);
          }
          *phi_tmp_->real() = *phi_->real();
          *phi_tmp_->imag() = *phi_->imag();
@@ -1459,10 +1459,10 @@ CPDSolver::Solve()
 
          while ( Phi_err > 1e-2 )
          {
-             if (Phi_iter > 5)
-             {
-                 break;
-             }
+            if (Phi_iter > 5)
+            {
+               break;
+            }
             HypreParMatrix M0;
             Vector Phi, RHS0;
 
@@ -1471,7 +1471,7 @@ CPDSolver::Solve()
 
             n20ZRe_->Assemble();
             n20ZRe_->Finalize();
-             
+
             n20ZIm_->Assemble();
             n20ZIm_->Finalize();
 
@@ -1543,7 +1543,7 @@ CPDSolver::Solve()
 
             phi_->imag().Distribute(Phi);
 
-             // have to have some error tolerance ...
+            // have to have some error tolerance ...
             double PhisolNorm = phi_tmp_->ComputeL2Error(zeroScalarCoef, zeroScalarCoef);
             double PhisolNorm2 = phi_->ComputeL2Error(zeroScalarCoef, zeroScalarCoef);
             double PhisolErr = phi_->ComputeL2Error(phi_tmp_r_, phi_tmp_i_);
@@ -1727,10 +1727,10 @@ CPDSolver::InitializeGLVis()
 
       socks_["Phii"] = new socketstream;
       socks_["Phii"]->precision(8);
-       
+
       socks_["RecPhir"] = new socketstream;
       socks_["RecPhir"]->precision(8);
-       
+
       socks_["RecPhii"] = new socketstream;
       socks_["RecPhii"]->precision(8);
    }
@@ -1861,17 +1861,17 @@ CPDSolver::DisplayToGLVis()
 
    if (sbcs_->Size() > 0)
    {
-       ComplexCoefficientByAttr & sbc = (*sbcs_)[0];
-       SheathBase * sb = dynamic_cast<SheathBase*>(sbc.real);
+      ComplexCoefficientByAttr & sbc = (*sbcs_)[0];
+      SheathBase * sb = dynamic_cast<SheathBase*>(sbc.real);
 
-       if (sb != NULL)
-       {
+      if (sb != NULL)
+      {
          RectifiedSheathPotential rectPotCoefR(*sb, true);
          RectifiedSheathPotential rectPotCoefI(*sb, false);
-           
+
          rectPot_->ProjectCoefficient(rectPotCoefR, rectPotCoefI);
-       }
-       
+      }
+
       Wx += offx;
       VisualizeField(*socks_["Phir"], vishost, visport,
                      phi_v_->real(), "Sheath Potential, Re(Phi)", Wx, Wy, Ww, Wh);
@@ -1879,7 +1879,7 @@ CPDSolver::DisplayToGLVis()
 
       VisualizeField(*socks_["Phii"], vishost, visport,
                      phi_v_->imag(), "Sheath Potential, Im(Phi)", Wx, Wy, Ww, Wh);
-       
+
       Wx += offx;
       VisualizeField(*socks_["RecPhir"], vishost, visport,
                      rectPot_->real(), "Rectified Potential, Re(RecPhi)", Wx, Wy, Ww, Wh);

@@ -1072,10 +1072,10 @@ int main(int argc, char *argv[])
    Array<ComplexCoefficientByAttr> sbcs((sbca.Size() > 0)? 1 : 0);
    if (sbca.Size() > 0)
    {
-        sbcs[0].real = &z_r;
-        sbcs[0].imag = &z_i;
-        sbcs[0].attr = sbca;
-        AttrToMarker(pmesh.bdr_attributes.Max(), sbcs[0].attr,
+      sbcs[0].real = &z_r;
+      sbcs[0].imag = &z_i;
+      sbcs[0].attr = sbca;
+      AttrToMarker(pmesh.bdr_attributes.Max(), sbcs[0].attr,
                    sbcs[0].attr_marker);
    }
 

@@ -774,7 +774,7 @@ int main(int argc, char *argv[])
    density_offsets[0] = 0;
    temperature_offsets[0] = 0;
    temperature_offsets[1] = size_h1;
-    
+
    for (int i=1; i<=numbers.Size(); i++)
    {
       density_offsets[i]     = density_offsets[i - 1] + size_l2;
@@ -786,7 +786,7 @@ int main(int argc, char *argv[])
 
    PlasmaProfile tempCoef(tpt, tpp);
    PlasmaProfile rhoCoef(dpt, dpp);
-    
+
    for (int i=0; i<=numbers.Size(); i++)
    {
       temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i));
@@ -920,15 +920,15 @@ int main(int argc, char *argv[])
 
    Array<ComplexVectorCoefficientByAttr> nbcs(0);
 
-    Array<ComplexCoefficientByAttr> sbcs((sbca.Size() > 0)? 1 : 0);
-    if (sbca.Size() > 0)
-    {
-         sbcs[0].real = &z_r;
-         sbcs[0].imag = &z_i;
-         sbcs[0].attr = sbca;
-         AttrToMarker(pmesh.bdr_attributes.Max(), sbcs[0].attr,
-                    sbcs[0].attr_marker);
-    }
+   Array<ComplexCoefficientByAttr> sbcs((sbca.Size() > 0)? 1 : 0);
+   if (sbca.Size() > 0)
+   {
+      sbcs[0].real = &z_r;
+      sbcs[0].imag = &z_i;
+      sbcs[0].attr = sbca;
+      AttrToMarker(pmesh.bdr_attributes.Max(), sbcs[0].attr,
+                   sbcs[0].attr_marker);
+   }
 
    // Create the Magnetostatic solver
    if (mpi.Root() && logging > 0)
