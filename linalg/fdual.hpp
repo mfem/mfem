@@ -19,17 +19,48 @@ namespace mfem
 {
 namespace ad
 {
-// Forward AD implementation based on dual numbers
+/** The FDual template class provides forward automatic differentiation
+   implementation based on dual numbers. The derivative of an arbitrary
+ function double f(double a)  can be obtained by replacing the double
+ type for the return value and the argument a  with FDual<double>, i.e.,
+ FDual<double> f(FDual<double> a). The derivative is evaluated automatically
+ by calling the function r=f(a). The value of the function is stored in r.pr
+ and the derivative in r.du. These can be extracted by the corresponding
+  methods real()/prim() and dual(). Internally, the function f can be
+ composed of standard functions predefined for FDual type. These consist
+ of a large set of functions replicating the functionality of the standard
+ math library, i.e., sin, cos, exp, log, ...
+
+New functions (non-member) can be eaily added to the class. Example:
+
+template<typename tbase>
+inline FDual<tbase> cos(const FDual<tbase> &f)
+{
+   return FDual<tbase>(cos(f.real()), -f.dual() * sin(f.real()));
+}
+
+The real part of the return value consists of the standard real value
+ of the function, i.e., cos(f.real()).
+
+The dual part of the return value consists of the first derivative of
+ the function with respect to the real part of the argument -sin(f.reaf)
+ multiplied with the dual part of the argument f.dual().
+*/
 template<typename tbase>
 class FDual
 {
 private:
+   /// Real value
    tbase pr;
+   /// Dual value holding derivative information
    tbase du;
 
 public:
+   /// Standard contructor - both values are set to zero.
    FDual() : pr(0), du(0) {}
 
+   /// The constructor utilized in nested definition of dual numbers.
+   /// It is used for second and higher order derivatives.
    template<class fltyp,
             class = typename std::enable_if<std::is_arithmetic<fltyp>::value>::type>
    FDual(fltyp &f) : pr(f), du(0)
@@ -40,6 +71,7 @@ public:
    FDual(const fltyp &f) : pr(f), du(0)
    {}
 
+   /// Standard constructor with user supplied inpur for both parts of the dual number.
    FDual(tbase &pr_, tbase &du_) : pr(pr_), du(du_) {}
 
    FDual(const tbase &pr_, const tbase &du_) : pr(pr_), du(du_) {}
@@ -48,12 +80,16 @@ public:
 
    FDual(const FDual<tbase> &nm) : pr(nm.pr), du(nm.du) {}
 
+   /// Return the real value of the dual number.
    tbase prim() const { return pr; }
 
+   /// Same as prim(). Return the real value of the dual number.
    tbase real() const { return pr; }
 
+   /// Return the dual value of the dual number.
    tbase dual() const { return du; }
 
+   /// Set the primal and the dual values.
    void set(const tbase &pr_, const tbase &du_)
    {
       pr = pr_;
