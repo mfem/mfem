@@ -15,7 +15,7 @@
 //Open Source Software, 2(16):280, doi:10.21105/joss.00280
 
 #include "../config/config.hpp"
-#include "AmgXSolver.hpp"
+#include "amgxsolver.hpp"
 #ifdef MFEM_USE_AMGX
 
 namespace mfem
@@ -49,7 +49,7 @@ AmgXSolver::AmgXSolver(const MPI_Comm &comm,
 
 AmgXSolver::~AmgXSolver()
 {
-   if (isInitialized) { finalize(); }
+   if (isInitialized) { Finalize(); }
 }
 
 void AmgXSolver::Initialize_Serial(const std::string &modeStr,
@@ -59,7 +59,7 @@ void AmgXSolver::Initialize_Serial(const std::string &modeStr,
 
    mpi_gpu_mode = "serial";
 
-   setMode(modeStr);
+   SetMode(modeStr);
 
    AMGX_SAFE_CALL(AMGX_initialize());
 
@@ -85,7 +85,7 @@ void AmgXSolver::Initialize_ExclusiveGPU(const MPI_Comm &comm,
                                          const std::string &cfgFile)
 {
    // Set AmgX floating point mode
-   setMode(modeStr);
+   SetMode(modeStr);
 
    // If this instance has already been initialized, skip
    if (isInitialized)
@@ -107,7 +107,7 @@ void AmgXSolver::Initialize_ExclusiveGPU(const MPI_Comm &comm,
    //int nDevs(1), deviceId(0);
    nDevs = 1, devID = 0;
 
-   initAmgX(cfgFile);
+   InitAmgX(cfgFile);
 
    isInitialized = true;
 }
@@ -139,22 +139,23 @@ void AmgXSolver::Initialize_MPITeams(const MPI_Comm &comm,
    MPI_Comm_rank(comm, &globalcommrank);
 
    // Set the mode of AmgX solver
-   setMode(modeStr);
+   SetMode(modeStr);
 
    // Initialize communicators and corresponding information
-   initMPIcomms(comm, nDevs);
+   InitMPIcomms(comm, nDevs);
 
    // Only processes in gpuWorld are required to initialize AmgX
    if (gpuProc == 0)
    {
-      initAmgX(cfgFile);
+      InitAmgX(cfgFile);
    }
 
    isInitialized = true;
 }
 #endif
 
-void AmgXSolver::setMode(const std::string &modeStr)
+//TODO Remove - only support double precision
+void AmgXSolver::SetMode(const std::string &modeStr)
 {
    if (modeStr == "dDDI")
    {
@@ -163,7 +164,7 @@ void AmgXSolver::setMode(const std::string &modeStr)
    else { mfem_error("Mode not supported \n"); }
 }
 
-int AmgXSolver::getNumIterations()
+int AmgXSolver::GetNumIterations()
 {
    int getIters;
    AMGX_solver_get_iterations_number(solver, &getIters);
@@ -172,9 +173,8 @@ int AmgXSolver::getNumIterations()
 
 // Sets up AmgX library for  MPI builds
 #ifdef MFEM_USE_MPI
-void AmgXSolver::initAmgX(const std::string &cfgFile)
+void AmgXSolver::InitAmgX(const std::string &cfgFile)
 {
-
    // Set up once
    if (count == 1)
    {
@@ -190,7 +190,8 @@ void AmgXSolver::initAmgX(const std::string &cfgFile)
    // Let AmgX handle returned error codes internally
    AMGX_SAFE_CALL(AMGX_config_add_parameters(&cfg, "exception_handling=1"));
 
-   // Create an AmgX resource object, only the first instance is in charge
+   // Create an AmgX resource object, only the first instance needs to create
+   // the resource object.
    if (count == 1) { AMGX_resources_create(&rsrc, cfg, &gpuWorld, 1, &devID); }
 
    // Create AmgX vector object for unknowns and RHS
@@ -208,7 +209,7 @@ void AmgXSolver::initAmgX(const std::string &cfgFile)
 }
 
 // Groups MPI ranks into teams and assigns a lead to talk to GPUs
-void AmgXSolver::initMPIcomms(const MPI_Comm &comm, const int nDevs)
+void AmgXSolver::InitMPIcomms(const MPI_Comm &comm, const int nDevs)
 {
    // Duplicate the global communicator
    MPI_Comm_dup(comm, &globalCpuWorld);
@@ -228,7 +229,7 @@ void AmgXSolver::initMPIcomms(const MPI_Comm &comm, const int nDevs)
    MPI_Comm_rank(localCpuWorld, &myLocalRank);
 
    // Set up corresponding ID of the device used by each local process
-   setDeviceIDs(nDevs);
+   SetDeviceIDs(nDevs);
 
    MPI_Barrier(globalCpuWorld);
 
@@ -242,7 +243,7 @@ void AmgXSolver::initMPIcomms(const MPI_Comm &comm, const int nDevs)
       MPI_Comm_size(gpuWorld, &gpuWorldSize);
       MPI_Comm_rank(gpuWorld, &myGpuWorldRank);
    }
-   else // for those can not communicate with GPU devices
+   else // for those that will not communicate with the GPU
    {
       gpuWorldSize = MPI_UNDEFINED;
       myGpuWorldRank = MPI_UNDEFINED;
@@ -260,11 +261,11 @@ void AmgXSolver::initMPIcomms(const MPI_Comm &comm, const int nDevs)
 }
 
 // Determine MPI team sizes based on available devices
-void AmgXSolver::setDeviceIDs(const int nDevs)
+void AmgXSolver::SetDeviceIDs(const int nDevs)
 {
 
    // Set the ID of device that each local process will use
-   if (nDevs == localSize) // # of the devices and local precosses are the same
+   if (nDevs == localSize) // # of the devices and local process are the same
    {
       devID = myLocalRank;
       gpuProc = 0;
@@ -352,7 +353,6 @@ void AmgXSolver::GatherArray(const Vector &inArr, Vector &outArr,
                outArr.HostWrite(), Apart.HostRead(), Adisp.HostRead(),
                MPI_DOUBLE, 0, mpiTeamComm);
 }
-
 
 void AmgXSolver::GatherArray(const Array<int> &inArr, Array<int> &outArr,
                              const int mpiTeamSz, const MPI_Comm &mpiTeamComm) const
@@ -448,7 +448,7 @@ void AmgXSolver::ScatterArray(const Vector &inArr, Vector &outArr,
 }
 #endif
 
-void AmgXSolver::SetA(const SparseMatrix &in_A)
+void AmgXSolver::SetMatrix(const SparseMatrix &in_A)
 {
    AMGX_matrix_upload_all(AmgXA, in_A.Height(),
                           in_A.NumNonZeroElems(),
@@ -463,7 +463,7 @@ void AmgXSolver::SetA(const SparseMatrix &in_A)
 }
 
 #ifdef MFEM_USE_MPI
-void AmgXSolver::SetA(const HypreParMatrix &A)
+void AmgXSolver::SetMatrix(const HypreParMatrix &A)
 {
 
    hypre_ParCSRMatrix * A_ptr =
@@ -694,15 +694,19 @@ void AmgXSolver::SetOperator(const Operator& op)
    if (const SparseMatrix* Aptr =
           dynamic_cast<const SparseMatrix*>(&op))
    {
-      SetA(*Aptr);
+      SetMatrix(*Aptr);
    }
 #ifdef MFEM_USE_MPI
    else if (const HypreParMatrix* Aptr =
                dynamic_cast<const HypreParMatrix*>(&op))
    {
-      SetA(*Aptr);
+      SetMatrix(*Aptr);
    }
 #endif
+   else
+   {
+      mfem_error("Unsupported Operator Type \n");
+   }
 }
 
 void AmgXSolver::Mult(const Vector& B, Vector& X) const
@@ -776,15 +780,17 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
 }
 
 
-// \implements AmgXSolver::finalize
-void AmgXSolver::finalize()
+// \implements AmgXSolver::Finalize
+void AmgXSolver::Finalize()
 {
-   // skip if this instance has not been initialized
+   //Check instance is initialized
    if (! isInitialized)
    {
       mfem_error("This AmgXWrapper has not been initialized. "
                  "Please initialize it before finalization.\n");
    }
+
+   MFEM_VERIFY(count > 0, "Error in AmgXSolver::Finalize()");
 
    // Only processes using GPU are required to destroy AmgX content
 #ifdef MFEM_USE_MPI

@@ -63,7 +63,6 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   //const char *mesh_file = "../data/beam-hex.mesh";
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool static_cond = false;
@@ -235,8 +234,6 @@ int main(int argc, char *argv[])
       }
       // Recover the solution as a finite element grid function.
       a->RecoverFEMSolution(X, *b, x);
-      //x.HostReadWrite();
-      //x.Print();
    }
 
    // 11. Save the refined mesh and the solution. This output can be viewed later
