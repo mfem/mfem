@@ -41,7 +41,7 @@ CPardisoSolver::CPardisoSolver(MPI_Comm comm) : comm_(comm)
    // Initialize error flag
    error = 0;
    // Real unsymmetric matrix
-   mtype = 11;
+   mtype = MatType::REAL_UNSYMMETRIC;
    // Number of right hand sides
    nrhs = 1;
 };
@@ -57,7 +57,10 @@ void CPardisoSolver::SetOperator(const Operator &op)
 
    hypre_CSRMatrix *csr_op = hypre_MergeDiagAndOffd(parcsr_op);
    hypre_CSRMatrixSetDataOwner(csr_op, 0);
+
+#if MFEM_HYPRE_VERSION >= 21600
    hypre_CSRMatrixBigJtoJ(csr_op);
+#endif
 
    m = parcsr_op->global_num_rows;
    first_row = parcsr_op->first_row_index;
@@ -82,7 +85,7 @@ void CPardisoSolver::SetOperator(const Operator &op)
       csr_rowptr[i] = (csr_op->i)[i];
    }
 
-   // CPardiso expects the column indices to be sorted
+   // CPardiso expects the column indices to be sorted for each row
    std::vector<int> permutation_idx(nnz_loc);
    std::iota(permutation_idx.begin(), permutation_idx.end(), 0);
    for (int i = 0; i < m_loc; i++)
@@ -130,7 +133,7 @@ void CPardisoSolver::SetOperator(const Operator &op)
 
    MFEM_ASSERT(error == 0, "Pardiso analyze input error");
 
-   // Numerical factorization
+      // Numerical factorization
    phase = 22;
    cluster_sparse_solver(pt,
                          &maxfct,
@@ -183,6 +186,11 @@ void CPardisoSolver::Mult(const Vector &b, Vector &x) const
 void CPardisoSolver::SetPrintLevel(int print_level)
 {
    msglvl = print_level;
+}
+
+void CPardisoSolver::SetMatrixType(MatType mat_type)
+{
+   mtype = mat_type;
 }
 
 CPardisoSolver::~CPardisoSolver()
