@@ -2483,6 +2483,25 @@ void Mesh::FinalizeTopology(bool generate_bdr)
    if (spaceDim == 0) { spaceDim = Dim; }
    if (ncmesh) { ncmesh->spaceDim = spaceDim; }
 
+   // if the user defined any hanging nodes (see AddVertexParent),
+   // we're initializing a non-conforming mesh
+   if (tmp_vertex_parents.Size())
+   {
+      MFEM_VERIFY(ncmesh == NULL, "");
+      ncmesh = new NCMesh(this);
+
+      // we need to recreate the Mesh because NCMesh reorders the vertices
+      // (see NCMesh::UpdateVertices())
+      InitFromNCMesh(*ncmesh);
+      ncmesh->OnMeshUpdated(this);
+      GenerateNCFaceInfo();
+
+      SetAttributes();
+
+      tmp_vertex_parents.DeleteAll();
+      return;
+   }
+
    // set the mesh type: 'meshgen', ...
    SetMeshGen();
 
@@ -2527,6 +2546,7 @@ void Mesh::FinalizeTopology(bool generate_bdr)
       GenerateFaces();
    }
 
+#if 0 // TODO where is this needed?
    if (ncmesh)
    {
       // tell NCMesh the numbering of edges/faces
@@ -2535,18 +2555,10 @@ void Mesh::FinalizeTopology(bool generate_bdr)
       // update faces_info with NC relations
       GenerateNCFaceInfo();
    }
+#endif
 
    // generate the arrays 'attributes' and 'bdr_attributes'
    SetAttributes();
-
-   // if the user defined any hanging nodes (see AddVertexParent),
-   // initialize the NC mesh now
-   if (tmp_vertex_parents.Size())
-   {
-      MFEM_VERIFY(ncmesh == NULL, "");
-      EnsureNCMesh(true);
-      tmp_vertex_parents.DeleteAll();
-   }
 }
 
 void Mesh::Finalize(bool refine, bool fix_orientation)

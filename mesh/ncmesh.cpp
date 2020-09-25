@@ -118,6 +118,16 @@ NCMesh::NCMesh(const Mesh *mesh)
       }
    }
 
+   // if the user initialized any hanging nodes with Mesh::AddVertexParents,
+   // copy the hierarchy now
+   if (mesh->tmp_vertex_parents.Size())
+   {
+      for (const auto &triple : mesh->tmp_vertex_parents)
+      {
+         nodes.Reparent(triple.one, triple.two, triple.three);
+      }
+   }
+
    // create edge nodes and faces
    nodes.UpdateUnused();
    for (int i = 0; i < elements.Size(); i++)
@@ -157,16 +167,6 @@ NCMesh::NCMesh(const Mesh *mesh)
       else
       {
          MFEM_ABORT("Unsupported boundary element geometry.");
-      }
-   }
-
-   // if the user initialized any hanging nodes with Mesh::AddVertexParents,
-   // copy the hierarchy now
-   if (mesh->tmp_vertex_parents.Size())
-   {
-      for (const auto &triple : mesh->tmp_vertex_parents)
-      {
-         nodes.Reparent(triple.one, triple.two, triple.three);
       }
    }
 
@@ -1992,12 +1992,9 @@ void NCMesh::UpdateVertices()
    }
 
    // STEP 2: assign indices of top-level owned vertices, in original order
-   // (note that they are at the beginning of the 'nodes' array, and p1 == p2).
 
    NVertices = 0;
-   for (auto node = nodes.begin();
-        (node != nodes.end()) && (node->p1 == node->p2);
-        ++node)
+   for (auto node = nodes.begin(); node != nodes.end(); ++node)
    {
       if (node->vert_index == -1)
       {
