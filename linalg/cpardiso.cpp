@@ -8,7 +8,7 @@ namespace mfem
 {
 CPardisoSolver::CPardisoSolver(MPI_Comm comm) : comm_(comm)
 {
-   // Solver default parameters overriden with provided by iparm
+   // Solver default parameters overridden with provided by iparm
    iparm[0] = 1;
    // Use METIS for fill-in reordering
    iparm[1] = 2;
@@ -18,11 +18,11 @@ CPardisoSolver::CPardisoSolver(MPI_Comm comm) : comm_(comm)
    iparm[7] = 2;
    // Perturb the pivot elements with 1E-13
    iparm[9] = 13;
-   // Use nonsymmetric permutation and scaling MPS
+   // Use non-symmetric permutation and scaling MPS
    iparm[10] = 1;
    // Switch on Maximum Weighted Matching algorithm (default for non-symmetric)
    iparm[12] = 1;
-   // Output: Number of nonzeros in the factor LU
+   // Output: Number of non-zeros in the factor LU
    iparm[17] = -1;
    // Output: Mflops for LU factorization
    iparm[18] = -1;
