@@ -57,7 +57,6 @@ public:
       double energy=0;
       int dof_u = el[0]->GetDof();
       int dof_r = el[1]->GetDof();
-      int dim = el[0]->GetDim();
 
       const mfem::IntegrationRule *ir = NULL;
       int order = el[0]->GetOrder() + el[1]->GetOrder() + 1;
