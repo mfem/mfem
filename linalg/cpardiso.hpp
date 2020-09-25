@@ -40,7 +40,7 @@ public:
    CPardisoSolver(MPI_Comm comm);
 
    /**
-    * @brief Set the Operator object
+    * @brief Set the Operator object and perform factorization
     *
     * @a op needs to be of type HypreParMatrix. The contents are copied and
     * reordered in an internal CSR structure.
@@ -50,7 +50,7 @@ public:
    void SetOperator(const Operator &op) override;
 
    /**
-    * @brief Factorize and solve
+    * @brief Solve
     *
     * @param b RHS vector
     * @param x Solution vector
