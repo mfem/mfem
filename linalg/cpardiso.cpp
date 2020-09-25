@@ -53,7 +53,7 @@ void CPardisoSolver::SetOperator(const Operator &op)
    MFEM_ASSERT(hypreParMat, "Must pass HypreParMatrix as Operator");
 
    auto parcsr_op = static_cast<hypre_ParCSRMatrix *>(
-      const_cast<HypreParMatrix &>(hypreParMat));
+                       const_cast<HypreParMatrix &>(hypreParMat));
 
    hypre_CSRMatrix *csr_op = hypre_MergeDiagAndOffd(parcsr_op);
    hypre_CSRMatrixSetDataOwner(csr_op, 0);
@@ -92,9 +92,10 @@ void CPardisoSolver::SetOperator(const Operator &op)
    {
       std::sort(permutation_idx.begin() + csr_rowptr[i],
                 permutation_idx.begin() + csr_rowptr[i + 1],
-                [csr_colind](int i1, int i2) {
-                   return csr_colind[i1] < csr_colind[i2];
-                });
+                [csr_colind](int i1, int i2)
+      {
+         return csr_colind[i1] < csr_colind[i2];
+      });
    }
 
    for (int i = 0; i < nnz_loc; i++)
@@ -133,7 +134,7 @@ void CPardisoSolver::SetOperator(const Operator &op)
 
    MFEM_ASSERT(error == 0, "Pardiso analyze input error");
 
-      // Numerical factorization
+   // Numerical factorization
    phase = 22;
    cluster_sparse_solver(pt,
                          &maxfct,
