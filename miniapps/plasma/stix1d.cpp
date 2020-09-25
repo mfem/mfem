@@ -757,7 +757,6 @@ int main(int argc, char *argv[])
    ParGridFunction ExactImEField(&HCurlFESpace);
    ParGridFunction temperature_gf;
    ParGridFunction density_gf;
-   ParGridFunction potential_gf;
 
    BField.ProjectCoefficient(*BCoef);
    // LField.ProjectCoefficient(LCoef);
@@ -770,40 +769,29 @@ int main(int argc, char *argv[])
    int size_l2 = L2FESpace.GetVSize();
 
    Array<int> density_offsets(numbers.Size() + 1);
-   Array<int> potential_offsets(3);
    Array<int> temperature_offsets(numbers.Size() + 2);
 
    density_offsets[0] = 0;
-   potential_offsets[0] = 0;
    temperature_offsets[0] = 0;
    temperature_offsets[1] = size_h1;
+    
    for (int i=1; i<=numbers.Size(); i++)
    {
       density_offsets[i]     = density_offsets[i - 1] + size_l2;
       temperature_offsets[i + 1] = temperature_offsets[i] + size_h1;
    }
-   potential_offsets[1] = potential_offsets[0] + size_h1;
-   potential_offsets[2] = potential_offsets[1] + size_h1;
 
    BlockVector density(density_offsets);
-   BlockVector potential(potential_offsets);
    BlockVector temperature(temperature_offsets);
 
    PlasmaProfile tempCoef(tpt, tpp);
    PlasmaProfile rhoCoef(dpt, dpp);
-   ConstantCoefficient PotentReCoef(0.0);
-   ConstantCoefficient PotentImCoef(0.0);
-
+    
    for (int i=0; i<=numbers.Size(); i++)
    {
       temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i));
       temperature_gf.ProjectCoefficient(tempCoef);
    }
-
-   potential_gf.MakeRef(&H1FESpace, potential.GetBlock(0));
-   potential_gf.ProjectCoefficient(PotentReCoef);
-   potential_gf.MakeRef(&H1FESpace, potential.GetBlock(1));
-   potential_gf.ProjectCoefficient(PotentImCoef);
 
    for (int i=0; i<numbers.Size(); i++)
    {
@@ -932,15 +920,15 @@ int main(int argc, char *argv[])
 
    Array<ComplexVectorCoefficientByAttr> nbcs(0);
 
-   Array<ComplexCoefficientByAttr> sbcs((sbca.Size() > 0)? 1 : 0);
-   if (sbca.Size() > 0)
-   {
-      sbcs[0].real = &PotentReCoef;
-      sbcs[0].imag = &PotentImCoef;
-      sbcs[0].attr = sbca;
-      AttrToMarker(pmesh.bdr_attributes.Max(), sbcs[0].attr,
-                   sbcs[0].attr_marker);
-   }
+    Array<ComplexCoefficientByAttr> sbcs((sbca.Size() > 0)? 1 : 0);
+    if (sbca.Size() > 0)
+    {
+         sbcs[0].real = &z_r;
+         sbcs[0].imag = &z_i;
+         sbcs[0].attr = sbca;
+         AttrToMarker(pmesh.bdr_attributes.Max(), sbcs[0].attr,
+                    sbcs[0].attr_marker);
+    }
 
    // Create the Magnetostatic solver
    if (mpi.Root() && logging > 0)
