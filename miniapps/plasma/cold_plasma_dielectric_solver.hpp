@@ -315,6 +315,7 @@ private:
    ParDiscreteGradOperator * grad_; // For Computing E from phi
    ParComplexGridFunction * phi_; // Complex sheath potential (H1)
    ParComplexGridFunction * phi_tmp_; // Complex sheath potential temporary (H1)
+   ParComplexGridFunction * rectPot_; // Complex rectified potential (H1)
    ParComplexGridFunction * j_;   // Complex current density (HCurl)
    ParComplexLinearForm   * rhs_; // Dual of complex current density (HCurl)
    ParGridFunction        * e_t_; // Time dependent Electric field
