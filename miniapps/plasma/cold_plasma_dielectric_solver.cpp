@@ -1108,8 +1108,8 @@ CPDSolver::Solve()
    {
       e_tmp_ = new ParComplexGridFunction(HCurlFESpace_);
    }
-    *e_tmp_->real() = *e_->real();
-    *e_tmp_->imag() = *e_->imag();
+   e_tmp_->real() = e_->real();
+   e_tmp_->imag() = e_->imag();
 
    VectorGridFunctionCoefficient e_tmp_r_(&e_tmp_->real());
    VectorGridFunctionCoefficient e_tmp_i_(&e_tmp_->imag());
@@ -1447,8 +1447,8 @@ CPDSolver::Solve()
          {
             phi_tmp_ = new ParComplexGridFunction(H1FESpace_);
          }
-         *phi_tmp_->real() = *phi_->real();
-         *phi_tmp_->imag() = *phi_->imag();
+         phi_tmp_->real() = phi_->real();
+         phi_tmp_->imag() = phi_->imag();
 
          GridFunctionCoefficient phi_tmp_r_(&phi_tmp_->real());
          GridFunctionCoefficient phi_tmp_i_(&phi_tmp_->imag());
@@ -1551,19 +1551,20 @@ CPDSolver::Solve()
             Phi_err = PhisolErr;
             if ( PhisolNorm != 0 ) { Phi_err = PhisolErr / PhisolNorm; }
 
-             cout << "Phi pass: " << PhisolNorm << " " << PhisolErr << " " << PhisolNorm2 << " Error: " << Phi_err << endl;
+            cout << "Phi pass: " << PhisolNorm << " " << PhisolErr << " " << PhisolNorm2 <<
+                 " Error: " << Phi_err << endl;
             Phi_iter++;
-            
-             if (PhisolNorm == 0 && Phi_err < 1e-3)
-             {
-                 break;
-             }
 
-            *phi_tmp_->real() = *phi_->real();
-            *phi_tmp_->imag() = *phi_->imag();
-             
-             double PhisolNorm3 = phi_tmp_->ComputeL2Error(zeroScalarCoef, zeroScalarCoef);
-             // cout << "Second time: " << PhisolNorm3 << endl;
+            if (PhisolNorm == 0 && Phi_err < 1e-3)
+            {
+               break;
+            }
+
+            phi_tmp_->real() = phi_->real();
+            phi_tmp_->imag() = phi_->imag();
+
+            double PhisolNorm3 = phi_tmp_->ComputeL2Error(zeroScalarCoef, zeroScalarCoef);
+            // cout << "Second time: " << PhisolNorm3 << endl;
 
          }
          cout << " Inner potential calculation done in " << Phi_iter << " iteration(s)."
@@ -1586,9 +1587,9 @@ CPDSolver::Solve()
 
       cout << "Efield pass: " << E_iter << " Error: " << E_err << endl;
 
-      *e_tmp_->real() = *e_->real();
-      *e_tmp_->imag() = *e_->imag();
-       
+      e_tmp_->real() = e_->real();
+      e_tmp_->imag() = e_->imag();
+
       E_iter++;
    }
    cout << " Outer E field calculation done in " << E_iter << " iteration(s)." <<
