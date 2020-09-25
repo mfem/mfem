@@ -81,7 +81,7 @@ public:
 private:
    MPI_Comm comm_;
 
-   // Global numer of rows
+   // Global number of rows
    int m;
 
    // First row index of the global matrix on the local MPI rank
