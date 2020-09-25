@@ -352,7 +352,7 @@ public:
    typedef std::int64_t RefCoord;
 
 
-protected: // interface for Mesh to be able to construct itself from NCMesh
+protected: // non-public interface for the Mesh class
 
    friend class Mesh;
 
@@ -362,6 +362,10 @@ protected: // interface for Mesh to be able to construct itself from NCMesh
    /** Get edge and face numbering from 'mesh' (i.e., set all Edge::index and
        Face::index) after a new mesh was created from us. */
    void OnMeshUpdated(Mesh *mesh);
+
+   /** Delete top-level vertex coordinates if the Mesh became curved, e.g.,
+       by calling Mesh::SetCurvature or otherwise setting the Nodes. */
+   void MakeTopologyOnly() { coordinates.DeleteAll(); }
 
 
 protected: // implementation

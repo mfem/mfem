@@ -6687,6 +6687,11 @@ void Mesh::NewNodes(GridFunction &nodes, bool make_owner)
       delete NURBSext;
       NURBSext = nodes.FESpace()->StealNURBSext();
    }
+
+   if (ncmesh)
+   {
+      ncmesh->MakeTopologyOnly();
+   }
 }
 
 void Mesh::SwapNodes(GridFunction *&nodes, int &own_nodes_)
