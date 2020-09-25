@@ -275,19 +275,14 @@ void Update(ParFiniteElementSpace & H1FESpace,
             VectorCoefficient & BCoef,
             Coefficient & rhoCoef,
             Coefficient & TCoef,
-            Coefficient & PotReCoef,
-            Coefficient & PotImCoef,
             int & size_h1,
             int & size_l2,
             Array<int> & density_offsets,
             Array<int> & temperature_offsets,
-            Array<int> & potential_offsets,
             BlockVector & density,
             BlockVector & temperature,
-            BlockVector & potential,
             ParGridFunction & density_gf,
-            ParGridFunction & temperature_gf,
-            ParGridFunction & potential_gf);
+            ParGridFunction & temperature_gf);
 
 //static double freq_ = 1.0e9;
 
@@ -800,7 +795,6 @@ int main(int argc, char *argv[])
    ParGridFunction BField(&HDivFESpace);
    ParGridFunction temperature_gf;
    ParGridFunction density_gf;
-   ParGridFunction potential_gf;
 
    BField.ProjectCoefficient(BCoef);
 
@@ -808,11 +802,9 @@ int main(int argc, char *argv[])
    int size_l2 = L2FESpace.GetVSize();
 
    Array<int> density_offsets(numbers.Size() + 1);
-   Array<int> potential_offsets(3);
    Array<int> temperature_offsets(numbers.Size() + 2);
 
    density_offsets[0] = 0;
-   potential_offsets[0] = 0;
    temperature_offsets[0] = 0;
    temperature_offsets[1] = size_h1;
 
@@ -821,11 +813,8 @@ int main(int argc, char *argv[])
       density_offsets[i]     = density_offsets[i - 1] + size_l2;
       temperature_offsets[i + 1] = temperature_offsets[i] + size_h1;
    }
-   potential_offsets[1] = potential_offsets[0] + size_h1;
-   potential_offsets[2] = potential_offsets[1] + size_h1;
 
    BlockVector density(density_offsets);
-   BlockVector potential(potential_offsets);
    BlockVector temperature(temperature_offsets);
 
    if (mpi.Root())
@@ -835,19 +824,12 @@ int main(int argc, char *argv[])
 
    PlasmaProfile tempCoef(tpt, tpp);
    PlasmaProfile rhoCoef(dpt, dpp);
-   ConstantCoefficient PotentReCoef(0.0);
-   ConstantCoefficient PotentImCoef(0.0);
 
    for (int i=0; i<=numbers.Size(); i++)
    {
       temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i));
       temperature_gf.ProjectCoefficient(tempCoef);
    }
-
-   potential_gf.MakeRef(&H1FESpace, potential.GetBlock(0));
-   potential_gf.ProjectCoefficient(PotentReCoef);
-   potential_gf.MakeRef(&H1FESpace, potential.GetBlock(1));
-   potential_gf.ProjectCoefficient(PotentImCoef);
 
    for (int i=0; i<charges.Size(); i++)
    {
@@ -1090,10 +1072,10 @@ int main(int argc, char *argv[])
    Array<ComplexCoefficientByAttr> sbcs((sbca.Size() > 0)? 1 : 0);
    if (sbca.Size() > 0)
    {
-      sbcs[0].real = &PotentReCoef;
-      sbcs[0].imag = &PotentImCoef;
-      sbcs[0].attr = sbca;
-      AttrToMarker(pmesh.bdr_attributes.Max(), sbcs[0].attr,
+        sbcs[0].real = &z_r;
+        sbcs[0].imag = &z_i;
+        sbcs[0].attr = sbca;
+        AttrToMarker(pmesh.bdr_attributes.Max(), sbcs[0].attr,
                    sbcs[0].attr_marker);
    }
 
@@ -1242,11 +1224,11 @@ int main(int argc, char *argv[])
 
       // Update the magnetostatic solver to reflect the new state of the mesh.
       Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace, BField, BCoef,
-             rhoCoef, tempCoef, PotentReCoef, PotentImCoef,
+             rhoCoef, tempCoef,
              size_h1, size_l2,
-             density_offsets, temperature_offsets, potential_offsets,
-             density, temperature, potential,
-             density_gf, temperature_gf, potential_gf);
+             density_offsets, temperature_offsets,
+             density, temperature,
+             density_gf, temperature_gf);
       CPD.Update();
 
       if (pmesh.Nonconforming() && mpi.WorldSize() > 1 && false)
@@ -1256,11 +1238,11 @@ int main(int argc, char *argv[])
 
          // Update again after rebalancing
          Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace, BField, BCoef,
-                rhoCoef, tempCoef, PotentReCoef, PotentImCoef,
+                rhoCoef, tempCoef,
                 size_h1, size_l2,
-                density_offsets, temperature_offsets, potential_offsets,
-                density, temperature, potential,
-                density_gf, temperature_gf, potential_gf);
+                density_offsets, temperature_offsets,
+                density, temperature,
+                density_gf, temperature_gf);
          CPD.Update();
       }
    }
@@ -1286,19 +1268,14 @@ void Update(ParFiniteElementSpace & H1FESpace,
             VectorCoefficient & BCoef,
             Coefficient & rhoCoef,
             Coefficient & TCoef,
-            Coefficient & PotReCoef,
-            Coefficient & PotImCoef,
             int & size_h1,
             int & size_l2,
             Array<int> & density_offsets,
             Array<int> & temperature_offsets,
-            Array<int> & potential_offsets,
             BlockVector & density,
             BlockVector & temperature,
-            BlockVector & potential,
             ParGridFunction & density_gf,
-            ParGridFunction & temperature_gf,
-            ParGridFunction & potential_gf)
+            ParGridFunction & temperature_gf)
 {
    H1FESpace.Update();
    HCurlFESpace.Update();
@@ -1331,16 +1308,6 @@ void Update(ParFiniteElementSpace & H1FESpace,
       temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i));
       temperature_gf.ProjectCoefficient(TCoef);
    }
-
-   potential_offsets[1] = potential_offsets[0] + size_h1;
-   potential_offsets[2] = potential_offsets[1] + size_h1;
-
-   potential.Update(potential_offsets);
-
-   potential_gf.MakeRef(&H1FESpace, potential.GetBlock(0));
-   potential_gf.ProjectCoefficient(PotReCoef);
-   potential_gf.MakeRef(&H1FESpace, potential.GetBlock(1));
-   potential_gf.ProjectCoefficient(PotImCoef);
 }
 
 // Print the stix2d ascii logo to the given ostream
