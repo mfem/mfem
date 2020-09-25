@@ -566,7 +566,7 @@ protected:
    bool jfnk = false;                 ///< enable JFNK
    Vector wrk;                        ///< Work vector needed for the JFNK PC
    int maxli = 5;                     ///< Maximum linear iterations
-   int maxlrs = 0;                    ///< Maximum linear iterations
+   int maxlrs = 0;                    ///< Maximum linear solver restarts
 
    /// Wrapper to compute the nonlinear residual \f$ F(u) = 0 \f$.
    static int Mult(const N_Vector u, N_Vector fu, void *user_data);
