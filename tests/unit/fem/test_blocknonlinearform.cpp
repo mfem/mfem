@@ -148,13 +148,12 @@ TEST_CASE("ParBlockNonlinearForm",
 
       // Compute the energy: integral over 1/8 sphere = Pi*1*1*1/6
       double A4 = nf->GetEnergy(x);
-      if (my_rank == 0)
-      {
-         std::cout << my_rank
-                   << ": Checked ParBlockNonlinearForm::GetEnergy = " << A4
-                   << " Expected" << M_PI / 6.0 << " diff=" << (A4 - M_PI / 6.0)
-                   << std::endl;
-      }
+
+      std::cout << "Rank " << my_rank
+                << ": ParBlockNonlinearForm::GetEnergy = " << A4
+                << " Expected" << M_PI / 6.0 << " diff=" << (A4 - M_PI / 6.0)
+                << std::endl;
+
       REQUIRE(abs(A4 - M_PI / 6.0) < 1e-2);
 
       delete nf;
