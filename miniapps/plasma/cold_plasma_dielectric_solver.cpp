@@ -292,6 +292,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      grad_(NULL),
      phi_(NULL),
      phi_tmp_(NULL),
+     rectPot_(NULL),
      j_(NULL),
      rhs_(NULL),
      e_t_(NULL),
@@ -687,7 +688,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    if (sbcs_->Size() > 0)
    {
       phi_  = new ParComplexGridFunction(H1FESpace_);
-      *phi_ = 0.0;
+      *phi_ = 10.0;
       /*
       PlasmaProfile::Type dpt = PlasmaProfile::GRADIENT;
       Vector dpp(6);
@@ -695,6 +696,9 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
       PlasmaProfile rhoCoef(dpt, dpp);
       phi_->ProjectCoefficient(rhoCoef, rhoCoef);
        */
+       
+       rectPot_ = new ParComplexGridFunction(H1FESpace_);
+       *rectPot_ = 0.0;
 
       for (int i=0; i<sbcs_->Size(); i++)
       {
@@ -1100,11 +1104,12 @@ CPDSolver::Solve()
 
    float E_err = 1.0;
 
-   VectorGridFunctionCoefficient e_r_(&e_->real());
-   VectorGridFunctionCoefficient e_i_(&e_->imag());
-
-   e_tmp_ = new ParComplexGridFunction(HCurlFESpace_);
-   e_tmp_->ProjectCoefficient(e_r_, e_i_);
+   if (e_tmp_ == NULL)
+   {
+       e_tmp_ = new ParComplexGridFunction(HCurlFESpace_);
+   }
+    *e_tmp_->real() = *e_->real();
+    *e_tmp_->imag() = *e_->imag();
 
    VectorGridFunctionCoefficient e_tmp_r_(&e_tmp_->real());
    VectorGridFunctionCoefficient e_tmp_i_(&e_tmp_->imag());
@@ -1438,11 +1443,12 @@ CPDSolver::Solve()
       {
          float Phi_err = 1.0;
 
-         GridFunctionCoefficient phi_r_(&phi_->real());
-         GridFunctionCoefficient phi_i_(&phi_->imag());
-
-         phi_tmp_ = new ParComplexGridFunction(H1FESpace_);
-         phi_tmp_->ProjectCoefficient(phi_r_, phi_i_);
+         if (phi_tmp_ == NULL)
+         {
+             phi_tmp_ = new ParComplexGridFunction(H1FESpace_);
+         }
+         *phi_tmp_->real() = *phi_->real();
+         *phi_tmp_->imag() = *phi_->imag();
 
          GridFunctionCoefficient phi_tmp_r_(&phi_tmp_->real());
          GridFunctionCoefficient phi_tmp_i_(&phi_tmp_->imag());
@@ -1451,8 +1457,12 @@ CPDSolver::Solve()
 
          int Phi_iter = 0;
 
-         while ( Phi_err > 1e-3 )
+         while ( Phi_err > 1e-2 )
          {
+             if (Phi_iter > 5)
+             {
+                 break;
+             }
             HypreParMatrix M0;
             Vector Phi, RHS0;
 
@@ -1461,6 +1471,9 @@ CPDSolver::Solve()
 
             n20ZRe_->Assemble();
             n20ZRe_->Finalize();
+             
+            n20ZIm_->Assemble();
+            n20ZIm_->Finalize();
 
             n20ZRe_->Mult(d_->imag(), rhs.real());
             n20ZIm_->Mult(d_->real(), tmp.real());
@@ -1530,16 +1543,27 @@ CPDSolver::Solve()
 
             phi_->imag().Distribute(Phi);
 
+             // have to have some error tolerance ...
             double PhisolNorm = phi_tmp_->ComputeL2Error(zeroScalarCoef, zeroScalarCoef);
+            double PhisolNorm2 = phi_->ComputeL2Error(zeroScalarCoef, zeroScalarCoef);
             double PhisolErr = phi_->ComputeL2Error(phi_tmp_r_, phi_tmp_i_);
 
             Phi_err = PhisolErr;
             if ( PhisolNorm != 0 ) { Phi_err = PhisolErr / PhisolNorm; }
 
-            cout << "Phi pass: " << Phi_iter << " Error: " << Phi_err << endl;
+             cout << "Phi pass: " << PhisolNorm << " " << PhisolErr << " " << PhisolNorm2 << " Error: " << Phi_err << endl;
             Phi_iter++;
+            
+             if (PhisolNorm == 0 && Phi_err < 1e-3)
+             {
+                 break;
+             }
 
-            phi_tmp_->ProjectCoefficient(phi_r_, phi_i_);
+            *phi_tmp_->real() = *phi_->real();
+            *phi_tmp_->imag() = *phi_->imag();
+             
+             double PhisolNorm3 = phi_tmp_->ComputeL2Error(zeroScalarCoef, zeroScalarCoef);
+             // cout << "Second time: " << PhisolNorm3 << endl;
 
          }
          cout << " Inner potential calculation done in " << Phi_iter << " iteration(s)."
@@ -1562,7 +1586,9 @@ CPDSolver::Solve()
 
       cout << "Efield pass: " << E_iter << " Error: " << E_err << endl;
 
-      e_tmp_->ProjectCoefficient(e_r_, e_i_);
+      *e_tmp_->real() = *e_->real();
+      *e_tmp_->imag() = *e_->imag();
+       
       E_iter++;
    }
    cout << " Outer E field calculation done in " << E_iter << " iteration(s)." <<
@@ -1701,6 +1727,12 @@ CPDSolver::InitializeGLVis()
 
       socks_["Phii"] = new socketstream;
       socks_["Phii"]->precision(8);
+       
+      socks_["RecPhir"] = new socketstream;
+      socks_["RecPhir"]->precision(8);
+       
+      socks_["RecPhii"] = new socketstream;
+      socks_["RecPhii"]->precision(8);
    }
 
    if (BCoef_)
@@ -1829,6 +1861,17 @@ CPDSolver::DisplayToGLVis()
 
    if (sbcs_->Size() > 0)
    {
+       ComplexCoefficientByAttr & sbc = (*sbcs_)[0];
+       SheathBase * sb = dynamic_cast<SheathBase*>(sbc.real);
+
+       if (sb != NULL)
+       {
+         RectifiedSheathPotential rectPotCoefR(*sb, true);
+         RectifiedSheathPotential rectPotCoefI(*sb, false);
+           
+         rectPot_->ProjectCoefficient(rectPotCoefR, rectPotCoefI);
+       }
+       
       Wx += offx;
       VisualizeField(*socks_["Phir"], vishost, visport,
                      phi_v_->real(), "Sheath Potential, Re(Phi)", Wx, Wy, Ww, Wh);
@@ -1836,6 +1879,14 @@ CPDSolver::DisplayToGLVis()
 
       VisualizeField(*socks_["Phii"], vishost, visport,
                      phi_v_->imag(), "Sheath Potential, Im(Phi)", Wx, Wy, Ww, Wh);
+       
+      Wx += offx;
+      VisualizeField(*socks_["RecPhir"], vishost, visport,
+                     rectPot_->real(), "Rectified Potential, Re(RecPhi)", Wx, Wy, Ww, Wh);
+      Wx += offx;
+
+      VisualizeField(*socks_["RecPhii"], vishost, visport,
+                     rectPot_->imag(), "Rectified Potential, Im(RecPhi)", Wx, Wy, Ww, Wh);
    }
 
    if (BCoef_)
