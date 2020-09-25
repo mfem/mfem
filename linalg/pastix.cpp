@@ -50,13 +50,9 @@ PastixSparseMatrix::PastixSparseMatrix(const HypreParMatrix & hypParMat) :
    matrix_.fmttype = SpmCSR;
 
    matrix_.gN      = par_csr->global_num_rows;
-   printf("Global number is %d, local number is %d (should be equal)\n",
-          par_csr->global_num_rows, csr->num_rows);
    matrix_.n       = csr->num_rows;
    matrix_.gnnz = hypParMat.NNZ();
    matrix_.nnz = csr->num_nonzeros;
-   printf("Global nnz is %d, local nnz is %d (should be equal)\n", hypParMat.NNZ(),
-          csr->num_nonzeros);
 
 
    matrix_.dof = 1;
@@ -72,18 +68,19 @@ PastixSparseMatrix::PastixSparseMatrix(const HypreParMatrix & hypParMat) :
       matrix_.rowptr[i] = (csr->i)[i];
    }
 
-   int* jptr;
-#if MFEM_HYPRE_VERSION >= 21600 && 0
+   int* jptr = csr->j;
+#if MFEM_HYPRE_VERSION >= 21600
    // For now, this method assumes that HYPRE_Int is int. Also, csr_op->num_cols
    // is of type HYPRE_Int, so if we want to check for big indices in
    // csr_op->big_j, we'll have to check all entries and that check will only be
    // necessary in HYPRE_MIXEDINT mode which is not supported at the moment.
-   if (!symm)
+
+   // If it's not symmetric, then we're working with the global matrix which
+   // doesn't use big int
+   if (symm)
    {
       jptr = csr->big_j;
    }
-#else
-   jptr = csr->j;
 #endif
 
    for (int i = 0; i < csr->num_nonzeros; i++)
@@ -138,9 +135,12 @@ PastixSparseMatrix::PastixSparseMatrix(const HypreParMatrix & hypParMat) :
    int rc = spmCheckAndCorrect(&matrix_, &checked_matrix);
    if ( rc != 0 )
    {
-      spmExit(matrix_);
+      spmExit(&matrix_);
       matrix_ = checked_matrix;
    }
+
+   // Graph partitioning needs baseval 1 (Fortran-style)
+   spmBase(&matrix_, 1);
 
    hypre_CSRMatrixDestroy(csr);
 }
@@ -206,8 +206,10 @@ void PastixSolver::SetOperator(const Operator& op)
    const spmatrix_t& spm = matrix_->InternalData();
    // This is also non-modifying, fixed in pastix@master
    pastix_task_analyze(pastix_data_, const_cast<spmatrix_t*>(&spm));
+   spmBase(const_cast<spmatrix_t*>(&spm), 1);
    // Non-modifying
    pastix_task_numfact(pastix_data_, const_cast<spmatrix_t*>(&spm));
+   spmBase(const_cast<spmatrix_t*>(&spm), 0);
 }
 
 } // namespace mfem
