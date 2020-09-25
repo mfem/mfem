@@ -723,7 +723,7 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
    {
       KINSolver *kinsolver = new KINSolver(f.GetComm(), KIN_LINESEARCH, true);
       kinsolver->SetJFNK(true);
-      kinsolver->SetLSMaxter(100);
+      kinsolver->SetLSMaxIter(100);
       newton_solver = kinsolver;
       newton_solver->SetOperator(*reduced_oper);
       newton_solver->SetMaxIter(200);
