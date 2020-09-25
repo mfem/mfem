@@ -117,7 +117,6 @@ void AmgXSolver::Initialize_MPITeams(const MPI_Comm &comm,
                                      const std::string &modeStr,
                                      const std::string &cfgFile, const int nDevs)
 {
-
    // If this instance has already been initialized, skip
    if (isInitialized)
    {
@@ -263,7 +262,6 @@ void AmgXSolver::InitMPIcomms(const MPI_Comm &comm, const int nDevs)
 // Determine MPI team sizes based on available devices
 void AmgXSolver::SetDeviceIDs(const int nDevs)
 {
-
    // Set the ID of device that each local process will use
    if (nDevs == localSize) // # of the devices and local process are the same
    {
@@ -441,7 +439,6 @@ void AmgXSolver::ScatterArray(const Vector &inArr, Vector &outArr,
                               const int mpiTeamSz, const MPI_Comm &mpiTeamComm,
                               Array<int> &Apart, Array<int> &Adisp) const
 {
-
    MPI_Scatterv(inArr.HostRead(),Apart.HostRead(),Adisp.HostRead(),
                 MPI_DOUBLE,outArr.HostWrite(),outArr.Size(),
                 MPI_DOUBLE, 0, mpiTeamComm);
@@ -465,7 +462,6 @@ void AmgXSolver::SetMatrix(const SparseMatrix &in_A)
 #ifdef MFEM_USE_MPI
 void AmgXSolver::SetMatrix(const HypreParMatrix &A)
 {
-
    hypre_ParCSRMatrix * A_ptr =
       (hypre_ParCSRMatrix *)const_cast<HypreParMatrix&>(A);
 
@@ -542,7 +538,6 @@ void AmgXSolver::SetA_MPI_Teams(const HypreParMatrix &A,
                                 const Array<double> &loc_A,
                                 const Array<int> &loc_I, const Array<int64_t> &loc_J)
 {
-
    // The following arrays hold the
    Array<int> all_I;
    Array<int64_t> all_J;
@@ -579,12 +574,10 @@ void AmgXSolver::SetA_MPI_Teams(const HypreParMatrix &A,
 
    if (myDevWorldRank == 0)
    {
-
       Array<int> z_ind(devWorldSize+1);
       int iter = 1;
       while (iter < devWorldSize-1)
       {
-
          //Determine the indices of zeros in global all_I array
          int counter = 0;
          z_ind[counter] = counter;
@@ -643,7 +636,6 @@ void AmgXSolver::SetA_MPI_Teams(const HypreParMatrix &A,
    m_local_rows = local_rows; //class copy
    Array<int64_t> rowPart;
 
-
    if (gpuProc == 0)
    {
       rowPart.SetSize(gpuWorldSize+1); rowPart=0;
@@ -666,7 +658,6 @@ void AmgXSolver::SetA_MPI_Teams(const HypreParMatrix &A,
       AMGX_distribution_set_partition_data(dist, AMGX_DIST_PARTITION_OFFSETS,
                                            rowPart.GetData());
 
-
       int nGlobalRows = A.M();
       AMGX_matrix_upload_distributed(AmgXA, nGlobalRows, local_rows,
                                      local_nnz,
@@ -684,13 +675,11 @@ void AmgXSolver::SetA_MPI_Teams(const HypreParMatrix &A,
       AMGX_vector_bind(AmgXP, AmgXA);
       AMGX_vector_bind(AmgXRHS, AmgXA);
    }
-
 }
 #endif
 
 void AmgXSolver::SetOperator(const Operator& op)
 {
-
    if (const SparseMatrix* Aptr =
           dynamic_cast<const SparseMatrix*>(&op))
    {
@@ -711,7 +700,6 @@ void AmgXSolver::SetOperator(const Operator& op)
 
 void AmgXSolver::Mult(const Vector& B, Vector& X) const
 {
-
    //Mult for serial, and mpi-exclusive modes
    if (mpi_gpu_mode != "mpi-teams")
    {
@@ -778,7 +766,6 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
    ScatterArray(all_X, X, devWorldSize, devWorld, Apart_X, Adisp_X);
 #endif
 }
-
 
 // \implements AmgXSolver::Finalize
 void AmgXSolver::Finalize()
