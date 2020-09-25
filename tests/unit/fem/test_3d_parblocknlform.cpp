@@ -122,9 +122,6 @@ TEST_CASE("3D ParBlockNonlinearForm",
       mfem::ParFiniteElementSpace ufes(pmesh, &ufec);
       mfem::ParFiniteElementSpace rfes(pmesh, &rfec);
 
-      int udofs = ufes.GlobalTrueVSize();
-      int rdofs = rfes.GlobalTrueVSize();
-
       mfem::Array<mfem::ParFiniteElementSpace *> fes(2);
       fes[0] = &ufes;
       fes[1] = &rfes;
