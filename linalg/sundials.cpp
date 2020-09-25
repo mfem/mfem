@@ -1568,11 +1568,7 @@ void KINSolver::SetOperator(const Operator &op)
       MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetUserData()");
 
       // Set the linear solver
-      if (jfnk)
-      {
-         SetJFNKSolver(*prec);
-      }
-      else if (prec)
+      if (prec || jfnk)
       {
          KINSolver::SetSolver(*prec);
       }
