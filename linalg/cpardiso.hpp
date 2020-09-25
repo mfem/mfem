@@ -34,14 +34,14 @@ public:
 
    /**
     * @brief Construct a new CPardisoSolver object
-    * 
+    *
     * @param comm MPI Communicator
     */
    CPardisoSolver(MPI_Comm comm);
 
    /**
     * @brief Set the Operator object
-    * 
+    *
     * @a op needs to be of type HypreParMatrix. The contents are copied and
     * reordered in an internal CSR structure.
     *
@@ -51,7 +51,7 @@ public:
 
    /**
     * @brief Factorize and solve
-    * 
+    *
     * @param b RHS vector
     * @param x Solution vector
     */
