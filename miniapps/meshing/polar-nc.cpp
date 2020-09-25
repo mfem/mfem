@@ -199,6 +199,8 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
       mfem::Swap(params, new_params);
    }
 
+   mesh->FinalizeMesh();
+
    // create high-order curvature
    if (order > 1)
    {
@@ -239,8 +241,6 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
 
       nodes->RestrictConforming();
    }
-
-   mesh->FinalizeMesh();
 
    return mesh;
 }
