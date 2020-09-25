@@ -25,7 +25,19 @@
 
 namespace mfem
 {
-/// Vector data type.
+/// Templated vector data type.
+/** The main goal of the TADVector class is to serve as a data
+  container for representing vectors in classes, methods, and
+  functions utilized with automatic differentiation (AD). The
+  functionality/interface is copied from the standard MFEM dense
+  vector mfem::Vector.  The basic idea is to utilize the templated
+  vector class in combination with AD during the development phase.
+  The AD parts can be replaced with optimized code once the initial
+  development of the application is complete.  The common interface
+  between TADVector and Vector will ease the transition from AD to
+  hand-optimized code as it does not require a change in the
+  interface or the code structure. TADVector is intended to be
+  utilized for dense serial vectors. */
 template<typename dtype>
 class TADVector
 {

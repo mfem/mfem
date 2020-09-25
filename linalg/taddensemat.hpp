@@ -20,6 +20,20 @@
 
 namespace mfem
 {
+/// Templated dense matrix data type.
+/** The main goal of the TADDenseMatrix class is to serve as a data
+  container for representing dense matrices in classes, methods, and
+  functions utilized with automatic differentiation (AD). The
+  functionality/interface is copied from the standard MFEM dense
+  matrix mfem::DenseMatrix. The basic idea is to utilize the templated
+  vector class in combination with AD during the development phase.
+  The AD parts can be replaced with optimized code once the initial
+  development of the application is complete.  The common interface
+  between TADDenseMatrix and DenseMatrix will ease the transition
+  from AD to hand-optimized code as it does not require a change
+  in the interface or the code structure. TADDenseMatrix is intended
+  to be utilized for dense serial matrices. The objects can be combined
+  with TADVector or standard Vector.*/
 template<typename dtype>
 class TADDenseMatrix
 {
@@ -78,7 +92,7 @@ public:
          height = 0;
       }
    }
-
+   /// Copy constructor using standard DenseMatrix
    TADDenseMatrix(const DenseMatrix &m)
    {
       height = m.Height();

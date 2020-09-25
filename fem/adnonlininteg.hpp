@@ -33,11 +33,64 @@
 
 namespace mfem
 {
-// m - dimension of the residual vector
-// the Jacobian will have dimensions [m,length(uu)]
+
+///Automatic differentiation class - for user coded functor CTD returning  PDE's
+/// energy and residual at a point, provides the derivative of the residual
+/// with respect to the active arguments of the functor.
+///
+/**
+   The two templated parameters are
+   template<typename, typename> class CTD and int m.
+   The templated class CTD is a user-provided functor which implements
+   the function of interest. The CTD class should have the following signature:
+
+template<typename DType, typename MVType>
+
+class MyQFunctorJ
+
+{
+
+    DType operator()(const Vector &vparam, MVType &uu)
+
+        {...}
+
+    void operator()(const Vector &vparam, MVType &uu, MVType &rr)
+
+    {...}
+
+};
+
+
+DType - represents the scalars in the functor, and  MVType - represents
+the vectors in the functor. In ADQFunctionTJ,  DType will be replaced
+either with double or AD-type.
+The first operator()(const Vector &vparam, MVType &uu) takes as input
+standard MFEM Vector vparam (passive arguments), which holds all parameters
+ supplied to the functor and MVType vector uu, which holds all active
+arguments provided to the functor. The operator returns a scalar
+representing the value of the function(energy) for passive parameters vparam
+and active arguments uu.
+
+
+The second void operator()(const Vector &vparam, MVType &uu, MVType &rr)
+returns a vector-valued function rr with passive input arguments vparam
+and active (AD) arguments supplied in vector uu. Since the size of the
+return vector rr is not known in advance, it should be provided explicitly
+to the ADQFunctionTJ class, i.e., the template parameter m in ADQFunctionTJ
+represents the dimensions of the return vector rr.
+
+
+For PDE discretized problem, the first operator should return the energy
+evaluated a point, and the second operator should return the residual
+evaluated at the point. The derivative of the residual vector rr with
+respect to the active arguments uu is evaluated automatically by
+ADQFunctionTJ and returned by the ADQFunctionTJ:: QFunctionDD(..) method.
+*/
 template<template<typename, typename> class CTD, int m>
 class ADQFunctionTJ
 {
+    // m - dimension of the residual vector
+    // the Jacobian will have dimensions [m,length(uu)]
 protected:
 #ifdef MFEM_USE_ADEPT
    adept::Stack m_stack;
@@ -45,20 +98,26 @@ protected:
 
 public:
 #if defined MFEM_USE_ADEPT
+   /// AD-type based on the Adept AD library.
    typedef adept::adouble ADFType;
    typedef TADVector<ADFType> ADFVector;
    typedef TADDenseMatrix<ADFType> ADFDenseMatrix;
 #elif defined MFEM_USE_FADBADPP
 #ifdef MFEM_USE_ADFORWARD
+   /// AD-type based on the FADBAD++ library -
+   /// used only for forward differentiation.
    typedef fadbad::F<double> ADFType;
    typedef TADVector<ADFType> ADFVector;
    typedef TADDenseMatrix<ADFType> ADFDenseMatrix;
 #else
+   /// AD-type based on the FADBAD++ library -
+   /// used only for reverse AD mode.
    typedef fadbad::B<double> ADFType;
    typedef TADVector<ADFType> ADFVector;
    typedef TADDenseMatrix<ADFType> ADFDenseMatrix;
 #endif
 #else
+   /// MFEM native forward AD-type
    typedef ad::FDual<double> ADFType;
    typedef TADVector<ADFType> ADFVector;
    typedef TADDenseMatrix<ADFType> ADFDenseMatrix;
@@ -72,18 +131,28 @@ public:
 
    ~ADQFunctionTJ() {}
 
+  ///Returns the energy for passive arguments vparam and
+  /// active arguments uu. The evaluation is based on the
+  /// first operator in the user-supplied CTD template class.
    double QFunction(const Vector &vparam, Vector &uu)
    {
       CTD<double, Vector> func;
       return func(vparam, uu);
    }
 
+   ///Returns vector valued function rr for passive input parametrs vparam
+   /// and active arguments provided in uu.
    void QFunctionDU(const Vector &vparam, ADFVector &uu, ADFVector &rr)
    {
       CTD<ADFType, ADFVector> func;
       func(vparam, uu, rr);
    }
 
+   ///Evaluates automatically the first derivative of
+   /// QFunction(const Vector &vparam, Vector &uu) with respect to
+   /// the active vector arguments uu. The dimension or rr is the same
+   /// as the dimension of uu. The method can be used for testing
+   /// the correctness of hand-coded gradients of  QFunction(...).
    void QFunctionAU(const Vector &vparam, Vector &uu, Vector &rr)
    {
       //the result is computed automatically by differentiating
@@ -153,12 +222,21 @@ public:
 #endif
    }
 
+   ///Returns vector valued function rr for supplied passive arguments
+   /// vparam and active arguments uu. The evaluation is based on the
+   /// user supplied CTD template class (second operator).
    void QFunctionDU(const Vector &vparam, Vector &uu, Vector &rr)
    {
       CTD<double, Vector> func;
       func(vparam, uu, rr);
    }
 
+   ///Evaluates automatically the derivative or the vector function
+   /// QFunctionDU(...), i.e., the retuned vector rr, with respect to
+   /// the active arguments uu. The dimensions of the the dense matix
+   /// jac are [m,n] where m is the size of the vector rr and n is the
+   /// size of the active vector uu. The parameter m should be supplied as
+   /// template parameter int m in ADQFunctionTJ.
    void QFunctionDD(const Vector &vparam, Vector &uu, DenseMatrix &jac)
    {
 #if defined MFEM_USE_ADEPT
@@ -251,23 +329,58 @@ public:
 //template class for differentiation; the function
 //for differentiation is supplied as a functor
 //the operator()(scalar,vector) defines the actual function
+
+///ADQFunctionTH is a templated class evaluating the first and
+/// the second derivatives of a user supplied function encoded
+/// in a functor class CTD. The signature of CTD is as follows:
+/**
+
+template<typename DType, typename MVType> class CTD
+
+{
+
+    DType operator()(const Vector &vparam, MVType &uu)
+    {...}
+
+};
+
+The operator returns a scalar representing the value of the
+function for passive arguments vparam and active arguments uu.
+The first derivative of the operator is evaluated automatically
+by ADQFunctionTH::QFunctionDU(const Vector &vparam, Vector &uu, Vector &rr)
+method. The length of the return vector rr is the same as for
+the input vector uu.  The second derivate (the Hessian) of the function
+is evaluated again automatically by
+QFunctionDD(const Vector &vparam, const Vector &uu, DenseMatrix &jac).
+
+Hessian evaluation is an expensive process. The provided AD-functionality
+is intended to be utilized for development purposes. The performance will
+increase significantly by replacing the AD-provided derivatives with hand-coded.
+*/
 template<template<typename, typename> class CTD>
 class ADQFunctionTH
 {
 public:
 #if defined MFEM_USE_FADBADPP
+   ///AD-type derived from FADBAD++
    typedef fadbad::B<double> ADFType;
+   ///AD vector type for evaluation of first derivatives
    typedef TADVector<ADFType> ADFVector;
+   ///AD dense matrix type for evaluation of first derivatives
    typedef TADDenseMatrix<ADFType> ADFDenseMatrix;
-
+   ///AD-type for the second derivatives derived from
+   ///FADBAD++
    typedef fadbad::B<fadbad::F<double>> ADSType;
+   /// AD vector type for evaluation of second derivatives
    typedef TADVector<ADSType> ADSVector;
+   /// AD dense matrix type for  evaluation of second derivatives
    typedef TADDenseMatrix<ADSType> ADSDenseMatrix;
 #else
+   ///MFEM native AD-type for first derivatives
    typedef ad::FDual<double> ADFType;
    typedef TADVector<ADFType> ADFVector;
    typedef TADDenseMatrix<ADFType> ADFDenseMatrix;
-
+   ///MFEM native AD-type for second derivatives
    typedef ad::FDual<ADFType> ADSType;
    typedef TADVector<ADSType> ADSVector;
    typedef TADDenseMatrix<ADSType> ADSDenseMatrix;
@@ -277,24 +390,34 @@ public:
 
    ~ADQFunctionTH() {}
 
+   ///Evaluates a function for arguments vparam and uu.
+   /// The evaluatin is based on the operator() in the
+   /// user provided functor CTD.
    double QFunction(const Vector &vparam, Vector &uu)
    {
       CTD<double, Vector> tf;
       return tf(vparam, uu);
    }
 
+   ///Evaluates the first derivative of QFunction(...).
+   /// Intended for internal use only.
    ADFType QFunction(const Vector &vparam, ADFVector &uu)
    {
       CTD<ADFType, ADFVector> tf;
       return tf(vparam, uu);
    }
 
+   ///Evaluates the second derivative of QFunction(...).
+   /// Intended for internal use only.
    ADSType QFunction(const Vector &vparam, ADSVector &uu)
    {
       CTD<ADSType, ADSVector> tf;
       return tf(vparam, uu);
    }
 
+   ///Returns the first derivative of QFunction(...) with
+   /// respect to the active arguments proved in vector uu.
+   /// The length of rr is the same as for uu.
    void QFunctionDU(const Vector &vparam, Vector &uu, Vector &rr)
    {
 #if defined MFEM_USE_FADBADPP
@@ -323,6 +446,8 @@ public:
 #endif
    }
 
+   ///Returns the Hessian of QFunction(...) in the dense matrix jac.
+   /// The dimensions of jac are m x m, where m is the length of vector uu.
    void QFunctionDD(const Vector &vparam, const Vector &uu, DenseMatrix &jac)
    {
 #if defined MFEM_USE_FADBADPP
