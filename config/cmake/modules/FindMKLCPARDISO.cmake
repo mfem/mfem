@@ -18,13 +18,18 @@ if(NOT MKL_MPI_WRAPPER_LIB)
   message(FATAL_ERROR "MKL CPardiso enabled but no MKL MPI Wrapper lib specified")
 endif()
 
+if(NOT MKL_LIBRARY_DIR)
+  message(WARNING "Using default MKL library path. Double check the variable MKL_LIBRARY_DIR")
+  set(MKL_LIBRARY_DIR "lib")
+endif()
+
 include(MfemCmakeUtilities)
 mfem_find_package(MKLCPARDISO MKLCPARDISO
-    MKLCPARDISO_DIR "include" mkl_cluster_sparse_solver.h "lib" mkl_core
+    MKLCPARDISO_DIR "include" mkl_cluster_sparse_solver.h ${MKL_LIBRARY_DIR} mkl_core
   "Paths to headers required by MKL CPardiso." "Libraries required by MKL CPARDISO."
-  ADD_COMPONENT MKL_LP64 "include" "" "lib" mkl_intel_lp64
-  ADD_COMPONENT MKL_SEQUENTIAL "include" "" "lib" mkl_sequential
-  ADD_COMPONENT MKL_MPI_WRAPPER "include" "" "lib" ${MKL_MPI_WRAPPER_LIB}
+  ADD_COMPONENT MKL_LP64 "include" "" ${MKL_LIBRARY_DIR} mkl_intel_lp64
+  ADD_COMPONENT MKL_SEQUENTIAL "include" "" ${MKL_LIBRARY_DIR} mkl_sequential
+  ADD_COMPONENT MKL_MPI_WRAPPER "include" "" ${MKL_LIBRARY_DIR} ${MKL_MPI_WRAPPER_LIB}
   CHECK_BUILD MKLCPARDISO_VERSION_OK TRUE
   "
 #include <mpi.h>
