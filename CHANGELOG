@@ -38,6 +38,11 @@ Meshing improvements
 - Added complete action of the TMOP Integrator to account for the spatial
   derivatives of discrete and analytic targets.
 
+- Added support for initialization of (serial) non-conforming meshes. Hanging
+  nodes can be marked with Mesh::AddVertexParents when building the mesh with
+  the "init" constructor. The usage is demonstrated in a new meshing miniapp
+  (polar-nc) which generates meshes that are non-conforming from the start.
+
 Performance improvements
 ------------------------
 - Added support for explicit vectorization in the high-performance templated
@@ -168,6 +173,9 @@ New and updated examples and miniapps
 - Added a new meshing miniapp, Minimal Surface, which solves Plateau's problem:
   the Dirichlet problem for the minimal surface equation.
 
+- Added a new meshing miniapp, Polar NC, which demonstrates the construction of
+  polar non-conforming meshes.
+
 - Added partial assembly support to Example 4/4p and Example 5/5p, with diagonal
   preconditioning.
 
@@ -210,8 +218,10 @@ Miscellaneous
 - Added support for ADIOS2 for parallel I/O with ParaView visualization. The
   classes adios2stream and ADIOS2DataCollection are introduced in mfem as the
   interfaces to generate ADIOS2 Binary Pack (BP4) directory datasets for the
-  entire spatial and temporal data. In addition, ADIOS2 allows for setting a
-  user-defined number of data substreams/subfiles. See examples 5, 9, 12, 16.
+  entire spatial and temporal node data. Cell centered data is accessible by
+  ADIOS2 data readers (e.g. Python), but currently not yet implement as of
+  ParaView v5.8.1. In addition, ADIOS2 allows for setting a user-defined number
+  of data substreams/subfiles at scale. See examples 5, 9, 12, 16.
 
 - The integration order used in the ComputeLpError and ComputeElementLpError
   methods of class GridFunction has been increased.
