@@ -12,10 +12,11 @@
 #ifndef MFEM_CPARDISO
 #define MFEM_CPARDISO
 
+#include "../config/config.hpp"
+
 #ifdef MFEM_USE_MPI
 #ifdef MFEM_USE_MKL_CPARDISO
 
-#include "../config/config.hpp"
 #include "mkl_cluster_sparse_solver.h"
 #include "operator.hpp"
 
