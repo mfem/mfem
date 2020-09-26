@@ -106,7 +106,7 @@ private:
    // Solver control parameters, detailed description can be found in the
    // constructor.
    mutable int iparm[64] = {0};
-   mutable int maxfct, mnum, msglvl, phase, error, err_mem;
+   mutable int maxfct, mnum, msglvl, phase, error;
    int mtype;
    int nrhs;
 

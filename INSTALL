@@ -486,6 +486,13 @@ MFEM_USE_CEED = YES/NO
    library for performant high-order operator evaluation developed by the Center
    for Efficient Exascale Discretizations in the Exascale Computing Project.
 
+MFEM_USE_MKL_CPARDISO = YES/NO
+   Enables the interface to the Intel MKL Parallel Direct Sparse Solver for
+   Clusters. Make sure to set the correct values for MKL_MPI_WRAPPER and
+   MKL_LIBRARY_SUBDIR as shown in defaults.mk. If you configure MFEM with
+   MFEM_USE_LAPACK=YES, verify that the MKL LAPACK libraries are used. The
+   OpenMP capabilities are disabled at link time.
+
 MFEM_BUILD_TAG = (any value)
    An optional tag to characterize the build. Exported to config/config.mk.
    Can be used to identify the MFEM build from other makefiles.
