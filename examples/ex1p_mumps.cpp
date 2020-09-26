@@ -137,22 +137,22 @@ int main(int argc, char *argv[])
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-   // 13. Solve the linear system A X = B.
-   //     * With full assembly, use the BoomerAMG preconditioner from hypre.
-   //     * With partial assembly, use Jacobi smoothing, for now.
-   HypreBoomerAMG *prec = new HypreBoomerAMG;
-   CGSolver cg(MPI_COMM_WORLD);
-   cg.SetRelTol(1e-12);
-   cg.SetMaxIter(2000);
-   cg.SetPrintLevel(1);
-   if (prec) { cg.SetPreconditioner(*prec); }
-   cg.SetOperator(A);
-   cg.Mult(B, X);
-   delete prec;
+   // // 13. Solve the linear system A X = B.
+   // //     * With full assembly, use the BoomerAMG preconditioner from hypre.
+   // //     * With partial assembly, use Jacobi smoothing, for now.
+   // HypreBoomerAMG *prec = new HypreBoomerAMG;
+   // CGSolver cg(MPI_COMM_WORLD);
+   // cg.SetRelTol(1e-12);
+   // cg.SetMaxIter(2000);
+   // cg.SetPrintLevel(1);
+   // if (prec) { cg.SetPreconditioner(*prec); }
+   // cg.SetOperator(A);
+   // cg.Mult(B, X);
+   // delete prec;
 
    // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
-   a.RecoverFEMSolution(X, b, x);
+   // a.RecoverFEMSolution(X, b, x);
 
    // A.Threshold();
 
@@ -160,6 +160,9 @@ int main(int argc, char *argv[])
    hypre_ParCSRMatrix * parcsr_op = (hypre_ParCSRMatrix *)const_cast<HypreParMatrix&>(A);
 
    hypre_CSRMatrix *csr_op = hypre_MergeDiagAndOffd(parcsr_op);
+#if MFEM_HYPRE_VERSION >= 21600
+   hypre_CSRMatrixBigJtoJ(csr_op);
+#endif
 
    int * Iptr = csr_op->i;
    int * Jptr = csr_op->j;
@@ -194,11 +197,13 @@ int main(int argc, char *argv[])
    dmumps_c(&id);
 
    #define ICNTL(I) icntl[(I)-1] /* macro s.t. indices match documentation */
+   #define INFO(I) info[(I)-1] /* macro s.t. indices match documentation */
   /* No outputs */
 //   id.ICNTL(1)=-1; id.ICNTL(2)=-1; id.ICNTL(3)=-1; id.ICNTL(4)=0;
-   id.ICNTL(5) = 0; 
+   id.ICNTL(5) = 0;
    id.ICNTL(18) = 3;
-   id.ICNTL(20) = 0;
+   id.ICNTL(20) = 10; // distributed rhs
+   id.ICNTL(21) = 1; // distributed solution
 
    // Global number of rows/colums on the host
    if (myid == 0) {id.n = A.GetGlobalNumRows();} 
@@ -209,22 +214,35 @@ int main(int argc, char *argv[])
    id.jcn_loc = J;
    id.a_loc = data;
 
-
-
-
    id.job=1;
    dmumps_c(&id);
 
    id.job=2;
    dmumps_c(&id);
 
-   Vector rhs;
-   if (myid == 0)
+   // local to global row map
+   int *irhs_loc = new int[n_loc];
+   for (int i = 0; i < n_loc; i++)
    {
-      rhs.SetSize(A.GetGlobalNumRows()); 
-      rhs = 1.0;
-      id.rhs = rhs.GetData();
+      irhs_loc[i] = parcsr_op->first_row_index + i + 1; // 1-based indexing offset
    }
+   id.rhs_loc = B.GetData();
+   id.nloc_rhs = n_loc;
+   id.lrhs_loc = n_loc;
+   id.irhs_loc = irhs_loc;
+
+   int num_pivots = id.INFO(23);
+   printf("num_pivots = %d\n", num_pivots);
+
+   id.lsol_loc = num_pivots;
+   id.sol_loc = X.GetData();
+   int *isol_loc = new int[num_pivots];
+   id.isol_loc = isol_loc;
+
+   // @TODO
+   // On exit from the solve phase, ISOL loc(i) contains the index of the
+   // variables for which the solution (in SOL loc) is available on the local
+   // processor.
 
    id.job=3;
    dmumps_c(&id);
@@ -232,21 +250,18 @@ int main(int argc, char *argv[])
    id.job=-2; // mumps finalize
    dmumps_c(&id);
 
-   // a.RecoverFEMSolution(B, b, x);
+   a.RecoverFEMSolution(X, b, x);
 
-
-
-
-   // // 16. Send the solution by socket to a GLVis server.
-   // if (visualization)
-   // {
-   //    char vishost[] = "localhost";
-   //    int  visport   = 19916;
-   //    socketstream sol_sock(vishost, visport);
-   //    sol_sock << "parallel " << num_procs << " " << myid << "\n";
-   //    sol_sock.precision(8);
-   //    sol_sock << "solution\n" << pmesh << x << flush;
-   // }
+   // 16. Send the solution by socket to a GLVis server.
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << pmesh << x << flush;
+   }
 
    // 17. Free the used memory.
    delete fec;
