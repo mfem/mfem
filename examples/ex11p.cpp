@@ -97,7 +97,7 @@ int main(int argc, char *argv[])
    args.AddOption(&sp_solver, "-sp", "--strumpack", "-no-sp",
                   "--no-strumpack", "Use the STRUMPACK Solver.");
 #endif
-#ifdef MFEM_USE_MKLCPARDISO
+#ifdef MFEM_USE_MKL_CPARDISO
    args.AddOption(&pardiso_solver,
                   "-pardiso",
                   "--pardiso",
@@ -278,7 +278,7 @@ int main(int argc, char *argv[])
          precond = strumpack;
       }
 #endif
-#ifdef MFEM_USE_MKLCPARDISO
+#ifdef MFEM_USE_MKL_CPARDISO
       if (pardiso_solver)
       {
          auto pardiso = new CPardisoSolver(A->GetComm());

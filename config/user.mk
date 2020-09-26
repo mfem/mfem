@@ -35,8 +35,8 @@ PREFIX = ./mfem
 # Install program
 INSTALL = /usr/bin/install
 
-STATIC = YES
-SHARED = NO
+STATIC = NO
+SHARED = YES
 
 # CUDA configuration options
 CUDA_CXX = nvcc
@@ -103,10 +103,10 @@ MFEM_MPI_NP = 4
 # config.hpp. The values below are the defaults for generating the actual values
 # in config.mk and config.hpp.
 
-MFEM_USE_MPI           = NO
+MFEM_USE_MPI           = YES
 MFEM_USE_METIS         = $(MFEM_USE_MPI)
-MFEM_USE_METIS_5       = NO
-MFEM_DEBUG             = NO
+MFEM_USE_METIS_5       = YES
+MFEM_DEBUG             = YES
 MFEM_USE_EXCEPTIONS    = NO
 MFEM_USE_ZLIB          = NO
 MFEM_USE_LIBUNWIND     = NO
@@ -140,7 +140,7 @@ MFEM_USE_CEED          = NO
 MFEM_USE_UMPIRE        = NO
 MFEM_USE_SIMD          = NO
 MFEM_USE_ADIOS2        = NO
-MFEM_USE_MKL_CPARDISO  = NO
+MFEM_USE_MKL_CPARDISO  = YES
 
 # Compile and link options for zlib.
 ZLIB_DIR =
@@ -152,29 +152,29 @@ LIBUNWIND_OPT = -g
 LIBUNWIND_LIB = $(if $(NOTMAC),-lunwind -ldl,)
 
 # HYPRE library configuration (needed to build the parallel version)
-HYPRE_DIR = @MFEM_DIR@/../hypre/src/hypre
+HYPRE_DIR = /Users/andrej1/local/hypre-2.19.0
 HYPRE_OPT = -I$(HYPRE_DIR)/include
-HYPRE_LIB = -L$(HYPRE_DIR)/lib -lHYPRE
+HYPRE_LIB = -Wl,-rpath,$(HYPRE_DIR)/lib -L$(HYPRE_DIR)/lib -lHYPRE
 
 # METIS library configuration
 ifeq ($(MFEM_USE_SUPERLU)$(MFEM_USE_STRUMPACK),NONO)
    ifeq ($(MFEM_USE_METIS_5),NO)
-     METIS_DIR = @MFEM_DIR@/../metis-4.0
+     METIS_DIR = /Users/andrej1/local/parmetis-4.0.3
      METIS_OPT =
-     METIS_LIB = -L$(METIS_DIR) -lmetis
+     METIS_LIB = -Wl,-rpath,$(METIS_DIR)/lib -L$(METIS_DIR)/lib -lmetis
    else
-     METIS_DIR = @MFEM_DIR@/../metis-5.0
+     METIS_DIR = /Users/andrej1/local/parmetis-4.0.3
      METIS_OPT = -I$(METIS_DIR)/include
-     METIS_LIB = -L$(METIS_DIR)/lib -lmetis
+     METIS_LIB = -Wl,-rpath,$(METIS_DIR)/lib -L$(METIS_DIR)/lib -lmetis
    endif
 else
    # ParMETIS: currently needed by SuperLU or STRUMPACK. We assume that METIS 5
    # (included with ParMETIS) is installed in the same location.
    # Starting with STRUMPACK v2.2.0, ParMETIS is an optional dependency while
    # METIS is still required.
-   METIS_DIR = @MFEM_DIR@/../parmetis-4.0.3
+   METIS_DIR = /Users/andrej1/local/parmetis-4.0.3
    METIS_OPT = -I$(METIS_DIR)/include
-   METIS_LIB = -L$(METIS_DIR)/lib -lparmetis -lmetis
+   METIS_LIB = -Wl,-rpath,$(METIS_DIR) -L$(METIS_DIR) -lparmetis -lmetis
    MFEM_USE_METIS_5 = YES
 endif
 
@@ -374,9 +374,9 @@ UMPIRE_OPT = -I$(UMPIRE_DIR)/include
 UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -lumpire
 
 # MKL CPardiso library configuration
-MKL_CPARDISO_DIR ?=
-MKL_MPI_WRAPPER ?= mkl_blacs_mpich_lp64
-MKL_LIBRARY_SUBDIR ?= lib
+MKL_CPARDISO_DIR = /Users/andrej1/local/intel/mkl
+MKL_MPI_WRAPPER = mkl_blacs_mpich_lp64
+MKL_LIBRARY_SUBDIR = lib
 MKL_CPARDISO_OPT = -I$(MKL_CPARDISO_DIR)/include
 MKL_CPARDISO_LIB = -Wl,-rpath,$(MKL_CPARDISO_DIR)/$(MKL_LIBRARY_SUBDIR)\
                    -L$(MKL_CPARDISO_DIR)/$(MKL_LIBRARY_SUBDIR) -l$(MKL_MPI_WRAPPER)\
