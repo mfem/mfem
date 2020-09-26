@@ -12,6 +12,9 @@
 #ifndef MFEM_CPARDISO
 #define MFEM_CPARDISO
 
+#ifdef MFEM_USE_MPI
+#ifdef MFEM_USE_MKL_CPARDISO
+
 #include "../config/config.hpp"
 #include "mkl_cluster_sparse_solver.h"
 #include "operator.hpp"
@@ -117,3 +120,5 @@ private:
 } // namespace mfem
 
 #endif
+#endif // MFEM_USE_MKL_CPARDISO
+#endif // MFEM_USE_MPI

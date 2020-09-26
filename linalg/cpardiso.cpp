@@ -4,6 +4,9 @@
 #include <vector>
 #include <numeric>
 
+#ifdef MFEM_USE_MPI
+#ifdef MFEM_USE_MKL_CPARDISO
+
 namespace mfem
 {
 CPardisoSolver::CPardisoSolver(MPI_Comm comm) : comm_(comm)
@@ -222,3 +225,6 @@ CPardisoSolver::~CPardisoSolver()
 }
 
 } // namespace mfem
+
+#endif // MFEM_USE_MKL_CPARDISO
+#endif // MFEM_USE_MPI
