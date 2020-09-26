@@ -25,7 +25,7 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // 2. Parse command-line options.
-   const char *mesh_file = "../data/star.mesh";
+   const char *mesh_file = "../data/inline-quad.mesh";
    int order = 1;
    bool static_cond = false;
    bool visualization = true;
@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
-      int ref_levels = 2;
+      int ref_levels = 5;
       for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();
@@ -179,6 +179,7 @@ int main(int argc, char *argv[])
    {
       for (int j = Iptr[i]; j<Iptr[i+1]; j++)
       {
+         // "tdof offsets" can be determined by parcsr_op -> rowstarts
          I[k] = i+fespace.GetMyTDofOffset()+1;
          J[k] = Jptr[k]+1;
          k++;
@@ -235,17 +236,41 @@ int main(int argc, char *argv[])
    printf("num_pivots = %d\n", num_pivots);
 
    id.lsol_loc = num_pivots;
-   id.sol_loc = X.GetData();
+   Vector Xaux(X);
+   id.sol_loc = Xaux.GetData();
    int *isol_loc = new int[num_pivots];
    id.isol_loc = isol_loc;
+
+   id.job=3;
+   dmumps_c(&id);
 
    // @TODO
    // On exit from the solve phase, ISOL loc(i) contains the index of the
    // variables for which the solution (in SOL loc) is available on the local
    // processor.
 
-   id.job=3;
-   dmumps_c(&id);
+   // printf("\nordering rhs rank %d\n", myid);
+   // for (int i = 0; i < n_loc; i++)
+   // {
+   //    printf("%d ", id.irhs_loc[i]);
+   // }
+   // printf("\n");
+
+   // MPI_Barrier(MPI_COMM_WORLD);
+
+   // printf("\nordering sol rank %d\n", myid);
+   // for (int i = 0; i < num_pivots; i++)
+   // {
+   //    printf("%d ", id.isol_loc[i]);
+   // }
+   // printf("\n");
+
+   // MPI_Barrier(MPI_COMM_WORLD);
+
+   for (int i = 0; i < id.lsol_loc; i++)
+   {
+      X(isol_loc[i] - 1) = Xaux(i);
+   }
 
    id.job=-2; // mumps finalize
    dmumps_c(&id);
