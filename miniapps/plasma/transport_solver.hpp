@@ -323,28 +323,12 @@ private:
    void ReadBCs(CoefFactory &cf, std::istream &input);
 
 public:
-   TransportBCs(const Array<int> & bdr_attr, int neqn)
-      : neqn_(neqn),
-        bcs_(neqn),
-        bdr_attr_(bdr_attr)
-   {
-      bcs_ = NULL;
-      for (int i=0; i<neqn_; i++)
-      {
-         bcs_[i] = new AdvectionDiffusionBC(bdr_attr);
-      }
-   }
+   TransportBCs(const Array<int> & bdr_attr, int neqn);
 
    TransportBCs(const Array<int> & bdr_attr, int neqn,
                 CoefFactory &cf, std::istream &input);
 
-   ~TransportBCs()
-   {
-      for (int i=0; i<neqn_; i++)
-      {
-         delete bcs_[i];
-      }
-   }
+   ~TransportBCs();
 
    void LoadBCs(CoefFactory &cf, std::istream &input)
    { ReadBCs(cf, input); }

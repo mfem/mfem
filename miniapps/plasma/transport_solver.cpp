@@ -351,6 +351,18 @@ const Array<int> & AdvectionDiffusionBC::GetHomogeneousNeumannBDR() const
    return hbc_attr;
 }
 
+TransportBCs::TransportBCs(const Array<int> & bdr_attr, int neqn)
+   : neqn_(neqn),
+     bcs_(neqn),
+     bdr_attr_(bdr_attr)
+{
+   bcs_ = NULL;
+   for (int i=0; i<neqn_; i++)
+   {
+      bcs_[i] = new AdvectionDiffusionBC(bdr_attr);
+   }
+}
+
 TransportBCs::TransportBCs(const Array<int> & bdr_attr, int neqn,
                            CoefFactory &cf, std::istream &input)
    : neqn_(neqn),
@@ -359,6 +371,14 @@ TransportBCs::TransportBCs(const Array<int> & bdr_attr, int neqn,
 {
    bcs_ = NULL;
    this->ReadBCs(cf, input);
+}
+
+TransportBCs::~TransportBCs()
+{
+   for (int i=0; i<neqn_; i++)
+   {
+      delete bcs_[i];
+   }
 }
 
 void TransportBCs::ReadBCs(CoefFactory &cf, std::istream &input)
