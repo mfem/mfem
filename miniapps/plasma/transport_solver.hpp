@@ -2315,6 +2315,7 @@ private:
       std::string log_prefix_;
 
       int index_;
+      std::string eqn_name_;
       std::string field_name_;
       double dt_;
       ParFiniteElementSpace &fes_;
@@ -2366,6 +2367,7 @@ private:
 
       NLOperator(const MPI_Session & mpi, const DGParams & dg,
                  int index,
+                 const std::string &eqn_name,
                  const std::string &field_name,
                  ParGridFunctionArray & yGF,
                  ParGridFunctionArray & kGF,
@@ -2449,6 +2451,7 @@ private:
 
       TransportOp(const MPI_Session & mpi, const DGParams & dg,
                   const PlasmaParams & plasma, int index,
+                  const std::string &eqn_name,
                   const std::string &field_name,
                   ParGridFunctionArray & yGF,
                   ParGridFunctionArray & kGF,
@@ -2457,7 +2460,7 @@ private:
                   int term_flag, int vis_flag,
                   int logging = 0,
                   const std::string & log_prefix = "")
-         : NLOperator(mpi, dg, index, field_name,
+         : NLOperator(mpi, dg, index, eqn_name, field_name,
                       yGF, kGF, term_flag, vis_flag, logging, log_prefix),
            coefGF_(yGF[0]->ParFESpace()),
            plasma_(plasma),
@@ -2947,6 +2950,7 @@ private:
               ParGridFunctionArray & kGF,
               const AdvectionDiffusionBC & bcs,
               const EqnCoefficients & coefs, int index,
+              const std::string &eqn_name,
               const std::string &field_name,
               int term_flag = 0, int vis_flag = 0,
               int logging = 0, const std::string & log_prefix = "");
