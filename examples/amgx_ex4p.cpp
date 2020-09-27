@@ -244,7 +244,7 @@ int main(int argc, char *argv[])
       amgx_str = amgx_json_file;
       AmgXSolver amgx;
 
-      amgx.Initialize_MPITeams(MPI_COMM_WORLD, "dDDI", amgx_str, ndevices);
+      amgx.Initialize_MPITeams(MPI_COMM_WORLD, amgx_str, ndevices);
       amgx.SetOperator(*A.As<HypreParMatrix>());
 
       X = 0.0; //set to zero

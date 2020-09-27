@@ -8,6 +8,7 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
+
 //Reference:
 //Pi-Yueh Chuang, & Lorena A. Barba (2017).
 //AmgXWrapper: An interface between PETSc and the NVIDIA AmgX library. J. Open Source Software, 2(16):280, doi:10.21105/joss.00280
@@ -40,24 +41,24 @@ public:
    AmgXSolver() = default;
 
    /* Constructor for serial builds - supported without Hypre and MPI */
-   AmgXSolver(const std::string &modeStr, const std::string &cfgFile);
+   AmgXSolver(const std::string &cfgFile);
 
-   void Initialize_Serial(const std::string &modeStr, const std::string &cfgFile);
+   void Initialize_Serial(const std::string &cfgFile);
 
 #ifdef MFEM_USE_MPI
    /* Constructor for MPI-GPU exclusive (1 MPI per GPU) */
    AmgXSolver(const MPI_Comm &comm,
-              const std::string &modeStr, const std::string &cfgFile);
+              const std::string &cfgFile);
 
    /* Constructor for MPI teams (MPI procs share a GPU) */
+   /* nDevs specifies number of devices per node */
    AmgXSolver(const MPI_Comm &comm,
-              const std::string &modeStr, const std::string &cfgFile, int &nDevs);
+              const std::string &cfgFile, int &nDevs);
 
-   void Initialize_ExclusiveGPU(const MPI_Comm &comm, const std::string &modeStr,
-                                const std::string &cfgFile);
+   void Initialize_ExclusiveGPU(const MPI_Comm &comm, const std::string &cfgFile);
 
    void Initialize_MPITeams(const MPI_Comm &comm,
-                            const std::string &modeStr, const std::string &cfgFile,
+                            const std::string &cfgFile,
                             const int nDevs);
 
    void SetA_MPI_GPU_Exclusive(const HypreParMatrix &A, const Array<double> &loc_A,
@@ -171,8 +172,8 @@ private:
    // \brief A parameter used by AmgX.
    int                     ring;
 
-   // \brief AmgX solver mode.
-   AMGX_Mode               mode;
+   // \brief AmgX precision.
+   AMGX_Mode               precision_mode = AMGX_mode_dDDI;
 
    // \brief AmgX config object.
    AMGX_config_handle      cfg = nullptr;
@@ -191,9 +192,6 @@ private:
 
    // \brief AmgX resource object.
    static AMGX_resources_handle   rsrc;
-
-   // \brief Set AmgX solver mode based on the user-provided string.
-   void SetMode(const std::string &modeStr);
 
    // \brief Set the ID of the corresponding GPU used by this process.
    void SetDeviceIDs(const int nDevs);

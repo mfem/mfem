@@ -238,7 +238,7 @@ int main(int argc, char *argv[])
       AmgXSolver amgx;
 
       //Forms MPI teams around devices
-      amgx.Initialize_MPITeams(MPI_COMM_WORLD, "dDDI", amgx_str, ndevices);
+      amgx.Initialize_MPITeams(MPI_COMM_WORLD, amgx_str, ndevices);
 
       amgx.SetOperator(A);
 

@@ -194,7 +194,7 @@ int main(int argc, char *argv[])
 
          std::string amgx_str;
          amgx_str = amgx_json_file;
-         amgx.Initialize_Serial("dDDI", amgx_str);
+         amgx.Initialize_Serial(amgx_str);
          SparseMatrix A;
          Vector B, X;
          Array<int> ess_tdof_list(0);

@@ -28,22 +28,22 @@ int AmgXSolver::count = 0;
 AMGX_resources_handle AmgXSolver::rsrc = nullptr;
 
 // Implements AmgXSolver::AmgXSolver
-AmgXSolver::AmgXSolver(const std::string &modeStr, const std::string &cfgFile)
+AmgXSolver::AmgXSolver(const std::string &cfgFile)
 {
-   Initialize_Serial(modeStr, cfgFile);
+   Initialize_Serial(cfgFile);
 }
 
 #ifdef MFEM_USE_MPI
 AmgXSolver::AmgXSolver(const MPI_Comm &comm,
-                       const std::string &modeStr, const std::string &cfgFile, int &nDevs)
+                       const std::string &cfgFile, int &nDevs)
 {
-   Initialize_MPITeams(comm, modeStr, cfgFile, nDevs);
+   Initialize_MPITeams(comm, cfgFile, nDevs);
 }
 
 AmgXSolver::AmgXSolver(const MPI_Comm &comm,
-                       const std::string &modeStr, const std::string &cfgFile)
+                       const std::string &cfgFile)
 {
-   Initialize_ExclusiveGPU(comm, modeStr, cfgFile);
+   Initialize_ExclusiveGPU(comm, cfgFile);
 }
 #endif
 
@@ -52,14 +52,11 @@ AmgXSolver::~AmgXSolver()
    if (isInitialized) { Finalize(); }
 }
 
-void AmgXSolver::Initialize_Serial(const std::string &modeStr,
-                                   const std::string &cfgFile)
+void AmgXSolver::Initialize_Serial(const std::string &cfgFile)
 {
    count++;
 
    mpi_gpu_mode = "serial";
-
-   SetMode(modeStr);
 
    AMGX_SAFE_CALL(AMGX_initialize());
 
@@ -70,10 +67,10 @@ void AmgXSolver::Initialize_Serial(const std::string &modeStr,
    AMGX_SAFE_CALL(AMGX_config_create_from_file(&cfg, cfgFile.c_str()));
 
    AMGX_resources_create_simple(&rsrc, cfg);
-   AMGX_solver_create(&solver, rsrc, mode, cfg);
-   AMGX_matrix_create(&AmgXA, rsrc, mode);
-   AMGX_vector_create(&AmgXP, rsrc, mode);
-   AMGX_vector_create(&AmgXRHS, rsrc, mode);
+   AMGX_solver_create(&solver, rsrc, precision_mode, cfg);
+   AMGX_matrix_create(&AmgXA, rsrc, precision_mode);
+   AMGX_vector_create(&AmgXP, rsrc, precision_mode);
+   AMGX_vector_create(&AmgXRHS, rsrc, precision_mode);
 
    isInitialized = true;
 }
@@ -81,12 +78,8 @@ void AmgXSolver::Initialize_Serial(const std::string &modeStr,
 #ifdef MFEM_USE_MPI
 //Basic initialization for when each MPI rank may communicate with a GPU
 void AmgXSolver::Initialize_ExclusiveGPU(const MPI_Comm &comm,
-                                         const std::string &modeStr,
                                          const std::string &cfgFile)
 {
-   // Set AmgX floating point mode
-   SetMode(modeStr);
-
    // If this instance has already been initialized, skip
    if (isInitialized)
    {
@@ -104,7 +97,8 @@ void AmgXSolver::Initialize_ExclusiveGPU(const MPI_Comm &comm,
    MPI_Comm_size(gpuWorld, &gpuWorldSize);
    MPI_Comm_rank(gpuWorld, &myGpuWorldRank);
 
-   //int nDevs(1), deviceId(0);
+   //Each rank will only see 1 device
+   //call it device 0
    nDevs = 1, devID = 0;
 
    InitAmgX(cfgFile);
@@ -112,9 +106,9 @@ void AmgXSolver::Initialize_ExclusiveGPU(const MPI_Comm &comm,
    isInitialized = true;
 }
 
-// Initialize for when all MPI ranks can see all GPUs
+// Intialize for MPI ranks  > GPUs, all devices are visible
+// to all of the MPI ranks
 void AmgXSolver::Initialize_MPITeams(const MPI_Comm &comm,
-                                     const std::string &modeStr,
                                      const std::string &cfgFile, const int nDevs)
 {
    // If this instance has already been initialized, skip
@@ -137,9 +131,6 @@ void AmgXSolver::Initialize_MPITeams(const MPI_Comm &comm,
 
    MPI_Comm_rank(comm, &globalcommrank);
 
-   // Set the mode of AmgX solver
-   SetMode(modeStr);
-
    // Initialize communicators and corresponding information
    InitMPIcomms(comm, nDevs);
 
@@ -152,16 +143,6 @@ void AmgXSolver::Initialize_MPITeams(const MPI_Comm &comm,
    isInitialized = true;
 }
 #endif
-
-//TODO Remove - only support double precision
-void AmgXSolver::SetMode(const std::string &modeStr)
-{
-   if (modeStr == "dDDI")
-   {
-      mode = AMGX_mode_dDDI;
-   }
-   else { mfem_error("Mode not supported \n"); }
-}
 
 int AmgXSolver::GetNumIterations()
 {
@@ -194,20 +175,20 @@ void AmgXSolver::InitAmgX(const std::string &cfgFile)
    if (count == 1) { AMGX_resources_create(&rsrc, cfg, &gpuWorld, 1, &devID); }
 
    // Create AmgX vector object for unknowns and RHS
-   AMGX_vector_create(&AmgXP, rsrc, mode);
-   AMGX_vector_create(&AmgXRHS, rsrc, mode);
+   AMGX_vector_create(&AmgXP, rsrc, precision_mode);
+   AMGX_vector_create(&AmgXRHS, rsrc, precision_mode);
 
    // Create AmgX matrix object for unknowns and RHS
-   AMGX_matrix_create(&AmgXA, rsrc, mode);
+   AMGX_matrix_create(&AmgXA, rsrc, precision_mode);
 
    // Create an AmgX solver object
-   AMGX_solver_create(&solver, rsrc, mode, cfg);
+   AMGX_solver_create(&solver, rsrc, precision_mode, cfg);
 
    // Obtain the default number of rings based on current configuration
    AMGX_config_get_default_number_of_rings(cfg, &ring);
 }
 
-// Groups MPI ranks into teams and assigns a lead to talk to GPUs
+// Groups MPI ranks into teams and assigns the roots to talk to GPUs
 void AmgXSolver::InitMPIcomms(const MPI_Comm &comm, const int nDevs)
 {
    // Duplicate the global communicator
@@ -270,9 +251,10 @@ void AmgXSolver::SetDeviceIDs(const int nDevs)
    }
    else if (nDevs > localSize) // there are more devices than processes
    {
-      printf("CUDA devices on the node %s "
-             "are more than the MPI processes launched. Only %d CUDA "
-             "devices will be used.\n", nodeName.c_str(),nDevs);
+
+      MFEM_WARNING("CUDA devices on the node " << nodeName.c_str() <<
+                   " are more than the MPI processes launched. Only "<<
+                   nDevs << " devices will be used.\n");
 
       devID = myLocalRank;
       gpuProc = 0;
@@ -520,8 +502,8 @@ void AmgXSolver::SetA_MPI_GPU_Exclusive(const HypreParMatrix &A,
    const int num_nnz = loc_I[local_rows];
 
    AMGX_matrix_upload_distributed(AmgXA, nGlobalRows, local_rows,
-                                  num_nnz, 1, 1, loc_I.HostRead(),
-                                  loc_J.HostRead(), loc_A.HostRead(),
+                                  num_nnz, 1, 1, loc_I.Read(),
+                                  loc_J.Read(), loc_A.Read(),
                                   nullptr, dist);
 
    AMGX_distribution_destroy(dist);
@@ -661,9 +643,9 @@ void AmgXSolver::SetA_MPI_Teams(const HypreParMatrix &A,
       int nGlobalRows = A.M();
       AMGX_matrix_upload_distributed(AmgXA, nGlobalRows, local_rows,
                                      local_nnz,
-                                     1, 1, all_I.HostReadWrite(),
-                                     all_J.HostRead(),
-                                     all_A.HostRead(),
+                                     1, 1, all_I.ReadWrite(),
+                                     all_J.Read(),
+                                     all_A.Read(),
                                      nullptr, dist);
 
       AMGX_distribution_destroy(dist);
@@ -706,8 +688,8 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
       //Seems to be necessary for convergence
       if (m_AmgxMode == PRECONDITIONER) { X = 0.0; };
 
-      AMGX_vector_upload(AmgXP, X.Size(), 1, X.HostReadWrite());
-      AMGX_vector_upload(AmgXRHS, B.Size(), 1, B.HostRead());
+      AMGX_vector_upload(AmgXP, X.Size(), 1, X.ReadWrite());
+      AMGX_vector_upload(AmgXRHS, B.Size(), 1, B.Read());
 
       if (mpi_gpu_mode != "serial")
       {
@@ -725,7 +707,7 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
          printf("Amgx failed to solve system, error code %d. \n", status);
       }
 
-      AMGX_vector_download(AmgXP, X.HostWrite());
+      AMGX_vector_download(AmgXP, X.Write());
       return;
    }
 
@@ -746,8 +728,8 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
 
       if (m_AmgxMode == PRECONDITIONER) { X = 0.0; };
 
-      AMGX_vector_upload(AmgXP, all_X.Size(), 1, all_X.HostReadWrite());
-      AMGX_vector_upload(AmgXRHS, all_B.Size(), 1, all_B.HostReadWrite());
+      AMGX_vector_upload(AmgXP, all_X.Size(), 1, all_X.ReadWrite());
+      AMGX_vector_upload(AmgXRHS, all_B.Size(), 1, all_B.ReadWrite());
 
       MPI_Barrier(gpuWorld);
 
@@ -760,7 +742,7 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
          printf("Amgx failed to solve system, error code %d. \n", status);
       }
 
-      AMGX_vector_download(AmgXP, all_X.HostWrite());
+      AMGX_vector_download(AmgXP, all_X.Write());
    }
 
    ScatterArray(all_X, X, devWorldSize, devWorld, Apart_X, Adisp_X);
@@ -771,13 +753,12 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
 void AmgXSolver::Finalize()
 {
    //Check instance is initialized
-   if (! isInitialized)
+   if (! isInitialized || count < 1)
    {
-      mfem_error("This AmgXWrapper has not been initialized. "
+      mfem_error("Error in AmgXSolver::Finalize(). \n"
+                 "This AmgXWrapper has not been initialized. \n"
                  "Please initialize it before finalization.\n");
    }
-
-   MFEM_VERIFY(count > 0, "Error in AmgXSolver::Finalize()");
 
    // Only processes using GPU are required to destroy AmgX content
 #ifdef MFEM_USE_MPI

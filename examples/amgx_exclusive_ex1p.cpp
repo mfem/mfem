@@ -234,7 +234,7 @@ int main(int argc, char *argv[])
       AmgXSolver amgx;
 
       //Assumes MPI == NDEVS
-      amgx.Initialize_ExclusiveGPU(MPI_COMM_WORLD, "dDDI", amgx_str);
+      amgx.Initialize_ExclusiveGPU(MPI_COMM_WORLD, amgx_str);
 
       amgx.SetOperator(A);
 
