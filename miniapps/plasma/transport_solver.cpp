@@ -2240,7 +2240,7 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
 
    if ( blf_[i] != NULL)
    {
-      blf_[i]->Update();
+      blf_[i]->Update(); // Clears the matrix so we start from 0 again
       blf_[i]->Assemble(0);
       blf_[i]->Finalize(0);
       Operator * D = blf_[i]->ParallelAssemble();
@@ -3824,8 +3824,6 @@ DGTransportTDO::DummyOp::DummyOp(const MPI_Session & mpi, const DGParams & dg,
       blf_[index_] = new ParBilinearForm(&fes_);
    }
    blf_[index_]->AddDomainIntegrator(new MassIntegrator);
-   blf_[index_]->Assemble(0);
-   blf_[index_]->Finalize();
 
    if ( mpi_.Root() && logging_ > 1)
    {
