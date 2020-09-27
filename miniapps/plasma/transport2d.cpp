@@ -1254,12 +1254,6 @@ int main(int argc, char *argv[])
    }
    mesh->EnsureNCMesh();
 
-   if (mpi.Root())
-   {
-      cout << "Number of elements after serial refinement: "
-           << mesh->GetNE() << endl;
-   }
-
    // num_species_   = ion_charges.Size();
    // num_equations_ = (num_species_ + 1) * (dim + 2);
 
@@ -1269,6 +1263,12 @@ int main(int argc, char *argv[])
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
       mesh->UniformRefinement();
+   }
+
+   if (mpi.Root())
+   {
+      cout << "Number of elements after serial refinement: "
+           << mesh->GetNE() << endl;
    }
 
    // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
