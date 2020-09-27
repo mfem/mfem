@@ -1315,11 +1315,16 @@ int main(int argc, char *argv[])
       ParGridFunctionArray coef_gf(5, &fes);
       Array<Coefficient*> coef(5);
 
-      if (ics[0] == NULL) { ics[0] = new FunctionCoefficient(nnFunc); }
-      if (ics[1] == NULL) { ics[1] = new FunctionCoefficient(niFunc); }
-      if (ics[2] == NULL) { ics[2] = new FunctionCoefficient(viFunc); }
-      if (ics[3] == NULL) { ics[3] = new FunctionCoefficient(TiFunc); }
-      if (ics[4] == NULL) { ics[4] = new FunctionCoefficient(TeFunc); }
+      if (ics[0] == NULL)
+      { ics[0] = new FunctionCoefficient(nnFunc); ics.SetOwnership(0, true); }
+      if (ics[1] == NULL)
+      { ics[1] = new FunctionCoefficient(niFunc); ics.SetOwnership(1, true); }
+      if (ics[2] == NULL)
+      { ics[2] = new FunctionCoefficient(viFunc); ics.SetOwnership(2, true); }
+      if (ics[3] == NULL)
+      { ics[3] = new FunctionCoefficient(TiFunc); ics.SetOwnership(3, true); }
+      if (ics[4] == NULL)
+      { ics[4] = new FunctionCoefficient(TeFunc); ics.SetOwnership(4, true); }
       for (int i=0; i<5; i++) { coef[i] = ics[i]; }
 
       coef_gf.ProjectCoefficient(coef);

@@ -396,15 +396,18 @@ class TransportICs
 private:
    int neqn_;
    Array<Coefficient *> ics_;
+   Array<bool> own_ics_;
 
    void ReadICs(CoefFactory &cf, std::istream &input);
 
 public:
    TransportICs(int neqn)
       : neqn_(neqn),
-        ics_(neqn)
+        ics_(neqn),
+        own_ics_(neqn)
    {
       ics_ = NULL;
+      own_ics_ = false;
    }
 
    TransportICs(int neqn, CoefFactory &cf, std::istream &input);
@@ -413,12 +416,14 @@ public:
    {
       for (int i=0; i<neqn_; i++)
       {
-         delete ics_[i];
+         if (own_ics_[i]) { delete ics_[i]; }
       }
    }
 
    void LoadICs(CoefFactory &cf, std::istream &input)
    { ReadICs(cf, input); }
+
+   void SetOwnership(int i, bool own) { own_ics_[i] = own; }
 
    Coefficient *& operator()(int i) { return ics_[i]; }
    const Coefficient * operator()(int i) const { return ics_[i]; }

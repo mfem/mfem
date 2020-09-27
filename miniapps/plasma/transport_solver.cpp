@@ -479,6 +479,7 @@ void TransportICs::ReadICs(CoefFactory &cf, std::istream &input)
 
          istringstream iss(buff_str);
          ics_[i] = cf(iss);
+         own_ics_[i] = false;
 
          delete [] buffer;
       }
