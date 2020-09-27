@@ -338,6 +338,17 @@ void PolBFunc(const Vector &x, Vector &B)
 
    switch (prob_)
    {
+      case 0:
+      {
+         double cx = cos(M_PI * x[0]);
+         double cy = cos(M_PI * x[1]);
+         double sx = sin(M_PI * x[0]);
+         double sy = sin(M_PI * x[1]);
+
+         B[0] =  sx * cy;
+         B[1] = -cx * sy;
+      }
+      break;
       case 1:
       {
          double a = 0.4;
@@ -441,6 +452,44 @@ double viFunc(const Vector &x)
          return v_max_;;
    }
 }
+
+class SinSin2D: public Coefficient
+{
+private:
+   double a_, kx_, ky_;
+
+   mutable Vector x_;
+
+public:
+   SinSin2D(double a, double kx, double ky) : a_(a), kx_(kx), ky_(ky), x_(3) {}
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+      return a_ * sin(kx_ * x_[0]) * sin(ky_ * x_[1]);
+   }
+};
+
+class TransportCoefFactory : public CoefFactory
+{
+public:
+   TransportCoefFactory() {}
+
+   Coefficient *operator()(std::string &name, std::istream &input)
+   {
+      if (name == "SinSin2D")
+      {
+         double a, kx, ky;
+         input >> a >> kx >> ky;
+         int c = coefs.Append(new SinSin2D(a, kx, ky));
+         return coefs[--c];
+      }
+      else
+      {
+         return CoefFactory::operator()(name, input);
+      }
+   }
+};
 
 /** Given the electron temperature in eV this coefficient returns an
     approzximation to the expected ionization rate in m^3/s.
@@ -874,10 +923,14 @@ int main(int argc, char *argv[])
    // 1. Initialize MPI.
    MPI_Session mpi(argc, argv);
 
+   TransportCoefFactory coefFact;
+
    // 2. Parse command-line options.
    // problem_ = 1;
    const char *mesh_file = "ellipse_origin_h0pt0625_o3.mesh";
    const char *bc_file = "";
+   const char *ic_file = "";
+   const char *ec_file = "";
    const char *eqdsk_file = "";
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
@@ -947,6 +1000,10 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&bc_file, "-bc", "--bc-file",
                   "Boundary condition input file.");
+   args.AddOption(&ic_file, "-ic", "--ic-file",
+                  "Initial condition input file.");
+   args.AddOption(&ec_file, "-ec", "--ec-file",
+                  "Equation coefficient input file.");
    args.AddOption(&eqdsk_file, "-eqdsk", "--eqdsk-file",
                   "G EQDSK input file.");
    args.AddOption(&logging, "-l", "--logging",
@@ -1234,21 +1291,36 @@ int main(int argc, char *argv[])
    RT_FECollection fec_rt(order-1, dim);
    DG_FECollection fec(order, dim);
    // Finite element space for a scalar (thermodynamic quantity)
-   ParFiniteElementSpace fes_h1(&pmesh, &fec_h1);
-   ParFiniteElementSpace fes_rt(&pmesh, &fec_rt);
    ParFiniteElementSpace fes(&pmesh, &fec);
    ParFiniteElementSpace vfes(&pmesh, &fec, 2);
+
+   if (mpi.Root())
+   {
+      cout << "Configuring initial conditions" << endl;
+   }
+   TransportICs ics(5);
+   if (strncmp(ic_file,"",1) != 0)
+   {
+      if (mpi.Root())
+      {
+         cout << "Reading initial conditions from " << ic_file << endl;
+      }
+      ifstream icfs(ic_file);
+      ics.LoadICs(coefFact, icfs);
+   }
 
    // Adaptively refine mesh to accurately represent a given coefficient
    if (amr)
    {
       ParGridFunctionArray coef_gf(5, &fes);
       Array<Coefficient*> coef(5);
-      coef[0] = new FunctionCoefficient(nnFunc);
-      coef[1] = new FunctionCoefficient(niFunc);
-      coef[2] = new FunctionCoefficient(viFunc);
-      coef[3] = new FunctionCoefficient(TiFunc);
-      coef[4] = new FunctionCoefficient(TeFunc);
+
+      if (ics[0] == NULL) { ics[0] = new FunctionCoefficient(nnFunc); }
+      if (ics[1] == NULL) { ics[1] = new FunctionCoefficient(niFunc); }
+      if (ics[2] == NULL) { ics[2] = new FunctionCoefficient(viFunc); }
+      if (ics[3] == NULL) { ics[3] = new FunctionCoefficient(TiFunc); }
+      if (ics[4] == NULL) { ics[4] = new FunctionCoefficient(TeFunc); }
+      for (int i=0; i<5; i++) { coef[i] = ics[i]; }
 
       coef_gf.ProjectCoefficient(coef);
 
@@ -1258,12 +1330,9 @@ int main(int argc, char *argv[])
 
       AdaptInitialMesh(mpi, pmesh, err_fes, fes, vfes, coef_gf, coef,
                        amr_weights, 2, tol_init, visualization);
-
-      for (int i=0; i<5; i++)
-      {
-         delete coef[i];
-      }
    }
+   ParFiniteElementSpace fes_h1(&pmesh, &fec_h1);
+   ParFiniteElementSpace fes_rt(&pmesh, &fec_rt);
 
    // Finite element space for all variables together (full thermodynamic state)
    int num_equations = 5;
@@ -1337,8 +1406,6 @@ int main(int argc, char *argv[])
    ParGridFunction  ion_energy  (&fes, u.GetData() + offsets[3]);
    ParGridFunction elec_energy  (&fes, u.GetData() + offsets[4]);
 
-   fes_h1.Update();
-   fes_rt.Update();
    ParGridFunction psi(&fes_h1);
    ParGridFunction nxGradPsi_rt(&fes_rt);
 
@@ -1374,7 +1441,7 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
       int Wx = 0, Wy = 0; // window position
       int Ww = 275, Wh = 250; // window size
-      int Dx = 3, Dy = 25;
+      int /* Dx = 3,*/ Dy = 25;
       socketstream psi_sock;//(vishost, visport);
       VisualizeField(psi_sock, vishost, visport, psi, "Psi",
                      Wx, Wy + Wh + Dy, Ww, Wh);
@@ -1446,6 +1513,7 @@ int main(int argc, char *argv[])
    // FunctionCoefficient QCoef(QFunc);
 
    // Coefficients for initial conditions
+   /*
    FunctionCoefficient nn0Coef(nnFunc);
    FunctionCoefficient ni0Coef(niFunc);
    FunctionCoefficient vi0Coef(viFunc);
@@ -1457,12 +1525,17 @@ int main(int argc, char *argv[])
    para_velocity.ProjectCoefficient(vi0Coef);
    ion_energy.ProjectCoefficient(Ti0Coef);
    elec_energy.ProjectCoefficient(Te0Coef);
+   */
+   neu_density.ProjectCoefficient(*ics[0]);
+   ion_density.ProjectCoefficient(*ics[1]);
+   para_velocity.ProjectCoefficient(*ics[2]);
+   ion_energy.ProjectCoefficient(*ics[3]);
+   elec_energy.ProjectCoefficient(*ics[4]);
 
    if (mpi.Root())
    {
       cout << "Configuring boundary conditions" << endl;
    }
-   CoefFactory coefFact;
    TransportBCs bcs(pmesh.bdr_attributes, 5);
    if (strncmp(bc_file,"",1) != 0)
    {
@@ -1472,6 +1545,36 @@ int main(int argc, char *argv[])
       }
       ifstream bcfs(bc_file);
       bcs.LoadBCs(coefFact, bcfs);
+   }
+   /*
+   if (mpi.Root())
+   {
+      cout << "Configuring source terms" << endl;
+   }
+   TransportSRCs srcs(5);
+   if (strncmp(src_file,"",1) != 0)
+   {
+      if (mpi.Root())
+      {
+         cout << "Reading source coefficients from " << src_file << endl;
+      }
+      ifstream srcfs(src_file);
+      srcs.LoadSRCs(coefFact, srcfs);
+   }
+   */
+   if (mpi.Root())
+   {
+      cout << "Configuring equation coefficients" << endl;
+   }
+   TransportCoefs eqnCoefs(5);
+   if (strncmp(ec_file,"",1) != 0)
+   {
+      if (mpi.Root())
+      {
+         cout << "Reading equation coefficients from " << ec_file << endl;
+      }
+      ifstream ecfs(ec_file);
+      eqnCoefs.LoadCoefs(coefFact, ecfs);
    }
 
    Array<double> coefNrm(5);
@@ -1597,7 +1700,7 @@ int main(int argc, char *argv[])
 
    DGTransportTDO oper(mpi, dg, plasma, eqn_weights, fes, vfes, ffes,
                        offsets, yGF, kGF,
-                       bcs, Di_perp, Xi_perp, Xe_perp, *B3Coef,
+                       bcs, eqnCoefs, Di_perp, Xi_perp, Xe_perp, *B3Coef,
                        term_flags, vis_flags, imex, op_flag, logging);
 
    oper.SetLogging(max(0, logging - (mpi.Root()? 0 : 1)));
@@ -1871,10 +1974,11 @@ int main(int argc, char *argv[])
                ffes.Update();
                vfes.Update();
                fes.Update();
+               fes_h1.Update();
+               fes_rt.Update();
                // fes.ExchangeFaceNbrData();
                fes_l2_o0.Update();
                u.Update();
-
 
                {
                   for (int k = 0; k <= num_equations; k++)
@@ -1908,6 +2012,8 @@ int main(int argc, char *argv[])
                   ffes.Update();
                   vfes.Update();
                   fes.Update();
+                  fes_h1.Update();
+                  fes_rt.Update();
                   // fes.ExchangeFaceNbrData();
                   fes_l2_o0.Update();
                   u.Update();
@@ -1942,6 +2048,8 @@ int main(int argc, char *argv[])
                ffes.Update();
                vfes.Update();
                fes.Update();
+               fes_h1.Update();
+               fes_rt.Update();
                // fes.ExchangeFaceNbrData();
                // cout << "fes_l2_o0.Update();" << endl;
                fes_l2_o0.Update();

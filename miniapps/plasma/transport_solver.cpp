@@ -136,12 +136,6 @@ Coefficient * CoefFactory::operator()(std::string &name, std::istream &input)
    }
    else
    {
-      // Unrecognized coefficient type.  Try external factories.
-      for (int i=0; i<ext_fac.Size(); i++)
-      {
-         Coefficient * c = (*ext_fac[i])(name, input);
-         if (c != NULL) { return c; }
-      }
       return NULL;
    }
 }
@@ -360,11 +354,10 @@ const Array<int> & AdvectionDiffusionBC::GetHomogeneousNeumannBDR() const
 TransportBCs::TransportBCs(const Array<int> & bdr_attr, int neqn,
                            CoefFactory &cf, std::istream &input)
    : neqn_(neqn),
-     bcs_(NULL),
+     bcs_(neqn),
      bdr_attr_(bdr_attr)
 {
-   bcs_ = new AdvectionDiffusionBC*[neqn];
-
+   bcs_ = NULL;
    this->ReadBCs(cf, input);
 }
 
@@ -432,6 +425,267 @@ void TransportBCs::ReadBCs(CoefFactory &cf, std::istream &input)
    }
 }
 
+void TransportICs::ReadICs(CoefFactory &cf, std::istream &input)
+{
+   string buff;
+
+   skip_comment_lines(input, '#');
+   input >> buff;
+   MFEM_VERIFY(buff == "transport_ics", "invalid Initial Condition file");
+
+   Array<ios::streampos> pos(neqn_+1);
+   pos = -1;
+   while (input >> buff)
+   {
+      pos[neqn_] = std::max(pos[neqn_], input.tellg());
+      skip_comment_lines(input, '#');
+      if (buff == "neutral_density")
+      {
+         pos[0] = input.tellg();
+      }
+      else if (buff == "ion_density")
+      {
+         pos[1] = input.tellg();
+      }
+      else if (buff == "ion_parallel_velocity")
+      {
+         pos[2] = input.tellg();
+      }
+      else if (buff == "ion_temperature")
+      {
+         pos[3] = input.tellg();
+      }
+      else if (buff == "electron_temperature")
+      {
+         pos[4] = input.tellg();
+      }
+   }
+   for (int i=neqn_-1; i >= 0; i--)
+   {
+      if (pos[i] < 0) { pos[i] = pos[i+1]; }
+   }
+
+   input.clear();
+   for (int i=0; i<neqn_; i++)
+   {
+      input.seekg(pos[i], std::ios::beg);
+      int length = pos[i+1] - pos[i];
+      if (length > 0)
+      {
+         char * buffer = new char[length];
+         input.read(buffer, length);
+
+         string buff_str(buffer, length);
+
+         istringstream iss(buff_str);
+         ics_[i] = cf(iss);
+
+         delete [] buffer;
+      }
+      else
+      {
+         ics_[i] = NULL;
+      }
+   }
+}
+
+void TransportCoefs::ReadCoefs(CoefFactory &cf, std::istream &input)
+{
+   string buff;
+
+   skip_comment_lines(input, '#');
+   input >> buff;
+   MFEM_VERIFY(buff == "transport_coefs", "invalid Coefficient file");
+
+   Array<ios::streampos> pos(neqn_+1);
+   pos = -1;
+   while (input >> buff)
+   {
+      pos[neqn_] = std::max(pos[neqn_], input.tellg());
+      skip_comment_lines(input, '#');
+      if (buff == "neutral_density")
+      {
+         pos[0] = input.tellg();
+      }
+      else if (buff == "ion_density")
+      {
+         pos[1] = input.tellg();
+      }
+      else if (buff == "ion_parallel_momentum")
+      {
+         pos[2] = input.tellg();
+      }
+      else if (buff == "ion_static_pressure")
+      {
+         pos[3] = input.tellg();
+      }
+      else if (buff == "electron_static_pressure")
+      {
+         pos[4] = input.tellg();
+      }
+   }
+   for (int i=neqn_-1; i >= 0; i--)
+   {
+      if (pos[i] < 0) { pos[i] = pos[i+1]; }
+   }
+
+   input.clear();
+   for (int i=0; i<neqn_; i++)
+   {
+      input.seekg(pos[i], std::ios::beg);
+      int length = pos[i+1] - pos[i];
+      if (length > 0)
+      {
+         char * buffer = new char[length];
+         input.read(buffer, length);
+
+         string buff_str(buffer, length);
+
+         istringstream iss(buff_str);
+         eqnCoefs_[i]->LoadCoefs(cf, iss);
+
+         delete [] buffer;
+      }
+   }
+}
+
+void EqnCoefficients::ReadCoefs(std::istream &input)
+{
+   int ncoefs = coefs_.Size();
+   string buff;
+
+   skip_comment_lines(input, '#');
+
+   Array<ios::streampos> pos(ncoefs+1);
+   pos = -1;
+   while (input >> buff)
+   {
+      pos[ncoefs] = std::max(pos[ncoefs], input.tellg());
+      skip_comment_lines(input, '#');
+
+      for (unsigned int i=0; i<coefNames_.size(); i++)
+      {
+         if (buff == coefNames_[i])
+         {
+            pos[i] = input.tellg();
+            break;
+         }
+      }
+   }
+   for (int i=ncoefs-1; i >= 0; i--)
+   {
+      if (pos[i] < 0) { pos[i] = pos[i+1]; }
+   }
+
+   input.clear();
+   for (int i=0; i<ncoefs; i++)
+   {
+      input.seekg(pos[i], std::ios::beg);
+      int length = pos[i+1] - pos[i];
+      if (length > 0)
+      {
+         char * buffer = new char[length];
+         input.read(buffer, length);
+
+         string buff_str(buffer, length);
+
+         istringstream iss(buff_str);
+         coefs_[i] = (*coefFact)(iss);
+
+         delete [] buffer;
+      }
+   }
+}
+
+NeutralDensityCoefs::NeutralDensityCoefs()
+   : EqnCoefficients(CoefNames::NUM_COEFS)
+{
+   coefNames_[DIFFUSION_COEF] = "diffusion_coef";
+   coefNames_[SOURCE_COEF]    = "source_coef";
+}
+
+IonDensityCoefs::IonDensityCoefs()
+   : EqnCoefficients(CoefNames::NUM_COEFS)
+{
+   coefNames_[PERP_DIFFUSION_COEF] = "perp_diffusion_coef";
+   coefNames_[PARA_DIFFUSION_COEF] = "para_diffusion_coef";
+   coefNames_[SOURCE_COEF]         = "source_coef";
+}
+
+IonMomentumCoefs::IonMomentumCoefs()
+   : EqnCoefficients(CoefNames::NUM_COEFS)
+{
+   coefNames_[PERP_DIFFUSION_COEF] = "perp_diffusion_coef";
+   coefNames_[PARA_DIFFUSION_COEF] = "para_diffusion_coef";
+   coefNames_[SOURCE_COEF]         = "source_coef";
+}
+
+IonStaticPressureCoefs::IonStaticPressureCoefs()
+   : EqnCoefficients(CoefNames::NUM_COEFS)
+{
+   coefNames_[PERP_DIFFUSION_COEF] = "perp_diffusion_coef";
+   coefNames_[PARA_DIFFUSION_COEF] = "para_diffusion_coef";
+   coefNames_[SOURCE_COEF]         = "source_coef";
+}
+
+ElectronStaticPressureCoefs::ElectronStaticPressureCoefs()
+   : EqnCoefficients(CoefNames::NUM_COEFS)
+{
+   coefNames_[PERP_DIFFUSION_COEF] = "perp_diffusion_coef";
+   coefNames_[PARA_DIFFUSION_COEF] = "para_diffusion_coef";
+   coefNames_[SOURCE_COEF]         = "source_coef";
+}
+/*
+void ElectronStaticPressureCoefs::ReadCoefs(std::istream &input)
+{
+   string buff;
+
+   skip_comment_lines(input, '#');
+
+   Array<ios::streampos> pos(NUM_COEFS+1);
+   pos = -1;
+   while (input >> buff)
+   {
+      pos[NUM_COEFS] = std::max(pos[NUM_COEFS], input.tellg());
+      skip_comment_lines(input, '#');
+      if (buff == "perp_diffusion_coef")
+      {
+         pos[PERP_DIFFUSION_COEF] = input.tellg();
+      }
+      else if (buff == "para_diffusion_coef")
+      {
+         pos[PARA_DIFFUSION_COEF] = input.tellg();
+      }
+      else if (buff == "source_coef")
+      {
+         pos[SOURCE_COEF] = input.tellg();
+      }
+   }
+   for (int i=NUM_COEFS-1; i >= 0; i--)
+   {
+      if (pos[i] < 0) { pos[i] = pos[i+1]; }
+   }
+
+   input.clear();
+   for (int i=0; i<NUM_COEFS; i++)
+   {
+      input.seekg(pos[i], std::ios::beg);
+      int length = pos[i+1] - pos[i];
+      if (length > 0)
+      {
+         char * buffer = new char[length];
+         input.read(buffer, length);
+
+         string buff_str(buffer, length);
+
+         istringstream iss(buff_str);
+         coefs_[i] = (*coefFact)(iss);
+
+         delete [] buffer;
+      }
+   }
+}
+*/
 /*
 ChiParaCoefficient::ChiParaCoefficient(BlockVector & nBV, Array<int> & z)
    : nBV_(nBV),
@@ -1290,6 +1544,7 @@ DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
                                ParGridFunctionArray &yGF,
                                ParGridFunctionArray &kGF,
                                const TransportBCs & bcs,
+                               const TransportCoefs & coefs,
                                double Di_perp, double Xi_perp, double Xe_perp,
                                VectorCoefficient &B3Coef,
                                const Array<int> &term_flags,
@@ -1307,7 +1562,7 @@ DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
      newton_op_prec_(offsets),
      newton_op_solver_(fes.GetComm()),
      newton_solver_(fes.GetComm()),
-     op_(mpi, dg, plasma, eqn_weights, vfes, yGF, kGF, bcs, offsets_,
+     op_(mpi, dg, plasma, eqn_weights, vfes, yGF, kGF, bcs, coefs, offsets_,
          Di_perp, Xi_perp, Xe_perp, B3Coef,
          term_flags, vis_flags, op_flag, logging),
      BxyCoef_(B3Coef),
@@ -1978,7 +2233,7 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
    if (mpi_.Root() && logging_ > 1)
    {
       cout << "Entering DGTransportTDO::NLOperator::GetGradientBlock("
-           << i << ")" << endl;
+           << i << ") for equation " << index_ << endl;
    }
 
    if ( blf_[i] != NULL)
@@ -2318,6 +2573,16 @@ void DGTransportTDO::TransportOp::SetAdvectionTerm(StateVariableVecCoef &VCoef,
    }
 }
 
+void DGTransportTDO::TransportOp::SetSourceTerm(Coefficient &SCoef)
+{
+   if ( mpi_.Root() && logging_ > 0)
+   {
+      cout << field_name_ << ": Adding source term" << endl;
+   }
+
+   dlfi_.Append(new DomainLFIntegrator(SCoef));
+}
+
 void DGTransportTDO::TransportOp::SetSourceTerm(StateVariableCoef &SCoef)
 {
    if ( mpi_.Root() && logging_ > 0)
@@ -2401,6 +2666,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
                                        ParGridFunctionArray & yGF,
                                        ParGridFunctionArray & kGF,
                                        const TransportBCs & bcs,
+                                       const TransportCoefs & coefs,
                                        Array<int> & offsets,
                                        double DiPerp,
                                        double XiPerp,
@@ -2429,13 +2695,14 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
 
    if ((op_flag >> 0) & 1)
    {
-      op_[0] = new NeutralDensityOp(mpi, dg, plasma, yGF, kGF, bcs[0],
+      op_[0] = new NeutralDensityOp(mpi, dg, plasma, yGF, kGF,
+                                    bcs[0], coefs[0],
                                     term_flags[0], vis_flags[0],
                                     logging, "n_n: ");
    }
    else
    {
-      op_[0] = new DummyOp(mpi, dg, plasma, yGF, kGF, bcs[0], 0,
+      op_[0] = new DummyOp(mpi, dg, plasma, yGF, kGF, bcs[0], coefs[0], 0,
                            "Neutral Density",
                            term_flags[0], vis_flags[0],
                            logging, "n_n (dummy): ");
@@ -2443,14 +2710,15 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
 
    if ((op_flag >> 1) & 1)
    {
-      op_[1] = new IonDensityOp(mpi, dg, plasma, vfes, yGF, kGF, bcs[1],
+      op_[1] = new IonDensityOp(mpi, dg, plasma, vfes, yGF, kGF,
+                                bcs[1], coefs[1],
                                 DiPerp, B3Coef,
                                 term_flags[1], vis_flags[1],
                                 logging, "n_i: ");
    }
    else
    {
-      op_[1] = new DummyOp(mpi, dg, plasma, yGF, kGF, bcs[1], 1,
+      op_[1] = new DummyOp(mpi, dg, plasma, yGF, kGF, bcs[1], coefs[1], 1,
                            "Ion Density",
                            term_flags[1], vis_flags[1],
                            logging, "n_i (dummy): ");
@@ -2458,45 +2726,48 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
 
    if ((op_flag >> 2) & 1)
    {
-      op_[2] = new IonMomentumOp(mpi, dg, plasma, vfes, yGF, kGF, bcs[2],
+      op_[2] = new IonMomentumOp(mpi, dg, plasma, vfes, yGF, kGF,
+                                 bcs[2], coefs[2],
                                  DiPerp, B3Coef,
                                  term_flags[2], vis_flags[2],
                                  logging, "v_i: ");
    }
    else
    {
-      op_[2] = new DummyOp(mpi, dg, plasma, yGF, kGF, bcs[2], 2,
-                           "Ion Parallel Velocity",
+      op_[2] = new DummyOp(mpi, dg, plasma, yGF, kGF, bcs[2], coefs[2], 2,
+                           "Ion Parallel Momentum",
                            term_flags[2], vis_flags[2],
                            logging, "v_i (dummy): ");
    }
 
    if ((op_flag >> 3) & 1)
    {
-      op_[3] = new IonStaticPressureOp(mpi, dg, plasma, yGF, kGF, bcs[3],
+      op_[3] = new IonStaticPressureOp(mpi, dg, plasma, yGF, kGF,
+                                       bcs[3], coefs[3],
                                        XiPerp, B3Coef,
                                        term_flags[3], vis_flags[3],
                                        logging, "T_i: ");
    }
    else
    {
-      op_[3] = new DummyOp(mpi, dg, plasma, yGF, kGF, bcs[3], 3,
-                           "Ion Temperature",
+      op_[3] = new DummyOp(mpi, dg, plasma, yGF, kGF, bcs[3], coefs[3], 3,
+                           "Ion Static Pressure",
                            term_flags[3], vis_flags[3],
                            logging, "T_i (dummy): ");
    }
 
    if ((op_flag >> 4) & 1)
    {
-      op_[4] = new ElectronStaticPressureOp(mpi, dg, plasma, yGF, kGF, bcs[4],
+      op_[4] = new ElectronStaticPressureOp(mpi, dg, plasma, yGF, kGF,
+                                            bcs[4], coefs[4],
                                             XePerp, B3Coef,
                                             term_flags[4], vis_flags[4],
                                             logging, "T_e: ");
    }
    else
    {
-      op_[4] = new DummyOp(mpi, dg, plasma, yGF, kGF,  bcs[4], 4,
-                           "Electron Temperature",
+      op_[4] = new DummyOp(mpi, dg, plasma, yGF, kGF,  bcs[4], coefs[4], 4,
+                           "Electron Static Pressure",
                            term_flags[4], vis_flags[4],
                            logging, "T_e (dummy): ");
    }
@@ -2740,11 +3011,12 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
                                                    ParGridFunctionArray & yGF,
                                                    ParGridFunctionArray & kGF,
                                                    const AdvectionDiffusionBC & bcs,
+                                                   const EqnCoefficients & coefs,
                                                    int term_flag,
                                                    int vis_flag,
                                                    int logging,
                                                    const string & log_prefix)
-   : TransportOp(mpi, dg, plasma, 0, "Neutral Density", yGF, kGF, bcs,
+   : TransportOp(mpi, dg, plasma, 0, "Neutral Density", yGF, kGF, bcs, coefs,
                  term_flag, vis_flag, logging, log_prefix),
      vnCoef_(v_n_),
      izCoef_(TeCoef_),
@@ -2767,12 +3039,12 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
    if (term_flag_ < 0)
    {
       // Set default terms
-      term_flag_ = 3;
+      term_flag_ = 1023;
    }
    if (vis_flag_ < 0)
    {
       // Set default visualization fields
-      vis_flag_ = (logging_ > 0) ? 3 : 0;
+      vis_flag_ = (logging_ > 0) ? 1023 : 0;
    }
 
    // Time derivative term: dn_n / dt
@@ -2784,52 +3056,32 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
       SetDiffusionTerm(DCoef_);
    }
 
-   if (this->CheckTermFlag(SOURCE_TERM))
+   if (this->CheckTermFlag(RECOMBINATION_SOURCE_TERM))
    {
       // Source term: Src - Siz
       SetSourceTerm(SCoef_);
    }
-
    /*
-   bfbfi_.Append(new DGDiffusionIntegrator(DCoef_,
-                  dg_.sigma,
-                  dg_.kappa));
-   bfbfi_marker_.Append(NULL);
+   if (this->CheckTermFlag(SOURCE_TERM) && src_ != NULL)
+   {
+     // Source term from command line
+     SetSourceTerm(const_cast<Coefficient&>(*src_));
+   }
    */
-   // Source terms (moved to LHS): S_{iz} - S_{rc}
-   // dlfi_.Append(new DomainLFIntegrator(SizCoef_));
-   // dlfi_.Append(new DomainLFIntegrator(negSrcCoef_));
-
-   // Gradient of non-linear operator
-   // dOp / dn_n
-   // blf_[0] = new ParBilinearForm(&fes_);
-   // blf_[0]->AddDomainIntegrator(new MassIntegrator);
-   // blf_[0]->AddDomainIntegrator(new DiffusionIntegrator(dtDCoef_));
-   // blf_[0]->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(dtDCoef_,
-   //                                                           dg_.sigma,
-   //                                                           dg_.kappa));
-   /*
-   blf_[0]->AddBdrFaceIntegrator(new DGDiffusionIntegrator(dtDCoef_,
-                        dg_.sigma,
-                        dg_.kappa));
-   */
-   // blf_[0]->AddDomainIntegrator(new MassIntegrator(dtdSizdnnCoef_));
-   // blf_[0]->AddDomainIntegrator(new MassIntegrator(dtdSndnnCoef_));
-
-   // dOp / dn_i
-   // blf_[1] = new ParBilinearForm(&fes_);
-   // blf_[1]->AddDomainIntegrator(new MassIntegrator(dtdSizdniCoef_));
-   // blf_[1]->AddDomainIntegrator(new MassIntegrator(dtdSndniCoef_));
-
    if (this->CheckVisFlag(DIFFUSION_COEF))
    {
       DGF_ = new ParGridFunction(&fes_);
    }
-   if (this->CheckVisFlag(SOURCE_COEF))
+   if (this->CheckVisFlag(RECOMBINATION_SOURCE_COEF))
+   {
+      SRCGF_ = new ParGridFunction(&fes_);
+   }
+   /*
+   if (this->CheckVisFlag(SOURCE_COEF) && src_ != NULL)
    {
       SGF_ = new ParGridFunction(&fes_);
    }
-
+   */
    if ( mpi_.Root() && logging_ > 1)
    {
       cout << "Done constructing NeutralDensityOp" << endl;
@@ -2839,6 +3091,7 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
 DGTransportTDO::NeutralDensityOp::~NeutralDensityOp()
 {
    delete DGF_;
+   delete SRCGF_;
    delete SGF_;
 }
 
@@ -2861,12 +3114,20 @@ void DGTransportTDO::NeutralDensityOp::RegisterDataFields(DataCollection & dc)
       oss << field_name_ << " D_n";
       dc.RegisterField(oss.str(), DGF_);
    }
-   if (this->CheckVisFlag(SOURCE_COEF))
+   if (this->CheckVisFlag(RECOMBINATION_SOURCE_COEF))
+   {
+      ostringstream oss;
+      oss << field_name_ << " Src_n";
+      dc.RegisterField(oss.str(), SRCGF_);
+   }
+   /*
+   if (this->CheckVisFlag(SOURCE_COEF) && src_ != NULL)
    {
       ostringstream oss;
       oss << field_name_ << " S_n";
       dc.RegisterField(oss.str(), SGF_);
    }
+   */
 }
 
 void DGTransportTDO::
@@ -2876,18 +3137,25 @@ NeutralDensityOp::PrepareDataFields()
    {
       DGF_->ProjectCoefficient(DCoef_);
    }
-   if (this->CheckVisFlag(SOURCE_COEF))
+   if (this->CheckVisFlag(RECOMBINATION_SOURCE_COEF))
    {
-      SGF_->ProjectCoefficient(SCoef_);
+      SRCGF_->ProjectCoefficient(SCoef_);
    }
+   /*
+   if (this->CheckVisFlag(SOURCE_COEF) && src_ != NULL)
+   {
+      SGF_->ProjectCoefficient(const_cast<Coefficient&>(*src_));
+   }
+   */
 }
 
 void DGTransportTDO::NeutralDensityOp::Update()
 {
    NLOperator::Update();
 
-   if (DGF_ != NULL) { DGF_->Update(); }
-   if (SGF_ != NULL) { SGF_->Update(); }
+   if (DGF_   != NULL) { DGF_->Update(); }
+   if (SRCGF_ != NULL) { SRCGF_->Update(); }
+   if (SGF_   != NULL) { SGF_->Update(); }
 }
 
 DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
@@ -2897,12 +3165,13 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
                                            ParGridFunctionArray & yGF,
                                            ParGridFunctionArray & kGF,
                                            const AdvectionDiffusionBC & bcs,
+                                           const EqnCoefficients & coefs,
                                            double DPerp,
                                            VectorCoefficient & B3Coef,
                                            int term_flag, int vis_flag,
                                            int logging,
                                            const string & log_prefix)
-   : TransportOp(mpi, dg, plasma, 1, "Ion Density", yGF, kGF, bcs,
+   : TransportOp(mpi, dg, plasma, 1, "Ion Density", yGF, kGF, bcs, coefs,
                  term_flag, vis_flag, logging, log_prefix),
      // DPerpConst_(DPerp),
      izCoef_(TeCoef_),
@@ -2915,6 +3184,7 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
      SCoef_(SizCoef_, SrcCoef_, 1.0, -1.0),
      DPerpGF_(NULL),
      AGF_(NULL),
+     SIZGF_(NULL),
      SGF_(NULL)
 {
    if ( mpi_.Root() && logging_ > 1)
@@ -2927,86 +3197,42 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
    if (term_flag_ < 0)
    {
       // Set default terms
-      term_flag_ = 7;
+      term_flag_ = 1023;
    }
    if (vis_flag_ < 0)
    {
       // Set default visualization fields
-      vis_flag_ = (logging_ > 0) ? 7 : 0;
+      vis_flag_ = (logging_ > 0) ? 1023 : 0;
    }
-
-   // dSizdnnCoef_.SetDerivType(NEUTRAL_DENSITY);
-   // dSizdniCoef_.SetDerivType(ION_DENSITY);
 
    // Time derivative term: dn_i / dt
    // dbfi_m_[1].Append(new MassIntegrator);
    SetTimeDerivativeTerm(niCoef_);
 
-   // Diffusion term: -Div(D_i Grad n_i)
-   // dbfi_.Append(new DiffusionIntegrator(DCoef_));
-   // fbfi_.Append(new DGDiffusionIntegrator(DCoef_,
-   //                                       dg_.sigma,
-   //                                       dg_.kappa));
    if (this->CheckTermFlag(DIFFUSION_TERM))
    {
       // Diffusion term: -Div(D_n Grad n_n)
       SetDiffusionTerm(DCoef_);
    }
-   /*
-   bfbfi_.Append(new DGDiffusionIntegrator(DCoef_,
-                  dg_.sigma,
-                  dg_.kappa));
-   bfbfi_marker_.Append(NULL);
-   */
+
    if (this->CheckTermFlag(ADVECTION_TERM))
    {
       // Advection term: Div(v_i n_i)
       SetAdvectionTerm(ViCoef_);
    }
 
-   if (this->CheckTermFlag(SOURCE_TERM))
+   if (this->CheckTermFlag(IONIZATION_SOURCE_TERM))
    {
       // Source term: Siz - Src
       SetSourceTerm(SCoef_);
    }
-
-   // dbfi_.Append(new MixedScalarWeakDivergenceIntegrator(ViCoef_));
-   // fbfi_.Append(new DGTraceIntegrator(ViCoef_, 1.0, -0.5));
-   // bfbfi_.Append(new DGTraceIntegrator(ViCoef_, 1.0, -0.5));
-
-   // Source terms (moved to LHS): S_{rc}-S_{iz}
-   // dlfi_.Append(new DomainLFIntegrator(negSizCoef_));
-   // dlfi_.Append(new DomainLFIntegrator(SrcCoef_));
-
-   // Gradient of non-linear operator
-   // dOp / dn_n
    /*
-   if (blf_[0] == NULL)
+   if (this->CheckTermFlag(SOURCE_TERM) && src_ != NULL)
    {
-      blf_[0] = new ParBilinearForm(&fes_);
+      // Source term from command line
+      SetSourceTerm(const_cast<Coefficient&>(*src_));
    }
-   blf_[0]->AddDomainIntegrator(new MassIntegrator(negdtdSizdnnCoef_));
    */
-   // dOp / dn_i
-   // blf_[1] = new ParBilinearForm(&fes_);
-   // blf_[1]->AddDomainIntegrator(new MassIntegrator);
-   // blf_[1]->AddDomainIntegrator(new DiffusionIntegrator(dtDCoef_));
-   // blf_[1]->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(dtDCoef_,
-   //                                                             dg_.sigma,
-   //                                                             dg_.kappa));
-   /*
-   blf_[1]->AddBdrFaceIntegrator(new DGDiffusionIntegrator(dtDCoef_,
-                        dg_.sigma,
-                        dg_.kappa));
-   */
-   /*
-   blf_[1]->AddDomainIntegrator(
-      new MixedScalarWeakDivergenceIntegrator(dtViCoef_));
-   blf_[1]->AddInteriorFaceIntegrator(new DGTraceIntegrator(dtViCoef_,
-                                                            1.0, -0.5));
-   */
-   // blf_[1]->AddDomainIntegrator(new MassIntegrator(negdtdSizdniCoef_));
-
    if (this->CheckVisFlag(DIFFUSION_PERP_COEF))
    {
       DPerpGF_ = new ParGridFunction(&fes_);
@@ -3015,11 +3241,16 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
    {
       AGF_ = new ParGridFunction(&vfes);
    }
-   if (this->CheckVisFlag(SOURCE_COEF))
+   if (this->CheckVisFlag(IONIZATION_SOURCE_COEF))
+   {
+      SIZGF_ = new ParGridFunction(&fes_);
+   }
+   /*
+   if (this->CheckVisFlag(SOURCE_COEF) && src_ != NULL)
    {
       SGF_ = new ParGridFunction(&fes_);
    }
-
+   */
    if ( mpi_.Root() && logging_ > 1)
    {
       cout << "Done constructing IonDensityOp" << endl;
@@ -3040,6 +3271,7 @@ DGTransportTDO::IonDensityOp::~IonDensityOp()
 {
    delete DPerpGF_;
    delete AGF_;
+   delete SIZGF_;
    delete SGF_;
 }
 
@@ -3059,12 +3291,20 @@ void DGTransportTDO::IonDensityOp::RegisterDataFields(DataCollection & dc)
       oss << field_name_ << " V_i";
       dc.RegisterField(oss.str(), AGF_);
    }
-   if (this->CheckVisFlag(SOURCE_COEF))
+   if (this->CheckVisFlag(IONIZATION_SOURCE_COEF))
+   {
+      ostringstream oss;
+      oss << field_name_ << " Siz_i";
+      dc.RegisterField(oss.str(), SIZGF_);
+   }
+   /*
+   if (this->CheckVisFlag(SOURCE_COEF) && src_ != NULL)
    {
       ostringstream oss;
       oss << field_name_ << " S_i";
       dc.RegisterField(oss.str(), SGF_);
    }
+   */
 }
 
 void DGTransportTDO::IonDensityOp::PrepareDataFields()
@@ -3077,10 +3317,16 @@ void DGTransportTDO::IonDensityOp::PrepareDataFields()
    {
       AGF_->ProjectCoefficient(ViCoef_);
    }
-   if (this->CheckVisFlag(SOURCE_COEF))
+   if (this->CheckVisFlag(IONIZATION_SOURCE_COEF))
    {
-      SGF_->ProjectCoefficient(SCoef_);
+      SIZGF_->ProjectCoefficient(SCoef_);
    }
+   /*
+   if (this->CheckVisFlag(SOURCE_COEF) && src_ != NULL)
+   {
+      SGF_->ProjectCoefficient(const_cast<Coefficient&>(*src_));
+   }
+   */
 }
 
 void DGTransportTDO::IonDensityOp::Update()
@@ -3089,6 +3335,7 @@ void DGTransportTDO::IonDensityOp::Update()
 
    if (DPerpGF_ != NULL) { DPerpGF_->Update(); }
    if (AGF_     != NULL) { AGF_->Update(); }
+   if (SIZGF_   != NULL) { SIZGF_->Update(); }
    if (SGF_     != NULL) { SGF_->Update(); }
 }
 
@@ -3099,13 +3346,14 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
                                              ParGridFunctionArray & yGF,
                                              ParGridFunctionArray & kGF,
                                              const AdvectionDiffusionBC & bcs,
+                                             const EqnCoefficients & coefs,
                                              double DPerp,
                                              VectorCoefficient & B3Coef,
                                              int term_flag, int vis_flag,
                                              int logging,
                                              const string & log_prefix)
-   : TransportOp(mpi, dg, plasma, 2, "Ion Parallel Velocity", yGF, kGF, bcs,
-                 term_flag, vis_flag, logging, log_prefix),
+   : TransportOp(mpi, dg, plasma, 2, "Ion Parallel Momentum", yGF, kGF,
+                 bcs, coefs, term_flag, vis_flag, logging, log_prefix),
      DPerpConst_(DPerp),
      DPerpCoef_(DPerp),
      B3Coef_(&B3Coef),
@@ -3123,6 +3371,7 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
      EtaParaGF_(NULL),
      EtaPerpGF_(NULL),
      MomParaGF_(NULL),
+     SGPGF_(NULL),
      SGF_(NULL)
 {
    if ( mpi_.Root() && logging_ > 1)
@@ -3133,20 +3382,14 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
    if (term_flag_ < 0)
    {
       // Set default terms
-      term_flag_ = 7;
+      term_flag_ = 1023;
    }
    if (vis_flag_ < 0)
    {
       // Set default visualization fields
-      vis_flag_ = (logging_ > 0) ? 15 : 0;
+      vis_flag_ = (logging_ > 0) ? 1023 : 0;
    }
-   /*
-   // Time derivative term: m_i v_i dn_i/dt
-   dbfi_m_[1].Append(new MassIntegrator(mivi1Coef_));
 
-   // Time derivative term: m_i n_i dv_i/dt
-   dbfi_m_[2].Append(new MassIntegrator(mini1Coef_));
-   */
    // Time derivative term: d(m_i n_i v_i)/dt
    SetTimeDerivativeTerm(momCoef_);
 
@@ -3155,85 +3398,26 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
       // Diffusion term: -Div(eta Grad v_i)
       SetDiffusionTerm(EtaCoef_);
    }
-   /*
-   dbfi_.Append(new DiffusionIntegrator(EtaCoef_));
-   fbfi_.Append(new DGDiffusionIntegrator(EtaCoef_,
-                                          dg_.sigma,
-                                          dg_.kappa));
-   bfbfi_.Append(new DGDiffusionIntegrator(EtaCoef_,
-                                           dg_.sigma,
-                                           dg_.kappa));
-   bfbfi_marker_.Append(NULL);
-   */
 
    if (this->CheckTermFlag(ADVECTION_TERM))
    {
       // Advection term: Div(m_i n_i V_i v_i)
       SetAdvectionTerm(miniViCoef_, true);
    }
-   /*
-   dbfi_.Append(new MixedScalarWeakDivergenceIntegrator(miniViCoef_));
-   fbfi_.Append(new DGTraceIntegrator(miniViCoef_, 1.0, -0.5));
-   bfbfi_.Append(new DGTraceIntegrator(miniViCoef_, 1.0, -0.5));
-   bfbfi_marker_.Append(NULL);
-   */
-   if (this->CheckTermFlag(SOURCE_TERM))
+
+   if (this->CheckTermFlag(GRADP_SOURCE_TERM))
    {
       // Source term: b . Grad(p_i + p_e)
       dlfi_.Append(new DomainLFIntegrator(gradPCoef_));
    }
-
-   // Gradient of non-linear operator
-   // dOp / dn_i
-   // blf_[1] = new ParBilinearForm(&fes_);
-   // blf_[1]->AddDomainIntegrator(new MassIntegrator(mivi1Coef_));
-   // ToDo: add d(gradPCoef)/dn_i
-
-   // dOp / dv_i
-   // blf_[2] = new ParBilinearForm(&fes_);
-   // blf_[2]->AddDomainIntegrator(new MassIntegrator(mini1Coef_));
    /*
-   blf_[2]->AddDomainIntegrator(new DiffusionIntegrator(dtEtaCoef_));
-   blf_[2]->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(dtEtaCoef_,
-                                                                dg_.sigma,
-                                                                dg_.kappa));
-   blf_[2]->AddBdrFaceIntegrator(new DGDiffusionIntegrator(dtEtaCoef_,
-                                                           dg_.sigma,
-                                                           dg_.kappa));
+   if (this->CheckTermFlag(SOURCE_TERM) && src_ != NULL)
+   {
+      // Source term from command line
+      SetSourceTerm(const_cast<Coefficient&>(*src_));
+   }
    */
-   /*
-   blf_[2]->AddDomainIntegrator(
-      new MixedScalarWeakDivergenceIntegrator(dtminiViCoef_));
-   blf_[2]->AddInteriorFaceIntegrator(new DGTraceIntegrator(dtminiViCoef_,
-                                                            1.0, -0.5));
-   blf_[2]->AddBdrFaceIntegrator(new DGTraceIntegrator(dtminiViCoef_,
-                                                       1.0, -0.5));
-   */
-   // ToDo: add d(gradPCoef)/dT_i
-   // ToDo: add d(gradPCoef)/dT_e
 
-   /*
-   dbfi_.Append(new DiffusionIntegrator(DCoef_));
-   fbfi_.Append(new DGDiffusionIntegrator(DCoef_,
-                                          dg_.sigma,
-                                          dg_.kappa));
-
-   dbfi_.Append(new MixedScalarWeakDivergenceIntegrator(ViCoef_));
-   fbfi_.Append(new DGTraceIntegrator(ViCoef_, 1.0, -0.5));
-
-   dlfi_.Append(new DomainLFIntegrator(negSizCoef_));
-
-   blf_[2] = new ParBilinearForm((*pgf_)[2]->ParFESpace());
-   blf_[2]->AddDomainIntegrator(new MassIntegrator);
-   blf_[2]->AddDomainIntegrator(new DiffusionIntegrator(dtDCoef_));
-   blf_[2]->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(dtDCoef_,
-                                                                dg_.sigma,
-                                                                dg_.kappa));
-   blf_[2]->AddDomainIntegrator(
-      new MixedScalarWeakDivergenceIntegrator(dtViCoef_));
-   blf_[2]->AddInteriorFaceIntegrator(new DGTraceIntegrator(dtViCoef_,
-                                                            1.0, -0.5));
-   */
    if (this->CheckVisFlag(DIFFUSION_PARA_COEF))
    {
       EtaParaGF_ = new ParGridFunction(&fes_);
@@ -3246,11 +3430,16 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
    {
       MomParaGF_ = new ParGridFunction(&vfes);
    }
-   if (this->CheckVisFlag(SOURCE_COEF))
+   if (this->CheckVisFlag(GRADP_SOURCE_COEF))
+   {
+      SGPGF_ = new ParGridFunction(&fes_);
+   }
+   /*
+   if (this->CheckVisFlag(SOURCE_COEF) && src_ != NULL)
    {
       SGF_ = new ParGridFunction(&fes_);
    }
-
+   */
    if ( mpi_.Root() && logging_ > 1)
    {
       cout << "Done constructing IonMomentumOp" << endl;
@@ -3262,6 +3451,7 @@ DGTransportTDO::IonMomentumOp::~IonMomentumOp()
    delete EtaPerpGF_;
    delete EtaParaGF_;
    delete MomParaGF_;
+   delete SGPGF_;
    delete SGF_;
 }
 
@@ -3297,12 +3487,20 @@ IonMomentumOp::RegisterDataFields(DataCollection & dc)
       oss << field_name_ << " Advection Coef";
       dc.RegisterField(oss.str(), MomParaGF_);
    }
-   if (this->CheckVisFlag(SOURCE_COEF))
+   if (this->CheckVisFlag(GRADP_SOURCE_COEF))
+   {
+      ostringstream oss;
+      oss << field_name_ << " bGradP_i";
+      dc.RegisterField(oss.str(), SGPGF_);
+   }
+   /*
+   if (this->CheckVisFlag(SOURCE_COEF) && src_ != NULL)
    {
       ostringstream oss;
       oss << field_name_ << " S_i";
       dc.RegisterField(oss.str(), SGF_);
    }
+   */
 }
 
 void DGTransportTDO::
@@ -3320,10 +3518,16 @@ IonMomentumOp::PrepareDataFields()
    {
       MomParaGF_->ProjectCoefficient(miniViCoef_);
    }
-   if (this->CheckVisFlag(SOURCE_COEF))
+   if (this->CheckVisFlag(GRADP_SOURCE_COEF))
    {
-      SGF_->ProjectCoefficient(gradPCoef_);
+      SGPGF_->ProjectCoefficient(gradPCoef_);
    }
+   /*
+   if (this->CheckVisFlag(SOURCE_COEF) && src_ != NULL)
+   {
+      SGF_->ProjectCoefficient(const_cast<Coefficient&>(*src_));
+   }
+   */
 }
 
 void DGTransportTDO::IonMomentumOp::Update()
@@ -3333,6 +3537,7 @@ void DGTransportTDO::IonMomentumOp::Update()
    if (EtaParaGF_ != NULL) { EtaParaGF_->Update(); }
    if (EtaPerpGF_ != NULL) { EtaPerpGF_->Update(); }
    if (MomParaGF_ != NULL) { MomParaGF_->Update(); }
+   if (SGPGF_     != NULL) { SGPGF_->Update(); }
    if (SGF_       != NULL) { SGF_->Update(); }
 }
 
@@ -3343,13 +3548,14 @@ IonStaticPressureOp(const MPI_Session & mpi,
                     ParGridFunctionArray & yGF,
                     ParGridFunctionArray & kGF,
                     const AdvectionDiffusionBC & bcs,
+                    const EqnCoefficients & coefs,
                     double ChiPerp,
                     VectorCoefficient & B3Coef,
                     int term_flag, int vis_flag,
                     int logging,
                     const string & log_prefix)
-   : TransportOp(mpi, dg, plasma, 3, "Ion Temperature", yGF, kGF, bcs,
-                 term_flag, vis_flag, logging, log_prefix),
+   : TransportOp(mpi, dg, plasma, 3, "Ion Static Pressure", yGF, kGF,
+                 bcs, coefs, term_flag, vis_flag, logging, log_prefix),
      ChiPerpConst_(ChiPerp),
      izCoef_(*yCoefPtrs_[ELECTRON_TEMPERATURE]),
      B3Coef_(&B3Coef),
@@ -3357,9 +3563,17 @@ IonStaticPressureOp(const MPI_Session & mpi,
      ChiParaCoef_(plasma.z_i, plasma.m_i,
                   *yCoefPtrs_[ION_DENSITY], *yCoefPtrs_[ION_TEMPERATURE]),
      ChiPerpCoef_(ChiPerpConst_, *yCoefPtrs_[ION_DENSITY]),
-     ChiCoef_(ChiParaCoef_, ChiPerpCoef_, *B3Coef_),
+     ChiCoef_((eqncoefs_(IonStaticPressureCoefs::PARA_DIFFUSION_COEF) != NULL)
+              ? const_cast<Coefficient&>
+              (*eqncoefs_(IonStaticPressureCoefs::PARA_DIFFUSION_COEF))
+              : ChiParaCoef_,
+              (eqncoefs_(IonStaticPressureCoefs::PERP_DIFFUSION_COEF) != NULL)
+              ? const_cast<Coefficient&>
+              (*eqncoefs_(IonStaticPressureCoefs::PERP_DIFFUSION_COEF))
+              : ChiPerpCoef_, *B3Coef_),
      ChiParaGF_(new ParGridFunction(&fes_)),
-     ChiPerpGF_(new ParGridFunction(&fes_))
+     ChiPerpGF_(new ParGridFunction(&fes_)),
+     SGF_(new ParGridFunction(&fes_))
 {
    if ( mpi_.Root() && logging_ > 1)
    {
@@ -3369,20 +3583,15 @@ IonStaticPressureOp(const MPI_Session & mpi,
    if (term_flag_ < 0)
    {
       // Set default terms
-      term_flag_ = 1;
+      term_flag_ = 1023;
    }
    if (vis_flag_ < 0)
    {
       // Set default visualization fields
-      vis_flag_ = (logging_ > 0) ? 0 : 0;
+      vis_flag_ = (logging_ > 0) ? 1023 : 0;
    }
-   /*
-    // Time derivative term: 1.5 T_i dn_i/dt
-    dbfi_m_[1].Append(new MassIntegrator(thTiCoef_));
 
-    // Time derivative term: 1.5 n_i dT_i/dt
-    dbfi_m_[3].Append(new MassIntegrator(thniCoef_));
-   */
+   // Time derivative term:  d(1.5 n_i T_i) / dt
    SetTimeDerivativeTerm(presCoef_);
 
    if (this->CheckTermFlag(DIFFUSION_TERM))
@@ -3390,61 +3599,15 @@ IonStaticPressureOp(const MPI_Session & mpi,
       // Diffusion term: -Div(chi Grad T_i)
       SetDiffusionTerm(ChiCoef_);
    }
-   /*
-   dbfi_.Append(new DiffusionIntegrator(ChiCoef_));
-   fbfi_.Append(new DGDiffusionIntegrator(ChiCoef_,
-                                          dg_.sigma,
-                                          dg_.kappa));
-   bfbfi_.Append(new DGDiffusionIntegrator(ChiCoef_,
-                                           dg_.sigma,
-                                           dg_.kappa));
-   bfbfi_marker_.Append(NULL);
-   */
-   /*
-   for (unsigned int i=0; i<dbc_.size(); i++)
+
+   if (this->CheckTermFlag(SOURCE_TERM) &&
+       eqncoefs_(IonStaticPressureCoefs::SOURCE_COEF) != NULL)
    {
-      flfi_.Append(new DGDirichletLFIntegrator(*dbc_[i].coef, ChiCoef_,
-                                               dg_.sigma,
-                                               dg_.kappa));
-      flfi_marker_.Append(new Array<int>);
-      AttrToMarker(pmesh_.bdr_attributes.Max(), dbc_[i].attr, *flfi_marker_[i]);
+      // Source term from command line
+      SetSourceTerm(const_cast<Coefficient&>
+                    (*eqncoefs_(IonStaticPressureCoefs::SOURCE_COEF)));
    }
-   */
-   /*
-   // Advection term: Div(m_i n_i V_i v_i)
-   dbfi_.Append(new MixedScalarWeakDivergenceIntegrator(miniViCoef_));
-   fbfi_.Append(new DGTraceIntegrator(miniViCoef_, 1.0, -0.5));
-   bfbfi_.Append(new DGTraceIntegrator(miniViCoef_, 1.0, -0.5));
-   bfbfi_marker_.Append(NULL);
 
-   // Source term: b . Grad(p_i + p_e)
-   dlfi_.Append(new DomainLFIntegrator(gradPCoef_));
-   */
-   // Gradient of non-linear operator
-   // dOp / dn_i
-   // blf_[1] = new ParBilinearForm(&fes_);
-   // blf_[1]->AddDomainIntegrator(new MassIntegrator(thTiCoef_));
-
-   // dOp / dT_i
-   // blf_[3] = new ParBilinearForm(&fes_);
-   // blf_[3]->AddDomainIntegrator(new MassIntegrator(thniCoef_));
-   /*
-   blf_[3]->AddDomainIntegrator(new DiffusionIntegrator(dtChiCoef_));
-   blf_[3]->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(dtChiCoef_,
-                                                                dg_.sigma,
-                                                                dg_.kappa));
-   blf_[3]->AddBdrFaceIntegrator(new DGDiffusionIntegrator(dtChiCoef_,
-                                                           dg_.sigma,
-                                                           dg_.kappa));
-   */
-   /*
-   blf_[2]->AddDomainIntegrator(
-      new MixedScalarWeakDivergenceIntegrator(dtminiViCoef_));
-   blf_[2]->AddInteriorFaceIntegrator(new DGTraceIntegrator(dtminiViCoef_,
-                                                            1.0, -0.5));
-   blf_[2]->AddBdrFaceIntegrator(new DGTraceIntegrator(dtminiViCoef_,
-                                                       1.0, -0.5));
-   */
    if ( mpi_.Root() && logging_ > 1)
    {
       cout << "Done constructing IonStaticPressureOp" << endl;
@@ -3455,6 +3618,7 @@ DGTransportTDO::IonStaticPressureOp::~IonStaticPressureOp()
 {
    delete ChiPerpGF_;
    delete ChiParaGF_;
+   delete SGF_;
 }
 
 void DGTransportTDO::IonStaticPressureOp::SetTimeStep(double dt)
@@ -3474,13 +3638,38 @@ IonStaticPressureOp::RegisterDataFields(DataCollection & dc)
 
    dc.RegisterField("n_i Chi_i Perpendicular", ChiPerpGF_);
    dc.RegisterField("n_i Chi_i Parallel",      ChiParaGF_);
+   dc.RegisterField("Ion Static Pressure Source",    SGF_);
 }
 
 void DGTransportTDO::
 IonStaticPressureOp::PrepareDataFields()
 {
-   ChiParaGF_->ProjectCoefficient(ChiParaCoef_);
-   ChiPerpGF_->ProjectCoefficient(ChiPerpCoef_);
+   if (eqncoefs_(IonStaticPressureCoefs::PARA_DIFFUSION_COEF) != NULL)
+   {
+      ChiParaGF_->ProjectCoefficient
+      (const_cast<Coefficient&>
+       (*eqncoefs_(IonStaticPressureCoefs::PARA_DIFFUSION_COEF)));
+   }
+   else
+   {
+      ChiParaGF_->ProjectCoefficient(ChiParaCoef_);
+   }
+   if (eqncoefs_(IonStaticPressureCoefs::PERP_DIFFUSION_COEF) != NULL)
+   {
+      ChiPerpGF_->ProjectCoefficient
+      (const_cast<Coefficient&>
+       (*eqncoefs_(IonStaticPressureCoefs::PERP_DIFFUSION_COEF)));
+   }
+   else
+   {
+      ChiPerpGF_->ProjectCoefficient(ChiPerpCoef_);
+   }
+   if (eqncoefs_(IonStaticPressureCoefs::SOURCE_COEF) != NULL)
+   {
+      SGF_->ProjectCoefficient
+      (const_cast<Coefficient&>
+       (*eqncoefs_(IonStaticPressureCoefs::SOURCE_COEF)));
+   }
 }
 
 void DGTransportTDO::IonStaticPressureOp::Update()
@@ -3498,13 +3687,14 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
                          ParGridFunctionArray & yGF,
                          ParGridFunctionArray & kGF,
                          const AdvectionDiffusionBC & bcs,
+                         const EqnCoefficients & coefs,
                          double ChiPerp,
                          VectorCoefficient & B3Coef,
                          int term_flag, int vis_flag,
                          int logging,
                          const string & log_prefix)
-   : TransportOp(mpi, dg, plasma, 4, "Electron Temperature", yGF, kGF, bcs,
-                 term_flag, vis_flag, logging, log_prefix),
+   : TransportOp(mpi, dg, plasma, 4, "Electron Static Pressure", yGF, kGF,
+                 bcs, coefs, term_flag, vis_flag, logging, log_prefix),
      ChiPerpConst_(ChiPerp),
      izCoef_(TeCoef_),
      B3Coef_(&B3Coef),
@@ -3512,8 +3702,9 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
      ChiParaCoef_(plasma.z_i, neCoef_, TeCoef_),
      ChiPerpCoef_(ChiPerpConst_, neCoef_),
      ChiCoef_(ChiParaCoef_, ChiPerpCoef_, *B3Coef_),
-     ChiParaGF_(new ParGridFunction(yGF_[ELECTRON_TEMPERATURE]->ParFESpace())),
-     ChiPerpGF_(new ParGridFunction(yGF_[ELECTRON_TEMPERATURE]->ParFESpace()))
+     ChiParaGF_(new ParGridFunction(&fes_)),
+     ChiPerpGF_(new ParGridFunction(&fes_)),
+     SGF_(new ParGridFunction(&fes_))
 {
    if ( mpi_.Root() && logging_ > 1)
    {
@@ -3523,20 +3714,14 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
    if (term_flag_ < 0)
    {
       // Set default terms
-      term_flag_ = 3;
+      term_flag_ = 1023;
    }
    if (vis_flag_ < 0)
    {
       // Set default visualization fields
-      vis_flag_ = (logging_ > 0) ? 0 : 0;
+      vis_flag_ = (logging_ > 0) ? 1023 : 0;
    }
-   /*
-    // Time derivative term: 1.5 T_e z_i dn_i/dt
-    dbfi_m_[1].Append(new MassIntegrator(thTeCoef_));
 
-    // Time derivative term: 1.5 n_e dT_e/dt
-    dbfi_m_[4].Append(new MassIntegrator(thneCoef_));
-   */
    // Time derivative term:  d(1.5 z_i n_i T_e) / dt
    SetTimeDerivativeTerm(presCoef_);
 
@@ -3546,65 +3731,11 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
       SetDiffusionTerm(ChiCoef_);
    }
    /*
-   dbfi_.Append(new DiffusionIntegrator(ChiCoef_));
-   fbfi_.Append(new DGDiffusionIntegrator(ChiCoef_,
-                                          dg_.sigma,
-                                          dg_.kappa));
-   bfbfi_.Append(new DGDiffusionIntegrator(ChiCoef_,
-                                           dg_.sigma,
-                                           dg_.kappa));
-   bfbfi_marker_.Append(NULL);
-   */
-   /*
-   for (unsigned int i=0; i<dbc_.size(); i++)
+   if (this->CheckTermFlag(SOURCE_TERM) && src_ != NULL)
    {
-      flfi_.Append(new DGDirichletLFIntegrator(*dbc_[i].coef, ChiCoef_,
-                                               dg_.sigma,
-                                               dg_.kappa));
-      flfi_marker_.Append(new Array<int>);
-      AttrToMarker(pmesh_.bdr_attributes.Max(), dbc_[i].attr, *flfi_marker_[i]);
+      // Source term from command line
+      SetSourceTerm(const_cast<Coefficient&>(*src_));
    }
-   */
-   /*
-   // Advection term: Div(m_i n_i V_i v_i)
-   dbfi_.Append(new MixedScalarWeakDivergenceIntegrator(miniViCoef_));
-   fbfi_.Append(new DGTraceIntegrator(miniViCoef_, 1.0, -0.5));
-   bfbfi_.Append(new DGTraceIntegrator(miniViCoef_, 1.0, -0.5));
-   bfbfi_marker_.Append(NULL);
-
-   // Source term: b . Grad(p_i + p_e)
-   dlfi_.Append(new DomainLFIntegrator(gradPCoef_));
-   */
-   // Gradient of non-linear operator
-   // dOp / dn_i
-   // blf_[1] = new ParBilinearForm(yGF_[1]->ParFESpace());
-   // blf_[1]->AddDomainIntegrator(new MassIntegrator(thTeCoef_));
-
-   // dOp / dT_e
-   // blf_[4] = new ParBilinearForm(yGF_[4]->ParFESpace());
-   // blf_[4]->AddDomainIntegrator(new MassIntegrator(thneCoef_));
-   /*
-   blf_[4]->AddDomainIntegrator(new DiffusionIntegrator(dtChiCoef_));
-   blf_[4]->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(dtChiCoef_,
-                                                                dg_.sigma,
-                                                                dg_.kappa));
-   blf_[4]->AddBdrFaceIntegrator(new DGDiffusionIntegrator(dtChiCoef_,
-                                                           dg_.sigma,
-                                                           dg_.kappa));
-   */
-   /*
-   blf_[4]->AddDomainIntegrator(
-      new MixedScalarWeakDivergenceIntegrator(dtdChiGradTCoef_));
-   blf_[4]->AddInteriorFaceIntegrator(new DGTraceIntegrator(dtdChiGradTCoef_,
-                                                            1.0, -0.5));
-   */
-   /*
-   blf_[2]->AddDomainIntegrator(
-      new MixedScalarWeakDivergenceIntegrator(dtminiViCoef_));
-   blf_[2]->AddInteriorFaceIntegrator(new DGTraceIntegrator(dtminiViCoef_,
-                                                            1.0, -0.5));
-   blf_[2]->AddBdrFaceIntegrator(new DGTraceIntegrator(dtminiViCoef_,
-                                                       1.0, -0.5));
    */
    if ( mpi_.Root() && logging_ > 1)
    {
@@ -3616,6 +3747,7 @@ DGTransportTDO::ElectronStaticPressureOp::~ElectronStaticPressureOp()
 {
    delete ChiPerpGF_;
    delete ChiParaGF_;
+   delete SGF_;
 }
 
 void DGTransportTDO::ElectronStaticPressureOp::SetTimeStep(double dt)
@@ -3635,6 +3767,7 @@ ElectronStaticPressureOp::RegisterDataFields(DataCollection & dc)
 
    dc.RegisterField("n_e Chi_e Perpendicular", ChiPerpGF_);
    dc.RegisterField("n_e Chi_e Parallel",      ChiParaGF_);
+   dc.RegisterField("Electron Static Pressure Source", SGF_);
 }
 
 void DGTransportTDO::
@@ -3642,6 +3775,12 @@ ElectronStaticPressureOp::PrepareDataFields()
 {
    ChiParaGF_->ProjectCoefficient(ChiParaCoef_);
    ChiPerpGF_->ProjectCoefficient(ChiPerpCoef_);
+   if (eqncoefs_(ElectronStaticPressureCoefs::SOURCE_COEF) != NULL)
+   {
+      SGF_->ProjectCoefficient
+      (const_cast<Coefficient&>
+       (*eqncoefs_(ElectronStaticPressureCoefs::SOURCE_COEF)));
+   }
 }
 
 void DGTransportTDO::ElectronStaticPressureOp::Update()
@@ -3657,18 +3796,19 @@ DGTransportTDO::DummyOp::DummyOp(const MPI_Session & mpi, const DGParams & dg,
                                  ParGridFunctionArray & yGF,
                                  ParGridFunctionArray & kGF,
                                  const AdvectionDiffusionBC & bcs,
+                                 const EqnCoefficients & coefs,
                                  int index, const string & field_name,
                                  int term_flag, int vis_flag, int logging,
                                  const string & log_prefix)
-   : TransportOp(mpi, dg, plasma, index, field_name, yGF, kGF, bcs,
+   : TransportOp(mpi, dg, plasma, index, field_name, yGF, kGF, bcs, coefs,
                  term_flag, vis_flag, logging, log_prefix)
 {
    if ( mpi_.Root() && logging_ > 1)
    {
-      cout << "Constructing DummyOp" << endl;
+      cout << "Constructing DummyOp for equation " << index_ << endl;
    }
 
-   dbfi_m_[index].Append(new MassIntegrator);
+   dbfi_m_[index_].Append(new MassIntegrator);
 
    if (blf_[index_] == NULL)
    {

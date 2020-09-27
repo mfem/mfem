@@ -215,28 +215,28 @@ inline double eta_i_para(double ma, double Ta,
 
 class CoefFactory
 {
-private:
+protected:
    Array<Coefficient*> coefs;                ///< Owned
-   Array<CoefFactory*> ext_fac;              ///< Not owned
+   // Array<CoefFactory*> ext_fac;              ///< Not owned
    Array<GridFunction*> ext_gf;              ///< Not owned
    Array<double (*)(const Vector &)> ext_fn; ///< Not owned
 
 public:
    CoefFactory() {}
 
-   ~CoefFactory();
+   virtual ~CoefFactory();
 
    void StealData(Array<Coefficient*> &c) { c = coefs; coefs.LoseData(); }
 
-   int AddExternalFactory(CoefFactory &cf) { return ext_fac.Append(&cf); }
+   // int AddExternalFactory(CoefFactory &cf) { return ext_fac.Append(&cf); }
 
    int AddExternalGridFunction(GridFunction &gf) { return ext_gf.Append(&gf); }
 
    int AddExternalFunction(double (*fn)(const Vector &))
    { return ext_fn.Append(fn); }
 
-   Coefficient *operator()(std::istream &input);
-   Coefficient *operator()(std::string &coef_name, std::istream &input);
+   virtual Coefficient *operator()(std::istream &input);
+   virtual Coefficient *operator()(std::string &coef_name, std::istream &input);
 };
 
 struct CoefficientByAttr
@@ -320,7 +320,7 @@ class TransportBCs
 {
 private:
    int neqn_;
-   AdvectionDiffusionBC ** bcs_;
+   Array<AdvectionDiffusionBC*> bcs_;
    const Array<int> bdr_attr_;
 
    void ReadBCs(CoefFactory &cf, std::istream &input);
@@ -328,10 +328,10 @@ private:
 public:
    TransportBCs(const Array<int> & bdr_attr, int neqn)
       : neqn_(neqn),
-        bcs_(NULL),
+        bcs_(neqn),
         bdr_attr_(bdr_attr)
    {
-      bcs_ = new AdvectionDiffusionBC*[neqn];
+      bcs_ = NULL;
       for (int i=0; i<neqn_; i++)
       {
          bcs_[i] = new AdvectionDiffusionBC(bdr_attr);
@@ -347,7 +347,6 @@ public:
       {
          delete bcs_[i];
       }
-      delete [] bcs_;
    }
 
    void LoadBCs(CoefFactory &cf, std::istream &input)
@@ -358,6 +357,208 @@ public:
 
    AdvectionDiffusionBC & operator[](int i) { return *bcs_[i]; }
    const AdvectionDiffusionBC & operator[](int i) const { return *bcs_[i]; }
+};
+/*
+class GeneralCoefficient
+{
+public:
+  enum GenCoefType {SCALAR_COEF, VECTOR_COEF, MATRIX_COEF};
+
+private:
+   CoefFactory * coefFact;
+
+   GenCoefType type;
+   Coefficient       * sCoef;
+   VectorCoefficient * vCoef;
+   MatrixCoefficient * mCoef;
+
+   void ReadCoef(std::istream &input);
+
+public:
+  GeneralCoefficient()
+    : coefFact(NULL), sCoef(NULL), vCoef(NULL), mCoef(NULL) {}
+  GeneralCoefficient(CoefFactory &cf, std::istream &input)
+    : coefFact(&cf), sCoef(NULL), vCoef(NULL), mCoef(NULL)
+  { ReadCoef(input); }
+
+   void LoadCoef(CoefFactory &cf, std::istream &input)
+   { coefFact = &cf; ReadCoef(input); }
+
+   void AddCoefficient(Coefficient &c) { type = SCALAR_COEF; sCoef = &c; }
+   void AddCoefficient(VectorCoefficient &c) { type = VECTOR_COEF; vCoef = &c; }
+   void AddCoefficient(MatrixCoefficient &c) { type = MATRIX_COEF; mCoef = &c; }
+
+   GenCoefType GetCoefficientType() const { return type; }
+   Coefficient * GetCoefficient() const { return sCoef; }
+   VectorCoefficient * GetVectorCoefficient() const { return vCoef; }
+   MatrixCoefficient * GetMatrixCoefficient() const { return mCoef; }
+};
+*/
+class TransportICs
+{
+private:
+   int neqn_;
+   Array<Coefficient *> ics_;
+
+   void ReadICs(CoefFactory &cf, std::istream &input);
+
+public:
+   TransportICs(int neqn)
+      : neqn_(neqn),
+        ics_(neqn)
+   {
+      ics_ = NULL;
+   }
+
+   TransportICs(int neqn, CoefFactory &cf, std::istream &input);
+
+   ~TransportICs()
+   {
+      for (int i=0; i<neqn_; i++)
+      {
+         delete ics_[i];
+      }
+   }
+
+   void LoadICs(CoefFactory &cf, std::istream &input)
+   { ReadICs(cf, input); }
+
+   Coefficient *& operator()(int i) { return ics_[i]; }
+   const Coefficient * operator()(int i) const { return ics_[i]; }
+
+   Coefficient *& operator[](int i) { return ics_[i]; }
+   const Coefficient * operator[](int i) const { return ics_[i]; }
+};
+
+class EqnCoefficients
+{
+protected:
+   Array<Coefficient *> coefs_;
+
+   std::vector<std::string> coefNames_;
+
+   CoefFactory * coefFact;
+
+   virtual void ReadCoefs(std::istream &input);
+
+public:
+   EqnCoefficients(int ncoefs)
+      : coefs_(ncoefs), coefNames_(ncoefs) { coefs_ = NULL; }
+
+   virtual ~EqnCoefficients() {}
+
+   void LoadCoefs(CoefFactory &cf, std::istream &input)
+   { coefFact = &cf; ReadCoefs(input); }
+
+   Coefficient *& operator()(int i) { return coefs_[i]; }
+   const Coefficient * operator()(int i) const { return coefs_[i]; }
+
+   Coefficient *& operator[](int i) { return coefs_[i]; }
+   const Coefficient * operator[](int i) const { return coefs_[i]; }
+};
+
+class NeutralDensityCoefs : public EqnCoefficients
+{
+private:
+   // void ReadCoefs(std::istream &input);
+
+public:
+   enum CoefNames {DIFFUSION_COEF = 0, SOURCE_COEF, NUM_COEFS};
+
+   NeutralDensityCoefs();
+};
+
+class IonDensityCoefs : public EqnCoefficients
+{
+private:
+   // void ReadCoefs(std::istream &input);
+
+public:
+   enum CoefNames {PERP_DIFFUSION_COEF = 0, PARA_DIFFUSION_COEF,
+                   SOURCE_COEF, NUM_COEFS
+                  };
+
+   IonDensityCoefs();
+};
+
+class IonMomentumCoefs : public EqnCoefficients
+{
+private:
+   // void ReadCoefs(std::istream &input);
+
+public:
+   enum CoefNames {PERP_DIFFUSION_COEF = 0, PARA_DIFFUSION_COEF,
+                   SOURCE_COEF, NUM_COEFS
+                  };
+
+   IonMomentumCoefs();
+};
+
+class IonStaticPressureCoefs : public EqnCoefficients
+{
+private:
+   // void ReadCoefs(std::istream &input);
+
+public:
+   enum CoefNames {PERP_DIFFUSION_COEF = 0, PARA_DIFFUSION_COEF,
+                   SOURCE_COEF, NUM_COEFS
+                  };
+
+   IonStaticPressureCoefs();
+};
+
+class ElectronStaticPressureCoefs : public EqnCoefficients
+{
+private:
+   // void ReadCoefs(std::istream &input);
+
+public:
+   enum CoefNames {PERP_DIFFUSION_COEF = 0, PARA_DIFFUSION_COEF,
+                   SOURCE_COEF, NUM_COEFS
+                  };
+
+   ElectronStaticPressureCoefs();
+};
+
+class TransportCoefs
+{
+private:
+   int neqn_;
+   Array<EqnCoefficients *> eqnCoefs_;
+
+   void ReadCoefs(CoefFactory &cf, std::istream &input);
+
+public:
+   TransportCoefs(int neqn)
+      : neqn_(neqn),
+        eqnCoefs_(neqn)
+   {
+      eqnCoefs_ = NULL;
+      eqnCoefs_[0] = new NeutralDensityCoefs;
+      eqnCoefs_[1] = new IonDensityCoefs;
+      eqnCoefs_[2] = new IonMomentumCoefs;
+      eqnCoefs_[3] = new IonStaticPressureCoefs;
+      eqnCoefs_[4] = new ElectronStaticPressureCoefs;
+   }
+
+   TransportCoefs(int neqn, CoefFactory &cf, std::istream &input);
+
+   ~TransportCoefs()
+   {
+      for (int i=0; i<neqn_; i++)
+      {
+         delete eqnCoefs_[i];
+      }
+   }
+
+   void LoadCoefs(CoefFactory &cf, std::istream &input)
+   { ReadCoefs(cf, input); }
+
+   EqnCoefficients & operator()(int i) { return *eqnCoefs_[i]; }
+   const EqnCoefficients & operator()(int i) const { return *eqnCoefs_[i]; }
+
+   EqnCoefficients & operator[](int i) { return *eqnCoefs_[i]; }
+   const EqnCoefficients & operator[](int i) const { return *eqnCoefs_[i]; }
 };
 
 class ParGridFunctionArray : public Array<ParGridFunction*>
@@ -2244,12 +2445,15 @@ private:
 
       const AdvectionDiffusionBC & bcs_;
 
+      const EqnCoefficients & eqncoefs_;
+
       TransportOp(const MPI_Session & mpi, const DGParams & dg,
                   const PlasmaParams & plasma, int index,
                   const std::string &field_name,
                   ParGridFunctionArray & yGF,
                   ParGridFunctionArray & kGF,
                   const AdvectionDiffusionBC & bcs,
+                  const EqnCoefficients & coefs,
                   int term_flag, int vis_flag,
                   int logging = 0,
                   const std::string & log_prefix = "")
@@ -2269,7 +2473,8 @@ private:
            TeCoef_(*ykCoefPtrs_[ELECTRON_TEMPERATURE]),
            neCoef_(z_i_, niCoef_),
            dTe0Coef_(*kCoefPtrs_[ELECTRON_TEMPERATURE]),
-           bcs_(bcs)
+           bcs_(bcs),
+           eqncoefs_(coefs)
       {}
 
       ~TransportOp();
@@ -2296,6 +2501,7 @@ private:
        */
       void SetAdvectionTerm(StateVariableVecCoef &VCoef, bool bc = false);
 
+      void SetSourceTerm(Coefficient &SCoef);
       void SetSourceTerm(StateVariableCoef &SCoef);
 
       virtual void InitializeGLVis();
@@ -2344,8 +2550,12 @@ private:
    class NeutralDensityOp : public TransportOp
    {
    private:
-      enum TermFlag {DIFFUSION_TERM = 0, SOURCE_TERM = 1};
-      enum VisField {DIFFUSION_COEF = 0, SOURCE_COEF = 1};
+      enum TermFlag {DIFFUSION_TERM = 0, RECOMBINATION_SOURCE_TERM,
+                     SOURCE_TERM
+                    };
+      enum VisField {DIFFUSION_COEF = 0, RECOMBINATION_SOURCE_COEF,
+                     SOURCE_COEF
+                    };
 
       ConstantCoefficient      vnCoef_;
       ApproxIonizationRate     izCoef_;
@@ -2359,6 +2569,7 @@ private:
       StateVariableSumCoef SCoef_;
 
       ParGridFunction * DGF_;
+      ParGridFunction * SRCGF_;
       ParGridFunction * SGF_;
 
    public:
@@ -2367,6 +2578,7 @@ private:
                        ParGridFunctionArray & yGF,
                        ParGridFunctionArray & kGF,
                        const AdvectionDiffusionBC & bcs,
+                       const EqnCoefficients & coefs,
                        int term_flag = 3,
                        int vis_flag = 0, int logging = 0,
                        const std::string & log_prefix = "");
@@ -2428,10 +2640,10 @@ private:
    {
    private:
       enum TermFlag {DIFFUSION_TERM = 0,
-                     ADVECTION_TERM = 1, SOURCE_TERM = 2
+                     ADVECTION_TERM, IONIZATION_SOURCE_TERM, SOURCE_TERM
                     };
       enum VisField {DIFFUSION_PERP_COEF = 0,
-                     ADVECTION_COEF = 1, SOURCE_COEF = 2
+                     ADVECTION_COEF, IONIZATION_SOURCE_COEF, SOURCE_COEF
                     };
 
       // double DPerpConst_;
@@ -2451,6 +2663,7 @@ private:
 
       ParGridFunction * DPerpGF_;
       ParGridFunction * AGF_;
+      ParGridFunction * SIZGF_;
       ParGridFunction * SGF_;
 
    public:
@@ -2460,6 +2673,7 @@ private:
                    ParGridFunctionArray & yGF,
                    ParGridFunctionArray & kGF,
                    const AdvectionDiffusionBC & bcs,
+                   const EqnCoefficients & coefs,
                    double DPerp,
                    VectorCoefficient & B3Coef,
                    int term_flag = 7, int vis_flag = 0, int logging = 0,
@@ -2513,10 +2727,10 @@ private:
    {
    private:
       enum TermFlag {DIFFUSION_TERM = 0,
-                     ADVECTION_TERM = 1, SOURCE_TERM = 2
+                     ADVECTION_TERM, GRADP_SOURCE_TERM, SOURCE_TERM
                     };
-      enum VisField {DIFFUSION_PARA_COEF = 0, DIFFUSION_PERP_COEF = 1,
-                     ADVECTION_COEF = 2, SOURCE_COEF = 3
+      enum VisField {DIFFUSION_PARA_COEF = 0, DIFFUSION_PERP_COEF,
+                     ADVECTION_COEF, GRADP_SOURCE_COEF, SOURCE_COEF
                     };
 
       double DPerpConst_;
@@ -2544,6 +2758,7 @@ private:
       ParGridFunction * EtaParaGF_;
       ParGridFunction * EtaPerpGF_;
       ParGridFunction * MomParaGF_;
+      ParGridFunction * SGPGF_;
       ParGridFunction * SGF_;
 
    public:
@@ -2552,6 +2767,7 @@ private:
                     ParFiniteElementSpace & vfes,
                     ParGridFunctionArray & yGF, ParGridFunctionArray & kGF,
                     const AdvectionDiffusionBC & bcs,
+                    const EqnCoefficients & coefs,
                     // int ion_charge, double ion_mass,
                     double DPerp,
                     VectorCoefficient & B3Coef,
@@ -2621,6 +2837,7 @@ private:
 
       ParGridFunction * ChiParaGF_;
       ParGridFunction * ChiPerpGF_;
+      ParGridFunction * SGF_;
 
    public:
       IonStaticPressureOp(const MPI_Session & mpi, const DGParams & dg,
@@ -2628,6 +2845,7 @@ private:
                           ParGridFunctionArray & yGF,
                           ParGridFunctionArray & kGF,
                           const AdvectionDiffusionBC & bcs,
+                          const EqnCoefficients & coefs,
                           double ChiPerp,
                           VectorCoefficient & B3Coef,
                           int term_flag = 0, int vis_flag = 0, int logging = 0,
@@ -2694,6 +2912,7 @@ private:
 
       ParGridFunction * ChiParaGF_;
       ParGridFunction * ChiPerpGF_;
+      ParGridFunction * SGF_;
 
    public:
       ElectronStaticPressureOp(const MPI_Session & mpi, const DGParams & dg,
@@ -2701,6 +2920,7 @@ private:
                                ParGridFunctionArray & yGF,
                                ParGridFunctionArray & kGF,
                                const AdvectionDiffusionBC & bcs,
+                               const EqnCoefficients & coefs,
                                double ChiPerp,
                                VectorCoefficient & B3Coef,
                                int term_flag = 0, int vis_flag = 0,
@@ -2725,7 +2945,8 @@ private:
               const PlasmaParams & plasma,
               ParGridFunctionArray & yGF,
               ParGridFunctionArray & kGF,
-              const AdvectionDiffusionBC & bcs, int index,
+              const AdvectionDiffusionBC & bcs,
+              const EqnCoefficients & coefs, int index,
               const std::string &field_name,
               int term_flag = 0, int vis_flag = 0,
               int logging = 0, const std::string & log_prefix = "");
@@ -2774,6 +2995,7 @@ private:
                  ParFiniteElementSpace & vfes,
                  ParGridFunctionArray & yGF, ParGridFunctionArray & kGF,
                  const TransportBCs & bcs,
+                 const TransportCoefs & coefs,
                  Array<int> & offsets,
                  // int ion_charge, double ion_mass,
                  // double neutral_mass, double neutral_temp,
@@ -2841,6 +3063,7 @@ public:
                   ParGridFunctionArray &yGF,
                   ParGridFunctionArray &kGF,
                   const TransportBCs & bcs,
+                  const TransportCoefs & coefs,
                   double Di_perp, double Xi_perp, double Xe_perp,
                   VectorCoefficient & B3Coef,
                   const Array<int> & term_flags,
