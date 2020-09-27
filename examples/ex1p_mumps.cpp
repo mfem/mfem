@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
-      int ref_levels = 5;
+      int ref_levels = 0;
       for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();
@@ -180,7 +180,7 @@ int main(int argc, char *argv[])
       for (int j = Iptr[i]; j<Iptr[i+1]; j++)
       {
          // "tdof offsets" can be determined by parcsr_op -> rowstarts
-         I[k] = i+fespace.GetMyTDofOffset()+1;
+         I[k] = parcsr_op->first_row_index + i + 1;
          J[k] = Jptr[k]+1;
          k++;
       }
@@ -201,13 +201,12 @@ int main(int argc, char *argv[])
    #define INFO(I) info[(I)-1] /* macro s.t. indices match documentation */
   /* No outputs */
 //   id.ICNTL(1)=-1; id.ICNTL(2)=-1; id.ICNTL(3)=-1; id.ICNTL(4)=0;
-   id.ICNTL(5) = 0;
+   // id.ICNTL(5) = 0;
    id.ICNTL(18) = 3;
    id.ICNTL(20) = 10; // distributed rhs
    id.ICNTL(21) = 1; // distributed solution
 
-   // Global number of rows/colums on the host
-   if (myid == 0) {id.n = A.GetGlobalNumRows();} 
+   id.n = parcsr_op->global_num_rows;
 
    // on all procs
    id.nnz_loc = nnz;
@@ -232,13 +231,14 @@ int main(int argc, char *argv[])
    id.lrhs_loc = n_loc;
    id.irhs_loc = irhs_loc;
 
-   int num_pivots = id.INFO(23);
-   printf("num_pivots = %d\n", num_pivots);
+   id.nrhs = 1;
 
-   id.lsol_loc = num_pivots;
-   Vector Xaux(X);
+   int lsol_loc = id.INFO(23);
+
+   id.lsol_loc = lsol_loc;
+   Vector Xaux(lsol_loc);
    id.sol_loc = Xaux.GetData();
-   int *isol_loc = new int[num_pivots];
+   int *isol_loc = new int[lsol_loc];
    id.isol_loc = isol_loc;
 
    id.job=3;
@@ -249,30 +249,75 @@ int main(int argc, char *argv[])
    // variables for which the solution (in SOL loc) is available on the local
    // processor.
 
-   // printf("\nordering rhs rank %d\n", myid);
-   // for (int i = 0; i < n_loc; i++)
-   // {
-   //    printf("%d ", id.irhs_loc[i]);
-   // }
-   // printf("\n");
+   printf("\nordering rhs rank %d\n", myid);
+   for (int i = 0; i < n_loc; i++)
+   {
+      printf("%d ", id.irhs_loc[i]);
+   }
+   printf("\n");
+   MPI_Barrier(MPI_COMM_WORLD);
 
-   // MPI_Barrier(MPI_COMM_WORLD);
-
-   // printf("\nordering sol rank %d\n", myid);
-   // for (int i = 0; i < num_pivots; i++)
-   // {
-   //    printf("%d ", id.isol_loc[i]);
-   // }
-   // printf("\n");
-
-   // MPI_Barrier(MPI_COMM_WORLD);
-
+   printf("\nordering sol rank %d\n", myid);
    for (int i = 0; i < id.lsol_loc; i++)
    {
-      X(isol_loc[i] - 1) = Xaux(i);
+      printf("%d ", id.isol_loc[i]);
    }
+   printf("\n");
+   MPI_Barrier(MPI_COMM_WORLD);
 
-   id.job=-2; // mumps finalize
+   // for (int i = 0; i < id.lsol_loc; i++)
+   // {
+   //    X(isol_loc[i] - 1) = Xaux(i);
+   // }
+
+   // int mpi_err;
+   // int *lengths = NULL;
+   // if (myid == 0)
+   // {
+   //    lengths = new int[num_procs];
+   // }
+   // mpi_err = MPI_Gather(&num_pivots,
+   //                      1,
+   //                      MPI_INT,
+   //                      lengths,
+   //                      1,
+   //                      MPI_INT,
+   //                      0,
+   //                      MPI_COMM_WORLD);
+   // MFEM_ASSERT(mpi_err == 0, "MPI error");
+
+   // if (myid == 0)
+   // {
+   //    for (int i = 0; i < num_procs; i++)
+   //       printf("%d ", lengths[i]);
+   // }
+
+   // Vector *Xaux_global = NULL;
+   // int *offsets = NULL;
+   // if (myid == 0)
+   // {
+   //    Xaux_global = new Vector(parcsr_op->global_num_rows);
+   //    offsets = new int[num_procs];
+   //    for (int i = 1; i < num_procs - 1; i++)
+   //    {
+   //       offsets[i - 1] = lengths[i] + lengths[i - 1];
+   //    }
+   // }
+   // mpi_err = MPI_Gatherv(Xaux.GetData(),
+   //                       Xaux.Size(),
+   //                       MPI_DOUBLE,
+   //                       Xaux_global->GetData(),
+   //                       lengths,
+   //                       offsets,
+   //                       MPI_DOUBLE,
+   //                       0,
+   //                       MPI_COMM_WORLD);
+
+   // MFEM_ASSERT(mpi_err == 0, "MPI error");
+
+   // printf("MPI DONE\n");
+
+   id.job = -2; // mumps finalize
    dmumps_c(&id);
 
    a.RecoverFEMSolution(X, b, x);
