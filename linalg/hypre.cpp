@@ -4091,7 +4091,7 @@ HypreLOBPCG::GetEigenvalues(Array<double> & eigs)
    }
 }
 
-HypreParVector &
+Vector &
 HypreLOBPCG::GetEigenvector(unsigned int i)
 {
    return multi_vec->GetVector(i);
@@ -4331,6 +4331,15 @@ HypreAME::SetPreconditioner(HypreSolver & precond)
 }
 
 void
+HypreAME::SetOperator(Operator & op)
+{
+   HypreParMatrix *hyp_mat = dynamic_cast<HypreParMatrix *>(&op);
+   MFEM_VERIFY(hyp_mat, "new Operator must be a HypreParMatrix!");
+
+   this->SetOperator(*hyp_mat);
+}
+
+void
 HypreAME::SetOperator(HypreParMatrix & A)
 {
    if ( !setT )
@@ -4343,6 +4352,15 @@ HypreAME::SetOperator(HypreParMatrix & A)
    }
 
    HYPRE_AMESetup(ame_solver);
+}
+
+void
+HypreAME::SetMassMatrix(Operator & op)
+{
+   HypreParMatrix *hyp_mat = dynamic_cast<HypreParMatrix *>(&op);
+   MFEM_VERIFY(hyp_mat, "new Mass Matrix must be a HypreParMatrix!");
+
+   this->SetMassMatrix(*hyp_mat);
 }
 
 void
@@ -4394,7 +4412,7 @@ HypreAME::createDummyVectors()
 
 }
 
-HypreParVector &
+Vector &
 HypreAME::GetEigenvector(unsigned int i)
 {
    if ( eigenvectors == NULL )
@@ -4405,7 +4423,7 @@ HypreAME::GetEigenvector(unsigned int i)
    return *eigenvectors[i];
 }
 
-HypreParVector **
+Vector **
 HypreAME::StealEigenvectors()
 {
    if ( eigenvectors == NULL )
@@ -4418,7 +4436,7 @@ HypreAME::StealEigenvectors()
    eigenvectors = NULL;
    multi_vec = NULL;
 
-   return vecs;
+   return (Vector**)vecs;
 }
 
 }

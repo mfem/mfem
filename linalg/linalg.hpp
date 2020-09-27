@@ -26,6 +26,7 @@
 #include "densemat.hpp"
 #include "ode.hpp"
 #include "solvers.hpp"
+#include "eigensolvers.hpp"
 #include "handle.hpp"
 #include "invariants.hpp"
 
@@ -39,6 +40,10 @@
 
 #ifdef MFEM_USE_GINKGO
 #include "ginkgo.hpp"
+#endif
+
+#ifdef MFEM_USE_ARPACK
+#include "arpack.hpp"
 #endif
 
 #ifdef MFEM_USE_MPI
