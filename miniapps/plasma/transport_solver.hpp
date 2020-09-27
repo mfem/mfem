@@ -217,7 +217,6 @@ class CoefFactory
 {
 protected:
    Array<Coefficient*> coefs;                ///< Owned
-   // Array<CoefFactory*> ext_fac;              ///< Not owned
    Array<GridFunction*> ext_gf;              ///< Not owned
    Array<double (*)(const Vector &)> ext_fn; ///< Not owned
 
@@ -226,9 +225,7 @@ public:
 
    virtual ~CoefFactory();
 
-   void StealData(Array<Coefficient*> &c) { c = coefs; coefs.LoseData(); }
-
-   // int AddExternalFactory(CoefFactory &cf) { return ext_fac.Append(&cf); }
+   // void StealData(Array<Coefficient*> &c) { c = coefs; coefs.LoseData(); }
 
    int AddExternalGridFunction(GridFunction &gf) { return ext_gf.Append(&gf); }
 
