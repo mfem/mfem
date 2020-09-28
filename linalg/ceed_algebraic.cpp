@@ -78,6 +78,8 @@ private:
 };
 
 
+#ifdef MFEM_USE_MPI
+
 class CeedCGWithAMG : public mfem::Solver
 {
 public:
@@ -104,6 +106,8 @@ private:
    mfem::Solver * inner_prec_;
    mfem::Solver * solver_;
 };
+
+#endif
 
 /**
    Do a fixed number of CG iterations on the coarsest level.
@@ -792,6 +796,8 @@ CeedMultigridLevel::~CeedMultigridLevel()
    delete mfem_interp_;
 }
 
+#ifdef MFEM_USE_MPI
+
 /// convenience function, ugly hack
 mfem::HypreParMatrix* SerialHypreMatrix(mfem::SparseMatrix& mat)
 {
@@ -867,6 +873,8 @@ CeedCGWithAMG::~CeedCGWithAMG()
    delete hypre_assembled_;
    delete inner_prec_;
 }
+
+#endif // MFEM_USE_MPI, so it builds without hypre
 
 CeedPlainCG::CeedPlainCG(CeedOperator oper,
                          mfem::Array<int>& ess_tdof_list,
@@ -968,17 +976,19 @@ AlgebraicCeedSolver::AlgebraicCeedSolver(Operator& fine_mfem_op,
       }
       else
       {
-         /*
-           coarsest_solver = new CeedPlainCG(coarsest->GetCoarseCeed(),
-             coarsest->GetCoarseEssentialDofList(),
-             coarse_cg_iterations);
-         */
+#ifdef MFEM_USE_MPI
          bool use_amgx = false;
          const int sparse_solver_type = 1; // single v-cycle
          coarsest_solver = new CeedCGWithAMG(coarsest->GetCoarseCeed(),
                                              coarsest->GetCoarseEssentialDofList(),
                                              sparse_solver_type,
                                              use_amgx);
+#else
+         int coarse_cg_iterations = 10;
+         coarsest_solver = new CeedPlainCG(coarsest->GetCoarseCeed(),
+                                           coarsest->GetCoarseEssentialDofList(),
+                                           coarse_cg_iterations);
+#endif
       }
    }
    else
