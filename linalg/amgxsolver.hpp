@@ -81,7 +81,7 @@ public:
 
    enum AMGX_MODE {SOLVER, PRECONDITIONER};
 
-   void SetMode(AMGX_MODE mode) {m_AmgxMode = mode;}
+   void SetMode(AMGX_MODE mode) {amgxMode = mode;}
 
    ~AmgXSolver();
 
@@ -89,7 +89,7 @@ public:
 
 private:
 
-   AMGX_MODE m_AmgxMode = SOLVER;
+   AMGX_MODE amgxMode = SOLVER;
 
 #ifdef MFEM_USE_MPI
    //The following methods send vectors to the root node in a MPI team
@@ -208,7 +208,7 @@ private:
 
    void InitAmgX(const std::string &cfgFile);
 
-   int64_t m_local_rows;  //mlocal rows for ranks that talk to the gpu
+   int64_t mat_local_rows;  //mlocal rows for ranks that talk to the gpu
 
    std::string mpi_gpu_mode;
 
