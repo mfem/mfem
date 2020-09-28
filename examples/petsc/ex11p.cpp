@@ -423,7 +423,7 @@ int main(int argc, char *argv[])
    delete fespace;
    if (order > 0)
    {
-     delete fec;
+      delete fec;
    }
    delete pmesh;
 
