@@ -12,6 +12,7 @@
 #ifndef MFEM_TRANSPORT_SOLVER
 #define MFEM_TRANSPORT_SOLVER
 
+#include "../common/fem_extras.hpp"
 #include "../common/pfem_extras.hpp"
 #include "../common/mesh_extras.hpp"
 #include "plasma.hpp"
@@ -213,29 +214,6 @@ inline double eta_i_para(double ma, double Ta,
 }
 */
 
-class CoefFactory
-{
-protected:
-   Array<Coefficient*> coefs;                ///< Owned
-   Array<GridFunction*> ext_gf;              ///< Not owned
-   Array<double (*)(const Vector &)> ext_fn; ///< Not owned
-
-public:
-   CoefFactory() {}
-
-   virtual ~CoefFactory();
-
-   // void StealData(Array<Coefficient*> &c) { c = coefs; coefs.LoseData(); }
-
-   int AddExternalGridFunction(GridFunction &gf) { return ext_gf.Append(&gf); }
-
-   int AddExternalFunction(double (*fn)(const Vector &))
-   { return ext_fn.Append(fn); }
-
-   virtual Coefficient *operator()(std::istream &input);
-   virtual Coefficient *operator()(std::string &coef_name, std::istream &input);
-};
-
 struct CoefficientByAttr
 {
    Array<int> attr;
@@ -265,7 +243,7 @@ private:
    std::set<int> bc_attr;
    const Array<int> & bdr_attr;
 
-   CoefFactory * coefFact;
+   common::CoefFactory * coefFact;
 
    void ReadBCs(std::istream &input);
 
@@ -286,14 +264,14 @@ public:
       : bdr_attr(bdr), coefFact(NULL) {}
 
    AdvectionDiffusionBC(const Array<int> & bdr,
-                        CoefFactory &cf, std::istream &input)
+                        common::CoefFactory &cf, std::istream &input)
       : bdr_attr(bdr), coefFact(&cf) { ReadBCs(input); }
 
    ~AdvectionDiffusionBC();
 
    static const char * GetBCTypeName(BCType bctype);
 
-   void LoadBCs(CoefFactory &cf, std::istream &input)
+   void LoadBCs(common::CoefFactory &cf, std::istream &input)
    { coefFact = &cf; ReadBCs(input); }
 
    // Enforce u = val on boundaries with attributes in bdr
@@ -320,17 +298,17 @@ private:
    Array<AdvectionDiffusionBC*> bcs_;
    const Array<int> bdr_attr_;
 
-   void ReadBCs(CoefFactory &cf, std::istream &input);
+   void ReadBCs(common::CoefFactory &cf, std::istream &input);
 
 public:
    TransportBCs(const Array<int> & bdr_attr, int neqn);
 
    TransportBCs(const Array<int> & bdr_attr, int neqn,
-                CoefFactory &cf, std::istream &input);
+                common::CoefFactory &cf, std::istream &input);
 
    ~TransportBCs();
 
-   void LoadBCs(CoefFactory &cf, std::istream &input)
+   void LoadBCs(common::CoefFactory &cf, std::istream &input)
    { ReadBCs(cf, input); }
 
    AdvectionDiffusionBC & operator()(int i) { return *bcs_[i]; }
@@ -382,7 +360,7 @@ private:
    Array<Coefficient *> ics_;
    Array<bool> own_ics_;
 
-   void ReadICs(CoefFactory &cf, std::istream &input);
+   void ReadICs(common::CoefFactory &cf, std::istream &input);
 
 public:
    TransportICs(int neqn)
@@ -394,7 +372,7 @@ public:
       own_ics_ = false;
    }
 
-   TransportICs(int neqn, CoefFactory &cf, std::istream &input);
+   TransportICs(int neqn, common::CoefFactory &cf, std::istream &input);
 
    ~TransportICs()
    {
@@ -404,7 +382,7 @@ public:
       }
    }
 
-   void LoadICs(CoefFactory &cf, std::istream &input)
+   void LoadICs(common::CoefFactory &cf, std::istream &input)
    { ReadICs(cf, input); }
 
    void SetOwnership(int i, bool own) { own_ics_[i] = own; }
@@ -423,7 +401,7 @@ protected:
 
    std::vector<std::string> coefNames_;
 
-   CoefFactory * coefFact;
+   common::CoefFactory * coefFact;
 
    virtual void ReadCoefs(std::istream &input);
 
@@ -433,7 +411,7 @@ public:
 
    virtual ~EqnCoefficients() {}
 
-   void LoadCoefs(CoefFactory &cf, std::istream &input)
+   void LoadCoefs(common::CoefFactory &cf, std::istream &input)
    { coefFact = &cf; ReadCoefs(input); }
 
    Coefficient *& operator()(int i) { return coefs_[i]; }
@@ -512,7 +490,7 @@ private:
    int neqn_;
    Array<EqnCoefficients *> eqnCoefs_;
 
-   void ReadCoefs(CoefFactory &cf, std::istream &input);
+   void ReadCoefs(common::CoefFactory &cf, std::istream &input);
 
 public:
    TransportCoefs(int neqn)
@@ -527,7 +505,7 @@ public:
       eqnCoefs_[4] = new ElectronStaticPressureCoefs;
    }
 
-   TransportCoefs(int neqn, CoefFactory &cf, std::istream &input);
+   TransportCoefs(int neqn, common::CoefFactory &cf, std::istream &input);
 
    ~TransportCoefs()
    {
@@ -537,7 +515,7 @@ public:
       }
    }
 
-   void LoadCoefs(CoefFactory &cf, std::istream &input)
+   void LoadCoefs(common::CoefFactory &cf, std::istream &input)
    { ReadCoefs(cf, input); }
 
    EqnCoefficients & operator()(int i) { return *eqnCoefs_[i]; }

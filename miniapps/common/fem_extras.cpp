@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "fem_extras.hpp"
+#include "../../general/text.hpp"
 
 using namespace std;
 
@@ -90,6 +91,81 @@ DiscreteDivOperator::DiscreteDivOperator(FiniteElementSpace *dfes,
    : DiscreteInterpolationOperator(dfes, rfes)
 {
    this->AddDomainInterpolator(new DivergenceInterpolator);
+}
+
+CoefFactory::~CoefFactory()
+{
+   for (int i=0; i<coefs.Size(); i++)
+   {
+      delete coefs[i];
+   }
+}
+
+Coefficient * CoefFactory::operator()(std::istream &input)
+{
+   string buff;
+
+   skip_comment_lines(input, '#');
+   input >> buff;
+   return (*this)(buff, input);
+}
+
+Coefficient * CoefFactory::operator()(std::string &name, std::istream &input)
+{
+   if (name == "ConstantCoefficient")
+   {
+      double val;
+      input >> val;
+      int c = coefs.Append(new ConstantCoefficient(val));
+      return coefs[--c];
+   }
+   else if (name == "PWConstCoefficient")
+   {
+      int nvals;
+      input >> nvals;
+      Vector vals(nvals);
+      for (int i=0; i<nvals; i++)
+      {
+         input >> vals[i];
+      }
+      int c = coefs.Append(new PWConstCoefficient(vals));
+      return coefs[--c];
+   }
+   else if (name == "FunctionCoefficient")
+   {
+      int index;
+      input >> index;
+      MFEM_VERIFY(index >=0 && index < ext_fn.Size(),
+                  "Invalid Function index read by CoefFactory");
+      int c = coefs.Append(new FunctionCoefficient(ext_fn[index]));
+      return coefs[--c];
+   }
+   else if (name == "GridFunctionCoefficient")
+   {
+      int index;
+      input >> index;
+      MFEM_VERIFY(index >=0 && index < ext_gf.Size(),
+                  "Invalid GridFunction index read by CoefFactory");
+      int c = coefs.Append(new GridFunctionCoefficient(ext_gf[index]));
+      return coefs[--c];
+   }
+   else if (name == "RestrictedCoefficient")
+   {
+      Coefficient * rc = (*this)(input);
+      int nattr;
+      input >> nattr;
+      Array<int> attr(nattr);
+      for (int i=0; i<nattr; i++)
+      {
+         input >> attr[i];
+      }
+      int c = coefs.Append(new RestrictedCoefficient(*rc, attr));
+      return coefs[--c];
+   }
+   else
+   {
+      return NULL;
+   }
 }
 
 void VisualizeMesh(socketstream &sock, const char *vishost, int visport,

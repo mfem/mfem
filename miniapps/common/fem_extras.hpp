@@ -110,6 +110,29 @@ public:
                        FiniteElementSpace *rfes);
 };
 
+class CoefFactory
+{
+protected:
+   Array<Coefficient*> coefs;                ///< Owned
+   Array<GridFunction*> ext_gf;              ///< Not owned
+   Array<double (*)(const Vector &)> ext_fn; ///< Not owned
+
+public:
+   CoefFactory() {}
+
+   virtual ~CoefFactory();
+
+   // void StealData(Array<Coefficient*> &c) { c = coefs; coefs.LoseData(); }
+
+   int AddExternalGridFunction(GridFunction &gf) { return ext_gf.Append(&gf); }
+
+   int AddExternalFunction(double (*fn)(const Vector &))
+   { return ext_fn.Append(fn); }
+
+   virtual Coefficient *operator()(std::istream &input);
+   virtual Coefficient *operator()(std::string &coef_name, std::istream &input);
+};
+
 /// Visualize the given mesh object, using a GLVis server on the
 /// specified host and port. Set the visualization window title, and optionally,
 /// its geometry.
