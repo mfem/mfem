@@ -455,6 +455,12 @@ public:
    virtual void MultTranspose(const Vector &x, Vector &y) const
    { MultTranspose(1.0, x, 0.0, y); }
 
+   /// Computes y = a * |A| * x + b * y, using entry-wise absolute values of matrix A
+   void AbsMult(double a, const Vector &x, double b, Vector &y) const;
+
+   /// Computes y = a * |At| * x + b * y, using entry-wise absolute values of the transpose of matrix A
+   void AbsMultTranspose(double a, const Vector &x, double b, Vector &y) const;
+
    /** The "Boolean" analog of y = alpha * A * x + beta * y, where elements in
        the sparsity pattern of the matrix are treated as "true". */
    void BooleanMult(int alpha, const int *x, int beta, int *y)
@@ -1042,16 +1048,15 @@ public:
 
    virtual void SetOperator(const Operator &op);
 
-   /** More robust options for systems, such as elasticity. Note that BoomerAMG
-       assumes Ordering::byVDIM in the finite element space used to generate the
-       matrix A. */
-   void SetSystemsOptions(int dim);
+   /** More robust options for systems, such as elasticity. */
+   void SetSystemsOptions(int dim, bool order_bynodes=false);
 
    /** A special elasticity version of BoomerAMG that takes advantage of
        geometric rigid body modes and could perform better on some problems, see
        "Improving algebraic multigrid interpolation operators for linear
        elasticity problems", Baker, Kolev, Yang, NLAA 2009, DOI:10.1002/nla.688.
-       As with SetSystemsOptions(), this solver assumes Ordering::byVDIM. */
+       This solver assumes Ordering::byVDIM in the FiniteElementSpace used to
+       construct A. */
    void SetElasticityOptions(ParFiniteElementSpace *fespace);
 
    void SetPrintLevel(int print_level)

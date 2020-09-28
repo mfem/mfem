@@ -12,7 +12,7 @@
 #include "mfem.hpp"
 using namespace mfem;
 
-#include "catch.hpp"
+#include "unit_tests.hpp"
 
 TEST_CASE("Gecko integration in MFEM", "[Mesh]")
 {

@@ -565,6 +565,53 @@ HypreParMatrix* ParDiscreteLinearOperator::ParallelAssemble() const
    return RAP;
 }
 
+void ParDiscreteLinearOperator::ParallelAssemble(OperatorHandle &A)
+{
+   // construct the rectangular block-diagonal matrix dA
+   OperatorHandle dA(A.Type());
+   dA.MakeRectangularBlockDiag(domain_fes->GetComm(),
+                               range_fes->GlobalVSize(),
+                               domain_fes->GlobalVSize(),
+                               range_fes->GetDofOffsets(),
+                               domain_fes->GetDofOffsets(),
+                               mat);
+
+   OperatorHandle P_test(A.Type()), P_trial(A.Type());
+
+   // TODO - construct the Dof_TrueDof_Matrix directly in the required format.
+   P_test.ConvertFrom(range_fes->Dof_TrueDof_Matrix());
+   P_trial.ConvertFrom(domain_fes->Dof_TrueDof_Matrix());
+
+   A.MakeRAP(P_test, dA, P_trial);
+}
+
+//// @todo copied from ParMixedBilinearForm, should be some inheritance?
+void ParDiscreteLinearOperator::FormRectangularSystemMatrix(OperatorHandle &A)
+{
+   if (ext)
+   {
+      Array<int> empty;
+      ext->FormRectangularSystemOperator(empty, empty, A);
+      return;
+   }
+
+   /*
+   if (mat)
+   {
+      Finalize();
+      ParallelAssemble(p_mat);
+      delete mat;
+      mat = NULL;
+      delete mat_e;
+      mat_e = NULL;
+      p_mat_e = NULL;
+   }
+   A = p_mat;
+   */
+
+   mfem_error("not implemented!");
+}
+
 void ParDiscreteLinearOperator::GetParBlocks(Array2D<HypreParMatrix *> &blocks)
 const
 {

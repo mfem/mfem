@@ -375,6 +375,9 @@ public:
    /// Get the output finite element space prolongation matrix
    virtual const Operator *GetOutputProlongation() const
    { return GetProlongation(); }
+   /// Get the output finite element space prolongation matrix (local diagonal)
+   virtual const Operator *GetLocalOutputProlongation() const
+   { return GetOutputProlongation(); }
    /// Get the output finite element space restriction matrix
    virtual const Operator *GetOutputRestriction() const
    { return GetRestriction(); }
@@ -996,9 +999,17 @@ public:
    /// Access all interpolators added with AddDomainInterpolator().
    Array<BilinearFormIntegrator*> *GetDI() { return &dbfi; }
 
+   /// Set the desired assembly level. The default is AssemblyLevel::FULL.
+   /** This method must be called before assembly. */
+   void SetAssemblyLevel(AssemblyLevel assembly_level);
+
    /** @brief Construct the internal matrix representation of the discrete
        linear operator. */
    virtual void Assemble(int skip_zeros = 1);
+
+   /// Get the output finite element space prolongation matrix (local diagonal)
+   virtual const Operator *GetLocalOutputProlongation() const
+   { return test_fes->GetLocalProlongationMatrix(); }
 };
 
 }

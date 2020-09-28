@@ -330,6 +330,11 @@ public:
    virtual const Operator *GetProlongationMatrix() const
    { return GetConformingProlongation(); }
 
+   /// Return a prolongation operator that only acts on local dofs
+   /** The returned operator is owned by the FiniteElementSpace. */
+   virtual const Operator *GetLocalProlongationMatrix() const
+   { return GetConformingProlongation(); }
+
    /// The returned SparseMatrix is owned by the FiniteElementSpace.
    virtual const SparseMatrix *GetRestrictionMatrix() const
    { return GetConformingRestriction(); }

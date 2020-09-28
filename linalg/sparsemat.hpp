@@ -86,9 +86,9 @@ protected:
    void Destroy();   // Delete all owned data
    void SetEmpty();  // Init all entries with empty values
 
-   bool useCuSparse{true}; //Use CuSparse if available
+   bool useCuSparse{true}; // Use cuSPARSE if available
 
-   // Initialize CuSparse
+   // Initialize cuSPARSE
    void InitCuSparse();
 
 #ifdef MFEM_USE_CUDA
@@ -103,6 +103,7 @@ protected:
    mutable cusparseSpMatDescr_t matA_descr;
    mutable cusparseDnVecDescr_t vecX_descr;
    mutable cusparseDnVecDescr_t vecY_descr;
+
    mutable cusparseDnVecDescr_t vecZ_descr;
    mutable Vector vecZ;
 
@@ -162,8 +163,7 @@ public:
    /// Create a SparseMatrix with diagonal @a v, i.e. A = Diag(v)
    SparseMatrix(const Vector & v);
 
-   // Runtime option to use CuSparse
-   // Only valid when using a CUDA backend
+   // Runtime option to use cuSPARSE. Only valid when using a CUDA backend.
    void UseCuSparse(bool _useCuSparse = true) { useCuSparse = _useCuSparse;}
 
    /// Assignment operator: deep copy
@@ -355,15 +355,21 @@ public:
 
    /// y = A * x, treating all entries as booleans (zero=false, nonzero=true).
    /** The actual values stored in the data array, #A, are not used - this means
-       and that all entries in the sparsity pattern are considered to be true by
+       that all entries in the sparsity pattern are considered to be true by
        this method. */
    void BooleanMult(const Array<int> &x, Array<int> &y) const;
 
    /// y = At * x, treating all entries as booleans (zero=false, nonzero=true).
    /** The actual values stored in the data array, #A, are not used - this means
-       and that all entries in the sparsity pattern are considered to be true by
+       that all entries in the sparsity pattern are considered to be true by
        this method. */
    void BooleanMultTranspose(const Array<int> &x, Array<int> &y) const;
+
+   /// y = |A| * x, using entry-wise absolute values of matrix A
+   void AbsMult(const Vector &x, Vector &y) const;
+
+   /// y = |At| * x, using entry-wise absolute values of the transpose of matrix A
+   void AbsMultTranspose(const Vector &x, Vector &y) const;
 
    /// Compute y^t A x
    double InnerProduct(const Vector &x, const Vector &y) const;

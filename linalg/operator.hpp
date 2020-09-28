@@ -37,7 +37,8 @@ protected:
       const Array<int> &test_tdof_list,
       RectangularConstrainedOperator* &Aout);
 
-   /// Returns RAP Operator of this, taking in input/output Prolongation matrices
+   /** @brief Returns RAP Operator of this, using input/output Prolongation matrices
+       @a Pi corresponds to "P", @a Po corresponds to "Rt" */
    Operator *SetupRAP(const Operator *Pi, const Operator *Po);
 
 public:
@@ -112,6 +113,10 @@ public:
    {
       return GetProlongation(); // Assume square unless specialized
    }
+   /** @brief Prolongation operator from linear algebra (linear system) vectors,
+       to output vectors for the operator, including only processor-local portion.
+       `NULL` means identity. */
+   virtual const Operator *GetLocalOutputProlongation() const { return NULL; }
    /** @brief Restriction operator from output vectors for the operator to linear
        algebra (linear system) vectors. `NULL` means identity. */
    virtual const Operator *GetOutputRestriction() const

@@ -158,9 +158,9 @@ int main(int argc, char *argv[])
    //    by marking all the boundary attributes from the mesh as essential
    //    (Dirichlet) and converting them to a list of true dofs.
    Array<int> ess_tdof_list;
+   Array<int> ess_bdr(pmesh->bdr_attributes.Max());
    if (pmesh->bdr_attributes.Size())
    {
-      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
       ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
@@ -207,17 +207,16 @@ int main(int argc, char *argv[])
    // 13. Solve the system AX=B using PCG with the AMS preconditioner from hypre
    //     (in the full assembly case) or CG with Jacobi preconditioner (in the
    //     partial assembly case).
-
-   if (pa) // Jacobi preconditioning in partial assembly mode
+   if (pa) // matrix-free auxiliary space solver with PA
    {
-      OperatorJacobiSmoother Jacobi(*a, ess_tdof_list);
+      MatrixFreeAMS ams(*a, *A, *fespace, muinv, sigma, ess_bdr);
 
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-12);
       cg.SetMaxIter(1000);
       cg.SetPrintLevel(1);
       cg.SetOperator(*A);
-      cg.SetPreconditioner(Jacobi);
+      cg.SetPreconditioner(ams);
       cg.Mult(B, X);
    }
    else

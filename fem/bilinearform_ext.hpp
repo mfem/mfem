@@ -21,6 +21,7 @@ namespace mfem
 
 class BilinearForm;
 class MixedBilinearForm;
+class DiscreteLinearOperator;
 
 /// Class extending the BilinearForm class to support different AssemblyLevels.
 /**  FA - Full Assembly
@@ -212,7 +213,7 @@ protected:
    mutable Vector localTrial, localTest, tempY;
    const Operator *elem_restrict_trial; // Not owned
    const Operator *elem_restrict_test;  // Not owned
-private:
+
    /// Helper function to set up inputs/outputs for Mult or MultTranspose
    void SetupMultInputs(const Operator *elem_restrict_x,
                         const Vector &x, Vector &localX,
@@ -256,6 +257,33 @@ public:
 
    /// Update internals for when a new MixedBilinearForm is given to this class
    void Update();
+};
+
+
+/**
+   This acts very much like PAMixedBilinearFormExtension, but its
+   FormRectangularSystemOperator implementation emulates 'Set' rather than
+   'Add' in the assembly case.
+*/
+class PADiscreteLinearOperatorExtension : public PAMixedBilinearFormExtension
+{
+public:
+   PADiscreteLinearOperatorExtension(DiscreteLinearOperator *linop);
+
+   /// Partial assembly of all internal integrators
+   void Assemble();
+
+   void AddMult(const Vector &x, Vector &y, const double c) const;
+
+   void AddMultTranspose(const Vector &x, Vector &y, const double c=1.0) const;
+
+   void FormRectangularSystemOperator(const Array<int>&, const Array<int>&,
+                                      OperatorHandle& A);
+
+   const Operator * GetLocalOutputProlongation() const;
+
+private:
+   Vector test_multiplicity;
 };
 
 }

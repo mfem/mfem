@@ -218,7 +218,7 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 
    const int iSz = integrators.Size();
-   if (elem_restrict)
+   if (elem_restrict && !DeviceCanUseCeed())
    {
       localY = 0.0;
       for (int i = 0; i < iSz; ++i)
@@ -508,18 +508,20 @@ void EABilinearFormExtension::Assemble()
 
    ea_data.SetSize(ne*elemDofs*elemDofs, Device::GetMemoryType());
    ea_data.UseDevice(true);
-   ea_data = 0.0;
 
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
    {
-      integrators[i]->AssembleEA(*a->FESpace(), ea_data);
+      integrators[i]->AssembleEA(*a->FESpace(), ea_data, i);
    }
 
    faceDofs = trialFes ->
               GetTraceElement(0, trialFes->GetMesh()->GetFaceBaseGeometry(0)) ->
               GetDof();
+
+   MFEM_VERIFY(a->GetBBFI()->Size() == 0,
+               "Element assembly does not support AddBoundaryIntegrator yet.");
 
    Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
    const int intFaceIntegratorCount = intFaceIntegrators.Size();
@@ -528,14 +530,13 @@ void EABilinearFormExtension::Assemble()
       nf_int = trialFes->GetNFbyType(FaceType::Interior);
       ea_data_int.SetSize(2*nf_int*faceDofs*faceDofs, Device::GetMemoryType());
       ea_data_ext.SetSize(2*nf_int*faceDofs*faceDofs, Device::GetMemoryType());
-      ea_data_int = 0.0;
-      ea_data_ext = 0.0;
    }
    for (int i = 0; i < intFaceIntegratorCount; ++i)
    {
       intFaceIntegrators[i]->AssembleEAInteriorFaces(*a->FESpace(),
                                                      ea_data_int,
-                                                     ea_data_ext);
+                                                     ea_data_ext,
+                                                     i);
    }
 
    Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
@@ -548,7 +549,7 @@ void EABilinearFormExtension::Assemble()
    }
    for (int i = 0; i < boundFaceIntegratorCount; ++i)
    {
-      bdrFaceIntegrators[i]->AssembleEABoundaryFaces(*a->FESpace(),ea_data_bdr);
+      bdrFaceIntegrators[i]->AssembleEABoundaryFaces(*a->FESpace(),ea_data_bdr,i);
    }
 
    if (factorize_face_terms && int_face_restrict_lex)
@@ -995,6 +996,12 @@ void PAMixedBilinearFormExtension::Assemble()
    {
       integrators[i]->AssemblePA(*trialFes, *testFes);
    }
+   MFEM_VERIFY(a->GetBBFI()->Size() == 0,
+               "Partial assembly does not support AddBoundaryIntegrator yet.");
+   MFEM_VERIFY(a->GetTFBFI()->Size() == 0,
+               "Partial assembly does not support AddTraceFaceIntegrator yet.");
+   MFEM_VERIFY(a->GetBTFBFI()->Size() == 0,
+               "Partial assembly does not support AddBdrTraceFaceIntegrator yet.");
 }
 
 void PAMixedBilinearFormExtension::Update()
@@ -1012,7 +1019,6 @@ void PAMixedBilinearFormExtension::Update()
       localTrial.UseDevice(true);
       localTrial.SetSize(elem_restrict_trial->Height(),
                          Device::GetMemoryType());
-
    }
    if (elem_restrict_test)
    {
@@ -1210,6 +1216,135 @@ void PAMixedBilinearFormExtension::AssembleDiagonal_ADAt(const Vector &D,
          }
       }
    }
+}
+
+PADiscreteLinearOperatorExtension::PADiscreteLinearOperatorExtension(
+   DiscreteLinearOperator *linop) :
+   PAMixedBilinearFormExtension(linop)
+{
+}
+
+const Operator *PADiscreteLinearOperatorExtension::GetLocalOutputProlongation()
+const
+{
+   return a->GetLocalOutputProlongation();
+}
+
+void PADiscreteLinearOperatorExtension::Assemble()
+{
+   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+   const int integratorCount = integrators.Size();
+   for (int i = 0; i < integratorCount; ++i)
+   {
+      integrators[i]->AssemblePA(*trialFes, *testFes);
+   }
+
+   test_multiplicity.UseDevice(true);
+   test_multiplicity.SetSize(elem_restrict_test->Width()); // l-vector
+   Vector ones(elem_restrict_test->Height()); // e-vector
+   ones = 1.0;
+
+   const ElementRestriction* elem_restrict =
+      dynamic_cast<const ElementRestriction*>(elem_restrict_test);
+   if (elem_restrict)
+   {
+      elem_restrict->MultTransposeUnsigned(ones, test_multiplicity);
+   }
+   else
+   {
+      mfem_error("A real ElementRestriction is required in this setting!");
+   }
+
+   auto tm = test_multiplicity.ReadWrite();
+   MFEM_FORALL(i, test_multiplicity.Size(),
+   {
+      tm[i] = 1.0 / tm[i];
+   });
+}
+
+void PADiscreteLinearOperatorExtension::AddMult(
+   const Vector &x, Vector &y, const double c) const
+{
+   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+   const int iSz = integrators.Size();
+
+   // * G operation
+   SetupMultInputs(elem_restrict_trial, x, localTrial,
+                   elem_restrict_test, y, localTest, c);
+
+   // * B^TDB operation
+   for (int i = 0; i < iSz; ++i)
+   {
+      integrators[i]->AddMultPA(localTrial, localTest);
+   }
+
+   // do a kind of "set" rather than "add" in the below
+   // operation as compared to the BilinearForm case
+   // * G^T operation (kind of...)
+   const ElementRestriction* elem_restrict =
+      dynamic_cast<const ElementRestriction*>(elem_restrict_test);
+   if (elem_restrict)
+   {
+      tempY.SetSize(y.Size());
+      elem_restrict->MultLeftInverse(localTest, tempY);
+      y += tempY;
+   }
+   else
+   {
+      mfem_error("In this setting you need a real ElementRestriction!");
+   }
+}
+
+void PADiscreteLinearOperatorExtension::AddMultTranspose(
+   const Vector &x, Vector &y, const double c) const
+{
+   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+   const int iSz = integrators.Size();
+
+   // do a kind of "set" rather than "add" in the below
+   // operation as compared to the BilinearForm case
+   // * G operation (kinda)
+   Vector xscaled(x);
+   MFEM_VERIFY(x.Size() == test_multiplicity.Size(), "Input vector of wrong size");
+   auto xs = xscaled.ReadWrite();
+   auto tm = test_multiplicity.Read();
+   MFEM_FORALL(i, x.Size(),
+   {
+      xs[i] *= tm[i];
+   });
+   SetupMultInputs(elem_restrict_test, xscaled, localTest,
+                   elem_restrict_trial, y, localTrial, c);
+
+   // * B^TD^TB operation
+   for (int i = 0; i < iSz; ++i)
+   {
+      integrators[i]->AddMultTransposePA(localTest, localTrial);
+   }
+
+   // * G^T operation
+   if (elem_restrict_trial)
+   {
+      tempY.SetSize(y.Size());
+      elem_restrict_trial->MultTranspose(localTrial, tempY);
+      y += tempY;
+   }
+   else
+   {
+      mfem_error("Trial ElementRestriction not defined");
+   }
+}
+
+void PADiscreteLinearOperatorExtension::FormRectangularSystemOperator(
+   const Array<int>& ess1, const Array<int>& ess2, OperatorHandle &A)
+{
+   const Operator *Pi = this->GetProlongation();
+   const Operator *Po = this->GetLocalOutputProlongation();
+   Operator *rap = SetupRAP(Pi, Po);
+
+   RectangularConstrainedOperator *Arco
+      = new RectangularConstrainedOperator(rap, ess1, ess2, rap != this);
+
+   A.Reset(Arco);
 }
 
 } // namespace mfem

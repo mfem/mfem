@@ -627,6 +627,33 @@ void BilinearForm::AssembleDiagonal(Vector &diag) const
       MFEM_ASSERT(diag.Size() == fes->GetTrueVSize(),
                   "Vector for holding diagonal has wrong size!");
       const Operator *P = fes->GetProlongationMatrix();
+      // For an AMR mesh, a convergent diagonal is assembled with |P^T| d_e,
+      // where |P^T| has the entry-wise absolute values of the conforming
+      // prolongation transpose operator.
+      if (P && !fes->Conforming())
+      {
+         Vector local_diag(P->Height());
+         ext->AssembleDiagonal(local_diag);
+         const SparseMatrix *SP = dynamic_cast<const SparseMatrix*>(P);
+#ifdef MFEM_USE_MPI
+         const HypreParMatrix *HP = dynamic_cast<const HypreParMatrix*>(P);
+#endif
+         if (SP)
+         {
+            SP->AbsMultTranspose(local_diag, diag);
+         }
+#ifdef MFEM_USE_MPI
+         else if (HP)
+         {
+            HP->AbsMultTranspose(1.0, local_diag, 0.0, diag);
+         }
+#endif
+         else
+         {
+            MFEM_ABORT("Prolongation matrix has unexpected type.");
+         }
+         return;
+      }
       if (!IsIdentityProlongation(P))
       {
          Vector local_diag(P->Height());
@@ -1744,9 +1771,40 @@ MixedBilinearForm::~MixedBilinearForm()
    delete ext;
 }
 
+void DiscreteLinearOperator::SetAssemblyLevel(AssemblyLevel assembly_level)
+{
+   if (ext)
+   {
+      MFEM_ABORT("the assembly level has already been set!");
+   }
+   assembly = assembly_level;
+   switch (assembly)
+   {
+      case AssemblyLevel::FULL:
+         // Use the original BilinearForm implementation for now
+         break;
+      case AssemblyLevel::ELEMENT:
+         mfem_error("Element assembly not supported yet... stay tuned!");
+         break;
+      case AssemblyLevel::PARTIAL:
+         ext = new PADiscreteLinearOperatorExtension(this);
+         break;
+      case AssemblyLevel::NONE:
+         mfem_error("Matrix-free action not supported yet... stay tuned!");
+         break;
+      default:
+         mfem_error("Unknown assembly level");
+   }
+}
 
 void DiscreteLinearOperator::Assemble(int skip_zeros)
 {
+   if (ext)
+   {
+      ext->Assemble();
+      return;
+   }
+
    Array<int> dom_vdofs, ran_vdofs;
    ElementTransformation *T;
    const FiniteElement *dom_fe, *ran_fe;

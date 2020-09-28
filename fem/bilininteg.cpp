@@ -22,14 +22,14 @@ namespace mfem
 
 void BilinearFormIntegrator::AssemblePA(const FiniteElementSpace&)
 {
-   mfem_error ("BilinearFormIntegrator::AssemblePA(...)\n"
+   mfem_error ("BilinearFormIntegrator::AssemblePA(fes)\n"
                "   is not implemented for this class.");
 }
 
 void BilinearFormIntegrator::AssemblePA(const FiniteElementSpace&,
                                         const FiniteElementSpace&)
 {
-   mfem_error ("BilinearFormIntegrator::AssemblePA(...)\n"
+   mfem_error ("BilinearFormIntegrator::AssemblePA(fes, fes)\n"
                "   is not implemented for this class.");
 }
 
@@ -52,7 +52,8 @@ void BilinearFormIntegrator::AssembleDiagonalPA(Vector &)
 }
 
 void BilinearFormIntegrator::AssembleEA(const FiniteElementSpace &fes,
-                                        Vector &emat)
+                                        Vector &emat,
+                                        const bool add)
 {
    mfem_error ("BilinearFormIntegrator::AssembleEA(...)\n"
                "   is not implemented for this class.");
@@ -61,7 +62,8 @@ void BilinearFormIntegrator::AssembleEA(const FiniteElementSpace &fes,
 void BilinearFormIntegrator::AssembleEAInteriorFaces(const FiniteElementSpace
                                                      &fes,
                                                      Vector &ea_data_int,
-                                                     Vector &ea_data_ext)
+                                                     Vector &ea_data_ext,
+                                                     const bool add)
 {
    mfem_error ("BilinearFormIntegrator::AssembleEAInteriorFaces(...)\n"
                "   is not implemented for this class.");
@@ -69,7 +71,8 @@ void BilinearFormIntegrator::AssembleEAInteriorFaces(const FiniteElementSpace
 
 void BilinearFormIntegrator::AssembleEABoundaryFaces(const FiniteElementSpace
                                                      &fes,
-                                                     Vector &ea_data_bdr)
+                                                     Vector &ea_data_bdr,
+                                                     const bool add)
 {
    mfem_error ("BilinearFormIntegrator::AssembleEABoundaryFaces(...)\n"
                "   is not implemented for this class.");
@@ -89,7 +92,7 @@ void BilinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
 
 void BilinearFormIntegrator::AddMultTransposePA(const Vector &, Vector &) const
 {
-   mfem_error ("BilinearFormIntegrator::MultAssembledTranspose(...)\n"
+   mfem_error ("BilinearFormIntegrator::AddMultTransposePA(...)\n"
                "   is not implemented for this class.");
 }
 
@@ -1560,6 +1563,7 @@ void CurlCurlIntegrator::AssembleElementMatrix
    double w;
 
 #ifdef MFEM_THREAD_SAFE
+   Vector D;
    DenseMatrix curlshape(nd,dimc), curlshape_dFt(nd,dimc), M;
 #else
    curlshape.SetSize(nd,dimc);
@@ -1567,6 +1571,7 @@ void CurlCurlIntegrator::AssembleElementMatrix
 #endif
    elmat.SetSize(nd);
    if (MQ) { M.SetSize(dimc); }
+   if (DQ) { D.SetSize(dimc); }
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
@@ -1609,6 +1614,12 @@ void CurlCurlIntegrator::AssembleElementMatrix
          M *= w;
          Mult(curlshape_dFt, M, curlshape);
          AddMultABt(curlshape, curlshape_dFt, elmat);
+      }
+      else if (DQ)
+      {
+         DQ->Eval(D, Trans, ip);
+         D *= w;
+         AddMultADAt(curlshape_dFt, D, elmat);
       }
       else if (Q)
       {

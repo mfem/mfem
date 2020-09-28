@@ -57,6 +57,10 @@ public:
    /// Compute MultTranspose without applying signs based on DOF orientations.
    void MultTransposeUnsigned(const Vector &x, Vector &y) const;
 
+   /// Compute MultTranspose by setting (rather than adding) element
+   /// contributions; this is a left inverse of the Mult() operation
+   void MultLeftInverse(const Vector &x, Vector &y) const;
+
    /// @brief Fills the E-vector y with `boolean` values 0.0 and 1.0 such that each
    /// each entry of the L-vector is uniquely represented in `y`.
    /** This means, the sum of the E-vector `y` is equal to the sum of the

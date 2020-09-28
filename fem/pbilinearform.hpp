@@ -160,6 +160,9 @@ public:
    /// Get the parallel finite element space prolongation matrix
    virtual const Operator *GetProlongation() const
    { return pfes->GetProlongationMatrix(); }
+   /// Get the diagonal part of the parallel finite element space prolongation matrix
+   virtual const Operator *GetLocalProlongation() const
+   { return pfes->GetLocalProlongationMatrix(); }
    /// Get the parallel finite element space restriction matrix
    virtual const Operator *GetRestriction() const
    { return pfes->GetRestrictionMatrix(); }
@@ -301,9 +304,17 @@ public:
    /// Returns the matrix "assembled" on the true dofs
    HypreParMatrix *ParallelAssemble() const;
 
+   /** @brief Returns the matrix assembled on the true dofs, i.e.
+       @a A = P_test^t A_local P_trial, in the format (type id) specified by
+       @a A. */
+   void ParallelAssemble(OperatorHandle &A);
+
    /** Extract the parallel blocks corresponding to the vector dimensions of the
        domain and range parallel finite element spaces */
    void GetParBlocks(Array2D<HypreParMatrix *> &blocks) const;
+
+   /** @brief Return in @a A a parallel (on truedofs) version of this operator. */
+   virtual void FormRectangularSystemMatrix(OperatorHandle &A);
 
    virtual ~ParDiscreteLinearOperator() { }
 };
