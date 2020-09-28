@@ -21,6 +21,7 @@
 
 #include <mpi.h>
 #include "dmumps_c.h"
+#include <vector>
 
 namespace mfem
 {
@@ -29,7 +30,7 @@ class MUMPSSolver : public mfem::Solver
 {
 public:
    // Constructor with MPI_Comm parameter.
-   MUMPSSolver( MPI_Comm comm );
+   MUMPSSolver( MPI_Comm comm_ );
 
    // Constructor with HypreParMatrix Object.
    MUMPSSolver( HypreParMatrix & A);
@@ -43,21 +44,34 @@ public:
    // Set the operator.
    void SetOperator( const Operator & op );
 
-   // Set various solver options. Refer to MUMPSSolver documentation for details.
+   void UseDistributedRHS(bool dist_rhs_) { dist_rhs = dist_rhs_; }
+   void UseDistributedSol(bool dist_sol_) { dist_sol = dist_sol_; }
 
 private:
+// macro s.t. indices match MUMPS documentation 
+#define ICNTL(I) icntl[(I)-1] 
+#define INFO(I) info[(I)-1] 
+   void SetParameters();
    void Init();
+   int GetRowRank(int i, const std::vector<int> & row_starts_) const;
+   void RedistributeSol(const Array<int> & tdof_map, const Vector & x, Vector &y) const;
+   // flag for distributed rhs
+   bool dist_rhs = false;
+   // flag for distributed sol
+   bool dist_sol = false;
+
+   std::vector<int> row_starts;
+
 
 protected:
-   MPI_Comm      comm_;
-   int           numProcs_;
-   int           myid_;
+   MPI_Comm      comm;
+   int           numProcs;
+   int           myid;
    const HypreParMatrix * APtr;
 
    hypre_CSRMatrix *csr_op;
    int n_global;
    int n_loc;
-   int nnz;
    // coordinate format storage
    int * I;
    int * J;
@@ -65,9 +79,15 @@ protected:
 
    DMUMPS_STRUC_C * id;
 
+   int row_start;
    Vector rhs_glob;
    Array<int> recv_counts;
    Array<int> displs;
+   Array<int> irhs_loc;
+   Vector sol_loc;
+   int * isol_loc;
+
+
 }; // mfem::MUMPSSolver class
 
 } // mfem namespace

@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
-      int ref_levels = 2;
+      int ref_levels = 1;
       for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();
@@ -150,185 +150,17 @@ int main(int argc, char *argv[])
    cg.Mult(B, X);
    delete prec;
 
-   // 14. Recover the parallel grid function corresponding to X. This is the
-   //     local finite element solution on each processor.
-   // a.RecoverFEMSolution(X, b, x);
-
-   // A.Threshold();
-
-
-   //    hypre_ParCSRMatrix * parcsr_op = (hypre_ParCSRMatrix *)const_cast<HypreParMatrix&>(A);
-
-   //    hypre_CSRMatrix *csr_op = hypre_MergeDiagAndOffd(parcsr_op);
-   // #if MFEM_HYPRE_VERSION >= 21600
-   //    hypre_CSRMatrixBigJtoJ(csr_op);
-   // #endif
-
-   //    int * Iptr = csr_op->i;
-   //    int * Jptr = csr_op->j;
-   //    double * data = csr_op->data;
-
-   //    int nnz = csr_op->num_nonzeros;
-   //    int I[nnz];
-   //    int J[nnz];
-
-   //    int n_loc = csr_op->num_rows;
-
-   //    int k = 0;
-   //    for (int i = 0; i<n_loc; i++)
-   //    {
-   //       for (int j = Iptr[i]; j<Iptr[i+1]; j++)
-   //       {
-   //          // "tdof offsets" can be determined by parcsr_op -> rowstarts
-   //          I[k] = parcsr_op->first_row_index + i + 1;
-   //          J[k] = Jptr[k]+1;
-   //          k++;
-   //       }
-   //    }
-
-
-   //    DMUMPS_STRUC_C id;
-   //    MUMPS_INT ierr;
-   //    int error = 0;
-   //    /* Initialize a MUMPS instance. Use MPI_COMM_WORLD */
-   //    id.comm_fortran=USE_COMM_WORLD;
-
-   //    id.job=-1; id.par=1; id.sym=0;
-   //    // Mumps init
-   //    dmumps_c(&id);
-
-   //    #define ICNTL(I) icntl[(I)-1] /* macro s.t. indices match documentation */
-   //    #define INFO(I) info[(I)-1] /* macro s.t. indices match documentation */
-   //   /* No outputs */
-   // //   id.ICNTL(1)=-1; id.ICNTL(2)=-1; id.ICNTL(3)=-1; id.ICNTL(4)=0;
-   //    // id.ICNTL(5) = 0;
-   //    id.ICNTL(18) = 3;
-   //    id.ICNTL(20) = 10; // distributed rhs
-   //    id.ICNTL(21) = 1; // distributed solution
-
-   //    id.n = parcsr_op->global_num_rows;
-
-   //    // on all procs
-   //    id.nnz_loc = nnz;
-   //    id.irn_loc = I;
-   //    id.jcn_loc = J;
-   //    id.a_loc = data;
-
-   //    id.job=1;
-   //    dmumps_c(&id);
-
-   //    id.job=2;
-   //    dmumps_c(&id);
-
-   //    // local to global row map
-   //    int *irhs_loc = new int[n_loc];
-   //    for (int i = 0; i < n_loc; i++)
-   //    {
-   //       irhs_loc[i] = parcsr_op->first_row_index + i + 1; // 1-based indexing offset
-   //    }
-   //    id.rhs_loc = B.GetData();
-   //    id.nloc_rhs = n_loc;
-   //    id.lrhs_loc = n_loc;
-   //    id.irhs_loc = irhs_loc;
-
-
-   //    id.nrhs = 1;
-
-   //    int lsol_loc = id.INFO(23);
-
-   //    id.lsol_loc = lsol_loc;
-   //    Vector Xaux(lsol_loc);
-   //    id.sol_loc = Xaux.GetData();
-   //    int *isol_loc = new int[lsol_loc];
-   //    id.isol_loc = isol_loc;
-
-   //    id.job=3;
-   //    dmumps_c(&id);
-
-   //    // @TODO
-   //    // On exit from the solve phase, ISOL loc(i) contains the index of the
-   //    // variables for which the solution (in SOL loc) is available on the local
-   //    // processor.
-
-   //    printf("\nordering rhs rank %d\n", myid);
-   //    for (int i = 0; i < n_loc; i++)
-   //    {
-   //       printf("%d ", id.irhs_loc[i]);
-   //    }
-   //    printf("\n");
-   //    MPI_Barrier(MPI_COMM_WORLD);
-
-   //    printf("\nordering sol rank %d\n", myid);
-   //    for (int i = 0; i < id.lsol_loc; i++)
-   //    {
-   //       printf("%d ", id.isol_loc[i]);
-   //    }
-   //    printf("\n");
-   //    MPI_Barrier(MPI_COMM_WORLD);
-
-
-   // for (int i = 0; i < id.lsol_loc; i++)
-   // {
-   //    X(isol_loc[i] - 1) = Xaux(i);
-   // }
-
-   // int mpi_err;
-   // int *lengths = NULL;
-   // if (myid == 0)
-   // {
-   //    lengths = new int[num_procs];
-   // }
-   // mpi_err = MPI_Gather(&num_pivots,
-   //                      1,
-   //                      MPI_INT,
-   //                      lengths,
-   //                      1,
-   //                      MPI_INT,
-   //                      0,
-   //                      MPI_COMM_WORLD);
-   // MFEM_ASSERT(mpi_err == 0, "MPI error");
-
-   // if (myid == 0)
-   // {
-   //    for (int i = 0; i < num_procs; i++)
-   //       printf("%d ", lengths[i]);
-   // }
-
-   // Vector *Xaux_global = NULL;
-   // int *offsets = NULL;
-   // if (myid == 0)
-   // {
-   //    Xaux_global = new Vector(parcsr_op->global_num_rows);
-   //    offsets = new int[num_procs];
-   //    for (int i = 1; i < num_procs - 1; i++)
-   //    {
-   //       offsets[i - 1] = lengths[i] + lengths[i - 1];
-   //    }
-   // }
-   // mpi_err = MPI_Gatherv(Xaux.GetData(),
-   //                       Xaux.Size(),
-   //                       MPI_DOUBLE,
-   //                       Xaux_global->GetData(),
-   //                       lengths,
-   //                       offsets,
-   //                       MPI_DOUBLE,
-   //                       0,
-   //                       MPI_COMM_WORLD);
-
-   // MFEM_ASSERT(mpi_err == 0, "MPI error");
-
-   // printf("MPI DONE\n");
-
-   // id.job = -2; // mumps finalize
-   // dmumps_c(&id);
    {
-      MUMPSSolver MA(A);
+      MUMPSSolver MA(A.GetComm());
+      MA.UseDistributedRHS(true);
+      MA.UseDistributedSol(true);
+      MA.SetOperator(A);
+      // MA.UseDistributedRHS(false);
       Vector Y(X.Size());
       MA.Mult(B,Y);
       Y-=X;
       cout << "Diff norm = " << Y.Norml2() << endl;
    }
-
 
    a.RecoverFEMSolution(X, b, x);
 

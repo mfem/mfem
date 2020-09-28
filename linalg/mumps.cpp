@@ -24,26 +24,9 @@ using namespace std;
 namespace mfem
 {
 
-MUMPSSolver::MUMPSSolver( MPI_Comm comm )
-   : comm_(comm)
-{
-   this->Init();
-}
-
-MUMPSSolver::MUMPSSolver( HypreParMatrix & A)
-   : comm_(A.GetComm())
-{
-
-
-   APtr = dynamic_cast<const HypreParMatrix*>(&A);
-   if ( APtr == NULL )
-   {
-      mfem_error("MUMPSSolver::SetOperator : not HypreParMatrix!");
-   }
-   height = A.Height();
-   width  = A.Width();
-   this->Init();
-}
+MUMPSSolver::MUMPSSolver( MPI_Comm comm_ )
+   : comm(comm_)
+{}
 
 MUMPSSolver::~MUMPSSolver()
 {
@@ -51,12 +34,32 @@ MUMPSSolver::~MUMPSSolver()
    dmumps_c(id);
 }
 
+void MUMPSSolver::SetParameters()
+{
+   id->ICNTL(1) = -1; // output messages 
+   id->ICNTL(2) = -1; // Diagnosting printing
+   id->ICNTL(3) = -1;  // Global info on host
+   id->ICNTL(4) =  0; // Level of error printing
+   id->ICNTL(5) =  0; //inpute matrix format (distributed)
+   id->ICNTL(9) =  1; // Use A or A^T
+   id->ICNTL(10) = 0; // Iterative refinement (disabled)
+   id->ICNTL(11) = 0; // Error analysis-statistics (disabled)
+   id->ICNTL(13) = 0; // Use of ScaLAPACK (Parallel factorization on root)
+   id->ICNTL(14) = 20; // Percentage increase of estimated workspace (default = 20%)
+   id->ICNTL(16) = 0; // Number of OpenMP threads (default)
+   id->ICNTL(18) = 3; // Matrix input format (distributed)
+   id->ICNTL(19) = 0; // Schur complement (no Schur complement matrix returned)
+   id->ICNTL(20) = (dist_rhs) ? 10 : 0; // RHS input format (distributed or only on host)
+   id->ICNTL(21) = (dist_sol) ? 1  : 0; // Sol input format (distributed or only on host)
+   id->ICNTL(22) = 0; // Out of core factorization and solve (disabled)
+   id->ICNTL(23) = 0; // Maximum size of working memory (default = based on estimates)
+}
+
 void MUMPSSolver::Init()
 {
-   MPI_Comm_size(comm_, &numProcs_);
-   MPI_Comm_rank(comm_, &myid_);
+   MPI_Comm_size(comm, &numProcs);
+   MPI_Comm_rank(comm, &myid);
 
-   cout << "In MUMPS init" << endl;
    hypre_ParCSRMatrix * parcsr_op = (hypre_ParCSRMatrix *)
                                     const_cast<HypreParMatrix&>(*APtr);
 
@@ -73,47 +76,40 @@ void MUMPSSolver::Init()
    J = new int[nnz];
 
    n_loc = csr_op->num_rows;
+   row_start = parcsr_op->first_row_index;
    int k = 0;
    for (int i = 0; i<n_loc; i++)
    {
       for (int j = Iptr[i]; j<Iptr[i+1]; j++)
       {
          // "tdof offsets" can be determined by parcsr_op -> rowstarts
-         I[k] = parcsr_op->first_row_index + i + 1;
-         J[k] = Jptr[k]+1;
+         I[k] = row_start + i + 1;
+         J[k] = Jptr[k]+1; // This can be avoided
          k++;
       }
    }
 
+   // new MUMPS object
    id = new DMUMPS_STRUC_C;
-
-   MUMPS_INT ierr;
-   int error = 0;
-   /* Initialize a MUMPS instance. Use MPI_COMM_WORLD */
+   // Initialize a MUMPS instance. Use MPI_COMM_WORLD 
    id->comm_fortran=USE_COMM_WORLD;
 
-   id->job=-1; id->par=1; id->sym=0;
+   // Host is involved in computation
+   id->par=1; 
+   // Unsymmetric matrix
+   id->sym=0;
    // Mumps init
+   id->job=-1; 
    dmumps_c(id);
 
-#define ICNTL(I) icntl[(I)-1] /* macro s.t. indices match documentation */
-#define INFO(I) info[(I)-1] /* macro s.t. indices match documentation */
-   /* No outputs */
-   //   id.ICNTL(1)=-1; id.ICNTL(2)=-1; id.ICNTL(3)=-1; id.ICNTL(4)=0;
-   // id.ICNTL(5) = 0;
-   id->ICNTL(18) = 3; // distributed matrix
-   // id->ICNTL(20) = 10; // distributed rhs
-   id->ICNTL(20) = 0; //  rhs on host
-   // id->ICNTL(21) = 1; // distributed solution
-   id->ICNTL(21) = 0; // solution on host
+   SetParameters(); // Set MUMPS default parameters
 
    id->n = parcsr_op->global_num_rows;
-
    // on all procs
    id->nnz_loc = nnz;
-   id->irn_loc = I;
-   id->jcn_loc = J;
-   id->a_loc = csr_op->data;
+   id->irn_loc = I; // Distributed rows array
+   id->jcn_loc = J; // Distributed column array
+   id->a_loc = csr_op->data; // Distributed data array
 
    // Analysis
    id->job=1;
@@ -123,36 +119,99 @@ void MUMPSSolver::Init()
    id->job=2;
    dmumps_c(id);
 
-   if (myid_ == 0)
-   {
-      rhs_glob.SetSize(parcsr_op->global_num_rows);
-      recv_counts.SetSize(numProcs_);
-      displs.SetSize(numProcs_);
-   }
-   int n_loc = csr_op->num_rows;
-   MPI_Gather(&n_loc,1,MPI_INT,recv_counts,1,MPI_INT,0,comm_);
 
-
-   if (myid_ == 0)
+   if (!(dist_rhs && dist_sol)) // if at least one is on host
    {
-      displs[0] = 0;
-      for (int k=0; k<numProcs_-1; k++)
+      if (myid == 0)
       {
-         displs[k+1] = displs[k] + recv_counts[k];
+         rhs_glob.SetSize(parcsr_op->global_num_rows); rhs_glob = 0.0;
+         recv_counts.SetSize(numProcs);
+         displs.SetSize(numProcs);
       }
+      MPI_Gather(&n_loc,1,MPI_INT,recv_counts,1,MPI_INT,0,comm);
+      if (myid == 0)
+      {
+         displs[0] = 0;
+         for (int k=0; k<numProcs-1; k++)
+         {
+            displs[k+1] = displs[k] + recv_counts[k];
+         }
+      }
+   }
+
+   if (dist_rhs)
+   {
+      irhs_loc.SetSize(n_loc);
+      for (int i = 0; i<n_loc; i++)
+      {
+         irhs_loc[i] = row_start + i + 1;
+      }
+   }
+
+   if (dist_sol)
+   {
+      row_starts.resize(numProcs);
+      MPI_Allgather(&row_start,1,MPI_INT,&row_starts[0],1,MPI_INT,comm);
+      sol_loc.SetSize(id->INFO(23));
+      isol_loc = new int[id->INFO(23)];
    }
 }
 
 void MUMPSSolver::Mult( const Vector & x, Vector & y ) const
 {
-   MPI_Gatherv(x.GetData(),x.Size(),MPI_DOUBLE,rhs_glob.GetData(),
-               recv_counts,displs,MPI_DOUBLE,0,comm_);
-   id->rhs = rhs_glob.GetData();
-   id->job=3;
+
+   // cases for the RHS
+   if (dist_rhs) 
+   {  // distribute RHS
+      id->nloc_rhs = x.Size();
+      id->lrhs_loc = x.Size();
+      id->rhs_loc = x.GetData();
+      id->irhs_loc = const_cast<int*>(irhs_loc.GetData());
+   }
+   else
+   {  // RHS gathered on the host
+      MPI_Gatherv(x.GetData(),x.Size(),MPI_DOUBLE,rhs_glob.GetData(),
+                  recv_counts,displs,MPI_DOUBLE,0,comm);
+      if (myid == 0)
+      {
+         id->rhs = rhs_glob.GetData();
+      }            
+   }
+
+   // cases for the SOL
+   if (dist_sol)
+   {  
+      id->sol_loc = sol_loc.GetData();
+      id->lsol_loc = id->INFO(23);
+      id->isol_loc = isol_loc;
+   }
+   else
+   {  // if sol on host on the host  
+      if (myid == 0)
+      {
+         id->rhs = rhs_glob.GetData();
+      }      
+   }
+   
+
+   id->job = 3;
    dmumps_c(id);
 
-   MPI_Scatterv(id->rhs,recv_counts,displs,MPI_DOUBLE,
-                y.GetData(),y.Size(),MPI_DOUBLE,0,comm_);
+   if (dist_sol)
+   {
+      // sol_loc.Print();
+      Array<int> temp(sol_loc.Size());
+      for (int i = 0; i<sol_loc.Size(); i++)
+      {
+         temp[i] = isol_loc[i]-1;
+      }
+      RedistributeSol(temp, sol_loc, y); 
+   }
+   else
+   {
+      MPI_Scatterv(rhs_glob.GetData(),recv_counts,displs,MPI_DOUBLE,
+                   y.GetData(),y.Size(),MPI_DOUBLE,0,comm);
+   }
 }
 
 void MUMPSSolver::SetOperator( const Operator & op )
@@ -163,8 +222,85 @@ void MUMPSSolver::SetOperator( const Operator & op )
    {
       mfem_error("MUMPSSolver::SetOperator : not HypreParMatrix!");
    }
+   height = op.Height();
+   width  = op.Width();
+   this->Init();
 
+   Array<int> test;
+   
 }
+
+int MUMPSSolver::GetRowRank(int i, const std::vector<int> & row_starts_) const
+{
+   int size = row_starts_.size();
+   if (size == 1) { return 0; }
+   auto up=std::upper_bound(row_starts_.begin(), row_starts_.end(),i); 
+   return std::distance(row_starts_.begin(),up)-1;
+}
+
+void MUMPSSolver::RedistributeSol(const Array<int> & row_map, const Vector & x, Vector &y) const
+{
+   MFEM_VERIFY(row_map.Size() == x.Size(), "Inconcistent sizes");
+   int size = x.Size();
+
+
+   // workspace for MPI_ALLtoALL
+   Array<int> send_count(numProcs); send_count = 0;
+   Array<int> send_displ(numProcs); send_displ = 0;
+   Array<int> recv_count(numProcs); recv_count = 0;
+   Array<int> recv_displ(numProcs); recv_displ = 0;
+
+   // compute send_count
+   for (int i = 0; i<size; i++)
+   {
+      int j = row_map[i];
+      int row_rank = GetRowRank(j,row_starts);
+      send_count[row_rank]++; // the dof value 
+   }
+
+   // compute recv_count
+   MPI_Alltoall(send_count,1,MPI_INT,recv_count,1,MPI_INT,comm);
+   for (int k=0; k<numProcs-1; k++)
+   {
+      send_displ[k+1] = send_displ[k] + send_count[k];
+      recv_displ[k+1] = recv_displ[k] + recv_count[k];
+   }
+   int sbuff_size = send_count.Sum();
+   int rbuff_size = recv_count.Sum();
+
+   Array<int> sendbuf_index(sbuff_size);  sendbuf_index = 0;
+   Array<double> sendbuf_value(sbuff_size);  sendbuf_value = 0;
+   Array<int> soffs(numProcs); soffs = 0;
+
+   // Fill in send buffers
+   for (int i = 0; i<size; i++)
+   {
+      int j = row_map[i];
+      int row_rank = GetRowRank(j,row_starts);
+      int k = send_displ[row_rank] + soffs[row_rank];
+      sendbuf_index[k] = j;
+      sendbuf_value[k] = x(i);
+      soffs[row_rank]++;
+   }
+
+   // communicate
+   Array<int> recvbuf_index(rbuff_size);
+   Array<double> recvbuf_value(rbuff_size);
+   MPI_Alltoallv(sendbuf_index, send_count, send_displ, MPI_INT, recvbuf_index,
+                 recv_count, recv_displ, MPI_INT, comm);
+   MPI_Alltoallv(sendbuf_value, send_count, send_displ, MPI_DOUBLE, recvbuf_value,
+                 recv_count, recv_displ, MPI_DOUBLE, comm);     
+
+   // Unpack recv buffer
+   for (int i = 0; i<rbuff_size; i++)
+   {
+      int local_index = recvbuf_index[i] - row_start;
+      double val = recvbuf_value[i];
+      y(local_index) = val;
+   }                          
+}
+
+
 
 } // mfem namespace
 
