@@ -61,10 +61,14 @@ ThresholdRefiner::ThresholdRefiner(ErrorEstimator &est)
    local_err_goal = 0.0;
    max_elements = std::numeric_limits<long>::max();
    amr_levels=max_elements;
-   xRange_levels=0; //if xRange_levels is trun on, it will ignore xRang if levels<xRange_levels
+   xRange_levels=max_elements; //if xRange_levels is trun on, it will ignore xRang if levels<xRange_levels
    xRange=false;
-   yRange_levels=0;
+   yRange_levels=max_elements;
    yRange=false;
+   xmax=std::numeric_limits<double>::max();
+   ymax=xmax;
+   xmin=std::numeric_limits<double>::lowest();
+   ymin=xmin;
 
    threshold = 0.0;
    num_marked_elements = 0L;
