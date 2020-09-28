@@ -144,13 +144,6 @@ void AmgXSolver::Initialize_MPITeams(const MPI_Comm &comm,
 }
 #endif
 
-int AmgXSolver::GetNumIterations()
-{
-   int getIters;
-   AMGX_solver_get_iterations_number(solver, &getIters);
-   return getIters;
-}
-
 // Sets up AmgX library for  MPI builds
 #ifdef MFEM_USE_MPI
 void AmgXSolver::InitAmgX(const std::string &cfgFile)
@@ -641,7 +634,7 @@ void AmgXSolver::SetMatrix_MPI_Teams(const HypreParMatrix &A,
    }
 
    //Create row partition
-   m_local_rows = local_rows; //class copy
+   mat_local_rows = local_rows; //class copy
    Array<int64_t> rowPart;
 
    if (gpuProc == 0)
@@ -746,7 +739,7 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
    if (mpi_gpu_mode != "mpi-teams")
    {
       //Seems to be necessary for convergence
-      if (m_AmgxMode == PRECONDITIONER) { X = 0.0; };
+      if (amgxMode == PRECONDITIONER) { X = 0.0; };
 
       AMGX_vector_upload(AmgXP, X.Size(), 1, X.ReadWrite());
       AMGX_vector_upload(AmgXRHS, B.Size(), 1, B.Read());
@@ -762,7 +755,7 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
 
       AMGX_SOLVE_STATUS   status;
       AMGX_solver_get_status(solver, &status);
-      if (status != AMGX_SOLVE_SUCCESS && m_AmgxMode == SOLVER)
+      if (status != AMGX_SOLVE_SUCCESS && amgxMode == SOLVER)
       {
          printf("Amgx failed to solve system, error code %d. \n", status);
       }
@@ -772,8 +765,8 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
    }
 
 #ifdef MFEM_USE_MPI
-   Vector all_X(m_local_rows);
-   Vector all_B(m_local_rows);
+   Vector all_X(mat_local_rows);
+   Vector all_B(mat_local_rows);
    Array<int> Apart_X(devWorldSize);
    Array<int> Adisp_X(devWorldSize);
    Array<int> Apart_B(devWorldSize);
@@ -786,7 +779,7 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
    if (gpuWorld != MPI_COMM_NULL)
    {
 
-      if (m_AmgxMode == PRECONDITIONER) { X = 0.0; };
+      if (amgxMode == PRECONDITIONER) { X = 0.0; };
 
       AMGX_vector_upload(AmgXP, all_X.Size(), 1, all_X.ReadWrite());
       AMGX_vector_upload(AmgXRHS, all_B.Size(), 1, all_B.ReadWrite());
@@ -797,7 +790,7 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
 
       AMGX_SOLVE_STATUS   status;
       AMGX_solver_get_status(solver, &status);
-      if (status != AMGX_SOLVE_SUCCESS && m_AmgxMode == SOLVER)
+      if (status != AMGX_SOLVE_SUCCESS && amgxMode == SOLVER)
       {
          printf("Amgx failed to solve system, error code %d. \n", status);
       }
@@ -807,6 +800,13 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
 
    ScatterArray(all_X, X, devWorldSize, devWorld, Apart_X, Adisp_X);
 #endif
+}
+
+int AmgXSolver::GetNumIterations()
+{
+   int getIters;
+   AMGX_solver_get_iterations_number(solver, &getIters);
+   return getIters;
 }
 
 // \implements AmgXSolver::Finalize
