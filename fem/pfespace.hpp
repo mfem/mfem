@@ -416,6 +416,8 @@ protected:
    Array<int> ltdof_ldof, unq_ltdof;
    Array<int> unq_shr_i, unq_shr_j;
    MPI_Request *requests;
+   bool local;
+
    // Kernel: copy ltdofs from 'src' to 'shr_buf' - prepare for send.
    //         shr_buf[i] = src[shr_ltdof[i]]
    void BcastBeginCopy(const Vector &src) const;
@@ -441,7 +443,8 @@ protected:
    void ReduceEndAssemble(Vector &dst) const;
 
 public:
-   DeviceConformingProlongationOperator(const ParFiniteElementSpace &pfes);
+   DeviceConformingProlongationOperator(const ParFiniteElementSpace &pfes,
+                                        bool local_=false);
 
    virtual ~DeviceConformingProlongationOperator();
 
