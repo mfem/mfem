@@ -421,7 +421,10 @@ int main(int argc, char *argv[])
    delete Arow;
 #endif
    delete fespace;
-   delete fec;
+   if (order > 0)
+   {
+     delete fec;
+   }
    delete pmesh;
 
    // We finalize SLEPc
