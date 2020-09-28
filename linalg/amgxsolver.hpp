@@ -61,14 +61,19 @@ public:
                             const std::string &cfgFile,
                             const int nDevs);
 
-   void SetA_MPI_GPU_Exclusive(const HypreParMatrix &A, const Array<double> &loc_A,
-                               const Array<int> &loc_I, const Array<int64_t> &loc_J);
+   void SetMatrix_MPI_GPU_Exclusive(const HypreParMatrix &A,
+                                    const Array<double> &loc_A,
+                                    const Array<int> &loc_I, const Array<int64_t> &loc_J,
+                                    const bool update_mat = false);
 
-   void SetA_MPI_Teams(const HypreParMatrix &A, const Array<double> &loc_A,
-                       const Array<int> &loc_I, const Array<int64_t> &loc_J);
+   void SetMatrix_MPI_Teams(const HypreParMatrix &A, const Array<double> &loc_A,
+                            const Array<int> &loc_I, const Array<int64_t> &loc_J,
+                            const bool update_mat = false);
 #endif
 
    virtual void SetOperator(const Operator &op);
+
+   void UpdateOperator(const Operator &op);
 
    virtual void Mult(const Vector& b, Vector& x) const;
 
@@ -110,10 +115,10 @@ private:
                      const int mpiTeamSz, const MPI_Comm &mpi_comm,
                      Array<int> &Apart, Array<int> &Adisp) const;
 
-   void SetMatrix(const HypreParMatrix &A);
+   void SetMatrix(const HypreParMatrix &A, const bool update_mat = false);
 #endif
 
-   void SetMatrix(const SparseMatrix &A);
+   void SetMatrix(const SparseMatrix &A, const bool update_mat = false);
 
    static int              count;
 

@@ -427,22 +427,37 @@ void AmgXSolver::ScatterArray(const Vector &inArr, Vector &outArr,
 }
 #endif
 
-void AmgXSolver::SetMatrix(const SparseMatrix &in_A)
+void AmgXSolver::SetMatrix(const SparseMatrix &in_A, const bool update_mat)
 {
-   AMGX_matrix_upload_all(AmgXA, in_A.Height(),
-                          in_A.NumNonZeroElems(),
-                          1, 1,
-                          in_A.ReadI(),
-                          in_A.ReadJ(),
-                          in_A.ReadData(), NULL);
 
-   AMGX_solver_setup(solver, AmgXA);
-   AMGX_vector_bind(AmgXP, AmgXA);
-   AMGX_vector_bind(AmgXRHS, AmgXA);
+   if (update_mat == false)
+   {
+
+      AMGX_matrix_upload_all(AmgXA, in_A.Height(),
+                             in_A.NumNonZeroElems(),
+                             1, 1,
+                             in_A.ReadI(),
+                             in_A.ReadJ(),
+                             in_A.ReadData(), NULL);
+
+      AMGX_solver_setup(solver, AmgXA);
+      AMGX_vector_bind(AmgXP, AmgXA);
+      AMGX_vector_bind(AmgXRHS, AmgXA);
+
+   }
+   else
+   {
+
+      AMGX_matrix_replace_coefficients(AmgXA,
+                                       in_A.Height(),
+                                       in_A.NumNonZeroElems(),
+                                       in_A.ReadData(), NULL);
+   }
+
 }
 
 #ifdef MFEM_USE_MPI
-void AmgXSolver::SetMatrix(const HypreParMatrix &A)
+void AmgXSolver::SetMatrix(const HypreParMatrix &A, const bool update_mat)
 {
    hypre_ParCSRMatrix * A_ptr =
       (hypre_ParCSRMatrix *)const_cast<HypreParMatrix&>(A);
@@ -462,22 +477,23 @@ void AmgXSolver::SetMatrix(const HypreParMatrix &A)
    //1 GPU per MPI rank
    if (mpi_gpu_mode=="mpi-gpu-exclusive")
    {
-      return SetA_MPI_GPU_Exclusive(A, loc_A, loc_I, loc_J);
+      return SetMatrix_MPI_GPU_Exclusive(A, loc_A, loc_I, loc_J, update_mat);
    }
 
    // Team of MPI ranks sharing a gpu
    if (mpi_gpu_mode == "mpi-teams")
    {
-      return SetA_MPI_Teams(A, loc_A, loc_I, loc_J);
+      return SetMatrix_MPI_Teams(A, loc_A, loc_I, loc_J, update_mat);
    }
 
    mfem_error("Unsupported MPI_GPU combination \n");
 }
 
-void AmgXSolver::SetA_MPI_GPU_Exclusive(const HypreParMatrix &A,
-                                        const Array<double> &loc_A,
-                                        const Array<int> &loc_I,
-                                        const Array<int64_t> &loc_J)
+void AmgXSolver::SetMatrix_MPI_GPU_Exclusive(const HypreParMatrix &A,
+                                             const Array<double> &loc_A,
+                                             const Array<int> &loc_I,
+                                             const Array<int64_t> &loc_J,
+                                             const bool update_mat)
 {
    //Create a vector of offsets describing matrix row partitions
    Array<int64_t> rowPart(gpuWorldSize+1); rowPart = 0.0;
@@ -491,34 +507,44 @@ void AmgXSolver::SetA_MPI_GPU_Exclusive(const HypreParMatrix &A,
 
    rowPart[gpuWorldSize] = A.M();
 
-   AMGX_distribution_handle dist;
-   AMGX_distribution_create(&dist, cfg);
-   AMGX_distribution_set_partition_data(dist, AMGX_DIST_PARTITION_OFFSETS,
-                                        rowPart.GetData());
-
-
    const int nGlobalRows = A.M();
    const int local_rows = loc_I.Size()-1;
    const int num_nnz = loc_I[local_rows];
 
-   AMGX_matrix_upload_distributed(AmgXA, nGlobalRows, local_rows,
-                                  num_nnz, 1, 1, loc_I.Read(),
-                                  loc_J.Read(), loc_A.Read(),
-                                  nullptr, dist);
+   if (update_mat == false)
+   {
 
-   AMGX_distribution_destroy(dist);
+      AMGX_distribution_handle dist;
+      AMGX_distribution_create(&dist, cfg);
+      AMGX_distribution_set_partition_data(dist, AMGX_DIST_PARTITION_OFFSETS,
+                                           rowPart.GetData());
 
-   MPI_Barrier(gpuWorld);
+      AMGX_matrix_upload_distributed(AmgXA, nGlobalRows, local_rows,
+                                     num_nnz, 1, 1, loc_I.Read(),
+                                     loc_J.Read(), loc_A.Read(),
+                                     NULL, dist);
 
-   AMGX_solver_setup(solver, AmgXA);
+      AMGX_distribution_destroy(dist);
 
-   AMGX_vector_bind(AmgXP, AmgXA);
-   AMGX_vector_bind(AmgXRHS, AmgXA);
+      MPI_Barrier(gpuWorld);
+
+      AMGX_solver_setup(solver, AmgXA);
+
+      AMGX_vector_bind(AmgXP, AmgXA);
+      AMGX_vector_bind(AmgXRHS, AmgXA);
+
+   }
+   else
+   {
+      AMGX_matrix_replace_coefficients(AmgXA,nGlobalRows,num_nnz,loc_A, NULL);
+   }
 }
 
-void AmgXSolver::SetA_MPI_Teams(const HypreParMatrix &A,
-                                const Array<double> &loc_A,
-                                const Array<int> &loc_I, const Array<int64_t> &loc_J)
+void AmgXSolver::SetMatrix_MPI_Teams(const HypreParMatrix &A,
+                                     const Array<double> &loc_A,
+                                     const Array<int> &loc_I,
+                                     const Array<int64_t> &loc_J,
+                                     const bool update_mat)
 {
    // The following arrays hold the
    Array<int> all_I;
@@ -635,27 +661,41 @@ void AmgXSolver::SetA_MPI_Teams(const HypreParMatrix &A,
 
       //upload A matrix to AmgX
       MPI_Barrier(gpuWorld);
-      AMGX_distribution_handle dist;
-      AMGX_distribution_create(&dist, cfg);
-      AMGX_distribution_set_partition_data(dist, AMGX_DIST_PARTITION_OFFSETS,
-                                           rowPart.GetData());
 
       int nGlobalRows = A.M();
-      AMGX_matrix_upload_distributed(AmgXA, nGlobalRows, local_rows,
-                                     local_nnz,
-                                     1, 1, all_I.ReadWrite(),
-                                     all_J.Read(),
-                                     all_A.Read(),
-                                     nullptr, dist);
 
-      AMGX_distribution_destroy(dist);
-      MPI_Barrier(gpuWorld);
+      if (update_mat == false)
+      {
 
-      AMGX_solver_setup(solver, AmgXA);
+         AMGX_distribution_handle dist;
+         AMGX_distribution_create(&dist, cfg);
+         AMGX_distribution_set_partition_data(dist, AMGX_DIST_PARTITION_OFFSETS,
+                                              rowPart.GetData());
 
-      //Bind vectors to A
-      AMGX_vector_bind(AmgXP, AmgXA);
-      AMGX_vector_bind(AmgXRHS, AmgXA);
+         AMGX_matrix_upload_distributed(AmgXA, nGlobalRows, local_rows,
+                                        local_nnz,
+                                        1, 1, all_I.ReadWrite(),
+                                        all_J.Read(),
+                                        all_A.Read(),
+                                        nullptr, dist);
+
+         AMGX_distribution_destroy(dist);
+         MPI_Barrier(gpuWorld);
+
+         AMGX_solver_setup(solver, AmgXA);
+
+         //Bind vectors to A
+         AMGX_vector_bind(AmgXP, AmgXA);
+         AMGX_vector_bind(AmgXRHS, AmgXA);
+
+      }
+      else
+      {
+
+         AMGX_matrix_replace_coefficients(AmgXA,nGlobalRows,local_nnz,all_A,NULL);
+
+      }
+
    }
 }
 #endif
@@ -672,6 +712,26 @@ void AmgXSolver::SetOperator(const Operator& op)
                dynamic_cast<const HypreParMatrix*>(&op))
    {
       SetMatrix(*Aptr);
+   }
+#endif
+   else
+   {
+      mfem_error("Unsupported Operator Type \n");
+   }
+}
+
+void AmgXSolver::UpdateOperator(const Operator& op)
+{
+   if (const SparseMatrix* Aptr =
+          dynamic_cast<const SparseMatrix*>(&op))
+   {
+      SetMatrix(*Aptr, true);
+   }
+#ifdef MFEM_USE_MPI
+   else if (const HypreParMatrix* Aptr =
+               dynamic_cast<const HypreParMatrix*>(&op))
+   {
+      SetMatrix(*Aptr, true);
    }
 #endif
    else
