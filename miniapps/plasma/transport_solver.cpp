@@ -141,7 +141,7 @@ void AdvectionDiffusionBC::ReadCoefByAttr(std::istream &input,
                                           CoefficientByAttr &cba)
 {
    ReadAttr(input, bctype, cba.attr);
-   cba.coef = (*coefFact)(input);
+   cba.coef = coefFact->GetScalarCoef(input);
    cba.ownCoef = false;
 }
 
@@ -151,8 +151,8 @@ void AdvectionDiffusionBC::ReadCoefsByAttr(std::istream &input,
 {
    ReadAttr(input, bctype, cba.attr);
    cba.coefs.SetSize(2);
-   cba.coefs[0] = (*coefFact)(input);
-   cba.coefs[1] = (*coefFact)(input);
+   cba.coefs[0] = coefFact->GetScalarCoef(input);
+   cba.coefs[1] = coefFact->GetScalarCoef(input);
    cba.ownCoefs.SetSize(2);
    cba.ownCoefs[0] = false;
    cba.ownCoefs[1] = false;
@@ -423,7 +423,7 @@ void TransportICs::ReadICs(CoefFactory &cf, std::istream &input)
          string buff_str(buffer, length);
 
          istringstream iss(buff_str);
-         ics_[i] = cf(iss);
+         ics_[i] = cf.GetScalarCoef(iss);
          own_ics_[i] = false;
 
          delete [] buffer;
@@ -536,7 +536,7 @@ void EqnCoefficients::ReadCoefs(std::istream &input)
          string buff_str(buffer, length);
 
          istringstream iss(buff_str);
-         coefs_[i] = (*coefFact)(iss);
+         coefs_[i] = coefFact->GetScalarCoef(iss);
 
          delete [] buffer;
       }

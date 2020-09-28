@@ -475,19 +475,20 @@ class TransportCoefFactory : public CoefFactory
 public:
    TransportCoefFactory() {}
 
-   Coefficient *operator()(std::string &name, std::istream &input)
+   Coefficient * GetScalarCoef(std::string &name, std::istream &input)
    {
+      int c = -1;
       if (name == "SinSin2D")
       {
          double a, kx, ky;
          input >> a >> kx >> ky;
-         int c = coefs.Append(new SinSin2D(a, kx, ky));
-         return coefs[--c];
+         c = sCoefs.Append(new SinSin2D(a, kx, ky));
       }
       else
       {
-         return CoefFactory::operator()(name, input);
+         return CoefFactory::GetScalarCoef(name, input);
       }
+      return sCoefs[--c];
    }
 };
 
