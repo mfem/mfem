@@ -230,25 +230,31 @@ int main(int argc, char *argv[])
    //     * With full assembly, use the BoomerAMG preconditioner from hypre.
    //     * With partial assembly, use Jacobi smoothing, for now.
    Solver *prec = NULL;
-   if(!pa) {
+   if (!pa)
+   {
 
       AmgXSolver amgx;
       //std::string amgx_str(amgx_json_file);
 
-      if(amgx_mpi_teams) {
-        //Forms MPI teams to load balance between mpi ranks and gpus
-        amgx.Initialize_MPITeams(MPI_COMM_WORLD, amgx_json_file, ndevices);
-      }else{
-        //Assumes MPI == number of devices
-        amgx.Initialize_ExclusiveGPU(MPI_COMM_WORLD, amgx_json_file);
+      if (amgx_mpi_teams)
+      {
+         //Forms MPI teams to load balance between mpi ranks and gpus
+         amgx.Initialize_MPITeams(MPI_COMM_WORLD, amgx_json_file, ndevices);
+      }
+      else
+      {
+         //Assumes MPI == number of devices
+         amgx.Initialize_ExclusiveGPU(MPI_COMM_WORLD, amgx_json_file);
       }
 
       amgx.SetOperator(*A.As<HypreParMatrix>());
 
       amgx.Mult(B, X);
 
-   } else {
-   
+   }
+   else
+   {
+
       if (UsesTensorBasis(fespace))
       {
          prec = new OperatorJacobiSmoother(a, ess_tdof_list);
