@@ -9,6 +9,8 @@
 //               ex1 -m ../data/fichera.mesh
 //               ex1 -m ../data/fichera-mixed.mesh
 //               ex1 -m ../data/toroid-wedge.mesh
+//               ex1 -m ../data/periodic-annulus-sector.msh
+//               ex1 -m ../data/periodic-torus-sector.msh
 //               ex1 -m ../data/square-disc-p2.vtk -o 2
 //               ex1 -m ../data/square-disc-p3.mesh -o 3
 //               ex1 -m ../data/square-disc-nurbs.mesh -o -1
@@ -32,10 +34,17 @@
 //               ex1 -pa -d raja-omp
 //               ex1 -pa -d occa-omp
 //               ex1 -pa -d ceed-cpu
-//               ex1 -pa -d ceed-cuda
+//             * ex1 -pa -d ceed-cuda
+//               ex1 -pa -d ceed-cuda:/gpu/cuda/shared
 //               ex1 -m ../data/beam-hex.mesh -pa -d cuda
 //               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cpu
 //               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cuda:/gpu/cuda/ref
+//
+// AmgX sample runs:
+//               ./amgx_ex1 --amgx-file MULTI_GS.json --amgx-solver
+//               ./amgx_ex --amgx-file precon.json --amgx-preconditioner
+//               ./amgx_ex1 --amgx-file MULTI_GS.json --amgx-solver -d cuda
+//               ./amgx_ex --amgx-file precon.json --amgx-preconditioner -d cuda
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -53,7 +62,6 @@
 //               optional connection to the GLVis tool for visualization.
 
 #include "mfem.hpp"
-#include "amgx_c.h"
 #include <fstream>
 #include <iostream>
 
@@ -63,14 +71,13 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/star.mesh";
+   const char *mesh_file = "../../data/star.mesh";
    int order = 1;
    bool static_cond = false;
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
    bool amgx_solver = true;
-   bool amgx_verbose = true;
    const char* amgx_json_file = ""; // jason file for amgx
 
    OptionsParser args(argc, argv);
@@ -89,9 +96,6 @@ int main(int argc, char *argv[])
                   "--amgx-preconditioner",
                   "--amgx-preconditioner",
                   "Configure AMGX as solver or preconditioner.");
-   args.AddOption(&amgx_verbose, "--amgx-verbose", "--amgx-verbose",
-                  "--amgx-no-verbose", "--amgx-no-verbose",
-                  "Print verbose information from AMGX.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -113,8 +117,8 @@ int main(int argc, char *argv[])
    // 3. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   int dim = mesh->Dimension();
+   Mesh mesh(mesh_file, 1, 1);
+   int dim = mesh.Dimension();
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
@@ -122,10 +126,10 @@ int main(int argc, char *argv[])
    //    elements.
    {
       int ref_levels =
-         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
-         mesh->UniformRefinement();
+         mesh.UniformRefinement();
       }
    }
 
@@ -133,134 +137,145 @@ int main(int argc, char *argv[])
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
    FiniteElementCollection *fec;
+   bool delete_fec;
    if (order > 0)
    {
       fec = new H1_FECollection(order, dim);
+      delete_fec = true;
    }
-   else if (mesh->GetNodes())
+   else if (mesh.GetNodes())
    {
-      fec = mesh->GetNodes()->OwnFEC();
+      fec = mesh.GetNodes()->OwnFEC();
+      delete_fec = false;
       cout << "Using isoparametric FEs: " << fec->Name() << endl;
    }
    else
    {
       fec = new H1_FECollection(order = 1, dim);
+      delete_fec = true;
    }
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
+   FiniteElementSpace fespace(&mesh, fec);
    cout << "Number of finite element unknowns: "
-        << fespace->GetTrueVSize() << endl;
+        << fespace.GetTrueVSize() << endl;
 
    // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all
    //    the boundary attributes from the mesh as essential (Dirichlet) and
    //    converting them to a list of true dofs.
    Array<int> ess_tdof_list;
-   if (mesh->bdr_attributes.Size())
+   if (mesh.bdr_attributes.Size())
    {
-      Array<int> ess_bdr(mesh->bdr_attributes.Max());
+      Array<int> ess_bdr(mesh.bdr_attributes.Max());
       ess_bdr = 1;
-      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
    // 7. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
-   LinearForm *b = new LinearForm(fespace);
+   LinearForm b(&fespace);
    ConstantCoefficient one(1.0);
-   b->AddDomainIntegrator(new DomainLFIntegrator(one));
-   b->Assemble();
+   b.AddDomainIntegrator(new DomainLFIntegrator(one));
+   b.Assemble();
 
    // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
-   GridFunction x(fespace);
+   GridFunction x(&fespace);
    x = 0.0;
 
    // 9. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
-   BilinearForm *a = new BilinearForm(fespace);
-   if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   a->AddDomainIntegrator(new MassIntegrator(one));
-   a->Assemble();
-   a->Finalize();
+   BilinearForm a(&fespace);
+   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   a.AddDomainIntegrator(new DiffusionIntegrator(one));
 
-   // 10. Solve the linear system A X = B.
+   // 10. Assemble the bilinear form and the corresponding linear system,
+   //     applying any necessary transformations such as: eliminating boundary
+   //     conditions, applying conforming constraints for non-conforming AMR,
+   //     static condensation, etc.
+   if (static_cond) { a.EnableStaticCondensation(); }
+   a.Assemble();
+
+   OperatorPtr A;
+   Vector B, X;
+   a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+
+   cout << "Size of linear system: " << A->Height() << endl;
+
+   // 11. Solve the linear system A X = B.
    if (!pa)
    {
-      //NvidiaAMGX amgx;
-      AmgXSolver amgx;
-      {
 
-         std::string amgx_str;
-         amgx_str = amgx_json_file;
-         amgx.Initialize_Serial(amgx_str);
-         SparseMatrix A;
-         Vector B, X;
-         Array<int> ess_tdof_list(0);
-         a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-         amgx.SetOperator(A);
+     //SparseMatrix A;
+     //a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-         X = 0.0;
-         if (amgx_solver)
-         {
-            printf("Applying AmgX as solver \n");
-            amgx.SetMode(AmgXSolver::SOLVER); //Default.
-            amgx.Mult(B,X);
-         }
-         else
-         {
-            printf("Applying AmgX as preconditioner \n");
-            amgx.SetMode(AmgXSolver::PRECONDITIONER);
-            PCG(A, amgx, B, X, 3, 40, 1e-12, 0.0);
-         }
-      }
+     std::string amgx_str = amgx_json_file;
+     AmgXSolver amgx(amgx_str);
+     //amgx.Initialize_Serial(amgx_str);
+     amgx.SetOperator(*A.As<SparseMatrix>());
+
+     X = 0.0;
+     if (amgx_solver)
+       {
+         printf("Applying AmgX as solver \n");
+         amgx.SetMode(AmgXSolver::SOLVER);
+         amgx.Mult(B,X);
+       }
+     else
+       {
+         printf("Applying AmgX as preconditioner \n");
+         amgx.SetMode(AmgXSolver::PRECONDITIONER);
+         PCG(*A.As<SparseMatrix>(), amgx, B, X, 3, 40, 1e-12, 0.0);
+       }
+
    }
    else // Jacobi preconditioning in partial assembly mode
    {
-      OperatorPtr A;
-      Vector B, X;
-      Array<int> ess_tdof_list(0);
-      a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
-      if (UsesTensorBasis(*fespace))
+     //OperatorPtr A;
+     //Vector B, X;
+     //a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+
+      if (UsesTensorBasis(fespace))
       {
-         OperatorJacobiSmoother M(*a, ess_tdof_list);
+         OperatorJacobiSmoother M(a, ess_tdof_list);
          PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
       }
       else
       {
          CG(*A, B, X, 1, 400, 1e-12, 0.0);
       }
-      // Recover the solution as a finite element grid function.
-      a->RecoverFEMSolution(X, *b, x);
    }
 
-   // 11. Save the refined mesh and the solution. This output can be viewed later
+   // 12. Recover the solution as a finite element grid function.
+   a.RecoverFEMSolution(X, b, x);
+
+   // 13. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
    ofstream mesh_ofs("refined.mesh");
    mesh_ofs.precision(8);
-   mesh->Print(mesh_ofs);
+   mesh.Print(mesh_ofs);
    ofstream sol_ofs("sol.gf");
    sol_ofs.precision(8);
    x.Save(sol_ofs);
 
-   // 12. Send the solution by socket to a GLVis server.
+   // 14. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "solution\n" << *mesh << x << flush;
+      sol_sock << "solution\n" << mesh << x << flush;
    }
 
-   // 13. Free the used memory.
-   delete a;
-   delete b;
-   delete fespace;
-   if (order > 0) { delete fec; }
-   delete mesh;
+   // 15. Free the used memory.
+   if (delete_fec)
+   {
+      delete fec;
+   }
 
    return 0;
 }
