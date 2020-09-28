@@ -48,13 +48,14 @@ public:
    void UseDistributedSol(bool dist_sol_) { dist_sol = dist_sol_; }
 
 private:
-// macro s.t. indices match MUMPS documentation 
-#define ICNTL(I) icntl[(I)-1] 
-#define INFO(I) info[(I)-1] 
+   // macro s.t. indices match MUMPS documentation
+#define ICNTL(I) icntl[(I)-1]
+#define INFO(I) info[(I)-1]
    void SetParameters();
    void Init();
    int GetRowRank(int i, const std::vector<int> & row_starts_) const;
-   void RedistributeSol(const Array<int> & tdof_map, const Vector & x, Vector &y) const;
+   void RedistributeSol(const Array<int> & tdof_map, const Vector & x,
+                        Vector &y) const;
    // flag for distributed rhs
    bool dist_rhs = false;
    // flag for distributed sol
