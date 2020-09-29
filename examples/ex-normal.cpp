@@ -117,6 +117,11 @@ SparseMatrix * BuildNormalConstraints(FiniteElementSpace& fespace,
          }
       }
    }
+   for (int d = 0; d < dim; ++d)
+   {
+      d_dofs[d]->Sort();
+      d_dofs[d]->Unique();
+   }
 
    out->Finalize();
    return out;
@@ -176,9 +181,10 @@ public:
        columns will be inverted (or approximately inverted in a
        preconditioner, depending on options) to eliminate the constraint.
 
-       @todo implement
+       @todo this can be done with only secondary_dofs given in interface
    */
-   void SetElimination(Array<int> secondary_dofs);
+   void SetElimination(Array<int>& primary_dofs,
+                       Array<int>& secondary_dofs);
 
    /** @brief Solve the constrained system.
 
@@ -204,9 +210,14 @@ private:
    GMRESSolver gmres;
    TransposeOperator * tr_B;
 
+   /// todo: next three go in some secondary object,
+   /// like EliminationCGSolver ?
+   /// (in principle the gmres also belongs in this secondary object)
    Solver * primal_pc;  // not owned
    Solver * dual_pc;  // owned
    BlockDiagonalPreconditioner * block_pc;  // owned
+
+   EliminationCGSolver * elim_solver;
 
    mutable Vector workb;
    mutable Vector workx;
@@ -220,7 +231,8 @@ ConstrainedSolver::ConstrainedSolver(Operator& A, Operator& B)
    gmres(MPI_COMM_WORLD),
    primal_pc(NULL),
    dual_pc(NULL),
-   block_pc(NULL)
+   block_pc(NULL),
+   elim_solver(NULL)
 {
    offsets[0] = 0;
    offsets[1] = A.Height();
@@ -248,6 +260,7 @@ ConstrainedSolver::~ConstrainedSolver()
    delete tr_B;
    delete dual_pc;
    delete block_pc;
+   delete elim_solver;
 }
 
 void ConstrainedSolver::SetPrimalPreconditioner(Solver& pc)
@@ -261,6 +274,32 @@ void ConstrainedSolver::SetPrimalPreconditioner(Solver& pc)
    gmres.SetPreconditioner(*block_pc);
 }
 
+/// @todo consistency in primary/secondary notation
+void ConstrainedSolver::SetElimination(Array<int>& primary_dofs,
+                                       Array<int>& secondary_dofs)
+{
+   // SparseMatrix& A = dynamic_cast<SparseMatrix&>(block_op->GetBlock(0, 0));
+   HypreParMatrix& A = dynamic_cast<HypreParMatrix&>(block_op->GetBlock(0, 0));
+   SparseMatrix& B = dynamic_cast<SparseMatrix&>(block_op->GetBlock(1, 0));
+
+   MFEM_VERIFY(secondary_dofs.Size() == B.Height(),
+               "Wrong number of dofs for elimination!");
+
+   //// TODO ugly ugly hack
+   SparseMatrix * hypre_diag = new SparseMatrix;
+   A.GetDiag(*hypre_diag);
+
+/*
+   Array<int> primary_dofs;
+   secondary_dofs.Sort();
+
+   // could go through nonzeros in B, nonzero columns not in secondary_dofs
+   // are assumed to be primary dofs, not sure it is worth the effort
+*/
+
+   elim_solver = new EliminationCGSolver(*hypre_diag, B, primary_dofs, secondary_dofs);
+}
+
 void ConstrainedSolver::Mult(const Vector& b, Vector& x) const
 {
    workb = 0.0;
@@ -271,7 +310,16 @@ void ConstrainedSolver::Mult(const Vector& b, Vector& x) const
       workx(i) = x(i);
    }
 
-   gmres.Mult(workb, workx);
+   if (elim_solver)
+   {
+      // TODO: current implementation of EliminationCGSolver::Mult()
+      // painstakingly undoes all the stuff you do with workb, workx here
+      elim_solver->Mult(workb, workx);
+   }
+   else
+   {
+      gmres.Mult(workb, workx);
+   }
 
    for (int i = 0; i < b.Size(); ++i)
    {
@@ -296,6 +344,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    int boundary_attribute = 0;
    int refine = -1;
+   bool elimination = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -316,6 +365,9 @@ int main(int argc, char *argv[])
                   "Which attribute to apply essential conditions on.");
    args.AddOption(&refine, "--refine", "--refine",
                   "Levels of serial refinement (-1 for automatic)");
+   args.AddOption(&elimination, "--elimination", "--elimination",
+                  "--no-elimination", "--no-elimination",
+                  "Use elimination solver for saddle point system.");
 
    args.Parse();
    if (!args.Good())
@@ -438,6 +490,11 @@ int main(int argc, char *argv[])
    Array<int> x_dofs, y_dofs, z_dofs;
    SparseMatrix * constraint_mat = BuildNormalConstraints(fespace, constraint_atts,
                                                           x_dofs, y_dofs, z_dofs);
+   std::cout << "constraint_mat is " << constraint_mat->Height() << " by "
+             << constraint_mat->Width() << std::endl;
+   std::cout << "x_dofs.Size() = " << x_dofs.Size()
+             << ", y_dofs.Size() = " << y_dofs.Size()
+             << ", z_dofs.Size() = " << z_dofs.Size() << std::endl;
    {
       std::ofstream out("constraint.sparsematrix");
       constraint_mat->Print(out, 1);
@@ -483,7 +540,16 @@ int main(int argc, char *argv[])
    ConstrainedSolver constrained(*A, *constraint_mat);
    HypreBoomerAMG prec;
    prec.SetPrintLevel(0);
-   constrained.SetPrimalPreconditioner(prec);
+   if (elimination)
+   {
+      y_dofs.Append(z_dofs);
+      y_dofs.Sort();
+      constrained.SetElimination(y_dofs, x_dofs);
+   }
+   else
+   {
+      constrained.SetPrimalPreconditioner(prec);
+   }
    constrained.Mult(B, X);
 
    // 14. Recover the parallel grid function corresponding to X. This is the
