@@ -993,8 +993,8 @@ HypreParMatrix * HypreParMatrix::ExtractSubmatrix(Array<int> &indices,
    int local_num_vars = hypre_CSRMatrixNumRows(hypre_ParCSRMatrixDiag(A));
 
    // Form hypre CF-splitting array designating submatrix as F-points (-1)
-   int *CF_marker = new int[local_num_vars];
-   std::fill_n(CF_marker, local_num_vars, 1);
+   Array<int> CF_marker(local_num_vars);
+   CF_marker = 1;
    for (int j=0; j<indices.Size(); j++)
    {
       if (indices[j] > local_num_vars)
@@ -1013,7 +1013,6 @@ HypreParMatrix * HypreParMatrix::ExtractSubmatrix(Array<int> &indices,
    hypre_ParCSRMatrixExtractSubmatrixFC(A, CF_marker, cpts_global,
                                         "FF", &submat, threshhold);
 
-   delete[] CF_marker;
    free(cpts_global);
    return new HypreParMatrix(submat);
 }
