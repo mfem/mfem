@@ -1012,7 +1012,7 @@ public:
    virtual ~HypreEuclid();
 };
 
-#ifdef HYPRE_VERSION >= 21900
+#if MFEM_HYPRE_VERSION >= 21900
 /**
 @brief Wrapper for Hypre's native parallel ILU preconditioner.
 
