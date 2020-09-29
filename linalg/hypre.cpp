@@ -1013,7 +1013,7 @@ HypreParMatrix * HypreParMatrix::ExtractSubmatrix(Array<int> &indices,
    hypre_ParCSRMatrixExtractSubmatrixFC(A, CF_marker, cpts_global,
                                         "FF", &submat, threshhold);
 
-   free(cpts_global);
+   hypre_TFree(cpts_global, HYPRE_MEMORY_HOST);
    return new HypreParMatrix(submat);
 }
 #endif
