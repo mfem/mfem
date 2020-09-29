@@ -569,13 +569,20 @@ public:
 };
 
 #if MFEM_HYPRE_VERSION >= 21800
-/** Constructs and applies block diagonal inverse of HypreParMatrix. 
-	job =  0: extract block diagonal of A and scale A into C
- 	job =  1: job 0 + scale b into d
- 	job =  2: use A to scale b only. */
-int BlockInverseScale(const HypreParMatrix *A, HypreParMatrix *C,
-                      const Vector *b, HypreParVector *d,
-                      int blocksize, int job);
+
+enum class BlockInverseScaleJob
+{
+   MATRIX_ONLY,
+   RHS_ONLY,
+   MATRIX_AND_RHS
+};
+
+/** Constructs and applies block diagonal inverse of HypreParMatrix.
+	 The enum @a job specifies whether the matrix or the RHS should be
+    scaled (or both). */
+void BlockInverseScale(const HypreParMatrix *A, HypreParMatrix *C,
+                       const Vector *b, HypreParVector *d,
+                       int blocksize, BlockInverseScaleJob job);
 #endif
 
 /** @brief Return a new matrix `C = alpha*A + beta*B`, assuming that both `A`
@@ -1051,8 +1058,8 @@ public:
    	   Strings "prerelax" and "postrelax" indicate points to relax on:
    	   F = F-points, C = C-points, A = all points. E.g., FFC -> relax on
    	   F-points, relax again on F-points, then relax on C-points. */
-   void SetAdvectiveOptions(int distance=15,  std::string prerelax="",
-	                       std::string postrelax="FFC");
+   void SetAdvectiveOptions(int distance=15,  const std::string &prerelax="",
+	                         const std::string &postrelax="FFC");
 
    /// Expert option - consult hypre documentation/team
    void SetStrongThresholdR(double strengthR)

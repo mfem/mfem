@@ -1641,11 +1641,12 @@ void HypreParMatrix::Destroy()
 }
 
 #if MFEM_HYPRE_VERSION >= 21800
-int BlockInverseScale(const HypreParMatrix *A, HypreParMatrix *C,
-                      const Vector *b, HypreParVector *d,
-                      int blocksize, int job)
+void BlockInverseScale(const HypreParMatrix *A, HypreParMatrix *C,
+                       const Vector *b, HypreParVector *d,
+                       int blocksize, BlockInverseScaleJob job)
 {
-   if (0 == job || 1 == job)
+   if (job == BlockInverseScaleJob::MATRIX_ONLY ||
+       job == BlockInverseScaleJob::MATRIX_AND_RHS)
    {
       hypre_ParCSRMatrix *C_hypre;
       hypre_ParcsrBdiagInvScal(*A, blocksize, &C_hypre);
@@ -1653,21 +1654,18 @@ int BlockInverseScale(const HypreParMatrix *A, HypreParMatrix *C,
       C->WrapHypreParCSRMatrix(C_hypre);
    }
 
-   if (1 == job || 2 == job)
+   if (job == BlockInverseScaleJob::RHS_ONLY ||
+       job == BlockInverseScaleJob::MATRIX_AND_RHS)
    {
       HypreParVector b_Hypre(A->GetComm(),
                              A->GetGlobalNumRows(),
                              b->GetData(), A->GetRowStarts());
       hypre_ParVector *d_hypre;
-      hypre_ParvecBdiagInvScal(*b_Hypre, blocksize, &d_hypre, *A);
+      hypre_ParvecBdiagInvScal(b_Hypre, blocksize, &d_hypre, *A);
 
       d->WrapHypreParVector(d_hypre);
       d->SetOwnership(true);
-
-      return 0;
    }
-
-   return -1;
 }
 #endif
 
@@ -3186,8 +3184,8 @@ void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace)
 #if MFEM_HYPRE_VERSION >= 21800
 
 void HypreBoomerAMG::SetAdvectiveOptions(int distanceR,
-                                    	  std::string prerelax,
-                                    	  std::string postrelax)
+                                    	  const std::string &prerelax,
+                                    	  const std::string &postrelax)
 {
 	// Hypre parameters
    int Sabs = 0;
@@ -3206,9 +3204,6 @@ void HypreBoomerAMG::SetAdvectiveOptions(int distanceR,
       ns_down = prerelax.length();
       ns_up = postrelax.length();
       ns_coarse = 1;
-      std::string F("F");
-      std::string C("C");
-      std::string A("A");
 
       // Array to store relaxation scheme and pass to Hypre
       int **grid_relax_points = (int **) malloc(4*sizeof(int *));
@@ -3221,15 +3216,15 @@ void HypreBoomerAMG::SetAdvectiveOptions(int distanceR,
       // set down relax scheme
       for (unsigned int i = 0; i<ns_down; i++)
       {
-         if (prerelax.compare(i,1,F) == 0)
+         if (prerelax[i] == 'F')
          {
             grid_relax_points[1][i] = -1;
          }
-         else if (prerelax.compare(i,1,C) == 0)
+         else if (prerelax[i] == 'C')
          {
             grid_relax_points[1][i] = 1;
          }
-         else if (prerelax.compare(i,1,A) == 0)
+         else if (prerelax[i] == 'A')
          {
             grid_relax_points[1][i] = 0;
          }
@@ -3238,15 +3233,15 @@ void HypreBoomerAMG::SetAdvectiveOptions(int distanceR,
       // set up relax scheme
       for (unsigned int i = 0; i<ns_up; i++)
       {
-         if (postrelax.compare(i,1,F) == 0)
+         if (postrelax[i] == 'F')
          {
             grid_relax_points[2][i] = -1;
          }
-         else if (postrelax.compare(i,1,C) == 0)
+         else if (postrelax[i] == 'C')
          {
             grid_relax_points[2][i] = 1;
          }
-         else if (postrelax.compare(i,1,A) == 0)
+         else if (postrelax[i] == 'A')
          {
             grid_relax_points[2][i] = 0;
          }
@@ -3266,7 +3261,7 @@ void HypreBoomerAMG::SetAdvectiveOptions(int distanceR,
 
    HYPRE_BoomerAMGSetCoarsenType(amg_precond, coarsen_type);
 
-   /* does not support aggressive coarsening */
+   // does not support aggressive coarsening
    HYPRE_BoomerAMGSetAggNumLevels(amg_precond, 0);
 
    HYPRE_BoomerAMGSetStrongThreshold(amg_precond, strength_tolC);
@@ -3289,7 +3284,7 @@ void HypreBoomerAMG::SetAdvectiveOptions(int distanceR,
       HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, ns_up,     2);
 
       HYPRE_BoomerAMGSetADropTol(amg_precond, filterA_tol);
-      /* type = -1: drop based on row inf-norm */
+      // type = -1: drop based on row inf-norm
       HYPRE_BoomerAMGSetADropType(amg_precond, -1);
    }
 }

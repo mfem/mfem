@@ -88,7 +88,8 @@ public:
       MFEM_VERIFY(A != NULL, "AIR_prec requires a HypreParMatrix.")
 
       // Scale A by block-diagonal inverse
-      BlockInverseScale(A, &A_s, NULL, NULL, blocksize, 0);
+      BlockInverseScale(A, &A_s, NULL, NULL, blocksize,
+                        BlockInverseScaleJob::MATRIX_ONLY);
       delete AIR_solver;
       AIR_solver = new HypreBoomerAMG(A_s);
       AIR_solver->SetAdvectiveOptions(1, "", "FA");
@@ -100,13 +101,13 @@ public:
    {
       // scale the rhs by block inverse and solve system
       HypreParVector z_s;
-      BlockInverseScale(A, NULL, &x, &z_s, blocksize, 2);
+      BlockInverseScale(A, NULL, &x, &z_s, blocksize,
+                        BlockInverseScaleJob::RHS_ONLY);
       AIR_solver->Mult(z_s, y);
    }
 
    ~AIR_prec()
    {
-      BlockInverseScale(NULL, NULL, NULL, NULL, 0, -1);
       delete AIR_solver;
    }
 };
