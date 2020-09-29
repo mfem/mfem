@@ -29,8 +29,10 @@ namespace mfem
 class MUMPSSolver : public mfem::Solver
 {
 public:
+   // Default Constructor.
+   MUMPSSolver() {}
    // Constructor with MPI_Comm parameter.
-   MUMPSSolver( MPI_Comm comm_ );
+   MUMPSSolver( MPI_Comm comm_ ) : comm(comm_) {}
 
    // Factor and solve the linear system y = Op^{-1} x.
    void Mult( const Vector & x, Vector & y ) const;
@@ -53,12 +55,8 @@ private:
 
    int           myid;
 
-   // Distributed matrix workspace for COO-storage format
-   const HypreParMatrix * APtr;
 
    int row_start;
-
-   int n_loc;
 
    int * I;
 
@@ -69,6 +67,7 @@ private:
    Vector sol_loc;
 
    Array<int> row_starts;
+
    Array<int> recv_counts;
 
    Array<int> displs;
@@ -86,22 +85,15 @@ private:
 
    void SetParameters();
 
-   void Init();
-
    int GetRowRank(int i, const Array<int> & row_starts_) const;
 
-   void RedistributeSol(const Array<int> & tdof_map, const Vector & x,
+   void RedistributeSol(const Array<int> & row_map, const Vector & x,
                         Vector &y) const;
 
    // flag for distributed rhs
    bool dist_rhs = false;
    // flag for distributed sol
    bool dist_sol = false;
-
-
-
-
-
 
 
 }; // mfem::MUMPSSolver class
