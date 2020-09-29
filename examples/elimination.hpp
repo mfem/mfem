@@ -7,7 +7,7 @@ using namespace mfem;
 
 /// convenience function, convert a SparseMatrix to a (serial)
 /// HypreParMatrix so you can use hypre solvers
-mfem::HypreParMatrix* SerialHypreMatrix(mfem::SparseMatrix& mat, bool transfer_ownership=true)
+mfem::HypreParMatrix* SerialHypreMatrix(SparseMatrix& mat, bool transfer_ownership=true)
 {
    HYPRE_Int row_starts[3];
    row_starts[0] = 0;
@@ -55,18 +55,18 @@ public:
       takes just the jac. Actually, what I want is an object that creates
       both this and the approximate version, using only jac.
 
-      rectangular C_1 = C_m has lagrange_dofs rows, master_contact_dofs columns
-      square C_2 = C_s has lagrange_dofs rows, slave_contact_dofs columns
+      rectangular B_1 = B_m has lagrange_dofs rows, master_contact_dofs columns
+      square B_2 = B_s has lagrange_dofs rows, slave_contact_dofs columns
 
-      C_m maps master displacements into lagrange space
-      C_s maps slave displacements into lagrange space
-      C_s^T maps lagrange space to slave displacements (*)
-      C_s^{-1} maps lagrange space into slave displacements
-      -C_s^{-1} C_m maps master displacements to slave displacements
+      B_m maps master displacements into lagrange space
+      B_s maps slave displacements into lagrange space
+      B_s^T maps lagrange space to slave displacements (*)
+      B_s^{-1} maps lagrange space into slave displacements
+      -B_s^{-1} B_m maps master displacements to slave displacements
    */
    EliminationProjection(SparseMatrix& A, SparseMatrix& B,
-                         mfem::Array<int>& master_contact_dofs,
-                         mfem::Array<int>& slave_contact_dofs);
+                         Array<int>& master_contact_dofs,
+                         Array<int>& slave_contact_dofs);
 
    void Mult(const mfem::Vector& in, mfem::Vector& out) const;
    void MultTranspose(const mfem::Vector& in, mfem::Vector& out) const;
@@ -85,12 +85,12 @@ private:
    mfem::Array<int>& master_contact_dofs_;
    mfem::Array<int>& slave_contact_dofs_;
 
-   mfem::DenseMatrix Cm_;
-   mfem::DenseMatrix Cs_;  // gets inverted in place
-   mfem::LUFactors Csinverse_;
-   /// @todo there is probably a better way to handle the C_s^{-T}
-   mfem::DenseMatrix CsT_;   // gets inverted in place
-   mfem::LUFactors CsTinverse_;
+   mfem::DenseMatrix Bm_;
+   mfem::DenseMatrix Bs_;  // gets inverted in place
+   mfem::LUFactors Bsinverse_;
+   /// @todo there is probably a better way to handle the B_s^{-T}
+   mfem::DenseMatrix BsT_;   // gets inverted in place
+   mfem::LUFactors BsTinverse_;
    mfem::Array<int> ipiv_;
    mfem::Array<int> ipivT_;
 };
@@ -111,22 +111,22 @@ EliminationProjection::EliminationProjection(SparseMatrix& A, SparseMatrix& B,
    {
       lm_dofs.Append(i);
    }
-   Cm_.SetSize(B_.Height(), master_contact_dofs.Size());
-   B_.GetSubMatrix(lm_dofs, master_contact_dofs, Cm_);
+   Bm_.SetSize(B_.Height(), master_contact_dofs.Size());
+   B_.GetSubMatrix(lm_dofs, master_contact_dofs, Bm_);
 
-   Cs_.SetSize(B_.Height(), slave_contact_dofs.Size());
-   B_.GetSubMatrix(lm_dofs, slave_contact_dofs, Cs_);
-   CsT_.Transpose(Cs_);
+   Bs_.SetSize(B_.Height(), slave_contact_dofs.Size());
+   B_.GetSubMatrix(lm_dofs, slave_contact_dofs, Bs_);
+   BsT_.Transpose(Bs_);
 
-   ipiv_.SetSize(Cs_.Height());
-   Csinverse_.data = Cs_.GetData();
-   Csinverse_.ipiv = ipiv_.GetData();
-   Csinverse_.Factor(Cs_.Height());
+   ipiv_.SetSize(Bs_.Height());
+   Bsinverse_.data = Bs_.GetData();
+   Bsinverse_.ipiv = ipiv_.GetData();
+   Bsinverse_.Factor(Bs_.Height());
 
-   ipivT_.SetSize(Cs_.Height());
-   CsTinverse_.data = CsT_.GetData();
-   CsTinverse_.ipiv = ipivT_.GetData();
-   CsTinverse_.Factor(Cs_.Height());
+   ipivT_.SetSize(Bs_.Height());
+   BsTinverse_.data = BsT_.GetData();
+   BsTinverse_.ipiv = ipivT_.GetData();
+   BsTinverse_.Factor(Bs_.Height());
 }
 
 /**
@@ -135,7 +135,7 @@ EliminationProjection::EliminationProjection(SparseMatrix& A, SparseMatrix& B,
    (the current implementation is actually not approximate, but it should be,
    using diagonal or something)
 
-   It *may* be possible to implement this with Cm_ as a findpts call
+   It *may* be possible to implement this with Bm_ as a findpts call
    rather than a matrix; the hypre assembly will not be so great, though
 */
 mfem::SparseMatrix * EliminationProjection::AssembleApproximate() const
@@ -169,9 +169,9 @@ mfem::SparseMatrix * EliminationProjection::AssembleApproximate() const
    MFEM_ASSERT(mapped_master_contact_dofs.Size() == master_contact_dofs_.Size(),
                "Unable to map master contact dofs!");
 
-   mfem::DenseMatrix block(Cm_);
-   std::cout << "        inverting matrix of size " << Cs_.Height() << std::endl;
-   Csinverse_.Solve(Cs_.Height(), Cm_.Width(), block.GetData());
+   mfem::DenseMatrix block(Bm_);
+   std::cout << "        inverting matrix of size " << Bs_.Height() << std::endl;
+   Bsinverse_.Solve(Bs_.Height(), Bm_.Width(), block.GetData());
    std::cout << "        ...done." << std::endl;
 
    for (int iz = 0; iz < slave_contact_dofs_.Size(); ++iz)
@@ -221,8 +221,8 @@ void EliminationProjection::Mult(const mfem::Vector& in, mfem::Vector& out) cons
    mfem::Vector subvecin;
    mfem::Vector subvecout(slave_contact_dofs_.Size());
    in.GetSubVector(mapped_master_contact_dofs, subvecin);
-   Cm_.Mult(subvecin, subvecout);
-   Csinverse_.Solve(Cs_.Height(), 1, subvecout);
+   Bm_.Mult(subvecin, subvecout);
+   Bsinverse_.Solve(Bs_.Height(), 1, subvecout);
    subvecout *= -1.0;
    out.AddElementVector(slave_contact_dofs_, subvecout);
 }
@@ -256,11 +256,11 @@ void EliminationProjection::MultTranspose(const mfem::Vector& in, mfem::Vector& 
                "Unable to map master contact dofs!");
 
    mfem::Vector subvecin;
-   mfem::Vector subvecout(Cm_.Width());
+   mfem::Vector subvecout(Bm_.Width());
 
    in.GetSubVector(slave_contact_dofs_, subvecin);
-   CsTinverse_.Solve(Cs_.Height(), 1, subvecin);
-   Cm_.MultTranspose(subvecin, subvecout);
+   BsTinverse_.Solve(Bs_.Height(), 1, subvecin);
+   Bm_.MultTranspose(subvecin, subvecout);
    subvecout *= -1.0;
    out.AddElementVector(mapped_master_contact_dofs, subvecout);
 }
@@ -273,7 +273,7 @@ void EliminationProjection::BuildGTilde(const mfem::Vector& g, mfem::Vector& gti
 
    gtilde = 0.0;
    mfem::Vector cinvg(g);
-   Csinverse_.Solve(Cs_.Height(), 1, cinvg);
+   Bsinverse_.Solve(Bs_.Height(), 1, cinvg);
    gtilde.AddElementVector(slave_contact_dofs_, cinvg);
 }
 
@@ -288,7 +288,7 @@ void EliminationProjection::RecoverPressure(const mfem::Vector& disprhs, const m
    fullrhs -= disprhs;
    fullrhs *= -1.0;
    fullrhs.GetSubVector(slave_contact_dofs_, pressure);
-   CsTinverse_.Solve(Cs_.Height(), 1, pressure);
+   BsTinverse_.Solve(Bs_.Height(), 1, pressure);
 }
 
 
@@ -390,8 +390,8 @@ void EliminationCGSolver::BuildSeparatedInterfaceDofs(int firstblocksize)
 void EliminationCGSolver::BuildPreconditioner()
 {
    // first_interface_dofs = master_dofs, column indices corresponding to nonzeros in constraint
-   // rectangular C_1 = C_m has lagrange_dofs rows, first_interface_dofs columns
-   // square C_2 = C_s has lagrange_dofs rows, second_interface_dofs columns
+   // rectangular B_1 = B_m has lagrange_dofs rows, first_interface_dofs columns
+   // square B_2 = B_s has lagrange_dofs rows, second_interface_dofs columns
    projector_ = new EliminationProjection(A_, B_, first_interface_dofs_,
                                           second_interface_dofs_);
 

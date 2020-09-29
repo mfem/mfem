@@ -556,6 +556,17 @@ int main(int argc, char *argv[])
    //     local finite element solution on each processor.
    a.RecoverFEMSolution(X, b, x);
 
+   if (elimination)
+   {
+      std::ofstream out("elimination.vector");
+      X.Print(out, 1);
+   }
+   else
+   {
+      std::ofstream out("solution.vector");
+      X.Print(out, 1);
+   }
+
    // 15. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
