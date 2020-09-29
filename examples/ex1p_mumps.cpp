@@ -151,7 +151,7 @@ int main(int argc, char *argv[])
    delete prec;
 
    {
-      MUMPSSolver MA(A.GetComm());
+      MUMPSSolver MA;
       MA.UseDistributedRHS(true);
       MA.UseDistributedSol(true);
       MA.SetOperator(A);
