@@ -3520,10 +3520,10 @@ void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace)
 #if MFEM_HYPRE_VERSION >= 21800
 
 void HypreBoomerAMG::SetAdvectiveOptions(int distanceR,
-                                    	  const std::string &prerelax,
-                                    	  const std::string &postrelax)
+                                         const std::string &prerelax,
+                                         const std::string &postrelax)
 {
-	// Hypre parameters
+   // Hypre parameters
    int Sabs = 0;
    int interp_type = 100;
    int relax_type = 10;

@@ -130,7 +130,8 @@ private:
    Solver *prec;
    double dt;
 public:
-   DG_Solver(HypreParMatrix &M_, HypreParMatrix &K_, const FiniteElementSpace &fes, PrecType prec_type)
+   DG_Solver(HypreParMatrix &M_, HypreParMatrix &K_, const FiniteElementSpace &fes,
+             PrecType prec_type)
       : M(M_),
         K(K_),
         A(NULL),
@@ -212,7 +213,8 @@ private:
    mutable Vector z;
 
 public:
-   FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K, const Vector &_b, PrecType prec_type);
+   FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K, const Vector &_b,
+                PrecType prec_type);
 
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);

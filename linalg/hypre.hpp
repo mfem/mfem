@@ -577,7 +577,7 @@ enum class BlockInverseScaleJob
 };
 
 /** Constructs and applies block diagonal inverse of HypreParMatrix.
-	 The enum @a job specifies whether the matrix or the RHS should be
+    The enum @a job specifies whether the matrix or the RHS should be
     scaled (or both). */
 void BlockInverseScale(const HypreParMatrix *A, HypreParMatrix *C,
                        const Vector *b, HypreParVector *d,
@@ -794,8 +794,8 @@ public:
 
 #if MFEM_HYPRE_VERSION >= 21800
 /** Preconditioner for HypreParMatrices that are triangular in some ordering.
-	Finds correct ordering and performs forward substitution on processor
-	as approximate inverse. Exact on one processor. */
+   Finds correct ordering and performs forward substitution on processor
+   as approximate inverse. Exact on one processor. */
 class HypreTriSolve : public HypreSolver
 {
 public:
@@ -1065,15 +1065,15 @@ public:
 
 #if MFEM_HYPRE_VERSION >= 21800
    /** Hypre parameters to use AIR AMG solve for advection-dominated problems.
-   	   See "Nonsymmetric Algebraic Multigrid Based on Local Approximate Ideal
-   	   Restriction (AIR)," Manteuffel, Ruge, Southworth, SISC (2018),
-   	   DOI:/10.1137/17M1144350. Options: "distanceR" -> distance of neighbor
-   	   DOFs to buld restriction operator; options include 1, 2, and 15 (1.5).
-   	   Strings "prerelax" and "postrelax" indicate points to relax on:
-   	   F = F-points, C = C-points, A = all points. E.g., FFC -> relax on
-   	   F-points, relax again on F-points, then relax on C-points. */
+       See "Nonsymmetric Algebraic Multigrid Based on Local Approximate Ideal
+       Restriction (AIR)," Manteuffel, Ruge, Southworth, SISC (2018),
+       DOI:/10.1137/17M1144350. Options: "distanceR" -> distance of neighbor
+       DOFs to buld restriction operator; options include 1, 2, and 15 (1.5).
+       Strings "prerelax" and "postrelax" indicate points to relax on:
+       F = F-points, C = C-points, A = all points. E.g., FFC -> relax on
+       F-points, relax again on F-points, then relax on C-points. */
    void SetAdvectiveOptions(int distance=15,  const std::string &prerelax="",
-	                         const std::string &postrelax="FFC");
+                            const std::string &postrelax="FFC");
 
    /// Expert option - consult hypre documentation/team
    void SetStrongThresholdR(double strengthR)
