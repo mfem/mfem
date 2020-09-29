@@ -66,6 +66,61 @@ private:
 };
 
 
+class CoefFactory
+{
+protected:
+   Array<Coefficient*>       sCoefs; ///< Owned
+   Array<VectorCoefficient*> vCoefs; ///< Owned
+   Array<MatrixCoefficient*> mCoefs; ///< Owned
+
+   Array<GridFunction*>      ext_gf; ///< Not owned
+
+   Array<double (*)(const Vector &)> ext_sfn;          ///< Not owned
+   Array<double (*)(const Vector &, double)> ext_stfn; ///< Not owned
+
+   Array<void (*)(const Vector &, Vector &)> ext_vfn;          ///< Not owned
+   Array<void (*)(const Vector &, double, Vector &)> ext_vtfn; ///< Not owned
+
+   Array<void (*)(const Vector &, DenseMatrix &)> ext_mfn;     ///< Not owned
+   Array<void (*)(const Vector &, double, DenseMatrix &)> ext_mtfn;
+
+public:
+   CoefFactory() {}
+
+   virtual ~CoefFactory();
+
+   int AddExternalGridFunction(GridFunction &gf) { return ext_gf.Append(&gf); }
+
+   int AddExternalFunction(double (*fn)(const Vector &))
+   { return ext_sfn.Append(fn); }
+
+   int AddExternalFunction(double (*fn)(const Vector &, double))
+   { return ext_stfn.Append(fn); }
+
+   int AddExternalFunction(void (*fn)(const Vector &, Vector &))
+   { return ext_vfn.Append(fn); }
+
+   int AddExternalFunction(void (*fn)(const Vector &, double, Vector &))
+   { return ext_vtfn.Append(fn); }
+
+   int AddExternalFunction(void (*fn)(const Vector &, DenseMatrix &))
+   { return ext_mfn.Append(fn); }
+
+   int AddExternalFunction(void (*fn)(const Vector &, double, DenseMatrix &))
+   { return ext_mtfn.Append(fn); }
+
+   virtual Coefficient * GetScalarCoef(std::istream &input);
+   virtual Coefficient * GetScalarCoef(std::string &coef_name,
+                                       std::istream &input);
+   virtual VectorCoefficient * GetVectorCoef(std::istream &input);
+   virtual VectorCoefficient * GetVectorCoef(std::string &coef_name,
+                                             std::istream &input);
+   virtual MatrixCoefficient * GetMatrixCoef(std::istream &input);
+   virtual MatrixCoefficient * GetMatrixCoef(std::string &coef_name,
+                                             std::istream &input);
+};
+
+
 /// Visualize the given mesh object, using a GLVis server on the
 /// specified host and port. Set the visualization window title, and optionally,
 /// its geometry.
