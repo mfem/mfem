@@ -757,7 +757,14 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
       AMGX_solver_get_status(solver, &status);
       if (status != AMGX_SOLVE_SUCCESS && amgxMode == SOLVER)
       {
-         printf("Amgx failed to solve system, error code %d. \n", status);
+         if (status == AMGX_SOLVE_DIVERGED)
+         {
+            mfem_error("AmgX solver failed to solve system \n");
+         }
+         else
+         {
+            mfem_error("AmgX solver diverged \n");
+         }
       }
 
       AMGX_vector_download(AmgXP, X.Write());
@@ -792,7 +799,14 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
       AMGX_solver_get_status(solver, &status);
       if (status != AMGX_SOLVE_SUCCESS && amgxMode == SOLVER)
       {
-         printf("Amgx failed to solve system, error code %d. \n", status);
+         if (status == AMGX_SOLVE_DIVERGED)
+         {
+            mfem_error("AmgX solver failed to solve system \n");
+         }
+         else
+         {
+            mfem_error("AmgX solver diverged \n");
+         }
       }
 
       AMGX_vector_download(AmgXP, all_X.Write());
