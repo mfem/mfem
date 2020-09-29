@@ -92,6 +92,7 @@ SparseMatrix * BuildConstraints(FiniteElementSpace& fespace, Array<int> constrai
             for (int d = 0; d < dim; ++d)
             {
                int vdof = fespace.DofToVDof(k, d);
+               /// TODO: the vdofs here could go in arrays that could later be used in elimination version of solver
                out->Set(constraint, vdof, nor[d]);
             }
          }
@@ -138,7 +139,35 @@ public:
    */
    void SetPrimalPreconditioner(Solver& pc);
 
+   /**
+      Set the right-hand side r for the constraint B x = r
+
+      (defaults to zero if you don't call this)
+
+      @todo implement
+   */
+   void SetDualRHS(Vector& r);
+
+   /**
+      Set up elimination solver. The array secondary_dofs should
+      contain as many entries as the rows in the constraint matrix B;
+      The block of B corresponding to these columns will be inverted
+      (or approximately inverted in a preconditioner, depending on
+      options) to eliminate the constraint.
+
+      @todo implement
+   */
+   void SetElimination(Array<int> secondary_dofs);
+
    void Mult(const Vector& b, Vector& x) const;
+
+   /**
+      Does not make sense unless you've already solved the constrained
+      system with Mult()
+
+      @todo implement
+   */
+   void GetDualSolution(Vector& lambda);
 
 private:
    Array<int> offsets;
