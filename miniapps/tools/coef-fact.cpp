@@ -15,7 +15,7 @@
 //
 //  ./coef-fact
 //  ./coef-fact -c coef-fact.inp
-// 
+//
 #include "mfem.hpp"
 #include "../common/fem_extras.hpp"
 #include "../../general/text.hpp"
