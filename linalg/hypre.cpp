@@ -3239,7 +3239,7 @@ HypreEuclid::~HypreEuclid()
    HYPRE_EuclidDestroy(euc_precond);
 }
 
-
+#ifdef HYPRE_VERSION >= 21900
 HypreILU::HypreILU()
 {
    HYPRE_ILUCreate(&ilu_precond);
@@ -3248,31 +3248,35 @@ HypreILU::HypreILU()
 
 void HypreILU::SetDefaultOptions()
 {
-   ilu_type = 0; // 0 = ILU(k) and 1 = ILUT
-   max_iter = 1; // Maximum iterations; preconditioner = 1 iter
-   tol = 0.0; // Set to 0.0 for preconditioner
-   lev_fill = 1; // Fill level for ILU(k)
-   nz_max = 1000; // Max non-zeros per row (for ILUT only)
-   drop_thres = 1e-2; // Drop tolerance for ILUT
-   nsh_thres = 1e-2; // Drop tol in Newton–Schulz–Hotelling iteration
-   schur_max_iter = 5; // Max number of iter to solve Schur system
-   reorder_type = 1; // 0 = no reordering, 1 = reverse Cuthill-McKee
-   print_level = 0; // 0 = none, 1 = setup, 2 = solve, 3 = setup+solve
-   SetOptions();
-}
-
-void HypreILU::SetOptions()
-{
+   // The type of incomplete LU used locally and globally (see class doc)
+   HYPRE_Int ilu_type = 0; // ILU(k) locally and block Jacobi globally
    HYPRE_ILUSetType(ilu_precond, ilu_type);
+   // Maximum iterations; 1 iter for preconditioning
+   HYPRE_Int max_iter = 1;
    HYPRE_ILUSetMaxIter(ilu_precond, max_iter);
+   // The tolerance when used as a smoother; set to 0.0 for preconditioner
+   HYPRE_Real tol = 0.0;
    HYPRE_ILUSetTol(ilu_precond, tol);
+   // Fill level for ILU(k)
+   HYPRE_Int lev_fill = 1;
    HYPRE_ILUSetLevelOfFill(ilu_precond, lev_fill);
+   // Maximum non-zeros per row (for ILUT only)
+   HYPRE_Int nz_max = 1000;
    HYPRE_ILUSetMaxNnzPerRow(ilu_precond, nz_max);
+   // Drop tolerance for ILUT
+   HYPRE_Real drop_thres = 1e-2;
    HYPRE_ILUSetDropThreshold(ilu_precond, drop_thres);
-   if ( (ilu_type == 20) || (ilu_type == 21) )
-      HYPRE_ILUSetNSHDropThreshold(ilu_precond, nsh_thres);
+   // Drop tol in Newton–Schulz–Hotelling iteration
+   HYPRE_Real nsh_thres = 1e-2;
+   HYPRE_ILUSetNSHDropThreshold(ilu_precond, nsh_thres);
+   // Maximum number of iter to solve Schur system
+   HYPRE_Int schur_max_iter = 5;
    HYPRE_ILUSetSchurMaxIter(ilu_precond, schur_max_iter);
+   // Local reordering scheme; 0 = no reordering, 1 = reverse Cuthill-McKee
+   HYPRE_Int reorder_type = 1;
    HYPRE_ILUSetLocalReordering(ilu_precond, reorder_type);
+   // Information print level; 0 = none, 1 = setup, 2 = solve, 3 = setup+solve
+   HYPRE_Int print_level = 0;
    HYPRE_ILUSetPrintLevel(ilu_precond, print_level);
 }
 
@@ -3281,67 +3285,14 @@ void HypreILU::ResetILUPrecond()
    if (ilu_precond)
    {
       HYPRE_ILUDestroy(ilu_precond);
-      HYPRE_ILUCreate(&ilu_precond);
-      SetOptions();
    }
-   else
-   {
-      HYPRE_ILUCreate(&ilu_precond);
-      SetDefaultOptions();
-   }
-}
-
-void HypreILU::SetMaxIter(HYPRE_Int max_iter)
-{
-   HYPRE_ILUSetMaxIter(ilu_precond, max_iter);
-}
-
-void HypreILU::SetTol(HYPRE_Real tol)
-{
-   HYPRE_ILUSetTol(ilu_precond, tol);
+   HYPRE_ILUCreate(&ilu_precond);
+   SetDefaultOptions();
 }
 
 void HypreILU::SetLevelOfFill(HYPRE_Int lev_fill)
 {
    HYPRE_ILUSetLevelOfFill(ilu_precond, lev_fill);
-}
-
-void HypreILU::SetMaxNnzPerRow(HYPRE_Int nz_max)
-{
-   HYPRE_ILUSetMaxNnzPerRow(ilu_precond, nz_max);
-}
-
-void HypreILU::SetDropThreshold(HYPRE_Real drop_thres)
-{
-   HYPRE_ILUSetDropThreshold(ilu_precond, drop_thres);
-}
-
-void HypreILU::SetNSHDropThreshold(HYPRE_Real nsh_thres)
-{
-   if ( (ilu_type == 20) || (ilu_type == 21) )
-   {
-      HYPRE_ILUSetNSHDropThreshold(ilu_precond, nsh_thres);
-   }
-   else
-   {
-      mfem_error("HypreILU type must be 20 or 21 to set NSH drop threshold");
-      return;
-   }
-}
-
-void HypreILU::SetSchurMaxIter(HYPRE_Int schur_max_iter)
-{
-   HYPRE_ILUSetSchurMaxIter(ilu_precond, schur_max_iter);
-}
-
-void HypreILU::SetType(HYPRE_Int ilu_type)
-{
-   HYPRE_ILUSetType(ilu_precond, ilu_type);
-}
-
-void HypreILU::SetLocalReordering(HYPRE_Int reorder_type)
-{
-   HYPRE_ILUSetLocalReordering(ilu_precond, reorder_type);
 }
 
 void HypreILU::SetPrintLevel(HYPRE_Int print_level)
@@ -3354,7 +3305,7 @@ void HypreILU::SetOperator(const Operator &op)
    const HypreParMatrix *new_A = dynamic_cast<const HypreParMatrix *>(&op);
    MFEM_VERIFY(new_A, "new Operator must be a HypreParMatrix!");
 
-   if (A) ResetILUPrecond();
+   if (A) { ResetILUPrecond(); }
 
    // update base classes: Operator, Solver, HypreSolver
    height = new_A->Height();
@@ -3370,6 +3321,7 @@ HypreILU::~HypreILU()
 {
    HYPRE_ILUDestroy(ilu_precond);
 }
+#endif
 
 HypreBoomerAMG::HypreBoomerAMG()
 {
