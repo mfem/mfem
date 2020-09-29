@@ -37,10 +37,25 @@
 #include <fstream>
 #include <iostream>
 
+#include "elimination.hpp"
+
 using namespace std;
 using namespace mfem;
 
-SparseMatrix * BuildConstraints(FiniteElementSpace& fespace, Array<int> constrained_att)
+/**
+   Given a vector space fespace, and the array constrained_att that
+   includes the boundary *attributes* that are constrained to have normal
+   component zero, this returns a SparseMatrix representing the
+   constraints that need to be imposed.
+
+   It also returns in x_dofs, y_dofs, z_dofs the partition of dofs
+   invovled in constraints, which can be used in an elimination solver.
+*/
+SparseMatrix * BuildNormalConstraints(FiniteElementSpace& fespace,
+                                      Array<int> constrained_att,
+                                      Array<int>& x_dofs,
+                                      Array<int>& y_dofs,
+                                      Array<int>& z_dofs)
 {
    int dim = fespace.GetVDim();
 
@@ -68,6 +83,10 @@ SparseMatrix * BuildConstraints(FiniteElementSpace& fespace, Array<int> constrai
    SparseMatrix * out = new SparseMatrix(n_constraints, fespace.GetVSize());
 
    Vector nor(dim);
+   Array<int>* d_dofs[3];
+   d_dofs[0] = &x_dofs;
+   d_dofs[1] = &y_dofs;
+   d_dofs[2] = &z_dofs;
    for (int i = 0; i < fespace.GetNBE(); ++i)
    {
       int att = fespace.GetBdrAttribute(i);
@@ -92,8 +111,8 @@ SparseMatrix * BuildConstraints(FiniteElementSpace& fespace, Array<int> constrai
             for (int d = 0; d < dim; ++d)
             {
                int vdof = fespace.DofToVDof(k, d);
-               /// TODO: the vdofs here could go in arrays that could later be used in elimination version of solver
                out->Set(constraint, vdof, nor[d]);
+               d_dofs[d]->Append(vdof);
             }
          }
       }
@@ -121,7 +140,12 @@ public:
 
      B x = r
 
-   abstractly.
+   abstractly. Although this object may not use the below formulation,
+   for understanding some of its methods and notation you can think of
+   it as solving the saddle-point system
+
+     (  A   B^T  )  ( x )         (  f  )
+     (  B        )  ( lambda)  =  (  r  )
 */
 class ConstrainedSolver : public Solver
 {
@@ -131,35 +155,40 @@ public:
 
    void SetOperator(const Operator& op) { }
 
-   /**
-      This is a preconditioner that is expected to be effective
-      for the unconstrained system A. Internally, this object
-      may use the preconditioner for related or modified
-      systems.
-   */
+   /** @brief Set a preconditioner for the unconstrained matrix A.
+
+       Internally, this object may use the preconditioner for related
+       or modified systems. */
    void SetPrimalPreconditioner(Solver& pc);
 
-   /**
-      Set the right-hand side r for the constraint B x = r
+   /** @brief Set the right-hand side r for the constraint B x = r
 
-      (defaults to zero if you don't call this)
+       (r defaults to zero if you don't call this)
 
-      @todo implement
+       @todo implement
    */
    void SetDualRHS(Vector& r);
 
-   /**
-      Set up elimination solver. The array secondary_dofs should
-      contain as many entries as the rows in the constraint matrix B;
-      The block of B corresponding to these columns will be inverted
-      (or approximately inverted in a preconditioner, depending on
-      options) to eliminate the constraint.
+   /** @brief Set up the elimination solver.
 
-      @todo implement
+       The array secondary_dofs should contain as many entries as the rows
+       in the constraint matrix B; The block of B corresponding to these
+       columns will be inverted (or approximately inverted in a
+       preconditioner, depending on options) to eliminate the constraint.
+
+       @todo implement
    */
    void SetElimination(Array<int> secondary_dofs);
 
-   void Mult(const Vector& b, Vector& x) const;
+   /** @brief Solve the constrained system.
+
+       The notation follows the documentation
+       for the class, the input vector f is for the primal
+       part only; if you have a nonzero r, you need to set that with
+       SetDualRHS(). Similarly, the output x is only for the primal system,
+       while if you want the Lagrange multiplier solution you call
+       GetDualSolution() after the solve. */
+   void Mult(const Vector& f, Vector& x) const;
 
    /**
       Does not make sense unless you've already solved the constrained
@@ -406,7 +435,9 @@ int main(int argc, char *argv[])
    {
       mfem_error("Unrecognized mesh!");
    }
-   SparseMatrix * constraint_mat = BuildConstraints(fespace, constraint_atts);
+   Array<int> x_dofs, y_dofs, z_dofs;
+   SparseMatrix * constraint_mat = BuildNormalConstraints(fespace, constraint_atts,
+                                                          x_dofs, y_dofs, z_dofs);
    {
       std::ofstream out("constraint.sparsematrix");
       constraint_mat->Print(out, 1);
