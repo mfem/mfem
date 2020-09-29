@@ -3069,9 +3069,9 @@ void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    trialType = trial_el->GetDerivType();
 
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
-   coeffDim = (testType == mfem::FiniteElement::DIV) ? symmDims : (DQ ? 3 : 1);
+   coeffDim = (DQ ? 3 : 1);
 
-   pa_data.SetSize(coeffDim * nq * ne, Device::GetMemoryType());
+   pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
 
    Vector coeff(coeffDim * nq * ne);
    coeff = 1.0;
