@@ -22,7 +22,7 @@ using namespace std;
 #include "mfem.hpp"
 using namespace mfem;
 
-#include "catch.hpp"
+#include "unit_tests.hpp"
 
 void fillRandomMatrix(SparseMatrix & M)
 {
