@@ -7,7 +7,7 @@ using namespace mfem;
 
 /// convenience function, convert a SparseMatrix to a (serial)
 /// HypreParMatrix so you can use hypre solvers
-mfem::HypreParMatrix* SerialHypreMatrix(SparseMatrix& mat, bool transfer_ownership=true)
+HypreParMatrix* SerialHypreMatrix(SparseMatrix& mat, bool transfer_ownership=true)
 {
    HYPRE_Int row_starts[3];
    row_starts[0] = 0;
@@ -17,7 +17,7 @@ mfem::HypreParMatrix* SerialHypreMatrix(SparseMatrix& mat, bool transfer_ownersh
    col_starts[0] = 0;
    col_starts[1] = mat.Width();
    col_starts[2] = mat.Width();
-   mfem::HypreParMatrix * out = new mfem::HypreParMatrix(
+   HypreParMatrix * out = new HypreParMatrix(
       MPI_COMM_WORLD, mat.Height(), mat.Width(),
       row_starts, col_starts, &mat);
    out->CopyRowStarts();
@@ -68,45 +68,45 @@ public:
                          Array<int>& master_contact_dofs,
                          Array<int>& slave_contact_dofs);
 
-   void Mult(const mfem::Vector& in, mfem::Vector& out) const;
-   void MultTranspose(const mfem::Vector& in, mfem::Vector& out) const;
+   void Mult(const Vector& in, Vector& out) const;
+   void MultTranspose(const Vector& in, Vector& out) const;
 
-   mfem::SparseMatrix * AssembleApproximate() const;
+   SparseMatrix * AssembleApproximate() const;
 
-   void BuildGTilde(const mfem::Vector& g, mfem::Vector& gtilde) const;
+   void BuildGTilde(const Vector& g, Vector& gtilde) const;
 
-   void RecoverPressure(const mfem::Vector& disprhs,
-                        const mfem::Vector& disp, mfem::Vector& pressure) const;
+   void RecoverPressure(const Vector& disprhs,
+                        const Vector& disp, Vector& pressure) const;
 
 private:
    SparseMatrix& A_;
    SparseMatrix& B_;
 
-   mfem::Array<int>& master_contact_dofs_;
-   mfem::Array<int>& slave_contact_dofs_;
+   Array<int>& master_contact_dofs_;
+   Array<int>& slave_contact_dofs_;
 
-   mfem::DenseMatrix Bm_;
-   mfem::DenseMatrix Bs_;  // gets inverted in place
-   mfem::LUFactors Bsinverse_;
+   DenseMatrix Bm_;
+   DenseMatrix Bs_;  // gets inverted in place
+   LUFactors Bsinverse_;
    /// @todo there is probably a better way to handle the B_s^{-T}
-   mfem::DenseMatrix BsT_;   // gets inverted in place
-   mfem::LUFactors BsTinverse_;
-   mfem::Array<int> ipiv_;
-   mfem::Array<int> ipivT_;
+   DenseMatrix BsT_;   // gets inverted in place
+   LUFactors BsTinverse_;
+   Array<int> ipiv_;
+   Array<int> ipivT_;
 };
 
 EliminationProjection::EliminationProjection(SparseMatrix& A, SparseMatrix& B,
                                              Array<int>& master_contact_dofs,
                                              Array<int>& slave_contact_dofs)
    :
-   mfem::Operator(A.Height(),
-                  A.Height() - slave_contact_dofs.Size()),
+   Operator(A.Height(),
+            A.Height() - slave_contact_dofs.Size()),
    A_(A),
    B_(B),
    master_contact_dofs_(master_contact_dofs),
    slave_contact_dofs_(slave_contact_dofs)
 {
-   mfem::Array<int> lm_dofs;
+   Array<int> lm_dofs;
    for (int i = 0; i < B.Height(); ++i)
    {
       lm_dofs.Append(i);
@@ -138,15 +138,15 @@ EliminationProjection::EliminationProjection(SparseMatrix& A, SparseMatrix& B,
    It *may* be possible to implement this with Bm_ as a findpts call
    rather than a matrix; the hypre assembly will not be so great, though
 */
-mfem::SparseMatrix * EliminationProjection::AssembleApproximate() const
+SparseMatrix * EliminationProjection::AssembleApproximate() const
 {
    int num_elim_dofs = slave_contact_dofs_.Size();
 
-   mfem::SparseMatrix * out = new mfem::SparseMatrix(
+   SparseMatrix * out = new SparseMatrix(
       A_.Height(), A_.Height() - num_elim_dofs);
 
    int column_dof = 0;
-   mfem::Array<int> mapped_master_contact_dofs;
+   Array<int> mapped_master_contact_dofs;
    for (int i = 0; i < A_.Height(); ++i)
    {
       if (slave_contact_dofs_.FindSorted(i) >= 0)
@@ -169,7 +169,7 @@ mfem::SparseMatrix * EliminationProjection::AssembleApproximate() const
    MFEM_ASSERT(mapped_master_contact_dofs.Size() == master_contact_dofs_.Size(),
                "Unable to map master contact dofs!");
 
-   mfem::DenseMatrix block(Bm_);
+   DenseMatrix block(Bm_);
    std::cout << "        inverting matrix of size " << Bs_.Height() << std::endl;
    Bsinverse_.Solve(Bs_.Height(), Bm_.Width(), block.GetData());
    std::cout << "        ...done." << std::endl;
@@ -187,7 +187,7 @@ mfem::SparseMatrix * EliminationProjection::AssembleApproximate() const
    return out;
 }
 
-void EliminationProjection::Mult(const mfem::Vector& in, mfem::Vector& out) const
+void EliminationProjection::Mult(const Vector& in, Vector& out) const
 {
    int num_elim_dofs = slave_contact_dofs_.Size();
    MFEM_ASSERT(in.Size() == A_.Height() - num_elim_dofs, "Sizes don't match!");
@@ -195,7 +195,7 @@ void EliminationProjection::Mult(const mfem::Vector& in, mfem::Vector& out) cons
 
    out = 0.0;
    int column_dof = 0;
-   mfem::Array<int> mapped_master_contact_dofs;
+   Array<int> mapped_master_contact_dofs;
    for (int i = 0; i < A_.Height(); ++i)
    {
       if (slave_contact_dofs_.FindSorted(i) >= 0)
@@ -218,8 +218,8 @@ void EliminationProjection::Mult(const mfem::Vector& in, mfem::Vector& out) cons
    MFEM_ASSERT(mapped_master_contact_dofs.Size() == master_contact_dofs_.Size(),
                "Unable to map master contact dofs!");
 
-   mfem::Vector subvecin;
-   mfem::Vector subvecout(slave_contact_dofs_.Size());
+   Vector subvecin;
+   Vector subvecout(slave_contact_dofs_.Size());
    in.GetSubVector(mapped_master_contact_dofs, subvecin);
    Bm_.Mult(subvecin, subvecout);
    Bsinverse_.Solve(Bs_.Height(), 1, subvecout);
@@ -227,7 +227,7 @@ void EliminationProjection::Mult(const mfem::Vector& in, mfem::Vector& out) cons
    out.AddElementVector(slave_contact_dofs_, subvecout);
 }
 
-void EliminationProjection::MultTranspose(const mfem::Vector& in, mfem::Vector& out) const
+void EliminationProjection::MultTranspose(const Vector& in, Vector& out) const
 {
    int num_elim_dofs = slave_contact_dofs_.Size();
    MFEM_ASSERT(out.Size() == A_.Height() - num_elim_dofs, "Sizes don't match!");
@@ -235,7 +235,7 @@ void EliminationProjection::MultTranspose(const mfem::Vector& in, mfem::Vector& 
 
    out = 0.0;
    int row_dof = 0;
-   mfem::Array<int> mapped_master_contact_dofs;
+   Array<int> mapped_master_contact_dofs;
    for (int i = 0; i < A_.Height(); ++i)
    {
       if (slave_contact_dofs_.FindSorted(i) >= 0)
@@ -255,8 +255,8 @@ void EliminationProjection::MultTranspose(const mfem::Vector& in, mfem::Vector& 
    MFEM_ASSERT(mapped_master_contact_dofs.Size() == master_contact_dofs_.Size(),
                "Unable to map master contact dofs!");
 
-   mfem::Vector subvecin;
-   mfem::Vector subvecout(Bm_.Width());
+   Vector subvecin;
+   Vector subvecout(Bm_.Width());
 
    in.GetSubVector(slave_contact_dofs_, subvecin);
    BsTinverse_.Solve(Bs_.Height(), 1, subvecin);
@@ -265,25 +265,25 @@ void EliminationProjection::MultTranspose(const mfem::Vector& in, mfem::Vector& 
    out.AddElementVector(mapped_master_contact_dofs, subvecout);
 }
 
-void EliminationProjection::BuildGTilde(const mfem::Vector& g, mfem::Vector& gtilde) const
+void EliminationProjection::BuildGTilde(const Vector& g, Vector& gtilde) const
 {
    // int num_elim_dofs = slave_contact_dofs_.Size();
    MFEM_ASSERT(g.Size() == B_.Height(), "Sizes don't match!");
    MFEM_ASSERT(gtilde.Size() == A_.Height(), "Sizes don't match!");
 
    gtilde = 0.0;
-   mfem::Vector cinvg(g);
+   Vector cinvg(g);
    Bsinverse_.Solve(Bs_.Height(), 1, cinvg);
    gtilde.AddElementVector(slave_contact_dofs_, cinvg);
 }
 
-void EliminationProjection::RecoverPressure(const mfem::Vector& disprhs, const mfem::Vector& disp,
-                                            mfem::Vector& pressure) const
+void EliminationProjection::RecoverPressure(const Vector& disprhs, const Vector& disp,
+                                            Vector& pressure) const
 {
    MFEM_ASSERT(pressure.Size() == B_.Height(), "Sizes don't match!");
    MFEM_ASSERT(disp.Size() == A_.Height(), "Sizes don't match!");
 
-   mfem::Vector fullrhs(A_.Height());
+   Vector fullrhs(A_.Height());
    A_.Mult(disp, fullrhs);
    fullrhs -= disprhs;
    fullrhs *= -1.0;
@@ -293,19 +293,19 @@ void EliminationProjection::RecoverPressure(const mfem::Vector& disprhs, const m
 
 
 
-class EliminationCGSolver : public mfem::Solver
+class EliminationCGSolver : public Solver
 {
 public:
    EliminationCGSolver(SparseMatrix& A, SparseMatrix& B, int firstblocksize);
 
-   EliminationCGSolver(SparseMatrix& A, SparseMatrix& B, mfem::Array<int>& master_dofs,
-                       mfem::Array<int>& slave_dofs);
+   EliminationCGSolver(SparseMatrix& A, SparseMatrix& B, Array<int>& master_dofs,
+                       Array<int>& slave_dofs);
 
    ~EliminationCGSolver();
 
-   void SetOperator(const mfem::Operator& op) { }
+   void SetOperator(const Operator& op) { }
 
-   void Mult(const mfem::Vector& x, mfem::Vector& y) const;
+   void Mult(const Vector& x, Vector& y) const;
 
 private:
    /**
@@ -395,13 +395,13 @@ void EliminationCGSolver::BuildPreconditioner()
    projector_ = new EliminationProjection(A_, B_, first_interface_dofs_,
                                           second_interface_dofs_);
 
-   mfem::SparseMatrix * explicit_projector = projector_->AssembleApproximate();
-   mfem::HypreParMatrix * h_explicit_projector = SerialHypreMatrix(*explicit_projector);
-   mfem::HypreParMatrix * h_A = SerialHypreMatrix(A_, false);
+   SparseMatrix * explicit_projector = projector_->AssembleApproximate();
+   HypreParMatrix * h_explicit_projector = SerialHypreMatrix(*explicit_projector);
+   HypreParMatrix * h_A = SerialHypreMatrix(A_, false);
    h_explicit_operator_ = RAP(h_A, h_explicit_projector);
    h_explicit_operator_->CopyRowStarts();
    h_explicit_operator_->CopyColStarts();
-   prec_ = new mfem::HypreBoomerAMG(*h_explicit_operator_);
+   prec_ = new HypreBoomerAMG(*h_explicit_operator_);
    prec_->SetPrintLevel(0);
 
    delete explicit_projector;
@@ -414,7 +414,7 @@ void EliminationCGSolver::BuildPreconditioner()
    // don't work out! (the *correct* way to do this reorders again or uses rigid body modes
    // or something)
    /*
-      mfem::SparseMatrix * explicit_operator = RAPWithP(A, *explicit_projector);
+      SparseMatrix * explicit_operator = RAPWithP(A, *explicit_projector);
       std::cout << "A.Height() = " << A.Height() << ", explicit_operator->Height() = "
                 << explicit_operator->Height() << std::endl;
       const int dim = 3;
@@ -423,8 +423,8 @@ void EliminationCGSolver::BuildPreconditioner()
 }
 
 EliminationCGSolver::EliminationCGSolver(SparseMatrix& A, SparseMatrix& B,
-                                         mfem::Array<int>& master_dofs,
-                                         mfem::Array<int>& slave_dofs)
+                                         Array<int>& master_dofs,
+                                         Array<int>& slave_dofs)
    :
    A_(A),
    B_(B),
@@ -437,12 +437,12 @@ EliminationCGSolver::EliminationCGSolver(SparseMatrix& A, SparseMatrix& B,
 EliminationCGSolver::EliminationCGSolver(SparseMatrix& A, SparseMatrix& B,
                                          int firstblocksize)
    :
-   mfem::Solver(A.Height() - firstblocksize), // TODO??!
+   Solver(A.Height() - firstblocksize), // TODO??!
    A_(A),
    B_(B)
 {
    // identify interface dofs to eliminate via nonzero structure
-   mfem::StopWatch chrono;
+   StopWatch chrono;
    chrono.Start();
 
    BuildSeparatedInterfaceDofs(firstblocksize);
@@ -453,40 +453,40 @@ EliminationCGSolver::EliminationCGSolver(SparseMatrix& A, SparseMatrix& B,
    std::cout << "  elimination solver and AMG setup time: " << chrono.RealTime() << std::endl;
 }
 
-void EliminationCGSolver::Mult(const mfem::Vector& rhs, mfem::Vector& sol) const
+void EliminationCGSolver::Mult(const Vector& rhs, Vector& sol) const
 {
-   mfem::RAPOperator reducedoperator(*projector_, A_, *projector_);
-   mfem::CGSolver krylov;
+   RAPOperator reducedoperator(*projector_, A_, *projector_);
+   CGSolver krylov;
    krylov.SetOperator(reducedoperator);
    krylov.SetPreconditioner(*prec_);
    krylov.SetMaxIter(1000);
    krylov.SetRelTol(1.e-8);
    krylov.SetPrintLevel(1);
 
-   mfem::Vector displacementrhs(A_.Height());
+   Vector displacementrhs(A_.Height());
    for (int i = 0; i < displacementrhs.Size(); ++i)
    {
       displacementrhs(i) = rhs(i);
    }
-   mfem::Vector lagrangerhs(B_.Height());
+   Vector lagrangerhs(B_.Height());
    for (int i = 0; i < lagrangerhs.Size(); ++i)
    {
       lagrangerhs(i) = rhs(displacementrhs.Size() + i);
    }
-   mfem::Vector displacementsol(displacementrhs.Size());
+   Vector displacementsol(displacementrhs.Size());
 
-   mfem::Vector gtilde(displacementrhs.Size());
+   Vector gtilde(displacementrhs.Size());
    projector_->BuildGTilde(lagrangerhs, gtilde);
    A_.AddMult(gtilde, displacementrhs, -1.0);
 
-   mfem::Vector reducedrhs(reducedoperator.Height());
+   Vector reducedrhs(reducedoperator.Height());
    projector_->MultTranspose(displacementrhs, reducedrhs);
-   mfem::Vector reducedsol(reducedoperator.Height());
+   Vector reducedsol(reducedoperator.Height());
    reducedsol = 0.0;
    krylov.Mult(reducedrhs, reducedsol);
    projector_->Mult(reducedsol, displacementsol);
 
-   mfem::Vector pressure(lagrangerhs.Size());
+   Vector pressure(lagrangerhs.Size());
    projector_->RecoverPressure(displacementrhs, displacementsol, pressure);
 
    displacementsol += gtilde;

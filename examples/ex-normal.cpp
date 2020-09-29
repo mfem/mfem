@@ -559,11 +559,13 @@ int main(int argc, char *argv[])
    if (elimination)
    {
       std::ofstream out("elimination.vector");
+      out << std::setprecision(14);
       X.Print(out, 1);
    }
    else
    {
       std::ofstream out("solution.vector");
+      out << std::setprecision(14);
       X.Print(out, 1);
    }
 
