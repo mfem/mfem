@@ -16,12 +16,9 @@
 
 #include "mumps.hpp"
 
+
 namespace mfem
 {
-
-MUMPSSolver::MUMPSSolver( MPI_Comm comm_ )
-   : comm(comm_)
-{}
 
 MUMPSSolver::~MUMPSSolver()
 {
@@ -85,8 +82,20 @@ void MUMPSSolver::SetParameters()
    id->ICNTL(23) = 0;
 }
 
-void MUMPSSolver::Init()
+void MUMPSSolver::SetOperator( const Operator & op )
 {
+   // Verify that the operator is compatible
+   // either HypreParMatrix or an MFEM SparseMatrix
+   auto APtr = dynamic_cast<const HypreParMatrix*>(&op);
+
+   if ( APtr == NULL )
+   {
+      mfem_error("MUMPSSolver::SetOperator: not HypreParMatrix!");
+   }
+
+   height = op.Height();
+   width  = op.Width();
+
    MPI_Comm_size(comm, &numProcs);
    MPI_Comm_rank(comm, &myid);
 
@@ -99,12 +108,12 @@ void MUMPSSolver::Init()
 
    int * Iptr = csr_op->i;
    int * Jptr = csr_op->j;
+   int n_loc = csr_op->num_rows;
 
    int nnz = csr_op->num_nonzeros;
    I = new int[nnz];
    J = new int[nnz];
 
-   n_loc = csr_op->num_rows;
    row_start = parcsr_op->first_row_index;
    int k = 0;
    for (int i = 0; i<n_loc; i++)
@@ -241,18 +250,6 @@ void MUMPSSolver::Mult( const Vector & x, Vector & y ) const
    }
 }
 
-void MUMPSSolver::SetOperator( const Operator & op )
-{
-   // Verify that the operator is compatible
-   APtr = dynamic_cast<const HypreParMatrix*>(&op);
-   if ( APtr == NULL )
-   {
-      mfem_error("MUMPSSolver::SetOperator: not HypreParMatrix!");
-   }
-   height = op.Height();
-   width  = op.Width();
-   this->Init();
-}
 
 int MUMPSSolver::GetRowRank(int i, const Array<int> & row_starts_) const
 {
