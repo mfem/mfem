@@ -155,6 +155,113 @@ void TestIntegrator::AssembleElementMatrix(const FiniteElement &el,
     }
 }
 
+// Integrator for (tau * Q.grad func , grad v) where Q=[v1**2, 0; 0, v2**2]
+class SpecialConvectionIntegrator : public BilinearFormIntegrator
+{
+private:
+   DenseMatrix dshape, gshape, Jinv, V_ir;
+   Coefficient *nuCoef;
+   MyCoefficient *V; 
+   double dt;
+   int itau;
+
+public:
+   SpecialConvectionIntegrator (double dt_, double visc, MyCoefficient &q, int itau_=2) : 
+       V(&q), dt(dt_), itau(itau_)
+   { nuCoef = new ConstantCoefficient(visc); }
+
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Tr,
+                                      DenseMatrix &elmat);
+
+   virtual ~SpecialConvectionIntegrator()
+   { delete nuCoef; }
+};
+
+void SpecialConvectionIntegrator::AssembleElementMatrix(const FiniteElement &el,
+                                        ElementTransformation &Tr,
+                                        DenseMatrix &elmat)
+{
+    double norm, tau;
+    double Unorm, invtau;
+    int dim = 2;
+    int nd = el.GetDof();
+    Vector advGrad(nd), advGrad2(nd), vec1(dim), vec2(dim);
+    DenseMatrix invdfdx(dim,dim);
+
+    dshape.SetSize(nd, dim);
+    gshape.SetSize(nd, dim);
+    Jinv  .SetSize(dim);
+
+    elmat.SetSize(nd);
+    elmat=0.;
+  
+    //here we assume 2d quad
+    double eleLength = sqrt( Geometry::Volume[el.GetGeomType()] * Tr.Weight() );   
+    //integration order is el.order + grad.order-1 (-1 due to another derivative taken in V)
+    int intorder = 2 * (el.GetOrder() + Tr.OrderGrad(&el)-1);
+    const IntegrationRule &ir = IntRules.Get(el.GetGeomType(), intorder);
+
+    V->Eval(V_ir, Tr, ir);
+
+    //compare maximum tau
+    double tauMax=0.0;
+    if (maxtau)
+    {
+        for (int i = 0; i < ir.GetNPoints(); i++)
+        {
+            const IntegrationPoint &ip = ir.IntPoint(i);
+            double nu = nuCoef->Eval (Tr, ip);
+
+            V_ir.GetColumnReference(i, vec1);
+            Unorm = vec1.Norml2();
+            if (itau==1)
+            {
+                invtau = sqrt( pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+            }
+            else if (itau==2)
+            {
+                invtau = sqrt( pow(2./dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+            }
+            else if (itau==3)
+            {
+                invtau = sqrt( pow(dtfactor/dt,2) + pow(2.0*Unorm/eleLength,2) + pow(4.0*nu/(eleLength*eleLength),2));
+            }
+            else if (itau==4)
+            {
+                invtau = 2./dt;
+            }
+            else
+                invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
+            tau = 1.0/invtau;
+
+            tauMax = max(tauMax, tau);
+        }
+    }
+
+    invdfdx=0.;
+    for (int i = 0; i < ir.GetNPoints(); i++)
+    {
+        const IntegrationPoint &ip = ir.IntPoint(i);
+        el.CalcDShape(ip, dshape);
+        
+        Tr.SetIntPoint(&ip);
+        norm = ip.weight / Tr.Weight();
+        Mult(dshape, Tr.AdjugateJacobian(), gshape);
+        
+        V_ir.GetColumnReference(i, vec1);
+
+        norm *= tauMax;
+        invdfdx(0,0)=vec1(0)*vec1(0)+vec1(1)*vec1(1);
+        invdfdx(1,1)=invdfdx(0,0);
+        //invdfdx(1,1)=vec1(1)*vec1(1);
+        invdfdx *= norm;
+
+        Mult(gshape, invdfdx, dshape);
+        AddMultABt(dshape, gshape, elmat);
+    }
+}
+
 // Integrator for (tau * Q.grad func , V.grad v)
 // Here we always assume V is the advection speed
 // It also supports V as the magnetic field

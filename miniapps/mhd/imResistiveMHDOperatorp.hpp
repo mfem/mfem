@@ -1388,7 +1388,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
        {
          if (iSc==0)
          {
-             if (usesupg && i_supgpre==0)           
+             if (usesupg && i_supgpre==0 && im_supg!=7)           
              {
                   delete StabNv;
                   StabNv = new ParBilinearForm(&fespace);
@@ -1422,7 +1422,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
                   }
                   delete MatStabNv;
              }
-             else if (usesupg && i_supgpre>0)
+             else if (usesupg && i_supgpre>0 && im_supg!=7)
              {
                   delete StabMass;
                   StabMass = new ParBilinearForm(&fespace);
@@ -1506,6 +1506,34 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
                   delete MatStabMass;
                   delete MatStabNv;
                   delete MatStabSum;
+             }
+             else if (usesupg && im_supg==7)           
+             {
+                  delete StabNv;
+                  StabNv = new ParBilinearForm(&fespace);
+                  StabNv->AddDomainIntegrator(new SpecialConvectionIntegrator(dt, resistivity, velocity, itau_));
+                  StabNv->Assemble(); 
+                  StabNv->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
+                  StabNv->Finalize();
+                  HypreParMatrix *MatStabNv=StabNv->ParallelAssemble();
+
+                  HypreParMatrix *tmp=ParAdd(ASltmp, MatStabNv);
+                  delete ASltmp;
+                  ASltmp=tmp;
+
+                  delete StabNv;
+                  StabNv = new ParBilinearForm(&fespace);
+                  StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, velocity));
+                  StabNv->Assemble(); 
+                  StabNv->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
+                  StabNv->Finalize();
+                  delete MatStabNv;
+                  MatStabNv=StabNv->ParallelAssemble();
+
+                  tmp=ParAdd(AReFull, MatStabNv);
+                  delete AReFull;
+                  AReFull=tmp;
+                  delete MatStabNv;
              }
 
              //VERSION0: same as Luis's preconditioner
@@ -2079,12 +2107,18 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    }
    else if(usesupg && im_supg==5)
    {
-     //this only add (v.grad)^2 w
+     //this only add (v.grad)^2 w and StabMass on w
      delete StabNv;
      StabNv = new ParBilinearForm(&fespace);
      StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, velocity));
      StabNv->Assemble(); 
      StabNv->TrueAddMult(wNew, y3);
+
+     delete StabMass;
+     StabMass = new ParBilinearForm(&fespace);
+     StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, viscosity, velocity));
+     StabMass->Assemble(); 
+     StabMass->TrueAddMult(z2, y3);
    }
    else if(usesupg && im_supg==6)
    {
@@ -2092,6 +2126,38 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
      delete StabNv;
      StabNv = new ParBilinearForm(&fespace);
      StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, velocity));
+     StabNv->Assemble(); 
+     StabNv->TrueAddMult(psiNew, y2);
+   }
+   else if(usesupg && im_supg==7)
+   {
+     //---add supg to y3 (omega)---
+     delete StabMass;
+     StabMass = new ParBilinearForm(&fespace);
+     StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, viscosity, velocity));
+     StabMass->Assemble(); 
+     StabMass->TrueAddMult(z2, y3);
+
+     delete StabNv;
+     StabNv = new ParBilinearForm(&fespace);
+     StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, velocity));
+     StabNv->Assemble(); 
+     StabNv->TrueAddMult(wNew, y3);
+
+     /*
+     delete StabNb;
+     StabNb = new ParBilinearForm(&fespace);
+     StabNb->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, Bfield, velocity));
+     StabNb->Assemble(); 
+     StabNb->TrueAddMult(J, y3, -1.);
+     */
+
+     //---add special stabilized convection term to y2---
+     if (myid==0 && viscosity!=resistivity ) 
+         cout <<"======WARNING: viscosity and resistivity are not identical======"<<endl;
+     delete StabNv;
+     StabNv = new ParBilinearForm(&fespace);
+     StabNv->AddDomainIntegrator(new SpecialConvectionIntegrator(dt, resistivity, velocity, itau_));
      StabNv->Assemble(); 
      StabNv->TrueAddMult(psiNew, y2);
    }
