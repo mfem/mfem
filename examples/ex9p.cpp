@@ -224,10 +224,9 @@ public:
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   MPI_Session mpi;
+   int num_procs = mpi.WorldSize();
+   int myid = mpi.WorldRank();
 
    // 2. Parse command-line options.
    problem = 0;
@@ -304,20 +303,19 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (myid == 0)
+      if (mpi.Root())
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
-   if (myid == 0)
+   if (mpi.Root())
    {
       args.PrintOptions(cout);
    }
 
    Device device(device_config);
-   if (myid == 0) { device.Print(); }
+   if (mpi.Root()) { device.Print(); }
 
    // 3. Read the serial mesh from the given mesh file on all processors. We can
    //    handle geometrically periodic meshes in this code.
@@ -344,12 +342,11 @@ int main(int argc, char *argv[])
       case 23: ode_solver = new SDIRK23Solver; break;
       case 24: ode_solver = new SDIRK34Solver; break;
       default:
-         if (myid == 0)
+         if (mpi.Root())
          {
             cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          }
          delete mesh;
-         MPI_Finalize();
          return 3;
    }
 
@@ -383,7 +380,7 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, &fec);
 
    HYPRE_Int global_vSize = fes->GlobalTrueVSize();
-   if (myid == 0)
+   if (mpi.Root())
    {
       cout << "Number of unknowns: " << global_vSize << endl;
    }
@@ -523,11 +520,11 @@ int main(int argc, char *argv[])
       sout.open(vishost, visport);
       if (!sout)
       {
-         if (myid == 0)
+         if (mpi.Root())
             cout << "Unable to connect to GLVis server at "
                  << vishost << ':' << visport << endl;
          visualization = false;
-         if (myid == 0)
+         if (mpi.Root())
          {
             cout << "GLVis visualization disabled.\n";
          }
@@ -539,7 +536,7 @@ int main(int argc, char *argv[])
          sout << "solution\n" << *pmesh << *u;
          sout << "pause\n";
          sout << flush;
-         if (myid == 0)
+         if (mpi.Root())
             cout << "GLVis visualization paused."
                  << " Press space (in the GLVis window) to resume it.\n";
       }
@@ -565,7 +562,7 @@ int main(int argc, char *argv[])
 
       if (done || ti % vis_steps == 0)
       {
-         if (myid == 0)
+         if (mpi.Root())
          {
             cout << "time step: " << ti << ", time: " << t << endl;
          }
@@ -636,7 +633,6 @@ int main(int argc, char *argv[])
 #endif
    delete dc;
 
-   MPI_Finalize();
    return 0;
 }
 
