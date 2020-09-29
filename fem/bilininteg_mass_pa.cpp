@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #include "../general/forall.hpp"
@@ -23,7 +23,7 @@ namespace mfem
 
 // PA Mass Assemble kernel
 
-void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
+void MassIntegrator::SetupPA(const FiniteElementSpace &fes)
 {
    // Assuming the same element type
    fespace = &fes;
@@ -33,7 +33,7 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
    ElementTransformation *T = mesh->GetElementTransformation(0);
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T);
 #ifdef MFEM_USE_CEED
-   if (DeviceCanUseCeed() && !force)
+   if (DeviceCanUseCeed())
    {
       if (ceedDataPtr) { delete ceedDataPtr; }
       CeedData* ptr = new CeedData();
@@ -62,6 +62,19 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
       coeff.SetSize(1);
       coeff(0) = cQ->constant;
    }
+   else if (QuadratureFunctionCoefficient* cQ =
+               dynamic_cast<QuadratureFunctionCoefficient*>(Q))
+   {
+      const QuadratureFunction &qFun = cQ->GetQuadFunction();
+      MFEM_VERIFY(qFun.Size() == nq * ne,
+                  "Incompatible QuadratureFunction dimension \n");
+
+      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
+                  "IntegrationRule used within integrator and in"
+                  " QuadratureFunction appear to be different");
+      qFun.Read();
+      coeff.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
+   }
    else
    {
       coeff.SetSize(nq * ne);
@@ -79,49 +92,64 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
    if (dim==2)
    {
       const int NE = ne;
-      const int NQ = nq;
+      const int Q1D = quad1D;
       const bool const_c = coeff.Size() == 1;
-      auto w = ir->GetWeights().Read();
-      auto J = Reshape(geom->J.Read(), NQ,2,2,NE);
-      auto C =
-         const_c ? Reshape(coeff.Read(), 1,1) : Reshape(coeff.Read(), NQ,NE);
-      auto v = Reshape(pa_data.Write(), NQ, NE);
-      MFEM_FORALL(e, NE,
+      const auto W = Reshape(ir->GetWeights().Read(), Q1D,Q1D);
+      const auto J = Reshape(geom->J.Read(), Q1D,Q1D,2,2,NE);
+      const auto C = const_c ? Reshape(coeff.Read(), 1,1,1) :
+                     Reshape(coeff.Read(), Q1D,Q1D,NE);
+      auto v = Reshape(pa_data.Write(), Q1D,Q1D, NE);
+      MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
       {
-         for (int q = 0; q < NQ; ++q)
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            const double J11 = J(q,0,0,e);
-            const double J12 = J(q,1,0,e);
-            const double J21 = J(q,0,1,e);
-            const double J22 = J(q,1,1,e);
-            const double detJ = (J11*J22)-(J21*J12);
-            const double coeff = const_c ? C(0,0) : C(q,e);
-            v(q,e) =  w[q] * coeff * detJ;
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
+            {
+               const double J11 = J(qx,qy,0,0,e);
+               const double J12 = J(qx,qy,1,0,e);
+               const double J21 = J(qx,qy,0,1,e);
+               const double J22 = J(qx,qy,1,1,e);
+               const double detJ = (J11*J22)-(J21*J12);
+               const double coeff = const_c ? C(0,0,0) : C(qx,qy,e);
+               v(qx,qy,e) =  W(qx,qy) * coeff * detJ;
+            }
          }
       });
    }
    if (dim==3)
    {
       const int NE = ne;
-      const int NQ = nq;
+      const int Q1D = quad1D;
       const bool const_c = coeff.Size() == 1;
-      auto W = ir->GetWeights().Read();
-      auto J = Reshape(geom->J.Read(), NQ,3,3,NE);
-      auto C =
-         const_c ? Reshape(coeff.Read(), 1,1) : Reshape(coeff.Read(), NQ,NE);
-      auto v = Reshape(pa_data.Write(), NQ,NE);
-      MFEM_FORALL(e, NE,
+      const auto W = Reshape(ir->GetWeights().Read(), Q1D,Q1D,Q1D);
+      const auto J = Reshape(geom->J.Read(), Q1D,Q1D,Q1D,3,3,NE);
+      const auto C = const_c ? Reshape(coeff.Read(), 1,1,1,1) :
+                     Reshape(coeff.Read(), Q1D,Q1D,Q1D,NE);
+      auto v = Reshape(pa_data.Write(), Q1D,Q1D,Q1D,NE);
+      MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
       {
-         for (int q = 0; q < NQ; ++q)
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            const double J11 = J(q,0,0,e), J12 = J(q,0,1,e), J13 = J(q,0,2,e);
-            const double J21 = J(q,1,0,e), J22 = J(q,1,1,e), J23 = J(q,1,2,e);
-            const double J31 = J(q,2,0,e), J32 = J(q,2,1,e), J33 = J(q,2,2,e);
-            const double detJ = J11 * (J22 * J33 - J32 * J23) -
-            /* */               J21 * (J12 * J33 - J32 * J13) +
-            /* */               J31 * (J12 * J23 - J22 * J13);
-            const double coeff = const_c ? C(0,0) : C(q,e);
-            v(q,e) = W[q] * coeff * detJ;
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
+            {
+               MFEM_FOREACH_THREAD(qz,z,Q1D)
+               {
+                  const double J11 = J(qx,qy,qz,0,0,e);
+                  const double J21 = J(qx,qy,qz,1,0,e);
+                  const double J31 = J(qx,qy,qz,2,0,e);
+                  const double J12 = J(qx,qy,qz,0,1,e);
+                  const double J22 = J(qx,qy,qz,1,1,e);
+                  const double J32 = J(qx,qy,qz,2,1,e);
+                  const double J13 = J(qx,qy,qz,0,2,e);
+                  const double J23 = J(qx,qy,qz,1,2,e);
+                  const double J33 = J(qx,qy,qz,2,2,e);
+                  const double detJ = J11 * (J22 * J33 - J32 * J23) -
+                  /* */               J21 * (J12 * J33 - J32 * J13) +
+                  /* */               J31 * (J12 * J23 - J22 * J13);
+                  const double coeff = const_c ? C(0,0,0,0) : C(qx,qy,qz,e);
+                  v(qx,qy,qz,e) = W(qx,qy,qz) * coeff * detJ;
+               }
+            }
          }
       });
    }
@@ -440,8 +468,16 @@ static void PAMassAssembleDiagonal(const int dim, const int D1D,
 
 void MassIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   if (pa_data.Size()==0) { SetupPA(*fespace, true); }
-   PAMassAssembleDiagonal(dim, dofs1D, quad1D, ne, maps->B, pa_data, diag);
+#ifdef MFEM_USE_CEED
+   if (DeviceCanUseCeed())
+   {
+      CeedAssembleDiagonalPA(ceedDataPtr, diag);
+   }
+   else
+#endif
+   {
+      PAMassAssembleDiagonal(dim, dofs1D, quad1D, ne, maps->B, pa_data, diag);
+   }
 }
 
 
@@ -639,6 +675,7 @@ static void SmemPAMassApply2D(const int NE,
                               const int d1d = 0,
                               const int q1d = 0)
 {
+   MFEM_CONTRACT_VAR(bt_);
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
@@ -902,6 +939,7 @@ static void SmemPAMassApply3D(const int NE,
                               const int d1d = 0,
                               const int q1d = 0)
 {
+   MFEM_CONTRACT_VAR(bt_);
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int M1Q = T_Q1D ? T_Q1D : MAX_Q1D;
@@ -912,9 +950,8 @@ static void SmemPAMassApply3D(const int NE,
    auto d = Reshape(d_.Read(), Q1D, Q1D, Q1D, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, 1,
    {
-      const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
@@ -931,130 +968,188 @@ static void SmemPAMassApply3D(const int NE,
       double (*QQQ)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) sm1;
       double (*QQD)[MQ1][MD1] = (double (*)[MQ1][MD1]) sm0;
       double (*QDD)[MD1][MD1] = (double (*)[MD1][MD1]) sm1;
-      MFEM_FOREACH_THREAD(dz,z,D1D)
+      MFEM_FOREACH_THREAD(dy,y,D1D)
       {
-         MFEM_FOREACH_THREAD(dy,y,D1D)
+         MFEM_FOREACH_THREAD(dx,x,D1D)
          {
-            MFEM_FOREACH_THREAD(dx,x,D1D)
+            MFEM_UNROLL(MD1)
+            for (int dz = 0; dz < D1D; ++dz)
             {
                X[dz][dy][dx] = x(dx,dy,dz,e);
             }
          }
-      }
-      if (tidz == 0)
-      {
-         MFEM_FOREACH_THREAD(d,y,D1D)
+         MFEM_FOREACH_THREAD(dx,x,Q1D)
          {
-            MFEM_FOREACH_THREAD(q,x,Q1D)
-            {
-               B[q][d] = b(q,d);
-            }
+            B[dx][dy] = b(dx,dy);
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dz,z,D1D)
+      MFEM_FOREACH_THREAD(dy,y,D1D)
       {
-         MFEM_FOREACH_THREAD(dy,y,D1D)
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            double u[D1D];
+            MFEM_UNROLL(MD1)
+            for (int dz = 0; dz < D1D; dz++)
             {
-               double u = 0.0;
-               for (int dx = 0; dx < D1D; ++dx)
-               {
-                  u += X[dz][dy][dx] * B[qx][dx];
-               }
-               DDQ[dz][dy][qx] = u;
+               u[dz] = 0;
             }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dz,z,D1D)
-      {
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            MFEM_UNROLL(MD1)
+            for (int dx = 0; dx < D1D; ++dx)
             {
-               double u = 0.0;
-               for (int dy = 0; dy < D1D; ++dy)
-               {
-                  u += DDQ[dz][dy][qx] * B[qy][dy];
-               }
-               DQQ[dz][qy][qx] = u;
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qz,z,Q1D)
-      {
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-               double u = 0.0;
+               MFEM_UNROLL(MD1)
                for (int dz = 0; dz < D1D; ++dz)
                {
-                  u += DQQ[dz][qy][qx] * B[qz][dz];
+                  u[dz] += X[dz][dy][dx] * B[qx][dx];
                }
-               QQQ[qz][qy][qx] = u * d(qx,qy,qz,e);
+            }
+            MFEM_UNROLL(MD1)
+            for (int dz = 0; dz < D1D; ++dz)
+            {
+               DDQ[dz][dy][qx] = u[dz];
             }
          }
       }
       MFEM_SYNC_THREAD;
-      if (tidz == 0)
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
-         MFEM_FOREACH_THREAD(d,y,D1D)
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            MFEM_FOREACH_THREAD(q,x,Q1D)
+            double u[D1D];
+            MFEM_UNROLL(MD1)
+            for (int dz = 0; dz < D1D; dz++)
             {
-               Bt[d][q] = b(q,d);
+               u[dz] = 0;
             }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qz,z,Q1D)
-      {
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(dx,x,D1D)
+            MFEM_UNROLL(MD1)
+            for (int dy = 0; dy < D1D; ++dy)
             {
-               double u = 0.0;
-               for (int qx = 0; qx < Q1D; ++qx)
+               MFEM_UNROLL(MD1)
+               for (int dz = 0; dz < D1D; dz++)
                {
-                  u += QQQ[qz][qy][qx] * Bt[dx][qx];
+                  u[dz] += DDQ[dz][dy][qx] * B[qy][dy];
                }
-               QQD[qz][qy][dx] = u;
+            }
+            MFEM_UNROLL(MD1)
+            for (int dz = 0; dz < D1D; dz++)
+            {
+               DQQ[dz][qy][qx] = u[dz];
             }
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qz,z,Q1D)
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
-         MFEM_FOREACH_THREAD(dy,y,D1D)
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            MFEM_FOREACH_THREAD(dx,x,D1D)
+            double u[Q1D];
+            MFEM_UNROLL(MQ1)
+            for (int qz = 0; qz < Q1D; qz++)
             {
-               double u = 0.0;
-               for (int qy = 0; qy < Q1D; ++qy)
+               u[qz] = 0;
+            }
+            MFEM_UNROLL(MD1)
+            for (int dz = 0; dz < D1D; ++dz)
+            {
+               MFEM_UNROLL(MQ1)
+               for (int qz = 0; qz < Q1D; qz++)
                {
-                  u += QQD[qz][qy][dx] * Bt[dy][qy];
+                  u[qz] += DQQ[dz][qy][qx] * B[qz][dz];
                }
-               QDD[qz][dy][dx] = u;
+            }
+            MFEM_UNROLL(MQ1)
+            for (int qz = 0; qz < Q1D; qz++)
+            {
+               QQQ[qz][qy][qx] = u[qz] * d(qx,qy,qz,e);
             }
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dz,z,D1D)
+      MFEM_FOREACH_THREAD(d,y,D1D)
       {
-         MFEM_FOREACH_THREAD(dy,y,D1D)
+         MFEM_FOREACH_THREAD(q,x,Q1D)
          {
-            MFEM_FOREACH_THREAD(dx,x,D1D)
+            Bt[d][q] = b(q,d);
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            double u[Q1D];
+            MFEM_UNROLL(MQ1)
+            for (int qz = 0; qz < Q1D; ++qz)
             {
-               double u = 0.0;
+               u[qz] = 0;
+            }
+            MFEM_UNROLL(MQ1)
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               MFEM_UNROLL(MQ1)
                for (int qz = 0; qz < Q1D; ++qz)
                {
-                  u += QDD[qz][dy][dx] * Bt[dz][qz];
+                  u[qz] += QQQ[qz][qy][qx] * Bt[dx][qx];
                }
-               y(dx,dy,dz,e) += u;
+            }
+            MFEM_UNROLL(MQ1)
+            for (int qz = 0; qz < Q1D; ++qz)
+            {
+               QQD[qz][qy][dx] = u[qz];
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            double u[Q1D];
+            MFEM_UNROLL(MQ1)
+            for (int qz = 0; qz < Q1D; ++qz)
+            {
+               u[qz] = 0;
+            }
+            MFEM_UNROLL(MQ1)
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               MFEM_UNROLL(MQ1)
+               for (int qz = 0; qz < Q1D; ++qz)
+               {
+                  u[qz] += QQD[qz][qy][dx] * Bt[dy][qy];
+               }
+            }
+            MFEM_UNROLL(MQ1)
+            for (int qz = 0; qz < Q1D; ++qz)
+            {
+               QDD[qz][dy][dx] = u[qz];
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            double u[D1D];
+            MFEM_UNROLL(MD1)
+            for (int dz = 0; dz < D1D; ++dz)
+            {
+               u[dz] = 0;
+            }
+            MFEM_UNROLL(MQ1)
+            for (int qz = 0; qz < Q1D; ++qz)
+            {
+               MFEM_UNROLL(MD1)
+               for (int dz = 0; dz < D1D; ++dz)
+               {
+                  u[dz] += QDD[qz][dy][dx] * Bt[dz][qz];
+               }
+            }
+            MFEM_UNROLL(MD1)
+            for (int dz = 0; dz < D1D; ++dz)
+            {
+               y(dx,dy,dz,e) += u[dz];
             }
          }
       }
@@ -1085,14 +1180,20 @@ static void PAMassApply(const int dim,
       MFEM_ABORT("OCCA PA Mass Apply unknown kernel!");
    }
 #endif // MFEM_USE_OCCA
+   const int id = (D1D << 4) | Q1D;
    if (dim == 2)
    {
-      switch ((D1D << 4) | Q1D)
+      switch (id)
       {
          case 0x22: return SmemPAMassApply2D<2,2,16>(NE,B,Bt,D,X,Y);
+         case 0x24: return SmemPAMassApply2D<2,4,16>(NE,B,Bt,D,X,Y);
          case 0x33: return SmemPAMassApply2D<3,3,16>(NE,B,Bt,D,X,Y);
+         case 0x34: return SmemPAMassApply2D<3,4,16>(NE,B,Bt,D,X,Y);
+         case 0x36: return SmemPAMassApply2D<3,6,16>(NE,B,Bt,D,X,Y);
          case 0x44: return SmemPAMassApply2D<4,4,8>(NE,B,Bt,D,X,Y);
+         case 0x48: return SmemPAMassApply2D<4,8,4>(NE,B,Bt,D,X,Y);
          case 0x55: return SmemPAMassApply2D<5,5,8>(NE,B,Bt,D,X,Y);
+         case 0x58: return SmemPAMassApply2D<5,8,2>(NE,B,Bt,D,X,Y);
          case 0x66: return SmemPAMassApply2D<6,6,4>(NE,B,Bt,D,X,Y);
          case 0x77: return SmemPAMassApply2D<7,7,4>(NE,B,Bt,D,X,Y);
          case 0x88: return SmemPAMassApply2D<8,8,2>(NE,B,Bt,D,X,Y);
@@ -1102,19 +1203,25 @@ static void PAMassApply(const int dim,
    }
    else if (dim == 3)
    {
-      switch ((D1D << 4) | Q1D)
+      switch (id)
       {
          case 0x23: return SmemPAMassApply3D<2,3>(NE,B,Bt,D,X,Y);
          case 0x24: return SmemPAMassApply3D<2,4>(NE,B,Bt,D,X,Y);
          case 0x34: return SmemPAMassApply3D<3,4>(NE,B,Bt,D,X,Y);
+         case 0x36: return SmemPAMassApply3D<3,6>(NE,B,Bt,D,X,Y);
          case 0x45: return SmemPAMassApply3D<4,5>(NE,B,Bt,D,X,Y);
+         case 0x46: return SmemPAMassApply3D<4,6>(NE,B,Bt,D,X,Y);
+         case 0x48: return SmemPAMassApply3D<4,8>(NE,B,Bt,D,X,Y);
          case 0x56: return SmemPAMassApply3D<5,6>(NE,B,Bt,D,X,Y);
+         case 0x58: return SmemPAMassApply3D<5,8>(NE,B,Bt,D,X,Y);
          case 0x67: return SmemPAMassApply3D<6,7>(NE,B,Bt,D,X,Y);
          case 0x78: return SmemPAMassApply3D<7,8>(NE,B,Bt,D,X,Y);
          case 0x89: return SmemPAMassApply3D<8,9>(NE,B,Bt,D,X,Y);
+         case 0x9A: return SmemPAMassApply3D<9,10>(NE,B,Bt,D,X,Y);
          default:   return PAMassApply3D(NE,B,Bt,D,X,Y,D1D,Q1D);
       }
    }
+   mfem::out << "Unknown kernel 0x" << std::hex << id << std::endl;
    MFEM_ABORT("Unknown kernel.");
 }
 
@@ -1123,29 +1230,7 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 #ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
-      const CeedScalar *x_ptr;
-      CeedScalar *y_ptr;
-      CeedMemType mem;
-      CeedGetPreferredMemType(internal::ceed, &mem);
-      if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
-      {
-         x_ptr = x.Read();
-         y_ptr = y.ReadWrite();
-      }
-      else
-      {
-         x_ptr = x.HostRead();
-         y_ptr = y.HostReadWrite();
-         mem = CEED_MEM_HOST;
-      }
-      CeedVectorSetArray(ceedDataPtr->u, mem, CEED_USE_POINTER,
-                         const_cast<CeedScalar*>(x_ptr));
-      CeedVectorSetArray(ceedDataPtr->v, mem, CEED_USE_POINTER, y_ptr);
-
-      CeedOperatorApplyAdd(ceedDataPtr->oper, ceedDataPtr->u, ceedDataPtr->v,
-                           CEED_REQUEST_IMMEDIATE);
-
-      CeedVectorSyncArray(ceedDataPtr->v, mem);
+      CeedAddMultPA(ceedDataPtr, x, y);
    }
    else
 #endif

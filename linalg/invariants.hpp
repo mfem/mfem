@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_INVARIANTS_HPP
@@ -593,7 +593,8 @@ protected:
       if (dont(HAVE_I3b_p))
       {
          eval_state |= HAVE_I3b_p;
-         I3b_p = sign_detJ*scalar_ops::pow(Get_I3b(), -2, 3);
+         const scalar_t i3b = Get_I3b();
+         I3b_p = sign_detJ*scalar_ops::pow(i3b, -2, 3);
       }
       return I3b_p;
    }

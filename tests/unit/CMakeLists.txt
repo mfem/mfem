@@ -18,7 +18,6 @@ include_directories(BEFORE ${PROJECT_BINARY_DIR})
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 
 set(UNIT_TESTS_SRCS
-  unit_test_main.cpp
   general/test_mem.cpp
   general/test_text.cpp
   general/test_zlib.cpp
@@ -26,12 +25,17 @@ set(UNIT_TESTS_SRCS
   linalg/test_ilu.cpp
   linalg/test_matrix_block.cpp
   linalg/test_matrix_dense.cpp
+  linalg/test_matrix_hypre.cpp
   linalg/test_matrix_rectangular.cpp
+  linalg/test_matrix_sparse.cpp
   linalg/test_matrix_square.cpp
   linalg/test_ode.cpp
   linalg/test_ode2.cpp
   linalg/test_operator.cpp
+  linalg/test_cg_indefinite.cpp
+  linalg/test_vector.cpp
   mesh/test_mesh.cpp
+  mesh/test_ncmesh.cpp
   fem/test_1d_bilininteg.cpp
   fem/test_2d_bilininteg.cpp
   fem/test_3d_bilininteg.cpp
@@ -48,6 +52,7 @@ set(UNIT_TESTS_SRCS
   fem/test_operatorjacobismoother.cpp
   fem/test_pa_coeff.cpp
   fem/test_pa_kernels.cpp
+  fem/test_quadf_coef.cpp
   fem/test_quadraturefunc.cpp
   miniapps/test_sedov.cpp
 )
@@ -56,10 +61,23 @@ if (MFEM_USE_CUDA)
    set_property(SOURCE ${UNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
 endif()
 
-# All non-device unit tests are built into a single executable 'unit_tests'.
-add_executable(unit_tests ${UNIT_TESTS_SRCS})
+# All serial non-device unit tests are built into a single executable 'unit_tests'.
+add_executable(unit_tests unit_test_main.cpp ${UNIT_TESTS_SRCS})
+# Unit tests need the ../../data directory.
+add_dependencies(unit_tests copy_data)
 target_link_libraries(unit_tests mfem)
 
+if (MFEM_USE_CUDA)
+  set(CUNIT_TESTS_SRCS
+    cunit_test_main.cpp
+  )
+  set_property(SOURCE ${CUNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
+  add_executable(cunit_tests ${CUNIT_TESTS_SRCS} ${UNIT_TESTS_SRCS})
+  add_dependencies(cunit_tests copy_data)
+  target_link_libraries(cunit_tests mfem)
+
+  add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} cunit_tests)
+endif()
 
 # All device unit tests are built into another executable, in order to be able
 # to change the device.
@@ -116,14 +134,56 @@ add_test(NAME sedov_tests_debug COMMAND sedov_tests_debug)
 
 # Additional CUDA unit tests
 if (MFEM_USE_CUDA)
+   add_test(NAME cunit_tests COMMAND cunit_tests)
    add_test(NAME sedov_tests_cuda COMMAND sedov_tests_cuda)
    add_test(NAME sedov_tests_cuda_uvm COMMAND sedov_tests_cuda_uvm)
 endif()
 
 # Additional MPI unit tests
 if (MFEM_USE_MPI)
+   add_executable(punit_tests punit_test_main.cpp ${UNIT_TESTS_SRCS})
+   target_link_libraries(punit_tests mfem)
+   add_test(NAME punit_tests COMMAND punit_tests)
+
+   set(PAR_SEDOV_TESTS_SRCS punit_test_main.cpp miniapps/test_sedov.cpp)
+   if (MFEM_USE_CUDA)
+      set_property(SOURCE ${PAR_SEDOV_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
+   endif()
+
+   add_executable(psedov_tests_cpu ${PAR_SEDOV_TESTS_SRCS})
+   target_compile_definitions(psedov_tests_cpu PUBLIC MFEM_SEDOV_MPI=1)
+   target_compile_definitions(psedov_tests_cpu PUBLIC MFEM_SEDOV_TESTS=1)
+   target_compile_definitions(psedov_tests_cpu PUBLIC MFEM_SEDOV_DEVICE="cpu")
+   target_link_libraries(psedov_tests_cpu mfem)
+
+   add_executable(psedov_tests_debug ${PAR_SEDOV_TESTS_SRCS})
+   target_compile_definitions(psedov_tests_debug PUBLIC MFEM_SEDOV_MPI=1)
+   target_compile_definitions(psedov_tests_debug PUBLIC MFEM_SEDOV_TESTS=1)
+   target_compile_definitions(psedov_tests_debug PUBLIC MFEM_SEDOV_DEVICE="debug")
+   target_link_libraries(psedov_tests_debug mfem)
+
+   if (MFEM_USE_CUDA)
+      add_executable(psedov_tests_cuda ${PAR_SEDOV_TESTS_SRCS})
+      target_compile_definitions(psedov_tests_cuda PUBLIC MFEM_SEDOV_MPI=1)
+      target_compile_definitions(psedov_tests_cuda PUBLIC MFEM_SEDOV_TESTS=1)
+      target_compile_definitions(psedov_tests_cuda PUBLIC MFEM_SEDOV_DEVICE="cuda")
+      target_link_libraries(psedov_tests_cuda mfem)
+
+      add_executable(psedov_tests_cuda_uvm ${PAR_SEDOV_TESTS_SRCS})
+      target_compile_definitions(psedov_tests_cuda_uvm PUBLIC MFEM_SEDOV_MPI=1)
+      target_compile_definitions(psedov_tests_cuda_uvm PUBLIC MFEM_SEDOV_TESTS=1)
+      target_compile_definitions(psedov_tests_cuda_uvm PUBLIC MFEM_SEDOV_DEVICE="cuda:uvm")
+      target_link_libraries(psedov_tests_cuda_uvm mfem)
+   endif()
+
+   add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} punit_tests psedov_tests_cpu psedov_tests_debug)
+   if (MFEM_USE_CUDA)
+      add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} psedov_tests_cuda)
+      add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} psedov_tests_cuda_uvm)
+   endif()
+
    function(add_mpi_unit_test NAME NP)
-      set(test_name sedov_tests_${NAME})
+      set(test_name psedov_tests_${NAME})
       add_test(NAME ${test_name}_np=${NP}
                COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${NP}
                ${MPIEXEC_PREFLAGS} $<TARGET_FILE:${test_name}>

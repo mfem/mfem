@@ -6,11 +6,12 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 // Implementation of data type vector
 
+#include "kernels.hpp"
 #include "vector.hpp"
 #include "../general/forall.hpp"
 
@@ -171,6 +172,15 @@ Vector &Vector::operator-=(const Vector &v)
    auto y = ReadWrite(use_dev);
    auto x = v.Read(use_dev);
    MFEM_FORALL_SWITCH(use_dev, i, N, y[i] -= x[i];);
+   return *this;
+}
+
+Vector &Vector::operator+=(double c)
+{
+   const bool use_dev = UseDevice();
+   const int N = size;
+   auto y = ReadWrite(use_dev);
+   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] += c;);
    return *this;
 }
 
@@ -669,6 +679,16 @@ void Vector::Print(std::ostream &out, int width) const
    out << '\n';
 }
 
+#ifdef MFEM_USE_ADIOS2
+void Vector::Print(adios2stream &out,
+                   const std::string& variable_name) const
+{
+   if (!size) { return; }
+   data.Read(MemoryClass::HOST, size);
+   out.engine.Put(variable_name, &data[0] );
+}
+#endif
+
 void Vector::Print_HYPRE(std::ostream &out) const
 {
    int i;
@@ -722,27 +742,7 @@ double Vector::Norml2() const
    {
       return std::abs(data[0]);
    } // end if 1 == size
-
-   double scale = 0.0;
-   double sum = 0.0;
-
-   for (int i = 0; i < size; i++)
-   {
-      if (data[i] != 0.0)
-      {
-         const double absdata = std::abs(data[i]);
-         if (scale <= absdata)
-         {
-            const double sqr_arg = scale / absdata;
-            sum = 1.0 + sum * (sqr_arg * sqr_arg);
-            scale = absdata;
-            continue;
-         } // end if scale <= absdata
-         const double sqr_arg = absdata / scale;
-         sum += (sqr_arg * sqr_arg); // else scale > absdata
-      } // end if data[i] != 0
-   }
-   return scale * std::sqrt(sum);
+   return kernels::Norml2(size, (const double*) data);
 }
 
 double Vector::Normlinf() const
@@ -1071,7 +1071,7 @@ double Vector::operator*(const Vector &v) const
       return prod;
    }
 #endif
-   if (Device::Allows(Backend::DEBUG))
+   if (Device::Allows(Backend::DEBUG_DEVICE))
    {
       const int N = size;
       auto v_data = v.Read();
@@ -1131,7 +1131,7 @@ double Vector::Min() const
    }
 #endif
 
-   if (Device::Allows(Backend::DEBUG))
+   if (Device::Allows(Backend::DEBUG_DEVICE))
    {
       const int N = size;
       auto m_data = Read();
@@ -1171,19 +1171,13 @@ Vector::Vector(N_Vector nv)
       case SUNDIALS_NVEC_PARALLEL:
          SetDataAndSize(NV_DATA_P(nv), NV_LOCLENGTH_P(nv));
          break;
-      case SUNDIALS_NVEC_PARHYP:
-      {
-         hypre_Vector *hpv_local = N_VGetVector_ParHyp(nv)->local_vector;
-         SetDataAndSize(hpv_local->data, hpv_local->size);
-         break;
-      }
 #endif
       default:
          MFEM_ABORT("N_Vector type " << nvid << " is not supported");
    }
 }
 
-void Vector::ToNVector(N_Vector &nv)
+void Vector::ToNVector(N_Vector &nv, long global_length)
 {
    MFEM_ASSERT(nv, "N_Vector handle is NULL");
    N_Vector_ID nvid = N_VGetVectorID(nv);
@@ -1199,15 +1193,20 @@ void Vector::ToNVector(N_Vector &nv)
          MFEM_ASSERT(NV_OWN_DATA_P(nv) == SUNFALSE, "invalid parallel N_Vector");
          NV_DATA_P(nv) = data;
          NV_LOCLENGTH_P(nv) = size;
+         if (global_length == 0)
+         {
+            global_length = NV_GLOBLENGTH_P(nv);
+
+            if (global_length == 0 && global_length != size)
+            {
+               MPI_Comm sundials_comm = NV_COMM_P(nv);
+               long local_size = size;
+               MPI_Allreduce(&local_size, &global_length, 1, MPI_LONG,
+                             MPI_SUM,sundials_comm);
+            }
+         }
+         NV_GLOBLENGTH_P(nv) = global_length;
          break;
-      case SUNDIALS_NVEC_PARHYP:
-      {
-         hypre_Vector *hpv_local = N_VGetVector_ParHyp(nv)->local_vector;
-         MFEM_ASSERT(hpv_local->owns_data == false, "invalid hypre N_Vector");
-         hpv_local->data = data;
-         hpv_local->size = size;
-         break;
-      }
 #endif
       default:
          MFEM_ABORT("N_Vector type " << nvid << " is not supported");

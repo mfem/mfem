@@ -9,25 +9,32 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
+if (${CMAKE_SYSTEM_PROCESSOR} MATCHES "ppc64")
+   set(MFEM_PERF_CXX_ARCH_FLAGS "-mcpu=native" "-mtune=native")
+else()
+   set(MFEM_PERF_CXX_ARCH_FLAGS "-march=native")
+endif()
+
 set(PERFORMANCE_CXX_OPTIONS)
 if (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
   list(APPEND PERFORMANCE_CXX_OPTIONS
     "-march=native"
-    "-Wpedantic"
-    "-Wall"
     "-fcolor-diagnostics"
     "-fvectorize"
     "-fslp-vectorize"
-    "-fslp-vectorize-aggressive"
     "-ffp-contract=fast")
 elseif (${CMAKE_CXX_COMPILER_ID} MATCHES "GNU")
   list(APPEND PERFORMANCE_CXX_OPTIONS
-    "-march=native"
-    "-Wall"
-    "--param" "max-completely-peel-times=3")
+    ${MFEM_PERF_CXX_ARCH_FLAGS}
+    "-Wall")
   if (NOT MFEM_USE_CUDA)
      list(APPEND PERFORMANCE_CXX_OPTIONS "-pedantic")
   endif()
+  if (NOT MFEM_USE_SIMD)
+    list(APPEND PERFORMANCE_CXX_OPTIONS "--param" "max-completely-peel-times=3")
+  endif()
+elseif (${CMAKE_CXX_COMPILER_ID} MATCHES "Intel")
+  list(APPEND PERFORMANCE_CXX_OPTIONS "-xHost")
 endif()
 
 add_mfem_miniapp(performance_ex1

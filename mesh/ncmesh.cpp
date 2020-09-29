@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #include "mesh_headers.hpp"
@@ -104,7 +104,16 @@ NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
    {
       LoadVertexParents(*vertex_parents);
    }
-   else
+   // alternatively, the user might have initialized hanging nodes with
+   // Mesh::AddVertexParents; copy the hierarchy now
+   else if (mesh->tmp_vertex_parents.Size())
+   {
+      for (const auto &triple : mesh->tmp_vertex_parents)
+      {
+         nodes.Reparent(triple.one, triple.two, triple.three);
+      }
+   }
+   else // otherwise we just assume a standard conforming coarse mesh
    {
       top_vertex_pos.SetSize(3*mesh->GetNV());
       for (int i = 0; i < mesh->GetNV(); i++)

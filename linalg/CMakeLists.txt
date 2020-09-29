@@ -34,6 +34,7 @@ list(APPEND HDRS
   dtensor.hpp
   handle.hpp
   invariants.hpp
+  kernels.hpp
   linalg.hpp
   matrix.hpp
   ode.hpp
@@ -61,6 +62,12 @@ if (MFEM_USE_MPI)
       petsc.cpp)
     list(APPEND HDRS
       petsc.hpp)
+    if (MFEM_USE_SLEPC)
+      list(APPEND SRCS
+        slepc.cpp)
+      list(APPEND HDRS
+        slepc.hpp)
+    endif()
   endif()
 endif()
 

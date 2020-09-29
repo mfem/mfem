@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_BINARYIO
@@ -25,12 +25,14 @@ namespace mfem
 namespace bin_io
 {
 
+/// Write 'value' to stream.
 template<typename T>
 inline void write(std::ostream& os, T value)
 {
    os.write((char*) &value, sizeof(T));
 }
 
+/// Read a value from the stream and return it.
 template<typename T>
 inline T read(std::istream& is)
 {

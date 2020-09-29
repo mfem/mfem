@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #include "joule_solver.hpp"
@@ -906,7 +906,7 @@ double JouleHeatingCoefficient::Eval(ElementTransformation &T,
 {
    Vector E;
    double thisSigma;
-   E_gf.GetVectorValue(T.ElementNo, ip, E);
+   E_gf.GetVectorValue(T, ip, E);
    thisSigma = sigma.Eval(T, ip);
    return thisSigma*(E*E);
 }

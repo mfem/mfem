@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #include "../general/array.hpp"
@@ -85,6 +85,22 @@ void BlockVector::Update(double *data, const Array<int> & bOffsets)
       blocks = new Vector[numBlocks];
    }
    SetBlocks();
+}
+
+void BlockVector::Update(Vector & data, const Array<int> & bOffsets)
+{
+   blockOffsets = bOffsets.GetData();
+   if (numBlocks != bOffsets.Size()-1)
+   {
+      delete [] blocks;
+      numBlocks = bOffsets.Size()-1;
+      blocks = new Vector[numBlocks];
+   }
+
+   for (int i = 0; i < numBlocks; ++i)
+   {
+      blocks[i].MakeRef(data, blockOffsets[i], BlockSize(i));
+   }
 }
 
 void BlockVector::Update(const Array<int> &bOffsets)

@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_NONLININTEG
@@ -20,10 +20,9 @@
 namespace mfem
 {
 
-/** The abstract base class NonlinearFormIntegrator is used to express the
-    local action of a general nonlinear finite element operator. In addition
-    it may provide the capability to assemble the local gradient operator
-    and to compute the local energy. */
+/** @brief This class is used to express the local action of a general nonlinear
+    finite element operator. In addition it may provide the capability to
+    assemble the local gradient operator and to compute the local energy. */
 class NonlinearFormIntegrator
 {
 protected:

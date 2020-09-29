@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 // Implementation of class LinearForm
@@ -199,8 +199,17 @@ void LinearForm::Assemble()
 void LinearForm::Update(FiniteElementSpace *f, Vector &v, int v_offset)
 {
    fes = f;
-   NewDataAndSize((double *)v + v_offset, fes->GetVSize());
+   NewMemoryAndSize(Memory<double>(v.GetMemory(), v_offset, f->GetVSize()),
+                    f->GetVSize(), false);
    ResetDeltaLocations();
+}
+
+void LinearForm::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
+{
+   MFEM_ASSERT(v.Size() >= v_offset + f->GetVSize(), "");
+   fes = f;
+   v.UseDevice(true);
+   this->Vector::MakeRef(v, v_offset, fes->GetVSize());
 }
 
 void LinearForm::AssembleDelta()
@@ -267,6 +276,5 @@ LinearForm::~LinearForm()
       for (k=0; k < flfi.Size(); k++) { delete flfi[k]; }
    }
 }
-
 
 }

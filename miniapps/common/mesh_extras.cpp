@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #include "mesh_extras.hpp"
@@ -190,6 +190,27 @@ MergeMeshNodes(Mesh * mesh, int logging)
                ((dim==2) ? mesh->EulerNumber2D() :
                 mesh->GetNV() - mesh->GetNE()))
            << endl;
+   }
+}
+
+void AttrToMarker(int max_attr, const Array<int> &attrs, Array<int> &marker)
+{
+   MFEM_ASSERT(attrs.Max() <= max_attr, "Invalid attribute number present.");
+
+   marker.SetSize(max_attr);
+   if (attrs.Size() == 1 && attrs[0] == -1)
+   {
+      marker = 1;
+   }
+   else
+   {
+      marker = 0;
+      for (int j=0; j<attrs.Size(); j++)
+      {
+         int attr = attrs[j];
+         MFEM_VERIFY(attr > 0, "Attribute number less than one!");
+         marker[attr-1] = 1;
+      }
    }
 }
 

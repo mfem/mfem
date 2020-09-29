@@ -1,7 +1,7 @@
 //                       MFEM Example 6 - Parallel Version
 //                              PUMI Modification
 //
-// Compile with: make ex1p
+// Compile with: make ex6p
 //
 // Sample runs:  mpirun -np 8 ex6p
 //
@@ -18,6 +18,13 @@
 //               is added to modify the "adapt_ratio" which is the fraction of
 //               allowable error that scales the output size field of the error
 //               estimator.
+//
+// NOTE:         Model/Mesh files for this example are in the (large) data file
+//               repository of MFEM here https://github.com/mfem/data under the
+//               folder named "pumi", which consists of the following sub-folders:
+//               a) geom -->  model files
+//               b) parallel --> parallel pumi mesh files
+//               c) serial --> serial pumi mesh files
 
 #include "mfem.hpp"
 #include <fstream>
@@ -332,7 +339,6 @@ int main(int argc, char *argv[])
 
       apf::destroyField(Tmag_field);
       apf::destroyField(ipfield);
-      apf::destroyNumbering(pumi_mesh->findNumbering("LocalVertexNumbering"));
 
       // 18. Perform MesAdapt.
       ma::Input* erinput = ma::configure(pumi_mesh, sizefield);

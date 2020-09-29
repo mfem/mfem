@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_GEOM
@@ -190,6 +190,10 @@ template <> struct Geometry::Constants<Geometry::TETRAHEDRON>
       static const int I[NumVert];
       static const int J[NumEdges][2]; // {end,edge_idx}
    };
+
+   static const int NumOrient = 24;
+   static const int Orient[NumOrient][NumVert];
+   static const int InvOrient[NumOrient];
 };
 
 template <> struct Geometry::Constants<Geometry::CUBE>
@@ -268,6 +272,12 @@ public:
 
    /// @note This method always uses Quadrature1D::OpenUniform points.
    const IntegrationRule *RefineInterior(Geometry::Type Geom, int Times);
+
+   /// Get the Refinement level based on number of points
+   virtual int GetRefinementLevelFromPoints(Geometry::Type Geom, int Npts);
+
+   /// Get the Refinement level based on number of elements
+   virtual int GetRefinementLevelFromElems(Geometry::Type geom, int Npts);
 
    ~GeometryRefiner();
 };

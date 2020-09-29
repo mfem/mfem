@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_ERROR_HPP
@@ -143,5 +143,16 @@ void mfem_warning(const char *msg = NULL);
    MFEM_ASSERT((imin) <= (i) && (i) < (imax), \
    "invalid index " #i << " = " << (i) << \
    ", valid range is [" << (imin) << ',' << (imax) << ')')
+
+// Abort inside a device kernel
+#if defined(__CUDA_ARCH__)
+#define MFEM_ABORT_KERNEL(msg) \
+   {                           \
+      printf(msg);             \
+      asm("trap;");            \
+   }
+#else
+#define MFEM_ABORT_KERNEL(msg) MFEM_ABORT(msg)
+#endif
 
 #endif

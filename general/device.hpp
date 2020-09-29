@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_DEVICE_HPP
@@ -57,15 +57,16 @@ struct Backend
       /** @brief [host] CEED CPU backend. GPU backends can still be used, but
           with expensive memory transfers. Enabled when MFEM_USE_CEED = YES. */
       CEED_CPU  = 1 << 10,
-      /** @brief [device] CEED CUDA backend working in collaboration with the
-          CUDA backend. Enabled when MFEM_USE_CEED = YES and
-          MFEM_USE_CUDA = YES. */
+      /** @brief [device] CEED CUDA backend working together with the CUDA
+          backend. Enabled when MFEM_USE_CEED = YES and MFEM_USE_CUDA = YES.
+          NOTE: The current default libCEED GPU backend is non-deterministic! */
       CEED_CUDA = 1 << 11,
       /** @brief [device] Debug backend: host memory is READ/WRITE protected
           while a device is in use. It allows to test the "device" code-path
           (using separate host/device memory pools and host <-> device
-          transfers) without any GPU hardware. */
-      DEBUG = 1 << 12
+          transfers) without any GPU hardware. As 'DEBUG' is sometimes used
+          as a macro, `_DEVICE` has been added to avoid conflicts. */
+      DEBUG_DEVICE = 1 << 12
    };
 
    /** @brief Additional useful constants. For example, the *_MASK constants can
@@ -86,7 +87,7 @@ struct Backend
       /// Bitwise-OR of all CEED backends
       CEED_MASK = CEED_CPU | CEED_CUDA,
       /// Biwise-OR of all device backends
-      DEVICE_MASK = CUDA_MASK | HIP_MASK | DEBUG,
+      DEVICE_MASK = CUDA_MASK | HIP_MASK | DEBUG_DEVICE,
 
       /// Biwise-OR of all RAJA backends
       RAJA_MASK = RAJA_CPU | RAJA_OMP | RAJA_CUDA,
@@ -193,7 +194,8 @@ public:
        * The available backends are described by the Backend class.
        * The string name of a backend is the lowercase version of the
          Backend::Id enumeration constant with '_' replaced by '-', e.g. the
-         string name of 'RAJA_CPU' is 'raja-cpu'.
+         string name of 'RAJA_CPU' is 'raja-cpu'. The string name of the debug
+         backend (Backend::Id 'DEBUG_DEVICE') is exceptionally set to 'debug'.
        * The 'cpu' backend is always enabled with lowest priority.
        * The current backend priority from highest to lowest is:
          'ceed-cuda', 'occa-cuda', 'raja-cuda', 'cuda', 'hip', 'debug',

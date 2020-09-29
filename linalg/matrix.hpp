@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_MATRIX
@@ -28,13 +28,6 @@ class Matrix : public Operator
 {
    friend class MatrixInverse;
 public:
-   //// Defines matrix diagonal policy upon elimination of rows and/or columns.
-   enum DiagonalPolicy
-   {
-      DIAG_ZERO, ///< Set the diagonal value to zero
-      DIAG_ONE,  ///< Set the diagonal value to one
-      DIAG_KEEP  ///< Keep the diagonal value
-   };
 
    /// Creates a square matrix of size s.
    explicit Matrix(int s) : Operator(s) { }

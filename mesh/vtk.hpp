@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_VTK
@@ -36,6 +36,8 @@ void CreateVTKElementConnectivity(Array<int> &con, Geometry::Type geom,
 /// zero. The proper header will be prepended to the data.
 void WriteVTKEncodedCompressed(std::ostream &out, const void *bytes,
                                uint32_t nbytes, int compression_level);
+
+int BarycentricToVTKTriangle(int *b, int ref);
 
 const char *VTKByteOrder();
 

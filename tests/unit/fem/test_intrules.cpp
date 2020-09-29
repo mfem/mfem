@@ -6,13 +6,13 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
 using namespace mfem;
 
-#include "catch.hpp"
+#include "unit_tests.hpp"
 
 //You typically want to start by testing things one object at a time.
 TEST_CASE("Integration rule container with no refinement", "[IntegrationRules]")
@@ -84,8 +84,8 @@ TEST_CASE("Integration rule container with no refinement", "[IntegrationRules]")
       for (int order = 0; order <= 16; order ++)
       {
          //Do this in reverse the usual order to make sure that
-         //the higher dimension cases are causing the their
-         //constituant lower dimension cases to lazily create properly.
+         //the higher dimension cases are causing their constituent
+         //lower dimension cases to lazily create properly.
          my_intrules.Get(Geometry::CUBE,        order);
          my_intrules.Get(Geometry::TETRAHEDRON, order);
          my_intrules.Get(Geometry::SQUARE,      order);

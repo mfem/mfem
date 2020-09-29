@@ -6,15 +6,16 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #include "forall.hpp"
 #include "occa.hpp"
 #ifdef MFEM_USE_CEED
-#include <ceed.h>
+#include "../fem/libceed/ceed.hpp"
 #endif
 
+#include <unordered_map>
 #include <string>
 #include <map>
 
@@ -33,13 +34,16 @@ occa::device occaDevice;
 
 #ifdef MFEM_USE_CEED
 Ceed ceed = NULL;
+
+CeedBasisMap ceed_basis_map;
+CeedRestrMap ceed_restr_map;
 #endif
 
 // Backends listed by priority, high to low:
 static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
 {
    Backend::CEED_CUDA, Backend::OCCA_CUDA, Backend::RAJA_CUDA, Backend::CUDA,
-   Backend::HIP, Backend::DEBUG,
+   Backend::HIP, Backend::DEBUG_DEVICE,
    Backend::OCCA_OMP, Backend::RAJA_OMP, Backend::OMP,
    Backend::CEED_CPU, Backend::OCCA_CPU, Backend::RAJA_CPU, Backend::CPU
 };
@@ -154,6 +158,16 @@ Device::~Device()
    {
       free(device_option);
 #ifdef MFEM_USE_CEED
+      // Destroy FES -> CeedBasis, CeedElemRestriction hash table contents
+      for (auto entry : internal::ceed_basis_map)
+      {
+         CeedBasisDestroy(&entry.second);
+      }
+      for (auto entry : internal::ceed_restr_map)
+      {
+         CeedElemRestrictionDestroy(&entry.second);
+      }
+      // Destroy Ceed context
       CeedDestroy(&internal::ceed);
 #endif
       mm.Destroy();
@@ -266,7 +280,7 @@ void Device::Print(std::ostream &out)
 
 void Device::UpdateMemoryTypeAndClass()
 {
-   const bool debug = Device::Allows(Backend::DEBUG);
+   const bool debug = Device::Allows(Backend::DEBUG_DEVICE);
 
    const bool device = Device::Allows(Backend::DEVICE_MASK);
 
@@ -496,6 +510,7 @@ void Device::Setup(const int device)
    {
       if (!device_option)
       {
+         // NOTE: libCEED's /gpu/cuda/gen backend is non-deterministic!
          CeedDeviceSetup("/gpu/cuda/gen");
       }
       else
@@ -503,7 +518,7 @@ void Device::Setup(const int device)
          CeedDeviceSetup(device_option);
       }
    }
-   if (Allows(Backend::DEBUG)) { ngpu = 1; }
+   if (Allows(Backend::DEBUG_DEVICE)) { ngpu = 1; }
 }
 
 } // mfem

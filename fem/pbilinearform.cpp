@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #include "../config/config.hpp"
@@ -138,7 +138,7 @@ void ParBilinearForm::ParallelAssemble(OperatorHandle &A, SparseMatrix *A_local)
    }
    else
    {
-      // handle the case when 'a' contains offdiagonal
+      // handle the case when 'a' contains off-diagonal
       int lvsize = pfes->GetVSize();
       const HYPRE_Int *face_nbr_glob_ldof = pfes->GetFaceNbrGlobalDofMap();
       HYPRE_Int ldof_offset = pfes->GetMyDofOffset();
@@ -198,8 +198,9 @@ void ParBilinearForm::AssembleSharedFaces(int skip_zeros)
    for (int i = 0; i < nfaces; i++)
    {
       T = pmesh->GetSharedFaceTransformations(i);
+      int Elem2NbrNo = T->Elem2No - pmesh->GetNE();
       pfes->GetElementVDofs(T->Elem1No, vdofs1);
-      pfes->GetFaceNbrElementVDofs(T->Elem2No, vdofs2);
+      pfes->GetFaceNbrElementVDofs(Elem2NbrNo, vdofs2);
       vdofs1.Copy(vdofs_all);
       for (int j = 0; j < vdofs2.Size(); j++)
       {
@@ -216,7 +217,7 @@ void ParBilinearForm::AssembleSharedFaces(int skip_zeros)
       for (int k = 0; k < fbfi.Size(); k++)
       {
          fbfi[k]->AssembleFaceMatrix(*pfes->GetFE(T->Elem1No),
-                                     *pfes->GetFaceNbrFE(T->Elem2No),
+                                     *pfes->GetFaceNbrFE(Elem2NbrNo),
                                      *T, elemmat);
          if (keep_nbr_block)
          {
@@ -240,7 +241,7 @@ void ParBilinearForm::Assemble(int skip_zeros)
 
    BilinearForm::Assemble(skip_zeros);
 
-   if (fbfi.Size() > 0)
+   if (!ext && fbfi.Size() > 0)
    {
       AssembleSharedFaces(skip_zeros);
    }
@@ -283,7 +284,14 @@ const
    }
 
    X.Distribute(&x);
-   mat->Mult(X, Y);
+   if (ext)
+   {
+      ext->Mult(X, Y);
+   }
+   else
+   {
+      mat->Mult(X, Y);
+   }
    pfes->Dof_TrueDof_Matrix()->MultTranspose(a, Y, 1.0, y);
 }
 
