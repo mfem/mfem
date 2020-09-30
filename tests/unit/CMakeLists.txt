@@ -111,6 +111,24 @@ endfunction(add_serial_miniapp_test)
 add_serial_miniapp_test(sedov)
 add_serial_miniapp_test(tmop)
 
+if (MFEM_USE_CUDA)
+  set(CUNIT_TESTS_SRCS
+    cunit_test_main.cpp
+  )
+  set_property(SOURCE ${CUNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
+  add_executable(cunit_tests ${CUNIT_TESTS_SRCS} ${UNIT_TESTS_SRCS})
+  add_dependencies(cunit_tests copy_data)
+  target_link_libraries(cunit_tests mfem)
+
+  add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} cunit_tests)
+endif()
+
+# Copy data to the build directory.
+add_custom_command(TARGET unit_tests POST_BUILD
+COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_CURRENT_SOURCE_DIR}/data data
+        COMMENT "Copying the unit tests data directory ...")
+
 # Create a test called 'unit_tests' that runs the 'unit_tests' executable.
 # The unit tests can be built and run separately from the rest of the tests:
 #   make unit_tests
@@ -150,6 +168,13 @@ configure_file("${PROJECT_SOURCE_DIR}/data/square-disc-nurbs.mesh"
 # Copy beam-hex-nurbs.mesh to the tests/unit build directory.
 configure_file("${PROJECT_SOURCE_DIR}/data/beam-hex-nurbs.mesh"
                "${PROJECT_BINARY_DIR}/tests/unit/beam-hex-nurbs.mesh")
+
+# Additional CUDA unit tests
+if (MFEM_USE_CUDA)
+   add_test(NAME cunit_tests COMMAND cunit_tests)
+   add_test(NAME sedov_tests_cuda COMMAND sedov_tests_cuda)
+   add_test(NAME sedov_tests_cuda_uvm COMMAND sedov_tests_cuda_uvm)
+endif()
 
 # Add unit tests
 add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME}
