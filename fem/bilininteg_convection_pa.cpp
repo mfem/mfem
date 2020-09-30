@@ -968,9 +968,9 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
             case 0x48: QEvalVGF3D<3,4,8>(ne,B,x,y); break;
             default:
             {
-               constexpr int MAX_DQ = 6;
-               MFEM_VERIFY(D1D <= MAX_DQ, "");
-               MFEM_VERIFY(Q1D <= MAX_DQ, "");
+               constexpr int MAX_DQ = 7;
+               MFEM_VERIFY(D1D <= MAX_DQ, "D1D:"<<D1D<<", MAX_DQ:"<<MAX_DQ);
+               MFEM_VERIFY(Q1D <= MAX_DQ, "Q1D:"<<Q1D<<", MAX_DQ:"<<MAX_DQ);
                QEvalVGF3D<0,0,0,MAX_DQ>(ne,B,x,y,vdim,D1D,Q1D);
             }
          }
@@ -994,16 +994,16 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    {
       vel.SetSize(dim * nq * ne);
       auto C = Reshape(vel.HostWrite(), dim, nq, ne);
-      Vector Vq(dim);
+      DenseMatrix Q_ir;
       for (int e = 0; e < ne; ++e)
       {
          ElementTransformation& T = *fes.GetElementTransformation(e);
+         Q->Eval(Q_ir, T, *ir);
          for (int q = 0; q < nq; ++q)
          {
-            Q->Eval(Vq, T, ir->IntPoint(q));
             for (int i = 0; i < dim; ++i)
             {
-               C(i,q,e) = Vq(i);
+               C(i,q,e) = Q_ir(i,q);
             }
          }
       }
