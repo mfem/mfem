@@ -42,6 +42,9 @@ endif
 ifeq ($(MFEM_USE_HIOP),YES)
    SUBDIRS += hiop
 endif
+ifeq ($(MFEM_USE_EPIC),YES)
+   SUBDIRS += epic
+endif
 ifeq ($(MFEM_USE_PETSC),YES)
    SUBDIRS += petsc
 endif

@@ -130,6 +130,11 @@ if (MFEM_USE_AMGX)
   add_subdirectory(amgx)
 endif()
 
+# Include the examples/epic directory if EPIC is enabled.
+if (MFEM_USE_EPIC)
+  add_subdirectory(epic)
+endif()
+
 # Include the examples/ginkgo directory if GINKGO is enabled.
 if (MFEM_USE_GINKGO)
   add_subdirectory(ginkgo)
