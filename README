@@ -9,7 +9,7 @@
 
 MFEM is a modular parallel C++ library for finite element methods. Its goal is
 to enable high-performance scalable finite element discretization research and
-application development on a wide variety of platforms, ranging from laptops to
+application development on a wide variety of platforms, ranging from Entry level laptops to
 supercomputers.
 
 * For building instructions, see the file INSTALL, or type "make help".
