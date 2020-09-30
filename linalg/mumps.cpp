@@ -44,7 +44,7 @@ void MUMPSSolver::SetParameters()
    // Level of error printing
    id->ICNTL(4) = 0;
 
-   //inpute matrix format (distributed)
+   //input matrix format (assembled)
    id->ICNTL(5) = 0;
 
    // Use A or A^T
@@ -136,7 +136,6 @@ void MUMPSSolver::SetOperator(const Operator &op)
       nnz = csr_op->num_nonzeros;
    }
 
-
    I = new int[nnz];
    J = new int[nnz];
 
@@ -156,8 +155,7 @@ void MUMPSSolver::SetOperator(const Operator &op)
             {
                I[l] = ii;
                J[l] = jj;
-               data[l] = csr_op->data[k];
-               l++;
+               data[l++] = csr_op->data[k];
             }
             k++;
          }
@@ -194,19 +192,29 @@ void MUMPSSolver::SetOperator(const Operator &op)
    id->job = -1;
    dmumps_c(id);
 
-   SetParameters(); // Set MUMPS default parameters
+   // Set MUMPS default parameters
+   SetParameters();
 
+   // Global number of rows
    id->n = parcsr_op->global_num_rows;
-   id->nnz_loc = nnz;
-   id->irn_loc = I;          // Distributed row array
-   id->jcn_loc = J;          // Distributed column array
-   id->a_loc = data; // Distributed data array
 
-   // Analysis
+   // Number of non zeros on the processor
+   id->nnz_loc = nnz;
+
+   // Distributed row array
+   id->irn_loc = I;
+
+   // Distributed column array
+   id->jcn_loc = J;
+
+   // Distributed data array
+   id->a_loc = data;
+
+   // MUMPS Analysis
    id->job = 1;
    dmumps_c(id);
 
-   // Factorization
+   // MUMPS Factorization
    id->job = 2;
    dmumps_c(id);
 
