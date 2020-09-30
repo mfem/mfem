@@ -847,6 +847,8 @@ protected: // implementation
                      Array<int> &index_map);
    /// Load the deprecated MFEM mesh v1.1 format for backward compatibility.
    void LoadLegacyFormat(std::istream &input, int &curved);
+   /// Return a map from old (v1.1) vertex indices to new vertex indices.
+   void LegacyToNewVertexOrdering(Array<int> &order) const;
 
 
    // geometry
