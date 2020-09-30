@@ -240,12 +240,15 @@ endif()
 
 # SUNDIALS
 if (MFEM_USE_SUNDIALS)
-  if (NOT MFEM_USE_MPI)
-    find_package(SUNDIALS REQUIRED NVector_Serial CVODES ARKODE KINSOL)
-  else()
-    find_package(SUNDIALS REQUIRED
-      NVector_Serial NVector_Parallel NVector_MPIPlusX CVODES ARKODE KINSOL)
+  set(SUNDIALS_COMPONENTS "CVODES ARKODE KINSOL NVector_Serial")
+  if (MFEM_USE_MPI)
+    set(SUNDIALS_COMPONENTS
+      "${SUNDIALS_COMPONENTS} NVector_Parallel NVector_MPIPlusX")
   endif()
+  if (MFEM_USE_CUDA)
+    set(SUNDIALS_COMPONENTS "${SUNDIALS_COMPONENTS} NVector_Cuda")
+  endif()
+  find_package(SUNDIALS REQUIRED ${SUNDIALS_COMPONENTS})
 endif()
 
 # Mesquite
