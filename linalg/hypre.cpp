@@ -3551,7 +3551,7 @@ void HypreBoomerAMG::SetAdvectiveOptions(int distanceR,
       grid_relax_points[3][0] = 0;
 
       // set down relax scheme
-      for (unsigned int i = 0; i<ns_down; i++)
+      for (int i = 0; i<ns_down; i++)
       {
          if (prerelax[i] == 'F')
          {
@@ -3568,7 +3568,7 @@ void HypreBoomerAMG::SetAdvectiveOptions(int distanceR,
       }
 
       // set up relax scheme
-      for (unsigned int i = 0; i<ns_up; i++)
+      for (int i = 0; i<ns_up; i++)
       {
          if (postrelax[i] == 'F')
          {
