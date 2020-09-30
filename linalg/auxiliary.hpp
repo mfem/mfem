@@ -22,6 +22,7 @@ namespace mfem
 
 // forward declarations (can probably be reduced/simplified
 class Coefficient;
+class VectorCoefficient;
 class ParMesh;
 class ParBilinearForm;
 class ParDiscreteLinearOperator;
@@ -45,12 +46,13 @@ public:
       rap_in_lor does a RAP product in the LOR space
       for building the matrix
    */
-   MatrixFreeAuxiliarySpace(
-      mfem::ParMesh& mesh_lor,
-      mfem::Coefficient* alpha_coeff,
-      mfem::Coefficient* beta_coeff, Array<int>& ess_bdr,
-      mfem::Operator& curlcurl_oper, mfem::Operator& pi,
-      int cg_iterations = 0);
+   MatrixFreeAuxiliarySpace(MPI_Comm comm_,
+                            mfem::ParMesh& mesh_lor,
+                            mfem::Coefficient* alpha_coeff, mfem::Coefficient* beta_coeff,
+                            mfem::VectorCoefficient* alpha_vcoeff, mfem::VectorCoefficient* beta_vcoeff,
+                            Array<int>& ess_bdr,
+                            mfem::Operator& curlcurl_oper, mfem::Operator& pi,
+                            int cg_iterations = 0);
 
    /**
       G space constructor (one coefficient)
@@ -61,11 +63,11 @@ public:
       rap_in_lor does a RAP product in the LOR space
       for building the matrix
    */
-   MatrixFreeAuxiliarySpace(
-      mfem::ParMesh& mesh_lor,
-      mfem::Coefficient* beta_coeff, Array<int>& ess_bdr,
-      mfem::Operator& curlcurl_oper, mfem::Operator& g,
-      int cg_iterations = 1);
+   MatrixFreeAuxiliarySpace(MPI_Comm comm_,
+                            mfem::ParMesh& mesh_lor,
+                            mfem::Coefficient* beta_coeff, Array<int>& ess_bdr,
+                            mfem::Operator& curlcurl_oper, mfem::Operator& g,
+                            int cg_iterations = 1);
 
    ~MatrixFreeAuxiliarySpace();
 
@@ -91,6 +93,8 @@ private:
    mfem::Operator* aspacewrapper_;
 
    mutable int inner_aux_iterations_;
+
+   MPI_Comm comm;
 };
 
 /**
@@ -153,8 +157,10 @@ class MatrixFreeAMS : public mfem::Solver
 public:
    /// ess_bdr is the boundary attributes that are essential (not the dofs, the attributes)
    MatrixFreeAMS(ParBilinearForm& aform, mfem::Operator& oper,
-                 mfem::ParFiniteElementSpace& nd_fespace, mfem::Coefficient* alpha_coeff,
-                 mfem::Coefficient* beta_coeff, mfem::Array<int>& ess_bdr,
+                 mfem::ParFiniteElementSpace& nd_fespace,
+                 mfem::Coefficient* alpha_coeff, mfem::Coefficient* beta_coeff,
+                 mfem::VectorCoefficient* alpha_vcoeff, mfem::VectorCoefficient* beta_vcoeff,
+                 mfem::Array<int>& ess_bdr,
                  int inner_pi_iterations = 0, int inner_g_iterations = 1);
    ~MatrixFreeAMS();
 

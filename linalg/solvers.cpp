@@ -721,7 +721,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       mfem::out << "Average reduction factor = "
                 << pow (betanom/nom0, 0.5/final_iter) << '\n';
    }
-   cout << myid << ": PCG iter " << final_iter << '\n' << std::flush;
+   //cout << myid << ": PCG iter " << final_iter << '\n' << std::flush;
    final_norm = sqrt(betanom);
 
    Monitor(final_iter, final_norm, r, x, true);

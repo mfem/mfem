@@ -2159,7 +2159,7 @@ public:
       const bool pa = true;
 #else
 #ifdef BLOCK_AMS_PREC
-      const bool pa = false;
+      const bool pa = !fullAssembly;
 #else
       const bool pa = !fullAssembly;
 #endif
@@ -2619,7 +2619,7 @@ public:
       LSpcg.SetRelTol(1.0e-8);
       LSpcg.SetMaxIter(2000);
       LSpcg.SetOperator(*LS_Maxwellop);
-      LSpcg.SetPrintLevel(1);
+      LSpcg.SetPrintLevel(0);
 
 #ifdef FOSLS_DIRECT_SOLVER
       std::vector<std::vector<int> > blockProcOffsets(numBlocks);
@@ -2688,9 +2688,14 @@ public:
                 bdp->SetDiagonalBlock(i, ams);
               }
             */
+            /*
+                 HypreAMS *prec_E = new HypreAMS((HypreParMatrix&) LS_Maxwellop->GetBlock(0,0), fespace);
+                 HypreAMS *prec_H = new HypreAMS((HypreParMatrix&) LS_Maxwellop->GetBlock(1,1), fespace);
+            */
 
-            HypreAMS *prec_E = new HypreAMS((HypreParMatrix&) LS_Maxwellop->GetBlock(0,0), fespace);
-            HypreAMS *prec_H = new HypreAMS((HypreParMatrix&) LS_Maxwellop->GetBlock(1,1), fespace);
+            ConstantCoefficient one(1.0);
+            MatrixFreeAMS *prec_E = new MatrixFreeAMS(*a_EE, *A_EE, *fespace, &one, NULL, NULL, &coeff2, ess_tdof_list_E, 20, 20);
+            MatrixFreeAMS *prec_H = new MatrixFreeAMS(*a_HH, *A_HH, *fespace, &one, &sigma, NULL, NULL, ess_tdof_list_empty, 20, 20);
 #else // use block Jacobi
             Solver *prec_E = new OperatorJacobiSmoother(diag_PA_EE, ess_tdof_list_E, 1.0);
             Solver *prec_H = new OperatorJacobiSmoother(diag_PA_HH, ess_tdof_list_empty, 1.0);

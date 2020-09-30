@@ -784,7 +784,7 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    }
 
    MFEM_VERIFY(ne == (bdryInteg ? test_fes.GetNBE() : test_fes.GetNE()),
-	       "Different meshes for test and trial spaces");
+               "Different meshes for test and trial spaces");
 
    mapsC = &trial_el->GetDofToQuad(*ir, DofToQuad::TENSOR);
    mapsO = &trial_el->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);

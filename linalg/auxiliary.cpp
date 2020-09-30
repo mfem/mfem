@@ -60,8 +60,10 @@ void GeneralAMS::FormResidual(const mfem::Vector& rhs, const mfem::Vector& x,
 
 void GeneralAMS::Mult(const Vector& x, Vector& y) const
 {
-   int rank;
-   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+   /* REMOVE?
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+   */
 
    // see hypre_ParCSRSubspacePrec() in hypre/src/parcsr_ls/ams.c
    // and also hypre_AMSSolve() in the same file
@@ -165,14 +167,17 @@ void GeneralAMS::Mult(const Vector& x, Vector& y) const
 
 // Pi-space constructor
 MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
+   MPI_Comm comm_,
    mfem::ParMesh& mesh_lor,
-   mfem::Coefficient* alpha_coeff,
-   mfem::Coefficient* beta_coeff, Array<int>& ess_bdr,
+   mfem::Coefficient* alpha_coeff, mfem::Coefficient* beta_coeff,
+   mfem::VectorCoefficient* alpha_vcoeff, mfem::VectorCoefficient* beta_vcoeff,
+   Array<int>& ess_bdr,
    mfem::Operator& curlcurl_oper,
    mfem::Operator& pi,
    int cg_iterations)
    :
    Solver(pi.Width()),
+   comm(comm_),
    matfree_(NULL),
    cg_(NULL),
    inner_aux_iterations_(0)
@@ -192,11 +197,31 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    // also can make some difference here
    const Matrix::DiagonalPolicy policy = Matrix::DIAG_KEEP;
    a_space.SetDiagonalPolicy(policy); // doesn't do anything, see Eliminate() below
-   a_space.AddDomainIntegrator(new VectorDiffusionIntegrator(*alpha_coeff));
-   a_space.AddDomainIntegrator(new VectorMassIntegrator(*beta_coeff));
+   if (alpha_coeff)
+   {
+      a_space.AddDomainIntegrator(new VectorDiffusionIntegrator(*alpha_coeff));
+   }
+   else
+   {
+      mfem_error("VectorCoefficient support not implemented?");
+      //a_space.AddDomainIntegrator(new VectorDiffusionIntegrator(*alpha_vcoeff));
+   }
+
+   if (beta_coeff)
+   {
+      a_space.AddDomainIntegrator(new VectorMassIntegrator(*beta_coeff));
+   }
+   else
+   {
+      a_space.AddDomainIntegrator(new VectorMassIntegrator(*beta_vcoeff));
+   }
+
    a_space.UsePrecomputedSparsity();
    a_space.Assemble();
-   a_space.EliminateEssentialBC(ess_bdr, policy);
+   if (ess_bdr.Size())
+   {
+      a_space.EliminateEssentialBC(ess_bdr, policy);
+   }
    a_space.Finalize();
    aspacematrix_ = a_space.ParallelAssemble();
    aspacematrix_->CopyRowStarts();
@@ -218,12 +243,14 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
 
 // G-space constructor
 MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
+   MPI_Comm comm_,
    mfem::ParMesh& mesh_lor,
    mfem::Coefficient* beta_coeff, Array<int>& ess_bdr,
    mfem::Operator& curlcurl_oper, mfem::Operator& g,
    int cg_iterations)
    :
    Solver(curlcurl_oper.Height()),
+   comm(comm_),
    matfree_(NULL),
    cg_(NULL),
    inner_aux_iterations_(0)
@@ -252,7 +279,10 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    // you have to use (serial) BilinearForm eliminate routines to get
    // diag policy DIAG_ZERO all the ParallelEliminateTDofs etc. routines
    // implicitly have a Matrix::DIAG_KEEP policy
-   a_space.EliminateEssentialBC(ess_bdr, policy);
+   if (ess_bdr.Size())
+   {
+      a_space.EliminateEssentialBC(ess_bdr, policy);
+   }
    a_space.Finalize();
    aspacematrix_ = a_space.ParallelAssemble();
 
@@ -285,7 +315,8 @@ void MatrixFreeAuxiliarySpace::SetupCG(
    MFEM_ASSERT(matfree_->Height() == aspacepc_->Height(),
                "Operators don't match!");
 
-   cg_ = new CGSolver(MPI_COMM_WORLD);
+   //cg_ = new CGSolver(MPI_COMM_WORLD);
+   cg_ = new CGSolver(comm);
    cg_->SetOperator(*matfree_);
    cg_->SetPreconditioner(*aspacepc_);
    if (inner_cg_iterations > 99)
@@ -361,7 +392,8 @@ void MatrixFreeAuxiliarySpace::Mult(const mfem::Vector& x,
                                     mfem::Vector& y) const
 {
    int rank;
-   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+   //MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+   MPI_Comm_rank(comm, &rank);
 
    y = 0.0;
    aspacewrapper_->Mult(x, y);
@@ -374,8 +406,10 @@ void MatrixFreeAuxiliarySpace::Mult(const mfem::Vector& x,
 
 MatrixFreeAuxiliarySpace::~MatrixFreeAuxiliarySpace()
 {
-   int rank;
-   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+   /*
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+   */
 
    delete aspacematrix_;
    delete aspacepc_;
@@ -386,8 +420,9 @@ MatrixFreeAuxiliarySpace::~MatrixFreeAuxiliarySpace()
 
 MatrixFreeAMS::MatrixFreeAMS(
    ParBilinearForm& aform, Operator& oper, ParFiniteElementSpace& nd_fespace,
-   Coefficient* alpha_coeff,
-   Coefficient* beta_coeff, Array<int>& ess_bdr, int inner_pi_iterations,
+   Coefficient* alpha_coeff, Coefficient* beta_coeff,
+   VectorCoefficient* alpha_vcoeff, VectorCoefficient* beta_vcoeff,
+   Array<int>& ess_bdr, int inner_pi_iterations,
    int inner_g_iterations)
    :
    Solver(oper.Height())
@@ -399,7 +434,10 @@ MatrixFreeAMS::MatrixFreeAMS(
    // smoother
    const double scale = 0.25; // not so clear what exactly to put here...
    Array<int> ess_tdof_list;
-   nd_fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   if (ess_bdr.Size())
+   {
+      nd_fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   }
    smoother_ = new OperatorJacobiSmoother(aform, ess_tdof_list, scale);
 
    // get H1 space
@@ -431,12 +469,15 @@ MatrixFreeAMS::MatrixFreeAMS(
       Boundary conditions can matter as well (see DIAG_ZERO policy) */
 
    // build G space solver
-   Gspacesolver_ = new MatrixFreeAuxiliarySpace(
-      mesh_lor, beta_coeff, ess_bdr, oper, *G_, inner_g_iterations);
+   Gspacesolver_ = new MatrixFreeAuxiliarySpace(nd_fespace.GetComm(), mesh_lor,
+                                                beta_coeff, ess_bdr, oper, *G_, inner_g_iterations);
 
    // build Pi space solver
-   Pispacesolver_ = new MatrixFreeAuxiliarySpace(
-      mesh_lor, alpha_coeff, beta_coeff, ess_bdr, oper, *Pi_, inner_pi_iterations);
+   Pispacesolver_ = new MatrixFreeAuxiliarySpace(nd_fespace.GetComm(), mesh_lor,
+                                                 alpha_coeff, beta_coeff,
+                                                 alpha_vcoeff, beta_vcoeff,
+                                                 ess_bdr, oper, *Pi_,
+                                                 inner_pi_iterations);
 
    general_ams_ = new GeneralAMS(oper, *Pi_, *G_, *Pispacesolver_,
                                  *Gspacesolver_, *smoother_, ess_tdof_list);
