@@ -242,9 +242,12 @@ endif()
 if (MFEM_USE_SUNDIALS)
   if (NOT MFEM_USE_MPI)
     find_package(SUNDIALS REQUIRED NVector_Serial CVODES ARKODE KINSOL)
-  else()
+  elseif(NOT MFEM_USE_CUDA)
     find_package(SUNDIALS REQUIRED
       NVector_Serial NVector_Parallel NVector_MPIPlusX CVODES ARKODE KINSOL)
+  else()
+    find_package(SUNDIALS REQUIRED
+      NVector_Serial NVector_Cuda NVector_Parallel NVector_MPIPlusX CVODES ARKODE KINSOL)
   endif()
 endif()
 
