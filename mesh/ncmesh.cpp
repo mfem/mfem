@@ -5741,6 +5741,27 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
    Update();
 }
 
+void NCMesh::LegacyToNewVertexOrdering(Array<int> &order) const
+{
+   order.SetSize(NVertices);
+   order = -1;
+
+   int count = 0;
+   for (auto node = nodes.cbegin(); node != nodes.cend(); ++node)
+   {
+      if (node->HasVertex())
+      {
+         MFEM_ASSERT(node.index() >= 0, "");
+         MFEM_ASSERT(node.index() < order.Size(), "");
+         MFEM_ASSERT(order[node.index()] == -1, "");
+
+         order[node.index()] = node->vert_index;
+         count++;
+      }
+   }
+   MFEM_ASSERT(count == order.Size(), "");
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

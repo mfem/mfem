@@ -2546,7 +2546,6 @@ void Mesh::FinalizeTopology(bool generate_bdr)
       GenerateFaces();
    }
 
-#if 0 // TODO where is this needed?
    if (ncmesh)
    {
       // tell NCMesh the numbering of edges/faces
@@ -2555,7 +2554,6 @@ void Mesh::FinalizeTopology(bool generate_bdr)
       // update faces_info with NC relations
       GenerateNCFaceInfo();
    }
-#endif
 
    // generate the arrays 'attributes' and 'bdr_attributes'
    SetAttributes();
@@ -3586,9 +3584,33 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    if (curved && read_gf)
    {
       Nodes = new GridFunction(this, input);
+
       own_nodes = 1;
       spaceDim = Nodes->VectorDim();
       if (ncmesh) { ncmesh->spaceDim = spaceDim; }
+
+      if (mfem_nc_version == 1) // legacy v1.1 format
+      {
+         // we need to reorder vertex DOFs of the old Nodes
+         Array<int> order;
+         ncmesh->LegacyToNewVertexOrdering(order);
+         MFEM_ASSERT(order.Size() == NumOfVertices, "");
+
+         const FiniteElementSpace *nfes = Nodes->FESpace();
+
+         Vector tmp = *Nodes;
+         for (int i = 0; i < NumOfVertices; i++)
+         {
+            for (int j = 0; j < spaceDim; j++)
+            {
+               int old_index = nfes->DofToVDof(i, j);
+               int new_index = nfes->DofToVDof(order[i], j);
+               tmp(new_index) = (*Nodes)(old_index);
+            }
+         }
+         Nodes->Swap(tmp);
+      }
+
       // Set the 'vertices' from the 'Nodes'
       for (int i = 0; i < spaceDim; i++)
       {
