@@ -31,25 +31,28 @@ public:
    // Default Constructor.
    MUMPSSolver() {}
 
+   void SetMatrixSymType(int sym_) { sym = (sym_>2) ? 0 : sym_ ; }
+
    // Factor and solve the linear system y = Op^{-1} x.
    void Mult(const Vector &x, Vector &y) const;
 
+   void MultTranspose(const Vector &x, Vector &y) const;
+
    // Set the operator.
    void SetOperator(const Operator &op);
-
-   void UseDistributedRHS(bool dist_rhs_) { dist_rhs = dist_rhs_; }
-
-   void UseDistributedSol(bool dist_sol_) { dist_sol = dist_sol_; }
 
    // Default destructor.
    ~MUMPSSolver();
 
 private:
+
    MPI_Comm comm;
 
    int numProcs;
 
    int myid;
+
+   int sym=0;
 
    int row_start;
 
@@ -57,39 +60,40 @@ private:
 
    int *J;
 
-   Vector rhs_glob;
-
-   Vector sol_loc;
-
-   Array<int> row_starts;
-
-   Array<int> recv_counts;
-
-   Array<int> displs;
-
-   Array<int> irhs_loc;
-
-   Array<int> isol_loc;
+   double * data;
 
    // MUMPS workspace
    // macro s.t. indices match MUMPS documentation
 #define ICNTL(I) icntl[(I) -1]
 #define INFO(I) info[(I) -1]
 
-   DMUMPS_STRUC_C *id;
+   DMUMPS_STRUC_C *id=nullptr;
 
    void SetParameters();
+
+#if MFEM_MUMPS_VERSION >= 530
+
+   Array<int> row_starts;
+
+   Array<int> irhs_loc;
+
+   Array<int> isol_loc;
+
+   Vector sol_loc;
 
    int GetRowRank(int i, const Array<int> &row_starts_) const;
 
    void RedistributeSol(const Array<int> &row_map,
                         const Vector &x,
                         Vector &y) const;
+#else
+   Array<int> recv_counts;
 
-   // flag for distributed rhs
-   bool dist_rhs = false;
-   // flag for distributed sol
-   bool dist_sol = false;
+   Array<int> displs;
+
+   Vector rhs_glob;
+
+#endif
 
 }; // mfem::MUMPSSolver class
 
