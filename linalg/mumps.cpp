@@ -20,10 +20,14 @@ namespace mfem
 {
 MUMPSSolver::~MUMPSSolver()
 {
-   id->job = -2;
-   dmumps_c(id);
-   delete[] J;
-   delete[] I;
+   if (id)
+   {
+      id->job = -2;
+      dmumps_c(id);
+      delete[] J;
+      delete[] I;
+      delete [] data;
+   }
 }
 
 void MUMPSSolver::SetParameters()
@@ -67,12 +71,17 @@ void MUMPSSolver::SetParameters()
    // Schur complement (no Schur complement matrix returned)
    id->ICNTL(19) = 0;
 
-   // RHS input format (distributed or only on host)
-   id->ICNTL(20) = (dist_rhs) ? 10 : 0;
+#if MFEM_MUMPS_VERSION >= 530
+   // Distributed RHS and Sol
+   id->ICNTL(20) = 10;
 
-   // Sol input format (distributed or only on host)
-   id->ICNTL(21) = (dist_sol) ? 1 : 0;
+   id->ICNTL(21) = 1;
+#else
+   // Centralized RHS and Sol
+   id->ICNTL(20) = 0;
 
+   id->ICNTL(21) = 0;
+#endif
    // Out of core factorization and solve (disabled)
    id->ICNTL(22) = 0;
 
@@ -82,20 +91,13 @@ void MUMPSSolver::SetParameters()
 
 void MUMPSSolver::SetOperator(const Operator &op)
 {
-   // Verify that the operator is compatible either HypreParMatrix or an MFEM
-   // SparseMatrix
+   // Verify that the operator is a HypreParMatrix
    auto APtr = dynamic_cast<const HypreParMatrix *>(&op);
-
-   if (APtr == NULL)
-   {
-      mfem_error("MUMPSSolver::SetOperator: not HypreParMatrix!");
-   }
-
-   comm = APtr->GetComm();
-
+   MFEM_VERIFY(APtr, "Not compatible matrix type");
    height = op.Height();
    width = op.Width();
 
+   comm = APtr->GetComm();
    MPI_Comm_size(comm, &numProcs);
    MPI_Comm_rank(comm, &myid);
 
@@ -110,21 +112,70 @@ void MUMPSSolver::SetOperator(const Operator &op)
    int *Jptr = csr_op->j;
    int n_loc = csr_op->num_rows;
 
-   int nnz = csr_op->num_nonzeros;
+   row_start = parcsr_op->first_row_index;
+
+   int nnz;
+   if (sym)
+   {
+      // count nnz;
+      nnz = 0;
+      int k = 0;
+      for (int i = 0; i < n_loc; i++)
+      {
+         for (int j = Iptr[i]; j < Iptr[i + 1]; j++)
+         {
+            int ii = row_start + i + 1;
+            int jj = Jptr[k] + 1;
+            k++;
+            if (ii>=jj) { nnz++; }
+         }
+      }
+   }
+   else
+   {
+      nnz = csr_op->num_nonzeros;
+   }
+
+
    I = new int[nnz];
    J = new int[nnz];
 
-   row_start = parcsr_op->first_row_index;
    int k = 0;
-   for (int i = 0; i < n_loc; i++)
+   if (sym)
    {
-      for (int j = Iptr[i]; j < Iptr[i + 1]; j++)
+      int l = 0;
+      data = new double[nnz];
+      for (int i = 0; i < n_loc; i++)
       {
-         // Global I and J indices in 1-based index (for fortran)
-         I[k] = row_start + i + 1;
-         J[k] = Jptr[k] + 1;
-         k++;
+         for (int j = Iptr[i]; j < Iptr[i + 1]; j++)
+         {
+            // Global I and J indices in 1-based index (for fortran)
+            int ii = row_start + i + 1;
+            int jj = Jptr[k] + 1;
+            if (ii>=jj)
+            {
+               I[l] = ii;
+               J[l] = jj;
+               data[l] = csr_op->data[k];
+               l++;
+            }
+            k++;
+         }
       }
+   }
+   else
+   {
+      for (int i = 0; i < n_loc; i++)
+      {
+         for (int j = Iptr[i]; j < Iptr[i + 1]; j++)
+         {
+            // Global I and J indices in 1-based index (for fortran)
+            I[k] = row_start + i + 1;
+            J[k] = Jptr[k] + 1;
+            k++;
+         }
+      }
+      data = csr_op->data;
    }
 
    // new MUMPS object
@@ -137,7 +188,7 @@ void MUMPSSolver::SetOperator(const Operator &op)
    id->par = 1;
 
    // Unsymmetric matrix
-   id->sym = 0;
+   id->sym = sym;
 
    // Mumps init
    id->job = -1;
@@ -149,7 +200,7 @@ void MUMPSSolver::SetOperator(const Operator &op)
    id->nnz_loc = nnz;
    id->irn_loc = I;          // Distributed row array
    id->jcn_loc = J;          // Distributed column array
-   id->a_loc = csr_op->data; // Distributed data array
+   id->a_loc = data; // Distributed data array
 
    // Analysis
    id->job = 1;
@@ -159,113 +210,76 @@ void MUMPSSolver::SetOperator(const Operator &op)
    id->job = 2;
    dmumps_c(id);
 
-   if (!dist_rhs || !dist_sol) // if at least one is on host
-   {
-      if (myid == 0)
-      {
-         rhs_glob.SetSize(parcsr_op->global_num_rows);
-         rhs_glob = 0.0;
-         recv_counts.SetSize(numProcs);
-      }
-      MPI_Gather(&n_loc, 1, MPI_INT, recv_counts, 1, MPI_INT, 0, comm);
-      if (myid == 0)
-      {
-         displs.SetSize(numProcs);
-         displs[0] = 0;
-         for (int k = 0; k < numProcs - 1; k++)
-         {
-            displs[k + 1] = displs[k] + recv_counts[k];
-         }
-      }
-   }
+   // matrix can be destroyed now
+   hypre_CSRMatrixDestroy(csr_op);
+   if (!sym) { data = nullptr; }
 
-   if (dist_rhs)
+#if MFEM_MUMPS_VERSION >= 530
+   irhs_loc.SetSize(n_loc);
+   for (int i = 0; i < n_loc; i++)
    {
-      irhs_loc.SetSize(n_loc);
-      for (int i = 0; i < n_loc; i++)
+      irhs_loc[i] = row_start + i + 1;
+   }
+   row_starts.SetSize(numProcs);
+   MPI_Allgather(&row_start, 1, MPI_INT, row_starts, 1, MPI_INT, comm);
+   sol_loc.SetSize(id->INFO(23));
+   isol_loc.SetSize(id->INFO(23));
+#else
+   if (myid == 0)
+   {
+      rhs_glob.SetSize(parcsr_op->global_num_rows);
+      recv_counts.SetSize(numProcs);
+   }
+   MPI_Gather(&n_loc, 1, MPI_INT, recv_counts, 1, MPI_INT, 0, comm);
+   if (myid == 0)
+   {
+      displs.SetSize(numProcs); displs[0] = 0;
+      int s = 0;
+      for (int k = 0; k < numProcs-1; k++)
       {
-         irhs_loc[i] = row_start + i + 1;
+         s += recv_counts[k];
+         displs[k+1] = s;
       }
    }
-
-   if (dist_sol)
-   {
-      row_starts.SetSize(numProcs);
-      MPI_Allgather(&row_start, 1, MPI_INT, row_starts, 1, MPI_INT, comm);
-      sol_loc.SetSize(id->INFO(23));
-      isol_loc.SetSize(id->INFO(23));
-   }
-   delete csr_op;
+#endif
 }
 
 void MUMPSSolver::Mult(const Vector &x, Vector &y) const
 {
-   // cases for the load vector
-   if (dist_rhs)
-   {
-      // distributed
-      id->nloc_rhs = x.Size();
-      id->lrhs_loc = x.Size();
-      id->rhs_loc = x.GetData();
-      id->irhs_loc = const_cast<int *>(irhs_loc.GetData());
-   }
-   else
-   {
-      // on host
-      MPI_Gatherv(x.GetData(),
-                  x.Size(),
-                  MPI_DOUBLE,
-                  rhs_glob.GetData(),
-                  recv_counts,
-                  displs,
-                  MPI_DOUBLE,
-                  0,
-                  comm);
-      if (myid == 0)
-      {
-         id->rhs = rhs_glob.GetData();
-      }
-   }
-
-   // cases for the solution vector
-   if (dist_sol)
-   {
-      // distributed
-      id->sol_loc = sol_loc.GetData();
-      id->lsol_loc = id->INFO(23);
-      id->isol_loc = const_cast<int *>(isol_loc.GetData());
-   }
-   else
-   {
-      // on host
-      if (myid == 0)
-      {
-         id->rhs = rhs_glob.GetData();
-      }
-   }
-
-   // Solve
+#if MFEM_MUMPS_VERSION >= 530
+   id->nloc_rhs = x.Size();
+   id->lrhs_loc = x.Size();
+   id->rhs_loc = x.GetData();
+   id->irhs_loc = const_cast<int *>(irhs_loc.GetData());
+   id->sol_loc = sol_loc.GetData();
+   id->lsol_loc = id->INFO(23);
+   id->isol_loc = const_cast<int *>(isol_loc.GetData());
    id->job = 3;
    dmumps_c(id);
-
-   if (dist_sol)
+   RedistributeSol(isol_loc, sol_loc, y);
+#else
+   MPI_Gatherv(x.GetData(), x.Size(), MPI_DOUBLE,
+               rhs_glob.GetData(), recv_counts,
+               displs, MPI_DOUBLE, 0, comm);
+   if (myid == 0)
    {
-      RedistributeSol(isol_loc, sol_loc, y);
+      id->rhs = rhs_glob.GetData();
    }
-   else
-   {
-      MPI_Scatterv(rhs_glob.GetData(),
-                   recv_counts,
-                   displs,
-                   MPI_DOUBLE,
-                   y.GetData(),
-                   y.Size(),
-                   MPI_DOUBLE,
-                   0,
-                   comm);
-   }
+   id->job = 3;
+   dmumps_c(id);
+   MPI_Scatterv(rhs_glob.GetData(), recv_counts, displs,
+                MPI_DOUBLE, y.GetData(), y.Size(),
+                MPI_DOUBLE, 0, comm);
+#endif
 }
 
+void MUMPSSolver::MultTranspose(const Vector &x, Vector &y) const
+{
+   id->ICNTL(9) = 0;
+   Mult(x,y);
+}
+
+#if MFEM_MUMPS_VERSION >= 530
 int MUMPSSolver::GetRowRank(int i, const Array<int> &row_starts_) const
 {
    if (row_starts_.Size() == 1)
@@ -357,6 +371,7 @@ void MUMPSSolver::RedistributeSol(const Array<int> &row_map,
       y(local_index) = recvbuf_value[i];
    }
 }
+#endif
 
 } // namespace mfem
 

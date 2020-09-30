@@ -8,11 +8,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "mpi.h"
-#include "dmumps_c.h"
-// #define JOB_INIT -1
-// #define JOB_END -2
-#define USE_COMM_WORLD -987654
+
 using namespace std;
 using namespace mfem;
 
@@ -67,7 +63,7 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
-      int ref_levels = 1;
+      int ref_levels = 2;
       for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();
@@ -80,7 +76,7 @@ int main(int argc, char *argv[])
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
    {
-      int par_ref_levels = 1;
+      int par_ref_levels = 2;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh.UniformRefinement();
@@ -150,17 +146,40 @@ int main(int argc, char *argv[])
    cg.Mult(B, X);
    delete prec;
 
+   StopWatch chrono;
+   chrono.Clear();
+   chrono.Start();
+
    {
       MUMPSSolver MA;
-      MA.UseDistributedRHS(true);
-      MA.UseDistributedSol(true);
+      MA.SetMatrixSymType(2);
       MA.SetOperator(A);
-      // MA.UseDistributedRHS(false);
       Vector Y(X.Size());
-      MA.Mult(B,Y);
+      MA.MultTranspose(B,Y);
       Y-=X;
-      cout << "Diff norm = " << Y.Norml2() << endl;
+      cout << "Mumps Diff norm = " << Y.Norml2() << endl;
    }
+   cout << "mumps time: " << chrono.RealTime() << endl;
+
+   chrono.Clear();
+   chrono.Start();
+
+   {
+      // Transform to monolithic HypreParMatrix
+      SuperLURowLocMatrix SA(A);
+      SuperLUSolver superlu(MPI_COMM_WORLD);
+      superlu.SetPrintStatistics(false);
+      superlu.SetSymmetricPattern(false);
+      superlu.SetColumnPermutation(superlu::PARMETIS);
+      superlu.SetOperator(SA);
+      Vector Y(X.Size());
+      superlu.Mult(B, Y);
+      Y-=X;
+      cout << "Superlu Diff norm = " << Y.Norml2() << endl;
+   }
+
+   cout << "superlu time: " << chrono.RealTime() << endl;
+
 
    a.RecoverFEMSolution(X, b, x);
 
