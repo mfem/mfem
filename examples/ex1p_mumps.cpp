@@ -152,10 +152,10 @@ int main(int argc, char *argv[])
 
    {
       MUMPSSolver MA;
-      MA.SetMatrixSymType(2);
+      MA.SetMatrixSymType(1);
       MA.SetOperator(A);
       Vector Y(X.Size());
-      MA.MultTranspose(B,Y);
+      MA.Mult(B,Y);
       Y-=X;
       cout << "Mumps Diff norm = " << Y.Norml2() << endl;
    }
