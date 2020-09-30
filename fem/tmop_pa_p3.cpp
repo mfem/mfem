@@ -175,7 +175,7 @@ void TMOP_Integrator::AddMultPA_3D(const Vector &X, Vector &Y) const
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
    const DenseTensor &J = PA.Jtr;
-   const Array<double> &W = IntRule->GetWeights();
+   const Array<double> &W = PA.ir->GetWeights();
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
    const double mn = metric_normal;
