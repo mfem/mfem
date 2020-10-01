@@ -39,8 +39,8 @@ void CartesianPML::SetBoundaries()
    {
       for (int d=0; d<dim; d++)
       {
-         MPI_Allreduce(&dom_bdr(d,0),&dom_bdr(d,0),1,MPI_DOUBLE,MPI_MIN,pmesh->GetComm());
-         MPI_Allreduce(&dom_bdr(d,1),&dom_bdr(d,1),1,MPI_DOUBLE,MPI_MAX,pmesh->GetComm());
+         MPI_Allreduce(MPI_IN_PLACE,&dom_bdr(d,0),1,MPI_DOUBLE,MPI_MIN,pmesh->GetComm());
+         MPI_Allreduce(MPI_IN_PLACE,&dom_bdr(d,1),1,MPI_DOUBLE,MPI_MAX,pmesh->GetComm());
       }
    }
 #endif

@@ -31,10 +31,11 @@ double GetUniformMeshElementSize(Mesh * mesh)
       hmin = hmax = 0.0;
    }
 
+   // cout << hmax << endl;
 #ifdef MFEM_USE_MPI
    ParMesh * pmesh = dynamic_cast<ParMesh *>(mesh);
    if (pmesh)
-      MPI_Allreduce(&hmax, &hmax,1,MPI_DOUBLE,MPI_MAX,pmesh->GetComm());
+      MPI_Allreduce(MPI_IN_PLACE, &hmax,1,MPI_DOUBLE,MPI_MAX,pmesh->GetComm());
 
 #endif
    return hmax;
