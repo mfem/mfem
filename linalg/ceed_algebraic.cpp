@@ -885,6 +885,7 @@ CeedMultigridLevel::CeedMultigridLevel(CeedOperator oper,
    :
    oper_(oper),
    ho_ess_tdof_list_(ho_ess_tdof_list),
+   gc(NULL),
    P(NULL),
    R(NULL),
    P_fine_(P_fine)
