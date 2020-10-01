@@ -12,7 +12,55 @@
 #include "mfem.hpp"
 using namespace mfem;
 
-#include "catch.hpp"
+#include "unit_tests.hpp"
+
+TEST_CASE("Element-wise construction", "[Mesh]")
+{
+   SECTION("Quadrilateral")
+   {
+      const int numVertices = 9;
+      const int numElements = 4;
+
+      Mesh mesh(2, numVertices, numElements);
+
+      // Add each vertex by coordinates
+      for (int i=0; i<3; ++i)
+         for (int j=0; j<3; ++j)
+         {
+            mesh.AddVertex(i, j);
+         }
+
+      // Add each element by vertices
+      const int geom = Geometry::SQUARE;
+
+      Array<int> elvert(4);
+
+      Element *el = mesh.NewElement(geom);
+      elvert[0] = 0; elvert[1] = 1; elvert[2] = 3; elvert[3] = 4;
+      el->SetVertices(elvert);
+      mesh.AddElement(el);
+
+      el = mesh.NewElement(geom);
+      elvert[0] = 1; elvert[1] = 2; elvert[2] = 4; elvert[3] = 5;
+      el->SetVertices(elvert);
+      mesh.AddElement(el);
+
+      el = mesh.NewElement(geom);
+      elvert[0] = 3; elvert[1] = 4; elvert[2] = 6; elvert[3] = 7;
+      el->SetVertices(elvert);
+      mesh.AddElement(el);
+
+      el = mesh.NewElement(geom);
+      elvert[0] = 4; elvert[1] = 5; elvert[2] = 7; elvert[3] = 8;
+      el->SetVertices(elvert);
+      mesh.AddElement(el);
+
+      mesh.FinalizeTopology();
+
+      REQUIRE(numVertices == mesh.GetNV());
+      REQUIRE(numElements == mesh.GetNE());
+   }
+}
 
 TEST_CASE("Gecko integration in MFEM", "[Mesh]")
 {
