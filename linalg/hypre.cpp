@@ -2977,11 +2977,10 @@ void HypreFGMRES::SetPrintLevel(int print_lvl)
 void HypreFGMRES::SetPreconditioner(HypreSolver &_precond)
 {
    precond = &_precond;
-
-   HYPRE_ParCSRGMRESSetPrecond(fgmres_solver,
-                               _precond.SolveFcn(),
-                               _precond.SetupFcn(),
-                               _precond);
+   HYPRE_ParCSRFlexGMRESSetPrecond(fgmres_solver,
+                                   _precond.SolveFcn(),
+                                   _precond.SetupFcn(),
+                                   _precond);
 }
 
 void HypreFGMRES::Mult(const HypreParVector &b, HypreParVector &x) const
@@ -3239,7 +3238,7 @@ HypreEuclid::~HypreEuclid()
    HYPRE_EuclidDestroy(euc_precond);
 }
 
-#ifdef HYPRE_VERSION >= 21900
+#if MFEM_HYPRE_VERSION >= 21900
 HypreILU::HypreILU()
 {
    HYPRE_ILUCreate(&ilu_precond);
@@ -3260,18 +3259,6 @@ void HypreILU::SetDefaultOptions()
    // Fill level for ILU(k)
    HYPRE_Int lev_fill = 1;
    HYPRE_ILUSetLevelOfFill(ilu_precond, lev_fill);
-   // Maximum non-zeros per row (for ILUT only)
-   HYPRE_Int nz_max = 1000;
-   HYPRE_ILUSetMaxNnzPerRow(ilu_precond, nz_max);
-   // Drop tolerance for ILUT
-   HYPRE_Real drop_thres = 1e-2;
-   HYPRE_ILUSetDropThreshold(ilu_precond, drop_thres);
-   // Drop tol in Newton–Schulz–Hotelling iteration
-   HYPRE_Real nsh_thres = 1e-2;
-   HYPRE_ILUSetNSHDropThreshold(ilu_precond, nsh_thres);
-   // Maximum number of iter to solve Schur system
-   HYPRE_Int schur_max_iter = 5;
-   HYPRE_ILUSetSchurMaxIter(ilu_precond, schur_max_iter);
    // Local reordering scheme; 0 = no reordering, 1 = reverse Cuthill-McKee
    HYPRE_Int reorder_type = 1;
    HYPRE_ILUSetLocalReordering(ilu_precond, reorder_type);
