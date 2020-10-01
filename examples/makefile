@@ -120,7 +120,7 @@ ex11p-test-superlu: ex11p
 test-par-YES: ex11p-test-superlu
 endif
 ifeq ($(MFEM_USE_MKL_CPARDISO),YES)
-ex11p-test-superlu: ex11p
+ex11p-test-cpardiso: ex11p
 	@$(call mfem-test,$<, $(RUN_MPI), MKL_CPARDISO example,--pardiso)
 test-par-YES: ex11p-test-pardiso
 endif
