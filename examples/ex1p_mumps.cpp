@@ -25,6 +25,8 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool visualization = true;
+   int sr = 1;
+   int pr = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -32,6 +34,10 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&sr, "-sr", "--serial_ref",
+                  "Number of serial refinements");        
+   args.AddOption(&pr, "-pr", "--parallel_ref",
+                  "Number of parallel refinements");                               
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -63,8 +69,7 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
-      int ref_levels = 2;
-      for (int l = 0; l < ref_levels; l++)
+      for (int l = 0; l < sr; l++)
       {
          mesh.UniformRefinement();
       }
@@ -76,8 +81,7 @@ int main(int argc, char *argv[])
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
    {
-      int par_ref_levels = 2;
-      for (int l = 0; l < par_ref_levels; l++)
+      for (int l = 0; l < pr; l++)
       {
          pmesh.UniformRefinement();
       }
@@ -136,36 +140,62 @@ int main(int argc, char *argv[])
    // // 13. Solve the linear system A X = B.
    // //     * With full assembly, use the BoomerAMG preconditioner from hypre.
    // //     * With partial assembly, use Jacobi smoothing, for now.
+   StopWatch chrono;
+   chrono.Clear();
+   chrono.Start();
    HypreBoomerAMG *prec = new HypreBoomerAMG;
+   prec->SetPrintLevel(0);
    CGSolver cg(MPI_COMM_WORLD);
    cg.SetRelTol(1e-13);
    cg.SetMaxIter(2000);
-   cg.SetPrintLevel(1);
+   cg.SetPrintLevel(0);
    if (prec) { cg.SetPreconditioner(*prec); }
    cg.SetOperator(A);
    cg.Mult(B, X);
    delete prec;
 
-   StopWatch chrono;
+   if (myid == 0)
+   {
+      cout << "PCG-AMG time: " << chrono.RealTime() << endl;
+   }
+
    chrono.Clear();
    chrono.Start();
-
    {
       MUMPSSolver MA;
-      MA.SetMatrixSymType(1);
+      MA.SetMatrixSymType(0);
       MA.SetOperator(A);
       Vector Y(X.Size());
       MA.Mult(B,Y);
       Y-=X;
       cout << "Mumps Diff norm = " << Y.Norml2() << endl;
    }
-   cout << "mumps time: " << chrono.RealTime() << endl;
+   if (myid == 0)
+   {
+      cout << "mumps time: " << chrono.RealTime() << endl;
+   }
 
    chrono.Clear();
    chrono.Start();
 
    {
-      // Transform to monolithic HypreParMatrix
+      CPardisoSolver pardiso(A.GetComm());
+      // pardiso.SetMatrixType(CPardisoSolver::MatType::REAL_STRUCTURE_SYMMETRIC);
+      pardiso.SetMatrixType(CPardisoSolver::MatType::REAL_UNSYMMETRIC);
+      pardiso.SetPrintLevel(0);
+      pardiso.SetOperator(A);
+      Vector Y(X.Size());
+      pardiso.Mult(B, Y);
+      Y-=X;
+      cout << "Pardiso Diff norm = " << Y.Norml2() << endl;
+   }
+
+   if (myid == 0)
+   {
+      cout << "pardiso time: " << chrono.RealTime() << endl;
+   }
+
+   {
       SuperLURowLocMatrix SA(A);
       SuperLUSolver superlu(MPI_COMM_WORLD);
       superlu.SetPrintStatistics(false);
@@ -178,8 +208,10 @@ int main(int argc, char *argv[])
       cout << "Superlu Diff norm = " << Y.Norml2() << endl;
    }
 
-   cout << "superlu time: " << chrono.RealTime() << endl;
-
+   if (myid == 0)
+   {
+      cout << "superlu time: " << chrono.RealTime() << endl;
+   }
 
    a.RecoverFEMSolution(X, b, x);
 

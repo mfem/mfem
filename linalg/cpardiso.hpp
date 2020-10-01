@@ -12,12 +12,13 @@
 #ifndef MFEM_CPARDISO
 #define MFEM_CPARDISO
 
-#ifdef MFEM_USE_MPI
-#ifdef MFEM_USE_MKL_CPARDISO
-
 #include "../config/config.hpp"
-#include "mkl_cluster_sparse_solver.h"
+
+#ifdef MFEM_USE_MKL_CPARDISO
+#ifdef MFEM_USE_MPI
 #include "operator.hpp"
+#include <mpi.h>
+#include "mkl_cluster_sparse_solver.h"
 
 namespace mfem
 {

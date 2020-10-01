@@ -1,11 +1,14 @@
+
+#include "../config/config.hpp"
+
+#ifdef MFEM_USE_MKL_CPARDISO
+#ifdef MFEM_USE_MPI
+
 #include "cpardiso.hpp"
 #include "hypre.hpp"
 #include <algorithm>
 #include <vector>
 #include <numeric>
-
-#ifdef MFEM_USE_MPI
-#ifdef MFEM_USE_MKL_CPARDISO
 
 namespace mfem
 {
