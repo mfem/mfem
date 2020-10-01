@@ -1684,7 +1684,6 @@ void ParNCMesh::Rebalance(const Array<int> *custom_partition)
 
       Array<int> new_ranks;
       custom_partition->Copy(new_ranks);
-
       new_ranks.SetSize(leaf_elements.Size(), -1); // make room for ghosts
 
       RedistributeElements(new_ranks, -1, true);
