@@ -589,14 +589,14 @@ int main(int argc, char *argv[])
      estimator_used=L2estimator;
    }
 
-   int levels3=par_ref_levels+3, levels4=par_ref_levels+4, levels5=par_ref_levels+5;
+   int levels2=par_ref_levels+2, levels3=par_ref_levels+3, levels4=par_ref_levels+4, levels5=par_ref_levels+5;
    ThresholdRefiner refiner(*estimator_used);
    refiner.SetTotalErrorFraction(err_fraction);   // here 0.0 means we use local threshold; default is 0.5
    refiner.SetTotalErrorGoal(ltol_amr);  // total error goal (stop criterion)
    refiner.SetLocalErrorGoal(0.0);  // local error goal (stop criterion)
    refiner.SetMaxElements(10000000);
-   if (levels3<amr_levels)
-      refiner.SetMaximumRefinementLevel(levels3);
+   if (levels2<amr_levels)
+      refiner.SetMaximumRefinementLevel(levels2);
    else
       refiner.SetMaximumRefinementLevel(amr_levels);
    refiner.SetNCLimit(nc_limit);
@@ -742,7 +742,7 @@ int main(int argc, char *argv[])
    bool last_step = false;
    int ref_its=1;
    int deref_its=1;
-   int current_amr_level=levels3;
+   int current_amr_level=levels2;
    for (int ti = 1; !last_step; ti++)
    {
       if (t_change>0. && t>=t_change)
@@ -760,7 +760,11 @@ int main(int argc, char *argv[])
           deref_its=3;
       }
 
-      if (t>3.4 && t<4.00001 && current_amr_level<levels4)
+      if (t>2.8 && t<=3.4 && current_amr_level<levels3)
+      {
+          current_amr_level=levels3;
+      }
+      else if (t>3.4 && t<4.00001 && current_amr_level<levels4)
       {
           current_amr_level=levels4;
       }
