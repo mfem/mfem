@@ -21,7 +21,8 @@
 int CeedATPMGElemRestriction(int order,
                              int order_reduction,
                              CeedElemRestriction er_in,
-                             CeedElemRestriction* er_out);
+                             CeedElemRestriction* er_out,
+                             CeedInt *&dof_map);
 
 int CeedBasisATPMGCoarsen(CeedBasis basisin, CeedBasis* basisout,
                           CeedBasis* basis_ctof,
@@ -41,7 +42,8 @@ int CeedATPMGBundle(CeedOperator oper, int order_reduction,
                     CeedBasis* coarse_basis_out,
                     CeedBasis* basis_ctof_out,
                     CeedElemRestriction* er_out,
-                    CeedOperator* coarse_oper);
+                    CeedOperator* coarse_oper,
+                    CeedInt *&dof_map);
 
 #endif // MFEM_USE_CEED
 

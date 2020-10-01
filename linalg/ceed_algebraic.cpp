@@ -17,6 +17,8 @@
 #include "../fem/libceed/ceedsolvers-atpmg.h"
 #include "../fem/libceed/ceedsolvers-interpolation.h"
 
+#include "../fem/pfespace.hpp"
+
 namespace mfem
 {
 
@@ -64,6 +66,8 @@ public:
 
    virtual void MultTranspose(const mfem::Vector& x, mfem::Vector& y) const;
 
+   using Operator::SetupRAP;
+
 private:
    int Initialize(Ceed ceed, CeedBasis basisctof,
                   CeedElemRestriction erestrictu_coarse,
@@ -81,7 +85,7 @@ private:
 class MFEMCeedVCycle;
 
 /**
-   This takes a CeedOperator with essential dofs 
+   This takes a CeedOperator with essential dofs
    and produces a coarser / lower-order operator, an interpolation
    operator between fine/coarse levels, and a list of coarse
    essential dofs.
@@ -95,13 +99,22 @@ public:
    /// (smoother construction should also be separate?)
    CeedMultigridLevel(CeedOperator oper,
                       const mfem::Array<int>& ess_dofs,
-                      int order_reduction);
+                      int order_reduction,
+                      FiniteElementSpace &fes,
+                      const Operator *P_fine,
+                      const Operator *R_fine);
    ~CeedMultigridLevel();
 
    /// return coarse operator as CeedOperator (no boundary conditions)
    CeedOperator GetCoarseCeed() { return coarse_oper_; }
 
    mfem::Array<int>& GetCoarseEssentialDofList() { return lo_ess_tdof_list_; }
+
+   Operator *GetProlongation() const { return P; }
+
+   const Operator *GetFineProlongation() const { return P_fine_; }
+
+   Operator *GetRestriction() const { return R; }
 
    friend class MFEMCeedVCycle;
 
@@ -115,10 +128,18 @@ private:
    CeedElemRestriction * lo_er_;
 
    MFEMCeedInterpolation * mfem_interp_;
+   Operator *mfem_interp_rap_;
 
    const mfem::Array<int>& ho_ess_tdof_list_;
    mfem::Array<int> lo_ess_tdof_list_;
    int numsub_;
+
+#ifdef MFEM_USE_MPI
+   GroupCommunicator *gc;
+#endif
+   Operator *P, *R;
+   const Operator *P_fine_;
+   TransposeOperator *R_fine_tr;
 };
 
 /**
@@ -135,6 +156,7 @@ public:
    ~UnconstrainedMFEMCeedOperator();
 
    virtual void Mult(const mfem::Vector& x, mfem::Vector& y) const;
+   using Operator::SetupRAP;
 private:
    CeedOperator oper_;
    CeedVector u_, v_;   // mutable?
@@ -143,21 +165,25 @@ private:
 class MFEMCeedOperator : public mfem::Operator
 {
 public:
-   MFEMCeedOperator(CeedOperator oper, mfem::Array<int>& ess_tdofs) 
+   MFEMCeedOperator(CeedOperator oper, mfem::Array<int>& ess_tdofs, const Operator *P)
       :
       unconstrained_op_(oper)
    {
-      unconstrained_op_.FormSystemOperator(ess_tdofs, constrained_op_);
-      height = width = unconstrained_op_.Height();
+      Operator *rap = unconstrained_op_.SetupRAP(P, P);
+      height = width = rap->Height();
+      bool own_rap = rap != &unconstrained_op_;
+      constrained_op_ = new ConstrainedOperator(rap, ess_tdofs, own_rap);
    }
 
-   MFEMCeedOperator(CeedOperator oper)
+   MFEMCeedOperator(CeedOperator oper, const Operator *P)
       :
       unconstrained_op_(oper)
    {
       mfem::Array<int> empty;
-      unconstrained_op_.FormSystemOperator(empty, constrained_op_);
-      height = width = unconstrained_op_.Height();
+      Operator *rap = unconstrained_op_.SetupRAP(P, P);
+      height = width = rap->Height();
+      bool own_rap = rap != &unconstrained_op_;
+      constrained_op_ = new ConstrainedOperator(rap, empty, own_rap);
    }
 
    ~MFEMCeedOperator()
@@ -172,7 +198,7 @@ public:
 
 private:
    UnconstrainedMFEMCeedOperator unconstrained_op_;
-   mfem::Operator * constrained_op_;
+   ConstrainedOperator *constrained_op_;
 };
 
 class MFEMCeedVCycle : public mfem::Solver
@@ -208,6 +234,7 @@ class CeedCGWithAMG : public mfem::Solver
 public:
    CeedCGWithAMG(CeedOperator oper,
                  mfem::Array<int>& ess_tdof_list,
+                 const Operator *P,
                  int sparse_solver_type,
                  bool use_amgx);
 
@@ -241,6 +268,7 @@ class CeedPlainCG : public mfem::Solver
 public:
    CeedPlainCG(CeedOperator oper,
                mfem::Array<int>& ess_tdof_list,
+               const Operator *P,
                int max_its=10);
 
    ~CeedPlainCG();
@@ -580,7 +608,9 @@ void UnconstrainedMFEMCeedOperator::Mult(const mfem::Vector& x, mfem::Vector& y)
 }
 
 mfem::Solver * BuildSmootherFromCeed(Operator * mfem_op, CeedOperator ceed_op,
-                                     const Array<int>& ess_tdofs, bool chebyshev)
+                                     const Array<int>& ess_tdofs,
+                                     const Operator *P,
+                                     bool chebyshev)
 {
    // this is a local diagonal, in the sense of l-vector
    CeedVector diagceed;
@@ -603,7 +633,17 @@ mfem::Solver * BuildSmootherFromCeed(Operator * mfem_op, CeedOperator ceed_op,
       mem = CEED_MEM_HOST;
    }
    CeedVectorGetArrayRead(diagceed, mem, &diagvals);
-   mfem::Vector mfem_diag(const_cast<CeedScalar*>(diagvals), length);
+   mfem::Vector local_diag(const_cast<CeedScalar*>(diagvals), length);
+   mfem::Vector mfem_diag;
+   if (P)
+   {
+      mfem_diag.SetSize(P->Width());
+      P->MultTranspose(local_diag, mfem_diag);
+   }
+   else
+   {
+      mfem_diag.SetDataAndSize(local_diag, local_diag.Size());
+   }
    mfem::Solver * out = NULL;
    if (chebyshev)
    {
@@ -628,7 +668,7 @@ MFEMCeedVCycle::MFEMCeedVCycle(
    mfem::Solver(fine_operator.Height()),
    fine_operator_(fine_operator),
    coarse_solver_(coarse_solver),
-   interp_(*level.mfem_interp_)
+   interp_(*level.mfem_interp_rap_)
 {
    MFEM_VERIFY(fine_operator_.Height() == interp_.Height(), "Sizes don't match!");
    MFEM_VERIFY(coarse_solver_.Height() == interp_.Width(), "Sizes don't match!");
@@ -640,7 +680,9 @@ MFEMCeedVCycle::MFEMCeedVCycle(
 
    fine_smoother_ = BuildSmootherFromCeed(const_cast<Operator*>(&fine_operator),
                                           level.oper_,
-                                          level.ho_ess_tdof_list_, true);
+                                          level.ho_ess_tdof_list_,
+                                          level.GetFineProlongation(),
+                                          true);
 }
 
 MFEMCeedVCycle::~MFEMCeedVCycle()
@@ -703,7 +745,7 @@ MFEMCeedInterpolation::MFEMCeedInterpolation(
    owns_basis_ = false;
    Initialize(ceed, basisctof, erestrictu_coarse, erestrictu_fine);
 }
-  
+
 
 MFEMCeedInterpolation::MFEMCeedInterpolation(
    Ceed ceed,
@@ -832,10 +874,16 @@ void CoarsenEssentialDofs(const mfem::Operator& mfem_interp,
 
 CeedMultigridLevel::CeedMultigridLevel(CeedOperator oper,
                                        const mfem::Array<int>& ho_ess_tdof_list,
-                                       int order_reduction)
+                                       int order_reduction,
+                                       FiniteElementSpace &fes,
+                                       const Operator *P_fine,
+                                       const Operator *R_fine)
    :
    oper_(oper),
-   ho_ess_tdof_list_(ho_ess_tdof_list)
+   ho_ess_tdof_list_(ho_ess_tdof_list),
+   P(NULL),
+   R(NULL),
+   P_fine_(P_fine)
 {
    Ceed ceed;
    CeedOperatorGetCeed(oper, &ceed);
@@ -854,6 +902,7 @@ CeedMultigridLevel::CeedMultigridLevel(CeedOperator oper,
    basisctof_ = new CeedBasis[numsub_];
    lo_er_ = new CeedElemRestriction[numsub_];
 
+   CeedInt *dof_map;
    if (isComposite)
    {
       CeedOperator *subops;
@@ -862,8 +911,11 @@ CeedMultigridLevel::CeedMultigridLevel(CeedOperator oper,
       for (int i = 0; i < numsub_; ++i)
       {
          CeedOperator subcoarse;
+         CeedInt *dof_map_tmp;
          CeedATPMGBundle(subops[i], order_reduction, &coarse_basis_[i], &basisctof_[i],
-                         &lo_er_[i], &subcoarse);
+                         &lo_er_[i], &subcoarse, dof_map_tmp);
+         if (i == 0) { dof_map = dof_map_tmp; }
+         else { free(dof_map_tmp); }
          CeedCompositeOperatorAddSub(coarse_oper_, subcoarse);
          CeedOperatorDestroy(&subcoarse); // give ownership to composite operator
       }
@@ -872,12 +924,103 @@ CeedMultigridLevel::CeedMultigridLevel(CeedOperator oper,
    else
    {
       CeedATPMGBundle(oper, order_reduction, &coarse_basis_[0], &basisctof_[0],
-                      &lo_er_[0], &coarse_oper_);
+                      &lo_er_[0], &coarse_oper_, dof_map);
       CeedOperatorGetActiveElemRestriction(oper, &ho_er_);
    }
-   mfem_interp_ = new MFEMCeedInterpolation(ceed, basisctof_[0], lo_er_[0], ho_er_);
 
-   CoarsenEssentialDofs(*mfem_interp_, ho_ess_tdof_list, lo_ess_tdof_list_);
+#ifdef MFEM_USE_MPI
+   ParFiniteElementSpace *pfes = dynamic_cast<ParFiniteElementSpace *>(&fes);
+   if (pfes && pfes->GetProlongationMatrix())
+   {
+
+      int lsize;
+      CeedElemRestrictionGetLVectorSize(lo_er_[0], &lsize);
+      GroupCommunicator &gc_fine = pfes->GroupComm();
+      const Table &group_ldof_fine = gc_fine.GroupLDofTable();
+
+      Array<int> coarse2fine(lsize);
+      int i_fine = 0;
+      int i_coarse = 0;
+      while (i_coarse < lsize)
+      {
+         while (dof_map[i_fine] < 0) { ++i_fine; }
+         coarse2fine[dof_map[i_fine]] = i_fine;
+         ++i_coarse;
+         ++i_fine;
+      }
+
+      std::unique_ptr<Table> ldof_group_fine(Transpose(group_ldof_fine));
+
+      gc = new GroupCommunicator(gc_fine.GetGroupTopology());
+      Array<int> ldof_group(lsize);
+      for (int i=0; i<lsize; ++i)
+      {
+         // int i_fine = dof_map[i];
+         int i_fine = coarse2fine[i];
+         MFEM_ASSERT(i_fine >= 0, "");
+         if (i_fine >= ldof_group_fine->Size())
+         {
+            ldof_group[i] = 0;
+         }
+         else
+         {
+            Array<int> row;
+            ldof_group_fine->GetRow(i_fine, row);
+            MFEM_ASSERT(row.Size() == 1 || row.Size() == 0, "");
+            int g = row.Size() == 1 ? row[0] : 0;
+            ldof_group[i] = g;
+         }
+      }
+      gc->Create(ldof_group);
+
+      Array<int> ldof_ltdof(lsize);
+      ldof_ltdof = -2;
+      int tsize = 0;
+      for (int i=0; i<lsize; ++i)
+      {
+         int g = ldof_group[i];
+         if (g == 0 || gc->GetGroupTopology().IAmMaster(g))
+         {
+            ldof_ltdof[i] = tsize;
+            ++tsize;
+         }
+      }
+      gc->SetLTDofTable(ldof_ltdof);
+
+      SparseMatrix *R_mat = new SparseMatrix(tsize, lsize);
+      for (int j=0; j<lsize; ++j)
+      {
+         int i = ldof_ltdof[j];
+         if (i >= 0)
+         {
+            R_mat->Set(i,j,1.0);
+         }
+      }
+      R_mat->Finalize();
+      R = R_mat;
+
+      P = new ConformingProlongationOperator(lsize, *gc);
+   }
+#endif
+
+   if (R_fine)
+   {
+      const SparseMatrix *R_fine_mat = dynamic_cast<const SparseMatrix *>(R_fine);
+      MFEM_ASSERT(R_fine_mat, "");
+      R_fine_mat->BuildTranspose();
+      R_fine_tr = new TransposeOperator(R_fine);
+   }
+   else
+   {
+      R_fine_tr = NULL;
+   }
+
+   mfem_interp_ = new MFEMCeedInterpolation(ceed, basisctof_[0], lo_er_[0], ho_er_);
+   // Why does SetupRAP reverse the argument order???
+   mfem_interp_rap_ = mfem_interp_->SetupRAP(P, R_fine_tr);
+   CoarsenEssentialDofs(*mfem_interp_rap_, ho_ess_tdof_list, lo_ess_tdof_list_);
+
+   free(dof_map);
 }
 
 CeedMultigridLevel::~CeedMultigridLevel()
@@ -895,6 +1038,13 @@ CeedMultigridLevel::~CeedMultigridLevel()
    delete [] lo_er_;
 
    delete mfem_interp_;
+
+   delete P;
+   delete R;
+   delete R_fine_tr;
+#ifdef MFEM_USE_MPI
+   delete gc;
+#endif
 }
 
 /// convenience function, ugly hack
@@ -918,10 +1068,11 @@ mfem::HypreParMatrix* SerialHypreMatrix(mfem::SparseMatrix& mat)
 
 CeedCGWithAMG::CeedCGWithAMG(CeedOperator oper,
                              mfem::Array<int>& ess_tdof_list,
+                             const Operator *P,
                              int sparse_solver_type,
                              bool use_amgx)
 {
-   mfem_ceed_ = new MFEMCeedOperator(oper, ess_tdof_list);
+   mfem_ceed_ = new MFEMCeedOperator(oper, ess_tdof_list, P);
    height = width = mfem_ceed_->Height();
 
    CeedOperatorFullAssemble(oper, &mat_assembled_);
@@ -931,7 +1082,7 @@ CeedCGWithAMG::CeedCGWithAMG(CeedOperator oper,
       mat_assembled_->EliminateRowCol(ess_tdof_list[i], mfem::Matrix::DIAG_ONE);
    }
    innercg_.SetOperator(*mfem_ceed_);
-  
+
 #ifdef CEED_USE_AMGX
    if (use_amgx)
    {
@@ -975,9 +1126,10 @@ CeedCGWithAMG::~CeedCGWithAMG()
 
 CeedPlainCG::CeedPlainCG(CeedOperator oper,
                          mfem::Array<int>& ess_tdof_list,
+                         const Operator *P,
                          int max_iter)
 {
-   mfem_ceed_ = new MFEMCeedOperator(oper, ess_tdof_list);
+   mfem_ceed_ = new MFEMCeedOperator(oper, ess_tdof_list, P);
    height = width = mfem_ceed_->Height();
 
    innercg_.SetOperator(*mfem_ceed_);
@@ -1042,6 +1194,9 @@ AlgebraicCeedSolver::AlgebraicCeedSolver(Operator& fine_mfem_op,
    }
    CeedOperator current_op = fine_composite_op;
 
+   FiniteElementSpace &fes = *form.FESpace();
+   const Operator *R = fes.GetRestrictionMatrix();
+   const Operator *P = fes.GetProlongationMatrix();
    operators = new Operator*[num_levels];
    operators[0] = &fine_mfem_op;
    levels = new CeedMultigridLevel*[num_levels - 1];
@@ -1051,10 +1206,12 @@ AlgebraicCeedSolver::AlgebraicCeedSolver(Operator& fine_mfem_op,
    {
       const int order_reduction = current_order - (current_order / 2);
       current_order = current_order / 2;
-      levels[i] = new CeedMultigridLevel(current_op, *current_ess_dofs, order_reduction);
+      levels[i] = new CeedMultigridLevel(current_op, *current_ess_dofs, order_reduction, fes, P, R);
       current_op = levels[i]->GetCoarseCeed();
       current_ess_dofs = &levels[i]->GetCoarseEssentialDofList();
-      operators[i + 1] = new MFEMCeedOperator(current_op, *current_ess_dofs);
+      P = levels[i]->GetProlongation();
+      R = levels[i]->GetRestriction();
+      operators[i + 1] = new MFEMCeedOperator(current_op, *current_ess_dofs, levels[i]->GetProlongation());
    }
    mfem::Solver * coarsest_solver;
    CeedMultigridLevel * coarsest = NULL;
@@ -1069,6 +1226,7 @@ AlgebraicCeedSolver::AlgebraicCeedSolver(Operator& fine_mfem_op,
       {
          coarsest_solver = BuildSmootherFromCeed(NULL, coarsest->GetCoarseCeed(),
                                                  coarsest->GetCoarseEssentialDofList(),
+                                                 coarsest->GetProlongation(),
                                                  false);
       }
       else
@@ -1082,14 +1240,14 @@ AlgebraicCeedSolver::AlgebraicCeedSolver(Operator& fine_mfem_op,
          const int sparse_solver_type = 1; // single v-cycle
          coarsest_solver = new CeedCGWithAMG(coarsest->GetCoarseCeed(),
                                              coarsest->GetCoarseEssentialDofList(),
+                                             coarsest->GetProlongation(),
                                              sparse_solver_type,
                                              use_amgx);
       }
    }
    else
    {
-      int coarse_cg_iterations = 10; // fewer might be better?
-      coarsest_solver = new CeedPlainCG(current_op, *current_ess_dofs, coarse_cg_iterations);
+      coarsest_solver = BuildSmootherFromCeed(&fine_mfem_op, fine_composite_op, ess_dofs, P, false);
    }
 
    // loop up from coarsest to build V-cycle solvers

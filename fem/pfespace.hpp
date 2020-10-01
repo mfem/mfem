@@ -391,7 +391,11 @@ protected:
    const GroupCommunicator &gc;
 
 public:
+   ConformingProlongationOperator(int lsize, const GroupCommunicator &gc_);
+
    ConformingProlongationOperator(const ParFiniteElementSpace &pfes);
+
+   const GroupCommunicator &GetGroupCommunicator() const;
 
    virtual void Mult(const Vector &x, Vector &y) const;
 

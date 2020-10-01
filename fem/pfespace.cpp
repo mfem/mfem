@@ -2959,6 +2959,40 @@ void ParFiniteElementSpace::Update(bool want_transform)
    }
 }
 
+ConformingProlongationOperator::ConformingProlongationOperator(
+   int lsize, const GroupCommunicator &gc_)
+   : gc(gc_)
+{
+   const Table &group_ldof = gc.GroupLDofTable();
+
+   int n_external = 0;
+   for (int g=1; g<group_ldof.Size(); ++g)
+   {
+      if (!gc.GetGroupTopology().IAmMaster(g))
+      {
+         n_external += group_ldof.RowSize(g);
+      }
+   }
+   int tsize = lsize - n_external;
+
+   height = lsize;
+   width = tsize;
+
+   external_ldofs.Reserve(n_external);
+   for (int gr = 1; gr < group_ldof.Size(); gr++)
+   {
+      if (!gc.GetGroupTopology().IAmMaster(gr))
+      {
+         external_ldofs.Append(group_ldof.GetRow(gr), group_ldof.RowSize(gr));
+      }
+   }
+   external_ldofs.Sort();
+}
+
+const GroupCommunicator &ConformingProlongationOperator::GetGroupCommunicator() const
+{
+   return gc;
+}
 
 ConformingProlongationOperator::ConformingProlongationOperator(
    const ParFiniteElementSpace &pfes)

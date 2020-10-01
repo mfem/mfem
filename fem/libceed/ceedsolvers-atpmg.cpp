@@ -19,6 +19,7 @@
 // todo: should probably use Ceed memory wrappers instead of calloc/free?
 #include <stdlib.h>
 
+#include <vector>
 
 int coarse_1d_edof(int i, int P1d, int coarse_P1d) {
   int coarse_i = (i < coarse_P1d - 1) ? i : -1;
@@ -62,7 +63,8 @@ int min4(int a, int b, int c, int d) {
 int CeedATPMGElemRestriction(int order,
                              int order_reduction,
                              CeedElemRestriction er_in,
-                             CeedElemRestriction* er_out) {
+                             CeedElemRestriction* er_out,
+                             CeedInt *&dof_map) {
   int ierr;
   Ceed ceed;
   ierr = CeedElemRestrictionGetCeed(er_in, &ceed); CeedChk(ierr);
@@ -100,7 +102,8 @@ int CeedATPMGElemRestriction(int order,
   ierr = CeedVectorGetArrayRead(in_evec, CEED_MEM_HOST, &in_elem_dof); CeedChk(ierr);
 
   // map high-order ldof to low-order ldof
-  CeedInt * dof_map = (CeedInt*) calloc(numnodes, sizeof(CeedInt));
+  // !! caller's responsibility to free
+  dof_map = (CeedInt*) calloc(numnodes, sizeof(CeedInt));
   for (int i = 0; i < numnodes; ++i) {
     dof_map[i] = -1;
   }
@@ -312,8 +315,22 @@ int CeedATPMGElemRestriction(int order,
     return CeedError(ceed, 1, "Bad dimension!");
   }
 
+  std::vector<int> perm(running_out_ldof_count);
+  int icoarse = 0;
+  for (int i=0; i<numnodes; ++i) {
+    if (dof_map[i] >= 0) {
+      perm[dof_map[i]] = icoarse;
+      dof_map[i] = icoarse;
+      ++icoarse;
+      if (icoarse == running_out_ldof_count) { break; }
+    }
+  }
+  for (int i=0; i<numelem*coarse_elemsize; ++i)
+  {
+    out_elem_dof[i] = perm[out_elem_dof[i]];
+  }
+
   ierr = CeedVectorRestoreArrayRead(in_evec, &in_elem_dof); CeedChk(ierr);
-  free(dof_map);
   ierr = CeedVectorDestroy(&in_evec); CeedChk(ierr);
 
   ierr = CeedElemRestrictionCreate(ceed, numelem, coarse_elemsize, numcomp,
@@ -381,7 +398,7 @@ int CeedBasisATPMGCoarsen(CeedBasis basisin, CeedBasis* basisout,
                                          CEED_GAUSS_LOBATTO, basisctof); CeedChk(ierr);
   const CeedScalar *interp_ctof;
   ierr = CeedBasisGetInterp1D(*basisctof, &interp_ctof); CeedChk(ierr);
-  
+
   for (int i = 0; i < Q1d; ++i) {
     for (int j = 0; j < coarse_P1d; ++j) {
       coarse_interp1d[i * coarse_P1d + j] = 0.0;
@@ -476,13 +493,13 @@ int CeedATPMGOperator(CeedOperator oper, int order_reduction,
     (CeedElemRestriction*) calloc(numinputfields, sizeof(CeedElemRestriction));
   CeedElemRestriction * er_output =
     (CeedElemRestriction*) calloc(numoutputfields, sizeof(CeedElemRestriction));
-  CeedVector * if_vector = 
+  CeedVector * if_vector =
     (CeedVector*) calloc(numinputfields, sizeof(CeedVector));
-  CeedVector * of_vector = 
+  CeedVector * of_vector =
     (CeedVector*) calloc(numoutputfields, sizeof(CeedVector));
   CeedBasis * basis_input =
     (CeedBasis*) calloc(numinputfields, sizeof(CeedBasis));
-  CeedBasis * basis_output = 
+  CeedBasis * basis_output =
     (CeedBasis*) calloc(numoutputfields, sizeof(CeedBasis));
   CeedBasis cbasis;
   int active_input_basis = -1;
@@ -528,10 +545,10 @@ int CeedATPMGOperator(CeedOperator oper, int order_reduction,
     char * fieldname;
     ierr = CeedQFunctionFieldGetName(inputqfields[i], &fieldname); CeedChk(ierr);
     if (if_vector[i] == CEED_VECTOR_ACTIVE) {
-      ierr = CeedOperatorSetField(coper, fieldname, coarse_er, cbasis, 
+      ierr = CeedOperatorSetField(coper, fieldname, coarse_er, cbasis,
                                   if_vector[i]); CeedChk(ierr);
     } else {
-      ierr = CeedOperatorSetField(coper, fieldname, er_input[i], basis_input[i], 
+      ierr = CeedOperatorSetField(coper, fieldname, er_input[i], basis_input[i],
                                   if_vector[i]); CeedChk(ierr);
     }
   }
@@ -562,13 +579,14 @@ int CeedATPMGBundle(CeedOperator oper, int order_reduction,
                     CeedBasis* coarse_basis_out,
                     CeedBasis* basis_ctof_out,
                     CeedElemRestriction* er_out,
-                    CeedOperator* coarse_oper) {
+                    CeedOperator* coarse_oper,
+                    CeedInt *&dof_map) {
   int ierr;
   CeedInt order;
   ierr = CeedOperatorGetOrder(oper, &order); CeedChk(ierr);
   CeedElemRestriction ho_er;
   ierr = CeedOperatorGetActiveElemRestriction(oper, &ho_er); CeedChk(ierr);
-  ierr = CeedATPMGElemRestriction(order, order_reduction, ho_er, er_out); CeedChk(ierr);
+  ierr = CeedATPMGElemRestriction(order, order_reduction, ho_er, er_out, dof_map); CeedChk(ierr);
   ierr = CeedATPMGOperator(oper, order_reduction, *er_out, coarse_basis_out,
                            basis_ctof_out, coarse_oper); CeedChk(ierr);
   return 0;

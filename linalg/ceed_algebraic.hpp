@@ -28,7 +28,7 @@ class BilinearForm;
 class AlgebraicCeedSolver : public mfem::Solver
 {
 public:
-   AlgebraicCeedSolver(Operator& fine_mfem_op, BilinearForm& form, 
+   AlgebraicCeedSolver(Operator& fine_mfem_op, BilinearForm& form,
                        Array<int>& ess_dofs, bool use_amg=false);
    ~AlgebraicCeedSolver();
 
