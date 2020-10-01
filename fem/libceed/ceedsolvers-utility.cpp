@@ -11,10 +11,13 @@
 
 #include "ceedsolvers-utility.h"
 
+#include "../../general/forall.hpp"
+using namespace mfem;
+
 #ifdef MFEM_USE_CEED
 
 /// a = a (pointwise*) b
-/// @todo: figure out how to do on GPU?
+/// @todo: using MPI_FORALL in this Ceed-like function is ugly
 int CeedVectorPointwiseMult(CeedVector a, const CeedVector b) {
   int ierr;
   Ceed ceed;
@@ -27,16 +30,14 @@ int CeedVectorPointwiseMult(CeedVector a, const CeedVector b) {
     return CeedError(ceed, 1, "Vector sizes don't match");
   }
 
-  CeedMemType mem = CEED_MEM_HOST;
-  /* CeedGetPreferredMemType(ceed, &mem); */
+  CeedMemType mem;
+  CeedGetPreferredMemType(ceed, &mem);
   CeedScalar *a_data;
   const CeedScalar *b_data;
   ierr = CeedVectorGetArray(a, mem, &a_data); CeedChk(ierr);
   ierr = CeedVectorGetArrayRead(b, mem, &b_data); CeedChk(ierr);
-
-  for (int i = 0; i < length; ++i) {
-    a_data[i] = a_data[i] * b_data[i];
-  }
+  MFEM_FORALL(i, length,
+              {a_data[i] *= b_data[i];});
 
   ierr = CeedVectorRestoreArray(a, &a_data); CeedChk(ierr);
   ierr = CeedVectorRestoreArrayRead(b, &b_data); CeedChk(ierr);
