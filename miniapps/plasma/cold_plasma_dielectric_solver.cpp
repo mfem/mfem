@@ -802,6 +802,8 @@ CPDSolver::~CPDSolver()
    delete d_;
    delete temp_;
    delete phi_;
+   delete phi_tmp_;
+   delete rectPot_;
    // delete b_;
    // delete h_;
    delete j_;
@@ -1438,7 +1440,7 @@ CPDSolver::Solve()
          delete pcg;
       }
 
-      // Update phi = z n.D on the boundary
+      // Update phi = - i w z n.D on the boundary
       if (sbcs_->Size() > 0)
       {
          float Phi_err = 1.0;
@@ -1459,10 +1461,12 @@ CPDSolver::Solve()
 
          while ( Phi_err > 1e-2 )
          {
+             /*
             if (Phi_iter > 5)
             {
                break;
             }
+              */
             HypreParMatrix M0;
             Vector Phi, RHS0;
 
@@ -1551,8 +1555,7 @@ CPDSolver::Solve()
             Phi_err = PhisolErr;
             if ( PhisolNorm != 0 ) { Phi_err = PhisolErr / PhisolNorm; }
 
-            cout << "Phi pass: " << PhisolNorm << " " << PhisolErr << " " << PhisolNorm2 <<
-                 " Error: " << Phi_err << endl;
+            cout << "Phi pass: " << Phi_iter << " Err : " << Phi_err << endl;
             Phi_iter++;
 
             if (PhisolNorm == 0 && Phi_err < 1e-3)
@@ -1563,12 +1566,9 @@ CPDSolver::Solve()
             phi_tmp_->real() = phi_->real();
             phi_tmp_->imag() = phi_->imag();
 
-            double PhisolNorm3 = phi_tmp_->ComputeL2Error(zeroScalarCoef, zeroScalarCoef);
-            // cout << "Second time: " << PhisolNorm3 << endl;
-
          }
-         cout << " Inner potential calculation done in " << Phi_iter << " iteration(s)."
-              << endl;
+         cout << " Inner potential calculation done in " << Phi_iter << " iteration(s)." << endl;
+    
       }
 
       delete BDP;
@@ -1648,9 +1648,19 @@ CPDSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
 
    if (sbcs_->Size() > 0)
    {
+       
       visit_dc.RegisterField("Re_Phi", &phi_->real());
       visit_dc.RegisterField("Im_Phi", &phi_->imag());
+    
    }
+
+    /*
+    if ( rectPot_ )
+    {
+       visit_dc.RegisterField("Rec_Re_Phi", &rectPot_->real());
+       visit_dc.RegisterField("Rec_Im_Phi", &rectPot_->imag());
+    }
+     */
    // visit_dc.RegisterField("Er", e_r_);
    // visit_dc.RegisterField("Ei", e_i_);
    // visit_dc.RegisterField("B", b_);
@@ -1694,6 +1704,22 @@ CPDSolver::WriteVisItFields(int it)
          uB_->ProjectCoefficient(uBCoef_);
          S_->ProjectCoefficient(SrCoef_, SiCoef_);
       }
+       
+      
+      if ( rectPot_ )
+      {
+          ComplexCoefficientByAttr & sbc = (*sbcs_)[0];
+          SheathBase * sb = dynamic_cast<SheathBase*>(sbc.real);
+
+          if (sb != NULL)
+          {
+            RectifiedSheathPotential rectPotCoefR(*sb, true);
+            RectifiedSheathPotential rectPotCoefI(*sb, false);
+
+            rectPot_->ProjectCoefficient(rectPotCoefR, rectPotCoefI);
+           }
+      }
+      
 
       HYPRE_Int prob_size = this->GetProblemSize();
       visit_dc_->SetCycle(it);
@@ -1862,17 +1888,19 @@ CPDSolver::DisplayToGLVis()
 
    if (sbcs_->Size() > 0)
    {
-      ComplexCoefficientByAttr & sbc = (*sbcs_)[0];
-      SheathBase * sb = dynamic_cast<SheathBase*>(sbc.real);
+       /*
+       ComplexCoefficientByAttr & sbc = (*sbcs_)[0];
+       SheathBase * sb = dynamic_cast<SheathBase*>(sbc.real);
 
-      if (sb != NULL)
-      {
+       if (sb != NULL)
+       {
          RectifiedSheathPotential rectPotCoefR(*sb, true);
          RectifiedSheathPotential rectPotCoefI(*sb, false);
 
          rectPot_->ProjectCoefficient(rectPotCoefR, rectPotCoefI);
-      }
-
+        }
+        */
+        
       Wx += offx;
       VisualizeField(*socks_["Phir"], vishost, visport,
                      phi_v_->real(), "Sheath Potential, Re(Phi)", Wx, Wy, Ww, Wh);
@@ -1881,6 +1909,7 @@ CPDSolver::DisplayToGLVis()
       VisualizeField(*socks_["Phii"], vishost, visport,
                      phi_v_->imag(), "Sheath Potential, Im(Phi)", Wx, Wy, Ww, Wh);
 
+       /*
       Wx += offx;
       VisualizeField(*socks_["RecPhir"], vishost, visport,
                      rectPot_->real(), "Rectified Potential, Re(RecPhi)", Wx, Wy, Ww, Wh);
@@ -1888,6 +1917,7 @@ CPDSolver::DisplayToGLVis()
 
       VisualizeField(*socks_["RecPhii"], vishost, visport,
                      rectPot_->imag(), "Rectified Potential, Im(RecPhi)", Wx, Wy, Ww, Wh);
+        */
    }
 
    if (BCoef_)
@@ -2049,8 +2079,8 @@ CPDSolver::DisplayAnimationToGLVis()
       ostringstream oss;
       oss << "Harmonic Solution (t = " << t << " T)";
 
-      add( cos( 2.0 * M_PI * t), e_v_->real(),
-           -sin( 2.0 * M_PI * t), e_v_->imag(), *e_t_);
+      add( -cos( 2.0 * M_PI * t), e_v_->real(),
+           sin( 2.0 * M_PI * t), e_v_->imag(), *e_t_);
       sol_sock << "parallel " << num_procs_ << " " << myid_ << "\n";
       sol_sock << "solution\n" << *pmesh_ << *e_t_
                << "window_title '" << oss.str() << "'" << flush;
