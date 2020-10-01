@@ -33,6 +33,8 @@ public:
 
    void SetMatrixSymType(int sym_) { sym = (sym_>2) ? 0 : sym_ ; }
 
+   void SetPrintLevel(int print_level_) { print_level=print_level_;}
+
    // Factor and solve the linear system y = Op^{-1} x.
    void Mult(const Vector &x, Vector &y) const;
 
@@ -53,6 +55,8 @@ private:
    int myid;
 
    int sym=0;
+
+   int print_level=0;
 
    int row_start;
 

@@ -32,17 +32,17 @@ MUMPSSolver::~MUMPSSolver()
 
 void MUMPSSolver::SetParameters()
 {
-   // output messages
-   id->ICNTL(1) = -1;
+   // output stream for error messages
+   id->ICNTL(1) = 6;
 
-   // Diagnosting printing
-   id->ICNTL(2) = -1;
+   // output stream for diagnosting printing local to each proc
+   id->ICNTL(2) = 6;
 
-   // Global info on host
-   id->ICNTL(3) = -1;
+   // output stream for global info
+   id->ICNTL(3) = 6;
 
    // Level of error printing
-   id->ICNTL(4) = 0;
+   id->ICNTL(4) = print_level;
 
    //input matrix format (assembled)
    id->ICNTL(5) = 0;
@@ -178,7 +178,6 @@ void MUMPSSolver::SetOperator(const Operator &op)
 
    // new MUMPS object
    id = new DMUMPS_STRUC_C;
-
    // C to Fortran communicator
    id->comm_fortran = (MUMPS_INT) MPI_Comm_c2f(comm);
 
