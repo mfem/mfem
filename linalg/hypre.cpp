@@ -2977,8 +2977,7 @@ void HypreFGMRES::SetPrintLevel(int print_lvl)
 void HypreFGMRES::SetPreconditioner(HypreSolver &_precond)
 {
    precond = &_precond;
-
-   HYPRE_ParCSRGMRESFlexSetPrecond(fgmres_solver,
+   HYPRE_ParCSRFlexGMRESSetPrecond(fgmres_solver,
                                    _precond.SolveFcn(),
                                    _precond.SetupFcn(),
                                    _precond);
