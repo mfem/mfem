@@ -214,7 +214,7 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_CEED
       if (DeviceCanUseCeed() && algebraic_ceed)
       {
-         AlgebraicCeedSolver M(*A, a, ess_tdof_list);
+         AlgebraicCeedSolver M(*A, a, ess_tdof_list, false);
          PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
       }
       else
