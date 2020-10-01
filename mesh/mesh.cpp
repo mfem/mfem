@@ -8825,6 +8825,7 @@ void Mesh::Printer(std::ostream &out, std::string section_delimiter) const
          out << "\nnodes\n";
          Nodes->Save(out);
       }
+
       out << "\nmfem_mesh_end" << endl;
       return;
    }

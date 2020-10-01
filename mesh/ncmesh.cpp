@@ -2136,11 +2136,7 @@ const double* NCMesh::CalcVertexPos(int node) const
       return &coordinates[3*nd.p1];
    }
 
-#ifdef MFEM_DEBUG
-   TmpVertex &tv = tmp_vertex[node]; // to make DebugDump work
-#else
-   TmpVertex &tv = tmp_vertex[nd.vert_index];
-#endif
+   TmpVertex &tv = tmp_vertex[node];
    if (tv.valid) { return tv.pos; }
 
    MFEM_VERIFY(tv.visited == false, "cyclic vertex dependencies.");
