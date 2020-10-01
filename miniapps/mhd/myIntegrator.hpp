@@ -206,6 +206,8 @@ void SpecialConvectionIntegrator::AssembleElementMatrix(const FiniteElement &el,
 
     //compare maximum tau
     double tauMax=0.0;
+
+    /*
     if (maxtau)
     {
         for (int i = 0; i < ir.GetNPoints(); i++)
@@ -238,8 +240,11 @@ void SpecialConvectionIntegrator::AssembleElementMatrix(const FiniteElement &el,
             tauMax = max(tauMax, tau);
         }
     }
-
     invdfdx=0.;
+    */
+
+    tauMax = dt/2.;
+
     for (int i = 0; i < ir.GetNPoints(); i++)
     {
         const IntegrationPoint &ip = ir.IntPoint(i);
@@ -250,8 +255,13 @@ void SpecialConvectionIntegrator::AssembleElementMatrix(const FiniteElement &el,
         Mult(dshape, Tr.AdjugateJacobian(), gshape);
         
         V_ir.GetColumnReference(i, vec1);
+        Unorm = vec1.Norml2();
 
-        norm *= tauMax;
+        norm *= tauMax*Unorm*Unorm;
+
+        AddMult_a_AAt(norm, gshape, elmat);
+
+        /*
         invdfdx(0,0)=vec1(0)*vec1(0)+vec1(1)*vec1(1);
         invdfdx(1,1)=invdfdx(0,0);
         //invdfdx(1,1)=vec1(1)*vec1(1);
@@ -259,6 +269,7 @@ void SpecialConvectionIntegrator::AssembleElementMatrix(const FiniteElement &el,
 
         Mult(gshape, invdfdx, dshape);
         AddMultABt(dshape, gshape, elmat);
+        */
     }
 }
 
