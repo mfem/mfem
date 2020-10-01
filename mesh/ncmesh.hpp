@@ -180,7 +180,7 @@ public:
    {
       int master; ///< master number (in Mesh numbering)
       unsigned matrix : 24;    ///< index into NCList::point_matrices[geom]
-      unsigned edge_flags : 8; ///< edge orientation flags
+      unsigned edge_flags : 8; ///< orientation flags, see OrientedPointMatrix
 
       Slave() = default;
       Slave(int index, int element, int local, int geom)
