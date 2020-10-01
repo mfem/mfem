@@ -26,10 +26,10 @@ ComplexOperator::ComplexOperator(Operator * Op_Real, Operator * Op_Imag,
    , ownReal_(ownReal)
    , ownImag_(ownImag)
    , convention_(convention)
-   , x_r_(NULL, width / 2)
-   , x_i_(NULL, width / 2)
-   , y_r_(NULL, height / 2)
-   , y_i_(NULL, height / 2)
+   , x_r_()
+   , x_i_()
+   , y_r_()
+   , y_i_()
    , u_(NULL)
    , v_(NULL)
 {}
@@ -68,14 +68,26 @@ const Operator & ComplexOperator::imag() const
 
 void ComplexOperator::Mult(const Vector &x, Vector &y) const
 {
-   double * x_data = x.GetData();
-   x_r_.SetData(x_data);
-   x_i_.SetData(&x_data[width / 2]);
+   x.Read();
+   y.UseDevice(true); y = 0.0;
 
-   y_r_.SetData(&y[0]);
-   y_i_.SetData(&y[height / 2]);
+   x_r_.MakeRef(const_cast<Vector&>(x), 0, width/2);
+   x_i_.MakeRef(const_cast<Vector&>(x), width/2, width/2);
+
+   y_r_.MakeRef(y, 0, height/2);
+   y_i_.MakeRef(y, height/2, height/2);
 
    this->Mult(x_r_, x_i_, y_r_, y_i_);
+
+   y_r_.SyncAliasMemory(y);
+   y_i_.SyncAliasMemory(y);
+
+   // Destroy alias vectors to prevent dangling aliases when the base vectors
+   // are deleted
+   x_r_.Destroy();
+   x_i_.Destroy();
+   y_r_.Destroy();
+   y_i_.Destroy();
 }
 
 void ComplexOperator::Mult(const Vector &x_r, const Vector &x_i,
@@ -91,31 +103,47 @@ void ComplexOperator::Mult(const Vector &x_r, const Vector &x_i,
       y_r = 0.0;
       y_i = 0.0;
    }
+
    if (Op_Imag_)
    {
-      if (!v_) { v_ = new Vector(Op_Imag_->Height()); }
+      if (!v_) { v_ = new Vector(); }
+      v_->UseDevice(true);
+      v_->SetSize(Op_Imag_->Height());
+
       Op_Imag_->Mult(x_i, *v_);
-      y_r_ -= *v_;
+      y_r.Add(-1.0, *v_);
       Op_Imag_->Mult(x_r, *v_);
-      y_i_ += *v_;
+      y_i.Add(1.0, *v_);
    }
 
    if (convention_ == BLOCK_SYMMETRIC)
    {
-      y_i_ *= -1.0;
+      y_i *= -1.0;
    }
 }
 
 void ComplexOperator::MultTranspose(const Vector &x, Vector &y) const
 {
-   double * x_data = x.GetData();
-   y_r_.SetData(x_data);
-   y_i_.SetData(&x_data[height / 2]);
+   x.Read();
+   y.UseDevice(true); y = 0.0;
 
-   x_r_.SetData(&y[0]);
-   x_i_.SetData(&y[width / 2]);
+   x_r_.MakeRef(const_cast<Vector&>(x), 0, height/2);
+   x_i_.MakeRef(const_cast<Vector&>(x), height/2, height/2);
 
-   this->MultTranspose(y_r_, y_i_, x_r_, x_i_);
+   y_r_.MakeRef(y, 0, width/2);
+   y_i_.MakeRef(y, width/2, width/2);
+
+   this->MultTranspose(x_r_, x_i_, y_r_, y_i_);
+
+   y_r_.SyncAliasMemory(y);
+   y_i_.SyncAliasMemory(y);
+
+   // Destroy alias vectors to prevent dangling aliases when the base vectors
+   // are deleted
+   x_r_.Destroy();
+   x_i_.Destroy();
+   y_r_.Destroy();
+   y_i_.Destroy();
 }
 
 void ComplexOperator::MultTranspose(const Vector &x_r, const Vector &x_i,
@@ -136,13 +164,17 @@ void ComplexOperator::MultTranspose(const Vector &x_r, const Vector &x_i,
       y_r = 0.0;
       y_i = 0.0;
    }
+
    if (Op_Imag_)
    {
-      if (!u_) { u_ = new Vector(Op_Imag_->Width()); }
+      if (!u_) { u_ = new Vector(); }
+      u_->UseDevice(true);
+      u_->SetSize(Op_Imag_->Width());
+
       Op_Imag_->MultTranspose(x_i, *u_);
-      y_r_.Add(convention_ == BLOCK_SYMMETRIC ? -1.0 : 1.0, *u_);
+      y_r.Add(convention_ == BLOCK_SYMMETRIC ? -1.0 : 1.0, *u_);
       Op_Imag_->MultTranspose(x_r, *u_);
-      y_i_ -= *u_;
+      y_i.Add(-1.0, *u_);
    }
 }
 

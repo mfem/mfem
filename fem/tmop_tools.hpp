@@ -49,8 +49,6 @@ private:
    Vector nodes0;
    GridFunction field0_gf;
    FindPointsGSLIB *finder;
-   Array<uint> el_id_out, code_out, task_id_out;
-   Vector pos_r_out, dist_p_out;
    int dim;
 public:
    InterpolatorFP() : finder(NULL) { }
@@ -118,16 +116,39 @@ protected:
 
    // Quadrature points that are checked for negative Jacobians etc.
    const IntegrationRule &ir;
+   // These fields are relevant for mixed meshes.
+   IntegrationRules *IntegRules;
+   int integ_order;
+
+   const IntegrationRule &GetIntegrationRule(const FiniteElement &el) const
+   {
+      if (IntegRules)
+      {
+         return IntegRules->Get(el.GetGeomType(), integ_order);
+      }
+      return ir;
+   }
 
    void UpdateDiscreteTC(const TMOP_Integrator &ti, const Vector &x_new) const;
 
 public:
 #ifdef MFEM_USE_MPI
    TMOPNewtonSolver(MPI_Comm comm, const IntegrationRule &irule, int type = 0)
-      : LBFGSSolver(comm), solver_type(type), parallel(true), ir(irule) { }
+      : LBFGSSolver(comm), solver_type(type), parallel(true),
+        ir(irule), IntegRules(NULL), integ_order(-1) { }
 #endif
    TMOPNewtonSolver(const IntegrationRule &irule, int type = 0)
-      : LBFGSSolver(), solver_type(type), parallel(false), ir(irule) { }
+      : LBFGSSolver(), solver_type(type), parallel(false),
+        ir(irule), IntegRules(NULL), integ_order(-1) { }
+
+   /// Prescribe a set of integration rules; relevant for mixed meshes.
+   /** If called, this function has priority over the IntegrationRule given to
+       the constructor of the class. */
+   void SetIntegrationRules(IntegrationRules &irules, int order)
+   {
+      IntegRules = &irules;
+      integ_order = order;
+   }
 
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
 
