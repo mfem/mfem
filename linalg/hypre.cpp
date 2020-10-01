@@ -2978,10 +2978,10 @@ void HypreFGMRES::SetPreconditioner(HypreSolver &_precond)
 {
    precond = &_precond;
 
-   HYPRE_ParCSRGMRESSetPrecond(fgmres_solver,
-                               _precond.SolveFcn(),
-                               _precond.SetupFcn(),
-                               _precond);
+   HYPRE_ParCSRGMRESFlexSetPrecond(fgmres_solver,
+                                   _precond.SolveFcn(),
+                                   _precond.SetupFcn(),
+                                   _precond);
 }
 
 void HypreFGMRES::Mult(const HypreParVector &b, HypreParVector &x) const
