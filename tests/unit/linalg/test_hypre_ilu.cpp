@@ -17,8 +17,8 @@ namespace mfem
 
 #ifdef MFEM_USE_MPI
 
-TEST_CASE("HypreILU and HypreFGMRES wrappers", "[Parallel], [HypreILU],"
-          "[HypreFGMRES")
+TEST_CASE("HypreILU and HypreFGMRES wrappers",
+          "[Parallel], [HypreILU], [HypreFGMRES]")
 {
    // Build a small diffusion problem to test the solver and preconditioner
    int rank;
