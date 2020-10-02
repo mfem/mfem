@@ -110,15 +110,6 @@ private:
    // local row offsets
    int row_start;
 
-   // row array for COO storage format
-   int *I;
-
-   // col array for COO storage format
-   int *J;
-
-   // data array for COO storage format
-   double * data;
-
    // MUMPS workspace
    // macro s.t. indices match MUMPS documentation
 #define ICNTL(I) icntl[(I) -1]
