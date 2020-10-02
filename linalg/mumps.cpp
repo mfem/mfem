@@ -376,6 +376,7 @@ void MUMPSSolver::RedistributeSol(const int * row_map,
 
    delete [] recvbuf_values;
    delete [] recvbuf_index;
+   delete [] soffs;
    delete [] sendbuf_values;
    delete [] sendbuf_index;
    delete [] recv_displ;
