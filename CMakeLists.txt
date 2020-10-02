@@ -265,7 +265,7 @@ endif()
 # MUMPS can only be enabled in parallel
 if (MFEM_USE_MUMPS)
   if (MFEM_USE_MPI)
-    find_package(MUMPS REQUIRED)
+    find_package(MUMPS REQUIRED mumps_common pord)
   else()
     message(FATAL_ERROR " *** MUMPS requires that MPI be enabled.")
   endif()
