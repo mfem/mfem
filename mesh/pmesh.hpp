@@ -204,6 +204,9 @@ protected:
 
    void LoadSharedEntities(std::istream &input);
 
+   /// If the mesh is curved, make sure 'Nodes' is ParGridFunction.
+   void EnsureParNodes();
+
    void Destroy();
 
 public:

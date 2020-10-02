@@ -948,7 +948,7 @@ void ParMesh::Load(istream &input, int generate_edges, int refine,
 
    Finalize(refine, fix_orientation);
 
-   // If the mesh has Nodes, convert them from GridFunction to ParGridFunction?
+   EnsureParNodes();
 
    // note: attributes and bdr_attributes are local lists
 
@@ -1795,6 +1795,28 @@ void ParMesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
    GetNodes(*pnodes);
    NewNodes(*pnodes, true);
    Nodes->MakeOwner(nfec);
+}
+
+void ParMesh::EnsureParNodes()
+{
+   if (Nodes && dynamic_cast<ParFiniteElementSpace*>(Nodes->FESpace()) == NULL)
+   {
+      ParFiniteElementSpace *pfes =
+         new ParFiniteElementSpace(*Nodes->FESpace(), *this);
+      ParGridFunction *new_nodes = new ParGridFunction(pfes);
+
+      *new_nodes = *Nodes;
+
+      if (Nodes->OwnFEC())
+      {
+         new_nodes->MakeOwner(Nodes->OwnFEC());
+         Nodes->MakeOwner(NULL); // takes away ownership of 'fec' and 'fes'
+         delete Nodes->FESpace();
+      }
+
+      delete Nodes;
+      Nodes = new_nodes;
+   }
 }
 
 void ParMesh::ExchangeFaceNbrData()
@@ -3415,21 +3437,11 @@ void ParMesh::RebalanceImpl(const Array<int> *partition)
                  " meshes.");
    }
 
-   // Make sure the Nodes use a ParFiniteElementSpace
-   if (Nodes && dynamic_cast<ParFiniteElementSpace*>(Nodes->FESpace()) == NULL)
+   if (Nodes)
    {
-      ParFiniteElementSpace *pfes =
-         new ParFiniteElementSpace(*Nodes->FESpace(), *this);
-      ParGridFunction *new_nodes = new ParGridFunction(pfes);
-      *new_nodes = *Nodes;
-      if (Nodes->OwnFEC())
-      {
-         new_nodes->MakeOwner(Nodes->OwnFEC());
-         Nodes->MakeOwner(NULL); // takes away ownership of 'fec' and 'fes'
-         delete Nodes->FESpace();
-      }
-      delete Nodes;
-      Nodes = new_nodes;
+      // check that Nodes use a parallel FE space, so we can call UpdateNodes()
+      MFEM_VERIFY(dynamic_cast<ParFiniteElementSpace*>(Nodes->FESpace())
+                  != NULL, "internal error");
    }
 
    DeleteFaceNbrData();
