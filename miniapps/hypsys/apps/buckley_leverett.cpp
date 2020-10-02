@@ -1,6 +1,7 @@
 #include "buckley_leverett.hpp"
 
 Configuration ConfigBL;
+double BLConst;
 
 void InitialConditionBuckleyLeverett(const Vector &x, Vector &u);
 void InflowFunctionBuckleyLeverett(const Vector &x, double t, Vector &u);
@@ -19,6 +20,7 @@ BuckleyLeverett::BuckleyLeverett(FiniteElementSpace *fes_, BlockVector &u_block,
       {
          ProblemName = "Buckley-Leverett - 1D";
          glvis_scale = "on";
+         BLConst = 0.5;
          SolutionKnown = false;
          SteadyState = false;
          TimeDepBC = false;
@@ -30,6 +32,7 @@ BuckleyLeverett::BuckleyLeverett(FiniteElementSpace *fes_, BlockVector &u_block,
       {
          ProblemName = "Buckley-Leverett - 2D";
          glvis_scale = "on";
+         BLConst = 1.0;
          SolutionKnown = false;
          SteadyState = false;
          TimeDepBC = false;
@@ -45,17 +48,13 @@ BuckleyLeverett::BuckleyLeverett(FiniteElementSpace *fes_, BlockVector &u_block,
 void BuckleyLeverett::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
                                    int e, int k, int i) const
 {
-   if (dim == 1)
+   double coef = u(0)*u(0) / (u(0)*u(0) + BLConst * (1.0-u(0))*(1.0-u(0)));
+   FluxEval(0,0) = coef;
+   if (dim > 1)
    {
-      FluxEval(0,0) = 4.*u(0)*u(0) / (4.*u(0)*u(0) + (1.-u(0))*(1.-u(0)));
+      FluxEval(0,1) = coef * (1.0 - 5.0 * (1.0-u(0))*(1.0-u(0)));
    }
-   else if (dim == 2)
-   {
-      double coef = u(0)*u(0) / (u(0)*u(0) + (1.-u(0))*(1.-u(0)));
-      FluxEval(0,0) = coef;
-      FluxEval(0,1) = coef * (1. -5.*(1.-u(0))*(1.-u(0)));
-   }
-   else { MFEM_ABORT("Not implemented."); }
+   if (dim > 2) { MFEM_ABORT("Not implemented."); }
 }
 
 double BuckleyLeverett::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
@@ -63,7 +62,7 @@ double BuckleyLeverett::GetWaveSpeed(const Vector &u, const Vector n, int e, int
 {
    if (dim == 1)
    {
-      return abs( 8.*u(0)*(1.-u(0)) / pow(4.*u(0)*u(0) + (1.-u(0))*(1.-u(0)), 2.) );
+      return abs( 2.0 * BLConst * u(0) * (1.0-u(0)) / pow(u(0)*u(0) + BLConst * (1.0-u(0))*(1.0-u(0)), 2.0) );
    }
    else if (dim == 2)
    {
