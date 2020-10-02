@@ -73,6 +73,49 @@ ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
          u0.ProjectCoefficient(ic);
          break;
       }
+      case 4:
+      {
+         ProblemName = "Shallow Water Equations - MoST Gimmick";
+         glvis_scale = "on";
+         GravConst = 1.0;
+         SolutionKnown = false;
+         SteadyState = false;
+         TimeDepBC = false;
+         ProjType = 1;
+
+         Mesh *mesh = fes->GetMesh();
+         const int nd = fes->GetFE(0)->GetDof();
+         const int ne = fes->GetNE();
+         if (mesh->Dimension() != 2) { MFEM_ABORT("Test case works only in 2D."); }
+         u0 = 0.;
+
+         for (int e = 0; e < ne; e++)
+         {
+            int id = mesh->GetElement(e)->GetAttribute();
+            for (int j = 0; j < nd; j++)
+            {
+               switch (id)
+               {
+                  case 1:
+                  {
+                     u0(e*nd+j) = 1.;
+                     break;
+                  }
+                  case 2:
+                  case 3:
+                  case 4:
+                  {
+                     u0(e*nd+j) = 0.125;
+                     break;
+                  }
+                  default:
+                     MFEM_ABORT("Too many element IDs.");
+               }
+            }
+         }
+
+         break;
+      }
       default:
          MFEM_ABORT("No such test case implemented.");
    }
