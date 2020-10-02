@@ -66,7 +66,7 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes)
    {
       coeff = new Vector;
       coeff->SetSize(1);
-      (*coeff)(0) = 1.0;
+      (*coeff)(0) = cQ->constant;
    }
    else if (QuadratureCoefficient* cQ = dynamic_cast<QuadratureCoefficient*>(Q))
    {
