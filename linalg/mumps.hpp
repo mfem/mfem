@@ -75,7 +75,7 @@ public:
     *
     * @param print_lvl Print level
     */
-   void SetPrintLevel(int print_level_);
+   void SetPrintLevel(int print_lvl);
 
    /**
     * @brief Set the matrix type
@@ -83,9 +83,9 @@ public:
     * Supported matrix types: General, symmetric indefinite and
     * symmetric positive definite
     *
-    * @param mat_type_ Matrix type
+    * @param mtype Matrix type
     */
-   void SetMatrixSymType(MatType mat_type_);
+   void SetMatrixSymType(MatType mtype);
 
    // Destructor
    ~MUMPSSolver();
