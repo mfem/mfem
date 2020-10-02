@@ -40,7 +40,6 @@ int useFull=1; // control version of preconditioner
 int i_supgpre=3;    //3 - full diagonal supg terms on psi and phi
                     //0 - only (v.grad) in the preconditioner on psi and phi
 
-double factormin=8.; 
 
 extern int icase;
 
@@ -405,28 +404,18 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
 
    //mass matrix
    M = new ParBilinearForm(&fespace);
-   M->AddDomainIntegrator(new MassIntegrator);
+   M->AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
    M->Assemble();
    M->FormSystemMatrix(ess_tdof_list, Mmat);
 
    //full mass matrix 
    Mfull = new ParBilinearForm(&fespace);
    MassIntegrator *mass = new MassIntegrator;
-   if (lumpedMass) //use a lumped mass integrator to compute J
-   {
-     if (myid==0) cout <<"------lumped mass matrix in M_solver2!------"<<endl;
-     Mfull->AddDomainIntegrator(new LumpedIntegrator(mass));
-     Mfull->Assemble();
-     Mfull->Finalize();
-     MfullMat=Mfull->ParallelAssemble();
-   }
-   else 
-   {
-     Mfull->AddDomainIntegrator(mass);
-     Mfull->Assemble();
-     Mfull->Finalize();
-     MfullMat=Mfull->ParallelAssemble();
-   }
+   if (myid==0) cout <<"------lumped mass matrix in M_solver2!------"<<endl;
+   Mfull->AddDomainIntegrator(new LumpedIntegrator(mass));
+   Mfull->Assemble();
+   Mfull->Finalize();
+   MfullMat=Mfull->ParallelAssemble();
 
    MassIntegrator *mass2 = new MassIntegrator;
    Mlumped = new ParBilinearForm(&fespace);
@@ -1427,14 +1416,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
              {
                   delete StabMass;
                   StabMass = new ParBilinearForm(&fespace);
-                  if (dtfactor > factormin)
-                  { 
-                     if (myid==0) 
-                            cout <<"======WARNING: use factormin in tau formula"<<endl;
-                      StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, resistivity, velocity, itau_, factormin)); 
-                  }
-                  else
-                  { StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, resistivity, velocity, itau_)); }
+                  StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, resistivity, velocity, itau_));
                   StabMass->Assemble(); 
                   StabMass->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
                   StabMass->Finalize();
@@ -1442,10 +1424,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
 
                   delete StabNv;
                   StabNv = new ParBilinearForm(&fespace);
-                  if (dtfactor > factormin)
-                  { StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, resistivity, velocity, itau_, factormin)); }
-                  else
-                  { StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, resistivity, velocity, itau_)); }
+                  StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, resistivity, velocity, itau_));
                   StabNv->Assemble(); 
                   StabNv->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
                   StabNv->Finalize();
