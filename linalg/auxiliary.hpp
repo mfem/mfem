@@ -143,7 +143,7 @@ class MatrixFreeAMS : public Solver
 {
 public:
    /** @brief Construct matrix-free AMS preconditioner
-       
+
        @param alpha_coeff  coefficient on curl-curl term in Maxwell problem
                            (can be null, in which case constant 1 is assumed)
        @param beta_coeff   coefficient on mass term in Maxwell problem

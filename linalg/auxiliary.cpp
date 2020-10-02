@@ -325,9 +325,13 @@ void MatrixFreeAuxiliarySpace::SetupCG(
       cg_->SetMaxIter(inner_cg_iterations);
    }
    if (very_verbose)
+   {
       cg_->SetPrintLevel(1);
+   }
    else
+   {
       cg_->SetPrintLevel(-1);
+   }
 
    aspacewrapper_ = cg_;
 }
@@ -401,8 +405,8 @@ MatrixFreeAuxiliarySpace::~MatrixFreeAuxiliarySpace()
    delete aspacematrix_;
    delete aspacepc_;
    delete matfree_;
-   if (aspacepc_ != aspacewrapper_) delete aspacewrapper_;
-   if (cg_ != aspacewrapper_) delete cg_;
+   if (aspacepc_ != aspacewrapper_) { delete aspacewrapper_; }
+   if (cg_ != aspacewrapper_) { delete cg_; }
 }
 
 MatrixFreeAMS::MatrixFreeAMS(
@@ -448,7 +452,7 @@ MatrixFreeAMS::MatrixFreeAMS(
    /* A lot depends on the quality of the auxiliary space solves.
       For high-contrast coefficients, and other difficult problems,
       inner iteration counts may need to be increased.
-      
+
       Boundary conditions can matter as well (see DIAG_ZERO policy) */
 
    // build G space solver
