@@ -66,12 +66,13 @@ void MUMPSSolver::SetOperator(const Operator &op)
       nnz = csr_op->num_nonzeros;
    }
 
-   I = new int[nnz];
-   J = new int[nnz];
+   int * I = new int[nnz];
+   int * J = new int[nnz];
 
    // Fill in I and J arrays for
    // COO format in 1-based indexing
    int k = 0;
+   double * data;
    if (mat_type)
    {
       int l = 0;
@@ -107,6 +108,12 @@ void MUMPSSolver::SetOperator(const Operator &op)
    }
 
    // new MUMPS object
+   if (id)
+   {
+      id->job = -2;
+      dmumps_c(id);
+      delete id;
+   }
    id = new DMUMPS_STRUC_C;
    // C to Fortran communicator
    id->comm_fortran = (MUMPS_INT) MPI_Comm_c2f(comm);
@@ -142,9 +149,12 @@ void MUMPSSolver::SetOperator(const Operator &op)
    dmumps_c(id);
 
    hypre_CSRMatrixDestroy(csr_op);
-   if (!mat_type) { data = nullptr; }
+   delete [] I;
+   delete [] J;
+   if (mat_type) { delete [] data; }
 
 #if MFEM_MUMPS_VERSION >= 530
+   delete [] irhs_loc;
    irhs_loc = new int[n_loc];
    for (int i = 0; i < n_loc; i++)
    {
@@ -152,17 +162,20 @@ void MUMPSSolver::SetOperator(const Operator &op)
    }
    row_starts.SetSize(numProcs);
    MPI_Allgather(&row_start, 1, MPI_INT, row_starts, 1, MPI_INT, comm);
-
 #else
    if (myid == 0)
    {
+      delete [] rhs_glob;
+      delete [] recv_counts;
       rhs_glob = new double[parcsr_op->global_num_rows];
       recv_counts = new int[numProcs];
    }
    MPI_Gather(&n_loc, 1, MPI_INT, recv_counts, 1, MPI_INT, 0, comm);
    if (myid == 0)
    {
-      displs = new int[numProcs]; displs[0] = 0;
+      delete [] displs;
+      displs = new int[numProcs];
+      displs[0] = 0;
       int s = 0;
       for (int k = 0; k < numProcs-1; k++)
       {
@@ -213,8 +226,12 @@ void MUMPSSolver::Mult(const Vector &x, Vector &y) const
 
 void MUMPSSolver::MultTranspose(const Vector &x, Vector &y) const
 {
+   // Set flag for Transpose Solve
    id->ICNTL(9) = 0;
    Mult(x,y);
+   // Reset the flag
+   id->ICNTL(9) = 1;
+
 }
 
 void MUMPSSolver::SetPrintLevel(int print_lvl)
@@ -231,8 +248,6 @@ MUMPSSolver::~MUMPSSolver()
 {
    if (id)
    {
-      id->job = -2;
-      dmumps_c(id);
 #if MFEM_MUMPS_VERSION >= 530
       delete [] irhs_loc;
 #else
@@ -240,10 +255,8 @@ MUMPSSolver::~MUMPSSolver()
       delete [] displs;
       delete [] rhs_glob;
 #endif
-      delete [] J;
-      delete [] I;
-      delete [] data;
-
+      id->job = -2;
+      dmumps_c(id);
       delete id;
    }
 }
@@ -314,6 +327,7 @@ void MUMPSSolver::RedistributeSol(const int * row_map,
    {
       int j = row_map[i] - 1;
       int row_rank = GetRowRank(j, row_starts);
+      if (myid == row_rank) { continue; }
       send_count[row_rank]++;
    }
 
@@ -340,10 +354,18 @@ void MUMPSSolver::RedistributeSol(const int * row_map,
    {
       int j = row_map[i] - 1;
       int row_rank = GetRowRank(j, row_starts);
-      int k = send_displ[row_rank] + soffs[row_rank];
-      sendbuf_index[k] = j;
-      sendbuf_values[k] = x[i];
-      soffs[row_rank]++;
+      if (myid == row_rank)
+      {
+         int local_index = j - row_start;
+         y[local_index] = x[i];
+      }
+      else
+      {
+         int k = send_displ[row_rank] + soffs[row_rank];
+         sendbuf_index[k] = j;
+         sendbuf_values[k] = x[i];
+         soffs[row_rank]++;
+      }
    }
 
    int * recvbuf_index = new int[rbuff_size];
