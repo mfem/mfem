@@ -142,11 +142,24 @@ private:
 class MatrixFreeAMS : public Solver
 {
 public:
-   /// ess_bdr is the boundary attributes that are essential (not the dofs, the attributes)
+   /** @brief Construct matrix-free AMS preconditioner
+       
+       @param alpha_coeff  coefficient on curl-curl term in Maxwell problem
+                           (can be null, in which case constant 1 is assumed)
+       @param beta_coeff   coefficient on mass term in Maxwell problem
+       @param ess_bdr      boundary *attributes* that are marked essential. In
+                           contrast to other MFEM cases, these are *attributes*
+                           not dofs, because we need to apply these boundary
+                           conditions to different bilinear forms.
+       @param inner_pi_its number of CG iterations on auxiliary pi space,
+                           may need more for difficult coefficients
+       @param inner_g_its  number of CG iterations on auxiliary pi space,
+                           may need more for difficult coefficients
+    */
    MatrixFreeAMS(ParBilinearForm& aform, Operator& oper,
                  ParFiniteElementSpace& nd_fespace, Coefficient* alpha_coeff,
                  Coefficient* beta_coeff, Array<int>& ess_bdr,
-                 int inner_pi_iterations = 0, int inner_g_iterations = 1);
+                 int inner_pi_its = 0, int inner_g_its = 1);
    ~MatrixFreeAMS();
 
    void SetOperator(const Operator &op) {}
