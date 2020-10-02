@@ -137,8 +137,8 @@ Linear and nonlinear solvers
 - Added partially assembled convergent diagonal preconditioner for adaptively
   refined meshes (i.e. non-conforming finite element spaces), see Example 6/6p.
 
-- Added interface to MUMPS direct solver. See http://mumps.enseeiht.fr/ for 
-  more details. Supported versions >= 5.2.0.
+- Added interface to MUMPS direct solver. It usage is demonstrated in ex25p.
+  See http://mumps.enseeiht.fr/ for more details. Supported versions >= 5.2.0.
 
 New and updated examples and miniapps
 -------------------------------------

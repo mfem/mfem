@@ -33,6 +33,7 @@ option(MFEM_USE_SUNDIALS "Enable SUNDIALS usage" OFF)
 option(MFEM_USE_MESQUITE "Enable MESQUITE usage" OFF)
 option(MFEM_USE_SUITESPARSE "Enable SuiteSparse usage" OFF)
 option(MFEM_USE_SUPERLU "Enable SuperLU_DIST usage" OFF)
+option(MFEM_USE_MUMPS "Enable MUMPS usage" OFF)
 option(MFEM_USE_STRUMPACK "Enable STRUMPACK usage" OFF)
 option(MFEM_USE_GINKGO "Enable Ginkgo usage" OFF)
 option(MFEM_USE_GNUTLS "Enable GNUTLS usage" OFF)
@@ -114,6 +115,12 @@ set(SuperLUDist_DIR "${MFEM_DIR}/../SuperLU_DIST_5.1.0" CACHE PATH
 # SuperLU_DIST may also depend on "OpenMP", depending on how it was compiled.
 set(SuperLUDist_REQUIRED_PACKAGES "MPI" "BLAS" "ParMETIS" CACHE STRING
     "Additional packages required by SuperLU_DIST.")
+
+set(MUMPS_DIR "${MFEM_DIR}/../MUMPS_5.2.0" CACHE PATH
+    "Path to the MUMPS library.")
+# MUMPS may also depend on "OpenMP", depending on how it was compiled.
+set(MUMPS_REQUIRED_PACKAGES "MPI" "BLAS" CACHE STRING
+    "Additional packages required by MUMPS.")    
 
 set(STRUMPACK_DIR "${MFEM_DIR}/../STRUMPACK-build" CACHE PATH
     "Path to the STRUMPACK library.")
