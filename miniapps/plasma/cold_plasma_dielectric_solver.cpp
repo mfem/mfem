@@ -1054,6 +1054,7 @@ CPDSolver::Update()
    if (j_v_) { j_v_->Update(); }
    if (phi_) {phi_->Update(); }
    if (phi_v_) {phi_v_->Update(); }
+   if (rectPot_) { rectPot_ ->Update();}
    // e_r_->Update();
    // e_i_->Update();
    // h_->Update();
@@ -1654,13 +1655,12 @@ CPDSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
     
    }
 
-    /*
     if ( rectPot_ )
     {
-       visit_dc.RegisterField("Rec_Re_Phi", &rectPot_->real());
-       visit_dc.RegisterField("Rec_Im_Phi", &rectPot_->imag());
+       //visit_dc.RegisterField("Rec_Re_Phi", &rectPot_->real());
+       //visit_dc.RegisterField("Rec_Im_Phi", &rectPot_->imag());
     }
-     */
+     
    // visit_dc.RegisterField("Er", e_r_);
    // visit_dc.RegisterField("Ei", e_i_);
    // visit_dc.RegisterField("B", b_);
@@ -1708,9 +1708,10 @@ CPDSolver::WriteVisItFields(int it)
       
       if ( rectPot_ )
       {
-          ComplexCoefficientByAttr & sbc = (*sbcs_)[0];
-          SheathBase * sb = dynamic_cast<SheathBase*>(sbc.real);
+          //ComplexCoefficientByAttr & sbc = (*sbcs_)[0];
+          //SheathBase * sb = dynamic_cast<SheathBase*>(sbc.real);
 
+          /*
           if (sb != NULL)
           {
             RectifiedSheathPotential rectPotCoefR(*sb, true);
@@ -1718,6 +1719,8 @@ CPDSolver::WriteVisItFields(int it)
 
             rectPot_->ProjectCoefficient(rectPotCoefR, rectPotCoefI);
            }
+           */
+       
       }
       
 
@@ -1888,7 +1891,7 @@ CPDSolver::DisplayToGLVis()
 
    if (sbcs_->Size() > 0)
    {
-       /*
+       
        ComplexCoefficientByAttr & sbc = (*sbcs_)[0];
        SheathBase * sb = dynamic_cast<SheathBase*>(sbc.real);
 
@@ -1899,7 +1902,7 @@ CPDSolver::DisplayToGLVis()
 
          rectPot_->ProjectCoefficient(rectPotCoefR, rectPotCoefI);
         }
-        */
+        
         
       Wx += offx;
       VisualizeField(*socks_["Phir"], vishost, visport,
@@ -1909,7 +1912,7 @@ CPDSolver::DisplayToGLVis()
       VisualizeField(*socks_["Phii"], vishost, visport,
                      phi_v_->imag(), "Sheath Potential, Im(Phi)", Wx, Wy, Ww, Wh);
 
-       /*
+       
       Wx += offx;
       VisualizeField(*socks_["RecPhir"], vishost, visport,
                      rectPot_->real(), "Rectified Potential, Re(RecPhi)", Wx, Wy, Ww, Wh);
@@ -1917,7 +1920,7 @@ CPDSolver::DisplayToGLVis()
 
       VisualizeField(*socks_["RecPhii"], vishost, visport,
                      rectPot_->imag(), "Rectified Potential, Im(RecPhi)", Wx, Wy, Ww, Wh);
-        */
+        
    }
 
    if (BCoef_)
