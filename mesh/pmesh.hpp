@@ -207,14 +207,21 @@ protected:
    void Destroy();
 
 public:
+   /// Create a parallel mesh by partitioning a serial Mesh.
+   /** The mesh is partitioned automatically or using external partitioning
+       data (the optional parameter 'partitioning_[i]' contains the desired MPI
+       rank for element 'i'). Automatic partitioning uses METIS for conforming
+       meshes and quick space-filling curve equipartitioning for nonconforming
+       meshes (elements of nonconforming meshes should ideally be ordered as a
+       sequence of face-neighbors). */
+   ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_ = NULL,
+           int part_method = 1);
+
    /** Copy constructor. Performs a deep copy of (almost) all data, so that the
        source mesh can be modified (e.g. deleted, refined) without affecting the
        new mesh. If 'copy_nodes' is false, use a shallow (pointer) copy for the
        nodes, if present. */
    explicit ParMesh(const ParMesh &pmesh, bool copy_nodes = true);
-
-   ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_ = NULL,
-           int part_method = 1);
 
    /// Read a parallel mesh, each MPI rank from its own file/stream.
    /** The @a refine parameter is passed to the method Mesh::Finalize(). */
