@@ -378,6 +378,14 @@ void MatrixFreeAuxiliarySpace::SetupBoomerAMG(int system_dimension)
       // boundary condition tweak for G-space solver
       aspacepc_ = new ZeroWrap(*aspacematrix_, ess_tdof_list_);
    }
+   else if (directSolve)
+   {
+      aspacematrix_->GetDiag(aspacematrixSP_);
+      UMFPackSolver *umf_solver = new UMFPackSolver();
+      umf_solver->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+      umf_solver->SetOperator(aspacematrixSP_);
+      aspacepc_ = umf_solver;
+   }
    else // if (system_dimension > 0)
    {
       // Pi-space solver is a vector space
@@ -499,6 +507,18 @@ MatrixFreeAMS::~MatrixFreeAMS()
    delete general_ams_;
    delete h1_fespace_;
    delete h1_fespace_d_;
+}
+
+void MatrixFreeAMS::PrintTimings(const int myid)
+{
+   general_ams_->PrintTimings(myid);
+}
+
+void GeneralAMS::PrintTimings(const int myid)
+{
+   std::cout << myid << ": AMS timing for residual " << residual_time_ <<
+             ", smooth " << smooth_time_
+             << ", G " << gspacesolver_time_ << ", Pi " << pispacesolver_time_ << std::endl;
 }
 
 } // namespace mfem

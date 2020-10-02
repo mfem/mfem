@@ -1271,10 +1271,10 @@ int main(int argc, char *argv[])
       //int nxyzGlobal[3] = {2, 2, 4};
       //int nxyzGlobal[3] = {1, 1, 4};
       //int nxyzGlobal[3] = {1, 2, 1};
-      //int nxyzGlobal[3] = {2, 2, 4};
+      int nxyzGlobal[3] = {2, 2, 2};
       //int nxyzGlobal[3] = {1, 2, 2};
       //int nxyzGlobal[3] = {3, 3, 4};
-      int nxyzGlobal[3] = {4, 4, 4};
+      //int nxyzGlobal[3] = {4, 4, 4};
       //int nxyzGlobal[3] = {6, 6, 6};
       //int nxyzGlobal[3] = {6, 6, 12};  // 432
       //int nxyzGlobal[3] = {6, 12, 12};  // 864

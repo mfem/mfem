@@ -95,6 +95,9 @@ private:
    mutable int inner_aux_iterations_;
 
    MPI_Comm comm;
+
+   const bool directSolve = false;
+   SparseMatrix aspacematrixSP_;
 };
 
 /**
@@ -123,6 +126,8 @@ public:
    void SetOperator(const mfem::Operator &op) {}
 
    virtual void Mult(const mfem::Vector& x, mfem::Vector& y) const;
+
+   void PrintTimings(const int myid);
 
 private:
    const mfem::Operator& A_;
@@ -167,6 +172,8 @@ public:
    void SetOperator(const mfem::Operator &op) {}
 
    void Mult(const mfem::Vector& x, mfem::Vector& y) const { general_ams_->Mult(x, y); }
+
+   void PrintTimings(const int myid);
 
 private:
    GeneralAMS * general_ams_;

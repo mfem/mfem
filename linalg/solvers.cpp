@@ -591,7 +591,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       converged = 1;
       final_iter = 0;
       final_norm = sqrt(nom);
-      cout << myid << ": PCG iter " << final_iter << '\n' << std::flush;
+      //cout << myid << ": PCG iter " << final_iter << '\n' << std::flush;
       return;
    }
 
