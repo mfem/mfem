@@ -20,147 +20,138 @@
 namespace mfem
 {
 
-// forward declarations (can probably be reduced/simplified
+// forward declarations
 class Coefficient;
 class ParMesh;
 class ParBilinearForm;
 class ParDiscreteLinearOperator;
 
-/**
-   The basic idea is that given an operator A and a transfer
-   G, this will create a solver that approximates (G^T A G)^{-1}
+/** @brief Auxiliary space solvers for MatrixFreeAMS preconditioner
 
-   In practice we only use this for an AMS cycle, so some of
-   the notation and algorithmic choices are specific to that.
-*/
-class MatrixFreeAuxiliarySpace : public mfem::Solver
+    Given an operator A and a transfer G, this will create a solver
+    that approximates (G^T A G)^{-1}. Used for two different
+    auxiliary spaces in the AMS cycle. */
+class MatrixFreeAuxiliarySpace : public Solver
 {
 public:
-   /**
-      Pi space constructor (two coefficients)
+   /** @brief Pi space constructor
 
-      cg_iterations = 0 means a single V-cycle
-      otherwise we wrap BoomerAMG in CG
+       In the AMS framework this auxiliary space has two coefficients.
 
-      rap_in_lor does a RAP product in the LOR space
-      for building the matrix
+       @param alpha_coeff    coefficient on curl-curl term (1 if null)
+       @param beta_coeff     coefficient on mass term (1 if null)
+       @param cg_iterations  number of CG iterations used to invert
+                             auxiliary system, choosing 0 means to
+                             use a single V-cycle
    */
    MatrixFreeAuxiliarySpace(
-      mfem::ParMesh& mesh_lor,
-      mfem::Coefficient* alpha_coeff,
-      mfem::Coefficient* beta_coeff, Array<int>& ess_bdr,
-      mfem::Operator& curlcurl_oper, mfem::Operator& pi,
+      ParMesh& mesh_lor, Coefficient* alpha_coeff,
+      Coefficient* beta_coeff, Array<int>& ess_bdr,
+      Operator& curlcurl_oper, Operator& pi,
       int cg_iterations = 0);
 
-   /**
-      G space constructor (one coefficient)
+   /** @brief G space constructor
 
-      cg_iterations = 0 means a single V-cycle
-      otherwise we wrap BoomerAMG in CG
+       This has one coefficient in the AMS framework.
 
-      rap_in_lor does a RAP product in the LOR space
-      for building the matrix
+       @param beta_coeff     coefficient on mass term (1 if null)
+       @param cg_iterations  number of CG iterations used to invert
+                             auxiliary system, choosing 0 means to
+                             use a single V-cycle
    */
    MatrixFreeAuxiliarySpace(
-      mfem::ParMesh& mesh_lor,
-      mfem::Coefficient* beta_coeff, Array<int>& ess_bdr,
-      mfem::Operator& curlcurl_oper, mfem::Operator& g,
+      ParMesh& mesh_lor,
+      Coefficient* beta_coeff, Array<int>& ess_bdr,
+      Operator& curlcurl_oper, Operator& g,
       int cg_iterations = 1);
 
    ~MatrixFreeAuxiliarySpace();
 
-   void Mult(const mfem::Vector& x, mfem::Vector& y) const;
+   void Mult(const Vector& x, Vector& y) const;
 
-   void SetOperator(const mfem::Operator& op) {}
+   void SetOperator(const Operator& op) {}
 
 private:
    void SetupBoomerAMG(int system_dimension);
    void SetupVCycle();
 
    /// inner_cg_iterations > 99 applies an exact solve here
-   void SetupCG(
-      mfem::Operator& curlcurl_oper, mfem::Operator& conn,
-      int inner_cg_iterations, bool very_verbose=false);
+   void SetupCG(Operator& curlcurl_oper, Operator& conn,
+                int inner_cg_iterations, bool very_verbose=false);
 
-   mfem::Array<int> ess_tdof_list_;
-   mfem::HypreParMatrix * aspacematrix_;
-   // mfem::HypreBoomerAMG * aspacepc_;
+   Array<int> ess_tdof_list_;
+   HypreParMatrix * aspacematrix_;
    Solver * aspacepc_;
-   mfem::Operator* matfree_;
-   mfem::CGSolver* cg_;
-   mfem::Operator* aspacewrapper_;
+   Operator* matfree_;
+   CGSolver* cg_;
+   Operator* aspacewrapper_;
 
    mutable int inner_aux_iterations_;
 };
 
-/**
-   Perform AMS cycle with generic Operator objects.
+/** @brief Perform AMS cycle with generic Operator objects.
 
-   Most users should use MatrixFreeAMS, which wraps this.
-*/
-class GeneralAMS : public mfem::Solver
+    Most users should use MatrixFreeAMS, which wraps this. */
+class GeneralAMS : public Solver
 {
 public:
-   /**
-      pi and g should have Mult() and MultTranspose()
+   /** @brief Constructor.
 
-      the rest just nead Mult()
-   */
-   GeneralAMS(const mfem::Operator& A,
-              const mfem::Operator& pi,
-              const mfem::Operator& g,
-              const mfem::Operator& pispacesolver,
-              const mfem::Operator& gspacesolver,
-              const mfem::Operator& smoother,
-              const mfem::Array<int>& ess_tdof_list);
+       Most of these arguments just need a Mult() operation,
+       but pi and g also require MultTranspose() */
+   GeneralAMS(const Operator& A,
+              const Operator& pi,
+              const Operator& g,
+              const Operator& pispacesolver,
+              const Operator& gspacesolver,
+              const Operator& smoother,
+              const Array<int>& ess_tdof_list);
    virtual ~GeneralAMS();
 
    /// in principle this should set A_ = op;
-   void SetOperator(const mfem::Operator &op) {}
+   void SetOperator(const Operator &op) {}
 
-   virtual void Mult(const mfem::Vector& x, mfem::Vector& y) const;
+   virtual void Mult(const Vector& x, Vector& y) const;
 
 private:
-   const mfem::Operator& A_;
-   const mfem::Operator& pi_;
-   const mfem::Operator& g_;
-   const mfem::Operator& pispacesolver_;
-   const mfem::Operator& gspacesolver_;
-   const mfem::Operator& smoother_;
-   const mfem::Array<int> ess_tdof_list_;
+   const Operator& A_;
+   const Operator& pi_;
+   const Operator& g_;
+   const Operator& pispacesolver_;
+   const Operator& gspacesolver_;
+   const Operator& smoother_;
+   const Array<int> ess_tdof_list_;
 
-   mutable mfem::StopWatch chrono_;
+   mutable StopWatch chrono_;
 
    mutable double residual_time_;
    mutable double smooth_time_;
    mutable double gspacesolver_time_;
    mutable double pispacesolver_time_;
 
-   void FormResidual(const mfem::Vector& rhs, const mfem::Vector& x,
-                     mfem::Vector& residual) const;
+   void FormResidual(const Vector& rhs, const Vector& x,
+                     Vector& residual) const;
 };
 
-/**
-   An auxiliary Maxwell solver for high-order finite element operators without
-   high-order assembly.
+/** @brief An auxiliary Maxwell solver for a high-order curl-curl
+    system without high-order assembly.
 
-   The auxiliary space solves are done using a low-order refined approach, but
-   all the interpolation operators, residuals, etc. are done in a matrix-free
-   manner.
-*/
-class MatrixFreeAMS : public mfem::Solver
+    The auxiliary space solves are done using a low-order refined approach,
+    but all the interpolation operators, residuals, etc. are done in a
+    matrix-free manner. */
+class MatrixFreeAMS : public Solver
 {
 public:
    /// ess_bdr is the boundary attributes that are essential (not the dofs, the attributes)
-   MatrixFreeAMS(ParBilinearForm& aform, mfem::Operator& oper,
-                 mfem::ParFiniteElementSpace& nd_fespace, mfem::Coefficient* alpha_coeff,
-                 mfem::Coefficient* beta_coeff, mfem::Array<int>& ess_bdr,
+   MatrixFreeAMS(ParBilinearForm& aform, Operator& oper,
+                 ParFiniteElementSpace& nd_fespace, Coefficient* alpha_coeff,
+                 Coefficient* beta_coeff, Array<int>& ess_bdr,
                  int inner_pi_iterations = 0, int inner_g_iterations = 1);
    ~MatrixFreeAMS();
 
-   void SetOperator(const mfem::Operator &op) {}
+   void SetOperator(const Operator &op) {}
 
-   void Mult(const mfem::Vector& x, mfem::Vector& y) const { general_ams_->Mult(x, y); }
+   void Mult(const Vector& x, Vector& y) const { general_ams_->Mult(x, y); }
 
 private:
    GeneralAMS * general_ams_;
@@ -171,11 +162,11 @@ private:
    ParDiscreteLinearOperator * pa_interp_;
    OperatorPtr Pi_;
 
-   mfem::Solver * Gspacesolver_;
-   mfem::Solver * Pispacesolver_;
+   Solver * Gspacesolver_;
+   Solver * Pispacesolver_;
 
-   mfem::ParFiniteElementSpace * h1_fespace_;
-   mfem::ParFiniteElementSpace * h1_fespace_d_;
+   ParFiniteElementSpace * h1_fespace_;
+   ParFiniteElementSpace * h1_fespace_d_;
 };
 
 } // namespace mfem

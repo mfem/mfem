@@ -165,8 +165,7 @@ void GeneralAMS::Mult(const Vector& x, Vector& y) const
 
 // Pi-space constructor
 MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
-   mfem::ParMesh& mesh_lor,
-   mfem::Coefficient* alpha_coeff,
+   mfem::ParMesh& mesh_lor, mfem::Coefficient* alpha_coeff,
    mfem::Coefficient* beta_coeff, Array<int>& ess_bdr,
    mfem::Operator& curlcurl_oper,
    mfem::Operator& pi,
@@ -192,8 +191,22 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    // also can make some difference here
    const Matrix::DiagonalPolicy policy = Matrix::DIAG_KEEP;
    a_space.SetDiagonalPolicy(policy); // doesn't do anything, see Eliminate() below
-   a_space.AddDomainIntegrator(new VectorDiffusionIntegrator(*alpha_coeff));
-   a_space.AddDomainIntegrator(new VectorMassIntegrator(*beta_coeff));
+   if (alpha_coeff == NULL)
+   {
+      a_space.AddDomainIntegrator(new VectorDiffusionIntegrator);
+   }
+   else
+   {
+      a_space.AddDomainIntegrator(new VectorDiffusionIntegrator(*alpha_coeff));
+   }
+   if (beta_coeff == NULL)
+   {
+      a_space.AddDomainIntegrator(new VectorMassIntegrator);
+   }
+   else
+   {
+      a_space.AddDomainIntegrator(new VectorMassIntegrator(*beta_coeff));
+   }
    a_space.UsePrecomputedSparsity();
    a_space.Assemble();
    a_space.EliminateEssentialBC(ess_bdr, policy);
@@ -240,8 +253,14 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    const Matrix::DiagonalPolicy policy = Matrix::DIAG_ONE;
 
    a_space.SetDiagonalPolicy(policy);
-   a_space.AddDomainIntegrator(new DiffusionIntegrator(*beta_coeff));
-
+   if (beta_coeff == NULL)
+   {
+      a_space.AddDomainIntegrator(new DiffusionIntegrator);
+   }
+   else
+   {
+      a_space.AddDomainIntegrator(new DiffusionIntegrator(*beta_coeff));
+   }
    a_space.UsePrecomputedSparsity();
    a_space.Assemble();
    if (ess_bdr.Size())
