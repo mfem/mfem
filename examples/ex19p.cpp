@@ -238,7 +238,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
