@@ -16,15 +16,15 @@
 namespace mfem
 {
 
-GeneralAMS::GeneralAMS(const mfem::Operator& A,
-                       const mfem::Operator& pi,
-                       const mfem::Operator& g,
-                       const mfem::Operator& pispacesolver,
-                       const mfem::Operator& gspacesolver,
-                       const mfem::Operator& smoother,
-                       const mfem::Array<int>& ess_tdof_list)
+GeneralAMS::GeneralAMS(const Operator& A,
+                       const Operator& pi,
+                       const Operator& g,
+                       const Operator& pispacesolver,
+                       const Operator& gspacesolver,
+                       const Operator& smoother,
+                       const Array<int>& ess_tdof_list)
    :
-   mfem::Solver(A.Height()),
+   Solver(A.Height()),
    A_(A),
    pi_(pi),
    g_(g),
@@ -44,8 +44,8 @@ GeneralAMS::~GeneralAMS()
 {
 }
 
-void GeneralAMS::FormResidual(const mfem::Vector& rhs, const mfem::Vector& x,
-                              mfem::Vector& residual) const
+void GeneralAMS::FormResidual(const Vector& rhs, const Vector& x,
+                              Vector& residual) const
 {
    chrono_.Clear();
    chrono_.Start();
@@ -58,29 +58,30 @@ void GeneralAMS::FormResidual(const mfem::Vector& rhs, const mfem::Vector& x,
    residual_time_ += chrono_.RealTime();
 }
 
+/*
+  This implementation follows that in hypre, see hypre_ParCSRSubspacePrec()
+  in hypre/src/parcsr_ls/ams.c and also hypre_AMSSolve() in the same file.
+
+  hypre's default cyle (cycle 1) is "01210", ie, smooth, correct in space
+  1, correct in space 2, correct in space 1, smooth. Their space 1 is G and
+  space 2 is Pi by default.
+
+  The MFEM interface in mfem::HypreAMS though picks cycle 13, or 034515430,
+  which separates the Pi-space solve into three separate (scalar) AMG solves
+  instead of a single vector solve.
+
+  We choose below the hypre default, but we have experimented with some other
+  cycles; the short version is that they often work but the differences are
+  generally not large.
+*/
 void GeneralAMS::Mult(const Vector& x, Vector& y) const
 {
    int rank;
    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-   // see hypre_ParCSRSubspacePrec() in hypre/src/parcsr_ls/ams.c
-   // and also hypre_AMSSolve() in the same file
-
-   // default cyle (cycle 1) is "01210"
-   // ie, smooth, correct in space 1, correct in space 2, correct in space 1, smooth
-   // Bi[0] = ams_data -> B_G;    HBi[0] = (HYPRE_PtrToSolverFcn) hypre_BoomerAMGSolve;
-   // Bi[1] = ams_data -> B_Pi;   HBi[1] = (HYPRE_PtrToSolverFcn) hypre_BoomerAMGBlockSolve;
-   // (suggests space 1 is G, space 2 is Pi)
-
-   // but I think mfem::HypreAMS picks cycle 13, or 034515430
-   // with 0 smooth, three separate coordinate Pi solves, grad solve, then back up
-
-   // maybe we should do Pi-G-Pi instead of G-Pi-G (doesn't seem to make much difference)
-
-   // cycle would be more like 0102010 if below is true
    const bool extra_smoothing = false;
 
-   mfem::StopWatch chrono;
+   StopWatch chrono;
 
    MFEM_ASSERT(x.Size() == y.Size(), "Sizes don't match!");
    MFEM_ASSERT(A_.Height() == x.Size(), "Sizes don't match!");
@@ -165,10 +166,10 @@ void GeneralAMS::Mult(const Vector& x, Vector& y) const
 
 // Pi-space constructor
 MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
-   mfem::ParMesh& mesh_lor, mfem::Coefficient* alpha_coeff,
-   mfem::Coefficient* beta_coeff, Array<int>& ess_bdr,
-   mfem::Operator& curlcurl_oper,
-   mfem::Operator& pi,
+   ParMesh& mesh_lor, Coefficient* alpha_coeff,
+   Coefficient* beta_coeff, Array<int>& ess_bdr,
+   Operator& curlcurl_oper,
+   Operator& pi,
    int cg_iterations)
    :
    Solver(pi.Width()),
@@ -229,11 +230,17 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    delete fec_lor;
 }
 
-// G-space constructor
+/* G-space constructor
+
+   The auxiliary space solves in general, and this one in particular,
+   seem to be quite sensitive to handling of boundary conditions. Note
+   some careful choices for Matrix::DiagonalPolicy and the ZeroWrap
+   object, as well as the use of a single CG iteration (instead of just
+   an AMG V-cycle). */
 MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
-   mfem::ParMesh& mesh_lor,
-   mfem::Coefficient* beta_coeff, Array<int>& ess_bdr,
-   mfem::Operator& curlcurl_oper, mfem::Operator& g,
+   ParMesh& mesh_lor,
+   Coefficient* beta_coeff, Array<int>& ess_bdr,
+   Operator& curlcurl_oper, Operator& g,
    int cg_iterations)
    :
    Solver(curlcurl_oper.Height()),
@@ -295,7 +302,7 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
 }
 
 void MatrixFreeAuxiliarySpace::SetupCG(
-   mfem::Operator& curlcurl_oper, mfem::Operator& conn,
+   Operator& curlcurl_oper, Operator& conn,
    int inner_cg_iterations, bool very_verbose)
 {
    MFEM_ASSERT(conn.Height() == curlcurl_oper.Width(),
@@ -372,7 +379,7 @@ void MatrixFreeAuxiliarySpace::SetupBoomerAMG(int system_dimension)
    }
 }
 
-void MatrixFreeAuxiliarySpace::Mult(const mfem::Vector& x, mfem::Vector& y) const
+void MatrixFreeAuxiliarySpace::Mult(const Vector& x, Vector& y) const
 {
    int rank;
    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -461,10 +468,6 @@ MatrixFreeAMS::MatrixFreeAMS(
 MatrixFreeAMS::~MatrixFreeAMS()
 {
    delete smoother_;
-   // delete serialPi_;
-   // delete Pi_;
-   // delete serialG_;
-   // delete G_;
    delete pa_grad_;
    delete pa_interp_;
    delete Gspacesolver_;
