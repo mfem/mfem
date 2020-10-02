@@ -18,82 +18,13 @@
 
 namespace mfem
 {
-MUMPSSolver::~MUMPSSolver()
-{
-   if (id)
-   {
-      id->job = -2;
-      dmumps_c(id);
-      delete[] J;
-      delete[] I;
-      delete [] data;
-   }
-}
-
-void MUMPSSolver::SetParameters()
-{
-   // output stream for error messages
-   id->ICNTL(1) = 6;
-
-   // output stream for diagnosting printing local to each proc
-   id->ICNTL(2) = 6;
-
-   // output stream for global info
-   id->ICNTL(3) = 6;
-
-   // Level of error printing
-   id->ICNTL(4) = print_level;
-
-   //input matrix format (assembled)
-   id->ICNTL(5) = 0;
-
-   // Use A or A^T
-   id->ICNTL(9) = 1;
-
-   // Iterative refinement (disabled)
-   id->ICNTL(10) = 0;
-
-   // Error analysis-statistics (disabled)
-   id->ICNTL(11) = 0;
-
-   // Use of ScaLAPACK (Parallel factorization on root)
-   id->ICNTL(13) = 0;
-
-   // Percentage increase of estimated workspace (default = 20%)
-   id->ICNTL(14) = 20;
-
-   // Number of OpenMP threads (default)
-   id->ICNTL(16) = 0;
-
-   // Matrix input format (distributed)
-   id->ICNTL(18) = 3;
-
-   // Schur complement (no Schur complement matrix returned)
-   id->ICNTL(19) = 0;
-
-#if MFEM_MUMPS_VERSION >= 530
-   // Distributed RHS and Sol
-   id->ICNTL(20) = 10;
-
-   id->ICNTL(21) = 1;
-#else
-   // Centralized RHS and Sol
-   id->ICNTL(20) = 0;
-
-   id->ICNTL(21) = 0;
-#endif
-   // Out of core factorization and solve (disabled)
-   id->ICNTL(22) = 0;
-
-   // Max size of working memory (default = based on estimates)
-   id->ICNTL(23) = 0;
-}
 
 void MUMPSSolver::SetOperator(const Operator &op)
 {
-   // Verify that the operator is a HypreParMatrix
    auto APtr = dynamic_cast<const HypreParMatrix *>(&op);
+
    MFEM_VERIFY(APtr, "Not compatible matrix type");
+
    height = op.Height();
    width = op.Width();
 
@@ -101,8 +32,8 @@ void MUMPSSolver::SetOperator(const Operator &op)
    MPI_Comm_size(comm, &numProcs);
    MPI_Comm_rank(comm, &myid);
 
-   hypre_ParCSRMatrix *parcsr_op
-      = (hypre_ParCSRMatrix *) const_cast<HypreParMatrix &>(*APtr);
+   auto parcsr_op = (hypre_ParCSRMatrix *) const_cast<HypreParMatrix &>(*APtr);
+
    hypre_CSRMatrix *csr_op = hypre_MergeDiagAndOffd(parcsr_op);
 #if MFEM_HYPRE_VERSION >= 21600
    hypre_CSRMatrixBigJtoJ(csr_op);
@@ -114,11 +45,10 @@ void MUMPSSolver::SetOperator(const Operator &op)
 
    row_start = parcsr_op->first_row_index;
 
-   int nnz;
-   if (sym)
+   int nnz = 0;
+   if (mat_type)
    {
-      // count nnz;
-      nnz = 0;
+      // count nnz in case of symmetric mode
       int k = 0;
       for (int i = 0; i < n_loc; i++)
       {
@@ -139,8 +69,10 @@ void MUMPSSolver::SetOperator(const Operator &op)
    I = new int[nnz];
    J = new int[nnz];
 
+   // Fill in I and J arrays for
+   // COO format in 1-based indexing
    int k = 0;
-   if (sym)
+   if (mat_type)
    {
       int l = 0;
       data = new double[nnz];
@@ -148,10 +80,9 @@ void MUMPSSolver::SetOperator(const Operator &op)
       {
          for (int j = Iptr[i]; j < Iptr[i + 1]; j++)
          {
-            // Global I and J indices in 1-based index (for fortran)
             int ii = row_start + i + 1;
             int jj = Jptr[k] + 1;
-            if (ii>=jj)
+            if (ii >= jj)
             {
                I[l] = ii;
                J[l] = jj;
@@ -167,7 +98,6 @@ void MUMPSSolver::SetOperator(const Operator &op)
       {
          for (int j = Iptr[i]; j < Iptr[i + 1]; j++)
          {
-            // Global I and J indices in 1-based index (for fortran)
             I[k] = row_start + i + 1;
             J[k] = Jptr[k] + 1;
             k++;
@@ -184,29 +114,23 @@ void MUMPSSolver::SetOperator(const Operator &op)
    // Host is involved in computation
    id->par = 1;
 
-   // Unsymmetric matrix
-   id->sym = sym;
+   id->sym = mat_type;
 
-   // Mumps init
+   // MUMPS init
    id->job = -1;
    dmumps_c(id);
 
    // Set MUMPS default parameters
    SetParameters();
 
-   // Global number of rows
    id->n = parcsr_op->global_num_rows;
 
-   // Number of non zeros on the processor
    id->nnz_loc = nnz;
 
-   // Distributed row array
    id->irn_loc = I;
 
-   // Distributed column array
    id->jcn_loc = J;
 
-   // Distributed data array
    id->a_loc = data;
 
    // MUMPS Analysis
@@ -217,30 +141,28 @@ void MUMPSSolver::SetOperator(const Operator &op)
    id->job = 2;
    dmumps_c(id);
 
-   // matrix can be destroyed now
    hypre_CSRMatrixDestroy(csr_op);
-   if (!sym) { data = nullptr; }
+   if (!mat_type) { data = nullptr; }
 
 #if MFEM_MUMPS_VERSION >= 530
-   irhs_loc.SetSize(n_loc);
+   irhs_loc = new int[n_loc];
    for (int i = 0; i < n_loc; i++)
    {
       irhs_loc[i] = row_start + i + 1;
    }
    row_starts.SetSize(numProcs);
    MPI_Allgather(&row_start, 1, MPI_INT, row_starts, 1, MPI_INT, comm);
-   sol_loc.SetSize(id->INFO(23));
-   isol_loc.SetSize(id->INFO(23));
+
 #else
    if (myid == 0)
    {
-      rhs_glob.SetSize(parcsr_op->global_num_rows);
-      recv_counts.SetSize(numProcs);
+      rhs_glob = new double[parcsr_op->global_num_rows];
+      recv_counts = new int[numProcs];
    }
    MPI_Gather(&n_loc, 1, MPI_INT, recv_counts, 1, MPI_INT, 0, comm);
    if (myid == 0)
    {
-      displs.SetSize(numProcs); displs[0] = 0;
+      displs = new int[numProcs]; displs[0] = 0;
       int s = 0;
       for (int k = 0; k < numProcs-1; k++)
       {
@@ -254,27 +176,36 @@ void MUMPSSolver::SetOperator(const Operator &op)
 void MUMPSSolver::Mult(const Vector &x, Vector &y) const
 {
 #if MFEM_MUMPS_VERSION >= 530
+
    id->nloc_rhs = x.Size();
    id->lrhs_loc = x.Size();
    id->rhs_loc = x.GetData();
-   id->irhs_loc = const_cast<int *>(irhs_loc.GetData());
-   id->sol_loc = sol_loc.GetData();
+   id->irhs_loc = irhs_loc;
+
    id->lsol_loc = id->INFO(23);
-   id->isol_loc = const_cast<int *>(isol_loc.GetData());
+   id->isol_loc = new int[id->INFO(23)];
+   id->sol_loc = new double[id->INFO(23)];
+
+   // MUMPS solve
    id->job = 3;
    dmumps_c(id);
-   RedistributeSol(isol_loc, sol_loc, y);
+
+   RedistributeSol(id->isol_loc, id->sol_loc, y.GetData());
+
+   delete [] id->sol_loc;
+   delete [] id->isol_loc;
 #else
    MPI_Gatherv(x.GetData(), x.Size(), MPI_DOUBLE,
-               rhs_glob.GetData(), recv_counts,
+               rhs_glob, recv_counts,
                displs, MPI_DOUBLE, 0, comm);
-   if (myid == 0)
-   {
-      id->rhs = rhs_glob.GetData();
-   }
+
+   if (myid == 0) { id->rhs = rhs_glob; }
+   
+   // MUMPS solve
    id->job = 3;
    dmumps_c(id);
-   MPI_Scatterv(rhs_glob.GetData(), recv_counts, displs,
+
+   MPI_Scatterv(rhs_glob, recv_counts, displs,
                 MPI_DOUBLE, y.GetData(), y.Size(),
                 MPI_DOUBLE, 0, comm);
 #endif
@@ -284,6 +215,83 @@ void MUMPSSolver::MultTranspose(const Vector &x, Vector &y) const
 {
    id->ICNTL(9) = 0;
    Mult(x,y);
+}
+
+void MUMPSSolver::SetPrintLevel(int print_level_)
+{
+   print_level = print_level_;
+}
+
+void MUMPSSolver::SetMatrixSymType(MatType mat_type_)
+{
+   mat_type = mat_type_;
+}
+
+MUMPSSolver::~MUMPSSolver()
+{
+   if (id)
+   {
+      id->job = -2;
+      dmumps_c(id);
+#if MFEM_MUMPS_VERSION >= 530
+      delete [] irhs_loc;
+#else
+      delete [] recv_counts;
+      delete [] displs;
+      delete [] rhs_glob;
+#endif
+      delete [] J;
+      delete [] I;
+      delete [] data;
+
+      delete id;
+   }
+}
+
+void MUMPSSolver::SetParameters()
+{
+   // output stream for error messages
+   id->ICNTL(1) = 6;
+   // output stream for diagnosting printing local to each proc
+   id->ICNTL(2) = 6;
+   // output stream for global info
+   id->ICNTL(3) = 6;
+   // Level of error printing
+   id->ICNTL(4) = print_level;
+   //input matrix format (assembled)
+   id->ICNTL(5) = 0;
+   // Use A or A^T
+   id->ICNTL(9) = 1;
+   // Iterative refinement (disabled)
+   id->ICNTL(10) = 0;
+   // Error analysis-statistics (disabled)
+   id->ICNTL(11) = 0;
+   // Use of ScaLAPACK (Parallel factorization on root)
+   id->ICNTL(13) = 0;
+   // Percentage increase of estimated workspace (default = 20%)
+   id->ICNTL(14) = 20;
+   // Number of OpenMP threads (default)
+   id->ICNTL(16) = 0;
+   // Matrix input format (distributed)
+   id->ICNTL(18) = 3;
+   // Schur complement (no Schur complement matrix returned)
+   id->ICNTL(19) = 0;
+
+#if MFEM_MUMPS_VERSION >= 530
+   // Distributed RHS
+   id->ICNTL(20) = 10;
+   // Distributed Sol
+   id->ICNTL(21) = 1;
+#else
+   // Centralized RHS
+   id->ICNTL(20) = 0;
+   // Centralized Sol
+   id->ICNTL(21) = 0;
+#endif
+   // Out of core factorization and solve (disabled)
+   id->ICNTL(22) = 0;
+   // Max size of working memory (default = based on estimates)
+   id->ICNTL(23) = 0;
 }
 
 #if MFEM_MUMPS_VERSION >= 530
@@ -297,61 +305,49 @@ int MUMPSSolver::GetRowRank(int i, const Array<int> &row_starts_) const
    return std::distance(row_starts_.begin(), up) - 1;
 }
 
-void MUMPSSolver::RedistributeSol(const Array<int> &row_map,
-                                  const Vector &x,
-                                  Vector &y) const
+void MUMPSSolver::RedistributeSol(const int * row_map,
+                                  const double * x, double * y) const
 {
-   MFEM_VERIFY(row_map.Size() == x.Size(), "Inconcistent sizes");
-   int size = x.Size();
-
-   // compute send_count
-   Array<int> send_count(numProcs);
-   send_count = 0;
+   int size = id->INFO(23);
+   int send_count[numProcs] = {0};
    for (int i = 0; i < size; i++)
    {
-      int j = row_map[i] - 1; //fix to 0-based indexing
+      int j = row_map[i] - 1;
       int row_rank = GetRowRank(j, row_starts);
-      send_count[row_rank]++; // both for val and global index
+      send_count[row_rank]++;
    }
 
-   // compute recv_count
-   Array<int> recv_count(numProcs);
+   int recv_count[numProcs];
    MPI_Alltoall(send_count, 1, MPI_INT, recv_count, 1, MPI_INT, comm);
 
-   // compute offsets
-   Array<int> send_displ(numProcs);
-   send_displ[0] = 0;
-   Array<int> recv_displ(numProcs);
-   recv_displ[0] = 0;
+   int send_displ[numProcs]; send_displ[0] = 0;
+   int recv_displ[numProcs]; recv_displ[0] = 0;
+   int sbuff_size = send_count[numProcs-1];
+   int rbuff_size = recv_count[numProcs-1];
    for (int k = 0; k < numProcs - 1; k++)
    {
       send_displ[k + 1] = send_displ[k] + send_count[k];
       recv_displ[k + 1] = recv_displ[k] + recv_count[k];
+      sbuff_size += send_count[k];
+      rbuff_size += recv_count[k];
    }
-   int sbuff_size = send_count.Sum();
-   int rbuff_size = recv_count.Sum();
 
-   Array<int> sendbuf_index(sbuff_size);
-   sendbuf_index = 0;
-   Array<double> sendbuf_value(sbuff_size);
-   sendbuf_value = 0;
-   Array<int> soffs(numProcs);
-   soffs = 0;
+   int * sendbuf_index = new int[sbuff_size];
+   double * sendbuf_values = new double[sbuff_size];
+   int soffs[numProcs] = {0};
 
-   // Fill in send buffers
    for (int i = 0; i < size; i++)
    {
-      int j = row_map[i] - 1; //fix to 0-based indexing
+      int j = row_map[i] - 1;
       int row_rank = GetRowRank(j, row_starts);
       int k = send_displ[row_rank] + soffs[row_rank];
       sendbuf_index[k] = j;
-      sendbuf_value[k] = x(i);
+      sendbuf_values[k] = x[i];
       soffs[row_rank]++;
    }
 
-   // communicate
-   Array<int> recvbuf_index(rbuff_size);
-   Array<double> recvbuf_value(rbuff_size);
+   int * recvbuf_index = new int[rbuff_size];
+   double * recvbuf_values = new double[rbuff_size];
    MPI_Alltoallv(sendbuf_index,
                  send_count,
                  send_displ,
@@ -361,11 +357,11 @@ void MUMPSSolver::RedistributeSol(const Array<int> &row_map,
                  recv_displ,
                  MPI_INT,
                  comm);
-   MPI_Alltoallv(sendbuf_value,
+   MPI_Alltoallv(sendbuf_values,
                  send_count,
                  send_displ,
                  MPI_DOUBLE,
-                 recvbuf_value,
+                 recvbuf_values,
                  recv_count,
                  recv_displ,
                  MPI_DOUBLE,
@@ -375,8 +371,13 @@ void MUMPSSolver::RedistributeSol(const Array<int> &row_map,
    for (int i = 0; i < rbuff_size; i++)
    {
       int local_index = recvbuf_index[i] - row_start;
-      y(local_index) = recvbuf_value[i];
+      y[local_index] = recvbuf_values[i];
    }
+
+   delete [] recvbuf_values;
+   delete [] recvbuf_index;
+   delete [] sendbuf_values;
+   delete [] sendbuf_index;
 }
 #endif
 

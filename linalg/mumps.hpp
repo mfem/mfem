@@ -25,45 +25,98 @@
 
 namespace mfem
 {
+/**
+ * @brief MUMPS: A Parallel Sparse Direct Solver
+ *
+ * Interface for the distributed MUMPS solver
+ */
 class MUMPSSolver : public mfem::Solver
 {
 public:
-   // Default Constructor.
+   enum MatType
+   {
+      UNSYMMETRIC = 0,
+      SYMMETRIC_INDEFINITE = 1,
+      SYMMETRIC_POSITIVE_DEFINITE = 2
+   };
+
+   /**
+    * @brief Default Constructor
+    */
    MUMPSSolver() {}
 
-   void SetMatrixSymType(int sym_) { sym = (sym_>2) ? 0 : sym_ ; }
-
-   void SetPrintLevel(int print_level_) { print_level=print_level_;}
-
-   // Factor and solve the linear system y = Op^{-1} x.
-   void Mult(const Vector &x, Vector &y) const;
-
-   void MultTranspose(const Vector &x, Vector &y) const;
-
-   // Set the operator.
+   /**
+    * @brief Set the Operator and perform factorization
+    *
+    * @a op needs to be of type HypreParMatrix.
+    *
+    * @param op Operator used in factorization and solve
+    */
    void SetOperator(const Operator &op);
 
-   // Default destructor.
+   /**
+    * @brief Solve y = Op^{-1} x.
+    *
+    * @param x RHS vector
+    * @param y Solution vector
+    */
+   void Mult(const Vector &x, Vector &y) const;
+
+   /**
+    * @brief Transpose Solve y = Op^{-T} x.
+    *
+    * @param x RHS vector
+    * @param y Solution vector
+    */
+   void MultTranspose(const Vector &x, Vector &y) const;
+
+   /**
+    * @brief Set the error print level for MUMPS
+    *
+    * @param print_lvl Print level
+    */
+   void SetPrintLevel(int print_level_);
+
+   /**
+    * @brief Set the matrix type
+    *
+    * Supported matrix types: General, symmetric indefinite and
+    * symmetric positive definite
+    *
+    * @param mat_type_ Matrix type
+    */
+   void SetMatrixSymType(MatType mat_type_);
+
+   // Destructor
    ~MUMPSSolver();
 
 private:
 
+   // MPI communicator
    MPI_Comm comm;
 
+   // Number of procs
    int numProcs;
 
+   // local mpi id
    int myid;
 
-   int sym=0;
+   // parameter controling the matrix type
+   MatType mat_type = MatType::UNSYMMETRIC;
 
-   int print_level=0;
+   // parameter controling the printing level
+   int print_level = 0;
 
+   // local row offsets
    int row_start;
 
+   // row array for COO storage format
    int *I;
 
+   // col array for COO storage format
    int *J;
 
+   // data array for COO storage format
    double * data;
 
    // MUMPS workspace
@@ -71,31 +124,35 @@ private:
 #define ICNTL(I) icntl[(I) -1]
 #define INFO(I) info[(I) -1]
 
+   // MUMPS object
    DMUMPS_STRUC_C *id=nullptr;
 
+   // Method for setting MUMPS interal parameters
    void SetParameters();
 
 #if MFEM_MUMPS_VERSION >= 530
 
+   // row offests array on all procs
    Array<int> row_starts;
 
-   Array<int> irhs_loc;
+   // row map
+   int * irhs_loc = nullptr;
 
-   Array<int> isol_loc;
-
-   Vector sol_loc;
-
+   // These two methods are needed to distribute the local solution
+   // vectors returned by MUMPS to the original MFEM parallel partition
    int GetRowRank(int i, const Array<int> &row_starts_) const;
 
-   void RedistributeSol(const Array<int> &row_map,
-                        const Vector &x,
-                        Vector &y) const;
+   void RedistributeSol(const int * row_map,
+                        const double * x,
+                        double * y) const;
 #else
-   Array<int> recv_counts;
 
-   Array<int> displs;
+   // Arrays needed for MPI_Gather and MPI_Scatter
+   int * recv_counts = nullptr;
 
-   Vector rhs_glob;
+   int * displs = nullptr;
+
+   double * rhs_glob = nullptr;
 
 #endif
 
