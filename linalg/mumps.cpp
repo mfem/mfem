@@ -200,7 +200,7 @@ void MUMPSSolver::Mult(const Vector &x, Vector &y) const
                displs, MPI_DOUBLE, 0, comm);
 
    if (myid == 0) { id->rhs = rhs_glob; }
-   
+
    // MUMPS solve
    id->job = 3;
    dmumps_c(id);
@@ -309,7 +309,7 @@ void MUMPSSolver::RedistributeSol(const int * row_map,
                                   const double * x, double * y) const
 {
    int size = id->INFO(23);
-   int send_count[numProcs] = {0};
+   int * send_count = new int[numProcs]();
    for (int i = 0; i < size; i++)
    {
       int j = row_map[i] - 1;
@@ -317,11 +317,11 @@ void MUMPSSolver::RedistributeSol(const int * row_map,
       send_count[row_rank]++;
    }
 
-   int recv_count[numProcs];
+   int * recv_count = new int[numProcs];
    MPI_Alltoall(send_count, 1, MPI_INT, recv_count, 1, MPI_INT, comm);
 
-   int send_displ[numProcs]; send_displ[0] = 0;
-   int recv_displ[numProcs]; recv_displ[0] = 0;
+   int * send_displ = new int [numProcs]; send_displ[0] = 0;
+   int * recv_displ = new int [numProcs]; recv_displ[0] = 0;
    int sbuff_size = send_count[numProcs-1];
    int rbuff_size = recv_count[numProcs-1];
    for (int k = 0; k < numProcs - 1; k++)
@@ -334,7 +334,7 @@ void MUMPSSolver::RedistributeSol(const int * row_map,
 
    int * sendbuf_index = new int[sbuff_size];
    double * sendbuf_values = new double[sbuff_size];
-   int soffs[numProcs] = {0};
+   int * soffs = new int[numProcs]();
 
    for (int i = 0; i < size; i++)
    {
@@ -378,6 +378,10 @@ void MUMPSSolver::RedistributeSol(const int * row_map,
    delete [] recvbuf_index;
    delete [] sendbuf_values;
    delete [] sendbuf_index;
+   delete [] recv_displ;
+   delete [] send_displ;
+   delete [] recv_count;
+   delete [] send_count;
 }
 #endif
 
