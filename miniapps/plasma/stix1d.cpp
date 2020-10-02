@@ -204,6 +204,7 @@ int main(int argc, char *argv[])
    int maxit = 1;
    int sol = 2;
    int prec = 1;
+   bool extrude = true;
    bool herm_conv = false;
    bool vis_u = false;
    bool visualization = true;
@@ -336,6 +337,8 @@ int main(int argc, char *argv[])
                   "The number of mesh elements in x");
    args.AddOption(&maxit, "-maxit", "--max-amr-iterations",
                   "Max number of iterations in the main AMR loop.");
+   args.AddOption(&extrude, "-3d", "--solve-3d", "-1d",
+                  "--solve-1d", "Solve the problem in 3D or 1D.");
    args.AddOption(&herm_conv, "-herm", "--hermitian", "-no-herm",
                   "--no-hermitian", "Use convention for Hermitian operators.");
    args.AddOption(&vis_u, "-vis-u", "--visualize-energy", "-no-vis-u",
@@ -609,9 +612,13 @@ int main(int argc, char *argv[])
    tic_toc.Clear();
    tic_toc.Start();
 
-   Mesh * mesh = new Mesh(num_elements, 3, 3, Element::HEXAHEDRON, 1,
-                          mesh_dim_(0), mesh_dim_(1), mesh_dim_(2));
+   Mesh * mesh = NULL;
+     
+   if (extrude)
    {
+      mesh = new Mesh(num_elements, 3, 3, Element::HEXAHEDRON, 1,
+		      mesh_dim_(0), mesh_dim_(1), mesh_dim_(2));
+
       Array<int> v2v(mesh->GetNV());
       for (int i=0; i<v2v.Size(); i++) { v2v[i] = i; }
       for (int i=0; i<=num_elements; i++)
@@ -640,10 +647,14 @@ int main(int argc, char *argv[])
       Mesh * per_mesh = MakePeriodicMesh(mesh, v2v);
       delete mesh;
       mesh = per_mesh;
-   }
 
-   // Ensure that quad and hex meshes are treated as non-conforming.
-   mesh->EnsureNCMesh();
+      // Ensure that quad and hex meshes are treated as non-conforming.
+      mesh->EnsureNCMesh();
+   }
+   else
+   {
+     mesh = new Mesh(num_elements, mesh_dim_(0));
+   }
 
    // Define a parallel mesh by a partitioning of the serial mesh. Refine
    // this mesh further in parallel to increase the resolution. Once the
