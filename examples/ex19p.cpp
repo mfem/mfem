@@ -197,10 +197,8 @@ void InitialDeformation(const Vector &x, Vector &y);
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   MPI_Session mpi;
+   const int myid = mpi.WorldRank();
 
    // 2. Parse command-line options
    const char *mesh_file = "../data/beam-tet.mesh";
@@ -399,8 +397,6 @@ int main(int argc, char *argv[])
 
    // 19. Free the used memory
    delete pmesh;
-
-   MPI_Finalize();
 
    return 0;
 }
