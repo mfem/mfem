@@ -18,6 +18,14 @@ Meshing improvements
   always available. The interface has also been improved, see for example the
   Mesh Explorer miniapp.
 
+- A new non-conforming mesh format has been implemented that fixes known
+  inconsistencies of the legacy (MFEM mesh v1.1) NC format and is compatible
+  with both serial and parallel code. ParMesh::ParPrint can now print
+  non-conforming AMR meshes that may be used to restart a parallel AMR
+  computation. Example 6p has been extended to support restarting from a
+  previously saved checkpoint. Parallel NC files are compatible with serial
+  code, e.g., serial GLVis. Loading of legacy NC mesh files is still supported.
+
 - Improved Gmsh reader (version 2.2), which now supports both high-order and
   periodic meshes. Segments, triangles, quadrilaterals, and tetrahedra are
   supported up to order 10. Wedges and hexahedra are supported up to order 9.

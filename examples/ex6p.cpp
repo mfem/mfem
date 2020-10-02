@@ -14,6 +14,7 @@
 //               mpirun -np 4 ex6p -m ../data/star-surf.mesh -o 2
 //               mpirun -np 4 ex6p -m ../data/square-disc-surf.mesh -o 2
 //               mpirun -np 4 ex6p -m ../data/amr-quad.mesh
+//               mpirun -np 4 ex6p --restart
 //
 // Device sample runs:
 //               mpirun -np 4 ex6p -pa -d cuda
@@ -34,8 +35,8 @@
 //               The example demonstrates MFEM's capability to work with both
 //               conforming and nonconforming refinements, in 2D and 3D, on
 //               linear, curved and surface meshes. Interpolation of functions
-//               from coarse to fine meshes, as well as persistent GLVis
-//               visualization are also illustrated.
+//               from coarse to fine meshes, restarting from a checkpoint, as
+//               well as persistent GLVis visualization are also illustrated.
 //
 //               We recommend viewing Example 1 before viewing this example.
 
@@ -112,7 +113,7 @@ int main(int argc, char *argv[])
          mesh.UniformRefinement();
          mesh.SetCurvature(2);
       }
-      mesh.EnsureNCMesh();
+      mesh.EnsureNCMesh(true);
 
       // 6. Define a parallel mesh by partitioning the serial mesh.
       //    Once the parallel mesh is defined, the serial mesh can be deleted.
