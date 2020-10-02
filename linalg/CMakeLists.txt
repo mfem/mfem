@@ -76,13 +76,6 @@ if (MFEM_USE_GINKGO)
   list(APPEND HDRS ginkgo.hpp)
 endif()
 
-if (MFEM_USE_MUMPS)
-  list(APPEND SRCS mumps.cpp)
-  # If this list (HDRS -> HEADERS) is used for install, we probably want the
-  # header added all the time.
-  list(APPEND HDRS mumps.hpp)
-endif()
-
 if (MFEM_USE_SUNDIALS)
   list(APPEND SRCS sundials.cpp)
   list(APPEND HDRS sundials.hpp)
@@ -93,6 +86,11 @@ if (MFEM_USE_SUPERLU)
   # If this list (HDRS -> HEADERS) is used for install, we probably want the
   # header added all the time.
   list(APPEND HDRS superlu.hpp)
+endif()
+
+if (MFEM_USE_MUMPS)
+  list(APPEND SRCS mumps.cpp)
+  list(APPEND HDRS mumps.hpp)
 endif()
 
 if (MFEM_USE_STRUMPACK)
