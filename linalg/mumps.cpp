@@ -217,14 +217,14 @@ void MUMPSSolver::MultTranspose(const Vector &x, Vector &y) const
    Mult(x,y);
 }
 
-void MUMPSSolver::SetPrintLevel(int print_level_)
+void MUMPSSolver::SetPrintLevel(int print_lvl)
 {
-   print_level = print_level_;
+   print_level = print_lvl;
 }
 
-void MUMPSSolver::SetMatrixSymType(MatType mat_type_)
+void MUMPSSolver::SetMatrixSymType(MatType mtype)
 {
-   mat_type = mat_type_;
+   mat_type = mtype;
 }
 
 MUMPSSolver::~MUMPSSolver()
