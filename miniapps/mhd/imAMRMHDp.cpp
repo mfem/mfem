@@ -741,22 +741,12 @@ int main(int argc, char *argv[])
       {
           refineMesh=true;
           refiner.Reset();
-      }
-      else
-          refineMesh=false;
-
-      /* 
-       * here we derefine every ref_steps but it is lagged by a step of .5*ref_steps
-       * sometimes derefine could break down the preconditioner (maybe solutions are 
-       * not so nice after a derefining projection?)
-       */
-      if ( derefine && (ti-ref_steps/2)%ref_steps ==0 ) //&& ti >  ref_steps ) //&& t<5.0) 
-      {
           derefineMesh=true;
           derefiner.Reset();
       }
       else
       {
+          refineMesh=false;
           derefineMesh=false;
       }
 
@@ -848,6 +838,7 @@ int main(int argc, char *argv[])
          int its;
          for (its=0; its<deref_its; its++)
          {
+             oper.UpdateJ(vx, &j);
              if (!derefiner.Apply(*pmesh))
              {
                  if (myid == 0) cout << "No derefine elements found, skip..." << endl;
