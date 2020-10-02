@@ -16,8 +16,8 @@
 
 include(MfemCmakeUtilities)
 mfem_find_package(MUMPS MUMPS MUMPS_DIR
-  "include" "dmumps_c.h"
-  "lib" "dmumps;mumps_common;pord" 
+  "include" dmumps_c.h "lib" dmumps
   "Paths to headers required by MUMPS."
-  "Libraries required by MUMPS.")
-  
+  "Libraries required by MUMPS."
+  ADD_COMPONENT mumps_common "include" dmumps_c.h "lib" mumps_common
+  ADD_COMPONENT pord "include" dmumps_c.h "lib" pord)
