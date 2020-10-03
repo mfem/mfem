@@ -84,6 +84,12 @@ private:
 // forward declaration
 class MFEMCeedVCycle;
 
+#ifdef MFEM_USE_MPI
+   using GroupComm = GroupCommunicator;
+#else
+   using GroupComm = void;
+#endif
+
 /**
    This takes a CeedOperator with essential dofs
    and produces a coarser / lower-order operator, an interpolation
@@ -100,7 +106,7 @@ public:
    CeedMultigridLevel(CeedOperator oper,
                       const mfem::Array<int>& ess_dofs,
                       int order_reduction,
-                      FiniteElementSpace &fes,
+                      GroupComm *gc_fine,
                       const Operator *P_fine,
                       const Operator *R_fine);
    ~CeedMultigridLevel();
@@ -115,6 +121,8 @@ public:
    const Operator *GetFineProlongation() const { return P_fine_; }
 
    Operator *GetRestriction() const { return R; }
+
+   GroupComm *GetGroupComm() const { return gc; }
 
    friend class MFEMCeedVCycle;
 
@@ -134,9 +142,7 @@ private:
    mfem::Array<int> lo_ess_tdof_list_;
    int numsub_;
 
-#ifdef MFEM_USE_MPI
-   GroupCommunicator *gc;
-#endif
+   GroupComm *gc;
    Operator *P, *R;
    const Operator *P_fine_;
    TransposeOperator *R_fine_tr;
@@ -879,7 +885,7 @@ void CoarsenEssentialDofs(const mfem::Operator& mfem_interp,
 CeedMultigridLevel::CeedMultigridLevel(CeedOperator oper,
                                        const mfem::Array<int>& ho_ess_tdof_list,
                                        int order_reduction,
-                                       FiniteElementSpace &fes,
+                                       GroupComm *gc_fine,
                                        const Operator *P_fine,
                                        const Operator *R_fine)
    :
@@ -934,14 +940,11 @@ CeedMultigridLevel::CeedMultigridLevel(CeedOperator oper,
    }
 
 #ifdef MFEM_USE_MPI
-   ParFiniteElementSpace *pfes = dynamic_cast<ParFiniteElementSpace *>(&fes);
-   if (pfes && pfes->GetProlongationMatrix())
+   if (gc_fine)
    {
-
       int lsize;
       CeedElemRestrictionGetLVectorSize(lo_er_[0], &lsize);
-      GroupCommunicator &gc_fine = pfes->GroupComm();
-      const Table &group_ldof_fine = gc_fine.GroupLDofTable();
+      const Table &group_ldof_fine = gc_fine->GroupLDofTable();
 
       Array<int> coarse2fine(lsize);
       int i_fine = 0;
@@ -956,7 +959,7 @@ CeedMultigridLevel::CeedMultigridLevel(CeedOperator oper,
 
       std::unique_ptr<Table> ldof_group_fine(Transpose(group_ldof_fine));
 
-      gc = new GroupCommunicator(gc_fine.GetGroupTopology());
+      gc = new GroupCommunicator(gc_fine->GetGroupTopology());
       Array<int> ldof_group(lsize);
       for (int i=0; i<lsize; ++i)
       {
@@ -1204,6 +1207,14 @@ AlgebraicCeedSolver::AlgebraicCeedSolver(Operator& fine_mfem_op,
    CeedOperator current_op = fine_composite_op;
 
    FiniteElementSpace &fes = *form.FESpace();
+   GroupComm *gc = NULL;
+#ifdef MFEM_USE_MPI
+   ParFiniteElementSpace *pfes = dynamic_cast<ParFiniteElementSpace*>(&fes);
+   if (pfes)
+   {
+      gc = &pfes->GroupComm();
+   }
+#endif
    const Operator *R = fes.GetRestrictionMatrix();
    const Operator *P = fes.GetProlongationMatrix();
    operators = new Operator*[num_levels];
@@ -1215,11 +1226,12 @@ AlgebraicCeedSolver::AlgebraicCeedSolver(Operator& fine_mfem_op,
    {
       const int order_reduction = current_order - (current_order / 2);
       current_order = current_order / 2;
-      levels[i] = new CeedMultigridLevel(current_op, *current_ess_dofs, order_reduction, fes, P, R);
+      levels[i] = new CeedMultigridLevel(current_op, *current_ess_dofs, order_reduction, gc, P, R);
       current_op = levels[i]->GetCoarseCeed();
       current_ess_dofs = &levels[i]->GetCoarseEssentialDofList();
       P = levels[i]->GetProlongation();
       R = levels[i]->GetRestriction();
+      gc = levels[i]->GetGroupComm();
       operators[i + 1] = new MFEMCeedOperator(current_op, *current_ess_dofs, levels[i]->GetProlongation());
    }
    mfem::Solver * coarsest_solver;
