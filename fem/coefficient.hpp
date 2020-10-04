@@ -721,7 +721,6 @@ public:
    /// For backward compatibility get the width of the matrix.
    int GetVDim() const { return width; }
 
-   void SetSymmetric(bool s) { symmetric = s; }
    bool IsSymmetric() const { return symmetric; }
 
    /** @brief Evaluate the matrix coefficient in the element described by @a T
