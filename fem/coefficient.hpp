@@ -125,57 +125,23 @@ public:
                        const IntegrationPoint &ip);
 };
 
-/// A general C-function coefficient
+/// A general function coefficient
 class FunctionCoefficient : public Coefficient
 {
 protected:
    std::function<double(const Vector &)> Function;
    std::function<double(const Vector &, double)> TDFunction;
 
-   /// Enables compile-time check if `Callable` is convertable to
-   /// std::function<double(const Vector &)>
-   template <typename Callable>
-   using EnableIfCallableF =
-      typename std::enable_if<std::is_convertible<Callable,
-      std::function<double(const Vector &)>>::value, int>::type;
-
-   /// Enables compile-time check if `Callable` is convertable to
-   /// std::function<double(const Vector &, double)>
-   template <typename Callable>
-   using EnableIfCallableTDF =
-      typename std::enable_if<std::is_convertible<Callable,
-      std::function<double(const Vector &, double)>>::value, int>::type;
-
 public:
-   /// Define a time-independent coefficient from a pointer to a C-function
-   FunctionCoefficient(double (*F)(const Vector &))
-      : Function(F)
-   { }
-
-   /// Define a time-independent coefficient from any callable type
-   /// \tparam Callable Any callable type (e.g. std::function, lambda)
-   /// \tparam EnableIfCallableF compile-time check to enable this
-   /// constructor if F is callable with signature:
-   /// (const Vector &) -> double
-   /// \param F time-independent callable object
-   template <typename Callable, EnableIfCallableF<Callable> = 0>
-   FunctionCoefficient(Callable F)
+   /// Define a time-independent coefficient from a std function
+   /// \param F time-independent std::function
+   FunctionCoefficient(std::function<double(const Vector &)> F)
       : Function(std::move(F))
    { }
 
-   /// Define a time-dependent coefficient from a pointer to a C-function
-   FunctionCoefficient(double (*TDF)(const Vector &, double))
-      : TDFunction(TDF)
-   { }
-
-   /// Define a time-dependent coefficient from any callable type
-   /// \tparam Callable any callable type (e.g. std::function, lambda)
-   /// \tparam EnableIfCallableTDF compile-time check to enable this
-   /// constructor if TDF is callable with signature:
-   /// (const Vector &, double) -> double
-   /// \param TDF time-dependent callable object
-   template <typename Callable, EnableIfCallableTDF<Callable> = 0>
-   FunctionCoefficient(Callable TDF)
+   /// Define a time-dependent coefficient from a std function
+   /// \param TDF time-dependent function
+   FunctionCoefficient(std::function<double(const Vector &, double)> TDF)
       : TDFunction(std::move(TDF))
    { }
 
@@ -438,7 +404,7 @@ public:
    const Vector& GetVec() { return vec; }
 };
 
-/// A general C-function vector coefficient
+/// A general vector function coefficient
 class VectorFunctionCoefficient : public VectorCoefficient
 {
 private:
@@ -446,63 +412,23 @@ private:
    std::function<void(const Vector &, double, Vector &)> TDFunction;
    Coefficient *Q;
 
-   /// Enables compile-time check if `Callable` is convertable to
-   /// std::function<void(const Vector &, Vector &)>
-   template <typename Callable>
-   using EnableIfCallableF =
-      typename std::enable_if<std::is_convertible<Callable,
-      std::function<void(const Vector &, Vector &)>>::value, int>::type;
-
-   /// Enables compile-time check if `Callable` is convertable to
-   /// std::function<void(const Vector &, double, Vector &)>
-   template <typename Callable>
-   using EnableIfCallableTDF =
-      typename std::enable_if<std::is_convertible<Callable,
-      std::function<void(const Vector &, double, Vector &)>>::value, int>::type;
-
 public:
-   /// Define a time-independent vector coefficient from a pointer to a
-   /// C-function
-   VectorFunctionCoefficient(int dim,
-                             void(*F)(const Vector &, Vector &),
-                             Coefficient *q = nullptr)
-      : VectorCoefficient(dim), Function(F), Q(q)
-   { }
-
-   /// Define a time-independent vector coefficient from any callable type
-   /// \tparam Callable - Any callable type (e.g. std::function, lambda)
-   /// \tparam EnableIfCallableF - compile-time check to enable this
-   /// constructor if F is callable with signature:
-   /// (const Vector &, Vector &) -> void
+   /// Define a time-independent vector coefficient from a std function
    /// \param dim - the size of the vector
-   /// \param F - time-independent callable object
+   /// \param F - time-independent function
    /// \param q - optional scalar Coefficient to scale the vector coefficient
-   template <typename Callable, EnableIfCallableF<Callable> = 0>
    VectorFunctionCoefficient(int dim,
-                             Callable F,
+                             std::function<void(const Vector &, Vector &)> F,
                              Coefficient *q = nullptr)
       : VectorCoefficient(dim), Function(std::move(F)), Q(q)
    { }
 
-   /// Define a time-dependent vector coefficient from a pointer to a
-   /// C-function
-   VectorFunctionCoefficient(int dim,
-                             void(*TDF)(const Vector &, double, Vector &),
-                             Coefficient *q = nullptr)
-      : VectorCoefficient(dim), TDFunction(TDF), Q(q)
-   { }
-
-   /// Define a time-dependent vector coefficient from any callable type
-   /// \tparam Callable - Any callable type (e.g. std::function, lambda)
-   /// \tparam EnableIfCallableTDF - compile-time check to enable this
-   /// constructor if TDF is callable with signature:
-   /// (const Vector &, double, Vector &) -> void
+   /// Define a time-dependent vector coefficient from a std function
    /// \param dim - the size of the vector
-   /// \param TDF - time-dependent callable object
+   /// \param TDF - time-dependent function
    /// \param q - optional scalar Coefficient to scale the vector coefficient
-   template <typename Callable, EnableIfCallableTDF<Callable> = 0>
    VectorFunctionCoefficient(int dim,
-                             Callable TDF,
+                             std::function<void(const Vector &, double, Vector &)> TDF,
                              Coefficient *q = nullptr)
       : VectorCoefficient(dim), TDFunction(std::move(TDF)), Q(q)
    { }
@@ -836,8 +762,8 @@ public:
 
 
 /** @brief A matrix coefficient with an optional scalar coefficient multiplier
-    \a q.  The matrix function can either be represented by a C-function or a
-    constant matrix provided when constructing this object.  */
+    \a q.  The matrix function can either be represented by a std function or
+    a constant matrix provided when constructing this object.  */
 class MatrixFunctionCoefficient : public MatrixCoefficient
 {
 private:
@@ -848,100 +774,41 @@ private:
    Coefficient *Q;
    DenseMatrix mat;
 
-   /// Enables compile-time check if `Callable` is convertable to
-   /// std::function<void(const Vector &, DenseMatrix &)>
-   template <typename Callable>
-   using EnableIfCallableF =
-      typename std::enable_if<std::is_convertible<Callable,
-      std::function<void(const Vector &, DenseMatrix &)>>::value, int>::type;
-
-   /// Enables compile-time check if `Callable` is convertable to
-   /// std::function<void(const Vector &, Vector &)>
-   template <typename Callable>
-   using EnableIfCallableSymmF =
-      typename std::enable_if<std::is_convertible<Callable,
-      std::function<void(const Vector &, Vector &)>>::value, int>::type;
-
-   /// Enables compile-time check if `Callable` is convertable to
-   /// std::function<void(const Vector &, double, DenseMatrix &)>
-   template <typename Callable>
-   using EnableIfCallableTDF =
-      typename std::enable_if<std::is_convertible<Callable,
-      std::function<void(const Vector &, double, DenseMatrix &)>>::value, int>::type;
-
 public:
-   /// Define a time-independent square matrix coefficient from a pointer to a
-   /// C-function
-   MatrixFunctionCoefficient(int dim,
-                             void(*F)(const Vector &, DenseMatrix &),
-                             Coefficient *q = nullptr)
-      : MatrixCoefficient(dim), Function(F), Q(q), mat(0)
-   { }
-
-   /// Define a time-independent square matrix coefficient from any callable
-   /// type
-   /// \tparam Callable - Any callable type (e.g. std::function, lambda)
-   /// \tparam EnableIfCallableF - compile-time check to enable this
-   /// constructor if F is callable with signature:
-   /// (const Vector &, DenseMatrix &) -> void
+   /// Define a time-independent square matrix coefficient from a std function
    /// \param dim - the size of the matrix
-   /// \param F - time-independent callable object
+   /// \param F - time-independent function
    /// \param q - optional scalar Coefficient to scale the matrix coefficient
-   template <typename Callable, EnableIfCallableF<Callable> = 0>
    MatrixFunctionCoefficient(int dim,
-                             Callable F,
+                             std::function<void(const Vector &, DenseMatrix &)> F,
                              Coefficient *q = nullptr)
       : MatrixCoefficient(dim), Function(std::move(F)), Q(q), mat(0)
    { }
 
    /// Define a constant matrix coefficient times a scalar Coefficient
+   /// \param m - constant matrix
+   /// \param q - optional scalar Coefficient to scale the matrix coefficient
    MatrixFunctionCoefficient(const DenseMatrix &m, Coefficient &q)
       : MatrixCoefficient(m.Height(), m.Width()), Q(&q), mat(m)
    { }
 
-   /// Define a time-dependent square matrix coefficient from a pointer to a
-   /// C-function
-   MatrixFunctionCoefficient(int dim,
-                             void(*TDF)(const Vector &, double, DenseMatrix &),
-                             Coefficient *q = nullptr)
-      : MatrixCoefficient(dim), TDFunction(TDF), Q(q)
-   { }
-
-   /// Define a time-dependent square matrix coefficient from any callable
-   /// type
-   /// \tparam Callable - Any callable type (e.g. std::function, lambda)
-   /// \tparam EnableIfCallableTDF - compile-time check to enable this
-   /// constructor if TDF is callable with signature:
-   /// (const Vector &, double, DenseMatrix &) -> void
+   /// Define a time-dependent square matrix coefficient from a std function
    /// \param dim - the size of the matrix
-   /// \param TDF - time-dependent callable object
+   /// \param TDF - time-dependent function
    /// \param q - optional scalar Coefficient to scale the matrix coefficient
-   template <typename Callable, EnableIfCallableTDF<Callable> = 0>
    MatrixFunctionCoefficient(int dim,
-                             Callable TDF,
+                             std::function<void(const Vector &, double, DenseMatrix &)> TDF,
                              Coefficient *q = nullptr)
       : MatrixCoefficient(dim), TDFunction(std::move(TDF)), Q(q)
    { }
 
-   /// Construct a symmetric square matrix coefficient from a C-function
-   /// defining a vector function used by EvalSymmetric
-   MatrixFunctionCoefficient(int dim, void (*F)(const Vector &, Vector &),
-                             Coefficient *q = NULL)
-      : MatrixCoefficient(dim, true), SymmFunction(F), Q(q), mat(0)
-   { }
-
-   /// Define a time-independent symmetric square matrix coefficient from any
-   /// callable type
-   /// \tparam Callable - Any callable type (e.g. std::function, lambda)
-   /// \tparam EnableIfCallableSymmF - compile-time check to enable this
-   /// constructor if SymmF is callable with signature:
-   /// (const Vector &, Vector &) -> void
+   /// Define a time-independent symmetric square matrix coefficient from a
+   /// std function
    /// \param dim - the size of the matrix
-   /// \param SymmF - time-independent callable object used by EvalSymmetric
+   /// \param SymmF - function used in EvalSymmetric
    /// \param q - optional scalar Coefficient to scale the matrix coefficient
-   template <typename Callable, EnableIfCallableSymmF<Callable> = 0>
    MatrixFunctionCoefficient(int dim,
-                             Callable SymmF,
+                             std::function<void(const Vector &, Vector &)> SymmF,
                              Coefficient *q = NULL)
       : MatrixCoefficient(dim, true), SymmFunction(std::move(SymmF)), Q(q), mat(0)
    { }
