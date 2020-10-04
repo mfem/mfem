@@ -133,6 +133,7 @@ void BilinearFormIntegrator::AssembleElementVector(
    const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun,
    Vector &elvect)
 {
+   // Note: This default implementation is general but not efficient
    DenseMatrix elmat;
    AssembleElementMatrix(el, Tr, elmat);
    elvect.SetSize(elmat.Height());
@@ -143,6 +144,7 @@ void BilinearFormIntegrator::AssembleFaceVector(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Tr, const Vector &elfun, Vector &elvect)
 {
+   // Note: This default implementation is general but not efficient
    DenseMatrix elmat;
    AssembleFaceMatrix(el1, el2, Tr, elmat);
    elvect.SetSize(elmat.Height());
