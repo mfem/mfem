@@ -425,7 +425,7 @@ void test_pa_convection(const char *meshname, int order, int prob)
    delete fec;
 }
 
-//Basic unit test for convection
+// Basic unit test for convection
 TEST_CASE("PA Convection", "[PartialAssembly]")
 {
    // prob: 0: CG, 1: DG continuous coeff, 2: DG discontinuous coeff
@@ -456,6 +456,7 @@ TEST_CASE("PA Convection", "[PartialAssembly]")
    {
       test_pa_convection("../../data/fichera-amr.mesh", order_3d, 0);
    }
-}//test case
 
-}// namespace pa_kernels
+} // test case
+
+} // namespace pa_kernels
