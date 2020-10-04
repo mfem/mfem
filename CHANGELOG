@@ -90,6 +90,9 @@ Discretization improvements
   Additionally, new LinearForm integrators were also added which make use of
   these new QuadratureFunction coefficient classes.
 
+- Non-conforming meshes are now supported with block nonlinear forms. See the
+  updated Example 19/19p.
+
 - Added support face integrals on the boundaries of NURBS meshes.
 
 Linear and nonlinear solvers
