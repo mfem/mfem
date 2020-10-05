@@ -20,7 +20,6 @@
 
 #ifdef MFEM_USE_AMGX
 
-
 #include <amgx_c.h>
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
@@ -54,20 +53,11 @@ public:
    /* Constructor for MPI-GPU exclusive (1 MPI per GPU) with default parameters*/
    AmgXSolver(const MPI_Comm &comm, const AMGX_MODE amgxMode_, const bool verbose);
 
-   /* Constructor for MPI-GPU exclusive (1 MPI per GPU) */
-   //AmgXSolver(const MPI_Comm &comm,
-   //const std::string &cfgFile);
-
    /* Constructor for MPI teams (MPI procs share a GPU) */
    /* nDevs specifies number of devices per node */
    /* with default parameters */
    AmgXSolver(const MPI_Comm &comm, const int nDevs,
               const AMGX_MODE amgx_Mode_, const bool verbose);
-
-   /* Constructor for MPI teams (MPI procs share a GPU) */
-   /* nDevs specifies number of devices per node */
-   AmgXSolver(const MPI_Comm &comm,
-              const std::string &cfgFile, const int nDevs);
 
    void Initialize_ExclusiveGPU(const MPI_Comm &comm);
 

@@ -49,14 +49,6 @@ AmgXSolver::AmgXSolver(const MPI_Comm &comm,
    Initialize_ExclusiveGPU(comm);
 }
 
-/*
-AmgXSolver::AmgXSolver(const MPI_Comm &comm,
-                       const std::string &cfgFile)
-{
-   Initialize_ExclusiveGPU(comm, cfgFile, true);
-}
-*/
-
 AmgXSolver::AmgXSolver(const MPI_Comm &comm, const int nDevs,
                        const AMGX_MODE amgxMode_, const bool verbose)
 
@@ -69,14 +61,6 @@ AmgXSolver::AmgXSolver(const MPI_Comm &comm, const int nDevs,
 
    Initialize_MPITeams(comm, nDevs);
 }
-
-/*
-AmgXSolver::AmgXSolver(const MPI_Comm &comm,
-                       const std::string &cfgFile, const int nDevs)
-{
-   Initialize_MPITeams(comm, nDevs, cfgFile, true);
-}
-*/
 #endif
 
 AmgXSolver::~AmgXSolver()

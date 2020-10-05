@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
-   bool amgx = true;
+   bool amgx = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -235,8 +235,7 @@ int main(int argc, char *argv[])
    {
 #if defined(MFEM_USE_AMGX)
       bool amgx_verbose = false;
-      const int nDevices = 1;
-      prec = new AmgXSolver(MPI_COMM_WORLD, nDevices, AmgXSolver::PRECONDITIONER,
+      prec = new AmgXSolver(MPI_COMM_WORLD, AmgXSolver::PRECONDITIONER,
                             amgx_verbose);
 #else
       mfem_error("MFEM not configured with AMGX \n");
