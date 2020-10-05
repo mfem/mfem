@@ -32,7 +32,11 @@ unsigned int sqrti(const unsigned int & a);
 namespace superlu
 {
 // Copy selected enumerations from SuperLU
+#ifdef MFEM_USE_SUPERLU5
+typedef enum {NOROWPERM, LargeDiag, MY_PERMR}                       RowPerm;
+#else
 typedef enum {NOROWPERM, LargeDiag_MC64, LargeDiag_HWPM, MY_PERMR}  RowPerm;
+#endif
 typedef enum {NATURAL, MMD_ATA, MMD_AT_PLUS_A, COLAMD,
               METIS_AT_PLUS_A, PARMETIS, ZOLTAN, MY_PERMC
              }          ColPerm;
