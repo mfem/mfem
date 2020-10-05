@@ -38,7 +38,19 @@ if(NOT ADIOS2_FOUND)
   endif()
 
   find_path(ADIOS2_INCLUDE_DIR adios2.h ${ADIOS2_INCLUDE_OPTS})
-  find_library(ADIOS2_LIBRARY NAMES adios2 ${ADIOS2_LIBRARY_OPTS}) 
+  
+  # adios2 version 2.5.0 
+  find_library(ADIOS2_LIBRARY NAMES adios2 ${ADIOS2_LIBRARY_OPTS})
+  
+  # adios2 version 2.6.0 and onwards
+  if(NOT ADIOS2_LIBRARY)
+  	find_library(ADIOS2_CXX11_MPI_LIBRARY NAMES adios2_cxx11_mpi ${ADIOS2_LIBRARY_OPTS})
+  	find_library(ADIOS2_CXX11_LIBRARY NAMES adios2_cxx11 ${ADIOS2_LIBRARY_OPTS})
+  	set(ADIOS2_LIBRARY ${ADIOS2_CXX11_MPI_LIBRARY} ${ADIOS2_CXX11_LIBRARY})
+  	if(MFEM_USE_MPI)
+  	  add_definitions(-DADIOS2_USE_MPI)
+  	endif()
+  endif() 
 
   include(FindPackageHandleStandardArgs)
   find_package_handle_standard_args(ADIOS2
