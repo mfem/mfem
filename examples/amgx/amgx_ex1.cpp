@@ -207,37 +207,24 @@ int main(int argc, char *argv[])
    // 11. Solve the linear system A X = B.
    if (!pa)
    {
+      AmgXSolver amgx;
 
-      //SparseMatrix A;
-      //a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
-
-      std::string amgx_str = amgx_json_file;
-      AmgXSolver amgx(amgx_str);
-      //amgx.Initialize_Serial(amgx_str);
+      amgx.ReadParameters(amgx_json_file, AmgXSolver::EXTERNAL);
+      amgx.Initialize_Serial();
       amgx.SetOperator(*A.As<SparseMatrix>());
 
-      X = 0.0;
       if (amgx_solver)
       {
-         printf("Applying AmgX as solver \n");
-         amgx.SetMode(AmgXSolver::SOLVER);
          amgx.Mult(B,X);
       }
       else
       {
-         printf("Applying AmgX as preconditioner \n");
-         amgx.SetMode(AmgXSolver::PRECONDITIONER);
          PCG(*A.As<SparseMatrix>(), amgx, B, X, 3, 40, 1e-12, 0.0);
       }
 
    }
    else // Jacobi preconditioning in partial assembly mode
    {
-
-      //OperatorPtr A;
-      //Vector B, X;
-      //a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
-
       if (UsesTensorBasis(fespace))
       {
          OperatorJacobiSmoother M(a, ess_tdof_list);

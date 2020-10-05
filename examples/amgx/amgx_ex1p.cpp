@@ -239,17 +239,18 @@ int main(int argc, char *argv[])
    {
 
       AmgXSolver amgx;
-      //std::string amgx_str(amgx_json_file);
+
+      amgx.ReadParameters(amgx_json_file, AmgXSolver::EXTERNAL);
 
       if (amgx_mpi_teams)
       {
          //Forms MPI teams to load balance between mpi ranks and gpus
-         amgx.Initialize_MPITeams(MPI_COMM_WORLD, amgx_json_file, ndevices);
+         amgx.Initialize_MPITeams(MPI_COMM_WORLD, ndevices);
       }
       else
       {
          //Assumes MPI == number of devices
-         amgx.Initialize_ExclusiveGPU(MPI_COMM_WORLD, amgx_json_file);
+         amgx.Initialize_ExclusiveGPU(MPI_COMM_WORLD);
       }
 
       amgx.SetOperator(*A.As<HypreParMatrix>());

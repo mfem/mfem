@@ -235,7 +235,9 @@ int main(int argc, char *argv[])
    {
 #if defined(MFEM_USE_AMGX)
       bool amgx_verbose = false;
-      prec = new AmgXSolver(MPI_COMM_WORLD, AmgXSolver::PRECONDITIONER, amgx_verbose);
+      const int nDevices = 1;
+      prec = new AmgXSolver(MPI_COMM_WORLD, nDevices, AmgXSolver::PRECONDITIONER,
+                            amgx_verbose);
 #else
       mfem_error("MFEM not configured with AMGX \n");
 #endif
