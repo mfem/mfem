@@ -344,6 +344,10 @@ MFEM_USE_SUPERLU = YES/NO
    SuperLURowLocMatrix a distributed CSR matrix class needed by SuperLU. When
    enabled, this option uses the SUPERLU_* library options, see below.
 
+MFEM_USE_SUPERLU5 = YES/NO
+   If SuperLU functionality is enabled, use the older 5.1.0 version rather than
+   the 6.3.1 version that is supported.  
+
 MFEM_USE_STRUMPACK = YES/NO
    Enable MFEM functionality based on the STRUMPACK sparse direct solver and
    preconditioner through the STRUMPACKSolver and STRUMPACKRowLocMatrix
