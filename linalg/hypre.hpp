@@ -1160,7 +1160,6 @@ public:
    virtual HYPRE_PtrToParSolverFcn SolveFcn() const
    { return (HYPRE_PtrToParSolverFcn) HYPRE_BoomerAMGSolve; }
 
-   virtual void Mult (const HypreParVector &b, HypreParVector &x) const;
    using HypreSolver::Mult;
 
    virtual ~HypreBoomerAMG();
