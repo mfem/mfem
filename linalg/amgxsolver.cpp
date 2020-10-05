@@ -28,9 +28,13 @@ int AmgXSolver::count = 0;
 AMGX_resources_handle AmgXSolver::rsrc = nullptr;
 
 // Implements AmgXSolver::AmgXSolver
-AmgXSolver::AmgXSolver(const std::string &cfgFile)
+AmgXSolver::AmgXSolver(const AMGX_MODE amgxMode_, const bool verbose)
 {
-   Initialize_Serial(cfgFile);
+   amgxMode = amgxMode_;
+
+   DefaultParameters(amgxMode, verbose);
+
+   Initialize_Serial();
 }
 
 #ifdef MFEM_USE_MPI
@@ -40,22 +44,39 @@ AmgXSolver::AmgXSolver(const MPI_Comm &comm,
    std::string config;
    amgxMode = amgxMode_;
 
-   ConfigureDefaults(config, verbose);
+   DefaultParameters(amgxMode, verbose);
 
-   Initialize_ExclusiveGPU(comm, config, false);
+   Initialize_ExclusiveGPU(comm);
 }
 
-AmgXSolver::AmgXSolver(const MPI_Comm &comm,
-                       const std::string &cfgFile, int &nDevs)
-{
-   Initialize_MPITeams(comm, nDevs, cfgFile, true);
-}
-
+/*
 AmgXSolver::AmgXSolver(const MPI_Comm &comm,
                        const std::string &cfgFile)
 {
    Initialize_ExclusiveGPU(comm, cfgFile, true);
 }
+*/
+
+AmgXSolver::AmgXSolver(const MPI_Comm &comm, const int nDevs,
+                       const AMGX_MODE amgxMode_, const bool verbose)
+
+
+{
+   std::string config;
+   amgxMode = amgxMode_;
+
+   DefaultParameters(amgxMode_, verbose);
+
+   Initialize_MPITeams(comm, nDevs);
+}
+
+/*
+AmgXSolver::AmgXSolver(const MPI_Comm &comm,
+                       const std::string &cfgFile, const int nDevs)
+{
+   Initialize_MPITeams(comm, nDevs, cfgFile, true);
+}
+*/
 #endif
 
 AmgXSolver::~AmgXSolver()
@@ -63,7 +84,7 @@ AmgXSolver::~AmgXSolver()
    if (isInitialized) { Finalize(); }
 }
 
-void AmgXSolver::Initialize_Serial(const std::string &cfgFile)
+void AmgXSolver::Initialize_Serial()
 {
    count++;
 
@@ -75,7 +96,17 @@ void AmgXSolver::Initialize_Serial(const std::string &cfgFile)
 
    AMGX_SAFE_CALL(AMGX_install_signal_handler());
 
-   AMGX_SAFE_CALL(AMGX_config_create_from_file(&cfg, cfgFile.c_str()));
+   MFEM_VERIFY(configSrc != CONFIG_SRC::UNDEFINED,
+               "AmgX configuration is not defined \n");
+
+   if (configSrc == CONFIG_SRC::EXTERNAL)
+   {
+      AMGX_SAFE_CALL(AMGX_config_create_from_file(&cfg, amgx_config.c_str()));
+   }
+   else
+   {
+      AMGX_SAFE_CALL(AMGX_config_create(&cfg, amgx_config.c_str()));
+   }
 
    AMGX_resources_create_simple(&rsrc, cfg);
    AMGX_solver_create(&solver, rsrc, precision_mode, cfg);
@@ -88,9 +119,7 @@ void AmgXSolver::Initialize_Serial(const std::string &cfgFile)
 
 #ifdef MFEM_USE_MPI
 //Basic initialization for when each MPI rank may communicate with a GPU
-void AmgXSolver::Initialize_ExclusiveGPU(const MPI_Comm &comm,
-                                         const std::string &cfgFile,
-                                         const bool fromFile)
+void AmgXSolver::Initialize_ExclusiveGPU(const MPI_Comm &comm)
 {
    // If this instance has already been initialized, skip
    if (isInitialized)
@@ -113,7 +142,7 @@ void AmgXSolver::Initialize_ExclusiveGPU(const MPI_Comm &comm,
    //call it device 0
    nDevs = 1, devID = 0;
 
-   InitAmgX(cfgFile, fromFile);
+   InitAmgX();
 
    isInitialized = true;
 }
@@ -121,8 +150,7 @@ void AmgXSolver::Initialize_ExclusiveGPU(const MPI_Comm &comm,
 // Intialize for MPI ranks  > GPUs, all devices are visible
 // to all of the MPI ranks
 void AmgXSolver::Initialize_MPITeams(const MPI_Comm &comm,
-                                     const int nDevs,
-                                     const std::string &cfgFile, const bool fromFile)
+                                     const int nDevs)
 {
    // If this instance has already been initialized, skip
    if (isInitialized)
@@ -150,86 +178,99 @@ void AmgXSolver::Initialize_MPITeams(const MPI_Comm &comm,
    // Only processes in gpuWorld are required to initialize AmgX
    if (gpuProc == 0)
    {
-      InitAmgX(cfgFile, fromFile);
+      InitAmgX();
    }
 
    isInitialized = true;
 }
 #endif
 
-void AmgXSolver::ConfigureDefaults(std::string &configs, bool verbose)
+void AmgXSolver::ReadParameters(const std::string config,
+                                const CONFIG_SRC source)
 {
+   amgx_config = config;
+   configSrc = source;
+}
+
+void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
+                                   const bool verbose)
+{
+
+   amgxMode = amgxMode_;
+
+   configSrc = INTERNAL;
+
    if (amgxMode == AMGX_MODE::PRECONDITIONER)
    {
-      configs = "{\n"
-                " \"config_version\": 2, \n"
-                " \"solver\": { \n"
-                "   \"solver\": \"AMG\", \n"
-                "   \"presweeps\": 1, \n"
-                "   \"postsweeps\": 1, \n"
-                "   \"interpolator\": \"D2\", \n"
-                "   \"max_iters\": 2, \n"
-                "   \"convergence\": \"ABSOLUTE\", \n"
-                "   \"cycle\": \"V\"";
+      amgx_config = "{\n"
+                    " \"config_version\": 2, \n"
+                    " \"solver\": { \n"
+                    "   \"solver\": \"AMG\", \n"
+                    "   \"presweeps\": 1, \n"
+                    "   \"postsweeps\": 1, \n"
+                    "   \"interpolator\": \"D2\", \n"
+                    "   \"max_iters\": 2, \n"
+                    "   \"convergence\": \"ABSOLUTE\", \n"
+                    "   \"cycle\": \"V\"";
 
       if (verbose)
       {
-         configs = configs + ",\n"
-                   "   \"obtain_timings\": 1, \n"
-                   "   \"monitor_residual\": 1, \n"
-                   "   \"print_grid_stats\": 1, \n"
-                   "   \"print_solve_stats\": 1 \n";
+         amgx_config = amgx_config + ",\n"
+                       "   \"obtain_timings\": 1, \n"
+                       "   \"monitor_residual\": 1, \n"
+                       "   \"print_grid_stats\": 1, \n"
+                       "   \"print_solve_stats\": 1 \n";
       }
       else
       {
-         configs = configs + "\n";
+         amgx_config = amgx_config + "\n";
       }
-      configs = configs + " }\n" + "}\n";
+      amgx_config = amgx_config + " }\n" + "}\n";
 
    }
    else if (amgxMode == AMGX_MODE::SOLVER)
    {
 
-      configs = "{ \n"
-                " \"config_version\": 2, \n"
-                " \"solver\": { \n"
-                "   \"preconditioner\": { \n"
-                "     \"solver\": \"AMG\", \n"
-                "     \"smoother\": { \n"
-                "     \"scope\": \"jacobi\", \n"
-                "     \"solver\": \"BLOCK_JACOBI\", \n"
-                "     \"relaxation_factor\": 0.7 \n"
-                "       }, \n"
-                "     \"presweeps\": 1, \n"
-                "     \"interpolator\": \"D2\", \n"
-                "     \"max_row_sum\" : 0.9, \n"
-                "     \"strength_threshold\" : 0.25, \n"
-                "     \"max_iters\": 1, \n"
-                "     \"scope\": \"amg\", \n"
-                "     \"max_levels\": 100, \n"
-                "     \"cycle\": \"V\", \n"
-                "     \"postsweeps\": 1 \n"
-                "    }, \n"
-                "  \"solver\": \"PCG\", \n"
-                "  \"max_iters\": 100, \n"
-                "  \"convergence\": \"RELATIVE_MAX\", \n"
-                "  \"scope\": \"main\", \n"
-                "  \"tolerance\": 1e-12, \n"
-                "  \"norm\": \"L2\" ";
+      amgx_config = "{ \n"
+                    " \"config_version\": 2, \n"
+                    " \"solver\": { \n"
+                    "   \"preconditioner\": { \n"
+                    "     \"solver\": \"AMG\", \n"
+                    "     \"smoother\": { \n"
+                    "     \"scope\": \"jacobi\", \n"
+                    "     \"solver\": \"BLOCK_JACOBI\", \n"
+                    "     \"relaxation_factor\": 0.7 \n"
+                    "       }, \n"
+                    "     \"presweeps\": 1, \n"
+                    "     \"interpolator\": \"D2\", \n"
+                    "     \"max_row_sum\" : 0.9, \n"
+                    "     \"strength_threshold\" : 0.25, \n"
+                    "     \"max_iters\": 1, \n"
+                    "     \"scope\": \"amg\", \n"
+                    "     \"max_levels\": 100, \n"
+                    "     \"cycle\": \"V\", \n"
+                    "     \"postsweeps\": 1 \n"
+                    "    }, \n"
+                    "  \"solver\": \"PCG\", \n"
+                    "  \"max_iters\": 100, \n"
+                    "  \"convergence\": \"RELATIVE_MAX\", \n"
+                    "  \"scope\": \"main\", \n"
+                    "  \"tolerance\": 1e-12, \n"
+                    "  \"norm\": \"L2\" ";
       if (verbose)
       {
-         configs = configs + ", \n"
-                   "        \"obtain_timings\": 1, \n"
-                   "        \"monitor_residual\": 1, \n"
-                   "        \"print_grid_stats\": 1, \n"
-                   "        \"print_solve_stats\": 1 \n";
+         amgx_config = amgx_config + ", \n"
+                       "        \"obtain_timings\": 1, \n"
+                       "        \"monitor_residual\": 1, \n"
+                       "        \"print_grid_stats\": 1, \n"
+                       "        \"print_solve_stats\": 1 \n";
       }
       else
       {
-         configs = configs + "\n";
+         amgx_config = amgx_config + "\n";
       }
-      configs = configs +
-                "   } \n" + "} \n";
+      amgx_config = amgx_config +
+                    "   } \n" + "} \n";
 
    }
    else
@@ -241,7 +282,7 @@ void AmgXSolver::ConfigureDefaults(std::string &configs, bool verbose)
 
 // Sets up AmgX library for MPI builds
 #ifdef MFEM_USE_MPI
-void AmgXSolver::InitAmgX(const std::string &cfgFile, const bool fromFile)
+void AmgXSolver::InitAmgX()
 {
    // Set up once
    if (count == 1)
@@ -253,13 +294,16 @@ void AmgXSolver::InitAmgX(const std::string &cfgFile, const bool fromFile)
       AMGX_SAFE_CALL(AMGX_install_signal_handler());
    }
 
-   if (fromFile)
+   MFEM_VERIFY(configSrc != CONFIG_SRC::UNDEFINED,
+               "AmgX configuration is not defined \n");
+
+   if (configSrc == CONFIG_SRC::EXTERNAL)
    {
-      AMGX_SAFE_CALL(AMGX_config_create_from_file(&cfg, cfgFile.c_str()));
+      AMGX_SAFE_CALL(AMGX_config_create_from_file(&cfg, amgx_config.c_str()));
    }
    else
    {
-      AMGX_SAFE_CALL(AMGX_config_create(&cfg, cfgFile.c_str()));
+      AMGX_SAFE_CALL(AMGX_config_create(&cfg, amgx_config.c_str()));
    }
 
    // Let AmgX handle returned error codes internally

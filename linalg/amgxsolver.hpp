@@ -37,38 +37,42 @@ class AmgXSolver : public Solver
 {
 
 public:
-   enum AMGX_MODE {SOLVER, PRECONDITIONER, UNDEFINED};
 
-public:
+   enum AMGX_MODE {SOLVER, PRECONDITIONER};
+
+   enum CONFIG_SRC {INTERNAL, EXTERNAL, UNDEFINED};
 
    AmgXSolver() = default;
 
    /* Constructor for serial builds - supported without Hypre and MPI */
-   AmgXSolver(const std::string &cfgFile);
+   AmgXSolver(const AMGX_MODE amgxMode_, const bool verbose);
 
-   void Initialize_Serial(const std::string &cfgFile);
+   void Initialize_Serial();
 
 #ifdef MFEM_USE_MPI
 
    /* Constructor for MPI-GPU exclusive (1 MPI per GPU) with default parameters*/
-   AmgXSolver(const MPI_Comm &comm, AMGX_MODE amgxMode_, bool verbose);
+   AmgXSolver(const MPI_Comm &comm, const AMGX_MODE amgxMode_, const bool verbose);
 
    /* Constructor for MPI-GPU exclusive (1 MPI per GPU) */
-   AmgXSolver(const MPI_Comm &comm,
-              const std::string &cfgFile);
+   //AmgXSolver(const MPI_Comm &comm,
+   //const std::string &cfgFile);
+
+   /* Constructor for MPI teams (MPI procs share a GPU) */
+   /* nDevs specifies number of devices per node */
+   /* with default parameters */
+   AmgXSolver(const MPI_Comm &comm, const int nDevs,
+              const AMGX_MODE amgx_Mode_, const bool verbose);
 
    /* Constructor for MPI teams (MPI procs share a GPU) */
    /* nDevs specifies number of devices per node */
    AmgXSolver(const MPI_Comm &comm,
-              const std::string &cfgFile, int &nDevs);
+              const std::string &cfgFile, const int nDevs);
 
-   void Initialize_ExclusiveGPU(const MPI_Comm &comm, const std::string &cfgFile,
-                                const bool fromFile);
+   void Initialize_ExclusiveGPU(const MPI_Comm &comm);
 
    void Initialize_MPITeams(const MPI_Comm &comm,
-                            const int nDevs,
-                            const std::string &cfgFile,
-                            const bool fromFile);
+                            const int nDevs);
 
    void SetMatrix_MPI_GPU_Exclusive(const HypreParMatrix &A,
                                     const Array<double> &loc_A,
@@ -88,7 +92,9 @@ public:
 
    int GetNumIterations();
 
-   void SetMode(AMGX_MODE mode) {amgxMode = mode;}
+   void ReadParameters(const std::string config, CONFIG_SRC source);
+
+   void DefaultParameters(const AMGX_MODE amgxMode_, const bool verbose);
 
    ~AmgXSolver();
 
@@ -96,9 +102,11 @@ public:
 
 private:
 
-   AMGX_MODE amgxMode = SOLVER;
+   AMGX_MODE amgxMode;
 
-   void ConfigureDefaults(std::string &cfgFile, bool verbose);
+   std::string amgx_config = "";
+
+   CONFIG_SRC configSrc = UNDEFINED;
 
 #ifdef MFEM_USE_MPI
    //The following methods send vectors to the root node in a MPI team
@@ -215,7 +223,7 @@ private:
    void InitMPIcomms(const MPI_Comm &comm, const int nDevs);
 #endif
 
-   void InitAmgX(const std::string &cfgFile,const bool fromFile);
+   void InitAmgX();
 
    int64_t mat_local_rows;  //mlocal rows for ranks that talk to the gpu
 
