@@ -35,15 +35,26 @@ AmgXSolver::AmgXSolver(const std::string &cfgFile)
 
 #ifdef MFEM_USE_MPI
 AmgXSolver::AmgXSolver(const MPI_Comm &comm,
+                       const AMGX_MODE amgxMode_, const bool verbose)
+{
+   std::string config;
+   amgxMode = amgxMode_;
+
+   ConfigureDefaults(config, verbose);
+
+   Initialize_ExclusiveGPU(comm, config, false);
+}
+
+AmgXSolver::AmgXSolver(const MPI_Comm &comm,
                        const std::string &cfgFile, int &nDevs)
 {
-   Initialize_MPITeams(comm, cfgFile, nDevs);
+   Initialize_MPITeams(comm, nDevs, cfgFile, true);
 }
 
 AmgXSolver::AmgXSolver(const MPI_Comm &comm,
                        const std::string &cfgFile)
 {
-   Initialize_ExclusiveGPU(comm, cfgFile);
+   Initialize_ExclusiveGPU(comm, cfgFile, true);
 }
 #endif
 
@@ -78,7 +89,8 @@ void AmgXSolver::Initialize_Serial(const std::string &cfgFile)
 #ifdef MFEM_USE_MPI
 //Basic initialization for when each MPI rank may communicate with a GPU
 void AmgXSolver::Initialize_ExclusiveGPU(const MPI_Comm &comm,
-                                         const std::string &cfgFile)
+                                         const std::string &cfgFile,
+                                         const bool fromFile)
 {
    // If this instance has already been initialized, skip
    if (isInitialized)
@@ -101,7 +113,7 @@ void AmgXSolver::Initialize_ExclusiveGPU(const MPI_Comm &comm,
    //call it device 0
    nDevs = 1, devID = 0;
 
-   InitAmgX(cfgFile);
+   InitAmgX(cfgFile, fromFile);
 
    isInitialized = true;
 }
@@ -109,7 +121,8 @@ void AmgXSolver::Initialize_ExclusiveGPU(const MPI_Comm &comm,
 // Intialize for MPI ranks  > GPUs, all devices are visible
 // to all of the MPI ranks
 void AmgXSolver::Initialize_MPITeams(const MPI_Comm &comm,
-                                     const std::string &cfgFile, const int nDevs)
+                                     const int nDevs,
+                                     const std::string &cfgFile, const bool fromFile)
 {
    // If this instance has already been initialized, skip
    if (isInitialized)
@@ -137,16 +150,98 @@ void AmgXSolver::Initialize_MPITeams(const MPI_Comm &comm,
    // Only processes in gpuWorld are required to initialize AmgX
    if (gpuProc == 0)
    {
-      InitAmgX(cfgFile);
+      InitAmgX(cfgFile, fromFile);
    }
 
    isInitialized = true;
 }
 #endif
 
-// Sets up AmgX library for  MPI builds
+void AmgXSolver::ConfigureDefaults(std::string &configs, bool verbose)
+{
+   if (amgxMode == AMGX_MODE::PRECONDITIONER)
+   {
+      configs = "{\n"
+                " \"config_version\": 2, \n"
+                " \"solver\": { \n"
+                "   \"solver\": \"AMG\", \n"
+                "   \"presweeps\": 1, \n"
+                "   \"postsweeps\": 1, \n"
+                "   \"interpolator\": \"D2\", \n"
+                "   \"max_iters\": 2, \n"
+                "   \"convergence\": \"ABSOLUTE\", \n"
+                "   \"cycle\": \"V\"";
+
+      if (verbose)
+      {
+         configs = configs + ",\n"
+                   "   \"obtain_timings\": 1, \n"
+                   "   \"monitor_residual\": 1, \n"
+                   "   \"print_grid_stats\": 1, \n"
+                   "   \"print_solve_stats\": 1 \n";
+      }
+      else
+      {
+         configs = configs + "\n";
+      }
+      configs = configs + " }\n" + "}\n";
+
+   }
+   else if (amgxMode == AMGX_MODE::SOLVER)
+   {
+
+      configs = "{ \n"
+                " \"config_version\": 2, \n"
+                " \"solver\": { \n"
+                "   \"preconditioner\": { \n"
+                "     \"solver\": \"AMG\", \n"
+                "     \"smoother\": { \n"
+                "     \"scope\": \"jacobi\", \n"
+                "     \"solver\": \"BLOCK_JACOBI\", \n"
+                "     \"relaxation_factor\": 0.7 \n"
+                "       }, \n"
+                "     \"presweeps\": 1, \n"
+                "     \"interpolator\": \"D2\", \n"
+                "     \"max_row_sum\" : 0.9, \n"
+                "     \"strength_threshold\" : 0.25, \n"
+                "     \"max_iters\": 1, \n"
+                "     \"scope\": \"amg\", \n"
+                "     \"max_levels\": 100, \n"
+                "     \"cycle\": \"V\", \n"
+                "     \"postsweeps\": 1 \n"
+                "    }, \n"
+                "  \"solver\": \"PCG\", \n"
+                "  \"max_iters\": 100, \n"
+                "  \"convergence\": \"RELATIVE_MAX\", \n"
+                "  \"scope\": \"main\", \n"
+                "  \"tolerance\": 1e-12, \n"
+                "  \"norm\": \"L2\" ";
+      if (verbose)
+      {
+         configs = configs + ", \n"
+                   "        \"obtain_timings\": 1, \n"
+                   "        \"monitor_residual\": 1, \n"
+                   "        \"print_grid_stats\": 1, \n"
+                   "        \"print_solve_stats\": 1 \n";
+      }
+      else
+      {
+         configs = configs + "\n";
+      }
+      configs = configs +
+                "   } \n" + "} \n";
+
+   }
+   else
+   {
+      mfem_error("AmgX mode not supported \n");
+   }
+
+}
+
+// Sets up AmgX library for MPI builds
 #ifdef MFEM_USE_MPI
-void AmgXSolver::InitAmgX(const std::string &cfgFile)
+void AmgXSolver::InitAmgX(const std::string &cfgFile, const bool fromFile)
 {
    // Set up once
    if (count == 1)
@@ -158,7 +253,14 @@ void AmgXSolver::InitAmgX(const std::string &cfgFile)
       AMGX_SAFE_CALL(AMGX_install_signal_handler());
    }
 
-   AMGX_SAFE_CALL(AMGX_config_create_from_file(&cfg, cfgFile.c_str()));
+   if (fromFile)
+   {
+      AMGX_SAFE_CALL(AMGX_config_create_from_file(&cfg, cfgFile.c_str()));
+   }
+   else
+   {
+      AMGX_SAFE_CALL(AMGX_config_create(&cfg, cfgFile.c_str()));
+   }
 
    // Let AmgX handle returned error codes internally
    AMGX_SAFE_CALL(AMGX_config_add_parameters(&cfg, "exception_handling=1"));
@@ -735,11 +837,15 @@ void AmgXSolver::UpdateOperator(const Operator& op)
 
 void AmgXSolver::Mult(const Vector& B, Vector& X) const
 {
+
+   //Move to gpu and set to zero
+   X.UseDevice(true);
+   X = 0.0;
+
    //Mult for serial, and mpi-exclusive modes
    if (mpi_gpu_mode != "mpi-teams")
    {
-      //Seems to be necessary for convergence
-      if (amgxMode == PRECONDITIONER) { X = 0.0; };
+
 
       AMGX_vector_upload(AmgXP, X.Size(), 1, X.ReadWrite());
       AMGX_vector_upload(AmgXRHS, B.Size(), 1, B.Read());
@@ -785,8 +891,6 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
 
    if (gpuWorld != MPI_COMM_NULL)
    {
-
-      if (amgxMode == PRECONDITIONER) { X = 0.0; };
 
       AMGX_vector_upload(AmgXP, all_X.Size(), 1, all_X.ReadWrite());
       AMGX_vector_upload(AmgXRHS, all_B.Size(), 1, all_B.ReadWrite());

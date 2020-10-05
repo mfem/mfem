@@ -73,6 +73,7 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
+   bool amgx = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -84,6 +85,8 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&amgx, "-amgx", "--amgx-precon", "-no-amgx",
+                  "--no-amgx-precon", "Use AmgX.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -218,6 +221,7 @@ int main(int argc, char *argv[])
 
    // 13. Solve the linear system A X = B.
    //     * With full assembly, use the BoomerAMG preconditioner from hypre.
+   //     * If AmgX is available solve using amg preconditioner.
    //     * With partial assembly, use Jacobi smoothing, for now.
    Solver *prec = NULL;
    if (pa)
@@ -226,6 +230,15 @@ int main(int argc, char *argv[])
       {
          prec = new OperatorJacobiSmoother(a, ess_tdof_list);
       }
+   }
+   else if (amgx)
+   {
+#if defined(MFEM_USE_AMGX)
+      bool amgx_verbose = false;
+      prec = new AmgXSolver(MPI_COMM_WORLD, AmgXSolver::PRECONDITIONER, amgx_verbose);
+#else
+      mfem_error("MFEM not configured with AMGX \n");
+#endif
    }
    else
    {
