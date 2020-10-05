@@ -993,6 +993,7 @@ protected:
       mutable bool setup_Grad, setup_Jtr;
       mutable Vector E, O, W, X0, H, C0, LD, H0;
       const DofToQuad *maps;
+      const DofToQuad *maps_lim = nullptr;
       const GeometricFactors *geom;
       const FiniteElementSpace *fes;
       const Operator *R;

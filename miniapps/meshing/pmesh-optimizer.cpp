@@ -662,8 +662,13 @@ int main (int argc, char *argv[])
 
    // Limit the node movement.
    // The limiting distances can be given by a general function of space.
-   ParGridFunction dist(pfespace);
-   dist = 1.0;
+   // TODO come up with proper example for space-dependent limiting that shows
+   //   differences between Bernstein and Gauss-Lobatto.
+   H1_FECollection lim_fec(mesh_poly_deg, dim, BasisType::Positive);
+   ParFiniteElementSpace lim_fes(pmesh, &lim_fec);
+   ParGridFunction dist(&lim_fes);
+   FunctionCoefficient lim_dist_coeff(limit_func);
+   dist.ProjectCoefficient(lim_dist_coeff);
    // The small_phys_size is relevant only with proper normalization.
    if (normalization) { dist = small_phys_size; }
    ConstantCoefficient lim_coeff(lim_const);
@@ -838,7 +843,8 @@ int main (int argc, char *argv[])
       minres->SetMaxIter(max_lin_iter);
       minres->SetRelTol(linsol_rtol);
       minres->SetAbsTol(0.0);
-      minres->SetPrintLevel(verbosity_level >= 2 ? 3 : -1);
+      if (verbosity_level > 2) { minres->SetPrintLevel(1); }
+      else { minres->SetPrintLevel(verbosity_level = 2 ? 3 : -1); }
       if (lin_solver == 3 || lin_solver == 4)
       {
          if (pa)
@@ -853,7 +859,7 @@ int main (int argc, char *argv[])
          {
             HypreSmoother *hs = new HypreSmoother;
             hs->SetType((lin_solver == 3) ? HypreSmoother::Jacobi
-                        : HypreSmoother::l1Jacobi, 1);
+                                          : HypreSmoother::l1Jacobi, 1);
             S_prec = hs;
          }
          minres->SetPreconditioner(*S_prec);
