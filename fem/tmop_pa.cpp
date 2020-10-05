@@ -43,7 +43,7 @@ void TMOP_Integrator::SetupGradPA(const Vector &xe) const
 // It is the case when EnableLimiting is called before the Setup => AssemblePA.
 void TMOP_Integrator::EnableLimitingPA(const GridFunction &n0)
 {
-   MFEM_ASSERT(PA.enabled, "EnableLimitingPA but PA is not enabled!");
+   MFEM_VERIFY(PA.enabled, "EnableLimitingPA but PA is not enabled!");
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
 
    // Nodes0
@@ -52,6 +52,11 @@ void TMOP_Integrator::EnableLimitingPA(const GridFunction &n0)
    PA.X0.SetSize(n0_R->Height(), Device::GetMemoryType());
    PA.X0.UseDevice(true);
    n0_R->Mult(n0, PA.X0);
+
+   // Get the 1D maps for the distance FE space.
+   const IntegrationRule &ir = EnergyIntegrationRule(*n0_fes->GetFE(0));
+   PA.maps_lim =
+         &lim_dist->FESpace()->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
 
    // lim_dist & lim_func checks
    MFEM_VERIFY(lim_dist, "No lim_dist!")
