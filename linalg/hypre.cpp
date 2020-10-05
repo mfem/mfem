@@ -1013,7 +1013,7 @@ HypreParMatrix * HypreParMatrix::ExtractSubmatrix(Array<int> &indices,
    hypre_ParCSRMatrixExtractSubmatrixFC(A, CF_marker, cpts_global,
                                         "FF", &submat, threshhold);
 
-   hypre_TFree(cpts_global, HYPRE_MEMORY_HOST);
+   mfem_hypre_TFree(cpts_global);
    return new HypreParMatrix(submat);
 }
 #endif
@@ -3542,12 +3542,11 @@ void HypreBoomerAMG::SetAdvectiveOptions(int distanceR,
       ns_coarse = 1;
 
       // Array to store relaxation scheme and pass to Hypre
-      HYPRE_Int **grid_relax_points
-         = (HYPRE_Int **)malloc(4*sizeof(HYPRE_Int *));
+      HYPRE_Int **grid_relax_points = mfem_hypre_TAlloc(HYPRE_Int*, 4);
       grid_relax_points[0] = NULL;
-      grid_relax_points[1] = (HYPRE_Int *)malloc(sizeof(HYPRE_Int)*ns_down);
-      grid_relax_points[2] = (HYPRE_Int *)malloc(sizeof(HYPRE_Int)*ns_up);
-      grid_relax_points[3] = (HYPRE_Int *)malloc(sizeof(HYPRE_Int));
+      grid_relax_points[1] = mfem_hypre_TAlloc(HYPRE_Int, ns_down);
+      grid_relax_points[2] = mfem_hypre_TAlloc(HYPRE_Int, ns_up);
+      grid_relax_points[3] = mfem_hypre_TAlloc(HYPRE_Int, 1);
       grid_relax_points[3][0] = 0;
 
       // set down relax scheme
