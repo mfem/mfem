@@ -1935,7 +1935,7 @@ void KINSolver::SetJFNKSolver(Solver &solver)
    MFEM_VERIFY(flag == SUNLS_SUCCESS, "error in SUNLinSol_SPFGMR()");
 
    flag = KINSetLinearSolver(sundials_mem, LSA, NULL);
-   MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetLinearSolver()");
+   MFEM_VERIFY(flag == KIN_SUCCESS, "error in KINSetLinearSolver()");
 
    if (prec)
    {
@@ -2033,11 +2033,24 @@ void KINSolver::Mult(Vector &x,
    y_scale->MakeRef(const_cast<Vector&>(x_scale), 0, x_scale.Size());
    f_scale->MakeRef(const_cast<Vector&>(fx_scale), 0, fx_scale.Size());
 
+   int rank = -1;
    if (!Parallel())
+   {
+      rank = 0;
+   }
+   else
+   {
+#ifdef MFEM_USE_MPI
+      MPI_Comm_rank(Y->GetComm(), &rank);
+#endif
+   }
+
+   if (rank == 0)
    {
       flag = KINSetPrintLevel(sundials_mem, print_level);
       MFEM_VERIFY(flag == KIN_SUCCESS, "KINSetPrintLevel() failed!");
 
+#ifdef SUNDIALS_BUILD_WITH_MONITORING
       if (jfnk && print_level)
       {
          flag = SUNLinSolSetInfoFile_SPFGMR(LSA, stdout);
@@ -2048,31 +2061,7 @@ void KINSolver::Mult(Vector &x,
          MFEM_VERIFY(flag == SUNLS_SUCCESS,
                      "error in SUNLinSolSetPrintLevel_SPFGMR()");
       }
-   }
-   else
-   {
-
-#ifdef MFEM_USE_MPI
-      int rank;
-      MPI_Comm_rank(Y->GetComm(), &rank);
-      if (rank == 0)
-      {
-         flag = KINSetPrintLevel(sundials_mem, print_level);
-         MFEM_VERIFY(flag == KIN_SUCCESS, "KINSetPrintLevel() failed!");
-
-         if (jfnk && print_level)
-         {
-            flag = SUNLinSolSetInfoFile_SPFGMR(LSA, stdout);
-            MFEM_VERIFY(flag == SUNLS_SUCCESS,
-                        "error in SUNLinSolSetInfoFile_SPFGMR()");
-
-            flag = SUNLinSolSetPrintLevel_SPFGMR(LSA, 1);
-            MFEM_VERIFY(flag == SUNLS_SUCCESS,
-                        "error in SUNLinSolSetPrintLevel_SPFGMR()");
-         }
-      }
 #endif
-
    }
 
    if (!iterative_mode) { x = 0.0; }
