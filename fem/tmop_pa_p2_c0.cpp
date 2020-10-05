@@ -26,6 +26,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
                            const DenseTensor &j_,
                            const Array<double> &w_,
                            const Array<double> &b_,
+                           const Array<double> &bld_,
                            const Vector &x0_,
                            const Vector &x1_,
                            Vector &y_,
@@ -46,6 +47,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
    const auto LD = Reshape(lim_dist.Read(), D1D, D1D, NE);
    const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, NE);
    const auto b = Reshape(b_.Read(), Q1D, D1D);
+   const auto bld = Reshape(bld_.Read(), Q1D, D1D);
    const auto W = Reshape(w_.Read(), Q1D, Q1D);
    const auto X0 = Reshape(x0_.Read(), D1D, D1D, DIM, NE);
    const auto X1 = Reshape(x1_.Read(), D1D, D1D, DIM, NE);
@@ -61,6 +63,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
       MFEM_SHARED double B[MQ1*MD1];
+      MFEM_SHARED double BLD[MQ1*MD1];
 
       MFEM_SHARED double XY[NBZ][MD1*MD1];
       MFEM_SHARED double DQ[NBZ][MD1*MQ1];
@@ -79,9 +82,10 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
       kernels::LoadX<MD1,NBZ>(e,D1D,X1,XY1);
 
       kernels::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
+      kernels::LoadB<MD1,MQ1>(D1D,Q1D,bld,BLD);
 
-      kernels::EvalX<MD1,MQ1,NBZ>(D1D,Q1D,B,XY,DQ);
-      kernels::EvalY<MD1,MQ1,NBZ>(D1D,Q1D,B,DQ,QQ);
+      kernels::EvalX<MD1,MQ1,NBZ>(D1D,Q1D,BLD,XY,DQ);
+      kernels::EvalY<MD1,MQ1,NBZ>(D1D,Q1D,BLD,DQ,QQ);
 
       kernels::EvalX<MD1,MQ1,NBZ>(D1D,Q1D,B,XY0,DQ0);
       kernels::EvalY<MD1,MQ1,NBZ>(D1D,Q1D,B,DQ0,QQ0);
@@ -132,12 +136,13 @@ void TMOP_Integrator::AddMultPA_C0_2D(const Vector &X, Vector &Y) const
    const double ln = lim_normal;
    const Vector &LD = PA.LD;
    const DenseTensor &J = PA.Jtr;
-   const Array<double> &W = IntRule->GetWeights();
-   const Array<double> &B = PA.maps->B;
+   const Array<double> &W   = PA.ir->GetWeights();
+   const Array<double> &B   = PA.maps->B;
+   const Array<double> &BLD = PA.maps_lim->B;
    const Vector &X0 = PA.X0;
    const Vector &C0 = PA.C0;
 
-   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_C0_2D,id,ln,LD,C0,N,J,W,B,X0,X,Y);
+   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_C0_2D,id,ln,LD,C0,N,J,W,B,BLD,X0,X,Y);
 }
 
 } // namespace mfem
