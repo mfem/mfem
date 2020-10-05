@@ -710,15 +710,15 @@ public:
 class KINSolver : public NewtonSolver, public SundialsSolver
 {
 protected:
-   int global_strategy;               ///< KINSOL solution strategy
-   bool use_oper_grad;                ///< use the Jv prod function
-   mutable N_Vector y_scale, f_scale; ///< scaling vectors
-   const Operator *jacobian;          ///< stores oper->GetGradient()
-   int maa;                           ///< number of acceleration vectors
-   bool jfnk = false;                 ///< enable JFNK
-   Vector wrk;                        ///< Work vector needed for the JFNK PC
-   int maxli = 5;                     ///< Maximum linear iterations
-   int maxlrs = 0;                    ///< Maximum linear solver restarts
+   int global_strategy;                        ///< KINSOL solution strategy
+   bool use_oper_grad;                         ///< use the Jv prod function
+   mutable SundialsNVector *y_scale, *f_scale; ///< scaling vectors
+   const Operator *jacobian;                   ///< stores oper->GetGradient()
+   int maa;           ///< number of acceleration vectors
+   bool jfnk = false; ///< enable JFNK
+   Vector wrk;        ///< Work vector needed for the JFNK PC
+   int maxli = 5;     ///< Maximum linear iterations
+   int maxlrs = 0;    ///< Maximum linear solver restarts
 
    /// Wrapper to compute the nonlinear residual \f$ F(u) = 0 \f$.
    static int Mult(const N_Vector u, N_Vector fu, void *user_data);
