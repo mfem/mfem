@@ -34,7 +34,8 @@ namespace superlu
 // Copy selected enumerations from SuperLU
 typedef enum {NOROWPERM, LargeDiag_MC64, LargeDiag_HWPM, MY_PERMR}  RowPerm;
 typedef enum {NATURAL, MMD_ATA, MMD_AT_PLUS_A, COLAMD,
-              METIS_AT_PLUS_A, PARMETIS, ZOLTAN, MY_PERMC}          ColPerm;
+              METIS_AT_PLUS_A, PARMETIS, ZOLTAN, MY_PERMC
+             }          ColPerm;
 typedef enum {NOTRANS, TRANS, CONJ}                                 Trans;
 typedef enum {NOREFINE, SLU_SINGLE=1, SLU_DOUBLE, SLU_EXTRA}        IterRefine;
 }
