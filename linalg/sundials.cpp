@@ -1706,7 +1706,7 @@ int KINSolver::PrecSetup(N_Vector uu,
                          N_Vector fscale,
                          void *user_data)
 {
-   Vector mfem_u(uu);
+   SundialsNVector mfem_u(uu);
    KINSolver *self = static_cast<KINSolver *>(user_data);
 
    // Update the Jacobian
@@ -1726,7 +1726,7 @@ int KINSolver::PrecSolve(N_Vector uu,
                          void *user_data)
 {
    KINSolver *self = static_cast<KINSolver *>(user_data);
-   Vector mfem_v(vv);
+   SundialsNVector mfem_v(vv);
 
    self->wrk = 0.0;
 
@@ -1928,7 +1928,7 @@ void KINSolver::SetJFNKSolver(Solver &solver)
    if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
 
    // Setup FGMRES
-   LSA = SUNLinSol_SPFGMR(y, prec ? PREC_RIGHT : PREC_NONE, maxli);
+   LSA = SUNLinSol_SPFGMR(*Y, prec ? PREC_RIGHT : PREC_NONE, maxli);
    MFEM_VERIFY(LSA, "error in SUNLinSol_SPFGMR()");
 
    flag = SUNLinSol_SPFGMRSetMaxRestarts(LSA, maxlrs);
