@@ -116,6 +116,7 @@ public:
    /// MPI communicator
    MPI_Comm GetComm() { return x->comm; }
 
+   /// Converts hypre's format to HypreParVector
    void WrapHypreParVector(hypre_ParVector *y);
 
    /// Returns the row partitioning
