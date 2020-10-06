@@ -16,7 +16,7 @@
 //    mpirun -np 4 ex9p -m ../data/disc-nurbs.mesh -p 2 -rp 1 -dt 0.005 -tf 9
 //    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 3 -rp 2 -dt 0.0025 -tf 9 -vs 20
 //    mpirun -np 4 ex9p -m ../data/periodic-cube.mesh -p 0 -o 2 -rp 1 -dt 0.01 -tf 8
-//    mpirun -np 3 ex9p -m ../data/amr-hex.mesh -p 1 -rs 1 -rp 0 -dt 0.005 -tf 0.5
+//    mpirun -np 4 ex9p -m ../data/amr-hex.mesh -p 1 -rs 1 -rp 0 -dt 0.005 -tf 0.5
 //
 // Device sample runs:
 //    mpirun -np 4 ex9p -pa
@@ -72,6 +72,10 @@ enum class PrecType : int
 };
 
 #if MFEM_HYPRE_VERSION >= 21800
+// Algebraic multigrid preconditioner for advective problems based on
+// approximate ideal restriction (AIR). Most effective when matrix is
+// first scaled by DG block inverse, and AIR applied to scaled matrix.
+// See https://doi.org/10.1137/17M1144350.
 class AIR_prec : public Solver
 {
 private:
@@ -105,7 +109,7 @@ public:
 
    virtual void Mult(const Vector &x, Vector &y) const
    {
-      // scale the rhs by block inverse and solve system
+      // Scale the rhs by block inverse and solve system
       HypreParVector z_s;
       BlockInverseScale(A, NULL, &x, &z_s, blocksize,
                         BlockInverseScaleJob::RHS_ONLY);
@@ -249,7 +253,11 @@ int main(int argc, char *argv[])
    bool adios2 = false;
    bool binary = false;
    int vis_steps = 5;
+#if MFEM_HYPRE_VERSION >= 21800
    PrecType prec_type = PrecType::AIR;
+#else
+   PrecType prec_type = PrecType::ILU;
+#endif
    int precision = 8;
    cout.precision(precision);
 
