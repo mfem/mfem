@@ -115,6 +115,12 @@ Discretization improvements
   member methods in GridFunction and ParGridFunction. See the rates.cpp file in
   the tests/convergence directory for sample usage.
 
+- The C-function based coefficient classes (FunctionCoefficient,
+  VectorFunctionCoefficient, and MatrixFunctionCoefficient) now use the more
+  general std::function class template. This allows the classes to be backward
+  compatible (i.e. they can still work with C-functions) and, in addition,
+  support any "callable", e.g. lambda functions.
+
 Linear and nonlinear solvers
 ----------------------------
 - Added power method to iteratively estimate the largest eigenvalue and the

@@ -134,13 +134,13 @@ protected:
 
 public:
    /// Define a time-independent coefficient from a std function
-   /// \param F time-independent std::function
+   /** \param F time-independent std::function */
    FunctionCoefficient(std::function<double(const Vector &)> F)
       : Function(std::move(F))
    { }
 
    /// Define a time-dependent coefficient from a std function
-   /// \param TDF time-dependent function
+   /** \param TDF time-dependent function */
    FunctionCoefficient(std::function<double(const Vector &, double)> TDF)
       : TDFunction(std::move(TDF))
    { }
@@ -414,9 +414,9 @@ private:
 
 public:
    /// Define a time-independent vector coefficient from a std function
-   /// \param dim - the size of the vector
-   /// \param F - time-independent function
-   /// \param q - optional scalar Coefficient to scale the vector coefficient
+   /** \param dim - the size of the vector
+       \param F - time-independent function
+       \param q - optional scalar Coefficient to scale the vector coefficient */
    VectorFunctionCoefficient(int dim,
                              std::function<void(const Vector &, Vector &)> F,
                              Coefficient *q = nullptr)
@@ -424,9 +424,9 @@ public:
    { }
 
    /// Define a time-dependent vector coefficient from a std function
-   /// \param dim - the size of the vector
-   /// \param TDF - time-dependent function
-   /// \param q - optional scalar Coefficient to scale the vector coefficient
+   /** \param dim - the size of the vector
+       \param TDF - time-dependent function
+       \param q - optional scalar Coefficient to scale the vector coefficient */
    VectorFunctionCoefficient(int dim,
                              std::function<void(const Vector &, double, Vector &)> TDF,
                              Coefficient *q = nullptr)
@@ -775,9 +775,9 @@ private:
 
 public:
    /// Define a time-independent square matrix coefficient from a std function
-   /// \param dim - the size of the matrix
-   /// \param F - time-independent function
-   /// \param q - optional scalar Coefficient to scale the matrix coefficient
+   /** \param dim - the size of the matrix
+       \param F - time-independent function
+       \param q - optional scalar Coefficient to scale the matrix coefficient */
    MatrixFunctionCoefficient(int dim,
                              std::function<void(const Vector &, DenseMatrix &)> F,
                              Coefficient *q = nullptr)
@@ -785,27 +785,27 @@ public:
    { }
 
    /// Define a constant matrix coefficient times a scalar Coefficient
-   /// \param m - constant matrix
-   /// \param q - optional scalar Coefficient to scale the matrix coefficient
+   /** \param m - constant matrix
+       \param q - optional scalar Coefficient to scale the matrix coefficient */
    MatrixFunctionCoefficient(const DenseMatrix &m, Coefficient &q)
       : MatrixCoefficient(m.Height(), m.Width()), Q(&q), mat(m)
    { }
 
    /// Define a time-dependent square matrix coefficient from a std function
-   /// \param dim - the size of the matrix
-   /// \param TDF - time-dependent function
-   /// \param q - optional scalar Coefficient to scale the matrix coefficient
+   /** \param dim - the size of the matrix
+       \param TDF - time-dependent function
+       \param q - optional scalar Coefficient to scale the matrix coefficient */
    MatrixFunctionCoefficient(int dim,
                              std::function<void(const Vector &, double, DenseMatrix &)> TDF,
                              Coefficient *q = nullptr)
       : MatrixCoefficient(dim), TDFunction(std::move(TDF)), Q(q)
    { }
 
-   /// Define a time-independent symmetric square matrix coefficient from a
-   /// std function
-   /// \param dim - the size of the matrix
-   /// \param SymmF - function used in EvalSymmetric
-   /// \param q - optional scalar Coefficient to scale the matrix coefficient
+   /** @brief Define a time-independent symmetric square matrix coefficient from
+       a std function */
+   /** \param dim - the size of the matrix
+       \param SymmF - function used in EvalSymmetric
+       \param q - optional scalar Coefficient to scale the matrix coefficient */
    MatrixFunctionCoefficient(int dim,
                              std::function<void(const Vector &, Vector &)> SymmF,
                              Coefficient *q = NULL)
@@ -883,7 +883,7 @@ public:
 
 /// Coefficients based on sums, products, or other functions of coefficients.
 ///@{
-/** Scalar coefficient defined as the linear combination of two scalar
+/** @brief Scalar coefficient defined as the linear combination of two scalar
     coefficients or a scalar and a scalar coefficient */
 class SumCoefficient : public Coefficient
 {
@@ -940,8 +940,8 @@ public:
    }
 };
 
-/** Scalar coefficient defined as the product of two scalar coefficients or
-    a scalar and a scalar coefficient. */
+/** @brief Scalar coefficient defined as the product of two scalar coefficients
+    or a scalar and a scalar coefficient. */
 class ProductCoefficient : public Coefficient
 {
 private:
@@ -979,8 +979,8 @@ public:
    { return ((a == NULL ) ? aConst : a->Eval(T, ip) ) * b->Eval(T, ip); }
 };
 
-/** Scalar coefficient defined as the ratio of two scalars where one or both
-    scalars are scalar coefficients. */
+/** @brief Scalar coefficient defined as the ratio of two scalars where one or
+    both scalars are scalar coefficients. */
 class RatioCoefficient : public Coefficient
 {
 private:
