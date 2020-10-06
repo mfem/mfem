@@ -144,7 +144,7 @@ struct Memory
 struct Alias
 {
    Memory *mem;
-   size_t offset, bytes;
+   size_t offset;
    size_t counter;
    MemoryType h_mt;
 };
@@ -1125,16 +1125,16 @@ void MemoryManager::InsertAlias(const void *base_ptr, void *alias_ptr,
       offset += alias.offset;
    }
    internal::Memory &mem = maps->memories.at(base_ptr);
+   MFEM_VERIFY(offset + bytes <= mem.bytes, "invalid alias");
    auto res =
       maps->aliases.emplace(alias_ptr,
-                            internal::Alias{&mem, offset, bytes, 1, mem.h_mt});
+                            internal::Alias{&mem, offset, 1, mem.h_mt});
    if (res.second == false) // alias_ptr was already in the map
    {
       internal::Alias &alias = res.first->second;
       // Update the alias data in case the existing alias is dangling
       alias.mem = &mem;
       alias.offset = offset;
-      alias.bytes = bytes; // aliases with different sizes should be fine
       alias.h_mt = mem.h_mt;
       alias.counter++;
    }
@@ -1204,7 +1204,7 @@ void *MemoryManager::GetAliasDevicePtr(const void *alias_ptr, size_t bytes,
    void *alias_h_ptr = static_cast<char*>(mem.h_ptr) + offset;
    void *alias_d_ptr = static_cast<char*>(mem.d_ptr) + offset;
    MFEM_ASSERT(alias_h_ptr == alias_ptr, "internal error");
-   MFEM_ASSERT(bytes <= alias.bytes, "internal error");
+   MFEM_ASSERT(offset + bytes <= mem.bytes, "internal error");
    ctrl->Device(d_mt)->AliasUnprotect(alias_d_ptr, bytes);
    ctrl->Host(h_mt)->AliasUnprotect(alias_ptr, bytes);
    if (copy) { ctrl->Device(d_mt)->HtoD(alias_d_ptr, alias_h_ptr, bytes); }
@@ -1329,7 +1329,6 @@ int MemoryManager::PrintAliases(std::ostream &out)
       out << "\nalias: key " << n.first << ", "
           << "h_ptr " << alias.mem->h_ptr << ", "
           << "offset " << alias.offset << ", "
-          << "bytes  " << alias.bytes << ", "
           << "counter " << alias.counter;
       n_out++;
    }
