@@ -25,10 +25,12 @@ def main():
                      "sphere_hex27.mesh"]:
             print(mesh)
             p = subprocess.Popen(["./ex-normal",
+                                  "--reltol", "1.e-10",
                                   "--mesh", mesh],
                                  stdout=fd, stderr=fd)
             p.communicate()
             p = subprocess.Popen(["./ex-normal",
+                                  "--reltol", "1.e-10",
                                   "--elimination",
                                   "--mesh", mesh],
                                  stdout=fd, stderr=fd)

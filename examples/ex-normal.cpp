@@ -18,6 +18,8 @@
   - improve Schur complement?
   - add penalty version
   - systematic testing of the solvers
+  - IterativeSolver interface (or close), to pass tolerances etc. down to subsolvers
+  - think about preconditioning interface; user may have good preconditioner for primal system
   - make sure curved mesh works (is this a real problem or just VisIt visualization?)
   - move ConstrainedSolver and EliminationSolver object into library
   - make everything work in parallel
@@ -151,7 +153,7 @@ public:
    void SetOperator(const Operator& op) { }
 };
 
-class SchurConstrainedSolver : public Solver
+class SchurConstrainedSolver : public IterativeSolver
 {
 public:
    SchurConstrainedSolver(BlockOperator& block_op,
@@ -182,6 +184,7 @@ SchurConstrainedSolver::SchurConstrainedSolver(BlockOperator& block_op_,
    dual_pc = new IdentitySolver(block_op.RowOffsets()[2] -
                                 block_op.RowOffsets()[1]);
    block_pc.SetDiagonalBlock(1, dual_pc);
+   rel_tol = 1.e-6;
 }
 
 SchurConstrainedSolver::~SchurConstrainedSolver()
@@ -193,7 +196,7 @@ void SchurConstrainedSolver::Mult(const Vector& x, Vector& y) const
 {
    GMRESSolver gmres(MPI_COMM_WORLD);
    gmres.SetOperator(block_op);
-   gmres.SetRelTol(1.e-6);
+   gmres.SetRelTol(rel_tol);
    gmres.SetAbsTol(1.e-12);
    gmres.SetMaxIter(500);
    gmres.SetPrintLevel(1);
@@ -229,7 +232,9 @@ public:
    /** @brief Set a preconditioner for the unconstrained matrix A.
 
        Internally, this object may use the preconditioner for related
-       or modified systems. */
+       or modified systems. 
+
+       @todo logically this is a separate idea from Schur; */
    void SetPrimalPreconditioner(Solver& pc);
 
    /** @brief Set the right-hand side r for the constraint B x = r
@@ -260,17 +265,24 @@ public:
        GetDualSolution() after the solve. */
    void Mult(const Vector& f, Vector& x) const;
 
-   /**
-      Does not make sense unless you've already solved the constrained
-      system with Mult()
-   */
+   /** @brief Return the Lagrange multiplier solution in lambda
+
+       Does not make sense unless you've already solved the constrained
+       system with Mult() */
    void GetDualSolution(Vector& lambda) { lambda = dual_sol; }
+
+   void SetRelTol(double rtol)
+   {
+      if (schur_solver) { schur_solver->SetRelTol(rtol); }
+      if (elim_solver) { elim_solver->SetRelTol(rtol); }
+   }
 
 private:
    Array<int> offsets;
    BlockOperator * block_op;
    TransposeOperator * tr_B;
 
+   /// todo combine these!
    SchurConstrainedSolver * schur_solver;
    EliminationCGSolver * elim_solver;
 
@@ -403,6 +415,7 @@ int main(int argc, char *argv[])
    int boundary_attribute = 0;
    int refine = -1;
    bool elimination = false;
+   double reltol = 1.e-6;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -426,6 +439,8 @@ int main(int argc, char *argv[])
    args.AddOption(&elimination, "--elimination", "--elimination",
                   "--no-elimination", "--no-elimination",
                   "Use elimination solver for saddle point system.");
+   args.AddOption(&reltol, "--reltol", "--reltol", 
+                  "Relative tolerance for constrained solver.");
 
    args.Parse();
    if (!args.Good())
@@ -608,6 +623,7 @@ int main(int argc, char *argv[])
    {
       constrained.SetPrimalPreconditioner(prec);
    }
+   constrained.SetRelTol(reltol);
    constrained.Mult(B, X);
 
    // 14. Recover the parallel grid function corresponding to X. This is the
