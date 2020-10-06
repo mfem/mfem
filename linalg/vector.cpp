@@ -15,9 +15,11 @@
 #include "vector.hpp"
 #include "../general/forall.hpp"
 
-#if defined(MFEM_USE_SUNDIALS) && defined(MFEM_USE_MPI)
+#if defined(MFEM_USE_SUNDIALS)
+#include "sundials.hpp"
+#if defined(MFEM_USE_MPI)
 #include <nvector/nvector_parallel.h>
-#include <nvector/nvector_parhyp.h>
+#endif
 #endif
 
 #include <iostream>
@@ -1071,7 +1073,7 @@ double Vector::operator*(const Vector &v) const
       return prod;
    }
 #endif
-   if (Device::Allows(Backend::DEBUG))
+   if (Device::Allows(Backend::DEBUG_DEVICE))
    {
       const int N = size;
       auto v_data = v.Read();
@@ -1131,7 +1133,7 @@ double Vector::Min() const
    }
 #endif
 
-   if (Device::Allows(Backend::DEBUG))
+   if (Device::Allows(Backend::DEBUG_DEVICE))
    {
       const int N = size;
       auto m_data = Read();
@@ -1162,6 +1164,7 @@ vector_min_cpu:
 Vector::Vector(N_Vector nv)
 {
    N_Vector_ID nvid = N_VGetVectorID(nv);
+
    switch (nvid)
    {
       case SUNDIALS_NVEC_SERIAL:
@@ -1181,6 +1184,7 @@ void Vector::ToNVector(N_Vector &nv, long global_length)
 {
    MFEM_ASSERT(nv, "N_Vector handle is NULL");
    N_Vector_ID nvid = N_VGetVectorID(nv);
+
    switch (nvid)
    {
       case SUNDIALS_NVEC_SERIAL:

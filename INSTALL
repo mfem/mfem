@@ -535,11 +535,14 @@ The specific libraries and their options are:
   Beginning with MFEM v3.3, SUNDIALS v2.7.0 is supported.
   Beginning with MFEM v3.3.2, SUNDIALS v3.0.0 is also supported.
   Beginning with MFEM v4.1, only SUNDIALS v5.0.0+ is supported.
+  When MFEM_USE_CUDA is enabled, only SUNDIALS v5.4.0+ is supported.
   If MFEM_USE_MPI is enabled, we expect that SUNDIALS is built with support for
   both MPI and hypre.
+  If MFEM_USE_CUDA is enabled, we expect that SUNDIALS is built with support
+  for CUDA.
   URL: http://computation.llnl.gov/projects/sundials/sundials-software
   Options: SUNDIALS_OPT, SUNDIALS_LIB.
-  Versions: SUNDIALS >= 5.0.0.
+  Versions: SUNDIALS >= 5.0.0, SUNDIALS >= 5.4.0 for CUDA suppport.
 
 - Mesquite (optional), used when MFEM_USE_MESQUITE = YES.
   URL: http://trilinos.org/oldsite/packages/mesquite
@@ -663,7 +666,7 @@ The specific libraries and their options are:
   URL: https://github.com/CEED/libCEED
        https://ceed.exascaleproject.org/libceed
   Options: CEED_DIR, CEED_OPT, CEED_LIB.
-  Versions: libCEED >= 0.6, git-hash a970f63.
+  Versions: libCEED > 0.6, git-hash bdfed75.
 
 - RAJA (optional), used when MFEM_USE_RAJA = YES.
   Beginning with MFEM v4.1, only RAJA v0.10.0+ is supported.
