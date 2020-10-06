@@ -293,7 +293,7 @@ void EliminationProjection::RecoverPressure(const Vector& disprhs, const Vector&
 
 
 
-class EliminationCGSolver : public Solver
+class EliminationCGSolver : public IterativeSolver
 {
 public:
    EliminationCGSolver(SparseMatrix& A, SparseMatrix& B, int firstblocksize);
@@ -420,6 +420,9 @@ void EliminationCGSolver::BuildPreconditioner()
       const int dim = 3;
       HypreBoomerAMGReordered prec(*explicit_operator, dim);
    */
+
+   // next line doesn't really belong here
+   rel_tol = 1.e-8;
 }
 
 EliminationCGSolver::EliminationCGSolver(SparseMatrix& A, SparseMatrix& B,
@@ -437,7 +440,6 @@ EliminationCGSolver::EliminationCGSolver(SparseMatrix& A, SparseMatrix& B,
 EliminationCGSolver::EliminationCGSolver(SparseMatrix& A, SparseMatrix& B,
                                          int firstblocksize)
    :
-   Solver(A.Height() - firstblocksize), // TODO??!
    A_(A),
    B_(B)
 {
@@ -460,7 +462,7 @@ void EliminationCGSolver::Mult(const Vector& rhs, Vector& sol) const
    krylov.SetOperator(reducedoperator);
    krylov.SetPreconditioner(*prec_);
    krylov.SetMaxIter(1000);
-   krylov.SetRelTol(1.e-8);
+   krylov.SetRelTol(rel_tol);
    krylov.SetPrintLevel(1);
 
    Vector displacementrhs(A_.Height());
