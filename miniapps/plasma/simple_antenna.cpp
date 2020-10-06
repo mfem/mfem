@@ -8,15 +8,36 @@ using namespace std;
 using namespace mfem;
 using namespace mfem::common;
 
+static double s[] =
+{
+   1.0,
+   0.6180339887498949,
+   0.5436890126920764,
+   0.5187900636758842,
+   0.5086603916420042,
+   0.5041382583616554,
+   0.5020170551781655,
+   0.5009941779228898,
+   0.5004931182865523,
+   0.5002454622667946,
+   0.5001224294760432,
+   0.5000611322390582,
+   0.5000305436878334,
+   0.500015265778675,
+   0.5000076312578446,
+   0.5000038151921251
+};
+
 int main(int argc, char ** argv)
 {
-   int mf, mb, na, nb, nt;
+   int mfb, mf, mb, na, nb, nt;
    double af, ab, ba, bb, bt;
    bool per_y = false;
    bool visualization = true;
 
    mf = mb = na = nb = nt = -1;
    af = ab = ba = bb = bt = -1.0;
+   mfb = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mf, "-mf", "--num-front",
@@ -39,6 +60,9 @@ int main(int argc, char ** argv)
                   "Distance above antenna (> 0).");
    args.AddOption(&ba, "-ba", "--size-across",
                   "Distance across antenna (> 0).");
+   args.AddOption(&mfb, "-mfb", "--num-bdr-front",
+                  "Number of elements in boundry layer "
+                  "in front of antenna (>= 1).");
    args.AddOption(&per_y, "-per-y", "--periodic-y", "-no-per-y",
                   "--no-periodic-y",
                   "Make the mesh periodic in the y direction.");
@@ -57,6 +81,7 @@ int main(int argc, char ** argv)
    if (na < 0) { na = 2; }
    if (nb < 0) { nb = 1; }
    if (nt < 0) { nt = 1; }
+   if (mfb < 1) { mfb = 1; }
 
    if (af < 0) { af = 0.75; }
    if (ab < 0) { ab = 0.25; }
@@ -69,15 +94,16 @@ int main(int argc, char ** argv)
    MFEM_VERIFY(na >= 2,
                "There must be at least two elements across "
                "the face of the antenna");
-   MFEM_VERIFY(mf > 0 && na > 0 && nb > 0 && nt > 0,
+   MFEM_VERIFY(mf > 0 && na > 0 && nb > 0 && nt > 0 && mfb > 0,
                "Numbers of elements must be greater than zero.");
+   MFEM_VERIFY(mfb <= 16, "Number of elements in boundary layer is too large.");
    MFEM_VERIFY(af > 0.0 && ab > 0.0 && ba > 0.0 && bb > 0.0 && bt > 0.0,
                "Distances must be greater than zero.");
 
-   int mx = mf + mb;
+   int mx = mf + mb + mfb - 1;
    int ny = nb + na + nt;
 
-   // double ax = af + ab;
+   double ax = af + ab;
    double by = bb + ba + bt;
 
    int nelem = mx * ny;
@@ -94,17 +120,41 @@ int main(int argc, char ** argv)
       double ya = (j<=nb) ? (bb * j / nb) :
                   ((j<=nb+na)? (bb + ba * (j - nb) / na) :
                    (bb + ba + bt * (j - nb - na) / nt));
+
+      double dxf = af / mf;
+      double dxb = ab / mb;
+      double prev_cx = 0.0;
+
       for (int i=0; i<=mx; i++)
       {
-         c[0] = (i <= mf) ? ((af * i) / mf) : (af + ab * (i - mf) / mb);
-
-         if (i <= mf)
+         if (i == 0)
          {
-            c[1] = y0 * (mf - i) / mf + ya * i / mf;
+            c[0] = 0.0;
+            prev_cx = 0.0;
+         }
+         else if (mfb > 1 && i < mfb)
+         {
+            int p = mfb - i + 1;
+            double dc = dxf * pow(s[mfb-1], p);
+            c[0] = prev_cx + dc;
+            prev_cx = c[0];
+         }
+         else if (i <= mf + mfb - 1)
+         {
+            c[0] = dxf * (i - mfb + 1);
          }
          else
          {
-            c[1] = y0 * (i - mf) / mb + ya * (mx - i) / mb;
+            c[0] = af + dxb * (i - mf - mfb + 1);
+         }
+
+         if (i <= mf + mfb - 1)
+         {
+            c[1] = y0 + (ya - y0) * c[0] / af;
+         }
+         else
+         {
+            c[1] = y0 * (c[0] - af) / ab + ya * (ax - c[0]) / ab;
          }
 
          mesh->AddVertex(c);
@@ -133,7 +183,7 @@ int main(int argc, char ** argv)
    }
    for (int j=nb; j<nb + na; j++)
    {
-      for (int i=0; i<mf; i++)
+      for (int i=0; i<mf+mfb-1; i++)
       {
          v[0] = j * (mx + 1) + i;
          v[1] = j * (mx + 1) + i + 1;
@@ -142,9 +192,9 @@ int main(int argc, char ** argv)
 
          mesh->AddQuad(v);
       }
-      for (int i=mf; i<mx; i++)
+      for (int i=mf+mfb-1; i<mx; i++)
       {
-         if (i == mf)
+         if (i == mf+mfb-1)
          {
             if (j == nb)
             {
@@ -222,15 +272,15 @@ int main(int argc, char ** argv)
    }
    for (int j=nb; j<na + nb; j++)
    {
-      v[0] = (mx + 1) * j + mf;
-      v[1] = (mx + 1) * (j + 1) + mf;
+      v[0] = (mx + 1) * j + mf + mfb - 1;
+      v[1] = (mx + 1) * (j + 1) + mf + mfb - 1;
       mesh->AddBdrSegment(v, 5);
    }
    for (int j=nb+na; j>nb; j--)
    {
       if (j == nb + na)
       {
-         v[0] = (mx + 1) * j + mf;
+         v[0] = (mx + 1) * j + mf + mfb - 1;
       }
       else
       {
@@ -238,7 +288,7 @@ int main(int argc, char ** argv)
       }
       if (j == nb + 1)
       {
-         v[1] = (mx + 1) * (j - 1) + mf;
+         v[1] = (mx + 1) * (j - 1) + mf + mfb - 1;
       }
       else
       {
