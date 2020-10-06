@@ -96,8 +96,8 @@ public:
    //                         Vector &emat);
 
    /// Method defining fully matrix-free assembly.
-   /** The result of is stored internally so that it can be
-       used later in the methods AddMultMF() and AddMultTransposeMF(). */
+   /** The result of fully matrix-free assembly is stored internally so that it
+       can be used later in the methods AddMultMF() and AddMultTransposeMF(). */
    virtual void AssembleMF(const FiniteElementSpace &fes);
 
    /** Perform the action of integrator on the input @a x and add the result to
