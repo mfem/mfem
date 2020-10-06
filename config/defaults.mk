@@ -138,6 +138,7 @@ MFEM_USE_RAJA          = NO
 MFEM_USE_OCCA          = NO
 MFEM_USE_CEED          = NO
 MFEM_USE_UMPIRE        = NO
+MFEM_USE_CAMP          = NO
 MFEM_USE_SIMD          = NO
 MFEM_USE_ADIOS2        = NO
 
@@ -371,6 +372,11 @@ RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
 UMPIRE_DIR = @MFEM_DIR@/../umpire
 UMPIRE_OPT = -I$(UMPIRE_DIR)/include
 UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -lumpire
+
+# CAMP library configuration
+CAMP_DIR = @MFEM_DIR@/../camp
+CAMP_OPT = -I$(CAMP_DIR)/include
+CAMP_LIB = -L$(CAMP_DIR)/lib
 
 # If YES, enable some informational messages
 VERBOSE = NO
