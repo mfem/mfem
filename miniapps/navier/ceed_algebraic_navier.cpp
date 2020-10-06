@@ -237,5 +237,46 @@ CeedPlainCG::~CeedPlainCG()
    delete mfem_ceed_;
 }
 
+mfem::Solver * BuildSmootherFromCeed(Operator * mfem_op, CeedOperator ceed_op,
+                                     const Array<int>& ess_tdofs, bool chebyshev)
+{
+   // this is a local diagonal, in the sense of l-vector
+   CeedVector diagceed;
+   CeedInt length;
+   Ceed ceed;
+   CeedOperatorGetCeed(ceed_op, &ceed);
+   CeedOperatorGetSize(ceed_op, &length);
+   CeedVectorCreate(ceed, length, &diagceed);
+   CeedVectorSetValue(diagceed, 0.0);
+   CeedOperatorLinearAssembleDiagonal(ceed_op, diagceed, CEED_REQUEST_IMMEDIATE);
+   const CeedScalar * diagvals;
+   CeedMemType mem;
+   CeedGetPreferredMemType(ceed, &mem);
+   if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
+   {
+      // intentional no-op
+   }
+   else
+   {
+      mem = CEED_MEM_HOST;
+   }
+   CeedVectorGetArrayRead(diagceed, mem, &diagvals);
+   mfem::Vector mfem_diag(const_cast<CeedScalar*>(diagvals), length);
+   mfem::Solver * out = NULL;
+   if (chebyshev)
+   {
+      const int cheb_order = 3;
+      out = new OperatorChebyshevSmoother(mfem_op, mfem_diag, ess_tdofs, cheb_order);
+   }
+   else
+   {
+      const double jacobi_scale = 0.65;
+      out = new OperatorJacobiSmoother(mfem_diag, ess_tdofs, jacobi_scale);
+   }
+   CeedVectorRestoreArrayRead(diagceed, &diagvals);
+   CeedVectorDestroy(&diagceed);
+   return out;
+}
+
 } // namespace navier
 } // namespace mfem

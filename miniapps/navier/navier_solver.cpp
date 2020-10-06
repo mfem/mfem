@@ -18,16 +18,15 @@
 /*
   Next steps here:
 
-  - merge barker29/libceed-solvers in here? It has the most advanced stuff (including multiple integrators) but is not a clean merge
-
+  - try on GPUs (Lassen)
   - optimize a bit for speed; you're killing LOR amg on iteration count, why is it slow [beating LOR by 20-40 percent at high order]
   - (use optimized ceed library) [naturally optimized]
   - work on the Helmholtz velocity solve (all they do here is Jacobi even when assembled, maybe don't do this?)
   - try in the other contexts, not just navier_mms
   - experiment with coarse solver [some done, AMG is good, 10 cycles of CG not too terrible]
-  - try on GPUs (Lassen)
   - scale to higher order than 6 [now 8]
   - different coarsening strategies [done]
+  - merge barker29/libceed-solvers in here? It has the most advanced stuff (including multiple integrators) but is not a clean merge [done]
   - show to others, make PR, something
 */
 
@@ -103,20 +102,27 @@ TryCeedSolver::TryCeedSolver(Operator& fine_mfem_op,
    Solver * coarsest_solver;
    CeedMultigridLevel * coarsest = levels[num_levels - 2];
 
-   if (ceed_amg)
+   if (Device::Allows(Backend::CUDA) || !ceed_amg)
    {
-      // bool use_amgx = (ceed_spec[1] == 'g'); // TODO very crude
+      coarsest_solver = navier::BuildSmootherFromCeed(
+         NULL, coarsest->GetCoarseCeed(),
+         coarsest->GetCoarseEssentialDofList(), false);
+   }
+   else
+   {
+#ifdef MFEM_USE_MPI
       bool use_amgx = false;
       const int sparse_solver_type = 1; // single v-cycle
       coarsest_solver = new navier::CeedCGWithAMG(coarsest->GetCoarseCeed(),
                                                   coarsest->GetCoarseEssentialDofList(),
                                                   sparse_solver_type,
                                                   use_amgx);
-   } else {
-      int coarse_cg_iterations = 10;  /// even less might be good
+#else
+      int coarse_cg_iterations = 10;
       coarsest_solver = new navier::CeedPlainCG(coarsest->GetCoarseCeed(),
                                                 coarsest->GetCoarseEssentialDofList(),
                                                 coarse_cg_iterations);
+#endif
    }
 
    // loop up from coarsest to build V-cycle solvers

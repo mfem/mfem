@@ -107,6 +107,9 @@ private:
    MFEMCeedOperator * mfem_ceed_;
 };
 
+mfem::Solver * BuildSmootherFromCeed(Operator * mfem_op, CeedOperator ceed_op,
+                                     const Array<int>& ess_tdofs, bool chebyshev);
+
 
 } // namespace navier
 } // namespace mfem
