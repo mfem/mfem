@@ -925,6 +925,17 @@ int main(int argc, char *argv[])
    MPI_Session mpi(argc, argv);
 
    TransportCoefFactory coefFact;
+   TransportTol ttol;
+   ttol.lin_abs_tol = 0.0;
+   ttol.lin_rel_tol = 1e-12;
+   ttol.lin_max_iter = 300;
+
+   ttol.newt_abs_tol = 1e-6;
+   ttol.newt_rel_tol = 1e-6;
+   ttol.newt_max_iter = 10;
+
+   ttol.ss_abs_tol = 0.0;
+   ttol.ss_rel_tol = -1.0;
 
    // 2. Parse command-line options.
    // problem_ = 1;
@@ -1041,6 +1052,22 @@ int main(int argc, char *argv[])
    args.AddOption(&dg.kappa, "-dgk", "--dg-kappa",
                   "One of the two DG penalty parameters, should be positive."
                   " Negative values are replaced with (order+1)^2.");
+   args.AddOption(&ttol.lin_abs_tol, "-latol", "--linear-abs-tolerance",
+                  "Absolute tolerance for linear solver.");
+   args.AddOption(&ttol.lin_rel_tol, "-lrtol", "--linear-rel-tolerance",
+                  "Relative tolerance for linear solver.");
+   args.AddOption(&ttol.lin_max_iter, "-lmaxit", "--linear-max-iterations",
+                  "Maximum iteration count for linear solver.");
+   args.AddOption(&ttol.newt_abs_tol, "-natol", "--newton-abs-tolerance",
+                  "Absolute tolerance for Newton solver.");
+   args.AddOption(&ttol.newt_rel_tol, "-nrtol", "--newton-rel-tolerance",
+                  "Relative tolerance for Newton solver.");
+   args.AddOption(&ttol.newt_max_iter, "-nmaxit", "--newton-max-iterations",
+                  "Maximum iteration count for Newton solver.");
+   args.AddOption(&ttol.ss_abs_tol, "-satol", "--steady-state-abs-tolerance",
+                  "Absolute tolerance for Steady State detection.");
+   args.AddOption(&ttol.ss_rel_tol, "-srtol", "--steady-state-rel-tolerance",
+                  "Relative tolerance for Steady State detection.");
    args.AddOption(&tol_init, "-tol0", "--initial-tolerance",
                   "Error tolerance for initial condition.");
    args.AddOption(&tol_ode, "-tol", "--ode-tolerance",
@@ -1704,7 +1731,7 @@ int main(int argc, char *argv[])
       coefNrm[4] = bnXeb / bMb;
    }
 
-   DGTransportTDO oper(mpi, dg, plasma, eqn_weights, fes, vfes, ffes,
+   DGTransportTDO oper(mpi, dg, plasma, ttol, eqn_weights, fes, vfes, ffes,
                        offsets, yGF, kGF,
                        bcs, eqnCoefs, Di_perp, Xi_perp, Xe_perp, *B3Coef,
                        term_flags, vis_flags, imex, op_flag, logging);

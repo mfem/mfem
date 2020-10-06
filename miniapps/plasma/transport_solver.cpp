@@ -1482,6 +1482,7 @@ void TransportPrec::SetOperator(const Operator &op)
 
 DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
                                const PlasmaParams &plasma,
+                               const TransportTol & tol,
                                const Vector &eqn_weights,
                                ParFiniteElementSpace &fes,
                                ParFiniteElementSpace &vfes,
@@ -1508,6 +1509,7 @@ DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
      newton_op_prec_(offsets),
      newton_op_solver_(fes.GetComm()),
      newton_solver_(fes.GetComm()),
+     tol_(tol),
      op_(mpi, dg, plasma, eqn_weights, vfes, yGF, kGF, bcs, coefs, offsets_,
          Di_perp, Xi_perp, Xe_perp, B3Coef,
          term_flags, vis_flags, op_flag, logging),
@@ -1520,11 +1522,10 @@ DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
    {
       cout << "Constructing DGTransportTDO" << endl;
    }
-   const double rel_tol = 1e-6;
 
-   newton_op_solver_.SetRelTol(rel_tol * 1.0e-4);
-   newton_op_solver_.SetAbsTol(0.0);
-   newton_op_solver_.SetMaxIter(300);
+   newton_op_solver_.SetRelTol(tol_.lin_rel_tol);
+   newton_op_solver_.SetAbsTol(tol_.lin_abs_tol);
+   newton_op_solver_.SetMaxIter(tol_.lin_max_iter);
    newton_op_solver_.SetPrintLevel(3);
    newton_op_solver_.SetPreconditioner(newton_op_prec_);
 
@@ -1532,9 +1533,9 @@ DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
    newton_solver_.SetSolver(newton_op_solver_);
    newton_solver_.SetOperator(op_);
    newton_solver_.SetPrintLevel(1); // print Newton iterations
-   newton_solver_.SetRelTol(rel_tol);
-   newton_solver_.SetAbsTol(1e-6);
-   newton_solver_.SetMaxIter(10);
+   newton_solver_.SetRelTol(tol_.newt_rel_tol);
+   newton_solver_.SetAbsTol(tol_.newt_abs_tol);
+   newton_solver_.SetMaxIter(tol_.newt_max_iter);
 
    BxyGF_ = new ParGridFunction(&vfes_);
    BzGF_  = new ParGridFunction(&fes_);

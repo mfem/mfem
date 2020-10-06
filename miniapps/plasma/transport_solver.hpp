@@ -2243,6 +2243,23 @@ public:
    virtual void SetOperator(const Operator &op);
 };
 
+struct TransportTol
+{
+   // Linear solver tolerances
+   double lin_abs_tol;
+   double lin_rel_tol;
+   int lin_max_iter;
+
+   // Newton Solver tolerances
+   double newt_abs_tol;
+   double newt_rel_tol;
+   int newt_max_iter;
+
+   // Steady State tolerances
+   double ss_abs_tol;
+   double ss_rel_tol;
+};
+
 class DGTransportTDO : public TimeDependentOperator
 {
 private:
@@ -2262,6 +2279,8 @@ private:
    TransportPrec newton_op_prec_;
    GMRESSolver   newton_op_solver_;
    NewtonSolver  newton_solver_;
+
+   TransportTol tol_;
 
    // Data collection used to write data files
    DataCollection * dc_;
@@ -3023,6 +3042,7 @@ private:
 public:
    DGTransportTDO(const MPI_Session & mpi, const DGParams & dg,
                   const PlasmaParams & plasma,
+                  const TransportTol & tol,
                   const Vector &eqn_weights,
                   ParFiniteElementSpace &fes,
                   ParFiniteElementSpace &vfes,
