@@ -2,12 +2,29 @@
 //
 
 /*
-  higher order seems to work fine?
+  Solve a problem with the constraint that the normal component
+  of the (vector) solution on the boundary is zero.
+
+  The way MFEM dofs work, this is not quite trivial for non-grid-aligned
+  boundaries.
+
+  higher order seems to work fine
   3D also looks fine
-  curved mesh does *not* seem to be working
-  (not even for the mesh itself, but this may be VisIt and not MFEM)
+
   solver obviously still needs some serious work
-  also, parallel should be tested at some point
+
+  some todo items:
+
+  - the block diagonal version of ConstrainedSolver should also be
+    an external subobject (like the elimination version)
+  - improve Schur complement?
+  - add penalty version
+  - systematic testing of the solvers
+  - make sure curved mesh works (is this a real problem or just VisIt visualization?)
+  - move ConstrainedSolver and EliminationSolver object into library
+  - make everything work in parallel
+  - use diffusion instead of mass
+  - scale!
 
   square-disc attributes (not indices):
 
@@ -136,6 +153,47 @@ public:
    void SetOperator(const Operator& op) { }
 };
 
+class SchurConstrainedSolver : public Solver
+{
+public:
+   SchurConstrainedSolver(BlockOperator& block_op,
+                          Solver& primal_pc_);
+   virtual ~SchurConstrainedSolver();
+
+   void SetOperator(const Operator& op) { }
+
+   void Mult(const Vector& x, Vector& y) const;
+
+private:
+   Solver& primal_pc;  // not owned
+   BlockDiagonalPreconditioner block_pc;  // owned
+   Solver * dual_pc;  // owned
+};
+
+SchurConstrainedSolver::SchurConstrainedSolver(BlockOperator& block_op,
+                                               Solver& primal_pc_)
+   :
+   primal_pc(primal_pc_),
+   block_pc(block_op.RowOffsets()),
+   dual_pc(NULL)
+{
+   primal_pc.SetOperator(block_op.GetBlock(0, 0));
+   block_pc.SetDiagonalBlock(0, &primal_pc);
+   dual_pc = new IdentitySolver(block_op.RowOffsets()[2] -
+                                block_op.RowOffsets()[1]);
+   block_pc.SetDiagonalBlock(1, dual_pc);
+}
+
+SchurConstrainedSolver::~SchurConstrainedSolver()
+{
+   delete dual_pc;
+}
+
+void SchurConstrainedSolver::Mult(const Vector& x, Vector& y) const
+{
+   block_pc.Mult(x, y);
+}
+
 /**
    A class to solve the constrained system
 
@@ -207,16 +265,10 @@ public:
 private:
    Array<int> offsets;
    BlockOperator * block_op;
-   GMRESSolver gmres;
+   GMRESSolver gmres; // goes in schur_solver?
    TransposeOperator * tr_B;
 
-   /// todo: next three go in some secondary object,
-   /// like EliminationCGSolver ?
-   /// (in principle the gmres also belongs in this secondary object)
-   Solver * primal_pc;  // not owned
-   Solver * dual_pc;  // owned
-   BlockDiagonalPreconditioner * block_pc;  // owned
-
+   SchurConstrainedSolver * schur_solver;
    EliminationCGSolver * elim_solver;
 
    mutable Vector workb;
@@ -229,9 +281,7 @@ ConstrainedSolver::ConstrainedSolver(Operator& A, Operator& B)
    Solver(A.Height()),  // not sure conceptually what the size should be!
    offsets(3),
    gmres(MPI_COMM_WORLD),
-   primal_pc(NULL),
-   dual_pc(NULL),
-   block_pc(NULL),
+   schur_solver(NULL),
    elim_solver(NULL)
 {
    offsets[0] = 0;
@@ -258,34 +308,27 @@ ConstrainedSolver::~ConstrainedSolver()
 {
    delete block_op;
    delete tr_B;
-   delete dual_pc;
-   delete block_pc;
+   delete schur_solver;
    delete elim_solver;
 }
 
 void ConstrainedSolver::SetPrimalPreconditioner(Solver& pc)
 {
-   primal_pc = &pc;
-   block_pc = new BlockDiagonalPreconditioner(offsets);
-   primal_pc->SetOperator(block_op->GetBlock(0, 0));
-   block_pc->SetDiagonalBlock(0, primal_pc);
-   dual_pc = new IdentitySolver(offsets[2] - offsets[1]);
-   block_pc->SetDiagonalBlock(1, dual_pc);
-   gmres.SetPreconditioner(*block_pc);
+   schur_solver = new SchurConstrainedSolver(*block_op, pc);
+   gmres.SetPreconditioner(*schur_solver);
 }
 
-/// @todo consistency in primary/secondary notation
+/// @todo consistency in primary/secondary notation (think it's fine
 void ConstrainedSolver::SetElimination(Array<int>& primary_dofs,
                                        Array<int>& secondary_dofs)
 {
-   // SparseMatrix& A = dynamic_cast<SparseMatrix&>(block_op->GetBlock(0, 0));
    HypreParMatrix& A = dynamic_cast<HypreParMatrix&>(block_op->GetBlock(0, 0));
    SparseMatrix& B = dynamic_cast<SparseMatrix&>(block_op->GetBlock(1, 0));
 
    MFEM_VERIFY(secondary_dofs.Size() == B.Height(),
                "Wrong number of dofs for elimination!");
 
-   //// TODO ugly ugly hack
+   //// TODO ugly ugly hack (should work in parallel in principle)
    SparseMatrix * hypre_diag = new SparseMatrix;
    A.GetDiag(*hypre_diag);
 
