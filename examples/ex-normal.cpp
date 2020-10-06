@@ -271,20 +271,14 @@ public:
        system with Mult() */
    void GetDualSolution(Vector& lambda) { lambda = dual_sol; }
 
-   void SetRelTol(double rtol)
-   {
-      if (schur_solver) { schur_solver->SetRelTol(rtol); }
-      if (elim_solver) { elim_solver->SetRelTol(rtol); }
-   }
+   void SetRelTol(double rtol) { subsolver->SetRelTol(rtol); }
 
 private:
    Array<int> offsets;
    BlockOperator * block_op;
    TransposeOperator * tr_B;
 
-   /// todo combine these!
-   SchurConstrainedSolver * schur_solver;
-   EliminationCGSolver * elim_solver;
+   IterativeSolver * subsolver;
 
    Vector dual_rhs;
    mutable Vector dual_sol;
@@ -298,8 +292,7 @@ ConstrainedSolver::ConstrainedSolver(Operator& A, Operator& B)
    // Solver(A.Height() + B.Height()),
    Solver(A.Height()),  // not sure conceptually what the size should be!
    offsets(3),
-   schur_solver(NULL),
-   elim_solver(NULL)
+   subsolver(NULL)
 {
    offsets[0] = 0;
    offsets[1] = A.Height();
@@ -321,13 +314,12 @@ ConstrainedSolver::~ConstrainedSolver()
 {
    delete block_op;
    delete tr_B;
-   delete schur_solver;
-   delete elim_solver;
+   delete subsolver;
 }
 
 void ConstrainedSolver::SetPrimalPreconditioner(Solver& pc)
 {
-   schur_solver = new SchurConstrainedSolver(*block_op, pc);
+   subsolver = new SchurConstrainedSolver(*block_op, pc);
 }
 
 /// @todo consistency in primary/secondary notation (think it's fine
@@ -352,7 +344,7 @@ void ConstrainedSolver::SetElimination(Array<int>& primary_dofs,
    // are assumed to be primary dofs, not sure it is worth the effort
 */
 
-   elim_solver = new EliminationCGSolver(*hypre_diag, B, primary_dofs, secondary_dofs);
+   subsolver = new EliminationCGSolver(*hypre_diag, B, primary_dofs, secondary_dofs);
 }
 
 void ConstrainedSolver::SetDualRHS(const Vector& r)
@@ -376,16 +368,9 @@ void ConstrainedSolver::Mult(const Vector& b, Vector& x) const
       workb(b.Size() + i) = dual_rhs(i);
    }
 
-   if (elim_solver)
-   {
-      // TODO: current implementation of EliminationCGSolver::Mult()
-      // painstakingly undoes all the stuff you do with workb, workx here
-      elim_solver->Mult(workb, workx);
-   }
-   else
-   {
-      schur_solver->Mult(workb, workx);
-   }
+   /// note that for EliminationCGSolver, the extension to workb, workx
+   /// is promptly undone. We could have a block / reduced option?
+   subsolver->Mult(workb, workx);
 
    for (int i = 0; i < b.Size(); ++i)
    {
