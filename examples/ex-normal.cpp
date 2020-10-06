@@ -235,10 +235,8 @@ public:
    /** @brief Set the right-hand side r for the constraint B x = r
 
        (r defaults to zero if you don't call this)
-
-       @todo implement
    */
-   void SetDualRHS(Vector& r);
+   void SetDualRHS(const Vector& r);
 
    /** @brief Set up the elimination solver.
 
@@ -265,10 +263,8 @@ public:
    /**
       Does not make sense unless you've already solved the constrained
       system with Mult()
-
-      @todo implement
    */
-   void GetDualSolution(Vector& lambda);
+   void GetDualSolution(Vector& lambda) { lambda = dual_sol; }
 
 private:
    Array<int> offsets;
@@ -277,6 +273,9 @@ private:
 
    SchurConstrainedSolver * schur_solver;
    EliminationCGSolver * elim_solver;
+
+   Vector dual_rhs;
+   mutable Vector dual_sol;
 
    mutable Vector workb;
    mutable Vector workx;
@@ -302,6 +301,8 @@ ConstrainedSolver::ConstrainedSolver(Operator& A, Operator& B)
 
    workb.SetSize(A.Height() + B.Height());
    workx.SetSize(A.Height() + B.Height());
+   dual_rhs.SetSize(0);
+   dual_sol.SetSize(B.Height());
 }
 
 ConstrainedSolver::~ConstrainedSolver()
@@ -342,6 +343,13 @@ void ConstrainedSolver::SetElimination(Array<int>& primary_dofs,
    elim_solver = new EliminationCGSolver(*hypre_diag, B, primary_dofs, secondary_dofs);
 }
 
+void ConstrainedSolver::SetDualRHS(const Vector& r)
+{
+   MFEM_VERIFY(r.Size() == block_op->GetBlock(1, 0).Height(),
+               "Vector is wrong size!");
+   dual_rhs = r;
+}
+
 void ConstrainedSolver::Mult(const Vector& b, Vector& x) const
 {
    workb = 0.0;
@@ -350,6 +358,10 @@ void ConstrainedSolver::Mult(const Vector& b, Vector& x) const
    {
       workb(i) = b(i);
       workx(i) = x(i);
+   }
+   for (int i = 0; i < dual_rhs.Size(); ++i)
+   {
+      workb(b.Size() + i) = dual_rhs(i);
    }
 
    if (elim_solver)
@@ -366,6 +378,10 @@ void ConstrainedSolver::Mult(const Vector& b, Vector& x) const
    for (int i = 0; i < b.Size(); ++i)
    {
       x(i) = workx(i);
+   }
+   for (int i = 0; i < dual_sol.Size(); ++i)
+   {
+      dual_sol(i) = workx(b.Size() + i);
    }
 }
 
