@@ -17,14 +17,15 @@
 
   - improve Schur complement?
   - add penalty version
+  - make sure penalty / elimination can do the right thing with lagrange multipliers
   - systematic testing of the solvers
   - IterativeSolver interface (or close), to pass tolerances etc. down to subsolvers
   - think about preconditioning interface; user may have good preconditioner for primal system
   - make sure curved mesh works (is this a real problem or just VisIt visualization?)
-  - move ConstrainedSolver and EliminationSolver object into library
+  - move ConstrainedSolver and friends into library
   - make everything work in parallel
   - use diffusion instead of mass
-  - scale!
+  - timing / scaling!
 
   square-disc attributes (not indices):
 
@@ -144,6 +145,85 @@ SparseMatrix * BuildNormalConstraints(FiniteElementSpace& fespace,
    return out;
 }
 
+/**
+   @todo This is going to be ugly in parallel
+*/
+class PenaltyConstrainedSolver : public IterativeSolver
+{
+public:
+   PenaltyConstrainedSolver(SparseMatrix& A, SparseMatrix& B, double penalty_);
+
+   ~PenaltyConstrainedSolver();
+
+   void Mult(const Vector& x, Vector& y) const;
+
+   void SetOperator(const Operator& op) { }
+
+private:
+   double penalty;
+   SparseMatrix& constraintB;
+   SparseMatrix * penalized_mat;
+};
+
+PenaltyConstrainedSolver::PenaltyConstrainedSolver(SparseMatrix& A, SparseMatrix& B,
+                                                   double penalty_)
+   :
+   penalty(penalty_),
+   constraintB(B)
+{
+   SparseMatrix * BTB = mfem::Mult(*Transpose(B), B);
+   penalized_mat = Add(1.0, A, penalty, *BTB);
+   delete BTB;
+}
+
+PenaltyConstrainedSolver::~PenaltyConstrainedSolver()
+{
+   delete penalized_mat;
+}
+
+void PenaltyConstrainedSolver::Mult(const Vector& b, Vector& x) const
+{
+   const int disp_size = penalized_mat->Height();
+   const int lm_size = b.Size() - disp_size;
+
+   // form penalized right-hand side
+   Vector rhs_disp, rhs_lm;
+   rhs_disp.MakeRef(const_cast<Vector&>(x), 0, disp_size);
+   rhs_lm.MakeRef(const_cast<Vector&>(x), disp_size, lm_size);
+   Vector temp(disp_size);
+   constraintB.MultTranspose(rhs_lm, temp);
+   temp *= penalty;
+   Vector penalized_rhs(rhs_disp);
+   penalized_rhs += temp;
+
+   // actually solve
+   Vector penalized_sol(disp_size);
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.SetOperator(*penalized_mat);
+   cg.SetRelTol(rel_tol);
+   cg.SetAbsTol(1.e-12);
+   cg.SetMaxIter(100);
+   cg.SetPrintLevel(1);
+
+   /// note well this is *unpreconditioned*
+   cg.Mult(penalized_rhs, penalized_sol);
+
+   // recover Lagrange multiplier
+   mfem::Vector lmtemp(rhs_lm);
+   lmtemp *= -penalty;
+   constraintB.AddMult(penalized_sol, lmtemp, penalty);
+    
+   // put solution in x
+   for (int i = 0; i < disp_size; ++i)
+   {
+      x(i) = penalized_sol(i);
+   }
+   for (int i = disp_size; i < disp_size + lm_size; ++i)
+   {
+      x(i) = lmtemp(i - disp_size);
+   }
+}
+
 /// because IdentityOperator isn't a Solver
 class IdentitySolver : public Solver
 {
@@ -156,7 +236,7 @@ public:
 class SchurConstrainedSolver : public IterativeSolver
 {
 public:
-   SchurConstrainedSolver(BlockOperator& block_op,
+   SchurConstrainedSolver(BlockOperator& block_op_,
                           Solver& primal_pc_);
    virtual ~SchurConstrainedSolver();
 
@@ -166,8 +246,8 @@ public:
 
 private:
    BlockOperator& block_op;
-   Solver& primal_pc;  // not owned
-   BlockDiagonalPreconditioner block_pc;  // owned
+   Solver& primal_pc;
+   BlockDiagonalPreconditioner block_pc;
    Solver * dual_pc;  // owned
 };
 
@@ -234,10 +314,15 @@ public:
        Internally, this object may use the preconditioner for related
        or modified systems. 
 
-       @todo logically this is a separate idea from Schur; */
+       @todo logically this is a separate idea from Schur; should
+             call this SetSchurSolver and implement a different
+             SetPrimalPreconditioner
+   */
    void SetPrimalPreconditioner(Solver& pc);
 
    /** @brief Set the right-hand side r for the constraint B x = r
+
+       @todo this is not going to work for elimination?
 
        (r defaults to zero if you don't call this)
    */
@@ -254,6 +339,9 @@ public:
    */
    void SetElimination(Array<int>& primary_dofs,
                        Array<int>& secondary_dofs);
+
+   /** @brief Set up a penalty solver. */
+   void SetPenalty(double penalty);
 
    /** @brief Solve the constrained system.
 
@@ -333,6 +421,7 @@ void ConstrainedSolver::SetElimination(Array<int>& primary_dofs,
                "Wrong number of dofs for elimination!");
 
    //// TODO ugly ugly hack (should work in parallel in principle)
+   //// also never gets deleted
    SparseMatrix * hypre_diag = new SparseMatrix;
    A.GetDiag(*hypre_diag);
 
@@ -345,6 +434,17 @@ void ConstrainedSolver::SetElimination(Array<int>& primary_dofs,
 */
 
    subsolver = new EliminationCGSolver(*hypre_diag, B, primary_dofs, secondary_dofs);
+}
+
+void ConstrainedSolver::SetPenalty(double penalty)
+{
+   HypreParMatrix& A = dynamic_cast<HypreParMatrix&>(block_op->GetBlock(0, 0));
+   SparseMatrix& B = dynamic_cast<SparseMatrix&>(block_op->GetBlock(1, 0));
+
+   SparseMatrix * hypre_diag = new SparseMatrix;
+   A.GetDiag(*hypre_diag);
+
+   subsolver = new PenaltyConstrainedSolver(*hypre_diag, B, penalty);
 }
 
 void ConstrainedSolver::SetDualRHS(const Vector& r)
@@ -370,6 +470,7 @@ void ConstrainedSolver::Mult(const Vector& b, Vector& x) const
 
    /// note that for EliminationCGSolver, the extension to workb, workx
    /// is promptly undone. We could have a block / reduced option?
+   /// (or better, rewrite EliminatioNCGSolver to handle lagrange multiplier blocks)
    subsolver->Mult(workb, workx);
 
    for (int i = 0; i < b.Size(); ++i)
@@ -401,6 +502,7 @@ int main(int argc, char *argv[])
    int refine = -1;
    bool elimination = false;
    double reltol = 1.e-6;
+   double penalty = 0.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -426,6 +528,8 @@ int main(int argc, char *argv[])
                   "Use elimination solver for saddle point system.");
    args.AddOption(&reltol, "--reltol", "--reltol", 
                   "Relative tolerance for constrained solver.");
+   args.AddOption(&penalty, "--penalty", "--penalty",
+                  "Penalty parameter for penalty solver, used if > 0");
 
    args.Parse();
    if (!args.Good())
@@ -598,7 +702,11 @@ int main(int argc, char *argv[])
    ConstrainedSolver constrained(*A, *constraint_mat);
    HypreBoomerAMG prec;
    prec.SetPrintLevel(0);
-   if (elimination)
+   if (penalty > 0.0)
+   {
+      constrained.SetPenalty(penalty);
+   }
+   else if (elimination)
    {
       y_dofs.Append(z_dofs);
       y_dofs.Sort();
@@ -615,7 +723,13 @@ int main(int argc, char *argv[])
    //     local finite element solution on each processor.
    a.RecoverFEMSolution(X, b, x);
 
-   if (elimination)
+   if (penalty > 0.0)
+   {
+      std::ofstream out("penalty.vector");
+      out << std::setprecision(14);
+      X.Print(out, 1);
+   }
+   else if (elimination)
    {
       std::ofstream out("elimination.vector");
       out << std::setprecision(14);

@@ -10,9 +10,8 @@ def read_vector(filename):
     return np.array(v)
 
 
-def check_vectors():
-    filea = "elimination.vector"
-    fileb = "schur.vector"
+def check_vectors(filea="elimination.vector",
+                  fileb="schur.vector"):
     veca = read_vector(filea)
     vecb = read_vector(fileb)
     return np.linalg.norm(veca - vecb) / np.linalg.norm(vecb)
@@ -38,5 +37,22 @@ def main():
             print("  ", check_vectors())
 
 
+def penalty():
+    with open("penalty.log", "w") as fd:
+        p = subprocess.Popen(["./ex-normal",
+                              "--reltol", "1.e-10"],
+                             stdout=fd, stderr=fd)
+        p.communicate()
+        for penalty in [1.e-3, 1.e-5, 1.e-7]:
+            print(penalty)
+            p = subprocess.Popen(["./ex-normal",
+                                  "--reltol", "1.e-8",
+                                  "--penalty", str(penalty)],
+                                 stdout=fd, stderr=fd)
+            p.communicate()
+            print("  ", check_vectors(filea="penalty.vector"))
+
+
 if __name__ == "__main__":
-    main()
+    # main()
+    penalty()
