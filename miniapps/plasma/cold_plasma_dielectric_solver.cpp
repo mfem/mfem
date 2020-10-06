@@ -1462,12 +1462,12 @@ CPDSolver::Solve()
 
          while ( Phi_err > 1e-2 )
          {
-             /*
+            /*
             if (Phi_iter > 5)
             {
-               break;
+              break;
             }
-              */
+             */
             HypreParMatrix M0;
             Vector Phi, RHS0;
 
@@ -1568,8 +1568,9 @@ CPDSolver::Solve()
             phi_tmp_->imag() = phi_->imag();
 
          }
-         cout << " Inner potential calculation done in " << Phi_iter << " iteration(s)." << endl;
-    
+         cout << " Inner potential calculation done in " << Phi_iter << " iteration(s)."
+              << endl;
+
       }
 
       delete BDP;
@@ -1649,18 +1650,18 @@ CPDSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
 
    if (sbcs_->Size() > 0)
    {
-       
+
       visit_dc.RegisterField("Re_Phi", &phi_->real());
       visit_dc.RegisterField("Im_Phi", &phi_->imag());
-    
+
    }
 
-    if ( rectPot_ )
-    {
-       //visit_dc.RegisterField("Rec_Re_Phi", &rectPot_->real());
-       //visit_dc.RegisterField("Rec_Im_Phi", &rectPot_->imag());
-    }
-     
+   if ( rectPot_ )
+   {
+      //visit_dc.RegisterField("Rec_Re_Phi", &rectPot_->real());
+      //visit_dc.RegisterField("Rec_Im_Phi", &rectPot_->imag());
+   }
+
    // visit_dc.RegisterField("Er", e_r_);
    // visit_dc.RegisterField("Ei", e_i_);
    // visit_dc.RegisterField("B", b_);
@@ -1704,25 +1705,25 @@ CPDSolver::WriteVisItFields(int it)
          uB_->ProjectCoefficient(uBCoef_);
          S_->ProjectCoefficient(SrCoef_, SiCoef_);
       }
-       
-      
+
+
       if ( rectPot_ )
       {
-          //ComplexCoefficientByAttr & sbc = (*sbcs_)[0];
-          //SheathBase * sb = dynamic_cast<SheathBase*>(sbc.real);
+         //ComplexCoefficientByAttr & sbc = (*sbcs_)[0];
+         //SheathBase * sb = dynamic_cast<SheathBase*>(sbc.real);
 
-          /*
-          if (sb != NULL)
-          {
-            RectifiedSheathPotential rectPotCoefR(*sb, true);
-            RectifiedSheathPotential rectPotCoefI(*sb, false);
+         /*
+         if (sb != NULL)
+         {
+           RectifiedSheathPotential rectPotCoefR(*sb, true);
+           RectifiedSheathPotential rectPotCoefI(*sb, false);
 
-            rectPot_->ProjectCoefficient(rectPotCoefR, rectPotCoefI);
-           }
-           */
-       
+           rectPot_->ProjectCoefficient(rectPotCoefR, rectPotCoefI);
+          }
+          */
+
       }
-      
+
 
       HYPRE_Int prob_size = this->GetProblemSize();
       visit_dc_->SetCycle(it);
@@ -1891,19 +1892,19 @@ CPDSolver::DisplayToGLVis()
 
    if (sbcs_->Size() > 0)
    {
-       
-       ComplexCoefficientByAttr & sbc = (*sbcs_)[0];
-       SheathBase * sb = dynamic_cast<SheathBase*>(sbc.real);
 
-       if (sb != NULL)
-       {
+      ComplexCoefficientByAttr & sbc = (*sbcs_)[0];
+      SheathBase * sb = dynamic_cast<SheathBase*>(sbc.real);
+
+      if (sb != NULL)
+      {
          RectifiedSheathPotential rectPotCoefR(*sb, true);
          RectifiedSheathPotential rectPotCoefI(*sb, false);
 
          rectPot_->ProjectCoefficient(rectPotCoefR, rectPotCoefI);
-        }
-        
-        
+      }
+
+
       Wx += offx;
       VisualizeField(*socks_["Phir"], vishost, visport,
                      phi_v_->real(), "Sheath Potential, Re(Phi)", Wx, Wy, Ww, Wh);
@@ -1912,7 +1913,7 @@ CPDSolver::DisplayToGLVis()
       VisualizeField(*socks_["Phii"], vishost, visport,
                      phi_v_->imag(), "Sheath Potential, Im(Phi)", Wx, Wy, Ww, Wh);
 
-       
+
       Wx += offx;
       VisualizeField(*socks_["RecPhir"], vishost, visport,
                      rectPot_->real(), "Rectified Potential, Re(RecPhi)", Wx, Wy, Ww, Wh);
@@ -1920,7 +1921,7 @@ CPDSolver::DisplayToGLVis()
 
       VisualizeField(*socks_["RecPhii"], vishost, visport,
                      rectPot_->imag(), "Rectified Potential, Im(RecPhi)", Wx, Wy, Ww, Wh);
-        
+
    }
 
    if (BCoef_)
