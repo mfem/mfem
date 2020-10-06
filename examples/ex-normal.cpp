@@ -607,7 +607,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      std::ofstream out("solution.vector");
+      std::ofstream out("schur.vector");
       out << std::setprecision(14);
       X.Print(out, 1);
    }
