@@ -26,6 +26,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Kernel_C0_3D,
                            const DenseTensor &j_,
                            const Array<double> &w_,
                            const Array<double> &b_,
+                           const Array<double> &bld_,
                            Vector &h0_,
                            const int d1d,
                            const int q1d)
@@ -42,6 +43,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Kernel_C0_3D,
    const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
    const auto W = Reshape(w_.Read(), Q1D, Q1D, Q1D);
    const auto b = Reshape(b_.Read(), Q1D, D1D);
+   const auto bld = Reshape(bld_.Read(), Q1D, D1D);
 
    auto H0 = Reshape(h0_.Write(), DIM, DIM, Q1D, Q1D, Q1D, NE);
 
@@ -54,16 +56,21 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Kernel_C0_3D,
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
       MFEM_SHARED double B[MQ1*MD1];
+      MFEM_SHARED double BLD[MQ1*MD1];
+
       MFEM_SHARED double DDD[MD1*MD1*MD1];
       MFEM_SHARED double DDQ[MD1*MD1*MQ1];
       MFEM_SHARED double DQQ[MD1*MQ1*MQ1];
       MFEM_SHARED double QQQ[MQ1*MQ1*MQ1];
 
       kernels::LoadX<MD1>(e,D1D,LD,DDD);
+
       kernels::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
-      kernels::EvalX<MD1,MQ1>(D1D,Q1D,B,DDD,DDQ);
-      kernels::EvalY<MD1,MQ1>(D1D,Q1D,B,DDQ,DQQ);
-      kernels::EvalZ<MD1,MQ1>(D1D,Q1D,B,DQQ,QQQ);
+      kernels::LoadB<MD1,MQ1>(D1D,Q1D,bld,BLD);
+
+      kernels::EvalX<MD1,MQ1>(D1D,Q1D,BLD,DDD,DDQ);
+      kernels::EvalY<MD1,MQ1>(D1D,Q1D,BLD,DDQ,DQQ);
+      kernels::EvalZ<MD1,MQ1>(D1D,Q1D,BLD,DQQ,QQQ);
 
       MFEM_FOREACH_THREAD(qz,z,Q1D)
       {
@@ -112,10 +119,11 @@ void TMOP_Integrator::AssembleGradPA_C0_3D(const Vector &X) const
    const DenseTensor &J = PA.Jtr;
    const Array<double> &W = IntRule->GetWeights();
    const Array<double> &B = PA.maps->B;
+   const Array<double> &BLD = PA.maps_lim->B;
    const Vector &C0 = PA.C0;
    Vector &H0 = PA.H0;
 
-   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_Kernel_C0_3D,id,ln,LD,C0,N,J,W,B,H0);
+   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_Kernel_C0_3D,id,ln,LD,C0,N,J,W,B,BLD,H0);
 }
 
 } // namespace mfem
