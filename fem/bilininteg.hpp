@@ -131,13 +131,17 @@ public:
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
 
-   /// @brief Perform the local action of the BilinearFormIntegrator
+   /// @brief Perform the local action of the BilinearFormIntegrator.
+   /// Note that the default implementation in the base class is general but not
+   /// efficient.
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &Tr,
                                       const Vector &elfun, Vector &elvect);
 
    /// @brief Perform the local action of the BilinearFormIntegrator resulting
    /// from a face integral term.
+   /// Note that the default implementation in the base class is general but not
+   /// efficient.
    virtual void AssembleFaceVector(const FiniteElement &el1,
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Tr,
