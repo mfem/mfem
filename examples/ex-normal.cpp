@@ -188,8 +188,8 @@ void PenaltyConstrainedSolver::Mult(const Vector& b, Vector& x) const
 
    // form penalized right-hand side
    Vector rhs_disp, rhs_lm;
-   rhs_disp.MakeRef(const_cast<Vector&>(x), 0, disp_size);
-   rhs_lm.MakeRef(const_cast<Vector&>(x), disp_size, lm_size);
+   rhs_disp.MakeRef(const_cast<Vector&>(b), 0, disp_size);
+   rhs_lm.MakeRef(const_cast<Vector&>(b), disp_size, lm_size);
    Vector temp(disp_size);
    constraintB.MultTranspose(rhs_lm, temp);
    temp *= penalty;
@@ -202,7 +202,7 @@ void PenaltyConstrainedSolver::Mult(const Vector& b, Vector& x) const
    cg.SetOperator(*penalized_mat);
    cg.SetRelTol(rel_tol);
    cg.SetAbsTol(1.e-12);
-   cg.SetMaxIter(100);
+   cg.SetMaxIter(400);
    cg.SetPrintLevel(1);
 
    /// note well this is *unpreconditioned*

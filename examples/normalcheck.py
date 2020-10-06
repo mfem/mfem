@@ -43,10 +43,10 @@ def penalty():
                               "--reltol", "1.e-10"],
                              stdout=fd, stderr=fd)
         p.communicate()
-        for penalty in [1.e-3, 1.e-5, 1.e-7]:
+        for penalty in [1.0, 1.e+2, 1.e+4, 1.e+6]:
             print(penalty)
             p = subprocess.Popen(["./ex-normal",
-                                  "--reltol", "1.e-8",
+                                  "--reltol", "1.e-10",
                                   "--penalty", str(penalty)],
                                  stdout=fd, stderr=fd)
             p.communicate()
