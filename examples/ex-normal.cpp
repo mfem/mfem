@@ -15,8 +15,6 @@
 
   some todo items:
 
-  - the block diagonal version of ConstrainedSolver should also be
-    an external subobject (like the elimination version)
   - improve Schur complement?
   - add penalty version
   - systematic testing of the solvers
@@ -165,14 +163,16 @@ public:
    void Mult(const Vector& x, Vector& y) const;
 
 private:
+   BlockOperator& block_op;
    Solver& primal_pc;  // not owned
    BlockDiagonalPreconditioner block_pc;  // owned
    Solver * dual_pc;  // owned
 };
 
-SchurConstrainedSolver::SchurConstrainedSolver(BlockOperator& block_op,
+SchurConstrainedSolver::SchurConstrainedSolver(BlockOperator& block_op_,
                                                Solver& primal_pc_)
    :
+   block_op(block_op_),
    primal_pc(primal_pc_),
    block_pc(block_op.RowOffsets()),
    dual_pc(NULL)
@@ -191,7 +191,15 @@ SchurConstrainedSolver::~SchurConstrainedSolver()
 
 void SchurConstrainedSolver::Mult(const Vector& x, Vector& y) const
 {
-   block_pc.Mult(x, y);
+   GMRESSolver gmres(MPI_COMM_WORLD);
+   gmres.SetOperator(block_op);
+   gmres.SetRelTol(1.e-6);
+   gmres.SetAbsTol(1.e-12);
+   gmres.SetMaxIter(500);
+   gmres.SetPrintLevel(1);
+   gmres.SetPreconditioner(const_cast<BlockDiagonalPreconditioner&>(block_pc));
+
+   gmres.Mult(x, y);
 }
 
 /**
@@ -265,7 +273,6 @@ public:
 private:
    Array<int> offsets;
    BlockOperator * block_op;
-   GMRESSolver gmres; // goes in schur_solver?
    TransposeOperator * tr_B;
 
    SchurConstrainedSolver * schur_solver;
@@ -280,7 +287,6 @@ ConstrainedSolver::ConstrainedSolver(Operator& A, Operator& B)
    // Solver(A.Height() + B.Height()),
    Solver(A.Height()),  // not sure conceptually what the size should be!
    offsets(3),
-   gmres(MPI_COMM_WORLD),
    schur_solver(NULL),
    elim_solver(NULL)
 {
@@ -293,12 +299,6 @@ ConstrainedSolver::ConstrainedSolver(Operator& A, Operator& B)
    block_op->SetBlock(1, 0, &B);
    tr_B = new TransposeOperator(&B);
    block_op->SetBlock(0, 1, tr_B);
-
-   gmres.SetOperator(*block_op);
-   gmres.SetRelTol(1.e-6);
-   gmres.SetAbsTol(1.e-12);
-   gmres.SetMaxIter(500);
-   gmres.SetPrintLevel(1);
 
    workb.SetSize(A.Height() + B.Height());
    workx.SetSize(A.Height() + B.Height());
@@ -315,7 +315,6 @@ ConstrainedSolver::~ConstrainedSolver()
 void ConstrainedSolver::SetPrimalPreconditioner(Solver& pc)
 {
    schur_solver = new SchurConstrainedSolver(*block_op, pc);
-   gmres.SetPreconditioner(*schur_solver);
 }
 
 /// @todo consistency in primary/secondary notation (think it's fine
@@ -361,7 +360,7 @@ void ConstrainedSolver::Mult(const Vector& b, Vector& x) const
    }
    else
    {
-      gmres.Mult(workb, workx);
+      schur_solver->Mult(workb, workx);
    }
 
    for (int i = 0; i < b.Size(); ++i)
