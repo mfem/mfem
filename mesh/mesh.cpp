@@ -1223,58 +1223,136 @@ void Mesh::InitMesh(int _Dim, int _spaceDim, int NVert, int NElem, int NBdrElem)
    boundary.SetSize(NBdrElem);  // just allocate space for Element *
 }
 
-void Mesh::AddVertex(const double *x)
+template<typename T>
+static void CheckEnlarge(Array<T> &array, int size)
 {
-   double *y = vertices[NumOfVertices]();
+   if (size >= array.Size()) { array.SetSize(size + 1); }
+}
 
-   for (int i = 0; i < spaceDim; i++)
+int Mesh::AddVertex(double x, double y, double z)
+{
+   CheckEnlarge(vertices, NumOfVertices);
+   double *v = vertices[NumOfVertices]();
+   v[0] = x;
+   v[1] = y;
+   v[2] = z;
+   return NumOfVertices++;
+}
+
+int Mesh::AddVertex(const double *coords)
+{
+   CheckEnlarge(vertices, NumOfVertices);
+   vertices[NumOfVertices].SetCoords(spaceDim, coords);
+   return NumOfVertices++;
+}
+
+void Mesh::AddVertexParents(int i, int p1, int p2)
+{
+   tmp_vertex_parents.Append(Triple<int, int, int>(i, p1, p2));
+
+   // if vertex coordinates are defined, make sure the hanging vertex has the
+   // correct position
+   if (i < vertices.Size())
    {
-      y[i] = x[i];
+      double *vi = vertices[i](), *vp1 = vertices[p1](), *vp2 = vertices[p2]();
+      for (int j = 0; j < 3; j++)
+      {
+         vi[j] = (vp1[j] + vp2[j]) * 0.5;
+      }
    }
-   NumOfVertices++;
 }
 
-void Mesh::AddSegment(const int *vi, int attr)
+int Mesh::AddSegment(int v1, int v2, int attr)
 {
-   elements[NumOfElements++] = new Segment(vi, attr);
+   CheckEnlarge(elements, NumOfElements);
+   elements[NumOfElements] = new Segment(v1, v2, attr);
+   return NumOfElements++;
 }
 
-void Mesh::AddTri(const int *vi, int attr)
+int Mesh::AddSegment(const int *vi, int attr)
 {
-   elements[NumOfElements++] = new Triangle(vi, attr);
+   CheckEnlarge(elements, NumOfElements);
+   elements[NumOfElements] = new Segment(vi, attr);
+   return NumOfElements++;
 }
 
-void Mesh::AddTriangle(const int *vi, int attr)
+int Mesh::AddTriangle(int v1, int v2, int v3, int attr)
 {
-   elements[NumOfElements++] = new Triangle(vi, attr);
+   CheckEnlarge(elements, NumOfElements);
+   elements[NumOfElements] = new Triangle(v1, v2, v3, attr);
+   return NumOfElements++;
 }
 
-void Mesh::AddQuad(const int *vi, int attr)
+int Mesh::AddTriangle(const int *vi, int attr)
 {
-   elements[NumOfElements++] = new Quadrilateral(vi, attr);
+   CheckEnlarge(elements, NumOfElements);
+   elements[NumOfElements] = new Triangle(vi, attr);
+   return NumOfElements++;
 }
 
-void Mesh::AddTet(const int *vi, int attr)
+int Mesh::AddQuad(int v1, int v2, int v3, int v4, int attr)
 {
+   CheckEnlarge(elements, NumOfElements);
+   elements[NumOfElements] = new Quadrilateral(v1, v2, v3, v4, attr);
+   return NumOfElements++;
+}
+
+int Mesh::AddQuad(const int *vi, int attr)
+{
+   CheckEnlarge(elements, NumOfElements);
+   elements[NumOfElements] = new Quadrilateral(vi, attr);
+   return NumOfElements++;
+}
+
+int Mesh::AddTet(int v1, int v2, int v3, int v4, int attr)
+{
+   int vi[4] = {v1, v2, v3, v4};
+   return AddTet(vi, attr);
+}
+
+int Mesh::AddTet(const int *vi, int attr)
+{
+   CheckEnlarge(elements, NumOfElements);
 #ifdef MFEM_USE_MEMALLOC
    Tetrahedron *tet;
    tet = TetMemory.Alloc();
    tet->SetVertices(vi);
    tet->SetAttribute(attr);
-   elements[NumOfElements++] = tet;
+   elements[NumOfElements] = tet;
 #else
-   elements[NumOfElements++] = new Tetrahedron(vi, attr);
+   elements[NumOfElements] = new Tetrahedron(vi, attr);
 #endif
+   return NumOfElements++;
 }
 
-void Mesh::AddWedge(const int *vi, int attr)
+int Mesh::AddWedge(int v1, int v2, int v3, int v4, int v5, int v6, int attr)
 {
-   elements[NumOfElements++] = new Wedge(vi, attr);
+   CheckEnlarge(elements, NumOfElements);
+   elements[NumOfElements] = new Wedge(v1, v2, v3, v4, v5, v6, attr);
+   return NumOfElements++;
 }
 
-void Mesh::AddHex(const int *vi, int attr)
+int Mesh::AddWedge(const int *vi, int attr)
 {
-   elements[NumOfElements++] = new Hexahedron(vi, attr);
+   CheckEnlarge(elements, NumOfElements);
+   elements[NumOfElements] = new Wedge(vi, attr);
+   return NumOfElements++;
+}
+
+int Mesh::AddHex(int v1, int v2, int v3, int v4, int v5, int v6, int v7, int v8,
+                 int attr)
+{
+   CheckEnlarge(elements, NumOfElements);
+   elements[NumOfElements] =
+      new Hexahedron(v1, v2, v3, v4, v5, v6, v7, v8, attr);
+   return NumOfElements++;
+}
+
+int Mesh::AddHex(const int *vi, int attr)
+{
+   CheckEnlarge(elements, NumOfElements);
+   elements[NumOfElements] = new Hexahedron(vi, attr);
+   return NumOfElements++;
 }
 
 void Mesh::AddHexAsTets(const int *vi, int attr)
@@ -1314,19 +1392,60 @@ void Mesh::AddHexAsWedges(const int *vi, int attr)
    }
 }
 
-void Mesh::AddBdrSegment(const int *vi, int attr)
+int Mesh::AddElement(Element *elem)
 {
-   boundary[NumOfBdrElements++] = new Segment(vi, attr);
+   CheckEnlarge(elements, NumOfElements);
+   elements[NumOfElements] = elem;
+   return NumOfElements++;
 }
 
-void Mesh::AddBdrTriangle(const int *vi, int attr)
+int Mesh::AddBdrElement(Element *elem)
 {
-   boundary[NumOfBdrElements++] = new Triangle(vi, attr);
+   CheckEnlarge(boundary, NumOfBdrElements);
+   boundary[NumOfBdrElements] = elem;
+   return NumOfBdrElements++;
 }
 
-void Mesh::AddBdrQuad(const int *vi, int attr)
+int Mesh::AddBdrSegment(int v1, int v2, int attr)
 {
-   boundary[NumOfBdrElements++] = new Quadrilateral(vi, attr);
+   CheckEnlarge(boundary, NumOfBdrElements);
+   boundary[NumOfBdrElements] = new Segment(v1, v2, attr);
+   return NumOfBdrElements++;
+}
+
+int Mesh::AddBdrSegment(const int *vi, int attr)
+{
+   CheckEnlarge(boundary, NumOfBdrElements);
+   boundary[NumOfBdrElements] = new Segment(vi, attr);
+   return NumOfBdrElements++;
+}
+
+int Mesh::AddBdrTriangle(int v1, int v2, int v3, int attr)
+{
+   CheckEnlarge(boundary, NumOfBdrElements);
+   boundary[NumOfBdrElements] = new Triangle(v1, v2, v3, attr);
+   return NumOfBdrElements++;
+}
+
+int Mesh::AddBdrTriangle(const int *vi, int attr)
+{
+   CheckEnlarge(boundary, NumOfBdrElements);
+   boundary[NumOfBdrElements] = new Triangle(vi, attr);
+   return NumOfBdrElements++;
+}
+
+int Mesh::AddBdrQuad(int v1, int v2, int v3, int v4, int attr)
+{
+   CheckEnlarge(boundary, NumOfBdrElements);
+   boundary[NumOfBdrElements] = new Quadrilateral(v1, v2, v3, v4, attr);
+   return NumOfBdrElements++;
+}
+
+int Mesh::AddBdrQuad(const int *vi, int attr)
+{
+   CheckEnlarge(boundary, NumOfBdrElements);
+   boundary[NumOfBdrElements] = new Quadrilateral(vi, attr);
+   return NumOfBdrElements++;
 }
 
 void Mesh::AddBdrQuadAsTriangles(const int *vi, int attr)
@@ -2419,6 +2538,15 @@ void Mesh::FinalizeTopology(bool generate_bdr)
 
    // generate the arrays 'attributes' and 'bdr_attributes'
    SetAttributes();
+
+   // if the user defined any hanging nodes (see AddVertexParent),
+   // initialize the NC mesh now
+   if (tmp_vertex_parents.Size())
+   {
+      MFEM_VERIFY(ncmesh == NULL, "");
+      EnsureNCMesh(true);
+      tmp_vertex_parents.DeleteAll();
+   }
 }
 
 void Mesh::Finalize(bool refine, bool fix_orientation)
