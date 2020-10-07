@@ -223,6 +223,8 @@ private:
                      const mfem::Vector& x,
                      mfem::Vector& r) const;
 
+   const CeedMultigridLevel &level_;
+
    const mfem::Operator& fine_operator_;
    const mfem::Solver& coarse_solver_;
    const mfem::Operator* fine_smoother_;
@@ -617,6 +619,13 @@ void UnconstrainedMFEMCeedOperator::Mult(const mfem::Vector& x, mfem::Vector& y)
    MFEM_ASSERT(ierr == 0, "CEED error");
 }
 
+struct IdentitySolver : Solver
+{
+   IdentitySolver(int n) : Solver(n) { }
+   void Mult(const Vector &b, Vector &x) const { x = b; }
+   void SetOperator(const Operator &op) { }
+};
+
 mfem::Solver * BuildSmootherFromCeed(Operator * mfem_op, CeedOperator ceed_op,
                                      const Array<int>& ess_tdofs,
                                      const Operator *P,
@@ -655,7 +664,7 @@ mfem::Solver * BuildSmootherFromCeed(Operator * mfem_op, CeedOperator ceed_op,
       mfem_diag.SetDataAndSize(local_diag, local_diag.Size());
    }
    mfem::Solver * out = NULL;
-   if (chebyshev)
+   if (chebyshev && false)
    {
       const int cheb_order = 3;
       out = new OperatorChebyshevSmoother(mfem_op, mfem_diag, ess_tdofs, cheb_order);
@@ -676,6 +685,7 @@ MFEMCeedVCycle::MFEMCeedVCycle(
    const mfem::Solver& coarse_solver)
    :
    mfem::Solver(fine_operator.Height()),
+   level_(level),
    fine_operator_(fine_operator),
    coarse_solver_(coarse_solver),
    interp_(*level.mfem_interp_rap_)
@@ -716,10 +726,39 @@ void MFEMCeedVCycle::Mult(const mfem::Vector& b, mfem::Vector& x) const
    x += correction_;
 
    FormResidual(b, x, residual_);
+
+   // int myid;
+   // MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+
+   // double res;
+   // Vector Rt_r(level_.R_fine_tr->Height());
+   // level_.R_fine_tr->Mult(residual_, Rt_r);
+   // res = InnerProduct(MPI_COMM_WORLD, Rt_r, Rt_r);
+   // if (myid == 0) { std::cout << res << '\n'; }
+
+   // Vector r0(level_.mfem_interp_->Width());
+   // level_.mfem_interp_->MultTranspose(Rt_r, r0);
+
+   // double glb_sum, loc_sum;
+   // loc_sum = r0.Sum();
+   // MPI_Allreduce(&loc_sum, &glb_sum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+   // if (myid == 0) { std::cout << "sum: " << glb_sum << '\n'; }
+
+   // Vector r0t(level_.P->Width());
+   // level_.P->MultTranspose(r0, r0t);
+   // res = InnerProduct(MPI_COMM_WORLD, r0t, r0t);
+   // if (myid == 0) { std::cout << "Pt:  " << res << '\n'; }
+
    interp_.MultTranspose(residual_, coarse_residual_);
+   // res = InnerProduct(MPI_COMM_WORLD, coarse_residual_, coarse_residual_);
+   // if (myid == 0) { std::cout << res << '\n'; }
+
    coarse_correction_ = 0.0;
    coarse_solver_.Mult(coarse_residual_, coarse_correction_);
    interp_.Mult(coarse_correction_, correction_);
+
+   // std::cout << InnerProduct(MPI_COMM_WORLD, correction_, correction_) << '\n';
+
    x += correction_;
 
    FormResidual(b, x, residual_);
@@ -946,6 +985,7 @@ CeedMultigridLevel::CeedMultigridLevel(CeedOperator oper,
       CeedElemRestrictionGetLVectorSize(lo_er_[0], &lsize);
       const Table &group_ldof_fine = gc_fine->GroupLDofTable();
 
+      /*
       Array<int> coarse2fine(lsize);
       int i_fine = 0;
       int i_coarse = 0;
@@ -956,14 +996,58 @@ CeedMultigridLevel::CeedMultigridLevel(CeedOperator oper,
          ++i_coarse;
          ++i_fine;
       }
+      */
 
+      /*
       std::unique_ptr<Table> ldof_group_fine(Transpose(group_ldof_fine));
+      {
+         int myid;
+         MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+         std::ofstream f("group_ldof_fine." + std::to_string(it) + "." + std::to_string(myid) + ".txt");
+         group_ldof_fine.Print(f);
+         ++it;
+      }*/
+
+      Array<int> ldof_group(lsize);
+      ldof_group = 0;
 
       gc = new GroupCommunicator(gc_fine->GetGroupTopology());
-      Array<int> ldof_group(lsize);
+      Table &group_ldof = gc->GroupLDofTable();
+      group_ldof.MakeI(group_ldof_fine.Size());
+      for (int g=1; g<group_ldof_fine.Size(); ++g)
+      {
+         int nldof_fine_g = group_ldof_fine.RowSize(g);
+         const int *ldof_fine_g = group_ldof_fine.GetRow(g);
+         for (int i=0; i<nldof_fine_g; ++i)
+         {
+            int icoarse = dof_map[ldof_fine_g[i]];
+            if (icoarse >= 0)
+            {
+               group_ldof.AddAColumnInRow(g);
+               ldof_group[icoarse] = g;
+            }
+         }
+      }
+      group_ldof.MakeJ();
+      for (int g=1; g<group_ldof_fine.Size(); ++g)
+      {
+         int nldof_fine_g = group_ldof_fine.RowSize(g);
+         const int *ldof_fine_g = group_ldof_fine.GetRow(g);
+         for (int i=0; i<nldof_fine_g; ++i)
+         {
+            int icoarse = dof_map[ldof_fine_g[i]];
+            if (icoarse >= 0)
+            {
+               group_ldof.AddConnection(g, icoarse);
+            }
+         }
+      }
+      group_ldof.ShiftUpI();
+      gc->Finalize();
+
+      /*
       for (int i=0; i<lsize; ++i)
       {
-         // int i_fine = dof_map[i];
          int i_fine = coarse2fine[i];
          MFEM_ASSERT(i_fine >= 0, "");
          if (i_fine >= ldof_group_fine->Size())
@@ -980,22 +1064,23 @@ CeedMultigridLevel::CeedMultigridLevel(CeedOperator oper,
          }
       }
       gc->Create(ldof_group);
+      */
 
       Array<int> ldof_ltdof(lsize);
       ldof_ltdof = -2;
-      int tsize = 0;
+      int ltsize = 0;
       for (int i=0; i<lsize; ++i)
       {
          int g = ldof_group[i];
          if (g == 0 || gc->GetGroupTopology().IAmMaster(g))
          {
-            ldof_ltdof[i] = tsize;
-            ++tsize;
+            ldof_ltdof[i] = ltsize;
+            ++ltsize;
          }
       }
       gc->SetLTDofTable(ldof_ltdof);
 
-      SparseMatrix *R_mat = new SparseMatrix(tsize, lsize);
+      SparseMatrix *R_mat = new SparseMatrix(ltsize, lsize);
       for (int j=0; j<lsize; ++j)
       {
          int i = ldof_ltdof[j];
