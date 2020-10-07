@@ -241,6 +241,12 @@ public:
    /// Compute CFL
    double ComputeCFL(ParGridFunction &u, double dt);
 
+   /// Set the number of modes to cut off in the interpolation filter
+   void SetCutoffModes(int c) { filter_cutoff_modes = c; }
+
+   /// Set the interpolation filter parameter @a alpha
+   void SetFilterAlpha(double a) { filter_alpha = a; }
+
 protected:
    /// Print informations about the Navier version.
    void PrintInfo();
@@ -412,6 +418,14 @@ protected:
    OperatorHandle Mv_lor;
    OperatorHandle Sp_lor;
    OperatorHandle H_lor;
+
+   // Filter-based stabilization
+   int filter_cutoff_modes = 1;
+   double filter_alpha = 0.0;
+   FiniteElementCollection *vfec_filter = nullptr;
+   ParFiniteElementSpace *vfes_filter = nullptr;
+   ParGridFunction un_NM1_gf;
+   ParGridFunction un_filtered_gf;
 };
 } // namespace navier
 } // namespace mfem
