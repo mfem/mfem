@@ -202,15 +202,29 @@ protected:
    /// Ensure that bdr_attributes and attributes agree across processors
    void DistributeAttributes(Array<int> &attr);
 
+   void LoadSharedEntities(std::istream &input);
+
+   /// If the mesh is curved, make sure 'Nodes' is ParGridFunction.
+   void EnsureParNodes();
+
+   void Destroy();
+
 public:
+   /// Create a parallel mesh by partitioning a serial Mesh.
+   /** The mesh is partitioned automatically or using external partitioning
+       data (the optional parameter 'partitioning_[i]' contains the desired MPI
+       rank for element 'i'). Automatic partitioning uses METIS for conforming
+       meshes and quick space-filling curve equipartitioning for nonconforming
+       meshes (elements of nonconforming meshes should ideally be ordered as a
+       sequence of face-neighbors). */
+   ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_ = NULL,
+           int part_method = 1);
+
    /** Copy constructor. Performs a deep copy of (almost) all data, so that the
        source mesh can be modified (e.g. deleted, refined) without affecting the
        new mesh. If 'copy_nodes' is false, use a shallow (pointer) copy for the
        nodes, if present. */
    explicit ParMesh(const ParMesh &pmesh, bool copy_nodes = true);
-
-   ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_ = NULL,
-           int part_method = 1);
 
    /// Read a parallel mesh, each MPI rank from its own file/stream.
    /** The @a refine parameter is passed to the method Mesh::Finalize(). */
@@ -326,6 +340,9 @@ public:
        for 0 <= i < GetNE(). */
    void Rebalance(const Array<int> &partition);
 
+   /// Save the mesh in a parallel mesh format.
+   void ParPrint(std::ostream &out) const;
+
    /** Print the part of the mesh in the calling processor adding the interface
        as boundary (for visualization purposes) using the mfem v1.0 format. */
    virtual void Print(std::ostream &out = mfem::out) const;
@@ -349,6 +366,10 @@ public:
    /// Old mesh format (Netgen/Truegrid) version of 'PrintAsOne'
    void PrintAsOneXG(std::ostream &out = mfem::out);
 
+   /// Parallel version of Mesh::Load().
+   virtual void Load(std::istream &input, int generate_edges = 0,
+                     int refine = 1, bool fix_orientation = true);
+
    /// Returns the minimum and maximum corners of the mesh bounding box. For
    /// high-order meshes, the geometry is refined first "ref" times.
    void GetBoundingBox(Vector &p_min, Vector &p_max, int ref = 2);
@@ -358,9 +379,6 @@ public:
 
    /// Print various parallel mesh stats
    virtual void PrintInfo(std::ostream &out = mfem::out);
-
-   /// Save the mesh in a parallel mesh format.
-   void ParPrint(std::ostream &out) const;
 
    virtual int FindPoints(DenseMatrix& point_mat, Array<int>& elem_ids,
                           Array<IntegrationPoint>& ips, bool warn = true,
@@ -375,7 +393,6 @@ public:
 #ifdef MFEM_USE_PUMI
    friend class ParPumiMesh;
 #endif
-
 #ifdef MFEM_USE_ADIOS2
    friend class adios2stream;
 #endif
