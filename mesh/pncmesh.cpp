@@ -134,6 +134,8 @@ void ParNCMesh::ElementSharesFace(int elem, int local, int face)
 
 void ParNCMesh::BuildFaceList()
 {
+   if (HaveTets()) { GetEdgeList(); } // needed by TraverseTetEdge()
+
    // This is an extension of NCMesh::BuildFaceList() which also determines
    // face ownership and prepares face processor groups.
 
