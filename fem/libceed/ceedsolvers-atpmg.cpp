@@ -315,21 +315,6 @@ int CeedATPMGElemRestriction(int order,
     return CeedError(ceed, 1, "Bad dimension!");
   }
 
-  std::vector<int> perm(running_out_ldof_count);
-  int icoarse = 0;
-  for (int i=0; i<numnodes; ++i) {
-    if (dof_map[i] >= 0) {
-      perm[dof_map[i]] = icoarse;
-      dof_map[i] = icoarse;
-      ++icoarse;
-      if (icoarse == running_out_ldof_count) { break; }
-    }
-  }
-  for (int i=0; i<numelem*coarse_elemsize; ++i)
-  {
-    out_elem_dof[i] = perm[out_elem_dof[i]];
-  }
-
   ierr = CeedVectorRestoreArrayRead(in_evec, &in_elem_dof); CeedChk(ierr);
   ierr = CeedVectorDestroy(&in_evec); CeedChk(ierr);
 

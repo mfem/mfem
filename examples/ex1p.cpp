@@ -62,28 +62,33 @@ double fcoeff(const Vector& x)
 {
    double out = sin(x[0]);
    if (x.Size() > 1)
+   {
       out *= sin(x[1]);
+   }
    if (x.Size() > 2)
+   {
       out *= sin(x[2]);
+   }
    return 2.0 + out;
 }
 
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   MPI_Session mpi;
+   int num_procs = mpi.WorldSize();
+   int myid = mpi.WorldRank();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool static_cond = false;
-   bool pa = false;
-   const char *device_config = "cpu";
-   bool visualization = true;
+   bool pa = true;
+   const char *device_config = "ceed-cpu";
+   bool visualization = false;
    bool algebraic_ceed = true;
+   int ref_s = 0;
+   int ref_p = 0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -91,6 +96,8 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&ref_s, "-rs", "--refine-serial", "Serial refinements.");
+   args.AddOption(&ref_p, "-rp", "--refine-parallel", "Parallel refinements.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -132,13 +139,9 @@ int main(int argc, char *argv[])
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
+   for (int l = 0; l < ref_s; l++)
    {
-      int ref_levels =
-         (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
-      for (int l = 0; l < ref_levels; l++)
-      {
-         mesh.UniformRefinement();
-      }
+      mesh.UniformRefinement();
    }
 
    // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
@@ -146,12 +149,9 @@ int main(int argc, char *argv[])
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
+   for (int l = 0; l < ref_p; l++)
    {
-      int par_ref_levels = 2;
-      for (int l = 0; l < par_ref_levels; l++)
-      {
-         pmesh.UniformRefinement();
-      }
+      pmesh.UniformRefinement();
    }
 
    // 7. Define a parallel finite element space on the parallel mesh. Here we
@@ -197,6 +197,8 @@ int main(int argc, char *argv[])
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
+   // ess_tdof_list.SetSize(0);
+
    // 9. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system, which in this case is
    //    (1,phi_i) where phi_i are the basis functions in fespace.
@@ -221,7 +223,11 @@ int main(int argc, char *argv[])
    gf.ProjectCoefficient(varying);
    GridFunctionCoefficient gfc_varying(&gf);
 
-   a.AddDomainIntegrator(new DiffusionIntegrator(gfc_varying));
+   Coefficient *diff_coeff;
+   // diff_coeff = &one;
+   diff_coeff = &gfc_varying;
+
+   a.AddDomainIntegrator(new DiffusionIntegrator(*diff_coeff));
    // a.AddDomainIntegrator(new DiffusionIntegrator(one));
    a.AddDomainIntegrator(new MassIntegrator(one));
 
@@ -248,11 +254,14 @@ int main(int argc, char *argv[])
    {
       if (UsesTensorBasis(fespace))
       {
-#ifdef MFEM_USE_CEED         
+#ifdef MFEM_USE_CEED
          if (DeviceCanUseCeed() && algebraic_ceed)
          {
-            // prec = new AlgebraicCeedSolver(*A, a, ess_tdof_list, true);
-            prec = new AlgebraicCeedSolver(*A, a, ess_tdof_list, false);
+            // AlgebraicCeedSolver solv
+            //    = new AlgebraicCeedSolver(*A, a, ess_tdof_list, true);
+            AlgebraicCeedSolver *solv
+               = new AlgebraicCeedSolver(*A, a, ess_tdof_list, false);
+            prec = solv;
          }
          else
 #endif
@@ -265,6 +274,14 @@ int main(int argc, char *argv[])
    {
       prec = new HypreBoomerAMG;
    }
+
+   // X = 0.0;
+   // prec->Mult(B, X);
+   // double nrm = InnerProduct(MPI_COMM_WORLD, X, X);
+   // if (mpi.Root()) { printf("%16.12e\n", nrm); }
+
+   // return 0;
+
    CGSolver cg(MPI_COMM_WORLD);
    cg.SetRelTol(1e-12);
    cg.SetMaxIter(2000);
@@ -310,7 +327,6 @@ int main(int argc, char *argv[])
    {
       delete fec;
    }
-   MPI_Finalize();
 
    return 0;
 }
