@@ -2505,13 +2505,6 @@ GetSharedFaceTransformations(int sf, bool fill2)
    return &FaceElemTr;
 }
 
-int ParMesh::GetFaceNbrElementOfSharedFace(int sf) const
-{
-   int face_idx = GetSharedFace(sf);
-   const FaceInfo &face_info = faces_info[face_idx];
-   return -1 - face_info.Elem2No;
-}
-
 int ParMesh::GetSharedFaceIndexOfLocalFace(int face_idx) const
 {
    if (lface_sface.empty())
@@ -2527,25 +2520,6 @@ int ParMesh::GetSharedFaceIndexOfLocalFace(int face_idx) const
       }
    }
    return lface_sface[face_idx];
-}
-
-int ParMesh::GetNSharedFaces() const
-{
-   if (Conforming())
-   {
-      switch (Dim)
-      {
-         case 1:  return svert_lvert.Size();
-         case 2:  return sedge_ledge.Size();
-         default: return sface_lface.Size();
-      }
-   }
-   else
-   {
-      MFEM_ASSERT(Dim > 1, "");
-      const NCMesh::NCList &shared = pncmesh->GetSharedList(Dim-1);
-      return shared.conforming.size() + shared.slaves.size();
-   }
 }
 
 int ParMesh::GetLocalFaceIndexOfSharedFace(int sface) const
@@ -2567,6 +2541,32 @@ int ParMesh::GetLocalFaceIndexOfSharedFace(int sface) const
       return sface < csize
              ? shared.conforming[sface].index
              : shared.slaves[sface - csize].index;
+   }
+}
+
+int ParMesh::GetFaceNbrElementOfSharedFace(int sf) const
+{
+   int face_idx = GetSharedFace(sf);
+   const FaceInfo &face_info = faces_info[face_idx];
+   return -1 - face_info.Elem2No;
+}
+
+int ParMesh::GetNSharedFaces() const
+{
+   if (Conforming())
+   {
+      switch (Dim)
+      {
+         case 1:  return svert_lvert.Size();
+         case 2:  return sedge_ledge.Size();
+         default: return sface_lface.Size();
+      }
+   }
+   else
+   {
+      MFEM_ASSERT(Dim > 1, "");
+      const NCMesh::NCList &shared = pncmesh->GetSharedList(Dim-1);
+      return shared.conforming.size() + shared.slaves.size();
    }
 }
 
