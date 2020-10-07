@@ -257,10 +257,8 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_CEED
          if (DeviceCanUseCeed() && algebraic_ceed)
          {
-            // AlgebraicCeedSolver solv
-            //    = new AlgebraicCeedSolver(*A, a, ess_tdof_list, true);
             AlgebraicCeedSolver *solv
-               = new AlgebraicCeedSolver(*A, a, ess_tdof_list, false);
+               = new AlgebraicCeedSolver(*A, a, ess_tdof_list, true);
             prec = solv;
          }
          else

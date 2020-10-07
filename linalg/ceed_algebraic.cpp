@@ -106,6 +106,7 @@ public:
    CeedMultigridLevel(CeedOperator oper,
                       const mfem::Array<int>& ess_dofs,
                       int order_reduction,
+                      Mesh &mesh,
                       GroupComm *gc_fine,
                       const Operator *P_fine,
                       const Operator *R_fine);
@@ -118,11 +119,15 @@ public:
 
    Operator *GetProlongation() const { return P; }
 
+   HypreParMatrix *GetProlongationHypreParMatrix() const { return P_hypre; }
+
    const Operator *GetFineProlongation() const { return P_fine_; }
 
    Operator *GetRestriction() const { return R; }
 
    GroupComm *GetGroupComm() const { return gc; }
+
+   Array<int> &GetDofOffsets() { return dof_offsets; }
 
    friend class MFEMCeedVCycle;
 
@@ -138,12 +143,15 @@ private:
    MFEMCeedInterpolation * mfem_interp_;
    Operator *mfem_interp_rap_;
 
+   Array<HYPRE_Int> dof_offsets, tdof_offsets, tdof_nb_offsets;
+
    const mfem::Array<int>& ho_ess_tdof_list_;
    mfem::Array<int> lo_ess_tdof_list_;
    int numsub_;
 
    GroupComm *gc;
    Operator *P, *R;
+   HypreParMatrix *P_hypre;
    const Operator *P_fine_;
    TransposeOperator *R_fine_tr;
 };
@@ -240,9 +248,7 @@ private:
 class CeedCGWithAMG : public mfem::Solver
 {
 public:
-   CeedCGWithAMG(CeedOperator oper,
-                 mfem::Array<int>& ess_tdof_list,
-                 const Operator *P,
+   CeedCGWithAMG(CeedMultigridLevel &level,
                  int sparse_solver_type,
                  bool use_amgx);
 
@@ -662,7 +668,7 @@ mfem::Solver * BuildSmootherFromCeed(Operator * mfem_op, CeedOperator ceed_op,
       mfem_diag.SetDataAndSize(local_diag, local_diag.Size());
    }
    mfem::Solver * out = NULL;
-   if (chebyshev && false)
+   if (chebyshev)
    {
       const int cheb_order = 3;
       out = new OperatorChebyshevSmoother(mfem_op, mfem_diag, ess_tdofs, cheb_order);
@@ -891,6 +897,7 @@ void CoarsenEssentialDofs(const mfem::Operator& mfem_interp,
 CeedMultigridLevel::CeedMultigridLevel(CeedOperator oper,
                                        const mfem::Array<int>& ho_ess_tdof_list,
                                        int order_reduction,
+                                       Mesh &mesh,
                                        GroupComm *gc_fine,
                                        const Operator *P_fine,
                                        const Operator *R_fine)
@@ -955,7 +962,8 @@ CeedMultigridLevel::CeedMultigridLevel(CeedOperator oper,
       Array<int> ldof_group(lsize);
       ldof_group = 0;
 
-      gc = new GroupCommunicator(gc_fine->GetGroupTopology());
+      GroupTopology &group_topo = gc_fine->GetGroupTopology();
+      gc = new GroupCommunicator(group_topo);
       Table &group_ldof = gc->GroupLDofTable();
       group_ldof.MakeI(group_ldof_fine.Size());
       for (int g=1; g<group_ldof_fine.Size(); ++g)
@@ -994,20 +1002,21 @@ CeedMultigridLevel::CeedMultigridLevel(CeedOperator oper,
       for (int i=0; i<lsize; ++i)
       {
          int g = ldof_group[i];
-         if (g == 0 || gc->GetGroupTopology().IAmMaster(g))
+         if (group_topo.IAmMaster(g))
          {
             ldof_ltdof[i] = ltsize;
             ++ltsize;
          }
       }
       gc->SetLTDofTable(ldof_ltdof);
+      gc->Bcast(ldof_ltdof);
 
       SparseMatrix *R_mat = new SparseMatrix(ltsize, lsize);
       for (int j=0; j<lsize; ++j)
       {
-         int i = ldof_ltdof[j];
-         if (i >= 0)
+         if (group_topo.IAmMaster(ldof_group[j]))
          {
+            int i = ldof_ltdof[j];
             R_mat->Set(i,j,1.0);
          }
       }
@@ -1015,6 +1024,118 @@ CeedMultigridLevel::CeedMultigridLevel(CeedOperator oper,
       R = R_mat;
 
       P = new ConformingProlongationOperator(lsize, *gc);
+
+      // Want also to represent P as a HypreParMatrix
+      // (only need this at the coarsest level, should have an option
+      // to turn this off)
+
+      // This is a lot of duplicated code from ParFiniteElementSpace.
+      // We can either accept the code duplication, or perhaps create a derived
+      // class that privately inherits from ParFiniteElementSpace that
+      // represents the coarse space.
+
+      // In the mean time, the functionality of
+      // Build_Dof_TrueDof_Matrix, GetLocalTDofNumber, GetGlobalTDofNumber, etc.
+      // is reproduced below.
+      ParMesh *pmesh = dynamic_cast<ParMesh*>(&mesh);
+      MFEM_VERIFY(pmesh != NULL, "");
+      Array<HYPRE_Int> *offsets[2] = {&dof_offsets, &tdof_offsets};
+      HYPRE_Int loc_sizes[2] = {lsize, ltsize};
+      pmesh->GenerateOffsets(2, loc_sizes, offsets);
+
+      MPI_Comm comm = pmesh->GetComm();
+
+      if (HYPRE_AssumedPartitionCheck())
+      {
+         // communicate the neighbor offsets in tdof_nb_offsets
+         int nsize = group_topo.GetNumNeighbors()-1;
+         MPI_Request *requests = new MPI_Request[2*nsize];
+         MPI_Status  *statuses = new MPI_Status[2*nsize];
+         tdof_nb_offsets.SetSize(nsize+1);
+         tdof_nb_offsets[0] = tdof_offsets[0];
+
+         // send and receive neighbors' local tdof offsets
+         int request_counter = 0;
+         for (int i = 1; i <= nsize; i++)
+         {
+            MPI_Irecv(&tdof_nb_offsets[i], 1, HYPRE_MPI_INT,
+                     group_topo.GetNeighborRank(i), 5365, comm,
+                     &requests[request_counter++]);
+         }
+         for (int i = 1; i <= nsize; i++)
+         {
+            MPI_Isend(&tdof_nb_offsets[0], 1, HYPRE_MPI_INT,
+                     group_topo.GetNeighborRank(i), 5365, comm,
+                     &requests[request_counter++]);
+         }
+         MPI_Waitall(request_counter, requests, statuses);
+
+         delete [] statuses;
+         delete [] requests;
+      }
+
+      HYPRE_Int *i_diag = Memory<HYPRE_Int>(lsize+1);
+      HYPRE_Int *j_diag = Memory<HYPRE_Int>(ltsize);
+      int diag_counter;
+
+      HYPRE_Int *i_offd = Memory<HYPRE_Int>(lsize+1);
+      HYPRE_Int *j_offd = Memory<HYPRE_Int>(lsize-ltsize);
+      int offd_counter;
+
+      HYPRE_Int *cmap   = Memory<HYPRE_Int>(lsize-ltsize);
+
+      HYPRE_Int *col_starts = tdof_offsets;
+      HYPRE_Int *row_starts = dof_offsets;
+
+      Array<Pair<HYPRE_Int, int> > cmap_j_offd(lsize-ltsize);
+
+      i_diag[0] = i_offd[0] = 0;
+      diag_counter = offd_counter = 0;
+      for (int i_ldof = 0; i_ldof < lsize; i_ldof++)
+      {
+         int g = ldof_group[i_ldof];
+         int i_ltdof = ldof_ltdof[i_ldof];
+         if (group_topo.IAmMaster(g))
+         {
+            j_diag[diag_counter++] = i_ltdof;
+         }
+         else
+         {
+            HYPRE_Int global_tdof_number;
+            int g = ldof_group[i_ldof];
+            if (HYPRE_AssumedPartitionCheck())
+            {
+               global_tdof_number
+                  = i_ltdof + tdof_nb_offsets[group_topo.GetGroupMaster(g)];
+            }
+            else
+            {
+               global_tdof_number
+                  = i_ltdof + tdof_offsets[group_topo.GetGroupMasterRank(g)];
+            }
+
+            cmap_j_offd[offd_counter].one = global_tdof_number;
+            cmap_j_offd[offd_counter].two = offd_counter;
+            offd_counter++;
+         }
+         i_diag[i_ldof+1] = diag_counter;
+         i_offd[i_ldof+1] = offd_counter;
+      }
+
+      SortPairs<HYPRE_Int, int>(cmap_j_offd, offd_counter);
+
+      for (int i = 0; i < offd_counter; i++)
+      {
+         cmap[i] = cmap_j_offd[i].one;
+         j_offd[cmap_j_offd[i].two] = i;
+      }
+
+      P_hypre = new HypreParMatrix(
+         comm, pmesh->GetMyRank(), pmesh->GetNRanks(),
+         row_starts, col_starts,
+         i_diag, j_diag, i_offd, j_offd,
+         cmap, offd_counter
+      );
    }
 #endif
 
@@ -1064,42 +1185,24 @@ CeedMultigridLevel::~CeedMultigridLevel()
 
 #ifdef MFEM_USE_MPI
 
-/// convenience function, ugly hack
-mfem::HypreParMatrix* SerialHypreMatrix(mfem::SparseMatrix& mat)
-{
-   HYPRE_Int row_starts[3];
-   row_starts[0] = 0;
-   row_starts[1] = mat.Height();
-   row_starts[2] = mat.Height();
-   mfem::HypreParMatrix * out = new mfem::HypreParMatrix(
-      MPI_COMM_WORLD, mat.Height(), row_starts, &mat);
-   out->CopyRowStarts();
-   out->CopyColStarts();
-
-   /// 3 gives MFEM full ownership of i, j, data
-   // out->SetOwnerFlags(3, out->OwnsOffd(), out->OwnsColMap());
-   // mat.LoseData();
-
-   return out;
-}
-
-CeedCGWithAMG::CeedCGWithAMG(CeedOperator oper,
-                             mfem::Array<int>& ess_tdof_list,
-                             const Operator *P,
+CeedCGWithAMG::CeedCGWithAMG(CeedMultigridLevel &level,
                              int sparse_solver_type,
                              bool use_amgx)
 {
+   CeedOperator oper = level.GetCoarseCeed();
+   mfem::Array<int>& ess_tdof_list = level.GetCoarseEssentialDofList();
+   const Operator *P = level.GetProlongation();
+   const HypreParMatrix *P_hypre = level.GetProlongationHypreParMatrix();
+
    mfem_ceed_ = new MFEMCeedOperator(oper, ess_tdof_list, P);
    height = width = mfem_ceed_->Height();
 
    CeedOperatorFullAssemble(oper, &mat_assembled_);
 
-   for (int i = 0; i < ess_tdof_list.Size(); ++i)
-   {
-      mat_assembled_->EliminateRowCol(ess_tdof_list[i], mfem::Matrix::DIAG_ONE);
-   }
    innercg_.SetOperator(*mfem_ceed_);
 
+// Disable AMGX for now...
+#if 0
 #ifdef CEED_USE_AMGX
    if (use_amgx)
    {
@@ -1109,14 +1212,23 @@ CeedCGWithAMG::CeedCGWithAMG(CeedOperator oper,
       amgx->SetOperator(*mat_assembled_);
       hypre_assembled_ = NULL;
       inner_prec_ = amgx;
-   } else
-#endif
-   {
-      hypre_assembled_ = SerialHypreMatrix(*mat_assembled_);
-      mfem::HypreBoomerAMG * amg = new mfem::HypreBoomerAMG(*hypre_assembled_);
-      amg->SetPrintLevel(0);
-      inner_prec_ = amg;
    }
+#endif
+#endif
+
+   HypreParMatrix *hypre_local = new HypreParMatrix(
+      P_hypre->GetComm(), P_hypre->GetGlobalNumRows(), level.GetDofOffsets(),
+      mat_assembled_
+   );
+
+   hypre_assembled_ = RAP(hypre_local, P_hypre);
+   HypreParMatrix *hypre_e = hypre_assembled_->EliminateRowsCols(ess_tdof_list);
+   delete hypre_e;
+
+   HypreBoomerAMG * amg = new HypreBoomerAMG(*hypre_assembled_);
+   amg->SetPrintLevel(0);
+   inner_prec_ = amg;
+
    innercg_.SetPreconditioner(*inner_prec_);
    innercg_.SetPrintLevel(-1);
    innercg_.SetMaxIter(500);
@@ -1214,6 +1326,7 @@ AlgebraicCeedSolver::AlgebraicCeedSolver(Operator& fine_mfem_op,
    CeedOperator current_op = fine_composite_op;
 
    FiniteElementSpace &fes = *form.FESpace();
+   Mesh &mesh = *fes.GetMesh();
    GroupComm *gc = NULL;
 #ifdef MFEM_USE_MPI
    ParFiniteElementSpace *pfes = dynamic_cast<ParFiniteElementSpace*>(&fes);
@@ -1233,7 +1346,7 @@ AlgebraicCeedSolver::AlgebraicCeedSolver(Operator& fine_mfem_op,
    {
       const int order_reduction = current_order - (current_order / 2);
       current_order = current_order / 2;
-      levels[i] = new CeedMultigridLevel(current_op, *current_ess_dofs, order_reduction, gc, P, R);
+      levels[i] = new CeedMultigridLevel(current_op, *current_ess_dofs, order_reduction, mesh, gc, P, R);
       current_op = levels[i]->GetCoarseCeed();
       current_ess_dofs = &levels[i]->GetCoarseEssentialDofList();
       P = levels[i]->GetProlongation();
@@ -1262,9 +1375,7 @@ AlgebraicCeedSolver::AlgebraicCeedSolver(Operator& fine_mfem_op,
 #ifdef MFEM_USE_MPI
          bool use_amgx = false;
          const int sparse_solver_type = 1; // single v-cycle
-         coarsest_solver = new CeedCGWithAMG(coarsest->GetCoarseCeed(),
-                                             coarsest->GetCoarseEssentialDofList(),
-                                             coarsest->GetProlongation(),
+         coarsest_solver = new CeedCGWithAMG(*coarsest,
                                              sparse_solver_type,
                                              use_amgx);
 #else
@@ -1277,6 +1388,7 @@ AlgebraicCeedSolver::AlgebraicCeedSolver(Operator& fine_mfem_op,
    }
    else
    {
+      // TODO... interface for AMG doesn't work well in this case
       coarsest_solver = BuildSmootherFromCeed(&fine_mfem_op, fine_composite_op, ess_dofs, P, false);
    }
 
