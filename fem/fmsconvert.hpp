@@ -23,7 +23,8 @@ namespace mfem
 
 /** In-memory conversion of FMS data collection to an MFEM data collection.
     @param dc The FMS data collection to convert.
-    @param[out] mfem_dc A pointer to a new MFEM DataCollection containing the FMS data.
+    @param[out] mfem_dc A pointer to a new MFEM DataCollection containing the
+    FMS data.
     @return 0 on success; non-zero on failure.
 */
 int FmsDataCollectionToDataCollection(FmsDataCollection dc,
@@ -31,7 +32,8 @@ int FmsDataCollectionToDataCollection(FmsDataCollection dc,
 
 /** In-memory conversion of MFEM data collection to an FMS data collection.
     @param mfem_dc The MFEM data collection to convert.
-    @param[out] dc A pointer to a new FmsDataCollection containing the MFEM data.
+    @param[out] dc A pointer to a new FmsDataCollection containing the MFEM
+    data.
     @return 0 on success; non-zero on failure.
 */
 int DataCollectionToFmsDataCollection(DataCollection *mfem_dc,

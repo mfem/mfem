@@ -150,9 +150,7 @@ FmsFieldToGridFunction(FmsMesh fms_mesh, FmsField f, Mesh *mesh,
    const void *f_data;
    FmsFieldGet(f, &f_fd, &space_dim, &f_layout, &f_data_type,
                &f_data);
-
-   //    FmsFieldGet(coords, NULL, &space_dim, NULL, NULL, NULL);
-
+   // FmsFieldGet(coords, NULL, &space_dim, NULL, NULL, NULL);
 
    FmsInt f_num_dofs;
    FmsFieldDescriptorGetNumDofs(f_fd, &f_num_dofs);
@@ -188,7 +186,8 @@ FmsFieldToGridFunction(FmsMesh fms_mesh, FmsField f, Mesh *mesh,
    //------------------------------------------------------------------
    if (setFE)
    {
-      // We could assemble a name based on fe_coll.hpp rules and pass to FiniteElementCollection::New()
+      // We could assemble a name based on fe_coll.hpp rules and pass to
+      // FiniteElementCollection::New()
 
       mfem::FiniteElementCollection *fec = nullptr;
       switch (f_field_type)
@@ -716,8 +715,13 @@ FmsMeshToMesh(FmsMesh fms_mesh, Mesh **mfem_mesh)
                   const int *hex_verts = &ents_verts[8*i];
 #if 0
                   const int reorder[8] = {0, 1, 2, 3, 5, 4, 6, 7};
-                  const int new_verts[8] = {hex_verts[reorder[0]], hex_verts[reorder[1]], hex_verts[reorder[2]],
-                                            hex_verts[reorder[3]], hex_verts[reorder[4]], hex_verts[reorder[5]], hex_verts[reorder[6]],
+                  const int new_verts[8] = {hex_verts[reorder[0]],
+                                            hex_verts[reorder[1]],
+                                            hex_verts[reorder[2]],
+                                            hex_verts[reorder[3]],
+                                            hex_verts[reorder[4]],
+                                            hex_verts[reorder[5]],
+                                            hex_verts[reorder[6]],
                                             hex_verts[reorder[7]]
                                            };
                   hex_verts = new_verts;
@@ -883,38 +887,38 @@ BasisTypeToFmsBasisType(int bt, FmsBasisType &btype)
    switch (bt)
    {
       case mfem::BasisType::GaussLegendre:
-         //mfem::out << "mfem::BasisType::GaussLegendre -> FMS_NODAL_GAUSS_OPEN" << endl;
+         // mfem::out << "mfem::BasisType::GaussLegendre -> FMS_NODAL_GAUSS_OPEN" << endl;
          btype = FMS_NODAL_GAUSS_OPEN;
          retval = true;
          break;
       case mfem::BasisType::GaussLobatto:
-         //mfem::out << "mfem::BasisType::GaussLobato -> FMS_NODAL_GAUSS_CLOSED" << endl;
+         // mfem::out << "mfem::BasisType::GaussLobato -> FMS_NODAL_GAUSS_CLOSED" << endl;
          btype = FMS_NODAL_GAUSS_CLOSED;
          retval = true;
          break;
       case mfem::BasisType::Positive:
-         //mfem::out << "mfem::BasisType::Positive -> FMS_POSITIVE" << endl;
+         // mfem::out << "mfem::BasisType::Positive -> FMS_POSITIVE" << endl;
          btype = FMS_POSITIVE;
          retval = true;
          break;
       case mfem::BasisType::OpenUniform:
-         //mfem::out << "mfem::BasisType::OpenUniform -> ?" << endl;
+         // mfem::out << "mfem::BasisType::OpenUniform -> ?" << endl;
          btype = FMS_NODAL_UNIFORM_OPEN;
          retval = true;
          break;
       case mfem::BasisType::ClosedUniform:
-         //mfem::out << "mfem::BasisType::ClosedUniform -> ?" << endl;
+         // mfem::out << "mfem::BasisType::ClosedUniform -> ?" << endl;
          btype = FMS_NODAL_UNIFORM_CLOSED;
          retval = true;
          break;
       case mfem::BasisType::OpenHalfUniform:
-         //mfem::out << "mfem::BasisType::OpenHalfUniform -> ?" << endl;
+         // mfem::out << "mfem::BasisType::OpenHalfUniform -> ?" << endl;
          break;
       case mfem::BasisType::Serendipity:
-         //mfem::out << "mfem::BasisType::Serendipity -> ?" << endl;
+         // mfem::out << "mfem::BasisType::Serendipity -> ?" << endl;
          break;
       case mfem::BasisType::ClosedGL:
-         //mfem::out << "mfem::BasisType::ClosedGL -> ?" << endl;
+         // mfem::out << "mfem::BasisType::ClosedGL -> ?" << endl;
          break;
 
    }
