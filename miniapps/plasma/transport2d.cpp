@@ -1976,7 +1976,7 @@ int main(int argc, char *argv[])
             ostringstream oss;
             oss << "Error estimate at time " << t;
             VisualizeField(eout, vishost, visport, err, oss.str().c_str(),
-                           Wx + Ww + Dx, Wy, Ww, Wh);
+                           Wx, Wy + 2 * (Wh + Dy), Ww, Wh);
          }
 
          if (amr)
