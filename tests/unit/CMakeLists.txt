@@ -67,6 +67,18 @@ add_executable(unit_tests unit_test_main.cpp ${UNIT_TESTS_SRCS})
 add_dependencies(unit_tests copy_data)
 target_link_libraries(unit_tests mfem)
 
+if (MFEM_USE_CUDA)
+  set(CUNIT_TESTS_SRCS
+    cunit_test_main.cpp
+  )
+  set_property(SOURCE ${CUNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
+  add_executable(cunit_tests ${CUNIT_TESTS_SRCS} ${UNIT_TESTS_SRCS})
+  add_dependencies(cunit_tests copy_data)
+  target_link_libraries(cunit_tests mfem)
+
+  add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} cunit_tests)
+endif()
+
 # All device unit tests are built into another executable, in order to be able
 # to change the device.
 set(SEDOV_TESTS_SRCS
@@ -122,6 +134,7 @@ add_test(NAME sedov_tests_debug COMMAND sedov_tests_debug)
 
 # Additional CUDA unit tests
 if (MFEM_USE_CUDA)
+   add_test(NAME cunit_tests COMMAND cunit_tests)
    add_test(NAME sedov_tests_cuda COMMAND sedov_tests_cuda)
    add_test(NAME sedov_tests_cuda_uvm COMMAND sedov_tests_cuda_uvm)
 endif()
