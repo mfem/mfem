@@ -971,6 +971,7 @@ int main(int argc, char *argv[])
 
    double tol_init = 1e-5;
    double t_init = 0.0;
+   double t_min = 0.0;
    double t_final = -1.0;
    double dt = -0.01;
    // double dt_rel_tol = 0.1;
@@ -1088,6 +1089,8 @@ int main(int argc, char *argv[])
                   "Gain for derivative error adjustment.");
    args.AddOption(&lim_max, "-thm", "--theta-max",
                   "Maximum dt increase factor.");
+   args.AddOption(&t_min, "-tmin", "--t-minimum",
+                  "Run to t-minimum before checking for steady state.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -1900,6 +1903,19 @@ int main(int argc, char *argv[])
 
       if (mpi.Root()) { cout << "Time stepping paused at t = " << t << endl; }
 
+      bool ss = false;
+      if ((ttol.ss_abs_tol > 0.0 || ttol.ss_rel_tol > 0.0) && t > t_min)
+      {
+         ss = oper.CheckForSteadyState();
+         if (ss)
+         {
+            if (mpi.Root())
+            {
+               cout << "Steady State solution has been reached" << endl;
+            }
+         }
+      }
+
       if (visualization)
       {
          ostringstream oss;
@@ -1947,7 +1963,7 @@ int main(int argc, char *argv[])
          dc->Save();
       }
 
-      if (t_final - t > 1e-8 * (t_final - t_init))
+      if (t_final - t > 1e-8 * (t_final - t_init) && !ss)
       {
          HYPRE_Int global_dofs = fes.GlobalTrueVSize();
 
@@ -2133,6 +2149,8 @@ int main(int argc, char *argv[])
             }
          }
       }
+      // Exit loop due to acquisition of steady state
+      if (ss) { break; }
    }
 
    tic_toc.Stop();

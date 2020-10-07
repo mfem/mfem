@@ -1500,11 +1500,12 @@ DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
    : TimeDependentOperator(ffes.GetVSize()),
      mpi_(mpi),
      logging_(logging),
+     op_flag_(op_flag),
      fes_(fes),
      vfes_(vfes),
      ffes_(ffes),
      yGF_(yGF),
-     // kGF_(kGF),
+     kGF_(kGF),
      offsets_(offsets),
      newton_op_prec_(offsets),
      newton_op_solver_(fes.GetComm()),
@@ -1539,6 +1540,15 @@ DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
 
    BxyGF_ = new ParGridFunction(&vfes_);
    BzGF_  = new ParGridFunction(&fes_);
+
+   if (tol_.ss_abs_tol > 0.0 || tol_.ss_rel_tol > 0.0)
+   {
+      kMax_.SetSize(kGF_.Size());
+      kMax_ = 0.0;
+
+      ss_.SetSize(kGF_.Size());
+      ss_ = false;
+   }
 
    if (mpi_.Root() && logging_ > 1)
    {
@@ -1575,6 +1585,19 @@ void DGTransportTDO::SetTime(const double _t)
 void DGTransportTDO::SetLogging(int logging)
 {
    op_.SetLogging(logging);
+}
+
+bool DGTransportTDO::CheckForSteadyState()
+{
+   bool ss = ss_.Size() > 0;
+
+   for (int i=0; i<ss_.Size(); i++)
+   {
+      ss &= ss_[i];
+      cout << "ss_[" << i << "] = " << ss_[i] << ", " << ss << endl;
+   }
+
+   return ss;
 }
 
 void
@@ -1635,7 +1658,7 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &y,
       yGF_[i]->MakeRef(&fes_, y.GetData() + offsets_[i]);
    }
    yGF_.ExchangeFaceNbrData();
-   /*
+
    double *prev_k = kGF_[0]->GetData();
 
    for (int i=0; i<offsets_.Size() - 1; i++)
@@ -1643,7 +1666,7 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &y,
       kGF_[i]->MakeRef(&fes_, k.GetData() + offsets_[i]);
    }
    kGF_.ExchangeFaceNbrData();
-   */
+
    if (mpi_.Root() && logging_ > 0)
    {
       cout << "Setting time step: " << dt << " in DGTransportTDO" << endl;
@@ -1653,13 +1676,34 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &y,
    Vector zero;
    newton_solver_.Mult(zero, k);
 
+   if (kMax_.Size() == kGF_.Size())
+   {
+      ConstantCoefficient zero(0.0);
+      for (int i=0; i<kGF_.Size(); i++)
+      {
+         if ((op_flag_ >> i) & 1)
+         {
+            double kNrm = kGF_[i]->ComputeL2Error(zero);
+            kMax_[i] = std::max(kMax_[i], kNrm);
+
+            ss_[i] = kNrm < tol_.ss_abs_tol ||
+                     (kNrm < tol_.ss_rel_tol * kMax_[i]);
+            cout << "kMax_[" << i << "] = " << kMax_[i] << ", kNrm = " << kNrm << endl;
+         }
+         else
+         {
+            ss_[i] = true;
+         }
+      }
+   }
+
    // Restore the data arrays to those used before this method was called.
    for (int i=0; i<offsets_.Size() - 1; i++)
    {
       yGF_[i]->MakeRef(&fes_, prev_y + offsets_[i]);
    }
    yGF_.ExchangeFaceNbrData();
-   /*
+
    for (int i=0; i<offsets_.Size() - 1; i++)
    {
       kGF_[i]->MakeRef(&fes_, prev_k + offsets_[i]);
@@ -1668,7 +1712,7 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &y,
    {
       kGF_.ExchangeFaceNbrData();
    }
-   */
+
    if (mpi_.Root() && logging_ > 1)
    {
       cout << "Leaving DGTransportTDO::ImplicitSolve" << endl;

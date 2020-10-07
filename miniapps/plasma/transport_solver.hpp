@@ -2265,12 +2265,13 @@ class DGTransportTDO : public TimeDependentOperator
 private:
    const MPI_Session & mpi_;
    int logging_;
+   int op_flag_;
 
    ParFiniteElementSpace &fes_;
    ParFiniteElementSpace &vfes_;
    ParFiniteElementSpace &ffes_;
    ParGridFunctionArray  &yGF_;
-   // ParGridFunctionArray  &kGF_;
+   ParGridFunctionArray  &kGF_;
 
    Array<int> &offsets_;
 
@@ -2281,6 +2282,9 @@ private:
    NewtonSolver  newton_solver_;
 
    TransportTol tol_;
+
+   Vector kMax_;
+   Array<bool> ss_;
 
    // Data collection used to write data files
    DataCollection * dc_;
@@ -3064,6 +3068,8 @@ public:
 
    void SetTime(const double _t);
    void SetLogging(int logging);
+
+   bool CheckForSteadyState();
 
    void RegisterDataFields(DataCollection & dc);
 
