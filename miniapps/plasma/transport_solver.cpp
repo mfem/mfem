@@ -1594,7 +1594,6 @@ bool DGTransportTDO::CheckForSteadyState()
    for (int i=0; i<ss_.Size(); i++)
    {
       ss &= ss_[i];
-      cout << "ss_[" << i << "] = " << ss_[i] << ", " << ss << endl;
    }
 
    return ss;
@@ -1688,7 +1687,6 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &y,
 
             ss_[i] = kNrm < tol_.ss_abs_tol ||
                      (kNrm < tol_.ss_rel_tol * kMax_[i]);
-            cout << "kMax_[" << i << "] = " << kMax_[i] << ", kNrm = " << kNrm << endl;
          }
          else
          {
