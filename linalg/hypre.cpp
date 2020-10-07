@@ -782,7 +782,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows, HYPRE_Int glob_nrows,
    HYPRE_Int *row_starts, *col_starts;
    if (rows == cols)
    {
-      row_starts = col_starts = mfem_hypre_TAlloc(HYPRE_Int, part_size);
+      row_starts = col_starts = mfem_hypre_TAlloc_host(HYPRE_Int, part_size);
       for (int i = 0; i < part_size; i++)
       {
          row_starts[i] = rows[i];
@@ -790,8 +790,8 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows, HYPRE_Int glob_nrows,
    }
    else
    {
-      row_starts = mfem_hypre_TAlloc(HYPRE_Int, part_size);
-      col_starts = mfem_hypre_TAlloc(HYPRE_Int, part_size);
+      row_starts = mfem_hypre_TAlloc_host(HYPRE_Int, part_size);
+      col_starts = mfem_hypre_TAlloc_host(HYPRE_Int, part_size);
       for (int i = 0; i < part_size; i++)
       {
          row_starts[i] = rows[i];
@@ -1799,7 +1799,7 @@ HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P)
       hypre_ParCSRMatrix *Q = hypre_ParCSRMatMat(*A,*P);
       const bool keepTranspose = false;
       rap = hypre_ParCSRTMatMatKT(*P,Q,keepTranspose);
-      delete Q;
+      hypre_ParCSRMatrixDestroy(Q);
    }
 #else
    hypre_BoomerAMGBuildCoarseOperator(*P,*A,*P,&rap);
@@ -1833,7 +1833,7 @@ HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
    {
       hypre_ParCSRMatrix *Q = hypre_ParCSRMatMat(*A,*P);
       rap = hypre_ParCSRTMatMat(*Rt,Q);
-      delete Q;
+      hypre_ParCSRMatrixDestroy(Q);
    }
 #else
    hypre_BoomerAMGBuildCoarseOperator(*Rt,*A,*P,&rap);
