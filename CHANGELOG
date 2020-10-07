@@ -73,6 +73,9 @@ Improved GPU capabilities
   classes ComplexOperator, [Par]ComplexGridFunction, [Par]ComplexLinearForm, and
   [Par]SesquilinearForm. See the updated Example 22.
 
+- Added CUDA support for SUNDIALS ODE integrators. See the updated SUNDIALS
+  modification of Example 9/9p.
+
 Discretization improvements
 ---------------------------
 - Added support for matrix-free interpolation and restriction operators between
@@ -98,6 +101,9 @@ Discretization improvements
 - Added new coefficient and vector coefficient classes for QuadratureFunctions.
   Additionally, new LinearForm integrators were also added which make use of
   these new QuadratureFunction coefficient classes.
+
+- Non-conforming meshes are now supported with block nonlinear forms. See the
+  updated Example 19/19p.
 
 - Added support face integrals on the boundaries of NURBS meshes.
 
