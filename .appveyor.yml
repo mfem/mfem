@@ -15,8 +15,10 @@ install:
 - msmpisdk.msi /passive
 - set PATH=C:\Program Files\Microsoft MPI\Bin;%PATH%
 
-# Install METIS
-- ps: Start-FileDownload 'http://glaros.dtc.umn.edu/gkhome/fetch/sw/metis/metis-5.1.0.tar.gz'
+# Install METIS, use a mirror because the original source server is not always
+# up. Original url:
+#    http://glaros.dtc.umn.edu/gkhome/fetch/sw/metis/metis-5.1.0.tar.gz
+- ps: Start-FileDownload 'https://mfem.github.io/tpls/metis-5.1.0.tar.gz'
 - 7z x metis-5.1.0.tar.gz -so | 7z x -si -ttar > nul
 - cd metis-5.1.0
 - ps: ( get-content "GKlib\gk_arch.h") | % { If ($_.ReadCount -ge 52) {$_ -replace "#ifdef __MSC__","#ifdef DISABLE_THIS_ANCIENT_MSC_CHECK"} Else {$_} } | set-content "GKlib\gk_arch.h"
@@ -26,25 +28,24 @@ install:
 - cd ..
 
 # Install hypre
-- ps: Start-FileDownload 'https://github.com/hypre-space/hypre/archive/V2-10-0b.tar.gz'
-- 7z x V2-10-0b.tar.gz -so | 7z x -si -ttar > nul
-- cd hypre-2-10-0b
-- cmake -H. -Bbuild -DHYPRE_USING_FEI=OFF -DMPI_C_INCLUDE_PATH="C:\Program Files (x86)\Microsoft SDKs\MPI\Include" -DMPI_C_LIBRARIES="C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x86\msmpi.lib" -DMPI_CXX_LIBRARIES="C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x86\msmpi.lib" -DMPI_CXX_INCLUDE_PATH="C:\Program Files (x86)\Microsoft SDKs\MPI\Include"
+- ps: Start-FileDownload 'https://github.com/hypre-space/hypre/archive/v2.19.0.tar.gz'
+- 7z x v2.19.0.tar.gz -so | 7z x -si -ttar > nul
+- cd hypre-2.19.0/src
+- cmake -H. -Bbuild -DMPI_C_INCLUDE_PATH="C:\Program Files (x86)\Microsoft SDKs\MPI\Include" -DMPI_C_LIBRARIES="C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x86\msmpi.lib" -DMPI_CXX_LIBRARIES="C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x86\msmpi.lib" -DMPI_CXX_INCLUDE_PATH="C:\Program Files (x86)\Microsoft SDKs\MPI\Include"
 - cmake --build build
 - cmake --build build --target install
-- cd ..
+- cd ../..
 
 # MFEM
 before_build:
-- cmake -H. -DCMAKE_INSTALL_PREFIX=install -Bbuild_parallel -DMFEM_USE_MPI=TRUE -DMFEM_USE_METIS_5=TRUE -DMPI_CXX_LIBRARIES="C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x86\msmpi.lib" -DMPI_CXX_INCLUDE_PATH="C:\Program Files (x86)\Microsoft SDKs\MPI\Include" -DHYPRE_LIBRARIES=%cd%\hypre-2-10-0b\hypre\lib\HYPRE.lib -DHYPRE_INCLUDE_DIRS=%cd%\hypre-2-10-0b\hypre\include -DHYPRE_VERSION=21000 -DMETIS_LIBRARIES=%cd%\metis-5.1.0\build\libmetis\Debug\metis.lib -DMETIS_INCLUDE_DIRS=%cd%\metis-5.1.0\include
+- cmake -H. -DCMAKE_INSTALL_PREFIX=install -Bbuild_parallel -DMFEM_USE_MPI=TRUE -DMFEM_USE_METIS_5=TRUE -DMPI_CXX_LIBRARIES="C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x86\msmpi.lib" -DMPI_CXX_INCLUDE_PATH="C:\Program Files (x86)\Microsoft SDKs\MPI\Include" -DHYPRE_DIR=%cd%\hypre-2.19.0\src\hypre -DMETIS_LIBRARIES=%cd%\metis-5.1.0\build\libmetis\Debug\metis.lib -DMETIS_INCLUDE_DIRS=%cd%\metis-5.1.0\include
 - cmake -H. -DCMAKE_INSTALL_PREFIX=install -Bbuild_serial -DMFEM_USE_MPI=FALSE
 
 build_script:
-- cmake --build build_parallel
-- cmake --build build_serial
-- cmake --build build_serial --target exec
+- cmake --build build_parallel --config Release -j 4
+- cmake --build build_serial --config Release -j 4
+- cmake --build build_serial --target exec --config Release -j 4
 
 after_build:
-# - cmake --build build_parallel --target check
-- cmake --build build_serial --target RUN_TESTS
-
+- cd build_serial
+- ctest -C Release --output-on-failure

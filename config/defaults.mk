@@ -1,13 +1,13 @@
-# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
-# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
-# See file COPYRIGHT for details.
+# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
 # This file is part of the MFEM library. For more information and source code
-# availability see http://mfem.org.
+# availability visit https://mfem.org.
 #
 # MFEM is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free
-# Software Foundation) version 2.1 dated February 1999.
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
 
 # This file describes the default MFEM build options.
 #
@@ -108,7 +108,7 @@ MFEM_USE_METIS         = $(MFEM_USE_MPI)
 MFEM_USE_METIS_5       = NO
 MFEM_DEBUG             = NO
 MFEM_USE_EXCEPTIONS    = NO
-MFEM_USE_GZSTREAM      = NO
+MFEM_USE_ZLIB          = NO
 MFEM_USE_LIBUNWIND     = NO
 MFEM_USE_LAPACK        = NO
 MFEM_THREAD_SAFE       = NO
@@ -121,11 +121,11 @@ MFEM_USE_MESQUITE      = NO
 MFEM_USE_SUITESPARSE   = NO
 MFEM_USE_SUPERLU       = NO
 MFEM_USE_STRUMPACK     = NO
-MFEM_USE_GECKO         = NO
 MFEM_USE_GINKGO        = NO
 MFEM_USE_GNUTLS        = NO
 MFEM_USE_NETCDF        = NO
 MFEM_USE_PETSC         = NO
+MFEM_USE_SLEPC         = NO
 MFEM_USE_MPFR          = NO
 MFEM_USE_SIDRE         = NO
 MFEM_USE_CONDUIT       = NO
@@ -137,6 +137,9 @@ MFEM_USE_HIP           = NO
 MFEM_USE_RAJA          = NO
 MFEM_USE_OCCA          = NO
 MFEM_USE_CEED          = NO
+MFEM_USE_UMPIRE        = NO
+MFEM_USE_SIMD          = NO
+MFEM_USE_ADIOS2        = NO
 
 # Compile and link options for zlib.
 ZLIB_DIR =
@@ -186,10 +189,12 @@ OPENMP_LIB =
 POSIX_CLOCKS_LIB = -lrt
 
 # SUNDIALS library configuration
+# For sundials_nvecparhyp and nvecparallel remember to build with MPI_ENABLED=ON
+# and modify cmake variables for hypre for sundials
 SUNDIALS_DIR = @MFEM_DIR@/../sundials-5.0.0/instdir
 SUNDIALS_OPT = -I$(SUNDIALS_DIR)/include
 SUNDIALS_LIB = -Wl,-rpath,$(SUNDIALS_DIR)/lib64 -L$(SUNDIALS_DIR)/lib64\
- -lsundials_arkode -lsundials_cvode -lsundials_nvecserial -lsundials_kinsol
+ -lsundials_arkode -lsundials_cvodes -lsundials_nvecserial -lsundials_kinsol
 
 ifeq ($(MFEM_USE_MPI),YES)
    SUNDIALS_LIB += -lsundials_nvecparhyp -lsundials_nvecparallel
@@ -243,11 +248,6 @@ STRUMPACK_OPT = -I$(STRUMPACK_DIR)/include $(SCOTCH_OPT)
 STRUMPACK_LIB = -L$(STRUMPACK_DIR)/lib -lstrumpack $(MPI_FORTRAN_LIB)\
  $(SCOTCH_LIB) $(SCALAPACK_LIB)
 
-# Gecko library configuration
-GECKO_DIR = @MFEM_DIR@/../gecko
-GECKO_OPT = -I$(GECKO_DIR)/inc
-GECKO_LIB = -L$(GECKO_DIR)/lib -lgecko
-
 # Ginkgo library configuration (currently not needed)
 GINKGO_DIR = @MFEM_DIR@/../ginkgo/install
 GINKGO_OPT = -isystem $(GINKGO_DIR)/include
@@ -277,6 +277,20 @@ ifeq ($(PETSC_FOUND),YES)
    PETSC_LIB := $(shell sed -n "s/$(PETSC_LIB_VAR) = *//p" $(PETSC_VARS))
    PETSC_LIB := -Wl,-rpath,$(abspath $(PETSC_DIR))/lib\
       -L$(abspath $(PETSC_DIR))/lib -lpetsc $(PETSC_LIB)
+endif
+
+SLEPC_DIR := $(MFEM_DIR)/../slepc
+SLEPC_VARS := $(SLEPC_DIR)/lib/slepc/conf/slepc_variables
+SLEPC_FOUND := $(if $(wildcard $(SLEPC_VARS)),YES,)
+SLEPC_INC_VAR = SLEPC_INCLUDE
+SLEPC_LIB_VAR = SLEPC_EXTERNAL_LIB
+ifeq ($(SLEPC_FOUND),YES)
+   SLEPC_OPT := $(shell sed -n "s/$(SLEPC_INC_VAR) *= *//p" $(SLEPC_VARS))
+   # Some additional external libraries might be defined in this file
+   -include ${SLEPC_DIR}/${PETSC_ARCH}/lib/slepc/conf/slepcvariables
+   SLEPC_LIB := $(shell sed -n "s/$(SLEPC_LIB_VAR) *= *//p" $(SLEPC_VARS))
+   SLEPC_LIB := -Wl,-rpath,$(abspath $(SLEPC_DIR))/$(PETSC_ARCH)/lib\
+      -L$(abspath $(SLEPC_DIR))/$(PETSC_ARCH)/lib -lslepc $(SLEPC_LIB)
 endif
 
 # MPFR library configuration
@@ -327,9 +341,9 @@ GSLIB_DIR = @MFEM_DIR@/../gslib/build
 GSLIB_OPT = -I$(GSLIB_DIR)/include
 GSLIB_LIB = -L$(GSLIB_DIR)/lib -lgs
 
-# CUDA library configuration (currently not needed)
+# CUDA library configuration
 CUDA_OPT =
-CUDA_LIB =
+CUDA_LIB = -lcusparse
 
 # HIP library configuration (currently not needed)
 HIP_OPT =
@@ -352,6 +366,11 @@ ifdef CUB_DIR
    RAJA_OPT += -I$(CUB_DIR)
 endif
 RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
+
+# UMPIRE library configuration
+UMPIRE_DIR = @MFEM_DIR@/../umpire
+UMPIRE_OPT = -I$(UMPIRE_DIR)/include
+UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -lumpire
 
 # If YES, enable some informational messages
 VERBOSE = NO

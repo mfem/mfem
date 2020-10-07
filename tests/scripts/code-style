@@ -1,15 +1,15 @@
 #!/bin/bash
 
-# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
-# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
-# See file COPYRIGHT for details.
+# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
 # This file is part of the MFEM library. For more information and source code
-# availability see http://mfem.org.
+# availability visit https://mfem.org.
 #
 # MFEM is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free
-# Software Foundation) version 2.1 dated February 1999.
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
 
 # Print usage information
 case $1 in
@@ -42,20 +42,44 @@ mfem_dir=$1
 if [ "$mfem_dir" = "" ]; then
     mfem_dir="../.."
 fi
+if [ ! -d $mfem_dir ] || [ ! -f $mfem_dir/mfem.hpp ]; then
+   printf "Invalid mfem directory: '$mfem_dir'\n" 1>&2
+   exit 1
+fi
 cd $mfem_dir
 mfem_dir=`pwd`
 shift
 
 # Verify C++ code styling in MFEM
 cd $mfem_dir
-make distclean
-make style
-(git diff) 1>&2
-
-# Verify that std::cout and std::cerr are not used in the library (use mfem::out
-# and mfem::err instead)
-(grep cout */*pp | grep -v 'examples/' | grep -v 'general/globals' | grep -v 'cerrno') 1>&2
-(grep cerr */*pp | grep -v 'examples/' | grep -v 'general/globals' | grep -v 'cerrno') 1>&2
+# make distclean
+if [ -t 1 ]; then
+   make style
+else
+   make_style_out="$(make style 2>&1)"
+   if [ "$?" -eq 0 ]; then
+     printf "%s\n" "$make_style_out"
+   else
+     printf "%s\n" "$make_style_out" 1>&2
+   fi
+fi
+git --no-pager diff 1>&2
 
 # Return to the original directory
 cd $cur_dir
+# Tell users what to do if the script fails
+test_name="$(basename "$0")"
+if [ -s "$test_name.err" ]; then
+    cat >  $test_name.msg <<EOF
+
+To correct this error, run 'make style' and make sure that:
+
+1) You are using Artistic Style 2.05.1 ("astyle --version").
+2) There is no use of std::cout or std::cerr inside the library code (examples
+   and miniapps are OK). Use mfem::out and mfem::err instead.
+3) Run "make style" to apply astyle formatting and verify your code.
+
+Please contact a member of the MFEM team if you have questions.
+
+EOF
+fi

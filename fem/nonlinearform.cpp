@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "fem.hpp"
 
@@ -581,6 +581,13 @@ double BlockNonlinearForm::GetEnergyBlocked(const BlockVector &bx) const
          }
       }
 
+   // free the allocated memory
+   for (int i = 0; i < fes.Size(); ++i)
+   {
+      delete el_x[i];
+      delete vdofs[i];
+   }
+
    if (fnfi.Size())
    {
       MFEM_ABORT("TODO: add energy contribution from interior face terms");
@@ -933,6 +940,17 @@ Operator &BlockNonlinearForm::GetGradientBlocked(const BlockVector &bx) const
       }
    }
 
+   if (!Grads(0,0)->Finalized())
+   {
+      for (int i=0; i<fes.Size(); ++i)
+      {
+         for (int j=0; j<fes.Size(); ++j)
+         {
+            Grads(i,j)->Finalize(skip_zeros);
+         }
+      }
+   }
+
    for (int s=0; s<fes.Size(); ++s)
    {
       for (int i = 0; i < ess_vdofs[s]->Size(); ++i)
@@ -948,17 +966,6 @@ Operator &BlockNonlinearForm::GetGradientBlocked(const BlockVector &bx) const
                Grads(s,j)->EliminateRow((*ess_vdofs[s])[i]);
                Grads(j,s)->EliminateCol((*ess_vdofs[s])[i]);
             }
-         }
-      }
-   }
-
-   if (!Grads(0,0)->Finalized())
-   {
-      for (int i=0; i<fes.Size(); ++i)
-      {
-         for (int j=0; j<fes.Size(); ++j)
-         {
-            Grads(i,j)->Finalize(skip_zeros);
          }
       }
    }
