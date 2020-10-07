@@ -20,6 +20,7 @@
 #include "eltrans.hpp"
 #include "coefficient.hpp"
 #include "complex_fem.hpp"
+#include "convergence.hpp"
 #include "lininteg.hpp"
 #include "nonlininteg.hpp"
 #include "bilininteg.hpp"

@@ -122,7 +122,7 @@ examples/sundials/ex16-final.*
 examples/sundials/Example16*
 
 examples/petsc/ex[1-69]p
-examples/petsc/ex10p
+examples/petsc/ex1[0-1]p
 
 examples/petsc/mesh.*
 examples/petsc/sol.*
@@ -137,6 +137,7 @@ examples/petsc/Example9*
 examples/petsc/deformed.*
 examples/petsc/velocity.*
 examples/petsc/elastic_energy.*
+examples/petsc/mode_*
 
 examples/pumi/ex1
 examples/pumi/ex[126]p
@@ -174,6 +175,7 @@ miniapps/meshing/mesh-optimizer
 miniapps/meshing/pmesh-optimizer
 miniapps/meshing/minimal-surface
 miniapps/meshing/pminimal-surface
+miniapps/meshing/polar-nc
 
 miniapps/meshing/mobius-strip.mesh
 miniapps/meshing/klein-bottle.mesh
@@ -186,6 +188,7 @@ miniapps/meshing/extruder.mesh
 miniapps/meshing/trimmer.mesh
 miniapps/meshing/optimized*
 miniapps/meshing/perturbed*
+miniapps/meshing/polar-nc.mesh
 
 miniapps/performance/ex1
 miniapps/performance/ex1p
@@ -232,6 +235,7 @@ miniapps/nurbs/mode_*
 miniapps/nurbs/Example1*
 
 miniapps/gslib/field-diff
+miniapps/gslib/field-interp
 miniapps/gslib/findpts
 miniapps/gslib/pfindpts
 
@@ -242,6 +246,9 @@ miniapps/navier/navier_shear
 miniapps/navier/navier_3dfoc
 miniapps/navier/tgv_out*.txt
 miniapps/navier/*_output
+
+miniapps/adjoint/cvsRoberts_ASAi_dns
+miniapps/adjoint/adjoint_advection_diffusion
 
 # Unit test binary and outputs
 tests/unit/output_meshes
@@ -254,6 +261,11 @@ tests/unit/psedov_tests_*
 tests/scripts/*.err
 tests/scripts/*.out
 tests/scripts/*.msg
+
+# Other tests
+tests/convergence/rates
+tests/convergence/prates
+tests/par-mesh-format/ex1p
 
 # VPATH builds
 build-*/*

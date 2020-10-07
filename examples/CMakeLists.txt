@@ -91,7 +91,7 @@ foreach(SRC_FILE ${ALL_EXE_SRCS})
     add_test(NAME ${TEST_NAME}_ser
       COMMAND ${TEST_NAME} ${THIS_TEST_OPTIONS})
   else()
-    add_test(NAME ${TEST_NAME}_np=4
+    add_test(NAME ${TEST_NAME}_np=${MFEM_MPI_NP}
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS}
       $<TARGET_FILE:${TEST_NAME}> ${THIS_TEST_OPTIONS}
@@ -101,10 +101,19 @@ endforeach()
 
 # If STRUMPACK is enabled, add a test run that uses it.
 if (MFEM_USE_STRUMPACK)
-  add_test(NAME ex11p_strumpack_np=4
+  add_test(NAME ex11p_strumpack_np=${MFEM_MPI_NP}
     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
     ${MPIEXEC_PREFLAGS}
     $<TARGET_FILE:ex11p> "-no-vis" "--strumpack"
+    ${MPIEXEC_POSTFLAGS})
+endif()
+
+# If SuperLU_DIST is enabled, add a test run that uses it.
+if (MFEM_USE_SUPERLU)
+  add_test(NAME ex11p_superlu_np=${MFEM_MPI_NP}
+    COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+    ${MPIEXEC_PREFLAGS}
+    $<TARGET_FILE:ex11p> "-no-vis" "--superlu"
     ${MPIEXEC_POSTFLAGS})
 endif()
 

@@ -43,8 +43,8 @@ cd $mfem_dir
 # Test the documentation of some make targets
 make help
 make distclean
-make config MFEM_USE_MPI=YES
-make status
+# make config MFEM_USE_MPI=YES
+# make status
 
 # Test the build of the Doxygen documentation
 cd doc; make clean; make
