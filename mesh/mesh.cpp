@@ -3573,10 +3573,8 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    // - does not check the orientation of regular and boundary elements
    if (finalize_topo)
    {
-      // don't generate boundary elements for NCMesh, especially in parallel
-      // (FIXME: how can this even work for conforming ParMesh?
-      //  -- we don't want to generate artificial BEs for internal partitions!)
-      bool generate_bdr = (ncmesh == NULL);
+      // don't generate any boundary elements, especially in parallel
+      bool generate_bdr = false;
 
       FinalizeTopology(generate_bdr);
    }
