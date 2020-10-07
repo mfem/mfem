@@ -31,6 +31,7 @@ set(SRCS
   bilininteg_vecmass.cpp
   coefficient.cpp
   complex_fem.cpp
+  convergence.cpp
   datacollection.cpp
   doftrans.cpp
   eltrans.cpp
@@ -66,6 +67,7 @@ set(HDRS
   bilininteg.hpp
   coefficient.hpp
   complex_fem.hpp
+  convergence.hpp
   datacollection.hpp
   doftrans.hpp
   eltrans.hpp

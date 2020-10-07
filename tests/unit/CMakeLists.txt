@@ -25,13 +25,17 @@ set(UNIT_TESTS_SRCS
   linalg/test_ilu.cpp
   linalg/test_matrix_block.cpp
   linalg/test_matrix_dense.cpp
+  linalg/test_matrix_hypre.cpp
   linalg/test_matrix_rectangular.cpp
+  linalg/test_matrix_sparse.cpp
   linalg/test_matrix_square.cpp
   linalg/test_ode.cpp
   linalg/test_ode2.cpp
   linalg/test_operator.cpp
   linalg/test_cg_indefinite.cpp
+  linalg/test_vector.cpp
   mesh/test_mesh.cpp
+  mesh/test_ncmesh.cpp
   fem/test_1d_bilininteg.cpp
   fem/test_2d_bilininteg.cpp
   fem/test_3d_bilininteg.cpp
@@ -62,6 +66,18 @@ add_executable(unit_tests unit_test_main.cpp ${UNIT_TESTS_SRCS})
 # Unit tests need the ../../data directory.
 add_dependencies(unit_tests copy_data)
 target_link_libraries(unit_tests mfem)
+
+if (MFEM_USE_CUDA)
+  set(CUNIT_TESTS_SRCS
+    cunit_test_main.cpp
+  )
+  set_property(SOURCE ${CUNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
+  add_executable(cunit_tests ${CUNIT_TESTS_SRCS} ${UNIT_TESTS_SRCS})
+  add_dependencies(cunit_tests copy_data)
+  target_link_libraries(cunit_tests mfem)
+
+  add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} cunit_tests)
+endif()
 
 # All device unit tests are built into another executable, in order to be able
 # to change the device.
@@ -118,6 +134,7 @@ add_test(NAME sedov_tests_debug COMMAND sedov_tests_debug)
 
 # Additional CUDA unit tests
 if (MFEM_USE_CUDA)
+   add_test(NAME cunit_tests COMMAND cunit_tests)
    add_test(NAME sedov_tests_cuda COMMAND sedov_tests_cuda)
    add_test(NAME sedov_tests_cuda_uvm COMMAND sedov_tests_cuda_uvm)
 endif()
