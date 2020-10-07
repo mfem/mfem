@@ -22,26 +22,16 @@
 namespace mfem
 {
 
-/// copy/paste hack used in CeedOperatorFullAssemble
-int CeedHackReallocArray(size_t n, size_t unit, void *p) {
-  *(void **)p = realloc(*(void **)p, n*unit);
-  if (n && unit && !*(void **)p)
-    // LCOV_EXCL_START
-    return CeedError(NULL, 1, "realloc failed to allocate %zd members of size "
-                     "%zd\n", n, unit);
-  // LCOV_EXCL_STOP
+#ifdef MFEM_USE_MPI
+   using GroupComm = GroupCommunicator;
+#else
+   using GroupComm = void;
+#endif
 
-  return 0;
-}
-
-#define CeedHackRealloc(n, p) CeedHackReallocArray((n), sizeof(**(p)), p)
-
-/// copy/paste hack used in CeedOperatorFullAssemble
-int CeedHackFree(void *p) {
-  free(*(void **)p);
-  *(void **)p = NULL;
-  return 0;
-}
+mfem::Solver *BuildSmootherFromCeed(Operator * mfem_op, CeedOperator ceed_op,
+                                    const Array<int>& ess_tdofs,
+                                    const Operator *P,
+                                    bool chebyshev);
 
 /**
    Wrap CeedInterpolation object in an mfem::Operator
@@ -81,14 +71,340 @@ private:
    bool owns_basis_;
 };
 
+struct IdentitySolver : Solver
+{
+   IdentitySolver(int n) : Solver(n) { }
+   void Mult(const Vector &b, Vector &x) const { x = b; }
+   void SetOperator(const Operator &op) { }
+};
+
+/**
+   Just wrap a Ceed operator in the mfem::Operator interface
+
+   This has no boundary conditions, I expect "users" (as if I had
+   any) to use MFEMCeedOperator (which defaults to this if you don't
+   give it essential dofs)
+*/
+class UnconstrainedMFEMCeedOperator : public mfem::Operator
+{
+public:
+   UnconstrainedMFEMCeedOperator(CeedOperator oper);
+   ~UnconstrainedMFEMCeedOperator();
+
+   virtual void Mult(const mfem::Vector& x, mfem::Vector& y) const;
+   using Operator::SetupRAP;
+private:
+   CeedOperator oper_;
+   CeedVector u_, v_;   // mutable?
+};
+
+class MFEMCeedOperator : public mfem::Operator
+{
+public:
+   MFEMCeedOperator(CeedOperator oper, mfem::Array<int>& ess_tdofs, const Operator *P)
+      :
+      unconstrained_op_(oper)
+   {
+      Operator *rap = unconstrained_op_.SetupRAP(P, P);
+      height = width = rap->Height();
+      bool own_rap = rap != &unconstrained_op_;
+      constrained_op_ = new ConstrainedOperator(rap, ess_tdofs, own_rap);
+   }
+
+   MFEMCeedOperator(CeedOperator oper, const Operator *P)
+      :
+      unconstrained_op_(oper)
+   {
+      mfem::Array<int> empty;
+      Operator *rap = unconstrained_op_.SetupRAP(P, P);
+      height = width = rap->Height();
+      bool own_rap = rap != &unconstrained_op_;
+      constrained_op_ = new ConstrainedOperator(rap, empty, own_rap);
+   }
+
+   ~MFEMCeedOperator()
+   {
+      delete constrained_op_;
+   }
+
+   void Mult(const mfem::Vector& x, mfem::Vector& y) const
+   {
+      constrained_op_->Mult(x, y);
+   }
+
+private:
+   UnconstrainedMFEMCeedOperator unconstrained_op_;
+   ConstrainedOperator *constrained_op_;
+};
+
+void CoarsenEssentialDofs(const mfem::Operator& mfem_interp,
+                          const mfem::Array<int>& ho_ess_tdof_list,
+                          mfem::Array<int>& alg_lo_ess_tdof_list)
+{
+   mfem::Vector ho_boundary_ones(mfem_interp.Height());
+   ho_boundary_ones = 0.0;
+   for (int k : ho_ess_tdof_list)
+   {
+      ho_boundary_ones(k) = 1.0;
+   }
+   mfem::Vector lo_boundary_ones(mfem_interp.Width());
+   mfem_interp.MultTranspose(ho_boundary_ones, lo_boundary_ones);
+   auto lobo = lo_boundary_ones.HostRead();
+   for (int i = 0; i < lo_boundary_ones.Size(); ++i)
+   {
+      if (lobo[i] > 0.9)
+      {
+         alg_lo_ess_tdof_list.Append(i);
+      }
+   }
+}
+
+template <typename INTEG>
+void TryToAddCeedSubOperator(BilinearFormIntegrator *integ_in, CeedOperator op)
+{
+   INTEG *integ = dynamic_cast<INTEG*>(integ_in);
+   if (integ != NULL)
+   {
+      CeedCompositeOperatorAddSub(op, integ->GetCeedData()->oper);
+   }
+}
+
+CeedOperator CreateCeedCompositeOperatorFromBilinearForm(BilinearForm &form)
+{
+   CeedOperator op;
+   CeedCompositeOperatorCreate(internal::ceed, &op);
+
+   // Get the domain bilinear form integrators (DBFIs)
+   Array<BilinearFormIntegrator*> *bffis = form.GetDBFI();
+   int num_integrators = bffis->Size();
+
+   for (int i = 0; i < num_integrators; ++i)
+   {
+      BilinearFormIntegrator *integ = (*bffis)[i];
+      TryToAddCeedSubOperator<DiffusionIntegrator>(integ, op);
+      TryToAddCeedSubOperator<MassIntegrator>(integ, op);
+      TryToAddCeedSubOperator<VectorDiffusionIntegrator>(integ, op);
+      TryToAddCeedSubOperator<VectorMassIntegrator>(integ, op);
+   }
+   return op;
+}
+
+CeedOperator CoarsenCeedCompositeOperator(
+   CeedOperator op,
+   CeedElemRestriction er,
+   CeedBasis c2f,
+   int order_reduction
+)
+{
+   bool isComposite;
+   CeedOperatorIsComposite(op, &isComposite);
+   MFEM_ASSERT(isComposite, "");
+
+   CeedOperator op_coarse;
+   CeedCompositeOperatorCreate(internal::ceed, &op_coarse);
+
+   int nsub;
+   CeedOperatorGetNumSub(op, &nsub);
+   CeedOperator *subops;
+   CeedOperatorGetSubList(op, &subops);
+   for (int isub=0; isub<nsub; ++isub)
+   {
+      CeedOperator subop = subops[isub];
+      CeedBasis basis_coarse, basis_c2f;
+      CeedOperator subop_coarse;
+      CeedATPMGOperator(subop, order_reduction, er, &basis_coarse, &basis_c2f, &subop_coarse);
+      CeedBasisDestroy(&basis_coarse); // refcounted by subop_coarse
+      CeedBasisDestroy(&basis_c2f);
+      CeedCompositeOperatorAddSub(op_coarse, subop_coarse);
+      CeedOperatorDestroy(&subop_coarse); // refcounted by composite operator
+   }
+   return op_coarse;
+}
+
+AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
+   AlgebraicFESpaceHierarchy &hierarchy,
+   BilinearForm &form,
+   Array<int> ess_tdofs
+) : Multigrid(hierarchy)
+{
+   int nlevels = fespaces.GetNumLevels();
+   ceed_operators.SetSize(nlevels);
+   essentialTrueDofs.SetSize(nlevels);
+
+   // Construct finest level
+   ceed_operators[nlevels-1] = CreateCeedCompositeOperatorFromBilinearForm(form);
+   essentialTrueDofs[nlevels-1] = new Array<int>;
+   *essentialTrueDofs[nlevels-1] = ess_tdofs;
+
+   // Construct hierarchy by coarsening
+   for (int ilevel=nlevels-2; ilevel>=0; --ilevel)
+   {
+      AlgebraicCoarseFESpace &space = hierarchy.GetAlgebraicCoarseFESpace(ilevel);
+      ceed_operators[ilevel] = CoarsenCeedCompositeOperator(
+         ceed_operators[ilevel+1],
+         space.GetCeedElemRestriction(),
+         space.GetCeedCoarseToFine(),
+         space.GetOrderReduction()
+      );
+      Operator *P = hierarchy.GetProlongationAtLevel(ilevel);
+      essentialTrueDofs[ilevel] = new Array<int>;
+      CoarsenEssentialDofs(*P, *essentialTrueDofs[ilevel+1], *essentialTrueDofs[ilevel]);
+   }
+
+   // Add the operators and smoothers
+   for (int ilevel=0; ilevel<nlevels; ++ilevel)
+   {
+      FiniteElementSpace &space = hierarchy.GetFESpaceAtLevel(ilevel);
+      const Operator *P = space.GetProlongationMatrix();
+      Operator *op = new MFEMCeedOperator(
+         ceed_operators[ilevel],
+         *essentialTrueDofs[ilevel],
+         P
+      );
+      Solver *solv;
+      if (ilevel == 0)
+      {
+         solv = BuildSmootherFromCeed(
+            op,
+            ceed_operators[ilevel],
+            *essentialTrueDofs[ilevel],
+            P,
+            true // true = use Chebyshev
+         );
+      }
+      else {
+         solv = BuildSmootherFromCeed(
+            op,
+            ceed_operators[ilevel],
+            *essentialTrueDofs[ilevel],
+            P,
+            true // true = use Chebyshev
+         );
+      }
+      AddLevel(op, solv, true, true);
+   }
+}
+
+
+AlgebraicFESpaceHierarchy::AlgebraicFESpaceHierarchy(FiniteElementSpace &fes)
+{
+   int order = fes.GetOrder(0);
+
+   int nlevels = 0;
+   int current_order = order;
+   while (current_order > 0)
+   {
+      nlevels++;
+      current_order = current_order / 2;
+   }
+
+   meshes.SetSize(nlevels);
+   ownedMeshes.SetSize(nlevels);
+   meshes = fes.GetMesh();
+   ownedMeshes = false;
+
+   fespaces.SetSize(nlevels);
+   ownedFES.SetSize(nlevels);
+   // Own all FESpaces except for the finest, own all prolongations
+   ownedFES = true;
+   fespaces[nlevels-1] = &fes;
+   ownedFES[nlevels-1] = false;
+
+   prolongations.SetSize(nlevels-1);
+   ownedProlongations.SetSize(nlevels-1);
+   ownedProlongations = true;
+
+   current_order = order;
+
+   Ceed ceed = internal::ceed;
+   Geometry::Type geom = fes.GetMesh()->GetElementBaseGeometry(0);
+   const IntegrationRule &ir = IntRules.Get(geom, 2*order);
+   InitCeedBasisAndRestriction(
+      fes,
+      ir,
+      ceed,
+      &fine_basis,
+      &fine_er
+   );
+
+   CeedBasis basis = fine_basis;
+   CeedElemRestriction er = fine_er;
+
+   int dim = fes.GetMesh()->Dimension();
+
+   for (int ilevel=nlevels-2; ilevel>=0; --ilevel)
+   {
+      const int order_reduction = current_order - (current_order/2);
+      AlgebraicCoarseFESpace *space = new AlgebraicCoarseFESpace(
+         *fespaces[ilevel+1],
+         er,
+         current_order,
+         dim,
+         order_reduction
+      );
+      current_order = current_order/2;
+      fespaces[ilevel] = space;
+      prolongations[ilevel] = new MFEMCeedInterpolation(
+         ceed,
+         space->GetCeedCoarseToFine(),
+         space->GetCeedElemRestriction(),
+         er
+      );
+      er = space->GetCeedElemRestriction();
+   }
+}
+
+AlgebraicCoarseFESpace::AlgebraicCoarseFESpace(
+   FiniteElementSpace &fine_fes,
+   CeedElemRestriction fine_er,
+   int order,
+   int dim,
+   int order_reduction_
+) : order_reduction(order_reduction_)
+{
+   order_reduction = order_reduction_;
+
+   int *dof_map;
+   CeedATPMGElemRestriction(
+      order,
+      order_reduction,
+      fine_er,
+      &ceed_elem_restriction,
+      dof_map
+   );
+   free(dof_map);
+   CeedBasisATPMGCToF(
+      internal::ceed,
+      order+1,
+      dim,
+      order_reduction,
+      &coarse_to_fine
+   );
+}
+
+/// copy/paste hack used in CeedOperatorFullAssemble
+int CeedHackReallocArray(size_t n, size_t unit, void *p) {
+  *(void **)p = realloc(*(void **)p, n*unit);
+  if (n && unit && !*(void **)p)
+    // LCOV_EXCL_START
+    return CeedError(NULL, 1, "realloc failed to allocate %zd members of size "
+                     "%zd\n", n, unit);
+  // LCOV_EXCL_STOP
+
+  return 0;
+}
+
+#define CeedHackRealloc(n, p) CeedHackReallocArray((n), sizeof(**(p)), p)
+
+/// copy/paste hack used in CeedOperatorFullAssemble
+int CeedHackFree(void *p) {
+  free(*(void **)p);
+  *(void **)p = NULL;
+  return 0;
+}
+
 // forward declaration
 class MFEMCeedVCycle;
-
-#ifdef MFEM_USE_MPI
-   using GroupComm = GroupCommunicator;
-#else
-   using GroupComm = void;
-#endif
 
 /**
    This takes a CeedOperator with essential dofs
@@ -154,65 +470,6 @@ private:
    HypreParMatrix *P_hypre;
    const Operator *P_fine_;
    TransposeOperator *R_fine_tr;
-};
-
-/**
-   Just wrap a Ceed operator in the mfem::Operator interface
-
-   This has no boundary conditions, I expect "users" (as if I had
-   any) to use MFEMCeedOperator (which defaults to this if you don't
-   give it essential dofs)
-*/
-class UnconstrainedMFEMCeedOperator : public mfem::Operator
-{
-public:
-   UnconstrainedMFEMCeedOperator(CeedOperator oper);
-   ~UnconstrainedMFEMCeedOperator();
-
-   virtual void Mult(const mfem::Vector& x, mfem::Vector& y) const;
-   using Operator::SetupRAP;
-private:
-   CeedOperator oper_;
-   CeedVector u_, v_;   // mutable?
-};
-
-class MFEMCeedOperator : public mfem::Operator
-{
-public:
-   MFEMCeedOperator(CeedOperator oper, mfem::Array<int>& ess_tdofs, const Operator *P)
-      :
-      unconstrained_op_(oper)
-   {
-      Operator *rap = unconstrained_op_.SetupRAP(P, P);
-      height = width = rap->Height();
-      bool own_rap = rap != &unconstrained_op_;
-      constrained_op_ = new ConstrainedOperator(rap, ess_tdofs, own_rap);
-   }
-
-   MFEMCeedOperator(CeedOperator oper, const Operator *P)
-      :
-      unconstrained_op_(oper)
-   {
-      mfem::Array<int> empty;
-      Operator *rap = unconstrained_op_.SetupRAP(P, P);
-      height = width = rap->Height();
-      bool own_rap = rap != &unconstrained_op_;
-      constrained_op_ = new ConstrainedOperator(rap, empty, own_rap);
-   }
-
-   ~MFEMCeedOperator()
-   {
-      delete constrained_op_;
-   }
-
-   void Mult(const mfem::Vector& x, mfem::Vector& y) const
-   {
-      constrained_op_->Mult(x, y);
-   }
-
-private:
-   UnconstrainedMFEMCeedOperator unconstrained_op_;
-   ConstrainedOperator *constrained_op_;
 };
 
 class MFEMCeedVCycle : public mfem::Solver
@@ -623,13 +880,6 @@ void UnconstrainedMFEMCeedOperator::Mult(const mfem::Vector& x, mfem::Vector& y)
    MFEM_ASSERT(ierr == 0, "CEED error");
 }
 
-struct IdentitySolver : Solver
-{
-   IdentitySolver(int n) : Solver(n) { }
-   void Mult(const Vector &b, Vector &x) const { x = b; }
-   void SetOperator(const Operator &op) { }
-};
-
 mfem::Solver * BuildSmootherFromCeed(Operator * mfem_op, CeedOperator ceed_op,
                                      const Array<int>& ess_tdofs,
                                      const Operator *P,
@@ -872,27 +1122,7 @@ void MFEMCeedInterpolation::MultTranspose(const mfem::Vector& x,
    MFEM_ASSERT(ierr == 0, "CEED error");
 }
 
-void CoarsenEssentialDofs(const mfem::Operator& mfem_interp,
-                          const mfem::Array<int>& ho_ess_tdof_list,
-                          mfem::Array<int>& alg_lo_ess_tdof_list)
-{
-   mfem::Vector ho_boundary_ones(mfem_interp.Height());
-   ho_boundary_ones = 0.0;
-   for (int k : ho_ess_tdof_list)
-   {
-      ho_boundary_ones(k) = 1.0;
-   }
-   mfem::Vector lo_boundary_ones(mfem_interp.Width());
-   mfem_interp.MultTranspose(ho_boundary_ones, lo_boundary_ones);
-   auto lobo = lo_boundary_ones.HostRead();
-   for (int i = 0; i < lo_boundary_ones.Size(); ++i)
-   {
-      if (lobo[i] > 0.9)
-      {
-         alg_lo_ess_tdof_list.Append(i);
-      }
-   }
-}
+
 
 CeedMultigridLevel::CeedMultigridLevel(CeedOperator oper,
                                        const mfem::Array<int>& ho_ess_tdof_list,
