@@ -2896,10 +2896,8 @@ double GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
                                             double Nu,
                                             const IntegrationRule *irs[])  const
 {
-   return ComputeDGFaceJumpError(exsol,
-                                 ell_coeff,
-                                 {Nu, JumpScaling::ONE_OVER_H},
-                                 irs);
+   return ComputeDGFaceJumpError(
+             exsol, ell_coeff, {Nu, JumpScaling::ONE_OVER_H}, irs);
 }
 
 double GridFunction::ComputeH1Error(Coefficient *exsol,
