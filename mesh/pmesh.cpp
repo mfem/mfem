@@ -2548,7 +2548,7 @@ int ParMesh::GetNSharedFaces() const
    }
 }
 
-int ParMesh::GetSharedFace(int sface) const
+int ParMesh::GetLocalFaceIndexOfSharedFace(int sface) const
 {
    if (Conforming())
    {

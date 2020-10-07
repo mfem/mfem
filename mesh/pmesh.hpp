@@ -322,11 +322,14 @@ public:
    int GetSharedFaceIndexOfLocalFace(int face_idx) const;
 
    /// Return the local face index for the given shared face.
-   int GetLocalFaceIndexOfSharedFace(int s) const { return GetSharedFace(s); }
+   int GetLocalFaceIndexOfSharedFace(int sface) const;
 
    /// Return the local face index for the given shared face. This performs the
    /// same function as GetLocalFaceIndexOfSharedFace.
-   int GetSharedFace(int sface) const;
+   int GetSharedFace(int sface) const
+   {
+      return GetLocalFaceIndexOfSharedFace(sface);
+   }
 
    /// Return the index of the face-neighbor element containing the given
    /// shared face.
