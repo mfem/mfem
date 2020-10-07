@@ -36,7 +36,6 @@ protected:
    Array<Array<int>*> essentialTrueDofs;
    Array<BilinearForm*> bfs;
 
-private:
    Array<Operator*> operators;
    Array<Solver*> smoothers;
 
