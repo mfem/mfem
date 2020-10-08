@@ -16,85 +16,115 @@
 #include "../fem/fespace.hpp"
 #include "../fem/libceed/ceedsolvers-atpmg.h"
 #include "../fem/libceed/ceedsolvers-interpolation.h"
+#include "../fem/libceed/ceed-assemble.hpp"
 #include "../fem/pfespace.hpp"
 
 namespace mfem
 {
 
-Solver *BuildSmootherFromCeed(
-   Operator *mfem_op,
-   CeedOperator ceed_op,
-   const Array<int>& ess_tdofs,
-   const Operator *P,
-   bool chebyshev
-)
+Solver *BuildSmootherFromCeed(MFEMCeedOperator &op, bool chebyshev)
 {
-   // this is a local diagonal, in the sense of l-vector
+   CeedOperator ceed_op = op.GetCeedOperator();
+   const Array<int> &ess_tdofs = op.GetEssentialTrueDofs();
+   const Operator *P = op.GetProlongation();
+   // Assemble the a local diagonal, in the sense of L-vector
    CeedVector diagceed;
    CeedInt length;
-   Ceed ceed;
-   CeedOperatorGetCeed(ceed_op, &ceed);
    CeedOperatorGetSize(ceed_op, &length);
-   CeedVectorCreate(ceed, length, &diagceed);
-   CeedVectorSetValue(diagceed, 0.0);
+   CeedVectorCreate(internal::ceed, length, &diagceed);
    CeedOperatorLinearAssembleDiagonal(ceed_op, diagceed, CEED_REQUEST_IMMEDIATE);
-   const CeedScalar * diagvals;
+   const CeedScalar *diagvals;
    CeedMemType mem;
-   CeedGetPreferredMemType(ceed, &mem);
-   if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
-   {
-      // intentional no-op
-   }
-   else
+   CeedGetPreferredMemType(internal::ceed, &mem);
+   if (!Device::Allows(Backend::CUDA) || mem != CEED_MEM_DEVICE)
    {
       mem = CEED_MEM_HOST;
    }
    CeedVectorGetArrayRead(diagceed, mem, &diagvals);
-   Vector local_diag(const_cast<CeedScalar*>(diagvals), length);
-   Vector mfem_diag;
+
+   Vector t_diag;
    if (P)
    {
-      mfem_diag.SetSize(P->Width());
-      P->MultTranspose(local_diag, mfem_diag);
+      Vector local_diag(const_cast<CeedScalar*>(diagvals), length);
+      t_diag.SetSize(P->Width());
+      P->MultTranspose(local_diag, t_diag);
    }
    else
    {
-      mfem_diag.SetDataAndSize(local_diag, local_diag.Size());
+      t_diag.SetDataAndSize(const_cast<CeedScalar*>(diagvals), length);
    }
-   Solver * out = NULL;
+   Solver *out = NULL;
    if (chebyshev)
    {
       const int cheb_order = 3;
-      out = new OperatorChebyshevSmoother(mfem_op, mfem_diag, ess_tdofs, cheb_order);
+      out = new OperatorChebyshevSmoother(&op, t_diag, ess_tdofs, cheb_order);
    }
    else
    {
       const double jacobi_scale = 0.65;
-      out = new OperatorJacobiSmoother(mfem_diag, ess_tdofs, jacobi_scale);
+      out = new OperatorJacobiSmoother(t_diag, ess_tdofs, jacobi_scale);
    }
    CeedVectorRestoreArrayRead(diagceed, &diagvals);
    CeedVectorDestroy(&diagceed);
    return out;
 }
 
-void CoarsenEssentialDofs(const Operator& mfem_interp,
-                          const Array<int>& ho_ess_tdof_list,
-                          Array<int>& alg_lo_ess_tdof_list)
+class CeedAMG : public Solver
 {
-   Vector ho_boundary_ones(mfem_interp.Height());
+public:
+   CeedAMG(MFEMCeedOperator &oper, HypreParMatrix *P)
+   {
+      const Array<int> ess_tdofs = oper.GetEssentialTrueDofs();
+      height = width = oper.Height();
+
+      CeedOperatorFullAssemble(oper.GetCeedOperator(), &mat_local);
+      HypreParMatrix *hypre_local = new HypreParMatrix(
+         P->GetComm(), P->GetGlobalNumRows(), P->RowPart(), mat_local);
+      if (P)
+      {
+         op_assembled = RAP(hypre_local, P);
+         delete hypre_local;
+      }
+      else
+      {
+         op_assembled = hypre_local;
+      }
+      HypreParMatrix *mat_e = op_assembled->EliminateRowsCols(ess_tdofs);
+      delete mat_e;
+      amg = new HypreBoomerAMG(*op_assembled);
+      amg->SetPrintLevel(0);
+   }
+   void SetOperator(const Operator &op) { }
+   void Mult(const Vector &x, Vector &y) const { amg->Mult(x, y); }
+   ~CeedAMG()
+   {
+      delete op_assembled;
+      delete amg;
+   }
+private:
+   SparseMatrix *mat_local;
+   HypreParMatrix *op_assembled;
+   HypreBoomerAMG *amg;
+};
+
+void CoarsenEssentialDofs(const Operator &interp,
+                          const Array<int> &ho_ess_tdofs,
+                          Array<int> &alg_lo_ess_tdofs)
+{
+   Vector ho_boundary_ones(interp.Height());
    ho_boundary_ones = 0.0;
-   for (int k : ho_ess_tdof_list)
+   for (int k : ho_ess_tdofs)
    {
       ho_boundary_ones(k) = 1.0;
    }
-   Vector lo_boundary_ones(mfem_interp.Width());
-   mfem_interp.MultTranspose(ho_boundary_ones, lo_boundary_ones);
+   Vector lo_boundary_ones(interp.Width());
+   interp.MultTranspose(ho_boundary_ones, lo_boundary_ones);
    auto lobo = lo_boundary_ones.HostRead();
    for (int i = 0; i < lo_boundary_ones.Size(); ++i)
    {
       if (lobo[i] > 0.9)
       {
-         alg_lo_ess_tdof_list.Append(i);
+         alg_lo_ess_tdofs.Append(i);
       }
    }
 }
@@ -176,7 +206,7 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
    essentialTrueDofs[nlevels-1] = new Array<int>;
    *essentialTrueDofs[nlevels-1] = ess_tdofs;
 
-   // Construct hierarchy by coarsening
+   // Construct operators at all levels of hierarchy by coarsening
    for (int ilevel=nlevels-2; ilevel>=0; --ilevel)
    {
       AlgebraicCoarseSpace &space = hierarchy.GetAlgebraicCoarseSpace(ilevel);
@@ -188,24 +218,36 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
       CoarsenEssentialDofs(*P, *essentialTrueDofs[ilevel+1], *essentialTrueDofs[ilevel]);
    }
 
-   // Add the operators and smoothers
+   // Add the operators and smoothers to the hierarchy, from coarse to fine
    for (int ilevel=0; ilevel<nlevels; ++ilevel)
    {
       FiniteElementSpace &space = hierarchy.GetFESpaceAtLevel(ilevel);
       const Operator *P = space.GetProlongationMatrix();
-      Operator *op = new MFEMCeedOperator(ceed_operators[ilevel],
-                                          *essentialTrueDofs[ilevel], P);
-      Solver *solv;
+      MFEMCeedOperator *op = new MFEMCeedOperator(
+         ceed_operators[ilevel], *essentialTrueDofs[ilevel], P);
+      Solver *smoother;
       if (ilevel == 0)
       {
-         solv = BuildSmootherFromCeed(op, ceed_operators[ilevel],
-                                      *essentialTrueDofs[ilevel], P, true);
+         HypreParMatrix *P_mat = NULL;
+         if (nlevels == 1)
+         {
+            // Only one level -- no coarsening, finest level
+            ParFiniteElementSpace *pfes
+               = dynamic_cast<ParFiniteElementSpace*>(&space);
+            if (pfes) { P_mat = pfes->Dof_TrueDof_Matrix(); }
+         }
+         else
+         {
+            ParAlgebraicCoarseSpace *pspace
+               = dynamic_cast<ParAlgebraicCoarseSpace*>(&space);
+            if (pspace) { P_mat = pspace->GetProlongationHypreParMatrix(); }
+         }
+         smoother = new CeedAMG(*op, P_mat);
       }
       else {
-         solv = BuildSmootherFromCeed(op, ceed_operators[ilevel],
-                                      *essentialTrueDofs[ilevel], P, true);
+         smoother = BuildSmootherFromCeed(*op, true);
       }
-      AddLevel(op, solv, true, true);
+      AddLevel(op, smoother, true, true);
    }
 }
 
@@ -220,13 +262,12 @@ AlgebraicCeedMultigrid::~AlgebraicCeedMultigrid()
 AlgebraicSpaceHierarchy::AlgebraicSpaceHierarchy(FiniteElementSpace &fes)
 {
    int order = fes.GetOrder(0);
-
    int nlevels = 0;
    int current_order = order;
    while (current_order > 0)
    {
       nlevels++;
-      current_order = current_order / 2;
+      current_order = current_order/2;
    }
 
    meshes.SetSize(nlevels);
@@ -272,13 +313,7 @@ AlgebraicSpaceHierarchy::AlgebraicSpaceHierarchy(FiniteElementSpace &fes)
       if (pfes)
       {
          ParAlgebraicCoarseSpace *parspace = new ParAlgebraicCoarseSpace(
-            *fespaces[ilevel+1],
-            er,
-            current_order,
-            dim,
-            order_reduction,
-            gc
-         );
+            *fespaces[ilevel+1], er, current_order, dim, order_reduction, gc);
          gc = parspace->GetGroupCommunicator();
          space = parspace;
       }
@@ -286,12 +321,7 @@ AlgebraicSpaceHierarchy::AlgebraicSpaceHierarchy(FiniteElementSpace &fes)
 #endif
       {
          space = new AlgebraicCoarseSpace(
-            *fespaces[ilevel+1],
-            er,
-            current_order,
-            dim,
-            order_reduction
-         );
+            *fespaces[ilevel+1], er, current_order, dim, order_reduction);
       }
       current_order = current_order/2;
       fespaces[ilevel] = space;
@@ -444,8 +474,8 @@ HypreParMatrix *ParAlgebraicCoarseSpace::GetProlongationHypreParMatrix()
    MFEM_VERIFY(pmesh != NULL, "");
    Array<HYPRE_Int> dof_offsets, tdof_offsets, tdof_nb_offsets;
    Array<HYPRE_Int> *offsets[2] = {&dof_offsets, &tdof_offsets};
-   int lsize = GetVSize();
-   int ltsize = GetTrueVSize();
+   int lsize = P->Height();
+   int ltsize = P->Width();
    HYPRE_Int loc_sizes[2] = {lsize, ltsize};
    pmesh->GenerateOffsets(2, loc_sizes, offsets);
 

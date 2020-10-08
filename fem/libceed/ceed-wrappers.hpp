@@ -25,13 +25,18 @@ namespace mfem
 class MFEMCeedOperator : public Operator
 {
 public:
-   MFEMCeedOperator(CeedOperator oper, const Array<int> &ess_tdofs, const Operator *P);
-   MFEMCeedOperator(CeedOperator oper, const Operator *P);
+   MFEMCeedOperator(CeedOperator oper, const Array<int> &ess_tdofs_, const Operator *P_);
+   MFEMCeedOperator(CeedOperator oper, const Operator *P_);
    ~MFEMCeedOperator();
    void Mult(const Vector& x, Vector& y) const;
+   CeedOperator GetCeedOperator() const;
+   const Array<int> &GetEssentialTrueDofs() const;
+   const Operator *GetProlongation() const;
 private:
-   class UnconstrainedMFEMCeedOperator *unconstrained_op_;
-   ConstrainedOperator *constrained_op_;
+   Array<int> ess_tdofs;
+   const Operator *P;
+   class UnconstrainedMFEMCeedOperator *unconstrained_op;
+   ConstrainedOperator *constrained_op;
 };
 
 /**

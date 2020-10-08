@@ -1,3 +1,14 @@
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
 #include "ceed-wrappers.hpp"
 
 #ifdef MFEM_USE_CEED
@@ -13,8 +24,8 @@ class UnconstrainedMFEMCeedOperator : public Operator
 public:
    UnconstrainedMFEMCeedOperator(CeedOperator oper);
    ~UnconstrainedMFEMCeedOperator();
-
    virtual void Mult(const Vector& x, Vector& y) const;
+   CeedOperator GetCeedOperator() const { return oper_; }
    using Operator::SetupRAP;
 private:
    CeedOperator oper_;
@@ -78,30 +89,45 @@ void UnconstrainedMFEMCeedOperator::Mult(const Vector& x, Vector& y) const
 
 MFEMCeedOperator::MFEMCeedOperator(
    CeedOperator oper,
-   const Array<int> &ess_tdofs,
-   const Operator *P
-)
+   const Array<int> &ess_tdofs_,
+   const Operator *P_)
+ : ess_tdofs(ess_tdofs_), P(P_)
 {
-   unconstrained_op_ = new UnconstrainedMFEMCeedOperator(oper);
-   Operator *rap = unconstrained_op_->SetupRAP(P, P);
+   unconstrained_op = new UnconstrainedMFEMCeedOperator(oper);
+   Operator *rap = unconstrained_op->SetupRAP(P, P);
    height = width = rap->Height();
-   bool own_rap = rap != unconstrained_op_;
-   constrained_op_ = new ConstrainedOperator(rap, ess_tdofs, own_rap);
+   bool own_rap = rap != unconstrained_op;
+   constrained_op = new ConstrainedOperator(rap, ess_tdofs, own_rap);
 }
 
-MFEMCeedOperator::MFEMCeedOperator(CeedOperator oper, const Operator *P)
- : MFEMCeedOperator(oper, Array<int>(), P)
+MFEMCeedOperator::MFEMCeedOperator(CeedOperator oper, const Operator *P_)
+ : MFEMCeedOperator(oper, Array<int>(), P_)
 { }
 
 MFEMCeedOperator::~MFEMCeedOperator()
 {
-   delete constrained_op_;
-   delete unconstrained_op_;
+   delete constrained_op;
+   delete unconstrained_op;
 }
 
 void MFEMCeedOperator::Mult(const Vector& x, Vector& y) const
 {
-   constrained_op_->Mult(x, y);
+   constrained_op->Mult(x, y);
+}
+
+CeedOperator MFEMCeedOperator::GetCeedOperator() const
+{
+   return unconstrained_op->GetCeedOperator();
+}
+
+const Array<int> &MFEMCeedOperator::GetEssentialTrueDofs() const
+{
+   return ess_tdofs;
+}
+
+const Operator *MFEMCeedOperator::GetProlongation() const
+{
+   return P;
 }
 
 int MFEMCeedInterpolation::Initialize(
