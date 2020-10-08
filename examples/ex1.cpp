@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&amgx, "-amgx", "--amgx-precon", "-no-amgx",
-                  "--no-amgx-precon", "Use AmgX.");
+                  "--no-amgx-precon", "Use AmgX V-cycle as preconditioner for CG.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",

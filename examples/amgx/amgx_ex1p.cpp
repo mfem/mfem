@@ -117,6 +117,9 @@ int main(int argc, char *argv[])
    if (myid == 0)
    {
       args.PrintOptions(cout);
+
+      MFEM_VERIFY(!pa == true && strcmp(amgx_json_file,"") != 0,
+                  "An AmgX json file is needed for this example \n");
    }
 
    // 3. Enable hardware devices such as GPUs, and programming models such as
@@ -245,12 +248,12 @@ int main(int argc, char *argv[])
       if (amgx_mpi_teams)
       {
          //Forms MPI teams to load balance between mpi ranks and gpus
-         amgx.Initialize_MPITeams(MPI_COMM_WORLD, ndevices);
+         amgx.InitMPITeams(MPI_COMM_WORLD, ndevices);
       }
       else
       {
          //Assumes MPI == number of devices
-         amgx.Initialize_ExclusiveGPU(MPI_COMM_WORLD);
+         amgx.InitExclusiveGPU(MPI_COMM_WORLD);
       }
 
       amgx.SetOperator(*A.As<HypreParMatrix>());

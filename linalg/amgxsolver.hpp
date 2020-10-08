@@ -46,7 +46,7 @@ public:
    /* Constructor for serial builds - supported without Hypre and MPI */
    AmgXSolver(const AMGX_MODE amgxMode_, const bool verbose);
 
-   void Initialize_Serial();
+   void InitSerial();
 
 #ifdef MFEM_USE_MPI
 
@@ -59,19 +59,19 @@ public:
    AmgXSolver(const MPI_Comm &comm, const int nDevs,
               const AMGX_MODE amgx_Mode_, const bool verbose);
 
-   void Initialize_ExclusiveGPU(const MPI_Comm &comm);
+   void InitExclusiveGPU(const MPI_Comm &comm);
 
-   void Initialize_MPITeams(const MPI_Comm &comm,
-                            const int nDevs);
+   void InitMPITeams(const MPI_Comm &comm,
+                     const int nDevs);
 
-   void SetMatrix_MPI_GPU_Exclusive(const HypreParMatrix &A,
-                                    const Array<double> &loc_A,
-                                    const Array<int> &loc_I, const Array<int64_t> &loc_J,
-                                    const bool update_mat = false);
+   void SetMatrixMPIGPUExclusive(const HypreParMatrix &A,
+                                 const Array<double> &loc_A,
+                                 const Array<int> &loc_I, const Array<int64_t> &loc_J,
+                                 const bool update_mat = false);
 
-   void SetMatrix_MPI_Teams(const HypreParMatrix &A, const Array<double> &loc_A,
-                            const Array<int> &loc_I, const Array<int64_t> &loc_J,
-                            const bool update_mat = false);
+   void SetMatrixMPITeams(const HypreParMatrix &A, const Array<double> &loc_A,
+                          const Array<int> &loc_I, const Array<int64_t> &loc_J,
+                          const bool update_mat = false);
 #endif
 
    virtual void SetOperator(const Operator &op);
