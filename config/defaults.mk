@@ -133,6 +133,7 @@ MFEM_USE_PUMI          = NO
 MFEM_USE_HIOP          = NO
 MFEM_USE_GSLIB         = NO
 MFEM_USE_CUDA          = NO
+MFEM_USE_AMGX          = NO
 MFEM_USE_HIP           = NO
 MFEM_USE_RAJA          = NO
 MFEM_USE_OCCA          = NO
@@ -385,6 +386,11 @@ MKL_CPARDISO_OPT = -I$(MKL_CPARDISO_DIR)/include
 MKL_CPARDISO_LIB = -Wl,-rpath,$(MKL_CPARDISO_DIR)/$(MKL_LIBRARY_SUBDIR)\
                    -L$(MKL_CPARDISO_DIR)/$(MKL_LIBRARY_SUBDIR) -l$(MKL_MPI_WRAPPER)\
                    -lmkl_intel_lp64 -lmkl_sequential -lmkl_core
+
+# AMGX library configuration
+AMGX_DIR = @MFEM_DIR@/../amgx
+AMGX_OPT = -I$(AMGX_DIR)/include
+AMGX_LIB = -L$(CUDA_HOME)/lib64 -lcusparse -lcusolver -lcublas -lnvToolsExt -L$(AMGX_DIR)/lib -lamgx -Xlinker=-rpath=$(CUDA_HOME)/lib64
 
 # If YES, enable some informational messages
 VERBOSE = NO

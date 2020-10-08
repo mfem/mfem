@@ -187,6 +187,7 @@ set(MKL_LIBRARY_DIR "" CACHE STRING "Custom library subdirectory")
 
 set(OCCA_DIR "${MFEM_DIR}/../occa" CACHE PATH "Path to OCCA")
 set(RAJA_DIR "${MFEM_DIR}/../raja" CACHE PATH "Path to RAJA")
+set(AMGX_DIR "${MFEM_DIR}/../amgx" CACHE PATH "Path to AMGX")
 set(CEED_DIR "${MFEM_DIR}/../libCEED" CACHE PATH "Path to libCEED")
 set(UMPIRE_DIR "${MFEM_DIR}/../umpire" CACHE PATH "Path to Umpire")
 
