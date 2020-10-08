@@ -76,20 +76,16 @@ class CeedAMG : public Solver
 public:
    CeedAMG(MFEMCeedOperator &oper, HypreParMatrix *P)
    {
+      MFEM_ASSERT(P != NULL, "");
       const Array<int> ess_tdofs = oper.GetEssentialTrueDofs();
       height = width = oper.Height();
 
       CeedOperatorFullAssemble(oper.GetCeedOperator(), &mat_local);
-      HypreParMatrix *hypre_local = new HypreParMatrix(
-         P->GetComm(), P->GetGlobalNumRows(), P->RowPart(), mat_local);
-      if (P)
+
       {
-         op_assembled = RAP(hypre_local, P);
-         delete hypre_local;
-      }
-      else
-      {
-         op_assembled = hypre_local;
+         HypreParMatrix hypre_local(
+            P->GetComm(), P->GetGlobalNumRows(), P->RowPart(), mat_local);
+         op_assembled = RAP(&hypre_local, P);
       }
       HypreParMatrix *mat_e = op_assembled->EliminateRowsCols(ess_tdofs);
       delete mat_e;
@@ -247,7 +243,8 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
                = dynamic_cast<ParAlgebraicCoarseSpace*>(&space);
             if (pspace) { P_mat = pspace->GetProlongationHypreParMatrix(); }
          }
-         smoother = new CeedAMG(*op, P_mat);
+         if (P_mat) { smoother = new CeedAMG(*op, P_mat); }
+         else { smoother = BuildSmootherFromCeed(*op, true); }
       }
       else
 #endif
