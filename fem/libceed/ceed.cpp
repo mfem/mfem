@@ -637,6 +637,7 @@ static void InitCeedTensorBasis(const FiniteElementSpace &fes,
    MFEM_VERIFY(tfe, "invalid FE");
    const FiniteElement *fe1d =
       fes.FEColl()->FiniteElementForGeometry(Geometry::SEGMENT);
+   MFEM_VERIFY(fe1d, "Periodic meshes not yet handled.");
    DenseMatrix shape1d(fe1d->GetDof(), ir.GetNPoints());
    DenseMatrix grad1d(fe1d->GetDof(), ir.GetNPoints());
    Vector qref1d(ir.GetNPoints()), qweight1d(ir.GetNPoints());
