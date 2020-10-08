@@ -32,26 +32,27 @@ Solver *BuildSmootherFromCeed(MFEMCeedOperator &op, bool chebyshev)
    CeedInt length;
    CeedOperatorGetSize(ceed_op, &length);
    CeedVectorCreate(internal::ceed, length, &diagceed);
-   CeedOperatorLinearAssembleDiagonal(ceed_op, diagceed, CEED_REQUEST_IMMEDIATE);
-   const CeedScalar *diagvals;
    CeedMemType mem;
    CeedGetPreferredMemType(internal::ceed, &mem);
    if (!Device::Allows(Backend::CUDA) || mem != CEED_MEM_DEVICE)
    {
       mem = CEED_MEM_HOST;
    }
-   CeedVectorGetArrayRead(diagceed, mem, &diagvals);
+   Vector local_diag(length);
+   CeedScalar *ptr = (mem == CEED_MEM_HOST) ? local_diag.HostWrite() : local_diag.Write(true);
+   CeedVectorSetArray(diagceed, mem, CEED_USE_POINTER, ptr);
+   CeedOperatorLinearAssembleDiagonal(ceed_op, diagceed, CEED_REQUEST_IMMEDIATE);
+   CeedVectorTakeArray(diagceed, mem, NULL);
 
    Vector t_diag;
    if (P)
    {
-      Vector local_diag(const_cast<CeedScalar*>(diagvals), length);
       t_diag.SetSize(P->Width());
       P->MultTranspose(local_diag, t_diag);
    }
    else
    {
-      t_diag.SetDataAndSize(const_cast<CeedScalar*>(diagvals), length);
+      t_diag.NewMemoryAndSize(local_diag.GetMemory(), length, false);
    }
    Solver *out = NULL;
    if (chebyshev)
@@ -64,7 +65,6 @@ Solver *BuildSmootherFromCeed(MFEMCeedOperator &op, bool chebyshev)
       const double jacobi_scale = 0.65;
       out = new OperatorJacobiSmoother(t_diag, ess_tdofs, jacobi_scale);
    }
-   CeedVectorRestoreArrayRead(diagceed, &diagvals);
    CeedVectorDestroy(&diagceed);
    return out;
 }
@@ -113,9 +113,10 @@ void CoarsenEssentialDofs(const Operator &interp,
 {
    Vector ho_boundary_ones(interp.Height());
    ho_boundary_ones = 0.0;
-   for (int k : ho_ess_tdofs)
+   const int *ho_ess_tdofs_h = ho_ess_tdofs.HostRead();
+   for (int i=0; i<ho_ess_tdofs.Size(); ++i)
    {
-      ho_boundary_ones(k) = 1.0;
+      ho_boundary_ones[ho_ess_tdofs_h[i]] = 1.0;
    }
    Vector lo_boundary_ones(interp.Width());
    interp.MultTranspose(ho_boundary_ones, lo_boundary_ones);
@@ -194,7 +195,7 @@ CeedOperator CoarsenCeedCompositeOperator(
 AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
    AlgebraicSpaceHierarchy &hierarchy,
    BilinearForm &form,
-   Array<int> ess_tdofs
+   const Array<int> &ess_tdofs
 ) : Multigrid(hierarchy)
 {
    int nlevels = fespaces.GetNumLevels();
@@ -227,7 +228,7 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
          ceed_operators[ilevel], *essentialTrueDofs[ilevel], P);
       Solver *smoother;
 #ifdef MFEM_USE_MPI
-      if (ilevel == 0)
+      if (ilevel == 0 && !Device::Allows(Backend::CUDA))
       {
          HypreParMatrix *P_mat = NULL;
          if (nlevels == 1)
@@ -465,7 +466,14 @@ ParAlgebraicCoarseSpace::ParAlgebraicCoarseSpace(
    }
    R_mat->Finalize();
 
-   P = new ConformingProlongationOperator(lsize, *gc);
+   if (Device::Allows(Backend::DEVICE_MASK))
+   {
+      P = new DeviceConformingProlongationOperator(*gc, R_mat);
+   }
+   else
+   {
+      P = new ConformingProlongationOperator(lsize, *gc);
+   }
    P_mat = NULL;
 }
 
