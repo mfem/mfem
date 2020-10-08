@@ -461,9 +461,10 @@ void EliminationCGSolver::Mult(const Vector& rhs, Vector& sol) const
    CGSolver krylov;
    krylov.SetOperator(reducedoperator);
    krylov.SetPreconditioner(*prec_);
-   krylov.SetMaxIter(1000);
+   krylov.SetMaxIter(max_iter);
    krylov.SetRelTol(rel_tol);
-   krylov.SetPrintLevel(1);
+   krylov.SetAbsTol(abs_tol);
+   krylov.SetPrintLevel(print_level);
 
    Vector displacementrhs(A_.Height());
    for (int i = 0; i < displacementrhs.Size(); ++i)
