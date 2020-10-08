@@ -413,7 +413,7 @@ public:
 #endif
 
    /// Merge the local grid functions
-   void SaveAsOne(std::ostream &out = mfem::out);
+   void SaveAsOne(std::ostream &out = mfem::out) const;
 
    virtual ~ParGridFunction() { }
 };
