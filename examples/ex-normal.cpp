@@ -15,13 +15,13 @@
 
   some todo items:
 
+  - make one solver (probably penalty) that can work in parallel
   - improve Schur complement block solver (specifically the Schur block)
-  - make sure penalty / elimination can do the right thing with lagrange multipliers
+  - make sure penalty and elimination can do the right thing with lagrange multipliers
   - think about preconditioning interface; user may have good preconditioner for primal system that we could use in all three existing solvers?
   - make sure curved mesh works (is this a real problem or just VisIt visualization?)
   - move ConstrainedSolver and friends into library
   - make everything work in parallel
-  - use diffusion instead of mass
   - hook up to Smith or Tribol or some other contact setting
   - timing / scaling!
 
@@ -151,6 +151,8 @@ class PenaltyConstrainedSolver : public IterativeSolver
 public:
    PenaltyConstrainedSolver(HypreParMatrix& A, SparseMatrix& B, double penalty_);
 
+   PenaltyConstrainedSolver(HypreParMatrix& A, HypreParMatrix& B, double penalty_);
+
    ~PenaltyConstrainedSolver();
 
    void Mult(const Vector& x, Vector& y) const;
@@ -159,7 +161,7 @@ public:
 
 private:
    double penalty;
-   SparseMatrix& constraintB;
+   Operator& constraintB;
    // SparseMatrix * penalized_mat;
    HypreParMatrix * penalized_mat;
    HypreBoomerAMG * prec;
@@ -223,9 +225,10 @@ void PenaltyConstrainedSolver::Mult(const Vector& b, Vector& x) const
    cg.Mult(penalized_rhs, penalized_sol);
 
    // recover Lagrange multiplier
-   mfem::Vector lmtemp(rhs_lm);
-   lmtemp *= -penalty;
-   constraintB.AddMult(penalized_sol, lmtemp, penalty);
+   Vector lmtemp(rhs_lm.Size());
+   constraintB.Mult(penalized_sol, lmtemp);
+   lmtemp -= rhs_lm;
+   lmtemp *= penalty;
     
    // put solution in x
    for (int i = 0; i < disp_size; ++i)
