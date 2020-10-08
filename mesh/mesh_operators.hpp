@@ -283,6 +283,7 @@ protected:
 
    double threshold;
    int nc_limit, op;
+   double total_fraction;
 
    /** @brief Apply the operator to the mesh.
        @return DEREFINED + CONTINUE if some elements were de-refined; NONE
@@ -297,12 +298,18 @@ public:
       threshold = 0.0;
       nc_limit = 0;
       op = 1;
+      total_fraction = 0.;
    }
 
    // default destructor (virtual)
 
    /// Set the de-refinement threshold. The default value is zero.
    void SetThreshold(double thresh) { threshold = thresh; }
+
+   // total_fraction is turned off by default
+   void SetTotalErrorFraction(double fraction) { total_fraction = fraction; }
+
+   double GetNorm(const Vector &local_err, Mesh &mesh) const;
 
    void SetOp(int op) { this->op = op; }
 

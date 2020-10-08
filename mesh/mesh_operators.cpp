@@ -108,8 +108,8 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
    double yMean, xMean;
    long elementLevel;
 
-   //it was not working at all in 1e-6
-   //a different way to implement yrange (we can modify the local_err vector)
+   // the local err is set to be 0 if it is in the x range and the elementLevel reaches the 
+   // maximal levels that xRange allows (so refinement will skip that)
    if (xRange && mesh.Nonconforming())
    {
       Vector &local_err_ = const_cast<Vector &>(local_err);
@@ -128,7 +128,6 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
         }
         xMean=xMean/ndof;
         
-        //this may be a better way to add constraint?
         if ((xMean<=xmin || xMean>=xmax) && elementLevel==xRange_levels)
            local_err_(el) =0.;
       }
@@ -226,13 +225,29 @@ void ThresholdRefiner::Reset()
    // marked_elements.SetSize(0); // not necessary
 }
 
+double ThresholdDerefiner::GetNorm(const Vector &local_err, Mesh &mesh) const
+{
+   const double total_norm_p=infinity();
+#ifdef MFEM_USE_MPI
+   ParMesh *pmesh = dynamic_cast<ParMesh*>(&mesh);
+   if (pmesh)
+   {
+      return ParNormlp(local_err, total_norm_p, pmesh->GetComm());
+   }
+#endif
+   return local_err.Normlp(total_norm_p);
+}
 
 int ThresholdDerefiner::ApplyImpl(Mesh &mesh)
 {
    if (mesh.Conforming()) { return NONE; }
 
    const Vector &local_err = estimator.GetLocalErrors();
-   bool derefs = mesh.DerefineByError(local_err, threshold, nc_limit, op);
+
+   const double total_err = GetNorm(local_err, mesh);
+   const double true_threshold = std::max(total_err * total_fraction, threshold);
+
+   bool derefs = mesh.DerefineByError(local_err, true_threshold, nc_limit, op);
 
    return derefs ? CONTINUE + DEREFINED : NONE;
 }
