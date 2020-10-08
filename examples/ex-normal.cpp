@@ -15,16 +15,18 @@
 
   some todo items:
 
-  - improve Schur complement?
-  - add penalty version
+  - valgrind everything; there are clearly memory leaks
+  - improve Schur complement block solver
+  - add preconditioner to penalty system
   - make sure penalty / elimination can do the right thing with lagrange multipliers
   - systematic testing of the solvers
   - IterativeSolver interface (or close), to pass tolerances etc. down to subsolvers
-  - think about preconditioning interface; user may have good preconditioner for primal system
+  - think about preconditioning interface; user may have good preconditioner for primal system that we could use in all three existing solvers?
   - make sure curved mesh works (is this a real problem or just VisIt visualization?)
   - move ConstrainedSolver and friends into library
   - make everything work in parallel
   - use diffusion instead of mass
+  - hook up to Smith or Tribol or some other contact setting
   - timing / scaling!
 
   square-disc attributes (not indices):
@@ -171,9 +173,11 @@ PenaltyConstrainedSolver::PenaltyConstrainedSolver(SparseMatrix& A, SparseMatrix
    penalty(penalty_),
    constraintB(B)
 {
-   SparseMatrix * BTB = mfem::Mult(*Transpose(B), B);
+   SparseMatrix * BT = Transpose(B);
+   SparseMatrix * BTB = mfem::Mult(*BT, B);
    penalized_mat = Add(1.0, A, penalty, *BTB);
    delete BTB;
+   delete BT;
 }
 
 PenaltyConstrainedSolver::~PenaltyConstrainedSolver()
@@ -206,6 +210,7 @@ void PenaltyConstrainedSolver::Mult(const Vector& b, Vector& x) const
    cg.SetPrintLevel(1);
 
    /// note well this is *unpreconditioned*
+   penalized_sol = 0.0;
    cg.Mult(penalized_rhs, penalized_sol);
 
    // recover Lagrange multiplier
@@ -368,6 +373,9 @@ private:
 
    IterativeSolver * subsolver;
 
+   /// hack, @todo remove
+   SparseMatrix hypre_diag;
+
    Vector dual_rhs;
    mutable Vector dual_sol;
 
@@ -421,9 +429,7 @@ void ConstrainedSolver::SetElimination(Array<int>& primary_dofs,
                "Wrong number of dofs for elimination!");
 
    //// TODO ugly ugly hack (should work in parallel in principle)
-   //// also never gets deleted
-   SparseMatrix * hypre_diag = new SparseMatrix;
-   A.GetDiag(*hypre_diag);
+   A.GetDiag(hypre_diag);
 
 /*
    Array<int> primary_dofs;
@@ -433,7 +439,7 @@ void ConstrainedSolver::SetElimination(Array<int>& primary_dofs,
    // are assumed to be primary dofs, not sure it is worth the effort
 */
 
-   subsolver = new EliminationCGSolver(*hypre_diag, B, primary_dofs, secondary_dofs);
+   subsolver = new EliminationCGSolver(hypre_diag, B, primary_dofs, secondary_dofs);
 }
 
 void ConstrainedSolver::SetPenalty(double penalty)
@@ -441,10 +447,10 @@ void ConstrainedSolver::SetPenalty(double penalty)
    HypreParMatrix& A = dynamic_cast<HypreParMatrix&>(block_op->GetBlock(0, 0));
    SparseMatrix& B = dynamic_cast<SparseMatrix&>(block_op->GetBlock(1, 0));
 
-   SparseMatrix * hypre_diag = new SparseMatrix;
-   A.GetDiag(*hypre_diag);
+   //// TODO ugly ugly hack (should work in parallel in principle)
+   A.GetDiag(hypre_diag);
 
-   subsolver = new PenaltyConstrainedSolver(*hypre_diag, B, penalty);
+   subsolver = new PenaltyConstrainedSolver(hypre_diag, B, penalty);
 }
 
 void ConstrainedSolver::SetDualRHS(const Vector& r)
