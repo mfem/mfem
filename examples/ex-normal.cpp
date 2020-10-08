@@ -152,7 +152,7 @@ SparseMatrix * BuildNormalConstraints(FiniteElementSpace& fespace,
 class PenaltyConstrainedSolver : public IterativeSolver
 {
 public:
-   PenaltyConstrainedSolver(SparseMatrix& A, SparseMatrix& B, double penalty_);
+   PenaltyConstrainedSolver(HypreParMatrix& A, SparseMatrix& B, double penalty_);
 
    ~PenaltyConstrainedSolver();
 
@@ -163,25 +163,37 @@ public:
 private:
    double penalty;
    SparseMatrix& constraintB;
-   SparseMatrix * penalized_mat;
+   // SparseMatrix * penalized_mat;
+   HypreParMatrix * penalized_mat;
+   HypreBoomerAMG * prec;
 };
 
-PenaltyConstrainedSolver::PenaltyConstrainedSolver(SparseMatrix& A, SparseMatrix& B,
+PenaltyConstrainedSolver::PenaltyConstrainedSolver(HypreParMatrix& A, SparseMatrix& B,
                                                    double penalty_)
    :
    penalty(penalty_),
    constraintB(B)
 {
-   SparseMatrix * BT = Transpose(B);
-   SparseMatrix * BTB = mfem::Mult(*BT, B);
-   penalized_mat = Add(1.0, A, penalty, *BTB);
-   delete BTB;
-   delete BT;
+   HYPRE_Int hB_row_starts[2] = {0, B.Height()};
+   HYPRE_Int hB_col_starts[2] = {0, B.Width()};
+   HypreParMatrix hB(MPI_COMM_WORLD, B.Height(), B.Width(),
+                     hB_row_starts, hB_col_starts, &B);
+   HypreParMatrix * hBT = hB.Transpose();
+   HypreParMatrix * hBTB = ParMult(hBT, &hB, true);
+   // this matrix doesn't get cleanly deleted?
+   // (hypre comm pkg)
+   penalized_mat = Add(1.0, A, penalty, *hBTB);
+   prec = new HypreBoomerAMG(*penalized_mat);
+   prec->SetPrintLevel(0);
+   // prec->SetSystemsOptions(2); // ???
+   delete hBTB;
+   delete hBT;
 }
 
 PenaltyConstrainedSolver::~PenaltyConstrainedSolver()
 {
    delete penalized_mat;
+   delete prec;
 }
 
 void PenaltyConstrainedSolver::Mult(const Vector& b, Vector& x) const
@@ -207,6 +219,7 @@ void PenaltyConstrainedSolver::Mult(const Vector& b, Vector& x) const
    cg.SetAbsTol(1.e-12);
    cg.SetMaxIter(400);
    cg.SetPrintLevel(1);
+   cg.SetPreconditioner(*prec);
 
    /// note well this is *unpreconditioned*
    penalized_sol = 0.0;
@@ -441,10 +454,7 @@ void ConstrainedSolver::SetPenalty(double penalty)
    HypreParMatrix& A = dynamic_cast<HypreParMatrix&>(block_op->GetBlock(0, 0));
    SparseMatrix& B = dynamic_cast<SparseMatrix&>(block_op->GetBlock(1, 0));
 
-   //// TODO ugly ugly hack (should work in parallel in principle)
-   A.GetDiag(hypre_diag);
-
-   subsolver = new PenaltyConstrainedSolver(hypre_diag, B, penalty);
+   subsolver = new PenaltyConstrainedSolver(A, B, penalty);
 }
 
 void ConstrainedSolver::SetDualRHS(const Vector& r)
