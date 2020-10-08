@@ -37,6 +37,7 @@ public:
    CeedElemRestriction GetCeedElemRestriction() const { return ceed_elem_restriction; }
    CeedBasis GetCeedCoarseToFine() const { return coarse_to_fine; }
    virtual const Operator *GetProlongationMatrix() const override { return NULL; }
+   virtual const SparseMatrix *GetRestrictionMatrix() const override { return NULL; }
    ~AlgebraicCoarseSpace();
 protected:
    int *dof_map;
