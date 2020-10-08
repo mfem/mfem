@@ -46,6 +46,8 @@ protected:
    CeedBasis coarse_to_fine;
 };
 
+#ifdef MFEM_USE_MPI
+
 class ParAlgebraicCoarseSpace : public AlgebraicCoarseSpace
 {
 public:
@@ -71,6 +73,8 @@ private:
    HypreParMatrix *P_mat;
    Array<int> ldof_group, ldof_ltdof;
 };
+
+#endif
 
 class AlgebraicSpaceHierarchy : public FiniteElementSpaceHierarchy
 {

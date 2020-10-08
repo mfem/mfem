@@ -59,6 +59,8 @@
 #include <fstream>
 #include <iostream>
 
+#include "linalg/ceed_algebraic.hpp"
+
 using namespace std;
 using namespace mfem;
 
@@ -68,8 +70,8 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool static_cond = false;
-   bool pa = false;
-   const char *device_config = "cpu";
+   bool pa = true;
+   const char *device_config = "ceed-cpu";
    bool visualization = true;
    bool algebraic_ceed = true;
 
@@ -114,9 +116,9 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels =
-         (int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
-      for (int l = 0; l < ref_levels; l++)
+      // int ref_levels =
+      // (int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
+      for (int l = 0; l < 2; l++)
       {
          mesh.UniformRefinement();
       }
@@ -214,20 +216,21 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_CEED
       if (DeviceCanUseCeed() && algebraic_ceed)
       {
-         AlgebraicCeedSolver M(*A, a, ess_tdof_list, false);
+         AlgebraicSpaceHierarchy hierarchy(fespace);
+         AlgebraicCeedMultigrid M(hierarchy, a, ess_tdof_list);
          PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
       }
       else
 #endif
-      if (UsesTensorBasis(fespace))
-      {
-         OperatorJacobiSmoother M(a, ess_tdof_list);
-         PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
-      }
-      else
-      {
-         CG(*A, B, X, 1, 400, 1e-12, 0.0);
-      }
+         if (UsesTensorBasis(fespace))
+         {
+            OperatorJacobiSmoother M(a, ess_tdof_list);
+            PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
+         }
+         else
+         {
+            CG(*A, B, X, 1, 400, 1e-12, 0.0);
+         }
    }
 
    // 12. Recover the solution as a finite element grid function.
