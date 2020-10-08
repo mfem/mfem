@@ -29,25 +29,24 @@ namespace mfem
 {
 
 /**
-   MFEM's wrapper for Nvidia's multigrid library,
+   MFEM wrapper for Nvidia's multigrid library,
    AmgX (https://github.com/NVIDIA/AMGX).
 
-   AmgX requires building MFEM with CUDA, AMGX enabled.
-   For distributed memory parallism MPI and Hypre
-   (version 16.0+) are also required.
+   AmgX requires building MFEM with CUDA, and AMGX
+   enabled. For distributed memory parallism,
+   MPI and Hypre (version 16.0+) are also required.
    Although CUDA is required for building,
    the AmgX wrapper is compatible with
    a MFEM CPU device configuration.
 
-   The AmgXSolver class is designed to work in
-   conjunction with existing MFEM solvers either
-   as a preconditioner or a solver. The AmgX
-   solver class supports configuration of
-   three different modes and uses exising
-   MFEM sparse matrix formats.
+   The AmgXSolver class is designed to work
+   as a solver or preconditioner for MFEM existing
+   solvers. The AmgX solver class may be configured
+   in one of three ways:
 
-   Serial - Takes a MFEM::SparseMatrix and
-   solves and assumes no MPI communication.
+   Serial - Takes a SparseMatrix solves
+   on a single GPU and assumes no MPI
+   communication.
 
    Exclusive GPU - Takes a HypreParMatrix
    and assumes each MPI rank is paired with
@@ -60,14 +59,14 @@ namespace mfem
    step is taken so the MPI root of each team
    performs the necessary AmgX library calls.
    The solution is then broadcasted to appropriate ranks.
-   This is particularly useful for codes which
-   are not fully ported to GPUs.
+   This is particularly useful when configuring MFEM's
+   device as CPU.
 
    Examples 1,1p demonstrate basic usage with
    default parameters, while examples under the
-   amgx folder demonstrate configuring AmgX as
-   solver, preconditioner and configuring and
-   running with exclusive GPU or MPI teams.
+   amgx folder demonstrate configuring the wrapper
+   as a solver, preconditioner, configuring and
+   running with exclusive GPU or MPI teams modes.
 
    Reference:
    Pi-Yueh Chuang, & Lorena A. Barba (2017).
@@ -79,44 +78,87 @@ class AmgXSolver : public Solver
 {
 public:
 
+   /**
+     Flags to configure AmgXSolver
+     as a solver or preconditioner
+   */
    enum AMGX_MODE {SOLVER, PRECONDITIONER};
+
+   /**
+     Flags to determine whether user solver
+     settings are defined internally
+     in the source code or will be read through an
+     external json file.
+   */
    enum CONFIG_SRC {INTERNAL, EXTERNAL, UNDEFINED};
 
    AmgXSolver() = default;
 
-   /* Constructor for serial builds - supported without Hypre and MPI */
+   /**
+      Configures AmgX with a default configuration based on the
+      AmgX mode, and verbosity. Assumes no MPI parallism.
+    */
    AmgXSolver(const AMGX_MODE amgxMode_, const bool verbose);
 
+   /**
+     Once the solver configuration has been established through
+     either the ReadParameters method or the constructor,
+     InitSerial will initalize the library.
+     If configuring with constructor, the constructor will
+     make this call.
+   */
    void InitSerial();
 
 #ifdef MFEM_USE_MPI
 
-   /* Constructor for MPI-GPU exclusive (1 MPI per GPU) with default parameters*/
+   /**
+     Configures AmgX with a default configuration based on the
+     AmgX mode, and verbosity. Pairs each MPI rank with one GPU.
+   */
    AmgXSolver(const MPI_Comm &comm, const AMGX_MODE amgxMode_, const bool verbose);
 
-   /* Constructor for MPI teams (MPI procs share a GPU) */
-   /* nDevs specifies number of devices per node */
-   /* with default parameters */
+   /**
+     Configures AmgX with a default configuration based on the
+     AmgX mode, and verbosity. Creates MPI teams around GPUs
+     to support MPI ranks > GPUs. Consolidates linear solver data
+     to avoid multiple ranks sharing GPUs. Requires specifying
+     number of devices in each compute node.
+   */
    AmgXSolver(const MPI_Comm &comm, const int nDevs,
               const AMGX_MODE amgx_Mode_, const bool verbose);
 
+   /**
+     Once the solver configuration has been established,
+     either through the constructor or the
+     ReadParameters method, InitSerial will initalize the library.
+     If configuring with constructor, the constructor will
+     make this call.
+   */
    void InitExclusiveGPU(const MPI_Comm &comm);
 
+   /**
+     Once the solver configuration has been established,
+     either through the ReadParameters method,
+     InitMPITeams will intialize the library and create
+     MPI teams based on the number of devices on each node
+     (nDevs).
+     If configuring with constructor, the constructor will
+     make this call.
+   */
    void InitMPITeams(const MPI_Comm &comm,
                      const int nDevs);
-
-   void SetMatrixMPIGPUExclusive(const HypreParMatrix &A,
-                                 const Array<double> &loc_A,
-                                 const Array<int> &loc_I, const Array<int64_t> &loc_J,
-                                 const bool update_mat = false);
-
-   void SetMatrixMPITeams(const HypreParMatrix &A, const Array<double> &loc_A,
-                          const Array<int> &loc_I, const Array<int64_t> &loc_J,
-                          const bool update_mat = false);
 #endif
 
+   /**
+     Sets Operator for AmgX library, either
+     MFEM SparseMatrix or HypreParMatrix
+   */
    virtual void SetOperator(const Operator &op);
 
+   /**
+     Replaces the matrix coefficients in the
+     AmgX solver.
+    */
    void UpdateOperator(const Operator &op);
 
    virtual void Mult(const Vector& b, Vector& x) const;
@@ -135,9 +177,10 @@ public:
       When configured as a preconditioner, the default configuration
       is to apply two iterations of an AMG V cycle with AmgX's default
       smoother (block Jacobi).
-      As a solver the preconditioned conjugate gradient method with
-      the AMG V cycle with a block Jacobi smoother is used a
-      preconditioner is used.
+
+      As a solver the preconditioned conjugate gradient method is used.
+      The AMG V cycle with a block Jacobi smoother is used as a
+      preconditioner.
    */
    void DefaultParameters(const AMGX_MODE amgxMode_, const bool verbose);
 
@@ -154,7 +197,22 @@ private:
    CONFIG_SRC configSrc = UNDEFINED;
 
 #ifdef MFEM_USE_MPI
-   //The following methods send vectors to the root node in a MPI team
+   // Consolidates matrix diagonal and off diagonal data
+   // and uploads matrix to AmgX.
+   void SetMatrixMPIGPUExclusive(const HypreParMatrix &A,
+                                 const Array<double> &loc_A,
+                                 const Array<int> &loc_I, const Array<int64_t> &loc_J,
+                                 const bool update_mat = false);
+
+   // Consolidates matrix diagonal and off diagonal data
+   // for all ranks in an MPI team. Root rank of each MPI
+   // team holds the the consolidated data and sets matrix.
+   void SetMatrixMPITeams(const HypreParMatrix &A, const Array<double> &loc_A,
+                          const Array<int> &loc_I, const Array<int64_t> &loc_J,
+                          const bool update_mat = false);
+
+   // The following methods consolidate array data to the root node in
+   // a MPI team.
    void GatherArray(const Array<double> &inArr, Array<double> &outArr,
                     const int mpiTeamSz, const MPI_Comm &mpiTeam) const;
 
@@ -167,8 +225,8 @@ private:
    void GatherArray(const Array<int64_t> &inArr, Array<int64_t> &outArr,
                     const int mpiTeamSz, const MPI_Comm &mpiTeam) const;
 
-   //The following methods send vectors to the root node in a MPI team
-   //and store array partitions and displacements
+   // The following methods consolidate array data to the root node in
+   // a MPI team as well as store array partitions and displacements.
    void GatherArray(const Vector &inArr, Vector &outArr,
                     const int mpiTeamSz, const MPI_Comm &mpiTeamComm,
                     Array<int> &Apart, Array<int> &Adisp) const;
@@ -236,41 +294,42 @@ private:
    int                     myGpuWorldRank;
 #endif
 
-   // \brief A parameter used by AmgX.
+   // A parameter used by AmgX.
    int                     ring;
 
-   // \brief AmgX precision.
+   // Sets AmgX precision (currently on double is supported)
    AMGX_Mode               precision_mode = AMGX_mode_dDDI;
 
-   // \brief AmgX config object.
+   // AmgX config object.
    AMGX_config_handle      cfg = nullptr;
 
-   // \brief AmgX matrix object.
+   // AmgX matrix object.
    AMGX_matrix_handle      AmgXA = nullptr;
 
-   // \brief AmgX vector object representing unknowns.
+   // AmgX vector object representing unknowns.
    AMGX_vector_handle      AmgXP = nullptr;
 
-   // \brief AmgX vector object representing RHS.
+   // AmgX vector object representing RHS.
    AMGX_vector_handle      AmgXRHS = nullptr;
 
-   // \brief AmgX solver object.
+   // AmgX solver object.
    AMGX_solver_handle      solver = nullptr;
 
-   // \brief AmgX resource object.
+   // AmgX resource object.
    static AMGX_resources_handle   rsrc;
 
-   // \brief Set the ID of the corresponding GPU used by this process.
+   // Set the ID of the corresponding GPU used by this process.
    void SetDeviceIDs(const int nDevs);
 
-   // \brief Initialize all MPI communicators.
+   // Initialize all MPI communicators.
 #ifdef MFEM_USE_MPI
    void InitMPIcomms(const MPI_Comm &comm, const int nDevs);
 #endif
 
    void InitAmgX();
 
-   int64_t mat_local_rows;  //mlocal rows for ranks that talk to the gpu
+   // Row partion for HypreMatrix
+   int64_t mat_local_rows;
 
    std::string mpi_gpu_mode;
 };
