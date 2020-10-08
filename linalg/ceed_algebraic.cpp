@@ -69,6 +69,8 @@ Solver *BuildSmootherFromCeed(MFEMCeedOperator &op, bool chebyshev)
    return out;
 }
 
+#ifdef MFEM_USE_MPI
+
 class CeedAMG : public Solver
 {
 public:
@@ -106,6 +108,8 @@ private:
    HypreParMatrix *op_assembled;
    HypreBoomerAMG *amg;
 };
+
+#endif
 
 void CoarsenEssentialDofs(const Operator &interp,
                           const Array<int> &ho_ess_tdofs,
@@ -226,6 +230,7 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
       MFEMCeedOperator *op = new MFEMCeedOperator(
          ceed_operators[ilevel], *essentialTrueDofs[ilevel], P);
       Solver *smoother;
+#ifdef MFEM_USE_MPI
       if (ilevel == 0)
       {
          HypreParMatrix *P_mat = NULL;
@@ -244,7 +249,9 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
          }
          smoother = new CeedAMG(*op, P_mat);
       }
-      else {
+      else
+#endif
+      {
          smoother = BuildSmootherFromCeed(*op, true);
       }
       AddLevel(op, smoother, true, true);

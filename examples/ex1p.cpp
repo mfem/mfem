@@ -231,7 +231,6 @@ int main(int argc, char *argv[])
    diff_coeff = &gfc_varying;
 
    a.AddDomainIntegrator(new DiffusionIntegrator(*diff_coeff));
-   // a.AddDomainIntegrator(new DiffusionIntegrator(one));
    a.AddDomainIntegrator(new MassIntegrator(one));
 
    // ceed implementations for the following work, but our ceed coarsening does not
