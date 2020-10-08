@@ -173,6 +173,12 @@ void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
                                  Ceed ceed, CeedBasis *basis,
                                  CeedElemRestriction *restr);
 
+void InitCeedNonTensorRestriction(const FiniteElementSpace &fes,
+                                  Ceed ceed, CeedElemRestriction *restr);
+
+void InitCeedTensorRestriction(const FiniteElementSpace &fes,
+                               Ceed ceed, CeedElemRestriction *restr);
+
 /// Return the path to the libCEED q-function headers.
 const std::string &GetCeedPath();
 
