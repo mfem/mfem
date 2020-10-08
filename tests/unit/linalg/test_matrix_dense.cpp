@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include "catch.hpp"
+#include "unit_tests.hpp"
 #include "linalg/dtensor.hpp"
 
 using namespace mfem;
@@ -41,7 +41,7 @@ TEST_CASE("DenseMatrix LinearSolve methods",
       double X[1] = { 12 };
 
       REQUIRE(LinearSolve(A,X));
-      REQUIRE(X[0] == Approx(6));
+      REQUIRE(X[0] == MFEM_Approx(6));
    }
 
    SECTION("2x2_system")
@@ -55,8 +55,8 @@ TEST_CASE("DenseMatrix LinearSolve methods",
       double X[2] = { 1, 14 };
 
       REQUIRE(LinearSolve(A,X));
-      REQUIRE(X[0] == Approx(-2));
-      REQUIRE(X[1] == Approx(5));
+      REQUIRE(X[0] == MFEM_Approx(-2));
+      REQUIRE(X[1] == MFEM_Approx(5));
    }
 
    SECTION("3x3_system")
@@ -71,9 +71,9 @@ TEST_CASE("DenseMatrix LinearSolve methods",
       double X[3] = { -14, 42, 28 };
 
       REQUIRE(LinearSolve(A,X));
-      REQUIRE(X[0] == Approx(4));
-      REQUIRE(X[1] == Approx(-4));
-      REQUIRE(X[2] == Approx(5));
+      REQUIRE(X[0] == MFEM_Approx(4));
+      REQUIRE(X[1] == MFEM_Approx(-4));
+      REQUIRE(X[2] == MFEM_Approx(5));
    }
 
 }
@@ -289,7 +289,7 @@ TEST_CASE("DenseTensor LinearSolve methods",
    {
       for (int r=0; r<N; ++r)
       {
-         REQUIRE(xans_batch(r,e) == X[r]);
+         REQUIRE(xans_batch(r,e) == MFEM_Approx(X[r]));
       }
    }
 }

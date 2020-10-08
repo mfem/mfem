@@ -138,7 +138,7 @@ MFEM_USE_RAJA          = NO
 MFEM_USE_OCCA          = NO
 MFEM_USE_CEED          = NO
 MFEM_USE_UMPIRE        = NO
-MFEM_USE_SIMD          = YES
+MFEM_USE_SIMD          = NO
 MFEM_USE_ADIOS2        = NO
 
 # Compile and link options for zlib.
@@ -189,13 +189,19 @@ OPENMP_LIB =
 POSIX_CLOCKS_LIB = -lrt
 
 # SUNDIALS library configuration
-SUNDIALS_DIR = @MFEM_DIR@/../sundials-5.0.0/instdir
-SUNDIALS_OPT = -I$(SUNDIALS_DIR)/include
-SUNDIALS_LIB = -Wl,-rpath,$(SUNDIALS_DIR)/lib64 -L$(SUNDIALS_DIR)/lib64\
- -lsundials_arkode -lsundials_cvode -lsundials_nvecserial -lsundials_kinsol
+# For sundials_nvecmpiplusx and nvecparallel remember to build with MPI_ENABLE=ON
+# and modify cmake variables for hypre for sundials
+SUNDIALS_DIR    = @MFEM_DIR@/../sundials-5.0.0/instdir
+SUNDIALS_OPT    = -I$(SUNDIALS_DIR)/include
+SUNDIALS_LIBDIR = $(wildcard $(SUNDIALS_DIR)/lib*)
+SUNDIALS_LIB    = $(XLINKER)-rpath,$(SUNDIALS_LIBDIR) -L$(SUNDIALS_LIBDIR)\
+ -lsundials_arkode -lsundials_cvodes -lsundials_nvecserial -lsundials_kinsol
 
 ifeq ($(MFEM_USE_MPI),YES)
-   SUNDIALS_LIB += -lsundials_nvecparhyp -lsundials_nvecparallel
+   SUNDIALS_LIB += -lsundials_nvecparallel -lsundials_nvecmpiplusx
+endif
+ifeq ($(MFEM_USE_CUDA),YES)
+   SUNDIALS_LIB += -lsundials_nveccuda
 endif
 # If SUNDIALS was built with KLU:
 # MFEM_USE_SUITESPARSE = YES
@@ -339,9 +345,9 @@ GSLIB_DIR = @MFEM_DIR@/../gslib/build
 GSLIB_OPT = -I$(GSLIB_DIR)/include
 GSLIB_LIB = -L$(GSLIB_DIR)/lib -lgs
 
-# CUDA library configuration (currently not needed)
+# CUDA library configuration
 CUDA_OPT =
-CUDA_LIB =
+CUDA_LIB = -lcusparse
 
 # HIP library configuration (currently not needed)
 HIP_OPT =
