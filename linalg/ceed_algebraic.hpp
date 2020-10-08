@@ -59,10 +59,8 @@ public:
       int order_reduction_,
       GroupCommunicator *gc_fine
    );
-   virtual const Operator *GetProlongationMatrix() const override
-   { return P; }
-   virtual const SparseMatrix *GetRestrictionMatrix() const override
-   { return R_mat; }
+   virtual const Operator *GetProlongationMatrix() const override { return P; }
+   virtual const SparseMatrix *GetRestrictionMatrix() const override { return R_mat; }
    GroupCommunicator *GetGroupCommunicator() const { return gc; }
    HypreParMatrix *GetProlongationHypreParMatrix();
    ~ParAlgebraicCoarseSpace();
