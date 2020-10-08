@@ -374,7 +374,6 @@ AlgebraicCoarseSpace::AlgebraicCoarseSpace(
       order_reduction,
       &coarse_to_fine
    );
-   vdim = fine_fes.GetVDim();
    CeedElemRestrictionGetLVectorSize(ceed_elem_restriction, &ndofs);
    mesh = fine_fes.GetMesh();
 }

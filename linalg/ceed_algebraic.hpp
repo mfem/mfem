@@ -107,6 +107,7 @@ public:
       BilinearForm &form,
       Array<int> ess_tdofs
    );
+   virtual void SetOperator(const Operator &op) override { }
    ~AlgebraicCeedMultigrid();
 private:
    OperatorHandle fine_operator;
