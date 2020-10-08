@@ -9,10 +9,6 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-//Reference:
-//Pi-Yueh Chuang, & Lorena A. Barba (2017).
-//AmgXWrapper: An interface between PETSc and the NVIDIA AmgX library. J. Open Source Software, 2(16):280, doi:10.21105/joss.00280
-
 #ifndef MFEM_AMGX_SOLVER
 #define MFEM_AMGX_SOLVER
 
@@ -32,13 +28,58 @@
 namespace mfem
 {
 
+/**
+   MFEM's wrapper for Nvidia's multigrid library,
+   AmgX (https://github.com/NVIDIA/AMGX).
+
+   AmgX requires building MFEM with CUDA, AMGX enabled.
+   For distributed memory parallism MPI and Hypre
+   (version 16.0+) are also required.
+   Although CUDA is required for building,
+   the AmgX wrapper is compatible with
+   a MFEM CPU device configuration.
+
+   The AmgXSolver class is designed to work in
+   conjunction with existing MFEM solvers either
+   as a preconditioner or a solver. The AmgX
+   solver class supports configuration of
+   three different modes and uses exising
+   MFEM sparse matrix formats.
+
+   Serial - Takes a MFEM::SparseMatrix and
+   solves and assumes no MPI communication.
+
+   Exclusive GPU - Takes a HypreParMatrix
+   and assumes each MPI rank is paired with
+   an Nvidia GPU.
+
+   MPI Teams - Takes a HypreParMatrix and
+   enables flexibility between number of MPI
+   ranks, and GPUs. Specifically, MPI ranks
+   are grouped with GPUs and a matrix consolidation
+   step is taken so the MPI root of each team
+   performs the necessary AmgX library calls.
+   The solution is then broadcasted to appropriate ranks.
+   This is particularly useful for codes which
+   are not fully ported to GPUs.
+
+   Examples 1,1p demonstrate basic usage with
+   default parameters, while examples under the
+   amgx folder demonstrate configuring AmgX as
+   solver, preconditioner and configuring and
+   running with exclusive GPU or MPI teams.
+
+   Reference:
+   Pi-Yueh Chuang, & Lorena A. Barba (2017).
+   AmgXWrapper: An interface between PETSc and the NVIDIA AmgX library.
+   J. Open Source Software, 2(16):280, doi:10.21105/joss.00280
+
+ */
 class AmgXSolver : public Solver
 {
-
 public:
 
    enum AMGX_MODE {SOLVER, PRECONDITIONER};
-
    enum CONFIG_SRC {INTERNAL, EXTERNAL, UNDEFINED};
 
    AmgXSolver() = default;
@@ -84,6 +125,20 @@ public:
 
    void ReadParameters(const std::string config, CONFIG_SRC source);
 
+   /**
+      @param [in] AMGX_MODE AmgXSolver::PRECONDITIONER,
+                            AmgXSolver::SOLVER.
+
+      @param [in] verbose  true, false. Specifies the level
+                           of verbosity.
+
+      When configured as a preconditioner, the default configuration
+      is to apply two iterations of an AMG V cycle with AmgX's default
+      smoother (block Jacobi).
+      As a solver the preconditioned conjugate gradient method with
+      the AMG V cycle with a block Jacobi smoother is used a
+      preconditioner is used.
+   */
    void DefaultParameters(const AMGX_MODE amgxMode_, const bool verbose);
 
    ~AmgXSolver();
@@ -218,10 +273,7 @@ private:
    int64_t mat_local_rows;  //mlocal rows for ranks that talk to the gpu
 
    std::string mpi_gpu_mode;
-
 };
-
 }
-
 #endif //MFEM_USE_AMGX
 #endif //MFEM_AMGX_SOLVER
