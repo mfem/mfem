@@ -9,7 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-//Based on the work of:
+//Reference
 //Pi-Yueh Chuang, & Lorena A. Barba (2017).
 //AmgXWrapper: An interface between PETSc and the NVIDIA AmgX library. J.
 //Open Source Software, 2(16):280, doi:10.21105/joss.00280
@@ -20,7 +20,6 @@
 
 namespace mfem
 {
-
 // Initialize AmgXSolver::count to 0
 int AmgXSolver::count = 0;
 
@@ -51,8 +50,6 @@ AmgXSolver::AmgXSolver(const MPI_Comm &comm,
 
 AmgXSolver::AmgXSolver(const MPI_Comm &comm, const int nDevs,
                        const AMGX_MODE amgxMode_, const bool verbose)
-
-
 {
    std::string config;
    amgxMode = amgxMode_;
@@ -102,7 +99,6 @@ void AmgXSolver::InitSerial()
 }
 
 #ifdef MFEM_USE_MPI
-//Basic initialization for when each MPI is paired with a GPU
 void AmgXSolver::InitExclusiveGPU(const MPI_Comm &comm)
 {
    // If this instance has already been initialized, skip
@@ -179,7 +175,6 @@ void AmgXSolver::ReadParameters(const std::string config,
 void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
                                    const bool verbose)
 {
-
    amgxMode = amgxMode_;
 
    configSrc = INTERNAL;
@@ -261,7 +256,6 @@ void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
    {
       mfem_error("AmgX mode not supported \n");
    }
-
 }
 
 // Sets up AmgX library for MPI builds
@@ -363,7 +357,7 @@ void AmgXSolver::InitMPIcomms(const MPI_Comm &comm, const int nDevs)
    MPI_Barrier(globalCpuWorld);
 }
 
-// Determine MPI team sizes based on available devices
+// Determine MPI teams based on available devices
 void AmgXSolver::SetDeviceIDs(const int nDevs)
 {
    // Set the ID of device that each local process will use
@@ -374,11 +368,9 @@ void AmgXSolver::SetDeviceIDs(const int nDevs)
    }
    else if (nDevs > localSize) // there are more devices than processes
    {
-
       MFEM_WARNING("CUDA devices on the node " << nodeName.c_str() <<
                    " are more than the MPI processes launched. Only "<<
                    nDevs << " devices will be used.\n");
-
       devID = myLocalRank;
       gpuProc = 0;
    }
@@ -398,7 +390,6 @@ void AmgXSolver::SetDeviceIDs(const int nDevs)
          if ((myLocalRank - (nBasic+1)*nRemain) % nBasic == 0) { gpuProc = 0; }
       }
    }
-
 }
 
 void AmgXSolver::GatherArray(const Array<double> &inArr, Array<double> &outArr,
@@ -552,7 +543,6 @@ void AmgXSolver::ScatterArray(const Vector &inArr, Vector &outArr,
 
 void AmgXSolver::SetMatrix(const SparseMatrix &in_A, const bool update_mat)
 {
-
    if (update_mat == false)
    {
 
@@ -566,23 +556,19 @@ void AmgXSolver::SetMatrix(const SparseMatrix &in_A, const bool update_mat)
       AMGX_solver_setup(solver, AmgXA);
       AMGX_vector_bind(AmgXP, AmgXA);
       AMGX_vector_bind(AmgXRHS, AmgXA);
-
    }
    else
    {
-
       AMGX_matrix_replace_coefficients(AmgXA,
                                        in_A.Height(),
                                        in_A.NumNonZeroElems(),
                                        in_A.ReadData(), NULL);
    }
-
 }
 
 #ifdef MFEM_USE_MPI
 void AmgXSolver::SetMatrix(const HypreParMatrix &A, const bool update_mat)
 {
-
    //Require hypre >= 2.16.
 #if MFEM_HYPRE_VERSION < 21600
    mfem_error("Hypre version 2.16+ is required when using AmgX \n");
@@ -661,7 +647,6 @@ void AmgXSolver::SetMatrixMPIGPUExclusive(const HypreParMatrix &A,
 
       AMGX_vector_bind(AmgXP, AmgXA);
       AMGX_vector_bind(AmgXRHS, AmgXA);
-
    }
    else
    {
@@ -675,7 +660,8 @@ void AmgXSolver::SetMatrixMPITeams(const HypreParMatrix &A,
                                    const Array<int64_t> &loc_J,
                                    const bool update_mat)
 {
-   // The following arrays hold the
+   // The following arrays consolidated
+   // diagonal + off diagonal matrices
    Array<int> all_I;
    Array<int64_t> all_J;
    Array<double> all_A;
@@ -795,7 +781,6 @@ void AmgXSolver::SetMatrixMPITeams(const HypreParMatrix &A,
 
       if (update_mat == false)
       {
-
          AMGX_distribution_handle dist;
          AMGX_distribution_create(&dist, cfg);
          AMGX_distribution_set_partition_data(dist, AMGX_DIST_PARTITION_OFFSETS,
@@ -820,9 +805,7 @@ void AmgXSolver::SetMatrixMPITeams(const HypreParMatrix &A,
       }
       else
       {
-
          AMGX_matrix_replace_coefficients(AmgXA,nGlobalRows,local_nnz,all_A,NULL);
-
       }
 
    }
@@ -871,8 +854,7 @@ void AmgXSolver::UpdateOperator(const Operator& op)
 
 void AmgXSolver::Mult(const Vector& B, Vector& X) const
 {
-
-   //Move to gpu and set to zero
+   //Set intial guess to zero
    X.UseDevice(true);
    X = 0.0;
 
@@ -1026,5 +1008,4 @@ void AmgXSolver::Finalize()
 }
 
 }//mfem namespace
-
 #endif
