@@ -1,0 +1,30 @@
+# Create mesh, define the function space and the boundary conditions
+mesh = UnitSquareMesh(16, 16)
+V = FunctionSpace(mesh, 'P', 4)
+bc = DirichletBC(V)
+
+# Define variational problem
+u = TrialFunction(V)
+v = TestFunction(V)
+f = Constant(1.0)
+
+p, q = Function(V)
+
+#a = u*v*dx
+a = dot(grad(u), grad(v))*dx
+#a = dot(grad(u), grad(v))*dx + u*v*dx
+#a = (dot(grad(u), grad(v)) + u*v)*dx # reaction-diffusion
+#a = (inner(grad(u), grad(v)) - div(v)*p + div(u)*q)*dx # Stokes equations
+L = f*v*dx
+
+# Compute solution
+x = Function(V)
+solve(a == L, x, bc)
+
+Norml1 = (x**1) * dx
+Norml2 = x**2 * dx
+print("\033[32mNorml1:%f, Norml2=%f\033[m\n", Norml1, Norml2)
+
+# Plot solution or mesh
+plot(x)
+#plot(mesh)

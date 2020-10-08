@@ -422,6 +422,10 @@ $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
 all: examples miniapps $(TEST_DIRS)
+xfl: general/xfl.o general/xfl.L.o general/xfl.Y.o general/xfc.o
+	$(MFEM_CXX) -o $(@) $(^)
+ufl: xfl ufl/101.ufl
+	./xfl -t ufl/101.ufl | g++ -x c++ -std=c++11 -o 101 -Igeneral -I. -L. -lmfem -
 
 .PHONY: miniapps $(EM_DIRS) $(TEST_DIRS)
 miniapps: $(MINIAPP_DIRS)
