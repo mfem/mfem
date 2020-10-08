@@ -38,21 +38,22 @@ def main():
 
 
 def penalty():
+    print("Check penalty sanity, error should scale like 1/penalty:")
     with open("penalty.log", "w") as fd:
         p = subprocess.Popen(["./ex-normal",
                               "--reltol", "1.e-10"],
                              stdout=fd, stderr=fd)
         p.communicate()
         for penalty in [1.0, 1.e+2, 1.e+4, 1.e+6]:
-            print(penalty)
             p = subprocess.Popen(["./ex-normal",
                                   "--reltol", "1.e-10",
                                   "--penalty", str(penalty)],
                                  stdout=fd, stderr=fd)
             p.communicate()
-            print("  ", check_vectors(filea="penalty.vector"))
+            print("  penalty parameter:", penalty, ", error:",
+                  check_vectors(filea="penalty.vector"))
 
 
 if __name__ == "__main__":
-    # main()
+    main()
     penalty()
