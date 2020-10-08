@@ -3088,15 +3088,12 @@ void ConformingProlongationOperator::MultTranspose(
 }
 
 DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
-   const ParFiniteElementSpace &pfes) :
-   ConformingProlongationOperator(pfes),
-   mpi_gpu_aware(Device::GetGPUAwareMPI())
+   const GroupCommunicator &gc_, const SparseMatrix *R)
+   : ConformingProlongationOperator(R->Width(), gc_),
+     mpi_gpu_aware(Device::GetGPUAwareMPI())
 {
-   MFEM_ASSERT(pfes.Conforming(), "internal error");
-   const SparseMatrix *R = pfes.GetRestrictionMatrix();
    MFEM_ASSERT(R->Finalized(), "");
    const int tdofs = R->Height();
-   MFEM_ASSERT(tdofs == pfes.GetTrueVSize(), "");
    MFEM_ASSERT(tdofs == R->HostReadI()[tdofs], "");
    ltdof_ldof = Array<int>(const_cast<int*>(R->HostReadJ()), tdofs);
    ltdof_ldof.UseDevice();
@@ -3154,6 +3151,14 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
       if (recv_size > 0) { req_counter++; }
    }
    requests = new MPI_Request[req_counter];
+}
+
+DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
+   const ParFiniteElementSpace &pfes)
+   : DeviceConformingProlongationOperator(pfes.GroupComm(), pfes.GetRestrictionMatrix())
+{
+   MFEM_ASSERT(pfes.Conforming(), "internal error");
+   MFEM_ASSERT(pfes.GetRestrictionMatrix()->Height() == pfes.GetTrueVSize(), "");
 }
 
 static void ExtractSubVector(const int N,

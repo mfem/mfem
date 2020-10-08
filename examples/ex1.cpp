@@ -64,6 +64,22 @@
 using namespace std;
 using namespace mfem;
 
+
+double fcoeff(const Vector& x)
+{
+   double out = sin(x[0]);
+   if (x.Size() > 1)
+   {
+      out *= sin(x[1]);
+   }
+   if (x.Size() > 2)
+   {
+      out *= sin(x[2]);
+   }
+   return 2.0 + out;
+}
+
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -178,10 +194,16 @@ int main(int argc, char *argv[])
    // 9. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
+
+   FunctionCoefficient varying(fcoeff);
+   GridFunction gf(&fespace);
+   gf.ProjectCoefficient(varying);
+   GridFunctionCoefficient gfc_varying(&gf);
+
    BilinearForm a(&fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   a.AddDomainIntegrator(new DiffusionIntegrator(one));
-   // a.AddDomainIntegrator(new MassIntegrator(one));
+   a.AddDomainIntegrator(new DiffusionIntegrator(gfc_varying));
+   a.AddDomainIntegrator(new MassIntegrator(one));
 
    // 10. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary
@@ -196,13 +218,15 @@ int main(int argc, char *argv[])
 
    cout << "Size of linear system: " << A->Height() << endl;
 
+   double reltol = pow(1e-12, 2); // Tolerance must be squared
+
    // 11. Solve the linear system A X = B.
    if (!pa)
    {
 #ifndef MFEM_USE_SUITESPARSE
       // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
       GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
+      PCG(*A, M, B, X, 1, 200, reltol, 0.0);
 #else
       // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
       UMFPackSolver umf_solver;
@@ -218,18 +242,18 @@ int main(int argc, char *argv[])
       {
          AlgebraicSpaceHierarchy hierarchy(fespace);
          AlgebraicCeedMultigrid M(hierarchy, a, ess_tdof_list);
-         PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
+         PCG(*A, M, B, X, 1, 400, reltol, 0.0);
       }
       else
 #endif
          if (UsesTensorBasis(fespace))
          {
             OperatorJacobiSmoother M(a, ess_tdof_list);
-            PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
+            PCG(*A, M, B, X, 1, 400, reltol, 0.0);
          }
          else
          {
-            CG(*A, B, X, 1, 400, 1e-12, 0.0);
+            CG(*A, B, X, 1, 400, reltol, 0.0);
          }
    }
 

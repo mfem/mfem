@@ -439,6 +439,9 @@ protected:
    void ReduceEndAssemble(Vector &dst) const;
 
 public:
+   DeviceConformingProlongationOperator(
+      const GroupCommunicator &gc_, const SparseMatrix *R);
+
    DeviceConformingProlongationOperator(const ParFiniteElementSpace &pfes);
 
    virtual ~DeviceConformingProlongationOperator();

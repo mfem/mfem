@@ -107,7 +107,7 @@ public:
    AlgebraicCeedMultigrid(
       AlgebraicSpaceHierarchy &hierarchy,
       BilinearForm &form,
-      Array<int> ess_tdofs
+      const Array<int> &ess_tdofs
    );
    virtual void SetOperator(const Operator &op) override { }
    ~AlgebraicCeedMultigrid();
