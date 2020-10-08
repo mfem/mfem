@@ -35,7 +35,7 @@ staleLabel: stale
 
 # Comment to post when marking an issue as stale. Set to `false` to disable
 markComment: >
-  ⚠ This issue or PR has been automatically marked as stale because it has not
+  :warning: This issue or PR has been automatically marked as stale because it has not
   had any activity in the last month. If no activity occurs in the next week,
   it will be automatically closed. Thank you for your contributions.
 
