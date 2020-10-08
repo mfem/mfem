@@ -15,11 +15,8 @@
 
   some todo items:
 
-  - improve Schur complement block solver
-  - add preconditioner to penalty system
+  - improve Schur complement block solver (specifically the Schur block)
   - make sure penalty / elimination can do the right thing with lagrange multipliers
-  - systematic testing of the solvers
-  - IterativeSolver interface (or close), to pass tolerances etc. down to subsolvers
   - think about preconditioning interface; user may have good preconditioner for primal system that we could use in all three existing solvers?
   - make sure curved mesh works (is this a real problem or just VisIt visualization?)
   - move ConstrainedSolver and friends into library
@@ -216,9 +213,9 @@ void PenaltyConstrainedSolver::Mult(const Vector& b, Vector& x) const
    CGSolver cg(MPI_COMM_WORLD);
    cg.SetOperator(*penalized_mat);
    cg.SetRelTol(rel_tol);
-   cg.SetAbsTol(1.e-12);
-   cg.SetMaxIter(400);
-   cg.SetPrintLevel(1);
+   cg.SetAbsTol(abs_tol);
+   cg.SetMaxIter(max_iter);
+   cg.SetPrintLevel(print_level);
    cg.SetPreconditioner(*prec);
 
    /// note well this is *unpreconditioned*
@@ -294,9 +291,9 @@ void SchurConstrainedSolver::Mult(const Vector& x, Vector& y) const
    GMRESSolver gmres(MPI_COMM_WORLD);
    gmres.SetOperator(block_op);
    gmres.SetRelTol(rel_tol);
-   gmres.SetAbsTol(1.e-12);
-   gmres.SetMaxIter(500);
-   gmres.SetPrintLevel(1);
+   gmres.SetAbsTol(abs_tol);
+   gmres.SetMaxIter(max_iter);
+   gmres.SetPrintLevel(print_level);
    gmres.SetPreconditioner(const_cast<BlockDiagonalPreconditioner&>(block_pc));
 
    gmres.Mult(x, y);
@@ -372,6 +369,9 @@ public:
    void GetDualSolution(Vector& lambda) { lambda = dual_sol; }
 
    void SetRelTol(double rtol) { subsolver->SetRelTol(rtol); }
+   void SetAbsTol(double atol) { subsolver->SetAbsTol(atol); }
+   void SetMaxIter(int max_it) { subsolver->SetMaxIter(max_it); }
+   void SetPrintLevel(int pl) { subsolver->SetPrintLevel(pl); }
 
 private:
    Array<int> offsets;
@@ -727,6 +727,9 @@ int main(int argc, char *argv[])
       constrained.SetSchur(prec);
    }
    constrained.SetRelTol(reltol);
+   constrained.SetAbsTol(1.e-12);
+   constrained.SetMaxIter(500);
+   constrained.SetPrintLevel(1);
    constrained.Mult(B, X);
 
    // 14. Recover the parallel grid function corresponding to X. This is the
