@@ -572,7 +572,6 @@ static void InitCeedNonTensorBasis(const FiniteElementSpace &fes,
 }
 
 static void InitCeedNonTensorRestriction(const FiniteElementSpace &fes,
-                                         const IntegrationRule &ir,
                                          Ceed ceed, CeedElemRestriction *restr)
 {
    Mesh *mesh = fes.GetMesh();
@@ -667,7 +666,6 @@ static void InitCeedTensorBasis(const FiniteElementSpace &fes,
 }
 
 static void InitCeedTensorRestriction(const FiniteElementSpace &fes,
-                                      const IntegrationRule &ir,
                                       Ceed ceed, CeedElemRestriction *restr)
 {
    Mesh *mesh = fes.GetMesh();
@@ -747,12 +745,11 @@ void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
    {
       if (UsesTensorBasis(fes))
       {
-         const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, irm.GetOrder());
-         InitCeedTensorRestriction(fes, ir, ceed, restr);
+         InitCeedTensorRestriction(fes, ceed, restr);
       }
       else
       {
-         InitCeedNonTensorRestriction(fes, irm, ceed, restr);
+         InitCeedNonTensorRestriction(fes, ceed, restr);
       }
       internal::ceed_restr_map[restr_key] = *restr;
    }
