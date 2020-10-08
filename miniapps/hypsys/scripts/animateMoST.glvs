@@ -1,0 +1,65 @@
+window 0 0 1920 960
+
+# Initial solution
+psolution 7 ../output/grid-mesh 0 ../output/initial-gf
+
+# Setup the GLVis scene. Executed after pressing the space bar.
+{
+   # keys mcjppppppppppppppppppppppppppp6666666666666666666666666666666666666666666666666666666666666666666666662222222222
+   keys maajlpppppppppppppppppppppppppppR**************************
+}
+
+# Take multiple screenshots. Executed after pressing the space bar.
+{
+   psolution 7 ../output/grid-mesh 0 ../output/initial-gf valuerange 0 1 screenshot screenshot00.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-1 valuerange 0 1 screenshot screenshot01.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-2 valuerange 0 1 screenshot screenshot02.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-3 valuerange 0 1 screenshot screenshot03.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-4 valuerange 0 1 screenshot screenshot04.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-5 valuerange 0 1 screenshot screenshot05.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-6 valuerange 0 1 screenshot screenshot06.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-7 valuerange 0 1 screenshot screenshot07.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-8 valuerange 0 1 screenshot screenshot08.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-9 valuerange 0 1 screenshot screenshot09.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-10 valuerange 0 1 screenshot screenshot10.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-11 valuerange 0 1 screenshot screenshot11.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-12 valuerange 0 1 screenshot screenshot12.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-13 valuerange 0 1 screenshot screenshot13.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-14 valuerange 0 1 screenshot screenshot14.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-15 valuerange 0 1 screenshot screenshot15.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-16 valuerange 0 1 screenshot screenshot16.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-17 valuerange 0 1 screenshot screenshot17.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-18 valuerange 0 1 screenshot screenshot18.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-19 valuerange 0 1 screenshot screenshot19.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-20 valuerange 0 1 screenshot screenshot20.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-21 valuerange 0 1 screenshot screenshot21.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-22 valuerange 0 1 screenshot screenshot22.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-23 valuerange 0 1 screenshot screenshot23.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-24 valuerange 0 1 screenshot screenshot24.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-25 valuerange 0 1 screenshot screenshot25.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-26 valuerange 0 1 screenshot screenshot26.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-27 valuerange 0 1 screenshot screenshot27.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-28 valuerange 0 1 screenshot screenshot28.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-29 valuerange 0 1 screenshot screenshot29.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-30 valuerange 0 1 screenshot screenshot30.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-31 valuerange 0 1 screenshot screenshot31.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-32 valuerange 0 1 screenshot screenshot32.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-33 valuerange 0 1 screenshot screenshot33.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-34 valuerange 0 1 screenshot screenshot34.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-35 valuerange 0 1 screenshot screenshot35.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-36 valuerange 0 1 screenshot screenshot36.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-37 valuerange 0 1 screenshot screenshot37.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-38 valuerange 0 1 screenshot screenshot38.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-39 valuerange 0 1 screenshot screenshot39.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-40 valuerange 0 1 screenshot screenshot40.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-41 valuerange 0 1 screenshot screenshot41.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-42 valuerange 0 1 screenshot screenshot42.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-43 valuerange 0 1 screenshot screenshot43.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-44 valuerange 0 1 screenshot screenshot44.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-45 valuerange 0 1 screenshot screenshot45.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-46 valuerange 0 1 screenshot screenshot46.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-47 valuerange 0 1 screenshot screenshot47.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-48 valuerange 0 1 screenshot screenshot48.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-49 valuerange 0 1 screenshot screenshot49.png
+   psolution 7 ../output/grid-mesh 0 ../output/ultimate-gf valuerange 0 1 screenshot screenshot50.png
+}

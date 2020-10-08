@@ -21,6 +21,7 @@ int main(int argc, char *argv[])
    EvolutionScheme scheme = MonolithicConvexLimiting;
    const char *OutputDir = "output"; // Directory has to exist to produce output.
    bool TransOutput = false; // Use this to produce output for videos.
+   bool VisualizeDerived = false;
 
    int precision = 8;
    cout.precision(precision);
@@ -112,7 +113,7 @@ int main(int argc, char *argv[])
       case 0:
       case 1:
       case 2:
-      case 3: NumEq = 1; break;
+      case 3: {NumEq = 1; VisualizeDerived = false; break; }
       case 4: NumEq = 1 + dim; break;
       case 5: NumEq = 2 + dim; break;
       default:
@@ -216,7 +217,7 @@ int main(int argc, char *argv[])
       evol->uOld = 0.;
    }
 
-   int TransStep = 0;
+   int TransStep = 1;
    double dtLast, res, t = 0., tol = 1.e-12;
    bool done = t >= config.tFinal;
    tic_toc.Clear();
@@ -315,7 +316,7 @@ int main(int argc, char *argv[])
    ultimate.precision(precision);
    main.Save(ultimate);
 
-   if (ProblemNum > 3)
+   if (VisualizeDerived)
    {
       ParGridFunction v(&pfes), p(&pfes);
       hyp->ComputeDerivedQuantities(u, v, p);
