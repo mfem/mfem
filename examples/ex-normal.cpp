@@ -160,12 +160,28 @@ public:
    void SetOperator(const Operator& op) { }
 
 private:
+   void Initialize(HypreParMatrix& A, HypreParMatrix& B);
+
    double penalty;
    Operator& constraintB;
    // SparseMatrix * penalized_mat;
    HypreParMatrix * penalized_mat;
    HypreBoomerAMG * prec;
 };
+
+void PenaltyConstrainedSolver::Initialize(HypreParMatrix& A, HypreParMatrix& B)
+{
+   HypreParMatrix * hBT = B.Transpose();
+   HypreParMatrix * hBTB = ParMult(hBT, &B, true);
+   // this matrix doesn't get cleanly deleted?
+   // (hypre comm pkg)
+   penalized_mat = Add(1.0, A, penalty, *hBTB);
+   prec = new HypreBoomerAMG(*penalized_mat);
+   prec->SetPrintLevel(0);
+   // prec->SetSystemsOptions(2); // ???
+   delete hBTB;
+   delete hBT;
+}
 
 PenaltyConstrainedSolver::PenaltyConstrainedSolver(HypreParMatrix& A, SparseMatrix& B,
                                                    double penalty_)
@@ -177,16 +193,19 @@ PenaltyConstrainedSolver::PenaltyConstrainedSolver(HypreParMatrix& A, SparseMatr
    HYPRE_Int hB_col_starts[2] = {0, B.Width()};
    HypreParMatrix hB(MPI_COMM_WORLD, B.Height(), B.Width(),
                      hB_row_starts, hB_col_starts, &B);
-   HypreParMatrix * hBT = hB.Transpose();
-   HypreParMatrix * hBTB = ParMult(hBT, &hB, true);
-   // this matrix doesn't get cleanly deleted?
-   // (hypre comm pkg)
-   penalized_mat = Add(1.0, A, penalty, *hBTB);
-   prec = new HypreBoomerAMG(*penalized_mat);
-   prec->SetPrintLevel(0);
-   // prec->SetSystemsOptions(2); // ???
-   delete hBTB;
-   delete hBT;
+   Initialize(A, hB);
+}
+
+PenaltyConstrainedSolver::PenaltyConstrainedSolver(HypreParMatrix& A, HypreParMatrix& B,
+                                                   double penalty_)
+   :
+   penalty(penalty_),
+   constraintB(B)
+{
+   // TODO: check column starts of A and B are compatible?
+   // (probably will happen in ParMult later)
+
+   Initialize(A, B);
 }
 
 PenaltyConstrainedSolver::~PenaltyConstrainedSolver()
