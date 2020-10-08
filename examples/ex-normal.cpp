@@ -15,7 +15,6 @@
 
   some todo items:
 
-  - valgrind everything; there are clearly memory leaks
   - improve Schur complement block solver
   - add preconditioner to penalty system
   - make sure penalty / elimination can do the right thing with lagrange multipliers
@@ -314,16 +313,11 @@ public:
 
    void SetOperator(const Operator& op) { }
 
-   /** @brief Set a preconditioner for the unconstrained matrix A.
+   /** @brief Setup Schur complement solver for constrained system.
 
-       Internally, this object may use the preconditioner for related
-       or modified systems. 
-
-       @todo logically this is a separate idea from Schur; should
-             call this SetSchurSolver and implement a different
-             SetPrimalPreconditioner
+       @param prec Preconditioner for primal block.
    */
-   void SetPrimalPreconditioner(Solver& pc);
+   void SetSchur(Solver& prec);
 
    /** @brief Set the right-hand side r for the constraint B x = r
 
@@ -413,7 +407,7 @@ ConstrainedSolver::~ConstrainedSolver()
    delete subsolver;
 }
 
-void ConstrainedSolver::SetPrimalPreconditioner(Solver& pc)
+void ConstrainedSolver::SetSchur(Solver& pc)
 {
    subsolver = new SchurConstrainedSolver(*block_op, pc);
 }
@@ -720,7 +714,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      constrained.SetPrimalPreconditioner(prec);
+      constrained.SetSchur(prec);
    }
    constrained.SetRelTol(reltol);
    constrained.Mult(B, X);
