@@ -67,6 +67,8 @@ Improved GPU capabilities
 
 - Added CUDA support for sparse matrix-vector multiplication with cuSPARSE.
 
+- Added AmgX solver class for simple integration with NVIDIA's multigrid library.
+
 - Added support for BlockOperator on GPU. See the updated Example 5.
 
 - Added partial assembly and GPU support for complex operators, including the
