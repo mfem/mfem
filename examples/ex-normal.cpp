@@ -497,7 +497,7 @@ int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
    int num_procs, myid;
-   MPI_Init(&argc, &argv);
+   MPI_Session session(argc, argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
@@ -513,6 +513,7 @@ int main(int argc, char *argv[])
    bool elimination = false;
    double reltol = 1.e-6;
    double penalty = 0.0;
+   bool mass = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -540,6 +541,9 @@ int main(int argc, char *argv[])
                   "Relative tolerance for constrained solver.");
    args.AddOption(&penalty, "--penalty", "--penalty",
                   "Penalty parameter for penalty solver, used if > 0");
+   args.AddOption(&mass, "--mass", "--mass", "--diffusion", "--diffusion",
+                  "Which bilinear form, --mass or --diffusion");
+
 
    args.Parse();
    if (!args.Good())
@@ -548,7 +552,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -673,7 +676,7 @@ int main(int argc, char *argv[])
    }
 
    ParLinearForm b(&fespace);
-   // ConstantCoefficient one(1.0);
+   // todo: for diffusion we probably want a more interesting rhs
    Vector rhs_direction(dim);
    rhs_direction = 0.0;
    rhs_direction[0] = 1.0;
@@ -696,7 +699,14 @@ int main(int argc, char *argv[])
    Vector ones(dim);
    ones = 1.0;
    VectorConstantCoefficient coeff(ones);
-   a.AddDomainIntegrator(new VectorMassIntegrator(coeff));
+   if (mass)
+   {
+      a.AddDomainIntegrator(new VectorMassIntegrator(coeff));
+   }
+   else
+   {
+      a.AddDomainIntegrator(new VectorDiffusionIntegrator);
+   }
 
    // 12. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
@@ -786,7 +796,6 @@ int main(int argc, char *argv[])
       delete fec;
    }
    delete constraint_mat;
-   MPI_Finalize();
 
    return 0;
 }
