@@ -18,13 +18,10 @@
 #include "../fem/fespacehierarchy.hpp"
 #include "../fem/multigrid.hpp"
 #include "../fem/libceed/ceedsolvers-utility.h"
+#include "../fem/libceed/ceed-wrappers.hpp"
 
 namespace mfem
 {
-
-// forward declarations
-class CeedMultigridLevel;
-class BilinearForm;
 
 class AlgebraicCoarseFESpace : public FiniteElementSpace
 {
@@ -40,15 +37,35 @@ public:
    CeedElemRestriction GetCeedElemRestriction() const { return ceed_elem_restriction; }
    CeedBasis GetCeedCoarseToFine() const { return coarse_to_fine; }
    virtual const Operator *GetProlongationMatrix() const override { return NULL; }
-private:
+   ~AlgebraicCoarseFESpace();
+protected:
+   int *dof_map;
    int order_reduction;
    CeedElemRestriction ceed_elem_restriction;
    CeedBasis coarse_to_fine;
 };
 
-// class ParAlgebraicCoarseFESpace : public AlgebraicCoarseFESpace, public ParFiniteElementSpace
-// {
-// };
+class ParAlgebraicCoarseFESpace : public AlgebraicCoarseFESpace
+{
+public:
+   ParAlgebraicCoarseFESpace(
+      FiniteElementSpace &fine_fes,
+      CeedElemRestriction fine_er,
+      int order,
+      int dim,
+      int order_reduction_,
+      GroupCommunicator *gc_fine
+   );
+   virtual const Operator *GetProlongationMatrix() const override
+   { return P; }
+   virtual const SparseMatrix *GetRestrictionMatrix() const override
+   { return R_mat; }
+   GroupCommunicator *GetGroupCommunicator() const { return gc; }
+private:
+   SparseMatrix *R_mat;
+   GroupCommunicator *gc;
+   ConformingProlongationOperator *P;
+};
 
 class AlgebraicFESpaceHierarchy : public FiniteElementSpaceHierarchy
 {
@@ -59,16 +76,15 @@ public:
       MFEM_ASSERT(level < GetNumLevels() - 1, "");
       return static_cast<AlgebraicCoarseFESpace&>(*fespaces[level]);
    }
+   ~AlgebraicFESpaceHierarchy()
+   {
+      CeedElemRestrictionDestroy(&fine_er);
+   }
 private:
-   // TODO: delete these
    CeedElemRestriction fine_er;
-   CeedBasis fine_basis;
+   Array<MFEMCeedInterpolation*> ceed_interpolations;
+   Array<TransposeOperator*> R_tr;
 };
-
-// class ParAlgebraicFESpaceHierarchy : public AlgebraicFESpaceHierarchy, public ParFiniteElementSpaceHierarchy
-// {
-
-// };
 
 class AlgebraicCeedMultigrid : public Multigrid
 {
@@ -78,30 +94,10 @@ public:
       BilinearForm &form,
       Array<int> ess_tdofs
    );
+   ~AlgebraicCeedMultigrid();
 private:
    OperatorHandle fine_operator;
    Array<CeedOperator> ceed_operators;
-};
-
-class AlgebraicCeedSolver : public mfem::Solver
-{
-public:
-   AlgebraicCeedSolver(Operator& fine_mfem_op, BilinearForm& form,
-                       Array<int>& ess_dofs, bool use_amg=false);
-   ~AlgebraicCeedSolver();
-
-   /// Note that this does not rebuild the hierarchy or smoothers,
-   /// just changes the finest level operator for residual computations
-   void SetOperator(const Operator& op) { operators[0] = const_cast<Operator*>(&op); }
-
-   void Mult(const Vector& x, Vector& y) const;
-
-private:
-   int num_levels;
-   Operator ** operators;
-   CeedMultigridLevel ** levels;
-   Solver ** solvers;
-   CeedOperator fine_composite_op;
 };
 
 } // namespace mfem
