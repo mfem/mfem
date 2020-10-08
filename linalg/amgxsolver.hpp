@@ -168,7 +168,7 @@ public:
    void ReadParameters(const std::string config, CONFIG_SRC source);
 
    /**
-      @param [in] AMGX_MODE AmgXSolver::PRECONDITIONER,
+      @param [in] amgxMode_ AmgXSolver::PRECONDITIONER,
                             AmgXSolver::SOLVER.
 
       @param [in] verbose  true, false. Specifies the level
