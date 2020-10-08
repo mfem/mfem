@@ -2781,7 +2781,7 @@ double GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
                                             class JumpScaling jump_scaling,
                                             const IntegrationRule *irs[])  const
 {
-   int fdof, dim, intorder, k;
+   int fdof, intorder, k;
    Mesh *mesh;
    const FiniteElement *fe;
    ElementTransformation *transf;
@@ -2792,7 +2792,6 @@ double GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
    double error = 0.0;
 
    mesh = fes->GetMesh();
-   dim = mesh->Dimension();
 
    for (int i = 0; i < mesh->GetNumFaces(); i++)
    {

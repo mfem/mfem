@@ -662,7 +662,7 @@ double ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
 {
    const_cast<ParGridFunction *>(this)->ExchangeFaceNbrData();
 
-   int fdof, dim, intorder, k;
+   int fdof, intorder, k;
    ElementTransformation *transf;
    Vector shape, el_dofs, err_val, ell_coeff_val;
    Array<int> vdofs;
@@ -670,7 +670,6 @@ double ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
    double error = 0.0;
 
    ParMesh *mesh = pfes->GetParMesh();
-   dim = mesh->Dimension();
 
    std::map<int,int> local_to_shared;
    for (int i = 0; i < mesh->GetNSharedFaces(); ++i)
@@ -811,7 +810,7 @@ double ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
          transf->SetIntPoint(&ip);
          double nu = jump_scaling.Eval(h, p);
          error += shared_face_factor*(ip.weight * nu * ell_coeff_val(j) *
-                                      pow(transf->Weight(), 1.0-1.0/(dim-1)) *
+                                      transf->Weight() *
                                       err_val(j) * err_val(j));
       }
    }
