@@ -23,10 +23,10 @@
 namespace mfem
 {
 
-class AlgebraicCoarseFESpace : public FiniteElementSpace
+class AlgebraicCoarseSpace : public FiniteElementSpace
 {
 public:
-   AlgebraicCoarseFESpace(
+   AlgebraicCoarseSpace(
       FiniteElementSpace &fine_fes,
       CeedElemRestriction fine_er,
       int order,
@@ -37,7 +37,7 @@ public:
    CeedElemRestriction GetCeedElemRestriction() const { return ceed_elem_restriction; }
    CeedBasis GetCeedCoarseToFine() const { return coarse_to_fine; }
    virtual const Operator *GetProlongationMatrix() const override { return NULL; }
-   ~AlgebraicCoarseFESpace();
+   ~AlgebraicCoarseSpace();
 protected:
    int *dof_map;
    int order_reduction;
@@ -45,10 +45,10 @@ protected:
    CeedBasis coarse_to_fine;
 };
 
-class ParAlgebraicCoarseFESpace : public AlgebraicCoarseFESpace
+class ParAlgebraicCoarseSpace : public AlgebraicCoarseSpace
 {
 public:
-   ParAlgebraicCoarseFESpace(
+   ParAlgebraicCoarseSpace(
       FiniteElementSpace &fine_fes,
       CeedElemRestriction fine_er,
       int order,
@@ -61,24 +61,36 @@ public:
    virtual const SparseMatrix *GetRestrictionMatrix() const override
    { return R_mat; }
    GroupCommunicator *GetGroupCommunicator() const { return gc; }
+   HypreParMatrix *GetProlongationHypreParMatrix();
+   ~ParAlgebraicCoarseSpace();
 private:
    SparseMatrix *R_mat;
    GroupCommunicator *gc;
    ConformingProlongationOperator *P;
+   HypreParMatrix *P_mat;
+   Array<int> ldof_group, ldof_ltdof;
 };
 
-class AlgebraicFESpaceHierarchy : public FiniteElementSpaceHierarchy
+class AlgebraicSpaceHierarchy : public FiniteElementSpaceHierarchy
 {
 public:
-   AlgebraicFESpaceHierarchy(FiniteElementSpace &fespace);
-   AlgebraicCoarseFESpace& GetAlgebraicCoarseFESpace(int level)
+   AlgebraicSpaceHierarchy(FiniteElementSpace &fespace);
+   AlgebraicCoarseSpace& GetAlgebraicCoarseSpace(int level)
    {
       MFEM_ASSERT(level < GetNumLevels() - 1, "");
-      return static_cast<AlgebraicCoarseFESpace&>(*fespaces[level]);
+      return static_cast<AlgebraicCoarseSpace&>(*fespaces[level]);
    }
-   ~AlgebraicFESpaceHierarchy()
+   ~AlgebraicSpaceHierarchy()
    {
       CeedElemRestrictionDestroy(&fine_er);
+      for (int i=0; i<R_tr.Size(); ++i)
+      {
+         delete R_tr[i];
+      }
+      for (int i=0; i<ceed_interpolations.Size(); ++i)
+      {
+         delete ceed_interpolations[i];
+      }
    }
 private:
    CeedElemRestriction fine_er;
@@ -90,7 +102,7 @@ class AlgebraicCeedMultigrid : public Multigrid
 {
 public:
    AlgebraicCeedMultigrid(
-      AlgebraicFESpaceHierarchy &hierarchy,
+      AlgebraicSpaceHierarchy &hierarchy,
       BilinearForm &form,
       Array<int> ess_tdofs
    );

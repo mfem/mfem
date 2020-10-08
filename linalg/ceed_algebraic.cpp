@@ -162,7 +162,7 @@ CeedOperator CoarsenCeedCompositeOperator(
 }
 
 AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
-   AlgebraicFESpaceHierarchy &hierarchy,
+   AlgebraicSpaceHierarchy &hierarchy,
    BilinearForm &form,
    Array<int> ess_tdofs
 ) : Multigrid(hierarchy)
@@ -179,7 +179,7 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
    // Construct hierarchy by coarsening
    for (int ilevel=nlevels-2; ilevel>=0; --ilevel)
    {
-      AlgebraicCoarseFESpace &space = hierarchy.GetAlgebraicCoarseFESpace(ilevel);
+      AlgebraicCoarseSpace &space = hierarchy.GetAlgebraicCoarseSpace(ilevel);
       ceed_operators[ilevel] = CoarsenCeedCompositeOperator(
          ceed_operators[ilevel+1], space.GetCeedElemRestriction(),
          space.GetCeedCoarseToFine(), space.GetOrderReduction());
@@ -217,7 +217,7 @@ AlgebraicCeedMultigrid::~AlgebraicCeedMultigrid()
    }
 }
 
-AlgebraicFESpaceHierarchy::AlgebraicFESpaceHierarchy(FiniteElementSpace &fes)
+AlgebraicSpaceHierarchy::AlgebraicSpaceHierarchy(FiniteElementSpace &fes)
 {
    int order = fes.GetOrder(0);
 
@@ -266,12 +266,12 @@ AlgebraicFESpaceHierarchy::AlgebraicFESpaceHierarchy(FiniteElementSpace &fes)
    for (int ilevel=nlevels-2; ilevel>=0; --ilevel)
    {
       const int order_reduction = current_order - (current_order/2);
-      AlgebraicCoarseFESpace *space;
+      AlgebraicCoarseSpace *space;
 
 #ifdef MFEM_USE_MPI
       if (pfes)
       {
-         ParAlgebraicCoarseFESpace *parspace = new ParAlgebraicCoarseFESpace(
+         ParAlgebraicCoarseSpace *parspace = new ParAlgebraicCoarseSpace(
             *fespaces[ilevel+1],
             er,
             current_order,
@@ -285,7 +285,7 @@ AlgebraicFESpaceHierarchy::AlgebraicFESpaceHierarchy(FiniteElementSpace &fes)
       else
 #endif
       {
-         space = new AlgebraicCoarseFESpace(
+         space = new AlgebraicCoarseSpace(
             *fespaces[ilevel+1],
             er,
             current_order,
@@ -320,7 +320,7 @@ AlgebraicFESpaceHierarchy::AlgebraicFESpaceHierarchy(FiniteElementSpace &fes)
    }
 }
 
-AlgebraicCoarseFESpace::AlgebraicCoarseFESpace(
+AlgebraicCoarseSpace::AlgebraicCoarseSpace(
    FiniteElementSpace &fine_fes,
    CeedElemRestriction fine_er,
    int order,
@@ -346,27 +346,30 @@ AlgebraicCoarseFESpace::AlgebraicCoarseFESpace(
    );
    vdim = fine_fes.GetVDim();
    CeedElemRestrictionGetLVectorSize(ceed_elem_restriction, &ndofs);
+   mesh = fine_fes.GetMesh();
 }
 
-AlgebraicCoarseFESpace::~AlgebraicCoarseFESpace()
+AlgebraicCoarseSpace::~AlgebraicCoarseSpace()
 {
    free(dof_map);
 }
 
-ParAlgebraicCoarseFESpace::ParAlgebraicCoarseFESpace(
+#ifdef MFEM_USE_MPI
+
+ParAlgebraicCoarseSpace::ParAlgebraicCoarseSpace(
    FiniteElementSpace &fine_fes,
    CeedElemRestriction fine_er,
    int order,
    int dim,
    int order_reduction_,
    GroupCommunicator *gc_fine)
- : AlgebraicCoarseFESpace(fine_fes, fine_er, order, dim, order_reduction_)
+ : AlgebraicCoarseSpace(fine_fes, fine_er, order, dim, order_reduction_)
 {
    int lsize;
    CeedElemRestrictionGetLVectorSize(ceed_elem_restriction, &lsize);
    const Table &group_ldof_fine = gc_fine->GroupLDofTable();
 
-   Array<int> ldof_group(lsize);
+   ldof_group.SetSize(lsize);
    ldof_group = 0;
 
    GroupTopology &group_topo = gc_fine->GetGroupTopology();
@@ -403,7 +406,7 @@ ParAlgebraicCoarseFESpace::ParAlgebraicCoarseFESpace(
    }
    group_ldof.ShiftUpI();
    gc->Finalize();
-   Array<int> ldof_ltdof(lsize);
+   ldof_ltdof.SetSize(lsize);
    ldof_ltdof = -2;
    int ltsize = 0;
    for (int i=0; i<lsize; ++i)
@@ -430,7 +433,133 @@ ParAlgebraicCoarseFESpace::ParAlgebraicCoarseFESpace(
    R_mat->Finalize();
 
    P = new ConformingProlongationOperator(lsize, *gc);
+   P_mat = NULL;
 }
+
+HypreParMatrix *ParAlgebraicCoarseSpace::GetProlongationHypreParMatrix()
+{
+   if (P_mat) { return P_mat; }
+
+   ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
+   MFEM_VERIFY(pmesh != NULL, "");
+   Array<HYPRE_Int> dof_offsets, tdof_offsets, tdof_nb_offsets;
+   Array<HYPRE_Int> *offsets[2] = {&dof_offsets, &tdof_offsets};
+   int lsize = GetVSize();
+   int ltsize = GetTrueVSize();
+   HYPRE_Int loc_sizes[2] = {lsize, ltsize};
+   pmesh->GenerateOffsets(2, loc_sizes, offsets);
+
+   MPI_Comm comm = pmesh->GetComm();
+
+   const GroupTopology &group_topo = gc->GetGroupTopology();
+
+   if (HYPRE_AssumedPartitionCheck())
+   {
+      // communicate the neighbor offsets in tdof_nb_offsets
+      int nsize = group_topo.GetNumNeighbors()-1;
+      MPI_Request *requests = new MPI_Request[2*nsize];
+      MPI_Status  *statuses = new MPI_Status[2*nsize];
+      tdof_nb_offsets.SetSize(nsize+1);
+      tdof_nb_offsets[0] = tdof_offsets[0];
+
+      // send and receive neighbors' local tdof offsets
+      int request_counter = 0;
+      for (int i = 1; i <= nsize; i++)
+      {
+         MPI_Irecv(&tdof_nb_offsets[i], 1, HYPRE_MPI_INT,
+                  group_topo.GetNeighborRank(i), 5365, comm,
+                  &requests[request_counter++]);
+      }
+      for (int i = 1; i <= nsize; i++)
+      {
+         MPI_Isend(&tdof_nb_offsets[0], 1, HYPRE_MPI_INT,
+                  group_topo.GetNeighborRank(i), 5365, comm,
+                  &requests[request_counter++]);
+      }
+      MPI_Waitall(request_counter, requests, statuses);
+
+      delete [] statuses;
+      delete [] requests;
+   }
+
+   HYPRE_Int *i_diag = Memory<HYPRE_Int>(lsize+1);
+   HYPRE_Int *j_diag = Memory<HYPRE_Int>(ltsize);
+   int diag_counter;
+
+   HYPRE_Int *i_offd = Memory<HYPRE_Int>(lsize+1);
+   HYPRE_Int *j_offd = Memory<HYPRE_Int>(lsize-ltsize);
+   int offd_counter;
+
+   HYPRE_Int *cmap   = Memory<HYPRE_Int>(lsize-ltsize);
+
+   HYPRE_Int *col_starts = tdof_offsets;
+   HYPRE_Int *row_starts = dof_offsets;
+
+   Array<Pair<HYPRE_Int, int> > cmap_j_offd(lsize-ltsize);
+
+   i_diag[0] = i_offd[0] = 0;
+   diag_counter = offd_counter = 0;
+   for (int i_ldof = 0; i_ldof < lsize; i_ldof++)
+   {
+      int g = ldof_group[i_ldof];
+      int i_ltdof = ldof_ltdof[i_ldof];
+      if (group_topo.IAmMaster(g))
+      {
+         j_diag[diag_counter++] = i_ltdof;
+      }
+      else
+      {
+         HYPRE_Int global_tdof_number;
+         int g = ldof_group[i_ldof];
+         if (HYPRE_AssumedPartitionCheck())
+         {
+            global_tdof_number
+               = i_ltdof + tdof_nb_offsets[group_topo.GetGroupMaster(g)];
+         }
+         else
+         {
+            global_tdof_number
+               = i_ltdof + tdof_offsets[group_topo.GetGroupMasterRank(g)];
+         }
+
+         cmap_j_offd[offd_counter].one = global_tdof_number;
+         cmap_j_offd[offd_counter].two = offd_counter;
+         offd_counter++;
+      }
+      i_diag[i_ldof+1] = diag_counter;
+      i_offd[i_ldof+1] = offd_counter;
+   }
+
+   SortPairs<HYPRE_Int, int>(cmap_j_offd, offd_counter);
+
+   for (int i = 0; i < offd_counter; i++)
+   {
+      cmap[i] = cmap_j_offd[i].one;
+      j_offd[cmap_j_offd[i].two] = i;
+   }
+
+   P_mat = new HypreParMatrix(
+      comm, pmesh->GetMyRank(), pmesh->GetNRanks(),
+      row_starts, col_starts,
+      i_diag, j_diag, i_offd, j_offd,
+      cmap, offd_counter
+   );
+
+   P_mat->CopyRowStarts();
+   P_mat->CopyColStarts();
+
+   return P_mat;
+}
+
+ParAlgebraicCoarseSpace::~ParAlgebraicCoarseSpace()
+{
+   delete P;
+   delete R_mat;
+   delete P_mat;
+   delete gc;
+}
+
+#endif
 
 } // namespace mfem
 #endif // MFEM_USE_CEED
