@@ -38,8 +38,8 @@
 //
 // AmgX sample runs:
 //
-//               mpirun -n 40 ./amgx_ex1p --amgx-file amg_pcg.json
-//               lrun -n 4 ./amgx_ex1p --amgx-file amg_pcg.json --amgx-mpi-gpu-exclusive
+//               mpirun -n 40 ./ex1p --amgx-file amg_pcg.json
+//               lrun -n 4 ./ex1p --amgx-file amg_pcg.json --amgx-mpi-gpu-exclusive
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem

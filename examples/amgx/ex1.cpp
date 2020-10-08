@@ -41,10 +41,10 @@
 //               ex1 -m ../../data/beam-tet.mesh -pa -d ceed-cuda:/gpu/cuda/ref
 //
 // AmgX sample runs:
-//               ./amgx_ex1 --amgx-file multi_gs.json --amgx-solver
-//               ./amgx_ex1 --amgx-file precon.json --amgx-preconditioner
-//               ./amgx_ex1 --amgx-file multi_gs.json --amgx-solver -d cuda
-//               ./amgx_ex1 --amgx-file precon.json --amgx-preconditioner -d cuda
+//               ./ex1 --amgx-file multi_gs.json --amgx-solver
+//               ./ex1 --amgx-file precon.json --amgx-preconditioner
+//               ./ex1 --amgx-file multi_gs.json --amgx-solver -d cuda
+//               ./ex1 --amgx-file precon.json --amgx-preconditioner -d cuda
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
