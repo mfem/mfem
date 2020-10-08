@@ -2694,8 +2694,8 @@ public:
             */
 
             ConstantCoefficient one(1.0);
-            MatrixFreeAMS *prec_E = new MatrixFreeAMS(*a_EE, *A_EE, *fespace, &one, NULL, NULL, &coeff2, ess_tdof_list_E, 20, 20);
-            MatrixFreeAMS *prec_H = new MatrixFreeAMS(*a_HH, *A_HH, *fespace, &one, &sigma, NULL, NULL, ess_tdof_list_empty, 20, 20);
+            MatrixFreeAMS *prec_E = new MatrixFreeAMS(*a_EE, *A_EE, *fespace, &one, NULL, NULL, &coeff2, ess_tdof_list_E); //, 20, 20);
+            MatrixFreeAMS *prec_H = new MatrixFreeAMS(*a_HH, *A_HH, *fespace, &one, &sigma, NULL, NULL, ess_tdof_list_empty); //, 20, 20);
 #else // use block Jacobi
             Solver *prec_E = new OperatorJacobiSmoother(diag_PA_EE, ess_tdof_list_E, 1.0);
             Solver *prec_H = new OperatorJacobiSmoother(diag_PA_HH, ess_tdof_list_empty, 1.0);

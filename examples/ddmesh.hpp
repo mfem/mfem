@@ -6,6 +6,7 @@
 using namespace mfem;
 using namespace std;
 
+//#define AVOID_HYPREPARMATRIX_DELETE
 
 //#define SERIAL_INTERFACES  // TODO: remove this?
 
@@ -492,7 +493,10 @@ public:
          MPI_Barrier(MPI_COMM_WORLD);
       }
 
+      //#ifndef AVOID_HYPREPARMATRIX_DELETE
+#ifndef HYPRE_USING_CUDA  // TODO remove this when the HypreParMatrix destructor is debugged.
       delete vert_elem;
+#endif
 
       // Remove empty interfaces
       for (auto it = interfaces.begin(); it != interfaces.end(); )

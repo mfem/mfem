@@ -31,13 +31,23 @@
 #define mfem_hypre_CTAlloc(type, size) hypre_CTAlloc(type, size)
 #define mfem_hypre_TFree(ptr) hypre_TFree(ptr)
 
+#define mfem_hypre_TAlloc_host(type, size) hypre_TAlloc(type, size)
+#define mfem_hypre_CTAlloc_host(type, size) hypre_CTAlloc(type, size)
+#define mfem_hypre_TFree_host(ptr) hypre_TFree(ptr)
+
 #else // MFEM_HYPRE_VERSION >= 21400
 
 #define mfem_hypre_TAlloc(type, size) \
-   hypre_TAlloc(type, size, HYPRE_MEMORY_HOST)
+   hypre_TAlloc(type, size, HYPRE_MEMORY_DEVICE)
 #define mfem_hypre_CTAlloc(type, size) \
+   hypre_CTAlloc(type, size, HYPRE_MEMORY_DEVICE)
+#define mfem_hypre_TFree(ptr) hypre_TFree(ptr, HYPRE_MEMORY_DEVICE)
+
+#define mfem_hypre_TAlloc_host(type, size) \
+   hypre_TAlloc(type, size, HYPRE_MEMORY_HOST)
+#define mfem_hypre_CTAlloc_host(type, size) \
    hypre_CTAlloc(type, size, HYPRE_MEMORY_HOST)
-#define mfem_hypre_TFree(ptr) hypre_TFree(ptr, HYPRE_MEMORY_HOST)
+#define mfem_hypre_TFree_host(ptr) hypre_TFree(ptr, HYPRE_MEMORY_HOST)
 
 // Notes regarding allocation and deallocation of hypre objects in 2.14.0
 //-----------------------------------------------------------------------

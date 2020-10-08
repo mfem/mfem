@@ -34,13 +34,23 @@ template<typename TargetT, typename SourceT>
 static TargetT *DuplicateAs(const SourceT *array, int size,
                             bool cplusplus = true)
 {
-   TargetT *target_array = cplusplus ? (TargetT*) Memory<TargetT>(size)
-                           /*     */ : mfem_hypre_TAlloc(TargetT, size);
-   for (int i = 0; i < size; i++)
+   if (GetHypreMemoryClass() == MemoryClass::HOST)
    {
-      target_array[i] = array[i];
+      TargetT *target_array = cplusplus ? (TargetT*) Memory<TargetT>(size)
+                              /*     */ : mfem_hypre_TAlloc(TargetT, size);
+      for (int i = 0; i < size; i++)
+      {
+         target_array[i] = array[i];
+      }
+      return target_array;
    }
-   return target_array;
+   else
+   {
+      Memory<TargetT> mm(size, GetHypreMemoryType());
+      mm.CopyFromHost(array, size);
+      TargetT *target_array = mm;
+      return target_array;
+   }
 }
 
 inline void HypreParVector::_SetDataAndSize_()
@@ -251,13 +261,34 @@ HypreParMatrix::HypreParMatrix()
 
 char HypreParMatrix::CopyCSR(SparseMatrix *csr, hypre_CSRMatrix *hypre_csr)
 {
-   hypre_CSRMatrixData(hypre_csr) = csr->GetData();
+   if (GetHypreMemoryClass() == MemoryClass::HOST)
+   {
+      hypre_CSRMatrixData(hypre_csr) = csr->GetData();
 #ifndef HYPRE_BIGINT
-   hypre_CSRMatrixI(hypre_csr) = csr->GetI();
-   hypre_CSRMatrixJ(hypre_csr) = csr->GetJ();
-   // Prevent hypre from destroying hypre_csr->{i,j,data}
-   return 0;
-#else
+      hypre_CSRMatrixI(hypre_csr) = csr->GetI();
+      hypre_CSRMatrixJ(hypre_csr) = csr->GetJ();
+      // Prevent hypre from destroying hypre_csr->{i,j,data}
+      return 0;
+#endif
+   }
+   else
+   {
+      const int nnz = csr->GetI()[csr->NumRows()];
+      Memory<double> hypre_mem_data(nnz, GetHypreMemoryType());
+      hypre_mem_data.CopyFromHost(csr->GetData(), nnz);
+
+      hypre_CSRMatrixData(hypre_csr) = hypre_mem_data;
+#ifndef HYPRE_BIGINT
+      hypre_CSRMatrixI(hypre_csr) = DuplicateAs<int>(csr->GetI(),
+                                                     csr->Height()+1);
+      hypre_CSRMatrixJ(hypre_csr) = DuplicateAs<int>(csr->GetJ(),
+                                                     csr->NumNonZeroElems());
+      // Prevent hypre from destroying hypre_csr->{i,j,data}
+      return 0;
+#endif
+   }
+
+#ifdef HYPRE_BIGINT
    hypre_CSRMatrixI(hypre_csr) =
       DuplicateAs<HYPRE_Int>(csr->GetI(), csr->Height()+1);
    hypre_CSRMatrixJ(hypre_csr) =
@@ -306,8 +337,20 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_Int glob_size,
    : Operator(diag->Height(), diag->Width())
 {
    Init();
-   A = hypre_ParCSRMatrixCreate(comm, glob_size, glob_size, row_starts,
-                                row_starts, 0, diag->NumNonZeroElems(), 0);
+
+   if (GetHypreMemoryClass() == MemoryClass::HOST)
+   {
+      A = hypre_ParCSRMatrixCreate(comm, glob_size, glob_size, row_starts,
+                                   row_starts, 0, diag->NumNonZeroElems(), 0);
+   }
+   else
+   {
+      hypre_mem_row.New(3, GetHypreMemoryType());
+      hypre_mem_row.CopyFromHost(row_starts, 3);
+      A = hypre_ParCSRMatrixCreate(comm, glob_size, glob_size, hypre_mem_row,
+                                   hypre_mem_row, 0, diag->NumNonZeroElems(), 0);
+   }
+
    hypre_ParCSRMatrixSetDataOwner(A,1);
    hypre_ParCSRMatrixSetRowStartsOwner(A,0);
    hypre_ParCSRMatrixSetColStartsOwner(A,0);
@@ -565,11 +608,30 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
       diag_nnz = i_diag[row[1]-row[0]];
       offd_nnz = i_offd[row[1]-row[0]];
 
-      A = hypre_ParCSRMatrixCreate(comm, row[2], col[2], row, col,
-                                   cmap_size, diag_nnz, offd_nnz);
+      if (GetHypreMemoryClass() == MemoryClass::HOST)
+      {
+         A = hypre_ParCSRMatrixCreate(comm, row[2], col[2], row, col,
+                                      cmap_size, diag_nnz, offd_nnz);
+      }
+      else
+      {
+         // Assumption: all input pointers to host memory have valid data already on host, so we can just use CopyFromHost.
+         // Copy row, col to new arrays with hypre memory type.
+
+         hypre_mem_row.New(3, GetHypreMemoryType());
+         hypre_mem_col.New(3, GetHypreMemoryType());
+
+         hypre_mem_row.CopyFromHost(row, 3);
+         hypre_mem_col.CopyFromHost(col, 3);
+
+         A = hypre_ParCSRMatrixCreate(comm, row[2], col[2], hypre_mem_row, hypre_mem_col,
+                                      cmap_size, diag_nnz, offd_nnz);
+      }
    }
    else
    {
+      MFEM_VERIFY(GetHypreMemoryClass() == MemoryClass::HOST, "TODO");
+
       diag_nnz = i_diag[row[id+1]-row[id]];
       offd_nnz = i_offd[row[id+1]-row[id]];
 
@@ -583,35 +645,94 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
 
    HYPRE_Int i;
 
-   double *a_diag = Memory<double>(diag_nnz);
+   double *a_diag = Memory<double>(diag_nnz, GetHypreMemoryType());
+
    for (i = 0; i < diag_nnz; i++)
    {
       a_diag[i] = 1.0;
    }
 
-   double *a_offd = Memory<double>(offd_nnz);
+   double *a_offd = Memory<double>(offd_nnz, GetHypreMemoryType());
    for (i = 0; i < offd_nnz; i++)
    {
       a_offd[i] = 1.0;
    }
 
    hypre_CSRMatrixSetDataOwner(A->diag,0);
-   hypre_CSRMatrixI(A->diag)    = i_diag;
-   hypre_CSRMatrixJ(A->diag)    = j_diag;
+   if (GetHypreMemoryClass() == MemoryClass::HOST)
+   {
+      hypre_CSRMatrixI(A->diag)    = i_diag;
+      hypre_CSRMatrixJ(A->diag)    = j_diag;
+   }
+   else
+   {
+      Memory<HYPRE_Int> hypre_mem_i_diag, hypre_mem_j_diag;
+
+      if (HYPRE_AssumedPartitionCheck())
+      {
+         const int rowSize = row[1]-row[0];
+         hypre_mem_i_diag.New(rowSize+1, GetHypreMemoryType());
+         hypre_mem_j_diag.New(diag_nnz, GetHypreMemoryType());
+
+         hypre_mem_i_diag.CopyFromHost(i_diag, rowSize+1);
+         hypre_mem_j_diag.CopyFromHost(j_diag, diag_nnz);
+      }
+      else
+      {
+         MFEM_VERIFY(false, "TODO");
+      }
+
+      hypre_CSRMatrixI(A->diag)    = hypre_mem_i_diag;
+      hypre_CSRMatrixJ(A->diag)    = hypre_mem_j_diag;
+   }
    hypre_CSRMatrixData(A->diag) = a_diag;
    hypre_CSRMatrixSetRownnz(A->diag);
    // Prevent hypre from destroying A->diag->{i,j,data}, own A->diag->{i,j,data}
    diagOwner = 3;
 
    hypre_CSRMatrixSetDataOwner(A->offd,0);
-   hypre_CSRMatrixI(A->offd)    = i_offd;
-   hypre_CSRMatrixJ(A->offd)    = j_offd;
+   if (GetHypreMemoryClass() == MemoryClass::HOST)
+   {
+      hypre_CSRMatrixI(A->offd)    = i_offd;
+      hypre_CSRMatrixJ(A->offd)    = j_offd;
+   }
+   else
+   {
+      Memory<HYPRE_Int> hypre_mem_i_offd, hypre_mem_j_offd;
+
+      if (HYPRE_AssumedPartitionCheck())
+      {
+         const int rowSize = row[1]-row[0];
+         hypre_mem_i_offd.New(rowSize+1, GetHypreMemoryType());
+         hypre_mem_j_offd.New(offd_nnz, GetHypreMemoryType());
+
+         hypre_mem_i_offd.CopyFromHost(i_offd, rowSize+1);
+         hypre_mem_j_offd.CopyFromHost(j_offd, offd_nnz);
+      }
+      else
+      {
+         MFEM_VERIFY(false, "TODO");
+      }
+
+      hypre_CSRMatrixI(A->offd)    = hypre_mem_i_offd;
+      hypre_CSRMatrixJ(A->offd)    = hypre_mem_j_offd;
+   }
    hypre_CSRMatrixData(A->offd) = a_offd;
    hypre_CSRMatrixSetRownnz(A->offd);
    // Prevent hypre from destroying A->offd->{i,j,data}, own A->offd->{i,j,data}
    offdOwner = 3;
 
-   hypre_ParCSRMatrixColMapOffd(A) = cmap;
+   if (GetHypreMemoryClass() == MemoryClass::HOST)
+   {
+      hypre_ParCSRMatrixColMapOffd(A) = cmap;
+   }
+   else
+   {
+      hypre_mem_cmap.New(cmap_size, GetHypreMemoryType());
+      hypre_mem_cmap.CopyFromHost(cmap, cmap_size);
+      hypre_ParCSRMatrixColMapOffd(A) = hypre_mem_cmap;
+   }
+
    // Prevent hypre from destroying A->col_map_offd, own A->col_map_offd
    colMapOwner = 1;
 
@@ -1493,28 +1614,58 @@ void HypreParMatrix::PrintCommPkg(std::ostream &out) const
 inline void delete_hypre_CSRMatrixData(hypre_CSRMatrix *M)
 {
    HYPRE_Complex *data = hypre_CSRMatrixData(M);
-   Memory<HYPRE_Complex>(data, M->num_nonzeros, true).Delete();
+   if (GetHypreMemoryClass() == MemoryClass::HOST)
+   {
+      Memory<HYPRE_Complex>(data, M->num_nonzeros, true).Delete();
+   }
+   else
+   {
+      Memory<HYPRE_Complex>(data, M->num_nonzeros, GetHypreMemoryType(),
+                            true).Delete();
+   }
 }
 
 inline void delete_hypre_ParCSRMatrixColMapOffd(hypre_ParCSRMatrix *A)
 {
    HYPRE_Int  *A_col_map_offd = hypre_ParCSRMatrixColMapOffd(A);
    int size = hypre_CSRMatrixNumCols(hypre_ParCSRMatrixOffd(A));
-   Memory<HYPRE_Int>(A_col_map_offd, size, true).Delete();
+   if (GetHypreMemoryClass() == MemoryClass::HOST)
+   {
+      Memory<HYPRE_Int>(A_col_map_offd, size, true).Delete();
+   }
+   else
+   {
+      Memory<HYPRE_Int>(A_col_map_offd, size, GetHypreMemoryType(), true).Delete();
+   }
 }
 
 inline void delete_hypre_CSRMatrixI(hypre_CSRMatrix *M)
 {
    HYPRE_Int *I = hypre_CSRMatrixI(M);
    int size = hypre_CSRMatrixNumRows(M) + 1;
-   Memory<HYPRE_Int>(I, size, true).Delete();
+
+   if (GetHypreMemoryClass() == MemoryClass::HOST)
+   {
+      Memory<HYPRE_Int>(I, size, true).Delete();
+   }
+   else
+   {
+      Memory<HYPRE_Int>(I, size, GetHypreMemoryType(), true).Delete();
+   }
 }
 
 inline void delete_hypre_CSRMatrixJ(hypre_CSRMatrix *M)
 {
    HYPRE_Int *J = hypre_CSRMatrixJ(M);
    int size = hypre_CSRMatrixNumNonzeros(M);
-   Memory<HYPRE_Int>(J, size, true).Delete();
+   if (GetHypreMemoryClass() == MemoryClass::HOST)
+   {
+      Memory<HYPRE_Int>(J, size, true).Delete();
+   }
+   else
+   {
+      Memory<HYPRE_Int>(J, size, GetHypreMemoryType(), true).Delete();
+   }
 }
 
 void HypreParMatrix::Destroy()
@@ -1644,7 +1795,16 @@ HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P)
       hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*P));
 
    hypre_ParCSRMatrix * rap;
+#ifdef HYPRE_USING_CUDA
+   {
+      hypre_ParCSRMatrix *Q = hypre_ParCSRMatMat(*A,*P);
+      const bool keepTranspose = false;
+      rap = hypre_ParCSRTMatMatKT(*P,Q,keepTranspose);
+      delete Q;
+   }
+#else
    hypre_BoomerAMGBuildCoarseOperator(*P,*A,*P,&rap);
+#endif
    hypre_ParCSRMatrixSetNumNonzeros(rap);
    // hypre_MatvecCommPkgCreate(rap);
 
@@ -1670,7 +1830,15 @@ HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
       hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*Rt));
 
    hypre_ParCSRMatrix * rap;
+#ifdef HYPRE_USING_CUDA
+   {
+      hypre_ParCSRMatrix *Q = hypre_ParCSRMatMat(*A,*P);
+      rap = hypre_ParCSRTMatMat(*Rt,Q);
+      delete Q;
+   }
+#else
    hypre_BoomerAMGBuildCoarseOperator(*Rt,*A,*P,&rap);
+#endif
 
    hypre_ParCSRMatrixSetNumNonzeros(rap);
    // hypre_MatvecCommPkgCreate(rap);
@@ -2547,26 +2715,22 @@ void HypreSolver::Mult(const Vector &b, Vector &x) const
       mfem_error("HypreSolver::Mult (...) : HypreParMatrix A is missing");
       return;
    }
-   auto b_data = b.HostRead();
-   auto x_data = x.HostWrite();
    if (B == NULL)
    {
       B = new HypreParVector(A->GetComm(),
                              A -> GetGlobalNumRows(),
-                             const_cast<double*>(b_data),
+                             nullptr,
                              A -> GetRowStarts());
       X = new HypreParVector(A->GetComm(),
                              A -> GetGlobalNumCols(),
-                             x_data,
+                             nullptr,
                              A -> GetColStarts());
    }
-   else
-   {
-      B -> SetData(const_cast<double*>(b_data));
-      X -> SetData(x_data);
-   }
+   B->Read(b);
+   X->Write(x);
 
    Mult(*B, *X);
+   X->WriteCopy(x);
 }
 
 HypreSolver::~HypreSolver()
@@ -3094,6 +3258,7 @@ HypreBoomerAMG::HypreBoomerAMG(HypreParMatrix &A) : HypreSolver(&A)
 
 void HypreBoomerAMG::SetDefaultOptions()
 {
+#ifndef HYPRE_USING_CUDA
    // AMG coarsening options:
    int coarsen_type = 10;   // 10 = HMIS, 8 = PMIS, 6 = Falgout, 0 = CLJP
    int agg_levels   = 1;    // number of aggressive coarsening levels
@@ -3110,10 +3275,32 @@ void HypreBoomerAMG::SetDefaultOptions()
    // Additional options:
    int print_level  = 1;    // print AMG iterations? 1 = no, 2 = yes
    int max_levels   = 25;   // max number of levels in AMG hierarchy
+#else
+   // AMG coarsening options:
+   int coarsen_type = 8;    // 10 = HMIS, 8 = PMIS, 6 = Falgout, 0 = CLJP
+   int agg_levels   = 0;    // number of aggressive coarsening levels
+   double theta     = 0.25; // strength threshold: 0.25, 0.5, 0.8
+
+   // AMG interpolation options:
+   int interp_type  = 15;   // or 3 = direct
+   int Pmax         = 4;    // max number of elements per row in P
+
+   // AMG relaxation options:
+   int relax_type   = 7;    // or 18 = l1-Jacobi
+   int relax_sweeps = 1;    // relaxation sweeps on each level
+
+   // Additional options:
+   int print_level  = 1;    // print AMG iterations? 1 = no, 2 = yes
+   int max_levels   = 25;   // max number of levels in AMG hierarchy
+#endif
 
    HYPRE_BoomerAMGSetCoarsenType(amg_precond, coarsen_type);
    HYPRE_BoomerAMGSetAggNumLevels(amg_precond, agg_levels);
    HYPRE_BoomerAMGSetRelaxType(amg_precond, relax_type);
+   if (relax_type == 7)
+   {
+      HYPRE_BoomerAMGSetRelaxWt(amg_precond, 1.0); // this is the hypre default
+   }
    HYPRE_BoomerAMGSetNumSweeps(amg_precond, relax_sweeps);
    HYPRE_BoomerAMGSetStrongThreshold(amg_precond, theta);
    HYPRE_BoomerAMGSetInterpType(amg_precond, interp_type);

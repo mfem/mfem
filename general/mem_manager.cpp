@@ -794,8 +794,9 @@ bool MemoryManager::MemoryClassCheck_(MemoryClass mc, void *h_ptr,
       }
       case MemoryClass::MANAGED:
       {
-         MFEM_VERIFY((h_mt == MemoryType::MANAGED &&
+         MFEM_VERIFY((d_mt == MemoryType::DEVICE ||
                       d_mt == MemoryType::MANAGED),"");
+
          return true;
       }
       default: break;
@@ -1046,10 +1047,10 @@ void MemoryManager::CopyFromHost_(void *dest_h_ptr, const void *src_h_ptr,
    {
       if (dest_h_ptr != src_h_ptr && bytes != 0)
       {
-         MFEM_ASSERT((char*)dest_h_ptr + bytes <= src_h_ptr ||
+         MFEM_ASSERT((char*)dest_h_ptr + bytes <= (const char*)src_h_ptr ||
                      (const char*)src_h_ptr + bytes <= dest_h_ptr,
                      "data overlaps!");
-         std::memcpy(dest_h_ptr, src_h_ptr, bytes);
+         std::memcpy(dest_h_ptr, (const char*)src_h_ptr, bytes);
       }
    }
    else
@@ -1059,7 +1060,7 @@ void MemoryManager::CopyFromHost_(void *dest_h_ptr, const void *src_h_ptr,
                          mm.GetDevicePtr(dest_h_ptr, bytes, false);
       const internal::Memory &base = maps->memories.at(dest_h_ptr);
       const MemoryType d_mt = base.d_mt;
-      ctrl->Device(d_mt)->HtoD(dest_d_ptr, src_h_ptr, bytes);
+      ctrl->Device(d_mt)->HtoD(dest_d_ptr, (const char*)src_h_ptr, bytes);
    }
    dest_flags = dest_flags &
                 ~(dest_on_host ? Mem::VALID_DEVICE : Mem::VALID_HOST);
@@ -1290,7 +1291,8 @@ void MemoryManager::Destroy()
    for (auto& n : maps->memories)
    {
       internal::Memory &mem = n.second;
-      bool mem_h_ptr = mem.h_mt != MemoryType::HOST && mem.h_ptr;
+      bool mem_h_ptr = mem.h_mt != MemoryType::HOST &&
+                       mem.h_mt != MemoryType::MANAGED && mem.h_ptr;
       if (mem_h_ptr) { ctrl->Host(mem.h_mt)->Dealloc(mem.h_ptr); }
       if (mem.d_ptr) { ctrl->Device(mem.d_mt)->Dealloc(mem); }
    }

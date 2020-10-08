@@ -75,6 +75,30 @@ inline int to_int(HYPRE_Int i)
 
 }
 
+
+/// The MemoryClass used by Hypre objects.
+inline constexpr MemoryClass GetHypreMemoryClass()
+{
+#ifndef HYPRE_USING_CUDA
+   return MemoryClass::HOST;
+#elif defined(HYPRE_USING_UNIFIED_MEMORY)
+   return MemoryClass::MANAGED;
+#else
+   return MemoryClass::DEVICE;
+#endif
+}
+
+inline constexpr MemoryType GetHypreMemoryType()
+{
+#ifndef HYPRE_USING_CUDA
+   return MemoryType::HOST;
+#elif defined(HYPRE_USING_UNIFIED_MEMORY)
+   return MemoryType::MANAGED;
+#else
+   return MemoryType::DEVICE;
+#endif
+}
+
 /// Wrapper for hypre's parallel vector class
 class HypreParVector : public Vector
 {
@@ -88,6 +112,8 @@ private:
 
    // Set Vector::data and Vector::size from *x
    inline void _SetDataAndSize_();
+
+   Vector hypre_mem_base;
 
 public:
    /** @brief Creates vector with given global size and parallel partitioning of
@@ -158,6 +184,73 @@ public:
        e.g. created with the constructor:
        HypreParVector(MPI_Comm, HYPRE_Int, double *, HYPRE_Int *). */
    void SetData(double *_data);
+
+   /// TODO: documentation
+   inline const HypreParVector &Read(const Vector &base)
+   {
+      // TODO: we may need to copy the data if the MemoryTypes of base are not
+      // suitable for GetHypreMemoryClass()
+      if (GetHypreMemoryClass() != MemoryClass::HOST &&
+          base.GetMemory().GetMemoryType() == MemoryType::HOST)
+      {
+         if (hypre_mem_base.Size() == 0)
+         {
+            hypre_mem_base.SetSize(base.Size(), GetHypreMemoryType());
+         }
+         else
+         {
+            MFEM_VERIFY(hypre_mem_base.Size() == base.Size(), "");
+         }
+         hypre_mem_base.GetMemory().CopyFromHost(base.HostRead(), base.Size());
+         hypre_VectorData(hypre_ParVectorLocalVector(x)) = hypre_mem_base.GetMemory();
+      }
+      else
+      {
+         MakeRef(const_cast<Vector&>(base), 0);
+         UseDevice(true);
+         hypre_VectorData(hypre_ParVectorLocalVector(x)) =
+            const_cast<double*>(data.Read(GetHypreMemoryClass(), size));
+      }
+      return *this;
+   }
+
+   /// TODO: documentation
+   inline HypreParVector &Write(Vector &base)
+   {
+      // TODO: we may need to allocate memory if the MemoryTypes of base are not
+      // suitable for GetHypreMemoryClass(). Then the data will need to be
+      // copied back to base with a separate call to a new method.
+      if (GetHypreMemoryClass() == MemoryClass::HOST)
+      {
+         MakeRef(base, 0);
+         UseDevice(true);
+         hypre_VectorData(hypre_ParVectorLocalVector(x)) =
+            data.Write(GetHypreMemoryClass(), size);
+      }
+      else
+      {
+         if (hypre_mem_base.Size() == 0)
+         {
+            hypre_mem_base.SetSize(base.Size(), GetHypreMemoryType());
+         }
+         else
+         {
+            MFEM_VERIFY(hypre_mem_base.Size() == base.Size(), "");
+         }
+         MakeRef(const_cast<Vector&>(hypre_mem_base), 0);
+         hypre_VectorData(hypre_ParVectorLocalVector(x)) = data;
+      }
+      return *this;
+   }
+
+   inline void WriteCopy(Vector &base)
+   {
+      if (GetHypreMemoryClass() != MemoryClass::HOST)
+      {
+         MFEM_VERIFY(hypre_mem_base.Size() == base.Size(), "");
+         base.GetMemory().CopyFrom(hypre_mem_base.GetMemory(), base.Size());
+      }
+   }
 
    /// Set random values
    HYPRE_Int Randomize(HYPRE_Int seed);
@@ -231,6 +324,8 @@ private:
    // Copy the j array of a hypre_CSRMatrix to the given J array, converting
    // the indices from HYPRE_Int to int.
    static void CopyCSR_J(hypre_CSRMatrix *hypre_csr, int *J);
+
+   Memory<HYPRE_Int> hypre_mem_row, hypre_mem_col, hypre_mem_cmap;
 
 public:
    /// An empty matrix to be used as a reference to an existing matrix
@@ -555,6 +650,8 @@ public:
    virtual ~HypreParMatrix() { Destroy(); }
 
    Type GetType() const { return Hypre_ParCSR; }
+
+   virtual MemoryClass GetMemoryClass() const { return GetHypreMemoryClass(); }
 };
 
 /** @brief Return a new matrix `C = alpha*A + beta*B`, assuming that both `A`

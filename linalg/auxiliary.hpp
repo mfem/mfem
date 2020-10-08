@@ -145,6 +145,9 @@ private:
    mutable double gspacesolver_time_;
    mutable double pispacesolver_time_;
 
+   mutable Vector pispacetemp;
+   mutable Vector pispacecorrection;
+
    void FormResidual(const mfem::Vector& rhs, const mfem::Vector& x,
                      mfem::Vector& residual) const;
 };

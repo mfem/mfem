@@ -527,13 +527,17 @@ void SLI(const Operator &A, Solver &B, const Vector &b, Vector &x,
 
 void CGSolver::UpdateVectors()
 {
-   r.SetSize(width);
-   d.SetSize(width);
-   z.SetSize(width);
+   MemoryType mt = GetMemoryType(oper->GetMemoryClass());
 
+   r.SetSize(width, mt);
+   d.SetSize(width, mt);
+   z.SetSize(width, mt);
+
+   /*
    r.UseDevice(true);
    d.UseDevice(true);
    z.UseDevice(true);
+   */
 }
 
 void CGSolver::Mult(const Vector &b, Vector &x) const

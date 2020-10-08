@@ -3178,7 +3178,7 @@ void SparseMatrix::Destroy()
       cusparseDestroySpMat(matA_descr);
       cusparseDestroyDnVec(vecX_descr);
       cusparseDestroyDnVec(vecY_descr);
-      cusparseDestroyDnVec(vecZ_descr);
+      //cusparseDestroyDnVec(vecZ_descr);  // TODO: destroy only if allocated
       initBuffers = false;
    }
 #endif

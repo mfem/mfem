@@ -1082,6 +1082,10 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm,
       }
    }
 
+#if MFEM_HYPRE_VERSION >= 21600
+   const bool usingBigJ = (csr_op == NULL) ? false : (csr_op->big_j != NULL);
+#endif
+
    // Create map from local true interface DOF's to local full interface DOF's. Composing inj with that map takes indices
    // from the local rows of the global interface matrix to local true DOF's in the subdomain. Gathering the result over
    // all processes yields a map from all global interface DOF's to global true subdomain DOF's.
@@ -1271,7 +1275,12 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm,
                int colid = -1;
                for (int l=csr_op->i[ltsd]; l<csr_op->i[ltsd+1]; ++l)
                {
-                  if (sdcol == csr_op->j[l])
+#if MFEM_HYPRE_VERSION >= 21600
+                  const HYPRE_Int col = usingBigJ ? csr_op->big_j[l] : csr_op->j[l];
+#else
+                  const HYPRE_Int col = csr_op->j[l];
+#endif
+                  if (sdcol == col)
                   {
                      colid = l;
                   }
@@ -1319,7 +1328,12 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm,
       {
          const int size = A->GetGlobalNumRows();
          S = new HypreParMatrix(A->GetComm(), csr_op->num_rows, size, size, csr_op->i,
-                                csr_op->j, csr_op->data, Acopy->RowPart(), Acopy->ColPart());
+#if MFEM_HYPRE_VERSION >= 21600
+                                usingBigJ ? csr_op->big_j : csr_op->j,
+#else
+                                csr_op->j,
+#endif
+                                csr_op->data, Acopy->RowPart(), Acopy->ColPart());
       }
       else if (!adding && globalI != NULL)
       {
@@ -1833,6 +1847,10 @@ HypreParMatrix* CreateHypreParMatrixFromBlocks(MPI_Comm comm,
 
             int *Iarray = useCSR ? csr_blocks(i, j)->i : blocksSp(i, j)->GetI();
 
+#if MFEM_HYPRE_VERSION >= 21600
+            const bool usingBigJ = useCSR ? (csr_blocks(i, j)->big_j != NULL) : false;
+#endif
+
             //const bool failure = (nrows != offsets[i+1] - offsets[i]);
 
             MFEM_VERIFY(nrows == offsets[i+1] - offsets[i], "");
@@ -1850,8 +1868,15 @@ HypreParMatrix* CreateHypreParMatrixFromBlocks(MPI_Comm comm,
                for (int l=0; l<nnz_k; ++l)
                {
                   // Find the column process offset for the block.
-                  const int bcol = useCSR ? csr_blocks(i, j)->j[osk + l] : blocksSp(i,
-                                                                                    j)->GetJ()[osk + l];
+#if MFEM_HYPRE_VERSION >= 21600
+                  const int bcol = useCSR ? (usingBigJ ? csr_blocks(i,
+                                                                    j)->big_j[osk + l] : csr_blocks(i, j)->j[osk + l]) :
+                                   blocksSp(i,j)->GetJ()[osk + l];
+#else
+                  const int bcol = useCSR ? csr_blocks(i, j)->j[osk + l] :
+                                   blocksSp(i,j)->GetJ()[osk + l];
+#endif
+
                   int bcolproc = 0;
 
                   for (int p=1; p<nprocs; ++p)

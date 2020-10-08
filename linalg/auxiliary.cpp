@@ -89,6 +89,7 @@ void GeneralAMS::Mult(const Vector& x, Vector& y) const
 
    Vector residual(x.Size());
    residual = 0.0;
+   residual.UseDevice(true);
    y = 0.0;
 
    // smooth (exactly what smoother is HypreAMS using?)
@@ -101,9 +102,12 @@ void GeneralAMS::Mult(const Vector& x, Vector& y) const
    // g-space correction
    FormResidual(x, y, residual);
    Vector gspacetemp(g_.Width());
+   gspacetemp = 0.0;
+   gspacetemp.UseDevice(true);
    g_.MultTranspose(residual, gspacetemp);
    Vector gspacecorrection(g_.Width());
    gspacecorrection = 0.0;
+   gspacecorrection.UseDevice(true);
    chrono.Clear();
    chrono.Start();
    gspacesolver_.Mult(gspacetemp, gspacecorrection);
@@ -122,12 +126,21 @@ void GeneralAMS::Mult(const Vector& x, Vector& y) const
 
    // pi-space correction
    FormResidual(x, y, residual);
-   Vector pispacetemp(pi_.Width());
+#ifdef HYPRE_USING_CUDA
+   pispacetemp.SetSize(pi_.Width(), Device::GetDeviceMemoryType());
+#else
+   //Vector pispacetemp(pi_.Width());
+   pispacetemp.SetSize(pi_.Width());
+   pispacetemp = 0.0;
+   pispacetemp.UseDevice(true);
+#endif
 
    pi_.MultTranspose(residual, pispacetemp);
 
-   Vector pispacecorrection(pi_.Width());
+   //Vector pispacecorrection(pi_.Width());
+   pispacecorrection.SetSize(pi_.Width());
    pispacecorrection = 0.0;
+   pispacecorrection.UseDevice(true);
    chrono.Clear();
    chrono.Start();
    pispacesolver_.Mult(pispacetemp, pispacecorrection);
@@ -358,9 +371,11 @@ public:
    void Mult(const Vector& x, Vector& y) const
    {
       amg_.Mult(x, y);
+      auto Y = y.HostWrite();
       for (int k : ess_tdof_list_)
       {
-         y(k) = 0.0;
+         //y(k) = 0.0;
+         Y[k] = 0.0;
       }
    }
 
