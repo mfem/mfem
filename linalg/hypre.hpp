@@ -79,10 +79,11 @@ inline constexpr MemoryClass GetHypreMemoryClass()
 #endif
 }
 
-inline constexpr MemoryType GetHypreMemoryType()
+/// The MemoryType used by MFEM when allocating arrays for Hypre objects.
+inline MemoryType GetHypreMemoryType()
 {
 #ifndef HYPRE_USING_CUDA
-   return MemoryType::HOST;
+   return Device::GetHostMemoryType();
 #elif defined(HYPRE_USING_UNIFIED_MEMORY)
    return MemoryType::MANAGED;
 #else

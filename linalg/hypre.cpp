@@ -615,7 +615,8 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
       }
       else
       {
-         // Assumption: all input pointers to host memory have valid data already on host, so we can just use CopyFromHost.
+         // Assumption: all input pointers to host memory have valid data
+         //             already on host, so we can just use CopyFromHost.
          // Copy row, col to new arrays with hypre memory type.
 
          hypre_mem_row.New(3, GetHypreMemoryType());
