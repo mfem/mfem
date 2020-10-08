@@ -947,15 +947,15 @@ b = -std::numeric_limits<double>::infinity();
    }
 
 #if SCHEME != -1
-//    if (dtNew < dt)
-//    {
-//       ostringstream strs;
-//       strs << "Violations of maximum principles may occur due to "
-//            << "noncompliance with convexity argument for the limiting scheme. "
-//            << "Suggested time step size dt =< " << dtNew;
-//       string str = strs.str();
-//       MFEM_WARNING(str);
-//    }
+   if (dtNew < dt)
+   {
+      ostringstream strs;
+      strs << "Violations of maximum principles may occur due to "
+           << "noncompliance with convexity argument for the limiting scheme. "
+           << "Suggested time step size dt =< " << dtNew;
+      string str = strs.str();
+      MFEM_WARNING(str);
+   }
 #endif
 }
 
