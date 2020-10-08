@@ -59,11 +59,10 @@ struct Backend
       CEED_CPU  = 1 << 10,
       /** @brief [device] CEED CUDA backend working together with the CUDA
           backend. Enabled when MFEM_USE_CEED = YES and MFEM_USE_CUDA = YES.
-          NOTE: The current default libCEED GPU backend is non-deterministic! */
+          NOTE: The current default libCEED CUDA backend is non-deterministic! */
       CEED_CUDA = 1 << 11,
       /** @brief [device] CEED HIP backend working together with the HIP
-          backend. Enabled when MFEM_USE_CEED = YES and MFEM_USE_HIP = YES.
-          NOTE: The current default libCEED HIP backend is non-deterministic! */
+          backend. Enabled when MFEM_USE_CEED = YES and MFEM_USE_HIP = YES. */
       CEED_HIP = 1 << 12,
       /** @brief [device] Debug backend: host memory is READ/WRITE protected
           while a device is in use. It allows to test the "device" code-path
