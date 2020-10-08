@@ -914,13 +914,20 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
    have_face_nbr_data = false;
    pncmesh = NULL;
 
-   // read the serial part of the mesh
    const int gen_edges = 1;
+
+   Load(input, gen_edges, refine, true);
+}
+
+void ParMesh::Load(istream &input, int generate_edges, int refine,
+                   bool fix_orientation)
+{
+   ParMesh::Destroy();
 
    // Tell Loader() to read up to 'mfem_serial_mesh_end' instead of
    // 'mfem_mesh_end', as we have additional parallel mesh data to load in from
    // the stream.
-   Loader(input, gen_edges, "mfem_serial_mesh_end");
+   Loader(input, generate_edges, "mfem_serial_mesh_end");
 
    ReduceMeshGen(); // determine the global 'meshgen'
 
@@ -939,10 +946,9 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
       pncmesh->GetConformingSharedStructures(*this);
    }
 
-   const bool fix_orientation = false;
    Finalize(refine, fix_orientation);
 
-   // If the mesh has Nodes, convert them from GridFunction to ParGridFunction?
+   EnsureParNodes();
 
    // note: attributes and bdr_attributes are local lists
 
@@ -1706,6 +1712,7 @@ void ParMesh::GetFaceNbrElementTransformation(
    ElTr->Attribute = elem->GetAttribute();
    ElTr->ElementNo = NumOfElements + i;
    ElTr->ElementType = ElementTransformation::ELEMENT;
+   ElTr->Reset();
 
    if (Nodes == NULL)
    {
@@ -1788,6 +1795,28 @@ void ParMesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
    GetNodes(*pnodes);
    NewNodes(*pnodes, true);
    Nodes->MakeOwner(nfec);
+}
+
+void ParMesh::EnsureParNodes()
+{
+   if (Nodes && dynamic_cast<ParFiniteElementSpace*>(Nodes->FESpace()) == NULL)
+   {
+      ParFiniteElementSpace *pfes =
+         new ParFiniteElementSpace(*Nodes->FESpace(), *this);
+      ParGridFunction *new_nodes = new ParGridFunction(pfes);
+
+      *new_nodes = *Nodes;
+
+      if (Nodes->OwnFEC())
+      {
+         new_nodes->MakeOwner(Nodes->OwnFEC());
+         Nodes->MakeOwner(NULL); // takes away ownership of 'fec' and 'fes'
+         delete Nodes->FESpace();
+      }
+
+      delete Nodes;
+      Nodes = new_nodes;
+   }
 }
 
 void ParMesh::ExchangeFaceNbrData()
@@ -2385,6 +2414,7 @@ void ParMesh::GetGhostFaceTransformation(
 {
    // calculate composition of FETr->Loc1 and FETr->Elem1
    DenseMatrix &face_pm = FETr->GetPointMat();
+   FETr->Reset();
    if (Nodes == NULL)
    {
       FETr->Elem1->Transform(FETr->Loc1.Transf.GetPointMat(), face_pm);
@@ -3407,21 +3437,11 @@ void ParMesh::RebalanceImpl(const Array<int> *partition)
                  " meshes.");
    }
 
-   // Make sure the Nodes use a ParFiniteElementSpace
-   if (Nodes && dynamic_cast<ParFiniteElementSpace*>(Nodes->FESpace()) == NULL)
+   if (Nodes)
    {
-      ParFiniteElementSpace *pfes =
-         new ParFiniteElementSpace(*Nodes->FESpace(), *this);
-      ParGridFunction *new_nodes = new ParGridFunction(pfes);
-      *new_nodes = *Nodes;
-      if (Nodes->OwnFEC())
-      {
-         new_nodes->MakeOwner(Nodes->OwnFEC());
-         Nodes->MakeOwner(NULL); // takes away ownership of 'fec' and 'fes'
-         delete Nodes->FESpace();
-      }
-      delete Nodes;
-      Nodes = new_nodes;
+      // check that Nodes use a parallel FE space, so we can call UpdateNodes()
+      MFEM_VERIFY(dynamic_cast<ParFiniteElementSpace*>(Nodes->FESpace())
+                  != NULL, "internal error");
    }
 
    DeleteFaceNbrData();
@@ -5313,7 +5333,7 @@ void ParMesh::ParPrint(ostream &out) const
 
    if (Nonconforming())
    {
-      // the NC mesh format works for both serial and parallel
+      // the NC mesh format works both in serial and in parallel
       Printer(out);
       return;
    }
@@ -5521,7 +5541,7 @@ void ParMesh::PrintSharedEntities(const char *fname_prefix) const
    }
 }
 
-ParMesh::~ParMesh()
+void ParMesh::Destroy()
 {
    delete pncmesh;
    ncmesh = pncmesh = NULL;
@@ -5532,6 +5552,12 @@ ParMesh::~ParMesh()
    {
       FreeElement(shared_edges[i]);
    }
+   shared_edges.DeleteAll();
+}
+
+ParMesh::~ParMesh()
+{
+   ParMesh::Destroy();
 
    // The Mesh destructor is called automatically
 }

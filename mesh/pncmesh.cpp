@@ -52,9 +52,14 @@ ParNCMesh::ParNCMesh(MPI_Comm comm, std::istream &input, int version,
 {
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
-   MPI_Comm_rank(MyComm, &MyRank);
 
-   // TODO? Check that the NCMeshes loaded above are compatible across ranks?
+   int myrank;
+   MPI_Comm_rank(MyComm, &myrank);
+
+   MFEM_VERIFY(myrank == MyRank,
+               "Current MPI rank is not equal to the rank in the mesh file. "
+               "Loading a parallel NC mesh with a non-matching communicator "
+               "size is not supported.");
 
    bool iso = Iso;
    MPI_Allreduce(&iso, &Iso, 1, MPI_C_BOOL, MPI_LAND, MyComm);
@@ -67,7 +72,6 @@ ParNCMesh::ParNCMesh(const ParNCMesh &other)
    : NCMesh(other)
    , MyComm(other.MyComm)
    , NRanks(other.NRanks)
-   , MyRank(other.MyRank)
 {
    Update(); // mark all secondary stuff for recalculation
 }
@@ -105,186 +109,6 @@ void ParNCMesh::Update()
    boundary_layer.SetSize(0);
 }
 
-void ParNCMesh::AssignLeafIndices()
-{
-   // This is an override of NCMesh::AssignLeafIndices(). The difference is
-   // that we shift all elements we own to the beginning of the array
-   // 'leaf_elements' and assign all ghost elements indices >= NElements.
-
-   // Also note that the ordering of ghosts and non-ghosts is preserved here,
-   // which is important for ParNCMesh::GetFaceNeighbors.
-
-   // We store the original leaf ordering in 'leaf_glob_order'. This is later
-   // used (and deleted) in GetConformingSharedStructures
-
-   NCMesh::AssignLeafIndices(); // original numbering, for 'leaf_glob_order'
-
-   int nleafs = leaf_elements.Size();
-
-   Array<int> ghosts;
-   ghosts.Reserve(nleafs);
-
-   NElements = 0;
-   for (int i = 0; i < nleafs; i++)
-   {
-      int elem = leaf_elements[i];
-      if (elements[elem].rank == MyRank)
-      {
-         leaf_elements[NElements++] = elem;
-      }
-      else
-      {
-         ghosts.Append(elem);
-      }
-   }
-   NGhostElements = ghosts.Size();
-
-   leaf_elements.SetSize(NElements);
-   leaf_elements.Append(ghosts);
-
-   // store original (globally consistent) numbering in 'leaf_glob_order'
-   leaf_glob_order.SetSize(nleafs);
-   for (int i = 0; i < nleafs; i++)
-   {
-      leaf_glob_order[i] = elements[leaf_elements[i]].index;
-   }
-
-   // new numbering with ghost shifted to the back
-   NCMesh::AssignLeafIndices();
-}
-
-void ParNCMesh::UpdateVertices()
-{
-   // This is an override of NCMesh::UpdateVertices. This version first
-   // assigns vert_index to vertices of elements of our rank. Only these
-   // vertices then make it to the Mesh in NCMesh::GetMeshComponents.
-   // The remaining (ghost) vertices are assigned indices greater or equal to
-   // Mesh::GetNV().
-
-   for (auto node = nodes.begin(); node != nodes.end(); ++node)
-   {
-      if (node->HasVertex()) { node->vert_index = -1; }
-   }
-
-   NVertices = 0;
-   for (int i = 0; i < leaf_elements.Size(); i++)
-   {
-      Element &el = elements[leaf_elements[i]];
-      if (el.rank == MyRank)
-      {
-         for (int j = 0; j < GI[el.Geom()].nv; j++)
-         {
-            int &vindex = nodes[el.node[j]].vert_index;
-            if (vindex < 0) { vindex = NVertices++; }
-         }
-      }
-   }
-
-   vertex_nodeId.SetSize(NVertices);
-   for (auto node = nodes.begin(); node != nodes.end(); ++node)
-   {
-      if (node->HasVertex() && node->vert_index >= 0)
-      {
-         vertex_nodeId[node->vert_index] = node.index();
-      }
-   }
-
-   NGhostVertices = 0;
-   for (auto node = nodes.begin(); node != nodes.end(); ++node)
-   {
-      if (node->HasVertex() && node->vert_index < 0)
-      {
-         node->vert_index = NVertices + (NGhostVertices++);
-      }
-   }
-}
-
-void ParNCMesh::OnMeshUpdated(Mesh *mesh)
-{
-   // This is an override (or extension of) NCMesh::OnMeshUpdated().
-   // In addition to getting edge/face indices from 'mesh', we also
-   // assign indices to ghost edges/faces that don't exist in the 'mesh'.
-
-   // clear edge_index and Face::index
-   for (auto node = nodes.begin(); node != nodes.end(); ++node)
-   {
-      if (node->HasEdge()) { node->edge_index = -1; }
-   }
-   for (auto face = faces.begin(); face != faces.end(); ++face)
-   {
-      face->index = -1;
-   }
-
-   // go assign existing edge/face indices
-   NCMesh::OnMeshUpdated(mesh);
-
-   // count ghost edges and assign their indices
-   NEdges = mesh->GetNEdges();
-   NGhostEdges = 0;
-   for (auto node = nodes.begin(); node != nodes.end(); ++node)
-   {
-      if (node->HasEdge() && node->edge_index < 0)
-      {
-         node->edge_index = NEdges + (NGhostEdges++);
-      }
-   }
-
-   // count ghost faces
-   NFaces = mesh->GetNumFaces();
-   NGhostFaces = 0;
-   for (auto face = faces.begin(); face != faces.end(); ++face)
-   {
-      if (face->index < 0) { NGhostFaces++; }
-   }
-
-   if (Dim == 2)
-   {
-      // in 2D we have fake faces because of DG
-      MFEM_ASSERT(NFaces == NEdges, "");
-      MFEM_ASSERT(NGhostFaces == NGhostEdges, "");
-   }
-
-   // resize face_geom (default_geom is for slave faces beyond the ghost layer)
-   Geometry::Type default_geom = Geometry::SQUARE;
-   face_geom.SetSize(NFaces + NGhostFaces, default_geom);
-
-   // update 'face_geom' for ghost faces, assign ghost face indices
-   int nghosts = 0;
-   for (int i = 0; i < NGhostElements; i++)
-   {
-      Element &el = elements[leaf_elements[NElements + i]]; // ghost element
-      GeomInfo &gi = GI[el.Geom()];
-
-      for (int j = 0; j < gi.nf; j++)
-      {
-         const int *fv = gi.faces[j];
-         Face* face = faces.Find(el.node[fv[0]], el.node[fv[1]],
-                                 el.node[fv[2]], el.node[fv[3]]);
-         MFEM_ASSERT(face, "face not found!");
-
-         if (face->index < 0)
-         {
-            face->index = NFaces + (nghosts++);
-
-            // store the face geometry
-            static const Geometry::Type types[5] =
-            {
-               Geometry::INVALID, Geometry::INVALID,
-               Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::SQUARE
-            };
-            face_geom[face->index] = types[gi.nfv[j]];
-         }
-      }
-   }
-
-   // assign valid indices also to faces beyond the ghost layer
-   for (auto face = faces.begin(); face != faces.end(); ++face)
-   {
-      if (face->index < 0) { face->index = NFaces + (nghosts++); }
-   }
-   MFEM_ASSERT(nghosts == NGhostFaces, "");
-}
-
 void ParNCMesh::ElementSharesFace(int elem, int local, int face)
 {
    // Analogous to ElementSharesEdge.
@@ -302,7 +126,7 @@ void ParNCMesh::ElementSharesFace(int elem, int local, int face)
 
    // derive globally consistent face ID from the global element sequence
    int &el_loc = entity_elem_local[2][f_index];
-   if (el_loc < 0 || leaf_glob_order[el.index] < leaf_glob_order[(el_loc >> 4)])
+   if (el_loc < 0 || leaf_sfc_index[el.index] < leaf_sfc_index[(el_loc >> 4)])
    {
       el_loc = (el.index << 4) | local;
    }
@@ -310,6 +134,8 @@ void ParNCMesh::ElementSharesFace(int elem, int local, int face)
 
 void ParNCMesh::BuildFaceList()
 {
+   if (HaveTets()) { GetEdgeList(); } // needed by TraverseTetEdge()
+
    // This is an extension of NCMesh::BuildFaceList() which also determines
    // face ownership and prepares face processor groups.
 
@@ -367,7 +193,7 @@ void ParNCMesh::ElementSharesEdge(int elem, int local, int enode)
 
    // derive globally consistent edge ID from the global element sequence
    int &el_loc = entity_elem_local[1][e_index];
-   if (el_loc < 0 || leaf_glob_order[el.index] < leaf_glob_order[(el_loc >> 4)])
+   if (el_loc < 0 || leaf_sfc_index[el.index] < leaf_sfc_index[(el_loc >> 4)])
    {
       el_loc = (el.index << 4) | local;
    }
@@ -428,7 +254,7 @@ void ParNCMesh::ElementSharesVertex(int elem, int local, int vnode)
 
    // derive globally consistent vertex ID from the global element sequence
    int &el_loc = entity_elem_local[0][v_index];
-   if (el_loc < 0 || leaf_glob_order[el.index] < leaf_glob_order[(el_loc >> 4)])
+   if (el_loc < 0 || leaf_sfc_index[el.index] < leaf_sfc_index[(el_loc >> 4)])
    {
       el_loc = (el.index << 4) | local;
    }
@@ -942,10 +768,10 @@ void ParNCMesh::MakeSharedTable(int ngroups, int ent, Array<int> &shared_local,
          int el_loc_a = entity_elem_local[ent][shared_local[a]];
          int el_loc_b = entity_elem_local[ent][shared_local[b]];
 
-         int lgo_a = leaf_glob_order[el_loc_a >> 4];
-         int lgo_b = leaf_glob_order[el_loc_b >> 4];
+         int lsi_a = leaf_sfc_index[el_loc_a >> 4];
+         int lsi_b = leaf_sfc_index[el_loc_b >> 4];
 
-         if (lgo_a != lgo_b) { return lgo_a < lgo_b; }
+         if (lsi_a != lsi_b) { return lsi_a < lsi_b; }
 
          return (el_loc_a & 0xf) < (el_loc_b & 0xf);
       });
@@ -963,7 +789,6 @@ void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
          MFEM_VERIFY(entity_conf_group[ent].Size(), "internal error");
          MFEM_VERIFY(entity_elem_local[ent].Size(), "internal error");
       }
-      MFEM_VERIFY(leaf_glob_order.Size(), "internal error");
    }
 
    // create ParMesh groups, and the map (ncmesh_group -> pmesh_group)
@@ -1050,7 +875,6 @@ void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
       entity_conf_group[ent].DeleteAll();
       entity_elem_local[ent].DeleteAll();
    }
-   leaf_glob_order.DeleteAll();
 }
 
 void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
@@ -1091,9 +915,9 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       for (int j = mf.slaves_begin; j < mf.slaves_end; j++)
       {
          const Slave &sf = full_list.slaves[j];
-         if (sf.index < 0) { continue; }
+         if (sf.element < 0) { continue; }
 
-         MFEM_ASSERT(mf.element >= 0 && sf.element >= 0, "");
+         MFEM_ASSERT(mf.element >= 0, "");
          Element* e[2] = { &elements[mf.element], &elements[sf.element] };
 
          bool loc0 = (e[0]->rank == MyRank);
@@ -1250,9 +1074,9 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
          for (int j = mf.slaves_begin; j < mf.slaves_end; j++)
          {
             const Slave &sf = full_list.slaves[j];
-            if (sf.index < 0) { continue; }
+            if (sf.element < 0) { continue; }
 
-            MFEM_ASSERT(sf.element >= 0 && mf.element >= 0, "");
+            MFEM_ASSERT(mf.element >= 0, "");
             Element &sfe = elements[sf.element];
             Element &mfe = elements[mf.element];
 
@@ -1862,7 +1686,6 @@ void ParNCMesh::Rebalance(const Array<int> *custom_partition)
 
       Array<int> new_ranks;
       custom_partition->Copy(new_ranks);
-
       new_ranks.SetSize(leaf_elements.Size(), -1); // make room for ghosts
 
       RedistributeElements(new_ranks, -1, true);
@@ -2951,7 +2774,6 @@ long ParNCMesh::MemoryUsage(bool with_base) const
           arrays_memory_usage(entity_owner) +
           arrays_memory_usage(entity_pmat_group) +
           arrays_memory_usage(entity_conf_group) +
-          leaf_glob_order.MemoryUsage() +
           arrays_memory_usage(entity_elem_local) +
           shared_vertices.MemoryUsage() +
           shared_edges.MemoryUsage() +
@@ -2979,7 +2801,6 @@ int ParNCMesh::PrintMemoryDetail(bool with_base) const
              << arrays_memory_usage(entity_owner) << " entity_owner\n"
              << arrays_memory_usage(entity_pmat_group) << " entity_pmat_group\n"
              << arrays_memory_usage(entity_conf_group) << " entity_conf_group\n"
-             << leaf_glob_order.MemoryUsage() << " leaf_glob_order\n"
              << arrays_memory_usage(entity_elem_local) << " entity_elem_local\n"
              << shared_vertices.MemoryUsage() << " shared_vertices\n"
              << shared_edges.MemoryUsage() << " shared_edges\n"

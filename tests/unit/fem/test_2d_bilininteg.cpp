@@ -10,8 +10,8 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include "catch.hpp"
 #include "myIntegrator.hpp"
+#include "unit_tests.hpp"
 
 using namespace mfem;
 

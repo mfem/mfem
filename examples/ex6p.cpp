@@ -14,6 +14,7 @@
 //               mpirun -np 4 ex6p -m ../data/star-surf.mesh -o 2
 //               mpirun -np 4 ex6p -m ../data/square-disc-surf.mesh -o 2
 //               mpirun -np 4 ex6p -m ../data/amr-quad.mesh
+//               mpirun -np 4 ex6p --restart
 //
 // Device sample runs:
 //               mpirun -np 4 ex6p -pa -d cuda
@@ -34,8 +35,8 @@
 //               The example demonstrates MFEM's capability to work with both
 //               conforming and nonconforming refinements, in 2D and 3D, on
 //               linear, curved and surface meshes. Interpolation of functions
-//               from coarse to fine meshes, as well as persistent GLVis
-//               visualization are also illustrated.
+//               from coarse to fine meshes, restarting from a checkpoint, as
+//               well as persistent GLVis visualization are also illustrated.
 //
 //               We recommend viewing Example 1 before viewing this example.
 
@@ -112,7 +113,7 @@ int main(int argc, char *argv[])
          mesh.UniformRefinement();
          mesh.SetCurvature(2);
       }
-      mesh.EnsureNCMesh();
+      mesh.EnsureNCMesh(true);
 
       // 6. Define a parallel mesh by partitioning the serial mesh.
       //    Once the parallel mesh is defined, the serial mesh can be deleted.
@@ -144,7 +145,11 @@ int main(int argc, char *argv[])
    //    the Laplace problem -\Delta u = 1. We don't assemble the discrete
    //    problem yet, this will be done in the main loop.
    ParBilinearForm a(&fespace);
-   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   if (pa)
+   {
+      a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      a.SetDiagonalPolicy(Operator::DIAG_ONE);
+   }
    ParLinearForm b(&fespace);
 
    ConstantCoefficient one(1.0);
@@ -235,17 +240,26 @@ int main(int argc, char *argv[])
 
       // 18. Solve the linear system A X = B.
       //     * With full assembly, use the BoomerAMG preconditioner from hypre.
-      //     * With partial assembly, use no preconditioner, for now.
-      HypreBoomerAMG *amg = NULL;
-      if (!pa) { amg = new HypreBoomerAMG; amg->SetPrintLevel(0); }
+      //     * With partial assembly, use a diagonal preconditioner.
+      Solver *M = NULL;
+      if (pa)
+      {
+         M = new OperatorJacobiSmoother(a, ess_tdof_list);
+      }
+      else
+      {
+         HypreBoomerAMG *amg = new HypreBoomerAMG;
+         amg->SetPrintLevel(0);
+         M = amg;
+      }
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-6);
       cg.SetMaxIter(2000);
       cg.SetPrintLevel(3); // print the first and the last iterations only
-      if (amg) { cg.SetPreconditioner(*amg); }
+      cg.SetPreconditioner(*M);
       cg.SetOperator(*A);
       cg.Mult(B, X);
-      delete amg;
+      delete M;
 
       // 19. Switch back to the host and extract the parallel grid function
       //     corresponding to the finite element approximation X. This is the
@@ -308,8 +322,9 @@ int main(int argc, char *argv[])
       b.Update();
 
       // 25. Save the current state of the mesh every 5 iterations. The
-      //     computation can be restarted from this point. Note that we need to
-      //     use the 'ParPrint' method to save the mesh in parallel.
+      //     computation can be restarted from this point. Note that unlike in
+      //     visualization, we need to use the 'ParPrint' method to save all
+      //     internal parallel data structures.
       if (it % 5 == 0)
       {
          ofstream ofs(MakeParFilename("ex6p-checkpoint.", myid));

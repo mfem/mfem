@@ -16,7 +16,20 @@ Meshing improvements
 - The graph linear ordering library Gecko, previously an external dependency, is
   now included directly in MFEM. As a result, Mesh::GetGeckoElementOrdering is
   always available. The interface has also been improved, see for example the
-  mesh-explorer miniapp.
+  Mesh Explorer miniapp.
+
+- A new non-conforming mesh format has been implemented that fixes known
+  inconsistencies of the legacy (MFEM mesh v1.1) NC format and is compatible
+  with both serial and parallel code. ParMesh::ParPrint can now print
+  non-conforming AMR meshes that may be used to restart a parallel AMR
+  computation. Example 6p has been extended to support restarting from a
+  previously saved checkpoint. Parallel NC files are compatible with serial
+  code, e.g., serial GLVis. Loading of legacy NC mesh files is still supported.
+
+- Improved Gmsh reader (version 2.2), which now supports both high-order and
+  periodic meshes. Segments, triangles, quadrilaterals, and tetrahedra are
+  supported up to order 10. Wedges and hexahedra are supported up to order 9.
+  For sample periodic meshes, see the periodic*.msh files in the data directory.
 
 - Added support for finite difference-based gradient and Hessian approximation
   in the TMOP mesh optimization algorithms. This improves the accuracy of the
@@ -27,14 +40,16 @@ Meshing improvements
   the user to specify different discrete functions for controlling the
   size, aspect-ratio, orientation, and skew of elements in the mesh.
 
-- Added TMOP capability for approximate tangential mesh relaxation.
-
-- Added support for reading periodic meshes in Gmsh format (version 2.2). See
-  for example the periodic-annulus-sector and periodic-torus-sector files in
-  the data directory.
+- Added TMOP capability for approximate tangential mesh relaxation. Added
+  support and examples for using TMOP on mixed meshes.
 
 - Added complete action of the TMOP Integrator to account for the spatial
   derivatives of discrete and analytic targets.
+
+- Added support for initialization of (serial) non-conforming meshes. Hanging
+  nodes can be marked with Mesh::AddVertexParents when building the mesh with
+  the "init" constructor. The usage is demonstrated in a new meshing miniapp
+  (polar-nc) which generates meshes that are non-conforming from the start.
 
 Performance improvements
 ------------------------
@@ -58,7 +73,13 @@ Improved GPU capabilities
   compute a global sparse matrix. All integrators supported by element assembly
   are also supported by full assembly. See the '-fa' option in Example 9.
 
+- Added CUDA support for sparse matrix-vector multiplication with cuSPARSE.
+
 - Added support for BlockOperator on GPU. See the updated Example 5.
+
+- Added partial assembly and GPU support for complex operators, including the
+  classes ComplexOperator, [Par]ComplexGridFunction, [Par]ComplexLinearForm, and
+  [Par]SesquilinearForm. See the updated Example 22.
 
 Discretization improvements
 ---------------------------
@@ -88,6 +109,14 @@ Discretization improvements
 
 - Added support face integrals on the boundaries of NURBS meshes.
 
+- Added support for interpolation of functions in L2, H(div) and H(curl)
+  spaces using GSLIB-FindPoints.
+
+- Added support for computing asymptotic error estimates and convergence rates
+  for the whole de Rham sequence based on the new class ConvergenceStudy and new
+  member methods in GridFunction and ParGridFunction. See the rates.cpp file in
+  the tests/convergence directory for sample usage.
+
 Linear and nonlinear solvers
 ----------------------------
 - Added power method to iteratively estimate the largest eigenvalue and the
@@ -112,6 +141,9 @@ Linear and nonlinear solvers
   solver can work with non-SPD preconditioner B.
 
 - Added support for the SLEPc eigensolver package.
+
+- Added partially assembled convergent diagonal preconditioner for adaptively
+  refined meshes (i.e. non-conforming finite element spaces), see Example 6/6p.
 
 New and updated examples and miniapps
 -------------------------------------
@@ -149,6 +181,9 @@ New and updated examples and miniapps
 - Added a new meshing miniapp, Minimal Surface, which solves Plateau's problem:
   the Dirichlet problem for the minimal surface equation.
 
+- Added a new meshing miniapp, Polar NC, which demonstrates the construction of
+  polar non-conforming meshes.
+
 - Added partial assembly support to Example 4/4p and Example 5/5p, with diagonal
   preconditioning.
 
@@ -163,27 +198,46 @@ New and updated examples and miniapps
   mesh based on element attributes. Any newly exposed boundary elements are
   assigned attribute numbers related to the trimmed element attributes.
 
+- Added a new miniapp (field-interp) that demonstrates transfer of grid function
+  between different meshes using GSLIB-FindPoints.
+
+- Added diagonal preconditioner in Example 6/6p for partial assembly with AMR.
+
 - Added device support in Example 5/5p.
+
+- Added partial assembly and device support to Example 22/22p, with diagonal
+  preconditioning.
+
+- Added the option to plot a function in Mesh Explorer.
 
 Improved testing
 ----------------
+- Upgraded the Catch unit test framework from version 1.6.1 to version 2.13.0.
+
 - Added a GitLab pipeline that automates PR testing on supercomputing systems
   and Linux clusters at Lawrence Livermore National Lab (LLNL). This can be
   triggered only by LLNL developers, see .gitlab-ci.yml, the .gitlab directory
   and the updated CONTRIBUTING.md file.
+
+- Added testing of the parallel mesh format in tests/par-mesh-format.
 
 Miscellaneous
 -------------
 - Added support for ADIOS2 for parallel I/O with ParaView visualization. The
   classes adios2stream and ADIOS2DataCollection are introduced in mfem as the
   interfaces to generate ADIOS2 Binary Pack (BP4) directory datasets for the
-  entire spatial and temporal data. In addition, ADIOS2 allows for setting a
-  user-defined number of data substreams/subfiles. See examples 5, 9, 12, 16.
+  entire spatial and temporal node data. Cell centered data is accessible by
+  ADIOS2 data readers (e.g. Python), but currently not yet implement as of
+  ParaView v5.8.1. In addition, ADIOS2 allows for setting a user-defined number
+  of data substreams/subfiles at scale. See examples 5, 9, 12, 16.
 
 - The integration order used in the ComputeLpError and ComputeElementLpError
   methods of class GridFunction has been increased.
 
 - Various other simplifications, extensions, and bugfixes in the code.
+
+- Renamed "Backend::DEBUG" to "Backend::DEBUG_DEVICE" to avoid conflicts,
+  as DEBUG is sometimes used as a macro.
 
 
 Version 4.1, released on March 10, 2020

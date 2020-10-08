@@ -259,10 +259,7 @@ protected: // interface for ParMesh
 protected: // implementation
 
    MPI_Comm MyComm;
-   int NRanks, MyRank;
-
-   int NGhostVertices, NGhostEdges, NGhostFaces;
-   int NElements, NGhostElements;
+   int NRanks;
 
    typedef std::vector<CommGroup> GroupList;
    typedef std::map<CommGroup, GroupId> GroupMap;
@@ -278,7 +275,7 @@ protected: // implementation
    // ParMesh-compatible (conforming) groups for each vertex/edge/face (0/1/2)
    Array<GroupId> entity_conf_group[3];
    // ParMesh compatibility helper arrays to order groups, also temporary
-   Array<int> leaf_glob_order, entity_elem_local[3];
+   Array<int> entity_elem_local[3];
 
    // lists of vertices/edges/faces shared by us and at least one more processor
    NCList shared_vertices, shared_edges, shared_faces;
@@ -298,9 +295,6 @@ protected: // implementation
 
    virtual void Update();
 
-   virtual bool IsGhost(const Element& el) const
-   { return el.rank != MyRank; }
-
    virtual int GetNumGhostElements() const { return NGhostElements; }
    virtual int GetNumGhostVertices() const { return NGhostVertices; }
 
@@ -315,10 +309,6 @@ protected: // implementation
    /// Return the global index of the first element owned by processor 'rank'.
    long PartitionFirstIndex(int rank, long total_elements) const
    { return (rank * total_elements + NRanks-1) / NRanks; }
-
-   virtual void UpdateVertices();
-   virtual void AssignLeafIndices();
-   virtual void OnMeshUpdated(Mesh *mesh);
 
    virtual void BuildFaceList();
    virtual void BuildEdgeList();

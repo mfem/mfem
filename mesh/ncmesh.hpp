@@ -349,12 +349,10 @@ public:
 
    int PrintMemoryDetail() const;
 
-   void PrintStats(std::ostream &out = mfem::out) const;
-
-   typedef int64_t RefCoord;
+   typedef std::int64_t RefCoord;
 
 
-protected: // interface for Mesh to be able to construct itself from NCMesh
+protected: // non-public interface for the Mesh class
 
    friend class Mesh;
 
@@ -363,12 +361,17 @@ protected: // interface for Mesh to be able to construct itself from NCMesh
 
    /** Get edge and face numbering from 'mesh' (i.e., set all Edge::index and
        Face::index) after a new mesh was created from us. */
-   virtual void OnMeshUpdated(Mesh *mesh);
+   void OnMeshUpdated(Mesh *mesh);
+
+   /** Delete top-level vertex coordinates if the Mesh became curved, e.g.,
+       by calling Mesh::SetCurvature or otherwise setting the Nodes. */
+   void MakeTopologyOnly() { coordinates.DeleteAll(); }
 
 
 protected: // implementation
 
    int Dim, spaceDim; ///< dimensions of the elements and the vertex coordinates
+   int MyRank; ///< used in parallel, or when loading a parallel file in serial
    bool Iso; ///< true if the mesh only contains isotropic refinements
    int Geoms; ///< bit mask of element geometries present, see InitGeomFlags()
 
@@ -444,6 +447,7 @@ protected: // implementation
       bool IsLeaf() const { return !ref_type && (parent != -2); }
    };
 
+
    // primary data
 
    HashTable<Node> nodes; // associative container holding all Nodes
@@ -467,15 +471,20 @@ protected: // implementation
    /** Apart from the primary data structure, which is the element/node/face
        hierarchy, there is secondary data that is derived from the primary
        data and needs to be updated when the primary data changes. Update()
-       takes care of that and needs to be called after refinement and
+       takes care of that and needs to be called after each refinement and
        derefinement. */
    virtual void Update();
 
-   int NVertices; // set by UpdateVertices
-   int NEdges, NFaces; // set by OnMeshUpdated
+   // set by UpdateLeafElements, UpdateVertices and OnMeshUpdated
+   int NElements, NVertices, NEdges, NFaces;
 
-   Array<int> leaf_elements; // finest level, calculated by UpdateLeafElements
-   Array<int> vertex_nodeId; // vertex-index to node-id map, see UpdateVertices
+   // NOTE: the serial code understands the bare minimum about ghost elements and
+   // other ghost entities in order to be able to load parallel partial meshes
+   int NGhostElements, NGhostVertices, NGhostEdges, NGhostFaces;
+
+   Array<int> leaf_elements; ///< finest elements, in Mesh ordering (+ ghosts)
+   Array<int> leaf_sfc_index; ///< natural tree ordering of leaf elements
+   Array<int> vertex_nodeId; ///< vertex-index to node-id map, see UpdateVertices
 
    NCList face_list; ///< lazy-initialized list of faces, see GetFaceList
    NCList edge_list; ///< lazy-initialized list of edges, see GetEdgeList
@@ -487,12 +496,10 @@ protected: // implementation
    Table element_vertex; ///< leaf-element to vertex table, see FindSetNeighbors
 
 
-   virtual void UpdateVertices(); ///< update Vertex::index and vertex_nodeId
-
-   void CollectLeafElements(int elem, int state);
    void UpdateLeafElements();
-
-   virtual void AssignLeafIndices();
+   void UpdateVertices(); ///< update Vertex::index and vertex_nodeId
+   void CollectLeafElements(int elem, int state, Array<int> &ghosts,
+                            int &counter);
 
    /** Try to find a space-filling curve friendly orientation of the root
        elements: set 'root_state' based on the ordering of coarse elements.
@@ -500,14 +507,12 @@ protected: // implementation
        Mesh::GetGeckoElementOrdering. */
    void InitRootState(int root_count);
 
-   virtual bool IsGhost(const Element &el) const { return false; }
-   virtual int GetNumGhostElements() const { return 0; }
-   virtual int GetNumGhostVertices() const { return 0; }
-
    void InitGeomFlags();
 
    bool HavePrisms() const { return Geoms & (1 << Geometry::PRISM); }
    bool HaveTets() const   { return Geoms & (1 << Geometry::TETRAHEDRON); }
+
+   bool IsGhost(const Element &el) const { return el.rank != MyRank; }
 
 
    // refinement/derefinement
@@ -842,6 +847,8 @@ protected: // implementation
                      Array<int> &index_map);
    /// Load the deprecated MFEM mesh v1.1 format for backward compatibility.
    void LoadLegacyFormat(std::istream &input, int &curved);
+   /// Return a map from old (v1.1) vertex indices to new vertex indices.
+   void LegacyToNewVertexOrdering(Array<int> &order) const;
 
 
    // geometry

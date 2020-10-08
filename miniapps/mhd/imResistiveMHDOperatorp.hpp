@@ -1427,7 +1427,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
              {
                   delete StabMass;
                   StabMass = new ParBilinearForm(&fespace);
-                  if (dtfactor > factormin)
+                  if (dtfactor > factormin && itau_!=2)
                   { 
                      if (myid==0) 
                             cout <<"======WARNING: use factormin in tau formula"<<endl;
@@ -1442,7 +1442,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
 
                   delete StabNv;
                   StabNv = new ParBilinearForm(&fespace);
-                  if (dtfactor > factormin)
+                  if (dtfactor > factormin && itau_!=2)
                   { StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, resistivity, velocity, itau_, factormin)); }
                   else
                   { StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, resistivity, velocity, itau_)); }
