@@ -109,6 +109,9 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
+   MFEM_VERIFY(!pa && strcmp(amgx_json_file,"") != 0,
+               "An AmgX json file is needed for this example \n");
+
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
@@ -210,7 +213,7 @@ int main(int argc, char *argv[])
       AmgXSolver amgx;
 
       amgx.ReadParameters(amgx_json_file, AmgXSolver::EXTERNAL);
-      amgx.Initialize_Serial();
+      amgx.InitSerial();
       amgx.SetOperator(*A.As<SparseMatrix>());
 
       if (amgx_solver)

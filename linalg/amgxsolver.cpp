@@ -34,7 +34,7 @@ AmgXSolver::AmgXSolver(const AMGX_MODE amgxMode_, const bool verbose)
 
    DefaultParameters(amgxMode, verbose);
 
-   Initialize_Serial();
+   InitSerial();
 }
 
 #ifdef MFEM_USE_MPI
@@ -46,7 +46,7 @@ AmgXSolver::AmgXSolver(const MPI_Comm &comm,
 
    DefaultParameters(amgxMode, verbose);
 
-   Initialize_ExclusiveGPU(comm);
+   InitExclusiveGPU(comm);
 }
 
 AmgXSolver::AmgXSolver(const MPI_Comm &comm, const int nDevs,
@@ -59,7 +59,7 @@ AmgXSolver::AmgXSolver(const MPI_Comm &comm, const int nDevs,
 
    DefaultParameters(amgxMode_, verbose);
 
-   Initialize_MPITeams(comm, nDevs);
+   InitMPITeams(comm, nDevs);
 }
 #endif
 
@@ -68,7 +68,7 @@ AmgXSolver::~AmgXSolver()
    if (isInitialized) { Finalize(); }
 }
 
-void AmgXSolver::Initialize_Serial()
+void AmgXSolver::InitSerial()
 {
    count++;
 
@@ -102,8 +102,8 @@ void AmgXSolver::Initialize_Serial()
 }
 
 #ifdef MFEM_USE_MPI
-//Basic initialization for when each MPI rank may communicate with a GPU
-void AmgXSolver::Initialize_ExclusiveGPU(const MPI_Comm &comm)
+//Basic initialization for when each MPI is paired with a GPU
+void AmgXSolver::InitExclusiveGPU(const MPI_Comm &comm)
 {
    // If this instance has already been initialized, skip
    if (isInitialized)
@@ -133,8 +133,8 @@ void AmgXSolver::Initialize_ExclusiveGPU(const MPI_Comm &comm)
 
 // Intialize for MPI ranks  > GPUs, all devices are visible
 // to all of the MPI ranks
-void AmgXSolver::Initialize_MPITeams(const MPI_Comm &comm,
-                                     const int nDevs)
+void AmgXSolver::InitMPITeams(const MPI_Comm &comm,
+                              const int nDevs)
 {
    // If this instance has already been initialized, skip
    if (isInitialized)
@@ -582,6 +582,12 @@ void AmgXSolver::SetMatrix(const SparseMatrix &in_A, const bool update_mat)
 #ifdef MFEM_USE_MPI
 void AmgXSolver::SetMatrix(const HypreParMatrix &A, const bool update_mat)
 {
+
+   //Require hypre >= 2.16.
+#if MFEM_HYPRE_VERSION < 21600
+   mfem_error("Hypre version 2.16+ is required when using AmgX \n");
+#endif
+
    hypre_ParCSRMatrix * A_ptr =
       (hypre_ParCSRMatrix *)const_cast<HypreParMatrix&>(A);
 
@@ -600,23 +606,23 @@ void AmgXSolver::SetMatrix(const HypreParMatrix &A, const bool update_mat)
    //1 GPU per MPI rank
    if (mpi_gpu_mode=="mpi-gpu-exclusive")
    {
-      return SetMatrix_MPI_GPU_Exclusive(A, loc_A, loc_I, loc_J, update_mat);
+      return SetMatrixMPIGPUExclusive(A, loc_A, loc_I, loc_J, update_mat);
    }
 
    // Team of MPI ranks sharing a gpu
    if (mpi_gpu_mode == "mpi-teams")
    {
-      return SetMatrix_MPI_Teams(A, loc_A, loc_I, loc_J, update_mat);
+      return SetMatrixMPITeams(A, loc_A, loc_I, loc_J, update_mat);
    }
 
    mfem_error("Unsupported MPI_GPU combination \n");
 }
 
-void AmgXSolver::SetMatrix_MPI_GPU_Exclusive(const HypreParMatrix &A,
-                                             const Array<double> &loc_A,
-                                             const Array<int> &loc_I,
-                                             const Array<int64_t> &loc_J,
-                                             const bool update_mat)
+void AmgXSolver::SetMatrixMPIGPUExclusive(const HypreParMatrix &A,
+                                          const Array<double> &loc_A,
+                                          const Array<int> &loc_I,
+                                          const Array<int64_t> &loc_J,
+                                          const bool update_mat)
 {
    //Create a vector of offsets describing matrix row partitions
    Array<int64_t> rowPart(gpuWorldSize+1); rowPart = 0.0;
@@ -663,11 +669,11 @@ void AmgXSolver::SetMatrix_MPI_GPU_Exclusive(const HypreParMatrix &A,
    }
 }
 
-void AmgXSolver::SetMatrix_MPI_Teams(const HypreParMatrix &A,
-                                     const Array<double> &loc_A,
-                                     const Array<int> &loc_I,
-                                     const Array<int64_t> &loc_J,
-                                     const bool update_mat)
+void AmgXSolver::SetMatrixMPITeams(const HypreParMatrix &A,
+                                   const Array<double> &loc_A,
+                                   const Array<int> &loc_I,
+                                   const Array<int64_t> &loc_J,
+                                   const bool update_mat)
 {
    // The following arrays hold the
    Array<int> all_I;
@@ -873,8 +879,6 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
    //Mult for serial, and mpi-exclusive modes
    if (mpi_gpu_mode != "mpi-teams")
    {
-
-
       AMGX_vector_upload(AmgXP, X.Size(), 1, X.ReadWrite());
       AMGX_vector_upload(AmgXRHS, B.Size(), 1, B.Read());
 
