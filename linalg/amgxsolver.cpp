@@ -20,13 +20,10 @@
 
 namespace mfem
 {
-// Initialize AmgXSolver::count to 0
 int AmgXSolver::count = 0;
 
-// Initialize AmgXSolver::rsrc to nullptr;
 AMGX_resources_handle AmgXSolver::rsrc = nullptr;
 
-// Implements AmgXSolver::AmgXSolver
 AmgXSolver::AmgXSolver(const AMGX_MODE amgxMode_, const bool verbose)
 {
    amgxMode = amgxMode_;
@@ -374,7 +371,7 @@ void AmgXSolver::SetDeviceIDs(const int nDevs)
       devID = myLocalRank;
       gpuProc = 0;
    }
-   else // there more processes than devices
+   else // in case there are more ranks than devices
    {
       int     nBasic = localSize / nDevs,
               nRemain = localSize % nDevs;
@@ -545,7 +542,6 @@ void AmgXSolver::SetMatrix(const SparseMatrix &in_A, const bool update_mat)
 {
    if (update_mat == false)
    {
-
       AMGX_matrix_upload_all(AmgXA, in_A.Height(),
                              in_A.NumNonZeroElems(),
                              1, 1,
@@ -589,13 +585,13 @@ void AmgXSolver::SetMatrix(const HypreParMatrix &A, const bool update_mat)
       loc_J[i] = A_csr->big_j[i];
    }
 
-   //1 GPU per MPI rank
+   //Asumes one GPU per MPI rank
    if (mpi_gpu_mode=="mpi-gpu-exclusive")
    {
       return SetMatrixMPIGPUExclusive(A, loc_A, loc_I, loc_J, update_mat);
    }
 
-   // Team of MPI ranks sharing a gpu
+   // Assumes teams of MPI ranks are sharing a GPU
    if (mpi_gpu_mode == "mpi-teams")
    {
       return SetMatrixMPITeams(A, loc_A, loc_I, loc_J, update_mat);
@@ -628,7 +624,6 @@ void AmgXSolver::SetMatrixMPIGPUExclusive(const HypreParMatrix &A,
 
    if (update_mat == false)
    {
-
       AMGX_distribution_handle dist;
       AMGX_distribution_create(&dist, cfg);
       AMGX_distribution_set_partition_data(dist, AMGX_DIST_PARTITION_OFFSETS,
@@ -660,8 +655,8 @@ void AmgXSolver::SetMatrixMPITeams(const HypreParMatrix &A,
                                    const Array<int64_t> &loc_J,
                                    const bool update_mat)
 {
-   // The following arrays consolidated
-   // diagonal + off diagonal matrices
+   // The following arrays hold the consolidated
+   // diagonal + off diagonal matrix data
    Array<int> all_I;
    Array<int64_t> all_J;
    Array<double> all_A;
@@ -697,6 +692,8 @@ void AmgXSolver::SetMatrixMPITeams(const HypreParMatrix &A,
 
    if (myDevWorldRank == 0)
    {
+      // A fix up step is needed for the array holding row data
+      // to remove extra zeros when consolidating team data.
       Array<int> z_ind(devWorldSize+1);
       int iter = 1;
       while (iter < devWorldSize-1)
@@ -743,6 +740,7 @@ void AmgXSolver::SetMatrixMPITeams(const HypreParMatrix &A,
             counter++;
          }
       }
+
       z_ind[devWorldSize] = all_I.Size()-1;
       //End of determining indices of zeros in global all_I Array
       //BUMP all_I one last time
@@ -752,13 +750,11 @@ void AmgXSolver::SetMatrixMPITeams(const HypreParMatrix &A,
       }
       local_nnz = all_I[all_I.Size()-devWorldSize];
       local_rows = nDevRows;
-
    }
 
    //Create row partition
    mat_local_rows = local_rows; //class copy
    Array<int64_t> rowPart;
-
    if (gpuProc == 0)
    {
       rowPart.SetSize(gpuWorldSize+1); rowPart=0;
@@ -778,7 +774,6 @@ void AmgXSolver::SetMatrixMPITeams(const HypreParMatrix &A,
       MPI_Barrier(gpuWorld);
 
       int nGlobalRows = A.M();
-
       if (update_mat == false)
       {
          AMGX_distribution_handle dist;
@@ -801,13 +796,11 @@ void AmgXSolver::SetMatrixMPITeams(const HypreParMatrix &A,
          //Bind vectors to A
          AMGX_vector_bind(AmgXP, AmgXA);
          AMGX_vector_bind(AmgXRHS, AmgXA);
-
       }
       else
       {
          AMGX_matrix_replace_coefficients(AmgXA,nGlobalRows,local_nnz,all_A,NULL);
       }
-
    }
 }
 #endif
@@ -905,7 +898,6 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
 
    if (gpuWorld != MPI_COMM_NULL)
    {
-
       AMGX_vector_upload(AmgXP, all_X.Size(), 1, all_X.ReadWrite());
       AMGX_vector_upload(AmgXRHS, all_B.Size(), 1, all_B.ReadWrite());
 
@@ -941,7 +933,6 @@ int AmgXSolver::GetNumIterations()
    return getIters;
 }
 
-// \implements AmgXSolver::Finalize
 void AmgXSolver::Finalize()
 {
    //Check instance is initialized
