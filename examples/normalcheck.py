@@ -23,6 +23,7 @@ def run(fd, t, mesh="../data/square-disc-p3.mesh", diffusion=False):
                    "--mesh", mesh]
     if diffusion:
         commandline.append("--diffusion")
+        commandline = commandline + ["--boundary-attribute", "1"]
     if t[0] == "p":
         commandline = commandline + ["--penalty", t[1:]]
     elif t == "elimination":
@@ -37,7 +38,10 @@ def main():
                      "icf.mesh",
                      "sphere_hex27.mesh"]:
             print(mesh)
-            for d in [False]:
+            ds = [False]
+            if mesh == "../data/square-disc-p3.mesh":
+                ds = [False, True]
+            for d in ds:
                 print("  diffusion:", d)
                 run(fd, "schur", mesh=mesh, diffusion=d)
                 run(fd, "elimination", mesh=mesh, diffusion=d)
@@ -47,8 +51,7 @@ def main():
 def penalty(diffusion=False):
     print("Check penalty sanity, error should scale like 1/penalty:")
     with open("penalty.log", "w") as fd:
-        run(fd, "schur")
-        # run(fd, "elimination")
+        run(fd, "schur", diffusion=diffusion)
         for penalty in [1.0, 1.e+2, 1.e+4, 1.e+6]:
             run(fd, "p" + str(penalty), diffusion=diffusion)
             print("  penalty parameter:", penalty, ", error:",
@@ -58,4 +61,4 @@ def penalty(diffusion=False):
 if __name__ == "__main__":
     main()
     penalty()
-    # penalty(True)
+    penalty(True)
