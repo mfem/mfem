@@ -57,6 +57,12 @@ if (MFEM_USE_MPI)
   list(APPEND HDRS
     hypre.hpp
     hypre_parcsr.hpp)
+  if (MFEM_USE_AMGX)
+  list(APPEND SRCS
+  amgxsolver.cpp)
+  list(APPEND HDRS
+  amgxsolver.hpp)
+  endif()
   if (MFEM_USE_PETSC)
     list(APPEND SRCS
       petsc.cpp)

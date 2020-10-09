@@ -295,6 +295,11 @@ if (MFEM_USE_CEED)
   find_package(libCEED REQUIRED)
 endif()
 
+if (MFEM_USE_AMGX)
+  include_directories(${AMGX_DIR}/include)
+  link_directories(${AMGX_DIR}/lib64 -L${AMGX_DIR}/lib -Xlinker=-rpath=${CUDA_HOME}/lib64)
+endif()
+
 if (MFEM_USE_CONDUIT)
     find_package(Conduit REQUIRED conduit relay blueprint )
 endif()
@@ -372,7 +377,7 @@ endif()
 set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
     SLEPC MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT Ginkgo GNUTLS GSLIB NETCDF
     MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE ADIOS2
-    CUSPARSE)
+    CUSPARSE AMGX)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
 set(TPL_INCLUDE_DIRS "")

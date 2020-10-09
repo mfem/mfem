@@ -30,6 +30,10 @@
 #include "invariants.hpp"
 #include "auxiliary.hpp"
 
+#ifdef MFEM_USE_AMGX
+#include "amgxsolver.hpp"
+#endif
+
 #ifdef MFEM_USE_SUNDIALS
 #include "sundials.hpp"
 #endif
