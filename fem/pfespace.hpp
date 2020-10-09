@@ -391,7 +391,11 @@ protected:
    const GroupCommunicator &gc;
 
 public:
+   ConformingProlongationOperator(int lsize, const GroupCommunicator &gc_);
+
    ConformingProlongationOperator(const ParFiniteElementSpace &pfes);
+
+   const GroupCommunicator &GetGroupCommunicator() const;
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -435,6 +439,9 @@ protected:
    void ReduceEndAssemble(Vector &dst) const;
 
 public:
+   DeviceConformingProlongationOperator(
+      const GroupCommunicator &gc_, const SparseMatrix *R);
+
    DeviceConformingProlongationOperator(const ParFiniteElementSpace &pfes);
 
    virtual ~DeviceConformingProlongationOperator();

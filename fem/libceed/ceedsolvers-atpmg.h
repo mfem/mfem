@@ -21,7 +21,15 @@
 int CeedATPMGElemRestriction(int order,
                              int order_reduction,
                              CeedElemRestriction er_in,
-                             CeedElemRestriction* er_out);
+                             CeedElemRestriction* er_out,
+                             CeedInt *&dof_map);
+
+// Create coarse-to-fine basis, given number of input nodes and order reduction.
+// Assumes Gauss-Lobatto basis. This is useful because it does not require an
+// input CeedBasis object, which depends on choice of quadrature rule, whereas
+// the coarse-to-fine operator is independent of quadrature.
+int CeedBasisATPMGCToF(Ceed ceed, int P1d, int dim, int order_reduction,
+                       CeedBasis *basisc2f);
 
 int CeedBasisATPMGCoarsen(CeedBasis basisin, CeedBasis* basisout,
                           CeedBasis* basis_ctof,
@@ -41,7 +49,8 @@ int CeedATPMGBundle(CeedOperator oper, int order_reduction,
                     CeedBasis* coarse_basis_out,
                     CeedBasis* basis_ctof_out,
                     CeedElemRestriction* er_out,
-                    CeedOperator* coarse_oper);
+                    CeedOperator* coarse_oper,
+                    CeedInt *&dof_map);
 
 #endif // MFEM_USE_CEED
 

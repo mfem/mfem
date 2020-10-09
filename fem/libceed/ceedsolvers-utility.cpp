@@ -132,4 +132,45 @@ int CeedOperatorGetSize(CeedOperator oper, CeedInt * size)
   return 0;
 }
 
+int CeedOperatorGetBasis(CeedOperator oper, CeedBasis *basis)
+{
+  int ierr;
+  Ceed ceed;
+  ierr = CeedOperatorGetCeed(oper, &ceed); CeedChk(ierr);
+  CeedQFunction qf;
+  ierr = CeedOperatorGetQFunction(oper, &qf); CeedChk(ierr);
+  CeedInt numinputfields, numoutputfields;
+  ierr = CeedQFunctionGetNumArgs(qf, &numinputfields, &numoutputfields);
+  CeedOperatorField *inputfields, *outputfields;
+  ierr = CeedOperatorGetFields(oper, &inputfields, &outputfields); CeedChk(ierr);
+
+  *basis = NULL;
+  for (int i = 0; i < numinputfields; ++i) {
+    CeedVector if_vector;
+    CeedBasis basis_in;
+    ierr = CeedOperatorFieldGetVector(inputfields[i], &if_vector); CeedChk(ierr);
+    ierr = CeedOperatorFieldGetBasis(inputfields[i], &basis_in); CeedChk(ierr);
+    if (if_vector == CEED_VECTOR_ACTIVE) {
+      if (*basis == NULL) {
+        *basis = basis_in;
+      }
+      else if (*basis != basis_in) {
+        return CeedError(ceed, 1, "Two different active input basis!");
+      }
+    }
+  }
+  for (int i = 0; i < numoutputfields; ++i) {
+    CeedVector of_vector;
+    CeedBasis basis_out;
+    ierr = CeedOperatorFieldGetVector(outputfields[i], &of_vector); CeedChk(ierr);
+    ierr = CeedOperatorFieldGetBasis(outputfields[i], &basis_out); CeedChk(ierr);
+    if (of_vector == CEED_VECTOR_ACTIVE) {
+      if (*basis != basis_out) {
+        return CeedError(ceed, 1, "Input and output basis do not match!");
+      }
+    }
+  }
+  return 0;
+}
+
 #endif // MFEM_USE_CEED

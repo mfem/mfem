@@ -19,6 +19,7 @@
 // todo: should probably use Ceed memory wrappers instead of calloc/free?
 #include <stdlib.h>
 
+#include <vector>
 
 int coarse_1d_edof(int i, int P1d, int coarse_P1d) {
   int coarse_i = (i < coarse_P1d - 1) ? i : -1;
@@ -62,7 +63,8 @@ int min4(int a, int b, int c, int d) {
 int CeedATPMGElemRestriction(int order,
                              int order_reduction,
                              CeedElemRestriction er_in,
-                             CeedElemRestriction* er_out) {
+                             CeedElemRestriction* er_out,
+                             CeedInt *&dof_map) {
   int ierr;
   Ceed ceed;
   ierr = CeedElemRestrictionGetCeed(er_in, &ceed); CeedChk(ierr);
@@ -100,7 +102,8 @@ int CeedATPMGElemRestriction(int order,
   ierr = CeedVectorGetArrayRead(in_evec, CEED_MEM_HOST, &in_elem_dof); CeedChk(ierr);
 
   // map high-order ldof to low-order ldof
-  CeedInt * dof_map = (CeedInt*) calloc(numnodes, sizeof(CeedInt));
+  // !! caller's responsibility to free
+  dof_map = (CeedInt*) calloc(numnodes, sizeof(CeedInt));
   for (int i = 0; i < numnodes; ++i) {
     dof_map[i] = -1;
   }
@@ -313,7 +316,6 @@ int CeedATPMGElemRestriction(int order,
   }
 
   ierr = CeedVectorRestoreArrayRead(in_evec, &in_elem_dof); CeedChk(ierr);
-  free(dof_map);
   ierr = CeedVectorDestroy(&in_evec); CeedChk(ierr);
 
   ierr = CeedElemRestrictionCreate(ceed, numelem, coarse_elemsize, numcomp,
@@ -323,6 +325,32 @@ int CeedATPMGElemRestriction(int order,
 
   free(out_elem_dof);
 
+  return 0;
+}
+
+
+int CeedBasisATPMGCToF(Ceed ceed, int P1d, int dim, int order_reduction,
+                       CeedBasis *basisc2f) {
+  // this assumes Lobatto nodes on fine and coarse again
+  // (not so hard to generalize, but we would have to write it ourselves instead of
+  // calling the following Ceed function)
+  int ierr;
+  ierr = CeedBasisCreateTensorH1Lagrange(ceed, dim, 1, P1d - order_reduction, P1d,
+                                         CEED_GAUSS_LOBATTO, basisc2f); CeedChk(ierr);
+  return 0;
+}
+
+int CeedBasisATPMGCToF(CeedBasis basisin,
+                       CeedBasis *basisc2f,
+                       int order_reduction) {
+  int ierr;
+  Ceed ceed;
+  ierr = CeedBasisGetCeed(basisin, &ceed); CeedChk(ierr);
+
+  CeedInt dim, P1d;
+  ierr = CeedBasisGetDimension(basisin, &dim); CeedChk(ierr);
+  ierr = CeedBasisGetNumNodes1D(basisin, &P1d); CeedChk(ierr);
+  ierr = CeedBasisATPMGCToF(ceed, P1d, dim, order_reduction, basisc2f); CeedChk(ierr);
   return 0;
 }
 
@@ -336,8 +364,9 @@ int CeedATPMGElemRestriction(int order,
    assumes Gauss-Lobatto, and furthermore assumes the MFEM [0, 1]
    reference element (rather than the Ceed/Petsc [-1, 1] element)
 */
-int CeedBasisATPMGCoarsen(CeedBasis basisin, CeedBasis* basisout,
-                          CeedBasis* basisctof,
+int CeedBasisATPMGCoarsen(CeedBasis basisin,
+                          CeedBasis basisc2f,
+                          CeedBasis* basisout,
                           int order_reduction) {
   int ierr;
   Ceed ceed;
@@ -374,14 +403,9 @@ int CeedBasisATPMGCoarsen(CeedBasis basisin, CeedBasis* basisout,
     fine_nodal_points[i] = 0.5 * fine_nodal_points[i] + 0.5; // cheating
   }
 
-  // this assumes Lobatto nodes on fine and coarse again
-  // (not so hard to generalize, but we would have to write it ourselves instead of
-  // calling the following Ceed function)
-  ierr = CeedBasisCreateTensorH1Lagrange(ceed, dim, 1, P1d - order_reduction, P1d,
-                                         CEED_GAUSS_LOBATTO, basisctof); CeedChk(ierr);
   const CeedScalar *interp_ctof;
-  ierr = CeedBasisGetInterp1D(*basisctof, &interp_ctof); CeedChk(ierr);
-  
+  ierr = CeedBasisGetInterp1D(basisc2f, &interp_ctof); CeedChk(ierr);
+
   for (int i = 0; i < Q1d; ++i) {
     for (int j = 0; j < coarse_P1d; ++j) {
       coarse_interp1d[i * coarse_P1d + j] = 0.0;
@@ -442,22 +466,10 @@ int CeedBasisATPMGCoarsen(CeedBasis basisin, CeedBasis* basisout,
   return 0;
 }
 
-/**
-   Take a shot at kinda-algebraic tensor p-multigrid
-
-   oper is the operator to coarsen
-   order_reduction is how much to coarsen (1 means reduce order by 1-ish)
-   coarse_er is the new CeedElemRestriction, see CeedATPGMElemRestriction()
-
-   TODO: eventually, coarsen the QFunction using Will's algorithm
-   (note that a QFunction is a function pointer in Ceed, so that may be a nonstarter)
-   (perhaps what we do is take the output of CeedOperatorLinearAssembleQFunction(),
-   and coarsen that, but we need to understand the data layout)
-*/
 int CeedATPMGOperator(CeedOperator oper, int order_reduction,
                       CeedElemRestriction coarse_er,
-                      CeedBasis* coarse_basis_out,
-                      CeedBasis* basis_ctof_out,
+                      CeedBasis coarse_basis_in,
+                      CeedBasis basis_ctof_in,
                       CeedOperator* out) {
   int ierr;
   Ceed ceed;
@@ -476,15 +488,16 @@ int CeedATPMGOperator(CeedOperator oper, int order_reduction,
     (CeedElemRestriction*) calloc(numinputfields, sizeof(CeedElemRestriction));
   CeedElemRestriction * er_output =
     (CeedElemRestriction*) calloc(numoutputfields, sizeof(CeedElemRestriction));
-  CeedVector * if_vector = 
+  CeedVector * if_vector =
     (CeedVector*) calloc(numinputfields, sizeof(CeedVector));
-  CeedVector * of_vector = 
+  CeedVector * of_vector =
     (CeedVector*) calloc(numoutputfields, sizeof(CeedVector));
   CeedBasis * basis_input =
     (CeedBasis*) calloc(numinputfields, sizeof(CeedBasis));
-  CeedBasis * basis_output = 
+  CeedBasis * basis_output =
     (CeedBasis*) calloc(numoutputfields, sizeof(CeedBasis));
-  CeedBasis cbasis;
+  CeedBasis cbasis = coarse_basis_in;
+
   int active_input_basis = -1;
   for (int i = 0; i < numinputfields; ++i) {
     ierr = CeedOperatorFieldGetElemRestriction(inputfields[i],
@@ -492,15 +505,12 @@ int CeedATPMGOperator(CeedOperator oper, int order_reduction,
     ierr = CeedOperatorFieldGetVector(inputfields[i], &if_vector[i]); CeedChk(ierr);
     ierr = CeedOperatorFieldGetBasis(inputfields[i], &basis_input[i]); CeedChk(ierr);
     if (if_vector[i] == CEED_VECTOR_ACTIVE) {
-      if (active_input_basis < 0) {
-        ierr = CeedBasisATPMGCoarsen(basis_input[i], &cbasis, basis_ctof_out,
-                                     order_reduction); CeedChk(ierr);
+      if (active_input_basis < 0)
+      {
         active_input_basis = i;
-      } else {
-        // should already be coarsened
-        if (basis_input[i] != basis_input[active_input_basis]) {
-          return CeedError(ceed, 1, "Two different active input basis!");
-        }
+      }
+      else if (basis_input[i] != basis_input[active_input_basis]) {
+        return CeedError(ceed, 1, "Two different active input basis!");
       }
     }
   }
@@ -528,10 +538,10 @@ int CeedATPMGOperator(CeedOperator oper, int order_reduction,
     char * fieldname;
     ierr = CeedQFunctionFieldGetName(inputqfields[i], &fieldname); CeedChk(ierr);
     if (if_vector[i] == CEED_VECTOR_ACTIVE) {
-      ierr = CeedOperatorSetField(coper, fieldname, coarse_er, cbasis, 
+      ierr = CeedOperatorSetField(coper, fieldname, coarse_er, cbasis,
                                   if_vector[i]); CeedChk(ierr);
     } else {
-      ierr = CeedOperatorSetField(coper, fieldname, er_input[i], basis_input[i], 
+      ierr = CeedOperatorSetField(coper, fieldname, er_input[i], basis_input[i],
                                   if_vector[i]); CeedChk(ierr);
     }
   }
@@ -553,8 +563,44 @@ int CeedATPMGOperator(CeedOperator oper, int order_reduction,
   free(basis_input);
   free(basis_output);
 
-  *coarse_basis_out = cbasis;
   *out = coper;
+  return 0;
+}
+
+
+/**
+   Take a shot at kinda-algebraic tensor p-multigrid
+
+   oper is the operator to coarsen
+   order_reduction is how much to coarsen (1 means reduce order by 1-ish)
+   coarse_er is the new CeedElemRestriction, see CeedATPGMElemRestriction()
+
+   TODO: eventually, coarsen the QFunction using Will's algorithm
+   (note that a QFunction is a function pointer in Ceed, so that may be a nonstarter)
+   (perhaps what we do is take the output of CeedOperatorLinearAssembleQFunction(),
+   and coarsen that, but we need to understand the data layout)
+*/
+int CeedATPMGOperator(CeedOperator oper, int order_reduction,
+                      CeedElemRestriction coarse_er,
+                      CeedBasis *coarse_basis_out,
+                      CeedBasis *basis_ctof_out,
+                      CeedOperator *out) {
+  int ierr;
+
+  CeedQFunction qf;
+  ierr = CeedOperatorGetQFunction(oper, &qf); CeedChk(ierr);
+  CeedInt numinputfields, numoutputfields;
+  ierr = CeedQFunctionGetNumArgs(qf, &numinputfields, &numoutputfields);
+  CeedOperatorField *inputfields;
+  ierr = CeedOperatorGetFields(oper, &inputfields, NULL); CeedChk(ierr);
+
+  CeedBasis basis;
+  ierr = CeedOperatorGetBasis(oper, &basis); CeedChk(ierr);
+  ierr = CeedBasisATPMGCToF(basis, basis_ctof_out, order_reduction); CeedChk(ierr);
+  ierr = CeedBasisATPMGCoarsen(basis, *basis_ctof_out, coarse_basis_out,
+                                order_reduction); CeedChk(ierr);
+  ierr = CeedATPMGOperator(oper, order_reduction, coarse_er, *coarse_basis_out,
+                           *basis_ctof_out, out); CeedChk(ierr);
   return 0;
 }
 
@@ -562,13 +608,14 @@ int CeedATPMGBundle(CeedOperator oper, int order_reduction,
                     CeedBasis* coarse_basis_out,
                     CeedBasis* basis_ctof_out,
                     CeedElemRestriction* er_out,
-                    CeedOperator* coarse_oper) {
+                    CeedOperator* coarse_oper,
+                    CeedInt *&dof_map) {
   int ierr;
   CeedInt order;
   ierr = CeedOperatorGetOrder(oper, &order); CeedChk(ierr);
   CeedElemRestriction ho_er;
   ierr = CeedOperatorGetActiveElemRestriction(oper, &ho_er); CeedChk(ierr);
-  ierr = CeedATPMGElemRestriction(order, order_reduction, ho_er, er_out); CeedChk(ierr);
+  ierr = CeedATPMGElemRestriction(order, order_reduction, ho_er, er_out, dof_map); CeedChk(ierr);
   ierr = CeedATPMGOperator(oper, order_reduction, *er_out, coarse_basis_out,
                            basis_ctof_out, coarse_oper); CeedChk(ierr);
   return 0;
