@@ -1,0 +1,18 @@
+                    Finite Element Discretization Library
+                                   __
+                       _ __ ___   / _|  ___  _ __ ___
+                      | '_ ` _ \ | |_  / _ \| '_ ` _ \
+                      | | | | | ||  _||  __/| | | | | |
+                      |_| |_| |_||_|   \___||_| |_| |_|
+
+                               http://mfem.org
+
+This directory contains modifications of the example codes that illustrate the
+use of MFEM features based on the Ginkgo high-performance linear algebra library
+for GPU and manycore nodes.
+
+To build these examples, make sure that MFEM is configured with the option
+"MFEM_USE_GINKGO = YES", see the top-level INSTALL file for details.
+
+We recommend comparing the original example codes with the corresponding files
+in the current directory.

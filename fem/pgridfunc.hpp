@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_PGRIDFUNC
 #define MFEM_PGRIDFUNC
@@ -37,6 +37,11 @@ protected:
    /** @brief Vector used to store data from face-neighbor processors,
        initialized by ExchangeFaceNbrData(). */
    Vector face_nbr_data;
+
+   /** @brief Vector used as an MPI buffer to send face-neighbor data
+       in ExchangeFaceNbrData() to neighboring processors. */
+   //TODO: Use temporary memory to avoid CUDA malloc allocation cost.
+   Vector send_data;
 
    void ProjectBdrCoefficient(Coefficient *coeff[], VectorCoefficient *vcoeff,
                               Array<int> &attr);
@@ -88,7 +93,7 @@ public:
        that have the same size.
 
        @note Defining this method overwrites the implicitly defined copy
-       assignemnt operator. */
+       assignment operator. */
    ParGridFunction &operator=(const ParGridFunction &rhs)
    { return operator=((const Vector &)rhs); }
 
@@ -111,6 +116,8 @@ public:
 
    /// Associate a new parallel space with the ParGridFunction.
    void SetSpace(ParFiniteElementSpace *f);
+
+   using GridFunction::MakeRef;
 
    /** @brief Make the ParGridFunction reference external data on a new
        FiniteElementSpace. */
@@ -201,6 +208,15 @@ public:
                            int vdim = 1) const;
    double GetValue(ElementTransformation &T)
    { return GetValue(T.ElementNo, T.GetIntPoint()); }
+
+   // Redefine to handle the case when T describes a face-neighbor element
+   virtual double GetValue(ElementTransformation &T, const IntegrationPoint &ip,
+                           int comp = 0, Vector *tr = NULL) const;
+
+   // Redefine to handle the case when T describes a face-neighbor element
+   virtual void GetVectorValue(ElementTransformation &T,
+                               const IntegrationPoint &ip,
+                               Vector &val, Vector *tr = NULL) const;
 
    using GridFunction::ProjectCoefficient;
    virtual void ProjectCoefficient(Coefficient &coeff);
@@ -306,12 +322,21 @@ public:
 
    virtual void ComputeFlux(BilinearFormIntegrator &blfi,
                             GridFunction &flux,
-                            int wcoef = 1, int subdomain = -1);
+                            bool wcoef = true, int subdomain = -1);
 
-   /** Save the local portion of the ParGridFunction. It differs from the
+   /** Save the local portion of the ParGridFunction. This differs from the
        serial GridFunction::Save in that it takes into account the signs of
        the local dofs. */
    virtual void Save(std::ostream &out) const;
+
+#ifdef MFEM_USE_ADIOS2
+   /** Save the local portion of the ParGridFunction. This differs from the
+       serial GridFunction::Save in that it takes into account the signs of
+       the local dofs. */
+   virtual void Save(
+      adios2stream &out, const std::string &variable_name,
+      const adios2stream::data_type type = adios2stream::data_type::point_data) const;
+#endif
 
    /// Merge the local grid functions
    void SaveAsOne(std::ostream &out = mfem::out);
