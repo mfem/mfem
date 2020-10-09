@@ -9,10 +9,11 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-//Reference
+//Reference:
 //Pi-Yueh Chuang, & Lorena A. Barba (2017).
 //AmgXWrapper: An interface between PETSc and the NVIDIA AmgX library. J.
 //Open Source Software, 2(16):280, doi:10.21105/joss.00280
+//https://github.com/barbagroup/AmgXWrapper
 
 #include "../config/config.hpp"
 #include "amgxsolver.hpp"

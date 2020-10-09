@@ -60,7 +60,9 @@ namespace mfem
    performs the necessary AmgX library calls.
    The solution is then broadcasted to appropriate ranks.
    This is particularly useful when configuring MFEM's
-   device as CPU.
+   device as CPU. This work is based on the AmgXWrapper
+   of Chuang and Barba. Routines were adopted and modified
+   for setting up MPI communicators.
 
    Examples 1,1p demonstrate basic usage with
    default parameters, while examples under the
@@ -68,10 +70,11 @@ namespace mfem
    as a solver, preconditioner, configuring and
    running with exclusive GPU or MPI teams modes.
 
-   Reference:
+   Reference for this work is:
    Pi-Yueh Chuang, & Lorena A. Barba (2017).
    AmgXWrapper: An interface between PETSc and the NVIDIA AmgX library.
    J. Open Source Software, 2(16):280, doi:10.21105/joss.00280
+   https://github.com/barbagroup/AmgXWrapper
 
  */
 class AmgXSolver : public Solver
