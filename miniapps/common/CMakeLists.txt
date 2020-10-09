@@ -1,29 +1,40 @@
-# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
-# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
-# See file COPYRIGHT for details.
+# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
 # This file is part of the MFEM library. For more information and source code
-# availability see http://mfem.org.
+# availability visit https://mfem.org.
 #
 # MFEM is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free
-# Software Foundation) version 2.1 dated February 1999.
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
 
-set(MFEM_MINIAPPS_COMMON_SOURCES
+list(APPEND SRCS
   mesh_extras.cpp
   fem_extras.cpp
   )
-set(MFEM_MINIAPPS_COMMON_HEADERS
+list(APPEND HDRS
   mesh_extras.hpp
   fem_extras.hpp
+  mfem-common.hpp
   )
 
 if (MFEM_USE_MPI)
-  list(APPEND MFEM_MINIAPPS_COMMON_SOURCES
+  list(APPEND SRCS
     pfem_extras.cpp)
-  list(APPEND MFEM_MINIAPPS_COMMON_HEADERS
+  list(APPEND HDRS
     pfem_extras.hpp)
 endif()
 
-add_library(mfem_miniapps_common ${MFEM_MINIAPPS_COMMON_SOURCES}
-            ${MFEM_MINIAPPS_COMMON_HEADERS})
+if (MFEM_USE_CUDA)
+  set_property(SOURCE ${SRCS} PROPERTY LANGUAGE CUDA)
+endif()
+
+convert_filenames_to_full_paths(SRCS)
+convert_filenames_to_full_paths(HDRS)
+
+set(MINIAPPS_COMMON_SOURCES ${MINIAPPS_COMMON_SOURCES} ${SRCS} PARENT_SCOPE)
+set(MINIAPPS_COMMON_HEADERS ${MINIAPPS_COMMON_HEADERS} ${HDRS} PARENT_SCOPE)
+
+add_library(mfem-common ${SRCS} ${HDRS})
+target_link_libraries(mfem-common mfem)

@@ -1,19 +1,38 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "fem.hpp"
 
 namespace mfem
 {
 
+void NonlinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
+{
+   if (ext)
+   {
+      MFEM_ABORT("the assembly level has already been set!");
+   }
+   assembly = assembly_level;
+   switch (assembly)
+   {
+      case AssemblyLevel::NONE:
+         // This is the default behavior.
+         break;
+      case AssemblyLevel::PARTIAL:
+         ext = new PANonlinearFormExtension(this);
+         break;
+      default:
+         mfem_error("Unknown assembly level for this form.");
+   }
+}
 void NonlinearForm::SetEssentialBC(const Array<int> &bdr_attr_is_ess,
                                    Vector *rhs)
 {
@@ -109,13 +128,24 @@ const Vector &NonlinearForm::Prolongate(const Vector &x) const
 
 void NonlinearForm::Mult(const Vector &x, Vector &y) const
 {
+   const Vector &px = Prolongate(x);
+   if (P) { aux2.SetSize(P->Height()); }
+
+   // If we are in parallel, ParNonLinearForm::Mult uses the aux2 vector.
+   // In serial, place the result directly in y.
+   Vector &py = P ? aux2 : y;
+
+   if (ext)
+   {
+      ext->Mult(px, py);
+      return;
+   }
+
    Array<int> vdofs;
    Vector el_x, el_y;
    const FiniteElement *fe;
    ElementTransformation *T;
    Mesh *mesh = fes->GetMesh();
-   const Vector &px = Prolongate(x);
-   Vector &py = P ? aux2.SetSize(P->Height()), aux2 : y;
 
    py = 0.0;
 
@@ -232,6 +262,11 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
 
 Operator &NonlinearForm::GetGradient(const Vector &x) const
 {
+   if (ext)
+   {
+      MFEM_ABORT("Not yet implemented!");
+   }
+
    const int skip_zeros = 0;
    Array<int> vdofs;
    Vector el_x;
@@ -375,6 +410,8 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
 
 void NonlinearForm::Update()
 {
+   if (ext) { MFEM_ABORT("Not yet implemented!"); }
+
    if (sequence == fes->GetSequence()) { return; }
 
    height = width = fes->GetTrueVSize();
@@ -387,6 +424,11 @@ void NonlinearForm::Update()
    cP = dynamic_cast<const SparseMatrix*>(P);
 }
 
+void NonlinearForm::Setup()
+{
+   if (ext) { return ext->AssemblePA(); }
+}
+
 NonlinearForm::~NonlinearForm()
 {
    delete cGrad;
@@ -394,6 +436,7 @@ NonlinearForm::~NonlinearForm()
    for (int i = 0; i <  dnfi.Size(); i++) { delete  dnfi[i]; }
    for (int i = 0; i <  fnfi.Size(); i++) { delete  fnfi[i]; }
    for (int i = 0; i < bfnfi.Size(); i++) { delete bfnfi[i]; }
+   delete ext;
 }
 
 
