@@ -74,6 +74,9 @@
 // [Deprecated] Enable experimental OpenMP support. Requires MFEM_THREAD_SAFE.
 #cmakedefine MFEM_USE_LEGACY_OPENMP
 
+// Internal MFEM option: enable group/batch allocation for some small objects.
+#cmakedefine MFEM_USE_MEMALLOC
+
 // Enable MFEM functionality based on the Mesquite library.
 #cmakedefine MFEM_USE_MESQUITE
 
@@ -86,11 +89,11 @@
 // Enable MFEM functionality based on the STRUMPACK library.
 #cmakedefine MFEM_USE_STRUMPACK
 
-// Internal MFEM option: enable group/batch allocation for some small objects.
-#cmakedefine MFEM_USE_MEMALLOC
-
 // Enable functionality based on the Ginkgo library
 #cmakedefine MFEM_USE_GINKGO
+
+// Enable MFEM functionality based on the AMGX library
+#cmakedefine MFEM_USE_AMGX
 
 // Enable MFEM functionality based on the GnuTLS library
 #cmakedefine MFEM_USE_GNUTLS
@@ -125,9 +128,6 @@
 // Build the GPU/CUDA-enabled version of the MFEM library.
 // Requires a CUDA compiler (nvcc).
 #cmakedefine MFEM_USE_CUDA
-
-// Enable MFEM functionality based on the AMGX library
-#cmakedefine MFEM_USE_AMGX
 
 // Enable MFEM functionality based on the RAJA library
 #cmakedefine MFEM_USE_RAJA
