@@ -8,7 +8,7 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-#define CATCH_CONFIG_RUNNER
+
 #include "catch.hpp"
 #include "mfem.hpp"
 #include <fstream>
@@ -177,24 +177,3 @@ TEST_CASE("CEED", "[CEED]")
 } // test case
 
 } // namespace ceed_test
-
-int main(int argc, char *argv[])
-{
-   // There must be exactly one instance.
-   Catch::Session session;
-   std::string device_str("ceed-cpu");
-   using namespace Catch::clara;
-   auto cli = session.cli()
-      | Opt(device_str, "device_string")
-        ["--device"]
-        ("CEED device string (default: ceed-cpu)");
-   session.cli(cli);
-   int result = session.applyCommandLine( argc, argv );
-   if (result != 0)
-   {
-      return result;
-   }
-   Device device(device_str.c_str());
-   result = session.run();
-   return result;
-}
