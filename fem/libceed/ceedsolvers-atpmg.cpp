@@ -329,8 +329,8 @@ int CeedATPMGElemRestriction(int order,
 }
 
 
-int CeedBasisATPMGCToF(Ceed ceed, int P1d, int dim, int order_reduction,
-                       CeedBasis *basisc2f) {
+int CeedBasisATPMGCoarseToFine(Ceed ceed, int P1d, int dim, int order_reduction,
+                               CeedBasis *basisc2f) {
   // this assumes Lobatto nodes on fine and coarse again
   // (not so hard to generalize, but we would have to write it ourselves instead of
   // calling the following Ceed function)
@@ -340,9 +340,9 @@ int CeedBasisATPMGCToF(Ceed ceed, int P1d, int dim, int order_reduction,
   return 0;
 }
 
-int CeedBasisATPMGCToF(CeedBasis basisin,
-                       CeedBasis *basisc2f,
-                       int order_reduction) {
+int CeedBasisATPMGCoarseToFine(CeedBasis basisin,
+                               CeedBasis *basisc2f,
+                               int order_reduction) {
   int ierr;
   Ceed ceed;
   ierr = CeedBasisGetCeed(basisin, &ceed); CeedChk(ierr);
@@ -350,7 +350,8 @@ int CeedBasisATPMGCToF(CeedBasis basisin,
   CeedInt dim, P1d;
   ierr = CeedBasisGetDimension(basisin, &dim); CeedChk(ierr);
   ierr = CeedBasisGetNumNodes1D(basisin, &P1d); CeedChk(ierr);
-  ierr = CeedBasisATPMGCToF(ceed, P1d, dim, order_reduction, basisc2f); CeedChk(ierr);
+  ierr = CeedBasisATPMGCoarseToFine(ceed, P1d, dim, order_reduction,
+                                    basisc2f); CeedChk(ierr);
   return 0;
 }
 
@@ -596,9 +597,9 @@ int CeedATPMGOperator(CeedOperator oper, int order_reduction,
 
   CeedBasis basis;
   ierr = CeedOperatorGetBasis(oper, &basis); CeedChk(ierr);
-  ierr = CeedBasisATPMGCToF(basis, basis_ctof_out, order_reduction); CeedChk(ierr);
+  ierr = CeedBasisATPMGCoarseToFine(basis, basis_ctof_out, order_reduction); CeedChk(ierr);
   ierr = CeedBasisATPMGCoarsen(basis, *basis_ctof_out, coarse_basis_out,
-                                order_reduction); CeedChk(ierr);
+                               order_reduction); CeedChk(ierr);
   ierr = CeedATPMGOperator(oper, order_reduction, coarse_er, *coarse_basis_out,
                            *basis_ctof_out, out); CeedChk(ierr);
   return 0;

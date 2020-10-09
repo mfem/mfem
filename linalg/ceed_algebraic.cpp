@@ -365,20 +365,10 @@ AlgebraicCoarseSpace::AlgebraicCoarseSpace(
 {
    order_reduction = order_reduction_;
 
-   CeedATPMGElemRestriction(
-      order,
-      order_reduction,
-      fine_er,
-      &ceed_elem_restriction,
-      dof_map
-   );
-   CeedBasisATPMGCToF(
-      internal::ceed,
-      order+1,
-      dim,
-      order_reduction,
-      &coarse_to_fine
-   );
+   CeedATPMGElemRestriction(order, order_reduction, fine_er,
+      &ceed_elem_restriction, dof_map );
+   CeedBasisATPMGCoarseToFine(internal::ceed, order+1, dim,
+      order_reduction, &coarse_to_fine );
    CeedElemRestrictionGetLVectorSize(ceed_elem_restriction, &ndofs);
    mesh = fine_fes.GetMesh();
 }
