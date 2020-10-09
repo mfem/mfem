@@ -29,10 +29,6 @@
 #include "handle.hpp"
 #include "invariants.hpp"
 
-#ifdef MFEM_USE_CEED
-#include "ceed_algebraic.hpp"
-#endif
-
 #ifdef MFEM_USE_SUNDIALS
 #include "sundials.hpp"
 #endif
