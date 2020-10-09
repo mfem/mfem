@@ -56,6 +56,38 @@ RT_FESpace::~RT_FESpace()
    delete FEC_;
 }
 
+PartitionedVectorCoefficient::PartitionedVectorCoefficient(
+   VectorCoefficient &v,
+   Array<unsigned int> &part)
+   : V(v), p(part)
+{
+   int vdim = V.GetVDim();
+   unsigned int pdim = p.Sum();
+   MFEM_VERIFY(vdim == pdim, "Mismatch in PartitionedVectorCoefficient "
+               "dimensions.");
+
+   pType.SetSize(p.Size());
+   pOffset.SetSize(p.Size());
+   pOffset = 0;
+   int offset = 0;
+   for (int i=0; i<p.Size(); i++)
+   {
+      if (p[i] == 1)
+      {
+         pType[i] = SCALAR_PART;
+         pOffset[i] = sCoefs.Append(new ComponentCoefficient(V, offset));
+         offset++;
+      }
+      else
+      {
+         pType[i] = VECTOR_PART;
+         pOffset[i] = vCoefs.Append(new SubVectorCoefficient(V, offset, p[i]));
+         offset += p[i];
+      }
+      pOffset[i]--;
+   }
+}
+
 void VisualizeMesh(socketstream &sock, const char *vishost, int visport,
                    Mesh &mesh, const char *title,
                    int x, int y, int w, int h, const char * keys, bool vec)
