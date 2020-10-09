@@ -944,17 +944,12 @@ int main(int argc, char *argv[])
       w.SetFromTrueDofs(vx.GetBlock(2));
       oper.UpdateJ(vx, &j);
 
-      ostringstream mesh_name, mesh_save, phi_name, psi_name, w_name, j_name;
-      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+      ostringstream esh_save, phi_name, psi_name, w_name, j_name;
       mesh_save << "ncmesh." << setfill('0') << setw(6) << myid;
       phi_name << "sol_phi." << setfill('0') << setw(6) << myid;
       psi_name << "sol_psi." << setfill('0') << setw(6) << myid;
       w_name << "sol_omega." << setfill('0') << setw(6) << myid;
       j_name << "sol_j." << setfill('0') << setw(6) << myid;
-
-      ofstream omesh(mesh_name.str().c_str());
-      omesh.precision(8);
-      pmesh->Print(omesh);
 
       ofstream ncmesh(mesh_save.str().c_str());
       ncmesh.precision(16);

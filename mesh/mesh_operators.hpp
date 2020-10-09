@@ -283,6 +283,7 @@ protected:
 
    double threshold;
    int nc_limit, op;
+   double total_norm_p;
    double total_fraction;
 
    /** @brief Apply the operator to the mesh.
@@ -299,6 +300,7 @@ public:
       nc_limit = 0;
       op = 1;
       total_fraction = 0.;
+      total_norm_p = infinity();
    }
 
    // default destructor (virtual)
@@ -308,6 +310,9 @@ public:
 
    // total_fraction is turned off by default
    void SetTotalErrorFraction(double fraction) { total_fraction = fraction; }
+
+   void SetTotalErrorNormP(double norm_p = infinity())
+   { total_norm_p = norm_p; }
 
    double GetNorm(const Vector &local_err, Mesh &mesh) const;
 

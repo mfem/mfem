@@ -108,6 +108,7 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
    double yMean, xMean;
    long elementLevel;
 
+   /*
    // the local err is set to be 0 if it is in the x range and the elementLevel reaches the 
    // maximal levels that xRange allows (so refinement will skip that)
    if (xRange && mesh.Nonconforming())
@@ -132,6 +133,7 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
            local_err_(el) =0.;
       }
    }
+   */
 
    const double total_err = GetNorm(local_err, mesh);
    if (total_err <= total_err_goal) { return STOP; }
@@ -227,8 +229,8 @@ void ThresholdRefiner::Reset()
 
 double ThresholdDerefiner::GetNorm(const Vector &local_err, Mesh &mesh) const
 {
-   const double total_norm_p=infinity();
 #ifdef MFEM_USE_MPI
+
    ParMesh *pmesh = dynamic_cast<ParMesh*>(&mesh);
    if (pmesh)
    {
