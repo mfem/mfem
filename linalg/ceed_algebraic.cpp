@@ -131,13 +131,15 @@ void CoarsenEssentialDofs(const Operator &interp,
 }
 
 template <typename INTEG>
-void TryToAddCeedSubOperator(BilinearFormIntegrator *integ_in, CeedOperator op)
+int TryToAddCeedSubOperator(BilinearFormIntegrator *integ_in, CeedOperator op)
 {
    INTEG *integ = dynamic_cast<INTEG*>(integ_in);
    if (integ != NULL)
    {
       CeedCompositeOperatorAddSub(op, integ->GetCeedData()->oper);
+      return 1;
    }
+   return 0;
 }
 
 CeedOperator CreateCeedCompositeOperatorFromBilinearForm(BilinearForm &form)
@@ -149,13 +151,18 @@ CeedOperator CreateCeedCompositeOperatorFromBilinearForm(BilinearForm &form)
    Array<BilinearFormIntegrator*> *bffis = form.GetDBFI();
    int num_integrators = bffis->Size();
 
+   int count = 0;
    for (int i = 0; i < num_integrators; ++i)
    {
       BilinearFormIntegrator *integ = (*bffis)[i];
-      TryToAddCeedSubOperator<DiffusionIntegrator>(integ, op);
-      TryToAddCeedSubOperator<MassIntegrator>(integ, op);
-      TryToAddCeedSubOperator<VectorDiffusionIntegrator>(integ, op);
-      TryToAddCeedSubOperator<VectorMassIntegrator>(integ, op);
+      count += TryToAddCeedSubOperator<DiffusionIntegrator>(integ, op);
+      count += TryToAddCeedSubOperator<MassIntegrator>(integ, op);
+      count += TryToAddCeedSubOperator<VectorDiffusionIntegrator>(integ, op);
+      count += TryToAddCeedSubOperator<VectorMassIntegrator>(integ, op);
+   }
+   if (count != num_integrators)
+   {
+      mfem_error("Some integrator does not support Ceed!");
    }
    return op;
 }

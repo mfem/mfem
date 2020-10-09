@@ -19,8 +19,6 @@
 // todo: should probably use Ceed memory wrappers instead of calloc/free?
 #include <stdlib.h>
 
-#include <vector>
-
 int coarse_1d_edof(int i, int P1d, int coarse_P1d) {
   int coarse_i = (i < coarse_P1d - 1) ? i : -1;
   if (i == P1d - 1)
