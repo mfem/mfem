@@ -54,7 +54,10 @@ public:
    void Mult(const Vector& in, Vector& out) const;
    void MultTranspose(const Vector& in, Vector& out) const;
 
-   SparseMatrix * AssembleApproximate() const;
+   /** @brief Assemble this projector as a SparseMatrix
+
+       Some day we may also want to try approximate variants. */
+   SparseMatrix * AssembleExact() const;
 
    void BuildGTilde(const Vector& g, Vector& gtilde) const;
 

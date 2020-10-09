@@ -8,19 +8,15 @@
   The way MFEM dofs work, this is not quite trivial for non-grid-aligned
   boundaries.
 
-  higher order seems to work fine
-  3D also looks fine
+  todo items:
 
-  solver obviously still needs some serious work
-
-  some todo items:
-
-  - test in parallel
+  - change master/slave to primary/secondary in constrained.cpp
+  - make some unit tests with tiny matrices, including in parallel
+  - more meaningful parallel tests
   - improve Schur complement block solver (specifically the Schur block)
   - make sure penalty and elimination can do the right thing with lagrange multipliers
   - think about preconditioning interface; user may have good preconditioner for primal system that we could use in all three existing solvers?
   - make sure curved mesh works (is this a real problem or just VisIt visualization?)
-  - move ConstrainedSolver and friends into library
   - make everything work in parallel
   - hook up to Smith or Tribol or some other contact setting
   - timing / scaling!
