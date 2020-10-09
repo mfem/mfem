@@ -82,16 +82,13 @@ EliminationProjection::EliminationProjection(SparseMatrix& A, SparseMatrix& B,
    BsTinverse_.Factor(Bs_.Height());
 }
 
-/**
-   Return an assembled approximate version of this projector
-
-   (the current implementation is actually not approximate, but it should be,
-   using diagonal or something)
+/*
+   Return this projector as an assembled matrix.
 
    It *may* be possible to implement this with Bm_ as a findpts call
    rather than a matrix; the hypre assembly will not be so great, though
 */
-SparseMatrix * EliminationProjection::AssembleApproximate() const
+SparseMatrix * EliminationProjection::AssembleExact() const
 {
    int num_elim_dofs = slave_contact_dofs_.Size();
 
@@ -312,7 +309,7 @@ void EliminationCGSolver::BuildPreconditioner()
    projector_ = new EliminationProjection(A_, B_, first_interface_dofs_,
                                           second_interface_dofs_);
 
-   SparseMatrix * explicit_projector = projector_->AssembleApproximate();
+   SparseMatrix * explicit_projector = projector_->AssembleExact();
    HypreParMatrix * h_explicit_projector = SerialHypreMatrix(*explicit_projector);
    HypreParMatrix * h_A = SerialHypreMatrix(A_, false);
    h_explicit_operator_ = RAP(h_A, h_explicit_projector);
