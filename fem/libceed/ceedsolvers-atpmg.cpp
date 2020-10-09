@@ -596,7 +596,7 @@ int CeedATPMGOperator(CeedOperator oper, int order_reduction,
   ierr = CeedOperatorGetFields(oper, &inputfields, NULL); CeedChk(ierr);
 
   CeedBasis basis;
-  ierr = CeedOperatorGetBasis(oper, &basis); CeedChk(ierr);
+  ierr = CeedOperatorGetActiveBasis(oper, &basis); CeedChk(ierr);
   ierr = CeedBasisATPMGCoarseToFine(basis, basis_ctof_out, order_reduction); CeedChk(ierr);
   ierr = CeedBasisATPMGCoarsen(basis, *basis_ctof_out, coarse_basis_out,
                                order_reduction); CeedChk(ierr);

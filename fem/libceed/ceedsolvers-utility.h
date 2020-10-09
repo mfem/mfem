@@ -29,7 +29,7 @@ int CeedOperatorGetOrder(CeedOperator oper, CeedInt * order);
 int CeedOperatorGetActiveElemRestriction(CeedOperator oper,
                                          CeedElemRestriction* restr_out);
 int CeedOperatorGetSize(CeedOperator oper, CeedInt * size);
-int CeedOperatorGetBasis(CeedOperator oper, CeedBasis *basis);
+int CeedOperatorGetActiveBasis(CeedOperator oper, CeedBasis *basis);
 
 #endif // MFEM_USE_CEED
 

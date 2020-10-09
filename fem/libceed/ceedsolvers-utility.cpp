@@ -123,8 +123,7 @@ int CeedOperatorGetActiveElemRestriction(CeedOperator oper,
 
 /// assumes a square operator (you could do rectangular, you'd have
 /// to find separate active input and output fields/restrictions)
-int CeedOperatorGetSize(CeedOperator oper, CeedInt * size)
-{
+int CeedOperatorGetSize(CeedOperator oper, CeedInt * size) {
   int ierr;
   CeedElemRestriction er;
   ierr = CeedOperatorGetActiveElemRestriction(oper, &er); CeedChk(ierr);
@@ -132,8 +131,7 @@ int CeedOperatorGetSize(CeedOperator oper, CeedInt * size)
   return 0;
 }
 
-int CeedOperatorGetBasis(CeedOperator oper, CeedBasis *basis)
-{
+int CeedOperatorGetActiveBasis(CeedOperator oper, CeedBasis *basis) {
   int ierr;
   Ceed ceed;
   ierr = CeedOperatorGetCeed(oper, &ceed); CeedChk(ierr);
