@@ -1,45 +1,12 @@
 //                       MFEM Example 1 - Parallel Version
+//                              AmgX Modifications
 //
 // Compile with: make ex1p
 //
-// Sample runs:  mpirun -np 4 ex1p -m ../../data/square-disc.mesh
-//               mpirun -np 4 ex1p -m ../../data/star.mesh
-//               mpirun -np 4 ex1p -m ../../data/star-mixed.mesh
-//               mpirun -np 4 ex1p -m ../../data/escher.mesh
-//               mpirun -np 4 ex1p -m ../../data/fichera.mesh
-//               mpirun -np 4 ex1p -m ../../data/fichera-mixed.mesh
-//               mpirun -np 4 ex1p -m ../../data/toroid-wedge.mesh
-//               mpirun -np 4 ex1p -m ../../data/periodic-annulus-sector.msh
-//               mpirun -np 4 ex1p -m ../../data/periodic-torus-sector.msh
-//               mpirun -np 4 ex1p -m ../../data/square-disc-p2.vtk -o 2
-//               mpirun -np 4 ex1p -m ../../data/square-disc-p3.mesh -o 3
-//               mpirun -np 4 ex1p -m ../../data/square-disc-nurbs.mesh -o -1
-//               mpirun -np 4 ex1p -m ../../data/star-mixed-p2.mesh -o 2
-//               mpirun -np 4 ex1p -m ../../data/disc-nurbs.mesh -o -1
-//               mpirun -np 4 ex1p -m ../../data/pipe-nurbs.mesh -o -1
-//               mpirun -np 4 ex1p -m ../../data/ball-nurbs.mesh -o 2
-//               mpirun -np 4 ex1p -m ../../data/fichera-mixed-p2.mesh -o 2
-//               mpirun -np 4 ex1p -m ../../data/star-surf.mesh
-//               mpirun -np 4 ex1p -m ../../data/square-disc-surf.mesh
-//               mpirun -np 4 ex1p -m ../../data/inline-segment.mesh
-//               mpirun -np 4 ex1p -m ../../data/amr-quad.mesh
-//               mpirun -np 4 ex1p -m ../../data/amr-hex.mesh
-//               mpirun -np 4 ex1p -m ../../data/mobius-strip.mesh
-//               mpirun -np 4 ex1p -m ../../data/mobius-strip.mesh -o -1 -sc
-//
-// Device sample runs:
-//               mpirun -np 4 ex1p -pa -d cuda
-//               mpirun -np 4 ex1p -pa -d occa-cuda
-//               mpirun -np 4 ex1p -pa -d raja-omp
-//               mpirun -np 4 ex1p -pa -d ceed-cpu
-//             * mpirun -np 4 ex1p -pa -d ceed-cuda
-//               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared
-//               mpirun -np 4 ex1p -m ../../data/beam-tet.mesh -pa -d ceed-cpu
-//
 // AmgX sample runs:
 //
-//               mpirun -n 40 ./ex1p --amgx-file amg_pcg.json
-//               lrun -n 4 ./ex1p --amgx-file amg_pcg.json --amgx-mpi-gpu-exclusive
+//               mpirun -n 40 ex1p --amgx-file amg_pcg.json
+//               mpirun -n 4 ex1p --amgx-file amg_pcg.json --amgx-mpi-gpu-exclusive
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -75,7 +42,6 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../../data/star.mesh";
    int order = 1;
    bool static_cond = false;
-   bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
    bool amgx_mpi_teams = true;
@@ -90,8 +56,6 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
-   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
-                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&amgx_json_file, "--amgx-file", "--amgx-file",
                   "AMGX solver config file (overrides --amgx-solver, --amgx-verbose)");
    args.AddOption(&amgx_mpi_teams, "--amgx-mpi-teams", "--amgx-mpi-teams",
@@ -118,7 +82,7 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
 
-      MFEM_VERIFY(!pa == true && strcmp(amgx_json_file,"") != 0,
+      MFEM_VERIFY(strcmp(amgx_json_file,"") != 0,
                   "An AmgX json file is needed for this example \n");
    }
 
@@ -220,7 +184,6 @@ int main(int argc, char *argv[])
    //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //     domain integrator.
    ParBilinearForm a(&fespace);
-   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a.AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 12. Assemble the parallel bilinear form and the corresponding linear
@@ -235,50 +198,26 @@ int main(int argc, char *argv[])
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
    // 13. Solve the linear system A X = B.
-   //     * With full assembly, use the BoomerAMG preconditioner from hypre.
-   //     * With partial assembly, use Jacobi smoothing, for now.
-   Solver *prec = NULL;
-   if (!pa)
+
+   AmgXSolver amgx;
+   amgx.ReadParameters(amgx_json_file, AmgXSolver::EXTERNAL);
+
+   if (amgx_mpi_teams)
    {
-
-      AmgXSolver amgx;
-
-      amgx.ReadParameters(amgx_json_file, AmgXSolver::EXTERNAL);
-
-      if (amgx_mpi_teams)
-      {
-         //Forms MPI teams to load balance between mpi ranks and gpus
-         amgx.InitMPITeams(MPI_COMM_WORLD, ndevices);
-      }
-      else
-      {
-         //Assumes MPI == number of devices
-         amgx.InitExclusiveGPU(MPI_COMM_WORLD);
-      }
-
-      amgx.SetOperator(*A.As<HypreParMatrix>());
-
-      amgx.Mult(B, X);
-
+      //Forms MPI teams to load balance between MPI ranks and GPUs
+      amgx.InitMPITeams(MPI_COMM_WORLD, ndevices);
    }
    else
    {
-
-      if (UsesTensorBasis(fespace))
-      {
-         prec = new OperatorJacobiSmoother(a, ess_tdof_list);
-      }
-
-      CGSolver cg(MPI_COMM_WORLD);
-      cg.SetRelTol(1e-12);
-      cg.SetMaxIter(2000);
-      cg.SetPrintLevel(1);
-      if (prec) { cg.SetPreconditioner(*prec); }
-      cg.SetOperator(*A);
-      cg.Mult(B, X);
-      delete prec;
-
+      //Assumes each MPI rank is paired with a GPU
+      amgx.InitExclusiveGPU(MPI_COMM_WORLD);
    }
+
+   amgx.SetOperator(*A.As<HypreParMatrix>());
+   amgx.Mult(B, X);
+
+   //Release MPI communicators and resources created by AmgX
+   amgx.Finalize();
 
    // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
@@ -316,6 +255,7 @@ int main(int argc, char *argv[])
    {
       delete fec;
    }
+
    MPI_Finalize();
 
    return 0;
