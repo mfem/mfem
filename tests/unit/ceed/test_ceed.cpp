@@ -168,10 +168,10 @@ TEST_CASE("CEED", "[CEED]")
    auto coeff_type = GENERATE(CeedCoeff::Const,CeedCoeff::Grid,CeedCoeff::Quad);
    auto pb = GENERATE(Problem::Mass,Problem::Diffusion,
                       Problem::VectorMass,Problem::VectorDiffusion);
-   auto order = GENERATE(1,2,4);
+   auto order = GENERATE(1,2,3);
    auto mesh = GENERATE("../../data/inline-quad.mesh","../../data/inline-hex.mesh",
                         "../../data/periodic-square.mesh",
-                        "../../data/star-q3.mesh","../../data/fichera-q3.mesh",
+                        "../../data/star-q2.mesh","../../data/fichera-q2.mesh",
                         "../../data/amr-quad.mesh","../../data/fichera-amr.mesh");
    test_ceed_operator(mesh, order, coeff_type, pb, assembly);
 } // test case
