@@ -256,6 +256,7 @@ tests/unit/unit_tests
 tests/unit/punit_tests
 tests/unit/sedov_tests_*
 tests/unit/psedov_tests_*
+tests/unit/ceed_tests
 
 # Test script output
 tests/scripts/*.err
