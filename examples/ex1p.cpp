@@ -233,10 +233,6 @@ int main(int argc, char *argv[])
    a.AddDomainIntegrator(new DiffusionIntegrator(*diff_coeff));
    a.AddDomainIntegrator(new MassIntegrator(one));
 
-   // ceed implementations for the following work, but our ceed coarsening does not
-   // a.AddDomainIntegrator(new VectorDiffusionIntegrator);
-   // a.AddDomainIntegrator(new VectorMassIntegrator);
-
    // 12. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
    //     assembly, eliminating boundary conditions, applying conforming
