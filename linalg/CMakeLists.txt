@@ -57,12 +57,6 @@ if (MFEM_USE_MPI)
   list(APPEND HDRS
     hypre.hpp
     hypre_parcsr.hpp)
-  if (MFEM_USE_AMGX)
-  list(APPEND SRCS
-  amgxsolver.cpp)
-  list(APPEND HDRS
-  amgxsolver.hpp)
-  endif()
   if (MFEM_USE_PETSC)
     list(APPEND SRCS
       petsc.cpp)
@@ -75,11 +69,6 @@ if (MFEM_USE_MPI)
         slepc.hpp)
     endif()
   endif()
-endif()
-
-if (MFEM_USE_GINKGO)
-  list(APPEND SRCS ginkgo.cpp)
-  list(APPEND HDRS ginkgo.hpp)
 endif()
 
 if (MFEM_USE_SUNDIALS)
@@ -97,6 +86,16 @@ endif()
 if (MFEM_USE_STRUMPACK)
   list(APPEND SRCS strumpack.cpp)
   list(APPEND HDRS strumpack.hpp)
+endif()
+
+if (MFEM_USE_GINKGO)
+  list(APPEND SRCS ginkgo.cpp)
+  list(APPEND HDRS ginkgo.hpp)
+endif()
+
+if (MFEM_USE_AMGX)
+  list(APPEND SRCS amgxsolver.cpp)
+  list(APPEND HDRS amgxsolver.hpp)
 endif()
 
 if (MFEM_USE_HIOP)

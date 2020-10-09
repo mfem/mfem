@@ -350,17 +350,17 @@ MFEM_USE_STRUMPACK = YES/NO
    classes. When enabled, this option uses the STRUMPACK_* library options, see
    below.
 
-MFEM_USE_AMGX = YES/NO
-   Enable MFEM functionality based on the AMGX multigrid library from 
-   NVIDIA. When enabled, this options enables the user to use SparseMatrices
-   and HypreParMatrices to solve linear systems using routines from the AMGX
-   library.
-
 MFEM_USE_GINKGO = YES/NO
    Enable MFEM functionality based on the Ginkgo library, which provides
    iterative linear solvers and preconditioners with OpenMP, CUDA backends, see
    https://github.com/ginkgo-project/ginkgo. When enabled, the user can use
    Ginkgo's solvers and preconditioners as shown in examples/ginkgo/.
+
+MFEM_USE_AMGX = YES/NO
+   Enable MFEM functionality based on the AMGX multigrid library from
+   NVIDIA. When enabled, this options enables the user to use SparseMatrices
+   and HypreParMatrices to solve linear systems using routines from the AMGX
+   library.
 
 MFEM_USE_GNUTLS = YES/NO
    Enable secure socket support in class socketstream, using the auxiliary
@@ -590,6 +590,11 @@ The specific libraries and their options are:
   URL: https://ginkgo-project.github.io
   Options: GINKGO_OPT (Not used), GINKGO_LIB.
 
+- AMGX (optional), used when MFEM_USE_AMGX = YES.
+  URL: https://github.com/NVIDIA/AMGX
+  Options: AMGX_OPT, AMGX_LIB.
+  Versions: AMGX >= 2.1, older versions may work too.
+
 - GnuTLS (optional), used when MFEM_USE_GNUTLS = YES. On most Linux systems,
   GnuTLS is available as a development package, e.g. gnutls-devel. On Mac OS X,
   one can get the library through the Homebrew package manager (http://brew.sh).
@@ -665,11 +670,6 @@ The specific libraries and their options are:
   URL: https://developer.nvidia.com/cuda-toolkit
   Options: CUDA_CXX, CUDA_ARCH, CUDA_OPT, CUDA_LIB.
   Versions: CUDA >= 9.1, older versions may work too.
-
-- AMGX (optional), used when MFEM_USE_AMGX = YES.
-  URL: https://github.com/NVIDIA/AMGX
-  Options: AMGX_OPT, AMGX_LIB.
-  Versions: AMGX >= 2.1, older versions may work too.
 
 - HIP (optional), used when MFEM_USE_HIP = YES.
   URL: https://rocm.github.io/ROCmInstall.html
@@ -827,8 +827,8 @@ MFEM_USE_MESQUITE
 MFEM_USE_SUITESPARSE
 MFEM_USE_SUPERLU
 MFEM_USE_STRUMPACK
-MFEM_USE_AMGX
 MFEM_USE_GINKGO
+MFEM_USE_AMGX
 MFEM_USE_GNUTLS
 MFEM_USE_NETCDF
 MFEM_USE_MPFR
@@ -877,11 +877,12 @@ The CMake build system adds auto-detection for the following packages/libraries:
 
  - HYPRE
  - METIS - The option MFEM_USE_METIS_5 is auto-detected.
+ - ParMETIS
  - MESQUITE
  - SuiteSparse
  - SuperLUDist, STRUMPACK
- - ParMETIS
  - Ginkgo
+ - AMGX
  - GNUTLS - Extends the built-in CMake support, to search GNUTLS_DIR as well.
  - NETCDF
  - MPFR

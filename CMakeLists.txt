@@ -298,8 +298,7 @@ if (MFEM_USE_CEED)
 endif()
 
 if (MFEM_USE_AMGX)
-  include_directories(${AMGX_DIR}/include)
-  link_directories(${AMGX_DIR}/lib64 -L${AMGX_DIR}/lib -Xlinker=-rpath=${CUDA_HOME}/lib64)
+  find_package(AMGX REQUIRED)
 endif()
 
 if (MFEM_USE_CONDUIT)
