@@ -29,3 +29,5 @@ license files. These software products and their licenses are as follows:
 * Picojson (fem/picojson.h) -- Custom 2-clause license
 * Catch++  (tests/unit/catch.hpp) -- Boost 1.0 license
 * Zstr (general/zstr.hpp) -- MIT license
+* AmgXWrapper (linalg/amgxsolver.{hpp,cpp}, Routines for setting up MPI
+communicators) -- MIT license
