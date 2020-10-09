@@ -122,6 +122,7 @@ MFEM_USE_SUITESPARSE   = NO
 MFEM_USE_SUPERLU       = NO
 MFEM_USE_STRUMPACK     = NO
 MFEM_USE_GINKGO        = NO
+MFEM_USE_AMGX          = NO
 MFEM_USE_GNUTLS        = NO
 MFEM_USE_NETCDF        = NO
 MFEM_USE_PETSC         = NO
@@ -133,7 +134,6 @@ MFEM_USE_PUMI          = NO
 MFEM_USE_HIOP          = NO
 MFEM_USE_GSLIB         = NO
 MFEM_USE_CUDA          = NO
-MFEM_USE_AMGX          = NO
 MFEM_USE_HIP           = NO
 MFEM_USE_RAJA          = NO
 MFEM_USE_OCCA          = NO
@@ -252,7 +252,13 @@ STRUMPACK_LIB = -L$(STRUMPACK_DIR)/lib -lstrumpack $(MPI_FORTRAN_LIB)\
 # Ginkgo library configuration (currently not needed)
 GINKGO_DIR = @MFEM_DIR@/../ginkgo/install
 GINKGO_OPT = -isystem $(GINKGO_DIR)/include
-GINKGO_LIB = $(XLINKER)-rpath,$(GINKGO_DIR)/lib -L$(GINKGO_DIR)/lib -lginkgo -lginkgo_omp -lginkgo_cuda -lginkgo_reference
+GINKGO_LIB = $(XLINKER)-rpath,$(GINKGO_DIR)/lib -L$(GINKGO_DIR)/lib -lginkgo\
+ -lginkgo_omp -lginkgo_cuda -lginkgo_reference
+
+# AMGX library configuration
+AMGX_DIR = @MFEM_DIR@/../amgx
+AMGX_OPT = -I$(AMGX_DIR)/include
+AMGX_LIB = -lcusparse -lcusolver -lcublas -lnvToolsExt -L$(AMGX_DIR)/lib -lamgx
 
 # GnuTLS library configuration
 GNUTLS_OPT =
@@ -372,11 +378,6 @@ RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
 UMPIRE_DIR = @MFEM_DIR@/../umpire
 UMPIRE_OPT = -I$(UMPIRE_DIR)/include
 UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -lumpire
-
-# AMGX library configuration
-AMGX_DIR = @MFEM_DIR@/../amgx
-AMGX_OPT = -I$(AMGX_DIR)/include
-AMGX_LIB = -L$(CUDA_HOME)/lib64 -lcusparse -lcusolver -lcublas -lnvToolsExt -L$(AMGX_DIR)/lib -lamgx -Xlinker=-rpath=$(CUDA_HOME)/lib64
 
 # If YES, enable some informational messages
 VERBOSE = NO

@@ -260,8 +260,8 @@ endif
 
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
 MFEM_REQ_LIB_DEPS = SUPERLU METIS CONDUIT SIDRE LAPACK SUNDIALS MESQUITE\
- SUITESPARSE STRUMPACK GINKGO GNUTLS NETCDF PETSC SLEPC MPFR PUMI HIOP GSLIB\
- OCCA CEED RAJA UMPIRE AMGX
+ SUITESPARSE STRUMPACK GINKGO AMGX GNUTLS NETCDF PETSC SLEPC MPFR PUMI HIOP\
+ GSLIB OCCA CEED RAJA UMPIRE
 
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
 SLEPC_ERROR_MSG = $(if $(SLEPC_FOUND),,. SLEPC config not found: $(SLEPC_VARS))
@@ -630,6 +630,7 @@ status info:
 	$(info MFEM_USE_SUPERLU       = $(MFEM_USE_SUPERLU))
 	$(info MFEM_USE_STRUMPACK     = $(MFEM_USE_STRUMPACK))
 	$(info MFEM_USE_GINKGO        = $(MFEM_USE_GINKGO))
+	$(info MFEM_USE_AMGX          = $(MFEM_USE_AMGX))
 	$(info MFEM_USE_GNUTLS        = $(MFEM_USE_GNUTLS))
 	$(info MFEM_USE_NETCDF        = $(MFEM_USE_NETCDF))
 	$(info MFEM_USE_PETSC         = $(MFEM_USE_PETSC))
@@ -641,7 +642,6 @@ status info:
 	$(info MFEM_USE_HIOP          = $(MFEM_USE_HIOP))
 	$(info MFEM_USE_GSLIB         = $(MFEM_USE_GSLIB))
 	$(info MFEM_USE_CUDA          = $(MFEM_USE_CUDA))
-	$(info MFEM_USE_AMGX          = $(MFEM_USE_AMGX))
 	$(info MFEM_USE_HIP           = $(MFEM_USE_HIP))
 	$(info MFEM_USE_RAJA          = $(MFEM_USE_RAJA))
 	$(info MFEM_USE_OCCA          = $(MFEM_USE_OCCA))
