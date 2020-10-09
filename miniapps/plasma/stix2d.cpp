@@ -345,8 +345,12 @@ int main(int argc, char *argv[])
    Array<int> peca; // Perfect Electric Conductor BC attributes
    Array<int> dbca1; // Dirichlet BC attributes
    Array<int> dbca2; // Dirichlet BC attributes
+   Array<int> nbca1; // Neumann BC attributes
+   Array<int> nbca2; // Neumann BC attributes
    Vector dbcv1; // Dirichlet BC values
    Vector dbcv2; // Dirichlet BC values
+   Vector nbcv1; // Neumann BC values
+   Vector nbcv2; // Neumann BC values
 
    int num_elements = 10;
 
@@ -460,6 +464,18 @@ int main(int argc, char *argv[])
    args.AddOption(&dbcv2, "-dbcv2", "--dirichlet-bc-2-vals",
                   "Dirichlet Boundary Condition Value 2 (v_x v_y v_z)"
                   " or (Re(v_x) Re(v_y) Re(v_z) Im(v_x) Im(v_y) Im(v_z))");
+   args.AddOption(&nbca1, "-nbcs1", "--neumann-bc-1-surf",
+                  "Neumann Boundary Condition Surfaces Using Value 1");
+   args.AddOption(&nbca2, "-nbcs2", "--neumann-bc-2-surf",
+                  "Neumann Boundary Condition Surfaces Using Value 2");
+   args.AddOption(&nbcv1, "-nbcv1", "--neumann-bc-1-vals",
+                  "Neuamnn Boundary Condition (surface current) "
+                  "Value 1 (v_x v_y v_z) or "
+                  "(Re(v_x) Re(v_y) Re(v_z) Im(v_x) Im(v_y) Im(v_z))");
+   args.AddOption(&nbcv2, "-nbcv2", "--neumann-bc-2-vals",
+                  "Neumann Boundary Condition (surface current) "
+                  "Value 2 (v_x v_y v_z) or "
+                  "(Re(v_x) Re(v_y) Re(v_z) Im(v_x) Im(v_y) Im(v_z))");
    // args.AddOption(&num_elements, "-ne", "--num-elements",
    //             "The number of mesh elements in x");
    args.AddOption(&maxit, "-maxit", "--max-amr-iterations",
@@ -1045,7 +1061,71 @@ int main(int argc, char *argv[])
       }
    }
 
-   Array<ComplexVectorCoefficientByAttr> nbcs(0);
+   int nbcsSize = (nbca1.Size() > 0) + (nbca2.Size() > 0);
+
+   Array<ComplexVectorCoefficientByAttr> nbcs(nbcsSize);
+
+   Vector nbc1ReVec;
+   Vector nbc1ImVec;
+   Vector nbc2ReVec;
+   Vector nbc2ImVec;
+
+   if (nbcv1.Size() >= 3)
+   {
+      nbc1ReVec.SetDataAndSize(&nbcv1[0], 3);
+   }
+   else
+   {
+      nbc1ReVec.SetDataAndSize(&zeroVec[0], 3);
+   }
+   if (nbcv1.Size() >= 6)
+   {
+      nbc1ImVec.SetDataAndSize(&nbcv1[3], 3);
+   }
+   else
+   {
+      nbc1ImVec.SetDataAndSize(&zeroVec[0], 3);
+   }
+   if (nbcv2.Size() >= 3)
+   {
+      nbc2ReVec.SetDataAndSize(&nbcv2[0], 3);
+   }
+   else
+   {
+      nbc2ReVec.SetDataAndSize(&zeroVec[0], 3);
+   }
+   if (nbcv2.Size() >= 6)
+   {
+      nbc2ImVec.SetDataAndSize(&nbcv2[3], 3);
+   }
+   else
+   {
+      nbc2ImVec.SetDataAndSize(&zeroVec[0], 3);
+   }
+
+   VectorConstantCoefficient nbc1ReCoef(nbc1ReVec);
+   VectorConstantCoefficient nbc1ImCoef(nbc1ImVec);
+   VectorConstantCoefficient nbc2ReCoef(nbc2ReVec);
+   VectorConstantCoefficient nbc2ImCoef(nbc2ImVec);
+
+   if (nbcsSize > 0)
+   {
+      int c = 0;
+      if (nbca1.Size() > 0)
+      {
+         nbcs[c].attr = nbca1;
+         nbcs[c].real = &nbc1ReCoef;
+         nbcs[c].imag = &nbc1ImCoef;
+         c++;
+      }
+      if (nbca2.Size() > 0)
+      {
+         nbcs[c].attr = nbca2;
+         nbcs[c].real = &nbc2ReCoef;
+         nbcs[c].imag = &nbc2ImCoef;
+         c++;
+      }
+   }
 
    if (mpi.Root())
    {
