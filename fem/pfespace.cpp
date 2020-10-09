@@ -461,7 +461,7 @@ void ParFiniteElementSpace::ApplyLDofSigns(Table &el_dof) const
 
 void ParFiniteElementSpace::GetElementDofs(int i, Array<int> &dofs) const
 {
-/*   if (elem_dof)
+   /*if (elem_dof)
    {
       elem_dof->GetRow(i, dofs);
       return;

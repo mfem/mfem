@@ -567,6 +567,12 @@ void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &vcoeff,
    Array<int> zones_per_vdof;
    AccumulateAndCountZones(vcoeff, type, zones_per_vdof);
 
+   /*Vector old = *this;
+   for (int i = 0; i < Size(); i++)
+   {
+      (*this)(i) = pfes->GetGlobalTDofNumber(i);
+   }*/
+
    // Count the zones globally.
    GroupCommunicator &gcomm = pfes->GroupComm();
    gcomm.Reduce<int>(zones_per_vdof, GroupCommunicator::Sum);

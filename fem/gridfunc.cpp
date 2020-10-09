@@ -1931,15 +1931,14 @@ void GridFunction::AccumulateAndCountZones(VectorCoefficient &vcoeff,
    {
       fes->GetElementVDofs(i, vdofs);
 
-      int rank;
+      /*int rank;
       MPI_Comm_rank(MPI_COMM_WORLD, &rank);
       mfem::out << rank << ": element " << i << " DOFs: ";
       for (int j = 0; j < vdofs.Size(); j++)
       {
          mfem::out << vdofs[j] << " ";
       }
-      mfem::out << std::endl;
-
+      mfem::out << std::endl;*/
 
       // Local interpolation of coeff.
       vals.SetSize(vdofs.Size());
