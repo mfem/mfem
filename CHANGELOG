@@ -8,6 +8,8 @@
                                http://mfem.org
 
 
+- Added wrappers for Hypre's flexible GMRES solver and parallel ILU preconditioner.  The parallel ILU requires users to link with Hypre Version 2.19.0.
+
 Version 4.1.1 (development)
 ===========================
 
