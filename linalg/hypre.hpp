@@ -1016,10 +1016,10 @@ public:
 /**
 @brief Wrapper for Hypre's native parallel ILU preconditioner.
 
-The default ILU factorization type is ILU(k).  If you need to change this,
-or any other option, you can use the HYPRE_Solver method to cast the object for
-use with Hypre's native functions.  For example, if want to use natural
-ordering rather than RCM reordering, you can use the following approach:
+The default ILU factorization type is ILU(k).  If you need to change this, or
+any other option, you can use the HYPRE_Solver method to cast the object for use
+with Hypre's native functions. For example, if want to use natural ordering
+rather than RCM reordering, you can use the following approach:
 
 @code
 mfem::HypreILU ilu();
