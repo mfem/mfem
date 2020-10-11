@@ -8,8 +8,6 @@
                                http://mfem.org
 
 
-- Added wrappers for Hypre's flexible GMRES solver and parallel ILU preconditioner.  The parallel ILU requires users to link with Hypre Version 2.19.0.
-
 Version 4.1.1 (development)
 ===========================
 
@@ -118,6 +116,9 @@ Linear and nonlinear solvers
 
 - Added initial support for h- and p-multigrid solvers and preconditioners for
   matrix-based and matrix-free discretizations with basic GPU capability.
+
+- Added wrappers for Hypre's flexible GMRES solver and the new parallel ILU
+  preconditioner. The latter requires hypre version 2.19.0 or later.
 
 - Added a new IterativeSolverMonitor class that allows to monitor the residual
   and solution during the solving process of an IterativeSolver after every
