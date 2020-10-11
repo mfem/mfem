@@ -22,6 +22,7 @@ set(UNIT_TESTS_SRCS
   general/test_text.cpp
   general/test_zlib.cpp
   linalg/test_complex_operator.cpp
+  linalg/test_hypre_ilu.cpp
   linalg/test_ilu.cpp
   linalg/test_matrix_block.cpp
   linalg/test_matrix_dense.cpp
