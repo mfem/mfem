@@ -153,15 +153,18 @@ int main(int argc, char *argv[])
    int precision = 8;
    int nc_limit = 1;         // maximum level of hanging nodes
    int ref_steps=4;
+   int derefine_op=1;
    double err_ratio=.1;
+   double derefine_ratio=0.;
    double err_fraction=.5;
-   double derefine_ratio=.2;
+   double derefine_fraction=.2;
    double t_refs=1e10;
    bool yRange = false; //fix a refinement region along y direction
    double ytop =.5;    //top of the fixed yrange
    bool xRange = false; //fix a refinement region along x direction
    double xright =.5;   //right of the fixed xrange
    int xlevels=0;
+   double error_norm=infinity();
    //----end of amr----
    
    beta = 0.001; 
@@ -219,8 +222,18 @@ int main(int argc, char *argv[])
                   "AMR component ratio.");
    args.AddOption(&err_fraction, "-err-fraction", "--err-fraction",
                   "AMR error fraction in estimator.");
+   args.AddOption(&derefine, "-derefine", "--derefine-mesh", "-no-derefine",
+                  "--no-derefine-mesh","Derefine the mesh in AMR.");
    args.AddOption(&derefine_ratio, "-derefine-ratio", "--derefine-ratio",
-                  "AMR derefine error ratio.");
+                  "AMR derefine error ratio of total_err_goal.");
+   args.AddOption(&derefine_fraction, "-derefine-fraction", "--derefine-fraction",
+                  "AMR derefine error fraction of total error (derefine if error is less than portion of total error).");
+   args.AddOption(&err_ratio, "-err-ratio", "--err-ratio",
+                  "AMR component ratio.");
+   args.AddOption(&derefine_op, "-derefine-op", "--derefine-op",
+                  "AMR Derefine op - 0: minimum of the errors - 1: sum of the errors (default) - 2: maximum of the errors");
+   args.AddOption(&error_norm, "-error-norm", "--error-norm",
+                  "AMR error norm (in both refine and derefine).");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -251,9 +264,6 @@ int main(int argc, char *argv[])
                   "--no-visit-datafiles", "Save data files for VisIt (visit.llnl.gov) visualization.");
    args.AddOption(&paraview, "-paraview", "--paraview-datafiles", "-no-paraivew",
                   "--no-paraview-datafiles", "Save data files for paraview visualization.");
-   args.AddOption(&derefine, "-derefine", "--derefine-mesh", "-no-derefine",
-                  "--no-derefine-mesh",
-                  "Derefine the mesh in AMR.");
    args.AddOption(&yRange, "-yrange", "--y-refine-range", "-no-yrange", "--no-y-refine-range",
                   "Refine only in the y range of [-ytop, ytop] in AMR.");
    args.AddOption(&ytop, "-ytop", "--y-top",
@@ -594,8 +604,10 @@ int main(int argc, char *argv[])
    int levels2=par_ref_levels+2, levels3=par_ref_levels+3, levels4=par_ref_levels+4, levels5=par_ref_levels+5;
    ThresholdRefiner refiner(*estimator_used);
    refiner.SetTotalErrorFraction(err_fraction);   // here 0.0 means we use local threshold; default is 0.5
-   refiner.SetTotalErrorGoal(ltol_amr);  // total error goal (stop criterion)
-   refiner.SetLocalErrorGoal(0.0);  // local error goal (stop criterion)
+   refiner.SetTotalErrorGoal(0.);  // this is likely not used in the current example
+   refiner.SetLocalErrorGoal(ltol_amr);  // local error goal (stop criterion)
+   refiner.SetTotalErrorNormP(error_norm);
+
    refiner.SetMaxElements(10000000);
    if (levels2<amr_levels)
       refiner.SetMaximumRefinementLevel(levels2);
@@ -610,6 +622,21 @@ int main(int argc, char *argv[])
    ThresholdDerefiner derefiner(*estimator_used);
    derefiner.SetThreshold(derefine_ratio*ltol_amr);
    derefiner.SetNCLimit(nc_limit);
+   derefiner.SetTotalErrorNormP(error_norm);
+   derefiner.SetOp(derefine_op);
+   if (derefine_fraction>=err_fraction)
+   {   
+       if (myid==0) cout << "ERROR: derefine_fraction is set to be large than err_fraction!!"<<endl;
+       if (use_petsc) { MFEMFinalizePetsc(); }
+       delete ode_solver;
+       delete pmesh;
+       delete integ;
+       delete estimator_used;
+       MPI_Finalize();
+       return 3;
+   }
+   else
+   { derefiner.SetTotalErrorFraction(derefine_fraction); }
 
    bool derefineMesh = false;
    bool refineMesh = false;
@@ -757,26 +784,53 @@ int main(int argc, char *argv[])
 
       if (t>t_refs)
       {
-          ref_steps=2;
+          ref_steps=4;
           ref_its=1;
-          deref_its=3;
+          deref_its=1;
       }
 
-      if (t>2.8 && t<=3.4 && current_amr_level<levels3)
+      if (t>3. && t<=3.4 && current_amr_level<levels3)
       {
           current_amr_level=levels3;
       }
       else if (t>3.4 && t<4.00001 && current_amr_level<levels4)
       {
           current_amr_level=levels4;
+          err_fraction=0.7;
+          derefine_fraction=0.0007;
+          //was .005
+
+          refiner.SetTotalErrorFraction(err_fraction);
+          derefiner.SetThreshold(derefine_fraction*ltol_amr);
+          derefiner.SetTotalErrorFraction(derefine_fraction);
       }
       else if (t>=4.00001 && t<5.00001 && current_amr_level<levels5)
       {
           current_amr_level=levels5;
+          if (t<4.4)
+          { 
+            err_fraction=0.6;
+            derefine_fraction=0.0006; 
+          }
+          else if (t<4.6)
+          {   err_fraction=0.4;
+              derefine_fraction=0.0004; }
+          else 
+          {   err_fraction=0.3;
+              derefine_fraction=0.0003; }
+
+          refiner.SetTotalErrorFraction(err_fraction);
+          derefiner.SetThreshold(derefine_fraction*ltol_amr);
+          derefiner.SetTotalErrorFraction(derefine_fraction);
       }
       else if (t>=5.00001 && current_amr_level<amr_levels)
       {
           current_amr_level=amr_levels;
+          err_fraction=0.2;
+          derefine_fraction=0.0002;
+          refiner.SetTotalErrorFraction(err_fraction);
+          derefiner.SetThreshold(derefine_fraction*ltol_amr);
+          derefiner.SetTotalErrorFraction(derefine_fraction);
       }
 
       if ((ti % ref_steps) == 0)
@@ -1021,7 +1075,6 @@ int main(int argc, char *argv[])
       w.SetFromTrueDofs(vx.GetBlock(2));
 
       ostringstream mesh_save, phi_name, psi_name, w_name;
-      mesh_save << "ncmesh." << setfill('0') << setw(6) << myid;
       phi_name << "sol_phi." << setfill('0') << setw(6) << myid;
       psi_name << "sol_psi." << setfill('0') << setw(6) << myid;
       w_name << "sol_omega." << setfill('0') << setw(6) << myid;
