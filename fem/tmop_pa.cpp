@@ -56,7 +56,7 @@ void TMOP_Integrator::EnableLimitingPA(const GridFunction &n0)
    // Get the 1D maps for the distance FE space.
    const IntegrationRule &ir = EnergyIntegrationRule(*n0_fes->GetFE(0));
    PA.maps_lim =
-         &lim_dist->FESpace()->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
+      &lim_dist->FESpace()->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
 
    // lim_dist & lim_func checks
    MFEM_VERIFY(lim_dist, "No lim_dist!")
