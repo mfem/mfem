@@ -3241,6 +3241,7 @@ HypreEuclid::~HypreEuclid()
    HYPRE_EuclidDestroy(euc_precond);
 }
 
+
 #if MFEM_HYPRE_VERSION >= 21900
 HypreILU::HypreILU()
 {
@@ -3253,18 +3254,23 @@ void HypreILU::SetDefaultOptions()
    // The type of incomplete LU used locally and globally (see class doc)
    HYPRE_Int ilu_type = 0; // ILU(k) locally and block Jacobi globally
    HYPRE_ILUSetType(ilu_precond, ilu_type);
+
    // Maximum iterations; 1 iter for preconditioning
    HYPRE_Int max_iter = 1;
    HYPRE_ILUSetMaxIter(ilu_precond, max_iter);
+
    // The tolerance when used as a smoother; set to 0.0 for preconditioner
    HYPRE_Real tol = 0.0;
    HYPRE_ILUSetTol(ilu_precond, tol);
+
    // Fill level for ILU(k)
    HYPRE_Int lev_fill = 1;
    HYPRE_ILUSetLevelOfFill(ilu_precond, lev_fill);
+
    // Local reordering scheme; 0 = no reordering, 1 = reverse Cuthill-McKee
    HYPRE_Int reorder_type = 1;
    HYPRE_ILUSetLocalReordering(ilu_precond, reorder_type);
+
    // Information print level; 0 = none, 1 = setup, 2 = solve, 3 = setup+solve
    HYPRE_Int print_level = 0;
    HYPRE_ILUSetPrintLevel(ilu_precond, print_level);
@@ -3312,6 +3318,7 @@ HypreILU::~HypreILU()
    HYPRE_ILUDestroy(ilu_precond);
 }
 #endif
+
 
 HypreBoomerAMG::HypreBoomerAMG()
 {

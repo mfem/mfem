@@ -147,7 +147,7 @@ set(ScaLAPACK_TARGET_NAMES scalapack)
 
 set(Ginkgo_DIR "${MFEM_DIR}/../ginkgo" CACHE PATH "Path to the Ginkgo library.")
 
-set(AMGX_DIR "${MFEM_DIR}/../amgx" CACHE PATH "Path to AMGX")
+set(AMGX_DIR "${MFEM_DIR}/../amgx" CACHE PATH "Path to AmgX")
 
 set(GNUTLS_DIR "" CACHE PATH "Path to the GnuTLS library.")
 

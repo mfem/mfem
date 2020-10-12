@@ -56,6 +56,23 @@ Performance improvements
 
 Improved GPU capabilities
 -------------------------
+- Added a new solver class for simple integration with NVIDIA's multigrid
+  library, AmgX. The AmgX class is designed to work as a standalone solver or
+  preconditioner for existing MFEM solvers. It uses MFEM's sparse matrix format
+  for serial runs and the HypreParMatrix format for parallel runs.
+
+  The new solver may be configured to run with one GPU per MPI rank or with more
+  MPI ranks than GPUs. In the latter case, matrices and vectors are consolidated
+  to ranks communicating with the GPUs and the solution is then broadcasted.
+
+  Although CUDA is required to build, the AmgX support is compatible with the
+  MFEM CPU device configuration. The examples/amgx folder illustrates how to
+  integrate AmgX in existing MFEM applications.
+
+  The AmgX solver class is partially based on: "AmgXWrapper: An interface
+  between PETSc and the NVIDIA AmgX library", by Pi-Yueh Chuang and Lorena
+  A. Barba, doi:10.21105/joss.00280.
+
 - Added support for Chebyshev accelerated polynomial smoother on GPU.
 
 - Added a Full Assembly mode compatible with Device kernel execution. This
@@ -66,8 +83,6 @@ Improved GPU capabilities
 - Optimized AMD/HIP kernel support.
 
 - Added CUDA support for sparse matrix-vector multiplication with cuSPARSE.
-
-- Added AmgX solver class for simple integration with NVIDIA's multigrid library.
 
 - Added support for BlockOperator on GPU. See the updated Example 5.
 
@@ -131,6 +146,9 @@ Linear and nonlinear solvers
 - Added initial support for h- and p-multigrid solvers and preconditioners for
   matrix-based and matrix-free discretizations with basic GPU capability.
 
+- Added wrappers for Hypre's flexible GMRES solver and the new parallel ILU
+  preconditioner. The latter requires hypre version 2.19.0 or later.
+
 - Added a new IterativeSolverMonitor class that allows to monitor the residual
   and solution during the solving process of an IterativeSolver after every
   iteration.
@@ -151,8 +169,8 @@ Linear and nonlinear solvers
 - Added partially assembled convergent diagonal preconditioner for adaptively
   refined meshes (i.e. non-conforming finite element spaces), see Example 6/6p.
 
-- Added an interface to the Intel MKL Parallel Direct Sparse Solver for
-  Clusters. An example usage of the interface is shown in Example 11p.
+- Added an interface to the MKL CPardiso solver -- an MPI-parallel sparse direct
+  solver developed by Intel. See Example 11p for an illustration of its usage.
 
 New and updated examples and miniapps
 -------------------------------------

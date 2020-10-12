@@ -127,7 +127,7 @@ if (MFEM_USE_GINKGO)
   add_subdirectory(ginkgo)
 endif()
 
-# Include the examples/amgx directory if AMGX is enabled
+# Include the examples/amgx directory if AmgX is enabled
 if (MFEM_USE_AMGX)
   add_subdirectory(amgx)
 endif()

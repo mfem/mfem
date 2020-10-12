@@ -52,8 +52,8 @@ add_mfem_examples(AMGX_EXAMPLES_SRCS ${PFX} copy_amgx_json_files test_amgx)
 
 # Command line options for the tests.
 # Example 1/1p:
-set(EX1_TEST_OPTS  --amgx-file multi_gs.json --amgx-solver)
-set(EX1P_TEST_OPTS --amgx-file amg_pcg.json)
+set(EX1_TEST_OPTS)
+set(EX1P_TEST_OPTS)
 
 # Add the tests: one test per source file.
 foreach(SRC_FILE ${AMGX_EXAMPLES_SRCS})

@@ -33,11 +33,11 @@ namespace mfem
 
    AmgX requires building MFEM with CUDA, and AMGX enabled. For distributed
    memory parallism, MPI and Hypre (version 16.0+) are also required. Although
-   CUDA is required for building, the AmgX wrapper is compatible with a MFEM CPU
+   CUDA is required for building, the AmgX solver is compatible with a MFEM CPU
    device configuration.
 
    The AmgXSolver class is designed to work as a solver or preconditioner for
-   MFEM existing solvers. The AmgX solver class may be configured in one of
+   existing MFEM solvers. The AmgX solver class may be configured in one of
    three ways:
 
    Serial - Takes a SparseMatrix solves on a single GPU and assumes no MPI
@@ -54,14 +54,13 @@ namespace mfem
    CPU. This work is based on the AmgXWrapper of Chuang and Barba. Routines were
    adopted and modified for setting up MPI communicators.
 
-   Examples 1,1p demonstrate basic usage with default parameters, while examples
-   under the amgx folder demonstrate configuring the wrapper as a solver,
-   preconditioner, configuring and running with exclusive GPU or MPI teams
-   modes.
+   Examples 1/1p in the examples/amgx directory demonstrate configuring the
+   wrapper as a solver and preconditioner, as well as configuring and running
+   with exclusive GPU or MPI teams modes.
 
    This work is partially based on:
 
-      Pi-Yueh Chuang, & Lorena A. Barba (2017).
+      Pi-Yueh Chuang and Lorena A. Barba (2017).
       AmgXWrapper: An interface between PETSc and the NVIDIA AmgX library.
       J. Open Source Software, 2(16):280, doi:10.21105/joss.00280
 
@@ -304,7 +303,7 @@ private:
 
    void InitAmgX();
 
-   // Row partition for HypreMatrix
+   // Row partition for the HypreParMatrix
    int64_t mat_local_rows;
 
    std::string mpi_gpu_mode;

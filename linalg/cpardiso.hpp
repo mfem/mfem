@@ -25,7 +25,7 @@ namespace mfem
 /**
  * @brief MKL Parallel Direct Sparse Solver for Clusters
  *
- * Interface to the MPI enabled MKL version of Pardiso
+ * Interface to MKL CPardiso: the MPI-enabled Intel MKL version of Pardiso
  */
 class CPardisoSolver : public Solver
 {
@@ -33,7 +33,7 @@ public:
    enum MatType
    {
       REAL_STRUCTURE_SYMMETRIC = 1,
-      REAL_UNSYMMETRIC = 11
+      REAL_NONSYMMETRIC = 11
    };
 
    /**
@@ -62,7 +62,7 @@ public:
    void Mult(const Vector &b, Vector &x) const override;
 
    /**
-    * @brief Set the print level for Pardiso
+    * @brief Set the print level for MKL CPardiso
     *
     * Prints statistics after the factorization and after each solve.
     *

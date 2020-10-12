@@ -260,7 +260,7 @@ GINKGO_OPT = -isystem $(GINKGO_DIR)/include
 GINKGO_LIB = $(XLINKER)-rpath,$(GINKGO_DIR)/lib -L$(GINKGO_DIR)/lib -lginkgo\
  -lginkgo_omp -lginkgo_cuda -lginkgo_reference
 
-# AMGX library configuration
+# AmgX library configuration
 AMGX_DIR = @MFEM_DIR@/../amgx
 AMGX_OPT = -I$(AMGX_DIR)/include
 AMGX_LIB = -lcusparse -lcusolver -lcublas -lnvToolsExt -L$(AMGX_DIR)/lib -lamgx

@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
    int seed = 75;
    bool slu_solver  = false;
    bool sp_solver = false;
-   bool pardiso_solver = false;
+   bool cpardiso_solver = false;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -98,12 +98,8 @@ int main(int argc, char *argv[])
                   "--no-strumpack", "Use the STRUMPACK Solver.");
 #endif
 #ifdef MFEM_USE_MKL_CPARDISO
-   args.AddOption(&pardiso_solver,
-                  "-pardiso",
-                  "--pardiso",
-                  "-no-pardiso",
-                  "--no-pardiso",
-                  "Use the MKL Cluster Pardiso Solver.");
+   args.AddOption(&cpardiso_solver, "-cpardiso", "--cpardiso", "-no-cpardiso",
+                  "--no-cpardiso", "Use the MKL CPardiso Solver.");
 #endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -245,7 +241,7 @@ int main(int argc, char *argv[])
    //    preconditioner for A to be used within the solver. Set the matrices
    //    which define the generalized eigenproblem A x = lambda M x.
    Solver * precond = NULL;
-   if (!slu_solver && !sp_solver && !pardiso_solver)
+   if (!slu_solver && !sp_solver && !cpardiso_solver)
    {
       HypreBoomerAMG * amg = new HypreBoomerAMG(*A);
       amg->SetPrintLevel(0);
@@ -279,13 +275,13 @@ int main(int argc, char *argv[])
       }
 #endif
 #ifdef MFEM_USE_MKL_CPARDISO
-      if (pardiso_solver)
+      if (cpardiso_solver)
       {
-         auto pardiso = new CPardisoSolver(A->GetComm());
-         pardiso->SetMatrixType(CPardisoSolver::MatType::REAL_STRUCTURE_SYMMETRIC);
-         pardiso->SetPrintLevel(1);
-         pardiso->SetOperator(*A);
-         precond = pardiso;
+         auto cpardiso = new CPardisoSolver(A->GetComm());
+         cpardiso->SetMatrixType(CPardisoSolver::MatType::REAL_STRUCTURE_SYMMETRIC);
+         cpardiso->SetPrintLevel(1);
+         cpardiso->SetOperator(*A);
+         precond = cpardiso;
       }
 #endif
    }

@@ -1,12 +1,12 @@
 //                       MFEM Example 1 - Parallel Version
-//                              AmgX Modifications
 //
 // Compile with: make ex1p
 //
 // AmgX sample runs:
-//
-//               mpirun -n 40 ex1p --amgx-file amg_pcg.json
-//               mpirun -n 4 ex1p --amgx-file amg_pcg.json --amgx-mpi-gpu-exclusive
+//               mpirun -np 4 ex1p -amgx
+//               mpirun -np 4 ex1p -amgx -d cuda
+//               mpirun -n 40 ex1p -amgx --amgx-file amg_pcg.json
+//               mpirun -n 4 ex1p -amgx --amgx-file amg_pcg.json --amgx-mpi-gpu-exclusive
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -42,10 +42,12 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../../data/star.mesh";
    int order = 1;
    bool static_cond = false;
+   bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
+   bool amgx = false;
    bool amgx_mpi_teams = true;
-   const char* amgx_json_file = ""; // jason file for amgx
+   const char* amgx_json_file = ""; // JSON file for AmgX
    int ndevices = 1;
 
    OptionsParser args(argc, argv);
@@ -56,6 +58,10 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&amgx, "-amgx", "--amgx-lib", "-no-amgx",
+                  "--no-amgx-lib", "Use AmgX in example.");
    args.AddOption(&amgx_json_file, "--amgx-file", "--amgx-file",
                   "AMGX solver config file (overrides --amgx-solver, --amgx-verbose)");
    args.AddOption(&amgx_mpi_teams, "--amgx-mpi-teams", "--amgx-mpi-teams",
@@ -81,9 +87,6 @@ int main(int argc, char *argv[])
    if (myid == 0)
    {
       args.PrintOptions(cout);
-
-      MFEM_VERIFY(strcmp(amgx_json_file,"") != 0,
-                  "An AmgX json file is needed for this example \n");
    }
 
    // 3. Enable hardware devices such as GPUs, and programming models such as
@@ -184,6 +187,7 @@ int main(int argc, char *argv[])
    //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //     domain integrator.
    ParBilinearForm a(&fespace);
+   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a.AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 12. Assemble the parallel bilinear form and the corresponding linear
@@ -198,26 +202,68 @@ int main(int argc, char *argv[])
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
    // 13. Solve the linear system A X = B.
-
-   AmgXSolver amgx;
-   amgx.ReadParameters(amgx_json_file, AmgXSolver::EXTERNAL);
-
-   if (amgx_mpi_teams)
+   //     * With full assembly, use the BoomerAMG preconditioner from hypre.
+   //     * If AmgX is available solve using amg preconditioner.
+   //     * With partial assembly, use Jacobi smoothing, for now.
+   Solver *prec = NULL;
+   if (pa)
    {
-      //Forms MPI teams to load balance between MPI ranks and GPUs
-      amgx.InitMPITeams(MPI_COMM_WORLD, ndevices);
+      if (UsesTensorBasis(fespace))
+      {
+         prec = new OperatorJacobiSmoother(a, ess_tdof_list);
+      }
+   }
+   else if (amgx && strcmp(amgx_json_file,"") == 0)
+   {
+      bool amgx_verbose = false;
+      prec = new AmgXSolver(MPI_COMM_WORLD, AmgXSolver::PRECONDITIONER,
+                            amgx_verbose);
+
+      CGSolver cg(MPI_COMM_WORLD);
+      cg.SetRelTol(1e-12);
+      cg.SetMaxIter(2000);
+      cg.SetPrintLevel(1);
+      if (prec) { cg.SetPreconditioner(*prec); }
+      cg.SetOperator(*A);
+      cg.Mult(B, X);
+      delete prec;
+
+   }
+   else if (amgx && strcmp(amgx_json_file,"") != 0)
+   {
+      AmgXSolver amgx;
+      amgx.ReadParameters(amgx_json_file, AmgXSolver::EXTERNAL);
+
+      if (amgx_mpi_teams)
+      {
+         // Forms MPI teams to load balance between MPI ranks and GPUs
+         amgx.InitMPITeams(MPI_COMM_WORLD, ndevices);
+      }
+      else
+      {
+         // Assumes each MPI rank is paired with a GPU
+         amgx.InitExclusiveGPU(MPI_COMM_WORLD);
+      }
+
+      amgx.SetOperator(*A.As<HypreParMatrix>());
+      amgx.Mult(B, X);
+
+      // Release MPI communicators and resources created by AmgX
+      amgx.Finalize();
    }
    else
    {
-      //Assumes each MPI rank is paired with a GPU
-      amgx.InitExclusiveGPU(MPI_COMM_WORLD);
+      prec = new HypreBoomerAMG;
+
+      CGSolver cg(MPI_COMM_WORLD);
+      cg.SetRelTol(1e-12);
+      cg.SetMaxIter(2000);
+      cg.SetPrintLevel(1);
+      if (prec) { cg.SetPreconditioner(*prec); }
+      cg.SetOperator(*A);
+      cg.Mult(B, X);
+      delete prec;
    }
-
-   amgx.SetOperator(*A.As<HypreParMatrix>());
-   amgx.Mult(B, X);
-
-   //Release MPI communicators and resources created by AmgX
-   amgx.Finalize();
 
    // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
@@ -255,7 +301,6 @@ int main(int argc, char *argv[])
    {
       delete fec;
    }
-
    MPI_Finalize();
 
    return 0;

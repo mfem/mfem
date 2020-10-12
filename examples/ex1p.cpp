@@ -36,9 +36,6 @@
 //               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared
 //               mpirun -np 4 ex1p -m ../data/beam-tet.mesh -pa -d ceed-cpu
 //
-// AmgX sample runs:
-//               mpirun -np 4 ex1 -amgx
-//               mpirun -np 4 ex1 -amgx -d cuda
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
@@ -76,7 +73,6 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
-   bool amgx = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -88,8 +84,6 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&amgx, "-amgx", "--amgx-precon", "-no-amgx",
-                  "--no-amgx-precon", "Use AmgX V-cycle as preconditioner for CG.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -224,7 +218,6 @@ int main(int argc, char *argv[])
 
    // 13. Solve the linear system A X = B.
    //     * With full assembly, use the BoomerAMG preconditioner from hypre.
-   //     * If AmgX is available solve using amg preconditioner.
    //     * With partial assembly, use Jacobi smoothing, for now.
    Solver *prec = NULL;
    if (pa)
@@ -233,16 +226,6 @@ int main(int argc, char *argv[])
       {
          prec = new OperatorJacobiSmoother(a, ess_tdof_list);
       }
-   }
-   else if (amgx)
-   {
-#if defined(MFEM_USE_AMGX)
-      bool amgx_verbose = false;
-      prec = new AmgXSolver(MPI_COMM_WORLD, AmgXSolver::PRECONDITIONER,
-                            amgx_verbose);
-#else
-      mfem_error("MFEM not configured with AMGX \n");
-#endif
    }
    else
    {

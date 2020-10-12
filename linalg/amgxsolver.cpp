@@ -9,9 +9,11 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+// Implementation of the MFEM wrapper for Nvidia's multigrid library, AmgX
+//
 // This work is partially based on:
 //
-//    Pi-Yueh Chuang, & Lorena A. Barba (2017).
+//    Pi-Yueh Chuang and Lorena A. Barba (2017).
 //    AmgXWrapper: An interface between PETSc and the NVIDIA AmgX library.
 //    J. Open Source Software, 2(16):280, doi:10.21105/joss.00280
 //
@@ -269,6 +271,12 @@ void AmgXSolver::InitAmgX()
       AMGX_SAFE_CALL(AMGX_initialize_plugins());
 
       AMGX_SAFE_CALL(AMGX_install_signal_handler());
+
+      AMGX_SAFE_CALL(AMGX_register_print_callback(
+                        [](const char *msg, int length)->void
+      {
+         int irank; MPI_Comm_rank(MPI_COMM_WORLD, &irank);
+         if (irank == 0) { mfem::out<<msg;} }));
    }
 
    MFEM_VERIFY(configSrc != CONFIG_SRC::UNDEFINED,
@@ -657,7 +665,7 @@ void AmgXSolver::SetMatrixMPITeams(const HypreParMatrix &A,
                                    const Array<int64_t> &loc_J,
                                    const bool update_mat)
 {
-   // The following arrays hold the consolidated diagonal + off diagonal matrix
+   // The following arrays hold the consolidated diagonal + off-diagonal matrix
    // data
    Array<int> all_I;
    Array<int64_t> all_J;
@@ -773,7 +781,7 @@ void AmgXSolver::SetMatrixMPITeams(const HypreParMatrix &A,
          rowPart[i] += rowPart[i-1];
       }
 
-      // upload A matrix to AmgX
+      // Upload A matrix to AmgX
       MPI_Barrier(gpuWorld);
 
       int nGlobalRows = A.M();

@@ -59,15 +59,6 @@ PARALLEL_NAME := Parallel AMGX example
 %-test-seq: %
 	@$(call mfem-test,$<,, $(SERIAL_NAME))
 
-# Testing: Specific execution options:
-# Example 1/1p:
-EX1_ARGS  := --amgx-file multi_gs.json --amgx-solver
-EX1P_ARGS := --amgx-file amg_pcg.json
-ex1-test-seq: ex1
-	@$(call mfem-test,$<,, $(SERIAL_NAME),$(EX1_ARGS))
-ex1p-test-par: ex1p
-	@$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_NAME),$(EX1P_ARGS))
-
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
 # Generate an error message if the MFEM library is not built and exit
