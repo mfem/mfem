@@ -274,7 +274,7 @@ void AmgXSolver::InitAmgX()
                         [](const char *msg, int length)->void
       {
          int irank; MPI_Comm_rank(MPI_COMM_WORLD, &irank);
-         if (irank == 0) { printf("%s",msg);} }));
+         if (irank == 0) { mfem::out<<msg;} }));
    }
 
    MFEM_VERIFY(configSrc != CONFIG_SRC::UNDEFINED,
