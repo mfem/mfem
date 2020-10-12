@@ -11,33 +11,28 @@ namespace mfem
 {
 CPardisoSolver::CPardisoSolver(MPI_Comm comm) : comm_(comm)
 {
-   // Solver default parameters overridden with provided by iparm
+   // Indicate that default parameters are changed
    iparm[0] = 1;
    // Use METIS for fill-in reordering
    iparm[1] = 2;
-   // Write solution into x
+   // Do not write the solution into the x vector data
    iparm[5] = 0;
-   // Max number of iterative refinement steps
+   // Maximum number of iterative refinement steps
    iparm[7] = 2;
    // Perturb the pivot elements with 1E-13
    iparm[9] = 13;
-   // Use non-symmetric permutation and scaling MPS
+   // Use nonsymmetric permutation
    iparm[10] = 1;
-   // Switch on Maximum Weighted Matching algorithm (default for non-symmetric)
-   iparm[12] = 1;
-   // Output: Number of non-zeros in the factor LU
-   iparm[17] = -1;
-   // Output: Mflops for LU factorization
-   iparm[18] = -1;
-   // Check input data for correctness
+   // Perform a check on the input data
    iparm[26] = 1;
-   // 0-based indexing
+   // 0-based indexing in CSR data structure
    iparm[34] = 1;
    // All inputs are distributed between MPI processes
    iparm[39] = 2;
    // Maximum number of numerical factorizations
    maxfct = 1;
-   // Which factorization to use
+   // Which factorization to use. This parameter is ignored and always assumed
+   // to be equal to 1. See MKL documentation.
    mnum = 1;
    // Print statistical information in file
    msglvl = 0;
