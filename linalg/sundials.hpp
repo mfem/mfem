@@ -104,7 +104,7 @@ public:
    inline N_Vector_ID GetNVectorID(N_Vector _x) const { return N_VGetVectorID(_x); }
 
 #ifdef MFEM_USE_MPI
-   /// Returns the MPI commmunicator for the internal N_Vector x.
+   /// Returns the MPI communicator for the internal N_Vector x.
    inline MPI_Comm GetComm() const { return *static_cast<MPI_Comm*>(N_VGetCommunicator(x)); }
 
    /// Returns the MPI global length for the internal N_Vector x.
@@ -239,7 +239,7 @@ public:
    /// Access the SUNDIALS memory structure.
    void *GetMem() const { return sundials_mem; }
 
-   /// Returns the last flag retured by a call to a SUNDIALS function.
+   /// Returns the last flag returned by a call to a SUNDIALS function.
    int GetFlag() const { return flag; }
 };
 
@@ -795,7 +795,7 @@ public:
 
    /// Set KINSOL's scaled step tolerance.
    /** The default tolerance is \f$ U^\frac{2}{3} \f$ , where
-       U = machine unit roundoff.
+       U = machine unit round-off.
        @note This method must be called after SetOperator(). */
    void SetScaledStepTol(double sstol);
 
@@ -814,9 +814,9 @@ public:
 
    /// Set the Jacobian Free Newton Krylov flag. The default is false.
    /** This flag indicates to use JFNK as the linear solver for KINSOL. This
-       means the Solver object set in SetSolver() or SetPreconditioner() is used
-       as a Preconditioner for an FGMRES algorithm provided by SpFGMR from
-       Sundials. Furthermore all Jacobian vector products in the outer Krylov
+       means that the Solver object set in SetSolver() or SetPreconditioner() is
+       used as a preconditioner for an FGMRES algorithm provided by SpFGMR from
+       SUNDIALS. Furthermore, all Jacobian-vector products in the outer Krylov
        method are approximated by a difference quotient and the relative
        tolerance for the outer Krylov method is adaptive. See the KINSOL User
        Manual for details. */
