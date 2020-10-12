@@ -157,7 +157,7 @@ int main(int argc, char *argv[])
    double err_ratio=.1;
    double derefine_ratio=0.;
    double err_fraction=.5;
-   double derefine_fraction=.2;
+   double derefine_fraction=.05;
    double t_refs=1e10;
    bool yRange = false; //fix a refinement region along y direction
    double ytop =.5;    //top of the fixed yrange
@@ -1052,6 +1052,7 @@ int main(int argc, char *argv[])
       if (last_step)
           break;
       else
+
           continue;
    }
 
@@ -1059,43 +1060,33 @@ int main(int argc, char *argv[])
    double end = MPI_Wtime();
 
    //++++++Save the solutions (only if paraview or visit is not turned on).
-   if (false)
+   if (true)
    {
       phi.SetFromTrueDofs(vx.GetBlock(0));
       psi.SetFromTrueDofs(vx.GetBlock(1));
       w.SetFromTrueDofs(vx.GetBlock(2));
 
-      ostringstream mesh_save, phi_name, psi_name, w_name;
-      phi_name << "sol_phi." << setfill('0') << setw(6) << myid;
-      psi_name << "sol_psi." << setfill('0') << setw(6) << myid;
-      w_name << "sol_omega." << setfill('0') << setw(6) << myid;
+      ofstream ofs_mesh(MakeParFilename("checkpt-mesh.", myid));
+      ofstream ofs_phi(MakeParFilename("checkpt-phi.", myid));
+      ofstream ofs_psi(MakeParFilename("checkpt-psi.", myid));
+      ofstream   ofs_w(MakeParFilename("checkpt-w.", myid));
 
-      ofstream ncmesh(mesh_save.str().c_str());
-      ncmesh.precision(16);
-      pmesh->ParPrint(ncmesh);
+      ofs_mesh.precision(16);
+      ofs_phi.precision(16);
+      ofs_psi.precision(16);
+        ofs_w.precision(16);
 
-      ofstream osol(phi_name.str().c_str());
-      osol.precision(16);
-      phi.Save(osol);
+      pmesh->ParPrint(ofs_mesh);
 
-      ofstream osol3(psi_name.str().c_str());
-      osol3.precision(16);
-      psi.Save(osol3);
+      phi.Save(ofs_phi);
+      psi.Save(ofs_psi);
+        w.Save(ofs_w);
 
-      ofstream osol4(w_name.str().c_str());
-      osol4.precision(16);
-      w.Save(osol4);
-
-      //this is only saved if we do not do paraview or visit
+      //this is only saved if paraview or visit is not used
       if (!paraview && !visit)
       {
-         ostringstream mesh_name, j_name;
-         mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+         ostringstream j_name;
          j_name << "sol_j." << setfill('0') << setw(6) << myid;
-
-         ofstream omesh(mesh_name.str().c_str());
-         omesh.precision(8);
-         pmesh->Print(omesh);
 
          oper.UpdateJ(vx, &j);
          ofstream osol5(j_name.str().c_str());

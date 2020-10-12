@@ -937,38 +937,34 @@ int main(int argc, char *argv[])
    double end = MPI_Wtime();
 
    //++++++Save the solutions (only if paraview or visit is not turned on).
-   if (true)
+   if (false)
    {
       phi.SetFromTrueDofs(vx.GetBlock(0));
       psi.SetFromTrueDofs(vx.GetBlock(1));
       w.SetFromTrueDofs(vx.GetBlock(2));
-      oper.UpdateJ(vx, &j);
 
-      ostringstream esh_save, phi_name, psi_name, w_name, j_name;
-      mesh_save << "ncmesh." << setfill('0') << setw(6) << myid;
-      phi_name << "sol_phi." << setfill('0') << setw(6) << myid;
-      psi_name << "sol_psi." << setfill('0') << setw(6) << myid;
-      w_name << "sol_omega." << setfill('0') << setw(6) << myid;
-      j_name << "sol_j." << setfill('0') << setw(6) << myid;
+      ofstream ofs_mesh(MakeParFilename("checkpt-mesh.", myid));
+      ofstream ofs_phi(MakeParFilename("checkpt-phi.", myid));
+      ofstream ofs_psi(MakeParFilename("checkpt-psi.", myid));
+      ofstream   ofs_w(MakeParFilename("checkpt-w.", myid));
 
-      ofstream ncmesh(mesh_save.str().c_str());
-      ncmesh.precision(16);
-      pmesh->ParPrint(ncmesh);
+      ofs_mesh.precision(16);
+      ofs_phi.precision(16);
+      ofs_psi.precision(16);
+        ofs_w.precision(16);
 
-      ofstream osol(phi_name.str().c_str());
-      osol.precision(16);
-      phi.Save(osol);
+      pmesh->ParPrint(ofs_mesh);
 
-      ofstream osol3(psi_name.str().c_str());
-      osol3.precision(16);
-      psi.Save(osol3);
-
-      ofstream osol4(w_name.str().c_str());
-      osol4.precision(16);
-      w.Save(osol4);
+      phi.Save(ofs_phi);
+      psi.Save(ofs_psi);
+        w.Save(ofs_w);
 
       if (!paraview && !visit)
       {
+        ostringstream j_name;
+        j_name << "sol_j." << setfill('0') << setw(6) << myid;
+
+        oper.UpdateJ(vx, &j);
         ofstream osol5(j_name.str().c_str());
         osol5.precision(8);
         j.Save(osol5);
