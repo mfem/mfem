@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool amgx = true;
    bool amgx_solver = true;
-   const char* amgx_json_file = ""; // jason file for amgx
+   const char* amgx_json_file = ""; // JSON file for AmgX
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -61,8 +61,7 @@ int main(int argc, char *argv[])
    args.AddOption(&amgx_json_file, "--amgx-file", "--amgx-file",
                   "AMGX solver config file (overrides --amgx-solver, --amgx-verbose)");
    args.AddOption(&amgx_solver, "--amgx-solver", "--amgx-solver",
-                  "--amgx-preconditioner",
-                  "--amgx-preconditioner",
+                  "--amgx-preconditioner", "--amgx-preconditioner",
                   "Configure AMGX as solver or preconditioner.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");

@@ -92,7 +92,7 @@
 // Enable functionality based on the Ginkgo library
 #cmakedefine MFEM_USE_GINKGO
 
-// Enable MFEM functionality based on the AMGX library
+// Enable MFEM functionality based on the AmgX library
 #cmakedefine MFEM_USE_AMGX
 
 // Enable MFEM functionality based on the GnuTLS library

@@ -357,10 +357,9 @@ MFEM_USE_GINKGO = YES/NO
    Ginkgo's solvers and preconditioners as shown in examples/ginkgo/.
 
 MFEM_USE_AMGX = YES/NO
-   Enable MFEM functionality based on the AMGX multigrid library from
-   NVIDIA. When enabled, this options enables the user to use SparseMatrices
-   and HypreParMatrices to solve linear systems using routines from the AMGX
-   library.
+   Enable MFEM functionality based on the AmgX multigrid library from NVIDIA.
+   Allows the user to use SparseMatrices and HypreParMatrices to solve linear
+   systems with the routines from the AmgX library.
 
 MFEM_USE_GNUTLS = YES/NO
    Enable secure socket support in class socketstream, using the auxiliary

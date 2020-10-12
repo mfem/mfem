@@ -54,14 +54,13 @@ namespace mfem
    CPU. This work is based on the AmgXWrapper of Chuang and Barba. Routines were
    adopted and modified for setting up MPI communicators.
 
-   Examples 1,1p demonstrate basic usage with default parameters, while examples
-   under the amgx folder demonstrate configuring the wrapper as a solver,
-   preconditioner, configuring and running with exclusive GPU or MPI teams
-   modes.
+   Examples 1/1p in the examples/amgx directory demonstrate configuring the
+   wrapper as a solver and preconditioner, as well as configuring and running
+   with exclusive GPU or MPI teams modes.
 
    This work is partially based on:
 
-      Pi-Yueh Chuang, & Lorena A. Barba (2017).
+      Pi-Yueh Chuang and Lorena A. Barba (2017).
       AmgXWrapper: An interface between PETSc and the NVIDIA AmgX library.
       J. Open Source Software, 2(16):280, doi:10.21105/joss.00280
 
@@ -304,7 +303,7 @@ private:
 
    void InitAmgX();
 
-   // Row partition for HypreMatrix
+   // Row partition for the HypreParMatrix
    int64_t mat_local_rows;
 
    std::string mpi_gpu_mode;
