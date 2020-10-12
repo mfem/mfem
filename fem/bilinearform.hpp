@@ -291,15 +291,22 @@ public:
    /// Returns a const reference to the sparse matrix.
    const SparseMatrix &SpMat() const
    {
-      MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
-      return *mat;
+      return const_cast<BilinearForm*>(this)->SpMat();
    }
 
    /// Returns a reference to the sparse matrix:  \f$ M \f$
    SparseMatrix &SpMat()
    {
-      MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
-      return *mat;
+      if (GetAssemblyLevel() == AssemblyLevel::LEGACYFULL)
+      {
+         MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
+         return *mat;
+      }
+      else
+      {
+         mat = GetFullAssemblySparseMatrix(*this);
+         return *mat;
+      }
    }
 
    /**  @brief Nullifies the internal matrix \f$ M \f$ and returns a pointer
@@ -590,6 +597,8 @@ public:
 
    /// Indicate that integrators are not owned by the BilinearForm
    void UseExternalIntegrators() { extern_bfs = 1; };
+
+   friend SparseMatrix* GetFullAssemblySparseMatrix(BilinearForm &a);
 
    /// Destroys bilinear form.
    virtual ~BilinearForm();

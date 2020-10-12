@@ -716,11 +716,21 @@ void FABilinearFormExtension::Assemble()
    }
 }
 
-SparseMatrix GetFullAssemblySparseMatrix(BilinearForm &a)
+SparseMatrix* GetFullAssemblySparseMatrix(BilinearForm &a)
 {
    int size = a.FESpace()->GetVSize();
-   EABilinearFormExtension ea(&a);
-   ea.Assemble();
+   EABilinearFormExtension* ea;
+   if (a.GetAssemblyLevel() == AssemblyLevel::ELEMENT ||
+       a.GetAssemblyLevel() == AssemblyLevel::FULL)
+   {
+      ea = dynamic_cast<EABilinearFormExtension*>(a.ext);
+      MFEM_VERIFY(ea, "The extension is not ELEMENT or FULL.");
+   }
+   else
+   {
+      ea = new EABilinearFormExtension(&a);
+      ea->Assemble();
+   }
    FiniteElementSpace &fes = *a.FESpace();
    if (fes.IsDGSpace())
    {
@@ -731,19 +741,19 @@ SparseMatrix GetFullAssemblySparseMatrix(BilinearForm &a)
          pfes->ExchangeFaceNbrData();
       }
 #endif
-      SparseMatrix A(size,size);
-      A.GetMemoryI().New(size+1, A.GetMemoryI().GetMemoryType());
+      SparseMatrix *A = new SparseMatrix(size,size);
+      A->GetMemoryI().New(size+1, A->GetMemoryI().GetMemoryType());
       const L2ElementRestriction *restE =
-         static_cast<const L2ElementRestriction*>(ea.elem_restrict);
+         static_cast<const L2ElementRestriction*>(ea->elem_restrict);
       const L2FaceRestriction *restF =
-         static_cast<const L2FaceRestriction*>(ea.int_face_restrict_lex);
+         static_cast<const L2FaceRestriction*>(ea->int_face_restrict_lex);
       // 1. Fill I
       //  1.1 Increment with restE
-      restE->FillI(A);
+      restE->FillI(*A);
       //  1.2 Increment with restF
-      if (restF) { restF->FillI(A); }
+      if (restF) { restF->FillI(*A); }
       //  1.3 Sum the non-zeros in I
-      auto h_I = A.HostReadWriteI();
+      auto h_I = A->HostReadWriteI();
       int cpt = 0;
       for (int i = 0; i < size+1; i++)
       {
@@ -753,15 +763,15 @@ SparseMatrix GetFullAssemblySparseMatrix(BilinearForm &a)
       }
       const int nnz = cpt;
       h_I[size+1] = nnz;
-      A.GetMemoryJ().New(nnz, A.GetMemoryJ().GetMemoryType());
-      A.GetMemoryData().New(nnz, A.GetMemoryData().GetMemoryType());
+      A->GetMemoryJ().New(nnz, A->GetMemoryJ().GetMemoryType());
+      A->GetMemoryData().New(nnz, A->GetMemoryData().GetMemoryType());
       // 2. Fill J and Data
       // 2.1 Fill J and Data with Elem ea_data
-      restE->FillJAndData(ea.ea_data, A);
+      restE->FillJAndData(ea->ea_data, *A);
       // 2.2 Fill J and Data with Face ea_data_ext
-      if (restF) { restF->FillJAndData(ea. ea_data_ext, A); }
+      if (restF) { restF->FillJAndData(ea->ea_data_ext, *A); }
       // 2.3 Shift indirections in I back to original
-      auto I = A.HostReadWriteI();
+      auto I = A->HostReadWriteI();
       for (int i = size+1; i > 0; i--)
       {
          I[i] = I[i-1];
@@ -771,10 +781,10 @@ SparseMatrix GetFullAssemblySparseMatrix(BilinearForm &a)
    }
    else // continuous Galerkin case
    {
-      SparseMatrix A(size,size);
+      SparseMatrix *A = new SparseMatrix(size,size);
       const ElementRestriction &rest =
-         static_cast<const ElementRestriction&>(*ea.elem_restrict);
-      rest.FillSparseMatrix(ea.ea_data, A);
+         static_cast<const ElementRestriction&>(*ea->elem_restrict);
+      rest.FillSparseMatrix(ea->ea_data, *A);
       return A;
    }
 }
