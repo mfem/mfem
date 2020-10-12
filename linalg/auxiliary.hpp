@@ -98,6 +98,8 @@ private:
 
    const bool directSolve = false;
    SparseMatrix aspacematrixSP_;
+
+   const bool useAMGx = true;
 };
 
 /**

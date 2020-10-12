@@ -362,15 +362,30 @@ void MatrixFreeAuxiliarySpace::SetupVCycle()
 class ZeroWrap : public Solver
 {
 public:
-   ZeroWrap(HypreParMatrix& mat, Array<int>& ess_tdof_list) :
-      Solver(mat.Height()), amg_(mat), ess_tdof_list_(ess_tdof_list)
+   ZeroWrap(HypreParMatrix& mat, Array<int>& ess_tdof_list, const bool useAMGx) :
+      Solver(mat.Height()),  ess_tdof_list_(ess_tdof_list)
+      //Solver(mat.Height()), amg_(mat), ess_tdof_list_(ess_tdof_list)
    {
-      amg_.SetPrintLevel(0);
+      if (useAMGx)
+      {
+         const bool amgx_verbose = false;
+         AmgXSolver *amgx = new AmgXSolver(mat.GetComm(), AmgXSolver::PRECONDITIONER,
+                                           amgx_verbose);
+         amgx->SetOperator(mat);
+         s = amgx;
+      }
+      else
+      {
+         HypreBoomerAMG *amg = new HypreBoomerAMG(mat);
+         amg->SetPrintLevel(0);
+         s = amg;
+      }
    }
 
    void Mult(const Vector& x, Vector& y) const
    {
-      amg_.Mult(x, y);
+      //amg_.Mult(x, y);
+      s->Mult(x, y);
       auto Y = y.HostWrite();
       for (int k : ess_tdof_list_)
       {
@@ -381,8 +396,14 @@ public:
 
    void SetOperator(const Operator&) { }
 
+   ~ZeroWrap()
+   {
+      delete s;
+   }
+
 private:
-   HypreBoomerAMG amg_;
+   //HypreBoomerAMG amg_;
+   Solver *s = NULL;
    Array<int>& ess_tdof_list_;
 };
 
@@ -391,7 +412,7 @@ void MatrixFreeAuxiliarySpace::SetupBoomerAMG(int system_dimension)
    if (system_dimension == 0)
    {
       // boundary condition tweak for G-space solver
-      aspacepc_ = new ZeroWrap(*aspacematrix_, ess_tdof_list_);
+      aspacepc_ = new ZeroWrap(*aspacematrix_, ess_tdof_list_, useAMGx);
    }
    else if (directSolve)
    {
@@ -404,10 +425,21 @@ void MatrixFreeAuxiliarySpace::SetupBoomerAMG(int system_dimension)
    else // if (system_dimension > 0)
    {
       // Pi-space solver is a vector space
-      HypreBoomerAMG* hpc = new HypreBoomerAMG(*aspacematrix_);
-      hpc->SetSystemsOptions(system_dimension);
-      hpc->SetPrintLevel(0);
-      aspacepc_ = hpc;
+      if (useAMGx)
+      {
+         const bool amgx_verbose = false;
+         AmgXSolver *amgx = new AmgXSolver(aspacematrix_->GetComm(),
+                                           AmgXSolver::PRECONDITIONER, amgx_verbose);
+         amgx->SetOperator(*aspacematrix_);
+         aspacepc_ = amgx;
+      }
+      else
+      {
+         HypreBoomerAMG* hpc = new HypreBoomerAMG(*aspacematrix_);
+         hpc->SetSystemsOptions(system_dimension);
+         hpc->SetPrintLevel(0);
+         aspacepc_ = hpc;
+      }
    }
 }
 
