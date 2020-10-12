@@ -21,8 +21,8 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = ex1
-PAR_EXAMPLES = ex1p
+SEQ_EXAMPLES = ex1 ex1_json
+PAR_EXAMPLES = ex1p ex1p_json
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else
@@ -61,8 +61,14 @@ PARALLEL_NAME := Parallel AMGX example
 
 # Testing: Specific execution options:
 # Example 1/1p:
-EX1_ARGS  := --amgx-file multi_gs.json --amgx-solver
-EX1P_ARGS := --amgx-file amg_pcg.json
+EX1_ARGS  := -amgx
+EX1P_ARGS := -amgx
+EX1_JSON_ARGS  := --amgx-file multi_gs.json --amgx-solver
+EX1P_JSON_ARGS := --amgx-file amg_pcg.json
+ex1-json-test-seq: ex1_json
+	@$(call mfem-test,$<,, $(SERIAL_NAME),$(EX1_JSON_ARGS))
+ex1p-json-test-par: ex1p_json
+	@$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_NAME),$(EX1P_JSON_ARGS))
 ex1-test-seq: ex1
 	@$(call mfem-test,$<,, $(SERIAL_NAME),$(EX1_ARGS))
 ex1p-test-par: ex1p

@@ -33,11 +33,11 @@ namespace mfem
 
    AmgX requires building MFEM with CUDA, and AMGX enabled. For distributed
    memory parallism, MPI and Hypre (version 16.0+) are also required. Although
-   CUDA is required for building, the AmgX wrapper is compatible with a MFEM CPU
+   CUDA is required for building, the AmgX solver is compatible with a MFEM CPU
    device configuration.
 
    The AmgXSolver class is designed to work as a solver or preconditioner for
-   MFEM existing solvers. The AmgX solver class may be configured in one of
+   existing MFEM solvers. The AmgX solver class may be configured in one of
    three ways:
 
    Serial - Takes a SparseMatrix solves on a single GPU and assumes no MPI

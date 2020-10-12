@@ -40,10 +40,6 @@
 //               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cpu
 //               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cuda:/gpu/cuda/ref
 //
-// AmgX sample runs:
-//               ex1 -amgx
-//               ex1 -amgx -d cuda
-//
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
@@ -75,7 +71,6 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
-   bool amgx = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -87,8 +82,6 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&amgx, "-amgx", "--amgx-precon", "-no-amgx",
-                  "--no-amgx-precon", "Use AmgX V-cycle as preconditioner for CG.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -198,31 +191,7 @@ int main(int argc, char *argv[])
    cout << "Size of linear system: " << A->Height() << endl;
 
    // 11. Solve the linear system A X = B.
-   if (pa)
-   {
-      // Jacobi preconditioning in partial assembly mode
-      if (UsesTensorBasis(fespace))
-      {
-         OperatorJacobiSmoother M(a, ess_tdof_list);
-         PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
-      }
-      else
-      {
-         CG(*A, B, X, 1, 400, 1e-12, 0.0);
-      }
-   }
-   else if (amgx)
-   {
-#if defined(MFEM_USE_AMGX)
-      bool amgx_verbose = false;
-      AmgXSolver amgx(AmgXSolver::PRECONDITIONER, amgx_verbose);
-      amgx.SetOperator(*A.As<SparseMatrix>());
-      PCG(*A, amgx, B, X, 1, 200, 1e-12, 0.0);
-#else
-      mfem_error("MFEM not configured with AMGX \n");
-#endif
-   }
-   else
+   if (!pa)
    {
 #ifndef MFEM_USE_SUITESPARSE
       // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
@@ -235,6 +204,18 @@ int main(int argc, char *argv[])
       umf_solver.SetOperator(*A);
       umf_solver.Mult(B, X);
 #endif
+   }
+   else // Jacobi preconditioning in partial assembly mode
+   {
+      if (UsesTensorBasis(fespace))
+      {
+         OperatorJacobiSmoother M(a, ess_tdof_list);
+         PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
+      }
+      else
+      {
+         CG(*A, B, X, 1, 400, 1e-12, 0.0);
+      }
    }
 
    // 12. Recover the solution as a finite element grid function.
