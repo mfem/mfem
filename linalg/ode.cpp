@@ -639,7 +639,7 @@ void TrapezoidalRuleSolver::Init(TimeDependentOperator &_f)
    k.SetSize(f->Width(), mem_type);
    y.SetSize(f->Width(), mem_type);
 }
-    
+
 void TrapezoidalRuleSolver::Step(Vector &x, double &t, double &dt)
 {
    //   0   |   0    0
@@ -656,7 +656,7 @@ void TrapezoidalRuleSolver::Step(Vector &x, double &t, double &dt)
    x.Add(dt/2.0, k);
    t += dt;
 }
-    
+
 void ESDIRK32Solver::Init(TimeDependentOperator &_f)
 {
    ODESolver::Init(_f);
@@ -664,7 +664,7 @@ void ESDIRK32Solver::Init(TimeDependentOperator &_f)
    y.SetSize(f->Width(), mem_type);
    z.SetSize(f->Width(), mem_type);
 }
-    
+
 void ESDIRK32Solver::Step(Vector &x, double &t, double &dt)
 {
    //   0   |    0      0    0
@@ -691,7 +691,7 @@ void ESDIRK32Solver::Step(Vector &x, double &t, double &dt)
    x.Add(a*dt, k);
    t += dt;
 }
-    
+
 void ESDIRK33Solver::Init(TimeDependentOperator &_f)
 {
    ODESolver::Init(_f);
@@ -699,7 +699,7 @@ void ESDIRK33Solver::Init(TimeDependentOperator &_f)
    y.SetSize(f->Width(), mem_type);
    z.SetSize(f->Width(), mem_type);
 }
-    
+
 void ESDIRK33Solver::Step(Vector &x, double &t, double &dt)
 {
    //   0   |      0          0        0
