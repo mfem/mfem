@@ -37,7 +37,7 @@ build_mfem_debug_ser_lassen:
     - mkdir -p ${BUILD_PATH}
     - cp -r ${CI_PROJECT_DIR} ${BUILD_PATH}/${CI_PROJECT_NAME}_lassen_ser_debug
     - cd ${BUILD_PATH}/${CI_PROJECT_NAME}_lassen_ser_debug
-    - lalloc 1 -W 5 -q pdebug make -j cuda MFEM_DEBUG="YES" CUDA_ARCH=sm_70
+    - lalloc 1 -W 5 -q pdebug make -j cuda MFEM_DEBUG="YES" CPPFLAGS=-O2 CUDA_ARCH=sm_70
 
 # Sanity check
 sanitycheck_mfem_ser_lassen:

@@ -160,9 +160,10 @@ public:
    ~HypreParVector();
 
 #ifdef MFEM_USE_SUNDIALS
-   /// Return a new wrapper SUNDIALS N_Vector of type SUNDIALS_NVEC_PARALLEL.
-   /** The returned N_Vector must be destroyed by the caller. */
-   virtual N_Vector ToNVector();
+   /// (DEPRECATED) Return a new wrapper SUNDIALS N_Vector of type SUNDIALS_NVEC_PARALLEL.
+   /** @deprecated The returned N_Vector must be destroyed by the caller. */
+   MFEM_DEPRECATED virtual N_Vector ToNVector();
+   using Vector::ToNVector;
 #endif
 };
 
@@ -883,8 +884,11 @@ public:
    /// Set the hypre solver to be used as a preconditioner
    void SetPreconditioner(HypreSolver &precond);
 
+   /// deprecated: use SetZeroInitialIterate()
+   MFEM_DEPRECATED void SetZeroInintialIterate() { iterative_mode = false; }
+
    /// non-hypre setting
-   void SetZeroInintialIterate() { iterative_mode = false; }
+   void SetZeroInitialIterate() { iterative_mode = false; }
 
    /// The typecast to HYPRE_Solver returns the internal fgmres_solver
    virtual operator HYPRE_Solver() const  { return fgmres_solver; }
@@ -1009,54 +1013,33 @@ public:
    virtual ~HypreEuclid();
 };
 
-/// Parallel ILU preconditioner
-/// \note There are several variants available depending on the ilu_type chosen:
-/// ilu_type = 0: ILU(k) locally and block Jacobi globally
-/// ilu_type = 1: ILUT locally and block Jacobi globally
-/// ilu_type = 10: ILU(k) locally with inexact GMRES solution of Schur system
-/// ilu_type = 11: ILUT locally with inexact GMRES solution of Schur system
-/// ilu_type = 20: ILU(k) locally with Newton-Schultz-Hotelling (NSH) on Schur
-/// ilu_type = 21: ILUT locally with Newton-Schultz-Hotelling (NSH) on Schur
-/// ilu_type = 30: ILU(k) locally with restricted additive Schwarz globally
-/// ilu_type = 31: ILUT locally with restricted additive Schwarz globally
-/// ilu_type = 40: ILU(k) locally with GMRES with ddPQ ordering for Schur
-/// ilu_type = 41: ILUT locally with GMRES with ddPQ ordering for Schur
+#if MFEM_HYPRE_VERSION >= 21900
+/**
+@brief Wrapper for Hypre's native parallel ILU preconditioner.
+
+The default ILU factorization type is ILU(k).  If you need to change this, or
+any other option, you can use the HYPRE_Solver method to cast the object for use
+with Hypre's native functions. For example, if want to use natural ordering
+rather than RCM reordering, you can use the following approach:
+
+@code
+mfem::HypreILU ilu();
+int reorder_type = 0;
+HYPRE_ILUSetLocalReordering(ilu, reorder_type);
+@endcode
+*/
 class HypreILU : public HypreSolver
 {
 private:
    HYPRE_Solver ilu_precond;
 
-   /// The type of incomplete LU used locally and globally (see class doc)
-   HYPRE_Int ilu_type;
-   /// Maximum iterations; 1 iter for preconditioning
-   HYPRE_Int max_iter;
-   /// The tolerance when used as a smoother; set to 0.0 for preconditioner
-   HYPRE_Real tol;
-   /// Fill level for ILU(k)
-   HYPRE_Int lev_fill;
-   /// Maximum non-zeros per row (for ILUT only)
-   HYPRE_Int nz_max;
-   /// Drop tolerance for ILUT
-   HYPRE_Real drop_thres;
-   /// Drop tol in Newton–Schulz–Hotelling iteration
-   HYPRE_Real nsh_thres;
-   /// Maximum number of iter to solve Schur system
-   HYPRE_Int schur_max_iter;
-   /// Local reordering scheme; 0 = no reordering, 1 = reverse Cuthill-McKee
-   HYPRE_Int reorder_type;
-   /// Information print level; 0 = none, 1 = setup, 2 = solve, 3 = setup+solve
-   HYPRE_Int print_level;
-
    /// Set the ILU default options
    void SetDefaultOptions();
 
-   /// Set ILU options based on the values saved in data members of this wrapper
-   void SetOptions();
-
-   /// Reset the ILU preconditioner
-   /// \note If ilu_precond is NULL, this method allocates it and sets default
-   /// options. Otherwise the method destroys ilu_precond, allocates a new
-   /// object, and sets its options based on the data members of *this
+   /** Reset the ILU preconditioner.
+   @note If ilu_precond is NULL, this method allocates; otherwise it destroys
+   ilu_precond and allocates a new object.  In both cases the default options
+   are set. */
    void ResetILUPrecond();
 
 public:
@@ -1065,32 +1048,8 @@ public:
 
    virtual ~HypreILU();
 
-   /// Set the maximum number of iterations; set max_iter = 1 for preconditioner
-   void SetMaxIter(HYPRE_Int max_iter);
-
-   /// Set the tolerance when used as a smoother
-   void SetTol(HYPRE_Real tol);
-
-   /// Set the fill level for ILU(k) variant
+   /// Set the fill level for ILU(k); the default is k=1.
    void SetLevelOfFill(HYPRE_Int lev_fill);
-      
-   /// Set the maximum number of non-zers per row (needed by ILUT variant)
-   void SetMaxNnzPerRow(HYPRE_Int nz_max);
-
-   /// Set the drop tolerance threshold used by the ILUT variant
-   void SetDropThreshold(HYPRE_Real drop_thres);
-
-   /// Set drop tol used in the Newton-Schulz-Hotelling solution of Schur system
-   void SetNSHDropThreshold(HYPRE_Real nsh_thres);
-
-   /// Set the maximum number of iterations used to solve the Schur system
-   void SetSchurMaxIter(HYPRE_Int schur_max_iter);
-
-   /// Set the ILU type; see class header documentation for more information
-   void SetType(HYPRE_Int ilu_type);
-
-   /// Set the local reordering for unknowns: 0 = no reordering, 1 = RCM 
-   void SetLocalReordering(HYPRE_Int reorder_type);
 
    /// Set the print level: 0 = none, 1 = setup, 2 = solve, 3 = setup+solve
    void SetPrintLevel(HYPRE_Int print_level);
@@ -1108,6 +1067,7 @@ public:
    virtual HYPRE_PtrToParSolverFcn SolveFcn() const
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ILUSolve; }
 };
+#endif
 
 /// The BoomerAMG solver in hypre
 class HypreBoomerAMG : public HypreSolver
