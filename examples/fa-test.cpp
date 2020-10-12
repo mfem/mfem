@@ -366,7 +366,7 @@ int main(int argc, char *argv[])
 
    k->KeepNbrBlock();
 
-   SparseMatrix A = GetFullAssemblySparseMatrix(*k);
+   SparseMatrix *A = GetFullAssemblySparseMatrix(*k);
 
    //Reference code -- legacy assembly
    ParBilinearForm *k_ref = new ParBilinearForm(fes);
@@ -380,15 +380,15 @@ int main(int argc, char *argv[])
 
    printf("size of I k_ref %d A %d \n",
           k_ref->SpMat().GetMemoryI().Capacity(),
-          A.GetMemoryI().Capacity());
+          A->GetMemoryI().Capacity());
 
    printf("size of J k_ref %d A %d \n",
           k_ref->SpMat().GetMemoryJ().Capacity(),
-          A.GetMemoryJ().Capacity());
+          A->GetMemoryJ().Capacity());
 
    printf("size of Data k_ref %d A %d \n",
           k_ref->SpMat().GetMemoryData().Capacity(),
-          A.GetMemoryData().Capacity());
+          A->GetMemoryData().Capacity());
 
    fflush(stdout); //force print!
 
@@ -403,7 +403,7 @@ int main(int argc, char *argv[])
    Vector x(sizeIn), y_fa(sizeOut), y_ref(sizeOut);
    x.Randomize(1);
 
-   A.Mult(x,y_fa);
+   A->Mult(x,y_fa);
    k_ref->Mult(x,y_ref);
 
    y_fa -= y_ref;
@@ -413,24 +413,24 @@ int main(int argc, char *argv[])
    double iError(0), jError(0), dataError(0);
    for (int i=0; i<k_ref->SpMat().GetMemoryI().Capacity(); ++i)
    {
-      iError += (k_ref->SpMat().HostReadI()[i] - A.HostReadI()[i])*
-                (k_ref->SpMat().HostReadI()[i] - A.HostReadI()[i]);
+      iError += (k_ref->SpMat().HostReadI()[i] - A->HostReadI()[i])*
+                (k_ref->SpMat().HostReadI()[i] - A->HostReadI()[i]);
    }
    iError = sqrt(iError);
    printf("iError %g \n",iError);
 
    for (int j=0; j<k_ref->SpMat().GetMemoryJ().Capacity(); ++j)
    {
-      jError += (k_ref->SpMat().HostReadJ()[j] - A.HostReadJ()[j])*
-                (k_ref->SpMat().HostReadJ()[j] - A.HostReadJ()[j]);
+      jError += (k_ref->SpMat().HostReadJ()[j] - A->HostReadJ()[j])*
+                (k_ref->SpMat().HostReadJ()[j] - A->HostReadJ()[j]);
    }
    jError = sqrt(jError);
    printf("jError %g \n",jError);
 
    for (int i=0; i<k_ref->SpMat().GetMemoryData().Capacity(); ++i)
    {
-      dataError += (k_ref->SpMat().HostReadData()[i] - A.HostReadData()[i])*
-                   (k_ref->SpMat().HostReadData()[i] - A.HostReadData()[i]);
+      dataError += (k_ref->SpMat().HostReadData()[i] - A->HostReadData()[i])*
+                   (k_ref->SpMat().HostReadData()[i] - A->HostReadData()[i]);
    }
    dataError = sqrt(dataError);
    printf("dataError %g \n",dataError);
