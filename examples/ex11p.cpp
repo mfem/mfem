@@ -98,12 +98,8 @@ int main(int argc, char *argv[])
                   "--no-strumpack", "Use the STRUMPACK Solver.");
 #endif
 #ifdef MFEM_USE_MKL_CPARDISO
-   args.AddOption(&pardiso_solver,
-                  "-pardiso",
-                  "--pardiso",
-                  "-no-pardiso",
-                  "--no-pardiso",
-                  "Use the MKL Cluster Pardiso Solver.");
+   args.AddOption(&pardiso_solver, "-pardiso", "--pardiso", "-no-pardiso",
+                  "--no-pardiso", "Use the MKL Cluster Pardiso Solver.");
 #endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
