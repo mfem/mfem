@@ -209,6 +209,25 @@ void ParBlockNonlinearForm::SetEssentialBC(const
    }
 }
 
+double ParBlockNonlinearForm::GetEnergy(const Vector &x) const
+{
+   xs_true.Update(x.GetData(), block_trueOffsets);
+   xs.Update(block_offsets);
+
+   for (int s = 0; s < fes.Size(); ++s)
+   {
+      fes[s]->GetProlongationMatrix()->Mult(xs_true.GetBlock(s), xs.GetBlock(s));
+   }
+
+   double enloc = BlockNonlinearForm::GetEnergyBlocked(xs);
+   double englo = 0.0;
+
+   MPI_Allreduce(&enloc, &englo, 1, MPI_DOUBLE, MPI_SUM,
+                 ParFESpace(0)->GetComm());
+
+   return englo;
+}
+
 void ParBlockNonlinearForm::Mult(const Vector &x, Vector &y) const
 {
    xs_true.Update(x.GetData(), block_trueOffsets);

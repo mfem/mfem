@@ -38,11 +38,11 @@ double FunctionCoefficient::Eval(ElementTransformation & T,
 
    if (Function)
    {
-      return ((*Function)(transip));
+      return Function(transip);
    }
    else
    {
-      return (*TDFunction)(transip, GetTime());
+      return TDFunction(transip, GetTime());
    }
 }
 
@@ -112,11 +112,11 @@ void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
    V.SetSize(vdim);
    if (Function)
    {
-      (*Function)(transip, V);
+      Function(transip, V);
    }
    else
    {
-      (*TDFunction)(transip, GetTime(), V);
+      TDFunction(transip, GetTime(), V);
    }
    if (Q)
    {
@@ -308,7 +308,7 @@ void MatrixFunctionCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
 
       Vector Ksym((width * (width + 1)) / 2); // 1x1: 1, 2x2: 3, 3x3: 6
 
-      (*SymmFunction)(transip, Ksym);
+      SymmFunction(transip, Ksym);
 
       // Copy upper triangular values from Ksym to the full matrix K
       int os = 0;
@@ -328,11 +328,11 @@ void MatrixFunctionCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    {
       if (Function)
       {
-         (*Function)(transip, K);
+         Function(transip, K);
       }
       else if (TDFunction)
       {
-         (*TDFunction)(transip, GetTime(), K);
+         TDFunction(transip, GetTime(), K);
       }
       else
       {
@@ -362,7 +362,7 @@ void MatrixFunctionCoefficient::EvalSymmetric(Vector &K,
 
    if (SymmFunction)
    {
-      (*SymmFunction)(transip, K);
+      SymmFunction(transip, K);
    }
 
    if (Q)
