@@ -130,7 +130,7 @@ void CPardisoSolver::SetOperator(const Operator &op)
                          &comm_,
                          &error);
 
-   MFEM_ASSERT(error == 0, "Pardiso analyze input error");
+   MFEM_ASSERT(error == 0, "CPardiso analyze input error");
 
    // Numerical factorization
    phase = 22;
@@ -152,7 +152,7 @@ void CPardisoSolver::SetOperator(const Operator &op)
                          &comm_,
                          &error);
 
-   MFEM_ASSERT(error == 0, "Pardiso factorization input error");
+   MFEM_ASSERT(error == 0, "CPardiso factorization input error");
 }
 
 void CPardisoSolver::Mult(const Vector &b, Vector &x) const
@@ -212,7 +212,7 @@ CPardisoSolver::~CPardisoSolver()
                          &comm_,
                          &error);
 
-   MFEM_ASSERT(error == 0, "Pardiso free error");
+   MFEM_ASSERT(error == 0, "CPardiso free error");
 
    delete[] csr_rowptr;
    delete[] reordered_csr_colind;
