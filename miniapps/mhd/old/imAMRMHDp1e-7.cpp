@@ -801,35 +801,26 @@ int main(int argc, char *argv[])
           //was .005
 
           refiner.SetTotalErrorFraction(err_fraction);
-          derefiner.SetThreshold(derefine_fraction*ltol_amr);
+          derefiner.SetThreshold(derefine_ratio*ltol_amr);
           derefiner.SetTotalErrorFraction(derefine_fraction);
       }
       else if (t>=4.00001 && t<5.00001 && current_amr_level<levels5)
       {
           current_amr_level=levels5;
-          if (t<4.4)
-          { 
-            err_fraction=0.6;
-            derefine_fraction=0.0006; 
-          }
-          else if (t<4.6)
-          {   err_fraction=0.4;
-              derefine_fraction=0.0004; }
-          else 
-          {   err_fraction=0.3;
-              derefine_fraction=0.0003; }
+          err_fraction=0.6;
+          derefine_fraction=0.0006; 
 
           refiner.SetTotalErrorFraction(err_fraction);
-          derefiner.SetThreshold(derefine_fraction*ltol_amr);
+          derefiner.SetThreshold(derefine_ratio*ltol_amr);
           derefiner.SetTotalErrorFraction(derefine_fraction);
       }
       else if (t>=5.00001 && current_amr_level<amr_levels)
       {
           current_amr_level=amr_levels;
-          err_fraction=0.2;
-          derefine_fraction=0.0002;
+          err_fraction=0.6;
+          derefine_fraction=0.0006;
           refiner.SetTotalErrorFraction(err_fraction);
-          derefiner.SetThreshold(derefine_fraction*ltol_amr);
+          derefiner.SetThreshold(derefine_ratio*ltol_amr);
           derefiner.SetTotalErrorFraction(derefine_fraction);
       }
 
