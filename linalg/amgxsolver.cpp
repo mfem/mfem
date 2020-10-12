@@ -269,6 +269,12 @@ void AmgXSolver::InitAmgX()
       AMGX_SAFE_CALL(AMGX_initialize_plugins());
 
       AMGX_SAFE_CALL(AMGX_install_signal_handler());
+
+      AMGX_SAFE_CALL(AMGX_register_print_callback(
+                        [](const char *msg, int length)->void
+      {
+         int irank; MPI_Comm_rank(MPI_COMM_WORLD, &irank);
+         if (irank == 0) { printf("%s",msg);} }));
    }
 
    MFEM_VERIFY(configSrc != CONFIG_SRC::UNDEFINED,
