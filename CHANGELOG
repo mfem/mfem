@@ -143,6 +143,9 @@ Linear and nonlinear solvers
 - Added partially assembled convergent diagonal preconditioner for adaptively
   refined meshes (i.e. non-conforming finite element spaces), see Example 6/6p.
 
+- Extended the KINSOL (SUNDIALS) nonlinear solver interface to support the
+  Jacobian-free Newton-Krylov method. A usage example is shown in Example 10p.
+
 New and updated examples and miniapps
 -------------------------------------
 - Added a new example, Example 25/25p, to demonstrate the use of a Perfectly
