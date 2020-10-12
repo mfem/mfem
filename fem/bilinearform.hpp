@@ -304,7 +304,7 @@ public:
       }
       else
       {
-         mat = GetFullAssemblySparseMatrix(*this);
+         mat = mat ? mat : GetFullAssemblySparseMatrix(*this);
          return *mat;
       }
    }
