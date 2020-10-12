@@ -67,7 +67,21 @@ Improved GPU capabilities
 
 - Added CUDA support for sparse matrix-vector multiplication with cuSPARSE.
 
-- Added AmgX solver class for simple integration with NVIDIA's multigrid library.
+- Added AmgX solver class for simple integration with NVIDIA's multigrid library,
+  AmgX. The AmgX class is designed to work as a standalone solver or preconditioner
+  for existing MFEM solvers. The solver class uses MFEM's sparse matrix
+  format for serial runs and MFEM's HypreParMatrix format for parallel runs.
+  Additionally, it may be configured to run with 1 GPU per MPI rank or more
+  MPI ranks than GPUs. In the case of more MPI ranks than GPUs, matrices and
+  vectors are consolidated to ranks which will communicate with GPUs and the
+  solution is then broadcasted to appropriate ranks.
+
+  Although CUDA is required to build, the AmgX is compatible with a MFEM CPU
+  device configuration. The amgx folder under examples illustrates integrating
+  AmgX in existing MFEM applications.
+
+  The AmgX solver class is partially based on the AmgX PETSc wrapper of
+  Pi-Yueh Chuang, & Lorena A. doi:10.21105/joss.00280
 
 - Added support for BlockOperator on GPU. See the updated Example 5.
 

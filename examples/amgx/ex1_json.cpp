@@ -1,48 +1,13 @@
 //                                MFEM Example 1
+//                              AmgX Modifications
 //
-// Compile with: make ex1
-//
-// Sample runs:  ex1 -m ../data/square-disc.mesh
-//               ex1 -m ../data/star.mesh
-//               ex1 -m ../data/star-mixed.mesh
-//               ex1 -m ../data/escher.mesh
-//               ex1 -m ../data/fichera.mesh
-//               ex1 -m ../data/fichera-mixed.mesh
-//               ex1 -m ../data/toroid-wedge.mesh
-//               ex1 -m ../data/periodic-annulus-sector.msh
-//               ex1 -m ../data/periodic-torus-sector.msh
-//               ex1 -m ../data/square-disc-p2.vtk -o 2
-//               ex1 -m ../data/square-disc-p3.mesh -o 3
-//               ex1 -m ../data/square-disc-nurbs.mesh -o -1
-//               ex1 -m ../data/star-mixed-p2.mesh -o 2
-//               ex1 -m ../data/disc-nurbs.mesh -o -1
-//               ex1 -m ../data/pipe-nurbs.mesh -o -1
-//               ex1 -m ../data/fichera-mixed-p2.mesh -o 2
-//               ex1 -m ../data/star-surf.mesh
-//               ex1 -m ../data/square-disc-surf.mesh
-//               ex1 -m ../data/inline-segment.mesh
-//               ex1 -m ../data/amr-quad.mesh
-//               ex1 -m ../data/amr-hex.mesh
-//               ex1 -m ../data/fichera-amr.mesh
-//               ex1 -m ../data/mobius-strip.mesh
-//               ex1 -m ../data/mobius-strip.mesh -o -1 -sc
-//
-// Device sample runs:
-//               ex1 -pa -d cuda
-//               ex1 -pa -d raja-cuda
-//               ex1 -pa -d occa-cuda
-//               ex1 -pa -d raja-omp
-//               ex1 -pa -d occa-omp
-//               ex1 -pa -d ceed-cpu
-//             * ex1 -pa -d ceed-cuda
-//               ex1 -pa -d ceed-cuda:/gpu/cuda/shared
-//               ex1 -m ../data/beam-hex.mesh -pa -d cuda
-//               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cpu
-//               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cuda:/gpu/cuda/ref
+// Compile with: make ex1_json
 //
 // AmgX sample runs:
-//               ex1 -amgx
-//               ex1 -amgx -d cuda
+//               ex1 --amgx-file multi_gs.json --amgx-solver
+//               ex1 --amgx-file precon.json --amgx-preconditioner
+//               ex1 --amgx-file multi_gs.json --amgx-solver -d cuda
+//               ex1 --amgx-file precon.json --amgx-preconditioner -d cuda
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -72,10 +37,10 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../../data/star.mesh";
    int order = 1;
    bool static_cond = false;
-   bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
-   bool amgx = false;
+   bool amgx_solver = true;
+   const char* amgx_json_file = ""; // jason file for amgx
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -85,10 +50,12 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
-   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
-                  "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&amgx, "-amgx", "--amgx-precon", "-no-amgx",
-                  "--no-amgx-precon", "Use AmgX V-cycle as preconditioner for CG.");
+   args.AddOption(&amgx_json_file, "--amgx-file", "--amgx-file",
+                  "AMGX solver config file (overrides --amgx-solver, --amgx-verbose)");
+   args.AddOption(&amgx_solver, "--amgx-solver", "--amgx-solver",
+                  "--amgx-preconditioner",
+                  "--amgx-preconditioner",
+                  "Configure AMGX as solver or preconditioner.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -101,6 +68,9 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+
+   MFEM_VERIFY(strcmp(amgx_json_file,"") != 0,
+               "An AmgX json file is needed for this example \n");
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
@@ -181,7 +151,6 @@ int main(int argc, char *argv[])
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
    BilinearForm a(&fespace);
-   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a.AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 10. Assemble the bilinear form and the corresponding linear system,
@@ -198,43 +167,19 @@ int main(int argc, char *argv[])
    cout << "Size of linear system: " << A->Height() << endl;
 
    // 11. Solve the linear system A X = B.
-   if (pa)
+   AmgXSolver amgx;
+
+   amgx.ReadParameters(amgx_json_file, AmgXSolver::EXTERNAL);
+   amgx.InitSerial();
+   amgx.SetOperator(*A.As<SparseMatrix>());
+
+   if (amgx_solver)
    {
-      // Jacobi preconditioning in partial assembly mode
-      if (UsesTensorBasis(fespace))
-      {
-         OperatorJacobiSmoother M(a, ess_tdof_list);
-         PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
-      }
-      else
-      {
-         CG(*A, B, X, 1, 400, 1e-12, 0.0);
-      }
-   }
-   else if (amgx)
-   {
-#if defined(MFEM_USE_AMGX)
-      bool amgx_verbose = false;
-      AmgXSolver amgx(AmgXSolver::PRECONDITIONER, amgx_verbose);
-      amgx.SetOperator(*A.As<SparseMatrix>());
-      PCG(*A, amgx, B, X, 1, 200, 1e-12, 0.0);
-#else
-      mfem_error("MFEM not configured with AMGX \n");
-#endif
+      amgx.Mult(B,X);
    }
    else
    {
-#ifndef MFEM_USE_SUITESPARSE
-      // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-      GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
-#else
-      // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-      UMFPackSolver umf_solver;
-      umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-      umf_solver.SetOperator(*A);
-      umf_solver.Mult(B, X);
-#endif
+      PCG(*A.As<SparseMatrix>(), amgx, B, X, 3, 40, 1e-12, 0.0);
    }
 
    // 12. Recover the solution as a finite element grid function.

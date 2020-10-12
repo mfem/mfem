@@ -12,11 +12,13 @@
 set(AMGX_EXAMPLES_SRCS)
 list(APPEND AMGX_EXAMPLES_SRCS
   ex1.cpp
+  ex1_json.cpp
   )
 
 if (MFEM_USE_MPI)
   list(APPEND AMGX_EXAMPLES_SRCS
     ex1p.cpp
+    ex1p_json.cpp
     )
 endif()
 
@@ -52,8 +54,10 @@ add_mfem_examples(AMGX_EXAMPLES_SRCS ${PFX} copy_amgx_json_files test_amgx)
 
 # Command line options for the tests.
 # Example 1/1p:
-set(EX1_TEST_OPTS  --amgx-file multi_gs.json --amgx-solver)
-set(EX1P_TEST_OPTS --amgx-file amg_pcg.json)
+set(EX1_TEST_OPTS  -amgx)
+set(EX1P_TEST_OPTS -amgx)
+set(EX1_JSON_TEST_OPTS  --amgx-file multi_gs.json --amgx-solver)
+set(EX1P_JSON_TEST_OPTS --amgx-file amg_pcg.json)
 
 # Add the tests: one test per source file.
 foreach(SRC_FILE ${AMGX_EXAMPLES_SRCS})
