@@ -138,7 +138,8 @@ Linear and nonlinear solvers
   refined meshes (i.e. non-conforming finite element spaces), see Example 6/6p.
 
 - Added an interface to the Intel MKL Parallel Direct Sparse Solver for
-  Clusters. An example usage of the interface is shown in Example 11p.
+  Clusters (CPardiso). An example usage of the interface is shown in Example
+  11p.
 
 New and updated examples and miniapps
 -------------------------------------
