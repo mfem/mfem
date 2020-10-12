@@ -1,44 +1,14 @@
+
 //                       MFEM Example 1 - Parallel Version
 //
 // Compile with: make ex1p
 //
-// Sample runs:  mpirun -np 4 ex1p -m ../data/square-disc.mesh
-//               mpirun -np 4 ex1p -m ../data/star.mesh
-//               mpirun -np 4 ex1p -m ../data/star-mixed.mesh
-//               mpirun -np 4 ex1p -m ../data/escher.mesh
-//               mpirun -np 4 ex1p -m ../data/fichera.mesh
-//               mpirun -np 4 ex1p -m ../data/fichera-mixed.mesh
-//               mpirun -np 4 ex1p -m ../data/toroid-wedge.mesh
-//               mpirun -np 4 ex1p -m ../data/periodic-annulus-sector.msh
-//               mpirun -np 4 ex1p -m ../data/periodic-torus-sector.msh
-//               mpirun -np 4 ex1p -m ../data/square-disc-p2.vtk -o 2
-//               mpirun -np 4 ex1p -m ../data/square-disc-p3.mesh -o 3
-//               mpirun -np 4 ex1p -m ../data/square-disc-nurbs.mesh -o -1
-//               mpirun -np 4 ex1p -m ../data/star-mixed-p2.mesh -o 2
-//               mpirun -np 4 ex1p -m ../data/disc-nurbs.mesh -o -1
-//               mpirun -np 4 ex1p -m ../data/pipe-nurbs.mesh -o -1
-//               mpirun -np 4 ex1p -m ../data/ball-nurbs.mesh -o 2
-//               mpirun -np 4 ex1p -m ../data/fichera-mixed-p2.mesh -o 2
-//               mpirun -np 4 ex1p -m ../data/star-surf.mesh
-//               mpirun -np 4 ex1p -m ../data/square-disc-surf.mesh
-//               mpirun -np 4 ex1p -m ../data/inline-segment.mesh
-//               mpirun -np 4 ex1p -m ../data/amr-quad.mesh
-//               mpirun -np 4 ex1p -m ../data/amr-hex.mesh
-//               mpirun -np 4 ex1p -m ../data/mobius-strip.mesh
-//               mpirun -np 4 ex1p -m ../data/mobius-strip.mesh -o -1 -sc
-//
-// Device sample runs:
-//               mpirun -np 4 ex1p -pa -d cuda
-//               mpirun -np 4 ex1p -pa -d occa-cuda
-//               mpirun -np 4 ex1p -pa -d raja-omp
-//               mpirun -np 4 ex1p -pa -d ceed-cpu
-//             * mpirun -np 4 ex1p -pa -d ceed-cuda
-//               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared
-//               mpirun -np 4 ex1p -m ../data/beam-tet.mesh -pa -d ceed-cpu
-//
 // AmgX sample runs:
-//               mpirun -np 4 ex1 -amgx
-//               mpirun -np 4 ex1 -amgx -d cuda
+//               mpirun -np 4 ex1p -amgx
+//               mpirun -np 4 ex1p -amgx -d cuda
+//               mpirun -n 40 ex1p -amgx --amgx-file amg_pcg.json
+//               mpirun -n 4 ex1p -amgx --amgx-file amg_pcg.json --amgx-mpi-gpu-exclusive
+//
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
@@ -77,6 +47,9 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = true;
    bool amgx = false;
+   bool amgx_mpi_teams = true;
+   const char* amgx_json_file = ""; // jason file for amgx
+   int ndevices = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -88,13 +61,20 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&amgx, "-amgx", "--amgx-precon", "-no-amgx",
-                  "--no-amgx-precon", "Use AmgX V-cycle as preconditioner for CG.");
+   args.AddOption(&amgx, "-amgx", "--amgx-lib", "-no-amgx",
+                  "--no-amgx-lib", "Use AmgX in example.");
+   args.AddOption(&amgx_json_file, "--amgx-file", "--amgx-file",
+                  "AMGX solver config file (overrides --amgx-solver, --amgx-verbose)");
+   args.AddOption(&amgx_mpi_teams, "--amgx-mpi-teams", "--amgx-mpi-teams",
+                  "--amgx-mpi-gpu-exclusive", "--amgx-mpi-gpu-exclusive",
+                  "Create MPI teams when using AMGX.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&ndevices, "-nd","--nd","Number of GPU devices.");
+
    args.Parse();
    if (!args.Good())
    {
@@ -234,28 +214,57 @@ int main(int argc, char *argv[])
          prec = new OperatorJacobiSmoother(a, ess_tdof_list);
       }
    }
-   else if (amgx)
+   else if (amgx && strcmp(amgx_json_file,"") == 0)
    {
-#if defined(MFEM_USE_AMGX)
       bool amgx_verbose = false;
       prec = new AmgXSolver(MPI_COMM_WORLD, AmgXSolver::PRECONDITIONER,
                             amgx_verbose);
-#else
-      mfem_error("MFEM not configured with AMGX \n");
-#endif
+
+      CGSolver cg(MPI_COMM_WORLD);
+      cg.SetRelTol(1e-12);
+      cg.SetMaxIter(2000);
+      cg.SetPrintLevel(1);
+      if (prec) { cg.SetPreconditioner(*prec); }
+      cg.SetOperator(*A);
+      cg.Mult(B, X);
+      delete prec;
+
+   }
+   else if (amgx && strcmp(amgx_json_file,"") != 0)
+   {
+     AmgXSolver amgx;
+     amgx.ReadParameters(amgx_json_file, AmgXSolver::EXTERNAL);
+
+     if (amgx_mpi_teams)
+     {
+       //Forms MPI teams to load balance between MPI ranks and GPUs
+       amgx.InitMPITeams(MPI_COMM_WORLD, ndevices);
+     }
+     else
+     {
+       //Assumes each MPI rank is paired with a GPU
+       amgx.InitExclusiveGPU(MPI_COMM_WORLD);
+     }
+
+     amgx.SetOperator(*A.As<HypreParMatrix>());
+     amgx.Mult(B, X);
+
+     //Release MPI communicators and resources created by AmgX
+     amgx.Finalize();
    }
    else
    {
       prec = new HypreBoomerAMG;
+
+      CGSolver cg(MPI_COMM_WORLD);
+      cg.SetRelTol(1e-12);
+      cg.SetMaxIter(2000);
+      cg.SetPrintLevel(1);
+      if (prec) { cg.SetPreconditioner(*prec); }
+      cg.SetOperator(*A);
+      cg.Mult(B, X);
+      delete prec;      
    }
-   CGSolver cg(MPI_COMM_WORLD);
-   cg.SetRelTol(1e-12);
-   cg.SetMaxIter(2000);
-   cg.SetPrintLevel(1);
-   if (prec) { cg.SetPreconditioner(*prec); }
-   cg.SetOperator(*A);
-   cg.Mult(B, X);
-   delete prec;
 
    // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
