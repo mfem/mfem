@@ -1,4 +1,3 @@
-
 //                       MFEM Example 1 - Parallel Version
 //
 // Compile with: make ex1p
@@ -48,7 +47,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool amgx = false;
    bool amgx_mpi_teams = true;
-   const char* amgx_json_file = ""; // jason file for amgx
+   const char* amgx_json_file = ""; // JSON file for AmgX
    int ndevices = 1;
 
    OptionsParser args(argc, argv);
@@ -237,19 +236,19 @@ int main(int argc, char *argv[])
 
       if (amgx_mpi_teams)
       {
-         //Forms MPI teams to load balance between MPI ranks and GPUs
+         // Forms MPI teams to load balance between MPI ranks and GPUs
          amgx.InitMPITeams(MPI_COMM_WORLD, ndevices);
       }
       else
       {
-         //Assumes each MPI rank is paired with a GPU
+         // Assumes each MPI rank is paired with a GPU
          amgx.InitExclusiveGPU(MPI_COMM_WORLD);
       }
 
       amgx.SetOperator(*A.As<HypreParMatrix>());
       amgx.Mult(B, X);
 
-      //Release MPI communicators and resources created by AmgX
+      // Release MPI communicators and resources created by AmgX
       amgx.Finalize();
    }
    else
