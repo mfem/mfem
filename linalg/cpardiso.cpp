@@ -43,8 +43,8 @@ CPardisoSolver::CPardisoSolver(MPI_Comm comm) : comm_(comm)
    msglvl = 0;
    // Initialize error flag
    error = 0;
-   // Real unsymmetric matrix
-   mtype = MatType::REAL_UNSYMMETRIC;
+   // Real nonsymmetric matrix
+   mtype = MatType::REAL_NONSYMMETRIC;
    // Number of right hand sides
    nrhs = 1;
 };
