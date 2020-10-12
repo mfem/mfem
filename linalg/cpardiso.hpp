@@ -33,7 +33,7 @@ public:
    enum MatType
    {
       REAL_STRUCTURE_SYMMETRIC = 1,
-      REAL_UNSYMMETRIC = 11
+      REAL_NONSYMMETRIC = 11
    };
 
    /**
