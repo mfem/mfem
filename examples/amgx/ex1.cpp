@@ -195,19 +195,19 @@ int main(int argc, char *argv[])
    }
    else if (amgx && strcmp(amgx_json_file,"") != 0)
    {
-     AmgXSolver amgx;
-     amgx.ReadParameters(amgx_json_file, AmgXSolver::EXTERNAL);
-     amgx.InitSerial();
-     amgx.SetOperator(*A.As<SparseMatrix>());
+      AmgXSolver amgx;
+      amgx.ReadParameters(amgx_json_file, AmgXSolver::EXTERNAL);
+      amgx.InitSerial();
+      amgx.SetOperator(*A.As<SparseMatrix>());
 
-     if (amgx_solver)
-     {
-       amgx.Mult(B,X);
-     }
-     else
-     {
-       PCG(*A.As<SparseMatrix>(), amgx, B, X, 3, 40, 1e-12, 0.0);
-     }
+      if (amgx_solver)
+      {
+         amgx.Mult(B,X);
+      }
+      else
+      {
+         PCG(*A.As<SparseMatrix>(), amgx, B, X, 3, 40, 1e-12, 0.0);
+      }
    }
    else
    {
