@@ -487,8 +487,8 @@ MFEM_USE_CEED = YES/NO
    for Efficient Exascale Discretizations in the Exascale Computing Project.
 
 MFEM_USE_MKL_CPARDISO = YES/NO
-   Enables the interface to the Intel MKL Parallel Direct Sparse Solver for
-   Clusters (CPardiso). Make sure to set the correct values for MKL_MPI_WRAPPER
+   Enables the interface to MKL CPardiso: the Intel MKL Parallel Direct Sparse
+   Solver for Clusters. Make sure to set the correct values for MKL_MPI_WRAPPER
    and MKL_LIBRARY_SUBDIR as shown in defaults.mk. If you configure MFEM with
    MFEM_USE_LAPACK=YES, verify that the MKL LAPACK libraries are used. The
    OpenMP capabilities are disabled at link time.
@@ -652,9 +652,8 @@ The specific libraries and their options are:
   Options: GSLIB_OPT, GSLIB_LIB.
   Versions: GSLIB >= 1.0.5.
 
-- CPardiso (optional), used when MFEM_USE_MKL_CPARDISO = YES.
-  URL:
-  https://software.intel.com/content/www/us/en/develop/tools/math-kernel-library.html
+- MKL CPardiso (optional), used when MFEM_USE_MKL_CPARDISO = YES.
+  URL: https://software.intel.com/content/www/us/en/develop/tools/math-kernel-library.html
   Options: MKL_CPARDISO_OPT, MKL_CPARDISO_LIB.
   Versions: Intel MKL >= 2020.
 
