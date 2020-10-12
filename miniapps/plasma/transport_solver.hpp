@@ -394,6 +394,48 @@ public:
    const Coefficient * operator[](int i) const { return ics_[i]; }
 };
 
+class TransportExactSolutions
+{
+private:
+   int neqn_;
+   Array<Coefficient *> ess_;
+   Array<bool> own_ess_;
+
+   void Read(common::CoefFactory &cf, std::istream &input);
+
+public:
+   TransportExactSolutions(int neqn)
+      : neqn_(neqn),
+        ess_(neqn),
+        own_ess_(neqn)
+   {
+      ess_ = NULL;
+      own_ess_ = false;
+   }
+
+   TransportExactSolutions(int neqn, common::CoefFactory &cf,
+                           std::istream &input);
+
+   ~TransportExactSolutions()
+   {
+      for (int i=0; i<neqn_; i++)
+      {
+         if (own_ess_[i]) { delete ess_[i]; }
+      }
+   }
+
+   void LoadExactSolutions(common::CoefFactory &cf, std::istream &input)
+   { Read(cf, input); }
+
+   void SetOwnership(int i, bool own) { own_ess_[i] = own; }
+
+   Coefficient *& operator()(int i) { return ess_[i]; }
+   const Coefficient * operator()(int i) const { return ess_[i]; }
+
+   Coefficient *& operator[](int i) { return ess_[i]; }
+   const Coefficient * operator[](int i) const { return ess_[i]; }
+};
+
 class EqnCoefficients
 {
 protected:

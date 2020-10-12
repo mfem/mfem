@@ -470,6 +470,25 @@ public:
    }
 };
 
+class ExpSinSin2D: public Coefficient
+{
+private:
+   double a_, b_, kx_, ky_;
+
+   mutable Vector x_;
+
+public:
+   ExpSinSin2D(double a, double b, double kx, double ky)
+      : a_(a), b_(b), kx_(kx), ky_(ky), x_(3) {}
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+      return a_ + (1.0 - exp(-b_ * time)) *
+             sin(kx_ * x_[0]) * sin(ky_ * x_[1]);
+   }
+};
+
 class TransportCoefFactory : public CoefFactory
 {
 public:
@@ -483,6 +502,12 @@ public:
          double a, kx, ky;
          input >> a >> kx >> ky;
          c = sCoefs.Append(new SinSin2D(a, kx, ky));
+      }
+      else if (name == "ExpSinSin2D")
+      {
+         double a, b, kx, ky;
+         input >> a >> b >> kx >> ky;
+         c = sCoefs.Append(new ExpSinSin2D(a, b, kx, ky));
       }
       else
       {
@@ -943,6 +968,7 @@ int main(int argc, char *argv[])
    const char *bc_file = "";
    const char *ic_file = "";
    const char *ec_file = "";
+   const char *es_file = "";
    const char *eqdsk_file = "";
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
@@ -1017,6 +1043,8 @@ int main(int argc, char *argv[])
                   "Initial condition input file.");
    args.AddOption(&ec_file, "-ec", "--ec-file",
                   "Equation coefficient input file.");
+   args.AddOption(&es_file, "-es", "--es-file",
+                  "Exact solution input file.");
    args.AddOption(&eqdsk_file, "-eqdsk", "--eqdsk-file",
                   "G EQDSK input file.");
    args.AddOption(&logging, "-l", "--logging",
@@ -1340,6 +1368,21 @@ int main(int argc, char *argv[])
       ics.LoadICs(coefFact, icfs);
    }
 
+   if (mpi.Root())
+   {
+      cout << "Configuring exact solutions" << endl;
+   }
+   TransportExactSolutions ess(5);
+   if (strncmp(es_file,"",1) != 0)
+   {
+      if (mpi.Root())
+      {
+         cout << "Reading exact solutions from " << es_file << endl;
+      }
+      ifstream esfs(es_file);
+      ess.LoadExactSolutions(coefFact, esfs);
+   }
+
    // Adaptively refine mesh to accurately represent a given coefficient
    if (amr)
    {
@@ -1547,6 +1590,8 @@ int main(int argc, char *argv[])
    ConstantCoefficient QiCoef(0.0);   // TODO: implement ion energy source
    ConstantCoefficient QeCoef(0.0); // TODO: implement electron energy source
    // FunctionCoefficient QCoef(QFunc);
+
+   ConstantCoefficient zeroCoef(0.0);
 
    // Coefficients for initial conditions
    /*
@@ -1852,6 +1897,12 @@ int main(int argc, char *argv[])
    tic_toc.Clear();
    tic_toc.Start();
 
+   ofstream ofserr;
+   if (strncmp(es_file,"",1) != 0 && mpi.Root())
+   {
+      ofserr.open("transport2d_err.out");
+   }
+
    socketstream eout;
    vector<socketstream> sout(5);
    char vishost[] = "localhost";
@@ -1902,6 +1953,39 @@ int main(int argc, char *argv[])
       ode_controller.Run(u, t, t_final);
 
       if (mpi.Root()) { cout << "Time stepping paused at t = " << t << endl; }
+
+      if (strncmp(es_file,"",1) != 0)
+      {
+         if (mpi.Root()) { ofserr << t; }
+         for (int i=0; i<5; i++)
+         {
+            Coefficient * es = ess[i];
+            if (es != NULL)
+            {
+               double nrm = yGF[i]->ComputeL2Error(zeroCoef);
+               es->SetTime(t);
+               double err = yGF[i]->ComputeL2Error(*es);
+               if (mpi.Root())
+               {
+                  if (nrm > 0.0)
+                  {
+                     // cout << "\t" << i << "\t" << err/nrm << endl;
+                     ofserr << '\t' << err / nrm;
+                  }
+                  else
+                  {
+                     // cout << "\t" << i << "\t" << err << endl;
+                     ofserr << '\t' << err;
+                  }
+               }
+            }
+            else
+            {
+               if (mpi.Root()) { ofserr << '\t' << -1.0; }
+            }
+         }
+         if (mpi.Root()) { ofserr << endl << flush; }
+      }
 
       bool ss = false;
       if ((ttol.ss_abs_tol > 0.0 || ttol.ss_rel_tol > 0.0) && t > t_min)
@@ -2152,6 +2236,8 @@ int main(int argc, char *argv[])
       // Exit loop due to acquisition of steady state
       if (ss) { break; }
    }
+
+   if (mpi.Root()) { ofserr.close(); }
 
    tic_toc.Stop();
    if (mpi.Root())

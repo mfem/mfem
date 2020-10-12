@@ -435,6 +435,71 @@ void TransportICs::ReadICs(CoefFactory &cf, std::istream &input)
    }
 }
 
+void TransportExactSolutions::Read(CoefFactory &cf, std::istream &input)
+{
+   string buff;
+
+   skip_comment_lines(input, '#');
+   input >> buff;
+   MFEM_VERIFY(buff == "transport_ess", "invalid Exact Solutions file");
+
+   Array<ios::streampos> pos(neqn_+1);
+   pos = -1;
+   while (input >> buff)
+   {
+      pos[neqn_] = std::max(pos[neqn_], input.tellg());
+      skip_comment_lines(input, '#');
+      if (buff == "neutral_density")
+      {
+         pos[0] = input.tellg();
+      }
+      else if (buff == "ion_density")
+      {
+         pos[1] = input.tellg();
+      }
+      else if (buff == "ion_parallel_velocity")
+      {
+         pos[2] = input.tellg();
+      }
+      else if (buff == "ion_temperature")
+      {
+         pos[3] = input.tellg();
+      }
+      else if (buff == "electron_temperature")
+      {
+         pos[4] = input.tellg();
+      }
+   }
+   for (int i=neqn_-1; i >= 0; i--)
+   {
+      if (pos[i] < 0) { pos[i] = pos[i+1]; }
+   }
+
+   input.clear();
+   for (int i=0; i<neqn_; i++)
+   {
+      input.seekg(pos[i], std::ios::beg);
+      int length = pos[i+1] - pos[i];
+      if (length > 0)
+      {
+         char * buffer = new char[length];
+         input.read(buffer, length);
+
+         string buff_str(buffer, length);
+
+         istringstream iss(buff_str);
+         ess_[i] = cf.GetScalarCoef(iss);
+         own_ess_[i] = false;
+
+         delete [] buffer;
+      }
+      else
+      {
+         ess_[i] = NULL;
+      }
+   }
+}
+
 void TransportCoefs::ReadCoefs(CoefFactory &cf, std::istream &input)
 {
    string buff;
