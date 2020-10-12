@@ -199,6 +199,24 @@ TEST_CASE("First order ODE methods",
       REQUIRE(check.order(new SDIRK34Solver) + tol > 4.0 );
    }
 
+   SECTION("TrapezoidalRuleSolver")
+   {
+      std::cout <<"\nTesting TrapezoidalRuleSolver" << std::endl;
+      REQUIRE(check.order(new TrapezoidalRuleSolver) + tol > 2.0 );
+   }
+
+   SECTION("ESDIRK32Solver")
+   {
+      std::cout <<"\nTesting ESDIRK32Solver" << std::endl;
+      REQUIRE(check.order(new ESDIRK32Solver) + tol > 2.0 );
+   }
+
+   SECTION("ESDIRK33Solver")
+   {
+      std::cout <<"\nTesting ESDIRK33Solver" << std::endl;
+      REQUIRE(check.order(new ESDIRK33Solver) + tol > 3.0 );
+   }
+
    // Generalized-alpha
    SECTION("GeneralizedAlphaSolver(1.0)")
    {
