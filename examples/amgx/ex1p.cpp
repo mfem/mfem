@@ -232,25 +232,25 @@ int main(int argc, char *argv[])
    }
    else if (amgx && strcmp(amgx_json_file,"") != 0)
    {
-     AmgXSolver amgx;
-     amgx.ReadParameters(amgx_json_file, AmgXSolver::EXTERNAL);
+      AmgXSolver amgx;
+      amgx.ReadParameters(amgx_json_file, AmgXSolver::EXTERNAL);
 
-     if (amgx_mpi_teams)
-     {
-       //Forms MPI teams to load balance between MPI ranks and GPUs
-       amgx.InitMPITeams(MPI_COMM_WORLD, ndevices);
-     }
-     else
-     {
-       //Assumes each MPI rank is paired with a GPU
-       amgx.InitExclusiveGPU(MPI_COMM_WORLD);
-     }
+      if (amgx_mpi_teams)
+      {
+         //Forms MPI teams to load balance between MPI ranks and GPUs
+         amgx.InitMPITeams(MPI_COMM_WORLD, ndevices);
+      }
+      else
+      {
+         //Assumes each MPI rank is paired with a GPU
+         amgx.InitExclusiveGPU(MPI_COMM_WORLD);
+      }
 
-     amgx.SetOperator(*A.As<HypreParMatrix>());
-     amgx.Mult(B, X);
+      amgx.SetOperator(*A.As<HypreParMatrix>());
+      amgx.Mult(B, X);
 
-     //Release MPI communicators and resources created by AmgX
-     amgx.Finalize();
+      //Release MPI communicators and resources created by AmgX
+      amgx.Finalize();
    }
    else
    {
@@ -263,7 +263,7 @@ int main(int argc, char *argv[])
       if (prec) { cg.SetPreconditioner(*prec); }
       cg.SetOperator(*A);
       cg.Mult(B, X);
-      delete prec;      
+      delete prec;
    }
 
    // 14. Recover the parallel grid function corresponding to X. This is the
