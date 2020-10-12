@@ -436,12 +436,12 @@ public:
 class TrapezoidalRuleSolver : public ODESolver
 {
 protected:
-    Vector k, y;
+   Vector k, y;
         
 public:
-    virtual void Init(TimeDependentOperator &_f);
-        
-    virtual void Step(Vector &x, double &t, double &dt);
+   virtual void Init(TimeDependentOperator &_f);
+
+   virtual void Step(Vector &x, double &t, double &dt);
 };
 
 
@@ -450,12 +450,12 @@ public:
 class ESDIRK32Solver : public ODESolver
 {
 protected:
-    Vector k, y, z;
+   Vector k, y, z;
         
 public:
-    virtual void Init(TimeDependentOperator &_f);
-        
-    virtual void Step(Vector &x, double &t, double &dt);
+   virtual void Init(TimeDependentOperator &_f);
+
+   virtual void Step(Vector &x, double &t, double &dt);
 };
 
 
@@ -464,12 +464,12 @@ public:
 class ESDIRK33Solver : public ODESolver
 {
 protected:
-    Vector k, y, z;
+   Vector k, y, z;
         
 public:
-    virtual void Init(TimeDependentOperator &_f);
-        
-    virtual void Step(Vector &x, double &t, double &dt);
+   virtual void Init(TimeDependentOperator &_f);
+
+   virtual void Step(Vector &x, double &t, double &dt);
 };
 
 
