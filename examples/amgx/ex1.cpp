@@ -4,12 +4,12 @@
 // Compile with: make ex1
 //
 // AmgX sample runs:
-//               ex1 -amgx
-//               ex1 -amgx -d cuda
-//               ex1 -amgx --amgx-file multi_gs.json --amgx-solver
-//               ex1 -amgx --amgx-file precon.json --amgx-preconditioner
-//               ex1 -amgx --amgx-file multi_gs.json --amgx-solver -d cuda
-//               ex1 -amgx --amgx-file precon.json --amgx-preconditioner -d cuda
+//               ex1
+//               ex1 -d cuda
+//               ex1 --amgx-file multi_gs.json --amgx-solver
+//               ex1 --amgx-file precon.json --amgx-preconditioner
+//               ex1 --amgx-file multi_gs.json --amgx-solver -d cuda
+//               ex1 --amgx-file precon.json --amgx-preconditioner -d cuda
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
-   bool amgx = true;
+   bool amgx_lib = true;
    bool amgx_solver = true;
    const char* amgx_json_file = ""; // JSON file for AmgX
 
@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&amgx, "-amgx", "--amgx-lib", "-no-amgx",
+   args.AddOption(&amgx_lib, "-amgx", "--amgx-lib", "-no-amgx",
                   "--no-amgx-lib", "Use AmgX in example.");
    args.AddOption(&amgx_json_file, "--amgx-file", "--amgx-file",
                   "AMGX solver config file (overrides --amgx-solver, --amgx-verbose)");
@@ -185,14 +185,14 @@ int main(int argc, char *argv[])
          CG(*A, B, X, 1, 400, 1e-12, 0.0);
       }
    }
-   else if (amgx && strcmp(amgx_json_file,"") == 0)
+   else if (amgx_lib && strcmp(amgx_json_file,"") == 0)
    {
       bool amgx_verbose = false;
       AmgXSolver amgx(AmgXSolver::PRECONDITIONER, amgx_verbose);
       amgx.SetOperator(*A.As<SparseMatrix>());
       PCG(*A, amgx, B, X, 1, 200, 1e-12, 0.0);
    }
-   else if (amgx && strcmp(amgx_json_file,"") != 0)
+   else if (amgx_lib && strcmp(amgx_json_file,"") != 0)
    {
       AmgXSolver amgx;
       amgx.ReadParameters(amgx_json_file, AmgXSolver::EXTERNAL);
