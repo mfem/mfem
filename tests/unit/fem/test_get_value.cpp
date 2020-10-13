@@ -3046,7 +3046,7 @@ TEST_CASE("3D GetVectorValue in Parallel",
    int log = 1;
    int n = (int)ceil(pow(2*num_procs, 1.0 / 3.0));
    int dim = 3;
-   int order = 1;
+   int order = 2;
    int npts = 0;
 
    double tol = 1e-6;
@@ -3057,6 +3057,55 @@ TEST_CASE("3D GetVectorValue in Parallel",
       Mesh *mesh = new Mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
       ParMesh pmesh(MPI_COMM_WORLD, *mesh);
       delete mesh;
+
+      {
+         std::ostringstream oss;
+         std::ofstream ofs;
+         oss << "test_t" << type << "_p" << my_rank << ".mesh";
+         ofs.open(oss.str().c_str());
+         pmesh.Print(ofs);
+
+         ofs << std::endl << "shared face orientations" << std::endl;
+         for (int sf = 0; sf < pmesh.GetNSharedFaces(); sf++)
+         {
+            int lf = pmesh.GetSharedFace(sf);
+            int inf1, inf2;
+            pmesh.GetFaceInfos(lf, &inf1, &inf2);
+            ofs << sf << " " << lf << " " << inf1/64 << " " << inf1%64 << " " << inf2/64 <<
+                " " << inf2%64 << std::endl;
+         }
+
+         ofs << std::endl << "group" << std::endl;
+         int ng = pmesh.GetNGroups();
+         for (int g=1; g<ng; g++)
+         {
+            int nt = pmesh.GroupNTriangles(g);
+            if (nt > 0)
+            {
+               ofs << "triangles" << std::endl;
+               for (int t = 0; t<nt; t++)
+               {
+                  int f, o;
+                  pmesh.GroupTriangle(g, t, f, o);
+                  ofs << g << " " << t << " " << f << " " << o << std::endl;
+               }
+            }
+
+            int nq = pmesh.GroupNQuadrilaterals(g);
+            if (nq > 0)
+            {
+               ofs << "quads" << std::endl;
+               for (int q = 0; q<nq; q++)
+               {
+                  int f, o;
+                  pmesh.GroupQuadrilateral(g, q, f, o);
+                  ofs << g << " " << q << " " << f << " " << o << std::endl;
+               }
+            }
+         }
+
+         ofs.close();
+      }
 
       VectorFunctionCoefficient funcCoef(dim, Func_3D_lin);
 
@@ -3129,6 +3178,11 @@ TEST_CASE("3D GetVectorValue in Parallel",
             {
                std::cout << "Shared Face Evaluation 3D" << std::endl;
             }
+
+            std::ostringstream oss;
+            oss << "gvv_" << type << "_" << my_rank << ".out";
+            std::ofstream ofs(oss.str().c_str());
+
             for (int sf = 0; sf < pmesh.GetNSharedFaces(); sf++)
             {
                FaceElementTransformations *FET =
@@ -3139,6 +3193,9 @@ TEST_CASE("3D GetVectorValue in Parallel",
                const FiniteElement   *fe = dgv_fespace.GetFaceNbrFE(e_nbr);
                const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
                                                         2*order + 2);
+
+               Vector nor(3);
+               CalcOrtho(FET->Jacobian(), nor); nor /= nor.Norml2();
 
                double  h1_gfc_err = 0.0;
                double  nd_gfc_err = 0.0;
@@ -3160,6 +3217,9 @@ TEST_CASE("3D GetVectorValue in Parallel",
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
 
+                  Vector x(dim);
+                  T->Transform(ip, x);
+
                   funcCoef.Eval(f_val, *T, ip);
 
                   h1_xCoef.Eval(h1_gfc_val, *T, ip);
@@ -3175,6 +3235,12 @@ TEST_CASE("3D GetVectorValue in Parallel",
                   l2_x.GetVectorValue(e, ip, l2_gvv_val);
                   dgv_x.GetVectorValue(e, ip, dgv_gvv_val);
                   dgi_x.GetVectorValue(e, ip, dgi_gvv_val);
+
+                  Vector f_tan(f_val);
+                  f_tan.Add(-(nor*f_val), nor);
+
+                  Vector nd_tan(nd_gfc_val);
+                  nd_tan.Add(-(nor*nd_gfc_val), nor);
 
                   double  h1_gfc_dist = Distance(f_val,  h1_gfc_val, dim);
                   double  nd_gfc_dist = Distance(f_val,  nd_gfc_val, dim);
@@ -3206,115 +3272,136 @@ TEST_CASE("3D GetVectorValue in Parallel",
 
                   if (log > 0 && h1_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " h1  gfc ("
-                               << f_val[0] << "," << f_val[1] << ","
-                               << f_val[2] << ") vs. ("
-                               << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
-                               << h1_gfc_val[2] << ") "
-                               << h1_gfc_dist << std::endl;
+                     // std::cout
+                     ofs << e << ":" << j << " h1  gfc ("
+                         << f_val[0] << "," << f_val[1] << ","
+                         << f_val[2] << ") vs. ("
+                         << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
+                         << h1_gfc_val[2] << ") "
+                         << h1_gfc_dist << std::endl;
                   }
                   if (log > 0 && nd_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " nd  gfc ("
-                               << f_val[0] << "," << f_val[1] << ","
-                               << f_val[2] << ") vs. ("
-                               << nd_gfc_val[0] << "," << nd_gfc_val[1] << ","
-                               << nd_gfc_val[2] << ") "
-                               << nd_gfc_dist << std::endl;
+                     // std::cout
+                     ofs << e << ":" << j
+                         << " x = (" << x[0] << "," << x[1] << ","
+                         << x[2] << ")\n nd  gfc ("
+                         << f_val[0] << "," << f_val[1] << ","
+                         << f_val[2] << ")\n vs. ("
+                         << nd_gfc_val[0] << "," << nd_gfc_val[1] << ","
+                         << nd_gfc_val[2] << ") "
+                         << nd_gfc_dist << std::endl;
+                     // std::cout
+                     ofs << "tangent ("
+                         << f_tan[0] << "," << f_tan[1] << ","
+                         << f_tan[2] << ") vs. ("
+                         << nd_tan[0] << "," << nd_tan[1] << ","
+                         << nd_tan[2] << ") "
+                         << std::endl;
                   }
                   if (log > 0 && rt_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " rt  gfc ("
-                               << f_val[0] << "," << f_val[1] << ","
-                               << f_val[2] << ") vs. ("
-                               << rt_gfc_val[0] << "," << rt_gfc_val[1] << ","
-                               << rt_gfc_val[2] << ") "
-                               << rt_gfc_dist << std::endl;
+                     // std::cout
+                     ofs << e << ":" << j << " rt  gfc ("
+                         << f_val[0] << "," << f_val[1] << ","
+                         << f_val[2] << ") vs. ("
+                         << rt_gfc_val[0] << "," << rt_gfc_val[1] << ","
+                         << rt_gfc_val[2] << ") "
+                         << rt_gfc_dist << std::endl;
                   }
                   if (log > 0 && l2_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " l2  gfc ("
-                               << f_val[0] << "," << f_val[1] << ","
-                               << f_val[2] << ") vs. ("
-                               << l2_gfc_val[0] << "," << l2_gfc_val[1] << ","
-                               << l2_gfc_val[2] << ") "
-                               << l2_gfc_dist << std::endl;
+                     // std::cout
+                     ofs << e << ":" << j << " l2  gfc ("
+                         << f_val[0] << "," << f_val[1] << ","
+                         << f_val[2] << ") vs. ("
+                         << l2_gfc_val[0] << "," << l2_gfc_val[1] << ","
+                         << l2_gfc_val[2] << ") "
+                         << l2_gfc_dist << std::endl;
                   }
                   if (log > 0 && dgv_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " dgv gfc ("
-                               << f_val[0] << "," << f_val[1] << ","
-                               << f_val[2] << ") vs. ("
-                               << dgv_gfc_val[0] << ","
-                               << dgv_gfc_val[1] << ","
-                               << dgv_gfc_val[2] << ") "
-                               << dgv_gfc_dist << std::endl;
+                     // std::cout
+                     ofs << e << ":" << j << " dgv gfc ("
+                         << f_val[0] << "," << f_val[1] << ","
+                         << f_val[2] << ") vs. ("
+                         << dgv_gfc_val[0] << ","
+                         << dgv_gfc_val[1] << ","
+                         << dgv_gfc_val[2] << ") "
+                         << dgv_gfc_dist << std::endl;
                   }
                   if (log > 0 && dgi_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " dgi gfc ("
-                               << f_val[0] << "," << f_val[1] << ","
-                               << f_val[2] << ") vs. ("
-                               << dgi_gfc_val[0] << ","
-                               << dgi_gfc_val[1] << ","
-                               << dgi_gfc_val[2] << ") "
-                               << dgi_gfc_dist << std::endl;
+                     // std::cout
+                     ofs << e << ":" << j << " dgi gfc ("
+                         << f_val[0] << "," << f_val[1] << ","
+                         << f_val[2] << ") vs. ("
+                         << dgi_gfc_val[0] << ","
+                         << dgi_gfc_val[1] << ","
+                         << dgi_gfc_val[2] << ") "
+                         << dgi_gfc_dist << std::endl;
                   }
                   if (log > 0 && h1_gvv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " h1  gvv ("
-                               << f_val[0] << "," << f_val[1] << ","
-                               << f_val[2] << ") vs. ("
-                               << h1_gvv_val[0] << "," << h1_gvv_val[1] << ","
-                               << h1_gvv_val[2] << ") "
-                               << h1_gvv_dist << std::endl;
+                     // std::cout
+                     ofs << e << ":" << j << " h1  gvv ("
+                         << f_val[0] << "," << f_val[1] << ","
+                         << f_val[2] << ") vs. ("
+                         << h1_gvv_val[0] << "," << h1_gvv_val[1] << ","
+                         << h1_gvv_val[2] << ") "
+                         << h1_gvv_dist << std::endl;
                   }
                   if (log > 0 && nd_gvv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " nd  gvv ("
-                               << f_val[0] << "," << f_val[1] << ","
-                               << f_val[2] << ") vs. ("
-                               << nd_gvv_val[0] << "," << nd_gvv_val[1] << ","
-                               << nd_gvv_val[2] << ") "
-                               << nd_gvv_dist << std::endl;
+                     // std::cout
+                     ofs << e << ":" << j << " nd  gvv ("
+                         << f_val[0] << "," << f_val[1] << ","
+                         << f_val[2] << ") vs. ("
+                         << nd_gvv_val[0] << "," << nd_gvv_val[1] << ","
+                         << nd_gvv_val[2] << ") "
+                         << nd_gvv_dist << std::endl;
                   }
                   if (log > 0 && rt_gvv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " rt  gvv ("
-                               << f_val[0] << "," << f_val[1] << ","
-                               << f_val[2] << ") vs. ("
-                               << rt_gvv_val[0] << "," << rt_gvv_val[1] << ","
-                               << rt_gvv_val[2] << ") "
-                               << rt_gvv_dist << std::endl;
+                     // std::cout
+                     ofs << e << ":" << j << " rt  gvv ("
+                         << f_val[0] << "," << f_val[1] << ","
+                         << f_val[2] << ") vs. ("
+                         << rt_gvv_val[0] << "," << rt_gvv_val[1] << ","
+                         << rt_gvv_val[2] << ") "
+                         << rt_gvv_dist << std::endl;
                   }
                   if (log > 0 && l2_gvv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " l2  gvv ("
-                               << f_val[0] << "," << f_val[1] << ","
-                               << f_val[2] << ") vs. ("
-                               << l2_gvv_val[0] << "," << l2_gvv_val[1] << ","
-                               << l2_gvv_val[2] << ") "
-                               << l2_gvv_dist << std::endl;
+                     // std::cout
+                     ofs << e << ":" << j << " l2  gvv ("
+                         << f_val[0] << "," << f_val[1] << ","
+                         << f_val[2] << ") vs. ("
+                         << l2_gvv_val[0] << "," << l2_gvv_val[1] << ","
+                         << l2_gvv_val[2] << ") "
+                         << l2_gvv_dist << std::endl;
                   }
                   if (log > 0 && dgv_gvv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " dgv gvv ("
-                               << f_val[0] << "," << f_val[1] << ","
-                               << f_val[2] << ") vs. ("
-                               << dgv_gvv_val[0] << ","
-                               << dgv_gvv_val[1] << ","
-                               << dgv_gvv_val[2] << ") "
-                               << dgv_gvv_dist << std::endl;
+                     // std::cout
+                     ofs << e << ":" << j << " dgv gvv ("
+                         << f_val[0] << "," << f_val[1] << ","
+                         << f_val[2] << ") vs. ("
+                         << dgv_gvv_val[0] << ","
+                         << dgv_gvv_val[1] << ","
+                         << dgv_gvv_val[2] << ") "
+                         << dgv_gvv_dist << std::endl;
                   }
                   if (log > 0 && dgi_gvv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " dgi gvv ("
-                               << f_val[0] << "," << f_val[1] << ","
-                               << f_val[2] << ") vs. ("
-                               << dgi_gvv_val[0] << ","
-                               << dgi_gvv_val[1] << ","
-                               << dgi_gvv_val[2] << ") "
-                               << dgi_gvv_dist << std::endl;
+                     // std::cout
+                     ofs << e << ":" << j << " dgi gvv ("
+                         << f_val[0] << "," << f_val[1] << ","
+                         << f_val[2] << ") vs. ("
+                         << dgi_gvv_val[0] << ","
+                         << dgi_gvv_val[1] << ","
+                         << dgi_gvv_val[2] << ") "
+                         << dgi_gvv_dist << std::endl;
                   }
                }
 

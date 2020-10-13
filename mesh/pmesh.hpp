@@ -33,7 +33,8 @@ class ParMesh : public Mesh
 {
 protected:
    ParMesh() : MyComm(0), NRanks(0), MyRank(-1),
-      have_face_nbr_data(false), pncmesh(NULL) {}
+      face_nbr_el_to_face(NULL), have_face_nbr_data(false),
+      pncmesh(NULL) {}
 
    MPI_Comm MyComm;
    int NRanks, MyRank;
@@ -78,6 +79,8 @@ protected:
    // sface ids: all triangles first, then all quads
    Array<int> sface_lface;
 
+   Table *face_nbr_el_to_face;
+
    IsoparametricTransformation FaceNbrTransformation;
 
    // glob_elem_offset + local element number defines a global element numbering
@@ -105,6 +108,8 @@ protected:
 
    bool DecodeFaceSplittings(HashTable<Hashed2> &v_to_v, const int *v,
                              const Array<unsigned> &codes, int &pos);
+
+   STable3D *GetFaceNbrElementToFaceTable(int ret_ftbl = 0);
 
    void GetFaceNbrElementTransformation(
       int i, IsoparametricTransformation *ElTr);
@@ -199,6 +204,9 @@ protected:
    void BuildSharedVertMapping(int nvert, const Table* vert_element,
                                const Array<int> &vert_global_local);
 
+   // Similar to Mesh::GetFacesTable()
+   STable3D *GetSharedFacesTable();
+
    /// Ensure that bdr_attributes and attributes agree across processors
    void DistributeAttributes(Array<int> &attr);
 
@@ -286,6 +294,9 @@ public:
    int GetNFaceNeighbors() const { return face_nbr_group.Size(); }
    int GetFaceNbrGroup(int fn) const { return face_nbr_group[fn]; }
    int GetFaceNbrRank(int fn) const;
+
+   /** Similar to Mesh::GetElementFaces */
+   void GetFaceNbrElementFaces(int i, Array<int> &fcs, Array<int> &cor) const;
 
    /** Similar to Mesh::GetFaceToElementTable with added face-neighbor elements
        with indices offset by the local number of elements. */

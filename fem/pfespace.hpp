@@ -186,6 +186,8 @@ public:
    int num_face_nbr_dofs;
    // Face-neighbor-element to face-neighbor dof
    Table face_nbr_element_dof;
+   // Face-neighbor-element face orientations
+   Table face_nbr_element_fos;
    // Face-neighbor to ldof in the face-neighbor numbering
    Table face_nbr_ldof;
    // The global ldof indices of the face-neighbor dofs
@@ -350,7 +352,7 @@ public:
    // Face-neighbor functions
    void ExchangeFaceNbrData();
    int GetFaceNbrVSize() const { return num_face_nbr_dofs; }
-   void GetFaceNbrElementVDofs(int i, Array<int> &vdofs) const;
+   DofTransformation *GetFaceNbrElementVDofs(int i, Array<int> &vdofs) const;
    void GetFaceNbrFaceVDofs(int i, Array<int> &vdofs) const;
    const FiniteElement *GetFaceNbrFE(int i) const;
    const FiniteElement *GetFaceNbrFaceFE(int i) const;
