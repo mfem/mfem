@@ -131,8 +131,8 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
    const Vector &px = Prolongate(x);
    if (P) { aux2.SetSize(P->Height()); }
 
-   // If we are in parallel, ParNonLinearForm::Mult uses the aux2 vector.
-   // In serial, place the result directly in y.
+   // If we are in parallel, ParNonLinearForm::Mult uses the aux2 vector. In
+   // serial, place the result directly in y.
    Vector &py = P ? aux2 : y;
 
    if (ext)
@@ -456,11 +456,12 @@ void BlockNonlinearForm::SetSpaces(Array<FiniteElementSpace *> &f)
       for (int j=0; j<Grads.NumCols(); ++j)
       {
          delete Grads(i,j);
+         delete cGrads(i,j);
       }
    }
-   for (int i = 0; i < ess_vdofs.Size(); ++i)
+   for (int i = 0; i < ess_tdofs.Size(); ++i)
    {
-      delete ess_vdofs[i];
+      delete ess_tdofs[i];
    }
 
    height = 0;
@@ -486,10 +487,33 @@ void BlockNonlinearForm::SetSpaces(Array<FiniteElementSpace *> &f)
    Grads.SetSize(fes.Size(), fes.Size());
    Grads = NULL;
 
-   ess_vdofs.SetSize(fes.Size());
+   cGrads.SetSize(fes.Size(), fes.Size());
+   cGrads = NULL;
+
+   P.SetSize(fes.Size());
+   cP.SetSize(fes.Size());
+   ess_tdofs.SetSize(fes.Size());
    for (int s = 0; s < fes.Size(); ++s)
    {
-      ess_vdofs[s] = new Array<int>;
+      // Retrieve prolongation matrix for each FE space
+      P[s] = fes[s]->GetProlongationMatrix();
+      cP[s] = dynamic_cast<const SparseMatrix *>(P[s]);
+
+      // If the P Operator exists and its type is not SparseMatrix, this
+      // indicates the Operator is part of parallel run.
+      if (P[s] && !cP[s])
+      {
+         is_serial = false;
+      }
+
+      // If the P Operator exists and its type is SparseMatrix, this indicates
+      // the Operator is serial but needs prolongation on assembly.
+      if (cP[s])
+      {
+         needs_prolongation = true;
+      }
+
+      ess_tdofs[s] = new Array<int>;
    }
 }
 
@@ -506,45 +530,18 @@ void BlockNonlinearForm::AddBdrFaceIntegrator(BlockNonlinearFormIntegrator *nfi,
    bfnfi_marker.Append(&bdr_attr_marker);
 }
 
-void BlockNonlinearForm::SetEssentialBC(const
-                                        Array<Array<int> *>&bdr_attr_is_ess,
-                                        Array<Vector *> &rhs)
+void BlockNonlinearForm::SetEssentialBC(
+   const Array<Array<int> *> &bdr_attr_is_ess, Array<Vector *> &rhs)
 {
-   int i, j, vsize, nv;
-
-   for (int s=0; s<fes.Size(); ++s)
+   for (int s = 0; s < fes.Size(); ++s)
    {
-      // First, set u variables
-      vsize = fes[s]->GetVSize();
-      Array<int> vdof_marker(vsize);
+      ess_tdofs[s]->SetSize(ess_tdofs.Size());
 
-      // virtual call, works in parallel too
-      fes[s]->GetEssentialVDofs(*(bdr_attr_is_ess[s]), vdof_marker);
-      nv = 0;
-      for (i = 0; i < vsize; ++i)
-      {
-         if (vdof_marker[i])
-         {
-            nv++;
-         }
-      }
-
-      ess_vdofs[s]->SetSize(nv);
-
-      for (i = j = 0; i < vsize; ++i)
-      {
-         if (vdof_marker[i])
-         {
-            (*ess_vdofs[s])[j++] = i;
-         }
-      }
+      fes[s]->GetEssentialTrueDofs(*bdr_attr_is_ess[s], *ess_tdofs[s]);
 
       if (rhs[s])
       {
-         for (i = 0; i < nv; ++i)
-         {
-            (*rhs[s])[(*ess_vdofs[s])[i]] = 0.0;
-         }
+         rhs[s]->SetSubVector(*ess_tdofs[s], 0.0);
       }
    }
 }
@@ -580,6 +577,13 @@ double BlockNonlinearForm::GetEnergyBlocked(const BlockVector &bx) const
             energy += dnfi[k]->GetElementEnergy(fe, *T, el_x_const);
          }
       }
+
+   // free the allocated memory
+   for (int i = 0; i < fes.Size(); ++i)
+   {
+      delete el_x[i];
+      delete vdofs[i];
+   }
 
    if (fnfi.Size())
    {
@@ -750,18 +754,52 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
       delete vdofs[s];
       delete el_y[s];
       delete el_x[s];
-      by.GetBlock(s).SetSubVector(*ess_vdofs[s], 0.0);
    }
+}
+
+const BlockVector &BlockNonlinearForm::Prolongate(const BlockVector &bx) const
+{
+   MFEM_VERIFY(bx.Size() == Width(), "invalid input BlockVector size");
+
+   if (needs_prolongation)
+   {
+      aux1.Update(block_offsets);
+      for (int s = 0; s < fes.Size(); s++)
+      {
+         P[s]->Mult(bx.GetBlock(s), aux1.GetBlock(s));
+      }
+      return aux1;
+   }
+   return bx;
 }
 
 void BlockNonlinearForm::Mult(const Vector &x, Vector &y) const
 {
-   xs.Update(x.GetData(), block_offsets);
-   ys.Update(y.GetData(), block_offsets);
+   BlockVector bx(x.GetData(), block_trueOffsets);
+   BlockVector by(y.GetData(), block_trueOffsets);
+
+   const BlockVector &pbx = Prolongate(bx);
+   if (needs_prolongation)
+   {
+      aux2.Update(block_offsets);
+   }
+   BlockVector &pby = needs_prolongation ? aux2 : by;
+
+   xs.Update(pbx.GetData(), block_offsets);
+   ys.Update(pby.GetData(), block_offsets);
    MultBlocked(xs, ys);
+
+   for (int s = 0; s < fes.Size(); s++)
+   {
+      if (cP[s])
+      {
+         cP[s]->MultTranspose(pby.GetBlock(s), by.GetBlock(s));
+      }
+      by.GetBlock(s).SetSubVector(*ess_tdofs[s], 0.0);
+   }
 }
 
-Operator &BlockNonlinearForm::GetGradientBlocked(const BlockVector &bx) const
+void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx) const
 {
    const int skip_zeros = 0;
    Array<Array<int> *> vdofs(fes.Size());
@@ -772,13 +810,6 @@ Operator &BlockNonlinearForm::GetGradientBlocked(const BlockVector &bx) const
    Array<const FiniteElement *>fe(fes.Size());
    Array<const FiniteElement *>fe2(fes.Size());
    ElementTransformation * T;
-
-   if (BlockGrad != NULL)
-   {
-      delete BlockGrad;
-   }
-
-   BlockGrad = new BlockOperator(block_offsets);
 
    for (int i=0; i<fes.Size(); ++i)
    {
@@ -944,44 +975,70 @@ Operator &BlockNonlinearForm::GetGradientBlocked(const BlockVector &bx) const
       }
    }
 
-   for (int s=0; s<fes.Size(); ++s)
-   {
-      for (int i = 0; i < ess_vdofs[s]->Size(); ++i)
-      {
-         for (int j=0; j<fes.Size(); ++j)
-         {
-            if (s==j)
-            {
-               Grads(s,s)->EliminateRowCol((*ess_vdofs[s])[i], Matrix::DIAG_ONE);
-            }
-            else
-            {
-               Grads(s,j)->EliminateRow((*ess_vdofs[s])[i]);
-               Grads(j,s)->EliminateCol((*ess_vdofs[s])[i]);
-            }
-         }
-      }
-   }
-
    for (int i=0; i<fes.Size(); ++i)
    {
       for (int j=0; j<fes.Size(); ++j)
       {
-         BlockGrad->SetBlock(i,j,Grads(i,j));
          delete elmats(i,j);
       }
       delete vdofs2[i];
       delete vdofs[i];
       delete el_x[i];
    }
-
-   return *BlockGrad;
 }
 
 Operator &BlockNonlinearForm::GetGradient(const Vector &x) const
 {
-   xs.Update(x.GetData(), block_offsets);
-   return GetGradientBlocked(xs);
+   BlockVector bx(x.GetData(), block_trueOffsets);
+   const BlockVector &pbx = Prolongate(bx);
+
+   ComputeGradientBlocked(pbx);
+
+   Array2D<SparseMatrix *> mGrads(fes.Size(), fes.Size());
+   mGrads = Grads;
+   if (needs_prolongation)
+   {
+      for (int s1 = 0; s1 < fes.Size(); ++s1)
+      {
+         for (int s2 = 0; s2 < fes.Size(); ++s2)
+         {
+            delete cGrads(s1, s2);
+            cGrads(s1, s2) = RAP(*cP[s1], *Grads(s1, s2), *cP[s2]);
+            mGrads(s1, s2) = cGrads(s1, s2);
+         }
+      }
+   }
+
+   for (int s = 0; s < fes.Size(); ++s)
+   {
+      for (int i = 0; i < ess_tdofs[s]->Size(); ++i)
+      {
+         for (int j = 0; j < fes.Size(); ++j)
+         {
+            if (s == j)
+            {
+               mGrads(s, s)->EliminateRowCol((*ess_tdofs[s])[i],
+                                             Matrix::DIAG_ONE);
+            }
+            else
+            {
+               mGrads(s, j)->EliminateRow((*ess_tdofs[s])[i]);
+               mGrads(j, s)->EliminateCol((*ess_tdofs[s])[i]);
+            }
+         }
+      }
+   }
+
+   delete BlockGrad;
+   BlockGrad = new BlockOperator(block_trueOffsets);
+   for (int i = 0; i < fes.Size(); ++i)
+   {
+      for (int j = 0; j < fes.Size(); ++j)
+      {
+         BlockGrad->SetBlock(i, j, mGrads(i, j));
+      }
+   }
+   return *BlockGrad;
 }
 
 BlockNonlinearForm::~BlockNonlinearForm()
@@ -992,8 +1049,9 @@ BlockNonlinearForm::~BlockNonlinearForm()
       for (int j=0; j<fes.Size(); ++j)
       {
          delete Grads(i,j);
+         delete cGrads(i,j);
       }
-      delete ess_vdofs[i];
+      delete ess_tdofs[i];
    }
 
    for (int i = 0; i < dnfi.Size(); ++i)
