@@ -132,7 +132,8 @@ void CeedPAAssemble(const CeedPAOperator& op,
    CeedBasisGetNumQuadraturePoints(ceedData.basis, &nqpts);
 
    const int qdatasize = op.qdatasize;
-   InitCeedStridedRestriction(fes, nelem, nqpts, qdatasize, CEED_STRIDES_BACKEND,
+   InitCeedStridedRestriction(*mesh_fes, nelem, nqpts, qdatasize,
+                              CEED_STRIDES_BACKEND,
                               &ceedData.restr_i);
 
    InitCeedVector(*mesh->GetNodes(), ceedData.node_coords);
@@ -206,7 +207,7 @@ void CeedPAAssemble(const CeedPAOperator& op,
          CeedQuadCoeff* quadCoeff = (CeedQuadCoeff*)ceedData.coeff;
          const int ncomp = 1;
          CeedInt strides[3] = {1, nqpts, ncomp*nqpts};
-         InitCeedStridedRestriction(fes, nelem, nqpts, ncomp, strides,
+         InitCeedStridedRestriction(*mesh_fes, nelem, nqpts, ncomp, strides,
                                     &quadCoeff->restr);
          CeedOperatorSetField(ceedData.build_oper, "coeff", quadCoeff->restr,
                               CEED_BASIS_COLLOCATED, quadCoeff->coeffVector);
@@ -346,7 +347,8 @@ void CeedMFAssemble(const CeedMFOperator& op,
          CeedQuadCoeff* quadCoeff = (CeedQuadCoeff*)ceedData.coeff;
          const int ncomp = 1;
          CeedInt strides[3] = {1, nqpts, ncomp*nqpts};
-         InitCeedStridedRestriction(fes, nelem, nqpts, ncomp, strides,
+         InitCeedStridedRestriction(*mesh->GetNodalFESpace(),
+                                    nelem, nqpts, ncomp, strides,
                                     &quadCoeff->restr);
          CeedOperatorSetField(ceedData.oper, "coeff", quadCoeff->restr,
                               CEED_BASIS_COLLOCATED, quadCoeff->coeffVector);
