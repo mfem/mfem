@@ -84,6 +84,7 @@ struct CeedData
    {
       CeedOperatorDestroy(&build_oper);
       CeedOperatorDestroy(&oper);
+      CeedElemRestrictionDestroy(&restr_i);
       CeedQFunctionDestroy(&apply_qfunc);
       CeedQFunctionDestroy(&build_qfunc);
       CeedQFunctionContextDestroy(&build_ctx);
@@ -102,6 +103,7 @@ struct CeedData
       else if (coeff_type==CeedCoeff::Quad)
       {
          CeedQuadCoeff* c = static_cast<CeedQuadCoeff*>(coeff);
+         CeedElemRestrictionDestroy(&c->restr);
          CeedVectorDestroy(&c->coeffVector);
          delete c;
       }
@@ -222,6 +224,10 @@ void RemoveCeedBasisAndRestriction(const FiniteElementSpace *fes);
 #ifdef MFEM_USE_CEED
 /// Initialize a CeedVector from a Vector
 void InitCeedVector(const Vector &v, CeedVector &cv);
+
+/// Initialize a strided CeedElemRestriction
+void InitCeedStridedRestriction(CeedInt nelem, CeedInt nqpts, CeedInt qdatasize,
+                                CeedElemRestriction *restr);
 
 /// Initialize a CeedBasis and a CeedElemRestriction
 void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,

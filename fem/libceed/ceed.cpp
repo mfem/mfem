@@ -132,9 +132,7 @@ void CeedPAAssemble(const CeedPAOperator& op,
    CeedBasisGetNumQuadraturePoints(ceedData.basis, &nqpts);
 
    const int qdatasize = op.qdatasize;
-   CeedElemRestrictionCreateStrided(ceed, nelem, nqpts, qdatasize,
-                                    nelem*nqpts*qdatasize, CEED_STRIDES_BACKEND,
-                                    &ceedData.restr_i);
+   InitCeedStridedRestriction(nelem, nqpts, qdatasize, &ceedData.restr_i);
 
    InitCeedVector(*mesh->GetNodes(), ceedData.node_coords);
 
@@ -207,9 +205,7 @@ void CeedPAAssemble(const CeedPAOperator& op,
          CeedQuadCoeff* quadCoeff = (CeedQuadCoeff*)ceedData.coeff;
          const int ncomp = 1;
          CeedInt strides[3] = {1, nqpts, ncomp*nqpts};
-         CeedElemRestrictionCreateStrided(ceed, nelem, nqpts, ncomp,
-                                          nelem*ncomp*nqpts, strides,
-                                          &quadCoeff->restr);
+         InitCeedStridedRestriction(nelem, nqpts, ncomp, &quadCoeff->restr);
          CeedOperatorSetField(ceedData.build_oper, "coeff", quadCoeff->restr,
                               CEED_BASIS_COLLOCATED, quadCoeff->coeffVector);
       }
@@ -348,9 +344,7 @@ void CeedMFAssemble(const CeedMFOperator& op,
          CeedQuadCoeff* quadCoeff = (CeedQuadCoeff*)ceedData.coeff;
          const int ncomp = 1;
          CeedInt strides[3] = {1, nqpts, ncomp*nqpts};
-         CeedElemRestrictionCreateStrided(ceed, nelem, nqpts, ncomp,
-                                          nelem*ncomp*nqpts, strides,
-                                          &quadCoeff->restr);
+         InitCeedStridedRestriction(nelem, nqpts, ncomp, &quadCoeff->restr);
          CeedOperatorSetField(ceedData.oper, "coeff", quadCoeff->restr,
                               CEED_BASIS_COLLOCATED, quadCoeff->coeffVector);
       }
@@ -632,6 +626,15 @@ static void InitCeedTensorRestriction(const FiniteElementSpace &fes,
                              compstride, (fes.GetVDim())*(fes.GetNDofs()),
                              CEED_MEM_HOST, CEED_COPY_VALUES,
                              tp_el_dof.GetData(), restr);
+}
+
+void InitCeedStridedRestriction(CeedInt nelem, CeedInt nqpts, CeedInt qdatasize,
+                                CeedElemRestriction *restr)
+{
+   // TODO handle automatically deallocation using the restriction map.
+   CeedElemRestrictionCreateStrided(internal::ceed, nelem, nqpts, qdatasize,
+                                    nelem*nqpts*qdatasize, CEED_STRIDES_BACKEND,
+                                    restr);
 }
 
 void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
