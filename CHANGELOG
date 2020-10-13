@@ -56,6 +56,11 @@ Performance improvements
 
 Improved GPU capabilities
 -------------------------
+- Added support for different modes of QuadratureInterpolator on GPU.
+  The layout (QVectorLayout::byNODES|byVDIM) and the tensor modes can be
+  enabled before calling the Mult, Values, Derivatives, PhysDerivatives and
+  Determinants methods.
+
 - Added support for Chebyshev accelerated polynomial smoother on GPU.
 
 - Optimized AMD/HIP kernel support.
