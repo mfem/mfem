@@ -17,14 +17,13 @@
 //           with automatic differentiation (AD). The definitions of the
 //           integrators are written in the ex71.hpp.  Selecting integrator=0
 //           will use the manually implemented integrator.  Selecting
-//           integrator=1 will utilize the AD integrator.  The AD integrator
-//           can be modified to use ADQFunctionTJ.
+//           integrator=1,2 will utilize the AD integrator.
 //
-//           qint (the integrand) is a function which is evaluated at every
+//        The AD integrators are implemented in ex71.hpp (pLaplaceAD).
+//           The integrand qint is a function which is evaluated at every
 //           integration point. For implementations utilizing ADQFunctionTJ,
 //           the user has to implement the function and the residual
 //           evaluation. The Jacobian of the residual is evaluated using AD
-//
 //           For implementations utilizing ADQFunctionTH, the user has to
 //           implement only the function evaluation (as a template) and the
 //           first derivative (the residual) and the second derivatives (the
@@ -37,6 +36,229 @@
 
 using namespace mfem;
 
+///Non-linear solver for the p-Laplacian problem.
+class ParNLSolverPLaplacian
+{
+public:
+   ///Constructor Input: imesh - FE mesh, finite element space,
+   /// power for the p-Laplacian, external load (source, input),
+   /// regularization parameter
+   ParNLSolverPLaplacian(MPI_Comm comm, ParMesh& imesh,
+                         ParFiniteElementSpace& ifespace,
+                         double powerp=2,
+                         Coefficient* load=nullptr,
+                         double regularizationp=1e-7)
+   {
+      lcomm = comm;
+
+      //default parameters for
+      //the Newton solver
+      newton_rtol = 1e-4;
+      newton_atol = 1e-8;
+      newton_iter = 10;
+
+      //linear solver
+      linear_rtol = 1e-7;
+      linear_atol = 1e-15;
+      linear_iter = 500;
+
+      print_level = 0;
+
+      //set the mesh
+      mesh=&imesh;
+
+      //set the fespace
+      fespace=&ifespace;
+
+      //set the parameters
+      plap_epsilon=new ConstantCoefficient(regularizationp);
+      plap_power=new ConstantCoefficient(powerp);
+      if (load==nullptr)
+      {
+         plap_input=new ConstantCoefficient(1.0);
+         input_ownership=true;
+      }
+      else
+      {
+         plap_input=load;
+         input_ownership=false;
+      }
+
+      nf=nullptr;
+      ns=nullptr;
+      gmres=nullptr;
+      prec=nullptr;
+
+      //set the default integrator
+      integ=0; //hand coded
+   }
+
+   ~ParNLSolverPLaplacian()
+   {
+      if (nf!=nullptr) { delete nf;}
+      if (ns!=nullptr) { delete ns;}
+      if (prec!=nullptr) { delete prec;}
+      if (gmres!=nullptr) { delete gmres;}
+      if (input_ownership) { delete plap_input;}
+      delete plap_epsilon;
+      delete plap_power;
+   }
+
+   ///Set the integrator.
+   /// 0 - hand coded, 1 - AD based (compute only Heassian by AD),
+   /// 2 - AD based (compute residual and Hessian by AD)
+   void SetIntegrator(int intr)
+   {
+      integ=intr;
+   }
+
+   //set relative tolerance for the Newton solver
+   void SetNRRTol(double rtol)
+   {
+      newton_rtol=rtol;
+   }
+
+   //set absolute tolerance for the Newton solver
+   void SetNRATol(double atol)
+   {
+      newton_atol=atol;
+   }
+
+   //set max iterations for the NR solver
+   void SetMaxNRIter(int miter)
+   {
+      newton_iter=miter;
+   }
+
+   void SetLSRTol(double rtol)
+   {
+      linear_rtol=rtol;
+   }
+
+   void SetLSATol(double atol)
+   {
+      linear_atol=atol;
+   }
+
+   //set max iterations for the linear solver
+   void SetMaxLSIter(int miter)
+   {
+      linear_iter=miter;
+   }
+
+   //set the print level
+   void SetPrintLevel(int plev)
+   {
+      print_level=plev;
+   }
+
+   ///The state vector is used as initial condition for the NR solver.
+   /// On return the statev holds the solution to the problem.
+   void Solve(Vector& statev)
+   {
+      if (nf==nullptr)
+      {
+         AllocSolvers();
+      }
+      Vector b; //RHS is zero
+      ns->Mult(b, statev);
+   }
+
+   ///Compute the energy
+   double GetEnergy(Vector& statev)
+   {
+      if (nf==nullptr)
+      {
+         //allocate the solvers
+         AllocSolvers();
+      }
+      return nf->GetEnergy(statev);
+   }
+
+private:
+   void AllocSolvers()
+   {
+      if (nf!=nullptr) { delete nf;}
+      if (ns!=nullptr) { delete ns;}
+      if (gmres!=nullptr) { delete gmres;}
+      if (prec!=nullptr) { delete prec;}
+
+      // Define the essential boundary attributes
+      Array<int> ess_bdr(mesh->bdr_attributes.Max());
+      ess_bdr = 1;
+
+      nf = new ParNonlinearForm(fespace);
+      if (integ==0)
+      {
+         nf->AddDomainIntegrator(new pLaplace(*plap_power,*plap_epsilon,*plap_input));
+      }
+      else if (integ==1)
+      {
+         nf->AddDomainIntegrator(new pLaplaceAD<pLapIntegrandTJ>(*plap_power,
+                                                                 *plap_epsilon,*plap_input));
+      }
+      else
+      {
+         nf->AddDomainIntegrator(new pLaplaceAD<pLapIntegrandTH>(*plap_power,
+                                                                 *plap_epsilon,*plap_input));
+      }
+
+      nf->SetEssentialBC(ess_bdr);
+
+      prec = new HypreBoomerAMG();
+      prec->SetPrintLevel(print_level);
+
+      gmres = new GMRESSolver(lcomm);
+      gmres->SetAbsTol(linear_atol);
+      gmres->SetRelTol(linear_rtol);
+      gmres->SetMaxIter(linear_iter);
+      gmres->SetPrintLevel(print_level);
+      gmres->SetPreconditioner(*prec);
+
+      ns = new NewtonSolver(lcomm);
+
+      ns->iterative_mode = true;
+      ns->SetSolver(*gmres);
+      ns->SetOperator(*nf);
+      ns->SetPrintLevel(print_level);
+      ns->SetRelTol(newton_rtol);
+      ns->SetAbsTol(newton_atol);
+      ns->SetMaxIter(newton_iter);
+   }
+
+   double newton_rtol;
+   double newton_atol;
+   int newton_iter;
+
+   double linear_rtol;
+   double linear_atol;
+   int linear_iter;
+
+   int print_level;
+
+   //power of the p-laplacian
+   Coefficient* plap_power;
+   //regularization parammeter
+   Coefficient* plap_epsilon;
+   //load(input) paramater
+   Coefficient* plap_input;
+   bool input_ownership;
+
+   MPI_Comm lcomm;
+
+   ParMesh *mesh;
+   ParFiniteElementSpace *fespace;
+
+   ParNonlinearForm *nf;
+
+   HypreBoomerAMG *prec;
+   GMRESSolver *gmres;
+   NewtonSolver *ns;
+   int integ;
+
+};
+
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI
@@ -48,16 +270,15 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options
    const char *mesh_file = "../data/beam-tet.mesh";
    int ser_ref_levels = 3;
-   int par_ref_levels = 0;
+   int par_ref_levels = 1;
    int order = 2;
    bool visualization = true;
    double newton_rel_tol = 1e-4;
    double newton_abs_tol = 1e-6;
-   int newton_iter = 500;
+   int newton_iter = 10;
    int print_level = 0;
    double pp = 2.0;
-   int integrator = 1; //use AD
-   StopWatch *timer = new StopWatch();
+   int integrator = 2; //use AD
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -116,6 +337,8 @@ int main(int argc, char *argv[])
       args.PrintOptions(std::cout);
    }
 
+   StopWatch *timer = new StopWatch();
+
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral and hexahedral meshes
    //    with the same code.
@@ -140,12 +363,8 @@ int main(int argc, char *argv[])
       pmesh->UniformRefinement();
    }
 
-   // 6. Define the power parameter for the p-Laplacian and all other
-   //    coefficients
-   ConstantCoefficient c_pp(pp);
-   ConstantCoefficient load(1.000000000);
-   //ConstantCoefficient c_ee(0.000000001);
-   ConstantCoefficient c_ee(0.01);
+   // 6. Define the load for the p-Laplacian
+   ConstantCoefficient load(1.00);
 
    // 7. Define the finite element spaces for the solution
    H1_FECollection fec(order, dim);
@@ -157,184 +376,80 @@ int main(int argc, char *argv[])
                 << std::endl;
    }
 
-   // 8. Define the Dirichlet conditions
-   Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-   ess_bdr = 1;
-
-   // 9. Define the nonlinear form
-   ParNonlinearForm *nf = new ParNonlinearForm(&fespace);
-
-   // 10. Define the solution vector x as a parallel finite element grid function
+   // 8. Define the solution vector x as a parallel finite element grid function
    //     corresponding to fespace. Initialize x with initial guess of zero,
    //     which satisfies the boundary conditions.
    ParGridFunction x(&fespace);
    x = 0.0;
-   HypreParVector *tv = x.GetTrueDofs();
    HypreParVector *sv = x.GetTrueDofs();
 
-   // 11. Define ParaView DataCollection
+   // 9. Define ParaView DataCollection
    ParaViewDataCollection *dacol = new ParaViewDataCollection("Example71",
                                                               pmesh);
    dacol->SetLevelsOfDetail(order);
    dacol->RegisterField("sol", &x);
 
-   // 11. Set domain integrators - start with linear diffusion
+   // 10. Define the NR solver
+   ParNLSolverPLaplacian* nr;
+
+   // 11. Start with linear diffusion
+   nr=new ParNLSolverPLaplacian(MPI_COMM_WORLD,*pmesh, fespace, 2.0, &load);
+   nr->SetIntegrator(integrator);
+   nr->SetMaxNRIter(newton_iter);
+   nr->SetNRATol(newton_abs_tol);
+   nr->SetNRRTol(newton_rel_tol);
+   nr->SetPrintLevel(print_level);
+   timer->Clear();
+   timer->Start();
+   nr->Solve(*sv);
+   timer->Stop();
+   if (myrank==0)
    {
-      // The default power coefficient is 2.0
-      ConstantCoefficient lpp(2.0);
-      if (integrator == 0)
-      {
-         nf->AddDomainIntegrator(new pLaplace(lpp, c_ee, load));
-      }
-      else if (integrator == 1)
-      {
-         nf->AddDomainIntegrator(new pLaplaceAD(lpp, c_ee, load));
-      }
-      nf->SetEssentialBC(ess_bdr);
-
-      // Compute the energy
-      double energy = nf->GetEnergy(*tv);
-      if (myrank == 0)
-      {
-         std::cout << "[2] The total energy of the system is E=" << energy
-                   << std::endl;
-      }
-      // Time the assembly
-      timer->Clear();
-      timer->Start();
-      nf->GetGradient(*sv);
-      timer->Stop();
-      if (myrank == 0)
-      {
-         std::cout << "[2] The assembly time is: " << timer->RealTime()
-                   << std::endl;
-      }
-
-      Solver *prec = new HypreBoomerAMG();
-      GMRESSolver *j_gmres = new GMRESSolver(MPI_COMM_WORLD);
-      j_gmres->SetRelTol(1e-7);
-      j_gmres->SetAbsTol(1e-15);
-      j_gmres->SetMaxIter(300);
-      j_gmres->SetPrintLevel(print_level);
-      j_gmres->SetPreconditioner(*prec);
-
-      NewtonSolver *ns;
-      ns = new NewtonSolver(MPI_COMM_WORLD);
-      ns->iterative_mode = true;
-      ns->SetSolver(*j_gmres);
-      ns->SetOperator(*nf);
-      ns->SetPrintLevel(print_level);
-      ns->SetRelTol(1e-6);
-      ns->SetAbsTol(1e-12);
-      ns->SetMaxIter(3);
-
-      // Solve the problem
-      timer->Clear();
-      timer->Start();
-      ns->Mult(*tv, *sv);
-      timer->Stop();
-      if (myrank == 0)
-      {
-         std::cout << "Time for the NewtonSolver: " << timer->RealTime()
-                   << std::endl;
-      }
-
-      energy = nf->GetEnergy(*sv);
-      if (myrank == 0)
-      {
-         std::cout << "[pp=2] The total energy of the system is E=" << energy
-                   << std::endl;
-      }
-
-      delete ns;
-      delete j_gmres;
-      delete prec;
-
-      x.SetFromTrueDofs(*sv);
-      dacol->SetTime(2.0);
-      dacol->SetCycle(2);
-      dacol->Save();
+      std::cout << "[pp=2] The solution time is: " << timer->RealTime()
+                << std::endl;
    }
+   // Compute the energy
+   double energy = nr->GetEnergy(*sv);
+   if (myrank==0)
+   {
+      std::cout << "[pp=2] The total energy of the system is E=" << energy
+                << std::endl;
+   }
+   delete nr;
+   x.SetFromTrueDofs(*sv);
+   dacol->SetTime(2.0);
+   dacol->SetCycle(2);
+   dacol->Save();
+
 
    // 12. Continue with powers higher than 2
    for (int i = 3; i < pp; i++)
    {
-      delete nf;
-      nf = new ParNonlinearForm(&fespace);
-      ConstantCoefficient lpp((double) i);
-      if (integrator == 0)
+      nr=new ParNLSolverPLaplacian(MPI_COMM_WORLD,*pmesh, fespace, (double)i, &load);
+      nr->SetIntegrator(integrator);
+      nr->SetMaxNRIter(newton_iter);
+      nr->SetNRATol(newton_abs_tol);
+      nr->SetNRRTol(newton_rel_tol);
+      nr->SetPrintLevel(print_level);
+      timer->Clear();
+      timer->Start();
+      nr->Solve(*sv);
+      timer->Stop();
+      if (myrank==0)
       {
-         nf->AddDomainIntegrator(new pLaplace(lpp, c_ee, load));
+         std::cout << "[pp="<<i<<"] The solution time is: " << timer->RealTime()
+                   << std::endl;
       }
-      else if (integrator == 1)
-      {
-         nf->AddDomainIntegrator(new pLaplaceAD(lpp, c_ee, load));
-      }
-      nf->SetEssentialBC(ess_bdr);
-
       // Compute the energy
-      double energy = nf->GetEnergy(*sv);
-      if (myrank == 0)
+      double energy = nr->GetEnergy(*sv);
+      if (myrank==0)
       {
-         std::cout << "[pp=" << i
-                   << "] The total energy of the system is E=" << energy
+         std::cout << "[pp="<<i<<"] The total energy of the system is E=" << energy
                    << std::endl;
       }
-
-      // Time the assembly
-      timer->Clear();
-      timer->Start();
-      nf->GetGradient(*sv);
-      timer->Stop();
-      if (myrank == 0)
-      {
-         std::cout << "[pp=" << i
-                   << "] The assembly time is: " << timer->RealTime()
-                   << std::endl;
-      }
-      Solver *prec = new HypreBoomerAMG();
-      GMRESSolver *j_gmres = new GMRESSolver(MPI_COMM_WORLD);
-      j_gmres->SetRelTol(1e-7);
-      j_gmres->SetAbsTol(1e-15);
-      j_gmres->SetMaxIter(300);
-      j_gmres->SetPrintLevel(print_level);
-      j_gmres->SetPreconditioner(*prec);
-
-      NewtonSolver *ns;
-      ns = new NewtonSolver(MPI_COMM_WORLD);
-      ns->iterative_mode = true;
-      ns->SetSolver(*j_gmres);
-      ns->SetOperator(*nf);
-      ns->SetPrintLevel(print_level);
-      ns->SetRelTol(1e-6);
-      ns->SetAbsTol(1e-12);
-      ns->SetMaxIter(3);
-
-      // Solve the problem
-      timer->Clear();
-      timer->Start();
-      ns->Mult(*tv, *sv);
-      timer->Stop();
-      if (myrank == 0)
-      {
-         std::cout << "Time for the NewtonSolver: " << timer->RealTime()
-                   << std::endl;
-      }
-
-      energy = nf->GetEnergy(*sv);
-      if (myrank == 0)
-      {
-         std::cout << "[pp=" << i
-                   << "] The total energy of the system is E=" << energy
-                   << std::endl;
-      }
-
-      delete ns;
-      delete j_gmres;
-      delete prec;
-
+      delete nr;
       x.SetFromTrueDofs(*sv);
-      dacol->SetTime(i);
+      dacol->SetTime((double)i);
       dacol->SetCycle(i);
       dacol->Save();
    }
@@ -342,79 +457,29 @@ int main(int argc, char *argv[])
    // 13. Continue with the final power
    if (std::abs(pp - 2.0) > std::numeric_limits<double>::epsilon())
    {
-      delete nf;
-      nf = new ParNonlinearForm(&fespace);
-      if (integrator == 0)
+      nr=new ParNLSolverPLaplacian(MPI_COMM_WORLD,*pmesh, fespace, pp, &load);
+      nr->SetIntegrator(integrator);
+      nr->SetMaxNRIter(newton_iter);
+      nr->SetNRATol(newton_abs_tol);
+      nr->SetNRRTol(newton_rel_tol);
+      nr->SetPrintLevel(print_level);
+      timer->Clear();
+      timer->Start();
+      nr->Solve(*sv);
+      timer->Stop();
+      if (myrank==0)
       {
-         nf->AddDomainIntegrator(new pLaplace(c_pp, c_ee, load));
+         std::cout << "[pp="<<pp<<"] The solution time is: " << timer->RealTime()
+                   << std::endl;
       }
-      else if (integrator == 1)
-      {
-         nf->AddDomainIntegrator(new pLaplaceAD(c_pp, c_ee, load));
-      }
-      nf->SetEssentialBC(ess_bdr);
-
       // Compute the energy
-      double energy = nf->GetEnergy(*sv);
-      if (myrank == 0)
+      double energy = nr->GetEnergy(*sv);
+      if (myrank==0)
       {
-         std::cout << "[pp=" << pp
-                   << "] The total energy of the system is E=" << energy
+         std::cout << "[pp="<<pp<<"] The total energy of the system is E=" << energy
                    << std::endl;
       }
-
-      // Time the assembly
-      timer->Clear();
-      timer->Start();
-      nf->GetGradient(*sv);
-      timer->Stop();
-      if (myrank == 0)
-      {
-         std::cout << "[pp=" << pp
-                   << "] The assembly time is: " << timer->RealTime()
-                   << std::endl;
-      }
-      Solver *prec = new HypreBoomerAMG();
-      GMRESSolver *j_gmres = new GMRESSolver(MPI_COMM_WORLD);
-      j_gmres->SetRelTol(1e-8);
-      j_gmres->SetAbsTol(1e-15);
-      j_gmres->SetMaxIter(300);
-      j_gmres->SetPrintLevel(print_level);
-      j_gmres->SetPreconditioner(*prec);
-
-      NewtonSolver *ns;
-      ns = new NewtonSolver(MPI_COMM_WORLD);
-      ns->iterative_mode = true;
-      ns->SetSolver(*j_gmres);
-      ns->SetOperator(*nf);
-      ns->SetPrintLevel(print_level);
-      ns->SetRelTol(1e-6);
-      ns->SetAbsTol(1e-12);
-      ns->SetMaxIter(3);
-
-      // Solve the problem
-      timer->Clear();
-      timer->Start();
-      ns->Mult(*tv, *sv);
-      timer->Stop();
-      if (myrank == 0)
-      {
-         std::cout << "Time for the NewtonSolver: " << timer->RealTime()
-                   << std::endl;
-      }
-
-      energy = nf->GetEnergy(*sv);
-      if (myrank == 0)
-      {
-         std::cout << "[pp=" << pp
-                   << "] The total energy of the system is E=" << energy
-                   << std::endl;
-      }
-
-      delete ns;
-      delete j_gmres;
-      delete prec;
-
+      delete nr;
       x.SetFromTrueDofs(*sv);
       dacol->SetTime(pp);
       if (pp < 2.0)
@@ -428,11 +493,9 @@ int main(int argc, char *argv[])
       dacol->Save();
    }
 
-   // 19. Free the used memory
+   // 14. Free the used memory
    delete dacol;
    delete sv;
-   delete tv;
-   delete nf;
    delete pmesh;
    delete timer;
 

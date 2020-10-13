@@ -19,7 +19,8 @@
 //           will use the manually implemented integrator. Selecting
 //           integrator=1,2 will utilize one of the AD integrators.
 //
-//           qint (the integrand) is a function which is evaluated at every
+//           The AD integrators are implemented in ex71.hpp (pLaplaceAD).
+//           The integrand qint is a function which is evaluated at every
 //           integration point. For implementations utilizing ADQFunctionTJ,
 //           the user has to implement the function and the residual
 //           evaluation. The Jacobian of the residual is evaluated using AD
@@ -344,7 +345,7 @@ int main(int argc, char *argv[])
    }
 
    // 4. Define the load parameter for the p-Laplacian
-   ConstantCoefficient load(1.000000000);
+   ConstantCoefficient load(1.00);
 
    // 5. Define the finite element spaces for the solution
    H1_FECollection fec(order, dim);
@@ -361,15 +362,15 @@ int main(int argc, char *argv[])
    Vector sv(fespace.GetTrueVSize());
    sv = 0.0;
 
-   // 9. Define ParaView DataCollection
+   // 8. Define ParaView DataCollection
    ParaViewDataCollection *dacol = new ParaViewDataCollection("Example71", mesh);
    dacol->SetLevelsOfDetail(order);
    dacol->RegisterField("sol", &x);
 
-   // 10. Define the NR solver
+   // 9. Define the NR solver
    NLSolverPLaplacian* nr;
 
-   // 11. Start with linear diffusion
+   // 10. Start with linear diffusion
    nr=new NLSolverPLaplacian(*mesh, fespace, 2.0, &load);
    nr->SetIntegrator(integrator);
    nr->SetMaxNRIter(newton_iter);
@@ -392,7 +393,7 @@ int main(int argc, char *argv[])
    dacol->Save();
 
 
-   // 12. Continue with powers higher than 2
+   // 11. Continue with powers higher than 2
    for (int i = 3; i < pp; i++)
    {
       nr=new NLSolverPLaplacian(*mesh, fespace, (double)i, &load);
@@ -416,7 +417,7 @@ int main(int argc, char *argv[])
       dacol->Save();
    }
 
-   // 13. Continue with the final power
+   // 12. Continue with the final power
    if (std::abs(pp - 2.0) > std::numeric_limits<double>::epsilon())
    {
       nr=new NLSolverPLaplacian(*mesh, fespace, pp, &load);
@@ -447,7 +448,7 @@ int main(int argc, char *argv[])
       dacol->Save();
    }
 
-   // 19. Free the memory
+   // 13. Free the memory
    delete dacol;
    delete mesh;
    delete timer;
