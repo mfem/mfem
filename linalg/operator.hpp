@@ -931,7 +931,8 @@ public:
        the eigenvector corresponding to the largest eigenvalue after convergence.
        The maximum number of iterations may set with \p numSteps, the relative
        tolerance with \p tolerance and the seed of the random initialization of
-       \p v0 with \p seed. */
+       \p v0 with \p seed, unless \p is -1, in which case \p v0 will be used
+       as-is. */
    double EstimateLargestEigenvalue(Operator& opr, Vector& v0,
                                     int numSteps = 10, double tolerance = 1e-8,
                                     int seed = 12345);
