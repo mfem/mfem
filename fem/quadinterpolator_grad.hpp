@@ -17,12 +17,13 @@
 namespace mfem
 {
 
-template<QVectorLayout Q_LAYOUT,
+template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS,
          int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0,
          int T_NBZ = 1, int MAX_D1D = 0, int MAX_Q1D = 0>
 static void Grad2D(const int NE,
                    const double *b_,
                    const double *g_,
+                   const double *j_,
                    const double *x_,
                    double *y_,
                    const int vdim = 0,
@@ -31,11 +32,12 @@ static void Grad2D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   static constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    const int VDIM = T_VDIM ? T_VDIM : vdim;
+   static constexpr int NBZ = T_NBZ ? T_NBZ : 1;
 
    const auto b = Reshape(b_, Q1D, D1D);
    const auto g = Reshape(g_, Q1D, D1D);
+   const auto j = Reshape(j_, Q1D, Q1D, 2, 2, NE);
    const auto x = Reshape(x_, D1D, D1D, VDIM, NE);
    auto y = Q_LAYOUT == QVectorLayout:: byNODES ?
             Reshape(y_, Q1D, Q1D, VDIM, 2, NE):
@@ -112,15 +114,27 @@ static void Grad2D(const int NE,
                   u += DQ1(dy,qx) * B(qy,dy);
                   v += DQ0(dy,qx) * G(qy,dy);
                }
-               if (Q_LAYOUT == QVectorLayout::byNODES)
+               if (GRAD_PHYS)
                {
-                  y(qx,qy,c,0,e) = u;
-                  y(qx,qy,c,1,e) = v;
+                  double Jloc[4], Jinv[4];
+                  Jloc[0] = j(qx,qy,0,0,e);
+                  Jloc[1] = j(qx,qy,1,0,e);
+                  Jloc[2] = j(qx,qy,0,1,e);
+                  Jloc[3] = j(qx,qy,1,1,e);
+                  kernels::CalcInverse<2>(Jloc, Jinv);
+                  const double U = Jinv[0]*u + Jinv[1]*v;
+                  const double V = Jinv[2]*u + Jinv[3]*v;
+                  u = U; v = V;
                }
                if (Q_LAYOUT == QVectorLayout::byVDIM)
                {
                   y(c,0,qx,qy,e) = u;
                   y(c,1,qx,qy,e) = v;
+               }
+               if (Q_LAYOUT == QVectorLayout::byNODES)
+               {
+                  y(qx,qy,c,0,e) = u;
+                  y(qx,qy,c,1,e) = v;
                }
             }
          }
@@ -129,12 +143,13 @@ static void Grad2D(const int NE,
    });
 }
 
-template<QVectorLayout Q_LAYOUT,
+template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS,
          int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0,
          int MAX_D1D = 0, int MAX_Q1D = 0>
 static void Grad3D(const int NE,
                    const double *b_,
                    const double *g_,
+                   const double *j_,
                    const double *x_,
                    double *y_,
                    const int vdim = 0,
@@ -147,6 +162,7 @@ static void Grad3D(const int NE,
 
    const auto b = Reshape(b_, Q1D, D1D);
    const auto g = Reshape(g_, Q1D, D1D);
+   const auto j = Reshape(j_, Q1D, Q1D, Q1D, 3, 3, NE);
    const auto x = Reshape(x_, D1D, D1D, D1D, VDIM, NE);
    auto y = Q_LAYOUT == QVectorLayout:: byNODES ?
             Reshape(y_, Q1D, Q1D, Q1D, VDIM, 3, NE):
@@ -258,17 +274,33 @@ static void Grad3D(const int NE,
                      v += DQQ1(dz,qy,qx) * B(qz,dz);
                      w += DQQ2(dz,qy,qx) * G(qz,dz);
                   }
-                  if (Q_LAYOUT == QVectorLayout::byNODES)
+                  if (GRAD_PHYS)
                   {
-                     y(qx,qy,qz,c,0,e) = u;
-                     y(qx,qy,qz,c,1,e) = v;
-                     y(qx,qy,qz,c,2,e) = w;
+                     double Jloc[9], Jinv[9];
+                     for (int col = 0; col < 3; col++)
+                     {
+                        for (int row = 0; row < 3; row++)
+                        {
+                           Jloc[row+3*col] = j(qx,qy,qz,row,col,e);
+                        }
+                     }
+                     kernels::CalcInverse<3>(Jloc, Jinv);
+                     const double U = Jinv[0]*u + Jinv[1]*v + Jinv[2]*w;
+                     const double V = Jinv[3]*u + Jinv[4]*v + Jinv[5]*w;
+                     const double W = Jinv[6]*u + Jinv[7]*v + Jinv[8]*w;
+                     u = U; v = V; w = W;
                   }
                   if (Q_LAYOUT == QVectorLayout::byVDIM)
                   {
                      y(c,0,qx,qy,qz,e) = u;
                      y(c,1,qx,qy,qz,e) = v;
                      y(c,2,qx,qy,qz,e) = w;
+                  }
+                  if (Q_LAYOUT == QVectorLayout::byNODES)
+                  {
+                     y(qx,qy,qz,c,0,e) = u;
+                     y(qx,qy,qz,c,1,e) = v;
+                     y(qx,qy,qz,c,2,e) = w;
                   }
                }
             }
