@@ -227,7 +227,7 @@ void InitCeedVector(const Vector &v, CeedVector &cv);
 
 /// Initialize a strided CeedElemRestriction
 void InitCeedStridedRestriction(CeedInt nelem, CeedInt nqpts, CeedInt qdatasize,
-                                CeedElemRestriction *restr);
+                                const CeedInt *strides, CeedElemRestriction *restr);
 
 /// Initialize a CeedBasis and a CeedElemRestriction
 void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
