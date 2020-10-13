@@ -89,8 +89,8 @@ ADQFunctionTJ and returned by the ADQFunctionTJ:: QFunctionDD(..) method.
 template<template<typename, typename> class CTD, int m>
 class ADQFunctionTJ
 {
-    // m - dimension of the residual vector
-    // the Jacobian will have dimensions [m,length(uu)]
+   // m - dimension of the residual vector
+   // the Jacobian will have dimensions [m,length(uu)]
 protected:
 #ifdef MFEM_USE_ADEPT
    adept::Stack m_stack;
@@ -131,9 +131,9 @@ public:
 
    ~ADQFunctionTJ() {}
 
-  ///Returns the energy for passive arguments vparam and
-  /// active arguments uu. The evaluation is based on the
-  /// first operator in the user-supplied CTD template class.
+   ///Returns the energy for passive arguments vparam and
+   /// active arguments uu. The evaluation is based on the
+   /// first operator in the user-supplied CTD template class.
    double QFunction(const Vector &vparam, Vector &uu)
    {
       CTD<double, Vector> func;

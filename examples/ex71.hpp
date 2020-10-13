@@ -11,10 +11,21 @@
 
 namespace mfem
 {
+
+///Example: Implementation of the energy and the residual
+/// for p-Laplacian problem. Both, the energy and the residual
+/// are evaluated at the integration points for PDE parameters
+/// vparam and state fields (derivatives with respect to x,y,z
+/// and primal field) stored in vector uu.
 template<typename DType, typename MVType>
 class MyQFunctorJ
 {
 public:
+   ///The operator returns the energy for the  p-Laplacian problem.
+   /// The input parameters vparam are: vparam[0] - the p-Laplacian
+   /// power, vparam[1] small value ensuring the exsitance of an unique
+   /// solution, and vparam[2] - the distributed extenal input to the
+   /// equation.
    DType operator()(const Vector &vparam, MVType &uu)
    {
       double pp = vparam[0];
@@ -28,6 +39,10 @@ public:
       return rez;
    }
 
+   ///The operator returns the first derivative of the energy with respect
+   /// to all state variables. These are set in vector uu and consist of the
+   /// derivatives with respect to x,y,z and the primal field. The derivative
+   /// is stored in vector rr with length equal to the length of vector uu.
    void operator()(const Vector &vparam, MVType &uu, MVType &rr)
    {
       double pp = vparam[0];
@@ -44,12 +59,26 @@ public:
    }
 };
 
+///Defines AD class  pLapIntegrandTJ utilized for the automatic
+/// evaluation of the Hessian of the energy of the p-Laplacian.
+/// In general the length of the residual vector rr is not know
+/// in advance and therefore is provided explicitly as a second
+/// template argument in the definition of the class. The
+/// evaluation of the Hessian is based on the functor class MyQFunctorJ.
 typedef ADQFunctionTJ<MyQFunctorJ, 4> pLapIntegrandTJ;
 
+///Defines template class (functor) for evaluating the energy
+/// of the p-Laplacian problem. The input parameters vparam are:
+/// vparam[0] - the p-Laplacian power, vparam[1] small value
+/// ensuring exsitance of an unique solution, and vparam[2] -
+/// the distributed extenal input to the PDE.
 template<typename DType, typename MVType>
 class MyQFunctorH
 {
 public:
+   ///Returns the energy of a  p-Laplacian for state field input
+   /// provided in vector uu and parameters provided in vector
+   /// vparam.
    DType operator()(const Vector &vparam, MVType &uu)
    {
       double pp = vparam[0];
@@ -64,6 +93,10 @@ public:
    }
 };
 
+///Defines class pLapIntegrandTH for automatic evaluation
+/// of the first and second derivatives of the energy for
+/// a p-Laplacian problem. The energy is encoded in the
+/// operator()(...) of the template MyQFunctorH class.
 typedef ADQFunctionTH<MyQFunctorH> pLapIntegrandTH;
 
 //comment the line below in order to use
@@ -72,17 +105,22 @@ typedef ADQFunctionTH<MyQFunctorH> pLapIntegrandTH;
 //is exactly the same
 //#define USE_ADH
 
+
+///Implements integrator for a p-Laplacian problem.
+/// The integrator is based on a class QFunction utilized for
+/// evaluating the energy, the first derivative and the Hessian
+/// of the energy. QFunction shold be replaced with pLapIntegrandTH
+/// or pLapIntegrandTJ.
+template<class QFunction>
 class pLaplaceAD : public NonlinearFormIntegrator
 {
 protected:
    Coefficient *pp;
    Coefficient *coeff;
    Coefficient *load;
-#ifdef USE_ADH
-   pLapIntegrandTH qint;
-#else
-   pLapIntegrandTJ qint;
-#endif
+
+   QFunction qint;
+
 public:
    pLaplaceAD()
    {
@@ -329,6 +367,9 @@ public:
    }
 };
 
+///Implements hand-coded integrator for a p-Laplacian problem.
+/// Utilized as alternative for the  pLaplaceAD class based on
+/// automatic differentiation.
 class pLaplace : public NonlinearFormIntegrator
 {
 protected:
