@@ -169,6 +169,11 @@ Linear and nonlinear solvers
 - Added partially assembled convergent diagonal preconditioner for adaptively
   refined meshes (i.e. non-conforming finite element spaces), see Example 6/6p.
 
+- Upgraded SuperLU interface to use SuperLU_DIST 6.3.1
+
+- Extended the KINSOL (SUNDIALS) nonlinear solver interface to support the
+  Jacobian-free Newton-Krylov method. A usage example is shown in Example 10p.
+
 - Added an interface to the MKL CPardiso solver -- an MPI-parallel sparse direct
   solver developed by Intel. See Example 11p for an illustration of its usage.
 

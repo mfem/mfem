@@ -32,12 +32,16 @@ unsigned int sqrti(const unsigned int & a);
 namespace superlu
 {
 // Copy selected enumerations from SuperLU
-typedef enum {NOROWPERM, LargeDiag, MY_PERMR}                 RowPerm;
+#ifdef MFEM_USE_SUPERLU5
+typedef enum {NOROWPERM, LargeDiag, MY_PERMR}                       RowPerm;
+#else
+typedef enum {NOROWPERM, LargeDiag_MC64, LargeDiag_HWPM, MY_PERMR}  RowPerm;
+#endif
 typedef enum {NATURAL, MMD_ATA, MMD_AT_PLUS_A, COLAMD,
               METIS_AT_PLUS_A, PARMETIS, ZOLTAN, MY_PERMC
-             }    ColPerm;
-typedef enum {NOTRANS, TRANS, CONJ}                           Trans;
-typedef enum {NOREFINE, SLU_SINGLE=1, SLU_DOUBLE, SLU_EXTRA}  IterRefine;
+             }          ColPerm;
+typedef enum {NOTRANS, TRANS, CONJ}                                 Trans;
+typedef enum {NOREFINE, SLU_SINGLE=1, SLU_DOUBLE, SLU_EXTRA}        IterRefine;
 }
 
 class SuperLURowLocMatrix : public Operator

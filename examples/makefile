@@ -51,6 +51,9 @@ endif
 ifeq ($(MFEM_USE_AMGX),YES)
    SUBDIRS += amgx
 endif
+ifeq ($(MFEM_USE_SUPERLU),YES)
+   SUBDIRS += superlu
+endif
 
 SUBDIRS_ALL = $(addsuffix /all,$(SUBDIRS))
 SUBDIRS_TEST = $(addsuffix /test,$(SUBDIRS))
