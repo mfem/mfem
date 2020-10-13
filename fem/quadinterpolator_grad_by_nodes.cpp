@@ -32,58 +32,60 @@ void QuadratureInterpolator::Derivatives<QVectorLayout::byNODES>(
    const int Q1D = maps.nqpt;
    const double *B = maps.B.Read();
    const double *G = maps.G.Read();
+   const double *J = nullptr; // not used in not GRAD_PHYS mode
    const double *X = e_vec.Read();
    double *Y = q_der.Write();
 
    constexpr QVectorLayout L = QVectorLayout::byNODES;
+   constexpr bool P = false; // GRAD_PHYS
 
    const int id = (dim<<12) | (vdim<<8) | (D1D<<4) | Q1D;
 
    switch (id)
    {
-      case 0x2133: return Grad2D<L,1,3,3,16>(NE,B,G,X,Y);
-      case 0x2134: return Grad2D<L,1,3,4,16>(NE,B,G,X,Y);
-      case 0x2143: return Grad2D<L,1,4,3,16>(NE,B,G,X,Y);
-      case 0x2144: return Grad2D<L,1,4,4,16>(NE,B,G,X,Y);
+      case 0x2133: return Grad2D<L,P,1,3,3,16>(NE,B,G,J,X,Y);
+      case 0x2134: return Grad2D<L,P,1,3,4,16>(NE,B,G,J,X,Y);
+      case 0x2143: return Grad2D<L,P,1,4,3,16>(NE,B,G,J,X,Y);
+      case 0x2144: return Grad2D<L,P,1,4,4,16>(NE,B,G,J,X,Y);
 
-      case 0x2222: return Grad2D<L,2,2,2,16>(NE,B,G,X,Y);
-      case 0x2223: return Grad2D<L,2,2,3,8>(NE,B,G,X,Y);
-      case 0x2224: return Grad2D<L,2,2,4,4>(NE,B,G,X,Y);
-      case 0x2225: return Grad2D<L,2,2,5,4>(NE,B,G,X,Y);
-      case 0x2226: return Grad2D<L,2,2,6,2>(NE,B,G,X,Y);
+      case 0x2222: return Grad2D<L,P,2,2,2,16>(NE,B,G,J,X,Y);
+      case 0x2223: return Grad2D<L,P,2,2,3,8>(NE,B,G,J,X,Y);
+      case 0x2224: return Grad2D<L,P,2,2,4,4>(NE,B,G,J,X,Y);
+      case 0x2225: return Grad2D<L,P,2,2,5,4>(NE,B,G,J,X,Y);
+      case 0x2226: return Grad2D<L,P,2,2,6,2>(NE,B,G,J,X,Y);
 
-      case 0x2233: return Grad2D<L,2,3,3,2>(NE,B,G,X,Y);
-      case 0x2234: return Grad2D<L,2,3,4,4>(NE,B,G,X,Y);
-      case 0x2243: return Grad2D<L,2,4,3,4>(NE,B,G,X,Y);
-      case 0x2236: return Grad2D<L,2,3,6,2>(NE,B,G,X,Y);
+      case 0x2233: return Grad2D<L,P,2,3,3,2>(NE,B,G,J,X,Y);
+      case 0x2234: return Grad2D<L,P,2,3,4,4>(NE,B,G,J,X,Y);
+      case 0x2243: return Grad2D<L,P,2,4,3,4>(NE,B,G,J,X,Y);
+      case 0x2236: return Grad2D<L,P,2,3,6,2>(NE,B,G,J,X,Y);
 
-      case 0x2244: return Grad2D<L,2,4,4,2>(NE,B,G,X,Y);
-      case 0x2245: return Grad2D<L,2,4,5,2>(NE,B,G,X,Y);
-      case 0x2246: return Grad2D<L,2,4,6,2>(NE,B,G,X,Y);
-      case 0x2247: return Grad2D<L,2,4,7,2>(NE,B,G,X,Y);
+      case 0x2244: return Grad2D<L,P,2,4,4,2>(NE,B,G,J,X,Y);
+      case 0x2245: return Grad2D<L,P,2,4,5,2>(NE,B,G,J,X,Y);
+      case 0x2246: return Grad2D<L,P,2,4,6,2>(NE,B,G,J,X,Y);
+      case 0x2247: return Grad2D<L,P,2,4,7,2>(NE,B,G,J,X,Y);
 
-      case 0x2256: return Grad2D<L,2,5,6,2>(NE,B,G,X,Y);
+      case 0x2256: return Grad2D<L,P,2,5,6,2>(NE,B,G,J,X,Y);
 
-      case 0x3124: return Grad3D<L,1,2,4>(NE,B,G,X,Y);
-      case 0x3133: return Grad3D<L,1,3,3>(NE,B,G,X,Y);
-      case 0x3134: return Grad3D<L,1,3,4>(NE,B,G,X,Y);
-      case 0x3136: return Grad3D<L,1,3,6>(NE,B,G,X,Y);
-      case 0x3144: return Grad3D<L,1,4,4>(NE,B,G,X,Y);
-      case 0x3148: return Grad3D<L,1,4,8>(NE,B,G,X,Y);
+      case 0x3124: return Grad3D<L,P,1,2,4>(NE,B,G,J,X,Y);
+      case 0x3133: return Grad3D<L,P,1,3,3>(NE,B,G,J,X,Y);
+      case 0x3134: return Grad3D<L,P,1,3,4>(NE,B,G,J,X,Y);
+      case 0x3136: return Grad3D<L,P,1,3,6>(NE,B,G,J,X,Y);
+      case 0x3144: return Grad3D<L,P,1,4,4>(NE,B,G,J,X,Y);
+      case 0x3148: return Grad3D<L,P,1,4,8>(NE,B,G,J,X,Y);
 
-      case 0x3323: return Grad3D<L,3,2,3>(NE,B,G,X,Y);
-      case 0x3324: return Grad3D<L,3,2,4>(NE,B,G,X,Y);
-      case 0x3325: return Grad3D<L,3,2,5>(NE,B,G,X,Y);
-      case 0x3326: return Grad3D<L,3,2,6>(NE,B,G,X,Y);
+      case 0x3323: return Grad3D<L,P,3,2,3>(NE,B,G,J,X,Y);
+      case 0x3324: return Grad3D<L,P,3,2,4>(NE,B,G,J,X,Y);
+      case 0x3325: return Grad3D<L,P,3,2,5>(NE,B,G,J,X,Y);
+      case 0x3326: return Grad3D<L,P,3,2,6>(NE,B,G,J,X,Y);
 
-      case 0x3333: return Grad3D<L,3,3,3>(NE,B,G,X,Y);
-      case 0x3334: return Grad3D<L,3,3,4>(NE,B,G,X,Y);
-      case 0x3335: return Grad3D<L,3,3,5>(NE,B,G,X,Y);
-      case 0x3336: return Grad3D<L,3,3,6>(NE,B,G,X,Y);
-      case 0x3344: return Grad3D<L,3,4,4>(NE,B,G,X,Y);
-      case 0x3346: return Grad3D<L,3,4,6>(NE,B,G,X,Y);
-      case 0x3347: return Grad3D<L,3,4,7>(NE,B,G,X,Y);
-      case 0x3348: return Grad3D<L,3,4,8>(NE,B,G,X,Y);
+      case 0x3333: return Grad3D<L,P,3,3,3>(NE,B,G,J,X,Y);
+      case 0x3334: return Grad3D<L,P,3,3,4>(NE,B,G,J,X,Y);
+      case 0x3335: return Grad3D<L,P,3,3,5>(NE,B,G,J,X,Y);
+      case 0x3336: return Grad3D<L,P,3,3,6>(NE,B,G,J,X,Y);
+      case 0x3344: return Grad3D<L,P,3,4,4>(NE,B,G,J,X,Y);
+      case 0x3346: return Grad3D<L,P,3,4,6>(NE,B,G,J,X,Y);
+      case 0x3347: return Grad3D<L,P,3,4,7>(NE,B,G,J,X,Y);
+      case 0x3348: return Grad3D<L,P,3,4,8>(NE,B,G,J,X,Y);
       default:
       {
          constexpr int MD1 = 8;
@@ -94,11 +96,11 @@ void QuadratureInterpolator::Derivatives<QVectorLayout::byNODES>(
                      << MQ1 << " 1D points are not supported!");
          if (dim == 2)
          {
-            return Grad2D<L,0,0,0,0,MD1,MQ1>(NE,B,G,X,Y,vdim,D1D,Q1D);
+            return Grad2D<L,P,0,0,0,0,MD1,MQ1>(NE,B,G,J,X,Y,vdim,D1D,Q1D);
          }
          if (dim == 3)
          {
-            return Grad3D<L,0,0,0,MD1,MQ1>(NE,B,G,X,Y,vdim,D1D,Q1D);
+            return Grad3D<L,P,0,0,0,MD1,MQ1>(NE,B,G,J,X,Y,vdim,D1D,Q1D);
          }
       }
    }

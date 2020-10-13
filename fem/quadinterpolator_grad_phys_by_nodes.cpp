@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "quadinterpolator.hpp"
-#include "quadinterpolator_grad_phys.hpp"
+#include "quadinterpolator_grad.hpp"
 
 namespace mfem
 {
@@ -42,6 +42,7 @@ void QuadratureInterpolator::PhysDerivatives<QVectorLayout::byNODES>(
    double *Y = q_der.Write();
 
    constexpr QVectorLayout L = QVectorLayout::byNODES;
+   constexpr bool P = true; // GRAD_PHYS
 
    const int id = (vdim<<8) | (D1D<<4) | Q1D;
 
@@ -49,19 +50,19 @@ void QuadratureInterpolator::PhysDerivatives<QVectorLayout::byNODES>(
    {
       switch (id)
       {
-         case 0x133: return PhysGrad2D<L,1,3,3,8>(NE,B,G,J,X,Y);
-         case 0x134: return PhysGrad2D<L,1,3,4,8>(NE,B,G,J,X,Y);
-         case 0x143: return PhysGrad2D<L,1,4,3,4>(NE,B,G,J,X,Y);
-         case 0x144: return PhysGrad2D<L,1,4,4,4>(NE,B,G,J,X,Y);
-         case 0x146: return PhysGrad2D<L,1,4,6,4>(NE,B,G,J,X,Y);
-         case 0x158: return PhysGrad2D<L,1,5,8,2>(NE,B,G,J,X,Y);
+         case 0x133: return Grad2D<L,P,1,3,3,8>(NE,B,G,J,X,Y);
+         case 0x134: return Grad2D<L,P,1,3,4,8>(NE,B,G,J,X,Y);
+         case 0x143: return Grad2D<L,P,1,4,3,4>(NE,B,G,J,X,Y);
+         case 0x144: return Grad2D<L,P,1,4,4,4>(NE,B,G,J,X,Y);
+         case 0x146: return Grad2D<L,P,1,4,6,4>(NE,B,G,J,X,Y);
+         case 0x158: return Grad2D<L,P,1,5,8,2>(NE,B,G,J,X,Y);
 
-         case 0x233: return PhysGrad2D<L,2,3,3,8>(NE,B,G,J,X,Y);
-         case 0x234: return PhysGrad2D<L,2,3,4,8>(NE,B,G,J,X,Y);
-         case 0x243: return PhysGrad2D<L,2,4,3,4>(NE,B,G,J,X,Y);
-         case 0x244: return PhysGrad2D<L,2,4,4,4>(NE,B,G,J,X,Y);
-         case 0x246: return PhysGrad2D<L,2,4,6,4>(NE,B,G,J,X,Y);
-         case 0x258: return PhysGrad2D<L,2,5,8,2>(NE,B,G,J,X,Y);
+         case 0x233: return Grad2D<L,P,2,3,3,8>(NE,B,G,J,X,Y);
+         case 0x234: return Grad2D<L,P,2,3,4,8>(NE,B,G,J,X,Y);
+         case 0x243: return Grad2D<L,P,2,4,3,4>(NE,B,G,J,X,Y);
+         case 0x244: return Grad2D<L,P,2,4,4,4>(NE,B,G,J,X,Y);
+         case 0x246: return Grad2D<L,P,2,4,6,4>(NE,B,G,J,X,Y);
+         case 0x258: return Grad2D<L,P,2,5,8,2>(NE,B,G,J,X,Y);
          default:
          {
             constexpr int MD = MAX_D1D;
@@ -70,7 +71,7 @@ void QuadratureInterpolator::PhysDerivatives<QVectorLayout::byNODES>(
                         << " are not supported!");
             MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than " << MQ
                         << " 1D points are not supported!");
-            PhysGrad2D<L,0,0,0,0,MD,MQ>(NE, B, G, J, X, Y, vdim, D1D, Q1D);
+            Grad2D<L,P,0,0,0,0,MD,MQ>(NE, B, G, J, X, Y, vdim, D1D, Q1D);
             return;
          }
       }
@@ -79,17 +80,17 @@ void QuadratureInterpolator::PhysDerivatives<QVectorLayout::byNODES>(
    {
       switch (id)
       {
-         case 0x133: return PhysGrad3D<L,1,3,3>(NE,B,G,J,X,Y);
-         case 0x134: return PhysGrad3D<L,1,3,4>(NE,B,G,J,X,Y);
-         case 0x144: return PhysGrad3D<L,1,4,4>(NE,B,G,J,X,Y);
-         case 0x146: return PhysGrad3D<L,1,4,6>(NE,B,G,J,X,Y);
-         case 0x158: return PhysGrad3D<L,1,5,8>(NE,B,G,J,X,Y);
+         case 0x133: return Grad3D<L,P,1,3,3>(NE,B,G,J,X,Y);
+         case 0x134: return Grad3D<L,P,1,3,4>(NE,B,G,J,X,Y);
+         case 0x144: return Grad3D<L,P,1,4,4>(NE,B,G,J,X,Y);
+         case 0x146: return Grad3D<L,P,1,4,6>(NE,B,G,J,X,Y);
+         case 0x158: return Grad3D<L,P,1,5,8>(NE,B,G,J,X,Y);
 
-         case 0x333: return PhysGrad3D<L,3,3,3>(NE,B,G,J,X,Y);
-         case 0x334: return PhysGrad3D<L,3,3,4>(NE,B,G,J,X,Y);
-         case 0x344: return PhysGrad3D<L,3,4,4>(NE,B,G,J,X,Y);
-         case 0x346: return PhysGrad3D<L,3,4,6>(NE,B,G,J,X,Y);
-         case 0x358: return PhysGrad3D<L,3,5,8>(NE,B,G,J,X,Y);
+         case 0x333: return Grad3D<L,P,3,3,3>(NE,B,G,J,X,Y);
+         case 0x334: return Grad3D<L,P,3,3,4>(NE,B,G,J,X,Y);
+         case 0x344: return Grad3D<L,P,3,4,4>(NE,B,G,J,X,Y);
+         case 0x346: return Grad3D<L,P,3,4,6>(NE,B,G,J,X,Y);
+         case 0x358: return Grad3D<L,P,3,5,8>(NE,B,G,J,X,Y);
          default:
          {
             constexpr int MD = 8;
@@ -98,7 +99,7 @@ void QuadratureInterpolator::PhysDerivatives<QVectorLayout::byNODES>(
                         << " are not supported!");
             MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than " << MQ
                         << " 1D points are not supported!");
-            PhysGrad3D<L,0,0,0,MD,MQ>(NE, B, G, J, X, Y, vdim, D1D, Q1D);
+            Grad3D<L,P,0,0,0,MD,MQ>(NE, B, G, J, X, Y, vdim, D1D, Q1D);
             return;
          }
       }
