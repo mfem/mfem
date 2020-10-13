@@ -45,6 +45,8 @@ static std::string getString(AssemblyLevel assembly)
       return "LEGACYFULL";
       break;
    }
+   mfem_error("Unknown AssemblyLevel.");
+   return "";
 }
 
 static std::string getString(CeedCoeff coeff_type)
@@ -61,6 +63,8 @@ static std::string getString(CeedCoeff coeff_type)
       return "Quad";
       break;
    }
+   mfem_error("Unknown CeedCoeff.");
+   return "";
 }
 
 enum class Problem {Mass, Diffusion, VectorMass, VectorDiffusion};
@@ -82,6 +86,8 @@ static std::string getString(Problem pb)
       return "VectorDiffusion";
       break;
    }
+   mfem_error("Unknown Problem.");
+   return "";
 }
 
 void test_ceed_operator(const char* input, int order, const CeedCoeff coeff_type,
