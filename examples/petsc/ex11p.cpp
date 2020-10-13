@@ -410,21 +410,16 @@ int main(int argc, char *argv[])
    }
 
    // 12. Free the used memory.
-   if (!use_slepc)
-   {
-      delete lobpcg;
-   }
-   else
-   {
-      delete slepc;
-   }
+   delete lobpcg;
+   delete slepc;
    delete precond;
    delete M;
    delete A;
+   delete pA;
+   delete pM;
 #if defined(MFEM_USE_SUPERLU) || defined(MFEM_USE_STRUMPACK)
    delete Arow;
 #endif
-
    delete fespace;
    if (order > 0)
    {
