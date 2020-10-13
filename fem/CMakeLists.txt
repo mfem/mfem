@@ -95,7 +95,6 @@ set(HDRS
   quadinterpolator_eval.hpp
   quadinterpolator_face.hpp
   quadinterpolator_grad.hpp
-  quadinterpolator_grad_phys.hpp
   restriction.hpp
   fespacehierarchy.hpp
   staticcond.hpp
