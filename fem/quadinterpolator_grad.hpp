@@ -51,17 +51,15 @@ static void Grad2D(const int NE,
       const int VDIM = T_VDIM ? T_VDIM : vdim;
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+
       const int tidz = MFEM_THREAD_ID(z);
-      MFEM_SHARED double s_B[MQ1*MD1];
-      MFEM_SHARED double s_G[MQ1*MD1];
       MFEM_SHARED double BG[2][MQ1*MD1];
       kernels::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
-
       DeviceMatrix B(BG[0], MD1, MQ1);
       DeviceMatrix G(BG[1], MD1, MQ1);
 
-      MFEM_SHARED double s_X[NBZ][MD1*MD1];
-      DeviceTensor<2> X((double*)(s_X+tidz), MD1, MD1);
+      MFEM_SHARED double XY[NBZ][MD1*MD1];
+      DeviceTensor<2> X((double*)(XY+tidz), MD1, MD1);
 
       MFEM_SHARED double s_DQ[2][NBZ][MD1*MQ1];
       DeviceTensor<2> DQ0((double*)(s_DQ[0]+tidz), MD1, MQ1);
@@ -69,7 +67,7 @@ static void Grad2D(const int NE,
 
       for (int c = 0; c < VDIM; ++c)
       {
-         kernels::LoadX<MD1,NBZ>(e,D1D,c,x,s_X);
+         kernels::LoadX<MD1,NBZ>(e,D1D,c,x,XY);
          MFEM_FOREACH_THREAD(dy,y,D1D)
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -160,11 +158,10 @@ static void Grad3D(const int NE,
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
 
-      const int tidz = MFEM_THREAD_ID(z);
-      MFEM_SHARED double s_B[MQ1*MD1];
-      MFEM_SHARED double s_G[MQ1*MD1];
-      DeviceTensor<2> B(s_B, Q1D, D1D);
-      DeviceTensor<2> G(s_G, Q1D, D1D);
+      MFEM_SHARED double BG[2][MQ1*MD1];
+      kernels::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
+      DeviceMatrix B(BG[0], MD1, MQ1);
+      DeviceMatrix G(BG[1], MD1, MQ1);
 
       MFEM_SHARED double sm0[3][MQ1*MQ1*MQ1];
       MFEM_SHARED double sm1[3][MQ1*MQ1*MQ1];
@@ -175,32 +172,9 @@ static void Grad3D(const int NE,
       DeviceTensor<3> DQQ1((double*)(sm1+1), MD1, MQ1, MQ1);
       DeviceTensor<3> DQQ2((double*)(sm1+2), MD1, MQ1, MQ1);
 
-      if (tidz == 0)
-      {
-         MFEM_FOREACH_THREAD(d,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(q,x,Q1D)
-            {
-               B(q,d) = b(q,d);
-               G(q,d) = g(q,d);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-
       for (int c = 0; c < VDIM; ++c)
       {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
-         {
-            MFEM_FOREACH_THREAD(dy,y,D1D)
-            {
-               MFEM_FOREACH_THREAD(dz,z,D1D)
-               {
-                  X(dx,dy,dz) = x(dx,dy,dz,c,e);
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
+         kernels::LoadX<MD1>(e,D1D,c,x,sm0[2]);
          MFEM_FOREACH_THREAD(dz,z,D1D)
          {
             MFEM_FOREACH_THREAD(dy,y,D1D)
@@ -212,8 +186,8 @@ static void Grad3D(const int NE,
                   for (int dx = 0; dx < D1D; ++dx)
                   {
                      const double input = X(dx,dy,dz);
-                     u += input * B(qx,dx);
-                     v += input * G(qx,dx);
+                     u += input * B(dx,qx);
+                     v += input * G(dx,qx);
                   }
                   DDQ0(dz,dy,qx) = u;
                   DDQ1(dz,dy,qx) = v;
@@ -232,9 +206,9 @@ static void Grad3D(const int NE,
                   double w = 0.0;
                   for (int dy = 0; dy < D1D; ++dy)
                   {
-                     u += DDQ1(dz,dy,qx) * B(qy,dy);
-                     v += DDQ0(dz,dy,qx) * G(qy,dy);
-                     w += DDQ0(dz,dy,qx) * B(qy,dy);
+                     u += DDQ1(dz,dy,qx) * B(dy,qy);
+                     v += DDQ0(dz,dy,qx) * G(dy,qy);
+                     w += DDQ0(dz,dy,qx) * B(dy,qy);
                   }
                   DQQ0(dz,qy,qx) = u;
                   DQQ1(dz,qy,qx) = v;
@@ -254,9 +228,9 @@ static void Grad3D(const int NE,
                   double w = 0.0;
                   for (int dz = 0; dz < D1D; ++dz)
                   {
-                     u += DQQ0(dz,qy,qx) * B(qz,dz);
-                     v += DQQ1(dz,qy,qx) * B(qz,dz);
-                     w += DQQ2(dz,qy,qx) * G(qz,dz);
+                     u += DQQ0(dz,qy,qx) * B(dz,qz);
+                     v += DQQ1(dz,qy,qx) * B(dz,qz);
+                     w += DQQ2(dz,qy,qx) * G(dz,qz);
                   }
                   if (GRAD_PHYS)
                   {
