@@ -370,7 +370,7 @@ int main(int argc, char *argv[])
    // 9. Define the NR solver
    NLSolverPLaplacian* nr;
 
-   // 10. Start with linear diffusion
+   // 10. Start with linear diffusion - solvable for any initial guess
    nr=new NLSolverPLaplacian(*mesh, fespace, 2.0, &load);
    nr->SetIntegrator(integrator);
    nr->SetMaxNRIter(newton_iter);

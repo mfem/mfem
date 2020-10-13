@@ -392,7 +392,7 @@ int main(int argc, char *argv[])
    // 10. Define the NR solver
    ParNLSolverPLaplacian* nr;
 
-   // 11. Start with linear diffusion
+   // 11. Start with linear diffusion - solvable for any initial guess
    nr=new ParNLSolverPLaplacian(MPI_COMM_WORLD,*pmesh, fespace, 2.0, &load);
    nr->SetIntegrator(integrator);
    nr->SetMaxNRIter(newton_iter);
