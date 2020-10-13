@@ -1,12 +1,13 @@
 //                       MFEM Example 1 - Parallel Version
+//                              AmgX Modifications
 //
 // Compile with: make ex1p
 //
 // AmgX sample runs:
-//               mpirun -np 4 ex1p -amgx
-//               mpirun -np 4 ex1p -amgx -d cuda
-//               mpirun -n 40 ex1p -amgx --amgx-file amg_pcg.json
-//               mpirun -n 4 ex1p -amgx --amgx-file amg_pcg.json --amgx-mpi-gpu-exclusive
+//               mpirun -np 4 ex1p
+//               mpirun -np 4 ex1p -d cuda
+//               mpirun -n 10 ex1p --amgx-file amg_pcg.json
+//               mpirun -n 4 ex1p --amgx-file amg_pcg.json --amgx-mpi-gpu-exclusive
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -45,7 +46,7 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
-   bool amgx = false;
+   bool amgx_lib = true;
    bool amgx_mpi_teams = true;
    const char* amgx_json_file = ""; // JSON file for AmgX
    int ndevices = 1;
@@ -60,7 +61,7 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&amgx, "-amgx", "--amgx-lib", "-no-amgx",
+   args.AddOption(&amgx_lib, "-amgx", "--amgx-lib", "-no-amgx",
                   "--no-amgx-lib", "Use AmgX in example.");
    args.AddOption(&amgx_json_file, "--amgx-file", "--amgx-file",
                   "AMGX solver config file (overrides --amgx-solver, --amgx-verbose)");
@@ -212,8 +213,17 @@ int main(int argc, char *argv[])
       {
          prec = new OperatorJacobiSmoother(a, ess_tdof_list);
       }
+
+      CGSolver cg(MPI_COMM_WORLD);
+      cg.SetRelTol(1e-12);
+      cg.SetMaxIter(2000);
+      cg.SetPrintLevel(1);
+      if (prec) { cg.SetPreconditioner(*prec); }
+      cg.SetOperator(*A);
+      cg.Mult(B, X);
+      delete prec;
    }
-   else if (amgx && strcmp(amgx_json_file,"") == 0)
+   else if (amgx_lib && strcmp(amgx_json_file,"") == 0)
    {
       bool amgx_verbose = false;
       prec = new AmgXSolver(MPI_COMM_WORLD, AmgXSolver::PRECONDITIONER,
@@ -229,7 +239,7 @@ int main(int argc, char *argv[])
       delete prec;
 
    }
-   else if (amgx && strcmp(amgx_json_file,"") != 0)
+   else if (amgx_lib && strcmp(amgx_json_file,"") != 0)
    {
       AmgXSolver amgx;
       amgx.ReadParameters(amgx_json_file, AmgXSolver::EXTERNAL);
