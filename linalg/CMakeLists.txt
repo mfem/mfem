@@ -98,6 +98,11 @@ if (MFEM_USE_HIOP)
   list(APPEND HDRS hiop.hpp)
 endif()
 
+if (MFEM_USE_MKL_CPARDISO)
+  list(APPEND SRCS cpardiso.cpp)
+  list(APPEND HDRS cpardiso.hpp)
+endif()
+
 convert_filenames_to_full_paths(SRCS)
 convert_filenames_to_full_paths(HDRS)
 
