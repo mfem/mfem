@@ -325,9 +325,19 @@ void ParGridFunction::GetVectorValue(int i, const IntegrationPoint &ip,
    if (nbr_el_no >= 0)
    {
       Array<int> dofs;
-      pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs);
+      DofTransformation * doftrans = pfes->GetFaceNbrElementVDofs(nbr_el_no,
+                                                                  dofs);
       Vector loc_data;
-      face_nbr_data.GetSubVector(dofs, loc_data);
+      if (doftrans)
+      {
+         Vector loc_data_t;
+         face_nbr_data.GetSubVector(dofs, loc_data_t);
+         doftrans->InvTransformPrimal(loc_data_t, loc_data);
+      }
+      else
+      {
+         face_nbr_data.GetSubVector(dofs, loc_data);
+      }
       const FiniteElement *FElem = pfes->GetFaceNbrFE(nbr_el_no);
       int dof = FElem->GetDof();
       if (FElem->GetRangeType() == FiniteElement::SCALAR)
@@ -437,12 +447,22 @@ void ParGridFunction::GetVectorValue(ElementTransformation &T,
    }
 
    Array<int> vdofs;
-   pfes->GetFaceNbrElementVDofs(nbr_el_no, vdofs);
+   DofTransformation * doftrans = pfes->GetFaceNbrElementVDofs(nbr_el_no,
+                                                               vdofs);
    const FiniteElement *fe = pfes->GetFaceNbrFE(nbr_el_no);
 
    int dof = fe->GetDof();
    Vector loc_data;
-   face_nbr_data.GetSubVector(vdofs, loc_data);
+   if (doftrans)
+   {
+      Vector loc_data_t;
+      face_nbr_data.GetSubVector(vdofs, loc_data_t);
+      doftrans->InvTransformPrimal(loc_data_t, loc_data);
+   }
+   else
+   {
+      face_nbr_data.GetSubVector(vdofs, loc_data);
+   }
    if (fe->GetRangeType() == FiniteElement::SCALAR)
    {
       Vector shape(dof);
