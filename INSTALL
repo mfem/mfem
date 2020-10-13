@@ -492,6 +492,13 @@ MFEM_USE_CEED = YES/NO
    library for performant high-order operator evaluation developed by the Center
    for Efficient Exascale Discretizations in the Exascale Computing Project.
 
+MFEM_USE_MKL_CPARDISO = YES/NO
+   Enables the interface to MKL CPardiso: the Intel MKL Parallel Direct Sparse
+   Solver for Clusters. Make sure to set the correct values for MKL_MPI_WRAPPER
+   and MKL_LIBRARY_SUBDIR as shown in defaults.mk. If you configure MFEM with
+   MFEM_USE_LAPACK=YES, verify that the MKL LAPACK libraries are used. The
+   OpenMP capabilities are disabled at link time.
+
 MFEM_BUILD_TAG = (any value)
    An optional tag to characterize the build. Exported to config/config.mk.
    Can be used to identify the MFEM build from other makefiles.
@@ -541,11 +548,14 @@ The specific libraries and their options are:
   Beginning with MFEM v3.3, SUNDIALS v2.7.0 is supported.
   Beginning with MFEM v3.3.2, SUNDIALS v3.0.0 is also supported.
   Beginning with MFEM v4.1, only SUNDIALS v5.0.0+ is supported.
+  When MFEM_USE_CUDA is enabled, only SUNDIALS v5.4.0+ is supported.
   If MFEM_USE_MPI is enabled, we expect that SUNDIALS is built with support for
   both MPI and hypre.
+  If MFEM_USE_CUDA is enabled, we expect that SUNDIALS is built with support
+  for CUDA.
   URL: http://computation.llnl.gov/projects/sundials/sundials-software
   Options: SUNDIALS_OPT, SUNDIALS_LIB.
-  Versions: SUNDIALS >= 5.0.0.
+  Versions: SUNDIALS >= 5.0.0, SUNDIALS >= 5.4.0 for CUDA suppport.
 
 - Mesquite (optional), used when MFEM_USE_MESQUITE = YES.
   URL: http://trilinos.org/oldsite/packages/mesquite
@@ -657,6 +667,11 @@ The specific libraries and their options are:
   Options: GSLIB_OPT, GSLIB_LIB.
   Versions: GSLIB >= 1.0.5.
 
+- MKL CPardiso (optional), used when MFEM_USE_MKL_CPARDISO = YES.
+  URL: https://software.intel.com/content/www/us/en/develop/tools/math-kernel-library.html
+  Options: MKL_CPARDISO_OPT, MKL_CPARDISO_LIB.
+  Versions: Intel MKL >= 2020.
+
 - CUDA (optional), used when MFEM_USE_CUDA = YES.
   URL: https://developer.nvidia.com/cuda-toolkit
   Options: CUDA_CXX, CUDA_ARCH, CUDA_OPT, CUDA_LIB.
@@ -669,13 +684,13 @@ The specific libraries and their options are:
 - OCCA (optional), used when MFEM_USE_OCCA = YES.
   URL: https://libocca.org
   Options: OCCA_DIR, OCCA_OPT, OCCA_LIB.
-  Versions: OCCA >= 1.0.9.
+  Versions: OCCA >= 1.1.0.
 
 - libCEED (optional), used when MFEM_USE_CEED = YES.
   URL: https://github.com/CEED/libCEED
        https://ceed.exascaleproject.org/libceed
   Options: CEED_DIR, CEED_OPT, CEED_LIB.
-  Versions: libCEED > 0.6, git-hash bdfed75.
+  Versions: libCEED >= 0.7.
 
 - RAJA (optional), used when MFEM_USE_RAJA = YES.
   Beginning with MFEM v4.1, only RAJA v0.10.0+ is supported.

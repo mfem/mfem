@@ -15,21 +15,13 @@
 namespace mfem
 {
 
-void PAHcurlSetup2D(const int Q1D,
-                    const int coeffDim,
-                    const int NE,
-                    const Array<double> &w,
-                    const Vector &j,
-                    Vector &coeff,
-                    Vector &op);
-
-void PAHcurlSetup3D(const int Q1D,
-                    const int coeffDim,
-                    const int NE,
-                    const Array<double> &w,
-                    const Vector &j,
-                    Vector &coeff,
-                    Vector &op);
+void PADiffusionSetup3D(const int Q1D,
+                        const int coeffDim,
+                        const int NE,
+                        const Array<double> &w,
+                        const Vector &j,
+                        const Vector &_coeff,
+                        Vector &op);
 
 void PAHcurlMassAssembleDiagonal2D(const int D1D,
                                    const int Q1D,
@@ -189,12 +181,11 @@ void PAHcurlHdivSetup3D(const int Q1D,
                         Vector &_coeff,
                         Vector &op)
 {
-   const int NQ = Q1D*Q1D*Q1D;
    const bool symmetric = (coeffDim != 9);
-   auto W = _w.Read();
-   auto J = Reshape(j.Read(), NQ, 3, 3, NE);
-   auto coeff = Reshape(_coeff.Read(), coeffDim, NQ, NE);
-   auto y = Reshape(op.Write(), 9, NQ, NE);
+   auto W = Reshape(_w.Read(), Q1D, Q1D, Q1D);
+   auto J = Reshape(j.Read(), Q1D, Q1D, Q1D, 3, 3, NE);
+   auto coeff = Reshape(_coeff.Read(), coeffDim, Q1D, Q1D, Q1D, NE);
+   auto y = Reshape(op.Write(), 9, Q1D, Q1D, Q1D, NE);
 
    const int i11 = 0;
    const int i12 = transpose ? 3 : 1;
@@ -206,83 +197,89 @@ void PAHcurlHdivSetup3D(const int Q1D,
    const int i32 = transpose ? 5 : 7;
    const int i33 = 8;
 
-   MFEM_FORALL(e, NE,
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
-      for (int q = 0; q < NQ; ++q)
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
-         const double J11 = J(q,0,0,e);
-         const double J21 = J(q,1,0,e);
-         const double J31 = J(q,2,0,e);
-         const double J12 = J(q,0,1,e);
-         const double J22 = J(q,1,1,e);
-         const double J32 = J(q,2,1,e);
-         const double J13 = J(q,0,2,e);
-         const double J23 = J(q,1,2,e);
-         const double J33 = J(q,2,2,e);
-         const double detJ = J11 * (J22 * J33 - J32 * J23) -
-         /* */               J21 * (J12 * J33 - J32 * J13) +
-         /* */               J31 * (J12 * J23 - J22 * J13);
-         const double w_detJ = W[q] / detJ;
-         // adj(J)
-         const double A11 = (J22 * J33) - (J23 * J32);
-         const double A12 = (J32 * J13) - (J12 * J33);
-         const double A13 = (J12 * J23) - (J22 * J13);
-         const double A21 = (J31 * J23) - (J21 * J33);
-         const double A22 = (J11 * J33) - (J13 * J31);
-         const double A23 = (J21 * J13) - (J11 * J23);
-         const double A31 = (J21 * J32) - (J31 * J22);
-         const double A32 = (J31 * J12) - (J11 * J32);
-         const double A33 = (J11 * J22) - (J12 * J21);
-
-         if (coeffDim == 6 || coeffDim == 9) // Matrix coefficient version
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
          {
-            // First compute entries of R = MJ
-            const double M11 = (!symmetric) ? coeff(i11, q, e) : coeff(0, q, e);
-            const double M12 = (!symmetric) ? coeff(i12, q, e) : coeff(1, q, e);
-            const double M13 = (!symmetric) ? coeff(i13, q, e) : coeff(2, q, e);
-            const double M21 = (!symmetric) ? coeff(i21, q, e) : M12;
-            const double M22 = (!symmetric) ? coeff(i22, q, e) : coeff(3, q, e);
-            const double M23 = (!symmetric) ? coeff(i23, q, e) : coeff(4, q, e);
-            const double M31 = (!symmetric) ? coeff(i31, q, e) : M13;
-            const double M32 = (!symmetric) ? coeff(i32, q, e) : M23;
-            const double M33 = (!symmetric) ? coeff(i33, q, e) : coeff(5, q, e);
+            MFEM_FOREACH_THREAD(qz,z,Q1D)
+            {
+               const double J11 = J(qx,qy,qz,0,0,e);
+               const double J21 = J(qx,qy,qz,1,0,e);
+               const double J31 = J(qx,qy,qz,2,0,e);
+               const double J12 = J(qx,qy,qz,0,1,e);
+               const double J22 = J(qx,qy,qz,1,1,e);
+               const double J32 = J(qx,qy,qz,2,1,e);
+               const double J13 = J(qx,qy,qz,0,2,e);
+               const double J23 = J(qx,qy,qz,1,2,e);
+               const double J33 = J(qx,qy,qz,2,2,e);
+               const double detJ = J11 * (J22 * J33 - J32 * J23) -
+               /* */               J21 * (J12 * J33 - J32 * J13) +
+               /* */               J31 * (J12 * J23 - J22 * J13);
+               const double w_detJ = W(qx,qy,qz) / detJ;
+               // adj(J)
+               const double A11 = (J22 * J33) - (J23 * J32);
+               const double A12 = (J32 * J13) - (J12 * J33);
+               const double A13 = (J12 * J23) - (J22 * J13);
+               const double A21 = (J31 * J23) - (J21 * J33);
+               const double A22 = (J11 * J33) - (J13 * J31);
+               const double A23 = (J21 * J13) - (J11 * J23);
+               const double A31 = (J21 * J32) - (J31 * J22);
+               const double A32 = (J31 * J12) - (J11 * J32);
+               const double A33 = (J11 * J22) - (J12 * J21);
 
-            const double R11 = M11*J11 + M12*J12 + M13*J13;
-            const double R12 = M11*J21 + M12*J22 + M13*J23;
-            const double R13 = M11*J31 + M12*J32 + M13*J33;
-            const double R21 = M21*J11 + M22*J12 + M23*J13;
-            const double R22 = M21*J21 + M22*J22 + M23*J23;
-            const double R23 = M21*J31 + M22*J32 + M23*J33;
-            const double R31 = M31*J11 + M32*J12 + M33*J13;
-            const double R32 = M31*J21 + M32*J22 + M33*J23;
-            const double R33 = M31*J31 + M32*J32 + M33*J33;
+               if (coeffDim == 6 || coeffDim == 9) // Matrix coefficient version
+               {
+                  // First compute entries of R = MJ
+                  const double M11 = (!symmetric) ? coeff(i11,qx,qy,qz,e) : coeff(0,qx,qy,qz,e);
+                  const double M12 = (!symmetric) ? coeff(i12,qx,qy,qz,e) : coeff(1,qx,qy,qz,e);
+                  const double M13 = (!symmetric) ? coeff(i13,qx,qy,qz,e) : coeff(2,qx,qy,qz,e);
+                  const double M21 = (!symmetric) ? coeff(i21,qx,qy,qz,e) : M12;
+                  const double M22 = (!symmetric) ? coeff(i22,qx,qy,qz,e) : coeff(3,qx,qy,qz,e);
+                  const double M23 = (!symmetric) ? coeff(i23,qx,qy,qz,e) : coeff(4,qx,qy,qz,e);
+                  const double M31 = (!symmetric) ? coeff(i31,qx,qy,qz,e) : M13;
+                  const double M32 = (!symmetric) ? coeff(i32,qx,qy,qz,e) : M23;
+                  const double M33 = (!symmetric) ? coeff(i33,qx,qy,qz,e) : coeff(5,qx,qy,qz,e);
 
-            // Now set y to detJ J^{-1} R = adj(J) R
-            y(i11,q,e) = w_detJ * (A11*R11 + A12*R21 + A13*R31); // 1,1
-            y(i12,q,e) = w_detJ * (A11*R12 + A12*R22 + A13*R32); // 1,2
-            y(i13,q,e) = w_detJ * (A11*R13 + A12*R23 + A13*R33); // 1,3
-            y(i21,q,e) = w_detJ * (A21*R11 + A22*R21 + A23*R31); // 2,1
-            y(i22,q,e) = w_detJ * (A21*R12 + A22*R22 + A23*R32); // 2,2
-            y(i23,q,e) = w_detJ * (A21*R13 + A22*R23 + A23*R33); // 2,3
-            y(i31,q,e) = w_detJ * (A31*R11 + A32*R21 + A33*R31); // 3,1
-            y(i32,q,e) = w_detJ * (A31*R12 + A32*R22 + A33*R32); // 3,2
-            y(i33,q,e) = w_detJ * (A31*R13 + A32*R23 + A33*R33); // 3,3
-         }
-         else if (coeffDim == 3)  // Vector coefficient version
-         {
-            const double D1 = coeff(0, q, e);
-            const double D2 = coeff(1, q, e);
-            const double D3 = coeff(2, q, e);
-            // detJ J^{-1} DJ = adj(J) DJ
-            y(i11,q,e) = w_detJ * (D1*A11*J11 + D2*A12*J21 + D3*A13*J31); // 1,1
-            y(i12,q,e) = w_detJ * (D1*A11*J12 + D2*A12*J22 + D3*A13*J32); // 1,2
-            y(i13,q,e) = w_detJ * (D1*A11*J13 + D2*A12*J23 + D3*A13*J33); // 1,3
-            y(i21,q,e) = w_detJ * (D1*A21*J11 + D2*A22*J21 + D3*A23*J31); // 2,1
-            y(i22,q,e) = w_detJ * (D1*A21*J12 + D2*A22*J22 + D3*A23*J32); // 2,2
-            y(i23,q,e) = w_detJ * (D1*A21*J13 + D2*A22*J23 + D3*A23*J33); // 2,3
-            y(i31,q,e) = w_detJ * (D1*A31*J11 + D2*A32*J21 + D3*A33*J31); // 3,1
-            y(i32,q,e) = w_detJ * (D1*A31*J12 + D2*A32*J22 + D3*A33*J32); // 3,2
-            y(i33,q,e) = w_detJ * (D1*A31*J13 + D2*A32*J23 + D3*A33*J33); // 3,3
+                  const double R11 = M11*J11 + M12*J12 + M13*J13;
+                  const double R12 = M11*J21 + M12*J22 + M13*J23;
+                  const double R13 = M11*J31 + M12*J32 + M13*J33;
+                  const double R21 = M21*J11 + M22*J12 + M23*J13;
+                  const double R22 = M21*J21 + M22*J22 + M23*J23;
+                  const double R23 = M21*J31 + M22*J32 + M23*J33;
+                  const double R31 = M31*J11 + M32*J12 + M33*J13;
+                  const double R32 = M31*J21 + M32*J22 + M33*J23;
+                  const double R33 = M31*J31 + M32*J32 + M33*J33;
+
+                  // Now set y to detJ J^{-1} R = adj(J) R
+                  y(i11,qx,qy,qz,e) = w_detJ * (A11*R11 + A12*R21 + A13*R31); // 1,1
+                  y(i12,qx,qy,qz,e) = w_detJ * (A11*R12 + A12*R22 + A13*R32); // 1,2
+                  y(i13,qx,qy,qz,e) = w_detJ * (A11*R13 + A12*R23 + A13*R33); // 1,3
+                  y(i21,qx,qy,qz,e) = w_detJ * (A21*R11 + A22*R21 + A23*R31); // 2,1
+                  y(i22,qx,qy,qz,e) = w_detJ * (A21*R12 + A22*R22 + A23*R32); // 2,2
+                  y(i23,qx,qy,qz,e) = w_detJ * (A21*R13 + A22*R23 + A23*R33); // 2,3
+                  y(i31,qx,qy,qz,e) = w_detJ * (A31*R11 + A32*R21 + A33*R31); // 3,1
+                  y(i32,qx,qy,qz,e) = w_detJ * (A31*R12 + A32*R22 + A33*R32); // 3,2
+                  y(i33,qx,qy,qz,e) = w_detJ * (A31*R13 + A32*R23 + A33*R33); // 3,3
+               }
+               else if (coeffDim == 3)  // Vector coefficient version
+               {
+                  const double D1 = coeff(0,qx,qy,qz,e);
+                  const double D2 = coeff(1,qx,qy,qz,e);
+                  const double D3 = coeff(2,qx,qy,qz,e);
+                  // detJ J^{-1} DJ = adj(J) DJ
+                  y(i11,qx,qy,qz,e) = w_detJ * (D1*A11*J11 + D2*A12*J21 + D3*A13*J31); // 1,1
+                  y(i12,qx,qy,qz,e) = w_detJ * (D1*A11*J12 + D2*A12*J22 + D3*A13*J32); // 1,2
+                  y(i13,qx,qy,qz,e) = w_detJ * (D1*A11*J13 + D2*A12*J23 + D3*A13*J33); // 1,3
+                  y(i21,qx,qy,qz,e) = w_detJ * (D1*A21*J11 + D2*A22*J21 + D3*A23*J31); // 2,1
+                  y(i22,qx,qy,qz,e) = w_detJ * (D1*A21*J12 + D2*A22*J22 + D3*A23*J32); // 2,2
+                  y(i23,qx,qy,qz,e) = w_detJ * (D1*A21*J13 + D2*A22*J23 + D3*A23*J33); // 2,3
+                  y(i31,qx,qy,qz,e) = w_detJ * (D1*A31*J11 + D2*A32*J21 + D3*A33*J31); // 3,1
+                  y(i32,qx,qy,qz,e) = w_detJ * (D1*A31*J12 + D2*A32*J22 + D3*A33*J32); // 3,2
+                  y(i33,qx,qy,qz,e) = w_detJ * (D1*A31*J13 + D2*A32*J23 + D3*A33*J33); // 3,3
+               }
+            }
          }
       }
    });
@@ -300,59 +297,61 @@ void PAHcurlHdivSetup2D(const int Q1D,
                         Vector &_coeff,
                         Vector &op)
 {
-   const int NQ = Q1D*Q1D;
    const bool symmetric = (coeffDim != 4);
-   auto W = _w.Read();
-   auto J = Reshape(j.Read(), NQ, 2, 2, NE);
-   auto coeff = Reshape(_coeff.Read(), coeffDim, NQ, NE);
-   auto y = Reshape(op.Write(), 4, NQ, NE);
+   auto W = Reshape(_w.Read(), Q1D, Q1D);
+   auto J = Reshape(j.Read(), Q1D, Q1D, 2, 2, NE);
+   auto coeff = Reshape(_coeff.Read(), coeffDim, Q1D, Q1D, NE);
+   auto y = Reshape(op.Write(), 4, Q1D, Q1D, NE);
 
    const int i11 = 0;
    const int i12 = transpose ? 2 : 1;
    const int i21 = transpose ? 1 : 2;
    const int i22 = 3;
 
-   MFEM_FORALL(e, NE,
+   MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
    {
-      for (int q = 0; q < NQ; ++q)
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
-         const double J11 = J(q,0,0,e);
-         const double J21 = J(q,1,0,e);
-         const double J12 = J(q,0,1,e);
-         const double J22 = J(q,1,1,e);
-         const double w_detJ = W[q] / (J11*J22) - (J21*J12);
-
-         if (coeffDim == 3 || coeffDim == 4) // Matrix coefficient version
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
          {
-            // First compute entries of R = MJ
-            const double M11 = coeff(i11, q, e);
-            const double M12 = (!symmetric) ? coeff(i12, q, e) : coeff(1, q, e);
-            const double M21 = (!symmetric) ? coeff(i21, q, e) : M12;
-            const double M22 = (!symmetric) ? coeff(i22, q, e) : coeff(2, q, e);
+            const double J11 = J(qx,qy,0,0,e);
+            const double J21 = J(qx,qy,1,0,e);
+            const double J12 = J(qx,qy,0,1,e);
+            const double J22 = J(qx,qy,1,1,e);
+            const double w_detJ = W(qx,qy) / (J11*J22) - (J21*J12);
 
-            const double R11 = M11*J11 + M12*J21;
-            const double R12 = M11*J12 + M12*J22;
-            const double R21 = M21*J11 + M22*J21;
-            const double R22 = M21*J12 + M22*J22;
+            if (coeffDim == 3 || coeffDim == 4) // Matrix coefficient version
+            {
+               // First compute entries of R = MJ
+               const double M11 = coeff(i11,qx,qy,e);
+               const double M12 = (!symmetric) ? coeff(i12,qx,qy,e) : coeff(1,qx,qy,e);
+               const double M21 = (!symmetric) ? coeff(i21,qx,qy,e) : M12;
+               const double M22 = (!symmetric) ? coeff(i22,qx,qy,e) : coeff(2,qx,qy,e);
 
-            // Now set y to J^{-1} R
-            y(i11,q,e) = w_detJ * ( J22*R11 - J12*R21); // 1,1
-            y(i12,q,e) = w_detJ * ( J22*R12 - J12*R22); // 1,2
-            y(i21,q,e) = w_detJ * (-J21*R11 + J11*R21); // 2,1
-            y(i22,q,e) = w_detJ * (-J21*R12 + J11*R22); // 2,2
-         }
-         else if (coeffDim == 2) // Vector coefficient version
-         {
-            const double D1 = coeff(0, q, e);
-            const double D2 = coeff(1, q, e);
-            const double R11 = D1*J11;
-            const double R12 = D1*J12;
-            const double R21 = D2*J21;
-            const double R22 = D2*J22;
-            y(i11,q,e) = w_detJ * ( J22*R11 - J12*R21); // 1,1
-            y(i12,q,e) = w_detJ * ( J22*R12 - J12*R22); // 1,2
-            y(i21,q,e) = w_detJ * (-J21*R11 + J11*R21); // 2,1
-            y(i22,q,e) = w_detJ * (-J21*R12 + J11*R22); // 2,2
+               const double R11 = M11*J11 + M12*J21;
+               const double R12 = M11*J12 + M12*J22;
+               const double R21 = M21*J11 + M22*J21;
+               const double R22 = M21*J12 + M22*J22;
+
+               // Now set y to J^{-1} R
+               y(i11,qx,qy,e) = w_detJ * ( J22*R11 - J12*R21); // 1,1
+               y(i12,qx,qy,e) = w_detJ * ( J22*R12 - J12*R22); // 1,2
+               y(i21,qx,qy,e) = w_detJ * (-J21*R11 + J11*R21); // 2,1
+               y(i22,qx,qy,e) = w_detJ * (-J21*R12 + J11*R22); // 2,2
+            }
+            else if (coeffDim == 2) // Vector coefficient version
+            {
+               const double D1 = coeff(0,qx,qy,e);
+               const double D2 = coeff(1,qx,qy,e);
+               const double R11 = D1*J11;
+               const double R12 = D1*J12;
+               const double R21 = D2*J21;
+               const double R22 = D2*J22;
+               y(i11,qx,qy,e) = w_detJ * ( J22*R11 - J12*R21); // 1,1
+               y(i12,qx,qy,e) = w_detJ * ( J22*R12 - J12*R22); // 1,2
+               y(i21,qx,qy,e) = w_detJ * (-J21*R11 + J11*R21); // 2,1
+               y(i22,qx,qy,e) = w_detJ * (-J21*R12 + J11*R22); // 2,2
+            }
          }
       }
    });
@@ -856,13 +855,13 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
 
    if (trial_curl && test_curl && dim == 3)
    {
-      PAHcurlSetup3D(quad1D, coeffDim, ne, ir->GetWeights(), geom->J,
-                     coeff, pa_data);
+      PADiffusionSetup3D(quad1D, coeffDim, ne, ir->GetWeights(), geom->J,
+                         coeff, pa_data);
    }
    else if (trial_curl && test_curl && dim == 2)
    {
-      PAHcurlSetup2D(quad1D, coeffDim, ne, ir->GetWeights(), geom->J,
-                     coeff, pa_data);
+      PADiffusionSetup2D<2>(quad1D, coeffDim, ne, ir->GetWeights(), geom->J,
+                            coeff, pa_data);
    }
    else if (trial_div && test_div && dim == 3)
    {
@@ -1109,13 +1108,13 @@ void MixedVectorGradientIntegrator::AssemblePA(const FiniteElementSpace
    // Use the same setup functions as VectorFEMassIntegrator.
    if (test_el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3)
    {
-      PAHcurlSetup3D(quad1D, 1, ne, ir->GetWeights(), geom->J,
-                     coeff, pa_data);
+      PADiffusionSetup3D(quad1D, 1, ne, ir->GetWeights(), geom->J,
+                         coeff, pa_data);
    }
    else if (test_el->GetDerivType() == mfem::FiniteElement::CURL && dim == 2)
    {
-      PAHcurlSetup2D(quad1D, 1, ne, ir->GetWeights(), geom->J,
-                     coeff, pa_data);
+      PADiffusionSetup2D<2>(quad1D, 1, ne, ir->GetWeights(), geom->J,
+                            coeff, pa_data);
    }
    else
    {
