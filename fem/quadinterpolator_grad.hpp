@@ -12,6 +12,7 @@
 #include "quadinterpolator.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/dtensor.hpp"
+#include "../fem/kernels.hpp"
 #include "../linalg/kernels.hpp"
 
 namespace mfem
@@ -53,8 +54,11 @@ static void Grad2D(const int NE,
       const int tidz = MFEM_THREAD_ID(z);
       MFEM_SHARED double s_B[MQ1*MD1];
       MFEM_SHARED double s_G[MQ1*MD1];
-      DeviceTensor<2> B(s_B, Q1D, D1D);
-      DeviceTensor<2> G(s_G, Q1D, D1D);
+      MFEM_SHARED double BG[2][MQ1*MD1];
+      kernels::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
+
+      DeviceMatrix B(BG[0], MD1, MQ1);
+      DeviceMatrix G(BG[1], MD1, MQ1);
 
       MFEM_SHARED double s_X[NBZ][MD1*MD1];
       DeviceTensor<2> X((double*)(s_X+tidz), MD1, MD1);
@@ -63,29 +67,9 @@ static void Grad2D(const int NE,
       DeviceTensor<2> DQ0((double*)(s_DQ[0]+tidz), MD1, MQ1);
       DeviceTensor<2> DQ1((double*)(s_DQ[1]+tidz), MD1, MQ1);
 
-      if (tidz == 0)
-      {
-         MFEM_FOREACH_THREAD(d,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(q,x,Q1D)
-            {
-               B(q,d) = b(q,d);
-               G(q,d) = g(q,d);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-
       for (int c = 0; c < VDIM; ++c)
       {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
-         {
-            MFEM_FOREACH_THREAD(dy,y,D1D)
-            {
-               X(dx,dy) = x(dx,dy,c,e);
-            }
-         }
-         MFEM_SYNC_THREAD;
+         kernels::LoadX<MD1,NBZ>(e,D1D,c,x,s_X);
          MFEM_FOREACH_THREAD(dy,y,D1D)
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -95,8 +79,8 @@ static void Grad2D(const int NE,
                for (int dx = 0; dx < D1D; ++dx)
                {
                   const double input = X(dx,dy);
-                  u += input * B(qx,dx);
-                  v += input * G(qx,dx);
+                  u += input * B(dx,qx);
+                  v += input * G(dx,qx);
                }
                DQ0(dy,qx) = u;
                DQ1(dy,qx) = v;
@@ -111,8 +95,8 @@ static void Grad2D(const int NE,
                double v = 0.0;
                for (int dy = 0; dy < D1D; ++dy)
                {
-                  u += DQ1(dy,qx) * B(qy,dy);
-                  v += DQ0(dy,qx) * G(qy,dy);
+                  u += DQ1(dy,qx) * B(dy,qy);
+                  v += DQ0(dy,qx) * G(dy,qy);
                }
                if (GRAD_PHYS)
                {
