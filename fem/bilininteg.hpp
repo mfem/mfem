@@ -131,10 +131,21 @@ public:
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
 
-   /// Perform the local action of the BilinearFormIntegrator
+   /// @brief Perform the local action of the BilinearFormIntegrator.
+   /// Note that the default implementation in the base class is general but not
+   /// efficient.
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &Tr,
                                       const Vector &elfun, Vector &elvect);
+
+   /// @brief Perform the local action of the BilinearFormIntegrator resulting
+   /// from a face integral term.
+   /// Note that the default implementation in the base class is general but not
+   /// efficient.
+   virtual void AssembleFaceVector(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Tr,
+                                   const Vector &elfun, Vector &elvect);
 
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &Tr,
@@ -1863,6 +1874,7 @@ class DiffusionIntegrator: public BilinearFormIntegrator
 {
 protected:
    Coefficient *Q;
+   VectorCoefficient *VQ;
    MatrixCoefficient *MQ;
 
 private:
@@ -1870,6 +1882,7 @@ private:
 #ifndef MFEM_THREAD_SAFE
    DenseMatrix dshape, dshapedxt, invdfdx, mq;
    DenseMatrix te_dshape, te_dshapedxt;
+   Vector D;
 #endif
 
    // PA extension
@@ -1878,7 +1891,7 @@ private:
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, dofs1D, quad1D;
    Vector pa_data;
-
+   bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 #ifdef MFEM_USE_CEED
    // CEED extension
    CeedData* ceedDataPtr;
@@ -1889,6 +1902,7 @@ public:
    DiffusionIntegrator()
    {
       Q = NULL;
+      VQ = NULL;
       MQ = NULL;
       maps = NULL;
       geom = NULL;
@@ -1901,6 +1915,20 @@ public:
    DiffusionIntegrator(Coefficient &q)
       : Q(&q)
    {
+      VQ = NULL;
+      MQ = NULL;
+      maps = NULL;
+      geom = NULL;
+#ifdef MFEM_USE_CEED
+      ceedDataPtr = NULL;
+#endif
+   }
+
+   /// Construct a diffusion integrator with a vector coefficient q
+   DiffusionIntegrator(VectorCoefficient &q)
+      : VQ(&q)
+   {
+      Q = NULL;
       MQ = NULL;
       maps = NULL;
       geom = NULL;
@@ -1914,6 +1942,7 @@ public:
       : MQ(&q)
    {
       Q = NULL;
+      VQ = NULL;
       maps = NULL;
       geom = NULL;
 #ifdef MFEM_USE_CEED
@@ -3029,6 +3058,17 @@ protected:
    VectorCoefficient *VQ;
 };
 
-}
 
+
+// PA Diffusion Assemble 2D kernel
+template<const int T_SDIM>
+void PADiffusionSetup2D(const int Q1D,
+                        const int coeffDim,
+                        const int NE,
+                        const Array<double> &w,
+                        const Vector &j,
+                        const Vector &c,
+                        Vector &d);
+
+}
 #endif
