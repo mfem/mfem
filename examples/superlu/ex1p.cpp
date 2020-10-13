@@ -12,13 +12,11 @@
 //               mpirun -np 4 ex1p -m ../../data/periodic-annulus-sector.msh
 //               mpirun -np 4 ex1p -m ../../data/periodic-torus-sector.msh
 //               mpirun -np 4 ex1p -m ../../data/square-disc-p2.vtk -o 2
-//               mpirun -np 4 ex1p -m ../../data/square-disc-p3.mesh -o 3
 //               mpirun -np 4 ex1p -m ../../data/square-disc-nurbs.mesh -o -1
 //               mpirun -np 4 ex1p -m ../../data/star-mixed-p2.mesh -o 2
 //               mpirun -np 4 ex1p -m ../../data/disc-nurbs.mesh -o -1
 //               mpirun -np 4 ex1p -m ../../data/pipe-nurbs.mesh -o -1
 //               mpirun -np 4 ex1p -m ../../data/ball-nurbs.mesh -o 2
-//               mpirun -np 4 ex1p -m ../../data/fichera-mixed-p2.mesh -o 2
 //               mpirun -np 4 ex1p -m ../../data/star-surf.mesh
 //               mpirun -np 4 ex1p -m ../../data/square-disc-surf.mesh
 //               mpirun -np 4 ex1p -m ../../data/inline-segment.mesh
@@ -26,15 +24,6 @@
 //               mpirun -np 4 ex1p -m ../../data/amr-hex.mesh
 //               mpirun -np 4 ex1p -m ../../data/mobius-strip.mesh
 //               mpirun -np 4 ex1p -m ../../data/mobius-strip.mesh -o -1 -sc
-//
-// Device sample runs:
-//               mpirun -np 4 ex1p -pa -d cuda
-//               mpirun -np 4 ex1p -pa -d occa-cuda
-//               mpirun -np 4 ex1p -pa -d raja-omp
-//               mpirun -np 4 ex1p -pa -d ceed-cpu
-//             * mpirun -np 4 ex1p -pa -d ceed-cuda
-//               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared
-//               mpirun -np 4 ex1p -m ../../data/beam-tet.mesh -pa -d ceed-cpu
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -86,6 +75,16 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&slu_colperm, "-cp", "--colperm",
+                  "SuperLU Column Permutation Method:  0-NATURAL, 1-MMD-ATA "
+                  "2-MMD_AT_PLUS_A, 3-COLAMD, 4-METIS_AT_PLUS_A, 5-PARMETIS "
+                  "6-ZOLTAN");
+   args.AddOption(&slu_rowperm, "-rp", "--rowperm",
+                  "SuperLU Row Permutation Method:  0-NOROWPERM, 1-LargeDiag");   
+   args.AddOption(&slu_iterref, "-rp", "--rowperm",
+                  "SuperLU Iterative Refinement:  0-NOREFINE, 1-Single, "
+                  "2-Double, 3-Extra");   
+   
    args.Parse();
    if (!args.Good())
    {
@@ -115,10 +114,10 @@ int main(int argc, char *argv[])
    // 5. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
-   //    more than 10,000 elements.
+   //    more than 1,000 elements.
    {
       int ref_levels =
-         (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
+         (int)floor(log(1000./mesh.GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();
@@ -253,11 +252,11 @@ int main(int argc, char *argv[])
    }
    else if (slu_rowperm == 1)
    {
+#ifdef MFEM_USE_SUPERLU5
+      superlu->SetRowPermutation(superlu::LargeDiag);
+#else
       superlu->SetRowPermutation(superlu::LargeDiag_MC64);
-   }
-   else if (slu_rowperm == 2)
-   {
-      superlu->SetRowPermutation(superlu::MY_PERMR);
+#endif
    }
 
    if (slu_iterref == 0)

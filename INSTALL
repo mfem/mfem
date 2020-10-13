@@ -346,7 +346,7 @@ MFEM_USE_SUPERLU = YES/NO
 
 MFEM_USE_SUPERLU5 = YES/NO
    If SuperLU functionality is enabled, use the older 5.1.0 version rather than
-   the 6.3.1 version that is supported.  
+   the more recent 6+ versions.  
 
 MFEM_USE_STRUMPACK = YES/NO
    Enable MFEM functionality based on the STRUMPACK sparse direct solver and
@@ -560,7 +560,7 @@ The specific libraries and their options are:
   same location.
   URL: http://crd-legacy.lbl.gov/~xiaoye/SuperLU
   Options: SUPERLU_OPT, SUPERLU_LIB.
-  Versions: SuperLU_DIST >= 6.3.0.
+  Versions: SuperLU_DIST >= 5.1.0.
 
 - STRUMPACK (optional), used when MFEM_USE_STRUMPACK = YES. Note that STRUMPACK
   requires the PT-Scotch and Scalapack libraries as well as ParMETIS, which
