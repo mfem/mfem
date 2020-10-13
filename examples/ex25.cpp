@@ -93,6 +93,9 @@ public:
                             CartesianPML * pml_)
       : VectorCoefficient(dim), pml(pml_), Function(F)
    {}
+
+   using VectorCoefficient::Eval;
+
    virtual void Eval(Vector &K, ElementTransformation &T,
                      const IntegrationPoint &ip)
    {

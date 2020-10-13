@@ -8031,7 +8031,7 @@ void H1_HexahedronElement::CalcHessian(const IntegrationPoint &ip,
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p+1),  shape_y(p+1),  shape_z(p+1);
    Vector dshape_x(p+1), dshape_y(p+1), dshape_z(p+1);
-   Vector d2shape_x(p+1), d2shape_y(p+1), ds2hape_z(p+1);
+   Vector d2shape_x(p+1), d2shape_y(p+1), d2shape_z(p+1);
 #endif
 
    basis1d.Eval(ip.x, shape_x, dshape_x, d2shape_x);
