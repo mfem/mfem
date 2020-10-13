@@ -43,7 +43,7 @@ CeedRestrMap ceed_restr_map;
 static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
 {
    Backend::CEED_CUDA, Backend::OCCA_CUDA, Backend::RAJA_CUDA, Backend::CUDA,
-   Backend::HIP, Backend::DEBUG_DEVICE,
+   Backend::CEED_HIP, Backend::HIP, Backend::DEBUG_DEVICE,
    Backend::OCCA_OMP, Backend::RAJA_OMP, Backend::OMP,
    Backend::CEED_CPU, Backend::OCCA_CPU, Backend::RAJA_CPU, Backend::CPU
 };
@@ -52,7 +52,7 @@ static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
 static const char *backend_name[Backend::NUM_BACKENDS] =
 {
    "ceed-cuda", "occa-cuda", "raja-cuda", "cuda",
-   "hip", "debug",
+   "ceed-hip", "hip", "debug",
    "occa-omp", "raja-omp", "omp",
    "ceed-cpu", "occa-cpu", "raja-cpu", "cpu"
 };
@@ -232,6 +232,10 @@ void Device::Configure(const std::string &device, const int dev)
    if (Allows(Backend::CEED_CUDA))
    {
       Get().MarkBackend(Backend::CUDA);
+   }
+   if (Allows(Backend::CEED_HIP))
+   {
+      Get().MarkBackend(Backend::HIP);
    }
 
    // Perform setup.
@@ -449,7 +453,8 @@ static void CeedDeviceSetup(const char* ceed_spec)
    CeedInit(ceed_spec, &internal::ceed);
    const char *ceed_backend;
    CeedGetResource(internal::ceed, &ceed_backend);
-   if (strcmp(ceed_spec, ceed_backend) && strcmp(ceed_spec, "/cpu/self"))
+   if (strcmp(ceed_spec, ceed_backend) && strcmp(ceed_spec, "/cpu/self") &&
+       strcmp(ceed_spec, "/gpu/hip"))
    {
       mfem::out << std::endl << "WARNING!!!\n"
                 "libCEED is not using the requested backend!!!\n"
@@ -512,6 +517,17 @@ void Device::Setup(const int device)
       {
          // NOTE: libCEED's /gpu/cuda/gen backend is non-deterministic!
          CeedDeviceSetup("/gpu/cuda/gen");
+      }
+      else
+      {
+         CeedDeviceSetup(device_option);
+      }
+   }
+   if (Allows(Backend::CEED_HIP))
+   {
+      if (!device_option)
+      {
+         CeedDeviceSetup("/gpu/hip");
       }
       else
       {
