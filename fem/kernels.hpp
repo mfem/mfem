@@ -190,6 +190,27 @@ MFEM_HOST_DEVICE inline void PullGrad(const int qx, const int qy,
    Jpr[3] = X1BG(qx,qy);
 }
 
+/// Load 3D scalar input vector into shared memory, with comp
+template<int MD1>
+MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D, const int c,
+                                   const DeviceTensor<5, const double> x,
+                                   double sm[MD1*MD1*MD1])
+{
+   DeviceCube X(sm, MD1, MD1, MD1);
+
+   MFEM_FOREACH_THREAD(dz,z,D1D)
+   {
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            X(dx,dy,dz) = x(dx,dy,dz,c,e);
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
 /// Load 3D input vector into shared memory
 template<int MD1>
 MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
