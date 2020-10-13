@@ -23,7 +23,6 @@
 //               mpirun -np 4 ex1p -m ../../data/amr-quad.mesh
 //               mpirun -np 4 ex1p -m ../../data/amr-hex.mesh
 //               mpirun -np 4 ex1p -m ../../data/mobius-strip.mesh
-//               mpirun -np 4 ex1p -m ../../data/mobius-strip.mesh -o -1 -sc
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
