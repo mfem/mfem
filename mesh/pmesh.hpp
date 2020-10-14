@@ -81,7 +81,7 @@ protected:
 
    Table *face_nbr_el_to_face;
    Table  face_nbr_el_ori; // orientations for each face (from nbr processor)
-  
+
    IsoparametricTransformation FaceNbrTransformation;
 
    // glob_elem_offset + local element number defines a global element numbering
