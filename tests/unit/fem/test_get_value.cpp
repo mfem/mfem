@@ -3073,7 +3073,7 @@ TEST_CASE("3D GetVectorValue in Parallel",
             int inf1, inf2;
             pmesh.GetFaceInfos(lf, &inf1, &inf2);
             ofs << sf << " " << lf << " " << inf1/64 << " " << inf1%64
-		<< " " << inf2/64 << " " << inf2%64 << std::endl;
+                << " " << inf2/64 << " " << inf2%64 << std::endl;
          }
 
          ofs << std::endl << "group" << std::endl;
@@ -3144,14 +3144,14 @@ TEST_CASE("3D GetVectorValue in Parallel",
          VectorGridFunctionCoefficient dgi_xCoef(&dgi_x);
 
          h1_x.ProjectCoefficient(funcCoef);
-	 nd_x.ProjectCoefficient(funcCoef);
+         nd_x.ProjectCoefficient(funcCoef);
          rt_x.ProjectCoefficient(funcCoef);
          l2_x.ProjectCoefficient(funcCoef);
          dgv_x.ProjectCoefficient(funcCoef);
          dgi_x.ProjectCoefficient(funcCoef);
 
          h1_x.ExchangeFaceNbrData();
-	 nd_x.ExchangeFaceNbrData();
+         nd_x.ExchangeFaceNbrData();
          rt_x.ExchangeFaceNbrData();
          l2_x.ExchangeFaceNbrData();
          dgv_x.ExchangeFaceNbrData();
@@ -3195,9 +3195,9 @@ TEST_CASE("3D GetVectorValue in Parallel",
                const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
                                                         2*order + 2);
 
-	       Vector x(dim);
-	       
-	       double  h1_gfc_err = 0.0;
+               Vector x(dim);
+
+               double  h1_gfc_err = 0.0;
                double  nd_gfc_err = 0.0;
                double  rt_gfc_err = 0.0;
                double  l2_gfc_err = 0.0;

@@ -45,21 +45,21 @@ int main(int argc, char *argv[])
       /*
       if (type == 4 && my_rank  == 0)
       {
-	Array<int> fcs, cor;
-	pmesh.GetElementFaces(11, fcs, cor);
-	cout << " Element 11" << endl;
-	for (int i=0; i<4; i++)
-	  {
-	    cout << fcs[i] << '\t' << cor[i] << endl;
-	  }
-      }
-      */
+      Array<int> fcs, cor;
+      pmesh.GetElementFaces(11, fcs, cor);
+      cout << " Element 11" << endl;
+      for (int i=0; i<4; i++)
+        {
+          cout << fcs[i] << '\t' << cor[i] << endl;
+        }
+           }
+           */
       ostringstream oss; oss << "get_value_";
-      if (type == 4) oss << "tet";
-      else oss << "hex";
+      if (type == 4) { oss << "tet"; }
+      else { oss << "hex"; }
       VisItDataCollection visit_dc(oss.str(), &pmesh);
       visit_dc.Save();
-      
+
       if (true)
       {
          std::ostringstream oss;
@@ -75,7 +75,7 @@ int main(int argc, char *argv[])
             int inf1, inf2;
             pmesh.GetFaceInfos(lf, &inf1, &inf2);
             ofs << sf << " " << lf << " " << inf1/64 << " " << inf1%64
-		<< " " << inf2/64 << " " << inf2%64 << std::endl;
+                << " " << inf2/64 << " " << inf2%64 << std::endl;
          }
 
          ofs << std::endl << "group" << std::endl;
@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
       VectorFunctionCoefficient funcCoef(dim, Func_3D_lin);
 
       mfem::out << "3D GetVectorValue tests for element type " <<
-	std::to_string(type) << endl;
+                std::to_string(type) << endl;
       {
          H1_FECollection  h1_fec(order, dim);
          ND_FECollection  nd_fec(order+1, dim);
@@ -175,14 +175,14 @@ int main(int argc, char *argv[])
          Vector dgv_gvv_val(dim); dgv_gvv_val = 0.0;
          Vector dgi_gvv_val(dim); dgi_gvv_val = 0.0;
 
-	 mfem::out << "Shared Face Evaluation 3D" << endl;
+         mfem::out << "Shared Face Evaluation 3D" << endl;
          {
             std::ostringstream oss;
             oss << "gvv_" << type << "_" << my_rank << ".out";
             std::ofstream ofs(oss.str().c_str());
 
-	    cout << my_rank << ": num shared faces "
-		 << pmesh.GetNSharedFaces() << endl;
+            cout << my_rank << ": num shared faces "
+                 << pmesh.GetNSharedFaces() << endl;
             for (int sf = 0; sf < pmesh.GetNSharedFaces(); sf++)
             {
                FaceElementTransformations *FET =
@@ -210,8 +210,8 @@ int main(int argc, char *argv[])
                double dgv_gvv_err = 0.0;
                double dgi_gvv_err = 0.0;
 
-	       cout << my_rank << ": num integration points "
-		    << ir.GetNPoints() << endl;
+               cout << my_rank << ": num integration points "
+                    << ir.GetNPoints() << endl;
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
@@ -234,13 +234,13 @@ int main(int argc, char *argv[])
                   l2_x.GetVectorValue(e, ip, l2_gvv_val);
                   dgv_x.GetVectorValue(e, ip, dgv_gvv_val);
                   dgi_x.GetVectorValue(e, ip, dgi_gvv_val);
-		  /*
-                  Vector f_tan(f_val);
-                  f_tan.Add(-(nor*f_val), nor);
+                  /*
+                            Vector f_tan(f_val);
+                            f_tan.Add(-(nor*f_val), nor);
 
-                  Vector nd_tan(nd_gfc_val);
-                  nd_tan.Add(-(nor*nd_gfc_val), nor);
-		  */
+                            Vector nd_tan(nd_gfc_val);
+                            nd_tan.Add(-(nor*nd_gfc_val), nor);
+                  */
                   double  h1_gfc_dist = Distance(f_val,  h1_gfc_val, dim);
                   double  nd_gfc_dist = Distance(f_val,  nd_gfc_val, dim);
                   double  rt_gfc_dist = Distance(f_val,  rt_gfc_val, dim);
@@ -291,14 +291,14 @@ int main(int argc, char *argv[])
                          << nd_gfc_val[2] << ") "
                          << nd_gfc_dist << std::endl;
                      // std::cout
-		     /*
-                     ofs << "tangent ("
-                         << f_tan[0] << "," << f_tan[1] << ","
-                         << f_tan[2] << ") vs. ("
-                         << nd_tan[0] << "," << nd_tan[1] << ","
-                         << nd_tan[2] << ") "
-                         << std::endl;
-		     */
+                     /*
+                               ofs << "tangent ("
+                                   << f_tan[0] << "," << f_tan[1] << ","
+                                   << f_tan[2] << ") vs. ("
+                                   << nd_tan[0] << "," << nd_tan[1] << ","
+                                   << nd_tan[2] << ") "
+                                   << std::endl;
+                     */
                   }
                   if (log > 0 && rt_gfc_dist > tol)
                   {
@@ -420,27 +420,27 @@ int main(int argc, char *argv[])
                dgv_gvv_err /= ir.GetNPoints();
                dgi_gvv_err /= ir.GetNPoints();
 
-	       cout << my_rank << " H1:  " << h1_gfc_err << '\t' << h1_gvv_err << endl;
-	       cout << my_rank << " ND:  " << nd_gfc_err << '\t' << nd_gvv_err << endl;
-	       cout << my_rank << " RT:  " << rt_gfc_err << '\t' << rt_gvv_err << endl;
-	       cout << my_rank << " L2:  " << l2_gfc_err << '\t' << l2_gvv_err << endl;
-	       cout << my_rank << " DGv: " << dgv_gfc_err << '\t' << dgv_gvv_err << endl;
-	       cout << my_rank << " DGi: " << dgi_gfc_err << '\t' << dgi_gvv_err << endl;
-	       /*
-               REQUIRE( h1_gfc_err == MFEM_Approx(0.0));
-               // REQUIRE( nd_gfc_err == MFEM_Approx(0.0));
-               REQUIRE( rt_gfc_err == MFEM_Approx(0.0));
-               REQUIRE( l2_gfc_err == MFEM_Approx(0.0));
-               REQUIRE(dgv_gfc_err == MFEM_Approx(0.0));
-               REQUIRE(dgi_gfc_err == MFEM_Approx(0.0));
+               cout << my_rank << " H1:  " << h1_gfc_err << '\t' << h1_gvv_err << endl;
+               cout << my_rank << " ND:  " << nd_gfc_err << '\t' << nd_gvv_err << endl;
+               cout << my_rank << " RT:  " << rt_gfc_err << '\t' << rt_gvv_err << endl;
+               cout << my_rank << " L2:  " << l2_gfc_err << '\t' << l2_gvv_err << endl;
+               cout << my_rank << " DGv: " << dgv_gfc_err << '\t' << dgv_gvv_err << endl;
+               cout << my_rank << " DGi: " << dgi_gfc_err << '\t' << dgi_gvv_err << endl;
+               /*
+                    REQUIRE( h1_gfc_err == MFEM_Approx(0.0));
+                    // REQUIRE( nd_gfc_err == MFEM_Approx(0.0));
+                    REQUIRE( rt_gfc_err == MFEM_Approx(0.0));
+                    REQUIRE( l2_gfc_err == MFEM_Approx(0.0));
+                    REQUIRE(dgv_gfc_err == MFEM_Approx(0.0));
+                    REQUIRE(dgi_gfc_err == MFEM_Approx(0.0));
 
-               REQUIRE( h1_gvv_err == MFEM_Approx(0.0));
-               // REQUIRE( nd_gvv_err == MFEM_Approx(0.0));
-               REQUIRE( rt_gvv_err == MFEM_Approx(0.0));
-               REQUIRE( l2_gvv_err == MFEM_Approx(0.0));
-               REQUIRE(dgv_gvv_err == MFEM_Approx(0.0));
-               REQUIRE(dgi_gvv_err == MFEM_Approx(0.0));
-	       */
+                    REQUIRE( h1_gvv_err == MFEM_Approx(0.0));
+                    // REQUIRE( nd_gvv_err == MFEM_Approx(0.0));
+                    REQUIRE( rt_gvv_err == MFEM_Approx(0.0));
+                    REQUIRE( l2_gvv_err == MFEM_Approx(0.0));
+                    REQUIRE(dgv_gvv_err == MFEM_Approx(0.0));
+                    REQUIRE(dgi_gvv_err == MFEM_Approx(0.0));
+               */
             }
          }
       }
