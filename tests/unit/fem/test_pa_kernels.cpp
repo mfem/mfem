@@ -341,30 +341,30 @@ void velocity_function(const Vector &x, Vector &v)
    }
 }
 
-void AddConvectionIntegrators(BilinearForm &k, VectorCoefficient &velocity,
-                              bool dg)
+void AddConvectionIntegrators(BilinearForm &k, Coefficient &rho,
+                              VectorCoefficient &velocity, bool dg)
 {
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
 
    if (dg)
    {
       k.AddInteriorFaceIntegrator(
-         new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+         new TransposeIntegrator(new DGTraceIntegrator(rho, velocity, 1.0, -0.5)));
       k.AddBdrFaceIntegrator(
-         new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+         new TransposeIntegrator(new DGTraceIntegrator(rho, velocity, 1.0, -0.5)));
    }
 }
 
-void test_pa_convection(const char *meshname, int order, bool dg)
+void test_pa_convection(const char *meshname, int order, int prob)
 {
-   INFO("mesh=" << meshname << ", order=" << order << ", DG=" << dg);
+   INFO("mesh=" << meshname << ", order=" << order << ", prob=" << prob);
    Mesh mesh(meshname, 1, 1);
    mesh.EnsureNodes();
    mesh.SetCurvature(mesh.GetNodalFESpace()->GetOrder(0));
    int dim = mesh.Dimension();
 
    FiniteElementCollection *fec;
-   if (dg)
+   if (prob)
    {
       fec = new L2_FECollection(order, dim, BasisType::GaussLobatto);
    }
@@ -372,16 +372,36 @@ void test_pa_convection(const char *meshname, int order, bool dg)
    {
       fec = new H1_FECollection(order, dim);
    }
-
    FiniteElementSpace fespace(&mesh, fec);
+
+   L2_FECollection vel_fec(order, dim, BasisType::GaussLobatto);
+   FiniteElementSpace vel_fespace(&mesh, &vel_fec, dim);
+   GridFunction vel_gf(&vel_fespace);
+   GridFunction rho_gf(&fespace);
 
    BilinearForm k_pa(&fespace);
    BilinearForm k_fa(&fespace);
 
-   VectorFunctionCoefficient vel_coeff(dim, velocity_function);
+   VectorCoefficient *vel_coeff;
+   Coefficient *rho;
 
-   AddConvectionIntegrators(k_fa, vel_coeff, dg);
-   AddConvectionIntegrators(k_pa, vel_coeff, dg);
+   // prob: 0: CG, 1: DG continuous coeff, 2: DG discontinuous coeff
+   if (prob == 2)
+   {
+      vel_gf.Randomize(1);
+      vel_coeff = new VectorGridFunctionCoefficient(&vel_gf);
+      rho_gf.Randomize(1);
+      rho = new GridFunctionCoefficient(&rho_gf);
+   }
+   else
+   {
+      vel_coeff = new VectorFunctionCoefficient(dim, velocity_function);
+      rho = new ConstantCoefficient(1.0);
+   }
+
+
+   AddConvectionIntegrators(k_fa, *rho, *vel_coeff, prob > 0);
+   AddConvectionIntegrators(k_pa, *rho, *vel_coeff, prob > 0);
 
    k_fa.Assemble();
    k_fa.Finalize();
@@ -400,39 +420,43 @@ void test_pa_convection(const char *meshname, int order, bool dg)
 
    REQUIRE(y_pa.Norml2() < 1.e-12);
 
+   delete vel_coeff;
+   delete rho;
    delete fec;
 }
 
-//Basic unit test for convection
+// Basic unit test for convection
 TEST_CASE("PA Convection", "[PartialAssembly]")
 {
-   auto dg = GENERATE(true, false);
+   // prob: 0: CG, 1: DG continuous coeff, 2: DG discontinuous coeff
+   auto prob = GENERATE(0, 1, 2);
    auto order_2d = GENERATE(2, 3, 4);
    auto order_3d = GENERATE(2);
 
    SECTION("2D")
    {
-      test_pa_convection("../../data/periodic-square.mesh", order_2d, dg);
-      test_pa_convection("../../data/periodic-hexagon.mesh", order_2d, dg);
-      test_pa_convection("../../data/star-q3.mesh", order_2d, dg);
+      test_pa_convection("../../data/periodic-square.mesh", order_2d, prob);
+      test_pa_convection("../../data/periodic-hexagon.mesh", order_2d, prob);
+      test_pa_convection("../../data/star-q3.mesh", order_2d, prob);
    }
 
    SECTION("3D")
    {
-      test_pa_convection("../../data/periodic-cube.mesh", order_3d, dg);
-      test_pa_convection("../../data/fichera-q3.mesh", order_3d, dg);
+      test_pa_convection("../../data/periodic-cube.mesh", order_3d, prob);
+      test_pa_convection("../../data/fichera-q3.mesh", order_3d, prob);
    }
 
    // Test AMR cases (DG not implemented)
    SECTION("AMR 2D")
    {
-      test_pa_convection("../../data/amr-quad.mesh", order_2d, false);
+      test_pa_convection("../../data/amr-quad.mesh", order_2d, 0);
    }
 
    SECTION("AMR 3D")
    {
-      test_pa_convection("../../data/fichera-amr.mesh", order_3d, false);
+      test_pa_convection("../../data/fichera-amr.mesh", order_3d, 0);
    }
-}//test case
 
-}// namespace pa_kernels
+} // test case
+
+} // namespace pa_kernels
