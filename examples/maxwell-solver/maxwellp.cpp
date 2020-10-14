@@ -367,7 +367,41 @@ int main(int argc, char *argv[])
       sol_sock_im.precision(8);
       sol_sock_im << "parallel " << num_procs << " " << myid << "\n"
                   << "solution\n" << *pmesh << x.imag() << keys 
-                  << "window_title 'E: Imag Part' " << flush;                     
+                  << "window_title 'E: Imag Part' " << flush;   
+
+
+      {
+         ParGridFunction x_t(fespace);
+         x_t = x.real();
+
+         socketstream sol_sock(vishost, visport);
+         sol_sock.precision(8);
+         sol_sock << "parallel " << num_procs << " " << myid << "\n"
+                  << "solution\n" << *pmesh << x_t << keys << "autoscale off\n"
+                  << "window_title 'Harmonic Solution (t = 0.0 T)'"
+                  << "pause\n" << flush;
+
+         if (myid == 0)
+         {
+            cout << "GLVis visualization paused."
+                 << " Press space (in the GLVis window) to resume it.\n";
+         }
+
+         int num_frames = 32;
+         int i = 0;
+         while (sol_sock)
+         {
+            double t = (double)(i % num_frames) / num_frames;
+            ostringstream oss;
+            oss << "Harmonic Solution (t = " << t << " T)";
+
+            add(cos(2.0*M_PI*t), x.real(), sin(2.0*M_PI*t), x.imag(), x_t);
+            sol_sock << "parallel " << num_procs << " " << myid << "\n";
+            sol_sock << "solution\n" << *pmesh << x_t
+                     << "window_title '" << oss.str() << "'" << flush;
+            i++;
+         }
+      }
    }
 
    // 18. Free the used memory.
@@ -400,7 +434,7 @@ void source_re(const Vector &x, Vector &f)
    }
    else
    {
-      int nrsources = (dim == 2) ? 4 : 8;
+      int nrsources = (dim == 2) ? 3 : 8;
       Vector x0(nrsources);
       Vector y0(nrsources);
       Vector z0(nrsources);
