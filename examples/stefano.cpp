@@ -30,33 +30,27 @@ int main(int argc, char *argv[])
 
    //Mesh mesh("./test.mesh.txt", 1, 1);
    //Mesh mesh(32, 32, Element::QUADRILATERAL, true, 1.0, 1.0);
-   //Mesh mesh(2, 1, 1, Element::HEXAHEDRON, true, 2.0, 1.0, 1.0);
-   Mesh mesh(1, 1, 2, Element::WEDGE, true, 1.0, 1.0, 2.0);
+   Mesh mesh(2, 1, 1, Element::HEXAHEDRON, true, 2.0, 1.0, 1.0);
+   //Mesh mesh(1, 1, 2, Element::WEDGE, true, 1.0, 1.0, 2.0);
    for (int i = 0; i < 3; i++)
    {
-      mesh.UniformRefinement();
+      //mesh.UniformRefinement();
    }
+
    // if EnsureNCMesh is not called, everything is ok
    //mesh.EnsureNCMesh();
-   //mesh.RandomRefinement(0.5);
 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
    //pmesh->UniformRefinement();
 
    int mu_ord = 1;
-#if 1
+
    VectorFunctionCoefficient mu_vec(pmesh->SpaceDimension(), mu_vec_fn);
 
    // Both ND and RT fails using EnsureNCMesh
    //mu_fec = new ND_FECollection(mu_ord, pmesh->Dimension());
    auto *mu_fec = new RT_FECollection(mu_ord, pmesh->Dimension());
    auto *mu_fes = new ParFiniteElementSpace(pmesh, mu_fec, 1, Ordering::byVDIM);
-
-#else
-   FunctionCoefficient mu_vec(scalar_fn);
-   auto *mu_fec = new H1_FECollection(mu_ord, pmesh->Dimension());
-   auto *mu_fes = new ParFiniteElementSpace(pmesh, mu_fec);
-#endif
 
    ParGridFunction gf(mu_fes);
    gf = 0.0;

@@ -809,6 +809,7 @@ void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
    }
 
    // renumber groups in entity_conf_group[] (due to missing singletons)
+   // (NOTE: entity_conf_group is used below in MakeSharedTable)
    for (int ent = 0; ent < 3; ent++)
    {
       for (int i = 0; i < entity_conf_group[ent].Size(); i++)

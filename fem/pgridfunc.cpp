@@ -570,7 +570,7 @@ void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &vcoeff,
    /*Vector old = *this;
    for (int i = 0; i < Size(); i++)
    {
-      (*this)(i) = pfes->GetGlobalTDofNumber(i);
+      (*this)(i) = i;//pfes->GetGlobalTDofNumber(i);
    }*/
 
    // Count the zones globally.
