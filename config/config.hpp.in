@@ -163,6 +163,7 @@
 // library.
 // #define MFEM_USE_SIMMETRIX
 
+
 // use ADEPT library for AD
 // #define MFEM_USE_ADEPT
 
@@ -171,5 +172,9 @@
 
 // use forward mode for automatic differentiation
 // #define MFEM_USE_ADFORWARD
+
+// Enable interface to the MKL CPardiso library.
+// #define MFEM_USE_MKL_CPARDISO
+
 
 #endif // MFEM_CONFIG_HEADER

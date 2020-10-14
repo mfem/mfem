@@ -157,7 +157,7 @@ TEST_CASE("ParallelFormLinearSystem", "[Parallel], [ParallelFormLinearSystem]")
             x0 -= x1;
             double error = x0.Norml2();
             std::cout << "    order: " << order << ", error norm: " << error << std::endl;
-            REQUIRE(x0.Norml2() == MFEM_Approx(0.0, 1e2*EPS));
+            REQUIRE(x0.Norml2() == MFEM_Approx(0.0, 2e2*EPS));
 
             delete pmesh;
             delete fec;

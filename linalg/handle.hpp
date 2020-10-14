@@ -186,6 +186,12 @@ public:
        elimination of the essential dofs @a ess_dof_list. */
    void EliminateRowsCols(OperatorHandle &A, const Array<int> &ess_dof_list);
 
+   /// Eliminate the rows corresponding to the essential dofs @a ess_dof_list
+   void EliminateRows(const Array<int> &ess_dof_list);
+
+   /// Eliminate columns corresponding to the essential dofs @a ess_dof_list
+   void EliminateCols(const Array<int> &ess_dof_list);
+
    /// Eliminate essential dofs from the solution @a X into the r.h.s. @a B.
    /** The argument @a A_e is expected to be the result of the method
        EliminateRowsCols(). */

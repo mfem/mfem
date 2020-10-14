@@ -119,6 +119,11 @@ ex11p-test-superlu: ex11p
 	@$(call mfem-test,$<, $(RUN_MPI), SuperLU_DIST example,--superlu)
 test-par-YES: ex11p-test-superlu
 endif
+ifeq ($(MFEM_USE_MKL_CPARDISO),YES)
+ex11p-test-cpardiso: ex11p
+	@$(call mfem-test,$<, $(RUN_MPI), MKL_CPARDISO example,--cpardiso)
+test-par-YES: ex11p-test-cpardiso
+endif
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 

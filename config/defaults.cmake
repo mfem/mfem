@@ -55,6 +55,8 @@ option(MFEM_USE_ADIOS2 "Enable ADIOS2" OFF)
 option(MFEM_USE_ADEPT "Enable AD using ADEPT" OFF)
 option(MFEM_USE_FADBADPP "Enable AD using FADBAD++" OFF)
 option(MFEM_USE_ADFORWARD "Enable forward mode for AD" OFF)
+option(MFEM_USE_MKL_CPARDISO "Enable MKL CPardiso" OFF)
+
 
 set(MFEM_MPI_NP 4 CACHE STRING "Number of processes used for MPI tests")
 
@@ -91,7 +93,7 @@ set(METIS_DIR "${MFEM_DIR}/../metis-4.0" CACHE PATH "Path to the METIS library."
 
 set(LIBUNWIND_DIR "" CACHE PATH "Path to Libunwind.")
 
-# For sundials_nvecparhyp and nvecparallel remember to build with MPI_ENABLED=ON
+# For sundials_nvecmpiplusx and nvecparallel remember to build with MPI_ENABLE=ON
 # and modify cmake variables for hypre for sundials
 set(SUNDIALS_DIR "${MFEM_DIR}/../sundials-5.0.0/instdir" CACHE PATH
     "Path to the SUNDIALS library.")
@@ -182,6 +184,10 @@ set(HIOP_DIR "${MFEM_DIR}/../hiop/install" CACHE STRING
     "Directory where HiOp is installed")
 set(HIOP_REQUIRED_PACKAGES "BLAS" "LAPACK" CACHE STRING
     "Packages that HiOp depends on.")
+
+set(MKL_CPARDISO_DIR "" CACHE STRING "MKL installation path.")
+set(MKL_MPI_WRAPPER_LIB "mkl_blacs_mpich_lp64" CACHE STRING "MKL MPI wrapper library")
+set(MKL_LIBRARY_DIR "" CACHE STRING "Custom library subdirectory")
 
 set(OCCA_DIR "${MFEM_DIR}/../occa" CACHE PATH "Path to OCCA")
 set(RAJA_DIR "${MFEM_DIR}/../raja" CACHE PATH "Path to RAJA")

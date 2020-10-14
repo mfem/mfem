@@ -143,6 +143,8 @@ MFEM_USE_ADIOS2        = NO
 MFEM_USE_ADEPT         = NO
 MFEM_USE_FADBADPP      = NO
 MFEM_USE_ADFORWARD     = NO
+MFEM_USE_MKL_CPARDISO  = NO
+
 
 # Compile and link options for zlib.
 ZLIB_DIR =
@@ -192,15 +194,19 @@ OPENMP_LIB =
 POSIX_CLOCKS_LIB = -lrt
 
 # SUNDIALS library configuration
-# For sundials_nvecparhyp and nvecparallel remember to build with MPI_ENABLED=ON
+# For sundials_nvecmpiplusx and nvecparallel remember to build with MPI_ENABLE=ON
 # and modify cmake variables for hypre for sundials
-SUNDIALS_DIR = @MFEM_DIR@/../sundials-5.0.0/instdir
-SUNDIALS_OPT = -I$(SUNDIALS_DIR)/include
-SUNDIALS_LIB = -Wl,-rpath,$(SUNDIALS_DIR)/lib64 -L$(SUNDIALS_DIR)/lib64\
+SUNDIALS_DIR    = @MFEM_DIR@/../sundials-5.0.0/instdir
+SUNDIALS_OPT    = -I$(SUNDIALS_DIR)/include
+SUNDIALS_LIBDIR = $(wildcard $(SUNDIALS_DIR)/lib*)
+SUNDIALS_LIB    = $(XLINKER)-rpath,$(SUNDIALS_LIBDIR) -L$(SUNDIALS_LIBDIR)\
  -lsundials_arkode -lsundials_cvodes -lsundials_nvecserial -lsundials_kinsol
 
 ifeq ($(MFEM_USE_MPI),YES)
-   SUNDIALS_LIB += -lsundials_nvecparhyp -lsundials_nvecparallel
+   SUNDIALS_LIB += -lsundials_nvecparallel -lsundials_nvecmpiplusx
+endif
+ifeq ($(MFEM_USE_CUDA),YES)
+   SUNDIALS_LIB += -lsundials_nveccuda
 endif
 # If SUNDIALS was built with KLU:
 # MFEM_USE_SUITESPARSE = YES
@@ -384,6 +390,15 @@ RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
 UMPIRE_DIR = @MFEM_DIR@/../umpire
 UMPIRE_OPT = -I$(UMPIRE_DIR)/include
 UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -lumpire
+
+# MKL CPardiso library configuration
+MKL_CPARDISO_DIR ?=
+MKL_MPI_WRAPPER ?= mkl_blacs_mpich_lp64
+MKL_LIBRARY_SUBDIR ?= lib
+MKL_CPARDISO_OPT = -I$(MKL_CPARDISO_DIR)/include
+MKL_CPARDISO_LIB = -Wl,-rpath,$(MKL_CPARDISO_DIR)/$(MKL_LIBRARY_SUBDIR)\
+                   -L$(MKL_CPARDISO_DIR)/$(MKL_LIBRARY_SUBDIR) -l$(MKL_MPI_WRAPPER)\
+                   -lmkl_intel_lp64 -lmkl_sequential -lmkl_core
 
 # If YES, enable some informational messages
 VERBOSE = NO
