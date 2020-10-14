@@ -376,6 +376,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
          L2FESpace_ = new L2_ParFESpace(pmesh_,order-1,pmesh_->Dimension());
       }
       e_b_ = new ParComplexGridFunction(L2FESpace_);
+      *e_b_ = 0.0;
    }
    if (kCoef_)
    {
@@ -964,8 +965,8 @@ CPDSolver::Assemble()
       // n20ZRe_->Finalize();
       //if (!pa_) n20ZRe_->Finalize();
 
-      n20ZIm_->Assemble();
-      n20ZIm_->Finalize();
+      // n20ZIm_->Assemble();
+      // n20ZIm_->Finalize();
       //if (!pa_) n20ZIm_->Finalize();
    }
 
@@ -1644,23 +1645,28 @@ CPDSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
    visit_dc.RegisterField("Re_E", &e_->real());
    visit_dc.RegisterField("Im_E", &e_->imag());
 
-   visit_dc.RegisterField("Re_D", &d_->real());
-   visit_dc.RegisterField("Im_D", &d_->imag());
+   //visit_dc.RegisterField("Re_D", &d_->real());
+   //visit_dc.RegisterField("Im_D", &d_->imag());
 
    if (sbcs_->Size() > 0)
    {
        
-      visit_dc.RegisterField("Re_Phi", &phi_->real());
-      visit_dc.RegisterField("Im_Phi", &phi_->imag());
+      //visit_dc.RegisterField("Re_Phi", &phi_->real());
+      //visit_dc.RegisterField("Im_Phi", &phi_->imag());
     
    }
 
     if ( rectPot_ )
     {
-       //visit_dc.RegisterField("Rec_Re_Phi", &rectPot_->real());
-       //visit_dc.RegisterField("Rec_Im_Phi", &rectPot_->imag());
+      visit_dc.RegisterField("Rec_Re_Phi", &rectPot_->real());
+      visit_dc.RegisterField("Rec_Im_Phi", &rectPot_->imag());
     }
      
+    if ( BCoef_)
+    {
+        visit_dc.RegisterField("Re_EB", &e_b_->real());
+        visit_dc.RegisterField("Im_EB", &e_b_->imag());
+    }
    // visit_dc.RegisterField("Er", e_r_);
    // visit_dc.RegisterField("Ei", e_i_);
    // visit_dc.RegisterField("B", b_);
@@ -1708,21 +1714,30 @@ CPDSolver::WriteVisItFields(int it)
       
       if ( rectPot_ )
       {
-          //ComplexCoefficientByAttr & sbc = (*sbcs_)[0];
-          //SheathBase * sb = dynamic_cast<SheathBase*>(sbc.real);
+          
+          ComplexCoefficientByAttr & sbc = (*sbcs_)[0];
+          SheathBase * sb = dynamic_cast<SheathBase*>(sbc.real);
 
-          /*
+          
           if (sb != NULL)
           {
             RectifiedSheathPotential rectPotCoefR(*sb, true);
             RectifiedSheathPotential rectPotCoefI(*sb, false);
 
             rectPot_->ProjectCoefficient(rectPotCoefR, rectPotCoefI);
-           }
-           */
+          }
        
       }
       
+       if ( BCoef_)
+       {
+           VectorGridFunctionCoefficient e_r(&e_->real());
+           VectorGridFunctionCoefficient e_i(&e_->imag());
+           InnerProductCoefficient ebrCoef(e_r, *BCoef_);
+           InnerProductCoefficient ebiCoef(e_i, *BCoef_);
+
+           e_b_->ProjectCoefficient(ebrCoef, ebiCoef);
+       }
 
       HYPRE_Int prob_size = this->GetProblemSize();
       visit_dc_->SetCycle(it);
@@ -1891,7 +1906,7 @@ CPDSolver::DisplayToGLVis()
 
    if (sbcs_->Size() > 0)
    {
-       
+       /*
        ComplexCoefficientByAttr & sbc = (*sbcs_)[0];
        SheathBase * sb = dynamic_cast<SheathBase*>(sbc.real);
 
@@ -1902,8 +1917,9 @@ CPDSolver::DisplayToGLVis()
 
          rectPot_->ProjectCoefficient(rectPotCoefR, rectPotCoefI);
         }
-        
-        
+        */
+    
+       /*
       Wx += offx;
       VisualizeField(*socks_["Phir"], vishost, visport,
                      phi_v_->real(), "Sheath Potential, Re(Phi)", Wx, Wy, Ww, Wh);
@@ -1911,8 +1927,10 @@ CPDSolver::DisplayToGLVis()
 
       VisualizeField(*socks_["Phii"], vishost, visport,
                      phi_v_->imag(), "Sheath Potential, Im(Phi)", Wx, Wy, Ww, Wh);
+        */
+        
 
-       
+       /*
       Wx += offx;
       VisualizeField(*socks_["RecPhir"], vishost, visport,
                      rectPot_->real(), "Rectified Potential, Re(RecPhi)", Wx, Wy, Ww, Wh);
@@ -1920,19 +1938,23 @@ CPDSolver::DisplayToGLVis()
 
       VisualizeField(*socks_["RecPhii"], vishost, visport,
                      rectPot_->imag(), "Rectified Potential, Im(RecPhi)", Wx, Wy, Ww, Wh);
+        */
+    
         
    }
 
    if (BCoef_)
    {
+       /*
       VectorGridFunctionCoefficient e_r(&e_v_->real());
       VectorGridFunctionCoefficient e_i(&e_v_->imag());
       InnerProductCoefficient ebrCoef(e_r, *BCoef_);
       InnerProductCoefficient ebiCoef(e_i, *BCoef_);
 
       e_b_->ProjectCoefficient(ebrCoef, ebiCoef);
+        */
 
-      /*
+      
       VisualizeField(*socks_["EBr"], vishost, visport,
                     e_b_->real(), "Parallel Electric Field, Re(E.B)",
                     Wx, Wy, Ww, Wh);
@@ -1942,7 +1964,7 @@ CPDSolver::DisplayToGLVis()
                     e_b_->imag(), "Parallel Electric Field, Im(E.B)",
                     Wx, Wy, Ww, Wh);
       Wx += offx;
-       */
+       
 
    }
    /*
@@ -2082,8 +2104,8 @@ CPDSolver::DisplayAnimationToGLVis()
       ostringstream oss;
       oss << "Harmonic Solution (t = " << t << " T)";
 
-      add( -cos( 2.0 * M_PI * t), e_v_->real(),
-           sin( 2.0 * M_PI * t), e_v_->imag(), *e_t_);
+      add( cos( 2.0 * M_PI * t), e_v_->real(),
+           -sin( 2.0 * M_PI * t), e_v_->imag(), *e_t_);
       sol_sock << "parallel " << num_procs_ << " " << myid_ << "\n";
       sol_sock << "solution\n" << *pmesh_ << *e_t_
                << "window_title '" << oss.str() << "'" << flush;
