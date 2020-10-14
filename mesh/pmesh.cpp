@@ -2121,9 +2121,8 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
 
    // convert the element data into face_nbr_elements
    face_nbr_elements.SetSize(face_nbr_elements_offset[num_face_nbrs]);
-   // face_nbr_el_ori.SetSize(face_nbr_elements_offset[num_face_nbrs], 6);
    face_nbr_el_ori.Clear();
-   face_nbr_el_ori.MakeI(face_nbr_elements_offset[num_face_nbrs]);
+   face_nbr_el_ori.SetSize(face_nbr_elements_offset[num_face_nbrs], 6);
    while (true)
    {
       int fn;
@@ -2152,19 +2151,16 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
          el->SetVertices(recv_elemdata);
          recv_elemdata += nv;
 	 int nf = el->GetNFaces();
-	 /*
+	 int * fn_ori = face_nbr_el_ori.GetRow(elem_off);
 	 for (int j = 0; j < nf; j++)
 	 {
-	   face_nbr_el_ori.AddConnection(elem_off, recv_elemdata[j]);
+	   fn_ori[j] = recv_elemdata[j];
 	 }
-	 */
-	 face_nbr_el_ori.AddConnections(elem_off, recv_elemdata, nf);
 	 recv_elemdata += nf;
          face_nbr_elements[elem_off++] = el;
       }
    }
-   // face_nbr_el_ori.Finalize();
-   face_nbr_el_ori.ShiftUpI();
+   face_nbr_el_ori.Finalize();
    {
      std::ostringstream oss;
      oss << "fn_ori." << MyRank;
