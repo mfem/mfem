@@ -31,15 +31,18 @@ static void PAConvectionSetup2D(const int Q1D,
                                 const double alpha,
                                 Vector &op)
 {
+   constexpr int DIM = 2;
+
    const int NE = ne;
    const int NQ = Q1D*Q1D;
-   auto W = w.Read();
+   const bool const_v = vel.Size() == DIM;
 
-   auto J = Reshape(j.Read(), NQ, 2, 2, NE);
-   const bool const_v = vel.Size() == 2;
-   auto V =
-      const_v ? Reshape(vel.Read(), 2,1,1) : Reshape(vel.Read(), 2,NQ,NE);
-   auto y = Reshape(op.Write(), NQ, 2, NE);
+   const auto W = w.Read();
+   const auto J = Reshape(j.Read(), NQ,DIM,DIM,NE);
+   const auto V = const_v ?
+                  Reshape(vel.Read(), DIM,1,1) :
+                  Reshape(vel.Read(), DIM,NQ,NE);
+   auto y = Reshape(op.Write(), NQ,DIM,NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -70,13 +73,15 @@ static void PAConvectionSetup3D(const int Q1D,
                                 const double alpha,
                                 Vector &op)
 {
+   constexpr int DIM = 3;
+   constexpr int SDIM = 3; // has been verified
    const auto W = Reshape(w.Read(), Q1D,Q1D,Q1D);
-   const auto J = Reshape(j.Read(), Q1D,Q1D,Q1D,3,3,NE);
-   const bool const_v = vel.Size() == 3;
+   const auto J = Reshape(j.Read(), Q1D,Q1D,Q1D,SDIM,DIM,NE);
+   const bool const_v = vel.Size() == DIM;
    const auto V = const_v ?
-                  Reshape(vel.Read(), 3,1,1,1,1) :
-                  Reshape(vel.Read(), 3,Q1D,Q1D,Q1D,NE);
-   auto y = Reshape(op.Write(), Q1D,Q1D,Q1D,3,NE);
+                  Reshape(vel.Read(), DIM,1,1,1,1) :
+                  Reshape(vel.Read(), DIM,Q1D,Q1D,Q1D,NE);
+   auto y = Reshape(op.Write(), Q1D,Q1D,Q1D,DIM,NE);
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -962,7 +967,7 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
             case 0x48: QEvalVGF3D<3,4,8>(ne,B,x,y); break;
             default:
             {
-               constexpr int MAX_DQ = 6;
+               constexpr int MAX_DQ = 7;
                MFEM_VERIFY(D1D <= MAX_DQ, "");
                MFEM_VERIFY(Q1D <= MAX_DQ, "");
                QEvalVGF3D<0,0,0,MAX_DQ>(ne,B,x,y,vdim,D1D,Q1D);
