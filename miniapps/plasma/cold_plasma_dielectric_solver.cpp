@@ -689,7 +689,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    if (sbcs_->Size() > 0)
    {
       phi_  = new ParComplexGridFunction(H1FESpace_);
-      *phi_ = 10.0;
+      *phi_ = 0.0;
       /*
       PlasmaProfile::Type dpt = PlasmaProfile::GRADIENT;
       Vector dpp(6);
@@ -1460,6 +1460,48 @@ CPDSolver::Solve()
          ConstantCoefficient zeroScalarCoef(0.0);
 
          int Phi_iter = 0;
+          
+          HypreParMatrix M0;
+          Vector Phi, RHS0;
+          
+          Array<int> sbc_marker(pmesh_->bdr_attributes.Max());
+          sbc_marker = 0;
+          for (int i=0; i<sbcs_->Size(); i++)
+          {
+             ComplexCoefficientByAttr & sbc = (*sbcs_)[i];
+             for (int j=0; j<sbc.attr_marker.Size(); j++)
+             {
+                sbc_marker[j] |= sbc.attr_marker[j];
+             }
+          }
+
+          Array<int> sbc_tdof;
+          H1FESpace_->GetEssentialTrueDofs(sbc_marker, sbc_tdof);
+
+          Array<int> sbc_tdof_marker;
+          H1FESpace_->ListToMarker(sbc_tdof, H1FESpace_->GetTrueVSize(),
+                                   sbc_tdof_marker);
+
+          // Invert marker
+          for (int i=0; i<sbc_tdof_marker.Size(); i++)
+          {
+             sbc_tdof_marker[i] = 1 - sbc_tdof_marker[i];
+          }
+
+          Array<int> ess_tdof;
+          H1FESpace_->MarkerToList(sbc_tdof_marker, ess_tdof);
+          
+          m0_->FormSystemMatrix(ess_tdof, M0);
+
+          Phi.SetSize(H1FESpace_->TrueVSize());
+          RHS0.SetSize(H1FESpace_->TrueVSize());
+
+          HypreDiagScale diag(M0);
+
+          HyprePCG pcg(M0);
+          pcg.SetPreconditioner(diag);
+          pcg.SetTol(1e-12);
+          pcg.SetMaxIter(1000);
 
          while ( Phi_err > 1e-2 )
          {
@@ -1469,12 +1511,15 @@ CPDSolver::Solve()
               break;
             }
              */
-            HypreParMatrix M0;
-            Vector Phi, RHS0;
-
+        
             ParComplexLinearForm rhs(H1FESpace_);
             ParComplexLinearForm tmp(H1FESpace_);
 
+            n20ZRe_->Update();
+            n20ZIm_->Update();
+            //n20ZRe_->operator=(0.0);
+            //n20ZIm_->operator=(0.0);
+             
             n20ZRe_->Assemble();
             n20ZRe_->Finalize();
 
@@ -1497,45 +1542,6 @@ CPDSolver::Solve()
             {
                rhs.imag() *= -1.0;
             }
-
-            Array<int> sbc_marker(pmesh_->bdr_attributes.Max());
-            sbc_marker = 0;
-            for (int i=0; i<sbcs_->Size(); i++)
-            {
-               ComplexCoefficientByAttr & sbc = (*sbcs_)[i];
-               for (int j=0; j<sbc.attr_marker.Size(); j++)
-               {
-                  sbc_marker[j] |= sbc.attr_marker[j];
-               }
-            }
-
-            Array<int> sbc_tdof;
-            H1FESpace_->GetEssentialTrueDofs(sbc_marker, sbc_tdof);
-
-            Array<int> sbc_tdof_marker;
-            H1FESpace_->ListToMarker(sbc_tdof, H1FESpace_->GetTrueVSize(),
-                                     sbc_tdof_marker);
-
-            // Invert marker
-            for (int i=0; i<sbc_tdof_marker.Size(); i++)
-            {
-               sbc_tdof_marker[i] = 1 - sbc_tdof_marker[i];
-            }
-
-            Array<int> ess_tdof;
-            H1FESpace_->MarkerToList(sbc_tdof_marker, ess_tdof);
-
-            m0_->FormSystemMatrix(ess_tdof, M0);
-
-            Phi.SetSize(H1FESpace_->TrueVSize());
-            RHS0.SetSize(H1FESpace_->TrueVSize());
-
-            HypreDiagScale diag(M0);
-
-            HyprePCG pcg(M0);
-            pcg.SetPreconditioner(diag);
-            pcg.SetTol(1e-12);
-            pcg.SetMaxIter(1000);
 
             rhs.real().ParallelAssemble(RHS0);
 
@@ -1646,14 +1652,14 @@ CPDSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
    visit_dc.RegisterField("Re_E", &e_->real());
    visit_dc.RegisterField("Im_E", &e_->imag());
 
-   //visit_dc.RegisterField("Re_D", &d_->real());
-   //visit_dc.RegisterField("Im_D", &d_->imag());
+   visit_dc.RegisterField("Re_D", &d_->real());
+   visit_dc.RegisterField("Im_D", &d_->imag());
 
    if (sbcs_->Size() > 0)
    {
       
-      //visit_dc.RegisterField("Re_Phi", &phi_->real());
-      //visit_dc.RegisterField("Im_Phi", &phi_->imag());
+      visit_dc.RegisterField("Re_Phi", &phi_->real());
+      visit_dc.RegisterField("Im_Phi", &phi_->imag());
     
    }
 
@@ -1668,10 +1674,6 @@ CPDSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
         visit_dc.RegisterField("Re_EB", &e_b_->real());
         visit_dc.RegisterField("Im_EB", &e_b_->imag());
     }
-
-
-      visit_dc.RegisterField("Re_Phi", &phi_->real());
-      visit_dc.RegisterField("Im_Phi", &phi_->imag());
 
    // visit_dc.RegisterField("Er", e_r_);
    // visit_dc.RegisterField("Ei", e_i_);
