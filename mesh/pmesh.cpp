@@ -2227,7 +2227,6 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
          else
          {
             int nbr_ori = info%64, nbr_v[4];
-            // std::cout << MyRank << ": nbr_ori from facedata " << nbr_ori << std::endl;
             const int *lf_v = faces[lface]->GetVertices();
 
             if (sf < nst) // triangle shared face
@@ -2241,7 +2240,6 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
                }
                // get the orientation of nbr_v w.r.t. the local face
                nbr_ori = GetTriOrientation(lf_v, nbr_v);
-               // std::cout << MyRank << ": nbr_ori from shared trias " << nbr_ori << std::endl;
             }
             else // quad shared face
             {
@@ -2534,10 +2532,6 @@ ParMesh::GetFaceNbrElementFaces(int i, Array<int> &fcs, Array<int> &cor) const
 {
    int n, j;
    int el_nbr = i - GetNE();
-   // Element *el = face_nbr_elements[el_nbr];
-   // const int *v = el->GetVertices();
-   // const int *f = face_nbr_el_to_face->GetRow(el_nbr);
-   // fcs.SetSize(el->GetNFaces());
    if (face_nbr_el_to_face)
    {
       face_nbr_el_to_face->GetRow(el_nbr, fcs);
@@ -2549,7 +2543,6 @@ ParMesh::GetFaceNbrElementFaces(int i, Array<int> &fcs, Array<int> &cor) const
    }
    if (el_nbr < face_nbr_el_ori.Size())
    {
-      // face_nbr_el_ori.GetRow(el_nbr, cor);
       const int * row = face_nbr_el_ori.GetRow(el_nbr);
       n = fcs.Size();
       cor.SetSize(n);
@@ -2563,233 +2556,6 @@ ParMesh::GetFaceNbrElementFaces(int i, Array<int> &fcs, Array<int> &cor) const
       mfem_error("ParMesh::GetFaceNbrElementFaces(...) : "
                  "face_nbr_el_to_face not generated.");
    }
-   // std::cout << MyRank << ": GetFaceNbrElementFaces(" << i << ") faces_info.Size() = " << faces_info.Size() << ", fcs.Size() = " << fcs.Size() << std::endl;
-   /*
-   n = fcs.Size();
-   cor.SetSize(n); cor = 0;
-   for (int j=0; j<n; j++)
-   {
-     cor[j] = face_nbr_el_ori
-   }
-   */
-   /*
-   if (MyRank == 0)
-   {
-     if (i == 24)
-     {
-       cor[3] = 5;
-     }
-     else if (i == 25)
-     {
-       cor[2] = 5;
-     }
-     else if (i == 26)
-     {
-       cor[3] = 5;
-     }
-     else if (i == 27)
-     {
-       cor[0] = 3;
-       cor[1] = 0;
-       cor[2] = 5;
-       cor[3] = 5;
-     }
-     else if (i == 28)
-     {
-       cor[0] = 1;
-       cor[1] = 0;
-       cor[2] = 0;
-       cor[3] = 5;
-     }
-     else if (i == 29)
-     {
-       Element *el = face_nbr_elements[el_nbr];
-       const int *v = el->GetVertices();
-
-       for (int j=0; j<el->GetNVertices(); j++)
-    {
-      const Vertex & vert = face_nbr_vertices[v[j]];
-      // std::cout << vert(0) << "," << vert(1) << "," << vert(2) << endl;
-    }
-     }
-   }
-   else
-   {
-     for (j = 0; j < n; j++)
-     {
-       std::cout << MyRank << ": GetFaceNbrElementFaces(" << i
-       << ") fcs[" << j<< "] = " << fcs[j] << " (" << NumOfFaces << ")" << endl;
-     }
-     if (i == 25)
-     {
-       cor[3] = 5;
-     }
-     else if (i == 27)
-     {
-       cor[0] = 0;
-       cor[1] = 0;
-       cor[2] = 5;
-       cor[3] = 0;
-
-       Element *el = face_nbr_elements[el_nbr];
-       const int *v = el->GetVertices();
-
-       for (int j=0; j<el->GetNVertices(); j++)
-       {
-    const Vertex & vert = face_nbr_vertices[v[j]];
-    std::cout << vert(0) << "," << vert(1) << "," << vert(2) << endl;
-       }
-
-     }
-   }
-   */
-   /*
-   for (j = 0; j < n; j++)
-      if (fcs[j] >= 0 && fcs[j] < NumOfFaces)
-      {
-         std::cout << MyRank << ": GetFaceNbrElementFaces(" << i
-         << ") fcs[" << j<< "] = " << fcs[j]
-         << ", elem1 = " << faces_info[fcs[j]].Elem1No
-         << ", elem1inf = " << faces_info[fcs[j]].Elem1Inf
-         << ", elem2 = " << faces_info[fcs[j]].Elem2No
-         << ", elem2inf = " << faces_info[fcs[j]].Elem2Inf
-         << std::endl;
-         if (faces_info[fcs[j]].Elem1No == i)
-         {
-            cor[j] = faces_info[fcs[j]].Elem1Inf % 64;
-            std::cout << "using local face orientation " << cor[j] << std::endl;
-         }
-   #ifdef MFEM_DEBUG
-         else if (faces_info[fcs[j]].Elem2No == i)
-         {
-            cor[j] = faces_info[fcs[j]].Elem2Inf % 64;
-            std::cout << "using neighbor face orientation " << cor[j] << std::endl;
-         }
-         else
-         {
-            // mfem_error("ParMesh::GetFaceNbrElementFaces(...) : 2");
-         }
-   #else
-         else
-         {
-            cor[j] = faces_info[fcs[j]].Elem2Inf % 64;
-            std::cout << "using neighbor face orientation " << cor[j] << std::endl;
-         }
-   #endif
-      }
-      else
-      {
-   std::cout << MyRank << ": GetFaceNbrElementFaces(" << i
-        << ") fcs[" << j<< "] = " << fcs[j] << std::endl;
-      }
-   */
-   /*
-   int el_nbr = i - GetNE();
-   Element *el = face_nbr_elements[el_nbr];
-   const int *v = el->GetVertices();
-   // const int *f = face_nbr_el_to_face->GetRow(el_nbr);
-   fcs.SetSize(el->GetNFaces()); fcs = -1;
-   cor.SetSize(el->GetNFaces()); cor = 0;
-   if (FaceElemTr.Elem2No == i)
-   {
-      const FaceInfo & face_info = faces_info[FaceElemTr.ElementNo];
-      int  lf = face_info.Elem2Inf / 64;
-      int ori = face_info.Elem2Inf % 64;
-      std::cout << MyRank << ": FaceNbrElemFaces " << FaceElemTr.ElementNo << " " <<
-                lf << " " << ori << std::endl;;
-      fcs[lf] = FaceElemTr.ElementNo;
-      cor[lf] = ori;
-      //cor[lf] = 0;
-   }
-   */
-   /*
-   int fs = 3;
-   if (FaceElemTr.ElementNo == fs)
-   {
-     std::cout << "FaceElemTrans Face:" << FaceElemTr.ElementNo << std::endl;
-     std::cout << "FaceNbr Element: " << i << " "  << el_nbr << " " << FaceElemTr.Elem2No << std::endl;
-     std::cout << "FaceInfo "
-         << faces_info[fs].Elem1No << " "
-         << faces_info[fs].Elem2No << " "
-         << faces_info[fs].Elem1Inf << " "
-         << faces_info[fs].Elem2Inf << "\n";
-     int nfv = faces[FaceElemTr.ElementNo]->GetNVertices();
-     const int *fv = faces[FaceElemTr.ElementNo]->GetVertices();
-     std::cout << "FaceVerts";
-     for (int j=0; j<nfv; j++)
-       {
-   std::cout << " " << fv[j] << "("
-      << vertices[fv[j]](0) <<","
-      << vertices[fv[j]](1) <<","
-      << vertices[fv[j]](2) <<")";
-       }
-     std::cout << std::endl;
-   */
-   /*
-   std::cout << "face nbr group ("<< face_nbr_group.Size() <<"): ";
-   for (int j=0; j<face_nbr_group.Size(); j++)
-   std::cout << " " << face_nbr_group[j];
-   std::cout << std::endl;
-   std::cout << "face nbr vertices offset ("<< face_nbr_vertices_offset.Size() <<"): ";
-   for (int j=0; j<face_nbr_vertices_offset.Size(); j++)
-   std::cout << " " << face_nbr_vertices_offset[j];
-   std::cout << std::endl;
-   */
-   /*
-     std::cout << "face nbr vertices ("<< face_nbr_vertices.Size() <<"): ";
-   for (int j=0; j<face_nbr_vertices.Size(); j++)
-     std::cout << " "<< j << "("
-         << face_nbr_vertices[j](0) << ","
-         << face_nbr_vertices[j](1) << ","
-         << face_nbr_vertices[j](2) << ")";
-   std::cout << std::endl;
-   }
-   */
-   // for (int lf=0; lf<el->GetNFaces(); lf++)
-   // {
-   /*
-   fcs[lf] = f[lf];
-   if (f[lf] == -1)
-   {
-     cor[lf] = 0;
-   }
-   else
-   {
-     int nfv = el->GetNFaceVertices(lf);
-     const int *fv = el->GetFaceVertices(lf);
-     if (nfv == 3)
-     {
-   int lfv [] = {v[fv[0]],v[fv[1]],v[fv[2]]};
-   if (FaceElemTr.ElementNo == fs)
-     {
-       std::cout << "tri face verts: face(" << f[lf] << ") "
-       << faces[f[lf]]->GetVertices()[0] << ","
-       << faces[f[lf]]->GetVertices()[1] << ","
-       << faces[f[lf]]->GetVertices()[2] << " vs. "
-       << lfv[0] << ","
-       << lfv[1] << ","
-       << lfv[2] << std::endl;
-     }
-   //cor[lf] = GetTriOrientation(faces[f[lf]]->GetVertices(),lfv);
-        }
-        else if (nfv == 4)
-        {
-   int lfv [] = {v[fv[0]],v[fv[1]],v[fv[2]],v[fv[3]]};
-   //cor[lf] = GetQuadOrientation(faces[f[lf]]->GetVertices(),lfv);
-        }
-      }
-      */
-   /*
-       int nfv = el->GetNFaceVertices(lf);
-       const int *fv = el->GetFaceVertices(lf);
-       std::cout << "Elem Local Face " << lf;
-       for (int j=0; j<nfv; j++)
-   {
-     std::cout << " " << v[fv[j]];
-   }
-   std::cout << std::endl;
-   }
-   */
 }
 
 Table *ParMesh::GetFaceToAllElementTable() const
