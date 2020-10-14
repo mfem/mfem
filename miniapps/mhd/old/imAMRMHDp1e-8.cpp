@@ -16,6 +16,7 @@
 #include "BlockZZEstimator.hpp"
 #include "PCSolver.hpp"
 #include "InitialConditions.hpp"
+#include "checkpoint.hpp"
 #include <memory>
 #include <iostream>
 #include <fstream>
@@ -125,6 +126,7 @@ int main(int argc, char *argv[])
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
+   srand(myid + 1);
    myid_rand=rand();
 
    //++++Parse command-line options.
@@ -154,6 +156,7 @@ int main(int argc, char *argv[])
    int nc_limit = 1;         // maximum level of hanging nodes
    int ref_steps=4;
    int derefine_op=1;
+   int check_steps=50;
    double err_ratio=.1;
    double derefine_ratio=0.;
    double err_fraction=.5;
@@ -789,7 +792,7 @@ int main(int argc, char *argv[])
           deref_its=1;
       }
 
-      if (t>3.4 && t<4.00001 && current_amr_level<levels4)
+      if (t>3.4 && t<4.00001 && current_amr_level<levels4 && current_amr_level<amr_levels)
       {
           current_amr_level=levels4;
           err_fraction=0.7;
@@ -799,9 +802,19 @@ int main(int argc, char *argv[])
           derefiner.SetThreshold(derefine_ratio*ltol_amr);
           derefiner.SetTotalErrorFraction(derefine_fraction);
       }
-      else if (t>=4.00001 && t<5.00001 && current_amr_level<levels5)
+      else if (t>=4.00001 && t<4.4 && current_amr_level<levels5 && current_amr_level<amr_levels)
       {
           current_amr_level=levels5;
+          err_fraction=0.6;
+          derefine_fraction=0.0006; 
+
+          refiner.SetTotalErrorFraction(err_fraction);
+          derefiner.SetThreshold(derefine_ratio*ltol_amr);
+          derefiner.SetTotalErrorFraction(derefine_fraction);
+      }
+      else if (t>=4.4 && t<5.00001 && current_amr_level<levels5+1 && current_amr_level<amr_levels)
+      {
+          current_amr_level=levels5+1;
           err_fraction=0.6;
           derefine_fraction=0.0006; 
 
@@ -832,6 +845,7 @@ int main(int argc, char *argv[])
           refineMesh=false;
           derefineMesh=false;
       }
+
 
       vxold=vx;
       told=t;
@@ -993,6 +1007,14 @@ int main(int argc, char *argv[])
       }
       //----------------------------AMR---------------------------------
 
+      if ((ti % check_steps) == 0)
+      {
+         phi.SetFromTrueDofs(vx.GetBlock(0));
+         psi.SetFromTrueDofs(vx.GetBlock(1));
+         w.SetFromTrueDofs(vx.GetBlock(2));
+         checkpoint(myid, t, *pmesh, phi, psi, w);
+      }
+
       if ( (last_step || (ti % vis_steps) == 0) )
       {
         if (visualization || visit || paraview)
@@ -1061,21 +1083,7 @@ int main(int argc, char *argv[])
       psi.SetFromTrueDofs(vx.GetBlock(1));
       w.SetFromTrueDofs(vx.GetBlock(2));
 
-      ofstream ofs_mesh(MakeParFilename("checkpt-mesh.", myid));
-      ofstream ofs_phi(MakeParFilename("checkpt-phi.", myid));
-      ofstream ofs_psi(MakeParFilename("checkpt-psi.", myid));
-      ofstream   ofs_w(MakeParFilename("checkpt-w.", myid));
-
-      ofs_mesh.precision(16);
-      ofs_phi.precision(16);
-      ofs_psi.precision(16);
-        ofs_w.precision(16);
-
-      pmesh->ParPrint(ofs_mesh);
-
-      phi.Save(ofs_phi);
-      psi.Save(ofs_psi);
-        w.Save(ofs_w);
+      checkpoint(myid, t, *pmesh, phi, psi, w);
 
       //this is only saved if paraview or visit is not used
       if (!paraview && !visit)
