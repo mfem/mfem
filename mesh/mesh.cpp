@@ -1394,7 +1394,7 @@ void Mesh::AddHexAsWedges(const int *vi, int attr)
 
 int Mesh::AddElement(Element *elem)
 {
-   CheckEnlarge(boundary, NumOfBdrElements);
+   CheckEnlarge(elements, NumOfElements);
    elements[NumOfElements] = elem;
    return NumOfElements++;
 }
