@@ -1665,8 +1665,8 @@ CPDSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
 
     if ( rectPot_ )
     {
-      visit_dc.RegisterField("Rec_Re_Phi", &rectPot_->real());
-      visit_dc.RegisterField("Rec_Im_Phi", &rectPot_->imag());
+      //visit_dc.RegisterField("Rec_Re_Phi", &rectPot_->real());
+      //visit_dc.RegisterField("Rec_Im_Phi", &rectPot_->imag());
     }
      
     if ( BCoef_)
