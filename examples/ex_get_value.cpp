@@ -194,8 +194,7 @@ int main(int argc, char *argv[])
                const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
                                                         2*order + 2);
 
-               Vector nor(3);
-               CalcOrtho(FET->Jacobian(), nor); nor /= nor.Norml2();
+               Vector x(dim);
 
                double  h1_gfc_err = 0.0;
                double  nd_gfc_err = 0.0;
@@ -218,8 +217,6 @@ int main(int argc, char *argv[])
                   npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
-
-                  Vector x(dim);
                   T->Transform(ip, x);
 
                   funcCoef.Eval(f_val, *T, ip);
@@ -237,13 +234,13 @@ int main(int argc, char *argv[])
                   l2_x.GetVectorValue(e, ip, l2_gvv_val);
                   dgv_x.GetVectorValue(e, ip, dgv_gvv_val);
                   dgi_x.GetVectorValue(e, ip, dgi_gvv_val);
-
+		  /*
                   Vector f_tan(f_val);
                   f_tan.Add(-(nor*f_val), nor);
 
                   Vector nd_tan(nd_gfc_val);
                   nd_tan.Add(-(nor*nd_gfc_val), nor);
-
+		  */
                   double  h1_gfc_dist = Distance(f_val,  h1_gfc_val, dim);
                   double  nd_gfc_dist = Distance(f_val,  nd_gfc_val, dim);
                   double  rt_gfc_dist = Distance(f_val,  rt_gfc_val, dim);
@@ -294,12 +291,14 @@ int main(int argc, char *argv[])
                          << nd_gfc_val[2] << ") "
                          << nd_gfc_dist << std::endl;
                      // std::cout
+		     /*
                      ofs << "tangent ("
                          << f_tan[0] << "," << f_tan[1] << ","
                          << f_tan[2] << ") vs. ("
                          << nd_tan[0] << "," << nd_tan[1] << ","
                          << nd_tan[2] << ") "
                          << std::endl;
+		     */
                   }
                   if (log > 0 && rt_gfc_dist > tol)
                   {
