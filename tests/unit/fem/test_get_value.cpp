@@ -3051,17 +3051,13 @@ TEST_CASE("3D GetVectorValue in Parallel",
 
    double tol = 1e-6;
 
-   std::ostringstream osslog; osslog << "log." << my_rank;
-   std::ofstream ofslog(osslog.str().c_str());
-
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      ofslog << "element type " << type << std::endl;
       Mesh *mesh = new Mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
       ParMesh pmesh(MPI_COMM_WORLD, *mesh);
       delete mesh;
-      ofslog << 0 << std::endl;
+
       if (false)
       {
          std::ostringstream oss;
@@ -3113,11 +3109,10 @@ TEST_CASE("3D GetVectorValue in Parallel",
       }
 
       VectorFunctionCoefficient funcCoef(dim, Func_3D_lin);
-      ofslog << 1 << std::endl;
+
       SECTION("3D GetVectorValue tests for element type " +
               std::to_string(type))
       {
-         ofslog << 2 << std::endl;
          H1_FECollection  h1_fec(order, dim);
          ND_FECollection  nd_fec(order+1, dim);
          RT_FECollection  rt_fec(order+1, dim);
@@ -3147,16 +3142,16 @@ TEST_CASE("3D GetVectorValue in Parallel",
          VectorGridFunctionCoefficient  l2_xCoef( &l2_x);
          VectorGridFunctionCoefficient dgv_xCoef(&dgv_x);
          VectorGridFunctionCoefficient dgi_xCoef(&dgi_x);
-         ofslog << 3 << std::endl;
+
          h1_x.ProjectCoefficient(funcCoef);
-         // nd_x.ProjectCoefficient(funcCoef);
+	 nd_x.ProjectCoefficient(funcCoef);
          rt_x.ProjectCoefficient(funcCoef);
          l2_x.ProjectCoefficient(funcCoef);
          dgv_x.ProjectCoefficient(funcCoef);
          dgi_x.ProjectCoefficient(funcCoef);
-         ofslog << 4 << std::endl << std::flush;
+
          h1_x.ExchangeFaceNbrData();
-         // nd_x.ExchangeFaceNbrData();
+	 nd_x.ExchangeFaceNbrData();
          rt_x.ExchangeFaceNbrData();
          l2_x.ExchangeFaceNbrData();
          dgv_x.ExchangeFaceNbrData();
@@ -3200,10 +3195,9 @@ TEST_CASE("3D GetVectorValue in Parallel",
                const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
                                                         2*order + 2);
 
-               Vector nor(3);
-               CalcOrtho(FET->Jacobian(), nor); nor /= nor.Norml2();
-
-               double  h1_gfc_err = 0.0;
+	       Vector x(dim);
+	       
+	       double  h1_gfc_err = 0.0;
                double  nd_gfc_err = 0.0;
                double  rt_gfc_err = 0.0;
                double  l2_gfc_err = 0.0;
@@ -3222,31 +3216,23 @@ TEST_CASE("3D GetVectorValue in Parallel",
                   npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
-
-                  Vector x(dim);
                   T->Transform(ip, x);
 
                   funcCoef.Eval(f_val, *T, ip);
 
                   h1_xCoef.Eval(h1_gfc_val, *T, ip);
-                  // nd_xCoef.Eval(nd_gfc_val, *T, ip);
+                  nd_xCoef.Eval(nd_gfc_val, *T, ip);
                   rt_xCoef.Eval(rt_gfc_val, *T, ip);
                   l2_xCoef.Eval(l2_gfc_val, *T, ip);
                   dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
                   dgi_xCoef.Eval(dgi_gfc_val, *T, ip);
 
                   h1_x.GetVectorValue(e, ip, h1_gvv_val);
-                  // nd_x.GetVectorValue(e, ip, nd_gvv_val);
+                  nd_x.GetVectorValue(e, ip, nd_gvv_val);
                   rt_x.GetVectorValue(e, ip, rt_gvv_val);
                   l2_x.GetVectorValue(e, ip, l2_gvv_val);
                   dgv_x.GetVectorValue(e, ip, dgv_gvv_val);
                   dgi_x.GetVectorValue(e, ip, dgi_gvv_val);
-
-                  Vector f_tan(f_val);
-                  f_tan.Add(-(nor*f_val), nor);
-
-                  Vector nd_tan(nd_gfc_val);
-                  nd_tan.Add(-(nor*nd_gfc_val), nor);
 
                   double  h1_gfc_dist = Distance(f_val,  h1_gfc_val, dim);
                   double  nd_gfc_dist = Distance(f_val,  nd_gfc_val, dim);
@@ -3298,12 +3284,6 @@ TEST_CASE("3D GetVectorValue in Parallel",
                          << nd_gfc_val[2] << ") "
                          << nd_gfc_dist << std::endl;
                      // std::cout
-                     ofs << "tangent ("
-                         << f_tan[0] << "," << f_tan[1] << ","
-                         << f_tan[2] << ") vs. ("
-                         << nd_tan[0] << "," << nd_tan[1] << ","
-                         << nd_tan[2] << ") "
-                         << std::endl;
                   }
                   if (log > 0 && rt_gfc_dist > tol)
                   {
@@ -3426,14 +3406,14 @@ TEST_CASE("3D GetVectorValue in Parallel",
                dgi_gvv_err /= ir.GetNPoints();
 
                REQUIRE( h1_gfc_err == MFEM_Approx(0.0));
-               // REQUIRE( nd_gfc_err == MFEM_Approx(0.0));
+               REQUIRE( nd_gfc_err == MFEM_Approx(0.0));
                REQUIRE( rt_gfc_err == MFEM_Approx(0.0));
                REQUIRE( l2_gfc_err == MFEM_Approx(0.0));
                REQUIRE(dgv_gfc_err == MFEM_Approx(0.0));
                REQUIRE(dgi_gfc_err == MFEM_Approx(0.0));
 
                REQUIRE( h1_gvv_err == MFEM_Approx(0.0));
-               // REQUIRE( nd_gvv_err == MFEM_Approx(0.0));
+               REQUIRE( nd_gvv_err == MFEM_Approx(0.0));
                REQUIRE( rt_gvv_err == MFEM_Approx(0.0));
                REQUIRE( l2_gvv_err == MFEM_Approx(0.0));
                REQUIRE(dgv_gvv_err == MFEM_Approx(0.0));
@@ -3442,7 +3422,7 @@ TEST_CASE("3D GetVectorValue in Parallel",
          }
       }
    }
-   ofslog.close();
+
    std::cout << my_rank << ": Checked GridFunction::GetVectorValue at "
              << npts << " 3D points" << std::endl;
 }
