@@ -318,9 +318,6 @@ public:
    dtype operator*(const dtype *v) const
    {
       dtype dot = 0.0;
-#ifdef MFEM_USE_LEGACY_OPENMP
-      #pragma omp parallel for reduction(+ : dot)
-#endif
       for (int i = 0; i < size; i++)
       {
          dot += data[i] * v[i];
