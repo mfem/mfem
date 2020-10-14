@@ -158,6 +158,9 @@ Linear and nonlinear solvers
 - Added an interface to the MKL CPardiso solver -- an MPI-parallel sparse direct
   solver developed by Intel. See Example 11p for an illustration of its usage.
 
+- Added interface to MUMPS direct solver. Its usage is demonstrated in ex25p.
+  See http://mumps.enseeiht.fr/ for more details. Supported versions >= 5.2.0.
+  
 New and updated examples and miniapps
 -------------------------------------
 - Added a new example, Example 25/25p, to demonstrate the use of a Perfectly

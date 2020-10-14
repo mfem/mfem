@@ -94,6 +94,10 @@
 // Enable MFEM functionality based on the SuperLU library.
 // #define MFEM_USE_SUPERLU
 
+// Enable MFEM functionality based on the MUMPS library.
+// #define MFEM_USE_MUMPS
+// #define MFEM_MUMPS_VERSION @MFEM_MUMPS_VERSION@
+
 // Enable MFEM functionality based on the STRUMPACK library.
 // #define MFEM_USE_STRUMPACK
 
