@@ -529,11 +529,11 @@ double RectifiedSheathPotential::Eval(ElementTransformation &T,
 
    if (realPart_)
    {
-      return phiRec.real();
+       return phiRec.real(); // * temp_val;
    }
    else
    {
-      return phiRec.imag();
+       return phiRec.imag(); // * temp_val;
    }
 
 }
@@ -582,8 +582,13 @@ double SheathImpedance::Eval(ElementTransformation &T,
    double normag = nor.Norml2();
    double bn = (B * nor)/(normag*Bmag);
 
+   
    complex<double> zsheath_norm = 1.0 / ytot(w_norm, wci_norm, bn, volt_norm,
                                              masses_[0], masses_[1]);
+    
+
+   
+    //complex<double> zsheath_norm(12, 9.29);
 
    if (realPart_)
    {
@@ -703,6 +708,7 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
                      pow(sin(ph), 2) * sin(th) * cos(th) + real(D) * cos(ph);
    }
    epsilon *= epsilon0_;
+    
    /*
    Vector lambda(3);
    epsilon.Eigenvalues(lambda);
