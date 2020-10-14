@@ -113,7 +113,6 @@ void test_ceed_operator(const char* input, int order, const CeedCoeff coeff_type
 
    FiniteElementSpace coeff_fes(&mesh, &fec);
    GridFunction gf(&coeff_fes);
-   FunctionCoefficient f_coeff(coeff_function);
 
    Coefficient *coeff = nullptr;
    switch (coeff_type)
@@ -122,11 +121,14 @@ void test_ceed_operator(const char* input, int order, const CeedCoeff coeff_type
          coeff = new ConstantCoefficient(1.0);
          break;
       case CeedCoeff::Grid:
+      {
+         FunctionCoefficient f_coeff(coeff_function);;
          gf.ProjectCoefficient(f_coeff);
          coeff = new GridFunctionCoefficient(&gf);
          break;
+      }
       case CeedCoeff::Quad:
-         coeff = &f_coeff;
+         coeff = new FunctionCoefficient(coeff_function);;
          break;
    }
 
