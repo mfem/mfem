@@ -1931,7 +1931,7 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
    vertex_marker = -1;
 
    Array<int> fcs, cor;
-   
+
    Table send_face_nbr_elemdata, send_face_nbr_facedata;
 
    send_face_nbr_elements.MakeI(num_face_nbrs);
@@ -1961,7 +1961,7 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
                   send_face_nbr_vertices.AddAColumnInRow(fn);
                }
 
-	    const int nf = elements[el]->GetNFaces();
+            const int nf = elements[el]->GetNFaces();
 
             send_face_nbr_elemdata.AddColumnsInRow(fn, nv + nf + 2);
          }
@@ -2010,15 +2010,18 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
                   vertex_marker[v[j]] = fn;
                   send_face_nbr_vertices.AddConnection(fn, v[j]);
                }
-	    
-	    const int nf = elements[el]->GetNFaces();
-	    GetElementFaces(el, fcs, cor);
-	    
+
             send_face_nbr_elemdata.AddConnection(fn, GetAttribute(el));
             send_face_nbr_elemdata.AddConnection(
                fn, GetElementBaseGeometry(el));
             send_face_nbr_elemdata.AddConnections(fn, v, nv);
-            send_face_nbr_elemdata.AddConnections(fn, cor, nf);
+
+            if (Dim == 3)
+            {
+               const int nf = elements[el]->GetNFaces();
+               GetElementFaces(el, fcs, cor);
+               send_face_nbr_elemdata.AddConnections(fn, cor, nf);
+            }
          }
          send_face_nbr_facedata.AddConnection(fn, el);
          int info = faces_info[lface].Elem1Inf;
@@ -2064,7 +2067,7 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
       for (int el = 0; el < num_elems; el++)
       {
          const int nv = elements[elems[el]]->GetNVertices();
-         const int nf = elements[elems[el]]->GetNFaces();
+         const int nf = (Dim == 3) ? elements[elems[el]]->GetNFaces() : 0;
          elemdata += 2; // skip the attribute and the geometry type
          for (int j = 0; j < nv; j++)
          {
@@ -2150,23 +2153,26 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
          }
          el->SetVertices(recv_elemdata);
          recv_elemdata += nv;
-	 int nf = el->GetNFaces();
-	 int * fn_ori = face_nbr_el_ori.GetRow(elem_off);
-	 for (int j = 0; j < nf; j++)
-	 {
-	   fn_ori[j] = recv_elemdata[j];
-	 }
-	 recv_elemdata += nf;
+         if (Dim == 3)
+         {
+            int nf = el->GetNFaces();
+            int * fn_ori = face_nbr_el_ori.GetRow(elem_off);
+            for (int j = 0; j < nf; j++)
+            {
+               fn_ori[j] = recv_elemdata[j];
+            }
+            recv_elemdata += nf;
+         }
          face_nbr_elements[elem_off++] = el;
       }
    }
    face_nbr_el_ori.Finalize();
    {
-     std::ostringstream oss;
-     oss << "fn_ori." << MyRank;
-     std::ofstream ofs(oss.str().c_str());
-     face_nbr_el_ori.Print(ofs, 10);
-     ofs.close();
+      std::ostringstream oss;
+      oss << "fn_ori." << MyRank;
+      std::ofstream ofs(oss.str().c_str());
+      face_nbr_el_ori.Print(ofs, 10);
+      ofs.close();
    }
    MPI_Waitall(num_face_nbrs, send_requests, statuses);
 
@@ -2543,14 +2549,14 @@ ParMesh::GetFaceNbrElementFaces(int i, Array<int> &fcs, Array<int> &cor) const
    }
    if (el_nbr < face_nbr_el_ori.Size())
    {
-     // face_nbr_el_ori.GetRow(el_nbr, cor);
-     const int * row = face_nbr_el_ori.GetRow(el_nbr);
-     n = fcs.Size();
-     cor.SetSize(n);
-     for (j=0; j<n; j++)
-       {
-	 cor[j] = row[j];
-       }
+      // face_nbr_el_ori.GetRow(el_nbr, cor);
+      const int * row = face_nbr_el_ori.GetRow(el_nbr);
+      n = fcs.Size();
+      cor.SetSize(n);
+      for (j=0; j<n; j++)
+      {
+         cor[j] = row[j];
+      }
    }
    else
    {
@@ -2599,12 +2605,12 @@ ParMesh::GetFaceNbrElementFaces(int i, Array<int> &fcs, Array<int> &cor) const
      {
        Element *el = face_nbr_elements[el_nbr];
        const int *v = el->GetVertices();
-       
+
        for (int j=0; j<el->GetNVertices(); j++)
-	 {
-	   const Vertex & vert = face_nbr_vertices[v[j]];
-	   // std::cout << vert(0) << "," << vert(1) << "," << vert(2) << endl;
-	 }
+    {
+      const Vertex & vert = face_nbr_vertices[v[j]];
+      // std::cout << vert(0) << "," << vert(1) << "," << vert(2) << endl;
+    }
      }
    }
    else
@@ -2612,7 +2618,7 @@ ParMesh::GetFaceNbrElementFaces(int i, Array<int> &fcs, Array<int> &cor) const
      for (j = 0; j < n; j++)
      {
        std::cout << MyRank << ": GetFaceNbrElementFaces(" << i
-		 << ") fcs[" << j<< "] = " << fcs[j] << " (" << NumOfFaces << ")" << endl;
+       << ") fcs[" << j<< "] = " << fcs[j] << " (" << NumOfFaces << ")" << endl;
      }
      if (i == 25)
      {
@@ -2627,13 +2633,13 @@ ParMesh::GetFaceNbrElementFaces(int i, Array<int> &fcs, Array<int> &cor) const
 
        Element *el = face_nbr_elements[el_nbr];
        const int *v = el->GetVertices();
-       
+
        for (int j=0; j<el->GetNVertices(); j++)
        {
-	 const Vertex & vert = face_nbr_vertices[v[j]];
-	 std::cout << vert(0) << "," << vert(1) << "," << vert(2) << endl;
+    const Vertex & vert = face_nbr_vertices[v[j]];
+    std::cout << vert(0) << "," << vert(1) << "," << vert(2) << endl;
        }
-       
+
      }
    }
    */
@@ -2642,18 +2648,18 @@ ParMesh::GetFaceNbrElementFaces(int i, Array<int> &fcs, Array<int> &cor) const
       if (fcs[j] >= 0 && fcs[j] < NumOfFaces)
       {
          std::cout << MyRank << ": GetFaceNbrElementFaces(" << i
-		   << ") fcs[" << j<< "] = " << fcs[j]
-		   << ", elem1 = " << faces_info[fcs[j]].Elem1No
-		   << ", elem1inf = " << faces_info[fcs[j]].Elem1Inf
-		   << ", elem2 = " << faces_info[fcs[j]].Elem2No
-		   << ", elem2inf = " << faces_info[fcs[j]].Elem2Inf
-		   << std::endl;
+         << ") fcs[" << j<< "] = " << fcs[j]
+         << ", elem1 = " << faces_info[fcs[j]].Elem1No
+         << ", elem1inf = " << faces_info[fcs[j]].Elem1Inf
+         << ", elem2 = " << faces_info[fcs[j]].Elem2No
+         << ", elem2inf = " << faces_info[fcs[j]].Elem2Inf
+         << std::endl;
          if (faces_info[fcs[j]].Elem1No == i)
          {
             cor[j] = faces_info[fcs[j]].Elem1Inf % 64;
             std::cout << "using local face orientation " << cor[j] << std::endl;
          }
-#ifdef MFEM_DEBUG
+   #ifdef MFEM_DEBUG
          else if (faces_info[fcs[j]].Elem2No == i)
          {
             cor[j] = faces_info[fcs[j]].Elem2Inf % 64;
@@ -2663,18 +2669,18 @@ ParMesh::GetFaceNbrElementFaces(int i, Array<int> &fcs, Array<int> &cor) const
          {
             // mfem_error("ParMesh::GetFaceNbrElementFaces(...) : 2");
          }
-#else
+   #else
          else
          {
             cor[j] = faces_info[fcs[j]].Elem2Inf % 64;
             std::cout << "using neighbor face orientation " << cor[j] << std::endl;
          }
-#endif
+   #endif
       }
       else
       {
-	std::cout << MyRank << ": GetFaceNbrElementFaces(" << i
-		  << ") fcs[" << j<< "] = " << fcs[j] << std::endl;
+   std::cout << MyRank << ": GetFaceNbrElementFaces(" << i
+        << ") fcs[" << j<< "] = " << fcs[j] << std::endl;
       }
    */
    /*
