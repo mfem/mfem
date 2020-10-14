@@ -583,17 +583,19 @@ double SheathImpedance::Eval(ElementTransformation &T,
    double bn = (B * nor)/(normag*Bmag);
 
    
-   complex<double> zsheath_norm = 1.0 / ytot(w_norm, wci_norm, bn, volt_norm,
-                                             masses_[0], masses_[1]);
+   //complex<double> zsheath_norm = 1.0 / ytot(w_norm, wci_norm, bn, volt_norm,
+                                             //masses_[0], masses_[1]);
     
 
    
-    //complex<double> zsheath_norm(12, 9.29);
+    complex<double> zsheath_norm(8.47596385291947, 0.9477314254310637);
 
    if (realPart_)
    {
+    
       return (zsheath_norm.real()*9.0*1e11*1e-4*
               (4.0*M_PI*debye_length))/wpi; // Units: Ohm m^2
+
    }
    else
    {
