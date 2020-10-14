@@ -168,6 +168,7 @@ void test_ceed_operator(const char* input, int order, const CeedCoeff coeff_type
    y_test -= y_ref;
 
    REQUIRE(y_test.Norml2() < 1.e-12);
+   delete coeff;
 }
 
 TEST_CASE("CEED", "[CEED]")
