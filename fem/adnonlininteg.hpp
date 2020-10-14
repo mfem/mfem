@@ -28,8 +28,6 @@
 #include <badiff.h>
 #endif
 
-//define Forward AD mode
-//#define MFEM_USE_ADFORWARD
 
 namespace mfem
 {
