@@ -156,4 +156,7 @@
 // library.
 #cmakedefine MFEM_USE_SIMMETRIX
 
+// Enable interface to the MKL CPardiso library.
+#cmakedefine MFEM_USE_MKL_CPARDISO
+
 #endif // MFEM_CONFIG_HEADER
