@@ -360,9 +360,10 @@ public:
    void Mult(const Vector& x, Vector& y) const
    {
       amg_.Mult(x, y);
+      auto Y = y.HostWrite();
       for (int k : ess_tdof_list_)
       {
-         y(k) = 0.0;
+         Y[k] = 0.0;
       }
    }
 
