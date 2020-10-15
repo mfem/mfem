@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 // Implementation of class BilinearForm
 
@@ -55,7 +55,7 @@ void BilinearForm::AllocMat()
 
    int *I = dof_dof.GetI();
    int *J = dof_dof.GetJ();
-   double *data = new double[I[height]];
+   double *data = Memory<double>(I[height]);
 
    mat = new SparseMatrix(I, J, data, height, height, true, true, true);
    *mat = 0.0;
@@ -76,7 +76,7 @@ BilinearForm::BilinearForm(FiniteElementSpace * f)
    precompute_sparsity = 0;
    diag_policy = DIAG_KEEP;
 
-   assembly = AssemblyLevel::FULL;
+   assembly = AssemblyLevel::LEGACYFULL;
    batch = 1;
    ext = NULL;
 }
@@ -94,7 +94,7 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
    precompute_sparsity = ps;
    diag_policy = DIAG_KEEP;
 
-   assembly = AssemblyLevel::FULL;
+   assembly = AssemblyLevel::LEGACYFULL;
    batch = 1;
    ext = NULL;
 
@@ -121,13 +121,13 @@ void BilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
    assembly = assembly_level;
    switch (assembly)
    {
+      case AssemblyLevel::LEGACYFULL:
+         break;
       case AssemblyLevel::FULL:
-         // ext = new FABilinearFormExtension(this);
-         // Use the original BilinearForm implementation for now
+         ext = new FABilinearFormExtension(this);
          break;
       case AssemblyLevel::ELEMENT:
-         mfem_error("Element assembly not supported yet... stay tuned!");
-         // ext = new EABilinearFormExtension(this);
+         ext = new EABilinearFormExtension(this);
          break;
       case AssemblyLevel::PARTIAL:
          ext = new PABilinearFormExtension(this);
@@ -144,7 +144,7 @@ void BilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
 void BilinearForm::EnableStaticCondensation()
 {
    delete static_cond;
-   if (assembly != AssemblyLevel::FULL)
+   if (assembly != AssemblyLevel::LEGACYFULL)
    {
       static_cond = NULL;
       MFEM_WARNING("Static condensation not supported for this assembly level");
@@ -169,7 +169,7 @@ void BilinearForm::EnableHybridization(FiniteElementSpace *constr_space,
                                        const Array<int> &ess_tdof_list)
 {
    delete hybridization;
-   if (assembly != AssemblyLevel::FULL)
+   if (assembly != AssemblyLevel::LEGACYFULL)
    {
       delete constr_integ;
       hybridization = NULL;
@@ -204,7 +204,7 @@ void BilinearForm::UseSparsity(SparseMatrix &A)
                << A.Height() << " x " << A.Width());
    MFEM_ASSERT(A.Finalized(), "matrix A must be Finalized");
 
-   UseSparsity(A.GetI(), A.GetJ(), A.areColumnsSorted());
+   UseSparsity(A.GetI(), A.GetJ(), A.ColumnsAreSorted());
 }
 
 double& BilinearForm::Elem (int i, int j)
@@ -224,10 +224,13 @@ MatrixInverse * BilinearForm::Inverse() const
 
 void BilinearForm::Finalize (int skip_zeros)
 {
-   if (!static_cond) { mat->Finalize(skip_zeros); }
-   if (mat_e) { mat_e->Finalize(skip_zeros); }
-   if (static_cond) { static_cond->Finalize(); }
-   if (hybridization) { hybridization->Finalize(); }
+   if (assembly == AssemblyLevel::LEGACYFULL)
+   {
+      if (!static_cond) { mat->Finalize(skip_zeros); }
+      if (mat_e) { mat_e->Finalize(skip_zeros); }
+      if (static_cond) { static_cond->Finalize(); }
+      if (hybridization) { hybridization->Finalize(); }
+   }
 }
 
 void BilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi)
@@ -471,10 +474,19 @@ void BilinearForm::Assemble(int skip_zeros)
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
 
          const FiniteElement &be = *fes->GetBE(i);
-         fes -> GetBdrElementVDofs (i, vdofs);
+         doftrans = fes -> GetBdrElementVDofs (i, vdofs);
          eltrans = fes -> GetBdrElementTransformation (i);
-         bbfi[0]->AssembleElementMatrix(be, *eltrans, elmat);
-         for (int k = 1; k < bbfi.Size(); k++)
+         int k = 0;
+         for (; k < bbfi.Size(); k++)
+         {
+            if (bbfi_marker[k] &&
+                (*bbfi_marker[k])[bdr_attr-1] == 0) { continue; }
+
+            bbfi[k]->AssembleElementMatrix(be, *eltrans, elmat);
+            k++;
+            break;
+         }
+         for (; k < bbfi.Size(); k++)
          {
             if (bbfi_marker[k] &&
                 (*bbfi_marker[k])[bdr_attr-1] == 0) { continue; }
@@ -482,17 +494,26 @@ void BilinearForm::Assemble(int skip_zeros)
             bbfi[k]->AssembleElementMatrix(be, *eltrans, elemmat);
             elmat += elemmat;
          }
+         if ( doftrans )
+         {
+            doftrans->TransformDual(elmat, elmat_t);
+            elmat_p = &elmat_t;
+         }
+         else
+         {
+            elmat_p = &elmat;
+         }
          if (!static_cond)
          {
-            mat->AddSubMatrix(vdofs, vdofs, elmat, skip_zeros);
+            mat->AddSubMatrix(vdofs, vdofs, *elmat_p, skip_zeros);
             if (hybridization)
             {
-               hybridization->AssembleBdrMatrix(i, elmat);
+               hybridization->AssembleBdrMatrix(i, *elmat_p);
             }
          }
          else
          {
-            static_cond->AssembleBdrMatrix(i, elmat);
+            static_cond->AssembleBdrMatrix(i, *elmat_p);
          }
       }
    }
@@ -617,18 +638,67 @@ void BilinearForm::ConformingAssemble()
    width = mat->Width();
 }
 
+void BilinearForm::AssembleDiagonal(Vector &diag) const
+{
+   if (ext)
+   {
+      MFEM_ASSERT(diag.Size() == fes->GetTrueVSize(),
+                  "Vector for holding diagonal has wrong size!");
+      const Operator *P = fes->GetProlongationMatrix();
+      // For an AMR mesh, a convergent diagonal is assembled with |P^T| d_e,
+      // where |P^T| has the entry-wise absolute values of the conforming
+      // prolongation transpose operator.
+      if (P && !fes->Conforming())
+      {
+         Vector local_diag(P->Height());
+         ext->AssembleDiagonal(local_diag);
+         const SparseMatrix *SP = dynamic_cast<const SparseMatrix*>(P);
+#ifdef MFEM_USE_MPI
+         const HypreParMatrix *HP = dynamic_cast<const HypreParMatrix*>(P);
+#endif
+         if (SP)
+         {
+            SP->AbsMultTranspose(local_diag, diag);
+         }
+#ifdef MFEM_USE_MPI
+         else if (HP)
+         {
+            HP->AbsMultTranspose(1.0, local_diag, 0.0, diag);
+         }
+#endif
+         else
+         {
+            MFEM_ABORT("Prolongation matrix has unexpected type.");
+         }
+         return;
+      }
+      if (!IsIdentityProlongation(P))
+      {
+         Vector local_diag(P->Height());
+         ext->AssembleDiagonal(local_diag);
+         P->MultTranspose(local_diag, diag);
+      }
+      else
+      {
+         ext->AssembleDiagonal(diag);
+      }
+   }
+   else
+   {
+      mat->GetDiag(diag);
+   }
+}
+
 void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
                                     Vector &b, OperatorHandle &A, Vector &X,
                                     Vector &B, int copy_interior)
 {
-   const SparseMatrix *P = fes->GetConformingProlongation();
-
    if (ext)
    {
       ext->FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
       return;
    }
-
+   const SparseMatrix *P = fes->GetConformingProlongation();
    FormSystemMatrix(ess_tdof_list, A);
 
    // Transform the system and perform the elimination in B, based on the
@@ -969,6 +1039,18 @@ void BilinearForm::EliminateVDofsInRHS(
    mat->PartMult(vdofs, x, b);
 }
 
+void BilinearForm::Mult(const Vector &x, Vector &y) const
+{
+   if (ext)
+   {
+      ext->Mult(x, y);
+   }
+   else
+   {
+      mat->Mult(x, y);
+   }
+}
+
 void BilinearForm::Update(FiniteElementSpace *nfes)
 {
    bool full_update;
@@ -1044,7 +1126,10 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
    trial_fes = tr_fes;
    test_fes = te_fes;
    mat = NULL;
+   mat_e = NULL;
    extern_bfs = 0;
+   assembly = AssemblyLevel::LEGACYFULL;
+   ext = NULL;
 }
 
 MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
@@ -1055,7 +1140,9 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
    trial_fes = tr_fes;
    test_fes = te_fes;
    mat = NULL;
+   mat_e = NULL;
    extern_bfs = 1;
+   ext = NULL;
 
    // Copy the pointers to the integrators
    dbfi = mbf->dbfi;
@@ -1065,6 +1152,40 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
 
    bbfi_marker = mbf->bbfi_marker;
    btfbfi_marker = mbf->btfbfi_marker;
+
+   assembly = AssemblyLevel::LEGACYFULL;
+   ext = NULL;
+}
+
+void MixedBilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
+{
+   if (ext)
+   {
+      MFEM_ABORT("the assembly level has already been set!");
+   }
+   assembly = assembly_level;
+   switch (assembly)
+   {
+      case AssemblyLevel::LEGACYFULL:
+         break;
+      case AssemblyLevel::FULL:
+         // ext = new FAMixedBilinearFormExtension(this);
+         // Use the original BilinearForm implementation for now
+         break;
+      case AssemblyLevel::ELEMENT:
+         mfem_error("Element assembly not supported yet... stay tuned!");
+         // ext = new EAMixedBilinearFormExtension(this);
+         break;
+      case AssemblyLevel::PARTIAL:
+         ext = new PAMixedBilinearFormExtension(this);
+         break;
+      case AssemblyLevel::NONE:
+         mfem_error("Matrix-free action not supported yet... stay tuned!");
+         // ext = new MFMixedBilinearFormExtension(this);
+         break;
+      default:
+         mfem_error("Unknown assembly level");
+   }
 }
 
 double & MixedBilinearForm::Elem (int i, int j)
@@ -1077,31 +1198,63 @@ const double & MixedBilinearForm::Elem (int i, int j) const
    return (*mat)(i, j);
 }
 
-void MixedBilinearForm::Mult (const Vector & x, Vector & y) const
+void MixedBilinearForm::Mult(const Vector & x, Vector & y) const
 {
-   mat -> Mult (x, y);
+   y = 0.0;
+   AddMult(x, y);
 }
 
-void MixedBilinearForm::AddMult (const Vector & x, Vector & y,
-                                 const double a) const
+void MixedBilinearForm::AddMult(const Vector & x, Vector & y,
+                                const double a) const
 {
-   mat -> AddMult (x, y, a);
+   if (ext)
+   {
+      ext->AddMult(x, y, a);
+   }
+   else
+   {
+      mat->AddMult(x, y, a);
+   }
 }
 
-void MixedBilinearForm::AddMultTranspose (const Vector & x, Vector & y,
-                                          const double a) const
+void MixedBilinearForm::MultTranspose(const Vector & x, Vector & y) const
 {
-   mat -> AddMultTranspose (x, y, a);
+   y = 0.0;
+   AddMultTranspose(x, y);
+}
+
+void MixedBilinearForm::AddMultTranspose(const Vector & x, Vector & y,
+                                         const double a) const
+{
+   if (ext)
+   {
+      ext->AddMultTranspose(x, y, a);
+   }
+   else
+   {
+      mat->AddMultTranspose(x, y, a);
+   }
 }
 
 MatrixInverse * MixedBilinearForm::Inverse() const
 {
-   return mat -> Inverse ();
+   if (assembly != AssemblyLevel::LEGACYFULL)
+   {
+      MFEM_WARNING("MixedBilinearForm::Inverse not possible with this assembly level!");
+      return NULL;
+   }
+   else
+   {
+      return mat -> Inverse ();
+   }
 }
 
 void MixedBilinearForm::Finalize (int skip_zeros)
 {
-   mat -> Finalize (skip_zeros);
+   if (assembly == AssemblyLevel::LEGACYFULL)
+   {
+      mat -> Finalize (skip_zeros);
+   }
 }
 
 void MixedBilinearForm::GetBlocks(Array2D<SparseMatrix *> &blocks) const
@@ -1154,6 +1307,12 @@ void MixedBilinearForm::AddBdrTraceFaceIntegrator(BilinearFormIntegrator *bfi,
 
 void MixedBilinearForm::Assemble (int skip_zeros)
 {
+   if (ext)
+   {
+      ext->Assemble();
+      return;
+   }
+
    Array<int> tr_vdofs, te_vdofs;
    ElementTransformation *eltrans;
    DofTransformation * dom_dof_trans;
@@ -1180,8 +1339,8 @@ void MixedBilinearForm::Assemble (int skip_zeros)
          for (int k = 1; k < dbfi.Size(); k++)
          {
             dbfi[k] -> AssembleElementMatrix2 (*trial_fes -> GetFE(i),
-					       *test_fes  -> GetFE(i),
-                		               *eltrans, elemmat);
+                                               *test_fes  -> GetFE(i),
+                                               *eltrans, elemmat);
             totelemmat += elemmat;
          }
          if (ran_dof_trans || dom_dof_trans)
@@ -1333,8 +1492,62 @@ void MixedBilinearForm::Assemble (int skip_zeros)
    }
 }
 
+void MixedBilinearForm::AssembleDiagonal_ADAt(const Vector &D,
+                                              Vector &diag) const
+{
+   if (ext)
+   {
+      MFEM_ASSERT(diag.Size() == test_fes->GetTrueVSize(),
+                  "Vector for holding diagonal has wrong size!");
+      MFEM_ASSERT(D.Size() == trial_fes->GetTrueVSize(),
+                  "Vector for holding diagonal has wrong size!");
+      const Operator *P_trial = trial_fes->GetProlongationMatrix();
+      const Operator *P_test = test_fes->GetProlongationMatrix();
+      if (!IsIdentityProlongation(P_trial))
+      {
+         Vector local_D(P_trial->Height());
+         P_trial->Mult(D, local_D);
+
+         if (!IsIdentityProlongation(P_test))
+         {
+            Vector local_diag(P_test->Height());
+            ext->AssembleDiagonal_ADAt(local_D, local_diag);
+            P_test->MultTranspose(local_diag, diag);
+         }
+         else
+         {
+            ext->AssembleDiagonal_ADAt(local_D, diag);
+         }
+      }
+      else
+      {
+         if (!IsIdentityProlongation(P_test))
+         {
+            Vector local_diag(P_test->Height());
+            ext->AssembleDiagonal_ADAt(D, local_diag);
+            P_test->MultTranspose(local_diag, diag);
+         }
+         else
+         {
+            ext->AssembleDiagonal_ADAt(D, diag);
+         }
+      }
+   }
+   else
+   {
+      MFEM_ABORT("Not implemented. Maybe assemble your bilinear form into a "
+                 "matrix and use SparseMatrix functions?");
+   }
+}
+
 void MixedBilinearForm::ConformingAssemble()
 {
+   if (assembly != AssemblyLevel::LEGACYFULL)
+   {
+      MFEM_WARNING("Conforming assemble not supported for this assembly level!");
+      return;
+   }
+
    Finalize();
 
    const SparseMatrix *P2 = test_fes->GetConformingProlongation();
@@ -1493,17 +1706,92 @@ void MixedBilinearForm::EliminateTestDofs (const Array<int> &bdr_attr_is_ess)
       }
 }
 
+void MixedBilinearForm::FormRectangularSystemMatrix(const Array<int>
+                                                    &trial_tdof_list,
+                                                    const Array<int> &test_tdof_list,
+                                                    OperatorHandle &A)
+
+{
+   if (ext)
+   {
+      ext->FormRectangularSystemOperator(trial_tdof_list, test_tdof_list, A);
+      return;
+   }
+
+   const SparseMatrix *test_P = test_fes->GetConformingProlongation();
+   const SparseMatrix *trial_P = trial_fes->GetConformingProlongation();
+
+   mat->Finalize();
+
+   if (test_P) // TODO: Must actually check for trial_P too
+   {
+      SparseMatrix *m = RAP(*test_P, *mat, *trial_P);
+      delete mat;
+      mat = m;
+   }
+
+   Array<int> ess_trial_tdof_marker, ess_test_tdof_marker;
+   FiniteElementSpace::ListToMarker(trial_tdof_list, trial_fes->GetTrueVSize(),
+                                    ess_trial_tdof_marker);
+   FiniteElementSpace::ListToMarker(test_tdof_list, test_fes->GetTrueVSize(),
+                                    ess_test_tdof_marker);
+
+   mat_e = new SparseMatrix(mat->Height(), mat->Width());
+   mat->EliminateCols(ess_trial_tdof_marker, *mat_e);
+
+   for (int i=0; i<test_tdof_list.Size(); ++i)
+   {
+      mat->EliminateRow(test_tdof_list[i]);
+   }
+   mat_e->Finalize();
+   A.Reset(mat, false);
+}
+
+void MixedBilinearForm::FormRectangularLinearSystem(const Array<int>
+                                                    &trial_tdof_list,
+                                                    const Array<int> &test_tdof_list,
+                                                    Vector &x, Vector &b,
+                                                    OperatorHandle &A,
+                                                    Vector &X, Vector &B)
+{
+   if (ext)
+   {
+      ext->FormRectangularLinearSystem(trial_tdof_list, test_tdof_list, x, b, A, X,
+                                       B);
+      return;
+   }
+
+   const Operator *Pi = this->GetProlongation();
+   const Operator *Po = this->GetOutputProlongation();
+   const Operator *Ri = this->GetRestriction();
+   InitTVectors(Po, Ri, Pi, x, b, X, B);
+
+   if (!mat_e)
+   {
+      FormRectangularSystemMatrix(trial_tdof_list, test_tdof_list,
+                                  A); // Set A = mat_e
+   }
+   // Eliminate essential BCs with B -= Ab xb
+   mat_e->AddMult(X, B, -1.0);
+
+   B.SetSubVector(test_tdof_list, 0.0);
+}
+
 void MixedBilinearForm::Update()
 {
    delete mat;
    mat = NULL;
+   delete mat_e;
+   mat_e = NULL;
    height = test_fes->GetVSize();
    width = trial_fes->GetVSize();
+   if (ext) { ext->Update(); }
 }
 
 MixedBilinearForm::~MixedBilinearForm()
 {
    if (mat) { delete mat; }
+   if (mat_e) { delete mat_e; }
    if (!extern_bfs)
    {
       int i;
@@ -1512,6 +1800,7 @@ MixedBilinearForm::~MixedBilinearForm()
       for (i = 0; i < tfbfi.Size(); i++) { delete tfbfi[i]; }
       for (i = 0; i < btfbfi.Size(); i++) { delete btfbfi[i]; }
    }
+   delete ext;
 }
 
 

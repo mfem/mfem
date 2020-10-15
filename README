@@ -14,7 +14,7 @@ supercomputers.
 
 * For building instructions, see the file INSTALL, or type "make help".
 
-* Copyright and licensing information can be found in the file COPYRIGHT.
+* Copyright and licensing information can be found in files LICENSE and NOTICE.
 
 * The best starting point for new users interested in MFEM's features is the
   interactive documentation in examples/README.html.
@@ -61,8 +61,9 @@ nonlinear solvers, preconditioners, time integrators, etc.
 For examples of using MFEM, see the examples/ and miniapps/ directories, as well
 as the OpenGL visualization tool GLVis which is available at http://glvis.org.
 
-This project is released under the LGPL v2.1 license with static linking
-exception. See files COPYRIGHT and LICENSE file for full details.
+MFEM is distributed under the terms of the BSD-3 license. All new contributions
+must be made under this license. See LICENSE and NOTICE for details.
 
-LLNL Release Number: LLNL-CODE-443211
+SPDX-License-Identifier: BSD-3-Clause
+LLNL Release Number: LLNL-CODE-806117
 DOI: 10.11578/dc.20171025.1248
