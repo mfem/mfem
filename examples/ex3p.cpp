@@ -209,7 +209,7 @@ int main(int argc, char *argv[])
    //     partial assembly case).
    if (pa) // matrix-free auxiliary space solver with PA
    {
-      MatrixFreeAMS ams(*a, *A, *fespace, muinv, sigma, ess_bdr);
+      MatrixFreeAMS ams(*a, *A, *fespace, muinv, sigma, NULL, ess_bdr);
 
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-12);

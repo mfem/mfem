@@ -163,13 +163,9 @@ void GeneralAMS::Mult(const Vector& x, Vector& y) const
 
 // Pi-space constructor
 MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
-   MPI_Comm comm_,
-   ParMesh& mesh_lor, Coefficient* alpha_coeff,
-   Coefficient* beta_coeff, Array<int>& ess_bdr,
-   Operator& curlcurl_oper,
-   Operator& pi,
-   int cg_iterations)
-   :
+   MPI_Comm comm_, ParMesh& mesh_lor, Coefficient* alpha_coeff,
+   Coefficient* beta_coeff, MatrixCoefficient* beta_mcoeff, Array<int>& ess_bdr,
+   Operator& curlcurl_oper, Operator& pi, int cg_iterations) :
    Solver(pi.Width()),
    comm(comm_),
    matfree_(NULL),
@@ -199,13 +195,19 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    {
       a_space.AddDomainIntegrator(new VectorDiffusionIntegrator(*alpha_coeff));
    }
-   if (beta_coeff == NULL)
+
+   if (beta_mcoeff != NULL)
    {
-      a_space.AddDomainIntegrator(new VectorMassIntegrator);
+      MFEM_VERIFY(beta_coeff == NULL, "Only one beta coefficient should be defined.");
+      a_space.AddDomainIntegrator(new VectorMassIntegrator(*beta_mcoeff));
+   }
+   else if (beta_coeff != NULL)
+   {
+      a_space.AddDomainIntegrator(new VectorMassIntegrator(*beta_coeff));
    }
    else
    {
-      a_space.AddDomainIntegrator(new VectorMassIntegrator(*beta_coeff));
+      a_space.AddDomainIntegrator(new VectorMassIntegrator);
    }
    a_space.UsePrecomputedSparsity();
    a_space.Assemble();
@@ -237,10 +239,9 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    object, as well as the use of a single CG iteration (instead of just
    an AMG V-cycle). */
 MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
-   MPI_Comm comm_, ParMesh& mesh_lor,
-   Coefficient* beta_coeff, Array<int>& ess_bdr,
-   Operator& curlcurl_oper, Operator& g,
-   int cg_iterations)
+   MPI_Comm comm_, ParMesh& mesh_lor, Coefficient* beta_coeff,
+   MatrixCoefficient* beta_mcoeff, Array<int>& ess_bdr, Operator& curlcurl_oper,
+   Operator& g, int cg_iterations)
    :
    Solver(curlcurl_oper.Height()),
    comm(comm_),
@@ -260,13 +261,19 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    const Matrix::DiagonalPolicy policy = Matrix::DIAG_ONE;
 
    a_space.SetDiagonalPolicy(policy);
-   if (beta_coeff == NULL)
+
+   if (beta_mcoeff != NULL)
    {
-      a_space.AddDomainIntegrator(new DiffusionIntegrator);
+      MFEM_VERIFY(beta_coeff == NULL, "Only one beta coefficient should be defined.");
+      a_space.AddDomainIntegrator(new DiffusionIntegrator(*beta_mcoeff));
+   }
+   else if (beta_coeff != NULL)
+   {
+      a_space.AddDomainIntegrator(new DiffusionIntegrator(*beta_coeff));
    }
    else
    {
-      a_space.AddDomainIntegrator(new DiffusionIntegrator(*beta_coeff));
+      a_space.AddDomainIntegrator(new DiffusionIntegrator);
    }
    a_space.UsePrecomputedSparsity();
    a_space.Assemble();
@@ -408,10 +415,9 @@ MatrixFreeAuxiliarySpace::~MatrixFreeAuxiliarySpace()
 
 MatrixFreeAMS::MatrixFreeAMS(
    ParBilinearForm& aform, Operator& oper, ParFiniteElementSpace& nd_fespace,
-   Coefficient* alpha_coeff,
-   Coefficient* beta_coeff, Array<int>& ess_bdr, int inner_pi_iterations,
-   int inner_g_iterations)
-   :
+   Coefficient* alpha_coeff, Coefficient* beta_coeff,
+   MatrixCoefficient* beta_mcoeff, Array<int>& ess_bdr, int inner_pi_iterations,
+   int inner_g_iterations) :
    Solver(oper.Height())
 {
    int order = nd_fespace.GetFE(0)->GetOrder();
@@ -454,14 +460,15 @@ MatrixFreeAMS::MatrixFreeAMS(
 
    // build G space solver
    Gspacesolver_ = new MatrixFreeAuxiliarySpace(nd_fespace.GetComm(), mesh_lor,
-                                                beta_coeff, ess_bdr, oper, *G_,
+                                                beta_coeff, beta_mcoeff,
+                                                ess_bdr, oper, *G_,
                                                 inner_g_iterations);
 
    // build Pi space solver
    Pispacesolver_ = new MatrixFreeAuxiliarySpace(nd_fespace.GetComm(), mesh_lor,
                                                  alpha_coeff, beta_coeff,
-                                                 ess_bdr, oper, *Pi_,
-                                                 inner_pi_iterations);
+                                                 beta_mcoeff, ess_bdr, oper,
+                                                 *Pi_, inner_pi_iterations);
 
    general_ams_ = new GeneralAMS(oper, *Pi_, *G_, *Pispacesolver_,
                                  *Gspacesolver_, *smoother_, ess_tdof_list);
