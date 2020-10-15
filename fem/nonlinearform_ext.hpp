@@ -26,51 +26,70 @@ class NonlinearFormIntegrator;
 class NonlinearFormExtension : public Operator
 {
 protected:
-   const NonlinearForm *nlf;
+   const NonlinearForm *nlf; ///< Not owned
+
 public:
    NonlinearFormExtension(const NonlinearForm*);
-   virtual void Setup() = 0;
-   virtual Operator &GetGradient(const Vector&) const = 0;
+
+   /// Assemble at the AssemblyLevel of the subclass.
+   virtual void Assemble() = 0;
+   /// Assemble gradient data at the AssemblyLevel of the subclass.
+   virtual void AssembleGradient() = 0;
+
+   /// Assumes that @a x is a ldof Vector.
+   virtual Operator &GetGradient(const Vector &x) const = 0;
+
+   /// Assumes that @a x is a ldof Vector.
    virtual double GetGridFunctionEnergy(const Vector &x) const = 0;
-   virtual void AssembleGradientDiagonal(Vector &diag) const
-   {
-      MFEM_ABORT("Not implemented for this assembly level!");
-   }
 };
 
-class PANonlinearForm;
-
-
 /// Data and methods for partially-assembled nonlinear forms
-class PANonlinearForm : public NonlinearFormExtension
+class PANonlinearFormExtension : public NonlinearFormExtension
 {
 private:
    class Gradient : public Operator
    {
    protected:
-      const Operator *R;
-      mutable Vector ge, xe, ye, ze;
+      const Operator *elemR;
+      const FiniteElementSpace &fes;
       const Array<NonlinearFormIntegrator*> &dnfi;
+      mutable Vector ge, xe, ye, ze;
+
    public:
-      Gradient(const Vector &x, const PANonlinearForm &ext);
+      /// Assumes that @a g is a ldof Vector.
+      Gradient(const Vector &g, const PANonlinearFormExtension &ext);
+
+      /// Assumes that @a x and @a y are ldof Vector%s.
       virtual void Mult(const Vector &x, Vector &y) const;
+
+      void ReInit(const Vector &g) { elemR->Mult(g, ge); }
+
+      /** @brief Assemble the diagonal of the gradient into the
+          tdof Vector @a diag.
+
+          For adaptively refined meshes, this returns P^T d_e, where d_e is the
+          locally assembled diagonal on each element and P^T is the transpose of
+          the conforming prolongation. In general this is not the correct
+          diagonal for an AMR mesh. */
+      virtual void AssembleDiagonal(Vector &diag) const;
    };
 
 protected:
    mutable Vector xe, ye;
-   mutable const Vector *x_grad;
    mutable OperatorHandle Grad;
    const FiniteElementSpace &fes;
    const Array<NonlinearFormIntegrator*> &dnfi;
-   const Operator *R;
+   const Operator *elemR;
 
 public:
-   PANonlinearForm(NonlinearForm *nlf);
-   void Setup();
+   PANonlinearFormExtension(NonlinearForm *nlf);
+
+   void Assemble();
+   void AssembleGradient();
+
    void Mult(const Vector &x, Vector &y) const;
    Operator &GetGradient(const Vector &x) const;
    double GetGridFunctionEnergy(const Vector &x) const;
-   void AssembleGradientDiagonal(Vector &diag) const;
 };
 }
 #endif // NONLINEARFORM_EXT_HPP

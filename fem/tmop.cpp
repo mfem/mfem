@@ -2889,12 +2889,12 @@ void TMOPComboIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
 }
 
-void TMOPComboIntegrator::AssembleGradientDiagonalPA(const Vector &xe,
-                                                     Vector &de) const
+void TMOPComboIntegrator::AssembleGradDiagonalPA(const Vector &xe,
+                                                 Vector &de) const
 {
    for (int i = 0; i < tmopi.Size(); i++)
    {
-      tmopi[i]->AssembleGradientDiagonalPA(xe, de);
+      tmopi[i]->AssembleGradDiagonalPA(xe, de);
    }
 }
 

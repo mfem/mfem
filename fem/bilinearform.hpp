@@ -359,13 +359,14 @@ public:
    /// Assembles the form i.e. sums over all domain/bdr integrators.
    void Assemble(int skip_zeros = 1);
 
-   /** @brief Assemble the diagonal of the bilinear form into diag
+   /** @brief Assemble the diagonal of the bilinear form into @a diag. Note that
+       @a diag is a tdof Vector.
 
        For adaptively refined meshes, this returns P^T d_e, where d_e is the
        locally assembled diagonal on each element and P^T is the transpose of
        the conforming prolongation. In general this is not the correct diagonal
        for an AMR mesh. */
-   void AssembleDiagonal(Vector &diag) const;
+   virtual void AssembleDiagonal(Vector &diag) const;
 
    /// Get the finite element space prolongation operator.
    virtual const Operator *GetProlongation() const
@@ -586,7 +587,7 @@ public:
    void SetDiagonalPolicy(DiagonalPolicy policy);
 
    /// Indicate that integrators are not owned by the BilinearForm
-   void UseExternalIntegrators() { extern_bfs = 1; };
+   void UseExternalIntegrators() { extern_bfs = 1; }
 
    /// Destroys bilinear form.
    virtual ~BilinearForm();

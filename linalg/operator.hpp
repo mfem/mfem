@@ -100,6 +100,12 @@ public:
       return const_cast<Operator &>(*this);
    }
 
+   /// Computes the diagonal entries into @a x; irrelevant for some Operator%s.
+   virtual void AssembleDiagonal(Vector &diag) const
+   {
+      MFEM_ABORT("Not relevant or not implemented for this Operator.");
+   }
+
    /** @brief Prolongation operator from linear algebra (linear system) vectors,
        to input vectors for the operator. `NULL` means identity. */
    virtual const Operator *GetProlongation() const { return NULL; }
@@ -759,6 +765,14 @@ public:
    virtual void Mult(const Vector & x, Vector & y) const
    { P.Mult(x, Px); A.Mult(Px, APx); Rt.MultTranspose(APx, y); }
 
+   /// Diagonal of the RA Operator.
+   virtual void AssembleDiagonal(Vector &diag) const
+   {
+      // Assumes that A works on ldofs.
+      A.AssembleDiagonal(APx);
+      Rt.MultTranspose(APx, diag);
+   }
+
    /// Application of the transpose.
    virtual void MultTranspose(const Vector & x, Vector & y) const
    { Rt.Mult(x, APx); A.MultTranspose(APx, Px); P.MultTranspose(Px, y); }
@@ -825,6 +839,9 @@ public:
    /// Set the diagonal policy for the constrained operator.
    void SetDiagonalPolicy(const DiagonalPolicy _diag_policy)
    { diag_policy = _diag_policy; }
+
+   /// Diagonal of A, modified according to the used DiagonalPolicy.
+   virtual void AssembleDiagonal(Vector &diag) const;
 
    /** @brief Eliminate "essential boundary condition" values specified in @a x
        from the given right-hand side @a b.

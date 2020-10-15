@@ -27,9 +27,8 @@ protected:
    /// The assembly level.
    AssemblyLevel assembly;
 
-   /** Extension for supporting Partial Assembly (PA) or
-       Matrix Free assembly (MF). */
-   NonlinearFormExtension *ext;
+   /// Extension for supporting different AssemblyLevel%s
+   NonlinearFormExtension *ext; // owned
 
    /// FE space on which the form lives.
    FiniteElementSpace *fes; // not owned
@@ -45,7 +44,8 @@ protected:
    Array<Array<int>*>              bfnfi_marker; // not owned
 
    mutable SparseMatrix *Grad, *cGrad; // owned
-   mutable OperatorHandle hGrad;
+   /// Gradient of the NonlinearFormExtension. The extension owns it.
+   mutable OperatorHandle hGrad; // not owned.
 
    /// A list of all essential true dofs
    Array<int> ess_tdof_list;
@@ -163,17 +163,11 @@ public:
        set again. */
    virtual void Update();
 
-   /// Setup the NonlinearForm
+   /// Setup the NonlinearForm.
    virtual void Setup();
 
-   /** @brief Assemble the diagonal of the gradient into diag
-
-       For adaptively refined meshes, this returns P^T d_e, where d_e is the
-       locally assembled diagonal on each element and P^T is the transpose of
-       the conforming prolongation. In general this is not the correct diagonal
-       for an AMR mesh. */
-   void AssembleGradientDiagonal(Vector &diag) const;
-
+   /// Setup the gradient of the NonlinearForm.
+   virtual void SetupGradient();
 
    /// Get the finite element space prolongation matrix
    virtual const Operator *GetProlongation() const { return P; }

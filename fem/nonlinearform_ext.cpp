@@ -21,24 +21,23 @@ namespace mfem
 NonlinearFormExtension::NonlinearFormExtension(const NonlinearForm *nlf)
    : Operator(nlf->FESpace()->GetTrueVSize()), nlf(nlf) { }
 
-PANonlinearForm::PANonlinearForm(NonlinearForm *nlf):
+PANonlinearFormExtension::PANonlinearFormExtension(NonlinearForm *nlf):
    NonlinearFormExtension(nlf),
-   x_grad(NULL),
    fes(*nlf->FESpace()),
    dnfi(*nlf->GetDNFI()),
-   R(fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC))
+   elemR(fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC))
 {
-   MFEM_VERIFY(R, "Not yet implemented!");
-   xe.SetSize(R->Height(), Device::GetMemoryType());
-   ye.SetSize(R->Height(), Device::GetMemoryType());
+   MFEM_VERIFY(elemR, "Not yet implemented!");
+   xe.SetSize(elemR->Height(), Device::GetMemoryType());
+   ye.SetSize(elemR->Height(), Device::GetMemoryType());
    ye.UseDevice(true);
 }
 
-double PANonlinearForm::GetGridFunctionEnergy(const Vector &x) const
+double PANonlinearFormExtension::GetGridFunctionEnergy(const Vector &x) const
 {
    double energy = 0.0;
 
-   R->Mult(x, xe);
+   elemR->Mult(x, xe);
    for (int i = 0; i < dnfi.Size(); i++)
    {
       energy += dnfi[i]->GetGridFunctionEnergyPA(xe);
@@ -46,68 +45,112 @@ double PANonlinearForm::GetGridFunctionEnergy(const Vector &x) const
    return energy;
 }
 
-void PANonlinearForm::Setup()
+void PANonlinearFormExtension::Assemble()
 {
    for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AssemblePA(fes); }
 }
 
-void PANonlinearForm::Mult(const Vector &x, Vector &y) const
+void PANonlinearFormExtension::AssembleGradient()
+{
+   for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AssembleGradPA(fes); }
+}
+
+void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
    ye = 0.0;
-   R->Mult(x, xe);
+   elemR->Mult(x, xe);
    for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AddMultPA(xe, ye); }
-   R->MultTranspose(ye, y);
+   elemR->MultTranspose(ye, y);
 }
 
-void PANonlinearForm::AssembleGradientDiagonal(Vector &diag) const
+Operator &PANonlinearFormExtension::GetGradient(const Vector &x) const
 {
-   MFEM_VERIFY(x_grad, "GetGradient() has not been called");
-   R->Mult(*x_grad, xe);
-
-   ye = 0.0;
-   for (int i = 0; i < dnfi.Size(); ++i)
+   if (Grad.Ptr() == nullptr)
    {
-      dnfi[i]->AssembleGradientDiagonalPA(xe, ye);
+      Grad.Reset(new PANonlinearFormExtension::Gradient(x, *this));
    }
-   R->MultTranspose(ye, diag);
-}
-
-Operator &PANonlinearForm::GetGradient(const Vector &x) const
-{
-   // Store the last x that was used to compute the gradient.
-   x_grad = &x;
-
-   Grad.Reset(new PANonlinearForm::Gradient(x, *this));
+   else
+   {
+      dynamic_cast<PANonlinearFormExtension::Gradient *>(Grad.Ptr())->ReInit(x);
+   }
    return *Grad.Ptr();
 }
 
-PANonlinearForm::Gradient::Gradient(const Vector &x, const PANonlinearForm &e):
-   Operator(e.fes.GetVSize()), R(e.R), dnfi(e.dnfi)
+PANonlinearFormExtension::Gradient::Gradient(const Vector &g,
+                                             const PANonlinearFormExtension &e):
+   Operator(e.fes.GetVSize()), elemR(e.elemR), fes(e.fes), dnfi(e.dnfi)
 {
    ge.UseDevice(true);
-   ge.SetSize(R->Height(), Device::GetMemoryType());
-   R->Mult(x, ge);
+   ge.SetSize(elemR->Height(), Device::GetMemoryType());
+   elemR->Mult(g, ge);
 
    xe.UseDevice(true);
-   xe.SetSize(R->Height(), Device::GetMemoryType());
+   xe.SetSize(elemR->Height(), Device::GetMemoryType());
 
    ye.UseDevice(true);
-   ye.SetSize(R->Height(), Device::GetMemoryType());
+   ye.SetSize(elemR->Height(), Device::GetMemoryType());
 
    ze.UseDevice(true);
-   ze.SetSize(R->Height(), Device::GetMemoryType());
-
-   // Do we still need to do this?
-   for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AssemblePA(e.fes); }
+   ze.SetSize(elemR->Height(), Device::GetMemoryType());
 }
 
-void PANonlinearForm::Gradient::Mult(const Vector &x, Vector &y) const
+void PANonlinearFormExtension::Gradient::Mult(const Vector &x, Vector &y) const
 {
    ze = x;
    ye = 0.0;
-   R->Mult(ze, xe);
+   elemR->Mult(ze, xe);
    for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AddMultGradPA(ge, xe, ye); }
-   R->MultTranspose(ye, y);
+   elemR->MultTranspose(ye, y);
+}
+
+void PANonlinearFormExtension::Gradient::AssembleDiagonal(Vector &diag) const
+{
+   MFEM_ASSERT(diag.Size() == fes.GetTrueVSize(),
+               "Vector for holding diagonal has wrong size!");
+   const Operator *P = fes.GetProlongationMatrix();
+
+   ye = 0.0;
+
+   // For an AMR mesh, a convergent diagonal is assembled with |P^T| d_e,
+   // where |P^T| has the entry-wise absolute values of the conforming
+   // prolongation transpose operator.
+   if (P && !fes.Conforming())
+   {
+      Vector local_diag(P->Height());
+      for (int i = 0; i < dnfi.Size(); ++i)
+      {
+         dnfi[i]->AssembleGradDiagonalPA(ge, ye);
+      }
+      elemR->MultTranspose(ye, local_diag);
+      const SparseMatrix *SP = dynamic_cast<const SparseMatrix*>(P);
+#ifdef MFEM_USE_MPI
+      const HypreParMatrix *HP = dynamic_cast<const HypreParMatrix*>(P);
+#endif
+      if (SP) { SP->AbsMultTranspose(local_diag, diag); }
+#ifdef MFEM_USE_MPI
+      else if (HP) { HP->AbsMultTranspose(1.0, local_diag, 0.0, diag); }
+#endif
+      else { MFEM_ABORT("Prolongation matrix has unexpected type."); }
+      return;
+   }
+   if (!IsIdentityProlongation(P))
+   {
+      Vector local_diag(P->Height());
+      for (int i = 0; i < dnfi.Size(); ++i)
+      {
+         dnfi[i]->AssembleGradDiagonalPA(ge, ye);
+      }
+      elemR->MultTranspose(ye, local_diag);
+      P->MultTranspose(local_diag, diag);
+   }
+   else
+   {
+      for (int i = 0; i < dnfi.Size(); ++i)
+      {
+         dnfi[i]->AssembleGradDiagonalPA(ge, ye);
+      }
+      elemR->MultTranspose(ye, diag);
+   }
 }
 
 } // namespace mfem

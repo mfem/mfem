@@ -50,7 +50,7 @@ void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
 
    if (fnfi.Size())
    {
-      MFEM_VERIFY(!NonlinearForm::ext,"");
+      MFEM_VERIFY(!NonlinearForm::ext, "Not implemented (extensions + faces");
       // Terms over shared interior faces in parallel.
       ParFiniteElementSpace *pfes = ParFESpace();
       ParMesh *pmesh = pfes->GetParMesh();
@@ -127,7 +127,8 @@ Operator &ParNonlinearForm::GetGradient(const Vector &x) const
       MFEM_ABORT("TODO: assemble contributions from shared face terms");
    }
 
-   // TODO - construct Dof_TrueDof_Matrix directly in the pGrad format
+   // RAP the local gradient dA.
+   // TODO use pfes->GetProlongationMatrix(); but there is a const issue.
    Ph.ConvertFrom(pfes->Dof_TrueDof_Matrix());
    pGrad.MakePtAP(dA, Ph);
 

@@ -28,7 +28,7 @@ void NonlinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
          // This is the default behavior.
          break;
       case AssemblyLevel::PARTIAL:
-         ext = new PANonlinearForm(this);
+         ext = new PANonlinearFormExtension(this);
          break;
       default:
          mfem_error("Unknown assembly level for this form.");
@@ -285,10 +285,11 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
       if (Serial())
       {
          Operator *Gop;
-         if (cP) { hGrad.Reset(new RAPOperator(*cP, grad, *cP)); }
          hGrad.Ptr()->Operator::FormSystemOperator(ess_tdof_list, Gop);
          hGrad.Reset(Gop);
       }
+      // In parallel, the rest of the construction (RAP+constraints) is done
+      // by ParNonlinearForm::GetGradient.
       return *hGrad.Ptr();
    }
 
@@ -451,31 +452,12 @@ void NonlinearForm::Update()
 
 void NonlinearForm::Setup()
 {
-   if (ext) { return ext->Setup(); }
+   if (ext) { ext->Assemble(); }
 }
 
-void NonlinearForm::AssembleGradientDiagonal(Vector &diag) const
+void NonlinearForm::SetupGradient()
 {
-   if (ext)
-   {
-      MFEM_ASSERT(diag.Size() == fes->GetTrueVSize(),
-                  "Vector for holding diagonal has wrong size!");
-      const Operator *P = fes->GetProlongationMatrix();
-      if (!IsIdentityProlongation(P))
-      {
-         Vector local_diag(P->Height());
-         ext->AssembleGradientDiagonal(local_diag);
-         P->MultTranspose(local_diag, diag);
-      }
-      else
-      {
-         ext->AssembleGradientDiagonal(diag);
-      }
-   }
-   else
-   {
-      MFEM_ABORT("Not implemented. Can be obtained through GetGradient().");
-   }
+   if (ext) { ext->AssembleGradient(); }
 }
 
 NonlinearForm::~NonlinearForm()

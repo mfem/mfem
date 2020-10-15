@@ -20,8 +20,12 @@
 namespace mfem
 {
 
+void TMOP_Integrator::AssembleGradPA(const FiniteElementSpace &fes)
+{
 
-void TMOP_Integrator::SetupGradPA(const Vector &xe) const
+}
+
+void TMOP_Integrator::AssembleGradPA(const Vector &xe) const
 {
    MFEM_VERIFY(PA.R, "PA extension setup has not been done!");
    PA.setup_Grad = true;
@@ -246,14 +250,14 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    }
 }
 
-void TMOP_Integrator::AssembleGradientDiagonalPA(const Vector &xe,
-                                                 Vector &de) const
+void TMOP_Integrator::AssembleGradDiagonalPA(const Vector &xe,
+                                             Vector &de) const
 {
    MFEM_VERIFY(PA.R, "PA extension setup has not been done!");
 
    if (!PA.setup_Jtr) { ComputeElementTargetsPA(xe); }
 
-   if (!PA.setup_Grad) { SetupGradPA(xe); }
+   if (!PA.setup_Grad) { AssembleGradPA(xe); }
 
    if (PA.dim == 2)
    {
@@ -293,7 +297,7 @@ void TMOP_Integrator::AddMultGradPA(const Vector &xe,
 {
    if (!PA.setup_Jtr) { ComputeElementTargetsPA(xe); }
 
-   if (!PA.setup_Grad) { SetupGradPA(xe); }
+   if (!PA.setup_Grad) { AssembleGradPA(xe); }
 
    if (PA.dim == 2)
    {

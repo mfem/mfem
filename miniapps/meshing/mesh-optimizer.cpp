@@ -806,7 +806,10 @@ int main(int argc, char *argv[])
          if (pa)
          {
             MFEM_VERIFY(lin_solver != 4, "PA l1-Jacobi is not implemented");
-            S_prec = new OperatorJacobiSmoother(a, a.GetEssentialTrueDofs());
+            OperatorJacobiSmoother *sm =
+               new OperatorJacobiSmoother(a, a.GetEssentialTrueDofs());
+            sm->SetAbsValues(true);
+            S_prec = sm;
          }
          else { S_prec = new DSmoother((lin_solver == 3) ? 0 : 1, 1.0, 1); }
          minres->SetPreconditioner(*S_prec);

@@ -13,7 +13,6 @@
 #include "../general/forall.hpp"
 #include "../general/globals.hpp"
 #include "../fem/bilinearform.hpp"
-#include "../fem/nonlinearform.hpp"
 #include <iostream>
 #include <iomanip>
 #include <algorithm>
@@ -133,18 +132,10 @@ OperatorJacobiSmoother::OperatorJacobiSmoother(const BilinearForm &a,
    Setup(diag);
 }
 
-// In this case oper and will be set by SetOperator().
-OperatorJacobiSmoother::OperatorJacobiSmoother(const NonlinearForm &nlform,
-                                               const Array<int> &ess_tdofs,
+OperatorJacobiSmoother::OperatorJacobiSmoother(const Array<int> &ess_tdofs,
                                                const double dmpng)
-   :
-   Solver(nlform.FESpace()->GetTrueVSize()),
-   N(height),
-   dinv(N),
-   damping(dmpng),
-   ess_tdof_list(ess_tdofs),
-   residual(N),
-   dynamic(true), oper(NULL), nlf(&nlform) { }
+   : Solver(), N(0), dinv(N), damping(dmpng),
+     ess_tdof_list(ess_tdofs), residual(N) { }
 
 OperatorJacobiSmoother::OperatorJacobiSmoother(const Vector &d,
                                                const Array<int> &ess_tdofs,
@@ -155,21 +146,25 @@ OperatorJacobiSmoother::OperatorJacobiSmoother(const Vector &d,
    dinv(N),
    damping(dmpng),
    ess_tdof_list(ess_tdofs),
-   residual(N)
+   residual(N),
+   oper(NULL)
 {
    Setup(d);
 }
 
 void OperatorJacobiSmoother::SetOperator(const Operator &op)
 {
+   height = op.Height();
+   width = op.Width();
    oper = &op;
+   N = oper->Height();
+   dinv.SetSize(N);
+   residual.SetSize(N);
 
-   if (dynamic)
-   {
-      Vector diag(N);
-      nlf->AssembleGradientDiagonal(diag);
-      Setup(diag);
-   }
+   Vector diag(N);
+   // Assumes that the result is on the tdofs, e.g., oper is a RAP Operator.
+   oper->AssembleDiagonal(diag);
+   Setup(diag);
 }
 
 void OperatorJacobiSmoother::Setup(const Vector &diag)
@@ -178,24 +173,21 @@ void OperatorJacobiSmoother::Setup(const Vector &diag)
    const double delta = damping;
    auto D = diag.Read();
    auto DI = dinv.Write();
-   MFEM_FORALL(i, N,
-   {
-      const double d_i = (D[i] < 0.0 && abs_values) ? -D[i] : D[i];
-      DI[i] = delta / d_i;
-   });
+   MFEM_FORALL(i, N, DI[i] = delta / D[i]; );
    auto I = ess_tdof_list.Read();
    MFEM_FORALL(i, ess_tdof_list.Size(), DI[I[i]] = delta; );
 }
 
 void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
 {
+   MFEM_VERIFY(N > 0, "The diagonal hasn't been computed.");
    MFEM_ASSERT(x.Size() == N, "invalid input vector");
    MFEM_ASSERT(y.Size() == N, "invalid output vector");
 
    if (iterative_mode && oper)
    {
-      oper->Mult(y, residual);  // r = A x
-      subtract(x, residual, residual); // r = b - A x
+      oper->Mult(y, residual);  // r = A y
+      subtract(x, residual, residual); // r = x - A y
    }
    else
    {
@@ -566,6 +558,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
 {
    int i;
    double r0, den, nom, nom0, betanom, alpha, beta;
+
    if (iterative_mode)
    {
       oper->Mult(x, r);
