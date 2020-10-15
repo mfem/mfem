@@ -655,6 +655,167 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
 #endif
 }
 
+double ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
+                                               Coefficient *ell_coeff,
+                                               double Nu,
+                                               const IntegrationRule *irs[]) const
+{
+   const_cast<ParGridFunction *>(this)->ExchangeFaceNbrData();
+
+   int fdof, dim, intorder, k;
+   ElementTransformation *transf;
+   Vector shape, el_dofs, err_val, ell_coeff_val;
+   Array<int> vdofs;
+   IntegrationPoint eip;
+   double error = 0.0;
+
+   ParMesh *mesh = pfes->GetParMesh();
+   dim = mesh->Dimension();
+
+   std::map<int,int> local_to_shared;
+   for (int i = 0; i < mesh->GetNSharedFaces(); ++i)
+   {
+      int i_local = mesh->GetSharedFace(i);
+      local_to_shared[i_local] = i;
+   }
+
+   for (int i = 0; i < mesh->GetNumFaces(); i++)
+   {
+      double shared_face_factor = 1.0;
+      bool shared_face = false;
+      int iel1, iel2, info1, info2;
+      mesh->GetFaceElements(i, &iel1, &iel2);
+      mesh->GetFaceInfos(i, &info1, &info2);
+
+      intorder = fes->GetFE(iel1)->GetOrder();
+
+      FaceElementTransformations *face_elem_transf;
+      const FiniteElement *fe1, *fe2;
+      if (info2 >= 0 && iel2 < 0)
+      {
+         int ishared = local_to_shared[i];
+         face_elem_transf = mesh->GetSharedFaceTransformations(ishared);
+         iel2 = face_elem_transf->Elem2No - mesh->GetNE();
+         fe2 = pfes->GetFaceNbrFE(iel2);
+         if ( (k = fe2->GetOrder()) > intorder )
+         {
+            intorder = k;
+         }
+         shared_face = true;
+         shared_face_factor = 0.5;
+      }
+      else
+      {
+         face_elem_transf = mesh->GetFaceElementTransformations(i);
+
+         if (iel2 >= 0)
+         {
+            fe2 = pfes->GetFE(iel2);
+            if ( (k = fe2->GetOrder()) > intorder )
+            {
+               intorder = k;
+            }
+         }
+         else
+         {
+            fe2 = NULL;
+         }
+      }
+
+      intorder = 2 * intorder;  // <-------------
+      const IntegrationRule *ir;
+      if (irs)
+      {
+         ir = irs[face_elem_transf->GetGeometryType()];
+      }
+      else
+      {
+         ir = &(IntRules.Get(face_elem_transf->GetGeometryType(), intorder));
+      }
+      err_val.SetSize(ir->GetNPoints());
+      ell_coeff_val.SetSize(ir->GetNPoints());
+      // side 1
+      transf = face_elem_transf->Elem1;
+      fe1 = fes->GetFE(iel1);
+      fdof = fe1->GetDof();
+      fes->GetElementVDofs(iel1, vdofs);
+      shape.SetSize(fdof);
+      el_dofs.SetSize(fdof);
+      for (k = 0; k < fdof; k++)
+         if (vdofs[k] >= 0)
+         {
+            el_dofs(k) =   (*this)(vdofs[k]);
+         }
+         else
+         {
+            el_dofs(k) = - (*this)(-1-vdofs[k]);
+         }
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         face_elem_transf->Loc1.Transform(ir->IntPoint(j), eip);
+         fe1->CalcShape(eip, shape);
+         transf->SetIntPoint(&eip);
+         ell_coeff_val(j) = ell_coeff->Eval(*transf, eip);
+         err_val(j) = exsol->Eval(*transf, eip) - (shape * el_dofs);
+      }
+      if (fe2 != NULL)
+      {
+         // side 2
+         transf = face_elem_transf->Elem2;
+         fdof = fe2->GetDof();
+         shape.SetSize(fdof);
+         el_dofs.SetSize(fdof);
+         if (shared_face)
+         {
+            pfes->GetFaceNbrElementVDofs(iel2, vdofs);
+            for (k = 0; k < fdof; k++)
+               if (vdofs[k] >= 0)
+               {
+                  el_dofs(k) = face_nbr_data[vdofs[k]];
+               }
+               else
+               {
+                  el_dofs(k) = - face_nbr_data[-1-vdofs[k]];
+               }
+         }
+         else
+         {
+            pfes->GetElementVDofs(iel2, vdofs);
+            for (k = 0; k < fdof; k++)
+               if (vdofs[k] >= 0)
+               {
+                  el_dofs(k) = (*this)(vdofs[k]);
+               }
+               else
+               {
+                  el_dofs(k) = - (*this)(-1 - vdofs[k]);
+               }
+         }
+         for (int j = 0; j < ir->GetNPoints(); j++)
+         {
+            face_elem_transf->Loc2.Transform(ir->IntPoint(j), eip);
+            fe2->CalcShape(eip, shape);
+            transf->SetIntPoint(&eip);
+            ell_coeff_val(j) += ell_coeff->Eval(*transf, eip);
+            ell_coeff_val(j) *= 0.5;
+            err_val(j) -= (exsol->Eval(*transf, eip) - (shape * el_dofs));
+         }
+      }
+      transf = face_elem_transf;
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         transf->SetIntPoint(&ip);
+         error += shared_face_factor*(ip.weight * Nu * ell_coeff_val(j) *
+                                      pow(transf->Weight(), 1.0-1.0/(dim-1)) *
+                                      err_val(j) * err_val(j));
+      }
+   }
+
+   error = (error < 0.0) ? -sqrt(-error) : sqrt(error);
+   return GlobalLpNorm(2.0, error, pfes->GetComm());
+}
+
 void ParGridFunction::Save(std::ostream &out) const
 {
    double *data_  = const_cast<double*>(HostRead());
@@ -860,7 +1021,6 @@ double GlobalLpNorm(const double p, double loc_norm, MPI_Comm comm)
    return glob_norm;
 }
 
-
 void ParGridFunction::ComputeFlux(
    BilinearFormIntegrator &blfi,
    GridFunction &flux, bool wcoef, int subdomain)
@@ -1001,6 +1161,6 @@ double L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
    return pow(glob_error, 1.0/norm_p);
 }
 
-}
+} // namespace mfem
 
 #endif // MFEM_USE_MPI
