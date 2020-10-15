@@ -688,6 +688,7 @@ int main(int argc, char *argv[])
    }
 
    double t = 0.0, told=0.;
+   double dt0=dt, dt_min=0.0005;
    oper.SetTime(t);
    ode_solver->Init(oper);
 
@@ -767,6 +768,8 @@ int main(int argc, char *argv[])
 
    MPI_Barrier(MPI_COMM_WORLD); 
    double start = MPI_Wtime();
+   bool reduced_step=false;
+   int  success_step=0;
 
    if (myid == 0) cout<<"Start time stepping..."<<endl;
 
@@ -777,12 +780,26 @@ int main(int argc, char *argv[])
    int current_amr_level=levels3;
    for (int ti = 1; !last_step; ti++)
    {
+      //change time step by user
       if (t_change>0. && t>=t_change)
       {
         dt=dt/2.;
         if (myid==0) cout << "change time step to "<<dt<<endl;
         t_change=0.;
       }
+
+      //change time step when problem becomes nicer
+      if (reduced_step){
+          success_step++;
+
+          if (success_step>10)
+          {
+              dt = min(dt*1.1, dt0);
+              success_step=0;
+              if (myid==0) cout << "increase time step to "<<dt<<endl;
+          }
+      }
+
       double dt_real = min(dt, t_final - t);
 
       if (t>t_refs)
@@ -857,10 +874,21 @@ int main(int argc, char *argv[])
       if (!oper.getConverged())
       {
          t=told;
-         dt=dt/2.;
+         if (dt<=dt_min)
+         {
+            if (myid==0) cout << "====== the time step is already <= dt_min, give up for now ======"<<endl;
+            break;
+         }
+
+         dt=max(dt/2., dt_min);
+
          dt_real = min(dt, t_final - t);
          oper.resetConverged();
          if (myid==0) cout << "====== reduced dt: new dt = "<<dt<<" ======"<<endl;
+
+         //reset information for increasing time step
+         reduced_step=true;
+         success_step=0;
 
          vx=vxold;
          ode_solver->Step(vx, t, dt_real);
