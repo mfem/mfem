@@ -45,6 +45,7 @@ public:
                              use a single V-cycle
    */
    MatrixFreeAuxiliarySpace(
+      MPI_Comm comm_,
       ParMesh& mesh_lor, Coefficient* alpha_coeff,
       Coefficient* beta_coeff, Array<int>& ess_bdr,
       Operator& curlcurl_oper, Operator& pi,
@@ -60,7 +61,7 @@ public:
                              use a single V-cycle
    */
    MatrixFreeAuxiliarySpace(
-      ParMesh& mesh_lor,
+      MPI_Comm comm_, ParMesh& mesh_lor,
       Coefficient* beta_coeff, Array<int>& ess_bdr,
       Operator& curlcurl_oper, Operator& g,
       int cg_iterations = 1);
@@ -87,6 +88,8 @@ private:
    Operator* aspacewrapper_;
 
    mutable int inner_aux_iterations_;
+
+   MPI_Comm comm;
 };
 
 /** @brief Perform AMS cycle with generic Operator objects.
@@ -143,7 +146,7 @@ class MatrixFreeAMS : public Solver
 {
 public:
    /** @brief Construct matrix-free AMS preconditioner
-       
+
        @param alpha_coeff  coefficient on curl-curl term in Maxwell problem
                            (can be null, in which case constant 1 is assumed)
        @param beta_coeff   coefficient on mass term in Maxwell problem
