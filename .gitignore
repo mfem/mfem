@@ -153,6 +153,8 @@ examples/pumi/mesh.*
 examples/pumi/sol.*
 examples/pumi/displaced.mesh
 
+examples/superlu/ex1p
+
 miniapps/electromagnetics/volta
 miniapps/electromagnetics/tesla
 miniapps/electromagnetics/maxwell
