@@ -207,21 +207,32 @@ void ParBlockNonlinearForm::SetEssentialBC(const
 
    BlockNonlinearForm::SetEssentialBC(bdr_attr_is_ess, nullarray);
 
-   for (int s=0; s<fes.Size(); ++s)
+   for (int s = 0; s < fes.Size(); ++s)
    {
       if (rhs[s])
       {
-         ParFiniteElementSpace *pfes = ParFESpace(s);
-         for (int i=0; i < ess_vdofs[s]->Size(); ++i)
-         {
-            int tdof = pfes->GetLocalTDofNumber((*(ess_vdofs[s]))[i]);
-            if (tdof >= 0)
-            {
-               (*rhs[s])(tdof) = 0.0;
-            }
-         }
+         rhs[s]->SetSubVector(*ess_tdofs[s], 0.0);
       }
    }
+}
+
+double ParBlockNonlinearForm::GetEnergy(const Vector &x) const
+{
+   xs_true.Update(x.GetData(), block_trueOffsets);
+   xs.Update(block_offsets);
+
+   for (int s = 0; s < fes.Size(); ++s)
+   {
+      fes[s]->GetProlongationMatrix()->Mult(xs_true.GetBlock(s), xs.GetBlock(s));
+   }
+
+   double enloc = BlockNonlinearForm::GetEnergyBlocked(xs);
+   double englo = 0.0;
+
+   MPI_Allreduce(&enloc, &englo, 1, MPI_DOUBLE, MPI_SUM,
+                 ParFESpace(0)->GetComm());
+
+   return englo;
 }
 
 void ParBlockNonlinearForm::Mult(const Vector &x, Vector &y) const
@@ -248,6 +259,8 @@ void ParBlockNonlinearForm::Mult(const Vector &x, Vector &y) const
    {
       fes[s]->GetProlongationMatrix()->MultTranspose(
          ys.GetBlock(s), ys_true.GetBlock(s));
+
+      ys_true.GetBlock(s).SetSubVector(*ess_tdofs[s], 0.0);
    }
 }
 
@@ -264,8 +277,18 @@ const BlockOperator & ParBlockNonlinearForm::GetLocalGradient(
          xs_true.GetBlock(s), xs.GetBlock(s));
    }
 
-   BlockNonlinearForm::GetGradientBlocked(xs); // (re)assemble Grad with b.c.
+   BlockNonlinearForm::ComputeGradientBlocked(xs); // (re)assemble Grad with b.c.
 
+   delete BlockGrad;
+   BlockGrad = new BlockOperator(block_offsets);
+
+   for (int i = 0; i < fes.Size(); ++i)
+   {
+      for (int j = 0; j < fes.Size(); ++j)
+      {
+         BlockGrad->SetBlock(i, j, Grads(i, j));
+      }
+   }
    return *BlockGrad;
 }
 
@@ -321,6 +344,9 @@ BlockOperator & ParBlockNonlinearForm::GetGradient(const Vector &x) const
                                    pfes[s1]->GetDofOffsets(), Grads(s1,s1));
             Ph.ConvertFrom(pfes[s1]->Dof_TrueDof_Matrix());
             phBlockGrad(s1,s1)->MakePtAP(dA, Ph);
+
+            OperatorHandle Ae;
+            Ae.EliminateRowsCols(*phBlockGrad(s1,s1), *ess_tdofs[s1]);
          }
          else
          {
@@ -334,6 +360,9 @@ BlockOperator & ParBlockNonlinearForm::GetGradient(const Vector &x) const
             Ph.ConvertFrom(pfes[s2]->Dof_TrueDof_Matrix());
 
             phBlockGrad(s1,s2)->MakeRAP(Rh, dA, Ph);
+
+            phBlockGrad(s1,s2)->EliminateRows(*ess_tdofs[s1]);
+            phBlockGrad(s1,s2)->EliminateCols(*ess_tdofs[s2]);
          }
 
          pBlockGrad->SetBlock(s1, s2, phBlockGrad(s1,s2)->Ptr());
