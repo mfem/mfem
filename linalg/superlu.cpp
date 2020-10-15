@@ -537,7 +537,29 @@ void SuperLUSolver::Mult( const Vector & x, Vector & y ) const
 
    if ( info != 0 )
    {
-      if ( info <= A->ncol )
+      if ( info < 0 )
+      {
+         switch (-info)
+         {
+            case 1:
+               MFEM_ABORT("SuperLU:  SuperLU options are invalid.");
+               break;
+            case 2:
+               MFEM_ABORT("SuperLU:  Matrix A (in Ax=b) is invalid.");
+               break;
+            case 5:
+               MFEM_ABORT("SuperLU:  Vector b dimension (in Ax=b) is invalid.");
+               break;
+            case 6:
+               MFEM_ABORT("SuperLU:  Number of right-hand sides is invalid.");
+               break;
+            default:
+               MFEM_ABORT("SuperLU:  Parameter with index "
+                          << -info << "invalid. (1-indexed)");
+               break;
+         }
+      }
+      else if ( info <= A->ncol )
       {
          MFEM_ABORT("SuperLU:  Found a singular matrix, U("
                     << info << "," << info << ") is exactly zero.");
