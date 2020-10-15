@@ -22,6 +22,7 @@ namespace mfem
 
 // forward declarations
 class Coefficient;
+class MatrixCoefficient;
 class ParMesh;
 class ParBilinearForm;
 class ParDiscreteLinearOperator;
@@ -45,10 +46,9 @@ public:
                              use a single V-cycle
    */
    MatrixFreeAuxiliarySpace(
-      MPI_Comm comm_,
-      ParMesh& mesh_lor, Coefficient* alpha_coeff,
-      Coefficient* beta_coeff, Array<int>& ess_bdr,
-      Operator& curlcurl_oper, Operator& pi,
+      MPI_Comm comm_, ParMesh& mesh_lor, Coefficient* alpha_coeff,
+      Coefficient* beta_coeff, MatrixCoefficient* beta_mcoeff,
+      Array<int>& ess_bdr, Operator& curlcurl_oper, Operator& pi,
       int cg_iterations = 0);
 
    /** @brief G space constructor
@@ -61,10 +61,9 @@ public:
                              use a single V-cycle
    */
    MatrixFreeAuxiliarySpace(
-      MPI_Comm comm_, ParMesh& mesh_lor,
-      Coefficient* beta_coeff, Array<int>& ess_bdr,
-      Operator& curlcurl_oper, Operator& g,
-      int cg_iterations = 1);
+      MPI_Comm comm_, ParMesh& mesh_lor, Coefficient* beta_coeff,
+      MatrixCoefficient* beta_mcoeff, Array<int>& ess_bdr,
+      Operator& curlcurl_oper, Operator& g, int cg_iterations = 1);
 
    ~MatrixFreeAuxiliarySpace();
 
@@ -161,8 +160,9 @@ public:
     */
    MatrixFreeAMS(ParBilinearForm& aform, Operator& oper,
                  ParFiniteElementSpace& nd_fespace, Coefficient* alpha_coeff,
-                 Coefficient* beta_coeff, Array<int>& ess_bdr,
-                 int inner_pi_its = 0, int inner_g_its = 1);
+                 Coefficient* beta_coeff, MatrixCoefficient* beta_mcoeff,
+                 Array<int>& ess_bdr, int inner_pi_its = 0, int inner_g_its = 1);
+
    ~MatrixFreeAMS();
 
    void SetOperator(const Operator &op) {}
