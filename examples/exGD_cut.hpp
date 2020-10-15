@@ -68,13 +68,23 @@ public:
    void BuildNeighbourMat(const Array<int> &els_id,
                           DenseMatrix &mat_cent,
                           DenseMatrix &mat_quad) const;
-
+   
+      /// An overload function for build the densmatrix
+   void BuildNeighbourMat(const Array<int> &els_id,
+                          DenseMatrix &mat_cent,
+                          DenseMatrix &mat_quad, int di) const;
    /// constructs the neighbour set for given mesh element. 
    /// \param[in]  id - the id of the element for which we need neighbour
    /// \param[in]  req_n - the required number of neighbours for patch
    /// \param[out] nels - the set of neighbours (may contain more element than required)
    void GetNeighbourSet(int id, int req_n, Array<int> &nels) const;
-
+  
+  /// constructs the neighbour set for given mesh element. 
+   /// \param[in]  id - the id of the element for which we need neighbour
+   /// \param[in]  req_n - the required number of neighbours for patch
+   /// \param[out] nels_x - the set of neighbours in `x` dir (may contain more element than required)
+   /// \param[out] nels_y - the set of neighbours in `y` dir (may contain more element than required)
+   virtual void GetNeighbourSet(int id, int req_n, Array<int> &nels_x, Array<int> &nels_y) const;
    /// provides the center (barycenter) of an element
    /// \param[in]  id - the id of the element for which we need barycenter
    /// \param[out] cent - the vector of coordinates of center of an element

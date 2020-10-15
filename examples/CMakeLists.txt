@@ -32,6 +32,7 @@ list(APPEND ALL_EXE_SRCS
   ex23.cpp
   ex24.cpp
   ex25.cpp
+  exLaplace_GD_tensorBasis.cpp
   exPoisson_GD.cpp
   exCircle.cpp
   exArea.cpp
