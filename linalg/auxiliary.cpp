@@ -76,9 +76,6 @@ void GeneralAMS::FormResidual(const Vector& rhs, const Vector& x,
 */
 void GeneralAMS::Mult(const Vector& x, Vector& y) const
 {
-   int rank;
-   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
    const bool extra_smoothing = false;
 
    StopWatch chrono;
@@ -166,6 +163,7 @@ void GeneralAMS::Mult(const Vector& x, Vector& y) const
 
 // Pi-space constructor
 MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
+   MPI_Comm comm_,
    ParMesh& mesh_lor, Coefficient* alpha_coeff,
    Coefficient* beta_coeff, Array<int>& ess_bdr,
    Operator& curlcurl_oper,
@@ -173,6 +171,7 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    int cg_iterations)
    :
    Solver(pi.Width()),
+   comm(comm_),
    matfree_(NULL),
    cg_(NULL),
    inner_aux_iterations_(0)
@@ -238,12 +237,13 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    object, as well as the use of a single CG iteration (instead of just
    an AMG V-cycle). */
 MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
-   ParMesh& mesh_lor,
+   MPI_Comm comm_, ParMesh& mesh_lor,
    Coefficient* beta_coeff, Array<int>& ess_bdr,
    Operator& curlcurl_oper, Operator& g,
    int cg_iterations)
    :
    Solver(curlcurl_oper.Height()),
+   comm(comm_),
    matfree_(NULL),
    cg_(NULL),
    inner_aux_iterations_(0)
@@ -311,7 +311,7 @@ void MatrixFreeAuxiliarySpace::SetupCG(
    MFEM_ASSERT(matfree_->Height() == aspacepc_->Height(),
                "Operators don't match!");
 
-   cg_ = new CGSolver(MPI_COMM_WORLD);
+   cg_ = new CGSolver(comm);
    cg_->SetOperator(*matfree_);
    cg_->SetPreconditioner(*aspacepc_);
    if (inner_cg_iterations > 99)
@@ -325,9 +325,13 @@ void MatrixFreeAuxiliarySpace::SetupCG(
       cg_->SetMaxIter(inner_cg_iterations);
    }
    if (very_verbose)
+   {
       cg_->SetPrintLevel(1);
+   }
    else
+   {
       cg_->SetPrintLevel(-1);
+   }
 
    aspacewrapper_ = cg_;
 }
@@ -382,7 +386,7 @@ void MatrixFreeAuxiliarySpace::SetupBoomerAMG(int system_dimension)
 void MatrixFreeAuxiliarySpace::Mult(const Vector& x, Vector& y) const
 {
    int rank;
-   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+   MPI_Comm_rank(comm, &rank);
 
    y = 0.0;
    aspacewrapper_->Mult(x, y);
@@ -395,14 +399,11 @@ void MatrixFreeAuxiliarySpace::Mult(const Vector& x, Vector& y) const
 
 MatrixFreeAuxiliarySpace::~MatrixFreeAuxiliarySpace()
 {
-   int rank;
-   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
    delete aspacematrix_;
    delete aspacepc_;
    delete matfree_;
-   if (aspacepc_ != aspacewrapper_) delete aspacewrapper_;
-   if (cg_ != aspacewrapper_) delete cg_;
+   if (aspacepc_ != aspacewrapper_) { delete aspacewrapper_; }
+   if (cg_ != aspacewrapper_) { delete cg_; }
 }
 
 MatrixFreeAMS::MatrixFreeAMS(
@@ -448,16 +449,19 @@ MatrixFreeAMS::MatrixFreeAMS(
    /* A lot depends on the quality of the auxiliary space solves.
       For high-contrast coefficients, and other difficult problems,
       inner iteration counts may need to be increased.
-      
+
       Boundary conditions can matter as well (see DIAG_ZERO policy) */
 
    // build G space solver
-   Gspacesolver_ = new MatrixFreeAuxiliarySpace(
-      mesh_lor, beta_coeff, ess_bdr, oper, *G_, inner_g_iterations);
+   Gspacesolver_ = new MatrixFreeAuxiliarySpace(nd_fespace.GetComm(), mesh_lor,
+                                                beta_coeff, ess_bdr, oper, *G_,
+                                                inner_g_iterations);
 
    // build Pi space solver
-   Pispacesolver_ = new MatrixFreeAuxiliarySpace(
-      mesh_lor, alpha_coeff, beta_coeff, ess_bdr, oper, *Pi_, inner_pi_iterations);
+   Pispacesolver_ = new MatrixFreeAuxiliarySpace(nd_fespace.GetComm(), mesh_lor,
+                                                 alpha_coeff, beta_coeff,
+                                                 ess_bdr, oper, *Pi_,
+                                                 inner_pi_iterations);
 
    general_ams_ = new GeneralAMS(oper, *Pi_, *G_, *Pispacesolver_,
                                  *Gspacesolver_, *smoother_, ess_tdof_list);
