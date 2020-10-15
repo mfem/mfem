@@ -17,7 +17,6 @@ using namespace std;
 
 #define MIXED_MATRIX_NO_TRANSPOSE
 
-
 #define SPARSE_ASDCOMPLEX
 #define HYPRE_PARALLEL_ASDCOMPLEX
 
@@ -54,6 +53,8 @@ using namespace std;
 //#define SD_ITERATIVE_GMG
 //#define SD_ITERATIVE_GMG_PA
 //#define SD_ITERATIVE_FULL
+
+//#define SD_ITERATIVE_AMS
 
 //#define IF_ITERATIVE
 
@@ -1489,6 +1490,11 @@ private:
    ParFiniteElementSpace **fespace;
    Operator **ifNDmassInv, **ifH1massInv;
    HypreParMatrix **sdND;
+
+#ifdef SD_ITERATIVE_AMS
+   HypreParMatrix **sdNDpos;
+#endif
+
    //HypreParMatrix **sdNDcopy;
    HypreParMatrix **A_SS;
    HypreParMatrix **sdNDPen;
@@ -2617,7 +2623,7 @@ public:
 
       LSpcg.SetAbsTol(1.0e-12);
       LSpcg.SetRelTol(1.0e-8);
-      LSpcg.SetMaxIter(2000);
+      LSpcg.SetMaxIter(200);
       LSpcg.SetOperator(*LS_Maxwellop);
       LSpcg.SetPrintLevel(0);
 

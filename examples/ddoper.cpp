@@ -5510,6 +5510,9 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_,
    injSD = new BlockOperator*[numSubdomains];
    precAsd = new Solver*[numSubdomains];
    sdND = new HypreParMatrix*[numSubdomains];
+#ifdef SD_ITERATIVE_AMS
+   sdNDpos = new HypreParMatrix*[numSubdomains];
+#endif
    //sdNDcopy = new HypreParMatrix*[numSubdomains];
    A_SS = new HypreParMatrix*[numSubdomains];
    sdNDinv = new Operator*[numSubdomains];
@@ -7964,7 +7967,40 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_,
                                                      sd_com[m]);
                   delete HypreSDComplex;
 #else
+#ifdef SD_ITERATIVE_AMS
+                  {
+                     GMRESSolver *gmres_ams = new GMRESSolver(sd_com[m]);
+                     gmres_ams->SetOperator(*HypreSDComplex);
+
+                     gmres_ams->SetRelTol(1e-12);
+                     gmres_ams->SetMaxIter(1000);
+                     gmres_ams->SetPrintLevel(-1);
+
+                     Array<int> *offsetsAMS = new Array<int> (3);
+
+                     (*offsetsAMS) = 0;
+                     (*offsetsAMS)[1] = (fespace[m] != NULL) ? fespace[m]->GetTrueVSize() : 0;
+                     (*offsetsAMS)[2] = (*offsetsAMS)[1];
+                     (*offsetsAMS).PartialSum();
+
+                     //HypreAMS *precRe = new HypreAMS(*(AsdRe_HypreBlocks[m](0,0)), fespace[m]);
+                     HypreAMS *precRe = new HypreAMS(*(sdNDpos[m]), fespace[m]);
+
+                     BlockDiagonalPreconditioner *blockAMS = new BlockDiagonalPreconditioner(
+                        *offsetsAMS);
+
+                     blockAMS->SetDiagonalBlock(0, precRe);
+                     blockAMS->SetDiagonalBlock(1, precRe);
+
+                     gmres_ams->SetPreconditioner(*blockAMS);
+                     gmres_ams->SetName("invAsdComplexBlockAMS" + std::to_string(m));
+                     gmres_ams->iterative_mode = false;
+
+                     sdNDinv[m] = gmres_ams;
+                  }
+#else
                   sdNDinv[m] = CreateSerialUMFPackSolver(HypreSDComplex, sd_com[m]);
+#endif
 #endif
                }
 #endif
@@ -11567,6 +11603,10 @@ void DDMInterfaceOperator::CreateSubdomainMatrices(const int subdomain,
    sdND[subdomain] = new HypreParMatrix();
    //sdNDcopy[subdomain] = new HypreParMatrix();
 
+#ifdef SD_ITERATIVE_AMS
+   sdNDpos[subdomain] = new HypreParMatrix();
+#endif
+
    Array<int> ess_tdof_list;  // empty
 
    // Eliminate essential BC on exterior boundary.
@@ -11756,6 +11796,19 @@ void DDMInterfaceOperator::CreateSubdomainMatrices(const int subdomain,
 
             //bf_sdND[subdomain]->FormLinearSystem(dbg_tdof_list, xsd, *b, Aptr, sdX, *(srcSD[subdomain]));
             sdND[subdomain] = Aptr.As<HypreParMatrix>();
+
+#ifdef SD_ITERATIVE_AMS
+            {
+               OperatorPtr Apos;
+               ConstantCoefficient plusk2(k2);
+               ParBilinearForm *bfpos = new ParBilinearForm(fespace[subdomain]);
+               bfpos->AddDomainIntegrator(new CurlCurlIntegrator(one));
+               bfpos->AddDomainIntegrator(new VectorFEMassIntegrator(plusk2));
+               bfpos->Assemble();
+               bfpos->FormSystemMatrix(ess_tdof_list, Apos);
+               sdNDpos[subdomain] = Apos.As<HypreParMatrix>();
+            }
+#endif
 
             cout << m_rank << ": sdND " << subdomain << " ess tdof size " <<
                  ess_tdof_list.Size() << endl;

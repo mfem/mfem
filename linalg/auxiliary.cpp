@@ -366,6 +366,7 @@ public:
       Solver(mat.Height()),  ess_tdof_list_(ess_tdof_list)
       //Solver(mat.Height()), amg_(mat), ess_tdof_list_(ess_tdof_list)
    {
+#ifdef MFEM_USE_AMGX
       if (useAMGx)
       {
          const bool amgx_verbose = false;
@@ -375,6 +376,7 @@ public:
          s = amgx;
       }
       else
+#endif
       {
          HypreBoomerAMG *amg = new HypreBoomerAMG(mat);
          amg->SetPrintLevel(0);
@@ -425,6 +427,7 @@ void MatrixFreeAuxiliarySpace::SetupBoomerAMG(int system_dimension)
    else // if (system_dimension > 0)
    {
       // Pi-space solver is a vector space
+#ifdef MFEM_USE_AMGX
       if (useAMGx)
       {
          const bool amgx_verbose = false;
@@ -434,6 +437,7 @@ void MatrixFreeAuxiliarySpace::SetupBoomerAMG(int system_dimension)
          aspacepc_ = amgx;
       }
       else
+#endif
       {
          HypreBoomerAMG* hpc = new HypreBoomerAMG(*aspacematrix_);
          hpc->SetSystemsOptions(system_dimension);
