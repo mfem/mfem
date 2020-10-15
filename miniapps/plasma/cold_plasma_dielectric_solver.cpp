@@ -1407,7 +1407,7 @@ CPDSolver::Solve()
          Array<int> ess_tdof;
          m2_->FormSystemMatrix(ess_tdof, M2);
 
-         D.SetSize(HDivFESpace_->TrueVSize());
+         D.SetSize(HDivFESpace_->TrueVSize()); D = 0.0;
          RHS2.SetSize(HDivFESpace_->TrueVSize());
 
          Operator *diag = NULL;
@@ -1493,7 +1493,7 @@ CPDSolver::Solve()
           
           m0_->FormSystemMatrix(ess_tdof, M0);
 
-          Phi.SetSize(H1FESpace_->TrueVSize());
+          Phi.SetSize(H1FESpace_->TrueVSize()); Phi = 0.0;
           RHS0.SetSize(H1FESpace_->TrueVSize());
 
           HypreDiagScale diag(M0);
