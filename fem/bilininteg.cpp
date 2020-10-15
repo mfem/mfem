@@ -833,9 +833,10 @@ void MassIntegrator::AssembleElementMatrix
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
-      el.CalcPhysShape(ip, shape);
-
       Trans.SetIntPoint (&ip);
+
+      el.CalcPhysShape(Trans, shape);
+
       w = Trans.Weight() * ip.weight;
       if (Q)
       {
@@ -868,10 +869,11 @@ void MassIntegrator::AssembleElementMatrix2(
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
-      trial_fe.CalcPhysShape(ip, shape);
-      test_fe.CalcPhysShape(ip, te_shape);
-
       Trans.SetIntPoint (&ip);
+
+      trial_fe.CalcPhysShape(Trans, shape);
+      test_fe.CalcPhysShape(Trans, te_shape);
+
       w = Trans.Weight() * ip.weight;
       if (Q)
       {
