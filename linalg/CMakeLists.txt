@@ -62,6 +62,12 @@ if (MFEM_USE_MPI)
       petsc.cpp)
     list(APPEND HDRS
       petsc.hpp)
+    if (MFEM_USE_SLEPC)
+      list(APPEND SRCS
+        slepc.cpp)
+      list(APPEND HDRS
+        slepc.hpp)
+    endif()
   endif()
 endif()
 
@@ -90,6 +96,11 @@ endif()
 if (MFEM_USE_HIOP)
   list(APPEND SRCS hiop.cpp)
   list(APPEND HDRS hiop.hpp)
+endif()
+
+if (MFEM_USE_MKL_CPARDISO)
+  list(APPEND SRCS cpardiso.cpp)
+  list(APPEND HDRS cpardiso.hpp)
 endif()
 
 convert_filenames_to_full_paths(SRCS)

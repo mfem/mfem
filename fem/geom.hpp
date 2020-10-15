@@ -273,6 +273,12 @@ public:
    /// @note This method always uses Quadrature1D::OpenUniform points.
    const IntegrationRule *RefineInterior(Geometry::Type Geom, int Times);
 
+   /// Get the Refinement level based on number of points
+   virtual int GetRefinementLevelFromPoints(Geometry::Type Geom, int Npts);
+
+   /// Get the Refinement level based on number of elements
+   virtual int GetRefinementLevelFromElems(Geometry::Type geom, int Npts);
+
    ~GeometryRefiner();
 };
 

@@ -18,6 +18,10 @@
 #include "hypre.hpp"
 #endif
 
+#ifdef MFEM_USE_SUITESPARSE
+#include <umfpack.h>
+#endif
+
 namespace mfem
 {
 
@@ -96,7 +100,7 @@ public:
    /** @brief Real or imaginary part accessor methods
 
        The following accessor methods should only be called if the requested
-       part of the opertor is known to exist.  This can be checked with
+       part of the operator is known to exist. This can be checked with
        hasRealPart() or hasImagPart().
    */
    virtual Operator & real();
@@ -108,6 +112,8 @@ public:
    virtual void MultTranspose(const Vector &x, Vector &y) const;
 
    virtual Type GetType() const { return Complex_Operator; }
+
+   Convention GetConvention() const { return convention_; }
 
 protected:
    // Let this be hidden from the public interface since the implementation
@@ -160,13 +166,78 @@ public:
    /** Combine the blocks making up this complex operator into a single
        SparseMatrix. The resulting matrix can be passed to solvers which require
        access to the matrix entries themselves, such as sparse direct solvers,
-       rather than simply the action of the opertor. Note that this combined
+       rather than simply the action of the operator. Note that this combined
        operator requires roughly twice the memory of the block structured
        operator. */
    SparseMatrix * GetSystemMatrix() const;
 
    virtual Type GetType() const { return MFEM_ComplexSparseMat; }
 };
+
+#ifdef MFEM_USE_SUITESPARSE
+/** @brief Interface with UMFPack solver specialized for ComplexSparseMatrix
+    This approach avoids forming a monolithic SparseMatrix which leads
+    to increased memory and flops
+ */
+class ComplexUMFPackSolver : public Solver
+{
+protected:
+   bool use_long_ints;
+   bool transa;
+   ComplexSparseMatrix *mat;
+
+   void *Numeric;
+   SuiteSparse_long *AI, *AJ;
+
+   void Init();
+
+public:
+   double Control[UMFPACK_CONTROL];
+   mutable double Info[UMFPACK_INFO];
+
+   /** @brief For larger matrices, if the solver fails, set the parameter @a
+       _use_long_ints = true. */
+   ComplexUMFPackSolver(bool _use_long_ints = false, bool transa_ = false)
+      : use_long_ints(_use_long_ints), transa(transa_) { Init(); }
+   /** @brief Factorize the given ComplexSparseMatrix using the defaults.
+       For larger matrices, if the solver fails, set the parameter
+       @a _use_long_ints = true. */
+   ComplexUMFPackSolver(ComplexSparseMatrix &A, bool _use_long_ints = false,
+                        bool transa_ = false)
+      : use_long_ints(_use_long_ints), transa(transa_) { Init(); SetOperator(A); }
+
+   /** @brief Factorize the given Operator @a op which must be
+       a ComplexSparseMatrix.
+
+       The factorization uses the parameters set in the #Control data member.
+       @note This method calls SparseMatrix::SortColumnIndices()
+       for real and imag parts of the ComplexSparseMatrix,
+       modifying the matrices if the column indices are not already sorted. */
+   virtual void SetOperator(const Operator &op);
+
+   // Set the print level field in the #Control data member.
+   void SetPrintLevel(int print_lvl) { Control[UMFPACK_PRL] = print_lvl; }
+
+   // This determines the action of MultTranspose (see below for details)
+   void SetTransposeSolve(bool transa_) { transa = transa_; }
+
+   /** @brief This is solving the system A x = b */
+   virtual void Mult(const Vector &b, Vector &x) const;
+
+   /** @brief
+      This is solving the system:
+      A^H x = b (when transa = false)
+      This is equivalent to solving the transpose block system for the
+      case of Convention = HERMITIAN
+      A^T x = b (when transa = true)
+      This is equivalent to solving the transpose block system for the
+      case of Convention = BLOCK_SYMMETRIC */
+   virtual void MultTranspose(const Vector &b, Vector &x) const;
+
+   virtual ~ComplexUMFPackSolver();
+};
+
+#endif
 
 #ifdef MFEM_USE_MPI
 
@@ -198,7 +269,7 @@ public:
        HypreParMatrix. The resulting matrix can be passed to solvers which
        require access to the matrix entries themselves, such as sparse direct
        solvers or Hypre preconditioners, rather than simply the action of the
-       opertor. Note that this combined operator requires roughly twice the
+       operator. Note that this combined operator requires roughly twice the
        memory of the block structured operator. */
    HypreParMatrix * GetSystemMatrix() const;
 

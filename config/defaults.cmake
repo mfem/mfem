@@ -39,6 +39,7 @@ option(MFEM_USE_GNUTLS "Enable GNUTLS usage" OFF)
 option(MFEM_USE_GSLIB "Enable GSLIB usage" OFF)
 option(MFEM_USE_NETCDF "Enable NETCDF usage" OFF)
 option(MFEM_USE_PETSC "Enable PETSc support." OFF)
+option(MFEM_USE_SLEPC "Enable SLEPc support." OFF)
 option(MFEM_USE_MPFR "Enable MPFR usage." OFF)
 option(MFEM_USE_SIDRE "Enable Axom/Sidre usage" OFF)
 option(MFEM_USE_CONDUIT "Enable Conduit usage" OFF)
@@ -49,7 +50,9 @@ option(MFEM_USE_OCCA "Enable OCCA" OFF)
 option(MFEM_USE_RAJA "Enable RAJA" OFF)
 option(MFEM_USE_CEED "Enable CEED" OFF)
 option(MFEM_USE_UMPIRE "Enable Umpire" OFF)
+option(MFEM_USE_SIMD "Enable use of SIMD intrinsics" OFF)
 option(MFEM_USE_ADIOS2 "Enable ADIOS2" OFF)
+option(MFEM_USE_MKL_CPARDISO "Enable MKL CPardiso" OFF)
 
 set(MFEM_MPI_NP 4 CACHE STRING "Number of processes used for MPI tests")
 
@@ -86,6 +89,8 @@ set(METIS_DIR "${MFEM_DIR}/../metis-4.0" CACHE PATH "Path to the METIS library."
 
 set(LIBUNWIND_DIR "" CACHE PATH "Path to Libunwind.")
 
+# For sundials_nvecmpiplusx and nvecparallel remember to build with MPI_ENABLE=ON
+# and modify cmake variables for hypre for sundials
 set(SUNDIALS_DIR "${MFEM_DIR}/../sundials-5.0.0/instdir" CACHE PATH
     "Path to the SUNDIALS library.")
 # The following may be necessary, if SUNDIALS was built with KLU:
@@ -154,6 +159,10 @@ set(PETSC_DIR "${MFEM_DIR}/../petsc" CACHE PATH
     "Path to the PETSc main directory.")
 set(PETSC_ARCH "arch-linux2-c-debug" CACHE STRING "PETSc build architecture.")
 
+set(SLEPC_DIR "${MFEM_DIR}/../slepc" CACHE PATH
+    "Path to the SLEPc main directory.")
+set(SLEPC_ARCH "arch-linux2-c-debug" CACHE STRING "SLEPC build architecture.")
+
 set(MPFR_DIR "" CACHE PATH "Path to the MPFR library.")
 
 set(CONDUIT_DIR "${MFEM_DIR}/../conduit" CACHE PATH
@@ -171,6 +180,10 @@ set(HIOP_DIR "${MFEM_DIR}/../hiop/install" CACHE STRING
     "Directory where HiOp is installed")
 set(HIOP_REQUIRED_PACKAGES "BLAS" "LAPACK" CACHE STRING
     "Packages that HiOp depends on.")
+
+set(MKL_CPARDISO_DIR "" CACHE STRING "MKL installation path.")
+set(MKL_MPI_WRAPPER_LIB "mkl_blacs_mpich_lp64" CACHE STRING "MKL MPI wrapper library")
+set(MKL_LIBRARY_DIR "" CACHE STRING "Custom library subdirectory")
 
 set(OCCA_DIR "${MFEM_DIR}/../occa" CACHE PATH "Path to OCCA")
 set(RAJA_DIR "${MFEM_DIR}/../raja" CACHE PATH "Path to RAJA")

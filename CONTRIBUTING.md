@@ -109,6 +109,7 @@ The MFEM source code has the following structure:
   ├── linalg
   ├── mesh
   ├── miniapps
+  │   ├── adjoint
   │   ├── common
   │   ├── electromagnetics
   │   ├── gslib
