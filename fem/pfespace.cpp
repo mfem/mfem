@@ -487,6 +487,11 @@ void ParFiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
 
 void ParFiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
 {
+   if (face_dof)
+   {
+      face_dof->GetRow(i, dofs);
+      return;
+   }
    FiniteElementSpace::GetFaceDofs(i, dofs);
    if (Conforming())
    {
@@ -1167,7 +1172,7 @@ void ParFiniteElementSpace::GetFaceNbrFaceVDofs(int i, Array<int> &vdofs) const
 {
    // Works for NC mesh where 'i' is an index returned by
    // ParMesh::GetSharedFace() such that i >= Mesh::GetNumFaces(), i.e. 'i' is
-   // the index of a ghost.
+   // the index of a ghost face.
    MFEM_ASSERT(Nonconforming() && i >= pmesh->GetNumFaces(), "");
    int el1, el2, inf1, inf2;
    pmesh->GetFaceElements(i, &el1, &el2);
@@ -1207,11 +1212,14 @@ const FiniteElement *ParFiniteElementSpace::GetFaceNbrFE(int i) const
 
 const FiniteElement *ParFiniteElementSpace::GetFaceNbrFaceFE(int i) const
 {
+   // Works for NC mesh where 'i' is an index returned by
+   // ParMesh::GetSharedFace() such that i >= Mesh::GetNumFaces(), i.e. 'i' is
+   // the index of a ghost face.
    // Works in tandem with GetFaceNbrFaceVDofs() defined above.
+
    MFEM_ASSERT(Nonconforming() && !NURBSext, "");
-   Geometry::Type geom = (pmesh->Dimension() == 2) ?
-                         Geometry::SEGMENT : Geometry::SQUARE;
-   return fec->FiniteElementForGeometry(geom);
+   Geometry::Type face_geom = pmesh->GetFaceGeometryType(i);
+   return fec->FiniteElementForGeometry(face_geom);
 }
 
 void ParFiniteElementSpace::Lose_Dof_TrueDof_Matrix()

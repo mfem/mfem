@@ -520,7 +520,9 @@ void TensorProductPRefinementTransferOperator::MultTranspose(const Vector& x,
 TrueTransferOperator::TrueTransferOperator(const
                                            ParFiniteElementSpace& lFESpace_,
                                            const ParFiniteElementSpace& hFESpace_)
-   : lFESpace(lFESpace_), hFESpace(hFESpace_)
+   : Operator(hFESpace_.GetTrueVSize(), lFESpace_.GetTrueVSize()),
+     lFESpace(lFESpace_),
+     hFESpace(hFESpace_)
 {
    localTransferOperator = new TransferOperator(lFESpace_, hFESpace_);
 

@@ -108,7 +108,7 @@ public:
 
 private:
    /// Application of a smoothing step at particular level
-   void SmoothingStep(int level) const;
+   void SmoothingStep(int level, bool transpose) const;
 
    /// Application of a cycle at particular level
    void Cycle(int level) const;

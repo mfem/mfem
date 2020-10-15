@@ -403,8 +403,10 @@ TripleProductOperator::~TripleProductOperator()
 
 
 ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
-                                         bool _own_A)
-   : Operator(A->Height(), A->Width()), A(A), own_A(_own_A)
+                                         bool _own_A,
+                                         DiagonalPolicy _diag_policy)
+   : Operator(A->Height(), A->Width()), A(A), own_A(_own_A),
+     diag_policy(_diag_policy)
 {
    // 'mem_class' should work with A->Mult() and MFEM_FORALL():
    mem_class = A->GetMemoryClass()*Device::GetDeviceMemoryClass();
@@ -464,11 +466,30 @@ void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
    auto d_x = x.Read();
    // Use read+write access - we are modifying sub-vector of y
    auto d_y = y.ReadWrite();
-   MFEM_FORALL(i, csz,
+   switch (diag_policy)
    {
-      const int id = idx[i];
-      d_y[id] = d_x[id];
-   });
+      case DIAG_ONE:
+         MFEM_FORALL(i, csz,
+         {
+            const int id = idx[i];
+            d_y[id] = d_x[id];
+         });
+         break;
+      case DIAG_ZERO:
+         MFEM_FORALL(i, csz,
+         {
+            const int id = idx[i];
+            d_y[id] = 0.0;
+         });
+         break;
+      case DIAG_KEEP:
+         // Needs action of the operator diagonal on vector
+         mfem_error("ConstrainedOperator::Mult #1");
+         break;
+      default:
+         mfem_error("ConstrainedOperator::Mult #2");
+         break;
+   }
 }
 
 RectangularConstrainedOperator::RectangularConstrainedOperator(
@@ -540,6 +561,35 @@ void RectangularConstrainedOperator::Mult(const Vector &x, Vector &y) const
       auto idx = test_constraints.Read();
       auto d_y = y.ReadWrite();
       MFEM_FORALL(i, test_csz, d_y[idx[i]] = 0.0;);
+   }
+}
+
+void RectangularConstrainedOperator::MultTranspose(const Vector &x,
+                                                   Vector &y) const
+{
+   const int trial_csz = trial_constraints.Size();
+   const int test_csz = test_constraints.Size();
+   if (test_csz == 0)
+   {
+      A->MultTranspose(x, y);
+   }
+   else
+   {
+      z = x;
+
+      auto idx = test_constraints.Read();
+      // Use read+write access - we are modifying sub-vector of z
+      auto d_z = z.ReadWrite();
+      MFEM_FORALL(i, test_csz, d_z[idx[i]] = 0.0;);
+
+      A->MultTranspose(z, y);
+   }
+
+   if (trial_csz != 0)
+   {
+      auto idx = trial_constraints.Read();
+      auto d_y = y.ReadWrite();
+      MFEM_FORALL(i, trial_csz, d_y[idx[i]] = 0.0;);
    }
 }
 

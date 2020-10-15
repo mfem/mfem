@@ -15,6 +15,8 @@
 
 #include "adios2datacollection.hpp"
 
+#ifdef MFEM_USE_ADIOS2
+
 namespace mfem
 {
 
@@ -87,4 +89,4 @@ noexcept
 
 } //end namespace mfem
 
-
+#endif // MFEM_USE_ADIOS2

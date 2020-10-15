@@ -54,10 +54,47 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 	@$(call mfem-test,$<,, NURBS miniapp)
 
 # Additional tests
-EX1_ARGS_2 := -m ../../data/beam-hex-nurbs.mesh -pm 1 -ps 2
-ex1-test-seq: ex1
+EX1_ARGS_2 := -r 0 -o 4
+EX1_ARGS_3 := -r 2
+EX1_ARGS_4 := -m ../../data/beam-hex-nurbs.mesh -pm 1 -ps 2
+EX1_ARGS_5 := -m ../../data/pipe-nurbs-2d.mesh -o 2 -no-ibp -r 0
+EX1_ARGS_6 := -m ../..//data/pipe-nurbs-2d.mesh -o 2 -no-ibp -r 2
+EX1_ARGS_7 := -m ../../data/pipe-nurbs-2d.mesh -o 2 --weak-bc -r 0
+EX1_ARGS_8 := -m ../../data/pipe-nurbs-2d.mesh -o 2 --weak-bc -r 2
+EX1_ARGS_9 := -m ../../data/ball-nurbs.mesh -o 2 --weak-bc -r 0
+EX1_ARGS_10 := -m ../../data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 0
+EX1_ARGS_11 := -m ../../data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 1
+
+nurbs_ex1-test-seq: nurbs_ex1
 	@$(call mfem-test,$<,, NURBS miniapp)
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_2))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_3))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_4))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_5))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_6))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_7))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_8))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_9))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_10))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_11))
+
+EX1P_ARGS_1 := 
+EX1P_ARGS_2 := -m ../../data/pipe-nurbs-2d.mesh -o 2 -no-ibp
+EX1P_ARGS_3 := -m ../../data/ball-nurbs.mesh -o 2 --weak-bc -r 0
+EX1P_ARGS_4 := -m ../../data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 0
+EX1P_ARGS_5 := -m ../../data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 1
+
+nurbs_ex1p-test-par: nurbs_ex1p
+	@$(call mfem-test,$<, $(RUN_MPI), NURBS miniapp,$(EX1P_ARGS_1))
+	@$(call mfem-test,$<, $(RUN_MPI), NURBS miniapp,$(EX1P_ARGS_2))
+	@$(call mfem-test,$<, $(RUN_MPI), NURBS miniapp,$(EX1P_ARGS_3))
+	@$(call mfem-test,$<, $(RUN_MPI), NURBS miniapp,$(EX1P_ARGS_4))
+	@$(call mfem-test,$<, $(RUN_MPI), NURBS miniapp,$(EX1P_ARGS_5))
+
+EX11P_ARGS_1 := 
+
+nurbs_ex11p-test-par: nurbs_ex11p
+	@$(call mfem-test,$<, $(RUN_MPI), NURBS miniapp,$(EX11P_ARGS_1))
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
