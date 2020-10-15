@@ -354,6 +354,7 @@ int tmop(int myid, Req &res, int argc, char *argv[])
       d.UseDevice(true);
       if (pa)
       {
+         nlf.SetupGradient();
          nlf.GetGradient(xt).AssembleDiagonal(d);
       }
       else

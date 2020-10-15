@@ -849,10 +849,11 @@ int main (int argc, char *argv[])
       {
          if (pa)
          {
+            a.SetupGradient();
             MFEM_VERIFY(lin_solver != 4, "PA l1-Jacobi is not implemented");
             OperatorJacobiSmoother *sm =
-               new OperatorJacobiSmoother(a, a.GetEssentialTrueDofs());
-            sm->SetAbsValues(true);
+               new OperatorJacobiSmoother(a.GetEssentialTrueDofs());
+            sm->SetOperator(a.GetGradient(x.GetTrueVector()));
             S_prec = sm;
          }
          else
