@@ -57,7 +57,7 @@ void NonlinearFormIntegrator::AddMultGradPA(const Vector&,
 void NonlinearFormIntegrator::AssembleGradDiagonalPA(const mfem::Vector &g,
                                                      mfem::Vector &diag) const
 {
-   mfem_error ("NonlinearFormIntegrator::AssembleDiagonalPA(...)\n"
+   mfem_error ("NonlinearFormIntegrator::AssembleGradDiagonalPA(...)\n"
                "   is not implemented for this class.");
 }
 
