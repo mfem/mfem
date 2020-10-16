@@ -28,16 +28,15 @@ int main (int argc, char *argv[])
    // Set the method's default parameters.
    // const char *src_mesh_file = "torus.mesh";
    // const char *src_mesh_file = "torus_ovlp_partition/ovlp_torus.mesh.000000";
-   const char *src_mesh_file = "torus_ovlp_partition/ovlp_torus5_9.mesh";
-   // const char *tar_mesh_file = "torus2_4.mesh";
-   const char *tar_mesh_file = "torus_ovlp_partition/ovlp_torus1_5.mesh";
+   const char *mesh_file1 = "torus_ovlp_partition/ovlp_torus1_5.mesh";
+   const char *mesh_file2 = "torus_ovlp_partition/ovlp_torus5_9.mesh";
    int order          = 1; // unused
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
-   args.AddOption(&src_mesh_file, "-m1", "--mesh1",
+   args.AddOption(&mesh_file1, "-m1", "--mesh1",
                   "Mesh file for the starting solution.");
-   args.AddOption(&tar_mesh_file, "-m2", "--mesh2",
+   args.AddOption(&mesh_file2, "-m2", "--mesh2",
                   "Mesh file for interpolation.");
    args.AddOption(&order, "-o", "--order",
                   "Order of the interpolated solution.");
@@ -50,85 +49,84 @@ int main (int argc, char *argv[])
    args.PrintOptions(cout);
 
    // Input meshes.
-   Mesh mesh_1(src_mesh_file, 1, 1, false);
-   Mesh mesh_2(tar_mesh_file, 1, 1, false);
-   const int dim = mesh_1.Dimension();
-   MFEM_ASSERT(dim == mesh_2.Dimension(), "Source and target meshes "
+   Array< Mesh * > meshes(2);
+   meshes[0] = new Mesh(mesh_file1, 1, 1, false);
+   meshes[1] = new Mesh(mesh_file2, 1, 1, false);
+
+   int ref = 2;
+   for (int i = 0; i<ref; i++)
+   {
+      meshes[0]->UniformRefinement();
+      meshes[1]->UniformRefinement();
+   }
+   // meshes[0]->UniformRefinement();
+   // meshes[1]->UniformRefinement();
+   const int dim = meshes[0]->Dimension();
+   MFEM_ASSERT(dim == meshes[1]->Dimension(), "Source and target meshes "
                "must be in the same dimension.");
    MFEM_VERIFY(dim > 1, "GSLIB requires a 2D or a 3D mesh" );
 
-   if (mesh_1.GetNodes() == NULL) { mesh_1.SetCurvature(order); }
-   if (mesh_2.GetNodes() == NULL) { mesh_2.SetCurvature(order); }
-   const int mesh_poly_deg1 = mesh_1.GetNodes()->FESpace()->GetOrder(0);
-   const int mesh_poly_deg2 = mesh_2.GetNodes()->FESpace()->GetOrder(0);
-   cout << "Source mesh curvature: "
-        << mesh_1.GetNodes()->OwnFEC()->Name() << endl
-        << "Target mesh curvature: "
-        << mesh_2.GetNodes()->OwnFEC()->Name() << endl;
+   if (meshes[0]->GetNodes() == NULL) { meshes[0]->SetCurvature(1); }
+   if (meshes[1]->GetNodes() == NULL) { meshes[1]->SetCurvature(1); }
+   const int mesh_poly_deg1 = meshes[0]->GetNodes()->FESpace()->GetOrder(0);
+   const int mesh_poly_deg2 = meshes[1]->GetNodes()->FESpace()->GetOrder(0);
+   cout << "mesh 1 curvature: "
+        << meshes[0]->GetNodes()->OwnFEC()->Name() << endl
+        << "mesh 2 curvature: "
+        << meshes[1]->GetNodes()->OwnFEC()->Name() << endl;
 
-   L2_FECollection src_fec(0, dim);
-   FiniteElementSpace src_fes(&mesh_2, &src_fec);
 
-   MFEM_VERIFY(mesh_2.GetNumGeometries(mesh_2.Dimension()) == 1, "Mixed meshes"
+   MFEM_VERIFY(meshes[0]->GetNumGeometries(meshes[1]->Dimension()) == 1, "Mixed meshes"
                "are not currently supported.");
 
    // Ensure the source grid function can be transferred using GSLIB-FindPoints.
-   const int NE = mesh_2.GetNE(),
-             nsp = src_fes.GetFE(0)->GetNodes().GetNPoints();
+   const int ne1 = meshes[0]->GetNE();
+   const int ne2 = meshes[1]->GetNE();
 
-   // Generate list of points where the grid function will be evaluated.
-   Vector vxyz(nsp*NE*dim);
-   for (int i = 0; i < NE; i++)
+   Vector centers(ne1*dim);
+   for (int i = 0; i < ne1; i++)
    {
-      const FiniteElement *fe = src_fes.GetFE(i);
-      const IntegrationRule ir = fe->GetNodes();
-      ElementTransformation *et = src_fes.GetElementTransformation(i);
-
-      DenseMatrix pos;
-      et->Transform(ir, pos);
-      Vector rowx(vxyz.GetData() + i*nsp, nsp),
-             rowy(vxyz.GetData() + i*nsp + NE*nsp, nsp),
-             rowz;
-      if (dim == 3)
+      Vector center(dim);
+      meshes[0]->GetElementCenter(i,center);
+      for (int d=0; d<dim; d++)
       {
-         rowz.SetDataAndSize(vxyz.GetData() + i*nsp + 2*NE*nsp, nsp);
+         centers[ne1*d + i] = center[d];
       }
-      pos.GetRow(0, rowx);
-      pos.GetRow(1, rowy);
-      if (dim == 3) { pos.GetRow(2, rowz); }
    }
 
-   const int nodes_cnt = vxyz.Size() / dim;
-
-   // Evaluate source grid function.
-   Vector interp_vals(nodes_cnt);
+   // Evaluate mesh 1 grid function.
    FindPointsGSLIB finder;
-   finder.Setup(mesh_1);
-   finder.FindPoints(vxyz);
+   finder.Setup(*meshes[1]);
+   finder.FindPoints(centers);
 
    Array<unsigned int> elem_map = finder.GetElem();
    Array<unsigned int> code = finder.GetCode();
-   // for (int i = 0; i < elem_map.Size(); i++) {
-      //  std::cout << i << " " << elem_map[i] << " Subdomain and Global element number \n";
-   // }
 
+   cout << "mesh1 elems   = " << ne1 << endl;
+   cout << "mesh2 elems   = " << ne2 << endl;
+   cout << "elem map size = " << elem_map.Size() << endl;
+   // cout << "elem map = " << endl;
+   // elem_map.Print(cout,10);
+
+   // cout << "code = " << endl;
+   // code.Print(cout,10);
    // Free the internal gslib data.
    finder.FreeData();
 
    // testing dof maps 
    // H1 test;
-   FiniteElementCollection * fec = new H1_FECollection(order,dim);
-   FiniteElementSpace * fes1 = new FiniteElementSpace(&mesh_1,fec);
-   FiniteElementSpace * fes2 = new FiniteElementSpace(&mesh_2,fec);
+   FiniteElementCollection * H1fec = new H1_FECollection(order,dim);
+   FiniteElementSpace * fes1 = new FiniteElementSpace(meshes[0],H1fec);
+   FiniteElementSpace * fes2 = new FiniteElementSpace(meshes[1],H1fec);
 
-   int ne1 = mesh_1.GetNE();
-   int ne2 = mesh_2.GetNE();
-
-   // dof map from fes_2 to fes_1
-   Array<int> dof_map(fes2->GetTrueVSize());
-   for (int iel2 = 0; iel2<ne2; iel2++)
+   // dof map from fes_1 to fes_2
+   Array<int> dof_map(fes1->GetTrueVSize());
+   dof_map = -1;
+   for (int iel1 = 0; iel1<ne1; iel1++)
    {
-      int iel1 = elem_map[iel2];
+      // skip the elements that are not found 
+      if (code[iel1] == 2) continue;
+      int iel2 = elem_map[iel1];
       Array<int> ElemDofs1;
       Array<int> ElemDofs2;
       fes1->GetElementDofs(iel1,ElemDofs1);
@@ -140,46 +138,92 @@ int main (int argc, char *argv[])
       int ndof = ElemDofs1.Size();
       for (int i = 0; i<ndof; ++i)
       {
-         int pdof_ = ElemDofs2[i];
-         int gdof_ = ElemDofs1[i];
+         int pdof_ = ElemDofs1[i];
+         int gdof_ = ElemDofs2[i];
          int pdof = (pdof_ >= 0) ? pdof_ : abs(pdof_) - 1;
          int gdof = (gdof_ >= 0) ? gdof_ : abs(gdof_) - 1;
          dof_map[pdof] = gdof;
       }
    }
 
-   GridFunction gf2(fes2);
-   gf2 = 0;
-   FunctionCoefficient cf2(funccoeff);
-   // ConstantCoefficient one(1.0);
-   gf2.ProjectCoefficient(cf2);
+   Array<GridFunction *> gfs(2);
 
-   GridFunction gf1(fes1);
-   gf1 = 0;
-   gf1.SetSubVector(dof_map,gf2);
+   gfs[0] = new GridFunction(fes1);
+   *gfs[0] = 0.0;
+   FunctionCoefficient cf1(funccoeff);
+   // ConstantCoefficient one(1.0);
+   gfs[0]->ProjectCoefficient(cf1);
+
+   gfs[1] = new GridFunction(fes2);
+   *gfs[1] = 0.0;
+   for (int i = 0; i< dof_map.Size(); i++)
+   {
+      int j = dof_map[i];   
+      if (j < 0) continue;
+      (*gfs[1])[j] = (*gfs[0])[i];
+   }
 
    
 
-   char vishost[] = "localhost";
-   int  visport   = 19916;
-   string keys;
-   if (dim ==2 )
-   {
-      keys = "keys mrRljc\n";
-   }
-   else
-   {
-      keys = "keys mc\n";
-   }
-   socketstream sol_sock1(vishost, visport);
-   sol_sock1.precision(8);
-   sol_sock1 << "solution\n" << mesh_1 << gf1 << keys 
-             << "window_title ' ' " << flush;                     
+   // char vishost[] = "localhost";
+   // int  visport   = 19916;
+   // string keys;
+   // if (dim ==2 )
+   // {
+   //    keys = "keys mrRljc\n";
+   // }
+   // else
+   // {
+   //    keys = "keys mc\n";
+   // }
+   // socketstream sol_sock1(vishost, visport);
+   // sol_sock1.precision(8);
+   // sol_sock1 << "solution\n" << mesh_1 << gf1 << keys 
+   //           << "window_title ' ' " << flush;                     
 
-   socketstream sol_sock2(vishost, visport);
-   sol_sock2.precision(8);
-   sol_sock2 << "solution\n" << mesh_2 << gf2 << keys 
-             << "window_title ' ' " << flush;  
+   // socketstream sol_sock2(vishost, visport);
+   // sol_sock2.precision(8);
+   // sol_sock2 << "solution\n" << mesh_2 << gf2 << keys 
+   //           << "window_title ' ' " << flush;  
+      
+   for (int ip = 0; ip<meshes.Size(); ++ip)
+   {
+      // char vishost[] = "localhost";
+      // int  visport   = 19916;
+      // socketstream sol_sock(vishost, visport);
+      // sol_sock << "parallel " << meshes.Size() << " " << ip << "\n";
+      // sol_sock.precision(8);
+      // sol_sock << "mesh\n" << *meshes[ip] << flush;
+      ostringstream mesh_name;
+      mesh_name << "output/mesh." << setfill('0') << setw(6) << ip;
+      ofstream mesh_ofs(mesh_name.str().c_str());
+      mesh_ofs.precision(8);
+      meshes[ip]->Print(mesh_ofs);
+      ostringstream gf_name;
+      gf_name << "output/gf." << setfill('0') << setw(6) << ip;
+      ofstream gf_ofs(gf_name.str().c_str());
+      gf_ofs.precision(8);
+      gfs[ip]->Save(gf_ofs);
+   }
+   
+   
+   
+   // {
+   //    socketstream sol_sock(vishost, visport);
+   //    sol_sock << "parallel " << 2 << " " << 0 << "\n";
+   //    sol_sock.precision(8);
+   //    sol_sock << "solution\n" << mesh_1 << gf1 
+   //             << keys << flush;  
+   // }
+   // {
+   //    socketstream sol_sock(vishost, visport);
+   //    sol_sock << "parallel " << 2 << " " << 1 << "\n";
+   //    sol_sock.precision(8);
+   //    sol_sock << "solution\n" << mesh_2 << gf2 
+   //             << keys << flush;  
+   // }
+
+
 
    return 0;
 }
