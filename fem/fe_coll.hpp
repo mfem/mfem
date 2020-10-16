@@ -26,8 +26,6 @@ namespace mfem
 class FiniteElementCollection
 {
 protected:
-   const int dim, default_p;
-
    template <Geometry::Type geom>
    static inline void GetNVE(int &nv, int &ne);
 
@@ -50,41 +48,26 @@ public:
           DISCONTINUOUS ///< Field is discontinuous across element interfaces
         };
 
-   FiniteElementCollection(int default_p, int dim)
-      : dim(dim), default_p(default_p) {}
+   virtual const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const = 0;
 
-   virtual const FiniteElement * GetFE(Geometry::Type geom, int p) const = 0;
+   virtual int DofForGeometry(Geometry::Type GeomType) const = 0;
 
-   virtual int GetNumDof(Geometry::Type geom, int p) const = 0;
-
-   /** @brief Returns an array, say idx, that maps a local permuted index i to
-       a local base index: base_i = idx[i]. */
-   virtual const int * GetDofOrdering(Geometry::Type geom, int p,
-                                      int orientation) const = 0;
-
-   // legacy >>>
-   /*MFEM_DEPRECATED*/ const FiniteElement*
-   FiniteElementForGeometry(Geometry::Type geom) const
-   { return GetFE(geom, default_p); }
-
-   int DofForGeometry(Geometry::Type GeomType) const
-   { return GetNumDof(GeomType, default_p); }
-
-   const int *DofOrderForOrientation(Geometry::Type GeomType, int Or) const
-   { return GetDofOrdering(GeomType, default_p, Or); }
-   // <<< legacy
+   /** @brief Returns an array, say p, that maps a local permuted index i to
+       a local base index: base_i = p[i]. */
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const = 0;
 
    virtual const char * Name() const { return "Undefined"; }
 
-   int DefaultOrder() const { return default_p; }
-
    virtual int GetContType() const = 0;
 
-   int HasFaceDofs(Geometry::Type GeomType, int p) const;
+   int HasFaceDofs(Geometry::Type GeomType) const;
 
-   virtual const FiniteElement *GetTraceFE(Geometry::Type geom, int p) const
+   virtual const FiniteElement *TraceFiniteElementForGeometry(
+      Geometry::Type GeomType) const
    {
-      return GetFE(geom, p);
+      return FiniteElementForGeometry(GeomType);
    }
 
    virtual FiniteElementCollection *GetTraceCollection() const;
@@ -179,36 +162,32 @@ class H1_FECollection : public FiniteElementCollection
 protected:
    int b_type;
    char h1_name[32];
-
-   mutable Array<FiniteElement*> H1_Elements[Geometry::NumGeom];
-   mutable Array<int> H1_dof[Geometry::NumGeom];
-   mutable Array<int*> SegDofOrd[2], TriDofOrd[6], QuadDofOrd[8], TetDofOrd[24];
-
-   bool HaveOrder(int p) const;
-   void InitOrder(int p) const;
+   FiniteElement *H1_Elements[Geometry::NumGeom];
+   int H1_dof[Geometry::NumGeom];
+   int *SegDofOrd[2], *TriDofOrd[6], *QuadDofOrd[8], *TetDofOrd[24];
 
 public:
-   explicit H1_FECollection(const int default_p, const int dim = 3,
+   explicit H1_FECollection(const int p, const int dim = 3,
                             const int btype = BasisType::GaussLobatto);
 
-   virtual const FiniteElement* GetFE(Geometry::Type geom, int p) const;
-   virtual int GetNumDof(Geometry::Type geom, int p) const;
-   virtual const int* GetDofOrdering(Geometry::Type geom, int p,
-                                     int orientation) const;
-
-   virtual const char* Name() const { return h1_name; }
+   virtual const FiniteElement *FiniteElementForGeometry(
+      Geometry::Type GeomType) const
+   { return H1_Elements[GeomType]; }
+   virtual int DofForGeometry(Geometry::Type GeomType) const
+   { return H1_dof[GeomType]; }
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
+   virtual const char *Name() const { return h1_name; }
    virtual int GetContType() const { return CONTINUOUS; }
-   //FiniteElementCollection* GetTraceCollection() const;
+   FiniteElementCollection *GetTraceCollection() const;
 
    int GetBasisType() const { return b_type; }
-
    /// Get the Cartesian to local H1 dof map
-   const int *GetDofMap(Geometry::Type GeomType, int p) const;
+   const int *GetDofMap(Geometry::Type GeomType) const;
 
    virtual ~H1_FECollection();
 };
 
-#if 0
 /** @brief Arbitrary order H1-conforming (continuous) finite elements with
     positive basis functions. */
 class H1Pos_FECollection : public H1_FECollection
@@ -237,44 +216,49 @@ public:
    H1_Trace_FECollection(const int p, const int dim,
                          const int btype = BasisType::GaussLobatto);
 };
-#endif
 
 /// Arbitrary order "L2-conforming" discontinuous finite elements.
 class L2_FECollection : public FiniteElementCollection
 {
 private:
-   int b_type, map_type;
+   int b_type; // BasisType
    char d_name[32];
-
-   mutable Array<ScalarFiniteElement*> L2_Elements[Geometry::NumGeom];
-   mutable Array<ScalarFiniteElement*> Tr_Elements[Geometry::NumGeom];
-   mutable Array<int*> SegDofOrd[2];  // for rotating segment dofs in 1D
-   mutable Array<int*> TriDofOrd[6];  // for rotating triangle dofs in 2D
-   mutable Array<int*> TetDofOrd[24]; // for rotating tetrahedron dofs in 3D
-   mutable Array<int*> OtherDofOrd;   // for rotating other types of elements (for Or == 0)
-
-   bool HaveOrder(int p) const;
-   void InitOrder(int p) const;
+   ScalarFiniteElement *L2_Elements[Geometry::NumGeom];
+   ScalarFiniteElement *Tr_Elements[Geometry::NumGeom];
+   int *SegDofOrd[2];  // for rotating segment dofs in 1D
+   int *TriDofOrd[6];  // for rotating triangle dofs in 2D
+   int *TetDofOrd[24]; // for rotating tetrahedron dofs in 3D
+   int *OtherDofOrd;   // for rotating other types of elements (for Or == 0)
 
 public:
-   L2_FECollection(const int default_p, const int dim,
+   L2_FECollection(const int p, const int dim,
                    const int btype = BasisType::GaussLegendre,
                    const int map_type = FiniteElement::VALUE);
 
-   virtual const FiniteElement* GetFE(Geometry::Type geom, int p) const;
-   virtual int GetNumDof(Geometry::Type geom, int p) const;
-   virtual const int* GetDofOrdering(Geometry::Type geom, int p,
-                                     int orientation) const;
-
+   virtual const FiniteElement *FiniteElementForGeometry(
+      Geometry::Type GeomType) const
+   {
+      return L2_Elements[GeomType];
+   }
+   virtual int DofForGeometry(Geometry::Type GeomType) const
+   {
+      if (L2_Elements[GeomType])
+      {
+         return L2_Elements[GeomType]->GetDof();
+      }
+      return 0;
+   }
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
    virtual const char *Name() const { return d_name; }
 
    virtual int GetContType() const { return DISCONTINUOUS; }
 
-   /*virtual const FiniteElement *TraceFiniteElementForGeometry(
+   virtual const FiniteElement *TraceFiniteElementForGeometry(
       Geometry::Type GeomType) const
    {
       return Tr_Elements[GeomType];
-   }*/
+   }
 
    int GetBasisType() const { return b_type; }
 
@@ -284,7 +268,6 @@ public:
 /// Declare an alternative name for L2_FECollection = DG_FECollection
 typedef L2_FECollection DG_FECollection;
 
-#if 0
 /// Arbitrary order H(div)-conforming Raviart-Thomas finite elements.
 class RT_FECollection : public FiniteElementCollection
 {
@@ -1041,7 +1024,6 @@ public:
    virtual ~Local_FECollection() { delete Local_Element; }
    virtual int GetContType() const { return DISCONTINUOUS; }
 };
-#endif
 
 }
 

@@ -22,19 +22,18 @@ namespace mfem
 
 using namespace std;
 
-int FiniteElementCollection::HasFaceDofs(Geometry::Type GeomType, int p) const
+int FiniteElementCollection::HasFaceDofs(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
-      case Geometry::TETRAHEDRON:
-         return GetNumDof(Geometry::TRIANGLE, p);
-      case Geometry::CUBE:
-         return GetNumDof(Geometry::SQUARE, p);
+      case Geometry::TETRAHEDRON: return DofForGeometry (Geometry::TRIANGLE);
+      case Geometry::CUBE:        return DofForGeometry (Geometry::SQUARE);
       case Geometry::PRISM:
-         return std::max(GetNumDof(Geometry::TRIANGLE, p),
-                         GetNumDof(Geometry::SQUARE, p));
+         return max(DofForGeometry (Geometry::TRIANGLE),
+                    DofForGeometry (Geometry::SQUARE));
       default:
-         MFEM_ABORT("unknown geometry type");
+         mfem_error ("FiniteElementCollection::HasFaceDofs:"
+                     " unknown geometry type.");
    }
    return 0;
 }
@@ -49,7 +48,7 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
 {
    FiniteElementCollection *fec = NULL;
 
-   /*if (!strcmp(name, "Linear"))
+   if (!strcmp(name, "Linear"))
    {
       fec = new LinearFECollection;
    }
@@ -150,11 +149,11 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
       fec = new H1_Trace_FECollection(atoi(name + 15), atoi(name + 11),
                                       BasisType::GetType(name[9]));
    }
-   else*/ if (!strncmp(name, "H1_", 3))
+   else if (!strncmp(name, "H1_", 3))
    {
       fec = new H1_FECollection(atoi(name + 7), atoi(name + 3));
    }
-   /*else if (!strncmp(name, "H1Pos_Trace_", 12))
+   else if (!strncmp(name, "H1Pos_Trace_", 12))
    {
       fec = new H1_Trace_FECollection(atoi(name + 16), atoi(name + 12),
                                       BasisType::Positive);
@@ -278,7 +277,7 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
          // "NURBS" --> variable order nurbs collection
          fec = new NURBSFECollection();
       }
-   }*/
+   }
    else
    {
       MFEM_ABORT("unknown FiniteElementCollection: " << name);
@@ -537,7 +536,6 @@ not_supp:
               ", SDim = " << SDim << " is not supported");
 }
 
-#if 0
 const FiniteElement *
 LinearFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
@@ -1503,15 +1501,14 @@ const int *RT1_3DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
       return NULL;
    }
 }
-#endif
 
-H1_FECollection::H1_FECollection(const int default_p, const int dim, const int btype)
-   : FiniteElementCollection(default_p, dim)
+
+H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
 {
-   MFEM_VERIFY(default_p >= 1, "H1_FECollection requires order >= 1.");
+   MFEM_VERIFY(p >= 1, "H1_FECollection requires order >= 1.");
    MFEM_VERIFY(dim >= 0 && dim <= 3, "H1_FECollection requires 0 <= dim <= 3.");
 
-   const int p = default_p;
+   const int pm1 = p - 1, pm2 = pm1 - 1, pm3 = pm2 - 1, pm4 = pm3 - 1;
 
    int pt_type = BasisType::GetQuadrature1D(btype);
    b_type = BasisType::Check(btype);
@@ -1543,72 +1540,60 @@ H1_FECollection::H1_FECollection(const int default_p, const int dim, const int b
       }
    }
 
-   InitOrder(default_p);
-}
-
-template<typename T>
-static void EnlargePArray(Array<T> &array, int p)
-{
-   if (array.Size() <= p)
-   {
-      array.SetSize(p + 1, T());
-   }
-}
-
-bool H1_FECollection::HaveOrder(int p) const
-{
-   const auto &array = H1_Elements[Geometry::POINT];
-   return (array.Size() > p) && (array[p] != NULL);
-}
-
-void H1_FECollection::InitOrder(int p) const
-{
-   MFEM_ASSERT(!HaveOrder(p), "already initialized");
-
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
-      EnlargePArray(H1_Elements[g], p);
-      EnlargePArray(H1_dof[g], p);
+      H1_dof[g] = 0;
+      H1_Elements[g] = NULL;
    }
-   for (int i = 0; i < 2;  i++) { EnlargePArray(SegDofOrd[i], p); }
-   for (int i = 0; i < 6;  i++) { EnlargePArray(TriDofOrd[i], p); }
-   for (int i = 0; i < 24; i++) { EnlargePArray(TetDofOrd[i], p); }
-   for (int i = 0; i < 8;  i++) { EnlargePArray(QuadDofOrd[i], p); }
+   for (int i = 0; i < 2; i++)
+   {
+      SegDofOrd[i] = NULL;
+   }
+   for (int i = 0; i < 6; i++)
+   {
+      TriDofOrd[i] = NULL;
+   }
+   for (int i = 0; i < 8; i++)
+   {
+      QuadDofOrd[i] = NULL;
+   }
+   for (int i = 0; i < 24; i++)
+   {
+      TetDofOrd[i] = NULL;
+   }
 
-   const int pm1 = p - 1, pm2 = pm1 - 1, pm3 = pm2 - 1, pm4 = pm3 - 1;
-
-   H1_dof[Geometry::POINT][p] = 1;
-   H1_Elements[Geometry::POINT][p] = new PointFiniteElement;
+   H1_dof[Geometry::POINT] = 1;
+   H1_Elements[Geometry::POINT] = new PointFiniteElement;
 
    if (dim >= 1)
    {
-      H1_dof[Geometry::SEGMENT][p] = pm1;
+      H1_dof[Geometry::SEGMENT] = pm1;
       if (b_type == BasisType::Positive)
       {
-         H1_Elements[Geometry::SEGMENT][p] = new H1Pos_SegmentElement(p);
+         H1_Elements[Geometry::SEGMENT] = new H1Pos_SegmentElement(p);
       }
       else
       {
-         H1_Elements[Geometry::SEGMENT][p] = new H1_SegmentElement(p, b_type);
+         H1_Elements[Geometry::SEGMENT] = new H1_SegmentElement(p, btype);
       }
 
-      SegDofOrd[0][p] = new int[2*pm1];
-      SegDofOrd[1][p] = SegDofOrd[0][p] + pm1;
+      SegDofOrd[0] = new int[2*pm1];
+      SegDofOrd[1] = SegDofOrd[0] + pm1;
       for (int i = 0; i < pm1; i++)
       {
-         SegDofOrd[0][p][i] = i;
-         SegDofOrd[1][p][i] = pm2 - i;
+         SegDofOrd[0][i] = i;
+         SegDofOrd[1][i] = pm2 - i;
       }
    }
 
    if (dim >= 2)
    {
-      H1_dof[Geometry::TRIANGLE][p] = (pm1*pm2)/2;
-      H1_dof[Geometry::SQUARE][p] = pm1*pm1;
+      H1_dof[Geometry::TRIANGLE] = (pm1*pm2)/2;
+      H1_dof[Geometry::SQUARE] = pm1*pm1;
       if (b_type == BasisType::Positive)
       {
-         H1_Elements[Geometry::TRIANGLE][p] = new H1Pos_TriangleElement(p);
-         H1_Elements[Geometry::SQUARE][p] = new H1Pos_QuadrilateralElement(p);
+         H1_Elements[Geometry::TRIANGLE] = new H1Pos_TriangleElement(p);
+         H1_Elements[Geometry::SQUARE] = new H1Pos_QuadrilateralElement(p);
       }
       else if (b_type == BasisType::Serendipity)
       {
@@ -1617,23 +1602,23 @@ void H1_FECollection::InitOrder(int p) const
          // for the serendipity case.
 
          // formula for number of interior serendipity DoFs (when p>1)
-         H1_dof[Geometry::SQUARE][p] = (pm3*pm2)/2;
-         H1_Elements[Geometry::SQUARE][p] = new H1Ser_QuadrilateralElement(p);
+         H1_dof[Geometry::SQUARE] = (pm3*pm2)/2;
+         H1_Elements[Geometry::SQUARE] = new H1Ser_QuadrilateralElement(p);
          // allows for mixed tri/quad meshes
-         H1_Elements[Geometry::TRIANGLE][p] = new H1Pos_TriangleElement(p);
+         H1_Elements[Geometry::TRIANGLE] = new H1Pos_TriangleElement(p);
       }
       else
       {
-         H1_Elements[Geometry::TRIANGLE][p] = new H1_TriangleElement(p, b_type);
-         H1_Elements[Geometry::SQUARE][p] = new H1_QuadrilateralElement(p, b_type);
+         H1_Elements[Geometry::TRIANGLE] = new H1_TriangleElement(p, btype);
+         H1_Elements[Geometry::SQUARE] = new H1_QuadrilateralElement(p, btype);
       }
 
-      const int &TriDof = H1_dof[Geometry::TRIANGLE][p];
-      const int &QuadDof = H1_dof[Geometry::SQUARE][p];
-      TriDofOrd[0][p] = new int[6*TriDof];
+      const int &TriDof = H1_dof[Geometry::TRIANGLE];
+      const int &QuadDof = H1_dof[Geometry::SQUARE];
+      TriDofOrd[0] = new int[6*TriDof];
       for (int i = 1; i < 6; i++)
       {
-         TriDofOrd[i][p] = TriDofOrd[i-1][p] + TriDof;
+         TriDofOrd[i] = TriDofOrd[i-1] + TriDof;
       }
       // see Mesh::GetTriOrientation in mesh/mesh.cpp
       for (int j = 0; j < pm2; j++)
@@ -1642,19 +1627,19 @@ void H1_FECollection::InitOrder(int p) const
          {
             int o = TriDof - ((pm1 - j)*(pm2 - j))/2 + i;
             int k = pm3 - j - i;
-            TriDofOrd[0][p][o] = o;  // (0,1,2)
-            TriDofOrd[1][p][o] = TriDof - ((pm1-j)*(pm2-j))/2 + k;  // (1,0,2)
-            TriDofOrd[2][p][o] = TriDof - ((pm1-i)*(pm2-i))/2 + k;  // (2,0,1)
-            TriDofOrd[3][p][o] = TriDof - ((pm1-k)*(pm2-k))/2 + i;  // (2,1,0)
-            TriDofOrd[4][p][o] = TriDof - ((pm1-k)*(pm2-k))/2 + j;  // (1,2,0)
-            TriDofOrd[5][p][o] = TriDof - ((pm1-i)*(pm2-i))/2 + j;  // (0,2,1)
+            TriDofOrd[0][o] = o;  // (0,1,2)
+            TriDofOrd[1][o] = TriDof - ((pm1-j)*(pm2-j))/2 + k;  // (1,0,2)
+            TriDofOrd[2][o] = TriDof - ((pm1-i)*(pm2-i))/2 + k;  // (2,0,1)
+            TriDofOrd[3][o] = TriDof - ((pm1-k)*(pm2-k))/2 + i;  // (2,1,0)
+            TriDofOrd[4][o] = TriDof - ((pm1-k)*(pm2-k))/2 + j;  // (1,2,0)
+            TriDofOrd[5][o] = TriDof - ((pm1-i)*(pm2-i))/2 + j;  // (0,2,1)
          }
       }
 
-      QuadDofOrd[0][p] = new int[8*QuadDof];
+      QuadDofOrd[0] = new int[8*QuadDof];
       for (int i = 1; i < 8; i++)
       {
-         QuadDofOrd[i][p] = QuadDofOrd[i-1][p] + QuadDof;
+         QuadDofOrd[i] = QuadDofOrd[i-1] + QuadDof;
       }
 
       // For serendipity order >=4, the QuadDofOrd array must be re-defined. We
@@ -1680,14 +1665,14 @@ void H1_FECollection::InitOrder(int p) const
                for (int i = 0; i < pm3; i++)
                {
                   int o = i + j*pm3;
-                  QuadDofOrd[0][p][o] = i + j*pm3;  // (0,1,2,3)
-                  QuadDofOrd[1][p][o] = j + i*pm3;  // (0,3,2,1)
-                  QuadDofOrd[2][p][o] = j + (pm4 - i)*pm3;  // (1,2,3,0)
-                  QuadDofOrd[3][p][o] = (pm4 - i) + j*pm3;  // (1,0,3,2)
-                  QuadDofOrd[4][p][o] = (pm4 - i) + (pm4 - j)*pm3;  // (2,3,0,1)
-                  QuadDofOrd[5][p][o] = (pm4 - j) + (pm4 - i)*pm3;  // (2,1,0,3)
-                  QuadDofOrd[6][p][o] = (pm4 - j) + i*pm3;  // (3,0,1,2)
-                  QuadDofOrd[7][p][o] = i + (pm4 - j)*pm3;  // (3,2,1,0)
+                  QuadDofOrd[0][o] = i + j*pm3;  // (0,1,2,3)
+                  QuadDofOrd[1][o] = j + i*pm3;  // (0,3,2,1)
+                  QuadDofOrd[2][o] = j + (pm4 - i)*pm3;  // (1,2,3,0)
+                  QuadDofOrd[3][o] = (pm4 - i) + j*pm3;  // (1,0,3,2)
+                  QuadDofOrd[4][o] = (pm4 - i) + (pm4 - j)*pm3;  // (2,3,0,1)
+                  QuadDofOrd[5][o] = (pm4 - j) + (pm4 - i)*pm3;  // (2,1,0,3)
+                  QuadDofOrd[6][o] = (pm4 - j) + i*pm3;  // (3,0,1,2)
+                  QuadDofOrd[7][o] = i + (pm4 - j)*pm3;  // (3,2,1,0)
                }
             }
 
@@ -1700,43 +1685,42 @@ void H1_FECollection::InitOrder(int p) const
             for (int i = 0; i < pm1; i++)
             {
                int o = i + j*pm1;
-               QuadDofOrd[0][p][o] = i + j*pm1;  // (0,1,2,3)
-               QuadDofOrd[1][p][o] = j + i*pm1;  // (0,3,2,1)
-               QuadDofOrd[2][p][o] = j + (pm2 - i)*pm1;  // (1,2,3,0)
-               QuadDofOrd[3][p][o] = (pm2 - i) + j*pm1;  // (1,0,3,2)
-               QuadDofOrd[4][p][o] = (pm2 - i) + (pm2 - j)*pm1;  // (2,3,0,1)
-               QuadDofOrd[5][p][o] = (pm2 - j) + (pm2 - i)*pm1;  // (2,1,0,3)
-               QuadDofOrd[6][p][o] = (pm2 - j) + i*pm1;  // (3,0,1,2)
-               QuadDofOrd[7][p][o] = i + (pm2 - j)*pm1;  // (3,2,1,0)
+               QuadDofOrd[0][o] = i + j*pm1;  // (0,1,2,3)
+               QuadDofOrd[1][o] = j + i*pm1;  // (0,3,2,1)
+               QuadDofOrd[2][o] = j + (pm2 - i)*pm1;  // (1,2,3,0)
+               QuadDofOrd[3][o] = (pm2 - i) + j*pm1;  // (1,0,3,2)
+               QuadDofOrd[4][o] = (pm2 - i) + (pm2 - j)*pm1;  // (2,3,0,1)
+               QuadDofOrd[5][o] = (pm2 - j) + (pm2 - i)*pm1;  // (2,1,0,3)
+               QuadDofOrd[6][o] = (pm2 - j) + i*pm1;  // (3,0,1,2)
+               QuadDofOrd[7][o] = i + (pm2 - j)*pm1;  // (3,2,1,0)
             }
          }
       }
 
       if (dim >= 3)
       {
-         H1_dof[Geometry::TETRAHEDRON][p] = (TriDof*pm3)/3;
-         H1_dof[Geometry::CUBE][p] = QuadDof*pm1;
-         H1_dof[Geometry::PRISM][p] = TriDof*pm1;
+         H1_dof[Geometry::TETRAHEDRON] = (TriDof*pm3)/3;
+         H1_dof[Geometry::CUBE] = QuadDof*pm1;
+         H1_dof[Geometry::PRISM] = TriDof*pm1;
          if (b_type == BasisType::Positive)
          {
-            H1_Elements[Geometry::TETRAHEDRON][p] =
-               new H1Pos_TetrahedronElement(p);
-            H1_Elements[Geometry::CUBE][p] = new H1Pos_HexahedronElement(p);
-            H1_Elements[Geometry::PRISM][p] = new H1Pos_WedgeElement(p);
+            H1_Elements[Geometry::TETRAHEDRON] = new H1Pos_TetrahedronElement(p);
+            H1_Elements[Geometry::CUBE] = new H1Pos_HexahedronElement(p);
+            H1_Elements[Geometry::PRISM] = new H1Pos_WedgeElement(p);
          }
          else
          {
-            H1_Elements[Geometry::TETRAHEDRON][p] =
-               new H1_TetrahedronElement(p, b_type);
-            H1_Elements[Geometry::CUBE][p] = new H1_HexahedronElement(p, b_type);
-            H1_Elements[Geometry::PRISM][p] = new H1_WedgeElement(p, b_type);
+            H1_Elements[Geometry::TETRAHEDRON] =
+               new H1_TetrahedronElement(p, btype);
+            H1_Elements[Geometry::CUBE] = new H1_HexahedronElement(p, btype);
+            H1_Elements[Geometry::PRISM] = new H1_WedgeElement(p, btype);
          }
 
-         int TetDof = H1_dof[Geometry::TETRAHEDRON][p];
-         TetDofOrd[0][p] = new int[24*TetDof];
+         const int &TetDof = H1_dof[Geometry::TETRAHEDRON];
+         TetDofOrd[0] = new int[24*TetDof];
          for (int i = 1; i < 24; i++)
          {
-            TetDofOrd[i][p] = TetDofOrd[i-1][p] + TetDof;
+            TetDofOrd[i] = TetDofOrd[i-1] + TetDof;
          }
          // see Mesh::GetTetOrientation in mesh/mesh.cpp
          for (int k = 0; k < pm3; k++)
@@ -1794,30 +1778,30 @@ void H1_FECollection::InitOrder(int p) const
                             + (i * (2 * p - 5 - i - 2 * l)) / 2 + j;
                   int o23 = TetDof - ((pm1 - i) * (pm2 - i) * (pm3 - i)) / 6
                             + (l * (2 * p - 5 - l - 2 * i)) / 2 + j;
-                  TetDofOrd[ 0][p][o] = o;   // (0,1,2,3)
-                  TetDofOrd[ 1][p][o] = o1;  // (0,1,3,2)
-                  TetDofOrd[ 2][p][o] = o2;  // (0,2,3,1)
-                  TetDofOrd[ 3][p][o] = o3;  // (0,2,1,3)
-                  TetDofOrd[ 4][p][o] = o4;  // (0,3,1,2)
-                  TetDofOrd[ 5][p][o] = o5;  // (0,3,2,1)
-                  TetDofOrd[ 6][p][o] = o6;  // (1,2,0,3)
-                  TetDofOrd[ 7][p][o] = o7;  // (1,2,3,0)
-                  TetDofOrd[ 8][p][o] = o8;  // (1,3,2,0)
-                  TetDofOrd[ 9][p][o] = o9;  // (1,3,0,2)
-                  TetDofOrd[10][p][o] = o10; // (1,0,3,2)
-                  TetDofOrd[11][p][o] = o11; // (1,0,2,3)
-                  TetDofOrd[12][p][o] = o12; // (2,3,0,1)
-                  TetDofOrd[13][p][o] = o13; // (2,3,1,0)
-                  TetDofOrd[14][p][o] = o14; // (2,0,1,3)
-                  TetDofOrd[15][p][o] = o15; // (2,0,3,1)
-                  TetDofOrd[16][p][o] = o16; // (2,1,3,0)
-                  TetDofOrd[17][p][o] = o17; // (2,1,0,3)
-                  TetDofOrd[18][p][o] = o18; // (3,0,2,1)
-                  TetDofOrd[19][p][o] = o19; // (3,0,1,2)
-                  TetDofOrd[20][p][o] = o20; // (3,1,0,2)
-                  TetDofOrd[21][p][o] = o21; // (3,1,2,0)
-                  TetDofOrd[22][p][o] = o22; // (3,2,1,0)
-                  TetDofOrd[23][p][o] = o23; // (3,2,0,1)
+                  TetDofOrd[ 0][o] = o;   // (0,1,2,3)
+                  TetDofOrd[ 1][o] = o1;  // (0,1,3,2)
+                  TetDofOrd[ 2][o] = o2;  // (0,2,3,1)
+                  TetDofOrd[ 3][o] = o3;  // (0,2,1,3)
+                  TetDofOrd[ 4][o] = o4;  // (0,3,1,2)
+                  TetDofOrd[ 5][o] = o5;  // (0,3,2,1)
+                  TetDofOrd[ 6][o] = o6;  // (1,2,0,3)
+                  TetDofOrd[ 7][o] = o7;  // (1,2,3,0)
+                  TetDofOrd[ 8][o] = o8;  // (1,3,2,0)
+                  TetDofOrd[ 9][o] = o9;  // (1,3,0,2)
+                  TetDofOrd[10][o] = o10; // (1,0,3,2)
+                  TetDofOrd[11][o] = o11; // (1,0,2,3)
+                  TetDofOrd[12][o] = o12; // (2,3,0,1)
+                  TetDofOrd[13][o] = o13; // (2,3,1,0)
+                  TetDofOrd[14][o] = o14; // (2,0,1,3)
+                  TetDofOrd[15][o] = o15; // (2,0,3,1)
+                  TetDofOrd[16][o] = o16; // (2,1,3,0)
+                  TetDofOrd[17][o] = o17; // (2,1,0,3)
+                  TetDofOrd[18][o] = o18; // (3,0,2,1)
+                  TetDofOrd[19][o] = o19; // (3,0,1,2)
+                  TetDofOrd[20][o] = o20; // (3,1,0,2)
+                  TetDofOrd[21][o] = o21; // (3,1,2,0)
+                  TetDofOrd[22][o] = o22; // (3,2,1,0)
+                  TetDofOrd[23][o] = o23; // (3,2,0,1)
                }
             }
          }
@@ -1825,43 +1809,29 @@ void H1_FECollection::InitOrder(int p) const
    }
 }
 
-const FiniteElement* H1_FECollection::GetFE(Geometry::Type geom, int p) const
+const int *H1_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                   int Or) const
 {
-   if (!HaveOrder(p)) { InitOrder(p); }
-   return H1_Elements[geom][p];
-}
-
-int H1_FECollection::GetNumDof(Geometry::Type geom, int p) const
-{
-   if (!HaveOrder(p)) { InitOrder(p); }
-   return H1_dof[geom][p];
-}
-
-const int* H1_FECollection::GetDofOrdering(Geometry::Type geom, int p,
-                                           int orientation) const
-{
-   if (!HaveOrder(p)) { InitOrder(p); }
-
-   if (geom == Geometry::SEGMENT)
+   if (GeomType == Geometry::SEGMENT)
    {
-      return (orientation > 0) ? SegDofOrd[0][p] : SegDofOrd[1][p];
+      return (Or > 0) ? SegDofOrd[0] : SegDofOrd[1];
    }
-   else if (geom == Geometry::TRIANGLE)
+   else if (GeomType == Geometry::TRIANGLE)
    {
-      return TriDofOrd[orientation % 6][p];
+      return TriDofOrd[Or%6];
    }
-   else if (geom == Geometry::SQUARE)
+   else if (GeomType == Geometry::SQUARE)
    {
-      return QuadDofOrd[orientation % 8][p];
+      return QuadDofOrd[Or%8];
    }
-   else if (geom == Geometry::TETRAHEDRON)
+   else if (GeomType == Geometry::TETRAHEDRON)
    {
-      return TetDofOrd[orientation % 24][p];
+      return TetDofOrd[Or%24];
    }
    return NULL;
 }
 
-/*FiniteElementCollection *H1_FECollection::GetTraceCollection() const
+FiniteElementCollection *H1_FECollection::GetTraceCollection() const
 {
    int p = H1_dof[Geometry::SEGMENT] + 1;
    int dim = -1;
@@ -1879,14 +1849,11 @@ const int* H1_FECollection::GetDofOrdering(Geometry::Type geom, int p,
    }
    return (dim < 0) ? NULL : new H1_Trace_FECollection(p, dim, b_type);
 }
-*/
 
-const int *H1_FECollection::GetDofMap(Geometry::Type GeomType, int p) const
+const int *H1_FECollection::GetDofMap(Geometry::Type GeomType) const
 {
-   MFEM_VERIFY(HaveOrder(p), "The finite element collection does not have "
-                             " the requested order");
    const int *dof_map = NULL;
-   const FiniteElement *fe = H1_Elements[GeomType][p];
+   const FiniteElement *fe = H1_Elements[GeomType];
    switch (GeomType)
    {
       case Geometry::SEGMENT:
@@ -1906,32 +1873,17 @@ const int *H1_FECollection::GetDofMap(Geometry::Type GeomType, int p) const
 
 H1_FECollection::~H1_FECollection()
 {
-   for (int p = 0; p < SegDofOrd[0].Size(); p++)
-   {
-      delete [] SegDofOrd[0][p];
-   }
-   for (int p = 0; p < TriDofOrd[0].Size(); p++)
-   {
-      delete [] TriDofOrd[0][p];
-   }
-   for (int p = 0; p < TriDofOrd[0].Size(); p++)
-   {
-      delete [] TetDofOrd[0][p];
-   }
-   for (int p = 0; p < QuadDofOrd[0].Size(); p++)
-   {
-      delete [] QuadDofOrd[0][p];
-   }
+   delete [] SegDofOrd[0];
+   delete [] TriDofOrd[0];
+   delete [] QuadDofOrd[0];
+   delete [] TetDofOrd[0];
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
-      for (int p = 0; p < H1_Elements[g].Size(); p++)
-      {
-         delete H1_Elements[g][p];
-      }
+      delete H1_Elements[g];
    }
 }
 
-#if 0
+
 H1_Trace_FECollection::H1_Trace_FECollection(const int p, const int dim,
                                              const int btype)
    : H1_FECollection(p, dim-1, btype)
@@ -1950,20 +1902,14 @@ H1_Trace_FECollection::H1_Trace_FECollection(const int p, const int dim,
                (int)BasisType::GetChar(btype), dim, p);
    }
 }
-#endif
 
 
-L2_FECollection::L2_FECollection(const int default_p, const int dim,
-                                 const int btype, const int map_type)
-   : FiniteElementCollection(default_p, dim)
+L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
+                                 const int map_type)
 {
-   MFEM_VERIFY(default_p >= 0, "L2_FECollection requires order >= 0.");
-
-   const int p = default_p;
+   MFEM_VERIFY(p >= 0, "L2_FECollection requires order >= 0.");
 
    b_type = BasisType::Check(btype);
-   this->map_type = map_type;
-
    const char *prefix = NULL;
    switch (map_type)
    {
@@ -1981,87 +1927,82 @@ L2_FECollection::L2_FECollection(const int default_p, const int dim,
          snprintf(d_name, 32, "%s_T%d_%dD_P%d", prefix, btype, dim, p);
    }
 
-   InitOrder(default_p);
-}
-
-
-bool L2_FECollection::HaveOrder(int p) const
-{
-   const auto &array = L2_Elements[Geometry::POINT];
-   return (array.Size() > p) && (array[p] != NULL);
-}
-
-void L2_FECollection::InitOrder(int p) const
-{
-   MFEM_ASSERT(!HaveOrder(p), "already initialized");
-
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
-       EnlargePArray(L2_Elements[g], p);
-       EnlargePArray(Tr_Elements[g], p);
+      L2_Elements[g] = NULL;
+      Tr_Elements[g] = NULL;
    }
-   for (int i = 0; i < 2;  i++) { EnlargePArray(SegDofOrd[i], p); }
-   for (int i = 0; i < 6;  i++) { EnlargePArray(TriDofOrd[i], p); }
-   for (int i = 0; i < 24; i++) { EnlargePArray(TetDofOrd[i], p); }
-   EnlargePArray(OtherDofOrd, p);
+   for (int i = 0; i < 2; i++)
+   {
+      SegDofOrd[i] = NULL;
+   }
+   for (int i = 0; i < 6; i++)
+   {
+      TriDofOrd[i] = NULL;
+   }
+   for (int i = 0; i < 24; i++)
+   {
+      TetDofOrd[i] = NULL;
+   }
+   OtherDofOrd = NULL;
 
    if (dim == 0)
    {
-      L2_Elements[Geometry::POINT][p] = new PointFiniteElement;
+      L2_Elements[Geometry::POINT] = new PointFiniteElement;
    }
    else if (dim == 1)
    {
       if (b_type == BasisType::Positive)
       {
-         L2_Elements[Geometry::SEGMENT][p] = new L2Pos_SegmentElement(p);
+         L2_Elements[Geometry::SEGMENT] = new L2Pos_SegmentElement(p);
       }
       else
       {
-         L2_Elements[Geometry::SEGMENT][p] = new L2_SegmentElement(p, b_type);
+         L2_Elements[Geometry::SEGMENT] = new L2_SegmentElement(p, btype);
       }
-      L2_Elements[Geometry::SEGMENT][p]->SetMapType(map_type);
+      L2_Elements[Geometry::SEGMENT]->SetMapType(map_type);
 
-      Tr_Elements[Geometry::POINT][p] = new PointFiniteElement;
+      Tr_Elements[Geometry::POINT] = new PointFiniteElement;
       // No need to set the map_type for Tr_Elements.
 
       const int pp1 = p + 1;
-      SegDofOrd[0][p] = new int[2*pp1];
-      SegDofOrd[1][p] = SegDofOrd[0][p] + pp1;
+      SegDofOrd[0] = new int[2*pp1];
+      SegDofOrd[1] = SegDofOrd[0] + pp1;
       for (int i = 0; i <= p; i++)
       {
-         SegDofOrd[0][p][i] = i;
-         SegDofOrd[1][p][i] = p - i;
+         SegDofOrd[0][i] = i;
+         SegDofOrd[1][i] = p - i;
       }
    }
    else if (dim == 2)
    {
       if (b_type == BasisType::Positive)
       {
-         L2_Elements[Geometry::TRIANGLE][p] = new L2Pos_TriangleElement(p);
-         L2_Elements[Geometry::SQUARE][p] = new L2Pos_QuadrilateralElement(p);
+         L2_Elements[Geometry::TRIANGLE] = new L2Pos_TriangleElement(p);
+         L2_Elements[Geometry::SQUARE] = new L2Pos_QuadrilateralElement(p);
       }
       else
       {
-         L2_Elements[Geometry::TRIANGLE][p] = new L2_TriangleElement(p, b_type);
-         L2_Elements[Geometry::SQUARE][p] = new L2_QuadrilateralElement(p, b_type);
+         L2_Elements[Geometry::TRIANGLE] = new L2_TriangleElement(p, btype);
+         L2_Elements[Geometry::SQUARE] = new L2_QuadrilateralElement(p, btype);
       }
-      L2_Elements[Geometry::TRIANGLE][p]->SetMapType(map_type);
-      L2_Elements[Geometry::SQUARE][p]->SetMapType(map_type);
+      L2_Elements[Geometry::TRIANGLE]->SetMapType(map_type);
+      L2_Elements[Geometry::SQUARE]->SetMapType(map_type);
       // Trace element use the default Gauss-Legendre nodal points for positive basis
       if (b_type == BasisType::Positive)
       {
-         Tr_Elements[Geometry::SEGMENT][p] = new L2_SegmentElement(p);
+         Tr_Elements[Geometry::SEGMENT] = new L2_SegmentElement(p);
       }
       else
       {
-         Tr_Elements[Geometry::SEGMENT][p] = new L2_SegmentElement(p, b_type);
+         Tr_Elements[Geometry::SEGMENT] = new L2_SegmentElement(p, btype);
       }
 
-      const int TriDof = L2_Elements[Geometry::TRIANGLE][p]->GetDof();
-      TriDofOrd[0][p] = new int[6*TriDof];
+      const int TriDof = L2_Elements[Geometry::TRIANGLE]->GetDof();
+      TriDofOrd[0] = new int[6*TriDof];
       for (int i = 1; i < 6; i++)
       {
-         TriDofOrd[i][p] = TriDofOrd[i-1][p] + TriDof;
+         TriDofOrd[i] = TriDofOrd[i-1] + TriDof;
       }
       const int pp1 = p + 1, pp2 = pp1 + 1;
       for (int j = 0; j <= p; j++)
@@ -2070,60 +2011,60 @@ void L2_FECollection::InitOrder(int p) const
          {
             int o = TriDof - ((pp2 - j)*(pp1 - j))/2 + i;
             int k = p - j - i;
-            TriDofOrd[0][p][o] = o;  // (0,1,2)
-            TriDofOrd[1][p][o] = TriDof - ((pp2-j)*(pp1-j))/2 + k;  // (1,0,2)
-            TriDofOrd[2][p][o] = TriDof - ((pp2-i)*(pp1-i))/2 + k;  // (2,0,1)
-            TriDofOrd[3][p][o] = TriDof - ((pp2-k)*(pp1-k))/2 + i;  // (2,1,0)
-            TriDofOrd[4][p][o] = TriDof - ((pp2-k)*(pp1-k))/2 + j;  // (1,2,0)
-            TriDofOrd[5][p][o] = TriDof - ((pp2-i)*(pp1-i))/2 + j;  // (0,2,1)
+            TriDofOrd[0][o] = o;  // (0,1,2)
+            TriDofOrd[1][o] = TriDof - ((pp2-j)*(pp1-j))/2 + k;  // (1,0,2)
+            TriDofOrd[2][o] = TriDof - ((pp2-i)*(pp1-i))/2 + k;  // (2,0,1)
+            TriDofOrd[3][o] = TriDof - ((pp2-k)*(pp1-k))/2 + i;  // (2,1,0)
+            TriDofOrd[4][o] = TriDof - ((pp2-k)*(pp1-k))/2 + j;  // (1,2,0)
+            TriDofOrd[5][o] = TriDof - ((pp2-i)*(pp1-i))/2 + j;  // (0,2,1)
          }
       }
-      const int QuadDof = L2_Elements[Geometry::SQUARE][p]->GetDof();
-      OtherDofOrd[p] = new int[QuadDof];
+      const int QuadDof = L2_Elements[Geometry::SQUARE]->GetDof();
+      OtherDofOrd = new int[QuadDof];
       for (int j = 0; j < QuadDof; j++)
       {
-         OtherDofOrd[p][j] = j; // for Or == 0
+         OtherDofOrd[j] = j; // for Or == 0
       }
    }
    else if (dim == 3)
    {
       if (b_type == BasisType::Positive)
       {
-         L2_Elements[Geometry::TETRAHEDRON][p] = new L2Pos_TetrahedronElement(p);
-         L2_Elements[Geometry::CUBE][p] = new L2Pos_HexahedronElement(p);
-         L2_Elements[Geometry::PRISM][p] = new L2Pos_WedgeElement(p);
+         L2_Elements[Geometry::TETRAHEDRON] = new L2Pos_TetrahedronElement(p);
+         L2_Elements[Geometry::CUBE] = new L2Pos_HexahedronElement(p);
+         L2_Elements[Geometry::PRISM] = new L2Pos_WedgeElement(p);
       }
       else
       {
-         L2_Elements[Geometry::TETRAHEDRON][p] =
-            new L2_TetrahedronElement(p, b_type);
-         L2_Elements[Geometry::CUBE][p] = new L2_HexahedronElement(p, b_type);
-         L2_Elements[Geometry::PRISM][p] = new L2_WedgeElement(p, b_type);
+         L2_Elements[Geometry::TETRAHEDRON] =
+            new L2_TetrahedronElement(p, btype);
+         L2_Elements[Geometry::CUBE] = new L2_HexahedronElement(p, btype);
+         L2_Elements[Geometry::PRISM] = new L2_WedgeElement(p, btype);
       }
-      L2_Elements[Geometry::TETRAHEDRON][p]->SetMapType(map_type);
-      L2_Elements[Geometry::CUBE][p]->SetMapType(map_type);
-      L2_Elements[Geometry::PRISM][p]->SetMapType(map_type);
+      L2_Elements[Geometry::TETRAHEDRON]->SetMapType(map_type);
+      L2_Elements[Geometry::CUBE]->SetMapType(map_type);
+      L2_Elements[Geometry::PRISM]->SetMapType(map_type);
       // Trace element use the default Gauss-Legendre nodal points for positive basis
       if (b_type == BasisType::Positive)
       {
-         Tr_Elements[Geometry::TRIANGLE][p] = new L2_TriangleElement(p);
-         Tr_Elements[Geometry::SQUARE][p] = new L2_QuadrilateralElement(p);
+         Tr_Elements[Geometry::TRIANGLE] = new L2_TriangleElement(p);
+         Tr_Elements[Geometry::SQUARE] = new L2_QuadrilateralElement(p);
       }
       else
       {
-         Tr_Elements[Geometry::TRIANGLE][p] = new L2_TriangleElement(p, b_type);
-         Tr_Elements[Geometry::SQUARE][p] = new L2_QuadrilateralElement(p, b_type);
+         Tr_Elements[Geometry::TRIANGLE] = new L2_TriangleElement(p, btype);
+         Tr_Elements[Geometry::SQUARE] = new L2_QuadrilateralElement(p, btype);
       }
 
-      const int TetDof = L2_Elements[Geometry::TETRAHEDRON][p]->GetDof();
-      const int HexDof = L2_Elements[Geometry::CUBE][p]->GetDof();
-      const int PriDof = L2_Elements[Geometry::PRISM][p]->GetDof();
+      const int TetDof = L2_Elements[Geometry::TETRAHEDRON]->GetDof();
+      const int HexDof = L2_Elements[Geometry::CUBE]->GetDof();
+      const int PriDof = L2_Elements[Geometry::PRISM]->GetDof();
       const int MaxDof = std::max(TetDof, std::max(PriDof, HexDof));
 
-      TetDofOrd[0][p] = new int[24*TetDof];
+      TetDofOrd[0] = new int[24*TetDof];
       for (int i = 1; i < 24; i++)
       {
-         TetDofOrd[i][p] = TetDofOrd[i-1][p] + TetDof;
+         TetDofOrd[i] = TetDofOrd[i-1] + TetDof;
       }
       // see Mesh::GetTetOrientation in mesh/mesh.cpp
       const int pp1 = p + 1, pp2 = pp1 + 1, pp3 = pp2 + 1;
@@ -2182,115 +2123,80 @@ void L2_FECollection::InitOrder(int p) const
                          + (i * (2 * p + 3 - i - 2 * l)) / 2 + j;
                int o23 = TetDof - ((pp1 - i) * (pp2 - i) * (pp3 - i)) / 6
                          + (l * (2 * p + 3 - l - 2 * i)) / 2 + j;
-               TetDofOrd[ 0][p][o] = o;   // (0,1,2,3)
-               TetDofOrd[ 1][p][o] = o1;  // (0,1,3,2)
-               TetDofOrd[ 2][p][o] = o2;  // (0,2,3,1)
-               TetDofOrd[ 3][p][o] = o3;  // (0,2,1,3)
-               TetDofOrd[ 4][p][o] = o4;  // (0,3,1,2)
-               TetDofOrd[ 5][p][o] = o5;  // (0,3,2,1)
-               TetDofOrd[ 6][p][o] = o6;  // (1,2,0,3)
-               TetDofOrd[ 7][p][o] = o7;  // (1,2,3,0)
-               TetDofOrd[ 8][p][o] = o8;  // (1,3,2,0)
-               TetDofOrd[ 9][p][o] = o9;  // (1,3,0,2)
-               TetDofOrd[10][p][o] = o10; // (1,0,3,2)
-               TetDofOrd[11][p][o] = o11; // (1,0,2,3)
-               TetDofOrd[12][p][o] = o12; // (2,3,0,1)
-               TetDofOrd[13][p][o] = o13; // (2,3,1,0)
-               TetDofOrd[14][p][o] = o14; // (2,0,1,3)
-               TetDofOrd[15][p][o] = o15; // (2,0,3,1)
-               TetDofOrd[16][p][o] = o16; // (2,1,3,0)
-               TetDofOrd[17][p][o] = o17; // (2,1,0,3)
-               TetDofOrd[18][p][o] = o18; // (3,0,2,1)
-               TetDofOrd[19][p][o] = o19; // (3,0,1,2)
-               TetDofOrd[20][p][o] = o20; // (3,1,0,2)
-               TetDofOrd[21][p][o] = o21; // (3,1,2,0)
-               TetDofOrd[22][p][o] = o22; // (3,2,1,0)
-               TetDofOrd[23][p][o] = o23; // (3,2,0,1)
+               TetDofOrd[ 0][o] = o;   // (0,1,2,3)
+               TetDofOrd[ 1][o] = o1;  // (0,1,3,2)
+               TetDofOrd[ 2][o] = o2;  // (0,2,3,1)
+               TetDofOrd[ 3][o] = o3;  // (0,2,1,3)
+               TetDofOrd[ 4][o] = o4;  // (0,3,1,2)
+               TetDofOrd[ 5][o] = o5;  // (0,3,2,1)
+               TetDofOrd[ 6][o] = o6;  // (1,2,0,3)
+               TetDofOrd[ 7][o] = o7;  // (1,2,3,0)
+               TetDofOrd[ 8][o] = o8;  // (1,3,2,0)
+               TetDofOrd[ 9][o] = o9;  // (1,3,0,2)
+               TetDofOrd[10][o] = o10; // (1,0,3,2)
+               TetDofOrd[11][o] = o11; // (1,0,2,3)
+               TetDofOrd[12][o] = o12; // (2,3,0,1)
+               TetDofOrd[13][o] = o13; // (2,3,1,0)
+               TetDofOrd[14][o] = o14; // (2,0,1,3)
+               TetDofOrd[15][o] = o15; // (2,0,3,1)
+               TetDofOrd[16][o] = o16; // (2,1,3,0)
+               TetDofOrd[17][o] = o17; // (2,1,0,3)
+               TetDofOrd[18][o] = o18; // (3,0,2,1)
+               TetDofOrd[19][o] = o19; // (3,0,1,2)
+               TetDofOrd[20][o] = o20; // (3,1,0,2)
+               TetDofOrd[21][o] = o21; // (3,1,2,0)
+               TetDofOrd[22][o] = o22; // (3,2,1,0)
+               TetDofOrd[23][o] = o23; // (3,2,0,1)
             }
          }
       }
-      OtherDofOrd[p] = new int[MaxDof];
+      OtherDofOrd = new int[MaxDof];
       for (int j = 0; j < MaxDof; j++)
       {
-         OtherDofOrd[p][j] = j; // for Or == 0
+         OtherDofOrd[j] = j; // for Or == 0
       }
    }
    else
    {
-      MFEM_ABORT("dim = " << dim);
+      mfem::err << "L2_FECollection::L2_FECollection : dim = "
+                << dim << endl;
+      mfem_error();
    }
 }
 
-const FiniteElement* L2_FECollection::GetFE(Geometry::Type geom, int p) const
+const int *L2_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                   int Or) const
 {
-   if (!HaveOrder(p)) { InitOrder(p); }
-   return L2_Elements[geom][p];
-}
-
-int L2_FECollection::GetNumDof(Geometry::Type geom, int p) const
-{
-   if (!HaveOrder(p)) { InitOrder(p); }
-   if (L2_Elements[geom][p])
-   {
-      return L2_Elements[geom][p]->GetDof();
-   }
-   return 0;
-}
-
-const int* L2_FECollection::GetDofOrdering(Geometry::Type geom, int p,
-                                           int orientation) const
-{
-   if (!HaveOrder(p)) { InitOrder(p); }
-
-   switch (geom)
+   switch (GeomType)
    {
       case Geometry::SEGMENT:
-         return (orientation > 0) ? SegDofOrd[0][p] : SegDofOrd[1][p];
+         return (Or > 0) ? SegDofOrd[0] : SegDofOrd[1];
 
       case Geometry::TRIANGLE:
-         return TriDofOrd[orientation%6][p];
+         return TriDofOrd[Or%6];
 
       case Geometry::TETRAHEDRON:
-         return TetDofOrd[orientation % 24][p];
+         return TetDofOrd[Or%24];
 
       default:
-         return (orientation == 0) ? OtherDofOrd[p] : NULL;
+         return (Or == 0) ? OtherDofOrd : NULL;
    }
 }
 
 L2_FECollection::~L2_FECollection()
 {
-   for (int p = 0; p < SegDofOrd[0].Size(); p++)
+   delete [] OtherDofOrd;
+   delete [] SegDofOrd[0];
+   delete [] TriDofOrd[0];
+   delete [] TetDofOrd[0];
+   for (int i = 0; i < Geometry::NumGeom; i++)
    {
-      delete [] SegDofOrd[0][p];
-   }
-   for (int p = 0; p < TriDofOrd[0].Size(); p++)
-   {
-      delete [] TriDofOrd[0][p];
-   }
-   for (int p = 0; p < TetDofOrd[0].Size(); p++)
-   {
-      delete [] TetDofOrd[0][p];
-   }
-   for (int p = 0; p < OtherDofOrd.Size(); p++)
-   {
-      delete [] OtherDofOrd[p];
-   }
-
-   for (int g = 0; g < Geometry::NumGeom; g++)
-   {
-      for (int p = 0; p < L2_Elements[g].Size(); p++)
-      {
-         delete L2_Elements[g][p];
-      }
-      for (int p = 0; p < Tr_Elements[g].Size(); p++)
-      {
-         delete Tr_Elements[g][p];
-      }
+      delete L2_Elements[i];
+      delete Tr_Elements[i];
    }
 }
 
-#if 0
+
 RT_FECollection::RT_FECollection(const int p, const int dim,
                                  const int cb_type, const int ob_type)
    : ob_type(ob_type)
@@ -2907,6 +2813,5 @@ FiniteElementCollection *NURBSFECollection::GetTraceCollection() const
    MFEM_ABORT("NURBS finite elements can not be statically condensed!");
    return NULL;
 }
-#endif
 
 }
