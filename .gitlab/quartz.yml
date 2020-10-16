@@ -51,22 +51,22 @@ q_release_resources:
 # Build MFEM
 debug_ser_gcc_4_9_3:
   variables:
-    SPEC: "+debug~mpi %gcc@4.9.3"
+    SPEC: "%gcc@4.9.3 +debug~mpi"
   extends: .build_and_test_on_quartz
 
 debug_ser_gcc_6_1_0:
   variables:
-    SPEC: "+debug~mpi %gcc@6.1.0"
+    SPEC: "%gcc@6.1.0 +debug~mpi"
   extends: .build_and_test_on_quartz
 
 debug_par_gcc_6_1_0:
   variables:
-    SPEC: "+debug+mpi %gcc@6.1.0"
+    SPEC: "%gcc@6.1.0 +debug+mpi"
   extends: .build_and_test_on_quartz
 
 opt_ser_gcc_6_1_0:
   variables:
-    SPEC: "~mpi %gcc@6.1.0"
+    SPEC: "%gcc@6.1.0 ~mpi"
   extends: .build_and_test_on_quartz
 
 opt_par_gcc_6_1_0:
