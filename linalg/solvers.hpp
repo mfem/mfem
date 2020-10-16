@@ -407,6 +407,28 @@ class NewtonSolver : public IterativeSolver
 {
 protected:
    mutable Vector r, c;
+   mutable Operator *grad;
+
+   // Adaptive linear solver rtol variables
+
+   // Method to determine rtol, 0 means the adaptive algorithm is deactivated.
+   int lin_rtol_ver = 0;
+   // rtol to use in first iteration
+   double lin_rtol0;
+   // Maximum rtol
+   double lin_rtol_max;
+   // Function norm ||F(x)|| of the previous iterate
+   mutable double fnorm_last = 0.0;
+   // Linear residual norm of the previous iterate
+   mutable double lnorm_last = 0.0;
+   // Forcing term (linear residual rtol) from the previous iterate
+   mutable double eta_last = 0.0;
+   // Eisenstat-Walker factor gamma
+   double gamma = 1.0;
+   // Eisenstat-Walker factor alpha
+   double alpha = 0.5 * (1.0 + sqrt(5.0));
+   // Safeguard threshold
+   double sg_threshold = 0.1;
 
 public:
    NewtonSolver() { }
@@ -434,6 +456,21 @@ public:
    /** @brief This method can be overloaded in derived classes to perform
        computations that need knowledge of the newest Newton state. */
    virtual void ProcessNewState(const Vector &x) const { }
+
+   void SetAdaptiveLinRtol(const int version = 2,
+                           const double rtol0 = 0.5,
+                           const double rtol_max = 0.9);
+
+   void AdaptiveLinRtolPreSolve(Solver *solver,
+                                const Vector &x,
+                                const int it,
+                                const double fnorm) const;
+
+   void AdaptiveLinRtolPostSolve(Solver *solver,
+                                 const Vector &x,
+                                 const Vector &b,
+                                 const int it,
+                                 const double fnorm) const;
 };
 
 /** L-BFGS method for solving F(x)=b for a given operator F, by minimizing
