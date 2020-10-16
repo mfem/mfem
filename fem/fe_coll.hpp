@@ -55,24 +55,24 @@ public:
 
    /** @brief Returns an array, say p, that maps a local permuted index i to
        a local base index: base_i = p[i]. */
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const = 0;
+   virtual const int *
+   DofOrderForOrientation(Geometry::Type GeomType, int Or) const = 0;
 
    virtual const char * Name() const { return "Undefined"; }
 
    virtual int GetContType() const = 0;
 
-   int HasFaceDofs(Geometry::Type GeomType) const;
+   int HasFaceDofs(Geometry::Type geom, int p) const;
 
-   virtual const FiniteElement *TraceFiniteElementForGeometry(
-      Geometry::Type GeomType) const
+   virtual const FiniteElement *
+   TraceFiniteElementForGeometry(Geometry::Type GeomType) const
    {
       return FiniteElementForGeometry(GeomType);
    }
 
    virtual FiniteElementCollection *GetTraceCollection() const;
 
-   virtual ~FiniteElementCollection() { }
+   virtual ~FiniteElementCollection();
 
    /** @brief Factory method: return a newly allocated FiniteElementCollection
        according to the given name. */
@@ -153,6 +153,45 @@ public:
       SDim <= Dim(Geom). */
    void SubDofOrder(Geometry::Type Geom, int SDim, int Info,
                     Array<int> &dofs) const;
+
+   /// Variable order version of FiniteElementForGeometry
+   const FiniteElement *GetFE(Geometry::Type geom, int p) const
+   {
+      if (p == base_p) { return FiniteElementForGeometry(geom); }
+      if (p >= var_orders.Size() || !var_orders[p]) { InitVarOrder(p); }
+      return var_orders[p]->FiniteElementForGeometry(geom);
+   }
+
+   /// Variable order version of DofForGeometry
+   int GetNumDof(Geometry::Type geom, int p) const
+   {
+      if (p == base_p) { return DofForGeometry(geom); }
+      if (p >= var_orders.Size() || !var_orders[p]) { InitVarOrder(p); }
+      return var_orders[p]->DofForGeometry(geom);
+   }
+
+   /// Variable order version of DofOrderForOrientation
+   const int * GetDofOrdering(Geometry::Type geom, int p, int ori) const
+   {
+      if (p == base_p) { return DofOrderForOrientation(geom, ori); }
+      if (p >= var_orders.Size() || !var_orders[p]) { InitVarOrder(p); }
+      return var_orders[p]->DofOrderForOrientation(geom, ori);
+   }
+
+   int DefaultOrder() const { return base_p; }
+
+protected:
+   const int base_p;
+
+   FiniteElementCollection() : base_p(0) {}
+   FiniteElementCollection(int p) : base_p(p) {}
+
+   /// Instantiate a new collection of the same type with a different order.
+   virtual FiniteElementCollection* NewOrder(int p) const;
+
+   void InitVarOrder(int p) const;
+
+   mutable Array<FiniteElementCollection*> var_orders;
 };
 
 /// Arbitrary order H1-conforming (continuous) finite elements.
@@ -160,7 +199,7 @@ class H1_FECollection : public FiniteElementCollection
 {
 
 protected:
-   int b_type;
+   int dim, b_type;
    char h1_name[32];
    FiniteElement *H1_Elements[Geometry::NumGeom];
    int H1_dof[Geometry::NumGeom];
@@ -170,22 +209,32 @@ public:
    explicit H1_FECollection(const int p, const int dim = 3,
                             const int btype = BasisType::GaussLobatto);
 
-   virtual const FiniteElement *FiniteElementForGeometry(
-      Geometry::Type GeomType) const
+   virtual const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const
    { return H1_Elements[GeomType]; }
+
    virtual int DofForGeometry(Geometry::Type GeomType) const
    { return H1_dof[GeomType]; }
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
+
+   virtual const int *
+   DofOrderForOrientation(Geometry::Type GeomType, int Or) const;
+
    virtual const char *Name() const { return h1_name; }
    virtual int GetContType() const { return CONTINUOUS; }
+   int GetBasisType() const { return b_type; }
+
    FiniteElementCollection *GetTraceCollection() const;
 
-   int GetBasisType() const { return b_type; }
    /// Get the Cartesian to local H1 dof map
    const int *GetDofMap(Geometry::Type GeomType) const;
+   /// Variable order version of GetDofMap
+   const int *GetDofMap(Geometry::Type GeomType, int p) const;
 
    virtual ~H1_FECollection();
+
+protected:
+   FiniteElementCollection* NewOrder(int p) const
+   { return new H1_FECollection(p, dim, b_type); }
 };
 
 /** @brief Arbitrary order H1-conforming (continuous) finite elements with
@@ -221,7 +270,9 @@ public:
 class L2_FECollection : public FiniteElementCollection
 {
 private:
+   int dim;
    int b_type; // BasisType
+   int m_type; // map type
    char d_name[32];
    ScalarFiniteElement *L2_Elements[Geometry::NumGeom];
    ScalarFiniteElement *Tr_Elements[Geometry::NumGeom];
@@ -263,6 +314,10 @@ public:
    int GetBasisType() const { return b_type; }
 
    virtual ~L2_FECollection();
+
+protected:
+   FiniteElementCollection* NewOrder(int p) const
+   { return new L2_FECollection(p, dim, b_type, m_type); }
 };
 
 /// Declare an alternative name for L2_FECollection = DG_FECollection
