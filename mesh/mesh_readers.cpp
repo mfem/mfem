@@ -376,7 +376,6 @@ const int Mesh::vtk_quadratic_hex[27] =
 void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
                        bool &finalize_topo)
 {
-#if 0
    // VTK resources:
    //   * https://www.vtk.org/doc/nightly/html/vtkCellType_8h_source.html
    //   * https://www.vtk.org/doc/nightly/html/classvtkCell.html
@@ -690,12 +689,10 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
 
       read_gf = 0;
    }
-#endif
 }
 
 void Mesh::ReadNURBSMesh(std::istream &input, int &curved, int &read_gf)
 {
-#if 0
    NURBSext = new NURBSExtension(input);
 
    Dim              = NURBSext->Dimension();
@@ -733,7 +730,6 @@ void Mesh::ReadNURBSMesh(std::istream &input, int &curved, int &read_gf)
    {
       read_gf = 1;
    }
-#endif
 }
 
 void Mesh::ReadInlineMesh(std::istream &input, bool generate_edges)
