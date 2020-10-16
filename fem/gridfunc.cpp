@@ -151,15 +151,15 @@ void GridFunction::Destroy()
 
 void GridFunction::Update()
 {
-//   if (fes->GetSequence() == sequence)
-//   {
-//      return; // space and grid function are in sync, no-op
-//   }
-//   if (fes->GetSequence() != sequence + 1)
-//   {
-//      MFEM_ABORT("Error in update sequence. GridFunction needs to be updated "
-//                 "right after the space is updated.");
-//   }
+   if (fes->GetSequence() == sequence)
+   {
+      return; // space and grid function are in sync, no-op
+   }
+   if (fes->GetSequence() != sequence + 1)
+   {
+      MFEM_ABORT("Error in update sequence. GridFunction needs to be updated "
+                 "right after the space is updated.");
+   }
    sequence = fes->GetSequence();
 
    const Operator *T = fes->GetUpdateOperator();
@@ -2448,6 +2448,7 @@ void GridFunction::ProjectBdrCoefficient(VectorCoefficient &vcoeff,
    Array<int> values_counter;
    AccumulateAndCountBdrValues(NULL, &vcoeff, attr, values_counter);
    ComputeMeans(ARITHMETIC, values_counter);
+
 #ifdef MFEM_DEBUG
    Array<int> ess_vdofs_marker;
    fes->GetEssentialVDofs(attr, ess_vdofs_marker);
@@ -2465,7 +2466,6 @@ void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr)
    // this->HostReadWrite(); // done inside the next call
    AccumulateAndCountBdrValues(coeff, NULL, attr, values_counter);
    ComputeMeans(ARITHMETIC, values_counter);
-
 
 #ifdef MFEM_DEBUG
    Array<int> ess_vdofs_marker;
@@ -3851,7 +3851,6 @@ double ExtrudeCoefficient::Eval(ElementTransformation &T,
 GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
                                     GridFunction *sol, const int ny)
 {
-#if 0
    GridFunction *sol2d;
 
    FiniteElementCollection *solfec2d;
@@ -3903,10 +3902,6 @@ GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
       sol2d->ProjectCoefficient(c2d);
    }
    return sol2d;
-#else
-   MFEM_ABORT("TODO");
-   return NULL;
-#endif
 }
 
 }

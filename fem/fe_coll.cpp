@@ -292,10 +292,9 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
 
 FiniteElementCollection *FiniteElementCollection::NewOrder(int p) const
 {
-   // default implementation
+   // default implementation for collections that don't care about variable p
+   MFEM_ABORT("Collection " << Name() << " does not support variable orders.");
    (void) p;
-   MFEM_ABORT("FiniteElementCollection " << Name() <<
-              " does not support variable orders.");
    return NULL;
 }
 
