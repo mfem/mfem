@@ -148,6 +148,10 @@ prob_type prob;
 
 int main(int argc, char *argv[])
 {
+   int num_procs, myid;
+   MPI_Init(&argc, &argv);
+   MPI_Comm_size(MPI_COMM_SELF, &num_procs);
+   MPI_Comm_rank(MPI_COMM_SELF, &myid);
    // 1. Parse command-line options.
    const char *mesh_file = nullptr;
    int order = 1;
@@ -400,12 +404,38 @@ int main(int argc, char *argv[])
 
    // 13. Solve using a direct or an iterative solver
 #ifdef MFEM_USE_SUITESPARSE
+   StopWatch chrono;
+
    {
+      chrono.Clear();
+      chrono.Start();
       ComplexUMFPackSolver csolver(*A.As<ComplexSparseMatrix>());
       csolver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
       csolver.SetPrintLevel(1);
       csolver.Mult(B, X);
+      chrono.Stop();
+      cout << "UMFPACK for ComplexSparseMatrix = " << chrono.RealTime() << endl;
    }
+   {
+      chrono.Clear();
+      chrono.Start();
+      HYPRE_Int rowstarts[2]; rowstarts[0] = 0;
+      rowstarts[1] = fespace->GetTrueVSize();
+      HypreParMatrix * HypreMat_r =
+         new HypreParMatrix(MPI_COMM_SELF,rowstarts[1],rowstarts,
+                            &(*A.As<ComplexSparseMatrix>()).real());
+      HypreParMatrix * HypreMat_i =
+         new HypreParMatrix(MPI_COMM_SELF,rowstarts[1],rowstarts,
+                            &(*A.As<ComplexSparseMatrix>()).imag());
+      ComplexHypreParMatrix * HypreMat =
+         new ComplexHypreParMatrix(HypreMat_r,HypreMat_i,false,false);
+      ComplexMUMPSSolver csolver;
+      csolver.SetOperator(*HypreMat);
+      csolver.Mult(B, X);
+      chrono.Stop();
+      cout << "MUMPS  for ComplexSparseMatrix = " << chrono.RealTime() << endl;
+   }
+
 #else
    // 13a. Set up the Bilinear form a(.,.) for the preconditioner
    //
@@ -573,6 +603,7 @@ int main(int argc, char *argv[])
    delete fespace;
    delete fec;
    delete mesh;
+   MPI_Finalize();
    return 0;
 }
 

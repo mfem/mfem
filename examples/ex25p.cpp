@@ -438,17 +438,21 @@ int main(int argc, char *argv[])
    //     system, applying any necessary transformations such as: parallel
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, etc.
-   a.Assemble();
+   a.Assemble(0);
 
    OperatorPtr Ah;
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, Ah, X, B);
    // 15. Solve using a direct or an iterative solver
 #ifdef MFEM_USE_SUPERLU
+   StopWatch chrono;
+
    if (slu_solver)
    {
       // Transform to monolithic HypreParMatrix
       HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
+      chrono.Clear();
+      chrono.Start();
       SuperLURowLocMatrix SA(*A);
       SuperLUSolver superlu(MPI_COMM_WORLD);
       superlu.SetPrintStatistics(false);
@@ -457,19 +461,49 @@ int main(int argc, char *argv[])
       superlu.SetOperator(SA);
       superlu.Mult(B, X);
       delete A;
+      chrono.Stop();
+      if (myid == 0)
+      {
+         cout << "Superlu for monolithic HyperMat = " << chrono.RealTime() << endl;
+      }
    }
 #endif
 #ifdef MFEM_USE_MUMPS
    if (mumps_solver)
    {
+
       HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
+      chrono.Clear();
+      chrono.Start();
       MUMPSSolver mumps;
       mumps.SetPrintLevel(0);
       mumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
       mumps.SetOperator(*A);
       mumps.Mult(B,X);
+      chrono.Stop();
+      if (myid == 0)
+      {
+         cout << "MUMPS for monolithic HyperMat = " << chrono.RealTime() << endl;
+      }
       delete A;
    }
+   if (mumps_solver)
+   {
+      chrono.Clear();
+      chrono.Start();
+      ComplexMUMPSSolver cmumps;
+      cmumps.SetPrintLevel(0);
+      cmumps.SetOperator(*Ah);
+      cmumps.Mult(B,X);
+      chrono.Stop();
+      if (myid == 0)
+      {
+         cout << "MUMPS for ComplexHyperMat     = " << chrono.RealTime() << endl;
+      }
+   }
+
+
+
 #endif
    // 16a. Set up the parallel Bilinear form a(.,.) for the preconditioner
    //
