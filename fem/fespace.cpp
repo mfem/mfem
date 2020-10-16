@@ -633,8 +633,6 @@ FiniteElementSpace::H2L_GlobalRestrictionMatrix (FiniteElementSpace *lfes)
    return R;
 }
 
-const int SkipDof = std::numeric_limits<int>::max();
-
 void FiniteElementSpace
    ::AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
                      Array<int>& slave_dofs, DenseMatrix& I, int skipfirst)
@@ -1039,13 +1037,9 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // be able to finalize all slave DOFs, otherwise it's a serious error
    if (n_finalized != ndofs)
    {
-      //MFEM_ABORT("Error creating cP matrix.");
-      MFEM_WARNING("Error creating cP matrix: n_finalized = " << n_finalized
-                   << ", ndofs = " << ndofs);
+      MFEM_ABORT("Error creating cP matrix: n_finalized = " << n_finalized
+                 << ", ndofs = " << ndofs);
    }
-
-   /*out << "\n\n";
-   DebugDumpDOFs(out, deps, finalized);*/
 
    cP->Finalize();
    if (cQ) { cQ->Finalize(); }
@@ -1119,7 +1113,6 @@ int FiniteElementSpace::GetNConformingDofs() const
 const Operator *FiniteElementSpace::GetElementRestriction(
    ElementDofOrdering e_ordering) const
 {
-#if 0 // FIXME
    // Check if we have a discontinuous space using the FE collection:
    if (IsDGSpace())
    {
@@ -1129,7 +1122,6 @@ const Operator *FiniteElementSpace::GetElementRestriction(
       }
       return L2E_nat.Ptr();
    }
-#endif
    if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
    {
       if (L2E_lex.Ptr() == NULL)
@@ -1739,9 +1731,9 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
    sequence = mesh->GetSequence();
    Th.SetType(Operator::ANY_TYPE);
 
-   /*const NURBSFECollection *nurbs_fec =
+   const NURBSFECollection *nurbs_fec =
       dynamic_cast<const NURBSFECollection *>(fec);
-   if (nurbs_fec)*/ if (0)
+   if (nurbs_fec)
    {
       MFEM_VERIFY(mesh->NURBSext, "NURBS FE space requires a NURBS mesh.");
 
@@ -1793,9 +1785,7 @@ void FiniteElementSpace::UpdateNURBS()
    face_dof = NULL;
    face_to_be.DeleteAll();
 
-#if 0
    dynamic_cast<const NURBSFECollection *>(fec)->Reset();
-#endif
 
    ndofs = NURBSext->GetNDof();
    elem_dof = NURBSext->GetElementDofTable();
@@ -2297,6 +2287,7 @@ int FiniteElementSpace::GetNVariants(int entity, int index) const
 
 void FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs) const
 {
+   // FIXME
    //if (orders_changed) { CheckUpToDate(); }
 
    if (elem_dof)
@@ -2736,12 +2727,7 @@ const FiniteElement *FiniteElementSpace::GetEdgeElement(int i, int variant) cons
 const FiniteElement *FiniteElementSpace::GetTraceElement(
    int i, Geometry::Type geom_type) const
 {
-#if 0
    return fec->TraceFiniteElementForGeometry(geom_type);
-#else
-   MFEM_ABORT("TODO");
-   return NULL;
-#endif
 }
 
 FiniteElementSpace::~FiniteElementSpace()
@@ -2988,7 +2974,6 @@ void FiniteElementSpace::Save(std::ostream &out) const
    }
    else
    {
-#if 0
       const NURBSFECollection *nurbs_fec =
          dynamic_cast<const NURBSFECollection *>(fec);
       MFEM_VERIFY(nurbs_fec, "invalid FE collection");
@@ -3002,9 +2987,6 @@ void FiniteElementSpace::Save(std::ostream &out) const
       {
          fes_format = 100; // v1.0 format
       }
-#else
-      MFEM_ABORT("TODO");
-#endif
    }
 
    out << (fes_format == 90 ?
@@ -3021,13 +3003,11 @@ void FiniteElementSpace::Save(std::ostream &out) const
       }
       else if (NURBSext != mesh->NURBSext)
       {
-#if 0 // FIXME
          if (NURBSext->GetOrder() != NURBSFECollection::VariableOrder)
          {
             out << "NURBS_order\n" << NURBSext->GetOrder() << '\n';
          }
          else
-#endif
          {
             out << "NURBS_orders\n";
             // 1 = do not write the size, just the entries:
@@ -3075,7 +3055,6 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
    getline(input, buff, ' '); // 'Ordering:'
    input >> ord;
 
-#if 0 // FIXME
    NURBSFECollection *nurbs_fec = dynamic_cast<NURBSFECollection*>(r_fec);
    NURBSExtension *NURBSext = NULL;
    if (fes_format == 90) // original format, v0.9
@@ -3147,9 +3126,6 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
          }
       }
    }
-#else
-   (void) fes_format;
-#endif
 
    Constructor(m, NURBSext, r_fec, vdim, ord);
 
