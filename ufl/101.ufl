@@ -1,5 +1,6 @@
 # Create mesh, define the function space and the boundary conditions
 mesh = UnitSquareMesh(16, 16)
+
 V = FunctionSpace(mesh, 'P', 4)
 bc = DirichletBC(V)
 
@@ -23,7 +24,7 @@ solve(a == L, x, bc)
 
 Norml1 = (x**1) * dx
 Norml2 = x**2 * dx
-print("\033[32mNorml1:%f, Norml2=%f\033[m\n", Norml1, Norml2)
+print("\033[32mNorml1: %f, Norml2: %f\033[m", Norml1, Norml2)
 
 # Plot solution or mesh
 plot(x)

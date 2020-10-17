@@ -6,69 +6,95 @@
 #include <string>
 #include <memory>
 #include <iostream>
-
+#include <cerrno>
+#include <climits>
+#include <cstdlib>
 #include <cassert>
-#include <cstring> // strcat
-#include <getopt.h>
+#include <cstring>
 
 // *****************************************************************************
-#define DBG(...) { printf("\033[32m");printf(__VA_ARGS__);printf("\033[m");}
+#define DBG(...) { printf("\033[32m");printf(__VA_ARGS__);printf("\033[m");fflush(0);}
 
+// *****************************************************************************
+#ifndef XFL_C
 // *****************************************************************************
 struct Node
 {
-   bool keep;
-   Node *next, *children, *parent;
-   int sn, id, nb_siblings;
-   Node(const int);
-   virtual ~Node();
+   bool keep {false};
+   int sn, id{0}, nb_siblings{0};
+   Node *next {nullptr}, *children {nullptr}, *parent {nullptr};
+   Node(const int sn): sn(sn) {}
+   virtual ~Node() {}
    virtual void Apply(struct Middlend&, bool&, Node** = nullptr) = 0;
    virtual const int Number() const = 0;
-   virtual const int SymbolNumber() const = 0;
+   virtual const int SymbolNumber() = 0;
    virtual const std::string Name() const = 0;
    virtual const bool IsRule() const = 0;
    virtual const bool IsToken() const = 0;
 };
 
 // *****************************************************************************
-int yylex(void);
-void yyerror(Node**, char const *message);
-extern int yydebug;
-extern bool yyecho;
-
-// *****************************************************************************
 template<int RN> class Rule : public Node
 {
    std::string rule;
 public:
-   Rule(const int sym_num, const char *rule): Node(sym_num), rule(rule) {}
+   Rule(const int sn, const char *rule): Node(sn), rule(rule) {}
    void Apply(struct Middlend&, bool&, Node** = nullptr);
    const int Number() const { return RN; }
-   const int SymbolNumber() const;
-   const std::string Name() const { return rule; }
    const bool IsRule() const { return true; }
    const bool IsToken() const { return false; }
+   const int SymbolNumber() { return sn; }
+   const std::string Name() const { return rule; }
 };
 
 // *****************************************************************************
-template<int TK = 0> class Token : public Node
+template<int TK> class Token : public Node
 {
-   std::string name, text;
+   std::string token;
 public:
-   Token(const int sn, const char *name, const char *text):
-      Node(sn), name(name), text(text) {}
+   Token(const int sn, const char *token): Node(sn), token(token) {}
    void Apply(struct Middlend&, bool&, Node** = nullptr);
    const int Number() const { return TK; }
-   const int SymbolNumber() const { return Number(); }
-   const std::string Name() const { return name; }
    const bool IsRule() const { return false; }
    const bool IsToken() const { return true; }
-   const std::string Text() const { return text; }
+   const int SymbolNumber(); // YYTOKENSHIFT(TK)
+   const std::string Name() const { return token; }
+};
+
+// *****************************************************************************
+class xfl
+{
+public:
+   Node *root;
+   bool trace_parsing;
+   bool trace_scanning;
+   std::string i_filename, o_filename;
+public:
+   xfl(): root(nullptr), trace_parsing(false), trace_scanning(false) {}
+   void ll_open();
+   void ll_close();
+   int yy_parse(const std::string&);
+   Node **Root() { return &root;}
 };
 
 // *****************************************************************************
 namespace yy
 {
+extern int debug;
+extern bool echo;
+void dfs(Node*, struct Middlend&);
+} // yy
+
+// *****************************************************************************
+Node *astAddNode(std::shared_ptr<Node>);
+void yyerror(Node**, char const *message);
+#else
+// *****************************************************************************
+namespace yy
+{
+
+extern int debug;
+extern bool echo;
 
 const int undef();
 
@@ -86,107 +112,160 @@ signed char Translate(int);
 const char* const SymbolName(int);
 
 inline bool is_token(const int sn) { return sn < yy::ntokens(); }
-inline bool is_token(const Node *n) { return is_token(n->sn); }
 
 inline bool is_rule(const int sn) { return sn >= yy::ntokens(); }
-inline bool is_rule(const Node *n) { return is_rule(n->sn); }
 
-template<int> void rhs(Node**, int, Node**);
+} // yy
+
+#ifdef OWN_VTABLE
+// *****************************************************************************
+struct Node;
+struct Middlend;
+
+// *****************************************************************************
+struct Node
+{
+   bool keep;
+   Node *next, *children, *parent;
+   int sn, id, nb_siblings;
+
+   void *t;
+   const bool (*IsRule_p)();
+   const bool (*IsToken_p)();
+   const int (*Number_p)();
+   const int (*SymbolNumber_p)();
+   const std::string (*Name_p)(void*);
+   void (*Apply_ptr)(void*, struct Middlend&, bool&, Node**);
+   void (*Delete_p)(void*);
+
+   template<class T> Node(T const &t):
+      keep(false), next(nullptr), children(nullptr), parent(nullptr),
+      id(0), nb_siblings(0),
+      t(new T(t)),
+      IsRule_p(&t.IsRule),
+      IsToken_p(&t.IsToken),
+      Number_p(&t.Number),
+      SymbolNumber_p(&t.SymbolNumber),
+      Name_p(&t.Name),
+      Apply_ptr(&t.Apply),
+      Delete_p(&t.Delete)
+   {
+      sn = SymbolNumber();
+      //const bool (*IsRule)() noexcept = &t.IsRule;
+   }
+   inline const bool IsRule() { return IsRule_p(); }
+   inline const bool IsToken() const { return IsToken_p(); }
+   inline const int Number() { return Number_p(); }
+   inline const int SymbolNumber() { return SymbolNumber_p(); }
+   inline const std::string Name() { return Name_p(t); }
+   inline void Apply(struct Middlend &ir, bool &dfs, Node* *extra)
+   { Apply_ptr(t, ir, dfs, extra); }
+   ~Node() { Delete_p(t); }
+};
+
+// *****************************************************************************
+template<int RN> struct Rule
+{
+   int sn;
+   std::string rule;
+   Rule(const int sn, const char *rule): sn(sn), rule(rule) { assert(sn == SymbolNumber()); }
+   /////////////////////////////////////////////////////////////////////////////
+   static inline const int Number() { return RN; }
+   static inline const bool IsRule() { return true; }
+   static inline const bool IsToken() { return false; }
+   static inline const int SymbolNumber() { return yy::r1(RN); }
+   static inline const std::string Name(void *t)
+   { return static_cast<Rule<RN>*>(t)->rule; }
+   static inline void Apply(void*, struct Middlend&, bool&, Node**);
+   static void Delete(void *t) { delete static_cast<Rule<RN>*>(t); }
+};
+
+// *****************************************************************************
+template<int TK> struct Token
+{
+   int sn;
+   std::string name, text;
+   Token(const int sn, const char *name, const char *text):
+      sn(sn), name(name), text(text) { assert(sn == SymbolNumber()); }
+   const std::string Text() const { return text; }
+   /////////////////////////////////////////////////////////////////////////////
+   static inline const int Number() { return TK; }
+   static inline const bool IsRule() { return false; }
+   static inline const bool IsToken() { return true; }
+   static inline const int SymbolNumber();
+   static inline const std::string Name(void *t)
+   { return static_cast<Token<TK>*>(t)->name; }
+   static inline void Apply(void*, struct Middlend&, bool&, Node**);
+   static void Delete(void *t) { delete static_cast<Token<TK>*>(t); }
+};
+
+#else //////////////////////////////////////////////////////////////////////////
+// *****************************************************************************
+struct Node
+{
+   bool keep;
+   Node *next, *children, *parent;
+   int sn, id, nb_siblings;
+   Node(const int sn): keep(false),
+      next(nullptr), children(nullptr), parent(nullptr),
+      sn(sn), id(0), nb_siblings(0) {}
+   virtual ~Node() {}
+   virtual void Apply(struct Middlend&, bool&, Node** = nullptr) = 0;
+   virtual const int Number() const = 0;
+   virtual const int SymbolNumber() = 0;
+   virtual const std::string Name() const = 0;
+   virtual const bool IsRule() const = 0;
+   virtual const bool IsToken() const = 0;
+};
+
+// *****************************************************************************
+template<int RN> class Rule : public Node
+{
+   std::string rule;
+public:
+   Rule(const int sn, const char *rule): Node(sn), rule(rule) {}
+   void Apply(struct Middlend&, bool&, Node** = nullptr);
+   const int Number() const { return RN; }
+   const bool IsRule() const { return true; }
+   const bool IsToken() const { return false; }
+   const int SymbolNumber() { return yy::r1(RN); }
+   const std::string Name() const { return rule; }
+};
+
+// *****************************************************************************
+template<int TK> class Token : public Node
+{
+   std::string name, text;
+public:
+   Token(const int sn, const char *name, const char *text):
+      Node(sn), name(name), text(text) {}
+   void Apply(struct Middlend&, bool&, Node** = nullptr);
+   const int Number() const { return TK; }
+   const bool IsRule() const { return false; }
+   const bool IsToken() const { return true; }
+   const int SymbolNumber();
+   const std::string Name() const { return name; }
+   const std::string Text() const { return text; }
+};
+#endif
+
+// *****************************************************************************
+namespace yy
+{
+
+void dfs(Node*, struct Middlend&);
 
 } // yy
 
 // *****************************************************************************
-template<typename D> struct Backend
-{
-   std::ostream &out;
-
-   Backend(std::ostream &out): out(out) {}
-   D const& that() const { return static_cast<const D&>(*this); }
-
-   template<int TK>
-   void token(std::string text) const { that().template token<TK>(text); }
-
-   template<int RN>
-   void rule(bool &down, Node **extra) const { that().template rule<RN>(down, extra); }
-};
+int yylex(void);
+void yyerror(Node**, char const *message);
 
 // *****************************************************************************
-struct CPU: Backend<CPU>
-{
-   CPU(std::ostream &out): Backend<CPU>(out) {}
-
-   template<int TK> void token(std::string text) const
-   {
-      out << " " << text; // output the token
-      const int sn = yy::Translate(TK);
-      const char *const name = yy::SymbolName(sn);
-      if (yyecho) { DBG("\033[m => \033[37mDefault %s\n", name); }
-   }
-
-   template<int RN> void rule(bool&, Node**) const
-   {
-      const int sn = yy::r1(RN);
-      const char *const rule = yy::SymbolName(sn);
-      if (yyecho) { DBG("\033[37m => %s\n",rule); }
-   }
-};
-
-// *****************************************************************************
-struct GPU: Backend<GPU>
-{
-   GPU(std::ostream &out): Backend<GPU>(out) {}
-   template<int> void token(std::string) const { assert(false); }
-   template<int> void rule(bool&, Node**) const { assert(false); }
-};
-
-// *****************************************************************************
-struct Middlend
-{
-   Backend<CPU> *cpu;
-   Backend<GPU> *gpu;
-
-   explicit Middlend(Backend<CPU> *dev): cpu(dev), gpu(nullptr) {}
-   explicit Middlend(Backend<GPU> *dev): cpu(nullptr), gpu(dev) {}
-
-   template<int SN> void middlend(Token<SN> *t) const
-   {
-      if (cpu) { cpu->template token<SN>(t->Text()); }
-      if (gpu) { gpu->template token<SN>(t->Text()); }
-   }
-
-   template<int RN> void middlend(Rule<RN>*, bool &dfs, Node **extra) const
-   {
-      if (cpu) { cpu->template rule<RN>(dfs, extra); }
-      if (gpu) { gpu->template rule<RN>(dfs, extra); }
-   }
-};
-
-// *****************************************************************************
-struct cpu: Middlend
-{
-   CPU dev;
-   cpu(std::ostream &out): Middlend(&dev), dev(out) {}
-};
-
-struct gpu: Middlend
-{
-   GPU dev;
-   gpu(std::ostream &out): Middlend(&dev), dev(out) {}
-};
-
-// *****************************************************************************
-void dfs(Node*, struct Middlend&);
-
-// *****************************************************************************
-using Node_ptr = std::shared_ptr<Node>;
-Node *astAddNode(Node_ptr);
-
-template<int T> Node* astNewToken(const int, const char*, const char*);
-template<int T> Node* astNewRule(const int, const char*);
-Node* astAddChild(Node*, Node*);
-Node* astAddNext(Node*, Node*);
+Node *astAddNode(std::shared_ptr<Node>);
 
 // *****************************************************************************
 typedef enum { OPTION_HELP = 0x445ECB9D } XFL_OPTION;
+#endif
 
 #endif // MFEM_XFL_HPP
