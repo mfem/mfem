@@ -445,10 +445,10 @@ int main(int argc, char *argv[])
    a.FormLinearSystem(ess_tdof_list, x, b, Ah, X, B);
    // 15. Solve using a direct or an iterative solver
 #ifdef MFEM_USE_SUPERLU
-   StopWatch chrono;
 
    if (slu_solver)
    {
+      StopWatch chrono;
       // Transform to monolithic HypreParMatrix
       HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
       chrono.Clear();
@@ -471,7 +471,7 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_MUMPS
    if (mumps_solver)
    {
-
+      StopWatch chrono;
       HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
       chrono.Clear();
       chrono.Start();
@@ -489,6 +489,7 @@ int main(int argc, char *argv[])
    }
    if (mumps_solver)
    {
+      StopWatch chrono;
       chrono.Clear();
       chrono.Start();
       ComplexMUMPSSolver cmumps;

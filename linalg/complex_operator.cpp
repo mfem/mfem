@@ -1044,6 +1044,7 @@ void ComplexMUMPSSolver::Mult(const Vector &x, Vector &y) const
    RedistributeSol(id->isol_loc, zy, y.GetData());
 
    delete [] zy;
+   delete [] zx;
    delete [] id->sol_loc;
    delete [] id->isol_loc;
 #else

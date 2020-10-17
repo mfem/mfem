@@ -428,10 +428,11 @@ int main(int argc, char *argv[])
          new HypreParMatrix(MPI_COMM_SELF,rowstarts[1],rowstarts,
                             &(*A.As<ComplexSparseMatrix>()).imag());
       ComplexHypreParMatrix * HypreMat =
-         new ComplexHypreParMatrix(HypreMat_r,HypreMat_i,false,false);
+         new ComplexHypreParMatrix(HypreMat_r,HypreMat_i,true,true);
       ComplexMUMPSSolver csolver;
       csolver.SetOperator(*HypreMat);
       csolver.Mult(B, X);
+      delete HypreMat;
       chrono.Stop();
       cout << "MUMPS  for ComplexSparseMatrix = " << chrono.RealTime() << endl;
    }
