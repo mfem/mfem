@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 // Implementation of data types Table.
 
@@ -15,6 +15,7 @@
 #include "table.hpp"
 #include "error.hpp"
 
+#include "../general/mem_manager.hpp"
 #include <iostream>
 #include <iomanip>
 
@@ -29,14 +30,14 @@ Table::Table(const Table &table)
    if (size >= 0)
    {
       const int nnz = table.I[size];
-      I = new int[size+1];
-      J = new int[nnz];
-      memcpy(I, table.I, sizeof(int)*(size+1));
-      memcpy(J, table.J, sizeof(int)*nnz);
+      I.New(size+1, table.I.GetMemoryType());
+      J.New(nnz, table.J.GetMemoryType());
+      I.CopyFrom(table.I, size+1);
+      J.CopyFrom(table.J, nnz);
    }
    else
    {
-      I = J = NULL;
+      I.Reset(); J.Reset();
    }
 }
 
@@ -55,8 +56,8 @@ Table::Table (int dim, int connections_per_row)
    int i, j, sum = dim * connections_per_row;
 
    size = dim;
-   I = new int[size+1];
-   J = new int[sum];
+   I.New(size+1);
+   J.New(sum);
 
    I[0] = 0;
    for (i = 1; i <= size; i++)
@@ -70,8 +71,8 @@ Table::Table (int nrows, int *partitioning)
 {
    size = nrows;
 
-   I = new int[size+1];
-   J = new int[size];
+   I.New(size+1);
+   J.New(size);
 
    for (int i = 0; i < size; i++)
    {
@@ -100,7 +101,8 @@ void Table::MakeJ()
       j = I[i], I[i] = k, k += j;
    }
 
-   J = new int[I[size]=k];
+   J.Delete();
+   J.New(I[size]=k);
 }
 
 void Table::AddConnections (int r, const int *c, int nc)
@@ -147,14 +149,14 @@ void Table::SetDims(int rows, int nnz)
    if (size != rows)
    {
       size = rows;
-      if (I) { delete [] I; }
-      I = (rows >= 0) ? (new int[rows+1]) : (NULL);
+      I.Delete();
+      (rows >= 0) ? I.New(rows+1) : I.Reset();
    }
 
    if (j != nnz)
    {
-      if (J) { delete [] J; }
-      J = (nnz > 0) ? (new int[nnz]) : (NULL);
+      J.Delete();
+      (nnz > 0) ? J.New(nnz) : J.Reset();
    }
 
    if (size >= 0)
@@ -205,14 +207,14 @@ void Table::SortRows()
 
 void Table::SetIJ(int *newI, int *newJ, int newsize)
 {
-   delete [] I;
-   delete [] J;
-   I = newI;
-   J = newJ;
+   I.Delete();
+   J.Delete();
    if (newsize >= 0)
    {
       size = newsize;
    }
+   I.Wrap(newI, size+1, true);
+   J.Wrap(newJ, I[size], true);
 }
 
 int Table::Push(int i, int j)
@@ -220,6 +222,7 @@ int Table::Push(int i, int j)
    MFEM_ASSERT( i >=0 && i<size, "Index out of bounds.  i = "<<i);
 
    for (int k = I[i], end = I[i+1]; k < end; k++)
+   {
       if (J[k] == j)
       {
          return k;
@@ -229,6 +232,7 @@ int Table::Push(int i, int j)
          J[k] = j;
          return k;
       }
+   }
 
    MFEM_ABORT("Reached end of loop unexpectedly: (i,j) = (" << i << ", " << j
               << ")");
@@ -241,14 +245,16 @@ void Table::Finalize()
    int i, j, end, sum = 0, n = 0, newI = 0;
 
    for (i=0; i<I[size]; i++)
+   {
       if (J[i] != -1)
       {
          sum++;
       }
+   }
 
    if (sum != I[size])
    {
-      int *NewJ = new int[sum];
+      int *NewJ = Memory<int>(sum);
 
       for (i=0; i<size; i++)
       {
@@ -263,9 +269,9 @@ void Table::Finalize()
       }
       I[size] = sum;
 
-      delete [] J;
+      J.Delete();
 
-      J = NewJ;
+      J.Wrap(NewJ, sum, true);
 
       MFEM_ASSERT(sum == n, "sum = " << sum << ", n = " << n);
    }
@@ -278,8 +284,8 @@ void Table::MakeFromList(int nrows, const Array<Connection> &list)
    size = nrows;
    int nnz = list.Size();
 
-   I = new int[size+1];
-   J = new int[nnz];
+   I.New(size+1);
+   J.New(nnz);
 
    for (int i = 0, k = 0; i <= size; i++)
    {
@@ -329,10 +335,12 @@ void Table::PrintMatlab(std::ostream & out) const
    int i, j;
 
    for (i = 0; i < size; i++)
+   {
       for (j = I[i]; j < I[i+1]; j++)
       {
          out << i << " " << J[j] << " 1. \n";
       }
+   }
 
    out << flush;
 }
@@ -353,17 +361,17 @@ void Table::Save(std::ostream &out) const
 
 void Table::Load(std::istream &in)
 {
-   delete [] I;
-   delete [] J;
+   I.Delete();
+   J.Delete();
 
    in >> size;
-   I = new int[size+1];
+   I.New(size+1);
    for (int i = 0; i <= size; i++)
    {
       in >> I[i];
    }
    int nnz = I[size];
-   J = new int[nnz];
+   J.New(nnz);
    for (int j = 0; j < nnz; j++)
    {
       in >> J[j];
@@ -372,28 +380,16 @@ void Table::Load(std::istream &in)
 
 void Table::Clear()
 {
-   delete [] I;
-   delete [] J;
+   I.Delete();
+   J.Delete();
    size = -1;
-   I = J = NULL;
+   I.Reset();
+   J.Reset();
 }
 
 void Table::Copy(Table & copy) const
 {
-   if (size >= 0)
-   {
-      int * i_copy = new int[size+1];
-      int * j_copy = new int[I[size]];
-
-      memcpy(i_copy, I, sizeof(int)*(size+1));
-      memcpy(j_copy, J, sizeof(int)*I[size]);
-
-      copy.SetIJ(i_copy, j_copy, size);
-   }
-   else
-   {
-      copy.Clear();
-   }
+   copy = *this;
 }
 
 void Table::Swap(Table & other)
@@ -411,8 +407,8 @@ long Table::MemoryUsage() const
 
 Table::~Table ()
 {
-   if (I) { delete [] I; }
-   if (J) { delete [] J; }
+   I.Delete();
+   J.Delete();
 }
 
 void Transpose (const Table &A, Table &At, int _ncols_A)
@@ -442,10 +438,12 @@ void Transpose (const Table &A, Table &At, int _ncols_A)
    }
 
    for (int i = 0; i < nrows_A; i++)
+   {
       for (int j = i_A[i]; j < i_A[i+1]; j++)
       {
          j_At[i_At[j_A[j]]++] = i;
       }
+   }
    for (int i = ncols_A; i > 0; i--)
    {
       i_At[i] = i_At[i-1];

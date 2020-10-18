@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_GRIDFUNC
 #define MFEM_GRIDFUNC
@@ -16,6 +16,9 @@
 #include "fespace.hpp"
 #include "coefficient.hpp"
 #include "bilininteg.hpp"
+#ifdef MFEM_USE_ADIOS2
+#include "../general/adios2stream.hpp"
+#endif
 #include <limits>
 #include <ostream>
 #include <string>
@@ -27,10 +30,13 @@ namespace mfem
 class GridFunction : public Vector
 {
 protected:
-   /// FE space on which grid function lives.
+   /// FE space on which the grid function lives. Owned if #fec is not NULL.
    FiniteElementSpace *fes;
 
-   /// Used when the grid function is read from a file
+   /** @brief Used when the grid function is read from a file. It can also be
+       set explicitly, see MakeOwner().
+
+       If not NULL, this pointer is owned by the GridFunction. */
    FiniteElementCollection *fec;
 
    long sequence; // see FiniteElementSpace::sequence, Mesh::sequence
@@ -53,7 +59,7 @@ protected:
    void SumFluxAndCount(BilinearFormIntegrator &blfi,
                         GridFunction &flux,
                         Array<int>& counts,
-                        int wcoef,
+                        bool wcoef,
                         int subdomain);
 
    /** Project a discontinuous vector coefficient in a continuous space and
@@ -65,15 +71,16 @@ protected:
 
 public:
 
-   GridFunction() { fes = NULL; fec = NULL; sequence = 0; }
+   GridFunction() { fes = NULL; fec = NULL; sequence = 0; UseDevice(true); }
 
-   /// Copy constructor.
+   /// Copy constructor. The internal true-dof vector #t_vec is not copied.
    GridFunction(const GridFunction &orig)
-      : Vector(orig), fes(orig.fes), fec(NULL), sequence(orig.sequence) { }
+      : Vector(orig), fes(orig.fes), fec(NULL), sequence(orig.sequence)
+   { UseDevice(true); }
 
    /// Construct a GridFunction associated with the FiniteElementSpace @a *f.
    GridFunction(FiniteElementSpace *f) : Vector(f->GetVSize())
-   { fes = f; fec = NULL; sequence = f->GetSequence(); }
+   { fes = f; fec = NULL; sequence = f->GetSequence(); UseDevice(true); }
 
    /// Construct a GridFunction using previously allocated array @a data.
    /** The GridFunction does not assume ownership of @a data which is assumed to
@@ -81,8 +88,9 @@ public:
        for externally allocated array, the pointer @a data can be NULL. The data
        array can be replaced later using the method SetData().
     */
-   GridFunction(FiniteElementSpace *f, double *data) : Vector(data, f->GetVSize())
-   { fes = f; fec = NULL; sequence = f->GetSequence(); }
+   GridFunction(FiniteElementSpace *f, double *data)
+      : Vector(data, f->GetVSize())
+   { fes = f; fec = NULL; sequence = f->GetSequence(); UseDevice(true); }
 
    /// Construct a GridFunction on the given Mesh, using the data from @a input.
    /** The content of @a input should be in the format created by the method
@@ -92,7 +100,18 @@ public:
 
    GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces);
 
-   /// Make the GridFunction the owner of 'fec' and 'fes'
+   /// Copy assignment. Only the data of the base class Vector is copied.
+   /** It is assumed that this object and @a rhs use FiniteElementSpace%s that
+       have the same size.
+
+       @note Defining this method overwrites the implicitly defined copy
+       assignment operator. */
+   GridFunction &operator=(const GridFunction &rhs)
+   { return operator=((const Vector &)rhs); }
+
+   /// Make the GridFunction the owner of #fec and #fes.
+   /** If the new FiniteElementCollection, @a _fec, is NULL, ownership of #fec
+       and #fes is taken away. */
    void MakeOwner(FiniteElementCollection *_fec) { fec = _fec; }
 
    FiniteElementCollection *OwnFEC() { return fec; }
@@ -110,6 +129,7 @@ public:
 
    /// @brief Extract the true-dofs from the GridFunction. If all dofs are true,
    /// then `tv` will be set to point to the data of `*this`.
+   /** @warning This method breaks const-ness when all dofs are true. */
    void GetTrueDofs(Vector &tv) const;
 
    /// Shortcut for calling GetTrueDofs() with GetTrueVector() as argument.
@@ -124,28 +144,146 @@ public:
    /// Returns the values in the vertices of i'th element for dimension vdim.
    void GetNodalValues(int i, Array<double> &nval, int vdim = 1) const;
 
+   /** @name Element index Get Value Methods
+
+       These methods take an element index and return the interpolated value of
+       the field at a given reference point within the element.
+
+       @warning These methods retrieve and use the ElementTransformation object
+       from the mfem::Mesh. This can alter the state of the element
+       transformation object and can also lead to unexpected results when the
+       ElementTransformation object is already in use such as when these methods
+       are called from within an integration loop. Consider using
+       GetValue(ElementTransformation &T, ...) instead.
+   */
+   ///@{
+   /** Return a scalar value from within the given element. */
    virtual double GetValue(int i, const IntegrationPoint &ip,
                            int vdim = 1) const;
 
-   void GetVectorValue(int i, const IntegrationPoint &ip, Vector &val) const;
+   /** Return a vector value from within the given element. */
+   virtual void GetVectorValue(int i, const IntegrationPoint &ip,
+                               Vector &val) const;
+   ///@}
 
+   /** @name Element Index Get Values Methods
+
+       These are convenience methods for repeatedly calling GetValue for
+       multiple points within a given element. The GetValues methods are
+       optimized and should perform better than repeatedly calling GetValue. The
+       GetVectorValues method simply calls GetVectorValue repeatedly.
+
+       @warning These methods retrieve and use the ElementTransformation object
+       from the mfem::Mesh. This can alter the state of the element
+       transformation object and can also lead to unexpected results when the
+       ElementTransformation object is already in use such as when these methods
+       are called from within an integration loop. Consider using
+       GetValues(ElementTransformation &T, ...) instead.
+   */
+   ///@{
+   /** Compute a collection of scalar values from within the element indicated
+       by the index i. */
    void GetValues(int i, const IntegrationRule &ir, Vector &vals,
                   int vdim = 1) const;
 
+   /** Compute a collection of vector values from within the element indicated
+       by the index i. */
    void GetValues(int i, const IntegrationRule &ir, Vector &vals,
                   DenseMatrix &tr, int vdim = 1) const;
 
+   void GetVectorValues(int i, const IntegrationRule &ir,
+                        DenseMatrix &vals, DenseMatrix &tr) const;
+   ///@}
+
+   /** @name ElementTransformation Get Value Methods
+
+       These member functions are designed for use within
+       GridFunctionCoefficient objects. These can be used with
+       ElementTransformation objects coming from either
+       Mesh::GetElementTransformation() or Mesh::GetBdrElementTransformation().
+
+       @note These methods do not reset the ElementTransformation object so they
+       should be safe to use within integration loops or other contexts where
+       the ElementTransformation is already in use.
+   */
+   ///@{
+   /** Return a scalar value from within the element indicated by the
+       ElementTransformation Object. */
+   virtual double GetValue(ElementTransformation &T, const IntegrationPoint &ip,
+                           int comp = 0, Vector *tr = NULL) const;
+
+   /** Return a vector value from within the element indicated by the
+       ElementTransformation Object. */
+   virtual void GetVectorValue(ElementTransformation &T,
+                               const IntegrationPoint &ip,
+                               Vector &val, Vector *tr = NULL) const;
+   ///@}
+
+   /** @name ElementTransformation Get Values Methods
+
+       These are convenience methods for repeatedly calling GetValue for
+       multiple points within a given element. They work by calling either the
+       ElementTransformation or FaceElementTransformations versions described
+       above. Consequently, these methods should not be expected to run faster
+       than calling the above methods in an external loop.
+
+       @note These methods do not reset the ElementTransformation object so they
+       should be safe to use within integration loops or other contexts where
+       the ElementTransformation is already in use.
+
+       @note These methods can also be used with FaceElementTransformations
+       objects.
+    */
+   ///@{
+   /** Compute a collection of scalar values from within the element indicated
+       by the ElementTransformation object. */
+   void GetValues(ElementTransformation &T, const IntegrationRule &ir,
+                  Vector &vals, int comp = 0, DenseMatrix *tr = NULL) const;
+
+   /** Compute a collection of vector values from within the element indicated
+       by the ElementTransformation object. */
+   void GetVectorValues(ElementTransformation &T, const IntegrationRule &ir,
+                        DenseMatrix &vals, DenseMatrix *tr = NULL) const;
+   ///@}
+
+   /** @name Face Index Get Values Methods
+
+       These methods are designed to work with Discontinuous Galerkin basis
+       functions. They compute field values on the interface between elements,
+       or on boundary elements, by interpolating the field in a neighboring
+       element. The \a side argument indices which neighboring element should be
+       used: 0, 1, or 2 (automatically chosen).
+
+       @warning These methods retrieve and use the FaceElementTransformations
+       object from the mfem::Mesh. This can alter the state of the face element
+       transformations object and can also lead to unexpected results when the
+       FaceElementTransformations object is already in use such as when these
+       methods are called from within an integration loop. Consider using
+       GetValues(ElementTransformation &T, ...) instead.
+    */
+   ///@{
+   /** Compute a collection of scalar values from within the face
+       indicated by the index i. */
    int GetFaceValues(int i, int side, const IntegrationRule &ir, Vector &vals,
                      DenseMatrix &tr, int vdim = 1) const;
 
-   void GetVectorValues(ElementTransformation &T, const IntegrationRule &ir,
-                        DenseMatrix &vals) const;
-
-   void GetVectorValues(int i, const IntegrationRule &ir,
-                        DenseMatrix &vals, DenseMatrix &tr) const;
-
+   /** Compute a collection of vector values from within the face
+       indicated by the index i. */
    int GetFaceVectorValues(int i, int side, const IntegrationRule &ir,
                            DenseMatrix &vals, DenseMatrix &tr) const;
+   ///@}
+
+   void GetLaplacians(int i, const IntegrationRule &ir, Vector &laps,
+                      int vdim = 1) const;
+
+   void GetLaplacians(int i, const IntegrationRule &ir, Vector &laps,
+                      DenseMatrix &tr, int vdim = 1) const;
+
+   void GetHessians(int i, const IntegrationRule &ir, DenseMatrix &hess,
+                    int vdim = 1) const;
+
+   void GetHessians(int i, const IntegrationRule &ir, DenseMatrix &hess,
+                    DenseMatrix &tr, int vdim = 1) const;
 
    void GetValuesFrom(const GridFunction &orig_func);
 
@@ -173,8 +311,12 @@ public:
 
    void GetGradient(ElementTransformation &tr, Vector &grad) const;
 
-   void GetGradients(const int elem, const IntegrationRule &ir,
+   void GetGradients(ElementTransformation &tr, const IntegrationRule &ir,
                      DenseMatrix &grad) const;
+
+   void GetGradients(const int elem, const IntegrationRule &ir,
+                     DenseMatrix &grad) const
+   { GetGradients(*fes->GetElementTransformation(elem), ir, grad); }
 
    void GetVectorGradient(ElementTransformation &tr, DenseMatrix &grad) const;
 
@@ -192,6 +334,11 @@ public:
    void ImposeBounds(int i, const Vector &weights,
                      double _min = 0.0, double _max = infinity());
 
+   /** On a non-conforming mesh, make sure the function lies in the conforming
+       space by multiplying with R and then with P, the conforming restriction
+       and prolongation matrices of the space, respectively. */
+   void RestrictConforming();
+
    /** @brief Project the @a src GridFunction to @a this GridFunction, both of
        which must be on the same mesh. */
    /** The current implementation assumes that all elements use the same
@@ -200,12 +347,10 @@ public:
 
    virtual void ProjectCoefficient(Coefficient &coeff);
 
-   // call fes -> BuildDofToArrays() before using this projection
    void ProjectCoefficient(Coefficient &coeff, Array<int> &dofs, int vd = 0);
 
    void ProjectCoefficient(VectorCoefficient &vcoeff);
 
-   // call fes -> BuildDofToArrays() before using this projection
    void ProjectCoefficient(VectorCoefficient &vcoeff, Array<int> &dofs);
 
    void ProjectCoefficient(Coefficient *coeff[]);
@@ -235,18 +380,40 @@ protected:
    void AccumulateAndCountZones(VectorCoefficient &vcoeff, AvgType type,
                                 Array<int> &zones_per_vdof);
 
+   void AccumulateAndCountBdrValues(Coefficient *coeff[],
+                                    VectorCoefficient *vcoeff, Array<int> &attr,
+                                    Array<int> &values_counter);
+
+   void AccumulateAndCountBdrTangentValues(VectorCoefficient &vcoeff,
+                                           Array<int> &bdr_attr,
+                                           Array<int> &values_counter);
+
    // Complete the computation of averages; called e.g. after
    // AccumulateAndCountZones().
    void ComputeMeans(AvgType type, Array<int> &zones_per_vdof);
 
 public:
+   /** @brief Project a Coefficient on the GridFunction, modifying only DOFs on
+       the boundary associated with the boundary attributes marked in the
+       @a attr array. */
    void ProjectBdrCoefficient(Coefficient &coeff, Array<int> &attr)
    {
       Coefficient *coeff_p = &coeff;
       ProjectBdrCoefficient(&coeff_p, attr);
    }
 
-   void ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr);
+   /** @brief Project a VectorCoefficient on the GridFunction, modifying only
+       DOFs on the boundary associated with the boundary attributes marked in
+       the @a attr array. */
+   virtual void ProjectBdrCoefficient(VectorCoefficient &vcoeff,
+                                      Array<int> &attr);
+
+   /** @brief Project a set of Coefficient%s on the components of the
+       GridFunction, modifying only DOFs on the boundary associated with the
+       boundary attributed marked in the @a attr array. */
+   /** If a Coefficient pointer in the array @a coeff is NULL, that component
+       will not be touched. */
+   virtual void ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr);
 
    /** Project the normal component of the given VectorCoefficient on
        the boundary. Only boundary attributes that are marked in
@@ -254,11 +421,12 @@ public:
    void ProjectBdrCoefficientNormal(VectorCoefficient &vcoeff,
                                     Array<int> &bdr_attr);
 
-   /** Project the tangential components of the given VectorCoefficient on
-       the boundary. Only boundary attributes that are marked in
-       'bdr_attr' are projected. Assumes ND-type VectorFE GridFunction. */
-   void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
-                                     Array<int> &bdr_attr);
+   /** @brief Project the tangential components of the given VectorCoefficient
+       on the boundary. Only boundary attributes that are marked in @a bdr_attr
+       are projected. Assumes ND-type VectorFE GridFunction. */
+   virtual void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
+                                             Array<int> &bdr_attr);
+
 
    virtual double ComputeL2Error(Coefficient &exsol,
                                  const IntegrationRule *irs[] = NULL) const
@@ -271,9 +439,49 @@ public:
                                  const IntegrationRule *irs[] = NULL,
                                  Array<int> *elems = NULL) const;
 
+   /// Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
+   virtual double ComputeGradError(VectorCoefficient *exgrad,
+                                   const IntegrationRule *irs[] = NULL) const;
+
+   /// Returns ||curl u_ex - curl u_h||_L2 for ND elements
+   virtual double ComputeCurlError(VectorCoefficient *excurl,
+                                   const IntegrationRule *irs[] = NULL) const;
+
+   /// Returns ||div u_ex - div u_h||_L2 for RT elements
+   virtual double ComputeDivError(Coefficient *exdiv,
+                                  const IntegrationRule *irs[] = NULL) const;
+
+   /// Returns the Face Jumps error for L2 elements
+   virtual double ComputeDGFaceJumpError(Coefficient *exsol,
+                                         Coefficient *ell_coeff,
+                                         double Nu,
+                                         const IntegrationRule *irs[] = NULL)
+   const;
+
+   /** This method is kept for backward compatibility.
+
+       Returns either the H1-seminorm, or the DG face jumps error, or both
+       depending on norm_type = 1, 2, 3. Additional arguments for the DG face
+       jumps norm: ell_coeff: mesh-depended coefficient (weight) Nu: scalar
+       constant weight */
    virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
                                  Coefficient *ell_coef, double Nu,
                                  int norm_type) const;
+
+   /// Returns the error measured in H1-norm for H1 elements or in "broken"
+   /// H1-norm for L2 elements
+   virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
+                                 const IntegrationRule *irs[] = NULL) const;
+
+   /// Returns the error measured in H(div)-norm for RT elements
+   virtual double ComputeHDivError(VectorCoefficient *exsol,
+                                   Coefficient *exdiv,
+                                   const IntegrationRule *irs[] = NULL) const;
+
+   /// Returns the error measured in H(curl)-norm for ND elements
+   virtual double ComputeHCurlError(VectorCoefficient *exsol,
+                                    VectorCoefficient *excurl,
+                                    const IntegrationRule *irs[] = NULL) const;
 
    virtual double ComputeMaxError(Coefficient &exsol,
                                   const IntegrationRule *irs[] = NULL) const
@@ -306,6 +514,33 @@ public:
                                  Coefficient *weight = NULL,
                                  const IntegrationRule *irs[] = NULL) const;
 
+   /** Compute the Lp error in each element of the mesh and store the results in
+       the Vector @a error. The result should be of length number of elements,
+       for example an L2 GridFunction of order zero using map type VALUE. */
+   virtual void ComputeElementLpErrors(const double p, Coefficient &exsol,
+                                       Vector &error,
+                                       Coefficient *weight = NULL,
+                                       const IntegrationRule *irs[] = NULL
+                                      ) const;
+
+   virtual void ComputeElementL1Errors(Coefficient &exsol,
+                                       Vector &error,
+                                       const IntegrationRule *irs[] = NULL
+                                      ) const
+   { ComputeElementLpErrors(1.0, exsol, error, NULL, irs); }
+
+   virtual void ComputeElementL2Errors(Coefficient &exsol,
+                                       Vector &error,
+                                       const IntegrationRule *irs[] = NULL
+                                      ) const
+   { ComputeElementLpErrors(2.0, exsol, error, NULL, irs); }
+
+   virtual void ComputeElementMaxErrors(Coefficient &exsol,
+                                        Vector &error,
+                                        const IntegrationRule *irs[] = NULL
+                                       ) const
+   { ComputeElementLpErrors(infinity(), exsol, error, NULL, irs); }
+
    /** When given a vector weight, compute the pointwise (scalar) error as the
        dot product of the vector error with the vector weight. Otherwise, the
        scalar error is the l_2 norm of the vector error. */
@@ -314,22 +549,45 @@ public:
                                  VectorCoefficient *v_weight = NULL,
                                  const IntegrationRule *irs[] = NULL) const;
 
+   /** Compute the Lp error in each element of the mesh and store the results in
+       the Vector @ error. The result should be of length number of elements,
+       for example an L2 GridFunction of order zero using map type VALUE. */
+   virtual void ComputeElementLpErrors(const double p, VectorCoefficient &exsol,
+                                       Vector &error,
+                                       Coefficient *weight = NULL,
+                                       VectorCoefficient *v_weight = NULL,
+                                       const IntegrationRule *irs[] = NULL
+                                      ) const;
+
+   virtual void ComputeElementL1Errors(VectorCoefficient &exsol,
+                                       Vector &error,
+                                       const IntegrationRule *irs[] = NULL
+                                      ) const
+   { ComputeElementLpErrors(1.0, exsol, error, NULL, NULL, irs); }
+
+   virtual void ComputeElementL2Errors(VectorCoefficient &exsol,
+                                       Vector &error,
+                                       const IntegrationRule *irs[] = NULL
+                                      ) const
+   { ComputeElementLpErrors(2.0, exsol, error, NULL, NULL, irs); }
+
+   virtual void ComputeElementMaxErrors(VectorCoefficient &exsol,
+                                        Vector &error,
+                                        const IntegrationRule *irs[] = NULL
+                                       ) const
+   { ComputeElementLpErrors(infinity(), exsol, error, NULL, NULL, irs); }
+
    virtual void ComputeFlux(BilinearFormIntegrator &blfi,
                             GridFunction &flux,
-                            int wcoef = 1, int subdomain = -1);
+                            bool wcoef = true, int subdomain = -1);
 
    /// Redefine '=' for GridFunction = constant.
    GridFunction &operator=(double value);
 
    /// Copy the data from @a v.
-   /** The size of @a v must be equal to the size of the FiniteElementSpace
-       @a fes. */
+   /** The size of @a v must be equal to the size of the associated
+       FiniteElementSpace #fes. */
    GridFunction &operator=(const Vector &v);
-
-   /// Copy the data from @a v.
-   /** The GridFunctions @a v and @a *this must have FiniteElementSpaces with
-       the same size. */
-   GridFunction &operator=(const GridFunction &v);
 
    /// Transform by the Space UpdateMatrix (e.g., on Mesh change).
    virtual void Update();
@@ -340,6 +598,8 @@ public:
    /// Associate a new FiniteElementSpace with the GridFunction.
    /** The GridFunction is resized using the SetSize() method. */
    virtual void SetSpace(FiniteElementSpace *f);
+
+   using Vector::MakeRef;
 
    /** @brief Make the GridFunction reference external data on a new
        FiniteElementSpace. */
@@ -379,11 +639,20 @@ public:
    /// Save the GridFunction to an output stream.
    virtual void Save(std::ostream &out) const;
 
-   /** Write the GridFunction in VTK format. Note that Mesh::PrintVTK must be
-       called first. The parameter ref > 0 must match the one used in
+#ifdef MFEM_USE_ADIOS2
+   /// Save the GridFunction to a binary output stream using adios2 bp format.
+   virtual void Save(adios2stream &out, const std::string& variable_name,
+                     const adios2stream::data_type
+                     type = adios2stream::data_type::point_data) const;
+#endif
+
+   /** @brief Write the GridFunction in VTK format. Note that Mesh::PrintVTK
+       must be called first. The parameter ref > 0 must match the one used in
        Mesh::PrintVTK. */
    void SaveVTK(std::ostream &out, const std::string &field_name, int ref);
 
+   /** @brief Write the GridFunction in STL format. Note that the mesh dimension
+       must be 2 and that quad elements will be broken into two triangles.*/
    void SaveSTL(std::ostream &out, int TimesToRefine = 1);
 
    /// Destroys grid function.
@@ -410,6 +679,12 @@ public:
    /** The object can be initialized later using the SetSpace() methods. */
    QuadratureFunction()
       : qspace(NULL), vdim(0), own_qspace(false) { }
+
+   /** @brief Copy constructor. The QuadratureSpace ownership flag, #own_qspace,
+       in the new object is set to false. */
+   QuadratureFunction(const QuadratureFunction &orig)
+      : Vector(orig),
+        qspace(orig.qspace), vdim(orig.vdim), own_qspace(false) { }
 
    /// Create a QuadratureFunction based on the given QuadratureSpace.
    /** The QuadratureFunction does not assume ownership of the QuadratureSpace.
@@ -476,13 +751,16 @@ public:
    QuadratureFunction &operator=(double value);
 
    /// Copy the data from @a v.
-   /** The size of @a v must be equal to the size of the QuadratureSpace
-       @a qspace. */
+   /** The size of @a v must be equal to the size of the associated
+       QuadratureSpace #qspace. */
    QuadratureFunction &operator=(const Vector &v);
 
-   /// Copy the data from @a v.
+   /// Copy assignment. Only the data of the base class Vector is copied.
    /** The QuadratureFunctions @a v and @a *this must have QuadratureSpaces with
-       the same size. */
+       the same size.
+
+       @note Defining this method overwrites the implicitly defined copy
+       assignment operator. */
    QuadratureFunction &operator=(const QuadratureFunction &v);
 
    /// Get the IntegrationRule associated with mesh element @a idx.
@@ -506,6 +784,16 @@ public:
        `i`-th vector component at the `j`-th quadrature point.
     */
    inline void GetElementValues(int idx, Vector &values) const;
+
+   /// Return the quadrature function values at an integration point.
+   /** The result is stored in the Vector @a values as a reference to the
+       global values. */
+   inline void GetElementValues(int idx, const int ip_num, Vector &values);
+
+   /// Return the quadrature function values at an integration point.
+   /** The result is stored in the Vector @a values as a copy to the
+       global values. */
+   inline void GetElementValues(int idx, const int ip_num, Vector &values) const;
 
    /// Return all values associated with mesh element @a idx in a DenseMatrix.
    /** The result is stored in the DenseMatrix @a values as a reference to the
@@ -538,7 +826,8 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
                         GridFunction &flux,
                         Vector &error_estimates,
                         Array<int> *aniso_flags = NULL,
-                        int with_subdomains = 1);
+                        int with_subdomains = 1,
+                        bool with_coeff = false);
 
 /// Compute the Lp distance between two grid functions on the given element.
 double ComputeElementLpDistance(double p, int i,
@@ -603,8 +892,27 @@ inline void QuadratureFunction::GetElementValues(int idx, Vector &values) const
    const int s_offset = qspace->element_offsets[idx];
    const int sl_size = qspace->element_offsets[idx+1] - s_offset;
    values.SetSize(vdim*sl_size);
-   double *q = data + vdim*s_offset;
+   const double *q = data + vdim*s_offset;
    for (int i = 0; i<values.Size(); i++)
+   {
+      values(i) = *(q++);
+   }
+}
+
+inline void QuadratureFunction::GetElementValues(int idx, const int ip_num,
+                                                 Vector &values)
+{
+   const int s_offset = qspace->element_offsets[idx] * vdim + ip_num * vdim;
+   values.NewDataAndSize(data + s_offset, vdim);
+}
+
+inline void QuadratureFunction::GetElementValues(int idx, const int ip_num,
+                                                 Vector &values) const
+{
+   const int s_offset = qspace->element_offsets[idx] * vdim + ip_num * vdim;
+   values.SetSize(vdim);
+   const double *q = data + s_offset;
+   for (int i = 0; i < values.Size(); i++)
    {
       values(i) = *(q++);
    }
@@ -623,12 +931,14 @@ inline void QuadratureFunction::GetElementValues(int idx,
    const int s_offset = qspace->element_offsets[idx];
    const int sl_size = qspace->element_offsets[idx+1] - s_offset;
    values.SetSize(vdim, sl_size);
-   double *q = data + vdim*s_offset;
+   const double *q = data + vdim*s_offset;
    for (int j = 0; j<sl_size; j++)
+   {
       for (int i = 0; i<vdim; i++)
       {
          values(i,j) = *(q++);
       }
+   }
 }
 
 } // namespace mfem
