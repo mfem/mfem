@@ -589,10 +589,10 @@ The specific libraries and their options are:
   URL: https://ginkgo-project.github.io
   Options: GINKGO_OPT (Not used), GINKGO_LIB.
 
-- AMGX (optional), used when MFEM_USE_AMGX = YES.
+- AmgX (optional), used when MFEM_USE_AMGX = YES.
   URL: https://github.com/NVIDIA/AMGX
   Options: AMGX_OPT, AMGX_LIB.
-  Versions: AMGX >= 2.1, older versions may work too.
+  Versions: AmgX >= 2.1, older versions may work too.
 
 - GnuTLS (optional), used when MFEM_USE_GNUTLS = YES. On most Linux systems,
   GnuTLS is available as a development package, e.g. gnutls-devel. On Mac OS X,
