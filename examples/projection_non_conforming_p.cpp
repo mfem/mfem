@@ -60,7 +60,7 @@ int main(int argc, char *argv[])
          std::cerr << "WARNING: Source mesh file not found: "
                    << source_mesh_file << "\n"
                    << "Using default 2D triangle mesh.";
-      src_mesh = make_shared<Mesh>(4,4,Element::TRIANGLE,1);
+      src_mesh = make_shared<Mesh>(4,4,Element::TRIANGLE);
    }
 
    imesh.open(destination_mesh_file);
@@ -75,7 +75,7 @@ int main(int argc, char *argv[])
          std::cerr << "WARNING: Destination mesh file not found: "
                    << destination_mesh_file << "\n"
                    << "Using default 2D quad mesh.";
-      dest_mesh = make_shared<Mesh>(4,4,Element::QUADRILATERAL,1);
+      dest_mesh = make_shared<Mesh>(4,4,Element::QUADRILATERAL);
    }
 
    dest_mesh->Transform(&slave_transform);
