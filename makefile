@@ -238,6 +238,7 @@ endif
 ifeq ($(MFEM_USE_HIP),YES)
    MFEM_CXX ?= $(HIP_CXX)
    ALL_LIBS += $(HIP_FLAGS)
+   XLINKER = -Wl,
    # TODO: set XCOMPILER and XLINKER
    # HIP_OPT and HIP_LIB are added below
    # Compatibility test against MFEM_USE_CUDA
