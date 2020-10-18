@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "../config/config.hpp"
 
@@ -699,8 +699,7 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
    n_topo["type"]  = "unstructured";
    n_topo["coordset"] = coordset_name;
 
-   Element::Type ele_type = static_cast<Element::Type>(mesh->GetElement(
-                                                          0)->GetType());
+   Element::Type ele_type = mesh->GetElementType(0);
 
    std::string ele_shape = ElementTypeToShapeName(ele_type);
 
@@ -774,8 +773,7 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
       n_bndry_topo["type"]     = "unstructured";
       n_bndry_topo["coordset"] = coordset_name;
 
-      Element::Type bndry_ele_type = static_cast<Element::Type>(mesh->GetBdrElement(
-                                                                   0)->GetType());
+      Element::Type bndry_ele_type = mesh->GetBdrElementType(0);
 
       std::string bndry_ele_shape = ElementTypeToShapeName(bndry_ele_type);
 
@@ -1163,6 +1161,8 @@ ConduitDataCollection::ElementTypeToShapeName(Element::Type element_type)
       case Element::QUADRILATERAL:  return "quad";
       case Element::TETRAHEDRON:    return "tet";
       case Element::HEXAHEDRON:     return "hex";
+      case Element::WEDGE:
+      default: ;
    }
 
    return "unknown";

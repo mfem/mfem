@@ -1,13 +1,13 @@
-# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
-# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
-# See file COPYRIGHT for details.
+# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
 # This file is part of the MFEM library. For more information and source code
-# availability see http://mfem.org.
+# availability visit https://mfem.org.
 #
 # MFEM is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free
-# Software Foundation) version 2.1 dated February 1999.
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
 
 set(PUMI_EXAMPLES_SRCS)
 # All PUMI examples require MPI
@@ -40,7 +40,8 @@ add_mfem_examples(PUMI_EXAMPLES_SRCS ${PFX} "" test_pumi)
 # Command line options for the tests.
 # TODO...
 
-# Set the number of processors for the parallel examples.
+# Set the number of processors for the parallel examples. The value of
+# MFEM_MPI_NP is ignored.
 set(EX1_TEST_NP 1)
 set(EX1P_TEST_NP 8)
 set(EX2_TEST_NP 1)

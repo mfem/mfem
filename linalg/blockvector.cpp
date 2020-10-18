@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "../general/array.hpp"
 #include "vector.hpp"
@@ -20,8 +20,9 @@ void BlockVector::SetBlocks()
 {
    for (int i = 0; i < numBlocks; ++i)
    {
-      blocks[i].NewDataAndSize(data+blockOffsets[i],
-                               blockOffsets[i+1]-blockOffsets[i]);
+      blocks[i].NewMemoryAndSize(
+         Memory<double>(data, blockOffsets[i], BlockSize(i)),
+         BlockSize(i), true);
    }
 }
 
@@ -39,6 +40,15 @@ BlockVector::BlockVector(const Array<int> & bOffsets):
    Vector(bOffsets.Last()),
    numBlocks(bOffsets.Size()-1),
    blockOffsets(bOffsets.GetData())
+{
+   blocks = new Vector[numBlocks];
+   SetBlocks();
+}
+
+BlockVector::BlockVector(const Array<int> & bOffsets, MemoryType mt)
+   : Vector(bOffsets.Last(), mt),
+     numBlocks(bOffsets.Size()-1),
+     blockOffsets(bOffsets.GetData())
 {
    blocks = new Vector[numBlocks];
    SetBlocks();
@@ -77,18 +87,45 @@ void BlockVector::Update(double *data, const Array<int> & bOffsets)
    SetBlocks();
 }
 
+void BlockVector::Update(Vector & data, const Array<int> & bOffsets)
+{
+   blockOffsets = bOffsets.GetData();
+   if (numBlocks != bOffsets.Size()-1)
+   {
+      delete [] blocks;
+      numBlocks = bOffsets.Size()-1;
+      blocks = new Vector[numBlocks];
+   }
+
+   for (int i = 0; i < numBlocks; ++i)
+   {
+      blocks[i].MakeRef(data, blockOffsets[i], BlockSize(i));
+   }
+}
+
 void BlockVector::Update(const Array<int> &bOffsets)
 {
-   if (OwnsData())
+   Update(bOffsets, data.GetMemoryType());
+}
+
+void BlockVector::Update(const Array<int> &bOffsets, MemoryType mt)
+{
+   blockOffsets = bOffsets.GetData();
+   if (OwnsData() && data.GetMemoryType() == mt)
    {
-      // check if 'bOffsets' are the same as 'blockOffsets'
+      // check if 'bOffsets' agree with the 'blocks'
       if (bOffsets.Size() == numBlocks+1)
       {
-         if (bOffsets.GetData() == blockOffsets || numBlocks == 0) { return; }
-         for (int i = 0; true; i++)
+         if (numBlocks == 0) { return; }
+         if (Size() == bOffsets.Last())
          {
-            if (blockOffsets[i] != bOffsets[i]) { break; }
-            if (i == numBlocks) { return; }
+            for (int i = numBlocks - 1; true; i--)
+            {
+               if (i < 0) { return; }
+               if (blocks[i].Size() != bOffsets[i+1] - bOffsets[i]) { break; }
+               MFEM_ASSERT(blocks[i].GetData() == data + bOffsets[i],
+                           "invalid blocks[" << i << ']');
+            }
          }
       }
    }
@@ -96,8 +133,7 @@ void BlockVector::Update(const Array<int> &bOffsets)
    {
       Destroy();
    }
-   SetSize(bOffsets.Last());
-   blockOffsets = bOffsets.GetData();
+   SetSize(bOffsets.Last(), mt);
    if (numBlocks != bOffsets.Size()-1)
    {
       delete [] blocks;
@@ -115,12 +151,14 @@ BlockVector & BlockVector::operator=(const BlockVector & original)
    }
 
    for (int i(0); i <= numBlocks; ++i)
+   {
       if (blockOffsets[i]!=original.blockOffsets[i])
       {
          mfem_error("Size of Blocks don't match in BlockVector::operator=");
       }
+   }
 
-   Vector::operator=(original.GetData());
+   Vector::operator=(original);
 
    return *this;
 }
@@ -139,8 +177,9 @@ BlockVector::~BlockVector()
 
 void BlockVector::GetBlockView(int i, Vector & blockView)
 {
-   blockView.NewDataAndSize(data+blockOffsets[i],
-                            blockOffsets[i+1]-blockOffsets[i]);
+   blockView.NewMemoryAndSize(
+      Memory<double>(data, blockOffsets[i], BlockSize(i)),
+      BlockSize(i), true);
 }
 
 }

@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "../config/config.hpp"
 
@@ -58,6 +58,13 @@ STRUMPACKRowLocMatrix::STRUMPACKRowLocMatrix(const HypreParMatrix & hypParMat)
    // hypre_CSRMatrix.
    hypre_CSRMatrix * csr_op = hypre_MergeDiagAndOffd(parcsr_op);
    hypre_CSRMatrixSetDataOwner(csr_op,0);
+#if MFEM_HYPRE_VERSION >= 21600
+   // For now, this method assumes that HYPRE_Int is int. Also, csr_op->num_cols
+   // is of type HYPRE_Int, so if we want to check for big indices in
+   // csr_op->big_j, we'll have to check all entries and that check will only be
+   // necessary in HYPRE_MIXEDINT mode which is not supported at the moment.
+   hypre_CSRMatrixBigJtoJ(csr_op);
+#endif
 
    height = csr_op->num_rows;
    width  = csr_op->num_rows;
@@ -145,10 +152,33 @@ void STRUMPACKSolver::SetReorderingStrategy( strumpack::ReorderingStrategy
    solver_->options().set_reordering_method( method );
 }
 
-void STRUMPACKSolver::SetMC64Job( strumpack::MC64Job job )
+void STRUMPACKSolver::DisableMatching( )
 {
-   solver_->options().set_mc64job( job );
+#if STRUMPACK_VERSION_MAJOR >= 3
+   solver_->options().set_matching( strumpack::MatchingJob::NONE );
+#else
+   solver_->options().set_mc64job( strumpack::MC64Job::NONE );
+#endif
 }
+
+void STRUMPACKSolver::EnableMatching( )
+{
+#if STRUMPACK_VERSION_MAJOR >= 3
+   solver_->options().set_matching
+   ( strumpack::MatchingJob::MAX_DIAGONAL_PRODUCT_SCALING );
+#else
+   solver_->options().set_mc64job
+   ( strumpack::MC64Job::MAX_DIAGONAL_PRODUCT_SCALING );
+#endif
+}
+
+#if STRUMPACK_VERSION_MAJOR >= 3
+void STRUMPACKSolver::EnableParallelMatching( )
+{
+   solver_->options().set_matching
+   ( strumpack::MatchingJob::COMBBLAS );
+}
+#endif
 
 void STRUMPACKSolver::SetRelTol( double rtol )
 {

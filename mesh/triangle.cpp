@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "mesh_headers.hpp"
 
@@ -34,13 +34,11 @@ Triangle::Triangle(int ind1, int ind2, int ind3, int attr)
    transform = 0;
 }
 
-int Triangle::NeedRefinement(DSTable &v_to_v, int *middle) const
+int Triangle::NeedRefinement(HashTable<Hashed2> &v_to_v) const
 {
-   int m;
-
-   if ((m = v_to_v(indices[0], indices[1])) != -1 && middle[m] != -1) { return 1; }
-   if ((m = v_to_v(indices[1], indices[2])) != -1 && middle[m] != -1) { return 1; }
-   if ((m = v_to_v(indices[2], indices[0])) != -1 && middle[m] != -1) { return 1; }
+   if (v_to_v.FindId(indices[0], indices[1]) != -1) { return 1; }
+   if (v_to_v.FindId(indices[1], indices[2]) != -1) { return 1; }
+   if (v_to_v.FindId(indices[2], indices[0]) != -1) { return 1; }
    return 0;
 }
 
@@ -99,7 +97,8 @@ void Triangle::MarkEdge(DenseMatrix &pmat)
    }
 }
 
-void Triangle::MarkEdge(const DSTable &v_to_v, const int *length)
+// Static method
+void Triangle::MarkEdge(int *indices, const DSTable &v_to_v, const int *length)
 {
    int l, L, j, ind[3], i;
 
@@ -194,7 +193,5 @@ void Triangle::GetVertices(Array<int> &v) const
       v[i] = indices[i];
    }
 }
-
-Linear2DFiniteElement TriangleFE;
 
 } // namespace mfem

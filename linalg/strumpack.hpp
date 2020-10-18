@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_STRUMPACK
 #define MFEM_STRUMPACK
@@ -121,21 +121,30 @@ public:
    void SetReorderingStrategy( strumpack::ReorderingStrategy method );
 
    /**
-    * MC64 performs (static) pivoting. Using a matching algorithm, it permutes
-    * the sparse input matrix in order to get nonzero elements on the
-    * diagonal. If the input matrix is already diagonally dominant, this
+    * Disable static pivoting for stability. The static pivoting in strumpack
+    * permutes the sparse input matrix in order to get large (nonzero) elements
+    * on the diagonal. If the input matrix is already diagonally dominant, this
     * reordering can be disabled.
-    * Possible values are:
-    *    NONE:                          Don't do anything
-    *    MAX_CARDINALITY:               Maximum cardinality
-    *    MAX_SMALLEST_DIAGONAL:         Maximize smallest diagonal value
-    *    MAX_SMALLEST_DIAGONAL_2:       Same as MAX_SMALLEST_DIAGONAL, but
-    *                                   different algorithm
-    *    MAX_DIAGONAL_SUM:              Maximize sum of diagonal values
-    *    MAX_DIAGONAL_PRODUCT_SCALING:  Maximize the product of the diagonal
-    *                                   values and perform row & column scaling
     */
-   void SetMC64Job( strumpack::MC64Job job );
+   void DisableMatching();
+
+   /**
+    * Enable static pivoting for stability using the MC64 algorithm with
+    * job=5. Using a matching algorithm, this will permute the sparse input
+    * matrix in order to get nonzero elements (as large as possible) on the
+    * diagonal. And will also scale the rows and columns of the matrix.
+    */
+   void EnableMatching();
+
+#if STRUMPACK_VERSION_MAJOR >= 3
+   /**
+    * Use the AWPM (approximate weight perfect matching) algorithm from the
+    * Combinatorial BLAS library for static pivoting, i.e. getting large
+    * nonzeros on the diagonal. This requires that strumpack was compiled with
+    * support for Combinatorial BLAS.
+    */
+   void EnableParallelMatching();
+#endif
 
 private:
    void Init( int argc, char* argv[] );
