@@ -340,10 +340,8 @@ if (MFEM_USE_MOONOLITH)
       get_target_property(MOONOLITH_INCLUDE_DIRS
         ParMoonolith::par_moonolith INTERFACE_INCLUDE_DIRECTORIES)
 
-      get_target_property(MOONOLITH_LIBRARIES ParMoonolith::par_moonolith
-                          "INTERFACE_LINK_LIBRARIES")
-
       set(MOONOLITH_FOUND TRUE)
+      set(MOONOLITH_LIBRARIES ParMoonolith::par_moonolith)
       message(STATUS "MOONOLITH_LIBRARIES=${MOONOLITH_LIBRARIES}, MOONOLITH_INCLUDE_DIRS=${MOONOLITH_INCLUDE_DIRS}")
     endif()
   endif()
