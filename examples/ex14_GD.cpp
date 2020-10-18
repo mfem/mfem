@@ -256,18 +256,6 @@ void GalerkinDifference::BuildNeighbourMat(const mfem::Array<int> &elmt_id,
       {
          mat_cent(i, j) = cent_coord(i);
       }
-
-      // // // deal with quadrature points
-      //  ElementTransformation *eltransf;
-      // eltransf = mesh->GetElementTransformation(elmt_id[j]);
-      // for (int k = 0; k < num_dofs; k++)
-      // {
-      //    eltransf->Transform(fe->GetNodes().IntPoint(k), quad_coord);
-      //    for (int di = 0; di < dim; di++)
-      //    {
-      //       quad_data.push_back(quad_coord(di));
-      //    }
-      // }
    }
    // reset the quadrature point matrix
    mat_quad.Clear();
@@ -298,13 +286,21 @@ void GalerkinDifference::GetNeighbourSet(int id, int req_n,
    //nels.Print(cout, nels.Size());
    //cout << "Initial candidates: ";
    //cand.Print(cout, cand.Size());
+   mfem::Vector cent_coord(dim);
+   GetElementCenter(id, cent_coord);
    while (nels.Size() < req_n)
    {
       for (int i = 0; i < adj.Size(); i++)
       {
          if (-1 == nels.Find(adj[i]))
          {
+            // Get and store the element center
+            mfem::Vector cent(dim);
+            GetElementCenter(adj[i], cent);
+            if ((cent(0) == cent_coord(0)) || (cent(1) == cent_coord(1)))
+            {
             nels.Append(adj[i]);
+            }
          }
       }
       //cout << "List now is: ";
@@ -361,6 +357,14 @@ void GalerkinDifference::BuildGDProlongation() const
       nelmt = degree + 1;
       break;
    case 2:
+      // if (degree % 2 != 0)
+      // {
+      //    nelmt = 2 * (degree + 1) + 1;
+      // }
+      // else
+      // {
+      //    nelmt = (2 * degree) + 1;
+      // }
       nelmt = (degree + 1) * (degree + 2) / 2;
       //nelmt = nelmt + 1;
       break;

@@ -45,7 +45,6 @@ list(APPEND ALL_EXE_SRCS
   exAdvection_cutGD.cpp
   exAdvection_CM.cpp
   ex_testGD.cpp
-  poissonPrimal.cpp
   )
 
 if (MFEM_USE_MPI)

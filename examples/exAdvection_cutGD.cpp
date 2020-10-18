@@ -149,7 +149,7 @@ int main(int argc, char *argv[])
          //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
          //    non-symmetric one.
          GSSmoother M(A);
-         GMRES(A, M, b, y, 1, 1000, 200, 1e-60, 1e-60);
+         GMRES(A, M, bnew, y, 1, 1000, 200, 1e-60, 1e-60);
 #else
          // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
          UMFPackSolver umf_solver;
