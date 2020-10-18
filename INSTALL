@@ -346,7 +346,7 @@ MFEM_USE_SUPERLU = YES/NO
 
 MFEM_USE_SUPERLU5 = YES/NO
    If SuperLU functionality is enabled, use the older 5.1.0 version rather than
-   the more recent 6+ versions.  
+   the more recent 6+ versions.
 
 MFEM_USE_STRUMPACK = YES/NO
    Enable MFEM functionality based on the STRUMPACK sparse direct solver and
