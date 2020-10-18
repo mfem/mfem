@@ -67,14 +67,14 @@ int main(int argc, char *argv[])
                   "AMGX solver config file (overrides --amgx-solver, --amgx-verbose)");
    args.AddOption(&amgx_mpi_teams, "--amgx-mpi-teams", "--amgx-mpi-teams",
                   "--amgx-mpi-gpu-exclusive", "--amgx-mpi-gpu-exclusive",
-                  "Create MPI teams when using AMGX.");
+                  "Create MPI teams when using AmgX to load balance between ranks and GPUs.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&ndevices, "-nd","--gpus-per-node",
-                  "Number of GPU devices per node (Only used amgx_mpi_teams mode).");
+   args.AddOption(&ndevices, "-nd","--gpus-per-node-in-teams-mode",
+                  "Number of GPU devices per node (Only used if amgx_mpi_teams is true).");
 
    args.Parse();
    if (!args.Good())
