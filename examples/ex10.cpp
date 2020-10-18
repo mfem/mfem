@@ -7,6 +7,7 @@
 //    ex10 -m ../data/beam-tri.mesh -s 3 -r 2 -o 2 -dt 3
 //    ex10 -m ../data/beam-hex.mesh -s 2 -r 1 -o 2 -dt 3
 //    ex10 -m ../data/beam-tet.mesh -s 2 -r 1 -o 2 -dt 3
+//    ex10 -m ../data/beam-wedge.mesh -s 2 -r 1 -o 2 -dt 3
 //    ex10 -m ../data/beam-quad.mesh -s 14 -r 2 -o 2 -dt 0.03 -vs 20
 //    ex10 -m ../data/beam-hex.mesh -s 14 -r 1 -o 2 -dt 0.05 -vs 20
 //    ex10 -m ../data/beam-quad-amr.mesh -s 3 -r 2 -o 2 -dt 3
@@ -178,7 +179,9 @@ int main(int argc, char *argv[])
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Backward Euler, 2 - SDIRK2, 3 - SDIRK3,\n\t"
                   "            11 - Forward Euler, 12 - RK2,\n\t"
-                  "            13 - RK3 SSP, 14 - RK4.");
+                  "            13 - RK3 SSP, 14 - RK4."
+                  "            22 - Implicit Midpoint Method,\n\t"
+                  "            23 - SDIRK23 (A-stable), 24 - SDIRK34");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",

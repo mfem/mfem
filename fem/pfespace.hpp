@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_PFESPACE
 #define MFEM_PFESPACE
@@ -71,7 +71,7 @@ private:
    /// The matrix P (interpolation from true dof to dof). Owned.
    mutable HypreParMatrix *P;
    /// Optimized action-only prolongation operator for conforming meshes. Owned.
-   mutable class ConformingProlongationOperator *Pconf;
+   mutable Operator *Pconf;
 
    /// The (block-diagonal) matrix R (restriction of dof to true dof). Owned.
    mutable SparseMatrix *R;
@@ -113,12 +113,16 @@ private:
    void GetGhostFaceDofs(const MeshId &face_id, Array<int> &dofs) const;
 
    void GetGhostDofs(int entity, const MeshId &id, Array<int> &dofs) const;
-   // Return the dofs associated with the interior of the given mesh entity.
-   // The MeshId may be the id of a regular or a ghost mesh entity.
-   void GetBareDofs(int entity, const MeshId &id, Array<int> &dofs) const;
+   /// Return the dofs associated with the interior of the given mesh entity.
+   void GetBareDofs(int entity, int index, Array<int> &dofs) const;
 
    int  PackDof(int entity, int index, int edof) const;
    void UnpackDof(int dof, int &entity, int &index, int &edof) const;
+
+#ifdef MFEM_PMATRIX_STATS
+   mutable int n_msgs_sent, n_msgs_recv;
+   mutable int n_rows_sent, n_rows_recv, n_rows_fwd;
+#endif
 
    void ScheduleSendRow(const struct PMatrixRow &row, int dof, GroupId group_id,
                         std::map<int, class NeighborRowMessage> &send_msg) const;
@@ -128,7 +132,7 @@ private:
                    std::map<int, class NeighborRowMessage> &send_msg) const;
 
 #ifdef MFEM_DEBUG_PMATRIX
-   void DebugDumpDOFs(std::ofstream &os,
+   void DebugDumpDOFs(std::ostream &os,
                       const SparseMatrix &deps,
                       const Array<GroupId> &dof_group,
                       const Array<GroupId> &dof_owner,
@@ -183,7 +187,7 @@ public:
 
    /** @brief Copy constructor: deep copy all data from @a orig except the
        ParMesh, the FiniteElementCollection, and some derived data. */
-   /** If the @a pmesh or @a fec poiters are NULL (default), then the new
+   /** If the @a pmesh or @a fec pointers are NULL (default), then the new
        ParFiniteElementSpace will reuse the respective pointers from @a orig. If
        any of these pointers is not NULL, the given pointer will be used instead
        of the one used by @a orig.
@@ -206,7 +210,7 @@ public:
    ParFiniteElementSpace(const FiniteElementSpace &orig, ParMesh &pmesh,
                          const FiniteElementCollection *fec = NULL);
 
-   /** @brief Construct the *local* ParFiniteElementSpace corresponing to the
+   /** @brief Construct the *local* ParFiniteElementSpace corresponding to the
        global FE space, @a global_fes. */
    /** The parameter @a pm is the *local* ParMesh obtained by decomposing the
        global Mesh used by @a global_fes. The array @a partitioning represents
@@ -236,7 +240,7 @@ public:
    int GetNRanks() const { return NRanks; }
    int GetMyRank() const { return MyRank; }
 
-   inline ParMesh *GetParMesh() { return pmesh; }
+   inline ParMesh *GetParMesh() const { return pmesh; }
 
    int GetDofSign(int i)
    { return NURBSext || Nonconforming() ? 1 : ldof_sign[VDofToDof(i)]; }
@@ -260,8 +264,18 @@ public:
        including the dofs for the edges and the vertices of the face. */
    virtual void GetFaceDofs(int i, Array<int> &dofs) const;
 
+   /** Returns an Operator that converts L-vectors to E-vectors on each face.
+       The parallel version is different from the serial one because of the
+       presence of shared faces. Shared faces are treated as interior faces,
+       the returned operator handles the communication needed to get the
+       shared face values from other MPI ranks */
+   virtual const Operator *GetFaceRestriction(
+      ElementDofOrdering e_ordering, FaceType type,
+      L2FaceValues mul = L2FaceValues::DoubleValued) const;
+
    void GetSharedEdgeDofs(int group, int ei, Array<int> &dofs) const;
-   void GetSharedFaceDofs(int group, int fi, Array<int> &dofs) const;
+   void GetSharedTriangleDofs(int group, int fi, Array<int> &dofs) const;
+   void GetSharedQuadrilateralDofs(int group, int fi, Array<int> &dofs) const;
 
    /// The true dof-to-dof interpolation matrix
    HypreParMatrix *Dof_TrueDof_Matrix() const
@@ -286,11 +300,14 @@ public:
    /// Return a const reference to the internal GroupCommunicator (on VDofs)
    const GroupCommunicator &GroupComm() const { return *gcomm; }
 
-   /// Return a new GroupCommunicator on Dofs
+   /// Return a new GroupCommunicator on scalar dofs, i.e. for VDim = 1.
+   /** @note The returned pointer must be deleted by the caller. */
    GroupCommunicator *ScalarGroupComm();
 
-   /** Given an integer array on the local degrees of freedom, perform
+   /** @brief Given an integer array on the local degrees of freedom, perform
        a bitwise OR between the shared dofs. */
+   /** For non-conforming mesh, synchronization is performed on the cut (aka
+       "partially conforming") space. */
    void Synchronize(Array<int> &ldof_marker) const;
 
    /// Determine the boundary degrees of freedom
@@ -330,6 +347,8 @@ public:
    const FiniteElement *GetFaceNbrFE(int i) const;
    const FiniteElement *GetFaceNbrFaceFE(int i) const;
    const HYPRE_Int *GetFaceNbrGlobalDofMap() { return face_nbr_glob_dof_map; }
+   ElementTransformation *GetFaceNbrElementTransformation(int i) const
+   { return pmesh->GetFaceNbrElementTransformation(i); }
 
    void Lose_Dof_TrueDof_Matrix();
    void LoseDofOffsets() { dof_offsets.LoseData(); }
@@ -357,7 +376,9 @@ public:
 
    virtual ~ParFiniteElementSpace() { Destroy(); }
 
-   // Obsolete, kept for backward compatibility
+   void PrintPartitionStats();
+
+   /// Obsolete, kept for backward compatibility
    int TrueVSize() const { return ltdof_size; }
 };
 
@@ -371,6 +392,52 @@ protected:
 
 public:
    ConformingProlongationOperator(const ParFiniteElementSpace &pfes);
+
+   virtual void Mult(const Vector &x, Vector &y) const;
+
+   virtual void MultTranspose(const Vector &x, Vector &y) const;
+};
+
+/// Auxiliary device class used by ParFiniteElementSpace.
+class DeviceConformingProlongationOperator: public
+   ConformingProlongationOperator
+{
+protected:
+   bool mpi_gpu_aware;
+   Array<int> shr_ltdof, ext_ldof;
+   mutable Vector shr_buf, ext_buf;
+   Memory<int> shr_buf_offsets, ext_buf_offsets;
+   Array<int> ltdof_ldof, unq_ltdof;
+   Array<int> unq_shr_i, unq_shr_j;
+   MPI_Request *requests;
+   // Kernel: copy ltdofs from 'src' to 'shr_buf' - prepare for send.
+   //         shr_buf[i] = src[shr_ltdof[i]]
+   void BcastBeginCopy(const Vector &src) const;
+
+   // Kernel: copy ltdofs from 'src' to ldofs in 'dst'.
+   //         dst[ltdof_ldof[i]] = src[i]
+   void BcastLocalCopy(const Vector &src, Vector &dst) const;
+
+   // Kernel: copy ext. dofs from 'ext_buf' to 'dst' - after recv.
+   //         dst[ext_ldof[i]] = ext_buf[i]
+   void BcastEndCopy(Vector &dst) const;
+
+   // Kernel: copy ext. dofs from 'src' to 'ext_buf' - prepare for send.
+   //         ext_buf[i] = src[ext_ldof[i]]
+   void ReduceBeginCopy(const Vector &src) const;
+
+   // Kernel: copy owned ldofs from 'src' to ltdofs in 'dst'.
+   //         dst[i] = src[ltdof_ldof[i]]
+   void ReduceLocalCopy(const Vector &src, Vector &dst) const;
+
+   // Kernel: assemble dofs from 'shr_buf' into to 'dst' - after recv.
+   //         dst[shr_ltdof[i]] += shr_buf[i]
+   void ReduceEndAssemble(Vector &dst) const;
+
+public:
+   DeviceConformingProlongationOperator(const ParFiniteElementSpace &pfes);
+
+   virtual ~DeviceConformingProlongationOperator();
 
    virtual void Mult(const Vector &x, Vector &y) const;
 

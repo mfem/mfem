@@ -4,8 +4,13 @@
 //
 // Sample runs:  mpirun -np 4 ex11p -m ../data/square-disc.mesh
 //               mpirun -np 4 ex11p -m ../data/star.mesh
+//               mpirun -np 4 ex11p -m ../data/star-mixed.mesh
 //               mpirun -np 4 ex11p -m ../data/escher.mesh
 //               mpirun -np 4 ex11p -m ../data/fichera.mesh
+//               mpirun -np 4 ex11p -m ../data/fichera-mixed.mesh
+//               mpirun -np 4 ex11p -m ../data/periodic-annulus-sector.msh
+//               mpirun -np 4 ex11p -m ../data/periodic-torus-sector.msh -rs 1
+//               mpirun -np 4 ex11p -m ../data/toroid-wedge.mesh -o 2
 //               mpirun -np 4 ex11p -m ../data/square-disc-p2.vtk -o 2
 //               mpirun -np 4 ex11p -m ../data/square-disc-p3.mesh -o 3
 //               mpirun -np 4 ex11p -m ../data/square-disc-nurbs.mesh -o -1
@@ -15,6 +20,11 @@
 //               mpirun -np 4 ex11p -m ../data/star-surf.mesh
 //               mpirun -np 4 ex11p -m ../data/square-disc-surf.mesh
 //               mpirun -np 4 ex11p -m ../data/inline-segment.mesh
+//               mpirun -np 4 ex11p -m ../data/inline-quad.mesh
+//               mpirun -np 4 ex11p -m ../data/inline-tri.mesh
+//               mpirun -np 4 ex11p -m ../data/inline-hex.mesh
+//               mpirun -np 4 ex11p -m ../data/inline-tet.mesh
+//               mpirun -np 4 ex11p -m ../data/inline-wedge.mesh -s 83
 //               mpirun -np 4 ex11p -m ../data/amr-quad.mesh
 //               mpirun -np 4 ex11p -m ../data/amr-hex.mesh
 //               mpirun -np 4 ex11p -m ../data/mobius-strip.mesh -n 8
@@ -62,6 +72,7 @@ int main(int argc, char *argv[])
    int seed = 75;
    bool slu_solver  = false;
    bool sp_solver = false;
+   bool cpardiso_solver = false;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -85,6 +96,10 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_STRUMPACK
    args.AddOption(&sp_solver, "-sp", "--strumpack", "-no-sp",
                   "--no-strumpack", "Use the STRUMPACK Solver.");
+#endif
+#ifdef MFEM_USE_MKL_CPARDISO
+   args.AddOption(&cpardiso_solver, "-cpardiso", "--cpardiso", "-no-cpardiso",
+                  "--no-cpardiso", "Use the MKL CPardiso Solver.");
 #endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -226,7 +241,7 @@ int main(int argc, char *argv[])
    //    preconditioner for A to be used within the solver. Set the matrices
    //    which define the generalized eigenproblem A x = lambda M x.
    Solver * precond = NULL;
-   if (!slu_solver && !sp_solver)
+   if (!slu_solver && !sp_solver && !cpardiso_solver)
    {
       HypreBoomerAMG * amg = new HypreBoomerAMG(*A);
       amg->SetPrintLevel(0);
@@ -253,15 +268,23 @@ int main(int argc, char *argv[])
          strumpack->SetPrintSolveStatistics(false);
          strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
          strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
-         strumpack->SetMC64Job(strumpack::MC64Job::NONE);
-         // strumpack->SetSymmetricPattern(true);
+         strumpack->DisableMatching();
          strumpack->SetOperator(*Arow);
          strumpack->SetFromCommandLine();
          precond = strumpack;
       }
 #endif
+#ifdef MFEM_USE_MKL_CPARDISO
+      if (cpardiso_solver)
+      {
+         auto cpardiso = new CPardisoSolver(A->GetComm());
+         cpardiso->SetMatrixType(CPardisoSolver::MatType::REAL_STRUCTURE_SYMMETRIC);
+         cpardiso->SetPrintLevel(1);
+         cpardiso->SetOperator(*A);
+         precond = cpardiso;
+      }
+#endif
    }
-
 
    HypreLOBPCG * lobpcg = new HypreLOBPCG(MPI_COMM_WORLD);
    lobpcg->SetNumModes(nev);

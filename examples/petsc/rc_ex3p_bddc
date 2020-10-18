@@ -16,7 +16,10 @@
 #-pc_bddc_adaptive_threshold 10
 
 # Customization of the local solvers
-#-pc_bddc_neumann_pc_factor_mat_solver_package mumps
-#-pc_bddc_dirichlet_pc_factor_mat_solver_package mumps
+# With PETSc versions older than 3.9
+# use "mat_solver_package" instead of "mat_solver_type"
+#
+#-pc_bddc_neumann_pc_factor_mat_solver_type mumps
+#-pc_bddc_dirichlet_pc_factor_mat_solver_type mumps
 #-pc_bddc_coarse_pc_type cholesky
-#-pc_bddc_coarse_pc_factor_mat_solver_package mumps
+#-pc_bddc_coarse_pc_factor_mat_solver_type mumps

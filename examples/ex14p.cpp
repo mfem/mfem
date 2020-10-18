@@ -4,8 +4,10 @@
 //
 // Sample runs:  mpirun -np 4 ex14p -m ../data/inline-quad.mesh -o 0
 //               mpirun -np 4 ex14p -m ../data/star.mesh -o 2
+//               mpirun -np 4 ex14p -m ../data/star-mixed.mesh -o 2
 //               mpirun -np 4 ex14p -m ../data/escher.mesh -s 1
 //               mpirun -np 4 ex14p -m ../data/fichera.mesh -s 1 -k 1
+//               mpirun -np 4 ex14p -m ../data/fichera-mixed.mesh -s 1 -k 1
 //               mpirun -np 4 ex14p -m ../data/square-disc-p2.vtk -o 2
 //               mpirun -np 4 ex14p -m ../data/square-disc-p3.mesh -o 3
 //               mpirun -np 4 ex14p -m ../data/square-disc-nurbs.mesh -o 1
@@ -32,6 +34,38 @@
 
 using namespace std;
 using namespace mfem;
+
+class CustomSolverMonitor : public IterativeSolverMonitor
+{
+public:
+   CustomSolverMonitor(const ParMesh *m,
+                       ParGridFunction *f) :
+      pmesh(m),
+      pgf(f) {}
+
+   void MonitorSolution(int i, double norm, const Vector &x, bool final)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      int  num_procs, myid;
+
+      MPI_Comm_size(pmesh->GetComm(),&num_procs);
+      MPI_Comm_rank(pmesh->GetComm(),&myid);
+
+      pgf->SetFromTrueDofs(x);
+
+      socketstream sol_sock(vishost, visport);
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << *pmesh << *pgf
+               << "window_title 'Iteration no " << i << "'"
+               << "keys rRjlc\n" << flush;
+   }
+
+private:
+   const ParMesh *pmesh;
+   ParGridFunction *pgf;
+};
 
 int main(int argc, char *argv[])
 {
@@ -186,6 +220,7 @@ int main(int argc, char *argv[])
    }
    else
    {
+      CustomSolverMonitor monitor(pmesh, &x);
       GMRESSolver gmres(MPI_COMM_WORLD);
       gmres.SetAbsTol(0.0);
       gmres.SetRelTol(1e-12);
@@ -194,6 +229,7 @@ int main(int argc, char *argv[])
       gmres.SetPrintLevel(1);
       gmres.SetOperator(*A);
       gmres.SetPreconditioner(*amg);
+      gmres.SetMonitor(monitor);
       gmres.Mult(*B, *X);
    }
    delete amg;

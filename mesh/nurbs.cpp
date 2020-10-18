@@ -1,18 +1,19 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "mesh_headers.hpp"
 #include "../fem/fem.hpp"
 #include "../general/text.hpp"
 
+#include <fstream>
 #include <algorithm>
 #if defined(_MSC_VER) && (_MSC_VER < 1800)
 #include <float.h>
@@ -128,6 +129,33 @@ void KnotVector::Print(std::ostream &out) const
    knot.Print(out, knot.Size());
 }
 
+
+void KnotVector::PrintFunctions(std::ostream &out, int samples) const
+{
+   Vector shape(Order+1);
+
+   double x, dx = 1.0/double (samples - 1);
+
+   for (int i = 0; i <GetNE() ; i++)
+   {
+      for (int j = 0; j <samples; j++)
+      {
+         x =j*dx;
+         out<< x + i;
+
+         CalcShape ( shape, i, x);
+         for (int d = 0; d < Order+1; d++) { out<<"\t"<<shape[d]; }
+
+         CalcDShape ( shape, i, x);
+         for (int d = 0; d < Order+1; d++) { out<<"\t"<<shape[d]; }
+
+         CalcD2Shape ( shape, i, x);
+         for (int d = 0; d < Order+1; d++) { out<<"\t"<<shape[d]; }
+         out<<endl;
+      }
+   }
+}
+
 // Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
 void KnotVector::CalcShape(Vector &shape, int i, double xi) const
 {
@@ -211,6 +239,109 @@ void KnotVector::CalcDShape(Vector &grad, int i, double xi) const
    }
 }
 
+// Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
+void KnotVector::CalcDnShape(Vector &gradn, int n, int i, double xi) const
+{
+   int    p = Order, rk, pk, j1, j2,r,j,k;
+   int    ip = (i >= 0) ? (i + p) : (-1 - i + p);
+   double u = getKnotLocation((i >= 0) ? xi : 1. - xi, ip);
+   double temp, saved, d;
+   double a[2][MaxOrder+1],ndu[MaxOrder+1][MaxOrder+1], left[MaxOrder+1],
+          right[MaxOrder+1];
+
+#ifdef MFEM_DEBUG
+   if (p > MaxOrder)
+   {
+      mfem_error("KnotVector::CalcDnShape : Order > MaxOrder!");
+   }
+#endif
+
+   ndu[0][0] = 1.0;
+   for (j = 1; j <= p; j++)
+   {
+      left[j] = u - knot(ip-j+1);
+      right[j] = knot(ip+j)- u;
+
+      saved = 0.0;
+      for (r = 0; r < j; r++)
+      {
+         ndu[j][r] = right[r+1] + left[j-r];
+         temp = ndu[r][j-1]/ndu[j][r];
+         ndu[r][j] = saved + right[r+1]*temp;
+         saved = left[j-r]*temp;
+      }
+      ndu[j][j] = saved;
+   }
+
+   for (r = 0; r <= p; r++)
+   {
+      int s1 = 0;
+      int s2 = 1;
+      a[0][0] = 1.0;
+      for (k = 1; k <= n; k++)
+      {
+         d = 0.0;
+         rk = r-k;
+         pk = p-k;
+         if (r >= k)
+         {
+            a[s2][0] = a[s1][0]/ndu[pk+1][rk];
+            d = a[s2][0]*ndu[rk][pk];
+         }
+
+         if (rk >= -1)
+         {
+            j1 = 1;
+         }
+         else
+         {
+            j1 = -rk;
+         }
+
+         if (r-1<= pk)
+         {
+            j2 = k-1;
+         }
+         else
+         {
+            j2 = p-r;
+         }
+
+         for (j = j1; j <= j2; j++)
+         {
+            a[s2][j] = (a[s1][j] - a[s1][j-1])/ndu[pk+1][rk+j];
+            d += a[s2][j]*ndu[rk+j][pk];
+         }
+
+         if (r <= pk)
+         {
+            a[s2][k] = - a[s1][k-1]/ndu[pk+1][r];
+            d += a[s2][j]*ndu[rk+j][pk];
+         }
+         gradn[r] = d;
+         j = s1;
+         s1 = s2;
+         s2 = j;
+      }
+   }
+
+   if (i >= 0)
+   {
+      u = (knot(ip+1) - knot(ip));
+   }
+   else
+   {
+      u = (knot(ip) - knot(ip+1));
+   }
+
+   temp = p*u;
+   for (k = 1; k <= n-1; k++) { temp *= (p-k)*u; }
+
+   for (j = 0; j <= p; j++) { gradn[j] *= temp; }
+
+}
+
+
 int KnotVector::findKnotSpan(double u) const
 {
    int low, mid, high;
@@ -272,7 +403,6 @@ void KnotVector::Difference(const KnotVector &kv, Vector &diff) const
       }
    }
 }
-
 
 void NURBSPatch::init(int dim_)
 {
@@ -582,9 +712,19 @@ void NURBSPatch::KnotInsert(int dir, const KnotVector &newkv)
    }
 }
 
+void NURBSPatch::KnotInsert(Array<Vector *> &newkv)
+{
+   for (int dir = 0; dir < kv.Size(); dir++)
+   {
+      KnotInsert(dir, *newkv[dir]);
+   }
+}
+
 // Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
 void NURBSPatch::KnotInsert(int dir, const Vector &knot)
 {
+   if (knot.Size() == 0 ) { return; }
+
    if (dir >= kv.Size() || dir < 0)
    {
       mfem_error("NURBSPatch::KnotInsert : Incorrect direction!");
@@ -1198,6 +1338,9 @@ NURBSExtension::NURBSExtension(const NURBSExtension &orig)
      edge_to_knot(orig.edge_to_knot),
      knotVectors(orig.knotVectors.Size()), // knotVectors are copied in the body
      weights(orig.weights),
+     d_to_d(orig.d_to_d),
+     master(orig.master),
+     slave(orig.slave),
      v_meshOffsets(orig.v_meshOffsets),
      e_meshOffsets(orig.e_meshOffsets),
      f_meshOffsets(orig.f_meshOffsets),
@@ -1349,9 +1492,20 @@ NURBSExtension::NURBSExtension(std::istream &input)
    }
 
    GenerateActiveVertices();
+   InitDofMap();
    GenerateElementDofTable();
    GenerateActiveBdrElems();
    GenerateBdrElementDofTable();
+
+   // periodic
+   if (ident == "periodic")
+   {
+      master.Load(input);
+      slave.Load(input);
+
+      skip_comment_lines(input, '#');
+      input >> ws >> ident;
+   }
 
    if (patches.Size() == 0)
    {
@@ -1366,6 +1520,9 @@ NURBSExtension::NURBSExtension(std::istream &input)
          weights = 1.0;
       }
    }
+
+   // periodic
+   ConnectBoundaries();
 }
 
 NURBSExtension::NURBSExtension(NURBSExtension *parent, int newOrder)
@@ -1403,6 +1560,7 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent, int newOrder)
    NumOfActiveElems    = parent->NumOfActiveElems;
    NumOfActiveBdrElems = parent->NumOfActiveBdrElems;
    parent->activeVert.Copy(activeVert);
+   InitDofMap();
    parent->activeElem.Copy(activeElem);
    parent->activeBdrElem.Copy(activeBdrElem);
 
@@ -1411,6 +1569,11 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent, int newOrder)
 
    weights.SetSize(GetNDof());
    weights = 1.0;
+
+   // periodic
+   parent->master.Copy(master);
+   parent->slave.Copy(slave);
+   ConnectBoundaries();
 }
 
 NURBSExtension::NURBSExtension(NURBSExtension *parent,
@@ -1452,6 +1615,7 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent,
    NumOfActiveElems    = parent->NumOfActiveElems;
    NumOfActiveBdrElems = parent->NumOfActiveBdrElems;
    parent->activeVert.Copy(activeVert);
+   InitDofMap();
    parent->activeElem.Copy(activeElem);
    parent->activeBdrElem.Copy(activeBdrElem);
 
@@ -1460,6 +1624,10 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent,
 
    weights.SetSize(GetNDof());
    weights = 1.0;
+
+   parent->master.Copy(master);
+   parent->slave.Copy(slave);
+   ConnectBoundaries();
 }
 
 NURBSExtension::NURBSExtension(Mesh *mesh_array[], int num_pieces)
@@ -1497,6 +1665,7 @@ NURBSExtension::NURBSExtension(Mesh *mesh_array[], int num_pieces)
    activeElem = true;
 
    GenerateActiveVertices();
+   InitDofMap();
    GenerateElementDofTable();
    GenerateActiveBdrElems();
    GenerateBdrElementDofTable();
@@ -1592,6 +1761,241 @@ void NURBSExtension::PrintCharacteristics(std::ostream &out) const
       knotVectors[i]->Print(out);
    }
    out << endl;
+}
+
+void NURBSExtension::PrintFunctions(const char *basename, int samples) const
+{
+   std::ofstream out;
+   for (int i = 0; i < NumOfKnotVectors; i++)
+   {
+      std::ostringstream filename;
+      filename << basename<<"_"<<i<<".dat";
+      out.open(filename.str().c_str());
+      knotVectors[i]->PrintFunctions(out,samples);
+      out.close();
+   }
+}
+
+void NURBSExtension::InitDofMap()
+{
+   master.SetSize(0);
+   slave.SetSize(0);
+   d_to_d.SetSize(0);
+}
+
+void NURBSExtension::ConnectBoundaries(Array<int> &bnds0, Array<int> &bnds1)
+{
+   bnds0.Copy(master);
+   bnds1.Copy(slave);
+   ConnectBoundaries();
+}
+
+void NURBSExtension::ConnectBoundaries()
+{
+   if (master.Size() != slave.Size())
+   {
+      mfem_error("NURBSExtension::ConnectBoundaries() boundary lists not of equal size");
+   }
+   if (master.Size() == 0 ) { return; }
+
+   // Connect
+   d_to_d.SetSize(NumOfDofs);
+   for (int i = 0; i < NumOfDofs; i++) { d_to_d[i] = i; }
+
+   for (int i = 0; i < master.Size(); i++)
+   {
+      if (Dimension() == 2)
+      {
+         ConnectBoundaries2D(master[i], slave[i]);
+      }
+      else
+      {
+         ConnectBoundaries3D(master[i], slave[i]);
+      }
+   }
+
+   // Finalize
+   if (el_dof) { delete el_dof; }
+   if (bel_dof) { delete bel_dof; }
+   GenerateElementDofTable();
+   GenerateBdrElementDofTable();
+}
+
+void NURBSExtension::ConnectBoundaries2D(int bnd0, int bnd1)
+{
+   int idx0 = -1, idx1 = -1;
+   for (int b = 0; b < GetNBP(); b++)
+   {
+      if (bnd0 == patchTopo->GetBdrAttribute(b)) { idx0 = b; }
+      if (bnd1 == patchTopo->GetBdrAttribute(b)) { idx1 = b; }
+   }
+   MFEM_VERIFY(idx0 != -1,"Bdr 0 not found");
+   MFEM_VERIFY(idx1 != -1,"Bdr 1 not found");
+
+   NURBSPatchMap p2g0(this);
+   NURBSPatchMap p2g1(this);
+
+   int okv0[1],okv1[1];
+   const KnotVector *kv0[1],*kv1[1];
+
+   p2g0.SetBdrPatchDofMap(idx0, kv0, okv0);
+   p2g1.SetBdrPatchDofMap(idx1, kv1, okv1);
+
+   int nx = p2g0.nx();
+   int nks0 = kv0[0]->GetNKS();
+
+#ifdef MFEM_DEBUG
+   bool compatible = true;
+   if (p2g0.nx() != p2g1.nx()) { compatible = false; }
+   if (kv0[0]->GetNKS() != kv1[0]->GetNKS()) { compatible = false; }
+   if (kv0[0]->GetOrder() != kv1[0]->GetOrder()) { compatible = false; }
+
+   if (!compatible)
+   {
+      mfem::out<<p2g0.nx()<<" "<<p2g1.nx()<<endl;
+      mfem::out<<kv0[0]->GetNKS()<<" "<<kv1[0]->GetNKS()<<endl;
+      mfem::out<<kv0[0]->GetOrder()<<" "<<kv1[0]->GetOrder()<<endl;
+      mfem_error("NURBS boundaries not compatible");
+   }
+#endif
+
+   for (int i = 0; i < nks0; i++)
+   {
+      if (kv0[0]->isElement(i))
+      {
+         if (!kv1[0]->isElement(i)) { mfem_error("isElement does not match"); }
+         for (int ii = 0; ii <= kv0[0]->GetOrder(); ii++)
+         {
+            int ii0 = (okv0[0] >= 0) ? (i+ii) : (nx-i-ii);
+            int ii1 = (okv1[0] >= 0) ? (i+ii) : (nx-i-ii);
+
+            d_to_d[p2g0(ii0)] = d_to_d[p2g1(ii1)];
+         }
+
+      }
+   }
+
+   // Clean d_to_d
+   Array<int> tmp(d_to_d.Size()+1);
+   tmp = 0;
+
+   for (int i = 0; i < d_to_d.Size(); i++)
+   {
+      tmp[d_to_d[i]] = 1;
+   }
+
+   int cnt = 0;
+   for (int i = 0; i < tmp.Size(); i++)
+   {
+      if (tmp[i] == 1) { tmp[i] = cnt++; }
+   }
+   NumOfDofs = cnt;
+
+   for (int i = 0; i < d_to_d.Size(); i++)
+   {
+      d_to_d[i] = tmp[d_to_d[i]];
+   }
+}
+
+void NURBSExtension::ConnectBoundaries3D(int bnd0, int bnd1)
+{
+   int idx0 = -1, idx1 = -1;
+   for (int b = 0; b < GetNBP(); b++)
+   {
+      if (bnd0 == patchTopo->GetBdrAttribute(b)) { idx0 = b; }
+      if (bnd1 == patchTopo->GetBdrAttribute(b)) { idx1 = b; }
+   }
+   MFEM_VERIFY(idx0 != -1,"Bdr 0 not found");
+   MFEM_VERIFY(idx1 != -1,"Bdr 1 not found");
+
+   NURBSPatchMap p2g0(this);
+   NURBSPatchMap p2g1(this);
+
+   int okv0[2],okv1[2];
+   const KnotVector *kv0[2],*kv1[2];
+
+   p2g0.SetBdrPatchDofMap(idx0, kv0, okv0);
+   p2g1.SetBdrPatchDofMap(idx1, kv1, okv1);
+
+   int nx = p2g0.nx();
+   int ny = p2g0.ny();
+
+   int nks0 = kv0[0]->GetNKS();
+   int nks1 = kv0[1]->GetNKS();
+
+#ifdef MFEM_DEBUG
+   bool compatible = true;
+   if (p2g0.nx() != p2g1.nx()) { compatible = false; }
+   if (p2g0.ny() != p2g1.ny()) { compatible = false; }
+
+   if (kv0[0]->GetNKS() != kv1[0]->GetNKS()) { compatible = false; }
+   if (kv0[1]->GetNKS() != kv1[0]->GetNKS()) { compatible = false; }
+
+   if (kv0[0]->GetOrder() != kv1[0]->GetOrder()) { compatible = false; }
+   if (kv0[1]->GetOrder() != kv1[1]->GetOrder()) { compatible = false; }
+
+   if (!compatible)
+   {
+      mfem::out<<p2g0.nx()<<" "<<p2g1.nx()<<endl;
+      mfem::out<<p2g0.ny()<<" "<<p2g1.ny()<<endl;
+
+      mfem::out<<kv0[0]->GetNKS()<<" "<<kv1[0]->GetNKS()<<endl;
+      mfem::out<<kv0[1]->GetNKS()<<" "<<kv1[0]->GetNKS()<<endl;
+
+      mfem::out<<kv0[0]->GetOrder()<<" "<<kv1[0]->GetOrder()<<endl;
+      mfem::out<<kv0[1]->GetOrder()<<" "<<kv1[1]->GetOrder()<<endl;
+      mfem_error("NURBS boundaries not compatible");
+   }
+#endif
+
+   for (int j = 0; j < nks1; j++)
+   {
+      if (kv0[1]->isElement(j))
+      {
+         if (!kv1[1]->isElement(j)) { mfem_error("isElement does not match #1"); }
+         for (int i = 0; i < nks0; i++)
+         {
+            if (kv0[0]->isElement(i))
+            {
+               if (!kv1[0]->isElement(i)) { mfem_error("isElement does not match #0"); }
+               for (int jj = 0; jj <= kv0[1]->GetOrder(); jj++)
+               {
+                  int jj0 = (okv0[1] >= 0) ? (j+jj) : (ny-j-jj);
+                  int jj1 = (okv1[1] >= 0) ? (j+jj) : (ny-j-jj);
+
+                  for (int ii = 0; ii <= kv0[0]->GetOrder(); ii++)
+                  {
+                     int ii0 = (okv0[0] >= 0) ? (i+ii) : (nx-i-ii);
+                     int ii1 = (okv1[0] >= 0) ? (i+ii) : (nx-i-ii);
+
+                     d_to_d[p2g0(ii0,jj0)] = d_to_d[p2g1(ii1,jj1)];
+                  }
+               }
+            }
+         }
+      }
+   }
+
+   // Clean d_to_d
+   Array<int> tmp(d_to_d.Size()+1);
+   tmp = 0;
+
+   for (int i = 0; i < d_to_d.Size(); i++)
+   {
+      tmp[d_to_d[i]] = 1;
+   }
+
+   int cnt = 0;
+   for (int i = 0; i < tmp.Size(); i++)
+   {
+      if (tmp[i] == 1) { tmp[i] = cnt++; }
+   }
+   NumOfDofs = cnt;
+
+   for (int i = 0; i < d_to_d.Size(); i++)
+   {
+      d_to_d[i] = tmp[d_to_d[i]];
+   }
 }
 
 void NURBSExtension::GenerateActiveVertices()
@@ -2279,7 +2683,7 @@ void NURBSExtension::Generate2DElementDofTable()
                      {
                         for (int ii = 0; ii <= ord0; ii++)
                         {
-                           conn.to = p2g(i+ii,j+jj);
+                           conn.to = DofMap(p2g(i+ii,j+jj));
                            activeDof[conn.to] = 1;
                            el_dof_list.Append(conn);
                         }
@@ -2340,7 +2744,7 @@ void NURBSExtension::Generate3DElementDofTable()
                               {
                                  for (int ii = 0; ii <= ord0; ii++)
                                  {
-                                    conn.to = p2g(i+ii, j+jj, k+kk);
+                                    conn.to = DofMap(p2g(i+ii, j+jj, k+kk));
                                     activeDof[conn.to] = 1;
                                     el_dof_list.Append(conn);
                                  }
@@ -2413,7 +2817,7 @@ void NURBSExtension::Generate2DBdrElementDofTable()
                Connection conn(lbe,0);
                for (int ii = 0; ii <= ord0; ii++)
                {
-                  conn.to = p2g[(okv[0] >= 0) ? (i+ii) : (nx-i-ii)];
+                  conn.to = DofMap(p2g[(okv[0] >= 0) ? (i+ii) : (nx-i-ii)]);
                   bel_dof_list.Append(conn);
                }
                bel_to_patch[lbe] = b;
@@ -2467,7 +2871,7 @@ void NURBSExtension::Generate3DBdrElementDofTable()
                         for (int ii = 0; ii <= ord0; ii++)
                         {
                            const int _ii = (okv[0] >= 0) ? (i+ii) : (nx-i-ii);
-                           conn.to = p2g(_ii, _jj);
+                           conn.to = DofMap(p2g(_ii, _jj));
                            bel_dof_list.Append(conn);
                         }
                      }
@@ -2599,9 +3003,12 @@ void NURBSExtension::SetKnotsFromPatches()
    activeElem = true;
 
    GenerateActiveVertices();
+   InitDofMap();
    GenerateElementDofTable();
    GenerateActiveBdrElems();
    GenerateBdrElementDofTable();
+
+   ConnectBoundaries();
 }
 
 void NURBSExtension::LoadSolution(std::istream &input, GridFunction &sol) const
@@ -2629,7 +3036,8 @@ void NURBSExtension::LoadSolution(std::istream &input, GridFunction &sol) const
          {
             for (int i = 0; i < nx; i++)
             {
-               const int l = (kv.Size() == 2) ? p2g(i,j) : p2g(i,j,k);
+               const int ll = (kv.Size() == 2) ? p2g(i,j) : p2g(i,j,k);
+               const int l  = DofMap(ll);
                for (int vd = 0; vd < vdim; vd++)
                {
                   input >> sol(fes->DofToVDof(l,vd));
@@ -2664,7 +3072,8 @@ const
          {
             for (int i = 0; i < nx; i++)
             {
-               const int l = (kv.Size() == 2) ? p2g(i,j) : p2g(i,j,k);
+               const int ll = (kv.Size() == 2) ? p2g(i,j) : p2g(i,j,k);
+               const int l  = DofMap(ll);
                out << sol(fes->DofToVDof(l,0));
                for (int vd = 1; vd < vdim; vd++)
                {
@@ -2728,6 +3137,34 @@ void NURBSExtension::KnotInsert(Array<KnotVector *> &kv)
    }
 }
 
+void NURBSExtension::KnotInsert(Array<Vector *> &kv)
+{
+   Array<int> edges;
+   Array<int> orient;
+
+   Array<Vector *> pkv(Dimension());
+
+   for (int p = 0; p < patches.Size(); p++)
+   {
+      patchTopo->GetElementEdges(p, edges, orient);
+
+      if (Dimension()==2)
+      {
+         pkv[0] = kv[KnotInd(edges[0])];
+         pkv[1] = kv[KnotInd(edges[1])];
+      }
+      else
+      {
+         pkv[0] = kv[KnotInd(edges[0])];
+         pkv[1] = kv[KnotInd(edges[3])];
+         pkv[2] = kv[KnotInd(edges[8])];
+      }
+
+      patches[p]->KnotInsert(pkv);
+   }
+}
+
+
 void NURBSExtension::GetPatchNets(const Vector &coords, int vdim)
 {
    if (Dimension() == 2)
@@ -2756,7 +3193,7 @@ void NURBSExtension::Get2DPatchNets(const Vector &coords, int vdim)
       {
          for (int i = 0; i < kv[0]->GetNCP(); i++)
          {
-            const int l = p2g(i,j);
+            const int l = DofMap(p2g(i,j));
             for (int d = 0; d < vdim; d++)
             {
                Patch(i,j,d) = coords(l*vdim + d)*weights(l);
@@ -2785,7 +3222,7 @@ void NURBSExtension::Get3DPatchNets(const Vector &coords, int vdim)
          {
             for (int i = 0; i < kv[0]->GetNCP(); i++)
             {
-               const int l = p2g(i,j,k);
+               const int l = DofMap(p2g(i,j,k));
                for (int d = 0; d < vdim; d++)
                {
                   Patch(i,j,k,d) = coords(l*vdim + d)*weights(l);
@@ -2986,6 +3423,10 @@ ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent,
    Swap(e_spaceOffsets, parent->e_spaceOffsets);
    Swap(f_spaceOffsets, parent->f_spaceOffsets);
    Swap(p_spaceOffsets, parent->p_spaceOffsets);
+
+   Swap(d_to_d, parent->d_to_d);
+   Swap(master, parent->master);
+   Swap(slave,  parent->slave);
 
    NumOfActiveVertices = parent->NumOfActiveVertices;
    NumOfActiveElems    = parent->NumOfActiveElems;
