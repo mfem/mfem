@@ -1,5 +1,5 @@
 //                                MFEM Example 1
-//                              AmgX Modifications
+//                              AmgX Modification
 //
 // Compile with: make ex1
 //

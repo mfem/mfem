@@ -1,13 +1,29 @@
 //                       MFEM Example 1 - Parallel Version
-//                              AmgX Modification
+//                             SuperLU Modification
 //
 // Compile with: make ex1p
 //
-// AmgX sample runs:
-//               mpirun -np 4 ex1p
-//               mpirun -np 4 ex1p -d cuda
-//               mpirun -n 10 ex1p --amgx-file amg_pcg.json
-//               mpirun -n 4 ex1p --amgx-file amg_pcg.json --amgx-mpi-gpu-exclusive
+// Sample runs:  mpirun -np 4 ex1p -m ../../data/square-disc.mesh
+//               mpirun -np 4 ex1p -m ../../data/star.mesh
+//               mpirun -np 4 ex1p -m ../../data/star-mixed.mesh
+//               mpirun -np 4 ex1p -m ../../data/escher.mesh
+//               mpirun -np 4 ex1p -m ../../data/fichera.mesh
+//               mpirun -np 4 ex1p -m ../../data/fichera-mixed.mesh
+//               mpirun -np 4 ex1p -m ../../data/toroid-wedge.mesh
+//               mpirun -np 4 ex1p -m ../../data/periodic-annulus-sector.msh
+//               mpirun -np 4 ex1p -m ../../data/periodic-torus-sector.msh
+//               mpirun -np 4 ex1p -m ../../data/square-disc-p2.vtk -o 2
+//               mpirun -np 4 ex1p -m ../../data/square-disc-nurbs.mesh -o -1
+//               mpirun -np 4 ex1p -m ../../data/star-mixed-p2.mesh -o 2
+//               mpirun -np 4 ex1p -m ../../data/disc-nurbs.mesh -o -1
+//               mpirun -np 4 ex1p -m ../../data/pipe-nurbs.mesh -o -1
+//               mpirun -np 4 ex1p -m ../../data/ball-nurbs.mesh -o 2
+//               mpirun -np 4 ex1p -m ../../data/star-surf.mesh
+//               mpirun -np 4 ex1p -m ../../data/square-disc-surf.mesh
+//               mpirun -np 4 ex1p -m ../../data/inline-segment.mesh
+//               mpirun -np 4 ex1p -m ../../data/amr-quad.mesh
+//               mpirun -np 4 ex1p -m ../../data/amr-hex.mesh
+//               mpirun -np 4 ex1p -m ../../data/mobius-strip.mesh
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -42,14 +58,11 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
    int order = 1;
-   bool static_cond = false;
-   bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
-   bool amgx_lib = true;
-   bool amgx_mpi_teams = true;
-   const char* amgx_json_file = ""; // JSON file for AmgX
-   int ndevices = 1;
+   int slu_colperm = 4;
+   int slu_rowperm = 1;
+   int slu_iterref = 2;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -57,23 +70,20 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
-                  "--no-static-condensation", "Enable static condensation.");
-   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
-                  "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&amgx_lib, "-amgx", "--amgx-lib", "-no-amgx",
-                  "--no-amgx-lib", "Use AmgX in example.");
-   args.AddOption(&amgx_json_file, "--amgx-file", "--amgx-file",
-                  "AMGX solver config file (overrides --amgx-solver, --amgx-verbose)");
-   args.AddOption(&amgx_mpi_teams, "--amgx-mpi-teams", "--amgx-mpi-teams",
-                  "--amgx-mpi-gpu-exclusive", "--amgx-mpi-gpu-exclusive",
-                  "Create MPI teams when using AMGX.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&ndevices, "-nd","--nd","Number of GPU devices.");
+   args.AddOption(&slu_colperm, "-cp", "--colperm",
+                  "SuperLU Column Permutation Method:  0-NATURAL, 1-MMD-ATA "
+                  "2-MMD_AT_PLUS_A, 3-COLAMD, 4-METIS_AT_PLUS_A, 5-PARMETIS "
+                  "6-ZOLTAN");
+   args.AddOption(&slu_rowperm, "-rp", "--rowperm",
+                  "SuperLU Row Permutation Method:  0-NOROWPERM, 1-LargeDiag");
+   args.AddOption(&slu_iterref, "-rp", "--rowperm",
+                  "SuperLU Iterative Refinement:  0-NOREFINE, 1-Single, "
+                  "2-Double, 3-Extra");
 
    args.Parse();
    if (!args.Good())
@@ -104,10 +114,10 @@ int main(int argc, char *argv[])
    // 5. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
-   //    more than 10,000 elements.
+   //    more than 1,000 elements.
    {
       int ref_levels =
-         (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
+         (int)floor(log(1000./mesh.GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();
@@ -188,92 +198,86 @@ int main(int argc, char *argv[])
    //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //     domain integrator.
    ParBilinearForm a(&fespace);
-   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a.AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 12. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, static condensation, etc.
-   if (static_cond) { a.EnableStaticCondensation(); }
    a.Assemble();
 
    OperatorPtr A;
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-   // 13. Solve the linear system A X = B.
-   //     * With full assembly, use the BoomerAMG preconditioner from hypre.
-   //     * If AmgX is available solve using amg preconditioner.
-   //     * With partial assembly, use Jacobi smoothing, for now.
-   Solver *prec = NULL;
-   if (pa)
+   // 13. Solve the linear system A X = B utilizing SuperLU.
+   SuperLUSolver *superlu = new SuperLUSolver(MPI_COMM_WORLD);
+   Operator *SLU_A = new SuperLURowLocMatrix(*A.As<HypreParMatrix>());
+   superlu->SetPrintStatistics(true);
+   superlu->SetSymmetricPattern(false);
+
+   if (slu_colperm == 0)
    {
-      if (UsesTensorBasis(fespace))
-      {
-         prec = new OperatorJacobiSmoother(a, ess_tdof_list);
-      }
-
-      CGSolver cg(MPI_COMM_WORLD);
-      cg.SetRelTol(1e-12);
-      cg.SetMaxIter(2000);
-      cg.SetPrintLevel(1);
-      if (prec) { cg.SetPreconditioner(*prec); }
-      cg.SetOperator(*A);
-      cg.Mult(B, X);
-      delete prec;
+      superlu->SetColumnPermutation(superlu::NATURAL);
    }
-   else if (amgx_lib && strcmp(amgx_json_file,"") == 0)
+   else if (slu_colperm == 1)
    {
-      bool amgx_verbose = false;
-      prec = new AmgXSolver(MPI_COMM_WORLD, AmgXSolver::PRECONDITIONER,
-                            amgx_verbose);
-
-      CGSolver cg(MPI_COMM_WORLD);
-      cg.SetRelTol(1e-12);
-      cg.SetMaxIter(2000);
-      cg.SetPrintLevel(1);
-      if (prec) { cg.SetPreconditioner(*prec); }
-      cg.SetOperator(*A);
-      cg.Mult(B, X);
-      delete prec;
-
+      superlu->SetColumnPermutation(superlu::MMD_ATA);
    }
-   else if (amgx_lib && strcmp(amgx_json_file,"") != 0)
+   else if (slu_colperm == 2)
    {
-      AmgXSolver amgx;
-      amgx.ReadParameters(amgx_json_file, AmgXSolver::EXTERNAL);
-
-      if (amgx_mpi_teams)
-      {
-         // Forms MPI teams to load balance between MPI ranks and GPUs
-         amgx.InitMPITeams(MPI_COMM_WORLD, ndevices);
-      }
-      else
-      {
-         // Assumes each MPI rank is paired with a GPU
-         amgx.InitExclusiveGPU(MPI_COMM_WORLD);
-      }
-
-      amgx.SetOperator(*A.As<HypreParMatrix>());
-      amgx.Mult(B, X);
-
-      // Release MPI communicators and resources created by AmgX
-      amgx.Finalize();
+      superlu->SetColumnPermutation(superlu::MMD_AT_PLUS_A);
    }
-   else
+   else if (slu_colperm == 3)
    {
-      prec = new HypreBoomerAMG;
-
-      CGSolver cg(MPI_COMM_WORLD);
-      cg.SetRelTol(1e-12);
-      cg.SetMaxIter(2000);
-      cg.SetPrintLevel(1);
-      if (prec) { cg.SetPreconditioner(*prec); }
-      cg.SetOperator(*A);
-      cg.Mult(B, X);
-      delete prec;
+      superlu->SetColumnPermutation(superlu::COLAMD);
    }
+   else if (slu_colperm == 4)
+   {
+      superlu->SetColumnPermutation(superlu::METIS_AT_PLUS_A);
+   }
+   else if (slu_colperm == 5)
+   {
+      superlu->SetColumnPermutation(superlu::PARMETIS);
+   }
+   else if (slu_colperm == 6)
+   {
+      superlu->SetColumnPermutation(superlu::ZOLTAN);
+   }
+
+   if (slu_rowperm == 0)
+   {
+      superlu->SetRowPermutation(superlu::NOROWPERM);
+   }
+   else if (slu_rowperm == 1)
+   {
+#ifdef MFEM_USE_SUPERLU5
+      superlu->SetRowPermutation(superlu::LargeDiag);
+#else
+      superlu->SetRowPermutation(superlu::LargeDiag_MC64);
+#endif
+   }
+
+   if (slu_iterref == 0)
+   {
+      superlu->SetIterativeRefine(superlu::NOREFINE);
+   }
+   else if (slu_iterref == 1)
+   {
+      superlu->SetIterativeRefine(superlu::SLU_SINGLE);
+   }
+   else if (slu_iterref == 2)
+   {
+      superlu->SetIterativeRefine(superlu::SLU_DOUBLE);
+   }
+   else if (slu_iterref == 3)
+   {
+      superlu->SetIterativeRefine(superlu::SLU_EXTRA);
+   }
+
+   superlu->SetOperator(*SLU_A);
+   superlu->SetPrintStatistics(true);
+   superlu->Mult(B, X);
 
    // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
