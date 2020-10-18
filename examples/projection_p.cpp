@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
                    << destination_mesh_file << "\n"
                    << "Using default 2D quad mesh.";
 
-      dest_mesh = make_shared<Mesh>(4, 4, Element::QUADRILATERAL, 1);
+      dest_mesh = make_shared<Mesh>(4, 4, Element::QUADRILATERAL);
    }
 
    const int dim = dest_mesh->Dimension();

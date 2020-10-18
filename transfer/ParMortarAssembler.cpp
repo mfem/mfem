@@ -33,7 +33,7 @@ namespace mfem {
 
 	class BoxAdapter : public moonolith::Serializable, public moonolith::Describable, public Box {
 	public:
-		void read(moonolith::InputStream &is) override 
+		void read(moonolith::InputStream &is) override
 		{
 			auto &min = GetMin();
 			auto &max = GetMax();
@@ -244,7 +244,7 @@ namespace mfem {
 			return bound_;
 		}
 
-		void applyRW(moonolith::Stream &stream) 
+		void applyRW(moonolith::Stream &stream)
 		{
 			stream & bound_;
 			stream & element_;
@@ -259,7 +259,7 @@ namespace mfem {
 			DenseMatrix pts;
 			fe_->GetMesh()->GetPointMatrix(element, pts);
 
-			bound_.static_bound()  += pts; 
+			bound_.static_bound()  += pts;
 			bound_.dynamic_bound() += pts;
 		}
 
@@ -335,7 +335,7 @@ namespace mfem {
 	class MFEMTree : public moonolith::Tree< TreeTraits<Dimension> > {
 	public:
 		typedef mfem::TreeTraits<Dimension> Traits;
-		
+
 		MFEMTree() {};
 
 		static std::shared_ptr<MFEMTree> New(const int maxElementsXNode = moonolith::DEFAULT_REFINE_MAX_ELEMENTS, const int maxDepth = moonolith::DEFAULT_REFINE_DEPTH)
@@ -395,7 +395,7 @@ namespace mfem {
 			must_destroy_attached[1] = false;
 		}
 
-		Spaces(const std::shared_ptr<ParFiniteElementSpace> &master, 
+		Spaces(const std::shared_ptr<ParFiniteElementSpace> &master,
 			const std::shared_ptr<ParFiniteElementSpace> &slave)
 		{
 			spaces_.reserve(2);
@@ -421,7 +421,7 @@ namespace mfem {
 
 					//make it null
 					spaces_[i] = std::shared_ptr<FiniteElementSpace>();
-					
+
 					delete m;
 					delete fec;
 				}
@@ -443,12 +443,12 @@ namespace mfem {
 		inline std::vector< std::shared_ptr<FiniteElementSpace> > &spaces()
 		{
 			return spaces_;
-		}	
+		}
 
 		inline const std::vector< std::shared_ptr<FiniteElementSpace> > &spaces() const
 		{
 			return spaces_;
-		}		
+		}
 
 		inline std::vector<ElementDofMap> &dof_map(const int i)
 		{
@@ -470,7 +470,7 @@ namespace mfem {
 			assert(index >= 0);
 			must_destroy_attached[index] = value;
 		}
-		
+
 	private:
 		std::vector< std::shared_ptr<FiniteElementSpace> > spaces_;
 		moonolith::Communicator comm;
@@ -491,7 +491,7 @@ namespace mfem {
 						g_dof = -1 - fe.GetGlobalTDofNumber(-1 - vdofs[k]);
 					}
 
-					dof_map[i].global.push_back(g_dof); 
+					dof_map[i].global.push_back(g_dof);
 				}
 			}
 		}
@@ -499,7 +499,7 @@ namespace mfem {
 
 	template<class Iterator>
 	static void write_space(const Iterator &begin, const Iterator &end, FiniteElementSpace &space, const std::vector<ElementDofMap> &dof_map, const int role, moonolith::OutputStream &os)
-	{	
+	{
 		const int dim 		  = space.GetMesh()->Dimension();
 		const long n_elements = std::distance(begin, end);
 
@@ -543,7 +543,7 @@ namespace mfem {
 		for (auto node_id : nodeIds) {
 			double * v = space.GetMesh()->GetVertex(node_id);
 			for(int i = 0; i < dim; ++i) {
-				//WRITE 3 
+				//WRITE 3
 				os << v[i];
 			}
 		}
@@ -589,7 +589,7 @@ namespace mfem {
 
 		if(spaces.spaces().size() > 1) {
 			s  = spaces.spaces()[1];
-		} 
+		}
 
 		std::vector<long> master_selection;
 		std::vector<long> slave_selection;
@@ -626,7 +626,7 @@ namespace mfem {
 		}
 	}
 
-	
+
 
 	static FiniteElementCollection * FECollFromName(const std::string &comp_name)
 	{
@@ -659,7 +659,7 @@ namespace mfem {
 		for (long i = 0; i < n_nodes; ++i) {
 			double v[3];
 			for(int i = 0; i < dim; ++i) {
-				//READ 3 
+				//READ 3
 				is >> v[i];
 			}
 
@@ -715,11 +715,11 @@ namespace mfem {
 	}
 
 	template<int Dimensions, class Fun>
-	static bool Assemble(moonolith::Communicator &comm, 
-		std::shared_ptr<ParFiniteElementSpace> &master, 
-		std::shared_ptr<ParFiniteElementSpace> &slave, 
-		Fun process_fun, 
-		const moonolith::SearchSettings &settings) 
+	static bool Assemble(moonolith::Communicator &comm,
+		std::shared_ptr<ParFiniteElementSpace> &master,
+		std::shared_ptr<ParFiniteElementSpace> &slave,
+		Fun process_fun,
+		const moonolith::SearchSettings &settings)
 	{
 		using namespace moonolith;
 
@@ -747,10 +747,10 @@ namespace mfem {
 
 		int offset = 0;
 		int space_num = 0;
-		
+
 		for(auto s : local_spaces->spaces()) {
 			if(s) {
-				for (int i = 0; i < s->GetNE(); ++i) {	
+				for (int i = 0; i < s->GetNE(); ++i) {
 					Adapter a(*s, i, offset + i, space_num);
 					a.set_dof_map(&local_spaces->dof_map(space_num)[i].global);
 					tree->insert(a);
@@ -769,7 +769,7 @@ namespace mfem {
 		 //Just to have an indexed-storage
 		std::map<long, std::shared_ptr<Spaces> > spaces;
 		std::map<long, std::vector<std::shared_ptr<Spaces> > > migrated_spaces;
-		
+
 		auto read = [&spaces, &migrated_spaces, comm]
 		(
 			const long ownerrank,
@@ -857,7 +857,7 @@ namespace mfem {
 
 		if (comm.is_root()) {
 			std::cout << "n_intersections: "   		<< n_collection[0]
-			<< ", n_total_candidates: " 	<< n_collection[1] 
+			<< ", n_total_candidates: " 	<< n_collection[1]
 			<< ", n_false_positives: " 	<< n_collection[2] << std::endl;
 		}
 
@@ -867,12 +867,12 @@ namespace mfem {
 
 	template<int Dimensions>
 	static bool Assemble(
-		moonolith::Communicator &comm, 
-		std::shared_ptr<ParFiniteElementSpace> &master, 
-		std::shared_ptr<ParFiniteElementSpace> &slave, 
+		moonolith::Communicator &comm,
+		std::shared_ptr<ParFiniteElementSpace> &master,
+		std::shared_ptr<ParFiniteElementSpace> &slave,
 		std::vector< std::shared_ptr<MortarIntegrator> > &integrators,
-		std::shared_ptr<HypreParMatrix> &pmat, 
-		const moonolith::SearchSettings &settings) 
+		std::shared_ptr<HypreParMatrix> &pmat,
+		const moonolith::SearchSettings &settings)
 	{
 
 		int max_q_order = 0;
@@ -900,7 +900,7 @@ namespace mfem {
 
 		double total_intersection_volume = 0.0;
 		double local_element_matrices_sum = 0.0;
-		
+
 		/////////////////////////////////////////////////
 
 		const auto m_global_n_dofs = master->GlobalVSize();
@@ -929,7 +929,7 @@ namespace mfem {
 
 			const int dim = src_mesh.Dimension();
 
-			if(dim == 2)  {			
+			if(dim == 2)  {
 				src_mesh.GetPointMatrix(src_index,   src_pts);
 				dest_mesh.GetPointMatrix(dest_index, dest_pts);
 
@@ -942,7 +942,7 @@ namespace mfem {
 
 					MakeCompositeQuadrature2D(intersection2, weight, order, composite_ir);
 					pair_intersected = true;
-				} 
+				}
 
 			} else if(dim == 3) {
 				if(Intersect3D(src_mesh, src_index, dest_mesh, dest_index, intersection3)) {
@@ -950,14 +950,14 @@ namespace mfem {
 
 					MakePolyhedron(dest_mesh, dest_index, temp_poly);
 					double weight = isector.p_mesh_volume_3(temp_poly);
-					
+
 					ElementTransformation &Trans = *dest.GetElementTransformation(dest_index);
 					const int order = src_fe.GetOrder() + dest_fe.GetOrder() + Trans.OrderW() + max_q_order;
 
 					MakeCompositeQuadrature3D(intersection3, weight, order, composite_ir);
 					pair_intersected = true;
 				}
-				
+
 			} else {
 				assert(false);
 				return false;
@@ -986,15 +986,15 @@ namespace mfem {
 
 				local_element_matrices_sum += Sum(cumulative_elemmat);
 
-				
+
 				for(int i = 0; i < slave_vdofs.Size(); ++i) {
 					long dof_I = slave_vdofs[i];
-					
+
 					double sign_I = 1.0;
 
 					if(dof_I < 0) {
 						sign_I = -1.0;
-						dof_I  = -dof_I - 1; 
+						dof_I  = -dof_I - 1;
 					}
 
 					for(int j = 0; j < master_vdofs.Size(); ++j) {
@@ -1004,7 +1004,7 @@ namespace mfem {
 
 						if(dof_J < 0) {
 							sign_J = -sign_I;
-							dof_J  = -dof_J - 1; 
+							dof_J  = -dof_J - 1;
 						}
 
 						mat_buffer.add(dof_I, dof_J, sign_J * cumulative_elemmat.Elem(i, j));
@@ -1038,7 +1038,7 @@ namespace mfem {
 		// 	std::cout << slave_ranges << std::endl;
 		// }
 
-		moonolith::Redistribute< moonolith::SparseMatrix<double> > redist(comm.get_mpi_comm());
+		moonolith::Redistribute< moonolith::SparseMatrix<double> > redist(comm.get());
 		redist.apply(slave_ranges, mat_buffer, moonolith::AddAssign<double>());
 
 		// mat_buffer.save("mat" + std::to_string(comm.rank()) + ".txt");
@@ -1062,7 +1062,7 @@ namespace mfem {
 			I[i] += I[i-1];
 		}
 
-		pmat = std::make_shared<HypreParMatrix>(comm.get_mpi_comm(),
+		pmat = std::make_shared<HypreParMatrix>(comm.get(),
 			s_offsets[1] - s_offsets[0],
 			mat_buffer.rows(),
 			mat_buffer.cols(),
@@ -1070,15 +1070,15 @@ namespace mfem {
 			&J[0],
 			&data[0],
 			s_offsets,
-			m_offsets 
-			);	
+			m_offsets
+			);
 
 		return true;
 	}
 
 	ParMortarAssembler::ParMortarAssembler(
 		const MPI_Comm comm,
-		const std::shared_ptr<ParFiniteElementSpace> &master, 
+		const std::shared_ptr<ParFiniteElementSpace> &master,
 		const std::shared_ptr<ParFiniteElementSpace> &slave)
 	: comm_(comm), master_(master), slave_(slave)
 	{ }
@@ -1100,9 +1100,9 @@ namespace mfem {
 		if(master_->GetMesh()->Dimension() == 3) {
 			return mfem::Assemble<3>(comm, master_, slave_, integrators_, pmat, settings);
 		}
-		
+
 		assert(false && "Dimension not supported!");
-		return false;		
+		return false;
 	}
 
 	bool ParMortarAssembler::Transfer(ParGridFunction &src_fun, ParGridFunction &dest_fun, bool is_vector_fe)
@@ -1133,8 +1133,8 @@ namespace mfem {
 		// moonolith::root_describe(c, comm, std::cout);
 
 		if(dof_transformation) {
-			B.reset(RAP( slave_->Dof_TrueDof_Matrix(), 
-						 B.get(), 
+			B.reset(RAP( slave_->Dof_TrueDof_Matrix(),
+						 B.get(),
 						 master_->Dof_TrueDof_Matrix() ));
 		}
 
@@ -1149,11 +1149,11 @@ namespace mfem {
 		b_form.Finalize();
 
 		shared_ptr<HypreParMatrix> Dptr(b_form.ParallelAssemble());
-		
+
 
 		comm.barrier();
 
-		if(comm.is_root()) { 
+		if(comm.is_root()) {
 			std::cout << "P in R^(" << master_->Dof_TrueDof_Matrix()->Height();
 			std::cout << " x "		<< master_->Dof_TrueDof_Matrix()->Width() << ")\n";
 
@@ -1164,7 +1164,7 @@ namespace mfem {
 		comm.barrier();
 
 
-		if(!comm.is_root()) { 
+		if(!comm.is_root()) {
 			std::cout << "P in R^(" << master_->Dof_TrueDof_Matrix()->Height();
 			std::cout << " x "		<< master_->Dof_TrueDof_Matrix()->Width() << ")\n";
 
@@ -1180,7 +1180,7 @@ namespace mfem {
 		auto &D = *Dptr;
 
 		comm.barrier();
-		
+
 		if(comm.is_root()) {
 			std::cout << "--------------------------------------------------------"    << std::endl;
 			std::cout << "B in R^(" << B->GetGlobalNumRows()    << " x " << B->GetGlobalNumCols()    << ")" << std::endl;
@@ -1209,9 +1209,9 @@ namespace mfem {
 		auto &P_master = *master_->Dof_TrueDof_Matrix();
 		auto &P_slave  = *slave_->Dof_TrueDof_Matrix();
 
-		CGSolver Dinv(comm.get_mpi_comm());
+		CGSolver Dinv(comm.get());
 		Dinv.SetOperator(D);
-		Dinv.SetRelTol(1e-6); 
+		Dinv.SetRelTol(1e-6);
 		Dinv.SetMaxIter(20);
 		// Dinv.SetPrintLevel(1);
 
@@ -1229,7 +1229,7 @@ namespace mfem {
 		Dinv.Mult(B_x_src_fun, R_x_dest_fun);
 
 		P_slave.Mult(R_x_dest_fun, dest_fun);
-		
+
 		dest_fun.Update();
 		return true;
 	}
