@@ -74,6 +74,8 @@ public:
     * @brief Set the error print level for MUMPS
     *
     * @param print_lvl Print level
+    * 
+    * Note: this method has to be called before SetOperator
     */
    void SetPrintLevel(int print_lvl);
 
@@ -84,6 +86,8 @@ public:
     * symmetric positive definite
     *
     * @param mtype Matrix type
+    * 
+    * Note: this method has to be called before SetOperator
     */
    void SetMatrixSymType(MatType mtype);
 
