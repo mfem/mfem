@@ -60,6 +60,9 @@ Improved GPU capabilities
 
 - Optimized AMD/HIP kernel support.
 
+- Enabled HIP support in the libCEED integration, which is now available via the
+  "ceed-hip" device backend.
+
 - Added a Full Assembly mode compatible with Device kernel execution. This
   assembly level builds on top of the current Element Assembly kernels to
   compute a global sparse matrix. All integrators supported by element assembly
