@@ -56,6 +56,23 @@ Performance improvements
 
 Improved GPU capabilities
 -------------------------
+- Added a new solver class for simple integration with NVIDIA's multigrid
+  library, AmgX. The AmgX class is designed to work as a standalone solver or
+  preconditioner for existing MFEM solvers. It uses MFEM's sparse matrix format
+  for serial runs and the HypreParMatrix format for parallel runs.
+
+  The new solver may be configured to run with one GPU per MPI rank or with more
+  MPI ranks than GPUs. In the latter case, matrices and vectors are consolidated
+  to ranks communicating with the GPUs and the solution is then broadcasted.
+
+  Although CUDA is required to build, the AmgX support is compatible with the
+  MFEM CPU device configuration. The examples/amgx folder illustrates how to
+  integrate AmgX in existing MFEM applications.
+
+  The AmgX solver class is partially based on: "AmgXWrapper: An interface
+  between PETSc and the NVIDIA AmgX library", by Pi-Yueh Chuang and Lorena
+  A. Barba, doi:10.21105/joss.00280.
+
 - Added support for Chebyshev accelerated polynomial smoother on GPU.
 
 - Optimized AMD/HIP kernel support.
