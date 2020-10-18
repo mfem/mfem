@@ -100,6 +100,9 @@
 // Enable MFEM features based on the Ginkgo library
 // #define MFEM_USE_GINKGO
 
+// Enable MFEM functionality based on the AmgX library.
+// #define MFEM_USE_AMGX
+
 // Enable secure socket streams based on the GNUTLS library
 // #define MFEM_USE_GNUTLS
 
