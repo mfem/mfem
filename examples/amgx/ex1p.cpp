@@ -226,6 +226,9 @@ int main(int argc, char *argv[])
    }
    else if (amgx_lib && strcmp(amgx_json_file,"") == 0)
    {
+      MFEM_VERIFY(!amgx_mpi_teams,
+                  "Please add JSON file to try AmgX with teams");
+
       bool amgx_verbose = false;
       prec = new AmgXSolver(MPI_COMM_WORLD, AmgXSolver::PRECONDITIONER,
                             amgx_verbose);
