@@ -6,8 +6,8 @@
 // AmgX sample runs:
 //               mpirun -np 4 ex1p
 //               mpirun -np 4 ex1p -d cuda
-//               mpirun -n 10 ex1p --amgx-file amg_pcg.json
-//               mpirun -n 4 ex1p --amgx-file amg_pcg.json --amgx-mpi-gpu-exclusive
+//               mpirun -np 10 ex1p --amgx-file amg_pcg.json --amgx-mpi-teams
+//               mpirun -np 4 ex1p --amgx-file amg_pcg.json
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -47,7 +47,7 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = true;
    bool amgx_lib = true;
-   bool amgx_mpi_teams = true;
+   bool amgx_mpi_teams = false;
    const char* amgx_json_file = ""; // JSON file for AmgX
    int ndevices = 1;
 
@@ -73,7 +73,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&ndevices, "-nd","--nd","Number of GPU devices.");
+   args.AddOption(&ndevices, "-nd","--gpus-per-node",
+                  "Number of GPU devices per node (Only used amgx_mpi_teams mode).");
 
    args.Parse();
    if (!args.Good())
