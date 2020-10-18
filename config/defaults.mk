@@ -123,6 +123,7 @@ MFEM_USE_SUPERLU       = NO
 MFEM_USE_SUPERLU5      = NO
 MFEM_USE_STRUMPACK     = NO
 MFEM_USE_GINKGO        = NO
+MFEM_USE_AMGX          = NO
 MFEM_USE_GNUTLS        = NO
 MFEM_USE_NETCDF        = NO
 MFEM_USE_PETSC         = NO
@@ -263,7 +264,13 @@ STRUMPACK_LIB = -L$(STRUMPACK_DIR)/lib -lstrumpack $(MPI_FORTRAN_LIB)\
 # Ginkgo library configuration (currently not needed)
 GINKGO_DIR = @MFEM_DIR@/../ginkgo/install
 GINKGO_OPT = -isystem $(GINKGO_DIR)/include
-GINKGO_LIB = $(XLINKER)-rpath,$(GINKGO_DIR)/lib -L$(GINKGO_DIR)/lib -lginkgo -lginkgo_omp -lginkgo_cuda -lginkgo_reference
+GINKGO_LIB = $(XLINKER)-rpath,$(GINKGO_DIR)/lib -L$(GINKGO_DIR)/lib -lginkgo\
+ -lginkgo_omp -lginkgo_cuda -lginkgo_reference
+
+# AmgX library configuration
+AMGX_DIR = @MFEM_DIR@/../amgx
+AMGX_OPT = -I$(AMGX_DIR)/include
+AMGX_LIB = -lcusparse -lcusolver -lcublas -lnvToolsExt -L$(AMGX_DIR)/lib -lamgx
 
 # GnuTLS library configuration
 GNUTLS_OPT =
