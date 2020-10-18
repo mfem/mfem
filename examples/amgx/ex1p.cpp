@@ -1,5 +1,5 @@
 //                       MFEM Example 1 - Parallel Version
-//                              AmgX Modifications
+//                              AmgX Modification
 //
 // Compile with: make ex1p
 //
