@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_NURBS
 #define MFEM_NURBS
@@ -61,8 +61,11 @@ public:
 
    int findKnotSpan(double u) const;
 
-   void CalcShape (Vector &shape, int i, double xi) const;
-   void CalcDShape(Vector &grad,  int i, double xi) const;
+   void CalcShape  (Vector &shape, int i, double xi) const;
+   void CalcDShape (Vector &grad,  int i, double xi) const;
+   void CalcDnShape(Vector &gradn, int n, int i, double xi) const;
+   void CalcD2Shape(Vector &grad2, int i, double xi) const
+   { CalcDnShape(grad2, 2, i, xi); }
 
    void Difference(const KnotVector &kv, Vector &diff) const;
    void UniformRefinement(Vector &newknots) const;
@@ -73,6 +76,8 @@ public:
    void Flip();
 
    void Print(std::ostream &out) const;
+
+   void PrintFunctions(std::ostream &out, int samples=11) const;
 
    /// Destroys KnotVector
    ~KnotVector() { }
@@ -119,7 +124,9 @@ public:
    void KnotInsert   (int dir, const KnotVector &knot);
    void KnotInsert   (int dir, const Vector     &knot);
 
+   void KnotInsert(Array<Vector *> &knot);
    void KnotInsert(Array<KnotVector *> &knot);
+
    void DegreeElevate(int t);
    void UniformRefinement();
 
@@ -182,6 +189,13 @@ protected:
    Array<KnotVector *> knotVectors;
    Vector weights;
 
+   // periodic BC info:
+   // - dof 2 dof map
+   // - master and slave boundary indices
+   Array<int> d_to_d;
+   Array<int> master;
+   Array<int> slave;
+
    // global offsets, meshOffsets == meshVertexOffsets
    Array<int> v_meshOffsets;
    Array<int> e_meshOffsets;
@@ -218,6 +232,16 @@ protected:
 
    void SetOrderFromOrders();
    void SetOrdersFromKnotVectors();
+
+   // periodic BC helper functions
+   void InitDofMap();
+   void ConnectBoundaries();
+   void ConnectBoundaries2D(int bnd0, int bnd1);
+   void ConnectBoundaries3D(int bnd0, int bnd1);
+   int DofMap(int dof) const
+   {
+      return (d_to_d.Size() > 0 )? d_to_d[dof] : dof;
+   };
 
    // also count the global NumOfVertices and the global NumOfDofs
    void GenerateOffsets();
@@ -295,6 +319,12 @@ public:
    /// Construct a NURBSExtension by merging a partitioned NURBS mesh
    NURBSExtension(Mesh *mesh_array[], int num_pieces);
 
+   // Generate connections between boundaries, such as periodic BCs
+   void ConnectBoundaries(Array<int> &master, Array<int> &slave);
+   const Array<int> &GetMaster() const { return  master; };
+   Array<int> &GetMaster()  { return  master; };
+   const Array<int> &GetSlave() const { return  slave; };
+   Array<int> &GetSlave()  { return  slave; };
    void MergeGridFunctions(GridFunction *gf_array[], int num_pieces,
                            GridFunction &merged);
 
@@ -304,6 +334,7 @@ public:
    // Print functions
    void Print(std::ostream &out) const;
    void PrintCharacteristics(std::ostream &out) const;
+   void PrintFunctions(const char *filename, int samples=11) const;
 
    // Meta data functions
    int Dimension() const { return patchTopo->Dimension(); }
@@ -366,6 +397,7 @@ public:
    void DegreeElevate(int rel_degree, int degree = 16);
    void UniformRefinement();
    void KnotInsert(Array<KnotVector *> &kv);
+   void KnotInsert(Array<Vector *> &kv);
 };
 
 

@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 //
 //            -----------------------------------------------------
 //            Volta Miniapp:  Simple Electrostatics Simulation Code
@@ -30,6 +30,11 @@
 // Compile with: make volta
 //
 // Sample runs:
+//
+//   Three point charges within a large metal enclosure:
+//      mpirun -np 4 volta -m ../../data/inline-quad.mesh
+//                         -pc '0.5 0.42 20 0.5 0.5 -12 0.5 0.545 15'
+//                         -dbcs '1 2 3 4' -dbcv '0 0 0 0'
 //
 //   A cylinder at constant voltage in a square, grounded metal pipe:
 //      mpirun -np 4 volta -m ../../data/square-disc.mesh
@@ -77,6 +82,9 @@ double dielectric_sphere(const Vector &);
 static Vector cs_params_(0);  // Center, Radius, and Total Charge
 //                               of charged sphere
 double charged_sphere(const Vector &);
+
+// Point Charges
+static Vector pc_params_(0); // Point charge locations and charges
 
 // Polarization
 static Vector vp_params_(0);  // Axis Start, Axis End, Cylinder Radius,
@@ -131,6 +139,8 @@ int main(int argc, char *argv[])
                   "Center, Radius, and Permittivity of Dielectric Sphere");
    args.AddOption(&cs_params_, "-cs", "--charged-sphere-params",
                   "Center, Radius, and Total Charge of Charged Sphere");
+   args.AddOption(&pc_params_, "-pc", "--point-charge-params",
+                  "Charges and locations of Point Charges");
    args.AddOption(&vp_params_, "-vp", "--voltaic-pile-params",
                   "Axis End Points, Radius, and "
                   "Polarization of Cylindrical Voltaic Pile");
@@ -209,6 +219,8 @@ int main(int argc, char *argv[])
    {
       pmesh.UniformRefinement();
    }
+   // Make sure tet-only meshes are marked for local refinement.
+   pmesh.Finalize(true);
 
    // If the gradient bc was selected but the E field was not specified
    // set a default vector value.
@@ -240,7 +252,8 @@ int main(int argc, char *argv[])
    VoltaSolver Volta(pmesh, order, dbcs, dbcv, nbcs, nbcv, *epsCoef,
                      ( e_uniform_.Size() > 0 ) ? phi_bc_uniform    : NULL,
                      ( cs_params_.Size() > 0 ) ? charged_sphere    : NULL,
-                     ( vp_params_.Size() > 0 ) ? voltaic_pile      : NULL);
+                     ( vp_params_.Size() > 0 ) ? voltaic_pile      : NULL,
+                     pc_params_);
 
    // Initialize GLVis visualization
    if (visualization)

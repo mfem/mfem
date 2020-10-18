@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 //
 //       --------------------------------------------------------------
 //       Shaper Miniapp: Resolve material interfaces by mesh refinement
@@ -18,6 +18,10 @@
 // given material() function. It can be used as a simple initial mesh generator,
 // for example in the case when the interface is too complex to describe without
 // local refinement. Both conforming and non-conforming refinements are supported.
+//
+// Two additional versions of this miniapp can be found in the miniapps/toys
+// directory: Mandel uses the Shaper algorithm for fractal visualization, while
+// Mondrian convert an image to an AMR mesh suitable for MFEM computations.
 //
 // Compile with: make shaper
 //
@@ -117,7 +121,7 @@ int main(int argc, char *argv[])
 
          // Sample materials in each element using "sd" sub-divisions
          Vector pt;
-         int geom = mesh.GetElementBaseGeometry(i);
+         Geometry::Type geom = mesh.GetElementBaseGeometry(i);
          ElementTransformation *T = mesh.GetElementTransformation(i);
          RefinedGeometry *RefG = GlobGeometryRefiner.Refine(geom, sd, 1);
          IntegrationRule &ir = RefG->RefPts;

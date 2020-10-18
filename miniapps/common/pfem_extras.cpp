@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "pfem_extras.hpp"
 
@@ -18,7 +18,7 @@ using namespace std;
 namespace mfem
 {
 
-namespace miniapps
+namespace common
 {
 
 H1_ParFESpace::H1_ParFESpace(ParMesh *m,
@@ -195,7 +195,7 @@ IrrotationalProjector::Mult(const Vector &x, Vector &y) const
    if ( pcg_ == NULL ) { this->InitSolver(); }
    pcg_->Mult(RHS_, Psi_);
 
-   // Compute the parallel grid function correspoinding to Psi
+   // Compute the parallel grid function corresponding to Psi
    s0_->RecoverFEMSolution(Psi_, *xDiv_, *psi_);
 
    // Compute the irrotational portion of x
@@ -261,9 +261,57 @@ DivergenceFreeProjector::Update()
    this->IrrotationalProjector::Update();
 }
 
+void VisualizeMesh(socketstream &sock, const char *vishost, int visport,
+                   ParMesh &pmesh, const char *title,
+                   int x, int y, int w, int h, const char *keys, bool vec)
+{
+   MPI_Comm comm = pmesh.GetComm();
+
+   int num_procs, myid;
+   MPI_Comm_size(comm, &num_procs);
+   MPI_Comm_rank(comm, &myid);
+
+   bool newly_opened = false;
+   int connection_failed;
+
+   do
+   {
+      if (myid == 0)
+      {
+         if (!sock.is_open() || !sock)
+         {
+            sock.open(vishost, visport);
+            sock.precision(8);
+            newly_opened = true;
+         }
+         sock << "solution\n";
+      }
+
+      pmesh.PrintAsOne(sock);
+
+      if (myid == 0 && newly_opened)
+      {
+         sock << "window_title '" << title << "'\n"
+              << "window_geometry "
+              << x << " " << y << " " << w << " " << h << "\n";
+         if ( keys ) { sock << "keys " << keys << "\n"; }
+         else { sock << "keys maaAc"; }
+         if ( vec ) { sock << "vvv"; }
+         sock << endl;
+      }
+
+      if (myid == 0)
+      {
+         connection_failed = !sock && !newly_opened;
+      }
+      MPI_Bcast(&connection_failed, 1, MPI_INT, 0, comm);
+   }
+   while (connection_failed);
+}
+
 void VisualizeField(socketstream &sock, const char *vishost, int visport,
                     ParGridFunction &gf, const char *title,
-                    int x, int y, int w, int h, bool vec)
+                    int x, int y, int w, int h, const char *keys, bool vec)
 {
    ParMesh &pmesh = *gf.ParFESpace()->GetParMesh();
    MPI_Comm comm = pmesh.GetComm();
@@ -295,8 +343,9 @@ void VisualizeField(socketstream &sock, const char *vishost, int visport,
       {
          sock << "window_title '" << title << "'\n"
               << "window_geometry "
-              << x << " " << y << " " << w << " " << h << "\n"
-              << "keys maaAc";
+              << x << " " << y << " " << w << " " << h << "\n";
+         if ( keys ) { sock << "keys " << keys << "\n"; }
+         else { sock << "keys maaAc"; }
          if ( vec ) { sock << "vvv"; }
          sock << endl;
       }
@@ -310,7 +359,7 @@ void VisualizeField(socketstream &sock, const char *vishost, int visport,
    while (connection_failed);
 }
 
-} // namespace miniapps
+} // namespace common
 
 } // namespace mfem
 

@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 //
 //    ------------------------------------------------------------------
 //    Maxwell Miniapp:  Simple Full-Wave Electromagnetic Simulation Code
@@ -80,7 +80,7 @@
 
 using namespace std;
 using namespace mfem;
-using namespace mfem::miniapps;
+using namespace mfem::common;
 using namespace mfem::electromagnetics;
 
 // Permittivity Function
@@ -108,7 +108,7 @@ void dipole_pulse(const Vector &x, double t, Vector &j);
 void j_src(const Vector &x, double t, Vector &j) { dipole_pulse(x, t, j); }
 
 // dE/dt Boundary Condition: The following function returns zero but any time
-// depenent function could be used.
+// dependent function could be used.
 void dEdtBCFunc(const Vector &x, double t, Vector &E);
 
 // The following functions return zero but they could be modified to set initial
@@ -433,7 +433,7 @@ double conductive_sphere(const Vector &x)
 }
 
 // A cylindrical rod of current density.  The rod has two axis end points, a
-// radus, a current amplitude in Amperes, a center time, and a width.  All of
+// radius, a current amplitude in Amperes, a center time, and a width.  All of
 // these parameters are stored in dp_params_.
 void dipole_pulse(const Vector &x, double t, Vector &j)
 {
