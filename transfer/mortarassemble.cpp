@@ -1,6 +1,6 @@
 
 #include <memory>
-#include "MortarAssemble.hpp"
+#include "mortarassemble.hpp"
 
 
 namespace mfem {
@@ -37,9 +37,9 @@ namespace mfem {
 		const int n_quad_points   = n_triangles * ir.Size();
 
 		assert(fabs(SumOfWeights(ir) - 0.5) < 1e-8);
-		
+
 		double triangle[3*2] = { polygon.Data()[0], polygon.Data()[1], 0., 0., 0., 0. };
-		
+
 		Vector o, u, v, p;
 		polygon.GetColumn(0, o);
 
@@ -47,19 +47,19 @@ namespace mfem {
 		Intersector isector;
 
 		double relative_weight = 0;
-		
+
 		int quad_index = 0;
 		for(int i = 2; i < polygon.Width(); ++i) {
 			polygon.GetColumn(i-1, u);
 			polygon.GetColumn(i, v);
-			
+
 			triangle[2] = u[0];
 			triangle[3] = u[1];
-			
+
 			triangle[4] = v[0];
 			triangle[5] = v[1];
-			
-			
+
+
 			u -= o;
 			v -= o;
 
@@ -139,21 +139,21 @@ namespace mfem {
 
 		} else {
 
-			for(int begin_k = 0; begin_k < polyhedron.n_elements;) {							
+			for(int begin_k = 0; begin_k < polyhedron.n_elements;) {
 				const int end_k = min(begin_k + max_n_sub_inc, polyhedron.n_elements);
 				assert(end_k > begin_k && "end_k > begin_k");
 
-				const int n_quad_points = 
+				const int n_quad_points =
 				isector.make_quadrature_points_from_polyhedron_in_range_around_point(
-					polyhedron, 
+					polyhedron,
 					begin_k,
 					end_k,
-					scale, 
+					scale,
 					ir.Size(),
 					&ref_quad_points [0],
 					&ref_quad_weights[0],
 					barycenter_p,
-					quad_points, 
+					quad_points,
 					quad_weights
 					);
 
@@ -178,11 +178,11 @@ namespace mfem {
 		p = 0.0;
 
 		ref_ir.SetSize(global_ir.Size());
-		
+
 		for(int i = 0; i < global_ir.Size(); ++i) {
 			p(0) = global_ir[i].x;
 			p(1) = global_ir[i].y;
-			
+
 			if(p.Size() > 2) {
 				p(2) = global_ir[i].z;
 			}
@@ -209,18 +209,18 @@ namespace mfem {
 	}
 
 	void MortarAssemble(
-		const FiniteElement &trial_fe, 
+		const FiniteElement &trial_fe,
 		const IntegrationRule &trial_ir,
 		const FiniteElement &test_fe,
 		const IntegrationRule &test_ir,
-		ElementTransformation &Trans, 
+		ElementTransformation &Trans,
 		DenseMatrix &elmat)
 	{
 		int tr_nd = trial_fe.GetDof();
 		int te_nd = test_fe.GetDof();
 		double w;
 
-		Vector shape, te_shape; 
+		Vector shape, te_shape;
 
 		elmat.SetSize (te_nd, tr_nd);
 		shape.SetSize (tr_nd);
@@ -260,12 +260,12 @@ namespace mfem {
 		assert( isector.polygon_area_2(poly1.Width(),  poly1.Data()) > 0 );
 		assert( isector.polygon_area_2(poly2.Width(),  poly2.Data()) > 0 );
 
-		if(!isector.intersect_convex_polygons(poly1.Width(), poly1.Data(), 
-											  poly2.Width(), poly2.Data(), 
-											  &n_vertices_result, result_buffer, 
+		if(!isector.intersect_convex_polygons(poly1.Width(), poly1.Data(),
+											  poly2.Width(), poly2.Data(),
+											  &n_vertices_result, result_buffer,
 											  DEFAULT_TOLLERANCE)) {
 			return false;
-		} 
+		}
 
 		assert( isector.polygon_area_2(n_vertices_result,  result_buffer) > 0 );
 
@@ -331,5 +331,5 @@ namespace mfem {
 		MakePolyhedron(m2, el2, p2);
 		return isector.intersect_convex_polyhedra(p1, p2, &intersection);
 	}
-	
+
 }

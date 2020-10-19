@@ -1,6 +1,6 @@
 
 #include <assert.h>
-#include "HashGrid.hpp"
+#include "hashgrid.hpp"
 
 
 namespace mfem {
@@ -66,7 +66,7 @@ namespace mfem {
 			std::vector<long> coord(1);
 			for(int i = imin[0]; i <= imax[0]; ++i) {
 				coord[0] = i;
-				hashes.push_back(Hash(coord)); 
+				hashes.push_back(Hash(coord));
 			}
 
 		} else if(dim == 2) {
@@ -75,7 +75,7 @@ namespace mfem {
 				for(int j = imin[1]; j <= imax[1]; ++j) {
 					coord[0] = i;
 					coord[1] = j;
-					hashes.push_back(Hash(coord)); 
+					hashes.push_back(Hash(coord));
 				}
 			}
 		} else if(dim == 3) {
@@ -86,7 +86,7 @@ namespace mfem {
 						coord[0] = i;
 						coord[1] = j;
 						coord[2] = k;
-						hashes.push_back(Hash(coord)); 
+						hashes.push_back(Hash(coord));
 					}
 				}
 			}
@@ -128,14 +128,14 @@ namespace mfem {
 		const int dim = dest.Dimension();
 		Box src_box(dim);
 		Box dest_box(dim);
-		
+
 		std::vector<Box> src_boxes;
 		std::vector<Box> dest_boxes;
 
 		BuildBoxes(src,  src_boxes,  src_box);
 		BuildBoxes(dest, dest_boxes, dest_box);
 
-		const int n_x_dim = std::max(1, int(pow(src.GetNE(), 1./dim)));	
+		const int n_x_dim = std::max(1, int(pow(src.GetNE(), 1./dim)));
 		std::vector<int> dims(dim);
 		for(int i = 0; i < dim; ++i) {
 			dims[i] = n_x_dim;
@@ -166,7 +166,7 @@ namespace mfem {
 
 			for(auto h : hashes) {
 				if(h < 0) continue;
-				
+
 				for(int j : src_table[h]) {
 					const Box &bj = src_boxes[j];
 
@@ -183,7 +183,7 @@ namespace mfem {
 			for(auto c : candidates) {
 				pairs.push_back(c);
 				pairs.push_back(i);
-				
+
 			}
 		}
 

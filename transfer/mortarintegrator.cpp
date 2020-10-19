@@ -1,5 +1,5 @@
-#include "MortarIntegrator.hpp"
-#include "MortarAssemble.hpp"
+#include "mortarintegrator.hpp"
+#include "mortarassemble.hpp"
 
 namespace mfem {
 	void L2MortarIntegrator::AssembleElementMatrix(
@@ -10,7 +10,7 @@ namespace mfem {
 		const IntegrationRule   &test_ir,
 		ElementTransformation   &test_Trans,
 		DenseMatrix	  			&elmat
-		) 
+		)
 	{
 		MortarAssemble(trial, trial_ir, test, test_ir, test_Trans, elmat);
 	}
