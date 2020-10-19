@@ -122,13 +122,13 @@ void test_ceed_operator(const char* input, int order, const CeedCoeff coeff_type
          break;
       case CeedCoeff::Grid:
       {
-         FunctionCoefficient f_coeff(coeff_function);;
+         FunctionCoefficient f_coeff(coeff_function);
          gf.ProjectCoefficient(f_coeff);
          coeff = new GridFunctionCoefficient(&gf);
          break;
       }
       case CeedCoeff::Quad:
-         coeff = new FunctionCoefficient(coeff_function);;
+         coeff = new FunctionCoefficient(coeff_function);
          break;
    }
 
