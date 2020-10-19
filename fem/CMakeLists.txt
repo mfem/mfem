@@ -47,6 +47,8 @@ set(SRCS
   hybridization.cpp
   intrules.cpp
   libceed/ceed.cpp
+  libceed/diffusion.cpp
+  libceed/mass.cpp
   linearform.cpp
   lininteg.cpp
   multigrid.cpp
@@ -84,6 +86,8 @@ set(HDRS
   hybridization.hpp
   intrules.hpp
   libceed/ceed.hpp
+  libceed/diffusion.hpp
+  libceed/mass.hpp
   linearform.hpp
   lininteg.hpp
   multigrid.hpp
@@ -141,15 +145,6 @@ if (MFEM_USE_MPI)
     plinearform.hpp
     pnonlinearform.hpp
     prestriction.hpp)
-endif()
-
-if (MFEM_USE_CEED)
-   list(APPEND SRCS
-     libceed/diffusion.cpp
-     libceed/mass.cpp)
-   list(APPEND HDRS
-     libceed/diffusion.hpp
-     libceed/mass.hpp)
 endif()
 
 convert_filenames_to_full_paths(SRCS)
