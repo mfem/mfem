@@ -13,12 +13,12 @@ namespace mfem {
       {
          case Geometry::TRIANGLE:      return new Triangle(cells_data, attr);
          case Geometry::TETRAHEDRON:   return new Tetrahedron(cells_data, attr);
-         case Geometry::SQUARE:        return new Quadrilateral(cells_data, attr); 
-         case Geometry::CUBE:          return new Hexahedron(cells_data, attr);    
-        
+         case Geometry::SQUARE:        return new Quadrilateral(cells_data, attr);
+         case Geometry::CUBE:          return new Hexahedron(cells_data, attr);
+
          default: {
             assert(false && "unknown type");
-            std::cerr << "NewElem: unknown type " << type << std::endl;
+            mfem::err <<  "NewElem: unknown type " << type << std::endl;
             return nullptr;
          }
       }
@@ -35,13 +35,13 @@ namespace mfem {
          case Geometry::SQUARE:        return mesh.FinalizeQuadMesh(generate_edges);
          case Geometry::CUBE:          return mesh.FinalizeHexMesh(generate_edges);
          case Geometry::TETRAHEDRON:   return mesh.FinalizeTetMesh(generate_edges);
-        
+
          default: {
             assert(false && "unknown type");
-            std::cerr << "Finalize: unknown type " << type << std::endl;
+            mfem::err <<  "Finalize: unknown type " << type << std::endl;
             return;
          }
       }
    }
-   
+
 }
