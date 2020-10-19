@@ -143,7 +143,7 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec $(SUBDIRS_CLEAN)
 
 clean-build:
-	rm -f *.o *~ $(SEQ_EXAMPLES) $(PAR_EXAMPLES) $(TRANSFER_EXAMPLES)
+	rm -f *.o *~ $(SEQ_EXAMPLES) $(PAR_EXAMPLES)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:

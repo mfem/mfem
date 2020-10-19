@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
    else
    {
       if (rank == 0)
-         std::cerr << "WARNING: Destination mesh file not found: "
+         mfem::err << "WARNING: Destination mesh file not found: "
                    << destination_mesh_file << "\n"
                    << "Using default 2D quad mesh.";
 
@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
    else
    {
       if (rank == 0)
-         std::cerr << "WARNING: Source mesh file not found: "
+         mfem::err << "WARNING: Source mesh file not found: "
                    << source_mesh_file << "\n"
                    << "Using default box mesh.\n";
 
