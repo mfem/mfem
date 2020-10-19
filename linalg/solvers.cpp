@@ -1620,14 +1620,14 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
 
       if (lin_rtol_ver)
       {
-         AdaptiveLinRtolPreSolve(prec, x, it, norm);
+         AdaptiveLinRtolPreSolve(x, it, norm);
       }
 
       prec->Mult(r, c); // c = [DF(x_i)]^{-1} [F(x_i)-b]
 
       if (lin_rtol_ver)
       {
-         AdaptiveLinRtolPostSolve(prec, c, r, it, norm);
+         AdaptiveLinRtolPostSolve(c, r, it, norm);
       }
 
       const double c_scale = ComputeScalingFactor(x, b);
@@ -1654,22 +1654,24 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
 
 void NewtonSolver::SetAdaptiveLinRtol(const int version,
                                       const double rtol0,
-                                      const double rtol_max)
+                                      const double rtol_max,
+                                      const double alpha,
+                                      const double gamma)
 {
    lin_rtol_ver = version;
    lin_rtol0 = rtol0;
    lin_rtol_max = rtol_max;
+   this->alpha = alpha;
+   this->gamma = gamma;
 }
 
-void NewtonSolver::AdaptiveLinRtolPreSolve(Solver *solver,
-                                           const Vector &x,
+void NewtonSolver::AdaptiveLinRtolPreSolve(const Vector &x,
                                            const int it,
                                            const double fnorm) const
 {
    // Assume that when adaptive linear solver relative tolerance is activated,
    // we are working with an iterative solver.
-   auto iterative_solver = static_cast<IterativeSolver *>(solver);
-
+   auto iterative_solver = static_cast<IterativeSolver *>(prec);
    // Adaptive linear solver relative tolerance
    double eta;
    // Safeguarded (sg) adaptive linear solver relative tolerance
@@ -1701,6 +1703,10 @@ void NewtonSolver::AdaptiveLinRtolPreSolve(Solver *solver,
             eta = std::max(eta, sg_eta);
          }
       }
+      else
+      {
+         MFEM_ABORT("Unknown adaptive linear solver rtol version");
+      }
    }
 
    eta = std::min(eta, lin_rtol_max);
@@ -1712,8 +1718,7 @@ void NewtonSolver::AdaptiveLinRtolPreSolve(Solver *solver,
    }
 }
 
-void NewtonSolver::AdaptiveLinRtolPostSolve(Solver *solver,
-                                            const Vector &x,
+void NewtonSolver::AdaptiveLinRtolPostSolve(const Vector &x,
                                             const Vector &b,
                                             const int it,
                                             const double fnorm) const
@@ -1725,14 +1730,11 @@ void NewtonSolver::AdaptiveLinRtolPostSolve(Solver *solver,
    // norm.
    if (lin_rtol_ver == 1)
    {
-      lnorm_last = static_cast<IterativeSolver *>(solver)->GetFinalNorm();
-      // // lnorm_last = ||F(x0) + DF(x0) s0||
-      // Vector linres(x.Size());
-      // grad->Mult(x, linres);
-      // linres -= b;
-      // lnorm_last = Norm(r);
-      printf("LNORM_LAST = %.5E\n", lnorm_last);
-
+      // lnorm_last = ||F(x0) + DF(x0) s0||
+      Vector linres(x.Size());
+      grad->Mult(x, linres);
+      linres -= b;
+      lnorm_last = Norm(linres);
    }
 }
 

@@ -579,7 +579,7 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
    newton_solver.SetRelTol(rel_tol);
    newton_solver.SetAbsTol(0.0);
    newton_solver.SetAdaptiveLinRtol(2, 0.5, 0.9);
-   newton_solver.SetMaxIter(50);
+   newton_solver.SetMaxIter(10);
 }
 
 void HyperelasticOperator::Mult(const Vector &vx, Vector &dvx_dt) const
