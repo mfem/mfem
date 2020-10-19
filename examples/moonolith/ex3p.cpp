@@ -28,6 +28,7 @@ int main(int argc, char *argv[])
    bool debug = false;
    bool wait = false;
    const char * logger_type = "file";
+   bool visualization = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&source_mesh_file,     "-s", "--source_mesh",
@@ -41,6 +42,10 @@ int main(int argc, char *argv[])
    args.AddOption(&debug, "-debug", "--debug", "-ndebug", "--no-debug", "debug");
    args.AddOption(&logger_type, "-logger", "--logger", "logger");
    args.AddOption(&wait, "-wait", "--wait", "-nwait", "-no-wait", "wait");
+
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
 
    args.Parse();
    check_options(args);
@@ -134,18 +139,18 @@ int main(int argc, char *argv[])
 
    ParMortarAssembler assembler(MPI_COMM_WORLD, src_fe, dest_fe);
    assembler.AddMortarIntegrator(make_shared<L2MortarIntegrator>());
-   if (assembler.Transfer(src_fun, dest_fun))
+   if (assembler.Transfer(src_fun, dest_fun) && visualization)
    {
 
       const double err = dest_fun.ComputeL2Error(coeff);
-      if (rank == 0) { std::cout << "l2 error: " << err << std::endl; }
+      if (rank == 0) { mfem::out << "l2 error: " << err << std::endl; }
 
       plot(*p_src_mesh,  src_fun);
       plot(*p_dest_mesh, dest_fun);
    }
    else
    {
-      std::cout << "No intersection no transfer!" << std::endl;
+      mfem::out << "No intersection no transfer!" << std::endl;
    }
 
    return MPI_Finalize();

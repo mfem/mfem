@@ -48,21 +48,14 @@ endif
 ifeq ($(MFEM_USE_GINKGO),YES)
    SUBDIRS += ginkgo
 endif
+ifeq ($(MFEM_USE_MOONOLITH),YES)
+   SUBDIRS += moonolith
+endif
 
 SUBDIRS_ALL = $(addsuffix /all,$(SUBDIRS))
 SUBDIRS_TEST = $(addsuffix /test,$(SUBDIRS))
 SUBDIRS_CLEAN = $(addsuffix /clean,$(SUBDIRS))
 SUBDIRS_TPRINT = $(addsuffix /test-print,$(SUBDIRS))
-
-TRANSFER_EXAMPLES = projection \
-                    projection_non_conforming_p \
-                    projection_p \
-                    projection_vector_fe \
-                    projection_vector_fe_p
-
-ifeq ($(MFEM_USE_MOONOLITH), YES)
-	EXAMPLES += $(TRANSFER_EXAMPLES)
-endif
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk

@@ -68,15 +68,7 @@ if (MFEM_USE_MPI)
 endif()
 
 
-if(MFEM_USE_MOONOLITH)
-  list(APPEND ALL_EXE_SRCS
-    projection.cpp
-    projection_non_conforming_p.cpp
-    projection_p.cpp
-    projection_vector_fe.cpp
-    projection_vector_fe_p.cpp
-    )
-endif()
+
 
 # Include the source directory where mfem.hpp and mfem-performance.hpp are.
 include_directories(BEFORE ${PROJECT_BINARY_DIR})
@@ -152,3 +144,6 @@ if (MFEM_USE_HIOP)
   add_subdirectory(hiop)
 endif()
 
+if(MFEM_USE_MOONOLITH)
+  add_subdirectory(moonolith)
+endif()

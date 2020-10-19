@@ -856,7 +856,7 @@ namespace mfem {
 		comm.all_reduce(n_collection, 3, moonolith::MPISum());
 
 		if (comm.is_root()) {
-			std::cout << "n_intersections: "   		<< n_collection[0]
+			mfem::out <<  "n_intersections: "   		<< n_collection[0]
 			<< ", n_total_candidates: " 	<< n_collection[1]
 			<< ", n_false_positives: " 	<< n_collection[2] << std::endl;
 		}
@@ -1026,7 +1026,7 @@ namespace mfem {
 
 
 		if(comm.is_root()) {
-			std::cout << "sum(B): " << volumes[0] << ", vol(I): " << volumes[1] << std::endl;
+			mfem::out <<  "sum(B): " << volumes[0] << ", vol(I): " << volumes[1] << std::endl;
 		}
 
 		std::vector<moonolith::Integer> slave_ranges(comm.size() + 1, 0);
@@ -1035,7 +1035,7 @@ namespace mfem {
 		comm.all_reduce(&slave_ranges[0],  slave_ranges.size(), moonolith::MPIMax());
 
 		// if(comm.is_root()) {
-		// 	std::cout << slave_ranges << std::endl;
+		// 	mfem::out <<  slave_ranges << std::endl;
 		// }
 
 		moonolith::Redistribute< moonolith::SparseMatrix<double> > redist(comm.get());
@@ -1154,22 +1154,22 @@ namespace mfem {
 		comm.barrier();
 
 		if(comm.is_root()) {
-			std::cout << "P in R^(" << master_->Dof_TrueDof_Matrix()->Height();
-			std::cout << " x "		<< master_->Dof_TrueDof_Matrix()->Width() << ")\n";
+			mfem::out <<  "P in R^(" << master_->Dof_TrueDof_Matrix()->Height();
+			mfem::out <<  " x "		<< master_->Dof_TrueDof_Matrix()->Width() << ")\n";
 
-			std::cout << "Q in R^(" << slave_->Dof_TrueDof_Matrix()->Height();
-			std::cout << " x "		<< slave_->Dof_TrueDof_Matrix()->Width() << ")\n";
+			mfem::out <<  "Q in R^(" << slave_->Dof_TrueDof_Matrix()->Height();
+			mfem::out <<  " x "		<< slave_->Dof_TrueDof_Matrix()->Width() << ")\n";
 		}
 
 		comm.barrier();
 
 
 		if(!comm.is_root()) {
-			std::cout << "P in R^(" << master_->Dof_TrueDof_Matrix()->Height();
-			std::cout << " x "		<< master_->Dof_TrueDof_Matrix()->Width() << ")\n";
+			mfem::out <<  "P in R^(" << master_->Dof_TrueDof_Matrix()->Height();
+			mfem::out <<  " x "		<< master_->Dof_TrueDof_Matrix()->Width() << ")\n";
 
-			std::cout << "Q in R^(" << slave_->Dof_TrueDof_Matrix()->Height();
-			std::cout << " x "		<< slave_->Dof_TrueDof_Matrix()->Width() << ")\n";
+			mfem::out <<  "Q in R^(" << slave_->Dof_TrueDof_Matrix()->Height();
+			mfem::out <<  " x "		<< slave_->Dof_TrueDof_Matrix()->Width() << ")\n";
 		}
 
 		// if(dof_transformation) {
@@ -1182,10 +1182,10 @@ namespace mfem {
 		comm.barrier();
 
 		if(comm.is_root()) {
-			std::cout << "--------------------------------------------------------"    << std::endl;
-			std::cout << "B in R^(" << B->GetGlobalNumRows()    << " x " << B->GetGlobalNumCols()    << ")" << std::endl;
-			std::cout << "D in R^(" << Dptr->GetGlobalNumRows() << " x " << Dptr->GetGlobalNumCols() << ")" << std::endl;
-			std::cout << "--------------------------------------------------------"    << std::endl;
+			mfem::out <<  "--------------------------------------------------------"    << std::endl;
+			mfem::out <<  "B in R^(" << B->GetGlobalNumRows()    << " x " << B->GetGlobalNumCols()    << ")" << std::endl;
+			mfem::out <<  "D in R^(" << Dptr->GetGlobalNumRows() << " x " << Dptr->GetGlobalNumCols() << ")" << std::endl;
+			mfem::out <<  "--------------------------------------------------------"    << std::endl;
 		}
 
 		comm.barrier();
@@ -1202,7 +1202,7 @@ namespace mfem {
 
 			double sum_Dv = Dv.Sum();
 			if(comm.is_root()) {
-				std::cout << "sum(D): " << sum_Dv << std::endl;
+				mfem::out <<  "sum(D): " << sum_Dv << std::endl;
 			}
 		}
 

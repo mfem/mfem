@@ -5,7 +5,7 @@
 namespace mfem {
 
 	MortarAssembler::MortarAssembler(
-		const std::shared_ptr<FiniteElementSpace> &master, 
+		const std::shared_ptr<FiniteElementSpace> &master,
 		const std::shared_ptr<FiniteElementSpace> &slave)
 	: master_(master), slave_(slave)
 	{ }
@@ -68,7 +68,7 @@ namespace mfem {
 	 		auto &slave_fe  = *slave_->GetFE(slave_index);
 
 	 		bool pair_intersected = false;
-	 		if(dim == 2)  {			
+	 		if(dim == 2)  {
 	 			master_mesh.GetPointMatrix(master_index, master_pts);
 	 			slave_mesh.GetPointMatrix(slave_index, 	 slave_pts);
 
@@ -81,20 +81,20 @@ namespace mfem {
 
 	 				MakeCompositeQuadrature2D(intersection2, weight, order, composite_ir);
 	 				pair_intersected = true;
-	 			} 
+	 			}
 
 	 		} else if(dim == 3) {
 	 			if(Intersect3D(master_mesh, master_index, slave_mesh, slave_index, intersection3)) {
 	 				total_intersection_volume += isector.p_mesh_volume_3(intersection3);
 	 				double weight = volumes[slave_index];
-	 				
+
 	 				ElementTransformation &Trans = *slave_->GetElementTransformation(slave_index);
 	 				const int order = master_fe.GetOrder() + slave_fe.GetOrder() + Trans.OrderW();
 
 	 				MakeCompositeQuadrature3D(intersection3, weight, order, composite_ir);
 	 				pair_intersected = true;
 	 			}
-	 			
+
 	 		} else {
 	 			assert(false);
 	 			return false;
@@ -104,7 +104,7 @@ namespace mfem {
 	 			//make reference quaratures
 	 			ElementTransformation &master_Trans = *master_->GetElementTransformation(master_index);
 	 			ElementTransformation &slave_Trans = *slave_->GetElementTransformation(slave_index);
-	 			
+
 	 			TransformToReference(master_Trans, master_fe.GetGeomType(), composite_ir,  master_ir);
 	 			TransformToReference(slave_Trans,  slave_fe.GetGeomType(),  composite_ir,  slave_ir);
 
@@ -129,16 +129,16 @@ namespace mfem {
 	 			B->AddSubMatrix(slave_vdofs, master_vdofs, cumulative_elemmat, skip_zeros);
 	 			intersected = true;
 	 		}
-	 	} 
+	 	}
 
 	 	if(!intersected) return false;
 
 	 	B->Finalize();
 
 	 	if(verbose) {
-	 		std::cout << "local_element_matrices_sum: " << local_element_matrices_sum << std::endl;
-	 		std::cout << "intersection volume: " << total_intersection_volume << std::endl;
-	 		std::cout << "B in R^(" << B->Height() <<  " x " << B->Width() << ")" << std::endl;
+	 		mfem::out <<  "local_element_matrices_sum: " << local_element_matrices_sum << std::endl;
+	 		mfem::out <<  "intersection volume: " << total_intersection_volume << std::endl;
+	 		mfem::out <<  "B in R^(" << B->Height() <<  " x " << B->Width() << ")" << std::endl;
 	 	}
 
 	 	return true;
@@ -183,7 +183,7 @@ namespace mfem {
 
 	 	CGSolver Dinv;
 	 	Dinv.SetOperator(D);
-	 	Dinv.SetRelTol(1e-6); 
+	 	Dinv.SetRelTol(1e-6);
 	 	Dinv.SetMaxIter(20);
 
 	 	Vector temp(B->Height());
@@ -197,8 +197,8 @@ namespace mfem {
 	 		Vector drs(D.Height());
 	 		D.GetRowSums(drs);
 
-	 		std::cout << "sum(B): " << brs.Sum() << std::endl;
-	 		std::cout << "sum(D): " << drs.Sum() << std::endl;
+	 		mfem::out <<  "sum(B): " << brs.Sum() << std::endl;
+	 		mfem::out <<  "sum(D): " << drs.Sum() << std::endl;
 	 	}
 
 	 	return true;
