@@ -78,6 +78,10 @@ protected:
    // sface ids: all triangles first, then all quads
    Array<int> sface_lface;
 
+   /// Local to shared face mapping (vertex in 1D, edge in 2D, face in 3D).
+   /// Generated on first call to GetSharedFaceIndexOfLocalFace.
+   mutable std::map<int,int> lface_sface;
+
    IsoparametricTransformation FaceNbrTransformation;
 
    // glob_elem_offset + local element number defines a global element numbering
@@ -277,14 +281,22 @@ public:
    void GenerateOffsets(int N, HYPRE_Int loc_sizes[],
                         Array<HYPRE_Int> *offsets[]) const;
 
+   /** Communicate face-neighbor mesh information. Also calls
+       ExchangeFaceNbrNodes. */
    void ExchangeFaceNbrData();
+   /** Communicate the nodal gridfunction associated with face-neighbor
+       elements. Calls ExchangeFaceNbrData if it has not been called before. */
    void ExchangeFaceNbrNodes();
 
    virtual void SetCurvature(int order, bool discont = false, int space_dim = -1,
                              int ordering = 1);
 
+   /** Returns the number of MPI ranks that are face-neighbors of the current
+       rank. */
    int GetNFaceNeighbors() const { return face_nbr_group.Size(); }
+   /// Get the group index of the face-neighbor @a fn
    int GetFaceNbrGroup(int fn) const { return face_nbr_group[fn]; }
+   /// Get the MPI rank of the face-neighbor @a fn
    int GetFaceNbrRank(int fn) const;
 
    /** Similar to Mesh::GetFaceToElementTable with added face-neighbor elements
@@ -297,6 +309,7 @@ public:
    FaceElementTransformations *
    GetSharedFaceTransformations(int sf, bool fill2 = true);
 
+   /// Get the ElementTransformation of the @a ith face-neighbor element
    ElementTransformation *
    GetFaceNbrElementTransformation(int i)
    {
@@ -305,11 +318,26 @@ public:
       return &FaceNbrTransformation;
    }
 
+   /// Return the shared face index of a given local face
+   int GetSharedFaceIndexOfLocalFace(int face_idx) const;
+
+   /// Return the local face index for the given shared face.
+   int GetLocalFaceIndexOfSharedFace(int sface) const;
+
+   /// Return the local face index for the given shared face. This performs the
+   /// same function as GetLocalFaceIndexOfSharedFace.
+   int GetSharedFace(int sface) const
+   {
+      return GetLocalFaceIndexOfSharedFace(sface);
+   }
+
+   /// Return the index of the face-neighbor element containing the given
+   /// shared face.
+   int GetFaceNbrElementOfSharedFace(int sf) const;
+
    /// Return the number of shared faces (3D), edges (2D), vertices (1D)
    int GetNSharedFaces() const;
 
-   /// Return the local face index for the given shared face.
-   int GetSharedFace(int sface) const;
 
    /// See the remarks for the serial version in mesh.hpp
    virtual void ReorientTetMesh();

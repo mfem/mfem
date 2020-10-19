@@ -341,12 +341,20 @@ public:
 
    // Face-neighbor functions
    void ExchangeFaceNbrData();
+   /// Return the number of face-neighbor dofs
    int GetFaceNbrVSize() const { return num_face_nbr_dofs; }
+   /** Get the vdofs associated with the @a ith face neighbor element. These are
+       vdof indices that can be used to index into the Vector returned by
+       ParGridFunction::FaceNbrData(). */
    void GetFaceNbrElementVDofs(int i, Array<int> &vdofs) const;
    void GetFaceNbrFaceVDofs(int i, Array<int> &vdofs) const;
+   /// Get the FiniteElement object for the @a ith face neighbor element
    const FiniteElement *GetFaceNbrFE(int i) const;
    const FiniteElement *GetFaceNbrFaceFE(int i) const;
+   /// Return an array of global L-dofs corresponding to face neigbor dofs
    const HYPRE_Int *GetFaceNbrGlobalDofMap() { return face_nbr_glob_dof_map; }
+   /// Get the ElementTransformation associated with the @a ith face neighbor
+   /// element
    ElementTransformation *GetFaceNbrElementTransformation(int i) const
    { return pmesh->GetFaceNbrElementTransformation(i); }
 
