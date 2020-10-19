@@ -34,7 +34,7 @@ add_mfem_examples(SUPERLU_EXAMPLES_SRCS ${PFX} "" test_superlu)
 #   ctest -R superlu
 
 # Command line options for the tests.
-# Example 1: Test SuperLU on the simple poisson problem
+# Example 1: Test SuperLU on the simple Poisson problem
 set(EX1_COMMON_OPTS -m ../../data/star.mesh -p 2)
 set(EX1P_TEST_OPTS ${EX1_COMMON_OPTS})
 

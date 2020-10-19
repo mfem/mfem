@@ -346,7 +346,7 @@ MFEM_USE_SUPERLU = YES/NO
 
 MFEM_USE_SUPERLU5 = YES/NO
    If SuperLU functionality is enabled, use the older 5.1.0 version rather than
-   the more recent 6+ versions.  
+   the more recent 6+ versions.
 
 MFEM_USE_STRUMPACK = YES/NO
    Enable MFEM functionality based on the STRUMPACK sparse direct solver and
@@ -593,10 +593,10 @@ The specific libraries and their options are:
   URL: https://ginkgo-project.github.io
   Options: GINKGO_OPT (Not used), GINKGO_LIB.
 
-- AMGX (optional), used when MFEM_USE_AMGX = YES.
+- AmgX (optional), used when MFEM_USE_AMGX = YES.
   URL: https://github.com/NVIDIA/AMGX
   Options: AMGX_OPT, AMGX_LIB.
-  Versions: AMGX >= 2.1, older versions may work too.
+  Versions: AmgX >= 2.1, older versions may work too.
 
 - GnuTLS (optional), used when MFEM_USE_GNUTLS = YES. On most Linux systems,
   GnuTLS is available as a development package, e.g. gnutls-devel. On Mac OS X,

@@ -1,4 +1,5 @@
-//                       MFEM Example 1 - Parallel Version demonstrating SuperLU
+//                       MFEM Example 1 - Parallel Version
+//                             SuperLU Modification
 //
 // Compile with: make ex1p
 //
@@ -61,7 +62,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    int slu_colperm = 4;
    int slu_rowperm = 1;
-   int slu_iterref = 2;   
+   int slu_iterref = 2;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -79,11 +80,11 @@ int main(int argc, char *argv[])
                   "2-MMD_AT_PLUS_A, 3-COLAMD, 4-METIS_AT_PLUS_A, 5-PARMETIS "
                   "6-ZOLTAN");
    args.AddOption(&slu_rowperm, "-rp", "--rowperm",
-                  "SuperLU Row Permutation Method:  0-NOROWPERM, 1-LargeDiag");   
+                  "SuperLU Row Permutation Method:  0-NOROWPERM, 1-LargeDiag");
    args.AddOption(&slu_iterref, "-rp", "--rowperm",
                   "SuperLU Iterative Refinement:  0-NOREFINE, 1-Single, "
-                  "2-Double, 3-Extra");   
-   
+                  "2-Double, 3-Extra");
+
    args.Parse();
    if (!args.Good())
    {
@@ -209,8 +210,7 @@ int main(int argc, char *argv[])
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-   // 13. Solve the linear system A X = B.
-   //     * Utilize SuperLU
+   // 13. Solve the linear system A X = B utilizing SuperLU.
    SuperLUSolver *superlu = new SuperLUSolver(MPI_COMM_WORLD);
    Operator *SLU_A = new SuperLURowLocMatrix(*A.As<HypreParMatrix>());
    superlu->SetPrintStatistics(true);

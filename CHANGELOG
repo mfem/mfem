@@ -11,6 +11,16 @@
 Version 4.1.1 (development)
 ===========================
 
+libCEED integration improvements
+--------------------------------
+- Add support for all types of (scalar) Coefficient.
+
+- Add support for VectorMassIntegrator and VectorDiffusionIntegrator.
+
+- Add support for AssemblyLevel::NONE for MassIntegrator, DiffusionIntegrator,
+  VectorMassIntegrator, and VectorDiffusionIntegrator. This level of assembly
+  fully applies on the fly the finite element operator.
+
 Meshing improvements
 --------------------
 - The graph linear ordering library Gecko, previously an external dependency, is
@@ -74,6 +84,11 @@ Improved GPU capabilities
   A. Barba, doi:10.21105/joss.00280.
 
 - Added support for Chebyshev accelerated polynomial smoother on GPU.
+
+- Optimized AMD/HIP kernel support.
+
+- Enabled HIP support in the libCEED integration, which is now available via the
+  "ceed-hip" device backend.
 
 - Added a Full Assembly mode compatible with Device kernel execution. This
   assembly level builds on top of the current Element Assembly kernels to
@@ -169,7 +184,8 @@ Linear and nonlinear solvers
 - Added partially assembled convergent diagonal preconditioner for adaptively
   refined meshes (i.e. non-conforming finite element spaces), see Example 6/6p.
 
-- Upgraded SuperLU interface to use SuperLU_DIST 6.3.1
+- Upgraded SuperLU interface to use SuperLU_DIST 6.3.1. Added a simple SuperLU
+  example in the new directory examples/superlu.
 
 - Extended the KINSOL (SUNDIALS) nonlinear solver interface to support the
   Jacobian-free Newton-Krylov method. A usage example is shown in Example 10p.
@@ -254,6 +270,8 @@ Improved testing
   triggered only by LLNL developers, see .gitlab-ci.yml, the .gitlab directory
   and the updated CONTRIBUTING.md file.
 
+- Add tests for the libCEED integration in MFEM.
+
 - Added testing of the parallel mesh format in tests/par-mesh-format.
 
 Miscellaneous
@@ -273,6 +291,9 @@ Miscellaneous
 
 - Renamed "Backend::DEBUG" to "Backend::DEBUG_DEVICE" to avoid conflicts,
   as DEBUG is sometimes used as a macro.
+
+- Change the IntegrationRule inside VectorDiffusionIntegrator to use the same
+  quadrature as DiffusionIntegrator.
 
 
 Version 4.1, released on March 10, 2020
