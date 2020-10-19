@@ -26,9 +26,9 @@ packages:
     buildable: false
   mvapich2:
     externals:
-    - spec: mvapich2@2.3%clang@10.0.0 arch=linux-rhel7-ivybridge
+    - spec: mvapich2@2.3%clang arch=linux-rhel7-ivybridge
       prefix: /usr/tce/packages/mvapich2/mvapich2-2.3-clang-10.0.0
-    - spec: mvapich2@2.3%gcc@8.3.1 arch=linux-rhel7-ivybridge
+    - spec: mvapich2@2.3%gcc arch=linux-rhel7-ivybridge
       prefix: /usr/tce/packages/mvapich2/mvapich2-2.3-gcc-8.3.1
 
   # blas is a bit more complicated because its a virtual package so fake it with
