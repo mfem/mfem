@@ -120,8 +120,10 @@ MFEM_USE_SUNDIALS      = NO
 MFEM_USE_MESQUITE      = NO
 MFEM_USE_SUITESPARSE   = NO
 MFEM_USE_SUPERLU       = NO
+MFEM_USE_SUPERLU5      = NO
 MFEM_USE_STRUMPACK     = NO
 MFEM_USE_GINKGO        = NO
+MFEM_USE_AMGX          = NO
 MFEM_USE_GNUTLS        = NO
 MFEM_USE_NETCDF        = NO
 MFEM_USE_PETSC         = NO
@@ -222,9 +224,15 @@ SUITESPARSE_LIB = -Wl,-rpath,$(SUITESPARSE_DIR)/lib -L$(SUITESPARSE_DIR)/lib\
  -lsuitesparseconfig $(LIB_RT) $(METIS_LIB) $(LAPACK_LIB)
 
 # SuperLU library configuration
-SUPERLU_DIR = @MFEM_DIR@/../SuperLU_DIST_5.1.0
-SUPERLU_OPT = -I$(SUPERLU_DIR)/SRC
-SUPERLU_LIB = -Wl,-rpath,$(SUPERLU_DIR)/lib -L$(SUPERLU_DIR)/lib -lsuperlu_dist_5.1.0
+ifeq ($(MFEM_USE_SUPERLU5),YES)
+   SUPERLU_DIR = @MFEM_DIR@/../SuperLU_DIST_5.1.0
+   SUPERLU_OPT = -I$(SUPERLU_DIR)/include
+   SUPERLU_LIB = -Wl,-rpath,$(SUPERLU_DIR)/lib -L$(SUPERLU_DIR)/lib -lsuperlu_dist_5.1.0   
+else
+   SUPERLU_DIR = @MFEM_DIR@/../SuperLU_DIST_6.3.1
+   SUPERLU_OPT = -I$(SUPERLU_DIR)/include
+   SUPERLU_LIB = -Wl,-rpath,$(SUPERLU_DIR)/lib64 -L$(SUPERLU_DIR)/lib64 -lsuperlu_dist -lblas
+endif
 
 # SCOTCH library configuration (required by STRUMPACK <= v2.1.0, optional in
 # STRUMPACK >= v2.2.0)
@@ -257,7 +265,13 @@ STRUMPACK_LIB = -L$(STRUMPACK_DIR)/lib -lstrumpack $(MPI_FORTRAN_LIB)\
 # Ginkgo library configuration (currently not needed)
 GINKGO_DIR = @MFEM_DIR@/../ginkgo/install
 GINKGO_OPT = -isystem $(GINKGO_DIR)/include
-GINKGO_LIB = $(XLINKER)-rpath,$(GINKGO_DIR)/lib -L$(GINKGO_DIR)/lib -lginkgo -lginkgo_omp -lginkgo_cuda -lginkgo_reference
+GINKGO_LIB = $(XLINKER)-rpath,$(GINKGO_DIR)/lib -L$(GINKGO_DIR)/lib -lginkgo\
+ -lginkgo_omp -lginkgo_cuda -lginkgo_reference
+
+# AmgX library configuration
+AMGX_DIR = @MFEM_DIR@/../amgx
+AMGX_OPT = -I$(AMGX_DIR)/include
+AMGX_LIB = -lcusparse -lcusolver -lcublas -lnvToolsExt -L$(AMGX_DIR)/lib -lamgx
 
 # GnuTLS library configuration
 GNUTLS_OPT =
