@@ -249,8 +249,8 @@ public:
     * If @a a is > 0, the filtering algorithm for the velocity field after every
     * time step from [1] is used.
     *
-    * [1] Paul Fischer, Julia Mullen: Filter-based stabilization of spectral
-    * element methods
+    * [1] Paul Fischer, Julia Mullen (2001) Filter-based stabilization of
+    * spectral element methods
     */
    void SetFilterAlpha(double a) { filter_alpha = a; }
 
