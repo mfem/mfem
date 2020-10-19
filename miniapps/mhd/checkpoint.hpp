@@ -28,3 +28,28 @@ void checkpoint(int myid, const double time,
     psi.Save(ofs_psi);
       w.Save(ofs_w);
 }
+
+void checkpoint_rs(int myid, const double time,
+                const ParMesh & pmesh, 
+                const ParGridFunction & phi, 
+                const ParGridFunction & psi, 
+                const ParGridFunction & w)
+{
+    if (myid==0) cout << " Save checkpoints at t = "<<time<< endl;
+
+    ofstream ofs_mesh(MakeParFilename("restart-mesh.", myid));
+    ofstream ofs_phi(MakeParFilename("restart-phi.", myid));
+    ofstream ofs_psi(MakeParFilename("restart-psi.", myid));
+    ofstream   ofs_w(MakeParFilename("restart-w.", myid));
+
+    ofs_mesh.precision(16);
+    ofs_phi.precision(16);
+    ofs_psi.precision(16);
+      ofs_w.precision(16);
+
+    pmesh.ParPrint(ofs_mesh);
+
+    phi.Save(ofs_phi);
+    psi.Save(ofs_psi);
+      w.Save(ofs_w);
+}
