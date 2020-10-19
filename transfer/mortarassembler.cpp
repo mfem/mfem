@@ -1,5 +1,5 @@
-#include "MortarAssembler.hpp"
-#include "MortarAssemble.hpp"
+#include "mortarassembler.hpp"
+#include "mortarassemble.hpp"
 #include "../general/tic_toc.hpp"
 
 namespace mfem {

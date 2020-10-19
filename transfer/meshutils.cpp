@@ -1,6 +1,6 @@
 
 #include <assert.h>
-#include "MeshUtils.hpp"
+#include "meshutils.hpp"
 
 #include <iostream>
 

@@ -10,23 +10,23 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 list(APPEND SRCS
-  Box.cpp
-  HashGrid.cpp
-  MeshUtils.cpp
-  MortarAssemble.cpp
-  MortarAssembler.cpp
-  MortarIntegrator.cpp
-  ParMortarAssembler.cpp
+  box.cpp
+  hashgrid.cpp
+  meshutils.cpp
+  mortarassemble.cpp
+  mortarassembler.cpp
+  mortarintegrator.cpp
+  pmortarassembler.cpp
   )
 
 list(APPEND HDRS
-  Box.hpp
-  HashGrid.hpp
-  MeshUtils.hpp
-  MortarAssemble.hpp
-  MortarAssembler.hpp
-  MortarIntegrator.hpp
-  ParMortarAssembler.hpp
+  box.hpp
+  hashgrid.hpp
+  meshutils.hpp
+  mortarassemble.hpp
+  mortarassembler.hpp
+  mortarintegrator.hpp
+  pmortarassembler.hpp
   transfer.hpp
   )
 

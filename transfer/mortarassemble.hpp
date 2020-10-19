@@ -1,10 +1,10 @@
 #ifndef MFEM_L2P_MORTAR_ASSEMBLE_HPP
-#define MFEM_L2P_MORTAR_ASSEMBLE_HPP 
+#define MFEM_L2P_MORTAR_ASSEMBLE_HPP
 
 #include <memory>
 #include <math.h>
 
-#include "HashGrid.hpp"
+#include "hashgrid.hpp"
 #include "opencl_adapter.hpp"
 
 #define USE_DOUBLE_PRECISION
@@ -36,8 +36,8 @@ namespace mfem {
 
 	void TransformToReference(ElementTransformation &Trans, const int type, const IntegrationRule &global_ir, IntegrationRule &ref_ir);
 
-	void MortarAssemble(const FiniteElement &trial_fe, const IntegrationRule &trial_ir, 
-						const FiniteElement &test_fe, const IntegrationRule &test_ir, 
+	void MortarAssemble(const FiniteElement &trial_fe, const IntegrationRule &trial_ir,
+						const FiniteElement &test_fe, const IntegrationRule &test_ir,
 						ElementTransformation &Trans, DenseMatrix &elmat);
 
 	bool MortarAssemble(FiniteElementSpace &src, FiniteElementSpace &dest, std::shared_ptr<SparseMatrix> &B);
