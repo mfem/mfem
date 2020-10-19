@@ -247,7 +247,6 @@ int main(int argc, char *argv[])
    // 13. Solve the linear system A X = B.
    //     * With full assembly, use the BoomerAMG preconditioner from hypre.
    //     * With partial assembly, use Jacobi smoothing, for now.
-   AlgebraicSpaceHierarchy *hierarchy = NULL;
    Solver *prec = NULL;
    if (pa)
    {
@@ -256,8 +255,7 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_CEED
          if (DeviceCanUseCeed() && algebraic_ceed)
          {
-            hierarchy = new AlgebraicSpaceHierarchy(fespace);
-            prec = new AlgebraicCeedMultigrid(*hierarchy, a, ess_tdof_list);
+            prec = new AlgebraicCeedSolver(a, ess_tdof_list);
          }
          else
 #endif
@@ -285,7 +283,6 @@ int main(int argc, char *argv[])
    if (prec) { cg.SetPreconditioner(*prec); }
    cg.SetOperator(*A);
    cg.Mult(B, X);
-   delete hierarchy;
    delete prec;
 
    // 14. Recover the parallel grid function corresponding to X. This is the

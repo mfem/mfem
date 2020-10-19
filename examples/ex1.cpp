@@ -240,8 +240,7 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_CEED
       if (DeviceCanUseCeed() && algebraic_ceed)
       {
-         AlgebraicSpaceHierarchy hierarchy(fespace);
-         AlgebraicCeedMultigrid M(hierarchy, a, ess_tdof_list);
+         AlgebraicCeedSolver M(a, ess_tdof_list);
          PCG(*A, M, B, X, 1, 400, reltol, 0.0);
       }
       else
