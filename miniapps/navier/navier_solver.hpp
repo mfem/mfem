@@ -244,10 +244,10 @@ public:
    /// Set the number of modes to cut off in the interpolation filter
    void SetCutoffModes(int c) { filter_cutoff_modes = c; }
 
-   /// Set the interpolation filter parameter @a alpha
+   /// Set the interpolation filter parameter @a a
    /**
     * If @a a is > 0, the filtering algorithm for the velocity field after every
-    * time step from [1] is used.
+    * time step from [1] is used. The parameter should be 0 > @a >= 1.
     *
     * [1] Paul Fischer, Julia Mullen (2001) Filter-based stabilization of
     * spectral element methods
