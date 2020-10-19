@@ -8,11 +8,11 @@
                                https://mfem.org
 
 This directory contains modifications of the example codes that illustrate the
-use of MFEM features based on the PETSc suite.
+use of MFEM features based on NVIDIA's multigrid library AmgX.
 
 To build these examples, make sure that MFEM is configured with the option
-"MFEM_USE_PETSC = YES", see the top-level INSTALL file for details (version
-3.8 or higher of the PETSc dev branch is required).
+"MFEM_USE_AMGX = YES", see the top-level INSTALL file for details (version
+2.1 of AmgX is recommended, though older versions may work too.
 
 We recommend comparing the original example codes with the corresponding files
 in the current directory.
