@@ -13,6 +13,7 @@ list(APPEND SRCS
   blockmatrix.cpp
   blockoperator.cpp
   blockvector.cpp
+  ceed_algebraic.cpp
   complex_operator.cpp
   densemat.cpp
   handle.cpp
@@ -29,6 +30,7 @@ list(APPEND HDRS
   blockmatrix.hpp
   blockoperator.hpp
   blockvector.hpp
+  ceed_algebraic.hpp
   complex_operator.hpp
   densemat.hpp
   dtensor.hpp
