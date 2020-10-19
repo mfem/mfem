@@ -113,7 +113,7 @@ $(if $(word 2,$(SRC)),$(error Spaces in SRC = "$(SRC)" are not supported))
 MFEM_GIT_STRING = $(shell [ -d $(MFEM_DIR)/.git ] && git -C $(MFEM_DIR) \
    describe --all --long --abbrev=40 --dirty --always 2> /dev/null)
 
-EXAMPLE_SUBDIRS = sundials petsc pumi hiop ginkgo
+EXAMPLE_SUBDIRS = sundials petsc pumi hiop ginkgo moonolith
 EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
@@ -246,6 +246,13 @@ ifeq ($(MFEM_USE_HIP),YES)
    endif
 endif
 
+#MOONOLITH begin
+ifeq ($(MFEM_USE_MOONOLITH),YES)
+   ifneq ($(MFEM_USE_MPI), YES)
+      $(error Moonolith requires MPI)
+   endif
+endif
+
 DEP_CXX ?= $(MFEM_CXX)
 
 # Check legacy OpenMP configuration
@@ -261,7 +268,7 @@ endif
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
 MFEM_REQ_LIB_DEPS = SUPERLU METIS CONDUIT SIDRE LAPACK SUNDIALS MESQUITE\
  SUITESPARSE STRUMPACK GINKGO GNUTLS NETCDF PETSC SLEPC MPFR PUMI HIOP GSLIB\
- OCCA CEED RAJA UMPIRE MKL_CPARDISO
+ OCCA CEED RAJA UMPIRE MKL_CPARDISO MOONOLITH
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
 SLEPC_ERROR_MSG = $(if $(SLEPC_FOUND),,. SLEPC config not found: $(SLEPC_VARS))
 
@@ -392,12 +399,11 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
    export VERBOSE
 endif
 
-#MOONOLITH begin
-ifeq ($(MFEM_USE_MOONOLITH),YES)
-   ifneq ($(MFEM_USE_MPI), YES)
-      $(error Moonolith requires MPI)
-   endif
-endif
+
+
+# Source dirs in logical order
+
+DIRS = general linalg linalg/simd mesh fem fem/libceed
 
 ifeq ($(MFEM_USE_MOONOLITH),YES)
    MFEM_CXXFLAGS += $(MOONOLITH_CXX_FLAGS)
@@ -405,12 +411,7 @@ ifeq ($(MFEM_USE_MOONOLITH),YES)
    MFEM_TPLFLAGS += $(MOONOLITH_INCLUDES)
    DIRS += transfer
 endif
-#MOONOLITH end
 
-
-# Source dirs in logical order
-
-DIRS = general linalg linalg/simd mesh fem fem/libceed
 
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
@@ -666,6 +667,7 @@ status info:
 	$(info MFEM_USE_SIMD          = $(MFEM_USE_SIMD))
 	$(info MFEM_USE_ADIOS2        = $(MFEM_USE_ADIOS2))
 	$(info MFEM_USE_MKL_CPARDISO  = $(MFEM_USE_MKL_CPARDISO))
+	$(info MFEM_USE_MOONOLITH     = $(MFEM_USE_MOONOLITH))
 	$(info MFEM_CXX               = $(value MFEM_CXX))
 	$(info MFEM_HOST_CXX          = $(value MFEM_HOST_CXX))
 	$(info MFEM_CPPFLAGS          = $(value MFEM_CPPFLAGS))
