@@ -1,6 +1,6 @@
 
 #include <assert.h>
-#include "Box.hpp"
+#include "box.hpp"
 
 
 namespace mfem

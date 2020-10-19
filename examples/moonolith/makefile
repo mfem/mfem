@@ -21,6 +21,7 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
+# Currently there are only serial Ginkgo examples
 SEQ_EXAMPLES = ex1 ex2
 PAR_EXAMPLES = ex1p ex2p ex3p
 ifeq ($(MFEM_USE_MPI),NO)
@@ -38,13 +39,13 @@ endif
 
 # Replace the default implicit rule for *.cpp files
 %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-    $(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
 all: $(EXAMPLES)
 
 ifeq ($(MFEM_USE_MOONOLITH),NO)
 $(EXAMPLES):
-    $(error MFEM is not configured with MOONOLITH)
+	$(error MFEM is not configured with MOONOLITH)
 endif
 
 MFEM_TESTS = EXAMPLES
@@ -56,25 +57,25 @@ RUN_MPI = $(RUN_MPI_NP) $(MFEM_MPI_NP)
 SERIAL_NAME := Serial MOONOLITH example
 PARALLEL_NAME := Parallel MOONOLITH example
 %-test-par: %
-    @$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_NAME))
+	@$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_NAME))
 %-test-seq: %
-    @$(call mfem-test,$<,, $(SERIAL_NAME))
+	@$(call mfem-test,$<,, $(SERIAL_NAME))
 
 # Testing: Example-specific execution options:
 ex1-test-par: ex1
-    @$(call mfem-test,$<, $(RUN_MPI_NP) 1, $(PARALLEL_NAME))
+	@$(call mfem-test,$<, $(RUN_MPI_NP) 1, $(PARALLEL_NAME))
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
-    $(error The MFEM library is not built)
+	$(error The MFEM library is not built)
 
 clean: clean-build clean-exec
 
 clean-build:
-    rm -f *.o *~ $(SEQ_EXAMPLES) $(PAR_EXAMPLES)
-    rm -rf *.dSYM *.TVD.*breakpoints
+	rm -f *.o *~ $(SEQ_EXAMPLES) $(PAR_EXAMPLES)
+	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-    @rm -f refined.mesh sol.gf mesh.* sol.*
+	@rm -f refined.mesh sol.gf mesh.* sol.*

@@ -300,8 +300,8 @@ ifeq ($(SLEPC_FOUND),YES)
 endif
 
 ifeq ($(MFEM_USE_MOONOLITH),YES)
-  MOONOLITH_DIR ?= @MFEM_DIR@/../moonolith/build
-  include $(MOONOLITH_DIR)/config/moonolith_config.makefile
+  include $(MOONOLITH_DIR)/config/moonolith-config.makefile
+  MOONOLITH_LIB=$(MOONOLITH_LIBRARIES)
 endif
 
 # MPFR library configuration

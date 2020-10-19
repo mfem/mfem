@@ -496,7 +496,7 @@ MFEM_USE_MKL_CPARDISO = YES/NO
 MFEM_USE_MOONOOLITH = YES/NO
    Enables the interface ParMoonolith for parallel non-conforming, non-matching,
    variational, volumetric mesh information transfer using ParMoonolith. It
-   requires MFEM_USE_MPI=YES amd MFEM_USE_METIS=YES.
+   requires MFEM_USE_MPI=YES, MFEM_USE_METIS=YES, and MOONOLITH_DIR=<path to install>
 
 MFEM_BUILD_TAG = (any value)
    An optional tag to characterize the build. Exported to config/config.mk.
