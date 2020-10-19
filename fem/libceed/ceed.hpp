@@ -206,13 +206,7 @@ void CeedAssembleDiagonal(const CeedData *ceedDataPtr,
     the current mfem::Device configuration. */
 inline bool DeviceCanUseCeed()
 {
-#ifdef MFEM_USE_CEED
-   return Device::Allows(Backend::CEED_CUDA) ||
-          (Device::Allows(Backend::CEED_CPU) &&
-           !Device::Allows(Backend::DEVICE_MASK|Backend::OMP_MASK));
-#else
-   return false;
-#endif
+   return Device::Allows(Backend::CEED_MASK);
 }
 
 /** @brief Remove from ceed_basis_map and ceed_restr_map the entries associated
