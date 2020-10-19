@@ -62,15 +62,10 @@ private:
       /// Assumes that @a x and @a y are ldof Vector%s.
       virtual void Mult(const Vector &x, Vector &y) const;
 
+      /// Assumes that @a g is an ldof Vector.
       void ReInit(const Vector &g) { elemR->Mult(g, ge); }
 
-      /** @brief Assemble the diagonal of the gradient into the
-          tdof Vector @a diag.
-
-          For adaptively refined meshes, this returns P^T d_e, where d_e is the
-          locally assembled diagonal on each element and P^T is the transpose of
-          the conforming prolongation. In general this is not the correct
-          diagonal for an AMR mesh. */
+      /// Assemble the diagonal of the gradient into the ldof Vector @a diag.
       virtual void AssembleDiagonal(Vector &diag) const;
    };
 

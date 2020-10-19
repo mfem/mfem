@@ -137,7 +137,8 @@ public:
                           const double damping=1.0);
 
    /// The diagonal will be computed by the calls to SetOperator.
-   OperatorJacobiSmoother(const Array<int> &ess_tdof_list,
+   OperatorJacobiSmoother(int size,
+                          const Array<int> &ess_tdof_list,
                           const double damping=1.0);
 
    /** Application is by the *inverse* of the given vector. It is assumed that
