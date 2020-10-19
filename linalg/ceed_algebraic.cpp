@@ -98,6 +98,7 @@ public:
    {
       delete op_assembled;
       delete amg;
+      delete mat_local;
    }
 private:
    SparseMatrix *mat_local;
@@ -383,6 +384,8 @@ AlgebraicCoarseSpace::AlgebraicCoarseSpace(
 AlgebraicCoarseSpace::~AlgebraicCoarseSpace()
 {
    free(dof_map);
+   CeedBasisDestroy(&coarse_to_fine);
+   CeedElemRestrictionDestroy(&ceed_elem_restriction);
 }
 
 #ifdef MFEM_USE_MPI
@@ -598,6 +601,19 @@ ParAlgebraicCoarseSpace::~ParAlgebraicCoarseSpace()
 }
 
 #endif
+
+AlgebraicCeedSolver::AlgebraicCeedSolver(BilinearForm &form,
+                                         const Array<int>& ess_tdofs)
+{
+   fespaces = new AlgebraicSpaceHierarchy(*form.FESpace());
+   multigrid = new AlgebraicCeedMultigrid(*fespaces, form, ess_tdofs);
+}
+
+AlgebraicCeedSolver::~AlgebraicCeedSolver()
+{
+   delete fespaces;
+   delete multigrid;
+}
 
 } // namespace mfem
 #endif // MFEM_USE_CEED

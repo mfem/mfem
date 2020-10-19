@@ -116,6 +116,18 @@ private:
    Array<CeedOperator> ceed_operators;
 };
 
+class AlgebraicCeedSolver : public Solver
+{
+private:
+   AlgebraicSpaceHierarchy * fespaces;
+   AlgebraicCeedMultigrid * multigrid;
+public:
+   AlgebraicCeedSolver(BilinearForm &form, const Array<int>& ess_tdofs);
+   ~AlgebraicCeedSolver();
+   void Mult(const Vector& x, Vector& y) const { multigrid->Mult(x, y); }
+   void SetOperator(const Operator& op) { multigrid->SetOperator(op); }
+};
+
 } // namespace mfem
 
 #endif // MFEM_USE_CEED
