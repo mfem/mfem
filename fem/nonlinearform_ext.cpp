@@ -105,52 +105,14 @@ void PANonlinearFormExtension::Gradient::Mult(const Vector &x, Vector &y) const
 
 void PANonlinearFormExtension::Gradient::AssembleDiagonal(Vector &diag) const
 {
-   MFEM_ASSERT(diag.Size() == fes.GetTrueVSize(),
+   MFEM_ASSERT(diag.Size() == fes.GetVSize(),
                "Vector for holding diagonal has wrong size!");
-   const Operator *P = fes.GetProlongationMatrix();
-
    ye = 0.0;
-
-   // For an AMR mesh, a convergent diagonal is assembled with |P^T| d_e,
-   // where |P^T| has the entry-wise absolute values of the conforming
-   // prolongation transpose operator.
-   if (P && !fes.Conforming())
+   for (int i = 0; i < dnfi.Size(); ++i)
    {
-      Vector local_diag(P->Height());
-      for (int i = 0; i < dnfi.Size(); ++i)
-      {
-         dnfi[i]->AssembleGradDiagonalPA(ge, ye);
-      }
-      elemR->MultTranspose(ye, local_diag);
-      const SparseMatrix *SP = dynamic_cast<const SparseMatrix*>(P);
-#ifdef MFEM_USE_MPI
-      const HypreParMatrix *HP = dynamic_cast<const HypreParMatrix*>(P);
-#endif
-      if (SP) { SP->AbsMultTranspose(local_diag, diag); }
-#ifdef MFEM_USE_MPI
-      else if (HP) { HP->AbsMultTranspose(1.0, local_diag, 0.0, diag); }
-#endif
-      else { MFEM_ABORT("Prolongation matrix has unexpected type."); }
-      return;
+      dnfi[i]->AssembleGradDiagonalPA(ge, ye);
    }
-   if (!IsIdentityProlongation(P))
-   {
-      Vector local_diag(P->Height());
-      for (int i = 0; i < dnfi.Size(); ++i)
-      {
-         dnfi[i]->AssembleGradDiagonalPA(ge, ye);
-      }
-      elemR->MultTranspose(ye, local_diag);
-      P->MultTranspose(local_diag, diag);
-   }
-   else
-   {
-      for (int i = 0; i < dnfi.Size(); ++i)
-      {
-         dnfi[i]->AssembleGradDiagonalPA(ge, ye);
-      }
-      elemR->MultTranspose(ye, diag);
-   }
+   elemR->MultTranspose(ye, diag);
 }
 
 } // namespace mfem
