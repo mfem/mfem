@@ -138,10 +138,20 @@ endif()
 if (MFEM_USE_CEED)
    list(APPEND SRCS
      libceed/ceed.cpp
+     libceed/ceed-assemble.cpp
+     libceed/ceedsolvers-atpmg.cpp
+     libceed/ceedsolvers-interpolation.cpp
+     libceed/ceedsolvers-utility.cpp
+     libceed/ceed-wrappers.cpp
      libceed/diffusion.cpp
      libceed/mass.cpp)
    list(APPEND HDRS
      libceed/ceed.hpp
+     libceed/ceed-assemble.hpp
+     libceed/ceedsolvers-atpmg.hpp
+     libceed/ceedsolvers-interpolation.hpp
+     libceed/ceedsolvers-utility.hpp
+     libceed/ceed-wrappers.hpp
      libceed/diffusion.hpp
      libceed/mass.hpp)
 endif()
