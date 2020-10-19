@@ -1153,21 +1153,10 @@ namespace mfem {
 
 		comm.barrier();
 
-		if(comm.is_root()) {
-			mfem::out <<  "P in R^(" << master_->Dof_TrueDof_Matrix()->Height();
-			mfem::out <<  " x "		<< master_->Dof_TrueDof_Matrix()->Width() << ")\n";
-
-			mfem::out <<  "Q in R^(" << slave_->Dof_TrueDof_Matrix()->Height();
-			mfem::out <<  " x "		<< slave_->Dof_TrueDof_Matrix()->Width() << ")\n";
-		}
-
-		comm.barrier();
-
 
 		if(!comm.is_root()) {
-			mfem::out <<  "P in R^(" << master_->Dof_TrueDof_Matrix()->Height();
-			mfem::out <<  " x "		<< master_->Dof_TrueDof_Matrix()->Width() << ")\n";
-
+			mfem::out << "P in R^(" << master_->Dof_TrueDof_Matrix()->Height();
+			mfem::out << " x "		<< master_->Dof_TrueDof_Matrix()->Width() << ")\n";
 			mfem::out <<  "Q in R^(" << slave_->Dof_TrueDof_Matrix()->Height();
 			mfem::out <<  " x "		<< slave_->Dof_TrueDof_Matrix()->Width() << ")\n";
 		}
