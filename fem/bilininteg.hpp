@@ -95,7 +95,7 @@ public:
    //                         const FiniteElementSpace &test_fes,
    //                         Vector &emat);
 
-   /// Method defining fully matrix-free assembly.
+   /// Method defining matrix-free assembly.
    /** The result of fully matrix-free assembly is stored internally so that it
        can be used later in the methods AddMultMF() and AddMultTransposeMF(). */
    virtual void AssembleMF(const FiniteElementSpace &fes);

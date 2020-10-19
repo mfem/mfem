@@ -250,7 +250,7 @@ Miscellaneous
   as DEBUG is sometimes used as a macro.
 
 - Change the IntegrationRule inside VectorDiffusionIntegrator to use the same
-  as DiffusionIntegrator.
+  quadrature as DiffusionIntegrator.
 
 
 Version 4.1, released on March 10, 2020
