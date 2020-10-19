@@ -160,9 +160,10 @@ public:
    ~HypreParVector();
 
 #ifdef MFEM_USE_SUNDIALS
-   /// Return a new wrapper SUNDIALS N_Vector of type SUNDIALS_NVEC_PARALLEL.
-   /** The returned N_Vector must be destroyed by the caller. */
-   virtual N_Vector ToNVector();
+   /// (DEPRECATED) Return a new wrapper SUNDIALS N_Vector of type SUNDIALS_NVEC_PARALLEL.
+   /** @deprecated The returned N_Vector must be destroyed by the caller. */
+   MFEM_DEPRECATED virtual N_Vector ToNVector();
+   using Vector::ToNVector;
 #endif
 };
 
@@ -1016,10 +1017,10 @@ public:
 /**
 @brief Wrapper for Hypre's native parallel ILU preconditioner.
 
-The default ILU factorization type is ILU(k).  If you need to change this,
-or any other option, you can use the HYPRE_Solver method to cast the object for
-use with Hypre's native functions.  For example, if want to use natural
-ordering rather than RCM reordering, you can use the following approach:
+The default ILU factorization type is ILU(k).  If you need to change this, or
+any other option, you can use the HYPRE_Solver method to cast the object for use
+with Hypre's native functions. For example, if want to use natural ordering
+rather than RCM reordering, you can use the following approach:
 
 @code
 mfem::HypreILU ilu();

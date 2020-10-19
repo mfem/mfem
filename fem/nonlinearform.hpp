@@ -199,24 +199,41 @@ protected:
        GridFunction-like block-vector data (e.g. in parallel). */
    mutable BlockVector xs, ys;
 
-   mutable Array2D<SparseMatrix*> Grads;
+   mutable Array2D<SparseMatrix*> Grads, cGrads;
    mutable BlockOperator *BlockGrad;
 
    // A list of the offsets
    Array<int> block_offsets;
    Array<int> block_trueOffsets;
 
-   // Essential vdofs: one list of vdofs for each space in 'fes'
-   Array<Array<int> *> ess_vdofs;
+   // Array of Arrays of tdofs for each space in 'fes'
+   Array<Array<int> *> ess_tdofs;
+
+   /// Array of pointers to the prolongation matrix of fes, may be NULL
+   Array<const Operator *> P;
+
+   /// Array of results of dynamic-casting P to SparseMatrix pointer
+   Array<const SparseMatrix *> cP;
+
+   /// Indicator if the Operator is part of a parallel run
+   bool is_serial = true;
+
+   /// Indicator if the Operator needs prolongation on assembly
+   bool needs_prolongation = false;
+
+   mutable BlockVector aux1, aux2;
+
+   const BlockVector &Prolongate(const BlockVector &bx) const;
 
    /// Specialized version of GetEnergy() for BlockVectors
    double GetEnergyBlocked(const BlockVector &bx) const;
 
    /// Specialized version of Mult() for BlockVector%s
+   /// Block L-Vector to Block L-Vector
    void MultBlocked(const BlockVector &bx, BlockVector &by) const;
 
    /// Specialized version of GetGradient() for BlockVector
-   Operator &GetGradientBlocked(const BlockVector &bx) const;
+   void ComputeGradientBlocked(const BlockVector &bx) const;
 
 public:
    /// Construct an empty BlockNonlinearForm. Initialize with SetSpaces().
@@ -261,8 +278,12 @@ public:
 
    virtual double GetEnergy(const Vector &x) const;
 
+   /// Method is only called in serial, the parallel version calls MultBlocked
+   /// directly.
    virtual void Mult(const Vector &x, Vector &y) const;
 
+   /// Method is only called in serial, the parallel version calls
+   /// GetGradientBlocked directly.
    virtual Operator &GetGradient(const Vector &x) const;
 
    /// Destructor.
