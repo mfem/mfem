@@ -132,9 +132,10 @@ OperatorJacobiSmoother::OperatorJacobiSmoother(const BilinearForm &a,
    Setup(diag);
 }
 
-OperatorJacobiSmoother::OperatorJacobiSmoother(const Array<int> &ess_tdofs,
+OperatorJacobiSmoother::OperatorJacobiSmoother(int size,
+                                               const Array<int> &ess_tdofs,
                                                const double dmpng)
-   : Solver(), N(0), dinv(N), damping(dmpng),
+   : Solver(size), N(size), dinv(N), damping(dmpng),
      ess_tdof_list(ess_tdofs), residual(N) { }
 
 OperatorJacobiSmoother::OperatorJacobiSmoother(const Vector &d,
@@ -154,15 +155,14 @@ OperatorJacobiSmoother::OperatorJacobiSmoother(const Vector &d,
 
 void OperatorJacobiSmoother::SetOperator(const Operator &op)
 {
-   height = op.Height();
-   width = op.Width();
    oper = &op;
-   N = oper->Height();
-   dinv.SetSize(N);
-   residual.SetSize(N);
 
    Vector diag(N);
    // Assumes that the result is on the tdofs, e.g., oper is a RAP Operator.
+   // Note that there are operators that work on the ldofs, but their
+   // AssembleDiagonal() is defined w.r.t. the tdofs (e.g. BilinearForm). In
+   // other words, we may have N != op.Size(). This is why the size N is set in
+   // the constructor.
    oper->AssembleDiagonal(diag);
    Setup(diag);
 }

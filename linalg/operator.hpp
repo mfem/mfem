@@ -771,6 +771,10 @@ public:
       // Assumes that A works on ldofs.
       A.AssembleDiagonal(APx);
       Rt.MultTranspose(APx, diag);
+
+      // TODO: For an AMR mesh, a convergent diagonal is assembled with
+      // |P^T| d_e, where |P^T| has the entry-wise absolute values of the
+      // conforming prolongation transpose operator.
    }
 
    /// Application of the transpose.

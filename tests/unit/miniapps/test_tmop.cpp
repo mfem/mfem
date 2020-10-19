@@ -398,11 +398,10 @@ int tmop(int myid, Req &res, int argc, char *argv[])
       {
          if (pa)
          {
-            nlf.SetupGradient();
             MFEM_VERIFY(lin_solver != 4, "PA l1-Jacobi is not implemented");
             OperatorJacobiSmoother *sm =
-               new OperatorJacobiSmoother(nlf.GetEssentialTrueDofs());
-            sm->SetOperator(nlf.GetGradient(x.GetTrueVector()));
+               new OperatorJacobiSmoother(nlf.FESpace()->GetTrueVSize(),
+                                          nlf.GetEssentialTrueDofs());
             S_prec = sm;
          }
 #if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
