@@ -62,7 +62,7 @@ int main(int argc, char *argv[])
    else
    {
       if (rank == 0)
-         std::cerr << "WARNING: Source mesh file not found: "
+         mfem::err << "WARNING: Source mesh file not found: "
                    << source_mesh_file << "\n"
                    << "Using default 2D triangle mesh.";
       src_mesh = make_shared<Mesh>(4,4,Element::TRIANGLE);
@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
    else
    {
       if (rank == 0)
-         std::cerr << "WARNING: Destination mesh file not found: "
+         mfem::err << "WARNING: Destination mesh file not found: "
                    << destination_mesh_file << "\n"
                    << "Using default 2D quad mesh.";
       dest_mesh = make_shared<Mesh>(4,4,Element::QUADRILATERAL);

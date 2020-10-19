@@ -32,7 +32,7 @@ endif
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
-.PHONY: all clean clean-build clean-exec
+.PHONY: all clean clean-build
 
 # Remove built-in rule
 %: %.cpp
@@ -71,11 +71,9 @@ ex1-test-par: ex1
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
 
-clean: clean-build clean-exec
+clean: clean-build
 
 clean-build:
 	rm -f *.o *~ $(SEQ_EXAMPLES) $(PAR_EXAMPLES)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
-clean-exec:
-	@rm -f refined.mesh sol.gf mesh.* sol.*
