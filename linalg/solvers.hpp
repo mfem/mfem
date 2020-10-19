@@ -424,9 +424,9 @@ protected:
    // Forcing term (linear residual rtol) from the previous iterate
    mutable double eta_last = 0.0;
    // Eisenstat-Walker factor gamma
-   double gamma = 1.0;
+   double gamma;
    // Eisenstat-Walker factor alpha
-   double alpha = 0.5 * (1.0 + sqrt(5.0));
+   double alpha;
    // Safeguard threshold
    double sg_threshold = 0.1;
 
@@ -457,17 +457,32 @@ public:
        computations that need knowledge of the newest Newton state. */
    virtual void ProcessNewState(const Vector &x) const { }
 
+   /** @brief Enable adaptive linear solver relative tolerance algorithm. */
+   /** Compute a relative tolerance for the Krylov method after each nonlinear
+    iteration, based on the algorithm presented in [1].
+
+    The maximum linear solver relative tolerance @a rtol_max should be < 1.
+    For @a version 1 the parameters @a alpha @and @a gamma are ignore. For @a
+    version 2 @a alpha has to be between 0 and 1 and @a alpha between 1 and 2.
+
+    [1] Eisenstat, Stanley C., and Homer F. Walker. "Choosing the forcing terms
+    in an inexact Newton method."
+    */
    void SetAdaptiveLinRtol(const int version = 2,
                            const double rtol0 = 0.5,
-                           const double rtol_max = 0.9);
+                           const double rtol_max = 0.9,
+                           const double alpha = 0.5 * (1.0 + sqrt(5.0)),
+                           const double gamma = 1.0);
 
-   void AdaptiveLinRtolPreSolve(Solver *solver,
-                                const Vector &x,
+   /** @brief Method for the adaptive linear solver rtol invoked before the
+       linear solve. */
+   void AdaptiveLinRtolPreSolve(const Vector &x,
                                 const int it,
                                 const double fnorm) const;
 
-   void AdaptiveLinRtolPostSolve(Solver *solver,
-                                 const Vector &x,
+   /** @brief Method for the adaptive linear solver rtol invoked after the
+       linear solve. */
+   void AdaptiveLinRtolPostSolve(const Vector &x,
                                  const Vector &b,
                                  const int it,
                                  const double fnorm) const;
