@@ -43,6 +43,9 @@ Meshing improvements
   the "init" constructor. The usage is demonstrated in a new meshing miniapp
   (polar-nc) which generates meshes that are non-conforming from the start.
 
+- Added support for parallel non-conforming, non-matching, variational, volumetric
+  mesh information transfer using ParMoonolith.
+
 Performance improvements
 ------------------------
 - Added support for explicit vectorization in the high-performance templated

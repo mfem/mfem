@@ -805,6 +805,7 @@ static bool Assemble(moonolith::Communicator &comm,
 
    long maxNElements = settings.max_elements;
    long maxDepth = settings.max_depth;
+   static const bool verbose = false;
 
 
    const int n_elements_master = master->GetNE();
@@ -945,16 +946,20 @@ static bool Assemble(moonolith::Communicator &comm,
    moonolith::search_and_compute(comm, tree, predicate, read, write, fun,
                                  settings);
 
-   long n_total_candidates = n_intersections + n_false_positives;
 
-   long n_collection[3] = {n_intersections, n_total_candidates, n_false_positives};
-   comm.all_reduce(n_collection, 3, moonolith::MPISum());
-
-   if (comm.is_root())
+   if (verbose)
    {
-      mfem::out <<  "n_intersections: "         << n_collection[0]
-                << ", n_total_candidates: "   << n_collection[1]
-                << ", n_false_positives: "    << n_collection[2] << std::endl;
+      long n_total_candidates = n_intersections + n_false_positives;
+
+      long n_collection[3] = {n_intersections, n_total_candidates, n_false_positives};
+      comm.all_reduce(n_collection, 3, moonolith::MPISum());
+
+      if (comm.is_root())
+      {
+         mfem::out <<  "n_intersections: "         << n_collection[0]
+                   << ", n_total_candidates: "   << n_collection[1]
+                   << ", n_false_positives: "    << n_collection[2] << std::endl;
+      }
    }
 
    return true;
