@@ -305,6 +305,9 @@ class Mfem(Package):
             xlinker = '-Xlinker='
         cuda_arch = spec.variants['cuda_arch'].value
 
+        sys_type = _get_sys_type(spec)
+        on_toss3 = 'toss_3' in sys_type
+
         # We need to add rpaths explicitly to allow proper export of link flags
         # from within MFEM.
 
@@ -424,6 +427,12 @@ class Mfem(Package):
             options += [
                 'HYPRE_OPT=-I%s' % hypre.prefix.include,
                 'HYPRE_LIB=%s' % ld_flags_from_library_list(all_hypre_libs)]
+
+            if on_toss3:
+                options += [
+                    'MFEM_MPIEXEC=srun',
+                    'MFEM_MPIEXEC_NP=-np']
+
 
         if '+metis' in spec:
             options += [
