@@ -33,7 +33,7 @@ private:
 };
 
 UnconstrainedMFEMCeedOperator::UnconstrainedMFEMCeedOperator(CeedOperator oper)
- : oper_(oper)
+   : oper_(oper)
 {
    int ierr = 0;
    Ceed ceed;
@@ -76,7 +76,8 @@ void UnconstrainedMFEMCeedOperator::Mult(const Vector& x, Vector& y) const
       mem = CEED_MEM_HOST;
    }
 
-   ierr += CeedVectorSetArray(u_, mem, CEED_USE_POINTER, const_cast<CeedScalar*>(x_ptr));
+   ierr += CeedVectorSetArray(u_, mem, CEED_USE_POINTER,
+                              const_cast<CeedScalar*>(x_ptr));
    ierr += CeedVectorSetArray(v_, mem, CEED_USE_POINTER, y_ptr);
 
    ierr += CeedOperatorApply(oper_, u_, v_, CEED_REQUEST_IMMEDIATE);
@@ -91,7 +92,7 @@ MFEMCeedOperator::MFEMCeedOperator(
    CeedOperator oper,
    const Array<int> &ess_tdofs_,
    const Operator *P_)
- : ess_tdofs(ess_tdofs_), P(P_)
+   : ess_tdofs(ess_tdofs_), P(P_)
 {
    unconstrained_op = new UnconstrainedMFEMCeedOperator(oper);
    Operator *rap = unconstrained_op->SetupRAP(P, P);
@@ -101,7 +102,7 @@ MFEMCeedOperator::MFEMCeedOperator(
 }
 
 MFEMCeedOperator::MFEMCeedOperator(CeedOperator oper, const Operator *P_)
- : MFEMCeedOperator(oper, Array<int>(), P_)
+   : MFEMCeedOperator(oper, Array<int>(), P_)
 { }
 
 MFEMCeedOperator::~MFEMCeedOperator()
@@ -131,8 +132,8 @@ const Operator *MFEMCeedOperator::GetProlongation() const
 }
 
 int MFEMCeedInterpolation::Initialize(
-  Ceed ceed, CeedBasis basisctof,
-  CeedElemRestriction erestrictu_coarse, CeedElemRestriction erestrictu_fine)
+   Ceed ceed, CeedBasis basisctof,
+   CeedElemRestriction erestrictu_coarse, CeedElemRestriction erestrictu_fine)
 {
    int ierr = 0;
 
@@ -190,7 +191,8 @@ void MFEMCeedInterpolation::Mult(const mfem::Vector& x, mfem::Vector& y) const
       mem = CEED_MEM_HOST;
    }
 
-   ierr += CeedVectorSetArray(u_, mem, CEED_USE_POINTER, const_cast<CeedScalar*>(x_ptr));
+   ierr += CeedVectorSetArray(u_, mem, CEED_USE_POINTER,
+                              const_cast<CeedScalar*>(x_ptr));
    ierr += CeedVectorSetArray(v_, mem, CEED_USE_POINTER, y_ptr);
 
    ierr += CeedInterpolationInterpolate(ceed_interp_, u_, v_);
@@ -222,7 +224,8 @@ void MFEMCeedInterpolation::MultTranspose(const mfem::Vector& x,
       mem = CEED_MEM_HOST;
    }
 
-   ierr += CeedVectorSetArray(v_, mem, CEED_USE_POINTER, const_cast<CeedScalar*>(x_ptr));
+   ierr += CeedVectorSetArray(v_, mem, CEED_USE_POINTER,
+                              const_cast<CeedScalar*>(x_ptr));
    ierr += CeedVectorSetArray(u_, mem, CEED_USE_POINTER, y_ptr);
 
    ierr += CeedInterpolationRestrict(ceed_interp_, v_, u_);
