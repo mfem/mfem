@@ -16,10 +16,10 @@
  *      Author: villa13
  */
 
-#include <fstream>
-using namespace std;
-
 #include "mfem.hpp"
+#include <fstream>
+
+using namespace std;
 using namespace mfem;
 
 #include "unit_tests.hpp"
