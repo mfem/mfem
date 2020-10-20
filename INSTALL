@@ -19,10 +19,10 @@ requires an MPI C++ compiler, as well as the following external libraries:
   http://glaros.dtc.umn.edu/gkhome/metis/metis/overview
 
 The hypre dependency can be downloaded as a tarball from GitHub or from the
-project webpage https://www.llnl.gov/casc/hypre. For example, the 2.16.0 release
+project webpage https://www.llnl.gov/casc/hypre. For example, the 2.20.0 release
 of hypre is available at
 
-   https://github.com/hypre-space/hypre/archive/v2.16.0.tar.gz
+   https://github.com/hypre-space/hypre/archive/v2.20.0.tar.gz
 
 The METIS dependency can be disabled but that is not generally recommended, see
 the option MFEM_USE_METIS.
@@ -558,11 +558,12 @@ The specific libraries and their options are:
   for CUDA.
   URL: http://computation.llnl.gov/projects/sundials/sundials-software
   Options: SUNDIALS_OPT, SUNDIALS_LIB.
-  Versions: SUNDIALS >= 5.0.0, SUNDIALS >= 5.4.0 for CUDA suppport.
+  Versions: SUNDIALS >= 5.0.0, SUNDIALS >= 5.4.0 for CUDA support.
 
 - Mesquite (optional), used when MFEM_USE_MESQUITE = YES.
   URL: http://trilinos.org/oldsite/packages/mesquite
   Options: MESQUITE_OPT, MESQUITE_LIB.
+  The Mesquite support is deprecated and will be removed in the future.
 
 - SuiteSparse (optional), used when MFEM_USE_SUITESPARSE = YES.
   URL: http://faculty.cse.tamu.edu/davis/suitesparse.html
@@ -648,6 +649,7 @@ The specific libraries and their options are:
 
 - ADIOS2 (optional) used when MFEM_USE_ADIOS2 = YES.
   URL: https://adios2.readthedocs.io/
+  Versions: ADIOS >= 2.5.0.
 
 - PUMI (optional), used when MFEM_USE_PUMI = YES.
   URL: https://scorec.rpi.edu/pumi
@@ -658,6 +660,7 @@ The specific libraries and their options are:
 - HiOp (optional), used when MFEM_USE_HIOP = YES.
   URL: https://github.com/LLNL/hiop
   Options: HIOP_OPT, HIOP_LIB.
+  Versions: HIOP >= 0.1.
 
 - GSLIB (optional), used when MFEM_USE_GSLIB = YES. The gslib library must be
   built prior to the MFEM build, as follows: download gslib-1.0.5, untar it at
