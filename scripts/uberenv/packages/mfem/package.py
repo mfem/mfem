@@ -305,7 +305,7 @@ class Mfem(Package):
             xlinker = '-Xlinker='
         cuda_arch = spec.variants['cuda_arch'].value
 
-        sys_type = _get_sys_type(spec)
+        sys_type = self._get_sys_type(spec)
         on_toss3 = 'toss_3' in sys_type
 
         # We need to add rpaths explicitly to allow proper export of link flags
