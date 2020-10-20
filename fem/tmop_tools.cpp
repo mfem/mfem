@@ -615,6 +615,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
             for (int j = 0; j < ati.Size(); j++)
             {
+               ati[j]->UpdateAfterMeshChange(x_loc);
                ati[j]->ComputeFDh(x_loc, *pfesc);
                UpdateDiscreteTC(*ati[j], x_loc);
             }
@@ -651,6 +652,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
             for (int j = 0; j < ati.Size(); j++)
             {
+               ati[j]->UpdateAfterMeshChange(x_loc);
                ati[j]->ComputeFDh(x_loc, *fesc);
                UpdateDiscreteTC(*ati[j], x_loc);
             }
