@@ -362,6 +362,13 @@ public:
    /// Save the mesh in a parallel mesh format.
    void ParPrint(std::ostream &out) const;
 
+   /** Print the mesh in parallel PVTU format with filename fname. */
+   virtual void PrintVTU(std::string fname,
+                         VTKFormat format=VTKFormat::ASCII,
+                         bool high_order_output=false,
+                         int compression_level=0,
+                         bool bdr=false);
+
    virtual int FindPoints(DenseMatrix& point_mat, Array<int>& elem_ids,
                           Array<IntegrationPoint>& ips, bool warn = true,
                           InverseElementTransformation *inv_trans = NULL);
