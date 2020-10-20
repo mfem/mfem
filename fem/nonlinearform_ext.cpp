@@ -50,9 +50,10 @@ void PANonlinearFormExtension::Assemble()
    for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AssemblePA(fes); }
 }
 
-void PANonlinearFormExtension::AssembleGradient()
+void PANonlinearFormExtension::AssembleGradient(const Vector &x)
 {
-   for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AssembleGradPA(fes); }
+   elemR->Mult(x, xe);
+   for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AssembleGradPA(xe, fes); }
 }
 
 void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const

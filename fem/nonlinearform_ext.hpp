@@ -33,8 +33,9 @@ public:
 
    /// Assemble at the AssemblyLevel of the subclass.
    virtual void Assemble() = 0;
-   /// Assemble gradient data at the AssemblyLevel of the subclass.
-   virtual void AssembleGradient() = 0;
+   /// Assemble gradient data at the AssemblyLevel of the subclass, for the
+   /// state @a x, which is assumed to be a ldof Vector.
+   virtual void AssembleGradient(const Vector &x) = 0;
 
    /// Assumes that @a x is a ldof Vector.
    virtual Operator &GetGradient(const Vector &x) const = 0;
@@ -80,7 +81,7 @@ public:
    PANonlinearFormExtension(NonlinearForm *nlf);
 
    void Assemble();
-   void AssembleGradient();
+   void AssembleGradient(const Vector &x);
 
    void Mult(const Vector &x, Vector &y) const;
    Operator &GetGradient(const Vector &x) const;
