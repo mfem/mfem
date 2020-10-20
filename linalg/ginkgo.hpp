@@ -735,6 +735,8 @@ public:
                            gko::Array<int>::view(exec, a.Height() + 1,
                                                  a.ReadWriteI(on_device)));
 
+      gko_sparse->sort_by_column_index();
+
       if (storage_opt == "auto")
       {
          gko_precond_factory_ = gko::preconditioner::Jacobi<double, int>::build()
@@ -787,6 +789,8 @@ public:
                            gko::Array<int>::view(exec, a.Height() + 1,
                                                  a.ReadWriteI(on_device)));
 
+
+      gko_sparse->sort_by_column_index();
 
       if (storage_opt == "auto")
       {
@@ -918,6 +922,148 @@ public:
                                                                 .with_iterations(par_ilu_its)
                                                                 .on(exec));
 
+      if (trisolve_type == "isai")
+      {
+
+         using l_solver_type = gko::preconditioner::LowerIsai<>;
+         using u_solver_type = gko::preconditioner::UpperIsai<>;
+
+         std::shared_ptr<l_solver_type::Factory> l_solver_factory = std::move(
+                                                                       l_solver_type::build()
+                                                                       .with_sparsity_power(sparsity_power)
+                                                                       .on(exec));
+         std::shared_ptr<u_solver_type::Factory> u_solver_factory = std::move(
+                                                                       u_solver_type::build()
+                                                                       .with_sparsity_power(sparsity_power)
+                                                                       .on(exec));
+
+         gko_precond_factory_ = gko::preconditioner::Ilu<l_solver_type,
+         u_solver_type>::build()
+         .with_factorization_factory(fact_factory)
+         .with_l_solver_factory(l_solver_factory)
+         .with_u_solver_factory(u_solver_factory)
+         .on(exec);
+      }
+      else
+      {
+
+         gko_precond_factory_ = gko::preconditioner::Ilu<>::build()
+                                .with_factorization_factory(fact_factory)
+                                .on(exec);
+      }
+
+      gko_precond_ = gko_precond_factory_.get()->generate(
+                        gko::give(gko_sparse));
+   }
+};
+
+class GinkgoCuIluPreconditioner : public GinkgoPreconditionerBase
+{
+public:
+   GinkgoCuIluPreconditioner(std::shared_ptr<const gko::Executor> exec,
+                             SparseMatrix &a, const char *trisolve_type = "exact",
+                             int sparsity_power=1,
+                             bool iter_mode=false)
+      : GinkgoPreconditionerBase(exec, a, iter_mode)
+   {
+
+      bool on_device = false;
+      if (exec->get_master() != exec)
+      {
+         on_device = true;
+      }
+
+      using mtx = gko::matrix::Csr<double, int>;
+      const int nnz =  a.GetMemoryData().Capacity();
+      auto gko_sparse = mtx::create(
+                           exec, gko::dim<2>(a.Height(), a.Width()),
+                           gko::Array<double>::view(exec,
+                                                    nnz,
+                                                    a.ReadWriteData(on_device)),
+                           gko::Array<int>::view(exec,
+                                                 nnz,
+                                                 a.ReadWriteJ(on_device)),
+                           gko::Array<int>::view(exec, a.Height() + 1,
+                                                 a.ReadWriteI(on_device)));
+
+      // TEST
+      gko_sparse->sort_by_column_index();
+
+      using ilu_fact_type = gko::factorization::Ilu<double, int>;
+      std::shared_ptr<ilu_fact_type::Factory> fact_factory = std::move(
+                                                                ilu_fact_type::build()
+                                                                .on(exec));
+
+
+      if (trisolve_type == "isai")
+      {
+
+         using l_solver_type = gko::preconditioner::LowerIsai<>;
+         using u_solver_type = gko::preconditioner::UpperIsai<>;
+
+         std::shared_ptr<l_solver_type::Factory> l_solver_factory = std::move(
+                                                                       l_solver_type::build()
+                                                                       .with_sparsity_power(sparsity_power)
+                                                                       .on(exec));
+         std::shared_ptr<u_solver_type::Factory> u_solver_factory = std::move(
+                                                                       u_solver_type::build()
+                                                                       .with_sparsity_power(sparsity_power)
+                                                                       .on(exec));
+
+         gko_precond_factory_ = gko::preconditioner::Ilu<l_solver_type,
+         u_solver_type>::build()
+         .with_factorization_factory(fact_factory)
+         .with_l_solver_factory(l_solver_factory)
+         .with_u_solver_factory(u_solver_factory)
+         .on(exec);
+
+      }
+      else
+      {
+
+         gko_precond_factory_ = gko::preconditioner::Ilu<>::build()
+                                .with_factorization_factory(fact_factory)
+                                .on(exec);
+      }
+
+      gko_precond_ = gko_precond_factory_.get()->generate(
+                        gko::give(gko_sparse));
+   }
+
+   GinkgoCuIluPreconditioner(std::shared_ptr<const gko::Executor> exec,
+                             SparseMatrix &a, Array<int> &inv_permutation_indices,
+                             const char *trisolve_type = "exact",
+                             int sparsity_power=1,
+                             bool iter_mode=false)
+      : GinkgoPreconditionerBase(exec, a, inv_permutation_indices, iter_mode)
+   {
+
+      bool on_device = false;
+      if (exec->get_master() != exec)
+      {
+         on_device = true;
+      }
+
+      using mtx = gko::matrix::Csr<double, int>;
+      const int nnz =  a.GetMemoryData().Capacity();
+      auto gko_sparse = mtx::create(
+                           exec, gko::dim<2>(a.Height(), a.Width()),
+                           gko::Array<double>::view(exec,
+                                                    nnz,
+                                                    a.ReadWriteData(on_device)),
+                           gko::Array<int>::view(exec,
+                                                 nnz,
+                                                 a.ReadWriteJ(on_device)),
+                           gko::Array<int>::view(exec, a.Height() + 1,
+                                                 a.ReadWriteI(on_device)));
+
+      // TEST
+      gko_sparse->sort_by_column_index();
+
+      using ilu_fact_type = gko::factorization::Ilu<double, int>;
+      std::shared_ptr<ilu_fact_type::Factory> fact_factory = std::move(
+                                                                ilu_fact_type::build()
+                                                                .on(exec));
       if (trisolve_type == "isai")
       {
 

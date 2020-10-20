@@ -115,7 +115,6 @@ int main(int argc, char *argv[])
    double pc_acc = 1.e-1;
    int pc_max_bs = 32;
    bool permute = false;
-   bool skip_sort = false;
    bool output_sol = false;
    bool output_pc = false;
    int isai_sparsity_power = 1;
@@ -151,8 +150,6 @@ int main(int argc, char *argv[])
                   "Maximum block size for Ginkgo BlockJacobi.");
    args.AddOption(&permute, "-per", "--permutation", "-no-per",
                   "--no-permutation", "Enable preconditioner permutation.");
-   args.AddOption(&skip_sort, "-skip-sort", "--skip-sort", "-sort",
-                  "--do-sort", "Skip matrix sorting for ISAI creation.");
    args.AddOption(&output_sol, "-out", "--output-solution-and-mesh", "-no-out",
                   "--no-solution-and-mesh-output",
                   "Output mesh and solution for inspection.");
@@ -184,7 +181,7 @@ int main(int argc, char *argv[])
       mfem_error("Invalid coefficient type specified");
    }
 
-   enum PCType { NONE, GKO_BLOCK_JACOBI, GKO_ILU, GKO_ILU_ISAI, MFEM_GS, MFEM_UMFPACK };
+   enum PCType { NONE, GKO_BLOCK_JACOBI, GKO_ILU, GKO_ILU_ISAI, GKO_CUILU, GKO_CUILU_ISAI, MFEM_GS, MFEM_UMFPACK };
    PCType pc_choice;
    bool pc = true;
    const char *trisolve_type = "exact"; //only used for ILU
@@ -193,6 +190,12 @@ int main(int argc, char *argv[])
    else if (!strcmp(pc_type, "gko:ilu-isai"))
    {
       pc_choice = GKO_ILU_ISAI;
+      trisolve_type = "isai";
+   }
+   else if (!strcmp(pc_type, "gko:cuilu")) { pc_choice = GKO_CUILU; }
+   else if (!strcmp(pc_type, "gko:cuilu-isai"))
+   {
+      pc_choice = GKO_CUILU_ISAI;
       trisolve_type = "isai";
    }
    else if (!strcmp(pc_type, "mfem:gs")) { pc_choice = MFEM_GS; }
@@ -549,7 +552,7 @@ int main(int argc, char *argv[])
             tic_toc.Start();
 
             GinkgoWrappers::GinkgoIluPreconditioner M(executor, *A_pc, *inv_reordering,
-                                                      trisolve_type, isai_sparsity_power, skip_sort);
+                                                      trisolve_type, isai_sparsity_power, par_ilu_its);
 
             tic_toc.Stop();
             cout << "Real time creating Ginkgo Ilu preconditioner: " <<
@@ -568,10 +571,54 @@ int main(int argc, char *argv[])
             tic_toc.Start();
 
             GinkgoWrappers::GinkgoIluPreconditioner M(executor, *A_pc, trisolve_type,
-                                                      isai_sparsity_power, skip_sort);
+                                                      isai_sparsity_power, par_ilu_its);
 
             tic_toc.Stop();
             cout << "Real time creating Ginkgo Ilu preconditioner: " <<
+                 tic_toc.RealTime() << endl;
+
+            // Use preconditioned CG
+            total_its = pcg_solve(*A, M, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
+
+            cout << "Real time in PCG: " << it_time << endl;
+
+         }
+      }
+      else if (pc_choice == GKO_CUILU || pc_choice == GKO_CUILU_ISAI)
+      {
+
+         // Create Ginkgo ILU preconditioner using ILU from cuSPARSE
+
+         if (permute)
+         {
+
+            tic_toc.Clear();
+            tic_toc.Start();
+
+            GinkgoWrappers::GinkgoCuIluPreconditioner M(executor, *A_pc, *inv_reordering,
+                                                        trisolve_type, isai_sparsity_power);
+
+            tic_toc.Stop();
+            cout << "Real time creating Ginkgo CuIlu preconditioner: " <<
+                 tic_toc.RealTime() << endl;
+
+            // Use preconditioned CG
+            total_its = pcg_solve(*A, M, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
+
+            cout << "Real time in PCG: " << it_time << endl;
+
+         }
+         else
+         {
+
+            tic_toc.Clear();
+            tic_toc.Start();
+
+            GinkgoWrappers::GinkgoCuIluPreconditioner M(executor, *A_pc, trisolve_type,
+                                                      isai_sparsity_power);
+
+            tic_toc.Stop();
+            cout << "Real time creating Ginkgo CuIlu preconditioner: " <<
                  tic_toc.RealTime() << endl;
 
             // Use preconditioned CG
