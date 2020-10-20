@@ -5421,12 +5421,12 @@ void Mesh::GenerateNCFaceInfo()
       (Dim == 2) ? ncmesh->GetEdgeList() : ncmesh->GetFaceList();
 
    nc_faces_info.SetSize(0);
-   nc_faces_info.Reserve(list.masters.size() + list.slaves.size());
+   nc_faces_info.Reserve(list.masters.Size() + list.slaves.Size());
 
    int nfaces = GetNumFaces();
 
    // add records for master faces
-   for (unsigned i = 0; i < list.masters.size(); i++)
+   for (int i = 0; i < list.masters.Size(); i++)
    {
       const NCMesh::Master &master = list.masters[i];
       if (master.index >= nfaces) { continue; }
@@ -5437,7 +5437,7 @@ void Mesh::GenerateNCFaceInfo()
    }
 
    // add records for slave faces
-   for (unsigned i = 0; i < list.slaves.size(); i++)
+   for (int i = 0; i < list.slaves.Size(); i++)
    {
       const NCMesh::Slave &slave = list.slaves[i];
 
@@ -5453,14 +5453,16 @@ void Mesh::GenerateNCFaceInfo()
       NCFaceInfo &master_nc = nc_faces_info[master_fi.NCFace];
 
       slave_fi.NCFace = nc_faces_info.Size();
-      nc_faces_info.Append(NCFaceInfo(true, slave.master, &slave.point_matrix));
-
       slave_fi.Elem2No = master_fi.Elem1No;
       slave_fi.Elem2Inf = 64 * master_nc.MasterFace; // get lf no. stored above
       // NOTE: In 3D, the orientation part of Elem2Inf is encoded in the point
       //       matrix. In 2D, the point matrix has the orientation of the parent
       //       edge, so its columns need to be flipped when applying it, see
       //       ApplyLocalSlaveTransformation.
+
+      nc_faces_info.Append(
+         NCFaceInfo(true, slave.master,
+                    list.point_matrices[slave.geom][slave.matrix]));
    }
 }
 
