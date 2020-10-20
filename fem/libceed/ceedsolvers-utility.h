@@ -9,10 +9,6 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-/*
-  Some Ceed functions I wrote that I use more than once
-  and find useful.
-*/
 #ifndef __CEEDUTILITY_H
 #define __CEEDUTILITY_H
 

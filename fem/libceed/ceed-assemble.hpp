@@ -22,6 +22,7 @@
 namespace mfem
 {
 
+/// Assembles (single processor) a CeedOperator as an mfem::SparseMatrix
 int CeedOperatorFullAssemble(CeedOperator op, SparseMatrix **mat);
 
 } // namespace mfem
