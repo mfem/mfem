@@ -126,50 +126,127 @@ void SimpleSaddle::Penalty(double pen, Vector& serr, Vector& lerr)
 // TODO: test actual parallel problem, ...
 TEST_CASE("ConstrainedSolver", "[Parallel], [ConstrainedSolver]")
 {
-   Vector serr(2);
-   Vector lerr(1);
+   int comm_size;
+   MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
 
-   SimpleSaddle problem(4.0, -2.0);
-
-   problem.Schur(serr, lerr);
-   REQUIRE(serr(0) == MFEM_Approx(0.0));
-   REQUIRE(serr(1) == MFEM_Approx(0.0));
-   REQUIRE(lerr(0) == MFEM_Approx(0.0));
-
-   problem.Elimination(serr, lerr);
-   REQUIRE(serr(0) == MFEM_Approx(0.0));
-   REQUIRE(serr(1) == MFEM_Approx(0.0));
-   REQUIRE(lerr(0) == MFEM_Approx(0.0));
-
-   for (auto pen : {1.e+3, 1.e+4, 1.e+6})
+   if (comm_size == 1)
    {
-      problem.Penalty(pen, serr, lerr);
-      REQUIRE(std::abs(serr(0)) < pen);
-      REQUIRE(std::abs(serr(1)) < pen);
-      REQUIRE(std::abs(lerr(0)) < pen);
-   }
+      Vector serr(2);
+      Vector lerr(1);
 
-   Vector dualrhs(1);
-   dualrhs(0) = 1.0;
-   problem.SetDualRHS(dualrhs);
+      SimpleSaddle problem(4.0, -2.0);
 
-   problem.Schur(serr, lerr);
-   REQUIRE(serr(0) == MFEM_Approx(0.0));
-   REQUIRE(serr(1) == MFEM_Approx(0.0));
-   REQUIRE(lerr(0) == MFEM_Approx(0.0));
+      problem.Schur(serr, lerr);
+      REQUIRE(serr(0) == MFEM_Approx(0.0));
+      REQUIRE(serr(1) == MFEM_Approx(0.0));
+      REQUIRE(lerr(0) == MFEM_Approx(0.0));
 
-   problem.Elimination(serr, lerr);
-   REQUIRE(serr(0) == MFEM_Approx(0.0));
-   REQUIRE(serr(1) == MFEM_Approx(0.0));
-   REQUIRE(lerr(0) == MFEM_Approx(0.0));
+      problem.Elimination(serr, lerr);
+      REQUIRE(serr(0) == MFEM_Approx(0.0));
+      REQUIRE(serr(1) == MFEM_Approx(0.0));
+      REQUIRE(lerr(0) == MFEM_Approx(0.0));
 
-   for (auto pen : {1.e+3, 1.e+4, 1.e+6})
-   {
-      problem.Penalty(pen, serr, lerr);
-      REQUIRE(std::abs(serr(0)) < pen);
-      REQUIRE(std::abs(serr(1)) < pen);
-      REQUIRE(std::abs(lerr(0)) < pen);
+      for (auto pen : {1.e+3, 1.e+4, 1.e+6})
+      {
+         problem.Penalty(pen, serr, lerr);
+         REQUIRE(std::abs(serr(0)) < pen);
+         REQUIRE(std::abs(serr(1)) < pen);
+         REQUIRE(std::abs(lerr(0)) < pen);
+      }
+
+      Vector dualrhs(1);
+      dualrhs(0) = 1.0;
+      problem.SetDualRHS(dualrhs);
+
+      problem.Schur(serr, lerr);
+      REQUIRE(serr(0) == MFEM_Approx(0.0));
+      REQUIRE(serr(1) == MFEM_Approx(0.0));
+      REQUIRE(lerr(0) == MFEM_Approx(0.0));
+
+      problem.Elimination(serr, lerr);
+      REQUIRE(serr(0) == MFEM_Approx(0.0));
+      REQUIRE(serr(1) == MFEM_Approx(0.0));
+      REQUIRE(lerr(0) == MFEM_Approx(0.0));
+
+      for (auto pen : {1.e+3, 1.e+4, 1.e+6})
+      {
+         problem.Penalty(pen, serr, lerr);
+         REQUIRE(std::abs(serr(0)) < pen);
+         REQUIRE(std::abs(serr(1)) < pen);
+         REQUIRE(std::abs(lerr(0)) < pen);
+      }
    }
 }
+
+
+class ParallelTestProblem
+{
+public:
+   ParallelTestProblem();
+   ~ParallelTestProblem();
+
+private:
+   HypreParMatrix * amat;
+   HypreParMatrix * bmat;
+};
+
+
+ParallelTestProblem::ParallelTestProblem()
+{
+   int rank;
+   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+   /// probably need localI to stick around...
+   SparseMatrix localI(2);
+   localI.Add(0, 0, 1.0);
+   localI.Add(1, 1, 1.0);
+   localI.Finalize();
+
+   int row_starts_a[2] = {2 * rank, 2 * (rank + 1)};
+   amat = new HypreParMatrix(MPI_COMM_WORLD, 8, row_starts_a, &localI);
+   amat->CopyRowStarts();
+   
+   amat->Print("amat.hyprematrix");
+
+   SparseMatrix Blocal(1, 8);
+   if (rank == 3)
+   {
+      Blocal.Add(0, 0, 1.0);
+      Blocal.Add(0, 7, 1.0);
+   }
+   else
+   {
+      Blocal.Add(0, 2*rank + 1, 1.0);
+      Blocal.Add(0, 2*rank + 2, 1.0);
+   }
+   Blocal.Finalize();
+   int row_starts_c[2] = { rank, rank + 1 };
+   int col_starts[2] = { 2*rank, 2 * (rank + 1) };
+   bmat = new HypreParMatrix(MPI_COMM_WORLD, 1, 4, 8, Blocal.GetI(),
+                             Blocal.GetJ(), Blocal.GetData(), row_starts_c,
+                             col_starts);
+
+   bmat->Print("bmat.hyprematrix");
+}
+
+
+ParallelTestProblem::~ParallelTestProblem()
+{
+   delete amat;
+   delete bmat;
+}
+
+/// *actual* parallel constrained solver
+TEST_CASE("ParallelConstrainedSolver", "[Parallel], [ConstrainedSolver]")
+{
+   int comm_size;
+   MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
+
+   if (comm_size == 4)
+   {
+      ParallelTestProblem problem;
+   }
+}
+
 
 #endif
