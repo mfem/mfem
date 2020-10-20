@@ -196,7 +196,7 @@ int main(int argc, char *argv[])
    ParBilinearForm a(&fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a.AddDomainIntegrator(new MassIntegrator(one));
-   ConstantCoefficient t_coeff(-t_param);
+   ConstantCoefficient t_coeff(t_param);
    a.AddDomainIntegrator(new DiffusionIntegrator(t_coeff));
 
    // 12. Assemble the parallel bilinear form and the corresponding linear
@@ -226,7 +226,7 @@ int main(int argc, char *argv[])
 
    GMRESSolver cg(MPI_COMM_WORLD);
    cg.SetRelTol(1e-12);
-   cg.SetMaxIter(2000);
+   cg.SetMaxIter(5000);
    cg.SetPrintLevel(1);
    if (prec) { cg.SetPreconditioner(*prec); }
    cg.SetOperator(*A);
@@ -282,6 +282,20 @@ int main(int argc, char *argv[])
                                        << 800 << " " << 800 << "\n"
                  << "window_title '" << "u" << "'\n" << flush;
    }
+
+
+   ParaViewDataCollection paraview_dc("Dist", &pmesh);
+   paraview_dc.SetPrefixPath("ParaView");
+   paraview_dc.SetLevelsOfDetail(order);
+   paraview_dc.SetDataFormat(VTKFormat::BINARY);
+   paraview_dc.SetHighOrderOutput(true);
+   paraview_dc.SetCycle(0);
+   paraview_dc.SetTime(0.0);
+   paraview_dc.RegisterField("w",&w);
+   paraview_dc.RegisterField("u",&u);
+   paraview_dc.Save();
+
+
 
    if (delete_fec) { delete fec; }
 
