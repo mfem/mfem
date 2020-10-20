@@ -19,6 +19,11 @@
 
 typedef struct CeedInterpolation_private *CeedInterpolation;
 
+/** @brief Multigrid interpolation operator in Ceed framework
+
+    Interpolation/restriction has two components, an element-wise
+    interpolation and then a scaling to correct multiplicity
+    on shared ldofs. This encapsulates those two in one object. */
 struct CeedInterpolation_private {
   Ceed ceed;
   CeedQFunction qf_restrict, qf_prolong;
@@ -32,6 +37,7 @@ int CeedInterpolationCreate(Ceed ceed, CeedBasis basisctof,
                             CeedElemRestriction erestrictu_fine,
                             CeedInterpolation *interp);
 int CeedInterpolationDestroy(CeedInterpolation *interp);
+
 int CeedInterpolationInterpolate(CeedInterpolation interp,
                                  CeedVector in, CeedVector out);
 int CeedInterpolationRestrict(CeedInterpolation interp,

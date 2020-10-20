@@ -22,6 +22,7 @@
 namespace mfem
 {
 
+/// Wraps a CeedOperator in an mfem::Operator
 class MFEMCeedOperator : public Operator
 {
 public:
@@ -40,9 +41,7 @@ private:
    ConstrainedOperator *constrained_op;
 };
 
-/**
-   Wrap CeedInterpolation object in an mfem::Operator
-*/
+/// Wraps CeedInterpolation object in an mfem::Operator
 class MFEMCeedInterpolation : public mfem::Operator
 {
 public:

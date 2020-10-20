@@ -67,14 +67,6 @@ int min4(int a, int b, int c, int d)
    }
 }
 
-/**
-   Take given (high-order) CeedElemRestriction and order_reduction and make a different
-   CeedElemRestriction, which corresponds to a lower-order problem.
-
-   This assumes a Gauss-Lobatto basis and tensor product elements.
-
-   This is a setup routine that operates on the host?
-*/
 int CeedATPMGElemRestriction(int order,
                              int order_reduction,
                              CeedElemRestriction er_in,
@@ -449,16 +441,6 @@ int CeedBasisATPMGCoarseToFine(CeedBasis basisin,
    return 0;
 }
 
-/**
-   Given basis basisin, reduces its order by order_reduction and
-   return basisout (which has the same height (Q1d) but is narrower
-   (smaller P1d))
-
-   The algorithm we describe in the writeup takes the locations of
-   the fine nodes as input, but this particular implementation simply
-   assumes Gauss-Lobatto, and furthermore assumes the MFEM [0, 1]
-   reference element (rather than the Ceed/Petsc [-1, 1] element)
-*/
 int CeedBasisATPMGCoarsen(CeedBasis basisin,
                           CeedBasis basisc2f,
                           CeedBasis* basisout,
@@ -698,18 +680,6 @@ int CeedATPMGOperator(CeedOperator oper, int order_reduction,
 }
 
 
-/**
-   Take a shot at kinda-algebraic tensor p-multigrid
-
-   oper is the operator to coarsen
-   order_reduction is how much to coarsen (1 means reduce order by 1-ish)
-   coarse_er is the new CeedElemRestriction, see CeedATPGMElemRestriction()
-
-   TODO: eventually, coarsen the QFunction using Will's algorithm
-   (note that a QFunction is a function pointer in Ceed, so that may be a nonstarter)
-   (perhaps what we do is take the output of CeedOperatorLinearAssembleQFunction(),
-   and coarsen that, but we need to understand the data layout)
-*/
 int CeedATPMGOperator(CeedOperator oper, int order_reduction,
                       CeedElemRestriction coarse_er,
                       CeedBasis *coarse_basis_out,
