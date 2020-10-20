@@ -221,12 +221,11 @@ public:
 
    /** @brief Solve the constrained system.
 
-       The notation follows the documentation
-       for the class, the input vector f is for the primal
-       part only; if you have a nonzero r, you need to set that with
-       SetDualRHS(). Similarly, the output x is only for the primal system,
-       while if you want the Lagrange multiplier solution you call
-       GetDualSolution() after the solve. */
+       The notation follows the documentation for the class, the input
+       vector f is for the primal part only; if you have a nonzero r, you
+       need to set that with SetDualRHS(). Similarly, the output x is only
+       for the primal system, while if you want the Lagrange multiplier
+       solution you call GetDualSolution() after the solve. */
    void Mult(const Vector& f, Vector& x) const;
 
    /** @brief Return the Lagrange multiplier solution in lambda
