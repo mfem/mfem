@@ -431,7 +431,7 @@ class Mfem(Package):
             if on_toss3:
                 options += [
                     'MFEM_MPIEXEC=srun',
-                    'MFEM_MPIEXEC_NP=-np']
+                    'MFEM_MPIEXEC_NP=-n']
 
 
         if '+metis' in spec:
