@@ -2,7 +2,9 @@
 //
 // Compile with: make distance
 //
-// Sample runs: mpirun -np 4 distance -m ../data/inline-quad.mesh -rs 1 -t 0.1
+// Sample runs: mpirun -np 4 distance -m ../data/inline-segment.mesh -rs 3 -t 0.5
+//              mpirun -np 4 distance -m ../data/inline-quad.mesh -rs 1 -t 0.1
+//              mpirun -np 4 distance -m ./cir.msh -t 0.01
 //              mpirun -np 4 distance -m ../data/star.mesh
 //
 
@@ -48,13 +50,6 @@
 //               order, or if order < 1 using an isoparametric/isogeometric
 //               space (i.e. quadratic for quadratic curvilinear mesh, NURBS for
 //               NURBS mesh, etc.)
-//
-//               The example highlights the use of mesh refinement, finite
-//               element grid functions, as well as linear and bilinear forms
-//               corresponding to the left-hand side and right-hand side of the
-//               discrete linear system. We also cover the explicit elimination
-//               of essential boundary conditions, static condensation, and the
-//               optional connection to the GLVis tool for visualization.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -62,6 +57,37 @@
 
 using namespace std;
 using namespace mfem;
+
+class ExactSegmentDistCoeff : public Coefficient
+{
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      Vector x(3);
+      T.Transform(ip, x);
+      return min(x(0), 1.0 - x(0));
+   }
+};
+
+class ExactQuadDistCoeff : public Coefficient
+{
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      Vector x(3);
+      T.Transform(ip, x);
+      return min( min(x(0), 1.0 - x(0)), min(x(1), 1.0 - x(1)) );
+   }
+};
+
+class ExactCircleDistCoeff : public Coefficient
+{
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      Vector x(3);
+      T.Transform(ip, x);
+      const double rad = sqrt( x(0) * x(0) + x(1) * x(1) );
+      return 1.0 - rad;
+   }
+};
 
 int main(int argc, char *argv[])
 {
@@ -109,23 +135,16 @@ int main(int argc, char *argv[])
       MPI_Finalize();
       return 1;
    }
-   if (myid == 0)
-   {
-      args.PrintOptions(cout);
-   }
+   if (myid == 0) { args.PrintOptions(cout); }
 
    // 3. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
    if (myid == 0) { device.Print(); }
 
-   // 4. Read the (serial) mesh from the given mesh file on all processors.  We
-   //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
-   //    and volume meshes with the same code.
-   Mesh mesh(mesh_file, 1, 1);
-   int dim = mesh.Dimension();
-
    // Refine the mesh.
+   Mesh mesh(mesh_file, 1, 1);
+   const int dim = mesh.Dimension();
    for (int lev = 0; lev < rs_levels; lev++) { mesh.UniformRefinement(); }
 
    // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
@@ -222,9 +241,8 @@ int main(int argc, char *argv[])
       }
    }
    else { prec = new HypreBoomerAMG; }
-   prec = NULL;
 
-   GMRESSolver cg(MPI_COMM_WORLD);
+   CGSolver cg(MPI_COMM_WORLD);
    cg.SetRelTol(1e-12);
    cg.SetMaxIter(5000);
    cg.SetPrintLevel(1);
@@ -241,7 +259,38 @@ int main(int argc, char *argv[])
    ParGridFunction u(&fespace);
    for (int i = 0; i < u.Size(); i++)
    {
-      u(i) = sqrt(t_param) * log(w(i));
+      u(i) = - sqrt(t_param) * log(w(i));
+   }
+
+   Coefficient *exact_dist = NULL;
+   ParGridFunction u_error(&fespace);
+   if (strcmp(mesh_file, "../data/inline-segment.mesh") == 0)
+   {
+      exact_dist = new ExactSegmentDistCoeff;
+   }
+   if (strcmp(mesh_file, "../data/inline-quad.mesh") == 0)
+   {
+      exact_dist = new ExactQuadDistCoeff;
+   }
+   if (strcmp(mesh_file, "./cir.msh") == 0)
+   {
+      exact_dist = new ExactCircleDistCoeff;
+   }
+   if (exact_dist)
+   {
+      const double l1 = u.ComputeL1Error(*exact_dist),
+                   linf = u.ComputeMaxError(*exact_dist);
+      if (myid == 0)
+      {
+         std::cout << "L1   error: " << l1 << endl
+                   << "Linf error: " << linf << endl;
+      }
+      // Visualize the error.
+      u_error.ProjectCoefficient(*exact_dist);
+      for (int i = 0; i < u.Size(); i++)
+      {
+         u_error(i) = fabs(u_error(i) - u(i));
+      }
    }
 
    // 15. Save the refined mesh and the solution in parallel. This output can
@@ -271,16 +320,27 @@ int main(int argc, char *argv[])
       sol_sock_w.precision(8);
       sol_sock_w << "solution\n" << pmesh << w;
       sol_sock_w << "window_geometry " << 0 << " " << 0 << " "
-                                       << 800 << " " << 800 << "\n"
+                                       << 600 << " " << 600 << "\n"
                  << "window_title '" << "w" << "'\n" << flush;
 
       socketstream sol_sock_u(vishost, visport);
       sol_sock_u << "parallel " << num_procs << " " << myid << "\n";
       sol_sock_u.precision(8);
       sol_sock_u << "solution\n" << pmesh << u;
-      sol_sock_u << "window_geometry " << 800 << " " << 0 << " "
-                                       << 800 << " " << 800 << "\n"
+      sol_sock_u << "window_geometry " << 600 << " " << 0 << " "
+                                       << 600 << " " << 600 << "\n"
                  << "window_title '" << "u" << "'\n" << flush;
+
+      if (exact_dist)
+      {
+         socketstream sol_sock_e(vishost, visport);
+         sol_sock_e << "parallel " << num_procs << " " << myid << "\n";
+         sol_sock_e.precision(8);
+         sol_sock_e << "solution\n" << pmesh << u_error;
+         sol_sock_e << "window_geometry " << 1200 << " " << 0 << " "
+                                          << 600 << " " << 600 << "\n"
+                    << "window_title '" << "|u - d|" << "'\n" << flush;
+      }
    }
 
 
