@@ -11,6 +11,7 @@
 
 #include "catch.hpp"
 #include "mfem.hpp"
+#include "unit_tests.hpp"
 
 using namespace mfem;
 
@@ -100,13 +101,8 @@ double compare_pa_id_assembly(int dim, int num_elements, int order,
 
    pa_y -= assembled_y;
    double error = pa_y.Norml2() / assembled_y.Norml2();
-   std::cout << "dim " << dim << " ne " << num_elements << " order "
-             << order;
-   if (transpose)
-   {
-      std::cout << " T";
-   }
-   std::cout << ": error in PA identity: " << error << std::endl;
+   INFO("dim " << dim << " ne " << num_elements << " order " << order
+        << (transpose ? " T:" : ":") << " error in PA identity: " << error);
 
    delete h1_fec;
    delete nd_fec;
@@ -117,18 +113,11 @@ double compare_pa_id_assembly(int dim, int num_elements, int order,
 
 TEST_CASE("PAIdentityInterp", "[CUDA]")
 {
-   for (bool transpose : {false, true})
-   {
-      for (int dim = 2; dim < 4; ++dim)
-      {
-         for (int num_elements = 0; num_elements < 5; ++num_elements)
-         {
-            for (int order = 1; order < 5; ++order)
-            {
-               double error = compare_pa_id_assembly(dim, num_elements, order, transpose);
-               REQUIRE(error < 1.0e-14);
-            }
-         }
-      }
-   }
+   auto transpose = GENERATE(true, false);
+   auto order = GENERATE(1, 2, 3, 4);
+   auto dim = GENERATE(2, 3);
+   auto num_elements = GENERATE(0, 1, 2, 3, 4);
+
+   double error = compare_pa_id_assembly(dim, num_elements, order, transpose);
+   REQUIRE(error == MFEM_Approx(0.0, 1.0e-14));
 }
