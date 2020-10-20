@@ -11,6 +11,7 @@
 
 #include "catch.hpp"
 #include "mfem.hpp"
+#include "unit_tests.hpp"
 
 using namespace mfem;
 
@@ -86,24 +87,10 @@ double compare_pa_assembly(int dim, int num_elements, int order, bool transpose)
       pa_grad.Mult(xv, pa_y);
    }
 
-   if (false)
-   {
-      std::cout << "true   \tpa\n";
-      for (int i = 0; i < assembled_y.Size(); ++i)
-      {
-         std::cout << i << " : " << assembled_y(i) << "\t" << pa_y(i) << std::endl;
-      }
-   }
-
    pa_y -= assembled_y;
    double error = pa_y.Norml2() / assembled_y.Norml2();
-   std::cout << "dim " << dim << " ne " << num_elements << " order "
-             << order;
-   if (transpose)
-   {
-      std::cout << " T";
-   }
-   std::cout << ": error in PA gradient: " << error << std::endl;
+   INFO("dim " << dim << " ne " << num_elements << " order " << order
+        << (transpose ? " T:" : ":") << " error in PA gradient: " << error);
 
    delete h1_fec;
    delete nd_fec;
@@ -114,20 +101,13 @@ double compare_pa_assembly(int dim, int num_elements, int order, bool transpose)
 
 TEST_CASE("PAGradient", "[CUDA]")
 {
-   for (bool transpose : {false, true})
-   {
-      for (int dim = 2; dim < 4; ++dim)
-      {
-         for (int num_elements = 0; num_elements < 5; ++num_elements)
-         {
-            for (int order = 1; order < 5; ++order)
-            {
-               double error = compare_pa_assembly(dim, num_elements, order, transpose);
-               REQUIRE(error < 1.e-14);
-            }
-         }
-      }
-   }
+   auto transpose = GENERATE(true, false);
+   auto order = GENERATE(1, 2, 3, 4);
+   auto dim = GENERATE(2, 3);
+   auto num_elements = GENERATE(0, 1, 2, 3, 4);
+
+   double error = compare_pa_assembly(dim, num_elements, order, transpose);
+   REQUIRE(error == MFEM_Approx(0.0, 1.0e-14));
 }
 
 #ifdef MFEM_USE_MPI
@@ -210,17 +190,9 @@ double par_compare_pa_assembly(int dim, int num_elements, int order,
    {
       if (rank == p)
       {
-         std::cout << "[" << rank << "]";
-         // std::cout << "pa_y.Norml2() = " << pa_y.Norml2() << std::endl;
-         // std::cout << "assembled_y.Norml2() = " << assembled_y.Norml2() << std::endl;
-         std::cout << "[par] dim " << dim << " ne " << num_elements << " order "
-                   << order;
-         if (transpose)
-         {
-            std::cout << " T";
-         }
-         std::cout << ": error in PA gradient: " << error << std::endl;
-         std::cout.flush();
+         INFO("[" << rank << "][par] dim " << dim << " ne " << num_elements
+              << " order " << order << (transpose ? " T:" : ":")
+              << " error in PA gradient: " << error);
       }
       MPI_Barrier(MPI_COMM_WORLD);
    }
@@ -235,20 +207,13 @@ double par_compare_pa_assembly(int dim, int num_elements, int order,
 
 TEST_CASE("ParallelPAGradient", "[Parallel], [ParallelPAGradient]")
 {
-   for (bool transpose : {false, true})
-   {
-      for (int dim = 2; dim < 4; ++dim)
-      {
-         for (int num_elements = 4; num_elements < 6; ++num_elements)
-         {
-            for (int order = 1; order < 5; ++order)
-            {
-               double error = par_compare_pa_assembly(dim, num_elements, order, transpose);
-               REQUIRE(error < 1.e-14);
-            }
-         }
-      }
-   }
+   auto transpose = GENERATE(true, false);
+   auto order = GENERATE(1, 2, 3, 4);
+   auto dim = GENERATE(2, 3);
+   auto num_elements = GENERATE(4, 5);
+
+   double error = par_compare_pa_assembly(dim, num_elements, order, transpose);
+   REQUIRE(error == MFEM_Approx(0.0, 1.0e-14));
 }
 
 #endif
