@@ -165,7 +165,7 @@ private:
    mutable Vector residual;
 
    const Operator *oper;
-
+public:
    void Setup(const Vector &diag);
 };
 
