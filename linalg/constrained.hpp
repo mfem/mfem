@@ -20,16 +20,14 @@
 namespace mfem
 {
 
-/**
-   Take a vector with displacements and lagrange multiplier degrees of freedom
-   (corresponding to pressures on the secondary surface), eliminate the
-   constraint, return vector of just displacements.
+/** Take a vector with displacements and lagrange multiplier degrees of
+    freedom (corresponding to pressures on the secondary surface), eliminate
+    the constraint, return vector of just displacements.
 
-   This is P in the EliminationSolver algorithm
+    This is P in the EliminationCGSolver algorithm
 
-   Height is number of total displacements, Width is smaller, with some
-   displacements eliminated via constraints.
-*/
+    Height is number of total displacements, Width is smaller, with some
+    displacements eliminated via constraints. */
 class EliminationProjection : public Operator
 {
 public:
@@ -81,6 +79,7 @@ private:
    Array<int> ipivT_;
 };
 
+#ifdef MFEM_USE_MPI
 
 class EliminationCGSolver : public IterativeSolver
 {
@@ -117,7 +116,6 @@ private:
    HypreBoomerAMG * prec_;
 };
 
-
 /**
    @todo test in parallel
 */
@@ -143,6 +141,8 @@ private:
    HypreParMatrix * penalized_mat;
    HypreBoomerAMG * prec;
 };
+
+#endif
 
 /// @todo test in parallel
 class SchurConstrainedSolver : public IterativeSolver
