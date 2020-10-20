@@ -23,22 +23,22 @@
 namespace mfem
 {
 
+/** @brief A way to use algebraic levels in a Multigrid object 
+
+    This is analogous to a FiniteElementSpace but with no Mesh information,
+    constructed in a semi-algebraic way. */
 class AlgebraicCoarseSpace : public FiniteElementSpace
 {
 public:
-   AlgebraicCoarseSpace(
-      FiniteElementSpace &fine_fes,
-      CeedElemRestriction fine_er,
-      int order,
-      int dim,
-      int order_reduction_
-   );
+   AlgebraicCoarseSpace(FiniteElementSpace &fine_fes, CeedElemRestriction fine_er,
+                        int order, int dim, int order_reduction_);
    int GetOrderReduction() const { return order_reduction; }
    CeedElemRestriction GetCeedElemRestriction() const { return ceed_elem_restriction; }
    CeedBasis GetCeedCoarseToFine() const { return coarse_to_fine; }
    virtual const Operator *GetProlongationMatrix() const override { return NULL; }
    virtual const SparseMatrix *GetRestrictionMatrix() const override { return NULL; }
    ~AlgebraicCoarseSpace();
+
 protected:
    int *dof_map;
    int order_reduction;
@@ -48,6 +48,10 @@ protected:
 
 #ifdef MFEM_USE_MPI
 
+/** @brief Parallel version of AlgebraicCoarseSpace
+
+    This provides prolongation and restriction matrices for RAP-type
+    parallel operators and potential explicit assembly. */
 class ParAlgebraicCoarseSpace : public AlgebraicCoarseSpace
 {
 public:
@@ -64,6 +68,7 @@ public:
    GroupCommunicator *GetGroupCommunicator() const { return gc; }
    HypreParMatrix *GetProlongationHypreParMatrix();
    ~ParAlgebraicCoarseSpace();
+
 private:
    SparseMatrix *R_mat;
    GroupCommunicator *gc;
@@ -74,9 +79,14 @@ private:
 
 #endif
 
+/** @brief Hierarchy of AlgebraicCoarseSpace objects for use in Multigrid object */
 class AlgebraicSpaceHierarchy : public FiniteElementSpaceHierarchy
 {
 public:
+   /** @brief Construct hierarchy based on finest FiniteElementSpace
+
+       The given space is a real (geometric) space, but the coarse spaces
+       are constructed semi-algebraically with no mesh information. */
    AlgebraicSpaceHierarchy(FiniteElementSpace &fespace);
    AlgebraicCoarseSpace& GetAlgebraicCoarseSpace(int level)
    {
@@ -95,15 +105,25 @@ public:
          delete ceed_interpolations[i];
       }
    }
+
 private:
    CeedElemRestriction fine_er;
    Array<MFEMCeedInterpolation*> ceed_interpolations;
    Array<TransposeOperator*> R_tr;
 };
 
+/** @brief Extension of Multigrid object to algebraically generated coarse spaces */
 class AlgebraicCeedMultigrid : public Multigrid
 {
 public:
+   /** @brief Constructs multigrid solver based on existing space hierarchy
+
+       This only works if the Ceed device backend is enabled.
+
+       @param hierachy[in]  Hierarchy of (algebraic) spaces
+       @param form[in]      partially assembled BilinearForm on finest level
+       @param ess_tdofs[in] List of essential true dofs on finest level
+    */
    AlgebraicCeedMultigrid(
       AlgebraicSpaceHierarchy &hierarchy,
       BilinearForm &form,
@@ -111,17 +131,31 @@ public:
    );
    virtual void SetOperator(const Operator &op) override { }
    ~AlgebraicCeedMultigrid();
+
 private:
    OperatorHandle fine_operator;
    Array<CeedOperator> ceed_operators;
 };
 
+/** @brief Wrapper for AlgebraicCeedMultigrid object 
+
+    This exists so that the algebraic Ceed-based idea has the simplest
+    possible one-line interface. Finer control (choosing smoothers, w-cycle)
+    can be exercised with the AlgebraicCeedMultigrid object. */
 class AlgebraicCeedSolver : public Solver
 {
 private:
    AlgebraicSpaceHierarchy * fespaces;
    AlgebraicCeedMultigrid * multigrid;
+
 public:
+   /** @brief Constructs algebraic multigrid hierarchy and solver.
+
+       This only works if the Ceed device backend is enabled.
+
+       @param form[in]      partially assembled BilinearForm on finest level
+       @param ess_tdofs[in] List of essential true dofs on finest level
+    */
    AlgebraicCeedSolver(BilinearForm &form, const Array<int>& ess_tdofs);
    ~AlgebraicCeedSolver();
    void Mult(const Vector& x, Vector& y) const { multigrid->Mult(x, y); }
