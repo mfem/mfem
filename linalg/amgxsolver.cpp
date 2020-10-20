@@ -225,7 +225,7 @@ void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
                     "     \"interpolator\": \"D2\", \n"
                     "     \"max_row_sum\" : 0.9, \n"
                     "     \"strength_threshold\" : 0.25, \n"
-                    "     \"max_iters\": 1, \n"
+                    "     \"max_iters\": 2, \n"
                     "     \"scope\": \"amg\", \n"
                     "     \"max_levels\": 100, \n"
                     "     \"cycle\": \"V\", \n"
