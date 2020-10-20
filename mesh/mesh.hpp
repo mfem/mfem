@@ -1257,11 +1257,11 @@ public:
                  int compression_level=0,
                  bool bdr_elements=false);
    /** Print the mesh in VTU format with file name fname. */
-   void PrintVTU(std::string fname,
-                 VTKFormat format=VTKFormat::ASCII,
-                 bool high_order_output=false,
-                 int compression_level=0,
-                 bool bdr=false);
+   virtual void PrintVTU(std::string fname,
+                         VTKFormat format=VTKFormat::ASCII,
+                         bool high_order_output=false,
+                         int compression_level=0,
+                         bool bdr=false);
    /** Print the boundary elements of the mesh in VTU format, and output the
        boundary attributes as a data array (useful for boundary conditions). */
    void PrintBdrVTU(std::string fname,
