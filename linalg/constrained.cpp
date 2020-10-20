@@ -49,26 +49,26 @@ HypreParMatrix* SerialHypreMatrix(SparseMatrix& mat, bool transfer_ownership=tru
 }
 
 EliminationProjection::EliminationProjection(SparseMatrix& A, SparseMatrix& B,
-                                             Array<int>& master_contact_dofs,
-                                             Array<int>& slave_contact_dofs)
+                                             Array<int>& primary_contact_dofs,
+                                             Array<int>& secondary_contact_dofs)
    :
    Operator(A.Height(),
-            A.Height() - slave_contact_dofs.Size()),
+            A.Height() - secondary_contact_dofs.Size()),
    A_(A),
    B_(B),
-   master_contact_dofs_(master_contact_dofs),
-   slave_contact_dofs_(slave_contact_dofs)
+   primary_contact_dofs_(primary_contact_dofs),
+   secondary_contact_dofs_(secondary_contact_dofs)
 {
    Array<int> lm_dofs;
    for (int i = 0; i < B.Height(); ++i)
    {
       lm_dofs.Append(i);
    }
-   Bm_.SetSize(B_.Height(), master_contact_dofs.Size());
-   B_.GetSubMatrix(lm_dofs, master_contact_dofs, Bm_);
+   Bm_.SetSize(B_.Height(), primary_contact_dofs.Size());
+   B_.GetSubMatrix(lm_dofs, primary_contact_dofs, Bm_);
 
-   Bs_.SetSize(B_.Height(), slave_contact_dofs.Size());
-   B_.GetSubMatrix(lm_dofs, slave_contact_dofs, Bs_);
+   Bs_.SetSize(B_.Height(), secondary_contact_dofs.Size());
+   B_.GetSubMatrix(lm_dofs, secondary_contact_dofs, Bs_);
    BsT_.Transpose(Bs_);
 
    ipiv_.SetSize(Bs_.Height());
@@ -90,46 +90,45 @@ EliminationProjection::EliminationProjection(SparseMatrix& A, SparseMatrix& B,
 */
 SparseMatrix * EliminationProjection::AssembleExact() const
 {
-   int num_elim_dofs = slave_contact_dofs_.Size();
+   int num_elim_dofs = secondary_contact_dofs_.Size();
 
    SparseMatrix * out = new SparseMatrix(
       A_.Height(), A_.Height() - num_elim_dofs);
 
    int column_dof = 0;
-   Array<int> mapped_master_contact_dofs;
+   Array<int> mapped_primary_contact_dofs;
    for (int i = 0; i < A_.Height(); ++i)
    {
-      if (slave_contact_dofs_.FindSorted(i) >= 0)
+      if (secondary_contact_dofs_.FindSorted(i) >= 0)
       {
-         // if dof is a slave, it doesn't show up in reduced system
+         // if dof is a secondary, it doesn't show up in reduced system
          ;
       }
       else
       {
          // otherwise, dof exists in reduced system (identity)
          out->Set(i, column_dof, 1.0);
-         if (master_contact_dofs_.FindSorted(i) >= 0)
+         if (primary_contact_dofs_.FindSorted(i) >= 0)
          {
-            // in addition, mapped_master_contact_dofs[reduced_id] = larger_id
-            mapped_master_contact_dofs.Append(column_dof);
+            // in addition, mapped_primary_contact_dofs[reduced_id] = larger_id
+            mapped_primary_contact_dofs.Append(column_dof);
          }
          column_dof++;
       }
    }
-   MFEM_ASSERT(mapped_master_contact_dofs.Size() == master_contact_dofs_.Size(),
-               "Unable to map master contact dofs!");
+   MFEM_ASSERT(mapped_primary_contact_dofs.Size() == primary_contact_dofs_.Size(),
+               "Unable to map primary contact dofs!");
 
    DenseMatrix block(Bm_);
-   std::cout << "        inverting matrix of size " << Bs_.Height() << std::endl;
+   // the following line may be expensive in the general case
    Bsinverse_.Solve(Bs_.Height(), Bm_.Width(), block.GetData());
-   std::cout << "        ...done." << std::endl;
 
-   for (int iz = 0; iz < slave_contact_dofs_.Size(); ++iz)
+   for (int iz = 0; iz < secondary_contact_dofs_.Size(); ++iz)
    {
-      int i = slave_contact_dofs_[iz];
-      for (int jz = 0; jz < mapped_master_contact_dofs.Size(); ++jz)
+      int i = secondary_contact_dofs_[iz];
+      for (int jz = 0; jz < mapped_primary_contact_dofs.Size(); ++jz)
       {
-         int j = mapped_master_contact_dofs[jz];
+         int j = mapped_primary_contact_dofs[jz];
          out->Add(i, j, -block(iz, jz));
       }
    }
@@ -139,92 +138,92 @@ SparseMatrix * EliminationProjection::AssembleExact() const
 
 void EliminationProjection::Mult(const Vector& in, Vector& out) const
 {
-   int num_elim_dofs = slave_contact_dofs_.Size();
+   int num_elim_dofs = secondary_contact_dofs_.Size();
    MFEM_ASSERT(in.Size() == A_.Height() - num_elim_dofs, "Sizes don't match!");
    MFEM_ASSERT(out.Size() == A_.Height(), "Sizes don't match!");
 
    out = 0.0;
    int column_dof = 0;
-   Array<int> mapped_master_contact_dofs;
+   Array<int> mapped_primary_contact_dofs;
    for (int i = 0; i < A_.Height(); ++i)
    {
-      if (slave_contact_dofs_.FindSorted(i) >= 0)
+      if (secondary_contact_dofs_.FindSorted(i) >= 0)
       {
-         // if dof is a slave, it doesn't show up in reduced system
+         // if dof is a secondary, it doesn't show up in reduced system
          ;
       }
       else
       {
          // otherwise, dof exists in reduced system (identity)
          out(i) += in(column_dof);
-         if (master_contact_dofs_.FindSorted(i) >= 0)
+         if (primary_contact_dofs_.FindSorted(i) >= 0)
          {
-            // in addition, mapped_master_contact_dofs[reduced_id] = larger_id
-            mapped_master_contact_dofs.Append(column_dof);
+            // in addition, mapped_primary_contact_dofs[reduced_id] = larger_id
+            mapped_primary_contact_dofs.Append(column_dof);
          }
          column_dof++;
       }
    }
-   MFEM_ASSERT(mapped_master_contact_dofs.Size() == master_contact_dofs_.Size(),
-               "Unable to map master contact dofs!");
+   MFEM_ASSERT(mapped_primary_contact_dofs.Size() == primary_contact_dofs_.Size(),
+               "Unable to map primary contact dofs!");
 
    Vector subvecin;
-   Vector subvecout(slave_contact_dofs_.Size());
-   in.GetSubVector(mapped_master_contact_dofs, subvecin);
+   Vector subvecout(secondary_contact_dofs_.Size());
+   in.GetSubVector(mapped_primary_contact_dofs, subvecin);
    Bm_.Mult(subvecin, subvecout);
    Bsinverse_.Solve(Bs_.Height(), 1, subvecout);
    subvecout *= -1.0;
-   out.AddElementVector(slave_contact_dofs_, subvecout);
+   out.AddElementVector(secondary_contact_dofs_, subvecout);
 }
 
 void EliminationProjection::MultTranspose(const Vector& in, Vector& out) const
 {
-   int num_elim_dofs = slave_contact_dofs_.Size();
+   int num_elim_dofs = secondary_contact_dofs_.Size();
    MFEM_ASSERT(out.Size() == A_.Height() - num_elim_dofs, "Sizes don't match!");
    MFEM_ASSERT(in.Size() == A_.Height(), "Sizes don't match!");
 
    out = 0.0;
    int row_dof = 0;
-   Array<int> mapped_master_contact_dofs;
+   Array<int> mapped_primary_contact_dofs;
    for (int i = 0; i < A_.Height(); ++i)
    {
-      if (slave_contact_dofs_.FindSorted(i) >= 0)
+      if (secondary_contact_dofs_.FindSorted(i) >= 0)
       {
          ;
       }
       else
       {
          out(row_dof) += in(i);
-         if (master_contact_dofs_.FindSorted(i) >= 0)
+         if (primary_contact_dofs_.FindSorted(i) >= 0)
          {
-            mapped_master_contact_dofs.Append(row_dof);
+            mapped_primary_contact_dofs.Append(row_dof);
          }
          row_dof++;
       }
    }
-   MFEM_ASSERT(mapped_master_contact_dofs.Size() == master_contact_dofs_.Size(),
-               "Unable to map master contact dofs!");
+   MFEM_ASSERT(mapped_primary_contact_dofs.Size() == primary_contact_dofs_.Size(),
+               "Unable to map primary contact dofs!");
 
    Vector subvecin;
    Vector subvecout(Bm_.Width());
 
-   in.GetSubVector(slave_contact_dofs_, subvecin);
+   in.GetSubVector(secondary_contact_dofs_, subvecin);
    BsTinverse_.Solve(Bs_.Height(), 1, subvecin);
    Bm_.MultTranspose(subvecin, subvecout);
    subvecout *= -1.0;
-   out.AddElementVector(mapped_master_contact_dofs, subvecout);
+   out.AddElementVector(mapped_primary_contact_dofs, subvecout);
 }
 
 void EliminationProjection::BuildGTilde(const Vector& g, Vector& gtilde) const
 {
-   // int num_elim_dofs = slave_contact_dofs_.Size();
+   // int num_elim_dofs = secondary_contact_dofs_.Size();
    MFEM_ASSERT(g.Size() == B_.Height(), "Sizes don't match!");
    MFEM_ASSERT(gtilde.Size() == A_.Height(), "Sizes don't match!");
 
    gtilde = 0.0;
    Vector cinvg(g);
    Bsinverse_.Solve(Bs_.Height(), 1, cinvg);
-   gtilde.AddElementVector(slave_contact_dofs_, cinvg);
+   gtilde.AddElementVector(secondary_contact_dofs_, cinvg);
 }
 
 void EliminationProjection::RecoverPressure(const Vector& disprhs, const Vector& disp,
@@ -237,7 +236,7 @@ void EliminationProjection::RecoverPressure(const Vector& disprhs, const Vector&
    A_.Mult(disp, fullrhs);
    fullrhs -= disprhs;
    fullrhs *= -1.0;
-   fullrhs.GetSubVector(slave_contact_dofs_, pressure);
+   fullrhs.GetSubVector(secondary_contact_dofs_, pressure);
    BsTinverse_.Solve(Bs_.Height(), 1, pressure);
 }
 
@@ -296,14 +295,14 @@ void EliminationCGSolver::BuildSeparatedInterfaceDofs(int firstblocksize)
    {
       // is this really expected? equating nodes with dofs in some weird way on a manifold?
       std::cerr << "B_.Height() = " << B_.Height()
-                << ", slave_interface_size = " << second_interface_size << std::endl;
+                << ", secondary_interface_size = " << second_interface_size << std::endl;
       MFEM_VERIFY(false, "I don't understand how this matrix is constructed!");
    }
 }
 
 void EliminationCGSolver::BuildPreconditioner()
 {
-   // first_interface_dofs = master_dofs, column indices corresponding to nonzeros in constraint
+   // first_interface_dofs = primary_dofs, column indices corresponding to nonzeros in constraint
    // rectangular B_1 = B_m has lagrange_dofs rows, first_interface_dofs columns
    // square B_2 = B_s has lagrange_dofs rows, second_interface_dofs columns
    projector_ = new EliminationProjection(A_, B_, first_interface_dofs_,
@@ -340,13 +339,13 @@ void EliminationCGSolver::BuildPreconditioner()
 }
 
 EliminationCGSolver::EliminationCGSolver(SparseMatrix& A, SparseMatrix& B,
-                                         Array<int>& master_dofs,
-                                         Array<int>& slave_dofs)
+                                         Array<int>& primary_dofs,
+                                         Array<int>& secondary_dofs)
    :
    A_(A),
    B_(B),
-   first_interface_dofs_(master_dofs),
-   second_interface_dofs_(slave_dofs)
+   first_interface_dofs_(primary_dofs),
+   second_interface_dofs_(secondary_dofs)
 {
    BuildPreconditioner();
 }
