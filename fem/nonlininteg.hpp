@@ -81,7 +81,8 @@ public:
 
    /// The result of the partial assembly is stored internally so that it can be
    /// used later in the methods AddMultGradPA() and AssembleGradDiagonalPA().
-   virtual void AssembleGradPA(const FiniteElementSpace &fes);
+   /// The state Vector @a x is a E-vector.
+   virtual void AssembleGradPA(const Vector &x, const FiniteElementSpace &fes);
 
    /// Compute the local energy with partial assembly.
    /** Here @a x is an E-vector. This method can be called only after the

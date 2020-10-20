@@ -455,9 +455,9 @@ void NonlinearForm::Setup()
    if (ext) { ext->Assemble(); }
 }
 
-void NonlinearForm::SetupGradient()
+void NonlinearForm::SetupGradient(const mfem::Vector &x)
 {
-   if (ext) { ext->AssembleGradient(); }
+   if (ext) { ext->AssembleGradient(Prolongate(x)); }
 }
 
 NonlinearForm::~NonlinearForm()

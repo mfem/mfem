@@ -166,8 +166,9 @@ public:
    /// Setup the NonlinearForm.
    virtual void Setup();
 
-   /// Setup the gradient of the NonlinearForm.
-   virtual void SetupGradient();
+   /// Setup the gradient of the NonlinearForm at the state @a x, which must be
+   /// a true-dof vector.
+   virtual void SetupGradient(const Vector &x);
 
    /// Get the finite element space prolongation matrix
    virtual const Operator *GetProlongation() const { return P; }
