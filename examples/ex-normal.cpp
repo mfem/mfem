@@ -8,18 +8,22 @@
   The way MFEM dofs work, this is not quite trivial for non-grid-aligned
   boundaries.
 
-  todo items:
+  TODO before making a PR:
 
+  - make parallel unit tests (elimination may not work, may be okay)
   - change master/slave to primary/secondary in constrained.cpp
-  - make some unit tests with tiny matrices, including in parallel
-  - more meaningful parallel tests
-  - improve Schur complement block solver (specifically the Schur block)
-  - make sure penalty and elimination can do the right thing with lagrange multipliers
+  - clean up build #ifdefs, for hypre etc.
+  - clean up example, for actual demo with sphere
+
+  TODO eventually:
+
+  - parallel BuildNormalConstraints here
+  - make elimination solver parallel
+  - improve Schur complement block in Schur solver
   - think about preconditioning interface; user may have good preconditioner for primal system that we could use in all three existing solvers?
   - make sure curved mesh works (is this a real problem or just VisIt visualization?)
-  - make everything work in parallel
   - hook up to Smith or Tribol or some other contact setting
-  - timing / scaling!
+  - timing / scaling of different solvers
 
   square-disc attributes (not indices):
 

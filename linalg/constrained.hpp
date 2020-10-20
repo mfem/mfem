@@ -22,7 +22,7 @@ namespace mfem
 
 /**
    Take a vector with displacements and lagrange multiplier degrees of freedom
-   (corresponding to pressures on the slave surface), eliminate the
+   (corresponding to pressures on the secondary surface), eliminate the
    constraint, return vector of just displacements.
 
    This is P in the EliminationSolver algorithm
@@ -38,18 +38,18 @@ public:
       takes just the jac. Actually, what I want is an object that creates
       both this and the approximate version, using only jac.
 
-      rectangular B_1 = B_m has lagrange_dofs rows, master_contact_dofs columns
-      square B_2 = B_s has lagrange_dofs rows, slave_contact_dofs columns
+      rectangular B_1 = B_m has lagrange_dofs rows, primary_contact_dofs columns
+      square B_2 = B_s has lagrange_dofs rows, secondary_contact_dofs columns
 
-      B_m maps master displacements into lagrange space
-      B_s maps slave displacements into lagrange space
-      B_s^T maps lagrange space to slave displacements (*)
-      B_s^{-1} maps lagrange space into slave displacements
-      -B_s^{-1} B_m maps master displacements to slave displacements
+      B_m maps primary displacements into lagrange space
+      B_s maps secondary displacements into lagrange space
+      B_s^T maps lagrange space to secondary displacements (*)
+      B_s^{-1} maps lagrange space into secondary displacements
+      -B_s^{-1} B_m maps primary displacements to secondary displacements
    */
    EliminationProjection(SparseMatrix& A, SparseMatrix& B,
-                         Array<int>& master_contact_dofs,
-                         Array<int>& slave_contact_dofs);
+                         Array<int>& primary_contact_dofs,
+                         Array<int>& secondary_contact_dofs);
 
    void Mult(const Vector& in, Vector& out) const;
    void MultTranspose(const Vector& in, Vector& out) const;
@@ -68,8 +68,8 @@ private:
    SparseMatrix& A_;
    SparseMatrix& B_;
 
-   Array<int>& master_contact_dofs_;
-   Array<int>& slave_contact_dofs_;
+   Array<int>& primary_contact_dofs_;
+   Array<int>& secondary_contact_dofs_;
 
    DenseMatrix Bm_;
    DenseMatrix Bs_;  // gets inverted in place
@@ -87,8 +87,8 @@ class EliminationCGSolver : public IterativeSolver
 public:
    EliminationCGSolver(SparseMatrix& A, SparseMatrix& B, int firstblocksize);
 
-   EliminationCGSolver(SparseMatrix& A, SparseMatrix& B, Array<int>& master_dofs,
-                       Array<int>& slave_dofs);
+   EliminationCGSolver(SparseMatrix& A, SparseMatrix& B, Array<int>& primary_dofs,
+                       Array<int>& secondary_dofs);
 
    ~EliminationCGSolver();
 
@@ -98,7 +98,7 @@ public:
 
 private:
    /**
-      This assumes the master/slave dofs are cleanly separated in
+      This assumes the primary/secondary dofs are cleanly separated in
       the matrix, and the given index tells you where.
 
       We want to move away from this assumption, the first step
