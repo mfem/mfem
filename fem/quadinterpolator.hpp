@@ -49,7 +49,7 @@ protected:
    static const int MAX_ND2D = 100;
    static const int MAX_VDIM2D = 3;
 
-   static const int MAX_NQ3D = 1000;
+   static const int MAX_NQ3D = 1728;
    static const int MAX_ND3D = 1000;
    static const int MAX_VDIM3D = 3;
 
