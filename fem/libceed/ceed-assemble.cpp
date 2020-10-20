@@ -14,23 +14,25 @@
 #ifdef MFEM_USE_CEED
 #include "ceedsolvers-utility.h"
 
-int CeedHackReallocArray(size_t n, size_t unit, void *p) {
-  *(void **)p = realloc(*(void **)p, n*unit);
-  if (n && unit && !*(void **)p)
-    // LCOV_EXCL_START
-    return CeedError(NULL, 1, "realloc failed to allocate %zd members of size "
-                     "%zd\n", n, unit);
-  // LCOV_EXCL_STOP
+int CeedHackReallocArray(size_t n, size_t unit, void *p)
+{
+   *(void **)p = realloc(*(void **)p, n*unit);
+   if (n && unit && !*(void **)p)
+      // LCOV_EXCL_START
+      return CeedError(NULL, 1, "realloc failed to allocate %zd members of size "
+                       "%zd\n", n, unit);
+   // LCOV_EXCL_STOP
 
-  return 0;
+   return 0;
 }
 
 #define CeedHackRealloc(n, p) CeedHackReallocArray((n), sizeof(**(p)), p)
 
-int CeedHackFree(void *p) {
-  free(*(void **)p);
-  *(void **)p = NULL;
-  return 0;
+int CeedHackFree(void *p)
+{
+   free(*(void **)p);
+   *(void **)p = NULL;
+   return 0;
 }
 
 namespace mfem
@@ -51,7 +53,7 @@ int CeedSingleOperatorFullAssemble(CeedOperator op, SparseMatrix *out)
    CeedVector assembledqf;
    CeedElemRestriction rstr_q;
    ierr = CeedOperatorLinearAssembleQFunction(
-      op, &assembledqf, &rstr_q, CEED_REQUEST_IMMEDIATE); CeedChk(ierr);
+             op, &assembledqf, &rstr_q, CEED_REQUEST_IMMEDIATE); CeedChk(ierr);
 
    CeedInt qflength;
    ierr = CeedVectorGetLength(assembledqf, &qflength); CeedChk(ierr);
@@ -84,22 +86,24 @@ int CeedSingleOperatorFullAssemble(CeedOperator op, SparseMatrix *out)
          CeedChk(ierr);
          switch (emode)
          {
-         case CEED_EVAL_NONE:
-         case CEED_EVAL_INTERP:
-            ierr = CeedHackRealloc(numemodein + 1, &emodein); CeedChk(ierr);
-            emodein[numemodein] = emode;
-            numemodein += 1;
-            break;
-         case CEED_EVAL_GRAD:
-            ierr = CeedHackRealloc(numemodein + dim, &emodein); CeedChk(ierr);
-            for (CeedInt d=0; d<dim; d++)
-               emodein[numemodein+d] = emode;
-            numemodein += dim;
-            break;
-         case CEED_EVAL_WEIGHT:
-         case CEED_EVAL_DIV:
-         case CEED_EVAL_CURL:
-            break; // Caught by QF Assembly
+            case CEED_EVAL_NONE:
+            case CEED_EVAL_INTERP:
+               ierr = CeedHackRealloc(numemodein + 1, &emodein); CeedChk(ierr);
+               emodein[numemodein] = emode;
+               numemodein += 1;
+               break;
+            case CEED_EVAL_GRAD:
+               ierr = CeedHackRealloc(numemodein + dim, &emodein); CeedChk(ierr);
+               for (CeedInt d=0; d<dim; d++)
+               {
+                  emodein[numemodein+d] = emode;
+               }
+               numemodein += dim;
+               break;
+            case CEED_EVAL_WEIGHT:
+            case CEED_EVAL_DIV:
+            case CEED_EVAL_CURL:
+               break; // Caught by QF Assembly
          }
       }
    }
@@ -126,22 +130,24 @@ int CeedSingleOperatorFullAssemble(CeedOperator op, SparseMatrix *out)
          CeedChk(ierr);
          switch (emode)
          {
-         case CEED_EVAL_NONE:
-         case CEED_EVAL_INTERP:
-            ierr = CeedHackRealloc(numemodeout + 1, &emodeout); CeedChk(ierr);
-            emodeout[numemodeout] = emode;
-            numemodeout += 1;
-            break;
-         case CEED_EVAL_GRAD:
-            ierr = CeedHackRealloc(numemodeout + dim, &emodeout); CeedChk(ierr);
-            for (CeedInt d=0; d<dim; d++)
-               emodeout[numemodeout+d] = emode;
-            numemodeout += dim;
-            break;
-         case CEED_EVAL_WEIGHT:
-         case CEED_EVAL_DIV:
-         case CEED_EVAL_CURL:
-            break; // Caught by QF Assembly
+            case CEED_EVAL_NONE:
+            case CEED_EVAL_INTERP:
+               ierr = CeedHackRealloc(numemodeout + 1, &emodeout); CeedChk(ierr);
+               emodeout[numemodeout] = emode;
+               numemodeout += 1;
+               break;
+            case CEED_EVAL_GRAD:
+               ierr = CeedHackRealloc(numemodeout + dim, &emodeout); CeedChk(ierr);
+               for (CeedInt d=0; d<dim; d++)
+               {
+                  emodeout[numemodeout+d] = emode;
+               }
+               numemodeout += dim;
+               break;
+            case CEED_EVAL_WEIGHT:
+            case CEED_EVAL_DIV:
+            case CEED_EVAL_CURL:
+               break; // Caught by QF Assembly
          }
       }
    }
@@ -188,9 +194,8 @@ int CeedSingleOperatorFullAssemble(CeedOperator op, SparseMatrix *out)
    ierr = CeedElemRestrictionGetELayout(rstr_q, &layout); CeedChk(ierr);
    ierr = CeedElemRestrictionDestroy(&rstr_q); CeedChk(ierr);
 
-   // numinputfields is 2 in both 2D and 3D...
-   // elemsize and nqpts are total, not 1D
-   const int skip_zeros = 0; // enforce structurally symmetric for later elimination
+   // enforce structurally symmetric for later elimination
+   const int skip_zeros = 0;
    MFEM_ASSERT(numemodein == numemodeout, "My undestanding fails in this case.");
    for (int e = 0; e < nelem; ++e)
    {
@@ -205,7 +210,7 @@ int CeedSingleOperatorFullAssemble(CeedOperator op, SparseMatrix *out)
       DenseMatrix Bmat(nqpts * numemodein, elemsize);
       Bmat = 0.0;
       DenseMatrix Dmat(nqpts * numemodeout,
-                             nqpts * numemodein);
+                       nqpts * numemodein);
       Dmat = 0.0;
       DenseMatrix elem_mat(elemsize, elemsize);
       elem_mat = 0.0;
@@ -255,7 +260,8 @@ int CeedSingleOperatorFullAssemble(CeedOperator op, SparseMatrix *out)
 
    ierr = CeedVectorRestoreArrayRead(elem_dof, &elem_dof_a); CeedChk(ierr);
    ierr = CeedVectorDestroy(&elem_dof); CeedChk(ierr);
-   ierr = CeedVectorRestoreArrayRead(assembledqf, &assembledqfarray); CeedChk(ierr);
+   ierr = CeedVectorRestoreArrayRead(assembledqf, &assembledqfarray);
+   CeedChk(ierr);
    ierr = CeedVectorDestroy(&assembledqf); CeedChk(ierr);
    ierr = CeedHackFree(&emodein); CeedChk(ierr);
    ierr = CeedHackFree(&emodeout); CeedChk(ierr);
@@ -263,10 +269,6 @@ int CeedSingleOperatorFullAssemble(CeedOperator op, SparseMatrix *out)
    return 0;
 }
 
-/**
-   todo: think of ways to make this faster when we know a sparsity structure (?)
-   (ie, for low-order refined or algebraic sparsification?)
-*/
 int CeedOperatorFullAssemble(CeedOperator op, SparseMatrix **mat)
 {
    int ierr;
@@ -295,7 +297,8 @@ int CeedOperatorFullAssemble(CeedOperator op, SparseMatrix **mat)
    {
       ierr = CeedSingleOperatorFullAssemble(op, out); CeedChk(ierr);
    }
-   const int skip_zeros = 0; // enforce structurally symmetric for later elimination
+   // enforce structurally symmetric for later elimination
+   const int skip_zeros = 0;
    out->Finalize(skip_zeros);
    *mat = out;
 

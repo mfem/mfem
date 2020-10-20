@@ -2989,7 +2989,8 @@ ConformingProlongationOperator::ConformingProlongationOperator(
    external_ldofs.Sort();
 }
 
-const GroupCommunicator &ConformingProlongationOperator::GetGroupCommunicator() const
+const GroupCommunicator &ConformingProlongationOperator::GetGroupCommunicator()
+const
 {
    return gc;
 }
@@ -3155,7 +3156,8 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
 
 DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
    const ParFiniteElementSpace &pfes)
-   : DeviceConformingProlongationOperator(pfes.GroupComm(), pfes.GetRestrictionMatrix())
+   : DeviceConformingProlongationOperator(pfes.GroupComm(),
+                                          pfes.GetRestrictionMatrix())
 {
    MFEM_ASSERT(pfes.Conforming(), "internal error");
    MFEM_ASSERT(pfes.GetRestrictionMatrix()->Height() == pfes.GetTrueVSize(), "");

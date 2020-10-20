@@ -25,7 +25,8 @@ namespace mfem
 class MFEMCeedOperator : public Operator
 {
 public:
-   MFEMCeedOperator(CeedOperator oper, const Array<int> &ess_tdofs_, const Operator *P_);
+   MFEMCeedOperator(CeedOperator oper, const Array<int> &ess_tdofs_,
+                    const Operator *P_);
    MFEMCeedOperator(CeedOperator oper, const Operator *P_);
    ~MFEMCeedOperator();
    void Mult(const Vector& x, Vector& y) const;

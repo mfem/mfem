@@ -39,7 +39,8 @@ Solver *BuildSmootherFromCeed(MFEMCeedOperator &op, bool chebyshev)
       mem = CEED_MEM_HOST;
    }
    Vector local_diag(length);
-   CeedScalar *ptr = (mem == CEED_MEM_HOST) ? local_diag.HostWrite() : local_diag.Write(true);
+   CeedScalar *ptr = (mem == CEED_MEM_HOST) ? local_diag.HostWrite() :
+                     local_diag.Write(true);
    CeedVectorSetArray(diagceed, mem, CEED_USE_POINTER, ptr);
    CeedOperatorLinearAssembleDiagonal(ceed_op, diagceed, CEED_REQUEST_IMMEDIATE);
    CeedVectorTakeArray(diagceed, mem, NULL);
@@ -191,7 +192,8 @@ CeedOperator CoarsenCeedCompositeOperator(
       CeedOperator subop = subops[isub];
       CeedBasis basis_coarse, basis_c2f;
       CeedOperator subop_coarse;
-      CeedATPMGOperator(subop, order_reduction, er, &basis_coarse, &basis_c2f, &subop_coarse);
+      CeedATPMGOperator(subop, order_reduction, er, &basis_coarse, &basis_c2f,
+                        &subop_coarse);
       CeedBasisDestroy(&basis_coarse); // refcounted by subop_coarse
       CeedBasisDestroy(&basis_c2f);
       CeedCompositeOperatorAddSub(op_coarse, subop_coarse);
@@ -220,11 +222,12 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
    {
       AlgebraicCoarseSpace &space = hierarchy.GetAlgebraicCoarseSpace(ilevel);
       ceed_operators[ilevel] = CoarsenCeedCompositeOperator(
-         ceed_operators[ilevel+1], space.GetCeedElemRestriction(),
-         space.GetCeedCoarseToFine(), space.GetOrderReduction());
+                                  ceed_operators[ilevel+1], space.GetCeedElemRestriction(),
+                                  space.GetCeedCoarseToFine(), space.GetOrderReduction());
       Operator *P = hierarchy.GetProlongationAtLevel(ilevel);
       essentialTrueDofs[ilevel] = new Array<int>;
-      CoarsenEssentialDofs(*P, *essentialTrueDofs[ilevel+1], *essentialTrueDofs[ilevel]);
+      CoarsenEssentialDofs(*P, *essentialTrueDofs[ilevel+1],
+                           *essentialTrueDofs[ilevel]);
    }
 
    // Add the operators and smoothers to the hierarchy, from coarse to fine
@@ -355,7 +358,7 @@ AlgebraicSpaceHierarchy::AlgebraicSpaceHierarchy(FiniteElementSpace &fes)
          R_tr[ilevel] = NULL;
       }
       prolongations[ilevel] = ceed_interpolations[ilevel]->SetupRAP(
-         space->GetProlongationMatrix(), R_tr[ilevel]);
+                                 space->GetProlongationMatrix(), R_tr[ilevel]);
       ownedProlongations[ilevel]
          = prolongations[ilevel] != ceed_interpolations[ilevel];
 
@@ -374,9 +377,9 @@ AlgebraicCoarseSpace::AlgebraicCoarseSpace(
    order_reduction = order_reduction_;
 
    CeedATPMGElemRestriction(order, order_reduction, fine_er,
-      &ceed_elem_restriction, dof_map );
+                            &ceed_elem_restriction, dof_map );
    CeedBasisATPMGCoarseToFine(internal::ceed, order+1, dim,
-      order_reduction, &coarse_to_fine );
+                              order_reduction, &coarse_to_fine );
    CeedElemRestrictionGetLVectorSize(ceed_elem_restriction, &ndofs);
    mesh = fine_fes.GetMesh();
 }
@@ -397,7 +400,7 @@ ParAlgebraicCoarseSpace::ParAlgebraicCoarseSpace(
    int dim,
    int order_reduction_,
    GroupCommunicator *gc_fine)
- : AlgebraicCoarseSpace(fine_fes, fine_er, order, dim, order_reduction_)
+   : AlgebraicCoarseSpace(fine_fes, fine_er, order, dim, order_reduction_)
 {
    int lsize;
    CeedElemRestrictionGetLVectorSize(ceed_elem_restriction, &lsize);
@@ -508,14 +511,14 @@ HypreParMatrix *ParAlgebraicCoarseSpace::GetProlongationHypreParMatrix()
       for (int i = 1; i <= nsize; i++)
       {
          MPI_Irecv(&tdof_nb_offsets[i], 1, HYPRE_MPI_INT,
-                  group_topo.GetNeighborRank(i), 5365, comm,
-                  &requests[request_counter++]);
+                   group_topo.GetNeighborRank(i), 5365, comm,
+                   &requests[request_counter++]);
       }
       for (int i = 1; i <= nsize; i++)
       {
          MPI_Isend(&tdof_nb_offsets[0], 1, HYPRE_MPI_INT,
-                  group_topo.GetNeighborRank(i), 5365, comm,
-                  &requests[request_counter++]);
+                   group_topo.GetNeighborRank(i), 5365, comm,
+                   &requests[request_counter++]);
       }
       MPI_Waitall(request_counter, requests, statuses);
 
