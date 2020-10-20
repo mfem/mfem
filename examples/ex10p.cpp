@@ -207,8 +207,8 @@ int main(int argc, char *argv[])
                   "Shear modulus in the Neo-Hookean hyperelastic model.");
    args.AddOption(&K, "-K", "--bulk-modulus",
                   "Bulk modulus in the Neo-Hookean hyperelastic model.");
-   args.AddOption(&adaptive_lin_rtol, "-alrtol", "--adaptive-lin-rtol", "-no-alrtol",
-                  "--no-adaptive-lin-rtol",
+   args.AddOption(&adaptive_lin_rtol, "-alrtol", "--adaptive-lin-rtol",
+                  "-no-alrtol", "--no-adaptive-lin-rtol",
                   "Enable or disable adaptive linear solver rtol.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
