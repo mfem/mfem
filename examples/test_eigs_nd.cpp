@@ -249,13 +249,6 @@ int main(int argc, char *argv[])
       Vector deigs(size);
       Ad.Eigenvalues(Md, deigs, vd);
 
-      /*
-      for (int i=0; i<size; i++)
-      {
-        cout << i << " " << deigs[i] << endl;
-      }
-           */
-
       int first = -1;
       for (int i=0; i<size; i++)
       {
@@ -443,16 +436,23 @@ int main(int argc, char *argv[])
       ame->Solve();
       ame->GetEigenvalues(eigenvalues);
 
+      MPI_Barrier(MPI_COMM_WORLD);
       tic_toc.Stop();
-      cout << " done, " << tic_toc.RealTime() << "s." << endl;
+      if (myid == 0)
+      {
+         cout << " done, " << tic_toc.RealTime() << "s." << endl;
+      }
 
       Vector err(nev);
       for (int i=0; i<nev; i++)
       {
          err[i] = eigenvalues[i] / double(exact_eigs[i]) - 1.0;
-         cout << i << " " << err[i] << endl;
       }
-      cout << "Error: " << err.Norml1() << endl;
+      double nrm = err.Norml1();
+      if (myid == 0)
+      {
+         cout << "Error: " << nrm << endl;
+      }
 
       // 10. Save the refined mesh and the modes in parallel. This output can be
       //     viewed later using GLVis: "glvis -np <np> -m mesh -g mode".
@@ -879,7 +879,7 @@ Mesh * GetMesh(MeshType &type)
          break;
    }
    mesh->FinalizeTopology();
-
+   /*
    if (mesh->Dimension() == 3)
    {
       Array<int> fcs;
@@ -893,6 +893,7 @@ Mesh * GetMesh(MeshType &type)
          }
       }
    }
+   */
 
    return mesh;
 }
