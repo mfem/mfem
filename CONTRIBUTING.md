@@ -439,7 +439,6 @@ Before a PR can be merged, it should satisfy the following:
 - [ ] Run `make unittest` to make sure all unit tests pass.
 - [ ] Run the tests in `tests/scripts`.
 - [ ] (LLNL only) After merging:
-   - [ ] Regenerate `README.html` files from companion documentation pull requests.
    - [ ] Update internal tests to include the new features.
 
 ### Master/Next Workflow
@@ -512,7 +511,6 @@ MFEM uses a `master`/`next`-branch workflow as described below:
 - [ ] Check that continuous integration server configurations reflect the dependency version requirements of the new release
     - [ ] `.travis.yml`
     - [ ] `.appveyor.yml`
-- [ ] (LLNL only) Make sure all `README.html` files in the source repo are up to date.
 - [ ] Tag the repository:
 
   ```
