@@ -40,44 +40,13 @@ Burgers::Burgers(FiniteElementSpace *fes_, BlockVector &u_block,
       }
       case 2:
       {
-         ProblemName = "Burgers Equation - MoST Gimmick";
+         ProblemName = "Burgers Equation - Steady State";
          glvis_scale = "on";
-         SolutionKnown = false;
-         SteadyState = false;
+         SolutionKnown = true;
+         SteadyState = true;
          TimeDepBC = false;
          ProjType = 1;
-
-         Mesh *mesh = fes->GetMesh();
-         const int nd = fes->GetFE(0)->GetDof();
-         const int ne = fes->GetNE();
-         if (mesh->Dimension() != 2) { MFEM_ABORT("Test case is 2D."); }
-         u0 = 0.;
-
-         for (int e = 0; e < ne; e++)
-         {
-            int id = mesh->GetElement(e)->GetAttribute();
-            for (int j = 0; j < nd; j++)
-            {
-               switch (id)
-               {
-                  case 1:
-                  {
-                     u0(e*nd+j) = 1.;
-                     break;
-                  }
-                  case 2:
-                  case 3:
-                  case 4:
-                  {
-                     u0(e*nd+j) = 0.125;
-                     break;
-                  }
-                  default:
-                     MFEM_ABORT("Too many element IDs.");
-               }
-            }
-         }
-
+         u0.ProjectCoefficient(ic);
          break;
       }
       default:
@@ -150,7 +119,6 @@ void AnalyticalSolutionBurgers(const Vector &x, double t, Vector &u)
          break;
       }
       case 1:
-      case 2:
       {
          if (dim != 2) { MFEM_ABORT("Test case only implemented in 2D."); }
 
@@ -178,6 +146,12 @@ void AnalyticalSolutionBurgers(const Vector &x, double t, Vector &u)
 
          break;
       }
+      case 2:
+      {
+         double r = X.Norml2();
+         u(0) = r < 0.5 ? 1.0 : -1.0;
+         break;
+      }
    }
 }
 
@@ -186,8 +160,8 @@ void InitialConditionBurgers(const Vector &x,Vector &u)
    switch (ConfigBurgers.ConfigNum)
    {
       case 0:
-      case 1: { AnalyticalSolutionBurgers(x, 0.0, u); break; }
-      case 2: { u(0) = 0.0; break; }
+      case 1:
+      case 2: { AnalyticalSolutionBurgers(x, 0.0, u); break; }
    }
 }
 
@@ -196,7 +170,7 @@ void InflowFunctionBurgers(const Vector &x, double t, Vector &u)
    switch (ConfigBurgers.ConfigNum)
    {
       case 0:
-      case 1: { AnalyticalSolutionBurgers(x, t, u); break; }
-      case 2: { u(0) = 0.0; break; }
+      case 1:
+      case 2: { AnalyticalSolutionBurgers(x, t, u); break; }
    }
 }
