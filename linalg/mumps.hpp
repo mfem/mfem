@@ -116,8 +116,8 @@ private:
 
    // MUMPS workspace
    // macro s.t. indices match MUMPS documentation
-#define ICNTL(I) icntl[(I) -1]
-#define INFO(I) info[(I) -1]
+#define MUMPS_ICNTL(I) icntl[(I) -1]
+#define MUMPS_INFO(I) info[(I) -1]
 
    // MUMPS object
    DMUMPS_STRUC_C *id=nullptr;
