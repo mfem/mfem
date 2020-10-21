@@ -140,8 +140,8 @@ int main(int argc, char *argv[])
    }
    int nxyz[3] = {nprocsx,nprocsy,nprocsz};
    int * part = mesh->CartesianPartitioning(nxyz);
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD,*mesh,part);
-   // ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD,*mesh);
+   // ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD,*mesh,part);
+   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD,*mesh);
    delete [] part;
 
    
@@ -161,7 +161,7 @@ int main(int argc, char *argv[])
    //            << *pmesh << "window_title 'Global mesh'" << flush;
 
    double hl = GetUniformMeshElementSize(pmesh);
-   int nrlayers = 3;
+   int nrlayers = 1;
    Array2D<double> lengths(dim,2);
    lengths = hl*nrlayers;
    // lengths[0][1] = 0.0;
@@ -299,7 +299,7 @@ int main(int argc, char *argv[])
 
    chrono.Clear();
    chrono.Start();
-   ParDST S(&a,lengths, omega, &ws, nrlayers, nx, ny, nz);
+   ParDST * S = new ParDST(&a,lengths, omega, &ws, nrlayers, nx, ny, nz);
    chrono.Stop();
    double t1 = chrono.RealTime();
 
@@ -308,13 +308,13 @@ int main(int argc, char *argv[])
    // X = 0.0;
 	GMRESSolver gmres(MPI_COMM_WORLD);
 	// gmres.iterative_mode = true;
-   gmres.SetPreconditioner(S);
+   gmres.SetPreconditioner(*S);
 	gmres.SetOperator(*Ac);
 	gmres.SetRelTol(1e-8);
 	gmres.SetMaxIter(100);
 	gmres.SetPrintLevel(1);
 	gmres.Mult(B, X);
-   
+   delete S;
    chrono.Stop();
    double t2 = chrono.RealTime();
 
@@ -434,7 +434,7 @@ void source_re(const Vector &x, Vector &f)
    }
    else
    {
-      int nrsources = (dim == 2) ? 3 : 8;
+      int nrsources = (dim == 2) ? 4 : 8;
       Vector x0(nrsources);
       Vector y0(nrsources);
       Vector z0(nrsources);

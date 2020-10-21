@@ -12,44 +12,38 @@ using namespace std;
 using namespace mfem;
 
 // Class for setting up a simple Cartesian PML region
-class Cartesian_PML
+class TorusPML
 {
 private:
    Mesh *mesh;
 
    int dim;
 
-   // Length of the PML Region in each direction
-   Array2D<double> length;
+   // Length of the PML Region given in radians
+   double PmlThicknessAngle;
 
-   // Computational Domain Boundary
-   Array2D<double> comp_dom_bdr;
+   double theta0;
 
-   // Domain Boundary
-   Array2D<double> dom_bdr;
+   double a,b;// defining the cross-section plane (vertical) /line for the pml
 
    // Integer Array identifying elements in the PML
    // 0: in the PML, 1: not in the PML
    Array<int> elems;
 
-   // Compute Domain and Computational Domain Boundaries
-   void SetBoundaries();
-
 public:
    // Constructor
-   Cartesian_PML(Mesh *mesh_,Array2D<double> length_);
-
-   // Return Computational Domain Boundary
-   Array2D<double> GetCompDomainBdr() {return comp_dom_bdr;}
-
-   // Return Domain Boundary
-   Array2D<double> GetDomainBdr() {return dom_bdr;}
+   TorusPML(Mesh *mesh_, double length_rad_);
 
    // Return Markers list for elements
    Array<int> * GetMarkedPMLElements() {return &elems;}
 
    // Mark elements in the PML region
    void SetAttributes(Mesh *mesh_);
+
+   double PmlBdrPlaneEquation(double x, double theta)
+   {
+      return tan(theta) * x;
+   }   
 
    // PML complex stretching function
    void StretchFunction(const Vector &x, vector<complex<double>> &dxs);
@@ -59,12 +53,12 @@ public:
 class PMLDiagMatrixCoefficient : public VectorCoefficient
 {
 private:
-   Cartesian_PML * pml = nullptr;
-   void (*Function)(const Vector &, Cartesian_PML * , Vector &);
+   TorusPML * pml = nullptr;
+   void (*Function)(const Vector &, TorusPML * , Vector &);
 public:
-   PMLDiagMatrixCoefficient(int dim, void(*F)(const Vector &, Cartesian_PML *,
+   PMLDiagMatrixCoefficient(int dim, void(*F)(const Vector &, TorusPML *,
                                               Vector &),
-                            Cartesian_PML * pml_)
+                            TorusPML * pml_)
       : VectorCoefficient(dim), pml(pml_), Function(F)
    {}
 
@@ -81,25 +75,20 @@ public:
    }
 };
 
-void maxwell_solution(const Vector &x, vector<complex<double>> &Eval);
-
 void E_bdr_data_Re(const Vector &x, Vector &E);
 void E_bdr_data_Im(const Vector &x, Vector &E);
-
-void E_exact_Re(const Vector &x, Vector &E);
-void E_exact_Im(const Vector &x, Vector &E);
 
 void source(const Vector &x, Vector & f);
 
 // Functions for computing the necessary coefficients after PML stretching.
 // J is the Jacobian matrix of the stretching function
-void detJ_JT_J_inv_Re(const Vector &x, Cartesian_PML * pml, Vector &D);
-void detJ_JT_J_inv_Im(const Vector &x, Cartesian_PML * pml, Vector &D);
-void detJ_JT_J_inv_abs(const Vector &x, Cartesian_PML * pml, Vector &D);
+void detJ_JT_J_inv_Re(const Vector &x, TorusPML * pml, Vector &D);
+void detJ_JT_J_inv_Im(const Vector &x, TorusPML * pml, Vector &D);
+void detJ_JT_J_inv_abs(const Vector &x, TorusPML * pml, Vector &D);
 
-void detJ_inv_JT_J_Re(const Vector &x, Cartesian_PML * pml, Vector &D);
-void detJ_inv_JT_J_Im(const Vector &x, Cartesian_PML * pml, Vector &D);
-void detJ_inv_JT_J_abs(const Vector &x, Cartesian_PML * pml, Vector &D);
+void detJ_inv_JT_J_Re(const Vector &x, TorusPML * pml, Vector &D);
+void detJ_inv_JT_J_Im(const Vector &x, TorusPML * pml, Vector &D);
+void detJ_inv_JT_J_abs(const Vector &x, TorusPML * pml, Vector &D);
 
 Array2D<double> comp_domain_bdr;
 Array2D<double> domain_bdr;
@@ -108,7 +97,6 @@ double mu = 1.0;
 double epsilon = 1.0;
 double omega;
 int dim;
-bool exact_known = false;
 
 int main(int argc, char *argv[])
 {
@@ -118,7 +106,8 @@ int main(int argc, char *argv[])
    MPI_Comm_size(MPI_COMM_SELF, &num_procs);
    MPI_Comm_rank(MPI_COMM_SELF, &myid);
    // 1. Parse command-line options.
-   const char *mesh_file = nullptr;
+   const char *mesh_file = "torus1_4.mesh";
+
    int order = 1;
    int ref_levels = 3;
    double freq = 5.0;
@@ -126,8 +115,6 @@ int main(int argc, char *argv[])
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file, "-m", "--mesh",
-                  "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&ref_levels, "-ref", "--refinements",
@@ -146,11 +133,6 @@ int main(int argc, char *argv[])
    args.Parse();
 
    // 2. Setup the mesh
-   if (!mesh_file)
-   {
-      exact_known = true;
-      mesh_file = "../../data/beam-hex.mesh";
-   }
    if (!args.Good())
    {
       args.PrintUsage(cout);
@@ -164,24 +146,35 @@ int main(int argc, char *argv[])
    // Angular frequency
    omega = 2.0 * M_PI * freq;
 
-   // Setup PML length
-   Array2D<double> length(dim, 2); length = 0.0;
-
-   // 3. Setup the Cartesian PML region.
-   length(0, 1) = 2.0;
-
-   Cartesian_PML * pml = new Cartesian_PML(mesh,length);
-   comp_domain_bdr = pml->GetCompDomainBdr();
-   domain_bdr = pml->GetDomainBdr();
-
    // 4. Refine the mesh to increase the resolution.
    for (int l = 0; l < ref_levels; l++)
    {
       mesh->UniformRefinement();
    }
-   // Set element attributes in order to distinguish elements in the PML region
+
+
+   // Setup PMLThickness angle in rad
+   double length_rad = 4.*M_PI/2./20.;
+
+   TorusPML * pml = new TorusPML(mesh,length_rad);
+
+   // // Set element attributes in order to distinguish elements in the PML region
    pml->SetAttributes(mesh);
 
+
+    if (visualization)
+   {
+      char vishost[] = "localhost";
+      int visport = 19916;
+
+      socketstream mesh_sock(vishost, visport);
+      mesh_sock.precision(8);
+      mesh_sock << "mesh\n"
+                  << *mesh << "window_title 'Mesh'" << flush;
+      ofstream mesh_ofs("pml_torus.mesh");
+      mesh_ofs.precision(8);
+      mesh->Print(mesh_ofs);                  
+   }
    // 6. Define a finite element space on the mesh. Here we use the Nedelec
    //    finite elements of the specified order.
    FiniteElementCollection *fec = new ND_FECollection(order, dim);
@@ -190,9 +183,7 @@ int main(int argc, char *argv[])
 
    cout << "Number of finite element unknowns: " << size << endl;
 
-   // 7. Determine the list of true essential boundary dofs. In this example,
-   //    the boundary conditions are defined based on the specific mesh and the
-   //    problem type.
+   // 7. Essential boundary dofs on the whole boundary.
    Array<int> ess_tdof_list;
    Array<int> ess_bdr;
    if (mesh->bdr_attributes.Size())
@@ -210,6 +201,7 @@ int main(int argc, char *argv[])
    //    the FEM linear system.
    VectorFunctionCoefficient f(dim, source);
    ComplexLinearForm b(fespace, conv);
+   // b.AddDomainIntegrator(NULL, new VectorFEDomainLFIntegrator(f));
    b.Vector::operator=(0.0);
    b.Assemble();
 
@@ -285,7 +277,6 @@ int main(int argc, char *argv[])
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-
    SparseMatrix * SpMat = (*A.As<ComplexSparseMatrix>()).GetSystemMatrix();
    StopWatch chrono;
    chrono.Clear();
@@ -302,53 +293,22 @@ int main(int argc, char *argv[])
 
    cout << "mumps time = " << chrono.RealTime() << endl;
 
-   // 13. Solve using a direct or an iterative solver
-   chrono.Clear();
-   chrono.Start();
-   // ComplexUMFPackSolver csolver(*A.As<ComplexSparseMatrix>());
-   UMFPackSolver csolver(*SpMat);
-   csolver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-   csolver.SetPrintLevel(1);
-   csolver.Mult(B, X);
-   chrono.Stop();
-   cout << "UMFPack time = " << chrono.RealTime() << endl;
+   // // 13. Solve using a direct or an iterative solver
+   // chrono.Clear();
+   // chrono.Start();
+   // // ComplexUMFPackSolver csolver(*A.As<ComplexSparseMatrix>());
+   // UMFPackSolver csolver(*SpMat);
+   // csolver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+   // csolver.SetPrintLevel(1);
+   // csolver.Mult(B, X);
+   // chrono.Stop();
+   // cout << "UMFPack time = " << chrono.RealTime() << endl;
 
    // 14. Recover the solution as a finite element grid function and compute the
    //     errors if the exact solution is known.
    a.RecoverFEMSolution(X, b, x);
 
    // If exact is known compute the error
-   if (exact_known)
-   {
-      VectorFunctionCoefficient E_ex_Re(dim, E_exact_Re);
-      VectorFunctionCoefficient E_ex_Im(dim, E_exact_Im);
-      int order_quad = max(2, 2 * order + 1);
-      const IntegrationRule *irs[Geometry::NumGeom];
-      for (int i = 0; i < Geometry::NumGeom; ++i)
-      {
-         irs[i] = &(IntRules.Get(i, order_quad));
-      }
-
-      double L2Error_Re = x.real().ComputeL2Error(E_ex_Re, irs,
-                                                  pml->GetMarkedPMLElements());
-      double L2Error_Im = x.imag().ComputeL2Error(E_ex_Im, irs,
-                                                  pml->GetMarkedPMLElements());
-
-      ComplexGridFunction x_gf0(fespace);
-      x_gf0 = 0.0;
-      double norm_E_Re, norm_E_Im;
-      norm_E_Re = x_gf0.real().ComputeL2Error(E_ex_Re, irs,
-                                              pml->GetMarkedPMLElements());
-      norm_E_Im = x_gf0.imag().ComputeL2Error(E_ex_Im, irs,
-                                              pml->GetMarkedPMLElements());
-
-      cout << "\n Relative Error (Re part): || E_h - E || / ||E|| = "
-           << L2Error_Re / norm_E_Re
-           << "\n Relative Error (Im part): || E_h - E || / ||E|| = "
-           << L2Error_Im / norm_E_Im
-           << "\n Total Error: "
-           << sqrt(L2Error_Re*L2Error_Re + L2Error_Im*L2Error_Im) << "\n\n";
-   }
 
    // 16. Send the solution by socket to a GLVis server.
    if (visualization)
@@ -356,8 +316,6 @@ int main(int argc, char *argv[])
       // Define visualization keys for GLVis (see GLVis documentation)
       string keys;
       keys = (dim == 3) ? "keys macF\n" : keys = "keys amrRljcUUuu\n";
-      if (dim == 3) {keys = "keys macFFiYYYYYYYYYYYYYYYYYY\n";}
-      if (dim == 2) {keys = "keys amrRljcUUuuu\n"; }
 
       char vishost[] = "localhost";
       int visport = 19916;
@@ -408,13 +366,6 @@ int main(int argc, char *argv[])
    delete mesh;
 
 
-// typedef struct {double r,i;} double_complex;
-//    double_complex dc[2];
-//    dc[0].r = 1.0;
-//    dc[0].i = 2.0;
-//    dc[1].r = -1.0;
-//    dc[1].i = -2.0;
-
    MPI_Finalize();
 
    return 0;
@@ -424,9 +375,11 @@ void source(const Vector &x, Vector &f)
 {
    Vector center(dim);
    double r = 0.0;
+   center = 0.5;
+   center(2) = 0.15;
+
    for (int i = 0; i < dim; ++i)
    {
-      center(i) = 0.5 * (comp_domain_bdr(i, 0) + comp_domain_bdr(i, 1));
       r += pow(x[i] - center[i], 2.);
    }
    double n = 5.0 * omega * sqrt(epsilon * mu) / M_PI;
@@ -436,71 +389,17 @@ void source(const Vector &x, Vector &f)
    f[0] = coeff * exp(alpha);
 }
 
-void maxwell_solution(const Vector &x, vector<complex<double>> &E)
-{
-   // Initialize
-   for (int i = 0; i < dim; ++i)
-   {
-      E[i] = 0.0;
-   }
-
-   complex<double> zi = complex<double>(0., 1.);
-   double k = omega * sqrt(epsilon * mu);
-   // T_10 mode
-   if (dim == 3)
-   {
-      double k10 = sqrt(k * k - M_PI * M_PI);
-      E[1] = -zi * k / M_PI * sin(M_PI*x(2))*exp(zi * k10 * x(0));
-   }
-   else if (dim == 2)
-   {
-      E[1] = -zi * k / M_PI * exp(zi * k * x(0));
-   }
-}
-
-void E_exact_Re(const Vector &x, Vector &E)
-{
-   vector<complex<double>> Eval(E.Size());
-   maxwell_solution(x, Eval);
-   for (int i = 0; i < dim; ++i)
-   {
-      E[i] = Eval[i].real();
-   }
-}
-
-void E_exact_Im(const Vector &x, Vector &E)
-{
-   vector<complex<double>> Eval(E.Size());
-   maxwell_solution(x, Eval);
-   for (int i = 0; i < dim; ++i)
-   {
-      E[i] = Eval[i].imag();
-   }
-}
-
 void E_bdr_data_Re(const Vector &x, Vector &E)
 {
    E = 0.0;
-   bool in_pml = false;
-
-   for (int i = 0; i < dim; ++i)
+   // find the angle of the point
+   // if it's 0 then E = 1.
+   if (x(1) == 0) 
    {
-      // check if in PML
-      if (x(i) - comp_domain_bdr(i, 0) < 0.0 ||
-          x(i) - comp_domain_bdr(i, 1) > 0.0)
-      {
-         in_pml = true;
-         break;
-      }
-   }
-   if (!in_pml)
-   {
-      vector<complex<double>> Eval(E.Size());
-      maxwell_solution(x, Eval);
-      for (int i = 0; i < dim; ++i)
-      {
-         E[i] = Eval[i].real();
-      }
+      double r = sqrt(x(0)*x(0) + x(1)*x(1));
+      double alpha = 0.2; // radius 
+      // E[2] = sin(M_PI*(alpha-r));
+      E[2] = 1.0;
    }
 }
 
@@ -508,30 +407,10 @@ void E_bdr_data_Re(const Vector &x, Vector &E)
 void E_bdr_data_Im(const Vector &x, Vector &E)
 {
    E = 0.0;
-   bool in_pml = false;
-
-   for (int i = 0; i < dim; ++i)
-   {
-      // check if in PML
-      if (x(i) - comp_domain_bdr(i, 0) < 0.0 ||
-          x(i) - comp_domain_bdr(i, 1) > 0.0)
-      {
-         in_pml = true;
-         break;
-      }
-   }
-   if (!in_pml)
-   {
-      vector<complex<double>> Eval(E.Size());
-      maxwell_solution(x, Eval);
-      for (int i = 0; i < dim; ++i)
-      {
-         E[i] = Eval[i].imag();
-      }
-   }
+   // if (x(1) == 0) E = 1.0;
 }
 
-void detJ_JT_J_inv_Re(const Vector &x, Cartesian_PML * pml, Vector &D)
+void detJ_JT_J_inv_Re(const Vector &x, TorusPML * pml, Vector &D)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det(1.0, 0.0);
@@ -548,7 +427,7 @@ void detJ_JT_J_inv_Re(const Vector &x, Cartesian_PML * pml, Vector &D)
    }
 }
 
-void detJ_JT_J_inv_Im(const Vector &x, Cartesian_PML * pml, Vector &D)
+void detJ_JT_J_inv_Im(const Vector &x, TorusPML * pml, Vector &D)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det = 1.0;
@@ -565,7 +444,7 @@ void detJ_JT_J_inv_Im(const Vector &x, Cartesian_PML * pml, Vector &D)
    }
 }
 
-void detJ_JT_J_inv_abs(const Vector &x, Cartesian_PML * pml, Vector &D)
+void detJ_JT_J_inv_abs(const Vector &x, TorusPML * pml, Vector &D)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det = 1.0;
@@ -582,7 +461,7 @@ void detJ_JT_J_inv_abs(const Vector &x, Cartesian_PML * pml, Vector &D)
    }
 }
 
-void detJ_inv_JT_J_Re(const Vector &x, Cartesian_PML * pml, Vector &D)
+void detJ_inv_JT_J_Re(const Vector &x, TorusPML * pml, Vector &D)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det(1.0, 0.0);
@@ -607,7 +486,7 @@ void detJ_inv_JT_J_Re(const Vector &x, Cartesian_PML * pml, Vector &D)
    }
 }
 
-void detJ_inv_JT_J_Im(const Vector &x, Cartesian_PML * pml, Vector &D)
+void detJ_inv_JT_J_Im(const Vector &x, TorusPML * pml, Vector &D)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det = 1.0;
@@ -631,7 +510,7 @@ void detJ_inv_JT_J_Im(const Vector &x, Cartesian_PML * pml, Vector &D)
    }
 }
 
-void detJ_inv_JT_J_abs(const Vector &x, Cartesian_PML * pml, Vector &D)
+void detJ_inv_JT_J_abs(const Vector &x, TorusPML * pml, Vector &D)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det = 1.0;
@@ -655,72 +534,87 @@ void detJ_inv_JT_J_abs(const Vector &x, Cartesian_PML * pml, Vector &D)
    }
 }
 
-Cartesian_PML::Cartesian_PML(Mesh *mesh_, Array2D<double> length_)
-   : mesh(mesh_), length(length_)
+TorusPML::TorusPML(Mesh *mesh_, double length_rad_)
+   : mesh(mesh_), PmlThicknessAngle(length_rad_)
 {
    dim = mesh->Dimension();
-   SetBoundaries();
+   theta0 = M_PI/2.0 - PmlThicknessAngle;
+   a = tan(theta0);
+   b = -1.0;
 }
 
-void Cartesian_PML::SetBoundaries()
+void TorusPML::SetAttributes(Mesh *mesh_)
 {
-   comp_dom_bdr.SetSize(dim, 2);
-   dom_bdr.SetSize(dim, 2);
-   Vector pmin, pmax;
-   mesh->GetBoundingBox(pmin, pmax);
-   for (int i = 0; i < dim; i++)
-   {
-      dom_bdr(i, 0) = pmin(i);
-      dom_bdr(i, 1) = pmax(i);
-      comp_dom_bdr(i, 0) = dom_bdr(i, 0) + length(i, 0);
-      comp_dom_bdr(i, 1) = dom_bdr(i, 1) - length(i, 1);
-   }
-}
-
-void Cartesian_PML::SetAttributes(Mesh *mesh_)
-{
+   // set pml attribute according to the angle of element center
    int nrelem = mesh_->GetNE();
    elems.SetSize(nrelem);
+
+   // get min and max angle of the mesh (up to centers)
+   double dmin = 2.*M_PI;
+   double dmax = 0.;
+   for (int i = 0; i < nrelem; ++i)
+   {
+      Vector center;
+      mesh_->GetElementCenter(i,center);
+      double x = center[0];
+      double y = center[1];
+      double theta = atan(y/x);
+      int k = 0;
+      if (x<0)
+      {
+         k = 1;
+      }
+      else if (y<0)
+      {
+         k = 2;
+      }
+      theta += k*M_PI;
+      double thetad = theta * 180.0/M_PI;
+      dmin = min(dmin,theta);
+      dmax = max(dmax,theta);
+   }
+
+   cout << "min angle in degrees = " << dmin * 180. / M_PI << endl;
+   cout << "max angle in degrees = " << dmax * 180. / M_PI << endl;
+
 
    // Loop through the elements and identify which of them are in the PML
    for (int i = 0; i < nrelem; ++i)
    {
+      // initialize with 1
       elems[i] = 1;
-      bool in_pml = false;
       Element *el = mesh_->GetElement(i);
-      Array<int> vertices;
-
       // Initialize attribute
       el->SetAttribute(1);
-      el->GetVertices(vertices);
-      int nrvert = vertices.Size();
-
-      // Check if any vertex is in the PML
-      for (int iv = 0; iv < nrvert; ++iv)
+      Vector center;
+      mesh_->GetElementCenter(i,center);
+      double x = center[0];
+      double y = center[1];
+      double theta = atan(y/x);
+      int k = 0;
+      if (x<0)
       {
-         int vert_idx = vertices[iv];
-         double *coords = mesh_->GetVertex(vert_idx);
-         for (int comp = 0; comp < dim; ++comp)
-         {
-            if (coords[comp] > comp_dom_bdr(comp, 1) ||
-                coords[comp] < comp_dom_bdr(comp, 0))
-            {
-               in_pml = true;
-               break;
-            }
-         }
+         k = 1;
       }
-      if (in_pml)
+      else if (y<0)
+      {
+         k = 2;
+      }
+      theta += k*M_PI;
+
+      // Check if the center is in the PML
+      if (theta > M_PI/2.0 - PmlThicknessAngle)
       {
          elems[i] = 0;
          el->SetAttribute(2);
       }
    }
    mesh_->SetAttributes();
+   // 
 }
 
-void Cartesian_PML::StretchFunction(const Vector &x,
-                                   vector<complex<double>> &dxs)
+void TorusPML::StretchFunction(const Vector &x,
+                               vector<complex<double>> &dxs)
 {
    complex<double> zi = complex<double>(0., 1.);
 
@@ -729,21 +623,55 @@ void Cartesian_PML::StretchFunction(const Vector &x,
    double coeff;
    double k = omega * sqrt(epsilon * mu);
 
-   // Stretch in each direction independently
-   for (int i = 0; i < dim; ++i)
+
+   double x0 = x[0];
+   double y0 = x[1];
+   double th = atan(y0/x0);
+   int m = 0;
+   if (x0<0)
    {
-      dxs[i] = 1.0;
-      if (x(i) >= comp_domain_bdr(i, 1))
-      {
-         coeff = n * c / k / pow(length(i, 1), n);
-         dxs[i] = 1.0 + zi * coeff *
-                  abs(pow(x(i) - comp_domain_bdr(i, 1), n - 1.0));
-      }
-      if (x(i) <= comp_domain_bdr(i, 0))
-      {
-         coeff = n * c / k / pow(length(i, 0), n);
-         dxs[i] = 1.0 + zi * coeff *
-                  abs(pow(x(i) - comp_domain_bdr(i, 0), n - 1.0));
-      }
+      m = 1;
    }
+   else if (y0<0)
+   {
+      m = 2;
+   }
+   th += m*M_PI;
+
+   double thetad = th * 180.0/M_PI;
+   // find the distance from the plane defined by a * x + b * y = 0;
+   // Point on the plane coords
+   Vector xp(2);
+   xp(0) = b * (b * x(0) - a * x(1))/(a * a + b * b);
+   xp(1) = a * (-b * x(0) + a * x(1))/(a * a + b * b);
+
+   double th0 = atan(xp(1)/xp(0));
+   m = 0;
+   if (xp(0)<0)
+   {
+      m = 1;
+   }
+   else if (xp(1)<0)
+   {
+      m = 2;
+   }
+   th0 += m*M_PI;
+
+   double thetad0 = th0 * 180.0/M_PI;
+   if (thetad < thetad0)
+   {
+      cout << "thetad  = " << thetad << endl;
+      cout << "thetad0 = " << thetad0 << endl;
+      cin.get();
+   }
+  
+   // Stretch in each direction independently
+   coeff = n * c / k / pow(0.1, n);
+   dxs[0] = 1.0 + zi * coeff *
+                  abs(pow(x(0) - xp(0), n - 1.0));
+   // dxs[0] = 1.0;       
+   dxs[1] = 1.0 + zi * coeff *
+                  abs(pow(x(1) - xp(1), n - 1.0));              
+   // dxs[1] = 1.0;
+   dxs[2] = 1.0;
 }

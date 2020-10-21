@@ -27,7 +27,7 @@ int get_angle_range(double angle, Array<double> angles);
 int main (int argc, char *argv[])
 {
    // Set the method's default parameters.
-   const char *mesh_file = "torus.mesh";
+   const char *mesh_file = "TokamakMeshes/torus.mesh";
    // const char *tar_mesh_file = "torus1_4.mesh";
    const char *tar_mesh_file = "torus2_4.mesh";
    int order          = 3; // unused
@@ -48,11 +48,11 @@ int main (int argc, char *argv[])
 
    // Input meshes.
    Mesh mesh(mesh_file, 1, 1, false);
-   mesh.UniformRefinement();
-   mesh.UniformRefinement();
+   // mesh.UniformRefinement();
+   // mesh.UniformRefinement();
    const int dim = mesh.Dimension();
    int ne1 = mesh.GetNE();
-   int subdivisions = 40;
+   int subdivisions = 4;
    Array<double> angles(subdivisions+1);
    angles[0] = 0.0;
    double length = 360/subdivisions;
