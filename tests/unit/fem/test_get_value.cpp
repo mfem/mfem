@@ -3131,10 +3131,6 @@ TEST_CASE("3D GetVectorValue in Parallel",
                std::cout << "Shared Face Evaluation 3D" << std::endl;
             }
 
-            std::ostringstream oss;
-            oss << "gvv_" << type << "_" << my_rank << ".out";
-            std::ofstream ofs(oss.str().c_str());
-
             for (int sf = 0; sf < pmesh.GetNSharedFaces(); sf++)
             {
                FaceElementTransformations *FET =
