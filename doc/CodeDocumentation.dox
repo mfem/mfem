@@ -166,7 +166,7 @@ namespace mfem {
  * - <a class="el" href="miniapps_2performance_2ex1_8cpp_source.html">HPC Example 1</a>: high-performance nodal H1 FEM for the Laplace problem
  * - <a class="el" href="miniapps_2performance_2ex1p_8cpp_source.html">HPC Example 1p</a>: high-performance parallel nodal H1 FEM for the Laplace problem
  *
- * See also the <a class="el" href="../../../examples/README.html">README</a> in the <code>examples/</code> directory
+ * See also the <a class="el" href="https://mfem.org/examples/">interactive documentation</a> online.
  */
 
 }

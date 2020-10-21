@@ -95,8 +95,6 @@ The MFEM source code has the following structure:
   │       └── modules
   ├── data
   ├── doc
-  │   └── web
-  │       └── examples
   ├── examples
   │   ├── amgx
   │   ├── ginkgo
