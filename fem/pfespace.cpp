@@ -499,6 +499,12 @@ void ParFiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
    }
 }
 
+const FiniteElement *ParFiniteElementSpace::GetFE(int i) const
+{
+   int ne = mesh->GetNE();
+   if (i >= ne) { return GetFaceNbrFE(i - ne); }
+   else { return FiniteElementSpace::GetFE(i); }
+}
 
 const Operator *ParFiniteElementSpace::GetFaceRestriction(
    ElementDofOrdering e_ordering, FaceType type, L2FaceValues mul) const

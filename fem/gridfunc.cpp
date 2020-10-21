@@ -1550,18 +1550,16 @@ void GridFunction::GetGradient(ElementTransformation &T, Vector &grad) const
    {
       case ElementTransformation::ELEMENT:
       {
-         const FiniteElement * fe = fes->GetFE(T.ElementNo);
+         const FiniteElement *fe = fes->GetFE(T.ElementNo);
          MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE,
                      "invalid FE map type");
          int spaceDim = fes->GetMesh()->SpaceDimension();
          int dim = fe->GetDim(), dof = fe->GetDof();
          DenseMatrix dshape(dof, dim);
          Vector lval, gh(dim);
-         Array<int> dofs;
 
          grad.SetSize(spaceDim);
-         fes->GetElementDofs(T.ElementNo, dofs);
-         GetSubVector(dofs, lval);
+         GetElementDofs(T.ElementNo, lval);
          fe->CalcDShape(T.GetIntPoint(), dshape);
          dshape.MultTranspose(lval, gh);
          T.InverseJacobian().MultTranspose(gh, grad);
@@ -1729,6 +1727,13 @@ void GridFunction::GetElementAverages(GridFunction &avgs) const
    {
       avgs(i) /= int_psi(i);
    }
+}
+
+void GridFunction::GetElementDofs(int el, Vector &dof_vals) const
+{
+   Array<int> dof_idx;
+   fes->GetElementVDofs(el, dof_idx);
+   GetSubVector(dof_idx, dof_vals);
 }
 
 void GridFunction::ProjectGridFunction(const GridFunction &src)
