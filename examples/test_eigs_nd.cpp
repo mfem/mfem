@@ -74,8 +74,6 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   // args.AddOption(&nev, "-n", "--num-eigs",
-   //                "Number of desired eigenmodes.");
    args.AddOption(&seed, "-s", "--seed",
                   "Random seed used to initialize LOBPCG.");
 #ifdef MFEM_USE_SUPERLU
@@ -185,16 +183,7 @@ int main(int argc, char *argv[])
    a->Assemble();
    a->EliminateEssentialBCDiag(ess_bdr, 1.0);
    a->Finalize();
-   /*
-   DenseMatrix epsMat(3);
-   epsMat = 0.0;
-   epsMat(0,0) = 1.0;
-   epsMat(1,1) = 1.0;
-   epsMat(2,2) = 1.0;
-   epsMat(0,1) = 0.1;
-   epsMat(1,0) = 0.1;
-   MatrixConstantCoefficient epsilon(epsMat);
-   */
+
    ParBilinearForm *m = new ParBilinearForm(fespace);
    m->AddDomainIntegrator(new VectorFEMassIntegrator(one));
    m->Assemble();
@@ -350,76 +339,18 @@ int main(int argc, char *argv[])
    {
       tic_toc.Clear();
       tic_toc.Start();
-      /*
-      #if defined(MFEM_USE_SUPERLU) || defined(MFEM_USE_STRUMPACK)
-      Operator * Arow = NULL;
-      #ifdef MFEM_USE_SUPERLU
-      if (slu_solver)
-      {
-         Arow = new SuperLURowLocMatrix(*A);
-      }
-      #endif
-      #ifdef MFEM_USE_STRUMPACK
-      if (sp_solver)
-      {
-         Arow = new STRUMPACKRowLocMatrix(*A);
-      }
-      #endif
-      #endif
-      */
+
       // 8. Define and configure the LOBPCG eigensolver and the BoomerAMG
       //    preconditioner for A to be used within the solver. Set the matrices
       //    which define the generalized eigenproblem A x = lambda M x.
       HypreSolver * precond = NULL;
-      // if (!slu_solver && !sp_solver)
       {
          HypreAMS * ams = new HypreAMS(*A, fespace);
          ams->SetPrintLevel(0);
          ams->SetSingularProblem();
          precond = ams;
       }
-      /*
-      else
-      {
-      #ifdef MFEM_USE_SUPERLU
-         if (slu_solver)
-         {
-            SuperLUSolver * superlu = new SuperLUSolver(MPI_COMM_WORLD);
-            superlu->SetPrintStatistics(false);
-            superlu->SetSymmetricPattern(true);
-            superlu->SetColumnPermutation(superlu::PARMETIS);
-            superlu->SetOperator(*Arow);
-            precond = superlu;
-         }
-      #endif
-      #ifdef MFEM_USE_STRUMPACK
-         if (sp_solver)
-         {
-            STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
-            strumpack->SetPrintFactorStatistics(true);
-            strumpack->SetPrintSolveStatistics(false);
-            strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
-            strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
-            strumpack->DisableMatching();
-            strumpack->SetOperator(*Arow);
-            strumpack->SetFromCommandLine();
-            precond = strumpack;
-         }
-      #endif
-      }
-      */
-      /*
-      HypreLOBPCG * lobpcg = new HypreLOBPCG(MPI_COMM_WORLD);
-      lobpcg->SetNumModes(nev);
-      lobpcg->SetRandomSeed(seed);
-      lobpcg->SetPreconditioner(*precond);
-      lobpcg->SetMaxIter(200);
-      lobpcg->SetTol(1e-8);
-      lobpcg->SetPrecondUsageMode(1);
-      lobpcg->SetPrintLevel(1);
-      lobpcg->SetMassMatrix(*M);
-      lobpcg->SetOperator(*A);
-      */
+
       HypreAME *ame = new HypreAME(MPI_COMM_WORLD);
       ame->SetNumModes(nev);
       ame->SetPreconditioner(*precond);
@@ -521,11 +452,6 @@ int main(int argc, char *argv[])
       }
       delete ame;
       delete precond;
-      /*
-      #if defined(MFEM_USE_SUPERLU) || defined(MFEM_USE_STRUMPACK)
-      delete Arow;
-      #endif
-      */
    }
 
    tic_toc.Clear();
@@ -879,21 +805,6 @@ Mesh * GetMesh(MeshType &type)
          break;
    }
    mesh->FinalizeTopology();
-   /*
-   if (mesh->Dimension() == 3)
-   {
-      Array<int> fcs;
-      Array<int> cor;
-      for (int i=0; i<mesh->GetNE(); i++)
-      {
-         mesh->GetElementFaces(i, fcs, cor);
-         for (int j=0; j<fcs.Size(); j++)
-         {
-            cout << i << '\t' << j << '\t' << fcs[j] << '\t' << cor[j] << '\n';
-         }
-      }
-   }
-   */
 
    return mesh;
 }
