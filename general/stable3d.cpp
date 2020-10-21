@@ -70,11 +70,6 @@ int STable3D::Push (int r, int c, int f)
 
    Sort3 (r, c, f);
 
-   if (r >= Size)
-   {
-      return -1;
-   }
-
    for (node = Rows[r]; node != NULL; node = node->Prev)
    {
       if (node->Column == c)
@@ -122,6 +117,11 @@ int STable3D::operator() (int r, int c, int f) const
 int STable3D::Index (int r, int c, int f) const
 {
    STable3DNode *node;
+
+   if (r >= Size)
+   {
+      return -1;
+   }
 
    Sort3 (r, c, f);
 
