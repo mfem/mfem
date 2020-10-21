@@ -16,6 +16,10 @@
 
 #include "mumps.hpp"
 
+#ifdef HYPRE_BIGINT
+#error "MUMPSSolver requires HYPRE_Int == int, for now."
+#endif
+
 namespace mfem
 {
 
@@ -45,7 +49,7 @@ void MUMPSSolver::SetOperator(const Operator &op)
 
    row_start = parcsr_op->first_row_index;
 
-   int nnz = 0;
+   MUMPS_INT8 nnz = 0;
    if (mat_type)
    {
       // count nnz in case of symmetric mode
