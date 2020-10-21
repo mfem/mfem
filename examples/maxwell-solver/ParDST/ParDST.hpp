@@ -38,6 +38,7 @@ private:
    Array< OperatorPtr * > Optr;
    Array<ComplexSparseMatrix *> PmlMat;
    Array<ComplexUMFPackSolver *> PmlMatInv;
+//    Array<ComplexMUMPSSolver *> PmlMatInv;
    mutable Array<Vector *> f_orig;
    mutable Array<Array<Vector * >> f_transf;
    mutable Array<Vector * > subdomain_sol;

@@ -255,6 +255,20 @@ void ParDST::SetupSubdomainProblems()
       PmlMatInv[ip] = new ComplexUMFPackSolver;
       PmlMatInv[ip]->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
       PmlMatInv[ip]->SetOperator(*PmlMat[ip]);
+
+      // HYPRE_Int rowstarts[2]; rowstarts[0] = 0;
+      // rowstarts[1] = dmaps->fes[ip]->GetTrueVSize();
+      // HypreParMatrix * HypreMat_r =
+      //    new HypreParMatrix(MPI_COMM_SELF,rowstarts[1],rowstarts,
+      //                       &(PmlMat[ip]->real()));
+      // HypreParMatrix * HypreMat_i =
+      //    new HypreParMatrix(MPI_COMM_SELF,rowstarts[1],rowstarts,
+      //                       &(PmlMat[ip]->imag()));
+      // ComplexHypreParMatrix * HypreMat =
+      //    new ComplexHypreParMatrix(HypreMat_r,HypreMat_i,true,true);
+      // PmlMatInv[ip] = new ComplexMUMPSSolver;
+      // PmlMatInv[ip]->SetOperator(*HypreMat);
+      // delete HypreMat;
       int ndofs = dmaps->fes[ip]->GetTrueVSize();
       f_transf[ip].SetSize(sweeps->nsweeps);
       for (int i=0;i<sweeps->nsweeps; i++)
