@@ -94,47 +94,14 @@ Euler::Euler(FiniteElementSpace *fes_, BlockVector &u_block,
       }
       case 6:
       {
-         ProblemName = "Euler Equations of Gas dynamics - MoST Gimmick";
+         ProblemName = "Euler Equations of Gas dynamics - Gresho Vortex";
          glvis_scale = "on";
          SpHeatRatio = 1.4;
-         SolutionKnown = false;
-         SteadyState = false;
+         SolutionKnown = true;
+         SteadyState = true;
          TimeDepBC = false;
-         ProjType = 1;
-
-         Mesh *mesh = fes->GetMesh();
-         const int nd = fes->GetFE(0)->GetDof();
-         const int ne = fes->GetNE();
-         if (mesh->Dimension() != 2) { MFEM_ABORT("Test case works only in 2D."); }
-         u0 = 0.;
-
-         for (int e = 0; e < ne; e++)
-         {
-            int id = mesh->GetElement(e)->GetAttribute();
-            for (int j = 0; j < nd; j++)
-            {
-               switch (id)
-               {
-                  case 1:
-                  {
-                     u0(e*nd+j) = 1.;
-                     u0(3*ne*nd + e*nd+j) = 1. / SpHeatRatio;
-                     break;
-                  }
-                  case 2:
-                  case 3:
-                  case 4:
-                  {
-                     u0(e*nd+j) = 0.125;
-                     u0(3*ne*nd + e*nd+j) = 0.1 / SpHeatRatio;
-                     break;
-                  }
-                  default:
-                     MFEM_ABORT("Too many element IDs.");
-               }
-            }
-         }
-
+         ProjType = 0;
+         u0.ProjectCoefficient(ic);
          break;
       }
       case 7:
@@ -143,18 +110,6 @@ Euler::Euler(FiniteElementSpace *fes_, BlockVector &u_block,
          glvis_scale = "on";
          SpHeatRatio = 1.4;
          SolutionKnown = false;
-         SteadyState = true;
-         TimeDepBC = false;
-         ProjType = 0;
-         u0.ProjectCoefficient(ic);
-         break;
-      }
-      case 8:
-      {
-         ProblemName = "Euler Equations of Gas dynamics - Gresho Vortex";
-         glvis_scale = "on";
-         SpHeatRatio = 1.4;
-         SolutionKnown = true;
          SteadyState = true;
          TimeDepBC = false;
          ProjType = 0;
@@ -454,7 +409,7 @@ void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
       {
          case 0:
          case 5:
-         case 8: // Map to the reference domain [-1,1]^d.
+         case 6: // Map to the reference domain [-1,1]^d.
          {
             double center = 0.5 * (ConfigEuler.bbMin(i) + ConfigEuler.bbMax(i));
             double factor = 2.0 / (ConfigEuler.bbMax(i) - ConfigEuler.bbMin(i));
@@ -542,30 +497,6 @@ void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
       {
          if (dim != 2) { MFEM_ABORT("Test case works only in 2D."); }
 
-         bool left = X(0) < 0. && X(0)*X(0) + 0.24 * (X(1)+1.)*(X(1)+1.) > 1.05;
-         X(0) = 0.5 * (X(0) + 1.);
-         X(1) = 0.25 * (X(1) + 1.);
-
-         if (left)
-         {
-            u(0) = 8.;
-            u(1) = 66. * cos(M_PI / 6.);
-            u(2) = -66. * sin(M_PI / 6.);
-            EvaluateEnergy(u, 116.5);
-         }
-         else
-         {
-            u = 0.;
-            u(0) = 1.4;
-            EvaluateEnergy(u, 1.);
-         }
-
-         break;
-      }
-      case 8:
-      {
-         if (dim != 2) { MFEM_ABORT("Test case works only in 2D."); }
-
          double pressure = 3.0 + 4.0*log(2.0);
          double r = X.Norml2();
 
@@ -625,7 +556,6 @@ void InitialConditionEuler(const Vector &x, Vector &u)
       case 3:
       case 5:
       case 6:
-      case 8:
       {
          AnalyticalSolutionEuler(x, 0.0, u);
          break;
@@ -689,7 +619,6 @@ void InflowFunctionEuler(const Vector &x, double t, Vector &u)
       case 3:
       case 5:
       case 6:
-      case 8:
       {
          AnalyticalSolutionEuler(x, t, u);
          break;
