@@ -325,6 +325,8 @@ public:
        Both FE spaces should be scalar and on the same mesh. */
    void GetElementAverages(GridFunction &avgs) const;
 
+   virtual void GetElementDofs(int el, Vector &dof_vals) const;
+
    /** Impose the given bounds on the function's DOFs while preserving its local
     *  integral (described in terms of the given weights) on the i'th element
     *  through SLBPQ optimization.

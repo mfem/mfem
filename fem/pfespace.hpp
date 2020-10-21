@@ -264,6 +264,8 @@ public:
        including the dofs for the edges and the vertices of the face. */
    virtual void GetFaceDofs(int i, Array<int> &dofs) const;
 
+   virtual const FiniteElement *GetFE(int i) const;
+
    /** Returns an Operator that converts L-vectors to E-vectors on each face.
        The parallel version is different from the serial one because of the
        presence of shared faces. Shared faces are treated as interior faces,
