@@ -17,7 +17,7 @@ supercomputers.
 * Copyright and licensing information can be found in files LICENSE and NOTICE.
 
 * The best starting point for new users interested in MFEM's features is the
-  interactive documentation in examples/README.html.
+  interactive documentation: https://mfem.org/examples/.
 
 * Developers interested in contributing to the library, should read the
   instructions and documentation in the CONTRIBUTING.md file.
