@@ -126,6 +126,9 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
    {
       ApplyLDofSigns(*elem_dof);
    }
+
+   // Check for shared trianglular faces with interior Nedelec DoFs
+   CheckNDSTriaDofs();
 }
 
 void ParFiniteElementSpace::Construct()
@@ -661,6 +664,43 @@ void ParFiniteElementSpace::GenerateGlobalOffsets() const
       delete [] statuses;
       delete [] requests;
    }
+}
+
+void ParFiniteElementSpace::CheckNDSTriaDofs()
+{
+   // Check for Nedelec basis
+   bool nd_basis = dynamic_cast<const ND_FECollection*>(fec);
+   if (!nd_basis)
+   {
+      nd_strias = false;
+      return;
+   }
+
+   // Check for interior face dofs on triangles (the use of TETRAHEDRON
+   // is not an error)
+   bool nd_fdof  = fec->HasFaceDofs(Geometry::TETRAHEDRON);
+   if (!nd_fdof)
+   {
+      nd_strias = false;
+      return;
+   }
+
+   // Check for shared triangle faces
+   bool strias   = false;
+   {
+      int ngrps = pmesh->GetNGroups();
+      for (int g = 1; g < ngrps; g++)
+      {
+         strias |= pmesh->GroupNTriangles(g);
+      }
+   }
+
+   // Combine results
+   int loc_nd_strias = strias ? 1 : 0;
+   int glb_nd_strias = 0;
+   MPI_Allreduce(&loc_nd_strias, &glb_nd_strias, 1,
+                 MPI_INTEGER, MPI_SUM, MyComm);
+   nd_strias = glb_nd_strias > 0;
 }
 
 void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
