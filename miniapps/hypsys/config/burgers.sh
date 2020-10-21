@@ -15,26 +15,26 @@ $EXEC $CONFIG -es $SCHEME -o  7 -r 2
 $EXEC $CONFIG -es $SCHEME -o 15 -r 1
 
 
-# GRID CONVERGENCE TEST
-SCHEME=1
-ORDER=1
-DT=0.0004
-# ORDER=2
-# DT=0.00016
-# ORDER=3
-# DT=-dt 0.0001
-# ORDER=4
-# DT=0.00005
-MESH="data/periodic-4segment.mesh"
-MESH0="data/periodic-3segment.mesh"
-CONFIG0="-p 1 -c 0 -vf 1000 -tf 0.1 -s 3 -dt $DT -m $MESH0 -o $ORDER"
-CONFIG1="-p 1 -c 0 -vf 1000 -tf 0.1 -s 3 -dt $DT -m $MESH -o $ORDER"
+# # GRID CONVERGENCE TEST
+# SCHEME=1
+# ORDER=1
+# DT=0.0004
+# # ORDER=2
+# # DT=0.00016
+# # ORDER=3
+# # DT=-dt 0.0001
+# # ORDER=4
+# # DT=0.00005
+# MESH="data/periodic-4segment.mesh"
+# MESH0="data/periodic-3segment.mesh"
+# CONFIG0="-p 1 -c 0 -vf 1000 -tf 0.1 -s 3 -dt $DT -m $MESH0 -o $ORDER"
+# CONFIG1="-p 1 -c 0 -vf 1000 -tf 0.1 -s 3 -dt $DT -m $MESH -o $ORDER"
 
-rm errors.txt
-$EXEC $CONFIG0 -r 4 -es $SCHEME
-$EXEC $CONFIG1 -r 4 -es $SCHEME
-$EXEC $CONFIG0 -r 5 -es $SCHEME
-$EXEC $CONFIG1 -r 5 -es $SCHEME
-$EXEC $CONFIG0 -r 6 -es $SCHEME
-$EXEC $CONFIG1 -r 6 -es $SCHEME
-$EXEC $CONFIG0 -r 7 -es $SCHEME
+# rm errors.txt
+# $EXEC $CONFIG0 -r 4 -es $SCHEME
+# $EXEC $CONFIG1 -r 4 -es $SCHEME
+# $EXEC $CONFIG0 -r 5 -es $SCHEME
+# $EXEC $CONFIG1 -r 5 -es $SCHEME
+# $EXEC $CONFIG0 -r 6 -es $SCHEME
+# $EXEC $CONFIG1 -r 6 -es $SCHEME
+# $EXEC $CONFIG0 -r 7 -es $SCHEME

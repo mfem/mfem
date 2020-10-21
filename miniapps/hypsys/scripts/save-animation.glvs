@@ -1,20 +1,21 @@
 window 0 0 1080 1080
 
 # Initial solution
-solution grid.mesh initial.gf
+solution ../grid.mesh ../initial.gf
 
 # Setup the GLVis scene. Executed after pressing the space bar.
 {
    # keys mcjppppppppppppppppppppppppppp6666666666666666666666666666666666666666666666666666666666666666666666662222222222
    keys mcjlpppppppppppppppppppppppppppR****
+   autoscale off
 }
 
 # Take multiple screenshots. Executed after pressing the space bar.
 {
-   solution grid.mesh initial.gf valuerange -1 0.8 screenshot screenshot00.png
-   solution grid.mesh trans0.gf valuerange -1 0.8 screenshot screenshot01.png
-   solution grid.mesh trans1.gf valuerange -1 0.8 screenshot screenshot02.png
-   solution grid.mesh trans2.gf valuerange -1 0.8 screenshot screenshot03.png
-   solution grid.mesh trans3.gf valuerange -1 0.8 screenshot screenshot04.png
-   solution grid.mesh ultimate.gf valuerange -1 0.8 screenshot screenshot05.png
+   solution ../grid.mesh ../initial.gf  valuerange 0 1 screenshot frame00.png
+   solution ../grid.mesh ../trans1.gf   valuerange 0 1 screenshot frame01.png
+   solution ../grid.mesh ../trans2.gf   valuerange 0 1 screenshot frame02.png
+   solution ../grid.mesh ../trans3.gf   valuerange 0 1 screenshot frame03.png
+   solution ../grid.mesh ../trans4.gf   valuerange 0 1 screenshot frame04.png
+   solution ../grid.mesh ../ultimate.gf valuerange 0 1 screenshot frame05.png
 }
