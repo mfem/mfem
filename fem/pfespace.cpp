@@ -709,53 +709,222 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
 
    if (P) { return; }
 
-   int ldof  = GetVSize();
-   int ltdof = TrueVSize();
-
-   HYPRE_Int *i_diag = Memory<HYPRE_Int>(ldof+1);
-   HYPRE_Int *j_diag = Memory<HYPRE_Int>(ltdof);
-   int diag_counter;
-
-   HYPRE_Int *i_offd = Memory<HYPRE_Int>(ldof+1);
-   HYPRE_Int *j_offd = Memory<HYPRE_Int>(ldof-ltdof);
-   int offd_counter;
-
-   HYPRE_Int *cmap   = Memory<HYPRE_Int>(ldof-ltdof);
-
-   HYPRE_Int *col_starts = GetTrueDofOffsets();
-   HYPRE_Int *row_starts = GetDofOffsets();
-
-   Array<Pair<HYPRE_Int, int> > cmap_j_offd(ldof-ltdof);
-
-   i_diag[0] = i_offd[0] = 0;
-   diag_counter = offd_counter = 0;
-   for (int i = 0; i < ldof; i++)
+   if (!nd_strias)
    {
-      int ltdof = GetLocalTDofNumber(i);
-      if (ltdof >= 0)
+      // Safe to assume 1-1 correspondence between shared dofs
+      int ldof  = GetVSize();
+      int ltdof = TrueVSize();
+
+      HYPRE_Int *i_diag = Memory<HYPRE_Int>(ldof+1);
+      HYPRE_Int *j_diag = Memory<HYPRE_Int>(ltdof);
+      int diag_counter;
+
+      HYPRE_Int *i_offd = Memory<HYPRE_Int>(ldof+1);
+      HYPRE_Int *j_offd = Memory<HYPRE_Int>(ldof-ltdof);
+      int offd_counter;
+
+      HYPRE_Int *cmap   = Memory<HYPRE_Int>(ldof-ltdof);
+
+      HYPRE_Int *col_starts = GetTrueDofOffsets();
+      HYPRE_Int *row_starts = GetDofOffsets();
+
+      Array<Pair<HYPRE_Int, int> > cmap_j_offd(ldof-ltdof);
+
+      i_diag[0] = i_offd[0] = 0;
+      diag_counter = offd_counter = 0;
+      for (int i = 0; i < ldof; i++)
       {
-         j_diag[diag_counter++] = ltdof;
+         int ltdof = GetLocalTDofNumber(i);
+         if (ltdof >= 0)
+         {
+            j_diag[diag_counter++] = ltdof;
+         }
+         else
+         {
+            cmap_j_offd[offd_counter].one = GetGlobalTDofNumber(i);
+            cmap_j_offd[offd_counter].two = offd_counter;
+            offd_counter++;
+         }
+         i_diag[i+1] = diag_counter;
+         i_offd[i+1] = offd_counter;
       }
-      else
+
+      SortPairs<HYPRE_Int, int>(cmap_j_offd, offd_counter);
+
+      for (int i = 0; i < offd_counter; i++)
       {
-         cmap_j_offd[offd_counter].one = GetGlobalTDofNumber(i);
-         cmap_j_offd[offd_counter].two = offd_counter;
-         offd_counter++;
+         cmap[i] = cmap_j_offd[i].one;
+         j_offd[cmap_j_offd[i].two] = i;
       }
-      i_diag[i+1] = diag_counter;
-      i_offd[i+1] = offd_counter;
+
+      P = new HypreParMatrix(MyComm, MyRank, NRanks, row_starts, col_starts,
+                             i_diag, j_diag, i_offd, j_offd,
+                             cmap, offd_counter);
    }
-
-   SortPairs<HYPRE_Int, int>(cmap_j_offd, offd_counter);
-
-   for (int i = 0; i < offd_counter; i++)
+   else
    {
-      cmap[i] = cmap_j_offd[i].one;
-      j_offd[cmap_j_offd[i].two] = i;
-   }
+      // Some shared dofs will be linear combinations of others
+      int ldof  = GetVSize();
+      int ltdof = TrueVSize();
 
-   P = new HypreParMatrix(MyComm, MyRank, NRanks, row_starts, col_starts,
-                          i_diag, j_diag, i_offd, j_offd, cmap, offd_counter);
+      HYPRE_Int gdof  = -1;
+      HYPRE_Int gtdof = -1;
+
+      MPI_Allreduce(&ldof, &gdof, 1, HYPRE_MPI_INT, MPI_SUM, MyComm);
+      MPI_Allreduce(&ltdof, &gtdof, 1, HYPRE_MPI_INT, MPI_SUM, MyComm);
+
+      // Ensure face orientations have been communicated
+      pmesh->ExchangeFaceNbrData();
+
+      // Locate and count non-zeros in off-diagonal portion of P
+      int nnz_offd = 0;
+      Array<int> ldsize(ldof); ldsize = 0;
+      Array<int> ltori(ldof);  ltori = 0; // Local triangle orientations
+      {
+         int ngrps = pmesh->GetNGroups();
+         int nedofs = fec->DofForGeometry(Geometry::SEGMENT);
+         Array<int> sdofs;
+         for (int g = 1; g < ngrps; g++)
+         {
+            if (pmesh->gtopo.IAmMaster(g))
+            {
+               continue;
+            }
+            for (int ei=0; ei<pmesh->GroupNEdges(g); ei++)
+            {
+               this->GetSharedEdgeDofs(g, ei, sdofs);
+               for (int i=0; i<sdofs.Size(); i++)
+               {
+                  int ind = (sdofs[i]>=0) ? sdofs[i] : (-sdofs[i]-1);
+                  if (ldsize[ind] == 0) { nnz_offd++; }
+                  ldsize[ind] = 1;
+               }
+            }
+            for (int fi=0; fi<pmesh->GroupNTriangles(g); fi++)
+            {
+               int face, ori, info1, info2;
+               pmesh->GroupTriangle(g, fi, face, ori);
+               pmesh->GetFaceInfos(face, &info1, &info2);
+               this->GetSharedTriangleDofs(g, fi, sdofs);
+               for (int i=0; i<3*nedofs; i++)
+               {
+                  int ind = (sdofs[i]>=0) ? sdofs[i] : (-sdofs[i]-1);
+                  if (ldsize[ind] == 0) { nnz_offd++; }
+                  ldsize[ind] = 1;
+               }
+               for (int i=3*nedofs; i<sdofs.Size(); i++)
+               {
+                  if (ldsize[sdofs[i]] == 0) { nnz_offd += 2; }
+                  ldsize[sdofs[i]] = 2;
+                  ltori[sdofs[i]]  = info2 % 64;
+               }
+            }
+            for (int fi=0; fi<pmesh->GroupNQuadrilaterals(g); fi++)
+            {
+               this->GetSharedQuadrilateralDofs(g, fi, sdofs);
+               for (int i=0; i<sdofs.Size(); i++)
+               {
+                  int ind = (sdofs[i]>=0) ? sdofs[i] : (-sdofs[i]-1);
+                  if (ldsize[ind] == 0) { nnz_offd++; }
+                  ldsize[ind] = 1;
+               }
+            }
+         }
+      }
+
+      HYPRE_Int *i_diag = new HYPRE_Int[ldof+1];
+      HYPRE_Int *j_diag = new HYPRE_Int[ltdof];
+      double    *d_diag = new double[ltdof];
+      int diag_counter;
+
+      HYPRE_Int *i_offd = new HYPRE_Int[ldof+1];
+      HYPRE_Int *j_offd = new HYPRE_Int[nnz_offd];
+      double    *d_offd = new double[nnz_offd];
+      int offd_counter;
+
+      HYPRE_Int *cmap   = new HYPRE_Int[ldof-ltdof];
+
+      HYPRE_Int *col_starts = GetTrueDofOffsets();
+      HYPRE_Int *row_starts = GetDofOffsets();
+
+      Array<Pair<HYPRE_Int, int> > cmap_j_offd(ldof-ltdof);
+
+      i_diag[0] = i_offd[0] = 0;
+      diag_counter = offd_counter = 0;
+      int offd_col_counter = 0;
+      for (int i = 0; i < ldof; i++)
+      {
+         int ltdof = GetLocalTDofNumber(i);
+         if (ltdof >= 0)
+         {
+            j_diag[diag_counter]   = ltdof;
+            d_diag[diag_counter++] = 1.0;
+         }
+         else
+         {
+            if (ldsize[i] == 1)
+            {
+               cmap_j_offd[offd_col_counter].one = GetGlobalTDofNumber(i);
+               cmap_j_offd[offd_col_counter].two = offd_counter;
+               offd_counter++;
+               offd_col_counter++;
+            }
+            else
+            {
+               cmap_j_offd[offd_col_counter].one = GetGlobalTDofNumber(i);
+               cmap_j_offd[offd_col_counter].two = offd_counter;
+               offd_counter += 2;
+               offd_col_counter++;
+               i_diag[i+1] = diag_counter;
+               i_offd[i+1] = offd_counter;
+               i++;
+               cmap_j_offd[offd_col_counter].one = GetGlobalTDofNumber(i);
+               cmap_j_offd[offd_col_counter].two = offd_counter;
+               offd_counter += 2;
+               offd_col_counter++;
+            }
+         }
+         i_diag[i+1] = diag_counter;
+         i_offd[i+1] = offd_counter;
+      }
+
+      SortPairs<HYPRE_Int, int>(cmap_j_offd, offd_col_counter);
+
+      for (int i = 0; i < nnz_offd; i++)
+      {
+         j_offd[i] = -1;
+         d_offd[i] = 0.0;
+      }
+
+      for (int i = 0; i < offd_col_counter; i++)
+      {
+         cmap[i] = cmap_j_offd[i].one;
+         j_offd[cmap_j_offd[i].two] = i;
+      }
+
+      for (int i = 0; i < ldof; i++)
+      {
+         if (i_offd[i+1] == i_offd[i] + 1)
+         {
+            d_offd[i_offd[i]] = 1.0;
+         }
+         else if (i_offd[i+1] == i_offd[i] + 2)
+         {
+            const double * T = ND_DofTransformation
+                               ::GetFaceTransform(ltori[i]).GetData();
+            j_offd[i_offd[i] + 1] = j_offd[i_offd[i]] + 1;
+            d_offd[i_offd[i]] = T[0]; d_offd[i_offd[i] + 1] = T[2];
+            i++;
+            j_offd[i_offd[i] + 1] = j_offd[i_offd[i]];
+            j_offd[i_offd[i]] = j_offd[i_offd[i] + 1] - 1;
+            d_offd[i_offd[i]] = T[1]; d_offd[i_offd[i] + 1] = T[3];
+         }
+      }
+
+      P = new HypreParMatrix(MyComm, gdof, gtdof, row_starts, col_starts,
+                             i_diag, j_diag, d_diag, i_offd, j_offd, d_offd,
+                             offd_col_counter, cmap);
+   }
 
    SparseMatrix Pdiag;
    P->GetDiag(Pdiag);
