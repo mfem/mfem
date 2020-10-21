@@ -606,9 +606,17 @@ void ConstrainedSolver::SetElimination(Array<int>& primary_dofs,
 void ConstrainedSolver::SetPenalty(double penalty)
 {
    HypreParMatrix& A = dynamic_cast<HypreParMatrix&>(block_op->GetBlock(0, 0));
-   SparseMatrix& B = dynamic_cast<SparseMatrix&>(block_op->GetBlock(1, 0));
-
-   subsolver = new PenaltyConstrainedSolver(A, B, penalty);
+   SparseMatrix * B = dynamic_cast<SparseMatrix*>(&block_op->GetBlock(1, 0));
+   if (B)
+   {
+      subsolver = new PenaltyConstrainedSolver(A, *B, penalty);
+   }
+   else
+   {
+      HypreParMatrix * hB = dynamic_cast<HypreParMatrix*>(&block_op->GetBlock(1, 0));
+      MFEM_VERIFY(hB, "Wrong type for constraint matrix!");
+      subsolver = new PenaltyConstrainedSolver(A, *hB, penalty);
+   }
 }
 
 void ConstrainedSolver::SetDualRHS(const Vector& r)

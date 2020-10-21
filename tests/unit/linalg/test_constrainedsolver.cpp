@@ -149,9 +149,9 @@ TEST_CASE("ConstrainedSolver", "[Parallel], [ConstrainedSolver]")
       for (auto pen : {1.e+3, 1.e+4, 1.e+6})
       {
          problem.Penalty(pen, serr, lerr);
-         REQUIRE(std::abs(serr(0)) < pen);
-         REQUIRE(std::abs(serr(1)) < pen);
-         REQUIRE(std::abs(lerr(0)) < pen);
+         REQUIRE(std::abs(serr(0)) < 1./pen);
+         REQUIRE(std::abs(serr(1)) < 1./pen);
+         REQUIRE(std::abs(lerr(0)) < 1./pen);
       }
 
       Vector dualrhs(1);
@@ -171,9 +171,9 @@ TEST_CASE("ConstrainedSolver", "[Parallel], [ConstrainedSolver]")
       for (auto pen : {1.e+3, 1.e+4, 1.e+6})
       {
          problem.Penalty(pen, serr, lerr);
-         REQUIRE(std::abs(serr(0)) < pen);
-         REQUIRE(std::abs(serr(1)) < pen);
-         REQUIRE(std::abs(lerr(0)) < pen);
+         REQUIRE(std::abs(serr(0)) < 1./pen);
+         REQUIRE(std::abs(serr(1)) < 1./pen);
+         REQUIRE(std::abs(lerr(0)) < 1./pen);
       }
    }
 }
@@ -247,23 +247,23 @@ ParallelTestProblem::ParallelTestProblem()
       truesol(0) = 2.5;
       rhs(1) = -1.4;
       truesol(1) = -1.75;
-      truelambda(0) = 0.3500000000000001;
+      truelambda(0) = 0.35;
    }
    else if (rank == 2)
    {
       rhs(0) = 2.1;
       truesol(0) = 1.75;
       rhs(1) = -3.2;
-      truesol(1) = -1.0499999999999998;
-      truelambda(0) = -2.1500000000000004;
+      truesol(1) = -1.05;
+      truelambda(0) = -2.15;
    }
    else if (rank == 3)
    {
       rhs(0) = -1.1;
-      truesol(0) = 1.0500000000000003;
+      truesol(0) = 1.05;
       rhs(1) = 2.2;
       truesol(1) = 0.55;
-      truelambda(0) = 1.6500000000000001;
+      truelambda(0) = 1.65;
    }
    else
    {
@@ -282,7 +282,6 @@ void ParallelTestProblem::Schur(Vector& serr, Vector& lerr)
    ConstrainedSolver solver(*amat, *bmat);
    IdentitySolver prec(2);
    solver.SetSchur(prec);
-   // solver.SetRelTol(1.e-14);
    solver.Mult(rhs, sol);
    solver.GetDualSolution(lambda);
    for (int i = 0; i < 2; ++i)
@@ -297,6 +296,18 @@ void ParallelTestProblem::Schur(Vector& serr, Vector& lerr)
 
 void ParallelTestProblem::Penalty(double pen, Vector& serr, Vector& lerr)
 {
+   ConstrainedSolver solver(*amat, *bmat);
+   solver.SetPenalty(pen);
+   solver.Mult(rhs, sol);
+   solver.GetDualSolution(lambda);
+   for (int i = 0; i < 2; ++i)
+   {
+      serr(i) = truesol(i) - sol(i);
+   }
+   for (int i = 0; i < 1; ++i)
+   {
+      lerr(i) = truelambda(i) - lambda(i);
+   }
 }
 
 /// *actual* parallel constrained solver
@@ -311,8 +322,23 @@ TEST_CASE("ParallelConstrainedSolver", "[Parallel], [ConstrainedSolver]")
       ParallelTestProblem problem;
       problem.Schur(serr, lerr);
       double serrnorm = serr.Norml2();
+      INFO("Parallel Schur primal error: " << serrnorm << "\n");
       REQUIRE(serrnorm == MFEM_Approx(0.0));
+      INFO("Parallel Schur dual error: " << lerr(0) << "\n");
       REQUIRE(lerr(0) == MFEM_Approx(0.0));
+
+      for (auto pen : {1.e+3, 1.e+4, 1.e+6})
+      {
+         problem.Penalty(pen, serr, lerr);
+         serrnorm = serr.Norml2();
+         INFO("Parallel penalty primal error: " << serrnorm << "\n");
+         REQUIRE(serrnorm == MFEM_Approx(0.0, 2./pen));
+         INFO("Parallel penalty dual error: " << lerr(0) << "\n");
+         REQUIRE(lerr(0) == MFEM_Approx(0.0, 2./pen));
+      }
+
+      // TODO: one day I will test the elimination solver for parallel matrices,
+      //       but today is not that day
    }
 }
 
