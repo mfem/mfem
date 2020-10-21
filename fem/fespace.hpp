@@ -238,7 +238,7 @@ protected:
       const FiniteElementSpace *fine_fes; // Not owned.
       DenseTensor localR[Geometry::NumGeom];
       Table *coarse_elem_dof; // Owned.
-      Table *coarse_elem_fos; // Owned.
+      // Table *coarse_elem_fos; // Owned.
       Table coarse_to_fine;
       Array<int> coarse_to_ref_type;
       Array<Geometry::Type> ref_type_to_geom;

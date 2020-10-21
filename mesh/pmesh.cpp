@@ -2167,13 +2167,7 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
       }
    }
    face_nbr_el_ori.Finalize();
-   {
-      std::ostringstream oss;
-      oss << "fn_ori." << MyRank;
-      std::ofstream ofs(oss.str().c_str());
-      face_nbr_el_ori.Print(ofs, 10);
-      ofs.close();
-   }
+
    MPI_Waitall(num_face_nbrs, send_requests, statuses);
 
    // send and receive the face data
@@ -2495,13 +2489,7 @@ STable3D *ParMesh::GetFaceNbrElementToFaceTable(int ret_ftbl)
       }
    }
    face_nbr_el_to_face->Finalize();
-   {
-      ostringstream oss;
-      oss << "face_nbr_el_to_face." << MyRank;
-      ofstream ofs(oss.str().c_str());
-      face_nbr_el_to_face->Print(ofs);
-      ofs.close();
-   }
+
    if (ret_ftbl)
    {
       return faces_tbl;
