@@ -185,29 +185,32 @@ public:
    ParallelTestProblem();
    ~ParallelTestProblem();
 
+   void Schur(Vector& serr, Vector& lerr);
+   void Penalty(double pen, Vector& serr, Vector& lerr);
+
 private:
+   SparseMatrix Alocal;
+   Vector rhs, sol, truesol, lambda, truelambda;
    HypreParMatrix * amat;
    HypreParMatrix * bmat;
 };
 
 
 ParallelTestProblem::ParallelTestProblem()
+   :
+   Alocal(2), rhs(2), sol(2), truesol(2), lambda(1), truelambda(1)
 {
    int rank;
    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-   /// probably need localI to stick around...
-   SparseMatrix localI(2);
-   localI.Add(0, 0, 1.0);
-   localI.Add(1, 1, 1.0);
-   localI.Finalize();
+   Alocal.Add(0, 0, 1.0);
+   Alocal.Add(1, 1, 1.0);
+   Alocal.Finalize();
 
    int row_starts_a[2] = {2 * rank, 2 * (rank + 1)};
-   amat = new HypreParMatrix(MPI_COMM_WORLD, 8, row_starts_a, &localI);
+   amat = new HypreParMatrix(MPI_COMM_WORLD, 8, row_starts_a, &Alocal);
    amat->CopyRowStarts();
    
-   amat->Print("amat.hyprematrix");
-
    SparseMatrix Blocal(1, 8);
    if (rank == 3)
    {
@@ -226,14 +229,74 @@ ParallelTestProblem::ParallelTestProblem()
                              Blocal.GetJ(), Blocal.GetData(), row_starts_c,
                              col_starts);
 
-   bmat->Print("bmat.hyprematrix");
-}
+   // rhs // [ 1.1 -2.   3.  -1.4  2.1 -3.2 -1.1  2.2  0.   0.   0.   0. ]
+   // truesol // [-0.55 -2.5   2.5  -1.75  1.75 -1.05  1.05  0.55  0.5   0.35 -2.15  1.65]
 
+   rhs = 0.0;   
+   if (rank == 0)
+   {
+      rhs(0) = 1.1;
+      truesol(0) = -0.55;
+      rhs(1) = -2.0;
+      truesol(1) = -2.5;
+      truelambda(0) = 0.5;
+   }
+   else if (rank == 1)
+   {
+      rhs(0) = 3.0;
+      truesol(0) = 2.5;
+      rhs(1) = -1.4;
+      truesol(1) = -1.75;
+      truelambda(0) = 0.3500000000000001;
+   }
+   else if (rank == 2)
+   {
+      rhs(0) = 2.1;
+      truesol(0) = 1.75;
+      rhs(1) = -3.2;
+      truesol(1) = -1.0499999999999998;
+      truelambda(0) = -2.1500000000000004;
+   }
+   else if (rank == 3)
+   {
+      rhs(0) = -1.1;
+      truesol(0) = 1.0500000000000003;
+      rhs(1) = 2.2;
+      truesol(1) = 0.55;
+      truelambda(0) = 1.6500000000000001;
+   }
+   else
+   {
+      mfem_error("Test only works on 4 ranks!");
+   }
+}
 
 ParallelTestProblem::~ParallelTestProblem()
 {
    delete amat;
    delete bmat;
+}
+
+void ParallelTestProblem::Schur(Vector& serr, Vector& lerr)
+{
+   ConstrainedSolver solver(*amat, *bmat);
+   IdentitySolver prec(2);
+   solver.SetSchur(prec);
+   // solver.SetRelTol(1.e-14);
+   solver.Mult(rhs, sol);
+   solver.GetDualSolution(lambda);
+   for (int i = 0; i < 2; ++i)
+   {
+      serr(i) = truesol(i) - sol(i);
+   }
+   for (int i = 0; i < 1; ++i)
+   {
+      lerr(i) = truelambda(i) - lambda(i);
+   }
+}
+
+void ParallelTestProblem::Penalty(double pen, Vector& serr, Vector& lerr)
+{
 }
 
 /// *actual* parallel constrained solver
@@ -244,7 +307,12 @@ TEST_CASE("ParallelConstrainedSolver", "[Parallel], [ConstrainedSolver]")
 
    if (comm_size == 4)
    {
+      Vector serr(2), lerr(1);
       ParallelTestProblem problem;
+      problem.Schur(serr, lerr);
+      double serrnorm = serr.Norml2();
+      REQUIRE(serrnorm == MFEM_Approx(0.0));
+      REQUIRE(lerr(0) == MFEM_Approx(0.0));
    }
 }
 
