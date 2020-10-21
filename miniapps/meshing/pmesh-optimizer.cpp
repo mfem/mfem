@@ -115,6 +115,7 @@ int main (int argc, char *argv[])
    int solver_type       = 0;
    int solver_iter       = 10;
    double solver_rtol    = 1e-10;
+   bool solver_adapt_rel_tol = false;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    bool move_bnd         = true;
@@ -182,8 +183,16 @@ int main (int argc, char *argv[])
                   "Maximum number of Newton iterations.");
    args.AddOption(&solver_rtol, "-rtol", "--newton-rel-tolerance",
                   "Relative tolerance for the Newton solver.");
+   args.AddOption(&solver_adapt_rel_tol, "-art", "--adaptive-rel-tol",
+                  "-no-art", "--no-adaptive-rel-tol",
+                  "Enable adaptive relative linear solver tolerance.");
    args.AddOption(&lin_solver, "-ls", "--lin-solver",
-                  "Linear solver: 0 - l1-Jacobi, 1 - CG, 2 - MINRES.");
+                  "Linear solver:\n\t"
+                  "0: l1-Jacobi\n\t"
+                  "1: CG\n\t"
+                  "2: MINRES\n\t"
+                  "3: MINRES + Jacobi preconditioner"
+                  "4: MINRES + l1-Jacobi preconditioner");
    args.AddOption(&max_lin_iter, "-li", "--lin-iter",
                   "Maximum number of iterations in the linear solve.");
    args.AddOption(&move_bnd, "-bnd", "--move-boundary", "-fix-bnd",
@@ -771,7 +780,7 @@ int main (int argc, char *argv[])
 
    // 15. As we use the Newton method to solve the resulting nonlinear system,
    //     here we setup the linear solver for the system's Jacobian.
-   Solver *S = NULL;
+   Solver *S = NULL, *S_prec = NULL;
    const double linsol_rtol = 1e-12;
    if (lin_solver == 0)
    {
@@ -792,7 +801,16 @@ int main (int argc, char *argv[])
       minres->SetMaxIter(max_lin_iter);
       minres->SetRelTol(linsol_rtol);
       minres->SetAbsTol(0.0);
-      minres->SetPrintLevel(verbosity_level >= 2 ? 3 : -1);
+      if (verbosity_level > 2) { minres->SetPrintLevel(1); }
+      else { minres->SetPrintLevel(verbosity_level == 2 ? 3 : -1); }
+      if (lin_solver == 3 || lin_solver == 4)
+      {
+         HypreSmoother *hs = new HypreSmoother;
+         hs->SetType((lin_solver == 3) ? HypreSmoother::Jacobi
+                                       : HypreSmoother::l1Jacobi, 1);
+         S_prec = hs;
+         minres->SetPreconditioner(*S_prec);
+      }
       S = minres;
    }
 
@@ -833,6 +851,7 @@ int main (int argc, char *argv[])
    solver.SetMaxIter(solver_iter);
    solver.SetRelTol(solver_rtol);
    solver.SetAbsTol(0.0);
+   if (solver_adapt_rel_tol) { solver.SetAdaptiveLinRtol(); }
    solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
    solver.SetOperator(a);
    solver.Mult(b, x.GetTrueVector());
@@ -911,6 +930,7 @@ int main (int argc, char *argv[])
    }
 
    // 20. Free the used memory.
+   delete S_prec;
    delete S;
    delete target_c2;
    delete metric2;
