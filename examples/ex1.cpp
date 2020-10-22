@@ -34,7 +34,9 @@
 //               ex1 -pa -d raja-omp
 //               ex1 -pa -d occa-omp
 //               ex1 -pa -d ceed-cpu
+//               ex1 -pa -d ceed-cpu -o 4 -a
 //             * ex1 -pa -d ceed-cuda
+//             * ex1 -pa -d ceed-hip
 //               ex1 -pa -d ceed-cuda:/gpu/cuda/shared
 //               ex1 -m ../data/beam-hex.mesh -pa -d cuda
 //               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cpu
@@ -59,26 +61,11 @@
 #include <fstream>
 #include <iostream>
 
-#include "linalg/ceed_algebraic.hpp"
+// todo: remove
+#include "../linalg/ceed_algebraic.hpp"
 
 using namespace std;
 using namespace mfem;
-
-
-double fcoeff(const Vector& x)
-{
-   double out = sin(x[0]);
-   if (x.Size() > 1)
-   {
-      out *= sin(x[1]);
-   }
-   if (x.Size() > 2)
-   {
-      out *= sin(x[2]);
-   }
-   return 2.0 + out;
-}
-
 
 int main(int argc, char *argv[])
 {
@@ -86,10 +73,10 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool static_cond = false;
-   bool pa = true;
-   const char *device_config = "ceed-cpu";
+   bool pa = false;
+   const char *device_config = "cpu";
    bool visualization = true;
-   bool algebraic_ceed = true;
+   bool algebraic_ceed = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -132,9 +119,9 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      // int ref_levels =
-      // (int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
-      for (int l = 0; l < 2; l++)
+      int ref_levels =
+         (int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
+      for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();
       }
@@ -194,16 +181,9 @@ int main(int argc, char *argv[])
    // 9. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
-
-   FunctionCoefficient varying(fcoeff);
-   GridFunction gf(&fespace);
-   gf.ProjectCoefficient(varying);
-   GridFunctionCoefficient gfc_varying(&gf);
-
    BilinearForm a(&fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   a.AddDomainIntegrator(new DiffusionIntegrator(gfc_varying));
-   a.AddDomainIntegrator(new MassIntegrator(one));
+   a.AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 10. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary
@@ -218,15 +198,13 @@ int main(int argc, char *argv[])
 
    cout << "Size of linear system: " << A->Height() << endl;
 
-   double reltol = pow(1e-12, 2); // Tolerance must be squared
-
    // 11. Solve the linear system A X = B.
    if (!pa)
    {
 #ifndef MFEM_USE_SUITESPARSE
       // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
       GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 1, 200, reltol, 0.0);
+      PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
 #else
       // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
       UMFPackSolver umf_solver;
@@ -241,18 +219,18 @@ int main(int argc, char *argv[])
       if (DeviceCanUseCeed() && algebraic_ceed)
       {
          AlgebraicCeedSolver M(a, ess_tdof_list);
-         PCG(*A, M, B, X, 1, 400, reltol, 0.0);
+         PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
       }
       else
 #endif
          if (UsesTensorBasis(fespace))
          {
             OperatorJacobiSmoother M(a, ess_tdof_list);
-            PCG(*A, M, B, X, 1, 400, reltol, 0.0);
+            PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
          }
          else
          {
-            CG(*A, B, X, 1, 400, reltol, 0.0);
+            CG(*A, B, X, 1, 400, 1e-12, 0.0);
          }
    }
 
