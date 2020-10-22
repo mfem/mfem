@@ -127,6 +127,11 @@ if (MFEM_USE_GINKGO)
   add_subdirectory(ginkgo)
 endif()
 
+# Include the examples/amgx directory if AmgX is enabled
+if (MFEM_USE_AMGX)
+  add_subdirectory(amgx)
+endif()
+
 # Include the examples/petsc directory if PETSc is enabled.
 if (MFEM_USE_PETSC)
   add_subdirectory(petsc)
@@ -140,4 +145,3 @@ endif()
 if (MFEM_USE_HIOP)
   add_subdirectory(hiop)
 endif()
-
