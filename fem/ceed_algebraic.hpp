@@ -23,7 +23,7 @@
 namespace mfem
 {
 
-/** @brief A way to use algebraic levels in a Multigrid object 
+/** @brief A way to use algebraic levels in a Multigrid object
 
     This is analogous to a FiniteElementSpace but with no Mesh information,
     constructed in a semi-algebraic way. */
@@ -137,7 +137,7 @@ private:
    Array<CeedOperator> ceed_operators;
 };
 
-/** @brief Wrapper for AlgebraicCeedMultigrid object 
+/** @brief Wrapper for AlgebraicCeedMultigrid object
 
     This exists so that the algebraic Ceed-based idea has the simplest
     possible one-line interface. Finer control (choosing smoothers, w-cycle)
