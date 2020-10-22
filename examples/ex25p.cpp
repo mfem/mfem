@@ -166,6 +166,7 @@ int main(int argc, char *argv[])
    int iprob = 4;
    double freq = 5.0;
    bool herm_conv = true;
+   bool slu_solver  = false;
    bool visualization = 1;
    bool pa = false;
    const char *device_config = "cpu";
@@ -189,6 +190,10 @@ int main(int argc, char *argv[])
                   "Frequency (in Hz).");
    args.AddOption(&herm_conv, "-herm", "--hermitian", "-no-herm",
                   "--no-hermitian", "Use convention for Hermitian operators.");
+#ifdef MFEM_USE_SUPERLU
+   args.AddOption(&slu_solver, "-slu", "--superlu", "-no-slu",
+                  "--no-superlu", "Use the SuperLU Solver.");
+#endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -435,9 +440,7 @@ int main(int argc, char *argv[])
    //     system, applying any necessary transformations such as: parallel
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, etc.
-#ifndef MFEM_USE_SUPERLU
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-#endif
    a.Assemble();
 
    OperatorPtr Ah;
@@ -446,8 +449,8 @@ int main(int argc, char *argv[])
 
    // 16. Solve using a direct or an iterative solver
 #ifdef MFEM_USE_SUPERLU
+   if (!pa && slu_solver)
    {
-      if (pa) { cout << "PA not available with MFEM_USE_SUPERLU" << endl; }
       // Transform to monolithic HypreParMatrix
       HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
       SuperLURowLocMatrix SA(*A);
@@ -459,7 +462,7 @@ int main(int argc, char *argv[])
       superlu.Mult(B, X);
       delete A;
    }
-#else
+#endif
    // 16a. Set up the parallel Bilinear form a(.,.) for the preconditioner
    //
    //    In Comp
@@ -467,6 +470,7 @@ int main(int argc, char *argv[])
    //
    //    In PML:   1/mu (abs(1/det(J) J^T J) Curl E, Curl F)
    //              + omega^2 * epsilon (abs(det(J) * (J^T J)^-1) * E, F)
+   if (pa || !slu_solver)
    {
       ConstantCoefficient absomeg(pow(omega, 2) * epsilon);
       RestrictedCoefficient restr_absomeg(absomeg,attr);
@@ -534,7 +538,6 @@ int main(int argc, char *argv[])
       gmres.SetPreconditioner(BlockDP);
       gmres.Mult(B, X);
    }
-#endif
 
    // 17. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.

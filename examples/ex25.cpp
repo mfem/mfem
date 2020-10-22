@@ -159,6 +159,7 @@ int main(int argc, char *argv[])
    int iprob = 4;
    double freq = 5.0;
    bool herm_conv = true;
+   bool umf_solver = false;
    bool visualization = 1;
    bool pa = false;
    const char *device_config = "cpu";
@@ -180,6 +181,10 @@ int main(int argc, char *argv[])
                   "Frequency (in Hz).");
    args.AddOption(&herm_conv, "-herm", "--hermitian", "-no-herm",
                   "--no-hermitian", "Use convention for Hermitian operators.");
+#ifdef MFEM_SUITE_SPARSE
+   args.AddOption(&umf_solver, "-umf", "--umfpack", "-no-umf",
+                  "--no-umfpack", "Use the UMFPack Solver.");
+#endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -407,9 +412,7 @@ int main(int argc, char *argv[])
    //     applying any necessary transformations such as: assembly, eliminating
    //     boundary conditions, applying conforming constraints for
    //     non-conforming AMR, etc.
-#ifndef MFEM_USE_SUITESPARSE
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-#endif
    a.Assemble(0);
 
    OperatorPtr A;
@@ -418,14 +421,14 @@ int main(int argc, char *argv[])
 
    // 14. Solve using a direct or an iterative solver
 #ifdef MFEM_USE_SUITESPARSE
+   if (!pa && umf_solver)
    {
-      if (pa) { cout << "PA not available with MFEM_USE_SUITESPARSE" << endl; }
       ComplexUMFPackSolver csolver(*A.As<ComplexSparseMatrix>());
       csolver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
       csolver.SetPrintLevel(1);
       csolver.Mult(B, X);
    }
-#else
+#endif
    // 14a. Set up the Bilinear form a(.,.) for the preconditioner
    //
    //    In Comp
@@ -433,6 +436,7 @@ int main(int argc, char *argv[])
    //
    //    In PML:   1/mu (abs(1/det(J) J^T J) Curl E, Curl F)
    //              + omega^2 * epsilon (abs(det(J) * (J^T J)^-1) * E, F)
+   if (pa || !umf_solver)
    {
       ConstantCoefficient absomeg(pow(omega, 2) * epsilon);
       RestrictedCoefficient restr_absomeg(absomeg,attr);
@@ -501,7 +505,6 @@ int main(int argc, char *argv[])
       gmres.SetPreconditioner(BlockDP);
       gmres.Mult(B, X);
    }
-#endif
 
    // 15. Recover the solution as a finite element grid function and compute the
    //     errors if the exact solution is known.
