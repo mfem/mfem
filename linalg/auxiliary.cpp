@@ -394,7 +394,8 @@ public:
    void Mult(const Vector& x, Vector& y) const
    {
       amg_->Mult(x, y);
-      auto Y = y.HostWrite();
+
+      auto Y = y.HostReadWrite();
       for (int k : ess_tdof_list_)
       {
          Y[k] = 0.0;
