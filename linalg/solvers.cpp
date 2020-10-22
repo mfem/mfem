@@ -1674,8 +1674,6 @@ void NewtonSolver::AdaptiveLinRtolPreSolve(const Vector &x,
    auto iterative_solver = static_cast<IterativeSolver *>(prec);
    // Adaptive linear solver relative tolerance
    double eta;
-   // Safeguarded (sg) adaptive linear solver relative tolerance
-   double sg_eta;
 
    if (it == 0)
    {
@@ -1685,28 +1683,22 @@ void NewtonSolver::AdaptiveLinRtolPreSolve(const Vector &x,
    {
       if (lin_rtol_ver == 1)
       {
-         // eta = abs(||F(x1)|| - ||F(x0) + DF(x0) s0||) / ||F(x0)||
-         eta = abs(fnorm - lnorm_last) / fnorm_last;
-         sg_eta = pow(eta_last, alpha);
-         if (sg_eta > sg_threshold)
-         {
-            eta = std::max(eta, sg_eta);
-         }
+         // eta = gamma * abs(||F(x1)|| - ||F(x0) + DF(x0) s0||) / ||F(x0)||
+         eta = gamma * abs(fnorm - lnorm_last) / fnorm_last;
       }
       else if (lin_rtol_ver == 2)
       {
          // eta = gamma * (||F(x1)|| / ||F(x0)||)^alpha
          eta = gamma * pow(fnorm / fnorm_last, alpha);
-         sg_eta = gamma * pow(eta_last, alpha);
-         if (sg_eta > sg_threshold)
-         {
-            eta = std::max(eta, sg_eta);
-         }
       }
       else
       {
          MFEM_ABORT("Unknown adaptive linear solver rtol version");
       }
+
+      // Safeguard rtol from "oversolving" ?!
+      const double sg_eta = gamma * pow(eta_last, alpha);
+      if (sg_eta > sg_threshold) { eta = std::max(eta, sg_eta); }
    }
 
    eta = std::min(eta, lin_rtol_max);
@@ -1714,7 +1706,7 @@ void NewtonSolver::AdaptiveLinRtolPreSolve(const Vector &x,
    eta_last = eta;
    if (print_level >= 0)
    {
-      mfem::out << "Eisenstat-Walker eta = " << eta << "\n";
+      mfem::out << "Eisenstat-Walker rtol = " << eta << "\n";
    }
 }
 
