@@ -68,6 +68,9 @@ Improved GPU capabilities
   classes ComplexOperator, [Par]ComplexGridFunction, [Par]ComplexLinearForm, and
   [Par]SesquilinearForm. See the updated Example 22.
 
+- Added AlgebraicCeedSolver that does matrix-free algebraic p-multigrid for
+  diffusion problems with the Ceed backend.
+
 Discretization improvements
 ---------------------------
 - Added support for matrix-free interpolation and restriction operators between
