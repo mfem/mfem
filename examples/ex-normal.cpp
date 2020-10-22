@@ -10,20 +10,19 @@
 
   TODO before making a PR:
 
-  - make parallel unit tests (elimination may not work, may be okay)
-  - change master/slave to primary/secondary in constrained.cpp
-  - clean up build #ifdefs, for hypre etc.
+  - clean up build #ifdefs, for hypre etc. (did a little...)
   - clean up example, for actual demo with sphere
+  - write up some very basic results
 
   TODO eventually:
 
-  - parallel BuildNormalConstraints here
+  - timing / scaling of different solvers
+  - parallel BuildNormalConstraints in this example
   - make elimination solver parallel
-  - improve Schur complement block in Schur solver
+  - improve Schur complement block in Schur solver (user-defined preconditioner)
   - think about preconditioning interface; user may have good preconditioner for primal system that we could use in all three existing solvers?
   - make sure curved mesh works (is this a real problem or just VisIt visualization?)
   - hook up to Smith or Tribol or some other contact setting
-  - timing / scaling of different solvers
 
   square-disc attributes (not indices):
 
@@ -70,11 +69,6 @@ using namespace mfem;
    Probably the correct parallel algorithm is to build this on
    each processor, and then do a kind of RAP procedure, but without
    adding, as in ParDiscreteLinearOperator::ParallelAssemble()
-
-   OLD: I used to think the parallel algorithm was as follows:
-   do the same thing below, but only loop if you as the processor
-   own the boundary element; then note the *true*dof for later
-   constraining
 */
 SparseMatrix * BuildNormalConstraints(FiniteElementSpace& fespace,
                                       Array<int> constrained_att,
@@ -203,7 +197,6 @@ int main(int argc, char *argv[])
    args.AddOption(&mass, "--mass", "--mass", "--diffusion", "--diffusion",
                   "Which bilinear form, --mass or --diffusion");
 
-
    args.Parse();
    if (!args.Good())
    {
@@ -241,7 +234,7 @@ int main(int argc, char *argv[])
          mesh.UniformRefinement();
       }
    }
-   mesh.SetCurvature(order); // ??? try to get curved mesh
+   mesh.SetCurvature(order);
 
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
@@ -307,7 +300,7 @@ int main(int argc, char *argv[])
       constraint_atts[2] = 7;
       constraint_atts[3] = 8;
    }
-   else if (!strcmp(mesh_file, "icf.mesh"))
+   else if (!strcmp(mesh_file, "../miniapps/meshing/icf.mesh"))
    {
       constraint_atts.SetSize(1);
       constraint_atts[0] = 4;
