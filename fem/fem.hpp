@@ -61,4 +61,8 @@
 #include "adios2datacollection.hpp"
 #endif
 
+#ifdef MFEM_USE_CEED
+#include "ceed_algebraic.hpp"
+#endif
+
 #endif

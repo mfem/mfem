@@ -61,9 +61,6 @@
 #include <fstream>
 #include <iostream>
 
-// todo: remove
-#include "../linalg/ceed_algebraic.hpp"
-
 using namespace std;
 using namespace mfem;
 

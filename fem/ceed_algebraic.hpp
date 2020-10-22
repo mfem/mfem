@@ -15,10 +15,10 @@
 #include "../config/config.hpp"
 
 #ifdef MFEM_USE_CEED
-#include "../fem/fespacehierarchy.hpp"
-#include "../fem/multigrid.hpp"
-#include "../fem/libceed/ceedsolvers-utility.h"
-#include "../fem/libceed/ceed-wrappers.hpp"
+#include "fespacehierarchy.hpp"
+#include "multigrid.hpp"
+#include "libceed/ceedsolvers-utility.h"
+#include "libceed/ceed-wrappers.hpp"
 
 namespace mfem
 {
