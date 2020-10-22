@@ -5365,18 +5365,22 @@ void ParMesh::ParPrint(ostream &out) const
    out << "\nmfem_mesh_end" << endl;
 }
 
-void ParMesh::PrintVTU(std::string fname,
+void ParMesh::PrintVTU(std::string pathname,
                        VTKFormat format,
                        bool high_order_output,
                        int compression_level,
                        bool bdr)
 {
    int pad_digits_rank = 6;
-   DataCollection::create_directory(fname, this, MyRank);
+   DataCollection::create_directory(pathname, this, MyRank);
+
+   std::string::size_type pos = pathname.find_last_of('/');
+   std::string fname
+      = (pos == std::string::npos) ? pathname : pathname.substr(pos+1);
 
    if (MyRank == 0)
    {
-      std::string pvtu_name = fname + "/" + fname + ".pvtu";
+      std::string pvtu_name = pathname + "/" + fname + ".pvtu";
       std::ofstream out(pvtu_name);
 
       std::string data_type = (format == VTKFormat::BINARY32) ? "Float32" : "Float64";
@@ -5413,9 +5417,8 @@ void ParMesh::PrintVTU(std::string fname,
 
       for (int ii=0; ii<NRanks; ii++)
       {
-
-         std::string piece = "proc" + to_padded_string(ii, pad_digits_rank)
-                             + ".vtu";
+         std::string piece = fname + ".proc"
+                             + to_padded_string(ii, pad_digits_rank) + ".vtu";
          out << "<Piece Source=\"" << piece << "\"/>\n";
       }
 
@@ -5424,8 +5427,8 @@ void ParMesh::PrintVTU(std::string fname,
       out.close();
    }
 
-   std::string vtu_fname
-      = fname + "/proc" + to_padded_string(MyRank, pad_digits_rank);
+   std::string vtu_fname = pathname + "/" + fname + ".proc"
+                           + to_padded_string(MyRank, pad_digits_rank);
    Mesh::PrintVTU(vtu_fname, format, high_order_output, compression_level, bdr);
 }
 
