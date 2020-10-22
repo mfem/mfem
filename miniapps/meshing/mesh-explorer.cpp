@@ -351,6 +351,7 @@ int main (int argc, char *argv[])
            "e) View elements\n"
            "h) View element sizes, h\n"
            "k) View element ratios, kappa\n"
+           "J) View scaled Jacobian\n"
            "l) Plot a function\n"
            "x) Print sub-element stats\n"
            "f) Find physical point in reference space\n"
@@ -695,7 +696,7 @@ int main (int argc, char *argv[])
 
       // These are most of the cases that open a new GLVis window
       if (mk == 'm' || mk == 'b' || mk == 'e' || mk == 'v' || mk == 'h' ||
-          mk == 'k' || mk == 'p')
+          mk == 'k' || mk == 'J' || mk == 'p')
       {
          Array<int> bdr_part;
          Array<int> part(mesh->GetNE());
@@ -798,6 +799,25 @@ int main (int argc, char *argv[])
                T->SetIntPoint(&Geometries.GetCenter(geom));
                Geometries.JacToPerfJac(geom, T->Jacobian(), J);
                attr(i) = J.CalcSingularvalue(0) / J.CalcSingularvalue(dim-1);
+            }
+         }
+
+         if (mk == 'J')
+         {
+            DenseMatrix J(dim);
+            for (int i = 0; i < mesh->GetNE(); i++)
+            {
+               int geom = mesh->GetElementBaseGeometry(i);
+               ElementTransformation *T = mesh->GetElementTransformation(i);
+               T->SetIntPoint(&Geometries.GetCenter(geom));
+               Geometries.JacToPerfJac(geom, T->Jacobian(), J);
+               attr(i) = J.Det();
+               for (int j = 0; j < J.Width(); j++)
+               {
+                  Vector col;
+                  J.GetColumnReference(j,col);
+                  attr(i) /= col.Norml2();
+               }
             }
          }
 
@@ -953,7 +973,7 @@ int main (int argc, char *argv[])
             else
             {
                sol_sock << "fem3d_gf_data_keys\n";
-               if (mk == 'v' || mk == 'h' || mk == 'k')
+               if (mk == 'v' || mk == 'h' || mk == 'k' || mk == 'J')
                {
                   mesh->Print(sol_sock);
                }
