@@ -280,13 +280,7 @@ void CeedAssembleDiagonal(const CeedData *ceedDataPtr,
     the current mfem::Device configuration. */
 inline bool DeviceCanUseCeed()
 {
-#ifdef MFEM_USE_CEED
-   return Device::Allows(Backend::CEED_CUDA) ||
-          (Device::Allows(Backend::CEED_CPU) &&
-           !Device::Allows(Backend::DEVICE_MASK|Backend::OMP_MASK));
-#else
-   return false;
-#endif
+   return Device::Allows(Backend::CEED_MASK);
 }
 
 /** @brief Remove from ceed_basis_map and ceed_restr_map the entries associated
@@ -296,6 +290,12 @@ void RemoveCeedBasisAndRestriction(const FiniteElementSpace *fes);
 #ifdef MFEM_USE_CEED
 /// Initialize a CeedVector from a Vector
 void InitCeedVector(const Vector &v, CeedVector &cv);
+
+/// Initialize a strided CeedElemRestriction
+void InitCeedStridedRestriction(const FiniteElementSpace &fes,
+                                CeedInt nelem, CeedInt nqpts, CeedInt qdatasize,
+                                const CeedInt *strides,
+                                CeedElemRestriction *restr);
 
 /// Initialize a CeedBasis and a CeedElemRestriction
 void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
