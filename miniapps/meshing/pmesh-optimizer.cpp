@@ -851,7 +851,7 @@ int main (int argc, char *argv[])
    solver.SetMaxIter(solver_iter);
    solver.SetRelTol(solver_rtol);
    solver.SetAbsTol(0.0);
-   if (solver_adapt_rel_tol) { solver.SetAdaptiveLinRtol(); }
+   if (solver_adapt_rel_tol) { solver.SetAdaptiveLinRtol(1, 0.5, 0.9); }
    solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
    solver.SetOperator(a);
    solver.Mult(b, x.GetTrueVector());
