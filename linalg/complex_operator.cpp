@@ -897,7 +897,8 @@ void ComplexMUMPSSolver::SetOperator(const Operator &op)
    hypre_CSRMatrix *csr_op_r = hypre_MergeDiagAndOffd(parcsr_op_r);
    hypre_CSRMatrix *csr_op_i = hypre_MergeDiagAndOffd(parcsr_op_i);
 #if MFEM_HYPRE_VERSION >= 21600
-   hypre_CSRMatrixBigJtoJ(csr_op);
+   hypre_CSRMatrixBigJtoJ(csr_op_r);
+   hypre_CSRMatrixBigJtoJ(csr_op_i);
 #endif
    MFEM_VERIFY(csr_op_r->num_nonzeros == csr_op_i->num_nonzeros,
                "Incompatible sparsity partters");
@@ -906,7 +907,7 @@ void ComplexMUMPSSolver::SetOperator(const Operator &op)
    int *Jptr = csr_op_r->j;
    int n_loc = csr_op_r->num_rows;
    row_start = parcsr_op_i->first_row_index;
-   int nnz = csr_op_r->num_nonzeros;
+   MUMPS_INT8 nnz = csr_op_r->num_nonzeros;
 
    int * I = new int[nnz];
    int * J = new int[nnz];
