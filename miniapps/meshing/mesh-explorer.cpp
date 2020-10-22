@@ -589,6 +589,9 @@ int main (int argc, char *argv[])
             max_det_J = fmax(max_det_J, max_det_J_z);
             if (min_det_J_z <= 0.0)
             {
+               Vector center;
+               mesh->GetElementCenter(i, center);
+               cout << "\n Element "<<i<<" at position ("<<center(0)<<","<<center(1)<<", "<<center(2)<<") has a negative det(J) of "<<min_det_J_z<<"\n";
                nz++;
                bad_elems_by_geom[geom]++;
             }
