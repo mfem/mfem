@@ -56,6 +56,23 @@ Performance improvements
 
 Improved GPU capabilities
 -------------------------
+- Added a new solver class for simple integration with NVIDIA's multigrid
+  library, AmgX. The AmgX class is designed to work as a standalone solver or
+  preconditioner for existing MFEM solvers. It uses MFEM's sparse matrix format
+  for serial runs and the HypreParMatrix format for parallel runs.
+
+  The new solver may be configured to run with one GPU per MPI rank or with more
+  MPI ranks than GPUs. In the latter case, matrices and vectors are consolidated
+  to ranks communicating with the GPUs and the solution is then broadcasted.
+
+  Although CUDA is required to build, the AmgX support is compatible with the
+  MFEM CPU device configuration. The examples/amgx folder illustrates how to
+  integrate AmgX in existing MFEM applications.
+
+  The AmgX solver class is partially based on: "AmgXWrapper: An interface
+  between PETSc and the NVIDIA AmgX library", by Pi-Yueh Chuang and Lorena
+  A. Barba, doi:10.21105/joss.00280.
+
 - Added support for Chebyshev accelerated polynomial smoother on GPU.
 - The TMOP mesh optimization algorithms were extended to GPU:
    - QualityMetric #1, #2 and #7 are available in 2D, #302, #303 and #321 in 3D
@@ -64,6 +81,9 @@ Improved GPU capabilities
    - The AdvectorCG now also support AssemblyLevel::PARTIAL
 
 - Optimized AMD/HIP kernel support.
+
+- Enabled HIP support in the libCEED integration, which is now available via the
+  "ceed-hip" device backend.
 
 - Added a Full Assembly mode compatible with Device kernel execution. This
   assembly level builds on top of the current Element Assembly kernels to
@@ -156,6 +176,9 @@ Linear and nonlinear solvers
 
 - Added partially assembled convergent diagonal preconditioner for adaptively
   refined meshes (i.e. non-conforming finite element spaces), see Example 6/6p.
+
+- Upgraded SuperLU interface to use SuperLU_DIST 6.3.1. Added a simple SuperLU
+  example in the new directory examples/superlu.
 
 - Extended the KINSOL (SUNDIALS) nonlinear solver interface to support the
   Jacobian-free Newton-Krylov method. A usage example is shown in Example 10p.
