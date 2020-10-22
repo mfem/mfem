@@ -28,7 +28,8 @@ enum MeshType
    WEDGE2 = 12,
    TETRAHEDRA = 13,
    WEDGE4 = 14,
-   MIXED3D = 15
+   MIXED3D6 = 15,
+   MIXED3D8 = 16
 };
 
 Mesh * GetMesh(MeshType &type);
@@ -761,7 +762,7 @@ Mesh * GetMesh(MeshType &type)
          v[0] = 3; v[1] = 0; v[2] = 4; v[3] = 8; v[4] = 5; v[5] = 9;
          mesh->AddWedge(v);
          break;
-      case MIXED3D:
+      case MIXED3D6:
          mesh = new Mesh(3, 12, 6);
          c[0] = 0.0; c[1] = 0.0; c[2] = 0.0;
          mesh->AddVertex(c);
@@ -802,6 +803,48 @@ Mesh * GetMesh(MeshType &type)
          v[0] = 4; v[1] = 5; v[2] = 6; v[3] = 7;
          v[4] = 8; v[5] = 9; v[6] = 10; v[7] = 11;
          mesh->AddHex(v);
+         break;
+      case MIXED3D8:
+         mesh = new Mesh(3, 10, 8);
+         c[0] = 0.0; c[1] = 0.0; c[2] = 0.0;
+         mesh->AddVertex(c);
+         c[0] = a_; c[1] = 0.0; c[2] = 0.0;
+         mesh->AddVertex(c);
+         c[0] = a_; c[1] = b_; c[2] = 0.0;
+         mesh->AddVertex(c);
+         c[0] = 0.0; c[1] = b_; c[2] = 0.0;
+         mesh->AddVertex(c);
+
+         c[0] = 0.25 * a_; c[1] = 0.5 * b_; c[2] = 0.5 * c_;
+         mesh->AddVertex(c);
+         c[0] = 0.75 * a_; c[1] = 0.5 * b_; c[2] = 0.5 * c_;
+         mesh->AddVertex(c);
+
+         c[0] = 0.0; c[1] = 0.0; c[2] = c_;
+         mesh->AddVertex(c);
+         c[0] = a_; c[1] = 0.0; c[2] = c_;
+         mesh->AddVertex(c);
+         c[0] = a_; c[1] = b_; c[2] = c_;
+         mesh->AddVertex(c);
+         c[0] = 0.0; c[1] = b_; c[2] = c_;
+         mesh->AddVertex(c);
+
+         v[0] = 0; v[1] = 3; v[2] = 4; v[3] = 1; v[4] = 2; v[5] = 5;
+         mesh->AddWedge(v);
+         v[0] = 3; v[1] = 9; v[2] = 4; v[3] = 2; v[4] = 8; v[5] = 5;
+         mesh->AddWedge(v);
+         v[0] = 9; v[1] = 6; v[2] = 4; v[3] = 8; v[4] = 7; v[5] = 5;
+         mesh->AddWedge(v);
+         v[0] = 6; v[1] = 0; v[2] = 4; v[3] = 7; v[4] = 1; v[5] = 5;
+         mesh->AddWedge(v);
+         v[0] = 0; v[1] = 3; v[2] = 9; v[3] = 4;
+         mesh->AddTet(v);
+         v[0] = 0; v[1] = 9; v[2] = 6; v[3] = 4;
+         mesh->AddTet(v);
+         v[0] = 1; v[1] = 7; v[2] = 2; v[3] = 5;
+         mesh->AddTet(v);
+         v[0] = 8; v[1] = 2; v[2] = 7; v[3] = 5;
+         mesh->AddTet(v);
          break;
    }
    mesh->FinalizeTopology();
