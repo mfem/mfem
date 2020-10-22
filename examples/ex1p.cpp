@@ -55,8 +55,6 @@
 
 #include "mfem.hpp"
 
-#include "linalg/ceed_algebraic.hpp"
-
 #include <fstream>
 #include <iostream>
 

@@ -29,6 +29,7 @@ set(SRCS
   bilininteg_transpose_ea.cpp
   bilininteg_vecdiffusion.cpp
   bilininteg_vecmass.cpp
+  ceed_algebraic.cpp
   coefficient.cpp
   complex_fem.cpp
   datacollection.cpp
@@ -63,6 +64,7 @@ set(HDRS
   bilinearform.hpp
   bilinearform_ext.hpp
   bilininteg.hpp
+  ceed_algebraic.hpp
   coefficient.hpp
   complex_fem.hpp
   datacollection.hpp
