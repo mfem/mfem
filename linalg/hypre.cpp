@@ -2268,7 +2268,6 @@ void HypreSmoother::SetOperator(const Operator &op)
       Vector ones(height), diag(l1_norms, height);
       ones = 1.0;
       A->Mult(ones, diag);
-      type = 1;
    }
    else
    {
@@ -2420,13 +2419,17 @@ void HypreSmoother::Mult(const HypreParVector &b, HypreParVector &x) const
    }
    else
    {
+      int hypre_type = type;
+      // hypre doesn't have lumped Jacobi, so treat the action as l1-Jacobi
+      if (type == 5) { hypre_type = 1; }
+
       if (Z == NULL)
-         hypre_ParCSRRelax(*A, b, type,
+         hypre_ParCSRRelax(*A, b, hypre_type,
                            relax_times, l1_norms, relax_weight, omega,
                            max_eig_est, min_eig_est, poly_order, poly_fraction,
                            x, *V, NULL);
       else
-         hypre_ParCSRRelax(*A, b, type,
+         hypre_ParCSRRelax(*A, b, hypre_type,
                            relax_times, l1_norms, relax_weight, omega,
                            max_eig_est, min_eig_est, poly_order, poly_fraction,
                            x, *V, *Z);
