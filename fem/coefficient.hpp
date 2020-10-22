@@ -735,7 +735,8 @@ public:
    /** @brief Evaluate the upper triangular entries of the matrix coefficient
        in the symmetric case, similarly to Eval. Matrix entry (i,j) is stored
        in K[j - i + os_i] for 0 <= i <= j < width, os_0 = 0,
-       os_{i+1} = os_i + width - i. */
+       os_{i+1} = os_i + width - i. That is, K = {M(0,0), ..., M(0,w-1),
+       M(1,1), ..., M(1,w-1), ..., M(w-1,w-1) with w = width. */
    virtual void EvalSymmetric(Vector &K, ElementTransformation &T,
                               const IntegrationPoint &ip)
    { mfem_error("MatrixCoefficient::EvalSymmetric"); }
@@ -806,6 +807,7 @@ public:
    }
 
    /// Construct a symmetric square matrix coefficient from a C-function
+   /// defining a vector function used by EvalSymmetric
    MatrixFunctionCoefficient(int dim, void (*F)(const Vector &, Vector &),
                              Coefficient *q = NULL)
       : MatrixCoefficient(dim, true), Q(q)

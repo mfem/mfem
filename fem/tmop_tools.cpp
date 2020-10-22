@@ -176,8 +176,8 @@ SerialAdvectorCGOper::SerialAdvectorCGOper(const Vector &x_start,
 
    MassIntegrator *Minteg = new MassIntegrator;
    M.AddDomainIntegrator(Minteg);
-   M.Assemble();
-   M.Finalize();
+   M.Assemble(0);
+   M.Finalize(0);
 }
 
 void SerialAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
@@ -220,8 +220,8 @@ ParAdvectorCGOper::ParAdvectorCGOper(const Vector &x_start,
 
    MassIntegrator *Minteg = new MassIntegrator;
    M.AddDomainIntegrator(Minteg);
-   M.Assemble();
-   M.Finalize();
+   M.Assemble(0);
+   M.Finalize(0);
 }
 
 void ParAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
@@ -353,13 +353,12 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       energy_in = nlf->GetEnergy(x);
    }
 
-   const int NE = fes->GetMesh()->GetNE(), dim = fes->GetFE(0)->GetDim(),
-             dof = fes->GetFE(0)->GetDof(), nsp = ir.GetNPoints();
-   Array<int> xdofs(dof * dim);
-   DenseMatrix Jpr(dim), dshape(dof, dim), pos(dof, dim);
-   Vector posV(pos.Data(), dof * dim);
-   Vector x_out_loc(fes->GetVSize());
+   const int NE = fes->GetMesh()->GetNE(), dim = fes->GetMesh()->Dimension();
+   Array<int> xdofs;
+   DenseMatrix Jpr(dim);
 
+   // Get the local prolongation of the solution vector.
+   Vector x_out_loc(fes->GetVSize());
    if (serial)
    {
       const SparseMatrix *cP = fes->GetConformingProlongation();
@@ -373,15 +372,23 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    }
 #endif
 
+   // Check if the starting mesh (given by x) is inverted.
+   // Note that x hasn't been modified by the Newton update yet.
    double min_detJ = infinity();
    for (int i = 0; i < NE; i++)
    {
+      const int dof = fes->GetFE(i)->GetDof();
+      DenseMatrix dshape(dof, dim), pos(dof, dim);
+      Vector posV(pos.Data(), dof * dim);
+
       fes->GetElementVDofs(i, xdofs);
       x_out_loc.GetSubVector(xdofs, posV);
 
+      const IntegrationRule &irule = GetIntegrationRule(*fes->GetFE(i));
+      const int nsp = irule.GetNPoints();
       for (int j = 0; j < nsp; j++)
       {
-         fes->GetFE(i)->CalcDShape(ir.IntPoint(j), dshape);
+         fes->GetFE(i)->CalcDShape(irule.IntPoint(j), dshape);
          MultAtB(pos, dshape, Jpr);
          min_detJ = std::min(min_detJ, Jpr.Det());
       }
@@ -394,18 +401,18 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
                     p_nlf->ParFESpace()->GetComm());
    }
 #endif
-   bool untangling = false;
-   if (min_detJ_all <= 0) { untangling = true; }
+   const bool untangling = (min_detJ_all <= 0) ? true : false;
 
    const bool have_b = (b.Size() == Height());
 
    Vector x_out(x.Size());
    bool x_out_ok = false;
    double scale = 1.0, energy_out = 0.0;
-   double norm0 = Norm(r);
+   const double norm0 = Norm(r);
 
    const double detJ_factor = (solver_type == 1) ? 0.25 : 0.5;
 
+   // Perform the line search.
    for (int i = 0; i < 12; i++)
    {
       add(x, -scale, c, x_out);
@@ -429,11 +436,18 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          int jac_ok = 1;
          for (int i = 0; i < NE; i++)
          {
+            const int dof = fes->GetFE(i)->GetDof();
+            DenseMatrix dshape(dof, dim), pos(dof, dim);
+            Vector posV(pos.Data(), dof * dim);
+
             fes->GetElementVDofs(i, xdofs);
             x_out_loc.GetSubVector(xdofs, posV);
+
+            const IntegrationRule &irule = GetIntegrationRule(*fes->GetFE(i));
+            const int nsp = irule.GetNPoints();
             for (int j = 0; j < nsp; j++)
             {
-               fes->GetFE(i)->CalcDShape(ir.IntPoint(j), dshape);
+               fes->GetFE(i)->CalcDShape(irule.IntPoint(j), dshape);
                MultAtB(pos, dshape, Jpr);
                if (Jpr.Det() <= 0.0) { jac_ok = 0; goto break2; }
             }

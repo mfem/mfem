@@ -422,9 +422,9 @@ void test_pa_convection(Mesh &&mesh, int order, bool dg)
 //Basic unit test for convection
 TEST_CASE("PA Convection", "[PartialAssembly]")
 {
-   for (bool dg : {true, false})
+   SECTION("2D")
    {
-      SECTION("2D")
+      for (bool dg : {true, false})
       {
          for (int order : {2, 3, 4})
          {
@@ -433,8 +433,10 @@ TEST_CASE("PA Convection", "[PartialAssembly]")
             test_pa_convection(Mesh("../../data/star-q3.mesh", 1, 1), order, dg);
          }
       }
-
-      SECTION("3D")
+   }
+   SECTION("3D")
+   {
+      for (bool dg : {true, false})
       {
          int order = 2;
          test_pa_convection(Mesh("../../data/periodic-cube.mesh", 1, 1), order, dg);
@@ -442,9 +444,9 @@ TEST_CASE("PA Convection", "[PartialAssembly]")
       }
    }
    // Test AMR cases (DG not implemented)
-   for (int order : {2, 3, 4})
+   SECTION("AMR 2D")
    {
-      SECTION("AMR 2D")
+      for (int order : {2, 3, 4})
       {
          test_pa_convection(Mesh("../../data/amr-quad.mesh", 1, 1), order, false);
       }

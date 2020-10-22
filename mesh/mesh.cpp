@@ -338,6 +338,7 @@ void Mesh::GetElementTransformation(int i, IsoparametricTransformation *ElTr)
    ElTr->Attribute = GetAttribute(i);
    ElTr->ElementNo = i;
    ElTr->ElementType = ElementTransformation::ELEMENT;
+   ElTr->Reset();
    if (Nodes == NULL)
    {
       GetPointMatrix(i, ElTr->GetPointMat());
@@ -370,6 +371,7 @@ void Mesh::GetElementTransformation(int i, const Vector &nodes,
    ElTr->ElementNo = i;
    ElTr->ElementType = ElementTransformation::ELEMENT;
    DenseMatrix &pm = ElTr->GetPointMat();
+   ElTr->Reset();
    nodes.HostRead();
    if (Nodes == NULL)
    {
@@ -424,6 +426,7 @@ void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
    ElTr->ElementNo = i; // boundary element number
    ElTr->ElementType = ElementTransformation::BDR_ELEMENT;
    DenseMatrix &pm = ElTr->GetPointMat();
+   ElTr->Reset();
    if (Nodes == NULL)
    {
       GetBdrPointMatrix(i, pm);
@@ -480,6 +483,7 @@ void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
    FTr->ElementNo = FaceNo;
    FTr->ElementType = ElementTransformation::FACE;
    DenseMatrix &pm = FTr->GetPointMat();
+   FTr->Reset();
    if (Nodes == NULL)
    {
       const int *v = (Dim == 1) ? &FaceNo : faces[FaceNo]->GetVertices();
@@ -562,6 +566,7 @@ void Mesh::GetEdgeTransformation(int EdgeNo, IsoparametricTransformation *EdTr)
    EdTr->ElementNo = EdgeNo;
    EdTr->ElementType = ElementTransformation::EDGE;
    DenseMatrix &pm = EdTr->GetPointMat();
+   EdTr->Reset();
    if (Nodes == NULL)
    {
       Array<int> v;
@@ -614,6 +619,7 @@ void Mesh::GetLocalPtToSegTransformation(
 {
    const IntegrationRule *SegVert;
    DenseMatrix &locpm = Transf.GetPointMat();
+   Transf.Reset();
 
    Transf.SetFE(&PointFE);
    SegVert = Geometries.GetVertices(Geometry::SEGMENT);
@@ -629,6 +635,7 @@ void Mesh::GetLocalSegToTriTransformation(
    const int *tv, *so;
    const IntegrationRule *TriVert;
    DenseMatrix &locpm = Transf.GetPointMat();
+   Transf.Reset();
 
    Transf.SetFE(&SegmentFE);
    tv = tri_t::Edges[i/64];  //  (i/64) is the local face no. in the triangle
@@ -648,6 +655,7 @@ void Mesh::GetLocalSegToQuadTransformation(
    const int *qv, *so;
    const IntegrationRule *QuadVert;
    DenseMatrix &locpm = Transf.GetPointMat();
+   Transf.Reset();
 
    Transf.SetFE(&SegmentFE);
    qv = quad_t::Edges[i/64]; //  (i/64) is the local face no. in the quad
@@ -665,6 +673,7 @@ void Mesh::GetLocalTriToTetTransformation(
    IsoparametricTransformation &Transf, int i)
 {
    DenseMatrix &locpm = Transf.GetPointMat();
+   Transf.Reset();
 
    Transf.SetFE(&TriangleFE);
    //  (i/64) is the local face no. in the tet
@@ -688,6 +697,7 @@ void Mesh::GetLocalTriToWdgTransformation(
    IsoparametricTransformation &Transf, int i)
 {
    DenseMatrix &locpm = Transf.GetPointMat();
+   Transf.Reset();
 
    Transf.SetFE(&TriangleFE);
    //  (i/64) is the local face no. in the pri
@@ -713,6 +723,7 @@ void Mesh::GetLocalQuadToHexTransformation(
    IsoparametricTransformation &Transf, int i)
 {
    DenseMatrix &locpm = Transf.GetPointMat();
+   Transf.Reset();
 
    Transf.SetFE(&QuadrilateralFE);
    //  (i/64) is the local face no. in the hex
@@ -734,6 +745,7 @@ void Mesh::GetLocalQuadToWdgTransformation(
    IsoparametricTransformation &Transf, int i)
 {
    DenseMatrix &locpm = Transf.GetPointMat();
+   Transf.Reset();
 
    Transf.SetFE(&QuadrilateralFE);
    //  (i/64) is the local face no. in the pri

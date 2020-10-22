@@ -41,7 +41,8 @@
 //
 //   Adapted discrete size:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -cmb 2 -nor
+//   Adapted discrete size; explicit combo of metrics; mixed tri/quad mesh:
+//     mpirun -np 4 pmesh-optimizer -m ../../data/square-mixed.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -bnd -qo 6 -cmb 2 -nor
 //   Adapted discrete size+aspect_ratio:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100 -qo 6 -ex -st 1 -nor
@@ -75,6 +76,8 @@
 //     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -lc 10
 //   ICF combo shape + size (rings, slow convergence):
 //     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 1000 -ls 2 -li 100 -bnd -qt 1 -qo 8 -cmb 1
+//   Mixed tet / cube / hex mesh with limiting:
+//     mpirun -np 4 pmesh-optimizer -m ../../data/fichera-mixed-p2.mesh -o 4 -rs 1 -mid 301 -tid 1 -fix-bnd -qo 6 -nor -lc 0.25
 //   3D pinched sphere shape (the mesh is in the mfem/data GitHub repository):
 //   * mpirun -np 4 pmesh-optimizer -m ../../../mfem_data/ball-pert.mesh -o 4 -rs 0 -mid 303 -tid 1 -ni 20 -ls 2 -li 500 -fix-bnd
 //   2D non-conforming shape and equal size:
@@ -482,11 +485,10 @@ int main (int argc, char *argv[])
             }
          }
          double volume_all, volume_ind_all;
-         int NE_ALL;
          MPI_Allreduce(&volume, &volume_all, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
          MPI_Allreduce(&volume_ind, &volume_ind_all, 1, MPI_DOUBLE, MPI_SUM,
                        MPI_COMM_WORLD);
-         MPI_Allreduce(&NE, &NE_ALL, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+         const int NE_ALL = pmesh->GetGlobalNE();
 
          const double avg_zone_size = volume_all / NE_ALL;
 
@@ -586,25 +588,38 @@ int main (int argc, char *argv[])
    if (fdscheme) { he_nlf_integ->EnableFiniteDifferences(x); }
    he_nlf_integ->SetExactActionFlag(exactaction);
 
-   // 13. Setup the quadrature rule for the non-linear form integrator.
-   const IntegrationRule *ir = NULL;
-   const int geom_type = pfespace->GetFE(0)->GetGeomType();
+   // Setup the quadrature rules for the TMOP integrator.
+   IntegrationRules *irules = NULL;
    switch (quad_type)
    {
-      case 1: ir = &IntRulesLo.Get(geom_type, quad_order); break;
-      case 2: ir = &IntRules.Get(geom_type, quad_order); break;
-      case 3: ir = &IntRulesCU.Get(geom_type, quad_order); break;
+      case 1: irules = &IntRulesLo; break;
+      case 2: irules = &IntRules; break;
+      case 3: irules = &IntRulesCU; break;
       default:
          if (myid == 0) { cout << "Unknown quad_type: " << quad_type << endl; }
          return 3;
    }
-   if (myid == 0)
-   { cout << "Quadrature points per cell: " << ir->GetNPoints() << endl; }
-   he_nlf_integ->SetIntegrationRule(*ir);
+   he_nlf_integ->SetIntegrationRules(*irules, quad_order);
+   if (myid == 0 && dim == 2)
+   {
+      cout << "Triangle quadrature points: "
+           << irules->Get(Geometry::TRIANGLE, quad_order).GetNPoints()
+           << "\nQuadrilateral quadrature points: "
+           << irules->Get(Geometry::SQUARE, quad_order).GetNPoints() << endl;
+   }
+   if (myid == 0 && dim == 3)
+   {
+      cout << "Tetrahedron quadrature points: "
+           << irules->Get(Geometry::TETRAHEDRON, quad_order).GetNPoints()
+           << "\nHexahedron quadrature points: "
+           << irules->Get(Geometry::CUBE, quad_order).GetNPoints()
+           << "\nPrism quadrature points: "
+           << irules->Get(Geometry::PRISM, quad_order).GetNPoints() << endl;
+   }
 
    if (normalization) { he_nlf_integ->ParEnableNormalization(x0); }
 
-   // 14. Limit the node movement.
+   // Limit the node movement.
    // The limiting distances can be given by a general function of space.
    ParGridFunction dist(pfespace);
    dist = 1.0;
@@ -642,7 +657,7 @@ int main (int argc, char *argv[])
       }
    }
 
-   // 15. Setup the final NonlinearForm (which defines the integral of interest,
+   // 13. Setup the final NonlinearForm (which defines the integral of interest,
    //     its first and second derivatives). Here we can use a combination of
    //     metrics, i.e., optimize the sum of two integrals, where both are
    //     scaled by used-defined space-dependent weights.  Note that there are
@@ -654,6 +669,7 @@ int main (int argc, char *argv[])
    TargetConstructor *target_c2 = NULL;
    FunctionCoefficient coeff2(weight_fun);
 
+   // Explicit combination of metrics.
    if (combomet > 0)
    {
       // First metric.
@@ -673,7 +689,7 @@ int main (int argc, char *argv[])
          he_nlf_integ2->SetCoefficient(coeff2);
       }
       else { he_nlf_integ2 = new TMOP_Integrator(metric2, target_c); }
-      he_nlf_integ2->SetIntegrationRule(*ir);
+      he_nlf_integ2->SetIntegrationRules(*irules, quad_order);
       if (fdscheme) { he_nlf_integ2->EnableFiniteDifferences(x); }
       he_nlf_integ2->SetExactActionFlag(exactaction);
 
@@ -689,14 +705,15 @@ int main (int argc, char *argv[])
 
    const double init_energy = a.GetParGridFunctionEnergy(x);
 
-   // 16. Visualize the starting mesh and metric values.
+   // Visualize the starting mesh and metric values.
+   // Note that for combinations of metrics, this only shows the first metric.
    if (visualization)
    {
       char title[] = "Initial metric values";
       vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 0);
    }
 
-   // 17. Fix all boundary nodes, or fix only a given component depending on the
+   // 14. Fix all boundary nodes, or fix only a given component depending on the
    //     boundary attributes of the given mesh.  Attributes 1/2/3 correspond to
    //     fixed x/y/z components of the node.  Attribute 4 corresponds to an
    //     entirely fixed node.  Other boundary attributes do not affect the node
@@ -709,10 +726,10 @@ int main (int argc, char *argv[])
    }
    else
    {
-      const int nd  = pfespace->GetBE(0)->GetDof();
       int n = 0;
       for (int i = 0; i < pmesh->GetNBE(); i++)
       {
+         const int nd = pfespace->GetBE(i)->GetDof();
          const int attr = pmesh->GetBdrElement(i)->GetAttribute();
          MFEM_VERIFY(!(dim == 2 && attr == 3),
                      "Boundary attribute 3 must be used only for 3D meshes. "
@@ -725,6 +742,7 @@ int main (int argc, char *argv[])
       n = 0;
       for (int i = 0; i < pmesh->GetNBE(); i++)
       {
+         const int nd = pfespace->GetBE(i)->GetDof();
          const int attr = pmesh->GetBdrElement(i)->GetAttribute();
          pfespace->GetBdrElementVDofs(i, vdofs);
          if (attr == 1) // Fix x components.
@@ -751,7 +769,7 @@ int main (int argc, char *argv[])
       a.SetEssentialVDofs(ess_vdofs);
    }
 
-   // 18. As we use the Newton method to solve the resulting nonlinear system,
+   // 15. As we use the Newton method to solve the resulting nonlinear system,
    //     here we setup the linear solver for the system's Jacobian.
    Solver *S = NULL;
    const double linsol_rtol = 1e-12;
@@ -778,15 +796,17 @@ int main (int argc, char *argv[])
       S = minres;
    }
 
-   // 19. Compute the minimum det(J) of the starting mesh.
+   // Compute the minimum det(J) of the starting mesh.
    tauval = infinity();
    const int NE = pmesh->GetNE();
    for (int i = 0; i < NE; i++)
    {
+      const IntegrationRule &ir =
+         irules->Get(pfespace->GetFE(i)->GetGeomType(), quad_order);
       ElementTransformation *transf = pmesh->GetElementTransformation(i);
-      for (int j = 0; j < ir->GetNPoints(); j++)
+      for (int j = 0; j < ir.GetNPoints(); j++)
       {
-         transf->SetIntPoint(&ir->IntPoint(j));
+         transf->SetIntPoint(&ir.IntPoint(j));
          tauval = min(tauval, transf->Jacobian().Det());
       }
    }
@@ -800,7 +820,11 @@ int main (int argc, char *argv[])
    tauval -= 0.01 * h0min_all; // Slightly below minJ0 to avoid div by 0.
 
    // Perform the nonlinear optimization.
-   TMOPNewtonSolver solver(pfespace->GetComm(), *ir, solver_type);
+   const IntegrationRule &ir =
+      irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
+   TMOPNewtonSolver solver(pfespace->GetComm(), ir, solver_type);
+   // Provide all integration rules in case of a mixed mesh.
+   solver.SetIntegrationRules(*irules, quad_order);
    if (solver_type == 0)
    {
       // Specify linear solver when we use a Newton-based solver.
@@ -818,7 +842,7 @@ int main (int argc, char *argv[])
       cout << "Nonlinear solver: rtol = " << solver_rtol << " not achieved.\n";
    }
 
-   // 21. Save the optimized mesh to a file. This output can be viewed later
+   // 16. Save the optimized mesh to a file. This output can be viewed later
    //     using GLVis: "glvis -m optimized -np num_mpi_tasks".
    {
       ostringstream mesh_name;
@@ -828,7 +852,7 @@ int main (int argc, char *argv[])
       pmesh->PrintAsOne(mesh_ofs);
    }
 
-   // 22. Compute the amount of energy decrease.
+   // 17. Compute the amount of energy decrease.
    const double fin_energy = a.GetParGridFunctionEnergy(x);
    double metric_part = fin_energy;
    if (lim_const > 0.0 || adapt_lim_const > 0.0)
@@ -851,7 +875,7 @@ int main (int argc, char *argv[])
            << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
    }
 
-   // 23. Visualize the final mesh and metric values.
+   // 18. Visualize the final mesh and metric values.
    if (visualization)
    {
       char title[] = "Final metric values";
@@ -865,7 +889,7 @@ int main (int argc, char *argv[])
                              600, 600, 300, 300);
    }
 
-   // 23. Visualize the mesh displacement.
+   // 19. Visualize the mesh displacement.
    if (visualization)
    {
       x0 -= x;
@@ -886,7 +910,7 @@ int main (int argc, char *argv[])
       }
    }
 
-   // 24. Free the used memory.
+   // 20. Free the used memory.
    delete S;
    delete target_c2;
    delete metric2;

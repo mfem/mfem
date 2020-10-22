@@ -130,8 +130,8 @@ static void EADiffusionAssemble2D(const int NE,
 
 template<int T_D1D = 0, int T_Q1D = 0>
 static void EADiffusionAssemble3D(const int NE,
-                                  const Array<double> &g,
                                   const Array<double> &b,
+                                  const Array<double> &g,
                                   const Vector &padata,
                                   Vector &eadata,
                                   const int d1d = 0,
