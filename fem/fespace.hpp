@@ -247,7 +247,8 @@ protected:
    void AddEdgeFaceDependencies(SparseMatrix &deps,
                                 Array<int>& master_dofs, Array<int> &slave_dofs,
                                 const FiniteElement *master_fe,
-                                const NCMesh::Slave &slave_face) const;
+                                const NCMesh::NCList &list,
+                                int slave_index) const;
 
    /// Replicate 'mat' in the vector dimension, according to vdim ordering mode.
    void MakeVDimMatrix(SparseMatrix &mat) const;

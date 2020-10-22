@@ -659,28 +659,29 @@ void FiniteElementSpace
 }
 
 void FiniteElementSpace
-   ::AddEdgeFaceDependencies(SparseMatrix &deps,
-                             Array<int>& master_dofs, Array<int> &slave_dofs,
-                             const FiniteElement *master_fe,
-                             const NCMesh::Slave &slave_face) const
+::AddEdgeFaceDependencies(SparseMatrix &deps,
+                          Array<int>& master_dofs, Array<int> &slave_dofs,
+                          const FiniteElement *master_fe,
+                          const NCMesh::NCList &list, int slave_index) const
 {
    // In variable-order spaces in 3D, we need to only constrain interior face
    // DOFs (this is done one level up), since edge dependencies can be more
    // complex and are primarily handled by edge-edge dependencies. The one
    // exception is edges of slave faces that lie in the interior of a master
    // face, which are not covered by edge-edge relations. This function finds
-   // such edges and makes them constrained by the master face of 'slave_face'.
+   // such edges and makes them constrained by the master face of 'slave_index'.
 
    Array<int> V, E, Eo; // TODO: LocalArray
-   mesh->GetFaceVertices(slave_face.index, V);
-   mesh->GetFaceEdges(slave_face.index, E, Eo);
+   mesh->GetFaceVertices(slave_index, V);
+   mesh->GetFaceEdges(slave_index, E, Eo);
    MFEM_ASSERT(V.Size() == E.Size(), "");
 
    DenseMatrix I;
    IsoparametricTransformation edge_T;
    edge_T.SetFE(&SegmentFE);
 
-   const DenseMatrix &pm = slave_face.point_matrix;
+   const NCMesh::Slave &sl = list.slaves[slave_index];
+   const DenseMatrix &pm = *(list.point_matrices[sl.geom][sl.matrix]);
 
    // constrain each edge of the slave face
    for (int i = 0; i < E.Size(); i++)
@@ -811,7 +812,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    for (int entity = 2; entity >= 1; entity--)
    {
       const NCMesh::NCList &list = mesh->ncmesh->GetNCList(entity);
-      if (!list.masters.size()) { continue; }
+      if (!list.masters.Size()) { continue; }
 
       // loop through all master edges/faces, constrain their slave edges/faces
       for (const NCMesh::Master &master : list.masters)
@@ -840,7 +841,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
             if (!slave_dofs.Size()) { break; }
 
             const auto *slave_fe = fec->GetFE(slave.Geom(), q);
-            slave.OrientedPointMatrix(T.GetPointMat());
+            list.OrientedPointMatrix(slave, T.GetPointMat());
             slave_fe->GetTransferMatrix(*master_fe, T, I);
 
             // variable order spaces: face edges need to be handled separately
@@ -859,7 +860,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
             {
                // constrain internal edge DOFs if they were skipped
                AddEdgeFaceDependencies(deps, master_dofs, slave_dofs,
-                                       master_fe, slave);
+                                       master_fe, list, si);
             }
          }
 
