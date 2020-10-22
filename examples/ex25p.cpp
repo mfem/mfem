@@ -443,6 +443,7 @@ int main(int argc, char *argv[])
    OperatorPtr Ah;
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, Ah, X, B);
+
    // 15. Solve using a direct or an iterative solver
 #ifdef MFEM_USE_SUPERLU
    if (slu_solver)

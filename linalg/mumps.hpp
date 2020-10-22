@@ -25,6 +25,7 @@
 
 namespace mfem
 {
+
 /**
  * @brief MUMPS: A Parallel Sparse Direct Solver
  *
@@ -75,7 +76,7 @@ public:
     *
     * @param print_lvl Print level
     *
-    * Note: this method has to be called before SetOperator
+    * @note This method has to be called before SetOperator.
     */
    void SetPrintLevel(int print_lvl);
 
@@ -87,7 +88,7 @@ public:
     *
     * @param mtype Matrix type
     *
-    * Note: this method has to be called before SetOperator
+    * @note This method has to be called before SetOperator.
     */
    void SetMatrixSymType(MatType mtype);
 
