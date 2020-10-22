@@ -130,8 +130,8 @@ int FiniteElementSpace::GetEdgeOrder(int edge, int variant) const
 {
    if (!IsVariableOrder()) { return fec->DefaultOrder(); }
 
-   const int* beg = edge_dofs.GetRow(edge);
-   const int* end = edge_dofs.GetRow(edge + 1);
+   const int* beg = var_edge_dofs.GetRow(edge);
+   const int* end = var_edge_dofs.GetRow(edge + 1);
    if (variant >= end - beg) { return -1; } // past last variant
 
    int ndof = beg[variant+1] - beg[variant];
@@ -312,13 +312,13 @@ void FiniteElementSpace::BuildFaceToDofTable() const
    fc_dof->MakeI(mesh->GetNumFaces());
    for (int i = 0; i < fc_dof->Size(); i++)
    {
-      GetFaceDofs(i, dofs);
+      GetFaceDofs(i, dofs, 0);
       fc_dof->AddColumnsInRow(i, dofs.Size());
    }
    fc_dof->MakeJ();
    for (int i = 0; i < fc_dof->Size(); i++)
    {
-      GetFaceDofs(i, dofs);
+      GetFaceDofs(i, dofs, 0);
       fc_dof->AddConnections(i, (int *)dofs, dofs.Size());
    }
    fc_dof->ShiftUpI();
@@ -889,7 +889,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    {
       for (int entity = 1; entity < mesh->Dimension(); entity++)
       {
-         const Table &ent_dofs = (entity == 1) ? edge_dofs : face_dofs;
+         const Table &ent_dofs = (entity == 1) ? var_edge_dofs : var_face_dofs;
          int num_ent = (entity == 1) ? mesh->GetNEdges() : mesh->GetNFaces();
          MFEM_ASSERT(ent_dofs.Size() == num_ent+1, "");
 
@@ -2051,7 +2051,7 @@ void FiniteElementSpace::Construct()
    {
       if (IsVariableOrder())
       {
-         nedofs = MakeDofTable(1, edge_orders, edge_dofs);
+         nedofs = MakeDofTable(1, edge_orders, var_edge_dofs);
       }
       else
       {
@@ -2066,7 +2066,7 @@ void FiniteElementSpace::Construct()
       if (IsVariableOrder() || mixed_faces)
       {
          // NOTE: we use Table face_dofs for mixed faces as well
-         nfdofs = MakeDofTable(2, face_orders, face_dofs);
+         nfdofs = MakeDofTable(2, face_orders, var_face_dofs);
       }
       else
       {
@@ -2261,10 +2261,11 @@ int FiniteElementSpace::MakeDofTable(int ent_dim,
    return total_dofs;
 }
 
-int FiniteElementSpace::FindDofs(const Table &dof_table, int row, int ndof) const
+int FiniteElementSpace::FindDofs(const Table &var_dof_table,
+                                 int row, int ndof) const
 {
-   const int *beg = dof_table.GetRow(row);
-   const int *end = dof_table.GetRow(row + 1); // terminator, see above
+   const int *beg = var_dof_table.GetRow(row);
+   const int *end = var_dof_table.GetRow(row + 1); // terminator, see above
 
    while (beg < end)
    {
@@ -2280,7 +2281,7 @@ int FiniteElementSpace::FindDofs(const Table &dof_table, int row, int ndof) cons
 int FiniteElementSpace::GetNVariants(int entity, int index) const
 {
    MFEM_ASSERT(IsVariableOrder(), "");
-   const Table &dof_table = (entity == 1) ? edge_dofs : face_dofs;
+   const Table &dof_table = (entity == 1) ? var_edge_dofs : var_face_dofs;
 
    MFEM_ASSERT(index >= 0 && index < dof_table.Size(), "");
    return dof_table.GetRow(index + 1) - dof_table.GetRow(index);
@@ -2362,7 +2363,7 @@ void FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs) const
          auto fgeom = mesh->GetFaceGeometry(F[i]);
          int nf = fec->GetNumDof(fgeom, order);
 
-         int fbase = (face_dofs.Size() > 0) ? FindFaceDof(F[i], nf) : F[i]*nf;
+         int fbase = (var_face_dofs.Size() > 0) ? FindFaceDof(F[i], nf) : F[i]*nf;
          const int *ind = fec->GetDofOrdering(fgeom, order, Fo[i]);
 
          for (int j = 0; j < nf; j++)
@@ -2463,7 +2464,7 @@ void FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs) const
 
    if (nf) // face DOFs
    {
-      int fbase = (face_dofs.Size() > 0) ? FindFaceDof(F, nf) : F*nf;
+      int fbase = (var_face_dofs.Size() > 0) ? FindFaceDof(F, nf) : F*nf;
       const int *ind = fec->GetDofOrdering(geom, order, Fo);
 
       for (int j = 0; j < nf; j++)
@@ -2477,18 +2478,19 @@ int FiniteElementSpace::GetFaceDofs(int face, Array<int> &dofs, int variant) con
 {
    // If face_dof is already built, use it.
    // If it is not and we have a NURBS space, build the face_dof and use it.
-   if (face_dof || (NURBSext && (BuildNURBSFaceToDofTable(), true)))
+   if ((face_dof && variant == 0) ||
+       (NURBSext && (BuildNURBSFaceToDofTable(), true)))
    {
       face_dof->GetRow(face, dofs);
-      return 0; // FIXME
+      return fec->DefaultOrder();
    }
 
    int p, nf, fbase;
 
-   if (face_dofs.Size() > 0) // variable orders or mixed faces
+   if (var_face_dofs.Size() > 0) // variable orders or mixed faces
    {
-      const int* beg = face_dofs.GetRow(face);
-      const int* end = face_dofs.GetRow(face + 1);
+      const int* beg = var_face_dofs.GetRow(face);
+      const int* end = var_face_dofs.GetRow(face + 1);
       if (variant >= end - beg) { return -1; } // past last face DOFs
 
       fbase = beg[variant];
@@ -2554,8 +2556,8 @@ int FiniteElementSpace::GetEdgeDofs(int edge, Array<int> &dofs,
    int p, ne, base;
    if (IsVariableOrder())
    {
-      const int* beg = edge_dofs.GetRow(edge);
-      const int* end = edge_dofs.GetRow(edge + 1);
+      const int* beg = var_edge_dofs.GetRow(edge);
+      const int* end = var_edge_dofs.GetRow(edge + 1);
       if (variant >= end - beg) { return -1; } // past last edge DOFs
 
       base = beg[variant];
@@ -2635,10 +2637,10 @@ void FiniteElementSpace::GetEdgeInteriorDofs(int i, Array<int> &dofs) const
 void FiniteElementSpace::GetFaceInteriorDofs(int i, Array<int> &dofs) const
 {
    int nf, base;
-   if (face_dofs.Size() > 0)
+   if (var_face_dofs.Size() > 0)
    {
-      base = face_dofs.GetRow(i)[0];
-      nf = face_dofs.GetRow(i)[1] - base;
+      base = var_face_dofs.GetRow(i)[0];
+      nf = var_face_dofs.GetRow(i)[1] - base;
    }
    else
    {

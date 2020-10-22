@@ -114,14 +114,13 @@ protected:
    int nvdofs, nedofs, nfdofs, nbdofs;
    int *bdofs;
 
-   Table edge_dofs; ///< Set of DOFs for each edge (variable order spaces only)
-   Table face_dofs; ///< Set of DOFs for each face (var. order or mixed meshes)
+   Table var_edge_dofs; ///< var-order space: beginnings of DOFs sets for edges
+   Table var_face_dofs; ///< var-order space or mixed mesh: similar for faces
 
+   // precalculated DOFs for each element, boundary element, and face
    mutable Table *elem_dof; // if NURBS FE space, not owned; otherwise, owned.
    mutable Table *bdr_elem_dof; // not owned only if NURBS FE space.
-
-   // TODO: remove?
-   mutable Table *face_dof; // owned
+   mutable Table *face_dof; // owned; in var-order space contains variant 0 DOFs
 
    Array<int> dof_elem_array, dof_ldof_array;
 
@@ -194,24 +193,24 @@ protected:
    void CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
                               Array<VarOrderBits> &face_orders) const;
 
-   /** Build the table edge_dofs (or face_dofs) in a variable order space;
-       return total edge/face DOFs. */
+   /** Build the table var_edge_dofs (or var_face_dofs) in a variable order
+       space; return total edge/face DOFs. */
    int MakeDofTable(int ent_dim, const Array<int> &entity_orders,
                     Table &entity_dofs);
 
    /// Search row of a DOF table for a DOF set of size 'ndof', return first DOF.
-   int FindDofs(const Table &dof_table, int row, int ndof) const;
+   int FindDofs(const Table &var_dof_table, int row, int ndof) const;
 
    /** In a variable order space, return edge DOFs associated with a polynomial
        order that has 'ndof' degrees of freedom. */
    int FindEdgeDof(int edge, int ndof) const
-   { return FindDofs(edge_dofs, edge, ndof); }
+   { return FindDofs(var_edge_dofs, edge, ndof); }
 
    /// Similar to FindEdgeDof, but used for mixed meshes too.
    int FindFaceDof(int face, int ndof) const
-   { return FindDofs(face_dofs, face, ndof); }
+   { return FindDofs(var_face_dofs, face, ndof); }
 
-   /// Return number of possible DOF variants for edge/face (var. order space).
+   /// Return number of possible DOF variants for edge/face (var. order spaces).
    int GetNVariants(int entity, int index) const;
 
    /// Helper to encode a sign flip into a DOF index (for Hcurl/Hdiv shapes).
@@ -402,6 +401,7 @@ public:
    /// The returned SparseMatrix is owned by the FiniteElementSpace.
    const SparseMatrix *GetConformingRestriction() const;
 
+   /// TODO: explain
    /// The returned SparseMatrix is owned by the FiniteElementSpace.
    const SparseMatrix *GetConformingRestrictionInterpolation() const;
 
@@ -413,6 +413,7 @@ public:
    virtual const SparseMatrix *GetRestrictionMatrix() const
    { return GetConformingRestriction(); }
 
+   /// TODO: explain
    /// The returned SparseMatrix is owned by the FiniteElementSpace.
    virtual const SparseMatrix *GetRestrictionInterpolationMatrix() const
    { return GetConformingRestrictionInterpolation(); }
@@ -567,6 +568,8 @@ public:
 
    /** @brief Returns the indices of the degrees of freedom for i'th face
        including the dofs for the edges and the vertices of the face. */
+   /** In variable order spaces, multiple variants of DOFs can be returned.
+       See @a GetEdgeDofs for more details.*/
    virtual int GetFaceDofs(int face, Array<int> &dofs, int variant = 0) const;
 
    /** @brief Returns the indices of the degrees of freedom for the specified
