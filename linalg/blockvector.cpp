@@ -99,6 +99,7 @@ void BlockVector::Update(Vector & data, const Array<int> & bOffsets)
 
    for (int i = 0; i < numBlocks; ++i)
    {
+      if (BlockSize(i) == 0) { continue; }
       blocks[i].MakeRef(data, blockOffsets[i], BlockSize(i));
    }
 }
