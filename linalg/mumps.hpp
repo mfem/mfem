@@ -115,11 +115,6 @@ private:
    // local row offsets
    int row_start;
 
-   // MUMPS workspace
-   // macro s.t. indices match MUMPS documentation
-#define MUMPS_ICNTL(I) icntl[(I) -1]
-#define MUMPS_INFO(I) info[(I) -1]
-
    // MUMPS object
    DMUMPS_STRUC_C *id=nullptr;
 

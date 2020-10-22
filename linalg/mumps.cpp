@@ -20,6 +20,10 @@
 #error "MUMPSSolver requires HYPRE_Int == int, for now."
 #endif
 
+// macro s.t. indices match MUMPS documentation
+#define MUMPS_ICNTL(I) icntl[(I) -1]
+#define MUMPS_INFO(I) info[(I) -1]
+
 namespace mfem
 {
 
