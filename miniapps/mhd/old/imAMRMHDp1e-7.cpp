@@ -16,6 +16,7 @@
 #include "BlockZZEstimator.hpp"
 #include "PCSolver.hpp"
 #include "InitialConditions.hpp"
+#include "checkpoint.hpp"
 #include <memory>
 #include <iostream>
 #include <fstream>
@@ -125,6 +126,7 @@ int main(int argc, char *argv[])
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
+   srand(myid + 1);
    myid_rand=rand();
 
    //++++Parse command-line options.
@@ -154,6 +156,7 @@ int main(int argc, char *argv[])
    int nc_limit = 1;         // maximum level of hanging nodes
    int ref_steps=4;
    int derefine_op=1;
+   int check_steps=50;
    double err_ratio=.1;
    double derefine_ratio=0.;
    double err_fraction=.5;
@@ -685,6 +688,7 @@ int main(int argc, char *argv[])
    }
 
    double t = 0.0, told=0.;
+   double dt0=dt, dt_min=0.0005;
    oper.SetTime(t);
    ode_solver->Init(oper);
 
@@ -764,6 +768,8 @@ int main(int argc, char *argv[])
 
    MPI_Barrier(MPI_COMM_WORLD); 
    double start = MPI_Wtime();
+   bool reduced_step=false;
+   int  success_step=0;
 
    if (myid == 0) cout<<"Start time stepping..."<<endl;
 
@@ -779,6 +785,18 @@ int main(int argc, char *argv[])
         dt=dt/2.;
         if (myid==0) cout << "change time step to "<<dt<<endl;
         t_change=0.;
+      }
+
+      //change time step when problem becomes nicer
+      if (reduced_step){
+          success_step++;
+
+          if (success_step>10)
+          {
+              dt = min(dt*1.1, dt0);
+              success_step=0;
+              if (myid==0) cout << "increase time step to "<<dt<<endl;
+          }
       }
       double dt_real = min(dt, t_final - t);
 
@@ -798,7 +816,6 @@ int main(int argc, char *argv[])
           current_amr_level=levels4;
           err_fraction=0.7;
           derefine_fraction=0.0007;
-          //was .005
 
           refiner.SetTotalErrorFraction(err_fraction);
           derefiner.SetThreshold(derefine_ratio*ltol_amr);
@@ -848,10 +865,19 @@ int main(int argc, char *argv[])
       if (!oper.getConverged())
       {
          t=told;
-         dt=dt/2.;
+         if (dt<=dt_min)
+         {
+            if (myid==0) cout << "====== the time step is already <= dt_min, give up for now ======"<<endl;
+            break;
+         }
+         dt=max(dt/2., dt_min);
          dt_real = min(dt, t_final - t);
          oper.resetConverged();
          if (myid==0) cout << "====== reduced dt: new dt = "<<dt<<" ======"<<endl;
+
+         //reset information for increasing time step
+         reduced_step=true;
+         success_step=0;
 
          vx=vxold;
          ode_solver->Step(vx, t, dt_real);
@@ -997,6 +1023,14 @@ int main(int argc, char *argv[])
          }
       }
       //----------------------------AMR---------------------------------
+      
+      if ((ti % check_steps) == 0)
+      {
+         phi.SetFromTrueDofs(vx.GetBlock(0));
+         psi.SetFromTrueDofs(vx.GetBlock(1));
+         w.SetFromTrueDofs(vx.GetBlock(2));
+         checkpoint(myid, t, *pmesh, phi, psi, w);
+      }
 
       if ( (last_step || (ti % vis_steps) == 0) )
       {
@@ -1066,21 +1100,7 @@ int main(int argc, char *argv[])
       psi.SetFromTrueDofs(vx.GetBlock(1));
       w.SetFromTrueDofs(vx.GetBlock(2));
 
-      ofstream ofs_mesh(MakeParFilename("checkpt-mesh.", myid));
-      ofstream ofs_phi(MakeParFilename("checkpt-phi.", myid));
-      ofstream ofs_psi(MakeParFilename("checkpt-psi.", myid));
-      ofstream   ofs_w(MakeParFilename("checkpt-w.", myid));
-
-      ofs_mesh.precision(16);
-      ofs_phi.precision(16);
-      ofs_psi.precision(16);
-        ofs_w.precision(16);
-
-      pmesh->ParPrint(ofs_mesh);
-
-      phi.Save(ofs_phi);
-      psi.Save(ofs_psi);
-        w.Save(ofs_w);
+      checkpoint(myid, t, *pmesh, phi, psi, w);
 
       //this is only saved if paraview or visit is not used
       if (!paraview && !visit)

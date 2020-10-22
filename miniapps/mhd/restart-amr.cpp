@@ -598,7 +598,7 @@ int main(int argc, char *argv[])
       pd->SetDataFormat(VTKFormat::BINARY);
       pd->SetHighOrderOutput(true);
       pd->SetCycle(0);
-      pd->SetTime(0.0);
+      pd->SetTime(t);
       pd->Save();
    }
 
