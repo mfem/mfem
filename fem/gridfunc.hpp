@@ -325,6 +325,8 @@ public:
        Both FE spaces should be scalar and on the same mesh. */
    void GetElementAverages(GridFunction &avgs) const;
 
+   /** Sets the output vector @a dof_vals to the values of the degrees of
+       freedom of element @a el. */
    virtual void GetElementDofs(int el, Vector &dof_vals) const;
 
    /** Impose the given bounds on the function's DOFs while preserving its local
