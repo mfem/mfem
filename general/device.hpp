@@ -59,13 +59,17 @@ struct Backend
       CEED_CPU  = 1 << 10,
       /** @brief [device] CEED CUDA backend working together with the CUDA
           backend. Enabled when MFEM_USE_CEED = YES and MFEM_USE_CUDA = YES.
-          NOTE: The current default libCEED GPU backend is non-deterministic! */
+          NOTE: The current default libCEED CUDA backend is non-deterministic! */
       CEED_CUDA = 1 << 11,
+      /** @brief [device] CEED HIP backend working together with the HIP
+          backend. Enabled when MFEM_USE_CEED = YES and MFEM_USE_HIP = YES. */
+      CEED_HIP = 1 << 12,
       /** @brief [device] Debug backend: host memory is READ/WRITE protected
           while a device is in use. It allows to test the "device" code-path
           (using separate host/device memory pools and host <-> device
-          transfers) without any GPU hardware. */
-      DEBUG = 1 << 12
+          transfers) without any GPU hardware. As 'DEBUG' is sometimes used
+          as a macro, `_DEVICE` has been added to avoid conflicts. */
+      DEBUG_DEVICE = 1 << 13
    };
 
    /** @brief Additional useful constants. For example, the *_MASK constants can
@@ -73,20 +77,20 @@ struct Backend
    enum
    {
       /// Number of backends: from (1 << 0) to (1 << (NUM_BACKENDS-1)).
-      NUM_BACKENDS = 13,
+      NUM_BACKENDS = 14,
 
       /// Biwise-OR of all CPU backends
       CPU_MASK = CPU | RAJA_CPU | OCCA_CPU | CEED_CPU,
       /// Biwise-OR of all CUDA backends
       CUDA_MASK = CUDA | RAJA_CUDA | OCCA_CUDA | CEED_CUDA,
       /// Biwise-OR of all HIP backends
-      HIP_MASK = HIP,
+      HIP_MASK = HIP | CEED_HIP,
       /// Biwise-OR of all OpenMP backends
       OMP_MASK = OMP | RAJA_OMP | OCCA_OMP,
       /// Bitwise-OR of all CEED backends
-      CEED_MASK = CEED_CPU | CEED_CUDA,
+      CEED_MASK = CEED_CPU | CEED_CUDA | CEED_HIP,
       /// Biwise-OR of all device backends
-      DEVICE_MASK = CUDA_MASK | HIP_MASK | DEBUG,
+      DEVICE_MASK = CUDA_MASK | HIP_MASK | DEBUG_DEVICE,
 
       /// Biwise-OR of all RAJA backends
       RAJA_MASK = RAJA_CPU | RAJA_OMP | RAJA_CUDA,
@@ -193,7 +197,8 @@ public:
        * The available backends are described by the Backend class.
        * The string name of a backend is the lowercase version of the
          Backend::Id enumeration constant with '_' replaced by '-', e.g. the
-         string name of 'RAJA_CPU' is 'raja-cpu'.
+         string name of 'RAJA_CPU' is 'raja-cpu'. The string name of the debug
+         backend (Backend::Id 'DEBUG_DEVICE') is exceptionally set to 'debug'.
        * The 'cpu' backend is always enabled with lowest priority.
        * The current backend priority from highest to lowest is:
          'ceed-cuda', 'occa-cuda', 'raja-cuda', 'cuda', 'hip', 'debug',

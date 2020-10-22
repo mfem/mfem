@@ -82,24 +82,27 @@ public:
 };
 
 // Class for returning the PML coefficients of the bilinear form
-class PMLMatrixCoefficient : public MatrixCoefficient
+class PMLDiagMatrixCoefficient : public VectorCoefficient
 {
 private:
    CartesianPML * pml = nullptr;
-   void (*Function)(const Vector &, CartesianPML * , DenseMatrix &);
+   void (*Function)(const Vector &, CartesianPML * , Vector &);
 public:
-   PMLMatrixCoefficient(int dim, void(*F)(const Vector &, CartesianPML *,
-                                          DenseMatrix &),
-                        CartesianPML * pml_)
-      : MatrixCoefficient(dim), pml(pml_), Function(F)
+   PMLDiagMatrixCoefficient(int dim, void(*F)(const Vector &, CartesianPML *,
+                                              Vector &),
+                            CartesianPML * pml_)
+      : VectorCoefficient(dim), pml(pml_), Function(F)
    {}
-   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
+
+   using VectorCoefficient::Eval;
+
+   virtual void Eval(Vector &K, ElementTransformation &T,
                      const IntegrationPoint &ip)
    {
       double x[3];
       Vector transip(x, 3);
       T.Transform(ip, transip);
-      K.SetSize(height, width);
+      K.SetSize(vdim);
       (*Function)(transip, pml, K);
    }
 };
@@ -116,13 +119,13 @@ void source(const Vector &x, Vector & f);
 
 // Functions for computing the necessary coefficients after PML stretching.
 // J is the Jacobian matrix of the stretching function
-void detJ_JT_J_inv_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M);
-void detJ_JT_J_inv_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M);
-void detJ_JT_J_inv_abs(const Vector &x, CartesianPML * pml, DenseMatrix &M);
+void detJ_JT_J_inv_Re(const Vector &x, CartesianPML * pml, Vector &D);
+void detJ_JT_J_inv_Im(const Vector &x, CartesianPML * pml, Vector &D);
+void detJ_JT_J_inv_abs(const Vector &x, CartesianPML * pml, Vector &D);
 
-void detJ_inv_JT_J_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M);
-void detJ_inv_JT_J_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M);
-void detJ_inv_JT_J_abs(const Vector &x, CartesianPML * pml, DenseMatrix &M);
+void detJ_inv_JT_J_Re(const Vector &x, CartesianPML * pml, Vector &D);
+void detJ_inv_JT_J_Im(const Vector &x, CartesianPML * pml, Vector &D);
+void detJ_inv_JT_J_abs(const Vector &x, CartesianPML * pml, Vector &D);
 
 Array2D<double> comp_domain_bdr;
 Array2D<double> domain_bdr;
@@ -365,19 +368,19 @@ int main(int argc, char *argv[])
    a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_omeg),NULL);
 
    int cdim = (dim == 2) ? 1 : dim;
-   PMLMatrixCoefficient pml_c1_Re(cdim,detJ_inv_JT_J_Re, pml);
-   PMLMatrixCoefficient pml_c1_Im(cdim,detJ_inv_JT_J_Im, pml);
-   ScalarMatrixProductCoefficient c1_Re(muinv,pml_c1_Re);
-   ScalarMatrixProductCoefficient c1_Im(muinv,pml_c1_Im);
-   MatrixRestrictedCoefficient restr_c1_Re(c1_Re,attrPML);
-   MatrixRestrictedCoefficient restr_c1_Im(c1_Im,attrPML);
+   PMLDiagMatrixCoefficient pml_c1_Re(cdim,detJ_inv_JT_J_Re, pml);
+   PMLDiagMatrixCoefficient pml_c1_Im(cdim,detJ_inv_JT_J_Im, pml);
+   ScalarVectorProductCoefficient c1_Re(muinv,pml_c1_Re);
+   ScalarVectorProductCoefficient c1_Im(muinv,pml_c1_Im);
+   VectorRestrictedCoefficient restr_c1_Re(c1_Re,attrPML);
+   VectorRestrictedCoefficient restr_c1_Im(c1_Im,attrPML);
 
-   PMLMatrixCoefficient pml_c2_Re(dim, detJ_JT_J_inv_Re,pml);
-   PMLMatrixCoefficient pml_c2_Im(dim, detJ_JT_J_inv_Im,pml);
-   ScalarMatrixProductCoefficient c2_Re(omeg,pml_c2_Re);
-   ScalarMatrixProductCoefficient c2_Im(omeg,pml_c2_Im);
-   MatrixRestrictedCoefficient restr_c2_Re(c2_Re,attrPML);
-   MatrixRestrictedCoefficient restr_c2_Im(c2_Im,attrPML);
+   PMLDiagMatrixCoefficient pml_c2_Re(dim, detJ_JT_J_inv_Re,pml);
+   PMLDiagMatrixCoefficient pml_c2_Im(dim, detJ_JT_J_inv_Im,pml);
+   ScalarVectorProductCoefficient c2_Re(omeg,pml_c2_Re);
+   ScalarVectorProductCoefficient c2_Im(omeg,pml_c2_Im);
+   VectorRestrictedCoefficient restr_c2_Re(c2_Re,attrPML);
+   VectorRestrictedCoefficient restr_c2_Im(c2_Im,attrPML);
 
    // Integrators inside the PML region
    a.AddDomainIntegrator(new CurlCurlIntegrator(restr_c1_Re),
@@ -419,13 +422,13 @@ int main(int argc, char *argv[])
       prec.AddDomainIntegrator(new CurlCurlIntegrator(restr_muinv));
       prec.AddDomainIntegrator(new VectorFEMassIntegrator(restr_absomeg));
 
-      PMLMatrixCoefficient pml_c1_abs(cdim,detJ_inv_JT_J_abs, pml);
-      ScalarMatrixProductCoefficient c1_abs(muinv,pml_c1_abs);
-      MatrixRestrictedCoefficient restr_c1_abs(c1_abs,attrPML);
+      PMLDiagMatrixCoefficient pml_c1_abs(cdim,detJ_inv_JT_J_abs, pml);
+      ScalarVectorProductCoefficient c1_abs(muinv,pml_c1_abs);
+      VectorRestrictedCoefficient restr_c1_abs(c1_abs,attrPML);
 
-      PMLMatrixCoefficient pml_c2_abs(dim, detJ_JT_J_inv_abs,pml);
-      ScalarMatrixProductCoefficient c2_abs(absomeg,pml_c2_abs);
-      MatrixRestrictedCoefficient restr_c2_abs(c2_abs,attrPML);
+      PMLDiagMatrixCoefficient pml_c2_abs(dim, detJ_JT_J_inv_abs,pml);
+      ScalarVectorProductCoefficient c2_abs(absomeg,pml_c2_abs);
+      VectorRestrictedCoefficient restr_c2_abs(c2_abs,attrPML);
 
       prec.AddDomainIntegrator(new CurlCurlIntegrator(restr_c1_abs));
       prec.AddDomainIntegrator(new VectorFEMassIntegrator(restr_c2_abs));
@@ -763,7 +766,7 @@ void E_bdr_data_Im(const Vector &x, Vector &E)
    }
 }
 
-void detJ_JT_J_inv_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M)
+void detJ_JT_J_inv_Re(const Vector &x, CartesianPML * pml, Vector &D)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det(1.0, 0.0);
@@ -774,14 +777,13 @@ void detJ_JT_J_inv_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M)
       det *= dxs[i];
    }
 
-   M = 0.0;
    for (int i = 0; i < dim; ++i)
    {
-      M(i, i) = (det / pow(dxs[i], 2)).real();
+      D(i) = (det / pow(dxs[i], 2)).real();
    }
 }
 
-void detJ_JT_J_inv_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M)
+void detJ_JT_J_inv_Im(const Vector &x, CartesianPML * pml, Vector &D)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det = 1.0;
@@ -792,14 +794,13 @@ void detJ_JT_J_inv_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M)
       det *= dxs[i];
    }
 
-   M = 0.0;
    for (int i = 0; i < dim; ++i)
    {
-      M(i, i) = (det / pow(dxs[i], 2)).imag();
+      D(i) = (det / pow(dxs[i], 2)).imag();
    }
 }
 
-void detJ_JT_J_inv_abs(const Vector &x, CartesianPML * pml, DenseMatrix &M)
+void detJ_JT_J_inv_abs(const Vector &x, CartesianPML * pml, Vector &D)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det = 1.0;
@@ -810,14 +811,13 @@ void detJ_JT_J_inv_abs(const Vector &x, CartesianPML * pml, DenseMatrix &M)
       det *= dxs[i];
    }
 
-   M = 0.0;
    for (int i = 0; i < dim; ++i)
    {
-      M(i, i) = abs(det / pow(dxs[i], 2));
+      D(i) = abs(det / pow(dxs[i], 2));
    }
 }
 
-void detJ_inv_JT_J_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M)
+void detJ_inv_JT_J_Re(const Vector &x, CartesianPML * pml, Vector &D)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det(1.0, 0.0);
@@ -831,19 +831,18 @@ void detJ_inv_JT_J_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M)
    // in the 2D case the coefficient is scalar 1/det(J)
    if (dim == 2)
    {
-      M = (1.0 / det).real();
+      D = (1.0 / det).real();
    }
    else
    {
-      M = 0.0;
       for (int i = 0; i < dim; ++i)
       {
-         M(i, i) = (pow(dxs[i], 2) / det).real();
+         D(i) = (pow(dxs[i], 2) / det).real();
       }
    }
 }
 
-void detJ_inv_JT_J_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M)
+void detJ_inv_JT_J_Im(const Vector &x, CartesianPML * pml, Vector &D)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det = 1.0;
@@ -856,19 +855,18 @@ void detJ_inv_JT_J_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M)
 
    if (dim == 2)
    {
-      M = (1.0 / det).imag();
+      D = (1.0 / det).imag();
    }
    else
    {
-      M = 0.0;
       for (int i = 0; i < dim; ++i)
       {
-         M(i, i) = (pow(dxs[i], 2) / det).imag();
+         D(i) = (pow(dxs[i], 2) / det).imag();
       }
    }
 }
 
-void detJ_inv_JT_J_abs(const Vector &x, CartesianPML * pml, DenseMatrix &M)
+void detJ_inv_JT_J_abs(const Vector &x, CartesianPML * pml, Vector &D)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det = 1.0;
@@ -881,14 +879,13 @@ void detJ_inv_JT_J_abs(const Vector &x, CartesianPML * pml, DenseMatrix &M)
 
    if (dim == 2)
    {
-      M = abs(1.0 / det);
+      D = abs(1.0 / det);
    }
    else
    {
-      M = 0.0;
       for (int i = 0; i < dim; ++i)
       {
-         M(i, i) = abs(pow(dxs[i], 2) / det);
+         D(i) = abs(pow(dxs[i], 2) / det);
       }
    }
 }

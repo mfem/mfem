@@ -115,6 +115,12 @@ const char *GetConfigStr()
 #ifdef MFEM_USE_STRUMPACK
       "MFEM_USE_STRUMPACK\n"
 #endif
+#ifdef MFEM_USE_GINKGO
+      "MFEM_USE_GINKGO\n"
+#endif
+#ifdef MFEM_USE_AMGX
+      "MFEM_USE_AMGX\n"
+#endif
 #ifdef MFEM_USE_GNUTLS
       "MFEM_USE_GNUTLS\n"
 #endif
@@ -135,6 +141,9 @@ const char *GetConfigStr()
 #endif
 #ifdef MFEM_USE_PUMI
       "MFEM_USE_PUMI\n"
+#endif
+#ifdef MFEM_USE_HIOP
+      "MFEM_USE_HIOP\n"
 #endif
 #ifdef MFEM_USE_CUDA
       "MFEM_USE_CUDA\n"

@@ -12,6 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
+#include "libceed/diffusion.hpp"
 
 using namespace std;
 
@@ -129,6 +130,13 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const FiniteElement &el = *fes.GetFE(0);
    const IntegrationRule *ir
       = IntRule ? IntRule : &DiffusionIntegrator::GetRule(el, el);
+   if (DeviceCanUseCeed())
+   {
+      delete ceedDataPtr;
+      ceedDataPtr = new CeedData;
+      InitCeedCoeff(Q, *mesh, *ir, ceedDataPtr);
+      return CeedPADiffusionAssemble(fes, *ir, * ceedDataPtr);
+   }
    const int dims = el.GetDim();
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
    const int nq = ir->GetNPoints();
@@ -506,33 +514,40 @@ void PAVectorDiffusionApply3D(const int NE,
 // PA Diffusion Apply kernel
 void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   const int D1D = dofs1D;
-   const int Q1D = quad1D;
-   const Array<double> &B = maps->B;
-   const Array<double> &G = maps->G;
-   const Array<double> &Bt = maps->Bt;
-   const Array<double> &Gt = maps->Gt;
-   const Vector &D = pa_data;
-
-   if (dim == 2 && sdim == 3)
+   if (DeviceCanUseCeed())
    {
-      switch ((dofs1D << 4 ) | quad1D)
-      {
-         case 0x22: return PAVectorDiffusionApply2D<2,2,3>(ne,B,G,Bt,Gt,D,x,y);
-         case 0x33: return PAVectorDiffusionApply2D<3,3,3>(ne,B,G,Bt,Gt,D,x,y);
-         case 0x44: return PAVectorDiffusionApply2D<4,4,3>(ne,B,G,Bt,Gt,D,x,y);
-         case 0x55: return PAVectorDiffusionApply2D<5,5,3>(ne,B,G,Bt,Gt,D,x,y);
-         default:
-            return PAVectorDiffusionApply2D(ne,B,G,Bt,Gt,D,x,y,D1D,Q1D,sdim);
-      }
+      CeedAddMult(ceedDataPtr, x, y);
    }
-   if (dim == 2 && sdim == 2)
-   { return PAVectorDiffusionApply2D(ne,B,G,Bt,Gt,D,x,y,D1D,Q1D,sdim); }
+   else
+   {
+      const int D1D = dofs1D;
+      const int Q1D = quad1D;
+      const Array<double> &B = maps->B;
+      const Array<double> &G = maps->G;
+      const Array<double> &Bt = maps->Bt;
+      const Array<double> &Gt = maps->Gt;
+      const Vector &D = pa_data;
 
-   if (dim == 3 && sdim == 3)
-   { return PAVectorDiffusionApply3D(ne,B,G,Bt,Gt,D,x,y,D1D,Q1D); }
+      if (dim == 2 && sdim == 3)
+      {
+         switch ((dofs1D << 4 ) | quad1D)
+         {
+            case 0x22: return PAVectorDiffusionApply2D<2,2,3>(ne,B,G,Bt,Gt,D,x,y);
+            case 0x33: return PAVectorDiffusionApply2D<3,3,3>(ne,B,G,Bt,Gt,D,x,y);
+            case 0x44: return PAVectorDiffusionApply2D<4,4,3>(ne,B,G,Bt,Gt,D,x,y);
+            case 0x55: return PAVectorDiffusionApply2D<5,5,3>(ne,B,G,Bt,Gt,D,x,y);
+            default:
+               return PAVectorDiffusionApply2D(ne,B,G,Bt,Gt,D,x,y,D1D,Q1D,sdim);
+         }
+      }
+      if (dim == 2 && sdim == 2)
+      { return PAVectorDiffusionApply2D(ne,B,G,Bt,Gt,D,x,y,D1D,Q1D,sdim); }
 
-   MFEM_ABORT("Unknown kernel.");
+      if (dim == 3 && sdim == 3)
+      { return PAVectorDiffusionApply3D(ne,B,G,Bt,Gt,D,x,y,D1D,Q1D); }
+
+      MFEM_ABORT("Unknown kernel.");
+   }
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
@@ -726,14 +741,21 @@ static void PAVectorDiffusionAssembleDiagonal(const int dim,
 
 void VectorDiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   PAVectorDiffusionAssembleDiagonal(dim,
-                                     dofs1D,
-                                     quad1D,
-                                     ne,
-                                     maps->B,
-                                     maps->G,
-                                     pa_data,
-                                     diag);
+   if (DeviceCanUseCeed())
+   {
+      CeedAssembleDiagonal(ceedDataPtr, diag);
+   }
+   else
+   {
+      PAVectorDiffusionAssembleDiagonal(dim,
+                                        dofs1D,
+                                        quad1D,
+                                        ne,
+                                        maps->B,
+                                        maps->G,
+                                        pa_data,
+                                        diag);
+   }
 }
 
 } // namespace mfem

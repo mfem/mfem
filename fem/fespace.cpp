@@ -14,6 +14,7 @@
 #include "../general/text.hpp"
 #include "../general/forall.hpp"
 #include "../mesh/mesh_headers.hpp"
+#include "../fem/libceed/ceed.hpp"
 #include "fem.hpp"
 
 #include <cmath>
@@ -440,6 +441,7 @@ void FiniteElementSpace::MarkerToList(const Array<int> &marker,
       if (marker[i]) { num_marked++; }
    }
    list.SetSize(0);
+   list.HostWrite();
    list.Reserve(num_marked);
    for (int i = 0; i < marker.Size(); i++)
    {
@@ -451,7 +453,9 @@ void FiniteElementSpace::MarkerToList(const Array<int> &marker,
 void FiniteElementSpace::ListToMarker(const Array<int> &list, int marker_size,
                                       Array<int> &marker, int mark_val)
 {
+   list.HostRead(); // make sure we can read the array on host
    marker.SetSize(marker_size);
+   marker.HostWrite();
    marker = 0;
    for (int i = 0; i < list.Size(); i++)
    {
@@ -695,7 +699,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    for (int entity = 1; entity <= 2; entity++)
    {
       const NCMesh::NCList &list = mesh->ncmesh->GetNCList(entity);
-      if (!list.masters.size()) { continue; }
+      if (!list.masters.Size()) { continue; }
 
       Array<int> master_dofs, slave_dofs;
 
@@ -703,7 +707,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       DenseMatrix I;
 
       // loop through all master edges/faces, constrain their slave edges/faces
-      for (unsigned mi = 0; mi < list.masters.size(); mi++)
+      for (int mi = 0; mi < list.masters.Size(); mi++)
       {
          const NCMesh::Master &master = list.masters[mi];
 
@@ -727,7 +731,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
             GetEntityDofs(entity, slave.index, slave_dofs, master.Geom());
             if (!slave_dofs.Size()) { continue; }
 
-            slave.OrientedPointMatrix(T.GetPointMat());
+            list.OrientedPointMatrix(slave, T.GetPointMat());
             fe->GetLocalInterpolation(T, I);
 
             // make each slave DOF dependent on all master DOFs
@@ -2157,6 +2161,7 @@ void FiniteElementSpace::Destroy()
       delete [] bdofs;
       delete [] fdofs;
    }
+   RemoveCeedBasisAndRestriction(this);
 }
 
 void FiniteElementSpace::GetTransferOperator(
