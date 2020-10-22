@@ -22,6 +22,7 @@ namespace mfem
 
 // forward declarations
 class Coefficient;
+class MatrixCoefficient;
 class ParMesh;
 class ParBilinearForm;
 class ParDiscreteLinearOperator;
@@ -45,9 +46,12 @@ public:
                              use a single V-cycle
    */
    MatrixFreeAuxiliarySpace(
-      ParMesh& mesh_lor, Coefficient* alpha_coeff,
-      Coefficient* beta_coeff, Array<int>& ess_bdr,
-      Operator& curlcurl_oper, Operator& pi,
+      MPI_Comm comm_, ParMesh& mesh_lor, Coefficient* alpha_coeff,
+      Coefficient* beta_coeff, MatrixCoefficient* beta_mcoeff,
+      Array<int>& ess_bdr, Operator& curlcurl_oper, Operator& pi,
+#ifdef MFEM_USE_AMGX
+      bool useAmgX,
+#endif
       int cg_iterations = 0);
 
    /** @brief G space constructor
@@ -60,9 +64,12 @@ public:
                              use a single V-cycle
    */
    MatrixFreeAuxiliarySpace(
-      ParMesh& mesh_lor,
-      Coefficient* beta_coeff, Array<int>& ess_bdr,
+      MPI_Comm comm_, ParMesh& mesh_lor, Coefficient* beta_coeff,
+      MatrixCoefficient* beta_mcoeff, Array<int>& ess_bdr,
       Operator& curlcurl_oper, Operator& g,
+#ifdef MFEM_USE_AMGX
+      bool useAmgX,
+#endif
       int cg_iterations = 1);
 
    ~MatrixFreeAuxiliarySpace();
@@ -72,7 +79,8 @@ public:
    void SetOperator(const Operator& op) {}
 
 private:
-   void SetupBoomerAMG(int system_dimension);
+   void SetupAMG(int
+                 system_dimension);  // TODO: document meaning of system_dimension
    void SetupVCycle();
 
    /// inner_cg_iterations > 99 applies an exact solve here
@@ -87,6 +95,12 @@ private:
    Operator* aspacewrapper_;
 
    mutable int inner_aux_iterations_;
+
+   MPI_Comm comm;
+
+#ifdef MFEM_USE_AMGX
+   const bool useAmgX_;
+#endif
 };
 
 /** @brief Perform AMS cycle with generic Operator objects.
@@ -158,8 +172,13 @@ public:
     */
    MatrixFreeAMS(ParBilinearForm& aform, Operator& oper,
                  ParFiniteElementSpace& nd_fespace, Coefficient* alpha_coeff,
-                 Coefficient* beta_coeff, Array<int>& ess_bdr,
+                 Coefficient* beta_coeff, MatrixCoefficient* beta_mcoeff,
+                 Array<int>& ess_bdr,
+#ifdef MFEM_USE_AMGX
+                 bool useAmgX = false,
+#endif
                  int inner_pi_its = 0, int inner_g_its = 1);
+
    ~MatrixFreeAMS();
 
    void SetOperator(const Operator &op) {}

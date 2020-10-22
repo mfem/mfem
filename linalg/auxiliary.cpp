@@ -76,9 +76,6 @@ void GeneralAMS::FormResidual(const Vector& rhs, const Vector& x,
 */
 void GeneralAMS::Mult(const Vector& x, Vector& y) const
 {
-   int rank;
-   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
    const bool extra_smoothing = false;
 
    StopWatch chrono;
@@ -166,15 +163,20 @@ void GeneralAMS::Mult(const Vector& x, Vector& y) const
 
 // Pi-space constructor
 MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
-   ParMesh& mesh_lor, Coefficient* alpha_coeff,
-   Coefficient* beta_coeff, Array<int>& ess_bdr,
-   Operator& curlcurl_oper,
-   Operator& pi,
-   int cg_iterations)
-   :
+   MPI_Comm comm_, ParMesh& mesh_lor, Coefficient* alpha_coeff,
+   Coefficient* beta_coeff, MatrixCoefficient* beta_mcoeff, Array<int>& ess_bdr,
+   Operator& curlcurl_oper, Operator& pi,
+#ifdef MFEM_USE_AMGX
+   bool useAmgX,
+#endif
+   int cg_iterations) :
    Solver(pi.Width()),
+   comm(comm_),
    matfree_(NULL),
    cg_(NULL),
+#ifdef MFEM_USE_AMGX
+   useAmgX_(useAmgX),
+#endif
    inner_aux_iterations_(0)
 {
    H1_FECollection * fec_lor = new H1_FECollection(1, mesh_lor.Dimension());
@@ -200,13 +202,19 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    {
       a_space.AddDomainIntegrator(new VectorDiffusionIntegrator(*alpha_coeff));
    }
-   if (beta_coeff == NULL)
+
+   if (beta_mcoeff != NULL)
    {
-      a_space.AddDomainIntegrator(new VectorMassIntegrator);
+      MFEM_VERIFY(beta_coeff == NULL, "Only one beta coefficient should be defined.");
+      a_space.AddDomainIntegrator(new VectorMassIntegrator(*beta_mcoeff));
+   }
+   else if (beta_coeff != NULL)
+   {
+      a_space.AddDomainIntegrator(new VectorMassIntegrator(*beta_coeff));
    }
    else
    {
-      a_space.AddDomainIntegrator(new VectorMassIntegrator(*beta_coeff));
+      a_space.AddDomainIntegrator(new VectorMassIntegrator);
    }
    a_space.UsePrecomputedSparsity();
    a_space.Assemble();
@@ -216,7 +224,7 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    aspacematrix_->CopyRowStarts();
    aspacematrix_->CopyColStarts();
 
-   SetupBoomerAMG(fespace_lor_d.GetMesh()->Dimension());
+   SetupAMG(fespace_lor_d.GetMesh()->Dimension());
 
    if (cg_iterations > 0)
    {
@@ -238,14 +246,21 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    object, as well as the use of a single CG iteration (instead of just
    an AMG V-cycle). */
 MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
-   ParMesh& mesh_lor,
-   Coefficient* beta_coeff, Array<int>& ess_bdr,
-   Operator& curlcurl_oper, Operator& g,
+   MPI_Comm comm_, ParMesh& mesh_lor, Coefficient* beta_coeff,
+   MatrixCoefficient* beta_mcoeff, Array<int>& ess_bdr, Operator& curlcurl_oper,
+   Operator& g,
+#ifdef MFEM_USE_AMGX
+   bool useAmgX,
+#endif
    int cg_iterations)
    :
    Solver(curlcurl_oper.Height()),
+   comm(comm_),
    matfree_(NULL),
    cg_(NULL),
+#ifdef MFEM_USE_AMGX
+   useAmgX_(useAmgX),
+#endif
    inner_aux_iterations_(0)
 {
    H1_FECollection * fec_lor = new H1_FECollection(1, mesh_lor.Dimension());
@@ -260,13 +275,19 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    const Matrix::DiagonalPolicy policy = Matrix::DIAG_ONE;
 
    a_space.SetDiagonalPolicy(policy);
-   if (beta_coeff == NULL)
+
+   if (beta_mcoeff != NULL)
    {
-      a_space.AddDomainIntegrator(new DiffusionIntegrator);
+      MFEM_VERIFY(beta_coeff == NULL, "Only one beta coefficient should be defined.");
+      a_space.AddDomainIntegrator(new DiffusionIntegrator(*beta_mcoeff));
+   }
+   else if (beta_coeff != NULL)
+   {
+      a_space.AddDomainIntegrator(new DiffusionIntegrator(*beta_coeff));
    }
    else
    {
-      a_space.AddDomainIntegrator(new DiffusionIntegrator(*beta_coeff));
+      a_space.AddDomainIntegrator(new DiffusionIntegrator);
    }
    a_space.UsePrecomputedSparsity();
    a_space.Assemble();
@@ -285,7 +306,7 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    aspacematrix_->CopyRowStarts();
    aspacematrix_->CopyColStarts();
 
-   SetupBoomerAMG(0);
+   SetupAMG(0);
 
    if (cg_iterations > 0)
    {
@@ -311,7 +332,7 @@ void MatrixFreeAuxiliarySpace::SetupCG(
    MFEM_ASSERT(matfree_->Height() == aspacepc_->Height(),
                "Operators don't match!");
 
-   cg_ = new CGSolver(MPI_COMM_WORLD);
+   cg_ = new CGSolver(comm);
    cg_->SetOperator(*matfree_);
    cg_->SetPreconditioner(*aspacepc_);
    if (inner_cg_iterations > 99)
@@ -344,49 +365,94 @@ void MatrixFreeAuxiliarySpace::SetupVCycle()
 class ZeroWrap : public Solver
 {
 public:
+#ifdef MFEM_USE_AMGX
+   ZeroWrap(HypreParMatrix& mat, Array<int>& ess_tdof_list, const bool useAmgX) :
+#else
    ZeroWrap(HypreParMatrix& mat, Array<int>& ess_tdof_list) :
-      Solver(mat.Height()), amg_(mat), ess_tdof_list_(ess_tdof_list)
+#endif
+      Solver(mat.Height()), ess_tdof_list_(ess_tdof_list)
    {
-      amg_.SetPrintLevel(0);
+#ifdef MFEM_USE_AMGX
+      if (useAmgX)
+      {
+         const bool amgx_verbose = false;
+         AmgXSolver *amgx = new AmgXSolver(mat.GetComm(),
+                                           AmgXSolver::PRECONDITIONER,
+                                           amgx_verbose);
+         amgx->SetOperator(mat);
+         amg_ = amgx;
+      }
+      else
+#endif
+      {
+         HypreBoomerAMG *amg = new HypreBoomerAMG(mat);
+         amg->SetPrintLevel(0);
+         amg_ = amg;
+      }
    }
 
    void Mult(const Vector& x, Vector& y) const
    {
-      amg_.Mult(x, y);
+      amg_->Mult(x, y);
+
+      auto Y = y.HostReadWrite();
       for (int k : ess_tdof_list_)
       {
-         y(k) = 0.0;
+         Y[k] = 0.0;
       }
    }
 
    void SetOperator(const Operator&) { }
 
+   ~ZeroWrap()
+   {
+      delete amg_;
+   }
+
 private:
-   HypreBoomerAMG amg_;
+   Solver *amg_ = NULL;
    Array<int>& ess_tdof_list_;
 };
 
-void MatrixFreeAuxiliarySpace::SetupBoomerAMG(int system_dimension)
+void MatrixFreeAuxiliarySpace::SetupAMG(int system_dimension)
 {
    if (system_dimension == 0)
    {
       // boundary condition tweak for G-space solver
+#ifdef MFEM_USE_AMGX
+      aspacepc_ = new ZeroWrap(*aspacematrix_, ess_tdof_list_, useAmgX_);
+#else
       aspacepc_ = new ZeroWrap(*aspacematrix_, ess_tdof_list_);
+#endif
    }
    else // if (system_dimension > 0)
    {
       // Pi-space solver is a vector space
-      HypreBoomerAMG* hpc = new HypreBoomerAMG(*aspacematrix_);
-      hpc->SetSystemsOptions(system_dimension);
-      hpc->SetPrintLevel(0);
-      aspacepc_ = hpc;
+#ifdef MFEM_USE_AMGX
+      if (useAmgX_)
+      {
+         const bool amgx_verbose = false;
+         AmgXSolver *amgx = new AmgXSolver(aspacematrix_->GetComm(),
+                                           AmgXSolver::PRECONDITIONER,
+                                           amgx_verbose);
+         amgx->SetOperator(*aspacematrix_);
+         aspacepc_ = amgx;
+      }
+      else
+#endif
+      {
+         HypreBoomerAMG* hpc = new HypreBoomerAMG(*aspacematrix_);
+         hpc->SetSystemsOptions(system_dimension);
+         hpc->SetPrintLevel(0);
+         aspacepc_ = hpc;
+      }
    }
 }
 
 void MatrixFreeAuxiliarySpace::Mult(const Vector& x, Vector& y) const
 {
    int rank;
-   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+   MPI_Comm_rank(comm, &rank);
 
    y = 0.0;
    aspacewrapper_->Mult(x, y);
@@ -399,9 +465,6 @@ void MatrixFreeAuxiliarySpace::Mult(const Vector& x, Vector& y) const
 
 MatrixFreeAuxiliarySpace::~MatrixFreeAuxiliarySpace()
 {
-   int rank;
-   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
    delete aspacematrix_;
    delete aspacepc_;
    delete matfree_;
@@ -411,10 +474,12 @@ MatrixFreeAuxiliarySpace::~MatrixFreeAuxiliarySpace()
 
 MatrixFreeAMS::MatrixFreeAMS(
    ParBilinearForm& aform, Operator& oper, ParFiniteElementSpace& nd_fespace,
-   Coefficient* alpha_coeff,
-   Coefficient* beta_coeff, Array<int>& ess_bdr, int inner_pi_iterations,
-   int inner_g_iterations)
-   :
+   Coefficient* alpha_coeff, Coefficient* beta_coeff,
+   MatrixCoefficient* beta_mcoeff, Array<int>& ess_bdr,
+#ifdef MFEM_USE_AMGX
+   bool useAmgX,
+#endif
+   int inner_pi_iterations, int inner_g_iterations) :
    Solver(oper.Height())
 {
    int order = nd_fespace.GetFE(0)->GetOrder();
@@ -456,12 +521,23 @@ MatrixFreeAMS::MatrixFreeAMS(
       Boundary conditions can matter as well (see DIAG_ZERO policy) */
 
    // build G space solver
-   Gspacesolver_ = new MatrixFreeAuxiliarySpace(
-      mesh_lor, beta_coeff, ess_bdr, oper, *G_, inner_g_iterations);
+   Gspacesolver_ = new MatrixFreeAuxiliarySpace(nd_fespace.GetComm(), mesh_lor,
+                                                beta_coeff, beta_mcoeff,
+                                                ess_bdr, oper, *G_,
+#ifdef MFEM_USE_AMGX
+                                                useAmgX,
+#endif
+                                                inner_g_iterations);
 
    // build Pi space solver
-   Pispacesolver_ = new MatrixFreeAuxiliarySpace(
-      mesh_lor, alpha_coeff, beta_coeff, ess_bdr, oper, *Pi_, inner_pi_iterations);
+   Pispacesolver_ = new MatrixFreeAuxiliarySpace(nd_fespace.GetComm(), mesh_lor,
+                                                 alpha_coeff, beta_coeff,
+                                                 beta_mcoeff, ess_bdr, oper,
+                                                 *Pi_,
+#ifdef MFEM_USE_AMGX
+                                                 useAmgX,
+#endif
+                                                 inner_pi_iterations);
 
    general_ams_ = new GeneralAMS(oper, *Pi_, *G_, *Pispacesolver_,
                                  *Gspacesolver_, *smoother_, ess_tdof_list);

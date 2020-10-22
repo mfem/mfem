@@ -68,7 +68,10 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    bool pa = false;
    const char *device_config = "cpu";
-   bool visualization = 1;
+   bool visualization = true;
+#ifdef MFEM_USE_AMGX
+   bool useAmgX = false;
+#endif
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -86,6 +89,11 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+#ifdef MFEM_USE_AMGX
+   args.AddOption(&useAmgX, "-amgx", "--useAmgX", "-no-amgx",
+                  "--no-useAmgX",
+                  "Enable or disable AmgX in MatrixFreeAMS.");
+#endif
 
    args.Parse();
    if (!args.Good())
@@ -209,7 +217,11 @@ int main(int argc, char *argv[])
    //     partial assembly case).
    if (pa) // matrix-free auxiliary space solver with PA
    {
-      MatrixFreeAMS ams(*a, *A, *fespace, muinv, sigma, ess_bdr);
+#ifdef MFEM_USE_AMGX
+      MatrixFreeAMS ams(*a, *A, *fespace, muinv, sigma, NULL, ess_bdr, useAmgX);
+#else
+      MatrixFreeAMS ams(*a, *A, *fespace, muinv, sigma, NULL, ess_bdr);
+#endif
 
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-12);
@@ -217,7 +229,13 @@ int main(int argc, char *argv[])
       cg.SetPrintLevel(1);
       cg.SetOperator(*A);
       cg.SetPreconditioner(ams);
+
+      StopWatch sw;
+      sw.Clear();
+      sw.Start();
       cg.Mult(B, X);
+      sw.Stop();
+      cout << myid << ": CG solve time " << sw.RealTime() << endl;
    }
    else
    {

@@ -98,15 +98,18 @@ The MFEM source code has the following structure:
   │   └── web
   │       └── examples
   ├── examples
+  │   ├── amgx
   │   ├── ginkgo
   │   ├── hiop
   │   ├── petsc
   │   ├── pumi
   │   └── sundials
+  |   └── superlu
   ├── fem
   │   └── libceed
   ├── general
   ├── linalg
+  │   └── simd
   ├── mesh
   ├── miniapps
   │   ├── adjoint
@@ -114,11 +117,14 @@ The MFEM source code has the following structure:
   │   ├── electromagnetics
   │   ├── gslib
   │   ├── meshing
+  │   ├── navier
   │   ├── nurbs
   │   ├── performance
   │   ├── tools
   │   └── toys
   └── tests
+      ├── convergence
+      ├── par-mesh-format
       ├── scripts
       ├── unit
       │   ├── ...
