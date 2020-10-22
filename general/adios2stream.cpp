@@ -235,8 +235,8 @@ void adios2stream::Print(const Mesh& mesh, const mode print_mode)
       }
 
       // format info
-      SafeDefineAttribute<std::string>(io, "format", "MFEM ADIOS2 BP v0.1" );
-      SafeDefineAttribute<std::string>(io, "format/version", "0.1" );
+      SafeDefineAttribute<std::string>(io, "format", "MFEM ADIOS2 BP v0.2" );
+      SafeDefineAttribute<std::string>(io, "format/version", "0.2" );
       std::string mesh_type = "Unknown";
       std::vector<std::string> viz_tools;
       viz_tools.reserve(2); //for now
@@ -298,6 +298,7 @@ void adios2stream::Print(const Mesh& mesh, const mode print_mode)
          element_nvertices = static_cast<size_t>(mesh.elements[0]->GetNVertices());
       }
       SafeDefineVariable<uint64_t>(io, "connectivity", {}, {}, {nelements, element_nvertices+1});
+      SafeDefineVariable<int32_t>(io, "material", {}, {}, {nelements});
 
       // vertices
       SafeDefineVariable<uint32_t>(io,"NumOfVertices", {adios2::LocalValueDim});
@@ -348,8 +349,15 @@ void adios2stream::Print(const Mesh& mesh, const mode print_mode)
          io.InquireVariable<uint64_t>("connectivity");
       adios2::Variable<uint64_t>::Span span_connectivity = engine.Put<uint64_t>
                                                            (var_connectivity);
+
+      adios2::Variable<int32_t> var_element_attribute =
+         io.InquireVariable<int32_t>("material");
+      adios2::Variable<int32_t>::Span span_element_attribute = engine.Put<int32_t>
+                                                               (var_element_attribute);
+
       size_t span_vertices_offset = 0;
       size_t span_connectivity_offset = 0;
+      size_t span_element_attribute_offset = 0;
       // use for setting absolute node id for each element
       size_t point_id = 0;
       DenseMatrix pmatrix;
@@ -370,6 +378,9 @@ void adios2stream::Print(const Mesh& mesh, const mode print_mode)
          }
          span_vertices_offset += static_cast<size_t>(pmatrix.Width()*pmatrix.Height());
 
+         // element attribute
+         const int element_attribute = mesh.GetAttribute(e);
+
          // connectivity
          const int nv = Geometries.GetVertices(type)->GetNPoints();
          const Array<int> &element_vertices = refined_geometry->RefGeoms;
@@ -378,6 +389,10 @@ void adios2stream::Print(const Mesh& mesh, const mode print_mode)
          {
             span_connectivity[span_connectivity_offset] = static_cast<uint64_t>(nv);
             ++span_connectivity_offset;
+
+            span_element_attribute[span_element_attribute_offset] = static_cast<int32_t>
+                                                                    (element_attribute);
+            ++span_element_attribute_offset;
 
             for (int k =0; k < nv; k++, v++ )
             {
@@ -419,9 +434,17 @@ void adios2stream::Print(const Mesh& mesh, const mode print_mode)
       adios2::Variable<uint64_t>::Span spanConnectivity =
          engine.Put<uint64_t>(varConnectivity);
 
+      adios2::Variable<int32_t> varElementAttribute =
+         io.InquireVariable<int32_t>("material");
+      // zero-copy access to adios2 buffer to put non-contiguous to contiguous memory
+      adios2::Variable<int32_t>::Span spanElementAttribute =
+         engine.Put<int32_t>(varElementAttribute);
+
       size_t elementPosition = 0;
       for (int e = 0; e < mesh.GetNE(); ++e)
       {
+         spanElementAttribute[e] = static_cast<int32_t>(mesh.GetAttribute(e));
+
          const int nVertices = mesh.elements[e]->GetNVertices();
          spanConnectivity[elementPosition] = nVertices;
          for (int v = 0; v < nVertices; ++v)
@@ -688,7 +711,7 @@ std::string adios2stream::VTKSchema() const noexcept
 {
    std::string vtkSchema = R"(
 <?xml version="1.0"?>
-<VTKFile type="UnstructuredGrid" version="0.1" byte_order="LittleEndian">
+<VTKFile type="UnstructuredGrid" version="0.2" byte_order="LittleEndian">
   <UnstructuredGrid>
     <Piece NumberOfPoints="NumOfVertices" NumberOfCells="NumOfElements">
       <Points>
@@ -696,6 +719,9 @@ std::string adios2stream::VTKSchema() const noexcept
 
    vtkSchema += R"(
       </Points>
+	  <CellData>
+        <DataArray Name="material" />
+	  </CellData>
       <Cells>
         <DataArray Name="connectivity" />
         <DataArray Name="types" />
