@@ -56,9 +56,29 @@ Performance improvements
 
 Improved GPU capabilities
 -------------------------
+- Added a new solver class for simple integration with NVIDIA's multigrid
+  library, AmgX. The AmgX class is designed to work as a standalone solver or
+  preconditioner for existing MFEM solvers. It uses MFEM's sparse matrix format
+  for serial runs and the HypreParMatrix format for parallel runs.
+
+  The new solver may be configured to run with one GPU per MPI rank or with more
+  MPI ranks than GPUs. In the latter case, matrices and vectors are consolidated
+  to ranks communicating with the GPUs and the solution is then broadcasted.
+
+  Although CUDA is required to build, the AmgX support is compatible with the
+  MFEM CPU device configuration. The examples/amgx folder illustrates how to
+  integrate AmgX in existing MFEM applications.
+
+  The AmgX solver class is partially based on: "AmgXWrapper: An interface
+  between PETSc and the NVIDIA AmgX library", by Pi-Yueh Chuang and Lorena
+  A. Barba, doi:10.21105/joss.00280.
+
 - Added support for Chebyshev accelerated polynomial smoother on GPU.
 
 - Optimized AMD/HIP kernel support.
+
+- Enabled HIP support in the libCEED integration, which is now available via the
+  "ceed-hip" device backend.
 
 - Added a Full Assembly mode compatible with Device kernel execution. This
   assembly level builds on top of the current Element Assembly kernels to
@@ -72,6 +92,9 @@ Improved GPU capabilities
 - Added partial assembly and GPU support for complex operators, including the
   classes ComplexOperator, [Par]ComplexGridFunction, [Par]ComplexLinearForm, and
   [Par]SesquilinearForm. See the updated Example 22.
+
+- Added CUDA support for SUNDIALS ODE integrators. See the updated SUNDIALS
+  modification of Example 9/9p.
 
 Discretization improvements
 ---------------------------
@@ -99,6 +122,9 @@ Discretization improvements
   Additionally, new LinearForm integrators were also added which make use of
   these new QuadratureFunction coefficient classes.
 
+- Non-conforming meshes are now supported with block nonlinear forms. See the
+  updated Example 19/19p.
+
 - Added support face integrals on the boundaries of NURBS meshes.
 
 - Added support for interpolation of functions in L2, H(div) and H(curl)
@@ -109,6 +135,12 @@ Discretization improvements
   member methods in GridFunction and ParGridFunction. See the rates.cpp file in
   the tests/convergence directory for sample usage.
 
+- The C-function based coefficient classes (FunctionCoefficient,
+  VectorFunctionCoefficient, and MatrixFunctionCoefficient) now use the more
+  general std::function class template. This allows the classes to be backward
+  compatible (i.e. they can still work with C-functions) and, in addition,
+  support any "callable", e.g. lambda functions.
+
 Linear and nonlinear solvers
 ----------------------------
 - Added power method to iteratively estimate the largest eigenvalue and the
@@ -116,6 +148,9 @@ Linear and nonlinear solvers
 
 - Added initial support for h- and p-multigrid solvers and preconditioners for
   matrix-based and matrix-free discretizations with basic GPU capability.
+
+- Added wrappers for Hypre's flexible GMRES solver and the new parallel ILU
+  preconditioner. The latter requires hypre version 2.19.0 or later.
 
 - Added a new IterativeSolverMonitor class that allows to monitor the residual
   and solution during the solving process of an IterativeSolver after every
@@ -136,6 +171,15 @@ Linear and nonlinear solvers
 
 - Added partially assembled convergent diagonal preconditioner for adaptively
   refined meshes (i.e. non-conforming finite element spaces), see Example 6/6p.
+
+- Upgraded SuperLU interface to use SuperLU_DIST 6.3.1. Added a simple SuperLU
+  example in the new directory examples/superlu.
+
+- Extended the KINSOL (SUNDIALS) nonlinear solver interface to support the
+  Jacobian-free Newton-Krylov method. A usage example is shown in Example 10p.
+
+- Added an interface to the MKL CPardiso solver -- an MPI-parallel sparse direct
+  solver developed by Intel. See Example 11p for an illustration of its usage.
 
 New and updated examples and miniapps
 -------------------------------------
