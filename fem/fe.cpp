@@ -11352,16 +11352,16 @@ RT_WedgeElement::RT_WedgeElement(const int p)
                          (p + 2) * ((p + 1) * (p + 2)) / 2 +
                          (p + 1) * (p + 1) * (p + 3), p + 1,
                          H_DIV, FunctionSpace::Pk),
-     dof2nk(Dof),
-     t_dof(Dof),
-     s_dof(Dof),
+     dof2nk(dof),
+     t_dof(dof),
+     s_dof(dof),
      L2TriangleFE(p),
      RTTriangleFE(p),
      H1SegmentFE(p + 1),
      L2SegmentFE(p)
 {
    MFEM_ASSERT(L2TriangleFE.GetDof() * H1SegmentFE.GetDof() +
-               RTTriangleFE.GetDof() * L2SegmentFE.GetDof() == Dof,
+               RTTriangleFE.GetDof() * L2SegmentFE.GetDof() == dof,
                "Mismatch in number of degrees of freedom "
                "when building RT_WedgeElement!");
 
@@ -11480,7 +11480,7 @@ void RT_WedgeElement::CalcVShape(const IntegrationPoint &ip,
    H1SegmentFE.CalcShape(ipz, sh1_shape);
    L2SegmentFE.CalcShape(ipz, sl2_shape);
 
-   for (int i=0; i<Dof; i++)
+   for (int i=0; i<dof; i++)
    {
       if ( dof2nk[i] >= 2 )
       {
@@ -11516,7 +11516,7 @@ void RT_WedgeElement::CalcDivShape(const IntegrationPoint &ip,
    L2SegmentFE.CalcShape(ipz, sl2_shape);
    H1SegmentFE.CalcDShape(ipz, sh1_dshape);
 
-   for (int i=0; i<Dof; i++)
+   for (int i=0; i<dof; i++)
    {
       if ( dof2nk[i] >= 2 )
       {
@@ -12637,16 +12637,16 @@ ND_WedgeElement::ND_WedgeElement(const int p,
    : VectorFiniteElement(3, Geometry::PRISM,
                          3 * p * ((p + 1) * (p + 2))/2, p,
                          H_CURL, FunctionSpace::Pk),
-     dof2tk(Dof),
-     t_dof(Dof),
-     s_dof(Dof),
+     dof2tk(dof),
+     t_dof(dof),
+     s_dof(dof),
      H1TriangleFE(p, cb_type),
      NDTriangleFE(p),
      H1SegmentFE(p, cb_type),
      NDSegmentFE(p, ob_type)
 {
    MFEM_ASSERT(H1TriangleFE.GetDof() * NDSegmentFE.GetDof() +
-               NDTriangleFE.GetDof() * H1SegmentFE.GetDof() == Dof,
+               NDTriangleFE.GetDof() * H1SegmentFE.GetDof() == dof,
                "Mismatch in number of degrees of freedom "
                "when building ND_WedgeElement!");
 
@@ -12863,7 +12863,7 @@ void ND_WedgeElement::CalcVShape(const IntegrationPoint &ip,
    H1SegmentFE.CalcShape(ipz, s1_shape);
    NDSegmentFE.CalcVShape(ipz, sn_shape);
 
-   for (int i=0; i<Dof; i++)
+   for (int i=0; i<dof; i++)
    {
       if ( dof2tk[i] != 3 )
       {
@@ -12901,7 +12901,7 @@ void ND_WedgeElement::CalcCurlShape(const IntegrationPoint &ip,
    NDTriangleFE.CalcCurlShape(ip, tn_dshape);
    NDSegmentFE.CalcVShape(ipz, sn_shape);
 
-   for (int i=0; i<Dof; i++)
+   for (int i=0; i<dof; i++)
    {
       if ( dof2tk[i] != 3 )
       {
