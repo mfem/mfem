@@ -255,9 +255,10 @@ MPI_FORTRAN_LIB = -lmpifort
 # MPI_FORTRAN_LIB += -lgfortran
 
 # MUMPS library configuration
-MUMPS_DIR =
+MUMPS_DIR = @MFEM_DIR@/../MUMPS_5.2.0
 MUMPS_OPT = -I$(MUMPS_DIR)/include
-MUMPS_LIB = -Wl,-rpath,$(MUMPS_DIR)/lib -L$(MUMPS_DIR)/lib -ldmumps -lmumps_common -lpord $(SCALAPACK_LIB) $(LAPACK_LIB) $(MPI_FORTRAN_LIB)
+MUMPS_LIB = -Wl,-rpath,$(MUMPS_DIR)/lib -L$(MUMPS_DIR)/lib -ldmumps\
+ -lmumps_common -lpord $(SCALAPACK_LIB) $(LAPACK_LIB) $(MPI_FORTRAN_LIB)
 
 # STRUMPACK library configuration
 STRUMPACK_DIR = @MFEM_DIR@/../STRUMPACK-build
