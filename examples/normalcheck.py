@@ -35,7 +35,7 @@ def run(fd, t, mesh="../data/square-disc-p3.mesh", diffusion=False):
 def main():
     with open("normalcheck.log", "w") as fd:
         for mesh in ["../data/square-disc-p3.mesh",
-                     "icf.mesh",
+                     "../miniapps/meshing/icf.mesh",
                      "sphere_hex27.mesh"]:
             print(mesh)
             ds = [False]
