@@ -186,8 +186,8 @@ void InitCeedVecCoeff(VectorCoefficient *VQ, Mesh &mesh,
 #endif
 }
 
-void CeedPAAssemble(const CeedPAOperator& op,
-                    CeedData& ceedData)
+void CeedAssemble(const CeedPAOperator& op,
+                  CeedData& ceedData)
 {
 #ifdef MFEM_USE_CEED
    const FiniteElementSpace &fes = op.fes;
@@ -453,8 +453,8 @@ void CeedPAAssemble(const CeedPAOperator& op,
 #endif
 }
 
-void CeedMFAssemble(const CeedMFOperator& op,
-                    CeedData& ceedData)
+void CeedAssemble(const CeedMFOperator& op,
+                  CeedData& ceedData)
 {
 #ifdef MFEM_USE_CEED
    const FiniteElementSpace &fes = op.fes;

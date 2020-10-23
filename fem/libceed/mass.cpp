@@ -37,7 +37,7 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
                             EvalMode::Interp,
                             EvalMode::Interp
                            };
-   CeedPAAssemble(massOp, ceedData);
+   CeedAssemble(massOp, ceedData);
 #else
    mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
@@ -56,7 +56,7 @@ void CeedMFMassAssemble(const FiniteElementSpace &fes,
                             EvalMode::Interp,
                             EvalMode::Interp
                            };
-   CeedMFAssemble(massOp, ceedData);
+   CeedAssemble(massOp, ceedData);
 #else
    mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif

@@ -899,7 +899,7 @@ void ConvectionIntegrator::AssembleDiagonalPA(Vector &diag)
    }
    else
    {
-      mfem_error("AssembleDiagonalPa not yet implemented for ConvectionIntegrator.");
+      mfem_error("AssembleDiagonalPA not yet implemented for ConvectionIntegrator.");
    }
 }
 

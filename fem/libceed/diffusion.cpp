@@ -39,7 +39,7 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
                             EvalMode::Grad,
                             EvalMode::Grad
                            };
-   CeedPAAssemble(diffOp, ceedData);
+   CeedAssemble(diffOp, ceedData);
 #else
    mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
@@ -58,7 +58,7 @@ void CeedMFDiffusionAssemble(const FiniteElementSpace &fes,
                             EvalMode::Grad,
                             EvalMode::Grad
                            };
-   CeedMFAssemble(diffOp, ceedData);
+   CeedAssemble(diffOp, ceedData);
 #else
    mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
