@@ -39,7 +39,7 @@ void CeedPAConvectionAssemble(const FiniteElementSpace &fes,
                             EvalMode::Grad,
                             EvalMode::Interp
                            };
-   CeedPAAssemble(convOp, ceedData);
+   CeedAssemble(convOp, ceedData);
 #else
    mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
@@ -58,7 +58,7 @@ void CeedMFConvectionAssemble(const FiniteElementSpace &fes,
                             EvalMode::Grad,
                             EvalMode::Interp
                            };
-   CeedMFAssemble(convOp, ceedData);
+   CeedAssemble(convOp, ceedData);
 #else
    mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif

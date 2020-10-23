@@ -258,14 +258,14 @@ void InitCeedVecCoeff(VectorCoefficient *VQ, Mesh &mesh,
 /** This function initializes an arbitrary linear operator using the partial
     assembly decomposition in libCEED. The operator details are described by the
     struct CEEDPAOperator input. */
-void CeedPAAssemble(const CeedPAOperator& op,
-                    CeedData &ceedData);
+void CeedAssemble(const CeedPAOperator& op,
+                  CeedData &ceedData);
 
 /** This function initializes an arbitrary linear operator using a fully matrix
     free decomposition. The operator details are described by the
     struct CEEDPAOperator input. */
-void CeedMFAssemble(const CeedMFOperator& op,
-                    CeedData &ceedData);
+void CeedAssemble(const CeedMFOperator& op,
+                  CeedData &ceedData);
 
 /** @brief Function that applies a libCEED operator. */
 void CeedAddMult(const CeedData *ceedDataPtr,
