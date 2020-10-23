@@ -6,7 +6,9 @@ compilers:
       cxx: /usr/tce/packages/clang/clang-3.9.1/bin/clang++
       f77: /usr/tce/packages/gcc/gcc-4.9.3/bin/gfortran
       fc: /usr/tce/packages/gcc/gcc-4.9.3/bin/gfortran
-    flags: {}
+    flags:
+      cflags: --gcc-toolchain=/usr/tce/packages/gcc/gcc-4.9.3
+      cxxflags: --gcc-toolchain=/usr/tce/packages/gcc/gcc-4.9.3
     operating_system: rhel7
     target: x86_64
     modules: []
@@ -19,7 +21,9 @@ compilers:
       cxx: /usr/tce/packages/clang/clang-4.0.0/bin/clang++
       f77: /usr/tce/packages/gcc/gcc-4.9.3/bin/gfortran
       fc: /usr/tce/packages/gcc/gcc-4.9.3/bin/gfortran
-    flags: {}
+    flags:
+      cflags: --gcc-toolchain=/usr/tce/packages/gcc/gcc-4.9.3
+      cxxflags: --gcc-toolchain=/usr/tce/packages/gcc/gcc-4.9.3
     operating_system: rhel7
     target: x86_64
     modules: []
@@ -30,9 +34,11 @@ compilers:
     paths:
       cc: /usr/tce/packages/clang/clang-6.0.0/bin/clang
       cxx: /usr/tce/packages/clang/clang-6.0.0/bin/clang++
-      f77: /usr/tce/packages/gcc/gcc-8.1.0/bin/gfortran
-      fc: /usr/tce/packages/gcc/gcc-8.1.0/bin/gfortran
-    flags: {}
+      f77: /usr/tce/packages/gcc/gcc-8.3.1/bin/gfortran
+      fc: /usr/tce/packages/gcc/gcc-8.3.1/bin/gfortran
+    flags:
+      cflags: --gcc-toolchain=/usr/tce/packages/gcc/gcc-8.3.1
+      cxxflags: --gcc-toolchain=/usr/tce/packages/gcc/gcc-8.3.1
     operating_system: rhel7
     target: x86_64
     modules: []
@@ -43,9 +49,11 @@ compilers:
     paths:
       cc: /usr/tce/packages/clang/clang-9.0.0/bin/clang
       cxx: /usr/tce/packages/clang/clang-9.0.0/bin/clang++
-      f77: /usr/tce/packages/gcc/gcc-8.1.0/bin/gfortran
-      fc: /usr/tce/packages/gcc/gcc-8.1.0/bin/gfortran
-    flags: {}
+      f77: /usr/tce/packages/gcc/gcc-8.3.1/bin/gfortran
+      fc: /usr/tce/packages/gcc/gcc-8.3.1/bin/gfortran
+    flags:
+      cflags: --gcc-toolchain=/usr/tce/packages/gcc/gcc-8.3.1
+      cxxflags: --gcc-toolchain=/usr/tce/packages/gcc/gcc-8.3.1
     operating_system: rhel7
     target: x86_64
     modules: []
@@ -56,22 +64,11 @@ compilers:
     paths:
       cc: /usr/tce/packages/clang/clang-10.0.1/bin/clang
       cxx: /usr/tce/packages/clang/clang-10.0.1/bin/clang++
-      f77: /usr/tce/packages/gcc/gcc-8.1.0/bin/gfortran
-      fc: /usr/tce/packages/gcc/gcc-8.1.0/bin/gfortran
-    flags: {}
-    operating_system: rhel7
-    target: x86_64
-    modules: []
-    environment: {}
-    extra_rpaths: []
-- compiler:
-    spec: gcc@4.9.3
-    paths:
-      cc: /usr/tce/packages/gcc/gcc-4.9.3/bin/gcc
-      cxx: /usr/tce/packages/gcc/gcc-4.9.3/bin/g++
-      f77: /usr/tce/packages/gcc/gcc-4.9.3/bin/gfortran
-      fc: /usr/tce/packages/gcc/gcc-4.9.3/bin/gfortran
-    flags: {}
+      f77: /usr/tce/packages/gcc/gcc-8.3.1/bin/gfortran
+      fc: /usr/tce/packages/gcc/gcc-8.3.1/bin/gfortran
+    flags:
+      cflags: --gcc-toolchain=/usr/tce/packages/gcc/gcc-8.3.1
+      cxxflags: --gcc-toolchain=/usr/tce/packages/gcc/gcc-8.3.1
     operating_system: rhel7
     target: x86_64
     modules: []
@@ -101,7 +98,7 @@ compilers:
       fc: /usr/tce/packages/intel/intel-17.0.2/bin/ifort
     flags:
       cflags: -gcc-name=/usr/tce/packages/gcc/gcc-4.9.3/bin/gcc
-      cxxflags: -gcc-name=/usr/tce/packages/gcc/gcc-4.9.3/bin/g++
+      cxxflags: -gxx-name=/usr/tce/packages/gcc/gcc-4.9.3/bin/g++
     operating_system: rhel7
     target: x86_64
     modules: []
@@ -116,8 +113,7 @@ compilers:
       fc: /usr/tce/packages/intel/intel-18.0.0/bin/ifort
     flags:
       cflags: -gcc-name=/usr/tce/packages/gcc/gcc-7.3.0/bin/gcc
-      cxxflags: -gcc-name=/usr/tce/packages/gcc/gcc-7.3.0/bin/g++
-      fflags: -gcc-name=/usr/tce/packages/gcc/gcc-7.3.0/bin/gcc
+      cxxflags: -gxx-name=/usr/tce/packages/gcc/gcc-7.3.0/bin/g++
     operating_system: rhel7
     target: x86_64
     modules: []
@@ -126,14 +122,13 @@ compilers:
 - compiler:
     spec: intel@18.0.2
     paths:
-      cc: /usr/tce/packages/intel/intel-18.0.0/bin/icc
-      cxx: /usr/tce/packages/intel/intel-18.0.0/bin/icpc
-      f77: /usr/tce/packages/intel/intel-18.0.0/bin/ifort
-      fc: /usr/tce/packages/intel/intel-18.0.0/bin/ifort
+      cc: /usr/tce/packages/intel/intel-18.0.2/bin/icc
+      cxx: /usr/tce/packages/intel/intel-18.0.2/bin/icpc
+      f77: /usr/tce/packages/intel/intel-18.0.2/bin/ifort
+      fc: /usr/tce/packages/intel/intel-18.0.2/bin/ifort
     flags:
       cflags: -gcc-name=/usr/tce/packages/gcc/gcc-7.3.0/bin/gcc
-      cxxflags: -gcc-name=/usr/tce/packages/gcc/gcc-7.3.0/bin/g++
-      fflags: -gcc-name=/usr/tce/packages/gcc/gcc-7.3.0/bin/gcc
+      cxxflags: -gxx-name=/usr/tce/packages/gcc/gcc-7.3.0/bin/g++
     operating_system: rhel7
     target: x86_64
     modules: []
@@ -147,9 +142,8 @@ compilers:
       f77: /usr/tce/packages/intel/intel-19.0.4/bin/ifort
       fc: /usr/tce/packages/intel/intel-19.0.4/bin/ifort
     flags:
-      cflags: -gcc-name=/usr/tce/packages/gcc/gcc-7.1.0/bin/gcc
-      cxxflags: -gcc-name=/usr/tce/packages/gcc/gcc-7.1.0/bin/g++
-      fflags: -gcc-name=/usr/tce/packages/gcc/gcc-7.1.0/bin/g++
+      cflags: -gcc-name=/usr/tce/packages/gcc/gcc-8.3.1/bin/gcc
+      cxxflags: -gxx-name=/usr/tce/packages/gcc/gcc-8.3.1/bin/g++
     operating_system: rhel7
     target: x86_64
     modules: []
@@ -163,9 +157,8 @@ compilers:
       f77: /usr/tce/packages/intel/intel-19.1.0/bin/ifort
       fc: /usr/tce/packages/intel/intel-19.1.0/bin/ifort
     flags:
-      cflags: -gcc-name=/usr/tce/packages/gcc/gcc-8.1.0/bin/gcc
-      cxxflags: -gcc-name=/usr/tce/packages/gcc/gcc-8.1.0/bin/g++
-      fflags: -gcc-name=/usr/tce/packages/gcc/gcc-8.1.0/bin/gcc
+      cflags: -gcc-name=/usr/tce/packages/gcc/gcc-8.3.1/bin/gcc
+      cxxflags: -gxx-name=/usr/tce/packages/gcc/gcc-8.3.1/bin/g++
     operating_system: rhel7
     target: x86_64
     modules: []
@@ -237,6 +230,19 @@ compilers:
     environment: {}
     extra_rpaths: []
 - compiler:
+    spec: gcc@4.9.3
+    paths:
+      cc: /usr/tce/packages/gcc/gcc-4.9.3/bin/gcc
+      cxx: /usr/tce/packages/gcc/gcc-4.9.3/bin/g++
+      f77: /usr/tce/packages/gcc/gcc-4.9.3/bin/gfortran
+      fc: /usr/tce/packages/gcc/gcc-4.9.3/bin/gfortran
+    flags: {}
+    operating_system: rhel7
+    target: x86_64
+    modules: []
+    environment: {}
+    extra_rpaths: []
+- compiler:
     spec: gcc@6.1.0
     paths:
       cc: /usr/tce/packages/gcc/gcc-6.1.0/bin/gcc
@@ -298,5 +304,6 @@ compilers:
     flags: {}
     operating_system: rhel7
     target: x86_64
+    modules: []
     environment: {}
     extra_rpaths: []
