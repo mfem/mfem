@@ -341,7 +341,8 @@ TEST_CASE("CEED non-linear convection", "[CEED nlconvection]")
    auto mesh = GENERATE("../../data/inline-quad.mesh",
                         "../../data/inline-hex.mesh",
                         "../../data/periodic-square.mesh",
-                        "../../data/star-q2.mesh");
+                        "../../data/star-q2.mesh",
+                        "../../data/fichera.mesh");
    test_ceed_nloperator(mesh, order, coeff_type, pb, assembly);
 } // test case
 
