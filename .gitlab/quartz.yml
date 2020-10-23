@@ -74,9 +74,19 @@ opt_par_gcc_6_1_0:
     SPEC: "%gcc@6.1.0"
   extends: .build_and_test_on_quartz
 
-opt_par_gcc_6_1_0_extra_examples:
+opt_par_gcc_6_1_0_sundials:
   variables:
-    SPEC: "%gcc@6.1.0 +sundials+petsc+pumi"
+    SPEC: "%gcc@6.1.0 +sundials"
+  extends: .build_and_test_on_quartz
+
+opt_par_gcc_6_1_0_petsc:
+  variables:
+    SPEC: "%gcc@6.1.0 +petsc"
+  extends: .build_and_test_on_quartz
+
+opt_par_gcc_6_1_0_pumi:
+  variables:
+    SPEC: "%gcc@6.1.0 +pumi"
   extends: .build_and_test_on_quartz
 
 serac_gcc_8_3_1:
