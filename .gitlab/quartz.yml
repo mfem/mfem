@@ -110,5 +110,5 @@ baselinecheck_mfem_intel_quartz:
   needs: [q_allocate_resources]
 
 baselinepublish_mfem_quartz:
-  extends: [.rebaseline_mfem, .on_quartz]
+  extends: [.on_quartz, .rebaseline_mfem]
   needs: [baselinecheck_mfem_intel_quartz]
