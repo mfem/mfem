@@ -135,16 +135,18 @@ int FiniteElementSpace::GetEdgeOrder(int edge, int variant) const
    if (variant >= end - beg) { return -1; } // past last variant
 
    int ndof = beg[variant+1] - beg[variant];
-   int order = ndof + 1; // FIXME proper mapping
+   int order = ndof_to_geom_order[Geometry::SEGMENT].at(ndof);
    MFEM_ASSERT(fec->GetNumDof(Geometry::SEGMENT, order) == ndof, "");
 
    return order;
 }
 
-int FiniteElementSpace::GetFaceOrder(int i) const
+int FiniteElementSpace::GetFaceOrder(int face, int variant) const
 {
-   Geometry::Type GeomType = mesh->GetFaceBaseGeometry(i);
-   return fec->FiniteElementForGeometry(GeomType)->GetOrder();
+   if (!IsVariableOrder()) { return fec->DefaultOrder(); }
+
+   // TODO FIXME
+   return -1;
 }
 
 void FiniteElementSpace::DofsToVDofs (Array<int> &dofs, int ndofs) const
@@ -1871,12 +1873,14 @@ void FiniteElementSpace::Construct()
    {
       // for variable order spaces, calculate orders of edges and faces
       CalcEdgeFaceVarOrders(edge_orders, face_orders);
+      InitNDofToOrders(edge_orders, face_orders);
    }
    else if (mixed_faces)
    {
-      // for mixed faces we also create the face_dofs table, see below
+      // for mixed faces we also create the var_face_dofs table, see below
       face_orders.SetSize(mesh->GetNFaces());
       face_orders = (VarOrderBits(1) << order);
+      InitNDofToOrders(edge_orders, face_orders);
    }
 
    // assign vertex DOFs
@@ -1904,7 +1908,7 @@ void FiniteElementSpace::Construct()
    {
       if (IsVariableOrder() || mixed_faces)
       {
-         // NOTE: we use Table face_dofs for mixed faces as well
+         // NOTE: we use Table var_face_dofs for mixed faces as well
          nfdofs = MakeDofTable(2, face_orders, var_face_dofs);
       }
       else
@@ -1958,8 +1962,8 @@ int FiniteElementSpace::MinOrder(VarOrderBits bits)
 }
 
 void FiniteElementSpace
-   ::CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
-                           Array<VarOrderBits> &face_orders) const
+::CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
+                        Array<VarOrderBits> &face_orders) const
 {
    MFEM_ASSERT(IsVariableOrder(), "");
    MFEM_ASSERT(elem_order.Size() == mesh->GetNE(), "");
@@ -2059,6 +2063,45 @@ void FiniteElementSpace
       }
    }
    while (!done);
+}
+
+void FiniteElementSpace
+::InitNDofToOrders(const Array<VarOrderBits> &edge_orders,
+                   const Array<VarOrderBits> &face_orders)
+{
+   // function to convert a bit mask to a dof->order map
+   auto init_map = [&](Geometry::Type geom, VarOrderBits mask)
+   {
+      ndof_to_geom_order[geom].clear();
+      for (int order = 0; mask; order++, mask >>= 1)
+      {
+         if (mask & 1)
+         {
+            int ndof = fec->GetNumDof(geom, order);
+            ndof_to_geom_order[geom][ndof] = order;
+         }
+      }
+   };
+
+   // initialize the map for edges
+   VarOrderBits edge_mask = 0;
+   for (int i = 0; i < edge_orders.Size(); i++)
+   {
+      edge_mask |= edge_orders[i];
+   }
+
+   init_map(Geometry::SEGMENT, edge_mask);
+
+   // initialize the map for faces
+   VarOrderBits quad_mask = 0, tri_mask = 0;
+   for (int i = 0; i < face_orders.Size(); i++)
+   {
+      bool quad = (mesh->GetFaceGeometry(i) == Geometry::SQUARE);
+      *(quad ? &quad_mask : &tri_mask) |= face_orders[i];
+   }
+
+   init_map(Geometry::SQUARE, quad_mask);
+   init_map(Geometry::TRIANGLE, tri_mask);
 }
 
 int FiniteElementSpace::MakeDofTable(int ent_dim,
@@ -2322,6 +2365,7 @@ int FiniteElementSpace::GetFaceDofs(int face, Array<int> &dofs, int variant) con
    }
 
    int p, nf, fbase;
+   auto fgeom = mesh->GetFaceGeometry(face);
 
    if (var_face_dofs.Size() > 0) // variable orders or mixed faces
    {
@@ -2332,14 +2376,14 @@ int FiniteElementSpace::GetFaceDofs(int face, Array<int> &dofs, int variant) con
       fbase = beg[variant];
       nf = beg[variant+1] - fbase;
 
-      p = std::sqrt(nf) + 1;  // FIXME: deduce 'p' from the number of face DOFs?
-      MFEM_ASSERT(fec->GetNumDof(mesh->GetFaceGeometry(face), p) == nf, "");
+      p = ndof_to_geom_order[fgeom].at(nf);
+      MFEM_ASSERT(fec->GetNumDof(fgeom, p) == nf, "");
    }
    else
    {
       if (variant > 0) { return -1; }
       p = fec->DefaultOrder();
-      nf = fec->GetNumDof(mesh->GetFaceGeometry(face), p);
+      nf = fec->GetNumDof(fgeom, p);
       fbase = face*nf;
    }
 

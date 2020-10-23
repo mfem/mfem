@@ -114,13 +114,16 @@ protected:
    int nvdofs, nedofs, nfdofs, nbdofs;
    int *bdofs;
 
-   Table var_edge_dofs; ///< var-order space: beginnings of DOFs sets for edges
+   Table var_edge_dofs; ///< var-order space: beginnings of DOF sets for edges
    Table var_face_dofs; ///< var-order space or mixed mesh: similar for faces
 
    // precalculated DOFs for each element, boundary element, and face
    mutable Table *elem_dof; // if NURBS FE space, not owned; otherwise, owned.
    mutable Table *bdr_elem_dof; // not owned only if NURBS FE space.
    mutable Table *face_dof; // owned; in var-order space contains variant 0 DOFs
+
+   /// Helper mapping for variable order spaces, see InitNDofToOrder().
+   std::map<int, int> ndof_to_geom_order[Geometry::NumGeom];
 
    Array<int> dof_elem_array, dof_ldof_array;
 
@@ -192,6 +195,10 @@ protected:
        need to be represented on each edge and face. */
    void CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
                               Array<VarOrderBits> &face_orders) const;
+
+   /// Initialize the mapping 'ndof_to_geom_order'.
+   void InitNDofToOrders(const Array<VarOrderBits> &edge_orders,
+                         const Array<VarOrderBits> &face_orders);
 
    /** Build the table var_edge_dofs (or var_face_dofs) in a variable order
        space; return total edge/face DOFs. */
@@ -474,11 +481,13 @@ public:
 
    /// Returns the order of the i'th finite element (deprecated).
    int GetOrder(int i) const { return GetElementOrder(i); }
+
    /** Returns the order of the specified edge. In a variable order space, order
        of the given variant is returned, or -1 if there are no more variants. */
    int GetEdgeOrder(int edge, int variant = 0) const;
-   /// Returns the order of the i'th face finite element
-   int GetFaceOrder(int i) const;
+   /** Returns the order of the specified face. In a variable order space, order
+       of the given variant is returned, or -1 if there are no more variants. */
+   int GetFaceOrder(int face, int variant = 0) const;
 
    /// Returns number of degrees of freedom.
    inline int GetNDofs() const { return ndofs; }
