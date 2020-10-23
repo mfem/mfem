@@ -198,8 +198,12 @@ class Mfem(Package):
     depends_on('sundials@2.7.0:+mpi+hypre', when='@3.3.2:+sundials+mpi')
     depends_on('sundials@5.0.0:', when='@4.0.1-xsdk:+sundials~mpi')
     depends_on('sundials@5.0.0:+mpi+hypre', when='@4.0.1-xsdk:+sundials+mpi')
+
     depends_on('pumi', when='+pumi~shared')
     depends_on('pumi+shared', when='+pumi+shared')
+    depends_on('pumi@2.3:', when='@4.2:+pumi~shared')
+    depends_on('pumi@2.3:+shared', when='@4.2:+pumi+shared')
+
     depends_on('gslib@1.0.5:+mpi', when='+gslib+mpi')
     depends_on('gslib@1.0.5:~mpi~mpiio', when='+gslib~mpi')
     depends_on('suite-sparse', when='+suite-sparse')
