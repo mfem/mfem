@@ -5,7 +5,7 @@
                       | | | | | ||  _||  __/| | | | | |
                       |_| |_| |_||_|   \___||_| |_| |_|
 
-                               http://mfem.org
+                               https://mfem.org
 
 The MFEM library has a serial and an MPI-based parallel version, which largely
 share the same code base. The only prerequisite for building the serial version
@@ -62,7 +62,7 @@ following package managers:
 
 We also recommend downloading and building the MFEM-based GLVis visualization
 tool which can be used to visualize the meshes and solution in MFEM's examples
-and miniapps. See http://glvis.org and http://mfem.org/building.
+and miniapps. See https://glvis.org and https://mfem.org/building.
 
 Quick start with GNU make
 =========================

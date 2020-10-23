@@ -766,11 +766,14 @@ INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/mesh \
                          @MFEM_SOURCE_DIR@/fem \
                          @MFEM_SOURCE_DIR@/examples \
+                         @MFEM_SOURCE_DIR@/examples/amgx \
+                         @MFEM_SOURCE_DIR@/examples/ginkgo \
+                         @MFEM_SOURCE_DIR@/examples/hiop \
                          @MFEM_SOURCE_DIR@/examples/petsc \
                          @MFEM_SOURCE_DIR@/examples/pumi \
-                         @MFEM_SOURCE_DIR@/examples/hiop \
                          @MFEM_SOURCE_DIR@/examples/sundials \
-                         @MFEM_SOURCE_DIR@/miniapps/adjoint \			 
+                         @MFEM_SOURCE_DIR@/examples/superlu \
+                         @MFEM_SOURCE_DIR@/miniapps/adjoint \
                          @MFEM_SOURCE_DIR@/miniapps/common \
                          @MFEM_SOURCE_DIR@/miniapps/electromagnetics \
                          @MFEM_SOURCE_DIR@/miniapps/gslib \
