@@ -592,7 +592,8 @@ int main (int argc, char *argv[])
             max_det_J = fmax(max_det_J, max_det_J_z);
             if (min_det_J_z <= 0.0)
             {
-               if (nz < max_to_print) {
+               if (nz < max_to_print)
+               {
                   Vector center;
                   mesh->GetElementCenter(i, center);
                   cout << "det(J) < 0 = " << min_det_J_z << " in element "
