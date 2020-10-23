@@ -145,8 +145,16 @@ int FiniteElementSpace::GetFaceOrder(int face, int variant) const
 {
    if (!IsVariableOrder()) { return fec->DefaultOrder(); }
 
-   // TODO FIXME
-   return -1;
+   const int* beg = var_face_dofs.GetRow(edge);
+   const int* end = var_face_dofs.GetRow(edge + 1);
+   if (variant >= end - beg) { return -1; } // past last variant
+
+   int ndof = beg[variant+1] - beg[variant];
+   auto fgeom = mesh->GetFaceGeometry(face);
+   int order = ndof_to_geom_order[fgeom].at(ndof);
+   MFEM_ASSERT(fec->GetNumDof(fgeom, order) == ndof, "");
+
+   return order;
 }
 
 void FiniteElementSpace::DofsToVDofs (Array<int> &dofs, int ndofs) const
