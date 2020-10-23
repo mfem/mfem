@@ -822,11 +822,13 @@ int main (int argc, char *argv[])
                ElementTransformation *T = mesh->GetElementTransformation(i);
                T->SetIntPoint(&Geometries.GetCenter(geom));
                Geometries.JacToPerfJac(geom, T->Jacobian(), J);
+               // Unscaled determinate
                attr(i) = J.Det();
                for (int j = 0; j < J.Width(); j++)
                {
                   Vector col;
                   J.GetColumnReference(j,col);
+                  // Scale to [-1,1]
                   attr(i) /= col.Norml2();
                }
             }
