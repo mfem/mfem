@@ -559,6 +559,8 @@ int main (int argc, char *argv[])
          cin >> sd;
          Array<int> bad_elems_by_geom(Geometry::NumGeom);
          bad_elems_by_geom = 0;
+         // Only print so many to keep output compact
+         const int max_to_print = 10;
          for (int i = 0; i < mesh->GetNE(); i++)
          {
             Geometry::Type geom = mesh->GetElementBaseGeometry(i);
@@ -590,12 +592,21 @@ int main (int argc, char *argv[])
             max_det_J = fmax(max_det_J, max_det_J_z);
             if (min_det_J_z <= 0.0)
             {
-               Vector center;
-               mesh->GetElementCenter(i, center);
-               cout << "\n Element "<<i<<" at position ("<<center(0)<<","<<center(1)<<", "<<center(2)<<") has a negative det(J) of "<<min_det_J_z<<"\n";
+               if (nz < max_to_print) {
+                  Vector center;
+                  mesh->GetElementCenter(i, center);
+                  cout << "det(J) < 0 = " << min_det_J_z << " in element "
+                       << i << ", centered at: ";
+                  center.Print();
+               }
                nz++;
                bad_elems_by_geom[geom]++;
             }
+         }
+         if (nz >= max_to_print)
+         {
+            cout << "det(J) < 0 for " << nz - max_to_print << " more elements "
+                 << "not printed.\n";
          }
          cout << "\nbad elements = " << nz;
          if (nz)
