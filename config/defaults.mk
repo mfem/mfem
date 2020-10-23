@@ -226,7 +226,7 @@ SUITESPARSE_LIB = -Wl,-rpath,$(SUITESPARSE_DIR)/lib -L$(SUITESPARSE_DIR)/lib\
 ifeq ($(MFEM_USE_SUPERLU5),YES)
    SUPERLU_DIR = @MFEM_DIR@/../SuperLU_DIST_5.1.0
    SUPERLU_OPT = -I$(SUPERLU_DIR)/include
-   SUPERLU_LIB = -Wl,-rpath,$(SUPERLU_DIR)/lib -L$(SUPERLU_DIR)/lib -lsuperlu_dist_5.1.0   
+   SUPERLU_LIB = -Wl,-rpath,$(SUPERLU_DIR)/lib -L$(SUPERLU_DIR)/lib -lsuperlu_dist_5.1.0
 else
    SUPERLU_DIR = @MFEM_DIR@/../SuperLU_DIST_6.3.1
    SUPERLU_OPT = -I$(SUPERLU_DIR)/include
