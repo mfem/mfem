@@ -92,7 +92,7 @@ The MFEM source code has the following structure:
   .
   ├── config
   │   └── cmake
-  │       └── modules
+  │       └── ...
   ├── data
   ├── doc
   ├── examples
@@ -124,8 +124,8 @@ The MFEM source code has the following structure:
       ├── convergence
       ├── par-mesh-format
       ├── scripts
-      ├── unit
-          ├── ...
+      └── unit
+          └── ...
 ```
 
 #### Main directories and classes
