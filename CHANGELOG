@@ -5,11 +5,11 @@
                       | | | | | ||  _||  __/| | | | | |
                       |_| |_| |_||_|   \___||_| |_| |_|
 
-                               http://mfem.org
+                               https://mfem.org
 
 
-Version 4.1.1 (development)
-===========================
+Version 4.2, released on October 26, 2020
+=========================================
 
 libCEED integration improvements
 --------------------------------
@@ -1266,7 +1266,7 @@ New and improved linear solvers
   it can only be enabled along with MFEM_USE_MPI. When MFEM is configured with
   MFEM_USE_SUPERLU, one also needs to alter the version of METIS, since SuperLU
   requires ParMETIS (which comes packaged with a serial version of METIS).  See
-  http://http://crd-legacy.lbl.gov/~xiaoye/SuperLU for SuperLU_DIST details.
+  http://crd-legacy.lbl.gov/~xiaoye/SuperLU for SuperLU_DIST details.
 
 - Added a wrapper for the KLU solver in SuiteSparse see
   http://faculty.cse.tamu.edu/davis/suitesparse.html for details of KLU.
