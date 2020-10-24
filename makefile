@@ -168,7 +168,7 @@ $(call mfem-info, BLD       = $(BLD))
 
 # Include $(CONFIG_MK) unless some of the $(SKIP_INCLUDE_TARGETS) are given
 SKIP_INCLUDE_TARGETS = help config clean distclean serial parallel debug pdebug\
- cuda hip pcuda cudebug pcudebug hpc style
+ cuda hip pcuda phip cudebug hipdebug pcudebug phipdebug hpc style
 HAVE_SKIP_INCLUDE_TARGET = $(filter $(SKIP_INCLUDE_TARGETS),$(MAKECMDGOALS))
 ifeq (,$(HAVE_SKIP_INCLUDE_TARGET))
    $(call mfem-info, Including $(CONFIG_MK))
@@ -236,10 +236,15 @@ endif
 
 # HIP configuration
 ifeq ($(MFEM_USE_HIP),YES)
+   ifeq ($(MFEM_USE_MPI),YES)
+      INCFLAGS += $(MPI_OPT)
+      ALL_LIBS += $(MPI_LIB)
+   endif
    MFEM_CXX ?= $(HIP_CXX)
-   ALL_LIBS += $(HIP_FLAGS)
-   XLINKER = -Wl,
-   # TODO: set XCOMPILER and XLINKER
+   MFEM_HOST_CXX := $(MFEM_CXX)
+   CXXFLAGS += $(HIP_FLAGS)
+   XLINKER   = $(HIP_XLINKER)
+   XCOMPILER = $(HIP_XCOMPILER)
    # HIP_OPT and HIP_LIB are added below
    # Compatibility test against MFEM_USE_CUDA
    ifeq ($(MFEM_USE_CUDA),YES)

@@ -53,6 +53,8 @@ HIP_CXX = hipcc
 # gfx900, gfx1010, etc.
 HIP_ARCH = gfx900
 HIP_FLAGS = --amdgpu-target=$(HIP_ARCH)
+HIP_XCOMPILER =
+HIP_XLINKER   = -Wl,
 
 ifneq ($(NOTMAC),)
    AR      = ar
@@ -143,6 +145,16 @@ MFEM_USE_UMPIRE        = NO
 MFEM_USE_SIMD          = NO
 MFEM_USE_ADIOS2        = NO
 MFEM_USE_MKL_CPARDISO  = NO
+
+# MPI library compile and link flags
+# These settings are used only when building MFEM with MPI + HIP
+ifeq ($(MFEM_USE_MPI)$(MFEM_USE_HIP),YESYES)
+   # We determine MPI_DIR assuming $(MPICXX) is in $(MPI_DIR)/bin
+   MPI_DIR := $(patsubst %/,%,$(dir $(shell which $(MPICXX))))
+   MPI_DIR := $(patsubst %/,%,$(dir $(MPI_DIR)))
+   MPI_OPT = -I$(MPI_DIR)/include
+   MPI_LIB = -L$(MPI_DIR)/lib $(XLINKER)-rpath,$(MPI_DIR)/lib -lmpi
+endif
 
 # Compile and link options for zlib.
 ZLIB_DIR =
