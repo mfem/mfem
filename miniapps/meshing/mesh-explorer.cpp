@@ -781,7 +781,7 @@ int main (int argc, char *argv[])
             h_max = -h_min;
             for (int i = 0; i < mesh->GetNE(); i++)
             {
-               int geom = mesh->GetElementBaseGeometry(i);
+               Geometry::Type geom = mesh->GetElementBaseGeometry(i);
                ElementTransformation *T = mesh->GetElementTransformation(i);
                T->SetIntPoint(&Geometries.GetCenter(geom));
                Geometries.JacToPerfJac(geom, T->Jacobian(), J);
@@ -806,7 +806,7 @@ int main (int argc, char *argv[])
             DenseMatrix J(dim);
             for (int i = 0; i < mesh->GetNE(); i++)
             {
-               int geom = mesh->GetElementBaseGeometry(i);
+               Geometry::Type geom = mesh->GetElementBaseGeometry(i);
                ElementTransformation *T = mesh->GetElementTransformation(i);
                T->SetIntPoint(&Geometries.GetCenter(geom));
                Geometries.JacToPerfJac(geom, T->Jacobian(), J);
@@ -816,21 +816,42 @@ int main (int argc, char *argv[])
 
          if (mk == 'J')
          {
+            // The "scaled Jacobian" is the determinant of the Jacobian scaled
+            // by the l2 norms of its columns. It can be used to identify badly
+            // skewed elements, since it takes values between 0 and 1, with 0
+            // corresponding to a flat element, and 1 to orthogonal columns.
             DenseMatrix J(dim);
+            int sd;
+            cout << "subdivision factor ---> " << flush;
+            cin >> sd;
             for (int i = 0; i < mesh->GetNE(); i++)
             {
-               int geom = mesh->GetElementBaseGeometry(i);
+               Geometry::Type geom = mesh->GetElementBaseGeometry(i);
                ElementTransformation *T = mesh->GetElementTransformation(i);
-               T->SetIntPoint(&Geometries.GetCenter(geom));
-               Geometries.JacToPerfJac(geom, T->Jacobian(), J);
-               // Unscaled determinate
-               attr(i) = J.Det();
-               for (int j = 0; j < J.Width(); j++)
+
+               RefinedGeometry *RefG = GlobGeometryRefiner.Refine(geom, sd, 1);
+               IntegrationRule &ir = RefG->RefPts;
+
+               // For each element, find the minimal scaled Jacobian in a
+               // lattice of points with the given subdivision factor.
+               attr(i) = infinity();
+               for (int j = 0; j < ir.GetNPoints(); j++)
                {
-                  Vector col;
-                  J.GetColumnReference(j,col);
-                  // Scale to [-1,1]
-                  attr(i) /= col.Norml2();
+                  T->SetIntPoint(&ir.IntPoint(j));
+                  Geometries.JacToPerfJac(geom, T->Jacobian(), J);
+
+                  // Jacobian determinant
+                  double sJ = J.Det();
+
+                  for (int k = 0; k < J.Width(); k++)
+                  {
+                     Vector col;
+                     J.GetColumnReference(k,col);
+                     // Scale by column norms
+                     sJ /= col.Norml2();
+                  }
+
+                  attr(i) = fmin(sJ, attr(i));
                }
             }
          }
