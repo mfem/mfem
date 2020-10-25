@@ -48,6 +48,10 @@ groups_serial=(
    "miniapps/meshing"
    "mobius-strip.cpp klein-bottle.cpp extruder.cpp toroid.cpp
     mesh-optimizer.cpp minimal-surface.cpp"'
+'"convergence"
+   "Convergence tests:"
+   "tests/convergence"
+   "rates.cpp"'
 )
 # Parallel groups
 groups_parallel=(
@@ -81,7 +85,7 @@ groups_parallel=(
 '"convergence"
    "Convergence tests:"
    "tests/convergence"
-   "diffusion.cpp"'
+   "prates.cpp"'
 '"par-mesh-format"
    "Parallel mesh tests:"
    "tests/par-mesh-format"
@@ -118,7 +122,7 @@ groups_all=(
 '"convergence"
    "Convergence tests:"
    "tests/convergence"
-   "diffusion.cpp"'
+   "{,p}rates.cpp"'
 '"par-mesh-format"
    "Parallel mesh tests:"
    "tests/par-mesh-format"
