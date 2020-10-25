@@ -2249,7 +2249,7 @@ public:
 };
 
 
-/// Arbitrary order H1 elements in 2D on a tiangle
+/// Arbitrary order H1 elements in 2D on a triangle
 class H1_TriangleElement : public NodalFiniteElement
 {
 private:
