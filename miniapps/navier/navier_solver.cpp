@@ -305,7 +305,7 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
       vel_dbc.coeff->SetTime(time);
    }
 
-   // Set current time for pressure dirichlet boundary conditons.
+   // Set current time for pressure dirichlet boundary conditions.
    for (auto &pres_dbc : pres_dbcs)
    {
       pres_dbc.coeff->SetTime(time);
@@ -344,9 +344,7 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
    f_form->Assemble();
    f_form->ParallelAssemble(fn);
 
-   //
    // Nonlinear extrapolated terms.
-   //
    sw_extrap.Start();
 
    N->Mult(un, Nun);
@@ -393,9 +391,7 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
 
    sw_extrap.Stop();
 
-   //
-   // Pressure poisson.
-   //
+   // Pressure Poisson.
    sw_curlcurl.Start();
    {
       const auto d_un = un.Read();
@@ -486,9 +482,7 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
 
    pn_gf.GetTrueDofs(pn);
 
-   //
    // Project velocity.
-   //
    G->Mult(pn, resu);
    resu.Neg();
    Mv->Mult(Fext, tmp1);

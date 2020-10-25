@@ -142,7 +142,7 @@ namespace mfem {
  *   and
  *   <a class="el" href="sundials_2ex16p_8cpp_source.html">16p</a>,
  *   demonstrating the use of MFEM's \link sundials.hpp SUNDIALS integration\endlink.
- * - CVODES adjoint examples:
+ * - CVODES adjoint miniapps:
  *   <a class="el" href="cvsRoberts__ASAi__dns_8cpp_source.html">serial ODE system</a>,
  *   <a class="el" href="adjoint__advection__diffusion_8cpp_source.html">parallel advection-diffusion</a>.
  *
