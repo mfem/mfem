@@ -1,7 +1,7 @@
 #ifndef HYPSYS_BOUNDS
 #define HYPSYS_BOUNDS
 
-#include "../../../mfem.hpp"
+#include "mfem.hpp"
 
 using namespace std;
 using namespace mfem;

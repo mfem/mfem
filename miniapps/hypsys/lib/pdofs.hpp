@@ -1,7 +1,6 @@
 #ifndef HYPSYS_PDOFS
 #define HYPSYS_PDOFS
 
-#include "../../../mfem.hpp"
 #include "dofs.hpp"
 
 using namespace std;

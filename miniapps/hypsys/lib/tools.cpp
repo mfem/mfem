@@ -22,7 +22,7 @@ const IntegrationRule *GetFaceIntegrationRule(FiniteElementSpace *fes,
    const FaceElementTransformations *Trans =
       fes->GetMesh()->GetFaceElementTransformations(0);
 
-   if  (NodalQuadRule)
+   if (NodalQuadRule)
    {
       return &IntRules.Get(Trans->FaceGeom, 1);
    }
