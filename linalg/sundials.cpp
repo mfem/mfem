@@ -577,7 +577,7 @@ void CVODESolver::Init(TimeDependentOperator &f_)
 
    if (!sundials_mem)
    {
-      // Temporarly set N_Vector wrapper data to create CVODE. The correct
+      // Temporarily set N_Vector wrapper data to create CVODE. The correct
       // initial condition will be set using CVodeReInit() when Step() is
       // called.
 
