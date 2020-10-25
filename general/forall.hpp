@@ -98,7 +98,7 @@ using RAJA::Segs;
 template <const int BLOCKS = MFEM_CUDA_BLOCKS, typename DBODY>
 void RajaCudaWrap1D(const int N, DBODY &&d_body)
 {
-   //true denotes asynchronous kernel
+   // true denotes asynchronous kernel
    RAJA::forall<RAJA::cuda_exec<BLOCKS,true>>(RAJA::RangeSegment(0,N),d_body);
 }
 
