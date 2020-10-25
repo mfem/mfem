@@ -181,7 +181,6 @@ int PermuteFaceL2(const int dim, const int face_id1,
                   const int face_id2, const int orientation,
                   const int size1d, const int index);
 
-
 }
 
 #endif //MFEM_RESTRICTION
