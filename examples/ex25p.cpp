@@ -13,7 +13,9 @@
 // Description:  This example code solves a simple electromagnetic wave
 //               propagation problem corresponding to the second order
 //               indefinite Maxwell equation
+//
 //                  (1/mu) * curl curl E - \omega^2 * epsilon E = f
+//
 //               with a Perfectly Matched Layer (PML).
 //
 //               The example demonstrates discretization with Nedelec finite
