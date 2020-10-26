@@ -38,7 +38,7 @@ High-Performance Computing
 
 - Improved the libCEED integration to support:
   * AssemblyLevel::NONE for Mass, Diffusion, VectorMass, and VectorDiffusion
-    Integrators. This level computes the full operator evalutaion "on the fly".
+    Integrators. This level computes the full operator evaluation "on the fly".
   * VectorMassIntegrator and VectorDiffusionIntegrator.
   * All types of (scalar) Coefficients.
 
@@ -169,8 +169,8 @@ New and updated examples and miniapps
   * Example 27/27p demonstrates the enforcement of Dirichlet, Neumann, Robin,
     and periodic boundary conditions with either H1 or DG Laplace problems.
   * Versions of Example 1/1p in examples/amgx demonstrating the use of AmgX,
-    to solve th Laplace problem with AMG preconditioning on GPUs.
-  * A version of Example 11p in examples/petcs demonstrating the use of SLEPc,
+    to solve the Laplace problem with AMG preconditioning on GPUs.
+  * A version of Example 11p in examples/petsc demonstrating the use of SLEPc,
     to solve the Laplace eigenproblem with shift-and-invert transformation.
   * A version of Example 1 in examples/superlu demonstrating the use of SuperLU
     to solve the Laplace problem.
