@@ -604,7 +604,7 @@ int main(int argc, char *argv[])
 
    MPI_Barrier(MPI_COMM_WORLD); 
    double start = MPI_Wtime();
-   bool reduced_step=false;
+   bool reduced_step=false, meshChanged=false;
    int  success_step=0;
 
    if (myid == 0) cout<<"Start time stepping..."<<endl;
@@ -623,7 +623,19 @@ int main(int argc, char *argv[])
         t_change=0.;
       }
 
-      //change time step when problem becomes nicer
+      //adjust refine frequency based on time step
+      if (dt<=dt_min*2)
+      {
+          ref_steps=12;
+      }
+      else if (dt<=dt_min*4){
+          ref_steps=8;
+      }
+      else {
+          ref_steps=4;
+      }
+
+      //increase time step when problem becomes nicer
       if (reduced_step){
           success_step++;
 
@@ -635,12 +647,16 @@ int main(int argc, char *argv[])
           }
       }
 
-      if (t>=5.4)
+      if (t>=5.2)
       {
           refiner.SetMaximumRefinementLevel(amr_levels);
       }
 
       double dt_real = min(dt, t_final - t);
+      if (meshChanged)
+      {
+          dt_real*=0.25;
+      }
 
       if ((ti % ref_steps) == 0)
       {
@@ -674,6 +690,10 @@ int main(int argc, char *argv[])
          dt=max(dt/2., dt_min);
 
          dt_real = min(dt, t_final - t);
+         if (meshChanged)
+         {
+            dt_real*=0.25;
+         }
          oper.resetConverged();
          if (myid==0) cout << "====== reduced dt: new dt = "<<dt<<" ======"<<endl;
 
@@ -712,6 +732,7 @@ int main(int argc, char *argv[])
 
       //----------------------------AMR---------------------------------
       
+      meshChanged=false;
       //++++++Refine step++++++
       if (refineMesh)  
       {
@@ -726,6 +747,7 @@ int main(int argc, char *argv[])
                if (myid == 0) cout<<"No refined element found. Skip..."<<endl;
                break;
            }
+           meshChanged=true;
 
            AMRUpdateTrue(vx, fe_offset3, *phi, *psi, *w, j);
            oper.UpdateGridFunction();
@@ -782,6 +804,7 @@ int main(int argc, char *argv[])
                  if (myid == 0) cout << "No derefine elements found, skip..." << endl;
                  break;
              }
+             meshChanged=true;
 
              //---Update solutions first---
              AMRUpdateTrue(vx, fe_offset3, *phi, *psi, *w, j);
