@@ -31,7 +31,7 @@ enum MeshType
    MIXED3D = 15
 };
 
-Mesh * GetMesh(MeshType &type);
+Mesh * GetMesh(MeshType type);
 
 
 int eig(int i, int j, int k)
@@ -521,7 +521,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-Mesh * GetMesh(MeshType &type)
+Mesh * GetMesh(MeshType type)
 {
    Mesh * mesh = NULL;
    double c[3];
