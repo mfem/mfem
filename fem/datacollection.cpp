@@ -908,7 +908,7 @@ void ParaViewDataCollection::Save()
 
       // CELL DATA
       out << "<PCellData>\n";
-      out << "\t<PDataArray type=\"Int32\" Name=\"" << "material"
+      out << "\t<PDataArray type=\"Int32\" Name=\"" << "attribute"
           << "\" NumberOfComponents=\"1\""
           << " format=\"" << GetDataFormatString() << "\"/>\n";
       out << "</PCellData>\n";
