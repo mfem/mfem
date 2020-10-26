@@ -166,6 +166,7 @@ private:
 
    const Operator *oper;
 
+public:
    void Setup(const Vector &diag);
 };
 
