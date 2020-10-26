@@ -1403,6 +1403,32 @@ void NURBSPatch::Get2DRotationMatrix(double angle, DenseMatrix &T)
    T(1,1) = c;
 }
 
+void NURBSPatch::Rotate2D(double angle)
+{
+   if (Dim != 3)
+   {
+      mfem_error("NURBSPatch::Rotate2D : not a NURBSPatch in 2D!");
+   }
+
+   DenseMatrix T(2);
+   Vector x(2), y(NULL, 2);
+
+   Get2DRotationMatrix(angle, T);
+
+   int size = 1;
+   for (int i = 0; i < kv.Size(); i++)
+   {
+      size *= kv[i]->GetNCP();
+   }
+
+   for (int i = 0; i < size; i++)
+   {
+      y.SetData(data + i*Dim);
+      x = y;
+      T.Mult(x, y);
+   }
+}
+
 void NURBSPatch::Get3DRotationMatrix(double n[], double angle, double r,
                                      DenseMatrix &T)
 {
