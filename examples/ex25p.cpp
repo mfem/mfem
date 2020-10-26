@@ -248,7 +248,11 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   Mesh * mesh = new Mesh(mesh_file, 1, 1);
+   // Mesh * mesh = new Mesh(mesh_file, 1, 1);
+
+   Mesh * mesh = new Mesh(1,1,16,Element::HEXAHEDRON,true,1.0,1.0,16.0);
+
+
    dim = mesh->Dimension();
 
    // Angular frequency
@@ -273,7 +277,8 @@ int main(int argc, char *argv[])
          length(2, 1) = 0.5;
          break;
       case beam:
-         length(0, 1) = 2.0;
+         // length(0, 1) = 2.0;
+         length(2, 1) = 2.0;
          break;
       default:
          length = 0.25;
@@ -801,7 +806,8 @@ void maxwell_solution(const Vector &x, vector<complex<double>> &E)
          if (dim == 3)
          {
             double k10 = sqrt(k * k - M_PI * M_PI);
-            E[1] = -zi * k / M_PI * sin(M_PI*x(2))*exp(zi * k10 * x(0));
+            // E[1] = -zi * k / M_PI * sin(M_PI*x(2))*exp(zi * k10 * x(0));
+            E[1] = -zi * k / M_PI * sin(M_PI*x(0))*exp(zi * k10 * x(2));
          }
          else if (dim == 2)
          {

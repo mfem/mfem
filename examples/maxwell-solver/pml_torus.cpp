@@ -11,6 +11,11 @@
 using namespace std;
 using namespace mfem;
 
+void maxwell_solution(const Vector &x, vector<complex<double>> &E);
+
+int prob_kind=0;
+double L;
+double ylim;
 // Class for setting up a simple Cartesian PML region
 class TorusPML
 {
@@ -106,7 +111,9 @@ int main(int argc, char *argv[])
    MPI_Comm_size(MPI_COMM_SELF, &num_procs);
    MPI_Comm_rank(MPI_COMM_SELF, &myid);
    // 1. Parse command-line options.
-   const char *mesh_file = "torus1_4.mesh";
+   // const char *mesh_file = "torus1_4.mesh";
+   // const char *mesh_file = "waveguide-bend2.mesh";
+   const char *mesh_file = "waveguide-bend.mesh";
 
    int order = 1;
    int ref_levels = 3;
@@ -115,8 +122,12 @@ int main(int argc, char *argv[])
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&mesh_file, "-m", "--mesh",
+                  "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
+   args.AddOption(&prob_kind, "-prob", "--problem-kind",
+                  "Problem/mesh choice");                  
    args.AddOption(&ref_levels, "-ref", "--refinements",
                   "Number of refinements");
    args.AddOption(&mu, "-mu", "--permeability",
@@ -140,8 +151,33 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
+
+   switch (prob_kind)
+   {
+   case 0: 
+   {
+      mesh_file = "waveguide-bend.mesh"; 
+      L = -2.;
+      ylim = -3;
+   }
+   break;
+   case 1: 
+   {
+      mesh_file = "waveguide-bend2.mesh";
+      L = -5.;
+      ylim = 0.0;
+   }
+   break;
+   case 2: mesh_file = "toroid3_4.mesh"; break;
+   default:
+      MFEM_ABORT("Not a valid problem choice ");
+      break;
+   }
+
    Mesh * mesh = new Mesh(mesh_file, 1, 1);
    dim = mesh->Dimension();
+
+   mesh->RemoveInternalBoundaries();
 
    // Angular frequency
    omega = 2.0 * M_PI * freq;
@@ -193,6 +229,8 @@ int main(int argc, char *argv[])
    }
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
+   // ess_tdof_list.Print();
+
    // 8. Setup Complex Operator convention
    ComplexOperator::Convention conv =
       herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
@@ -212,6 +250,9 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient E_Re(dim, E_bdr_data_Re);
    VectorFunctionCoefficient E_Im(dim, E_bdr_data_Im);
    x.ProjectBdrCoefficientTangent(E_Re, E_Im, ess_bdr);
+   // x.ProjectCoefficient(E_Re, E_Im);
+
+   cout << "x.norm = " << x.Norml2() << endl;
 
    // 11. Set up the sesquilinear form a(.,.)
    //
@@ -276,6 +317,8 @@ int main(int argc, char *argv[])
    OperatorPtr A;
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+
+   
 
    SparseMatrix * SpMat = (*A.As<ComplexSparseMatrix>()).GetSystemMatrix();
    StopWatch chrono;
@@ -342,7 +385,7 @@ int main(int argc, char *argv[])
                << "pause\n" << flush;
       cout << "GLVis visualization paused."
            << " Press space (in the GLVis window) to resume it.\n";
-      int num_frames = 32;
+      int num_frames = 16;
       int i = 0;
       while (sol_sock)
       {
@@ -392,14 +435,30 @@ void source(const Vector &x, Vector &f)
 void E_bdr_data_Re(const Vector &x, Vector &E)
 {
    E = 0.0;
-   // find the angle of the point
-   // if it's 0 then E = 1.
-   if (x(1) == 0) 
+   if (prob_kind != 2)
    {
-      double r = sqrt(x(0)*x(0) + x(1)*x(1));
-      double alpha = 0.2; // radius 
-      // E[2] = sin(M_PI*(alpha-r));
-      E[2] = 1.0;
+      if (x(1) == ylim) 
+      {
+         vector<complex<double>> Eval(E.Size());
+         maxwell_solution(x, Eval);
+         for (int i = 0; i < dim; ++i)
+         {
+            E[i] = Eval[i].real();
+         }
+      }
+   }
+   else
+   {
+      // if (abs(x(1))<1e-12 && abs(x(0) - 7.0) >= 1e-12) 
+      if (abs(x(1))<1e-12 && x(0)>0) 
+      {
+         vector<complex<double>> Eval(E.Size());
+         maxwell_solution(x, Eval);
+         for (int i = 0; i < dim; ++i)
+         {
+            E[i] = Eval[i].real();
+         }
+      }
    }
 }
 
@@ -407,7 +466,31 @@ void E_bdr_data_Re(const Vector &x, Vector &E)
 void E_bdr_data_Im(const Vector &x, Vector &E)
 {
    E = 0.0;
-   // if (x(1) == 0) E = 1.0;
+   if (prob_kind != 2)
+   {
+      if (x(1) == ylim) 
+      {
+         vector<complex<double>> Eval(E.Size());
+         maxwell_solution(x, Eval);
+         for (int i = 0; i < dim; ++i)
+         {
+            E[i] = Eval[i].imag();
+         }
+      }
+   }
+   else
+   {
+      // if (x(1) == 0.0 && x(0)>= 7.0) 
+      if (abs(x(1))<1e-12 && x(0)>0) 
+      {
+         vector<complex<double>> Eval(E.Size());
+         maxwell_solution(x, Eval);
+         for (int i = 0; i < dim; ++i)
+         {
+            E[i] = Eval[i].imag();
+         }
+      }
+   }
 }
 
 void detJ_JT_J_inv_Re(const Vector &x, TorusPML * pml, Vector &D)
@@ -546,39 +629,75 @@ TorusPML::TorusPML(Mesh *mesh_, double length_rad_)
 void TorusPML::SetAttributes(Mesh *mesh_)
 {
    // set pml attribute according to the angle of element center
+   // int nrelem = mesh_->GetNE();
+   // elems.SetSize(nrelem);
+
+   // // get min and max angle of the mesh (up to centers)
+   // double dmin = 2.*M_PI;
+   // double dmax = 0.;
+   // for (int i = 0; i < nrelem; ++i)
+   // {
+   //    Vector center;
+   //    mesh_->GetElementCenter(i,center);
+   //    double x = center[0];
+   //    double y = center[1];
+   //    double theta = atan(y/x);
+   //    int k = 0;
+   //    if (x<0)
+   //    {
+   //       k = 1;
+   //    }
+   //    else if (y<0)
+   //    {
+   //       k = 2;
+   //    }
+   //    theta += k*M_PI;
+   //    double thetad = theta * 180.0/M_PI;
+   //    dmin = min(dmin,theta);
+   //    dmax = max(dmax,theta);
+   // }
+
+   // cout << "min angle in degrees = " << dmin * 180. / M_PI << endl;
+   // cout << "max angle in degrees = " << dmax * 180. / M_PI << endl;
+
+
+   // // Loop through the elements and identify which of them are in the PML
+   // for (int i = 0; i < nrelem; ++i)
+   // {
+   //    // initialize with 1
+   //    elems[i] = 1;
+   //    Element *el = mesh_->GetElement(i);
+   //    // Initialize attribute
+   //    el->SetAttribute(1);
+   //    Vector center;
+   //    mesh_->GetElementCenter(i,center);
+   //    double x = center[0];
+   //    double y = center[1];
+   //    double theta = atan(y/x);
+   //    int k = 0;
+   //    if (x<0)
+   //    {
+   //       k = 1;
+   //    }
+   //    else if (y<0)
+   //    {
+   //       k = 2;
+   //    }
+   //    theta += k*M_PI;
+
+   //    // Check if the center is in the PML
+   //    if (theta > M_PI/2.0 - PmlThicknessAngle)
+   //    {
+   //       elems[i] = 0;
+   //       el->SetAttribute(2);
+   //    }
+   // }
+   // mesh_->SetAttributes();
+   // 
    int nrelem = mesh_->GetNE();
    elems.SetSize(nrelem);
-
-   // get min and max angle of the mesh (up to centers)
-   double dmin = 2.*M_PI;
-   double dmax = 0.;
-   for (int i = 0; i < nrelem; ++i)
-   {
-      Vector center;
-      mesh_->GetElementCenter(i,center);
-      double x = center[0];
-      double y = center[1];
-      double theta = atan(y/x);
-      int k = 0;
-      if (x<0)
-      {
-         k = 1;
-      }
-      else if (y<0)
-      {
-         k = 2;
-      }
-      theta += k*M_PI;
-      double thetad = theta * 180.0/M_PI;
-      dmin = min(dmin,theta);
-      dmax = max(dmax,theta);
-   }
-
-   cout << "min angle in degrees = " << dmin * 180. / M_PI << endl;
-   cout << "max angle in degrees = " << dmax * 180. / M_PI << endl;
-
-
    // Loop through the elements and identify which of them are in the PML
+
    for (int i = 0; i < nrelem; ++i)
    {
       // initialize with 1
@@ -590,27 +709,24 @@ void TorusPML::SetAttributes(Mesh *mesh_)
       mesh_->GetElementCenter(i,center);
       double x = center[0];
       double y = center[1];
-      double theta = atan(y/x);
-      int k = 0;
-      if (x<0)
+      if (prob_kind !=2)
       {
-         k = 1;
+         if (x < L)
+         {
+            elems[i] = 0;
+            el->SetAttribute(2);
+         }
       }
-      else if (y<0)
+      else
       {
-         k = 2;
-      }
-      theta += k*M_PI;
-
-      // Check if the center is in the PML
-      if (theta > M_PI/2.0 - PmlThicknessAngle)
-      {
-         elems[i] = 0;
-         el->SetAttribute(2);
+         if (x > -3.0 && y<-7.0)
+         {
+            elems[i] = 0;
+            el->SetAttribute(2);
+         }
       }
    }
    mesh_->SetAttributes();
-   // 
 }
 
 void TorusPML::StretchFunction(const Vector &x,
@@ -658,20 +774,40 @@ void TorusPML::StretchFunction(const Vector &x,
    th0 += m*M_PI;
 
    double thetad0 = th0 * 180.0/M_PI;
-   if (thetad < thetad0)
-   {
-      cout << "thetad  = " << thetad << endl;
-      cout << "thetad0 = " << thetad0 << endl;
-      cin.get();
-   }
-  
+   // if (thetad < thetad0)
+   // {
+   //    cout << "thetad  = " << thetad << endl;
+   //    cout << "thetad0 = " << thetad0 << endl;
+   //    cin.get();
+   // }
+
    // Stretch in each direction independently
-   coeff = n * c / k / pow(0.1, n);
-   dxs[0] = 1.0 + zi * coeff *
-                  abs(pow(x(0) - xp(0), n - 1.0));
-   // dxs[0] = 1.0;       
-   dxs[1] = 1.0 + zi * coeff *
-                  abs(pow(x(1) - xp(1), n - 1.0));              
-   // dxs[1] = 1.0;
-   dxs[2] = 1.0;
+   coeff = n * c / k / pow(1, n);
+   if (prob_kind != 2)
+   {
+      dxs[0] = 1.0 + zi * coeff *
+                  abs(pow(x(0) - L, n - 1.0));
+   // dxs[0] = 1.0;
+      dxs[1] = 1.0;
+      dxs[2] = 1.0;
+   }
+   else
+   {
+      dxs[0] = 1.0 + zi * coeff *
+                  abs(pow(x(0) + 3.0, n - 1.0));
+      dxs[1] = 1.0;
+      dxs[2] = 1.0;
+   }
+}
+
+
+void maxwell_solution(const Vector &x, vector<complex<double>> &E)
+{
+   complex<double> zi = complex<double>(0., 1.);
+   double k = omega * sqrt(epsilon * mu);
+   // T_10 mode
+   double k10 = sqrt(k * k - M_PI * M_PI);
+   // E[2] = -zi * k / M_PI * sin(M_PI*(x(0)-7.0))*exp(zi * k10 * x(1));
+   E[2] = 1.0 + zi;
+   // E[1] = -zi * k / M_PI *exp(zi * k10 * x(2));
 }
