@@ -1391,6 +1391,18 @@ void NURBSPatch::SwapDirections(int dir1, int dir2)
    swap(newpatch);
 }
 
+void NURBSPatch::Get2DRotationMatrix(double angle, DenseMatrix &T)
+{
+   double s = sin(angle);
+   double c = cos(angle);
+
+   T.SetSize(2);
+   T(0,0) = c;
+   T(0,1) = -s;
+   T(1,0) = s;
+   T(1,1) = c;
+}
+
 void NURBSPatch::Get3DRotationMatrix(double n[], double angle, double r,
                                      DenseMatrix &T)
 {
