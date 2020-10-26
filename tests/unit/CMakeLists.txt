@@ -113,16 +113,23 @@ endfunction(add_serial_miniapp_test)
 add_serial_miniapp_test(sedov)
 add_serial_miniapp_test(tmop)
 
+# Create CUDA cunit_tests executable
 if (MFEM_USE_CUDA)
-  set(CUNIT_TESTS_SRCS
-    cunit_test_main.cpp
-  )
+  set(CUNIT_TESTS_SRCS cunit_test_main.cpp)
   set_property(SOURCE ${CUNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
   add_executable(cunit_tests ${CUNIT_TESTS_SRCS} ${UNIT_TESTS_SRCS})
   add_dependencies(cunit_tests copy_data)
   target_link_libraries(cunit_tests mfem)
-
   add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} cunit_tests)
+endif()
+
+# CEED tests sources
+if (MFEM_USE_CEED)
+   set(CEED_TESTS_SRCS
+      ceed/test_ceed.cpp
+      ceed/test_ceed_main.cpp)
+   add_executable(ceed_tests ${CEED_TESTS_SRCS})
+   target_link_libraries(ceed_tests mfem)
 endif()
 
 # Copy data to the build directory.
@@ -130,6 +137,17 @@ add_custom_command(TARGET unit_tests POST_BUILD
 COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_CURRENT_SOURCE_DIR}/data data
         COMMENT "Copying the unit tests data directory ...")
+
+# Add unit tests
+add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} unit_tests sedov_tests_cpu sedov_tests_debug)
+if (MFEM_USE_CUDA)
+   add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} sedov_tests_cuda)
+   add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} sedov_tests_cuda_uvm)
+endif()
+
+if (MFEM_USE_CEED)
+   add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ceed_tests)
+endif()
 
 # Create a test called 'unit_tests' that runs the 'unit_tests' executable.
 # The unit tests can be built and run separately from the rest of the tests:
@@ -184,7 +202,21 @@ add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME}
                 sedov_tests_cpu sedov_tests_debug
                 tmop_tests_cpu tmop_tests_debug)
 
+# Add CEED tests
+if (MFEM_USE_CEED)
+   add_test(NAME ceed_tests COMMAND ceed_tests)
+   if (MFEM_USE_CUDA)
+      add_test(NAME ceed_tests_cuda_ref
+              COMMAND ceed_tests --device ceed-cuda:/gpu/cuda/ref)
+      add_test(NAME ceed_tests_cuda_shared
+               COMMAND ceed_tests --device ceed-cuda:/gpu/cuda/shared)
+      add_test(NAME ceed_tests_cuda_gen
+               COMMAND ceed_tests --device ceed-cuda:/gpu/cuda/gen)
+   endif()
+endif()
+
 # Create a test called 'punit_tests' that runs the 'punit_tests' executable.
+# Additional MPI unit tests
 if (MFEM_USE_MPI)
    add_executable(punit_tests punit_test_main.cpp ${UNIT_TESTS_SRCS})
    target_link_libraries(punit_tests mfem)
