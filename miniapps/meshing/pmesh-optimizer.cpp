@@ -847,6 +847,7 @@ int main (int argc, char *argv[])
    {
       // Specify linear solver when we use a Newton-based solver.
       solver.SetPreconditioner(*S);
+      static_cast<IterativeSolver *>(S)->SetOpTimes(&solver, NewtonSolver::DQOpTimes);
    }
    solver.SetMaxIter(solver_iter);
    solver.SetRelTol(solver_rtol);
