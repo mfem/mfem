@@ -101,7 +101,7 @@ The MFEM source code has the following structure:
   │   ├── hiop
   │   ├── petsc
   │   ├── pumi
-  │   └── sundials
+  │   ├── sundials
   |   └── superlu
   ├── fem
   │   └── libceed
