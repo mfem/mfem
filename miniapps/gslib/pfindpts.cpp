@@ -9,9 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-// -----------------------------------------------------------------------------
-// Find Points Miniapp: Evaluate grid function in physical space - Parallel Ver.
-// -----------------------------------------------------------------------------
+//    ----------------------------------------------------------------------
+//    Parallel Find Points Miniapp: Evaluate grid function in physical space
+//    ----------------------------------------------------------------------
 //
 // This miniapp demonstrates the interpolation of a high-order grid function on
 // a set of points in physical-space. The miniapp is based on GSLIB-FindPoints,
