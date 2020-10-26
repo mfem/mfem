@@ -1,7 +1,7 @@
 #include "monolithic_convex_limiting.hpp"
 
 // SCHEME: -1: Galerkin, 0: Low order method, 1: Limiter
-#define SCHEME 1
+#define SCHEME 0
 
 MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
                              HyperbolicSystem *hyp_,
@@ -264,43 +264,62 @@ void MCL_Evolution::ComputeDissipativeMatrix(int e, const Vector &uElem) const
 {
    for (int I = 0; I < nd; I++)
    {
-      GetNodeVal(uElem, uEval, I);
+      if (!hyp->DiscreteUpwinding)
+      {
+         GetNodeVal(uElem, uEval, I);
+      }
 
       for (int j = 0; j < NumLocNbr; j++)
       {
          int J = Dof2LocNbr(I,j);
          if (J == -1) { break; }
 
-         GetNodeVal(uElem, uNbrEval, J);
-
-         double CTildeNorm1 = 0.;
-         double CTildeNorm2 = 0.;
-
-         for (int l = 0; l < dim; l++)
+         if (hyp->DiscreteUpwinding)
          {
-            CTildeNorm1 += CTilde(I,l,J) * CTilde(I,l,J);
-            CTildeNorm2 += CTilde(J,l,I) * CTilde(J,l,I);
+            double DiscUpwI = 0.0;
+            double DiscUpwJ = 0.0;
+
+            for (int l = 0; l < dim; l++)
+            {
+               DiscUpwI += CTilde(J,l,I) * hyp->VelNode(l,I,e);
+               DiscUpwJ += CTilde(I,l,J) * hyp->VelNode(l,J,e);
+            }
+
+            DTilde(I,J) = max( 0.0, max(DiscUpwI, DiscUpwJ) );
          }
+         else
+         {
+            GetNodeVal(uElem, uNbrEval, J);
 
-         CTildeNorm1 = sqrt(CTildeNorm1);
-         CTildeNorm2 = sqrt(CTildeNorm2);
+            double CTildeNorm1 = 0.;
+            double CTildeNorm2 = 0.;
 
-         // DTilde(I,J) = max( 0., max( -CTilde(I,0,J), -CTilde(J,0,I) ) );
+            for (int l = 0; l < dim; l++)
+            {
+               CTildeNorm1 += CTilde(I,l,J) * CTilde(I,l,J);
+               CTildeNorm2 += CTilde(J,l,I) * CTilde(J,l,I);
+            }
 
-         CTilde(J).GetRow(I, normal);
-         normal /= CTildeNorm1;
+            CTildeNorm1 = sqrt(CTildeNorm1);
+            CTildeNorm2 = sqrt(CTildeNorm2);
 
-         // double ws1 = hyp->GetGMS(uEval, uNbrEval, normal);
-         double ws1 = max(hyp->GetWaveSpeed(uEval, normal, e, I),
-                          hyp->GetWaveSpeed(uNbrEval, normal, e, J));
+            // DTilde(I,J) = max( 0., max( -CTilde(I,0,J), -CTilde(J,0,I) ) );
 
-         CTilde(I).GetRow(J, normal);
-         normal /= CTildeNorm2;
+            CTilde(J).GetRow(I, normal);
+            normal /= CTildeNorm1;
 
-         // double ws2 = hyp->GetGMS(uEval, uNbrEval, normal);
-         double ws2 = max(hyp->GetWaveSpeed(uEval, normal, e, I),
-                          hyp->GetWaveSpeed(uNbrEval, normal, e, J));
-         DTilde(I,J) = max(CTildeNorm1 * ws1, CTildeNorm2 * ws2);
+            // double ws1 = hyp->GetGMS(uEval, uNbrEval, normal);
+            double ws1 = max(hyp->GetWaveSpeed(uEval, normal, e, I),
+                           hyp->GetWaveSpeed(uNbrEval, normal, e, J));
+
+            CTilde(I).GetRow(J, normal);
+            normal /= CTildeNorm2;
+
+            // double ws2 = hyp->GetGMS(uEval, uNbrEval, normal);
+            double ws2 = max(hyp->GetWaveSpeed(uEval, normal, e, I),
+                           hyp->GetWaveSpeed(uNbrEval, normal, e, J));
+            DTilde(I,J) = max(CTildeNorm1 * ws1, CTildeNorm2 * ws2);
+         }
       }
    }
 }

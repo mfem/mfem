@@ -103,6 +103,10 @@ public:
    bool SolutionKnown;
    bool SteadyState;
    bool TimeDepBC;
+
+   // Currently only true for advection, due to spatially dependent flux.
+   bool DiscreteUpwinding = false;
+   DenseTensor VelNode;
 };
 
 #endif
