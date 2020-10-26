@@ -1,5 +1,23 @@
 //                       MFEM Example normal-bc - Parallel Version
 //
+// Compile with: make ex-normal
+//
+// Sample runs:  ex-normal
+//               ex-normal --diffusion --boundary-attribute 1
+//               ex-normal --mesh ../miniapps/meshing/icf.mesh
+//               ex-normal --mesh sphere_hex27.mesh
+//               ex-normal --elimination
+//               ex-normal --penalty 1e+4
+//
+// Description:  Demonstrates solving a linear system subject to a linear
+//               constraint, using the ConstrainedSolver object.
+//
+//               This particular example finds the global L2 projection of the
+//               vector field (1, 0, 0) or (1, 0) onto the given mesh subject
+//               to the constraint that the normal component of the vector
+//               field vanishes on a particular (curved) boundary.
+//
+//               We recommend viewing example 2 before viewing this example.
 
 /*
   Solve a problem with the constraint that the normal component
@@ -12,7 +30,8 @@
 
   - clean up build #ifdefs, for hypre etc. (did a little...)
   - clean up example, for actual demo with sphere
-  - write up some very basic results
+  - write up some very basic results (ie, a pretty picture, very basic refinement results)
+  - a few example command lines and figure out what actually works, eg partial assembly? (see run-normal.sh, see also normalcheck.py)
 
   TODO eventually:
 
@@ -23,29 +42,6 @@
   - think about preconditioning interface; user may have good preconditioner for primal system that we could use in all three existing solvers?
   - make sure curved mesh works (is this a real problem or just VisIt visualization?)
   - hook up to Smith or Tribol or some other contact setting
-
-  square-disc attributes (not indices):
-
-  1: south external
-  2: east external
-  3: north external
-  4: west external
-  5: southeast internal
-  6: northeast internal
-  7: northwest internal
-  8: southwest internal
-
-  icf attributes (not indices):
-
-  1: west side
-  2: south side
-  3: ???
-  4: outer edge (circle constraint)
-  5: some internal boundaries??
-
-  sphere_hex27.mesh
-
-  1: external boundary
 */
 
 #include "mfem.hpp"
@@ -123,9 +119,13 @@ SparseMatrix * BuildNormalConstraints(FiniteElementSpace& fespace,
          for (int j = 0; j < dofs.Size(); ++j)
          {
             Tr->SetIntPoint(&nodes[j]);
-            CalcOrtho(Tr->Jacobian(), nor); // this normal is scaled by h or something
+            // the normal returned in the next line is scaled by h, which
+            // is probably what we want in this application
+            CalcOrtho(Tr->Jacobian(), nor);
 
-            int k = dofs[j]; // are we sure nodes and dofs are ordered the same?
+            // next line assumes nodes and dofs are ordered the same, which
+            // seems to be true
+            int k = dofs[j];
             int constraint = dof_constraint[k];
             for (int d = 0; d < dim; ++d)
             {
@@ -271,7 +271,7 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(order = 1, dim);
       delete_fec = true;
    }
-   ParFiniteElementSpace fespace(&pmesh, fec, dim); // vector space
+   ParFiniteElementSpace fespace(&pmesh, fec, dim);
    HYPRE_Int size = fespace.GlobalTrueVSize();
    if (myid == 0)
    {
@@ -282,7 +282,6 @@ int main(int argc, char *argv[])
    if (pmesh.bdr_attributes.Size())
    {
       Array<int> ess_bdr(pmesh.bdr_attributes.Max());
-      // ess_bdr = 1;
       ess_bdr = 0;
       if (boundary_attribute > 0)
       {
@@ -294,6 +293,7 @@ int main(int argc, char *argv[])
    Array<int> constraint_atts;
    if (!strcmp(mesh_file, "../data/square-disc-p3.mesh"))
    {
+      // constrain the circular boundary inside
       constraint_atts.SetSize(4);
       constraint_atts[0] = 5;
       constraint_atts[1] = 6;
@@ -302,11 +302,13 @@ int main(int argc, char *argv[])
    }
    else if (!strcmp(mesh_file, "../miniapps/meshing/icf.mesh"))
    {
+      // constrain the outer curved boundary
       constraint_atts.SetSize(1);
       constraint_atts[0] = 4;
    }
    else if (!strcmp(mesh_file, "sphere_hex27.mesh"))
    {
+      // constrain the (entire) boundary of the sphere
       constraint_atts.SetSize(1);
       constraint_atts[0] = 1;
    }
@@ -328,7 +330,7 @@ int main(int argc, char *argv[])
    }
 
    ParLinearForm b(&fespace);
-   // todo: for diffusion we probably want a more interesting rhs
+   // for diffusion we may want a more interesting rhs
    Vector rhs_direction(dim);
    rhs_direction = 0.0;
    rhs_direction[0] = 1.0;
@@ -347,7 +349,6 @@ int main(int argc, char *argv[])
    //     domain integrator.
    ParBilinearForm a(&fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   // a.AddDomainIntegrator(new DiffusionIntegrator(one));
    Vector ones(dim);
    ones = 1.0;
    VectorConstantCoefficient coeff(ones);
@@ -417,13 +418,11 @@ int main(int argc, char *argv[])
       X.Print(out, 1);
    }
 
-   // 15. Save the refined mesh and the solution in parallel. This output can
-   //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
+   // 15. Save the refined mesh and the solution in VisIt format.
    {
       // todo: might make more sense to .SetCycle() than to append boundary_attribute to name
       std::stringstream visitname;
       visitname << "normal" << boundary_attribute;
-      // visitname << "icf";
       VisItDataCollection visit_dc(MPI_COMM_WORLD, visitname.str(), &pmesh);
       visit_dc.SetLevelsOfDetail(4);
       visit_dc.RegisterField("sol", &x);
