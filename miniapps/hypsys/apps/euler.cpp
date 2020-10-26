@@ -207,7 +207,8 @@ void Euler::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
    }
 }
 
-double Euler::GetGMS(const Vector &uL, const Vector &uR, const Vector &normal) const
+double Euler::GetGMS(const Vector &uL, const Vector &uR,
+                     const Vector &normal) const
 {
    CheckAdmissibility(uL);
    CheckAdmissibility(uR);
@@ -218,10 +219,14 @@ double Euler::GetGMS(const Vector &uL, const Vector &uR, const Vector &normal) c
    double vL = uL(1)/uL(0) * normal(0);
    double vR = uR(1)/uR(0) * normal(0);
 
-   double p = pow( (aL+aR-0.5*(SpHeatRatio-1.)*(vR-vL)) / (aL*pow(pL, (1.-SpHeatRatio)/(2.*SpHeatRatio)) + aR*pow(pR, (1.-SpHeatRatio)/(2.*SpHeatRatio)) ) , 2.*SpHeatRatio/(SpHeatRatio-1.) );
+   double p = pow( (aL+aR-0.5*(SpHeatRatio-1.)*(vR-vL)) / (aL*pow(pL,
+                                                                  (1.-SpHeatRatio)/(2.*SpHeatRatio)) + aR*pow(pR,
+                                                                        (1.-SpHeatRatio)/(2.*SpHeatRatio)) ), 2.*SpHeatRatio/(SpHeatRatio-1.) );
 
-   double lambda1 = vL - aL * sqrt( 1. + (SpHeatRatio+1.)/(2.*SpHeatRatio) * max(0., (p-pL)/pL) );
-   double lambda3 = vR + aR * sqrt( 1. + (SpHeatRatio+1.)/(2.*SpHeatRatio) * max(0., (p-pR)/pR) );
+   double lambda1 = vL - aL * sqrt( 1. + (SpHeatRatio+1.)/(2.*SpHeatRatio) * max(
+                                       0., (p-pL)/pL) );
+   double lambda3 = vR + aR * sqrt( 1. + (SpHeatRatio+1.)/(2.*SpHeatRatio) * max(
+                                       0., (p-pR)/pR) );
    return max(abs(lambda1), abs(lambda3));
 }
 
@@ -304,7 +309,8 @@ void Euler::SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal,
    }
 }
 
-void Euler::ComputeDerivedQuantities(const GridFunction &u, GridFunction &d1, GridFunction &d2) const
+void Euler::ComputeDerivedQuantities(const GridFunction &u, GridFunction &d1,
+                                     GridFunction &d2) const
 {
    double density, momentum;
    const IntegrationRule ir = u.FESpace()->GetFE(0)->GetNodes();
@@ -329,7 +335,8 @@ void Euler::ComputeDerivedQuantities(const GridFunction &u, GridFunction &d1, Gr
             d1(e*nd + i) += pow(momentum / density, 2.0);
          }
 
-         d2(e*nd + i) = (SpHeatRatio - 1.0) * (u.GetValue(e, ip, dim+2) - 0.5 * density * d1(e*nd + i));
+         d2(e*nd + i) = (SpHeatRatio - 1.0) * (u.GetValue(e, ip,
+                                                          dim+2) - 0.5 * density * d1(e*nd + i));
          d1(e*nd + i) = sqrt(d1(e*nd + i));
       }
    }
@@ -350,21 +357,24 @@ void Euler::ComputeErrors(Array<double> & errors, const GridFunction &u,
    VectorConstantCoefficient weight1(component);
    errors[0] = u.ComputeLpError(1.0, uAnalytic, NULL, &weight1) / DomainSize;
    errors[1] = u.ComputeLpError(2.0, uAnalytic, NULL, &weight1) / DomainSize;
-   errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic, NULL, &weight1);
+   errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic,
+                                NULL, &weight1);
 
    component = 0.0;
    component(1) = 1.0;
    VectorConstantCoefficient weight2(component);
    errors[3] = u.ComputeLpError(1.0, uAnalytic, NULL, &weight2) / DomainSize;
    errors[4] = u.ComputeLpError(2.0, uAnalytic, NULL, &weight2) / DomainSize;
-   errors[5] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic, NULL, &weight2);
+   errors[5] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic,
+                                NULL, &weight2);
 
    component = 0.0;
    component(2) = 1.0;
    VectorConstantCoefficient weight3(component);
    errors[6] = u.ComputeLpError(1.0, uAnalytic, NULL, &weight3) / DomainSize;
    errors[7] = u.ComputeLpError(2.0, uAnalytic, NULL, &weight3) / DomainSize;
-   errors[8] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic, NULL, &weight3);
+   errors[8] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic,
+                                NULL, &weight3);
 
    if (dim > 1)
    {
@@ -373,7 +383,8 @@ void Euler::ComputeErrors(Array<double> & errors, const GridFunction &u,
       VectorConstantCoefficient weight4(component);
       errors[9] = u.ComputeLpError(1.0, uAnalytic, NULL, &weight4) / DomainSize;
       errors[10] = u.ComputeLpError(2.0, uAnalytic, NULL, &weight4) / DomainSize;
-      errors[11] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic, NULL, &weight4);
+      errors[11] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic,
+                                    NULL, &weight4);
    }
 
    if (dim > 2)
@@ -383,7 +394,8 @@ void Euler::ComputeErrors(Array<double> & errors, const GridFunction &u,
       VectorConstantCoefficient weight5(component);
       errors[12] = u.ComputeLpError(1.0, uAnalytic, NULL, &weight5) / DomainSize;
       errors[13] = u.ComputeLpError(2.0, uAnalytic, NULL, &weight5) / DomainSize;
-      errors[14] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic, NULL, &weight5);
+      errors[14] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic,
+                                    NULL, &weight5);
    }
 }
 

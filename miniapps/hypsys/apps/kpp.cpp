@@ -30,7 +30,8 @@ KPP::KPP(FiniteElementSpace *fes_, BlockVector &u_block,
       {
          ProblemName = "KPP Equation - 1D";
          glvis_scale = "on";
-         SolutionKnown = false; // There is a solution, but I don't have an analytical expression.
+         SolutionKnown =
+            false; // There is a solution, but I don't have an analytical expression.
          SteadyState = false;
          TimeDepBC = false;
          ProjType = 1;
@@ -100,7 +101,8 @@ void InitialConditionKPP(const Vector &x, Vector &u)
       }
       case 2:
       {
-         u(0) = X.Norml2() <= 0.25 ? 0.0 : 1.0; // According to the original KPP paper, not Ern and Guermond.
+         u(0) = X.Norml2() <= 0.25 ? 0.0 :
+                1.0; // According to the original KPP paper, not Ern and Guermond.
          break;
       }
    }

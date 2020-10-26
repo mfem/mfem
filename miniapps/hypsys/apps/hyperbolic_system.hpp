@@ -22,8 +22,10 @@ public:
       nd = fes->GetFE(0)->GetDof();
       dim = fes->GetMesh()->Dimension();
 
-      l2_fec = new L2_FECollection(fes->GetFE(0)->GetOrder(), fes->GetMesh()->Dimension());
-      l2_fes = new FiniteElementSpace(fes->GetMesh(), l2_fec, NumEq, Ordering::byNODES);
+      l2_fec = new L2_FECollection(fes->GetFE(0)->GetOrder(),
+                                   fes->GetMesh()->Dimension());
+      l2_fes = new FiniteElementSpace(fes->GetMesh(), l2_fec, NumEq,
+                                      Ordering::byNODES);
       l2_proj = new GridFunction(l2_fes);
    }
 
@@ -36,13 +38,15 @@ public:
 
    virtual void EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
                              int e, int k, int i = -1) const = 0;
-   virtual double GetGMS(const Vector &uL, const Vector &uR, const Vector &normal) const { } // TODO: if used "= 0"
+   virtual double GetGMS(const Vector &uL, const Vector &uR,
+                         const Vector &normal) const { } // TODO: if used "= 0"
    virtual double GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
                                int i = -1) const = 0;
    virtual void CheckAdmissibility(const Vector &u) const { };
    virtual void SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal,
                            int attr) const  { };
-   virtual void ComputeDerivedQuantities(const GridFunction &u, GridFunction &d1, GridFunction &d2) const { };
+   virtual void ComputeDerivedQuantities(const GridFunction &u, GridFunction &d1,
+                                         GridFunction &d2) const { };
    virtual void ComputeErrors(Array<double> &errors, const GridFunction &u,
                               double DomainSize, double t) const { };
 

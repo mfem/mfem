@@ -64,7 +64,8 @@ public:
    virtual void FaceEval(const Vector &x, Vector &y1, Vector &y2,
                          const Vector &xMPI, const Vector &normal,
                          int e, int i, int k) const;
-   virtual void LaxFriedrichs(const Vector &x1, const Vector &x2, const Vector &normal,
+   virtual void LaxFriedrichs(const Vector &x1, const Vector &x2,
+                              const Vector &normal,
                               Vector &y, int e, int k, int i) const;
    virtual void HLL(const Vector &x1, const Vector &x2, const Vector &normal,
                     Vector &y, int e, int k, int i) const;

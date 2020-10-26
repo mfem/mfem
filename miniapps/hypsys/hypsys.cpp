@@ -165,7 +165,8 @@ int main(int argc, char *argv[])
    socketstream sout;
    char vishost[] = "localhost";
    int visport = 19916;
-   VisualizeField(sout, vishost, visport, hyp->ProblemName, main, hyp->glvis_scale);
+   VisualizeField(sout, vishost, visport, hyp->ProblemName, main,
+                  hyp->glvis_scale);
 
    FE_Evolution *evol;
    switch (scheme)
@@ -229,7 +230,8 @@ int main(int argc, char *argv[])
             cout << "time step: " << ti << ", time: " << t << endl;
          }
 
-         VisualizeField(sout, vishost, visport, hyp->ProblemName, main, hyp->glvis_scale);
+         VisualizeField(sout, vishost, visport, hyp->ProblemName, main,
+                        hyp->glvis_scale);
          if (TransOutput)
          {
             ostringstream TransName;

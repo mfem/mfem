@@ -17,7 +17,8 @@ public:
    virtual void CheckAdmissibility(const Vector &u) const override;
    virtual void SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal,
                            int attr) const override;
-   virtual void ComputeDerivedQuantities(const GridFunction &u, GridFunction &d1, GridFunction &d2) const override;
+   virtual void ComputeDerivedQuantities(const GridFunction &u, GridFunction &d1,
+                                         GridFunction &d2) const override;
    virtual void ComputeErrors(Array<double> &errors, const GridFunction &u,
                               double DomainSize, double t) const override;
 };

@@ -42,14 +42,18 @@ void DofInfo::FillLoc2Multiindex()
       a(2)++;
 
       if (a.Sum() != p)
+      {
          MFEM_ABORT("Invalid Multiindex");
+      }
    }
 }
 
 int DofInfo::GetLocFromMultiindex(int p, const Vector &a) const
 {
    if (a.Sum() != p || a.Min() < 0 || a.Size() != 3)
+   {
       MFEM_ABORT("Invalid Multiindex");
+   }
 
    return (p+1)*a(2) - a(2)*(a(2)-1)/2 + a(1);
 }

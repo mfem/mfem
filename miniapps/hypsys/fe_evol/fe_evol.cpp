@@ -226,7 +226,8 @@ void FE_Evolution::FaceEval(const Vector &x, Vector &y1, Vector &y2,
          else
          {
             // nbr in different MPI task?
-            uNbr = (nbr < xSizeMPI) ? x(n * ne * nd + nbr) : xMPI(int((nbr - xSizeMPI) / nd) * nd * hyp->NumEq + n * nd + (nbr - xSizeMPI) % nd);
+            uNbr = (nbr < xSizeMPI) ? x(n * ne * nd + nbr) : xMPI(int((
+                                                                         nbr - xSizeMPI) / nd) * nd * hyp->NumEq + n * nd + (nbr - xSizeMPI) % nd);
          }
 
          y1(n) += x(DofInd) * ShapeEvalFace(i, j, k);

@@ -1,7 +1,8 @@
 #include "bounds.hpp"
 
 Bounds::Bounds(FiniteElementSpace *fes_, FiniteElementSpace *fesH1_)
-      : fes(fes_), fesH1(fesH1_), x_min(fesH1_), x_max(fesH1_) //, y_min(fesH1_), y_max(fesH1_)
+   : fes(fes_), fesH1(fesH1_), x_min(fesH1_),
+     x_max(fesH1_) //, y_min(fesH1_), y_max(fesH1_)
 {
    Mesh *mesh = fes->GetMesh();
    const FiniteElement *el = fes->GetFE(0);
@@ -25,7 +26,7 @@ void Bounds::FillDofMap()
    if (el->GetGeomType() != Geometry::TRIANGLE)
    {
       const TensorBasisElement *TensorElem =
-      dynamic_cast<const TensorBasisElement *>(fesH1->GetFE(0));
+         dynamic_cast<const TensorBasisElement *>(fesH1->GetFE(0));
       DofMapH1 = TensorElem->GetDofMap();
       return;
    }

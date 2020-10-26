@@ -103,7 +103,7 @@ void AnalyticalSolutionBurgers(const Vector &x, double t, Vector &u)
          double error = 1.0;
          int iter = 0, maxiter = 100;
 
-         while(error > tol)
+         while (error > tol)
          {
             // Do not trust this solution at a time later than t = 0.1.
             if (iter == maxiter) { break; }

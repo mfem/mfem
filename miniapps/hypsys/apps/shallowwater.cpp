@@ -224,7 +224,8 @@ void ShallowWater::SetBdrCond(const Vector &y1, Vector &y2,
    }
 }
 
-void ShallowWater::ComputeDerivedQuantities(const GridFunction &u, GridFunction &d1, GridFunction &d2) const
+void ShallowWater::ComputeDerivedQuantities(const GridFunction &u,
+                                            GridFunction &d1, GridFunction &d2) const
 {
    double height, momentum;
    const IntegrationRule ir = u.FESpace()->GetFE(0)->GetNodes();
@@ -263,14 +264,16 @@ void ShallowWater::ComputeErrors(Array<double> &errors, const GridFunction &u,
    VectorConstantCoefficient weight1(component);
    errors[0] = u.ComputeLpError(1.0, uAnalytic, NULL, &weight1) / DomainSize;
    errors[1] = u.ComputeLpError(2.0, uAnalytic, NULL, &weight1) / DomainSize;
-   errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic, NULL, &weight1);
+   errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic,
+                                NULL, &weight1);
 
    component = 0.0;
    component(1) = 1.0;
    VectorConstantCoefficient weight2(component);
    errors[3] = u.ComputeLpError(1.0, uAnalytic, NULL, &weight2) / DomainSize;
    errors[4] = u.ComputeLpError(2.0, uAnalytic, NULL, &weight2) / DomainSize;
-   errors[5] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic, NULL, &weight2);
+   errors[5] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic,
+                                NULL, &weight2);
 
    if (dim ==  2)
    {
@@ -279,7 +282,8 @@ void ShallowWater::ComputeErrors(Array<double> &errors, const GridFunction &u,
       VectorConstantCoefficient weight3(component);
       errors[6] = u.ComputeLpError(1.0, uAnalytic, NULL, &weight3) / DomainSize;
       errors[7] = u.ComputeLpError(2.0, uAnalytic, NULL, &weight3) / DomainSize;
-      errors[8] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic, NULL, &weight3);
+      errors[8] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic,
+                                   NULL, &weight3);
    }
 }
 
@@ -329,7 +333,7 @@ void AnalyticalSolutionSWE(const Vector &x, double t, Vector &u)
          double y0 = 0.0;
 
          double f = -c2 * ( pow(X(0) - x0 - M*t*cos(a), 2.0)
-                          + pow(X(1) - y0 - M*t*sin(a), 2.0) );
+                            + pow(X(1) - y0 - M*t*sin(a), 2.0) );
 
          u(0) = 1.0;
          u(1) = M*cos(a) + c1 * (X(1) - y0 - M*t*sin(a)) * exp(f);
@@ -359,9 +363,11 @@ void AnalyticalSolutionSWE(const Vector &x, double t, Vector &u)
          double xB = 500.0 + t*(2.0*aux - 3.0*cm);
          double xC = 500.0 + t*(2.0*cm*cm*(aux - cm))/(cm*cm - GravConst);
 
-         u(0) = 9.0 * (r<xA) + (4.0/(9.0*GravConst) * pow( aux - (r-500.0)/(2.0*t), 2.0 ) - 1.0) * (r>=xA) * (r<xB)
-               + (cm*cm/GravConst - 1.) * (r>=xB) * (r<xC);
-         u(1) = 2.0/3.0 * ((r-500.0)/t + aux) * (r >= xA) * (r < xB) + 2.0 * (aux - cm) * (r >= xB) * (r < xC);
+         u(0) = 9.0 * (r<xA) + (4.0/(9.0*GravConst) * pow( aux - (r-500.0)/(2.0*t),
+                                                           2.0 ) - 1.0) * (r>=xA) * (r<xB)
+                + (cm*cm/GravConst - 1.) * (r>=xB) * (r<xC);
+         u(1) = 2.0/3.0 * ((r-500.0)/t + aux) * (r >= xA) * (r < xB) + 2.0 *
+                (aux - cm) * (r >= xB) * (r < xC);
          u(0) += Depth;
          u(1) *= u(0);
 
@@ -371,9 +377,9 @@ void AnalyticalSolutionSWE(const Vector &x, double t, Vector &u)
       {
          if (dim != 2) { MFEM_ABORT("Test case works only in 2D."); }
 
-         const double x1[2]={-10., 0.}, x2[2]={-10., 40.},
-                      x3[2]={53.8622, 5.5872}, x4[2]={53.8622, 34.4128},
-                      slope0=0.53886, slope1=0.79893;
+         const double x1[2]= {-10., 0.}, x2[2]= {-10., 40.},
+                                                x3[2]= {53.8622, 5.5872}, x4[2]= {53.8622, 34.4128},
+                                                                                 slope0=0.53886, slope1=0.79893;
          int sign_top, sign_bot;
 
          if (x(0)>x3[0])

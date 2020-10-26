@@ -1,8 +1,9 @@
 #include "pbounds.hpp"
 
-ParBounds::ParBounds(ParFiniteElementSpace *pfes_, ParFiniteElementSpace *pfesH1_)
+ParBounds::ParBounds(ParFiniteElementSpace *pfes_,
+                     ParFiniteElementSpace *pfesH1_)
    : Bounds(pfes_, pfesH1_), pfes(pfes_), pfesH1(pfesH1_), px_min(pfesH1_),
-   px_max(pfesH1_) { /* mom_min.SetSize(2*ne*nd); mom_max.SetSize(2*ne*nd); */ }
+     px_max(pfesH1_) { /* mom_min.SetSize(2*ne*nd); mom_max.SetSize(2*ne*nd); */ }
 
 void ParBounds::ComputeBounds(const Vector &x)
 {
@@ -18,7 +19,7 @@ void ParBounds::ComputeBounds(const Vector &x)
    }
 
    Array<double> minvals(px_min.GetData(), px_min.Size()),
-   maxvals(px_max.GetData(), px_max.Size());
+         maxvals(px_max.GetData(), px_max.Size());
 
    gcomm.Reduce<double>(minvals, GroupCommunicator::Min);
    gcomm.Bcast(minvals);
@@ -47,7 +48,7 @@ void ParBounds::ComputeBounds(const Vector &x)
       }
 
       Array<double> minvals2(px_min.GetData(), px_min.Size()),
-      maxvals2(px_max.GetData(), px_max.Size());
+            maxvals2(px_max.GetData(), px_max.Size());
 
       gcomm.Reduce<double>(minvals2, GroupCommunicator::Min);
       gcomm.Bcast(minvals2);
@@ -67,7 +68,8 @@ void ParBounds::ComputeBounds(const Vector &x)
 }
 
 
-ParTightBounds::ParTightBounds(ParFiniteElementSpace *pfes_, ParFiniteElementSpace *pfesH1_)
+ParTightBounds::ParTightBounds(ParFiniteElementSpace *pfes_,
+                               ParFiniteElementSpace *pfesH1_)
    : ParBounds(pfes_, pfesH1_)
 {
    FillClosestNbrs(pfes->GetFE(0), ClosestNbrs);
@@ -102,7 +104,8 @@ void ParTightBounds::ComputeSequentialBounds(int n, int e, const Vector &x)
    }
 }
 
-ParLooseBounds::ParLooseBounds(ParFiniteElementSpace *pfes_, ParFiniteElementSpace *pfesH1_)
+ParLooseBounds::ParLooseBounds(ParFiniteElementSpace *pfes_,
+                               ParFiniteElementSpace *pfesH1_)
    : ParBounds(pfes_, pfesH1_) { }
 
 void ParLooseBounds::ComputeElementBounds(int n, int e, const Vector &x)

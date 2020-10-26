@@ -7,7 +7,7 @@ class BuckleyLeverett : public HyperbolicSystem
 {
 public:
    explicit BuckleyLeverett(FiniteElementSpace *fes_, BlockVector &u_block,
-                     Configuration &config_);
+                            Configuration &config_);
    ~BuckleyLeverett() { };
 
    virtual void EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,

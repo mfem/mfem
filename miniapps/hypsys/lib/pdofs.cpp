@@ -4,7 +4,7 @@ ParDofInfo::ParDofInfo(ParFiniteElementSpace *pfes_)
    : DofInfo(pfes_), pmesh(pfes_->GetParMesh()), pfes(pfes_)
 {
    FillNeighborDofs();
- }
+}
 
 void ParDofInfo::FillNeighborDofs()
 {

@@ -281,7 +281,8 @@ void VelocityFunctionAdv(const Vector &x, Vector &v)
          {
             case 1: v(0) = s; break;
             case 2: s *= 2.0 * M_PI; v(0) = s * (0.5-X(1)); v(1) = s*(X(0)-0.5); break;
-            case 3: s *= 2.0 * M_PI; v(0) = s * (0.5-X(1)); v(1) = s*(X(0)-0.5); v(2) = 0.0; break;
+            case 3: s *= 2.0 * M_PI; v(0) = s * (0.5-X(1)); v(1) = s*(X(0)-0.5); v(2) = 0.0;
+               break;
          }
          break;
       }

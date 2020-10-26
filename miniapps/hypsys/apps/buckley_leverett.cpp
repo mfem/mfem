@@ -57,12 +57,14 @@ void BuckleyLeverett::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
    if (dim > 2) { MFEM_ABORT("Not implemented."); }
 }
 
-double BuckleyLeverett::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
+double BuckleyLeverett::GetWaveSpeed(const Vector &u, const Vector n, int e,
+                                     int k,
                                      int i) const
 {
    if (dim == 1)
    {
-      return abs( 2.0 * BLConst * u(0) * (1.0-u(0)) / pow(u(0)*u(0) + BLConst * (1.0-u(0))*(1.0-u(0)), 2.0) );
+      return abs( 2.0 * BLConst * u(0) * (1.0-u(0)) / pow(u(0)*u(0) + BLConst *
+                                                          (1.0-u(0))*(1.0-u(0)), 2.0) );
    }
    else if (dim == 2)
    {

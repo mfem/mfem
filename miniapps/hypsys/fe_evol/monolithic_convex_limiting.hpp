@@ -21,8 +21,8 @@ public:
 
    mutable DenseTensor CTilde, CFull, NodalFluxes, uij/* , ufiMin, ufiMax */;
    mutable DenseMatrix uFace, uNbrFace, mat3, DGFluxTerms, GalerkinRhs,
-                       ElFlux, uDot, DTilde, ufi, BdrFlux, AntiDiffBdr,
-                       uijMin, uijMax, LimitedBarState;
+           ElFlux, uDot, DTilde, ufi, BdrFlux, AntiDiffBdr,
+           uijMin, uijMax, LimitedBarState;
    mutable Vector sif, vec1, diffusion, LimitedFluxState;
 
    explicit MCL_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
@@ -33,13 +33,15 @@ public:
    void Mult(const Vector&x, Vector &y) const override;
 
    virtual void GetNodeVal(const Vector &uElem, Vector &uEval, int ) const;
-   virtual void GetFaceVal(const Vector &x, const Vector &xMPI, int e, int i) const;
+   virtual void GetFaceVal(const Vector &x, const Vector &xMPI, int e,
+                           int i) const;
 
    void ComputeTimeDerivative(const Vector &x, Vector &y,
                               const Vector &xMPI = serial) const;
    void ComputeDissipativeMatrix(int e, const Vector &uElem) const;
    void ComputePrecGradOp();
-   void ComputeLORMassMatrix(DenseMatrix &RefMat, Geometry::Type gtype, bool UseDiagonalNbrs);
+   void ComputeLORMassMatrix(DenseMatrix &RefMat, Geometry::Type gtype,
+                             bool UseDiagonalNbrs);
 };
 
 #endif
