@@ -584,7 +584,7 @@ Other meshing improvements
   follows precisely the paper:
 
      D. Arnold, A. Mukherjee, and L. Pouly, "Locally Adapted Tetrahedral Meshes
-     Using Bisection", SIAM J. Sci. Comput. 22 (2000), 431–448.
+     Using Bisection", SIAM J. Sci. Comput. 22 (2000), 431-448.
 
   This guarantees that the shape regularity of the elements will be preserved
   under refinement.
@@ -729,7 +729,7 @@ Discretization improvements
 
 - New specialized time integrators: symplectic integrators of orders 1-4 for
   systems of first order ODEs derived from a Hamiltonian and generalized-alpha
-  ODE solver for the filtered Navier–Stokes equations with stabilization. See
+  ODE solver for the filtered Navier-Stokes equations with stabilization. See
   classes SIASolver and GeneralizedAlphaSolver in linalg/ode.hpp.
 
 - Inherit finite element classes from the new base class TensorBasisElement,
