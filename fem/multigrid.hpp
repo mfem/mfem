@@ -53,6 +53,14 @@ public:
    /// Constructs an empty multigrid with a default V(1,1) cycle
    Multigrid();
 
+   /// Constructs a multigrid from the given inputs with a default V(1,1) cycle.
+   /** Inputs include operators and smoothers on all levels,
+       prolongation operators that go from coarser to finer levels,
+       and owenership of the given operators, smoothers, and prolongations. */
+   Multigrid(const Array<Operator*>& operators_, const Array<Solver*>& smoothers_,
+             const Array<Operator*>& prolongations_, const Array<bool>& ownedOperators_,
+             const Array<bool>& ownedSmoothers_, const Array<bool>& ownedProlongations_);
+
    /// Destructor
    virtual ~Multigrid();
 
