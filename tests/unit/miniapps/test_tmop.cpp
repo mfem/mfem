@@ -491,8 +491,11 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    delete S_prec;
    delete pmesh;
    delete metric;
+   delete coeff1;
+   delete metric2;
    delete newton;
    delete target_c;
+   delete target_c2;
    delete adapt_coeff;
 
    return 0;
