@@ -10569,6 +10569,64 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    }
 }
 
+GeometricFactors::GeometricFactors(const GridFunction *nodes_, const IntegrationRule &ir,
+                                   int flags, DofToQuad::Mode mode)
+{
+   this->mesh = nullptr;
+   IntRule = &ir;
+   computed_factors = flags;
+
+   const GridFunction *nodes = nodes_;
+   const FiniteElementSpace *fespace = nodes->FESpace();
+   const FiniteElement *fe = fespace->GetFE(0);
+   const int dim  = fe->GetDim();
+   const int vdim = fespace->GetVDim();
+   const int NE   = fespace->GetNE();
+   const int ND   = fe->GetDof();
+   const int NQ   = ir.GetNPoints();
+
+   unsigned eval_flags = 0;
+   if (flags & GeometricFactors::COORDINATES)
+   {
+      X.SetSize(vdim*NQ*NE, Device::GetDeviceTempMemoryType());
+      eval_flags |= QuadratureInterpolator::VALUES;
+   }
+   if (flags & GeometricFactors::JACOBIANS)
+   {
+      J.SetSize(dim*vdim*NQ*NE, Device::GetDeviceTempMemoryType());
+      eval_flags |= QuadratureInterpolator::DERIVATIVES;
+   }
+   if (flags & GeometricFactors::DETERMINANTS)
+   {
+      detJ.SetSize(NQ*NE, Device::GetDeviceTempMemoryType());
+      eval_flags |= QuadratureInterpolator::DETERMINANTS;
+   }
+
+   const QuadratureInterpolator *qi =
+      fespace->GetQuadratureInterpolator(ir, mode);
+   const bool use_tensor_products = qi->UseTensorProducts();
+
+   // GeometricFactors arrays use a column-major layout
+   qi->SetOutputLayout(QVectorLayout::byNODES);
+
+   // Use LEXICOGRAPHIC ordering in case of tensor product evaluation
+   const ElementDofOrdering e_ordering = use_tensor_products ?
+                                         ElementDofOrdering::LEXICOGRAPHIC :
+                                         ElementDofOrdering::NATIVE;
+   const Operator *elem_restr = fespace->GetElementRestriction(e_ordering);
+
+   if (elem_restr)
+   {
+      Vector Enodes(vdim*ND*NE, Device::GetDeviceTempMemoryType());
+      elem_restr->Mult(*nodes, Enodes);
+      qi->Mult(Enodes, eval_flags, X, J, detJ);
+   }
+   else
+   {
+      qi->Mult(*nodes, eval_flags, X, J, detJ);
+   }
+}
+
 FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
                                            const IntegrationRule &ir,
                                            int flags, FaceType type)
