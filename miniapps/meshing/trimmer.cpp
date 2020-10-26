@@ -84,8 +84,6 @@ int main(int argc, char *argv[])
 
    Mesh mesh(mesh_file, 0, 0);
 
-
-
    int max_attr     = mesh.attributes.Max();
    int max_bdr_attr = mesh.bdr_attributes.Max();
 
@@ -235,9 +233,26 @@ int main(int argc, char *argv[])
    }
 
    trimmed_mesh.FinalizeTopology();
-   trimmed_mesh.Finalize();
    trimmed_mesh.RemoveUnusedVertices();
 
+
+   mesh.EnsureNodes();
+   GridFunction * nodes = mesh.GetNodes();
+   VectorGridFunctionCoefficient gf_nodes(nodes);
+
+   int order = nodes->FESpace()->GetOrder(0);
+   cout << order  << endl;
+   if (order > 1)
+   {
+      trimmed_mesh.SetCurvature(order, true, 3, Ordering::byVDIM);
+   }
+   trimmed_mesh.Transform(gf_nodes);
+   
+   if (order > 1)
+   {
+      trimmed_mesh.SetCurvature(order, false, 3, Ordering::byVDIM);
+   }
+   
    // Save the final mesh
    ofstream mesh_ofs("trimmer.mesh");
    mesh_ofs.precision(8);
