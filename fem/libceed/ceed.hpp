@@ -84,7 +84,6 @@ struct CeedData
    {
       CeedOperatorDestroy(&build_oper);
       CeedOperatorDestroy(&oper);
-      CeedElemRestrictionDestroy(&restr_i);
       CeedQFunctionDestroy(&apply_qfunc);
       CeedQFunctionDestroy(&build_qfunc);
       CeedQFunctionContextDestroy(&build_ctx);
