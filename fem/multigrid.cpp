@@ -14,9 +14,8 @@
 namespace mfem
 {
 
-Multigrid::Multigrid(const FiniteElementSpaceHierarchy& fespaces_)
-   : fespaces(fespaces_), cycleType(CycleType::VCYCLE), preSmoothingSteps(1),
-     postSmoothingSteps(1)
+Multigrid::Multigrid()
+   : cycleType(CycleType::VCYCLE), preSmoothingSteps(1), postSmoothingSteps(1)
 {}
 
 Multigrid::~Multigrid()
@@ -43,20 +42,6 @@ Multigrid::~Multigrid()
    Y.DeleteAll();
    R.DeleteAll();
    Z.DeleteAll();
-
-   for (int i = 0; i < bfs.Size(); ++i)
-   {
-      delete bfs[i];
-   }
-
-   bfs.DeleteAll();
-
-   for (int i = 0; i < essentialTrueDofs.Size(); ++i)
-   {
-      delete essentialTrueDofs[i];
-   }
-
-   essentialTrueDofs.DeleteAll();
 }
 
 void Multigrid::AddLevel(Operator* opr, Solver* smoother, bool ownOperator,
@@ -168,8 +153,7 @@ void Multigrid::Cycle(int level) const
    subtract(*X[level], *R[level], *R[level]);
 
    // Restrict residual
-   fespaces.GetProlongationAtLevel(level - 1)->MultTranspose(*R[level],
-                                                             *X[level - 1]);
+   GetProlongationAtLevel(level - 1)->MultTranspose(*R[level], *X[level - 1]);
 
    // Init zeros
    *Y[level - 1] = 0.0;
@@ -186,7 +170,7 @@ void Multigrid::Cycle(int level) const
    }
 
    // Prolongate
-   fespaces.GetProlongationAtLevel(level - 1)->Mult(*Y[level - 1], *R[level]);
+   GetProlongationAtLevel(level - 1)->Mult(*Y[level - 1], *R[level]);
 
    // Add update
    *Y[level] += *R[level];
@@ -198,16 +182,47 @@ void Multigrid::Cycle(int level) const
    }
 }
 
-void Multigrid::FormFineLinearSystem(Vector& x, Vector& b, OperatorHandle& A,
-                                     Vector& X, Vector& B)
+const Operator* Multigrid::GetProlongationAtLevel(int level) const
+{
+   return prolongations[level];
+}
+
+GeometricMultigrid::GeometricMultigrid(const FiniteElementSpaceHierarchy& fespaces_)
+   : Multigrid(), fespaces(fespaces_)
+{}
+
+GeometricMultigrid::~GeometricMultigrid()
+{
+   for (int i = 0; i < bfs.Size(); ++i)
+   {
+      delete bfs[i];
+   }
+
+   bfs.DeleteAll();
+
+   for (int i = 0; i < essentialTrueDofs.Size(); ++i)
+   {
+      delete essentialTrueDofs[i];
+   }
+
+   essentialTrueDofs.DeleteAll();
+}
+
+void GeometricMultigrid::FormFineLinearSystem(Vector& x, Vector& b, OperatorHandle& A,
+                                              Vector& X, Vector& B)
 {
    bfs.Last()->FormLinearSystem(*essentialTrueDofs.Last(), x, b, A, X, B);
 }
 
-void Multigrid::RecoverFineFEMSolution(const Vector& X, const Vector& b,
-                                       Vector& x)
+void GeometricMultigrid::RecoverFineFEMSolution(const Vector& X, const Vector& b,
+                                                Vector& x)
 {
    bfs.Last()->RecoverFEMSolution(X, b, x);
+}
+
+const Operator* GeometricMultigrid::GetProlongationAtLevel(int level) const
+{
+   return fespaces.GetProlongationAtLevel(level);
 }
 
 } // namespace mfem
