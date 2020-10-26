@@ -20,27 +20,18 @@
 //               We recommend viewing example 2 before viewing this example.
 
 /*
-  Solve a problem with the constraint that the normal component
-  of the (vector) solution on the boundary is zero.
-
-  The way MFEM dofs work, this is not quite trivial for non-grid-aligned
-  boundaries.
-
-  TODO before making a PR:
-
-  - clean up build #ifdefs, for hypre etc. (did a little...)
-  - clean up example, for actual demo with sphere
-  - write up some very basic results (ie, a pretty picture, very basic refinement results)
-  - a few example command lines and figure out what actually works, eg partial assembly? (see run-normal.sh, see also normalcheck.py)
-
-  TODO eventually:
+  todo:
 
   - timing / scaling of different solvers
   - parallel BuildNormalConstraints in this example
-  - make elimination solver parallel
-  - improve Schur complement block in Schur solver (user-defined preconditioner)
-  - think about preconditioning interface; user may have good preconditioner for primal system that we could use in all three existing solvers?
   - make sure curved mesh works (is this a real problem or just VisIt visualization?)
+  - make elimination solver parallel
+  - think about preconditioning interface; user may have good preconditioner
+    for primal system that we could use in all three existing solvers?
+  - improve Schur complement block in Schur solver (user-defined preconditioner, but
+    different interface)
+  - finer grained control of hypre rigid body modes, for example in elimination
+    solver the numbering gets messed up, can we deal with that?
   - hook up to Smith or Tribol or some other contact setting
 */
 
