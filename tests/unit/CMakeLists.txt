@@ -125,12 +125,74 @@ if (MFEM_USE_CUDA)
   add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} cunit_tests)
 endif()
 
+<<<<<<< HEAD
+=======
+if (MFEM_USE_CEED)
+   set(CEED_TESTS_SRCS
+      ceed/test_ceed.cpp
+      ceed/test_ceed_main.cpp
+   )
+endif()
+
+# All device unit tests are built into another executable, in order to be able
+# to change the device.
+set(SEDOV_TESTS_SRCS
+    unit_test_main.cpp
+    miniapps/test_sedov.cpp
+)
+
+if (MFEM_USE_CUDA)
+   set_property(SOURCE ${SEDOV_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
+endif()
+
+add_executable(sedov_tests_cpu ${SEDOV_TESTS_SRCS})
+target_compile_definitions(sedov_tests_cpu PUBLIC MFEM_SEDOV_TESTS=1)
+target_compile_definitions(sedov_tests_cpu PUBLIC MFEM_SEDOV_DEVICE="cpu")
+target_link_libraries(sedov_tests_cpu mfem)
+
+add_executable(sedov_tests_debug ${SEDOV_TESTS_SRCS})
+target_compile_definitions(sedov_tests_debug PUBLIC MFEM_SEDOV_TESTS=1)
+target_compile_definitions(sedov_tests_debug PUBLIC MFEM_SEDOV_DEVICE="debug")
+target_link_libraries(sedov_tests_debug mfem)
+
+if (MFEM_USE_CUDA)
+   add_executable(sedov_tests_cuda ${SEDOV_TESTS_SRCS})
+   target_compile_definitions(sedov_tests_cuda PUBLIC MFEM_SEDOV_TESTS=1)
+   target_compile_definitions(sedov_tests_cuda PUBLIC MFEM_SEDOV_DEVICE="cuda")
+   target_link_libraries(sedov_tests_cuda mfem)
+
+   add_executable(sedov_tests_cuda_uvm ${SEDOV_TESTS_SRCS})
+   target_compile_definitions(sedov_tests_cuda_uvm PUBLIC MFEM_SEDOV_TESTS=1)
+   target_compile_definitions(sedov_tests_cuda_uvm PUBLIC MFEM_SEDOV_DEVICE="cuda:uvm")
+   target_link_libraries(sedov_tests_cuda_uvm mfem)
+endif()
+
+if (MFEM_USE_CEED)
+   add_executable(ceed_tests ${CEED_TESTS_SRCS})
+   target_link_libraries(ceed_tests mfem)
+endif()
+
+>>>>>>> master
 # Copy data to the build directory.
 add_custom_command(TARGET unit_tests POST_BUILD
 COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_CURRENT_SOURCE_DIR}/data data
         COMMENT "Copying the unit tests data directory ...")
 
+<<<<<<< HEAD
+=======
+# Add unit tests
+add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} unit_tests sedov_tests_cpu sedov_tests_debug)
+if (MFEM_USE_CUDA)
+   add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} sedov_tests_cuda)
+   add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} sedov_tests_cuda_uvm)
+endif()
+
+if (MFEM_USE_CEED)
+   add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ceed_tests)
+endif()
+
+>>>>>>> master
 # Create a test called 'unit_tests' that runs the 'unit_tests' executable.
 # The unit tests can be built and run separately from the rest of the tests:
 #   make unit_tests
@@ -178,6 +240,7 @@ if (MFEM_USE_CUDA)
    add_test(NAME sedov_tests_cuda_uvm COMMAND sedov_tests_cuda_uvm)
 endif()
 
+<<<<<<< HEAD
 # Add unit tests
 add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME}
                 unit_tests
@@ -185,6 +248,18 @@ add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME}
                 tmop_tests_cpu tmop_tests_debug)
 
 # Create a test called 'punit_tests' that runs the 'punit_tests' executable.
+=======
+if (MFEM_USE_CEED)
+   add_test(NAME ceed_tests COMMAND ceed_tests)
+   if (MFEM_USE_CUDA)
+      add_test(NAME ceed_tests_cuda_ref COMMAND ceed_tests --device ceed-cuda:/gpu/cuda/ref)
+      add_test(NAME ceed_tests_cuda_shared COMMAND ceed_tests --device ceed-cuda:/gpu/cuda/shared)
+      add_test(NAME ceed_tests_cuda_gen COMMAND ceed_tests --device ceed-cuda:/gpu/cuda/gen)
+   endif()
+endif()
+
+# Additional MPI unit tests
+>>>>>>> master
 if (MFEM_USE_MPI)
    add_executable(punit_tests punit_test_main.cpp ${UNIT_TESTS_SRCS})
    target_link_libraries(punit_tests mfem)

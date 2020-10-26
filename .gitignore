@@ -278,6 +278,7 @@ tests/unit/square01.mesh
 tests/unit/toroid-hex.mesh
 tests/unit/beam-hex-nurbs.mesh
 tests/unit/square-disc-nurbs.mesh
+tests/unit/ceed_tests
 
 # Test script output
 tests/scripts/*.err
