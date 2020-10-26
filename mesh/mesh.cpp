@@ -1223,58 +1223,136 @@ void Mesh::InitMesh(int _Dim, int _spaceDim, int NVert, int NElem, int NBdrElem)
    boundary.SetSize(NBdrElem);  // just allocate space for Element *
 }
 
-void Mesh::AddVertex(const double *x)
+template<typename T>
+static void CheckEnlarge(Array<T> &array, int size)
 {
-   double *y = vertices[NumOfVertices]();
+   if (size >= array.Size()) { array.SetSize(size + 1); }
+}
 
-   for (int i = 0; i < spaceDim; i++)
+int Mesh::AddVertex(double x, double y, double z)
+{
+   CheckEnlarge(vertices, NumOfVertices);
+   double *v = vertices[NumOfVertices]();
+   v[0] = x;
+   v[1] = y;
+   v[2] = z;
+   return NumOfVertices++;
+}
+
+int Mesh::AddVertex(const double *coords)
+{
+   CheckEnlarge(vertices, NumOfVertices);
+   vertices[NumOfVertices].SetCoords(spaceDim, coords);
+   return NumOfVertices++;
+}
+
+void Mesh::AddVertexParents(int i, int p1, int p2)
+{
+   tmp_vertex_parents.Append(Triple<int, int, int>(i, p1, p2));
+
+   // if vertex coordinates are defined, make sure the hanging vertex has the
+   // correct position
+   if (i < vertices.Size())
    {
-      y[i] = x[i];
+      double *vi = vertices[i](), *vp1 = vertices[p1](), *vp2 = vertices[p2]();
+      for (int j = 0; j < 3; j++)
+      {
+         vi[j] = (vp1[j] + vp2[j]) * 0.5;
+      }
    }
-   NumOfVertices++;
 }
 
-void Mesh::AddSegment(const int *vi, int attr)
+int Mesh::AddSegment(int v1, int v2, int attr)
 {
-   elements[NumOfElements++] = new Segment(vi, attr);
+   CheckEnlarge(elements, NumOfElements);
+   elements[NumOfElements] = new Segment(v1, v2, attr);
+   return NumOfElements++;
 }
 
-void Mesh::AddTri(const int *vi, int attr)
+int Mesh::AddSegment(const int *vi, int attr)
 {
-   elements[NumOfElements++] = new Triangle(vi, attr);
+   CheckEnlarge(elements, NumOfElements);
+   elements[NumOfElements] = new Segment(vi, attr);
+   return NumOfElements++;
 }
 
-void Mesh::AddTriangle(const int *vi, int attr)
+int Mesh::AddTriangle(int v1, int v2, int v3, int attr)
 {
-   elements[NumOfElements++] = new Triangle(vi, attr);
+   CheckEnlarge(elements, NumOfElements);
+   elements[NumOfElements] = new Triangle(v1, v2, v3, attr);
+   return NumOfElements++;
 }
 
-void Mesh::AddQuad(const int *vi, int attr)
+int Mesh::AddTriangle(const int *vi, int attr)
 {
-   elements[NumOfElements++] = new Quadrilateral(vi, attr);
+   CheckEnlarge(elements, NumOfElements);
+   elements[NumOfElements] = new Triangle(vi, attr);
+   return NumOfElements++;
 }
 
-void Mesh::AddTet(const int *vi, int attr)
+int Mesh::AddQuad(int v1, int v2, int v3, int v4, int attr)
 {
+   CheckEnlarge(elements, NumOfElements);
+   elements[NumOfElements] = new Quadrilateral(v1, v2, v3, v4, attr);
+   return NumOfElements++;
+}
+
+int Mesh::AddQuad(const int *vi, int attr)
+{
+   CheckEnlarge(elements, NumOfElements);
+   elements[NumOfElements] = new Quadrilateral(vi, attr);
+   return NumOfElements++;
+}
+
+int Mesh::AddTet(int v1, int v2, int v3, int v4, int attr)
+{
+   int vi[4] = {v1, v2, v3, v4};
+   return AddTet(vi, attr);
+}
+
+int Mesh::AddTet(const int *vi, int attr)
+{
+   CheckEnlarge(elements, NumOfElements);
 #ifdef MFEM_USE_MEMALLOC
    Tetrahedron *tet;
    tet = TetMemory.Alloc();
    tet->SetVertices(vi);
    tet->SetAttribute(attr);
-   elements[NumOfElements++] = tet;
+   elements[NumOfElements] = tet;
 #else
-   elements[NumOfElements++] = new Tetrahedron(vi, attr);
+   elements[NumOfElements] = new Tetrahedron(vi, attr);
 #endif
+   return NumOfElements++;
 }
 
-void Mesh::AddWedge(const int *vi, int attr)
+int Mesh::AddWedge(int v1, int v2, int v3, int v4, int v5, int v6, int attr)
 {
-   elements[NumOfElements++] = new Wedge(vi, attr);
+   CheckEnlarge(elements, NumOfElements);
+   elements[NumOfElements] = new Wedge(v1, v2, v3, v4, v5, v6, attr);
+   return NumOfElements++;
 }
 
-void Mesh::AddHex(const int *vi, int attr)
+int Mesh::AddWedge(const int *vi, int attr)
 {
-   elements[NumOfElements++] = new Hexahedron(vi, attr);
+   CheckEnlarge(elements, NumOfElements);
+   elements[NumOfElements] = new Wedge(vi, attr);
+   return NumOfElements++;
+}
+
+int Mesh::AddHex(int v1, int v2, int v3, int v4, int v5, int v6, int v7, int v8,
+                 int attr)
+{
+   CheckEnlarge(elements, NumOfElements);
+   elements[NumOfElements] =
+      new Hexahedron(v1, v2, v3, v4, v5, v6, v7, v8, attr);
+   return NumOfElements++;
+}
+
+int Mesh::AddHex(const int *vi, int attr)
+{
+   CheckEnlarge(elements, NumOfElements);
+   elements[NumOfElements] = new Hexahedron(vi, attr);
+   return NumOfElements++;
 }
 
 void Mesh::AddHexAsTets(const int *vi, int attr)
@@ -1314,19 +1392,60 @@ void Mesh::AddHexAsWedges(const int *vi, int attr)
    }
 }
 
-void Mesh::AddBdrSegment(const int *vi, int attr)
+int Mesh::AddElement(Element *elem)
 {
-   boundary[NumOfBdrElements++] = new Segment(vi, attr);
+   CheckEnlarge(elements, NumOfElements);
+   elements[NumOfElements] = elem;
+   return NumOfElements++;
 }
 
-void Mesh::AddBdrTriangle(const int *vi, int attr)
+int Mesh::AddBdrElement(Element *elem)
 {
-   boundary[NumOfBdrElements++] = new Triangle(vi, attr);
+   CheckEnlarge(boundary, NumOfBdrElements);
+   boundary[NumOfBdrElements] = elem;
+   return NumOfBdrElements++;
 }
 
-void Mesh::AddBdrQuad(const int *vi, int attr)
+int Mesh::AddBdrSegment(int v1, int v2, int attr)
 {
-   boundary[NumOfBdrElements++] = new Quadrilateral(vi, attr);
+   CheckEnlarge(boundary, NumOfBdrElements);
+   boundary[NumOfBdrElements] = new Segment(v1, v2, attr);
+   return NumOfBdrElements++;
+}
+
+int Mesh::AddBdrSegment(const int *vi, int attr)
+{
+   CheckEnlarge(boundary, NumOfBdrElements);
+   boundary[NumOfBdrElements] = new Segment(vi, attr);
+   return NumOfBdrElements++;
+}
+
+int Mesh::AddBdrTriangle(int v1, int v2, int v3, int attr)
+{
+   CheckEnlarge(boundary, NumOfBdrElements);
+   boundary[NumOfBdrElements] = new Triangle(v1, v2, v3, attr);
+   return NumOfBdrElements++;
+}
+
+int Mesh::AddBdrTriangle(const int *vi, int attr)
+{
+   CheckEnlarge(boundary, NumOfBdrElements);
+   boundary[NumOfBdrElements] = new Triangle(vi, attr);
+   return NumOfBdrElements++;
+}
+
+int Mesh::AddBdrQuad(int v1, int v2, int v3, int v4, int attr)
+{
+   CheckEnlarge(boundary, NumOfBdrElements);
+   boundary[NumOfBdrElements] = new Quadrilateral(v1, v2, v3, v4, attr);
+   return NumOfBdrElements++;
+}
+
+int Mesh::AddBdrQuad(const int *vi, int attr)
+{
+   CheckEnlarge(boundary, NumOfBdrElements);
+   boundary[NumOfBdrElements] = new Quadrilateral(vi, attr);
+   return NumOfBdrElements++;
 }
 
 void Mesh::AddBdrQuadAsTriangles(const int *vi, int attr)
@@ -2419,6 +2538,15 @@ void Mesh::FinalizeTopology(bool generate_bdr)
 
    // generate the arrays 'attributes' and 'bdr_attributes'
    SetAttributes();
+
+   // if the user defined any hanging nodes (see AddVertexParent),
+   // initialize the NC mesh now
+   if (tmp_vertex_parents.Size())
+   {
+      MFEM_VERIFY(ncmesh == NULL, "");
+      EnsureNCMesh(true);
+      tmp_vertex_parents.DeleteAll();
+   }
 }
 
 void Mesh::Finalize(bool refine, bool fix_orientation)
@@ -5293,12 +5421,12 @@ void Mesh::GenerateNCFaceInfo()
       (Dim == 2) ? ncmesh->GetEdgeList() : ncmesh->GetFaceList();
 
    nc_faces_info.SetSize(0);
-   nc_faces_info.Reserve(list.masters.size() + list.slaves.size());
+   nc_faces_info.Reserve(list.masters.Size() + list.slaves.Size());
 
    int nfaces = GetNumFaces();
 
    // add records for master faces
-   for (unsigned i = 0; i < list.masters.size(); i++)
+   for (int i = 0; i < list.masters.Size(); i++)
    {
       const NCMesh::Master &master = list.masters[i];
       if (master.index >= nfaces) { continue; }
@@ -5309,7 +5437,7 @@ void Mesh::GenerateNCFaceInfo()
    }
 
    // add records for slave faces
-   for (unsigned i = 0; i < list.slaves.size(); i++)
+   for (int i = 0; i < list.slaves.Size(); i++)
    {
       const NCMesh::Slave &slave = list.slaves[i];
 
@@ -5325,14 +5453,16 @@ void Mesh::GenerateNCFaceInfo()
       NCFaceInfo &master_nc = nc_faces_info[master_fi.NCFace];
 
       slave_fi.NCFace = nc_faces_info.Size();
-      nc_faces_info.Append(NCFaceInfo(true, slave.master, &slave.point_matrix));
-
       slave_fi.Elem2No = master_fi.Elem1No;
       slave_fi.Elem2Inf = 64 * master_nc.MasterFace; // get lf no. stored above
       // NOTE: In 3D, the orientation part of Elem2Inf is encoded in the point
       //       matrix. In 2D, the point matrix has the orientation of the parent
       //       edge, so its columns need to be flipped when applying it, see
       //       ApplyLocalSlaveTransformation.
+
+      nc_faces_info.Append(
+         NCFaceInfo(true, slave.master,
+                    list.point_matrices[slave.geom][slave.matrix]));
    }
 }
 
@@ -8913,7 +9043,8 @@ void Mesh::PrintVTK(std::ostream &out)
 void Mesh::PrintVTU(std::string fname,
                     VTKFormat format,
                     bool high_order_output,
-                    int compression_level)
+                    int compression_level,
+                    bool bdr)
 {
    int ref = (high_order_output && Nodes) ? Nodes->FESpace()->GetOrder(0) : 1;
    fname = fname + ".vtu";
@@ -8925,12 +9056,20 @@ void Mesh::PrintVTU(std::string fname,
    }
    out << " byte_order=\"" << VTKByteOrder() << "\">\n";
    out << "<UnstructuredGrid>\n";
-   PrintVTU(out, ref, format, high_order_output, compression_level);
+   PrintVTU(out, ref, format, high_order_output, compression_level, bdr);
    out << "</Piece>\n"; // need to close the piece open in the PrintVTU method
    out << "</UnstructuredGrid>\n";
    out << "</VTKFile>" << std::endl;
 
    out.close();
+}
+
+void Mesh::PrintBdrVTU(std::string fname,
+                       VTKFormat format,
+                       bool high_order_output,
+                       int compression_level)
+{
+   PrintVTU(fname, format, high_order_output, compression_level, true);
 }
 
 template <typename T>
@@ -8989,7 +9128,8 @@ void WriteBase64WithSizeAndClear(std::ostream &out, std::vector<char> &buf,
 }
 
 void Mesh::PrintVTU(std::ostream &out, int ref, VTKFormat format,
-                    bool high_order_output, int compression_level)
+                    bool high_order_output, int compression_level,
+                    bool bdr_elements)
 {
    RefinedGeometry *RefG;
    DenseMatrix pmat;
@@ -8998,11 +9138,18 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTKFormat format,
    const char *type_str = (format != VTKFormat::BINARY32) ? "Float64" : "Float32";
    std::vector<char> buf;
 
+   auto get_geom = [&](int i)
+   {
+      if (bdr_elements) { return GetBdrElementBaseGeometry(i); }
+      else { return GetElementBaseGeometry(i); }
+   };
+
+   int ne = bdr_elements ? GetNBE() : GetNE();
    // count the points, cells, size
    int np = 0, nc_ref = 0, size = 0;
-   for (int i = 0; i < GetNE(); i++)
+   for (int i = 0; i < ne; i++)
    {
-      Geometry::Type geom = GetElementBaseGeometry(i);
+      Geometry::Type geom = get_geom(i);
       int nv = Geometries.GetVertices(geom)->GetNPoints();
       RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
       np += RefG->RefPts.GetNPoints();
@@ -9011,18 +9158,24 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTKFormat format,
    }
 
    out << "<Piece NumberOfPoints=\"" << np << "\" NumberOfCells=\""
-       << (high_order_output ? GetNE() : nc_ref) << "\">\n";
+       << (high_order_output ? ne : nc_ref) << "\">\n";
 
    // print out the points
    out << "<Points>\n";
    out << "<DataArray type=\"" << type_str
        << "\" NumberOfComponents=\"3\" format=\"" << fmt_str << "\">\n";
-   for (int i = 0; i < GetNE(); i++)
+   for (int i = 0; i < ne; i++)
    {
-      RefG = GlobGeometryRefiner.Refine(
-                GetElementBaseGeometry(i), ref, 1);
+      RefG = GlobGeometryRefiner.Refine(get_geom(i), ref, 1);
 
-      GetElementTransformation(i)->Transform(RefG->RefPts, pmat);
+      if (bdr_elements)
+      {
+         GetBdrElementTransformation(i)->Transform(RefG->RefPts, pmat);
+      }
+      else
+      {
+         GetElementTransformation(i)->Transform(RefG->RefPts, pmat);
+      }
 
       for (int j = 0; j < pmat.Width(); j++)
       {
@@ -9063,9 +9216,9 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTKFormat format,
    if (high_order_output)
    {
       Array<int> local_connectivity;
-      for (int iel = 0; iel < GetNE(); iel++)
+      for (int iel = 0; iel < ne; iel++)
       {
-         Geometry::Type geom = GetElementBaseGeometry(iel);
+         Geometry::Type geom = get_geom(iel);
          CreateVTKElementConnectivity(local_connectivity, geom, ref);
          int nnodes = local_connectivity.Size();
          for (int i=0; i<nnodes; ++i)
@@ -9080,18 +9233,16 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTKFormat format,
    else
    {
       int coff = 0;
-      for (int i = 0; i < GetNE(); i++)
+      for (int i = 0; i < ne; i++)
       {
-         Geometry::Type geom = GetElementBaseGeometry(i);
+         Geometry::Type geom = get_geom(i);
          int nv = Geometries.GetVertices(geom)->GetNPoints();
          RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
          Array<int> &RG = RefG->RefGeoms;
          for (int j = 0; j < RG.Size(); )
          {
-            // out << nv;
             coff = coff+nv;
             offset.push_back(coff);
-
             for (int k = 0; k < nv; k++, j++)
             {
                WriteBinaryOrASCII(out, buf, np + RG[j], " ", format);
@@ -9122,9 +9273,9 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTKFormat format,
    out << "<DataArray type=\"UInt8\" Name=\"types\" format=\""
        << fmt_str << "\">" << std::endl;
    // cell types
-   for (int i = 0; i < GetNE(); i++)
+   for (int i = 0; i < ne; i++)
    {
-      Geometry::Type geom = GetElementBaseGeometry(i);
+      Geometry::Type geom = get_geom(i);
       uint8_t vtk_cell_type = 5;
 
       // VTK element types defined at: https://git.io/JvZLm
@@ -9178,19 +9329,19 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTKFormat format,
    out << "</DataArray>" << std::endl;
    out << "</Cells>" << std::endl;
 
-   out << "<CellData Scalars=\"material\">" << std::endl;
-   out << "<DataArray type=\"Int32\" Name=\"material\" format=\""
+   out << "<CellData Scalars=\"attribute\">" << std::endl;
+   out << "<DataArray type=\"Int32\" Name=\"attribute\" format=\""
        << fmt_str << "\">" << std::endl;
-   for (int i = 0; i < GetNE(); i++)
+   for (int i = 0; i < ne; i++)
    {
-      int attr = GetAttribute(i);
+      int attr = bdr_elements ? GetBdrAttribute(i) : GetAttribute(i);
       if (high_order_output)
       {
          WriteBinaryOrASCII(out, buf, attr, "\n", format);
       }
       else
       {
-         Geometry::Type geom = GetElementBaseGeometry(i);
+         Geometry::Type geom = get_geom(i);
          int nv = Geometries.GetVertices(geom)->GetNPoints();
          RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
          for (int j = 0; j < RefG->RefGeoms.Size(); j += nv)
