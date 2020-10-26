@@ -88,8 +88,8 @@ namespace mfem {
  * - <a class="el" href="ex24p_8cpp_source.html">Example 24p</a>: parallel mixed finite element spaces and interpolators
  * - <a class="el" href="ex25_8cpp_source.html">Example 25</a>: simulation of electromagnetic wave propagation using a Perfectly Matched Layer (PML)
  * - <a class="el" href="ex25p_8cpp_source.html">Example 25p</a>: parallel simulation of electromagnetic wave propagation using a Perfectly Matched Layer (PML)
- * - <a class="el" href="ex26_8cpp_source.html">Example 26</a>: multigrid preconditioner for the Laplace problem using nodal H1 FEM 
- * - <a class="el" href="ex26p_8cpp_source.html">Example 26p</a>: parallel multigrid preconditioner for the Laplace problem using nodal H1 FEM 
+ * - <a class="el" href="ex26_8cpp_source.html">Example 26</a>: multigrid preconditioner for the Laplace problem using nodal H1 FEM
+ * - <a class="el" href="ex26p_8cpp_source.html">Example 26p</a>: parallel multigrid preconditioner for the Laplace problem using nodal H1 FEM
  *
  * <H4>SUNDIALS Examples</H4>
  * - Variants of Examples
@@ -101,6 +101,9 @@ namespace mfem {
  *   and
  *   <a class="el" href="sundials_2ex16p_8cpp_source.html">16p</a>
  *   demonstrating the use of MFEM's \link sundials.hpp SUNDIALS classes\endlink
+ * - CVODES adjoint examples:
+ *   <a class="el" href="cvsRoberts__ASAi__dns_8cpp_source.html">serial ODE system</a>,
+ *   <a class="el" href="adjoint__advection__diffusion_8cpp_source.html">parallel advection-diffusion</a>
  *
  * <H4>PETSc Examples</H4>
  * - Variants of Examples
@@ -140,15 +143,18 @@ namespace mfem {
  * - <a class="el" href="tesla_8cpp_source.html">Tesla</a>: simple magnetostatics simulation code
  * - <a class="el" href="maxwell_8cpp_source.html">Maxwell</a>: simple transient full-wave electromagnetics simulation code
  * - <a class="el" href="joule_8cpp_source.html">Joule</a>: transient magnetics and Joule heating miniapp
+ * - <a class="el" href="classmfem_1_1navier_1_1NavierSolver.html">Navier</a>: solve the transient incompressible Navier-Stokes equations
  * - <a class="el" href="mobius-strip_8cpp_source.html">Mobius Strip</a>: generate various Mobius strip-like meshes
  * - <a class="el" href="klein-bottle_8cpp_source.html">Klein Bottle</a>: generate three types of Klein bottle surfaces
  * - <a class="el" href="toroid_8cpp_source.html">Toroid</a>: generate simple toroidal meshes
  * - <a class="el" href="twist_8cpp_source.html">Twist</a>: generate simple periodic meshes
  * - <a class="el" href="minimal-surface_8cpp_source.html">Minimal Surface</a>: compute minimal surfaces, <a class="el" href="minimal-surface_8cpp_source.html">serial</a> and <a class="el" href="pminimal-surface_8cpp_source.html">parallel</a> versions
+ * - <a class="el" href="polar-nc_8cpp_source.html">Polar NC</a>: generate polar non-conforming meshes
  * - <a class="el" href="shaper_8cpp_source.html">Shaper</a>: resolve material interfaces by mesh refinement
  * - <a class="el" href="extruder_8cpp_source.html">Extruder</a>: extrude a low-dimensional mesh into a higher dimension
  * - <a class="el" href="mesh-explorer_8cpp_source.html">Mesh Explorer</a>: visualize and manipulate meshes
  * - <a class="el" href="mesh-optimizer_8cpp_source.html">Mesh Optimizer</a>: optimize high-order meshes, <a class="el" href="mesh-optimizer_8cpp_source.html">serial</a> and <a class="el" href="pmesh-optimizer_8cpp_source.html">parallel</a> versions
+ * - <a class="el" href="trimmer_8cpp_source.html">Trimmer</a>: trim elements from existing meshes
  * - <a class="el" href="display-basis_8cpp_source.html">Display Basis</a>: visualize finite element basis functions
  * - <a class="el" href="get-values_8cpp_source.html">Get Values</a>: extract field values via DataCollection classes
  * - <a class="el" href="load-dc_8cpp_source.html">Load DC</a>: visualize fields saved via DataCollection classes
@@ -156,7 +162,7 @@ namespace mfem {
  * - <a class="el" href="lor-transfer_8cpp_source.html">LOR Transfer</a>: map functions between high-order and low-order refined spaces
  * - <a class="el" href="findpts_8cpp_source.html">Find Points</a>: evaluate grid function in physical space, <a class="el" href="findpts_8cpp_source.html">serial</a> and <a class="el" href="pfindpts_8cpp_source.html">parallel</a> versions
  * - <a class="el" href="field-diff_8cpp_source.html">Field Diff</a>: compare grid functions on different meshes
- * - <a class="el" href="classmfem_1_1navier_1_1NavierSolver.html">Navier</a>: solve the transient incompressible Navier-Stokes equations
+ * - <a class="el" href="field-interp_8cpp_source.html">Field Interp</a>: transfer a grid functions betwen meshes
  * - <a class="el" href="miniapps_2performance_2ex1_8cpp_source.html">HPC Example 1</a>: high-performance nodal H1 FEM for the Laplace problem
  * - <a class="el" href="miniapps_2performance_2ex1p_8cpp_source.html">HPC Example 1p</a>: high-performance parallel nodal H1 FEM for the Laplace problem
  *

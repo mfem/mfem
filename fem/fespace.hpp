@@ -111,7 +111,9 @@ protected:
    int *fdofs, *bdofs;
 
    mutable Table *elem_dof; // if NURBS FE space, not owned; otherwise, owned.
-   Table *bdrElem_dof; // used only with NURBS FE spaces; not owned.
+   mutable Table *bdrElem_dof; // not owned only if NURBS FE space.
+   mutable Table *face_dof; // owned
+   mutable Array<int> face_to_be; // used only with NURBS FE spaces; owned.
 
    Array<int> dof_elem_array, dof_ldof_array;
 
@@ -158,6 +160,14 @@ protected:
    void Destroy();
 
    void BuildElementToDofTable() const;
+   void BuildBdrElementToDofTable() const;
+   void BuildFaceToDofTable() const;
+
+   /** @brief  Generates partial face_dof table for a NURBS space.
+
+       The table is only defined for exterior faces that coincide with a
+       boundary. */
+   void BuildNURBSFaceToDofTable() const;
 
    /// Helpers to remove encoded sign from a DOF
    static inline int DecodeDof(int dof)
@@ -528,12 +538,35 @@ public:
        is preserved. */
    void ReorderElementToDofTable();
 
+   /** @brief Return a reference to the internal Table that stores the lists of
+       scalar dofs, for each mesh element, as returned by GetElementDofs(). */
+   const Table &GetElementToDofTable() const { return *elem_dof; }
+
+   /** @brief Return a reference to the internal Table that stores the lists of
+       scalar dofs, for each boundary mesh element, as returned by
+       GetBdrElementDofs(). */
+   const Table &GetBdrElementToDofTable() const
+   { if (!bdrElem_dof) { BuildBdrElementToDofTable(); } return *bdrElem_dof; }
+
+   /** @brief Return a reference to the internal Table that stores the lists of
+       scalar dofs, for each face in the mesh, as returned by GetFaceDofs(). In
+       this context, "face" refers to a (dim-1)-dimensional mesh entity. */
+   /** @note In the case of a NURBS space, the rows corresponding to interior
+       faces will be empty. */
+   const Table &GetFaceToDofTable() const
+   { if (!face_dof) { BuildFaceToDofTable(); } return *face_dof; }
+
+   /** @brief Initialize internal data that enables the use of the methods
+       GetElementForDof() and GetLocalDofForDof(). */
    void BuildDofToArrays();
 
-   const Table &GetElementToDofTable() const { return *elem_dof; }
-   const Table &GetBdrElementToDofTable() const { return *bdrElem_dof; }
-
+   /// Return the index of the first element that contains dof @a i.
+   /** This method can be called only after setup is performed using the method
+       BuildDofToArrays(). */
    int GetElementForDof(int i) const { return dof_elem_array[i]; }
+   /// Return the local dof index in the first element that contains dof @a i.
+   /** This method can be called only after setup is performed using the method
+       BuildDofToArrays(). */
    int GetLocalDofForDof(int i) const { return dof_ldof_array[i]; }
 
    /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection
@@ -722,6 +755,12 @@ public:
 
    /// Return the total number of quadrature points.
    int GetSize() const { return size; }
+
+   /// Returns the mesh
+   inline Mesh *GetMesh() const { return mesh; }
+
+   /// Returns number of elements in the mesh.
+   inline int GetNE() const { return mesh->GetNE(); }
 
    /// Get the IntegrationRule associated with mesh element @a idx.
    const IntegrationRule &GetElementIntRule(int idx) const

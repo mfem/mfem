@@ -32,6 +32,16 @@ public:
       : attr(attr), coeff(coeff)
    {}
 
+   VelDirichletBC_T(VelDirichletBC_T &&obj)
+   {
+      // Deep copy the attribute array
+      this->attr = obj.attr;
+
+      // Move the coefficient pointer
+      this->coeff = obj.coeff;
+      obj.coeff = nullptr;
+   }
+
    ~VelDirichletBC_T() { delete coeff; }
 
    Array<int> attr;
@@ -46,6 +56,16 @@ public:
       : attr(attr), coeff(coeff)
    {}
 
+   PresDirichletBC_T(PresDirichletBC_T &&obj)
+   {
+      // Deep copy the attribute array
+      this->attr = obj.attr;
+
+      // Move the coefficient pointer
+      this->coeff = obj.coeff;
+      obj.coeff = nullptr;
+   }
+
    ~PresDirichletBC_T() { delete coeff; }
 
    Array<int> attr;
@@ -59,6 +79,16 @@ public:
    AccelTerm_T(Array<int> attr, VectorCoefficient *coeff)
       : attr(attr), coeff(coeff)
    {}
+
+   AccelTerm_T(AccelTerm_T &&obj)
+   {
+      // Deep copy the attribute array
+      this->attr = obj.attr;
+
+      // Move the coefficient pointer
+      this->coeff = obj.coeff;
+      obj.coeff = nullptr;
+   }
 
    ~AccelTerm_T() { delete coeff; }
 

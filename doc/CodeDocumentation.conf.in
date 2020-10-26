@@ -770,6 +770,7 @@ INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/examples/pumi \
                          @MFEM_SOURCE_DIR@/examples/hiop \
                          @MFEM_SOURCE_DIR@/examples/sundials \
+                         @MFEM_SOURCE_DIR@/miniapps/adjoint \			 
                          @MFEM_SOURCE_DIR@/miniapps/common \
                          @MFEM_SOURCE_DIR@/miniapps/electromagnetics \
                          @MFEM_SOURCE_DIR@/miniapps/gslib \

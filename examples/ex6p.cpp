@@ -20,7 +20,7 @@
 //               mpirun -np 4 ex6p -pa -d occa-cuda
 //               mpirun -np 4 ex6p -pa -d raja-omp
 //               mpirun -np 4 ex6p -pa -d ceed-cpu
-//               * mpirun -np 4 ex6p -pa -d ceed-cuda
+//             * mpirun -np 4 ex6p -pa -d ceed-cuda
 //               mpirun -np 4 ex6p -pa -d ceed-cuda:/gpu/cuda/shared
 //
 // Description:  This is a version of Example 1 with a simple adaptive mesh
@@ -129,7 +129,11 @@ int main(int argc, char *argv[])
    //    the Laplace problem -\Delta u = 1. We don't assemble the discrete
    //    problem yet, this will be done in the main loop.
    ParBilinearForm a(&fespace);
-   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   if (pa)
+   {
+      a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      a.SetDiagonalPolicy(Operator::DIAG_ONE);
+   }
    ParLinearForm b(&fespace);
 
    ConstantCoefficient one(1.0);
@@ -220,17 +224,26 @@ int main(int argc, char *argv[])
 
       // 17. Solve the linear system A X = B.
       //     * With full assembly, use the BoomerAMG preconditioner from hypre.
-      //     * With partial assembly, use no preconditioner, for now.
-      HypreBoomerAMG *amg = NULL;
-      if (!pa) { amg = new HypreBoomerAMG; amg->SetPrintLevel(0); }
+      //     * With partial assembly, use a diagonal preconditioner.
+      Solver *M = NULL;
+      if (pa)
+      {
+         M = new OperatorJacobiSmoother(a, ess_tdof_list);
+      }
+      else
+      {
+         HypreBoomerAMG *amg = new HypreBoomerAMG;
+         amg->SetPrintLevel(0);
+         M = amg;
+      }
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-6);
       cg.SetMaxIter(2000);
       cg.SetPrintLevel(3); // print the first and the last iterations only
-      if (amg) { cg.SetPreconditioner(*amg); }
+      cg.SetPreconditioner(*M);
       cg.SetOperator(*A);
       cg.Mult(B, X);
-      delete amg;
+      delete M;
 
       // 18. Switch back to the host and extract the parallel grid function
       //     corresponding to the finite element approximation X. This is the

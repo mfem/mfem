@@ -162,21 +162,6 @@ public:
    { MFEM_ABORT("Not implemented"); }
 };
 
-/// Shape+Size metric, 2D.
-class TMOP_Metric_SS2D : public TMOP_QualityMetric
-{
-public:
-   // W = 0.5 (1 - cos(theta_Jpr - theta_Jtr)).
-   virtual double EvalW(const DenseMatrix &Jpt) const;
-
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
-   { MFEM_ABORT("Not implemented"); }
-
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const
-   { MFEM_ABORT("Not implemented"); }
-};
-
 /// Shape, ideal barrier metric, 2D
 class TMOP_Metric_002 : public TMOP_QualityMetric
 {
@@ -329,6 +314,21 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
 
+};
+
+/// Shape & orientation metric, 2D.
+class TMOP_Metric_085 : public TMOP_QualityMetric
+{
+public:
+   // W = |T-T'|^2, where T'= |T|*I/sqrt(2).
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   { MFEM_ABORT("Not implemented"); }
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const
+   { MFEM_ABORT("Not implemented"); }
 };
 
 /// Untangling metric, 2D
@@ -677,6 +677,25 @@ public:
                                       const IntegrationRule &ir,
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
+
+   virtual void ComputeElementTargetsGradient(const IntegrationRule &ir,
+                                              const Vector &elfun,
+                                              IsoparametricTransformation &Tpr,
+                                              DenseTensor &dJtr) const;
+};
+
+class TMOPMatrixCoefficient  : public MatrixCoefficient
+{
+public:
+   explicit TMOPMatrixCoefficient(int dim) : MatrixCoefficient(dim, dim) { }
+
+   /** @brief Evaluate the derivative of the matrix coefficient with respect to
+       @a comp in the element described by @a T at the point @a ip, storing the
+       result in @a K. */
+   virtual void EvalGrad(DenseMatrix &K, ElementTransformation &T,
+                         const IntegrationPoint &ip, int comp) = 0;
+
+   virtual ~TMOPMatrixCoefficient() { }
 };
 
 class AnalyticAdaptTC : public TargetConstructor
@@ -685,7 +704,7 @@ protected:
    // Analytic target specification.
    Coefficient *scalar_tspec;
    VectorCoefficient *vector_tspec;
-   MatrixCoefficient *matrix_tspec;
+   TMOPMatrixCoefficient *matrix_tspec;
 
 public:
    AnalyticAdaptTC(TargetType ttype)
@@ -694,7 +713,7 @@ public:
 
    virtual void SetAnalyticTargetSpec(Coefficient *sspec,
                                       VectorCoefficient *vspec,
-                                      MatrixCoefficient *mspec);
+                                      TMOPMatrixCoefficient *mspec);
 
    /** @brief Given an element and quadrature rule, computes ref->target
        transformation Jacobians for each quadrature point in the element.
@@ -703,6 +722,11 @@ public:
                                       const IntegrationRule &ir,
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
+
+   virtual void ComputeElementTargetsGradient(const IntegrationRule &ir,
+                                              const Vector &elfun,
+                                              IsoparametricTransformation &Tpr,
+                                              DenseTensor &dJtr) const;
 };
 
 #ifdef MFEM_USE_MPI
@@ -724,13 +748,17 @@ protected:
    // eta1(x+h,y), eta2(x+h,y) ... etan(x+h,y), eta1(x,y+h), eta2(x,y+h) ...
    // same for tspec_pert2h and tspec_pertmix.
 
+   // Components of Target Jacobian at each quadrature point of an element. This
+   // is required for computation of the derivative using chain rule.
+   mutable DenseTensor Jtrcomp;
+
    // Note: do not use the Nodes of this space as they may not be on the
    // positions corresponding to the values of tspec.
    const FiniteElementSpace *tspec_fes;
    const FiniteElementSpace *tspec_fesv;
 
-   // These flags can be used by outside functions to avoid recomputing
-   // the tspec and tspec_perth fields again on the same mesh.
+   // These flags can be used by outside functions to avoid recomputing the
+   // tspec and tspec_perth fields again on the same mesh.
    bool good_tspec, good_tspec_grad, good_tspec_hess;
 
    // Evaluation of the discrete target specification on different meshes.
@@ -837,6 +865,11 @@ public:
                                       const IntegrationRule &ir,
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
+
+   virtual void ComputeElementTargetsGradient(const IntegrationRule &ir,
+                                              const Vector &elfun,
+                                              IsoparametricTransformation &Tpr,
+                                              DenseTensor &dJtr) const;
 };
 
 class TMOPNewtonSolver;
@@ -856,6 +889,10 @@ protected:
 
    TMOP_QualityMetric *metric;        // not owned
    const TargetConstructor *targetC;  // not owned
+
+   // Custom integration rules.
+   IntegrationRules *IntegRules;
+   int integ_order;
 
    // Weight Coefficient multiplying the quality metric term.
    Coefficient *coeff1; // not owned, if NULL -> coeff1 is 1.
@@ -889,6 +926,9 @@ protected:
    // Specifies that ComputeElementTargets is being called by a FD function.
    // It's used to skip terms that have exact derivative calculations.
    bool fd_call_flag;
+   // Compute the exact action of the Integrator (includes derivative of the
+   // target with respect to spatial position)
+   bool exact_action;
 
    Array <Vector *> ElemDer;        //f'(x)
    Array <Vector *> ElemPertEnergy; //f(x+h)
@@ -952,17 +992,21 @@ protected:
       nodes0 = NULL; coeff0 = NULL; lim_dist = NULL; lim_func = NULL;
    }
 
-   const IntegrationRule *EnergyIntegrationRule(const FiniteElement &el) const
+   const IntegrationRule &EnergyIntegrationRule(const FiniteElement &el) const
    {
-      return (IntRule) ? IntRule
-             /*     */ : &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3));
+      if (IntegRules)
+      {
+         return IntegRules->Get(el.GetGeomType(), integ_order);
+      }
+      return (IntRule) ? *IntRule
+             /*     */ : IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3);
    }
-   const IntegrationRule *ActionIntegrationRule(const FiniteElement &el) const
+   const IntegrationRule &ActionIntegrationRule(const FiniteElement &el) const
    {
       // TODO the energy most likely needs less integration points.
       return EnergyIntegrationRule(el);
    }
-   const IntegrationRule *GradientIntegrationRule(const FiniteElement &el) const
+   const IntegrationRule &GradientIntegrationRule(const FiniteElement &el) const
    {
       // TODO the action and energy most likely need less integration points.
       return EnergyIntegrationRule(el);
@@ -972,16 +1016,24 @@ public:
    /** @param[in] m  TMOP_QualityMetric that will be integrated (not owned).
        @param[in] tc Target-matrix construction algorithm to use (not owned). */
    TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc)
-      : metric(m), targetC(tc),
+      : metric(m), targetC(tc), IntegRules(NULL), integ_order(-1),
         coeff1(NULL), metric_normal(1.0),
         nodes0(NULL), coeff0(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
         zeta_0(NULL), zeta(NULL), coeff_zeta(NULL), adapt_eval(NULL),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
-        fdflag(false), dxscale(1.0e3), fd_call_flag(false)
+        fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
    { }
 
    ~TMOP_Integrator();
+
+   /// Prescribe a set of integration rules; relevant for mixed meshes.
+   /** This function has priority over SetIntRule(), if both are called. */
+   void SetIntegrationRules(IntegrationRules &irules, int order)
+   {
+      IntegRules = &irules;
+      integ_order = order;
+   }
 
    /// Sets a scaling Coefficient for the quality metric term of the integrator.
    /** With this addition, the integrator becomes
@@ -1066,6 +1118,9 @@ public:
    void   SetFDhScale(double _dxscale) { dxscale = _dxscale; }
    bool   GetFDFlag() const { return fdflag; }
    double GetFDh()    const { return dx; }
+
+   /** @brief Flag to control if exact action of Integration is effected. */
+   void SetExactActionFlag(bool flag_) { exact_action = flag_; }
 };
 
 class TMOPComboIntegrator : public NonlinearFormIntegrator

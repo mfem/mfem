@@ -450,16 +450,16 @@ private:
 
    template <std::size_t align_bytes, bool dummy = true> struct Alloc
    {
+#if __cplusplus < 201703L
       static inline T *New(std::size_t)
       {
-#if __cplusplus < 201703L
          // Generate an error in debug mode
          MFEM_ASSERT(false, "overaligned type cannot use MemoryType::HOST");
          return nullptr;
-#else
-         return new T[size];
-#endif
       }
+#else
+      static inline T *New(std::size_t size) { return new T[size]; }
+#endif
    };
 
 #if __cplusplus < 201703L

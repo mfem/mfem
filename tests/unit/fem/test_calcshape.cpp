@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include "catch.hpp"
+#include "unit_tests.hpp"
 
 #include <iostream>
 #include <cmath>
@@ -102,7 +102,7 @@ void TestCalcShape(FiniteElement* fe, int res)
       {
          IntegrationPoint& ip = ipArr[j];
          fe->CalcShape(ip, weights);
-         REQUIRE( weights.Sum() == Approx(1.) );
+         REQUIRE( weights.Sum() == MFEM_Approx(1.) );
       }
    }
 }

@@ -29,10 +29,13 @@ namespace mfem
 {
 
 FindPointsGSLIB::FindPointsGSLIB()
-   : mesh(NULL), ir_simplex(NULL), fdata2D(NULL), fdata3D(NULL),
-     dim(-1), gsl_mesh(), gsl_ref(), gsl_dist(), setupflag(false)
+   : mesh(NULL), meshsplit(NULL), ir_simplex(NULL),
+     fdata2D(NULL), fdata3D(NULL), cr(NULL), gsl_comm(NULL),
+     dim(-1), points_cnt(0), setupflag(false), default_interp_value(0),
+     avgtype(AvgType::ARITHMETIC)
 {
    gsl_comm = new comm;
+   cr       = new crystal;
 #ifdef MFEM_USE_MPI
    int initialized;
    MPI_Initialized(&initialized);
@@ -47,15 +50,20 @@ FindPointsGSLIB::FindPointsGSLIB()
 FindPointsGSLIB::~FindPointsGSLIB()
 {
    delete gsl_comm;
+   delete cr;
    delete ir_simplex;
+   delete meshsplit;
 }
 
 #ifdef MFEM_USE_MPI
 FindPointsGSLIB::FindPointsGSLIB(MPI_Comm _comm)
-   : mesh(NULL), ir_simplex(NULL), fdata2D(NULL), fdata3D(NULL),
-     dim(-1), gsl_mesh(), gsl_ref(), gsl_dist(), setupflag(false)
+   : mesh(NULL), meshsplit(NULL), ir_simplex(NULL),
+     fdata2D(NULL), fdata3D(NULL), cr(NULL), gsl_comm(NULL),
+     dim(-1), points_cnt(0), setupflag(false), default_interp_value(0),
+     avgtype(AvgType::ARITHMETIC)
 {
    gsl_comm = new comm;
+   cr      = new crystal;
    comm_init(gsl_comm, _comm);
 }
 #endif
@@ -70,6 +78,7 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
    // call FreeData if FindPointsGSLIB::Setup has been called already
    if (setupflag) { FreeData(); }
 
+   crystal_init(cr, gsl_comm);
    mesh = &m;
    dim  = mesh->Dimension();
    const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(0);
@@ -113,14 +122,16 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
    setupflag = true;
 }
 
-void FindPointsGSLIB::FindPoints(const Vector &point_pos,
-                                 Array<unsigned int> &codes,
-                                 Array<unsigned int> &proc_ids,
-                                 Array<unsigned int> &elem_ids,
-                                 Vector &ref_pos, Vector &dist)
+void FindPointsGSLIB::FindPoints(const Vector &point_pos)
 {
    MFEM_VERIFY(setupflag, "Use FindPointsGSLIB::Setup before finding points.");
-   const int points_cnt = point_pos.Size() / dim;
+   points_cnt = point_pos.Size() / dim;
+   gsl_code.SetSize(points_cnt);
+   gsl_proc.SetSize(points_cnt);
+   gsl_elem.SetSize(points_cnt);
+   gsl_ref.SetSize(points_cnt * dim);
+   gsl_dist.SetSize(points_cnt);
+
    if (dim == 2)
    {
       const double *xv_base[2];
@@ -129,11 +140,11 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
       unsigned xv_stride[2];
       xv_stride[0] = sizeof(double);
       xv_stride[1] = sizeof(double);
-      findpts_2(codes.GetData(), sizeof(unsigned int),
-                proc_ids.GetData(), sizeof(unsigned int),
-                elem_ids.GetData(), sizeof(unsigned int),
-                ref_pos.GetData(), sizeof(double) * dim,
-                dist.GetData(), sizeof(double),
+      findpts_2(gsl_code.GetData(), sizeof(unsigned int),
+                gsl_proc.GetData(), sizeof(unsigned int),
+                gsl_elem.GetData(), sizeof(unsigned int),
+                gsl_ref.GetData(),  sizeof(double) * dim,
+                gsl_dist.GetData(), sizeof(double),
                 xv_base, xv_stride, points_cnt, fdata2D);
    }
    else
@@ -146,25 +157,27 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
       xv_stride[0] = sizeof(double);
       xv_stride[1] = sizeof(double);
       xv_stride[2] = sizeof(double);
-      findpts_3(codes.GetData(), sizeof(unsigned int),
-                proc_ids.GetData(), sizeof(unsigned int),
-                elem_ids.GetData(), sizeof(unsigned int),
-                ref_pos.GetData(), sizeof(double) * dim,
-                dist.GetData(), sizeof(double),
+      findpts_3(gsl_code.GetData(), sizeof(unsigned int),
+                gsl_proc.GetData(), sizeof(unsigned int),
+                gsl_elem.GetData(), sizeof(unsigned int),
+                gsl_ref.GetData(),  sizeof(double) * dim,
+                gsl_dist.GetData(), sizeof(double),
                 xv_base, xv_stride, points_cnt, fdata3D);
    }
-}
 
-void FindPointsGSLIB::FindPoints(const Vector &point_pos)
-{
-   const int points_cnt = point_pos.Size() / dim;
-   gsl_code.SetSize(points_cnt);
-   gsl_proc.SetSize(points_cnt);
-   gsl_elem.SetSize(points_cnt);
-   gsl_ref.SetSize(points_cnt * dim);
-   gsl_dist.SetSize(points_cnt);
+   // Set the element number and reference position to 0 for points not found
+   for (int i = 0; i < points_cnt; i++)
+   {
+      if (gsl_code[i] == 2)
+      {
+         gsl_elem[i] = 0;
+         for (int d = 0; d < dim; d++) { gsl_ref(i*dim + d) = -1.; }
+      }
+   }
 
-   FindPoints(point_pos, gsl_code, gsl_proc, gsl_elem, gsl_ref, gsl_dist);
+   // Map element number for simplices, and ref_pos from [-1,1] to [0,1] for
+   // both simplices and quads.
+   MapRefPosAndElemIndices();
 }
 
 void FindPointsGSLIB::FindPoints(Mesh &m, const Vector &point_pos,
@@ -178,71 +191,24 @@ void FindPointsGSLIB::FindPoints(Mesh &m, const Vector &point_pos,
    FindPoints(point_pos);
 }
 
-void FindPointsGSLIB::Interpolate(Array<unsigned int> &codes,
-                                  Array<unsigned int> &proc_ids,
-                                  Array<unsigned int> &elem_ids,
-                                  Vector &ref_pos, const GridFunction &field_in,
-                                  Vector &field_out)
-{
-
-   FiniteElementSpace ind_fes(mesh, field_in.FESpace()->FEColl());
-   GridFunction field_in_scalar(&ind_fes);
-   Vector node_vals;
-
-   const int ncomp      = field_in.FESpace()->GetVDim(),
-             points_fld = field_in.Size() / ncomp,
-             points_cnt = codes.Size();
-
-   for (int i = 0; i < ncomp; i++)
-   {
-      const int dataptrin  = i*points_fld,
-                dataptrout = i*points_cnt;
-      field_in_scalar.NewDataAndSize(field_in.GetData()+dataptrin, points_fld);
-      GetNodeValues(field_in_scalar, node_vals);
-
-      if (dim==2)
-      {
-         findpts_eval_2(field_out.GetData()+dataptrout, sizeof(double),
-                        codes.GetData(),       sizeof(unsigned int),
-                        proc_ids.GetData(),    sizeof(unsigned int),
-                        elem_ids.GetData(),    sizeof(unsigned int),
-                        ref_pos.GetData(),     sizeof(double) * dim,
-                        points_cnt, node_vals.GetData(), fdata2D);
-      }
-      else
-      {
-         findpts_eval_3(field_out.GetData()+dataptrout, sizeof(double),
-                        codes.GetData(),       sizeof(unsigned int),
-                        proc_ids.GetData(),    sizeof(unsigned int),
-                        elem_ids.GetData(),    sizeof(unsigned int),
-                        ref_pos.GetData(),     sizeof(double) * dim,
-                        points_cnt, node_vals.GetData(), fdata3D);
-      }
-   }
-}
-
-void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
-                                  Vector &field_out)
-{
-   Interpolate(gsl_code, gsl_proc, gsl_elem, gsl_ref, field_in, field_out);
-}
-
 void FindPointsGSLIB::Interpolate(const Vector &point_pos,
                                   const GridFunction &field_in, Vector &field_out)
 {
    FindPoints(point_pos);
-   Interpolate(gsl_code, gsl_proc, gsl_elem, gsl_ref, field_in, field_out);
+   Interpolate(field_in, field_out);
 }
 
 void FindPointsGSLIB::Interpolate(Mesh &m, const Vector &point_pos,
                                   const GridFunction &field_in, Vector &field_out)
 {
    FindPoints(m, point_pos);
-   Interpolate(gsl_code, gsl_proc, gsl_elem, gsl_ref, field_in, field_out);
+   Interpolate(field_in, field_out);
 }
 
 void FindPointsGSLIB::FreeData()
 {
+   if (!setupflag) { return; }
+   crystal_free(cr);
    if (dim == 2)
    {
       findpts_free_2(fdata2D);
@@ -251,13 +217,13 @@ void FindPointsGSLIB::FreeData()
    {
       findpts_free_3(fdata3D);
    }
-   setupflag = false;
    gsl_code.DeleteAll();
    gsl_proc.DeleteAll();
    gsl_elem.DeleteAll();
    gsl_mesh.Destroy();
    gsl_ref.Destroy();
    gsl_dist.Destroy();
+   setupflag = false;
 }
 
 void FindPointsGSLIB::GetNodeValues(const GridFunction &gf_in,
@@ -357,9 +323,8 @@ void FindPointsGSLIB::GetSimplexNodalCoordinates()
    const FiniteElement *fe   = mesh->GetNodalFESpace()->GetFE(0);
    const Geometry::Type gt   = fe->GetGeomType();
    const GridFunction *nodes = mesh->GetNodes();
-   Mesh *meshsplit           = NULL;
    const int NE              = mesh->GetNE();
-   int NEsplit = -1;
+   int NEsplit = 0;
 
    // Split the reference element into a reference submesh of quads or hexes.
    if (gt == Geometry::TRIANGLE)
@@ -515,8 +480,361 @@ void FindPointsGSLIB::GetSimplexNodalCoordinates()
          pt_id++;
       }
    }
+}
 
-   delete meshsplit;
+void FindPointsGSLIB::MapRefPosAndElemIndices()
+{
+   gsl_mfem_ref = gsl_ref;
+   gsl_mfem_elem = gsl_elem;
+   const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(0);
+   const Geometry::Type gt = fe->GetGeomType();
+   int NEsplit = 0;
+
+   gsl_mfem_ref -= -1.;  // map  [-1, 1] to
+   gsl_mfem_ref *= 0.5;  //      [0,  1]
+   if (gt == Geometry::SQUARE || gt == Geometry::CUBE) { return; }
+
+   H1_FECollection feclin(1, dim);
+   FiniteElementSpace nodal_fes_lin(meshsplit, &feclin, dim);
+   GridFunction gf_lin(&nodal_fes_lin);
+
+   if (gt == Geometry::TRIANGLE)
+   {
+      const double quad_v[7][2] =
+      {
+         {0, 0}, {0.5, 0}, {1, 0}, {0, 0.5},
+         {1./3., 1./3.}, {0.5, 0.5}, {0, 1}
+      };
+      for (int k = 0; k < dim; k++)
+      {
+         for (int j = 0; j < gf_lin.Size()/dim; j++)
+         {
+            gf_lin(j+k*gf_lin.Size()/dim) = quad_v[j][k];
+         }
+      }
+      NEsplit = 3;
+   }
+   else if (gt == Geometry::TETRAHEDRON)
+   {
+      const double hex_v[15][3] =
+      {
+         {0, 0, 0.}, {1, 0., 0.}, {0., 1., 0.}, {0, 0., 1.},
+         {0.5, 0., 0.}, {0.5, 0.5, 0.}, {0., 0.5, 0.},
+         {0., 0., 0.5}, {0.5, 0., 0.5}, {0., 0.5, 0.5},
+         {1./3., 0., 1./3.}, {1./3., 1./3., 1./3.}, {0, 1./3., 1./3.},
+         {1./3., 1./3., 0}, {0.25, 0.25, 0.25}
+      };
+      for (int k = 0; k < dim; k++)
+      {
+         for (int j = 0; j < gf_lin.Size()/dim; j++)
+         {
+            gf_lin(j+k*gf_lin.Size()/dim) = hex_v[j][k];
+         }
+      }
+      NEsplit = 4;
+   }
+   else if (gt == Geometry::PRISM)
+   {
+      const double hex_v[14][3] =
+      {
+         {0, 0, 0}, {0.5, 0, 0}, {1, 0, 0}, {0, 0.5, 0},
+         {1./3., 1./3., 0}, {0.5, 0.5, 0}, {0, 1, 0},
+         {0, 0, 1}, {0.5, 0, 1}, {1, 0, 1}, {0, 0.5, 1},
+         {1./3., 1./3., 1}, {0.5, 0.5, 1}, {0, 1, 1}
+      };
+      for (int k = 0; k < dim; k++)
+      {
+         for (int j = 0; j < gf_lin.Size()/dim; j++)
+         {
+            gf_lin(j+k*gf_lin.Size()/dim) = hex_v[j][k];
+         }
+      }
+      NEsplit = 3;
+   }
+   else
+   {
+      MFEM_ABORT("Element type not currently supported.");
+   }
+
+   // Simplices are split into quads/hexes for GSLIB. For MFEM, we need to find
+   // the original element number and map the rst from micro to macro element.
+   for (int i = 0; i < points_cnt; i++)
+   {
+      if (gsl_code[i] == 2) { continue; }
+      int local_elem   = gsl_elem[i]%NEsplit;
+      gsl_mfem_elem[i] = (gsl_elem[i] - local_elem)/NEsplit; // macro element number
+
+      IntegrationPoint ip;
+      Vector mfem_ref(gsl_mfem_ref.GetData()+i*dim, dim);
+      ip.Set2(mfem_ref.GetData());
+      if (dim == 3) { ip.z = mfem_ref(2); }
+      gf_lin.GetVectorValue(local_elem, ip, mfem_ref); // map to rst of macro element
+   }
+}
+
+void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
+                                  Vector &field_out)
+{
+   const int  gf_order   = field_in.FESpace()->GetFE(0)->GetOrder(),
+              mesh_order = mesh->GetNodalFESpace()->GetFE(0)->GetOrder();
+
+   const FiniteElementCollection *fec_in =  field_in.FESpace()->FEColl();
+   const H1_FECollection *fec_h1 = dynamic_cast<const H1_FECollection *>(fec_in);
+   const L2_FECollection *fec_l2 = dynamic_cast<const L2_FECollection *>(fec_in);
+
+   if (fec_h1 && gf_order == mesh_order &&
+       fec_h1->GetBasisType() == BasisType::GaussLobatto)
+   {
+      InterpolateH1(field_in, field_out);
+      return;
+   }
+   else
+   {
+      InterpolateGeneral(field_in, field_out);
+      if (!fec_l2 || avgtype == AvgType::NONE) { return; }
+   }
+
+   // For points on element borders, project the L2 GridFunction to H1 and
+   // re-interpolate.
+   if (fec_l2)
+   {
+      Array<int> indl2;
+      for (int i = 0; i < points_cnt; i++)
+      {
+         if (gsl_code[i] == 1) { indl2.Append(i); }
+      }
+      if (indl2.Size() == 0) { return; } // no points on element borders
+
+      Vector field_out_l2(field_out.Size());
+      VectorGridFunctionCoefficient field_in_dg(&field_in);
+      int gf_order_h1 = std::max(gf_order, 1); // H1 should be at least order 1
+      H1_FECollection fec(gf_order_h1, dim);
+      const int ncomp = field_in.FESpace()->GetVDim();
+      FiniteElementSpace fes(mesh, &fec, ncomp);
+      GridFunction field_in_h1(&fes);
+
+      if (avgtype == AvgType::ARITHMETIC)
+      {
+         field_in_h1.ProjectDiscCoefficient(field_in_dg, GridFunction::ARITHMETIC);
+      }
+      else if (avgtype == AvgType::HARMONIC)
+      {
+         field_in_h1.ProjectDiscCoefficient(field_in_dg, GridFunction::HARMONIC);
+      }
+      else
+      {
+         MFEM_ABORT("Invalid averaging type.");
+      }
+
+      if (gf_order_h1 == mesh_order) // basis is GaussLobatto by default
+      {
+         InterpolateH1(field_in_h1, field_out_l2);
+      }
+      else
+      {
+         InterpolateGeneral(field_in_h1, field_out_l2);
+      }
+
+      // Copy interpolated values for the points on element border
+      for (int j = 0; j < ncomp; j++)
+      {
+         for (int i = 0; i < indl2.Size(); i++)
+         {
+            int idx = indl2[i] + j*points_cnt;
+            field_out(idx) = field_out_l2(idx);
+         }
+      }
+   }
+}
+
+void FindPointsGSLIB::InterpolateH1(const GridFunction &field_in,
+                                    Vector &field_out)
+{
+   FiniteElementSpace ind_fes(mesh, field_in.FESpace()->FEColl());
+   GridFunction field_in_scalar(&ind_fes);
+   Vector node_vals;
+
+   const int ncomp      = field_in.FESpace()->GetVDim(),
+             points_fld = field_in.Size() / ncomp,
+             points_cnt = gsl_code.Size();
+
+   field_out.SetSize(points_cnt*ncomp);
+   field_out = default_interp_value;
+
+   for (int i = 0; i < ncomp; i++)
+   {
+      const int dataptrin  = i*points_fld,
+                dataptrout = i*points_cnt;
+      field_in_scalar.NewDataAndSize(field_in.GetData()+dataptrin, points_fld);
+      GetNodeValues(field_in_scalar, node_vals);
+
+      if (dim==2)
+      {
+         findpts_eval_2(field_out.GetData()+dataptrout, sizeof(double),
+                        gsl_code.GetData(),       sizeof(unsigned int),
+                        gsl_proc.GetData(),    sizeof(unsigned int),
+                        gsl_elem.GetData(),    sizeof(unsigned int),
+                        gsl_ref.GetData(),     sizeof(double) * dim,
+                        points_cnt, node_vals.GetData(), fdata2D);
+      }
+      else
+      {
+         findpts_eval_3(field_out.GetData()+dataptrout, sizeof(double),
+                        gsl_code.GetData(),       sizeof(unsigned int),
+                        gsl_proc.GetData(),    sizeof(unsigned int),
+                        gsl_elem.GetData(),    sizeof(unsigned int),
+                        gsl_ref.GetData(),     sizeof(double) * dim,
+                        points_cnt, node_vals.GetData(), fdata3D);
+      }
+   }
+}
+
+void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
+                                         Vector &field_out)
+{
+   int ncomp   = field_in.VectorDim(),
+       nptorig = points_cnt,
+       npt     = points_cnt;
+
+   field_out.SetSize(points_cnt*ncomp);
+   field_out = default_interp_value;
+
+   if (gsl_comm->np == 1) // serial
+   {
+      for (int index = 0; index < npt; index++)
+      {
+         if (gsl_code[index] == 2) { continue; }
+         IntegrationPoint ip;
+         ip.Set2(gsl_mfem_ref.GetData()+index*dim);
+         if (dim == 3) { ip.z = gsl_mfem_ref(index*dim + 2); }
+         Vector localval(ncomp);
+         field_in.GetVectorValue(gsl_mfem_elem[index], ip, localval);
+         for (int i = 0; i < ncomp; i++)
+         {
+            field_out(index + i*npt) = localval(i);
+         }
+      }
+   }
+   else // parallel
+   {
+      // Determine number of points to be sent
+      int nptsend = 0;
+      for (int index = 0; index < npt; index++)
+      {
+         if (gsl_code[index] != 2) { nptsend +=1; }
+      }
+
+      // Pack data to send via crystal router
+      struct array *outpt = new array;
+      struct out_pt { double r[3], ival; uint index, el, proc; };
+      struct out_pt *pt;
+      array_init(struct out_pt, outpt, nptsend);
+      outpt->n=nptsend;
+      pt = (struct out_pt *)outpt->ptr;
+      for (int index = 0; index < npt; index++)
+      {
+         if (gsl_code[index] == 2) { continue; }
+         for (int d = 0; d < dim; ++d) { pt->r[d]= gsl_mfem_ref(index*dim + d); }
+         pt->index = index;
+         pt->proc  = gsl_proc[index];
+         pt->el    = gsl_mfem_elem[index];
+         ++pt;
+      }
+
+      // Transfer data to target MPI ranks
+      sarray_transfer(struct out_pt, outpt, proc, 1, cr);
+
+      if (ncomp == 1)
+      {
+         // Interpolate the grid function
+         npt = outpt->n;
+         pt = (struct out_pt *)outpt->ptr;
+         for (int index = 0; index < npt; index++)
+         {
+            IntegrationPoint ip;
+            ip.Set3(&pt->r[0]);
+            pt->ival = field_in.GetValue(pt->el, ip, 1);
+            ++pt;
+         }
+
+         // Transfer data back to source MPI rank
+         sarray_transfer(struct out_pt, outpt, proc, 1, cr);
+         npt = outpt->n;
+         pt = (struct out_pt *)outpt->ptr;
+         for (int index = 0; index < npt; index++)
+         {
+            field_out(pt->index) = pt->ival;
+            ++pt;
+         }
+         array_free(outpt);
+         delete outpt;
+      }
+      else // ncomp > 1
+      {
+         // Interpolate data and store in a Vector
+         npt = outpt->n;
+         pt = (struct out_pt *)outpt->ptr;
+         Vector vec_int_vals(npt*ncomp);
+         for (int index = 0; index < npt; index++)
+         {
+            IntegrationPoint ip;
+            ip.Set3(&pt->r[0]);
+            Vector localval(vec_int_vals.GetData()+index*ncomp, ncomp);
+            field_in.GetVectorValue(pt->el, ip, localval);
+            ++pt;
+         }
+
+         // Save index and proc data in a struct
+         struct array *savpt = new array;
+         struct sav_pt { uint index, proc; };
+         struct sav_pt *spt;
+         array_init(struct sav_pt, savpt, npt);
+         savpt->n=npt;
+         spt = (struct sav_pt *)savpt->ptr;
+         pt  = (struct out_pt *)outpt->ptr;
+         for (int index = 0; index < npt; index++)
+         {
+            spt->index = pt->index;
+            spt->proc  = pt->proc;
+            ++pt; ++spt;
+         }
+
+         array_free(outpt);
+         delete outpt;
+
+         // Copy data from save struct to send struct and send component wise
+         struct array *sendpt = new array;
+         struct send_pt { double ival; uint index, proc; };
+         struct send_pt *sdpt;
+         for (int j = 0; j < ncomp; j++)
+         {
+            array_init(struct send_pt, sendpt, npt);
+            sendpt->n=npt;
+            spt  = (struct sav_pt *)savpt->ptr;
+            sdpt = (struct send_pt *)sendpt->ptr;
+            for (int index = 0; index < npt; index++)
+            {
+               sdpt->index = spt->index;
+               sdpt->proc  = spt->proc;
+               sdpt->ival  = vec_int_vals(j + index*ncomp);
+               ++sdpt; ++spt;
+            }
+
+            sarray_transfer(struct send_pt, sendpt, proc, 1, cr);
+            sdpt = (struct send_pt *)sendpt->ptr;
+            for (int index = 0; index < nptorig; index++)
+            {
+               int idx = sdpt->index + j*nptorig;
+               field_out(idx) = sdpt->ival;
+               ++sdpt;
+            }
+            array_free(sendpt);
+         }
+         array_free(savpt);
+         delete sendpt;
+         delete savpt;
+      } // ncomp > 1
+   } // parallel
 }
 
 } // namespace mfem

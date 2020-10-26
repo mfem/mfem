@@ -49,8 +49,6 @@ private:
    Vector nodes0;
    GridFunction field0_gf;
    FindPointsGSLIB *finder;
-   Array<uint> el_id_out, code_out, task_id_out;
-   Vector pos_r_out, dist_p_out;
    int dim;
 public:
    InterpolatorFP() : finder(NULL) { }
@@ -109,41 +107,79 @@ public:
 };
 #endif
 
-class TMOPNewtonSolver : public NewtonSolver
+class TMOPNewtonSolver : public LBFGSSolver
 {
 protected:
+   // 0 - Newton, 1 - LBFGS.
+   int solver_type;
    bool parallel;
 
    // Quadrature points that are checked for negative Jacobians etc.
    const IntegrationRule &ir;
+   // These fields are relevant for mixed meshes.
+   IntegrationRules *IntegRules;
+   int integ_order;
+
+   const IntegrationRule &GetIntegrationRule(const FiniteElement &el) const
+   {
+      if (IntegRules)
+      {
+         return IntegRules->Get(el.GetGeomType(), integ_order);
+      }
+      return ir;
+   }
 
    void UpdateDiscreteTC(const TMOP_Integrator &ti, const Vector &x_new) const;
 
 public:
 #ifdef MFEM_USE_MPI
-   TMOPNewtonSolver(MPI_Comm comm, const IntegrationRule &irule)
-      : NewtonSolver(comm), parallel(true), ir(irule) { }
+   TMOPNewtonSolver(MPI_Comm comm, const IntegrationRule &irule, int type = 0)
+      : LBFGSSolver(comm), solver_type(type), parallel(true),
+        ir(irule), IntegRules(NULL), integ_order(-1) { }
 #endif
-   TMOPNewtonSolver(const IntegrationRule &irule)
-      : NewtonSolver(), parallel(false), ir(irule) { }
+   TMOPNewtonSolver(const IntegrationRule &irule, int type = 0)
+      : LBFGSSolver(), solver_type(type), parallel(false),
+        ir(irule), IntegRules(NULL), integ_order(-1) { }
+
+   /// Prescribe a set of integration rules; relevant for mixed meshes.
+   /** If called, this function has priority over the IntegrationRule given to
+       the constructor of the class. */
+   void SetIntegrationRules(IntegrationRules &irules, int order)
+   {
+      IntegRules = &irules;
+      integ_order = order;
+   }
 
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
 
    virtual void ProcessNewState(const Vector &x) const;
-};
 
-/// Allows negative Jacobians. Used for untangling.
-class TMOPDescentNewtonSolver : public TMOPNewtonSolver
-{
-public:
-#ifdef MFEM_USE_MPI
-   TMOPDescentNewtonSolver(MPI_Comm comm, const IntegrationRule &irule)
-      : TMOPNewtonSolver(comm, irule) { }
-#endif
-   TMOPDescentNewtonSolver(const IntegrationRule &irule)
-      : TMOPNewtonSolver(irule) { }
+   virtual void Mult(const Vector &b, Vector &x) const
+   {
+      if (solver_type == 0)
+      {
+         NewtonSolver::Mult(b, x);
+      }
+      else if (solver_type == 1)
+      {
+         LBFGSSolver::Mult(b, x);
+      }
+      else { MFEM_ABORT("Invalid type"); }
+   }
 
-   virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
+   virtual void SetSolver(Solver &solver)
+   {
+      if (solver_type == 0)
+      {
+         NewtonSolver::SetSolver(solver);
+      }
+      else if (solver_type == 1)
+      {
+         LBFGSSolver::SetSolver(solver);
+      }
+      else { MFEM_ABORT("Invalid type"); }
+   }
+   virtual void SetPreconditioner(Solver &pr) { SetSolver(pr); }
 };
 
 void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,
