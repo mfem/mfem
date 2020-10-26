@@ -74,6 +74,9 @@ protected:
    Solver *prec;
    IterativeSolverMonitor *monitor = nullptr;
 
+   void (*OpTimes)(const Vector &v, Vector &Jv, void *ctx) = nullptr;
+   void *OpTimesCtx = nullptr;
+
    int max_iter, print_level;
    double rel_tol, abs_tol;
 
@@ -111,6 +114,12 @@ public:
    /// Set the iterative solver monitor
    void SetMonitor(IterativeSolverMonitor &m)
    { monitor = &m; m.SetIterativeSolver(*this); }
+
+   void SetOpTimes(void *ctx, void (*f)(const Vector &v, Vector &Jv, void *ctx))
+   {
+      OpTimes = f;
+      OpTimesCtx = ctx;
+   }
 
 #ifdef MFEM_USE_MPI
    /** @brief Return the associated MPI communicator, or MPI_COMM_NULL if no
@@ -406,7 +415,7 @@ void MINRES(const Operator &A, Solver &B, const Vector &b, Vector &x,
 class NewtonSolver : public IterativeSolver
 {
 protected:
-   mutable Vector r, c;
+   mutable Vector xcur, r, c;
    mutable Operator *grad;
 
    // Adaptive linear solver rtol variables
@@ -457,6 +466,9 @@ public:
        computations that need knowledge of the newest Newton state. */
    virtual void ProcessNewState(const Vector &x) const { }
 
+   const Vector &GetCurrentResidual() const { return r; }
+   const Vector &GetCurrentIterate() const { return xcur; }
+
    /** @brief Enable adaptive linear solver relative tolerance algorithm. */
    /** Compute a relative tolerance for the Krylov method after each nonlinear
     iteration, based on the algorithm presented in [1].
@@ -486,6 +498,10 @@ public:
                                  const Vector &b,
                                  const int it,
                                  const double fnorm) const;
+
+   static void DQOpTimes(const Vector &v, Vector &Jv, void *ctx);
+
+   mutable Vector z;
 };
 
 /** L-BFGS method for solving F(x)=b for a given operator F, by minimizing
