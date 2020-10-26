@@ -14,6 +14,7 @@
 #include "../general/text.hpp"
 #include "../general/forall.hpp"
 #include "../mesh/mesh_headers.hpp"
+#include "../fem/libceed/ceed.hpp"
 #include "fem.hpp"
 
 #include <cmath>
@@ -698,7 +699,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    for (int entity = 1; entity <= 2; entity++)
    {
       const NCMesh::NCList &list = mesh->ncmesh->GetNCList(entity);
-      if (!list.masters.size()) { continue; }
+      if (!list.masters.Size()) { continue; }
 
       Array<int> master_dofs, slave_dofs;
 
@@ -706,7 +707,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       DenseMatrix I;
 
       // loop through all master edges/faces, constrain their slave edges/faces
-      for (unsigned mi = 0; mi < list.masters.size(); mi++)
+      for (int mi = 0; mi < list.masters.Size(); mi++)
       {
          const NCMesh::Master &master = list.masters[mi];
 
@@ -730,7 +731,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
             GetEntityDofs(entity, slave.index, slave_dofs, master.Geom());
             if (!slave_dofs.Size()) { continue; }
 
-            slave.OrientedPointMatrix(T.GetPointMat());
+            list.OrientedPointMatrix(slave, T.GetPointMat());
             fe->GetLocalInterpolation(T, I);
 
             // make each slave DOF dependent on all master DOFs
@@ -2160,6 +2161,7 @@ void FiniteElementSpace::Destroy()
       delete [] bdofs;
       delete [] fdofs;
    }
+   RemoveCeedBasisAndRestriction(this);
 }
 
 void FiniteElementSpace::GetTransferOperator(
