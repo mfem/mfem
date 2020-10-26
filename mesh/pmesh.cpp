@@ -5605,6 +5605,73 @@ void ParMesh::ParPrint(ostream &out) const
    out << "\nmfem_mesh_end" << endl;
 }
 
+void ParMesh::PrintVTU(std::string pathname,
+                       VTKFormat format,
+                       bool high_order_output,
+                       int compression_level,
+                       bool bdr)
+{
+   int pad_digits_rank = 6;
+   DataCollection::create_directory(pathname, this, MyRank);
+
+   std::string::size_type pos = pathname.find_last_of('/');
+   std::string fname
+      = (pos == std::string::npos) ? pathname : pathname.substr(pos+1);
+
+   if (MyRank == 0)
+   {
+      std::string pvtu_name = pathname + "/" + fname + ".pvtu";
+      std::ofstream out(pvtu_name);
+
+      std::string data_type = (format == VTKFormat::BINARY32) ? "Float32" : "Float64";
+      std::string data_format = (format == VTKFormat::ASCII) ? "ascii" : "binary";
+
+      out << "<?xml version=\"1.0\"?>\n";
+      out << "<VTKFile type=\"PUnstructuredGrid\"";
+      out << " version =\"0.1\" byte_order=\"" << VTKByteOrder() << "\">\n";
+      out << "<PUnstructuredGrid GhostLevel=\"0\">\n";
+
+      out << "<PPoints>\n";
+      out << "\t<PDataArray type=\"" << data_type << "\" ";
+      out << " Name=\"Points\" NumberOfComponents=\"3\""
+          << " format=\"" << data_format << "\"/>\n";
+      out << "</PPoints>\n";
+
+      out << "<PCells>\n";
+      out << "\t<PDataArray type=\"Int32\" ";
+      out << " Name=\"connectivity\" NumberOfComponents=\"1\""
+          << " format=\"" << data_format << "\"/>\n";
+      out << "\t<PDataArray type=\"Int32\" ";
+      out << " Name=\"offsets\"      NumberOfComponents=\"1\""
+          << " format=\"" << data_format << "\"/>\n";
+      out << "\t<PDataArray type=\"UInt8\" ";
+      out << " Name=\"types\"        NumberOfComponents=\"1\""
+          << " format=\"" << data_format << "\"/>\n";
+      out << "</PCells>\n";
+
+      out << "<PCellData>\n";
+      out << "\t<PDataArray type=\"Int32\" Name=\"" << "attribute"
+          << "\" NumberOfComponents=\"1\""
+          << " format=\"" << data_format << "\"/>\n";
+      out << "</PCellData>\n";
+
+      for (int ii=0; ii<NRanks; ii++)
+      {
+         std::string piece = fname + ".proc"
+                             + to_padded_string(ii, pad_digits_rank) + ".vtu";
+         out << "<Piece Source=\"" << piece << "\"/>\n";
+      }
+
+      out << "</PUnstructuredGrid>\n";
+      out << "</VTKFile>\n";
+      out.close();
+   }
+
+   std::string vtu_fname = pathname + "/" + fname + ".proc"
+                           + to_padded_string(MyRank, pad_digits_rank);
+   Mesh::PrintVTU(vtu_fname, format, high_order_output, compression_level, bdr);
+}
+
 int ParMesh::FindPoints(DenseMatrix& point_mat, Array<int>& elem_id,
                         Array<IntegrationPoint>& ip, bool warn,
                         InverseElementTransformation *inv_trans)
