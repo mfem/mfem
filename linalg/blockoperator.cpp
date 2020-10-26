@@ -56,6 +56,10 @@ void BlockOperator::SetDiagonalBlock(int iblock, Operator *op, double c)
 
 void BlockOperator::SetBlock(int iRow, int iCol, Operator *opt, double c)
 {
+   if (owns_blocks && op(iRow, iCol))
+   {
+      delete op(iRow, iCol);
+   }
    op(iRow, iCol) = opt;
    coef(iRow, iCol) = c;
 
@@ -70,10 +74,12 @@ void BlockOperator::Mult (const Vector & x, Vector & y) const
    MFEM_ASSERT(x.Size() == width, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == height, "incorrect output Vector size");
 
-   yblock.Update(y.GetData(),row_offsets);
-   xblock.Update(x.GetData(),col_offsets);
+   x.Read();
+   y.Write(); y = 0.0;
 
-   y = 0.0;
+   xblock.Update(const_cast<Vector&>(x),col_offsets);
+   yblock.Update(y,row_offsets);
+
    for (int iRow=0; iRow < nRowBlocks; ++iRow)
    {
       tmp.SetSize(row_offsets[iRow+1] - row_offsets[iRow]);
@@ -86,6 +92,16 @@ void BlockOperator::Mult (const Vector & x, Vector & y) const
          }
       }
    }
+
+   for (int iRow=0; iRow < nRowBlocks; ++iRow)
+   {
+      yblock.GetBlock(iRow).SyncAliasMemory(y);
+   }
+
+   // Destroy alias vectors to prevent dangling aliases when the base vectors
+   // are deleted
+   for (int i=0; i < xblock.NumBlocks(); ++i) { xblock.GetBlock(i).Destroy(); }
+   for (int i=0; i < yblock.NumBlocks(); ++i) { yblock.GetBlock(i).Destroy(); }
 }
 
 // Action of the transpose operator
@@ -94,10 +110,11 @@ void BlockOperator::MultTranspose (const Vector & x, Vector & y) const
    MFEM_ASSERT(x.Size() == height, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == width, "incorrect output Vector size");
 
-   y = 0.0;
+   x.Read();
+   y.Write(); y = 0.0;
 
-   xblock.Update(x.GetData(),row_offsets);
-   yblock.Update(y.GetData(),col_offsets);
+   xblock.Update(const_cast<Vector&>(x),row_offsets);
+   yblock.Update(y,col_offsets);
 
    for (int iRow=0; iRow < nColBlocks; ++iRow)
    {
@@ -112,6 +129,15 @@ void BlockOperator::MultTranspose (const Vector & x, Vector & y) const
       }
    }
 
+   for (int iRow=0; iRow < nColBlocks; ++iRow)
+   {
+      yblock.GetBlock(iRow).SyncAliasMemory(y);
+   }
+
+   // Destroy alias vectors to prevent dangling aliases when the base vectors
+   // are deleted
+   for (int i=0; i < xblock.NumBlocks(); ++i) { xblock.GetBlock(i).Destroy(); }
+   for (int i=0; i < yblock.NumBlocks(); ++i) { yblock.GetBlock(i).Destroy(); }
 }
 
 BlockOperator::~BlockOperator()
@@ -136,7 +162,6 @@ BlockDiagonalPreconditioner::BlockDiagonalPreconditioner(
    nBlocks(offsets_.Size() - 1),
    offsets(0),
    op(nBlocks)
-
 {
    op = static_cast<Operator *>(NULL);
    offsets.MakeRef(offsets_);
@@ -148,6 +173,10 @@ void BlockDiagonalPreconditioner::SetDiagonalBlock(int iblock, Operator *opt)
                offsets[iblock+1] - offsets[iblock] == opt->Width(),
                "incompatible Operator dimensions");
 
+   if (owns_blocks && op[iblock])
+   {
+      delete op[iblock];
+   }
    op[iblock] = opt;
 }
 
@@ -157,8 +186,11 @@ void BlockDiagonalPreconditioner::Mult (const Vector & x, Vector & y) const
    MFEM_ASSERT(x.Size() == width, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == height, "incorrect output Vector size");
 
-   yblock.Update(y.GetData(), offsets);
-   xblock.Update(x.GetData(), offsets);
+   x.Read();
+   y.Write(); y = 0.0;
+
+   xblock.Update(const_cast<Vector&>(x),offsets);
+   yblock.Update(y,offsets);
 
    for (int i=0; i<nBlocks; ++i)
    {
@@ -171,6 +203,16 @@ void BlockDiagonalPreconditioner::Mult (const Vector & x, Vector & y) const
          yblock.GetBlock(i) = xblock.GetBlock(i);
       }
    }
+
+   for (int i=0; i<nBlocks; ++i)
+   {
+      yblock.GetBlock(i).SyncAliasMemory(y);
+   }
+
+   // Destroy alias vectors to prevent dangling aliases when the base vectors
+   // are deleted
+   for (int i=0; i < xblock.NumBlocks(); ++i) { xblock.GetBlock(i).Destroy(); }
+   for (int i=0; i < yblock.NumBlocks(); ++i) { yblock.GetBlock(i).Destroy(); }
 }
 
 // Action of the transpose operator
@@ -180,8 +222,11 @@ void BlockDiagonalPreconditioner::MultTranspose (const Vector & x,
    MFEM_ASSERT(x.Size() == height, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == width, "incorrect output Vector size");
 
-   yblock.Update(y.GetData(), offsets);
-   xblock.Update(x.GetData(), offsets);
+   x.Read();
+   y.Write(); y = 0.0;
+
+   xblock.Update(const_cast<Vector&>(x),offsets);
+   yblock.Update(y,offsets);
 
    for (int i=0; i<nBlocks; ++i)
    {
@@ -194,6 +239,16 @@ void BlockDiagonalPreconditioner::MultTranspose (const Vector & x,
          yblock.GetBlock(i) = xblock.GetBlock(i);
       }
    }
+
+   for (int i=0; i<nBlocks; ++i)
+   {
+      yblock.GetBlock(i).SyncAliasMemory(y);
+   }
+
+   // Destroy alias vectors to prevent dangling aliases when the base vectors
+   // are deleted
+   for (int i=0; i < xblock.NumBlocks(); ++i) { xblock.GetBlock(i).Destroy(); }
+   for (int i=0; i < yblock.NumBlocks(); ++i) { yblock.GetBlock(i).Destroy(); }
 }
 
 BlockDiagonalPreconditioner::~BlockDiagonalPreconditioner()

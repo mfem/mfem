@@ -39,7 +39,7 @@
 using namespace mfem;
 using namespace std;
 
-// This tranformation can be applied to a mesh with the 't' menu option.
+// This transformation can be applied to a mesh with the 't' menu option.
 void transformation(const Vector &p, Vector &v)
 {
    // simple shear transformation
@@ -70,6 +70,28 @@ double region(const Vector &p)
    const double x = p(0), y = p(1);
    // here we describe the region: (x <= 1/4) && (y >= 0) && (y <= 1)
    return std::max(std::max(x - 0.25, -y), y - 1.0);
+}
+
+// The projection of this function can be plotted with the 'l' menu option
+double f(const Vector &p)
+{
+   double x = p(0);
+   double y = p.Size() > 1 ? p(1) : 0.0;
+   double z = p.Size() > 2 ? p(2) : 0.0;
+
+   if (1)
+   {
+      // torus in the xy-plane
+      const double r_big = 2.0;
+      const double r_small = 1.0;
+      return hypot(r_big - hypot(x, y), z) - r_small;
+   }
+   if (0)
+   {
+      // sphere at the origin:
+      const double r = 1.0;
+      return hypot(hypot(x, y), z) - r;
+   }
 }
 
 Mesh *read_par_mesh(int np, const char *mesh_prefix)
@@ -329,6 +351,7 @@ int main (int argc, char *argv[])
            "e) View elements\n"
            "h) View element sizes, h\n"
            "k) View element ratios, kappa\n"
+           "l) Plot a function\n"
            "x) Print sub-element stats\n"
            "f) Find physical point in reference space\n"
            "p) Generate a partitioning\n"
@@ -667,7 +690,7 @@ int main (int argc, char *argv[])
          }
       }
 
-      // These are the cases that open a new GLVis window
+      // These are most of the cases that open a new GLVis window
       if (mk == 'm' || mk == 'b' || mk == 'e' || mk == 'v' || mk == 'h' ||
           mk == 'k' || mk == 'p')
       {
@@ -978,6 +1001,43 @@ int main (int argc, char *argv[])
          }
          delete attr_fespace;
          delete bdr_attr_fespace;
+      }
+
+      if (mk == 'l')
+      {
+         // Project and plot the function 'f'
+         int p;
+         FiniteElementCollection *fec = NULL;
+         cout << "Enter projection space order: " << flush;
+         cin >> p;
+         if (p >= 1)
+         {
+            fec = new H1_FECollection(p, mesh->Dimension(),
+                                      BasisType::GaussLobatto);
+         }
+         else
+         {
+            fec = new DG_FECollection(-p, mesh->Dimension(),
+                                      BasisType::GaussLegendre);
+         }
+         FiniteElementSpace fes(mesh, fec);
+         GridFunction level(&fes);
+         FunctionCoefficient coeff(f);
+         level.ProjectCoefficient(coeff);
+         char vishost[] = "localhost";
+         int  visport   = 19916;
+         socketstream sol_sock(vishost, visport);
+         if (sol_sock.is_open())
+         {
+            sol_sock.precision(14);
+            sol_sock << "solution\n" << *mesh << level << flush;
+         }
+         else
+         {
+            cout << "Unable to connect to "
+                 << vishost << ':' << visport << endl;
+         }
+         delete fec;
       }
 
       if (mk == 'S')

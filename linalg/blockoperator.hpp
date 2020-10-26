@@ -76,7 +76,7 @@ public:
    //! Return a reference to block i,j
    Operator & GetBlock(int i, int j)
    { MFEM_VERIFY(op(i,j), ""); return *op(i,j); }
-   //! Return a const reference to block i,j
+   //! Return a reference to block i,j (const version)
    const Operator & GetBlock(int i, int j) const
    { MFEM_VERIFY(op(i,j), ""); return *op(i,j); }
    //! Return the coefficient for block i,j
@@ -88,11 +88,11 @@ public:
 
    //! Return the row offsets for block starts
    Array<int> & RowOffsets() { return row_offsets; }
+   //! Read only access to the row offsets for block starts
+   const Array<int> & RowOffsets() const { return row_offsets; }
    //! Return the columns offsets for block starts
    Array<int> & ColOffsets() { return col_offsets; }
-   //! Return the const row offsets for block starts
-   const Array<int> & RowOffsets() const { return row_offsets; }
-   //! Return the const columns offsets for block starts
+   //! Read only access to the columns offsets for block starts
    const Array<int> & ColOffsets() const { return col_offsets; }
 
    /// Operator application
@@ -160,8 +160,15 @@ public:
    Operator & GetDiagonalBlock(int iblock)
    { MFEM_VERIFY(op[iblock], ""); return *op[iblock]; }
 
+   //! Return a reference to block i,i (const version).
+   const Operator & GetDiagonalBlock(int iblock) const
+   { MFEM_VERIFY(op[iblock], ""); return *op[iblock]; }
+
    //! Return the offsets for block starts
    Array<int> & Offsets() { return offsets; }
+
+   //! Read only access to the offsets for block starts
+   const Array<int> & Offsets() const { return offsets; }
 
    /// Operator application
    virtual void Mult (const Vector & x, Vector & y) const;

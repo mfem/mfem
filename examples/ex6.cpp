@@ -20,7 +20,7 @@
 //               ex6 -pa -d occa-cuda
 //               ex6 -pa -d raja-omp
 //               ex6 -pa -d ceed-cpu
-//               * ex6 -pa -d ceed-cuda
+//             * ex6 -pa -d ceed-cuda
 //               ex6 -pa -d ceed-cuda:/gpu/cuda/shared
 //
 // Description:  This is a version of Example 1 with a simple adaptive mesh
@@ -108,7 +108,11 @@ int main(int argc, char *argv[])
    //    the Laplace problem -\Delta u = 1. We don't assemble the discrete
    //    problem yet, this will be done in the main loop.
    BilinearForm a(&fespace);
-   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   if (pa)
+   {
+      a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      a.SetDiagonalPolicy(Operator::DIAG_ONE);
+   }
    LinearForm b(&fespace);
 
    ConstantCoefficient one(1.0);
@@ -199,9 +203,10 @@ int main(int argc, char *argv[])
          umf_solver.Mult(B, X);
 #endif
       }
-      else // No preconditioning for now in partial assembly mode.
+      else // Diagonal preconditioning in partial assembly mode.
       {
-         CG(*A, B, X, 3, 2000, 1e-12, 0.0);
+         OperatorJacobiSmoother M(a, ess_tdof_list);
+         PCG(*A, M, B, X, 3, 2000, 1e-12, 0.0);
       }
 
       // 18. After solving the linear system, reconstruct the solution as a

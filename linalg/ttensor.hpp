@@ -15,10 +15,9 @@
 #include "../config/tconfig.hpp"
 #include "../linalg/simd.hpp"
 #include "../general/tassign.hpp"
+#include "../general/backends.hpp"
 #include "tlayout.hpp"
 #include "tmatrix.hpp"
-#include "../general/cuda.hpp"
-#include "../general/hip.hpp"
 
 // Templated tensor implementation (up to order 4)
 

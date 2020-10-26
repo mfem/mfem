@@ -72,6 +72,9 @@ public:
     */
    BlockVector(double *data, const Array<int> & bOffsets);
 
+   //! Return the number of blocks
+   int NumBlocks() const { return numBlocks; }
+
    //! Assignment operator. this and original must have the same block structure.
    BlockVector & operator=(const BlockVector & original);
    //! Set each entry of this equal to val
@@ -98,6 +101,8 @@ public:
     * nBlocks is the number of blocks.
     */
    void Update(double *data, const Array<int> & bOffsets);
+
+   void Update(Vector & data, const Array<int> & bOffsets);
 
    /// Update a BlockVector with new @a bOffsets and make sure it owns its data.
    /** The block-vector will be re-allocated if either:

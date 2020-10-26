@@ -347,6 +347,8 @@ public:
    const FiniteElement *GetFaceNbrFE(int i) const;
    const FiniteElement *GetFaceNbrFaceFE(int i) const;
    const HYPRE_Int *GetFaceNbrGlobalDofMap() { return face_nbr_glob_dof_map; }
+   ElementTransformation *GetFaceNbrElementTransformation(int i) const
+   { return pmesh->GetFaceNbrElementTransformation(i); }
 
    void Lose_Dof_TrueDof_Matrix();
    void LoseDofOffsets() { dof_offsets.LoseData(); }

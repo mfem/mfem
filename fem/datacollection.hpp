@@ -382,6 +382,10 @@ public:
    int Error() const { return error; }
    /// Reset the error state
    void ResetError(int err = NO_ERROR) { error = err; }
+
+#ifdef MFEM_USE_MPI
+   friend class ParMesh;
+#endif
 };
 
 
@@ -391,9 +395,10 @@ class VisItFieldInfo
 public:
    std::string association;
    int num_components;
-   VisItFieldInfo() { association = ""; num_components = 0; }
-   VisItFieldInfo(std::string _association, int _num_components)
-   { association = _association; num_components = _num_components; }
+   int lod;
+   VisItFieldInfo() { association = ""; num_components = 0; lod = 1;}
+   VisItFieldInfo(std::string _association, int _num_components, int _lod = 1)
+   { association = _association; num_components = _num_components; lod =_lod;}
 };
 
 /// Data collection with VisIt I/O routines
@@ -444,6 +449,12 @@ public:
 
    /// Add a grid function to the collection and update the root file
    virtual void RegisterField(const std::string& field_name, GridFunction *gf);
+
+   /// Add a quadrature function to the collection and update the root file.
+   /** Visualization of quadrature function is not supported in VisIt(3.12).
+       A patch has been sent to VisIt developers in June 2020. */
+   virtual void RegisterQField(const std::string& q_field_name,
+                               QuadratureFunction *qf);
 
    /// Set VisIt parameter: default levels of detail for the MultiresControl
    void SetLevelsOfDetail(int levels_of_detail);

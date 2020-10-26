@@ -33,8 +33,12 @@ class BilinearForm;
 /// Abstract base class for an iterative solver monitor
 class IterativeSolverMonitor
 {
+protected:
+   /// The last IterativeSolver to which this monitor was attached.
+   const class IterativeSolver *iter_solver;
+
 public:
-   IterativeSolverMonitor() {}
+   IterativeSolverMonitor() : iter_solver(nullptr) {}
 
    virtual ~IterativeSolverMonitor() {}
 
@@ -49,6 +53,11 @@ public:
                                 bool final)
    {
    }
+
+   /** @brief This method is invoked by ItertiveSolver::SetMonitor, informing
+       the monitor which IterativeSolver is using it. */
+   void SetIterativeSolver(const IterativeSolver &solver)
+   { iter_solver = &solver; }
 };
 
 /// Abstract base class for iterative solver
@@ -100,7 +109,15 @@ public:
    virtual void SetOperator(const Operator &op);
 
    /// Set the iterative solver monitor
-   void SetMonitor(IterativeSolverMonitor &m) { monitor = &m; }
+   void SetMonitor(IterativeSolverMonitor &m)
+   { monitor = &m; m.SetIterativeSolver(*this); }
+
+#ifdef MFEM_USE_MPI
+   /** @brief Return the associated MPI communicator, or MPI_COMM_NULL if no
+       communicator is set. */
+   MPI_Comm GetComm() const
+   { return dot_prod_type == 0 ? MPI_COMM_NULL : comm; }
+#endif
 };
 
 
@@ -114,14 +131,14 @@ public:
    /** Setup a Jacobi smoother with the diagonal of @a a obtained by calling
        a.AssembleDiagonal(). It is assumed that the underlying operator acts as
        the identity on entries in ess_tdof_list, corresponding to (assembled)
-       DIAG_ONE policy or ConstratinedOperator in the matrix-free setting. */
+       DIAG_ONE policy or ConstrainedOperator in the matrix-free setting. */
    OperatorJacobiSmoother(const BilinearForm &a,
                           const Array<int> &ess_tdof_list,
                           const double damping=1.0);
 
    /** Application is by the *inverse* of the given vector. It is assumed that
        the underlying operator acts as the identity on entries in ess_tdof_list,
-       corresponding to (assembled) DIAG_ONE policy or ConstratinedOperator in
+       corresponding to (assembled) DIAG_ONE policy or ConstrainedOperator in
        the matrix-free setting. */
    OperatorJacobiSmoother(const Vector &d,
                           const Array<int> &ess_tdof_list,
@@ -129,6 +146,7 @@ public:
    ~OperatorJacobiSmoother() {}
 
    void Mult(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
    void SetOperator(const Operator &op) { oper = &op; }
    void Setup(const Vector &diag);
 
@@ -180,6 +198,8 @@ public:
    ~OperatorChebyshevSmoother() {}
 
    void Mult(const Vector&x, Vector &y) const;
+
+   void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
 
    void SetOperator(const Operator &op_)
    {
@@ -414,6 +434,32 @@ public:
    /** @brief This method can be overloaded in derived classes to perform
        computations that need knowledge of the newest Newton state. */
    virtual void ProcessNewState(const Vector &x) const { }
+};
+
+/** L-BFGS method for solving F(x)=b for a given operator F, by minimizing
+    the norm of F(x) - b. Requires only the action of the operator F. */
+class LBFGSSolver : public NewtonSolver
+{
+protected:
+   int m = 10;
+
+public:
+   LBFGSSolver() : NewtonSolver() { }
+
+#ifdef MFEM_USE_MPI
+   LBFGSSolver(MPI_Comm _comm) : NewtonSolver(_comm) { }
+#endif
+
+   void SetHistorySize(int dim) { m = dim; }
+
+   /// Solve the nonlinear system with right-hand side @a b.
+   /** If `b.Size() != Height()`, then @a b is assumed to be zero. */
+   virtual void Mult(const Vector &b, Vector &x) const;
+
+   virtual void SetPreconditioner(Solver &pr)
+   { MFEM_WARNING("L-BFGS won't use the given preconditioner."); }
+   virtual void SetSolver(Solver &solver)
+   { MFEM_WARNING("L-BFGS won't use the given solver."); }
 };
 
 /** Adaptive restarted GMRES.
@@ -659,6 +705,25 @@ private:
    /// Pivot arrays for the LU factorizations given by #DB
    mutable Array<int> ipiv;
 };
+
+
+/// Monitor that checks whether the residual is zero at a given set of dofs.
+/** This monitor is useful for checking if the initial guess, rhs, operator, and
+    preconditioner are properly setup for solving in the subspace with imposed
+    essential boundary conditions. */
+class ResidualBCMonitor : public IterativeSolverMonitor
+{
+protected:
+   const Array<int> *ess_dofs_list; ///< Not owned
+
+public:
+   ResidualBCMonitor(const Array<int> &ess_dofs_list_)
+      : ess_dofs_list(&ess_dofs_list_) { }
+
+   void MonitorResidual(int it, double norm, const Vector &r,
+                        bool final) override;
+};
+
 
 #ifdef MFEM_USE_SUITESPARSE
 
