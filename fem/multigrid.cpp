@@ -21,7 +21,7 @@ Multigrid::Multigrid()
 Multigrid::Multigrid(const Array<Operator*>& operators_, const Array<Solver*>& smoothers_,
                      const Array<Operator*>& prolongations_, const Array<bool>& ownedOperators_,
                      const Array<bool>& ownedSmoothers_, const Array<bool>& ownedProlongations_)
-   : Solver(operators.Last()->NumRows()), cycleType(CycleType::VCYCLE), preSmoothingSteps(1),
+   : Solver(operators_.Last()->NumRows()), cycleType(CycleType::VCYCLE), preSmoothingSteps(1),
      postSmoothingSteps(1), X(operators_.Size()), Y(X.Size()), R(X.Size()), Z(X.Size())
 {
    operators_.Copy(operators);
@@ -34,9 +34,13 @@ Multigrid::Multigrid(const Array<Operator*>& operators_, const Array<Solver*>& s
    for (int level = 0; level < operators.Size(); ++level)
    {
       X[level] = new Vector(operators[level]->NumRows());
+      *X[level] = 0.0;
       Y[level] = new Vector(operators[level]->NumRows());
+      *Y[level] = 0.0;
       R[level] = new Vector(operators[level]->NumRows());
+      *R[level] = 0.0;
       Z[level] = new Vector(operators[level]->NumRows());
+      *Z[level] = 0.0;
    }
 }
 
