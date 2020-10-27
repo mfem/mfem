@@ -135,7 +135,7 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
-      int par_ref_levels = 0;
+      int par_ref_levels = 2;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();
@@ -213,20 +213,30 @@ int main(int argc, char *argv[])
       sw.Clear();
       sw.Start();
 
-      MatrixFreeAMS ams(*a, *A, *fespace, muinv, sigma, NULL, NULL,
-                        ess_bdr); //, 2, 2);
+      MatrixFreeAMS *ams = new MatrixFreeAMS(*a, *A, *fespace, muinv, sigma, NULL,
+                                             ess_bdr); //, 2, 2);
+
+      //OperatorJacobiSmoother jacobi(*a, ess_tdof_list);
 
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-12);
       cg.SetMaxIter(1000);
       cg.SetPrintLevel(1);
       cg.SetOperator(*A);
-      cg.SetPreconditioner(ams);
+      cg.SetPreconditioner(*ams);
+      //cg.SetPreconditioner(jacobi);
+      //cg.iterative_mode = false;
+      sw.Stop();
+      cout << myid << ": MatrixFreeAMS-CG setup time " << sw.RealTime() << endl;
+
+      sw.Clear();
+      sw.Start();
+
       cg.Mult(B, X);
 
       sw.Stop();
       cout << myid << ": MatrixFreeAMS-CG solve time " << sw.RealTime() << endl;
-      ams.PrintTimings(myid);
+      ams->PrintTimings(myid);
    }
    else
    {

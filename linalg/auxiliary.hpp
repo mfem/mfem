@@ -22,7 +22,7 @@ namespace mfem
 
 // forward declarations (can probably be reduced/simplified
 class Coefficient;
-class VectorCoefficient;
+class MatrixCoefficient;
 class ParMesh;
 class ParBilinearForm;
 class ParDiscreteLinearOperator;
@@ -49,7 +49,7 @@ public:
    MatrixFreeAuxiliarySpace(MPI_Comm comm_,
                             mfem::ParMesh& mesh_lor,
                             mfem::Coefficient* alpha_coeff, mfem::Coefficient* beta_coeff,
-                            mfem::VectorCoefficient* alpha_vcoeff, mfem::VectorCoefficient* beta_vcoeff,
+                            MatrixCoefficient* beta_mcoeff,
                             Array<int>& ess_bdr,
                             mfem::Operator& curlcurl_oper, mfem::Operator& pi,
                             int cg_iterations = 0);
@@ -65,9 +65,9 @@ public:
    */
    MatrixFreeAuxiliarySpace(MPI_Comm comm_,
                             mfem::ParMesh& mesh_lor,
-                            mfem::Coefficient* beta_coeff, Array<int>& ess_bdr,
-                            mfem::Operator& curlcurl_oper, mfem::Operator& g,
-                            int cg_iterations = 1);
+                            mfem::Coefficient* beta_coeff, MatrixCoefficient* beta_mcoeff,
+                            Array<int>& ess_bdr, mfem::Operator& curlcurl_oper,
+                            mfem::Operator& g, int cg_iterations = 1);
 
    ~MatrixFreeAuxiliarySpace();
 
@@ -169,7 +169,7 @@ public:
    MatrixFreeAMS(ParBilinearForm& aform, mfem::Operator& oper,
                  mfem::ParFiniteElementSpace& nd_fespace,
                  mfem::Coefficient* alpha_coeff, mfem::Coefficient* beta_coeff,
-                 mfem::VectorCoefficient* alpha_vcoeff, mfem::VectorCoefficient* beta_vcoeff,
+                 mfem::MatrixCoefficient* beta_mcoeff,
                  mfem::Array<int>& ess_bdr,
                  int inner_pi_iterations = 0, int inner_g_iterations = 1);
    ~MatrixFreeAMS();

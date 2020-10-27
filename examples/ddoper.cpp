@@ -309,6 +309,18 @@ void Airy_epsilon2(const Vector &x, Vector &e)
    e(1) = 1.0;
    e(2) = 1.0;
 }
+
+void Airy_epsilon2_mat(const Vector &x, DenseMatrix &e)
+{
+   e = 0.0;
+#ifdef AIRY_USE_Y
+   e.Elem(0,0) = ((4.0 * x(1)) - 1.0) * ((4.0 * x(1)) - 1.0);
+#else
+   e.Elem(0,0) = ((4.0 * x(2)) - 1.0) * ((4.0 * x(2)) - 1.0);
+#endif
+   e.Elem(1,1) = 1.0;
+   e.Elem(2,2) = 1.0;
+}
 #endif
 
 #ifdef GPWD

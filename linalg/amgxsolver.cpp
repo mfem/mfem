@@ -807,6 +807,9 @@ void AmgXSolver::SetMatrixMPITeams(const HypreParMatrix &A,
 
 void AmgXSolver::SetOperator(const Operator& op)
 {
+   height = op.Height();
+   width = op.Width();
+
    if (const SparseMatrix* Aptr =
           dynamic_cast<const SparseMatrix*>(&op))
    {

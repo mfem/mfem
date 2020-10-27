@@ -183,7 +183,7 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    MPI_Comm comm_,
    mfem::ParMesh& mesh_lor,
    mfem::Coefficient* alpha_coeff, mfem::Coefficient* beta_coeff,
-   mfem::VectorCoefficient* alpha_vcoeff, mfem::VectorCoefficient* beta_vcoeff,
+   mfem::MatrixCoefficient* beta_mcoeff,
    Array<int>& ess_bdr,
    mfem::Operator& curlcurl_oper,
    mfem::Operator& pi,
@@ -217,16 +217,20 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    else
    {
       mfem_error("VectorCoefficient support not implemented?");
-      //a_space.AddDomainIntegrator(new VectorDiffusionIntegrator(*alpha_vcoeff));
    }
 
    if (beta_coeff)
    {
+      MFEM_VERIFY(!beta_mcoeff, "");
       a_space.AddDomainIntegrator(new VectorMassIntegrator(*beta_coeff));
+   }
+   else if (beta_mcoeff)
+   {
+      a_space.AddDomainIntegrator(new VectorMassIntegrator(*beta_mcoeff));
    }
    else
    {
-      a_space.AddDomainIntegrator(new VectorMassIntegrator(*beta_vcoeff));
+      mfem_error("Coefficient not supported");
    }
 
    a_space.UsePrecomputedSparsity();
@@ -258,9 +262,9 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
 MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    MPI_Comm comm_,
    mfem::ParMesh& mesh_lor,
-   mfem::Coefficient* beta_coeff, Array<int>& ess_bdr,
-   mfem::Operator& curlcurl_oper, mfem::Operator& g,
-   int cg_iterations)
+   mfem::Coefficient* beta_coeff, MatrixCoefficient* beta_mcoeff,
+   Array<int>& ess_bdr, mfem::Operator& curlcurl_oper,
+   mfem::Operator& g, int cg_iterations)
    :
    Solver(curlcurl_oper.Height()),
    comm(comm_),
@@ -280,7 +284,19 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    const Matrix::DiagonalPolicy policy = Matrix::DIAG_ONE;
 
    a_space.SetDiagonalPolicy(policy);
-   a_space.AddDomainIntegrator(new DiffusionIntegrator(*beta_coeff));
+   if (beta_mcoeff)
+   {
+      MFEM_VERIFY(beta_coeff == NULL, "");
+      a_space.AddDomainIntegrator(new DiffusionIntegrator(*beta_mcoeff));
+   }
+   else if (beta_coeff)
+   {
+      a_space.AddDomainIntegrator(new DiffusionIntegrator(*beta_coeff));
+   }
+   else
+   {
+      mfem_error("Coefficient not supported");
+   }
 
    a_space.UsePrecomputedSparsity();
    a_space.Assemble();
@@ -328,7 +344,6 @@ void MatrixFreeAuxiliarySpace::SetupCG(
    MFEM_ASSERT(matfree_->Height() == aspacepc_->Height(),
                "Operators don't match!");
 
-   //cg_ = new CGSolver(MPI_COMM_WORLD);
    cg_ = new CGSolver(comm);
    cg_->SetOperator(*matfree_);
    cg_->SetPreconditioner(*aspacepc_);
@@ -388,7 +403,7 @@ public:
    {
       //amg_.Mult(x, y);
       s->Mult(x, y);
-      auto Y = y.HostWrite();
+      auto Y = y.HostReadWrite();
       for (int k : ess_tdof_list_)
       {
          //y(k) = 0.0;
@@ -480,7 +495,7 @@ MatrixFreeAuxiliarySpace::~MatrixFreeAuxiliarySpace()
 MatrixFreeAMS::MatrixFreeAMS(
    ParBilinearForm& aform, Operator& oper, ParFiniteElementSpace& nd_fespace,
    Coefficient* alpha_coeff, Coefficient* beta_coeff,
-   VectorCoefficient* alpha_vcoeff, VectorCoefficient* beta_vcoeff,
+   MatrixCoefficient* beta_mcoeff,
    Array<int>& ess_bdr, int inner_pi_iterations,
    int inner_g_iterations)
    :
@@ -529,12 +544,13 @@ MatrixFreeAMS::MatrixFreeAMS(
 
    // build G space solver
    Gspacesolver_ = new MatrixFreeAuxiliarySpace(nd_fespace.GetComm(), mesh_lor,
-                                                beta_coeff, ess_bdr, oper, *G_, inner_g_iterations);
+                                                beta_coeff,
+                                                beta_mcoeff, ess_bdr, oper, *G_, inner_g_iterations);
 
    // build Pi space solver
    Pispacesolver_ = new MatrixFreeAuxiliarySpace(nd_fespace.GetComm(), mesh_lor,
                                                  alpha_coeff, beta_coeff,
-                                                 alpha_vcoeff, beta_vcoeff,
+                                                 beta_mcoeff,
                                                  ess_bdr, oper, *Pi_,
                                                  inner_pi_iterations);
 

@@ -90,7 +90,7 @@ using namespace std;
 // For FOSLS-DD, define SDFOSLS, IFFOSLS, IFFOSLS_H, SD_ITERATIVE_GMG, and do not define ZERO_IFND_BC. With PA, define SDFOSLS_PA and SD_ITERATIVE_GMG_PA, undefine FOSLS_DIRECT_SOLVER.
 
 #define BLOCK_PREC
-//#define BLOCK_AMS_PREC
+#define BLOCK_AMS_PREC
 
 void test1_E_exact(const Vector &x, Vector &E);
 void test1_RHS_exact(const Vector &x, Vector &f);
@@ -2013,6 +2013,7 @@ private:
 
 void Airy_epsilon(const Vector &x, Vector &e);
 void Airy_epsilon2(const Vector &x, Vector &e);
+void Airy_epsilon2_mat(const Vector &x, DenseMatrix &e);
 
 class FOSLSSolver : public Solver
 {
@@ -2055,7 +2056,12 @@ public:
       VectorFunctionCoefficient epsilon2(dim, Airy_epsilon2);
       ScalarVectorProductCoefficient coeff(pos,epsilon);
       ScalarVectorProductCoefficient coeffT(pos,epsilonT);
-      ScalarVectorProductCoefficient coeff2(sigma,epsilon2);
+      ScalarVectorProductCoefficient coeff2(sigma,
+                                            epsilon2); // TODO: replace sigma with omega*omega
+#ifdef BLOCK_AMS_PREC
+      MatrixFunctionCoefficient epsilon2mat(dim, Airy_epsilon2_mat);
+      ScalarMatrixProductCoefficient mcoeff2(omega*omega, epsilon2mat);
+#endif
 #else
       // TODO
 #endif
@@ -2700,8 +2706,8 @@ public:
             */
 
             ConstantCoefficient one(1.0);
-            MatrixFreeAMS *prec_E = new MatrixFreeAMS(*a_EE, *A_EE, *fespace, &one, NULL, NULL, &coeff2, ess_tdof_list_E); //, 20, 20);
-            MatrixFreeAMS *prec_H = new MatrixFreeAMS(*a_HH, *A_HH, *fespace, &one, &sigma, NULL, NULL, ess_tdof_list_empty); //, 20, 20);
+            MatrixFreeAMS *prec_E = new MatrixFreeAMS(*a_EE, *A_EE, *fespace, &one, NULL, &mcoeff2, ess_tdof_list_E); //, 20, 20);
+            MatrixFreeAMS *prec_H = new MatrixFreeAMS(*a_HH, *A_HH, *fespace, &one, &sigma, NULL, ess_tdof_list_empty); //, 20, 20);
 #else // use block Jacobi
             Solver *prec_E = new OperatorJacobiSmoother(diag_PA_EE, ess_tdof_list_E, 1.0);
             Solver *prec_H = new OperatorJacobiSmoother(diag_PA_HH, ess_tdof_list_empty, 1.0);
