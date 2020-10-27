@@ -125,7 +125,8 @@ protected:
 
 public:
    /// Constructs an empty multigrid for the given FiniteElementSpaceHierarchy
-   GeometricMultigrid(const FiniteElementSpaceHierarchy& fespaces_);
+   GeometricMultigrid(const FiniteElementSpaceHierarchy& fespaces_)
+      : Multigrid(), fespaces(fespaces_) { }
 
    /// Destructor
    virtual ~GeometricMultigrid();
