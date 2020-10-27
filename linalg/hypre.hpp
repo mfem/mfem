@@ -692,6 +692,8 @@ public:
    virtual void Mult(const HypreParVector &b, HypreParVector &x) const;
    virtual void Mult(const Vector &b, Vector &x) const;
 
+   virtual void MultTranspose(const Vector &b, Vector &x) const { Mult(b, x); }
+
    virtual ~HypreSmoother();
 };
 

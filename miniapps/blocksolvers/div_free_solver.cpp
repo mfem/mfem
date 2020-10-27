@@ -49,7 +49,7 @@ DFSDataCollector(int order, int num_refine, ParMesh *mesh,
                  const Array<int>& ess_attr, const DFSParameters& param)
    : hdiv_fec_(order, mesh->Dimension()), l2_fec_(order, mesh->Dimension()),
      hcurl_fec_(order+1, mesh->Dimension()), l2_0_fec_(0, mesh->Dimension()),
-     ess_bdr_attr_(ess_attr), level_(num_refine), order_(order)
+     ess_bdr_attr_(ess_attr), level_(0), order_(order)
 {
    if (mesh->GetElement(0)->GetType() == Element::TETRAHEDRON && order)
    {
@@ -125,8 +125,8 @@ void DFSDataCollector::MakeDofRelationTables(int level)
    OperatorPtr agg_elem(Transpose(elem_agg));
    SparseMatrix& agg_el = *agg_elem.As<SparseMatrix>();
 
-   el_l2dof_[level] = ElemToDof(*l2_fes_);
-   data_.agg_l2dof[level].Reset(Mult(agg_el, el_l2dof_[level]));
+   el_l2dof_[level+1] = ElemToDof(*l2_fes_);
+   data_.agg_l2dof[level].Reset(Mult(agg_el, el_l2dof_[level+1]));
 
    Array<int> bdr_tdofs;
    hdiv_fes_->GetEssentialTrueDofs(all_bdr_attr_, bdr_tdofs);
@@ -137,15 +137,13 @@ void DFSDataCollector::MakeDofRelationTables(int level)
 
 void DFSDataCollector::CollectData()
 {
-   --level_;
-
    auto GetP = [this](OperatorPtr& P, unique_ptr<ParFiniteElementSpace>& cfes,
                       ParFiniteElementSpace& fes, bool remove_zero)
    {
       fes.Update();
       fes.GetTrueTransferOperator(*cfes, P);
       if (remove_zero) { P.As<HypreParMatrix>()->Threshold(1e-16); }
-      this->level_ ? cfes->Update() : cfes.reset();
+      (level_ < data_.P_l2.Size()-1) ? cfes->Update() : cfes.reset();
    };
 
    GetP(data_.P_hdiv[level_], coarse_hdiv_fes_, *hdiv_fes_, true);
@@ -160,9 +158,11 @@ void DFSDataCollector::CollectData()
    curl.Assemble();
    curl.EliminateTrialDofs(ess_bdr_attr_, trash1, trash2);
    curl.Finalize();
-   data_.C[level_].Reset(curl.ParallelAssemble());
+   data_.C[level_+1].Reset(curl.ParallelAssemble());
 
-   if (level_ == 0) { DataFinalize(); }
+   ++level_;
+
+   if (level_ == data_.P_l2.Size()) { DataFinalize(); }
 }
 
 void DFSDataCollector::DataFinalize()
@@ -173,12 +173,12 @@ void DFSDataCollector::DataFinalize()
    mass.Finalize();
    OperatorPtr W(mass.ParallelAssemble());
 
-   for (int l = 0; l < data_.P_l2.Size(); ++l)
+   for (int l = data_.P_l2.Size()-1; l >= 0; --l)
    {
       OperatorPtr PT_l2(data_.P_l2[l].As<HypreParMatrix>()->Transpose());
       auto PTW = ParMult(PT_l2.As<HypreParMatrix>(), W.As<HypreParMatrix>(), true);
       W.Reset(ParMult(PTW, data_.P_l2[l].As<HypreParMatrix>()));
-      auto cW_inv = new BlockDiagSolver(W, move(el_l2dof_[l+1]));
+      auto cW_inv = new BlockDiagSolver(W, move(el_l2dof_[l]));
       //TODO: maybe store the product is better if it needs to be applied in iterations
       data_.Q_l2[l].Reset(new ProductOperator(cW_inv, PTW, true, true));
    }
@@ -400,55 +400,52 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
      ops_offsets_(data.P_l2.Size()+1), ops_(ops_offsets_.Size()),
      blk_Ps_(ops_.Size()-1), smoothers_(ops_.Size())
 {
-   ops_offsets_[0].MakeRef(DarcySolver::offsets_);
-   ops_[0].Reset(new BlockOperator(ops_offsets_[0]));
-   ops_[0].As<BlockOperator>()->SetBlock(0, 0, const_cast<HypreParMatrix*>(&M));
-   ops_[0].As<BlockOperator>()->SetBlock(1, 0, const_cast<HypreParMatrix*>(&B));
-   ops_[0].As<BlockOperator>()->SetBlock(0, 1, BT_.Ptr());
+   ops_offsets_.Last().MakeRef(DarcySolver::offsets_);
+   ops_.Last() = new BlockOperator(ops_offsets_.Last());
+   ops_.Last()->SetBlock(0, 0, const_cast<HypreParMatrix*>(&M));
+   ops_.Last()->SetBlock(1, 0, const_cast<HypreParMatrix*>(&B));
+   ops_.Last()->SetBlock(0, 1, BT_.Ptr());
 
-   for (int l = 0; l < data.P_l2.Size(); ++l)
+   for (int l = data.P_l2.Size(); l > 0; --l)
    {
-      HypreParMatrix& P_hdiv_l = *data.P_hdiv[l].As<HypreParMatrix>();
-      HypreParMatrix& P_l2_l = *data.P_l2[l].As<HypreParMatrix>();
+      HypreParMatrix& P_hdiv_l = *data.P_hdiv[l-1].As<HypreParMatrix>();
+      HypreParMatrix& P_l2_l = *data.P_l2[l-1].As<HypreParMatrix>();
 
-      auto& M_f = dynamic_cast<HypreParMatrix&>(ops_[l].As<BlockOperator>()->GetBlock(
-                                                   0, 0));
-      auto& B_f = dynamic_cast<HypreParMatrix&>(ops_[l].As<BlockOperator>()->GetBlock(
-                                                   1, 0));
+      auto& M_f = static_cast<HypreParMatrix&>(ops_[l]->GetBlock(0, 0));
+      auto& B_f = static_cast<HypreParMatrix&>(ops_[l]->GetBlock(1, 0));
 
-      auto S0 = new SchwarzSmoother(M_f, B_f, *data.agg_hdivdof[l].As<SparseMatrix>(),
-                                    *data.agg_l2dof[l].As<SparseMatrix>(),
-                                    P_l2_l, *data.Q_l2[l].As<HypreParMatrix>());
+      auto S0 = new SchwarzSmoother(M_f, B_f, *data.agg_hdivdof[l-1].As<SparseMatrix>(),
+                                    *data.agg_l2dof[l-1].As<SparseMatrix>(),
+                                    P_l2_l, *data.Q_l2[l-1].As<HypreParMatrix>());
       if (data.param.coupled_solve)
       {
-         auto S1 = new KernelSmoother(*ops_[l].As<BlockOperator>(),
-                                      *data.C[l].As<HypreParMatrix>());
-         smoothers_[l].Reset(new ProductSolver(ops_[l].Ptr(), S0, S1, false, true,
-                                               true));
+         auto S1 = new KernelSmoother(*ops_[l], *data.C[l].As<HypreParMatrix>());
+         smoothers_[l] = new ProductSolver(ops_[l], S0, S1, false, true, true);
       }
       else
       {
-         smoothers_[l].Reset(S0);
+         smoothers_[l] = S0;
       }
 
       HypreParMatrix* M_c = TwoStepsRAP(P_hdiv_l, M_f, P_hdiv_l);
       HypreParMatrix* B_c = TwoStepsRAP(P_l2_l, B_f, P_hdiv_l);
 
-      ops_offsets_[l+1].SetSize(3, 0);
-      ops_offsets_[l+1][1] = M_c->NumRows();
-      ops_offsets_[l+1][2] = M_c->NumRows() + B_c->NumRows();
+      ops_offsets_[l-1].SetSize(3, 0);
+      ops_offsets_[l-1][1] = M_c->NumRows();
+      ops_offsets_[l-1][2] = M_c->NumRows() + B_c->NumRows();
 
-      blk_Ps_[l].Reset(new BlockOperator(ops_offsets_[l], ops_offsets_[l+1]));
-      blk_Ps_[l].As<BlockOperator>()->SetBlock(0, 0, &P_hdiv_l);
-      blk_Ps_[l].As<BlockOperator>()->SetBlock(1, 1, &P_l2_l);
+      blk_Ps_[l-1] = new BlockOperator(ops_offsets_[l], ops_offsets_[l-1]);
+      blk_Ps_[l-1]->SetBlock(0, 0, &P_hdiv_l);
+      blk_Ps_[l-1]->SetBlock(1, 1, &P_l2_l);
 
-      if (l < data.P_l2.Size()-1)
+      ops_[l-1] = new BlockOperator(ops_offsets_[l-1]);
+      ops_[l-1]->SetBlock(0, 0, M_c);
+      ops_[l-1]->SetBlock(1, 0, B_c);
+      ops_[l-1]->owns_blocks = true;
+
+      if (l > 1)
       {
-         ops_[l+1].Reset(new BlockOperator(ops_offsets_[l+1]));
-         ops_[l+1].As<BlockOperator>()->SetBlock(0, 0, M_c);
-         ops_[l+1].As<BlockOperator>()->SetBlock(1, 0, B_c);
-         ops_[l+1].As<BlockOperator>()->SetBlock(0, 1, B_c->Transpose());
-         ops_[l+1].As<BlockOperator>()->owns_blocks = true;
+         ops_[l-1]->SetBlock(0, 1, B_c->Transpose());
       }
       else
       {
@@ -462,27 +459,50 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
          }
 
          const IterSolveParameters& param = data.param.BBT_solve_param;
-         smoothers_[l+1].Reset(new BDPMinresSolver(*M_c, *B_c, true, param));
-         smoothers_[l+1].As<BDPMinresSolver>()->SetEssZeroDofs(
-            data.coarsest_ess_hdivdofs);
+         auto coarse_solver = new BDPMinresSolver(*M_c, *B_c, false, param);
+         coarse_solver->SetEssZeroDofs(data.coarsest_ess_hdivdofs);
+         smoothers_[l-1] = coarse_solver;
       }
    }
+
+   Array<bool> own_ops(ops_.Size());
+   Array<bool> own_smoothers(smoothers_.Size());
+   Array<bool> own_Ps(blk_Ps_.Size());
+   own_ops = true;
+   own_smoothers = true;
+   own_Ps = true;
 
    if (data.param.coupled_solve)
    {
       solver_.Reset(new GMRESSolver(B.GetComm()));
-      solver_.As<GMRESSolver>()->SetOperator(*ops_[0].Ptr());
-      prec_.Reset(new AbstractMultigrid(ops_, blk_Ps_, smoothers_));
+      solver_.As<GMRESSolver>()->SetOperator(*(ops_.Last()));
+      prec_.Reset(new Multigrid(ops_, smoothers_, blk_Ps_, own_ops, own_smoothers, own_Ps));
    }
    else
    {
       solver_.Reset(new CGSolver(B.GetComm()));
-      HypreParMatrix& C_0 = *data.C[0].As<HypreParMatrix>();
-      CTMC_.Reset(TwoStepsRAP(C_0, M, C_0));
+      HypreParMatrix& C_finest = *data.C.Last().As<HypreParMatrix>();
+      CTMC_.Reset(TwoStepsRAP(C_finest, M, C_finest), false);
       CTMC_.As<HypreParMatrix>()->EliminateZeroRows();
       CTMC_.As<HypreParMatrix>()->Threshold(1e-14);
       solver_.As<CGSolver>()->SetOperator(*CTMC_);
-      prec_.Reset(new AbstractMultigrid(*CTMC_.As<HypreParMatrix>(), data_.P_hcurl));
+
+      own_Ps = false;
+      Array<HypreParMatrix*> Ps(data_.P_hcurl.Size());
+      Array<HypreParMatrix*> ops(Ps.Size()+1);
+      Array<Solver*> smoothers(ops.Size());
+      ops.Last() = CTMC_.As<HypreParMatrix>();
+      smoothers.Last() = new HypreSmoother(*ops.Last());
+
+      for (int l = Ps.Size()-1; l >= 0; --l)
+      {
+         Ps[l] = data_.P_hcurl[l].As<HypreParMatrix>();
+         ops[l] = TwoStepsRAP(*Ps[l], *ops[l+1], *Ps[l]);
+         ops[l]->Threshold(1e-14);
+         smoothers[l] = new HypreSmoother(*ops[l]);
+      }
+
+      prec_.Reset(new Multigrid(ops, smoothers, Ps, own_ops, own_smoothers, own_Ps));
    }
 
    solver_.As<IterativeSolver>()->SetPreconditioner(*prec_.As<Solver>());
@@ -494,14 +514,14 @@ void DivFreeSolver::SolveParticular(const Vector& rhs, Vector& sol) const
    Array<Vector> rhss(smoothers_.Size());
    Array<Vector> sols(smoothers_.Size());
 
-   rhss[0].SetDataAndSize(const_cast<Vector&>(rhs), rhs.Size());
-   sols[0].SetDataAndSize(sol, sol.Size());
+   rhss.Last().SetDataAndSize(const_cast<Vector&>(rhs), rhs.Size());
+   sols.Last().SetDataAndSize(sol, sol.Size());
 
-   for (int l = 0; l < blk_Ps_.Size(); ++l)
+   for (int l = blk_Ps_.Size()-1; l >= 0; --l)
    {
-      rhss[l+1].SetSize(blk_Ps_[l]->NumCols());
-      sols[l+1].SetSize(blk_Ps_[l]->NumCols());
-      blk_Ps_[l]->MultTranspose(rhss[l], rhss[l+1]);
+      rhss[l].SetSize(blk_Ps_[l]->NumCols());
+      sols[l].SetSize(blk_Ps_[l]->NumCols());
+      blk_Ps_[l]->MultTranspose(rhss[l+1], rhss[l]);
    }
 
    for (int l = 0; l < smoothers_.Size(); ++l)
@@ -509,23 +529,23 @@ void DivFreeSolver::SolveParticular(const Vector& rhs, Vector& sol) const
       smoothers_[l]->Mult(rhss[l], sols[l]);
    }
 
-   for (int l = blk_Ps_.Size()-1; l >= 0; l--)
+   for (int l = 0; l < blk_Ps_.Size(); ++l)
    {
       Vector P_sol(blk_Ps_[l]->NumRows());
-      blk_Ps_[l]->Mult(sols[l+1], P_sol);
-      sols[l] += P_sol;
+      blk_Ps_[l]->Mult(sols[l], P_sol);
+      sols[l+1] += P_sol;
    }
 }
 
 void DivFreeSolver::SolveDivFree(const Vector &rhs, Vector& sol) const
 {
    Vector rhs_divfree(CTMC_->NumRows());
-   data_.C[0]->MultTranspose(rhs, rhs_divfree);
+   data_.C.Last()->MultTranspose(rhs, rhs_divfree);
 
    Vector potential_divfree(CTMC_->NumRows());
    solver_->Mult(rhs_divfree, potential_divfree);
 
-   data_.C[0]->Mult(potential_divfree, sol);
+   data_.C.Last()->Mult(potential_divfree, sol);
 }
 
 void DivFreeSolver::SolvePotential(const Vector& rhs, Vector& sol) const
@@ -543,7 +563,7 @@ void DivFreeSolver::Mult(const Vector & x, Vector & y) const
    BlockVector blk_y(y, offsets_);
 
    BlockVector resid(offsets_);
-   ops_[0]->Mult(y, resid);
+   ops_.Last()->Mult(y, resid);
    add(1.0, x, -1.0, resid, resid);
 
    BlockVector correction(offsets_);
@@ -570,7 +590,7 @@ void DivFreeSolver::Mult(const Vector & x, Vector & y) const
       ch.Clear();
       ch.Start();
 
-      ops_[0]->Mult(y, resid);
+      ops_.Last()->Mult(y, resid);
       add(1.0, x, -1.0, resid, resid);
 
       SolveDivFree(resid.GetBlock(0), correction.GetBlock(0));
@@ -584,8 +604,7 @@ void DivFreeSolver::Mult(const Vector & x, Vector & y) const
       ch.Clear();
       ch.Start();
 
-      auto M = dynamic_cast<HypreParMatrix&>(ops_[0].As<BlockOperator>()->GetBlock(0,
-                                                                                   0));
+      auto M = dynamic_cast<HypreParMatrix&>(ops_.Last()->GetBlock(0, 0));
       M.Mult(-1.0, correction.GetBlock(0), 1.0, resid.GetBlock(0));
       SolvePotential(resid.GetBlock(0), correction.GetBlock(1));
       blk_y.GetBlock(1) += correction.GetBlock(1);
@@ -595,85 +614,6 @@ void DivFreeSolver::Mult(const Vector & x, Vector & y) const
          cout << "Scalar potential found in " << ch.RealTime() << "s.\n";
       }
    }
-}
-
-AbstractMultigrid::AbstractMultigrid(HypreParMatrix& op,
-                                     const Array<OperatorPtr>& Ps)
-   : Solver(op.GetNumRows()), Ps_(Ps), ops_(Ps.Size()+1),
-     smoothers_(ops_.Size()), correct_(ops_.Size()), resid_(ops_.Size()),
-     smoothers_are_symmetric_(true)
-{
-   ops_[0].Reset(&op, false);
-   smoothers_[0].Reset(new HypreSmoother(op));
-
-   for (int l = 1; l < ops_.Size(); ++l)
-   {
-      HypreParMatrix* P = Ps[l-1].Is<HypreParMatrix>();
-      MFEM_ASSERT(P, "P needs to be of type HypreParMatrix");
-
-      ops_[l].Reset(TwoStepsRAP(*P, *ops_[l-1].As<HypreParMatrix>(), *P));
-      ops_[l].As<HypreParMatrix>()->Threshold(1e-14);
-      smoothers_[l].Reset(new HypreSmoother(*ops_[l].As<HypreParMatrix>()));
-      resid_[l].SetSize(ops_[l]->NumRows());
-      correct_[l].SetSize(ops_[l]->NumRows());
-   }
-}
-
-AbstractMultigrid::AbstractMultigrid(const Array<OperatorPtr>& ops,
-                                     const Array<OperatorPtr>& Ps,
-                                     const Array<OperatorPtr>& smoothers,
-                                     bool smoothers_are_symmetric)
-   : Solver(ops[0]->NumRows()), Ps_(Ps), ops_(Ps.Size()+1),
-     smoothers_(ops_.Size()), correct_(ops_.Size()), resid_(ops_.Size()),
-     smoothers_are_symmetric_(smoothers_are_symmetric)
-{
-   for (int l = 0; l < ops_.Size(); ++l)
-   {
-      ops_[l].Reset(ops[l].Ptr(), false);
-      smoothers_[l].Reset(smoothers[l].Ptr(), false);
-      resid_[l].SetSize(smoothers[l]->NumRows());
-      correct_[l].SetSize(smoothers[l]->NumRows());
-   }
-}
-
-void AbstractMultigrid::Mult(const Vector& x, Vector& y) const
-{
-   resid_[0] = x;
-   correct_[0].SetDataAndSize(y.GetData(), y.Size());
-   MG_Cycle(0);
-}
-
-void AbstractMultigrid::MG_Cycle(int level) const
-{
-   // PreSmoothing
-   smoothers_[level]->Mult(resid_[level], correct_[level]);
-
-   if (level == Ps_.Size()) { return; }
-
-   // Coarse grid correction
-   Vector Ax(ops_[level]->NumCols());
-   ops_[level]->Mult(correct_[level], Ax);
-   resid_[level] -= Ax;
-
-   Ps_[level]->MultTranspose(resid_[level], resid_[level+1]);
-   MG_Cycle(level+1);
-   cor_cor_.SetSize(resid_[level].Size());
-   Ps_[level]->Mult(correct_[level+1], cor_cor_);
-   correct_[level] += cor_cor_;
-
-   // PostSmoothing
-   ops_[level]->Mult(cor_cor_, Ax);
-   resid_[level] -= Ax;
-
-   if (smoothers_are_symmetric_)
-   {
-      smoothers_[level]->Mult(resid_[level], cor_cor_);
-   }
-   else
-   {
-      smoothers_[level]->MultTranspose(resid_[level], cor_cor_);
-   }
-   correct_[level] += cor_cor_;
 }
 
 BDPMinresSolver::BDPMinresSolver(HypreParMatrix& M, HypreParMatrix& B,
