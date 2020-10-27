@@ -163,10 +163,12 @@ Device::~Device()
       {
          CeedBasisDestroy(&entry.second);
       }
+      internal::ceed_basis_map.clear();
       for (auto entry : internal::ceed_restr_map)
       {
          CeedElemRestrictionDestroy(&entry.second);
       }
+      internal::ceed_restr_map.clear();
       // Destroy Ceed context
       CeedDestroy(&internal::ceed);
 #endif
