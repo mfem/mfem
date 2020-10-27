@@ -36,12 +36,12 @@
 using namespace std;
 using namespace mfem;
 
-// Define the analytical solution and forcing terms / boundary conditions
-void uFun_ex(const Vector & x, Vector & u);
-double pFun_ex(const Vector & x);
-void fFun(const Vector & x, Vector & f);
-double gFun(const Vector & x);
-double f_natural(const Vector & x);
+// Exact solution, u and p, and r.h.s., f and g.
+void u_exact(const Vector & x, Vector & u);
+double p_exact(const Vector & x);
+void f_exact(const Vector & x, Vector & f);
+double g_exact(const Vector & x);
+double natural_bc(const Vector & x);
 
 /// Wrapper for assembling the discrete Darcy problem (ex5p)
 /**
@@ -81,8 +81,8 @@ public:
 
 DarcyProblem::DarcyProblem(Mesh& mesh, int num_refines, int order,
                            Array<int>& ess_bdr, DFSParameters dfs_param)
-   : mesh_(MPI_COMM_WORLD, mesh), ucoeff_(mesh.Dimension(), uFun_ex),
-     pcoeff_(pFun_ex), collector_(order, num_refines, &mesh_, ess_bdr, dfs_param)
+   : mesh_(MPI_COMM_WORLD, mesh), ucoeff_(mesh.Dimension(), u_exact),
+     pcoeff_(p_exact), collector_(order, num_refines, &mesh_, ess_bdr, dfs_param)
 {
    for (int l = 0; l < num_refines; l++)
    {
@@ -90,9 +90,9 @@ DarcyProblem::DarcyProblem(Mesh& mesh, int num_refines, int order,
       collector_.CollectData();
    }
 
-   VectorFunctionCoefficient fcoeff(mesh_.Dimension(), fFun);
-   FunctionCoefficient fnatcoeff(f_natural);
-   FunctionCoefficient gcoeff(gFun);
+   VectorFunctionCoefficient fcoeff(mesh_.Dimension(), f_exact);
+   FunctionCoefficient natcoeff(natural_bc);
+   FunctionCoefficient gcoeff(g_exact);
 
    u_.SetSpace(collector_.hdiv_fes_.get());
    p_.SetSpace(collector_.l2_fes_.get());
@@ -101,7 +101,7 @@ DarcyProblem::DarcyProblem(Mesh& mesh, int num_refines, int order,
 
    ParLinearForm fform(collector_.hdiv_fes_.get());
    fform.AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
-   fform.AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(fnatcoeff));
+   fform.AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(natcoeff));
    fform.Assemble();
 
    ParLinearForm gform(collector_.l2_fes_.get());
@@ -302,7 +302,7 @@ int main(int argc, char *argv[])
 }
 
 
-void uFun_ex(const Vector & x, Vector & u)
+void u_exact(const Vector & x, Vector & u)
 {
    double xi(x(0));
    double yi(x(1));
@@ -322,7 +322,7 @@ void uFun_ex(const Vector & x, Vector & u)
 }
 
 // Change if needed
-double pFun_ex(const Vector & x)
+double p_exact(const Vector & x)
 {
    double xi(x(0));
    double yi(x(1));
@@ -336,24 +336,18 @@ double pFun_ex(const Vector & x)
    return exp(xi)*sin(yi)*cos(zi);
 }
 
-void fFun(const Vector & x, Vector & f)
+void f_exact(const Vector & x, Vector & f)
 {
    f = 0.0;
 }
 
-double gFun(const Vector & x)
+double g_exact(const Vector & x)
 {
-   if (x.Size() == 3)
-   {
-      return -pFun_ex(x);
-   }
-   else
-   {
-      return 0;
-   }
+   if (x.Size() == 3) { return -p_exact(x); }
+   return 0;
 }
 
-double f_natural(const Vector & x)
+double natural_bc(const Vector & x)
 {
-   return (-pFun_ex(x));
+   return (-p_exact(x));
 }
