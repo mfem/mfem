@@ -50,10 +50,10 @@ protected:
    mutable Array<Vector*> Z;
 
 public:
-   /// Constructs an empty multigrid with a default V(1,1) cycle
+   /// Constructs an empty multigrid
    Multigrid();
 
-   /// Constructs a multigrid from the given inputs with a default V(1,1) cycle.
+   /// Constructs a multigrid from the given inputs.
    /** Inputs include operators and smoothers on all levels,
        prolongation operators that go from coarser to finer levels,
        and owenership of the given operators, smoothers, and prolongations. */
