@@ -189,9 +189,9 @@ class DivFreeSolver : public DarcySolver
    BBTSolver BBT_solver_;
    OperatorPtr CTMC_;
    Array<Array<int>> ops_offsets_;
-   Array<OperatorPtr> ops_;
-   Array<OperatorPtr> blk_Ps_;
-   Array<OperatorPtr> smoothers_;
+   Array<BlockOperator*> ops_;
+   Array<BlockOperator*> blk_Ps_;
+   Array<Solver*> smoothers_;
    OperatorPtr prec_;
    OperatorPtr solver_;
 
@@ -207,29 +207,6 @@ public:
    {
       return solver_.As<IterativeSolver>()->GetNumIterations();
    }
-};
-
-/// Multigrid class that uses HypreSmoother if smoothers are not given
-class AbstractMultigrid : public Solver
-{
-   const Array<OperatorPtr>& Ps_;
-   Array<OperatorPtr> ops_;
-   Array<OperatorPtr> smoothers_;
-   mutable Array<Vector> correct_;
-   mutable Array<Vector> resid_;
-   mutable Vector cor_cor_;
-   bool smoothers_are_symmetric_;
-
-   void MG_Cycle(int level) const;
-public:
-   AbstractMultigrid(HypreParMatrix& op, const Array<OperatorPtr>& Ps);
-   AbstractMultigrid(const Array<OperatorPtr>& ops,
-                     const Array<OperatorPtr>& Ps,
-                     const Array<OperatorPtr>& smoothers,
-                     bool smoother_is_symmetric = false);
-
-   virtual void Mult(const Vector & x, Vector & y) const;
-   virtual void SetOperator(const Operator &op) { }
 };
 
 /// Wrapper for the block-diagonally preconditioned MINRES defined in ex5p.cpp
