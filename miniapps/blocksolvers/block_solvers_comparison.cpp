@@ -42,16 +42,12 @@ void f_exact(const Vector & x, Vector & f);
 double g_exact(const Vector & x);
 double natural_bc(const Vector & x);
 
-/// Wrapper for assembling the discrete Darcy problem (ex5p)
-/**
- *     Assemble the finite element matrices for the Darcy problem
- *                            D = [ M  B^T ]
- *                                [ B   0  ]
- *     where:
- *
- *     M = \int_\Omega u_h \cdot v_h d\Omega   u_h, v_h \in R_h
- *     B   = -\int_\Omega \div u_h q_h d\Omega   u_h \in R_h, q_h \in W_h
- */
+/** Wrapper for assembling the discrete Darcy problem (ex5p)
+                               [ M  B^T ]
+                               [ B   0  ]
+    where:
+       M = \int_\Omega u_h \cdot v_h d\Omega   u_h, v_h \in R_h
+       B   = -\int_\Omega \div u_h q_h d\Omega   u_h \in R_h, q_h \in W_h */
 class DarcyProblem
 {
    OperatorPtr M_;
