@@ -579,7 +579,7 @@ The specific libraries and their options are:
 - SuperLU_DIST (optional), used when MFEM_USE_SUPERLU = YES. Note that
   SuperLU_DIST requires ParMETIS, which includes METIS 5 in its distribution.
   Both ParMETIS and the included METIS 5 should be built and installed in the
-  same location.
+  same location. If using SuperLU_Dist v5, set MFEM_USE_SUPERLU5=YES.
   URL: http://crd-legacy.lbl.gov/~xiaoye/SuperLU
   Options: SUPERLU_OPT, SUPERLU_LIB.
   Versions: SuperLU_DIST >= 5.1.0.

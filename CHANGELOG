@@ -14,8 +14,8 @@ Version 4.2, released on October 26, 2020
 High-Performance Computing
 --------------------------
 - Added support for explicit vectorization in the high-performance templated
-  code, which can now take advantage of specific  classes on the
-  following architectures:
+  code, which can now take advantage of specific classes on the following
+  architectures:
   * x86 (SSE/AVX/AVX2/AVX512),
   * Power8 & Power9 (VSX),
   * BG/Q (QPX).
@@ -38,7 +38,7 @@ High-Performance Computing
 
 - Improved the libCEED integration to support:
   * AssemblyLevel::NONE for Mass, Diffusion, VectorMass, and VectorDiffusion
-    Integrators. This level computes the full operator evalutaion "on the fly".
+    Integrators. This level computes the full operator evaluation "on the fly".
   * VectorMassIntegrator and VectorDiffusionIntegrator.
   * All types of (scalar) Coefficients.
 
@@ -172,8 +172,8 @@ New and updated examples and miniapps
   * Example 27/27p demonstrates the enforcement of Dirichlet, Neumann, Robin,
     and periodic boundary conditions with either H1 or DG Laplace problems.
   * Versions of Example 1/1p in examples/amgx demonstrating the use of AmgX,
-    to solve th Laplace problem with AMG preconditioning on GPUs.
-  * A version of Example 11p in examples/petcs demonstrating the use of SLEPc,
+    to solve the Laplace problem with AMG preconditioning on GPUs.
+  * A version of Example 11p in examples/petsc demonstrating the use of SLEPc,
     to solve the Laplace eigenproblem with shift-and-invert transformation.
   * A version of Example 1 in examples/superlu demonstrating the use of SuperLU
     to solve the Laplace problem.
@@ -238,7 +238,7 @@ Miscellaneous
 - Added power method to iteratively estimate the largest eigenvalue and the
   corresponding eigenvector of an operator.
 
-- Added support face integrals on the boundaries of NURBS meshes.
+- Added support for face integrals on the boundaries of NURBS meshes.
 
 - In SLISolver, changed the residual inner product from (Br,r) to (Br,Br) so the
   solver can work with non-SPD preconditioner B.
@@ -253,7 +253,7 @@ Miscellaneous
   quadrature as DiffusionIntegrator.
 
 - The README.html files previously included in several source directories have
-  been deprecated. Use the corresponding pages at mfem.org instead.
+  been removed. Use the corresponding pages at mfem.org instead.
 
 - Various other simplifications, extensions, and bugfixes in the code.
 
@@ -587,7 +587,7 @@ Other meshing improvements
   follows precisely the paper:
 
      D. Arnold, A. Mukherjee, and L. Pouly, "Locally Adapted Tetrahedral Meshes
-     Using Bisection", SIAM J. Sci. Comput. 22 (2000), 431–448.
+     Using Bisection", SIAM J. Sci. Comput. 22 (2000), 431-448.
 
   This guarantees that the shape regularity of the elements will be preserved
   under refinement.
@@ -732,7 +732,7 @@ Discretization improvements
 
 - New specialized time integrators: symplectic integrators of orders 1-4 for
   systems of first order ODEs derived from a Hamiltonian and generalized-alpha
-  ODE solver for the filtered Navier–Stokes equations with stabilization. See
+  ODE solver for the filtered Navier-Stokes equations with stabilization. See
   classes SIASolver and GeneralizedAlphaSolver in linalg/ode.hpp.
 
 - Inherit finite element classes from the new base class TensorBasisElement,

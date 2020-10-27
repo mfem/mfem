@@ -645,7 +645,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
 
       Monitor(i, betanom, r, x);
 
-      if (betanom < r0)
+      if (betanom <= r0)
       {
          if (print_level == 2)
          {
