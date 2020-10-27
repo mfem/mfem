@@ -120,9 +120,9 @@ public:
 
        This only works if the Ceed device backend is enabled.
 
-       @param hierachy[in]  Hierarchy of (algebraic) spaces
-       @param form[in]      partially assembled BilinearForm on finest level
-       @param ess_tdofs[in] List of essential true dofs on finest level
+       @param[in] hierarchy  Hierarchy of (algebraic) spaces
+       @param[in] form       partially assembled BilinearForm on finest level
+       @param[in] ess_tdofs  List of essential true dofs on finest level
     */
    AlgebraicCeedMultigrid(
       AlgebraicSpaceHierarchy &hierarchy,
@@ -153,8 +153,8 @@ public:
 
        This only works if the Ceed device backend is enabled.
 
-       @param form[in]      partially assembled BilinearForm on finest level
-       @param ess_tdofs[in] List of essential true dofs on finest level
+       @param[in] form      partially assembled BilinearForm on finest level
+       @param[in] ess_tdofs List of essential true dofs on finest level
     */
    AlgebraicCeedSolver(BilinearForm &form, const Array<int>& ess_tdofs);
    ~AlgebraicCeedSolver();
