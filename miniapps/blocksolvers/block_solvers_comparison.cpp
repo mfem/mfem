@@ -20,6 +20,10 @@
 //               finite elements (velocity u) and piecewise discontinuous
 //               polynomials (pressure p).
 //
+//               The solvers being compared include:
+//                 1. MINRES preconditioned by a block diagonal preconditioner
+//                 2. The divergence free solver
+//
 //               We recommend viewing example 5 before viewing this miniapp.
 
 #include "mfem.hpp"
