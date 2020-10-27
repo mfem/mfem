@@ -18,11 +18,15 @@ Multigrid::Multigrid()
    : cycleType(CycleType::VCYCLE), preSmoothingSteps(1), postSmoothingSteps(1)
 {}
 
-Multigrid::Multigrid(const Array<Operator*>& operators_, const Array<Solver*>& smoothers_,
-                     const Array<Operator*>& prolongations_, const Array<bool>& ownedOperators_,
-                     const Array<bool>& ownedSmoothers_, const Array<bool>& ownedProlongations_)
-   : Solver(operators_.Last()->NumRows()), cycleType(CycleType::VCYCLE), preSmoothingSteps(1),
-     postSmoothingSteps(1), X(operators_.Size()), Y(X.Size()), R(X.Size()), Z(X.Size())
+Multigrid::Multigrid(const Array<Operator*>& operators_,
+                     const Array<Solver*>& smoothers_,
+                     const Array<Operator*>& prolongations_,
+                     const Array<bool>& ownedOperators_,
+                     const Array<bool>& ownedSmoothers_,
+                     const Array<bool>& ownedProlongations_)
+   : Solver(operators_.Last()->NumRows()), cycleType(CycleType::VCYCLE),
+     preSmoothingSteps(1), postSmoothingSteps(1),
+     X(operators_.Size()), Y(X.Size()), R(X.Size()), Z(X.Size())
 {
    operators_.Copy(operators);
    smoothers_.Copy(smoothers);
@@ -213,10 +217,6 @@ const Operator* Multigrid::GetProlongationAtLevel(int level) const
    return prolongations[level];
 }
 
-GeometricMultigrid::GeometricMultigrid(const FiniteElementSpaceHierarchy& fespaces_)
-   : Multigrid(), fespaces(fespaces_)
-{}
-
 GeometricMultigrid::~GeometricMultigrid()
 {
    for (int i = 0; i < bfs.Size(); ++i)
@@ -234,14 +234,15 @@ GeometricMultigrid::~GeometricMultigrid()
    essentialTrueDofs.DeleteAll();
 }
 
-void GeometricMultigrid::FormFineLinearSystem(Vector& x, Vector& b, OperatorHandle& A,
+void GeometricMultigrid::FormFineLinearSystem(Vector& x, Vector& b,
+                                              OperatorHandle& A,
                                               Vector& X, Vector& B)
 {
    bfs.Last()->FormLinearSystem(*essentialTrueDofs.Last(), x, b, A, X, B);
 }
 
-void GeometricMultigrid::RecoverFineFEMSolution(const Vector& X, const Vector& b,
-                                                Vector& x)
+void GeometricMultigrid::RecoverFineFEMSolution(const Vector& X,
+                                                const Vector& b, Vector& x)
 {
    bfs.Last()->RecoverFEMSolution(X, b, x);
 }
