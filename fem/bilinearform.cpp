@@ -1781,7 +1781,7 @@ void DiscreteLinearOperator::SetAssemblyLevel(AssemblyLevel assembly_level)
    switch (assembly)
    {
       case AssemblyLevel::FULL:
-         // Use the original BilinearForm implementation for now
+         // Use the original implementation for now
          break;
       case AssemblyLevel::ELEMENT:
          mfem_error("Element assembly not supported yet... stay tuned!");
