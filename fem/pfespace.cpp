@@ -491,6 +491,7 @@ void ParFiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
 {
    if (face_dof)
    {
+      // FIXME?: face_dof table doesn't seem to have ldof signs applied (?)
       face_dof->GetRow(i, dofs);
       return;
    }
