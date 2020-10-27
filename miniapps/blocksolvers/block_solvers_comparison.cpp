@@ -30,7 +30,6 @@
 #include "div_free_solver.hpp"
 #include <fstream>
 #include <iostream>
-#include <assert.h>
 #include <memory>
 
 using namespace std;
