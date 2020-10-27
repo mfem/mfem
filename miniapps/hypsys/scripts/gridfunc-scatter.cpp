@@ -1,11 +1,14 @@
 // This file is part of BLAST - a high-order finite element hydrocode
 //
 // MFEM has to be compiled in serial, then compile this with
-// g++ -O3 -std=c++11 -I../../..  gridfunc-scatter.cpp -o gridfunc-scatter -L../../.. -lmfem -lrt
+//
+// g++ -O3 -std=c++11 -I<MFEM_DIR>  gridfunc-scatter.cpp -o gridfunc-scatter -L<MFEM_DIR> -lmfem -lrt
+//
+// where <MFEM_DIR> has to be replaced with the absolute path of the mfem directory.
 
 #include <fstream>
 
-#include "../../../mfem.hpp"
+#include "mfem.hpp"
 using namespace mfem;
 
 using namespace std;
