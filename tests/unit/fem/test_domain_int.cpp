@@ -423,6 +423,18 @@ Mesh * GetMesh(MeshType type)
          mesh->AddVertex(c);
          v[0] = 0; v[1] = 1;
          mesh->AddSegment(v);
+         {
+            Element * el = mesh->NewElement(Geometry::POINT);
+            el->SetAttribute(1);
+            el->SetVertices(&v[0]);
+            mesh->AddBdrElement(el);
+         }
+         {
+            Element * el = mesh->NewElement(Geometry::POINT);
+            el->SetAttribute(2);
+            el->SetVertices(&v[1]);
+            mesh->AddBdrElement(el);
+         }
          break;
       case QUADRILATERAL:
          mesh = new Mesh(2, 4, 1);
