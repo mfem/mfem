@@ -799,6 +799,22 @@ public:
 
 #endif // MFEM_USE_SUITESPARSE
 
+/// Block diagonal solver for A, each block is inverted by direct solver
+class BlockDiagSolver : public Solver
+{
+   SparseMatrix& block_dof_;
+   mutable Array<int> local_dofs_;
+   mutable Vector sub_rhs_;
+   mutable Vector sub_sol_;
+   Array<DenseMatrixInverse> block_solvers_;
+public:
+   /// block_dof is a boolean matrix, block_dof(i, j) = 1 if j-th dof belongs to
+   /// i-th block, block_dof(i, j) = 0 otherwise.
+   BlockDiagSolver(const SparseMatrix& A, const SparseMatrix& block_dof);
+   virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void SetOperator(const Operator &op) { }
+};
+
 }
 
 #endif // MFEM_SOLVERS
