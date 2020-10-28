@@ -10,8 +10,8 @@
 // CONTRIBUTING.md for details.
 
 #define CATCH_CONFIG_RUNNER
-#include "catch.hpp"
 #include "mfem.hpp"
+#include "catch.hpp"
 
 int main(int argc, char *argv[])
 {
