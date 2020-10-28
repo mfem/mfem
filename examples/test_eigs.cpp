@@ -14,6 +14,7 @@ static double c_ = M_PI / 2.0;
 
 enum MeshType
 {
+   SEGMENT = 0,
    QUADRILATERAL = 1,
    TRIANGLE2A = 2,
    TRIANGLE2B = 3,
@@ -28,7 +29,8 @@ enum MeshType
    WEDGE2 = 12,
    TETRAHEDRA = 13,
    WEDGE4 = 14,
-   MIXED3D = 15
+   MIXED3D6 = 15,
+   MIXED3D8 = 16
 };
 
 Mesh * GetMesh(MeshType type);
@@ -39,8 +41,9 @@ int eig(int i, int j, int k)
    return i * i + 2 * j * j + 4 * k * k;
 }
 
-int eigs[14] =
+int eigs[21] =
 {
+   1,4,9,16,25,36,49,
    3,6,9,11,12,17,18,
    7,10,13,15,16,19,21
 };
@@ -210,9 +213,11 @@ int main(int argc, char *argv[])
 
    ParGridFunction x(fespace);
 
-   Array<int> exact_eigs(&eigs[7 * (dim - 2)], 7);
+   Array<int> exact_eigs(&eigs[7 * (dim - 1)], 7);
 
-   if ((dim == 2 && size < 50) || (dim == 3 && size < 120))
+   if ((dim == 1 && size < 50) ||
+       (dim == 2 && size < 50) ||
+       (dim == 3 && size < 120))
    {
       tic_toc.Clear();
       tic_toc.Start();
@@ -529,6 +534,27 @@ Mesh * GetMesh(MeshType type)
 
    switch (type)
    {
+      case SEGMENT:
+         mesh = new Mesh(1, 2, 1);
+         c[0] = 0.0;
+         mesh->AddVertex(c);
+         c[0] = a_;
+         mesh->AddVertex(c);
+         v[0] = 0; v[1] = 1;
+         mesh->AddSegment(v);
+         {
+            Element * el = mesh->NewElement(Geometry::POINT);
+            el->SetAttribute(1);
+            el->SetVertices(&v[0]);
+            mesh->AddBdrElement(el);
+         }
+         {
+            Element * el = mesh->NewElement(Geometry::POINT);
+            el->SetAttribute(2);
+            el->SetVertices(&v[1]);
+            mesh->AddBdrElement(el);
+         }
+         break;
       case QUADRILATERAL:
          mesh = new Mesh(2, 4, 1);
          c[0] = 0.0; c[1] = 0.0;
@@ -807,7 +833,7 @@ Mesh * GetMesh(MeshType type)
          v[0] = 3; v[1] = 0; v[2] = 4; v[3] = 8; v[4] = 5; v[5] = 9;
          mesh->AddWedge(v);
          break;
-      case MIXED3D:
+      case MIXED3D6:
          mesh = new Mesh(3, 12, 6);
          c[0] = 0.0; c[1] = 0.0; c[2] = 0.0;
          mesh->AddVertex(c);
@@ -849,22 +875,50 @@ Mesh * GetMesh(MeshType type)
          v[4] = 8; v[5] = 9; v[6] = 10; v[7] = 11;
          mesh->AddHex(v);
          break;
+      case MIXED3D8:
+         mesh = new Mesh(3, 10, 8);
+         c[0] = 0.0; c[1] = 0.0; c[2] = 0.0;
+         mesh->AddVertex(c);
+         c[0] = a_; c[1] = 0.0; c[2] = 0.0;
+         mesh->AddVertex(c);
+         c[0] = a_; c[1] = b_; c[2] = 0.0;
+         mesh->AddVertex(c);
+         c[0] = 0.0; c[1] = b_; c[2] = 0.0;
+         mesh->AddVertex(c);
+
+         c[0] = 0.25 * a_; c[1] = 0.5 * b_; c[2] = 0.5 * c_;
+         mesh->AddVertex(c);
+         c[0] = 0.75 * a_; c[1] = 0.5 * b_; c[2] = 0.5 * c_;
+         mesh->AddVertex(c);
+
+         c[0] = 0.0; c[1] = 0.0; c[2] = c_;
+         mesh->AddVertex(c);
+         c[0] = a_; c[1] = 0.0; c[2] = c_;
+         mesh->AddVertex(c);
+         c[0] = a_; c[1] = b_; c[2] = c_;
+         mesh->AddVertex(c);
+         c[0] = 0.0; c[1] = b_; c[2] = c_;
+         mesh->AddVertex(c);
+
+         v[0] = 0; v[1] = 3; v[2] = 4; v[3] = 1; v[4] = 2; v[5] = 5;
+         mesh->AddWedge(v);
+         v[0] = 3; v[1] = 9; v[2] = 4; v[3] = 2; v[4] = 8; v[5] = 5;
+         mesh->AddWedge(v);
+         v[0] = 9; v[1] = 6; v[2] = 4; v[3] = 8; v[4] = 7; v[5] = 5;
+         mesh->AddWedge(v);
+         v[0] = 6; v[1] = 0; v[2] = 4; v[3] = 7; v[4] = 1; v[5] = 5;
+         mesh->AddWedge(v);
+         v[0] = 0; v[1] = 3; v[2] = 9; v[3] = 4;
+         mesh->AddTet(v);
+         v[0] = 0; v[1] = 9; v[2] = 6; v[3] = 4;
+         mesh->AddTet(v);
+         v[0] = 1; v[1] = 7; v[2] = 2; v[3] = 5;
+         mesh->AddTet(v);
+         v[0] = 8; v[1] = 2; v[2] = 7; v[3] = 5;
+         mesh->AddTet(v);
+         break;
    }
    mesh->FinalizeTopology();
-
-   if (mesh->Dimension() == 3)
-   {
-      Array<int> fcs;
-      Array<int> cor;
-      for (int i=0; i<mesh->GetNE(); i++)
-      {
-         mesh->GetElementFaces(i, fcs, cor);
-         for (int j=0; j<fcs.Size(); j++)
-         {
-            cout << i << '\t' << j << '\t' << fcs[j] << '\t' << cor[j] << '\n';
-         }
-      }
-   }
 
    return mesh;
 }
