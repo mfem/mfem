@@ -43,11 +43,16 @@ double g_exact(const Vector & x);
 double natural_bc(const Vector & x);
 
 /** Wrapper for assembling the discrete Darcy problem (ex5p)
-                               [ M  B^T ]
-                               [ B   0  ]
+                     [ M  B^T ] [u] = [f]
+                     [ B   0  ] [p] = [g]
     where:
-       M = \int_\Omega u_h \cdot v_h d\Omega   u_h, v_h \in R_h
-       B   = -\int_\Omega \div u_h q_h d\Omega   u_h \in R_h, q_h \in W_h */
+       M = \int_\Omega u_h \cdot v_h dx,
+       B = -\int_\Omega (div_h u_h) q_h dx,
+       f = \int_\Omega f_exact v_h dx + \int_D natural_bc v_h dS,
+       g = \int_\Omega g_exact q_h dx,
+       u_h, v_h \in R_h (Raviart-Thomas finite element space),
+       q_h \in W_h (piecewise discontinuous polynomials),
+       D \subset \partial\Omega is where natural boundary condition is imposed */
 class DarcyProblem
 {
    OperatorPtr M_;
@@ -68,18 +73,18 @@ public:
    HypreParMatrix& GetM() { return *M_.As<HypreParMatrix>(); }
    HypreParMatrix& GetB() { return *B_.As<HypreParMatrix>(); }
    const Vector& GetRHS() { return rhs_; }
-   const Vector& GetBC() { return ess_data_; }
+   const Vector& GetEssentialBC() { return ess_data_; }
    const DFSDataCollector& GetDFSDataCollector() const { return collector_; }
    void ShowError(const Vector& sol, bool verbose);
    void VisualizeSolution(const Vector& sol, string tag);
 };
 
-DarcyProblem::DarcyProblem(Mesh& mesh, int num_refines, int order,
+DarcyProblem::DarcyProblem(Mesh& mesh, int num_refs, int order,
                            Array<int>& ess_bdr, DFSParameters dfs_param)
    : mesh_(MPI_COMM_WORLD, mesh), ucoeff_(mesh.Dimension(), u_exact),
-     pcoeff_(p_exact), collector_(order, num_refines, &mesh_, ess_bdr, dfs_param)
+     pcoeff_(p_exact), collector_(order, num_refs, &mesh_, ess_bdr, dfs_param)
 {
-   for (int l = 0; l < num_refines; l++)
+   for (int l = 0; l < num_refs; l++)
    {
       mesh_.UniformRefinement();
       collector_.CollectData();
@@ -237,97 +242,83 @@ int main(int argc, char *argv[])
    param.coupled_solve = coupled_solve;
 
    string line = "\n*******************************************************\n";
-   {
-      ResetTimer();
 
-      // Generate components of the saddle point problem
-      DarcyProblem darcy(mesh, num_refines, order, ess_bdr, param);
-      HypreParMatrix& M = darcy.GetM();
-      HypreParMatrix& B = darcy.GetB();
-      const DFSDataCollector& collector = darcy.GetDFSDataCollector();
+   ResetTimer();
+
+   // Generate components of the saddle point problem
+   DarcyProblem darcy(mesh, num_refines, order, ess_bdr, param);
+   HypreParMatrix& M = darcy.GetM();
+   HypreParMatrix& B = darcy.GetB();
+   const DFSDataCollector& collector = darcy.GetDFSDataCollector();
+
+   if (verbose)
+   {
+      cout << line << "System assembled in " << chrono.RealTime() << "s.\n";
+      cout << "Size of the discrete Darcy system: " << M.M() + B.M() << "\n";
+      cout << "Dimension of the divergence free subspace: "
+           << collector.hcurl_fes_->GlobalTrueVSize() << "\n";
+   }
+
+   // Setup various solvers for the discrete problem
+   std::map<const DarcySolver*, double> setup_time;
+   ResetTimer();
+   DivFreeSolver dfs(M, B, collector.GetData());
+   setup_time[&dfs] = chrono.RealTime();
+
+   ResetTimer();
+   BDPMinresSolver bdp(M, B, false, param);
+   setup_time[&bdp] = chrono.RealTime();
+
+   std::map<const DarcySolver*, std::string> solver_to_name;
+   solver_to_name[&dfs] = "Divergence free";
+   solver_to_name[&bdp] = "Block-diagonal-preconditioned MINRES";
+
+   // Solve the problem using all solvers
+   for (const auto& solver_pair : solver_to_name)
+   {
+      auto& solver = solver_pair.first;
+      auto& name = solver_pair.second;
+
+      Vector sol = darcy.GetEssentialBC();
+      ResetTimer();
+      solver->Mult(darcy.GetRHS(), sol);
+      chrono.Stop();
 
       if (verbose)
       {
-         cout << line << "dim(R) = " << M.M() << ", dim(W) = " << B.M() << ", ";
-         cout << "dim(N) = " << collector.hcurl_fes_->GlobalTrueVSize() << "\n";
-         cout << "System assembled in " << chrono.RealTime() << "s.\n";
+         cout << line << name << " solver:\n   Setup time: "
+              << setup_time[solver] << "s.\n   Solve time: "
+              << chrono.RealTime() << "s.\n   Total time: "
+              << setup_time[solver] + chrono.RealTime() << "s.\n"
+              << "   Iteration count: " << solver->GetNumIterations() <<"\n";
       }
-
-      // Setup various solvers for the discrete problem
-      std::map<const DarcySolver*, double> setup_time;
-      ResetTimer();
-      DivFreeSolver dfs(M, B, collector.GetData());
-      setup_time[&dfs] = chrono.RealTime();
-
-      ResetTimer();
-      BDPMinresSolver bdp(M, B, false, param);
-      setup_time[&bdp] = chrono.RealTime();
-
-      std::map<const DarcySolver*, std::string> solver_to_name;
-      solver_to_name[&dfs] = "Divergence free";
-      solver_to_name[&bdp] = "Block-diagonal-preconditioned MINRES";
-
-      // Solve the problem using all solvers
-      for (const auto& solver_pair : solver_to_name)
-      {
-         auto& solver = solver_pair.first;
-         auto& name = solver_pair.second;
-
-         const Vector& rhs = darcy.GetRHS();
-         Vector sol = darcy.GetBC();
-         ResetTimer();
-         solver->Mult(rhs, sol);
-         chrono.Stop();
-
-         if (verbose)
-         {
-            cout << line << name << " solver:\n  Setup time: "
-                 << setup_time[solver] << "s.\n  Solve time: "
-                 << chrono.RealTime() << "s.\n  Total time: "
-                 << setup_time[solver] + chrono.RealTime() << "s.\n"
-                 << "  Iteration count: " << solver->GetNumIterations() <<"\n";
-         }
-         if (show_error) { darcy.ShowError(sol, verbose); }
-         if (visualization) { darcy.VisualizeSolution(sol, name); }
-      }
+      if (show_error) { darcy.ShowError(sol, verbose); }
+      if (visualization) { darcy.VisualizeSolution(sol, name); }
    }
 
    MPI_Finalize();
    return 0;
 }
 
-
 void u_exact(const Vector & x, Vector & u)
 {
    double xi(x(0));
    double yi(x(1));
-   double zi(0.0);
-   if (x.Size() == 3)
-   {
-      zi = x(2);
-   }
+   double zi(x.Size() == 3 ? x(2) : 0.0);
 
    u(0) = - exp(xi)*sin(yi)*cos(zi);
    u(1) = - exp(xi)*cos(yi)*cos(zi);
-
    if (x.Size() == 3)
    {
       u(2) = exp(xi)*sin(yi)*sin(zi);
    }
 }
 
-// Change if needed
 double p_exact(const Vector & x)
 {
    double xi(x(0));
    double yi(x(1));
-   double zi(0.0);
-
-   if (x.Size() == 3)
-   {
-      zi = x(2);
-   }
-
+   double zi(x.Size() == 3 ? x(2) : 0.0);
    return exp(xi)*sin(yi)*cos(zi);
 }
 
