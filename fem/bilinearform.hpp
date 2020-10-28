@@ -997,7 +997,7 @@ public:
 
    /// Get the output finite element space prolongation matrix (local diagonal)
    virtual const Operator *GetLocalOutputProlongation() const
-   { return test_fes->GetLocalProlongationMatrix(); }
+   { return test_fes->GetLocalProlongationOperator(); }
 };
 
 }

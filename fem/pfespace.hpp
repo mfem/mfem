@@ -338,7 +338,7 @@ public:
    HYPRE_Int GetMyTDofOffset() const;
 
    virtual const Operator *GetProlongationMatrix() const;
-   virtual const Operator *GetLocalProlongationMatrix() const;
+   virtual const Operator *GetLocalProlongationOperator() const;
    /// Get the R matrix which restricts a local dof vector to true dof vector.
    virtual const SparseMatrix *GetRestrictionMatrix() const
    { Dof_TrueDof_Matrix(); return R; }

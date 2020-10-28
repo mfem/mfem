@@ -922,7 +922,7 @@ const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
    }
 }
 
-const Operator *ParFiniteElementSpace::GetLocalProlongationMatrix() const
+const Operator *ParFiniteElementSpace::GetLocalProlongationOperator() const
 {
    if (Conforming())
    {
