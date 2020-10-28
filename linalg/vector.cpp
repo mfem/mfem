@@ -68,6 +68,12 @@ void Vector::Load(std::istream **in, int np, int *dim)
       for (j = 0; j < dim[i]; j++)
       {
          *in[i] >> data[p++];
+         // Clang's libc++ sets the failbit when (correctly) parsing subnormals,
+         // so we reset the failbit here.
+         if (!*in[i] && errno == ERANGE)
+         {
+            in[i]->clear();
+         }
       }
    }
 }
@@ -79,6 +85,12 @@ void Vector::Load(std::istream &in, int Size)
    for (int i = 0; i < size; i++)
    {
       in >> data[i];
+      // Clang's libc++ sets the failbit when (correctly) parsing subnormals,
+      // so we reset the failbit here.
+      if (!in && errno == ERANGE)
+      {
+         in.clear();
+      }
    }
 }
 
@@ -663,7 +675,7 @@ void Vector::Print(std::ostream &out, int width) const
    data.Read(MemoryClass::HOST, size);
    for (int i = 0; 1; )
    {
-      out << data[i];
+      out << ZeroSubnormal(data[i]);
       i++;
       if (i == size)
       {
@@ -703,7 +715,7 @@ void Vector::Print_HYPRE(std::ostream &out) const
    data.Read(MemoryClass::HOST, size);
    for (i = 0; i < size; i++)
    {
-      out << data[i] << '\n';
+      out << ZeroSubnormal(data[i]) << '\n';
    }
 
    out.precision(old_prec);
