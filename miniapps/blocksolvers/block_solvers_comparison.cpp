@@ -64,7 +64,7 @@ class DarcyProblem
    ParMesh mesh_;
    VectorFunctionCoefficient ucoeff_;
    FunctionCoefficient pcoeff_;
-   DFSDataCollector collector_;
+   DFSSpaces dfs_spaces_;
    const IntegrationRule *irs_[Geometry::NumGeom];
 public:
    DarcyProblem(Mesh& mesh, int num_refines, int order,
@@ -74,7 +74,7 @@ public:
    HypreParMatrix& GetB() { return *B_.As<HypreParMatrix>(); }
    const Vector& GetRHS() { return rhs_; }
    const Vector& GetEssentialBC() { return ess_data_; }
-   const DFSData& GetDFSData() const { return collector_.GetData(); }
+   const DFSData& GetDFSData() const { return dfs_spaces_.GetDFSData(); }
    void ShowError(const Vector& sol, bool verbose);
    void VisualizeSolution(const Vector& sol, string tag);
 };
@@ -82,34 +82,34 @@ public:
 DarcyProblem::DarcyProblem(Mesh& mesh, int num_refs, int order,
                            Array<int>& ess_bdr, DFSParameters dfs_param)
    : mesh_(MPI_COMM_WORLD, mesh), ucoeff_(mesh.Dimension(), u_exact),
-     pcoeff_(p_exact), collector_(order, num_refs, &mesh_, ess_bdr, dfs_param)
+     pcoeff_(p_exact), dfs_spaces_(order, num_refs, &mesh_, ess_bdr, dfs_param)
 {
    for (int l = 0; l < num_refs; l++)
    {
       mesh_.UniformRefinement();
-      collector_.CollectDFSData();
+      dfs_spaces_.CollectDFSData();
    }
 
    VectorFunctionCoefficient fcoeff(mesh_.Dimension(), f_exact);
    FunctionCoefficient natcoeff(natural_bc);
    FunctionCoefficient gcoeff(g_exact);
 
-   u_.SetSpace(collector_.GetHdivFES());
-   p_.SetSpace(collector_.GetL2FES());
+   u_.SetSpace(dfs_spaces_.GetHdivFES());
+   p_.SetSpace(dfs_spaces_.GetL2FES());
    u_ = 0.0;
    u_.ProjectBdrCoefficientNormal(ucoeff_, ess_bdr);
 
-   ParLinearForm fform(collector_.GetHdivFES());
+   ParLinearForm fform(dfs_spaces_.GetHdivFES());
    fform.AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
    fform.AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(natcoeff));
    fform.Assemble();
 
-   ParLinearForm gform(collector_.GetL2FES());
+   ParLinearForm gform(dfs_spaces_.GetL2FES());
    gform.AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
    gform.Assemble();
 
-   ParBilinearForm mVarf(collector_.GetHdivFES());
-   ParMixedBilinearForm bVarf(collector_.GetHdivFES(), collector_.GetL2FES());
+   ParBilinearForm mVarf(dfs_spaces_.GetHdivFES());
+   ParMixedBilinearForm bVarf(dfs_spaces_.GetHdivFES(), dfs_spaces_.GetL2FES());
 
    mVarf.AddDomainIntegrator(new VectorFEMassIntegrator);
    mVarf.Assemble();
