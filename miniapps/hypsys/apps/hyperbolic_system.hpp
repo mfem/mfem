@@ -86,6 +86,30 @@ public:
       proj.ProjectGridFunction(*l2_proj);
    }
 
+   // Lumped L2 projection for general problems.
+   void LumpedL2_Projection(VectorFunctionCoefficient fun, GridFunction &proj) const
+   {
+      Vector LumpedMassMat;
+
+      Vector aux_vec(NumEq);
+      aux_vec = 1.0;
+      VectorConstantCoefficient ones(aux_vec);
+      BilinearForm ml(fes);
+      ml.AddDomainIntegrator(new LumpedIntegrator(new VectorMassIntegrator(ones)));
+      ml.Assemble();
+      ml.Finalize();
+      ml.SpMat().GetDiag(LumpedMassMat);
+
+      LinearForm rhs(fes);
+      rhs.AddDomainIntegrator(new VectorDomainLFIntegrator(fun));
+      rhs.Assemble();
+
+      for (int i = 0; i < LumpedMassMat.Size(); i++)
+      {
+         proj(i) = rhs.Elem(i) / LumpedMassMat(i);
+      }
+   }
+
    int ne, nd, dim;
 
    // 0: L2 projection,

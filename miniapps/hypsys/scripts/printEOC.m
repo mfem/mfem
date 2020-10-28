@@ -14,7 +14,7 @@ if nargin == 0
   fclose(file);
 end
 
-numElPerDim = [48 64 96 128 192 256 384]';
+numElPerDim = [48 64 96 128 192 256 384 512]';
 numElPerDim = numElPerDim(1:size(data,1));
 numLvls = length(numElPerDim)-1;
 eoc = zeros(numLvls, 3);

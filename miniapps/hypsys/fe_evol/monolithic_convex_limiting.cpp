@@ -1,7 +1,7 @@
 #include "monolithic_convex_limiting.hpp"
 
 // SCHEME: -1: Galerkin, 0: Low order method, 1: Limiter
-#define SCHEME 0
+#define SCHEME 1
 
 MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
                              HyperbolicSystem *hyp_,

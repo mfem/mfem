@@ -2,7 +2,7 @@ EXEC="mpirun -np 7 phypsys"
 
 SCHEME=0
 MESH=data/inline-4quad.mesh
-CONFIG="-p 1 -c 1 -vf 100 -tf 0.5 -s 3 -dt 0.001 -m $MESH"
+CONFIG="-p 1 -c 1 -vf 100 -tf 0.5 -s 3 -dt 0.0005 -m $MESH"
 
 $EXEC $CONFIG -es $SCHEME -o 0 -r 5
 $EXEC $CONFIG -es $SCHEME -o 1 -r 4
@@ -17,6 +17,8 @@ $EXEC $CONFIG -es $SCHEME -o 15 -r 1
 
 # # GRID CONVERGENCE TEST
 # SCHEME=1
+ORDER=0
+DT=0.002
 # ORDER=1
 # DT=0.0004
 # # ORDER=2
@@ -38,3 +40,4 @@ $EXEC $CONFIG -es $SCHEME -o 15 -r 1
 # $EXEC $CONFIG0 -r 6 -es $SCHEME
 # $EXEC $CONFIG1 -r 6 -es $SCHEME
 # $EXEC $CONFIG0 -r 7 -es $SCHEME
+# $EXEC $CONFIG1 -r 7 -es $SCHEME

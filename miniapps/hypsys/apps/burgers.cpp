@@ -46,7 +46,7 @@ Burgers::Burgers(FiniteElementSpace *fes_, BlockVector &u_block,
          SteadyState = true;
          TimeDepBC = false;
          ProjType = 1;
-         u0.ProjectCoefficient(ic);
+         LumpedL2_Projection(ic, u0);
          break;
       }
       default:
@@ -63,7 +63,7 @@ void Burgers::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
 double Burgers::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
                              int i) const
 {
-   return abs(u(0) * n.Sum());
+   return abs(u(0) * double(n.Size()));
 }
 
 void Burgers::ComputeErrors(Array<double> &errors, const GridFunction &u,
