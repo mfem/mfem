@@ -39,21 +39,21 @@ static std::string getString(AssemblyLevel assembly)
 {
    switch (assembly)
    {
-   case AssemblyLevel::NONE:
-      return "NONE";
-      break;
-   case AssemblyLevel::PARTIAL:
-      return "PARTIAL";
-      break;
-   case AssemblyLevel::ELEMENT:
-      return "ELEMENT";
-      break;
-   case AssemblyLevel::FULL:
-      return "FULL";
-      break;
-   case AssemblyLevel::LEGACYFULL:
-      return "LEGACYFULL";
-      break;
+      case AssemblyLevel::NONE:
+         return "NONE";
+         break;
+      case AssemblyLevel::PARTIAL:
+         return "PARTIAL";
+         break;
+      case AssemblyLevel::ELEMENT:
+         return "ELEMENT";
+         break;
+      case AssemblyLevel::FULL:
+         return "FULL";
+         break;
+      case AssemblyLevel::LEGACYFULL:
+         return "LEGACYFULL";
+         break;
    }
    mfem_error("Unknown AssemblyLevel.");
    return "";
@@ -65,15 +65,15 @@ static std::string getString(Coeff coeff_type)
 {
    switch (coeff_type)
    {
-   case Coeff::Const:
-      return "Const";
-      break;
-   case Coeff::Grid:
-      return "Grid";
-      break;
-   case Coeff::Quad:
-      return "Quad";
-      break;
+      case Coeff::Const:
+         return "Const";
+         break;
+      case Coeff::Grid:
+         return "Grid";
+         break;
+      case Coeff::Quad:
+         return "Quad";
+         break;
    }
    mfem_error("Unknown CeedCoeff.");
    return "";
@@ -85,15 +85,15 @@ static std::string getString(Problem pb)
 {
    switch (pb)
    {
-   case Problem::Mass:
-      return "Mass";
-      break;
-   case Problem::Convection:
-      return "Convection";
-      break;
-   case Problem::Diffusion:
-      return "Diffusion";
-      break;
+      case Problem::Mass:
+         return "Mass";
+         break;
+      case Problem::Convection:
+         return "Convection";
+         break;
+      case Problem::Diffusion:
+         return "Diffusion";
+         break;
    }
    mfem_error("Unknown Problem.");
    return "";
@@ -152,26 +152,26 @@ void test_sparse_matrix(const char* input, int order, const Coeff coeff_type,
 
    switch (pb)
    {
-   case Problem::Mass:
-      k_ref.AddDomainIntegrator(new MassIntegrator(*coeff));
-      k_test.AddDomainIntegrator(new MassIntegrator(*coeff));
-      break;
-   case Problem::Convection:
-      k_ref.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
-      k_ref.AddInteriorFaceIntegrator(
-         new TransposeIntegrator(new DGTraceIntegrator(rho, velocity, 1.0, -0.5)));
-      k_ref.AddBdrFaceIntegrator(
-         new TransposeIntegrator(new DGTraceIntegrator(rho, velocity, 1.0, -0.5)));
-      k_test.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
-      k_test.AddInteriorFaceIntegrator(
-         new TransposeIntegrator(new DGTraceIntegrator(rho, velocity, 1.0, -0.5)));
-      k_test.AddBdrFaceIntegrator(
-         new TransposeIntegrator(new DGTraceIntegrator(rho, velocity, 1.0, -0.5)));
-      break;
-   case Problem::Diffusion:
-      k_ref.AddDomainIntegrator(new DiffusionIntegrator(*coeff));
-      k_test.AddDomainIntegrator(new DiffusionIntegrator(*coeff));
-      break;
+      case Problem::Mass:
+         k_ref.AddDomainIntegrator(new MassIntegrator(*coeff));
+         k_test.AddDomainIntegrator(new MassIntegrator(*coeff));
+         break;
+      case Problem::Convection:
+         k_ref.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
+         k_ref.AddInteriorFaceIntegrator(
+            new TransposeIntegrator(new DGTraceIntegrator(rho, velocity, 1.0, -0.5)));
+         k_ref.AddBdrFaceIntegrator(
+            new TransposeIntegrator(new DGTraceIntegrator(rho, velocity, 1.0, -0.5)));
+         k_test.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
+         k_test.AddInteriorFaceIntegrator(
+            new TransposeIntegrator(new DGTraceIntegrator(rho, velocity, 1.0, -0.5)));
+         k_test.AddBdrFaceIntegrator(
+            new TransposeIntegrator(new DGTraceIntegrator(rho, velocity, 1.0, -0.5)));
+         break;
+      case Problem::Diffusion:
+         k_ref.AddDomainIntegrator(new DiffusionIntegrator(*coeff));
+         k_test.AddDomainIntegrator(new DiffusionIntegrator(*coeff));
+         break;
    }
 
    k_ref.Assemble();
@@ -182,8 +182,8 @@ void test_sparse_matrix(const char* input, int order, const Coeff coeff_type,
    k_test.Assemble();
 
    const int sizeIn  = pb == Problem::Convection ?
-                        fes.GetVSize() + fes.GetFaceNbrVSize() : 
-                        fes.GetVSize();
+                       fes.GetVSize() + fes.GetFaceNbrVSize() : 
+                       fes.GetVSize();
    const int sizeOut = fes.GetVSize();
    Vector x(sizeIn), y_test(sizeOut), y_ref(sizeOut);
    x.Randomize(1);
