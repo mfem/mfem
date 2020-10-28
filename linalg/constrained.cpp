@@ -64,8 +64,8 @@ EliminationProjection::EliminationProjection(SparseMatrix& A, SparseMatrix& B,
    {
       lm_dofs.Append(i);
    }
-   Bm_.SetSize(B_.Height(), primary_contact_dofs.Size());
-   B_.GetSubMatrix(lm_dofs, primary_contact_dofs, Bm_);
+   Bp_.SetSize(B_.Height(), primary_contact_dofs.Size());
+   B_.GetSubMatrix(lm_dofs, primary_contact_dofs, Bp_);
 
    Bs_.SetSize(B_.Height(), secondary_contact_dofs.Size());
    B_.GetSubMatrix(lm_dofs, secondary_contact_dofs, Bs_);
@@ -85,7 +85,7 @@ EliminationProjection::EliminationProjection(SparseMatrix& A, SparseMatrix& B,
 /*
    Return this projector as an assembled matrix.
 
-   It *may* be possible to implement this with Bm_ as a findpts call
+   It *may* be possible to implement this with Bp_ as a findpts call
    rather than a matrix; the hypre assembly will not be so great, though
 */
 SparseMatrix * EliminationProjection::AssembleExact() const
@@ -119,9 +119,9 @@ SparseMatrix * EliminationProjection::AssembleExact() const
    MFEM_ASSERT(mapped_primary_contact_dofs.Size() == primary_contact_dofs_.Size(),
                "Unable to map primary contact dofs!");
 
-   DenseMatrix block(Bm_);
+   DenseMatrix block(Bp_);
    // the following line may be expensive in the general case
-   Bsinverse_.Solve(Bs_.Height(), Bm_.Width(), block.GetData());
+   Bsinverse_.Solve(Bs_.Height(), Bp_.Width(), block.GetData());
 
    for (int iz = 0; iz < secondary_contact_dofs_.Size(); ++iz)
    {
@@ -170,7 +170,7 @@ void EliminationProjection::Mult(const Vector& in, Vector& out) const
    Vector subvecin;
    Vector subvecout(secondary_contact_dofs_.Size());
    in.GetSubVector(mapped_primary_contact_dofs, subvecin);
-   Bm_.Mult(subvecin, subvecout);
+   Bp_.Mult(subvecin, subvecout);
    Bsinverse_.Solve(Bs_.Height(), 1, subvecout);
    subvecout *= -1.0;
    out.AddElementVector(secondary_contact_dofs_, subvecout);
@@ -205,11 +205,11 @@ void EliminationProjection::MultTranspose(const Vector& in, Vector& out) const
                "Unable to map primary contact dofs!");
 
    Vector subvecin;
-   Vector subvecout(Bm_.Width());
+   Vector subvecout(Bp_.Width());
 
    in.GetSubVector(secondary_contact_dofs_, subvecin);
    BsTinverse_.Solve(Bs_.Height(), 1, subvecin);
-   Bm_.MultTranspose(subvecin, subvecout);
+   Bp_.MultTranspose(subvecin, subvecout);
    subvecout *= -1.0;
    out.AddElementVector(mapped_primary_contact_dofs, subvecout);
 }

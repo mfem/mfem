@@ -20,9 +20,11 @@
 namespace mfem
 {
 
-/** Take a vector with displacements and lagrange multiplier degrees of
-    freedom (corresponding to pressures on the secondary surface), eliminate
-    the constraint, return vector of just displacements.
+/** @brief Connects eliminated dofs to non-eliminated dofs for EliminationCGSolver
+
+    The action of this is (for a certain ordering) [ I ; -B_s^{-1} B_p ] where
+    B_s is the part of B (the constraint matrix) corresponding to secondary
+    degrees of freedom, and B_p is the remainder of the constraint matrix.
 
     This is P in the EliminationCGSolver algorithm
 
@@ -36,14 +38,14 @@ public:
       takes just the jac. Actually, what I want is an object that creates
       both this and the approximate version, using only jac.
 
-      rectangular B_1 = B_m has lagrange_dofs rows, primary_contact_dofs columns
+      rectangular B_1 = B_p has lagrange_dofs rows, primary_contact_dofs columns
       square B_2 = B_s has lagrange_dofs rows, secondary_contact_dofs columns
 
-      B_m maps primary displacements into lagrange space
+      B_p maps primary displacements into lagrange space
       B_s maps secondary displacements into lagrange space
       B_s^T maps lagrange space to secondary displacements (*)
       B_s^{-1} maps lagrange space into secondary displacements
-      -B_s^{-1} B_m maps primary displacements to secondary displacements
+      -B_s^{-1} B_p maps primary displacements to secondary displacements
    */
    EliminationProjection(SparseMatrix& A, SparseMatrix& B,
                          Array<int>& primary_contact_dofs,
@@ -69,7 +71,7 @@ private:
    Array<int>& primary_contact_dofs_;
    Array<int>& secondary_contact_dofs_;
 
-   DenseMatrix Bm_;
+   DenseMatrix Bp_;
    DenseMatrix Bs_;  // gets inverted in place
    LUFactors Bsinverse_;
    /// @todo there is probably a better way to handle the B_s^{-T}
@@ -81,11 +83,20 @@ private:
 
 #ifdef MFEM_USE_MPI
 
+/** @brief Solve constrained system by eliminating the constraint; see ConstrainedSolver
+
+    Solves the system with the operator P^T A P, where P is EliminationProjection.
+
+    Currently does not work in parallel. */
 class EliminationCGSolver : public IterativeSolver
 {
 public:
    EliminationCGSolver(SparseMatrix& A, SparseMatrix& B, int firstblocksize);
 
+   /** @brief Constructor, with explicit splitting into primary/secondary dofs.
+
+       The secondary_dofs are eliminated from the system in this algorithm,
+       as they can be written in terms of the primary_dofs. */
    EliminationCGSolver(SparseMatrix& A, SparseMatrix& B, Array<int>& primary_dofs,
                        Array<int>& secondary_dofs);
 
@@ -116,9 +127,11 @@ private:
    HypreBoomerAMG * prec_;
 };
 
-/**
-   @todo test in parallel
-*/
+/** @brief Solve constrained system with penalty method; see ConstrainedSolver.
+
+    Uses a HypreBoomerAMG preconditioner for the penalized system. Only
+    approximates the solution, better approximation with higher penalty,
+    but with higher penalty the preconditioner is less effective. */
 class PenaltyConstrainedSolver : public IterativeSolver
 {
 public:
@@ -144,7 +157,12 @@ private:
 
 #endif
 
-/// @todo test in parallel
+/** @brief Solve constrained system by solving original mixed sysetm;
+    see ConstrainedSolver.
+
+    Solves the saddle-point problem with a block-diagonal preconditioner, with
+    user-provided preconditioner in the top-left block and an identity matrix
+    in the bottom-right. */
 class SchurConstrainedSolver : public IterativeSolver
 {
 public:

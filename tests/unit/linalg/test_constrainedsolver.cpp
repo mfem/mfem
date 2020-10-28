@@ -123,7 +123,8 @@ void SimpleSaddle::Penalty(double pen, Vector& serr, Vector& lerr)
    lerr(0) = truelambda - lambda(0);
 }
 
-// TODO: test actual parallel problem, ...
+// this test case is intended to run on one processor, but it is
+// marked [Parallel] because it uses hypre
 TEST_CASE("ConstrainedSolver", "[Parallel], [ConstrainedSolver]")
 {
    int comm_size;
