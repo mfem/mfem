@@ -3002,4 +3002,38 @@ void BlockDiagSolver::Mult(const Vector &x, Vector &y) const
    }
 }
 
+void ProductSolver::Mult(const Vector & x, Vector & y) const
+{
+   y.SetSize(x.Size());
+   y = 0.0;
+   S0_->Mult(x, y);
+
+   Vector z(x.Size());
+   z = 0.0;
+   A_->Mult(y, z);
+   add(-1.0, z, 1.0, x, z); // z = (I - A * S0) x
+
+   Vector S1z(x.Size());
+   S1z = 0.0;
+   S1_->Mult(z, S1z);
+   y += S1z;
+}
+
+void ProductSolver::MultTranspose(const Vector & x, Vector & y) const
+{
+   y.SetSize(x.Size());
+   y = 0.0;
+   S1_->MultTranspose(x, y);
+
+   Vector z(x.Size());
+   z = 0.0;
+   A_->MultTranspose(y, z);
+   add(-1.0, z, 1.0, x, z); // z = (I - A^T * S1^T) x
+
+   Vector S0Tz(x.Size());
+   S0Tz = 0.0;
+   S0_->MultTranspose(z, S0Tz);
+   y += S0Tz;
+}
+
 }

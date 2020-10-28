@@ -343,24 +343,6 @@ void KernelSmoother::Mult(const Vector & x, Vector & y) const
    blk_kernel_map_.As<BlockOperator>()->Mult(kernel_sol, y);
 }
 
-void ProductSolver::Mult(int i, int j, const Vector & x, Vector & y) const
-{
-   y.SetSize(x.Size());
-   y = 0.0;
-   solvers_[i]->Mult(x, y);
-
-   Vector resid(x.Size());
-   resid = 0.0;
-   op_->Mult(y, resid);
-   add(-1.0, resid, 1.0, x, resid);    // resid = x - A(y)
-
-   Vector correction(x.Size());
-   correction = 0.0;
-
-   solvers_[j]->Mult(resid, correction);
-   y += correction;
-}
-
 DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
                              const DFSData& data)
    : DarcySolver(M.NumRows(), B.NumRows()), data_(data), BT_(B.Transpose()),
