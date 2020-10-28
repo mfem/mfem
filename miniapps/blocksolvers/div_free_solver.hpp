@@ -49,12 +49,15 @@ class DFSDataCollector
    unique_ptr<ParFiniteElementSpace> coarse_hcurl_fes_;
    unique_ptr<ParFiniteElementSpace> l2_0_fes_;
 
+   unique_ptr<ParFiniteElementSpace> hdiv_fes_;
+   unique_ptr<ParFiniteElementSpace> l2_fes_;
+   unique_ptr<ParFiniteElementSpace> hcurl_fes_;
+
    Array<SparseMatrix> el_l2dof_;
    const Array<int>& ess_bdr_attr_;
    Array<int> all_bdr_attr_;
 
    int level_;
-   int order_;
    DFSData data_;
 
    void MakeDofRelationTables(int level);
@@ -63,13 +66,11 @@ public:
    DFSDataCollector(int order, int num_refine, ParMesh *mesh,
                     const Array<int>& ess_attr, const DFSParameters& param);
 
-   void CollectData();
+   void CollectDFSData();
 
    const DFSData& GetData() const { return data_; }
-
-   unique_ptr<ParFiniteElementSpace> hdiv_fes_;
-   unique_ptr<ParFiniteElementSpace> l2_fes_;
-   unique_ptr<ParFiniteElementSpace> hcurl_fes_;
+   ParFiniteElementSpace* GetHdivFES() const { return hdiv_fes_.get(); }
+   ParFiniteElementSpace* GetL2FES() const { return l2_fes_.get(); }
 };
 
 /// Abstract solver class for Darcy's flow

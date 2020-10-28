@@ -52,7 +52,7 @@ double natural_bc(const Vector & x);
        g = \int_\Omega g_exact q_h dx,
        u_h, v_h \in R_h (Raviart-Thomas finite element space),
        q_h \in W_h (piecewise discontinuous polynomials),
-       D \subset \partial\Omega is where natural boundary condition is imposed */
+       D: subset of the boundary where natural boundary condition is imposed. */
 class DarcyProblem
 {
    OperatorPtr M_;
@@ -74,7 +74,7 @@ public:
    HypreParMatrix& GetB() { return *B_.As<HypreParMatrix>(); }
    const Vector& GetRHS() { return rhs_; }
    const Vector& GetEssentialBC() { return ess_data_; }
-   const DFSDataCollector& GetDFSDataCollector() const { return collector_; }
+   const DFSData& GetDFSData() const { return collector_.GetData(); }
    void ShowError(const Vector& sol, bool verbose);
    void VisualizeSolution(const Vector& sol, string tag);
 };
@@ -87,29 +87,29 @@ DarcyProblem::DarcyProblem(Mesh& mesh, int num_refs, int order,
    for (int l = 0; l < num_refs; l++)
    {
       mesh_.UniformRefinement();
-      collector_.CollectData();
+      collector_.CollectDFSData();
    }
 
    VectorFunctionCoefficient fcoeff(mesh_.Dimension(), f_exact);
    FunctionCoefficient natcoeff(natural_bc);
    FunctionCoefficient gcoeff(g_exact);
 
-   u_.SetSpace(collector_.hdiv_fes_.get());
-   p_.SetSpace(collector_.l2_fes_.get());
+   u_.SetSpace(collector_.GetHdivFES());
+   p_.SetSpace(collector_.GetL2FES());
    u_ = 0.0;
    u_.ProjectBdrCoefficientNormal(ucoeff_, ess_bdr);
 
-   ParLinearForm fform(collector_.hdiv_fes_.get());
+   ParLinearForm fform(collector_.GetHdivFES());
    fform.AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
    fform.AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(natcoeff));
    fform.Assemble();
 
-   ParLinearForm gform(collector_.l2_fes_.get());
+   ParLinearForm gform(collector_.GetL2FES());
    gform.AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
    gform.Assemble();
 
-   ParBilinearForm mVarf(collector_.hdiv_fes_.get());
-   ParMixedBilinearForm bVarf(&(*collector_.hdiv_fes_), &(*collector_.l2_fes_));
+   ParBilinearForm mVarf(collector_.GetHdivFES());
+   ParMixedBilinearForm bVarf(collector_.GetHdivFES(), collector_.GetL2FES());
 
    mVarf.AddDomainIntegrator(new VectorFEMassIntegrator);
    mVarf.Assemble();
@@ -249,20 +249,20 @@ int main(int argc, char *argv[])
    DarcyProblem darcy(mesh, num_refines, order, ess_bdr, param);
    HypreParMatrix& M = darcy.GetM();
    HypreParMatrix& B = darcy.GetB();
-   const DFSDataCollector& collector = darcy.GetDFSDataCollector();
+   const DFSData& DFS_data = darcy.GetDFSData();
 
    if (verbose)
    {
       cout << line << "System assembled in " << chrono.RealTime() << "s.\n";
       cout << "Size of the discrete Darcy system: " << M.M() + B.M() << "\n";
       cout << "Dimension of the divergence free subspace: "
-           << collector.hcurl_fes_->GlobalTrueVSize() << "\n";
+           << DFS_data.C.Last().Ptr()->NumCols() << "\n";
    }
 
    // Setup various solvers for the discrete problem
    std::map<const DarcySolver*, double> setup_time;
    ResetTimer();
-   DivFreeSolver dfs(M, B, collector.GetData());
+   DivFreeSolver dfs(M, B, DFS_data);
    setup_time[&dfs] = chrono.RealTime();
 
    ResetTimer();
