@@ -181,6 +181,7 @@ struct CeedMFOperator
 void InitCeedCoeff(Coefficient* Q, Mesh &mesh, const IntegrationRule &ir,
                    CeedData* ptr);
 
+#ifdef MFEM_USE_CEED
 /// Initialize a CeedBasis and a CeedElemRestriction
 void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
                                  const IntegrationRule &ir,
@@ -189,6 +190,7 @@ void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
 
 void InitCeedTensorRestriction(const FiniteElementSpace &fes,
                                Ceed ceed, CeedElemRestriction *restr);
+#endif
 
 /// Return the path to the libCEED q-function headers.
 const std::string &GetCeedPath();
