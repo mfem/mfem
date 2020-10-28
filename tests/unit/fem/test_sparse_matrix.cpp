@@ -182,7 +182,7 @@ void test_sparse_matrix(const char* input, int order, const Coeff coeff_type,
    k_test.Assemble();
 
    const int sizeIn  = pb == Problem::Convection ?
-                       fes.GetVSize() + fes.GetFaceNbrVSize() : 
+                       fes.GetVSize() + fes.GetFaceNbrVSize() :
                        fes.GetVSize();
    const int sizeOut = fes.GetVSize();
    Vector x(sizeIn), y_test(sizeOut), y_ref(sizeOut);
