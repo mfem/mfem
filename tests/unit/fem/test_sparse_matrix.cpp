@@ -205,7 +205,7 @@ TEST_CASE("Sparse Matrix", "[Parallel]")
    auto pb = GENERATE(Problem::Mass,Problem::Convection,Problem::Diffusion);
    auto order = GENERATE(1,2,3);
    auto mesh = GENERATE("../../data/inline-quad.mesh","../../data/inline-hex.mesh",
-                        "../../data/star-q2.mesh","../../data/fichera-q2.mesh");
+                        "../../data/star-q2.mesh","../../data/beam-hex.mesh");
    test_sparse_matrix(mesh, order, coeff_type, pb, assembly);
 } // test case
 
