@@ -183,15 +183,15 @@ void DarcyProblem::VisualizeSolution(const Vector& sol, string tag)
 
 int main(int argc, char *argv[])
 {
-   StopWatch chrono;
-   auto ResetTimer = [&chrono]() { chrono.Clear(); chrono.Start(); };
-
    // 1. Initialize MPI.
    int num_procs, myid;
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
    bool verbose = (myid == 0);
+
+   StopWatch chrono;
+   auto ResetTimer = [&chrono]() { chrono.Clear(); chrono.Start(); };
 
    // 2. Parse command-line options.
    int order = 0;
@@ -259,41 +259,43 @@ int main(int argc, char *argv[])
            << DFS_data.C.Last().Ptr()->NumCols() << "\n";
    }
 
-   // Setup various solvers for the discrete problem
-   std::map<const DarcySolver*, double> setup_time;
-   ResetTimer();
-   DivFreeSolver dfs(M, B, DFS_data);
-   setup_time[&dfs] = chrono.RealTime();
-
-   ResetTimer();
-   BDPMinresSolver bdp(M, B, false, param);
-   setup_time[&bdp] = chrono.RealTime();
-
-   std::map<const DarcySolver*, std::string> solver_to_name;
-   solver_to_name[&dfs] = "Divergence free";
-   solver_to_name[&bdp] = "Block-diagonal-preconditioned MINRES";
-
-   // Solve the problem using all solvers
-   for (const auto& solver_pair : solver_to_name)
    {
-      auto& solver = solver_pair.first;
-      auto& name = solver_pair.second;
-
-      Vector sol = darcy.GetEssentialBC();
+      // Setup various solvers for the discrete problem
+      std::map<const DarcySolver*, double> setup_time;
       ResetTimer();
-      solver->Mult(darcy.GetRHS(), sol);
-      chrono.Stop();
+      DivFreeSolver dfs(M, B, DFS_data);
+      setup_time[&dfs] = chrono.RealTime();
 
-      if (verbose)
+      ResetTimer();
+      BDPMinresSolver bdp(M, B, param);
+      setup_time[&bdp] = chrono.RealTime();
+
+      std::map<const DarcySolver*, std::string> solver_to_name;
+      solver_to_name[&dfs] = "Divergence free";
+      solver_to_name[&bdp] = "Block-diagonal-preconditioned MINRES";
+
+      // Solve the problem using all solvers
+      for (const auto& solver_pair : solver_to_name)
       {
-         cout << line << name << " solver:\n   Setup time: "
-              << setup_time[solver] << "s.\n   Solve time: "
-              << chrono.RealTime() << "s.\n   Total time: "
-              << setup_time[solver] + chrono.RealTime() << "s.\n"
-              << "   Iteration count: " << solver->GetNumIterations() <<"\n";
+         auto& solver = solver_pair.first;
+         auto& name = solver_pair.second;
+
+         Vector sol = darcy.GetEssentialBC();
+         ResetTimer();
+         solver->Mult(darcy.GetRHS(), sol);
+         chrono.Stop();
+
+         if (verbose)
+         {
+            cout << line << name << " solver:\n   Setup time: "
+                 << setup_time[solver] << "s.\n   Solve time: "
+                 << chrono.RealTime() << "s.\n   Total time: "
+                 << setup_time[solver] + chrono.RealTime() << "s.\n"
+                 << "   Iteration count: " << solver->GetNumIterations() <<"\n";
+         }
+         if (show_error) { darcy.ShowError(sol, verbose); }
+         if (visualization) { darcy.VisualizeSolution(sol, name); }
       }
-      if (show_error) { darcy.ShowError(sol, verbose); }
-      if (visualization) { darcy.VisualizeSolution(sol, name); }
    }
 
    MPI_Finalize();

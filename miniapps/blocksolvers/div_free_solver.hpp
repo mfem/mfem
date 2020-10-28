@@ -36,7 +36,8 @@ struct DFSData
    DFSParameters param;
 };
 
-/// For collecting data needed for the divergence free solver
+/// Finite element spaces concerning divergence free solver.
+/// The main usage of this class is to collect data needed for the solver.
 class DFSSpaces
 {
    RT_FECollection hdiv_fec_;
@@ -66,6 +67,9 @@ public:
    DFSSpaces(int order, int num_refine, ParMesh *mesh,
              const Array<int>& ess_attr, const DFSParameters& param);
 
+   /** This should be called each time when the mesh (where the FE spaces are
+       defined) is refined. The spaces will be updated, and the prolongation for
+       the spaces and other data needed for the div-free solver are stored. */
    void CollectDFSData();
 
    const DFSData& GetDFSData() const { return data_; }
@@ -85,6 +89,7 @@ public:
 };
 
 /// Solver for B * B^T
+/// Compute the product B * B^T and solve it with CG preconditioned by BoomerAMG
 class BBTSolver : public Solver
 {
    OperatorPtr BBT_;
@@ -99,18 +104,12 @@ public:
 };
 
 /// Block diagonal solver for A, each block is inverted by direct solver
-class BlockDiagSolver : public Solver
+class SymBlkDiagSolver : public BlockDiagSolver
 {
-   mutable SparseMatrix block_dof_;
-   mutable Array<int> local_dofs_;
-   mutable Vector sub_rhs_;
-   mutable Vector sub_sol_;
-   Array<DenseMatrixInverse> block_solver_;
 public:
-   BlockDiagSolver(const OperatorPtr& A, SparseMatrix block_dof);
-   virtual void Mult(const Vector &x, Vector &y) const;
+   SymBlkDiagSolver(const SparseMatrix& A, const SparseMatrix& block_dof)
+      : BlockDiagSolver(A, block_dof) { }
    virtual void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
-   virtual void SetOperator(const Operator &op) { }
 };
 
 /// Solver for local problems in SchwarzSmoother
@@ -181,14 +180,23 @@ public:
    virtual void SetOperator(const Operator &op) { }
 };
 
-/// Divergence free solver, for more details see Appendix F.3 in
-/// Vassilevski, Multilevel Block Factorization Preconditioners, 2008
+/** Divergence free solver.
+    The basic idea of the solver is to exploit a multilevel decomposition of
+    Raviart-Thomas space to find a particular solution satisfying the divergence
+    constraint, and then solve the remaining (divergence-free) component in the
+    kernel space of the discrete divergence operator.
+
+    For more details see
+    1. Vassilevski, Multilevel Block Factorization Preconditioners (Appendix F.3),
+       Springer, 2008.
+    2. Voronin, Lee, Neumuller, Sepulveda, Vassilevski, Space-time discretizations
+       using constrained first-order system least squares (CFOSLS).
+       J. Comput. Phys. 373: 863-876, 2018. */
 class DivFreeSolver : public DarcySolver
 {
    const DFSData& data_;
    OperatorPtr BT_;
    BBTSolver BBT_solver_;
-   OperatorPtr CTMC_;
    Array<Array<int>> ops_offsets_;
    Array<BlockOperator*> ops_;
    Array<BlockOperator*> blk_Ps_;
@@ -210,7 +218,7 @@ public:
    }
 };
 
-/// Wrapper for the block-diagonally preconditioned MINRES defined in ex5p.cpp
+/// Wrapper for the block-diagonal-preconditioned MINRES defined in ex5p.cpp
 class BDPMinresSolver : public DarcySolver
 {
    BlockOperator op_;
@@ -221,7 +229,7 @@ class BDPMinresSolver : public DarcySolver
    Array<int> ess_zero_dofs_;
 public:
    BDPMinresSolver(HypreParMatrix& M, HypreParMatrix& B,
-                   bool own_input, IterSolveParameters param);
+                   IterSolveParameters param);
    virtual void Mult(const Vector & x, Vector & y) const;
    virtual void SetOperator(const Operator &op) { }
    void SetEssZeroDofs(const Array<int>& dofs) { dofs.Copy(ess_zero_dofs_); }
