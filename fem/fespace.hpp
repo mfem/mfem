@@ -331,7 +331,8 @@ public:
    { return GetConformingProlongation(); }
 
    /// Return a prolongation operator that only acts on local dofs
-   /** The returned operator is owned by the FiniteElementSpace. */
+   /** The returned operator is owned by the FiniteElementSpace. This
+       differs from GetProlongationMatrix only in parallel. */
    virtual const Operator *GetLocalProlongationOperator() const
    { return GetConformingProlongation(); }
 
