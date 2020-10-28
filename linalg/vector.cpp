@@ -68,12 +68,12 @@ void Vector::Load(std::istream **in, int np, int *dim)
       for (j = 0; j < dim[i]; j++)
       {
          *in[i] >> data[p++];
-#if defined __APPLE__ && defined __clang__
+         // Clang's libc++ sets the failbit when (correctly) parsing subnormals,
+         // so we reset the failbit here.
          if (!*in[i] && errno == ERANGE)
          {
             in[i]->clear();
          }
-#endif
       }
    }
 }
@@ -85,12 +85,12 @@ void Vector::Load(std::istream &in, int Size)
    for (int i = 0; i < size; i++)
    {
       in >> data[i];
-#if defined __APPLE__ && defined __clang__
+      // Clang's libc++ sets the failbit when (correctly) parsing subnormals,
+      // so we reset the failbit here.
       if (!in && errno == ERANGE)
       {
          in.clear();
       }
-#endif
    }
 }
 
