@@ -63,12 +63,20 @@ TEST_CASE("Laplacian Eigenvalues",
    {
       Mesh *mesh = GetMesh((MeshType)mt);
       int  dim = mesh->Dimension();
-      mesh->UniformRefinement();
+      if (dim < 3 ||
+          mt == MeshType::HEXAHEDRON ||
+          mt == MeshType::WEDGE2     ||
+          mt == MeshType::TETRAHEDRA ||
+          mt == MeshType::WEDGE4     ||
+          mt == MeshType::MIXED3D8 )
+      {
+         mesh->UniformRefinement();
+      }
 
       H1_FECollection fec(order, dim);
       FiniteElementSpace fespace(mesh, &fec);
       int size = fespace.GetTrueVSize();
-      std::cout << "Eigenvalue system size: " << size << std::endl;
+      std::cout << mt << " Eigenvalue system size: " << size << std::endl;
 
       Array<int> ess_bdr;
       if (mesh->bdr_attributes.Size())
@@ -124,18 +132,19 @@ TEST_CASE("Laplacian Eigenvalues",
          Md(ei,ei) = 1.0;
       }
 
-      int nev = dim + 1;
-      Array<double> eigenvalues(nev);
+      int nev = dim;
       Vector deigs(size);
       Ad.Eigenvalues(Md, deigs, vd);
 
+      Array<int> exact_eigs(&eigs[7 * (dim - 1)], 7);
+
       for (int i=bsize; i<std::min(size,bsize+nev); i++)
       {
-         eigenvalues[i-bsize] = deigs[i];
-         std::cout << "Eigenvalue lambda   " << deigs[i] << '\n';
+         double lc = deigs[i];
+         double le = exact_eigs[i-bsize];
+         double err = 100.0 * fabs(le - lc) / le;
+         REQUIRE(err < 5.0);
       }
-
-      // Array<int> exact_eigs(&eigs[7 * (dim - 1)], 7);
 
       delete mesh;
    }
