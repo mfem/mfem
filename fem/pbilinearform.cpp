@@ -585,7 +585,6 @@ void ParDiscreteLinearOperator::ParallelAssemble(OperatorHandle &A)
    A.MakeRAP(P_test, dA, P_trial);
 }
 
-//// @todo copied from ParMixedBilinearForm, should be some inheritance?
 void ParDiscreteLinearOperator::FormRectangularSystemMatrix(OperatorHandle &A)
 {
    if (ext)
@@ -594,20 +593,6 @@ void ParDiscreteLinearOperator::FormRectangularSystemMatrix(OperatorHandle &A)
       ext->FormRectangularSystemOperator(empty, empty, A);
       return;
    }
-
-   /*
-   if (mat)
-   {
-      Finalize();
-      ParallelAssemble(p_mat);
-      delete mat;
-      mat = NULL;
-      delete mat_e;
-      mat_e = NULL;
-      p_mat_e = NULL;
-   }
-   A = p_mat;
-   */
 
    mfem_error("not implemented!");
 }
