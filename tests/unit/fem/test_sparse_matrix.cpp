@@ -16,6 +16,8 @@
 
 using namespace mfem;
 
+#ifdef MFEM_USE_MPI
+
 namespace sparse_matrix_test
 {
 
@@ -110,6 +112,7 @@ void test_sparse_matrix(const char* input, int order, const Coeff coeff_type,
    INFO(section);
    Mesh mesh(input, 1, 1);
    mesh.EnsureNodes();
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
    int dim = mesh.Dimension();
 
    FiniteElementCollection *fec;
@@ -121,14 +124,13 @@ void test_sparse_matrix(const char* input, int order, const Coeff coeff_type,
    {
       fec = new H1_FECollection(order, dim);
    }
-   ParMesh pmesh(MPI_COMM_WORLD, mesh);
    ParFiniteElementSpace fes(&pmesh, fec);
 
-   BilinearForm k_test(&fes);
+   ParBilinearForm k_test(&fes);
    ParBilinearForm k_ref(&fes);
 
-   FiniteElementSpace coeff_fes(&mesh, fec);
-   GridFunction gf(&coeff_fes);
+   ParFiniteElementSpace coeff_fes(&pmesh, fec);
+   ParGridFunction gf(&coeff_fes);
 
    Coefficient *coeff = nullptr;
    ConstantCoefficient rho(1.0);
@@ -210,3 +212,5 @@ TEST_CASE("Sparse Matrix", "[Parallel]")
 } // test case
 
 } // namespace sparse_matrix_test
+
+#endif // MFEM_USE_MPI
