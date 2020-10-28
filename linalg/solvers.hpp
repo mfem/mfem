@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "densemat.hpp"
+#include "handle.hpp"
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
@@ -812,6 +813,22 @@ public:
    /// i-th block, block_dof(i, j) = 0 otherwise.
    BlockDiagSolver(const SparseMatrix& A, const SparseMatrix& block_dof);
    virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void SetOperator(const Operator &op) { }
+};
+
+/// Solver S such that I - A * S = (I - A * S1) * (I - A * S0).
+/// That is, S = S0 + S1 - S1 * A * S0.
+class ProductSolver : public Solver
+{
+   OperatorPtr A_;
+   OperatorPtr S0_;
+   OperatorPtr S1_;
+public:
+   ProductSolver(Operator* A, Solver* S0, Solver* S1,
+                 bool ownA, bool ownS0, bool ownS1)
+      : Solver(A->NumRows()), A_(A, ownA), S0_(S0, ownS0), S1_(S1, ownS1) { }
+   virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void MultTranspose(const Vector &x, Vector &y) const;
    virtual void SetOperator(const Operator &op) { }
 };
 

@@ -143,7 +143,8 @@ public:
                    const SparseMatrix& agg_l2dof,
                    const HypreParMatrix& P_l2,
                    const HypreParMatrix& Q_l2);
-   virtual void Mult(const Vector & x, Vector & y) const;
+   virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
    virtual void SetOperator(const Operator &op) { }
 };
 
@@ -156,27 +157,8 @@ class KernelSmoother : public Solver
    OperatorPtr kernel_smoother_;
 public:
    KernelSmoother(const BlockOperator& op, const HypreParMatrix& kernel_map_);
-   virtual void Mult(const Vector & x, Vector & y) const;
-   virtual void SetOperator(const Operator &op) { }
-};
-
-/// Solver S such that I - A * S = (I - A * S1) * (I - A * S0).
-/// A, S0, S1 are assumed to be symmetric.
-class ProductSolver : public Solver
-{
-   OperatorPtr op_;
-   Array<OperatorPtr> solvers_;
-   void Mult(int i, int j, const Vector & x, Vector & y) const;
-public:
-   ProductSolver(Operator* A, Operator* S0, Operator* S1,
-                 bool ownA, bool ownS0, bool ownS1)
-      : Solver(A->NumRows()), op_(A, ownA), solvers_(2)
-   {
-      solvers_[0].Reset(S0, ownS0);
-      solvers_[1].Reset(S1, ownS1);
-   }
-   virtual void Mult(const Vector & x, Vector & y) const { Mult(0, 1, x, y); }
-   virtual void MultTranspose(const Vector & x, Vector & y) const { Mult(1, 0, x, y); }
+   virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
    virtual void SetOperator(const Operator &op) { }
 };
 
