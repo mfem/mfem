@@ -22,9 +22,10 @@ namespace mfem
 
 /** @brief Connects eliminated dofs to non-eliminated dofs for EliminationCGSolver
 
-    The action of this is (for a certain ordering) [ I ; -B_s^{-1} B_p ] where
-    B_s is the part of B (the constraint matrix) corresponding to secondary
-    degrees of freedom, and B_p is the remainder of the constraint matrix.
+    The action of this is (for a certain ordering) \f$ [ I ; -B_s^{-1} B_p ] \f$
+    where \f$ B_s \f$ is the part of B (the constraint matrix) corresponding
+    to secondary degrees of freedom, and \f$ B_p \f$ is the remainder of the
+    constraint matrix.
 
     This is P in the EliminationCGSolver algorithm
 
@@ -85,7 +86,8 @@ private:
 
 /** @brief Solve constrained system by eliminating the constraint; see ConstrainedSolver
 
-    Solves the system with the operator P^T A P, where P is EliminationProjection.
+    Solves the system with the operator \f$ P^T A P \f$, where P is
+    EliminationProjection.
 
     Currently does not work in parallel. */
 class EliminationCGSolver : public IterativeSolver
@@ -150,7 +152,6 @@ private:
 
    double penalty;
    Operator& constraintB;
-   // SparseMatrix * penalized_mat;
    HypreParMatrix * penalized_mat;
    HypreBoomerAMG * prec;
 };
@@ -182,24 +183,18 @@ private:
 };
 
 
-/**
-   A class to solve the constrained system
+/** @brief A class to solve the constrained system \f$ Ax = f \f$
+    subject to the constraint \f$ B x = r \f$ in an abstract setting.
 
-     A x = f
-
-   subject to the constraint
-
-     B x = r
-
-   abstractly. Although this object may not use the below formulation,
-   for understanding some of its methods and notation you can think of
-   it as solving the saddle-point system
+    Although this object may not use the below formulation, for
+    understanding some of its methods and notation you can think of
+    it as solving the saddle-point system
 
      (  A   B^T  )  ( x )         (  f  )
      (  B        )  ( lambda)  =  (  r  )
 
-   Not to be confused with ConstrainedOperator, which is totally different.
-*/
+     Not to be confused with ConstrainedOperator, which is totally
+     different. */
 class ConstrainedSolver : public Solver
 {
 public:
@@ -215,8 +210,6 @@ public:
    void SetSchur(Solver& prec);
 
    /** @brief Set the right-hand side r for the constraint B x = r
-
-       @todo this is not going to work for elimination?
 
        (r defaults to zero if you don't call this)
    */
