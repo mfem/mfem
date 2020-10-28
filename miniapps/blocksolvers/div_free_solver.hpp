@@ -37,7 +37,7 @@ struct DFSData
 };
 
 /// For collecting data needed for the divergence free solver
-class DFSDataCollector
+class DFSSpaces
 {
    RT_FECollection hdiv_fec_;
    L2_FECollection l2_fec_;
@@ -63,12 +63,12 @@ class DFSDataCollector
    void MakeDofRelationTables(int level);
    void DataFinalize();
 public:
-   DFSDataCollector(int order, int num_refine, ParMesh *mesh,
-                    const Array<int>& ess_attr, const DFSParameters& param);
+   DFSSpaces(int order, int num_refine, ParMesh *mesh,
+             const Array<int>& ess_attr, const DFSParameters& param);
 
    void CollectDFSData();
 
-   const DFSData& GetData() const { return data_; }
+   const DFSData& GetDFSData() const { return data_; }
    ParFiniteElementSpace* GetHdivFES() const { return hdiv_fes_.get(); }
    ParFiniteElementSpace* GetL2FES() const { return l2_fes_.get(); }
 };

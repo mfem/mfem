@@ -44,9 +44,8 @@ SparseMatrix ElemToDof(const ParFiniteElementSpace& fes)
    return SparseMatrix(I, J, D, fes.GetNE(), fes.GetVSize());
 }
 
-DFSDataCollector::
-DFSDataCollector(int order, int num_refine, ParMesh *mesh,
-                 const Array<int>& ess_attr, const DFSParameters& param)
+DFSSpaces::DFSSpaces(int order, int num_refine, ParMesh *mesh,
+                     const Array<int>& ess_attr, const DFSParameters& param)
    : hdiv_fec_(order, mesh->Dimension()), l2_fec_(order, mesh->Dimension()),
      hcurl_fec_(order+1, mesh->Dimension()), l2_0_fec_(0, mesh->Dimension()),
      ess_bdr_attr_(ess_attr), level_(0)
@@ -118,7 +117,7 @@ SparseMatrix* AggToInteriorDof(const Array<int>& bdr_truedofs,
    return Transpose(intdof_agg);
 }
 
-void DFSDataCollector::MakeDofRelationTables(int level)
+void DFSSpaces::MakeDofRelationTables(int level)
 {
    Array<int> agg_starts(Array<int>(l2_0_fes_->GetDofOffsets(), 2));
    auto& elem_agg = (const SparseMatrix&)*l2_0_fes_->GetUpdateOperator();
@@ -135,7 +134,7 @@ void DFSDataCollector::MakeDofRelationTables(int level)
    data_.agg_hdivdof[level].Reset(tmp);
 }
 
-void DFSDataCollector::CollectDFSData()
+void DFSSpaces::CollectDFSData()
 {
    auto GetP = [this](OperatorPtr& P, unique_ptr<ParFiniteElementSpace>& cfes,
                       ParFiniteElementSpace& fes, bool remove_zero)
@@ -165,7 +164,7 @@ void DFSDataCollector::CollectDFSData()
    if (level_ == data_.P_l2.Size()) { DataFinalize(); }
 }
 
-void DFSDataCollector::DataFinalize()
+void DFSSpaces::DataFinalize()
 {
    ParBilinearForm mass(l2_fes_.get());
    mass.AddDomainIntegrator(new MassIntegrator());
