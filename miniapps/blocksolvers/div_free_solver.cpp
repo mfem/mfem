@@ -49,7 +49,7 @@ DFSDataCollector(int order, int num_refine, ParMesh *mesh,
                  const Array<int>& ess_attr, const DFSParameters& param)
    : hdiv_fec_(order, mesh->Dimension()), l2_fec_(order, mesh->Dimension()),
      hcurl_fec_(order+1, mesh->Dimension()), l2_0_fec_(0, mesh->Dimension()),
-     ess_bdr_attr_(ess_attr), level_(0), order_(order)
+     ess_bdr_attr_(ess_attr), level_(0)
 {
    if (mesh->GetElement(0)->GetType() == Element::TETRAHEDRON && order)
    {
@@ -135,7 +135,7 @@ void DFSDataCollector::MakeDofRelationTables(int level)
    data_.agg_hdivdof[level].Reset(tmp);
 }
 
-void DFSDataCollector::CollectData()
+void DFSDataCollector::CollectDFSData()
 {
    auto GetP = [this](OperatorPtr& P, unique_ptr<ParFiniteElementSpace>& cfes,
                       ParFiniteElementSpace& fes, bool remove_zero)
