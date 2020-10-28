@@ -96,9 +96,9 @@ set(HDRS
   libceed/diffusion.hpp
   libceed/mass.hpp
   libceed/ceed-assemble.hpp
-  libceed/ceedsolvers-atpmg.hpp
-  libceed/ceedsolvers-interpolation.hpp
-  libceed/ceedsolvers-utility.hpp
+  libceed/ceedsolvers-atpmg.h
+  libceed/ceedsolvers-interpolation.h
+  libceed/ceedsolvers-utility.h
   libceed/ceed-wrappers.hpp
   linearform.hpp
   lininteg.hpp
