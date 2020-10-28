@@ -138,17 +138,136 @@ TEST_CASE("Laplacian Eigenvalues",
 
       Array<int> exact_eigs(&eigs[7 * (dim - 1)], 7);
 
+      double max_err = 0.0;
       for (int i=bsize; i<std::min(size,bsize+nev); i++)
       {
          double lc = deigs[i];
          double le = exact_eigs[i-bsize];
          double err = 100.0 * fabs(le - lc) / le;
+         max_err = std::max(max_err, err);
          REQUIRE(err < 5.0);
       }
+      std::cout << mt << " Maximum relative error: " << max_err << "%"
+                << std::endl;
 
       delete mesh;
    }
 }
+
+#ifdef MFEM_USE_MPI
+#
+TEST_CASE("Laplacian Eigenvalues in Parallel",
+          "[H1_FECollection]"
+          "[GridFunction]"
+          "[BilinearForm]"
+          "[Parallel]")
+{
+   int num_procs;
+   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
+
+   int my_rank;
+   MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+
+   int order = 3;
+   int seed = 75;
+
+   for (int mt = (int)MeshType::SEGMENT;
+        mt <= (int)MeshType::MIXED3D8; mt++)
+   {
+      Mesh *mesh = GetMesh((MeshType)mt);
+      int  dim = mesh->Dimension();
+      if (dim < 3 ||
+          mt == MeshType::HEXAHEDRON ||
+          mt == MeshType::WEDGE2     ||
+          mt == MeshType::TETRAHEDRA ||
+          mt == MeshType::WEDGE4     ||
+          mt == MeshType::MIXED3D8 )
+      {
+         mesh->UniformRefinement();
+      }
+      while (mesh->GetNE() < num_procs)
+      {
+         mesh->UniformRefinement();
+      }
+      ParMesh pmesh(MPI_COMM_WORLD, *mesh);
+      delete mesh;
+
+      H1_FECollection fec(order, dim);
+      ParFiniteElementSpace fespace(&pmesh, &fec);
+      HYPRE_Int size = fespace.GlobalTrueVSize();
+      if (my_rank == 0)
+      {
+         std::cout << mt << " Eigenvalue system size: " << size << std::endl;
+      }
+
+      Array<int> ess_bdr;
+      if (pmesh.bdr_attributes.Size())
+      {
+         ess_bdr.SetSize(pmesh.bdr_attributes.Max());
+         ess_bdr = 1;
+      }
+      Array<int> ess_bdr_tdofs;
+      fespace.GetEssentialTrueDofs(ess_bdr, ess_bdr_tdofs);
+
+      ParBilinearForm a(&fespace);
+      a.AddDomainIntegrator(new DiffusionIntegrator);
+      a.Assemble();
+      a.EliminateEssentialBCDiag(ess_bdr, 1.0);
+      a.Finalize();
+
+      ParBilinearForm m(&fespace);
+      m.AddDomainIntegrator(new MassIntegrator);
+      m.Assemble();
+      // shift the eigenvalue corresponding to eliminated dofs to a large value
+      m.EliminateEssentialBCDiag(ess_bdr, std::numeric_limits<double>::min());
+      m.Finalize();
+
+      HypreParMatrix *A = a.ParallelAssemble();
+      HypreParMatrix *M = m.ParallelAssemble();
+
+      HypreBoomerAMG amg(*A);
+      amg.SetPrintLevel(0);
+
+      int nev = dim;
+
+      HypreLOBPCG lobpcg(MPI_COMM_WORLD);
+      lobpcg.SetNumModes(nev);
+      lobpcg.SetRandomSeed(seed);
+      lobpcg.SetPreconditioner(amg);
+      lobpcg.SetMaxIter(200);
+      lobpcg.SetTol(1e-8);
+      lobpcg.SetPrecondUsageMode(1);
+      lobpcg.SetPrintLevel(0);
+      lobpcg.SetMassMatrix(*M);
+      lobpcg.SetOperator(*A);
+
+      Array<double> eigenvalues;
+      lobpcg.Solve();
+      lobpcg.GetEigenvalues(eigenvalues);
+
+      Array<int> exact_eigs(&eigs[7 * (dim - 1)], 7);
+
+      double max_err = 0.0;
+      for (int i=0; i<nev; i++)
+      {
+         double lc = eigenvalues[i];
+         double le = exact_eigs[i];
+         double err = 100.0 * fabs(le - lc) / le;
+         max_err = std::max(max_err, err);
+         REQUIRE(err < 5.0);
+      }
+      if (my_rank == 0)
+      {
+         std::cout << mt << " Maximum relative error: " << max_err << "%"
+                   << std::endl;
+      }
+
+      delete A;
+      delete M;
+   }
+}
+
+#endif // MFEM_USE_MPI
 
 Mesh * GetMesh(MeshType type)
 {
