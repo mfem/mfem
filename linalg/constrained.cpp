@@ -318,7 +318,7 @@ void EliminationCGSolver::BuildPreconditioner()
    delete explicit_projector;
    delete h_explicit_projector;
 
-   // so kind of want to do this, use systems version of AMG, but we've eliminated
+   // kind of want to do this, use systems version of AMG, but we've eliminated
    // just some of the dofs associated with a particular direction, so the sizes
    // don't work out! (the *correct* way to do this reorders again or uses rigid body modes
    // or something)
@@ -375,20 +375,6 @@ void EliminationCGSolver::Mult(const Vector& rhs, Vector& sol) const
    krylov.SetRelTol(rel_tol);
    krylov.SetAbsTol(abs_tol);
    krylov.SetPrintLevel(print_level);
-
-/*
-   Vector displacementrhs(spA_.Height());
-   for (int i = 0; i < displacementrhs.Size(); ++i)
-   {
-      displacementrhs(i) = rhs(i);
-   }
-   Vector lagrangerhs(spB_.Height());
-   for (int i = 0; i < lagrangerhs.Size(); ++i)
-   {
-      lagrangerhs(i) = rhs(displacementrhs.Size() + i);
-   }
-   Vector displacementsol(displacementrhs.Size());
-*/
 
    Vector gtilde(rhs.Size());
    if (dual_rhs.Size() > 0)
@@ -463,50 +449,6 @@ PenaltyConstrainedSolver::~PenaltyConstrainedSolver()
 
 void PenaltyConstrainedSolver::Mult(const Vector& b, Vector& x) const
 {
-/*
-   const int disp_size = penalized_mat->Height();
-   const int lm_size = b.Size() - disp_size;
-
-   // form penalized right-hand side
-   Vector rhs_disp, rhs_lm;
-   rhs_disp.MakeRef(const_cast<Vector&>(b), 0, disp_size);
-   rhs_lm.MakeRef(const_cast<Vector&>(b), disp_size, lm_size);
-   Vector temp(disp_size);
-   constraintB.MultTranspose(rhs_lm, temp);
-   temp *= penalty;
-   Vector penalized_rhs(rhs_disp);
-   penalized_rhs += temp;
-
-   // actually solve
-   Vector penalized_sol(disp_size);
-   CGSolver cg(MPI_COMM_WORLD);
-   cg.SetOperator(*penalized_mat);
-   cg.SetRelTol(rel_tol);
-   cg.SetAbsTol(abs_tol);
-   cg.SetMaxIter(max_iter);
-   cg.SetPrintLevel(print_level);
-   cg.SetPreconditioner(*prec);
-
-   penalized_sol = 0.0;
-   cg.Mult(penalized_rhs, penalized_sol);
-
-   // recover Lagrange multiplier
-   Vector lmtemp(rhs_lm.Size());
-   constraintB.Mult(penalized_sol, lmtemp);
-   lmtemp -= rhs_lm;
-   lmtemp *= penalty;
-    
-   // put solution in x
-   for (int i = 0; i < disp_size; ++i)
-   {
-      x(i) = penalized_sol(i);
-   }
-   for (int i = disp_size; i < disp_size + lm_size; ++i)
-   {
-      x(i) = lmtemp(i - disp_size);
-   }
-*/
-
    // form penalized right-hand side
    Vector penalized_rhs(b);
    if (dual_rhs.Size() > 0)
