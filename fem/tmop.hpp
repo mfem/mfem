@@ -919,9 +919,10 @@ protected:
 
    // Surface fitting.
    GridFunction *sigma;              // Owned. Updated by sigma_eval.
-   const GridFunction *sigma_marker;       // Not owned.
+   const GridFunction *sigma_marker; // Not owned.
    Coefficient *coeff_sigma;         // Not owned.
    AdaptivityEvaluator *sigma_eval;  // Not owned.
+   double sigma_normal;
 
    DiscreteAdaptTC *discr_tc;
 
@@ -952,7 +953,8 @@ protected:
    DenseMatrix DSh, DS, Jrt, Jpr, Jpt, P, PMatI, PMatO;
 
    void ComputeNormalizationEnergies(const GridFunction &x,
-                                     double &metric_energy, double &lim_energy);
+                                     double &metric_energy, double &lim_energy,
+                                     double &sigma_energy);
 
 
    void AssembleElementVectorExact(const FiniteElement &el,
@@ -972,14 +974,14 @@ protected:
                               ElementTransformation &T,
                               const Vector &elfun, DenseMatrix &elmat);
 
-   void AssembleElemVecAdaptLim(const GridFunction &g, const GridFunction &g0,
-                                Coefficient &coeff,
-                                const FiniteElement &el, const Vector &weights,
+   void AssembleElemVecAdaptLim(const GridFunction &g, const GridFunction *g0,
+                                Coefficient &coeff, const FiniteElement &el,
+                                const Vector &weights, double normalization,
                                 IsoparametricTransformation &Tpr,
                                 const IntegrationRule &ir, DenseMatrix &m);
-   void AssembleElemGradAdaptLim(const GridFunction &g, const GridFunction &g0,
-                                 Coefficient &coeff,
-                                 const FiniteElement &el, const Vector &weights,
+   void AssembleElemGradAdaptLim(const GridFunction &g, const GridFunction *g0,
+                                 Coefficient &coeff,  const FiniteElement &el,
+                                 const Vector &weights, double normalization,
                                  IsoparametricTransformation &Tpr,
                                  const IntegrationRule &ir, DenseMatrix &m);
 
@@ -1093,7 +1095,7 @@ public:
 #endif
 
 #ifdef MFEM_USE_MPI
-   void EnableSurfaceFitting(const ParGridFunction &s0,
+   void EnableSurfaceFitting(ParGridFunction &s0,
                              const ParGridFunction &smarker, Coefficient &coeff,
                              AdaptivityEvaluator &ae);
 #endif

@@ -671,6 +671,7 @@ int main (int argc, char *argv[])
    {
       FunctionCoefficient ls_coeff(surface_level_set);
       ls_0.ProjectCoefficient(ls_coeff);
+      DiffuseField(ls_0, 2);
 
       for (int i = 0; i < pmesh->GetNE(); i++)
       {
