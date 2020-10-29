@@ -99,7 +99,7 @@ void FiniteElementSpace::SetElementOrder(int i, int p)
    MFEM_VERIFY(p >= 0 && p < CHAR_MAX, "order ouf of range");
    MFEM_ASSERT(!elem_order.Size() || elem_order.Size() == GetNE(), "internal error");
 
-   if (elem_order.Size())
+   if (elem_order.Size()) // already a variable-order space
    {
       if (elem_order[i] != p)
       {
@@ -107,7 +107,7 @@ void FiniteElementSpace::SetElementOrder(int i, int p)
          orders_changed = true;
       }
    }
-   else
+   else // convert space to variable-order space
    {
       elem_order.SetSize(GetNE());
       elem_order = fec->DefaultOrder();
@@ -123,6 +123,12 @@ int FiniteElementSpace::GetElementOrder(int i) const
    MFEM_VERIFY(i >= 0 && i < GetNE(), "invalid element index");
    MFEM_ASSERT(!elem_order.Size() || elem_order.Size() == GetNE(), "internal error");
 
+   return GetElementOrderImpl(i);
+}
+
+int FiniteElementSpace::GetElementOrderImpl(int i) const
+{
+   // (this is an internal version of GetElementOrder without asserts and checks)
    return elem_order.Size() ? elem_order[i] : fec->DefaultOrder();
 }
 
@@ -1059,7 +1065,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    {
       MakeVDimMatrix(*cP);
       MakeVDimMatrix(*cR);
-      MakeVDimMatrix(*cQ);
+      if (cQ) { MakeVDimMatrix(*cQ); }
    }
 
    if (Device::IsEnabled()) { cP->BuildTranspose(); }
@@ -1936,7 +1942,7 @@ void FiniteElementSpace::Construct()
          bdofs[0] = 0;
          for (int i = 0; i < mesh->GetNE(); i++)
          {
-            int p = IsVariableOrder() ? elem_order[i] : order;
+            int p = GetElementOrderImpl(i);
             nbdofs += fec->GetNumDof(mesh->GetElementGeometry(i), p);
             bdofs[i+1] = nbdofs;
          }
@@ -2189,21 +2195,14 @@ void FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs) const
 
    int dim = mesh->Dimension();
    auto geom = mesh->GetElementGeometry(elem);
-   int order = GetElementOrder(elem);
+   int order = GetElementOrderImpl(elem);
 
    int nv = fec->GetNumDof(Geometry::POINT, order);
    int ne = (dim > 1) ? fec->GetNumDof(Geometry::SEGMENT, order) : 0;
    int nb = (dim > 0) ? fec->GetNumDof(geom, order) : 0;
 
-   if (nv)
-   {
-      mesh->GetElementVertices(elem, V);
-   }
-
-   if (ne)
-   {
-      mesh->GetElementEdges(elem, E, Eo);
-   }
+   if (nv) { mesh->GetElementVertices(elem, V); }
+   if (ne) { mesh->GetElementEdges(elem, E, Eo); }
 
    int nfd = 0;
    if (dim > 2 && fec->HasFaceDofs(geom, order))
@@ -2278,10 +2277,8 @@ const FiniteElement *FiniteElementSpace::GetFE(int i) const
    MFEM_VERIFY(i < mesh->GetNE(),
                "Invalid element id " << i << ", maximum allowed " << mesh->GetNE()-1);
 
-   int order = IsVariableOrder() ? elem_order[i] : fec->DefaultOrder();
-
    const FiniteElement *FE =
-      fec->GetFE(mesh->GetElementGeometry(i), order);
+      fec->GetFE(mesh->GetElementGeometry(i), GetElementOrderImpl(i));
 
    if (NURBSext)
    {
@@ -2499,8 +2496,7 @@ void FiniteElementSpace::GetVertexDofs(int i, Array<int> &dofs) const
 
 void FiniteElementSpace::GetElementInteriorDofs(int i, Array<int> &dofs) const
 {
-   int order = GetElementOrder(i);
-   int nb = fec->GetNumDof(mesh->GetElementGeometry(i), order);
+   int nb = fec->GetNumDof(mesh->GetElementGeometry(i), GetElementOrderImpl(i));
    int base = bdofs ? bdofs[i] : i*nb;
 
    dofs.SetSize(nb);
@@ -2513,7 +2509,7 @@ void FiniteElementSpace::GetElementInteriorDofs(int i, Array<int> &dofs) const
 
 int FiniteElementSpace::GetNumElementInteriorDofs(int i) const
 {
-   return fec->GetNumDof(mesh->GetElementGeometry(i), GetElementOrder(i));
+   return fec->GetNumDof(mesh->GetElementGeometry(i), GetElementOrderImpl(i));
 }
 
 void FiniteElementSpace::GetEdgeInteriorDofs(int i, Array<int> &dofs) const
@@ -2550,7 +2546,7 @@ void FiniteElementSpace::GetFaceInteriorDofs(int i, Array<int> &dofs) const
    }
 }
 
-const FiniteElement *FiniteElementSpace::GetBE (int i) const
+const FiniteElement *FiniteElementSpace::GetBE(int i) const
 {
    const FiniteElement *BE;
 

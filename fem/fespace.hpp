@@ -191,6 +191,9 @@ protected:
    /// Return the minimum order (least significant bit set) in the bit mask.
    static int MinOrder(VarOrderBits bits);
 
+   /// Return element order: internal version of GetElementOrder without checks.
+   int GetElementOrderImpl(int i) const;
+
    /** In a variable order space, calculate a bitmask of polynomial orders that
        need to be represented on each edge and face. */
    void CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
