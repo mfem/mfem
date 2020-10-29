@@ -377,9 +377,9 @@ void EliminationCGSolver::Mult(const Vector& rhs, Vector& sol) const
    krylov.SetPrintLevel(print_level);
 
    Vector gtilde(rhs.Size());
-   if (dual_rhs.Size() > 0)
+   if (constraint_rhs.Size() > 0)
    {
-      projector_->BuildGTilde(dual_rhs, gtilde);
+      projector_->BuildGTilde(constraint_rhs, gtilde);
    }
    else
    {
@@ -395,7 +395,7 @@ void EliminationCGSolver::Mult(const Vector& rhs, Vector& sol) const
    krylov.Mult(reducedrhs, reducedsol);
    projector_->Mult(reducedsol, sol);
 
-   projector_->RecoverPressure(temprhs, sol, dual_sol);
+   projector_->RecoverPressure(temprhs, sol, multiplier_sol);
 
    sol += gtilde;
 }
@@ -451,10 +451,10 @@ void PenaltyConstrainedSolver::Mult(const Vector& b, Vector& x) const
 {
    // form penalized right-hand side
    Vector penalized_rhs(b);
-   if (dual_rhs.Size() > 0)
+   if (constraint_rhs.Size() > 0)
    {
       Vector temp(x.Size());
-      constraintB.MultTranspose(dual_rhs, temp);
+      constraintB.MultTranspose(constraint_rhs, temp);
       temp *= penalty;
       penalized_rhs += temp;
    }
@@ -469,12 +469,12 @@ void PenaltyConstrainedSolver::Mult(const Vector& b, Vector& x) const
    cg.SetPreconditioner(*prec);
    cg.Mult(penalized_rhs, x);
 
-   constraintB.Mult(x, dual_sol);
-   if (dual_rhs.Size() > 0)
+   constraintB.Mult(x, multiplier_sol);
+   if (constraint_rhs.Size() > 0)
    {
-      dual_sol -= dual_rhs;
+      multiplier_sol -= constraint_rhs;
    }
-   dual_sol *= penalty;
+   multiplier_sol *= penalty;
 }
 
 /// because IdentityOperator isn't a Solver
@@ -545,18 +545,18 @@ ConstrainedSolver::ConstrainedSolver(MPI_Comm comm, Operator& A_, Operator& B_)
 
    workb.SetSize(A.Height() + B.Height());
    workx.SetSize(A.Height() + B.Height());
-   dual_rhs.SetSize(0);
-   dual_sol.SetSize(B.Height());
+   constraint_rhs.SetSize(0);
+   multiplier_sol.SetSize(B.Height());
 }
 
 ConstrainedSolver::~ConstrainedSolver()
 {
 }
 
-void ConstrainedSolver::SetDualRHS(const Vector& r)
+void ConstrainedSolver::SetConstraintRHS(const Vector& r)
 {
-   MFEM_VERIFY(r.Size() == dual_sol.Size(), "Vector is wrong size!");
-   dual_rhs = r;
+   MFEM_VERIFY(r.Size() == multiplier_sol.Size(), "Vector is wrong size!");
+   constraint_rhs = r;
 }
 
 void ConstrainedSolver::Mult(const Vector& b, Vector& x) const
@@ -568,9 +568,9 @@ void ConstrainedSolver::Mult(const Vector& b, Vector& x) const
       workb(i) = b(i);
       workx(i) = x(i);
    }
-   for (int i = 0; i < dual_rhs.Size(); ++i)
+   for (int i = 0; i < constraint_rhs.Size(); ++i)
    {
-      workb(b.Size() + i) = dual_rhs(i);
+      workb(b.Size() + i) = constraint_rhs(i);
    }
 
    SaddleMult(workb, workx);
@@ -579,9 +579,9 @@ void ConstrainedSolver::Mult(const Vector& b, Vector& x) const
    {
       x(i) = workx(i);
    }
-   for (int i = 0; i < dual_sol.Size(); ++i)
+   for (int i = 0; i < multiplier_sol.Size(); ++i)
    {
-      dual_sol(i) = workx(b.Size() + i);
+      multiplier_sol(i) = workx(b.Size() + i);
    }
 }
 
