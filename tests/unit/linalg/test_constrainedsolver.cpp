@@ -34,7 +34,7 @@ public:
    void Penalty(double pen, Vector& serr, Vector& lerr);
    void Elimination(Vector &serr, Vector& lerr);
 
-   void SetDualRHS(Vector &dualrhs_);
+   void SetConstraintRHS(Vector &dualrhs_);
 
 private:
    SparseMatrix A, B;
@@ -73,7 +73,7 @@ SimpleSaddle::~SimpleSaddle()
    delete hA;
 }
 
-void SimpleSaddle::SetDualRHS(Vector& dualrhs_)
+void SimpleSaddle::SetConstraintRHS(Vector& dualrhs_)
 {
    dualrhs = dualrhs_;
    truelambda = truelambda - 0.5 * dualrhs(0);
@@ -85,11 +85,10 @@ void SimpleSaddle::Schur(Vector& serr, Vector& lerr)
 {
    IdentitySolver prec(2);
    SchurConstrainedSolver solver(MPI_COMM_WORLD, *hA, B, prec);
-   // solver.SetSchur(prec);
-   solver.SetDualRHS(dualrhs);
+   solver.SetConstraintRHS(dualrhs);
    solver.SetRelTol(1.e-14);
    solver.Mult(rhs, sol);
-   solver.GetDualSolution(lambda);
+   solver.GetMultiplierSolution(lambda);
    serr(0) = truex - sol(0);
    serr(1) = truey - sol(1);
    lerr(0) = truelambda - lambda(0);
@@ -103,10 +102,9 @@ void SimpleSaddle::Elimination(Vector& serr, Vector& lerr)
    Array<int> secondary(1);
    secondary[0] = 1;
    EliminationCGSolver solver(*hA, B, primary, secondary);
-   // solver.SetElimination(primary, secondary);
-   solver.SetDualRHS(dualrhs);
+   solver.SetConstraintRHS(dualrhs);
    solver.Mult(rhs, sol);
-   solver.GetDualSolution(lambda);
+   solver.GetMultiplierSolution(lambda);
    serr(0) = truex - sol(0);
    serr(1) = truey - sol(1);
    lerr(0) = truelambda - lambda(0);
@@ -115,10 +113,9 @@ void SimpleSaddle::Elimination(Vector& serr, Vector& lerr)
 void SimpleSaddle::Penalty(double pen, Vector& serr, Vector& lerr)
 {
    PenaltyConstrainedSolver solver(MPI_COMM_WORLD, *hA, B, pen);
-   // solver.SetPenalty(pen);
-   solver.SetDualRHS(dualrhs);
+   solver.SetConstraintRHS(dualrhs);
    solver.Mult(rhs, sol);
-   solver.GetDualSolution(lambda);
+   solver.GetMultiplierSolution(lambda);
    serr(0) = truex - sol(0);
    serr(1) = truey - sol(1);
    lerr(0) = truelambda - lambda(0);
@@ -158,7 +155,7 @@ TEST_CASE("ConstrainedSolver", "[Parallel], [ConstrainedSolver]")
 
       Vector dualrhs(1);
       dualrhs(0) = 1.0;
-      problem.SetDualRHS(dualrhs);
+      problem.SetConstraintRHS(dualrhs);
 
       problem.Schur(serr, lerr);
       REQUIRE(serr(0) == MFEM_Approx(0.0));
@@ -284,7 +281,7 @@ void ParallelTestProblem::Schur(Vector& serr, Vector& lerr)
    IdentitySolver prec(2);
    SchurConstrainedSolver solver(MPI_COMM_WORLD, *amat, *bmat, prec);
    solver.Mult(rhs, sol);
-   solver.GetDualSolution(lambda);
+   solver.GetMultiplierSolution(lambda);
    for (int i = 0; i < 2; ++i)
    {
       serr(i) = truesol(i) - sol(i);
@@ -300,7 +297,7 @@ void ParallelTestProblem::Penalty(double pen, Vector& serr, Vector& lerr)
    PenaltyConstrainedSolver solver(MPI_COMM_WORLD, *amat, *bmat, pen);
    // solver.SetPenalty(pen);
    solver.Mult(rhs, sol);
-   solver.GetDualSolution(lambda);
+   solver.GetMultiplierSolution(lambda);
    for (int i = 0; i < 2; ++i)
    {
       serr(i) = truesol(i) - sol(i);

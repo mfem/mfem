@@ -46,13 +46,13 @@ public:
    /** @brief Set the right-hand side r for the constraint B x = r
 
        (r defaults to zero if you don't call this) */
-   virtual void SetDualRHS(const Vector& r);
+   virtual void SetConstraintRHS(const Vector& r);
 
    /** @brief Return the Lagrange multiplier solution in lambda
 
        Does not make sense unless you've already solved the constrained
        system with Mult() */
-   void GetDualSolution(Vector& lambda) const { lambda = dual_sol; }
+   void GetMultiplierSolution(Vector& lambda) const { lambda = multiplier_sol; }
 
    /** @brief Solve for x given f
 
@@ -70,8 +70,8 @@ protected:
    Operator& A;
    Operator& B;
 
-   Vector dual_rhs;
-   mutable Vector dual_sol;
+   Vector constraint_rhs;
+   mutable Vector multiplier_sol;
    mutable Vector workb;
    mutable Vector workx;
 };
