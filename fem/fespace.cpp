@@ -145,8 +145,8 @@ int FiniteElementSpace::GetFaceOrder(int face, int variant) const
 {
    if (!IsVariableOrder()) { return fec->DefaultOrder(); }
 
-   const int* beg = var_face_dofs.GetRow(edge);
-   const int* end = var_face_dofs.GetRow(edge + 1);
+   const int* beg = var_face_dofs.GetRow(face);
+   const int* end = var_face_dofs.GetRow(face + 1);
    if (variant >= end - beg) { return -1; } // past last variant
 
    int ndof = beg[variant+1] - beg[variant];
@@ -264,7 +264,7 @@ void FiniteElementSpace::GetEdgeInteriorVDofs(int i, Array<int> &vdofs) const
    DofsToVDofs(vdofs);
 }
 
-void FiniteElementSpace::BuildElementToDofTable()
+void FiniteElementSpace::BuildElementToDofTable() const
 {
    if (elem_dof) { return; }
 
@@ -2188,8 +2188,8 @@ void FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs) const
    Array<int> V, E, Eo, F, Fo; // TODO: LocalArray
 
    int dim = mesh->Dimension();
-   Geometry::Type geom = mesh->GetElementGeometry(elem);
-   int order = IsVariableOrder() ? elem_order[elem] : fec->DefaultOrder();
+   auto geom = mesh->GetElementGeometry(elem);
+   int order = GetElementOrder(elem);
 
    int nv = fec->GetNumDof(Geometry::POINT, order);
    int ne = (dim > 1) ? fec->GetNumDof(Geometry::SEGMENT, order) : 0;
@@ -2499,15 +2499,21 @@ void FiniteElementSpace::GetVertexDofs(int i, Array<int> &dofs) const
 
 void FiniteElementSpace::GetElementInteriorDofs(int i, Array<int> &dofs) const
 {
-   int j, k, nb;
-   if (mesh->Dimension() == 0) { dofs.SetSize(0); return; }
-   nb = fec -> DofForGeometry (mesh -> GetElementBaseGeometry (i));
-   dofs.SetSize (nb);
-   k = nvdofs + nedofs + nfdofs + bdofs[i];
-   for (j = 0; j < nb; j++)
+   int order = GetElementOrder(i);
+   int nb = fec->GetNumDof(mesh->GetElementGeometry(i), order);
+   int base = bdofs ? bdofs[i] : i*nb;
+
+   dofs.SetSize(nb);
+   base += nvdofs + nedofs + nfdofs;
+   for (int j = 0; j < nb; j++)
    {
-      dofs[j] = k + j;
+      dofs[j] = base + j;
    }
+}
+
+int FiniteElementSpace::GetNumElementInteriorDofs(int i) const
+{
+   return fec->GetNumDof(mesh->GetElementGeometry(i), GetElementOrder(i));
 }
 
 void FiniteElementSpace::GetEdgeInteriorDofs(int i, Array<int> &dofs) const
