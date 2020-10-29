@@ -11,7 +11,7 @@
 
 #include "forall.hpp"
 #include "occa.hpp"
-#if defined(MFEM_USE_CUDA) && OCCA_CUDA_ENABLED
+#if defined(MFEM_USE_OCCA) && OCCA_CUDA_ENABLED
 #include <occa/modes/cuda/stream.hpp>
 #endif
 #ifdef MFEM_USE_CEED
