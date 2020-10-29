@@ -309,8 +309,7 @@ void EliminationCGSolver::BuildPreconditioner()
 
    SparseMatrix * explicit_projector = projector_->AssembleExact();
    HypreParMatrix * h_explicit_projector = SerialHypreMatrix(*explicit_projector);
-   HypreParMatrix * h_A = SerialHypreMatrix(spA_, false);
-   h_explicit_operator_ = RAP(h_A, h_explicit_projector);
+   h_explicit_operator_ = RAP(&hA_, h_explicit_projector);
    h_explicit_operator_->CopyRowStarts();
    h_explicit_operator_->CopyColStarts();
    prec_ = new HypreBoomerAMG(*h_explicit_operator_);
@@ -318,8 +317,6 @@ void EliminationCGSolver::BuildPreconditioner()
 
    delete explicit_projector;
    delete h_explicit_projector;
-   delete h_A;
-   // delete explicit_operator;
 
    // so kind of want to do this, use systems version of AMG, but we've eliminated
    // just some of the dofs associated with a particular direction, so the sizes
@@ -337,28 +334,31 @@ void EliminationCGSolver::BuildPreconditioner()
    rel_tol = 1.e-8;
 }
 
-EliminationCGSolver::EliminationCGSolver(SparseMatrix& A, SparseMatrix& B,
+EliminationCGSolver::EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
                                          Array<int>& primary_dofs,
                                          Array<int>& secondary_dofs)
    :
    ConstrainedSolver(MPI_COMM_SELF, A, B),
-   spA_(A),
+   hA_(A),
    spB_(B),
    first_interface_dofs_(primary_dofs),
    second_interface_dofs_(secondary_dofs)
 {
    MFEM_VERIFY(secondary_dofs.Size() == B.Height(),
                "Wrong number of dofs for elimination!");
+   A.GetDiag(spA_);
    BuildPreconditioner();
 }
 
-EliminationCGSolver::EliminationCGSolver(SparseMatrix& A, SparseMatrix& B,
+EliminationCGSolver::EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
                                          int firstblocksize)
    :
    ConstrainedSolver(MPI_COMM_SELF, A, B),
-   spA_(A),
+   hA_(A),
    spB_(B)
 {
+   A.GetDiag(spA_);
+
    // identify interface dofs to eliminate via nonzero structure
    BuildSeparatedInterfaceDofs(firstblocksize);
 
@@ -391,7 +391,14 @@ void EliminationCGSolver::Mult(const Vector& rhs, Vector& sol) const
 */
 
    Vector gtilde(rhs.Size());
-   projector_->BuildGTilde(dual_rhs, gtilde);
+   if (dual_rhs.Size() > 0)
+   {
+      projector_->BuildGTilde(dual_rhs, gtilde);
+   }
+   else
+   {
+      gtilde = 0.0;
+   }
    Vector temprhs(rhs);
    spA_.AddMult(gtilde, temprhs, -1.0);
 
