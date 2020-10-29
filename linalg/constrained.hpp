@@ -34,20 +34,18 @@ namespace mfem
     different.
 
     The only point for this object is to unify handling of the "dual" rhs
-    r and the dual solution \f$ \labmda \f$.
- */
+    r and the dual solution \f$ \labmda \f$. */
 class ConstrainedSolver : public IterativeSolver
 {
 public:
-   ConstrainedSystem(Operator& A_, Operator& B_);
+   ConstrainedSolver(MPI_Comm comm, Operator& A_, Operator& B_);
    virtual ~ConstrainedSolver();
 
    virtual void SetOperator(const Operator& op) { }
 
    /** @brief Set the right-hand side r for the constraint B x = r
 
-       (r defaults to zero if you don't call this)
-   */
+       (r defaults to zero if you don't call this) */
    virtual void SetDualRHS(const Vector& r);
 
    /** @brief Return the Lagrange multiplier solution in lambda
@@ -58,12 +56,13 @@ public:
 
    /** @brief Solve for x given f
 
-       Implementations must implement either Mult() or SaddleMult() */
-   virtual void Mult(const Vector& f, Vector& x);
+       The implementation for the base class calls SaddleMult(), so
+       derived class must implement either Mult() or SaddleMult() */
+   virtual void Mult(const Vector& f, Vector& x) const override;
 
 protected:
-   /** @brief Larger, saddle-point sized system solve */
-   virtual void SaddleMult(const Vector& fr, Vector& xlambda) const
+   /** @brief Larger, saddle-point size system solve */
+   virtual void SaddleMult(const Vector& f_and_r, Vector& x_and_lambda) const
    {
       mfem_error("Not Implemnted!");
    }
@@ -110,8 +109,8 @@ public:
                          Array<int>& primary_contact_dofs,
                          Array<int>& secondary_contact_dofs);
 
-   void Mult(const Vector& in, Vector& out) const;
-   void MultTranspose(const Vector& in, Vector& out) const;
+   void Mult(const Vector& in, Vector& out) const override;
+   void MultTranspose(const Vector& in, Vector& out) const override;
 
    /** @brief Assemble this projector as a SparseMatrix
 
@@ -162,7 +161,7 @@ public:
 
    ~EliminationCGSolver();
 
-   void Mult(const Vector& x, Vector& y) const;
+   void Mult(const Vector& x, Vector& y) const override;
 
 private:
    /**
@@ -176,8 +175,8 @@ private:
 
    void BuildPreconditioner();
 
-   SparseMatrix& Asp_;
-   SparseMatrix& Bsp_;
+   SparseMatrix& spA_;
+   SparseMatrix& spB_;
    Array<int> first_interface_dofs_;
    Array<int> second_interface_dofs_;
    EliminationProjection * projector_;
@@ -193,13 +192,15 @@ private:
 class PenaltyConstrainedSolver : public ConstrainedSolver
 {
 public:
-   PenaltyConstrainedSolver(HypreParMatrix& A, SparseMatrix& B, double penalty_);
+   PenaltyConstrainedSolver(MPI_Comm comm, HypreParMatrix& A,
+                            SparseMatrix& B, double penalty_);
 
-   PenaltyConstrainedSolver(HypreParMatrix& A, HypreParMatrix& B, double penalty_);
+   PenaltyConstrainedSolver(MPI_Comm comm, HypreParMatrix& A,
+                            HypreParMatrix& B, double penalty_);
 
    ~PenaltyConstrainedSolver();
 
-   void Mult(const Vector& x, Vector& y) const;
+   void Mult(const Vector& x, Vector& y) const override;
 
 private:
    void Initialize(HypreParMatrix& A, HypreParMatrix& B);
@@ -221,13 +222,11 @@ private:
 class SchurConstrainedSolver : public ConstrainedSolver
 {
 public:
-   SchurConstrainedSolver(Operator& A_, Operator& B_,
+   SchurConstrainedSolver(MPI_Comm comm, Operator& A_, Operator& B_,
                           Solver& primal_pc_);
    virtual ~SchurConstrainedSolver();
 
-   void SetOperator(const Operator& op) { }
-
-   void Mult(const Vector& x, Vector& y) const;
+   void SaddleMult(const Vector& x, Vector& y) const override;
 
 private:
    Array<int> offsets;

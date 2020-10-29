@@ -365,28 +365,37 @@ int main(int argc, char *argv[])
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-   ConstrainedSolver constrained(*A, *constraint_mat);
-   HypreBoomerAMG prec;
-   prec.SetPrintLevel(0);
+   IterativeSolver * constrained = nullptr;
+   HypreBoomerAMG * schur_prec = nullptr;
+
+   // ConstrainedSolver constrained(*A, *constraint_mat);
+
    if (penalty > 0.0)
    {
-      constrained.SetPenalty(penalty);
+      constrained = new PenaltyConstrainedSolver(MPI_COMM_WORLD, *A.As<HypreParMatrix>(),
+                                                 *constraint_mat, penalty);
    }
    else if (elimination)
    {
       y_dofs.Append(z_dofs);
       y_dofs.Sort();
-      constrained.SetElimination(y_dofs, x_dofs);
+      // constrained.SetElimination(y_dofs, x_dofs);
+      constrained = new EliminationCGSolver(*A.As<SparseMatrix>(), *constraint_mat,
+                                            y_dofs, x_dofs);
    }
    else
    {
-      constrained.SetSchur(prec);
+      // constrained.SetSchur(prec);
+      schur_prec = new HypreBoomerAMG(*A.As<HypreParMatrix>());
+      schur_prec->SetPrintLevel(0);
+      constrained = new SchurConstrainedSolver(MPI_COMM_WORLD, *A.As<HypreParMatrix>(),
+                                               *constraint_mat, *schur_prec);
    }
-   constrained.SetRelTol(reltol);
-   constrained.SetAbsTol(1.e-12);
-   constrained.SetMaxIter(500);
-   constrained.SetPrintLevel(1);
-   constrained.Mult(B, X);
+   constrained->SetRelTol(reltol);
+   constrained->SetAbsTol(1.e-12);
+   constrained->SetMaxIter(500);
+   constrained->SetPrintLevel(1);
+   constrained->Mult(B, X);
 
    // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
@@ -440,6 +449,8 @@ int main(int argc, char *argv[])
       delete fec;
    }
    delete constraint_mat;
+   delete schur_prec;
+   delete constrained;
 
    return 0;
 }
