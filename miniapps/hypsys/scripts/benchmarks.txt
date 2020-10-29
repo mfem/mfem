@@ -1,0 +1,11 @@
+# Plot specifications for my benchmarks
+
+# KPP - top view
+keys aammjlpppppppppppppppppppppppppppR*************
+
+# KPP - side view
+keys pppppppppppppppppppppppppppRRRR44444444444444444444444444444422222222222222222222************** # 5 times Ctrl + UP
+
+
+# ?
+# keys mcjppppppppppppppppppppppppppp6666666666666666666666666666666666666666666666666666666666666666666666662222222222

@@ -148,8 +148,7 @@ void AnalyticalSolutionBurgers(const Vector &x, double t, Vector &u)
       }
       case 2:
       {
-         double r = X.Norml2();
-         u(0) = r < 0.5 ? 1.0 : -1.0;
+         u(0) = X.Sum() < 0.5 ? 1.0 : -1.0;
          break;
       }
    }

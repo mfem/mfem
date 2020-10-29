@@ -1,12 +1,11 @@
-window 0 0 1080 1080
+window 1080 0 1920 1080
 
 # Initial solution
 solution ../grid.mesh ../initial.gf
 
 # Setup the GLVis scene. Executed after pressing the space bar.
 {
-   # keys mcjppppppppppppppppppppppppppp6666666666666666666666666666666666666666666666666666666666666666666666662222222222
-   keys mcjlpppppppppppppppppppppppppppR****
+   keys lppppppppppppppppppppppppppp
    autoscale off
 }
 

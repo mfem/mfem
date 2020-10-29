@@ -1,0 +1,16 @@
+window 1080 0 1920 1080
+
+# Initial solution
+psolution 7 ../output/grid-mesh 0 ../output/initial-gf
+
+# Setup the GLVis scene. Executed after pressing the space bar.
+{
+   keys aammjlpppppppppppppppppppppppppppR*************
+   autoscale off
+}
+
+{
+   psolution 7 ../output/grid-mesh 0 ../output/initial-gf valuerange 0.7854 11  screenshot frame01.png
+   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-1 valuerange 0.7854 11  screenshot frame02.png
+   psolution 7 ../output/grid-mesh 0 ../output/ultimate-gf valuerange 0.7854 11  screenshot GLVis_s01.png
+}
