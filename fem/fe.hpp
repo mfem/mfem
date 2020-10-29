@@ -674,6 +674,10 @@ public:
                                  DenseMatrix &I,
                                  const ScalarFiniteElement &fine_fe) const;
 
+   void ScalarLocalRestriction(ElementTransformation &Trans,
+                               DenseMatrix &R,
+                               const ScalarFiniteElement &coarse_fe) const;
+
    virtual const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
                                          DofToQuad::Mode mode) const;
 };
@@ -753,6 +757,10 @@ public:
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
    { ScalarLocalInterpolation(Trans, I, *this); }
+
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { ScalarLocalRestriction(Trans, R, *this); }
 
    virtual void GetTransferMatrix(const FiniteElement &fe,
                                   ElementTransformation &Trans,
