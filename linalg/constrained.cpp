@@ -241,7 +241,6 @@ void EliminationProjection::RecoverPressure(const Vector& disprhs, const Vector&
 }
 
 
-
 EliminationCGSolver::~EliminationCGSolver()
 {
    delete h_explicit_operator_;
@@ -342,19 +341,23 @@ EliminationCGSolver::EliminationCGSolver(SparseMatrix& A, SparseMatrix& B,
                                          Array<int>& primary_dofs,
                                          Array<int>& secondary_dofs)
    :
-   A_(A),
-   B_(B),
+   ConstrainedSolver(A, B),
+   spA_(A),
+   spB_(B),
    first_interface_dofs_(primary_dofs),
    second_interface_dofs_(secondary_dofs)
 {
+   MFEM_VERIFY(secondary_dofs.Size() == B.Height(),
+               "Wrong number of dofs for elimination!");
    BuildPreconditioner();
 }
 
 EliminationCGSolver::EliminationCGSolver(SparseMatrix& A, SparseMatrix& B,
                                          int firstblocksize)
    :
-   A_(A),
-   B_(B)
+   ConstrainedSolver(A, B),
+   spA_(A),
+   spB_(B)
 {
    // identify interface dofs to eliminate via nonzero structure
    BuildSeparatedInterfaceDofs(firstblocksize);
@@ -364,7 +367,7 @@ EliminationCGSolver::EliminationCGSolver(SparseMatrix& A, SparseMatrix& B,
 
 void EliminationCGSolver::Mult(const Vector& rhs, Vector& sol) const
 {
-   RAPOperator reducedoperator(*projector_, A_, *projector_);
+   RAPOperator reducedoperator(*projector_, spA_, *projector_);
    CGSolver krylov;
    krylov.SetOperator(reducedoperator);
    krylov.SetPreconditioner(*prec_);
@@ -373,42 +376,34 @@ void EliminationCGSolver::Mult(const Vector& rhs, Vector& sol) const
    krylov.SetAbsTol(abs_tol);
    krylov.SetPrintLevel(print_level);
 
-   Vector displacementrhs(A_.Height());
+/*
+   Vector displacementrhs(spA_.Height());
    for (int i = 0; i < displacementrhs.Size(); ++i)
    {
       displacementrhs(i) = rhs(i);
    }
-   Vector lagrangerhs(B_.Height());
+   Vector lagrangerhs(spB_.Height());
    for (int i = 0; i < lagrangerhs.Size(); ++i)
    {
       lagrangerhs(i) = rhs(displacementrhs.Size() + i);
    }
    Vector displacementsol(displacementrhs.Size());
+*/
 
-   Vector gtilde(displacementrhs.Size());
-   projector_->BuildGTilde(lagrangerhs, gtilde);
-   A_.AddMult(gtilde, displacementrhs, -1.0);
+   Vector gtilde(rhs.Size());
+   projector_->BuildGTilde(dual_rhs, gtilde);
+   spA_.AddMult(gtilde, rhs, -1.0);
 
    Vector reducedrhs(reducedoperator.Height());
-   projector_->MultTranspose(displacementrhs, reducedrhs);
+   projector_->MultTranspose(rhs, reducedrhs);
    Vector reducedsol(reducedoperator.Height());
    reducedsol = 0.0;
    krylov.Mult(reducedrhs, reducedsol);
-   projector_->Mult(reducedsol, displacementsol);
+   projector_->Mult(reducedsol, sol);
 
-   Vector pressure(lagrangerhs.Size());
-   projector_->RecoverPressure(displacementrhs, displacementsol, pressure);
+   projector_->RecoverPressure(displacementrhs, displacementsol, dual_sol);
 
-   displacementsol += gtilde;
-   for (int i = 0; i < displacementsol.Size(); ++i)
-   {
-      sol(i) = displacementsol(i);
-   }
-
-   for (int i = 0; i < pressure.Size(); ++i)
-   {
-      sol(displacementsol.Size() + i) = pressure(i);
-   }
+   sol += gtilde;
 }
 
 void PenaltyConstrainedSolver::Initialize(HypreParMatrix& A, HypreParMatrix& B)
@@ -428,6 +423,7 @@ void PenaltyConstrainedSolver::Initialize(HypreParMatrix& A, HypreParMatrix& B)
 PenaltyConstrainedSolver::PenaltyConstrainedSolver(HypreParMatrix& A, SparseMatrix& B,
                                                    double penalty_)
    :
+   ConstrainedSolver(A, B),
    penalty(penalty_),
    constraintB(B)
 {
@@ -441,6 +437,7 @@ PenaltyConstrainedSolver::PenaltyConstrainedSolver(HypreParMatrix& A, SparseMatr
 PenaltyConstrainedSolver::PenaltyConstrainedSolver(HypreParMatrix& A, HypreParMatrix& B,
                                                    double penalty_)
    :
+   ConstrainedSolver(A, B),
    penalty(penalty_),
    constraintB(B)
 {
@@ -510,14 +507,27 @@ public:
    void SetOperator(const Operator& op) { }
 };
 
-SchurConstrainedSolver::SchurConstrainedSolver(BlockOperator& block_op_,
+SchurConstrainedSolver::SchurConstrainedSolver(Operator& A_, Operator& B_,
                                                Solver& primal_pc_)
    :
+   ConstrainedSolver(A_, B_),
+   offsets(3),
    block_op(block_op_),
    primal_pc(primal_pc_),
-   block_pc(block_op.RowOffsets()),
    dual_pc(NULL)
 {
+   offsets[0] = 0;
+   offsets[1] = A.Height();
+   offsets[2] = A.Height() + B.Height();
+
+   block_op = new BlockOperator(offsets);
+   block_op->SetBlock(0, 0, &A);
+   block_op->SetBlock(1, 0, &B);
+   tr_B = new TransposeOperator(&B);
+   block_op->SetBlock(0, 1, tr_B);
+
+   block_pc = new BlockDiagonalPreconditioner(block_op->RowOffsets()),
+
    primal_pc.SetOperator(block_op.GetBlock(0, 0));
    block_pc.SetDiagonalBlock(0, &primal_pc);
    dual_pc = new IdentitySolver(block_op.RowOffsets()[2] -
@@ -528,6 +538,9 @@ SchurConstrainedSolver::SchurConstrainedSolver(BlockOperator& block_op_,
 
 SchurConstrainedSolver::~SchurConstrainedSolver()
 {
+   delete block_op;
+   delete tr_B;
+   delete block_pc;
    delete dual_pc;
 }
 
@@ -546,20 +559,10 @@ void SchurConstrainedSolver::Mult(const Vector& x, Vector& y) const
 
 ConstrainedSolver::ConstrainedSolver(Operator& A, Operator& B)
    :
-   // Solver(A.Height() + B.Height()),
-   Solver(A.Height()),  // not sure conceptually what the size should be!
-   offsets(3),
-   subsolver(NULL)
+   IterativeSolver(MPI_COMM_WORLD)
 {
-   offsets[0] = 0;
-   offsets[1] = A.Height();
-   offsets[2] = A.Height() + B.Height();
-
-   block_op = new BlockOperator(offsets);
-   block_op->SetBlock(0, 0, &A);
-   block_op->SetBlock(1, 0, &B);
-   tr_B = new TransposeOperator(&B);
-   block_op->SetBlock(0, 1, tr_B);
+   height = A.Height();
+   width = A.Width();
 
    workb.SetSize(A.Height() + B.Height());
    workx.SetSize(A.Height() + B.Height());
@@ -569,54 +572,6 @@ ConstrainedSolver::ConstrainedSolver(Operator& A, Operator& B)
 
 ConstrainedSolver::~ConstrainedSolver()
 {
-   delete block_op;
-   delete tr_B;
-   delete subsolver;
-}
-
-void ConstrainedSolver::SetSchur(Solver& pc)
-{
-   subsolver = new SchurConstrainedSolver(*block_op, pc);
-}
-
-/// @todo consistency in primary/secondary notation (think it's fine
-void ConstrainedSolver::SetElimination(Array<int>& primary_dofs,
-                                       Array<int>& secondary_dofs)
-{
-   HypreParMatrix& A = dynamic_cast<HypreParMatrix&>(block_op->GetBlock(0, 0));
-   SparseMatrix& B = dynamic_cast<SparseMatrix&>(block_op->GetBlock(1, 0));
-
-   MFEM_VERIFY(secondary_dofs.Size() == B.Height(),
-               "Wrong number of dofs for elimination!");
-
-   //// TODO ugly ugly hack (should work in parallel in principle)
-   A.GetDiag(hypre_diag);
-
-/*
-   Array<int> primary_dofs;
-   secondary_dofs.Sort();
-
-   // could go through nonzeros in B, nonzero columns not in secondary_dofs
-   // are assumed to be primary dofs, not sure it is worth the effort
-*/
-
-   subsolver = new EliminationCGSolver(hypre_diag, B, primary_dofs, secondary_dofs);
-}
-
-void ConstrainedSolver::SetPenalty(double penalty)
-{
-   HypreParMatrix& A = dynamic_cast<HypreParMatrix&>(block_op->GetBlock(0, 0));
-   SparseMatrix * B = dynamic_cast<SparseMatrix*>(&block_op->GetBlock(1, 0));
-   if (B)
-   {
-      subsolver = new PenaltyConstrainedSolver(A, *B, penalty);
-   }
-   else
-   {
-      HypreParMatrix * hB = dynamic_cast<HypreParMatrix*>(&block_op->GetBlock(1, 0));
-      MFEM_VERIFY(hB, "Wrong type for constraint matrix!");
-      subsolver = new PenaltyConstrainedSolver(A, *hB, penalty);
-   }
 }
 
 void ConstrainedSolver::SetDualRHS(const Vector& r)
@@ -640,10 +595,7 @@ void ConstrainedSolver::Mult(const Vector& b, Vector& x) const
       workb(b.Size() + i) = dual_rhs(i);
    }
 
-   /// note that for EliminationCGSolver, the extension to workb, workx
-   /// is promptly undone. We could have a block / reduced option?
-   /// (or better, rewrite EliminatioNCGSolver to handle lagrange multiplier blocks)
-   subsolver->Mult(workb, workx);
+   SaddleMult(workb, workx);
 
    for (int i = 0; i < b.Size(); ++i)
    {
