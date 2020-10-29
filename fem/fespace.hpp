@@ -175,7 +175,7 @@ protected:
    void Construct();
    void Destroy();
 
-   void BuildElementToDofTable();
+   void BuildElementToDofTable() const;
    void BuildBdrElementToDofTable() const;
    void BuildFaceToDofTable() const;
 
@@ -339,12 +339,6 @@ protected:
    /// Resize the elem_order array on mesh change.
    void UpdateElementOrders();
 
-   void DumpOrders(const Table &ent_dofs, int dim);
-   void UnpackDof(int dof, int &entity, int &index, int &variant, int &edof) const;
-   void DebugDumpDOFs(std::ostream &os, const SparseMatrix &deps,
-                      const Array<bool> &finalized) const;
-
-
 public:
    /** @brief Default constructor: the object is invalid until initialized using
        the method Load(). */
@@ -398,6 +392,10 @@ public:
 
    /// Returns the order of the i'th finite element
    int GetElementOrder(int i) const;
+
+   /// Return the maximum polynomial order
+   int GetMaxElementOrder() const
+   { return IsVariableOrder() ? elem_order.Max() : fec->DefaultOrder(); }
 
    /// Returns true if the space contains elements of varying polynomial orders.
    bool IsVariableOrder() const { return elem_order.Size(); }
@@ -572,7 +570,7 @@ public:
    /// Returns indices of degrees of freedom of element 'elem'.
    virtual void GetElementDofs(int elem, Array<int> &dofs) const;
 
-   /// Returns indexes of degrees of freedom for boundary element 'bel'.
+   /// Returns indices of degrees of freedom for boundary element 'bel'.
    virtual void GetBdrElementDofs(int bel, Array<int> &dofs) const;
 
    /** @brief Returns the indices of the degrees of freedom for i'th face
@@ -597,8 +595,7 @@ public:
 
    void GetFaceInteriorDofs(int i, Array<int> &dofs) const;
 
-   int GetNumElementInteriorDofs(int i) const
-   { return 0; /* FIXME fec->DofForGeometry(mesh->GetElementBaseGeometry(i)); */}
+   int GetNumElementInteriorDofs(int i) const;
 
    void GetEdgeInteriorDofs(int i, Array<int> &dofs) const;
 
