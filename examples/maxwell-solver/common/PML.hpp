@@ -52,6 +52,63 @@ public:
    void StretchFunction(const Vector &x, vector<complex<double>> &dxs, double omega);
 };
 
+class ToroidPML
+{
+private:
+   Mesh *mesh;
+
+   Vector zlim, zpml_thickness; // range in axial direction
+   Vector rlim, rpml_thickness; // range in radial direction
+   Vector alim, apml_thickness; // range in azimuthal direction
+
+   // Integer Array identifying elements in the pml
+   // 0: in the pml, 1: not in the pml
+   Array<int> elems;
+
+   double GetAngle(const double x, const double y);
+
+   // Compute Domain and Computational Domain Boundaries
+   void SetBoundaries();
+
+
+public:
+   // Constructor
+   ToroidPML(Mesh *mesh_);
+
+   int dim;
+   double omega;
+   // Return Computational Domain Boundary
+   // Array2D<double> GetCompDomainBdr() {return comp_dom_bdr;}
+
+   // Return Domain Boundary
+   void GetDomainBdrs(Vector & zlim_, Vector & rlim_, Vector & alim_)
+   {
+      zlim_.SetSize(2); zlim_ = zlim;
+      rlim_.SetSize(2); rlim_ = rlim;
+      alim_.SetSize(2); alim_ = alim;
+   }
+
+   void GetPmlWidth(const Vector & zpml, const Vector & rpml, const Vector & apml)
+   {
+      MFEM_VERIFY(zpml.Size() == 2 , "Check zpml size");
+      MFEM_VERIFY(rpml.Size() == 2 , "Check rpml size");
+      MFEM_VERIFY(apml.Size() == 2 , "Check apml size");
+      zpml_thickness = zpml;
+      rpml_thickness = rpml;
+      apml_thickness = apml;
+   }
+
+   // // Return Marker list for elements
+   Array<int> * GetMarkedPMLElements() {return &elems;}
+
+   // Mark element in the PML region
+   void SetAttributes(Mesh *mesh_);
+
+   void SetOmega(double omega_) {omega = omega_;}
+
+   // PML complex stretching function
+   void StretchFunction(const Vector &X, vector<complex<double>> &dxs, double omega);
+};
 
 class PmlCoefficient : public Coefficient
 {

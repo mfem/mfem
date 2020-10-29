@@ -253,8 +253,10 @@ void trans(const Vector &x, Vector &p)
    }
    else
    {
-      u = M_SQRT2 * (x[1] - 0.5) * r_;
-      v = M_SQRT2 * (x[0] - 0.5) * r_;
+      // u = M_SQRT2 * (x[1] - 0.5) * r_;
+      u = (x[1] - 0.5) * r_;
+      // v = M_SQRT2 * (x[0] - 0.5) * r_;
+      v = (x[0] - 0.5) * r_;
    }
 
    p[0] = ( R_ + u * cos(theta) + v * sin(theta)) * cos(phi);
