@@ -31,6 +31,7 @@
 #endif
 
 #ifdef MFEM_USE_RAJA
+#define CAMP_USE_PLATFORM_DEFAULT_STREAM 1
 #include "RAJA/RAJA.hpp"
 #if defined(RAJA_ENABLE_CUDA) && !defined(MFEM_USE_CUDA)
 #error When RAJA is built with CUDA, MFEM_USE_CUDA=YES is required

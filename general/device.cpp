@@ -11,6 +11,9 @@
 
 #include "forall.hpp"
 #include "occa.hpp"
+#if defined(MFEM_USE_CUDA) && OCCA_CUDA_ENABLED
+#include <occa/modes/cuda/stream.hpp>
+#endif
 #ifdef MFEM_USE_CEED
 #include "../fem/libceed/ceed.hpp"
 #endif
@@ -410,6 +413,10 @@ static void OccaDeviceSetup(const int dev)
 #if OCCA_CUDA_ENABLED
       std::string mode("mode: 'CUDA', device_id : ");
       internal::occaDevice.setup(mode.append(1,'0'+dev));
+      auto def_stream = new occa::cuda::stream(
+         internal::occaDevice.getModeDevice(),
+         occa::properties(), (CUstream)0);
+      internal::occaDevice.setStream(def_stream);
 #else
       MFEM_ABORT("the OCCA CUDA backend requires OCCA built with CUDA!");
 #endif
