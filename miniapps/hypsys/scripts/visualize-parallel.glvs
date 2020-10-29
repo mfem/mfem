@@ -5,7 +5,7 @@ psolution 7 ../output/grid-mesh 0 ../output/initial-gf
 
 # Setup the GLVis scene. Executed after pressing the space bar.
 {
-   keys aammjlpppppppppppppppppppppppppppR*************
+   keys ppppppppppppppppppppppppppp
    autoscale off
 }
 

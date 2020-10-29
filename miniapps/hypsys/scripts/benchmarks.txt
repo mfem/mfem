@@ -1,11 +1,52 @@
 # Plot specifications for my benchmarks
 
-# KPP - top view
-keys aammjlpppppppppppppppppppppppppppR*************
+# Advection - Solid Body Rotation: side view
+# keys lmj6666666666666666666666666666666666666666666666666666666666666666666666662222222222
+valuerange 0 1
+# TODO TRIM
 
-# KPP - side view
-keys pppppppppppppppppppppppppppRRRR44444444444444444444444444444422222222222222222222************** # 5 times Ctrl + UP
+
+# Burgers Equation - Riemann Problem
+glvis -fn -20
+keys lRjmc*******
+valuerange -1 0.8
+TRIM=1116x1018+576+20
 
 
-# ?
-# keys mcjppppppppppppppppppppppppppp6666666666666666666666666666666666666666666666666666666666666666666666662222222222
+# KPP Equation - 2D Spiral: top view
+keys laammjR*************
+valuerange 0.7854 11
+# TODO TRIM
+
+# KPP Equation - 2D Spiral: side view
+keys RRRR44444444444444444444444444444422222222222222222222************** # 5 times Ctrl + UP
+valuerange 0.7854 11
+# TODO TRIM
+
+
+# Shallow Water Equations - Constricted Channel
+# run in serial to plot boundary
+keys lRjmmb*************************
+valuerange 1 1.85
+TRIM=1886x838+17+121
+# TODO choice of isolines
+
+
+# Shallow Water Equations - Radial Dam Break
+keys mjRRRR222222222222222222222222jmblttt**************** # 4 times Ctrl + UP
+valuerange 0.1 1
+TRIM=1096x881+412+191
+# TODO choice of isolines
+
+
+# Euler Equations of Gas dynamics - Double Mach Reflection
+keys aajlmmR***************************
+valuerange 1.375 23
+TRIM=1886x472+17+304
+ISOLINES: 1.375 23 24
+
+# Euler Equations of Gas dynamics - Double Mach Reflection: Zoom
+keys jlmmR******************************************************** # 50 times Ctrl + RIGHT, 22 time Ctrl + UP
+valuerange 1.375 23
+TRIM=1353x1057+0+0
+ISOLINES: 4 14 24

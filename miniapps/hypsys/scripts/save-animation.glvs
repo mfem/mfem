@@ -5,7 +5,7 @@ solution ../grid.mesh ../initial.gf
 
 # Setup the GLVis scene. Executed after pressing the space bar.
 {
-   keys lppppppppppppppppppppppppppp
+   keys ppppppppppppppppppppppppppp
    autoscale off
 }
 
