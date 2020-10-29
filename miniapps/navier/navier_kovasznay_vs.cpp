@@ -9,7 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-// Navier Kovasznay example
+// Navier Kovasznay example with variable time step
 //
 // Solve for the steady Kovasznay flow at Re = 40 defined by
 //
@@ -38,6 +38,10 @@
 // and Dirichlet boundary conditions are applied for the velocity on every
 // boundary. The problem, although steady state, is time integrated up to the
 // final time and the solution is compared with the known exact solution.
+//
+// Additionally, this example shows the usage of variable time steps with
+// Navier. A basic sample algorithm for determining the next time step is
+// provided based on a CFL restriction on the velocity.
 
 #include "navier_solver.hpp"
 #include <fstream>
@@ -178,13 +182,14 @@ int main(int argc, char *argv[])
 
    double err_u = 0.0;
    double err_p = 0.0;
+   ParGridFunction *u_next_gf = nullptr;
    ParGridFunction *u_gf = nullptr;
    ParGridFunction *p_gf = nullptr;
 
    ParGridFunction p_ex_gf(flowsolver.GetCurrentPressure()->ParFESpace());
    GridFunctionCoefficient p_ex_gf_coeff(&p_ex_gf);
 
-   double cfl_max = 0.5;
+   double cfl_max = 0.8;
    double cfl_tol = 1e-4;
 
    for (int step = 0; !last_step; ++step)
@@ -197,10 +202,11 @@ int main(int argc, char *argv[])
       // Take a provisional step
       flowsolver.Step(t, dt, step, true);
 
-      u_gf = flowsolver.GetCurrentVelocity();
-      p_gf = flowsolver.GetCurrentPressure();
+      // Retrieve the computed provisional velocity
+      u_next_gf = flowsolver.GetProvisionalVelocity();
 
-      double cfl = flowsolver.ComputeCFL(*u_gf, dt);
+      // Compute the CFL based on the provisional velocity
+      double cfl = flowsolver.ComputeCFL(*u_next_gf, dt);
 
       double error_est = cfl / (cfl_max + cfl_tol);
       if (error_est >= 1.0)
@@ -213,6 +219,7 @@ int main(int argc, char *argv[])
                   << std::endl;
          }
          dt *= 0.5;
+	 step -= 1;
       }
       else
       {
@@ -223,12 +230,15 @@ int main(int argc, char *argv[])
          double fac_safety = 2.0;
          double eta = pow(1.0 / (fac_safety * error_est), 1.0 / (1.0 + 3.0));
          double fac_min = 0.1;
-         double fac_max = 10.0;
+         double fac_max = 1.4;
          dt = dt * std::min(fac_max, std::max(fac_min, eta));
 
          // Queue new time step in the history array
          flowsolver.UpdateTimestepHistory(dt);
       }
+
+      u_gf = flowsolver.GetCurrentVelocity();
+      p_gf = flowsolver.GetCurrentPressure();
 
       u_excoeff.SetTime(t);
       p_excoeff.SetTime(t);

@@ -160,6 +160,27 @@ public:
    void Setup(double dt);
 
    /// Compute solution at the next time step t+dt.
+   /**
+    * This method can be called with the default value @a provisional which
+    * always accepts the computed time step by automatically calling
+    * UpdateTimestepHistory.
+    *
+    * If @provisional is set to true, the solution at t+dt is not accepted
+    * automatically and the application code has to call UpdateTimestepHistory
+    * and update the @a time variable accordingly.
+    *
+    * The application code can check the provisional step by retrieving the
+    * GridFunction with the method GetProvisionalVelocity. If the check fails,
+    * it is possible to retry the step with a different time step by not
+    * calling UpdateTimestepHistory and calling this method with the previous
+    * @a time and @a cur_step.
+    *
+    * The method and parameter choices are based on [1].
+    *
+    * [1] D. Wang, S.J. Ruuth (2008) Variable step-size implicit-explicit
+    * linear multistep methods for time-dependent partial differential
+    * equations
+    */
    void Step(double &time, double dt, int cur_step, bool provisional = false);
 
    /// Return a pointer to the provisional velocity ParGridFunction.
@@ -259,7 +280,8 @@ protected:
     * Depending on which time step the computation is in, the EXTk/BDF time
     * integration coefficients have to be set accordingly. This allows
     * bootstrapping with a BDF scheme of order 1 and increasing the order each
-    * following time step, up to order 3.
+    * following time step, up to order 3 (or whichever order is set in
+    * SetMaxBDFOrder).
     */
    void SetTimeIntegrationCoefficients(int step);
 
