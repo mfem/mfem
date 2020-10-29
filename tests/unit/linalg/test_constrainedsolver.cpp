@@ -83,9 +83,9 @@ void SimpleSaddle::SetDualRHS(Vector& dualrhs_)
 
 void SimpleSaddle::Schur(Vector& serr, Vector& lerr)
 {
-   ConstrainedSolver solver(*hA, B);
    IdentitySolver prec(2);
-   solver.SetSchur(prec);
+   SchurConstrainedSolver solver(MPI_COMM_WORLD, *hA, B, prec);
+   // solver.SetSchur(prec);
    solver.SetDualRHS(dualrhs);
    solver.SetRelTol(1.e-14);
    solver.Mult(rhs, sol);
@@ -97,12 +97,13 @@ void SimpleSaddle::Schur(Vector& serr, Vector& lerr)
 
 void SimpleSaddle::Elimination(Vector& serr, Vector& lerr)
 {
-   ConstrainedSolver solver(*hA, B);
+
    Array<int> primary(1);
    primary[0] = 0;
    Array<int> secondary(1);
    secondary[0] = 1;
-   solver.SetElimination(primary, secondary);
+   EliminationCGSolver solver(*hA, B, primary, secondary);
+   // solver.SetElimination(primary, secondary);
    solver.SetDualRHS(dualrhs);
    solver.Mult(rhs, sol);
    solver.GetDualSolution(lambda);
@@ -113,8 +114,8 @@ void SimpleSaddle::Elimination(Vector& serr, Vector& lerr)
 
 void SimpleSaddle::Penalty(double pen, Vector& serr, Vector& lerr)
 {
-   ConstrainedSolver solver(*hA, B);
-   solver.SetPenalty(pen);
+   PenaltyConstrainedSolver solver(MPI_COMM_WORLD, *hA, B, pen);
+   // solver.SetPenalty(pen);
    solver.SetDualRHS(dualrhs);
    solver.Mult(rhs, sol);
    solver.GetDualSolution(lambda);
@@ -280,9 +281,8 @@ ParallelTestProblem::~ParallelTestProblem()
 
 void ParallelTestProblem::Schur(Vector& serr, Vector& lerr)
 {
-   ConstrainedSolver solver(*amat, *bmat);
    IdentitySolver prec(2);
-   solver.SetSchur(prec);
+   SchurConstrainedSolver solver(MPI_COMM_WORLD, *amat, *bmat, prec);
    solver.Mult(rhs, sol);
    solver.GetDualSolution(lambda);
    for (int i = 0; i < 2; ++i)
@@ -297,8 +297,8 @@ void ParallelTestProblem::Schur(Vector& serr, Vector& lerr)
 
 void ParallelTestProblem::Penalty(double pen, Vector& serr, Vector& lerr)
 {
-   ConstrainedSolver solver(*amat, *bmat);
-   solver.SetPenalty(pen);
+   PenaltyConstrainedSolver solver(MPI_COMM_WORLD, *amat, *bmat, pen);
+   // solver.SetPenalty(pen);
    solver.Mult(rhs, sol);
    solver.GetDualSolution(lambda);
    for (int i = 0; i < 2; ++i)
