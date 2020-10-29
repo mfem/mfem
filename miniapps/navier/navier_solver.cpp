@@ -325,7 +325,6 @@ void NavierSolver::UpdateTimestepHistory(double dt)
    un_gf.SetFromTrueDofs(un);
 }
 
-
 void NavierSolver::Step(double &time, double dt, int cur_step, bool provisional)
 {
    sw_step.Start();
