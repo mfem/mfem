@@ -20,6 +20,64 @@
 namespace mfem
 {
 
+/** @brief An abstract class to solve the constrained system \f$ Ax = f \f$
+    subject to the constraint \f$ B x = r \f$.
+
+    Although implementations may not use the below formulation, for
+    understanding some of its methods and notation you can think of
+    it as solving the saddle-point system
+
+     (  A   B^T  )  ( x )         (  f  )
+     (  B        )  ( lambda)  =  (  r  )
+
+    Not to be confused with ConstrainedOperator, which is totally
+    different.
+
+    The only point for this object is to unify handling of the "dual" rhs
+    r and the dual solution \f$ \labmda \f$.
+ */
+class ConstrainedSolver : public IterativeSolver
+{
+public:
+   ConstrainedSystem(Operator& A_, Operator& B_);
+   virtual ~ConstrainedSolver();
+
+   virtual void SetOperator(const Operator& op) { }
+
+   /** @brief Set the right-hand side r for the constraint B x = r
+
+       (r defaults to zero if you don't call this)
+   */
+   virtual void SetDualRHS(const Vector& r);
+
+   /** @brief Return the Lagrange multiplier solution in lambda
+
+       Does not make sense unless you've already solved the constrained
+       system with Mult() */
+   void GetDualSolution(Vector& lambda) const { lambda = dual_sol; }
+
+   /** @brief Solve for x given f
+
+       Implementations must implement either Mult() or SaddleMult() */
+   virtual void Mult(const Vector& f, Vector& x);
+
+protected:
+   /** @brief Larger, saddle-point sized system solve */
+   virtual void SaddleMult(const Vector& fr, Vector& xlambda) const
+   {
+      mfem_error("Not Implemnted!");
+   }
+
+   Operator& A;
+   Operator& B;
+
+   Vector dual_rhs;
+   mutable Vector dual_sol;
+   mutable Vector workb;
+   mutable Vector workx;
+};
+
+
 /** @brief Connects eliminated dofs to non-eliminated dofs for EliminationCGSolver
 
     The action of this is (for a certain ordering) \f$ [ I ; -B_s^{-1} B_p ] \f$
@@ -90,7 +148,7 @@ private:
     EliminationProjection.
 
     Currently does not work in parallel. */
-class EliminationCGSolver : public IterativeSolver
+class EliminationCGSolver : public ConstrainedSolver
 {
 public:
    EliminationCGSolver(SparseMatrix& A, SparseMatrix& B, int firstblocksize);
@@ -103,8 +161,6 @@ public:
                        Array<int>& secondary_dofs);
 
    ~EliminationCGSolver();
-
-   void SetOperator(const Operator& op) { }
 
    void Mult(const Vector& x, Vector& y) const;
 
@@ -120,8 +176,8 @@ private:
 
    void BuildPreconditioner();
 
-   SparseMatrix& A_;
-   SparseMatrix& B_;
+   SparseMatrix& Asp_;
+   SparseMatrix& Bsp_;
    Array<int> first_interface_dofs_;
    Array<int> second_interface_dofs_;
    EliminationProjection * projector_;
@@ -134,7 +190,7 @@ private:
     Uses a HypreBoomerAMG preconditioner for the penalized system. Only
     approximates the solution, better approximation with higher penalty,
     but with higher penalty the preconditioner is less effective. */
-class PenaltyConstrainedSolver : public IterativeSolver
+class PenaltyConstrainedSolver : public ConstrainedSolver
 {
 public:
    PenaltyConstrainedSolver(HypreParMatrix& A, SparseMatrix& B, double penalty_);
@@ -144,8 +200,6 @@ public:
    ~PenaltyConstrainedSolver();
 
    void Mult(const Vector& x, Vector& y) const;
-
-   void SetOperator(const Operator& op) { }
 
 private:
    void Initialize(HypreParMatrix& A, HypreParMatrix& B);
@@ -164,10 +218,10 @@ private:
     Solves the saddle-point problem with a block-diagonal preconditioner, with
     user-provided preconditioner in the top-left block and an identity matrix
     in the bottom-right. */
-class SchurConstrainedSolver : public IterativeSolver
+class SchurConstrainedSolver : public ConstrainedSolver
 {
 public:
-   SchurConstrainedSolver(BlockOperator& block_op_,
+   SchurConstrainedSolver(Operator& A_, Operator& B_,
                           Solver& primal_pc_);
    virtual ~SchurConstrainedSolver();
 
@@ -176,96 +230,14 @@ public:
    void Mult(const Vector& x, Vector& y) const;
 
 private:
-   BlockOperator& block_op;
+   Array<int> offsets;
+   BlockOperator * block_op;  // owned
+   TransposeOperator * tr_B;  // owned
    Solver& primal_pc;
-   BlockDiagonalPreconditioner block_pc;
+   BlockDiagonalPreconditioner * block_pc;  // owned
    Solver * dual_pc;  // owned
 };
 
-
-/** @brief A class to solve the constrained system \f$ Ax = f \f$
-    subject to the constraint \f$ B x = r \f$ in an abstract setting.
-
-    Although this object may not use the below formulation, for
-    understanding some of its methods and notation you can think of
-    it as solving the saddle-point system
-
-     (  A   B^T  )  ( x )         (  f  )
-     (  B        )  ( lambda)  =  (  r  )
-
-     Not to be confused with ConstrainedOperator, which is totally
-     different. */
-class ConstrainedSolver : public Solver
-{
-public:
-   ConstrainedSolver(Operator& A, Operator& B);
-   ~ConstrainedSolver();
-
-   void SetOperator(const Operator& op) { }
-
-   /** @brief Setup Schur complement solver for constrained system.
-
-       @param prec Preconditioner for primal block.
-   */
-   void SetSchur(Solver& prec);
-
-   /** @brief Set the right-hand side r for the constraint B x = r
-
-       (r defaults to zero if you don't call this)
-   */
-   void SetDualRHS(const Vector& r);
-
-   /** @brief Set up the elimination solver.
-
-       The array secondary_dofs should contain as many entries as the rows
-       in the constraint matrix B; The block of B corresponding to these
-       columns will be inverted (or approximately inverted in a
-       preconditioner, depending on options) to eliminate the constraint.
-
-       @todo this can be done with only secondary_dofs given in interface
-   */
-   void SetElimination(Array<int>& primary_dofs,
-                       Array<int>& secondary_dofs);
-
-   /** @brief Set up a penalty solver. */
-   void SetPenalty(double penalty);
-
-   /** @brief Solve the constrained system.
-
-       The notation follows the documentation for the class, the input
-       vector f is for the primal part only; if you have a nonzero r, you
-       need to set that with SetDualRHS(). Similarly, the output x is only
-       for the primal system, while if you want the Lagrange multiplier
-       solution you call GetDualSolution() after the solve. */
-   void Mult(const Vector& f, Vector& x) const;
-
-   /** @brief Return the Lagrange multiplier solution in lambda
-
-       Does not make sense unless you've already solved the constrained
-       system with Mult() */
-   void GetDualSolution(Vector& lambda) { lambda = dual_sol; }
-
-   void SetRelTol(double rtol) { subsolver->SetRelTol(rtol); }
-   void SetAbsTol(double atol) { subsolver->SetAbsTol(atol); }
-   void SetMaxIter(int max_it) { subsolver->SetMaxIter(max_it); }
-   void SetPrintLevel(int pl) { subsolver->SetPrintLevel(pl); }
-
-private:
-   Array<int> offsets;
-   BlockOperator * block_op;
-   TransposeOperator * tr_B;
-
-   IterativeSolver * subsolver;
-
-   /// hack, @todo remove
-   SparseMatrix hypre_diag;
-
-   Vector dual_rhs;
-   mutable Vector dual_sol;
-
-   mutable Vector workb;
-   mutable Vector workx;
-};
 
 }
 

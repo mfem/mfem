@@ -22,6 +22,8 @@
 /*
   todo:
 
+  - better sphere picture, high-order
+  - improve documentation for ConstrainedSolver object itself
   - timing / scaling of different solvers
   - parallel BuildNormalConstraints in this example
   - make sure curved mesh works (is this a real problem or just VisIt visualization?)
