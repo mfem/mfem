@@ -219,7 +219,7 @@ int main(int argc, char *argv[])
                   << std::endl;
          }
          dt *= 0.5;
-	 step -= 1;
+         step -= 1;
       }
       else
       {
