@@ -489,7 +489,7 @@ void ScalarFiniteElement::ScalarLocalRestriction(
       coarse_fe.CalcShape(f_ip, coarse_shape);
 
       AddMult_a_VVt(ip.weight, coarse_shape, coarse_mass);
-      AddMult_a_VWt(ip.weight, fine_shape, coarse_shape, coarse_fine_mass);
+      AddMult_a_VWt(ip.weight, coarse_shape, fine_shape, coarse_fine_mass);
    }
 
    DenseMatrixInverse coarse_mass_inv(coarse_mass);
