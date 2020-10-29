@@ -501,11 +501,14 @@ void PenaltyConstrainedSolver::Mult(const Vector& b, Vector& x) const
 */
 
    // form penalized right-hand side
-   Vector temp(x.Size());
-   constraintB.MultTranspose(dual_rhs, temp);
-   temp *= penalty;
-   Vector penalized_rhs(b.Size());
-   penalized_rhs += temp;
+   Vector penalized_rhs(b);
+   if (dual_rhs.Size() > 0)
+   {
+      Vector temp(x.Size());
+      constraintB.MultTranspose(dual_rhs, temp);
+      temp *= penalty;
+      penalized_rhs += temp;
+   }
 
    // actually solve
    CGSolver cg(GetComm());
@@ -518,7 +521,10 @@ void PenaltyConstrainedSolver::Mult(const Vector& b, Vector& x) const
    cg.Mult(penalized_rhs, x);
 
    constraintB.Mult(x, dual_sol);
-   dual_sol -= dual_rhs;
+   if (dual_rhs.Size() > 0)
+   {
+      dual_sol -= dual_rhs;
+   }
    dual_sol *= penalty;
 }
 
