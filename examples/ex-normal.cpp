@@ -380,7 +380,7 @@ int main(int argc, char *argv[])
       y_dofs.Append(z_dofs);
       y_dofs.Sort();
       // constrained.SetElimination(y_dofs, x_dofs);
-      constrained = new EliminationCGSolver(*A.As<SparseMatrix>(), *constraint_mat,
+      constrained = new EliminationCGSolver(*A.As<HypreParMatrix>(), *constraint_mat,
                                             y_dofs, x_dofs);
    }
    else

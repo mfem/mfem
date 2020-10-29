@@ -150,13 +150,13 @@ private:
 class EliminationCGSolver : public ConstrainedSolver
 {
 public:
-   EliminationCGSolver(SparseMatrix& A, SparseMatrix& B, int firstblocksize);
+   EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B, int firstblocksize);
 
    /** @brief Constructor, with explicit splitting into primary/secondary dofs.
 
        The secondary_dofs are eliminated from the system in this algorithm,
        as they can be written in terms of the primary_dofs. */
-   EliminationCGSolver(SparseMatrix& A, SparseMatrix& B, Array<int>& primary_dofs,
+   EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B, Array<int>& primary_dofs,
                        Array<int>& secondary_dofs);
 
    ~EliminationCGSolver();
@@ -175,7 +175,8 @@ private:
 
    void BuildPreconditioner();
 
-   SparseMatrix& spA_;
+   HypreParMatrix& hA_;
+   SparseMatrix spA_;
    SparseMatrix& spB_;
    Array<int> first_interface_dofs_;
    Array<int> second_interface_dofs_;
