@@ -112,7 +112,8 @@ protected:
    Array<char> elem_order;
 
    int nvdofs, nedofs, nfdofs, nbdofs;
-   int *bdofs;
+   int uni_fdof; ///< # of single face DOFs if all faces uniform; -1 otherwise
+   int *bdofs; ///< internal DOFs of elements if mixed/var-order; NULL otherwise
 
    Table var_edge_dofs; ///< var-order space: beginnings of DOF sets for edges
    Table var_face_dofs; ///< var-order space or mixed mesh: similar for faces
@@ -137,7 +138,7 @@ protected:
    mutable SparseMatrix *cP; // owned
    /// Conforming restriction matrix such that cR.cP=I.
    mutable SparseMatrix *cR; // owned
-   /// Conforming restriction interpolation matrix such that cQ.cP=I.
+   /// Variable order conforming restriction matrix, cQ.cP=I.
    mutable SparseMatrix *cQ; // owned
    mutable bool cP_is_set;
 
@@ -219,6 +220,9 @@ protected:
    /// Similar to FindEdgeDof, but used for mixed meshes too.
    int FindFaceDof(int face, int ndof) const
    { return FindDofs(var_face_dofs, face, ndof); }
+
+   int FirstFaceDof(int face, int variant = 0) const
+   { return uni_fdof >= 0 ? face*uni_fdof : var_face_dofs.GetRow(face)[variant];}
 
    /// Return number of possible DOF variants for edge/face (var. order spaces).
    int GetNVariants(int entity, int index) const;

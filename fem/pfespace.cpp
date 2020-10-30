@@ -20,7 +20,6 @@
 #include "../mesh/mesh_headers.hpp"
 #include "../general/binaryio.hpp"
 
-#include <climits> // INT_MAX
 #include <limits>
 #include <list>
 
@@ -130,6 +129,9 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
 
 void ParFiniteElementSpace::Construct()
 {
+   MFEM_VERIFY(!IsVariableOrder(), "variable orders are not implemented "
+                                   "for ParFiniteElementSpace yet.");
+
    if (NURBSext)
    {
       ConstructTrueNURBSDofs();
@@ -235,7 +237,7 @@ void ParFiniteElementSpace::GetGroupComm(
    nvd = fec->DofForGeometry(Geometry::POINT);
    ned = fec->DofForGeometry(Geometry::SEGMENT);
 
-   if (var_face_dofs.Size() > 0)
+   if (mesh->Dimension() >= 3)
    {
       if (mesh->HasGeometry(Geometry::TRIANGLE))
       {
@@ -354,7 +356,7 @@ void ParFiniteElementSpace::GetGroupComm(
             pmesh->GroupTriangle(gr, j, k, o);
 
             dofs.SetSize(ntd);
-            m = nvdofs + nedofs;// FIXME + fdofs[k];
+            m = nvdofs + nedofs + FirstFaceDof(k);
             ind = fec->DofOrderForOrientation(Geometry::TRIANGLE, o);
             for (l = 0; l < ntd; l++)
             {
@@ -392,7 +394,7 @@ void ParFiniteElementSpace::GetGroupComm(
             pmesh->GroupQuadrilateral(gr, j, k, o);
 
             dofs.SetSize(nqd);
-            m = nvdofs + nedofs;// FIXME + fdofs[k];
+            m = nvdofs + nedofs + FirstFaceDof(k);
             ind = fec->DofOrderForOrientation(Geometry::SQUARE, o);
             for (l = 0; l < nqd; l++)
             {
@@ -1457,8 +1459,7 @@ void ParFiniteElementSpace::GetBareDofs(int entity, int index,
 
          if (index < ghost) // regular face
          {
-            MFEM_VERIFY(var_face_dofs.Size() <= 0, "FIXME");
-            first = nvdofs + nedofs + /*(fdofs ? fdofs[index] :*/ index*ned/*)*/;
+            first = nvdofs + nedofs + FirstFaceDof(index);
          }
          else // ghost face
          {
@@ -1506,8 +1507,7 @@ int ParFiniteElementSpace::PackDof(int entity, int index, int edof) const
 
          if (index < ghost) // regular face
          {
-            MFEM_VERIFY(var_face_dofs.Size() <= 0, "FIXME");
-            return nvdofs + nedofs + /*(fdofs ? fdofs[index] :*/ index*ned/*)*/ + edof;
+            return nvdofs + nedofs + FirstFaceDof(index) + edof;
          }
          else // ghost face
          {
@@ -1518,10 +1518,10 @@ int ParFiniteElementSpace::PackDof(int entity, int index, int edof) const
    }
 }
 
-static int bisect(int* array, int size, int value)
+static int bisect(const int* array, int size, int value)
 {
-   int* end = array + size;
-   int* pos = std::upper_bound(array, end, value);
+   const int* end = array + size;
+   const int* pos = std::lower_bound(array, end, value);
    MFEM_VERIFY(pos != end, "value not found");
    return pos - array;
 }
@@ -1551,16 +1551,18 @@ void ParFiniteElementSpace::UnpackDof(int dof,
       dof -= nedofs;
       if (dof < nfdofs) // regular face
       {
-         MFEM_VERIFY(var_face_dofs.Size() <= 0, "FIXME");
-         /*if (fdofs) // have mixed faces
-         {
-            index = bisect(fdofs+1, mesh->GetNFaces(), dof);
-            edof = dof - fdofs[index];
-         }
-         else // uniform faces*/
+         if (uni_fdof >= 0) // uniform faces
          {
             int nf = fec->DofForGeometry(pncmesh->GetFaceGeometry(0));
             index = dof / nf, edof = dof % nf;
+         }
+         else // mixed faces or var-order space
+         {
+            const Table &table = var_face_dofs;
+            MFEM_ASSERT(table.Size(), "");
+            int jpos = bisect(table.GetJ(), table.Size_of_connections(), dof);
+            index = bisect(table.GetI(), table.Size(), jpos);
+            edof = dof - table.GetRow(index)[0];
          }
          entity = 2;
          return;
