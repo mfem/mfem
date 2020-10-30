@@ -1376,7 +1376,8 @@ public:
    GeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags,
                     DofToQuad::Mode = DofToQuad::FULL);
 
-   GeometricFactors(const GridFunction *nodes_, const IntegrationRule &ir, int flags,
+   GeometricFactors(const GridFunction *nodes_, const IntegrationRule &ir,
+                    int flags,
                     DofToQuad::Mode = DofToQuad::FULL);
 
    /// Mapped (physical) coordinates of all quadrature points.

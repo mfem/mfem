@@ -5825,7 +5825,7 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
    el_to_el = NULL;
 
    // Check for empty partitionings (a "feature" in METIS)
-   if(nparts > 1 && NumOfElements > nparts)
+   if (nparts > 1 && NumOfElements > nparts)
    {
       Array< Pair<int,int> > psize(nparts);
       int empty_parts;
@@ -10569,7 +10569,8 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    }
 }
 
-GeometricFactors::GeometricFactors(const GridFunction *nodes_, const IntegrationRule &ir,
+GeometricFactors::GeometricFactors(const GridFunction *nodes_,
+                                   const IntegrationRule &ir,
                                    int flags, DofToQuad::Mode mode)
 {
    this->mesh = nullptr;
