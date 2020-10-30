@@ -390,10 +390,6 @@ void NavierSolver::Step(double &time, double dt, int cur_step, bool provisional)
                               ab3 * d_Nunm2[i];);
    }
 
-   // // Rotate the solutions from previous time steps.
-   // Nunm2 = Nunm1;
-   // Nunm1 = Nun;
-
    // Fext = M^{-1} (F(u^{n}) + f^{n+1})
    MvInv->Mult(Fext, tmp1);
    iter_mvsolve = MvInv->GetNumIterations();
@@ -523,10 +519,6 @@ void NavierSolver::Step(double &time, double dt, int cur_step, bool provisional)
    }
 
    vfes->GetRestrictionMatrix()->MultTranspose(resu, resu_gf);
-
-   // // Rotate solutions from previous time steps.
-   // unm2 = unm1;
-   // unm1 = un;
 
    Vector X2, B2;
    if (partial_assembly)
