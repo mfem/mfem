@@ -218,6 +218,9 @@ int main(int argc, char *argv[])
    // Initialize the adjoint solve
    cvodes->InitAdjointSolve(150, CV_HERMITE);
 
+   // Set the maximum number of backward steps
+   cvodes->SetMaxNStepsB(5000);
+
    // Perform time-integration (looping over the time iterations, ti, with a
    // time-step dt).
    bool done = false;
