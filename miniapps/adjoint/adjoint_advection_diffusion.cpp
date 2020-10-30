@@ -312,6 +312,7 @@ int main(int argc, char *argv[])
                                            step_mode ? CV_ADAMS : CV_BDF);
    cvodes->Init(adv);
    cvodes->UseSundialsLinearSolver();
+   cvodes->SetMaxNSteps(5000);
 
    // Relative and absolute tolerances for CVODES
    double reltol = 1e-8, abstol = 1e-6;
