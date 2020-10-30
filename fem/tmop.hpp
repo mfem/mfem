@@ -1197,6 +1197,15 @@ public:
 
    /** @brief Flag to control if exact action of Integration is effected. */
    void SetExactActionFlag(bool flag_) { exact_action = flag_; }
+
+   void ReleaseTemporaryMemory()
+   {
+      if (PA.enabled)
+      {
+         PA.H.GetMemory().DeleteDevice();
+         PA.H0.GetMemory().DeleteDevice();
+      }
+   }
 };
 
 class TMOPComboIntegrator : public NonlinearFormIntegrator

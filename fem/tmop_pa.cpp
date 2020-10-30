@@ -55,7 +55,7 @@ void TMOP_Integrator::EnableLimitingPA(const GridFunction &n0)
    // Get the 1D maps for the distance FE space.
    const IntegrationRule &ir = *EnergyIntegrationRule(*n0.FESpace()->GetFE(0));
    PA.maps_lim =
-         &lim_dist->FESpace()->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
+      &lim_dist->FESpace()->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
 
    // lim_dist & lim_func checks
    MFEM_VERIFY(lim_dist, "No lim_dist!")
@@ -180,11 +180,11 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    PA.setup_Grad = false;
 
    // H for Grad
-   PA.H.UseDevice(true);
-   PA.H.SetSize(dim*dim * dim*dim * nq*ne, Device::GetDeviceMemoryType());
+   PA.H.SetSize(dim*dim * dim*dim * nq*ne);
+   PA.H.GetMemory().UseTemporary(true);
    // H0 for coeff0
-   PA.H0.UseDevice(true);
-   PA.H0.SetSize(dim * dim * nq*ne, Device::GetDeviceMemoryType());
+   PA.H0.SetSize(dim * dim * nq*ne);
+   PA.H0.GetMemory().UseTemporary(true);
 
    // Restriction setup
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
