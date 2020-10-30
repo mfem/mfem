@@ -9,7 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-// 3d Taylor-Green vortex benchmark example at Re=1600
+// 3D Taylor-Green vortex benchmark example at Re=1600
 // Unsteady flow of a decaying vortex is computed and compared against a known,
 // analytical solution.
 

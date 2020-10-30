@@ -105,7 +105,6 @@ using threads_z =
    RAJA::expt::LoopPolicy<RAJA::loop_exec,RAJA::hip_thread_z_direct>;
 #endif
 
-
 template <const int BLOCKS = MFEM_CUDA_BLOCKS, typename DBODY>
 void RajaDeviceWrap1D(const int N, DBODY &&d_body)
 {
@@ -346,7 +345,7 @@ inline void ForallWrap(const bool use_dev, const int N,
    if (!use_dev) { goto backend_cpu; }
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_DEVICE_ACTIVE)
-   // Handle all allowed CUDA backends except Backend::CUDA
+   // Handle all allowed CUDA or HIP backends
    if (DIM == 1 &&
        (Device::Allows(Backend::CUDA_MASK & ~Backend::CUDA) ||
         Device::Allows(Backend::HIP_MASK & ~Backend::HIP)))
@@ -361,49 +360,45 @@ inline void ForallWrap(const bool use_dev, const int N,
        (Device::Allows(Backend::CUDA_MASK & ~Backend::CUDA) ||
         Device::Allows(Backend::HIP_MASK & ~Backend::HIP)))
    { return RajaDeviceWrap3D(N, d_body, X, Y, Z); }
+
 #endif
 
 #ifdef MFEM_USE_CUDA
-   // Handle all allowed CUDA backends
-   if (DIM == 1 && Device::Allows(Backend::CUDA_MASK))
-   { return CuWrap1D(N, d_body); }
-
-   if (DIM == 2 && Device::Allows(Backend::CUDA_MASK))
-   { return CuWrap2D(N, d_body, X, Y, Z); }
-
-   if (DIM == 3 && Device::Allows(Backend::CUDA_MASK))
-   { return CuWrap3D(N, d_body, X, Y, Z); }
+   // If Backend::CUDA is allowed, use it
+   if (Device::Allows(Backend::CUDA))
+   {
+      if (DIM == 1) { return CuWrap1D(N, d_body); }
+      if (DIM == 2) { return CuWrap2D(N, d_body, X, Y, Z); }
+      if (DIM == 3) { return CuWrap3D(N, d_body, X, Y, Z); }
+   }
 #endif
 
 #ifdef MFEM_USE_HIP
-   // Handle all allowed HIP backends
-   if (DIM == 1 && Device::Allows(Backend::HIP_MASK))
-   { return HipWrap1D(N, d_body); }
-
-   if (DIM == 2 && Device::Allows(Backend::HIP_MASK))
-   { return HipWrap2D(N, d_body, X, Y, Z); }
-
-   if (DIM == 3 && Device::Allows(Backend::HIP_MASK))
-   { return HipWrap3D(N, d_body, X, Y, Z); }
+   // If Backend::HIP is allowed, use it
+   if (Device::Allows(Backend::HIP))
+   {
+      if (DIM == 1) { return HipWrap1D(N, d_body); }
+      if (DIM == 2) { return HipWrap2D(N, d_body, X, Y, Z); }
+      if (DIM == 3) { return HipWrap3D(N, d_body, X, Y, Z); }
+   }
 #endif
 
+   // If Backend::DEBUG_DEVICE is allowed, use it
    if (Device::Allows(Backend::DEBUG_DEVICE)) { goto backend_cpu; }
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)
-   // Handle all allowed OpenMP backends except Backend::OMP
-   if (Device::Allows(Backend::OMP_MASK & ~Backend::OMP))
-   { return RajaOmpWrap(N, h_body); }
+   // If Backend::RAJA_OMP is allowed, use it
+   if (Device::Allows(Backend::RAJA_OMP)) { return RajaOmpWrap(N, h_body); }
 #endif
 
 #ifdef MFEM_USE_OPENMP
-   // Handle all allowed OpenMP backends
-   if (Device::Allows(Backend::OMP_MASK)) { return OmpWrap(N, h_body); }
+   // If Backend::OMP is allowed, use it
+   if (Device::Allows(Backend::OMP)) { return OmpWrap(N, h_body); }
 #endif
 
 #ifdef MFEM_USE_RAJA
-   // Handle all allowed CPU backends except Backend::CPU
-   if (Device::Allows(Backend::CPU_MASK & ~Backend::CPU))
-   { return RajaSeqWrap(N, h_body); }
+   // If Backend::RAJA_CPU is allowed, use it
+   if (Device::Allows(Backend::RAJA_CPU)) { return RajaSeqWrap(N, h_body); }
 #endif
 
 backend_cpu:
