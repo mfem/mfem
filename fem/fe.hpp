@@ -3185,6 +3185,81 @@ public:
 };
 
 
+/// Arbitrary order Nedelec 3D elements in 1D on a segment
+/** ND_P2D_SegmentElement provides a representation of a 3D Nedelec
+    basis where the vector field is assumed constant in the second and
+    third dimensions.
+*/
+class ND_P1D_SegmentElement : public VectorTensorFiniteElement
+{
+   static const double tk[9];
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector shape_cx, shape_ox;
+   mutable Vector dshape_cx;
+#endif
+   Array<int> dof2tk;
+
+public:
+   /** @brief Construct the ND_P1D_SegmentElement of order @a p and closed and
+       open BasisType @a cb_type and @a ob_type */
+   ND_P1D_SegmentElement(const int p,
+			 const int cb_type = BasisType::GaussLobatto,
+			 const int ob_type = BasisType::GaussLegendre);
+
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const
+   { CalcVShape_ND(Trans, shape); }
+
+   virtual void CalcCurlShape(const IntegrationPoint &ip,
+                              DenseMatrix &curl_shape) const;
+
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { LocalInterpolation_ND(*this, tk, dof2tk, Trans, I); }
+
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { LocalRestriction_ND(tk, dof2tk, Trans, R); }
+
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
+
+   using FiniteElement::Project;
+
+   virtual void Project(VectorCoefficient &vc,
+                        ElementTransformation &Trans, Vector &dofs) const
+   { Project_ND(tk, dof2tk, vc, Trans, dofs); }
+
+   virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
+                                 Vector &dofs) const
+   { Project_ND(tk, dof2tk, vc, Trans, dofs); }
+
+   virtual void ProjectMatrixCoefficient(
+      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+   { ProjectMatrixCoefficient_ND(tk, dof2tk, mc, T, dofs); }
+
+   virtual void Project(const FiniteElement &fe,
+                        ElementTransformation &Trans,
+                        DenseMatrix &I) const
+   { Project_ND(tk, dof2tk, fe, Trans, I); }
+
+   virtual void ProjectGrad(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &grad) const
+   { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
+
+   virtual void ProjectCurl(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &curl) const
+   { ProjectCurl_ND(tk, dof2tk, fe, Trans, curl); }
+};
+
+
 /// An arbitrary order and dimension NURBS element
 class NURBSFiniteElement : public ScalarFiniteElement
 {
