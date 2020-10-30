@@ -1924,12 +1924,13 @@ void FiniteElementSpace::Construct()
       {
          // NOTE: we use Table var_face_dofs for mixed faces as well
          nfdofs = MakeDofTable(2, face_orders, var_face_dofs);
+         uni_fdof = -1;
       }
       else
       {
          // the simple case: all faces are of the same geometry and order
-         Geometry::Type geom = mesh->GetFaceGeometry(0);
-         nfdofs = mesh->GetNFaces() * fec->GetNumDof(geom, order);
+         uni_fdof = fec->GetNumDof(mesh->GetFaceGeometry(0), order);
+         nfdofs = mesh->GetNFaces() * uni_fdof;
       }
    }
 
