@@ -22,10 +22,6 @@
     MAKE_PAR: 6
     BASELINE_PAR: 18
 
-# Setup
-setup_quartz:
-  extends: [.setup, .on_quartz]
-
 # Allocate
 allocate_quartz:
   variables:

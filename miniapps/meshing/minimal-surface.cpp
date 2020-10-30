@@ -20,7 +20,7 @@
 //
 //  - Problem 0 solves the minimal surface equation of parametric surfaces.
 //              The surface (-s) option allow the selection of different
-//              parameterizations:
+//              parametrization:
 //                s=0: Uses the given mesh from command line options
 //                s=1: Catenoid
 //                s=2: Helicoid
