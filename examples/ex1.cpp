@@ -122,15 +122,13 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
-   srand(1);
+   srand(seed);
    {
-      //mesh.UniformRefinement();
       for (int l = 0; l < ref_levels; l++)
       {
          mesh.RandomRefinement(0.5, true);
       }
    }
-   srand(seed);
 
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
@@ -160,41 +158,14 @@ int main(int argc, char *argv[])
    // 6. At this point all elements have the default order (specified when
    //    construction the FECollection). Now we can p-refine some of them to
    //    obtain a variable-order space...
-   /*{
-      Array<Refinement> refs;
-      refs.Append(Refinement(1, 4));
-      mesh->GeneralRefinement(refs);
-      refs[0].ref_type = 2;
-      mesh->GeneralRefinement(refs);
-   }
-   fespace.Update(false);*/
    for (int i = 0; i < mesh.GetNE(); i++)
    {
-      fespace.SetElementOrder(i, (rand()%5)+order);
-      //fespace.SetElementOrder(i, order);
-      //fespace.SetElementOrder(i, i ? 3 : 2);
+      fespace.SetElementOrder(i, order + (rand()%5));
    }
    fespace.Update(false);
 
-   /*fespace.SetElementOrder(0, order+1);
-   fespace.Update(false);*/
-
-   /*Array<int> dofs;
-   for (int i = 0; i < mesh->GetNE(); i++)
-   {
-      fespace.GetElementDofs(i, dofs);
-      mfem::out << "Element " << i << " DOFs:";
-      for (int j = 0; j < dofs.Size(); j++) {
-         mfem::out << " " << dofs[j];
-      }
-      mfem::out << std::endl;
-   }*/
-   cout << "Space size (all DOFs): " << fespace.GetNDofs() << endl;
    cout << "Number of finite element unknowns: "
         << fespace.GetTrueVSize() << endl;
-
-   /*cout << "P matrix:\n";
-   fespace.GetConformingProlongation()->Print();*/
 
    // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all
@@ -291,47 +262,39 @@ int main(int argc, char *argv[])
 
       // Prolong the solution vector onto L2 space of max order (for GLVis)
       GridFunction *vis_x = ProlongToMaxOrder(&x);
-
-#if 1
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << mesh << *vis_x
                //<< "keys Rjlm\n"
                << flush;
-#endif
       delete vis_x;
 
-#if 1
-      L2_FECollection l2fec(0, dim);
-      FiniteElementSpace l2fes(&mesh, &l2fec);
-      GridFunction orders(&l2fes);
-
-      for (int i = 0; i < orders.Size(); i++)
+      // visualize element orders
+      if (1)
       {
-         orders(i) = fespace.GetElementOrder(i);
+         L2_FECollection l2fec(0, dim);
+         FiniteElementSpace l2fes(&mesh, &l2fec);
+         GridFunction orders(&l2fes);
+
+         for (int i = 0; i < orders.Size(); i++)
+         {
+            orders(i) = fespace.GetElementOrder(i);
+         }
+
+         socketstream ord_sock(vishost, visport);
+         ord_sock.precision(8);
+         ord_sock << "solution\n" << mesh << orders
+                  //<< "keys Rjlmc\n"
+                  << flush;
       }
 
-      socketstream ord_sock(vishost, visport);
-      ord_sock.precision(8);
-      ord_sock << "solution\n" << mesh << orders
-               //<< "keys Rjlmc\n"
-               << flush;
-#endif
-
       // visualize the basis functions
-      if (0)
+      if (1)
       {
          socketstream b_sock(vishost, visport);
          b_sock.precision(8);
 
-#if 1
-         int first = 0;
-#else
-         int first = fespace.GetNV() - 10;
-#endif
-         cout << "first = " << first << endl;
-
-         for (int i = first; i < X.Size(); i++)
+         for (int i = 0; i < X.Size(); i++)
          {
             X = 0.0;
             X(i) = 1.0;
@@ -339,14 +302,11 @@ int main(int argc, char *argv[])
             vis_x = ProlongToMaxOrder(&x);
 
             b_sock << "solution\n" << mesh << *vis_x << flush;
-            if (i == first) { b_sock << "keys miIMA\n"; }
+            if (!i) { b_sock << "keys miIMA\n"; }
             b_sock << "pause\n" << flush;
-            // delete vis_x;
+            delete vis_x;
          }
       }
-
-      /*std::ofstream f("mesh.dump");
-      mesh->ncmesh->DebugDump(f);*/
    }
 
    // 15. Free the used memory.
@@ -358,18 +318,14 @@ int main(int argc, char *argv[])
    return 0;
 }
 
+
 GridFunction* ProlongToMaxOrder(const GridFunction *x)
 {
    const FiniteElementSpace *fespace = x->FESpace();
-   Mesh *mesh = fespace->GetMesh();
    const FiniteElementCollection *fec = fespace->FEColl();
+   Mesh *mesh = fespace->GetMesh();
 
-   // Find the max order in the space
-   int max_order = 1;
-   for (int i = 0; i < mesh->GetNE(); i++)
-   {
-      max_order = std::max(fespace->GetElementOrder(i), max_order);
-   }
+   int max_order = fespace->GetMaxElementOrder();
 
    // Create a visualization space of max order for all elements
    FiniteElementCollection *visualization_fec =
@@ -407,3 +363,4 @@ GridFunction* ProlongToMaxOrder(const GridFunction *x)
    visualization_x->MakeOwner(visualization_fec);
    return visualization_x;
 }
+
