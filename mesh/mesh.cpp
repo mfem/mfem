@@ -1463,6 +1463,13 @@ void Mesh::AddBdrQuadAsTriangles(const int *vi, int attr)
    }
 }
 
+int Mesh::AddBdrPoint(int v, int attr)
+{
+   CheckEnlarge(boundary, NumOfBdrElements);
+   boundary[NumOfBdrElements] = new Point(&v, attr);
+   return NumOfBdrElements++;
+}
+
 void Mesh::GenerateBoundaryElements()
 {
    int i, j;
