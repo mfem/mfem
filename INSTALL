@@ -586,7 +586,7 @@ The specific libraries and their options are:
   2.0.0 or later.
   URL: http://portal.nersc.gov/project/sparse/strumpack
   Options: STRUMPACK_OPT, STRUMPACK_LIB.
-  Versions: STRUMPACK >= 3.0.0, requires HYPRE < 2.16.0.
+  Versions: STRUMPACK >= 3.0.0.
 
 - Ginkgo (optional), used when MFEM_USE_GINKGO = YES. Note that Ginkgo needs a
   C++ compiler that supports the C++-11 standard. For additional requirements
@@ -655,7 +655,7 @@ The specific libraries and their options are:
   URL: https://scorec.rpi.edu/pumi
        https://github.com/SCOREC/core
   Options: PUMI_OPT, PUMI_LIB.
-  Versions: PUMI >= 2.2.3.
+  Versions: PUMI == 2.2.3.
 
 - HiOp (optional), used when MFEM_USE_HIOP = YES.
   URL: https://github.com/LLNL/hiop

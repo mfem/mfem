@@ -233,10 +233,17 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      args.PrintUsage(cout);
+      if (myid == 0)
+      {
+         args.PrintUsage(cout);
+      }
+      MPI_Finalize();
       return 1;
    }
-   args.PrintOptions(cout);
+   if (myid == 0)
+   {
+      args.PrintOptions(cout);
+   }
 
    // Create a small 1D mesh with a length of 2. This mesh corresponds with the
    // cvsAdvDiff_ASA_p_non_p example.
