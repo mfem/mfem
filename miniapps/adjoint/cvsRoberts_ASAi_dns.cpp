@@ -218,9 +218,6 @@ int main(int argc, char *argv[])
    // Initialize the adjoint solve
    cvodes->InitAdjointSolve(150, CV_HERMITE);
 
-   // Set the maximum number of backward steps
-   cvodes->SetMaxNStepsB(5000);
-
    // Perform time-integration (looping over the time iterations, ti, with a
    // time-step dt).
    bool done = false;
@@ -259,6 +256,7 @@ int main(int argc, char *argv[])
       adv.SetTime(t);
       cvodes->InitB(adv);
       cvodes->InitQuadIntegrationB(dG_dp, 1.e-6, 1.e-6);
+      cvodes->SetMaxNStepsB(5000);
 
       // Results at time TBout1
       double dt_real = max(dt, t - TBout1);
