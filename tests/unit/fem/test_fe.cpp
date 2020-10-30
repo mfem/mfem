@@ -362,7 +362,7 @@ TEST_CASE("Nedelec Hexahedron Finite Element",
 }
 
 TEST_CASE("Raviart-Thomas Triangular Finite Element",
-          "[RT_TRiangleElement]"
+          "[RT_TriangleElement]"
           "[VectorFiniteElement]"
           "[FiniteElement]")
 {

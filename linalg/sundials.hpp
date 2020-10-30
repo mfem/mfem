@@ -473,6 +473,9 @@ public:
    /// Initialize Adjoint
    void InitAdjointSolve(int steps, int interpolation);
 
+   /// Set the maximum number of backward steps
+   void SetMaxNStepsB(int mxstepsB);
+
    /// Get Number of Steps for ForwardSolve
    long GetNumSteps();
 
