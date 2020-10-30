@@ -18,7 +18,6 @@ TODO
    Minor Tasks
       Check if it is actually possible to make Gresho vortex converge to steady state (with galerkin first)
       Check apps/bl.cpp for correctness
-      Pick a MoST gimmick problem - get rid of it in burgers, ...
 
    High Priority:
       Discrepancy to results in paper :( - already in 1D low order method, Woodward-Colella breaks
@@ -26,7 +25,6 @@ TODO
       Efficiency
 
    Medium Priority:
-      TODO either set tFinal in each configuration, or remove from Configuration struct
       Advection - NodalQuadRule
 
    Low Priority:
@@ -45,7 +43,7 @@ TODO
 
 
 next steps
-   -Pressure fix: Required for Woodward-Colella, double-mach, Sedov, Noh, (MoST)
+   -Pressure fix: Required for Woodward-Colella, double-mach, Sedov, Noh
 
 If possible: try to make advection with non-constant velocity and MCL work
 

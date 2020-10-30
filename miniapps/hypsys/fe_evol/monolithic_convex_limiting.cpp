@@ -244,8 +244,8 @@ void MCL_Evolution::GetFaceVal(const Vector &x, const Vector &xMPI, int e,
          else
          {
             // nbr in different MPI task?
-            uNbr = (nbr < xSizeMPI) ? x(n * ne * nd + nbr) : xMPI(int((
-                                                                         nbr - xSizeMPI) / nd) * nd * hyp->NumEq + n * nd + (nbr - xSizeMPI) % nd);
+            uNbr = (nbr < xSizeMPI) ? x(n * ne * nd + nbr) :
+               xMPI(int((nbr - xSizeMPI) / nd) * nd * hyp->NumEq + n * nd + (nbr - xSizeMPI) % nd);
          }
 
          uEval(n) = x(DofInd);

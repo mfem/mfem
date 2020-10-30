@@ -15,6 +15,7 @@ if nargin == 0
 end
 
 numElPerDim = [48 64 96 128 192 256 384 512]';
+% numElPerDim = [4 8 16 32 64 128 256]';
 numElPerDim = numElPerDim(1:size(data,1));
 numLvls = length(numElPerDim)-1;
 eoc = zeros(numLvls, 3);

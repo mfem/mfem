@@ -1,0 +1,20 @@
+window 1080 0 1920 1080
+
+# Initial solution
+solution ../grid.mesh ../initial.gf
+
+# Setup the GLVis scene. Executed after pressing the space bar.
+{
+   keys ppppppppppppppppppppppppppp
+   autoscale off
+}
+
+# Take multiple screenshots. Executed after pressing the space bar.
+{
+   solution ../grid.mesh ../initial.gf  valuerange 0 1 screenshot frame00.png
+   solution ../grid.mesh ../trans1.gf   valuerange 0 1 screenshot frame01.png
+   solution ../grid.mesh ../trans2.gf   valuerange 0 1 screenshot frame02.png
+   solution ../grid.mesh ../trans3.gf   valuerange 0 1 screenshot frame03.png
+   solution ../grid.mesh ../trans4.gf   valuerange 0 1 screenshot frame04.png
+   solution ../grid.mesh ../ultimate.gf valuerange 0 1 screenshot frame05.png
+}

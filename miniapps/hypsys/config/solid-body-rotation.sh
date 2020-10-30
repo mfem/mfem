@@ -1,4 +1,6 @@
-MESH=data/periodic-tri.mesh
-SCHEME=0
+EXEC="mpirun -np 7 phypsys"
 
-./hypsys -p 0 -c 1 -m $MESH -tf 1 -dt 0.0005 -s 3 -vf 200 -es $SCHEME -r 4 -o 1
+MESH=data/periodic-4quad.mesh
+SCHEME=1
+
+$EXEC -p 0 -c 1 -vf 200 -tf 1 -s 3 -dt 0.00032 -m $MESH -r 4 -o 2 -es $SCHEME
