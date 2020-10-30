@@ -21,7 +21,7 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = 
+SEQ_EXAMPLES =
 PAR_EXAMPLES = ex1p
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
@@ -57,7 +57,7 @@ PARALLEL_NAME := Parallel SuperLU example
 	@$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_NAME))
 
 # Testing: Specific execution options:
-# Example 1: Test SuperLU on the simple poisson problem
+# Example 1: Test SuperLU on the simple Poisson problem
 EX1_COMMON_ARGS := -m ../../data/star.mesh
 EX1P_ARGS := $(EX1_COMMON_ARGS)
 ex1p-test-par: ex1p

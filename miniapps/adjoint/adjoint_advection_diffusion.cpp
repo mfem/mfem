@@ -233,10 +233,17 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      args.PrintUsage(cout);
+      if (myid == 0)
+      {
+         args.PrintUsage(cout);
+      }
+      MPI_Finalize();
       return 1;
    }
-   args.PrintOptions(cout);
+   if (myid == 0)
+   {
+      args.PrintOptions(cout);
+   }
 
    // Create a small 1D mesh with a length of 2. This mesh corresponds with the
    // cvsAdvDiff_ASA_p_non_p example.
@@ -305,6 +312,7 @@ int main(int argc, char *argv[])
                                            step_mode ? CV_ADAMS : CV_BDF);
    cvodes->Init(adv);
    cvodes->UseSundialsLinearSolver();
+   cvodes->SetMaxNSteps(5000);
 
    // Relative and absolute tolerances for CVODES
    double reltol = 1e-8, abstol = 1e-6;

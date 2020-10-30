@@ -5,7 +5,7 @@
                       | | | | | ||  _||  __/| | | | | |
                       |_| |_| |_||_|   \___||_| |_| |_|
 
-                               http://mfem.org
+                               https://mfem.org
 
 The MFEM library has a serial and an MPI-based parallel version, which largely
 share the same code base. The only prerequisite for building the serial version
@@ -19,10 +19,10 @@ requires an MPI C++ compiler, as well as the following external libraries:
   http://glaros.dtc.umn.edu/gkhome/metis/metis/overview
 
 The hypre dependency can be downloaded as a tarball from GitHub or from the
-project webpage https://www.llnl.gov/casc/hypre. For example, the 2.16.0 release
+project webpage https://www.llnl.gov/casc/hypre. For example, the 2.20.0 release
 of hypre is available at
 
-   https://github.com/hypre-space/hypre/archive/v2.16.0.tar.gz
+   https://github.com/hypre-space/hypre/archive/v2.20.0.tar.gz
 
 The METIS dependency can be disabled but that is not generally recommended, see
 the option MFEM_USE_METIS.
@@ -62,7 +62,7 @@ following package managers:
 
 We also recommend downloading and building the MFEM-based GLVis visualization
 tool which can be used to visualize the meshes and solution in MFEM's examples
-and miniapps. See http://glvis.org and http://mfem.org/building.
+and miniapps. See https://glvis.org and https://mfem.org/building.
 
 Quick start with GNU make
 =========================
@@ -558,11 +558,12 @@ The specific libraries and their options are:
   for CUDA.
   URL: http://computation.llnl.gov/projects/sundials/sundials-software
   Options: SUNDIALS_OPT, SUNDIALS_LIB.
-  Versions: SUNDIALS >= 5.0.0, SUNDIALS >= 5.4.0 for CUDA suppport.
+  Versions: SUNDIALS >= 5.0.0, SUNDIALS >= 5.4.0 for CUDA support.
 
 - Mesquite (optional), used when MFEM_USE_MESQUITE = YES.
   URL: http://trilinos.org/oldsite/packages/mesquite
   Options: MESQUITE_OPT, MESQUITE_LIB.
+  The Mesquite support is deprecated and will be removed in the future.
 
 - SuiteSparse (optional), used when MFEM_USE_SUITESPARSE = YES.
   URL: http://faculty.cse.tamu.edu/davis/suitesparse.html
@@ -572,7 +573,7 @@ The specific libraries and their options are:
 - SuperLU_DIST (optional), used when MFEM_USE_SUPERLU = YES. Note that
   SuperLU_DIST requires ParMETIS, which includes METIS 5 in its distribution.
   Both ParMETIS and the included METIS 5 should be built and installed in the
-  same location.
+  same location. If using SuperLU_Dist v5, set MFEM_USE_SUPERLU5=YES.
   URL: http://crd-legacy.lbl.gov/~xiaoye/SuperLU
   Options: SUPERLU_OPT, SUPERLU_LIB.
   Versions: SuperLU_DIST >= 5.1.0.
@@ -585,7 +586,7 @@ The specific libraries and their options are:
   2.0.0 or later.
   URL: http://portal.nersc.gov/project/sparse/strumpack
   Options: STRUMPACK_OPT, STRUMPACK_LIB.
-  Versions: STRUMPACK >= 3.0.0, requires HYPRE < 2.16.0.
+  Versions: STRUMPACK >= 3.0.0.
 
 - Ginkgo (optional), used when MFEM_USE_GINKGO = YES. Note that Ginkgo needs a
   C++ compiler that supports the C++-11 standard. For additional requirements
@@ -648,16 +649,18 @@ The specific libraries and their options are:
 
 - ADIOS2 (optional) used when MFEM_USE_ADIOS2 = YES.
   URL: https://adios2.readthedocs.io/
+  Versions: ADIOS >= 2.5.0.
 
 - PUMI (optional), used when MFEM_USE_PUMI = YES.
   URL: https://scorec.rpi.edu/pumi
        https://github.com/SCOREC/core
   Options: PUMI_OPT, PUMI_LIB.
-  Versions: PUMI >= 2.2.3.
+  Versions: PUMI == 2.2.3.
 
 - HiOp (optional), used when MFEM_USE_HIOP = YES.
   URL: https://github.com/LLNL/hiop
   Options: HIOP_OPT, HIOP_LIB.
+  Versions: HIOP >= 0.1.
 
 - GSLIB (optional), used when MFEM_USE_GSLIB = YES. The gslib library must be
   built prior to the MFEM build, as follows: download gslib-1.0.5, untar it at

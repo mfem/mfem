@@ -83,5 +83,4 @@ TEST_CASE("SparseMatrixAbsMult", "[SparseMatrixAbsMult]")
    }
 }
 
-
 } // namespace mfem
