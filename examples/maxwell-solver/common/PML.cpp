@@ -153,7 +153,8 @@ void ToroidPML::SetBoundaries()
       // Find r and a for this point
       double x = coord[0];
       double y = coord[1];
-      double z = coord[2];
+      double z = 0.0;
+      if (dim == 3) z = coord[2];
       double a = GetAngle(x,y);
       double r = sqrt(x*x + y*y);
       
@@ -171,6 +172,7 @@ void ToroidPML::SetBoundaries()
    rlim[1] = rmax;
    alim[0] = amin;
    alim[1] = amax;
+
 
 #ifdef MFEM_USE_MPI
    ParMesh * pmesh = dynamic_cast<ParMesh *>(mesh);
@@ -204,13 +206,34 @@ void ToroidPML::SetAttributes(Mesh *mesh_)
       double x = center[0];
       double y = center[1];
       double a = GetAngle(x,y);
+      double r = sqrt(x*x + y*y);
 
       // check upper and lower bound
-      if ( (a <= alim[0]+apml_thickness[0]) ||
-           (a >= alim[1]-apml_thickness[1]) )
+      if (astretch)
       {
-         elems[i] = 0;
-         el->SetAttribute(2);
+         if ( (a <= alim[0]+apml_thickness[0]) ||
+           (a >= alim[1]-apml_thickness[1]) )
+         {
+            elems[i] = 0;
+            el->SetAttribute(2);
+         }
+      }
+
+      if (rstretch)
+      {
+         // if ( (r <= rlim[0]+rpml_thickness[0]) ||
+         //      (r >= rlim[1]-rpml_thickness[1]) )
+         // {
+         //    elems[i] = 0;
+         //    el->SetAttribute(2);
+         // }
+         if (x <= -0.3 || x>=0.3 || y<-0.3 || y>= 0.3)
+         // if (x <= 0.2 || x>=0.8 || y<=0.2 || y>= 0.8)
+         // if (r>0.3)
+         {
+            elems[i] = 0;
+            el->SetAttribute(2);
+         }
       }
    }
    mesh_->SetAttributes();
@@ -249,21 +272,6 @@ void ToroidPML::StretchFunction(const Vector &X,
 
    double n = 2.0;
    double c = 5.0;
-   // // Stretch in each direction independently
-   // for (int i = 0; i < dim; ++i)
-   // {
-   //    dxs[i] = 1.0;
-   //    if (x(i) >= comp_dom_bdr(i, 1))
-   //    {
-   //       coeff = n * c / omega / pow(length(i, 1), n);
-   //       dxs[i] = 1.0 + zi * coeff * abs(pow(x(i) - comp_dom_bdr(i, 1), n - 1.0));
-   //    }
-   //    if (x(i) <= comp_dom_bdr(i, 0))
-   //    {
-   //       coeff = n * c / omega / pow(length(i, 0), n);
-   //       dxs[i] = 1.0 + zi * coeff * abs(pow(x(i) - comp_dom_bdr(i, 0), n - 1.0));
-   //    }
-   // }
    // Stretch in the azimuthal direction
    double x0 = X[0];
    double y0 = X[1];
@@ -271,42 +279,104 @@ void ToroidPML::StretchFunction(const Vector &X,
    double r0 = sqrt(x0*x0 + y0*y0);
    dxs[0] = 1.0;
    dxs[1] = 1.0;
-   dxs[2] = 1.0;
-   double coeff = n * c / omega / pow(1, n);
+   if (dim == 3) dxs[2] = 1.0;
 
-   // negative direction 
-   if (a0 <= alim[0]+apml_thickness[0])
+   if (astretch)
    {
-      double a1 = alim[0]*M_PI/180.0;
-      double r1 = r0;
-      double x1 = r1 * cos(a1);
-      double y1 = r1 * sin(a1);
-      double xthickness = r1*sin(apml_thickness[0]*M_PI/180.0);
-      double ythickness = r1*cos(apml_thickness[0]*M_PI/180.0);
-      double coeffx = n * c / omega / pow(xthickness, n);
-      double coeffy = n * c / omega / pow(ythickness, n);
-      dxs[0] = 1.0 + zi * coeffx * abs(pow(x0 - x1, n - 1.0));
-      dxs[1] = 1.0 + zi * coeffy * abs(pow(y0 - y1, n - 1.0));
-      cout << "negative " << endl;
+      // negative direction 
+      if (a0 <= alim[0]+apml_thickness[0])
+      {
+         // double a1 = alim[0]*M_PI/180.0;
+         // double r1 = r0;
+         // double x1 = r1 * cos(a1);
+         // double y1 = r1 * sin(a1);
+         // double xthickness = r1*sin(apml_thickness[0]*M_PI/180.0);
+         // double ythickness = r1*cos(apml_thickness[0]*M_PI/180.0);
+         // double coeffx = n * c / omega / pow(xthickness, n);
+         // double coeffy = n * c / omega / pow(ythickness, n);
+         // dxs[0] = 1.0 + zi * coeffx * abs(pow(x0 - x1, n - 1.0));
+         // dxs[1] = 1.0 + zi * coeffy * abs(pow(y0 - y1, n - 1.0));
+         cout << "negative " << endl;
+         MFEM_ABORT ("TODO");
+      }
+      // positive direction 
+      if (a0 >= alim[1]-apml_thickness[1])
+      {
+         double a1 = alim[1]*M_PI/180.0;
+         double r1 = r0;
+         double x1 = r1 * cos(a1);
+         double y1 = r1 * sin(a1);
+         double xthickness = r1*cos(apml_thickness[1]*M_PI/180.0);
+         double ythickness = r1*sin(apml_thickness[1]*M_PI/180.0);
+         xthickness = max(xthickness,1.0);
+         ythickness = max(ythickness,1.0);
+         double coeffx = n * c / omega / pow(xthickness, n);
+         double coeffy = n * c / omega / pow(ythickness, n);
+         double Lx = r1 * cos((alim[1]-apml_thickness[1])*M_PI/180.0);
+         double Ly = r1 * sin((alim[1]-apml_thickness[1])*M_PI/180.0);
+         dxs[0] = 1.0 + zi * coeffx * abs(pow(x0 - Lx, n - 1.0));
+         dxs[1] = 1.0 + zi * coeffy * abs(pow(y0 - Ly, n - 1.0));
+         // double coeffTheta = n * c / omega / pow(apml_thickness[1]*M_PI/180.0, n);
+         // complex<double> dtheta = zi * coeffTheta * abs(pow((alim[1]-a0)*M_PI/180.0,n-1)); 
+         // dxs[0] = 1.0 + dtheta * r1 * sin(a0*M_PI/180.0);
+         // dxs[1] = 1.0 - dtheta * r1 * cos(a0*M_PI/180.0);
+      }
    }
-   // positive direction 
-   if (a0 >= alim[1]-apml_thickness[1])
-   {
-      double a1 = alim[1]*M_PI/180.0;
-      double r1 = r0;
-      double x1 = r1 * cos(a1);
-      double y1 = r1 * sin(a1);
-      double xthickness = r1*sin(apml_thickness[1]*M_PI/180.0);
-      double ythickness = r1*cos(apml_thickness[1]*M_PI/180.0);
-      xthickness = max(xthickness,1.0);
-      ythickness = max(ythickness,1.0);
-      double coeffx = n * c / omega / pow(xthickness, n);
-      double coeffy = n * c / omega / pow(ythickness, n);
-      double Lx = r1 * cos((alim[1]-apml_thickness[1])*M_PI/180.0);
-      double Ly = r1 * sin((alim[1]-apml_thickness[1])*M_PI/180.0);
-      dxs[0] = 1.0 + zi * coeffx * abs(pow(x0 - Lx, n - 1.0));
-      dxs[1] = 1.0 + zi * coeffy * abs(pow(y0 - Ly, n - 1.0));
+   // Stretch in the radial direction
+   if (rstretch)
+   {  // negative
+      if (r0 <= rlim[0]+rpml_thickness[0])
+      {
+         cout << "negative " << endl;
+         MFEM_ABORT ("TODO");
+      }
+      // positive direction 
+      if (r0 >= rlim[1]-rpml_thickness[1])
+      {
+         double a1 = a0; //degrees
+         double r1 = rlim[1];
+         double x1 = r1 * cos(a1*M_PI/180.0);
+         double y1 = r1 * sin(a1*M_PI/180.0);
+         double xthickness = abs((rpml_thickness[1])*cos(a1*M_PI/180.0));
+         double ythickness = abs((rpml_thickness[1])*sin(a1*M_PI/180.0));
+         double coeffx = n * c / omega / pow(xthickness, n);
+         double coeffy = n * c / omega / pow(ythickness, n);
+         double Lx = (rlim[1]-rpml_thickness[1]) * cos(a1*M_PI/180.0);
+         double Ly = (rlim[1]-rpml_thickness[1]) * sin(a1*M_PI/180.0);
+         double coeff = n * c / omega / pow(0.3, n);
 
+         // cout << "Lx = " << Lx << endl;
+         // cout << "Ly = " << Ly << endl;
+         dxs[0] = 1.0 + zi * coeff * abs(pow(x0 - Lx, n - 1.0));
+         dxs[1] = 1.0 + zi * coeff * abs(pow(y0 - Ly, n - 1.0));
+         // cout << "xthickness = " << xthickness << endl;
+         // cout << "ythickness = " << ythickness << endl;
+         // cout << "coeffx = " << coeffx << endl;
+         // cout << "coeffy = " << coeffy << endl;
+
+      }
+      // for (int i = 0; i < dim; ++i)
+      // {
+      //    dxs[i] = 1.0;
+      //    if (X[i] <= -0.3)
+      //    {
+      //       double coeff = n * c / omega / pow(0.2, n);
+      //       dxs[i] = 1.0 + zi * coeff *
+      //                abs(pow(X(i) + 0.3, n - 1.0));
+      //                // cout << "coeff = " << coeff << endl;
+      //                // cout << "-0.3 " << endl;
+      //    }
+      //    if (X[i] >= 0.3 )
+      //    {
+      //       double coeff = n * c / omega / pow(0.2, n);
+      //       dxs[i] = 1.0 + zi * coeff *
+      //                abs(pow(X(i) - 0.3, n - 1.0));
+      //                // cout << "coeff = " << coeff << endl;
+      //                // cout << "0.3 " << endl;
+
+      //    }
+      // }
+      // cin.get();
    }
 }
 

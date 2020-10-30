@@ -70,6 +70,9 @@ private:
    // Compute Domain and Computational Domain Boundaries
    void SetBoundaries();
 
+   bool zstretch = false;
+   bool rstretch = false;
+   bool astretch = false;
 
 public:
    // Constructor
@@ -78,7 +81,6 @@ public:
    int dim;
    double omega;
    // Return Computational Domain Boundary
-   // Array2D<double> GetCompDomainBdr() {return comp_dom_bdr;}
 
    // Return Domain Boundary
    void GetDomainBdrs(Vector & zlim_, Vector & rlim_, Vector & alim_)
@@ -88,7 +90,7 @@ public:
       alim_.SetSize(2); alim_ = alim;
    }
 
-   void GetPmlWidth(const Vector & zpml, const Vector & rpml, const Vector & apml)
+   void SetPmlWidth(const Vector & zpml, const Vector & rpml, const Vector & apml)
    {
       MFEM_VERIFY(zpml.Size() == 2 , "Check zpml size");
       MFEM_VERIFY(rpml.Size() == 2 , "Check rpml size");
@@ -96,6 +98,15 @@ public:
       zpml_thickness = zpml;
       rpml_thickness = rpml;
       apml_thickness = apml;
+   }
+
+   void SetPmlAxes(const bool zstretch_, 
+                   const bool rstretch_, 
+                   const bool astretch_ )
+   {
+      zstretch = zstretch_;
+      rstretch = rstretch_;
+      astretch = astretch_;
    }
 
    // // Return Marker list for elements

@@ -79,6 +79,9 @@ public:
 void E_bdr_data_Re(const Vector &x, Vector &E);
 void E_bdr_data_Im(const Vector &x, Vector &E);
 
+void E_exact_Re(const Vector &x, Vector &E);
+void E_exact_Im(const Vector &x, Vector &E);
+
 void source(const Vector &x, Vector & f);
 
 // Functions for computing the necessary coefficients after PML stretching.
@@ -174,6 +177,10 @@ int main(int argc, char *argv[])
    }
    break;
    case 2: mesh_file = "toroid3_4_2.mesh"; break;
+   // case 3: mesh_file = "toroid-hex-o3-s0_r.mesh"; break;
+   // case 3: mesh_file = "../../data/square-disc.mesh"; break;
+   // case 3: mesh_file = "annulus-quad-o3.mesh"; break;
+   case 3: mesh_file = "cylinder.mesh"; break;
    default:
       MFEM_ABORT("Not a valid problem choice ");
       break;
@@ -209,8 +216,30 @@ int main(int argc, char *argv[])
    Vector zpml_thickness(2); zpml_thickness = 0.0;
    Vector rpml_thickness(2); rpml_thickness = 0.0;
    Vector apml_thickness(2); apml_thickness = 0.0; 
-   apml_thickness[1] = 45; // degrees
-   tpml.GetPmlWidth(zpml_thickness,rpml_thickness,apml_thickness);
+   bool zstretch = false;
+   bool astretch = false;
+   bool rstretch = false;
+   switch (prob_kind)
+   {
+      case 0: break;
+      case 1: break;
+      case 2: 
+      {
+         apml_thickness[1] = 30; 
+         astretch = true;
+      }
+      break;// degrees 
+      case 3: 
+      {
+         rpml_thickness[1] = 0.3; 
+         rstretch = true;
+      }
+      break;
+      default: break;
+   }
+   
+   tpml.SetPmlAxes(zstretch,rstretch,astretch);
+   tpml.SetPmlWidth(zpml_thickness,rpml_thickness,apml_thickness);
    tpml.SetAttributes(mesh); 
    tpml.SetOmega(omega); 
 
@@ -219,9 +248,9 @@ int main(int argc, char *argv[])
    // marked_elems->Print();
    // cout << "nrelems = " << mesh->GetNE() << endl;
 
-   // cout << "axial range     = " ; zlim.Print();
-   // cout << "radial range    = " ; rlim.Print();
-   // cout << "azimuthal range = " ; alim.Print();
+   cout << "axial range     = " ; zlim.Print();
+   cout << "radial range    = " ; rlim.Print();
+   cout << "azimuthal range = " ; alim.Print();
 
     if (visualization)
    {
@@ -276,6 +305,11 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient E_Im(dim, E_bdr_data_Im);
    x.ProjectBdrCoefficientTangent(E_Re, E_Im, ess_bdr);
    // x.ProjectCoefficient(E_Re, E_Im);
+
+   VectorFunctionCoefficient E_Re_ex(dim, E_exact_Re);
+   VectorFunctionCoefficient E_Im_ex(dim, E_exact_Im);
+   ComplexGridFunction x_ex(fespace);
+   x_ex.ProjectCoefficient(E_Re_ex, E_Im_ex);
 
    cout << "x.norm = " << x.Norml2() << endl;
 
@@ -359,7 +393,7 @@ int main(int argc, char *argv[])
    }
    chrono.Stop();
 
-   cout << "mumps time = " << chrono.RealTime() << endl;
+   // cout << "mumps time = " << chrono.RealTime() << endl;
 
    // // 13. Solve using a direct or an iterative solver
    // chrono.Clear();
@@ -377,6 +411,44 @@ int main(int argc, char *argv[])
    a.RecoverFEMSolution(X, b, x);
 
    // If exact is known compute the error
+   bool exact_known = (prob_kind == 3) ? true : false;
+   if (exact_known)
+   {
+      VectorFunctionCoefficient E_ex_Re(dim, E_exact_Re);
+      VectorFunctionCoefficient E_ex_Im(dim, E_exact_Im);
+      int order_quad = max(2, 2 * order + 1);
+      const IntegrationRule *irs[Geometry::NumGeom];
+      for (int i = 0; i < Geometry::NumGeom; ++i)
+      {
+         irs[i] = &(IntRules.Get(i, order_quad));
+      }
+
+      double L2Error_Re = x.real().ComputeL2Error(E_ex_Re, irs,
+                                                  tpml.GetMarkedPMLElements());
+      double L2Error_Im = x.imag().ComputeL2Error(E_ex_Im, irs,
+                                                  tpml.GetMarkedPMLElements());
+
+      ComplexGridFunction x_gf0(fespace);
+      x_gf0 = 0.0;
+      double norm_E_Re, norm_E_Im;
+      norm_E_Re = x_gf0.real().ComputeL2Error(E_ex_Re, irs,
+                                              tpml.GetMarkedPMLElements());
+      norm_E_Im = x_gf0.imag().ComputeL2Error(E_ex_Im, irs,
+                                              tpml.GetMarkedPMLElements());
+
+      if (myid == 0)
+      {
+         cout << "\n Relative Error (Re part): || E_h - E || / ||E|| = "
+              << L2Error_Re / norm_E_Re
+              << "\n Relative Error (Im part): || E_h - E || / ||E|| = "
+              << L2Error_Im / norm_E_Im
+              << "\n Total Error: "
+              << sqrt(L2Error_Re*L2Error_Re + L2Error_Im*L2Error_Im) << "\n\n";
+      }
+   }
+
+
+
 
    // 16. Send the solution by socket to a GLVis server.
    if (visualization)
@@ -427,8 +499,6 @@ int main(int argc, char *argv[])
       }
    }
 
-
-
    // 17. Free the used memory.
    // delete pml;
    delete fespace;
@@ -462,9 +532,28 @@ void source(const Vector &x, Vector &f)
 void E_bdr_data_Re(const Vector &x, Vector &E)
 {
    E = 0.0;
-   if (prob_kind != 2)
+   if (prob_kind == 2)
    {
-      if (x(1) == ylim) 
+      if (abs(x(1))<1e-12 && x(0)>0) 
+      {
+         vector<complex<double>> Eval(E.Size());
+         maxwell_solution(x, Eval);
+         for (int i = 0; i < dim; ++i)
+         {
+            E[i] = Eval[i].real();
+         }
+      }
+   }
+   else if (prob_kind == 3)
+   {
+      double r = sqrt(x(0)*x(0) + x(1)*x(1));
+      // check if in pml
+
+      // if (abs(r-1.0)<1e-10) 
+      // if (r < 0.3) // not in pml
+      // if (x(0) <0.8 && x(0)>0.2 && x(1) < 0.8 && x(1) >0.2 )
+      // if (x(0) <0.3 && x(0)>-0.3 && x(1) < 0.3 && x(1) >-0.3 )
+      if (r < 0.3 )
       {
          vector<complex<double>> Eval(E.Size());
          maxwell_solution(x, Eval);
@@ -476,8 +565,7 @@ void E_bdr_data_Re(const Vector &x, Vector &E)
    }
    else
    {
-      // if (abs(x(1))<1e-12 && abs(x(0) - 7.0) >= 1e-12) 
-      if (abs(x(1))<1e-12 && x(0)>0) 
+      if (x(1) == ylim) 
       {
          vector<complex<double>> Eval(E.Size());
          maxwell_solution(x, Eval);
@@ -493,9 +581,27 @@ void E_bdr_data_Re(const Vector &x, Vector &E)
 void E_bdr_data_Im(const Vector &x, Vector &E)
 {
    E = 0.0;
-   if (prob_kind != 2)
+   if (prob_kind == 2)
    {
-      if (x(1) == ylim) 
+      if (abs(x(1))<1e-12 && x(0)>0) 
+      {
+         vector<complex<double>> Eval(E.Size());
+         maxwell_solution(x, Eval);
+         for (int i = 0; i < dim; ++i)
+         {
+            E[i] = Eval[i].imag();
+         }
+      }
+   }
+   else if (prob_kind == 3)
+   {
+      double r = sqrt(x(0)*x(0) + x(1)*x(1));
+      // if (abs(r-1.0)<1e-10) 
+      // if (r < 0.3) // not in pml
+      // if (x(0) < 0.5) // not in pml
+      // if (x(0) <0.8 && x(0)>0.2 && x(1) < 0.8 && x(1) >0.2 )
+      // if (x(0) <0.3 && x(0)>-0.3 && x(1) < 0.3 && x(1) >-0.3 )
+      if (r < 0.3 )
       {
          vector<complex<double>> Eval(E.Size());
          maxwell_solution(x, Eval);
@@ -507,8 +613,7 @@ void E_bdr_data_Im(const Vector &x, Vector &E)
    }
    else
    {
-      // if (x(1) == 0.0 && x(0)>= 7.0) 
-      if (abs(x(1))<1e-12 && x(0)>0) 
+      if (x(1) == ylim) 
       {
          vector<complex<double>> Eval(E.Size());
          maxwell_solution(x, Eval);
@@ -644,6 +749,30 @@ void detJ_inv_JT_J_abs(const Vector &x, TorusPML * pml, Vector &D)
    }
 }
 
+
+void E_exact_Re(const Vector &x, Vector &E)
+{
+   E = 0.0;
+   vector<complex<double>> Eval(E.Size());
+   maxwell_solution(x, Eval);
+   for (int i = 0; i < dim; ++i)
+   {
+      E[i] = Eval[i].real();
+   }
+}
+
+void E_exact_Im(const Vector &x, Vector &E)
+{
+   E = 0.0;
+   vector<complex<double>> Eval(E.Size());
+   maxwell_solution(x, Eval);
+   for (int i = 0; i < dim; ++i)
+   {
+      E[i] = Eval[i].imag();
+   }
+}
+
+
 TorusPML::TorusPML(Mesh *mesh_, double length_rad_)
    : mesh(mesh_), PmlThicknessAngle(length_rad_)
 {
@@ -689,6 +818,9 @@ void TorusPML::SetAttributes(Mesh *mesh_)
    }
    mesh_->SetAttributes();
 }
+
+
+
 
 void TorusPML::StretchFunction(const Vector &x,
                                vector<complex<double>> &dxs)
@@ -759,12 +891,45 @@ void TorusPML::StretchFunction(const Vector &x,
 void maxwell_solution(const Vector &x, vector<complex<double>> &E)
 {
    complex<double> zi = complex<double>(0., 1.);
-   double k = omega * sqrt(epsilon * mu);
-   // T_10 mode
-   double k10 = sqrt(k * k - M_PI * M_PI);
-   E[2] = -zi * k / M_PI * sin(M_PI*(x(0)))*exp(zi * k10 * x(1));
-   // E[2] =  (1.0 + zi) ;
-   // E[1] = -zi * k / M_PI *exp(zi * k10 * x(2));
+
+   if (prob_kind == 2)
+   {
+      double k = omega * sqrt(epsilon * mu);
+      // T_10 mode
+      double k10 = sqrt(k * k - M_PI * M_PI);
+      E[2] = -zi * k / M_PI * sin(M_PI*(x(0)))*exp(zi * k10 * x(1));
+   }
+   else
+   {
+      double k = omega * sqrt(epsilon * mu);
+      Vector shift(dim);
+      shift = 0.0;
+      double x0 = x(0) + shift(0);
+      double x1 = x(1) + shift(1);
+      double r = sqrt(x0 * x0 + x1 * x1);
+      double beta = k * r;
+
+      // Bessel functions
+      complex<double> Ho, Ho_r, Ho_rr;
+      Ho = jn(0, beta) + zi * yn(0, beta);
+      Ho_r = -k * (jn(1, beta) + zi * yn(1, beta));
+      Ho_rr = -k * k * (1.0 / beta *
+                        (jn(1, beta) + zi * yn(1, beta)) -
+                        (jn(2, beta) + zi * yn(2, beta)));
+
+      // First derivatives
+      double r_x = x0 / r;
+      double r_y = x1 / r;
+      double r_xy = -(r_x / r) * r_y;
+      double r_xx = (1.0 / r) * (1.0 - r_x * r_x);
+
+      complex<double> val, val_xx, val_xy;
+      val = 0.25 * zi * Ho;
+      val_xx = 0.25 * zi * (r_xx * Ho_r + r_x * r_x * Ho_rr);
+      val_xy = 0.25 * zi * (r_xy * Ho_r + r_x * r_y * Ho_rr);
+      E[0] = zi / k * (k * k * val + val_xx);
+      E[1] = zi / k * val_xy;
+   }
 }
 
 
@@ -829,7 +994,6 @@ void detJ_inv_JT_J_Re(const Vector &x, ToroidPML * pml, Vector &D)
    {
       det *= dxs[i];
    }
-
    // in the 2D case the coefficient is scalar 1/det(J)
    if (dim == 2)
    {

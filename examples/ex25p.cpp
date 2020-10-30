@@ -248,9 +248,9 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   // Mesh * mesh = new Mesh(mesh_file, 1, 1);
+   Mesh * mesh = new Mesh(mesh_file, 1, 1);
 
-   Mesh * mesh = new Mesh(1,1,16,Element::HEXAHEDRON,true,1.0,1.0,16.0);
+   // Mesh * mesh = new Mesh(1,1,16,Element::HEXAHEDRON,true,1.0,1.0,16.0);
 
 
    dim = mesh->Dimension();
@@ -265,7 +265,7 @@ int main(int argc, char *argv[])
    switch (prob)
    {
       case disc:
-         length = 0.2;
+         length = 0.3;
          break;
       case lshape:
          length(0, 0) = 0.1;
@@ -277,8 +277,8 @@ int main(int argc, char *argv[])
          length(2, 1) = 0.5;
          break;
       case beam:
-         // length(0, 1) = 2.0;
-         length(2, 1) = 2.0;
+         length(0, 1) = 2.0;
+         // length(2, 1) = 2.0;
          break;
       default:
          length = 0.25;
