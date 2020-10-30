@@ -457,6 +457,33 @@ public:
                                        Vector &elvect);
 };
 
+class SBM2LFIntegrator : public LinearFormIntegrator
+{
+protected:
+    Coefficient *uD;
+    VectorCoefficient *vD; // Distance function coefficient
+    double alpha;
+
+   // these are not thread-safe!
+   Vector shape, dshape_dd, nor, nh, ni;
+   DenseMatrix dshape, mq, adjJ;
+
+   DGDirichletLFIntegrator *dgdlf;
+
+public:
+   SBM2LFIntegrator(Coefficient &u, const double a, VectorCoefficient &vD_)
+      : uD(&u), vD(&vD_), alpha(a),
+        dgdlf(new DGDirichletLFIntegrator(u, -1., 0.))  { }
+
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       FaceElementTransformations &Tr,
+                                       Vector &elvect);
+
+   virtual ~SBM2LFIntegrator() { delete dgdlf; }
+};
 
 /** Boundary linear form integrator for imposing non-zero Dirichlet boundary
     conditions, in a DG elasticity formulation. Specifically, the linear form is

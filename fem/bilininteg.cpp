@@ -2959,6 +2959,104 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
    }
 }
 
+void SBM2Integrator::AssembleFaceMatrix(
+   const FiniteElement &el1, const FiniteElement &el2,
+   FaceElementTransformations &Trans, DenseMatrix &elmat)
+{
+   int dim, ndof1, ndofs;
+   double w;
+
+   dim = el1.GetDim();
+   ndof1 = el1.GetDof();
+
+   nor.SetSize(dim);
+   nh.SetSize(dim);
+   ni.SetSize(dim);
+   adjJ.SetSize(dim);
+
+   shape1.SetSize(ndof1);
+   shape2.SetSize(ndof1);
+   dshape1.SetSize(ndof1, dim);
+   dshape2.SetSize(ndof1, dim);
+   Vector dshape2dd(ndof1);
+   dshape1dn.SetSize(ndof1);
+   Vector wrk = shape1;
+
+   ndofs = ndof1;
+   elmat.SetSize(ndofs);
+   elmat = 0.0;
+   dgdfi->AssembleFaceMatrix(el1, el2, Trans, elmat);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      // a simple choice for the integration order; is this OK?
+      int order = 4*el1.GetOrder();
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
+   }
+
+   Vector D(vD->GetVDim());
+   DenseMatrix elmatwrk(elmat.Size());
+   elmatwrk = elmat;
+   // assemble: < (\nabla u).d, \nabla w.n >      --> elmat
+   for (int p = 0; p < ir->GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(p);
+
+      // Set the integration point in the face and the neighboring elements
+      Trans.SetAllIntPoints(&ip);
+
+      // Access the neighboring elements' integration points
+      // Note: eip2 will only contain valid data if Elem2 exists
+      const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
+
+      if (dim == 1)
+      {
+         nor(0) = 2*eip1.x - 1.0;
+      }
+      else
+      {
+         CalcOrtho(Trans.Jacobian(), nor);
+      }
+
+      el1.CalcShape(eip1, shape1);
+      el1.CalcDShape(eip1, dshape1);
+
+      w = ip.weight/Trans.Elem1->Weight(); //alpha_k/det(J)
+
+      ni.Set(w, nor); // alpha_k*nor/det(J)
+
+      CalcAdjugate(Trans.Elem1->Jacobian(), adjJ); //adj(J)
+      adjJ.Mult(ni, nh);
+      dshape1.Mult(nh, dshape1dn); //dphi/dn * Jinv * alpha_k * nor
+
+      el1.CalcPhysDShape(*(Trans.Elem1), dshape2); //dphi/dx
+      vD->Eval(D, Trans, ip);
+      dshape2.Mult(D, dshape2dd); // dphi/dx.D
+
+      AddMult_a_VWt(-1., dshape1dn, dshape2dd, elmat); // (grad u.d, grad w.n)
+
+      double hinvdx = nor*nor/Trans.Elem1->Weight();
+
+      wrk = shape1;
+      w = ip.weight*alpha*hinvdx;
+      wrk *= w;
+      AddMultVWt(wrk, shape1, elmat); // + <alpha * hinv * u, w>
+
+      w = ip.weight*alpha*hinvdx;
+      wrk = dshape2dd;
+      wrk *= w;
+      AddMultVWt(wrk, shape1, elmat); // + < alpha * hinv * grad u.d, w>
+
+      AddMultVWt(shape1, wrk, elmat); // + < alpha * hinv * u, grad w.d>
+
+      w = ip.weight*alpha*hinvdx;
+      wrk = dshape2dd;
+      wrk *= w;
+      AddMultVWt(wrk, dshape2dd, elmat); // + < alpha * hinv * grad u.d, grad w.d>
+
+   } //p < ir->GetNPoints()
+}
 
 // static method
 void DGElasticityIntegrator::AssembleBlock(
