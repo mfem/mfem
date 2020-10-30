@@ -36,8 +36,8 @@ TEST_CASE("Derefine")
    {
       for (int order = 0; order <= 2; ++order)
       {
-         Mesh *mesh = nullptr;
          const int ne = 8;
+         Mesh *mesh = nullptr;
          if (dimension == 2)
          {
             mesh = new Mesh(ne, ne, Element::QUADRILATERAL, true, 1.0, 1.0);
@@ -48,7 +48,7 @@ TEST_CASE("Derefine")
          }
 
          mesh->EnsureNCMesh();
-         mesh->SetCurvature(2, false, 2, Ordering::byNODES);
+         mesh->SetCurvature(std::max(order,1), false, dimension, Ordering::byNODES);
 
          L2_FECollection fec(order, dimension, BasisType::Positive);
          FiniteElementSpace fespace(mesh, &fec);
@@ -62,8 +62,8 @@ TEST_CASE("Derefine")
          x.Update();
 
          Array<Refinement> refinements;
-         refinements.Append(mfem::Refinement(1));
-         refinements.Append(mfem::Refinement(2));
+         refinements.Append(Refinement(1));
+         refinements.Append(Refinement(2));
 
          int nonconformity_limit = 0; // 0 meaning allow unlimited ratio
 
@@ -77,8 +77,7 @@ TEST_CASE("Derefine")
          Vector diff(x);
 
          refinements.DeleteAll();
-         refinements.Append(mfem::Refinement(2));
-         //refinements.Append(mfem::Refinement(1));
+         refinements.Append(Refinement(2));
          mesh->GeneralRefinement(refinements, 1, nonconformity_limit);
 
          fespace.Update();
@@ -95,11 +94,11 @@ TEST_CASE("Derefine")
          Array<int> tabrow;
 
          Vector local_err(mesh->GetNE());
-         double threshold = 1.;
+         double threshold = 1.0;
          local_err = 2*threshold;
          coarse_to_fine_.GetRow(2, tabrow);
-         for (int j = 0; j < tabrow.Size(); j++) { local_err(tabrow[j]) = 0.; }
-         bool derefs = mesh->DerefineByError(local_err, threshold, 0, 1);
+         for (int j = 0; j < tabrow.Size(); j++) { local_err(tabrow[j]) = 0.0; }
+         mesh->DerefineByError(local_err, threshold, 0, 1);
 
          fespace.Update();
          x.Update();
@@ -113,11 +112,69 @@ TEST_CASE("Derefine")
 }
 
 #ifdef MFEM_USE_MPI
-
 TEST_CASE("ParDerefine", "[Parallel]")
 {
+   for (dimension = 2; dimension <= 3; ++dimension)
+   {
+      for (int order = 0; order <= 2; ++order)
+      {
+         const int ne = 8;
+         Mesh *mesh = nullptr;
+         if (dimension == 2)
+         {
+            mesh = new Mesh(ne, ne, Element::QUADRILATERAL, true, 1.0, 1.0);
+         }
+         else
+         {
+            mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, true, 1.0, 1.0, 1.0);
+         }
 
+         mesh->EnsureNCMesh();
+         mesh->SetCurvature(std::max(order,1), false, dimension, Ordering::byNODES);
+
+         ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+         delete mesh;
+
+         L2_FECollection fec(order, dimension, BasisType::Positive);
+         ParFiniteElementSpace fespace(pmesh, &fec);
+
+         ParGridFunction x(&fespace);
+
+         FunctionCoefficient c(coeff);
+         x.ProjectCoefficient(c);
+
+         fespace.Update();
+         x.Update();
+
+         // Refine two elements on each process and then derefine, comparing x before and after.
+         Vector diff(x);
+
+         Array<Refinement> refinements;
+         refinements.Append(Refinement(1));
+         refinements.Append(Refinement(2));
+
+         int nonconformity_limit = 0; // 0 meaning allow unlimited ratio
+
+         pmesh->GeneralRefinement(refinements, 1, nonconformity_limit);
+
+         fespace.Update();
+         x.Update();
+
+         // Derefine by setting 0 error on all fine elements.
+         Vector local_err(pmesh->GetNE());
+         double threshold = 1.0;
+         local_err = 0.0;
+         pmesh->DerefineByError(local_err, threshold, 0, 1);
+
+         fespace.Update();
+         x.Update();
+
+         diff -= x;
+         REQUIRE(diff.Norml2() / x.Norml2() < 1e-11);
+
+         delete pmesh;
+      }
+   }
 }
-
 #endif
 }
