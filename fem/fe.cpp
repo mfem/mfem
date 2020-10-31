@@ -26,6 +26,7 @@ FiniteElement::FiniteElement(int D, Geometry::Type G, int Do, int O, int F)
    : Nodes(Do)
 {
    dim = D ; geom_type = G ; dof = Do ; order = O ; func_space = F;
+   vdim = 1 ; cdim = 0;
    range_type = SCALAR;
    map_type = VALUE;
    deriv_type = NONE;
@@ -3322,6 +3323,8 @@ void CrouzeixRaviartQuadFiniteElement::CalcDShape(const IntegrationPoint &ip,
 RT0TriangleFiniteElement::RT0TriangleFiniteElement()
    : VectorFiniteElement(2, Geometry::TRIANGLE, 3, 1, H_DIV)
 {
+   vdim = 2; cdim = 0;
+
    Nodes.IntPoint(0).x = 0.5;
    Nodes.IntPoint(0).y = 0.0;
    Nodes.IntPoint(1).x = 0.5;
@@ -3432,6 +3435,8 @@ void RT0TriangleFiniteElement::Project (
 RT0QuadFiniteElement::RT0QuadFiniteElement()
    : VectorFiniteElement(2, Geometry::SQUARE, 4, 1, H_DIV, FunctionSpace::Qk)
 {
+   vdim = 2; cdim = 0;
+
    Nodes.IntPoint(0).x = 0.5;
    Nodes.IntPoint(0).y = 0.0;
    Nodes.IntPoint(1).x = 1.0;
@@ -3547,6 +3552,8 @@ void RT0QuadFiniteElement::Project (
 RT1TriangleFiniteElement::RT1TriangleFiniteElement()
    : VectorFiniteElement(2, Geometry::TRIANGLE, 8, 2, H_DIV)
 {
+   vdim = 2; cdim = 0;
+
    Nodes.IntPoint(0).x = 0.33333333333333333333;
    Nodes.IntPoint(0).y = 0.0;
    Nodes.IntPoint(1).x = 0.66666666666666666667;
@@ -3689,6 +3696,8 @@ void RT1TriangleFiniteElement::Project (
 RT1QuadFiniteElement::RT1QuadFiniteElement()
    : VectorFiniteElement(2, Geometry::SQUARE, 12, 2, H_DIV, FunctionSpace::Qk)
 {
+   vdim = 2; cdim = 0;
+
    // y = 0
    Nodes.IntPoint(0).x  = 1./3.;
    Nodes.IntPoint(0).y  = 0.0;
@@ -3927,6 +3936,8 @@ const double RT2TriangleFiniteElement::M[15][15] =
 RT2TriangleFiniteElement::RT2TriangleFiniteElement()
    : VectorFiniteElement(2, Geometry::TRIANGLE, 15, 3, H_DIV)
 {
+   vdim = 2; cdim = 0;
+
    const double p = 0.11270166537925831148;
 
    Nodes.IntPoint(0).x = p;
@@ -4013,6 +4024,8 @@ const double RT2QuadFiniteElement::dpt[3] = {0.25,0.5,0.75};
 RT2QuadFiniteElement::RT2QuadFiniteElement()
    : VectorFiniteElement(2, Geometry::SQUARE, 24, 3, H_DIV, FunctionSpace::Qk)
 {
+   vdim = 2; cdim = 0;
+
    // y = 0 (pt[0])
    Nodes.IntPoint(0).x  = dpt[0];  Nodes.IntPoint(0).y  =  pt[0];
    Nodes.IntPoint(1).x  = dpt[1];  Nodes.IntPoint(1).y  =  pt[0];
@@ -5713,6 +5726,8 @@ void RefinedTriLinear3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 Nedelec1HexFiniteElement::Nedelec1HexFiniteElement()
    : VectorFiniteElement(3, Geometry::CUBE, 12, 1, H_CURL, FunctionSpace::Qk)
 {
+   vdim = 3; cdim = 3;
+
    // not real nodes ...
    Nodes.IntPoint(0).x = 0.5;
    Nodes.IntPoint(0).y = 0.0;
@@ -5958,6 +5973,8 @@ void Nedelec1HexFiniteElement::Project (
 Nedelec1TetFiniteElement::Nedelec1TetFiniteElement()
    : VectorFiniteElement(3, Geometry::TETRAHEDRON, 6, 1, H_CURL)
 {
+   vdim = 3; cdim = 3;
+
    // not real nodes ...
    Nodes.IntPoint(0).x = 0.5;
    Nodes.IntPoint(0).y = 0.0;
@@ -6123,6 +6140,8 @@ void Nedelec1TetFiniteElement::Project (
 RT0HexFiniteElement::RT0HexFiniteElement()
    : VectorFiniteElement(3, Geometry::CUBE, 6, 1, H_DIV, FunctionSpace::Qk)
 {
+   vdim = 3; cdim = 0;
+
    // not real nodes ...
    // z = 0, y = 0, x = 1, y = 1, x = 0, z = 1
    Nodes.IntPoint(0).x = 0.5;
@@ -6277,6 +6296,8 @@ void RT0HexFiniteElement::Project (
 RT1HexFiniteElement::RT1HexFiniteElement()
    : VectorFiniteElement(3, Geometry::CUBE, 36, 2, H_DIV, FunctionSpace::Qk)
 {
+   vdim = 3; cdim = 0;
+
    // z = 0
    Nodes.IntPoint(2).x  = 1./3.;
    Nodes.IntPoint(2).y  = 1./3.;
@@ -6666,6 +6687,8 @@ void RT1HexFiniteElement::Project (
 RT0TetFiniteElement::RT0TetFiniteElement()
    : VectorFiniteElement(3, Geometry::TETRAHEDRON, 4, 1, H_DIV)
 {
+   vdim = 3; cdim = 0;
+
    // not real nodes ...
    Nodes.IntPoint(0).x = 0.33333333333333333333;
    Nodes.IntPoint(0).y = 0.33333333333333333333;
@@ -6801,6 +6824,8 @@ void RT0TetFiniteElement::Project (
 RotTriLinearHexFiniteElement::RotTriLinearHexFiniteElement()
    : NodalFiniteElement(3, Geometry::CUBE, 6, 2, FunctionSpace::Qk)
 {
+   vdim = 2; cdim = 0;
+
    Nodes.IntPoint(0).x = 0.5;
    Nodes.IntPoint(0).y = 0.5;
    Nodes.IntPoint(0).z = 0.0;
@@ -10494,6 +10519,8 @@ RT_QuadrilateralElement::RT_QuadrilateralElement(const int p,
                                H_DIV, DofMapType::L2_DOF_MAP),
      dof2nk(dof)
 {
+   vdim = 2; cdim = 0;
+
    dof_map.SetSize(dof);
 
    const double *cp = poly1d.ClosedPoints(p + 1, cb_type);
@@ -10705,6 +10732,8 @@ RT_HexahedronElement::RT_HexahedronElement(const int p,
                                ob_type, H_DIV, DofMapType::L2_DOF_MAP),
      dof2nk(dof)
 {
+   vdim = 3; cdim = 0;
+
    dof_map.SetSize(dof);
 
    const double *cp = poly1d.ClosedPoints(p + 1, cb_type);
@@ -11016,6 +11045,8 @@ RT_TriangleElement::RT_TriangleElement(const int p)
                          H_DIV, FunctionSpace::Pk),
      dof2nk(dof)
 {
+   vdim = 2; cdim = 0;
+
    const double *iop = (p > 0) ? poly1d.OpenPoints(p - 1) : NULL;
    const double *bop = poly1d.OpenPoints(p);
 
@@ -11169,6 +11200,8 @@ RT_TetrahedronElement::RT_TetrahedronElement(const int p)
                          p + 1, H_DIV, FunctionSpace::Pk),
      dof2nk(dof)
 {
+   vdim = 3; cdim = 0;
+
    const double *iop = (p > 0) ? poly1d.OpenPoints(p - 1) : NULL;
    const double *bop = poly1d.OpenPoints(p);
 
@@ -11354,6 +11387,8 @@ ND_HexahedronElement::ND_HexahedronElement(const int p,
                                H_CURL, DofMapType::L2_DOF_MAP),
      dof2tk(dof)
 {
+   vdim = 3; cdim = 3;
+
    dof_map.SetSize(dof);
 
    const double *cp = poly1d.ClosedPoints(p, cb_type);
@@ -11812,6 +11847,8 @@ ND_QuadrilateralElement::ND_QuadrilateralElement(const int p,
                                H_CURL, DofMapType::L2_DOF_MAP),
      dof2tk(dof)
 {
+   vdim = 2; cdim = 1;
+
    dof_map.SetSize(dof);
 
    const double *cp = poly1d.ClosedPoints(p, cb_type);
@@ -12001,6 +12038,8 @@ ND_TetrahedronElement::ND_TetrahedronElement(const int p)
    : VectorFiniteElement(3, Geometry::TETRAHEDRON, p*(p + 2)*(p + 3)/2, p,
                          H_CURL, FunctionSpace::Pk), dof2tk(dof)
 {
+   vdim = 3; cdim = 3;
+
    const double *eop = poly1d.OpenPoints(p - 1);
    const double *fop = (p > 1) ? poly1d.OpenPoints(p - 2) : NULL;
    const double *iop = (p > 2) ? poly1d.OpenPoints(p - 3) : NULL;
@@ -12264,6 +12303,8 @@ ND_TriangleElement::ND_TriangleElement(const int p)
                          H_CURL, FunctionSpace::Pk),
      dof2tk(dof)
 {
+   vdim = 2; cdim = 1;
+
    const double *eop = poly1d.OpenPoints(p - 1);
    const double *iop = (p > 1) ? poly1d.OpenPoints(p - 2) : NULL;
 
@@ -12425,6 +12466,8 @@ ND_SegmentElement::ND_SegmentElement(const int p, const int ob_type)
      obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(ob_type))),
      dof2tk(dof)
 {
+   vdim = 1; cdim = 0;
+
    const double *op = poly1d.OpenPoints(p - 1, ob_type);
 
    // set dof2tk and Nodes
