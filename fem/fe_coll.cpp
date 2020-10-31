@@ -2709,6 +2709,93 @@ ND_Trace_FECollection::ND_Trace_FECollection(const int p, const int dim,
 }
 
 
+ND_P1D_FECollection::ND_P1D_FECollection(const int p, const int dim,
+                                         const int cb_type, const int ob_type)
+{
+   MFEM_VERIFY(p >= 1, "ND_P1D_FECollection requires order >= 1.");
+   MFEM_VERIFY(dim == 1, "ND_P1D_FECollection requires dim == 1.");
+
+   const int pm1 = p - 1;
+
+   if (cb_type == BasisType::GaussLobatto &&
+       ob_type == BasisType::GaussLegendre)
+   {
+      snprintf(nd_name, 32, "ND_P1D_%dD_P%d", dim, p);
+   }
+   else
+   {
+      snprintf(nd_name, 32, "ND_P1D@%c%c_%dD_P%d",
+               (int)BasisType::GetChar(cb_type),
+               (int)BasisType::GetChar(ob_type), dim, p);
+   }
+
+   for (int g = 0; g < Geometry::NumGeom; g++)
+   {
+      ND_Elements[g] = NULL;
+      ND_dof[g] = 0;
+   }
+   for (int i = 0; i < 2; i++)
+   {
+      SegDofOrd[i] = NULL;
+   }
+
+   int op_type = BasisType::GetQuadrature1D(ob_type);
+   int cp_type = BasisType::GetQuadrature1D(cb_type);
+
+   // Error checking
+   if (Quadrature1D::CheckOpen(op_type) == Quadrature1D::Invalid)
+   {
+      const char *ob_name = BasisType::Name(ob_type);
+      MFEM_ABORT("Invalid open basis point type: " << ob_name);
+   }
+   if (Quadrature1D::CheckClosed(cp_type) == Quadrature1D::Invalid)
+   {
+      const char *cb_name = BasisType::Name(cb_type);
+      MFEM_ABORT("Invalid closed basis point type: " << cb_name);
+   }
+
+   if (dim >= 1)
+   {
+      ND_Elements[Geometry::SEGMENT] = new ND_P1D_SegmentElement(p,
+                                                                 cb_type,
+                                                                 ob_type);
+      ND_dof[Geometry::SEGMENT] = p;
+
+      SegDofOrd[0] = new int[2*p];
+      SegDofOrd[1] = SegDofOrd[0] + p;
+      for (int i = 0; i < p; i++)
+      {
+         SegDofOrd[0][i] = i;
+         SegDofOrd[1][i] = -1 - (pm1 - i);
+      }
+   }
+}
+
+const int *ND_P1D_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                       int Or) const
+{
+   if (GeomType == Geometry::SEGMENT)
+   {
+      return (Or > 0) ? SegDofOrd[0] : SegDofOrd[1];
+   }
+   return NULL;
+}
+
+FiniteElementCollection *ND_P1D_FECollection::GetTraceCollection() const
+{
+   return NULL;
+}
+
+ND_P1D_FECollection::~ND_P1D_FECollection()
+{
+   delete [] SegDofOrd[0];
+   for (int g = 0; g < Geometry::NumGeom; g++)
+   {
+      delete ND_Elements[g];
+   }
+}
+
+
 Local_FECollection::Local_FECollection(const char *fe_name)
 {
    snprintf(d_name, 32, "Local_%s", fe_name);
