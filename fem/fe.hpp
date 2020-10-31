@@ -236,6 +236,8 @@ class FiniteElement
 {
 protected:
    int dim;      ///< Dimension of reference space
+   int vdim;     ///< Vector dimension of vector-valued basis functions
+   int cdim;     ///< Dimension of curl for vector-valued basis functions
    Geometry::Type geom_type; ///< Geometry::Type of the reference element
    int func_space, range_type, map_type,
        deriv_type, deriv_range_type, deriv_map_type;
@@ -307,6 +309,12 @@ public:
 
    /// Returns the reference space dimension for the finite element
    int GetDim() const { return dim; }
+
+   /// Returns the vector dimension for vector-valued finite elements
+   int GetVDim() const { return vdim; }
+
+   /// Returns the dimension of the curl for vector-valued finite elements
+   int GetCDim() const { return cdim; }
 
    /// Returns the Geometry::Type of the reference element
    Geometry::Type GetGeomType() const { return geom_type; }
