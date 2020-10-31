@@ -12489,12 +12489,14 @@ void ND_SegmentElement::CalcVShape(const IntegrationPoint &ip,
 const double ND_P1D_SegmentElement::tk[9] = { 1.,0.,0., 0.,1.,0., 0.,0.,1. };
 
 ND_P1D_SegmentElement::ND_P1D_SegmentElement(const int p,
-					     const int cb_type,
-					     const int ob_type)
-  : VectorTensorFiniteElement(1, 3 * p + 2, p, cb_type, ob_type,
-			      H_CURL, DofMapType::L2_DOF_MAP),
+                                             const int cb_type,
+                                             const int ob_type)
+   : VectorTensorFiniteElement(1, 3 * p + 2, p, cb_type, ob_type,
+                               H_CURL, DofMapType::L2_DOF_MAP),
      dof2tk(dof)
 {
+   vdim = 3; cdim = 3;
+
    dof_map.SetSize(dof);
 
    const double *cp = poly1d.ClosedPoints(p, cb_type);
@@ -12520,7 +12522,7 @@ ND_P1D_SegmentElement::ND_P1D_SegmentElement(const int p,
    {
       dof_map[p+i] = o++;
    }
-   
+
    // z - directed dofs
    dof_map[3*p+1] = o++; // (1)
    dof_map[2*p+1] = o++; // (0)
@@ -12528,7 +12530,7 @@ ND_P1D_SegmentElement::ND_P1D_SegmentElement(const int p,
    {
       dof_map[2*p+i+1] = o++;
    }
-   
+
    // set dof2tk and Nodes
    o = 0;
    for (int i = 0; i < p; i++)
@@ -12540,21 +12542,21 @@ ND_P1D_SegmentElement::ND_P1D_SegmentElement(const int p,
    // y-components
    for (int i = 0; i <= p; i++)
    {
-     int idx = dof_map[o++];
-     dof2tk[idx] = 1;
-     Nodes.IntPoint(idx).x = cp[i];
+      int idx = dof_map[o++];
+      dof2tk[idx] = 1;
+      Nodes.IntPoint(idx).x = cp[i];
    }
    // z-components
    for (int i = 0; i <= p; i++)
    {
-     int idx = dof_map[o++];
-     dof2tk[idx] = 2;
-     Nodes.IntPoint(idx).x = cp[i];
+      int idx = dof_map[o++];
+      dof2tk[idx] = 2;
+      Nodes.IntPoint(idx).x = cp[i];
    }
 }
 
 void ND_P1D_SegmentElement::CalcVShape(const IntegrationPoint &ip,
-				       DenseMatrix &shape) const
+                                       DenseMatrix &shape) const
 {
    const int p = order;
 
@@ -12569,31 +12571,31 @@ void ND_P1D_SegmentElement::CalcVShape(const IntegrationPoint &ip,
    // x-components
    for (int i = 0; i < p; i++)
    {
-     int idx = dof_map[o++];
-     shape(idx,0) = shape_ox(i);
-     shape(idx,1) = 0.;
-     shape(idx,2) = 0.;
+      int idx = dof_map[o++];
+      shape(idx,0) = shape_ox(i);
+      shape(idx,1) = 0.;
+      shape(idx,2) = 0.;
    }
    // y-components
    for (int i = 0; i <= p; i++)
    {
-     int idx = dof_map[o++];
-     shape(idx,0) = 0.;
-     shape(idx,1) = shape_cx(i);
-     shape(idx,2) = 0.;
+      int idx = dof_map[o++];
+      shape(idx,0) = 0.;
+      shape(idx,1) = shape_cx(i);
+      shape(idx,2) = 0.;
    }
    // z-components
    for (int i = 0; i <= p; i++)
    {
-     int idx = dof_map[o++];
-     shape(idx,0) = 0.;
-     shape(idx,1) = 0.;
-     shape(idx,2) = shape_cx(i);
+      int idx = dof_map[o++];
+      shape(idx,0) = 0.;
+      shape(idx,1) = 0.;
+      shape(idx,2) = shape_cx(i);
    }
 }
 
 void ND_P1D_SegmentElement::CalcCurlShape(const IntegrationPoint &ip,
-					  DenseMatrix &curl_shape) const
+                                          DenseMatrix &curl_shape) const
 {
    const int p = order;
 
@@ -12609,26 +12611,26 @@ void ND_P1D_SegmentElement::CalcCurlShape(const IntegrationPoint &ip,
    // x-components
    for (int i = 0; i < p; i++)
    {
-     int idx = dof_map[o++];
-     curl_shape(idx,0) = 0.;
-     curl_shape(idx,1) = 0.;
-     curl_shape(idx,2) = 0.;
+      int idx = dof_map[o++];
+      curl_shape(idx,0) = 0.;
+      curl_shape(idx,1) = 0.;
+      curl_shape(idx,2) = 0.;
    }
    // y-components
    for (int i = 0; i <= p; i++)
    {
-     int idx = dof_map[o++];
-     curl_shape(idx,0) = 0.;
-     curl_shape(idx,1) = 0.;
-     curl_shape(idx,2) = dshape_cx(i);
+      int idx = dof_map[o++];
+      curl_shape(idx,0) = 0.;
+      curl_shape(idx,1) = 0.;
+      curl_shape(idx,2) = dshape_cx(i);
    }
    // z-components
    for (int i = 0; i <= p; i++)
    {
-     int idx = dof_map[o++];
-     curl_shape(idx,0) = 0.;
-     curl_shape(idx,1) = -dshape_cx(i);
-     curl_shape(idx,2) = 0.;
+      int idx = dof_map[o++];
+      curl_shape(idx,0) = 0.;
+      curl_shape(idx,1) = -dshape_cx(i);
+      curl_shape(idx,2) = 0.;
    }
 }
 
