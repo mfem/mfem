@@ -3194,7 +3194,7 @@ public:
 
 
 /// Arbitrary order Nedelec 3D elements in 1D on a segment
-/** ND_P2D_SegmentElement provides a representation of a 3D Nedelec
+/** ND_P1D_SegmentElement provides a representation of a 3D Nedelec
     basis where the vector field is assumed constant in the second and
     third dimensions.
 */
@@ -3211,8 +3211,8 @@ public:
    /** @brief Construct the ND_P1D_SegmentElement of order @a p and closed and
        open BasisType @a cb_type and @a ob_type */
    ND_P1D_SegmentElement(const int p,
-			 const int cb_type = BasisType::GaussLobatto,
-			 const int ob_type = BasisType::GaussLegendre);
+                         const int cb_type = BasisType::GaussLobatto,
+                         const int ob_type = BasisType::GaussLegendre);
 
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
