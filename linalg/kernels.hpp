@@ -835,7 +835,7 @@ int Reduce3S(const int &mode,
       d2  -= 2*v2*w2;
       d23 -= v2*w3 + v3*w2;
       d3  -= 2*v3*w3;
-      // compute the offdiagonal entries on the first row/column of B which
+      // compute the off-diagonal entries on the first row/column of B which
       // should be zero (for debugging):
 #if 0
       s = d12 - v1*w2 - v2*w1;  // b12 = 0
