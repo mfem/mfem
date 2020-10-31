@@ -396,13 +396,7 @@ RAJA_OPT = -I$(RAJA_DIR)/include
 ifdef CUB_DIR
    RAJA_OPT += -I$(CUB_DIR)
 endif
-ifeq ($(MFEM_USE_HIP),YES)
-RAJA_LIB = -L$(RAJA_DIR)/lib -lRAJA -ldl
-else
 RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
-endif
-
-
 
 # UMPIRE library configuration
 UMPIRE_DIR = @MFEM_DIR@/../umpire
