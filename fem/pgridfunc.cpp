@@ -1093,6 +1093,9 @@ double L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
 
    if (xfes->GetNE())
    {
+      MFEM_VERIFY(smooth_flux_fes.GetFE(0) != NULL,
+                  "Could not obtain FE of smooth flux space.");
+
       if (smooth_flux_fes.GetFE(0)->GetRangeType() == FiniteElement::SCALAR)
       {
          VectorMassIntegrator *vmass = new VectorMassIntegrator;
