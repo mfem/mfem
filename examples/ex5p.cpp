@@ -19,8 +19,10 @@
 //
 // Description:  This example code solves a simple 2D/3D mixed Darcy problem
 //               corresponding to the saddle point system
+//
 //                                 k*u + grad p = f
 //                                 - div u      = g
+//
 //               with natural boundary condition -p = <given pressure>.
 //               Here, we use a given exact solution (u,p) and compute the
 //               corresponding r.h.s. (f,g).  We discretize with Raviart-Thomas
