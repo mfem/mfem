@@ -3201,14 +3201,16 @@ public:
     basis where the vector field is assumed constant in the second and
     third dimensions.
 */
-class ND_P1D_SegmentElement : public VectorTensorFiniteElement
+class ND_P1D_SegmentElement : public VectorFiniteElement
 {
    static const double tk[9];
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox;
    mutable Vector dshape_cx;
 #endif
-   Array<int> dof2tk;
+   Array<int> dof_map, dof2tk;
+
+   Poly_1D::Basis &cbasis1d, &obasis1d;
 
 public:
    /** @brief Construct the ND_P1D_SegmentElement of order @a p and closed and
@@ -3221,8 +3223,7 @@ public:
                            DenseMatrix &shape) const;
 
    virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const
-   { CalcVShape_ND(Trans, shape); }
+                           DenseMatrix &shape) const;
 
    virtual void CalcCurlShape(const IntegrationPoint &ip,
                               DenseMatrix &curl_shape) const;

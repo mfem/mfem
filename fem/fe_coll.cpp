@@ -2715,8 +2715,6 @@ ND_P1D_FECollection::ND_P1D_FECollection(const int p, const int dim,
    MFEM_VERIFY(p >= 1, "ND_P1D_FECollection requires order >= 1.");
    MFEM_VERIFY(dim == 1, "ND_P1D_FECollection requires dim == 1.");
 
-   const int pm1 = p - 1;
-
    if (cb_type == BasisType::GaussLobatto &&
        ob_type == BasisType::GaussLegendre)
    {
@@ -2734,10 +2732,6 @@ ND_P1D_FECollection::ND_P1D_FECollection(const int p, const int dim,
       ND_Elements[g] = NULL;
       ND_dof[g] = 0;
    }
-   for (int i = 0; i < 2; i++)
-   {
-      SegDofOrd[i] = NULL;
-   }
 
    int op_type = BasisType::GetQuadrature1D(ob_type);
    int cp_type = BasisType::GetQuadrature1D(cb_type);
@@ -2754,30 +2748,17 @@ ND_P1D_FECollection::ND_P1D_FECollection(const int p, const int dim,
       MFEM_ABORT("Invalid closed basis point type: " << cb_name);
    }
 
-   if (dim >= 1)
-   {
-      ND_Elements[Geometry::SEGMENT] = new ND_P1D_SegmentElement(p,
-                                                                 cb_type,
-                                                                 ob_type);
-      ND_dof[Geometry::SEGMENT] = p;
+   ND_dof[Geometry::POINT] = 2;
 
-      SegDofOrd[0] = new int[2*p];
-      SegDofOrd[1] = SegDofOrd[0] + p;
-      for (int i = 0; i < p; i++)
-      {
-         SegDofOrd[0][i] = i;
-         SegDofOrd[1][i] = -1 - (pm1 - i);
-      }
-   }
+   ND_Elements[Geometry::SEGMENT] = new ND_P1D_SegmentElement(p,
+                                                              cb_type,
+                                                              ob_type);
+   ND_dof[Geometry::SEGMENT] = 3 * p - 2;
 }
 
 const int *ND_P1D_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
                                                        int Or) const
 {
-   if (GeomType == Geometry::SEGMENT)
-   {
-      return (Or > 0) ? SegDofOrd[0] : SegDofOrd[1];
-   }
    return NULL;
 }
 
@@ -2788,7 +2769,6 @@ FiniteElementCollection *ND_P1D_FECollection::GetTraceCollection() const
 
 ND_P1D_FECollection::~ND_P1D_FECollection()
 {
-   delete [] SegDofOrd[0];
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
       delete ND_Elements[g];
