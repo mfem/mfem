@@ -135,11 +135,18 @@ void Multigrid::SetOperator(const Operator& op)
    MFEM_ABORT("SetOperator not supported in Multigrid");
 }
 
-void Multigrid::SmoothingStep(int level) const
+void Multigrid::SmoothingStep(int level, bool transpose) const
 {
    GetOperatorAtLevel(level)->Mult(*Y[level], *R[level]); // r = A x
    subtract(*X[level], *R[level], *R[level]);             // r = b - A x
-   GetSmootherAtLevel(level)->Mult(*R[level], *Z[level]); // z = S r
+   if (transpose)
+   {
+      GetSmootherAtLevel(level)->MultTranspose(*R[level], *Z[level]); // z = S r
+   }
+   else
+   {
+      GetSmootherAtLevel(level)->Mult(*R[level], *Z[level]); // z = S r
+   }
    add(*Y[level], 1.0, *Z[level], *Y[level]);             // x = x + S (b - A x)
 }
 
@@ -153,7 +160,7 @@ void Multigrid::Cycle(int level) const
 
    for (int i = 0; i < preSmoothingSteps; i++)
    {
-      SmoothingStep(level);
+      SmoothingStep(level, false);
    }
 
    // Compute residual
@@ -187,7 +194,7 @@ void Multigrid::Cycle(int level) const
    // Post-smooth
    for (int i = 0; i < postSmoothingSteps; i++)
    {
-      SmoothingStep(level);
+      SmoothingStep(level, true);
    }
 }
 
