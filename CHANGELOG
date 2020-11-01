@@ -11,6 +11,9 @@
 Version 4.2.1 (development)
 ===========================
 
+- Added a "scaled Jacobian" visualization option in the Mesh Explorer miniapp to
+  help identify elements with poor mesh quality.
+
 
 Version 4.2, released on October 30, 2020
 =========================================
