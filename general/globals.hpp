@@ -125,5 +125,4 @@ void SetGlobalMPI_Comm(MPI_Comm comm);
 #define MFEM_DEPRECATED
 #endif
 
-
 #endif

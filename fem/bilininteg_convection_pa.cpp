@@ -788,20 +788,34 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    {
       vel = cQ->GetVec();
    }
+   else if (VectorQuadratureFunctionCoefficient* cQ =
+               dynamic_cast<VectorQuadratureFunctionCoefficient*>(Q))
+   {
+      const QuadratureFunction &qFun = cQ->GetQuadFunction();
+      MFEM_VERIFY(qFun.Size() == dim * nq * ne,
+                  "Incompatible QuadratureFunction dimension \n");
+
+      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
+                  "IntegrationRule used within integrator and in"
+                  " QuadratureFunction appear to be different");
+
+      qFun.Read();
+      vel.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
+   }
    else
    {
       vel.SetSize(dim * nq * ne);
       auto C = Reshape(vel.HostWrite(), dim, nq, ne);
-      Vector Vq(dim);
+      DenseMatrix Q_ir;
       for (int e = 0; e < ne; ++e)
       {
          ElementTransformation& T = *fes.GetElementTransformation(e);
+         Q->Eval(Q_ir, T, *ir);
          for (int q = 0; q < nq; ++q)
          {
-            Q->Eval(Vq, T, ir->IntPoint(q));
             for (int i = 0; i < dim; ++i)
             {
-               C(i,q,e) = Vq(i);
+               C(i,q,e) = Q_ir(i,q);
             }
          }
       }
