@@ -441,7 +441,6 @@ VisMan::~VisMan()
    }
 }
 
-
 ostream &operator<<(ostream &v, void (*f)(VisMan&))
 {
    VisMan *vp = dynamic_cast<VisMan*>(&v);

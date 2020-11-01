@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+
 /// A structure used to pass additional data to f_build_diff and f_apply_diff
 struct BuildContext { CeedInt dim, space_dim, vdim; CeedScalar coeff; };
 
