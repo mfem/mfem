@@ -3272,6 +3272,67 @@ public:
 };
 
 
+/// Arbitrary order Raviart-Thomas 3D elements in 1D on a segment
+/** RT_P1D_SegmentElement provides a representation of a 3D Raviart-Thomas
+    basis where the vector field is assumed constant in the second and
+    third dimensions.
+*/
+class RT_P1D_SegmentElement : public VectorFiniteElement
+{
+   static const double nk[9];
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector shape_cx, shape_ox;
+   mutable Vector dshape_cx;
+#endif
+   Array<int> dof_map, dof2nk;
+
+   Poly_1D::Basis &cbasis1d, &obasis1d;
+
+public:
+   /** @brief Construct the RT_P1D_SegmentElement of order @a p and closed and
+       open BasisType @a cb_type and @a ob_type */
+   RT_P1D_SegmentElement(const int p,
+                         const int cb_type = BasisType::GaussLobatto,
+                         const int ob_type = BasisType::GaussLegendre);
+
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcDivShape(const IntegrationPoint &ip,
+                             Vector &divshape) const;
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { LocalInterpolation_RT(*this, nk, dof2nk, Trans, I); }
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { LocalRestriction_RT(nk, dof2nk, Trans, R); }
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   { LocalInterpolation_RT(CheckVectorFE(fe), nk, dof2nk, Trans, I); }
+   using FiniteElement::Project;
+   virtual void Project(VectorCoefficient &vc,
+                        ElementTransformation &Trans, Vector &dofs) const
+   { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+   virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
+                                 Vector &dofs) const
+   { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+   virtual void ProjectMatrixCoefficient(
+      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+   { ProjectMatrixCoefficient_RT(nk, dof2nk, mc, T, dofs); }
+   virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
+                        DenseMatrix &I) const
+   { Project_RT(nk, dof2nk, fe, Trans, I); }
+   virtual void ProjectCurl(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &curl) const
+   { ProjectCurl_RT(nk, dof2nk, fe, Trans, curl); }
+};
+
+
 /// An arbitrary order and dimension NURBS element
 class NURBSFiniteElement : public ScalarFiniteElement
 {
