@@ -395,6 +395,33 @@ public:
    virtual ~ND_P1D_FECollection();
 };
 
+/// Arbitrary order 3D H(div)-conforming Raviart-Thomas finite elements in 1D.
+class RT_P1D_FECollection : public FiniteElementCollection
+{
+protected:
+   char rt_name[32];
+   FiniteElement *RT_Elements[Geometry::NumGeom];
+   int RT_dof[Geometry::NumGeom];
+
+public:
+   RT_P1D_FECollection(const int p, const int dim,
+                       const int cb_type = BasisType::GaussLobatto,
+                       const int ob_type = BasisType::GaussLegendre);
+
+   virtual const FiniteElement *FiniteElementForGeometry(Geometry::Type GeomType)
+   const
+   { return RT_Elements[GeomType]; }
+   virtual int DofForGeometry(Geometry::Type GeomType) const
+   { return RT_dof[GeomType]; }
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
+   virtual const char *Name() const { return rt_name; }
+   virtual int GetContType() const { return NORMAL; }
+   FiniteElementCollection *GetTraceCollection() const;
+
+   virtual ~RT_P1D_FECollection();
+};
+
 /// Arbitrary order non-uniform rational B-splines (NURBS) finite elements.
 class NURBSFECollection : public FiniteElementCollection
 {
