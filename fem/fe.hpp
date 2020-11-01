@@ -247,7 +247,7 @@ protected:
    mutable int orders[Geometry::MaxDim]; ///< Anisotropic orders
    IntegrationRule Nodes;
 #ifndef MFEM_THREAD_SAFE
-   mutable DenseMatrix vshape; // Dof x Dim
+   mutable DenseMatrix vshape; // Dof x VDim
 #endif
    /// Container for all DofToQuad objects created by the FiniteElement.
    /** Multiple DofToQuad objects may be needed when different quadrature rules
@@ -303,9 +303,11 @@ public:
        @param Do   Number of degrees of freedom in the FiniteElement
        @param O    Order/degree of the FiniteElement
        @param F    FunctionSpace type of the FiniteElement
-    */
+       @param VD   Vector dimension for vector-valued bases
+       @param CD   Curl dimension for vector-valued bases
+   */
    FiniteElement(int D, Geometry::Type G, int Do, int O,
-                 int F = FunctionSpace::Pk);
+                 int F = FunctionSpace::Pk, int VD = 0, int CD = 0);
 
    /// Returns the reference space dimension for the finite element
    int GetDim() const { return dim; }
@@ -889,13 +891,13 @@ protected:
    }
 
 public:
-   VectorFiniteElement (int D, Geometry::Type G, int Do, int O, int M,
-                        int F = FunctionSpace::Pk) :
+   VectorFiniteElement (int D, int VD, int CD, Geometry::Type G, int Do,
+                        int O, int M, int F = FunctionSpace::Pk) :
 #ifdef MFEM_THREAD_SAFE
-      FiniteElement(D, G, Do, O, F)
+      FiniteElement(D, G, Do, O, F, VD, CD)
    { range_type = VECTOR; map_type = M; SetDerivMembers(); }
 #else
-      FiniteElement(D, G, Do, O, F), Jinv(D)
+      FiniteElement(D, G, Do, O, F, VD, CD), Jinv(D)
    { range_type = VECTOR; map_type = M; SetDerivMembers(); }
 #endif
 };
@@ -2104,7 +2106,8 @@ protected:
    Poly_1D::Basis &cbasis1d, &obasis1d;
 
 public:
-   VectorTensorFiniteElement(const int dims, const int d, const int p,
+   VectorTensorFiniteElement(const int dims, const int dimv, const int dimc,
+                             const int d, const int p,
                              const int cbtype, const int obtype,
                              const int M, const DofMapType dmtype);
 
