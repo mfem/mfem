@@ -375,7 +375,6 @@ protected:
    char nd_name[32];
    FiniteElement *ND_Elements[Geometry::NumGeom];
    int ND_dof[Geometry::NumGeom];
-   int *SegDofOrd[2];
 
 public:
    ND_P1D_FECollection(const int p, const int dim,

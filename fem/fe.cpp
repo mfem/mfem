@@ -12460,14 +12460,12 @@ const double ND_P1D_SegmentElement::tk[9] = { 1.,0.,0., 0.,1.,0., 0.,0.,1. };
 ND_P1D_SegmentElement::ND_P1D_SegmentElement(const int p,
                                              const int cb_type,
                                              const int ob_type)
-   : VectorTensorFiniteElement(1, 3 * p + 2, p, cb_type, ob_type,
-                               H_CURL, DofMapType::L2_DOF_MAP),
-     dof2tk(dof)
+   : VectorFiniteElement(1, 3, 3, Geometry::SEGMENT, 3 * p + 2, p,
+                         H_CURL, FunctionSpace::Pk),
+     dof2tk(dof),
+     cbasis1d(poly1d.GetBasis(p, VerifyClosed(cb_type))),
+     obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(ob_type)))
 {
-   vdim = 3; cdim = 3;
-
-   dof_map.SetSize(dof);
-
    const double *cp = poly1d.ClosedPoints(p, cb_type);
    const double *op = poly1d.OpenPoints(p - 1, ob_type);
 
@@ -12477,50 +12475,40 @@ ND_P1D_SegmentElement::ND_P1D_SegmentElement(const int p,
    dshape_cx.SetSize(p + 1);
 #endif
 
+   dof_map.SetSize(dof);
+
    int o = 0;
-   // x - directed dofs
-   for (int i = 0; i < p; i++)  // (0,1)
-   {
-      dof_map[i] = o++;
-   }
+   // nodes
+   // (0)
+   Nodes.IntPoint(o).x = cp[0]; // y-directed
+   dof_map[p] = o; dof2tk[o++] = 1;
+   Nodes.IntPoint(o).x = cp[0]; // z-directed
+   dof_map[2*p+1] = o; dof2tk[o++] = 2;
 
-   // y - directed dofs
-   dof_map[2*p] = o++; // (1)
-   dof_map[p]   = o++; // (0)
-   for (int i = 1; i < p; i++)  // (0,1)
-   {
-      dof_map[p+i] = o++;
-   }
+   // (1)
+   Nodes.IntPoint(o).x = cp[p]; // y-directed
+   dof_map[2*p] = o; dof2tk[o++] = 1;
+   Nodes.IntPoint(o).x = cp[p]; // z-directed
+   dof_map[3*p+1] = o; dof2tk[o++] = 2;
 
-   // z - directed dofs
-   dof_map[3*p+1] = o++; // (1)
-   dof_map[2*p+1] = o++; // (0)
-   for (int i = 1; i < p; i++)  // (0,1)
-   {
-      dof_map[2*p+i+1] = o++;
-   }
-
-   // set dof2tk and Nodes
-   o = 0;
+   // interior
+   // x-components
    for (int i = 0; i < p; i++)
    {
-      int idx = dof_map[o++];
-      dof2tk[idx] = 0;
-      Nodes.IntPoint(idx).x = op[i];
+      Nodes.IntPoint(o).x = op[i];
+      dof_map[i] = o; dof2tk[o++] = 0;
    }
    // y-components
-   for (int i = 0; i <= p; i++)
+   for (int i = 1; i < p; i++)
    {
-      int idx = dof_map[o++];
-      dof2tk[idx] = 1;
-      Nodes.IntPoint(idx).x = cp[i];
+      Nodes.IntPoint(o).x = cp[i];
+      dof_map[p+i] = o; dof2tk[o++] = 1;
    }
    // z-components
-   for (int i = 0; i <= p; i++)
+   for (int i = 1; i < p; i++)
    {
-      int idx = dof_map[o++];
-      dof2tk[idx] = 2;
-      Nodes.IntPoint(idx).x = cp[i];
+      Nodes.IntPoint(o).x = cp[i];
+      dof_map[2*p+1+i] = o; dof2tk[o++] = 2;
    }
 }
 
@@ -12560,6 +12548,25 @@ void ND_P1D_SegmentElement::CalcVShape(const IntegrationPoint &ip,
       shape(idx,0) = 0.;
       shape(idx,1) = 0.;
       shape(idx,2) = shape_cx(i);
+   }
+}
+
+void ND_P1D_SegmentElement::CalcVShape(ElementTransformation &Trans,
+                                       DenseMatrix &shape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix vshape(dof, vdim);
+#endif
+   CalcVShape(Trans.GetIntPoint(), vshape);
+   const DenseMatrix & JI = Trans.InverseJacobian();
+   MFEM_ASSERT(JI.Width() == 1 && JI.Height() == 1,
+               "ND_P1D_SegmentElement cannot be embedded in "
+               "2 or 3 dimensional spaces");
+   for (int i=0; i<dof; i++)
+   {
+      shape(i, 0) = vshape(i, 0) * JI(0,0);
+      shape(i, 1) = vshape(i, 1);
+      shape(i, 2) = vshape(i, 2);
    }
 }
 
