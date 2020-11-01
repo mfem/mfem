@@ -13,6 +13,9 @@ Version 4.2.1 (development)
 
 - Upgraded the Catch unit test framework from version 2.13.0 to version 2.13.2.
 
+- Added a "scaled Jacobian" visualization option in the Mesh Explorer miniapp to
+  help identify elements with poor mesh quality.
+
 
 Version 4.2, released on October 30, 2020
 =========================================
