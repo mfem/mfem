@@ -283,4 +283,5 @@ private:
 };
 
 }
+
 #endif /* MFEM_BLOCKOPERATOR */
