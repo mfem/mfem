@@ -179,8 +179,8 @@ int main(int argc, char *argv[])
    case 2: mesh_file = "toroid3_4_2.mesh"; break;
    // case 3: mesh_file = "toroid-hex-o3-s0_r.mesh"; break;
    // case 3: mesh_file = "../../data/square-disc.mesh"; break;
-   // case 3: mesh_file = "annulus-quad-o3.mesh"; break;
-   case 3: mesh_file = "cylinder.mesh"; break;
+   case 3: mesh_file = "annulus-quad-o3.mesh"; break;
+   // case 3: mesh_file = "cylinder.mesh"; break;
    default:
       MFEM_ABORT("Not a valid problem choice ");
       break;

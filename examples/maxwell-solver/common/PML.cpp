@@ -337,18 +337,20 @@ void ToroidPML::StretchFunction(const Vector &X,
          double r1 = rlim[1];
          double x1 = r1 * cos(a1*M_PI/180.0);
          double y1 = r1 * sin(a1*M_PI/180.0);
-         double xthickness = abs((rpml_thickness[1])*cos(a1*M_PI/180.0));
-         double ythickness = abs((rpml_thickness[1])*sin(a1*M_PI/180.0));
-         double coeffx = n * c / omega / pow(xthickness, n);
-         double coeffy = n * c / omega / pow(ythickness, n);
+         // double xthickness = ((rpml_thickness[1])*cos(a1*M_PI/180.0));
+         // double ythickness = ((rpml_thickness[1])*sin(a1*M_PI/180.0));
+         // double coeffx = n * c / omega / pow(xthickness, n);
+         // double coeffy = n * c / omega / pow(ythickness, n);
          double Lx = (rlim[1]-rpml_thickness[1]) * cos(a1*M_PI/180.0);
          double Ly = (rlim[1]-rpml_thickness[1]) * sin(a1*M_PI/180.0);
          double coeff = n * c / omega / pow(0.3, n);
 
          // cout << "Lx = " << Lx << endl;
          // cout << "Ly = " << Ly << endl;
-         dxs[0] = 1.0 + zi * coeff * abs(pow(x0 - Lx, n - 1.0));
-         dxs[1] = 1.0 + zi * coeff * abs(pow(y0 - Ly, n - 1.0));
+         // dxs[0] = 1.0 + zi * coeff * abs(pow(x0 - Lx, n - 1.0));
+         dxs[0] = 1.0 + zi * coeff * abs(pow((r0-rlim[1]+rpml_thickness[1])*cos(a1*M_PI/180.0), n - 1.0));
+         // dxs[1] = 1.0 + zi * coeff * abs(pow(y0 - Ly, n - 1.0));
+         dxs[1] = 1.0 + zi * coeff * abs(pow((r0-rlim[1]+rpml_thickness[1])*sin(a1*M_PI/180.0), n - 1.0));
          // cout << "xthickness = " << xthickness << endl;
          // cout << "ythickness = " << ythickness << endl;
          // cout << "coeffx = " << coeffx << endl;
