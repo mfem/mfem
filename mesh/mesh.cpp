@@ -4151,7 +4151,7 @@ void Mesh::EnsureNodes()
          SetCurvature(order, false, -1, Ordering::byVDIM);
       }
    }
-   else //First order H1 mesh
+   else // First order H1 mesh
    {
       SetCurvature(1, false, -1, Ordering::byVDIM);
    }

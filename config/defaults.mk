@@ -53,6 +53,8 @@ HIP_CXX = hipcc
 # gfx900, gfx1010, etc.
 HIP_ARCH = gfx900
 HIP_FLAGS = --amdgpu-target=$(HIP_ARCH)
+HIP_XCOMPILER =
+HIP_XLINKER   = -Wl,
 
 ifneq ($(NOTMAC),)
    AR      = ar
@@ -144,6 +146,16 @@ MFEM_USE_SIMD          = NO
 MFEM_USE_ADIOS2        = NO
 MFEM_USE_MKL_CPARDISO  = NO
 
+# MPI library compile and link flags
+# These settings are used only when building MFEM with MPI + HIP
+ifeq ($(MFEM_USE_MPI)$(MFEM_USE_HIP),YESYES)
+   # We determine MPI_DIR assuming $(MPICXX) is in $(MPI_DIR)/bin
+   MPI_DIR := $(patsubst %/,%,$(dir $(shell which $(MPICXX))))
+   MPI_DIR := $(patsubst %/,%,$(dir $(MPI_DIR)))
+   MPI_OPT = -I$(MPI_DIR)/include
+   MPI_LIB = -L$(MPI_DIR)/lib $(XLINKER)-rpath,$(MPI_DIR)/lib -lmpi
+endif
+
 # Compile and link options for zlib.
 ZLIB_DIR =
 ZLIB_OPT = $(if $(ZLIB_DIR),-I$(ZLIB_DIR)/include)
@@ -226,7 +238,7 @@ SUITESPARSE_LIB = -Wl,-rpath,$(SUITESPARSE_DIR)/lib -L$(SUITESPARSE_DIR)/lib\
 ifeq ($(MFEM_USE_SUPERLU5),YES)
    SUPERLU_DIR = @MFEM_DIR@/../SuperLU_DIST_5.1.0
    SUPERLU_OPT = -I$(SUPERLU_DIR)/include
-   SUPERLU_LIB = -Wl,-rpath,$(SUPERLU_DIR)/lib -L$(SUPERLU_DIR)/lib -lsuperlu_dist_5.1.0   
+   SUPERLU_LIB = -Wl,-rpath,$(SUPERLU_DIR)/lib -L$(SUPERLU_DIR)/lib -lsuperlu_dist_5.1.0
 else
    SUPERLU_DIR = @MFEM_DIR@/../SuperLU_DIST_6.3.1
    SUPERLU_OPT = -I$(SUPERLU_DIR)/include

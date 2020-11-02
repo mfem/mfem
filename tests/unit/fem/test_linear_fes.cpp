@@ -20,7 +20,7 @@ using namespace mfem;
  * \file test_linear_fes
  *
  * Some simple tests to confirm that linear finite element collections
- * and H1_FECollectionss of order 1 have the correct number of dofs.
+ * and H1_FECollections of order 1 have the correct number of dofs.
  * Also optionally outputs the mesh and grid functions in mfem and vtk formats
  */
 
